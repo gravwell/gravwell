@@ -1,0 +1,24 @@
+[Unit]
+Description=Gravwell Log Relay Service
+After=network-online.target
+OnFailure=gravwell_crash_report@%n.service
+
+[Service]
+Type=simple
+ExecStart=/opt/gravwell/bin/gravwell_simple_relay -stderr %n
+WorkingDirectory=/opt/gravwell
+Restart=always
+User=gravwell
+Group=gravwell
+StandardOutput=null
+StandardError=journal
+LimitNPROC=infinity
+LimitNOFILE=infinity
+PIDFile=/var/run/gravwell_simple_relay.pid
+TimeoutStopSec=5
+KillMode=process
+KillSignal=SIGINT
+
+
+[Install]
+WantedBy=multi-user.target

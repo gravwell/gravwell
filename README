@@ -1,0 +1,10 @@
+Sample ingesters for Gravwell.
+
+fileFollow: Watches for & ingests updates to specific files/directories, e.g. /var/log/auth.log
+networkLog: Captures & ingests network traffic from interfaces.
+SimpleRelay: Listens on TCP/UDP for log events. Can ingest either newline-delimited events or syslog's RFC 5424 format.
+
+go install github.com/gravwell/ingesters/fileFollow
+go install github.com/gravwell/ingesters/networkLog
+go install github.com/gravwell/ingesters/SimpleRelay
+

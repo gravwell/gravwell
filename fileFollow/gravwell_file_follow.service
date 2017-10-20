@@ -1,0 +1,23 @@
+[Unit]
+Description=Gravwell File Follow Service
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/opt/gravwell/bin/gravwell_file_follow -stderr %n
+WorkingDirectory=/opt/gravwell
+Restart=always
+User=gravwell
+Group=adm
+StandardOutput=null
+StandardError=journal
+LimitNPROC=infinity
+LimitNOFILE=infinity
+PIDFile=/var/run/gravwell_file_follow.pid
+TimeoutStopSec=5
+KillMode=process
+KillSignal=SIGINT
+
+
+[Install]
+WantedBy=multi-user.target
