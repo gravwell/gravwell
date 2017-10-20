@@ -18,7 +18,7 @@ import (
 	"time"
 	"unsafe"
 
-	"gravwell/oss/ingest/entry"
+	"github.com/gravwell/ingest/entry"
 )
 
 const (

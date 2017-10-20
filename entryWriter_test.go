@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"gravwell/oss/ingest/entry"
+	"github.com/gravwell/ingest/entry"
 )
 
 const (

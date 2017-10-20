@@ -9,7 +9,7 @@
 package ingest
 
 import (
-	"gravwell/oss/ingest/entry"
+	"github.com/gravwell/ingest/entry"
 	"testing"
 	"time"
 )

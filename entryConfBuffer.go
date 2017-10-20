@@ -10,7 +10,7 @@ package ingest
 
 import (
 	"errors"
-	"gravwell/oss/ingest/entry"
+	"github.com/gravwell/ingest/entry"
 )
 
 const (

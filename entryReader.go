@@ -11,7 +11,7 @@ package ingest
 import (
 	"bufio"
 	"errors"
-	"gravwell/oss/ingest/entry"
+	"github.com/gravwell/ingest/entry"
 	"io"
 	"net"
 	"sync"

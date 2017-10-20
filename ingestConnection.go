@@ -16,7 +16,7 @@ import (
 	"strings"
 	"sync"
 
-	"gravwell/oss/ingest/entry"
+	"github.com/gravwell/ingest/entry"
 )
 
 var (

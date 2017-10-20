@@ -18,7 +18,7 @@ package ingest
 import (
 	"bytes"
 	"fmt"
-	"gravwell/oss/ingest/entry"
+	"github.com/gravwell/ingest/entry"
 	"testing"
 )
 

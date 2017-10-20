@@ -27,7 +27,7 @@ import (
 	"io"
 	"math/rand"
 
-	"gravwell/oss/ingest/entry"
+	"github.com/gravwell/ingest/entry"
 )
 
 const (

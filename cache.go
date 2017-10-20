@@ -17,7 +17,7 @@ import (
 
 	"github.com/boltdb/bolt"
 
-	"gravwell/oss/ingest/entry"
+	"github.com/gravwell/ingest/entry"
 )
 
 const (

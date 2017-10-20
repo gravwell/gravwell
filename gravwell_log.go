@@ -13,7 +13,7 @@ import (
 	"strings"
 	"time"
 
-	"gravwell/oss/ingest/entry"
+	"github.com/gravwell/ingest/entry"
 )
 
 //gravwell log level type
