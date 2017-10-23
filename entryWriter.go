@@ -10,13 +10,13 @@ package ingest
 
 import (
 	"bufio"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/gravwell/ingest/entry"
 )
@@ -28,7 +28,7 @@ const (
 	READ_ENTRY_HEADER_SIZE int = entry.ENTRY_HEADER_SIZE + 12
 	//TODO: We should make this configurable by configuration
 	MAX_ENTRY_SIZE              int           = 128 * 1024 * 1024
-	WRITE_BUFFER_SIZE           int           = 2 * 1024 * 1024
+	WRITE_BUFFER_SIZE           int           = 4 * 1024 * 1024
 	MAX_WRITE_ERROR             int           = 4
 	NEW_ENTRY_MAGIC             uint32        = 0xC7C95ACB
 	FORCE_ACK_MAGIC             uint32        = 0x1ADF7350
@@ -38,8 +38,7 @@ const (
 
 	//MAX_UNCONFIRMED_COUNT MUST be > MIN_UNCONFIRMED_COUNT
 	MIN_UNCONFIRMED_COUNT int = 64
-	MAX_UNCONFIRMED_COUNT int = 1024
-	//MAX_UNCONFIRMED_COUNT int = 4096
+	MAX_UNCONFIRMED_COUNT int = 1024 * 4
 )
 
 type EntrySendID uint64
@@ -129,7 +128,7 @@ func (ew *EntryWriter) throwAckSync() error {
 	tempBuff := make([]byte, 4) //REMEMBER to adjust this number if the type changes
 
 	//park the magic into our buffer
-	*(*uint32)(unsafe.Pointer(&tempBuff[0])) = FORCE_ACK_MAGIC
+	binary.LittleEndian.PutUint32(tempBuff, FORCE_ACK_MAGIC)
 
 	//send the buffer and force it out
 	if err := ew.writeAll(tempBuff); err != nil {
@@ -173,11 +172,11 @@ func (ew *EntryWriter) forceAckNoLock() error {
 // to confirm we will send the new modified buffer which may not
 // have the original data.
 func (ew *EntryWriter) Write(ent *entry.Entry) error {
-	return ew.writeFlush(ent, true)
+	return ew.writeFlush(ent, false)
 }
 
-func (ew *EntryWriter) WriteBuffered(ent *entry.Entry) error {
-	return ew.writeFlush(ent, false)
+func (ew *EntryWriter) WriteSync(ent *entry.Entry) error {
+	return ew.writeFlush(ent, true)
 }
 
 func (ew *EntryWriter) writeFlush(ent *entry.Entry, flush bool) error {
@@ -196,6 +195,7 @@ func (ew *EntryWriter) writeFlush(ent *entry.Entry, flush bool) error {
 		ew.mtx.Unlock()
 		return err
 	}
+
 	_, err = ew.writeEntry(ent, flush)
 	ew.mtx.Unlock()
 	return err
@@ -263,6 +263,8 @@ func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) error {
 }
 
 func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
+	var flushed bool
+	var err error
 	//if our conf buffer is full force an ack service
 	if ew.ecb.Full() {
 		if err := ew.bIO.Flush(); err != nil {
@@ -274,15 +276,13 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 	}
 
 	//throw the magic
-	var flushed bool
-	*(*uint32)(unsafe.Pointer(&ew.buff[0])) = NEW_ENTRY_MAGIC
+	binary.LittleEndian.PutUint32(ew.buff, NEW_ENTRY_MAGIC)
 
 	//build out the header with size
-	err := ent.EncodeHeader(ew.buff[4 : entry.ENTRY_HEADER_SIZE+4])
-	if err != nil {
+	if err = ent.EncodeHeader(ew.buff[4 : entry.ENTRY_HEADER_SIZE+4]); err != nil {
 		return false, err
 	}
-	*(*EntrySendID)(unsafe.Pointer(&ew.buff[entry.ENTRY_HEADER_SIZE+4])) = ew.id
+	binary.LittleEndian.PutUint64(ew.buff[entry.ENTRY_HEADER_SIZE+4:], uint64(ew.id))
 	//throw it and flush it
 	if err = ew.writeAll(ew.buff); err != nil {
 		return false, err
@@ -354,20 +354,24 @@ func (ew *EntryWriter) Ack() error {
 
 // serviceAcks MUST be called with the parent holding the mutex
 func (ew *EntryWriter) serviceAcks(blocking bool) error {
-	if ew.bIO.Buffered() > 0 {
+	//only flush if we are blocking
+	if blocking && ew.bIO.Buffered() > 0 {
 		if err := ew.bIO.Flush(); err != nil {
 			return err
 		}
 	}
-	if blocking {
+	//attempt to read acks
+	if err := ew.readAcks(blocking); err != nil {
+		return err
+	}
+	if ew.ecb.Full() {
+		//if we attempted to read and we are full, force a sync, something is wrong
 		if err := ew.throwAckSync(); err != nil {
 			return err
 		}
-	} else if ew.bAckReader.Buffered() < ACK_SIZE {
-		//if non-blocking, we peek and return if nothing is ready
-		return nil
+		return ew.readAcks(true)
 	}
-	return ew.readAcks(blocking)
+	return nil
 }
 
 //readAcks pulls out all of the acks in the ackBuffer and services them
@@ -385,24 +389,24 @@ func (ew *EntryWriter) readAcks(blocking bool) error {
 			return err
 		}
 		//extract the magic and id
-		magic = *(*uint32)(unsafe.Pointer(&ew.buff[0]))
-		id = *(*EntrySendID)(unsafe.Pointer(&ew.buff[4]))
+		magic = binary.LittleEndian.Uint32(ew.buff[0:])
+		id = EntrySendID(binary.LittleEndian.Uint64(ew.buff[4:]))
 		if magic != CONFIRM_ENTRY_MAGIC {
 			//look for it in the other chunks
-			if *(*uint32)(unsafe.Pointer(&ew.buff[4])) == CONFIRM_ENTRY_MAGIC {
+			if binary.LittleEndian.Uint32(ew.buff[4:]) == CONFIRM_ENTRY_MAGIC {
 				//read 4 more bytes and roll with it
 				_, err = io.ReadFull(ew.bAckReader, ew.buff[8:16])
 				if err != nil {
 					return err
 				}
-				id = *(*EntrySendID)(unsafe.Pointer(&ew.buff[8]))
-			} else if *(*uint32)(unsafe.Pointer(&ew.buff[8])) == CONFIRM_ENTRY_MAGIC {
+				id = EntrySendID(binary.LittleEndian.Uint64(ew.buff[8:]))
+			} else if binary.LittleEndian.Uint32(ew.buff[8:]) == CONFIRM_ENTRY_MAGIC {
 				//read 8 more bytes and roll with it
 				_, err = io.ReadFull(ew.bAckReader, ew.buff[12:24])
 				if err != nil {
 					return err
 				}
-				id = *(*EntrySendID)(unsafe.Pointer(&ew.buff[12]))
+				id = EntrySendID(binary.LittleEndian.Uint64(ew.buff[12:]))
 			} else {
 				//just continue
 				continue
