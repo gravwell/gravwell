@@ -1,18 +1,11 @@
 /*************************************************************************
+ * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
  *
- * Gravwell - "Consume all the things!"
- *
- * ________________________________________________________________________
- *
- * Copyright 2017 - All Rights Reserved
- * Gravwell Inc <legal@gravwell.io>
- * ________________________________________________________________________
- *
- * NOTICE:  This code is part of the Gravwell project and may not be shared,
- * published, sold, or otherwise distributed in any from without the express
- * written consent of its owners.
- *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
+
 package ingest
 
 import (
