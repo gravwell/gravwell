@@ -229,7 +229,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		mtx:             &sync.Mutex{},
 		wg:              &sync.WaitGroup{},
 		state:           empty,
-		logLevel:        LogLevel(c.LogLevel),
+		logLevel:        logLevel(c.LogLevel),
 		eChan:           make(chan *entry.Entry, c.ChannelSize),
 		bChan:           make(chan []*entry.Entry, c.ChannelSize),
 		eq:              newEmergencyQueue(),

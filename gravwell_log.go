@@ -80,7 +80,8 @@ func (g gll) String() string {
 	return `UNKNOWN`
 }
 
-func LogLevel(v string) gll {
+// logLevel converts a string, 'v' into a Gravwell loglevel
+func logLevel(v string) gll {
 	v = strings.TrimSpace(strings.ToUpper(v))
 	if len(v) == 0 {
 		return defaultLogLevel
