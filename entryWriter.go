@@ -141,10 +141,10 @@ func (ew *EntryWriter) throwAckSync() error {
 	return nil
 }
 
-/* forceAckNoLock sends a signal to the ingester that we want to force out
-   and ACK of all outstanding entries.  This is primarily used when
-   closing the connection to ensure that all the entries actually
-   made it to the ingester. The caller MUST hold the lock */
+// forceAckNoLock sends a signal to the ingester that we want to force out
+// and ACK of all outstanding entries.  This is primarily used when
+// closing the connection to ensure that all the entries actually
+// made it to the ingester. The caller MUST hold the lock
 func (ew *EntryWriter) forceAckNoLock() error {
 	if err := ew.throwAckSync(); err != nil {
 		return err
@@ -166,13 +166,12 @@ func (ew *EntryWriter) forceAckNoLock() error {
 	return nil
 }
 
-/* Write expects to have exclusive control over the entry and all
-   its buffers from the period of write and forever after.
-   This is because it needs to be able to resend the entry if it
-   fails to confirm.  If a buffer is re-used and the entry fails
-   to confirm we will send the new modified buffer which may not
-   have the original data.
-*/
+// Write expects to have exclusive control over the entry and all
+// its buffers from the period of write and forever after.
+// This is because it needs to be able to resend the entry if it
+// fails to confirm.  If a buffer is re-used and the entry fails
+// to confirm we will send the new modified buffer which may not
+// have the original data.
 func (ew *EntryWriter) Write(ent *entry.Entry) error {
 	return ew.writeFlush(ent, true)
 }
@@ -202,10 +201,10 @@ func (ew *EntryWriter) writeFlush(ent *entry.Entry, flush bool) error {
 	return err
 }
 
-/* OpenSlots informs the caller how many slots are available before
-   we must service acks.  This is used for mostly in a multiplexing
-   system where we want to know how much we can write before we need
-   to service acks and move on.  */
+// OpenSlots informs the caller how many slots are available before
+// we must service acks.  This is used for mostly in a multiplexing
+// system where we want to know how much we can write before we need
+// to service acks and move on.
 func (ew *EntryWriter) OpenSlots(ent *entry.Entry) int {
 	ew.mtx.Lock()
 	r := ew.ecb.Free()
@@ -213,11 +212,10 @@ func (ew *EntryWriter) OpenSlots(ent *entry.Entry) int {
 	return r
 }
 
-/* WriteWithHint behaves exactly like Write but also returns a bool
-   which indicates whether or not the a flush was required.  This
-   function method is primarily used when muxing across multiple
-   indexers, so the muxer knows when to transition to the next indexer
-*/
+// WriteWithHint behaves exactly like Write but also returns a bool
+// which indicates whether or not the a flush was required.  This
+// function method is primarily used when muxing across multiple
+// indexers, so the muxer knows when to transition to the next indexer
 func (ew *EntryWriter) WriteWithHint(ent *entry.Entry) (bool, error) {
 	var err error
 	var blocking bool
@@ -237,9 +235,9 @@ func (ew *EntryWriter) WriteWithHint(ent *entry.Entry) (bool, error) {
 	return ew.writeEntry(ent, true)
 }
 
-/* WriteBatch takes a slice of entries and writes them,
-   this function is useful in multithreaded environments where
-   we want to lessen the impact of hits on a channel by threads */
+// WriteBatch takes a slice of entries and writes them,
+// this function is useful in multithreaded environments where
+// we want to lessen the impact of hits on a channel by threads
 func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) error {
 	var err error
 
@@ -341,7 +339,7 @@ func (ew *EntryWriter) writeAll(b []byte) error {
 	return nil
 }
 
-/* Ack will block waiting for at least one ack to free up a slot for sending */
+// Ack will block waiting for at least one ack to free up a slot for sending
 func (ew *EntryWriter) Ack() error {
 	ew.mtx.Lock()
 	//ensure there are outstanding acks
@@ -354,7 +352,7 @@ func (ew *EntryWriter) Ack() error {
 	return err
 }
 
-/* serviceAcks MUST be called with the parent holding the mutex */
+// serviceAcks MUST be called with the parent holding the mutex
 func (ew *EntryWriter) serviceAcks(blocking bool) error {
 	if ew.bIO.Buffered() > 0 {
 		if err := ew.bIO.Flush(); err != nil {

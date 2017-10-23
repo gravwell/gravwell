@@ -24,15 +24,23 @@ import (
 )
 
 const (
-	HASH_ITERATIONS         uint16 = 16
-	VERSION                 uint16 = 0x1
-	STATE_AUTHENTICATED     uint32 = 0xBEEF42
+	// The number of times to hash the shared secret
+	HASH_ITERATIONS uint16 = 16
+	// Auth protocol version number
+	VERSION uint16 = 0x1
+	// Authenticated, but not ready for ingest
+	STATE_AUTHENTICATED uint32 = 0xBEEF42
+	// Not authenticated
 	STATE_NOT_AUTHENTICATED uint32 = 0xFEED51
-	STATE_HOT               uint32 = 0xCAFE54 //ready to roll
+	// Authenticated and ready for ingest
+	STATE_HOT uint32 = 0xCAFE54
 
+	// Max length for a state response message
 	maxStateResponseLen uint16 = 4096
-	maxTagRequestLen    uint32 = 32 * 1024 * 1024 //32megs for a request, which is crazy huge
-	maxTagResponseLen   uint32 = 64 * 1024 * 1024 //64megs for a request, which is crazy huge
+	// Maximum size of a message requesting tags from ingester
+	maxTagRequestLen uint32 = 32 * 1024 * 1024 //32megs for a request, which is crazy huge
+	// Maximum size of a message mapping tag names to tag numbers
+	maxTagResponseLen uint32 = 64 * 1024 * 1024 //64megs for a response, which is crazy huge
 )
 
 var (
@@ -43,16 +51,24 @@ var (
 	prng *rand.Rand
 )
 
+// AuthHash represents a hashed shared secret.
 type AuthHash [16]byte
 
-// Challenge request, used to validate remote clients
+// Challenge request, used to validate remote clients.
+// The server generates RandChallenge, a random number which is hashed
+// with the pre-hashed shared secret, then run through Iterate iterations
+// of md5 and sha256 to create the response.
 type Challenge struct {
+	// Number of times to iterate the hash
 	Iterate       uint16
+	// The random number to be hashed with the secret
 	RandChallenge [32]byte
+	// Authentication version number
 	Version       uint16
 }
 
-// ChallengeResponse the resulting hash sent back as part of the challenge
+// ChallengeResponse is the resulting hash sent back as part of
+// the challenge/response process.
 type ChallengeResponse struct {
 	Response [32]byte
 }
@@ -87,14 +103,14 @@ func init() {
 	prng = rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(v))))
 }
 
-/* GenAuthHash takes a key and generates a hash using the "password" token
-   we iterate over the value, hashing with MD5 and SHA256.  We choose these
-   two algorithms because they aren't too heavy, but the alternating makes it
-   very difficult to optimize in an FPGA or ASIC.  */
+// GenAuthHash takes a key and generates a hash using the "password" token
+// we iterate over the value, hashing with MD5 and SHA256.  We choose these
+// two algorithms because they aren't too heavy, but the alternating makes it
+// very difficult to optimize in an FPGA or ASIC.
 func GenAuthHash(password string) (AuthHash, error) {
 	var runningHash []byte
 	var auth AuthHash
-	/* hash first with SHA512 to ensure we don't accidentially shrink our keyspace */
+	// hash first with SHA512 to ensure we don't accidentially shrink our keyspace
 	h512 := sha512.New()
 	io.WriteString(h512, password)
 	runningHash = h512.Sum(nil)
@@ -200,7 +216,7 @@ func GenerateResponse(auth AuthHash, ch Challenge) (*ChallengeResponse, error) {
 	return &resp, nil
 }
 
-// Decode the ChallengeResponse form the reader
+// Decode the ChallengeResponse from the reader
 func (cr *ChallengeResponse) Read(r io.Reader) error {
 	return binary.Read(r, binary.LittleEndian, cr)
 }
@@ -210,12 +226,12 @@ func (cr *ChallengeResponse) Write(w io.Writer) error {
 	return binary.Write(w, binary.LittleEndian, cr)
 }
 
-// Read the chellenge from reader
+// Read the challenge from reader
 func (c *Challenge) Read(r io.Reader) error {
 	return binary.Read(r, binary.LittleEndian, c)
 }
 
-// Write the challenge challnge
+// Write out the challenge to w
 func (c *Challenge) Write(w io.Writer) error {
 	return binary.Write(w, binary.LittleEndian, c)
 }

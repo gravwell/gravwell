@@ -29,8 +29,8 @@ const (
 	NsPerSec float64 = 1000000000.0
 )
 
-/* HumanSize will take a byte count and duration and produce a human
-   readable string showing data per second.  e.g. Megabytes/s (MB/s) */
+// HumanSize will take a byte count and duration and produce a human
+// readable string showing data per second.  e.g. Megabytes/s (MB/s)
 func HumanSize(b uint64) string {
 	if b < KB {
 		return fmt.Sprintf("%d B", b)
@@ -49,8 +49,8 @@ func HumanSize(b uint64) string {
 
 }
 
-/* HumanRate will take a byte count and duration and produce a human
-   readable string showing data per second.  e.g. Megabytes/s (MB/s) */
+// HumanRate will take a byte count and duration and produce a human
+// readable string showing data per second.  e.g. Megabytes/s (MB/s)
 func HumanRate(b uint64, dur time.Duration) string {
 	fS := float64(dur.Nanoseconds()) / NsPerSec
 	if b < KB {
@@ -70,8 +70,8 @@ func HumanRate(b uint64, dur time.Duration) string {
 
 }
 
-/* HumanLineRate will take a byte count and duration and produce a human
-   readable string in terms of bits.  e.g. Megabits/s (Mbps)*/
+// HumanLineRate will take a byte count and duration and produce a human
+// readable string in terms of bits.  e.g. Megabits/s (Mbps)
 func HumanLineRate(b uint64, dur time.Duration) string {
 	b = b * 8
 	fS := float64(dur.Nanoseconds()) / NsPerSec
@@ -91,8 +91,8 @@ func HumanLineRate(b uint64, dur time.Duration) string {
 	return fmt.Sprintf("77 MPH...")
 }
 
-/* HumanEntryRate will take an entry count and duration and produce a human
-   readable string in terms of entries per second.  e.g. 2400 K entries /s */
+// HumanEntryRate will take an entry count and duration and produce a human
+// readable string in terms of entries per second.  e.g. 2400 K entries /s
 func HumanEntryRate(b uint64, dur time.Duration) string {
 	ps := (NsPerSec * float64(b)) / float64(dur.Nanoseconds())
 	if ps < K {
@@ -111,6 +111,8 @@ func HumanEntryRate(b uint64, dur time.Duration) string {
 	return fmt.Sprintf("%.02f YE/s", ps/float64(Y))
 }
 
+// HumanCount will take a number and return an appropriately-scaled
+// string, e.g. HumanCount(12500) will return "12.50 K"
 func HumanCount(b uint64) string {
 	ps := float64(b)
 	if ps < K {

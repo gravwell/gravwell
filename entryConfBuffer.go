@@ -33,8 +33,8 @@ type EntryConfirmation struct {
 	Ent     *entry.Entry
 }
 
-/* this structure and its methods is NOT thread safe, the caller
-   should ensure that all accesses are syncronous */
+// This structure and its methods is NOT thread safe, the caller
+// should ensure that all accesses are syncronous
 type EntryConfBuffer struct {
 	buff     [](*EntryConfirmation)
 	capacity int
@@ -101,7 +101,7 @@ func (ecb *EntryConfBuffer) Free() int {
 
 }
 
-/* A confirmation removes the ID from our queue */
+// A confirmation removes the ID from our queue
 func (ecb *EntryConfBuffer) Confirm(id EntrySendID) error {
 	if ecb.count <= 0 {
 		return errEmptyConfBuff
@@ -118,7 +118,7 @@ func (ecb *EntryConfBuffer) Confirm(id EntrySendID) error {
 	return err
 }
 
-/* typically used when we need to resend something */
+// typically used when we need to resend something
 func (ecb *EntryConfBuffer) GetEntry(id EntrySendID) (*entry.Entry, error) {
 	//walk up the list and find the entry associated with the ID
 	for i := ecb.head; i < ecb.count; i++ {
@@ -153,10 +153,9 @@ func (ecb *EntryConfBuffer) popHead() (*entry.Entry, error) {
 	return ent, nil
 }
 
-/* this can be extremely expensive, but should only be happening on
-   error conditions. Its job is to go find an ID, remove it from the
-   list and shift all items forward to fill the gap
-*/
+// this can be extremely expensive, but should only be happening on
+// error conditions. Its job is to go find an ID, remove it from the
+// list and shift all items forward to fill the gap
 func (ecb *EntryConfBuffer) popUnalligned(id EntrySendID) error {
 	var curr, next int
 	//simple sanity check incase we are popping the head

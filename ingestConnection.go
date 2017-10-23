@@ -191,11 +191,11 @@ func checkTags(tags []string) error {
 	return nil
 }
 
+// CheckTag takes a tag name and returns an error if it contains any
+// characters which are not allowed in tags.
 func CheckTag(tag string) error {
 	if strings.ContainsAny(tag, FORBIDDEN_TAG_SET) {
-		if strings.ContainsAny(tag, FORBIDDEN_TAG_SET) {
-			return fmt.Errorf("tag %s contains forbidden characters", tag)
-		}
+		return fmt.Errorf("tag %s contains forbidden characters", tag)
 	}
 	return nil
 }

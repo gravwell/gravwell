@@ -98,8 +98,8 @@ func (er *EntryReader) Read() (*entry.Entry, error) {
 	return ent, nil
 }
 
-/* we just eat bytes until we hit the magic number,  this is a rudamentary
-   error recovery where a bad read can skip the entry */
+// we just eat bytes until we hit the magic number,  this is a rudimentary
+// error recovery where a bad read can skip the entry
 func (er *EntryReader) fillHeader(ent *entry.Entry, id *EntrySendID, sz *uint32) error {
 	var err error
 	var n int
@@ -141,7 +141,7 @@ headerLoop:
 	return nil
 }
 
-/* throwAck must be called with the mutex already locked by parent */
+// throwAck must be called with the mutex already locked by parent
 func (er *EntryReader) throwAck(id EntrySendID) error {
 	//check if we should flush our ack buffer
 	if er.bAckWriter.Available() < ACK_SIZE {
