@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	ACK_SIZE int = 12 //ackmagic + EntrySendID
+	ACK_SIZE int = 12 //ackmagic + entrySendID
 	//READ_ENTRY_HEADER_SIZE should be 46 bytes
 	//34 + 4 + 4 + 8 (magic, data len, entry ID)
 	READ_ENTRY_HEADER_SIZE int = entry.ENTRY_HEADER_SIZE + 12
@@ -41,7 +41,7 @@ const (
 	MAX_UNCONFIRMED_COUNT int = 1024 * 4
 )
 
-type EntrySendID uint64
+type entrySendID uint64
 
 type EntryWriter struct {
 	conn       net.Conn
@@ -49,10 +49,10 @@ type EntryWriter struct {
 	bAckReader *bufio.Reader
 	errCount   uint32
 	mtx        sync.Mutex
-	ecb        EntryConfBuffer
+	ecb        entryConfBuffer
 	hot        bool
 	buff       []byte
-	id         EntrySendID
+	id         entrySendID
 	ackTimeout time.Duration
 }
 
@@ -63,7 +63,7 @@ func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
 	if MIN_UNCONFIRMED_COUNT >= MAX_UNCONFIRMED_COUNT {
 		return nil, errors.New("MAX_UNCONFIRMED_COUNT must be >= MIN_UNCONFIRMED_COUNT")
 	}
-	ecb, err := NewEntryConfirmationBuffer(MAX_UNCONFIRMED_COUNT)
+	ecb, err := newEntryConfirmationBuffer(MAX_UNCONFIRMED_COUNT)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +304,7 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 			return false, err
 		}
 	}
-	if err = ew.ecb.Add(&EntryConfirmation{ew.id, ent}); err != nil {
+	if err = ew.ecb.Add(&entryConfirmation{ew.id, ent}); err != nil {
 		return false, err
 	}
 	ew.id++
@@ -378,7 +378,7 @@ func (ew *EntryWriter) serviceAcks(blocking bool) error {
 func (ew *EntryWriter) readAcks(blocking bool) error {
 	var err error
 	var magic uint32
-	var id EntrySendID
+	var id entrySendID
 	//loop and service all acks
 	//TODO: calculate the full ACK cound and do everything in one read
 	//multiple reads are slow
@@ -390,7 +390,7 @@ func (ew *EntryWriter) readAcks(blocking bool) error {
 		}
 		//extract the magic and id
 		magic = binary.LittleEndian.Uint32(ew.buff[0:])
-		id = EntrySendID(binary.LittleEndian.Uint64(ew.buff[4:]))
+		id = entrySendID(binary.LittleEndian.Uint64(ew.buff[4:]))
 		if magic != CONFIRM_ENTRY_MAGIC {
 			//look for it in the other chunks
 			if binary.LittleEndian.Uint32(ew.buff[4:]) == CONFIRM_ENTRY_MAGIC {
@@ -399,14 +399,14 @@ func (ew *EntryWriter) readAcks(blocking bool) error {
 				if err != nil {
 					return err
 				}
-				id = EntrySendID(binary.LittleEndian.Uint64(ew.buff[8:]))
+				id = entrySendID(binary.LittleEndian.Uint64(ew.buff[8:]))
 			} else if binary.LittleEndian.Uint32(ew.buff[8:]) == CONFIRM_ENTRY_MAGIC {
 				//read 8 more bytes and roll with it
 				_, err = io.ReadFull(ew.bAckReader, ew.buff[12:24])
 				if err != nil {
 					return err
 				}
-				id = EntrySendID(binary.LittleEndian.Uint64(ew.buff[12:]))
+				id = entrySendID(binary.LittleEndian.Uint64(ew.buff[12:]))
 			} else {
 				//just continue
 				continue

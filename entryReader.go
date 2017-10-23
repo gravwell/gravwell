@@ -42,7 +42,7 @@ type EntryReader struct {
 	errCount   uint32
 	mtx        *sync.Mutex
 	wg         *sync.WaitGroup
-	ackChan    chan EntrySendID
+	ackChan    chan entrySendID
 	errState   error
 	hot        bool
 	started    bool
@@ -61,7 +61,7 @@ func NewEntryReader(conn net.Conn) (*EntryReader, error) {
 		bAckWriter: bufio.NewWriterSize(conn, ACK_WRITER_BUFFER_SIZE),
 		mtx:        &sync.Mutex{},
 		wg:         &sync.WaitGroup{},
-		ackChan:    make(chan EntrySendID, ackChanSize),
+		ackChan:    make(chan entrySendID, ackChanSize),
 		hot:        true,
 		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
 	}, nil
@@ -112,7 +112,7 @@ func (er *EntryReader) Read() (*entry.Entry, error) {
 	var (
 		err error
 		sz  uint32
-		id  EntrySendID
+		id  entrySendID
 	)
 	er.mtx.Lock()
 	defer er.mtx.Unlock()
@@ -138,7 +138,7 @@ func (er *EntryReader) Read() (*entry.Entry, error) {
 
 // we just eat bytes until we hit the magic number,  this is a rudimentary
 // error recovery where a bad read can skip the entry
-func (er *EntryReader) fillHeader(ent *entry.Entry, id *EntrySendID, sz *uint32) error {
+func (er *EntryReader) fillHeader(ent *entry.Entry, id *entrySendID, sz *uint32) error {
 	var err error
 	var n int
 	//read the "new entry" magic number
@@ -175,7 +175,7 @@ headerLoop:
 		return errors.New("Entry size too large")
 	}
 	*sz = uint32(dataSize) //dataSize is a uint32 internally, so these casts are OK
-	*id = EntrySendID(binary.LittleEndian.Uint64(er.buff[entry.ENTRY_HEADER_SIZE:]))
+	*id = entrySendID(binary.LittleEndian.Uint64(er.buff[entry.ENTRY_HEADER_SIZE:]))
 	return nil
 }
 
@@ -184,7 +184,7 @@ func (er *EntryReader) forceAck() error {
 	return er.throwAck(0)
 }
 
-func discard(c chan EntrySendID) {
+func discard(c chan entrySendID) {
 	for _ = range c {
 		//do nothing
 	}
@@ -203,7 +203,7 @@ func (er *EntryReader) routineCleanFail(err error) {
 func (er *EntryReader) ackRoutine() {
 	defer er.wg.Done()
 	//escape analysis should ensure this is on the stack
-	acks := make([]EntrySendID, (ACK_WRITER_BUFFER_SIZE / ACK_SIZE))
+	acks := make([]entrySendID, (ACK_WRITER_BUFFER_SIZE / ACK_SIZE))
 	var i int
 	var ok bool
 	tmr := time.NewTimer(ackBatchReadTimerDuration)
@@ -264,7 +264,7 @@ func (er *EntryReader) ackRoutine() {
 
 // throwAck throws an ack down the ackChan for the ack writer to encode and write
 // throwAck must be called with the mutex already locked by parent
-func (er *EntryReader) throwAck(id EntrySendID) error {
+func (er *EntryReader) throwAck(id entrySendID) error {
 	if !er.started {
 		return errAckRoutineClosed
 	}
@@ -291,7 +291,7 @@ func (er *EntryReader) writeAll(b []byte) error {
 }
 
 //sendAcks encodes and optionally flushes our acks
-func (er *EntryReader) sendAcks(acks []EntrySendID) error {
+func (er *EntryReader) sendAcks(acks []entrySendID) error {
 	//escape analysis should ensure that this is on the stack
 	lbuff := make([]byte, ACK_WRITER_BUFFER_SIZE)
 	for i := range acks {

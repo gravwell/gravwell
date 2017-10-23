@@ -28,30 +28,30 @@ var (
 	errFullBuffer      = errors.New("Buffer is full")
 )
 
-type EntryConfirmation struct {
-	EntryID EntrySendID
+type entryConfirmation struct {
+	EntryID entrySendID
 	Ent     *entry.Entry
 }
 
 // This structure and its methods is NOT thread safe, the caller
 // should ensure that all accesses are syncronous
-type EntryConfBuffer struct {
-	buff     [](*EntryConfirmation)
+type entryConfBuffer struct {
+	buff     [](*entryConfirmation)
 	capacity int
 	head     int
 	count    int
 }
 
-func NewEntryConfirmationBuffer(unconfirmedBufferSize int) (EntryConfBuffer, error) {
+func newEntryConfirmationBuffer(unconfirmedBufferSize int) (entryConfBuffer, error) {
 	//if its too big we just size it down
 	if unconfirmedBufferSize > ABSOLUTE_MAX_UNCONFIRMED_WRITES {
 		unconfirmedBufferSize = ABSOLUTE_MAX_UNCONFIRMED_WRITES
 	}
-	buff := make([](*EntryConfirmation), unconfirmedBufferSize)
-	return EntryConfBuffer{buff, unconfirmedBufferSize, 0, 0}, nil
+	buff := make([](*entryConfirmation), unconfirmedBufferSize)
+	return entryConfBuffer{buff, unconfirmedBufferSize, 0, 0}, nil
 }
 
-func (ecb *EntryConfBuffer) outstandingEntries() []*entry.Entry {
+func (ecb *entryConfBuffer) outstandingEntries() []*entry.Entry {
 	if len(ecb.buff) == 0 {
 		return nil
 	}
@@ -70,7 +70,7 @@ func (ecb *EntryConfBuffer) outstandingEntries() []*entry.Entry {
 	return ents
 }
 
-func (ecb *EntryConfBuffer) IsHead(id EntrySendID) (bool, error) {
+func (ecb *entryConfBuffer) IsHead(id entrySendID) (bool, error) {
 	if ecb.count <= 0 {
 		return false, errEmptyList
 	}
@@ -80,29 +80,29 @@ func (ecb *EntryConfBuffer) IsHead(id EntrySendID) (bool, error) {
 	return false, nil
 }
 
-func (ecb *EntryConfBuffer) Full() bool {
+func (ecb *entryConfBuffer) Full() bool {
 	if ecb.count >= (ecb.capacity - 1) {
 		return true
 	}
 	return false
 }
 
-func (ecb *EntryConfBuffer) Count() int {
+func (ecb *entryConfBuffer) Count() int {
 	return ecb.count
 }
 
-func (ecb *EntryConfBuffer) Size() int {
+func (ecb *entryConfBuffer) Size() int {
 	return ecb.capacity
 }
 
 //Free returns how many slots are available
-func (ecb *EntryConfBuffer) Free() int {
+func (ecb *entryConfBuffer) Free() int {
 	return ecb.capacity - ecb.count
 
 }
 
 // A confirmation removes the ID from our queue
-func (ecb *EntryConfBuffer) Confirm(id EntrySendID) error {
+func (ecb *entryConfBuffer) Confirm(id entrySendID) error {
 	if ecb.count <= 0 {
 		return errEmptyConfBuff
 	}
@@ -119,7 +119,7 @@ func (ecb *EntryConfBuffer) Confirm(id EntrySendID) error {
 }
 
 // typically used when we need to resend something
-func (ecb *EntryConfBuffer) GetEntry(id EntrySendID) (*entry.Entry, error) {
+func (ecb *entryConfBuffer) GetEntry(id entrySendID) (*entry.Entry, error) {
 	//walk up the list and find the entry associated with the ID
 	for i := ecb.head; i < ecb.count; i++ {
 		//its a circular list so we need to check for runovers
@@ -136,7 +136,7 @@ func (ecb *EntryConfBuffer) GetEntry(id EntrySendID) (*entry.Entry, error) {
 	return nil, errEntryNotFound
 }
 
-func (ecb *EntryConfBuffer) popHead() (*entry.Entry, error) {
+func (ecb *entryConfBuffer) popHead() (*entry.Entry, error) {
 	var ent *entry.Entry
 	if ecb.buff[ecb.head] == nil {
 		return nil, errors.New("head is nil")
@@ -156,7 +156,7 @@ func (ecb *EntryConfBuffer) popHead() (*entry.Entry, error) {
 // this can be extremely expensive, but should only be happening on
 // error conditions. Its job is to go find an ID, remove it from the
 // list and shift all items forward to fill the gap
-func (ecb *EntryConfBuffer) popUnalligned(id EntrySendID) error {
+func (ecb *entryConfBuffer) popUnalligned(id entrySendID) error {
 	var curr, next int
 	//simple sanity check incase we are popping the head
 	if ecb.buff[ecb.head] != nil && ecb.buff[ecb.head].EntryID == id {
@@ -200,7 +200,7 @@ func (ecb *EntryConfBuffer) popUnalligned(id EntrySendID) error {
 	return errEntryNotFound
 }
 
-func (ecb *EntryConfBuffer) Add(ec *EntryConfirmation) error {
+func (ecb *entryConfBuffer) Add(ec *entryConfirmation) error {
 	var tail int
 	if (ecb.count + 1) >= ecb.capacity {
 		return errFullBuffer
