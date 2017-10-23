@@ -80,7 +80,7 @@ func (igst *IngestConnection) WriteBatchEntry(ents []*entry.Entry) error {
 	return igst.ew.WriteBatch(ents)
 }
 
-func (igst *IngestConnection) WriteEntryBuffered(ent *entry.Entry) error {
+func (igst *IngestConnection) WriteEntrySync(ent *entry.Entry) error {
 	igst.mtx.Lock()
 	defer igst.mtx.Unlock()
 	if igst.running == false {
@@ -90,7 +90,7 @@ func (igst *IngestConnection) WriteEntryBuffered(ent *entry.Entry) error {
 	if ent != nil && len(ent.SRC) == 0 {
 		ent.SRC = igst.src
 	}
-	return igst.ew.WriteBuffered(ent)
+	return igst.ew.WriteSync(ent)
 }
 
 func (igst *IngestConnection) GetTag(name string) (entry.EntryTag, bool) {

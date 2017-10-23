@@ -10,22 +10,29 @@ package ingest
 
 import (
 	"bufio"
+	"encoding/binary"
 	"errors"
 	"github.com/gravwell/ingest/entry"
 	"io"
 	"net"
 	"sync"
-	"unsafe"
+	"time"
 )
 
 const (
 	READ_BUFFER_SIZE int = 4 * 1024 * 1024
+	//TODO - we should really discover the MTU of the link and use that
+	ACK_WRITER_BUFFER_SIZE int = 16 * 1024
 
 	entCacheRechargeSize int = 2048
+	ackChanSize          int = MAX_UNCONFIRMED_COUNT
 )
 
 var (
-	errFailedFullRead = errors.New("Failed to read full buffer")
+	errFailedFullRead   = errors.New("Failed to read full buffer")
+	errAckRoutineClosed = errors.New("Ack writer is closed")
+
+	ackBatchReadTimerDuration = 10 * time.Millisecond
 )
 
 type EntryReader struct {
@@ -34,7 +41,11 @@ type EntryReader struct {
 	bAckWriter *bufio.Writer
 	errCount   uint32
 	mtx        *sync.Mutex
+	wg         *sync.WaitGroup
+	ackChan    chan EntrySendID
+	errState   error
 	hot        bool
+	started    bool
 	buff       []byte
 	//entCache is used to allocate entries in blocks to relieve some pressure on the allocator and GC
 	entCache    []entry.Entry
@@ -47,11 +58,30 @@ func NewEntryReader(conn net.Conn) (*EntryReader, error) {
 	return &EntryReader{
 		conn:       conn,
 		bIO:        bufio.NewReaderSize(conn, READ_BUFFER_SIZE),
-		bAckWriter: bufio.NewWriterSize(conn, (MAX_UNCONFIRMED_COUNT/2)*ACK_SIZE),
+		bAckWriter: bufio.NewWriterSize(conn, ACK_WRITER_BUFFER_SIZE),
 		mtx:        &sync.Mutex{},
+		wg:         &sync.WaitGroup{},
+		ackChan:    make(chan EntrySendID, ackChanSize),
 		hot:        true,
 		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
 	}, nil
+}
+
+func (er *EntryReader) Start() error {
+	er.mtx.Lock()
+	defer er.mtx.Unlock()
+	//if the entry reader has been closed, we can't Start it
+	if !er.hot {
+		return errors.New("EntryReader closed")
+	}
+	//we don't support stopping and restarting entry readers
+	if er.started {
+		return errors.New("Already started")
+	}
+	er.started = true
+	er.wg.Add(1)
+	go er.ackRoutine()
+	return nil
 }
 
 func (er *EntryReader) Close() error {
@@ -62,11 +92,19 @@ func (er *EntryReader) Close() error {
 	if !er.hot {
 		return errors.New("Close on closed EntryTransport")
 	}
+	if er.started {
+		//close the ack channel and wait for the routine to return
+		close(er.ackChan)
+		//wait for the ack writer routine to close
+		//the ack writer will flush on its way out
+		er.wg.Wait()
+	}
 	if err := er.bAckWriter.Flush(); err != nil {
 		return err
 	}
 
 	er.hot = false
+
 	return nil
 }
 
@@ -113,9 +151,9 @@ headerLoop:
 		if n < 4 {
 			return errFailedFullRead
 		}
-		switch *(*uint32)(unsafe.Pointer(&er.buff[0])) {
+		switch binary.LittleEndian.Uint32(er.buff[0:]) {
 		case FORCE_ACK_MAGIC:
-			if err := er.bAckWriter.Flush(); err != nil {
+			if err := er.forceAck(); err != nil {
 				return err
 			}
 		case NEW_ENTRY_MAGIC:
@@ -137,27 +175,148 @@ headerLoop:
 		return errors.New("Entry size too large")
 	}
 	*sz = uint32(dataSize) //dataSize is a uint32 internally, so these casts are OK
-	*id = *(*EntrySendID)(unsafe.Pointer(&er.buff[entry.ENTRY_HEADER_SIZE]))
+	*id = EntrySendID(binary.LittleEndian.Uint64(er.buff[entry.ENTRY_HEADER_SIZE:]))
 	return nil
 }
 
-/* throwAck must be called with the mutex already locked by parent */
-func (er *EntryReader) throwAck(id EntrySendID) error {
-	//check if we should flush our ack buffer
-	if er.bAckWriter.Available() < ACK_SIZE {
-		if err := er.bAckWriter.Flush(); err != nil {
-			return err
+// forceAck just sends a 0 down the ID channel, the ack routine should see it an force everything out
+func (er *EntryReader) forceAck() error {
+	return er.throwAck(0)
+}
+
+func discard(c chan EntrySendID) {
+	for _ = range c {
+		//do nothing
+	}
+}
+
+func (er *EntryReader) routineCleanFail(err error) {
+	//set the error state
+	er.errState = err
+	//close the connection
+	er.conn.Close()
+	//feed until the channel closes
+	//to prevent deadlock
+	discard(er.ackChan)
+}
+
+func (er *EntryReader) ackRoutine() {
+	defer er.wg.Done()
+	//escape analysis should ensure this is on the stack
+	acks := make([]EntrySendID, (ACK_WRITER_BUFFER_SIZE / ACK_SIZE))
+	var i int
+	var ok bool
+	tmr := time.NewTimer(ackBatchReadTimerDuration)
+
+	for id := range er.ackChan {
+		//we unblocked and grabbed stuff
+		if id == 0 {
+			//force a flush
+			if err := er.bAckWriter.Flush(); err != nil {
+				er.routineCleanFail(err)
+				return
+			}
+			//we can just continue, at this point there
+			//is nothing in the ack list
+			continue
+		}
+		//we have an ack, grab as many more as we can
+		acks[i] = id
+		i++
+		tmr.Reset(ackBatchReadTimerDuration)
+	rereadLoop:
+		for i < len(acks) {
+			select {
+			case id, ok = <-er.ackChan:
+				if !ok || id == 0 {
+					//either the channel closed
+					//or we got a forced ack
+					//send the acks and flush
+					if err := er.sendAcks(acks[:i]); err != nil {
+						er.routineCleanFail(err)
+						return
+					}
+					if err := er.bAckWriter.Flush(); err != nil {
+						er.routineCleanFail(err)
+						return
+					}
+					i = 0
+					break rereadLoop
+				}
+				//got one, add and keep trying
+				acks[i] = id
+				i++
+			case _ = <-tmr.C:
+				//no more, break so we can flush and continue
+				break rereadLoop
+			}
+		}
+		//attempt to send acks
+		if i > 0 {
+			if err := er.sendAcks(acks[:i]); err != nil {
+				er.routineCleanFail(err)
+				return
+			}
+			i = 0
 		}
 	}
+}
 
-	//fill out the buffer
-	*(*uint32)(unsafe.Pointer(&er.buff[0])) = CONFIRM_ENTRY_MAGIC
-	*(*EntrySendID)(unsafe.Pointer(&er.buff[4])) = id
-	n, err := er.bAckWriter.Write(er.buff[0:ACK_SIZE])
-	if err != nil {
-		return err
-	} else if n != ACK_SIZE {
-		return errors.New("Failed to send ACK")
+/* throwAck throws an ack down the ackChan for the ack writer to encode and write */
+func (er *EntryReader) throwAck(id EntrySendID) error {
+	if !er.started {
+		return errAckRoutineClosed
+	}
+	er.ackChan <- id
+	return nil
+}
+
+func (er *EntryReader) writeAll(b []byte) error {
+	var written int
+	for written < len(b) {
+		n, err := er.bAckWriter.Write(b[written:])
+		if err != nil {
+			return err
+		}
+		if n == 0 {
+			break
+		}
+		written += n
+	}
+	if written != len(b) {
+		return errors.New("Failed to write entire buffer")
+	}
+	return nil
+}
+
+//sendAcks encodes and optionally flushes our acks
+func (er *EntryReader) sendAcks(acks []EntrySendID) error {
+	//escape analysis should ensure that this is on the stack
+	lbuff := make([]byte, ACK_WRITER_BUFFER_SIZE)
+	for i := range acks {
+		binary.LittleEndian.PutUint32(lbuff[(i*ACK_SIZE):], CONFIRM_ENTRY_MAGIC)
+		binary.LittleEndian.PutUint64(lbuff[(i*ACK_SIZE)+4:], uint64(acks[i]))
+	}
+	return er.writeAll(lbuff[0 : len(acks)*ACK_SIZE])
+
+	//TODO batch these up and only do one write against the buffered
+	//writer
+	for i := range acks {
+		//check if we should flush our ack buffer
+		if er.bAckWriter.Available() < ACK_SIZE {
+			if err := er.bAckWriter.Flush(); err != nil {
+				return err
+			}
+		}
+		//fill out the buffer
+		binary.LittleEndian.PutUint32(lbuff[0:], CONFIRM_ENTRY_MAGIC)
+		binary.LittleEndian.PutUint64(lbuff[4:], uint64(acks[i]))
+		n, err := er.bAckWriter.Write(lbuff)
+		if err != nil {
+			return err
+		} else if n != ACK_SIZE {
+			return errors.New("Failed to send ACK")
+		}
 	}
 	return nil
 }
