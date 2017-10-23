@@ -792,6 +792,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	var e *entry.Entry
 	var b []*entry.Entry
 	var ok bool
+	bail := make(chan bool)
 
 	readerfunc := func() {
 		for e := range im.eChan {
@@ -802,6 +803,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			//handle the entry
 			if err := igst.WriteEntry(e); err != nil {
 				newConnection = true
+				bail<- true
 			} else {
 				//all is well
 				e = nil
@@ -849,6 +851,12 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			} else {
 				b = nil
 			}
+		case _, ok = <-bail:
+			// We need to bail out of the select because connection dropped
+			if !ok {
+				return
+			}
+			// just drop through the select
 		case _ = <-im.dieChan:
 			igst.Sync()
 			igst.Close()
