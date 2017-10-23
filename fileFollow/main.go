@@ -19,8 +19,7 @@ import (
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
-
-	"gravwell/oss/filewatch"
+	"github.com/gravwell/filewatch"
 )
 
 const (
