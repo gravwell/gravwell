@@ -68,7 +68,7 @@ type IngestMuxer struct {
 	//or it will panic on 32bit architectures
 	connHot         int32 //how many connections are functioning
 	connDead        int32 //how many connections are dead
-	mtx             *sync.Mutex
+	mtx             *sync.RWMutex
 	sig             *sync.Cond
 	igst            []*IngestConnection
 	dests           []Target
@@ -226,7 +226,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		pubKey:          c.PublicKey,
 		privKey:         c.PrivateKey,
 		verifyCert:      c.VerifyCert,
-		mtx:             &sync.Mutex{},
+		mtx:             &sync.RWMutex{},
 		wg:              &sync.WaitGroup{},
 		state:           empty,
 		logLevel:        LogLevel(c.LogLevel),
@@ -699,8 +699,8 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	if e == nil {
 		return nil
 	}
-	im.mtx.Lock()
-	defer im.mtx.Unlock()
+	im.mtx.RLock()
+	defer im.mtx.RUnlock()
 	if im.state != running {
 		return ErrNotRunning
 	}
@@ -716,8 +716,8 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	if len(b) == 0 {
 		return nil
 	}
-	im.mtx.Lock()
-	defer im.mtx.Unlock()
+	im.mtx.RLock()
+	defer im.mtx.RUnlock()
 	if im.state != running {
 		return ErrNotRunning
 	}
@@ -793,6 +793,23 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	var b []*entry.Entry
 	var ok bool
 
+	readerfunc := func() {
+		for e := range im.eChan {
+			e.Tag = tt.Translate(e.Tag)
+			if len(e.SRC) == 0 {
+				e.SRC = src
+			}
+			//handle the entry
+			if err := igst.WriteEntry(e); err != nil {
+				newConnection = true
+			} else {
+				//all is well
+				e = nil
+			}
+		}
+	}
+	go readerfunc()
+
 	//loop, trying to grab entries, or dying
 	for {
 		select {
@@ -811,24 +828,6 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			rc <- err
 			if err != nil {
 				newConnection = true
-			}
-		case e, ok = <-im.eChan:
-			if !ok {
-				return
-			}
-			if e == nil {
-				continue
-			}
-			e.Tag = tt.Translate(e.Tag)
-			if len(e.SRC) == 0 {
-				e.SRC = src
-			}
-			//handle the entry
-			if err := igst.WriteEntry(e); err != nil {
-				newConnection = true
-			} else {
-				//all is well
-				e = nil
 			}
 		case b, ok = <-im.bChan:
 			if !ok {

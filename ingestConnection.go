@@ -30,7 +30,7 @@ type IngestConnection struct {
 	tags       map[string]entry.EntryTag
 	running    bool
 	errorState error
-	mtx        sync.Mutex
+	mtx        sync.RWMutex
 }
 
 func (igst *IngestConnection) Close() error {
@@ -45,8 +45,8 @@ func (igst *IngestConnection) Close() error {
 }
 
 func (igst *IngestConnection) outstandingEntries() []*entry.Entry {
-	igst.mtx.Lock()
-	defer igst.mtx.Unlock()
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
 	if igst.ew == nil {
 		return nil
 	}
@@ -58,8 +58,8 @@ func (igst *IngestConnection) Write(ts entry.Timestamp, tag entry.EntryTag, data
 }
 
 func (igst *IngestConnection) WriteEntry(ent *entry.Entry) error {
-	igst.mtx.Lock()
-	defer igst.mtx.Unlock()
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
 	if igst.running == false {
 		return errors.New("Not running")
 	}
@@ -72,8 +72,8 @@ func (igst *IngestConnection) WriteEntry(ent *entry.Entry) error {
 
 // WriteBatchEntry DOES NOT populate the source on write, the caller must do so
 func (igst *IngestConnection) WriteBatchEntry(ents []*entry.Entry) error {
-	igst.mtx.Lock()
-	defer igst.mtx.Unlock()
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
 	if igst.running == false {
 		return errors.New("Not running")
 	}
@@ -81,8 +81,8 @@ func (igst *IngestConnection) WriteBatchEntry(ents []*entry.Entry) error {
 }
 
 func (igst *IngestConnection) WriteEntrySync(ent *entry.Entry) error {
-	igst.mtx.Lock()
-	defer igst.mtx.Unlock()
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
 	if igst.running == false {
 		return errors.New("Not running")
 	}
@@ -94,8 +94,8 @@ func (igst *IngestConnection) WriteEntrySync(ent *entry.Entry) error {
 }
 
 func (igst *IngestConnection) GetTag(name string) (entry.EntryTag, bool) {
-	igst.mtx.Lock()
-	defer igst.mtx.Unlock()
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
 	tg, ok := igst.tags[name]
 	if !ok {
 		return 0, false

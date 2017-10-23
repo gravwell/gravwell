@@ -304,7 +304,7 @@ func completeIngestConnection(conn net.Conn, src net.IP, auth AuthHash, tags []s
 		src:     src,
 		tags:    tagIDs,
 		running: true,
-		mtx:     sync.Mutex{},
+		mtx:     sync.RWMutex{},
 	}
 	return &igst, nil
 }
