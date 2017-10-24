@@ -60,11 +60,11 @@ type AuthHash [16]byte
 // of md5 and sha256 to create the response.
 type Challenge struct {
 	// Number of times to iterate the hash
-	Iterate       uint16
+	Iterate uint16
 	// The random number to be hashed with the secret
 	RandChallenge [32]byte
 	// Authentication version number
-	Version       uint16
+	Version uint16
 }
 
 // ChallengeResponse is the resulting hash sent back as part of

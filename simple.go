@@ -217,7 +217,7 @@ func newTlsConn(dst string, certs *TLSCerts, verify bool) (net.Conn, net.IP, err
 // No verification of the server is performed AT ALL.  All traffic is snoopable
 // and modifiable.  If someone has control of the network, they will be able to
 // inject and monitor this traffic.
-// 
+//
 // dst: should be a address:port pair.
 // For example "ingest.gravwell.com:4042" or "10.0.0.1:4042"
 func NewTCPConnection(dst string, auth AuthHash, tags []string) (*IngestConnection, error) {

@@ -800,7 +800,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			//handle the entry
 			if err := igst.WriteEntry(e); err != nil {
 				newConnection = true
-				bail<- true
+				bail <- true
 			} else {
 				//all is well
 				e = nil

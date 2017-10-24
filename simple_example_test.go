@@ -19,7 +19,7 @@ import (
 func Example_simplest() {
 	// Get an IngestConnection to localhost, using the shared secret "IngestSecrets"
 	// and specifying that we'll be using the tag "test-tag"
-	igst, err := ingest.InitializeConnection("tcp://127.0.0.1:4023", "IngestSecrets",[]string{"testtag"}, "", "", false)
+	igst, err := ingest.InitializeConnection("tcp://127.0.0.1:4023", "IngestSecrets", []string{"testtag"}, "", "", false)
 	if err != nil {
 		log.Fatalf("Couldn't open connection to ingester: %v", err)
 	}
@@ -33,9 +33,9 @@ func Example_simplest() {
 
 	// Now we'll create an Entry
 	ent := entry.Entry{
-		TS: entry.Now(),
-		SRC: net.ParseIP("127.0.0.1"),
-		Tag: tagid,
+		TS:   entry.Now(),
+		SRC:  net.ParseIP("127.0.0.1"),
+		Tag:  tagid,
 		Data: []byte("This is my test data!"),
 	}
 
