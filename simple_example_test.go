@@ -15,18 +15,23 @@ import (
 	"net"
 )
 
+var (
+	dst = "tcp://127.0.0.1:4023"
+	sharedSecret = "IngestSecrets"
+	tags = []string{"testtag"}
+)
+
 // SimplestExample is the simplest possible example of ingesting a single Entry.
 func Example_simplest() {
-	// Get an IngestConnection to localhost, using the shared secret "IngestSecrets"
-	// and specifying that we'll be using the tag "test-tag"
-	igst, err := ingest.InitializeConnection("tcp://127.0.0.1:4023", "IngestSecrets", []string{"testtag"}, "", "", false)
+	// Get an IngestConnection
+	igst, err := ingest.InitializeConnection(dst, sharedSecret, tags, "", "", false)
 	if err != nil {
 		log.Fatalf("Couldn't open connection to ingester: %v", err)
 	}
 	defer igst.Close()
 
 	// We need to get the numeric value for the tag we're using
-	tagid, ok := igst.GetTag("testtag")
+	tagid, ok := igst.GetTag(tags[0])
 	if !ok {
 		log.Fatal("couldn't look up tag")
 	}
