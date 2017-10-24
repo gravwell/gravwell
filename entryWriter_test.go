@@ -67,6 +67,7 @@ func TestInit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	etSrv.Start()
 
 	etCli, err := NewEntryWriter(cli)
 	if err != nil {
@@ -129,6 +130,7 @@ func performCycles(t *testing.T, count int) (time.Duration, uint64) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	etSrv.Start()
 
 	etCli, err := NewEntryWriter(cli)
 	if err != nil {
@@ -147,6 +149,7 @@ func performCycles(t *testing.T, count int) (time.Duration, uint64) {
 			t.Fatal(err)
 		}
 	}
+	etCli.ForceAck()
 	err = <-errChan
 	if err != nil {
 		t.Fatal(err)
@@ -189,6 +192,7 @@ func performBatchCycles(t *testing.T, count int) (time.Duration, uint64) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	etSrv.Start()
 
 	etCli, err := NewEntryWriter(cli)
 	if err != nil {
@@ -268,6 +272,7 @@ func BenchmarkSingle(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	etSrv.Start()
 
 	etCli, err := NewEntryWriter(cli)
 	if err != nil {
@@ -331,6 +336,7 @@ func BenchmarkBatch(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	etSrv.Start()
 
 	etCli, err := NewEntryWriter(cli)
 	if err != nil {
