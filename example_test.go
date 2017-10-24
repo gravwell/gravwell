@@ -75,7 +75,7 @@ func Example() {
 	ch := make(chan *entry.Entry, 2048)
 
 	// Create a handler to watch /var/log/syslog
-	// First, create a log handler. This will emit log entries tagged 'syslog'
+	// First, create a log handler. This will emit Entries tagged 'syslog'
 	tag, err := igst.GetTag("syslog")
 	if err != nil {
 		log.Fatalf("Failed to get tag: %v", err)

@@ -67,9 +67,9 @@ func ConnectionType(dst string) (string, string, error) {
 	return "", "", ErrInvalidConnectionType
 }
 
-/* InitializeConnection is a simple wrapper
-   callers can just call this function and get back a hot ingest connection
-   We take care of establishing the connection and shutteling auth around */
+// InitializeConnection is a simple wrapper to get a line to an ingester.
+// callers can just call this function and get back a hot ingest connection
+// We take care of establishing the connection and shuttling auth around
 func InitializeConnection(dst, authString string, tags []string, pubKey, privKey string, verifyRemoteKey bool) (*IngestConnection, error) {
 	auth, err := GenAuthHash(authString)
 	if err != nil {
@@ -104,7 +104,7 @@ func InitializeConnection(dst, authString string, tags []string, pubKey, privKey
 	return nil, ErrInvalidDest
 }
 
-/* verifyTlsKeys function will verify that public and private keys can be parsed */
+// verifyTlsKeys function will verify that public and private keys can be parsed
 func verifyTlsKeys(pub, priv string) error {
 	_, err := getCerts(pub, priv)
 	return err
@@ -170,11 +170,11 @@ func checkTLSPublicKey(local, remote []byte) bool {
 	return true
 }
 
-/* This function will create a new connection to a remote system using a secure
-TLS tunnel.  If the remotePubKey in TLSCerts is set, we will verify the public key
-of the remote server and bail if it doesn't match.  This is a basic MitM
-protection.  This requires that we HAVE the remote public key, getting that will
-be done else where. */
+// NewTLSConnection will create a new connection to a remote system using a secure
+// TLS tunnel.  If the remotePubKey in TLSCerts is set, we will verify the public key
+// of the remote server and bail if it doesn't match.  This is a basic MitM
+// protection.  This requires that we HAVE the remote public key, getting that will
+// be done else where.
 func NewTLSConnection(dst string, auth AuthHash, certs *TLSCerts, verify bool, tags []string) (*IngestConnection, error) {
 	if err := checkTags(tags); err != nil {
 		return nil, err
@@ -213,14 +213,13 @@ func newTlsConn(dst string, certs *TLSCerts, verify bool) (net.Conn, net.IP, err
 	return conn, src, nil
 }
 
-/* This function will create a new cleartext TCP connection to a remote system.
-No verification of the server is performed AT ALL.  All traffic is snoopable
-and modifiable.  If someone has control of the network, they will be able to
-inject and monitor this traffic.
-
-dst: should be a address:port pair.
-For example "ingest.gravwell.com:4042" or "10.0.0.1:4042"
-*/
+// This function will create a new cleartext TCP connection to a remote system.
+// No verification of the server is performed AT ALL.  All traffic is snoopable
+// and modifiable.  If someone has control of the network, they will be able to
+// inject and monitor this traffic.
+// 
+// dst: should be a address:port pair.
+// For example "ingest.gravwell.com:4042" or "10.0.0.1:4042"
 func NewTCPConnection(dst string, auth AuthHash, tags []string) (*IngestConnection, error) {
 	err := checkTags(tags)
 	if err != nil {
@@ -251,11 +250,11 @@ func newTcpConn(dst string) (net.Conn, net.IP, error) {
 	return conn, src, nil
 }
 
-/* This function will create a new NamedPipe connection to a local system.
-We have NO WAY of knowing which process is REALLY on the othe other end of the
-pipe.  But it is assumed that gravwell will be running with highly limited
-priveleges, so if the integrity of the local system is compromised,
-its already over. */
+// This function will create a new NamedPipe connection to a local system.
+// We have NO WAY of knowing which process is REALLY on the othe other end of the
+// pipe.  But it is assumed that gravwell will be running with highly limited
+// priveleges, so if the integrity of the local system is compromised,
+// its already over.
 func NewPipeConnection(dst string, auth AuthHash, tags []string) (*IngestConnection, error) {
 	err := checkTags(tags)
 	if err != nil {

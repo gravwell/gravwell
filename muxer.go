@@ -130,7 +130,7 @@ func NewMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	return newIngestMuxer(c)
 }
 
-/* NewIngestMuxer creates a new muxer that will automatically distribute entries amongst the clients */
+// NewIngestMuxer creates a new muxer that will automatically distribute entries amongst the clients
 func NewUniformIngestMuxer(dests, tags []string, authString, pubKey, privKey, remoteKey string) (*IngestMuxer, error) {
 	return NewUniformIngestMuxerExt(dests, tags, authString, pubKey, privKey, remoteKey, defaultChannelSize)
 }
@@ -691,10 +691,9 @@ func (im *IngestMuxer) GetTag(tag string) (entry.EntryTag, error) {
 	return entry.EntryTag(tg), nil
 }
 
-/* WriteEntry puts an entry into the queue to be sent out by the first available
-   entry writer routine, if all routines are dead, THIS WILL BLOCK once the
-   channel fills up.  We figure this is a natural "wait" mechanism
-*/
+// WriteEntry puts an entry into the queue to be sent out by the first available
+// entry writer routine, if all routines are dead, THIS WILL BLOCK once the
+// channel fills up.  We figure this is a natural "wait" mechanism
 func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	if e == nil {
 		return nil
@@ -708,10 +707,9 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	return nil
 }
 
-/* WriteBatch puts a slice of entries into the queue to be sent out by the first
-   available entry writer routine.  The entry writer routines will consume the
-   entire slice, so extremely large slices will go to a single indexer.
-*/
+// WriteBatch puts a slice of entries into the queue to be sent out by the first
+// available entry writer routine.  The entry writer routines will consume the
+// entire slice, so extremely large slices will go to a single indexer.
 func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	if len(b) == 0 {
 		return nil
@@ -725,11 +723,10 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	return nil
 }
 
-/* Write puts together the arguments to create an entry and writes it
-   to the queue to be sent out by the first available
-   entry writer routine, if all routines are dead, THIS WILL BLOCK once the
-   channel fills up.  We figure this is a natural "wait" mechanism
-*/
+// Write puts together the arguments to create an entry and writes it
+// to the queue to be sent out by the first available
+// entry writer routine, if all routines are dead, THIS WILL BLOCK once the
+// channel fills up.  We figure this is a natural "wait" mechanism
 func (im *IngestMuxer) Write(tm entry.Timestamp, tag entry.EntryTag, data []byte) error {
 	e := &entry.Entry{
 		Data: data,
