@@ -278,7 +278,6 @@ func (im *IngestMuxer) Close() error {
 	//there is a chance that we are fully blocked with another async caller
 	//writing to the channel, so we set the state to closed and check if we need to
 	//discard some items from the channel
-	im.state = closed
 	if atomic.LoadInt32(&im.connHot) == 0 && !im.cacheRunning {
 		//no connections are hot, and there is no cache
 		//closeing is GOING to pitch entries, so... it is what it is...
@@ -301,6 +300,11 @@ func (im *IngestMuxer) Close() error {
 	}
 
 	im.mtx.Lock()
+	if im.state == closed {
+		im.mtx.Unlock()
+		return nil
+	}
+	im.state = closed
 
 	//throw enough die chan signals for everyone to get one
 	for i := 0; i < len(im.dests); i++ {
