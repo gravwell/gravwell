@@ -274,6 +274,7 @@ func (im *IngestMuxer) Start() error {
 
 // Close the connection
 func (im *IngestMuxer) Close() error {
+	var ok bool
 	//there is a chance that we are fully blocked with another async caller
 	//writing to the channel, so we set the state to closed and check if we need to
 	//discard some items from the channel
@@ -285,8 +286,14 @@ func (im *IngestMuxer) Close() error {
 	consumer:
 		for {
 			select {
-			case _ = <-im.eChan:
-			case _ = <-im.bChan:
+			case _, ok = <-im.eChan:
+				if !ok {
+					break consumer
+				}
+			case _, ok = <-im.bChan:
+				if !ok {
+					break consumer
+				}
 			default:
 				break consumer
 			}
