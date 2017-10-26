@@ -13,6 +13,7 @@ package ingest
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"net"
 	"os"
@@ -87,8 +88,7 @@ func TestInit(t *testing.T) {
 }
 
 func TestSingleRead(t *testing.T) {
-	err := cleanup()
-	if err != nil {
+	if err := cleanup(); err != nil {
 		t.Fatal(err)
 	}
 	performCycles(t, 1)
@@ -103,16 +103,14 @@ func TestSmallRead(t *testing.T) {
 }
 
 func TestSmallBatch(t *testing.T) {
-	err := cleanup()
-	if err != nil {
+	if err := cleanup(); err != nil {
 		t.Fatal(err)
 	}
 	performBatchCycles(t, SMALL_WRITES)
 }
 
 func TestCleanup(t *testing.T) {
-	err := cleanup()
-	if err != nil {
+	if err := cleanup(); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -149,27 +147,22 @@ func performCycles(t *testing.T, count int) (time.Duration, uint64) {
 			t.Fatal(err)
 		}
 	}
-	etCli.ForceAck()
-	err = <-errChan
-	if err != nil {
+	if err = etCli.ForceAck(); err != nil {
 		t.Fatal(err)
 	}
-	//We HAVE to close the server side first (reader) or the client will block on close()
-	//waiting for confirmations from the reader that are buffered and not flushed yet
-	//but if we close the server (reader) first it will force out the confirmations and
-	//and the client won't block.
-	err = etSrv.Close()
-	if err != nil {
+	if err = etCli.Close(); err != nil {
 		t.Fatal(err)
 	}
 
-	err = etCli.Close()
-	if err != nil {
+	//get the response from the reader
+	if err = <-errChan; err != nil {
+		t.Fatal(err)
+	}
+	if err = etSrv.Close(); err != nil {
 		t.Fatal(err)
 	}
 	dur = time.Since(start)
-	err = closeConnections(cli, srv)
-	if err != nil {
+	if err = closeConnections(cli, srv); err != nil {
 		t.Fatal(err)
 	}
 	lst.Close()
@@ -226,21 +219,18 @@ func performBatchCycles(t *testing.T, count int) (time.Duration, uint64) {
 			t.Fatal(err)
 		}
 	}
-	err = <-errChan
-	if err != nil {
+
+	if err = etCli.ForceAck(); err != nil {
+		t.Fatal(err)
+	}
+	if err = etCli.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = <-errChan; err != nil {
 		t.Fatal(err)
 	}
 
-	//We HAVE to close the server side first (reader) or the client will block on close()
-	//waiting for confirmations from the reader that are buffered and not flushed yet
-	//but if we close the server (reader) first it will force out the confirmations and
-	//and the client won't block.
-	err = etSrv.Close()
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = etCli.Close()
-	if err != nil {
+	if err = etSrv.Close(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -471,9 +461,14 @@ func closeConnections(cli, srv net.Conn) error {
 }
 
 func reader(et *EntryReader, count int, errChan chan error) {
-	for i := 0; i < count; i++ {
+	var cntRead int
+feederLoop:
+	for {
 		ent, err := et.Read()
 		if err != nil {
+			if err == io.EOF {
+				break feederLoop
+			}
 			errChan <- err
 			return
 		}
@@ -481,8 +476,13 @@ func reader(et *EntryReader, count int, errChan chan error) {
 			errChan <- errors.New("Got nil entry")
 			return
 		}
+		cntRead++
 	}
-	errChan <- nil
+	if cntRead != count {
+		errChan <- fmt.Errorf("read count invalid: %d != %d", cntRead, count)
+	} else {
+		errChan <- nil
+	}
 }
 
 func makeEntry() *entry.Entry {
