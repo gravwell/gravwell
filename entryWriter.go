@@ -245,18 +245,9 @@ func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) error {
 	defer ew.mtx.Unlock()
 
 	for i := range ents {
-		if ew.ecb.Full() {
-			if err = ew.serviceAcks(true); err != nil {
-				return err
-			}
-		}
-
 		if _, err = ew.writeEntry(ents[i], false); err != nil {
 			return err
 		}
-	}
-	if err := ew.bIO.Flush(); err != nil {
-		return err
 	}
 
 	return nil
