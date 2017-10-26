@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"runtime/pprof"
 	"strings"
 	"sync"
 	"syscall"
@@ -27,10 +28,11 @@ import (
 
 const (
 	defaultConfigLoc = `/opt/gravwell/etc/simple_relay.conf`
-	chunkSize        = 1024 * 1024 * 4
+	batchSize        = 512
 )
 
 var (
+	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
 	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
@@ -94,6 +96,17 @@ func connCount() int {
 }
 
 func main() {
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to open %s for profile file: %v\n", *cpuprofile, err)
+			os.Exit(-1)
+		}
+		defer f.Close()
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
 	cfg, err := GetConfig(confLoc)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get configuration: %v\n", err)
@@ -240,70 +253,31 @@ func main() {
 	}
 }
 
-func throwBatch(igst *ingest.IngestMuxer, ents []*entry.Entry) error {
-	if len(ents) == 0 {
-		return nil
-	} else if len(ents) == 1 {
-		return igst.WriteEntry(ents[0])
-	}
-	return igst.WriteBatch(ents)
-}
-
 func relay(ch chan *entry.Entry, done chan error, igst *ingest.IngestMuxer) {
 	var ents []*entry.Entry
-	var lastTS int64
-	var currSize uint64
-
-	//grab the first entry
-	for {
-		e, ok := <-ch
-		if !ok {
-			done <- nil
-			return
-		}
-		if e == nil {
-			continue
-		}
-		lastTS = e.TS.Sec
-		ents = append(ents, e)
-		currSize += e.Size()
-		break
-	}
 
 	tckr := time.NewTicker(time.Second)
-
+	defer tckr.Stop()
 mainLoop:
 	for {
 		select {
 		case e, ok := <-ch:
 			if !ok {
-				if err := throwBatch(igst, ents); err != nil {
-					if err != ingest.ErrNotRunning {
-						fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
+				if len(ents) > 0 {
+					if err := igst.WriteBatch(ents); err != nil {
+						if err != ingest.ErrNotRunning {
+							fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
+						}
 					}
 				}
 				ents = nil
-				currSize = 0
 				break mainLoop
 			}
 			if e != nil {
-				if lastTS != e.TS.Sec {
-					if err := throwBatch(igst, ents); err != nil {
-						if err != ingest.ErrNotRunning {
-							fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
-						} else {
-							break mainLoop
-						}
-					}
-					ents = nil
-					currSize = 0
-				}
 				ents = append(ents, e)
-				currSize += e.Size()
 			}
-		case _ = <-tckr.C:
-			if len(ents) > 0 {
-				if err := throwBatch(igst, ents); err != nil {
+			if len(ents) >= batchSize {
+				if err := igst.WriteBatch(ents); err != nil {
 					if err != ingest.ErrNotRunning {
 						fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
 					} else {
@@ -311,7 +285,17 @@ mainLoop:
 					}
 				}
 				ents = nil
-				currSize = 0
+			}
+		case _ = <-tckr.C:
+			if len(ents) > 0 {
+				if err := igst.WriteBatch(ents); err != nil {
+					if err != ingest.ErrNotRunning {
+						fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
+					} else {
+						break mainLoop
+					}
+				}
+				ents = nil
 			}
 		}
 	}
@@ -390,7 +374,7 @@ func handleLog(b []byte, ip net.IP, ignoreTS bool, tag entry.EntryTag, ch chan *
 		SRC:  ip,
 		TS:   ts,
 		Tag:  tag,
-		Data: append([]byte(nil), b...),
+		Data: b,
 	}
 	return nil
 }

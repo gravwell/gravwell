@@ -125,7 +125,7 @@ func rfc5424ConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTS, setLo
 			if n > len(buff) {
 				continue
 			}
-			handleRFC5424Packet(buff[:n], raddr.IP, ch, ignoreTS, dropPrio, tag, tg)
+			handleRFC5424Packet(append([]byte(nil), buff[:n]...), raddr.IP, ch, ignoreTS, dropPrio, tag, tg)
 		}
 	}
 

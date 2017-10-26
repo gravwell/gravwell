@@ -105,7 +105,8 @@ func lineConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTimestamps, 
 			if len(ln) == 0 {
 				continue
 			}
-			if err := handleLog(ln, raddr.IP, ignoreTimestamps, tag, ch, tg); err != nil {
+			//because we are using and reusing a local buffer, we have to copy the bytes when handing in
+			if err := handleLog(append([]byte(nil), ln...), raddr.IP, ignoreTimestamps, tag, ch, tg); err != nil {
 				return
 			}
 		}
