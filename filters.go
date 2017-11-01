@@ -333,7 +333,7 @@ func initStateFile(p string) (fout *os.File, states map[FileName]*int64, err err
 			return
 		}
 		//attempt to create the file and get a handle, states will be empty
-		fout, err = os.Create(p)
+		fout, err = os.OpenFile(p, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0660)
 		if err != nil {
 			return
 		}
