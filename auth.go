@@ -48,7 +48,7 @@ var (
 	errInvalidTagRequestLen    = errors.New("Invalid tag request length")
 	errInvalidTagResponseLen   = errors.New("Invalid tag response length")
 
-	prng *rand.Rand
+	prng        *rand.Rand
 	prngCounter int
 )
 

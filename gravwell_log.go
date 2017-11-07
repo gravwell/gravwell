@@ -36,21 +36,21 @@ type IngestLogger interface {
 
 // GravwellError send an error entry down the line with the gravwell tag
 func (im *IngestMuxer) Error(format string, args ...interface{}) error {
-	if im.logLevel < gravwellError {
+	if im.logLevel >= gravwellError {
 		return nil
 	}
 	return im.gravwellWrite(gravwellError, fmt.Sprintf(format, args...))
 }
 
 func (im *IngestMuxer) Warn(format string, args ...interface{}) error {
-	if im.logLevel < gravwellWarn {
+	if im.logLevel >= gravwellWarn {
 		return nil
 	}
 	return im.gravwellWrite(gravwellWarn, fmt.Sprintf(format, args...))
 }
 
 func (im *IngestMuxer) Info(format string, args ...interface{}) error {
-	if im.logLevel < gravwellInfo {
+	if im.logLevel >= gravwellInfo {
 		return nil
 	}
 	return im.gravwellWrite(gravwellInfo, fmt.Sprintf(format, args...))

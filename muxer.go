@@ -189,12 +189,8 @@ func NewIngestMuxerExt(dests []Target, tags []string, pubKey, privKey string, ch
 }
 
 func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
-	var defaultFound bool
 	localTags := make([]string, 0, len(c.Tags))
 	for i := range c.Tags {
-		if c.Tags[i] == entry.DefaultTagName {
-			defaultFound = true
-		}
 		localTags = append(localTags, c.Tags[i])
 	}
 
