@@ -1206,8 +1206,8 @@ type tagTrans []entry.EntryTag
 
 // Translate translates a local tag to a remote tag.  Senders should not use this function
 func (tt tagTrans) Translate(t entry.EntryTag) entry.EntryTag {
-	//check if this is default or gravwell and if soo, pass it on through
-	if t == entry.DefaultTagId || t == entry.GravwellTagId {
+	//check if this is the gravwell and if soo, pass it on through
+	if t == entry.GravwellTagId {
 		return t
 	}
 	if int(t) >= len(tt) {
@@ -1220,8 +1220,8 @@ func (tt tagTrans) Translate(t entry.EntryTag) entry.EntryTag {
 // this is ONLY used when a connection dies while holding unconfirmed entries
 // this operation is stupid expensive, so... be gracious
 func (tt tagTrans) Reverse(t entry.EntryTag) entry.EntryTag {
-	//check if this is default or gravwell and if soo, pass it on through
-	if t == entry.DefaultTagId || t == entry.GravwellTagId {
+	//check if this is gravwell and if soo, pass it on through
+	if t == entry.GravwellTagId {
 		return t
 	}
 	for i := range tt {
