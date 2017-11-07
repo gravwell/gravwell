@@ -46,14 +46,14 @@ func (im *IngestMuxer) Warn(format string, args ...interface{}) error {
 	if im.logLevel < gravwellWarn {
 		return nil
 	}
-	return im.gravwellWrite(gravwellError, fmt.Sprintf(format, args...))
+	return im.gravwellWrite(gravwellWarn, fmt.Sprintf(format, args...))
 }
 
 func (im *IngestMuxer) Info(format string, args ...interface{}) error {
 	if im.logLevel < gravwellInfo {
 		return nil
 	}
-	return im.gravwellWrite(gravwellWarn, fmt.Sprintf(format, args...))
+	return im.gravwellWrite(gravwellInfo, fmt.Sprintf(format, args...))
 }
 
 func (im *IngestMuxer) gravwellWrite(level gll, line string) error {
@@ -63,6 +63,7 @@ func (im *IngestMuxer) gravwellWrite(level gll, line string) error {
 		TS:   ts,
 		Tag:  entry.GravwellTagId,
 	}
+	fmt.Println("Writing", string(e.Data))
 	return im.WriteEntry(e)
 }
 

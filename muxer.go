@@ -197,9 +197,6 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		}
 		localTags = append(localTags, c.Tags[i])
 	}
-	if !defaultFound {
-		localTags = append(localTags, entry.DefaultTagName)
-	}
 
 	//generate our tag map, the tag map is used only for quick tag lookup/translation by routines
 	tagMap := make(map[string]int, len(localTags))
@@ -1213,6 +1210,10 @@ type tagTrans []entry.EntryTag
 
 // Translate translates a local tag to a remote tag.  Senders should not use this function
 func (tt tagTrans) Translate(t entry.EntryTag) entry.EntryTag {
+	//check if this is default or gravwell and if soo, pass it on through
+	if t == entry.DefaultTagId || t == entry.GravwellTagId {
+		return t
+	}
 	if int(t) >= len(tt) {
 		return tt[0]
 	}
@@ -1223,6 +1224,10 @@ func (tt tagTrans) Translate(t entry.EntryTag) entry.EntryTag {
 // this is ONLY used when a connection dies while holding unconfirmed entries
 // this operation is stupid expensive, so... be gracious
 func (tt tagTrans) Reverse(t entry.EntryTag) entry.EntryTag {
+	//check if this is default or gravwell and if soo, pass it on through
+	if t == entry.DefaultTagId || t == entry.GravwellTagId {
+		return t
+	}
 	for i := range tt {
 		if tt[i] == t {
 			return entry.EntryTag(i)
