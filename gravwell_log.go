@@ -63,7 +63,6 @@ func (im *IngestMuxer) gravwellWrite(level gll, line string) error {
 		TS:   ts,
 		Tag:  entry.GravwellTagId,
 	}
-	fmt.Println("Writing", string(e.Data))
 	return im.WriteEntry(e)
 }
 
