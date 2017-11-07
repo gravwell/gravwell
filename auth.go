@@ -49,6 +49,7 @@ var (
 	errInvalidTagResponseLen   = errors.New("Invalid tag response length")
 
 	prng *rand.Rand
+	prngCounter int
 )
 
 // AuthHash represents a hashed shared secret.
@@ -101,6 +102,7 @@ func init() {
 		panic("Failed to get random seed " + err.Error())
 	}
 	prng = rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(v))))
+	prngCounter = rand.Intn(512) + 512
 }
 
 // GenAuthHash takes a key and generates a hash using the "password" token
@@ -157,9 +159,22 @@ func VerifyResponse(auth AuthHash, chal Challenge, resp ChallengeResponse) error
 	return nil
 }
 
+func checkAndReseedPRNG() {
+	prngCounter -= 1
+	if prngCounter == 0 {
+		v := make([]byte, 8)
+		if _, err := crand.Read(v); err != nil {
+			panic("Failed to get random seed " + err.Error())
+		}
+		prng.Seed(int64(binary.LittleEndian.Uint64(v)))
+		prngCounter = rand.Intn(512) + 512
+	}
+}
+
 // NewChallenge generates a random hash string and a random iteration count
 func NewChallenge(auth AuthHash) (Challenge, error) {
 	var chal [32]byte
+	checkAndReseedPRNG()
 	iter := uint16(10000 + prng.Intn(10000))
 	for i := 0; i < len(chal); i++ {
 		chal[i] = byte(prng.Intn(0xff))
