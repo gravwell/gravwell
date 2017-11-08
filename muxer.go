@@ -274,6 +274,7 @@ func (im *IngestMuxer) Start() error {
 func (im *IngestMuxer) Close() error {
 	// Inform the world that we're done.
 	im.Info("Ingester %v exiting\n", im.name)
+	im.Sync(time.Second)
 
 	var ok bool
 	//there is a chance that we are fully blocked with another async caller
