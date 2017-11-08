@@ -95,6 +95,7 @@ type IngestMuxer struct {
 	cacheRunning    bool
 	cacheError      error
 	cacheSignal     chan bool
+	name	string
 }
 
 type UniformMuxerConfig struct {
@@ -108,6 +109,7 @@ type UniformMuxerConfig struct {
 	EnableCache  bool
 	CacheConfig  IngestCacheConfig
 	LogLevel     string
+	IngesterName	string
 }
 
 type MuxerConfig struct {
@@ -120,6 +122,7 @@ type MuxerConfig struct {
 	EnableCache  bool
 	CacheConfig  IngestCacheConfig
 	LogLevel     string
+	IngesterName	string
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
@@ -169,6 +172,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		EnableCache:  c.EnableCache,
 		CacheConfig:  c.CacheConfig,
 		LogLevel:     c.LogLevel,
+		IngesterName: c.IngesterName,
 	}
 	return newIngestMuxer(cfg)
 }
@@ -235,12 +239,13 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		cacheWg:         &sync.WaitGroup{},
 		cacheFileBacked: c.CacheConfig.FileBackingLocation != ``,
 		cacheSignal:     cacheSig,
+		name:	c.IngesterName,
 	}, nil
 }
 
-//Start starts the connection process.  This will return immediately, and does
-//not mean that connections are ready.  Callers should call WaitForHot immediately after
-//to wiat for
+//Start starts the connection process. This will return immediately, and does
+//not mean that connections are ready. Callers should call WaitForHot immediately after
+//to wait for the connections to be ready.
 func (im *IngestMuxer) Start() error {
 	im.mtx.Lock()
 	defer im.mtx.Unlock()
@@ -267,6 +272,9 @@ func (im *IngestMuxer) Start() error {
 
 // Close the connection
 func (im *IngestMuxer) Close() error {
+	// Inform the world that we're done.
+	im.Info("Ingester %v exiting\n", im.name)
+
 	var ok bool
 	//there is a chance that we are fully blocked with another async caller
 	//writing to the channel, so we set the state to closed and check if we need to
@@ -466,6 +474,7 @@ func (im *IngestMuxer) StopAndSync(to time.Duration) error {
 // The timout duration parameter is an optional timeout, if zero, it waits
 // indefinitely
 func (im *IngestMuxer) WaitForHot(to time.Duration) error {
+	defer im.Info("Ingester %v has gone hot", im.name)
 	//if we have a hot, filebacked cache, then endpoints are go for ingest
 	if im.cacheRunning && im.cacheError == nil && im.cacheFileBacked {
 		return nil
