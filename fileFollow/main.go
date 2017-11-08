@@ -92,6 +92,7 @@ func main() {
 		PublicKey:    ``,
 		PrivateKey:   ``,
 		LogLevel:     cfg.LogLevel(),
+		IngesterName: "filefollow",
 	}
 	if cfg.CacheEnabled() {
 		ingestConfig.EnableCache = true
