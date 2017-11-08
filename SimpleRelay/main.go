@@ -132,6 +132,7 @@ func main() {
 		Auth:         cfg.Secret(),
 		LogLevel:     cfg.LogLevel(),
 		VerifyCert:   !cfg.VerifyRemote(),
+		IngesterName: "simplerelay",
 	}
 	if cfg.EnableCache() {
 		igCfg.EnableCache = true
