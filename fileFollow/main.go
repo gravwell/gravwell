@@ -17,9 +17,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravwell/filewatch"
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
-	"github.com/gravwell/filewatch"
 )
 
 const (
