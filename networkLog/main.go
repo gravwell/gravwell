@@ -177,6 +177,7 @@ func main() {
 		Tags:         tags,
 		Auth:         cfg.Secret(),
 		LogLevel:     cfg.LogLevel(),
+		IngesterName: "networkLog",
 	}
 	if cfg.EnableCache() {
 		igCfg.EnableCache = true

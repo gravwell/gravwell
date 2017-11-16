@@ -17,9 +17,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gravwell/filewatch"
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
-	"github.com/gravwell/filewatch"
 )
 
 const (
@@ -92,6 +92,7 @@ func main() {
 		PublicKey:    ``,
 		PrivateKey:   ``,
 		LogLevel:     cfg.LogLevel(),
+		IngesterName: "filefollow",
 	}
 	if cfg.CacheEnabled() {
 		ingestConfig.EnableCache = true
