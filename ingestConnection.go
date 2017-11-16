@@ -172,6 +172,12 @@ func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]
 	if err := tagResp.Read(conn); err != nil {
 		return nil, err
 	}
+	// Make sure the tags were ok
+	if tagResp.Count == 0 {
+		// We passed an invalid tag
+		return nil, errors.New("Failed to negotiate tags.")
+	}
+
 	//Throw "we're hot" message
 	state.ID = STATE_HOT
 	state.Info = ""

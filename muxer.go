@@ -475,7 +475,6 @@ func (im *IngestMuxer) StopAndSync(to time.Duration) error {
 // The timout duration parameter is an optional timeout, if zero, it waits
 // indefinitely
 func (im *IngestMuxer) WaitForHot(to time.Duration) error {
-	defer im.Info("Ingester %v has gone hot", im.name)
 	//if we have a hot, filebacked cache, then endpoints are go for ingest
 	if im.cacheRunning && im.cacheError == nil && im.cacheFileBacked {
 		return nil
@@ -493,6 +492,7 @@ func (im *IngestMuxer) WaitForHot(to time.Duration) error {
 	for {
 		select {
 		case <-im.upChan:
+			im.Info("Ingester %v has gone hot", im.name)
 			return nil //somone came up
 		case <-toCh:
 			return ErrConnectionTimeout
