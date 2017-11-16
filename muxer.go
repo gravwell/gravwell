@@ -95,7 +95,7 @@ type IngestMuxer struct {
 	cacheRunning    bool
 	cacheError      error
 	cacheSignal     chan bool
-	name	string
+	name            string
 }
 
 type UniformMuxerConfig struct {
@@ -109,7 +109,7 @@ type UniformMuxerConfig struct {
 	EnableCache  bool
 	CacheConfig  IngestCacheConfig
 	LogLevel     string
-	IngesterName	string
+	IngesterName string
 }
 
 type MuxerConfig struct {
@@ -122,7 +122,7 @@ type MuxerConfig struct {
 	EnableCache  bool
 	CacheConfig  IngestCacheConfig
 	LogLevel     string
-	IngesterName	string
+	IngesterName string
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
@@ -239,7 +239,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		cacheWg:         &sync.WaitGroup{},
 		cacheFileBacked: c.CacheConfig.FileBackingLocation != ``,
 		cacheSignal:     cacheSig,
-		name:	c.IngesterName,
+		name:            c.IngesterName,
 	}, nil
 }
 
@@ -800,12 +800,11 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	defer tkr.Stop()
 
 	var newConnection bool
-	var e *entry.Entry
-	var b []*entry.Entry
-	var ok bool
-	bail := make(chan bool)
+	bail := make(chan bool, 2) //this MUST have enough capacity to hold both reader functions
+	wg := &sync.WaitGroup{}
 
-	readerfunc := func() {
+	singleReaderFunc := func(lwg *sync.WaitGroup) {
+		defer lwg.Done()
 		for e := range im.eChan {
 			e.Tag = tt.Translate(e.Tag)
 			if len(e.SRC) == 0 {
@@ -813,15 +812,46 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			}
 			//handle the entry
 			if err := igst.WriteEntry(e); err != nil {
-				newConnection = true
+				if !im.recycleEntries(e, nil, tt) {
+					//we were able to recycle, connection isn't closed
+					newConnection = true
+				}
 				bail <- true
-			} else {
-				//all is well
-				e = nil
+				fmt.Println("WriteEntry Failed", err)
+				return
 			}
 		}
 	}
-	go readerfunc()
+	blockReaderFunc := func(lwg *sync.WaitGroup) {
+		defer lwg.Done()
+		for b := range im.bChan {
+			if b == nil {
+				continue
+			}
+			for i := range b {
+				if b[i] != nil {
+					b[i].Tag = tt.Translate(b[i].Tag)
+					if len(b[i].SRC) == 0 {
+						b[i].SRC = src
+					}
+				}
+			}
+			if err = igst.WriteBatchEntry(b); err != nil {
+				if !im.recycleEntries(nil, b, tt) {
+					//we were able to recycle, connection isn't closed
+					newConnection = true
+				}
+				bail <- true
+				fmt.Println("WriteBatch Failed", err)
+				return
+			}
+		}
+	}
+
+	//fire off our two reader functions
+	wg.Add(2)
+	go singleReaderFunc(wg)
+	go blockReaderFunc(wg)
 
 	//loop, trying to grab entries, or dying
 	for {
@@ -842,32 +872,13 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			if err != nil {
 				newConnection = true
 			}
-		case b, ok = <-im.bChan:
+		case _, ok := <-bail:
 			if !ok {
+				//nobody closes this, so this SHOULD never happen
 				return
 			}
-			if b == nil {
-				continue
-			}
-			for i := range b {
-				if b[i] != nil {
-					b[i].Tag = tt.Translate(b[i].Tag)
-					if len(b[i].SRC) == 0 {
-						b[i].SRC = src
-					}
-				}
-			}
-			if err = igst.WriteBatchEntry(b); err != nil {
-				newConnection = true
-			} else {
-				b = nil
-			}
-		case _, ok = <-bail:
-			// We need to bail out of the select because connection dropped
-			if !ok {
-				return
-			}
-			// just drop through the select
+			// one of the reader functions failed to write
+			//we fall out of the switch statement and restart the connection
 		case _ = <-im.dieChan:
 			igst.Sync()
 			igst.Close()
@@ -881,16 +892,9 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			//we don't care, and cant do anything about it
 			igst.Close()
 			im.goDead() //let the world know of our failures
+			wg.Wait()   //wait for our reader functions to finish
 			im.igst[igIdx] = nil
 
-			//try to put our current entry and any outstanding entries back on
-			//the channel, if we return true, just leave
-			if im.recycleEntries(e, b, tt) {
-				//just return, its already dead and closed
-				return
-			}
-			e = nil
-			b = nil
 			ents := igst.outstandingEntries()
 			if im.recycleEntries(nil, ents, tt) {
 				//just return, its already dead and closed
@@ -921,6 +925,10 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 					//only reset the newConnection value and break if we
 					//were able to clean the emergency queue
 					newConnection = false
+					//fire our reader functions back up
+					wg.Add(2)
+					go singleReaderFunc(wg)
+					go blockReaderFunc(wg)
 					break
 				}
 				// failed to pull and send values from the emergency queue
