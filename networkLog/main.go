@@ -12,11 +12,13 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"os"
 	"os/signal"
 	"path"
+	"runtime/pprof"
 	"syscall"
 	"time"
 
@@ -36,6 +38,7 @@ var (
 	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
+	profileFile    = flag.String("profile", "", "Start a CPU profiler, disabled if blank")
 
 	pktTimeout time.Duration = 500 * time.Millisecond
 
@@ -91,6 +94,15 @@ func init() {
 }
 
 func main() {
+	if *profileFile != `` {
+		f, err := os.Create(*profileFile)
+		if err != nil {
+			log.Fatal("failed to open pprof", err)
+		}
+		defer f.Close()
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
 	cfg, err := GetConfig(confLoc)
 	if err != nil {
 		log.Fatal("Failed to get configuration: ", err)
@@ -292,7 +304,7 @@ func packetExtractor(hnd *pcap.Handle, c chan []capPacket) {
 	for {
 		data, ci, err := hnd.ReadPacketData()
 		if err != nil {
-			if err == pcap.NextErrorTimeoutExpired {
+			if err == pcap.NextErrorTimeoutExpired || err == io.EOF {
 				if len(packets) > 0 {
 					c <- packets
 					packets = nil
