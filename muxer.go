@@ -803,55 +803,55 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	bail := make(chan bool, 2) //this MUST have enough capacity to hold both reader functions
 	wg := &sync.WaitGroup{}
 
-	singleReaderFunc := func(lwg *sync.WaitGroup) {
+	// This takes care of some synchronization issues we had with two goroutines
+	// when the underlying ingestConnection died.
+	// We will re-visit this, but for the time being this will work
+	readerFunc := func(lwg *sync.WaitGroup) {
 		defer lwg.Done()
-		for e := range im.eChan {
-			e.Tag = tt.Translate(e.Tag)
-			if len(e.SRC) == 0 {
-				e.SRC = src
-			}
-			//handle the entry
-			if err := igst.WriteEntry(e); err != nil {
-				if !im.recycleEntries(e, nil, tt) {
-					//we were able to recycle, connection isn't closed
-					newConnection = true
+		for {
+			select {
+			case e := <- im.eChan:
+				e.Tag = tt.Translate(e.Tag)
+				if len(e.SRC) == 0 {
+					e.SRC = src
 				}
-				bail <- true
-				fmt.Println("WriteEntry Failed", err)
-				return
-			}
-		}
-	}
-	blockReaderFunc := func(lwg *sync.WaitGroup) {
-		defer lwg.Done()
-		for b := range im.bChan {
-			if b == nil {
-				continue
-			}
-			for i := range b {
-				if b[i] != nil {
-					b[i].Tag = tt.Translate(b[i].Tag)
-					if len(b[i].SRC) == 0 {
-						b[i].SRC = src
+				//handle the entry
+				if err := igst.WriteEntry(e); err != nil {
+					if !im.recycleEntries(e, nil, tt) {
+						//we were able to recycle, connection isn't closed
+						newConnection = true
+					}
+					bail <- true
+					fmt.Println("WriteEntry Failed", err)
+					return
+				}
+			case b := <- im.bChan:
+				if b == nil {
+					continue
+				}
+				for i := range b {
+					if b[i] != nil {
+						b[i].Tag = tt.Translate(b[i].Tag)
+						if len(b[i].SRC) == 0 {
+							b[i].SRC = src
+						}
 					}
 				}
-			}
-			if err = igst.WriteBatchEntry(b); err != nil {
-				if !im.recycleEntries(nil, b, tt) {
-					//we were able to recycle, connection isn't closed
-					newConnection = true
+				if err = igst.WriteBatchEntry(b); err != nil {
+					if !im.recycleEntries(nil, b, tt) {
+						//we were able to recycle, connection isn't closed
+						newConnection = true
+					}
+					bail <- true
+					fmt.Println("WriteBatch Failed", err)
+					return
 				}
-				bail <- true
-				fmt.Println("WriteBatch Failed", err)
-				return
 			}
 		}
 	}
 
-	//fire off our two reader functions
-	wg.Add(2)
-	go singleReaderFunc(wg)
-	go blockReaderFunc(wg)
+	wg.Add(1)
+	go readerFunc(wg)
 
 	//loop, trying to grab entries, or dying
 	for {
@@ -925,10 +925,9 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 					//only reset the newConnection value and break if we
 					//were able to clean the emergency queue
 					newConnection = false
-					//fire our reader functions back up
-					wg.Add(2)
-					go singleReaderFunc(wg)
-					go blockReaderFunc(wg)
+					//fire our reader function back up
+					wg.Add(1)
+					go readerFunc(wg)
 					break
 				}
 				// failed to pull and send values from the emergency queue
