@@ -46,8 +46,22 @@ func TestStart(t *testing.T) {
 	}
 }
 
+func TestCustomManual(t *testing.T) {
+	tg, err := NewTimeGrinder()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, ok, err := tg.Extract([]byte(`11-20-2017 10:04:56.407 [80000037] webserver/bgSearch.go:502`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("Failed to extract timestamp")
+	}
+}
+
 func TestCustom(t *testing.T) {
-	if err := runFullSecTests("01-02-2006 15:04:05.000000"); err != nil {
+	if err := runFullSecTests(CUSTOM1_MILLI_MSG_FORMAT); err != nil {
 		t.Fatal(err)
 	}
 }
