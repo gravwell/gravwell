@@ -810,7 +810,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 		defer lwg.Done()
 		for {
 			select {
-			case e, ok := <- im.eChan:
+			case e, ok := <-im.eChan:
 				if !ok {
 					return
 				}
@@ -827,7 +827,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 					bail <- true
 					return
 				}
-			case b, ok := <- im.bChan:
+			case b, ok := <-im.bChan:
 				if !ok {
 					return
 				}
