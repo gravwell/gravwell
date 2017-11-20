@@ -46,6 +46,12 @@ func TestStart(t *testing.T) {
 	}
 }
 
+func TestCustom(t *testing.T) {
+	if err := runFullSecTests("01-02-2006 15:04:05.000000"); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestAnsiC(t *testing.T) {
 	if err := runFullSecTests(time.ANSIC); err != nil {
 		t.Fatal(err)

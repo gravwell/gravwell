@@ -93,6 +93,11 @@ func NewDPKGProcessor() *processor {
 	return &processor{regexp.MustCompile(re), DPKG_MSG_FORMAT}
 }
 
+func NewCustom1MilliProcessor() *processor {
+	re := `(?P<ts>\d\d-\d\d-\d\d\d\d\s\d\d:\d\d:\d\d\.\d+)`
+	return &processor{regexp.MustCompile(re), CUSTOM1_MILLI_MSG_FORMAT}
+}
+
 func NewNGINXProcessor() *processor {
 	re := `(?P<ts>\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})`
 	return &processor{regexp.MustCompile(re), NGINX_FORMAT}

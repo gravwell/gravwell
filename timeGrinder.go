@@ -29,12 +29,13 @@ import (
 const (
 	DEFAULT_TIMEGRINDER_SIZE int = 16
 
-	APACHE_FORMAT       string = `_2/Jan/2006:15:04:05 -0700`
-	APACHE_NO_TZ_FORMAT string = `_2/Jan/2006:15:04:05`
-	NGINX_FORMAT        string = `2006/01/02 15:04:05`
-	SYSLOG_FORMAT       string = `Jan _2 15:04:05`
-	SYSLOG_FILE_FORMAT  string = `2006-01-02T15:04:05.999999999-07:00`
-	DPKG_MSG_FORMAT     string = `2006-01-02 15:04:05`
+	APACHE_FORMAT            string = `_2/Jan/2006:15:04:05 -0700`
+	APACHE_NO_TZ_FORMAT      string = `_2/Jan/2006:15:04:05`
+	NGINX_FORMAT             string = `2006/01/02 15:04:05`
+	SYSLOG_FORMAT            string = `Jan _2 15:04:05`
+	SYSLOG_FILE_FORMAT       string = `2006-01-02T15:04:05.999999999-07:00`
+	DPKG_MSG_FORMAT          string = `2006-01-02 15:04:05`
+	CUSTOM1_MILLI_MSG_FORMAT string = `01-02-2006 15:04:05.000000`
 )
 
 var (
@@ -104,6 +105,9 @@ func NewTimeGrinder() (*TimeGrinder, error) {
 
 	//build DPKGProcessor
 	procs = append(procs, NewDPKGProcessor())
+
+	//build DPKGMilliProcessor
+	procs = append(procs, NewCustom1MilliProcessor())
 
 	//build NGINXProcessor
 	procs = append(procs, NewNGINXProcessor())
