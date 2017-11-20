@@ -94,7 +94,7 @@ func NewDPKGProcessor() *processor {
 }
 
 func NewCustom1MilliProcessor() *processor {
-	re := `(?P<ts>\d\d-\d\d-\d\d\d\d\s\d\d:\d\d:\d\d\.\d+)`
+	re := `(?P<ts>\d\d-\d\d-\d\d\d\d\s\d\d:\d\d:\d\d\.\d)`
 	return &processor{regexp.MustCompile(re), CUSTOM1_MILLI_MSG_FORMAT}
 }
 
