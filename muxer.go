@@ -806,11 +806,14 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	// This takes care of some synchronization issues we had with two goroutines
 	// when the underlying ingestConnection died.
 	// We will re-visit this, but for the time being this will work
-	readerFunc := func(lwg *sync.WaitGroup) {
+	readerFunc := func(lwg *sync.WaitGroup, tt tagTrans) {
 		defer lwg.Done()
 		for {
 			select {
-			case e := <- im.eChan:
+			case e, ok := <- im.eChan:
+				if !ok {
+					return
+				}
 				e.Tag = tt.Translate(e.Tag)
 				if len(e.SRC) == 0 {
 					e.SRC = src
@@ -822,10 +825,12 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 						newConnection = true
 					}
 					bail <- true
-					fmt.Println("WriteEntry Failed", err)
 					return
 				}
-			case b := <- im.bChan:
+			case b, ok := <- im.bChan:
+				if !ok {
+					return
+				}
 				if b == nil {
 					continue
 				}
@@ -843,7 +848,6 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 						newConnection = true
 					}
 					bail <- true
-					fmt.Println("WriteBatch Failed", err)
 					return
 				}
 			}
@@ -851,7 +855,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	}
 
 	wg.Add(1)
-	go readerFunc(wg)
+	go readerFunc(wg, tt)
 
 	//loop, trying to grab entries, or dying
 	for {
@@ -927,7 +931,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 					newConnection = false
 					//fire our reader function back up
 					wg.Add(1)
-					go readerFunc(wg)
+					go readerFunc(wg, tt)
 					break
 				}
 				// failed to pull and send values from the emergency queue
