@@ -12,11 +12,11 @@ package winevent
 import (
 	"errors"
 	"fmt"
+	"github.com/gravwell/ingest"
+	"github.com/gravwell/ingest/entry"
 	"os"
 	"path/filepath"
 	"regexp"
-	"github.com/gravwell/ingest/entry"
-	"github.com/gravwell/ingest"
 	"strconv"
 	"strings"
 	"time"
@@ -363,4 +363,3 @@ func ServiceFilename(name string) (string, error) {
 	}
 	return filepath.Join(exeDir, name), nil
 }
-
