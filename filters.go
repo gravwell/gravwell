@@ -20,7 +20,7 @@ import (
 type filter struct {
 	bname string //name given to the config file
 	loc   string //location we are watching
-	mtch  string
+	mtchs []string
 	lh    handler
 }
 
@@ -121,14 +121,14 @@ func (fm *FilterManager) dumpStates() error {
 	return nil
 }
 
-func (f *FilterManager) AddFilter(bname, loc, mtch string, lh handler) error {
+func (f *FilterManager) AddFilter(bname, loc string, mtchs []string, lh handler) error {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 
 	fltr := filter{
 		bname: bname,
 		loc:   filepath.Clean(loc),
-		mtch:  mtch,
+		mtchs: mtchs,
 		lh:    lh,
 	}
 	f.filters = append(f.filters, fltr)
@@ -146,14 +146,7 @@ func (f *FilterManager) RemoveFollower(fpath string) error {
 	//check filters
 	for _, v := range f.filters {
 		//check base directory and pattern match
-		if v.loc != fdir {
-			continue
-		}
-		ok, err := filepath.Match(v.mtch, fname)
-		if err != nil {
-			return err
-		}
-		if !ok {
+		if v.loc != fdir || !f.matchFile(v.mtchs, fname) {
 			continue
 		}
 		//check if we have an active follower
@@ -245,14 +238,7 @@ func (f *FilterManager) launchFollowers(fpath string, deleteState bool) error {
 	//swing through all filters and launch a follower for each one that matches
 	for i, v := range f.filters {
 		//check base directory and pattern match
-		if v.loc != fdir {
-			continue
-		}
-		ok, err := filepath.Match(v.mtch, fname)
-		if err != nil {
-			return err
-		}
-		if !ok {
+		if v.loc != fdir || !f.matchFile(v.mtchs, fname) {
 			continue
 		}
 		si = nil
@@ -294,7 +280,7 @@ func (f *FilterManager) checkRename(fpath string, id FileId) (isRename bool, err
 				removeFollower = true
 			}
 			//check the filter glob against the new name
-			if f.matchFile(filterId, fdir, fname) {
+			if f.filters[filterId].loc != fdir || !f.matchFile(f.filters[filterId].mtchs, fname) {
 				//this is just a rename, update the fpath in the follower
 				delete(f.states, k)
 				delete(f.followers, k)
@@ -320,18 +306,14 @@ func (f *FilterManager) checkRename(fpath string, id FileId) (isRename bool, err
 	return
 }
 
-func (f *FilterManager) matchFile(filterId int, dir, fname string) bool {
-	if filterId >= len(f.filters) {
-		return false
+func (f *FilterManager) matchFile(mtchs []string, fname string) (matched bool) {
+	for _, m := range mtchs {
+		if ok, err := filepath.Match(m, fname); err == nil && ok {
+			matched = true
+			break
+		}
 	}
-	fltr := f.filters[filterId]
-	if fltr.loc != dir {
-		return false
-	}
-	if ok, err := filepath.Match(fltr.mtch, fname); err != nil || !ok {
-		return false
-	}
-	return true
+	return
 }
 
 func (f *FilterManager) LoadFile(fpath string) error {

@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -142,9 +143,10 @@ func (wm *WatchManager) Add(c WatchConfig) error {
 		return ErrLocationNotDir
 	}
 
-	//check that the glob compiles by matching an empty string
-	if _, err := filepath.Match(c.FileFilter, "sdf"); err != nil {
-		return fmt.Errorf("Glob pattern is invalid: %v", err)
+	//extract all the filters from the match
+	fltrs, err := extractFilters(c.FileFilter)
+	if err != nil {
+		return err
 	}
 
 	//check if we need to watch the directory
@@ -155,11 +157,23 @@ func (wm *WatchManager) Add(c WatchConfig) error {
 		}
 		wm.watched[c.BaseDir] = true
 	}
-
-	if err := wm.fman.AddFilter(c.ConfigName, c.BaseDir, c.FileFilter, c.Hnd); err != nil {
+	if err := wm.fman.AddFilter(c.ConfigName, c.BaseDir, fltrs, c.Hnd); err != nil {
 		return err
 	}
 	return nil
+}
+
+func extractFilters(ff string) ([]string, error) {
+	if strings.HasPrefix(ff, "{") && strings.HasSuffix(ff, "}") {
+		ff = strings.TrimPrefix(strings.TrimSuffix(ff, "}"), "{")
+	}
+	flds := strings.Split(ff, ",")
+	for _, f := range flds {
+		if _, err := filepath.Match(f, "asdf"); err != nil {
+			return nil, err
+		}
+	}
+	return flds, nil
 }
 
 func (wm *WatchManager) Start() error {

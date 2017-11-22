@@ -72,7 +72,7 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 		ts = catchts
 	}
 	if lh.dbg != nil {
-		lh.dbg("GOT %v %s\n", ts, string(b))
+		lh.dbg("GOT %s %s\n", ts.Format(time.RFC3339), string(b))
 	}
 	lh.ch <- &entry.Entry{
 		SRC:  nil, //ingest API will populate this
