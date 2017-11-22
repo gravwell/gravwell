@@ -17,7 +17,6 @@ import (
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/gobwas/glob"
 
 	"github.com/gravwell/ingest"
 )
@@ -143,9 +142,8 @@ func (wm *WatchManager) Add(c WatchConfig) error {
 		return ErrLocationNotDir
 	}
 
-	//check that the glob compiles
-	g, err := glob.Compile(c.FileFilter)
-	if err != nil {
+	//check that the glob compiles by matching an empty string
+	if _, err := filepath.Match(c.FileFilter, "sdf"); err != nil {
 		return fmt.Errorf("Glob pattern is invalid: %v", err)
 	}
 
@@ -158,7 +156,7 @@ func (wm *WatchManager) Add(c WatchConfig) error {
 		wm.watched[c.BaseDir] = true
 	}
 
-	if err := wm.fman.AddFilter(c.ConfigName, c.BaseDir, g, c.Hnd); err != nil {
+	if err := wm.fman.AddFilter(c.ConfigName, c.BaseDir, c.FileFilter, c.Hnd); err != nil {
 		return err
 	}
 	return nil
