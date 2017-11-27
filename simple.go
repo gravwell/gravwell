@@ -197,8 +197,9 @@ func newTlsConn(dst string, certs *TLSCerts, verify bool) (net.Conn, net.IP, err
 	if certs != nil {
 		config.Certificates = []tls.Certificate{certs.Cert}
 	}
-	//unfortunately there is no way to do a DialTimeout on TLS, we just have to sit
-	conn, err := tls.Dial("tcp", dst, &config)
+
+	dialer := &net.Dialer{Timeout: 5 * time.Second}
+	conn, err := tls.DialWithDialer(dialer, "tcp", dst, &config)
 	if err != nil {
 		return nil, src, err
 	}
