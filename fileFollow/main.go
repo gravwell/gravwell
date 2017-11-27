@@ -89,10 +89,9 @@ func main() {
 		Destinations: conns,
 		Tags:         tags,
 		Auth:         cfg.Secret(),
-		PublicKey:    ``,
-		PrivateKey:   ``,
 		LogLevel:     cfg.LogLevel(),
 		IngesterName: "filefollow",
+		VerifyCert:   cfg.VerifyRemote(),
 	}
 	if cfg.CacheEnabled() {
 		ingestConfig.EnableCache = true
