@@ -112,6 +112,9 @@ func NewTimeGrinder() (*TimeGrinder, error) {
 	//build NGINXProcessor
 	procs = append(procs, NewNGINXProcessor())
 
+	//float unix time
+	procs = append(procs, NewUnixMilliTimeProcessor())
+
 	return &TimeGrinder{
 		procs: procs,
 		count: len(procs),

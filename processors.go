@@ -11,6 +11,7 @@ package timegrinder
 
 import (
 	"regexp"
+	"strconv"
 	"time"
 )
 
@@ -112,6 +113,14 @@ func NewSyslogProcessor() *syslogProcessor {
 	return &syslogProcessor{&processor{regexp.MustCompile(re), SYSLOG_FORMAT}}
 }
 
+type unixProcessor struct {
+	re *regexp.Regexp
+}
+
+func NewUnixMilliTimeProcessor() *unixProcessor {
+	return &unixProcessor{re: regexp.MustCompile(`\A\d+\.\d+`)}
+}
+
 func (a processor) Extract(d []byte, loc *time.Location) (time.Time, bool) {
 	sub := a.rxp.Find(d)
 	if len(sub) == 0 || sub == nil {
@@ -135,4 +144,20 @@ func (sp syslogProcessor) Extract(d []byte, loc *time.Location) (time.Time, bool
 		return t.AddDate(time.Now().Year(), 0, 0), true
 	}
 	return t, true
+}
+
+func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool) {
+	sub := up.re.Find(d)
+	if len(sub) == 0 {
+		return
+	}
+	s, err := strconv.ParseFloat(string(sub), 64)
+	if err != nil {
+		return
+	}
+	sec := int64(s)
+	nsec := int64((s - float64(sec)) * 1000000000.0)
+	t = time.Unix(sec, nsec).In(loc)
+	ok = true
+	return
 }
