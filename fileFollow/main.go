@@ -76,7 +76,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to get backend targets from configuration: %v\n", err)
 		return
 	}
-	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	wtcher, err := filewatch.NewWatcher(cfg.StatePath())
 	if err != nil {
@@ -85,6 +84,8 @@ func main() {
 	}
 
 	//fire up the ingesters
+	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
+	debugout("Verifying remote certs: %v\n", cfg.VerifyRemote())
 	ingestConfig := ingest.UniformMuxerConfig{
 		Destinations: conns,
 		Tags:         tags,

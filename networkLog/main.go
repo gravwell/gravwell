@@ -170,14 +170,15 @@ func main() {
 			res:       make(chan results, 1),
 		})
 	}
-
 	//fire up the ingesters
+	debugout("Verifying remote certs: %v\n", cfg.VerifyRemote())
 	igCfg := ingest.UniformMuxerConfig{
 		Destinations: conns,
 		Tags:         tags,
 		Auth:         cfg.Secret(),
 		LogLevel:     cfg.LogLevel(),
 		IngesterName: "networkLog",
+		VerifyCert:   cfg.VerifyRemote(),
 	}
 	if cfg.EnableCache() {
 		igCfg.EnableCache = true
