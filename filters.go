@@ -372,12 +372,14 @@ func cleanStates(states map[FileName]*int64) error {
 			if os.IsNotExist(err) {
 				//file is gone, delete it
 				delete(states, k)
+			} else {
+				return err
 			}
-			return err
-		}
-		//if file shrank, we have to assume this was a truncation, so remove the state
-		if v != nil && fi.Size() < *v {
-			*v = 0 //reset the size
+		} else {
+			//if file shrank, we have to assume this was a truncation, so remove the state
+			if v != nil && fi.Size() < *v {
+				*v = 0 //reset the size
+			}
 		}
 		//all other cases are just fine, roll
 	}
