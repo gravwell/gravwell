@@ -9,6 +9,7 @@
 package ingest
 
 import (
+	"sync/atomic"
 	"fmt"
 	"strings"
 	"time"
@@ -39,21 +40,28 @@ func (im *IngestMuxer) Error(format string, args ...interface{}) error {
 	if im.logLevel > gravwellError {
 		return nil
 	}
-	return im.gravwellWrite(gravwellError, fmt.Sprintf(format, args...))
+	return im.gravwellWriteIfHot(gravwellError, fmt.Sprintf(format, args...))
 }
 
 func (im *IngestMuxer) Warn(format string, args ...interface{}) error {
 	if im.logLevel > gravwellWarn {
 		return nil
 	}
-	return im.gravwellWrite(gravwellWarn, fmt.Sprintf(format, args...))
+	return im.gravwellWriteIfHot(gravwellWarn, fmt.Sprintf(format, args...))
 }
 
 func (im *IngestMuxer) Info(format string, args ...interface{}) error {
 	if im.logLevel > gravwellInfo {
 		return nil
 	}
-	return im.gravwellWrite(gravwellInfo, fmt.Sprintf(format, args...))
+	return im.gravwellWriteIfHot(gravwellInfo, fmt.Sprintf(format, args...))
+}
+
+func (im *IngestMuxer) gravwellWriteIfHot(level gll, line string) error {
+	if atomic.LoadInt32(&im.connHot) == 0 {
+		return ErrAllConnsDown
+	}
+	return im.gravwellWrite(level, fmt.Sprintf("%v: %v", im.name, line))
 }
 
 func (im *IngestMuxer) gravwellWrite(level gll, line string) error {
