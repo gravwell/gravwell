@@ -193,7 +193,7 @@ func main() {
 			connID := addConn(l)
 			//start the acceptor
 			wg.Add(1)
-			go acceptor(l, ch, tag, lrt, v.Ignore_Timestamps, v.Assume_Local_Timezone, &wg, connID)
+			go acceptor(l, ch, tag, lrt, v.Ignore_Timestamps, v.Assume_Local_Timezone, &wg, connID, igst)
 		} else if tp.UDP() {
 			addr, err := net.ResolveUDPAddr(tp.String(), str)
 			if err != nil {
@@ -304,7 +304,7 @@ mainLoop:
 	done <- nil
 }
 
-func acceptor(lst net.Listener, ch chan *entry.Entry, tag entry.EntryTag, lrt readerType, ignoreTimestamps, setLocalTime bool, wg *sync.WaitGroup, id int) {
+func acceptor(lst net.Listener, ch chan *entry.Entry, tag entry.EntryTag, lrt readerType, ignoreTimestamps, setLocalTime bool, wg *sync.WaitGroup, id int, igst *ingest.IngestMuxer) {
 	var failCount int
 	defer wg.Done()
 	defer delConn(id)
@@ -323,6 +323,7 @@ func acceptor(lst net.Listener, ch chan *entry.Entry, tag entry.EntryTag, lrt re
 			continue
 		}
 		debugout("Accepted TCP connection from %s in %v mode\n", conn.RemoteAddr(), lrt)
+		igst.Info("accepted TCP connection from %s in %v mode\n", conn.RemoteAddr(), lrt)
 		failCount = 0
 		switch lrt {
 		case lineReader:

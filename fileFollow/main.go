@@ -110,9 +110,6 @@ func main() {
 		return
 	}
 
-	//pass in the ingest muxer to the file watcher so it can throw info and errors down the muxer chan
-	wtcher.SetLogger(igst)
-
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
 		fmt.Fprintf(os.Stderr, "Timedout waiting for backend connections: %v\n", err)
@@ -120,6 +117,9 @@ func main() {
 	}
 	debugout("Successfully connected to ingesters\n")
 	ch := make(chan *entry.Entry, 2048)
+
+	//pass in the ingest muxer to the file watcher so it can throw info and errors down the muxer chan
+	wtcher.SetLogger(igst)
 
 	//build a list of base directories and globs
 	for k, val := range cfg.Follower {

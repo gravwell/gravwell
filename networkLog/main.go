@@ -355,6 +355,7 @@ func pcapIngester(igst *ingest.IngestMuxer, s *sniffer) {
 	ch := make(chan []capPacket, 1024)
 	go packetExtractor(s.handle, ch)
 	debugout("Starting sniffer %s on %s with \"%s\"\n", s.name, s.Interface, s.BPFFilter)
+	igst.Info("Starting sniffer %s on %s with \"%s\"\n", s.name, s.Interface, s.BPFFilter)
 
 mainLoop:
 	for {
@@ -366,9 +367,11 @@ mainLoop:
 		case pkts, ok := <-ch: //get a packet
 			if !ok {
 				//Something bad happened, attempt to restart the pcap
+				igst.Error("Failed to read next packet, attempting to rebuild packet source")
 				s.handle.Close()
 				s.handle, ok = rebuildPacketSource(s)
 				if !ok {
+					igst.Error("Couldn't rebuild packet start")
 					//Still failing, time to bail out
 					break mainLoop
 				}
@@ -376,6 +379,7 @@ mainLoop:
 				ch = make(chan []capPacket, 1024)
 				go packetExtractor(s.handle, ch)
 				debugout("Rebuilding packet source\n")
+				igst.Info("Rebuilt packet source")
 				continue
 			}
 			staticSet := make([]entry.Entry, len(pkts))
