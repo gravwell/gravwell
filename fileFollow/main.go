@@ -97,6 +97,7 @@ func main() {
 	if cfg.EnableCache() {
 		ingestConfig.EnableCache = true
 		ingestConfig.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
+		ingestConfig.CacheConfig.MaxCacheSize = cfg.MaxCachedData()
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
