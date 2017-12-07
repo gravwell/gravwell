@@ -12,9 +12,9 @@ import (
 	"errors"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/gravwell/ingest"
+	"github.com/gravwell/ingest/config"
 
 	"gopkg.in/gcfg.v1"
 )
@@ -30,27 +30,27 @@ const (
 	rfc5424Reader readerType = iota
 )
 
+var ()
+
 type bindType int
 type readerType int
 
+type listener struct {
+	Bind_String           string //IP port pair 127.0.0.1:1234
+	Tag_Name              string
+	Ignore_Timestamps     bool //Just apply the current timestamp to lines as we get them
+	Assume_Local_Timezone bool
+	Reader_Type           string
+}
+
+type cfgReadType struct {
+	Global   config.IngestConfig
+	Listener map[string]*listener
+}
+
 type cfgType struct {
-	Global struct {
-		Ingest_Secret              string
-		Connection_Timeout         string
-		Verify_Remote_Certificates bool
-		Cleartext_Backend_Target   []string
-		Encrypted_Backend_Target   []string
-		Pipe_Backend_Target        []string
-		Ingest_Cache_Path          string
-		Log_Level                  string
-	}
-	Listener map[string]*struct {
-		Bind_String           string //IP port pair 127.0.0.1:1234
-		Tag_Name              string
-		Ignore_Timestamps     bool //Just apply the current timestamp to lines as we get them
-		Assume_Local_Timezone bool
-		Reader_Type           string
-	}
+	config.IngestConfig
+	Listener map[string]*listener
 }
 
 func GetConfig(path string) (*cfgType, error) {
@@ -75,15 +75,17 @@ func GetConfig(path string) (*cfgType, error) {
 	if int64(n) != fi.Size() {
 		return nil, errors.New("Failed to read config file")
 	}
-
-	var c cfgType
-	//SECURITY SHIT!
-	//default the Verifiy_Remote_Certificates to true
-	c.Global.Verify_Remote_Certificates = true
-
-	if err := gcfg.ReadStringInto(&c, string(content)); err != nil {
+	//read into the intermediary type to maintain backwards compatibility with the old system
+	var cr cfgReadType
+	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
 		return nil, err
 	}
+	c := cfgType{
+		IngestConfig: cr.Global,
+		Listener:     cr.Listener,
+	}
+
+	c.Init() //initialize all the global parameters
 	if err := verifyConfig(c); err != nil {
 		return nil, err
 	}
@@ -91,21 +93,9 @@ func GetConfig(path string) (*cfgType, error) {
 }
 
 func verifyConfig(c cfgType) error {
-	if to, err := c.parseTimeout(); err != nil || to < 0 {
-		if err != nil {
-			return err
-		}
-		return errors.New("Invalid connection timeout")
-	}
-	if c.Global.Ingest_Secret == "" {
-		return errors.New("Ingest-Secret not specified")
-	}
-	//ensure there is at least one target
-	connCount := len(c.Global.Cleartext_Backend_Target) +
-		len(c.Global.Encrypted_Backend_Target) +
-		len(c.Global.Pipe_Backend_Target)
-	if connCount == 0 {
-		return errors.New("No backend targets specified")
+	//verify the global parameters
+	if err := c.Verify(); err != nil {
+		return err
 	}
 	if len(c.Listener) == 0 {
 		return errors.New("No listeners specified")
@@ -129,23 +119,6 @@ func verifyConfig(c cfgType) error {
 	return nil
 }
 
-func (c *cfgType) Targets() ([]string, error) {
-	var conns []string
-	for _, v := range c.Global.Cleartext_Backend_Target {
-		conns = append(conns, "tcp://"+v)
-	}
-	for _, v := range c.Global.Encrypted_Backend_Target {
-		conns = append(conns, "tls://"+v)
-	}
-	for _, v := range c.Global.Pipe_Backend_Target {
-		conns = append(conns, "pipe://"+v)
-	}
-	if len(conns) == 0 {
-		return nil, errors.New("no connections specified")
-	}
-	return conns, nil
-}
-
 func (c *cfgType) Tags() ([]string, error) {
 	var tags []string
 	tagMp := make(map[string]bool, 1)
@@ -162,41 +135,6 @@ func (c *cfgType) Tags() ([]string, error) {
 		return nil, errors.New("No tags specified")
 	}
 	return tags, nil
-}
-
-func (c *cfgType) VerifyRemote() bool {
-	return c.Global.Verify_Remote_Certificates
-}
-
-func (c *cfgType) Timeout() time.Duration {
-	if tos, _ := c.parseTimeout(); tos > 0 {
-		return tos
-	}
-	return 0
-}
-
-func (c *cfgType) Secret() string {
-	return c.Global.Ingest_Secret
-}
-
-func (c *cfgType) EnableCache() bool {
-	return len(c.Global.Ingest_Cache_Path) != 0
-}
-
-func (c *cfgType) LocalFileCachePath() string {
-	return c.Global.Ingest_Cache_Path
-}
-
-func (c *cfgType) LogLevel() string {
-	return c.Global.Log_Level
-}
-
-func (c *cfgType) parseTimeout() (time.Duration, error) {
-	tos := strings.TrimSpace(c.Global.Connection_Timeout)
-	if len(tos) == 0 {
-		return 0, nil
-	}
-	return time.ParseDuration(tos)
 }
 
 func translateBindType(bstr string) (bindType, string, error) {

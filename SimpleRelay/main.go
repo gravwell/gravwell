@@ -138,6 +138,7 @@ func main() {
 	if cfg.EnableCache() {
 		igCfg.EnableCache = true
 		igCfg.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
+		igCfg.CacheConfig.MaxCacheSize = cfg.MaxCachedData()
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
