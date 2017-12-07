@@ -22,7 +22,8 @@ import (
 
 const (
 	defaultTickInterval = time.Second
-	defaultCacheSize    = 1024 * 1024 * 4 //4MB
+	defaultCacheSize    = 1024 * 1024 * 4   //4MB
+	defaultMaxCacheSize = 1024 * 1024 * 512 //512MB
 )
 
 var (
@@ -47,24 +48,27 @@ type IngestCacheConfig struct {
 	FileBackingLocation string
 	TickInterval        time.Duration
 	MemoryCacheSize     uint64
+	MaxCacheSize        uint64
 }
 
 type IngestCache struct {
-	mtx          *sync.Mutex
-	fileBacked   bool   //whether we are going to push to a file when there are no outputs available
-	storeLoc     string //location of boltDB
-	storedBlocks int
-	count        uint64
-	cacheSize    uint64
-	maxCacheSize uint64
-	hotBlocks    map[entry.EntryKey]*entry.EntryBlock
-	currKey      entry.EntryKey
-	currBlock    *entry.EntryBlock //just a pointer into the hotBlocks map value, NOT A COPY
-	db           *bolt.DB
-	err          error
-	running      bool
-	wg           sync.WaitGroup
-	stCh         chan bool
+	mtx             *sync.Mutex
+	fileBacked      bool   //whether we are going to push to a file when there are no outputs available
+	storeLoc        string //location of boltDB
+	storedBlocks    int
+	count           uint64
+	cacheSize       uint64
+	storeSize       uint64
+	maxMemCacheSize uint64
+	maxCacheSize    uint64
+	hotBlocks       map[entry.EntryKey]*entry.EntryBlock
+	currKey         entry.EntryKey
+	currBlock       *entry.EntryBlock //just a pointer into the hotBlocks map value, NOT A COPY
+	db              *bolt.DB
+	err             error
+	running         bool
+	wg              sync.WaitGroup
+	stCh            chan bool
 }
 
 // NewIngestCache creates a ingest cache and gets a handle on the store if specified.
@@ -112,8 +116,22 @@ func NewIngestCache(c IngestCacheConfig) (*IngestCache, error) {
 		return nil, errors.New("Designated file backing did not generate storage handle")
 	}
 
+	var currDataSize uint64
+	if fileBacked {
+		fi, err := os.Stat(c.FileBackingLocation)
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+		currDataSize = uint64(fi.Size())
+	}
+
 	if c.MemoryCacheSize <= 0 {
 		c.MemoryCacheSize = defaultCacheSize
+	}
+
+	if c.MaxCacheSize <= 0 {
+		c.MaxCacheSize = defaultMaxCacheSize
 	}
 
 	if c.TickInterval <= 0 {
@@ -122,15 +140,17 @@ func NewIngestCache(c IngestCacheConfig) (*IngestCache, error) {
 
 	//should be ready to go
 	return &IngestCache{
-		mtx:          &sync.Mutex{},
-		fileBacked:   fileBacked,
-		storeLoc:     c.FileBackingLocation,
-		maxCacheSize: c.MemoryCacheSize,
-		hotBlocks:    map[entry.EntryKey]*entry.EntryBlock{},
-		db:           db,
-		storedBlocks: blockCount,
-		count:        count,
-		stCh:         make(chan bool, 1),
+		mtx:             &sync.Mutex{},
+		fileBacked:      fileBacked,
+		storeLoc:        c.FileBackingLocation,
+		maxMemCacheSize: c.MemoryCacheSize,
+		maxCacheSize:    c.MaxCacheSize,
+		hotBlocks:       map[entry.EntryKey]*entry.EntryBlock{},
+		db:              db,
+		storedBlocks:    blockCount,
+		count:           count,
+		storeSize:       currDataSize,
+		stCh:            make(chan bool, 1),
 	}, nil
 }
 
@@ -244,6 +264,16 @@ func (ic *IngestCache) Stop() error {
 
 func (ic *IngestCache) routine(echan chan *entry.Entry, bchan chan []*entry.Entry, started chan error) {
 	defer ic.wg.Done()
+
+	//get the current storage size
+	if ic.fileBacked {
+		fi, err := os.Stat(ic.storeLoc)
+		if err != nil {
+			started <- err
+			return
+		}
+		ic.storeSize = uint64(fi.Size())
+	}
 	started <- nil
 
 routineLoop:
@@ -281,6 +311,14 @@ routineLoop:
 		case _ = <-ic.stCh:
 			break routineLoop
 		}
+		if ic.fileBacked && ic.maxCacheSize > 0 {
+			//check if we have hit the cache limit, if so wait for the signal stating that we can unload
+			if ic.storeSize > ic.maxCacheSize {
+				//just wait for signal to stop
+				<-ic.stCh
+				break routineLoop
+			}
+		}
 	}
 	ic.running = false
 }
@@ -302,7 +340,7 @@ func (ic *IngestCache) addEntry(ent *entry.Entry) bool {
 	//at this point the currBlock points at the right key
 	ic.currBlock.Add(ent)
 	ic.cacheSize += ent.Size()
-	if ic.cacheSize >= ic.maxCacheSize {
+	if ic.cacheSize >= ic.maxMemCacheSize {
 		return true
 	}
 	return false
@@ -333,7 +371,7 @@ func (ic *IngestCache) trimMemoryCache() error {
 		}
 		delete(ic.hotBlocks, k)
 		ic.cacheSize -= v.Size()
-		if ic.cacheSize < ic.maxCacheSize {
+		if ic.cacheSize < ic.maxMemCacheSize {
 			break
 		}
 	}
@@ -417,17 +455,23 @@ func (ic *IngestCache) pushBlock(key entry.EntryKey, blk *entry.EntryBlock) erro
 	if buff == nil {
 		newBlock = true
 	}
+	oldSize := len(buff)
 	//pull current block with this key from the store and append our current block
 	buff, err = blk.EncodeAppend(buff)
 	if err != nil {
 		return err
 	}
+	addSize := uint64(len(buff) - oldSize)
 	if err := ic.db.Update(func(tx *bolt.Tx) error {
 		bkt := tx.Bucket(dbBucketName)
 		if bkt == nil {
 			return ErrBucketMissing
 		}
-		return bkt.Put(dbKey, buff)
+		if err := bkt.Put(dbKey, buff); err != nil {
+			return err
+		}
+		ic.storeSize += addSize
+		return nil
 	}); err != nil {
 		return err
 	}
@@ -454,6 +498,7 @@ func (ic *IngestCache) PopBlock() (*entry.EntryBlock, error) {
 	}
 	if key != 0 {
 		blk = ic.popAndMergeHotBlock(key, blk)
+		ic.storeSize -= blk.Size()
 	} else {
 		blk = ic.popHotBlock()
 	}
@@ -497,6 +542,7 @@ func (ic *IngestCache) compactDb() error {
 	}
 	ic.storedBlocks = 0
 	ic.count = 0
+	ic.storeSize = uint64(dbMmapSize)
 	ic.db = db
 	return nil
 }
