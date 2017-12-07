@@ -94,9 +94,9 @@ func main() {
 		IngesterName: "filefollow",
 		VerifyCert:   cfg.VerifyRemote(),
 	}
-	if cfg.CacheEnabled() {
+	if cfg.EnableCache() {
 		ingestConfig.EnableCache = true
-		ingestConfig.CacheConfig.FileBackingLocation = cfg.CachePath()
+		ingestConfig.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
