@@ -126,8 +126,8 @@ func (ic *IngestConfig) LocalFileCachePath() string {
 }
 
 // MaxCachedData returns the maximum amount of data to be cached in bytes
-func (ic *IngestConfig) MaxCachedData() int64 {
-	return ic.Max_Ingest_Cache * mb
+func (ic *IngestConfig) MaxCachedData() uint64 {
+	return uint64(ic.Max_Ingest_Cache * mb)
 }
 
 // Return the specified log level
