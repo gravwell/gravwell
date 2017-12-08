@@ -15,14 +15,12 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-
-	"github.com/gobwas/glob"
 )
 
 type filter struct {
 	bname string //name given to the config file
 	loc   string //location we are watching
-	glb   glob.Glob
+	mtchs []string
 	lh    handler
 }
 
@@ -123,14 +121,14 @@ func (fm *FilterManager) dumpStates() error {
 	return nil
 }
 
-func (f *FilterManager) AddFilter(bname, loc string, g glob.Glob, lh handler) error {
+func (f *FilterManager) AddFilter(bname, loc string, mtchs []string, lh handler) error {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 
 	fltr := filter{
 		bname: bname,
 		loc:   filepath.Clean(loc),
-		glb:   g,
+		mtchs: mtchs,
 		lh:    lh,
 	}
 	f.filters = append(f.filters, fltr)
@@ -139,18 +137,14 @@ func (f *FilterManager) AddFilter(bname, loc string, g glob.Glob, lh handler) er
 
 func (f *FilterManager) RemoveFollower(fpath string) error {
 	//get file path and base name
-	fname := filepath.Base(fpath)
-	fdir := filepath.Dir(fpath)
-
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
+	return f.nolockRemoveFollower(fpath)
+}
 
+func (f *FilterManager) nolockRemoveFollower(fpath string) error {
 	//check filters
 	for _, v := range f.filters {
-		//check base directory and pattern match
-		if v.loc != fdir || !v.glb.Match(fname) {
-			continue
-		}
 		//check if we have an active follower
 		stid := FileName{
 			BaseName: v.bname,
@@ -168,6 +162,119 @@ func (f *FilterManager) RemoveFollower(fpath string) error {
 	return nil
 }
 
+//walk the directory looking for files, pull the file ID and check if it matches the current file ID
+func (f *FilterManager) findFileId(base string, mtchs []string, id FileId) (p string, ok bool, err error) {
+	var lid FileId
+	//walk the the directory
+	err = filepath.Walk(base, func(fpath string, fi os.FileInfo, lerr error) (rerr error) {
+		if lerr != nil || fi == nil || ok || !fi.Mode().IsRegular() {
+			//is fi is nil then the file isn't there and we can continue
+			return
+		}
+
+		//check if the file matches any filters
+		if f.matchFile(mtchs, filepath.Base(fpath)) {
+			//matches the filter, see if it matches the ID
+			if lid, rerr = getFileIdFromName(fpath); rerr != nil {
+				return
+			}
+			if lid == id {
+				p = fpath
+				ok = true
+			}
+		}
+		return
+	})
+	return
+}
+
+// RenameFollower is designed to rename a file that is currently being followed
+// We first grab the file id that matches the given fpath
+// Then we scan the base directory for ALL files and attempt to match the fileId
+// if a match is found, we check if it matches the current filter, if not, we delete the follower
+// if it does, we update the name and leave.  If no match is found, we delete the follower
+func (f *FilterManager) RenameFollower(fpath string) error {
+	//get file path and base name
+	stid := FileName{
+		FilePath: fpath,
+	}
+
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+
+	//find the id for the potentially old filename
+	var id FileId
+	var hit bool
+	for _, flw := range f.followers {
+		if flw.FilePath == fpath {
+			id = flw.FileId()
+			hit = true
+		}
+	}
+	if !hit {
+		return nil
+	}
+	//check filters and their base locations to see if the file showed up anywhere else
+	for i, v := range f.filters {
+		//check if we have an active follower
+		stid.BaseName = v.bname
+		flw, ok := f.followers[stid]
+		if !ok {
+			continue
+		}
+
+		//check base directory and pattern match
+		p, ok, err := f.findFileId(v.loc, v.mtchs, id)
+		if err != nil {
+			flw.Close()
+			delete(f.states, stid)
+			delete(f.followers, stid)
+			return err
+		}
+		if ok {
+			//we found it, make sure its not the same damn file name
+			if p == fpath {
+				return nil
+			}
+			//different file name and still worth tracking
+			if flw.FilterId() != i {
+				st, ok := f.states[stid]
+				if !ok {
+					flw.Close()
+					delete(f.followers, stid)
+					return errors.New("Failed to find old state")
+				}
+				delete(f.followers, stid)
+				delete(f.states, stid)
+				if err := flw.Close(); err != nil {
+					return err
+				}
+				*st = 0
+				if err := f.addFollower(v.bname, p, st, i, v.lh); err != nil {
+					return err
+				}
+				return nil
+			} else {
+				//just update the names
+				delete(f.followers, stid)
+				flw.FileName = stid
+				st, ok := f.states[stid]
+				if !ok {
+					flw.Close()
+					return errors.New("failed to find state on rename")
+				}
+				stid.FilePath = p
+				f.states[stid] = st
+				f.followers[stid] = flw
+				return nil
+			}
+
+		}
+	}
+	//filename was never found, remove it
+	return f.nolockRemoveFollower(fpath)
+}
+
 func (f *FilterManager) NewFollower(fpath string) error {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
@@ -181,8 +288,21 @@ func (f *FilterManager) addFollower(bname, fpath string, si *int64, filterId int
 		BaseName: bname,
 		FilePath: fpath,
 	}
-	if _, ok := f.followers[stid]; ok {
-		return errors.New("Duplicate follower")
+	id, err := getFileIdFromName(fpath)
+	if err != nil {
+		return err
+	}
+	if flw, ok := f.followers[stid]; ok {
+		if flw.FileId() != id {
+			//delete the old follower
+			delete(f.followers, stid)
+			delete(f.states, stid)
+			if err := flw.Close(); err != nil {
+				return err
+			}
+		} else {
+			return errors.New("duplicate follower")
+		}
 	}
 	fl, err := NewFollower(bname, fpath, si, filterId, lh)
 	if err != nil {
@@ -240,7 +360,7 @@ func (f *FilterManager) launchFollowers(fpath string, deleteState bool) error {
 	//swing through all filters and launch a follower for each one that matches
 	for i, v := range f.filters {
 		//check base directory and pattern match
-		if v.loc != fdir || !v.glb.Match(fname) {
+		if v.loc != fdir || !f.matchFile(v.mtchs, fname) {
 			continue
 		}
 		si = nil
@@ -282,7 +402,7 @@ func (f *FilterManager) checkRename(fpath string, id FileId) (isRename bool, err
 				removeFollower = true
 			}
 			//check the filter glob against the new name
-			if f.filters[filterId].loc == fdir && f.filters[filterId].glb.Match(fname) {
+			if f.filters[filterId].loc != fdir || !f.matchFile(f.filters[filterId].mtchs, fname) {
 				//this is just a rename, update the fpath in the follower
 				delete(f.states, k)
 				delete(f.followers, k)
@@ -303,6 +423,16 @@ func (f *FilterManager) checkRename(fpath string, id FileId) (isRename bool, err
 				delete(f.states, k)
 				delete(f.followers, k)
 			}
+		}
+	}
+	return
+}
+
+func (f *FilterManager) matchFile(mtchs []string, fname string) (matched bool) {
+	for _, m := range mtchs {
+		if ok, err := filepath.Match(m, fname); err == nil && ok {
+			matched = true
+			break
 		}
 	}
 	return
@@ -372,12 +502,14 @@ func cleanStates(states map[FileName]*int64) error {
 			if os.IsNotExist(err) {
 				//file is gone, delete it
 				delete(states, k)
+			} else {
+				return err
 			}
-			return err
-		}
-		//if file shrank, we have to assume this was a truncation, so remove the state
-		if v != nil && fi.Size() < *v {
-			*v = 0 //reset the size
+		} else {
+			//if file shrank, we have to assume this was a truncation, so remove the state
+			if v != nil && fi.Size() < *v {
+				*v = 0 //reset the size
+			}
 		}
 		//all other cases are just fine, roll
 	}

@@ -9,6 +9,7 @@
 package filewatch
 
 import (
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -17,6 +18,8 @@ import (
 const (
 	baseName    string = `testing`
 	altBaseName string = `niner`
+
+	movePath string = `/tmp/follower_test.log.tmp`
 )
 
 var (
@@ -73,54 +76,62 @@ func TestNewStartStop(t *testing.T) {
 	cleanFile(fname, t)
 }
 
-func TestFeeder(t *testing.T) {
-	var tlh trackingLH
-	fname, err := newFileName()
-	if err != nil {
-		t.Fatal(err)
-	}
-	fl, err := NewFollower(baseName, fname, &fstate, 0, &tlh)
-	if err != nil {
-		if err := os.RemoveAll(fname); err != nil {
-			t.Fatal(err)
-		}
-		t.Fatal(err)
+func testStart(b, f string, tlh *trackingLH, fPtr *int64) (fl *follower, err error) {
+	if fl, err = NewFollower(b, f, fPtr, 0, tlh); err != nil {
+		os.RemoveAll(f)
+		return
 	}
 
-	if err := fl.Start(); err != nil {
-		if err := os.RemoveAll(fname); err != nil {
-			t.Fatal(err)
-		}
-		t.Fatal(err)
+	if err = fl.Start(); err != nil {
+		os.RemoveAll(f)
+		return
 	}
+	return
+}
 
-	_, mp, err := writeLines(fname)
-	if err != nil {
-		fl.Close()
-		if err := os.RemoveAll(fname); err != nil {
-			t.Fatal(err)
-		}
-		t.Fatal(err)
-	}
-
+func waitForStop(fl *follower, tlh *trackingLH, l int) error {
 	//up to 1 second for it to stop
 	var i int
 	//wait for it to actually quit
 	for i = 0; i < 100; i++ {
-		if len(mp) == len(tlh.mp) {
+		if l == len(tlh.mp) {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
 
 	if i >= 100 {
-		t.Fatal("Timed out while waiting for follower to get all the lines")
+		return errors.New("Timed out while waiting for follower to get all the lines")
 	}
 
 	if err := fl.Stop(); err != nil {
-		if err := os.RemoveAll(fname); err != nil {
-			t.Fatal(err)
-		}
+		return err
+	}
+	return nil
+}
+
+func TestFeeder(t *testing.T) {
+	var tlh trackingLH
+	var state int64
+	fname, err := newFileName()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fl, err := testStart(baseName, fname, &tlh, &state)
+	if err != nil {
+		os.RemoveAll(fname)
+		t.Fatal(err)
+	}
+
+	_, mp, err := writeLines(fname)
+	if err != nil {
+		fl.Close()
+		os.RemoveAll(fname)
+		t.Fatal(err)
+	}
+
+	if err := waitForStop(fl, &tlh, len(mp)); err != nil {
+		os.RemoveAll(fname)
 		t.Fatal(err)
 	}
 
@@ -131,6 +142,49 @@ func TestFeeder(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	for k := range mp {
+		if _, ok := tlh.mp[k]; !ok {
+			t.Fatal("Failed to get all lines out")
+		}
+	}
+}
+
+func TestMove(t *testing.T) {
+	var tlh trackingLH
+	var state int64
+	fname, err := newFileName()
+	if err != nil {
+		t.Fatal(err)
+	}
+	fl, err := testStart(baseName, fname, &tlh, &state)
+	if err != nil {
+		os.RemoveAll(fname)
+		t.Fatal(err)
+	}
+
+	_, mp, err := writeLines(fname)
+	if err != nil {
+		fl.Close()
+		os.RemoveAll(fname)
+		t.Fatal(err)
+	}
+
+	//move the file to /tmp/
+	if err := os.Rename(fname, movePath); err != nil {
+		os.RemoveAll(fname)
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(movePath)
+	time.Sleep(10 * time.Millisecond)
+
+	if err := waitForStop(fl, &tlh, len(mp)); err != nil {
+		os.RemoveAll(fname)
+		t.Fatal(err)
+	}
+
+	if err := fl.Close(); err != nil {
+		t.Fatal(err)
+	}
 	for k := range mp {
 		if _, ok := tlh.mp[k]; !ok {
 			t.Fatal("Failed to get all lines out")

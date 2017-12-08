@@ -49,6 +49,7 @@ type follower struct {
 	fsn      *fsnotify.Watcher
 	wg       *sync.WaitGroup
 	lh       handler
+	lastAct  time.Time
 }
 
 func NewFollower(bname, fpath string, fstate *int64, filterId int, lh handler) (*follower, error) {
@@ -96,6 +97,7 @@ func NewFollower(bname, fpath string, fstate *int64, filterId int, lh handler) (
 			FilePath: fpath,
 			BaseName: bname,
 		},
+		lastAct: time.Now(),
 	}, nil
 }
 
@@ -153,6 +155,9 @@ func (f *follower) Close() error {
 	if f.abortCh != nil && atomic.LoadInt32(&f.running) != 0 {
 		f.stop()
 	}
+	if err := f.fsn.Close(); err != nil {
+		f.err = err
+	}
 	if err := f.lnr.Close(); err != nil {
 		f.err = err
 	}
@@ -168,7 +173,12 @@ func (f *follower) Running() bool {
 	return true
 }
 
+func (f *follower) IdleDuration() time.Duration {
+	return time.Since(f.lastAct)
+}
+
 func (f *follower) processLines() error {
+	var hit bool
 	for {
 		ln, ok, err := f.lnr.ReadLine()
 		if err != nil {
@@ -182,6 +192,10 @@ func (f *follower) processLines() error {
 			return err
 		}
 		*f.state = f.lnr.Index()
+		hit = true
+	}
+	if hit {
+		f.lastAct = time.Now()
 	}
 	return nil
 }
@@ -216,6 +230,12 @@ routineLoop:
 				break routineLoop
 			}
 			if evt.Op == fsnotify.Remove {
+				//if the file was removed, we read what we can and bail
+				if err := f.processLines(); err != nil {
+					if !os.IsNotExist(err) {
+						f.err = err
+					}
+				}
 				//On remove we close the liner and bail out
 				f.err = f.lnr.Close()
 				return

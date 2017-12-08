@@ -386,6 +386,266 @@ func TestMultiWatcherWithDelete(t *testing.T) {
 	}
 }
 
+func TestMultiWatcherWithMoveNoMatch(t *testing.T) {
+	var res []map[string]bool
+	var lhs []*safeTrackingLH
+	var counts []int
+
+	fireWatcher(func(workingDir string, w *WatchManager) error {
+		for i := 0; i < testMultiCount; i++ {
+			lh := newSafeTrackingLH()
+			lhs = append(lhs, lh)
+			watchCfg := WatchConfig{
+				ConfigName: bName,
+				BaseDir:    workingDir,
+				FileFilter: fmt.Sprintf(`test%dpaco*`, i),
+				Hnd:        lh,
+			}
+			//add in one filter
+			if err := w.Add(watchCfg); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if w.Filters() != testMultiCount {
+			t.Fatal(errors.New("All filters not installed"))
+		}
+		return nil
+	}, func(workingDir string) error {
+		//perform the writes
+		for i := 0; i < testMultiCount; i++ {
+			fname := fmt.Sprintf(`test%dpaco123`, i)
+			cnt, r, err := writeLines(filepath.Join(workingDir, fname))
+			if err != nil {
+				t.Fatal(err)
+			}
+			res = append(res, r)
+			counts = append(counts, cnt)
+		}
+		var i int
+		for i < 100 {
+			//check all our lengths
+			missed := false
+			for j := 0; j < testMultiCount; j++ {
+				if lhs[j].Len() != len(res[j]) {
+					missed = true
+					break
+				}
+			}
+			if !missed {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+			i++
+		}
+		if i >= 100 {
+			return errors.New("timed out waiting for all lines")
+		}
+		//now delete each of the files
+		for i := 0; i < testMultiCount; i++ {
+			fname := fmt.Sprintf(`test%dpaco123`, i)
+			newname := fmt.Sprintf(`test%dchico123`, i)
+			if err := os.Rename(filepath.Join(workingDir, fname), filepath.Join(workingDir, newname)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}, func(w *WatchManager) error {
+		for i := 0; i < 100; i++ {
+			if w.Followers() == 0 {
+				return nil
+			}
+			time.Sleep(time.Millisecond * 10)
+		}
+		return fmt.Errorf("Renamed files not removed from followers: %d", w.Followers())
+	}, t)
+
+	//check the results
+	for i := range lhs {
+		if len(res[i]) != lhs[i].Len() {
+			t.Fatal("line handler failed to get all the lines on", i)
+		}
+		for k := range res[i] {
+			if _, ok := lhs[i].mp[k]; !ok {
+				t.Fatal("missing line", i, k)
+			}
+		}
+	}
+}
+
+func TestMultiWatcherWithMoveWithMatch(t *testing.T) {
+	var res []map[string]bool
+	var lhs []*safeTrackingLH
+	var counts []int
+
+	fireWatcher(func(workingDir string, w *WatchManager) error {
+		for i := 0; i < testMultiCount; i++ {
+			lh := newSafeTrackingLH()
+			lhs = append(lhs, lh)
+			watchCfg := WatchConfig{
+				ConfigName: bName,
+				BaseDir:    workingDir,
+				FileFilter: fmt.Sprintf(`test%dpaco*`, i),
+				Hnd:        lh,
+			}
+			//add in one filter
+			if err := w.Add(watchCfg); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if w.Filters() != testMultiCount {
+			t.Fatal(errors.New("All filters not installed"))
+		}
+		return nil
+	}, func(workingDir string) error {
+		//perform the writes
+		for i := 0; i < testMultiCount; i++ {
+			fname := fmt.Sprintf(`test%dpaco123`, i)
+			cnt, r, err := writeLines(filepath.Join(workingDir, fname))
+			if err != nil {
+				t.Fatal(err)
+			}
+			res = append(res, r)
+			counts = append(counts, cnt)
+		}
+		var i int
+		for i < 100 {
+			//check all our lengths
+			missed := false
+			for j := 0; j < testMultiCount; j++ {
+				if lhs[j].Len() != len(res[j]) {
+					missed = true
+					break
+				}
+			}
+			if !missed {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+			i++
+		}
+		if i >= 100 {
+			return errors.New("timed out waiting for all lines")
+		}
+		//now delete each of the files
+		for i := 0; i < testMultiCount; i++ {
+			fname := fmt.Sprintf(`test%dpaco123`, i)
+			newname := fmt.Sprintf(`test%dpaco456`, i)
+			if err := os.Rename(filepath.Join(workingDir, fname), filepath.Join(workingDir, newname)); err != nil {
+				return err
+			}
+		}
+		time.Sleep(100 * time.Millisecond)
+		return nil
+	}, func(w *WatchManager) error {
+		for i := 0; i < 100; i++ {
+			if w.Followers() == testMultiCount {
+				return nil
+			}
+			time.Sleep(time.Millisecond * 10)
+		}
+		return fmt.Errorf("Renamed files not removed from followers: %d", w.Followers())
+	}, t)
+
+	//check the results
+	for i := range lhs {
+		if len(res[i]) != lhs[i].Len() {
+			t.Fatal("line handler failed to get all the lines on", i)
+		}
+		for k := range res[i] {
+			if _, ok := lhs[i].mp[k]; !ok {
+				t.Fatal("missing line", i, k)
+			}
+		}
+	}
+}
+
+func TestMultiWatcherWithMoveWithMatchNewFilter(t *testing.T) {
+	var res []map[string]bool
+	var lhs []*safeTrackingLH
+	var counts []int
+
+	fireWatcher(func(workingDir string, w *WatchManager) error {
+		for i := 0; i < testMultiCount; i++ {
+			lh := newSafeTrackingLH()
+			lhs = append(lhs, lh)
+			watchCfg := WatchConfig{
+				ConfigName: bName,
+				BaseDir:    workingDir,
+				FileFilter: fmt.Sprintf(`test%dpaco*`, i),
+				Hnd:        lh,
+			}
+			//add in one filter
+			if err := w.Add(watchCfg); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if w.Filters() != testMultiCount {
+			t.Fatal(errors.New("All filters not installed"))
+		}
+		return nil
+	}, func(workingDir string) error {
+		//perform the writes
+		for i := 0; i < testMultiCount; i++ {
+			fname := fmt.Sprintf(`test%dpaco123`, i)
+			cnt, r, err := writeLines(filepath.Join(workingDir, fname))
+			if err != nil {
+				t.Fatal(err)
+			}
+			res = append(res, r)
+			counts = append(counts, cnt)
+		}
+		var i int
+		for i < 100 {
+			//check all our lengths
+			missed := false
+			for j := 0; j < testMultiCount; j++ {
+				if lhs[j].Len() != len(res[j]) {
+					missed = true
+					break
+				}
+			}
+			if !missed {
+				break
+			}
+			time.Sleep(10 * time.Millisecond)
+			i++
+		}
+		if i >= 100 {
+			return errors.New("timed out waiting for all lines")
+		}
+		//now delete each of the files
+		for i := 0; i < testMultiCount; i++ {
+			fname := fmt.Sprintf(`test%dpaco123`, i)
+			newname := fmt.Sprintf(`test%dpaco456`, (i+1)%testMultiCount)
+			if err := os.Rename(filepath.Join(workingDir, fname), filepath.Join(workingDir, newname)); err != nil {
+				return err
+			}
+		}
+		return nil
+	}, func(w *WatchManager) error {
+		for i := 0; i < 100; i++ {
+			if w.Followers() == testMultiCount {
+				return nil
+			}
+			time.Sleep(time.Millisecond * 10)
+		}
+		return fmt.Errorf("Renamed files not removed from followers: %d", w.Followers())
+	}, t)
+
+	//check the results
+	for i := range lhs {
+		//lines are going to be duplicated into each one, so res > lhs
+		if len(res[i]) > lhs[i].Len() {
+			t.Fatal("line handler failed to get all the lines on", i, len(res[i]), lhs[i].Len())
+		}
+		for k := range res[i] {
+			if _, ok := lhs[i].mp[k]; !ok {
+				t.Fatal("missing line", i, k)
+			}
+		}
+	}
+}
+
 type safeTrackingLH struct {
 	mp  map[string]time.Time
 	cnt int
