@@ -226,13 +226,13 @@ func (wm *WatchManager) initExisting() error {
 	return nil
 }
 
-func (wm *WatchManager) watchNewFile(fpath string) error {
+func (wm *WatchManager) watchNewFile(fpath string) (bool, error) {
 	wm.mtx.Lock()
 	defer wm.mtx.Unlock()
 	return wm.fman.NewFollower(fpath)
 }
 
-func (wm *WatchManager) deleteWatchedFile(fpath string) error {
+func (wm *WatchManager) deleteWatchedFile(fpath string) (bool, error) {
 	wm.mtx.Lock()
 	defer wm.mtx.Unlock()
 	return wm.fman.RemoveFollower(fpath)
@@ -261,15 +261,15 @@ watchRoutine:
 				break watchRoutine
 			}
 			if evt.Op == fsnotify.Create {
-				if err := wm.watchNewFile(evt.Name); err != nil {
+				if ok, err := wm.watchNewFile(evt.Name); err != nil {
 					wm.logger.Error("file_follower failed to watch new file %s due to %v", evt.Name, err)
-				} else {
+				} else if ok {
 					wm.logger.Info("file_follower now watching %s", evt.Name)
 				}
 			} else if evt.Op == fsnotify.Remove {
-				if err := wm.deleteWatchedFile(evt.Name); err != nil {
+				if ok, err := wm.deleteWatchedFile(evt.Name); err != nil {
 					wm.logger.Error("file_follower failed to stop watching %s due to %v", evt.Name, err)
-				} else {
+				} else if ok {
 					wm.logger.Info("file_follower stopped watching %s", evt.Name)
 				}
 			} else if evt.Op == fsnotify.Rename {

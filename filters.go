@@ -135,14 +135,14 @@ func (f *FilterManager) AddFilter(bname, loc string, mtchs []string, lh handler)
 	return nil
 }
 
-func (f *FilterManager) RemoveFollower(fpath string) error {
+func (f *FilterManager) RemoveFollower(fpath string) (bool, error) {
 	//get file path and base name
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 	return f.nolockRemoveFollower(fpath)
 }
 
-func (f *FilterManager) nolockRemoveFollower(fpath string) error {
+func (f *FilterManager) nolockRemoveFollower(fpath string) (removed bool, err error) {
 	//check filters
 	for _, v := range f.filters {
 		//check if we have an active follower
@@ -154,12 +154,13 @@ func (f *FilterManager) nolockRemoveFollower(fpath string) error {
 		if ok {
 			delete(f.followers, stid)
 			delete(f.states, stid)
-			if err := fl.Close(); err != nil {
-				return err
+			if err = fl.Close(); err != nil {
+				return
 			}
+			removed = true
 		}
 	}
-	return nil
+	return
 }
 
 //walk the directory looking for files, pull the file ID and check if it matches the current file ID
@@ -272,10 +273,13 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 		}
 	}
 	//filename was never found, remove it
-	return f.nolockRemoveFollower(fpath)
+	if _, err := f.nolockRemoveFollower(fpath); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (f *FilterManager) NewFollower(fpath string) error {
+func (f *FilterManager) NewFollower(fpath string) (bool, error) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 	return f.launchFollowers(fpath, true) // we are deleting the existing state if its there
@@ -337,19 +341,19 @@ func (f *FilterManager) addSeekInfo(bname, fpath string) *int64 {
 }
 
 //actually kick off the file follower
-func (f *FilterManager) launchFollowers(fpath string, deleteState bool) error {
+func (f *FilterManager) launchFollowers(fpath string, deleteState bool) (ok bool, err error) {
 	//get ID
 	id, err := getFileIdFromName(fpath)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	//check if this is just a renaming
 	isRename, err := f.checkRename(fpath, id)
 	if err != nil {
-		return err
+		return false, err
 	} else if isRename {
-		return nil //just a file renaming, continue
+		return true, nil //just a file renaming, continue
 	}
 
 	//get base dir
@@ -374,10 +378,11 @@ func (f *FilterManager) launchFollowers(fpath string, deleteState bool) error {
 		}
 
 		if err := f.addFollower(v.bname, fpath, si, i, v.lh); err != nil {
-			return err
+			return false, err
 		}
+		ok = true
 	}
-	return nil
+	return
 }
 
 //swings through our current set of followers, check if the fileID matches.  If a match is
@@ -441,7 +446,10 @@ func (f *FilterManager) matchFile(mtchs []string, fname string) (matched bool) {
 func (f *FilterManager) LoadFile(fpath string) error {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
-	return f.launchFollowers(fpath, false)
+	if _, err := f.launchFollowers(fpath, false); err != nil {
+		return err
+	}
+	return nil
 }
 
 func appendErr(err, nerr error) error {
