@@ -856,7 +856,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 
 	wg.Add(1)
 	go readerFunc(wg, tt)
-	im.Info("connected to %v", dst)
+	im.Info("connected to %v", dst.Address)
 
 	//loop, trying to grab entries, or dying
 	for {
@@ -935,7 +935,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 					//fire our reader function back up
 					wg.Add(1)
 					go readerFunc(wg, tt)
-					im.Info("re-connected to %v", dst)
+					im.Info("re-connected to %v", dst.Address)
 
 					break
 				}

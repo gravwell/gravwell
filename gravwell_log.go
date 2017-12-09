@@ -9,9 +9,9 @@
 package ingest
 
 import (
-	"sync/atomic"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravwell/ingest/entry"
