@@ -77,6 +77,7 @@ func GetConfig(path string) (*cfgType, error) {
 	}
 	//read into the intermediary type to maintain backwards compatibility with the old system
 	var cr cfgReadType
+	cr.Global.Init()
 	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
 		return nil, err
 	}
@@ -85,7 +86,6 @@ func GetConfig(path string) (*cfgType, error) {
 		Listener:     cr.Listener,
 	}
 
-	c.Init() //initialize all the global parameters
 	if err := verifyConfig(c); err != nil {
 		return nil, err
 	}

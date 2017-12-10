@@ -69,6 +69,7 @@ func GetConfig(path string) (*cfgType, error) {
 	}
 
 	var cr cfgReadType
+	cr.Global.Init()
 	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
 		return nil, err
 	}
@@ -76,7 +77,6 @@ func GetConfig(path string) (*cfgType, error) {
 		IngestConfig: cr.Global,
 		Sniffer:      cr.Sniffer,
 	}
-	c.Init()
 	if err := verifyConfig(&c); err != nil {
 		return nil, err
 	}
