@@ -47,13 +47,13 @@ func (ic *IngestConfig) Init() {
 	//SECURITY SHIT!
 	//default the Verifiy_Remote_Certificates to true
 	ic.Verify_Remote_Certificates = true
+}
+
+func (ic *IngestConfig) Verify() error {
 	ic.Log_Level = strings.ToUpper(strings.TrimSpace(ic.Log_Level))
 	if ic.Max_Ingest_Cache == 0 && len(ic.Ingest_Cache_Path) != 0 {
 		ic.Max_Ingest_Cache = defaultMaxCache
 	}
-}
-
-func (ic *IngestConfig) Verify() error {
 	if to, err := ic.parseTimeout(); err != nil || to < 0 {
 		if err != nil {
 			return err
