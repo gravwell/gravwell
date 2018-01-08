@@ -17,11 +17,16 @@ import (
 
 type Processor interface {
 	Extract([]byte, *time.Location) (time.Time, bool)
+	Format() string
 }
 
 type processor struct {
 	rxp    *regexp.Regexp
 	format string
+}
+
+func (p *processor) Format() string {
+	return p.format
 }
 
 func NewAnsiCProcessor() *processor {
@@ -105,25 +110,35 @@ func NewNGINXProcessor() *processor {
 }
 
 type syslogProcessor struct {
-	p *processor
+	processor
 }
 
 func NewSyslogProcessor() *syslogProcessor {
 	re := `[JFMASOND][anebriyunlgpctov]+\s+\d+\s+\d\d:\d\d:\d\d`
-	return &syslogProcessor{&processor{regexp.MustCompile(re), SYSLOG_FORMAT}}
+	return &syslogProcessor{
+		processor: processor{regexp.MustCompile(re), SYSLOG_FORMAT},
+	}
 }
 
 type unixProcessor struct {
-	re *regexp.Regexp
+	re     *regexp.Regexp
+	format string
 }
 
 func NewUnixMilliTimeProcessor() *unixProcessor {
-	return &unixProcessor{re: regexp.MustCompile(`\A\d+\.\d+`)}
+	return &unixProcessor{
+		re:     regexp.MustCompile(`(\A\d+\.\d+)\s`),
+		format: `(\A\d+\.\d+)\s`,
+	}
+}
+
+func (up *unixProcessor) Format() string {
+	return up.format
 }
 
 func (a processor) Extract(d []byte, loc *time.Location) (time.Time, bool) {
 	sub := a.rxp.Find(d)
-	if len(sub) == 0 || sub == nil {
+	if len(sub) == 0 {
 		return time.Time{}, false
 	}
 	t, err := time.ParseInLocation(a.format, string(sub), loc)
@@ -135,7 +150,7 @@ func (a processor) Extract(d []byte, loc *time.Location) (time.Time, bool) {
 }
 
 func (sp syslogProcessor) Extract(d []byte, loc *time.Location) (time.Time, bool) {
-	t, ok := sp.p.Extract(d, loc)
+	t, ok := sp.processor.Extract(d, loc)
 	if !ok {
 		return time.Time{}, false
 	}
@@ -147,11 +162,11 @@ func (sp syslogProcessor) Extract(d []byte, loc *time.Location) (time.Time, bool
 }
 
 func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool) {
-	sub := up.re.Find(d)
-	if len(sub) == 0 {
+	subs := up.re.FindSubmatch(d)
+	if len(subs) < 2 || len(subs[1]) == 0 {
 		return
 	}
-	s, err := strconv.ParseFloat(string(sub), 64)
+	s, err := strconv.ParseFloat(string(subs[1]), 64)
 	if err != nil {
 		return
 	}

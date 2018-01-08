@@ -55,12 +55,13 @@ func TestUnixMilli(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	ts, ok, err := tg.Extract([]byte(`1511802599.453396 CQsz7E4Wiy30uCtBR3 199.58.81.140 37358 198.46.205.70 9998 data_before_established	- F bro`))
+	candidate := `1511802599.453396 CQsz7E4Wiy30uCtBR3 199.58.81.140 37358 198.46.205.70 9998 data_before_established	- F bro`
+	ts, ok, err := tg.Extract([]byte(candidate))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !ok {
-		t.Fatal("Failed to extract timestamp")
+		t.Fatal("Failed to extract timestamp " + candidate)
 	}
 	if ctime != ts {
 		t.Fatal("Timestamp extraction is wrong")

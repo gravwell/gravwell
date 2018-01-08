@@ -146,7 +146,8 @@ func (tg *TimeGrinder) Extract(data []byte) (t time.Time, ok bool, err error) {
 		//move the current forward
 		i = (i + 1) % tg.count
 	}
-	//if we hit here we failed to extract a timestamp
+	//if we hit here we failed to extract a timestamp, reset to zero the attempts at zero
+	tg.curr = 0
 	ok = false
 	return
 }
