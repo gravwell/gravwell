@@ -73,7 +73,7 @@ func (fm *FilterManager) Close() (err error) {
 	//just shitcan filters, no need to close anything
 	fm.filters = nil
 
-	if err := fm.dumpStates(); err != nil {
+	if err := fm.nolockDumpStates(); err != nil {
 		return err
 	}
 	if err := fm.stateFout.Close(); err != nil {
@@ -99,9 +99,17 @@ func (fm *FilterManager) Filters() int {
 	return len(fm.filters)
 }
 
-//dumpStates pushes the current set of states out to a file
+// FlushStates flushes the current state of followed files to the disk
+// periodically flushing states is a good idea, incase the device crashes, or the process is abruptly killed
+func (fm *FilterManager) FlushStates() error {
+	fm.mtx.Lock()
+	defer fm.mtx.Unlock()
+	return fm.nolockDumpStates()
+}
+
+//nolockDumpStates pushes the current set of states out to a file
 //caller MUST HOLD THE LOCK
-func (fm *FilterManager) dumpStates() error {
+func (fm *FilterManager) nolockDumpStates() error {
 	if fm.stateFout == nil {
 		return nil
 	}
@@ -514,8 +522,11 @@ func cleanStates(states map[FileName]*int64) error {
 				return err
 			}
 		} else {
+			if v == nil {
+				v = new(int64)
+			}
 			//if file shrank, we have to assume this was a truncation, so remove the state
-			if v != nil && fi.Size() < *v {
+			if fi.Size() < *v {
 				*v = 0 //reset the size
 			}
 		}

@@ -16,6 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/fsnotify/fsnotify"
 
@@ -247,6 +248,9 @@ func (wm *WatchManager) renameWatchedFile(fpath string) error {
 func (wm *WatchManager) routine(errch chan error) {
 	var ok bool
 	var err error
+	tckr := time.NewTicker(time.Minute)
+	defer tckr.Stop()
+
 watchRoutine:
 	for {
 		select {
@@ -276,6 +280,10 @@ watchRoutine:
 				if err := wm.renameWatchedFile(evt.Name); err != nil {
 					wm.logger.Error("file_follower failed to track renamed file %s due to %v", evt.Name, err)
 				}
+			}
+		case _ = <-tckr.C:
+			if err := wm.fman.FlushStates(); err != nil {
+				wm.logger.Error("file_follower failed to flush states: %v", err)
 			}
 		}
 	}
