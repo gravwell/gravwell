@@ -46,29 +46,20 @@ func makeRandBuff(sz int) []byte {
 	return b
 }
 
-func init() {
-
-}
-
 func TestCreateBlock(t *testing.T) {
 	var sz uint64
-	aeb := NewActiveEntryBlock(key)
-	if aeb == nil {
-		t.Fatal("active entry block is nil")
-	}
+	eb := NewEntryBlock(nil, 0)
 	for i := 0; i < testSize; i++ {
 		e, err := genRandomEntry()
 		if err != nil {
 			t.Fatal(err)
 		}
 		e.TS.Sec = key
-		if err := aeb.Add(&e); err != nil {
-			t.Fatal(err)
-		}
+		eb.Add(&e)
 		sz += e.Size()
 	}
 
-	buff, err := aeb.Encode()
+	buff, err := eb.Encode()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,19 +67,19 @@ func TestCreateBlock(t *testing.T) {
 		t.Fatal("Bad resulting buff size", len(buff), sz)
 	}
 
-	var aeb2 ActiveEntryBlock
-	if err := aeb2.Decode(buff); err != nil {
+	var eb2 EntryBlock
+	if err := eb2.Decode(buff); err != nil {
 		t.Fatal(err)
 	}
-	if aeb.size != aeb2.size || aeb.size == 0 {
-		t.Fatal(fmt.Sprintf("encode/decode sizes don't match %d != %d", aeb.size, aeb2.size))
+	if eb.size != eb2.size || eb.size == 0 {
+		t.Fatal(fmt.Sprintf("encode/decode sizes don't match %d != %d", eb.size, eb2.size))
 	}
-	if len(aeb.entries) != len(aeb2.entries) || len(aeb.entries) == 0 {
+	if len(eb.entries) != len(eb2.entries) || len(eb.entries) == 0 {
 		t.Fatal(fmt.Sprintf("encode/decode counts don't match %d != %d",
-			len(aeb.entries), len(aeb2.entries)))
+			len(eb.entries), len(eb2.entries)))
 	}
-	for i := range aeb.entries {
-		if err := compareEntry(aeb.entries[i], aeb2.entries[i]); err != nil {
+	for i := range eb.entries {
+		if err := compareEntry(eb.entries[i], eb2.entries[i]); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -127,6 +118,98 @@ func TestCreateEBlock(t *testing.T) {
 		t.Fatal(fmt.Sprintf("encode/decode counts don't match %d != %d",
 			len(eb.entries), len(eb2.entries)))
 	}
+	for i := range eb.entries {
+		if err := compareEntry(eb.entries[i], eb2.entries[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestDeepCopyBlock(t *testing.T) {
+	var eb EntryBlock
+	var sz uint64
+
+	for i := 0; i < testSize; i++ {
+		e, err := genRandomEntry()
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.TS.Sec = key
+		eb.Add(&e)
+		sz += e.Size()
+	}
+
+	eb2 := eb.DeepCopy()
+	if eb.Len() != eb2.Len() {
+		t.Fatal(fmt.Sprintf("len mismatch: %d != %d", eb.Len(), eb2.Len()))
+	}
+	if eb.Size() != eb2.Size() {
+		t.Fatal(fmt.Sprintf("Size mismatch: %d != %d", eb.Size(), eb2.Size()))
+	}
+	if eb.key != eb2.key {
+		t.Fatal(fmt.Sprintf("Key mismatch: %d != %d", eb.key, eb2.key))
+	}
+
+	for i := range eb.entries {
+		if err := compareEntry(eb.entries[i], eb2.entries[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestDeepBroken(t *testing.T) {
+	var eb EntryBlock
+	var sz uint64
+
+	for i := 0; i < testSize; i++ {
+		e, err := genRandomEntry()
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.TS.Sec = key
+		eb.Add(&e)
+		sz += e.Size()
+	}
+
+	//break the key and size
+	eb.key = 1234890987
+	eb.size = 0xdeadbeef
+
+	eb2 := eb.DeepCopy()
+	if eb.Len() != eb2.Len() {
+		t.Fatal(fmt.Sprintf("len mismatch: %d != %d", eb.Len(), eb2.Len()))
+	}
+	if eb.Size() == eb2.Size() {
+		t.Fatal(fmt.Sprintf("Size not corrected: %d == %d", eb.Size(), eb2.Size()))
+	}
+	if eb.key == eb2.key {
+		t.Fatal(fmt.Sprintf("Key not corrected: %d == %d", eb.key, eb2.key))
+	}
+
+	for i := range eb.entries {
+		if err := compareEntry(eb.entries[i], eb2.entries[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestDeepEmpty(t *testing.T) {
+	var eb EntryBlock
+	//break the key and size
+	eb.key = 1234890987
+	eb.size = 0xdeadbeef
+
+	eb2 := eb.DeepCopy()
+	if eb.Len() != eb2.Len() {
+		t.Fatal(fmt.Sprintf("len mismatch: %d != %d", eb.Len(), eb2.Len()))
+	}
+	if eb.Size() == eb2.Size() {
+		t.Fatal(fmt.Sprintf("Size not corrected: %d == %d", eb.Size(), eb2.Size()))
+	}
+	if eb2.Key() != 0 {
+		t.Fatal(fmt.Sprintf("Key not corrected: %d != 0", eb2.key))
+	}
+
 	for i := range eb.entries {
 		if err := compareEntry(eb.entries[i], eb2.entries[i]); err != nil {
 			t.Fatal(err)
