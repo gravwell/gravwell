@@ -157,6 +157,84 @@ func TestDeepCopyBlock(t *testing.T) {
 	}
 }
 
+func TestNewDeepBlock(t *testing.T) {
+	var eb EntryBlock
+	var set []*Entry
+	var sz uint64
+
+	for i := 0; i < testSize; i++ {
+		e, err := genRandomEntry()
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.TS.Sec = key
+		eb.Add(&e)
+		sz += e.Size()
+		set = append(set, &e)
+	}
+
+	eb2 := NewDeepCopyEntryBlock(set, sz)
+
+	if eb.Len() != eb2.Len() {
+		t.Fatal(fmt.Sprintf("len mismatch: %d != %d", eb.Len(), eb2.Len()))
+	}
+	if eb.Size() != eb2.Size() {
+		t.Fatal(fmt.Sprintf("Size mismatch: %d != %d", eb.Size(), eb2.Size()))
+	}
+	if eb.key != eb2.key {
+		t.Fatal(fmt.Sprintf("Key mismatch: %d != %d", eb.key, eb2.key))
+	}
+
+	for i := range eb.entries {
+		if err := compareEntry(eb.entries[i], eb2.entries[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if eb2.Size() != sz {
+		t.Fatal(fmt.Sprintf("invalid size: %d != %d", eb2.Size(), sz))
+	}
+}
+
+func TestNewDeepBlockNoSize(t *testing.T) {
+	var eb EntryBlock
+	var set []*Entry
+	var sz uint64
+
+	for i := 0; i < testSize; i++ {
+		e, err := genRandomEntry()
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.TS.Sec = key
+		eb.Add(&e)
+		sz += e.Size()
+		set = append(set, &e)
+	}
+
+	eb2 := NewDeepCopyEntryBlock(set, 0)
+
+	if eb.Len() != eb2.Len() {
+		t.Fatal(fmt.Sprintf("len mismatch: %d != %d", eb.Len(), eb2.Len()))
+	}
+	if eb.Size() != eb2.Size() {
+		t.Fatal(fmt.Sprintf("Size mismatch: %d != %d", eb.Size(), eb2.Size()))
+	}
+	if eb.key != eb2.key {
+		t.Fatal(fmt.Sprintf("Key mismatch: %d != %d", eb.key, eb2.key))
+	}
+
+	for i := range eb.entries {
+		if err := compareEntry(eb.entries[i], eb2.entries[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if eb2.Size() != sz {
+		t.Fatal(fmt.Sprintf("invalid size: %d != %d", eb2.Size(), sz))
+	}
+}
+
 func TestDeepBroken(t *testing.T) {
 	var eb EntryBlock
 	var sz uint64

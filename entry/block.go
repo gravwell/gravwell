@@ -319,26 +319,34 @@ func (eb EntryBlock) EntryKey(i int) (int64, error) {
 // this is useful when you are pulling entries out of a RO memory reagion and want to ensure your block
 // is entirely orthogonal to the backing memory region.
 // WARNING: this will hammer the memory allocator, only use when you know what you are doing
-func (eb EntryBlock) DeepCopy() (neb EntryBlock) {
-	//short circuit out on empty blocks
-	if eb.size == 0 || len(eb.entries) == 0 {
+func (eb EntryBlock) DeepCopy() EntryBlock {
+	return NewDeepCopyEntryBlock(eb.entries, eb.size)
+}
+
+// NewDeepCopyEntryBlock creates a new EntryBlock with a deep copy on all data in the provided set
+// the sz size parameter is used as a hint for allocation, provide zero if unknown
+func NewDeepCopyEntryBlock(set []*Entry, sz uint64) (neb EntryBlock) {
+	//short circuit out on empty sets
+	if len(set) == 0 {
 		return
 	}
-	//allocate a block large enough to hold all entry SRC and DATA fields
-	trimSize := uint64(len(eb.entries) * (ENTRY_HEADER_SIZE - SRC_SIZE))
-	allocSize := eb.size
-	if trimSize > eb.size {
-		allocSize = 4096
-	} else {
-		allocSize = eb.size - trimSize
+	var buff []byte
+	if sz > 0 {
+		//allocate a block large enough to hold all entry SRC and DATA fields
+		trimSize := uint64(len(set) * (ENTRY_HEADER_SIZE - SRC_SIZE))
+		if trimSize > sz {
+			sz = 4096
+		} else {
+			sz = sz - trimSize
+		}
+		buff = make([]byte, 0, sz)
 	}
 
 	//we sweep through copying SRC and Data into our new buffer, everything else is allocated via the
 	//a new Entry
-	buff := make([]byte, 0, allocSize)
 	var off int
 	var ne *Entry
-	for _, e := range eb.entries {
+	for _, e := range set {
 		if e == nil {
 			continue
 		}
