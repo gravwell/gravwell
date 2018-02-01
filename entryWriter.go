@@ -96,20 +96,25 @@ func (ew *EntryWriter) OverrideAckTimeout(t time.Duration) error {
 	return nil
 }
 
-func (ew *EntryWriter) Close() error {
+func (ew *EntryWriter) Close() (err error) {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
 
-	err := ew.forceAckNoLock()
-
-	//read acks is a liberal implementation which will pull any available
-	//acks from the read buffer.  we don't care if we get an error here
-	//because this is largely used when trying to refire a connection
-	ew.readAcks(true)
+	if err = ew.forceAckNoLock(); err == nil {
+		if err = ew.conn.SetReadDeadline(time.Now().Add(ew.ackTimeout)); err != nil {
+			ew.conn.Close()
+			ew.hot = false
+			return
+		}
+		//read acks is a liberal implementation which will pull any available
+		//acks from the read buffer.  we don't care if we get an error here
+		//because this is largely used when trying to refire a connection
+		err = ew.readAcks(true)
+	}
 
 	ew.conn.Close()
 	ew.hot = false
-	return err
+	return
 }
 
 func (ew *EntryWriter) ForceAck() error {
