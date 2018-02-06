@@ -12,6 +12,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/gravwell/ingest"
@@ -131,6 +132,7 @@ func (c *cfgType) Tags() ([]string, error) {
 	if len(tags) == 0 {
 		return nil, errors.New("No tags specified")
 	}
+	sort.Strings(tags)
 	return tags, nil
 }
 
