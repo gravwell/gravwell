@@ -290,34 +290,15 @@ func (er *EntryReader) writeAll(b []byte) error {
 	return nil
 }
 
-//sendAcks encodes and optionally flushes our acks
+// sendAcks encodes and optionally flushes our acks
+// caller should hold the lock
 func (er *EntryReader) sendAcks(acks []entrySendID) error {
+	sz := len(acks) * ACK_SIZE
 	//escape analysis should ensure that this is on the stack
-	lbuff := make([]byte, ACK_WRITER_BUFFER_SIZE)
+	lbuff := make([]byte, sz)
 	for i := range acks {
 		binary.LittleEndian.PutUint32(lbuff[(i*ACK_SIZE):], CONFIRM_ENTRY_MAGIC)
 		binary.LittleEndian.PutUint64(lbuff[(i*ACK_SIZE)+4:], uint64(acks[i]))
 	}
-	return er.writeAll(lbuff[0 : len(acks)*ACK_SIZE])
-
-	//TODO batch these up and only do one write against the buffered
-	//writer
-	for i := range acks {
-		//check if we should flush our ack buffer
-		if er.bAckWriter.Available() < ACK_SIZE {
-			if err := er.bAckWriter.Flush(); err != nil {
-				return err
-			}
-		}
-		//fill out the buffer
-		binary.LittleEndian.PutUint32(lbuff[0:], CONFIRM_ENTRY_MAGIC)
-		binary.LittleEndian.PutUint64(lbuff[4:], uint64(acks[i]))
-		n, err := er.bAckWriter.Write(lbuff)
-		if err != nil {
-			return err
-		} else if n != ACK_SIZE {
-			return errors.New("Failed to send ACK")
-		}
-	}
-	return nil
+	return er.writeAll(lbuff)
 }

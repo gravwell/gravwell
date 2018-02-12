@@ -489,11 +489,12 @@ func (im *IngestMuxer) WaitForHot(to time.Duration) error {
 		defer close(toCh)
 	}
 	//wait for one of them to hit
+mainLoop:
 	for {
 		select {
 		case <-im.upChan:
 			im.Info("Ingester %v has gone hot", im.name)
-			return nil //somone came up
+			break mainLoop
 		case <-toCh:
 			return ErrConnectionTimeout
 		case err := <-im.errChan:
@@ -507,7 +508,7 @@ func (im *IngestMuxer) WaitForHot(to time.Duration) error {
 			continue
 		}
 	}
-	return errors.New("Failed to wait for hot connection") //this shouldn't ever actuall happen
+	return nil //somone came up
 }
 
 // Hot returns how many connections are functioning
@@ -1025,13 +1026,13 @@ func isFatalConnError(err error) bool {
 	return true //everything else is fatal
 }
 
-func (im *IngestMuxer) getConnection(tgt Target) (*IngestConnection, tagTrans, error) {
+func (im *IngestMuxer) getConnection(tgt Target) (ig *IngestConnection, tt tagTrans, err error) {
+loop:
 	for {
 		//attempt a connection, timeouts are built in to the IngestConnection
-		ig, err := InitializeConnection(tgt.Address, tgt.Secret, im.tags, im.pubKey, im.privKey, im.verifyCert)
-		if err != nil {
+		if ig, err = InitializeConnection(tgt.Address, tgt.Secret, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
 			if isFatalConnError(err) {
-				return nil, nil, err
+				break loop
 			}
 			//non-fatal, sleep and continue
 			select {
@@ -1046,14 +1047,15 @@ func (im *IngestMuxer) getConnection(tgt Target) (*IngestConnection, tagTrans, e
 		}
 		//no error, attempt to do a tag translation
 		//we have a good connection, build our tag map
-		tt, err := im.newTagTrans(ig)
-		if err != nil {
+		if tt, err = im.newTagTrans(ig); err != nil {
 			ig.Close()
-			return nil, nil, err
+			ig = nil
+			tt = nil
+			return
 		}
-		return ig, tt, nil //all is well
+		break
 	}
-	return nil, nil, errors.New("getConnection broke out of the loop")
+	return
 }
 
 func (im *IngestMuxer) newTagTrans(igst *IngestConnection) (tagTrans, error) {

@@ -48,7 +48,7 @@ type EntryWriter struct {
 	bIO        *bufio.Writer
 	bAckReader *bufio.Reader
 	errCount   uint32
-	mtx        sync.Mutex
+	mtx        *sync.Mutex
 	ecb        entryConfBuffer
 	hot        bool
 	buff       []byte
@@ -57,7 +57,6 @@ type EntryWriter struct {
 }
 
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
-	var mtx sync.Mutex
 	var bRdr *bufio.Reader
 	var bWtr *bufio.Writer
 	if MIN_UNCONFIRMED_COUNT >= MAX_UNCONFIRMED_COUNT {
@@ -77,7 +76,7 @@ func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
 		conn:       conn,
 		bIO:        bWtr,
 		bAckReader: bRdr,
-		mtx:        mtx,
+		mtx:        &sync.Mutex{},
 		ecb:        ecb,
 		hot:        true,
 		buff:       buff,

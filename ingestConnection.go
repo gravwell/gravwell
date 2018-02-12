@@ -54,7 +54,7 @@ func (igst *IngestConnection) outstandingEntries() []*entry.Entry {
 }
 
 func (igst *IngestConnection) Write(ts entry.Timestamp, tag entry.EntryTag, data []byte) error {
-	return igst.WriteEntry(&entry.Entry{ts, igst.src, tag, data})
+	return igst.WriteEntry(&entry.Entry{TS: ts, SRC: igst.src, Tag: tag, Data: data})
 }
 
 func (igst *IngestConnection) WriteEntry(ent *entry.Entry) error {
