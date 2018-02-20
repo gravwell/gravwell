@@ -55,6 +55,21 @@ func NewEntryBlock(set []*Entry, size uint64) EntryBlock {
 	}
 }
 
+// NewEntryBlock creates a new entry block from the set and size parameters
+// the size is taken at face value and should represent the storage size needed to
+// encode the given set.  The slice of Entry handed in is NOT copied, caller should not modify the slice until the block is done
+func NewEntryBlockNP(set []Entry, size uint64) (eb EntryBlock) {
+	if len(set) > 0 {
+		eb.key = set[0].TS.Sec
+	}
+	eb.size = size
+	eb.entries = make([]*Entry, len(set))
+	for i := range set {
+		eb.entries[i] = &set[i]
+	}
+	return
+}
+
 // Add adds an entry to the entry block, if no key is currently set, the entries TS is used
 func (eb *EntryBlock) Add(e *Entry) {
 	eb.size += e.Size()
