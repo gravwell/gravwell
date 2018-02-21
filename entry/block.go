@@ -90,7 +90,7 @@ func (eb *EntryBlock) Merge(neb *EntryBlock) error {
 }
 
 // Count returns the number of entries held in the block
-func (eb *EntryBlock) Count() int {
+func (eb EntryBlock) Count() int {
 	return len(eb.entries)
 }
 
