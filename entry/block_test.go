@@ -125,6 +125,30 @@ func TestCreateEBlock(t *testing.T) {
 	}
 }
 
+func TestCreateBlockSizeInfer(t *testing.T) {
+	var sz uint64
+	var ents []Entry
+	var entps []*Entry
+	for i := 0; i < testSize; i++ {
+		e, err := genRandomEntry()
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.TS.Sec = key
+		ents = append(ents, e)
+		entps = append(entps, &e)
+		sz += e.Size()
+	}
+	eb := NewEntryBlockNP(ents, 0)
+	if eb.Size() != sz {
+		t.Fatal("Did not infer size correctly")
+	}
+	eb2 := NewEntryBlock(entps, 0)
+	if eb2.Size() != sz {
+		t.Fatal("Did not infer size correctly with pointer based block")
+	}
+}
+
 func TestDeepCopyBlock(t *testing.T) {
 	var eb EntryBlock
 	var sz uint64

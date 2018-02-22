@@ -47,6 +47,15 @@ func NewEntryBlock(set []*Entry, size uint64) EntryBlock {
 		if set[0] != nil {
 			key = set[0].TS.Sec
 		}
+		if size == 0 {
+			//go figure out what the size should be if they don't know
+			for i := range set {
+				if set[i] != nil {
+					size += set[i].Size()
+				}
+			}
+		}
+
 	}
 	return EntryBlock{
 		size:    size,
@@ -61,6 +70,12 @@ func NewEntryBlock(set []*Entry, size uint64) EntryBlock {
 func NewEntryBlockNP(set []Entry, size uint64) (eb EntryBlock) {
 	if len(set) > 0 {
 		eb.key = set[0].TS.Sec
+		if size == 0 {
+			//go figure out what the size should be if they don't know
+			for i := range set {
+				size += set[i].Size()
+			}
+		}
 	}
 	eb.size = size
 	eb.entries = make([]*Entry, len(set))
