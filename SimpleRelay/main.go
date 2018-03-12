@@ -215,7 +215,7 @@ func main() {
 	}
 	debugout("Started %d listeners\n", len(cfg.Listener))
 	//fire off our relay
-	doneChan := make(chan error, 1)
+	doneChan := make(chan bool)
 	go relay(ch, doneChan, igst)
 
 	debugout("Running\n")
@@ -244,10 +244,9 @@ func main() {
 		close(ch)
 		//wait for our ingest relay to exit
 		<-doneChan
-	case <-time.After(time.Second):
+	case <-time.After(1*time.Second):
 		fmt.Fprintf(os.Stderr, "Failed to wait for all connections to close.  %d active\n", connCount())
 	}
-
 	if err := igst.StopAndSync(time.Second); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to sync: %v\n", err)
 	}
@@ -256,7 +255,7 @@ func main() {
 	}
 }
 
-func relay(ch chan *entry.Entry, done chan error, igst *ingest.IngestMuxer) {
+func relay(ch chan *entry.Entry, done chan bool, igst *ingest.IngestMuxer) {
 	var ents []*entry.Entry
 
 	tckr := time.NewTicker(time.Second)
@@ -302,7 +301,7 @@ mainLoop:
 			}
 		}
 	}
-	done <- nil
+	close(done)
 }
 
 func acceptor(lst net.Listener, ch chan *entry.Entry, tag entry.EntryTag, lrt readerType, ignoreTimestamps, setLocalTime bool, wg *sync.WaitGroup, id int, igst *ingest.IngestMuxer) {
