@@ -109,6 +109,11 @@ func NewNGINXProcessor() *processor {
 	return &processor{regexp.MustCompile(re), NGINX_FORMAT}
 }
 
+func NewZonelessRFC3339() *processor {
+	re := `(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.*\d*)`
+	return &processor{regexp.MustCompile(re), ZONELESS_RFC3339_FORMAT}
+}
+
 type syslogProcessor struct {
 	processor
 }

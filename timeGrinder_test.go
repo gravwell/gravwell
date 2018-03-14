@@ -190,6 +190,12 @@ func TestNGINXFile(t *testing.T) {
 	}
 }
 
+func TestZonelessRFC3339(t *testing.T) {
+	if err := runFullSecTestsCurr(ZONELESS_RFC3339_FORMAT); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func runFullSecTestsCurr(format string) error {
 	tg, err := NewTimeGrinder()
 	if err != nil {
