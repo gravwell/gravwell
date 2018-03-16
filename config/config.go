@@ -10,6 +10,7 @@ package config
 
 import (
 	"errors"
+	"os"
 	"strings"
 	"time"
 )
@@ -159,4 +160,41 @@ func (ic *IngestConfig) parseTimeout() (time.Duration, error) {
 		return 0, nil
 	}
 	return time.ParseDuration(tos)
+}
+
+func LoadEnvVar(cnd *string, envName, defVal string) error {
+	if cnd == nil {
+		return errors.New("Invalid argument")
+	} else if len(*cnd) > 0 {
+		return nil
+	} else if len(envName) == 0 {
+		return nil
+	}
+	*cnd = os.Getenv(envName)
+	if *cnd == `` {
+		*cnd = defVal
+	}
+	return nil
+}
+
+func LoadEnvVarList(lst *[]string, envName string) error {
+	if lst == nil {
+		return errors.New("Invalid argument")
+	} else if len(*lst) > 0 {
+		return nil
+	} else if len(envName) == 0 {
+		return nil
+	}
+	arg := os.Getenv(envName)
+	if len(arg) == 0 {
+		return nil
+	}
+	if bits := strings.Split(arg, ","); len(bits) > 0 {
+		for _, b := range bits {
+			if b = strings.TrimSpace(b); len(b) > 0 {
+				*lst = append(*lst, b)
+			}
+		}
+	}
+	return nil
 }
