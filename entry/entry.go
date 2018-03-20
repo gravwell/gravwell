@@ -60,6 +60,7 @@ func (ent *Entry) Size() uint64 {
 	return uint64(len(ent.Data)) + uint64(ENTRY_HEADER_SIZE)
 }
 
+//decodeHeader copies copies the SRC buffer
 func (ent *Entry) decodeHeader(buff []byte) int {
 	var datasize uint32
 	var ipv4 bool
@@ -94,6 +95,34 @@ func (ent *Entry) decodeHeader(buff []byte) int {
 	return int(datasize)
 }
 
+//decodeHeaderAlt gets a direct handle on the SRC buffer
+func (ent *Entry) decodeHeaderAlt(buff []byte) int {
+	var datasize uint32
+	var ipv4 bool
+	/* buffer should come formatted as follows:
+	data size uint32
+	TS seconds (int64)
+	TS nanoseconds (int64)
+	Tag (16bit)
+	SRC (16 bytes)
+	*/
+	//TODO: force this to LittleEndian
+	datasize = binary.LittleEndian.Uint32(buff)
+	//check if we are an ipv4 address
+	if (datasize & 0x80000000) != 0 {
+		ipv4 = true
+		datasize &= 0x7FFFFFFF //clear the bit
+	}
+	ent.TS.Decode(buff[4:])
+	ent.Tag = EntryTag(binary.LittleEndian.Uint16(buff[16:]))
+	if ipv4 {
+		ent.SRC = buff[18:22]
+	} else {
+		ent.SRC = buff[18:ENTRY_HEADER_SIZE]
+	}
+	return int(datasize)
+}
+
 func (ent *Entry) DecodeHeader(buff []byte) (int, error) {
 	if len(buff) < ENTRY_HEADER_SIZE {
 		return 0, ErrInvalidBufferSize
@@ -112,7 +141,7 @@ func (ent *Entry) DecodeEntry(buff []byte) {
 //DecodeEntryAlt doesn't copy the SRC or data out, it just references the slice handed in
 //it also assumes a size check for the entry header size has occurred by the caller
 func (ent *Entry) DecodeEntryAlt(buff []byte) {
-	dataSize := ent.decodeHeader(buff)
+	dataSize := ent.decodeHeaderAlt(buff)
 	ent.Data = buff[ENTRY_HEADER_SIZE : ENTRY_HEADER_SIZE+int(dataSize)]
 }
 
@@ -280,4 +309,13 @@ func (ent *Entry) MarshallBytes() ([]byte, error) {
 	}
 	copy(buff[ENTRY_HEADER_SIZE:], ent.Data)
 	return buff, nil
+}
+
+// DeepCopy provides a complete copy of an entry, this is REALLY expensive, so make sure its worth it
+func (ent *Entry) DeepCopy() (c Entry) {
+	c.TS = ent.TS
+	c.SRC = append(net.IP(nil), ent.SRC...)
+	c.Tag = ent.Tag
+	c.Data = append([]byte(nil), ent.Data...)
+	return
 }

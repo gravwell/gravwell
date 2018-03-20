@@ -49,20 +49,48 @@ func TestEncodeDecode(t *testing.T) {
 
 func BenchmarkDecode(b *testing.B) {
 	b.StopTimer()
-	header := make([]byte, ENTRY_HEADER_SIZE)
-	e := Entry{
-		TS:  Now(),
-		SRC: net.ParseIP("DEAD::BEEF"),
-		Tag: 0x1337,
+	bts := make([]byte, ENTRY_HEADER_SIZE+1024)
+	data := bts[ENTRY_HEADER_SIZE:]
+	for i := range data {
+		data[i] = byte(i)
 	}
-	if err := e.EncodeHeader(header); err != nil {
+	e := Entry{
+		TS:   Now(),
+		SRC:  net.ParseIP("DEAD::BEEF"),
+		Tag:  0x1337,
+		Data: data,
+	}
+	if err := e.Encode(bts); err != nil {
 		b.Fatal(err)
 	}
 	b.StartTimer()
 	for i := 0; i < b.N; i++ {
-		if _, err := e.DecodeHeader(header); err != nil {
-			b.Fatal(err)
+		e.DecodeEntry(bts)
+		if e.Tag != 0x1337 {
+			b.Fatal("bad tag")
 		}
+	}
+}
+
+func BenchmarkDecodeAlt(b *testing.B) {
+	b.StopTimer()
+	bts := make([]byte, ENTRY_HEADER_SIZE+1024)
+	data := bts[ENTRY_HEADER_SIZE:]
+	for i := range data {
+		data[i] = byte(i)
+	}
+	e := Entry{
+		TS:   Now(),
+		SRC:  net.ParseIP("DEAD::BEEF"),
+		Tag:  0x1337,
+		Data: data,
+	}
+	if err := e.Encode(bts); err != nil {
+		b.Fatal(err)
+	}
+	b.StartTimer()
+	for i := 0; i < b.N; i++ {
+		e.DecodeEntryAlt(bts)
 		if e.Tag != 0x1337 {
 			b.Fatal("bad tag")
 		}
