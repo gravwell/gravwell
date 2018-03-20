@@ -114,6 +114,11 @@ func NewZonelessRFC3339() *processor {
 	return &processor{regexp.MustCompile(re), ZONELESS_RFC3339_FORMAT}
 }
 
+func NewSyslogVariant() *processor {
+	re := `[JFMASOND][anebriyunlgpctov]+\s+\d{2}\s+\d\d\d\d\s+\d\d:\d\d:\d\d`
+	return &processor{regexp.MustCompile(re), SYSLOG_VARIANT}
+}
+
 type syslogProcessor struct {
 	processor
 }

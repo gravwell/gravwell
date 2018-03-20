@@ -37,6 +37,7 @@ const (
 	DPKG_MSG_FORMAT          string = `2006-01-02 15:04:05`
 	CUSTOM1_MILLI_MSG_FORMAT string = `01-02-2006 15:04:05.0`
 	ZONELESS_RFC3339_FORMAT  string = `2006-01-02T15:04:05.999999999`
+	SYSLOG_VARIANT           string = `Jan 02 2006 15:04:05`
 )
 
 var (
@@ -118,6 +119,9 @@ func NewTimeGrinder() (*TimeGrinder, error) {
 
 	//Zoneless RFC33389
 	procs = append(procs, NewZonelessRFC3339())
+
+	// Syslog variant
+	procs = append(procs, NewSyslogVariant())
 
 	return &TimeGrinder{
 		procs: procs,

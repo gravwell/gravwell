@@ -196,6 +196,12 @@ func TestZonelessRFC3339(t *testing.T) {
 	}
 }
 
+func TestSyslogVariant(t *testing.T) {
+	if err := runFullSecTests(SYSLOG_VARIANT); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func runFullSecTestsCurr(format string) error {
 	tg, err := NewTimeGrinder()
 	if err != nil {
