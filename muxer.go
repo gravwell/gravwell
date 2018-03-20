@@ -809,6 +809,8 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	// We will re-visit this, but for the time being this will work
 	readerFunc := func(lwg *sync.WaitGroup, tt tagTrans) {
 		defer lwg.Done()
+		tkr := time.NewTicker(time.Second)
+		defer tkr.Stop()
 		for {
 			select {
 			case e, ok := <-im.eChan:
@@ -849,6 +851,10 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 						newConnection = true
 					}
 					bail <- true
+					return
+				}
+			case _ = <-tkr.C:
+				if !igst.Running() {
 					return
 				}
 			}
