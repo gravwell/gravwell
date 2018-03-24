@@ -244,7 +244,7 @@ func main() {
 		close(ch)
 		//wait for our ingest relay to exit
 		<-doneChan
-	case <-time.After(1*time.Second):
+	case <-time.After(1 * time.Second):
 		fmt.Fprintf(os.Stderr, "Failed to wait for all connections to close.  %d active\n", connCount())
 	}
 	if err := igst.StopAndSync(time.Second); err != nil {
