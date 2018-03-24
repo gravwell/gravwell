@@ -217,6 +217,10 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		cacheSig = make(chan bool, 1)
 	}
 
+	if c.ChannelSize <= 0 {
+		c.ChannelSize = defaultChannelSize
+	}
+
 	return &IngestMuxer{
 		dests:           c.Destinations,
 		tags:            localTags,
@@ -813,6 +817,7 @@ func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, or
 			case connFailure <- true:
 			default:
 			}
+			ok = false
 			continue
 		}
 		//ok, we synced, pass things back
@@ -826,6 +831,7 @@ func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, or
 			//try to send, if we can't just roll on
 			select {
 			case connFailure <- true:
+				ok = false
 			default:
 			}
 			continue
@@ -853,6 +859,9 @@ inputLoop:
 	for {
 		select {
 		case e := <-im.eChan:
+			if e == nil {
+				continue
+			}
 			e.Tag = nc.tt.Translate(e.Tag)
 			if len(e.SRC) == 0 {
 				e.SRC = nc.src
@@ -952,6 +961,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	defer close(ncc)
 
 	go im.writeRelayRoutine(ncc, connErrNotif)
+
 	//send the first connection set
 	ncc <- connSet{
 		dst: dst.Address,
