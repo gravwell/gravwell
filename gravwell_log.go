@@ -29,6 +29,10 @@ const (
 	defaultLogLevel = gravwellError
 )
 
+var (
+	logTimeout time.Duration = time.Second
+)
+
 type IngestLogger interface {
 	Error(string, ...interface{}) error
 	Warn(string, ...interface{}) error
@@ -57,11 +61,18 @@ func (im *IngestMuxer) Info(format string, args ...interface{}) error {
 	return im.gravwellWriteIfHot(gravwellInfo, fmt.Sprintf(format, args...))
 }
 
-func (im *IngestMuxer) gravwellWriteIfHot(level gll, line string) error {
+func (im *IngestMuxer) gravwellWriteIfHot(level gll, line string) (err error) {
 	if atomic.LoadInt32(&im.connHot) == 0 {
-		return ErrAllConnsDown
+		return
 	}
-	return im.gravwellWrite(level, fmt.Sprintf("%v: %v", im.name, line))
+	ts := entry.Now()
+	e := &entry.Entry{
+		Data: []byte(ts.Format(time.RFC3339) + ` ` + level.String() + ` ` + im.name + ` ` + line),
+		TS:   ts,
+		Tag:  entry.GravwellTagId,
+	}
+
+	return im.WriteEntryTimeout(e, logTimeout)
 }
 
 func (im *IngestMuxer) gravwellWrite(level gll, line string) error {

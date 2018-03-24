@@ -34,6 +34,7 @@ var (
 	ErrEmptyAuth             = errors.New("Ingest key is empty")
 	ErrEmergencyListOverflow = errors.New("Emergency list overflow")
 	ErrTimeout               = errors.New("Timed out waiting for ingesters")
+	ErrWriteTimeout          = errors.New("Timed out waiting to write entry")
 
 	errNotImp = errors.New("Not implemented yet")
 )
@@ -722,6 +723,29 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	return nil
 }
 
+// WriteEntryAttempt attempts to put an entry into the queue to be sent out
+// of the first available writer routine.  This write is opportunistic and contains
+// a timeout.  It is therefor every expensive and shouldn't be used for normal writes
+// The typical use case is via the gravwell_log calls
+func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err error) {
+	tmr := time.NewTimer(d)
+	if e == nil {
+		return
+	}
+	im.mtx.RLock()
+	defer im.mtx.RUnlock()
+	if im.state != running {
+		err = ErrNotRunning
+		return
+	}
+	select {
+	case im.eChan <- e:
+	case _ = <-tmr.C:
+		err = ErrWriteTimeout
+	}
+	return
+}
+
 // WriteBatch puts a slice of entries into the queue to be sent out by the first
 // available entry writer routine.  The entry writer routines will consume the
 // entire slice, so extremely large slices will go to a single indexer.
@@ -762,6 +786,132 @@ func (im *IngestMuxer) connFailed(dst string, err error) {
 	im.errChan <- err
 }
 
+type connSet struct {
+	ig  *IngestConnection
+	tt  tagTrans
+	dst string
+	src net.IP
+}
+
+//keep attempting to get a new connection set that we can actually write to
+func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, orig bool) (nc connSet, ok bool) {
+	if !orig {
+		//try to send, if we can't just roll on
+		select {
+		case connFailure <- true:
+		default:
+		}
+	}
+	for {
+		if nc, ok = <-csc; !ok {
+			return
+		}
+		//attempt to clear the emergency queue and throw at our new connection
+		if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
+			//try to send, if we can't just roll on
+			select {
+			case connFailure <- true:
+			default:
+			}
+			continue
+		}
+		//ok, we synced, pass things back
+		var err error
+		if orig {
+			err = im.Info("connected to %v", nc.dst)
+		} else {
+			err = im.Info("re-connected to %v", nc.dst)
+		}
+		if err != nil {
+			//try to send, if we can't just roll on
+			select {
+			case connFailure <- true:
+			default:
+			}
+			continue
+		}
+		break
+	}
+	return
+}
+
+func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool) {
+	tkr := time.NewTicker(time.Second)
+	defer tkr.Stop()
+	defer close(connFailure)
+
+	//grab our first conn set
+	var tnc connSet
+	var nc connSet
+	var ok bool
+	var err error
+	if nc, ok = im.getNewConnSet(csc, connFailure, true); !ok {
+		return
+	}
+
+inputLoop:
+	for {
+		select {
+		case e := <-im.eChan:
+			e.Tag = nc.tt.Translate(e.Tag)
+			if len(e.SRC) == 0 {
+				e.SRC = nc.src
+			}
+			//handle the entry
+			if nc.ig.WriteEntry(e) != nil {
+				im.recycleEntries(e, nil, nc.tt)
+				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+					break inputLoop
+				}
+			}
+		case b := <-im.bChan:
+			if b == nil {
+				continue
+			}
+			for i := range b {
+				if b[i] != nil {
+					b[i].Tag = nc.tt.Translate(b[i].Tag)
+					if len(b[i].SRC) == 0 {
+						b[i].SRC = nc.src
+					}
+				}
+			}
+			if err = nc.ig.WriteBatchEntry(b); err != nil {
+				im.recycleEntries(nil, b, nc.tt)
+				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+					break inputLoop
+				}
+			}
+		case tnc, ok = <-csc: //in case we get an unexpected new connection
+			if !ok {
+				nc.ig.Sync()
+				nc.ig.Close()
+				//attempt to sync with current ngst and then bail
+				break inputLoop
+			}
+			nc = tnc //just an update
+		case <-tkr.C:
+			//periodically check the emergency queue and sync
+			if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
+				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+					break inputLoop
+				}
+			}
+		case rc, ok := <-im.syncChan:
+			if !ok {
+				nc.ig.Close()
+				return
+			}
+			if err = nc.ig.Sync(); err != nil {
+				rc <- err
+				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+					break inputLoop
+				}
+			}
+		}
+	}
+}
+
 //the routine that manages
 func (im *IngestMuxer) connRoutine(igIdx int) {
 	var src net.IP
@@ -797,159 +947,72 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	im.igst[igIdx] = igst
 	im.goHot()
 
-	tkr := time.NewTicker(time.Second)
-	defer tkr.Stop()
+	connErrNotif := make(chan bool, 1)
+	ncc := make(chan connSet, 1)
+	defer close(ncc)
 
-	var newConnection bool
-	bail := make(chan bool, 2) //this MUST have enough capacity to hold both reader functions
-	wg := &sync.WaitGroup{}
-
-	// This takes care of some synchronization issues we had with two goroutines
-	// when the underlying ingestConnection died.
-	// We will re-visit this, but for the time being this will work
-	readerFunc := func(lwg *sync.WaitGroup, tt tagTrans) {
-		defer lwg.Done()
-		tkr := time.NewTicker(time.Second)
-		defer tkr.Stop()
-		for {
-			select {
-			case e, ok := <-im.eChan:
-				if !ok {
-					return
-				}
-				e.Tag = tt.Translate(e.Tag)
-				if len(e.SRC) == 0 {
-					e.SRC = src
-				}
-				//handle the entry
-				if err := igst.WriteEntry(e); err != nil {
-					if !im.recycleEntries(e, nil, tt) {
-						//we were able to recycle, connection isn't closed
-						newConnection = true
-					}
-					bail <- true
-					return
-				}
-			case b, ok := <-im.bChan:
-				if !ok {
-					return
-				}
-				if b == nil {
-					continue
-				}
-				for i := range b {
-					if b[i] != nil {
-						b[i].Tag = tt.Translate(b[i].Tag)
-						if len(b[i].SRC) == 0 {
-							b[i].SRC = src
-						}
-					}
-				}
-				if err = igst.WriteBatchEntry(b); err != nil {
-					if !im.recycleEntries(nil, b, tt) {
-						//we were able to recycle, connection isn't closed
-						newConnection = true
-					}
-					bail <- true
-					return
-				}
-			case _ = <-tkr.C:
-				if !igst.Running() {
-					return
-				}
-			}
-		}
+	go im.writeRelayRoutine(ncc, connErrNotif)
+	//send the first connection set
+	ncc <- connSet{
+		dst: dst.Address,
+		src: src,
+		ig:  igst,
+		tt:  tt,
 	}
-
-	wg.Add(1)
-	go readerFunc(wg, tt)
-	im.Info("connected to %v", dst.Address)
 
 	//loop, trying to grab entries, or dying
 	for {
 		select {
-		case _ = <-tkr.C:
-			//periodically check the emergency queue and sync
-			if !im.eq.clear(igst, tt) {
-				newConnection = true
-			} else if err := igst.Sync(); err != nil {
-				newConnection = true
-			}
-		case rc, ok := <-im.syncChan:
-			if !ok {
-				return
-			}
-			err := igst.Sync()
-			rc <- err
-			if err != nil {
-				newConnection = true
-			}
-		case _, ok := <-bail:
-			if !ok {
-				//nobody closes this, so this SHOULD never happen
-				return
-			}
-			// one of the reader functions failed to write
-			//we fall out of the switch statement and restart the connection
 		case _ = <-im.dieChan:
-			igst.Sync()
-			igst.Close()
 			im.goDead()
 			im.connFailed(dst.Address, errors.New("Closed"))
-			return
-		}
-		if newConnection {
+			return //this will close the ncc, causing the relay routine to close
+
+		case _, ok := <-connErrNotif:
+			if !ok {
+				//this means that the relay function bailed, close the connection and bail
+				return
+			}
 			//then close our ingest connection
 			//if it throws an error, fuck it
 			//we don't care, and cant do anything about it
 			igst.Close()
 			im.goDead() //let the world know of our failures
-			wg.Wait()   //wait for our reader functions to finish
 			im.igst[igIdx] = nil
 
-			im.Error("lost connection to %v", dst.Address)
-
+			//pull any entrys out of the ingest connection and put them into the emergency queue
 			ents := igst.outstandingEntries()
-			if im.recycleEntries(nil, ents, tt) {
-				//just return, its already dead and closed
+			im.recycleEntries(nil, ents, tt)
+
+			//attempt to get the connection rolling again
+			igst, tt, err = im.getConnection(dst)
+			if err != nil {
+				im.connFailed(dst.Address, err)
+				return //we are done
+			}
+			if igst == nil {
+				im.connFailed(dst.Address, errors.New("Nil connection"))
 				return
 			}
-			//begin attempting to establish a new connection and clear the emergency queue
-			for newConnection {
-				//attempt to get the connection rolling again
-				igst, tt, err = im.getConnection(dst)
-				if err != nil {
-					im.connFailed(dst.Address, err)
-					return //we are done
-				}
-				if igst == nil {
-					im.connFailed(dst.Address, errors.New("Nil connection"))
-					return
-				}
-				src, err = igst.Source()
-				if err != nil {
-					im.connFailed(dst.Address, err)
-					return
-				}
-
-				im.igst[igIdx] = igst
-				im.goHot()
-
-				if im.eq.clear(igst, tt) {
-					//only reset the newConnection value and break if we
-					//were able to clean the emergency queue
-					newConnection = false
-					//fire our reader function back up
-					wg.Add(1)
-					go readerFunc(wg, tt)
-					im.Info("re-connected to %v", dst.Address)
-
-					break
-				}
-				// failed to pull and send values from the emergency queue
+			if err := im.Error("lost connection to %v", dst.Address); err != nil {
+				//if we fail to log, then we need to restart the connection
 				igst.Close()
-				im.goDead() //let the world know of our failures
-				im.igst[igIdx] = nil
+				continue //retry...
+			}
+			//get the source fired back up
+			src, err = igst.Source()
+			if err != nil {
+				im.connFailed(dst.Address, err)
+				return
+			}
+
+			im.igst[igIdx] = igst
+			im.goHot()
+			ncc <- connSet{
+				dst: dst.Address,
+				src: src,
+				ig:  igst,
+				tt:  tt,
 			}
 		}
 	}
@@ -957,7 +1020,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 
 //we don't want to fully block here, so we attempt to push back on the channel
 //and listen for a die signal
-func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt tagTrans) bool {
+func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt tagTrans) {
 	//reset the tags to the globally translatable set
 	//this operation is expensive
 	if len(ents) > 0 {
@@ -980,14 +1043,14 @@ func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt ta
 		select {
 		case _ = <-tmr.C:
 			if err := im.eq.push(e, ents); err != nil {
-				//FIXME - throw a fit about this
-				return false
+				//FIXME - throw a fit about this via some logging, aight?
+				return
 			}
 			//timer expired, reset it in case we have a block too
 			tmr.Reset(0)
 		case im.eChan <- e:
 		case _ = <-im.dieChan:
-			return true
+			return
 		}
 	}
 	//try block entry
@@ -996,14 +1059,14 @@ func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt ta
 		case _ = <-tmr.C:
 			if err := im.eq.push(nil, ents); err != nil {
 				//FIXME - throw a fit about this
-				return false
+				return
 			}
 		case im.bChan <- ents:
 		case _ = <-im.dieChan:
-			return true
+			return
 		}
 	}
-	return false
+	return
 }
 
 //fatal connection errors is looking for errors which are non-recoverable
