@@ -85,7 +85,6 @@ type IngestMuxer struct {
 	dieChan         chan bool
 	upChan          chan bool
 	errChan         chan error
-	syncChan        chan (chan error)
 	wg              *sync.WaitGroup
 	state           muxState
 	logLevel        gll
@@ -236,7 +235,6 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		bChan:           make(chan []*entry.Entry, c.ChannelSize),
 		eq:              newEmergencyQueue(),
 		dieChan:         make(chan bool, len(c.Destinations)),
-		syncChan:        make(chan (chan error), len(c.Destinations)),
 		upChan:          make(chan bool, 1),
 		errChan:         make(chan error, len(c.Destinations)),
 		cache:           cache,
@@ -337,7 +335,6 @@ func (im *IngestMuxer) Close() error {
 	//close the echan now that all the routines have closed
 	close(im.eChan)
 	close(im.bChan)
-	close(im.syncChan)
 
 	//sync the cache and close it
 	if im.cacheEnabled && im.cache != nil {
@@ -413,10 +410,19 @@ func (im *IngestMuxer) Sync(to time.Duration) error {
 		}
 	}
 
-	for i := 0; i < len(im.dests); i++ {
-		im.syncChan <- retChan
+	var count int
+	for _, v := range im.igst {
+		if v != nil {
+			err := v.Sync()
+			if err != ErrNotRunning {
+				count++
+			}
+		}
 	}
 	im.mtx.Unlock()
+	if count == len(im.igst) {
+		return ErrAllConnsDown
+	}
 
 	//recalculate the timeout
 	to = to - time.Since(ts)
@@ -855,10 +861,20 @@ func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool
 		return
 	}
 
+	eC := im.eChan
+	bC := im.bChan
+
 inputLoop:
 	for {
 		select {
-		case e := <-im.eChan:
+		case e, ok := <-eC:
+			if !ok {
+				eC = nil
+				if bC == nil {
+					return
+				}
+				continue
+			}
 			if e == nil {
 				continue
 			}
@@ -873,7 +889,14 @@ inputLoop:
 					break inputLoop
 				}
 			}
-		case b := <-im.bChan:
+		case b, ok := <-bC:
+			if !ok {
+				bC = nil
+				if eC == nil {
+					return
+				}
+				continue
+			}
 			if b == nil {
 				continue
 			}
@@ -902,17 +925,6 @@ inputLoop:
 		case <-tkr.C:
 			//periodically check the emergency queue and sync
 			if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
-				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
-					break inputLoop
-				}
-			}
-		case rc, ok := <-im.syncChan:
-			if !ok {
-				nc.ig.Close()
-				return
-			}
-			if err = nc.ig.Sync(); err != nil {
-				rc <- err
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
 				}
@@ -1119,8 +1131,6 @@ loop:
 			case _ = <-im.dieChan:
 				//told to exit, just bail
 				return nil, nil, errors.New("Muxer closing")
-			case r := <-im.syncChan:
-				r <- nil //if we are attempting to get a connection, then we are synced
 			}
 			continue
 		}
