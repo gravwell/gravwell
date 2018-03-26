@@ -108,6 +108,9 @@ func (igst *IngestConnection) GetTag(name string) (entry.EntryTag, bool) {
 func (igst *IngestConnection) Sync() error {
 	igst.mtx.Lock()
 	defer igst.mtx.Unlock()
+	if !igst.running {
+		return ErrNotRunning
+	}
 	return igst.ew.ForceAck()
 }
 
