@@ -23,13 +23,15 @@ import (
 const (
 	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
 	nfv5Type              = iota
+
+	nfv5Name string = `netflowv5`
 )
 
 var ()
 
 type flowType int
 
-type listener struct {
+type collector struct {
 	Bind_String           string //IP port pair 127.0.0.1:1234
 	Tag_Name              string
 	Assume_Local_Timezone bool
@@ -38,13 +40,13 @@ type listener struct {
 }
 
 type cfgReadType struct {
-	Global   config.IngestConfig
-	Listener map[string]*listener
+	Global    config.IngestConfig
+	Collector map[string]*collector
 }
 
 type cfgType struct {
 	config.IngestConfig
-	Listener map[string]*listener
+	Collector map[string]*collector
 }
 
 func GetConfig(path string) (*cfgType, error) {
@@ -77,7 +79,7 @@ func GetConfig(path string) (*cfgType, error) {
 	}
 	c := cfgType{
 		IngestConfig: cr.Global,
-		Listener:     cr.Listener,
+		Collector:    cr.Collector,
 	}
 
 	if err := verifyConfig(c); err != nil {
@@ -91,11 +93,11 @@ func verifyConfig(c cfgType) error {
 	if err := c.Verify(); err != nil {
 		return err
 	}
-	if len(c.Listener) == 0 {
-		return errors.New("No listeners specified")
+	if len(c.Collector) == 0 {
+		return errors.New("No collectors specified")
 	}
 	bindMp := make(map[string]string, 1)
-	for k, v := range c.Listener {
+	for k, v := range c.Collector {
 		if len(v.Bind_String) == 0 {
 			return errors.New("No Bind-String provided for " + k)
 		}
@@ -116,7 +118,7 @@ func verifyConfig(c cfgType) error {
 func (c *cfgType) Tags() ([]string, error) {
 	var tags []string
 	tagMp := make(map[string]bool, 1)
-	for _, v := range c.Listener {
+	for _, v := range c.Collector {
 		if len(v.Tag_Name) == 0 {
 			continue
 		}
@@ -145,9 +147,9 @@ func translateFlowType(s string) (flowType, error) {
 	switch s {
 	case ``:
 		fallthrough //default is netflow v5
-	case `nfv5`:
+	case `nfv5`: //nfv5Name shortcut
 		fallthrough
-	case `netflowv5`:
+	case nfv5Name:
 		return nfv5Type, nil
 	}
 	return -1, errors.New("invalid reader type")

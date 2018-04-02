@@ -328,6 +328,10 @@ func NewNetflowV5Handler(c bindConfig) (*NetflowV5Handler, error) {
 	}, nil
 }
 
+func (n *NetflowV5Handler) String() string {
+	return `NetflowV5`
+}
+
 func (n *NetflowV5Handler) Listen(s string) (err error) {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
@@ -359,6 +363,7 @@ func (n *NetflowV5Handler) Start(id int) error {
 	n.mtx.Lock()
 	defer n.mtx.Unlock()
 	if !n.ready || n.c == nil {
+		fmt.Println(n.ready, n.c)
 		return ErrNotReady
 	}
 	if id < 0 {

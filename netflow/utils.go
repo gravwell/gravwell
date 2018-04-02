@@ -59,6 +59,7 @@ type BindHandler interface {
 	Listen(string) error
 	Close() error
 	Start(int) error
+	String() string
 }
 
 func (bc bindConfig) Validate() error {

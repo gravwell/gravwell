@@ -136,7 +136,7 @@ func main() {
 	}
 
 	//fire up our backends
-	for k, v := range cfg.Listener {
+	for k, v := range cfg.Collector {
 		//get the tag for this listener
 		tag, err := igst.GetTag(v.Tag_Name)
 		if err != nil {
@@ -151,24 +151,28 @@ func main() {
 		bc.tag = tag
 		bc.ignoreTS = v.Ignore_Timestamp
 		bc.localTZ = v.Assume_Local_Timezone
+		var bh BindHandler
 		switch ft {
 		case nfv5Type:
-			fh, err := NewNetflowV5Handler(bc)
-			if err != nil {
+			if bh, err = NewNetflowV5Handler(bc); err != nil {
 				fmt.Fprintf(os.Stderr, "NewNetflowV5Handler error: %v\n", err)
-				return
-			}
-			id := addConn(fh)
-			if err := fh.Start(id); err != nil {
-				fmt.Fprintf(os.Stderr, "NFv5.Start() error: %v\n", err)
 				return
 			}
 		default:
 			fmt.Fprintf(os.Stderr, "Invalid flow type %v\n", ft)
 			return
 		}
+		if err = bh.Listen(v.Bind_String); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to listen on %s handler: %v\n", bh.String(), err)
+		}
+		id := addConn(bh)
+		if err := bh.Start(id); err != nil {
+			fmt.Fprintf(os.Stderr, "%s.Start() error: %v\n", bh.String(), err)
+			return
+		}
+		wg.Add(1)
 	}
-	debugout("Started %d handlers\n", len(cfg.Listener))
+	debugout("Started %d handlers\n", len(cfg.Collector))
 	//fire off our relay
 	doneChan := make(chan bool)
 	go relay(ch, doneChan, igst)
