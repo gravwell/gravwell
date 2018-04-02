@@ -28,6 +28,7 @@ import (
 
 const (
 	defaultConfigLoc = `/opt/gravwell/etc/simple_relay.conf`
+	ingesterName     = `simplerelay`
 	batchSize        = 512
 )
 
@@ -133,7 +134,7 @@ func main() {
 		Auth:         cfg.Secret(),
 		LogLevel:     cfg.LogLevel(),
 		VerifyCert:   cfg.VerifyRemote(),
-		IngesterName: "simplerelay",
+		IngesterName: ingesterName,
 	}
 	if cfg.EnableCache() {
 		igCfg.EnableCache = true
