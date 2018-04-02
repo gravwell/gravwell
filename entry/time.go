@@ -68,6 +68,13 @@ func FromStandard(ts time.Time) Timestamp {
 	}
 }
 
+func UnixTime(s, ns int64) Timestamp {
+	return Timestamp{
+		Sec:  s + unixToInternal,
+		Nsec: ns,
+	}
+}
+
 // StandardTime converts our Timestamp format to the golang time.Time datatype
 func (t Timestamp) StandardTime() time.Time {
 	return time.Unix(t.Sec-unixToInternal, t.Nsec)
