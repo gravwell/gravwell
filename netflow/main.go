@@ -9,167 +9,259 @@
 package main
 
 import (
-	"bytes"
-	"encoding/binary"
-	"errors"
+	"flag"
 	"fmt"
-	"io"
-	"log"
-	"net"
 	"os"
+	"os/signal"
+	"path/filepath"
+	"runtime/pprof"
+	"sync"
+	"syscall"
 	"time"
+
+	"github.com/gravwell/ingest"
+	"github.com/gravwell/ingest/entry"
 )
 
 const (
-	headerSize int = 24
-	recordSize int = 48
+	defaultConfigLoc = `/opt/gravwell/etc/flow.conf`
+	ingesterName     = `flow`
+	batchSize        = 512
 )
 
 var (
-	ErrHeaderTooShort = errors.New("Buffer to small for Netflow V5 header")
-	ErrInvalidCount   = errors.New("V5 record count is invalid")
+	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
+	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
+	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
+	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
+	confLoc        string
+	v              bool
 )
 
-func main() {
-	adr, err := net.ResolveUDPAddr("udp", "0.0.0.0:2055")
-	if err != nil {
-		log.Fatal(err)
-	}
-	uc, err := net.ListenUDP("udp", adr)
-	if err != nil {
-		log.Fatal("ListenUDP error", err)
-	}
-	if err = handlenfv5(uc); err != nil {
-		log.Println("v5 error", err)
-	}
-	if err = uc.Close(); err != nil {
-		log.Fatal("Close error", err)
-	}
-}
+func init() {
+	flag.Parse()
 
-func handlenfv5(c *net.UDPConn) (err error) {
-	var n int
-	var addr *net.UDPAddr
-	var nf nfv5
-	b := make([]byte, 4096) //way oversized
-	for {
-		if n, addr, err = c.ReadFromUDP(b); err != nil {
-			return
-		}
-		if n == 0 {
-			continue
-		}
-		if err = nf.Decode(b[0:n]); err != nil {
-			return
-		}
-		fmt.Printf("%v ", addr)
-		nf.Print(os.Stdout)
-	}
-}
-
-type nfv5 struct {
-	nfv5Header
-	Recs [30]nfv5Record
-}
-
-type nfv5Header struct {
-	Version      uint16
-	Count        uint16
-	Uptime       uint32
-	Sec          uint32
-	Nsec         uint32
-	Sequence     uint32
-	EngineType   byte
-	EngineID     byte
-	ModeInterval uint16
-}
-
-type nfv5Record struct {
-	Src         net.IP
-	Dst         net.IP
-	Next        net.IP
-	Input       uint16
-	Output      uint16
-	Pkts        uint32
-	Octets      uint32
-	UptimeFirst uint32
-	UptimeLast  uint32
-	SrcPort     uint16
-	DstPort     uint16
-	Pad         byte
-	Flags       byte
-	Protocol    byte
-	ToS         byte
-	SrcAs       uint16
-	DstAs       uint16
-	SrcMask     byte
-	DstMask     byte
-	Pad2        uint16
-}
-
-func (h *nfv5Header) Decode(b []byte) error {
-	if len(b) < headerSize {
-		return ErrHeaderTooShort
-	}
-	bb := bytes.NewBuffer(b)
-	return h.Read(bb)
-}
-
-func (h *nfv5Header) Read(rdr io.Reader) error {
-	return binary.Read(rdr, binary.BigEndian, h)
-}
-
-func (nf *nfv5) Decode(b []byte) (err error) {
-	bb := bytes.NewBuffer(b)
-	if err = nf.nfv5Header.Read(bb); err != nil {
-		return
-	}
-	if nf.Count == 0 || nf.Count > 30 {
-		return ErrInvalidCount
-	}
-	if len(b) != (headerSize + (int(nf.Count) * recordSize)) {
-		err = fmt.Errorf("Invalid record size: %d != %d", len(b), (int(nf.Count) * recordSize))
-		return
-	}
-	for i := uint16(0); i < nf.Count; i++ {
-		if err = nf.Recs[i].Read(bb); err != nil {
-			return
-		}
-	}
-	return
-}
-
-func (nr *nfv5Record) Read(rdr io.Reader) (err error) {
-	//read out the IPS
-	b := make([]byte, 12)
-	var n int
-	if n, err = rdr.Read(b); err != nil {
-		return
-	} else if n != 12 {
-		err = fmt.Errorf("Failed to read IPs: %d != 12", n)
-	}
-	nr.Src = net.IP(b[0:4])
-	nr.Dst = net.IP(b[4:8])
-	nr.Next = net.IP(b[8:12])
-
-	//DEBUG THROW AWAY
-	b = make([]byte, recordSize-12)
-	binary.Read(rdr, binary.BigEndian, b)
-	return
-}
-
-func (nf *nfv5) Print(wtr io.Writer) (err error) {
-	_, err = fmt.Fprintf(wtr, "Netflow V%d %v %v %d\n", nf.Version,
-		time.Duration(nf.Uptime)*time.Millisecond,
-		time.Unix(int64(nf.Sec), int64(nf.Nsec)), nf.Sequence)
-	if err != nil {
-		return
-	}
-	for i := uint16(0); i < nf.Count; i++ {
-		_, err = fmt.Fprintf(wtr, "\t%s %s %s\n", nf.Recs[i].Src, nf.Recs[i].Dst, nf.Recs[i].Next)
+	if *stderrOverride != `` {
+		fp := filepath.Join(`/dev/shm/`, *stderrOverride)
+		fout, err := os.Create(fp)
 		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to create %s: %v\n", fp, err)
+		} else {
+			//file created, dup it
+			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
+				fout.Close()
+			}
+		}
+	}
+
+	if *configOverride == "" {
+		confLoc = defaultConfigLoc
+	} else {
+		confLoc = *configOverride
+	}
+	v = *verbose
+	connClosers = make(map[int]closer, 1)
+}
+
+func main() {
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to open %s for profile file: %v\n", *cpuprofile, err)
+			os.Exit(-1)
+		}
+		defer f.Close()
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+
+	cfg, err := GetConfig(confLoc)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get configuration: %v\n", err)
+		return
+	}
+
+	tags, err := cfg.Tags()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get tags from configuration: %v\n", err)
+		return
+	}
+	conns, err := cfg.Targets()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get backend targets from configuration: %v\n", err)
+		return
+	}
+	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
+
+	//fire up the ingesters
+	debugout("Verifying remote certs: %v\n", cfg.VerifyRemote())
+	igCfg := ingest.UniformMuxerConfig{
+		Destinations: conns,
+		Tags:         tags,
+		Auth:         cfg.Secret(),
+		LogLevel:     cfg.LogLevel(),
+		VerifyCert:   cfg.VerifyRemote(),
+		IngesterName: ingesterName,
+	}
+	if cfg.EnableCache() {
+		igCfg.EnableCache = true
+		igCfg.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
+		igCfg.CacheConfig.MaxCacheSize = cfg.MaxCachedData()
+	}
+	igst, err := ingest.NewUniformMuxer(igCfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed build our ingest system: %v\n", err)
+		return
+	}
+
+	defer igst.Close()
+	debugout("Started ingester muxer\n")
+	if err := igst.Start(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed start our ingest system: %v\n", err)
+		return
+	}
+	debugout("Waiting for connections to indexers ... ")
+	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
+		fmt.Fprintf(os.Stderr, "Timedout waiting for backend connections: %v\n", err)
+		return
+	}
+	debugout("Successfully connected to ingesters\n")
+	wg := sync.WaitGroup{}
+	ch := make(chan *entry.Entry, 2048)
+	bc := bindConfig{
+		ch:   ch,
+		wg:   &wg,
+		igst: igst,
+	}
+
+	//fire up our backends
+	for k, v := range cfg.Listener {
+		//get the tag for this listener
+		tag, err := igst.GetTag(v.Tag_Name)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to resolve tag \"%s\" for %s: %v\n", v.Tag_Name, k, err)
+			return
+		}
+		ft, err := translateFlowType(v.Flow_Type)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Invalid flow type \"%s\": %v\n", v.Flow_Type, err)
+			return
+		}
+		bc.tag = tag
+		bc.ignoreTS = v.Ignore_Timestamp
+		bc.localTZ = v.Assume_Local_Timezone
+		switch ft {
+		case nfv5Type:
+			fh, err := NewNetflowV5Handler(bc)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "NewNetflowV5Handler error: %v\n", err)
+				return
+			}
+			id := addConn(fh)
+			if err := fh.Start(id); err != nil {
+				fmt.Fprintf(os.Stderr, "NFv5.Start() error: %v\n", err)
+				return
+			}
+		default:
+			fmt.Fprintf(os.Stderr, "Invalid flow type %v\n", ft)
 			return
 		}
 	}
-	return
+	debugout("Started %d handlers\n", len(cfg.Listener))
+	//fire off our relay
+	doneChan := make(chan bool)
+	go relay(ch, doneChan, igst)
+
+	debugout("Running\n")
+
+	//listen for signals so we can close gracefully
+	sch := make(chan os.Signal, 1)
+	signal.Notify(sch, os.Interrupt)
+	<-sch
+	debugout("Closing %d connections\n", connCount())
+	mtx.Lock()
+	for _, v := range connClosers {
+		v.Close()
+	}
+	mtx.Unlock() //must unlock so they can delete their connections
+
+	//wait for everyone to exit with a timeout
+	wch := make(chan bool, 1)
+
+	go func() {
+		wg.Wait()
+		wch <- true
+	}()
+	select {
+	case <-wch:
+		//close our output channel
+		close(ch)
+		//wait for our ingest relay to exit
+		<-doneChan
+	case <-time.After(1 * time.Second):
+		fmt.Fprintf(os.Stderr, "Failed to wait for all connections to close.  %d active\n", connCount())
+	}
+	if err := igst.StopAndSync(time.Second); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to sync: %v\n", err)
+	}
+	if err := igst.Close(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to close: %v\n", err)
+	}
+}
+
+func relay(ch chan *entry.Entry, done chan bool, igst *ingest.IngestMuxer) {
+	var ents []*entry.Entry
+
+	tckr := time.NewTicker(time.Second)
+	defer tckr.Stop()
+mainLoop:
+	for {
+		select {
+		case e, ok := <-ch:
+			if !ok {
+				if len(ents) > 0 {
+					if err := igst.WriteBatch(ents); err != nil {
+						if err != ingest.ErrNotRunning {
+							fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
+						}
+					}
+				}
+				ents = nil
+				break mainLoop
+			}
+			if e != nil {
+				ents = append(ents, e)
+			}
+			if len(ents) >= batchSize {
+				if err := igst.WriteBatch(ents); err != nil {
+					if err != ingest.ErrNotRunning {
+						fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
+					} else {
+						break mainLoop
+					}
+				}
+				ents = nil
+			}
+		case _ = <-tckr.C:
+			if len(ents) > 0 {
+				if err := igst.WriteBatch(ents); err != nil {
+					if err != ingest.ErrNotRunning {
+						fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
+					} else {
+						break mainLoop
+					}
+				}
+				ents = nil
+			}
+		}
+	}
+	close(done)
+}
+
+func debugout(format string, args ...interface{}) {
+	if !v {
+		return
+	}
+	fmt.Printf(format, args...)
 }
