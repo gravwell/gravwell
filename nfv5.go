@@ -18,8 +18,8 @@ import (
 )
 
 const (
-	headerSize int = 24
-	recordSize int = 48
+	HeaderSize int = 24
+	RecordSize int = 48
 )
 
 var (
@@ -27,9 +27,6 @@ var (
 	ErrInvalidCount        = errors.New("V5 record count is invalid")
 	ErrInvalidRecordBuffer = errors.New("Buffer too small for V5 record")
 	ErrInvalidFlowType     = errors.New("Not a valid Netflow V5 flow")
-	ErrAlreadyListening    = errors.New("Already listening")
-	ErrAlreadyClosed       = errors.New("Already closed")
-	ErrNotReady            = errors.New("Not Ready")
 )
 
 type NFv5 struct {
@@ -86,7 +83,7 @@ func u32(v []byte) (x uint32) {
 
 // DecodeAlt uses the golang standard method of extracting items using the binary package
 func (h *NFv5Header) Decode(b []byte) error {
-	if len(b) < headerSize {
+	if len(b) < HeaderSize {
 		return ErrHeaderTooShort
 	}
 	h.Version = binary.BigEndian.Uint16(b)
@@ -103,7 +100,7 @@ func (h *NFv5Header) Decode(b []byte) error {
 }
 
 func (h *NFv5Header) DecodeAlt(b []byte) error {
-	if len(b) < headerSize {
+	if len(b) < HeaderSize {
 		return ErrHeaderTooShort
 	}
 	h.Version = (uint16(b[0]) << 8) | uint16(b[1])
@@ -120,17 +117,17 @@ func (h *NFv5Header) DecodeAlt(b []byte) error {
 }
 
 func (h *NFv5Header) Read(rdr io.Reader) error {
-	b := make([]byte, headerSize)
+	b := make([]byte, HeaderSize)
 	if n, err := rdr.Read(b); err != nil {
 		return err
-	} else if n != headerSize {
+	} else if n != HeaderSize {
 		return ErrHeaderTooShort
 	}
 	return h.Decode(b)
 }
 
 func (nf *NFv5) ValidateSize(b []byte) (n int, err error) {
-	if len(b) < headerSize {
+	if len(b) < HeaderSize {
 		err = ErrHeaderTooShort
 		return
 	}
@@ -139,7 +136,7 @@ func (nf *NFv5) ValidateSize(b []byte) (n int, err error) {
 		err = ErrInvalidFlowType
 		return
 	}
-	n = int(binary.BigEndian.Uint16(b[2:]))*recordSize + headerSize
+	n = int(binary.BigEndian.Uint16(b[2:]))*RecordSize + HeaderSize
 	if len(b) < n {
 		n = -1
 		err = ErrInvalidRecordBuffer
@@ -149,7 +146,7 @@ func (nf *NFv5) ValidateSize(b []byte) (n int, err error) {
 }
 
 func (nf *NFv5) Decode(b []byte) (err error) {
-	if len(b) < headerSize {
+	if len(b) < HeaderSize {
 		err = ErrHeaderTooShort
 		return
 	}
@@ -163,22 +160,22 @@ func (nf *NFv5) Decode(b []byte) (err error) {
 	if nf.Count == 0 || nf.Count > 30 {
 		return ErrInvalidCount
 	}
-	if len(b) != (headerSize + (int(nf.Count) * recordSize)) {
-		err = fmt.Errorf("Invalid record size: %d != %d", len(b), (int(nf.Count) * recordSize))
+	if len(b) != (HeaderSize + (int(nf.Count) * RecordSize)) {
+		err = fmt.Errorf("Invalid record size: %d != %d", len(b), (int(nf.Count) * RecordSize))
 		return
 	}
-	b = b[headerSize:]
+	b = b[HeaderSize:]
 	for i := uint16(0); i < nf.Count; i++ {
 		if err = nf.Recs[i].Decode(b); err != nil {
 			return
 		}
-		b = b[recordSize:]
+		b = b[RecordSize:]
 	}
 	return
 }
 
 func (nf *NFv5) DecodeAlt(b []byte) (err error) {
-	if len(b) < headerSize {
+	if len(b) < HeaderSize {
 		err = ErrHeaderTooShort
 		return
 	}
@@ -188,16 +185,16 @@ func (nf *NFv5) DecodeAlt(b []byte) (err error) {
 	if nf.Count == 0 || nf.Count > 30 {
 		return ErrInvalidCount
 	}
-	if len(b) != (headerSize + (int(nf.Count) * recordSize)) {
-		err = fmt.Errorf("Invalid record size: %d != %d", len(b), (int(nf.Count) * recordSize))
+	if len(b) != (HeaderSize + (int(nf.Count) * RecordSize)) {
+		err = fmt.Errorf("Invalid record size: %d != %d", len(b), (int(nf.Count) * RecordSize))
 		return
 	}
-	b = b[headerSize:]
+	b = b[HeaderSize:]
 	for i := uint16(0); i < nf.Count; i++ {
 		if err = nf.Recs[i].DecodeAlt(b); err != nil {
 			return
 		}
-		b = b[recordSize:]
+		b = b[RecordSize:]
 	}
 	return
 }
@@ -210,7 +207,7 @@ func (nf *NFv5) Read(rdr io.Reader) error {
 	if nf.Count == 0 || nf.Count > 30 {
 		return ErrInvalidCount
 	}
-	b := make([]byte, int(nf.Count)*recordSize)
+	b := make([]byte, int(nf.Count)*RecordSize)
 	if n, err := rdr.Read(b); err != nil {
 		return err
 	} else if n != len(b) {
@@ -220,7 +217,7 @@ func (nf *NFv5) Read(rdr io.Reader) error {
 		if err := nf.Recs[i].Decode(b); err != nil {
 			return err
 		}
-		b = b[recordSize:]
+		b = b[RecordSize:]
 	}
 	return nil
 }
@@ -228,10 +225,10 @@ func (nf *NFv5) Read(rdr io.Reader) error {
 // Read a netflow 4 record from a stream reader
 func (nr *NFv5Record) Read(rdr io.Reader) error {
 	//read out the IPS
-	b := make([]byte, recordSize)
+	b := make([]byte, RecordSize)
 	if n, err := rdr.Read(b); err != nil {
 		return err
-	} else if n != recordSize {
+	} else if n != RecordSize {
 		return ErrInvalidRecordBuffer
 	}
 	return nr.Decode(b)
@@ -240,7 +237,7 @@ func (nr *NFv5Record) Read(rdr io.Reader) error {
 // Decode pulls a record out of the provided buffer
 // no pointers are held on the buffer, so it can be reused
 func (nr *NFv5Record) Decode(b []byte) error {
-	if len(b) < recordSize {
+	if len(b) < RecordSize {
 		return ErrInvalidRecordBuffer
 	}
 
@@ -270,7 +267,7 @@ func (nr *NFv5Record) Decode(b []byte) error {
 }
 
 func (nr *NFv5Record) DecodeAlt(b []byte) error {
-	if len(b) < recordSize {
+	if len(b) < RecordSize {
 		return ErrInvalidRecordBuffer
 	}
 	copy(nr.ipbuff[0:12], b[0:12])
