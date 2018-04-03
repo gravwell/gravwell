@@ -21,6 +21,15 @@ const (
 	gb = 1024 * mb
 
 	defaultMaxCache = 512
+	defaultLogLevel = `ERROR`
+)
+
+const (
+	envSecret      string = `GRAVWELL_INGEST_SECRET`
+	envLogLevel    string = `GRAVWELL_LOG_LEVEL`
+	envClearTarget string = `GRAVWELL_CLEARTEXT_TARGETS`
+	envEncTarget   string = `GRAVWELL_ENCRYPTED_TARGETS`
+	envPipeTarget  string = `GRAVWELL_PIPE_TARGETS`
 )
 
 var (
@@ -35,7 +44,8 @@ var (
 type IngestConfig struct {
 	Ingest_Secret              string
 	Connection_Timeout         string
-	Verify_Remote_Certificates bool
+	Verify_Remote_Certificates bool //legacy, will be removed
+	Insecure_Skip_TLS_Verify   bool
 	Cleartext_Backend_Target   []string
 	Encrypted_Backend_Target   []string
 	Pipe_Backend_Target        []string
@@ -44,13 +54,39 @@ type IngestConfig struct {
 	Log_Level                  string
 }
 
-func (ic *IngestConfig) Init() {
-	//SECURITY SHIT!
-	//default the Verifiy_Remote_Certificates to true
-	ic.Verify_Remote_Certificates = true
+func (ic *IngestConfig) loadDefaults() error {
+	//arrange the logic to be secure by default or when there is ambiguity
+	if ic.Verify_Remote_Certificates {
+		ic.Insecure_Skip_TLS_Verify = false
+	}
+	//Ingest secret
+	if err := LoadEnvVar(&ic.Ingest_Secret, envSecret, ``); err != nil {
+		return err
+	}
+	//Log level
+	if err := LoadEnvVar(&ic.Log_Level, envLogLevel, defaultLogLevel); err != nil {
+		return err
+	}
+	//Cleartext targets
+	if err := LoadEnvVarList(&ic.Cleartext_Backend_Target, envClearTarget); err != nil {
+		return err
+	}
+	//Encrypted targets
+	if err := LoadEnvVarList(&ic.Encrypted_Backend_Target, envEncTarget); err != nil {
+		return err
+	}
+	//Pipe targets
+	if err := LoadEnvVarList(&ic.Pipe_Backend_Target, envPipeTarget); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (ic *IngestConfig) Verify() error {
+	if err := ic.loadDefaults(); err != nil {
+		return err
+	}
+
 	ic.Log_Level = strings.ToUpper(strings.TrimSpace(ic.Log_Level))
 	if ic.Max_Ingest_Cache == 0 && len(ic.Ingest_Cache_Path) != 0 {
 		ic.Max_Ingest_Cache = defaultMaxCache
@@ -100,8 +136,8 @@ func (ic *IngestConfig) Targets() ([]string, error) {
 	return conns, nil
 }
 
-func (ic *IngestConfig) VerifyRemote() bool {
-	return ic.Verify_Remote_Certificates
+func (ic *IngestConfig) InsecureSkipTLSVerification() bool {
+	return ic.Insecure_Skip_TLS_Verify
 }
 
 func (ic *IngestConfig) Timeout() time.Duration {
@@ -138,7 +174,7 @@ func (ic *IngestConfig) LogLevel() string {
 
 func (ic *IngestConfig) checkLogLevel() error {
 	if len(ic.Log_Level) == 0 {
-		ic.Log_Level = `OFF`
+		ic.Log_Level = defaultLogLevel
 		return nil
 	}
 	switch ic.Log_Level {
