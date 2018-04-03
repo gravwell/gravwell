@@ -85,14 +85,14 @@ func main() {
 
 	//fire up the ingesters
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
-	debugout("Verifying remote certs: %v\n", cfg.VerifyRemote())
+	debugout("INSECURE skipping TLS certs verification: %v\n", cfg.InsecureSkipTLSVerification())
 	ingestConfig := ingest.UniformMuxerConfig{
 		Destinations: conns,
 		Tags:         tags,
 		Auth:         cfg.Secret(),
 		LogLevel:     cfg.LogLevel(),
 		IngesterName: "filefollow",
-		VerifyCert:   cfg.VerifyRemote(),
+		VerifyCert:   !cfg.InsecureSkipTLSVerification(),
 	}
 	if cfg.EnableCache() {
 		ingestConfig.EnableCache = true

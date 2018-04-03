@@ -137,7 +137,6 @@ func (c *cfgType) Tags() ([]string, error) {
 }
 
 func (g *global) Init() {
-	g.IngestConfig.Init()
 	if g.State_Store_Location == `` {
 		g.State_Store_Location = defaultStateStoreLocation
 	}

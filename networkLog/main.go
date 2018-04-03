@@ -171,14 +171,14 @@ func main() {
 		})
 	}
 	//fire up the ingesters
-	debugout("Verifying remote certs: %v\n", cfg.VerifyRemote())
+	debugout("INSECURE skipping TLS verification: %v\n", cfg.InsecureSkipTLSVerification())
 	igCfg := ingest.UniformMuxerConfig{
 		Destinations: conns,
 		Tags:         tags,
 		Auth:         cfg.Secret(),
 		LogLevel:     cfg.LogLevel(),
 		IngesterName: "networkLog",
-		VerifyCert:   cfg.VerifyRemote(),
+		VerifyCert:   !cfg.InsecureSkipTLSVerification(),
 	}
 	if cfg.EnableCache() {
 		igCfg.EnableCache = true
@@ -253,12 +253,13 @@ func main() {
 //Called if something bad happens and we need to re-open the packet source
 func rebuildPacketSource(s *sniffer) (*pcap.Handle, bool) {
 	var threwErr bool
+mainLoop:
 	for {
 		//we sleep when we first come in
 		select {
 		case <-time.After(time.Second):
 		case <-s.die:
-			return nil, false
+			break mainLoop
 		}
 		//sleep over, try to reopen our pcap device
 		hnd, err := pcap.OpenLive(s.Interface, int32(s.SnapLen), s.Promisc, pktTimeout)
@@ -274,7 +275,7 @@ func rebuildPacketSource(s *sniffer) (*pcap.Handle, bool) {
 				//this is fatal, this shouldn't be possible, but here we are
 				fmt.Fprintf(os.Stderr, "Invalid BPF Filter on reopen: %v\n", err)
 				hnd.Close()
-				return nil, false
+				break mainLoop
 			}
 		}
 		//we got a good handle, return it
