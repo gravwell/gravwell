@@ -827,20 +827,10 @@ func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, or
 			continue
 		}
 		//ok, we synced, pass things back
-		var err error
 		if orig {
-			err = im.Info("connected to %v", nc.dst)
+			im.Info("connected to %v", nc.dst)
 		} else {
-			err = im.Info("re-connected to %v", nc.dst)
-		}
-		if err != nil {
-			//try to send, if we can't just roll on
-			select {
-			case connFailure <- true:
-				ok = false
-			default:
-			}
-			continue
+			im.Info("re-connected to %v", nc.dst)
 		}
 		break
 	}
