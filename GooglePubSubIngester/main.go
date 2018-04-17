@@ -146,17 +146,20 @@ func main() {
 			}
 		}
 
-		var count uint64
-		var oldcount uint64
+		var count, size uint64
+		var oldcount, oldsize uint64
 
 		if *verbose {
 			go func() {
 				for {
 					time.Sleep(1 * time.Second)
-					t := count
-					diff := t - oldcount
-					oldcount = t
-					log.Printf("%d entries per second", diff)
+					tmpcount := count
+					tmpsize := size
+					cdiff := tmpcount - oldcount
+					sdiff := tmpsize - oldsize
+					oldcount = tmpcount
+					oldsize = tmpsize
+					log.Printf("%d entries per second at %d bytes per second (%d bytes total)", cdiff, sdiff, oldsize)
 				}
 			}()
 		}
@@ -185,6 +188,7 @@ func main() {
 						Data: msg.Data,
 						Tag:  tagid,
 					}
+					size += uint64(len(msg.Data))
 					if ps.Parse_Time == false {
 						ent.TS = entry.FromStandard(msg.PublishTime)
 					} else {
