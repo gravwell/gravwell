@@ -27,7 +27,7 @@ const (
 	stateInMsg  int = iota
 )
 
-func rfc5424ConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTS, setLocalTime bool, tag entry.EntryTag, wg *sync.WaitGroup) {
+func rfc5424ConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTS, setLocalTime bool, dropPrio bool, tag entry.EntryTag, wg *sync.WaitGroup) {
 	wg.Add(1)
 	id := addConn(c)
 	defer wg.Done()
@@ -58,6 +58,8 @@ func rfc5424ConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTS, setLocalT
 	state := stateEmpty
 	var start int
 	splitter := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
+		defer func() { start = start - advance }()
+		debugout("data = %v", string(data))
 		for i := range data {
 			switch state {
 			case stateEmpty: //empty
@@ -69,12 +71,16 @@ func rfc5424ConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTS, setLocalT
 			case stateInPrio: //prioStart
 				if data[i] == '>' {
 					state = stateInMsg
+					if dropPrio {
+						start = i + 1
+						advance = i + 1
+					}
 				}
 			case stateInMsg: //inmsg
 				if data[i] == '<' {
+					debugout("setting token from index %v to %v\n", start, i)
 					token = data[start:i]
 					state = stateEmpty
-					start = 0
 					advance = i
 					return
 				}
@@ -85,7 +91,6 @@ func rfc5424ConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTS, setLocalT
 			err = bufio.ErrFinalToken
 			return
 		}
-
 		return
 	}
 	s.Split(splitter)

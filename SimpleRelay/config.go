@@ -42,6 +42,7 @@ type listener struct {
 	Ignore_Timestamps     bool //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone bool
 	Reader_Type           string
+	Keep_Priority         bool // Leave the <nnn> priority value at the start of the log message
 }
 
 type cfgReadType struct {

@@ -195,7 +195,7 @@ func main() {
 			connID := addConn(l)
 			//start the acceptor
 			wg.Add(1)
-			go acceptor(l, ch, tag, lrt, v.Ignore_Timestamps, v.Assume_Local_Timezone, &wg, connID, igst)
+			go acceptor(l, ch, tag, lrt, v.Ignore_Timestamps, v.Assume_Local_Timezone, v.Keep_Priority, &wg, connID, igst)
 		} else if tp.UDP() {
 			addr, err := net.ResolveUDPAddr(tp.String(), str)
 			if err != nil {
@@ -210,7 +210,7 @@ func main() {
 			}
 			connID := addConn(l)
 			wg.Add(1)
-			go acceptorUDP(l, ch, tag, lrt, v.Ignore_Timestamps, v.Assume_Local_Timezone, &wg, connID)
+			go acceptorUDP(l, ch, tag, lrt, v.Ignore_Timestamps, v.Assume_Local_Timezone, v.Keep_Priority, &wg, connID)
 		}
 
 	}
@@ -305,7 +305,7 @@ mainLoop:
 	close(done)
 }
 
-func acceptor(lst net.Listener, ch chan *entry.Entry, tag entry.EntryTag, lrt readerType, ignoreTimestamps, setLocalTime bool, wg *sync.WaitGroup, id int, igst *ingest.IngestMuxer) {
+func acceptor(lst net.Listener, ch chan *entry.Entry, tag entry.EntryTag, lrt readerType, ignoreTimestamps, setLocalTime, keepPriority bool, wg *sync.WaitGroup, id int, igst *ingest.IngestMuxer) {
 	var failCount int
 	defer wg.Done()
 	defer delConn(id)
@@ -330,7 +330,7 @@ func acceptor(lst net.Listener, ch chan *entry.Entry, tag entry.EntryTag, lrt re
 		case lineReader:
 			go lineConnHandlerTCP(conn, ch, ignoreTimestamps, setLocalTime, tag, wg)
 		case rfc5424Reader:
-			go rfc5424ConnHandlerTCP(conn, ch, ignoreTimestamps, setLocalTime, tag, wg)
+			go rfc5424ConnHandlerTCP(conn, ch, ignoreTimestamps, setLocalTime, !keepPriority, tag, wg)
 		default:
 			fmt.Fprintf(os.Stderr, "Invalid reader type on connection\n")
 			return
@@ -338,7 +338,7 @@ func acceptor(lst net.Listener, ch chan *entry.Entry, tag entry.EntryTag, lrt re
 	}
 }
 
-func acceptorUDP(conn *net.UDPConn, ch chan *entry.Entry, tag entry.EntryTag, lrt readerType, ignoreTimestamps, setLocalTime bool, wg *sync.WaitGroup, id int) {
+func acceptorUDP(conn *net.UDPConn, ch chan *entry.Entry, tag entry.EntryTag, lrt readerType, ignoreTimestamps, setLocalTime, keepPriority bool, wg *sync.WaitGroup, id int) {
 	defer wg.Done()
 	defer delConn(id)
 	defer conn.Close()
@@ -347,7 +347,7 @@ func acceptorUDP(conn *net.UDPConn, ch chan *entry.Entry, tag entry.EntryTag, lr
 	case lineReader:
 		lineConnHandlerUDP(conn, ch, ignoreTimestamps, setLocalTime, tag, wg)
 	case rfc5424Reader:
-		rfc5424ConnHandlerUDP(conn, ch, ignoreTimestamps, setLocalTime, true, tag, wg)
+		rfc5424ConnHandlerUDP(conn, ch, ignoreTimestamps, setLocalTime, !keepPriority, tag, wg)
 	default:
 		fmt.Fprintf(os.Stderr, "Invalid reader type on connection\n")
 		return
@@ -373,7 +373,7 @@ func handleLog(b []byte, ip net.IP, ignoreTS bool, tag entry.EntryTag, ch chan *
 	if !ok {
 		ts = entry.Now()
 	}
-	debugout("GOT (%v) %s\n", ts, string(b))
+	//debugout("GOT (%v) %s\n", ts, string(b))
 	ch <- &entry.Entry{
 		SRC:  ip,
 		TS:   ts,
