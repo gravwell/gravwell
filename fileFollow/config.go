@@ -84,17 +84,17 @@ func GetConfig(path string) (*cfgType, error) {
 	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
 		return nil, err
 	}
-	c := cfgType{
+	c := &cfgType{
 		global:   cr.Global,
 		Follower: cr.Follower,
 	}
 	if err := verifyConfig(c); err != nil {
 		return nil, err
 	}
-	return &c, nil
+	return c, nil
 }
 
-func verifyConfig(c cfgType) error {
+func verifyConfig(c *cfgType) error {
 	//verify the global parameters
 	if err := c.Verify(); err != nil {
 		return err
