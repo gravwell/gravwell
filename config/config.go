@@ -9,7 +9,9 @@
 package config
 
 import (
+	"bufio"
 	"errors"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -198,6 +200,10 @@ func (ic *IngestConfig) parseTimeout() (time.Duration, error) {
 	return time.ParseDuration(tos)
 }
 
+// Attempts to read a value from environment variable named envName
+// If there's nothing there, it attempt to append _FILE to the variable
+// name and see if it contains a filename; if so, it reads the
+// contents of the file into cnd.
 func LoadEnvVar(cnd *string, envName, defVal string) error {
 	if cnd == nil {
 		return errors.New("Invalid argument")
@@ -207,9 +213,36 @@ func LoadEnvVar(cnd *string, envName, defVal string) error {
 		return nil
 	}
 	*cnd = os.Getenv(envName)
-	if *cnd == `` {
-		*cnd = defVal
+	if *cnd != `` {
+		// we read something out of the variable, return
+		return nil
 	}
+
+	// Set default value
+	*cnd = defVal
+
+	// No joy in the environment variable, append _FILE and try
+	filename := os.Getenv(fmt.Sprintf("%s_FILE", envName))
+	if filename == `` {
+		// Nothing, screw it, return the default value
+		return nil
+	}
+	file, err := os.Open(filename)
+	if err != nil {
+		// they specified a file but we can't open it
+		return err
+	}
+	defer file.Close()
+
+	s := bufio.NewScanner(file)
+	s.Scan()
+	l := s.Text()
+	if l == `` {
+		// there was nothing in the file?
+		return errors.New("Empty file or blank first line of file")
+	}
+	*cnd = l
+
 	return nil
 }
 
@@ -223,7 +256,27 @@ func LoadEnvVarList(lst *[]string, envName string) error {
 	}
 	arg := os.Getenv(envName)
 	if len(arg) == 0 {
-		return nil
+		// Nothing in the env variable, let's try reading from a file
+		filename := os.Getenv(fmt.Sprintf("%s_FILE", envName))
+		if filename == `` {
+			// Nothing, return
+			return nil
+		}
+		file, err := os.Open(filename)
+		if err != nil {
+			// they specified a file but we can't open it
+			return err
+		}
+		defer file.Close()
+
+		s := bufio.NewScanner(file)
+		s.Scan()
+		l := s.Text()
+		if l == `` {
+			// there was nothing in the file?
+			return errors.New("Empty file or blank first line of file")
+		}
+		arg = l
 	}
 	if bits := strings.Split(arg, ","); len(bits) > 0 {
 		for _, b := range bits {
