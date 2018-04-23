@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	_                   = iota
 	AnsiC           int = iota
 	Unix            int = iota
 	Ruby            int = iota

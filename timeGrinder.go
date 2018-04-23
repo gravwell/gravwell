@@ -23,6 +23,7 @@
 package timegrinder
 
 import (
+	"errors"
 	"time"
 )
 
@@ -54,7 +55,7 @@ type TimeGrinder struct {
 	curr     int
 	count    int
 	seed     bool
-	override int
+	override Processor
 	loc      *time.Location
 }
 
@@ -133,12 +134,20 @@ func NewTimeGrinder(c Config) (*TimeGrinder, error) {
 	// Syslog variant
 	procs = append(procs, NewSyslogVariant())
 
+	var proc Processor
+	if c.FormatOverride > len(procs) {
+		return nil, errors.New("invalid override")
+	}
+	if c.FormatOverride > 0 {
+		proc = procs[c.FormatOverride-1] //overrides are off by one
+	}
+
 	return &TimeGrinder{
 		procs:    procs,
 		count:    len(procs),
 		loc:      time.UTC,
 		seed:     c.EnableLeftMostSeed,
-		override: c.FormatOverride,
+		override: proc,
 	}, nil
 }
 
@@ -183,6 +192,12 @@ func (tg *TimeGrinder) setSeed(data []byte) (hit bool) {
 func (tg *TimeGrinder) Extract(data []byte) (t time.Time, ok bool, err error) {
 	var i int
 	var c int
+
+	if tg.override != nil {
+		if t, ok, _ = tg.override.Extract(data, tg.loc); ok {
+			return
+		}
+	}
 
 	if tg.seed {
 		if ok := tg.setSeed(data); ok {
