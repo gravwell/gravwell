@@ -35,7 +35,10 @@ func NewLogHandler(tag entry.EntryTag, ignoreTS, assumeLocal bool, ch chan *entr
 		return nil, errors.New("output channel is nil")
 	}
 	if !ignoreTS {
-		tg, err = timegrinder.NewTimeGrinder()
+		tcfg := timegrinder.Config{
+			EnableLeftMostSeed: true,
+		}
+		tg, err = timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
 			return nil, err
 		}

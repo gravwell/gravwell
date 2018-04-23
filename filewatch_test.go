@@ -226,7 +226,6 @@ func TestMultiWatcherNoDelete(t *testing.T) {
 func TestMultiWatcherWithOverlap(t *testing.T) {
 	var res map[string]bool
 	var lhs []*safeTrackingLH
-	var count int
 	matcher := `paco`
 
 	fireWatcher(func(workingDir string, w *WatchManager) error {
@@ -251,12 +250,11 @@ func TestMultiWatcherWithOverlap(t *testing.T) {
 		return nil
 	}, func(workingDir string) error {
 		//perform the writes on just one file, it will match everything
-		cnt, r, err := writeLines(filepath.Join(workingDir, matcher))
+		_, r, err := writeLines(filepath.Join(workingDir, matcher))
 		if err != nil {
 			t.Fatal(err)
 		}
 		res = r
-		count = cnt
 		var i int
 		for i < 50 {
 			//check all our lengths

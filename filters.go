@@ -475,7 +475,7 @@ func initStateFile(p string) (fout *os.File, states map[FileName]*int64, err err
 	if err != nil {
 		//ensure error is a "not found" error
 		if !os.IsNotExist(err) {
-			err = fmt.Errorf("state file path is invalid", err)
+			err = fmt.Errorf("state file path is invalid: %v", err)
 			return
 		}
 		//attempt to create the file and get a handle, states will be empty
