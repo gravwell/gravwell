@@ -27,12 +27,13 @@ var (
 	baseTimeError    error
 	benchTimeGrinder *TimeGrinder
 	randStringBuff   []byte
+	cfg              Config
 )
 
 func init() {
 	rand.Seed(SEED)
 	baseTime, baseTimeError = time.Parse("01-02-2006 15:04:05", "07-04-2014 16:30:45")
-	benchTimeGrinder, _ = NewTimeGrinder()
+	benchTimeGrinder, _ = NewTimeGrinder(cfg)
 	randStringBuff = make([]byte, RAND_BUFF_SIZE)
 
 	for i := 0; i < len(randStringBuff); i++ {
@@ -47,7 +48,7 @@ func TestStart(t *testing.T) {
 }
 
 func TestUnixMilli(t *testing.T) {
-	tg, err := NewTimeGrinder()
+	tg, err := NewTimeGrinder(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +70,7 @@ func TestUnixMilli(t *testing.T) {
 }
 
 func TestCustomManual(t *testing.T) {
-	tg, err := NewTimeGrinder()
+	tg, err := NewTimeGrinder(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -202,8 +203,32 @@ func TestSyslogVariant(t *testing.T) {
 	}
 }
 
+func TestSeedHit(t *testing.T) {
+	lcfg := Config{
+		EnableLeftMostSeed: true,
+	}
+	tval := []byte(`2018-04-19T05:50:19-07:00 2018-04-15T00:00:00Z 1234567890 02-03-2018 12:30:00`)
+	tg, err := NewTimeGrinder(lcfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tt, err := time.Parse(time.RFC3339, `2018-04-19T05:50:19-07:00`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tgt, ok, err := tg.Extract(tval)
+	if err != nil {
+		t.Fatal(err)
+	} else if !ok {
+		t.Fatal("Missed")
+	}
+	if !tt.UTC().Equal(tgt) {
+		t.Fatal(fmt.Errorf("grabbed wrong time: %v != %v", tt.UTC(), tgt.UTC()))
+	}
+}
+
 func runFullSecTestsCurr(format string) error {
-	tg, err := NewTimeGrinder()
+	tg, err := NewTimeGrinder(cfg)
 	if err != nil {
 		return err
 	}
@@ -227,7 +252,7 @@ func runFullSecTestsCurr(format string) error {
 }
 
 func runFullSecTests(format string) error {
-	tg, err := NewTimeGrinder()
+	tg, err := NewTimeGrinder(cfg)
 	if err != nil {
 		return err
 	}
@@ -249,7 +274,7 @@ func runFullSecTests(format string) error {
 }
 
 func runFullNoSecTests(format string) error {
-	tg, err := NewTimeGrinder()
+	tg, err := NewTimeGrinder(cfg)
 	if err != nil {
 		return err
 	}

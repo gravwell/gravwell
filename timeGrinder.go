@@ -50,17 +50,27 @@ func init() {
 }
 
 type TimeGrinder struct {
-	procs []Processor
-	curr  int
-	count int
-	loc   *time.Location
+	procs    []Processor
+	curr     int
+	count    int
+	seed     bool
+	override int
+	loc      *time.Location
+}
+
+type Config struct {
+	//force TimeGrinder to scan all possible formats on first entry, seeding with left most
+	//We assume that most streams are not going to using a bunch of different timestamps
+	//so we take the hit on the first iteration to try to get the left most time format
+	EnableLeftMostSeed bool
+	FormatOverride     int
 }
 
 /* NewTimeGrinder constructs and returns a new TimeGrinder object
  * On error, it will return a nil and error variable
  * The TimeGrinder object is completely safe for concurrent use.
  */
-func NewTimeGrinder() (*TimeGrinder, error) {
+func NewTimeGrinder(c Config) (*TimeGrinder, error) {
 	procs := make([]Processor, 0, 16)
 
 	//build ANSIC processor
@@ -124,9 +134,11 @@ func NewTimeGrinder() (*TimeGrinder, error) {
 	procs = append(procs, NewSyslogVariant())
 
 	return &TimeGrinder{
-		procs: procs,
-		count: len(procs),
-		loc:   time.UTC,
+		procs:    procs,
+		count:    len(procs),
+		loc:      time.UTC,
+		seed:     c.EnableLeftMostSeed,
+		override: c.FormatOverride,
 	}, nil
 }
 
@@ -138,15 +150,49 @@ func (tg *TimeGrinder) SetUTC() {
 	tg.loc = time.UTC
 }
 
+func (tg *TimeGrinder) setSeed(data []byte) (hit bool) {
+	var offset int
+	var leftmost int
+	var i int
+	var ok bool
+
+	//go until we get a hit
+	for i < len(tg.procs) {
+		if _, ok, leftmost = tg.procs[i].Extract(data, tg.loc); ok {
+			tg.curr = i
+			hit = true
+			break
+		}
+		i++
+	}
+	for i < len(tg.procs) {
+		if _, ok, offset = tg.procs[i].Extract(data, tg.loc); ok {
+			if offset < leftmost {
+				leftmost = offset
+				tg.curr = i
+				hit = true
+			}
+		}
+		i++
+	}
+	return
+}
+
 /* Extract returns time and error.  If no time can be extracted time is the zero
    value and bool is false.  Error indicates a catastrophic failure. */
 func (tg *TimeGrinder) Extract(data []byte) (t time.Time, ok bool, err error) {
 	var i int
 	var c int
 
+	if tg.seed {
+		if ok := tg.setSeed(data); ok {
+			tg.seed = false
+		}
+	}
+
 	i = tg.curr
 	for c = 0; c < tg.count; c++ {
-		t, ok = tg.procs[i].Extract(data, tg.loc)
+		t, ok, _ = tg.procs[i].Extract(data, tg.loc)
 		if ok {
 			tg.curr = i
 			return

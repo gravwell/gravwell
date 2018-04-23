@@ -15,8 +15,31 @@ import (
 	"time"
 )
 
+const (
+	AnsiC           int = iota
+	Unix            int = iota
+	Ruby            int = iota
+	RFC822          int = iota
+	RFC822Z         int = iota
+	RFC850          int = iota
+	RFC1123         int = iota
+	RFC1123Z        int = iota
+	RFC3339         int = iota
+	RFC3339Nano     int = iota
+	Apache          int = iota
+	ApacheNoTz      int = iota
+	Syslog          int = iota
+	SyslogFile      int = iota
+	DPKG            int = iota
+	Custom1Milli    int = iota
+	NGINX           int = iota
+	UnixMilli       int = iota
+	ZonelessRFC3339 int = iota
+	SyslogVariant   int = iota
+)
+
 type Processor interface {
-	Extract([]byte, *time.Location) (time.Time, bool)
+	Extract([]byte, *time.Location) (time.Time, bool, int)
 	Format() string
 }
 
@@ -146,37 +169,44 @@ func (up *unixProcessor) Format() string {
 	return up.format
 }
 
-func (a processor) Extract(d []byte, loc *time.Location) (time.Time, bool) {
-	sub := a.rxp.Find(d)
-	if len(sub) == 0 {
-		return time.Time{}, false
-	}
-	t, err := time.ParseInLocation(a.format, string(sub), loc)
-	if err != nil {
-		return time.Time{}, false
+func (a processor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
+	/*
+		sub := a.rxp.Find(d)
+		if len(sub) == 0 {
+			return time.Time{}, false
+		}
+	*/
+	idxs := a.rxp.FindIndex(d)
+	if len(idxs) != 2 {
+		return time.Time{}, false, -1
 	}
 
-	return t, true
+	t, err := time.ParseInLocation(a.format, string(d[idxs[0]:idxs[1]]), loc)
+	if err != nil {
+		return time.Time{}, false, -1
+	}
+
+	return t, true, idxs[0]
 }
 
-func (sp syslogProcessor) Extract(d []byte, loc *time.Location) (time.Time, bool) {
-	t, ok := sp.processor.Extract(d, loc)
+func (sp syslogProcessor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
+	t, ok, offset := sp.processor.Extract(d, loc)
 	if !ok {
-		return time.Time{}, false
+		return time.Time{}, false, -1
 	}
 	//check if we need to add the current year
 	if t.Year() == 0 {
-		return t.AddDate(time.Now().Year(), 0, 0), true
+		return t.AddDate(time.Now().Year(), 0, 0), true, -1
 	}
-	return t, true
+	return t, true, offset
 }
 
-func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool) {
-	subs := up.re.FindSubmatch(d)
-	if len(subs) < 2 || len(subs[1]) == 0 {
+func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	idx := up.re.FindSubmatchIndex(d)
+	if len(idx) != 4 {
 		return
 	}
-	s, err := strconv.ParseFloat(string(subs[1]), 64)
+	s, err := strconv.ParseFloat(string(d[idx[2]:idx[3]]), 64)
 	if err != nil {
 		return
 	}
