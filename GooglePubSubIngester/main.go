@@ -174,7 +174,10 @@ func main() {
 					count++
 				}
 			}(eChan)
-			tg, err := timegrinder.NewTimeGrinder()
+			tcfg := timegrinder.Config{
+				EnableLeftMostSeed: true,
+			}
+			tg, err := timegrinder.NewTimeGrinder(tcfg)
 			if err != nil {
 				ps.Parse_Time = false
 			}

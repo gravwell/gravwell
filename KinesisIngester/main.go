@@ -155,7 +155,10 @@ func main() {
 				}
 				iter := *output.ShardIterator
 				eChan := make(chan *entry.Entry, 2048)
-				tg, err := timegrinder.NewTimeGrinder()
+				tcfg := timegrinder.Config{
+					EnableLeftMostSeed: true,
+				}
+				tg, err := timegrinder.NewTimeGrinder(tcfg)
 				if err != nil {
 					stream.Parse_Time = false
 				}

@@ -63,7 +63,10 @@ func groupLargeLogs(src, wrk string, totalSize int64) error {
 	start := time.Now()
 	fm := newfm(wrk)
 	ud := newUpdater(totalSize)
-	tg, err := timegrinder.NewTimeGrinder()
+	tcfg := timegrinder.Config{
+		EnableLeftMostSeed: true,
+	}
+	tg, err := timegrinder.NewTimeGrinder(tcfg)
 	if err != nil {
 		return err
 	}
@@ -267,7 +270,10 @@ consumeLoop:
 }
 
 func walkAndReadFiles(dir string, totalSize int64, iv *ingestVars, f entsFunc) error {
-	tg, err := timegrinder.NewTimeGrinder()
+	tcfg := timegrinder.Config{
+		EnableLeftMostSeed: true,
+	}
+	tg, err := timegrinder.NewTimeGrinder(tcfg)
 	if err != nil {
 		return err
 	}

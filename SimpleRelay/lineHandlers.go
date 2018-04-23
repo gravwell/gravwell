@@ -40,7 +40,10 @@ func lineConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTimestamps, setL
 
 	var tg *timegrinder.TimeGrinder
 	if !ignoreTimestamps {
-		tg, err = timegrinder.NewTimeGrinder()
+		tcfg := timegrinder.Config{
+			EnableLeftMostSeed: true,
+		}
+		tg, err = timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to get a handle on the timegrinder: %v\n", err)
 			return
@@ -76,7 +79,10 @@ func lineConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTimestamps, setL
 func lineConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTimestamps, setLocalTime bool, tag entry.EntryTag, wg *sync.WaitGroup) {
 	sp := []byte("\n")
 	buff := make([]byte, 16*1024) //local buffer that should be big enough for even the largest UDP packets
-	tg, err := timegrinder.NewTimeGrinder()
+	tcfg := timegrinder.Config{
+		EnableLeftMostSeed: true,
+	}
+	tg, err := timegrinder.NewTimeGrinder(tcfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get a handle on the timegrinder: %v\n", err)
 		return
