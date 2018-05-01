@@ -248,7 +248,7 @@ func main() {
 	case <-time.After(1 * time.Second):
 		fmt.Fprintf(os.Stderr, "Failed to wait for all connections to close.  %d active\n", connCount())
 	}
-	if err := igst.StopAndSync(time.Second); err != nil {
+	if err := igst.Sync(time.Second); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to sync: %v\n", err)
 	}
 	if err := igst.Close(); err != nil {
