@@ -12,7 +12,6 @@ import (
 	"bytes"
 	"container/list"
 	"errors"
-	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -311,10 +310,8 @@ func (im *IngestMuxer) Close() error {
 	}
 	im.state = closed
 
-	//throw enough die chan signals for everyone to get one
-	for i := 0; i < len(im.dests); i++ {
-		im.dieChan <- true
-	}
+	//just close the channel, that will be a permenent signal for everything to close
+	close(im.dieChan)
 
 	//we MUST unlock the mutex while we wait so that if a connection
 	//goes into an errors state it can lock the mutex to adjust the errDest
@@ -386,7 +383,6 @@ func (im *IngestMuxer) Close() error {
 	}
 
 	//everyone is dead, clean up
-	close(im.dieChan)
 	close(im.upChan)
 	return nil
 }
@@ -395,7 +391,6 @@ func (im *IngestMuxer) Sync(to time.Duration) error {
 	if atomic.LoadInt32(&im.connHot) == 0 && !im.cacheRunning {
 		return ErrAllConnsDown
 	}
-	retChan := make(chan error, len(im.dests))
 	ts := time.Now()
 	im.mtx.Lock()
 	for len(im.eChan) > 0 || len(im.bChan) > 0 {
@@ -413,9 +408,10 @@ func (im *IngestMuxer) Sync(to time.Duration) error {
 	var count int
 	for _, v := range im.igst {
 		if v != nil {
-			err := v.Sync()
-			if err != ErrNotRunning {
-				count++
+			if err := v.Sync(); err != nil {
+				if err == ErrNotRunning {
+					count++
+				}
 			}
 		}
 	}
@@ -423,62 +419,6 @@ func (im *IngestMuxer) Sync(to time.Duration) error {
 	if count == len(im.igst) {
 		return ErrAllConnsDown
 	}
-
-	//recalculate the timeout
-	to = to - time.Since(ts)
-	if to <= 0 {
-		return ErrSyncTimeout
-	}
-	tmr := time.NewTimer(to)
-	defer tmr.Stop()
-
-	var rerr error
-	for i := 0; i < len(im.dests); i++ {
-		select {
-		case _ = <-tmr.C:
-			//IMPORTANT CRITICAL, DON'T FUCK THIS UP
-			//we absolutely cannot close the retChan on our way out due to a timeout
-			//we MUST leave that channel open so that the routines can send to it
-			return ErrSyncTimeout
-		case err := <-retChan:
-			if err != nil {
-				if rerr == nil {
-					rerr = err
-				} else {
-					rerr = fmt.Errorf("%v : %v", rerr, err)
-				}
-			}
-		}
-	}
-	close(retChan)
-	return rerr
-}
-
-func (im *IngestMuxer) StopAndSync(to time.Duration) error {
-	if atomic.LoadInt32(&im.connHot) == 0 && !im.cacheRunning {
-		return ErrAllConnsDown
-	}
-	im.mtx.Lock()
-	//wait for the outstanding channels to go to zerocount to drop to zero
-	ts := time.Now()
-	for len(im.eChan) > 0 || len(im.bChan) > 0 {
-		time.Sleep(10 * time.Millisecond)
-		if im.connHot == 0 {
-			im.mtx.Unlock()
-			return ErrAllConnsDown
-		}
-		if time.Since(ts) > to {
-			im.mtx.Unlock()
-			return ErrTimeout
-		}
-	}
-
-	//throw die signals which will cause the active routines to stop feeding and sync
-	toThrow := atomic.LoadInt32(&im.connHot)
-	for i := int32(0); i < toThrow; i++ {
-		im.dieChan <- true
-	}
-	im.mtx.Unlock()
 	return nil
 }
 
