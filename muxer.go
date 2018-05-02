@@ -426,19 +426,13 @@ func (im *IngestMuxer) Sync(to time.Duration) error {
 // The timout duration parameter is an optional timeout, if zero, it waits
 // indefinitely
 func (im *IngestMuxer) WaitForHot(to time.Duration) error {
-	//if we have a hot, filebacked cache, then endpoints are go for ingest
-	if im.cacheRunning && im.cacheError == nil && im.cacheFileBacked {
-		return nil
-	}
-	toCh := make(chan bool, 1)
+	var toch <-chan time.Time
 	if to > 0 {
-		go func(ch chan bool, timeout time.Duration) {
-			_ = <-time.After(timeout)
-			close(ch)
-		}(toCh, to)
-	} else {
-		defer close(toCh)
+		tmr := time.NewTimer(to)
+		toch = tmr.C
+		defer tmr.Stop()
 	}
+
 	//wait for one of them to hit
 mainLoop:
 	for {
@@ -446,7 +440,11 @@ mainLoop:
 		case <-im.upChan:
 			im.Info("Ingester %v has gone hot", im.name)
 			break mainLoop
-		case <-toCh:
+		case <-toch:
+			//if we have a hot, filebacked cache, then endpoints are go for ingest
+			if im.cacheRunning && im.cacheError == nil && im.cacheFileBacked {
+				return nil
+			}
 			return ErrConnectionTimeout
 		case err := <-im.errChan:
 			//lock the mutex and check if all our connections failed
