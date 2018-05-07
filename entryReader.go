@@ -33,6 +33,9 @@ var (
 	errAckRoutineClosed = errors.New("Ack writer is closed")
 
 	ackBatchReadTimerDuration = 10 * time.Millisecond
+	defaultReaderTimeout      = 10 * time.Minute
+
+	nilTime time.Time
 )
 
 type EntryReader struct {
@@ -50,6 +53,9 @@ type EntryReader struct {
 	//entCache is used to allocate entries in blocks to relieve some pressure on the allocator and GC
 	entCache    []entry.Entry
 	entCacheIdx int
+	opCount     uint64
+	lastCount   uint64
+	timeout     time.Duration
 }
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
@@ -64,6 +70,7 @@ func NewEntryReader(conn net.Conn) (*EntryReader, error) {
 		ackChan:    make(chan entrySendID, ackChanSize),
 		hot:        true,
 		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
+		timeout:    defaultReaderTimeout,
 	}, nil
 }
 
@@ -77,6 +84,10 @@ func (er *EntryReader) Start() error {
 	//we don't support stopping and restarting entry readers
 	if er.started {
 		return errors.New("Already started")
+	}
+	//resetting the timeout will update/set it if it isn't already
+	if err := er.resetTimeout(); err != nil {
+		return err
 	}
 	er.started = true
 	er.wg.Add(1)
@@ -108,14 +119,60 @@ func (er *EntryReader) Close() error {
 	return nil
 }
 
-func (er *EntryReader) Read() (*entry.Entry, error) {
+func (er *EntryReader) Read() (e *entry.Entry, err error) {
+	er.mtx.Lock()
+	if e, err = er.read(); err == nil {
+		er.opCount++
+	} else if isTimeout(err) {
+		//if its a timeout and nothing new came in, bail
+		if er.opCount == er.lastCount {
+			err = io.EOF
+		} else {
+			//we have had new data/requests, reset the deadline
+			if err = er.resetTimeout(); err != nil {
+				er.mtx.Unlock()
+				return
+			}
+			//re-attempt the read
+			if e, err = er.read(); err != nil {
+				if isTimeout(err) {
+					err = io.EOF
+				}
+			} else {
+				//good read, up the op count and reset the lastCount
+				er.opCount++
+				er.lastCount = er.opCount
+			}
+		}
+	}
+	er.mtx.Unlock()
+	return e, err
+}
+
+//reset the read deadline on the underlying connection, caller must hold the lock
+func (er *EntryReader) resetTimeout() error {
+	if er.timeout <= 0 {
+		return er.conn.SetReadDeadline(nilTime)
+	}
+	return er.conn.SetReadDeadline(time.Now().Add(er.timeout))
+}
+
+func isTimeout(err error) bool {
+	if err == nil {
+		return false
+	}
+	if nerr, ok := err.(net.Error); ok {
+		return nerr.Timeout()
+	}
+	return false
+}
+
+func (er *EntryReader) read() (*entry.Entry, error) {
 	var (
 		err error
 		sz  uint32
 		id  entrySendID
 	)
-	er.mtx.Lock()
-	defer er.mtx.Unlock()
 	if er.entCacheIdx >= len(er.entCache) {
 		er.entCache = make([]entry.Entry, entCacheRechargeSize)
 		er.entCacheIdx = 0

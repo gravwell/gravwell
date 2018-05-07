@@ -426,11 +426,3 @@ func (ew *EntryWriter) readAcks(blocking bool) error {
 func (ew EntryWriter) OptimalBatchWriteSize() int {
 	return ew.ecb.Size()
 }
-
-func isTimeout(err error) bool {
-	nerr, ok := err.(net.Error)
-	if !ok {
-		return false
-	}
-	return nerr.Timeout()
-}
