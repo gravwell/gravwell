@@ -55,7 +55,7 @@ type NFv5Record struct {
 	Input       uint16
 	Output      uint16
 	Pkts        uint32
-	Octets      uint32
+	Bytes       uint32
 	UptimeFirst uint32
 	UptimeLast  uint32
 	SrcPort     uint16
@@ -81,7 +81,7 @@ func u32(v []byte) (x uint32) {
 	return
 }
 
-// DecodeAlt uses the golang standard method of extracting items using the binary package
+// Decode uses the golang standard method of extracting items using the binary package
 func (h *NFv5Header) Decode(b []byte) error {
 	if len(b) < HeaderSize {
 		return ErrHeaderTooShort
@@ -99,7 +99,9 @@ func (h *NFv5Header) Decode(b []byte) error {
 	return nil
 }
 
-func (h *NFv5Header) DecodeAlt(b []byte) error {
+//decodeAlt decodes by hand with the assumption that we are operating on a LittleEndian machine
+//the code is slower and not used, but is left here anyway
+func (h *NFv5Header) decodeAlt(b []byte) error {
 	if len(b) < HeaderSize {
 		return ErrHeaderTooShort
 	}
@@ -174,12 +176,14 @@ func (nf *NFv5) Decode(b []byte) (err error) {
 	return
 }
 
-func (nf *NFv5) DecodeAlt(b []byte) (err error) {
+// decodeAlt uses the decoding methods that don't use the binary package
+// it is slower and assumes the host is a LittleEndian machine, don't use it
+func (nf *NFv5) decodeAlt(b []byte) (err error) {
 	if len(b) < HeaderSize {
 		err = ErrHeaderTooShort
 		return
 	}
-	if err = nf.NFv5Header.DecodeAlt(b); err != nil {
+	if err = nf.NFv5Header.decodeAlt(b); err != nil {
 		return
 	}
 	if nf.Count == 0 || nf.Count > 30 {
@@ -191,7 +195,7 @@ func (nf *NFv5) DecodeAlt(b []byte) (err error) {
 	}
 	b = b[HeaderSize:]
 	for i := uint16(0); i < nf.Count; i++ {
-		if err = nf.Recs[i].DecodeAlt(b); err != nil {
+		if err = nf.Recs[i].decodeAlt(b); err != nil {
 			return
 		}
 		b = b[RecordSize:]
@@ -249,7 +253,7 @@ func (nr *NFv5Record) Decode(b []byte) error {
 	nr.Input = binary.BigEndian.Uint16(b[12:14])
 	nr.Output = binary.BigEndian.Uint16(b[14:16])
 	nr.Pkts = binary.BigEndian.Uint32(b[16:20])
-	nr.Octets = binary.BigEndian.Uint32(b[20:24])
+	nr.Bytes = binary.BigEndian.Uint32(b[20:24])
 	nr.UptimeFirst = binary.BigEndian.Uint32(b[24:28])
 	nr.UptimeLast = binary.BigEndian.Uint32(b[28:32])
 	nr.SrcPort = binary.BigEndian.Uint16(b[32:34])
@@ -266,7 +270,7 @@ func (nr *NFv5Record) Decode(b []byte) error {
 	return nil
 }
 
-func (nr *NFv5Record) DecodeAlt(b []byte) error {
+func (nr *NFv5Record) decodeAlt(b []byte) error {
 	if len(b) < RecordSize {
 		return ErrInvalidRecordBuffer
 	}
@@ -278,7 +282,7 @@ func (nr *NFv5Record) DecodeAlt(b []byte) error {
 	nr.Input = (uint16(b[12]) << 8) | uint16(b[13])
 	nr.Output = (uint16(b[14]) << 8) | uint16(b[15])
 	nr.Pkts = (uint32(b[16]) << 24) | (uint32(b[17]) << 16) | (uint32(b[18]) << 8) | uint32(b[19])
-	nr.Octets = (uint32(b[20]) << 24) | (uint32(b[21]) << 16) | (uint32(b[22]) << 8) | uint32(b[23])
+	nr.Bytes = (uint32(b[20]) << 24) | (uint32(b[21]) << 16) | (uint32(b[22]) << 8) | uint32(b[23])
 	nr.UptimeFirst = (uint32(b[24]) << 24) | (uint32(b[25]) << 16) | (uint32(b[26]) << 8) | uint32(b[27])
 	nr.UptimeLast = (uint32(b[28]) << 24) | (uint32(b[29]) << 16) | (uint32(b[30]) << 8) | uint32(b[31])
 	nr.SrcPort = (uint16(b[32]) << 8) | uint16(b[33])

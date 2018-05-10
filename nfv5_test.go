@@ -142,7 +142,7 @@ func TestDecodeHeaderAlt(t *testing.T) {
 	if err := nf.Decode(bigPkt); err != nil {
 		t.Fatal(err)
 	}
-	if err := nfa.DecodeAlt(bigPkt); err != nil {
+	if err := nfa.decodeAlt(bigPkt); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -176,7 +176,7 @@ func BenchmarkDecodeHeader(b *testing.B) {
 func BenchmarkDecodeHeaderAlt(b *testing.B) {
 	var nf NFv5Header
 	for i := 0; i < b.N; i++ {
-		if err := nf.DecodeAlt(bigPkt); err != nil {
+		if err := nf.decodeAlt(bigPkt); err != nil {
 			b.Fatal(err)
 		}
 		if nf.Version != 5 {
@@ -194,7 +194,7 @@ func TestDecodeAlt(t *testing.T) {
 	if err := nf.Decode(bigPkt); err != nil {
 		t.Fatal(err)
 	}
-	if err := nfa.DecodeAlt(bigPkt); err != nil {
+	if err := nfa.decodeAlt(bigPkt); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(nf.NFv5Header, nfa.NFv5Header) {
@@ -222,7 +222,7 @@ func BenchmarkDecode(b *testing.B) {
 func BenchmarkDecodeAlt(b *testing.B) {
 	var nf NFv5
 	for i := 0; i < b.N; i++ {
-		if err := nf.DecodeAlt(bigPkt); err != nil {
+		if err := nf.decodeAlt(bigPkt); err != nil {
 			b.Fatal(err)
 		}
 		if nf.Version != 5 {
