@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"strings"
 	"time"
@@ -32,6 +33,9 @@ const (
 	envClearTarget string = `GRAVWELL_CLEARTEXT_TARGETS`
 	envEncTarget   string = `GRAVWELL_ENCRYPTED_TARGETS`
 	envPipeTarget  string = `GRAVWELL_PIPE_TARGETS`
+
+	DefaultCleartextPort uint16 = 4023
+	DefaultTLSPort       uint16 = 4024
 )
 
 var (
@@ -124,10 +128,10 @@ func (ic *IngestConfig) Verify() error {
 func (ic *IngestConfig) Targets() ([]string, error) {
 	var conns []string
 	for _, v := range ic.Cleartext_Backend_Target {
-		conns = append(conns, "tcp://"+v)
+		conns = append(conns, "tcp://"+AppendDefaultPort(v, DefaultCleartextPort))
 	}
 	for _, v := range ic.Encrypted_Backend_Target {
-		conns = append(conns, "tls://"+v)
+		conns = append(conns, "tls://"+AppendDefaultPort(v, DefaultTLSPort))
 	}
 	for _, v := range ic.Pipe_Backend_Target {
 		conns = append(conns, "pipe://"+v)
@@ -286,4 +290,13 @@ func LoadEnvVarList(lst *[]string, envName string) error {
 		}
 	}
 	return nil
+}
+
+func AppendDefaultPort(bstr string, defPort uint16) string {
+	if _, _, err := net.SplitHostPort(bstr); err != nil {
+		if strings.HasSuffix(err.Error(), `missing port in address`) {
+			return fmt.Sprintf("%s:%d", bstr, defPort)
+		}
+	}
+	return bstr
 }
