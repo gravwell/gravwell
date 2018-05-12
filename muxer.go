@@ -914,19 +914,19 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	for {
 		select {
 		case _ = <-im.dieChan:
+			igst.Close()
 			im.goDead()
 			im.connFailed(dst.Address, errors.New("Closed"))
 			return //this will close the ncc, causing the relay routine to close
 
 		case _, ok := <-connErrNotif:
+			//then close our ingest connection
+			//if it throws an error we don't care, and cant do anything about it
+			igst.Close()
 			if !ok {
 				//this means that the relay function bailed, close the connection and bail
 				return
 			}
-			//then close our ingest connection
-			//if it throws an error, fuck it
-			//we don't care, and cant do anything about it
-			igst.Close()
 			im.goDead() //let the world know of our failures
 			im.igst[igIdx] = nil
 
@@ -945,13 +945,13 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 				return
 			}
 			if err := im.Error("lost connection to %v", dst.Address); err != nil {
-				//if we fail to log, then we need to restart the connection
 				igst.Close()
 				continue //retry...
 			}
 			//get the source fired back up
 			src, err = igst.Source()
 			if err != nil {
+				igst.Close()
 				im.connFailed(dst.Address, err)
 				return
 			}

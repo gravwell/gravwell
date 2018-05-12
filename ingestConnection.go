@@ -39,9 +39,8 @@ func (igst *IngestConnection) Close() error {
 	if !igst.running {
 		return errors.New("Already closed")
 	}
-	err := igst.ew.Close()
 	igst.running = false
-	return err
+	return igst.ew.Close()
 }
 
 func (igst *IngestConnection) outstandingEntries() []*entry.Entry {

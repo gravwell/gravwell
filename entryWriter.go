@@ -101,7 +101,7 @@ func (ew *EntryWriter) Close() (err error) {
 
 	if err = ew.forceAckNoLock(); err == nil {
 		if err = ew.conn.SetReadDeadline(time.Now().Add(ew.ackTimeout)); err != nil {
-			ew.conn.Close()
+			err = ew.conn.Close()
 			ew.hot = false
 			return
 		}
@@ -111,8 +111,8 @@ func (ew *EntryWriter) Close() (err error) {
 		err = ew.readAcks(true)
 	}
 
-	ew.conn.Close()
 	ew.hot = false
+	ew.conn.Close()
 	return
 }
 
