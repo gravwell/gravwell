@@ -135,6 +135,13 @@ func main() {
 				closeSniffers(sniffs)
 				log.Fatal("Source-Override is invalid")
 			}
+		} else if cfg.Source_Override != `` {
+			// global override
+			src = net.ParseIP(cfg.Source_Override)
+			if src == nil {
+				closeSniffers(sniffs)
+				log.Fatal("Global Source-Override is invalid")
+			}
 		} else {
 			src, err = getSourceIP(v.Interface)
 			if err != nil {
