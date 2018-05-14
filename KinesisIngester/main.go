@@ -12,6 +12,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"path"
@@ -165,6 +166,15 @@ func main() {
 				if stream.Assume_Localtime {
 					tg.SetLocalTime()
 				}
+				var src net.IP
+				if cfg.Global.Source_Override != `` {
+					// global override
+					src = net.ParseIP(cfg.Global.Source_Override)
+					if src == nil {
+						log.Fatal("Global Source-Override is invalid")
+					}
+				}
+
 				go func(c chan *entry.Entry) {
 					for e := range c {
 						if err := igst.WriteEntry(e); err != nil {
@@ -202,6 +212,7 @@ func main() {
 						ent := &entry.Entry{
 							Data: r.Data,
 							Tag:  tagid,
+							SRC:  src,
 						}
 						if stream.Parse_Time == false {
 							ent.TS = entry.FromStandard(*r.ApproximateArrivalTimestamp)

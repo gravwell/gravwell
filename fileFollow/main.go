@@ -11,6 +11,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
+	"net"
 	"os"
 	"os/signal"
 	"path"
@@ -163,8 +165,16 @@ func main() {
 
 	debugout("Started following %d locations\n", len(cfg.Follower))
 	//fire off our relay
+	var src net.IP
+	if cfg.Source_Override != "" {
+		// global override
+		src = net.ParseIP(cfg.Source_Override)
+		if src == nil {
+			log.Fatal("Global Source-Override is invalid")
+		}
+	}
 	doneChan := make(chan error, 1)
-	go relay(ch, doneChan, igst)
+	go relay(ch, doneChan, src, igst)
 
 	debugout("Running\n")
 
@@ -187,8 +197,11 @@ func main() {
 	igst.Close()
 }
 
-func relay(ch chan *entry.Entry, done chan error, igst *ingest.IngestMuxer) {
+func relay(ch chan *entry.Entry, done chan error, srcOverride net.IP, igst *ingest.IngestMuxer) {
 	for e := range ch {
+		if srcOverride != nil {
+			e.SRC = srcOverride
+		}
 		if err := igst.WriteEntry(e); err != nil {
 			fmt.Println("Failed to write entry", err)
 		}

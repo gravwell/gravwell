@@ -13,6 +13,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"os/signal"
 	"path"
@@ -185,11 +186,21 @@ func main() {
 				tg.SetLocalTime()
 			}
 
+			var src net.IP
+			if cfg.Global.Source_Override != `` {
+				// global override
+				src = net.ParseIP(cfg.Global.Source_Override)
+				if src == nil {
+					log.Fatal("Global Source-Override is invalid")
+				}
+			}
+
 			for {
 				callback := func(ctx context.Context, msg *pubsub.Message) {
 					ent := &entry.Entry{
 						Data: msg.Data,
 						Tag:  tagid,
+						SRC:  src,
 					}
 					size += uint64(len(msg.Data))
 					if ps.Parse_Time == false {

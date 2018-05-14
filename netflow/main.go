@@ -11,6 +11,8 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -135,6 +137,15 @@ func main() {
 		igst: igst,
 	}
 
+	var src net.IP
+	if cfg.Source_Override != `` {
+		// global override
+		src = net.ParseIP(cfg.Source_Override)
+		if src == nil {
+			log.Fatal("Global Source-Override is invalid")
+		}
+	}
+
 	//fire up our backends
 	for k, v := range cfg.Collector {
 		//get the tag for this listener
@@ -175,7 +186,7 @@ func main() {
 	debugout("Started %d handlers\n", len(cfg.Collector))
 	//fire off our relay
 	doneChan := make(chan bool)
-	go relay(ch, doneChan, igst)
+	go relay(ch, doneChan, src, igst)
 
 	debugout("Running\n")
 
@@ -214,7 +225,7 @@ func main() {
 	}
 }
 
-func relay(ch chan *entry.Entry, done chan bool, igst *ingest.IngestMuxer) {
+func relay(ch chan *entry.Entry, done chan bool, srcOverride net.IP, igst *ingest.IngestMuxer) {
 	var ents []*entry.Entry
 
 	tckr := time.NewTicker(time.Second)
@@ -235,6 +246,9 @@ mainLoop:
 				break mainLoop
 			}
 			if e != nil {
+			if srcOverride != nil {
+				e.SRC = srcOverride
+			}
 				ents = append(ents, e)
 			}
 			if len(ents) >= batchSize {
