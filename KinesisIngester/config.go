@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravwell/ingest/config"
 	"gopkg.in/gcfg.v1"
 )
 
@@ -24,19 +25,14 @@ const (
 type bindType int
 type readerType int
 
+type global struct {
+	config.IngestConfig
+	AWS_Access_Key_ID     string
+	AWS_Secret_Access_Key string
+}
+
 type cfgType struct {
-	Global struct {
-		Ingest_Secret              string
-		Connection_Timeout         string
-		Verify_Remote_Certificates bool
-		Cleartext_Backend_Target   []string
-		Encrypted_Backend_Target   []string
-		Pipe_Backend_Target        []string
-		Log_Level                  string
-		Ingest_Cache_Path          string
-		AWS_Access_Key_ID          string
-		AWS_Secret_Access_Key      string
-	}
+	Global        global
 	KinesisStream map[string]*struct {
 		Stream_Name      string
 		Tag_Name         string

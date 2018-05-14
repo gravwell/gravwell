@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravwell/ingest/config"
 	"gopkg.in/gcfg.v1"
 )
 
@@ -24,19 +25,14 @@ const (
 type bindType int
 type readerType int
 
+type global struct {
+	config.IngestConfig
+	Project_ID              string
+	Google_Credentials_Path string // overload the environment variable if desired
+}
+
 type cfgType struct {
-	Global struct {
-		Ingest_Secret              string
-		Connection_Timeout         string
-		Verify_Remote_Certificates bool
-		Cleartext_Backend_Target   []string
-		Encrypted_Backend_Target   []string
-		Pipe_Backend_Target        []string
-		Log_Level                  string
-		Ingest_Cache_Path          string
-		Project_ID                 string
-		Google_Credentials_Path    string // overload the environment variable if desired
-	}
+	Global global
 	PubSub map[string]*struct {
 		Topic_Name       string
 		Tag_Name         string
