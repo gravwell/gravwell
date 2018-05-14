@@ -58,6 +58,7 @@ type IngestConfig struct {
 	Ingest_Cache_Path          string
 	Max_Ingest_Cache           int64 //maximum amount of data to cache in MB
 	Log_Level                  string
+	Source_Override            string // override normal source if desired
 }
 
 func (ic *IngestConfig) loadDefaults() error {
@@ -121,6 +122,12 @@ func (ic *IngestConfig) Verify() error {
 		return ErrInvalidIngestCacheSize
 	} else if ic.Max_Ingest_Cache == 0 && len(ic.Ingest_Cache_Path) != 0 {
 		return ErrCacheEnabledZeroMax
+	}
+
+	if ic.Source_Override != `` {
+		if net.ParseIP(ic.Source_Override) == nil {
+			return errors.New("Failed to parse Source_Override")
+		}
 	}
 	return nil
 }
