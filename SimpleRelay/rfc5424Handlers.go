@@ -27,7 +27,7 @@ const (
 	stateInMsg  int = iota
 )
 
-func rfc5424ConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTS, setLocalTime bool, dropPrio bool, tag entry.EntryTag, wg *sync.WaitGroup) {
+func rfc5424ConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTS, setLocalTime bool, dropPrio bool, tag entry.EntryTag, wg *sync.WaitGroup, src net.IP) {
 	wg.Add(1)
 	id := addConn(c)
 	defer wg.Done()
@@ -39,6 +39,9 @@ func rfc5424ConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTS, setLocalT
 		return
 	}
 	rip := net.ParseIP(ipstr)
+	if src != nil {
+		rip = src
+	}
 	if rip == nil {
 		fmt.Fprintf(os.Stderr, "Failed to get remote addr from \"%s\"\n", ipstr)
 		return
@@ -109,7 +112,7 @@ func rfc5424ConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTS, setLocalT
 	}
 }
 
-func rfc5424ConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTS, setLocalTime, dropPrio bool, tag entry.EntryTag, wg *sync.WaitGroup) {
+func rfc5424ConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTS, setLocalTime, dropPrio bool, tag entry.EntryTag, wg *sync.WaitGroup, src net.IP) {
 	buff := make([]byte, 16*1024) //local buffer that should be big enough for even the largest UDP packets
 	tcfg := timegrinder.Config{
 		EnableLeftMostSeed: true,
@@ -136,7 +139,11 @@ func rfc5424ConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTS, setLo
 			if n > len(buff) {
 				continue
 			}
-			handleRFC5424Packet(append([]byte(nil), buff[:n]...), raddr.IP, ch, ignoreTS, dropPrio, tag, tg)
+			rip := raddr.IP
+			if src != nil {
+				rip = src
+			}
+			handleRFC5424Packet(append([]byte(nil), buff[:n]...), rip, ch, ignoreTS, dropPrio, tag, tg)
 		}
 	}
 

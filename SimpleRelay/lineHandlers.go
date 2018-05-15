@@ -21,7 +21,7 @@ import (
 	"github.com/gravwell/timegrinder"
 )
 
-func lineConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTimestamps, setLocalTime bool, tag entry.EntryTag, wg *sync.WaitGroup) {
+func lineConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTimestamps, setLocalTime bool, tag entry.EntryTag, wg *sync.WaitGroup, src net.IP) {
 	wg.Add(1)
 	id := addConn(c)
 	defer wg.Done()
@@ -33,6 +33,9 @@ func lineConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTimestamps, setL
 		return
 	}
 	rip := net.ParseIP(ipstr)
+	if src != nil {
+		rip = src
+	}
 	if rip == nil {
 		fmt.Fprintf(os.Stderr, "Failed to get remote addr from \"%s\"\n", ipstr)
 		return
@@ -76,7 +79,7 @@ func lineConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTimestamps, setL
 	}
 }
 
-func lineConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTimestamps, setLocalTime bool, tag entry.EntryTag, wg *sync.WaitGroup) {
+func lineConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTimestamps, setLocalTime bool, tag entry.EntryTag, wg *sync.WaitGroup, src net.IP) {
 	sp := []byte("\n")
 	buff := make([]byte, 16*1024) //local buffer that should be big enough for even the largest UDP packets
 	tcfg := timegrinder.Config{
@@ -105,6 +108,11 @@ func lineConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTimestamps, 
 		if n > len(buff) {
 			continue
 		}
+		rip := raddr.IP
+		if src != nil {
+			rip = src
+		}
+
 		lns := bytes.Split(buff[:n], sp)
 		for _, ln := range lns {
 			ln = bytes.Trim(ln, "\n\r\t ")
@@ -112,7 +120,7 @@ func lineConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTimestamps, 
 				continue
 			}
 			//because we are using and reusing a local buffer, we have to copy the bytes when handing in
-			if err := handleLog(append([]byte(nil), ln...), raddr.IP, ignoreTimestamps, tag, ch, tg); err != nil {
+			if err := handleLog(append([]byte(nil), ln...), rip, ignoreTimestamps, tag, ch, tg); err != nil {
 				return
 			}
 		}

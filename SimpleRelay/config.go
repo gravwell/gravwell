@@ -43,6 +43,7 @@ type listener struct {
 	Assume_Local_Timezone bool
 	Reader_Type           string
 	Keep_Priority         bool // Leave the <nnn> priority value at the start of the log message
+	Source_Override       string
 }
 
 type cfgReadType struct {
