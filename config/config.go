@@ -58,6 +58,7 @@ type IngestConfig struct {
 	Ingest_Cache_Path          string
 	Max_Ingest_Cache           int64 //maximum amount of data to cache in MB
 	Log_Level                  string
+	Log_File                   string
 }
 
 func (ic *IngestConfig) loadDefaults() error {
