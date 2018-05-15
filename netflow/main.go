@@ -11,7 +11,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -23,6 +22,7 @@ import (
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/ingest/log"
 )
 
 const (
@@ -38,6 +38,7 @@ var (
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	confLoc        string
 	v              bool
+	lg             *log.Logger
 )
 
 func init() {
@@ -56,6 +57,7 @@ func init() {
 			}
 		}
 	}
+	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 
 	if *configOverride == "" {
 		confLoc = defaultConfigLoc
@@ -70,8 +72,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to open %s for profile file: %v\n", *cpuprofile, err)
-			os.Exit(-1)
+			lg.Fatal("Failed to open %s for profile file: %v\n", *cpuprofile, err)
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -83,16 +84,28 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to get configuration: %v\n", err)
 		return
 	}
+	if len(cfg.Log_File) > 0 {
+		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+		if err != nil {
+			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Log_File, err)
+		}
+		if err = lg.AddWriter(fout); err != nil {
+			lg.Fatal("Failed to add a writer: %v", err)
+		}
+		if len(cfg.Log_Level) > 0 {
+			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
+				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Log_Level, err)
+			}
+		}
+	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get tags from configuration: %v\n", err)
-		return
+		lg.Fatal("Failed to get tags from configuration: %v\n", err)
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get backend targets from configuration: %v\n", err)
-		return
+		lg.Fatal("Failed to get backend targets from configuration: %v\n", err)
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
@@ -113,20 +126,17 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed build our ingest system: %v\n", err)
-		return
+		lg.Fatal("Failed build our ingest system: %v\n", err)
 	}
 
 	defer igst.Close()
 	debugout("Started ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed start our ingest system: %v\n", err)
-		return
+		lg.Fatal("Failed start our ingest system: %v\n", err)
 	}
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		fmt.Fprintf(os.Stderr, "Timedout waiting for backend connections: %v\n", err)
-		return
+		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
 	}
 	debugout("Successfully connected to ingesters\n")
 	wg := sync.WaitGroup{}
@@ -142,7 +152,7 @@ func main() {
 		// global override
 		src = net.ParseIP(cfg.Source_Override)
 		if src == nil {
-			log.Fatal("Global Source-Override is invalid")
+			lg.FatalCode(0, "Global Source-Override is invalid")
 		}
 	}
 
@@ -151,13 +161,11 @@ func main() {
 		//get the tag for this listener
 		tag, err := igst.GetTag(v.Tag_Name)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to resolve tag \"%s\" for %s: %v\n", v.Tag_Name, k, err)
-			return
+			lg.FatalCode(0, "Failed to resolve tag \"%s\" for %s: %v\n", v.Tag_Name, k, err)
 		}
 		ft, err := translateFlowType(v.Flow_Type)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid flow type \"%s\": %v\n", v.Flow_Type, err)
-			return
+			lg.FatalCode(0, "Invalid flow type \"%s\": %v\n", v.Flow_Type, err)
 		}
 		bc.tag = tag
 		bc.ignoreTS = v.Ignore_Timestamp
@@ -166,20 +174,19 @@ func main() {
 		switch ft {
 		case nfv5Type:
 			if bh, err = NewNetflowV5Handler(bc); err != nil {
-				fmt.Fprintf(os.Stderr, "NewNetflowV5Handler error: %v\n", err)
+				lg.FatalCode(0, "NewNetflowV5Handler error: %v\n", err)
 				return
 			}
 		default:
-			fmt.Fprintf(os.Stderr, "Invalid flow type %v\n", ft)
+			lg.FatalCode(0, "Invalid flow type %v\n", ft)
 			return
 		}
 		if err = bh.Listen(v.Bind_String); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to listen on %s handler: %v\n", bh.String(), err)
+			lg.FatalCode(0, "Failed to listen on %s handler: %v\n", bh.String(), err)
 		}
 		id := addConn(bh)
 		if err := bh.Start(id); err != nil {
-			fmt.Fprintf(os.Stderr, "%s.Start() error: %v\n", bh.String(), err)
-			return
+			lg.FatalCode(0, "%s.Start() error: %v\n", bh.String(), err)
 		}
 		wg.Add(1)
 	}
@@ -215,13 +222,13 @@ func main() {
 		//wait for our ingest relay to exit
 		<-doneChan
 	case <-time.After(1 * time.Second):
-		fmt.Fprintf(os.Stderr, "Failed to wait for all connections to close.  %d active\n", connCount())
+		lg.Error("Failed to wait for all connections to close.  %d active\n", connCount())
 	}
 	if err := igst.Sync(time.Second); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to sync: %v\n", err)
+		lg.Error("Failed to sync: %v\n", err)
 	}
 	if err := igst.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to close: %v\n", err)
+		lg.Error("Failed to close: %v\n", err)
 	}
 }
 
@@ -238,7 +245,7 @@ mainLoop:
 				if len(ents) > 0 {
 					if err := igst.WriteBatch(ents); err != nil {
 						if err != ingest.ErrNotRunning {
-							fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
+							lg.Error("Failed to WriteBatch: %v\n", err)
 						}
 					}
 				}
@@ -246,15 +253,15 @@ mainLoop:
 				break mainLoop
 			}
 			if e != nil {
-			if srcOverride != nil {
-				e.SRC = srcOverride
-			}
+				if srcOverride != nil {
+					e.SRC = srcOverride
+				}
 				ents = append(ents, e)
 			}
 			if len(ents) >= batchSize {
 				if err := igst.WriteBatch(ents); err != nil {
 					if err != ingest.ErrNotRunning {
-						fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
+						lg.Error("Failed to WriteBatch: %v\n", err)
 					} else {
 						break mainLoop
 					}
@@ -265,7 +272,7 @@ mainLoop:
 			if len(ents) > 0 {
 				if err := igst.WriteBatch(ents); err != nil {
 					if err != ingest.ErrNotRunning {
-						fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
+						lg.Error("Failed to WriteBatch: %v\n", err)
 					} else {
 						break mainLoop
 					}

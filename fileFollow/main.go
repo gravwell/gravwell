@@ -11,7 +11,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -22,6 +21,7 @@ import (
 	"github.com/gravwell/filewatch"
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/ingest/log"
 )
 
 const (
@@ -34,7 +34,8 @@ var (
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	confLoc        string
 
-	v bool
+	v  bool
+	lg *log.Logger
 )
 
 func init() {
@@ -52,6 +53,7 @@ func init() {
 			}
 		}
 	}
+	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 
 	if *configOverride == "" {
 		confLoc = defaultConfigLoc
@@ -64,25 +66,36 @@ func init() {
 func main() {
 	cfg, err := GetConfig(confLoc)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get configuration: %v\n", err)
-		return
+		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
+	}
+
+	if len(cfg.Log_File) > 0 {
+		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+		if err != nil {
+			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Log_File, err)
+		}
+		if err = lg.AddWriter(fout); err != nil {
+			lg.Fatal("Failed to add a writer: %v", err)
+		}
+		if len(cfg.Log_Level) > 0 {
+			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
+				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Log_Level, err)
+			}
+		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get tags from configuration: %v\n", err)
-		return
+		lg.FatalCode(0, "Failed to get tags from configuration: %v\n", err)
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get backend targets from configuration: %v\n", err)
-		return
+		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
 	}
 
 	wtcher, err := filewatch.NewWatcher(cfg.StatePath())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create notification watcher: %v\n", err)
-		return
+		lg.Fatal("Failed to create notification watcher: %v\n", err)
 	}
 
 	//fire up the ingesters
@@ -103,20 +116,18 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed build our ingest system: %v\n", err)
-		return
+		lg.Fatal("Failed build ingest system: %v\n", err)
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed start our ingest system: %v\n", err)
+		lg.Fatal("Failed start ingest system: %v\n", err)
 		return
 	}
 
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		fmt.Fprintf(os.Stderr, "Timedout waiting for backend connections: %v\n", err)
-		return
+		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
 	}
 	debugout("Successfully connected to ingesters\n")
 	ch := make(chan *entry.Entry, 2048)
@@ -129,14 +140,12 @@ func main() {
 		//get the tag for this listener
 		tag, err := igst.GetTag(val.Tag_Name)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to resolve tag \"%s\" for %s: %v\n", val.Tag_Name, k, err)
-			return
+			lg.Fatal("Failed to resolve tag \"%s\" for %s: %v\n", val.Tag_Name, k, err)
 		}
 		//create our handler for this watcher
 		lh, err := filewatch.NewLogHandler(tag, val.Ignore_Timestamps, val.Assume_Local_Timezone, ch)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to generate handler: %v", err)
-			return
+			lg.Fatal("Failed to generate handler: %v", err)
 		}
 		if v {
 			lh.SetLogger(debugout)
@@ -148,19 +157,17 @@ func main() {
 			Hnd:        lh,
 		}
 		if err := wtcher.Add(c); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to add watch directory for %s (%s): %v\n",
-				val.Base_Directory, val.File_Filter, err)
 			wtcher.Close()
-			return
+			lg.Fatal("Failed to add watch directory for %s (%s): %v\n",
+				val.Base_Directory, val.File_Filter, err)
 		}
 
 	}
 
 	if err := wtcher.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to start file watcher: %v\n", err)
 		wtcher.Close()
 		igst.Close()
-		return
+		lg.Fatal("Failed to start file watcher: %v\n", err)
 	}
 
 	debugout("Started following %d locations\n", len(cfg.Follower))
@@ -170,7 +177,7 @@ func main() {
 		// global override
 		src = net.ParseIP(cfg.Source_Override)
 		if src == nil {
-			log.Fatal("Global Source-Override is invalid")
+			lg.Fatal("Global Source-Override is invalid")
 		}
 	}
 	doneChan := make(chan error, 1)
@@ -184,7 +191,7 @@ func main() {
 	<-sch
 	debugout("Attempting to close the watcher... ")
 	if err := wtcher.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to close file follower: %v\n", err)
+		lg.Error("Failed to close file follower: %v\n", err)
 	}
 	debugout("Done\n")
 	close(ch) //to inform the relay that no new entries are going to come down the pipe
@@ -192,9 +199,11 @@ func main() {
 	//wait for our ingest relay to exit
 	<-doneChan
 	if err := igst.Sync(time.Second); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to sync: %v\n", err)
+		lg.Error("Failed to sync: %v\n", err)
 	}
-	igst.Close()
+	if err = igst.Close(); err != nil {
+		lg.Error("Failed to close ingest muxer: %v", err)
+	}
 }
 
 func relay(ch chan *entry.Entry, done chan error, srcOverride net.IP, igst *ingest.IngestMuxer) {
@@ -203,7 +212,7 @@ func relay(ch chan *entry.Entry, done chan error, srcOverride net.IP, igst *inge
 			e.SRC = srcOverride
 		}
 		if err := igst.WriteEntry(e); err != nil {
-			fmt.Println("Failed to write entry", err)
+			lg.Warn("Failed to write entry: %v", err)
 		}
 	}
 	done <- nil
