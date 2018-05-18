@@ -118,6 +118,11 @@ func NewSyslogFileProcessor() *processor {
 	return &processor{regexp.MustCompile(re), SYSLOG_FILE_FORMAT}
 }
 
+func NewSyslogFileProcessorTZ2() *processor {
+	re := `\d{4}-\d{2}-\d{2}T\d\d:\d\d:\d+\.?\d*[-+]\d\d\d\d`
+	return &processor{regexp.MustCompile(re), SYSLOG_FILE_FORMAT_TZ2}
+}
+
 func NewDPKGProcessor() *processor {
 	re := `(?P<ts>\d\d\d\d-\d\d-\d\d\s\d\d:\d\d:\d\d)`
 	return &processor{regexp.MustCompile(re), DPKG_MSG_FORMAT}

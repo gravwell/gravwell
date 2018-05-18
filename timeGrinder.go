@@ -35,6 +35,7 @@ const (
 	NGINX_FORMAT             string = `2006/01/02 15:04:05`
 	SYSLOG_FORMAT            string = `Jan _2 15:04:05`
 	SYSLOG_FILE_FORMAT       string = `2006-01-02T15:04:05.999999999-07:00`
+	SYSLOG_FILE_FORMAT_TZ2   string = `2006-01-02T15:04:05.999999999-0700`
 	DPKG_MSG_FORMAT          string = `2006-01-02 15:04:05`
 	CUSTOM1_MILLI_MSG_FORMAT string = `01-02-2006 15:04:05.0`
 	ZONELESS_RFC3339_FORMAT  string = `2006-01-02T15:04:05.999999999`
@@ -115,6 +116,9 @@ func NewTimeGrinder(c Config) (*TimeGrinder, error) {
 
 	//build SyslogFile processor
 	procs = append(procs, NewSyslogFileProcessor())
+
+	//build SyslogFile processor
+	procs = append(procs, NewSyslogFileProcessorTZ2())
 
 	//build DPKGProcessor
 	procs = append(procs, NewDPKGProcessor())

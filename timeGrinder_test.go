@@ -179,6 +179,13 @@ func TestSyslogFile(t *testing.T) {
 	}
 }
 
+func TestSyslogFileTZ2(t *testing.T) {
+	err := runFullSecTestsCurr(SYSLOG_FILE_FORMAT_TZ2)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestDPKGFile(t *testing.T) {
 	if err := runFullSecTestsCurr(DPKG_MSG_FORMAT); err != nil {
 		t.Fatal(err)
