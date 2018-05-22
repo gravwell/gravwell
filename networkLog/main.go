@@ -13,7 +13,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -24,6 +23,7 @@ import (
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/ingest/log"
 
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
@@ -46,6 +46,7 @@ var (
 	totalPackets uint64
 	totalBytes   uint64
 	v            bool
+	lg           *log.Logger
 )
 
 type results struct {
@@ -84,6 +85,7 @@ func init() {
 			}
 		}
 	}
+	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 
 	if *configOverride == "" {
 		confLoc = defaultConfigLoc
@@ -97,7 +99,7 @@ func main() {
 	if *profileFile != `` {
 		f, err := os.Create(*profileFile)
 		if err != nil {
-			log.Fatal("failed to open pprof", err)
+			lg.Fatal("failed to open pprof", err)
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -105,16 +107,30 @@ func main() {
 	}
 	cfg, err := GetConfig(confLoc)
 	if err != nil {
-		log.Fatal("Failed to get configuration: ", err)
+		lg.Fatal("Failed to get configuration: ", err)
+	}
+	if len(cfg.Log_File) > 0 {
+		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+		if err != nil {
+			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Log_File, err)
+		}
+		if err = lg.AddWriter(fout); err != nil {
+			lg.Fatal("Failed to add a writer: %v", err)
+		}
+		if len(cfg.Log_Level) > 0 {
+			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
+				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Log_Level, err)
+			}
+		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		log.Fatal("Failed to get tags from configuration: ", err)
+		lg.FatalCode(0, "Failed to get tags from configuration: ", err)
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		log.Fatal("Failed to get backend targets from configuration: ", err)
+		lg.FatalCode(0, "Failed to get backend targets from configuration: ", err)
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
@@ -123,8 +139,7 @@ func main() {
 	for k, v := range cfg.Sniffer {
 		if v == nil {
 			closeSniffers(sniffs)
-			log.Fatal("Invalid sniffer named ", k, ".  Nil struct")
-			return
+			lg.FatalCode(0, "Invalid sniffer named ", k, ".  Nil struct")
 		}
 		//The config may specify a particular source IP for this sniffer.
 		//If not, derive one.
@@ -133,20 +148,20 @@ func main() {
 			src = net.ParseIP(v.Source_Override)
 			if src == nil {
 				closeSniffers(sniffs)
-				log.Fatal("Source-Override is invalid")
+				lg.FatalCode(0, "Source-Override is invalid")
 			}
 		} else if cfg.Source_Override != `` {
 			// global override
 			src = net.ParseIP(cfg.Source_Override)
 			if src == nil {
 				closeSniffers(sniffs)
-				log.Fatal("Global Source-Override is invalid")
+				lg.FatalCode(0, "Global Source-Override is invalid")
 			}
 		} else {
 			src, err = getSourceIP(v.Interface)
 			if err != nil {
 				closeSniffers(sniffs)
-				log.Fatal("Failed to get source for ", v.Interface, ": ", err)
+				lg.FatalCode(0, "Failed to get source for ", v.Interface, ": ", err)
 			}
 		}
 
@@ -154,14 +169,14 @@ func main() {
 		hnd, err := pcap.OpenLive(v.Interface, int32(v.Snap_Len), v.Promisc, pktTimeout)
 		if err != nil {
 			closeSniffers(sniffs)
-			log.Fatal("Failed to get initialize handler on ", v.Interface, " for ", k)
+			lg.FatalCode(0, "Failed to get initialize handler on ", v.Interface, " for ", k)
 		}
 		//apply a filter if one is specified
 		if v.BPF_Filter != `` {
 			if err := hnd.SetBPFFilter(v.BPF_Filter); err != nil {
 				hnd.Close()
 				closeSniffers(sniffs)
-				log.Fatal("Invalid BPF Filter for ", k, " : ", err)
+				lg.FatalCode(0, "Invalid BPF Filter for ", k, " : ", err)
 			}
 		}
 		sniffs = append(sniffs, sniffer{
@@ -194,20 +209,17 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
-		log.Fatal("Failed to create new uniform muxer ", err)
-		return
+		lg.Fatal("Failed to create new uniform muxer ", err)
 	}
 	debugout("Started ingester muxer\n")
 	if err := igst.Start(); err != nil {
 		closeSniffers(sniffs)
-		log.Fatal("Failed start our ingest system: ", err)
-		return
+		lg.Fatal("Failed start our ingest system: ", err)
 	}
 	debugout("Waiting for connections to indexers\n")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
 		closeSniffers(sniffs)
-		log.Fatal("Timedout waiting for backend connections: ", err)
-		return
+		lg.Fatal("Timedout waiting for backend connections: ", err)
 	}
 	debugout("Successfully connected to ingesters\n")
 
@@ -216,7 +228,7 @@ func main() {
 		tag, err := igst.GetTag(sniffs[i].TagName)
 		if err != nil {
 			closeSniffers(sniffs)
-			log.Fatal("Failed to resolve tag ", sniffs[i].TagName, ": ", err)
+			lg.Fatal("Failed to resolve tag ", sniffs[i].TagName, ": ", err)
 		}
 		sniffs[i].tag = tag
 	}
@@ -237,22 +249,22 @@ func main() {
 	res := gatherResponse(sniffs)
 	closeHandles(sniffs)
 	if err := igst.Close(); err != nil {
-		log.Fatal("Failed to close ingester", err)
+		lg.Fatal("Failed to close ingester", err)
 	}
 	durr := time.Since(start)
 
 	if err == nil {
-		fmt.Printf("Completed in %v (%s)\n", durr, ingest.HumanSize(res.Bytes))
-		fmt.Printf("Total Count: %s\n", ingest.HumanCount(res.Count))
-		fmt.Printf("Entry Rate: %s\n", ingest.HumanEntryRate(res.Count, durr))
-		fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(res.Bytes, durr))
+		lg.Info("Completed in %v (%s)\n", durr, ingest.HumanSize(res.Bytes))
+		lg.Info("Total Count: %s\n", ingest.HumanCount(res.Count))
+		lg.Info("Entry Rate: %s\n", ingest.HumanEntryRate(res.Count, durr))
+		lg.Info("Ingest Rate: %s\n", ingest.HumanRate(res.Bytes, durr))
 	}
 	if err := igst.Sync(time.Second); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to sync the ingester: %v\n", err)
+		lg.Error("Failed to sync the ingester: %v\n", err)
 		return
 	}
 	if err := igst.Close(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to close the ingester: %v\n", err)
+		lg.Error("Failed to close the ingester: %v\n", err)
 		return
 	}
 }
@@ -273,14 +285,14 @@ mainLoop:
 		if err != nil {
 			if !threwErr {
 				threwErr = true
-				fmt.Fprintf(os.Stderr, "Error: Failed to get pcap device on reopen (%v)\n", err)
+				lg.Error("Failed to get pcap device on reopen (%v)\n", err)
 			}
 			continue
 		}
 		if s.BPFFilter != `` {
 			if err := hnd.SetBPFFilter(s.BPFFilter); err != nil {
 				//this is fatal, this shouldn't be possible, but here we are
-				fmt.Fprintf(os.Stderr, "Invalid BPF Filter on reopen: %v\n", err)
+				lg.Error("Invalid BPF Filter on reopen: %v\n", err)
 				hnd.Close()
 				break mainLoop
 			}
@@ -365,6 +377,7 @@ func pcapIngester(igst *ingest.IngestMuxer, s *sniffer) {
 	go packetExtractor(s.handle, ch)
 	debugout("Starting sniffer %s on %s with \"%s\"\n", s.name, s.Interface, s.BPFFilter)
 	igst.Info("Starting sniffer %s on %s with \"%s\"\n", s.name, s.Interface, s.BPFFilter)
+	lg.Info("Starting sniffer %s on %s with \"%s\"\n", s.name, s.Interface, s.BPFFilter)
 
 mainLoop:
 	for {
@@ -404,7 +417,7 @@ mainLoop:
 			}
 			if err := igst.WriteBatch(set); err != nil {
 				s.handle.Close()
-				fmt.Fprintf(os.Stderr, "Failed to write entry: %v\n", err)
+				lg.Error("Failed to write entry: %v\n", err)
 				s.res <- results{
 					Bytes: 0,
 					Count: 0,

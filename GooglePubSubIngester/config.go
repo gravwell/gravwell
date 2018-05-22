@@ -31,14 +31,16 @@ type global struct {
 	Google_Credentials_Path string // overload the environment variable if desired
 }
 
+type pubsubconf struct {
+	Topic_Name       string
+	Tag_Name         string
+	Assume_Localtime bool
+	Parse_Time       bool
+}
+
 type cfgType struct {
 	Global global
-	PubSub map[string]*struct {
-		Topic_Name       string
-		Tag_Name         string
-		Assume_Localtime bool
-		Parse_Time       bool
-	}
+	PubSub map[string]*pubsubconf
 }
 
 func GetConfig(path string) (*cfgType, error) {

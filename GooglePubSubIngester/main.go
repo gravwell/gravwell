@@ -12,7 +12,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -22,6 +21,7 @@ import (
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/ingest/log"
 	"github.com/gravwell/timegrinder"
 
 	"cloud.google.com/go/pubsub"
@@ -35,6 +35,7 @@ var (
 	configLoc      = flag.String("config", defaultConfigLoc, "Location of configuration file")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
+	lg             *log.Logger
 )
 
 func init() {
@@ -52,21 +53,37 @@ func init() {
 			}
 		}
 	}
+	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 }
 
 func main() {
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
-		log.Fatal("Failed to get configuration: ", err)
+		lg.Fatal("Failed to get configuration: ", err)
+	}
+
+	if len(cfg.Global.Log_File) > 0 {
+		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+		if err != nil {
+			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Global.Log_File, err)
+		}
+		if err = lg.AddWriter(fout); err != nil {
+			lg.Fatal("Failed to add a writer: %v", err)
+		}
+		if len(cfg.Global.Log_Level) > 0 {
+			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
+				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Global.Log_Level, err)
+			}
+		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		log.Fatal("Failed to get tags from configuration: ", err)
+		lg.Fatal("Failed to get tags from configuration: ", err)
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		log.Fatal("Failed to get backend targets from configuration: ", err)
+		lg.Fatal("Failed to get backend targets from configuration: ", err)
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
@@ -83,20 +100,17 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed build our ingest system: %v\n", err)
-		return
+		lg.Fatal("Failed build our ingest system: %v\n", err)
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed start our ingest system: %v\n", err)
-		return
+		lg.Fatal("Failed start our ingest system: %v\n", err)
 	}
 
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		fmt.Fprintf(os.Stderr, "Timedout waiting for backend connections: %v\n", err)
-		return
+		lg.FatalCode(0, "Timed out waiting for backend connections: %v\n", err)
 	}
 	debugout("Successfully connected to ingesters\n")
 
@@ -109,32 +123,32 @@ func main() {
 	ctx := context.Background()
 	client, err := pubsub.NewClient(ctx, cfg.Global.Project_ID)
 	if err != nil {
-		log.Fatalf("Couldn't create pubsub client: %v\n", err)
+		lg.Fatal("Couldn't create pubsub client: %v\n", err)
 		return
 	}
 
-	for _, ps := range cfg.PubSub {
-		tagid, err := igst.GetTag(ps.Tag_Name)
+	for _, psv := range cfg.PubSub {
+		tagid, err := igst.GetTag(psv.Tag_Name)
 		if err != nil {
-			log.Fatalf("Can't resolve tag %v: %v", ps.Tag_Name, err)
+			lg.Fatal("Can't resolve tag %v: %v", psv.Tag_Name, err)
 		}
 
 		// get the topic
-		topic := client.Topic(ps.Topic_Name)
+		topic := client.Topic(psv.Topic_Name)
 		ok, err := topic.Exists(ctx)
 		if err != nil {
-			log.Fatalf("Error checking topic: %v", err)
+			lg.Fatal("Error checking topic: %v", err)
 		}
 		if !ok {
-			log.Fatalf("Topic %v doesn't exist", ps.Topic_Name)
+			lg.Fatal("Topic %v doesn't exist", psv.Topic_Name)
 		}
 
 		// Get the subscription, creating if needed
-		subname := fmt.Sprintf("ingest_%s", ps.Topic_Name)
+		subname := fmt.Sprintf("ingest_%s", psv.Topic_Name)
 		sub := client.Subscription(subname)
 		ok, err = sub.Exists(ctx)
 		if err != nil {
-			log.Fatalf("Error checking subscription existence: %v", err)
+			lg.Fatal("Error checking subscription existence: %v", err)
 		}
 		if !ok {
 			// doesn't exist, try creating it
@@ -143,7 +157,7 @@ func main() {
 				AckDeadline: 10 * time.Second,
 			})
 			if err != nil {
-				log.Fatalf("Error creating subscription: %v", err)
+				lg.Fatal("Error creating subscription: %v", err)
 			}
 		}
 
@@ -160,17 +174,17 @@ func main() {
 					sdiff := tmpsize - oldsize
 					oldcount = tmpcount
 					oldsize = tmpsize
-					log.Printf("%d entries per second at %d bytes per second (%d bytes total)", cdiff, sdiff, oldsize)
+					lg.Info("%d entries per second at %d bytes per second (%d bytes total)", cdiff, sdiff, oldsize)
 				}
 			}()
 		}
 
-		go func(sub *pubsub.Subscription, tagid entry.EntryTag) {
+		go func(sub *pubsub.Subscription, tagid entry.EntryTag, ps *pubsubconf) {
 			eChan := make(chan *entry.Entry, 2048)
 			go func(c chan *entry.Entry) {
 				for e := range c {
 					if err := igst.WriteEntry(e); err != nil {
-						log.Printf("Can't write entry: %v", err)
+						lg.Error("Can't write entry: %v", err)
 					}
 					count++
 				}
@@ -191,7 +205,7 @@ func main() {
 				// global override
 				src = net.ParseIP(cfg.Global.Source_Override)
 				if src == nil {
-					log.Fatal("Global Source-Override is invalid")
+					lg.Fatal("Global Source-Override is invalid")
 				}
 			}
 
@@ -218,13 +232,13 @@ func main() {
 					eChan <- ent
 					msg.Ack()
 				}
-				cctx, _ := context.WithCancel(ctx)
-				err := sub.Receive(cctx, callback)
-				if err != nil {
-					log.Printf("Receive error: %v", err)
+				cctx, cancel := context.WithCancel(ctx)
+				defer cancel()
+				if err := sub.Receive(cctx, callback); err != nil {
+					lg.Error("Receive failed: %v", err)
 				}
 			}
-		}(sub, tagid)
+		}(sub, tagid, psv)
 	}
 
 	//register quit signals so we can die gracefully

@@ -11,7 +11,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/signal"
@@ -21,6 +20,7 @@ import (
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/ingest/log"
 	"github.com/gravwell/timegrinder"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -37,6 +37,7 @@ var (
 	configLoc      = flag.String("config", defaultConfigLoc, "Location of configuration file")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
+	lg             *log.Logger
 )
 
 func init() {
@@ -54,21 +55,36 @@ func init() {
 			}
 		}
 	}
+	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 }
 
 func main() {
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
-		log.Fatal("Failed to get configuration: ", err)
+		lg.Fatal("Failed to get configuration: ", err)
+	}
+	if len(cfg.Global.Log_File) > 0 {
+		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+		if err != nil {
+			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Global.Log_File, err)
+		}
+		if err = lg.AddWriter(fout); err != nil {
+			lg.Fatal("Failed to add a writer: %v", err)
+		}
+		if len(cfg.Global.Log_Level) > 0 {
+			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
+				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Global.Log_Level, err)
+			}
+		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		log.Fatal("Failed to get tags from configuration: ", err)
+		lg.Fatal("Failed to get tags from configuration: %v", err)
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		log.Fatal("Failed to get backend targets from configuration: ", err)
+		lg.Fatal("Failed to get backend targets from configuration: %s", err)
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
@@ -85,20 +101,18 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed build our ingest system: %v\n", err)
-		return
+		lg.Fatal("Failed build our ingest system: %v", err)
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed start our ingest system: %v\n", err)
+		lg.FatalCode(0, "Failed start our ingest system: %v", err)
 		return
 	}
 
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		fmt.Fprintf(os.Stderr, "Timedout waiting for backend connections: %v\n", err)
-		return
+		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
 	}
 	debugout("Successfully connected to ingesters\n")
 
@@ -116,7 +130,7 @@ func main() {
 	for _, stream := range cfg.KinesisStream {
 		tagid, err := igst.GetTag(stream.Tag_Name)
 		if err != nil {
-			log.Fatalf("Can't resolve tag %v: %v", stream.Tag_Name, err)
+			lg.Fatal("Can't resolve tag %v: %v", stream.Tag_Name, err)
 		}
 
 		// get a handle on kinesis
@@ -129,7 +143,7 @@ func main() {
 		for {
 			streamdesc, err := svc.DescribeStream(dsi)
 			if err != nil {
-				log.Println(err)
+				lg.Error("Failed to get stream description: %v", err)
 				continue
 			}
 			newshards := streamdesc.StreamDescription.Shards
@@ -143,7 +157,7 @@ func main() {
 		debugout("Read %d shards from stream %s\n", len(shards), stream.Stream_Name)
 
 		for i, shard := range shards {
-			go func(shard *kinesis.Shard, tagid entry.EntryTag) {
+			go func(shard *kinesis.Shard, tagid entry.EntryTag, shardid int) {
 				gsii := &kinesis.GetShardIteratorInput{}
 				gsii.SetShardId(*shard.ShardId)
 				gsii.SetShardIteratorType(stream.Iterator_Type)
@@ -151,7 +165,7 @@ func main() {
 
 				output, err := svc.GetShardIterator(gsii)
 				if err != nil {
-					log.Printf("error on shard #%d (%s): %v", i, *shard.ShardId, err)
+					lg.Error("error on shard #%d (%s): %v", shardid, *shard.ShardId, err)
 					return
 				}
 				iter := *output.ShardIterator
@@ -171,14 +185,14 @@ func main() {
 					// global override
 					src = net.ParseIP(cfg.Global.Source_Override)
 					if src == nil {
-						log.Fatal("Global Source-Override is invalid")
+						lg.Fatal("Global Source-Override is invalid")
 					}
 				}
 
 				go func(c chan *entry.Entry) {
 					for e := range c {
 						if err := igst.WriteEntry(e); err != nil {
-							log.Printf("Can't write entry: %v", err)
+							lg.Error("Can't write entry: %v", err)
 						}
 					}
 				}(eChan)
@@ -193,14 +207,14 @@ func main() {
 							if awsErr, ok := err.(awserr.Error); ok {
 								// process SDK error
 								if awsErr.Code() == kinesis.ErrCodeProvisionedThroughputExceededException {
-									log.Printf("Throughput exceeded, trying again")
+									lg.Warn("Throughput exceeded, trying again")
 									time.Sleep(500 * time.Millisecond)
 								} else {
-									log.Printf("%s: %s", awsErr.Code(), awsErr.Message())
+									lg.Error("%s: %s", awsErr.Code(), awsErr.Message())
 									time.Sleep(100 * time.Millisecond)
 								}
 							} else {
-								log.Printf("unknown error: %v", err)
+								lg.Error("unknown error: %v", err)
 							}
 						} else {
 							break
@@ -229,7 +243,7 @@ func main() {
 						eChan <- ent
 					}
 				}
-			}(shard, tagid)
+			}(shard, tagid, i)
 		}
 	}
 
