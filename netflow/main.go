@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/flow.conf`
+	defaultConfigLoc = `/opt/gravwell/etc/netflow_capture.conf`
 	ingesterName     = `flow`
 	batchSize        = 512
 )
@@ -246,9 +246,9 @@ mainLoop:
 				break mainLoop
 			}
 			if e != nil {
-			if srcOverride != nil {
-				e.SRC = srcOverride
-			}
+				if srcOverride != nil {
+					e.SRC = srcOverride
+				}
 				ents = append(ents, e)
 			}
 			if len(ents) >= batchSize {
