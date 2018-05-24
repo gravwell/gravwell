@@ -87,7 +87,7 @@ func (t Timestamp) Format(layout string) string {
 
 // String returns the standard string representation of Timestamp
 func (t Timestamp) String() string {
-	return t.StandardTime().Format(`2006-01-02 15:04:05.999999999 -0700 MST`)
+	return t.StandardTime().UTC().Format(time.RFC3339Nano)
 }
 
 // Before returns whether time instance t is before the parameter time tt
