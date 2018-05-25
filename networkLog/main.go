@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
 	"github.com/gravwell/ingest/log"
+	"github.com/gravwell/ingesters/version"
 
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
@@ -39,6 +40,7 @@ var (
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	profileFile    = flag.String("profile", "", "Start a CPU profiler, disabled if blank")
+	ver            = flag.Bool("version", false, "Print the version information and exit")
 
 	pktTimeout time.Duration = 500 * time.Millisecond
 
@@ -72,6 +74,11 @@ type sniffer struct {
 
 func init() {
 	flag.Parse()
+	if *ver {
+		version.PrintVersion(os.Stdout)
+		ingest.PrintVersion(os.Stdout)
+		os.Exit(0)
+	}
 	if *stderrOverride != `` {
 		fp := path.Join(`/dev/shm/`, *stderrOverride)
 		fout, err := os.Create(fp)
@@ -84,6 +91,8 @@ func init() {
 				fout.Close()
 			}
 		}
+		version.PrintVersion(fout)
+		ingest.PrintVersion(fout)
 	}
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 
@@ -209,17 +218,17 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
-		lg.Fatal("Failed to create new uniform muxer ", err)
+		lg.Fatal("Failed to create new uniform muxer: %v ", err)
 	}
 	debugout("Started ingester muxer\n")
 	if err := igst.Start(); err != nil {
 		closeSniffers(sniffs)
-		lg.Fatal("Failed start our ingest system: ", err)
+		lg.Fatal("Failed start our ingest system: %v", err)
 	}
 	debugout("Waiting for connections to indexers\n")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
 		closeSniffers(sniffs)
-		lg.Fatal("Timedout waiting for backend connections: ", err)
+		lg.Fatal("Timedout waiting for backend connections: %v", err)
 	}
 	debugout("Successfully connected to ingesters\n")
 
@@ -228,7 +237,7 @@ func main() {
 		tag, err := igst.GetTag(sniffs[i].TagName)
 		if err != nil {
 			closeSniffers(sniffs)
-			lg.Fatal("Failed to resolve tag ", sniffs[i].TagName, ": ", err)
+			lg.Fatal("Failed to resolve tag %s: %v", sniffs[i].TagName, err)
 		}
 		sniffs[i].tag = tag
 	}
@@ -249,7 +258,7 @@ func main() {
 	res := gatherResponse(sniffs)
 	closeHandles(sniffs)
 	if err := igst.Close(); err != nil {
-		lg.Fatal("Failed to close ingester", err)
+		lg.Fatal("Failed to close ingester %v", err)
 	}
 	durr := time.Since(start)
 

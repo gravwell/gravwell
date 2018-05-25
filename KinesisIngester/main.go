@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
 	"github.com/gravwell/ingest/log"
+	"github.com/gravwell/ingesters/version"
 	"github.com/gravwell/timegrinder"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -36,12 +37,18 @@ const (
 var (
 	configLoc      = flag.String("config", defaultConfigLoc, "Location of configuration file")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
+	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	lg             *log.Logger
 )
 
 func init() {
 	flag.Parse()
+	if *ver {
+		version.PrintVersion(os.Stdout)
+		ingest.PrintVersion(os.Stdout)
+		os.Exit(0)
+	}
 	if *stderrOverride != `` {
 		fp := path.Join(`/dev/shm/`, *stderrOverride)
 		fout, err := os.Create(fp)
@@ -54,6 +61,8 @@ func init() {
 				fout.Close()
 			}
 		}
+		version.PrintVersion(fout)
+		ingest.PrintVersion(fout)
 	}
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 }

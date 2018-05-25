@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/ingesters/version"
 )
 
 const (
@@ -39,6 +40,7 @@ var (
 	pipeHeadHole  = flag.String("pipe-conn", "", "path specifying a named pie connection")
 	ingestSecret  = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
 	period        = flag.String("period", "3s", "Duration between disk samples")
+	ver           = flag.Bool("version", false, "Print version information and exit")
 
 	dst        []string
 	tags       []string
@@ -49,6 +51,11 @@ var (
 
 func init() {
 	flag.Parse()
+	if *ver {
+		version.PrintVersion(os.Stdout)
+		ingest.PrintVersion(os.Stdout)
+		os.Exit(0)
+	}
 	if *disk == `` {
 		log.Fatal("Disk requried")
 	}

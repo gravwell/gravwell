@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/ingesters/version"
 	"gravwell/pkg/utils"
 )
 
@@ -37,6 +38,7 @@ var (
 	wDir     = flag.String("w", "", "Working directory for optimization")
 	noIngest = flag.Bool("no-ingest", false, "Optimize logs but do not perform ingest")
 	skipOp   = flag.Bool("skip-op", false, "Assume working directory already has optimized logs")
+	ver      = flag.Bool("version", false, "Print the version information and exit")
 	connSet  []string
 	timeout  time.Duration
 	working  string
@@ -51,6 +53,11 @@ type ingestVars struct {
 
 func init() {
 	flag.Parse()
+	if *ver {
+		version.PrintVersion(os.Stdout)
+		ingest.PrintVersion(os.Stdout)
+		os.Exit(0)
+	}
 	timeout = time.Second * time.Duration(*timeoutSec)
 	if *srcDir == "" && !*skipOp {
 		fmt.Fprintf(os.Stderr, "A source directory -s is required\n")
@@ -130,7 +137,6 @@ func init() {
 		fmt.Printf("No connections were specified\nWe need at least one\n")
 		os.Exit(-1)
 	}
-
 }
 
 func main() {

@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/ingesters/version"
 )
 
 var (
@@ -36,6 +37,7 @@ var (
 	tlsRemoteVerify = flag.String("tls-remote-verify", "", "Path to remote public key to verify against")
 	ingestSecret    = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
 	timeoutSec      = flag.Int("timeout", 1, "Connection timeout in seconds")
+	ver             = flag.Bool("version", false, "Print the version information and exit")
 	connSet         []string
 	timeout         time.Duration
 
@@ -62,6 +64,11 @@ type results struct {
 
 func init() {
 	flag.Parse()
+	if *ver {
+		version.PrintVersion(os.Stdout)
+		ingest.PrintVersion(os.Stdout)
+		os.Exit(0)
+	}
 	if *timeoutSec <= 0 {
 		fmt.Printf("Invalid timeout\n")
 		os.Exit(-1)
