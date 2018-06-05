@@ -234,6 +234,23 @@ func TestSeedHit(t *testing.T) {
 	}
 }
 
+func TestOverrideFormat(t *testing.T) {
+	good := []string{`AnsiC`, `Unix`, `Ruby`, `RFC822`, `RFC822Z`, `RFC850`, `RFC1123`, `RFC1123Z`,
+		`RFC3339`, `RFC3339Nano`, `Apache`, `ApacheNoTz`, `Syslog`, `SyslogFile`, `DPKG`,
+		`Custom1Milli`, `NGINX`, `UnixMilli`, `ZonelessRFC3339`, `SyslogVariant`}
+	bad := []string{`stuff`, "thigns and other stuff", "", "sdlkfjdslkj fsldkj"}
+	for i := range good {
+		if _, err := FormatDirective(good[i]); err != nil {
+			t.Fatal("Failed to find directive for", good[i], err)
+		}
+	}
+	for i := range bad {
+		if id, err := FormatDirective(bad[i]); err == nil || id != -1 {
+			t.Fatal("Accidentally saw", bad[i], "as good")
+		}
+	}
+}
+
 func runFullSecTestsCurr(format string) error {
 	tg, err := NewTimeGrinder(cfg)
 	if err != nil {

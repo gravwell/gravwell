@@ -10,8 +10,10 @@
 package timegrinder
 
 import (
+	"errors"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -31,12 +33,17 @@ const (
 	ApacheNoTz      int = iota
 	Syslog          int = iota
 	SyslogFile      int = iota
+	SyslogFileTZ    int = iota
 	DPKG            int = iota
 	Custom1Milli    int = iota
 	NGINX           int = iota
 	UnixMilli       int = iota
 	ZonelessRFC3339 int = iota
 	SyslogVariant   int = iota
+)
+
+var (
+	errUnknownFormatName = errors.New("Unknown format name")
 )
 
 type Processor interface {
@@ -220,5 +227,60 @@ func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 	nsec := int64((s - float64(sec)) * 1000000000.0)
 	t = time.Unix(sec, nsec).In(loc)
 	ok = true
+	return
+}
+
+// FormatDirective tkes a string and attempts to match it against a case insensitive format directive
+// This function is useful in taking string designations for time formats, checking if they are valid
+// and converting them to an iota int for overriding the timegrinder
+func FormatDirective(s string) (v int, err error) {
+	s = strings.ToLower(s)
+	switch s {
+	case `ansic`:
+		v = AnsiC
+	case `unix`:
+		v = Unix
+	case `ruby`:
+		v = Ruby
+	case `rfc822`:
+		v = RFC822
+	case `rfc822z`:
+		v = RFC822Z
+	case `rfc850`:
+		v = RFC850
+	case `rfc1123`:
+		v = RFC1123
+	case `rfc1123z`:
+		v = RFC1123Z
+	case `rfc3339`:
+		v = RFC3339
+	case `rfc3339nano`:
+		v = RFC3339Nano
+	case `apache`:
+		v = Apache
+	case `apachenotz`:
+		v = ApacheNoTz
+	case `syslog`:
+		v = Syslog
+	case `syslogfile`:
+		v = SyslogFile
+	case `syslogfiletz`:
+		v = SyslogFileTZ
+	case `dpkg`:
+		v = DPKG
+	case `custom1milli`:
+		v = Custom1Milli
+	case `nginx`:
+		v = NGINX
+	case `unixmilli`:
+		v = UnixMilli
+	case `zonelessrfc3339`:
+		v = ZonelessRFC3339
+	case `syslogvariant`:
+		v = SyslogVariant
+	default:
+		v = -1
+		err = errUnknownFormatName
+	}
 	return
 }

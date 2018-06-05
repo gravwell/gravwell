@@ -225,6 +225,39 @@ func (tg *TimeGrinder) Extract(data []byte) (t time.Time, ok bool, err error) {
 	return
 }
 
+/* DebugExtract returns a time, offset, and error.  If no time was extracted, the offset is -1
+   Error indicates a catastrophic failure. */
+func (tg *TimeGrinder) DebugExtract(data []byte) (t time.Time, offset int, err error) {
+	var i int
+	var c int
+
+	if tg.override != nil {
+		if t, _, offset = tg.override.Extract(data, tg.loc); offset < 0 {
+			return
+		}
+	}
+
+	if tg.seed {
+		if ok := tg.setSeed(data); ok {
+			tg.seed = false
+		}
+	}
+
+	i = tg.curr
+	for c = 0; c < tg.count; c++ {
+		t, _, offset = tg.procs[i].Extract(data, tg.loc)
+		if offset >= 0 {
+			tg.curr = i
+			return
+		}
+		//move the current forward
+		i = (i + 1) % tg.count
+	}
+	//if we hit here we failed to extract a timestamp, reset to zero the attempts at zero
+	tg.curr = 0
+	return
+}
+
 func populateMonthLookup(ml map[string]time.Month) {
 	//jan
 	monthLookup["Jan"] = time.January
