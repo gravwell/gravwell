@@ -16,6 +16,7 @@ import (
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/config"
+	"github.com/gravwell/timegrinder"
 
 	"gopkg.in/gcfg.v1"
 )
@@ -37,13 +38,14 @@ type bindType int
 type readerType int
 
 type listener struct {
-	Bind_String           string //IP port pair 127.0.0.1:1234
-	Tag_Name              string
-	Ignore_Timestamps     bool //Just apply the current timestamp to lines as we get them
-	Assume_Local_Timezone bool
-	Reader_Type           string
-	Keep_Priority         bool // Leave the <nnn> priority value at the start of the log message
-	Source_Override       string
+	Bind_String               string //IP port pair 127.0.0.1:1234
+	Tag_Name                  string
+	Ignore_Timestamps         bool //Just apply the current timestamp to lines as we get them
+	Assume_Local_Timezone     bool
+	Reader_Type               string
+	Keep_Priority             bool // Leave the <nnn> priority value at the start of the log message
+	Source_Override           string
+	Timestamp_Format_Override string //override the timestamp format
 }
 
 type cfgReadType struct {
@@ -113,6 +115,9 @@ func verifyConfig(c *cfgType) error {
 		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 			return errors.New("Invalid characters in the Tag-Name for " + k)
 		}
+		if _, err := v.TimestampOverride(); err != nil {
+			return errors.New("Timestamp-Format-Override is invalid")
+		}
 		if n, ok := bindMp[v.Bind_String]; ok {
 			return errors.New("Bind-String for " + k + " already in use by " + n)
 		}
@@ -138,6 +143,14 @@ func (c *cfgType) Tags() ([]string, error) {
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+func (l listener) TimestampOverride() (v int, err error) {
+	override := strings.TrimSpace(l.Timestamp_Format_Override)
+	if override != `` {
+		v, err = timegrinder.FormatDirective(override)
+	}
+	return
 }
 
 func translateBindType(bstr string) (bindType, string, error) {

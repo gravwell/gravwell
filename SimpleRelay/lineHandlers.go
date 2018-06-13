@@ -15,43 +15,45 @@ import (
 	"io"
 	"net"
 	"os"
-	"sync"
 
-	"github.com/gravwell/ingest/entry"
 	"github.com/gravwell/timegrinder"
 )
 
-func lineConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTimestamps, setLocalTime bool, tag entry.EntryTag, wg *sync.WaitGroup, src net.IP) {
-	wg.Add(1)
+func lineConnHandlerTCP(c net.Conn, cfg handlerConfig) {
+	cfg.wg.Add(1)
 	id := addConn(c)
-	defer wg.Done()
+	defer cfg.wg.Done()
 	defer delConn(id)
 	defer c.Close()
-	ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get host from rmote addr \"%s\": %v\n", c.RemoteAddr().String(), err)
-		return
-	}
-	rip := net.ParseIP(ipstr)
-	if src != nil {
-		rip = src
-	}
-	if rip == nil {
-		fmt.Fprintf(os.Stderr, "Failed to get remote addr from \"%s\"\n", ipstr)
-		return
+	var rip net.IP
+
+	if cfg.src == nil {
+		ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String())
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to get host from rmote addr \"%s\": %v\n", c.RemoteAddr().String(), err)
+			return
+		}
+		if rip = net.ParseIP(ipstr); rip == nil {
+			fmt.Fprintf(os.Stderr, "Failed to get remote addr from \"%s\"\n", ipstr)
+			return
+		}
+	} else {
+		rip = cfg.src
 	}
 
 	var tg *timegrinder.TimeGrinder
-	if !ignoreTimestamps {
+	if !cfg.ignoreTimestamps {
+		var err error
 		tcfg := timegrinder.Config{
 			EnableLeftMostSeed: true,
+			FormatOverride:     cfg.formatOverride,
 		}
 		tg, err = timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to get a handle on the timegrinder: %v\n", err)
 			return
 		}
-		if setLocalTime {
+		if cfg.setLocalTime {
 			tg.SetLocalTime()
 		}
 
@@ -62,7 +64,7 @@ func lineConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTimestamps, setL
 		data = bytes.Trim(data, "\n\r\t ")
 
 		if len(data) > 0 {
-			if err := handleLog(data, rip, ignoreTimestamps, tag, ch, tg); err != nil {
+			if err := handleLog(data, rip, cfg.ignoreTimestamps, cfg.tag, cfg.ch, tg); err != nil {
 				return
 			}
 		}
@@ -79,22 +81,24 @@ func lineConnHandlerTCP(c net.Conn, ch chan *entry.Entry, ignoreTimestamps, setL
 	}
 }
 
-func lineConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTimestamps, setLocalTime bool, tag entry.EntryTag, wg *sync.WaitGroup, src net.IP) {
+func lineConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 	sp := []byte("\n")
 	buff := make([]byte, 16*1024) //local buffer that should be big enough for even the largest UDP packets
 	tcfg := timegrinder.Config{
 		EnableLeftMostSeed: true,
+		FormatOverride:     cfg.formatOverride,
 	}
 	tg, err := timegrinder.NewTimeGrinder(tcfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get a handle on the timegrinder: %v\n", err)
 		return
 	}
-	if setLocalTime {
+	if cfg.setLocalTime {
 		tg.SetLocalTime()
 	}
 
 	for {
+		var rip net.IP
 		n, raddr, err := c.ReadFromUDP(buff)
 		if err != nil {
 			break
@@ -108,9 +112,10 @@ func lineConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTimestamps, 
 		if n > len(buff) {
 			continue
 		}
-		rip := raddr.IP
-		if src != nil {
-			rip = src
+		if cfg.src == nil {
+			rip = raddr.IP
+		} else {
+			rip = cfg.src
 		}
 
 		lns := bytes.Split(buff[:n], sp)
@@ -120,7 +125,7 @@ func lineConnHandlerUDP(c *net.UDPConn, ch chan *entry.Entry, ignoreTimestamps, 
 				continue
 			}
 			//because we are using and reusing a local buffer, we have to copy the bytes when handing in
-			if err := handleLog(append([]byte(nil), ln...), rip, ignoreTimestamps, tag, ch, tg); err != nil {
+			if err := handleLog(append([]byte(nil), ln...), rip, cfg.ignoreTimestamps, cfg.tag, cfg.ch, tg); err != nil {
 				return
 			}
 		}
