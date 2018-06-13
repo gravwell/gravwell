@@ -20,7 +20,7 @@ import (
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
 	"github.com/gravwell/ingesters/version"
-	"gravwell/pkg/utils"
+	"github.com/shirou/gopsutil/mem"
 )
 
 var (
@@ -152,14 +152,14 @@ func main() {
 		}
 		fmt.Printf("Preparing to process %s of logs across %d files\n", ingest.HumanSize(uint64(sz)), cnt)
 		estimatedPerFileSize := sz / maxFileHandles
-		availRam, err := utils.RamAvail()
+		memstats, err := mem.VirtualMemory()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to get free ram: %v\n", err)
 			os.Exit(-1)
 		}
-		if uint64(estimatedPerFileSize) > availRam {
+		if uint64(estimatedPerFileSize) > memstats.Available {
 			fmt.Printf("WARNING: We estimate individual working sets to be about %s\n", ingest.HumanSize(uint64(estimatedPerFileSize)))
-			fmt.Printf("\tBut your system only has %s available memory\n", ingest.HumanSize(uint64(availRam)))
+			fmt.Printf("\tBut your system only has %s available memory\n", ingest.HumanSize(uint64(memstats.Available)))
 			fmt.Printf("\tWe will more than likely push into swap and slow way down\n")
 		}
 		if err := groupLargeLogs(source, working, sz); err != nil {
