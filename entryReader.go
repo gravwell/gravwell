@@ -416,6 +416,7 @@ func (ac ackCommand) encode(b []byte) (n int, flush bool, err error) {
 		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
 		binary.LittleEndian.PutUint64(b[4:], ac.val)
 		n += throttleEncodeSize
+		flush = true
 	default:
 		err = errUnknownCommand
 	}

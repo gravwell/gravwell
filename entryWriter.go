@@ -32,8 +32,6 @@ const (
 	BUFFERED_ACK_READER_SIZE    int           = ACK_SIZE * MAX_UNCONFIRMED_COUNT
 	CLOSING_SERVICE_ACK_TIMEOUT time.Duration = time.Second
 
-	//MAX_UNCONFIRMED_COUNT MUST be > MIN_UNCONFIRMED_COUNT
-	MIN_UNCONFIRMED_COUNT int = 64
 	MAX_UNCONFIRMED_COUNT int = 1024 * 4
 
 	maxThrottleDur time.Duration = 5 * time.Second
@@ -69,9 +67,6 @@ type EntryWriter struct {
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
 	var bRdr *bufio.Reader
 	var bWtr *bufio.Writer
-	if MIN_UNCONFIRMED_COUNT >= MAX_UNCONFIRMED_COUNT {
-		return nil, errors.New("MAX_UNCONFIRMED_COUNT must be >= MIN_UNCONFIRMED_COUNT")
-	}
 	ecb, err := newEntryConfirmationBuffer(MAX_UNCONFIRMED_COUNT)
 	if err != nil {
 		return nil, err
@@ -354,6 +349,33 @@ func (ew *EntryWriter) writeAll(b []byte) error {
 		}
 	}
 	return nil
+}
+
+//flush attempts to push our buffer to the wire with a timeout
+//if the timeout expires we attempt to service acks and go back to attempting to flush
+func (ew *EntryWriter) flush() (err error) {
+	for {
+		//set the write timeout
+		if err = ew.conn.SetWriteDeadline(time.Time{}); err != nil {
+			return
+		}
+
+		//issue the flush with timeout
+		if err = ew.bIO.Flush(); err == nil {
+			break //successful flush
+		}
+		//if the timeout fired service acks and retry
+		if !isTimeout(err) {
+			ew.conn.SetWriteDeadline(time.Time{})
+			return
+		}
+		//timed out, service acks and retry
+		if err = ew.serviceAcks(true); err != nil {
+			return
+		}
+	}
+	err = ew.conn.SetWriteDeadline(time.Time{})
+	return
 }
 
 // Ack will block waiting for at least one ack to free up a slot for sending
