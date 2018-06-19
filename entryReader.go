@@ -22,21 +22,34 @@ import (
 const (
 	READ_BUFFER_SIZE int = 4 * 1024 * 1024
 	//TODO - we should really discover the MTU of the link and use that
-	ACK_WRITER_BUFFER_SIZE int = 16 * 1024
+	ACK_WRITER_BUFFER_SIZE int = (ackEncodeSize * MAX_UNCONFIRMED_COUNT)
 
 	entCacheRechargeSize int = 2048
 	ackChanSize          int = MAX_UNCONFIRMED_COUNT
+	maxAckCommandSize    int = 4 + 8
+	ackEncodeSize        int = 4 + 8 //cmd plus uint64 ID value
+	throttleEncodeSize   int = 4 + 8 //cmd plus uint64 duration value
+	pongEncodeSize       int = 4     //cmd
 )
 
 var (
-	errFailedFullRead   = errors.New("Failed to read full buffer")
-	errAckRoutineClosed = errors.New("Ack writer is closed")
+	errFailedFullRead      = errors.New("Failed to read full buffer")
+	errAckRoutineClosed    = errors.New("Ack writer is closed")
+	errUnknownCommand      = errors.New("Unknown command id")
+	errBufferTooSmall      = errors.New("Buffer too small for encoded command")
+	errFailBufferTooSmall  = errors.New("Buffer too small for encoded command")
+	errFailedToReadCommand = errors.New("Failed to read command")
 
 	ackBatchReadTimerDuration = 10 * time.Millisecond
 	defaultReaderTimeout      = 10 * time.Minute
 
 	nilTime time.Time
 )
+
+type ackCommand struct {
+	cmd IngestCommand
+	val uint64 //this can be converted to any number of things, id, time.Duration, etc...
+}
 
 type EntryReader struct {
 	conn       net.Conn
@@ -45,7 +58,7 @@ type EntryReader struct {
 	errCount   uint32
 	mtx        *sync.Mutex
 	wg         *sync.WaitGroup
-	ackChan    chan entrySendID
+	ackChan    chan ackCommand
 	errState   error
 	hot        bool
 	started    bool
@@ -67,7 +80,7 @@ func NewEntryReader(conn net.Conn) (*EntryReader, error) {
 		bAckWriter: bufio.NewWriterSize(conn, ACK_WRITER_BUFFER_SIZE),
 		mtx:        &sync.Mutex{},
 		wg:         &sync.WaitGroup{},
-		ackChan:    make(chan entrySendID, ackChanSize),
+		ackChan:    make(chan ackCommand, ackChanSize),
 		hot:        true,
 		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
 		timeout:    defaultReaderTimeout,
@@ -208,14 +221,14 @@ headerLoop:
 		if n < 4 {
 			return errFailedFullRead
 		}
-		switch binary.LittleEndian.Uint32(er.buff[0:]) {
+		switch IngestCommand(binary.LittleEndian.Uint32(er.buff[0:])) {
 		case FORCE_ACK_MAGIC:
 			if err := er.forceAck(); err != nil {
 				return err
 			}
 		case NEW_ENTRY_MAGIC:
 			break headerLoop
-		default:
+		default: //we should probably bail out if we get desyned
 			continue
 		}
 	}
@@ -241,7 +254,7 @@ func (er *EntryReader) forceAck() error {
 	return er.throwAck(0)
 }
 
-func discard(c chan entrySendID) {
+func discard(c chan ackCommand) {
 	for _ = range c {
 		//do nothing
 	}
@@ -260,63 +273,78 @@ func (er *EntryReader) routineCleanFail(err error) {
 func (er *EntryReader) ackRoutine() {
 	defer er.wg.Done()
 	//escape analysis should ensure this is on the stack
-	acks := make([]entrySendID, (ACK_WRITER_BUFFER_SIZE / ACK_SIZE))
-	var i int
-	var ok bool
-	tmr := time.NewTimer(ackBatchReadTimerDuration)
+	buff := make([]byte, ACK_WRITER_BUFFER_SIZE)
 
-	for id := range er.ackChan {
-		//we unblocked and grabbed stuff
-		if id == 0 {
-			//force a flush
-			if err := er.bAckWriter.Flush(); err != nil {
-				er.routineCleanFail(err)
-				return
-			}
-			//we can just continue, at this point there
-			//is nothing in the ack list
-			continue
-		}
-		//we have an ack, grab as many more as we can
-		acks[i] = id
-		i++
-		tmr.Reset(ackBatchReadTimerDuration)
-	rereadLoop:
-		for i < len(acks) {
-			select {
-			case id, ok = <-er.ackChan:
-				if !ok || id == 0 {
-					//either the channel closed
-					//or we got a forced ack
-					//send the acks and flush
-					if err := er.sendAcks(acks[:i]); err != nil {
-						er.routineCleanFail(err)
-						return
-					}
-					if err := er.bAckWriter.Flush(); err != nil {
-						er.routineCleanFail(err)
-						return
-					}
-					i = 0
-					break rereadLoop
-				}
-				//got one, add and keep trying
-				acks[i] = id
-				i++
-			case _ = <-tmr.C:
-				//no more, break so we can flush and continue
-				break rereadLoop
-			}
-		}
-		//attempt to send acks
-		if i > 0 {
-			if err := er.sendAcks(acks[:i]); err != nil {
-				er.routineCleanFail(err)
-				return
-			}
-			i = 0
+	for v := range er.ackChan {
+		if err := er.fillAndSendAckBuffer(buff, v); err != nil {
+			er.routineCleanFail(err)
+			return
 		}
 	}
+}
+
+func (er *EntryReader) fillAndSendAckBuffer(b []byte, v ackCommand) (err error) {
+	var off int
+	var n int
+	var flush bool
+	var ok bool
+	//encode value into the buffer
+	if off, flush, err = v.encode(b); err != nil {
+		return
+	} else if flush {
+		err = er.bAckWriter.Flush()
+		return
+	}
+
+	//fire up a timer and start feeding
+	tmr := time.NewTimer(ackBatchReadTimerDuration)
+	defer tmr.Stop()
+feedLoop:
+	for {
+		select {
+		case v, ok = <-er.ackChan:
+			if !ok {
+				break
+			}
+			//check that we have room
+			if (v.size() + off) >= len(b) {
+				//ok, flush and keep rolling
+				if err = er.writeAll(b[:off]); err != nil {
+					return
+				}
+				if err = er.bAckWriter.Flush(); err != nil {
+					return
+				}
+				off = 0
+			}
+			//encode
+			if n, flush, err = v.encode(b[off:]); err != nil {
+				return
+			}
+			off += n
+			//if we hit the size of our buffer, break
+			if flush || off == len(b) {
+				break
+			}
+		case _ = <-tmr.C:
+			break feedLoop
+		}
+	}
+	if off > 0 {
+		if err = er.writeAll(b[:off]); err != nil {
+			return
+		}
+		err = er.bAckWriter.Flush()
+	}
+	return
+}
+
+func (er *EntryReader) SendThrottle(d time.Duration) error {
+	if !er.started {
+		return errAckRoutineClosed
+	}
+	er.ackChan <- ackCommand{cmd: THROTTLE_MAGIC, val: uint64(d)}
+	return nil
 }
 
 // throwAck throws an ack down the ackChan for the ack writer to encode and write
@@ -325,7 +353,7 @@ func (er *EntryReader) throwAck(id entrySendID) error {
 	if !er.started {
 		return errAckRoutineClosed
 	}
-	er.ackChan <- id
+	er.ackChan <- ackCommand{cmd: CONFIRM_ENTRY_MAGIC, val: uint64(id)}
 	return nil
 }
 
@@ -347,15 +375,78 @@ func (er *EntryReader) writeAll(b []byte) error {
 	return nil
 }
 
-// sendAcks encodes and optionally flushes our acks
-// caller should hold the lock
-func (er *EntryReader) sendAcks(acks []entrySendID) error {
-	sz := len(acks) * ACK_SIZE
-	//escape analysis should ensure that this is on the stack
-	lbuff := make([]byte, sz)
-	for i := range acks {
-		binary.LittleEndian.PutUint32(lbuff[(i*ACK_SIZE):], CONFIRM_ENTRY_MAGIC)
-		binary.LittleEndian.PutUint64(lbuff[(i*ACK_SIZE)+4:], uint64(acks[i]))
+func (ac ackCommand) isFlush() bool {
+	return ac.cmd == FORCE_ACK_MAGIC || (ac.cmd == CONFIRM_ENTRY_MAGIC && ac.val == 0)
+}
+
+func (ac ackCommand) size() int {
+	switch ac.cmd {
+	case FORCE_ACK_MAGIC:
+		return 0 //we shouldn't ever really do anything with this
+	case CONFIRM_ENTRY_MAGIC:
+		if ac.val == 0 {
+			return 0
+		}
+		return ackEncodeSize
+	case PONG_MAGIC:
+		return 4
+	case THROTTLE_MAGIC:
+		return throttleEncodeSize
 	}
-	return er.writeAll(lbuff)
+	return 0
+}
+
+func (ac ackCommand) encode(b []byte) (n int, flush bool, err error) {
+	switch ac.cmd {
+	case FORCE_ACK_MAGIC:
+		flush = true
+	case CONFIRM_ENTRY_MAGIC:
+		if ac.val == 0 {
+			flush = true
+			return
+		}
+		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
+		binary.LittleEndian.PutUint64(b[4:], ac.val)
+		n += ackEncodeSize
+	case PONG_MAGIC:
+		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
+		n += pongEncodeSize
+		flush = true
+	case THROTTLE_MAGIC:
+		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
+		binary.LittleEndian.PutUint64(b[4:], ac.val)
+		n += throttleEncodeSize
+	default:
+		err = errUnknownCommand
+	}
+	return
+}
+
+func (ac *ackCommand) decode(rdr *bufio.Reader, blocking bool) (ok bool, err error) {
+	cmd := make([]byte, 4)
+	val := make([]byte, 8)
+	n := rdr.Buffered()
+	//if we are not blocking and there is not enough data to get a full command, just bail
+	if n < 4 && !blocking {
+		return
+	}
+	if _, err = io.ReadFull(rdr, cmd); err != nil {
+		return
+	}
+	ac.cmd = IngestCommand(binary.LittleEndian.Uint32(cmd))
+	switch ac.cmd {
+	case THROTTLE_MAGIC:
+		fallthrough
+	case CONFIRM_ENTRY_MAGIC:
+		if _, err = io.ReadFull(rdr, val); err != nil {
+			return
+		}
+		ac.val = binary.LittleEndian.Uint64(val)
+		ok = true
+	case PONG_MAGIC:
+		ok = true
+	default:
+		err = errUnknownCommand
+	}
+	return
 }

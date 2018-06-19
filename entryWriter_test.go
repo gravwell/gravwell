@@ -28,6 +28,7 @@ import (
 const (
 	PIPE_LOCATION    string = "/tmp/gravwell.comms"
 	SMALL_WRITES     int    = 10
+	THROTTLE_WRITES  int    = 100
 	BENCHMARK_WRITES int    = 250000
 	ENTRY_PAD_SIZE   int    = 1024 * 4
 	ENTRY_MIN_SIZE   int    = 64
@@ -109,15 +110,31 @@ func TestSmallBatch(t *testing.T) {
 	performBatchCycles(t, SMALL_WRITES)
 }
 
+func TestThrottled(t *testing.T) {
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	performThrottleCycles(t, THROTTLE_WRITES)
+}
+
 func TestCleanup(t *testing.T) {
 	if err := cleanup(); err != nil {
 		t.Fatal(err)
 	}
 }
 
+func performThrottleCycles(t *testing.T, count int) (time.Duration, uint64) {
+	return performReaderCycles(t, count, 10)
+}
+
 func performCycles(t *testing.T, count int) (time.Duration, uint64) {
+	return performReaderCycles(t, count, 0xffffffff)
+}
+
+func performReaderCycles(t *testing.T, count, segments int) (time.Duration, uint64) {
 	var dur time.Duration
 	var totalBytes uint64
+	var seg int
 	errChan := make(chan error)
 	lst, cli, srv, err := getConnections()
 	if err != nil {
@@ -135,16 +152,20 @@ func performCycles(t *testing.T, count int) (time.Duration, uint64) {
 		t.Fatal(err)
 	}
 	start := time.Now()
-	go reader(etSrv, count, errChan)
+	go reader(etSrv, count, segments, errChan)
 	for i := 0; i < count; i++ {
 		ent := makeEntry()
 		if ent == nil {
 			t.Fatal("got a nil entry")
 		}
 		totalBytes += ent.Size()
-		err = etCli.Write(ent)
-		if err != nil {
+		if err = etCli.Write(ent); err != nil {
 			t.Fatal(err)
+		}
+		seg++
+		if seg == segments {
+			time.Sleep(90 * time.Millisecond)
+			seg = 0
 		}
 	}
 	if err = etCli.ForceAck(); err != nil {
@@ -193,7 +214,7 @@ func performBatchCycles(t *testing.T, count int) (time.Duration, uint64) {
 	}
 	ents = make([](*entry.Entry), etCli.OptimalBatchWriteSize())
 	entsIndex = 0
-	go reader(etSrv, count, errChan)
+	go reader(etSrv, count, 0xffffffff, errChan)
 
 	start := time.Now()
 	for i := 0; i < count; i++ {
@@ -268,7 +289,7 @@ func BenchmarkSingle(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	go reader(etSrv, b.N, errChan)
+	go reader(etSrv, b.N, 0xffffffff, errChan)
 	b.StartTimer() //done with initialization
 
 	//actually perform benchmark
@@ -278,31 +299,30 @@ func BenchmarkSingle(b *testing.B) {
 			b.Fatal("got a nil entry")
 		}
 		totalBytes += ent.Size()
-		err = etCli.Write(ent)
-		if err != nil {
+		if err = etCli.Write(ent); err != nil {
 			b.Fatal(err)
 		}
 	}
-	if err := <-errChan; err != nil {
+	if err = etCli.Close(); err != nil {
+		b.Fatal(err)
+	}
+	if err = <-errChan; err != nil {
 		b.Fatal(err)
 	}
 	//We HAVE to close the server side first (reader) or the client will block on close()
 	//waiting for confirmations from the reader that are buffered and not flushed yet
 	//but if we close the server (reader) first it will force out the confirmations and
 	//and the client won't block.
-	if err := etSrv.Close(); err != nil {
+	if err = etSrv.Close(); err != nil {
 		b.Fatal(err)
 	}
-	if err := etCli.Close(); err != nil {
-		b.Fatal(err)
-	}
-	if err := closeConnections(cli, srv); err != nil {
+	if err = closeConnections(cli, srv); err != nil {
 		b.Fatal(err)
 	}
 	lst.Close()
 
 	b.StopTimer()
-	if err := cleanup(); err != nil {
+	if err = cleanup(); err != nil {
 		b.Fatal(err)
 	}
 	b.StartTimer()
@@ -334,7 +354,7 @@ func BenchmarkBatch(b *testing.B) {
 	}
 	ents := make([](*entry.Entry), etCli.OptimalBatchWriteSize())
 	entsIndex := 0
-	go reader(etSrv, b.N, errChan)
+	go reader(etSrv, b.N, 0xffffffff, errChan)
 	b.StartTimer()
 
 	//perform actual benchmark
@@ -361,8 +381,10 @@ func BenchmarkBatch(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-	err = <-errChan
-	if err != nil {
+	if err := etCli.Close(); err != nil {
+		b.Fatal(err)
+	}
+	if err = <-errChan; err != nil {
 		b.Fatal(err)
 	}
 
@@ -371,9 +393,6 @@ func BenchmarkBatch(b *testing.B) {
 	//but if we close the server (reader) first it will force out the confirmations and
 	//and the client won't block.
 	if err := etSrv.Close(); err != nil {
-		b.Fatal(err)
-	}
-	if err := etCli.Close(); err != nil {
 		b.Fatal(err)
 	}
 	if err := closeConnections(cli, srv); err != nil {
@@ -460,8 +479,9 @@ func closeConnections(cli, srv net.Conn) error {
 	return nil
 }
 
-func reader(et *EntryReader, count int, errChan chan error) {
+func reader(et *EntryReader, count, seg int, errChan chan error) {
 	var cntRead int
+	var segRead int
 feederLoop:
 	for {
 		ent, err := et.Read()
@@ -471,6 +491,14 @@ feederLoop:
 			}
 			errChan <- err
 			return
+		}
+		segRead++
+		if segRead == seg {
+			if err = et.SendThrottle(100 * time.Millisecond); err != nil {
+				errChan <- err
+				return
+			}
+			segRead = 0
 		}
 		if ent == nil {
 			errChan <- errors.New("Got nil entry")
