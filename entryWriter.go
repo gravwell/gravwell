@@ -13,7 +13,6 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"sync"
 	"time"
@@ -30,17 +29,28 @@ const (
 	MAX_ENTRY_SIZE              int           = 128 * 1024 * 1024
 	WRITE_BUFFER_SIZE           int           = 4 * 1024 * 1024
 	MAX_WRITE_ERROR             int           = 4
-	NEW_ENTRY_MAGIC             uint32        = 0xC7C95ACB
-	FORCE_ACK_MAGIC             uint32        = 0x1ADF7350
-	CONFIRM_ENTRY_MAGIC         uint32        = 0xF6E0307E
 	BUFFERED_ACK_READER_SIZE    int           = ACK_SIZE * MAX_UNCONFIRMED_COUNT
 	CLOSING_SERVICE_ACK_TIMEOUT time.Duration = time.Second
 
 	//MAX_UNCONFIRMED_COUNT MUST be > MIN_UNCONFIRMED_COUNT
 	MIN_UNCONFIRMED_COUNT int = 64
 	MAX_UNCONFIRMED_COUNT int = 1024 * 4
+
+	maxThrottleDur time.Duration = 5 * time.Second
 )
 
+const (
+	//ingester commands
+	INVALID_MAGIC       IngestCommand = 0x00000000
+	NEW_ENTRY_MAGIC     IngestCommand = 0xC7C95ACB
+	FORCE_ACK_MAGIC     IngestCommand = 0x1ADF7350
+	CONFIRM_ENTRY_MAGIC IngestCommand = 0xF6E0307E
+	THROTTLE_MAGIC      IngestCommand = 0xBDEACC1E
+	PING_MAGIC          IngestCommand = 0x88770001
+	PONG_MAGIC          IngestCommand = 0x88770008
+)
+
+type IngestCommand uint32
 type entrySendID uint64
 
 type EntryWriter struct {
@@ -129,19 +139,31 @@ func (ew *EntryWriter) outstandingEntries() []*entry.Entry {
 }
 
 func (ew *EntryWriter) throwAckSync() error {
-	tempBuff := make([]byte, 4) //REMEMBER to adjust this number if the type changes
-
-	//park the magic into our buffer
-	binary.LittleEndian.PutUint32(tempBuff, FORCE_ACK_MAGIC)
-
 	//send the buffer and force it out
-	if err := ew.writeAll(tempBuff); err != nil {
+	if err := ew.writeAll(FORCE_ACK_MAGIC.Buff()); err != nil {
 		return err
 	}
 	if err := ew.bIO.Flush(); err != nil {
 		return err
 	}
 	return nil
+}
+
+// Ping is essentially a force ack, we send a PING command, which will cause
+// the server to flush all acks and a PONG command.  We read until we get the PONG
+func (ew *EntryWriter) Ping() (err error) {
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+	//send the buffer and force it out
+	if err = ew.writeAll(PING_MAGIC.Buff()); err != nil {
+		return
+	}
+	if err = ew.bIO.Flush(); err != nil {
+		return
+	}
+	//start servicing responses until we get an ACK
+	err = ew.readCommandsUntil(PONG_MAGIC)
+	return
 }
 
 // forceAckNoLock sends a signal to the ingester that we want to force out
@@ -271,7 +293,7 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 	}
 
 	//throw the magic
-	binary.LittleEndian.PutUint32(ew.buff, NEW_ENTRY_MAGIC)
+	binary.LittleEndian.PutUint32(ew.buff, uint32(NEW_ENTRY_MAGIC))
 
 	//build out the header with size
 	if err = ent.EncodeHeader(ew.buff[4 : entry.ENTRY_HEADER_SIZE+4]); err != nil {
@@ -370,59 +392,135 @@ func (ew *EntryWriter) serviceAcks(blocking bool) error {
 }
 
 //readAcks pulls out all of the acks in the ackBuffer and services them
-func (ew *EntryWriter) readAcks(blocking bool) error {
-	var err error
-	var magic uint32
-	var id entrySendID
-	//loop and service all acks
-	//TODO: calculate the full ACK cound and do everything in one read
-	//multiple reads are slow
-	for ew.ecb.Count() > 0 && (ew.bAckReader.Buffered() >= ACK_SIZE || blocking) {
-		/* because we MUST be called with lock already taken we can use
-		   the ew buffer for reads and processing */
-		if _, err = io.ReadFull(ew.bAckReader, ew.buff[0:ACK_SIZE]); err != nil {
-			return err
-		}
-		//extract the magic and id
-		magic = binary.LittleEndian.Uint32(ew.buff[0:])
-		id = entrySendID(binary.LittleEndian.Uint64(ew.buff[4:]))
-		if magic != CONFIRM_ENTRY_MAGIC {
-			//look for it in the other chunks
-			if binary.LittleEndian.Uint32(ew.buff[4:]) == CONFIRM_ENTRY_MAGIC {
-				//read 4 more bytes and roll with it
-				_, err = io.ReadFull(ew.bAckReader, ew.buff[8:16])
-				if err != nil {
-					return err
-				}
-				id = entrySendID(binary.LittleEndian.Uint64(ew.buff[8:]))
-			} else if binary.LittleEndian.Uint32(ew.buff[8:]) == CONFIRM_ENTRY_MAGIC {
-				//read 8 more bytes and roll with it
-				_, err = io.ReadFull(ew.bAckReader, ew.buff[12:24])
-				if err != nil {
-					return err
-				}
-				id = entrySendID(binary.LittleEndian.Uint64(ew.buff[12:]))
-			} else {
-				//just continue
-				continue
-			}
-		}
-		//check if the ID is the head, if not pop the head and resend
-		err = ew.ecb.Confirm(id)
-		//TODO: if we get an ID we don't know about we just ignore it
-		//      is this the best course of action?
-		if err != nil {
-			if err != errEntryNotFound {
-				return err
-			}
-		}
-		//we set blocking to false because at this point we have serviced an ack
-		blocking = false
-	}
+func (ew *EntryWriter) readAcks(blocking bool) (err error) {
+	var ac ackCommand
+	var ok bool
+	var dur time.Duration
 
-	return nil
+	for ew.ecb.Count() > 0 {
+		if ok, err = ac.decode(ew.bAckReader, blocking); err != nil {
+			return
+		}
+		if !ok {
+			break
+		}
+		blocking = false
+		switch ac.cmd {
+		case CONFIRM_ENTRY_MAGIC:
+			//check if the ID is the head, if not pop the head and resend
+			//TODO: if we get an ID we don't know about we just ignore it
+			//      is this the best course of action?
+			if err = ew.ecb.Confirm(entrySendID(ac.val)); err != nil {
+				if err != errEntryNotFound {
+					return
+				}
+			}
+		case THROTTLE_MAGIC:
+			if dur = time.Duration(ac.val); dur > maxThrottleDur || dur < 0 {
+				dur = maxThrottleDur
+			}
+			if err = ew.throttle(dur); err != nil {
+				return
+			}
+		}
+	}
+	return
+}
+
+// readCommandsUntil pulls out all of the responses and services them,
+// we block until we hit the command we want
+func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (err error) {
+	var ac ackCommand
+	var ok bool
+	var dur time.Duration
+
+	for ew.ecb.Count() > 0 {
+		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
+			return
+		} else if !ok {
+			err = errFailedToReadCommand
+			return
+		}
+		switch ac.cmd {
+		case CONFIRM_ENTRY_MAGIC:
+			//check if the ID is the head, if not pop the head and resend
+			//TODO: if we get an ID we don't know about we just ignore it
+			//      is this the best course of action?
+			if err = ew.ecb.Confirm(entrySendID(ac.val)); err != nil {
+				if err != errEntryNotFound {
+					return
+				}
+			}
+		case THROTTLE_MAGIC:
+			if dur = time.Duration(ac.val); dur > maxThrottleDur || dur < 0 {
+				dur = maxThrottleDur
+			}
+			if err = ew.throttle(dur); err != nil {
+				return
+			}
+		}
+		if ac.cmd == cmd {
+			break
+		}
+	}
+	return
+}
+
+func (ew *EntryWriter) throttle(dur time.Duration) (err error) {
+	//check if we were asked to throttle
+	if dur > 0 {
+		//set the read deadline, and wait for a byte
+		if err = ew.conn.SetReadDeadline(time.Now().Add(dur)); err != nil {
+			return
+		}
+		if _, err = ew.bAckReader.ReadByte(); err != nil {
+			if !isTimeout(err) {
+				return
+			}
+		} else if err = ew.bAckReader.UnreadByte(); err != nil {
+			return
+		}
+		if err = ew.conn.SetReadDeadline(time.Time{}); err != nil {
+			return
+		}
+	}
+	return
 }
 
 func (ew EntryWriter) OptimalBatchWriteSize() int {
 	return ew.ecb.Size()
+}
+
+func (ic IngestCommand) String() string {
+	switch ic {
+	case NEW_ENTRY_MAGIC:
+		return `NEW`
+	case FORCE_ACK_MAGIC:
+		return `FORCE ACK`
+	case CONFIRM_ENTRY_MAGIC:
+		return `CONFIRM ENTRY`
+	case THROTTLE_MAGIC:
+		return `THROTTLE`
+	case INVALID_MAGIC:
+		return `INVALID`
+	case PING_MAGIC:
+		return `PING`
+	case PONG_MAGIC:
+		return `PONG`
+		//case _MAGIC: return ``
+	}
+	return `UNKNOWN`
+}
+
+func (ic IngestCommand) Buff() (b []byte) {
+	b = make([]byte, 4)
+	binary.LittleEndian.PutUint32(b, uint32(ic))
+	return
+}
+
+func getCommand(b []byte) IngestCommand {
+	if len(b) < 4 { //less than uint32
+		return INVALID_MAGIC
+	}
+	return IngestCommand(binary.LittleEndian.Uint32(b))
 }
