@@ -376,9 +376,21 @@ func (ew *EntryWriter) flush() (err error) {
 			ew.conn.SetWriteDeadline(time.Time{})
 			return
 		}
-		//timed out, service acks and retry
-		if err = ew.serviceAcks(true); err != nil {
+		//timed out, try to read some acks
+		if err = ew.readAcks(true); err != nil {
 			return
+		}
+		if ew.ecb.Full() {
+			//something isn't right, force a sync and flush it
+			if err = ew.writeAll(FORCE_ACK_MAGIC.Buff()); err != nil {
+				return
+			}
+			if err = ew.bIO.Flush(); err != nil {
+				return
+			}
+			if err = ew.readAcks(true); err != nil {
+				return
+			}
 		}
 	}
 	err = ew.conn.SetWriteDeadline(time.Time{})
