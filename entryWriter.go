@@ -27,7 +27,7 @@ const (
 	READ_ENTRY_HEADER_SIZE int = entry.ENTRY_HEADER_SIZE + 12
 	//TODO: We should make this configurable by configuration
 	MAX_ENTRY_SIZE              int           = 128 * 1024 * 1024
-	WRITE_BUFFER_SIZE           int           = 4 * 1024 * 1024
+	WRITE_BUFFER_SIZE           int           = 1024 * 1024
 	MAX_WRITE_ERROR             int           = 4
 	BUFFERED_ACK_READER_SIZE    int           = ACK_SIZE * MAX_UNCONFIRMED_COUNT
 	CLOSING_SERVICE_ACK_TIMEOUT time.Duration = time.Second
@@ -65,28 +65,38 @@ type EntryWriter struct {
 }
 
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
-	var bRdr *bufio.Reader
-	var bWtr *bufio.Writer
-	ecb, err := newEntryConfirmationBuffer(MAX_UNCONFIRMED_COUNT)
+	ewc := EntryReaderWriterConfig{
+		Conn: conn,
+		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
+		BufferSize:            WRITE_BUFFER_SIZE,
+		Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,
+	}
+	return NewEntryWriterEx(ewc)
+}
+
+type EntryReaderWriterConfig struct {
+	Conn                  net.Conn
+	OutstandingEntryCount int
+	BufferSize            int
+	Timeout               time.Duration
+}
+
+func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
+	ecb, err := newEntryConfirmationBuffer(cfg.OutstandingEntryCount)
 	if err != nil {
 		return nil, err
 	}
 
-	//acks are pretty small so this can be smaller
-	bRdr = bufio.NewReaderSize(conn, BUFFERED_ACK_READER_SIZE)
-	bWtr = bufio.NewWriterSize(conn, WRITE_BUFFER_SIZE)
-
-	buff := make([]byte, READ_ENTRY_HEADER_SIZE)
 	return &EntryWriter{
-		conn:       conn,
-		bIO:        bWtr,
-		bAckReader: bRdr,
+		conn:       cfg.Conn,
+		bIO:        bufio.NewWriterSize(cfg.Conn, cfg.BufferSize),
+		bAckReader: bufio.NewReaderSize(cfg.Conn, cfg.OutstandingEntryCount*ACK_SIZE),
 		mtx:        &sync.Mutex{},
 		ecb:        ecb,
 		hot:        true,
-		buff:       buff,
+		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
 		id:         1,
-		ackTimeout: CLOSING_SERVICE_ACK_TIMEOUT,
+		ackTimeout: cfg.Timeout,
 	}, nil
 }
 
@@ -138,10 +148,7 @@ func (ew *EntryWriter) throwAckSync() error {
 	if err := ew.writeAll(FORCE_ACK_MAGIC.Buff()); err != nil {
 		return err
 	}
-	if err := ew.bIO.Flush(); err != nil {
-		return err
-	}
-	return nil
+	return ew.flush()
 }
 
 // Ping is essentially a force ack, we send a PING command, which will cause
@@ -153,7 +160,7 @@ func (ew *EntryWriter) Ping() (err error) {
 	if err = ew.writeAll(PING_MAGIC.Buff()); err != nil {
 		return
 	}
-	if err = ew.bIO.Flush(); err != nil {
+	if err = ew.flush(); err != nil {
 		return
 	}
 	//start servicing responses until we get an ACK
@@ -279,7 +286,7 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 	var err error
 	//if our conf buffer is full force an ack service
 	if ew.ecb.Full() {
-		if err := ew.bIO.Flush(); err != nil {
+		if err := ew.flush(); err != nil {
 			return false, err
 		}
 		if err := ew.serviceAcks(true); err != nil {
@@ -302,7 +309,7 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 	//only flush if we need to
 	if len(ent.Data) > ew.bIO.Available() {
 		flushed = true
-		if err = ew.bIO.Flush(); err != nil {
+		if err = ew.flush(); err != nil {
 			return false, err
 		}
 	}
@@ -312,7 +319,7 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 	}
 	if flush {
 		flushed = flush
-		if err = ew.bIO.Flush(); err != nil {
+		if err = ew.flush(); err != nil {
 			return false, err
 		}
 	}
@@ -344,7 +351,7 @@ func (ew *EntryWriter) writeAll(b []byte) error {
 			break
 		}
 		//if only a partial write occurred that means we need to flush
-		if err = ew.bIO.Flush(); err != nil {
+		if err = ew.flush(); err != nil {
 			return err
 		}
 	}
@@ -356,7 +363,7 @@ func (ew *EntryWriter) writeAll(b []byte) error {
 func (ew *EntryWriter) flush() (err error) {
 	for {
 		//set the write timeout
-		if err = ew.conn.SetWriteDeadline(time.Time{}); err != nil {
+		if err = ew.conn.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
 			return
 		}
 
@@ -395,7 +402,7 @@ func (ew *EntryWriter) Ack() error {
 func (ew *EntryWriter) serviceAcks(blocking bool) error {
 	//only flush if we are blocking
 	if blocking && ew.bIO.Buffered() > 0 {
-		if err := ew.bIO.Flush(); err != nil {
+		if err := ew.flush(); err != nil {
 			return err
 		}
 	}

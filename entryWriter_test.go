@@ -117,6 +117,100 @@ func TestThrottled(t *testing.T) {
 	performThrottleCycles(t, THROTTLE_WRITES)
 }
 
+func TestWriterOutstandingMismatch(t *testing.T) {
+	wtrCfg := EntryReaderWriterConfig{
+		OutstandingEntryCount: 2,
+		BufferSize:            64 * 1024,
+		Timeout:               time.Second * 2,
+	}
+	rdrCfg := EntryReaderWriterConfig{
+		OutstandingEntryCount: 256,
+		BufferSize:            16 * 1024,
+		Timeout:               time.Second * 2,
+	}
+	outstandingMismatchCycle(rdrCfg, wtrCfg, 64, 64, t)
+	outstandingMismatchCycle(rdrCfg, wtrCfg, 32, 4, t)
+	outstandingMismatchCycle(rdrCfg, wtrCfg, 64, 32, t)
+}
+
+func TestReaderOutstandingMismatch(t *testing.T) {
+	wtrCfg := EntryReaderWriterConfig{
+		OutstandingEntryCount: 256,
+		BufferSize:            16 * 1024,
+		Timeout:               time.Second * 2,
+	}
+	rdrCfg := EntryReaderWriterConfig{
+		OutstandingEntryCount: 16,
+		BufferSize:            64 * 1024,
+		Timeout:               time.Second * 2,
+	}
+	outstandingMismatchCycle(rdrCfg, wtrCfg, 64, 64, t)
+	outstandingMismatchCycle(rdrCfg, wtrCfg, 32, 4, t)
+	outstandingMismatchCycle(rdrCfg, wtrCfg, 64, 32, t)
+}
+
+func outstandingMismatchCycle(rdrCfg, wtrCfg EntryReaderWriterConfig, count, segments int, t *testing.T) {
+	if err := cleanup(); err != nil {
+		t.Fatal(err)
+	}
+	var totalBytes uint64
+	var seg int
+	errChan := make(chan error)
+	lst, cli, srv, err := getConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wtrCfg.Conn = cli
+	rdrCfg.Conn = srv
+
+	etSrv, err := NewEntryReaderEx(rdrCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	etSrv.Start()
+
+	etCli, err := NewEntryWriterEx(wtrCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	go reader(etSrv, count, segments, errChan)
+	for i := 0; i < count; i++ {
+		ent := makeEntry()
+		if ent == nil {
+			t.Fatal("got a nil entry")
+		}
+		totalBytes += ent.Size()
+		if err = etCli.Write(ent); err != nil {
+			t.Fatal(err)
+		}
+		seg++
+		if seg == segments {
+			time.Sleep(90 * time.Millisecond)
+			seg = 0
+		}
+	}
+	if err = etCli.ForceAck(); err != nil {
+		t.Fatal(err)
+	}
+	if err = etCli.Ping(); err != nil {
+		t.Fatal(err)
+	}
+	if err = etCli.Close(); err != nil {
+		t.Fatal(err)
+	}
+	//get the response from the reader
+	if err = <-errChan; err != nil {
+		t.Fatal(err)
+	}
+	if err = etSrv.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = closeConnections(cli, srv); err != nil {
+		t.Fatal(err)
+	}
+	lst.Close()
+}
+
 func TestCleanup(t *testing.T) {
 	if err := cleanup(); err != nil {
 		t.Fatal(err)
@@ -171,10 +265,12 @@ func performReaderCycles(t *testing.T, count, segments int) (time.Duration, uint
 	if err = etCli.ForceAck(); err != nil {
 		t.Fatal(err)
 	}
+	if err = etCli.Ping(); err != nil {
+		t.Fatal(err)
+	}
 	if err = etCli.Close(); err != nil {
 		t.Fatal(err)
 	}
-
 	//get the response from the reader
 	if err = <-errChan; err != nil {
 		t.Fatal(err)

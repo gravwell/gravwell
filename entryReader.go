@@ -72,18 +72,27 @@ type EntryReader struct {
 }
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
+	cfg := EntryReaderWriterConfig{
+		Conn: conn,
+		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
+		BufferSize:            READ_BUFFER_SIZE,
+		Timeout:               defaultReaderTimeout,
+	}
+	return NewEntryReaderEx(cfg)
+}
 
+func NewEntryReaderEx(cfg EntryReaderWriterConfig) (*EntryReader, error) {
 	//buffer big enough store entire entry header + EntryID
 	return &EntryReader{
-		conn:       conn,
-		bIO:        bufio.NewReaderSize(conn, READ_BUFFER_SIZE),
-		bAckWriter: bufio.NewWriterSize(conn, ACK_WRITER_BUFFER_SIZE),
+		conn:       cfg.Conn,
+		bIO:        bufio.NewReaderSize(cfg.Conn, cfg.BufferSize),
+		bAckWriter: bufio.NewWriterSize(cfg.Conn, ackEncodeSize*cfg.OutstandingEntryCount),
 		mtx:        &sync.Mutex{},
 		wg:         &sync.WaitGroup{},
-		ackChan:    make(chan ackCommand, ackChanSize),
+		ackChan:    make(chan ackCommand, cfg.OutstandingEntryCount),
 		hot:        true,
 		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
-		timeout:    defaultReaderTimeout,
+		timeout:    cfg.Timeout,
 	}, nil
 }
 
