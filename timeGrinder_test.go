@@ -210,6 +210,13 @@ func TestSyslogVariant(t *testing.T) {
 	}
 }
 
+func TestUnpaddedDateTime(t *testing.T) {
+	err := runFullSecTestsCurr(UNPADDED_DATE_TIME)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestSeedHit(t *testing.T) {
 	lcfg := Config{
 		EnableLeftMostSeed: true,

@@ -40,6 +40,7 @@ const (
 	CUSTOM1_MILLI_MSG_FORMAT string = `01-02-2006 15:04:05.0`
 	ZONELESS_RFC3339_FORMAT  string = `2006-01-02T15:04:05.999999999`
 	SYSLOG_VARIANT           string = `Jan 02 2006 15:04:05`
+	UNPADDED_DATE_TIME       string = `2006-1-2 15:04:05`
 )
 
 var (
@@ -137,6 +138,9 @@ func NewTimeGrinder(c Config) (*TimeGrinder, error) {
 
 	// Syslog variant
 	procs = append(procs, NewSyslogVariant())
+
+	// Unpadded
+	procs = append(procs, NewUnpaddedDateTime())
 
 	var proc Processor
 	if c.FormatOverride > len(procs) {

@@ -18,28 +18,29 @@ import (
 )
 
 const (
-	_                   = iota
-	AnsiC           int = iota
-	Unix            int = iota
-	Ruby            int = iota
-	RFC822          int = iota
-	RFC822Z         int = iota
-	RFC850          int = iota
-	RFC1123         int = iota
-	RFC1123Z        int = iota
-	RFC3339         int = iota
-	RFC3339Nano     int = iota
-	Apache          int = iota
-	ApacheNoTz      int = iota
-	Syslog          int = iota
-	SyslogFile      int = iota
-	SyslogFileTZ    int = iota
-	DPKG            int = iota
-	Custom1Milli    int = iota
-	NGINX           int = iota
-	UnixMilli       int = iota
-	ZonelessRFC3339 int = iota
-	SyslogVariant   int = iota
+	_                    = iota
+	AnsiC            int = iota
+	Unix             int = iota
+	Ruby             int = iota
+	RFC822           int = iota
+	RFC822Z          int = iota
+	RFC850           int = iota
+	RFC1123          int = iota
+	RFC1123Z         int = iota
+	RFC3339          int = iota
+	RFC3339Nano      int = iota
+	Apache           int = iota
+	ApacheNoTz       int = iota
+	Syslog           int = iota
+	SyslogFile       int = iota
+	SyslogFileTZ     int = iota
+	DPKG             int = iota
+	Custom1Milli     int = iota
+	NGINX            int = iota
+	UnixMilli        int = iota
+	ZonelessRFC3339  int = iota
+	SyslogVariant    int = iota
+	UnpaddedDateTime int = iota
 )
 
 var (
@@ -153,6 +154,11 @@ func NewZonelessRFC3339() *processor {
 func NewSyslogVariant() *processor {
 	re := `[JFMASOND][anebriyunlgpctov]+\s+\d{2}\s+\d\d\d\d\s+\d\d:\d\d:\d\d`
 	return &processor{regexp.MustCompile(re), SYSLOG_VARIANT}
+}
+
+func NewUnpaddedDateTime() *processor {
+	re := `(?P<ts>\d\d\d\d-\d+-\d+\s+\d+:\d\d:\d\d)`
+	return &processor{regexp.MustCompile(re), UNPADDED_DATE_TIME}
 }
 
 type syslogProcessor struct {
@@ -278,6 +284,8 @@ func FormatDirective(s string) (v int, err error) {
 		v = ZonelessRFC3339
 	case `syslogvariant`:
 		v = SyslogVariant
+	case `unpaddeddatetime`:
+		v = UnpaddedDateTime
 	default:
 		v = -1
 		err = errUnknownFormatName
