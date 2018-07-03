@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime/pprof"
 	"sync"
@@ -30,6 +31,11 @@ var (
 	v              bool
 	lg             *log.Logger
 )
+
+type instance struct {
+	name string
+	inst *collectdInstance
+}
 
 func init() {
 	flag.Parse()
@@ -61,7 +67,6 @@ func init() {
 		confLoc = *configOverride
 	}
 	v = *verbose
-	connClosers = make(map[int]closer, 1)
 }
 
 func main() {
@@ -145,21 +150,23 @@ func main() {
 		igst: igst,
 	}
 
+	var instances []instance
+
 	for k, v := range cfg.Collector {
 		//resolve tags for each collector
 		overrides, err := v.getOverrides()
 		if err != nil {
-			lg.Fatal(k, "failed to get overrides", k, err)
+			lg.Fatal("%s failed to get overrides: %v", k, err)
 		}
 		if cc.defTag, err = igst.GetTag(v.Tag_Name); err != nil {
-			lg.Fatal(k, "failed to resolve tag", v.Tag_Name, err)
+			lg.Fatal("%s failed to resolve tag %s: %v", k, v.Tag_Name, err)
 		}
 
 		cc.overrides = map[string]entry.EntryTag{}
 		for plugin, tagname := range overrides {
 			tagid, err := igst.GetTag(tagname)
 			if err != nil {
-				lg.Fatal(k, "failed to resolve tag", tagname, err)
+				lg.Fatal("%s failed to resolve tag %s: %v", k, tagname, err)
 			}
 			cc.overrides[plugin] = tagid
 		}
@@ -170,19 +177,34 @@ func main() {
 		//build out UDP listeners and register them
 		laddr, err := v.udpAddr()
 		if err != nil {
-			lg.Fatal(k, "failed to resolve udp address", err)
+			lg.Fatal("%s failed to resolve udp address: %v", k, err)
 		}
-		wtr, err := newCollectdInstance(cc, laddr)
+		inst, err := newCollectdInstance(cc, laddr)
 		if err != nil {
-			lg.Fatal(k, "failed to create a new collector", err)
+			lg.Fatal("%s failed to create a new collector: %v", k, err)
 		}
-		addConn(wtr) //register our writer with the connection
-		if err := wtr.Start(); err != nil {
-			lg.Fatal("%s failed to start collector", k, err)
+		if err := inst.Start(); err != nil {
+			lg.Fatal("%s failed to start collector: %v", k, err)
+		}
+		instances = append(instances, instance{name: k, inst: inst})
+	}
+
+	//listen for the stop signal so we can die gracefully
+	quitSig := make(chan os.Signal, 2)
+	defer close(quitSig)
+	signal.Notify(quitSig, os.Interrupt)
+	<-quitSig
+
+	//ask that everything close
+	for i := range instances {
+		if err := instances[i].inst.Close(); err != nil {
+			lg.Error("%s failed to close: %v", instances[i].name, err)
 		}
 	}
 
-	//listen for the stop signal
+	if err := igst.Close(); err != nil {
+		lg.Error("failed to close the ingest muxer: %v", err)
+	}
 
-	//ask that everything close
+	lg.Info("collectd ingester exiting")
 }

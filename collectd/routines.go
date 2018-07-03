@@ -32,47 +32,7 @@ const (
 	closed  runState = iota
 )
 
-var (
-	mtx         sync.Mutex
-	connClosers map[int]closer
-	connId      int
-)
-
 type runState int
-
-type closer interface {
-	Close() error
-}
-
-func addConn(c closer) int {
-	mtx.Lock()
-	connId++
-	id := connId
-	connClosers[connId] = c
-	mtx.Unlock()
-	return id
-}
-
-func delConn(id int) {
-	mtx.Lock()
-	delete(connClosers, id)
-	mtx.Unlock()
-}
-
-func closeAll() {
-	mtx.Lock()
-	for k, v := range connClosers {
-		v.Close()
-		delete(connClosers, k)
-	}
-	mtx.Unlock()
-}
-
-func connCount() int {
-	mtx.Lock()
-	defer mtx.Unlock()
-	return len(connClosers)
-}
 
 type collConfig struct {
 	wg        *sync.WaitGroup
