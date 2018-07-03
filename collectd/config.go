@@ -37,11 +37,16 @@ const (
 	bsonEncode encType = iota
 )
 
+var (
+	ErrInvalidSourceOverride = errors.New("Invalid Source-Override")
+)
+
 type encType int
 
 type collector struct {
 	Bind_String         string //IP port pair 127.0.0.1:1234
 	Tag_Name            string
+	Source_Override     string
 	Security_Level      string
 	User                string
 	Password            string
@@ -222,6 +227,17 @@ func (c collector) creds() (pl passlookup, seclevel network.SecurityLevel) {
 	var err error
 	if seclevel, err = SecLevelFromString(c.Security_Level); err != nil {
 		seclevel = defSecLevelVal
+	}
+	return
+}
+
+func (c collector) srcOverride() (ip net.IP, err error) {
+	v := strings.TrimSpace(c.Source_Override)
+	if len(v) == 0 {
+		return
+	}
+	if ip = net.ParseIP(v); ip == nil {
+		err = ErrInvalidSourceOverride
 	}
 	return
 }

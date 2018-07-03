@@ -145,7 +145,7 @@ func main() {
 
 	//get our collectors built up
 	wg := &sync.WaitGroup{}
-	cc := collConfig{
+	ccBase := collConfig{
 		wg:   wg,
 		igst: igst,
 	}
@@ -153,6 +153,7 @@ func main() {
 	var instances []instance
 
 	for k, v := range cfg.Collector {
+		cc := ccBase
 		//resolve tags for each collector
 		overrides, err := v.getOverrides()
 		if err != nil {
@@ -160,6 +161,10 @@ func main() {
 		}
 		if cc.defTag, err = igst.GetTag(v.Tag_Name); err != nil {
 			lg.Fatal("%s failed to resolve tag %s: %v", k, v.Tag_Name, err)
+		}
+
+		if cc.srcOverride, err = v.srcOverride(); err != nil {
+			lg.Fatal("%s Source-Override %s error: %v", k, v.Source_Override, err)
 		}
 
 		cc.overrides = map[string]entry.EntryTag{}

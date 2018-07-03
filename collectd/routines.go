@@ -35,12 +35,13 @@ const (
 type runState int
 
 type collConfig struct {
-	wg        *sync.WaitGroup
-	igst      *ingest.IngestMuxer
-	pl        passlookup
-	seclevel  network.SecurityLevel
-	defTag    entry.EntryTag
-	overrides map[string]entry.EntryTag
+	wg          *sync.WaitGroup
+	igst        *ingest.IngestMuxer
+	pl          passlookup
+	seclevel    network.SecurityLevel
+	defTag      entry.EntryTag
+	overrides   map[string]entry.EntryTag
+	srcOverride net.IP
 }
 
 func (bc collConfig) Validate() error {
@@ -56,10 +57,11 @@ func (bc collConfig) Validate() error {
 type collectdInstance struct {
 	collConfig
 	sync.Mutex
-	srv          network.Server
-	state        runState
-	errCh        chan error
-	useOverrides bool
+	srv            network.Server
+	state          runState
+	errCh          chan error
+	useOverrides   bool
+	useSrcOverride bool
 }
 
 func newCollectdInstance(cc collConfig, laddr *net.UDPAddr) (*collectdInstance, error) {
@@ -79,10 +81,11 @@ func newCollectdInstance(cc collConfig, laddr *net.UDPAddr) (*collectdInstance, 
 
 	//we have some self referencing circles here, but the call chain shouldn't ever let it be expressed
 	ci := &collectdInstance{
-		collConfig:   cc,
-		srv:          srv,
-		state:        ready,
-		useOverrides: len(cc.overrides) > 0,
+		collConfig:     cc,
+		srv:            srv,
+		state:          ready,
+		useOverrides:   len(cc.overrides) > 0,
+		useSrcOverride: len(cc.srcOverride) > 0,
 	}
 	ci.srv.Writer = ci
 	return ci, nil
@@ -129,6 +132,7 @@ func (ci *collectdInstance) Close() (err error) {
 
 func (ci *collectdInstance) Write(ctx context.Context, vl *api.ValueList) error {
 	var tag entry.EntryTag
+	var src net.IP
 	dts, err := marshalJSON(vl)
 	if err != nil {
 		return err
@@ -141,10 +145,25 @@ func (ci *collectdInstance) Write(ctx context.Context, vl *api.ValueList) error 
 	} else {
 		tag = ci.defTag
 	}
-	for i := range dts {
-		if err := ci.igst.Write(entry.FromStandard(vl.Time), tag, dts[i]); err != nil {
+	if ci.useSrcOverride {
+		src = ci.srcOverride
+	} else {
+		if src, err = ci.igst.SourceIP(); err != nil {
 			return err
 		}
+	}
+	ents := make([]*entry.Entry, len(dts))
+	ts := entry.FromStandard(vl.Time)
+	for i := range ents {
+		ents[i] = &entry.Entry{
+			TS:   ts,
+			Tag:  tag,
+			SRC:  src,
+			Data: dts[i],
+		}
+	}
+	if err := ci.igst.WriteBatch(ents); err != nil {
+		return err
 	}
 	return nil
 }
