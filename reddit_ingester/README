@@ -1,0 +1,19 @@
+The Reddit ingester will ingest all comments and articles posted to Reddit. Unlike our official ingesters (Simple relay, Netflow capture, etc.) it is not set up to be run as a system daemon; we typically just leave it running in a tmux session.
+
+Build it:
+
+	go get github.com/gravwell/ingesters/reddit_ingester
+
+To run with Gravwell on the local machine:
+
+	reddit_ingester -pipe-conn /opt/gravwell/comms/pipe -ingest-secret <secret>
+
+To run when Gravwell is on a different machine:
+
+	reddit_ingester -clear-conns <gravwell IP>:4023 -ingest-secret <secret>
+
+Entries will be tagged "reddit" by default. A simple search might see which subreddit is the most active:
+
+	tag=reddit json Subreddit | count by Subreddit | table Subreddit count
+
+This is one of our older tools. Although it still works well, it's a little bit convoluted to deal with some of the weirdness involved with ingesting Reddit (flaky connections, throttling, etc.) and has some leftovers from when our ingest system was much less polished. If you're looking for a starting point to build your own ingester, I'd recommend looking at the Hacker News ingester or the PubSub ingester.

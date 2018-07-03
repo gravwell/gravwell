@@ -1,0 +1,19 @@
+# Hacker News Ingester
+
+This is a simple ingester to grab Hacker News comments. We just run it from the command line instead of bothering with services and daemons.
+
+Get it:
+
+	go get github.com/gravwell/ingesters/hackernews_ingester
+
+Run it with Gravwell on the local machine:
+
+	hackernews_ingester -pipe-conn /opt/gravwell/comms/pipe -ingest-secret <secret>
+
+With Gravwell on a different machine:
+
+	hackernews_ingester -clear-conn <gravwell ip>:4023 -ingest-secret <secret>
+
+The comments are ingested with the tag "hackernews" by default. Here's a simple serach to see which articles are getting the most comments: 
+
+	tag=hackernews json "article-title" as title | count by title | table title count
