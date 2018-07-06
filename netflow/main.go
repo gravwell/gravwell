@@ -185,6 +185,11 @@ func main() {
 				lg.FatalCode(0, "NewNetflowV5Handler error: %v\n", err)
 				return
 			}
+		case ipfixType:
+			if bh, err = NewIpfixHandler(bc); err != nil {
+				lg.FatalCode(0, "NewIpfixHandler error: %v\n", err)
+				return
+			}
 		default:
 			lg.FatalCode(0, "Invalid flow type %v\n", ft)
 			return

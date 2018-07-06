@@ -23,8 +23,10 @@ import (
 const (
 	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
 	nfv5Type              = iota
+	ipfixType             = iota
 
-	nfv5Name string = `netflowv5`
+	nfv5Name  string = `netflowv5`
+	ipfixName string = `ipfix`
 )
 
 var ()
@@ -137,6 +139,8 @@ func (ft flowType) String() string {
 	switch ft {
 	case nfv5Type:
 		return "Netflow V5"
+	case ipfixType:
+		return "IPFIX"
 	}
 	return "unknown"
 }
@@ -150,6 +154,8 @@ func translateFlowType(s string) (flowType, error) {
 		fallthrough
 	case nfv5Name:
 		return nfv5Type, nil
+	case ipfixName:
+		return ipfixType, nil
 	}
 	return -1, errors.New("invalid reader type")
 }
