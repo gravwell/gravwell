@@ -36,7 +36,7 @@ const (
 )
 
 var (
-	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
+	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	profileFile    = flag.String("profile", "", "Start a CPU profiler, disabled if blank")
@@ -44,7 +44,6 @@ var (
 
 	pktTimeout time.Duration = 500 * time.Millisecond
 
-	confLoc      string
 	totalPackets uint64
 	totalBytes   uint64
 	v            bool
@@ -96,11 +95,6 @@ func init() {
 	}
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 
-	if *configOverride == "" {
-		confLoc = defaultConfigLoc
-	} else {
-		confLoc = *configOverride
-	}
 	v = *verbose
 }
 
@@ -114,7 +108,7 @@ func main() {
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
-	cfg, err := GetConfig(confLoc)
+	cfg, err := GetConfig(*confLoc)
 	if err != nil {
 		lg.Fatal("Failed to get configuration: ", err)
 	}

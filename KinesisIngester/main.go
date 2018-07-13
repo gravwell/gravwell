@@ -35,7 +35,7 @@ const (
 )
 
 var (
-	configLoc      = flag.String("config", defaultConfigLoc, "Location of configuration file")
+	configLoc      = flag.String("config-file", defaultConfigLoc, "Location of configuration file")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")

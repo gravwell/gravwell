@@ -23,11 +23,10 @@ const (
 
 var (
 	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
-	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
+	confLoc        = flag.String("config-file", defaultConfigLoc, "Override location for configuration file")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
-	confLoc        string
 	v              bool
 	lg             *log.Logger
 )
@@ -61,11 +60,6 @@ func init() {
 	}
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 
-	if *configOverride == "" {
-		confLoc = defaultConfigLoc
-	} else {
-		confLoc = *configOverride
-	}
 	v = *verbose
 }
 
@@ -80,7 +74,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	cfg, err := GetConfig(confLoc)
+	cfg, err := GetConfig(*confLoc)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get configuration: %v\n", err)
 		return

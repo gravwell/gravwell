@@ -36,11 +36,10 @@ const (
 
 var (
 	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
-	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
+	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
-	confLoc        string
 	connClosers    map[int]closer
 	connId         int
 	mtx            sync.Mutex
@@ -73,11 +72,6 @@ func init() {
 	}
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 
-	if *configOverride == "" {
-		confLoc = defaultConfigLoc
-	} else {
-		confLoc = *configOverride
-	}
 	v = *verbose
 	connClosers = make(map[int]closer, 1)
 }
@@ -118,7 +112,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	cfg, err := GetConfig(confLoc)
+	cfg, err := GetConfig(*confLoc)
 	if err != nil {
 		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
 		return
