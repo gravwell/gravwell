@@ -36,7 +36,7 @@ type WatchManager struct {
 	mtx        *sync.Mutex
 	fman       *FilterManager
 	watcher    *fsnotify.Watcher
-	watched    map[string]bool
+	watched    map[string]WatchConfig
 	routineRet chan error
 	logger     ingest.IngestLogger
 }
@@ -46,6 +46,7 @@ type WatchConfig struct {
 	BaseDir    string
 	FileFilter string
 	Hnd        handler
+	Recursive  bool
 }
 
 func NewWatcher(stateFilePath string) (*WatchManager, error) {
@@ -62,7 +63,7 @@ func NewWatcher(stateFilePath string) (*WatchManager, error) {
 		mtx:     &sync.Mutex{},
 		fman:    fman,
 		watcher: w,
-		watched: map[string]bool{},
+		watched: map[string]WatchConfig{},
 		logger:  ingest.NoLogger(),
 	}, nil
 }
@@ -132,6 +133,10 @@ func (wm *WatchManager) Close() error {
 func (wm *WatchManager) Add(c WatchConfig) error {
 	wm.mtx.Lock()
 	defer wm.mtx.Unlock()
+	return wm.addNoLock(c)
+}
+
+func (wm *WatchManager) addNoLock(c WatchConfig) error {
 	if wm.watcher == nil || wm.watched == nil {
 		return ErrNotReady
 	}
@@ -156,7 +161,26 @@ func (wm *WatchManager) Add(c WatchConfig) error {
 		if err := wm.watcher.Add(c.BaseDir); err != nil {
 			return err
 		}
-		wm.watched[c.BaseDir] = true
+		wm.watched[c.BaseDir] = c
+
+		// Now add the subdirectories
+		if c.Recursive {
+			f, err := os.Open(c.BaseDir)
+			if err != nil {
+				return err
+			}
+			files, err := f.Readdir(0)
+			if err != nil {
+				return err
+			}
+			for _, file := range files {
+				if file.IsDir() {
+					newConfig := c
+					newConfig.BaseDir = filepath.Join(c.BaseDir, file.Name())
+					wm.addNoLock(newConfig)
+				}
+			}
+		}
 	}
 	if err := wm.fman.AddFilter(c.ConfigName, c.BaseDir, fltrs, c.Hnd); err != nil {
 		return err
@@ -265,10 +289,31 @@ watchRoutine:
 				break watchRoutine
 			}
 			if evt.Op == fsnotify.Create {
-				if ok, err := wm.watchNewFile(evt.Name); err != nil {
-					wm.logger.Error("file_follower failed to watch new file %s due to %v", evt.Name, err)
-				} else if ok {
-					wm.logger.Info("file_follower now watching %s", evt.Name)
+				fi, err := os.Stat(evt.Name)
+				if err != nil {
+					continue
+				}
+				if fi.IsDir() {
+					parent, ok := wm.watched[filepath.Dir(evt.Name)]
+					if !ok {
+						wm.logger.Error("file_follower failed to find parent directory for %s", evt.Name)
+						continue
+					}
+					if !parent.Recursive {
+						wm.logger.Info("file_follower not adding watcher for subdirectory %v: parent not recusive", evt.Name)
+						continue
+					}
+					parent.BaseDir = evt.Name
+					if err := wm.Add(parent); err != nil {
+						wm.logger.Error("file_follower failed to add watcher for new directory %v: %v", evt.Name, err)
+						continue
+					}
+				} else {
+					if ok, err := wm.watchNewFile(evt.Name); err != nil {
+						wm.logger.Error("file_follower failed to watch new file %s due to %v", evt.Name, err)
+					} else if ok {
+						wm.logger.Info("file_follower now watching %s", evt.Name)
+					}
 				}
 			} else if evt.Op == fsnotify.Remove {
 				if ok, err := wm.deleteWatchedFile(evt.Name); err != nil {
@@ -288,4 +333,20 @@ watchRoutine:
 		}
 	}
 	errch <- err
+}
+
+// Returns a string containing information about the WatchManager
+func (wm *WatchManager) Dump() string {
+	var b strings.Builder
+
+	fmt.Fprintf(&b, "Filter manager followers:\n")
+	for k, v := range wm.fman.followers {
+		fmt.Fprintf(&b, "Follower %v: %#v\n", k, v)
+	}
+	fmt.Fprintf(&b, "Filter manager states:\n")
+	for k, v := range wm.fman.states {
+		fmt.Fprintf(&b, "State %v: %d\n", k, *v)
+	}
+
+	return b.String()
 }
