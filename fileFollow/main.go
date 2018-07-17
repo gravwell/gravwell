@@ -158,6 +158,7 @@ func main() {
 			BaseDir:    val.Base_Directory,
 			FileFilter: val.File_Filter,
 			Hnd:        lh,
+			Recursive:  val.Recursive,
 		}
 		if err := wtcher.Add(c); err != nil {
 			wtcher.Close()
