@@ -82,6 +82,10 @@ func GetConfig(path string) (*cfgType, error) {
 	}
 	//read into the intermediary type to maintain backwards compatibility with the old system
 	var cr cfgReadType
+
+	//set some defaults
+	cr.Keep_Priority = true
+
 	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
 		return nil, err
 	}
