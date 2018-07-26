@@ -79,10 +79,6 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 			case stateInPrio: //prioStart
 				if data[i] == '>' {
 					state = stateInMsg
-					if !cfg.keepPriority {
-						start = i + 1
-						advance = i + 1
-					}
 				}
 			case stateInMsg: //inmsg
 				if data[i] == '<' {
@@ -148,14 +144,14 @@ func rfc5424ConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 			} else {
 				rip = cfg.src
 			}
-			handleRFC5424Packet(append([]byte(nil), buff[:n]...), rip, cfg.ch, cfg.ignoreTimestamps, !cfg.keepPriority, cfg.tag, tg)
+			handleRFC5424Packet(append([]byte(nil), buff[:n]...), rip, cfg.ch, cfg.ignoreTimestamps, cfg.tag, tg)
 		}
 	}
 
 }
 
 //we can be very very fast on this one by just manually scanning the buffer
-func handleRFC5424Packet(buff []byte, ip net.IP, ch chan *entry.Entry, ignoreTS, dropPrio bool, tag entry.EntryTag, tg *timegrinder.TimeGrinder) {
+func handleRFC5424Packet(buff []byte, ip net.IP, ch chan *entry.Entry, ignoreTS bool, tag entry.EntryTag, tg *timegrinder.TimeGrinder) {
 	var msgStart int
 	var state int
 
@@ -176,9 +172,6 @@ func handleRFC5424Packet(buff []byte, ip net.IP, ch chan *entry.Entry, ignoreTS,
 					continue
 				}
 				state = stateInMsg
-				if dropPrio {
-					msgStart = i + 1
-				}
 			}
 		case stateInMsg:
 			if buff[i] == '<' {

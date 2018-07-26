@@ -219,7 +219,6 @@ func main() {
 			lrt:              lrt,
 			ignoreTimestamps: v.Ignore_Timestamps,
 			setLocalTime:     v.Assume_Local_Timezone,
-			keepPriority:     v.Keep_Priority,
 			src:              src,
 			wg:               &wg,
 			formatOverride:   tsFmtOverride,
@@ -350,7 +349,6 @@ type handlerConfig struct {
 	lrt              readerType
 	ignoreTimestamps bool
 	setLocalTime     bool
-	keepPriority     bool
 	src              net.IP
 	wg               *sync.WaitGroup
 	formatOverride   int
