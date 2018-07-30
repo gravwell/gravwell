@@ -145,8 +145,14 @@ func main() {
 		if err != nil {
 			lg.Fatal("Failed to resolve tag \"%s\" for %s: %v\n", val.Tag_Name, k, err)
 		}
+		var ignore [][]byte
+		for _, prefix := range val.Ignore_Line_Prefix {
+			if prefix != "" {
+				ignore = append(ignore, []byte(prefix))
+			}
+		}
 		//create our handler for this watcher
-		lh, err := filewatch.NewLogHandler(tag, val.Ignore_Timestamps, val.Assume_Local_Timezone, ch)
+		lh, err := filewatch.NewLogHandler(tag, val.Ignore_Timestamps, val.Assume_Local_Timezone, ignore, ch)
 		if err != nil {
 			lg.Fatal("Failed to generate handler: %v", err)
 		}
@@ -158,6 +164,7 @@ func main() {
 			BaseDir:    val.Base_Directory,
 			FileFilter: val.File_Filter,
 			Hnd:        lh,
+			Recursive:  val.Recursive,
 		}
 		if err := wtcher.Add(c); err != nil {
 			wtcher.Close()
