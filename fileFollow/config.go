@@ -45,6 +45,7 @@ type follower struct {
 	Ignore_Timestamps     bool //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone bool
 	Recursive             bool // Should we descend into child directories?
+	Ignore_Line_Prefix    []string
 }
 
 type global struct {
