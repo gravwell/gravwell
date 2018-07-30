@@ -9,6 +9,7 @@
 package filewatch
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -21,14 +22,15 @@ import (
 type debugOut func(string, ...interface{})
 
 type LogHandler struct {
-	tag      entry.EntryTag
-	tg       *timegrinder.TimeGrinder
-	ignoreTS bool
-	ch       chan *entry.Entry
-	dbg      debugOut
+	tag            entry.EntryTag
+	tg             *timegrinder.TimeGrinder
+	ignoreTS       bool
+	ch             chan *entry.Entry
+	dbg            debugOut
+	ignorePrefixes [][]byte
 }
 
-func NewLogHandler(tag entry.EntryTag, ignoreTS, assumeLocal bool, ch chan *entry.Entry) (*LogHandler, error) {
+func NewLogHandler(tag entry.EntryTag, ignoreTS, assumeLocal bool, ignorePrefixes [][]byte, ch chan *entry.Entry) (*LogHandler, error) {
 	var tg *timegrinder.TimeGrinder
 	var err error
 	if ch == nil {
@@ -50,10 +52,11 @@ func NewLogHandler(tag entry.EntryTag, ignoreTS, assumeLocal bool, ch chan *entr
 		return nil, errors.New("not timegrinder but not ignoring timestamps")
 	}
 	return &LogHandler{
-		tag:      tag,
-		tg:       tg,
-		ignoreTS: ignoreTS,
-		ch:       ch,
+		tag:            tag,
+		tg:             tg,
+		ignoreTS:       ignoreTS,
+		ch:             ch,
+		ignorePrefixes: ignorePrefixes,
 	}, nil
 }
 
@@ -64,6 +67,11 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	var ok bool
 	var ts time.Time
 	var err error
+	for _, prefix := range lh.ignorePrefixes {
+		if bytes.HasPrefix(b, prefix) {
+			return nil
+		}
+	}
 	if !lh.ignoreTS {
 		ts, ok, err = lh.tg.Extract(b)
 		if err != nil {
