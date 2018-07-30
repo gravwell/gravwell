@@ -519,7 +519,8 @@ func cleanStates(states map[FileName]*int64) error {
 				//file is gone, delete it
 				delete(states, k)
 			} else {
-				return err
+				// TODO: decide if we need to specifically check for other errors here
+				//return err
 			}
 		} else {
 			if v == nil {
