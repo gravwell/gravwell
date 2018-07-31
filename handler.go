@@ -22,41 +22,48 @@ import (
 type debugOut func(string, ...interface{})
 
 type LogHandler struct {
-	tag            entry.EntryTag
-	tg             *timegrinder.TimeGrinder
-	ignoreTS       bool
-	ch             chan *entry.Entry
-	dbg            debugOut
-	ignorePrefixes [][]byte
+	LogHandlerConfig
+	tg  *timegrinder.TimeGrinder
+	dbg debugOut
+	ch  chan *entry.Entry
 }
 
-func NewLogHandler(tag entry.EntryTag, ignoreTS, assumeLocal bool, ignorePrefixes [][]byte, ch chan *entry.Entry) (*LogHandler, error) {
+type LogHandlerConfig struct {
+	Tag                     entry.EntryTag
+	IgnoreTS                bool
+	AssumeLocalTZ           bool
+	IgnorePrefixes          [][]byte
+	TimestampFormatOverride int
+}
+
+func NewLogHandler(cfg LogHandlerConfig, ch chan *entry.Entry) (*LogHandler, error) {
 	var tg *timegrinder.TimeGrinder
 	var err error
 	if ch == nil {
 		return nil, errors.New("output channel is nil")
 	}
-	if !ignoreTS {
+	if !cfg.IgnoreTS {
 		tcfg := timegrinder.Config{
 			EnableLeftMostSeed: true,
+		}
+		if cfg.TimestampFormatOverride > 0 {
+			tcfg.FormatOverride = cfg.TimestampFormatOverride
 		}
 		tg, err = timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
 			return nil, err
 		}
-		if assumeLocal {
+		if cfg.AssumeLocalTZ {
 			tg.SetLocalTime()
 		}
 	}
-	if !ignoreTS && tg == nil {
-		return nil, errors.New("not timegrinder but not ignoring timestamps")
+	if !cfg.IgnoreTS && tg == nil {
+		return nil, errors.New("no timegrinder but not ignoring timestamps")
 	}
 	return &LogHandler{
-		tag:            tag,
-		tg:             tg,
-		ignoreTS:       ignoreTS,
-		ch:             ch,
-		ignorePrefixes: ignorePrefixes,
+		LogHandlerConfig: cfg,
+		ch:               ch,
+		tg:               tg,
 	}, nil
 }
 
@@ -67,12 +74,12 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	var ok bool
 	var ts time.Time
 	var err error
-	for _, prefix := range lh.ignorePrefixes {
+	for _, prefix := range lh.IgnorePrefixes {
 		if bytes.HasPrefix(b, prefix) {
 			return nil
 		}
 	}
-	if !lh.ignoreTS {
+	if !lh.IgnoreTS {
 		ts, ok, err = lh.tg.Extract(b)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Catastrophic timegrinder failure: %v\n", err)
@@ -88,7 +95,7 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	lh.ch <- &entry.Entry{
 		SRC:  nil, //ingest API will populate this
 		TS:   entry.FromStandard(ts),
-		Tag:  lh.tag,
+		Tag:  lh.Tag,
 		Data: b,
 	}
 	return nil
