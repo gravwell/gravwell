@@ -62,6 +62,11 @@ func New(wtr io.WriteCloser) *Logger {
 	}
 }
 
+func NewDiscardLogger() *Logger {
+	var dc discardCloser
+	return New(dc)
+}
+
 // Close closes the logger and all currently associated writers
 // writers that have been deleted are NOT closed
 func (l *Logger) Close() (err error) {
@@ -278,4 +283,14 @@ func LevelFromString(s string) (l Level, err error) {
 		err = ErrInvalidLevel
 	}
 	return
+}
+
+type discardCloser bool
+
+func (dc discardCloser) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
+func (dc discardCloser) Close() error {
+	return nil
 }
