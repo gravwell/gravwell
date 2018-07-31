@@ -17,6 +17,7 @@ import (
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/config"
+	"github.com/gravwell/timegrinder"
 
 	"gopkg.in/gcfg.v1"
 )
@@ -39,13 +40,14 @@ type cfgReadType struct {
 }
 
 type follower struct {
-	Base_Directory        string // the base directory we will be watching
-	File_Filter           string // the glob for pattern matching
-	Tag_Name              string
-	Ignore_Timestamps     bool //Just apply the current timestamp to lines as we get them
-	Assume_Local_Timezone bool
-	Recursive             bool // Should we descend into child directories?
-	Ignore_Line_Prefix    []string
+	Base_Directory            string // the base directory we will be watching
+	File_Filter               string // the glob for pattern matching
+	Tag_Name                  string
+	Ignore_Timestamps         bool //Just apply the current timestamp to lines as we get them
+	Assume_Local_Timezone     bool
+	Recursive                 bool // Should we descend into child directories?
+	Ignore_Line_Prefix        []string
+	Timestamp_Format_Override string //override the timestamp format
 }
 
 type global struct {
@@ -136,6 +138,14 @@ func (c *cfgType) Tags() ([]string, error) {
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+func (f follower) TimestampOverride() (v int, err error) {
+	override := strings.TrimSpace(f.Timestamp_Format_Override)
+	if override != `` {
+		v, err = timegrinder.FormatDirective(override)
+	}
+	return
 }
 
 func (g *global) Init() {

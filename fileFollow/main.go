@@ -151,8 +151,19 @@ func main() {
 				ignore = append(ignore, []byte(prefix))
 			}
 		}
+		tsFmtOverride, err := val.TimestampOverride()
+		if err != nil {
+			lg.FatalCode(0, "Invalid timestamp override \"%s\": %v\n", val.Timestamp_Format_Override, err)
+		}
 		//create our handler for this watcher
-		lh, err := filewatch.NewLogHandler(tag, val.Ignore_Timestamps, val.Assume_Local_Timezone, ignore, ch)
+		cfg := filewatch.LogHandlerConfig{
+			Tag:                     tag,
+			IgnoreTS:                val.Ignore_Timestamps,
+			AssumeLocalTZ:           val.Assume_Local_Timezone,
+			IgnorePrefixes:          ignore,
+			TimestampFormatOverride: tsFmtOverride,
+		}
+		lh, err := filewatch.NewLogHandler(cfg, ch)
 		if err != nil {
 			lg.Fatal("Failed to generate handler: %v", err)
 		}
