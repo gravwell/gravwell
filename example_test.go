@@ -80,7 +80,8 @@ func Example() {
 	if err != nil {
 		log.Fatalf("Failed to get tag: %v", err)
 	}
-	lh, err := filewatch.NewLogHandler(tag, true, true, ch)
+	lhconf := filewatch.LogHandlerConfig{tag, true, true, [][]byte{}, 0}
+	lh, err := filewatch.NewLogHandler(lhconf, ch)
 	if err != nil {
 		log.Fatalf("Failed to generate handler: %v", err)
 	}
