@@ -177,12 +177,31 @@ func (f *follower) IdleDuration() time.Duration {
 	return time.Since(f.lastAct)
 }
 
-func (f *follower) processLines() error {
+// writeEvent should be set to true if we're calling this as a result of
+// receiving an fsnotify for a write event
+// If we got a writeEvent and ReadLine returns an EOF, we need to check
+// and make sure the file wasn't truncated
+func (f *follower) processLines(writeEvent bool) error {
 	var hit bool
 	for {
-		ln, ok, err := f.lnr.ReadLine()
+		ln, ok, sawEOF, err := f.lnr.ReadLine()
 		if err != nil {
 			return err
+		}
+		if sawEOF && writeEvent {
+			// We got an EOF on the file after a write
+			fi, err := os.Stat(f.FilePath)
+			if err != nil {
+				return err
+			}
+			if fi.Size() < *f.state {
+				// the file must have been truncated
+				*f.state = 0
+				err = f.lnr.Seek(0)
+				if err != nil {
+					return err
+				}
+			}
 		}
 		if !ok {
 			break
@@ -210,8 +229,7 @@ func (f *follower) routine() {
 
 routineLoop:
 	for {
-		//this whole process is kind of racy, so every iteration we attempt to process lines
-		if err := f.processLines(); err != nil {
+		if err := f.processLines(false); err != nil {
 			f.lnr.Close()
 			if !os.IsNotExist(err) {
 				f.err = err
@@ -231,7 +249,7 @@ routineLoop:
 			}
 			if evt.Op == fsnotify.Remove {
 				//if the file was removed, we read what we can and bail
-				if err := f.processLines(); err != nil {
+				if err := f.processLines(false); err != nil {
 					if !os.IsNotExist(err) {
 						f.err = err
 					}
@@ -239,17 +257,26 @@ routineLoop:
 				//On remove we close the liner and bail out
 				f.err = f.lnr.Close()
 				return
+			} else if evt.Op == fsnotify.Write {
+				if err := f.processLines(true); err != nil {
+					f.lnr.Close()
+					if !os.IsNotExist(err) {
+						f.err = err
+					}
+					return
+				}
 			}
 		case _ = <-tckr.C:
 			//just loop and attempt to get some lines
 			//this is purely to deal with race conditions where lines come in when we are starting up
 			//causing us to miss the event
+			//this whole process is kind of racy, so every iteration we attempt to process lines
 		case <-f.abortCh:
 			break routineLoop
 		}
 	}
 	//this whole process is kind of racy, so every iteration we attempt to process lines
-	if err := f.processLines(); err != nil {
+	if err := f.processLines(false); err != nil {
 		//check if its just a notexists erro, which Windows version of the liner will throw
 		if !os.IsNotExist(err) {
 			f.err = err

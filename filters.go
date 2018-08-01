@@ -224,6 +224,7 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 		return nil
 	}
 	//check filters and their base locations to see if the file showed up anywhere else
+	var found bool
 	for i, v := range f.filters {
 		//check if we have an active follower
 		stid.BaseName = v.bname
@@ -241,11 +242,12 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 			return err
 		}
 		if ok {
+			found = true
 			//we found it, make sure its not the same damn file name
 			if p == fpath {
 				return nil
 			}
-			//different file name and still worth tracking
+			//different filter but we must keep tracking
 			if flw.FilterId() != i {
 				st, ok := f.states[stid]
 				if !ok {
@@ -258,12 +260,12 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 				if err := flw.Close(); err != nil {
 					return err
 				}
-				*st = 0
+				//*st = 0
 				if err := f.addFollower(v.bname, p, st, i, v.lh); err != nil {
 					return err
 				}
-				return nil
-			} else {
+				//return nil
+			} else if v.loc == p {
 				//just update the names
 				delete(f.followers, stid)
 				flw.FileName = stid
@@ -275,14 +277,16 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 				stid.FilePath = p
 				f.states[stid] = st
 				f.followers[stid] = flw
-				return nil
+				//return nil
 			}
 
 		}
 	}
 	//filename was never found, remove it
-	if _, err := f.nolockRemoveFollower(fpath); err != nil {
-		return err
+	if !found {
+		if _, err := f.nolockRemoveFollower(fpath); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -415,7 +419,7 @@ func (f *FilterManager) checkRename(fpath string, id FileId) (isRename bool, err
 				removeFollower = true
 			}
 			//check the filter glob against the new name
-			if f.filters[filterId].loc != fdir || !f.matchFile(f.filters[filterId].mtchs, fname) {
+			if f.filters[filterId].loc == fdir && f.matchFile(f.filters[filterId].mtchs, fname) {
 				//this is just a rename, update the fpath in the follower
 				delete(f.states, k)
 				delete(f.followers, k)

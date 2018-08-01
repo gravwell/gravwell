@@ -47,7 +47,12 @@ func NewLineReader(f *os.File, maxLine int, startIdx int64) (*LineReader, error)
 	}, nil
 }
 
-func (lr *LineReader) ReadLine() (ln []byte, ok bool, err error) {
+func (lr *LineReader) Seek(offset int64) error {
+	lr.idx = offset
+	return nil
+}
+
+func (lr *LineReader) ReadLine() (ln []byte, ok bool, sawEOF bool, err error) {
 	fin, lerr := openDeletableFile(lr.fpath)
 	if lerr != nil {
 		if lerr == syscall.ERROR_ACCESS_DENIED {
@@ -74,6 +79,9 @@ func (lr *LineReader) ReadLine() (ln []byte, ok bool, err error) {
 		if lerr != nil && lerr != io.EOF {
 			err = lerr //set the error for return
 			break
+		}
+		if lerr == io.EOF {
+			sawEOF = true
 		}
 
 		if len(b) == 0 {

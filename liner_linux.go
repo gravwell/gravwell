@@ -47,7 +47,13 @@ func NewLineReader(f *os.File, maxLine int, startIdx int64) (*LineReader, error)
 	}, nil
 }
 
-func (lr *LineReader) ReadLine() (ln []byte, ok bool, err error) {
+func (lr *LineReader) Seek(offset int64) error {
+	_, err := lr.f.Seek(offset, 0)
+	lr.idx = offset
+	return err
+}
+
+func (lr *LineReader) ReadLine() (ln []byte, ok bool, wasEOF bool, err error) {
 	for {
 		//ReadBytes garuntees that it returns err == nil ONLY when the results hit the delimiter
 		b, lerr := lr.brdr.ReadBytes(byte('\n'))
@@ -55,6 +61,9 @@ func (lr *LineReader) ReadLine() (ln []byte, ok bool, err error) {
 		if lerr != nil && lerr != io.EOF {
 			err = lerr //set the error for return
 			break
+		}
+		if lerr == io.EOF {
+			wasEOF = true
 		}
 
 		if len(b) == 0 {
