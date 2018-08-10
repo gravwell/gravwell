@@ -129,11 +129,11 @@ func main() {
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get tags from configuration: ", err)
+		lg.FatalCode(0, "Failed to get tags from configuration: %v", err)
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get backend targets from configuration: ", err)
+		lg.FatalCode(0, "Failed to get backend targets from configuration: %v", err)
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
@@ -142,7 +142,7 @@ func main() {
 	for k, v := range cfg.Sniffer {
 		if v == nil {
 			closeSniffers(sniffs)
-			lg.FatalCode(0, "Invalid sniffer named ", k, ".  Nil struct")
+			lg.FatalCode(0, "Invalid sniffer named %s: Nil struct", k)
 		}
 		//The config may specify a particular source IP for this sniffer.
 		//If not, derive one.
@@ -164,7 +164,7 @@ func main() {
 			src, err = getSourceIP(v.Interface)
 			if err != nil {
 				closeSniffers(sniffs)
-				lg.FatalCode(0, "Failed to get source for ", v.Interface, ": ", err)
+				lg.FatalCode(0, "Failed to get source for %s: %v", v.Interface, err)
 			}
 		}
 
@@ -172,14 +172,14 @@ func main() {
 		hnd, err := pcap.OpenLive(v.Interface, int32(v.Snap_Len), v.Promisc, pktTimeout)
 		if err != nil {
 			closeSniffers(sniffs)
-			lg.FatalCode(0, "Failed to get initialize handler on ", v.Interface, " for ", k)
+			lg.FatalCode(0, "Failed to get initialize handler on %s for %s", v.Interface, k)
 		}
 		//apply a filter if one is specified
 		if v.BPF_Filter != `` {
 			if err := hnd.SetBPFFilter(v.BPF_Filter); err != nil {
 				hnd.Close()
 				closeSniffers(sniffs)
-				lg.FatalCode(0, "Invalid BPF Filter for ", k, " : ", err)
+				lg.FatalCode(0, "Invalid BPF Filter for %s: %v", k, err)
 			}
 		}
 		sniffs = append(sniffs, sniffer{
