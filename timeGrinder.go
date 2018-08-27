@@ -69,11 +69,16 @@ type Config struct {
 	FormatOverride     int
 }
 
-/* NewTimeGrinder constructs and returns a new TimeGrinder object
+// NewTimeGrinder just calls New, it is maintained for API compatability but may go away soon.  Use New.
+func NewTimeGrinder(c Config) (*TimeGrinder, error) {
+	return New(c)
+}
+
+/* New constructs and returns a new TimeGrinder object
  * On error, it will return a nil and error variable
  * The TimeGrinder object is completely safe for concurrent use.
  */
-func NewTimeGrinder(c Config) (*TimeGrinder, error) {
+func New(c Config) (*TimeGrinder, error) {
 	procs := make([]Processor, 0, 16)
 
 	//build ANSIC processor

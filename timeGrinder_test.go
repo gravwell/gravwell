@@ -33,7 +33,7 @@ var (
 func init() {
 	rand.Seed(SEED)
 	baseTime, baseTimeError = time.Parse("01-02-2006 15:04:05", "07-04-2014 16:30:45")
-	benchTimeGrinder, _ = NewTimeGrinder(cfg)
+	benchTimeGrinder, _ = New(cfg)
 	randStringBuff = make([]byte, RAND_BUFF_SIZE)
 
 	for i := 0; i < len(randStringBuff); i++ {
@@ -48,7 +48,7 @@ func TestStart(t *testing.T) {
 }
 
 func TestUnixMilli(t *testing.T) {
-	tg, err := NewTimeGrinder(cfg)
+	tg, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestUnixMilli(t *testing.T) {
 }
 
 func TestCustomManual(t *testing.T) {
-	tg, err := NewTimeGrinder(cfg)
+	tg, err := New(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -222,7 +222,7 @@ func TestSeedHit(t *testing.T) {
 		EnableLeftMostSeed: true,
 	}
 	tval := []byte(`2018-04-19T05:50:19-07:00 2018-04-15T00:00:00Z 1234567890 02-03-2018 12:30:00`)
-	tg, err := NewTimeGrinder(lcfg)
+	tg, err := New(lcfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -259,7 +259,7 @@ func TestOverrideFormat(t *testing.T) {
 }
 
 func runFullSecTestsCurr(format string) error {
-	tg, err := NewTimeGrinder(cfg)
+	tg, err := New(cfg)
 	if err != nil {
 		return err
 	}
@@ -283,7 +283,7 @@ func runFullSecTestsCurr(format string) error {
 }
 
 func runFullSecTests(format string) error {
-	tg, err := NewTimeGrinder(cfg)
+	tg, err := New(cfg)
 	if err != nil {
 		return err
 	}
@@ -305,7 +305,7 @@ func runFullSecTests(format string) error {
 }
 
 func runFullNoSecTests(format string) error {
-	tg, err := NewTimeGrinder(cfg)
+	tg, err := New(cfg)
 	if err != nil {
 		return err
 	}
