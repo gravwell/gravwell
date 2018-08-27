@@ -14,8 +14,9 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
-	"github.com/calmh/ipfix"
+	"github.com/floren/ipfix"
 	"github.com/gravwell/ingest/entry"
 	"github.com/gravwell/netflow"
 )
@@ -196,21 +197,42 @@ func (i *IpfixHandler) routine(id int) {
 	tbuff := make([]byte, 65507) // just go with max UDP packet size
 	for {
 		if l, addr, err = i.c.ReadFromUDP(tbuff); err != nil {
-			fmt.Printf("Error in ReadFromUDP: %v\n", err)
+			debugout("Error in ReadFromUDP: %v\n", err)
 			return
 		}
+		debugout("%v got packet of length %v from %v\n", time.Now(), l, addr.IP)
+
+		// For each message received, we want to parse it, extract and attach
+		// any relevant but missing templates, then re-marshal it and ingest
 		msg, err := s.ParseBuffer(tbuff[:l])
 		if err != nil {
+			debugout("Rejecting packet: %v\n", err)
 			// must have been a bad packet
 			continue
 		}
-		lbuff := make([]byte, l)
-		copy(lbuff, tbuff[0:l])
-		if i.ignoreTS {
-			ts = entry.Now()
+
+		// LookupTemplateRecords will fail if we haven't seen an appropriate
+		// template packet for this message yet. In that case, just pass along
+		// the original message, it's all we can do
+		var lbuff []byte
+		templates, err := s.LookupTemplateRecords(msg)
+		if err != nil || (len(msg.DataRecords) == 0 && len(msg.TemplateRecords) == 0) {
+			debugout("Failed to lookup template records for message, passing original\n")
+			lbuff = make([]byte, l)
+			copy(lbuff, tbuff[0:l])
 		} else {
-			ts = entry.UnixTime(int64(msg.Header.ExportTime), 0)
+			debugout("Attaching %d templates\n", len(templates))
+			msg.TemplateRecords = templates
+			lbuff, err = s.Marshal(msg)
+			if err != nil {
+				// if we fail to marshal, I guess just send along the original
+				debugout("Failed to marshal message, passing original\n")
+				lbuff = make([]byte, l)
+				copy(lbuff, tbuff[0:l])
+			}
 		}
+
+		ts = entry.Now()
 		e := &entry.Entry{
 			Tag:  i.tag,
 			SRC:  addr.IP,
