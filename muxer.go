@@ -1255,6 +1255,8 @@ func (tt tagTrans) Translate(t entry.EntryTag) entry.EntryTag {
 	if t == entry.GravwellTagId {
 		return t
 	}
+	//if this is a tag we have not negotiated, set it to the first one we have
+	//we are assuming that its an error, but we still want the entry
 	if int(t) >= len(tt) {
 		return tt[0]
 	}

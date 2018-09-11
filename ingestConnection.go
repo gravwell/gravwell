@@ -20,7 +20,8 @@ import (
 )
 
 var (
-	localSrc = net.ParseIP("127.0.0.1")
+	localSrc    = net.ParseIP("127.0.0.1")
+	ErrEmptyTag = errors.New("Tag name is empty")
 )
 
 type IngestConnection struct {
@@ -202,8 +203,9 @@ func checkTags(tags []string) error {
 // CheckTag takes a tag name and returns an error if it contains any
 // characters which are not allowed in tags.
 func CheckTag(tag string) error {
-	if tag == `` {
-		return fmt.Errorf("tag must not be an empty string")
+	tag = strings.TrimSpace(tag)
+	if len(tag) == 0 {
+		return ErrEmptyTag
 	}
 	if strings.ContainsAny(tag, FORBIDDEN_TAG_SET) {
 		return fmt.Errorf("tag %s contains forbidden characters", tag)
