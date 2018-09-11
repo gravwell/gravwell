@@ -10,6 +10,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"sort"
 	"strings"
@@ -38,24 +39,30 @@ type bindType int
 type readerType int
 
 type listener struct {
+	base
+	Tag_Name      string
+	Reader_Type   string
+	Keep_Priority bool // Leave the <nnn> priority value at the start of the log message
+}
+
+type base struct {
 	Bind_String               string //IP port pair 127.0.0.1:1234
-	Tag_Name                  string
-	Ignore_Timestamps         bool //Just apply the current timestamp to lines as we get them
+	Ignore_Timestamps         bool   //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone     bool
-	Reader_Type               string
-	Keep_Priority             bool // Leave the <nnn> priority value at the start of the log message
 	Source_Override           string
 	Timestamp_Format_Override string //override the timestamp format
 }
 
 type cfgReadType struct {
-	Global   config.IngestConfig
-	Listener map[string]*listener
+	Global       config.IngestConfig
+	Listener     map[string]*listener
+	JSONListener map[string]*jsonListener
 }
 
 type cfgType struct {
 	config.IngestConfig
-	Listener map[string]*listener
+	Listener     map[string]*listener
+	JSONListener map[string]*jsonListener
 }
 
 func GetConfig(path string) (*cfgType, error) {
@@ -82,13 +89,13 @@ func GetConfig(path string) (*cfgType, error) {
 	}
 	//read into the intermediary type to maintain backwards compatibility with the old system
 	var cr cfgReadType
-
 	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
 		return nil, err
 	}
 	c := &cfgType{
 		IngestConfig: cr.Global,
 		Listener:     cr.Listener,
+		JSONListener: cr.JSONListener,
 	}
 
 	if err := verifyConfig(c); err != nil {
@@ -102,13 +109,13 @@ func verifyConfig(c *cfgType) error {
 	if err := c.Verify(); err != nil {
 		return err
 	}
-	if len(c.Listener) == 0 {
+	if len(c.Listener) == 0 && len(c.JSONListener) == 0 {
 		return errors.New("No listeners specified")
 	}
 	bindMp := make(map[string]string, 1)
 	for k, v := range c.Listener {
-		if len(v.Bind_String) == 0 {
-			return errors.New("No Bind-String provided for " + k)
+		if err := v.base.Validate(); err != nil {
+			return fmt.Errorf("Listener %s configuration error: %v", k, err)
 		}
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = `default`
@@ -116,13 +123,13 @@ func verifyConfig(c *cfgType) error {
 		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 			return errors.New("Invalid characters in the Tag-Name for " + k)
 		}
-		if _, err := v.TimestampOverride(); err != nil {
-			return errors.New("Timestamp-Format-Override is invalid")
-		}
 		if n, ok := bindMp[v.Bind_String]; ok {
 			return errors.New("Bind-String for " + k + " already in use by " + n)
 		}
 		bindMp[v.Bind_String] = k
+	}
+	if err := checkJsonConfigs(c.JSONListener); err != nil {
+		return err
 	}
 	return nil
 }
@@ -130,6 +137,7 @@ func verifyConfig(c *cfgType) error {
 func (c *cfgType) Tags() ([]string, error) {
 	var tags []string
 	tagMp := make(map[string]bool, 1)
+	//iterate over simple listeners
 	for _, v := range c.Listener {
 		if len(v.Tag_Name) == 0 {
 			continue
@@ -139,6 +147,21 @@ func (c *cfgType) Tags() ([]string, error) {
 			tagMp[v.Tag_Name] = true
 		}
 	}
+
+	//iterate over json listeners
+	for _, v := range c.JSONListener {
+		tgs, err := v.Tags()
+		if err != nil {
+			return nil, err
+		}
+		for _, tg := range tgs {
+			if _, ok := tagMp[tg]; !ok {
+				tags = append(tags, tg)
+				tagMp[tg] = true
+			}
+		}
+	}
+
 	if len(tags) == 0 {
 		return nil, errors.New("No tags specified")
 	}
@@ -146,12 +169,22 @@ func (c *cfgType) Tags() ([]string, error) {
 	return tags, nil
 }
 
-func (l listener) TimestampOverride() (v int, err error) {
+func (l base) TimestampOverride() (v int, err error) {
 	override := strings.TrimSpace(l.Timestamp_Format_Override)
 	if override != `` {
 		v, err = timegrinder.FormatDirective(override)
 	}
 	return
+}
+
+func (l base) Validate() error {
+	if len(l.Bind_String) == 0 {
+		return errors.New("No Bind-String provided")
+	}
+	if _, err := l.TimestampOverride(); err != nil {
+		return errors.New("Timestamp-Format-Override is invalid")
+	}
+	return nil
 }
 
 func translateBindType(bstr string) (bindType, string, error) {
