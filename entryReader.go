@@ -12,11 +12,12 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
-	"github.com/gravwell/ingest/entry"
 	"io"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/gravwell/ingest/entry"
 )
 
 const (
@@ -46,6 +47,10 @@ var (
 	nilTime time.Time
 )
 
+type TagManager interface {
+	GetAndPopulate(string) (entry.EntryTag, error)
+}
+
 type ackCommand struct {
 	cmd IngestCommand
 	val uint64 //this can be converted to any number of things, id, time.Duration, etc...
@@ -69,6 +74,7 @@ type EntryReader struct {
 	opCount     uint64
 	lastCount   uint64
 	timeout     time.Duration
+	tagMan      TagManager
 }
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
@@ -93,7 +99,14 @@ func NewEntryReaderEx(cfg EntryReaderWriterConfig) (*EntryReader, error) {
 		hot:        true,
 		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
 		timeout:    cfg.Timeout,
+		tagMan:     cfg.TagMan,
 	}, nil
+}
+
+// SetTagManager gives a handle on the instantiator's tag management system.
+// If this is not set, tags cannot be negotiated on the fly
+func (er *EntryReader) SetTagManager(tm TagManager) {
+	er.tagMan = tm
 }
 
 func (er *EntryReader) Start() error {
@@ -301,6 +314,9 @@ func (er *EntryReader) fillAndSendAckBuffer(b []byte, v ackCommand) (err error) 
 	if off, flush, err = v.encode(b); err != nil {
 		return
 	} else if flush {
+		if err = er.writeAll(b[:off]); err != nil {
+			return
+		}
 		err = er.bAckWriter.Flush()
 		return
 	}
@@ -382,10 +398,6 @@ func (er *EntryReader) writeAll(b []byte) error {
 		return errors.New("Failed to write entire buffer")
 	}
 	return nil
-}
-
-func (ac ackCommand) isFlush() bool {
-	return ac.cmd == FORCE_ACK_MAGIC || (ac.cmd == CONFIRM_ENTRY_MAGIC && ac.val == 0)
 }
 
 func (ac ackCommand) size() int {
