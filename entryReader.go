@@ -278,10 +278,11 @@ headerLoop:
 				tg, err := er.tagMan.GetAndPopulate(string(name))
 				if err != nil {
 					er.ackChan <- ackCommand{cmd: ERROR_TAG_MAGIC, val: uint64(0)}
-					return err
+				} else {
+					er.ackChan <- ackCommand{cmd: CONFIRM_TAG_MAGIC, val: uint64(tg)}
 				}
-				er.ackChan <- ackCommand{cmd: CONFIRM_TAG_MAGIC, val: uint64(tg)}
 			}
+			return nil
 		default: //we should probably bail out if we get desyned
 			continue
 		}
