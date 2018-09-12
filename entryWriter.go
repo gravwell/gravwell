@@ -79,6 +79,7 @@ type EntryReaderWriterConfig struct {
 	OutstandingEntryCount int
 	BufferSize            int
 	Timeout               time.Duration
+	TagMan                TagManager
 }
 
 func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
