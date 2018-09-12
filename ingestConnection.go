@@ -103,6 +103,29 @@ func (igst *IngestConnection) GetTag(name string) (entry.EntryTag, bool) {
 	return tg, true
 }
 
+func (igst *IngestConnection) NegotiateTag(name string) (tg entry.EntryTag, err error) {
+	igst.mtx.Lock()
+	defer igst.mtx.Unlock()
+
+	// First make sure this one hasn't already been negotiated
+	tg, ok := igst.tags[name]
+	if ok {
+		return tg, nil
+	}
+
+	if !igst.running {
+		err = ErrNotRunning
+		return
+	}
+
+	// Done! Add it to the tags list and return
+	tg, err = igst.ew.NegotiateTag(name)
+	if err == nil {
+		igst.tags[name] = tg
+	}
+	return
+}
+
 /* Sync causes the entry writer to force an ack from teh server.  This ensures that all
 *  entries that have been written are flushed and fully acked by the server. */
 func (igst *IngestConnection) Sync() error {
@@ -132,7 +155,7 @@ func (igst *IngestConnection) Source() (net.IP, error) {
 	return igst.src, nil
 }
 
-func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]entry.EntryTag, error) {
+func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]entry.EntryTag, uint16, error) {
 	var tagReq TagRequest
 	var tagResp TagResponse
 	var state StateResponse
@@ -140,55 +163,55 @@ func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]
 
 	//recieve the challenge
 	if err := chal.Read(conn); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	//generate response
 	resp, err := GenerateResponse(hash, chal)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	} else if resp == nil {
-		return nil, errors.New("Got a new challenge response")
+		return nil, 0, errors.New("Got a new challenge response")
 	}
 
 	//throw response
 	if err := resp.Write(conn); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	//get state response
 	if err := state.Read(conn); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	if state.ID != STATE_AUTHENTICATED {
-		return nil, errors.New(state.Info)
+		return nil, 0, errors.New(state.Info)
 	}
 
 	//throw list of tags we need
 	tagReq.Tags = tags
 	tagReq.Count = uint32(len(tags))
 	if err = tagReq.Write(conn); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	//Check list
 	if err := tagResp.Read(conn); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	// Make sure the tags were ok
 	if tagResp.Count == 0 {
 		// We passed an invalid tag
-		return nil, errors.New("Failed to negotiate tags.")
+		return nil, 0, errors.New("Failed to negotiate tags.")
 	}
 
 	//Throw "we're hot" message
 	state.ID = STATE_HOT
 	state.Info = ""
 	if err = state.Write(conn); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	//ok, we are good to go
-	return tagResp.Tags, nil
+	return tagResp.Tags, chal.Version, nil
 }
 
 func checkTags(tags []string) error {

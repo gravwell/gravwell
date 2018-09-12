@@ -30,7 +30,8 @@ const (
 	maxAckCommandSize    int = 4 + 8
 	ackEncodeSize        int = 4 + 8 //cmd plus uint64 ID value
 	throttleEncodeSize   int = 4 + 8 //cmd plus uint64 duration value
-	pongEncodeSize       int = 4     //cmd
+	confirmTagSize       int = 4 + 8
+	pongEncodeSize       int = 4 //cmd
 )
 
 var (
@@ -250,6 +251,37 @@ headerLoop:
 			}
 		case NEW_ENTRY_MAGIC:
 			break headerLoop
+		case TAG_MAGIC:
+			// read length of string
+			n, err = io.ReadFull(er.bIO, er.buff[0:4])
+			if err != nil {
+				return err
+			}
+			if n < 4 {
+				return errFailedFullRead
+			}
+			length := binary.LittleEndian.Uint32(er.buff[0:4])
+			name := make([]byte, length)
+			n, err = io.ReadFull(er.bIO, name)
+			if err != nil {
+				return err
+			}
+			if n < int(length) {
+				return errFailedFullRead
+			}
+
+			// Now that we've read, we can either send back a CONFIRM
+			// or an ERROR
+			if er.tagMan == nil {
+				er.ackChan <- ackCommand{cmd: ERROR_TAG_MAGIC, val: uint64(0)}
+			} else {
+				tg, err := er.tagMan.GetAndPopulate(string(name))
+				if err != nil {
+					er.ackChan <- ackCommand{cmd: ERROR_TAG_MAGIC, val: uint64(0)}
+					return err
+				}
+				er.ackChan <- ackCommand{cmd: CONFIRM_TAG_MAGIC, val: uint64(tg)}
+			}
 		default: //we should probably bail out if we get desyned
 			continue
 		}
@@ -411,6 +443,10 @@ func (ac ackCommand) size() int {
 		return ackEncodeSize
 	case PONG_MAGIC:
 		return 4
+	case ERROR_TAG_MAGIC:
+		return 4
+	case CONFIRM_TAG_MAGIC:
+		return 6
 	case THROTTLE_MAGIC:
 		return throttleEncodeSize
 	}
@@ -437,6 +473,15 @@ func (ac ackCommand) encode(b []byte) (n int, flush bool, err error) {
 		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
 		binary.LittleEndian.PutUint64(b[4:], ac.val)
 		n += throttleEncodeSize
+		flush = true
+	case ERROR_TAG_MAGIC:
+		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
+		n += 4
+		flush = true
+	case CONFIRM_TAG_MAGIC:
+		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
+		binary.LittleEndian.PutUint64(b[4:], ac.val)
+		n += confirmTagSize
 		flush = true
 	default:
 		err = errUnknownCommand
@@ -466,6 +511,14 @@ func (ac *ackCommand) decode(rdr *bufio.Reader, blocking bool) (ok bool, err err
 		ac.val = binary.LittleEndian.Uint64(val)
 		ok = true
 	case PONG_MAGIC:
+		ok = true
+	case ERROR_TAG_MAGIC:
+		ok = true
+	case CONFIRM_TAG_MAGIC:
+		if _, err = io.ReadFull(rdr, val); err != nil {
+			return
+		}
+		ac.val = binary.LittleEndian.Uint64(val)
 		ok = true
 	default:
 		err = errUnknownCommand
