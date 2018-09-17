@@ -13,6 +13,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -190,16 +192,20 @@ func (l *Logger) Critical(f string, args ...interface{}) error {
 
 // Fatal writes a log, closes the logger, and issues an os.Exit(-1)
 func (l *Logger) Fatal(f string, args ...interface{}) {
-	l.FatalCode(-1, f, args...)
+	l.fatalCode(3, -1, f, args...)
 }
 
 // FatalCode is identical to a log.Fatal, except it allows for controlling the exit code
 func (l *Logger) FatalCode(code int, f string, args ...interface{}) {
+	l.fatalCode(3, code, f, args...)
+}
+
+func (l *Logger) fatalCode(lvl, code int, f string, args ...interface{}) {
 	var nl string
 	if !strings.HasSuffix(f, "\n") {
 		nl = "\n"
 	}
-	ln := "FATAL " + fmt.Sprintf(f, args...) + nl
+	ln := prefix(lvl) + " FATAL " + fmt.Sprintf(f, args...) + nl
 	l.mtx.Lock()
 	for _, w := range l.wtrs {
 		io.WriteString(w, ln)
@@ -210,14 +216,13 @@ func (l *Logger) FatalCode(code int, f string, args ...interface{}) {
 }
 
 func (l *Logger) output(lvl Level, f string, args ...interface{}) (err error) {
-	ts := time.Now().UTC().Format(time.StampMilli)
 	l.mtx.Lock()
 	if err = l.ready(); err == nil && l.lvl <= lvl && l.lvl != OFF {
 		var nl string
 		if !strings.HasSuffix(f, "\n") {
 			nl = "\n"
 		}
-		ln := ts + " " + lvl.String() + " " + fmt.Sprintf(f, args...) + nl
+		ln := prefix(3) + " " + lvl.String() + " " + fmt.Sprintf(f, args...) + nl
 		for _, w := range l.wtrs {
 			if _, lerr := io.WriteString(w, ln); lerr != nil {
 				err = lerr
@@ -293,4 +298,18 @@ func (dc discardCloser) Write(b []byte) (int, error) {
 
 func (dc discardCloser) Close() error {
 	return nil
+}
+
+//we have a separate func for error so the call depths are always consistent
+// prefix attaches the timestamp and filepath to the log entry
+// the lvl indicates how far up the caller stack we need to go
+func prefix(callDepth int) (s string) {
+	ts := time.Now().UTC().Format(time.RFC3339)
+	//get the file and line that caused the error
+	if _, file, line, ok := runtime.Caller(callDepth); ok {
+		dir, file := filepath.Split(file)
+		file = filepath.Join(filepath.Base(dir), file)
+		s = fmt.Sprintf("%s %s:%d", ts, file, line)
+	}
+	return
 }
