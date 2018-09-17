@@ -10,7 +10,6 @@ package ingest
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"strings"
@@ -20,8 +19,9 @@ import (
 )
 
 var (
-	localSrc    = net.ParseIP("127.0.0.1")
-	ErrEmptyTag = errors.New("Tag name is empty")
+	localSrc        = net.ParseIP("127.0.0.1")
+	ErrEmptyTag     = errors.New("Tag name is empty")
+	ErrForbiddenTag = errors.New("Forbidden character in tag")
 )
 
 type IngestConnection struct {
@@ -208,7 +208,7 @@ func CheckTag(tag string) error {
 		return ErrEmptyTag
 	}
 	if strings.ContainsAny(tag, FORBIDDEN_TAG_SET) {
-		return fmt.Errorf("tag %s contains forbidden characters", tag)
+		return ErrForbiddenTag
 	}
 	return nil
 }

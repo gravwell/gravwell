@@ -79,7 +79,7 @@ type EntryReader struct {
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
 	cfg := EntryReaderWriterConfig{
-		Conn: conn,
+		Conn:                  conn,
 		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
 		BufferSize:            READ_BUFFER_SIZE,
 		Timeout:               defaultReaderTimeout,

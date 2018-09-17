@@ -205,7 +205,7 @@ func newTlsConn(dst string, certs *TLSCerts, verify bool) (net.Conn, net.IP, err
 	}
 	host, _, err := net.SplitHostPort(conn.LocalAddr().String())
 	if err != nil {
-		return nil, src, err
+		return nil, src, ErrFailedParseLocalIP
 	}
 	if src = net.ParseIP(host); src == nil {
 		return nil, src, ErrFailedParseLocalIP

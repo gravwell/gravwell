@@ -44,9 +44,10 @@ const (
 )
 
 var (
-	errInvalidStateResponseLen = errors.New("Invalid state response length")
-	errInvalidTagRequestLen    = errors.New("Invalid tag request length")
-	errInvalidTagResponseLen   = errors.New("Invalid tag response length")
+	ErrInvalidStateResponseLen = errors.New("Invalid state response length")
+	ErrInvalidTagRequestLen    = errors.New("Invalid tag request length")
+	ErrInvalidTagResponseLen   = errors.New("Invalid tag response length")
+	ErrFailedAuthHashGen       = errors.New("Failed to generate authentication hash")
 
 	prng        *rand.Rand
 	prngCounter int
@@ -258,7 +259,7 @@ func (sr *StateResponse) Read(r io.Reader) error {
 		return err
 	}
 	if l > maxStateResponseLen {
-		return errInvalidStateResponseLen
+		return ErrInvalidStateResponseLen
 	}
 	bb := make([]byte, int(l))
 	if _, err := io.ReadFull(r, bb); err != nil {
@@ -277,7 +278,7 @@ func (sr *StateResponse) Write(w io.Writer) error {
 		return err
 	}
 	if int(maxStateResponseLen) < len(bb) {
-		return errInvalidStateResponseLen
+		return ErrInvalidStateResponseLen
 	}
 	l := uint16(len(bb))
 	if err := binary.Write(w, binary.LittleEndian, l); err != nil {
@@ -300,7 +301,7 @@ func (tr *TagRequest) Read(r io.Reader) error {
 		return err
 	}
 	if l > maxTagRequestLen {
-		return errInvalidTagRequestLen
+		return ErrInvalidTagRequestLen
 	}
 	bb := make([]byte, int(l))
 	if _, err := io.ReadFull(r, bb); err != nil {
@@ -319,7 +320,7 @@ func (tr *TagRequest) Write(w io.Writer) error {
 		return err
 	}
 	if uint32(len(bs)) > maxTagRequestLen {
-		return errInvalidTagRequestLen
+		return ErrInvalidTagRequestLen
 	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(bs))); err != nil {
 		return err
@@ -337,7 +338,7 @@ func (tr *TagResponse) Read(r io.Reader) error {
 		return err
 	}
 	if l > maxTagRequestLen {
-		return errInvalidTagResponseLen
+		return ErrInvalidTagResponseLen
 	}
 	bb := make([]byte, int(l))
 	if _, err := io.ReadFull(r, bb); err != nil {
@@ -356,7 +357,7 @@ func (tr *TagResponse) Write(w io.Writer) error {
 		return err
 	}
 	if uint32(len(bs)) > maxTagRequestLen {
-		return errInvalidTagResponseLen
+		return ErrInvalidTagResponseLen
 	}
 	if err := binary.Write(w, binary.LittleEndian, uint32(len(bs))); err != nil {
 		return err

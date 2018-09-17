@@ -66,7 +66,7 @@ type EntryWriter struct {
 
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
 	ewc := EntryReaderWriterConfig{
-		Conn: conn,
+		Conn:                  conn,
 		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
 		BufferSize:            WRITE_BUFFER_SIZE,
 		Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,

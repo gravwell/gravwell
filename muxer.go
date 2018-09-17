@@ -15,7 +15,6 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/gravwell/ingest/entry"
@@ -1025,24 +1024,23 @@ func isFatalConnError(err error) bool {
 	if err == nil {
 		return false
 	}
-	if lerr, ok := err.(net.Error); ok && lerr.Timeout() {
-		return false //timeouts are recoverable
+	switch err {
+	case ErrMalformedDestination:
+		fallthrough
+	case ErrInvalidConnectionType:
+		fallthrough
+	case ErrFailedAuthHashGen:
+		fallthrough
+	case ErrInvalidCerts:
+		fallthrough
+	case ErrForbiddenTag:
+		fallthrough
+	case ErrFailedParseLocalIP:
+		fallthrough
+	case ErrEmptyTag:
+		return true
 	}
-	//look for uknown hosts and connection refused
-	switch t := err.(type) {
-	case *net.OpError:
-		if t.Op == `dial` {
-			return false //dial errors are recoverable
-		} else if t.Op == `read` {
-			return false //read errors are related to connection refusals
-		}
-	case syscall.Errno:
-		if t == syscall.ECONNREFUSED {
-			return false //this is a straight up RST on connection
-		}
-	}
-
-	return true //everything else is fatal
+	return false
 }
 
 func (im *IngestMuxer) getConnection(tgt Target) (ig *IngestConnection, tt tagTrans, err error) {
