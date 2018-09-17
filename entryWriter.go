@@ -34,6 +34,8 @@ const (
 
 	MAX_UNCONFIRMED_COUNT int = 1024 * 4
 
+	MINIMUM_TAG_RENEGOTIATE_VERSION uint16 = 0x2 // minimum server version to renegotiate tags
+
 	maxThrottleDur time.Duration = 5 * time.Second
 )
 
@@ -46,22 +48,26 @@ const (
 	THROTTLE_MAGIC      IngestCommand = 0xBDEACC1E
 	PING_MAGIC          IngestCommand = 0x88770001
 	PONG_MAGIC          IngestCommand = 0x88770008
+	TAG_MAGIC           IngestCommand = 0x18675300
+	CONFIRM_TAG_MAGIC   IngestCommand = 0x18675301
+	ERROR_TAG_MAGIC     IngestCommand = 0x18675302
 )
 
 type IngestCommand uint32
 type entrySendID uint64
 
 type EntryWriter struct {
-	conn       net.Conn
-	bIO        *bufio.Writer
-	bAckReader *bufio.Reader
-	errCount   uint32
-	mtx        *sync.Mutex
-	ecb        entryConfBuffer
-	hot        bool
-	buff       []byte
-	id         entrySendID
-	ackTimeout time.Duration
+	conn          net.Conn
+	bIO           *bufio.Writer
+	bAckReader    *bufio.Reader
+	errCount      uint32
+	mtx           *sync.Mutex
+	ecb           entryConfBuffer
+	hot           bool
+	buff          []byte
+	id            entrySendID
+	ackTimeout    time.Duration
+	serverVersion uint16
 }
 
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
@@ -398,6 +404,65 @@ func (ew *EntryWriter) flush() (err error) {
 	return
 }
 
+func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) {
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+
+	if ew.serverVersion < MINIMUM_TAG_RENEGOTIATE_VERSION {
+		err = fmt.Errorf("Server version %v does not meet minimum version %v", ew.serverVersion, MINIMUM_TAG_RENEGOTIATE_VERSION)
+		return
+	}
+
+	// First attempt to sync
+	err = ew.forceAckNoLock()
+	if err != nil {
+		return
+	}
+
+	// Send tag magic
+	//send the buffer and force it out
+	if err = ew.writeAll(TAG_MAGIC.Buff()); err != nil {
+		return
+	}
+
+	// Send length of string + string
+	b := make([]byte, 4+len(name))
+	binary.LittleEndian.PutUint32(b, uint32(len(name)))
+	copy(b[4:], name)
+	if err = ew.writeAll(b); err != nil {
+		return
+	}
+
+	if err = ew.flush(); err != nil {
+		return
+	}
+
+	// Read back an ackCommand
+	var ac ackCommand
+	var ok bool
+	if err = ew.conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		return
+	}
+	if ok, err = ac.decode(ew.bAckReader, true); err != nil {
+		return
+	}
+	if !ok {
+		err = errors.New("couldn't figure out ackCommand")
+		return
+	}
+
+	switch ac.cmd {
+	case CONFIRM_TAG_MAGIC:
+		tg = entry.EntryTag(ac.val)
+	case ERROR_TAG_MAGIC:
+		err = errors.New("Failed to negotiate tag")
+	default:
+		err = fmt.Errorf("Unexpected response to tag negotiation request: %#v", ac)
+	}
+
+	return
+}
+
 // Ack will block waiting for at least one ack to free up a slot for sending
 func (ew *EntryWriter) Ack() error {
 	ew.mtx.Lock()
@@ -549,6 +614,12 @@ func (ic IngestCommand) String() string {
 		return `PING`
 	case PONG_MAGIC:
 		return `PONG`
+	case TAG_MAGIC:
+		return `TAG`
+	case ERROR_TAG_MAGIC:
+		return `TAG_ERROR`
+	case CONFIRM_TAG_MAGIC:
+		return `TAG_CONFIRM`
 		//case _MAGIC: return ``
 	}
 	return `UNKNOWN`

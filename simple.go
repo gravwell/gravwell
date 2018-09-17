@@ -278,7 +278,7 @@ func newPipeConn(dst string) (net.Conn, net.IP, error) {
 }
 
 func negotiateEntryWriter(conn net.Conn, auth AuthHash, tags []string) (*EntryWriter, map[string]entry.EntryTag, error) {
-	tagIDs, err := authenticate(conn, auth, tags)
+	tagIDs, serverVersion, err := authenticate(conn, auth, tags)
 	if err != nil {
 		conn.Close()
 		return nil, nil, err
@@ -288,6 +288,7 @@ func negotiateEntryWriter(conn net.Conn, auth AuthHash, tags []string) (*EntryWr
 	if err != nil {
 		return nil, nil, err
 	}
+	ew.serverVersion = serverVersion
 	return ew, tagIDs, nil
 }
 

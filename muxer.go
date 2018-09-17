@@ -70,6 +70,7 @@ type IngestMuxer struct {
 	mtx             *sync.RWMutex
 	sig             *sync.Cond
 	igst            []*IngestConnection
+	tagTranslators  []*tagTrans
 	dests           []Target
 	errDest         []TargetError
 	tags            []string
@@ -262,6 +263,7 @@ func (im *IngestMuxer) Start() error {
 
 	//fire up the ingest routines
 	im.igst = make([]*IngestConnection, len(im.dests))
+	im.tagTranslators = make([]*tagTrans, len(im.dests))
 	im.wg.Add(len(im.dests))
 	im.connDead = int32(len(im.dests))
 	for i := 0; i < len(im.dests); i++ {
@@ -384,6 +386,48 @@ func (im *IngestMuxer) Close() error {
 	//everyone is dead, clean up
 	close(im.upChan)
 	return nil
+}
+
+func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) {
+	im.mtx.Lock()
+	defer im.mtx.Unlock()
+
+	if err = CheckTag(name); err != nil {
+		return
+	}
+
+	if tag, ok := im.tagMap[name]; ok {
+		// tag already exists, just return it
+		tg = entry.EntryTag(tag)
+		return
+	}
+
+	// update the tag list and map
+	im.tags = append(im.tags, name)
+	for i, v := range im.tags {
+		im.tagMap[v] = i
+	}
+	tg = entry.EntryTag(im.tagMap[name])
+
+	for k, v := range im.igst {
+		if v != nil {
+			remoteTag, err := v.NegotiateTag(name)
+			if err != nil {
+				// something went wrong, kill it and let it re-initialize
+				v.Close()
+				continue
+			}
+			if im.tagTranslators[k] != nil {
+				err = im.tagTranslators[k].RegisterTag(tg, remoteTag)
+				if err != nil {
+					v.Close()
+				}
+			} else {
+				v.Close()
+			}
+		}
+	}
+	return
 }
 
 func (im *IngestMuxer) Sync(to time.Duration) error {
@@ -735,7 +779,7 @@ func (im *IngestMuxer) connFailed(dst string, err error) {
 
 type connSet struct {
 	ig  *IngestConnection
-	tt  tagTrans
+	tt  *tagTrans
 	dst string
 	src net.IP
 }
@@ -893,6 +937,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 		return
 	}
 	im.igst[igIdx] = igst
+	im.tagTranslators[igIdx] = &tt
 	im.goHot()
 
 	connErrNotif := make(chan bool, 1)
@@ -906,7 +951,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 		dst: dst.Address,
 		src: src,
 		ig:  igst,
-		tt:  tt,
+		tt:  &tt,
 	}
 
 	//loop, trying to grab entries, or dying
@@ -928,10 +973,11 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			}
 			im.goDead() //let the world know of our failures
 			im.igst[igIdx] = nil
+			im.tagTranslators[igIdx] = nil
 
 			//pull any entrys out of the ingest connection and put them into the emergency queue
 			ents := igst.outstandingEntries()
-			im.recycleEntries(nil, ents, tt)
+			im.recycleEntries(nil, ents, &tt)
 
 			//attempt to get the connection rolling again
 			igst, tt, err = im.getConnection(dst)
@@ -956,12 +1002,13 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			}
 
 			im.igst[igIdx] = igst
+			im.tagTranslators[igIdx] = &tt
 			im.goHot()
 			ncc <- connSet{
 				dst: dst.Address,
 				src: src,
 				ig:  igst,
-				tt:  tt,
+				tt:  &tt,
 			}
 		}
 	}
@@ -969,7 +1016,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 
 //we don't want to fully block here, so we attempt to push back on the channel
 //and listen for a die signal
-func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt tagTrans) {
+func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt *tagTrans) {
 	//reset the tags to the globally translatable set
 	//this operation is expensive
 	if len(ents) > 0 {
@@ -1195,7 +1242,7 @@ func (eq *emergencyQueue) pop() (e *entry.Entry, ents []*entry.Entry, ok bool) {
 	return
 }
 
-func (eq *emergencyQueue) clear(igst *IngestConnection, tt tagTrans) (ok bool) {
+func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) {
 	//iterate on the emergency queue attempting to write elements to the remote side
 	for {
 		e, blk, populated := eq.pop()
@@ -1259,6 +1306,15 @@ func (tt tagTrans) Translate(t entry.EntryTag) entry.EntryTag {
 		return tt[0]
 	}
 	return tt[t]
+}
+
+func (tt *tagTrans) RegisterTag(local entry.EntryTag, remote entry.EntryTag) error {
+	if int(local) != len(*tt) {
+		// this means the local tag numbers got out of sync and something is bad
+		return errors.New("Cannot register tag, local tag out of sync with tag translator")
+	}
+	*tt = append(*tt, remote)
+	return nil
 }
 
 // Reverse translates a remote tag back to a local tag
