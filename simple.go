@@ -27,7 +27,7 @@ const (
 	DEFAULT_TLS_PORT   int           = 4024
 	DEFAULT_CLEAR_PORT int           = 4023
 	DEFAULT_PIPE_PATH  string        = "/opt/gravwell/comms/pipe"
-	FORBIDDEN_TAG_SET  string        = "!@#$%^&*()-_=+<>,.:;\"'{[}]|\\"
+	FORBIDDEN_TAG_SET  string        = "!@#$%^&*()=+<>,.:;\"'{[}]|\\"
 )
 
 var (

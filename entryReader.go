@@ -80,7 +80,7 @@ type EntryReader struct {
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
 	cfg := EntryReaderWriterConfig{
-		Conn:                  conn,
+		Conn: conn,
 		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
 		BufferSize:            READ_BUFFER_SIZE,
 		Timeout:               defaultReaderTimeout,
@@ -282,7 +282,7 @@ headerLoop:
 					er.ackChan <- ackCommand{cmd: CONFIRM_TAG_MAGIC, val: uint64(tg)}
 				}
 			}
-			return nil
+			continue
 		default: //we should probably bail out if we get desyned
 			continue
 		}
