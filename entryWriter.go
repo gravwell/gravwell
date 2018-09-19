@@ -368,39 +368,15 @@ func (ew *EntryWriter) writeAll(b []byte) error {
 //flush attempts to push our buffer to the wire with a timeout
 //if the timeout expires we attempt to service acks and go back to attempting to flush
 func (ew *EntryWriter) flush() (err error) {
-	for {
-		//set the write timeout
-		if err = ew.conn.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
-			return
-		}
-
-		//issue the flush with timeout
-		if err = ew.bIO.Flush(); err == nil {
-			break //successful flush
-		}
-		//if the timeout fired service acks and retry
-		if !isTimeout(err) {
-			ew.conn.SetWriteDeadline(time.Time{})
-			return
-		}
-		//timed out, try to read some acks
-		if err = ew.readAcks(true); err != nil {
-			return
-		}
-		if ew.ecb.Full() {
-			//something isn't right, force a sync and flush it
-			if err = ew.writeAll(FORCE_ACK_MAGIC.Buff()); err != nil {
-				return
-			}
-			if err = ew.bIO.Flush(); err != nil {
-				return
-			}
-			if err = ew.readAcks(true); err != nil {
-				return
-			}
-		}
+	//set the write timeout
+	if err = ew.conn.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+		return
 	}
-	err = ew.conn.SetWriteDeadline(time.Time{})
+
+	//issue the flush with timeout
+	if err = ew.bIO.Flush(); err == nil {
+		err = ew.conn.SetWriteDeadline(time.Time{})
+	}
 	return
 }
 
@@ -581,9 +557,7 @@ func (ew *EntryWriter) throttle(dur time.Duration) (err error) {
 			return
 		}
 		if _, err = ew.bAckReader.ReadByte(); err != nil {
-			if !isTimeout(err) {
-				return
-			}
+			return
 		} else if err = ew.bAckReader.UnreadByte(); err != nil {
 			return
 		}

@@ -80,7 +80,7 @@ type EntryReader struct {
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
 	cfg := EntryReaderWriterConfig{
-		Conn: conn,
+		Conn:                  conn,
 		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
 		BufferSize:            READ_BUFFER_SIZE,
 		Timeout:               defaultReaderTimeout,
@@ -160,26 +160,7 @@ func (er *EntryReader) Read() (e *entry.Entry, err error) {
 	if e, err = er.read(); err == nil {
 		er.opCount++
 	} else if isTimeout(err) {
-		//if its a timeout and nothing new came in, bail
-		if er.opCount == er.lastCount {
-			err = io.EOF
-		} else {
-			//we have had new data/requests, reset the deadline
-			if err = er.resetTimeout(); err != nil {
-				er.mtx.Unlock()
-				return
-			}
-			//re-attempt the read
-			if e, err = er.read(); err != nil {
-				if isTimeout(err) {
-					err = io.EOF
-				}
-			} else {
-				//good read, up the op count and reset the lastCount
-				er.opCount++
-				er.lastCount = er.opCount
-			}
-		}
+		err = io.EOF
 	}
 	er.mtx.Unlock()
 	return e, err
