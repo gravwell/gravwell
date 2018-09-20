@@ -80,7 +80,7 @@ type EntryReader struct {
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
 	cfg := EntryReaderWriterConfig{
-		Conn:                  conn,
+		Conn: conn,
 		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
 		BufferSize:            READ_BUFFER_SIZE,
 		Timeout:               defaultReaderTimeout,
@@ -225,6 +225,12 @@ headerLoop:
 		if n < 4 {
 			return errFailedFullRead
 		}
+
+		// Every time we read something, reset the timeout
+		if err := er.resetTimeout(); err != nil {
+			return err
+		}
+
 		switch IngestCommand(binary.LittleEndian.Uint32(er.buff[0:])) {
 		case FORCE_ACK_MAGIC:
 			if err := er.forceAck(); err != nil {
