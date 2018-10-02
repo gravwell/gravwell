@@ -245,8 +245,8 @@ type unixNanoProcessor struct {
 // We assume you're not ingesting data from 1970, so we look for at least 13 digits of nanoseconds
 func NewUnixNanoTimeProcessor() *unixNanoProcessor {
 	return &unixNanoProcessor{
-		re:     regexp.MustCompile(`(\A\d{13,})\s`),
-		format: `(\A\d{13,})\s`,
+		re:     regexp.MustCompile(`(\A\d{10,})[\s,;]`),
+		format: `(\A\d{10,})[\s,;]`,
 	}
 }
 
