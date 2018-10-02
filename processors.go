@@ -41,6 +41,7 @@ const (
 	ZonelessRFC3339  int = iota
 	SyslogVariant    int = iota
 	UnpaddedDateTime int = iota
+	UnixNano         int = iota
 )
 
 var (
@@ -236,6 +237,37 @@ func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 	return
 }
 
+type unixNanoProcessor struct {
+	re     *regexp.Regexp
+	format string
+}
+
+// We assume you're not ingesting data from 1970, so we look for at least 13 digits of nanoseconds
+func NewUnixNanoTimeProcessor() *unixNanoProcessor {
+	return &unixNanoProcessor{
+		re:     regexp.MustCompile(`(\A\d{13,})\s`),
+		format: `(\A\d{13,})\s`,
+	}
+}
+
+func (unp unixNanoProcessor) Format() string {
+	return unp.format
+}
+
+func (unp unixNanoProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	idx := unp.re.FindSubmatchIndex(d)
+	if len(idx) != 4 {
+		return
+	}
+	nsec, err := strconv.ParseInt(string(d[idx[2]:idx[3]]), 10, 64)
+	if err != nil {
+		return
+	}
+	t = time.Unix(0, nsec).In(loc)
+	ok = true
+	return
+}
+
 // FormatDirective tkes a string and attempts to match it against a case insensitive format directive
 // This function is useful in taking string designations for time formats, checking if they are valid
 // and converting them to an iota int for overriding the timegrinder
@@ -286,6 +318,8 @@ func FormatDirective(s string) (v int, err error) {
 		v = SyslogVariant
 	case `unpaddeddatetime`:
 		v = UnpaddedDateTime
+	case `unixnano`:
+		v = UnixNano
 	default:
 		v = -1
 		err = errUnknownFormatName

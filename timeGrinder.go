@@ -147,6 +147,9 @@ func New(c Config) (*TimeGrinder, error) {
 	// Unpadded
 	procs = append(procs, NewUnpaddedDateTime())
 
+	// Unix nanoseconds
+	procs = append(procs, NewUnixNanoTimeProcessor())
+
 	var proc Processor
 	if c.FormatOverride > len(procs) {
 		return nil, errors.New("invalid override")
