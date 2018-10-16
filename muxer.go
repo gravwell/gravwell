@@ -854,7 +854,7 @@ inputLoop:
 				e.SRC = nc.src
 			}
 			//handle the entry
-			if nc.ig.WriteEntry(e) != nil {
+			if err = nc.ig.WriteEntry(e); err != nil {
 				im.recycleEntries(e, nil, nc.tt)
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
