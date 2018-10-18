@@ -180,8 +180,8 @@ type unixProcessor struct {
 
 func NewUnixMilliTimeProcessor() *unixProcessor {
 	return &unixProcessor{
-		re:     regexp.MustCompile(`(\A\d+\.\d+)\s`),
-		format: `(\A\d+\.\d+)\s`,
+		re:     regexp.MustCompile(`\A\s*(\d+\.\d+)\s`),
+		format: `\A\s*(\d+\.\d+)\s`,
 	}
 }
 
