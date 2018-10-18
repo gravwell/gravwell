@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -116,6 +117,40 @@ func (ic *IngestConfig) Verify() error {
 	//normalize the log level and check it
 	if err := ic.checkLogLevel(); err != nil {
 		return err
+	}
+
+	// Make sure the log directory exists.
+	logdir := filepath.Dir(ic.Log_File)
+	fi, err := os.Stat(logdir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			//try to make the directory
+			err = os.MkdirAll(logdir, 0700)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	} else if !fi.IsDir() {
+		return errors.New("Log Location is not a directory")
+	}
+
+	// Make sure the cache directory exists.
+	cachedir := filepath.Dir(ic.Ingest_Cache_Path)
+	fi, err = os.Stat(cachedir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			//try to make the directory
+			err = os.MkdirAll(cachedir, 0700)
+			if err != nil {
+				return err
+			}
+		} else {
+			return err
+		}
+	} else if !fi.IsDir() {
+		return errors.New("Cache Location is not a directory")
 	}
 
 	//check the max cache
