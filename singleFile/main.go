@@ -12,6 +12,7 @@ import (
 	"bufio"
 	"bytes"
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"time"
@@ -24,10 +25,11 @@ import (
 )
 
 var (
-	tso    = flag.String("timestamp-override", "", "Timestamp override")
-	inFile = flag.String("i", "", "Input file to process")
-	ver    = flag.Bool("v", false, "Print version and exit")
-	utc    = flag.Bool("utc", false, "Assume UTC time")
+	tso     = flag.String("timestamp-override", "", "Timestamp override")
+	inFile  = flag.String("i", "", "Input file to process")
+	ver     = flag.Bool("v", false, "Print version and exit")
+	utc     = flag.Bool("utc", false, "Assume UTC time")
+	verbose = flag.Bool("verbose", false, "Print every step")
 
 	nlBytes = []byte("\n")
 )
@@ -141,6 +143,9 @@ func ingestFile(fin *os.File, igst *ingest.IngestMuxer, tag entry.EntryTag, tso 
 		ent.Data = append(ent.Data, bts...) //force reallocation due to the scanner
 		if err = igst.WriteEntry(ent); err != nil {
 			return err
+		}
+		if *verbose {
+			fmt.Println(ent.TS, ent.Tag, ent.SRC, string(ent.Data))
 		}
 	}
 
