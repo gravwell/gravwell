@@ -41,6 +41,7 @@ const (
 	ZonelessRFC3339  int = iota
 	SyslogVariant    int = iota
 	UnpaddedDateTime int = iota
+	UnixMs           int = iota
 	UnixNano         int = iota
 )
 
@@ -237,16 +238,47 @@ func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 	return
 }
 
-type unixNanoProcessor struct {
+type unixMsProcessor struct {
 	re     *regexp.Regexp
 	format string
 }
 
 // We assume you're not ingesting data from 1970, so we look for at least 13 digits of nanoseconds
+func NewUnixMsTimeProcessor() *unixMsProcessor {
+	return &unixMsProcessor{
+		re:     regexp.MustCompile(`(\A\d{13,18})[\s,;]`),
+		format: `(\A\d{13,})[\s,;]`,
+	}
+}
+
+func (unp unixMsProcessor) Format() string {
+	return unp.format
+}
+
+func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	idx := unp.re.FindSubmatchIndex(d)
+	if len(idx) != 4 {
+		return
+	}
+	ms, err := strconv.ParseInt(string(d[idx[2]:idx[3]]), 10, 64)
+	if err != nil {
+		return
+	}
+	t = time.Unix(0, ms*1000000).In(loc)
+	ok = true
+	return
+}
+
+type unixNanoProcessor struct {
+	re     *regexp.Regexp
+	format string
+}
+
+// We assume you're not ingesting data from 1970, so we look for at least 16 digits of nanoseconds
 func NewUnixNanoTimeProcessor() *unixNanoProcessor {
 	return &unixNanoProcessor{
-		re:     regexp.MustCompile(`(\A\d{10,})[\s,;]`),
-		format: `(\A\d{10,})[\s,;]`,
+		re:     regexp.MustCompile(`(\A\d{16,})[\s,;]`),
+		format: `(\A\d{16,})[\s,;]`,
 	}
 }
 
@@ -320,6 +352,8 @@ func FormatDirective(s string) (v int, err error) {
 		v = UnpaddedDateTime
 	case `unixnano`:
 		v = UnixNano
+	case `unixms`:
+		v = UnixMs
 	default:
 		v = -1
 		err = errUnknownFormatName

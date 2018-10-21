@@ -147,6 +147,9 @@ func New(c Config) (*TimeGrinder, error) {
 	// Unpadded
 	procs = append(procs, NewUnpaddedDateTime())
 
+	// Unix milliseconds
+	procs = append(procs, NewUnixMsTimeProcessor())
+
 	// Unix nanoseconds
 	procs = append(procs, NewUnixNanoTimeProcessor())
 
