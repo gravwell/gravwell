@@ -12,9 +12,12 @@ import (
 	"bufio"
 	"bytes"
 	"flag"
+	"fmt"
+	"io"
 	"log"
 	"os"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
@@ -24,10 +27,12 @@ import (
 )
 
 var (
-	tso    = flag.String("timestamp-override", "", "Timestamp override")
-	inFile = flag.String("i", "", "Input file to process")
-	ver    = flag.Bool("v", false, "Print version and exit")
-	utc    = flag.Bool("utc", false, "Assume UTC time")
+	tso      = flag.String("timestamp-override", "", "Timestamp override")
+	inFile   = flag.String("i", "", "Input file to process")
+	ver      = flag.Bool("v", false, "Print version and exit")
+	utc      = flag.Bool("utc", false, "Assume UTC time")
+	verbose  = flag.Bool("verbose", false, "Print every step")
+	quotable = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
 
 	nlBytes = []byte("\n")
 )
@@ -61,8 +66,8 @@ func main() {
 		}
 	}
 
-	//get a handle on the input file
-	fin, err := os.Open(*inFile)
+	//get a handle on the input file with a wrapped decompressor if needed
+	fin, err := OpenFileReader(*inFile)
 	if err != nil {
 		log.Fatalf("Failed to open %s: %v\n", *inFile, err)
 	}
@@ -82,6 +87,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to resolve tag %s: %v\n", a.Tags[0], err)
 	}
+	fmt.Println(a.Tags[0], tag)
 
 	//go ingest the file
 	if err := ingestFile(fin, igst, tag, timestampOverride); err != nil {
@@ -99,7 +105,7 @@ func main() {
 	}
 }
 
-func ingestFile(fin *os.File, igst *ingest.IngestMuxer, tag entry.EntryTag, tso int) error {
+func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso int) error {
 	var bts []byte
 	var ts time.Time
 	var ok bool
@@ -124,6 +130,9 @@ func ingestFile(fin *os.File, igst *ingest.IngestMuxer, tag entry.EntryTag, tso 
 	}
 
 	scn := bufio.NewScanner(fin)
+	if *quotable {
+		scn.Split(quotableSplitter)
+	}
 	for scn.Scan() {
 		if bts = bytes.TrimSuffix(scn.Bytes(), nlBytes); len(bts) == 0 {
 			continue
@@ -142,7 +151,48 @@ func ingestFile(fin *os.File, igst *ingest.IngestMuxer, tag entry.EntryTag, tso 
 		if err = igst.WriteEntry(ent); err != nil {
 			return err
 		}
+		if *verbose {
+			fmt.Println(ent.TS, ent.Tag, ent.SRC, string(ent.Data))
+		}
 	}
 
 	return nil
+}
+
+func quotableSplitter(data []byte, atEOF bool) (int, []byte, error) {
+	var openQuote bool
+	var escaped bool
+	var r rune
+	var width int
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	for i := 0; i < len(data); i += width {
+		r, width = utf8.DecodeRune(data[i:])
+		if escaped {
+			//don't care what the character is, we are skipping it
+			escaped = false
+			continue
+		}
+		if r == '\\' {
+			escaped = true
+		} else if r == '"' {
+			openQuote = !openQuote
+		} else if r == '\n' && !openQuote {
+			// we have our full newline
+			return i + 1, dropCR(data[:i]), nil
+		}
+	}
+	if atEOF {
+		return len(data), dropCR(data), nil
+	}
+	//request more data
+	return 0, nil, nil
+}
+
+func dropCR(data []byte) []byte {
+	if len(data) > 0 && data[len(data)-1] == '\r' {
+		return data[0 : len(data)-1]
+	}
+	return data
 }
