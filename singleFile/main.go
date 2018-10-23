@@ -87,7 +87,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to resolve tag %s: %v\n", a.Tags[0], err)
 	}
-	fmt.Println(a.Tags[0], tag)
 
 	//go ingest the file
 	if err := ingestFile(fin, igst, tag, timestampOverride); err != nil {
