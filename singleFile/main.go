@@ -26,6 +26,11 @@ import (
 	"github.com/gravwell/timegrinder"
 )
 
+const (
+	initBuffSize = 4 * 1024 * 1024
+	maxBuffSize  = 128 * 1024 * 1024
+)
+
 var (
 	tso      = flag.String("timestamp-override", "", "Timestamp override")
 	inFile   = flag.String("i", "", "Input file to process")
@@ -34,7 +39,9 @@ var (
 	verbose  = flag.Bool("verbose", false, "Print every step")
 	quotable = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
 
-	nlBytes = []byte("\n")
+	nlBytes    = []byte("\n")
+	count      uint64
+	totalBytes uint64
 )
 
 func init() {
@@ -132,6 +139,9 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 	if *quotable {
 		scn.Split(quotableSplitter)
 	}
+	scn.Buffer(make([]byte, initBuffSize), maxBuffSize)
+
+	start := time.Now()
 	for scn.Scan() {
 		if bts = bytes.TrimSuffix(scn.Bytes(), nlBytes); len(bts) == 0 {
 			continue
@@ -153,6 +163,15 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 		if *verbose {
 			fmt.Println(ent.TS, ent.Tag, ent.SRC, string(ent.Data))
 		}
+		count++
+		totalBytes += uint64(len(ent.Data))
+	}
+	dur := time.Since(start)
+	if err == nil {
+		fmt.Printf("Completed in %v (%s)\n", dur, ingest.HumanSize(totalBytes))
+		fmt.Printf("Total Count: %s\n", ingest.HumanCount(count))
+		fmt.Printf("Entry Rate: %s\n", ingest.HumanEntryRate(count, dur))
+		fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(totalBytes, dur))
 	}
 
 	return nil
