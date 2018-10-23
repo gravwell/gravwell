@@ -74,7 +74,7 @@ func Parse() (a Args, err error) {
 			conn = strings.TrimSpace(conn)
 			if len(conn) > 0 {
 				conn = fmt.Sprintf("tls://%s", config.AppendDefaultPort(conn, config.DefaultTLSPort))
-				a.Conns = append(a.Conns, fmt.Sprintf("tls://%s", conn))
+				a.Conns = append(a.Conns, conn)
 			}
 		}
 	}
