@@ -42,6 +42,7 @@ var (
 	nlBytes    = []byte("\n")
 	count      uint64
 	totalBytes uint64
+	dur        time.Duration
 )
 
 func init() {
@@ -109,6 +110,10 @@ func main() {
 	if err := fin.Close(); err != nil {
 		log.Fatalf("Failed to close the input file: %v\n", err)
 	}
+	fmt.Printf("Completed in %v (%s)\n", dur, ingest.HumanSize(totalBytes))
+	fmt.Printf("Total Count: %s\n", ingest.HumanCount(count))
+	fmt.Printf("Entry Rate: %s\n", ingest.HumanEntryRate(count, dur))
+	fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(totalBytes, dur))
 }
 
 func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso int) error {
@@ -166,15 +171,8 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 		count++
 		totalBytes += uint64(len(ent.Data))
 	}
-	dur := time.Since(start)
-	if err == nil {
-		fmt.Printf("Completed in %v (%s)\n", dur, ingest.HumanSize(totalBytes))
-		fmt.Printf("Total Count: %s\n", ingest.HumanCount(count))
-		fmt.Printf("Entry Rate: %s\n", ingest.HumanEntryRate(count, dur))
-		fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(totalBytes, dur))
-	}
-
-	return nil
+	dur = time.Since(start)
+	return scn.Err()
 }
 
 func quotableSplitter(data []byte, atEOF bool) (int, []byte, error) {
