@@ -36,7 +36,7 @@ type WatchManager struct {
 	mtx        *sync.Mutex
 	fman       *FilterManager
 	watcher    *fsnotify.Watcher
-	watched    map[string]WatchConfig
+	watched    map[string][]WatchConfig
 	routineRet chan error
 	logger     ingest.IngestLogger
 }
@@ -63,7 +63,7 @@ func NewWatcher(stateFilePath string) (*WatchManager, error) {
 		mtx:     &sync.Mutex{},
 		fman:    fman,
 		watcher: w,
-		watched: map[string]WatchConfig{},
+		watched: map[string][]WatchConfig{},
 		logger:  ingest.NoLogger(),
 	}, nil
 }
@@ -157,33 +157,46 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 
 	//check if we need to watch the directory
 	//we do not add again if it's already in the list
-	if _, ok := wm.watched[c.BaseDir]; !ok {
-		if err := wm.watcher.Add(c.BaseDir); err != nil {
-			return err
-		}
-		wm.watched[c.BaseDir] = c
-
-		// Now add the subdirectories
-		if c.Recursive {
-			f, err := os.Open(c.BaseDir)
-			if err != nil {
-				return err
-			}
-			files, err := f.Readdir(0)
-			if err != nil {
-				return err
-			}
-			for _, file := range files {
-				if file.IsDir() {
-					newConfig := c
-					newConfig.BaseDir = filepath.Join(c.BaseDir, file.Name())
-					wm.addNoLock(newConfig)
-				}
+	var doAdd bool
+	if existing, ok := wm.watched[c.BaseDir]; !ok {
+		doAdd = true
+	} else {
+		doAdd = true
+		for _, e := range existing {
+			if e == c {
+				doAdd = false
+				break
 			}
 		}
 	}
+
+	if doAdd {
+		if err := wm.watcher.Add(c.BaseDir); err != nil {
+			return err
+		}
+		wm.watched[c.BaseDir] = append(wm.watched[c.BaseDir], c)
+	}
+
 	if err := wm.fman.AddFilter(c.ConfigName, c.BaseDir, fltrs, c.Hnd); err != nil {
 		return err
+	}
+	// Now add the subdirectories
+	if c.Recursive {
+		f, err := os.Open(c.BaseDir)
+		if err != nil {
+			return err
+		}
+		files, err := f.Readdir(0)
+		if err != nil {
+			return err
+		}
+		for _, file := range files {
+			if file.IsDir() {
+				newConfig := c
+				newConfig.BaseDir = filepath.Join(c.BaseDir, file.Name())
+				wm.addNoLock(newConfig)
+			}
+		}
 	}
 	return nil
 }
@@ -294,19 +307,22 @@ watchRoutine:
 					continue
 				}
 				if fi.IsDir() {
-					parent, ok := wm.watched[filepath.Dir(evt.Name)]
+					parents, ok := wm.watched[filepath.Dir(evt.Name)]
 					if !ok {
 						wm.logger.Error("file_follower failed to find parent directory for %s", evt.Name)
 						continue
 					}
-					if !parent.Recursive {
-						wm.logger.Info("file_follower not adding watcher for subdirectory %v: parent not recusive", evt.Name)
-						continue
-					}
-					parent.BaseDir = evt.Name
-					if err := wm.Add(parent); err != nil {
-						wm.logger.Error("file_follower failed to add watcher for new directory %v: %v", evt.Name, err)
-						continue
+					for _, parent := range parents {
+						if !parent.Recursive {
+							wm.logger.Info("file_follower not adding watcher for subdirectory %v: parent not recusive", evt.Name)
+							continue
+						}
+						parent.BaseDir = evt.Name
+						wm.logger.Info("file_follower adding watcher for subdirectory %v, patterns = %v", evt.Name, parent.FileFilter)
+						if err := wm.Add(parent); err != nil {
+							wm.logger.Error("file_follower failed to add watcher for new directory %v: %v", evt.Name, err)
+							continue
+						}
 					}
 				} else {
 					if ok, err := wm.watchNewFile(evt.Name); err != nil {

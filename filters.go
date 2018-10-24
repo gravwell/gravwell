@@ -181,6 +181,10 @@ func (f *FilterManager) findFileId(base string, mtchs []string, id FileId) (p st
 			return
 		}
 
+		if filepath.Dir(fpath) != base {
+			return
+		}
+
 		//check if the file matches any filters
 		if f.matchFile(mtchs, filepath.Base(fpath)) {
 			//matches the filter, see if it matches the ID
@@ -279,7 +283,6 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 				f.followers[stid] = flw
 				//return nil
 			}
-
 		}
 	}
 	//filename was never found, remove it
