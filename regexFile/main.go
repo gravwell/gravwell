@@ -16,8 +16,8 @@ import (
 	"io"
 	"log"
 	"os"
+	"regexp"
 	"time"
-	"unicode/utf8"
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
@@ -32,17 +32,18 @@ const (
 )
 
 var (
-	tso      = flag.String("timestamp-override", "", "Timestamp override")
-	inFile   = flag.String("i", "", "Input file to process")
-	ver      = flag.Bool("v", false, "Print version and exit")
-	utc      = flag.Bool("utc", false, "Assume UTC time")
-	verbose  = flag.Bool("verbose", false, "Print every step")
-	quotable = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
+	tso     = flag.String("timestamp-override", "", "Timestamp override")
+	inFile  = flag.String("i", "", "Input file to process")
+	ver     = flag.Bool("v", false, "Print version and exit")
+	utc     = flag.Bool("utc", false, "Assume UTC time")
+	verbose = flag.Bool("verbose", false, "Print every step")
+	rexStr  = flag.String("rexp", "", "Regular expression string to perform entry breaks on")
 
-	nlBytes    = []byte("\n")
 	count      uint64
 	totalBytes uint64
 	dur        time.Duration
+	re         *regexp.Regexp
+	nlBytes    = "\n"
 )
 
 func init() {
@@ -51,6 +52,13 @@ func init() {
 		version.PrintVersion(os.Stdout)
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
+	}
+	if *rexStr == `` {
+		log.Fatal("Regular expression string required")
+	}
+	var err error
+	if re, err = regexp.Compile(*rexStr); err != nil {
+		log.Fatal("Bad regular expression", err)
 	}
 }
 
@@ -141,14 +149,12 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 	}
 
 	scn := bufio.NewScanner(fin)
-	if *quotable {
-		scn.Split(quotableSplitter)
-	}
+	scn.Split(regexSplitter)
 	scn.Buffer(make([]byte, initBuffSize), maxBuffSize)
 
 	start := time.Now()
 	for scn.Scan() {
-		if bts = bytes.TrimSuffix(scn.Bytes(), nlBytes); len(bts) == 0 {
+		if bts = bytes.Trim(scn.Bytes(), nlBytes); len(bts) == 0 {
 			continue
 		}
 		if ts, ok, err = tg.Extract(bts); err != nil {
@@ -175,40 +181,36 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 	return scn.Err()
 }
 
-func quotableSplitter(data []byte, atEOF bool) (int, []byte, error) {
-	var openQuote bool
-	var escaped bool
-	var r rune
-	var width int
+func regexSplitter(data []byte, atEOF bool) (int, []byte, error) {
 	if atEOF && len(data) == 0 {
 		return 0, nil, nil
 	}
-	for i := 0; i < len(data); i += width {
-		r, width = utf8.DecodeRune(data[i:])
-		if escaped {
-			//don't care what the character is, we are skipping it
-			escaped = false
-			continue
-		}
-		if r == '\\' {
-			escaped = true
-		} else if r == '"' {
-			openQuote = !openQuote
-		} else if r == '\n' && !openQuote {
-			// we have our full newline
-			return i + 1, dropCR(data[:i]), nil
-		}
+	if idx := getREIdx(data); idx > 0 {
+		return idx, data[0:idx], nil
 	}
 	if atEOF {
-		return len(data), dropCR(data), nil
+		return len(data), data, nil
 	}
 	//request more data
 	return 0, nil, nil
 }
 
-func dropCR(data []byte) []byte {
-	if len(data) > 0 && data[len(data)-1] == '\r' {
-		return data[0 : len(data)-1]
+func getREIdx(data []byte) (r int) {
+	r = -1
+	//attempt to get the index of our regexp
+	idxs := re.FindIndex(data)
+	if idxs == nil || len(idxs) != 2 {
+		return
 	}
-	return data
+	if idxs[0] > 0 {
+		r = idxs[0]
+	} else {
+		if idxs2 := re.FindIndex(data[idxs[1]:]); len(idxs2) != 2 {
+			return
+		} else {
+			r = idxs[1] + idxs2[0]
+		}
+	}
+
+	return
 }

@@ -112,6 +112,7 @@ func (jl jsonListener) Tags() (tags []string, err error) {
 func extractElementTag(v string) (match, tag string, err error) {
 	var flds []string
 	s := bufio.NewScanner(strings.NewReader(v))
+	s.Buffer(make([]byte, initDataSize), maxDataSize)
 	s.Split(colonSplitter)
 	for s.Scan() {
 		if len(s.Text()) == 0 {
@@ -138,6 +139,7 @@ func (jl jsonListener) GetJsonFields() (flds []string, err error) {
 
 func getJsonFields(v string) (flds []string, err error) {
 	s := bufio.NewScanner(strings.NewReader(v))
+	s.Buffer(make([]byte, initDataSize), maxDataSize)
 	s.Split(dotSplitter)
 	for s.Scan() {
 		if len(s.Text()) == 0 {

@@ -63,6 +63,7 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 	}
 
 	s := bufio.NewScanner(c)
+	s.Buffer(make([]byte, initDataSize), maxDataSize)
 	state := stateEmpty
 	var start int
 	splitter := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
