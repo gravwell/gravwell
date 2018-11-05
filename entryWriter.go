@@ -37,6 +37,8 @@ const (
 	MINIMUM_TAG_RENEGOTIATE_VERSION uint16 = 0x2 // minimum server version to renegotiate tags
 
 	maxThrottleDur time.Duration = 5 * time.Second
+
+	flushTimeout time.Duration = 10 * time.Second
 )
 
 const (
@@ -57,7 +59,7 @@ type IngestCommand uint32
 type entrySendID uint64
 
 type EntryWriter struct {
-	conn          net.Conn
+	conn          Conn
 	bIO           *bufio.Writer
 	bAckReader    *bufio.Reader
 	errCount      uint32
@@ -72,7 +74,7 @@ type EntryWriter struct {
 
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
 	ewc := EntryReaderWriterConfig{
-		Conn:                  conn,
+		Conn: NewUnthrottledConn(conn),
 		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
 		BufferSize:            WRITE_BUFFER_SIZE,
 		Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,
@@ -95,7 +97,7 @@ func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
 	}
 
 	return &EntryWriter{
-		conn:       cfg.Conn,
+		conn:       NewUnthrottledConn(cfg.Conn),
 		bIO:        bufio.NewWriterSize(cfg.Conn, cfg.BufferSize),
 		bAckReader: bufio.NewReaderSize(cfg.Conn, cfg.OutstandingEntryCount*ACK_SIZE),
 		mtx:        &sync.Mutex{},
@@ -117,12 +119,19 @@ func (ew *EntryWriter) OverrideAckTimeout(t time.Duration) error {
 	return nil
 }
 
+func (ew *EntryWriter) SetConn(c Conn) {
+	ew.mtx.Lock()
+	ew.conn = c
+	ew.bIO.Reset(c)
+	ew.mtx.Unlock()
+}
+
 func (ew *EntryWriter) Close() (err error) {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
 
 	if err = ew.forceAckNoLock(); err == nil {
-		if err = ew.conn.SetReadDeadline(time.Now().Add(ew.ackTimeout)); err != nil {
+		if err = ew.conn.SetReadTimeout(ew.ackTimeout); err != nil {
 			err = ew.conn.Close()
 			ew.hot = false
 			return
@@ -185,14 +194,14 @@ func (ew *EntryWriter) forceAckNoLock() error {
 	}
 	//begin servicing acks with blocking and a read deadline
 	for ew.ecb.Count() > 0 {
-		if err := ew.conn.SetReadDeadline(time.Now().Add(ew.ackTimeout)); err != nil {
+		if err := ew.conn.SetReadTimeout(ew.ackTimeout); err != nil {
 			return err
 		}
 		if err := ew.serviceAcks(true); err != nil {
-			ew.conn.SetReadDeadline(time.Time{})
+			ew.conn.ClearReadTimeout()
 			return err
 		}
-		ew.conn.SetReadDeadline(time.Time{})
+		ew.conn.ClearReadTimeout()
 	}
 	if ew.ecb.Count() > 0 {
 		return fmt.Errorf("Failed to confirm %d entries", ew.ecb.Count())
@@ -369,13 +378,13 @@ func (ew *EntryWriter) writeAll(b []byte) error {
 //if the timeout expires we attempt to service acks and go back to attempting to flush
 func (ew *EntryWriter) flush() (err error) {
 	//set the write timeout
-	if err = ew.conn.SetWriteDeadline(time.Now().Add(time.Second)); err != nil {
+	if err = ew.conn.SetWriteTimeout(flushTimeout); err != nil {
 		return
 	}
 
 	//issue the flush with timeout
 	if err = ew.bIO.Flush(); err == nil {
-		err = ew.conn.SetWriteDeadline(time.Time{})
+		err = ew.conn.ClearWriteTimeout()
 	}
 	return
 }
@@ -416,7 +425,7 @@ func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 	// Read back an ackCommand
 	var ac ackCommand
 	var ok bool
-	if err = ew.conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+	if err = ew.conn.SetReadTimeout(time.Second); err != nil {
 		return
 	}
 	if ok, err = ac.decode(ew.bAckReader, true); err != nil {
@@ -553,7 +562,7 @@ func (ew *EntryWriter) throttle(dur time.Duration) (err error) {
 	//check if we were asked to throttle
 	if dur > 0 {
 		//set the read deadline, and wait for a byte
-		if err = ew.conn.SetReadDeadline(time.Now().Add(dur)); err != nil {
+		if err = ew.conn.SetReadTimeout(dur); err != nil {
 			return
 		}
 		if _, err = ew.bAckReader.ReadByte(); err != nil {
@@ -561,7 +570,7 @@ func (ew *EntryWriter) throttle(dur time.Duration) (err error) {
 		} else if err = ew.bAckReader.UnreadByte(); err != nil {
 			return
 		}
-		if err = ew.conn.SetReadDeadline(time.Time{}); err != nil {
+		if err = ew.conn.ClearReadTimeout(); err != nil {
 			return
 		}
 	}

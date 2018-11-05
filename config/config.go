@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -26,6 +27,7 @@ const (
 
 	defaultMaxCache = 512
 	defaultLogLevel = `ERROR`
+	minThrottle     = (1024 * 1024) / 8
 )
 
 const (
@@ -61,6 +63,7 @@ type IngestConfig struct {
 	Log_Level                  string
 	Log_File                   string
 	Source_Override            string // override normal source if desired
+	Rate_Limit                 string
 }
 
 func (ic *IngestConfig) loadDefaults() error {
@@ -247,6 +250,14 @@ func (ic *IngestConfig) parseTimeout() (time.Duration, error) {
 	return time.ParseDuration(tos)
 }
 
+func (ic *IngestConfig) RateLimit() (bps int64, err error) {
+	if ic.Rate_Limit == `` {
+		return
+	}
+	bps, err = parseRate(ic.Rate_Limit)
+	return
+}
+
 // Attempts to read a value from environment variable named envName
 // If there's nothing there, it attempt to append _FILE to the variable
 // name and see if it contains a filename; if so, it reads the
@@ -342,4 +353,49 @@ func AppendDefaultPort(bstr string, defPort uint16) string {
 		}
 	}
 	return bstr
+}
+
+type multSuff struct {
+	mult   int64
+	suffix string
+}
+
+var (
+	rateSuffix = []multSuff{
+		multSuff{mult: 1024 * 1024, suffix: `m`},
+		multSuff{mult: 1024 * 1024, suffix: `mb`},
+		multSuff{mult: 1024 * 1024, suffix: `mbit`},
+		multSuff{mult: 1024 * 1024, suffix: `mbps`},
+		multSuff{mult: 1024 * 1024 * 1024, suffix: `g`},
+		multSuff{mult: 1024 * 1024 * 1024, suffix: `gb`},
+		multSuff{mult: 1024 * 1024 * 1024, suffix: `gbit`},
+		multSuff{mult: 1024 * 1024 * 1024, suffix: `gbps`},
+	}
+)
+
+//we return the rate in bytes per second
+func parseRate(s string) (Bps int64, err error) {
+	var r uint64
+	if len(s) == 0 {
+		return
+	}
+	s = strings.ToLower(s)
+	for _, v := range rateSuffix {
+		if strings.HasSuffix(s, v.suffix) {
+			s = strings.TrimSuffix(s, v.suffix)
+			if r, err = strconv.ParseUint(s, 10, 64); err != nil {
+				return
+			}
+			Bps = (int64(r) * v.mult) / 8
+			return
+		}
+	}
+	if r, err = strconv.ParseUint(s, 10, 64); err != nil {
+		return
+	}
+	Bps = int64(r / 8)
+	if Bps < minThrottle {
+		err = errors.New("Ingest cannot be limited below 1mbit")
+	}
+	return
 }

@@ -95,6 +95,7 @@ type IngestMuxer struct {
 	cacheError      error
 	cacheSignal     chan bool
 	name            string
+	rateParent      *Parent
 }
 
 type UniformMuxerConfig struct {
@@ -109,6 +110,7 @@ type UniformMuxerConfig struct {
 	CacheConfig  IngestCacheConfig
 	LogLevel     string
 	IngesterName string
+	RateLimitBps int64
 }
 
 type MuxerConfig struct {
@@ -122,6 +124,7 @@ type MuxerConfig struct {
 	CacheConfig  IngestCacheConfig
 	LogLevel     string
 	IngesterName string
+	RateLimitBps int64
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
@@ -172,6 +175,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		CacheConfig:  c.CacheConfig,
 		LogLevel:     c.LogLevel,
 		IngesterName: c.IngesterName,
+		RateLimitBps: c.RateLimitBps,
 	}
 	return newIngestMuxer(cfg)
 }
@@ -219,6 +223,10 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		c.ChannelSize = defaultChannelSize
 	}
 
+	var p *Parent
+	if c.RateLimitBps > 0 {
+		p = NewParent(c.RateLimitBps, 0)
+	}
 	return &IngestMuxer{
 		dests:           c.Destinations,
 		tags:            localTags,
@@ -242,6 +250,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		cacheFileBacked: c.CacheConfig.FileBackingLocation != ``,
 		cacheSignal:     cacheSig,
 		name:            c.IngesterName,
+		rateParent:      p,
 	}, nil
 }
 
@@ -1107,6 +1116,10 @@ loop:
 			}
 			continue
 		}
+		if im.rateParent != nil {
+			ig.ew.SetConn(im.rateParent.NewThrottleConn(ig.ew.conn))
+		}
+
 		//no error, attempt to do a tag translation
 		//we have a good connection, build our tag map
 		if tt, err = im.newTagTrans(ig); err != nil {
