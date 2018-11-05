@@ -115,6 +115,13 @@ func main() {
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
+	lmt, err := cfg.RateLimit()
+	if err != nil {
+		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		return
+	}
+	debugout("Rate limiting connection to %d bps\n", lmt)
+
 	//fire up the ingesters
 	debugout("INSECURE skip TLS certificate verification: %v\n", cfg.InsecureSkipTLSVerification())
 	igCfg := ingest.UniformMuxerConfig{
@@ -124,6 +131,7 @@ func main() {
 		LogLevel:     cfg.LogLevel(),
 		VerifyCert:   !cfg.InsecureSkipTLSVerification(),
 		IngesterName: ingesterName,
+		RateLimitBps: lmt,
 	}
 	if cfg.EnableCache() {
 		igCfg.EnableCache = true
