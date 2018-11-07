@@ -699,12 +699,17 @@ func (im *IngestMuxer) Size() (int, error) {
 // GetTag pulls back an intermediary tag id
 // the intermediary tag has NO RELATION to the backend servers tag mapping
 // it is used to speed along tag mappings
-func (im *IngestMuxer) GetTag(tag string) (entry.EntryTag, error) {
-	tg, ok := im.tagMap[tag]
-	if !ok {
-		return 0, ErrTagNotFound
+func (im *IngestMuxer) GetTag(tag string) (tg entry.EntryTag, err error) {
+	var ok bool
+	var ltt int
+	im.mtx.Lock()
+	if ltt, ok = im.tagMap[tag]; !ok {
+		err = ErrTagNotFound
+	} else {
+		tg = entry.EntryTag(ltt)
 	}
-	return entry.EntryTag(tg), nil
+	im.mtx.Unlock()
+	return
 }
 
 // WriteEntry puts an entry into the queue to be sent out by the first available
