@@ -178,6 +178,12 @@ func (tg *TimeGrinder) SetUTC() {
 	tg.loc = time.UTC
 }
 
+func (tg *TimeGrinder) AddProcessor(p Processor) int {
+	tg.procs = append(tg.procs, p)
+	tg.count++
+	return tg.count
+}
+
 func (tg *TimeGrinder) setSeed(data []byte) (hit bool) {
 	var offset int
 	var leftmost int
