@@ -96,11 +96,6 @@ func main() {
 		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
 	}
 
-	wtcher, err := filewatch.NewWatcher(cfg.StatePath())
-	if err != nil {
-		lg.Fatal("Failed to create notification watcher: %v\n", err)
-	}
-
 	//fire up the ingesters
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 	debugout("INSECURE skipping TLS certs verification: %v\n", cfg.InsecureSkipTLSVerification())
@@ -135,6 +130,11 @@ func main() {
 	debugout("Successfully connected to ingesters\n")
 	ch := make(chan *entry.Entry, 2048)
 
+	wtcher, err := filewatch.NewWatcher(cfg.StatePath())
+	if err != nil {
+		lg.Fatal("Failed to create notification watcher: %v\n", err)
+	}
+
 	//pass in the ingest muxer to the file watcher so it can throw info and errors down the muxer chan
 	wtcher.SetLogger(igst)
 
@@ -162,13 +162,14 @@ func main() {
 			AssumeLocalTZ:           val.Assume_Local_Timezone,
 			IgnorePrefixes:          ignore,
 			TimestampFormatOverride: tsFmtOverride,
+			Logger:                  lg,
+		}
+		if v {
+			cfg.Debugger = debugout
 		}
 		lh, err := filewatch.NewLogHandler(cfg, ch)
 		if err != nil {
 			lg.Fatal("Failed to generate handler: %v", err)
-		}
-		if v {
-			lh.SetLogger(debugout)
 		}
 		c := filewatch.WatchConfig{
 			ConfigName: k,
@@ -186,9 +187,10 @@ func main() {
 	}
 
 	if err := wtcher.Start(); err != nil {
+		lg.Error("Failed to start file watcher: %v\n", err)
 		wtcher.Close()
 		igst.Close()
-		lg.Fatal("Failed to start file watcher: %v\n", err)
+		os.Exit(-1)
 	}
 
 	debugout("Started following %d locations\n", len(cfg.Follower))
