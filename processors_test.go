@@ -9,6 +9,7 @@
 package timegrinder
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -23,7 +24,7 @@ func TestNewUserProc(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	p, err := NewUserProcessor(rspStr, fstr)
+	p, err := NewUserProcessor(`britishtime`, rspStr, fstr)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,13 +45,16 @@ func TestNewUserProc(t *testing.T) {
 
 // TestNewCustomProc shows adding a new custom processor
 func TestNewCustomProc(t *testing.T) {
-	rx, err := regexp.Compile(`\d\d/\d\d/\d\d\d\d\s\d\d\:\d\d\:\d\d,\d{1,5}`)
+	re := `\d\d/\d\d/\d\d\d\d\s\d\d\:\d\d\:\d\d,\d{1,5}`
+	rx, err := regexp.Compile(re)
 	if err != nil {
 		t.Fatal(err)
 	}
 	p := &customProc{
 		format: `02/01/2006 15:04:05.99999`,
+		rxstr:  re,
 		rx:     rx,
+		name:   `britishtime`,
 	}
 	tstr := `14/12/1984 12:55:33,43212`
 	rstr := `14/12/1984 12:55:33.43212`
@@ -76,11 +80,25 @@ func TestNewCustomProc(t *testing.T) {
 
 type customProc struct {
 	rx     *regexp.Regexp
+	rxstr  string
 	format string
+	name   string
 }
 
 func (p *customProc) Format() string {
 	return p.format
+}
+
+func (p *customProc) ToString(t time.Time) string {
+	return t.Format(`02/01/2006 15:04:05`) + "," + fmt.Sprintf("%d", t.Nanosecond()/int(μs))
+}
+
+func (p *customProc) ExtractionRegex() string {
+	return p.rxstr
+}
+
+func (p *customProc) Name() string {
+	return p.name
 }
 
 func (p *customProc) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {

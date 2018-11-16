@@ -11,6 +11,7 @@ package timegrinder
 
 import (
 	"errors"
+	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
@@ -46,6 +47,12 @@ const (
 	_lastProcessor   int = iota
 )
 
+const (
+	ms int64 = 1000
+	μs int64 = ms * 1000
+	ns int64 = μs * 1000
+)
+
 var (
 	errUnknownFormatName = errors.New("Unknown format name")
 )
@@ -53,115 +60,236 @@ var (
 type Processor interface {
 	Extract([]byte, *time.Location) (time.Time, bool, int)
 	Format() string
+	ToString(time.Time) string
+	ExtractionRegex() string
+	Name() string
 }
 
 type processor struct {
 	rxp    *regexp.Regexp
+	rxstr  string
 	format string
+	name   string
 }
 
 func (p *processor) Format() string {
 	return p.format
 }
 
+func (p *processor) ToString(t time.Time) string {
+	return t.Format(p.format)
+}
+
+func (p *processor) Regex() string {
+	return p.rxstr
+}
+
+func (p *processor) ExtractionRegex() string {
+	return p.rxstr
+}
+
+func (p *processor) Name() string {
+	return p.name
+}
+
 func NewAnsiCProcessor() *processor {
 	re := `[JFMASOND][anebriyunlgpctov]+\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+\d{4}`
-	return &processor{regexp.MustCompile(re), "Jan _2 15:04:05 2006"}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: "Jan _2 15:04:05 2006",
+		name:   `ansic`,
+	}
 }
 
 func NewUnixProcessor() *processor {
 	re := `[JFMASOND][anebriyunlgpctov]+\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+[A-Z]{3}\s+\d{4}`
-	return &processor{regexp.MustCompile(re), "Jan _2 15:04:05 MST 2006"}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: "Jan _2 15:04:05 MST 2006",
+		name:   `unix`,
+	}
 }
 
 func NewRubyProcessor() *processor {
 	re := `[JFMASOND][anebriyunlgpctov]+\s+\d{2}\s+\d\d:\d\d:\d\d\s+[\-|\+]\d{4}\s+\d{4}`
-	return &processor{regexp.MustCompile(re), "Jan _2 15:04:05 -0700 2006"}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: "Jan _2 15:04:05 -0700 2006",
+		name:   `ruby`,
+	}
 }
 
 func NewRFC822Processor() *processor {
 	re := `\d{2}\s[JFMASOND][anebriyunlgpctov]+\s+\d{2}\s\d\d:\d\d\s[A-Z]{3}`
-	return &processor{regexp.MustCompile(re), time.RFC822}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: time.RFC822,
+		name:   `rfc822`,
+	}
 }
 
 func NewRFC822ZProcessor() *processor {
 	re := `\d{2}\s[JFMASOND][anebriyunlgpctov]+\s+\d{2}\s\d\d:\d\d\s[\-|\+]\d{4}`
-	return &processor{regexp.MustCompile(re), time.RFC822Z}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: time.RFC822Z,
+		name:   `rfc822z`,
+	}
 }
 
 func NewRFC850Processor() *processor {
 	re := `\d{2}\-[JFMASOND][anebriyunlgpctov]+\-\d{2}\s\d\d:\d\d:\d\d\s[A-Z]{3}`
-	return &processor{regexp.MustCompile(re), `02-Jan-06 15:04:05 MST`}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: `02-Jan-06 15:04:05 MST`,
+		name:   `rfc850`,
+	}
 }
 
 func NewRFC1123Processor() *processor {
 	re := `\d{2} [JFMASOND][anebriyunlgpctov]+ \d{4}\s\d\d:\d\d:\d\d\s[A-Z]{3}`
-	return &processor{regexp.MustCompile(re), `02 Jan 2006 15:04:05 MST`}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: `02 Jan 2006 15:04:05 MST`,
+		name:   `rfc1123`,
+	}
 }
 
 func NewRFC1123ZProcessor() *processor {
 	re := `\d{2} [JFMASOND][anebriyunlgpctov]+ \d{4}\s\d\d:\d\d:\d\d\s[\-|\+]\d{4}`
-	return &processor{regexp.MustCompile(re), `02 Jan 2006 15:04:05 -0700`}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: `02 Jan 2006 15:04:05 -0700`,
+		name:   `rfc1123z`,
+	}
 }
 
 func NewRFC3339Processor() *processor {
 	re := `\d{4}-\d{2}-\d{2}T\d\d:\d\d:\d\dZ`
-	return &processor{regexp.MustCompile(re), time.RFC3339}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: time.RFC3339,
+		name:   `rfc3339`,
+	}
 }
 
 func NewRFC3339NanoProcessor() *processor {
 	re := `\d{4}-\d{2}-\d{2}T\d\d:\d\d:\d\d.\d+Z`
-	return &processor{regexp.MustCompile(re), time.RFC3339Nano}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: time.RFC3339Nano,
+		name:   `rfc3339nano`,
+	}
 }
 
 func NewApacheProcessor() *processor {
 	re := `\d{1,2}/[JFMASOND][anebriyunlgpctov]+/\d{4}:\d\d:\d\d:\d\d\s[\-|\+]\d{4}`
-	return &processor{regexp.MustCompile(re), APACHE_FORMAT}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: APACHE_FORMAT,
+		name:   `apache`,
+	}
 }
 
 func NewApacheNoTZProcessor() *processor {
 	re := `\d{1,2}/[JFMASOND][anebriyunlgpctov]+/\d{4}:\d\d:\d\d:\d\d`
-	return &processor{regexp.MustCompile(re), APACHE_NO_TZ_FORMAT}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: APACHE_NO_TZ_FORMAT,
+		name:   `apachenotz`,
+	}
 }
 
 func NewSyslogFileProcessor() *processor {
 	re := `\d{4}-\d{2}-\d{2}T\d\d:\d\d:\d+\.?\d*[-+]\d\d:\d\d`
-	return &processor{regexp.MustCompile(re), SYSLOG_FILE_FORMAT}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: SYSLOG_FILE_FORMAT,
+		name:   `syslogfile`,
+	}
 }
 
 func NewSyslogFileProcessorTZ2() *processor {
 	re := `\d{4}-\d{2}-\d{2}T\d\d:\d\d:\d+\.?\d*[-+]\d\d\d\d`
-	return &processor{regexp.MustCompile(re), SYSLOG_FILE_FORMAT_TZ2}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: SYSLOG_FILE_FORMAT_TZ2,
+		name:   `syslogfiletz`,
+	}
 }
 
 func NewDPKGProcessor() *processor {
 	re := `(?P<ts>\d\d\d\d-\d\d-\d\d\s\d\d:\d\d:\d\d)`
-	return &processor{regexp.MustCompile(re), DPKG_MSG_FORMAT}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: DPKG_MSG_FORMAT,
+		name:   `dpkg`,
+	}
 }
 
 func NewCustom1MilliProcessor() *processor {
 	re := `(?P<ts>\d\d-\d\d-\d\d\d\d\s\d\d:\d\d:\d\d\.\d)`
-	return &processor{regexp.MustCompile(re), CUSTOM1_MILLI_MSG_FORMAT}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: CUSTOM1_MILLI_MSG_FORMAT,
+		name:   `custom1milli`,
+	}
 }
 
 func NewNGINXProcessor() *processor {
 	re := `(?P<ts>\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2})`
-	return &processor{regexp.MustCompile(re), NGINX_FORMAT}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: NGINX_FORMAT,
+		name:   `nginx`,
+	}
 }
 
 func NewZonelessRFC3339() *processor {
 	re := `(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.*\d*)`
-	return &processor{regexp.MustCompile(re), ZONELESS_RFC3339_FORMAT}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: ZONELESS_RFC3339_FORMAT,
+		name:   `rfc3339nano`,
+	}
 }
 
 func NewSyslogVariant() *processor {
 	re := `[JFMASOND][anebriyunlgpctov]+\s+\d{2}\s+\d\d\d\d\s+\d\d:\d\d:\d\d`
-	return &processor{regexp.MustCompile(re), SYSLOG_VARIANT}
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: SYSLOG_VARIANT,
+		name:   `syslogvariant`,
+	}
 }
 
 func NewUnpaddedDateTime() *processor {
-	re := `(?P<ts>\d\d\d\d-\d+-\d+\s+\d+:\d\d:\d\d)`
-	return &processor{regexp.MustCompile(re), UNPADDED_DATE_TIME}
+	re := `\d\d\d\d-\d+-\d+\s+\d+:\d\d:\d\d`
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: UNPADDED_DATE_TIME,
+		name:   `unpaddeddatetime`,
+	}
 }
 
 type syslogProcessor struct {
@@ -171,19 +299,29 @@ type syslogProcessor struct {
 func NewSyslogProcessor() *syslogProcessor {
 	re := `[JFMASOND][anebriyunlgpctov]+\s+\d+\s+\d\d:\d\d:\d\d`
 	return &syslogProcessor{
-		processor: processor{regexp.MustCompile(re), SYSLOG_FORMAT},
+		processor: processor{
+			rxp:    regexp.MustCompile(re),
+			rxstr:  re,
+			format: SYSLOG_FORMAT,
+			name:   `syslog`,
+		},
 	}
 }
 
 type unixProcessor struct {
 	re     *regexp.Regexp
+	rxstr  string
 	format string
+	name   string
 }
 
 func NewUnixMilliTimeProcessor() *unixProcessor {
+	restr := `\A\s*(\d+\.\d+)\s`
 	return &unixProcessor{
-		re:     regexp.MustCompile(`\A\s*(\d+\.\d+)\s`),
-		format: `\A\s*(\d+\.\d+)\s`,
+		re:     regexp.MustCompile(restr),
+		rxstr:  restr,
+		format: ``, //format API doesn't work here
+		name:   `unixmilli`,
 	}
 }
 
@@ -191,7 +329,20 @@ func (up *unixProcessor) Format() string {
 	return up.format
 }
 
-func NewUserProcessor(rxps, fmts string) (*processor, error) {
+func (up *unixProcessor) Name() string {
+	return up.name
+}
+
+func (up *unixProcessor) ToString(t time.Time) string {
+	uns := t.Unix()
+	return fmt.Sprintf("%d.%d", uns, t.UnixNano()-(uns*ns))
+}
+
+func (up *unixProcessor) ExtractionRegex() string {
+	return `\s*(\d+\.\d+)\s` //notice that we are NOT at the start of a string here
+}
+
+func NewUserProcessor(name, rxps, fmts string) (*processor, error) {
 	//check that regex compiles
 	rx, err := regexp.Compile(rxps)
 	if err != nil {
@@ -218,16 +369,15 @@ func NewUserProcessor(rxps, fmts string) (*processor, error) {
 	}
 
 	//return the processor
-	return &processor{rx, fmts}, nil
+	return &processor{
+		rxp:    rx,
+		rxstr:  rxps,
+		format: fmts,
+		name:   name,
+	}, nil
 }
 
 func (a processor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
-	/*
-		sub := a.rxp.Find(d)
-		if len(sub) == 0 {
-			return time.Time{}, false
-		}
-	*/
 	idxs := a.rxp.FindIndex(d)
 	if len(idxs) != 2 {
 		return time.Time{}, false, -1
@@ -271,19 +421,36 @@ func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 
 type unixMsProcessor struct {
 	re     *regexp.Regexp
+	rxstr  string
 	format string
+	name   string
 }
 
 // We assume you're not ingesting data from 1970, so we look for at least 13 digits of nanoseconds
 func NewUnixMsTimeProcessor() *unixMsProcessor {
+	re := `(\A\d{13,18})[\s,;]`
 	return &unixMsProcessor{
-		re:     regexp.MustCompile(`(\A\d{13,18})[\s,;]`),
-		format: `(\A\d{13,})[\s,;]`,
+		re:     regexp.MustCompile(re),
+		rxstr:  re,
+		format: ``, //API doesn't work here
+		name:   `unixms`,
 	}
 }
 
 func (unp unixMsProcessor) Format() string {
 	return unp.format
+}
+
+func (unp unixMsProcessor) Name() string {
+	return unp.name
+}
+
+func (unp unixMsProcessor) ToString(t time.Time) string {
+	return fmt.Sprintf("%d", t.UnixNano()/μs)
+}
+
+func (unp unixMsProcessor) ExtractionRegex() string {
+	return `\d{13,18}` //just looking for a large integer
 }
 
 func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
@@ -302,19 +469,36 @@ func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, o
 
 type unixNanoProcessor struct {
 	re     *regexp.Regexp
+	rxstr  string
 	format string
+	name   string
 }
 
 // We assume you're not ingesting data from 1970, so we look for at least 16 digits of nanoseconds
 func NewUnixNanoTimeProcessor() *unixNanoProcessor {
+	re := `(\A\d{16,})[\s,;]`
 	return &unixNanoProcessor{
-		re:     regexp.MustCompile(`(\A\d{16,})[\s,;]`),
-		format: `(\A\d{16,})[\s,;]`,
+		re:     regexp.MustCompile(re),
+		rxstr:  re,
+		format: ``, //api doesn't work here
+		name:   `unixnano`,
 	}
 }
 
 func (unp unixNanoProcessor) Format() string {
 	return unp.format
+}
+
+func (unp unixNanoProcessor) Name() string {
+	return unp.name
+}
+
+func (unp unixNanoProcessor) ExtractionRegex() string {
+	return `\d{16,}`
+}
+
+func (unp unixNanoProcessor) ToString(t time.Time) string {
+	return fmt.Sprintf("%d", t.UnixNano())
 }
 
 func (unp unixNanoProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
