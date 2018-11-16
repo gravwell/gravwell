@@ -11,8 +11,6 @@ package filewatch
 import (
 	"bytes"
 	"errors"
-	"fmt"
-	"os"
 	"time"
 
 	"github.com/gravwell/ingest/entry"
@@ -21,11 +19,18 @@ import (
 
 type debugOut func(string, ...interface{})
 
+type logger interface {
+	Debug(string, ...interface{}) error
+	Info(string, ...interface{}) error
+	Warn(string, ...interface{}) error
+	Error(string, ...interface{}) error
+	Critical(string, ...interface{}) error
+}
+
 type LogHandler struct {
 	LogHandlerConfig
-	tg  *timegrinder.TimeGrinder
-	dbg debugOut
-	ch  chan *entry.Entry
+	tg *timegrinder.TimeGrinder
+	ch chan *entry.Entry
 }
 
 type LogHandlerConfig struct {
@@ -33,7 +38,9 @@ type LogHandlerConfig struct {
 	IgnoreTS                bool
 	AssumeLocalTZ           bool
 	IgnorePrefixes          [][]byte
-	TimestampFormatOverride int
+	TimestampFormatOverride string
+	Logger                  logger
+	Debugger                debugOut
 }
 
 func NewLogHandler(cfg LogHandlerConfig, ch chan *entry.Entry) (*LogHandler, error) {
@@ -42,13 +49,14 @@ func NewLogHandler(cfg LogHandlerConfig, ch chan *entry.Entry) (*LogHandler, err
 	if ch == nil {
 		return nil, errors.New("output channel is nil")
 	}
+	if cfg.Logger == nil {
+		return nil, errors.New("Logger is nil")
+	}
 	if !cfg.IgnoreTS {
 		tcfg := timegrinder.Config{
 			EnableLeftMostSeed: true,
 		}
-		if cfg.TimestampFormatOverride > 0 {
-			tcfg.FormatOverride = cfg.TimestampFormatOverride
-		}
+		tcfg.FormatOverride = cfg.TimestampFormatOverride
 		tg, err = timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
 			return nil, err
@@ -82,15 +90,15 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	if !lh.IgnoreTS {
 		ts, ok, err = lh.tg.Extract(b)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Catastrophic timegrinder failure: %v\n", err)
+			lh.Logger.Error("Catastrophic timegrinder failure: %v", err)
 			return err
 		}
 	}
 	if !ok {
 		ts = catchts
 	}
-	if lh.dbg != nil {
-		lh.dbg("GOT %s %s\n", ts.Format(time.RFC3339), string(b))
+	if lh.Debugger != nil {
+		lh.Debugger("GOT %s %s\n", ts.Format(time.RFC3339), string(b))
 	}
 	lh.ch <- &entry.Entry{
 		SRC:  nil, //ingest API will populate this
@@ -99,8 +107,4 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 		Data: b,
 	}
 	return nil
-}
-
-func (lh *LogHandler) SetLogger(lgr debugOut) {
-	lh.dbg = lgr
 }
