@@ -43,6 +43,7 @@ const (
 	UnpaddedDateTime int = iota
 	UnixMs           int = iota
 	UnixNano         int = iota
+	_lastProcessor   int = iota
 )
 
 var (
@@ -188,6 +189,36 @@ func NewUnixMilliTimeProcessor() *unixProcessor {
 
 func (up *unixProcessor) Format() string {
 	return up.format
+}
+
+func NewUserProcessor(rxps, fmts string) (*processor, error) {
+	//check that regex compiles
+	rx, err := regexp.Compile(rxps)
+	if err != nil {
+		return nil, err
+	}
+
+	//check that you can format NOW using the format string
+	//then reparse the output and get something sensible
+	x := time.Now().Format(fmts)
+	if _, err = time.Parse(fmts, x); err != nil {
+		return nil, err
+	}
+
+	//check that the regex hits on the format string
+	bts := []byte(x)
+	idxs := rx.FindIndex(bts)
+	if len(idxs) != 2 {
+		return nil, errors.New("Regular expression does not trigger on format")
+	}
+	//check that the extraction via the regex can be parsed
+	x = string(bts[idxs[0]:idxs[1]])
+	if _, err = time.Parse(fmts, x); err != nil {
+		return nil, err
+	}
+
+	//return the processor
+	return &processor{rx, fmts}, nil
 }
 
 func (a processor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
