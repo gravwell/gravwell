@@ -68,6 +68,10 @@ func NewWatcher(stateFilePath string) (*WatchManager, error) {
 	}, nil
 }
 
+func (wm *WatchManager) SetMaxFilesWatched(max int) {
+	wm.fman.SetMaxFilesWatched(max)
+}
+
 func (wm *WatchManager) SetLogger(lgr ingest.IngestLogger) {
 	wm.mtx.Lock()
 	defer wm.mtx.Unlock()
@@ -340,6 +344,15 @@ watchRoutine:
 			} else if evt.Op == fsnotify.Rename {
 				if err := wm.renameWatchedFile(evt.Name); err != nil {
 					wm.logger.Error("file_follower failed to track renamed file %s due to %v", evt.Name, err)
+				}
+			} else if evt.Op == fsnotify.Write {
+				// write event, check if we are watching the file, add if needed
+				if !wm.fman.IsWatched(evt.Name) {
+					if err := wm.fman.LoadFile(evt.Name); err != nil {
+						wm.logger.Error("file_follower failed to watch file %s due to %v", evt.Name, err)
+					} else {
+						wm.logger.Info("file_follower now watching %s", evt.Name)
+					}
 				}
 			}
 		case _ = <-tckr.C:

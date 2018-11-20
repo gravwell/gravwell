@@ -34,6 +34,7 @@ type LogHandlerConfig struct {
 	AssumeLocalTZ           bool
 	IgnorePrefixes          [][]byte
 	TimestampFormatOverride int
+	TimezoneOverride        string
 }
 
 func NewLogHandler(cfg LogHandlerConfig, ch chan *entry.Entry) (*LogHandler, error) {
@@ -53,8 +54,17 @@ func NewLogHandler(cfg LogHandlerConfig, ch chan *entry.Entry) (*LogHandler, err
 		if err != nil {
 			return nil, err
 		}
+		if cfg.AssumeLocalTZ && cfg.TimezoneOverride != `` {
+			return nil, errors.New("Cannot specify AssumeLocalTZ and TimezoneOverride in the same LogHandlerConfig")
+		}
 		if cfg.AssumeLocalTZ {
 			tg.SetLocalTime()
+		}
+		if cfg.TimezoneOverride != `` {
+			err = tg.SetTimezone(cfg.TimezoneOverride)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	if !cfg.IgnoreTS && tg == nil {
