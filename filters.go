@@ -534,13 +534,15 @@ func (f *FilterManager) matchFile(mtchs []string, fname string) (matched bool) {
 	return
 }
 
-func (f *FilterManager) LoadFile(fpath string) error {
+func (f *FilterManager) LoadFile(fpath string) (bool, error) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
-	if _, err := f.launchFollowers(fpath, false); err != nil {
-		return err
+	var ok bool
+	var err error
+	if ok, err = f.launchFollowers(fpath, false); err != nil {
+		return false, err
 	}
-	return nil
+	return ok, nil
 }
 
 func appendErr(err, nerr error) error {

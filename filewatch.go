@@ -261,7 +261,7 @@ func (wm *WatchManager) initExisting() error {
 			//check if we have a state for this file
 			fpath := filepath.Join(k, fis[i].Name())
 			//potentially load existing state
-			if err := wm.fman.LoadFile(fpath); err != nil {
+			if _, err := wm.fman.LoadFile(fpath); err != nil {
 				return err
 			}
 		}
@@ -349,9 +349,9 @@ watchRoutine:
 			} else if evt.Op == fsnotify.Write {
 				// write event, check if we are watching the file, add if needed
 				if !wm.fman.IsWatched(evt.Name) {
-					if err := wm.fman.LoadFile(evt.Name); err != nil {
+					if ok, err := wm.fman.LoadFile(evt.Name); err != nil {
 						wm.logger.Error("file_follower failed to watch file %s due to %v", evt.Name, err)
-					} else {
+					} else if ok {
 						wm.logger.Info("file_follower now watching %s", evt.Name)
 					}
 				}
