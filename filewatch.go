@@ -81,6 +81,7 @@ func (wm *WatchManager) SetLogger(lgr ingest.IngestLogger) {
 	} else {
 		wm.logger = lgr
 	}
+	wm.fman.SetLogger(wm.logger)
 }
 
 func (wm *WatchManager) Followers() int {
