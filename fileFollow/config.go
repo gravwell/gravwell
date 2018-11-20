@@ -10,10 +10,12 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/config"
@@ -48,10 +50,12 @@ type follower struct {
 	Recursive                 bool // Should we descend into child directories?
 	Ignore_Line_Prefix        []string
 	Timestamp_Format_Override string //override the timestamp format
+	Timezone_Override         string
 }
 
 type global struct {
 	config.IngestConfig
+	Max_Files_Watched    int
 	State_Store_Location string
 }
 
@@ -117,6 +121,15 @@ func verifyConfig(c *cfgType) error {
 			return errors.New("Invalid characters in the Tag-Name for " + k)
 		}
 		v.Base_Directory = filepath.Clean(v.Base_Directory)
+		if v.Timezone_Override != "" {
+			if v.Assume_Local_Timezone {
+				// cannot do both
+				return fmt.Errorf("Cannot specify Assume-Local-Timezone and Timezone-Override in the same follower %v", k)
+			}
+			if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
+				return fmt.Errorf("Invalid timezone override %v in follower %v: %v", v.Timezone_Override, k, err)
+			}
+		}
 	}
 	return nil
 }

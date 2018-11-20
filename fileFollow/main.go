@@ -137,6 +137,7 @@ func main() {
 
 	//pass in the ingest muxer to the file watcher so it can throw info and errors down the muxer chan
 	wtcher.SetLogger(igst)
+	wtcher.SetMaxFilesWatched(cfg.Max_Files_Watched)
 
 	//build a list of base directories and globs
 	for k, val := range cfg.Follower {
@@ -162,6 +163,7 @@ func main() {
 			AssumeLocalTZ:           val.Assume_Local_Timezone,
 			IgnorePrefixes:          ignore,
 			TimestampFormatOverride: tsFmtOverride,
+			TimezoneOverride:        val.Timezone_Override,
 		}
 		lh, err := filewatch.NewLogHandler(cfg, ch)
 		if err != nil {
@@ -182,7 +184,6 @@ func main() {
 			lg.Fatal("Failed to add watch directory for %s (%s): %v\n",
 				val.Base_Directory, val.File_Filter, err)
 		}
-
 	}
 
 	if err := wtcher.Start(); err != nil {
