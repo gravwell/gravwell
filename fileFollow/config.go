@@ -47,6 +47,7 @@ type follower struct {
 	Recursive                 bool // Should we descend into child directories?
 	Ignore_Line_Prefix        []string
 	Timestamp_Format_Override string //override the timestamp format
+	Timestamp_Delimited       bool
 }
 
 type global struct {
@@ -111,6 +112,9 @@ func verifyConfig(c *cfgType) error {
 		}
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = `default`
+		}
+		if v.Timestamp_Delimited && ! v.Timestamp_Format_Override {
+			return errors.New("Timestamp delimiting requires a defined timestamp override")
 		}
 		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 			return errors.New("Invalid characters in the Tag-Name for " + k)
