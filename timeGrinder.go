@@ -178,6 +178,15 @@ func (tg *TimeGrinder) SetUTC() {
 	tg.loc = time.UTC
 }
 
+func (tg *TimeGrinder) SetTimezone(f string) error {
+	loc, err := time.LoadLocation(f)
+	if err != nil {
+		return err
+	}
+	tg.loc = loc
+	return nil
+}
+
 func (tg *TimeGrinder) setSeed(data []byte) (hit bool) {
 	var offset int
 	var leftmost int
