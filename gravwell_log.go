@@ -44,6 +44,9 @@ func (im *IngestMuxer) Error(format string, args ...interface{}) error {
 	if im.logLevel > gravwellError {
 		return nil
 	}
+	if im.lgr != nil {
+		im.lgr.Error(format, args...)
+	}
 	return im.gravwellWriteIfHot(gravwellError, fmt.Sprintf(format, args...))
 }
 
@@ -51,12 +54,18 @@ func (im *IngestMuxer) Warn(format string, args ...interface{}) error {
 	if im.logLevel > gravwellWarn {
 		return nil
 	}
+	if im.lgr != nil {
+		im.lgr.Warn(format, args...)
+	}
 	return im.gravwellWriteIfHot(gravwellWarn, fmt.Sprintf(format, args...))
 }
 
 func (im *IngestMuxer) Info(format string, args ...interface{}) error {
 	if im.logLevel > gravwellInfo {
 		return nil
+	}
+	if im.lgr != nil {
+		im.lgr.Info(format, args...)
 	}
 	return im.gravwellWriteIfHot(gravwellInfo, fmt.Sprintf(format, args...))
 }

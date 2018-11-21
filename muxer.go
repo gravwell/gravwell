@@ -87,6 +87,7 @@ type IngestMuxer struct {
 	wg              *sync.WaitGroup
 	state           muxState
 	logLevel        gll
+	lgr             Logger
 	cacheEnabled    bool
 	cache           *IngestCache
 	cacheWg         *sync.WaitGroup
@@ -109,6 +110,7 @@ type UniformMuxerConfig struct {
 	EnableCache  bool
 	CacheConfig  IngestCacheConfig
 	LogLevel     string
+	Logger       Logger
 	IngesterName string
 	RateLimitBps int64
 }
@@ -123,6 +125,7 @@ type MuxerConfig struct {
 	EnableCache  bool
 	CacheConfig  IngestCacheConfig
 	LogLevel     string
+	Logger       Logger
 	IngesterName string
 	RateLimitBps int64
 }
@@ -176,6 +179,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		LogLevel:     c.LogLevel,
 		IngesterName: c.IngesterName,
 		RateLimitBps: c.RateLimitBps,
+		Logger:       c.Logger,
 	}
 	return newIngestMuxer(cfg)
 }
@@ -237,6 +241,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		mtx:             &sync.RWMutex{},
 		wg:              &sync.WaitGroup{},
 		state:           empty,
+		lgr:             c.Logger,
 		logLevel:        logLevel(c.LogLevel),
 		eChan:           make(chan *entry.Entry, c.ChannelSize),
 		bChan:           make(chan []*entry.Entry, c.ChannelSize),
@@ -1110,8 +1115,10 @@ loop:
 		//attempt a connection, timeouts are built in to the IngestConnection
 		if ig, err = InitializeConnection(tgt.Address, tgt.Secret, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
 			if isFatalConnError(err) {
+				im.Error("Fatal Connection Error on %v: %v", tgt.Address, err)
 				break loop
 			}
+			im.Warn("Connection error on %v: %v", tgt.Address, err)
 			//non-fatal, sleep and continue
 			select {
 			case _ = <-time.After(defaultRetryTime):
@@ -1131,8 +1138,10 @@ loop:
 			ig.Close()
 			ig = nil
 			tt = nil
+			im.Error("Fatal Connection Error, failed to get get tag translation map: %v", err)
 			return
 		}
+		im.Info("Successfully connected to %v", tgt.Address)
 		break
 	}
 	return

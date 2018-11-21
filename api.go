@@ -22,3 +22,9 @@ const (
 func PrintVersion(wtr io.Writer) {
 	fmt.Fprintf(wtr, "API Version:\t%d.%d\n", API_VERSION_MAJOR, API_VERSION_MINOR)
 }
+
+type Logger interface {
+	Info(string, ...interface{}) error
+	Warn(string, ...interface{}) error
+	Error(string, ...interface{}) error
+}
