@@ -111,6 +111,7 @@ func main() {
 		LogLevel:     cfg.LogLevel(),
 		IngesterName: "filefollow",
 		VerifyCert:   !cfg.InsecureSkipTLSVerification(),
+		Logger:       lg,
 	}
 	if cfg.EnableCache() {
 		ingestConfig.EnableCache = true

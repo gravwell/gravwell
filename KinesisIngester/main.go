@@ -103,6 +103,7 @@ func main() {
 		Tags:         tags,
 		Auth:         cfg.Secret(),
 		LogLevel:     cfg.LogLevel(),
+		Logger:       lg,
 	}
 	if cfg.CacheEnabled() {
 		ingestConfig.EnableCache = true
