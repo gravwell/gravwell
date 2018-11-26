@@ -24,6 +24,8 @@ package timegrinder
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -66,7 +68,7 @@ type Config struct {
 	//We assume that most streams are not going to using a bunch of different timestamps
 	//so we take the hit on the first iteration to try to get the left most time format
 	EnableLeftMostSeed bool
-	FormatOverride     int
+	FormatOverride     string
 }
 
 // NewTimeGrinder just calls New, it is maintained for API compatability but may go away soon.  Use New.
@@ -153,12 +155,18 @@ func New(c Config) (*TimeGrinder, error) {
 	// Unix nanoseconds
 	procs = append(procs, NewUnixNanoTimeProcessor())
 
+	// UK format
+	procs = append(procs, NewUK())
+
 	var proc Processor
-	if c.FormatOverride > len(procs) {
-		return nil, errors.New("invalid override")
-	}
-	if c.FormatOverride > 0 {
-		proc = procs[c.FormatOverride-1] //overrides are off by one
+	if c.FormatOverride != `` {
+		c.FormatOverride = strings.ToLower(c.FormatOverride)
+		//attempt to find the override
+		for i := range procs {
+			if procs[i].Name() == c.FormatOverride {
+				proc = procs[i]
+			}
+		}
 	}
 
 	return &TimeGrinder{
@@ -187,10 +195,26 @@ func (tg *TimeGrinder) SetTimezone(f string) error {
 	return nil
 }
 
-func (tg *TimeGrinder) AddProcessor(p Processor) int {
+func (tg *TimeGrinder) OverrideProcessor() (Processor, error) {
+	if tg.override != nil {
+		return tg.override, nil
+	}
+	return nil, errors.New("No override processor set")
+}
+
+func (tg *TimeGrinder) AddProcessor(p Processor) (idx int, err error) {
+	//grab the name of the processor
+	name := p.Name()
+	for i := range tg.procs {
+		if tg.procs[i].Name() == name {
+			err = fmt.Errorf("Name collision, processor name %s already present", name)
+			return
+		}
+	}
 	tg.procs = append(tg.procs, p)
 	tg.count++
-	return tg.count
+	idx = tg.count
+	return
 }
 
 func (tg *TimeGrinder) setSeed(data []byte) (hit bool) {
