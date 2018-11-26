@@ -58,7 +58,6 @@ func main() {
 	if *inFile == "" {
 		log.Fatal("Input file path required")
 	}
-	timestampOverride := -1
 	a, err := args.Parse()
 	if err != nil {
 		log.Fatalf("Invalid arguments: %v\n", err)
@@ -69,7 +68,7 @@ func main() {
 
 	//resolve the timestmap override if there is one
 	if *tso != "" {
-		if timestampOverride, err = timegrinder.FormatDirective(*tso); err != nil {
+		if err = timegrinder.ValidateFormatOverride(*tso); err != nil {
 			log.Fatalf("Invalid timestamp override: %v\n", err)
 		}
 	}
@@ -97,7 +96,7 @@ func main() {
 	}
 
 	//go ingest the file
-	if err := ingestFile(fin, igst, tag, timestampOverride); err != nil {
+	if err := ingestFile(fin, igst, tag, *tso); err != nil {
 		log.Fatalf("Failed to ingest file: %v\n", err)
 	}
 
@@ -116,16 +115,14 @@ func main() {
 	fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(totalBytes, dur))
 }
 
-func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso int) error {
+func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso string) error {
 	var bts []byte
 	var ts time.Time
 	var ok bool
 	//build a new timegrinder
 	c := timegrinder.Config{
 		EnableLeftMostSeed: true,
-	}
-	if tso > 0 {
-		c.FormatOverride = tso
+		FormatOverride:     tso,
 	}
 	tg, err := timegrinder.NewTimeGrinder(c)
 	if err != nil {

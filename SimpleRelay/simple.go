@@ -39,7 +39,7 @@ type handlerConfig struct {
 	setLocalTime     bool
 	src              net.IP
 	wg               *sync.WaitGroup
-	formatOverride   int
+	formatOverride   string
 }
 
 func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry.Entry, wg *sync.WaitGroup) error {
@@ -75,10 +75,6 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry
 		if err != nil {
 			lg.FatalCode(0, "Invalid reader type \"%s\": %v\n", v.Reader_Type, err)
 		}
-		tsFmtOverride, err := v.TimestampOverride()
-		if err != nil {
-			lg.FatalCode(0, "Invalid timestamp override \"%s\": %v\n", v.Timestamp_Format_Override, err)
-		}
 		cfg := handlerConfig{
 			ch:               ch,
 			tag:              tag,
@@ -87,7 +83,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry
 			setLocalTime:     v.Assume_Local_Timezone,
 			src:              src,
 			wg:               wg,
-			formatOverride:   tsFmtOverride,
+			formatOverride:   v.Timestamp_Format_Override,
 		}
 		if tp.TCP() {
 			//get the socket

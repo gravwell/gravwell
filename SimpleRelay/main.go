@@ -29,8 +29,8 @@ const (
 	defaultConfigLoc     = `/opt/gravwell/etc/simple_relay.conf`
 	ingesterName         = `simplerelay`
 	batchSize            = 512
-	maxDataSize      int = 32 * 1024 * 1024
-	initDataSize     int = 1 * 1024 * 1024
+	maxDataSize      int = 8 * 1024 * 1024
+	initDataSize     int = 512 * 1024
 )
 
 var (
@@ -132,6 +132,7 @@ func main() {
 		VerifyCert:   !cfg.InsecureSkipTLSVerification(),
 		IngesterName: ingesterName,
 		RateLimitBps: lmt,
+		Logger:       lg,
 	}
 	if cfg.EnableCache() {
 		igCfg.EnableCache = true

@@ -10,10 +10,12 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/config"
@@ -48,10 +50,12 @@ type follower struct {
 	Ignore_Line_Prefix        []string
 	Timestamp_Format_Override string //override the timestamp format
 	Timestamp_Delimited       bool
+	Timezone_Override         string
 }
 
 type global struct {
 	config.IngestConfig
+	Max_Files_Watched    int
 	State_Store_Location string
 }
 
@@ -113,13 +117,22 @@ func verifyConfig(c *cfgType) error {
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = `default`
 		}
-		if v.Timestamp_Delimited && ! v.Timestamp_Format_Override {
+		if v.Timestamp_Delimited && !v.Timestamp_Format_Override {
 			return errors.New("Timestamp delimiting requires a defined timestamp override")
 		}
 		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 			return errors.New("Invalid characters in the Tag-Name for " + k)
 		}
 		v.Base_Directory = filepath.Clean(v.Base_Directory)
+		if v.Timezone_Override != "" {
+			if v.Assume_Local_Timezone {
+				// cannot do both
+				return fmt.Errorf("Cannot specify Assume-Local-Timezone and Timezone-Override in the same follower %v", k)
+			}
+			if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
+				return fmt.Errorf("Invalid timezone override %v in follower %v: %v", v.Timezone_Override, k, err)
+			}
+		}
 	}
 	return nil
 }

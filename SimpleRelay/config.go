@@ -17,7 +17,6 @@ import (
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/config"
-	"github.com/gravwell/timegrinder"
 
 	"gopkg.in/gcfg.v1"
 )
@@ -169,20 +168,9 @@ func (c *cfgType) Tags() ([]string, error) {
 	return tags, nil
 }
 
-func (l base) TimestampOverride() (v int, err error) {
-	override := strings.TrimSpace(l.Timestamp_Format_Override)
-	if override != `` {
-		v, err = timegrinder.FormatDirective(override)
-	}
-	return
-}
-
 func (l base) Validate() error {
 	if len(l.Bind_String) == 0 {
 		return errors.New("No Bind-String provided")
-	}
-	if _, err := l.TimestampOverride(); err != nil {
-		return errors.New("Timestamp-Format-Override is invalid")
 	}
 	return nil
 }

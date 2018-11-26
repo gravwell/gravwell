@@ -33,7 +33,7 @@ type jsonHandlerConfig struct {
 	setLocalTime     bool
 	src              net.IP
 	wg               *sync.WaitGroup
-	formatOverride   int
+	formatOverride   string
 	flds             []string
 }
 
@@ -85,7 +85,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry.E
 			jhc.tags[tm.Value] = tg
 		}
 		//check format override
-		if jhc.formatOverride, err = v.TimestampOverride(); err != nil {
+		if err = timegrinder.ValidateFormatOverride(v.Timestamp_Format_Override); err != nil {
 			return fmt.Errorf("%s Invalid timestamp override \"%s\": %v\n", k, v.Timestamp_Format_Override, err)
 		}
 

@@ -114,6 +114,7 @@ func main() {
 		LogLevel:     cfg.LogLevel(),
 		VerifyCert:   !cfg.InsecureSkipTLSVerification(),
 		IngesterName: ingesterName,
+		Logger:       lg,
 	}
 	if cfg.EnableCache() {
 		igCfg.EnableCache = true
