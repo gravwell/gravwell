@@ -70,7 +70,7 @@ func init() {
 func main() {
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
-		lg.Fatal("Failed to get configuration: ", err)
+		lg.Fatal("Failed to get configuration: %v", err)
 	}
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)

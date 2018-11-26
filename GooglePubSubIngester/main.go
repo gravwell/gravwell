@@ -68,7 +68,7 @@ func init() {
 func main() {
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
-		lg.Fatal("Failed to get configuration: ", err)
+		lg.Fatal("Failed to get configuration: %v", err)
 	}
 
 	if len(cfg.Global.Log_File) > 0 {
@@ -88,11 +88,11 @@ func main() {
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.Fatal("Failed to get tags from configuration: ", err)
+		lg.Fatal("Failed to get tags from configuration: %v", err)
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.Fatal("Failed to get backend targets from configuration: ", err)
+		lg.Fatal("Failed to get backend targets from configuration: %v", err)
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 

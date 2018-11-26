@@ -13,12 +13,14 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/config"
+	"github.com/gravwell/timegrinder"
 
 	"gopkg.in/gcfg.v1"
 )
@@ -29,7 +31,8 @@ const (
 )
 
 var (
-	ErrInvalidStateStoreLocation = errors.New("Empty state storage location")
+	ErrInvalidStateStoreLocation         = errors.New("Empty state storage location")
+	ErrTimestampDelimiterMissingOverride = errors.New("Timestamp delimiting requires a defined timestamp override")
 )
 
 type bindType int
@@ -117,8 +120,8 @@ func verifyConfig(c *cfgType) error {
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = `default`
 		}
-		if v.Timestamp_Delimited && !v.Timestamp_Format_Override {
-			return errors.New("Timestamp delimiting requires a defined timestamp override")
+		if v.Timestamp_Delimited && v.Timestamp_Format_Override == `` {
+			return ErrTimestampDelimiterMissingOverride
 		}
 		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 			return errors.New("Invalid characters in the Tag-Name for " + k)
@@ -159,6 +162,50 @@ func (c *cfgType) Tags() ([]string, error) {
 func (f follower) TimestampOverride() (v string, err error) {
 	v = strings.TrimSpace(f.Timestamp_Format_Override)
 	return
+}
+
+func (f follower) TimestampDelimited() (rex string, ok bool, err error) {
+	if !f.Timestamp_Delimited {
+		return
+	}
+	if f.Timestamp_Format_Override == `` {
+		err = ErrTimestampDelimiterMissingOverride
+		return
+	}
+	//fir eup a timegrinder, set the override, and extract the regex in use
+	cfg := timegrinder.Config{
+		FormatOverride: f.Timestamp_Format_Override,
+	}
+	var tg *timegrinder.TimeGrinder
+	var proc timegrinder.Processor
+	if tg, err = timegrinder.New(cfg); err != nil {
+		return
+	}
+	if proc, err = tg.OverrideProcessor(); err != nil {
+		return
+	}
+	if rex = proc.ExtractionRegex(); rex == `` {
+		err = errors.New("Missing timestamp processor extraction string")
+		return
+	}
+	//fixup the regex string to fit on line breaks
+	if strings.HasPrefix(rex, `\A`) {
+		//remove the "at beginning of text" sequence and replace with newline
+		rex = `\n` + strings.TrimPrefix(rex, `\A`)
+	}
+	if strings.HasPrefix(rex, `^`) {
+		//remove the "at beginning regex and replace with newline
+		rex = `\n` + strings.TrimPrefix(rex, `^`)
+	}
+	if _, err = regexp.Compile(rex); err != nil {
+		return
+	}
+	ok = true // we are all good
+	return
+}
+
+func (f follower) TimezoneOverride() string {
+	return f.Timezone_Override
 }
 
 func (g *global) Init() {

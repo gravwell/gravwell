@@ -170,6 +170,12 @@ func main() {
 		if v {
 			cfg.Debugger = debugout
 		}
+		if rex, ok, err := val.TimestampDelimited(); err != nil {
+			lg.FatalCode(0, "Invalid timestamp delimiter: %v\n", err)
+		} else if ok {
+			cfg.Engine = filewatch.RegexEngine
+			cfg.EngineArgs = rex
+		}
 		lh, err := filewatch.NewLogHandler(cfg, ch)
 		if err != nil {
 			lg.Fatal("Failed to generate handler: %v", err)

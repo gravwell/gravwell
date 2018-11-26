@@ -102,7 +102,7 @@ func main() {
 	if *profileFile != `` {
 		f, err := os.Create(*profileFile)
 		if err != nil {
-			lg.Fatal("failed to open pprof", err)
+			lg.Fatal("failed to open pprof: %v", err)
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -110,7 +110,7 @@ func main() {
 	}
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		lg.Fatal("Failed to get configuration: ", err)
+		lg.Fatal("Failed to get configuration: %v", err)
 	}
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
