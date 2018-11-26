@@ -15,6 +15,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/gravwell/ingest"
 )
 
 type filter struct {
@@ -31,12 +33,14 @@ type FileName struct {
 }
 
 type FilterManager struct {
-	mtx       *sync.Mutex
-	filters   []filter
-	followers map[FileName]*follower
-	states    map[FileName]*int64
-	stateFile string
-	stateFout *os.File
+	mtx             *sync.Mutex
+	filters         []filter
+	followers       map[FileName]*follower
+	states          map[FileName]*int64
+	stateFile       string
+	stateFout       *os.File
+	maxFilesWatched int
+	logger          ingest.IngestLogger
 }
 
 func NewFilterManager(stateFile string) (*FilterManager, error) {
@@ -55,7 +59,75 @@ func NewFilterManager(stateFile string) (*FilterManager, error) {
 		stateFout: fout,
 		states:    states,
 		followers: map[FileName]*follower{},
+		logger:    ingest.NoLogger(),
 	}, nil
+}
+
+func (f *FilterManager) IsWatched(fpath string) bool {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	for _, v := range f.filters {
+		//check if we have an active follower
+		stid := FileName{
+			BaseName: v.bname,
+			FilePath: fpath,
+		}
+		_, ok := f.followers[stid]
+		if ok {
+			return true
+		}
+	}
+	return false
+}
+
+func (fm *FilterManager) SetMaxFilesWatched(max int) {
+	fm.mtx.Lock()
+	defer fm.mtx.Unlock()
+	fm.maxFilesWatched = max
+}
+
+func (fm *FilterManager) SetLogger(lgr ingest.IngestLogger) {
+	fm.mtx.Lock()
+	defer fm.mtx.Unlock()
+
+	if lgr == nil {
+		fm.logger = ingest.NoLogger()
+	} else {
+		fm.logger = lgr
+	}
+}
+
+// ExpungeOldFiles stops following files until the number of
+// currently watched files is 1 less than the maxFilesWatched
+// value.
+// The caller MUST hold the lock
+func (fm *FilterManager) expungeOldFiles() error {
+	if fm.maxFilesWatched <= 0 {
+		return nil
+	}
+	if len(fm.followers) < fm.maxFilesWatched {
+		return nil
+	}
+
+	for len(fm.followers) >= fm.maxFilesWatched {
+		var oldest *follower
+		for _, f := range fm.followers {
+			if oldest == nil || f.IdleDuration() > oldest.IdleDuration() {
+				oldest = f
+			}
+		}
+
+		if oldest == nil {
+			return errors.New("Could not find any suitable file to stop watching to add new file.")
+		}
+
+		fm.logger.Info("Expunging old log file %v", oldest.FilePath)
+		_, err := fm.nolockRemoveFollower(oldest.FilePath, false)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (fm *FilterManager) Close() (err error) {
@@ -147,10 +219,10 @@ func (f *FilterManager) RemoveFollower(fpath string) (bool, error) {
 	//get file path and base name
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
-	return f.nolockRemoveFollower(fpath)
+	return f.nolockRemoveFollower(fpath, true)
 }
 
-func (f *FilterManager) nolockRemoveFollower(fpath string) (removed bool, err error) {
+func (f *FilterManager) nolockRemoveFollower(fpath string, purgeState bool) (removed bool, err error) {
 	//check filters
 	for _, v := range f.filters {
 		//check if we have an active follower
@@ -161,7 +233,9 @@ func (f *FilterManager) nolockRemoveFollower(fpath string) (removed bool, err er
 		fl, ok := f.followers[stid]
 		if ok {
 			delete(f.followers, stid)
-			delete(f.states, stid)
+			if purgeState {
+				delete(f.states, stid)
+			}
 			if err = fl.Close(); err != nil {
 				return
 			}
@@ -287,7 +361,7 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 	}
 	//filename was never found, remove it
 	if !found {
-		if _, err := f.nolockRemoveFollower(fpath); err != nil {
+		if _, err := f.nolockRemoveFollower(fpath, true); err != nil {
 			return err
 		}
 	}
@@ -303,6 +377,7 @@ func (f *FilterManager) NewFollower(fpath string) (bool, error) {
 //addFollower gets a new follower, adds it to our list, and launches its routine
 //the caller MUST hold the lock
 func (f *FilterManager) addFollower(fcfg FollowerConfig) error {
+	f.expungeOldFiles()
 	stid := FileName{
 		BaseName: fcfg.BaseName,
 		FilePath: fcfg.FilePath,
@@ -458,13 +533,15 @@ func (f *FilterManager) matchFile(mtchs []string, fname string) (matched bool) {
 	return
 }
 
-func (f *FilterManager) LoadFile(fpath string) error {
+func (f *FilterManager) LoadFile(fpath string) (bool, error) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
-	if _, err := f.launchFollowers(fpath, false); err != nil {
-		return err
+	var ok bool
+	var err error
+	if ok, err = f.launchFollowers(fpath, false); err != nil {
+		return false, err
 	}
-	return nil
+	return ok, nil
 }
 
 func appendErr(err, nerr error) error {
