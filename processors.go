@@ -352,3 +352,37 @@ func FormatDirective(s string) (v int, err error) {
 	}
 	return
 }
+
+func ValidateFormatOverride(s string) (err error) {
+	s = strings.ToLower(s)
+	switch s {
+	case `ansic`:
+	case `unix`:
+	case `ruby`:
+	case `rfc822`:
+	case `rfc822z`:
+	case `rfc850`:
+	case `rfc1123`:
+	case `rfc1123z`:
+	case `rfc3339`:
+	case `rfc3339nano`:
+	case `apache`:
+	case `apachenotz`:
+	case `syslog`:
+	case `syslogfile`:
+	case `syslogfiletz`:
+	case `dpkg`:
+	case `custom1milli`:
+	case `nginx`:
+	case `unixmilli`:
+	case `zonelessrfc3339`:
+	case `syslogvariant`:
+	case `unpaddeddatetime`:
+	case `unixnano`:
+	case `unixms`:
+	case `uk`:
+	default:
+		err = errUnknownFormatName
+	}
+	return
+}
