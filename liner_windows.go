@@ -17,11 +17,6 @@ import (
 	"syscall"
 )
 
-const (
-	maxLine       int = 8 * 1024 * 1024 //8MB
-	buffBlockSize int = 4096
-)
-
 type LineReader struct {
 	fpath    string
 	currLine []byte

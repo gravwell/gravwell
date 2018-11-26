@@ -302,12 +302,12 @@ func (f *FilterManager) NewFollower(fpath string) (bool, error) {
 
 //addFollower gets a new follower, adds it to our list, and launches its routine
 //the caller MUST hold the lock
-func (f *FilterManager) addFollower(bname, fpath string, si *int64, filterId int, lh handler) error {
+func (f *FilterManager) addFollower(fcfg FollowerConfig) error {
 	stid := FileName{
-		BaseName: bname,
-		FilePath: fpath,
+		BaseName: fcfg.BaseName,
+		FilePath: fcfg.FilePath,
 	}
-	id, err := getFileIdFromName(fpath)
+	id, err := getFileIdFromName(fcfg.FilePath)
 	if err != nil {
 		return err
 	}
@@ -323,7 +323,7 @@ func (f *FilterManager) addFollower(bname, fpath string, si *int64, filterId int
 			return errors.New("duplicate follower")
 		}
 	}
-	fl, err := NewFollower(bname, fpath, si, filterId, lh)
+	fl, err := NewFollower(fcfg)
 	if err != nil {
 		return err
 	}

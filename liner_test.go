@@ -77,7 +77,7 @@ func TestLinerInput(t *testing.T) {
 	//read lines until we can't
 	var count int
 	for {
-		ln, ok, _, err := lnr.ReadLine()
+		ln, ok, _, err := lnr.ReadEntry()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,7 +115,7 @@ func TestLinerContinuousInput(t *testing.T) {
 	//read lines until we can't
 	var count int
 	for {
-		ln, ok, _, err := lnr.ReadLine()
+		ln, ok, _, err := lnr.ReadEntry()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -137,7 +137,7 @@ func TestLinerContinuousInput(t *testing.T) {
 	}
 
 	for {
-		ln, ok, _, err := lnr.ReadLine()
+		ln, ok, _, err := lnr.ReadEntry()
 		if err != nil {
 			t.Fatal(err)
 		}

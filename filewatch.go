@@ -47,6 +47,7 @@ type WatchConfig struct {
 	FileFilter string
 	Hnd        handler
 	Recursive  bool
+	//TODO insert regex config here
 }
 
 func NewWatcher(stateFilePath string) (*WatchManager, error) {

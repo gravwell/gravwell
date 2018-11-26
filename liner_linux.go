@@ -11,49 +11,28 @@ package filewatch
 import (
 	"bufio"
 	"bytes"
-	"errors"
 	"io"
 	"os"
 )
 
-const (
-	maxLine       int = 8 * 1024 * 1024 //8MB
-	buffBlockSize int = 4096
-)
-
 type LineReader struct {
-	f        *os.File
+	baseReader
 	brdr     *bufio.Reader
 	currLine []byte
-	idx      int64
-	maxLine  int
 }
 
 func NewLineReader(f *os.File, maxLine int, startIdx int64) (*LineReader, error) {
-	if f == nil {
-		return nil, errors.New("Reader is nil")
-	}
-	if maxLine < 0 {
-		return nil, errors.New("maxline is invalid")
-	}
-	if startIdx < 0 {
-		return nil, errors.New("Invalid start index")
+	br, err := newBaseReader(f, maxLine, startIdx)
+	if err != nil {
+		return nil, err
 	}
 	return &LineReader{
-		f:       f,
-		brdr:    bufio.NewReader(f),
-		idx:     startIdx,
-		maxLine: maxLine,
+		baseReader: br,
+		brdr:       bufio.NewReader(f),
 	}, nil
 }
 
-func (lr *LineReader) Seek(offset int64) error {
-	_, err := lr.f.Seek(offset, 0)
-	lr.idx = offset
-	return err
-}
-
-func (lr *LineReader) ReadLine() (ln []byte, ok bool, wasEOF bool, err error) {
+func (lr *LineReader) ReadEntry() (ln []byte, ok bool, wasEOF bool, err error) {
 	for {
 		//ReadBytes garuntees that it returns err == nil ONLY when the results hit the delimiter
 		b, lerr := lr.brdr.ReadBytes(byte('\n'))
@@ -103,19 +82,4 @@ func (lr *LineReader) ReadLine() (ln []byte, ok bool, wasEOF bool, err error) {
 		break
 	}
 	return
-}
-
-func (lr *LineReader) Index() int64 {
-	return lr.idx
-}
-
-func (lr *LineReader) Close() error {
-	if lr.f == nil {
-		return nil
-	}
-	if err := lr.f.Close(); err != nil {
-		return err
-	}
-	lr.f = nil
-	return nil
 }

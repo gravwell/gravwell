@@ -36,11 +36,21 @@ type FileId struct {
 	Minor uint64
 }
 
+type FollowerConfig struct {
+	BaseName   string
+	FilePath   string
+	State      *int64
+	FilterID   int
+	Handler    handler
+	Engine     int
+	EngineArgs string
+}
+
 type follower struct {
 	FileName
 	filterId int
 	id       FileId
-	lnr      *LineReader
+	lnr      Reader
 	state    *int64
 	mtx      *sync.Mutex
 	running  int32
@@ -52,11 +62,11 @@ type follower struct {
 	lastAct  time.Time
 }
 
-func NewFollower(bname, fpath string, fstate *int64, filterId int, lh handler) (*follower, error) {
-	if fstate == nil {
+func NewFollower(cfg FollowerConfig) (*follower, error) {
+	if cfg.State == nil {
 		return nil, errors.New("Invalid file state pointer")
 	}
-	fin, err := openDeletableFile(fpath)
+	fin, err := openDeletableFile(cfg.FilePath)
 	if err != nil {
 		return nil, err
 	}
@@ -66,12 +76,18 @@ func NewFollower(bname, fpath string, fstate *int64, filterId int, lh handler) (
 		return nil, err
 	}
 
-	if _, err := fin.Seek(*fstate, 0); err != nil {
+	if _, err := fin.Seek(*cfg.State, 0); err != nil {
 		fin.Close()
 		return nil, err
 	}
-
-	lnr, err := NewLineReader(fin, defaultMaxLine, *fstate)
+	rdrCfg := ReaderConfig{
+		Fin:        fin,
+		MaxLineLen: defaultMaxLine,
+		StartIndex: *cfg.State,
+		Engine:     cfg.Engine,
+		EngineArgs: cfg.EngineArgs,
+	}
+	lnr, err := NewReader(rdrCfg)
 	if err != nil {
 		fin.Close()
 		return nil, err
@@ -85,17 +101,17 @@ func NewFollower(bname, fpath string, fstate *int64, filterId int, lh handler) (
 
 	//open the file for reading and get
 	return &follower{
-		filterId: filterId,
+		filterId: cfg.FilterID,
 		id:       id,
 		lnr:      lnr,
 		mtx:      &sync.Mutex{},
 		wg:       &sync.WaitGroup{},
 		fsn:      wtchr,
-		lh:       lh,
-		state:    fstate,
+		lh:       cfg.Handler,
+		state:    cfg.State,
 		FileName: FileName{
-			FilePath: fpath,
-			BaseName: bname,
+			FilePath: cfg.FilePath,
+			BaseName: cfg.BaseName,
 		},
 		lastAct: time.Now(),
 	}, nil
@@ -184,7 +200,7 @@ func (f *follower) IdleDuration() time.Duration {
 func (f *follower) processLines(writeEvent bool) error {
 	var hit bool
 	for {
-		ln, ok, sawEOF, err := f.lnr.ReadLine()
+		ln, ok, sawEOF, err := f.lnr.ReadEntry()
 		if err != nil {
 			return err
 		}
