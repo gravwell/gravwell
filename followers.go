@@ -36,14 +36,18 @@ type FileId struct {
 	Minor uint64
 }
 
-type FollowerConfig struct {
-	BaseName   string
-	FilePath   string
-	State      *int64
-	FilterID   int
-	Handler    handler
+type FollowerEngineConfig struct {
 	Engine     int
 	EngineArgs string
+}
+
+type FollowerConfig struct {
+	FollowerEngineConfig
+	BaseName string
+	FilePath string
+	State    *int64
+	FilterID int
+	Handler  handler
 }
 
 type follower struct {

@@ -338,8 +338,14 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 				if err := flw.Close(); err != nil {
 					return err
 				}
-				//*st = 0
-				if err := f.addFollower(v.bname, p, st, i, v.lh); err != nil {
+				fcfg := FollowerConfig{
+					BaseName: v.bname,
+					FilePath: p,
+					State:    st,
+					FilterID: i,
+					Handler:  v.lh,
+				}
+				if err := f.addFollower(fcfg); err != nil {
 					return err
 				}
 				//return nil
@@ -466,8 +472,14 @@ func (f *FilterManager) launchFollowers(fpath string, deleteState bool) (ok bool
 		if si == nil {
 			si = f.addSeekInfo(v.bname, fpath)
 		}
-
-		if err := f.addFollower(v.bname, fpath, si, i, v.lh); err != nil {
+		fcfg := FollowerConfig{
+			BaseName: v.bname,
+			FilePath: fpath,
+			State:    si,
+			FilterID: i,
+			Handler:  v.lh,
+		}
+		if err := f.addFollower(fcfg); err != nil {
 			return false, err
 		}
 		ok = true

@@ -32,7 +32,14 @@ func TestNewFollower(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fl, err := NewFollower(baseName, fname, &fstate, 0, &clh)
+	fcfg := FollowerConfig{
+		BaseName: baseName,
+		FilePath: fname,
+		State:    &fstate,
+		FilterID: 0,
+		Handler:  &clh,
+	}
+	fl, err := NewFollower(fcfg)
 	if err != nil {
 		cleanFile(fname, t)
 		t.Fatal(err)
@@ -52,7 +59,15 @@ func TestNewStartStop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	fl, err := NewFollower(baseName, fname, &fstate, 0, &clh)
+
+	fcfg := FollowerConfig{
+		BaseName: baseName,
+		FilePath: fname,
+		State:    &fstate,
+		FilterID: 0,
+		Handler:  &clh,
+	}
+	fl, err := NewFollower(fcfg)
 	if err != nil {
 		cleanFile(fname, t)
 		t.Fatal(err)
@@ -77,7 +92,14 @@ func TestNewStartStop(t *testing.T) {
 }
 
 func testStart(b, f string, tlh *trackingLH, fPtr *int64) (fl *follower, err error) {
-	if fl, err = NewFollower(b, f, fPtr, 0, tlh); err != nil {
+	fcfg := FollowerConfig{
+		BaseName: b,
+		FilePath: f,
+		State:    fPtr,
+		FilterID: 0,
+		Handler:  tlh,
+	}
+	if fl, err = NewFollower(fcfg); err != nil {
 		os.RemoveAll(f)
 		return
 	}
