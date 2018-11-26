@@ -20,6 +20,7 @@ import (
 )
 
 type filter struct {
+	FollowerEngineConfig
 	bname string //name given to the config file
 	loc   string //location we are watching
 	mtchs []string
@@ -201,15 +202,16 @@ func (fm *FilterManager) nolockDumpStates() error {
 	return nil
 }
 
-func (f *FilterManager) AddFilter(bname, loc string, mtchs []string, lh handler) error {
+func (f *FilterManager) AddFilter(bname, loc string, mtchs []string, lh handler, ecfg FollowerEngineConfig) error {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
 
 	fltr := filter{
-		bname: bname,
-		loc:   filepath.Clean(loc),
-		mtchs: mtchs,
-		lh:    lh,
+		FollowerEngineConfig: ecfg,
+		bname:                bname,
+		loc:                  filepath.Clean(loc),
+		mtchs:                mtchs,
+		lh:                   lh,
 	}
 	f.filters = append(f.filters, fltr)
 	return nil
@@ -339,11 +341,12 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 					return err
 				}
 				fcfg := FollowerConfig{
-					BaseName: v.bname,
-					FilePath: p,
-					State:    st,
-					FilterID: i,
-					Handler:  v.lh,
+					BaseName:             v.bname,
+					FilePath:             p,
+					State:                st,
+					FilterID:             i,
+					Handler:              v.lh,
+					FollowerEngineConfig: v.FollowerEngineConfig,
 				}
 				if err := f.addFollower(fcfg); err != nil {
 					return err
@@ -473,11 +476,12 @@ func (f *FilterManager) launchFollowers(fpath string, deleteState bool) (ok bool
 			si = f.addSeekInfo(v.bname, fpath)
 		}
 		fcfg := FollowerConfig{
-			BaseName: v.bname,
-			FilePath: fpath,
-			State:    si,
-			FilterID: i,
-			Handler:  v.lh,
+			FollowerEngineConfig: v.FollowerEngineConfig,
+			BaseName:             v.bname,
+			FilePath:             fpath,
+			State:                si,
+			FilterID:             i,
+			Handler:              v.lh,
 		}
 		if err := f.addFollower(fcfg); err != nil {
 			return false, err

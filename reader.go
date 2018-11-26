@@ -19,12 +19,12 @@ const (
 )
 
 const (
-	LineEngine  int = iota
-	RegexEngine int = iota
+	LineEngine  int = 0
+	RegexEngine int = 1
 )
 
 type Reader interface {
-	Seek(int64) error
+	SeekFile(int64) error
 	ReadEntry() ([]byte, bool, bool, error)
 	Index() int64
 	Close() error
@@ -40,10 +40,10 @@ type ReaderConfig struct {
 
 func NewReader(cfg ReaderConfig) (Reader, error) {
 	switch cfg.Engine {
-	case LineEngine:
-		return NewLineReader(cfg.Fin, cfg.MaxLineLen, cfg.StartIndex)
-		//case RegexEngine:
-		//	return NewRegexReader(cfg)
+	case RegexEngine:
+		return NewRegexReader(cfg)
+	case LineEngine: //default/empty is line reader
+		return NewLineReader(cfg)
 	}
 	return nil, errors.New("Unknown engine")
 }
@@ -75,7 +75,7 @@ func newBaseReader(f *os.File, maxLine int, startIdx int64) (br baseReader, err 
 	return
 }
 
-func (br *baseReader) Seek(offset int64) error {
+func (br *baseReader) SeekFile(offset int64) error {
 	_, err := br.f.Seek(offset, 0)
 	br.idx = offset
 	return err

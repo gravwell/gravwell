@@ -24,21 +24,21 @@ type LineReader struct {
 	maxLine  int
 }
 
-func NewLineReader(f *os.File, maxLine int, startIdx int64) (*LineReader, error) {
-	if f == nil {
+func NewLineReader(cfg ReaderConfig) (*LineReader, error) {
+	if cfg.Fin == nil {
 		return nil, errors.New("Reader is nil")
 	}
-	if maxLine < 0 {
+	if cfg.MaxLineLen < 0 {
 		return nil, errors.New("maxline is invalid")
 	}
-	if startIdx < 0 {
+	if cfg.StartIndex < 0 {
 		return nil, errors.New("Invalid start index")
 	}
-	fpath := f.Name()
+	fpath := cfg.Fin.Name()
 	return &LineReader{
 		fpath:   fpath,
-		idx:     startIdx,
-		maxLine: maxLine,
+		idx:     cfg.StartIndex,
+		maxLine: cfg.MaxLineLen,
 	}, nil
 }
 
@@ -47,7 +47,7 @@ func (lr *LineReader) Seek(offset int64) error {
 	return nil
 }
 
-func (lr *LineReader) ReadLine() (ln []byte, ok bool, sawEOF bool, err error) {
+func (lr *LineReader) ReadEntry() (ln []byte, ok bool, sawEOF bool, err error) {
 	fin, lerr := openDeletableFile(lr.fpath)
 	if lerr != nil {
 		if lerr == syscall.ERROR_ACCESS_DENIED {

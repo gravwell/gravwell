@@ -32,8 +32,12 @@ func TestLinerNew(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	lr, err := NewLineReader(f, defMaxLine, lastIndex)
+	cfg := ReaderConfig{
+		Fin:        f,
+		MaxLineLen: defMaxLine,
+		StartIndex: lastIndex,
+	}
+	lr, err := NewLineReader(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +56,12 @@ func newLiner() (lnr *LineReader, name string, err error) {
 		return
 	}
 
-	lnr, err = NewLineReader(f, defMaxLine, lastIndex)
+	cfg := ReaderConfig{
+		Fin:        f,
+		MaxLineLen: defMaxLine,
+		StartIndex: lastIndex,
+	}
+	lnr, err = NewLineReader(cfg)
 	if err != nil {
 		f.Close()
 		os.RemoveAll(name)

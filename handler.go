@@ -34,7 +34,6 @@ type LogHandler struct {
 }
 
 type LogHandlerConfig struct {
-	FollowerEngineConfig
 	Tag                     entry.EntryTag
 	IgnoreTS                bool
 	AssumeLocalTZ           bool

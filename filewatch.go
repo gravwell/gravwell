@@ -42,12 +42,12 @@ type WatchManager struct {
 }
 
 type WatchConfig struct {
+	FollowerEngineConfig
 	ConfigName string
 	BaseDir    string
 	FileFilter string
 	Hnd        handler
 	Recursive  bool
-	//TODO insert regex config here
 }
 
 func NewWatcher(stateFilePath string) (*WatchManager, error) {
@@ -183,7 +183,7 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 		wm.watched[c.BaseDir] = append(wm.watched[c.BaseDir], c)
 	}
 
-	if err := wm.fman.AddFilter(c.ConfigName, c.BaseDir, fltrs, c.Hnd); err != nil {
+	if err := wm.fman.AddFilter(c.ConfigName, c.BaseDir, fltrs, c.Hnd, c.FollowerEngineConfig); err != nil {
 		return err
 	}
 	// Now add the subdirectories

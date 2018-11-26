@@ -12,7 +12,6 @@ import (
 	"bufio"
 	"bytes"
 	"io"
-	"os"
 )
 
 type LineReader struct {
@@ -21,14 +20,14 @@ type LineReader struct {
 	currLine []byte
 }
 
-func NewLineReader(f *os.File, maxLine int, startIdx int64) (*LineReader, error) {
-	br, err := newBaseReader(f, maxLine, startIdx)
+func NewLineReader(cfg ReaderConfig) (*LineReader, error) {
+	br, err := newBaseReader(cfg.Fin, cfg.MaxLineLen, cfg.StartIndex)
 	if err != nil {
 		return nil, err
 	}
 	return &LineReader{
 		baseReader: br,
-		brdr:       bufio.NewReader(f),
+		brdr:       bufio.NewReader(cfg.Fin),
 	}, nil
 }
 

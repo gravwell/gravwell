@@ -10,7 +10,6 @@ package filewatch
 
 import (
 	"bufio"
-	"os"
 	"regexp"
 )
 
@@ -20,22 +19,22 @@ type RegexReader struct {
 	scn *bufio.Scanner
 }
 
-func NewRegexReader(f *os.File, maxLine int, startIdx int64, args string) (*RegexReader, error) {
-	rx, err := regexp.Compile(args)
+func NewRegexReader(cfg ReaderConfig) (*RegexReader, error) {
+	rx, err := regexp.Compile(cfg.EngineArgs)
 	if err != nil {
 		return nil, err
 	}
-	br, err := newBaseReader(f, maxLine, startIdx)
+	br, err := newBaseReader(cfg.Fin, cfg.MaxLineLen, cfg.StartIndex)
 	if err != nil {
 		return nil, err
 	}
 	rr := &RegexReader{
 		baseReader: br,
 		rx:         rx,
+		scn:        bufio.NewScanner(cfg.Fin),
 	}
-	rr.scn = bufio.NewScanner(f)
 	rr.scn.Split(rr.splitter)
-	rr.scn.Buffer(make([]byte, maxLine), 2*maxLine)
+	rr.scn.Buffer(make([]byte, cfg.MaxLineLen), 2*cfg.MaxLineLen)
 	return rr, nil
 }
 

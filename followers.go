@@ -217,8 +217,7 @@ func (f *follower) processLines(writeEvent bool) error {
 			if fi.Size() < *f.state {
 				// the file must have been truncated
 				*f.state = 0
-				err = f.lnr.Seek(0)
-				if err != nil {
+				if err = f.lnr.SeekFile(0); err != nil {
 					return err
 				}
 			}
