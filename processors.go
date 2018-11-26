@@ -266,7 +266,7 @@ func NewZonelessRFC3339() *processor {
 		rxp:    regexp.MustCompile(re),
 		rxstr:  re,
 		format: ZONELESS_RFC3339_FORMAT,
-		name:   `rfc3339nano`,
+		name:   `zonelessrfc3339nano`,
 	}
 }
 
@@ -366,6 +366,7 @@ func ValidateFormatOverride(s string) (err error) {
 	case `rfc1123z`:
 	case `rfc3339`:
 	case `rfc3339nano`:
+	case `zonelessrfc3339nano`:
 	case `apache`:
 	case `apachenotz`:
 	case `syslog`:
@@ -375,7 +376,6 @@ func ValidateFormatOverride(s string) (err error) {
 	case `custom1milli`:
 	case `nginx`:
 	case `unixmilli`:
-	case `zonelessrfc3339`:
 	case `syslogvariant`:
 	case `unpaddeddatetime`:
 	case `unixnano`:
