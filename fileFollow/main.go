@@ -170,12 +170,6 @@ func main() {
 		if v {
 			cfg.Debugger = debugout
 		}
-		if rex, ok, err := val.TimestampDelimited(); err != nil {
-			lg.FatalCode(0, "Invalid timestamp delimiter: %v\n", err)
-		} else if ok {
-			cfg.Engine = filewatch.RegexEngine
-			cfg.EngineArgs = rex
-		}
 		lh, err := filewatch.NewLogHandler(cfg, ch)
 		if err != nil {
 			lg.Fatal("Failed to generate handler: %v", err)
@@ -186,6 +180,14 @@ func main() {
 			FileFilter: val.File_Filter,
 			Hnd:        lh,
 			Recursive:  val.Recursive,
+		}
+		if rex, ok, err := val.TimestampDelimited(); err != nil {
+			lg.FatalCode(0, "Invalid timestamp delimiter: %v\n", err)
+		} else if ok {
+			c.Engine = filewatch.RegexEngine
+			c.EngineArgs = rex
+		} else {
+			c.Engine = filewatch.LineEngine
 		}
 		if err := wtcher.Add(c); err != nil {
 			wtcher.Close()
