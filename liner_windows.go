@@ -42,7 +42,7 @@ func NewLineReader(cfg ReaderConfig) (*LineReader, error) {
 	}, nil
 }
 
-func (lr *LineReader) Seek(offset int64) error {
+func (lr *LineReader) SeekFile(offset int64) error {
 	lr.idx = offset
 	return nil
 }
