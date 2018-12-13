@@ -31,6 +31,7 @@ type jsonHandlerConfig struct {
 	tags             map[string]entry.EntryTag
 	ignoreTimestamps bool
 	setLocalTime     bool
+	timezoneOverride string
 	src              net.IP
 	wg               *sync.WaitGroup
 	formatOverride   string
@@ -51,6 +52,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry.E
 			tags:             map[string]entry.EntryTag{},
 			ignoreTimestamps: v.Ignore_Timestamps,
 			setLocalTime:     v.Assume_Local_Timezone,
+			timezoneOverride: v.Timezone_Override,
 		}
 		if jhc.flds, err = v.GetJsonFields(); err != nil {
 			return err
@@ -85,8 +87,11 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry.E
 			jhc.tags[tm.Value] = tg
 		}
 		//check format override
-		if err = timegrinder.ValidateFormatOverride(v.Timestamp_Format_Override); err != nil {
-			return fmt.Errorf("%s Invalid timestamp override \"%s\": %v\n", k, v.Timestamp_Format_Override, err)
+		if v.Timestamp_Format_Override != `` {
+			if err = timegrinder.ValidateFormatOverride(v.Timestamp_Format_Override); err != nil {
+				return fmt.Errorf("%s Invalid timestamp override \"%s\": %v\n", k, v.Timestamp_Format_Override, err)
+			}
+			jhc.formatOverride = v.Timestamp_Format_Override
 		}
 
 		//get the socket
@@ -175,7 +180,13 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig) {
 		if cfg.setLocalTime {
 			tg.SetLocalTime()
 		}
-
+		if cfg.timezoneOverride != `` {
+			err = tg.SetTimezone(cfg.timezoneOverride)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", cfg.timezoneOverride, err)
+				return
+			}
+		}
 	}
 	bio := bufio.NewReader(c)
 	for {
@@ -207,6 +218,7 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig) {
 		} else if tag, ok = cfg.tags[s]; !ok {
 			tag = cfg.defTag
 		}
+
 		cfg.ch <- &entry.Entry{
 			SRC:  cfg.src,
 			TS:   ts,

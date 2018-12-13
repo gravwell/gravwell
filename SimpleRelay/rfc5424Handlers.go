@@ -117,6 +117,13 @@ func rfc5424ConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 	if cfg.setLocalTime {
 		tg.SetLocalTime()
 	}
+	if cfg.timezoneOverride != `` {
+		err = tg.SetTimezone(cfg.timezoneOverride)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", cfg.timezoneOverride, err)
+			return
+		}
+	}
 
 	var rip net.IP
 	for {

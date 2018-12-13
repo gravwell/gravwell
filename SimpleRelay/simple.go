@@ -37,6 +37,7 @@ type handlerConfig struct {
 	lrt              readerType
 	ignoreTimestamps bool
 	setLocalTime     bool
+	timezoneOverride string
 	src              net.IP
 	wg               *sync.WaitGroup
 	formatOverride   string
@@ -81,6 +82,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry
 			lrt:              lrt,
 			ignoreTimestamps: v.Ignore_Timestamps,
 			setLocalTime:     v.Assume_Local_Timezone,
+			timezoneOverride: v.Timezone_Override,
 			src:              src,
 			wg:               wg,
 			formatOverride:   v.Timestamp_Format_Override,

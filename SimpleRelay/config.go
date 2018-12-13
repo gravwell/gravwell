@@ -14,6 +14,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/config"
@@ -48,6 +49,7 @@ type base struct {
 	Bind_String               string //IP port pair 127.0.0.1:1234
 	Ignore_Timestamps         bool   //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone     bool
+	Timezone_Override         string
 	Source_Override           string
 	Timestamp_Format_Override string //override the timestamp format
 }
@@ -121,6 +123,51 @@ func verifyConfig(c *cfgType) error {
 		}
 		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 			return errors.New("Invalid characters in the Tag-Name for " + k)
+		}
+		if v.Timezone_Override != "" {
+			if v.Assume_Local_Timezone {
+				// cannot do both
+				return fmt.Errorf("Cannot specify Assume-Local-Timezone and Timezone-Override in the same listener %v", k)
+			}
+			if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
+				return fmt.Errorf("Invalid timezone override %v in listener %v: %v", v.Timezone_Override, k, err)
+			}
+		}
+		if n, ok := bindMp[v.Bind_String]; ok {
+			return errors.New("Bind-String for " + k + " already in use by " + n)
+		}
+		bindMp[v.Bind_String] = k
+	}
+	for k, v := range c.JSONListener {
+		if err := v.base.Validate(); err != nil {
+			return fmt.Errorf("Listener %s configuration error: %v", k, err)
+		}
+		if len(v.Default_Tag) == 0 {
+			v.Default_Tag = `default`
+		}
+		if strings.ContainsAny(v.Default_Tag, ingest.FORBIDDEN_TAG_SET) {
+			return errors.New("Invalid characters in the Default-Tag for " + k)
+		}
+		tms, err := v.TagMatchers()
+		if err != nil {
+			return err
+		}
+		for _, t := range tms {
+			if len(t.Tag) == 0 || len(t.Value) == 0 {
+				return errors.New("Empty tag-match pair " + k + " not allowed in JSON listener " + k)
+			}
+			if strings.ContainsAny(t.Tag, ingest.FORBIDDEN_TAG_SET) {
+				return errors.New("Invalid characters in Tag-Match tag " + t.Tag + " for " + k)
+			}
+		}
+		if v.Timezone_Override != "" {
+			if v.Assume_Local_Timezone {
+				// cannot do both
+				return fmt.Errorf("Cannot specify Assume-Local-Timezone and Timezone-Override in the same listener %v", k)
+			}
+			if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
+				return fmt.Errorf("Invalid timezone override %v in listener %v: %v", v.Timezone_Override, k, err)
+			}
 		}
 		if n, ok := bindMp[v.Bind_String]; ok {
 			return errors.New("Bind-String for " + k + " already in use by " + n)
