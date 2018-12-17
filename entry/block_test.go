@@ -85,6 +85,36 @@ func TestCreateBlock(t *testing.T) {
 	}
 }
 
+func TestPeelBlock(t *testing.T) {
+	var sz uint64
+	eb := NewEntryBlock(nil, 0)
+	for i := 0; i < 16*1024; i++ {
+		e, err := genRandomEntry()
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.TS.Sec = key
+		eb.Add(&e)
+		sz += e.Size()
+	}
+	if sz != eb.Size() {
+		t.Fatal("Invalid entry block size")
+	}
+
+	for eb.Count() > 0 {
+		sz := eb.Size()
+		cnt := eb.Count()
+
+		neb := eb.Peel(rand.Intn(1024))
+		if (neb.Size() + eb.Size()) != sz {
+			t.Fatal("peel size mismatch")
+		}
+		if (neb.Count() + eb.Count()) != cnt {
+			t.Fatal("peel count mismatch")
+		}
+	}
+}
+
 func TestCreateEBlock(t *testing.T) {
 	var eb EntryBlock
 	var sz uint64

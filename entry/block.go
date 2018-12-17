@@ -105,7 +105,7 @@ func (eb *EntryBlock) Merge(neb *EntryBlock) error {
 }
 
 // Count returns the number of entries held in the block
-func (eb EntryBlock) Count() int {
+func (eb *EntryBlock) Count() int {
 	return len(eb.entries)
 }
 
@@ -120,6 +120,26 @@ func (eb *EntryBlock) Entry(i int) *Entry {
 // Entries returns the underlying entry slice
 func (eb *EntryBlock) Entries() []*Entry {
 	return eb.entries
+}
+
+// Peel splits off a set of entries from the EntryBlock, returning a new EntryBlock
+// and updating the state of the current EntryBlock
+func (eb *EntryBlock) Peel(cnt int) (neb EntryBlock) {
+	if len(eb.entries) == 0 {
+		return
+	} else if cnt > len(eb.entries) {
+		cnt = len(eb.entries)
+	}
+	var removedSize uint64
+	neb.key = eb.key
+	neb.entries = eb.entries[0:cnt]
+	eb.entries = eb.entries[cnt:]
+	for i := range neb.entries {
+		removedSize += neb.entries[i].Size()
+	}
+	eb.size -= removedSize
+	neb.size = removedSize
+	return
 }
 
 type entryBlockHeader struct {
