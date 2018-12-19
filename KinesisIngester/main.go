@@ -187,8 +187,15 @@ func main() {
 				if err != nil {
 					stream.Parse_Time = false
 				}
-				if stream.Assume_Localtime {
+				if stream.Assume_Local_Timezone {
 					tg.SetLocalTime()
+				}
+				if stream.Timezone_Override != `` {
+					err = tg.SetTimezone(stream.Timezone_Override)
+					if err != nil {
+						fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", stream.Timezone_Override, err)
+						return
+					}
 				}
 				var src net.IP
 				if cfg.Global.Source_Override != `` {

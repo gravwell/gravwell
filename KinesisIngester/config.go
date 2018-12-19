@@ -34,12 +34,13 @@ type global struct {
 type cfgType struct {
 	Global        global
 	KinesisStream map[string]*struct {
-		Stream_Name      string
-		Tag_Name         string
-		Iterator_Type    string
-		Region           string
-		Assume_Localtime bool
-		Parse_Time       bool
+		Stream_Name           string
+		Tag_Name              string
+		Iterator_Type         string
+		Region                string
+		Assume_Local_Timezone bool
+		Timezone_Override     string
+		Parse_Time            bool
 	}
 }
 
