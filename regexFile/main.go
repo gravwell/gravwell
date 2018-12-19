@@ -33,6 +33,7 @@ const (
 
 var (
 	tso     = flag.String("timestamp-override", "", "Timestamp override")
+	tzo     = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
 	inFile  = flag.String("i", "", "Input file to process")
 	ver     = flag.Bool("v", false, "Print version and exit")
 	utc     = flag.Bool("utc", false, "Assume UTC time")
@@ -138,6 +139,13 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 	}
 	if *utc {
 		tg.SetUTC()
+	}
+
+	if *tzo != `` {
+		err = tg.SetTimezone(*tzo)
+		if err != nil {
+			return err
+		}
 	}
 
 	src, err := igst.SourceIP()
