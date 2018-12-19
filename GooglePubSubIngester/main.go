@@ -206,8 +206,15 @@ func main() {
 			if err != nil {
 				ps.Parse_Time = false
 			}
-			if ps.Assume_Localtime {
+			if ps.Assume_Local_Timezone {
 				tg.SetLocalTime()
+			}
+			if ps.Timezone_Override != `` {
+				err = tg.SetTimezone(ps.Timezone_Override)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", ps.Timezone_Override, err)
+					return
+				}
 			}
 
 			var src net.IP

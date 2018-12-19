@@ -32,10 +32,11 @@ type global struct {
 }
 
 type pubsubconf struct {
-	Topic_Name       string
-	Tag_Name         string
-	Assume_Localtime bool
-	Parse_Time       bool
+	Topic_Name            string
+	Tag_Name              string
+	Assume_Local_Timezone bool
+	Timezone_Override     string
+	Parse_Time            bool
 }
 
 type cfgType struct {
