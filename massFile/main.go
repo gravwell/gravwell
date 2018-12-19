@@ -33,6 +33,7 @@ var (
 	tlsRemoteVerify = flag.String("tls-remote-verify", "", "Path to remote public key to verify against")
 	ingestSecret    = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
 	timeoutSec      = flag.Int("timeout", 1, "Connection timeout in seconds")
+	tzo             = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
 
 	srcDir   = flag.String("s", "", "Source directory containing log files")
 	wDir     = flag.String("w", "", "Working directory for optimization")

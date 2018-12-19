@@ -71,6 +71,13 @@ func groupLargeLogs(src, wrk string, totalSize int64) error {
 		return err
 	}
 
+	if *tzo != `` {
+		err = tg.SetTimezone(*tzo)
+		if err != nil {
+			return err
+		}
+	}
+
 	//walk the files
 	if err := filepath.Walk(src, func(p string, fi os.FileInfo, err error) error {
 		var lastTS time.Time
@@ -276,6 +283,12 @@ func walkAndReadFiles(dir string, totalSize int64, iv *ingestVars, f entsFunc) e
 	tg, err := timegrinder.NewTimeGrinder(tcfg)
 	if err != nil {
 		return err
+	}
+	if *tzo != `` {
+		err = tg.SetTimezone(*tzo)
+		if err != nil {
+			return err
+		}
 	}
 	ud := newUpdater(totalSize)
 	var tally int64
