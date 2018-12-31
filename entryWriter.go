@@ -30,7 +30,7 @@ const (
 	WRITE_BUFFER_SIZE           int           = 1024 * 1024
 	MAX_WRITE_ERROR             int           = 4
 	BUFFERED_ACK_READER_SIZE    int           = ACK_SIZE * MAX_UNCONFIRMED_COUNT
-	CLOSING_SERVICE_ACK_TIMEOUT time.Duration = time.Second
+	CLOSING_SERVICE_ACK_TIMEOUT time.Duration = 3*time.Second
 
 	MAX_UNCONFIRMED_COUNT int = 1024 * 4
 
