@@ -201,7 +201,9 @@ func (ew *EntryWriter) forceAckNoLock() error {
 			ew.conn.ClearReadTimeout()
 			return err
 		}
-		ew.conn.ClearReadTimeout()
+		if err := ew.conn.ClearReadTimeout(); err != nil {
+			return err
+		}
 	}
 	if ew.ecb.Count() > 0 {
 		return fmt.Errorf("Failed to confirm %d entries", ew.ecb.Count())
