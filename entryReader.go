@@ -80,7 +80,7 @@ type EntryReader struct {
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
 	cfg := EntryReaderWriterConfig{
-		Conn:                  conn,
+		Conn: conn,
 		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
 		BufferSize:            READ_BUFFER_SIZE,
 		Timeout:               defaultReaderTimeout,
@@ -316,12 +316,38 @@ func (er *EntryReader) ackRoutine() {
 	defer er.wg.Done()
 	//escape analysis should ensure this is on the stack
 	buff := make([]byte, ACK_WRITER_BUFFER_SIZE)
+	keepalivebuff := make([]byte, ACK_WRITER_BUFFER_SIZE)
+	var off int
+	var err error
 
-	for v := range er.ackChan {
-		if err := er.fillAndSendAckBuffer(buff, v); err != nil {
-			er.routineCleanFail(err)
-			return
+	tmr := time.NewTimer(500 * time.Millisecond)
+	defer tmr.Stop()
+	for {
+		select {
+		case v, ok := <-er.ackChan:
+			if !ok {
+				return
+			}
+			if err := er.fillAndSendAckBuffer(buff, v); err != nil {
+				er.routineCleanFail(err)
+				return
+			}
+		case _ = <-tmr.C:
+			ac := ackCommand{cmd: PONG_MAGIC}
+			if off, _, err = ac.encode(keepalivebuff); err != nil {
+				er.routineCleanFail(err)
+				return
+			}
+			if err = er.writeAll(keepalivebuff[:off]); err != nil {
+				er.routineCleanFail(err)
+				return
+			}
+			if err = er.bAckWriter.Flush(); err != nil {
+				er.routineCleanFail(err)
+				return
+			}
 		}
+		tmr.Reset(500 * time.Millisecond)
 	}
 }
 

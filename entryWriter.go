@@ -30,7 +30,7 @@ const (
 	WRITE_BUFFER_SIZE           int           = 1024 * 1024
 	MAX_WRITE_ERROR             int           = 4
 	BUFFERED_ACK_READER_SIZE    int           = ACK_SIZE * MAX_UNCONFIRMED_COUNT
-	CLOSING_SERVICE_ACK_TIMEOUT time.Duration = 3*time.Second
+	CLOSING_SERVICE_ACK_TIMEOUT time.Duration = 3 * time.Second
 
 	MAX_UNCONFIRMED_COUNT int = 1024 * 4
 
@@ -74,7 +74,7 @@ type EntryWriter struct {
 
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
 	ewc := EntryReaderWriterConfig{
-		Conn:                  NewUnthrottledConn(conn),
+		Conn: NewUnthrottledConn(conn),
 		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
 		BufferSize:            WRITE_BUFFER_SIZE,
 		Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,
@@ -194,14 +194,8 @@ func (ew *EntryWriter) forceAckNoLock() error {
 	}
 	//begin servicing acks with blocking and a read deadline
 	for ew.ecb.Count() > 0 {
-		if err := ew.conn.SetReadTimeout(ew.ackTimeout); err != nil {
-			return err
-		}
 		if err := ew.serviceAcks(true); err != nil {
 			ew.conn.ClearReadTimeout()
-			return err
-		}
-		if err := ew.conn.ClearReadTimeout(); err != nil {
 			return err
 		}
 	}
@@ -427,26 +421,31 @@ func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 	// Read back an ackCommand
 	var ac ackCommand
 	var ok bool
-	if err = ew.conn.SetReadTimeout(time.Second); err != nil {
-		return
-	}
-	if ok, err = ac.decode(ew.bAckReader, true); err != nil {
-		return
-	}
-	if !ok {
-		err = errors.New("couldn't figure out ackCommand")
-		return
-	}
+	for {
+		if err = ew.conn.SetReadTimeout(time.Second); err != nil {
+			return
+		}
+		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
+			return
+		}
+		if !ok {
+			err = errors.New("couldn't figure out ackCommand")
+			return
+		}
 
-	switch ac.cmd {
-	case CONFIRM_TAG_MAGIC:
-		tg = entry.EntryTag(ac.val)
-	case ERROR_TAG_MAGIC:
-		err = errors.New("Failed to negotiate tag")
-	default:
-		err = fmt.Errorf("Unexpected response to tag negotiation request: %#v", ac)
+		switch ac.cmd {
+		case CONFIRM_TAG_MAGIC:
+			tg = entry.EntryTag(ac.val)
+			return
+		case ERROR_TAG_MAGIC:
+			err = errors.New("Failed to negotiate tag")
+			return
+		case PONG_MAGIC:
+			// unsolicited, can come whenever
+		default:
+			err = fmt.Errorf("Unexpected response to tag negotiation request: %#v", ac)
+		}
 	}
-
 	return
 }
 
@@ -490,6 +489,12 @@ func (ew *EntryWriter) readAcks(blocking bool) (err error) {
 	var ac ackCommand
 	var ok bool
 	var dur time.Duration
+	origBlock := blocking
+
+	defer ew.conn.ClearReadTimeout()
+	if err := ew.conn.SetReadTimeout(ew.ackTimeout); err != nil {
+		return err
+	}
 
 	for ew.ecb.Count() > 0 {
 		if ok, err = ac.decode(ew.bAckReader, blocking); err != nil {
@@ -499,6 +504,11 @@ func (ew *EntryWriter) readAcks(blocking bool) (err error) {
 			break
 		}
 		blocking = false
+
+		if err := ew.conn.SetReadTimeout(ew.ackTimeout); err != nil {
+			return err
+		}
+
 		switch ac.cmd {
 		case CONFIRM_ENTRY_MAGIC:
 			//check if the ID is the head, if not pop the head and resend
@@ -516,6 +526,10 @@ func (ew *EntryWriter) readAcks(blocking bool) (err error) {
 			if err = ew.throttle(dur); err != nil {
 				return
 			}
+			blocking = origBlock
+		case PONG_MAGIC:
+			// try again
+			blocking = origBlock
 		}
 	}
 	return
@@ -552,6 +566,8 @@ func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (err error) {
 			if err = ew.throttle(dur); err != nil {
 				return
 			}
+		case PONG_MAGIC:
+			// Do nothing
 		}
 		if ac.cmd == cmd {
 			break
