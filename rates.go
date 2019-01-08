@@ -53,18 +53,19 @@ func HumanSize(b uint64) string {
 // readable string showing data per second.  e.g. Megabytes/s (MB/s)
 func HumanRate(b uint64, dur time.Duration) string {
 	fS := float64(dur.Nanoseconds()) / NsPerSec
-	if b < KB {
-		return fmt.Sprintf("%.02f Bps", float64(b)/fS)
-	} else if b <= MB {
-		return fmt.Sprintf("%.02f KB/s", (float64(b)/float64(KB))/fS)
-	} else if b <= GB {
-		return fmt.Sprintf("%.02f MB/s", (float64(b)/float64(MB))/fS)
-	} else if b <= TB {
-		return fmt.Sprintf("%.02f GB/s", (float64(b)/float64(GB))/fS)
-	} else if b <= PB {
-		return fmt.Sprintf("%.02f TB/s", (float64(b)/float64(TB))/fS)
-	} else if b <= YB {
-		return fmt.Sprintf("%.02f PB/s", (float64(b)/float64(PB))/fS)
+	v := float64(b) / fS
+	if uint64(v) < KB {
+		return fmt.Sprintf("%.02f Bps", v)
+	} else if uint64(v) <= MB {
+		return fmt.Sprintf("%.02f KB/s", (v / float64(KB)))
+	} else if uint64(v) <= GB {
+		return fmt.Sprintf("%.02f MB/s", (v / float64(MB)))
+	} else if uint64(v) <= TB {
+		return fmt.Sprintf("%.02f GB/s", (v / float64(GB)))
+	} else if uint64(v) <= PB {
+		return fmt.Sprintf("%.02f TB/s", (v / float64(TB)))
+	} else if uint64(v) <= YB {
+		return fmt.Sprintf("%.02f PB/s", (v / float64(PB)))
 	}
 	return fmt.Sprintf("77 MPH...")
 
@@ -75,18 +76,19 @@ func HumanRate(b uint64, dur time.Duration) string {
 func HumanLineRate(b uint64, dur time.Duration) string {
 	b = b * 8
 	fS := float64(dur.Nanoseconds()) / NsPerSec
-	if b < KB {
+	v := float64(b) / fS
+	if uint64(v) < KB {
 		return fmt.Sprintf("%d bps", b)
-	} else if b <= MB {
-		return fmt.Sprintf("%.02f Kb/s", (float64(b)/float64(KB))/fS)
-	} else if b <= GB {
-		return fmt.Sprintf("%.02f Mb/s", (float64(b)/float64(MB))/fS)
-	} else if b <= TB {
-		return fmt.Sprintf("%.02f Gb/s", (float64(b)/float64(GB))/fS)
-	} else if b <= PB {
-		return fmt.Sprintf("%.02f Tb/s", (float64(b)/float64(TB))/fS)
-	} else if b <= YB {
-		return fmt.Sprintf("%.02f Pb/s", (float64(b)/float64(PB))/fS)
+	} else if uint64(v) <= MB {
+		return fmt.Sprintf("%.02f Kb/s", (v / float64(KB)))
+	} else if uint64(v) <= GB {
+		return fmt.Sprintf("%.02f Mb/s", (v / float64(MB)))
+	} else if uint64(v) <= TB {
+		return fmt.Sprintf("%.02f Gb/s", (v / float64(GB)))
+	} else if uint64(v) <= PB {
+		return fmt.Sprintf("%.02f Tb/s", (v / float64(TB)))
+	} else if uint64(v) <= YB {
+		return fmt.Sprintf("%.02f Pb/s", (v / float64(PB)))
 	}
 	return fmt.Sprintf("77 MPH...")
 }

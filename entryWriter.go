@@ -74,7 +74,7 @@ type EntryWriter struct {
 
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
 	ewc := EntryReaderWriterConfig{
-		Conn: NewUnthrottledConn(conn),
+		Conn:                  NewUnthrottledConn(conn),
 		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
 		BufferSize:            WRITE_BUFFER_SIZE,
 		Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,
@@ -423,27 +423,28 @@ func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 	var ok bool
 	for {
 		if err = ew.conn.SetReadTimeout(time.Second); err != nil {
-			return
+			break
 		}
 		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
-			return
+			break
 		}
 		if !ok {
 			err = errors.New("couldn't figure out ackCommand")
-			return
+			break
 		}
 
 		switch ac.cmd {
 		case CONFIRM_TAG_MAGIC:
 			tg = entry.EntryTag(ac.val)
-			return
+			break
 		case ERROR_TAG_MAGIC:
 			err = errors.New("Failed to negotiate tag")
-			return
+			break
 		case PONG_MAGIC:
 			// unsolicited, can come whenever
 		default:
 			err = fmt.Errorf("Unexpected response to tag negotiation request: %#v", ac)
+			break
 		}
 	}
 	return
