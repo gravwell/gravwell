@@ -123,22 +123,26 @@ func (eb *EntryBlock) Entries() []*Entry {
 }
 
 // Peel splits off a set of entries from the EntryBlock, returning a new EntryBlock
-// and updating the state of the current EntryBlock
-func (eb *EntryBlock) Peel(cnt int) (neb EntryBlock) {
-	if len(eb.entries) == 0 {
+// and updating the state of the current EntryBlock, the count and size are used as barrier
+// we peel until we hit either the count or the size
+func (eb *EntryBlock) Peel(cnt int, sz uint64) (neb EntryBlock) {
+	if len(eb.entries) == 0 || sz <= 0 {
 		return
-	} else if cnt > len(eb.entries) {
-		cnt = len(eb.entries)
 	}
 	var removedSize uint64
+	var torem int
 	neb.key = eb.key
-	neb.entries = eb.entries[0:cnt]
-	eb.entries = eb.entries[cnt:]
-	for i := range neb.entries {
-		removedSize += neb.entries[i].Size()
+	for i := range eb.entries {
+		if i >= cnt || removedSize > sz {
+			break
+		}
+		torem++
+		removedSize += eb.entries[i].Size()
 	}
-	eb.size -= removedSize
+	neb.entries = eb.entries[0:torem]
 	neb.size = removedSize
+	eb.entries = eb.entries[torem:]
+	eb.size -= removedSize
 	return
 }
 

@@ -105,12 +105,21 @@ func TestPeelBlock(t *testing.T) {
 		sz := eb.Size()
 		cnt := eb.Count()
 
-		neb := eb.Peel(rand.Intn(1024))
+		neb := eb.Peel(rand.Intn(1024), uint64(32*1024))
 		if (neb.Size() + eb.Size()) != sz {
 			t.Fatal("peel size mismatch")
 		}
 		if (neb.Count() + eb.Count()) != cnt {
 			t.Fatal("peel count mismatch")
+		}
+		if neb.Count() > 1024 {
+			t.Fatal("peeled count is wrong")
+		} else if neb.Size() > 32*1024 {
+			//check if its just the last entry that rolled it over
+			e := neb.Entry(neb.Count() - 1)
+			if (neb.Size() - e.Size()) > 32*1024 {
+				t.Fatal("peeled size is wrong", neb.Size(), (32 * 1024), neb.Count())
+			}
 		}
 	}
 }
