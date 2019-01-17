@@ -2,14 +2,14 @@
 WantedBy=multi-user.target
 
 [Unit]
-Description=Gravwell Hubspot Ingester Service
+Description=Gravwell HTTP Post Ingester Service
 After=network-online.target
 OnFailure=gravwell_crash_report@%n.service
 
 [Service]
 Type=simple
-ExecStart=/opt/hubspot/gravwell_hubspot
-WorkingDirectory=/opt/hubspot
+ExecStart=/opt/hubspot/gravwell_http_post
+WorkingDirectory=/opt/gravwell/bin
 Restart=always
 User=gravwell
 Group=gravwell
