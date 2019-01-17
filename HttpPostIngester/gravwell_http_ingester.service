@@ -1,0 +1,23 @@
+[Install]
+WantedBy=multi-user.target
+
+[Unit]
+Description=Gravwell Hubspot Ingester Service
+After=network-online.target
+OnFailure=gravwell_crash_report@%n.service
+
+[Service]
+Type=simple
+ExecStart=/opt/hubspot/gravwell_hubspot
+WorkingDirectory=/opt/hubspot
+Restart=always
+User=gravwell
+Group=gravwell
+StandardOutput=null
+StandardError=journal
+LimitNPROC=infinity
+LimitNOFILE=infinity
+PIDFile=/var/run/gravwell_hubspot.pid
+TimeoutStopSec=5
+KillMode=process
+KillSignal=SIGINT
