@@ -16,6 +16,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path"
+	"syscall"
 	"time"
 
 	"github.com/gravwell/ingest"
@@ -29,12 +31,13 @@ const (
 )
 
 var (
-	confLoc = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
-	verbose = flag.Bool("v", false, "Display verbose status updates to stdout")
-	ver     = flag.Bool("version", false, "Print the version information and exit")
-	lg      *log.Logger
-	v       bool
-	maxBody int
+	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
+	ver            = flag.Bool("version", false, "Print the version information and exit")
+	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
+	lg             *log.Logger
+	v              bool
+	maxBody        int
 )
 
 func init() {
@@ -48,6 +51,21 @@ func init() {
 	}
 	if *confLoc == `` {
 		dlog.Fatal("Invalid log location")
+	}
+	if *stderrOverride != `` {
+		fp := path.Join(`/dev/shm/`, *stderrOverride)
+		fout, err := os.Create(fp)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to create %s: %v\n", fp, err)
+		} else {
+			//file created, dup it
+			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
+				fout.Close()
+			}
+		}
+		version.PrintVersion(fout)
+		ingest.PrintVersion(fout)
 	}
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 }
