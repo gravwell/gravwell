@@ -15,6 +15,7 @@ import (
 	"io"
 	"net"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gravwell/ingest/entry"
@@ -159,7 +160,7 @@ func (er *EntryReader) Read() (e *entry.Entry, err error) {
 	er.mtx.Lock()
 	if e, err = er.read(); err == nil {
 		er.opCount++
-	} else if isTimeout(err) {
+	} else if isTimeout(err) || err == syscall.EPIPE {
 		err = io.EOF
 	}
 	er.mtx.Unlock()
