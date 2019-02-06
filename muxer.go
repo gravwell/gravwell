@@ -294,6 +294,17 @@ func (im *IngestMuxer) Close() error {
 	im.Sync(time.Second)
 
 	var ok bool
+
+	im.mtx.Lock()
+	if im.state == closed {
+		im.mtx.Unlock()
+		return nil
+	}
+	im.state = closed
+
+	//just close the channel, that will be a permenent signal for everything to close
+	close(im.dieChan)
+
 	//there is a chance that we are fully blocked with another async caller
 	//writing to the channel, so we set the state to closed and check if we need to
 	//discard some items from the channel
@@ -317,16 +328,6 @@ func (im *IngestMuxer) Close() error {
 			}
 		}
 	}
-
-	im.mtx.Lock()
-	if im.state == closed {
-		im.mtx.Unlock()
-		return nil
-	}
-	im.state = closed
-
-	//just close the channel, that will be a permenent signal for everything to close
-	close(im.dieChan)
 
 	//we MUST unlock the mutex while we wait so that if a connection
 	//goes into an errors state it can lock the mutex to adjust the errDest
@@ -382,6 +383,22 @@ func (im *IngestMuxer) Close() error {
 						continue
 					}
 					im.cache.addEntry(e)
+				}
+			}
+
+			// clear the emergency queue into cache
+			for {
+				ent, ents, ok := im.eq.pop()
+				if !ok {
+					break
+				}
+				if ent != nil {
+					im.cache.addEntry(ent)
+				}
+				if len(ents) > 0 {
+					for _, e := range ents {
+						im.cache.addEntry(e)
+					}
 				}
 			}
 
@@ -838,7 +855,9 @@ func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, or
 }
 
 func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool) {
+	im.wg.Add(1)
 	tkr := time.NewTicker(time.Second)
+	defer im.wg.Done()
 	defer tkr.Stop()
 	defer close(connFailure)
 
@@ -857,6 +876,8 @@ func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool
 inputLoop:
 	for {
 		select {
+		case _ = <-im.dieChan:
+			return
 		case e, ok := <-eC:
 			if !ok {
 				eC = nil
@@ -872,7 +893,6 @@ inputLoop:
 			if len(e.SRC) == 0 {
 				e.SRC = nc.src
 			}
-			//handle the entry
 			if err = nc.ig.WriteEntry(e); err != nil {
 				im.recycleEntries(e, nil, nc.tt)
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
@@ -981,7 +1001,6 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			im.goDead()
 			im.connFailed(dst.Address, errors.New("Closed"))
 			return //this will close the ncc, causing the relay routine to close
-
 		case _, ok := <-connErrNotif:
 			//then close our ingest connection
 			//if it throws an error we don't care, and cant do anything about it
@@ -1064,8 +1083,6 @@ func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt *t
 			//timer expired, reset it in case we have a block too
 			tmr.Reset(0)
 		case im.eChan <- e:
-		case _ = <-im.dieChan:
-			return
 		}
 	}
 	//try block entry
@@ -1077,8 +1094,6 @@ func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt *t
 				return
 			}
 		case im.bChan <- ents:
-		case _ = <-im.dieChan:
-			return
 		}
 	}
 	return
