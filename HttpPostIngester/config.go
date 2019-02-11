@@ -41,8 +41,12 @@ type cfgReadType struct {
 }
 
 type lst struct {
-	URL      string //the URL we will listen to
-	Tag_Name string //the tag to assign to the request
+	URL                       string //the URL we will listen to
+	Tag_Name                  string //the tag to assign to the request
+	Ignore_Timestamps         bool   //Just apply the current timestamp to lines as we get them
+	Assume_Local_Timezone     bool
+	Timezone_Override         string
+	Timestamp_Format_Override string //override the timestamp format
 }
 
 type cfgType struct {

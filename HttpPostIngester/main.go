@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/ingest/entry"
 	"github.com/gravwell/ingest/log"
 	"github.com/gravwell/ingesters/version"
+	"github.com/gravwell/timegrinder"
 )
 
 const (
@@ -70,8 +71,14 @@ func init() {
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 }
 
+type handlerConfig struct {
+	ignoreTs bool
+	tag      entry.EntryTag
+	tg       *timegrinder.TimeGrinder
+}
+
 type handler struct {
-	mp   map[string]entry.EntryTag
+	mp   map[string]handlerConfig
 	igst *ingest.IngestMuxer
 }
 
@@ -131,15 +138,34 @@ func main() {
 	}
 	debugout("Successfully connected to ingesters\n")
 	hnd := &handler{
-		mp:   map[string]entry.EntryTag{},
+		mp:   map[string]handlerConfig{},
 		igst: igst,
 	}
 	for _, v := range cfg.Listener {
-		tg, err := igst.GetTag(v.Tag_Name)
-		if err != nil {
+		var hcfg handlerConfig
+		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			lg.Fatal("Failed to pull tag %v: %v", v.Tag_Name, err)
 		}
-		hnd.mp[v.URL] = tg
+		if v.Ignore_Timestamps {
+			hcfg.ignoreTs = true
+		} else {
+			tcfg := timegrinder.Config{
+				EnableLeftMostSeed: true,
+				FormatOverride:     v.Timestamp_Format_Override,
+			}
+			if hcfg.tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
+				lg.Fatal("Failed to generate new timegrinder: %v", err)
+			}
+			if v.Assume_Local_Timezone {
+				hcfg.tg.SetLocalTime()
+			}
+			if v.Timezone_Override != `` {
+				if err = hcfg.tg.SetTimezone(v.Timezone_Override); err != nil {
+					lg.Fatal("Failed to override timezone: %v", err)
+				}
+			}
+		}
+		hnd.mp[v.URL] = hcfg
 	}
 	srv := &http.Server{
 		Addr:         cfg.Bind,
@@ -162,7 +188,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
-	tg, ok := h.mp[r.URL.Path]
+	cfg, ok := h.mp[r.URL.Path]
 	if !ok {
 		lg.Info("bad request URL %v", r.URL.Path)
 		w.WriteHeader(http.StatusNotFound)
@@ -181,14 +207,29 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	b = b[0:n]
 	if len(b) == 0 {
-		lg.Warn("Got an empty post from", r.RemoteAddr)
+		lg.Warn("Got an empty post from %s", r.RemoteAddr)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	var ts entry.Timestamp
+	if cfg.ignoreTs || cfg.tg == nil {
+		ts = entry.Now()
+	} else {
+		var hts time.Time
+		var ok bool
+		if hts, ok, err = cfg.tg.Extract(b); err != nil {
+			lg.Warn("Catastrophic error from timegrinder: %v", err)
+			ts = entry.Now()
+		} else if !ok {
+			ts = entry.Now()
+		} else {
+			ts = entry.FromStandard(hts)
+		}
+	}
 	e := entry.Entry{
-		TS:   entry.Now(),
+		TS:   ts,
 		SRC:  getRemoteIP(r),
-		Tag:  tg,
+		Tag:  cfg.tag,
 		Data: b,
 	}
 	if err = h.igst.WriteEntry(&e); err != nil {
