@@ -25,6 +25,9 @@ const (
 	defaultRestartPeriod        = 10
 	defaultCooldownPeriod       = 60
 	defaultLogLevel             = `WARN`
+	serviceDisablePrefix        = `DISABLE_`
+	errHandlerDisableEnv        = `DISABLE_ERROR_HANDLER`
+	disableTrue                 = `TRUE`
 	maxConfigSize         int64 = 1024 * 1024 * 4
 )
 
@@ -88,6 +91,7 @@ func GetConfig(path string) (c cfgType, err error) {
 	if err = gcfg.ReadStringInto(&c, string(data)); err != nil {
 		return
 	}
+	c.CheckServiceDisable()
 	err = c.Validate()
 	return
 }
@@ -115,6 +119,19 @@ func (c cfgType) Validate() error {
 		}
 	}
 	return nil
+}
+
+func (c *cfgType) CheckServiceDisable() {
+	var envName string
+	for k := range c.Process {
+		envName = serviceDisablePrefix + strings.ToUpper(k)
+		if v, ok := os.LookupEnv(envName); ok && v == disableTrue {
+			delete(c.Process, k)
+		}
+	}
+	if v, ok := os.LookupEnv(errHandlerDisableEnv); ok && v == disableTrue {
+		c.Error_Handler.Exec = ``
+	}
 }
 
 func (c cfgType) CheckBinaries() error {
