@@ -232,6 +232,7 @@ func (tg *TimeGrinder) setSeed(data []byte) (hit bool) {
 		}
 		i++
 	}
+	//search for something even more left
 	for i < len(tg.procs) {
 		if _, ok, offset = tg.procs[i].Extract(data, tg.loc); ok {
 			if offset < leftmost {

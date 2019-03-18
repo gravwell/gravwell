@@ -105,20 +105,6 @@ func NewUserProcessor(name, rxps, fmts string) (*processor, error) {
 	}, nil
 }
 
-func (a processor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
-	idxs := a.rxp.FindIndex(d)
-	if len(idxs) != 2 {
-		return time.Time{}, false, -1
-	}
-
-	t, err := time.ParseInLocation(a.format, string(d[idxs[0]:idxs[1]]), loc)
-	if err != nil {
-		return time.Time{}, false, -1
-	}
-
-	return t, true, idxs[0]
-}
-
 func (sp syslogProcessor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
 	t, ok, offset := sp.processor.Extract(d, loc)
 	if !ok {

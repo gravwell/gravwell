@@ -49,6 +49,8 @@ const (
 	ms int64 = 1000
 	μs int64 = ms * 1000
 	ns int64 = μs * 1000
+
+	tzRegexMatch string = `^((Z)|([+\-]))(\d\d:\d\d)?`
 )
 
 var (
@@ -65,6 +67,7 @@ type Processor interface {
 
 type processor struct {
 	rxp    *regexp.Regexp
+	trxpEx *regexp.Regexp // a tail regex to exclude
 	rxstr  string
 	format string
 	name   string
@@ -88,6 +91,30 @@ func (p *processor) ExtractionRegex() string {
 
 func (p *processor) Name() string {
 	return p.name
+}
+
+func (a *processor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, off int) {
+	var err error
+	off = -1
+	idxs := a.rxp.FindIndex(d)
+	if len(idxs) != 2 {
+		return
+	}
+	if a.trxpEx != nil {
+		if x := d[idxs[1]:]; len(x) > 0 {
+			if a.trxpEx.Match(x) {
+				//exclusion match hit, bail
+				return
+			}
+		}
+	}
+
+	if t, err = time.ParseInLocation(a.format, string(d[idxs[0]:idxs[1]]), loc); err != nil {
+		return
+	}
+	ok = true
+	off = idxs[0]
+	return
 }
 
 func NewAnsiCProcessor() *processor {
@@ -264,6 +291,7 @@ func NewZonelessRFC3339() *processor {
 	re := `(?P<ts>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.*\d*)`
 	return &processor{
 		rxp:    regexp.MustCompile(re),
+		trxpEx: regexp.MustCompile(tzRegexMatch),
 		rxstr:  re,
 		format: ZONELESS_RFC3339_FORMAT,
 		name:   `zonelessrfc3339nano`,

@@ -332,6 +332,42 @@ func TestOverrideFormat(t *testing.T) {
 	}
 }
 
+func TestFormatChange(t *testing.T) {
+	config := Config{
+		EnableLeftMostSeed: true,
+	}
+	tg, err := New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tg.SetUTC()
+	ts, err := time.Parse(`2006-01-02T15:04:05-07:00`, "2019-03-18T01:00:00.000+09:00")
+	if err != nil {
+		t.Fatal(err)
+	}
+	vals := []string{
+		`2019-03-18T01:00:00.000+09:00`,
+		`2019-03-17T17:00:00.000`,
+		`2019-03-18T03:00:00.000+09:00`,
+	}
+	for i := range vals {
+		et, ok, err := tg.Extract([]byte(vals[i]))
+		if err != nil {
+			t.Fatal(err)
+		} else if !ok {
+			t.Fatal("Failed to extract")
+		}
+		if !ts.UTC().Equal(et.UTC()) {
+			t.Fatalf("Extracted time is bad\n%v != %v\n%v",
+				ts.Format(time.RFC3339),
+				et.Format(time.RFC3339),
+				vals[i])
+		}
+		ts = ts.Add(time.Hour)
+	}
+
+}
+
 func runFullSecTestsCurr(format string) error {
 	tg, err := New(cfg)
 	if err != nil {
