@@ -41,3 +41,16 @@ func TestNewUserProc(t *testing.T) {
 		t.Fatal("times not equiv", tstr, tt.Format(fstr))
 	}
 }
+
+func TestApacheTZ(t *testing.T) {
+	apTz := NewApacheProcessor()
+	apNtz := NewApacheNoTZProcessor()
+
+	cand := []byte(`test 14/Mar/2019:12:13:00 -0700`)
+
+	if _, ok, _ := apTz.Extract(cand, nil); !ok {
+		t.Fatal("failed extraction")
+	} else if _, ok, _ = apNtz.Extract(cand, nil); ok {
+		t.Fatal("extrated on tz apache")
+	}
+}

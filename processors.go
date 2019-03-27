@@ -231,6 +231,7 @@ func NewApacheNoTZProcessor() *processor {
 	re := `\d{1,2}/[JFMASOND][anebriyunlgpctov]+/\d{4}:\d\d:\d\d:\d\d`
 	return &processor{
 		rxp:    regexp.MustCompile(re),
+		trxpEx: regexp.MustCompile(`^\s?[-+]{1}\d{4}`),
 		rxstr:  re,
 		format: APACHE_NO_TZ_FORMAT,
 		name:   `apachenotz`,
