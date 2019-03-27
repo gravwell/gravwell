@@ -19,6 +19,10 @@ import (
 	"github.com/gravwell/ingest/log"
 )
 
+var (
+	killTimeout = 10 * time.Second
+)
+
 type processManager struct {
 	ProcessConfig
 	sync.Mutex
@@ -39,8 +43,8 @@ func (pm *processManager) Close() error {
 		return errors.New("Not running")
 	}
 	close(pm.die)
-	pm.Wait()
 	pm.die = nil
+	pm.WaitGroup.Wait()
 	return nil
 }
 
@@ -83,10 +87,12 @@ func (pm *processManager) routine(die chan bool) {
 		pm.lg.Info("Starting %s: %v %v", pm.Name, args[0], args[1:])
 		go func(c *exec.Cmd, ec chan exitstatus) {
 			var x exitstatus
-			if x.err = c.Run(); x.err != nil {
-				if exiterr, ok := x.err.(*exec.ExitError); ok {
-					if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
-						x.code = status.ExitStatus()
+			if x.err = c.Start(); x.err == nil {
+				if x.err = c.Wait(); x.err != nil {
+					if exiterr, ok := x.err.(*exec.ExitError); ok {
+						if status, ok := exiterr.Sys().(syscall.WaitStatus); ok {
+							x.code = status.ExitStatus()
+						}
 					}
 				}
 			}
@@ -98,11 +104,10 @@ func (pm *processManager) routine(die chan bool) {
 			//kill the process and wait for it to exit
 			if cmd.Process != nil {
 				pm.lg.Info("Shutting down %s", pm.Name)
-				if err := cmd.Process.Kill(); err != nil {
+				if err := requestKill(cmd, exitCh); err != nil {
 					pm.lg.Error("Failed to kill %s when exiting: %v", pm.Name, err)
 				}
 			}
-			<-exitCh //wait for it to exit
 			return
 		case status := <-exitCh:
 			pm.lg.Info("Process %s exited with %d(%v)", pm.Name, status.code, status.err)
@@ -123,6 +128,29 @@ func (pm *processManager) routine(die chan bool) {
 			}
 		}
 	}
+}
+
+func requestKill(cmd *exec.Cmd, exitCh chan exitstatus) (err error) {
+	//first send the sigint signal
+	if err = cmd.Process.Signal(syscall.SIGINT); err != nil {
+		return
+	}
+
+	//make chan to signal exit
+	//wait for up to 10 seconds
+	timeout := time.After(killTimeout)
+	select {
+	case <-timeout:
+		if err = cmd.Process.Kill(); err == nil {
+			err = errors.New("Timed out, process killed")
+		}
+		<-exitCh
+	case es, ok := <-exitCh:
+		if ok {
+			err = es.err
+		}
+	}
+	return
 }
 
 type restarter struct {
