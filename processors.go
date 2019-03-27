@@ -67,7 +67,7 @@ type Processor interface {
 
 type processor struct {
 	rxp    *regexp.Regexp
-	trxpEx *regexp.Regexp // a tail regex to exclude
+	trxpEx *regexp.Regexp // a tail regex to exclude (used for timezones)
 	rxstr  string
 	format string
 	name   string
