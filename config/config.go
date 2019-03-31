@@ -362,6 +362,10 @@ type multSuff struct {
 
 var (
 	rateSuffix = []multSuff{
+		multSuff{mult: 1024, suffix: `k`},
+		multSuff{mult: 1024, suffix: `kb`},
+		multSuff{mult: 1024, suffix: `kbit`},
+		multSuff{mult: 1024, suffix: `kbps`},
 		multSuff{mult: 1024 * 1024, suffix: `m`},
 		multSuff{mult: 1024 * 1024, suffix: `mb`},
 		multSuff{mult: 1024 * 1024, suffix: `mbit`},
