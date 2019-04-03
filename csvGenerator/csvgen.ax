@@ -1,0 +1,20 @@
+# Extraction defintion for the csv generator with everything
+[[extraction]]
+	name="csv generator full extraction"
+	module="csv"
+	tag="test1"
+	params="ts, app, id, uuid, src, srcport, dst, dstport, data, name, country, city, hash"
+
+# Extraction defintion for the csv generator with just some stuff
+[[extraction]]
+	name="csv generator partial extraction"
+	module="csv"
+	tag="test2"
+	params="ts, app, id, uuid, src, srcport, dst, dstport"
+
+# Extraction defintion for the csv generator with just some stuff
+[[extraction]]
+	name="csv generator partial extraction 2"
+	module="csv"
+	tag="test3"
+	params="data, name, country, city, hash, a comma ,\"field with comma,\""
