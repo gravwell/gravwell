@@ -37,6 +37,7 @@ var (
 	inFile   = flag.String("i", "", "Input file to process")
 	ver      = flag.Bool("v", false, "Print version and exit")
 	utc      = flag.Bool("utc", false, "Assume UTC time")
+	ignoreTS = flag.Bool("ignore-ts", false, "Ignore timetamp")
 	verbose  = flag.Bool("verbose", false, "Print every step")
 	quotable = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
 
@@ -44,6 +45,7 @@ var (
 	count      uint64
 	totalBytes uint64
 	dur        time.Duration
+	noTg       bool //no timegrinder
 )
 
 func init() {
@@ -52,6 +54,9 @@ func init() {
 		version.PrintVersion(os.Stdout)
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
+	}
+	if *ignoreTS {
+		noTg = true
 	}
 }
 
@@ -120,23 +125,26 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 	var bts []byte
 	var ts time.Time
 	var ok bool
-	//build a new timegrinder
-	c := timegrinder.Config{
-		EnableLeftMostSeed: true,
-		FormatOverride:     tso,
-	}
-	tg, err := timegrinder.NewTimeGrinder(c)
-	if err != nil {
-		return err
-	}
-	if *utc {
-		tg.SetUTC()
-	}
+	var tg *timegrinder.TimeGrinder
+	var err error
+	if !noTg {
+		//build a new timegrinder
+		c := timegrinder.Config{
+			EnableLeftMostSeed: true,
+			FormatOverride:     tso,
+		}
 
-	if *tzo != `` {
-		err = tg.SetTimezone(*tzo)
-		if err != nil {
+		if tg, err = timegrinder.NewTimeGrinder(c); err != nil {
 			return err
+		}
+		if *utc {
+			tg.SetUTC()
+		}
+
+		if *tzo != `` {
+			if err = tg.SetTimezone(*tzo); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -156,7 +164,9 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 		if bts = bytes.TrimSuffix(scn.Bytes(), nlBytes); len(bts) == 0 {
 			continue
 		}
-		if ts, ok, err = tg.Extract(bts); err != nil {
+		if noTg {
+			ts = time.Now()
+		} else if ts, ok, err = tg.Extract(bts); err != nil {
 			return err
 		} else if !ok {
 			ts = time.Now()
