@@ -32,20 +32,22 @@ const (
 )
 
 var (
-	tso      = flag.String("timestamp-override", "", "Timestamp override")
-	tzo      = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
-	inFile   = flag.String("i", "", "Input file to process")
-	ver      = flag.Bool("v", false, "Print version and exit")
-	utc      = flag.Bool("utc", false, "Assume UTC time")
-	ignoreTS = flag.Bool("ignore-ts", false, "Ignore timetamp")
-	verbose  = flag.Bool("verbose", false, "Print every step")
-	quotable = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
+	tso       = flag.String("timestamp-override", "", "Timestamp override")
+	tzo       = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
+	inFile    = flag.String("i", "", "Input file to process")
+	ver       = flag.Bool("v", false, "Print version and exit")
+	utc       = flag.Bool("utc", false, "Assume UTC time")
+	ignoreTS  = flag.Bool("ignore-ts", false, "Ignore timetamp")
+	verbose   = flag.Bool("verbose", false, "Print every step")
+	quotable  = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
+	blockSize = flag.Int("block-size", 0, "Optimized ingest using blocks, 0 disables")
 
 	nlBytes    = []byte("\n")
 	count      uint64
 	totalBytes uint64
 	dur        time.Duration
 	noTg       bool //no timegrinder
+	bsize      int
 )
 
 func init() {
@@ -57,6 +59,9 @@ func init() {
 	}
 	if *ignoreTS {
 		noTg = true
+	}
+	if *blockSize > 0 {
+		bsize = *blockSize
 	}
 }
 
@@ -127,6 +132,7 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 	var ok bool
 	var tg *timegrinder.TimeGrinder
 	var err error
+	var blk []*entry.Entry
 	if !noTg {
 		//build a new timegrinder
 		c := timegrinder.Config{
@@ -153,6 +159,10 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 		return err
 	}
 
+	if bsize > 0 {
+		blk = make([]*entry.Entry, 0, bsize)
+	}
+
 	scn := bufio.NewScanner(fin)
 	if *quotable {
 		scn.Split(quotableSplitter)
@@ -177,14 +187,29 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 			SRC: src,
 		}
 		ent.Data = append(ent.Data, bts...) //force reallocation due to the scanner
-		if err = igst.WriteEntry(ent); err != nil {
-			return err
+		if bsize > 0 {
+			if err = igst.WriteEntry(ent); err != nil {
+				return err
+			}
+		} else {
+			blk = append(blk, ent)
+			if len(blk) >= bsize {
+				if err = igst.WriteBatch(blk); err != nil {
+					return err
+				}
+				blk = make([]*entry.Entry, 0, bsize)
+			}
 		}
 		if *verbose {
 			fmt.Println(ent.TS, ent.Tag, ent.SRC, string(ent.Data))
 		}
 		count++
 		totalBytes += uint64(len(ent.Data))
+	}
+	if len(blk) > 0 {
+		if err = igst.WriteBatch(blk); err != nil {
+			return err
+		}
 	}
 	dur = time.Since(start)
 	return scn.Err()
