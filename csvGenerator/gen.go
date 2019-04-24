@@ -51,6 +51,7 @@ func stream(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64) (err error
 	}
 	sp := time.Second / time.Duration((cnt / blksize))
 
+loop:
 	for {
 		for i := uint64(0); i < blksize; i++ {
 			ts := time.Now()
@@ -61,7 +62,7 @@ func stream(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64) (err error
 				SRC:  src,
 				Data: dt,
 			}); err != nil {
-				return
+				break loop
 			}
 			totalBytes += uint64(len(dt))
 		}

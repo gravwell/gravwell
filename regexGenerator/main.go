@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	tagName    = flag.String("tag-name", "testregex", "Tag name for ingested data")
+	tagName    = flag.String("tag-name", "regex", "Tag name for ingested data")
 	clearConns = flag.String("clear-conns", "172.17.0.2:4023",
 		"comma-separated server:port list of cleartext targets")
 	tlsConns        = flag.String("tls-conns", "", "comma-separated server:port list of TLS connections")

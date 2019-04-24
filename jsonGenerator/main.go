@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	tagName    = flag.String("tag-name", "default", "Tag name for ingested data")
+	tagName    = flag.String("tag-name", "json", "Tag name for ingested data")
 	outFile    = flag.String("fout", "", "Use output file instead of direct ingest")
 	clearConns = flag.String("clear-conns", "172.17.0.2:4023,172.17.0.3:4023,172.17.0.4:4023,172.17.0.5:4023",
 		"comma seperated server:port list of cleartext targets")
@@ -192,6 +192,7 @@ func genFile() error {
 		return err
 	}
 
+	start = time.Now()
 	if err := throwFile(fout, count, duration); err != nil {
 		fout.Close()
 		return err

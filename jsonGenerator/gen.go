@@ -9,13 +9,14 @@
 package main
 
 import (
-	"encoding/json"
+	//"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
 	"time"
 
 	rd "github.com/Pallinder/go-randomdata"
+	"github.com/bet365/jingo"
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
 )
@@ -33,6 +34,10 @@ type datum struct {
 	IP        string `json:"ip"`
 	Data      string `json:"data"`
 }
+
+var (
+	enc = jingo.NewStructEncoder(datum{})
+)
 
 func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Duration) (err error) {
 	sp := dur / time.Duration(cnt)
@@ -76,6 +81,7 @@ func stream(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64) (err error
 	}
 	sp := time.Second / time.Duration((cnt / blksize))
 
+loop:
 	for {
 		for i := uint64(0); i < blksize; i++ {
 			ts := time.Now()
@@ -86,7 +92,7 @@ func stream(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64) (err error
 				SRC:  src,
 				Data: dt,
 			}); err != nil {
-				return
+				break loop
 			}
 			totalBytes += uint64(len(dt))
 		}
@@ -95,7 +101,12 @@ func stream(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64) (err error
 	return
 }
 
+// genData creates a marshalled JSON buffer
+// the jingo encoder is faster, but because we throw the buffers into our entries
+// and hand them into the ingest muxer we can't really track those buffers so we won't get the benefit
+// of the buffered pool.  The encoder is still about 3X faster than the standard library encoder
 func genData(ts time.Time) (r []byte) {
+	bb := jingo.NewBufferFromPool()
 	var d datum
 	d.TS = ts
 	d.Class = rand.Int() % 0xffff
@@ -104,6 +115,8 @@ func genData(ts time.Time) (r []byte) {
 	d.Account = getUser()
 	d.UserAgent = rd.UserAgentString()
 	d.IP = rd.IpV4Address()
-	r, _ = json.Marshal(d)
+	enc.Marshal(&d, bb)
+	r = append(r, bb.Bytes...) //copy out of the pool
+	bb.ReturnToPool()
 	return
 }

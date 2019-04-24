@@ -1,0 +1,6 @@
+# Accelerator defintion for the regex generator with everything
+[[accelerator]]
+	tag="regex"
+	accelerator-name="regex"
+	accelerator-args='(?P<ts>\S+)\s\[(?P<app>\S+)\]\s<(?P<uuid>\S+)>\s(?P<src>\S+)\s(?P<srcport>\d+)\s(?P<dst>\S+)\s(?P<dstport>\d+)\s(?P<path>\S+)\s(?P<useragent>.+)\s\{(?P<email>\S+)\}$'
+	accelerate-on-source=true

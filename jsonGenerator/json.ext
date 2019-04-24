@@ -1,0 +1,5 @@
+[[accelerator]]
+	tag="json"
+	accelerator-name="json"
+	accelerator-args="class group useragent ip user email state country"
+	accelerate-on-source=true
