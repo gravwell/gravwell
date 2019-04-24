@@ -219,8 +219,7 @@ func (ew *EntryWriter) WriteSync(ent *entry.Entry) error {
 	return ew.writeFlush(ent, true)
 }
 
-func (ew *EntryWriter) writeFlush(ent *entry.Entry, flush bool) error {
-	var err error
+func (ew *EntryWriter) writeFlush(ent *entry.Entry, flush bool) (err error) {
 	var blocking bool
 
 	ew.mtx.Lock()
@@ -231,14 +230,12 @@ func (ew *EntryWriter) writeFlush(ent *entry.Entry, flush bool) error {
 	}
 
 	//check if any acks can be serviced
-	if err = ew.serviceAcks(blocking); err != nil {
-		ew.mtx.Unlock()
-		return err
+	if err = ew.serviceAcks(blocking); err == nil {
+		_, err = ew.writeEntry(ent, flush)
 	}
 
-	_, err = ew.writeEntry(ent, flush)
 	ew.mtx.Unlock()
-	return err
+	return
 }
 
 // OpenSlots informs the caller how many slots are available before
@@ -447,6 +444,12 @@ func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 			break
 		}
 	}
+	if err == nil {
+		err = ew.conn.ClearReadTimeout()
+	} else {
+		ew.conn.ClearReadTimeout()
+	}
+
 	return
 }
 
@@ -473,6 +476,13 @@ func (ew *EntryWriter) serviceAcks(blocking bool) error {
 	}
 	//attempt to read acks
 	if err := ew.readAcks(blocking); err != nil {
+		if blocking && isTimeout(err) {
+			//if we attempted to read and we are full, force a sync, something is wrong
+			if err := ew.throwAckSync(); err != nil {
+				return err
+			}
+			return ew.readAcks(true)
+		}
 		return err
 	}
 	if ew.ecb.Full() {
@@ -490,25 +500,23 @@ func (ew *EntryWriter) readAcks(blocking bool) (err error) {
 	var ac ackCommand
 	var ok bool
 	var dur time.Duration
+	var cnt int
 	origBlock := blocking
 
-	defer ew.conn.ClearReadTimeout()
-	if err := ew.conn.SetReadTimeout(ew.ackTimeout); err != nil {
-		return err
-	}
-
+loop:
 	for ew.ecb.Count() > 0 {
-		if ok, err = ac.decode(ew.bAckReader, blocking); err != nil {
-			return
+		if err = ew.conn.SetReadTimeout(ew.ackTimeout); err != nil {
+			break
 		}
-		if !ok {
+		if ok, err = ac.decode(ew.bAckReader, blocking); err != nil || !ok {
+			if isTimeout(err) && cnt > 0 {
+				//if the error is a timeout but we DID get some acks
+				//clear it and continue
+				err = nil
+			}
 			break
 		}
 		blocking = false
-
-		if err := ew.conn.SetReadTimeout(ew.ackTimeout); err != nil {
-			return err
-		}
 
 		switch ac.cmd {
 		case CONFIRM_ENTRY_MAGIC:
@@ -517,21 +525,28 @@ func (ew *EntryWriter) readAcks(blocking bool) (err error) {
 			//      is this the best course of action?
 			if err = ew.ecb.Confirm(entrySendID(ac.val)); err != nil {
 				if err != errEntryNotFound {
-					return
+					break loop
 				}
+				err = nil
 			}
+			cnt++
 		case THROTTLE_MAGIC:
 			if dur = time.Duration(ac.val); dur > maxThrottleDur || dur < 0 {
 				dur = maxThrottleDur
 			}
 			if err = ew.throttle(dur); err != nil {
-				return
+				break loop
 			}
 			blocking = origBlock
 		case PONG_MAGIC:
 			// try again
 			blocking = origBlock
 		}
+	}
+	if err == nil {
+		err = ew.conn.ClearReadTimeout()
+	} else {
+		ew.conn.ClearReadTimeout()
 	}
 	return
 }
@@ -584,14 +599,17 @@ func (ew *EntryWriter) throttle(dur time.Duration) (err error) {
 		if err = ew.conn.SetReadTimeout(dur); err != nil {
 			return
 		}
-		if _, err = ew.bAckReader.ReadByte(); err != nil {
-			return
-		} else if err = ew.bAckReader.UnreadByte(); err != nil {
-			return
+		if _, err = ew.bAckReader.ReadByte(); err == nil {
+			err = ew.bAckReader.UnreadByte()
 		}
-		if err = ew.conn.ClearReadTimeout(); err != nil {
-			return
-		}
+	}
+	if isTimeout(err) {
+		err = nil
+	}
+	if err == nil {
+		err = ew.conn.ClearReadTimeout()
+	} else {
+		ew.conn.ClearReadTimeout()
 	}
 	return
 }

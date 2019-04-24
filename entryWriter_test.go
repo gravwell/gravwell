@@ -121,16 +121,17 @@ func TestWriterOutstandingMismatch(t *testing.T) {
 	wtrCfg := EntryReaderWriterConfig{
 		OutstandingEntryCount: 2,
 		BufferSize:            64 * 1024,
-		Timeout:               time.Second * 2,
+		//Timeout:               time.Second * 2,
+		Timeout: 50 * time.Millisecond,
 	}
 	rdrCfg := EntryReaderWriterConfig{
 		OutstandingEntryCount: 256,
 		BufferSize:            16 * 1024,
 		Timeout:               time.Second * 2,
 	}
-	outstandingMismatchCycle(rdrCfg, wtrCfg, 64, 64, t)
+	outstandingMismatchCycle(rdrCfg, wtrCfg, 16, 16, t)
 	outstandingMismatchCycle(rdrCfg, wtrCfg, 32, 4, t)
-	outstandingMismatchCycle(rdrCfg, wtrCfg, 64, 32, t)
+	outstandingMismatchCycle(rdrCfg, wtrCfg, 16, 8, t)
 }
 
 func TestReaderOutstandingMismatch(t *testing.T) {

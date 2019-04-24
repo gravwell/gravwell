@@ -25,6 +25,7 @@ const (
 	READ_BUFFER_SIZE int = 4 * 1024 * 1024
 	//TODO - we should really discover the MTU of the link and use that
 	ACK_WRITER_BUFFER_SIZE int = (ackEncodeSize * MAX_UNCONFIRMED_COUNT)
+	ACK_WRITER_CAN_WRITE   int = (ackEncodeSize * (MAX_UNCONFIRMED_COUNT / 2))
 
 	entCacheRechargeSize int = 2048
 	ackChanSize          int = MAX_UNCONFIRMED_COUNT
@@ -45,6 +46,7 @@ var (
 
 	ackBatchReadTimerDuration = 10 * time.Millisecond
 	defaultReaderTimeout      = 10 * time.Minute
+	keepAliveInterval         = 1000 * time.Millisecond
 
 	nilTime time.Time
 )
@@ -292,11 +294,6 @@ headerLoop:
 	return nil
 }
 
-// forceAck just sends a 0 down the ID channel, the ack routine should see it an force everything out
-func (er *EntryReader) forceAck() error {
-	return er.throwAck(0)
-}
-
 func discard(c chan ackCommand) {
 	for _ = range c {
 		//do nothing
@@ -317,23 +314,29 @@ func (er *EntryReader) ackRoutine() {
 	defer er.wg.Done()
 	//escape analysis should ensure this is on the stack
 	buff := make([]byte, ACK_WRITER_BUFFER_SIZE)
-	keepalivebuff := make([]byte, ACK_WRITER_BUFFER_SIZE)
+	keepalivebuff := make([]byte, 32)
 	var off int
 	var err error
+	var to bool
 
-	tmr := time.NewTimer(500 * time.Millisecond)
+	tmr := time.NewTimer(keepAliveInterval)
 	defer tmr.Stop()
 	for {
+		to = false
 		select {
 		case v, ok := <-er.ackChan:
 			if !ok {
 				return
 			}
-			if err := er.fillAndSendAckBuffer(buff, v); err != nil {
+			if to, err = er.fillAndSendAckBuffer(buff, v, tmr.C); err != nil {
 				er.routineCleanFail(err)
 				return
 			}
 		case _ = <-tmr.C:
+			to = true
+		}
+		//check if we had a timeout and need to send a keepalive
+		if to {
 			ac := ackCommand{cmd: PONG_MAGIC}
 			if off, _, err = ac.encode(keepalivebuff); err != nil {
 				er.routineCleanFail(err)
@@ -348,11 +351,11 @@ func (er *EntryReader) ackRoutine() {
 				return
 			}
 		}
-		tmr.Reset(500 * time.Millisecond)
+		tmr.Reset(keepAliveInterval)
 	}
 }
 
-func (er *EntryReader) fillAndSendAckBuffer(b []byte, v ackCommand) (err error) {
+func (er *EntryReader) fillAndSendAckBuffer(b []byte, v ackCommand, toch <-chan time.Time) (to bool, err error) {
 	var off int
 	var n int
 	var flush bool
@@ -369,8 +372,6 @@ func (er *EntryReader) fillAndSendAckBuffer(b []byte, v ackCommand) (err error) 
 	}
 
 	//fire up a timer and start feeding
-	tmr := time.NewTimer(ackBatchReadTimerDuration)
-	defer tmr.Stop()
 feedLoop:
 	for {
 		select {
@@ -395,10 +396,16 @@ feedLoop:
 			}
 			off += n
 			//if we hit the size of our buffer, break
-			if flush || off == len(b) {
-				break
+			if off == len(b) {
+				break feedLoop
+			} else if flush {
+				to = true
+				break feedLoop
+			} else if off >= ACK_WRITER_CAN_WRITE && len(er.ackChan) == 0 {
+				break feedLoop
 			}
-		case _ = <-tmr.C:
+		case _ = <-toch:
+			to = true
 			break feedLoop
 		}
 	}
@@ -406,7 +413,10 @@ feedLoop:
 		if err = er.writeAll(b[:off]); err != nil {
 			return
 		}
-		err = er.bAckWriter.Flush()
+		if err = er.bAckWriter.Flush(); err == nil {
+			//clear the timeout if we got a good flush
+			to = false
+		}
 	}
 	return
 }
@@ -426,6 +436,15 @@ func (er *EntryReader) throwAck(id entrySendID) error {
 		return errAckRoutineClosed
 	}
 	er.ackChan <- ackCommand{cmd: CONFIRM_ENTRY_MAGIC, val: uint64(id)}
+	return nil
+}
+
+// sends a command down the channel indicating that we should flush
+func (er *EntryReader) forceAck() error {
+	if !er.started {
+		return errAckRoutineClosed
+	}
+	er.ackChan <- ackCommand{cmd: FORCE_ACK_MAGIC}
 	return nil
 }
 
@@ -525,6 +544,8 @@ func (ac *ackCommand) decode(rdr *bufio.Reader, blocking bool) (ok bool, err err
 		}
 		ac.val = binary.LittleEndian.Uint64(val)
 		ok = true
+	case FORCE_ACK_MAGIC:
+		ok = true
 	case PONG_MAGIC:
 		ok = true
 	case ERROR_TAG_MAGIC:
@@ -539,4 +560,8 @@ func (ac *ackCommand) decode(rdr *bufio.Reader, blocking bool) (ok bool, err err
 		err = errUnknownCommand
 	}
 	return
+}
+
+func (ac *ackCommand) shouldFlush() bool {
+	return ac.cmd == FORCE_ACK_MAGIC
 }
