@@ -44,7 +44,7 @@ type unixProcessor struct {
 }
 
 func NewUnixMilliTimeProcessor() *unixProcessor {
-	restr := `\A\s*(\d+\.\d+)\s`
+	restr := `\A\s*(\d{9,10}\.\d+)\s`
 	return &unixProcessor{
 		re:     regexp.MustCompile(restr),
 		rxstr:  restr,
@@ -133,6 +133,15 @@ func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 	return
 }
 
+func (up unixProcessor) Match(d []byte) (start, end int, ok bool) {
+	idx := up.re.FindSubmatchIndex(d)
+	if len(idx) == 4 {
+		start, end = idx[2], idx[3]
+		ok = true
+	}
+	return
+}
+
 type unixMsProcessor struct {
 	re     *regexp.Regexp
 	rxstr  string
@@ -178,6 +187,15 @@ func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, o
 	}
 	t = time.Unix(0, ms*1000000).In(loc)
 	ok = true
+	return
+}
+
+func (unp unixMsProcessor) Match(d []byte) (start, end int, ok bool) {
+	idx := unp.re.FindSubmatchIndex(d)
+	if len(idx) == 4 {
+		start, end = idx[2], idx[3]
+		ok = true
+	}
 	return
 }
 
@@ -229,6 +247,15 @@ func (unp unixNanoProcessor) Extract(d []byte, loc *time.Location) (t time.Time,
 	return
 }
 
+func (unp unixNanoProcessor) Match(d []byte) (start, end int, ok bool) {
+	idx := unp.re.FindSubmatchIndex(d)
+	if len(idx) == 4 {
+		start, end = idx[2], idx[3]
+		ok = true
+	}
+	return
+}
+
 func NewUK() Processor {
 	re := `\d\d/\d\d/\d\d\d\d\s\d\d\:\d\d\:\d\d,\d{1,5}`
 	return &ukProc{
@@ -274,6 +301,15 @@ func (p *ukProc) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
 	}
 
 	return t, true, idxs[0]
+}
+
+func (p *ukProc) Match(d []byte) (start, end int, ok bool) {
+	idxs := p.rx.FindIndex(d)
+	if len(idxs) == 2 {
+		start, end = idxs[0], idxs[1]
+		ok = true
+	}
+	return
 }
 
 func (p *ukProc) parse(value string, loc *time.Location) (time.Time, error) {

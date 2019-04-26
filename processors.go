@@ -59,6 +59,7 @@ var (
 
 type Processor interface {
 	Extract([]byte, *time.Location) (time.Time, bool, int)
+	Match([]byte) (int, int, bool)
 	Format() string
 	ToString(time.Time) string
 	ExtractionRegex() string
@@ -114,6 +115,24 @@ func (a *processor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool,
 	}
 	ok = true
 	off = idxs[0]
+	return
+}
+
+func (a *processor) Match(d []byte) (start, end int, ok bool) {
+	idxs := a.rxp.FindIndex(d)
+	if len(idxs) != 2 {
+		return
+	}
+	if a.trxpEx != nil {
+		if x := d[idxs[1]:]; len(x) > 0 {
+			if a.trxpEx.Match(x) {
+				//exclusion match hit, bail
+				return
+			}
+		}
+	}
+	start, end = idxs[0], idxs[1]
+	ok = true
 	return
 }
 

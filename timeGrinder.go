@@ -280,6 +280,41 @@ func (tg *TimeGrinder) Extract(data []byte) (t time.Time, ok bool, err error) {
 	return
 }
 
+/* Match identifies where in a byte array a properly formatted timestamp could be
+   and returns the indexes in the data slice of that format.  It DOES NOT attempt to parse
+   the timestamp.  This is a faster way to say "a tiestamp could be here"
+   ok is always true on successful match */
+func (tg *TimeGrinder) Match(data []byte) (start, end int, ok bool) {
+	var i int
+	var c int
+
+	if tg.override != nil {
+		if start, end, ok = tg.override.Match(data); ok {
+			return
+		}
+	}
+
+	if tg.seed {
+		if lok := tg.setSeed(data); lok {
+			tg.seed = false
+		}
+	}
+
+	i = tg.curr
+	for c = 0; c < tg.count; c++ {
+		if start, end, ok = tg.procs[i].Match(data); ok {
+			tg.curr = i
+			return
+		}
+		//move the current forward
+		i = (i + 1) % tg.count
+	}
+	//if we hit here we failed to extract a timestamp, reset to zero for a fresh run
+	tg.curr = 0
+	ok = false
+	return
+}
+
 /* DebugExtract returns a time, offset, and error.  If no time was extracted, the offset is -1
    Error indicates a catastrophic failure. */
 func (tg *TimeGrinder) DebugExtract(data []byte) (t time.Time, offset int, err error) {
