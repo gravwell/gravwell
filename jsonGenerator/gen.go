@@ -26,9 +26,10 @@ const (
 )
 
 type datum struct {
-	TS    time.Time `json:"time"`
-	Class int       `json:"class"`
+	//TS        time.Time `json:"time"`
+	TS        string `json:"time"`
 	Account
+	Class     int       `json:"class"`
 	Group     string `json:"group"`
 	UserAgent string `json:"useragent"`
 	IP        string `json:"ip"`
@@ -108,7 +109,8 @@ loop:
 func genData(ts time.Time) (r []byte) {
 	bb := jingo.NewBufferFromPool()
 	var d datum
-	d.TS = ts
+	//d.TS = ts //for stdlib json encoder
+	d.TS = ts.UTC().Format(time.RFC3339)
 	d.Class = rand.Int() % 0xffff
 	d.Data = rd.Paragraph()
 	d.Group = getGroup()

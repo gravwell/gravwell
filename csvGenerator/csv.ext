@@ -1,0 +1,14 @@
+# extraction that gets everything
+[[accelerator]]
+	tag="csv"
+	accelerator-name="csv"
+	accelerator-args="[0] [1] [2] [3] [4] [5] [6] [7] [8] [9] [10] [11] [12]"
+	accelerate-on-source=true
+
+# extraction that gets reasonable things
+# skipping TS UUID and hash
+[[accelerator]]
+	tag="csv1"
+	accelerator-name="csv"
+	accelerator-args="[1] [2] [4] [5] [6] [7] [9] [10] [11]"
+	accelerate-on-source=true
