@@ -41,6 +41,7 @@ var (
 	verbose   = flag.Bool("verbose", false, "Print every step")
 	quotable  = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
 	blockSize = flag.Int("block-size", 0, "Optimized ingest using blocks, 0 disables")
+	status    = flag.Bool("status", false, "Output ingest rate stats as we go")
 
 	nlBytes    = []byte("\n")
 	count      uint64
@@ -107,7 +108,7 @@ func main() {
 	}
 
 	//go ingest the file
-	if err := ingestFile(fin, igst, tag, *tso); err != nil {
+	if err := doIngest(fin, igst, tag, *tso); err != nil {
 		log.Fatalf("Failed to ingest file: %v\n", err)
 	}
 
@@ -124,6 +125,41 @@ func main() {
 	fmt.Printf("Total Count: %s\n", ingest.HumanCount(count))
 	fmt.Printf("Entry Rate: %s\n", ingest.HumanEntryRate(count, dur))
 	fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(totalBytes, dur))
+}
+
+func doIngest(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso string) (err error) {
+	//if not doing regular updates, just fire it off
+	if !*status {
+		err = ingestFile(fin, igst, tag, tso)
+		return
+	}
+
+	errCh := make(chan error, 1)
+	tckr := time.NewTicker(time.Second)
+	defer tckr.Stop()
+	go func(ch chan error) {
+		ch <- ingestFile(fin, igst, tag, tso)
+	}(errCh)
+
+loop:
+	for {
+		lastts := time.Now()
+		lastcnt := count
+		lastsz := totalBytes
+		select {
+		case err = <-errCh:
+			fmt.Println("\nDONE")
+			break loop
+		case _ = <-tckr.C:
+			dur := time.Since(lastts)
+			cnt := count - lastcnt
+			bts := totalBytes - lastsz
+			fmt.Printf("\r%s %s                                     ",
+				ingest.HumanEntryRate(cnt, dur),
+				ingest.HumanRate(bts, dur))
+		}
+	}
+	return
 }
 
 func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso string) error {

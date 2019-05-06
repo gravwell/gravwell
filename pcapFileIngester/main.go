@@ -11,8 +11,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
+	"runtime"
 	"strings"
 	"time"
 
@@ -24,7 +26,8 @@ import (
 )
 
 const (
-	throwHintSize uint64 = 1024 * 1024 * 4
+	throwHintSize  uint64 = 1024 * 1024 * 4
+	throwBlockSize int    = 4096
 )
 
 var (
@@ -39,11 +42,13 @@ var (
 	pcapFile      = flag.String("pcap-file", "", "Path to the pcap file")
 	bpfFilter     = flag.String("bpf-filter", "", "BPF filter to apply to pcap file")
 	tsOverride    = flag.Bool("ts-override", false, "Override the timestamps and start them at now")
+	simIngest     = flag.Bool("no-ingest", false, "Do not ingest the packets, just read the pcap file")
 	connSet       []string
 	timeout       time.Duration
 
 	pktCount uint64
 	pktSize  uint64
+	simulate bool
 )
 
 func init() {
@@ -107,6 +112,7 @@ func init() {
 		fmt.Printf("No connections were specified\nWe need at least one\n")
 		os.Exit(-1)
 	}
+	simulate = *simIngest
 }
 
 func main() {
@@ -148,54 +154,66 @@ func main() {
 	}
 
 	entChan := make(chan []*entry.Entry, 64)
-	quitChan := make(chan bool, 1)
 	errChan := make(chan error, 1)
 
 	//listen for signals so we can close gracefully
 	sch := make(chan os.Signal, 1)
 	signal.Notify(sch, os.Interrupt)
+	start := time.Now()
 
-	go packetReader(hnd, igst, tag, quitChan, entChan, errChan)
+	if !simulate {
+		go packetReader(hnd, igst, tag, entChan, errChan)
 
-mainLoop:
-	for {
-		select {
-		case err, ok := <-errChan:
-			if !ok {
+	mainLoop:
+		for {
+			select {
+			case err, ok := <-errChan:
+				if !ok {
+					break mainLoop
+				}
+				fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 				break mainLoop
-			}
-			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
-			break mainLoop
-		case <-sch:
-			fmt.Println("Breaking due to sigint")
-			quitChan <- true
-			break mainLoop
-		case blk, ok := <-entChan:
-			if !ok || len(blk) == 0 {
-				break mainLoop
-			}
-			for i := range blk {
-				pktCount++
-				pktSize += uint64(len(blk[i].Data))
-			}
-			if err := igst.WriteBatch(blk); err != nil {
-				fmt.Println("failed to write entry", err)
-				break mainLoop
+			case blk, ok := <-entChan:
+				if !ok || len(blk) == 0 {
+					break mainLoop
+				}
+				for i := range blk {
+					pktCount++
+					pktSize += uint64(len(blk[i].Data))
+				}
+				if err := igst.WriteBatch(blk); err != nil {
+					fmt.Println("failed to write entry", err)
+					break mainLoop
+				}
 			}
 		}
+	} else {
+		if err := simulatePacketRead(hnd); err != nil {
+			fmt.Println("failed to Simulate packet read", err)
+		}
+	}
+	if err := igst.Sync(10 * time.Second); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to sync: %v\n", err)
 	}
 	if err := igst.Close(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to close ingester: %v\n", err)
 	}
+	dur := time.Since(start)
+	fmt.Printf("Completed in %v (%s)\n", dur, ingest.HumanSize(pktSize))
+	fmt.Printf("Total Count: %s\n", ingest.HumanCount(pktCount))
+	fmt.Printf("Entry Rate: %s\n", ingest.HumanEntryRate(pktCount, dur))
+	fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(pktSize, dur))
 }
 
-func packetReader(hnd *pcap.Handle, igst *ingest.IngestMuxer, tag entry.EntryTag, quitChan chan bool, entChan chan []*entry.Entry, errChan chan error) {
+func packetReader(hnd *pcap.Handle, igst *ingest.IngestMuxer, tag entry.EntryTag, entChan chan []*entry.Entry, errChan chan error) {
 	//get the src
 	src, err := igst.SourceIP()
 	if err != nil {
 		errChan <- err
 		return
 	}
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 
 	//set the bpf filter
 	if *bpfFilter != `` {
@@ -204,21 +222,25 @@ func packetReader(hnd *pcap.Handle, igst *ingest.IngestMuxer, tag entry.EntryTag
 			return
 		}
 	}
+	var sec int64
 	var lSize uint64
-	var blk []*entry.Entry
 	var ts entry.Timestamp
 	var first bool
 	var base entry.Timestamp
 	var diff time.Duration
+	var dt []byte
+	var ci gopacket.CaptureInfo
+	var blk []*entry.Entry
 
 	//get packet src
-	pktSrc := gopacket.NewPacketSource(hnd, hnd.LinkType())
-	for pkt := range pktSrc.Packets() {
-		if m := pkt.Metadata(); m != nil {
-			ts = entry.FromStandard(m.Timestamp)
-		} else {
-			ts = entry.Now()
+	for {
+		if dt, ci, err = hnd.ReadPacketData(); err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			break
 		}
+		ts = entry.FromStandard(ci.Timestamp)
 		if !first {
 			first = true
 			base = ts
@@ -232,7 +254,14 @@ func packetReader(hnd *pcap.Handle, igst *ingest.IngestMuxer, tag entry.EntryTag
 		if *tsOverride {
 			ts = ts.Add(diff)
 		}
-		dt := pkt.Data()
+		//check if we should throw
+		if sec != ts.Sec || len(blk) >= throwBlockSize || lSize >= throwHintSize {
+			if len(blk) > 0 {
+				entChan <- blk
+				blk = nil
+				lSize = 0
+			}
+		}
 		blk = append(blk, &entry.Entry{
 			TS:   ts,
 			SRC:  src,
@@ -240,23 +269,58 @@ func packetReader(hnd *pcap.Handle, igst *ingest.IngestMuxer, tag entry.EntryTag
 			Data: dt,
 		})
 		lSize += uint64(len(dt))
-
-		if lSize >= throwHintSize {
-			entChan <- blk
-			blk = nil
-			lSize = 0
-		}
+		sec = ts.Sec
 	}
 	if len(blk) > 0 {
 		entChan <- blk
 	}
 
 	hnd.Close()
-	if err := igst.Sync(time.Second); err != nil {
-		errChan <- err
-	} else {
-		close(entChan)
-		close(errChan)
-	}
+	close(entChan)
+	close(errChan)
 	fmt.Println("Last packet at", ts.Format(time.RFC3339))
+}
+
+func simulatePacketRead(hnd *pcap.Handle) (err error) {
+	var ts entry.Timestamp
+	var first bool
+	var base entry.Timestamp
+	var diff time.Duration
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
+	//set the bpf filter
+	if *bpfFilter != `` {
+		if err = hnd.SetBPFFilter(*bpfFilter); err != nil {
+			return
+		}
+	}
+	var dt []byte
+	var ci gopacket.CaptureInfo
+	for {
+		if dt, ci, err = hnd.ReadPacketData(); err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			break
+		}
+		ts = entry.FromStandard(ci.Timestamp)
+		if !first {
+			first = true
+			base = ts
+			diff = entry.Now().Sub(base)
+			if *tsOverride {
+				fmt.Println("First packet starts at", ts.Add(diff).Format(time.RFC3339))
+			} else {
+				fmt.Println("First packet starts at", ts.Format(time.RFC3339))
+			}
+		}
+		if *tsOverride {
+			ts = ts.Add(diff)
+		}
+		pktSize += uint64(len(dt))
+		pktCount++
+	}
+	hnd.Close()
+	fmt.Println("Last packet at", ts.Format(time.RFC3339))
+	return
 }
