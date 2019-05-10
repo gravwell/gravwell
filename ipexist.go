@@ -207,6 +207,22 @@ func (ipbm *IpBitMap) Encode(w io.Writer) (err error) {
 	return nil
 }
 
+func CheckDecodeHeader(r io.Reader) (err error) {
+	var cnt uint64
+	//write the header
+	if err = checkHeader(r); err != nil {
+		return
+	}
+	//get the slice count
+	if cnt, err = readUint64(r); err != nil {
+		return
+	}
+	if cnt > maxMaps {
+		err = errors.New("file is corrupt")
+	}
+	return
+}
+
 func (ipbm *IpBitMap) Decode(r io.Reader) (err error) {
 	var fr io.ReadCloser
 	var cnt uint64

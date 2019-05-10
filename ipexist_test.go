@@ -127,6 +127,13 @@ func TestEncodeDecode(t *testing.T) {
 	if ip, err = LoadIPBitMap(f); err != nil {
 		t.Fatal(err)
 	}
+	if _, err = f.Seek(0, 0); err != nil {
+		t.Fatal(err)
+	}
+	//check with a simple header check
+	if err = CheckDecodeHeader(f); err != nil {
+		t.Fatal(err)
+	}
 	if err = f.Close(); err != nil {
 		t.Fatal(err)
 	}
