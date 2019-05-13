@@ -8,7 +8,6 @@
 package main
 
 import (
-	".."
 	"bufio"
 	"flag"
 	"io"
@@ -16,6 +15,8 @@ import (
 	"net"
 	"os"
 	"strings"
+
+	"github.com/gravwell/ipexist"
 )
 
 var (
