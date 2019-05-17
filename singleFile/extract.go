@@ -11,8 +11,8 @@ package main
 import (
 	"compress/bzip2"
 	"compress/gzip"
-	ft "gopkg.in/h2non/filetype.v1"
-	"gopkg.in/h2non/filetype.v1/types"
+	ft "github.com/h2non/filetype"
+	"github.com/h2non/filetype/types"
 	"io"
 	"os"
 )
