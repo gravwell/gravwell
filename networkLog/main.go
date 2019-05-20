@@ -137,6 +137,36 @@ func main() {
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
+	//fire up the ingesters
+	debugout("INSECURE skipping TLS verification: %v\n", cfg.InsecureSkipTLSVerification())
+	igCfg := ingest.UniformMuxerConfig{
+		Destinations: conns,
+		Tags:         tags,
+		Auth:         cfg.Secret(),
+		LogLevel:     cfg.LogLevel(),
+		IngesterName: "networkLog",
+		VerifyCert:   !cfg.InsecureSkipTLSVerification(),
+		Logger:       lg,
+	}
+	if cfg.EnableCache() {
+		igCfg.EnableCache = true
+		igCfg.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
+		igCfg.CacheConfig.MaxCacheSize = cfg.MaxCachedData()
+	}
+	igst, err := ingest.NewUniformMuxer(igCfg)
+	if err != nil {
+		lg.Fatal("Failed to create new uniform muxer: %v ", err)
+	}
+	debugout("Started ingester muxer\n")
+	if err := igst.Start(); err != nil {
+		lg.Fatal("Failed start our ingest system: %v", err)
+	}
+	debugout("Waiting for connections to indexers\n")
+	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
+		lg.Fatal("Timedout waiting for backend connections: %v", err)
+	}
+	debugout("Successfully connected to ingesters\n")
+
 	//loop through our sniffers and get a config up for each
 	var sniffs []sniffer
 	for k, v := range cfg.Sniffer {
@@ -163,8 +193,10 @@ func main() {
 		} else {
 			src, err = getSourceIP(v.Interface)
 			if err != nil {
-				closeSniffers(sniffs)
-				lg.FatalCode(0, "Failed to get source for %s: %v", v.Interface, err)
+				if src, err = igst.SourceIP(); err != nil {
+					closeSniffers(sniffs)
+					lg.FatalCode(0, "Failed to get source for %s: %v", v.Interface, err)
+				}
 			}
 		}
 
@@ -195,37 +227,6 @@ func main() {
 			res:       make(chan results, 1),
 		})
 	}
-	//fire up the ingesters
-	debugout("INSECURE skipping TLS verification: %v\n", cfg.InsecureSkipTLSVerification())
-	igCfg := ingest.UniformMuxerConfig{
-		Destinations: conns,
-		Tags:         tags,
-		Auth:         cfg.Secret(),
-		LogLevel:     cfg.LogLevel(),
-		IngesterName: "networkLog",
-		VerifyCert:   !cfg.InsecureSkipTLSVerification(),
-		Logger:       lg,
-	}
-	if cfg.EnableCache() {
-		igCfg.EnableCache = true
-		igCfg.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
-		igCfg.CacheConfig.MaxCacheSize = cfg.MaxCachedData()
-	}
-	igst, err := ingest.NewUniformMuxer(igCfg)
-	if err != nil {
-		lg.Fatal("Failed to create new uniform muxer: %v ", err)
-	}
-	debugout("Started ingester muxer\n")
-	if err := igst.Start(); err != nil {
-		closeSniffers(sniffs)
-		lg.Fatal("Failed start our ingest system: %v", err)
-	}
-	debugout("Waiting for connections to indexers\n")
-	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		closeSniffers(sniffs)
-		lg.Fatal("Timedout waiting for backend connections: %v", err)
-	}
-	debugout("Successfully connected to ingesters\n")
 
 	//set tags and source for each sniffer
 	for i := range sniffs {
