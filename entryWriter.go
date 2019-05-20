@@ -73,8 +73,12 @@ type EntryWriter struct {
 }
 
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
+	if err := setReadBuffer(conn, ACK_WRITER_BUFFER_SIZE); err != nil {
+		return nil, err
+	}
+
 	ewc := EntryReaderWriterConfig{
-		Conn:                  NewUnthrottledConn(conn),
+		Conn:                  conn,
 		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
 		BufferSize:            WRITE_BUFFER_SIZE,
 		Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,

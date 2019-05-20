@@ -319,6 +319,12 @@ func (er *EntryReader) ackRoutine() {
 	var err error
 	var to bool
 
+	//set the write buffer size
+	if err = setWriteBuffer(er.conn, ACK_WRITER_BUFFER_SIZE); err != nil {
+		er.routineCleanFail(err)
+		return
+	}
+
 	tmr := time.NewTimer(keepAliveInterval)
 	defer tmr.Stop()
 	for {
@@ -401,7 +407,7 @@ feedLoop:
 			} else if flush {
 				to = true
 				break feedLoop
-			} else if off >= ACK_WRITER_CAN_WRITE && len(er.ackChan) == 0 {
+			} else if len(er.ackChan) == 0 {
 				break feedLoop
 			}
 		case _ = <-toch:
@@ -564,4 +570,34 @@ func (ac *ackCommand) decode(rdr *bufio.Reader, blocking bool) (ok bool, err err
 
 func (ac *ackCommand) shouldFlush() bool {
 	return ac.cmd == FORCE_ACK_MAGIC
+}
+
+func setReadBuffer(c interface{}, n int) error {
+	switch v := c.(type) {
+	case *net.IPConn:
+		return v.SetReadBuffer(n)
+	case *net.TCPConn:
+		return v.SetReadBuffer(n)
+	case *net.UDPConn:
+		return v.SetReadBuffer(n)
+	case *net.UnixConn:
+		return v.SetReadBuffer(n)
+	}
+	//if we can't, we don't
+	return nil
+}
+
+func setWriteBuffer(c interface{}, n int) error {
+	switch v := c.(type) {
+	case *net.IPConn:
+		return v.SetWriteBuffer(n)
+	case *net.TCPConn:
+		return v.SetWriteBuffer(n)
+	case *net.UDPConn:
+		return v.SetWriteBuffer(n)
+	case *net.UnixConn:
+		return v.SetWriteBuffer(n)
+	}
+	//if we can't, we don't
+	return nil
 }
