@@ -691,7 +691,7 @@ func (im *IngestMuxer) stopCache() {
 
 //goDead is a convienence function used by routines when they become dead
 func (im *IngestMuxer) goDead() {
-	//increment the hot counter
+	//decrement the hot counter
 	if atomic.AddInt32(&im.connHot, -1) == 0 {
 		im.startCache()
 	}
@@ -855,9 +855,7 @@ func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, or
 }
 
 func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool) {
-	im.wg.Add(1)
 	tkr := time.NewTicker(time.Second)
-	defer im.wg.Done()
 	defer tkr.Stop()
 	defer close(connFailure)
 
@@ -877,6 +875,8 @@ inputLoop:
 	for {
 		select {
 		case _ = <-im.dieChan:
+			nc.ig.Sync()
+			nc.ig.Close()
 			return
 		case e, ok := <-eC:
 			if !ok {
@@ -996,17 +996,14 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	//loop, trying to grab entries, or dying
 	for {
 		select {
-		case _ = <-im.dieChan:
-			igst.Close()
-			im.goDead()
-			im.connFailed(dst.Address, errors.New("Closed"))
-			return //this will close the ncc, causing the relay routine to close
 		case _, ok := <-connErrNotif:
 			//then close our ingest connection
 			//if it throws an error we don't care, and cant do anything about it
 			igst.Close()
 			if !ok {
-				//this means that the relay function bailed, close the connection and bail
+				//this means that the relay function bailed
+				im.goDead()
+				im.connFailed(dst.Address, errors.New("Closed"))
 				return
 			}
 			im.goDead() //let the world know of our failures
