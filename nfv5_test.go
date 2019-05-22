@@ -147,6 +147,133 @@ func TestDecodeHeaderAlt(t *testing.T) {
 	}
 }
 
+func TestHeaderEncodeDecode(t *testing.T) {
+	h := NFv5Header{
+		Version:        0x10,
+		Count:          10,
+		Uptime:         0x1234,
+		Sec:            0x1234,
+		Nsec:           0x5678,
+		Sequence:       12345,
+		EngineType:     12,
+		EngineID:       0x12,
+		SampleMode:     7,
+		SampleInterval: 12324,
+	}
+	bts := h.Encode()
+	var nh NFv5Header
+	if err := nh.Decode(bts); err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(h, nh) {
+		t.Fatalf("Not equal:\n%+v\n%+v\n", h, nh)
+	}
+	var nnh NFv5Header
+	bb := bytes.NewBuffer(nil)
+	if err := h.Write(bb); err != nil {
+		t.Fatal(err)
+	}
+	if err := nnh.Read(bb); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(h, nnh) {
+		t.Fatalf("Not equal:\n%+v\n%+v\n", h, nnh)
+	}
+}
+
+func TestEncodeDecode(t *testing.T) {
+	var nf NFv5
+	if err := nf.Decode(bigPkt); err != nil {
+		t.Fatal(err)
+	}
+	if nf.Version != 5 {
+		t.Fatal("Invalid version")
+	}
+	if nf.Count != 30 {
+		t.Fatal("Invalid record count")
+	}
+	bts, err := nf.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(bts) != len(bigPkt) {
+		t.Fatal("bad encoding")
+	}
+	for i, b := range bigPkt {
+		if bts[i] != b {
+			t.Fatalf("Failed encoding [%d]: %x != %x\n", i, b, bts[i])
+		}
+	}
+	var nnf NFv5
+	if err := nnf.Decode(bts); err != nil {
+		t.Fatal(err)
+	}
+	if nnf.Version != 5 {
+		t.Fatal("Invalid version")
+	}
+	if nnf.Count != 30 {
+		t.Fatal("Invalid record count")
+	}
+	if !reflect.DeepEqual(nf.NFv5Header, nnf.NFv5Header) {
+		t.Fatal("Headers do not match")
+	}
+	if len(nf.Recs) != len(nnf.Recs) {
+		t.Fatal("invalid record count")
+	}
+	for i, r := range nnf.Recs {
+		if !reflect.DeepEqual(nf.Recs[i], r) {
+			t.Fatalf("record %d: %+v != %+v\n", i, r, nf.Recs[i])
+		}
+	}
+}
+
+func TestReadWrite(t *testing.T) {
+	var nf NFv5
+	if err := nf.Decode(bigPkt); err != nil {
+		t.Fatal(err)
+	}
+	if nf.Version != 5 {
+		t.Fatal("Invalid version")
+	}
+	if nf.Count != 30 {
+		t.Fatal("Invalid record count")
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := nf.Write(bb); err != nil {
+		t.Fatal(err)
+	}
+	if bb.Len() != len(bigPkt) {
+		t.Fatal("bad encoding")
+	}
+	for i, b := range bb.Bytes() {
+		if bigPkt[i] != b {
+			t.Fatalf("Failed encoding [%d]: %x != %x\n", i, b, bigPkt[i])
+		}
+	}
+	var nnf NFv5
+	if err := nnf.Read(bb); err != nil {
+		t.Fatal(err)
+	}
+	if nnf.Version != 5 {
+		t.Fatal("Invalid version")
+	}
+	if nnf.Count != 30 {
+		t.Fatal("Invalid record count")
+	}
+	if !reflect.DeepEqual(nf.NFv5Header, nnf.NFv5Header) {
+		t.Fatal("Headers do not match")
+	}
+	if len(nf.Recs) != len(nnf.Recs) {
+		t.Fatal("invalid record count")
+	}
+	for i, r := range nnf.Recs {
+		if !reflect.DeepEqual(nf.Recs[i], r) {
+			t.Fatalf("record %d: %+v != %+v\n", i, r, nf.Recs[i])
+		}
+	}
+}
+
 func BenchmarkValidateSize(b *testing.B) {
 	var nf NFv5
 	for i := 0; i < b.N; i++ {

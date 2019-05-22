@@ -99,6 +99,31 @@ func (h *NFv5Header) Decode(b []byte) error {
 	return nil
 }
 
+// Encode encodes a NFv5Header into a byte array
+func (h *NFv5Header) Encode() (b []byte) {
+	b = make([]byte, HeaderSize)
+	h.encode(b)
+	return
+}
+
+func (h *NFv5Header) encode(b []byte) (err error) {
+	if len(b) < HeaderSize {
+		return ErrHeaderTooShort
+	}
+	binary.BigEndian.PutUint16(b[0:2], h.Version)
+	binary.BigEndian.PutUint16(b[2:4], h.Count)
+	binary.BigEndian.PutUint32(b[4:8], h.Uptime)
+	binary.BigEndian.PutUint32(b[8:12], h.Sec)
+	binary.BigEndian.PutUint32(b[12:16], h.Nsec)
+	binary.BigEndian.PutUint32(b[16:20], h.Sequence)
+	b[20] = h.EngineType
+	b[21] = h.EngineID
+	h.SampleMode = b[22] >> 6
+	h.SampleInterval = binary.BigEndian.Uint16(b[22:24]) & 0x3fff
+	binary.BigEndian.PutUint16(b[22:24], (h.SampleInterval&0x3fff)|(uint16(h.SampleMode)<<6))
+	return
+}
+
 //decodeAlt decodes by hand with the assumption that we are operating on a LittleEndian machine
 //the code is slower and not used, but is left here anyway
 func (h *NFv5Header) decodeAlt(b []byte) error {
@@ -126,6 +151,18 @@ func (h *NFv5Header) Read(rdr io.Reader) error {
 		return ErrHeaderTooShort
 	}
 	return h.Decode(b)
+}
+
+func (h *NFv5Header) Write(wtr io.Writer) error {
+	b := make([]byte, HeaderSize)
+	if err := h.encode(b); err != nil {
+		return err
+	} else if n, err := wtr.Write(b); err != nil {
+		return err
+	} else if n != HeaderSize {
+		return ErrHeaderTooShort
+	}
+	return nil
 }
 
 func (nf *NFv5) ValidateSize(b []byte) (n int, err error) {
@@ -172,6 +209,29 @@ func (nf *NFv5) Decode(b []byte) (err error) {
 			return
 		}
 		b = b[RecordSize:]
+	}
+	return
+}
+
+func (nf *NFv5) Encode() (b []byte, err error) {
+	if nf.Version != 5 {
+		err = ErrInvalidFlowType
+		return
+	}
+	if nf.Count == 0 || nf.Count > 30 {
+		err = ErrInvalidCount
+		return
+	}
+	b = make([]byte, (HeaderSize + (int(nf.Count) * RecordSize)))
+	if err = nf.NFv5Header.encode(b); err != nil {
+		return
+	}
+	p := b[HeaderSize:]
+	for i := uint16(0); i < nf.Count; i++ {
+		if err = nf.Recs[i].encode(p); err != nil {
+			return
+		}
+		p = p[RecordSize:]
 	}
 	return
 }
@@ -226,6 +286,31 @@ func (nf *NFv5) Read(rdr io.Reader) error {
 	return nil
 }
 
+// Write a netflow 4 entry to a stream writer
+func (nf *NFv5) Write(wtr io.Writer) error {
+	b := make([]byte, HeaderSize+int(nf.Count)*RecordSize)
+	if err := nf.NFv5Header.encode(b); err != nil {
+		return err
+	}
+	if nf.Count == 0 || nf.Count > 30 {
+		return ErrInvalidCount
+	}
+	p := b[HeaderSize:]
+	for i := uint16(0); i < nf.Count; i++ {
+		if err := nf.Recs[i].encode(p); err != nil {
+			return err
+		}
+		p = p[RecordSize:]
+	}
+	if n, err := wtr.Write(b); err != nil {
+		return err
+	} else if n != len(b) {
+		return ErrInvalidRecordBuffer
+	}
+
+	return nil
+}
+
 // Read a netflow 4 record from a stream reader
 func (nr *NFv5Record) Read(rdr io.Reader) error {
 	//read out the IPS
@@ -236,6 +321,20 @@ func (nr *NFv5Record) Read(rdr io.Reader) error {
 		return ErrInvalidRecordBuffer
 	}
 	return nr.Decode(b)
+}
+
+// Write a netflow 4 record to a stream writer
+func (nr *NFv5Record) Write(wtr io.Writer) error {
+	//read out the IPS
+	b := make([]byte, RecordSize)
+	if err := nr.encode(b); err != nil {
+		return err
+	} else if n, err := wtr.Write(b); err != nil {
+		return err
+	} else if n != RecordSize {
+		return ErrInvalidRecordBuffer
+	}
+	return nil
 }
 
 // Decode pulls a record out of the provided buffer
@@ -267,6 +366,41 @@ func (nr *NFv5Record) Decode(b []byte) error {
 	nr.SrcMask = b[44]
 	nr.DstMask = b[45]
 	nr.Pad2 = binary.BigEndian.Uint16(b[46:48])
+	return nil
+}
+
+// encode writes a record into a buffer
+func (nr *NFv5Record) encode(b []byte) error {
+	if len(b) < RecordSize {
+		return ErrInvalidRecordBuffer
+	}
+	if len(nr.Src) == 4 {
+		copy(b[0:4], []byte(nr.Src))
+	}
+	if len(nr.Dst) == 4 {
+		copy(b[4:8], []byte(nr.Dst))
+	}
+	if len(nr.Next) == 4 {
+		copy(b[8:12], []byte(nr.Next))
+	}
+
+	binary.BigEndian.PutUint16(b[12:14], nr.Input)
+	binary.BigEndian.PutUint16(b[14:16], nr.Output)
+	binary.BigEndian.PutUint32(b[16:20], nr.Pkts)
+	binary.BigEndian.PutUint32(b[20:24], nr.Bytes)
+	binary.BigEndian.PutUint32(b[24:28], nr.UptimeFirst)
+	binary.BigEndian.PutUint32(b[28:32], nr.UptimeLast)
+	binary.BigEndian.PutUint16(b[32:34], nr.SrcPort)
+	binary.BigEndian.PutUint16(b[34:36], nr.DstPort)
+	b[36] = nr.Pad
+	b[37] = nr.Flags
+	b[38] = nr.Protocol
+	b[39] = nr.ToS
+	binary.BigEndian.PutUint16(b[40:42], nr.SrcAs)
+	binary.BigEndian.PutUint16(b[42:44], nr.DstAs)
+	b[44] = nr.SrcMask
+	b[45] = nr.DstMask
+	binary.BigEndian.PutUint16(b[46:48], nr.Pad2)
 	return nil
 }
 
