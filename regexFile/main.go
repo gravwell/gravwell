@@ -39,12 +39,14 @@ var (
 	utc     = flag.Bool("utc", false, "Assume UTC time")
 	verbose = flag.Bool("verbose", false, "Print every step")
 	rexStr  = flag.String("rexp", "", "Regular expression string to perform entry breaks on")
+	igTs    = flag.Bool("ignore-ts", false, "Ignore the timestamp")
 
 	count      uint64
 	totalBytes uint64
 	dur        time.Duration
 	re         *regexp.Regexp
 	nlBytes    = "\n"
+	ignoreTS   bool
 )
 
 func init() {
@@ -61,6 +63,7 @@ func init() {
 	if re, err = regexp.Compile(*rexStr); err != nil {
 		log.Fatal("Bad regular expression", err)
 	}
+	ignoreTS = *igTs
 }
 
 func main() {
@@ -128,23 +131,26 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 	var bts []byte
 	var ts time.Time
 	var ok bool
-	//build a new timegrinder
-	c := timegrinder.Config{
-		EnableLeftMostSeed: true,
-		FormatOverride:     tso,
-	}
-	tg, err := timegrinder.NewTimeGrinder(c)
-	if err != nil {
-		return err
-	}
-	if *utc {
-		tg.SetUTC()
-	}
+	var tg *timegrinder.TimeGrinder
 
-	if *tzo != `` {
-		err = tg.SetTimezone(*tzo)
-		if err != nil {
+	if !ignoreTS {
+		//build a new timegrinder
+		c := timegrinder.Config{
+			EnableLeftMostSeed: true,
+			FormatOverride:     tso,
+		}
+		var err error
+		if tg, err = timegrinder.NewTimeGrinder(c); err != nil {
 			return err
+		}
+		if *utc {
+			tg.SetUTC()
+		}
+
+		if *tzo != `` {
+			if err = tg.SetTimezone(*tzo); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -162,10 +168,14 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 		if bts = bytes.Trim(scn.Bytes(), nlBytes); len(bts) == 0 {
 			continue
 		}
-		if ts, ok, err = tg.Extract(bts); err != nil {
-			return err
-		} else if !ok {
+		if ignoreTS {
 			ts = time.Now()
+		} else {
+			if ts, ok, err = tg.Extract(bts); err != nil {
+				return err
+			} else if !ok {
+				ts = time.Now()
+			}
 		}
 		ent := &entry.Entry{
 			TS:  entry.FromStandard(ts),

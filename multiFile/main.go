@@ -34,12 +34,13 @@ const (
 var (
 	tso       = flag.String("timestamp-override", "", "Timestamp override")
 	tzo       = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
-	inFile    = flag.String("i", "", "Input file to process")
+	inFile    = flag.String("i", "", "Input file list to process")
 	ver       = flag.Bool("v", false, "Print version and exit")
 	utc       = flag.Bool("utc", false, "Assume UTC time")
 	ignoreTS  = flag.Bool("ignore-ts", false, "Ignore timetamp")
 	ignorePfx = flag.String("ignore-prefix", "", "Ignore lines that start with the prefix")
-	verbose   = flag.Bool("verbose", false, "Print every step")
+	verbose   = flag.Bool("verbose", false, "Print every log")
+	fileinfo  = flag.Bool("fileinfo", false, "Print file name as we process them")
 	quotable  = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
 	blockSize = flag.Int("block-size", 0, "Optimized ingest using blocks, 0 disables")
 	status    = flag.Bool("status", false, "Output ingest rate stats as we go")
@@ -92,10 +93,9 @@ func main() {
 		}
 	}
 
-	//get a handle on the input file with a wrapped decompressor if needed
-	fin, err := OpenFileReader(*inFile)
+	fin, err := os.Open(*inFile)
 	if err != nil {
-		log.Fatalf("Failed to open %s: %v\n", *inFile, err)
+		log.Fatalf("Failed to open input file list %s: %v\n", *inFile, err)
 	}
 
 	//fire up a uniform muxer
@@ -126,7 +126,7 @@ func main() {
 		log.Fatalf("Failed to close the ingest muxer: %v\n", err)
 	}
 	if err := fin.Close(); err != nil {
-		log.Fatalf("Failed to close the input file: %v\n", err)
+		log.Fatalf("Failed to close the file list: %v\n", err)
 	}
 	fmt.Printf("Completed in %v (%s)\n", dur, ingest.HumanSize(totalBytes))
 	fmt.Printf("Total Count: %s\n", ingest.HumanCount(count))
@@ -137,7 +137,7 @@ func main() {
 func doIngest(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso string) (err error) {
 	//if not doing regular updates, just fire it off
 	if !*status {
-		err = ingestFile(fin, igst, tag, tso)
+		err = ingestFiles(fin, igst, tag, tso)
 		return
 	}
 
@@ -145,7 +145,7 @@ func doIngest(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso s
 	tckr := time.NewTicker(time.Second)
 	defer tckr.Stop()
 	go func(ch chan error) {
-		ch <- ingestFile(fin, igst, tag, tso)
+		ch <- ingestFiles(fin, igst, tag, tso)
 	}(errCh)
 
 loop:
@@ -158,31 +158,27 @@ loop:
 			fmt.Println("\nDONE")
 			break loop
 		case _ = <-tckr.C:
-			dur := time.Since(lastts)
+			tdur := time.Since(lastts)
 			cnt := count - lastcnt
 			bts := totalBytes - lastsz
 			fmt.Printf("\r%s %s                                     ",
-				ingest.HumanEntryRate(cnt, dur),
-				ingest.HumanRate(bts, dur))
+				ingest.HumanEntryRate(cnt, tdur),
+				ingest.HumanRate(bts, tdur))
 		}
 	}
 	return
 }
 
-func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso string) error {
-	var bts []byte
-	var ts time.Time
-	var ok bool
+func ingestFiles(flist io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso string) error {
+
 	var tg *timegrinder.TimeGrinder
-	var err error
-	var blk []*entry.Entry
 	if !noTg {
 		//build a new timegrinder
 		c := timegrinder.Config{
 			EnableLeftMostSeed: true,
 			FormatOverride:     tso,
 		}
-
+		var err error
 		if tg, err = timegrinder.NewTimeGrinder(c); err != nil {
 			return err
 		}
@@ -196,7 +192,52 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 			}
 		}
 	}
+	start := time.Now()
 
+	brdr := bufio.NewReader(flist)
+	var i int
+	for {
+		i++
+		ln, isPrefix, err := brdr.ReadLine()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return err
+		}
+		if isPrefix {
+			log.Printf("File list line %d is too long, skipping\n", i)
+			continue
+		}
+		if *fileinfo {
+			log.Println("Processing", string(ln))
+		}
+		//get a handle on the input file with a wrapped decompressor if needed
+		fin, err := OpenFileReader(string(ln))
+		if err != nil {
+			log.Printf("Failed to open %s: %v\n", ln, err)
+			continue
+		}
+		if err = ingestFile(fin, igst, tag, tg); err != nil {
+			log.Printf("Failed to ingest %s: %v\n", ln, err)
+			fin.Close()
+			continue
+		}
+
+		if err = fin.Close(); err != nil {
+			log.Printf("Failed to close %s: %v\n", ln, err)
+		}
+	}
+	dur = time.Since(start)
+	return nil
+}
+
+func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tg *timegrinder.TimeGrinder) error {
+	var bts []byte
+	var ts time.Time
+	var ok bool
+	var err error
+	var blk []*entry.Entry
 	src, err := igst.SourceIP()
 	if err != nil {
 		return err
@@ -212,7 +253,6 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 	}
 	scn.Buffer(make([]byte, initBuffSize), maxBuffSize)
 
-	start := time.Now()
 	for scn.Scan() {
 		if bts = bytes.TrimSuffix(scn.Bytes(), nlBytes); len(bts) == 0 {
 			continue
@@ -259,7 +299,6 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 			return err
 		}
 	}
-	dur = time.Since(start)
 	return scn.Err()
 }
 
