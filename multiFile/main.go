@@ -15,11 +15,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"time"
 	"unicode/utf8"
 
 	"github.com/gravwell/ingest"
+	"github.com/gravwell/ingest/config"
 	"github.com/gravwell/ingest/entry"
 	"github.com/gravwell/ingesters/args"
 	"github.com/gravwell/ingesters/version"
@@ -44,6 +46,7 @@ var (
 	quotable  = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
 	blockSize = flag.Int("block-size", 0, "Optimized ingest using blocks, 0 disables")
 	status    = flag.Bool("status", false, "Output ingest rate stats as we go")
+	srcOvr    = flag.String("source-override", "", "Override source with address, hash, or integeter")
 
 	nlBytes          = []byte("\n")
 	count            uint64
@@ -53,6 +56,7 @@ var (
 	bsize            int
 	ignorePrefixFlag bool
 	ignorePrefix     []byte
+	srcOverride      net.IP
 )
 
 func init() {
@@ -90,6 +94,12 @@ func main() {
 	if *tso != "" {
 		if err = timegrinder.ValidateFormatOverride(*tso); err != nil {
 			log.Fatalf("Invalid timestamp override: %v\n", err)
+		}
+	}
+
+	if *srcOvr != `` {
+		if srcOverride, err = config.ParseSource(*srcOvr); err != nil {
+			log.Fatalf("Invalid source override")
 		}
 	}
 
@@ -238,9 +248,12 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tg 
 	var ok bool
 	var err error
 	var blk []*entry.Entry
-	src, err := igst.SourceIP()
-	if err != nil {
-		return err
+	src := srcOverride
+	if src == nil {
+		var err error
+		if src, err = igst.SourceIP(); err != nil {
+			return err
+		}
 	}
 
 	if bsize > 0 {
