@@ -10,6 +10,8 @@ package config
 
 import (
 	"bufio"
+	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net"
@@ -400,6 +402,48 @@ func parseRate(s string) (Bps int64, err error) {
 	Bps = int64(r / 8)
 	if Bps < minThrottle {
 		err = errors.New("Ingest cannot be limited below 1mbit")
+	}
+	return
+}
+
+// ParseSource returns a net.IP byte buffer
+// the returned buffer will always be a 32bit or 128bit buffer
+// but we accept encodings as IPv4, IPv6, integer, hex encoded hash
+// this function simply walks the available encodings until one works
+func ParseSource(v string) (b net.IP, err error) {
+	var i uint64
+	// try as an IP
+	if b = net.ParseIP(v); b != nil {
+		return
+	}
+	//try as a plain integer
+	if i, err = parseUint64(v); err == nil {
+		//encode into a buffer
+		bb := make([]byte, 16)
+		binary.BigEndian.PutUint64(bb[8:], i)
+		b = net.IP(bb)
+		return
+	}
+	//try as a hex encoded byte array
+	if (len(v)&1) == 0 && len(v) <= 32 {
+		var vv []byte
+		if vv, err = hex.DecodeString(v); err == nil {
+			bb := make([]byte, 16)
+			offset := len(bb) - len(vv)
+			copy(bb[offset:], vv)
+			b = net.IP(bb)
+			return
+		}
+	}
+	err = fmt.Errorf("Failed to decode %s as a source value", v)
+	return
+}
+
+func parseUint64(v string) (i uint64, err error) {
+	if strings.HasPrefix(v, "0x") {
+		i, err = strconv.ParseUint(strings.TrimPrefix(v, "0x"), 16, 64)
+	} else {
+		i, err = strconv.ParseUint(v, 10, 64)
 	}
 	return
 }
