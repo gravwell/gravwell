@@ -150,7 +150,11 @@ func main() {
 		select {
 		case _ = <-c:
 			stop = true
-			err = <-r
+			select {
+			case err = <-r:
+			case _ = <-time.After(3 * time.Second):
+				err = errors.New("Timed out waiting for exit")
+			}
 		case err = <-r:
 		}
 		if err != nil {
