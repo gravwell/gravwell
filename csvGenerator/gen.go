@@ -42,31 +42,29 @@ func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Du
 	return
 }
 
-func stream(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64) (err error) {
-	var blksize uint64
-	if cnt < streamBlock {
-		blksize = 1
-	} else {
-		blksize = streamBlock
-	}
-	sp := time.Second / time.Duration((cnt / blksize))
-
+func stream(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, stop *bool) (err error) {
+	sp := time.Second / time.Duration(cnt)
+	var ent *entry.Entry
 loop:
-	for {
-		for i := uint64(0); i < blksize; i++ {
-			ts := time.Now()
+	for !*stop {
+		ts := time.Now()
+		start := ts
+		for i := uint64(0); i < cnt; i++ {
 			dt := genData(ts)
-			if err = igst.WriteEntry(&entry.Entry{
+			ent = &entry.Entry{
 				TS:   entry.FromStandard(ts),
 				Tag:  tag,
 				SRC:  src,
 				Data: dt,
-			}); err != nil {
+			}
+			if err = igst.WriteEntry(ent); err != nil {
 				break loop
 			}
 			totalBytes += uint64(len(dt))
+			totalCount++
+			ts = ts.Add(sp)
 		}
-		time.Sleep(sp)
+		time.Sleep(time.Second - time.Since(start))
 	}
 	return
 }

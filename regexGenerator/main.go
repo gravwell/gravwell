@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +41,7 @@ var (
 	srcOverride     = flag.String("source-override", "", "Source override value")
 	count           uint64
 	totalBytes      uint64
+	totalCount      uint64
 	duration        time.Duration
 	connSet         []string
 	src             net.IP
@@ -121,7 +124,24 @@ func main() {
 			log.Fatal("Failed to throw entries ", err)
 		}
 	} else {
-		if err = stream(igst, tag, count); err != nil {
+		var stop bool
+		r := make(chan error, 1)
+		go func(ret chan error, stp *bool) {
+			ret <- stream(igst, tag, count, stp)
+		}(r, &stop)
+		c := make(chan os.Signal, 1)
+		signal.Notify(c, os.Interrupt)
+		select {
+		case _ = <-c:
+			stop = true
+			select {
+			case err = <-r:
+			case _ = <-time.After(3 * time.Second):
+				err = errors.New("Timed out waiting for exit")
+			}
+		case err = <-r:
+		}
+		if err != nil {
 			log.Fatal("Failed to stream entries ", err)
 		}
 	}
@@ -133,8 +153,8 @@ func main() {
 	durr := time.Since(start)
 	if err == nil {
 		fmt.Printf("Completed in %v (%s)\n", durr, ingest.HumanSize(totalBytes))
-		fmt.Printf("Total Count: %s\n", ingest.HumanCount(count))
-		fmt.Printf("Entry Rate: %s\n", ingest.HumanEntryRate(count, durr))
+		fmt.Printf("Total Count: %s\n", ingest.HumanCount(totalCount))
+		fmt.Printf("Entry Rate: %s\n", ingest.HumanEntryRate(totalCount, durr))
 		fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(totalBytes, durr))
 	}
 }
