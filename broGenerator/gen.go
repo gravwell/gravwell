@@ -40,25 +40,25 @@ func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Du
 
 func stream(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, stop *bool) (err error) {
 	sp := time.Second / time.Duration(cnt)
+	var ent *entry.Entry
 loop:
 	for !*stop {
 		ts := time.Now()
 		start := ts
-		blk := make([]*entry.Entry, cnt)
-		for i := range blk {
+		for i := uint64(0); i < cnt; i++ {
 			dt := genData(ts)
-			blk[i] = &entry.Entry{
+			ent = &entry.Entry{
 				TS:   entry.FromStandard(ts),
 				Tag:  tag,
 				SRC:  src,
 				Data: dt,
 			}
+			if err = igst.WriteEntry(ent); err != nil {
+				break loop
+			}
 			totalBytes += uint64(len(dt))
 			totalCount++
 			ts = ts.Add(sp)
-		}
-		if err = igst.WriteBatch(blk); err != nil {
-			break loop
 		}
 		time.Sleep(time.Second - time.Since(start))
 	}
