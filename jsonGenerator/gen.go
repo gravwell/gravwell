@@ -27,9 +27,9 @@ const (
 
 type datum struct {
 	//TS        time.Time `json:"time"`
-	TS        string `json:"time"`
+	TS string `json:"time"`
 	Account
-	Class     int       `json:"class"`
+	Class     int    `json:"class"`
 	Group     string `json:"group"`
 	UserAgent string `json:"useragent"`
 	IP        string `json:"ip"`
@@ -42,7 +42,7 @@ var (
 
 func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Duration) (err error) {
 	sp := dur / time.Duration(cnt)
-	ts := time.Now()
+	ts := time.Now().Add(-1 * dur)
 	for i := uint64(0); i < cnt; i++ {
 		dt := genData(ts)
 		if err = igst.WriteEntry(&entry.Entry{
@@ -53,7 +53,7 @@ func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Du
 		}); err != nil {
 			return
 		}
-		ts = ts.Add(-1 * sp)
+		ts = ts.Add(sp)
 		totalBytes += uint64(len(dt))
 	}
 	return
