@@ -18,10 +18,6 @@ import (
 	"github.com/gravwell/ingest/entry"
 )
 
-const (
-	streamBlock = 10
-)
-
 func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Duration) (err error) {
 	sp := dur / time.Duration(cnt)
 	ts := time.Now().Add(-1 * dur)
@@ -37,35 +33,34 @@ func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Du
 		}
 		ts = ts.Add(sp)
 		totalBytes += uint64(len(dt))
+		totalCount++
 	}
 	return
 }
 
-func stream(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64) (err error) {
-	var blksize uint64
-	if cnt < streamBlock {
-		blksize = 1
-	} else {
-		blksize = streamBlock
-	}
-	sp := time.Second / time.Duration((cnt / blksize))
-
+func stream(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, stop *bool) (err error) {
+	sp := time.Second / time.Duration(cnt)
 loop:
-	for {
-		for i := uint64(0); i < blksize; i++ {
-			ts := time.Now()
+	for !*stop {
+		ts := time.Now()
+		start := ts
+		blk := make([]*entry.Entry, cnt)
+		for i := range blk {
 			dt := genData(ts)
-			if err = igst.WriteEntry(&entry.Entry{
+			blk[i] = &entry.Entry{
 				TS:   entry.FromStandard(ts),
 				Tag:  tag,
 				SRC:  src,
 				Data: dt,
-			}); err != nil {
-				break loop
 			}
 			totalBytes += uint64(len(dt))
+			totalCount++
+			ts = ts.Add(sp)
 		}
-		time.Sleep(sp)
+		if err = igst.WriteBatch(blk); err != nil {
+			break loop
+		}
+		time.Sleep(time.Second - time.Since(start))
 	}
 	return
 }
