@@ -27,7 +27,7 @@ const (
 	defaultLogLevel             = `WARN`
 	serviceDisablePrefix        = `DISABLE_`
 	errHandlerDisableEnv        = `DISABLE_ERROR_HANDLER`
-	disableTrue                 = `TRUE`
+	disableTrue                 = `true`
 	maxConfigSize         int64 = 1024 * 1024 * 4
 )
 
@@ -125,8 +125,10 @@ func (c *cfgType) CheckServiceDisable() {
 	var envName string
 	for k := range c.Process {
 		envName = serviceDisablePrefix + strings.ToUpper(k)
-		if v, ok := os.LookupEnv(envName); ok && v == disableTrue {
-			delete(c.Process, k)
+		if v, ok := os.LookupEnv(envName); ok {
+			if strings.ToLower(v) == disableTrue {
+				delete(c.Process, k)
+			}
 		}
 	}
 	if v, ok := os.LookupEnv(errHandlerDisableEnv); ok && v == disableTrue {
