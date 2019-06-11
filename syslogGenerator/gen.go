@@ -56,6 +56,7 @@ func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Du
 		}
 		ts = ts.Add(sp)
 		totalBytes += uint64(len(dt))
+		totalCount++
 	}
 	return
 }
