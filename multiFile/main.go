@@ -24,6 +24,7 @@ import (
 	"github.com/gravwell/ingest/config"
 	"github.com/gravwell/ingest/entry"
 	"github.com/gravwell/ingesters/args"
+	"github.com/gravwell/ingesters/utils"
 	"github.com/gravwell/ingesters/version"
 	"github.com/gravwell/timegrinder"
 )
@@ -223,7 +224,7 @@ func ingestFiles(flist io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, 
 			log.Println("Processing", string(ln))
 		}
 		//get a handle on the input file with a wrapped decompressor if needed
-		fin, err := OpenFileReader(string(ln))
+		fin, err := utils.OpenBufferedFileReader(string(ln), 0)
 		if err != nil {
 			log.Printf("Failed to open %s: %v\n", ln, err)
 			continue

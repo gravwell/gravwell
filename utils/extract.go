@@ -6,16 +6,51 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package main
+package utils
 
 import (
+	"bufio"
 	"compress/bzip2"
 	"compress/gzip"
-	ft "github.com/h2non/filetype"
-	"github.com/h2non/filetype/types"
 	"io"
 	"os"
+
+	ft "github.com/h2non/filetype"
+	"github.com/h2non/filetype/types"
 )
+
+const (
+	defaultBufferSize int = 2 * 1024 * 1024
+)
+
+type buffReadCloser struct {
+	r io.ReadCloser
+	b io.Reader
+}
+
+func (brc *buffReadCloser) Read(x []byte) (int, error) {
+	if brc.b != nil {
+		return brc.b.Read(x)
+	}
+	return brc.r.Read(x)
+}
+
+func (brc *buffReadCloser) Close() error {
+	return brc.r.Close()
+}
+
+func OpenBufferedFileReader(p string, buffer int) (r io.ReadCloser, err error) {
+	if buffer <= 0 {
+		buffer = defaultBufferSize
+	}
+	if r, err = OpenFileReader(p); err == nil {
+		r = &buffReadCloser{
+			r: r,
+			b: bufio.NewReaderSize(r, buffer),
+		}
+	}
+	return
+}
 
 func OpenFileReader(p string) (r io.ReadCloser, err error) {
 	var fin *os.File

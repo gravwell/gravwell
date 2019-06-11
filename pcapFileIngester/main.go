@@ -15,14 +15,15 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
-	"strings"
 	"time"
 
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/ingesters/args"
+	"github.com/gravwell/ingesters/utils"
 
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/pcap"
+	pcap "github.com/google/gopacket/pcapgo"
 )
 
 const (
@@ -31,20 +32,10 @@ const (
 )
 
 var (
-	tagName       = flag.String("tag-name", "default", "Tag name for ingested data")
-	clearConns    = flag.String("clear-conns", "", "comma seperated server:port list of cleartext targets")
-	tlsConns      = flag.String("tls-conns", "", "comma seperated server:port list of TLS connections")
-	pipeConns     = flag.String("pipe-conns", "", "comma seperated list of paths for named pie connection")
-	tlsPublicKey  = flag.String("tls-public-key", "", "Path to TLS public key")
-	tlsPrivateKey = flag.String("tls-private-key", "", "Path to TLS private key")
-	ingestSecret  = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
-	timeoutSec    = flag.Int("timeout", 1, "Connection timeout in seconds")
-	pcapFile      = flag.String("pcap-file", "", "Path to the pcap file")
-	bpfFilter     = flag.String("bpf-filter", "", "BPF filter to apply to pcap file")
-	tsOverride    = flag.Bool("ts-override", false, "Override the timestamps and start them at now")
-	simIngest     = flag.Bool("no-ingest", false, "Do not ingest the packets, just read the pcap file")
-	connSet       []string
-	timeout       time.Duration
+	pcapFile   = flag.String("pcap-file", "", "Path to the pcap file")
+	tsOverride = flag.Bool("ts-override", false, "Override the timestamps and start them at now")
+	simIngest  = flag.Bool("no-ingest", false, "Do not ingest the packets, just read the pcap file")
+	srcOvr     = flag.String("source-override", "", "Override source with address, hash, or integeter")
 
 	pktCount uint64
 	pktSize  uint64
@@ -53,83 +44,41 @@ var (
 
 func init() {
 	flag.Parse()
-	if *timeoutSec <= 0 {
-		fmt.Printf("Invalid timeout\n")
-		os.Exit(-1)
-	}
-	timeout = time.Second * time.Duration(*timeoutSec)
 
 	if *pcapFile == `` {
 		fmt.Printf("A PCAP file is required\n")
 		os.Exit(-1)
 	}
 
-	if *ingestSecret == `` {
-		fmt.Printf("No ingest secret specified\n")
-		os.Exit(-1)
-	}
-
-	if *tagName == "" {
-		fmt.Printf("A tag name must be specified\n")
-		os.Exit(-1)
-	} else {
-		//verify that the tag name is valid
-		*tagName = strings.TrimSpace(*tagName)
-		if strings.ContainsAny(*tagName, ingest.FORBIDDEN_TAG_SET) {
-			fmt.Printf("Forbidden characters in tag\n")
-			os.Exit(-1)
-		}
-	}
-	if *clearConns != "" {
-		for _, conn := range strings.Split(*clearConns, ",") {
-			conn = strings.TrimSpace(conn)
-			if len(conn) > 0 {
-				connSet = append(connSet, fmt.Sprintf("tcp://%s", conn))
-			}
-		}
-	}
-	if *tlsConns != "" {
-		if *tlsPublicKey == "" || *tlsPrivateKey == "" {
-			fmt.Printf("Public/private keys required for TLS connection\n")
-			os.Exit(-1)
-		}
-		for _, conn := range strings.Split(*tlsConns, ",") {
-			conn = strings.TrimSpace(conn)
-			if len(conn) > 0 {
-				connSet = append(connSet, fmt.Sprintf("tls://%s", conn))
-			}
-		}
-	}
-	if *pipeConns != "" {
-		for _, conn := range strings.Split(*pipeConns, ",") {
-			conn = strings.TrimSpace(conn)
-			if len(conn) > 0 {
-				connSet = append(connSet, fmt.Sprintf("pipe://%s", conn))
-			}
-		}
-	}
-	if len(connSet) <= 0 {
-		fmt.Printf("No connections were specified\nWe need at least one\n")
-		os.Exit(-1)
-	}
 	simulate = *simIngest
 }
 
 func main() {
+	a, err := args.Parse()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid arguments: %v\n", err)
+		return
+	}
 	//get a handle on the pcap file
-	hnd, err := pcap.OpenOffline(*pcapFile)
+	fi, err := utils.OpenBufferedFileReader(*pcapFile, 16*1024*1024)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open pcap file: %v\n", err)
+		return
+	}
+	defer fi.Close()
+	hnd, err := pcap.NewReader(fi)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to open pcap Reader: %v\n", err)
 		return
 	}
 
 	//fire up the ingesters
 	igCfg := ingest.UniformMuxerConfig{
-		Destinations: connSet,
-		Tags:         []string{*tagName},
-		Auth:         *ingestSecret,
-		PublicKey:    *tlsPublicKey,
-		PrivateKey:   *tlsPrivateKey,
+		Destinations: a.Conns,
+		Tags:         a.Tags,
+		Auth:         a.IngestSecret,
+		PublicKey:    a.TLSPublicKey,
+		PrivateKey:   a.TLSPrivateKey,
 		LogLevel:     `INFO`,
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
@@ -141,15 +90,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed start our ingest system: %v\n", err)
 		return
 	}
-	if err := igst.WaitForHot(timeout); err != nil {
+	if err := igst.WaitForHot(a.Timeout); err != nil {
 		fmt.Fprintf(os.Stderr, "Timedout waiting for backend connections: %v\n", err)
 		return
 	}
 
 	//get the TagID for our default tag
-	tag, err := igst.GetTag(*tagName)
+	tag, err := igst.GetTag(a.Tags[0])
 	if err != nil {
-		fmt.Printf("Failed to look up tag %s: %v\n", *tagName, err)
+		fmt.Printf("Failed to look up tag %s: %v\n", a.Tags[0], err)
 		os.Exit(-1)
 	}
 
@@ -205,7 +154,7 @@ func main() {
 	fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(pktSize, dur))
 }
 
-func packetReader(hnd *pcap.Handle, igst *ingest.IngestMuxer, tag entry.EntryTag, entChan chan []*entry.Entry, errChan chan error) {
+func packetReader(hnd *pcap.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, entChan chan []*entry.Entry, errChan chan error) {
 	//get the src
 	src, err := igst.SourceIP()
 	if err != nil {
@@ -215,13 +164,6 @@ func packetReader(hnd *pcap.Handle, igst *ingest.IngestMuxer, tag entry.EntryTag
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	//set the bpf filter
-	if *bpfFilter != `` {
-		if err := hnd.SetBPFFilter(*bpfFilter); err != nil {
-			errChan <- err
-			return
-		}
-	}
 	var sec int64
 	var lSize uint64
 	var ts entry.Timestamp
@@ -231,6 +173,7 @@ func packetReader(hnd *pcap.Handle, igst *ingest.IngestMuxer, tag entry.EntryTag
 	var dt []byte
 	var ci gopacket.CaptureInfo
 	var blk []*entry.Entry
+	defer fmt.Println("Packets done being read")
 
 	//get packet src
 	for {
@@ -275,13 +218,12 @@ func packetReader(hnd *pcap.Handle, igst *ingest.IngestMuxer, tag entry.EntryTag
 		entChan <- blk
 	}
 
-	hnd.Close()
 	close(entChan)
 	close(errChan)
 	fmt.Println("Last packet at", ts.Format(time.RFC3339))
 }
 
-func simulatePacketRead(hnd *pcap.Handle) (err error) {
+func simulatePacketRead(hnd *pcap.Reader) (err error) {
 	var ts entry.Timestamp
 	var first bool
 	var base entry.Timestamp
@@ -289,11 +231,6 @@ func simulatePacketRead(hnd *pcap.Handle) (err error) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 	//set the bpf filter
-	if *bpfFilter != `` {
-		if err = hnd.SetBPFFilter(*bpfFilter); err != nil {
-			return
-		}
-	}
 	var dt []byte
 	var ci gopacket.CaptureInfo
 	for {
@@ -320,7 +257,6 @@ func simulatePacketRead(hnd *pcap.Handle) (err error) {
 		pktSize += uint64(len(dt))
 		pktCount++
 	}
-	hnd.Close()
 	fmt.Println("Last packet at", ts.Format(time.RFC3339))
 	return
 }
