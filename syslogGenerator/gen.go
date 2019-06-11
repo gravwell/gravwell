@@ -10,10 +10,12 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
 	rd "github.com/Pallinder/go-randomdata"
+	"github.com/gravwell/generators/ipgen"
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
 )
@@ -21,6 +23,23 @@ import (
 const (
 	streamBlock = 10
 )
+
+var (
+	v4gen *ipgen.V4Gen
+	v6gen *ipgen.V6Gen
+)
+
+func init() {
+	var err error
+	v4gen, err = ipgen.RandomWeightedV4Generator(3)
+	if err != nil {
+		log.Fatal("Failed to instantiate v4 generator: %v", err)
+	}
+	v6gen, err = ipgen.RandomWeightedV6Generator(30)
+	if err != nil {
+		log.Fatal("Failed to instantiate v6 generator: %v", err)
+	}
+}
 
 func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Duration) (err error) {
 	sp := dur / time.Duration(cnt)
@@ -77,5 +96,5 @@ func genData(ts time.Time) []byte {
 }
 
 func genStructData() string {
-	return fmt.Sprintf(`[%s source-address="%s" source-port=%d destination-address="%s" destination-port=%d useragent="%s"]`, rd.Email(), rd.IpV4Address(), 0x2000+rand.Intn(0xffff-0x2000), rd.IpV4Address(), 1+rand.Intn(2047), rd.UserAgentString())
+	return fmt.Sprintf(`[%s source-address="%s" source-port=%d destination-address="%s" destination-port=%d useragent="%s"]`, rd.Email(), v4gen.IP().String(), 0x2000+rand.Intn(0xffff-0x2000), v4gen.IP().String(), 1+rand.Intn(2047), rd.UserAgentString())
 }

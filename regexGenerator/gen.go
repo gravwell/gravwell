@@ -10,11 +10,13 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"time"
 
 	rd "github.com/Pallinder/go-randomdata"
 	"github.com/google/uuid"
+	"github.com/gravwell/generators/ipgen"
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
 )
@@ -22,6 +24,23 @@ import (
 const (
 	streamBlock = 10
 )
+
+var (
+	v4gen *ipgen.V4Gen
+	v6gen *ipgen.V6Gen
+)
+
+func init() {
+	var err error
+	v4gen, err = ipgen.RandomWeightedV4Generator(3)
+	if err != nil {
+		log.Fatal("Failed to instantiate v4 generator: %v", err)
+	}
+	v6gen, err = ipgen.RandomWeightedV6Generator(30)
+	if err != nil {
+		log.Fatal("Failed to instantiate v6 generator: %v", err)
+	}
+}
 
 func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Duration) (err error) {
 	sp := dur / time.Duration(cnt)
@@ -81,7 +100,7 @@ func genData(ts time.Time) []byte {
 func ips() (string, string) {
 	if (rand.Int() & 3) == 0 {
 		//more IPv4 than 6
-		return rd.IpV6Address(), rd.IpV6Address()
+		return v6gen.IP().String(), v6gen.IP().String()
 	}
-	return rd.IpV4Address(), rd.IpV4Address()
+	return v4gen.IP().String(), v4gen.IP().String()
 }

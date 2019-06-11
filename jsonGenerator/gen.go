@@ -9,14 +9,15 @@
 package main
 
 import (
-	//"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"time"
 
 	rd "github.com/Pallinder/go-randomdata"
 	"github.com/bet365/jingo"
+	"github.com/gravwell/generators/ipgen"
 	"github.com/gravwell/ingest"
 	"github.com/gravwell/ingest/entry"
 )
@@ -37,8 +38,17 @@ type datum struct {
 }
 
 var (
-	enc = jingo.NewStructEncoder(datum{})
+	enc   = jingo.NewStructEncoder(datum{})
+	v4gen *ipgen.V4Gen
 )
+
+func init() {
+	var err error
+	v4gen, err = ipgen.RandomWeightedV4Generator(40)
+	if err != nil {
+		log.Fatal("Failed to instantiate v4 generator: %v", err)
+	}
+}
 
 func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Duration) (err error) {
 	sp := dur / time.Duration(cnt)
@@ -114,7 +124,7 @@ func genData(ts time.Time) (r []byte) {
 	d.Group = getGroup()
 	d.Account = getUser()
 	d.UserAgent = rd.UserAgentString()
-	d.IP = rd.IpV4Address()
+	d.IP = v4gen.IP().String()
 	enc.Marshal(&d, bb)
 	r = append(r, bb.Bytes...) //copy out of the pool
 	bb.ReturnToPool()
