@@ -124,11 +124,21 @@ func (c cfgType) Validate() error {
 func (c *cfgType) CheckServiceDisable() {
 	var envName string
 	for k := range c.Process {
+		//try with uppercase name
 		envName = serviceDisablePrefix + strings.ToUpper(k)
 		if v, ok := os.LookupEnv(envName); ok {
 			if strings.ToLower(v) == disableTrue {
 				delete(c.Process, k)
 			}
+			continue
+		}
+		//try with lower case name
+		envName = serviceDisablePrefix + strings.ToLower(k)
+		if v, ok := os.LookupEnv(envName); ok {
+			if strings.ToLower(v) == disableTrue {
+				delete(c.Process, k)
+			}
+			continue
 		}
 	}
 	if v, ok := os.LookupEnv(errHandlerDisableEnv); ok && v == disableTrue {
