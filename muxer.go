@@ -404,12 +404,10 @@ func (im *IngestMuxer) Close() error {
 
 			//if we are file backed, sync the backing cache
 			if err := im.cache.Sync(); err != nil {
-				im.mtx.Unlock()
 				return err
 			}
 		}
 		if err := im.cache.Close(); err != nil {
-			im.mtx.Unlock()
 			return err
 		}
 	}
