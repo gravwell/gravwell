@@ -9,6 +9,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/url"
@@ -32,9 +33,11 @@ const (
 
 type gbl struct {
 	config.IngestConfig
-	Bind         string
-	Max_Body     int
-	Log_Location string
+	Bind                 string
+	Max_Body             int
+	Log_Location         string
+	TLS_Certificate_File string
+	TLS_Key_File         string
 }
 
 type cfgReadType struct {
@@ -101,6 +104,9 @@ func verifyConfig(c *cfgType) error {
 	}
 	if c.Bind == `` {
 		return fmt.Errorf("No bind string specified")
+	}
+	if err := c.ValidateTLS(); err != nil {
+		return err
 	}
 	urls := map[string]string{}
 	if len(c.Listener) == 0 {
@@ -187,4 +193,22 @@ func (c *cfgType) MaxBody() int {
 		return defaultMaxBody
 	}
 	return c.Max_Body
+}
+
+func (g gbl) ValidateTLS() (err error) {
+	if !g.TLSEnabled() {
+		//not enabled
+	} else if g.TLS_Certificate_File == `` {
+		err = errors.New("TLS-Certificate-File argument is missing")
+	} else if g.TLS_Key_File == `` {
+		err = errors.New("TLS-Key-File argument is missing")
+	} else {
+		_, err = tls.LoadX509KeyPair(g.TLS_Certificate_File, g.TLS_Key_File)
+	}
+	return
+}
+
+func (g gbl) TLSEnabled() (r bool) {
+	r = g.TLS_Certificate_File != `` && g.TLS_Key_File != ``
+	return
 }

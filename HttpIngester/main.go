@@ -176,10 +176,17 @@ func main() {
 	}
 	defer igst.Sync(time.Second)
 	defer igst.Close()
-	if err := srv.ListenAndServe(); err != nil {
-		lg.Error("Failed to serve HTTP server: %v", err)
+	if cfg.TLSEnabled() {
+		c := cfg.TLS_Certificate_File
+		k := cfg.TLS_Key_File
+		if err := srv.ListenAndServeTLS(c, k); err != nil {
+			lg.Error("Failed to serve HTTPS server: %v", err)
+		}
+	} else {
+		if err := srv.ListenAndServe(); err != nil {
+			lg.Error("Failed to serve HTTP server: %v", err)
+		}
 	}
-
 }
 
 func debugout(format string, args ...interface{}) {
