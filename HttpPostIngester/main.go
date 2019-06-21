@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
 	"github.com/gravwell/ingest/log"
 	"github.com/gravwell/ingesters/version"
 	"github.com/gravwell/timegrinder"
@@ -69,17 +68,6 @@ func init() {
 		ingest.PrintVersion(fout)
 	}
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
-}
-
-type handlerConfig struct {
-	ignoreTs bool
-	tag      entry.EntryTag
-	tg       *timegrinder.TimeGrinder
-}
-
-type handler struct {
-	mp   map[string]handlerConfig
-	igst *ingest.IngestMuxer
 }
 
 func main() {
@@ -139,6 +127,7 @@ func main() {
 	debugout("Successfully connected to ingesters\n")
 	hnd := &handler{
 		mp:   map[string]handlerConfig{},
+		auth: map[string]authHandler{},
 		igst: igst,
 	}
 	for _, v := range cfg.Listener {
@@ -165,6 +154,18 @@ func main() {
 				}
 			}
 		}
+		if hcfg.method = v.Method; hcfg.method == `` {
+			hcfg.method = defaultMethod
+		}
+		//check if authentication is enabled for this URL
+		if pth, ah, err := v.NewAuthHandler(); err != nil {
+			lg.Fatal("Failed to get a new authentication handler: %v", err)
+		} else if hnd != nil {
+			if pth != `` {
+				hnd.auth[pth] = ah
+			}
+			hcfg.auth = ah
+		}
 		hnd.mp[v.URL] = hcfg
 	}
 	srv := &http.Server{
@@ -179,62 +180,6 @@ func main() {
 		lg.Error("Failed to serve HTTP server: %v", err)
 	}
 
-}
-
-func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	if r.Method != http.MethodPost {
-		lg.Info("bad request Method: %s != %s", r.Method, http.MethodPost)
-		w.WriteHeader(http.StatusMethodNotAllowed)
-		return
-	}
-	cfg, ok := h.mp[r.URL.Path]
-	if !ok {
-		lg.Info("bad request URL %v", r.URL.Path)
-		w.WriteHeader(http.StatusNotFound)
-		return
-	}
-	b := make([]byte, maxBody)
-	n, err := readAll(r.Body, b)
-	if err != nil && err != io.EOF {
-		lg.Error("Got bad request: %v", err)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	} else if n == maxBody {
-		lg.Error("Request too large, 4MB max")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	b = b[0:n]
-	if len(b) == 0 {
-		lg.Warn("Got an empty post from %s", r.RemoteAddr)
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	var ts entry.Timestamp
-	if cfg.ignoreTs || cfg.tg == nil {
-		ts = entry.Now()
-	} else {
-		var hts time.Time
-		var ok bool
-		if hts, ok, err = cfg.tg.Extract(b); err != nil {
-			lg.Warn("Catastrophic error from timegrinder: %v", err)
-			ts = entry.Now()
-		} else if !ok {
-			ts = entry.Now()
-		} else {
-			ts = entry.FromStandard(hts)
-		}
-	}
-	e := entry.Entry{
-		TS:   ts,
-		SRC:  getRemoteIP(r),
-		Tag:  cfg.tag,
-		Data: b,
-	}
-	if err = h.igst.WriteEntry(&e); err != nil {
-		lg.Error("Failed to send entry: %v", err)
-	}
 }
 
 func debugout(format string, args ...interface{}) {

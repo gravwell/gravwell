@@ -26,6 +26,8 @@ const (
 	maxConfigSize  int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
 	defaultMaxBody int   = 4 * 1024 * 1024
 	defaultLogLoc        = `/opt/gravwell/log/gravwell_http_ingester.log`
+
+	defaultMethod string = `POST`
 )
 
 type gbl struct {
@@ -41,7 +43,9 @@ type cfgReadType struct {
 }
 
 type lst struct {
+	auth                             //authentication information
 	URL                       string //the URL we will listen to
+	Method                    string //method the listener expects
 	Tag_Name                  string //the tag to assign to the request
 	Ignore_Timestamps         bool   //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone     bool
@@ -122,6 +126,16 @@ func verifyConfig(c *cfgType) error {
 			return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.URL, k, orig)
 		}
 		urls[pth] = k
+		//validate the auth
+		if enabled, err := v.auth.Validate(); err != nil {
+			return fmt.Errorf("Auth for %s is invalid: %v", k, err)
+		} else if enabled && v.LoginURL != `` {
+			//check the url
+			if orig, ok := urls[v.LoginURL]; ok {
+				return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.LoginURL, k, orig)
+			}
+			urls[v.LoginURL] = k
+		}
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = `default`
 		}
@@ -130,6 +144,9 @@ func verifyConfig(c *cfgType) error {
 		}
 		//normalize the path
 		v.URL = pth
+		if v.Method == `` {
+			v.Method = defaultMethod
+		}
 		c.Listener[k] = v
 	}
 	if len(urls) == 0 {
