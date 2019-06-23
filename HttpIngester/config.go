@@ -9,6 +9,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net/url"
@@ -26,13 +27,17 @@ const (
 	maxConfigSize  int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
 	defaultMaxBody int   = 4 * 1024 * 1024
 	defaultLogLoc        = `/opt/gravwell/log/gravwell_http_ingester.log`
+
+	defaultMethod string = `POST`
 )
 
 type gbl struct {
 	config.IngestConfig
-	Bind         string
-	Max_Body     int
-	Log_Location string
+	Bind                 string
+	Max_Body             int
+	Log_Location         string
+	TLS_Certificate_File string
+	TLS_Key_File         string
 }
 
 type cfgReadType struct {
@@ -41,7 +46,9 @@ type cfgReadType struct {
 }
 
 type lst struct {
+	auth                             //authentication information
 	URL                       string //the URL we will listen to
+	Method                    string //method the listener expects
 	Tag_Name                  string //the tag to assign to the request
 	Ignore_Timestamps         bool   //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone     bool
@@ -98,6 +105,9 @@ func verifyConfig(c *cfgType) error {
 	if c.Bind == `` {
 		return fmt.Errorf("No bind string specified")
 	}
+	if err := c.ValidateTLS(); err != nil {
+		return err
+	}
 	urls := map[string]string{}
 	if len(c.Listener) == 0 {
 		return errors.New("No Sniffers specified")
@@ -122,6 +132,16 @@ func verifyConfig(c *cfgType) error {
 			return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.URL, k, orig)
 		}
 		urls[pth] = k
+		//validate the auth
+		if enabled, err := v.auth.Validate(); err != nil {
+			return fmt.Errorf("Auth for %s is invalid: %v", k, err)
+		} else if enabled && v.LoginURL != `` {
+			//check the url
+			if orig, ok := urls[v.LoginURL]; ok {
+				return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.LoginURL, k, orig)
+			}
+			urls[v.LoginURL] = k
+		}
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = `default`
 		}
@@ -130,6 +150,9 @@ func verifyConfig(c *cfgType) error {
 		}
 		//normalize the path
 		v.URL = pth
+		if v.Method == `` {
+			v.Method = defaultMethod
+		}
 		c.Listener[k] = v
 	}
 	if len(urls) == 0 {
@@ -170,4 +193,22 @@ func (c *cfgType) MaxBody() int {
 		return defaultMaxBody
 	}
 	return c.Max_Body
+}
+
+func (g gbl) ValidateTLS() (err error) {
+	if !g.TLSEnabled() {
+		//not enabled
+	} else if g.TLS_Certificate_File == `` {
+		err = errors.New("TLS-Certificate-File argument is missing")
+	} else if g.TLS_Key_File == `` {
+		err = errors.New("TLS-Key-File argument is missing")
+	} else {
+		_, err = tls.LoadX509KeyPair(g.TLS_Certificate_File, g.TLS_Key_File)
+	}
+	return
+}
+
+func (g gbl) TLSEnabled() (r bool) {
+	r = g.TLS_Certificate_File != `` && g.TLS_Key_File != ``
+	return
 }
