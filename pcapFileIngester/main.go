@@ -60,17 +60,12 @@ func main() {
 		return
 	}
 	//get a handle on the pcap file
-	fi, err := utils.OpenBufferedFileReader(*pcapFile, 16*1024*1024)
+	ph, err := newPacketReader(*pcapFile, 16*1024*1024)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to open pcap file: %v\n", err)
 		return
 	}
-	defer fi.Close()
-	hnd, err := pcap.NewReader(fi)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to open pcap Reader: %v\n", err)
-		return
-	}
+	defer ph.Close()
 
 	//fire up the ingesters
 	igCfg := ingest.UniformMuxerConfig{
@@ -111,7 +106,7 @@ func main() {
 	start := time.Now()
 
 	if !simulate {
-		go packetReader(hnd, igst, tag, entChan, errChan)
+		go readPackets(ph, igst, tag, entChan, errChan)
 
 	mainLoop:
 		for {
@@ -137,7 +132,7 @@ func main() {
 			}
 		}
 	} else {
-		if err := simulatePacketRead(hnd); err != nil {
+		if err := simulatePacketRead(ph); err != nil {
 			fmt.Println("failed to Simulate packet read", err)
 		}
 	}
@@ -154,7 +149,7 @@ func main() {
 	fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(pktSize, dur))
 }
 
-func packetReader(hnd *pcap.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, entChan chan []*entry.Entry, errChan chan error) {
+func readPackets(hnd *packetHandle, igst *ingest.IngestMuxer, tag entry.EntryTag, entChan chan []*entry.Entry, errChan chan error) {
 	//get the src
 	src, err := igst.SourceIP()
 	if err != nil {
@@ -173,7 +168,6 @@ func packetReader(hnd *pcap.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag
 	var dt []byte
 	var ci gopacket.CaptureInfo
 	var blk []*entry.Entry
-	defer fmt.Println("Packets done being read")
 
 	//get packet src
 	for {
@@ -223,7 +217,7 @@ func packetReader(hnd *pcap.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag
 	fmt.Println("Last packet at", ts.Format(time.RFC3339))
 }
 
-func simulatePacketRead(hnd *pcap.Reader) (err error) {
+func simulatePacketRead(hnd *packetHandle) (err error) {
 	var ts entry.Timestamp
 	var first bool
 	var base entry.Timestamp
@@ -258,5 +252,60 @@ func simulatePacketRead(hnd *pcap.Reader) (err error) {
 		pktCount++
 	}
 	fmt.Println("Last packet at", ts.Format(time.RFC3339))
+	return
+}
+
+type packetHandle struct {
+	fi     io.ReadCloser
+	ngMode bool
+	hnd    *pcap.Reader
+	nghnd  *pcap.NgReader
+}
+
+func newPacketReader(pth string, buff int) (ph *packetHandle, err error) {
+	var fi io.ReadCloser
+	var hnd *pcap.Reader
+	var nghnd *pcap.NgReader
+	if fi, err = utils.OpenBufferedFileReader(pth, buff); err != nil {
+		return
+	}
+
+	//attempt to open a standard reader
+	if hnd, err = pcap.NewReader(fi); err == nil {
+		ph = &packetHandle{
+			fi:  fi,
+			hnd: hnd,
+		}
+		return
+	}
+
+	//failed, retry as an ng reader
+	if err = fi.Close(); err != nil {
+		return
+	} else if fi, err = utils.OpenBufferedFileReader(pth, buff); err != nil {
+		return
+	}
+
+	if nghnd, err = pcap.NewNgReader(fi, pcap.NgReaderOptions{}); err != nil {
+		return
+	}
+	ph = &packetHandle{
+		fi:     fi,
+		nghnd:  nghnd,
+		ngMode: true,
+	}
+	return
+}
+
+func (ph *packetHandle) Close() error {
+	return ph.fi.Close()
+}
+
+func (ph *packetHandle) ReadPacketData() (data []byte, ci gopacket.CaptureInfo, err error) {
+	if ph.ngMode {
+		data, ci, err = ph.nghnd.ReadPacketData()
+	} else {
+		data, ci, err = ph.hnd.ReadPacketData()
+	}
 	return
 }
