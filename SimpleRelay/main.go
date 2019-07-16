@@ -51,22 +51,28 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	if *stderrOverride != `` {
+		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
+			lg.Fatal("Failed to dup stderr: %v\n", err)
+		} else {
+			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
+		}
+
 		fp := path.Join(`/dev/shm/`, *stderrOverride)
 		fout, err := os.Create(fp)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to create %s: %v\n", fp, err)
 		} else {
+			version.PrintVersion(fout)
+			ingest.PrintVersion(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
 				fout.Close()
 			}
 		}
-		version.PrintVersion(fout)
-		ingest.PrintVersion(fout)
 	}
-	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 
 	v = *verbose
 	connClosers = make(map[int]closer, 1)

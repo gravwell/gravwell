@@ -55,7 +55,7 @@ func main() {
 
 	go func() {
 		for {
-			if err := redditConnection(iw, dieChan, wg); err != nil {
+			if err := redditConnection(iw, dieChan, &wg); err != nil {
 				log.Println("Got error from reddit system: ", err)
 				time.Sleep(10 * time.Second)
 			}
@@ -75,7 +75,7 @@ func main() {
 	}
 }
 
-func redditConnection(iw *ingestWriter, dieChan chan bool, wg sync.WaitGroup) error {
+func redditConnection(iw *ingestWriter, dieChan chan bool, wg *sync.WaitGroup) error {
 	wg.Add(1)
 	defer wg.Done()
 	apiHandle, err := reddit.NewScript(`gravwell reddit ingester`, time.Second)
