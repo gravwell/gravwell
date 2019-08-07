@@ -12,7 +12,7 @@ CGO_ENABLED=0 GOARCH=386 GOOS=windows go build
 
 ## Building the installer
 
-The installer is built using the (go-msi)[https://github.com/mh-cbon/go-msi] system and (WiX)[https://wixtoolset.org/].  You will need both tools installed.
+The installer is built using the [go-msi](https://github.com/mh-cbon/go-msi) system and [WiX](https://wixtoolset.org/).  You will need both tools installed.
 
 Once the applications have been built, execute the go-msi command to build the MSI installer.
 
