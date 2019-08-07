@@ -1,0 +1,173 @@
+/*************************************************************************
+ * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+package main
+
+import (
+	"flag"
+	"fmt"
+	"os"
+	"os/signal"
+
+	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/debug"
+	"golang.org/x/sys/windows/svc/eventlog"
+
+	"github.com/gravwell/winevent"
+)
+
+const (
+	serviceName       = `GravwellEvents`
+	defaultConfigName = `config.cfg`
+)
+
+var (
+	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
+	verboseF       = flag.Bool("v", false, "Verbose mode, do not run as a service and output status to stdout")
+
+	confLoc string
+	verbose bool
+	errW    errWriter = interactiveErrorWriter
+	infW    errWriter = interactiveInfoWriter
+	elog    debug.Log
+)
+
+func init() {
+	flag.Parse()
+	if *configOverride == "" {
+		var err error
+		confLoc, err = winevent.ServiceFilename(defaultConfigName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to get config file path: %v\n", err)
+			os.Exit(-1)
+		}
+	} else {
+		confLoc = *configOverride
+	}
+	verbose = *verboseF
+}
+
+func main() {
+	inter, err := svc.IsAnInteractiveSession()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get interactive session status: %v\n", err)
+		return
+	}
+	if !inter {
+		e, err := eventlog.Open(serviceName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to get event log handle: %v\n", err)
+			return
+		}
+		elog = e
+		errW = serviceErrorWriter
+		infW = serviceInfoWriter
+		infoout("%s started", serviceName)
+	}
+	cfg, err := winevent.GetConfig(confLoc)
+	if err != nil {
+		errorout("Failed to get configuration: %v", err)
+		return
+	}
+
+	s, err := NewService(cfg)
+	if err != nil {
+		errorout("Failed to create gravwell servicer: %v", err)
+		return
+	}
+
+	if inter {
+		runInteractive(s)
+	} else {
+		runService(s)
+	}
+	if err := s.Close(); err != nil {
+		errorout("Failed to close servicer: %v", err)
+	}
+}
+
+func runInteractive(s *mainService) {
+	//fire off the event consumers
+	closer := make(chan svc.ChangeRequest, 1)
+	defer close(closer)
+	status := make(chan svc.Status, 1)
+	defer close(status)
+	sigChan := make(chan os.Signal, 1)
+	defer close(sigChan)
+
+	signal.Notify(sigChan, os.Interrupt, os.Kill)
+	go s.Execute(nil, closer, status)
+
+loop:
+	for {
+		select {
+		case <-sigChan:
+			debugout("Caught close signal\n")
+			closer <- svc.ChangeRequest{Cmd: svc.Shutdown}
+		case st := <-status:
+			switch st.State {
+			case svc.StopPending:
+				debugout("Service is stopping")
+				fallthrough
+			case svc.Stopped:
+				debugout("Service stopped")
+				break loop
+			case svc.StartPending:
+				debugout("Service is starting")
+			case svc.Running:
+				debugout("Service is running")
+			default:
+				debugout("Got unknown status update: #%d", st.State)
+			}
+		}
+	}
+}
+
+func runService(s *mainService) {
+	if err := svc.Run(serviceName, s); err != nil {
+		errorout("Failed to run service: %v", err)
+	}
+	debugout("Service stopped\n")
+}
+
+func debugout(format string, args ...interface{}) {
+	if !verbose {
+		return
+	}
+	fmt.Printf(format, args...)
+}
+
+type errWriter func(format string, args ...interface{})
+
+func interactiveErrorWriter(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, args...)
+}
+
+func serviceErrorWriter(format string, args ...interface{}) {
+	elog.Error(1, fmt.Sprintf(format, args...))
+}
+
+func interactiveInfoWriter(format string, args ...interface{}) {
+	fmt.Printf(format, args...)
+}
+
+func serviceInfoWriter(format string, args ...interface{}) {
+	elog.Info(1, fmt.Sprintf(format, args...))
+}
+
+func errorout(format string, args ...interface{}) {
+	if errW != nil {
+		errW(format, args)
+	}
+}
+
+func infoout(format string, args ...interface{}) {
+	if infW != nil {
+		infW(format, args)
+	}
+}
