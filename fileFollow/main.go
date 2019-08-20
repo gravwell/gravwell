@@ -226,7 +226,7 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	sch := make(chan os.Signal, 1)
-	signal.Notify(sch, os.Interrupt)
+	signal.Notify(sch, os.Interrupt, os.Kill)
 	<-sch
 	debugout("Attempting to close the watcher... ")
 	if err := wtcher.Close(); err != nil {

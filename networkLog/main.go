@@ -247,7 +247,7 @@ func main() {
 
 	//register quit signals so we can die gracefully
 	quitSig := make(chan os.Signal, 1)
-	signal.Notify(quitSig, os.Interrupt)
+	signal.Notify(quitSig, os.Interrupt, os.Kill)
 
 	for i := range sniffs {
 		sniffs[i].active = true
