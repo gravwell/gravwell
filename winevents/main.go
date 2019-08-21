@@ -18,6 +18,8 @@ import (
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 
+	"github.com/gravwell/ingest"
+	"github.com/gravwell/ingesters/version"
 	"github.com/gravwell/winevent"
 )
 
@@ -29,6 +31,7 @@ const (
 var (
 	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
 	verboseF       = flag.Bool("v", false, "Verbose mode, do not run as a service and output status to stdout")
+	ver            = flag.Bool("version", false, "Print the version information and exit")
 
 	confLoc string
 	verbose bool
@@ -39,6 +42,11 @@ var (
 
 func init() {
 	flag.Parse()
+	if *ver {
+		version.PrintVersion(os.Stdout)
+		ingest.PrintVersion(os.Stdout)
+		os.Exit(0)
+	}
 	if *configOverride == "" {
 		var err error
 		confLoc, err = winevent.ServiceFilename(defaultConfigName)
