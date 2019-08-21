@@ -2,13 +2,13 @@
   "product": "gravwell events ingester",
   "company": "Gravwell Inc",
   "license": "LICENSE",
-  "upgrade-code": "ae9918ee-b218-11e9-894a-c3067555da1d",
+  "upgrade-code": "7c775ec8-a978-11e9-9c98-efcc6506c320",
   "files": {
     "guid": "d5683554-3145-11e8-a0c2-6bdc9ccf317a",
     "items": [
       "winevents.exe",
       "config.cfg",
-	  "gravwell.ico"
+      "gravwell.ico"
     ]
   },
   "env": {
