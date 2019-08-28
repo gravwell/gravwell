@@ -9,6 +9,7 @@
 package ingest
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"sync"
@@ -27,10 +28,12 @@ const (
 )
 
 var (
-	dbTimeout    time.Duration = 100 * time.Millisecond
-	dbMmapSize   int           = defaultCacheSize
-	dbOpenMode   os.FileMode   = 0660         //user and group R/W but nothing for other
-	dbBucketName []byte        = []byte(`ic`) //only one bucket, so keep it simple
+	dbTimeout       time.Duration = 100 * time.Millisecond
+	dbMmapSize      int           = defaultCacheSize
+	dbOpenMode      os.FileMode   = 0660                        //user and group R/W but nothing for other
+	dbBucketName    []byte        = []byte(`ic`)                // this is the bucket that will hold entries
+	dbTagBucketName []byte        = []byte(`tagmap`)            // this bucket will hold the tag list
+	dbTagKey        []byte        = []byte(`__CACHE_TAG_KEY__`) // special tag to hold tag list
 
 	ErrActiveHotBlocks        = errors.New("There are active hotblocks, close pitched data")
 	ErrNoActiveDB             = errors.New("No active database")
@@ -93,6 +96,7 @@ func NewIngestCache(c IngestCacheConfig) (*IngestCache, error) {
 			}
 			return nil, err
 		}
+
 		//create our bucket in case it doesn't exist
 		err = db.Update(func(t *bolt.Tx) error {
 			if _, err := t.CreateBucketIfNotExists(dbBucketName); err != nil {
@@ -104,6 +108,19 @@ func NewIngestCache(c IngestCacheConfig) (*IngestCache, error) {
 			db.Close()
 			return nil, err
 		}
+
+		//also create the tag bucket if it doesn't exist
+		err = db.Update(func(t *bolt.Tx) error {
+			if _, err := t.CreateBucketIfNotExists(dbTagBucketName); err != nil {
+				return err
+			}
+			return nil
+		})
+		if err != nil {
+			db.Close()
+			return nil, err
+		}
+
 		blockCount = getKVCount(db)
 		count, err = getEntryCount(db)
 		if err != nil {
@@ -152,6 +169,70 @@ func NewIngestCache(c IngestCacheConfig) (*IngestCache, error) {
 		storeSize:       currDataSize,
 		stCh:            make(chan bool, 1),
 	}, nil
+}
+
+func (ic *IngestCache) GetTagList() ([]string, error) {
+	ic.mtx.Lock()
+	defer ic.mtx.Unlock()
+	if ic.db == nil {
+		return []string{}, nil
+	}
+	return getTagList(ic.db)
+}
+
+func getTagList(db *bolt.DB) ([]string, error) {
+	var buff []byte
+	var tags []string
+	if err := db.View(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket(dbTagBucketName)
+		if bkt == nil {
+			return ErrBucketMissing
+		}
+		lBuff := bkt.Get(dbTagKey)
+		if lBuff == nil {
+			return nil
+		}
+		buff = append([]byte(nil), lBuff...)
+		return nil
+	}); err != nil {
+		return tags, err
+	}
+	if buff == nil {
+		return tags, nil
+	}
+
+	err := json.Unmarshal(buff, &tags)
+	return tags, err
+}
+
+func (ic *IngestCache) UpdateStoredTagList(tags []string) error {
+	ic.mtx.Lock()
+	defer ic.mtx.Unlock()
+
+	if ic.db == nil {
+		return nil
+	}
+	return putTagList(ic.db, tags)
+}
+
+func putTagList(db *bolt.DB, tags []string) error {
+	buff, err := json.Marshal(tags)
+	if err != nil {
+		return err
+	}
+	if err := db.Update(func(tx *bolt.Tx) error {
+		bkt := tx.Bucket(dbTagBucketName)
+		if bkt == nil {
+			return ErrBucketMissing
+		}
+		if err := bkt.Put(dbTagKey, buff); err != nil {
+			return err
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	return nil
 }
 
 // Close flushes hot blocks to the store and closes the cache
@@ -516,6 +597,12 @@ func (ic *IngestCache) compactDb() error {
 	if err := ic.db.Sync(); err != nil {
 		return err
 	}
+	// Grab the tags before we go
+	ctags, err := getTagList(ic.db)
+	if err != nil {
+		return err
+	}
+
 	if err := ic.db.Close(); err != nil {
 		return err
 	}
@@ -540,11 +627,23 @@ func (ic *IngestCache) compactDb() error {
 	}); err != nil {
 		return err
 	}
+	//also create the tag bucket if it doesn't exist
+	err = db.Update(func(t *bolt.Tx) error {
+		if _, err := t.CreateBucketIfNotExists(dbTagBucketName); err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+
 	ic.storedBlocks = 0
 	ic.count = 0
 	ic.storeSize = uint64(dbMmapSize)
 	ic.db = db
-	return nil
+	// Now write the tags back and call it good
+	return putTagList(db, ctags)
 }
 
 func (ic *IngestCache) popStoreBlock() (key entry.EntryKey, blk *entry.EntryBlock, err error) {

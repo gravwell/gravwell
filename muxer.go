@@ -205,12 +205,6 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		localTags = append(localTags, c.Tags[i])
 	}
 
-	//generate our tag map, the tag map is used only for quick tag lookup/translation by routines
-	tagMap := make(map[string]int, len(localTags))
-	for i, v := range localTags {
-		tagMap[v] = i
-	}
-
 	//if the cache is enabled, attempt to fire it up
 	var cache *IngestCache
 	var cacheSig chan bool
@@ -221,6 +215,53 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 			return nil, err
 		}
 		cacheSig = make(chan bool, 1)
+
+		// If there were stored entries, re-initialize localTags and the tagMap
+		if cache.Count() > 0 {
+			ctags, err := cache.GetTagList()
+			if err != nil {
+				return nil, err
+			}
+			if len(ctags) > 0 {
+				// First, check if there are cached tags which are NOT in our configured set
+				var uniques []string
+			uniqueLoop:
+				for _, ct := range ctags {
+					for _, lt := range localTags {
+						if ct == lt {
+							continue uniqueLoop
+						}
+					}
+					uniques = append(uniques, ct)
+				}
+				if len(uniques) > 0 {
+					c.Logger.Warn("The cache file contains entries. To ensure ingestion under the correct tags, the ingester will negotiate the following tags even if the config file does not currently require them: %v", uniques)
+				}
+
+				// Now, append any new configured tags to the end of the cached tags and use that as our localTags
+			tagLoop:
+				for _, lt := range localTags {
+					for _, ct := range ctags {
+						if lt == ct {
+							// the tag was already in the set, skip
+							continue tagLoop
+						}
+					}
+					ctags = append(ctags, lt)
+				}
+				localTags = ctags
+			}
+		}
+		// Now update the stored tags list no matter what
+		if err := cache.UpdateStoredTagList(localTags); err != nil {
+			return nil, err
+		}
+	}
+
+	//generate our tag map, the tag map is used only for quick tag lookup/translation by routines
+	tagMap := make(map[string]int, len(localTags))
+	for i, v := range localTags {
+		tagMap[v] = i
 	}
 
 	if c.ChannelSize <= 0 {
@@ -407,6 +448,9 @@ func (im *IngestMuxer) Close() error {
 				return err
 			}
 		}
+		if err := im.cache.UpdateStoredTagList(im.tags); err != nil {
+			return err
+		}
 		if err := im.cache.Close(); err != nil {
 			return err
 		}
@@ -435,6 +479,12 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 	im.tags = append(im.tags, name)
 	for i, v := range im.tags {
 		im.tagMap[v] = i
+	}
+	if im.cacheEnabled && im.cacheFileBacked {
+		// Now update the stored tags list
+		if err = im.cache.UpdateStoredTagList(im.tags); err != nil {
+			return
+		}
 	}
 	tg = entry.EntryTag(im.tagMap[name])
 
