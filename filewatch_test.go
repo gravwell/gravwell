@@ -142,7 +142,30 @@ func TestSingleWatcher(t *testing.T) {
 			time.Sleep(time.Millisecond * 10)
 		}
 		return nil
-	}, nil, t)
+	}, func(wm *WatchManager) error {
+		if err := wm.fman.nolockDumpStates(); err != nil {
+			return err
+		}
+		sts, err := ReadStateFile(stateFilePath)
+		if err != nil {
+			return err
+		}
+		if len(sts) != len(wm.fman.followers) {
+			return fmt.Errorf("state file doesn't match %d != %d", len(sts), len(wm.fman.followers))
+		}
+		if len(sts) != len(wm.fman.states) {
+			return errors.New("states doesn't match statefile")
+		}
+		for k, v := range wm.fman.states {
+			if v == nil {
+				return errors.New("invalid state value")
+			}
+			if sts[filepath.Join(k.FilePath, k.BaseName)] != *v {
+				return fmt.Errorf("Invalid value for %v", k)
+			}
+		}
+		return nil
+	}, t)
 
 	//check the results
 	if len(res) != lh.Len() {

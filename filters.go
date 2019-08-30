@@ -567,6 +567,42 @@ func appendErr(err, nerr error) error {
 	return fmt.Errorf("%v : %v", err, nerr)
 }
 
+func ReadStateFile(p string) (states map[string]int64, err error) {
+	var fi os.FileInfo
+	if fi, err = os.Stat(p); err != nil {
+		return
+	} else if !fi.Mode().IsRegular() {
+		err = ErrInvalidStateFile
+		return
+	}
+	var fin *os.File
+	if fin, err = os.Open(p); err != nil {
+		return
+	} else if fi, err = fin.Stat(); err != nil {
+		fin.Close()
+		return
+	} else if fi.Size() > 0 {
+		temp := map[FileName]*int64{}
+		if err = gob.NewDecoder(fin).Decode(&temp); err != nil {
+			err = fmt.Errorf("Failed to load existing states: %v", err)
+			fin.Close()
+			return
+		}
+		if len(temp) > 0 {
+			states = make(map[string]int64, len(temp))
+			for k, v := range temp {
+				var offset int64
+				if v != nil {
+					offset = *v
+				}
+				states[filepath.Join(k.FilePath, k.BaseName)] = offset
+			}
+		}
+	}
+	err = fin.Close()
+	return
+}
+
 func initStateFile(p string) (fout *os.File, states map[FileName]*int64, err error) {
 	var fi os.FileInfo
 	states = map[FileName]*int64{}
