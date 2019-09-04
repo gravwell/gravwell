@@ -44,6 +44,7 @@ var (
 	ignorePfx = flag.String("ignore-prefix", "", "Ignore lines that start with the prefix")
 	verbose   = flag.Bool("verbose", false, "Print every step")
 	quotable  = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
+	cleanQuotes  = flag.Bool("clean-quotes", false, "clean quotes off lines")
 	blockSize = flag.Int("block-size", 0, "Optimized ingest using blocks, 0 disables")
 	status    = flag.Bool("status", false, "Output ingest rate stats as we go")
 	srcOvr    = flag.String("source-override", "", "Override source with address, hash, or integeter")
@@ -231,6 +232,11 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 		if bts = bytes.TrimSuffix(scn.Bytes(), nlBytes); len(bts) == 0 {
 			continue
 		}
+		if *cleanQuotes {
+			if bts = trimQuotes(bts); len(bts) == 0 {
+				continue
+			}
+		}
 		if ignorePrefixFlag {
 			if bytes.HasPrefix(bts, ignorePrefix) {
 				continue
@@ -311,6 +317,15 @@ func quotableSplitter(data []byte, atEOF bool) (int, []byte, error) {
 func dropCR(data []byte) []byte {
 	if len(data) > 0 && data[len(data)-1] == '\r' {
 		return data[0 : len(data)-1]
+	}
+	return data
+}
+
+func trimQuotes(data []byte) []byte {
+	if len(data) >= 2 {
+		if data[0] == '"' && data[len(data)-1] == '"' {
+			data = data[1:len(data)-1]
+		}
 	}
 	return data
 }

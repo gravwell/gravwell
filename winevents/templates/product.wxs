@@ -100,8 +100,7 @@
          {{end}}
 
       </Directory>
-	  
-	  <SetProperty Id="EditConfig" Value="&#34;notepad.exe&#34; [INSTALLDIR]config.cfg" Before="EditConfig" Sequence="execute"/>
+      <SetProperty Id="EditConfig" Value="&#34;notepad.exe&#34; [INSTALLDIR]config.cfg" Before="EditConfig" Sequence="execute"/>
       <CustomAction Id="EditConfig" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no"/>
       
       <SetProperty Id="StopService" Value="&#34;sc.exe&#34; stop GravwellEvents" Before="StopService" Sequence="execute"/>
@@ -120,7 +119,7 @@
       {{end}}
       <InstallExecuteSequence>
 	     <RemoveExistingProducts After="InstallValidate"/>
-	     <Custom Action="EditConfig" After="InstallFiles">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED</Custom>
+	     <Custom Action="EditConfig" After="InstallFiles">(NOT NOCONFIG=1) AND NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED</Custom>
          <Custom Action="StopService" After="EditConfig">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED</Custom>
          <Custom Action="StartService" After="StopService">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED</Custom>
          {{range $i, $e := .InstallHooks}}
