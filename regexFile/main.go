@@ -86,9 +86,14 @@ func main() {
 	}
 
 	//get a handle on the input file with a wrapped decompressor if needed
-	fin, err := OpenFileReader(*inFile)
-	if err != nil {
-		log.Fatalf("Failed to open %s: %v\n", *inFile, err)
+	var fin io.ReadCloser
+	if *inFile == "-" {
+		fin = os.Stdin
+	} else {
+		fin, err = OpenFileReader(*inFile)
+		if err != nil {
+			log.Fatalf("Failed to open %s: %v\n", *inFile, err)
+		}
 	}
 
 	//fire up a uniform muxer
