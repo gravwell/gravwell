@@ -65,7 +65,7 @@ func main() {
 	//register for signals so we can die gracefully
 	quitSig := make(chan os.Signal, 2)
 	defer close(quitSig)
-	signal.Notify(quitSig, os.Interrupt)
+	signal.Notify(quitSig, os.Interrupt, os.Kill)
 	<-quitSig
 
 	for _, p := range pms {
