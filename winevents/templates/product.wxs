@@ -44,7 +44,8 @@
                             DisplayName='Gravwell Events Ingester'
                             Description='Gravwell Windows Events Service' Name='GravwellEvents' Start='auto' />
 				<ServiceControl Id='ControlControlGravwellEventsService' Remove='both' Name='GravwellEvents' 
-                            Start='install' Stop='both' Wait='yes' />
+					Start='install' Stop='both' Wait='yes' />
+				<RemoveFile Id="RemoveAllFiles" Name="*.*" On="uninstall" />
                </Component>
                {{end}}
                {{if gt (.Directories | len) 0}}
@@ -100,6 +101,10 @@
          {{end}}
 
       </Directory>
+
+      <Property Id="CONFIGFILE" Secure="yes" />
+      <SetProperty Id='CopyConfig' Value='&quot;[SystemFolder]cmd.exe&quot; /c echo f | xcopy &quot;[CONFIGFILE]&quot; &quot;[INSTALLDIR]config.cfg&quot; /Y /Q /R' After='CostFinalize' />
+      <CustomAction Id="CopyConfig" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="check" Impersonate="no"/>
       <SetProperty Id="EditConfig" Value="&#34;notepad.exe&#34; [INSTALLDIR]config.cfg" Before="EditConfig" Sequence="execute"/>
       <CustomAction Id="EditConfig" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no"/>
       
@@ -119,7 +124,8 @@
       {{end}}
       <InstallExecuteSequence>
 	     <RemoveExistingProducts After="InstallValidate"/>
-	     <Custom Action="EditConfig" After="InstallFiles">(NOT NOCONFIG=1) AND NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED</Custom>
+	 <Custom Action="CopyConfig" After="InstallFiles">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED AND CONFIGFILE</Custom>
+	 <Custom Action="EditConfig" After="InstallFiles">NOT CONFIGFILE AND NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED AND UILevel=5</Custom>
          <Custom Action="StopService" After="EditConfig">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED</Custom>
          <Custom Action="StartService" After="StopService">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED</Custom>
          {{range $i, $e := .InstallHooks}}

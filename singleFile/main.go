@@ -35,19 +35,19 @@ const (
 )
 
 var (
-	tso       = flag.String("timestamp-override", "", "Timestamp override")
-	tzo       = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
-	inFile    = flag.String("i", "", "Input file to process")
-	ver       = flag.Bool("v", false, "Print version and exit")
-	utc       = flag.Bool("utc", false, "Assume UTC time")
-	ignoreTS  = flag.Bool("ignore-ts", false, "Ignore timetamp")
-	ignorePfx = flag.String("ignore-prefix", "", "Ignore lines that start with the prefix")
-	verbose   = flag.Bool("verbose", false, "Print every step")
-	quotable  = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
-	cleanQuotes  = flag.Bool("clean-quotes", false, "clean quotes off lines")
-	blockSize = flag.Int("block-size", 0, "Optimized ingest using blocks, 0 disables")
-	status    = flag.Bool("status", false, "Output ingest rate stats as we go")
-	srcOvr    = flag.String("source-override", "", "Override source with address, hash, or integeter")
+	tso         = flag.String("timestamp-override", "", "Timestamp override")
+	tzo         = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
+	inFile      = flag.String("i", "", "Input file to process")
+	ver         = flag.Bool("v", false, "Print version and exit")
+	utc         = flag.Bool("utc", false, "Assume UTC time")
+	ignoreTS    = flag.Bool("ignore-ts", false, "Ignore timetamp")
+	ignorePfx   = flag.String("ignore-prefix", "", "Ignore lines that start with the prefix")
+	verbose     = flag.Bool("verbose", false, "Print every step")
+	quotable    = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
+	cleanQuotes = flag.Bool("clean-quotes", false, "clean quotes off lines")
+	blockSize   = flag.Int("block-size", 0, "Optimized ingest using blocks, 0 disables")
+	status      = flag.Bool("status", false, "Output ingest rate stats as we go")
+	srcOvr      = flag.String("source-override", "", "Override source with address, hash, or integeter")
 
 	nlBytes          = []byte("\n")
 	count            uint64
@@ -324,7 +324,7 @@ func dropCR(data []byte) []byte {
 func trimQuotes(data []byte) []byte {
 	if len(data) >= 2 {
 		if data[0] == '"' && data[len(data)-1] == '"' {
-			data = data[1:len(data)-1]
+			data = data[1 : len(data)-1]
 		}
 	}
 	return data
