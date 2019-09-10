@@ -34,7 +34,7 @@ const (
 var (
 	tso     = flag.String("timestamp-override", "", "Timestamp override")
 	tzo     = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
-	inFile  = flag.String("i", "", "Input file to process")
+	inFile  = flag.String("i", "", "Input file to process (specify - for stdin)")
 	ver     = flag.Bool("v", false, "Print version and exit")
 	utc     = flag.Bool("utc", false, "Assume UTC time")
 	verbose = flag.Bool("verbose", false, "Print every step")
@@ -86,9 +86,14 @@ func main() {
 	}
 
 	//get a handle on the input file with a wrapped decompressor if needed
-	fin, err := OpenFileReader(*inFile)
-	if err != nil {
-		log.Fatalf("Failed to open %s: %v\n", *inFile, err)
+	var fin io.ReadCloser
+	if *inFile == "-" {
+		fin = os.Stdin
+	} else {
+		fin, err = OpenFileReader(*inFile)
+		if err != nil {
+			log.Fatalf("Failed to open %s: %v\n", *inFile, err)
+		}
 	}
 
 	//fire up a uniform muxer

@@ -11,10 +11,11 @@ package main
 import (
 	"compress/bzip2"
 	"compress/gzip"
-	ft "gopkg.in/h2non/filetype.v1"
-	"gopkg.in/h2non/filetype.v1/types"
 	"io"
 	"os"
+
+	ft "github.com/h2non/filetype"
+	"github.com/h2non/filetype/types"
 )
 
 func OpenFileReader(p string) (r io.ReadCloser, err error) {
