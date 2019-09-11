@@ -1,0 +1,166 @@
+<?xml version="1.0"?>
+
+<?if $(sys.BUILDARCH)="x86"?>
+    <?define Program_Files="ProgramFilesFolder"?>
+<?elseif $(sys.BUILDARCH)="x64"?>
+    <?define Program_Files="ProgramFiles64Folder"?>
+<?else?>
+    <?error Unsupported value of sys.BUILDARCH=$(sys.BUILDARCH)?>
+<?endif?>
+
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+
+   <Product Id="*" UpgradeCode="{{.UpgradeCode}}"
+            Name="{{.Product}}"
+            Version="{{.VersionOk}}"
+            Manufacturer="{{.Company}}"
+            Language="1033">
+
+      <Package InstallerVersion="200" Compressed="yes" Comments="Windows Installer Package" InstallScope="perMachine"/>
+	  {{range $i, $e := .Shortcuts.Items}}
+	  {{if gt ($e.Icon | len) 0}}
+	  <Icon Id="gravwellff.ico" SourceFile="{{$e.Icon}}"/>
+	  <Property Id="ARPPRODUCTICON" Value="gravwellff.ico" />
+          {{end}}
+	  {{end}}
+      <Media Id="1" Cabinet="product.cab" EmbedCab="yes"/>
+
+      <Upgrade Id="{{.UpgradeCode}}">
+         <UpgradeVersion OnlyDetect="yes" Minimum="{{.VersionOk}}" Property="NEWERVERSIONDETECTED" IncludeMinimum="no"/>
+	 <UpgradeVersion OnlyDetect="no" Maximum="{{.VersionOk}}" Property="OLDERVERSIONBEINGUPGRADED" IncludeMaximum="no" />
+      </Upgrade>
+      <Condition Message="A newer version of this software is already installed.">NOT NEWERVERSIONDETECTED</Condition>
+
+      <Directory Id="TARGETDIR" Name="SourceDir">
+         <Directory Id="$(var.Program_Files)">
+            <Directory Id="INSTALLDIR" Name="gravwell">
+               {{if gt (.Files.Items | len) 0}}
+               <Component Id="ApplicationFiles" Guid="{{.Files.GUID}}">
+                  {{range $i, $e := .Files.Items}}
+                    <File Id="ApplicationFile{{$i}}" Source="{{$e}}"/>
+                  {{end}}
+				<ServiceInstall Vital='yes' ErrorControl='ignore' Type='ownProcess' 
+                            DisplayName='Gravwell File Follow Ingester'
+                            Description='Gravwell File Follow Service' Name='GravwellFileFollow' Start='auto' />
+				<ServiceControl Id='ControlControlGravwellFileFollowService' Remove='both' Name='GravwellFileFollow' 
+                            Start='install' Stop='both' Wait='yes' />
+			<RemoveFile Id="RemoveAllFiles" Name="*.*" On="uninstall" />
+               </Component>
+               {{end}}
+               {{if gt (.Directories | len) 0}}
+               {{range $i, $e := .Directories}}
+               <Directory Id="APPDIR{{$i}}" Name="{{$e}}" />
+               {{end}}
+               {{end}}
+			   
+            </Directory>
+         </Directory>
+
+         {{if gt (.Env.Vars | len) 0}}
+         <Component Id="ENVS" Guid="{{.Env.GUID}}">
+          {{range $i, $e := .Env.Vars}}
+          <Environment Id="ENV{{$i}}"
+            Name="{{$e.Name}}"
+            Value="{{$e.Value}}"
+            Permanent="{{$e.Permanent}}"
+            Part="{{$e.Part}}"
+            Action="{{$e.Action}}"
+            System="{{$e.System}}" />
+          {{end}}
+        </Component>
+        {{end}}
+
+         {{if gt (.Shortcuts.Items | len) 0}}
+         <Directory Id="ProgramMenuFolder">
+            <Directory Id="ProgramMenuSubfolder" Name="{{.Product}}">
+               <Component Id="ApplicationShortcuts" Guid="{{.Shortcuts.GUID}}">
+               {{range $i, $e := .Shortcuts.Items}}
+                  <Shortcut Id="ApplicationShortcut{{$i}}"
+                        Name="{{$e.Name}}"
+                        Description="{{$e.Description}}"
+                        Target="{{$e.Target}}"
+                        WorkingDirectory="{{$e.WDir}}"
+                        {{if gt ($e.Arguments | len) 0}}
+                        Arguments="{{$e.Arguments}}"
+                        {{end}}
+                        >
+                        {{if gt ($e.Icon | len) 0}}
+                        <Icon Id="Icon{{$i}}" SourceFile="{{$e.Icon}}" />
+                        {{end}}
+                  </Shortcut>
+                  <RegistryValue Root="HKCU"
+                    Key="Software\{{$.Company}}\{{$.Product}}"
+                    Name="installed{{$i}}"
+                    Type="integer" Value="1" KeyPath="yes"/>
+                {{end}}
+                <RemoveFolder Id="ProgramMenuSubfolder" On="uninstall"/>
+               </Component>
+            </Directory>
+         </Directory>
+         {{end}}
+
+      </Directory>
+
+      <Property Id="CONFIGFILE" Secure="yes" />
+      <SetProperty Id='CopyConfig' Value='&quot;[SystemFolder]cmd.exe&quot; /c echo f | xcopy &quot;[CONFIGFILE]&quot; &quot;[INSTALLDIR]config.cfg&quot; /Y /Q /R' After='CostFinalize' />
+      <CustomAction Id="CopyConfig" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="check" Impersonate="no"/>
+      <SetProperty Id="EditConfig" Value="&#34;notepad.exe&#34; [INSTALLDIR]file_follow.cfg" Before="EditConfig" Sequence="execute"/>
+      <CustomAction Id="EditConfig" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no"/>
+      
+      <SetProperty Id="StopService" Value="&#34;sc.exe&#34; stop GravwellFileFollow" Before="StopService" Sequence="execute"/>
+      <CustomAction Id="StopService" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no"/>
+      
+      <SetProperty Id="StartService" Value="&#34;sc.exe&#34; start GravwellFileFollow" Before="StartService" Sequence="execute"/>
+      <CustomAction Id="StartService" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no"/>
+
+      {{range $i, $e := .InstallHooks}}
+      <SetProperty Id="CustomInstallExec{{$i}}" Value="{{$e.CookedCommand}}" Before="CustomInstallExec{{$i}}" Sequence="execute"/>
+      <CustomAction Id="CustomInstallExec{{$i}}" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no"/>
+      {{end}}
+      {{range $i, $e := .UninstallHooks}}
+      <SetProperty Id="CustomUninstallExec{{$i}}" Value="{{$e.CookedCommand}}" Before="CustomUninstallExec{{$i}}" Sequence="execute"/>
+      <CustomAction Id="CustomUninstallExec{{$i}}" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no"/>
+      {{end}}
+      <InstallExecuteSequence>
+         <RemoveExistingProducts After="InstallInitialize"/>
+         <Custom Action="CopyConfig" After="InstallFiles">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED AND CONFIGFILE</Custom>
+	 <Custom Action="EditConfig" After="InstallFiles">NOT CONFIGFILE AND NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED AND UILevel=5</Custom>
+         <Custom Action="StopService" After="EditConfig">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED</Custom>
+         <Custom Action="StartService" After="StopService">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED</Custom>
+
+         {{range $i, $e := .InstallHooks}}
+         <Custom Action="CustomInstallExec{{$i}}" After="{{if eq $i 0}}InstallFiles{{else}}CustomInstallExec{{dec $i}}{{end}}">NOT Installed AND NOT REMOVE</Custom>
+         {{end}}
+         {{range $i, $e := .UninstallHooks}}
+         <Custom Action="CustomUninstallExec{{$i}}" After="{{if eq $i 0}}InstallInitialize{{else}}CustomUninstallExec{{dec $i}}{{end}}">REMOVE ~= "ALL"</Custom>
+         {{end}}
+      </InstallExecuteSequence>
+
+      <Feature Id="DefaultFeature" Level="1">
+         {{if gt (.Env.Vars | len) 0}}
+         <ComponentRef Id="ENVS"/>
+         {{end}}
+         {{if gt (.Files.Items | len) 0}}
+         <ComponentRef Id="ApplicationFiles"/>
+         {{end}}
+         {{if gt (.Shortcuts.Items | len) 0}}
+         <ComponentRef Id="ApplicationShortcuts"/>
+         {{end}}
+         {{range $i, $e := .Directories}}
+         <ComponentGroupRef Id="AppFiles{{$i}}" />
+         {{end}}
+      </Feature>
+
+      <UI>
+         <!-- Define the installer UI -->
+         <UIRef Id="WixUI_HK" />
+      </UI>
+
+      <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+
+      <!-- this should help to propagate env var changes -->
+      <CustomActionRef Id="WixBroadcastEnvironmentChange" />
+
+   </Product>
+
+</Wix>
