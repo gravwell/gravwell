@@ -11,6 +11,7 @@ package filewatch
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"syscall"
 )
@@ -36,12 +37,13 @@ func getFileIdFromName(name string) (id FileId, err error) {
 	}
 	h, lerr := syscall.CreateFile(p, 0, 0, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_BACKUP_SEMANTICS, 0)
 	if lerr != nil {
-		err = lerr
+		err = fmt.Errorf("Failed to open %s to check FileID: %v", name, lerr)
 		return
 	}
 	defer syscall.CloseHandle(h)
 	var bhfi syscall.ByHandleFileInformation
 	if err = syscall.GetFileInformationByHandle(h, &bhfi); err != nil {
+		err = fmt.Errorf("Failed to get FileID for %s: %v", name, err)
 		return
 	}
 	id.Major = uint64(bhfi.VolumeSerialNumber)
@@ -68,7 +70,7 @@ func openDeletableFile(fpath string) (*os.File, error) {
 	shared := uint32(syscall.FILE_SHARE_READ | syscall.FILE_SHARE_WRITE | syscall.FILE_SHARE_DELETE)
 	h, err := syscall.CreateFile(p, syscall.GENERIC_READ, shared, attrib, syscall.OPEN_EXISTING, syscall.FILE_ATTRIBUTE_NORMAL, 0)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to open %s : %v", fpath, err)
 	}
 
 	return os.NewFile(uintptr(h), fpath), nil
