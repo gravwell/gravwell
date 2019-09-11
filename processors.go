@@ -17,32 +17,33 @@ import (
 )
 
 const (
-	_                    = iota
-	AnsiC            int = iota
-	Unix             int = iota
-	Ruby             int = iota
-	RFC822           int = iota
-	RFC822Z          int = iota
-	RFC850           int = iota
-	RFC1123          int = iota
-	RFC1123Z         int = iota
-	RFC3339          int = iota
-	RFC3339Nano      int = iota
-	Apache           int = iota
-	ApacheNoTz       int = iota
-	Syslog           int = iota
-	SyslogFile       int = iota
-	SyslogFileTZ     int = iota
-	DPKG             int = iota
-	Custom1Milli     int = iota
-	NGINX            int = iota
-	UnixMilli        int = iota
-	ZonelessRFC3339  int = iota
-	SyslogVariant    int = iota
-	UnpaddedDateTime int = iota
-	UnixMs           int = iota
-	UnixNano         int = iota
-	_lastProcessor   int = iota
+	_                         = iota
+	AnsiC                 int = iota
+	Unix                  int = iota
+	Ruby                  int = iota
+	RFC822                int = iota
+	RFC822Z               int = iota
+	RFC850                int = iota
+	RFC1123               int = iota
+	RFC1123Z              int = iota
+	RFC3339               int = iota
+	RFC3339Nano           int = iota
+	Apache                int = iota
+	ApacheNoTz            int = iota
+	Syslog                int = iota
+	SyslogFile            int = iota
+	SyslogFileTZ          int = iota
+	DPKG                  int = iota
+	Custom1Milli          int = iota
+	NGINX                 int = iota
+	UnixMilli             int = iota
+	ZonelessRFC3339       int = iota
+	SyslogVariant         int = iota
+	UnpaddedDateTime      int = iota
+	UnpaddedMilliDateTime int = iota
+	UnixMs                int = iota
+	UnixNano              int = iota
+	_lastProcessor        int = iota
 )
 
 const (
@@ -338,6 +339,16 @@ func NewUnpaddedDateTime() *processor {
 	}
 }
 
+func NewUnpaddedMilliDateTime() *processor {
+	re := `\d\d\d\d-\d+-\d+\s+\d+:\d\d:\d\d\.\d{1,9}`
+	return &processor{
+		rxp:    regexp.MustCompile(re),
+		rxstr:  re,
+		format: UNPADDED_MILLI_DATE_TIME,
+		name:   `unpaddedmillidatetime`,
+	}
+}
+
 // FormatDirective tkes a string and attempts to match it against a case insensitive format directive
 // This function is useful in taking string designations for time formats, checking if they are valid
 // and converting them to an iota int for overriding the timegrinder
@@ -390,6 +401,8 @@ func FormatDirective(s string) (v int, err error) {
 		v = SyslogVariant
 	case `unpaddeddatetime`:
 		v = UnpaddedDateTime
+	case `unpaddedmillidatetime`:
+		v = UnpaddedMilliDateTime
 	case `unixnano`:
 		v = UnixNano
 	case `unixms`:
@@ -426,6 +439,7 @@ func ValidateFormatOverride(s string) (err error) {
 	case `unixmilli`:
 	case `syslogvariant`:
 	case `unpaddeddatetime`:
+	case `unpaddedmillidatetime`:
 	case `unixnano`:
 	case `unixms`:
 	case `uk`:

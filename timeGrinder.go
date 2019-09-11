@@ -43,6 +43,7 @@ const (
 	ZONELESS_RFC3339_FORMAT  string = `2006-01-02T15:04:05.999999999`
 	SYSLOG_VARIANT           string = `Jan 02 2006 15:04:05`
 	UNPADDED_DATE_TIME       string = `2006-1-2 15:04:05`
+	UNPADDED_MILLI_DATE_TIME string = `2006-1-2 15:04:05.999999999`
 )
 
 var (
@@ -148,6 +149,9 @@ func New(c Config) (*TimeGrinder, error) {
 
 	// Unpadded
 	procs = append(procs, NewUnpaddedDateTime())
+
+	// Unpadded milli
+	procs = append(procs, NewUnpaddedMilliDateTime())
 
 	// Unix milliseconds
 	procs = append(procs, NewUnixMsTimeProcessor())
