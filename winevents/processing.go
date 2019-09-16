@@ -15,6 +15,7 @@ import (
 	"net"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -139,11 +140,17 @@ func (m *mainService) shutdown() error {
 }
 
 func (m *mainService) Execute(args []string, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (ssec bool, errno uint32) {
+	//let the system know we are up and ready to accept commands
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+
 	consumerErr := make(chan error, 1)
-	go m.consumerRoutine(consumerErr)
+	consumerClose := make(chan bool, 1)
+	defer close(consumerClose)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	go m.consumerRoutine(consumerErr, consumerClose, &wg)
 loop:
 	for {
 		select {
@@ -155,43 +162,48 @@ loop:
 				changes <- c.CurrentStatus
 				changes <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
+				consumerClose <- true
 				break loop
 			default:
 				errorout("Got invalid control request #%d", c)
 			}
 		case err := <-consumerErr:
-			errorout("Event consumer error: %v", err)
+			if err != nil {
+				errorout("Event consumer error: %v", err)
+				errno = 1000
+				ssec = true
+			}
 			break loop
 		}
 	}
 	changes <- svc.Status{State: svc.StopPending}
-	consumerErr <- nil
+	wg.Wait()
 	return
 }
 
-func (m *mainService) consumerRoutine(errC chan error) {
+func (m *mainService) consumerRoutine(errC chan error, closeC chan bool, wg *sync.WaitGroup) {
+	defer wg.Done()
 	if err := m.init(); err != nil {
 		errorout("Failed to start: %v", err)
 		errC <- err
+		return
 	}
-	tkr := time.Tick(1 * time.Second)
+	tkr := time.Tick(500 * time.Millisecond)
 
 consumerLoop:
 	for {
 		select {
 		case <-tkr:
 			for {
-				cont, err := m.consumeEvents()
-				if err != nil {
+				if cont, err := m.consumeEvents(); err != nil {
 					errorout("Failed to consume events: %v", err)
 					errC <- err
 					return
-				}
-				if !cont {
+				} else if !cont {
 					break
 				}
 			}
-		case <-errC:
+		case <-closeC:
 			break consumerLoop
 		}
 	}
@@ -238,7 +250,10 @@ func (m *mainService) init() error {
 		return err
 	}
 	m.igst = igst
-	hot, _ := igst.Hot()
+	hot, err := igst.Hot()
+	if err != nil {
+		return err
+	}
 	infoout("Ingester established %d connections\n", hot)
 
 	var evtSrcs []eventSrc

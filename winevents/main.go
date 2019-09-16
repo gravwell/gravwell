@@ -130,7 +130,7 @@ loop:
 			case svc.Running:
 				debugout("Service is running")
 			default:
-				debugout("Got unknown status update: #%d", st.State)
+				errorout("Got unknown status update: #%d", st.State)
 			}
 		}
 	}
@@ -139,6 +139,7 @@ loop:
 func runService(s *mainService) {
 	if err := svc.Run(serviceName, s); err != nil {
 		errorout("Failed to run service: %v", err)
+		return
 	}
 	debugout("Service stopped\n")
 }
