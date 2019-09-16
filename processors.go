@@ -16,7 +16,7 @@ import (
 	"time"
 )
 
-// override names
+//override names
 const (
 	AnsiC                 Format = `AnsiC`
 	Unix                  Format = `Unix`
@@ -45,8 +45,8 @@ const (
 	UK                    Format = `UK`
 	Gravwell              Format = `Gravwell`
 )
+//Timestamp Override Names
 
-//formats
 const (
 	AnsiCFormat                 string = `Jan _2 15:04:05 2006`
 	UnixFormat                  string = `Jan _2 15:04:05 MST 2006`
@@ -75,8 +75,8 @@ const (
 	UKFormat                    string = `02/01/2006 15:04:05.99999`
 	GravwellFormat              string = `1-2-2006 15:04:05.99999`
 )
+//Timestamp Formats
 
-//Regular Expression Extractors
 const (
 	AnsiCRegex                 string = `[JFMASOND][anebriyunlgpctov]+\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+\d{4}`
 	UnixRegex                  string = `[JFMASOND][anebriyunlgpctov]+\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+[A-Z]{3}\s+\d{4}`
@@ -110,6 +110,7 @@ const (
 	_unixMsCoreRegex   string = `\d{13,18}`       //just looking for a large integer
 	_unixNanoCoreRegex string = `\d{16,}`
 )
+//Regular Expression Extractors
 
 const (
 	ms int64 = 1000
