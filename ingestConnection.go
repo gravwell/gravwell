@@ -171,7 +171,7 @@ func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]
 	if err != nil {
 		return nil, 0, err
 	} else if resp == nil {
-		return nil, 0, errors.New("Got a new challenge response")
+		return nil, 0, errors.New("Got a nil challenge response")
 	}
 
 	//throw response
@@ -183,7 +183,11 @@ func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]
 	if err := state.Read(conn); err != nil {
 		return nil, 0, err
 	}
+
 	if state.ID != STATE_AUTHENTICATED {
+		if state.ID == STATE_NOT_AUTHENTICATED {
+			return nil, 0, ErrFailedAuth
+		}
 		return nil, 0, errors.New(state.Info)
 	}
 
@@ -201,7 +205,7 @@ func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]
 	// Make sure the tags were ok
 	if tagResp.Count == 0 {
 		// We passed an invalid tag
-		return nil, 0, errors.New("Failed to negotiate tags.")
+		return nil, 0, ErrFailedTagNegotiation
 	}
 
 	//Throw "we're hot" message

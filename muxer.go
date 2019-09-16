@@ -1157,6 +1157,10 @@ func isFatalConnError(err error) bool {
 		fallthrough
 	case ErrFailedAuthHashGen:
 		fallthrough
+	case ErrFailedAuth:
+		fallthrough
+	case ErrFailedTagNegotiation:
+		fallthrough
 	case ErrInvalidCerts:
 		fallthrough
 	case ErrForbiddenTag:

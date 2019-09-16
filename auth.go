@@ -48,6 +48,8 @@ var (
 	ErrInvalidTagRequestLen    = errors.New("Invalid tag request length")
 	ErrInvalidTagResponseLen   = errors.New("Invalid tag response length")
 	ErrFailedAuthHashGen       = errors.New("Failed to generate authentication hash")
+	ErrFailedAuth              = errors.New("Failed authentication, bad secret")
+	ErrFailedTagNegotiation    = errors.New("Failed to negotiate tags")
 
 	prng        *rand.Rand
 	prngCounter int
