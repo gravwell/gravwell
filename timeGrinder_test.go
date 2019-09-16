@@ -157,12 +157,6 @@ func TestCustomManual(t *testing.T) {
 	}
 }
 
-func TestCustom(t *testing.T) {
-	if err := runFullSecTests(Custom1MilliFormat); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestAnsiC(t *testing.T) {
 	if err := runFullSecTests(time.ANSIC); err != nil {
 		t.Fatal(err)
@@ -302,6 +296,16 @@ func TestUnpaddedDateTime(t *testing.T) {
 	}
 }
 
+func TestGravwell(t *testing.T) {
+	p := NewGravwell()
+	if err := runFullSecTestsSingle(p, GravwellFormat); err != nil {
+		t.Fatal(err)
+	}
+	if err := runFullSecTests(GravwellFormat); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestNewUserProc(t *testing.T) {
 	fstr := `02/01/2006 15:04:05.99999`
 	rspStr := `\d\d/\d\d/\d\d\d\d\s\d\d\:\d\d\:\d\d.\d{1,5}`
@@ -360,7 +364,7 @@ func TestSeedHit(t *testing.T) {
 func TestOverrideFormat(t *testing.T) {
 	good := []string{`AnsiC`, `Unix`, `Ruby`, `RFC822`, `RFC822Z`, `RFC850`, `RFC1123`, `RFC1123Z`,
 		`RFC3339`, `RFC3339Nano`, `Apache`, `ApacheNoTz`, `Syslog`, `SyslogFile`, `DPKG`,
-		`Custom1Milli`, `NGINX`, `UnixMilli`, `ZonelessRFC3339`, `SyslogVariant`}
+		`Gravwell`, `NGINX`, `UnixMilli`, `ZonelessRFC3339`, `SyslogVariant`}
 	bad := []string{`stuff`, "thigns and other stuff", "", "sdlkfjdslkj fsldkj"}
 	for i := range good {
 		if _, err := FormatDirective(good[i]); err != nil {
@@ -450,13 +454,30 @@ func runFullSecTestsCustom(tg *TimeGrinder, format string) error {
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("Failed to extract timestamp [%s]", ts)
+			return fmt.Errorf("Failed to extract timestamp (%s) [%s]", format, ts)
 		}
 		if !t.Equal(tgt) {
 			return fmt.Errorf("Timestamps not equal: %v != %v", t, tgt)
 		}
 	}
 	return nil
+}
+
+func runFullSecTestsSingle(p Processor, format string) error {
+	for i := 0; i < TEST_COUNT; i++ {
+		t := baseTime.Add(time.Duration(rand.Int63()%100000) * time.Second)
+		ts := genTimeLine(t.UTC(), format)
+		tgt, ok, _ := p.Extract(ts, time.UTC)
+		if !ok {
+			return fmt.Errorf("Failed to extract timestamp (%s)(%s) {%s}\n[%s]",
+				format, p.Format(), p.ExtractionRegex(), ts)
+		}
+		if !t.Equal(tgt) {
+			return fmt.Errorf("Timestamps not equal: %v != %v", t, tgt)
+		}
+	}
+	return nil
+
 }
 
 func runFullNoSecTests(format string) error {

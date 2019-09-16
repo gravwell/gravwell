@@ -119,9 +119,6 @@ func New(c Config) (*TimeGrinder, error) {
 	//build DPKGProcessor
 	procs = append(procs, NewDPKGProcessor())
 
-	//build DPKGMilliProcessor
-	procs = append(procs, NewCustom1MilliProcessor())
-
 	//build NGINXProcessor
 	procs = append(procs, NewNGINXProcessor())
 

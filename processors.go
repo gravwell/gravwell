@@ -34,7 +34,6 @@ const (
 	SyslogFile            Format = `SyslogFile`
 	SyslogFileTZ          Format = `SyslogFileTZ`
 	DPKG                  Format = `DPKG`
-	Custom1Milli          Format = `Custom1Milli`
 	NGINX                 Format = `NGINX`
 	UnixMilli             Format = `UnixMilli`
 	ZonelessRFC3339       Format = `ZonelessRFC3339`
@@ -67,7 +66,6 @@ const (
 	SyslogFileFormat            string = `2006-01-02T15:04:05.999999999-07:00`
 	SyslogFileTZFormat          string = `2006-01-02T15:04:05.999999999-0700`
 	DPKGFormat                  string = `2006-01-02 15:04:05`
-	Custom1MilliFormat          string = `2006-01-02 15:04:05.9`
 	SyslogVariantFormat         string = `Jan 02 2006 15:04:05`
 	UnpaddedDateTimeFormat      string = `2006-1-2 15:04:05`
 	UnpaddedMilliDateTimeFormat string = `2006-1-2 15:04:05.999999999`
@@ -98,7 +96,6 @@ const (
 	SyslogFileTZRegex          string = `\d{4}-\d{2}-\d{2}T\d\d:\d\d:\d+\.?\d*[-+]\d\d\d\d`
 	SyslogVariantRegex         string = `[JFMASOND][anebriyunlgpctov]+\s+\d{2}\s+\d\d\d\d\s+\d\d:\d\d:\d\d`
 	DPKGRegex                  string = `\d\d\d\d-\d\d-\d\d\s\d\d:\d\d:\d\d`
-	Custom1MilliRegex          string = `(?P<ts>\d\d-\d\d-\d\d\d\d\s\d\d:\d\d:\d\d\.\d)`
 	NGINXRegex                 string = `\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}`
 	UnpaddedDateTimeRegex      string = `\d\d\d\d-\d+-\d+\s+\d+:\d\d:\d\d`
 	UnpaddedMilliDateTimeRegex string = `\d\d\d\d-\d+-\d+\s+\d+:\d\d:\d\d\.\d{1,9}`
@@ -106,7 +103,7 @@ const (
 	UnixMsRegex                string = `(\A\d{13,18})[\s,;]`
 	UnixNanoRegex              string = `(\A\d{16,})[\s,;]`
 	UKRegex                    string = `\d\d/\d\d/\d\d\d\d\s\d\d\:\d\d\:\d\d,\d{1,5}`
-	GravwellRegex              string = `\d{1,2}\-\d{1,2}\-\d{4}\s\d{1,2}\:\d{2}\:\d{2}\.\d{1,6}`
+	GravwellRegex              string = `\d{1,2}\-\d{1,2}\-\d{4}\s+\d{1,2}\:\d{2}\:\d{2}(\.\d{1,6})?`
 
 	// non base extrators
 	_unixCoreRegex     string = `\s*(\d+\.\d+)\s` //notice that we are NOT at the start of a string here
@@ -144,7 +141,6 @@ var (
 		SyslogFile,
 		SyslogFileTZ,
 		DPKG,
-		Custom1Milli,
 		NGINX,
 		UnixMilli,
 		ZonelessRFC3339,
@@ -372,15 +368,6 @@ func NewDPKGProcessor() *processor {
 		rxstr:  DPKGRegex,
 		format: DPKGFormat,
 		name:   DPKG.String(),
-	}
-}
-
-func NewCustom1MilliProcessor() *processor {
-	return &processor{
-		rxp:    regexp.MustCompile(Custom1MilliRegex),
-		rxstr:  Custom1MilliRegex,
-		format: Custom1MilliFormat,
-		name:   Custom1Milli.String(),
 	}
 }
 
