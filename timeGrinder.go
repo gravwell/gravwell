@@ -31,19 +31,6 @@ import (
 
 const (
 	DEFAULT_TIMEGRINDER_SIZE int = 16
-
-	APACHE_FORMAT            string = `_2/Jan/2006:15:04:05 -0700`
-	APACHE_NO_TZ_FORMAT      string = `_2/Jan/2006:15:04:05`
-	NGINX_FORMAT             string = `2006/01/02 15:04:05`
-	SYSLOG_FORMAT            string = `Jan _2 15:04:05`
-	SYSLOG_FILE_FORMAT       string = `2006-01-02T15:04:05.999999999-07:00`
-	SYSLOG_FILE_FORMAT_TZ2   string = `2006-01-02T15:04:05.999999999-0700`
-	DPKG_MSG_FORMAT          string = `2006-01-02 15:04:05`
-	CUSTOM1_MILLI_MSG_FORMAT string = `01-02-2006 15:04:05.0`
-	ZONELESS_RFC3339_FORMAT  string = `2006-01-02T15:04:05.999999999`
-	SYSLOG_VARIANT           string = `Jan 02 2006 15:04:05`
-	UNPADDED_DATE_TIME       string = `2006-1-2 15:04:05`
-	UNPADDED_MILLI_DATE_TIME string = `2006-1-2 15:04:05.999999999`
 )
 
 var (
@@ -161,6 +148,9 @@ func New(c Config) (*TimeGrinder, error) {
 
 	// UK format
 	procs = append(procs, NewUK())
+
+	// Gravwell format
+	procs = append(procs, NewGravwell())
 
 	var proc Processor
 	if c.FormatOverride != `` {

@@ -158,7 +158,7 @@ func TestCustomManual(t *testing.T) {
 }
 
 func TestCustom(t *testing.T) {
-	if err := runFullSecTests(CUSTOM1_MILLI_MSG_FORMAT); err != nil {
+	if err := runFullSecTests(Custom1MilliFormat); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -233,61 +233,103 @@ func TestRFC3339Nano(t *testing.T) {
 }
 
 func TestApache(t *testing.T) {
-	err := runFullSecTests(APACHE_FORMAT)
-	if err != nil {
+	if err := runFullSecTests(ApacheFormat); err != nil {
 		t.Fatal(err)
 	}
+
+	//now run on TZ and non TZ to make sure the right one matches
+	apTz := NewApacheProcessor()
+	apNtz := NewApacheNoTZProcessor()
+
+	cand := []byte(`test 14/Mar/2019:12:13:00 -0700`)
+
+	if _, ok, _ := apTz.Extract(cand, nil); !ok {
+		t.Fatal("failed extraction")
+	} else if _, ok, _ = apNtz.Extract(cand, nil); ok {
+		t.Fatal("extrated on tz apache")
+	}
+
 }
 
 func TestSyslog(t *testing.T) {
-	err := runFullSecTestsCurr(SYSLOG_FORMAT)
+	err := runFullSecTestsCurr(SyslogFormat)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestSyslogFile(t *testing.T) {
-	err := runFullSecTestsCurr(SYSLOG_FILE_FORMAT)
+	err := runFullSecTestsCurr(SyslogFileFormat)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestSyslogFileTZ2(t *testing.T) {
-	err := runFullSecTestsCurr(SYSLOG_FILE_FORMAT_TZ2)
+	err := runFullSecTestsCurr(SyslogFileTZFormat)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestDPKGFile(t *testing.T) {
-	if err := runFullSecTestsCurr(DPKG_MSG_FORMAT); err != nil {
+	if err := runFullSecTestsCurr(DPKGFormat); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestNGINXFile(t *testing.T) {
-	if err := runFullSecTestsCurr(NGINX_FORMAT); err != nil {
+	if err := runFullSecTestsCurr(NGINXFormat); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestZonelessRFC3339(t *testing.T) {
-	if err := runFullSecTestsCurr(ZONELESS_RFC3339_FORMAT); err != nil {
+	if err := runFullSecTestsCurr(ZonelessRFC3339Format); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestSyslogVariant(t *testing.T) {
-	if err := runFullSecTests(SYSLOG_VARIANT); err != nil {
+	if err := runFullSecTests(SyslogVariantFormat); err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestUnpaddedDateTime(t *testing.T) {
-	err := runFullSecTestsCurr(UNPADDED_DATE_TIME)
+	if err := runFullSecTestsCurr(UnpaddedDateTimeFormat); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNewUserProc(t *testing.T) {
+	fstr := `02/01/2006 15:04:05.99999`
+	rspStr := `\d\d/\d\d/\d\d\d\d\s\d\d\:\d\d\:\d\d.\d{1,5}`
+	tstr := `14/12/1984 12:55:33.43212`
+	tg, err := New(Config{})
 	if err != nil {
 		t.Fatal(err)
+	}
+	p, err := NewUserProcessor(`britishtime`, rspStr, fstr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n, err := tg.AddProcessor(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n < 0 {
+		t.Fatal("bad add")
+	}
+
+	x := []byte(`test ` + tstr)
+	tt, ok, err := tg.Extract(x)
+	if !ok {
+		t.Fatal("Failed")
+	} else if err != nil {
+		t.Fatal(err)
+	} else if tt.Format(fstr) != tstr {
+		t.Fatal("times not equiv", tstr, tt.Format(fstr))
 	}
 }
 
@@ -326,7 +368,7 @@ func TestOverrideFormat(t *testing.T) {
 		}
 	}
 	for i := range bad {
-		if id, err := FormatDirective(bad[i]); err == nil || id != -1 {
+		if v, err := FormatDirective(bad[i]); err == nil || v != `` {
 			t.Fatal("Accidentally saw", bad[i], "as good")
 		}
 	}
@@ -391,12 +433,15 @@ func runFullSecTestsCurr(format string) error {
 	}
 	return nil
 }
-
 func runFullSecTests(format string) error {
 	tg, err := New(cfg)
 	if err != nil {
 		return err
 	}
+	return runFullSecTestsCustom(tg, format)
+}
+
+func runFullSecTestsCustom(tg *TimeGrinder, format string) error {
 	for i := 0; i < TEST_COUNT; i++ {
 		t := baseTime.Add(time.Duration(rand.Int63()%100000) * time.Second)
 		ts := genTimeLine(t.UTC(), format)
@@ -437,6 +482,7 @@ func runFullNoSecTests(format string) error {
 	}
 	return nil
 }
+
 func genTimeLine(t time.Time, format string) []byte {
 	size := rand.Int() % RAND_BUFF_SIZE
 	offset := rand.Int() % (RAND_BUFF_SIZE - size)

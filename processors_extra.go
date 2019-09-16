@@ -25,13 +25,12 @@ type syslogProcessor struct {
 }
 
 func NewSyslogProcessor() *syslogProcessor {
-	re := `[JFMASOND][anebriyunlgpctov]+\s+\d+\s+\d\d:\d\d:\d\d`
 	return &syslogProcessor{
 		processor: processor{
-			rxp:    regexp.MustCompile(re),
-			rxstr:  re,
-			format: SYSLOG_FORMAT,
-			name:   `syslog`,
+			rxp:    regexp.MustCompile(SyslogRegex),
+			rxstr:  SyslogRegex,
+			format: SyslogFormat,
+			name:   Syslog.String(),
 		},
 	}
 }
@@ -44,12 +43,11 @@ type unixProcessor struct {
 }
 
 func NewUnixMilliTimeProcessor() *unixProcessor {
-	restr := `\A\s*(\d{9,10}\.\d+)\s`
 	return &unixProcessor{
-		re:     regexp.MustCompile(restr),
-		rxstr:  restr,
+		re:     regexp.MustCompile(UnixMilliRegex),
+		rxstr:  UnixMilliRegex,
 		format: ``, //format API doesn't work here
-		name:   `unixmilli`,
+		name:   UnixMilli.String(),
 	}
 }
 
@@ -67,7 +65,7 @@ func (up *unixProcessor) ToString(t time.Time) string {
 }
 
 func (up *unixProcessor) ExtractionRegex() string {
-	return `\s*(\d+\.\d+)\s` //notice that we are NOT at the start of a string here
+	return _unixCoreRegex
 }
 
 func NewUserProcessor(name, rxps, fmts string) (*processor, error) {
@@ -151,12 +149,11 @@ type unixMsProcessor struct {
 
 // We assume you're not ingesting data from 1970, so we look for at least 13 digits of nanoseconds
 func NewUnixMsTimeProcessor() *unixMsProcessor {
-	re := `(\A\d{13,18})[\s,;]`
 	return &unixMsProcessor{
-		re:     regexp.MustCompile(re),
-		rxstr:  re,
+		re:     regexp.MustCompile(UnixMsRegex),
+		rxstr:  UnixMsRegex,
 		format: ``, //API doesn't work here
-		name:   `unixms`,
+		name:   UnixMs.String(),
 	}
 }
 
@@ -173,7 +170,7 @@ func (unp unixMsProcessor) ToString(t time.Time) string {
 }
 
 func (unp unixMsProcessor) ExtractionRegex() string {
-	return `\d{13,18}` //just looking for a large integer
+	return _unixMsCoreRegex
 }
 
 func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
@@ -208,12 +205,11 @@ type unixNanoProcessor struct {
 
 // We assume you're not ingesting data from 1970, so we look for at least 16 digits of nanoseconds
 func NewUnixNanoTimeProcessor() *unixNanoProcessor {
-	re := `(\A\d{16,})[\s,;]`
 	return &unixNanoProcessor{
-		re:     regexp.MustCompile(re),
-		rxstr:  re,
+		re:     regexp.MustCompile(UnixNanoRegex),
+		rxstr:  UnixNanoRegex,
 		format: ``, //api doesn't work here
-		name:   `unixnano`,
+		name:   UnixNano.String(),
 	}
 }
 
@@ -226,7 +222,7 @@ func (unp unixNanoProcessor) Name() string {
 }
 
 func (unp unixNanoProcessor) ExtractionRegex() string {
-	return `\d{16,}`
+	return _unixNanoCoreRegex
 }
 
 func (unp unixNanoProcessor) ToString(t time.Time) string {
@@ -257,12 +253,11 @@ func (unp unixNanoProcessor) Match(d []byte) (start, end int, ok bool) {
 }
 
 func NewUK() Processor {
-	re := `\d\d/\d\d/\d\d\d\d\s\d\d\:\d\d\:\d\d,\d{1,5}`
 	return &ukProc{
-		format: `02/01/2006 15:04:05.99999`,
-		rxstr:  re,
-		rx:     regexp.MustCompile(re),
-		name:   `uk`,
+		rx:     regexp.MustCompile(UKRegex),
+		rxstr:  UKRegex,
+		format: UKFormat,
+		name:   UK.String(),
 	}
 }
 
