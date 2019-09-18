@@ -422,8 +422,9 @@ func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 	// Read back an ackCommand
 	var ac ackCommand
 	var ok bool
+tagCmdLoop:
 	for {
-		if err = ew.conn.SetReadTimeout(time.Second); err != nil {
+		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
 			break
 		}
 		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
@@ -437,15 +438,15 @@ func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 		switch ac.cmd {
 		case CONFIRM_TAG_MAGIC:
 			tg = entry.EntryTag(ac.val)
-			break
+			break tagCmdLoop
 		case ERROR_TAG_MAGIC:
 			err = errors.New("Failed to negotiate tag")
-			break
+			break tagCmdLoop
 		case PONG_MAGIC:
 			// unsolicited, can come whenever
 		default:
 			err = fmt.Errorf("Unexpected response to tag negotiation request: %#v", ac)
-			break
+			break tagCmdLoop
 		}
 	}
 	if err == nil {
