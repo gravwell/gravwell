@@ -33,11 +33,7 @@ const (
 	defaultPort          uint16 = 9092
 	defaultBatchSize     int    = 512
 	defaultConsumerGroup string = `gravwell`
-	defaultMinBatchSize  int    = 4 * kb
-	defaultMaxBatchSize  int    = 1 * mb
 )
-
-var ()
 
 type ConfigConsumer struct {
 	Tag_Name           string
@@ -47,8 +43,6 @@ type ConfigConsumer struct {
 	Read_Timeout       string
 	Source_Override    string
 	Rebalance_Strategy string
-	Max_Batch_Size     int
-	Min_Batch_Size     int
 	Key_As_Source      bool
 	Synchronous        bool
 	Batch_Size         int
@@ -61,8 +55,6 @@ type consumerCfg struct {
 	group       string
 	strat       sarama.BalanceStrategy
 	sync        bool
-	min         int
-	max         int
 	batchSize   int
 	keyAsSrc    bool
 	timeout     time.Duration
@@ -199,19 +191,6 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 		}
 	}
 
-	if cc.Min_Batch_Size <= 0 {
-		cc.Min_Batch_Size = defaultMinBatchSize
-	}
-	if cc.Max_Batch_Size <= 0 {
-		cc.Max_Batch_Size = defaultMaxBatchSize
-	}
-
-	if cc.Min_Batch_Size >= cc.Max_Batch_Size {
-		err = fmt.Errorf("Min batch size is less than max batch size: %d < %d",
-			cc.Max_Batch_Size, cc.Min_Batch_Size)
-	} else {
-		c.min, c.max = cc.Min_Batch_Size, cc.Max_Batch_Size
-	}
 	if cc.Batch_Size <= 0 {
 		c.batchSize = defaultBatchSize
 	} else {

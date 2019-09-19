@@ -88,21 +88,18 @@ Log-File=/opt/gravwell/log/kafka.log
 [Consumer "default"]
 	Leader="127.0.0.1"
 	Topic="foo"
-	Partition=1
 	Tag-Name=foo
 	Read-Timeout="1m"
 
 [Consumer "test"]
 	Leader="127.0.0.1:1234"
 	Topic="test"
-	Partition=99
 	Tag-Name=test
 	Read-Timeout="1m2s"
 
 [Consumer "test2"]
 	Leader="[dead::beef]:1234"
 	Topic="test2"
-	Partition=100
 	Tag-Name=test2
 	Read-Timeout="1m2s"
 `
