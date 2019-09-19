@@ -11,6 +11,7 @@ package ingest
 import (
 	"bytes"
 	"container/list"
+	"context"
 	"errors"
 	"net"
 	"sync"
@@ -511,12 +512,20 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 }
 
 func (im *IngestMuxer) Sync(to time.Duration) error {
+	return im.SyncContext(context.Background(), to)
+}
+
+func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error {
 	if atomic.LoadInt32(&im.connHot) == 0 && !im.cacheRunning {
 		return ErrAllConnsDown
 	}
 	ts := time.Now()
 	im.mtx.Lock()
 	for len(im.eChan) > 0 || len(im.bChan) > 0 {
+		if err := ctx.Err(); err != nil {
+			im.mtx.Unlock()
+			return err
+		}
 		time.Sleep(10 * time.Millisecond)
 		if im.connHot == 0 {
 			im.mtx.Unlock()
@@ -549,6 +558,10 @@ func (im *IngestMuxer) Sync(to time.Duration) error {
 // The timout duration parameter is an optional timeout, if zero, it waits
 // indefinitely
 func (im *IngestMuxer) WaitForHot(to time.Duration) error {
+	return im.WaitForHotContext(context.Background(), to)
+}
+
+func (im *IngestMuxer) WaitForHotContext(ctx context.Context, to time.Duration) error {
 	if cnt, err := im.Hot(); err != nil {
 		return err
 	} else if cnt > 0 {
@@ -568,6 +581,8 @@ func (im *IngestMuxer) WaitForHot(to time.Duration) error {
 mainLoop:
 	for {
 		select {
+		case <-ctx.Done():
+			return ctx.Err()
 		case <-im.upChan:
 			im.Info("Ingester %v has gone hot", im.name)
 			break mainLoop
@@ -821,6 +836,27 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	return nil
 }
 
+// WriteEntryContext puts an entry into the queue to be sent out by the first available
+// entry writer routine, if all routines are dead, THIS WILL BLOCK once the
+// channel fills up.  We figure this is a natural "wait" mechanism
+// if not using a context, use WriteEntry as it is faster due to the lack of a select
+func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) error {
+	if e == nil {
+		return nil
+	}
+	im.mtx.RLock()
+	defer im.mtx.RUnlock()
+	if im.state != running {
+		return ErrNotRunning
+	}
+	select {
+	case im.eChan <- e:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return nil
+}
+
 // WriteEntryAttempt attempts to put an entry into the queue to be sent out
 // of the first available writer routine.  This write is opportunistic and contains
 // a timeout.  It is therefor every expensive and shouldn't be used for normal writes
@@ -860,6 +896,27 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	return nil
 }
 
+// WriteBatchContext puts a slice of entries into the queue to be sent out by the first
+// available entry writer routine.  The entry writer routines will consume the
+// entire slice, so extremely large slices will go to a single indexer.
+// if a cancellation context isn't needed, use WriteBatch
+func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) error {
+	if len(b) == 0 {
+		return nil
+	}
+	im.mtx.RLock()
+	defer im.mtx.RUnlock()
+	if im.state != running {
+		return ErrNotRunning
+	}
+	select {
+	case im.bChan <- b:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	return nil
+}
+
 // Write puts together the arguments to create an entry and writes it
 // to the queue to be sent out by the first available
 // entry writer routine, if all routines are dead, THIS WILL BLOCK once the
@@ -871,6 +928,20 @@ func (im *IngestMuxer) Write(tm entry.Timestamp, tag entry.EntryTag, data []byte
 		Tag:  tag,
 	}
 	return im.WriteEntry(e)
+}
+
+// WriteContext puts together the arguments to create an entry and writes it
+// to the queue to be sent out by the first available
+// entry writer routine, if all routines are dead, THIS WILL BLOCK once the
+// channel fills up.  We figure this is a natural "wait" mechanism
+// if the context isn't needed use Write instead
+func (im *IngestMuxer) WriteContext(ctx context.Context, tm entry.Timestamp, tag entry.EntryTag, data []byte) error {
+	e := &entry.Entry{
+		Data: data,
+		TS:   tm,
+		Tag:  tag,
+	}
+	return im.WriteEntryContext(ctx, e)
 }
 
 //connFailed will put the destination in a failed state and inform the muxer
