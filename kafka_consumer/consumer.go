@@ -180,8 +180,7 @@ func (kc *kafkaConsumer) Setup(cgs sarama.ConsumerGroupSession) (err error) {
 	igst := kc.igst
 	kc.mtx.Unlock()
 	kc.lg.Info("Kafka consumer %s waiting for hot ingester\n", cgs.MemberID())
-	//TODO change this to use the context APIs when the are ready
-	if err = igst.WaitForHot(0); err == nil {
+	if err = igst.WaitForHotContext(kc.ctx, 0); err == nil {
 		kc.lg.Info("Kafka consumer %s getting source ip\n", cgs.MemberID())
 		kc.src, err = igst.SourceIP()
 	}
@@ -287,14 +286,14 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 			ent.SRC = kc.src
 		}
 
-		if err = kc.igst.WriteEntry(ent); err != nil {
+		if err = kc.igst.WriteEntryContext(kc.ctx, ent); err != nil {
 			return
 		}
 		sz += uint(ent.Size())
 		cnt++
 	}
 	if kc.sync {
-		if err = kc.igst.Sync(time.Second); err != nil {
+		if err = kc.igst.SyncContext(kc.ctx, time.Second); err != nil {
 			return
 		}
 	}
