@@ -15,7 +15,6 @@ import (
 	"os"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/gravwell/ingest"
@@ -40,7 +39,6 @@ type ConfigConsumer struct {
 	Leader             string
 	Topic              string
 	Consumer_Group     string
-	Read_Timeout       string
 	Source_Override    string
 	Rebalance_Strategy string
 	Key_As_Source      bool
@@ -57,7 +55,6 @@ type consumerCfg struct {
 	sync        bool
 	batchSize   int
 	keyAsSrc    bool
-	timeout     time.Duration
 	srcOverride net.IP
 }
 
@@ -173,15 +170,6 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 
 	//just set the sync
 	c.sync = cc.Synchronous
-
-	//check the timeout
-	if len(cc.Read_Timeout) > 0 {
-		//attempt to parse it
-		v := strings.Join(strings.Fields(cc.Read_Timeout), "")
-		if c.timeout, err = time.ParseDuration(v); err != nil {
-			return
-		}
-	}
 
 	// check that the source override is valid
 	if len(cc.Source_Override) > 0 {
