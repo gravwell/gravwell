@@ -16,7 +16,7 @@ import (
 	"time"
 	"unsafe"
 
-	bolt "github.com/etcd-io/bbolt"
+	bolt "go.etcd.io/bbolt"
 
 	"github.com/gravwell/ingest/entry"
 )
