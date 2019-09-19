@@ -215,7 +215,7 @@ func (cc ConfigConsumer) balanceStrat() (st sarama.BalanceStrategy, err error) {
 	case `roundrobin`:
 		st = sarama.BalanceStrategyRoundRobin
 	case ``:
-		st = sarama.BalanceStrategySticky
+		st = sarama.BalanceStrategyRoundRobin
 	default:
 		err = errors.New("Unknown balance strategy")
 	}
