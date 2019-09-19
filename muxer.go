@@ -47,6 +47,7 @@ const (
 	recycleTimeout       time.Duration = time.Second
 	maxEmergencyListSize int           = 256
 	unknownAddr          string        = `unknown`
+	waitTickerDur        time.Duration = 50 * time.Millisecond
 )
 
 type muxState int
@@ -548,12 +549,20 @@ func (im *IngestMuxer) Sync(to time.Duration) error {
 // The timout duration parameter is an optional timeout, if zero, it waits
 // indefinitely
 func (im *IngestMuxer) WaitForHot(to time.Duration) error {
-	var toch <-chan time.Time
-	if to > 0 {
-		tmr := time.NewTimer(to)
-		toch = tmr.C
-		defer tmr.Stop()
+	if cnt, err := im.Hot(); err != nil {
+		return err
+	} else if cnt > 0 {
+		return nil
 	}
+
+	//no connections are up, wait for them
+	tckDur := waitTickerDur
+	if to > 0 && to < tckDur {
+		tckDur = to
+	}
+	tckr := time.NewTicker(tckDur)
+	defer tckr.Stop()
+	ts := time.Now()
 
 	//wait for one of them to hit
 mainLoop:
@@ -562,7 +571,21 @@ mainLoop:
 		case <-im.upChan:
 			im.Info("Ingester %v has gone hot", im.name)
 			break mainLoop
-		case <-toch:
+		case <-tckr.C:
+			//check if connections are hot
+			if cnt, err := im.Hot(); err != nil {
+				return err
+			} else if cnt > 0 {
+				return nil //connection went hot
+			}
+
+			if to == 0 {
+				continue // no timeout, wait forever
+			} else if time.Since(ts) < to {
+				//we haven't hit our timeout yet, just continue
+				continue
+			}
+			//timeout, check state and force a return
 			//if we have a hot, filebacked cache, then endpoints are go for ingest
 			if im.cacheRunning && im.cacheError == nil && im.cacheFileBacked {
 				return nil

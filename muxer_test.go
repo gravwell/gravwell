@@ -70,6 +70,10 @@ func TestNewMuxerCacheStartAndWait(t *testing.T) {
 	if err := im.WaitForHot(time.Second); err != nil {
 		t.Fatal(err)
 	}
+	//wait a second time
+	if err := im.WaitForHot(10 * time.Millisecond); err != nil {
+		t.Fatal(err)
+	}
 	if err := im.Close(); err != nil {
 		t.Fatal(err)
 	}
