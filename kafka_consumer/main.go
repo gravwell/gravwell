@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	defaultConfigLoc     = `/opt/gravwell/etc/kafka_consumer.conf`
+	defaultConfigLoc     = `/opt/gravwell/etc/kafka.conf`
 	ingesterName         = `kafka_consumer`
 	batchSize            = 512
 	maxDataSize      int = 8 * 1024 * 1024
