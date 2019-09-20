@@ -20,8 +20,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/config"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/config"
 )
 
 var (

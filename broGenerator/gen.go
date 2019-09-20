@@ -14,9 +14,9 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/gravwell/generators/ipgen"
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/generators/v3/ipgen"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
 )
 
 const (
