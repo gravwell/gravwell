@@ -14,7 +14,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/bxcodec/faker"
+	"github.com/bxcodec/faker/v3"
 )
 
 var (
