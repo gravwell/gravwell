@@ -9,10 +9,11 @@
 package ingest_test
 
 import (
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
 	"log"
 	"net"
+
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
 )
 
 var (

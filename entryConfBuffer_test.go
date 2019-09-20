@@ -9,8 +9,9 @@
 package ingest
 
 import (
-	"github.com/gravwell/ingest/entry"
 	"testing"
+
+	"github.com/gravwell/ingest/v3/entry"
 )
 
 const (

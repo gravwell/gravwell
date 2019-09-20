@@ -17,13 +17,13 @@ The most important element is Data; this is simply a discrete piece of informati
 
 There are two ways to actually get Entries into Gravwell: the IngestConnection and the IngestMuxer. An IngestConnection is a connection to a single destination, while an IngestMuxer can connect to multiple destinations simultaneously to improve ingestion rate.
 
-The example below shows the basics of getting Entries into Gravwell using an IngestConnection (the simpler method). See `example_test.go` for a more detailed (and functional) example using an IngestMuxer, or see [github.com/gravwell/ingesters](https://github.com/gravwell/ingesters) for open-source real-world examples.
+The example below shows the basics of getting Entries into Gravwell using an IngestConnection (the simpler method). See `ingester_example` for a more detailed (and functional) example using an IngestMuxer, or see [github.com/gravwell/ingesters](https://github.com/gravwell/ingesters) for open-source real-world examples.
 
 	package main
 	
 	import (
-		"github.com/gravwell/ingest"
-		"github.com/gravwell/ingest/entry"
+		"github.com/gravwell/ingest/v3"
+		"github.com/gravwell/ingest/v3/entry"
 		"log"
 		"net"
 	)

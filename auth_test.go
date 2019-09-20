@@ -11,8 +11,9 @@ package ingest
 import (
 	"bytes"
 	"fmt"
-	"github.com/gravwell/ingest/entry"
 	"testing"
+
+	"github.com/gravwell/ingest/v3/entry"
 )
 
 const (
