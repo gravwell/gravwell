@@ -12,14 +12,15 @@ package winevent
 import (
 	"errors"
 	"fmt"
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
 
 	"gopkg.in/gcfg.v1"
 )

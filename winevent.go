@@ -16,7 +16,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/gravwell/winevent/wineventlog"
+	"github.com/gravwell/winevent/v3/wineventlog"
 )
 
 const (
