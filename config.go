@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/ingest/log"
+	"github.com/gravwell/ingest/v3/log"
 	"gopkg.in/gcfg.v1"
 )
 
