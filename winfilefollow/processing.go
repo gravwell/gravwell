@@ -16,10 +16,10 @@ import (
 
 	"golang.org/x/sys/windows/svc"
 
-	"github.com/gravwell/filewatch"
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
-	"github.com/gravwell/timegrinder"
+	"github.com/gravwell/filewatch/v3"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/timegrinder/v3"
 )
 
 const (

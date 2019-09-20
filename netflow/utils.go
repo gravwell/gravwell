@@ -10,8 +10,8 @@ package main
 
 import (
 	"errors"
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
 	"sync"
 )
 

@@ -16,8 +16,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/config"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/config"
 
 	"collectd.org/network"
 	"gopkg.in/gcfg.v1"

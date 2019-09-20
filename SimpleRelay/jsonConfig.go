@@ -15,7 +15,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/gravwell/ingest"
+	"github.com/gravwell/ingest/v3"
 )
 
 const (

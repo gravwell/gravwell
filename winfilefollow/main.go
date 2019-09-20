@@ -18,9 +18,9 @@ import (
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingesters/version"
-	"github.com/gravwell/winevent"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingesters/v3/version"
+	"github.com/gravwell/winevent/v3"
 )
 
 const (

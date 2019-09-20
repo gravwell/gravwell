@@ -18,9 +18,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/config"
-	"github.com/gravwell/timegrinder"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/config"
+	"github.com/gravwell/timegrinder/v3"
 
 	"gopkg.in/gcfg.v1"
 )

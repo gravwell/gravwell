@@ -20,10 +20,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/log"
-	"github.com/gravwell/ingesters/version"
-	"github.com/gravwell/timegrinder"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/ingesters/v3/version"
+	"github.com/gravwell/timegrinder/v3"
 )
 
 const (

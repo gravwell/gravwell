@@ -18,8 +18,8 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/config"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/config"
 
 	"gopkg.in/gcfg.v1"
 )

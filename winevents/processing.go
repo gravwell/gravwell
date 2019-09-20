@@ -20,10 +20,10 @@ import (
 
 	"golang.org/x/sys/windows/svc"
 
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
-	"github.com/gravwell/timegrinder"
-	"github.com/gravwell/winevent"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/timegrinder/v3"
+	"github.com/gravwell/winevent/v3"
 )
 
 var (

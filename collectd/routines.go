@@ -17,8 +17,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
 
 	"collectd.org/api"
 	"collectd.org/network"
