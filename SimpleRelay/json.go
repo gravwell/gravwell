@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
-	"github.com/gravwell/timegrinder"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/timegrinder/v3"
 
 	"github.com/buger/jsonparser"
 )

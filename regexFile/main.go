@@ -19,11 +19,11 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
-	"github.com/gravwell/ingesters/args"
-	"github.com/gravwell/ingesters/version"
-	"github.com/gravwell/timegrinder"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingesters/v3/args"
+	"github.com/gravwell/ingesters/v3/version"
+	"github.com/gravwell/timegrinder/v3"
 )
 
 const (

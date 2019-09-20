@@ -16,7 +16,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/gravwell/timegrinder"
+	"github.com/gravwell/timegrinder/v3"
 )
 
 func lineConnHandlerTCP(c net.Conn, cfg handlerConfig) {

@@ -17,9 +17,9 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
-	"github.com/gravwell/ingest/log"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingest/v3/log"
 )
 
 const (

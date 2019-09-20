@@ -17,10 +17,10 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
-	"github.com/gravwell/ingesters/args"
-	"github.com/gravwell/ingesters/utils"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingesters/v3/args"
+	"github.com/gravwell/ingesters/v3/utils"
 
 	"github.com/google/gopacket"
 	pcap "github.com/google/gopacket/pcapgo"

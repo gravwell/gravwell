@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/floren/ipfix"
-	"github.com/gravwell/ingest/entry"
-	"github.com/gravwell/netflow"
+	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/netflow/v3"
 )
 
 var (
