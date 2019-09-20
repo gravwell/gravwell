@@ -20,7 +20,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/gravwell/ingest"
+	"github.com/gravwell/ingest/v3"
 )
 
 var (
