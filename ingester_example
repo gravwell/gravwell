@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package ingest_test
+package main
 
 import (
 	"fmt"
@@ -16,9 +16,9 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/gravwell/filewatch"
-	"github.com/gravwell/ingest"
-	"github.com/gravwell/ingest/entry"
+	"github.com/gravwell/filewatch/v3"
+	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
 )
 
 var (
@@ -29,7 +29,7 @@ var (
 
 // Example demonstrates how to write a simple ingester, which watches
 // for entries in /var/log/syslog and sends them to Gravwell.
-func Example() {
+func main() {
 	// First, set up the filewatcher.
 	statefile, err := ioutil.TempFile("", "ingest-example")
 	if err != nil {
