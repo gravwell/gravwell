@@ -4,6 +4,8 @@ github.com/elastic/beats v7.3.2+incompatible h1:VkTNPOIfFPlz4CPzmZt995FPlwsu2Iaf
 github.com/elastic/beats v7.3.2+incompatible/go.mod h1:7cX7zGsOwJ01FLkZs9Tg5nBdnQi6XB3hYAyWekpKgeY=
 github.com/gravwell/ingest/v3 v3.2.3-0.20190920161946-5fd97ef07788 h1:/pds9e2w1jclkX+gO2UHuvDlAlnXB69/B63/xqs5ZfU=
 github.com/gravwell/ingest/v3 v3.2.3-0.20190920161946-5fd97ef07788/go.mod h1:E7Te/n20Yc6S6kJC6t4lmHY0WNLndydW2aTshgkvtpE=
+github.com/gravwell/ingest/v3 v3.2.3 h1:McEoQiLzjF9hPiNTbZYoMMQe5xNEYqiR4s/w99k4rzk=
+github.com/gravwell/ingest/v3 v3.2.3/go.mod h1:E7Te/n20Yc6S6kJC6t4lmHY0WNLndydW2aTshgkvtpE=
 github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 h1:rp+c0RAYOWj8l6qbCUTSiRLG/iKnW3K3/QfPPuSsBt4=
 github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901/go.mod h1:Z86h9688Y0wesXCyonoVr47MasHilkuLMqGhRZ4Hpak=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
