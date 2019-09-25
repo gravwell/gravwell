@@ -1,3 +1,9 @@
+github.com/google/go-write v0.0.0-20181107114627-56629a6b2542 h1:jCpVy/nfZ7ayHSZe3xdDhYy6TftqehkNU6hh8Kq+iW8=
+github.com/google/go-write v0.0.0-20181107114627-56629a6b2542/go.mod h1:NOSj1rhiMiScdUd1ere2UGAG2ZrYdyblYixNPWPlP5w=
+github.com/google/renameio v0.1.0 h1:GOZbcHa3HfsPKPlmyPyN2KEohoMXOhdMbHrvbpl2QaA=
+github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
+github.com/google/uuid v1.1.1 h1:Gkbcsh/GbpXz7lPftLA3P6TYMwjCLYm83jiFQZF/3gY=
+github.com/google/uuid v1.1.1/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 go.etcd.io/bbolt v1.3.3 h1:MUGmc65QhB3pIlaQ5bB4LwqSj6GIonVJXpZiaKNyaKk=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 golang.org/x/sys v0.0.0-20190919044723-0c1ff786ef13 h1:/zi0zzlPHWXYXrO1LjNRByFu8sdGgCkj2JLDdBIB84k=

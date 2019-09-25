@@ -44,6 +44,12 @@ func (igst *IngestConnection) Close() error {
 	return igst.ew.Close()
 }
 
+func (igst *IngestConnection) IdentifyIngester(name, version, id string) (err error) {
+	igst.mtx.Lock()
+	defer igst.mtx.Unlock()
+	return igst.ew.IdentifyIngester(name, version, id)
+}
+
 func (igst *IngestConnection) outstandingEntries() []*entry.Entry {
 	igst.mtx.RLock()
 	defer igst.mtx.RUnlock()

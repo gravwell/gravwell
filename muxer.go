@@ -98,38 +98,44 @@ type IngestMuxer struct {
 	cacheError      error
 	cacheSignal     chan bool
 	name            string
+	version         string
+	uuid            string
 	rateParent      *Parent
 }
 
 type UniformMuxerConfig struct {
-	Destinations []string
-	Tags         []string
-	Auth         string
-	PublicKey    string
-	PrivateKey   string
-	VerifyCert   bool
-	ChannelSize  int
-	EnableCache  bool
-	CacheConfig  IngestCacheConfig
-	LogLevel     string
-	Logger       Logger
-	IngesterName string
-	RateLimitBps int64
+	Destinations    []string
+	Tags            []string
+	Auth            string
+	PublicKey       string
+	PrivateKey      string
+	VerifyCert      bool
+	ChannelSize     int
+	EnableCache     bool
+	CacheConfig     IngestCacheConfig
+	LogLevel        string
+	Logger          Logger
+	IngesterName    string
+	IngesterVersion string
+	IngesterUUID    string
+	RateLimitBps    int64
 }
 
 type MuxerConfig struct {
-	Destinations []Target
-	Tags         []string
-	PublicKey    string
-	PrivateKey   string
-	VerifyCert   bool
-	ChannelSize  int
-	EnableCache  bool
-	CacheConfig  IngestCacheConfig
-	LogLevel     string
-	Logger       Logger
-	IngesterName string
-	RateLimitBps int64
+	Destinations    []Target
+	Tags            []string
+	PublicKey       string
+	PrivateKey      string
+	VerifyCert      bool
+	ChannelSize     int
+	EnableCache     bool
+	CacheConfig     IngestCacheConfig
+	LogLevel        string
+	Logger          Logger
+	IngesterName    string
+	IngesterVersion string
+	IngesterUUID    string
+	RateLimitBps    int64
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
@@ -170,18 +176,20 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		return nil, ErrNoTargets
 	}
 	cfg := MuxerConfig{
-		Destinations: destinations,
-		Tags:         c.Tags,
-		PublicKey:    c.PublicKey,
-		PrivateKey:   c.PrivateKey,
-		VerifyCert:   c.VerifyCert,
-		ChannelSize:  c.ChannelSize,
-		EnableCache:  c.EnableCache,
-		CacheConfig:  c.CacheConfig,
-		LogLevel:     c.LogLevel,
-		IngesterName: c.IngesterName,
-		RateLimitBps: c.RateLimitBps,
-		Logger:       c.Logger,
+		Destinations:    destinations,
+		Tags:            c.Tags,
+		PublicKey:       c.PublicKey,
+		PrivateKey:      c.PrivateKey,
+		VerifyCert:      c.VerifyCert,
+		ChannelSize:     c.ChannelSize,
+		EnableCache:     c.EnableCache,
+		CacheConfig:     c.CacheConfig,
+		LogLevel:        c.LogLevel,
+		IngesterName:    c.IngesterName,
+		IngesterVersion: c.IngesterVersion,
+		IngesterUUID:    c.IngesterUUID,
+		RateLimitBps:    c.RateLimitBps,
+		Logger:          c.Logger,
 	}
 	return newIngestMuxer(cfg)
 }
@@ -298,6 +306,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		cacheFileBacked: c.CacheConfig.FileBackingLocation != ``,
 		cacheSignal:     cacheSig,
 		name:            c.IngesterName,
+		version:         c.IngesterVersion,
+		uuid:            c.IngesterUUID,
 		rateParent:      p,
 	}, nil
 }
@@ -1112,6 +1122,12 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 		im.connFailed(dst.Address, errors.New("Nil connection"))
 		return
 	}
+	// set the info
+	if err := igst.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
+		im.connFailed(dst.Address, err)
+		return
+	}
+
 	src, err = igst.Source()
 	if err != nil {
 		im.connFailed(dst.Address, err)
@@ -1169,6 +1185,11 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			if err := im.Error("lost connection to %v", dst.Address); err != nil {
 				igst.Close()
 				continue //retry...
+			}
+			// set the info
+			if err := igst.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
+				im.connFailed(dst.Address, err)
+				return
 			}
 			//get the source fired back up
 			src, err = igst.Source()

@@ -79,6 +79,10 @@ type EntryReader struct {
 	lastCount   uint64
 	timeout     time.Duration
 	tagMan      TagManager
+	// the reader stores some info about the other side
+	igName    string
+	igVersion string
+	igUUID    string
 }
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
@@ -111,6 +115,10 @@ func NewEntryReaderEx(cfg EntryReaderWriterConfig) (*EntryReader, error) {
 // If this is not set, tags cannot be negotiated on the fly
 func (er *EntryReader) SetTagManager(tm TagManager) {
 	er.tagMan = tm
+}
+
+func (er *EntryReader) GetIngesterInfo() (string, string, string) {
+	return er.igName, er.igVersion, er.igUUID
 }
 
 func (er *EntryReader) Start() error {
@@ -273,7 +281,69 @@ headerLoop:
 				}
 			}
 			continue
-		default: //we should probably bail out if we get desyned
+		case ID_MAGIC:
+			// read name
+			n, err = io.ReadFull(er.bIO, er.buff[0:4])
+			if err != nil {
+				return err
+			}
+			if n < 4 {
+				return errFailedFullRead
+			}
+			length := binary.LittleEndian.Uint32(er.buff[0:4])
+			name := make([]byte, length)
+			n, err = io.ReadFull(er.bIO, name)
+			if err != nil {
+				return err
+			}
+			if n < int(length) {
+				return errFailedFullRead
+			}
+
+			// read version
+			n, err = io.ReadFull(er.bIO, er.buff[0:4])
+			if err != nil {
+				return err
+			}
+			if n < 4 {
+				return errFailedFullRead
+			}
+			length = binary.LittleEndian.Uint32(er.buff[0:4])
+			version := make([]byte, length)
+			n, err = io.ReadFull(er.bIO, version)
+			if err != nil {
+				return err
+			}
+			if n < int(length) {
+				return errFailedFullRead
+			}
+
+			// read uuid
+			n, err = io.ReadFull(er.bIO, er.buff[0:4])
+			if err != nil {
+				return err
+			}
+			if n < 4 {
+				return errFailedFullRead
+			}
+			length = binary.LittleEndian.Uint32(er.buff[0:4])
+			id := make([]byte, length)
+			n, err = io.ReadFull(er.bIO, id)
+			if err != nil {
+				return err
+			}
+			if n < int(length) {
+				return errFailedFullRead
+			}
+
+			// respond
+			er.ackChan <- ackCommand{cmd: CONFIRM_ID_MAGIC, val: uint64(0)}
+			// set id values
+			er.igName = string(name)
+			er.igVersion = string(version)
+			er.igUUID = string(id)
+			continue
+		default: //we should probably bail out if we get desynced
 			continue
 		}
 	}
@@ -489,6 +559,8 @@ func (ac ackCommand) size() int {
 		return 6
 	case THROTTLE_MAGIC:
 		return throttleEncodeSize
+	case CONFIRM_ID_MAGIC:
+		return 4
 	}
 	return 0
 }
@@ -522,6 +594,10 @@ func (ac ackCommand) encode(b []byte) (n int, flush bool, err error) {
 		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
 		binary.LittleEndian.PutUint64(b[4:], ac.val)
 		n += confirmTagSize
+		flush = true
+	case CONFIRM_ID_MAGIC:
+		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
+		n += 4
 		flush = true
 	default:
 		err = errUnknownCommand
@@ -561,6 +637,8 @@ func (ac *ackCommand) decode(rdr *bufio.Reader, blocking bool) (ok bool, err err
 			return
 		}
 		ac.val = binary.LittleEndian.Uint64(val)
+		ok = true
+	case CONFIRM_ID_MAGIC:
 		ok = true
 	default:
 		err = errUnknownCommand

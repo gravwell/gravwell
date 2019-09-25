@@ -35,6 +35,7 @@ const (
 	MAX_UNCONFIRMED_COUNT int = 1024 * 4
 
 	MINIMUM_TAG_RENEGOTIATE_VERSION uint16 = 0x2 // minimum server version to renegotiate tags
+	MINIMUM_ID_VERSION              uint16 = 0x3 // minimum server version to send ID info
 
 	maxThrottleDur time.Duration = 5 * time.Second
 
@@ -53,6 +54,8 @@ const (
 	TAG_MAGIC           IngestCommand = 0x18675300
 	CONFIRM_TAG_MAGIC   IngestCommand = 0x18675301
 	ERROR_TAG_MAGIC     IngestCommand = 0x18675302
+	ID_MAGIC            IngestCommand = 0x22793400
+	CONFIRM_ID_MAGIC    IngestCommand = 0x22793401
 )
 
 type IngestCommand uint32
@@ -386,6 +389,92 @@ func (ew *EntryWriter) flush() (err error) {
 	return
 }
 
+func (ew *EntryWriter) IdentifyIngester(name string, version string, id string) (err error) {
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+
+	if ew.serverVersion < MINIMUM_ID_VERSION {
+		// Return quietly, it's not a big deal
+		return
+	}
+
+	// First attempt to sync
+	err = ew.forceAckNoLock()
+	if err != nil {
+		return
+	}
+
+	// Send ID magic
+	// send the buffer and force it out
+	if err = ew.writeAll(ID_MAGIC.Buff()); err != nil {
+		return
+	}
+
+	// Send name
+	b := make([]byte, 4+len(name))
+	binary.LittleEndian.PutUint32(b, uint32(len(name)))
+	copy(b[4:], name)
+	if err = ew.writeAll(b); err != nil {
+		return
+	}
+
+	// Send version
+	b = make([]byte, 4+len(version))
+	binary.LittleEndian.PutUint32(b, uint32(len(version)))
+	copy(b[4:], version)
+	if err = ew.writeAll(b); err != nil {
+		return
+	}
+
+	// Send UUID
+	b = make([]byte, 4+len(id))
+	binary.LittleEndian.PutUint32(b, uint32(len(id)))
+	copy(b[4:], id)
+	if err = ew.writeAll(b); err != nil {
+		return
+	}
+
+	// flush
+	if err = ew.flush(); err != nil {
+		return
+	}
+
+	// read back the ack
+	var ac ackCommand
+	var ok bool
+idCmdLoop:
+	for {
+		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
+			break
+		}
+		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
+			break
+		}
+		if !ok {
+			err = errors.New("couldn't figure out ackCommand")
+			break
+		}
+
+		switch ac.cmd {
+		case CONFIRM_ID_MAGIC:
+			// success
+			break idCmdLoop
+		case PONG_MAGIC:
+			// unsolicited, can come whenever
+		default:
+			err = fmt.Errorf("Unexpected response to identification message: %#v", ac)
+			break idCmdLoop
+		}
+	}
+	if err == nil {
+		err = ew.conn.ClearReadTimeout()
+	} else {
+		ew.conn.ClearReadTimeout()
+	}
+
+	return
+}
+
 func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
@@ -645,7 +734,10 @@ func (ic IngestCommand) String() string {
 		return `TAG_ERROR`
 	case CONFIRM_TAG_MAGIC:
 		return `TAG_CONFIRM`
-		//case _MAGIC: return ``
+	case ID_MAGIC:
+		return `ID`
+	case CONFIRM_ID_MAGIC:
+		return `ID_CONFIRM`
 	}
 	return `UNKNOWN`
 }
