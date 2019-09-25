@@ -14,12 +14,17 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/go-write"
+	"github.com/google/uuid"
 )
 
 const (
@@ -41,15 +46,23 @@ const (
 
 	DefaultCleartextPort uint16 = 4023
 	DefaultTLSPort       uint16 = 4024
+
+	commentValue = `#`
+	globalHeader = `[global]`
+	headerStart  = `[`
+	uuidParam    = `Ingester-UUID`
 )
 
 var (
-	ErrNoConnections            = errors.New("No connections specified")
-	ErrMissingIngestSecret      = errors.New("Ingest-Secret value missing")
-	ErrInvalidLogLevel          = errors.New("Invalid Log Level")
-	ErrInvalidConnectionTimeout = errors.New("Invalid connection timeout")
-	ErrInvalidIngestCacheSize   = errors.New("Invalid Max Ingest Cache size")
-	ErrCacheEnabledZeroMax      = errors.New("Ingest cache enabled with zero Max Cache size")
+	ErrNoConnections              = errors.New("No connections specified")
+	ErrMissingIngestSecret        = errors.New("Ingest-Secret value missing")
+	ErrInvalidLogLevel            = errors.New("Invalid Log Level")
+	ErrInvalidConnectionTimeout   = errors.New("Invalid connection timeout")
+	ErrInvalidIngestCacheSize     = errors.New("Invalid Max Ingest Cache size")
+	ErrCacheEnabledZeroMax        = errors.New("Ingest cache enabled with zero Max Cache size")
+	ErrGlobalSectionNotFound      = errors.New("Global config section not found")
+	ErrInvalidLineLocation        = errors.New("Invalid line location")
+	ErrInvalidUpdateLineParameter = errors.New("Update line location does not contain the specified paramter")
 )
 
 type IngestConfig struct {
@@ -66,6 +79,7 @@ type IngestConfig struct {
 	Log_File                   string
 	Source_Override            string // override normal source if desired
 	Rate_Limit                 string
+	Ingester_UUID              string
 }
 
 func (ic *IngestConfig) loadDefaults() error {
@@ -99,6 +113,12 @@ func (ic *IngestConfig) loadDefaults() error {
 func (ic *IngestConfig) Verify() error {
 	if err := ic.loadDefaults(); err != nil {
 		return err
+	}
+
+	if ic.Ingester_UUID != `` {
+		if _, err := uuid.Parse(ic.Ingester_UUID); err != nil {
+			return fmt.Errorf("Malformed ingester UUID %v: %v", ic.Ingester_UUID, err)
+		}
 	}
 
 	ic.Log_Level = strings.ToUpper(strings.TrimSpace(ic.Log_Level))
@@ -258,6 +278,101 @@ func (ic *IngestConfig) RateLimit() (bps int64, err error) {
 	}
 	bps, err = parseRate(ic.Rate_Limit)
 	return
+}
+
+//returns whether the supplied uuid is all zeros
+func zeroUUID(id uuid.UUID) bool {
+	for _, v := range id {
+		if v != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func (ic *IngestConfig) IngesterUUID() (id uuid.UUID, ok bool) {
+	if ic.Ingester_UUID == `` {
+		return
+	}
+	var err error
+	if id, err = uuid.Parse(ic.Ingester_UUID); err == nil {
+		ok = true
+	}
+	if zeroUUID(id) {
+		ok = false
+	}
+	return
+}
+
+func reloadContent(loc string) (content string, err error) {
+	if loc == `` {
+		err = errors.New("not loaded from file")
+		return
+	}
+	var bts []byte
+	bts, err = ioutil.ReadFile(loc)
+	content = string(bts)
+	return
+}
+
+func (ic *IngestConfig) SetIngesterUUID(id uuid.UUID, loc string) (err error) {
+	if zeroUUID(id) {
+		return errors.New("UUID is empty")
+	}
+	var content string
+	if content, err = reloadContent(loc); err != nil {
+		return
+	}
+	//crack the config file into lines
+	lines := strings.Split(content, "\n")
+	lo := argInGlobalLines(lines, uuidParam)
+	if lo == -1 {
+		//UUID value not set, insert immediately after global
+		gStart, _, ok := globalLineBoundary(lines)
+		if !ok {
+			err = ErrGlobalSectionNotFound
+			return
+		}
+		lines, err = insertLine(lines, fmt.Sprintf(`%s="%s"`, uuidParam, id.String()), gStart+1)
+	} else {
+		//found it, update it
+		lines, err = updateLine(lines, uuidParam, fmt.Sprintf(`"%s"`, id), lo)
+	}
+	if err != nil {
+		return
+	}
+	ic.Ingester_UUID = id.String()
+	content = strings.Join(lines, "\n")
+	err = updateConfigFile(loc, content)
+	return
+}
+
+func updateConfigFile(loc string, content string) error {
+	if loc == `` {
+		return errors.New("Configuration was loaded with bytes, cannot update")
+	}
+	fout, err := write.TempFile(filepath.Dir(loc), loc)
+	if err != nil {
+		return err
+	}
+	if err := writeFull(fout, []byte(content)); err != nil {
+		return err
+	}
+	return fout.CloseAtomicallyReplace()
+}
+
+func writeFull(w io.Writer, b []byte) error {
+	var written int
+	for written < len(b) {
+		if n, err := w.Write(b[written:]); err != nil {
+			return err
+		} else if n == 0 {
+			return errors.New("empty write")
+		} else {
+			written += n
+		}
+	}
+	return nil
 }
 
 // Attempts to read a value from environment variable named envName
@@ -445,5 +560,118 @@ func parseUint64(v string) (i uint64, err error) {
 	} else {
 		i, err = strconv.ParseUint(v, 10, 64)
 	}
+	return
+}
+
+// lineParameter checks if the line contains the parameter provided
+// the parameter is considered provided if after a ToLower and TrimSpace the parameter is the prefix
+// empty lines and/or empty parameters are not checked
+// the match is case insensitive
+func lineParameter(line, parameter string) bool {
+	l := strings.ToLower(strings.TrimSpace(line))
+	p := strings.ToLower(strings.TrimSpace(parameter))
+	if len(l) == 0 || len(p) == 0 {
+		return false
+	}
+	return strings.HasPrefix(l, p)
+}
+
+// globalLineBoundary returns the line numbers representing the start and stop boundaries of the global section
+// if the global section cannot be found, both returned values are -1
+// start is inclusive, stop is exclusive, so normal ranging is appropriate with the bound values
+func globalLineBoundary(lines []string) (start, stop int, ok bool) {
+	start = -1
+	stop = -1
+	//find the start of the global section
+	for i := range lines {
+		if lineParameter(lines[i], globalHeader) {
+			start = i
+			break
+		}
+	}
+	if start == -1 {
+		//did not find the start
+		return
+	}
+
+	//try to find the end
+	for i := start + 1; i < len(lines); i++ {
+		if lineParameter(lines[i], headerStart) {
+			stop = i
+			ok = true
+			return
+		}
+	}
+	//not stop found, set to the end
+	stop = len(lines)
+	if start < 0 || stop < 0 || start > len(lines) || stop > len(lines) || start >= stop {
+		//nothing here is valid
+		return
+	}
+	ok = true
+	return
+}
+
+// argInGlobalLines identifies which line in the global config contains the given parameter argument
+// if the argument is not found, -1 is returned
+func argInGlobalLines(lines []string, arg string) (lineno int) {
+	lineno = -1
+	gstart, gend, ok := globalLineBoundary(lines)
+	if !ok {
+		return
+	}
+	for i := gstart; i < gend; i++ {
+		if lineParameter(lines[i], arg) {
+			lineno = i
+			return
+		}
+	}
+	return
+}
+
+func insertLine(lines []string, line string, loc int) (nl []string, err error) {
+	if loc < 0 || loc >= len(lines) {
+		err = ErrInvalidLineLocation
+		return
+	}
+	nl = append(nl, lines[0:loc]...)
+	nl = append(nl, line)
+	nl = append(nl, lines[loc:]...)
+
+	return
+}
+
+func getLeadingString(l, param string) (s string) {
+	if idx := strings.Index(strings.ToLower(l), strings.ToLower(param)); idx != -1 {
+		s = l[0:idx]
+	}
+	return
+}
+
+func getCommentString(l, param string) (s string) {
+	if idx := strings.Index(strings.ToLower(l), strings.ToLower(param)); idx != -1 {
+		s = l[idx:]
+	}
+	return
+}
+
+// updateLine updates the parameter value at a given line
+// the given line MUST contain the paramter value, or we error out
+func updateLine(lines []string, param, value string, loc int) (nl []string, err error) {
+	//check that the line location is valid
+	if loc >= len(lines) || loc < 0 {
+		err = ErrInvalidLineLocation
+	}
+	//check if the specified line has that parameter
+	if !lineParameter(lines[loc], param) {
+		err = ErrInvalidUpdateLineParameter
+		return
+	}
+	//get the leading stuff
+	leadingString := getLeadingString(lines[loc], param)
+	//get any trailing comments
+	commentString := getCommentString(lines[loc], commentValue)
+	nl = lines
+	nl[loc] = fmt.Sprintf(`%s%s=%s %s`, leadingString, param, value, commentString)
 	return
 }
