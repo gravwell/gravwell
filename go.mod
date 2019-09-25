@@ -16,8 +16,9 @@ require (
 	github.com/floren/ipfix v1.3.1-0.20180824220655-d9b7be2e36b7
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/google/gopacket v1.1.17
+	github.com/google/uuid v1.1.1
 	github.com/gravwell/filewatch/v3 v3.2.3
-	github.com/gravwell/ingest/v3 v3.2.3
+	github.com/gravwell/ingest/v3 v3.2.4-0.20190925221107-0f365a802525
 	github.com/gravwell/netflow/v3 v3.2.3
 	github.com/gravwell/timegrinder/v3 v3.2.3
 	github.com/gravwell/winevent/v3 v3.2.3
@@ -34,11 +35,12 @@ require (
 	github.com/turnage/graw v0.0.0-20190218184947-3295929039f6
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	go.opencensus.io v0.22.1 // indirect
-	golang.org/x/crypto v0.0.0-20190911031432-227b76d455e7 // indirect
+	golang.org/x/crypto v0.0.0-20190923035154-9ee001bba392 // indirect
 	golang.org/x/exp v0.0.0-20190919035709-81c71964d733 // indirect
-	golang.org/x/net v0.0.0-20190918130420-a8b05e9114ab // indirect
+	golang.org/x/net v0.0.0-20190923162816-aa69164e4478 // indirect
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
-	golang.org/x/sys v0.0.0-20190919044723-0c1ff786ef13
+	golang.org/x/sys v0.0.0-20190922100055-0a153f010e69
+	golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0 // indirect
 	golang.org/x/tools v0.0.0-20190920130846-1081e67f6b77 // indirect
 	google.golang.org/api v0.10.0 // indirect
 	google.golang.org/appengine v1.6.2 // indirect
