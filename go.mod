@@ -1,4 +1,4 @@
-module github.com/gravwell/manager
+module github.com/gravwell/manager/v3
 
 go 1.13
 
