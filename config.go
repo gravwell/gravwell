@@ -254,9 +254,38 @@ func checkExecutable(p string) error {
 	return nil
 }
 
-func split(s string) ([]string, error) {
+func split(s string) (ret []string, err error) {
 	r := csv.NewReader(strings.NewReader(s))
 	r.Comma = ' '
 	r.Comment = '#'
-	return r.Read()
+	if ret, err = r.Read(); err == nil {
+		ret = replaceEnvVars(ret)
+	}
+	return
+}
+
+func replaceEnvVars(set []string) (ret []string) {
+	for _, val := range set {
+		if len(val) > 0 {
+			ret = append(ret, replaceEnv(val))
+		}
+	}
+	return
+}
+
+func replaceEnv(v string) string {
+	if len(v) >= 3 {
+		if v[0] == '$' && v[1] == '{' && v[len(v)-1] == '}' {
+			v = v[2 : len(v)-1]
+			if bits := strings.Split(v, ":"); len(bits) == 2 {
+				//try with a default
+				if v = os.Getenv(bits[0]); v == `` {
+					v = bits[1] // use the default
+				}
+			} else {
+				v = os.Getenv(v)
+			}
+		}
+	}
+	return v
 }
