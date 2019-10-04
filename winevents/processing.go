@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
 	"github.com/gravwell/winevent/v3"
 )
@@ -227,10 +228,12 @@ func (m *mainService) init() error {
 	//fire up the ingesters
 	//fire up the ingesters
 	igCfg := ingest.UniformMuxerConfig{
-		Destinations: m.conns,
-		Tags:         m.tags,
-		Auth:         m.secret,
-		LogLevel:     m.igstLogLevel,
+		Destinations:    m.conns,
+		Tags:            m.tags,
+		Auth:            m.secret,
+		LogLevel:        m.igstLogLevel,
+		IngesterName:    "winevent",
+		IngesterVersion: version.GetVersion(),
 	}
 	if m.enableCache {
 		igCfg.EnableCache = true
