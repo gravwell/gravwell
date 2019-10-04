@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/filewatch/v3"
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
 )
 
@@ -184,10 +185,12 @@ func (m *mainService) init() error {
 
 	//fire up the ingesters
 	ingestConfig := ingest.UniformMuxerConfig{
-		Destinations: m.conns,
-		Tags:         m.tags,
-		Auth:         m.secret,
-		LogLevel:     m.logLevel,
+		Destinations:    m.conns,
+		Tags:            m.tags,
+		Auth:            m.secret,
+		LogLevel:        m.logLevel,
+		IngesterName:    "winfilefollow",
+		IngesterVersion: version.GetVersion(),
 	}
 	if m.cachePath != `` {
 		ingestConfig.EnableCache = true
