@@ -105,14 +105,20 @@ func main() {
 	//fire up the ingesters
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 	debugout("INSECURE skipping TLS certs verification: %v\n", cfg.InsecureSkipTLSVerification())
+	id, ok := cfg.IngesterUUID()
+	if !ok {
+		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+	}
 	ingestConfig := ingest.UniformMuxerConfig{
-		Destinations: conns,
-		Tags:         tags,
-		Auth:         cfg.Secret(),
-		LogLevel:     cfg.LogLevel(),
-		IngesterName: "filefollow",
-		VerifyCert:   !cfg.InsecureSkipTLSVerification(),
-		Logger:       lg,
+		Destinations:    conns,
+		Tags:            tags,
+		Auth:            cfg.Secret(),
+		LogLevel:        cfg.LogLevel(),
+		IngesterName:    "filefollow",
+		IngesterVersion: version.GetVersion(),
+		IngesterUUID:    id.String(),
+		VerifyCert:      !cfg.InsecureSkipTLSVerification(),
+		Logger:          lg,
 	}
 	if cfg.EnableCache() {
 		ingestConfig.EnableCache = true
