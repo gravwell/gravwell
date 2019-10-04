@@ -104,12 +104,19 @@ func main() {
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	//fire up the ingesters
+	id, ok := cfg.Global.IngesterUUID()
+	if !ok {
+		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+	}
 	ingestConfig := ingest.UniformMuxerConfig{
-		Destinations: conns,
-		Tags:         tags,
-		Auth:         cfg.Secret(),
-		LogLevel:     cfg.LogLevel(),
-		Logger:       lg,
+		Destinations:    conns,
+		Tags:            tags,
+		Auth:            cfg.Secret(),
+		LogLevel:        cfg.LogLevel(),
+		Logger:          lg,
+		IngesterName:    "Kinesis",
+		IngesterVersion: version.GetVersion(),
+		IngesterUUID:    id.String(),
 	}
 	if cfg.CacheEnabled() {
 		ingestConfig.EnableCache = true
