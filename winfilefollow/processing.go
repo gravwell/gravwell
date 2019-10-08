@@ -43,6 +43,7 @@ type mainService struct {
 	entCh     chan *entry.Entry
 	cachePath string
 	logLevel  string
+	uuid      string
 }
 
 func NewService(cfg *cfgType) (*mainService, error) {
@@ -66,6 +67,10 @@ func NewService(cfg *cfgType) (*mainService, error) {
 	if cfg.CacheEnabled() {
 		cachePath = cfg.CachePath()
 	}
+	id, ok := cfg.Global.IngesterUUID()
+	if !ok {
+		return nil, errors.New("Couldn't read ingester UUID")
+	}
 
 	debugout("Watching %d Directories\n", len(cfg.Follower))
 	return &mainService{
@@ -78,6 +83,7 @@ func NewService(cfg *cfgType) (*mainService, error) {
 		wtchr:     wtcher,
 		cachePath: cachePath,
 		logLevel:  cfg.LogLevel(),
+		uuid:      id.String(),
 	}, nil
 }
 
@@ -191,6 +197,7 @@ func (m *mainService) init() error {
 		LogLevel:        m.logLevel,
 		IngesterName:    "winfilefollow",
 		IngesterVersion: version.GetVersion(),
+		IngesterUUID:    m.uuid,
 	}
 	if m.cachePath != `` {
 		ingestConfig.EnableCache = true

@@ -51,6 +51,7 @@ type mainService struct {
 	enableCache  bool
 	cachePath    string
 	igstLogLevel string
+	uuid         string
 
 	bmk     *winevent.BookmarkHandler
 	evtSrcs []eventSrc
@@ -74,6 +75,10 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get a valid list of event channel configurations: %v", err)
 	}
+	id, ok := cfg.Global.IngesterUUID()
+	if !ok {
+		return nil, errors.New("Couldn't read ingester UUID")
+	}
 	debugout("Parsed %d streams\n", len(chanConf))
 	return &mainService{
 		timeout:      cfg.Timeout(),
@@ -86,6 +91,7 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 		enableCache:  cfg.EnableCache(),
 		cachePath:    cfg.LocalFileCachePath(),
 		igstLogLevel: cfg.LogLevel(),
+		uuid:         id.String(),
 	}, nil
 }
 
@@ -234,6 +240,7 @@ func (m *mainService) init() error {
 		LogLevel:        m.igstLogLevel,
 		IngesterName:    "winevent",
 		IngesterVersion: version.GetVersion(),
+		IngesterUUID:    m.uuid,
 	}
 	if m.enableCache {
 		igCfg.EnableCache = true

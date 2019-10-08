@@ -3,8 +3,8 @@ module github.com/gravwell/ingesters/v3
 go 1.13
 
 require (
-	cloud.google.com/go v0.46.3 // indirect
 	cloud.google.com/go/pubsub v1.0.1
+	cloud.google.com/go/storage v1.1.0 // indirect
 	collectd.org v0.3.1-0.20181025072142-f80706d1e115
 	github.com/Shopify/sarama v1.23.2-0.20190907063523-2af3badd8c04
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
@@ -18,12 +18,11 @@ require (
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
 	github.com/gravwell/filewatch/v3 v3.2.3
-	github.com/gravwell/ingest/v3 v3.2.4-0.20190925221107-0f365a802525
+	github.com/gravwell/ingest/v3 v3.2.4
 	github.com/gravwell/netflow/v3 v3.2.3
 	github.com/gravwell/timegrinder/v3 v3.2.3
-	github.com/gravwell/winevent/v3 v3.2.3
+	github.com/gravwell/winevent/v3 v3.2.4
 	github.com/h2non/filetype v1.0.10
-	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/klauspost/compress v1.8.4 // indirect
 	github.com/klauspost/cpuid v1.2.1 // indirect
@@ -39,8 +38,7 @@ require (
 	golang.org/x/exp v0.0.0-20190919035709-81c71964d733 // indirect
 	golang.org/x/net v0.0.0-20190923162816-aa69164e4478 // indirect
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
-	golang.org/x/sys v0.0.0-20190922100055-0a153f010e69
-	golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0 // indirect
+	golang.org/x/sys v0.0.0-20191008105621-543471e840be
 	golang.org/x/tools v0.0.0-20190920130846-1081e67f6b77 // indirect
 	google.golang.org/api v0.10.0 // indirect
 	google.golang.org/appengine v1.6.2 // indirect
