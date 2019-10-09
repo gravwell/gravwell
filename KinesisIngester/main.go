@@ -191,6 +191,11 @@ func main() {
 					lg.Error("error on shard #%d (%s): %v", shardid, *shard.ShardId, err)
 					return
 				}
+				if output.ShardIterator == nil {
+					// this is weird, we are going to bail out
+					lg.Error("Got nil initial shard iterator, bailing out")
+					return
+				}
 				iter := *output.ShardIterator
 				eChan := make(chan *entry.Entry, 2048)
 				tcfg := timegrinder.Config{
@@ -251,6 +256,10 @@ func main() {
 						}
 					}
 
+					if res.NextShardIterator == nil {
+						// Hmm. Skip and try again.
+						continue
+					}
 					iter = *res.NextShardIterator
 					for _, r := range res.Records {
 						ent := &entry.Entry{
