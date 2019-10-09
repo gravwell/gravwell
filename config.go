@@ -118,6 +118,9 @@ func (c cfgType) Validate() error {
 			return errors.New("Invalid cooldown period, must be > 0")
 		}
 	}
+	if err := c.checkBinaries(); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -146,7 +149,7 @@ func (c *cfgType) CheckServiceDisable() {
 	}
 }
 
-func (c cfgType) CheckBinaries() error {
+func (c cfgType) checkBinaries() error {
 	var v string
 	if v = getFirst(c.Error_Handler.Exec); v != `` {
 		if err := checkExecutable(v); err != nil {
