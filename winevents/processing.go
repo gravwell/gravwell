@@ -282,6 +282,20 @@ func (m *mainService) init() error {
 			return fmt.Errorf("Failed to create new eventStream(%s) on Channel %s: %v", c.Name, c.Channel, err)
 		}
 		debugout("Started stream %s at recordID %d\n", c.Name, last)
+		msg := fmt.Sprintf("starting stream %s on channel %s at recordID %d, ingesting to tag %s.", c.Name, c.Channel, last, c.TagName)
+		if c.ReachBack != 0 {
+			msg += fmt.Sprintf(" Reachback is %v.", c.ReachBack)
+		}
+		if len(c.Providers) != 0 {
+			msg += fmt.Sprintf(" Providers: %v.", c.Providers)
+		}
+		if c.Levels != `` {
+			msg += fmt.Sprintf(" Allowed levels: %v.", c.Levels)
+		}
+		if c.EventIDs != `` {
+			msg += fmt.Sprintf(" Recording only the following EventIDs: %v.", c.EventIDs)
+		}
+		igst.Info(msg)
 		evtSrcs = append(evtSrcs, eventSrc{h: evt, tag: tag})
 	}
 	if len(evtSrcs) == 0 {
