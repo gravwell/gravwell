@@ -104,12 +104,19 @@ func main() {
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	//fire up the ingesters
+	id, ok := cfg.Global.IngesterUUID()
+	if !ok {
+		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+	}
 	ingestConfig := ingest.UniformMuxerConfig{
-		Destinations: conns,
-		Tags:         tags,
-		Auth:         cfg.Secret(),
-		LogLevel:     cfg.LogLevel(),
-		Logger:       lg,
+		Destinations:    conns,
+		Tags:            tags,
+		Auth:            cfg.Secret(),
+		LogLevel:        cfg.LogLevel(),
+		Logger:          lg,
+		IngesterName:    "Kinesis",
+		IngesterVersion: version.GetVersion(),
+		IngesterUUID:    id.String(),
 	}
 	if cfg.CacheEnabled() {
 		ingestConfig.EnableCache = true
@@ -184,6 +191,11 @@ func main() {
 					lg.Error("error on shard #%d (%s): %v", shardid, *shard.ShardId, err)
 					return
 				}
+				if output.ShardIterator == nil {
+					// this is weird, we are going to bail out
+					lg.Error("Got nil initial shard iterator, bailing out")
+					return
+				}
 				iter := *output.ShardIterator
 				eChan := make(chan *entry.Entry, 2048)
 				tcfg := timegrinder.Config{
@@ -244,6 +256,10 @@ func main() {
 						}
 					}
 
+					if res.NextShardIterator == nil {
+						// Hmm. Skip and try again.
+						continue
+					}
 					iter = *res.NextShardIterator
 					for _, r := range res.Records {
 						ent := &entry.Entry{

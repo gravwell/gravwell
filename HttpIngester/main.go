@@ -104,14 +104,20 @@ func main() {
 	}
 
 	debugout("Loaded %d tags", len(tags))
+	id, ok := cfg.IngesterUUID()
+	if !ok {
+		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+	}
 	igCfg := ingest.UniformMuxerConfig{
-		Destinations: conns,
-		Tags:         tags,
-		Auth:         cfg.Secret(),
-		LogLevel:     cfg.LogLevel(),
-		IngesterName: "httppost",
-		VerifyCert:   !cfg.InsecureSkipTLSVerification(),
-		Logger:       lg,
+		Destinations:    conns,
+		Tags:            tags,
+		Auth:            cfg.Secret(),
+		LogLevel:        cfg.LogLevel(),
+		VerifyCert:      !cfg.InsecureSkipTLSVerification(),
+		Logger:          lg,
+		IngesterName:    "httppost",
+		IngesterVersion: version.GetVersion(),
+		IngesterUUID:    id.String(),
 	}
 	if cfg.EnableCache() {
 		igCfg.EnableCache = true

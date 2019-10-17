@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/config"
 
@@ -101,6 +102,16 @@ func GetConfig(path string) (*cfgType, error) {
 
 	if err := verifyConfig(c); err != nil {
 		return nil, err
+	}
+	// Verify and set UUID
+	if _, ok := c.IngesterUUID(); !ok {
+		id := uuid.New()
+		if err = c.SetIngesterUUID(id, path); err != nil {
+			return nil, err
+		}
+		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
+			return nil, errors.New("Failed to set a new ingester UUID")
+		}
 	}
 	return c, nil
 }

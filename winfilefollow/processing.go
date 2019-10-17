@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/filewatch/v3"
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
 )
 
@@ -42,6 +43,7 @@ type mainService struct {
 	entCh     chan *entry.Entry
 	cachePath string
 	logLevel  string
+	uuid      string
 }
 
 func NewService(cfg *cfgType) (*mainService, error) {
@@ -65,6 +67,10 @@ func NewService(cfg *cfgType) (*mainService, error) {
 	if cfg.CacheEnabled() {
 		cachePath = cfg.CachePath()
 	}
+	id, ok := cfg.Global.IngesterUUID()
+	if !ok {
+		return nil, errors.New("Couldn't read ingester UUID")
+	}
 
 	debugout("Watching %d Directories\n", len(cfg.Follower))
 	return &mainService{
@@ -77,6 +83,7 @@ func NewService(cfg *cfgType) (*mainService, error) {
 		wtchr:     wtcher,
 		cachePath: cachePath,
 		logLevel:  cfg.LogLevel(),
+		uuid:      id.String(),
 	}, nil
 }
 
@@ -184,10 +191,13 @@ func (m *mainService) init() error {
 
 	//fire up the ingesters
 	ingestConfig := ingest.UniformMuxerConfig{
-		Destinations: m.conns,
-		Tags:         m.tags,
-		Auth:         m.secret,
-		LogLevel:     m.logLevel,
+		Destinations:    m.conns,
+		Tags:            m.tags,
+		Auth:            m.secret,
+		LogLevel:        m.logLevel,
+		IngesterName:    "winfilefollow",
+		IngesterVersion: version.GetVersion(),
+		IngesterUUID:    m.uuid,
 	}
 	if m.cachePath != `` {
 		ingestConfig.EnableCache = true

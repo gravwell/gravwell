@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
 	"github.com/gravwell/winevent/v3"
 )
@@ -50,6 +51,7 @@ type mainService struct {
 	enableCache  bool
 	cachePath    string
 	igstLogLevel string
+	uuid         string
 
 	bmk     *winevent.BookmarkHandler
 	evtSrcs []eventSrc
@@ -73,6 +75,10 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get a valid list of event channel configurations: %v", err)
 	}
+	id, ok := cfg.Global.IngesterUUID()
+	if !ok {
+		return nil, errors.New("Couldn't read ingester UUID")
+	}
 	debugout("Parsed %d streams\n", len(chanConf))
 	return &mainService{
 		timeout:      cfg.Timeout(),
@@ -85,6 +91,7 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 		enableCache:  cfg.EnableCache(),
 		cachePath:    cfg.LocalFileCachePath(),
 		igstLogLevel: cfg.LogLevel(),
+		uuid:         id.String(),
 	}, nil
 }
 
@@ -227,10 +234,13 @@ func (m *mainService) init() error {
 	//fire up the ingesters
 	//fire up the ingesters
 	igCfg := ingest.UniformMuxerConfig{
-		Destinations: m.conns,
-		Tags:         m.tags,
-		Auth:         m.secret,
-		LogLevel:     m.igstLogLevel,
+		Destinations:    m.conns,
+		Tags:            m.tags,
+		Auth:            m.secret,
+		LogLevel:        m.igstLogLevel,
+		IngesterName:    "winevent",
+		IngesterVersion: version.GetVersion(),
+		IngesterUUID:    m.uuid,
 	}
 	if m.enableCache {
 		igCfg.EnableCache = true
@@ -272,6 +282,20 @@ func (m *mainService) init() error {
 			return fmt.Errorf("Failed to create new eventStream(%s) on Channel %s: %v", c.Name, c.Channel, err)
 		}
 		debugout("Started stream %s at recordID %d\n", c.Name, last)
+		msg := fmt.Sprintf("starting stream %s on channel %s at recordID %d, ingesting to tag %s.", c.Name, c.Channel, last, c.TagName)
+		if c.ReachBack != 0 {
+			msg += fmt.Sprintf(" Reachback is %v.", c.ReachBack)
+		}
+		if len(c.Providers) != 0 {
+			msg += fmt.Sprintf(" Providers: %v.", c.Providers)
+		}
+		if c.Levels != `` {
+			msg += fmt.Sprintf(" Allowed levels: %v.", c.Levels)
+		}
+		if c.EventIDs != `` {
+			msg += fmt.Sprintf(" Recording only the following EventIDs: %v.", c.EventIDs)
+		}
+		igst.Info(msg)
 		evtSrcs = append(evtSrcs, eventSrc{h: evt, tag: tag})
 	}
 	if len(evtSrcs) == 0 {

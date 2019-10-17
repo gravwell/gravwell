@@ -15,7 +15,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/config"
 
 	"gopkg.in/gcfg.v1"
 )
@@ -36,15 +38,8 @@ type FollowType struct {
 
 type cfgType struct {
 	Global struct {
-		State_Store_Location       string //Location that we will drop our state object
-		Ingest_Secret              string
-		Connection_Timeout         string
-		Verify_Remote_Certificates bool
-		Cleartext_Backend_Target   []string
-		Encrypted_Backend_Target   []string
-		Pipe_Backend_Target        []string
-		Log_Level                  string
-		Ingest_Cache_Path          string
+		State_Store_Location string //Location that we will drop our state object
+		config.IngestConfig
 	}
 	Follower map[string]*FollowType
 }
@@ -79,25 +74,23 @@ func GetConfig(path string) (*cfgType, error) {
 	if err := verifyConfig(c); err != nil {
 		return nil, err
 	}
+	// Verify and set UUID
+	if _, ok := c.Global.IngesterUUID(); !ok {
+		id := uuid.New()
+		if err = c.Global.SetIngesterUUID(id, path); err != nil {
+			return nil, err
+		}
+		if id2, ok := c.Global.IngesterUUID(); !ok || id != id2 {
+			return nil, errors.New("Failed to set a new ingester UUID")
+		}
+	}
 	return &c, nil
 }
 
 func verifyConfig(c cfgType) error {
-	if to, err := c.parseTimeout(); err != nil || to < 0 {
-		if err != nil {
-			return err
-		}
-		return errors.New("Invalid connection timeout")
-	}
-	if c.Global.Ingest_Secret == "" {
-		return errors.New("Ingest-Secret not specified")
-	}
-	//ensure there is at least one target
-	connCount := len(c.Global.Cleartext_Backend_Target) +
-		len(c.Global.Encrypted_Backend_Target) +
-		len(c.Global.Pipe_Backend_Target)
-	if connCount == 0 {
-		return errors.New("No backend targets specified")
+	//verify the global parameters
+	if err := c.Global.Verify(); err != nil {
+		return err
 	}
 	if len(c.Follower) == 0 {
 		return errors.New("No listeners specified")
