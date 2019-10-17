@@ -48,4 +48,4 @@ require (
 	gopkg.in/jcmturner/gokrb5.v7 v7.3.0 // indirect
 )
 
-// replace github.com/gravwell/winevent/v3 => ~/githubwork/winevent // for debugging
+//replace github.com/gravwell/winevent/v3 => /opt/src/githubwork/winevent // for debugging
