@@ -280,6 +280,19 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 			TS:   entry.FromStandard(m.Timestamp),
 			Data: m.Value,
 		}
+		if kc.ignoreTS {
+			ent.TS = entry.Now()
+		} else if kc.extractTS && kc.tg != nil {
+			var hts time.Time
+			var ok bool
+			if hts, ok, err = kc.tg.Extract(ent.Data); err != nil {
+				kc.lg.Warn("Catastrophic error from timegrinder: %v", err)
+			} else if ok {
+				ent.TS = entry.FromStandard(hts)
+			}
+			// if not ok, we'll just use the timestamp
+		}
+
 		if kc.keyAsSrc && (len(m.Key) == ipv4Len || len(m.Key) == ipv6Len) {
 			ent.SRC = net.IP(m.Key)
 		} else {

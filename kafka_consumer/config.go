@@ -15,10 +15,12 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/config"
+	"github.com/gravwell/timegrinder/v3"
 
 	"gopkg.in/gcfg.v1"
 )
@@ -44,6 +46,12 @@ type ConfigConsumer struct {
 	Key_As_Source      bool
 	Synchronous        bool
 	Batch_Size         int
+
+	Ignore_Timestamps         bool //Just apply the current timestamp to lines as we get them
+	Extract_Timestamps        bool // Ignore the kafka timestamp, use timegrinder
+	Assume_Local_Timezone     bool
+	Timezone_Override         string
+	Timestamp_Format_Override string //override the timestamp format
 }
 
 type consumerCfg struct {
@@ -56,6 +64,9 @@ type consumerCfg struct {
 	batchSize   int
 	keyAsSrc    bool
 	srcOverride net.IP
+	ignoreTS    bool
+	extractTS   bool
+	tg          *timegrinder.TimeGrinder
 }
 
 type cfgReadType struct {
@@ -176,6 +187,40 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 		if c.srcOverride = net.ParseIP(cc.Source_Override); c.srcOverride == nil {
 			err = fmt.Errorf("Invalid source override %s", cc.Source_Override)
 			return
+		}
+	}
+
+	if cc.Timezone_Override != "" {
+		if cc.Assume_Local_Timezone {
+			// cannot do both
+			err = fmt.Errorf("Cannot specify Assume-Local-Timezone and Timezone-Override in the same consumer")
+			return
+		}
+		if _, err = time.LoadLocation(cc.Timezone_Override); err != nil {
+			err = fmt.Errorf("Invalid timezone override %v in consumer: %v", cc.Timezone_Override, err)
+			return
+		}
+	}
+	if cc.Ignore_Timestamps {
+		c.ignoreTS = true
+	} else if cc.Extract_Timestamps {
+		c.extractTS = true
+		tcfg := timegrinder.Config{
+			EnableLeftMostSeed: true,
+			FormatOverride:     cc.Timestamp_Format_Override,
+		}
+		if c.tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
+			err = fmt.Errorf("Failed to generate new timegrinder: %v", err)
+			return
+		}
+		if cc.Assume_Local_Timezone {
+			c.tg.SetLocalTime()
+		}
+		if cc.Timezone_Override != `` {
+			if err = c.tg.SetTimezone(cc.Timezone_Override); err != nil {
+				err = fmt.Errorf("Failed to override timezone: %v", err)
+				return
+			}
 		}
 	}
 
