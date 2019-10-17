@@ -68,7 +68,7 @@ func (b *BookmarkHandler) Update(name string, val uint64) error {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 	if b.f == nil {
-		errors.New("Not open")
+		return errors.New("Not open")
 	}
 	b.bookmarks[name] = val
 	return nil
@@ -78,7 +78,7 @@ func (b *BookmarkHandler) Get(name string) (uint64, error) {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 	if b.f == nil {
-		errors.New("Not open")
+		return 0, errors.New("Not open")
 	}
 	v, ok := b.bookmarks[name]
 	if !ok {
@@ -100,7 +100,7 @@ func (b *BookmarkHandler) Sync() error {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 	if b.f == nil {
-		errors.New("Not open")
+		return errors.New("Not open")
 	}
 	return storebookmarks(b.f, b.bookmarks)
 }

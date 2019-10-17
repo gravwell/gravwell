@@ -20,86 +20,129 @@ import (
 )
 
 const (
-	defaultBuffSize  = 512 * 1024 //512kb?  Sure... why not
-	maxHandleRequest = 1024
+	defaultBuffSize  = 2 * 1024 * 1024 //512kb?  Sure... why not
+	maxHandleRequest = 128
 	minHandleRequest = 2 //this CANNOT be less than 2, or you will fall into an infinite loop HAMMERING the kernel
 )
 
 type EventStreamHandle struct {
-	name      string
+	params    EventStreamParams
 	sigEvent  windows.Handle
 	subHandle wineventlog.EvtHandle
-	bookmark  wineventlog.EvtHandle
 	last      uint64
 	buff      []byte
 	mtx       *sync.Mutex
 }
 
-func NewStream(param EventStreamParams, last uint64) (*EventStreamHandle, error) {
-	bookmark, err := wineventlog.CreateBookmark(param.Channel, last)
-	if err != nil {
-		return nil, err
+func NewStream(param EventStreamParams, last uint64) (e *EventStreamHandle, err error) {
+	e = &EventStreamHandle{
+		params: param,
+		last:   last,
+		buff:   make([]byte, defaultBuffSize),
+		mtx:    &sync.Mutex{},
 	}
+	if err = e.open(); err != nil {
+		e = nil
+	}
+	return
+}
 
+func (e *EventStreamHandle) open() error {
 	sigEvent, err := windows.CreateEvent(nil, 0, 0, nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	query, err := genQuery(param)
+	query, err := genQuery(e.params)
 	if err != nil {
-		return nil, err
+		windows.CloseHandle(sigEvent)
+		return err
+	}
+
+	var bookmark wineventlog.EvtHandle
+	flags := wineventlog.EvtSubscribeStartAtOldestRecord
+
+	//we are starting at
+	if e.last > 0 {
+		bookmark, err = wineventlog.CreateBookmarkFromRecordID(e.params.Channel, e.last)
+		if err != nil {
+			return err
+		}
+		defer wineventlog.Close(bookmark)
+		flags = wineventlog.EvtSubscribeStartAfterBookmark
 	}
 
 	subHandle, err := wineventlog.Subscribe(
 		0, //localhost session
-		sigEvent, ``,
-		query,
+		sigEvent,
+		``,    // channel is in the query
+		query, //query has the reachback parameter
 		bookmark,
-		wineventlog.EvtSubscribeStartAfterBookmark)
+		flags)
 	if err != nil {
 		windows.CloseHandle(sigEvent)
-		return nil, err
+		return err
 	}
-	return &EventStreamHandle{
-		name:      param.Name,
-		sigEvent:  sigEvent,
-		subHandle: subHandle,
-		bookmark:  bookmark,
-		last:      last,
-		buff:      make([]byte, defaultBuffSize),
-		mtx:       &sync.Mutex{},
-	}, nil
+
+	e.mtx.Lock()
+	e.sigEvent = sigEvent
+	e.subHandle = subHandle
+	e.mtx.Unlock()
+	return nil
+}
+
+func (e *EventStreamHandle) close() (err error) {
+	if err = windows.CloseHandle(e.sigEvent); err != nil {
+		wineventlog.Close(e.subHandle) //just close the subhandle
+	} else {
+		err = wineventlog.Close(e.subHandle)
+	}
+	return
+}
+
+func (e *EventStreamHandle) reset() (err error) {
+	e.mtx.Lock()
+	e.close()
+	err = e.open()
+	e.mtx.Unlock()
+	return
 }
 
 //getHandles will iterate on the call to EventHandles, we do this because on big event log entries the kernel throws
 //RPC_S_INVALID_BOUND which is basically a really shitty way to say "i can't give you all the handles due to size"
-func getHandles(sub wineventlog.EvtHandle, min, max int) ([]wineventlog.EvtHandle, error) {
+func (e *EventStreamHandle) getHandles(min, max int) (evtHnds []wineventlog.EvtHandle, err error) {
 	for cnt := max; cnt >= min; cnt = cnt / 2 {
-		evtHandles, err := wineventlog.EventHandles(sub, cnt)
-		if err != nil {
-			if err == wineventlog.RPC_S_INVALID_BOUND {
-				continue //try again with smaller bounds
+		evtHnds, err = wineventlog.EventHandles(e.subHandle, cnt)
+		switch err {
+		case nil:
+			return //got a good read
+		case wineventlog.ERROR_NO_MORE_ITEMS:
+			err = nil
+			return //empty
+		case wineventlog.RPC_S_INVALID_BOUND:
+			//our buffer isn't big enough, reset the handle and try again
+			if err = e.reset(); err != nil {
+				return
 			}
-			return nil, err
+			//we will retry
+		default:
+			return
 		}
-		return evtHandles, nil
 	}
-	return nil, wineventlog.RPC_S_INVALID_BOUND
+	return
 }
 
 func (e *EventStreamHandle) Read() ([]([]byte), error) {
 	var ents []([]byte)
-	evtHandles, err := getHandles(e.subHandle, minHandleRequest, maxHandleRequest)
+	evtHandles, err := e.getHandles(minHandleRequest, maxHandleRequest)
 	if err != nil {
-		if err == wineventlog.ERROR_NO_MORE_ITEMS {
-			return nil, nil
-		}
 		return nil, err
+	} else if len(evtHandles) == 0 {
+		return nil, nil
 	}
 	bb := bytes.NewBuffer(nil)
 	for _, h := range evtHandles {
 		bb.Reset()
-		if err := wineventlog.RenderEvent(h, 0, e.buff, nil, bb); err != nil {
+		if err := wineventlog.RenderEventSimple(h, e.buff, bb); err != nil {
 			wineventlog.Close(h)
 			return nil, err
 		}
@@ -112,7 +155,7 @@ func (e *EventStreamHandle) Read() ([]([]byte), error) {
 func (e *EventStreamHandle) Name() string {
 	e.mtx.Lock()
 	defer e.mtx.Unlock()
-	return e.name
+	return e.params.Name
 }
 
 func (e *EventStreamHandle) Last() uint64 {
@@ -127,19 +170,11 @@ func (e *EventStreamHandle) SetLast(v uint64) {
 	e.last = v
 }
 
-func (e *EventStreamHandle) Close() error {
+func (e *EventStreamHandle) Close() (err error) {
 	e.mtx.Lock()
-	defer e.mtx.Unlock()
-	if err := wineventlog.Close(e.bookmark); err != nil {
-		return err
-	}
-	if err := windows.CloseHandle(e.sigEvent); err != nil {
-		return err
-	}
-	if err := wineventlog.Close(e.subHandle); err != nil {
-		return err
-	}
-	return nil
+	err = e.close()
+	e.mtx.Unlock()
+	return
 }
 
 func ChannelAvailable(c string) (bool, error) {

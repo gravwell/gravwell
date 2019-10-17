@@ -1,3 +1,20 @@
+// Licensed to Elasticsearch B.V. under one or more contributor
+// license agreements. See the NOTICE file distributed with
+// this work for additional information regarding copyright
+// ownership. Elasticsearch B.V. licenses this file to you under
+// the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied.  See the License for the
+// specific language governing permissions and limitations
+// under the License.
+
 package wineventlog
 
 import (
@@ -10,15 +27,16 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/elastic/beats/winlogbeat/sys"
 	"golang.org/x/sys/windows"
+
+	"github.com/elastic/beats/winlogbeat/sys"
 )
 
 // Errors
 var (
 	// ErrorEvtVarTypeNull is an error that means the content of the EVT_VARIANT
 	// data is null.
-	ErrorEvtVarTypeNull = errors.New("Null EVT_VARIANT data")
+	ErrorEvtVarTypeNull = errors.New("null EVT_VARIANT data")
 )
 
 // bookmarkTemplate is a parameterized string that requires two parameters,
@@ -85,6 +103,44 @@ loop:
 	return channels, nil
 }
 
+// EvtOpenLog gets a handle to a channel or log file that you can then use to
+// get information about the channel or log file.
+func EvtOpenLog(session EvtHandle, path string, flags EvtOpenLogFlag) (EvtHandle, error) {
+	var err error
+	var pathPtr *uint16
+	if path != "" {
+		pathPtr, err = syscall.UTF16PtrFromString(path)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return _EvtOpenLog(session, pathPtr, uint32(flags))
+}
+
+// EvtQuery runs a query to retrieve events from a channel or log file that
+// match the specified query criteria.
+func EvtQuery(session EvtHandle, path string, query string, flags EvtQueryFlag) (EvtHandle, error) {
+	var err error
+	var pathPtr *uint16
+	if path != "" {
+		pathPtr, err = syscall.UTF16PtrFromString(path)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	var queryPtr *uint16
+	if query != "" {
+		queryPtr, err = syscall.UTF16PtrFromString(query)
+		if err != nil {
+			return 0, err
+		}
+	}
+
+	return _EvtQuery(session, pathPtr, queryPtr, uint32(flags))
+}
+
 // Subscribe creates a new subscription to an event log channel.
 func Subscribe(
 	session EvtHandle,
@@ -120,6 +176,12 @@ func Subscribe(
 	return eventHandle, nil
 }
 
+// EvtSeek seeks to a specific event in a query result set.
+func EvtSeek(resultSet EvtHandle, position int64, bookmark EvtHandle, flags EvtSeekFlag) error {
+	_, err := _EvtSeek(resultSet, position, bookmark, 0, uint32(flags))
+	return err
+}
+
 // EventHandles reads the event handles from a subscription. It attempt to read
 // at most maxHandles. ErrorNoMoreHandles is returned when there are no more
 // handles available to return. Close must be called on each returned EvtHandle
@@ -145,6 +207,18 @@ func EventHandles(subscription EvtHandle, maxHandles int) ([]EvtHandle, error) {
 	}
 
 	return eventHandles[:numRead], nil
+}
+
+// RenderEventSimple reads event data associated with an EvtHandle and renders
+// the data using a simple XML.  This function DOES NOT attempt to resolve
+// publisher metadata nor does it use the FormatEventString functionality
+// GRAVWELL NOTE/TODO - We have yet to see the FormatEventString call succeed
+// it always fails in the OpenPublisherMetadata call, which fails with an error about
+// not being able to find the specified file.  The call to OpenPublisherMetdata also
+// incurs SIGNIFICANT performance overhead, slowing rendering down a 1000 fold and
+// taxing the host system.
+func RenderEventSimple(eh EvtHandle, buf []byte, out io.Writer) error {
+	return RenderEventXML(eh, buf, out)
 }
 
 // RenderEvent reads the event data associated with the EvtHandle and renders
@@ -176,7 +250,6 @@ func RenderEvent(
 	// Only a single string is returned when rendering XML.
 	err = FormatEventString(EvtFormatMessageXml,
 		eventHandle, providerName, EvtHandle(publisherHandle), lang, renderBuf, out)
-
 	// Recover by rendering the XML without the RenderingInfo (message string).
 	if err != nil {
 		// Do not try to recover from InsufficientBufferErrors because these
@@ -184,7 +257,6 @@ func RenderEvent(
 		if _, ok := err.(sys.InsufficientBufferError); ok {
 			return err
 		}
-
 		err = RenderEventXML(eventHandle, renderBuf, out)
 	}
 
@@ -197,27 +269,18 @@ func RenderEvent(
 // XML will not include the message, and in this case RenderEvent should be
 // used.
 func RenderEventXML(eventHandle EvtHandle, renderBuf []byte, out io.Writer) error {
-	var bufferUsed, propertyCount uint32
-	err := _EvtRender(0, eventHandle, EvtRenderEventXml, uint32(len(renderBuf)),
-		&renderBuf[0], &bufferUsed, &propertyCount)
-	if err == ERROR_INSUFFICIENT_BUFFER {
-		return sys.InsufficientBufferError{err, int(bufferUsed)}
-	}
-	if err != nil {
-		return err
-	}
-
-	if int(bufferUsed) > len(renderBuf) {
-		return fmt.Errorf("Windows EvtRender reported that wrote %d bytes "+
-			"to the buffer, but the buffer can only hold %d bytes",
-			bufferUsed, len(renderBuf))
-	}
-	return sys.UTF16ToUTF8Bytes(renderBuf[:bufferUsed], out)
+	return renderXML(eventHandle, EvtRenderEventXml, renderBuf, out)
 }
 
-// CreateBookmark creates a new handle to a bookmark. Close must be called on
-// returned EvtHandle when finished with the handle.
-func CreateBookmark(channel string, recordID uint64) (EvtHandle, error) {
+// RenderBookmarkXML renders a bookmark as XML.
+func RenderBookmarkXML(bookmarkHandle EvtHandle, renderBuf []byte, out io.Writer) error {
+	return renderXML(bookmarkHandle, EvtRenderBookmark, renderBuf, out)
+}
+
+// CreateBookmarkFromRecordID creates a new bookmark pointing to the given recordID
+// within the supplied channel. Close must be called on returned EvtHandle when
+// finished with the handle.
+func CreateBookmarkFromRecordID(channel string, recordID uint64) (EvtHandle, error) {
 	xml := fmt.Sprintf(bookmarkTemplate, channel, recordID)
 	p, err := syscall.UTF16PtrFromString(xml)
 	if err != nil {
@@ -230,6 +293,30 @@ func CreateBookmark(channel string, recordID uint64) (EvtHandle, error) {
 	}
 
 	return h, nil
+}
+
+// CreateBookmarkFromEvent creates a new bookmark pointing to the given event.
+// Close must be called on returned EvtHandle when finished with the handle.
+func CreateBookmarkFromEvent(handle EvtHandle) (EvtHandle, error) {
+	h, err := _EvtCreateBookmark(nil)
+	if err != nil {
+		return 0, err
+	}
+	if err = _EvtUpdateBookmark(h, handle); err != nil {
+		return 0, err
+	}
+	return h, nil
+}
+
+// CreateBookmarkFromXML creates a new bookmark from the serialised representation
+// of an existing bookmark. Close must be called on returned EvtHandle when
+// finished with the handle.
+func CreateBookmarkFromXML(bookmarkXML string) (EvtHandle, error) {
+	xml, err := syscall.UTF16PtrFromString(bookmarkXML)
+	if err != nil {
+		return 0, err
+	}
+	return _EvtCreateBookmark(xml)
 }
 
 // CreateRenderContext creates a render context. Close must be called on
@@ -329,7 +416,7 @@ func FormatEventString(
 		uint32(len(buffer)/2), &buffer[0], &bufferUsed)
 	bufferUsed *= 2
 	if err == ERROR_INSUFFICIENT_BUFFER {
-		return sys.InsufficientBufferError{err, int(bufferUsed)}
+		return sys.InsufficientBufferError{Cause: err, RequiredSize: int(bufferUsed)}
 	}
 	if err != nil {
 		return err
@@ -402,7 +489,7 @@ func evtRenderProviderName(renderBuf []byte, eventHandle EvtHandle) (string, err
 	err := _EvtRender(providerNameContext, eventHandle, EvtRenderEventValues,
 		uint32(len(renderBuf)), &renderBuf[0], &bufferUsed, &propertyCount)
 	if err == ERROR_INSUFFICIENT_BUFFER {
-		return "", sys.InsufficientBufferError{err, int(bufferUsed)}
+		return "", sys.InsufficientBufferError{Cause: err, RequiredSize: int(bufferUsed)}
 	}
 	if err != nil {
 		return "", fmt.Errorf("evtRenderProviderName %v", err)
@@ -410,4 +497,24 @@ func evtRenderProviderName(renderBuf []byte, eventHandle EvtHandle) (string, err
 
 	reader := bytes.NewReader(renderBuf)
 	return readString(renderBuf, reader)
+}
+
+func renderXML(eventHandle EvtHandle, flag EvtRenderFlag, renderBuf []byte, out io.Writer) error {
+	var bufferUsed, propertyCount uint32
+
+	err := _EvtRender(0, eventHandle, flag, uint32(len(renderBuf)),
+		&renderBuf[0], &bufferUsed, &propertyCount)
+	if err == ERROR_INSUFFICIENT_BUFFER {
+		return sys.InsufficientBufferError{Cause: err, RequiredSize: int(bufferUsed)}
+	}
+	if err != nil {
+		return err
+	}
+
+	if int(bufferUsed) > len(renderBuf) {
+		return fmt.Errorf("Windows EvtRender reported that wrote %d bytes "+
+			"to the buffer, but the buffer can only hold %d bytes",
+			bufferUsed, len(renderBuf))
+	}
+	return sys.UTF16ToUTF8Bytes(renderBuf[:bufferUsed], out)
 }
