@@ -19,7 +19,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/config"
 	"github.com/gravwell/ingest/v3/entry"
 
 	"gopkg.in/gcfg.v1"
@@ -55,15 +57,9 @@ type EventStreamConfig struct {
 
 type CfgType struct {
 	Global struct {
-		Ingest_Secret              string
-		Connection_Timeout         string
-		Verify_Remote_Certificates bool
-		Cleartext_Backend_Target   []string
-		Encrypted_Backend_Target   []string
-		Bookmark_Location          string
-		Ignore_Timestamps          bool
-		Ingest_Cache_Path          string
-		Log_Level                  string
+		config.IngestConfig
+		Bookmark_Location string
+		Ignore_Timestamps bool
 	}
 	EventChannel map[string]*EventStreamConfig
 }
@@ -98,34 +94,31 @@ func GetConfig(path string) (*CfgType, error) {
 	if err := c.verify(); err != nil {
 		return nil, err
 	}
+	// Verify and set UUID
+	if _, ok := c.Global.IngesterUUID(); !ok {
+		id := uuid.New()
+		if err = c.Global.SetIngesterUUID(id, path); err != nil {
+			return nil, err
+		}
+		if id2, ok := c.Global.IngesterUUID(); !ok || id != id2 {
+			return nil, errors.New("Failed to set a new ingester UUID")
+		}
+	}
 	return &c, nil
 }
 
 func (c *CfgType) verify() error {
-	if len(c.Global.Ingest_Secret) == 0 {
-		return errors.New("Missing ingest secret")
+	//verify the global parameters
+	if err := c.Global.Verify(); err != nil {
+		return err
 	}
-	if to, err := c.parseTimeout(); err != nil || to < 0 {
-		if err != nil {
-			return err
-		}
-		return errors.New("Invalid connection timeout")
-	}
-	if c.Global.Ingest_Secret == "" {
-		return errors.New("Ingest-Secret not specified")
-	}
+
 	if c.Global.Bookmark_Location == "" {
 		b, err := ServiceFilename(defaultBookmarkName)
 		if err != nil {
 			return err
 		}
 		c.Global.Bookmark_Location = b
-	}
-	//ensure there is at least one target
-	connCount := len(c.Global.Cleartext_Backend_Target) +
-		len(c.Global.Encrypted_Backend_Target)
-	if connCount == 0 {
-		return errors.New("No backend targets specified")
 	}
 	for _, v := range c.EventChannel {
 		v.normalize()
