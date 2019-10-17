@@ -49,3 +49,5 @@ require (
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/jcmturner/gokrb5.v7 v7.3.0 // indirect
 )
+
+// replace github.com/gravwell/winevent/v3 => ~/githubwork/winevent // for debugging

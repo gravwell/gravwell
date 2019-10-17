@@ -303,7 +303,7 @@ func (m *mainService) consumeEvents() (bool, error) {
 	//we have an IP and some hot connections, do stuff
 	//service events
 	for _, eh := range m.evtSrcs {
-		threw, err := m.serviceEventStreamChunk(eh, ip)
+		threw, err := m.serviceEventStream(eh, ip)
 		if err != nil {
 			return false, err
 		}
@@ -317,11 +317,29 @@ func (m *mainService) consumeEvents() (bool, error) {
 	return again, nil
 }
 
-func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (bool, error) {
+func (m *mainService) serviceEventStream(eh eventSrc, ip net.IP) (threw bool, err error) {
+	//feed from the stream until we don't get any entries out
+	for {
+		if cnt, lerr := m.serviceEventStreamChunk(eh, ip); lerr != nil {
+			if lerr != nil {
+				err = lerr
+				return
+			}
+		} else if cnt > 0 {
+			threw = true
+		} else {
+			break
+		}
+	}
+	return
+}
+
+func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (int, error) {
 	ents, err := eh.h.Read()
 	if err != nil {
-		return false, err
+		return 0, err
 	}
+
 	for _, e := range ents {
 		var ts entry.Timestamp
 		var ok bool
@@ -329,7 +347,7 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (bool, err
 		if !m.ignoreTS {
 			lts, ok, err = m.tg.Extract(e)
 			if err != nil {
-				return false, err
+				return 0, err
 			}
 			ts = entry.FromStandard(lts)
 		}
@@ -338,7 +356,7 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (bool, err
 		}
 		recordID, err := extractRecordID(e)
 		if err != nil {
-			return false, err
+			return 0, err
 		}
 		eh.h.SetLast(recordID)
 		ent := &entry.Entry{
@@ -348,16 +366,16 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (bool, err
 			Data: e,
 		}
 		if err := m.igst.WriteEntry(ent); err != nil {
-			return false, err
+			return 0, err
 		}
 		if err := m.bmk.Update(eh.h.Name(), recordID); err != nil {
-			return false, err
+			return 0, err
 		}
 	}
 	if len(ents) > 0 {
 		debugout("Pulled %d events from %s\n", len(ents), eh.h.Name())
 	}
-	return len(ents) > 0, nil
+	return len(ents), nil
 }
 
 func extractRecordID(buf []byte) (uint64, error) {
