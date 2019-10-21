@@ -31,7 +31,7 @@ type datum struct {
 	TS string `json:"time"`
 	Account
 	Class     int      `json:"class"`
-	Groups    []string `json:"groups",omitempty`
+	Groups    []string `json:"groups,omitempty"`
 	UserAgent string   `json:"user_agent"`
 	IP        string   `json:"ip"`
 	Data      string   `json:"data"`
