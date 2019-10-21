@@ -264,8 +264,8 @@ func main() {
 	requestClose(sniffs)
 	res := gatherResponse(sniffs)
 	closeHandles(sniffs)
-	if err := igst.Close(); err != nil {
-		lg.Fatal("Failed to close ingester %v", err)
+	if err := igst.Sync(time.Second); err != nil {
+		lg.Error("Failed to sync the ingester: %v\n", err)
 	}
 	durr := time.Since(start)
 
@@ -274,10 +274,6 @@ func main() {
 		lg.Info("Total Count: %s\n", ingest.HumanCount(res.Count))
 		lg.Info("Entry Rate: %s\n", ingest.HumanEntryRate(res.Count, durr))
 		lg.Info("Ingest Rate: %s\n", ingest.HumanRate(res.Bytes, durr))
-	}
-	if err := igst.Sync(time.Second); err != nil {
-		lg.Error("Failed to sync the ingester: %v\n", err)
-		return
 	}
 	if err := igst.Close(); err != nil {
 		lg.Error("Failed to close the ingester: %v\n", err)

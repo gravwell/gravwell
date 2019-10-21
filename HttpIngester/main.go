@@ -186,8 +186,9 @@ func main() {
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
-	defer igst.Sync(time.Second)
+	// defer is LIFO
 	defer igst.Close()
+	defer igst.Sync(time.Second)
 	if cfg.TLSEnabled() {
 		c := cfg.TLS_Certificate_File
 		k := cfg.TLS_Key_File
