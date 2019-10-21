@@ -62,3 +62,13 @@ func getUser() Account {
 func getGroup() string {
 	return groups[rand.Intn(len(groups))]
 }
+
+func getGroups() (r []string) {
+	if cnt := rand.Intn(3); cnt > 0 {
+		r = make([]string, cnt)
+		for i := range r {
+			r[i] = getGroup()
+		}
+	}
+	return
+}

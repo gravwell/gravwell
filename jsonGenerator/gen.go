@@ -30,11 +30,11 @@ type datum struct {
 	//TS        time.Time `json:"time"`
 	TS string `json:"time"`
 	Account
-	Class     int    `json:"class"`
-	Group     string `json:"group"`
-	UserAgent string `json:"useragent"`
-	IP        string `json:"ip"`
-	Data      string `json:"data"`
+	Class     int      `json:"class"`
+	Groups    []string `json:"groups",omitempty`
+	UserAgent string   `json:"user_agent"`
+	IP        string   `json:"ip"`
+	Data      string   `json:"data"`
 }
 
 var (
@@ -46,7 +46,7 @@ func init() {
 	var err error
 	v4gen, err = ipgen.RandomWeightedV4Generator(40)
 	if err != nil {
-		log.Fatal("Failed to instantiate v4 generator: %v", err)
+		log.Fatalf("Failed to instantiate v4 generator: %v", err)
 	}
 }
 
@@ -122,7 +122,7 @@ func genData(ts time.Time) (r []byte) {
 	d.TS = ts.UTC().Format(time.RFC3339)
 	d.Class = rand.Int() % 0xffff
 	d.Data = rd.Paragraph()
-	d.Group = getGroup()
+	d.Groups = getGroups()
 	d.Account = getUser()
 	d.UserAgent = rd.UserAgentString()
 	d.IP = v4gen.IP().String()
