@@ -11,13 +11,14 @@ package config
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"reflect"
-	"regexp"
+	"strconv"
 	"strings"
 
-	"gopkg.in/ini.v1"
+	"github.com/traetox/gcfg"
 )
 
 const (
@@ -30,66 +31,20 @@ var (
 	ErrConfigNotOpen          = errors.New("Configuration is not open")
 	ErrInvalidImportInterface = errors.New("Invalid import interface argument")
 	ErrInvalidImportParameter = errors.New("parameter is not a pointer")
+	ErrInvalidArgument        = errors.New("Invalid argument")
 	ErrInvalidMapKeyType      = errors.New("invalid map key type, must be string")
 	ErrInvalidMapValueType    = errors.New("invalid map value type, must be pointer to struct")
-	ErrBadSection             = errors.New("Section has not be initialized")
+	ErrBadMap                 = errors.New("VariableConfig has not be initialized")
 )
 
-var (
-	mpMatch = regexp.MustCompile(`(\S+)\s+(.+)`)
-)
-
-type Config struct {
-	f *ini.File
+type VariableConfig struct {
+	gcfg.Idxer
+	Vals map[gcfg.Idx]*string
 }
 
-type Section struct {
-	sct      *ini.Section
-	sectType string
-	sectName string
-}
-
-type StructMapper interface {
-	MapTo(v interface{}) error
-	Keys() []string
-	KeyValue(string) (string, error)
-}
-
-// LoadConfigFile is a simple wrapper that makes loading a config file directly into a type easier
-func LoadFileConfig(p string, v interface{}) error {
-	if c, err := OpenFile(p); err != nil {
-		return err
-	} else if err = c.Import(v); err != nil {
-		return err
-	}
-	return nil
-}
-
-func LoadBytesConfig(b []byte, v interface{}) error {
-	if c, err := OpenBytes(b); err != nil {
-		return err
-	} else if err = c.Import(v); err != nil {
-		return err
-	}
-	return nil
-}
-
-// OpenBytes will attempt to open a Config using a byte buffer
-func OpenBytes(b []byte) (c *Config, err error) {
-	var f *ini.File
-	if f, err = ini.Load(b); err != nil {
-		return
-	}
-	f.NameMapper = nameMapper
-	c = &Config{
-		f: f,
-	}
-	return
-}
-
-// OpenFile will open a config file, check the file size, and load the bytes using OpenConfigBytes
-// this is a convienence wrapper
-func OpenFile(p string) (c *Config, err error) {
+// LoadConfigFile will open a config file, check the file size
+// and load the bytes using LoadBytesConfig
+func LoadConfigFile(v interface{}, p string) (err error) {
 	var fin *os.File
 	var fi os.FileInfo
 	var n int64
@@ -111,51 +66,23 @@ func OpenFile(p string) (c *Config, err error) {
 	} else if n != fi.Size() {
 		fin.Close()
 		err = ErrFailedFileRead
-		return
-	} else if err = fin.Close(); err != nil {
-		return
-	}
-	c, err = OpenBytes(bb.Bytes())
-	return
-}
-
-func (c *Config) GetSections(sectType string) (sects []Section, err error) {
-	if c == nil || c.f == nil {
-		err = ErrConfigNotOpen
-		return
-	}
-	for _, v := range c.f.Sections() {
-		var s Section
-		var ok bool
-		if s.sectType, s.sectName, ok = sectionMapMapper(v.Name()); !ok {
-			s.sectType = v.Name()
-		}
-		if s.sectType == sectType {
-			s.sct = v
-			sects = append(sects, s)
-		}
+	} else if err = fin.Close(); err == nil {
+		err = LoadConfigBytes(v, bb.Bytes())
 	}
 	return
 }
 
-// Import loads the config file into the given interface
-// the parameter must be a pointer to a type
-func (c *Config) Import(v interface{}) error {
-	if c == nil || c.f == nil {
-		return ErrConfigNotOpen
-	} else if reflect.ValueOf(v).Kind() != reflect.Ptr {
-		return ErrInvalidImportParameter
-	} else if v == nil {
-		return ErrInvalidImportInterface
-	} else if err := c.f.MapTo(v); err != nil {
-		return err
+func LoadConfigBytes(v interface{}, b []byte) error {
+	if int64(len(b)) > maxConfigSize {
+		return ErrConfigFileTooLarge
 	}
-	return c.importMaps(v)
+	return gcfg.ReadStringInto(v, string(b))
 }
 
 // importMaps walks the structure using reflection and imports any members that are map types
 // if the map is nil we initialize it
 // the the goINI package doesn't handle map types for sub sections so we have to do it ourselves
+/*
 func (c *Config) importMaps(v interface{}) error {
 	if reflect.ValueOf(v).Kind() != reflect.Ptr {
 		return ErrInvalidImportParameter
@@ -173,92 +100,112 @@ func (c *Config) importMaps(v interface{}) error {
 	}
 	return nil
 }
+*/
 
-func (c *Config) importMap(name string, v reflect.Value) error {
-	//ensure the key is of type string
-	if v.Type().Key().Kind() != reflect.String {
-		return ErrInvalidMapKeyType
+func (vc VariableConfig) MapTo(v interface{}) (err error) {
+	if vc.Vals == nil {
+		err = ErrBadMap
+	} else if v == nil {
+		err = ErrInvalidImportParameter
+	} else if reflect.ValueOf(v).Kind() != reflect.Ptr {
+		return ErrInvalidImportParameter
+	} else {
+		err = vc.mapStruct(v)
+	}
+	return
+}
+
+func (vc VariableConfig) Get(name string) (v string, ok bool) {
+	var temp *string
+	if temp = vc.Vals[vc.Idx(name)]; temp != nil {
+		v = *temp
+		ok = true
+	}
+	return
+}
+
+func (vc VariableConfig) mapStruct(v interface{}) error {
+	if reflect.ValueOf(v).Kind() != reflect.Ptr {
+		return ErrInvalidImportParameter
 	}
 	// ensure the value is a pointer to a struct
-	if v.Type().Elem().Kind() != reflect.Ptr {
-		return ErrInvalidMapValueType
-	} else if v.Type().Elem().Elem().Kind() != reflect.Struct {
+	rv := reflect.ValueOf(v).Elem()
+	if rv.Type().Kind() != reflect.Struct {
 		return ErrInvalidMapValueType
 	}
-	if v.IsNil() {
-		v.Set(reflect.MakeMap(v.Type()))
-	}
-	name = strings.ToLower(name)
-	mpValType := v.Type().Elem().Elem()
-	for _, sect := range c.f.Sections() {
-		if sname, skey, ok := sectionMapMapper(sect.Name()); ok && sname == name {
-			val := reflect.New(mpValType)
-			if err := sect.MapTo(val.Interface()); err != nil {
-				return err
-			}
-			v.SetMapIndex(reflect.ValueOf(skey), val)
+	typeOf := rv.Type()
+	for i := 0; i < rv.NumField(); i++ {
+		if err := vc.setField(typeOf.Field(i).Name, rv.Field(i)); err != nil {
+			return err
 		}
 	}
 	return nil
-	//get a list of sections that match this
 }
 
-// trying to be clever here where we only lower case the first item
-func nameMapper(v string) (r string) {
-	return strings.ToLower(strings.ReplaceAll(v, "_", "-"))
-}
-
-// map a section name to a map name an key
-func sectionMapMapper(v string) (name, key string, ok bool) {
-	if mtch := mpMatch.FindStringSubmatch(v); len(mtch) == 3 {
-		name = strings.TrimSpace(mtch[1])
-		key = strings.Trim(strings.TrimSpace(mtch[2]), `"`)
-		ok = len(name) > 0 && len(key) > 0
+func (vc VariableConfig) setField(name string, v reflect.Value) (err error) {
+	strv, ok := vc.Get(nameMapper(name))
+	if !ok {
+		return
+	}
+	switch v.Type().Kind() {
+	case reflect.Int8:
+		fallthrough
+	case reflect.Int16:
+		fallthrough
+	case reflect.Int32:
+		fallthrough
+	case reflect.Int64:
+		fallthrough
+	case reflect.Int:
+		var vint int64
+		if vint, err = parseInt64(strv); err == nil {
+			if v.OverflowInt(vint) {
+				err = fmt.Errorf("%d overflows %T", vint, v.Interface())
+			} else {
+				v.SetInt(vint)
+			}
+		}
+	case reflect.Uint8:
+		fallthrough
+	case reflect.Uint16:
+		fallthrough
+	case reflect.Uint32:
+		fallthrough
+	case reflect.Uint64:
+		fallthrough
+	case reflect.Uint:
+		var vint uint64
+		if vint, err = parseUint64(strv); err == nil {
+			if v.OverflowUint(vint) {
+				err = fmt.Errorf("%d overflows %T", vint, v.Interface())
+			} else {
+				v.SetUint(vint)
+			}
+		}
+	case reflect.Float32:
+		fallthrough
+	case reflect.Float64:
+		var vf float64
+		if vf, err = strconv.ParseFloat(strv, 64); err == nil {
+			if v.OverflowFloat(vf) {
+				err = fmt.Errorf("%f overflows %T", vf, v.Interface())
+			} else {
+				v.SetFloat(vf)
+			}
+		}
+	case reflect.Bool:
+		var vb bool
+		if vb, err = strconv.ParseBool(strings.ToLower(strv)); err == nil {
+			v.SetBool(vb)
+		}
+	case reflect.String:
+		v.SetString(strv)
+	default:
+		err = fmt.Errorf("Cannot store into member %v: unknown type %T", name, v.Interface())
 	}
 	return
 }
 
-func (s Section) Type() string {
-	return s.sectType
-}
-
-func (s Section) Name() string {
-	return s.sectName
-}
-
-func (s Section) String() string {
-	if s.sectName != `` {
-		return s.sectType + `:` + s.sectName
-	}
-	return s.sectType
-}
-
-func (s Section) Keys() (r []string) {
-	if s.sct != nil {
-		r = s.sct.KeyStrings()
-	}
-	return
-}
-
-func (s Section) MapTo(v interface{}) (err error) {
-	if s.sct == nil {
-		err = ErrBadSection
-	} else if v == nil {
-		err = ErrInvalidImportParameter
-	} else {
-		err = s.sct.MapTo(v)
-	}
-	return
-}
-
-func (s Section) KeyValue(k string) (val string, err error) {
-	var v *ini.Key
-	if s.sct == nil {
-		err = ErrBadSection
-	} else if v == nil {
-		err = ErrInvalidImportParameter
-	} else if v, err = s.sct.GetKey(k); err == nil {
-		val = v.Value()
-	}
-	return
+func nameMapper(v string) string {
+	return strings.ReplaceAll(v, "_", "-")
 }

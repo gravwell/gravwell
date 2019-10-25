@@ -124,6 +124,15 @@ func parseUint64(v string) (i uint64, err error) {
 	return
 }
 
+func parseInt64(v string) (i int64, err error) {
+	if strings.HasPrefix(v, "0x") {
+		i, err = strconv.ParseInt(strings.TrimPrefix(v, "0x"), 16, 64)
+	} else {
+		i, err = strconv.ParseInt(v, 10, 64)
+	}
+	return
+}
+
 // lineParameter checks if the line contains the parameter provided
 // the parameter is considered provided if after a ToLower and TrimSpace the parameter is the prefix
 // empty lines and/or empty parameters are not checked
