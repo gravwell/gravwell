@@ -32,17 +32,19 @@ type global struct {
 	AWS_Secret_Access_Key string
 }
 
+type streamDef struct {
+	Stream_Name           string
+	Tag_Name              string
+	Iterator_Type         string
+	Region                string
+	Assume_Local_Timezone bool
+	Timezone_Override     string
+	Parse_Time            bool
+}
+
 type cfgType struct {
 	Global        global
-	KinesisStream map[string]*struct {
-		Stream_Name           string
-		Tag_Name              string
-		Iterator_Type         string
-		Region                string
-		Assume_Local_Timezone bool
-		Timezone_Override     string
-		Parse_Time            bool
-	}
+	KinesisStream map[string]*streamDef
 }
 
 func GetConfig(path string) (*cfgType, error) {
