@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
 
@@ -151,9 +152,17 @@ func main() {
 	sess := session.Must(session.NewSession())
 
 	for _, stream := range cfg.KinesisStream {
+		var usepp bool
+		var pp processors.Preprocessor
 		tagid, err := igst.GetTag(stream.Tag_Name)
 		if err != nil {
 			lg.Fatal("Can't resolve tag %v: %v", stream.Tag_Name, err)
+		}
+		if stream.Preprocessor != `` {
+			if pp, err = cfg.GetPreprocessor(stream.Preprocessor); err != nil {
+				lg.Fatal("Failed to load preprocessor %s: %v", stream.Preprocessor, err)
+			}
+			usepp = true
 		}
 
 		// get a handle on kinesis
@@ -262,9 +271,22 @@ func main() {
 					}
 					iter = *res.NextShardIterator
 					for _, r := range res.Records {
+						data := r.Data
+						tag := tagid
+						if usepp {
+							if tag, data, err = pp.Process(data, tag); err != nil {
+								//TODO - report this some how?
+								//FIXME - maybe throw this at the gravwell tag with a message?
+								//        maybe build a message about how many times this happened
+								//        Like the way syslog does it
+								//            where it says "last message repeated X times"
+								//        then only throw message once every 15min?
+								tag, data = tagid, r.Data
+							}
+						}
 						ent := &entry.Entry{
-							Data: r.Data,
-							Tag:  tagid,
+							Data: data,
+							Tag:  tag,
 							SRC:  src,
 						}
 						if stream.Parse_Time == false {

@@ -10,13 +10,13 @@ package main
 
 import (
 	"errors"
-	"os"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/ingest/v3/config"
-	"gopkg.in/gcfg.v1"
+	"github.com/gravwell/ingest/v3/processors"
 )
 
 const (
@@ -42,34 +42,14 @@ type cfgType struct {
 		Assume_Local_Timezone bool
 		Timezone_Override     string
 		Parse_Time            bool
+		Preprocessor          string
 	}
+	Preprocessor processors.PreprocessorConfig
 }
 
 func GetConfig(path string) (*cfgType, error) {
-	var content []byte
-	fin, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fi, err := fin.Stat()
-	if err != nil {
-		fin.Close()
-		return nil, err
-	}
-	//This is just a sanity check
-	if fi.Size() > MAX_CONFIG_SIZE {
-		fin.Close()
-		return nil, errors.New("Config File Far too large")
-	}
-	content = make([]byte, fi.Size())
-	n, err := fin.Read(content)
-	fin.Close()
-	if int64(n) != fi.Size() {
-		return nil, errors.New("Failed to read config file")
-	}
-
 	var c cfgType
-	if err := gcfg.ReadStringInto(&c, string(content)); err != nil {
+	if err := config.LoadConfigFile(&c, path); err != nil {
 		return nil, err
 	}
 	if err := verifyConfig(c); err != nil {
@@ -78,7 +58,7 @@ func GetConfig(path string) (*cfgType, error) {
 	// Verify and set UUID
 	if _, ok := c.Global.IngesterUUID(); !ok {
 		id := uuid.New()
-		if err = c.Global.SetIngesterUUID(id, path); err != nil {
+		if err := c.Global.SetIngesterUUID(id, path); err != nil {
 			return nil, err
 		}
 		if id2, ok := c.Global.IngesterUUID(); !ok || id != id2 {
@@ -108,7 +88,29 @@ func verifyConfig(c cfgType) error {
 	if len(c.KinesisStream) == 0 {
 		return errors.New("At least one Kinesis stream required.")
 	}
+	for k, v := range c.KinesisStream {
+		if v == nil {
+			return fmt.Errorf("Kinesis stream %v config is nil", k)
+		}
+		if v.Preprocessor != `` {
+			if err := c.CheckPreprocessor(v.Preprocessor); err != nil {
+				return fmt.Errorf("Kinesis stream %s preprocessor %s error: %v", k, v.Preprocessor, err)
+			}
+		}
+	}
 	return nil
+}
+
+func (c *cfgType) GetPreprocessor(name string) (p processors.Preprocessor, err error) {
+	name = strings.TrimSpace(name)
+	p, err = c.Preprocessor.GetPreprocessor(name)
+	return
+}
+
+func (c *cfgType) CheckPreprocessor(name string) (err error) {
+	name = strings.TrimSpace(name)
+	err = c.Preprocessor.CheckConfig(name)
+	return
 }
 
 func (c *cfgType) Targets() ([]string, error) {
