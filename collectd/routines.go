@@ -42,6 +42,7 @@ type collConfig struct {
 	defTag      entry.EntryTag
 	overrides   map[string]entry.EntryTag
 	srcOverride net.IP
+	src         net.IP // used if srcOverride is not set
 }
 
 func (bc collConfig) Validate() error {
@@ -148,9 +149,13 @@ func (ci *collectdInstance) Write(ctx context.Context, vl *api.ValueList) error 
 	if ci.useSrcOverride {
 		src = ci.srcOverride
 	} else {
-		if src, err = ci.igst.SourceIP(); err != nil {
-			return err
+		// if src is set, use it, otherwise ask the ingester
+		if ci.src.IsUnspecified() {
+			if src, err = ci.igst.SourceIP(); err == nil {
+				ci.src = src
+			}
 		}
+		src = ci.src // worst case we send 0.0.0.0
 	}
 	ents := make([]*entry.Entry, len(dts))
 	ts := entry.FromStandard(vl.Time)

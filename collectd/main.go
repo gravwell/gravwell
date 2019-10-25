@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"net"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -149,6 +150,11 @@ func main() {
 	}
 	debugout("Successfully connected to ingesters\n")
 
+	var src net.IP
+	if src, err = igst.SourceIP(); err != nil {
+		lg.Error("Failed to get a source IP from ingester")
+	}
+
 	//get our collectors built up
 	wg := &sync.WaitGroup{}
 	ccBase := collConfig{
@@ -172,6 +178,8 @@ func main() {
 		if cc.srcOverride, err = v.srcOverride(); err != nil {
 			lg.Fatal("%s Source-Override %s error: %v", k, v.Source_Override, err)
 		}
+
+		cc.src = src
 
 		cc.overrides = map[string]entry.EntryTag{}
 		for plugin, tagname := range overrides {

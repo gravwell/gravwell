@@ -187,9 +187,13 @@ func main() {
 			}
 		}
 		debugout("Read %d shards from stream %s\n", len(shards), stream.Stream_Name)
-
 		for i, shard := range shards {
-			go func(shard *kinesis.Shard, tagid entry.EntryTag, shardid int) {
+			// Detect and skip closed shards
+			if shard.SequenceNumberRange != nil && shard.SequenceNumberRange.EndingSequenceNumber != nil {
+				lg.Info("Shard %v on stream %s appears to be closed, skipping", *shard.ShardId, stream.Stream_Name)
+				continue
+			}
+			go func(stream streamDef, shard kinesis.Shard, tagid entry.EntryTag, shardid int) {
 				gsii := &kinesis.GetShardIteratorInput{}
 				gsii.SetShardId(*shard.ShardId)
 				gsii.SetShardIteratorType(stream.Iterator_Type)
@@ -247,6 +251,11 @@ func main() {
 					var err error
 					for {
 						res, err = svc.GetRecords(gri)
+						if res != nil {
+							if res.NextShardIterator != nil {
+								iter = *res.NextShardIterator
+							}
+						}
 						if err != nil {
 							if awsErr, ok := err.(awserr.Error); ok {
 								// process SDK error
@@ -261,15 +270,14 @@ func main() {
 								lg.Error("unknown error: %v", err)
 							}
 						} else {
+							// if we got no records, chill for a sec before we hit it again
+							if len(res.Records) == 0 {
+								time.Sleep(100 * time.Millisecond)
+							}
 							break
 						}
 					}
 
-					if res.NextShardIterator == nil {
-						// Hmm. Skip and try again.
-						continue
-					}
-					iter = *res.NextShardIterator
 					for _, r := range res.Records {
 						data := r.Data
 						tag := tagid
@@ -304,7 +312,7 @@ func main() {
 						eChan <- ent
 					}
 				}
-			}(shard, tagid, i)
+			}(*stream, *shard, tagid, i)
 		}
 	}
 
