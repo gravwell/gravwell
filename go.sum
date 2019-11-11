@@ -51,6 +51,12 @@ github.com/elastic/beats v7.4.0+incompatible h1:SzM8PVMGXHfop+3c11da+i5fI481hn5v
 github.com/elastic/beats v7.4.0+incompatible/go.mod h1:7cX7zGsOwJ01FLkZs9Tg5nBdnQi6XB3hYAyWekpKgeY=
 github.com/floren/ipfix v1.3.1-0.20180824220655-d9b7be2e36b7 h1:6+Hpxw1qUZxAHVc1oogCa7WOkj2bLnNSgnXroR1a/ok=
 github.com/floren/ipfix v1.3.1-0.20180824220655-d9b7be2e36b7/go.mod h1:mcz4MiSVWP7j4yQBD4rYvPwo7sH+9eL0YmOb08DsXKk=
+github.com/floren/o365 v0.0.0-20191108000847-ea95aea4752c h1:uv7kmxr5lk1W4zrsn0y1SpuN1t44OjpOE7OaxmyelXI=
+github.com/floren/o365 v0.0.0-20191108000847-ea95aea4752c/go.mod h1:lKkOlntbEX3G7T2kIOpBSrpNynG+yD58kpSkxsja90E=
+github.com/floren/o365 v0.0.0-20191111222151-45103472eddc h1:f1iloFBpUZehT63lSjXMENmMz+tUpgOtdvu38Qy/GSw=
+github.com/floren/o365 v0.0.0-20191111222151-45103472eddc/go.mod h1:+1TeJc/IBX0gGAfBf1ZHNJboVRZDNKor7sizUwEoEuM=
+github.com/floren/o365 v0.0.1 h1:KBGcVt63OSnKwW1KlI+M5IRV7YdQpWsD6M/7Xp1+BOM=
+github.com/floren/o365 v0.0.1/go.mod h1:+1TeJc/IBX0gGAfBf1ZHNJboVRZDNKor7sizUwEoEuM=
 github.com/fortytw2/leaktest v1.3.0 h1:u8491cBMTQ8ft8aeV+adlcytMZylmA5nnwwkRZjI8vw=
 github.com/fortytw2/leaktest v1.3.0/go.mod h1:jDsjWgpAGjm2CA7WthBh/CdZYEPF31XHquHwclZch5g=
 github.com/frankban/quicktest v1.4.1 h1:Wv2VwvNn73pAdFIVUQRXYDFp31lXKbqblIXo/Q5GPSg=
@@ -104,6 +110,8 @@ github.com/gravwell/ingest/v3 v3.2.5 h1:cWzeSjNDwquI1LNAS9lLOPET5i13aeH4ij1L729Q
 github.com/gravwell/ingest/v3 v3.2.5/go.mod h1:FEwXF8fgcIhMDyq47t30myKxP3d0yqqnS48Y/rlD9Ig=
 github.com/gravwell/netflow/v3 v3.2.3 h1:RdcNKLZEGJ+4PJ2xo/Lm1OVLHBN3TzRYkTDScgrFaNw=
 github.com/gravwell/netflow/v3 v3.2.3/go.mod h1:mOvZuUk8VYa6yQagfJwGNBd08EmJYbKjmK1EJ7jTTjk=
+github.com/gravwell/timegrinder v3.2.2+incompatible h1:lbmjmXpRUGv9b7PV3gWqJFxGebsbYWl4kZ8Tbtnahqw=
+github.com/gravwell/timegrinder v3.2.2+incompatible/go.mod h1:IoGGlWLv/XFesp0Dc/zVzCkyQsr9rc1P3L6J6APrWTQ=
 github.com/gravwell/timegrinder/v3 v3.2.3 h1:3CGFZGpsVRpodVwkuthBZF3It+wus6Fl1QjbcQdCOLw=
 github.com/gravwell/timegrinder/v3 v3.2.3/go.mod h1:5N5jpqRDBJaEw1GotCXb8hmGoNeOPDSBjin1Mz/6g1Q=
 github.com/gravwell/winevent/v3 v3.2.4 h1:KKsD7MwvHKBGtLUEP9oS/WUUiFTvmvm8riabr0jQaLg=
@@ -132,6 +140,8 @@ github.com/klauspost/compress v1.8.4 h1:Udk++ps4wOTuOpzZ3wTZxXP/6wEBELAJv3+DY+tl
 github.com/klauspost/compress v1.8.4/go.mod h1:RyIbtBH6LamlWaDj8nUwkbUhJ87Yi3uG0guNDohfE1A=
 github.com/klauspost/compress v1.8.6 h1:970MQcQdxX7hfgc/aqmB4a3grW0ivUVV6i1TLkP8CiE=
 github.com/klauspost/compress v1.8.6/go.mod h1:RyIbtBH6LamlWaDj8nUwkbUhJ87Yi3uG0guNDohfE1A=
+github.com/klauspost/compress v1.9.1 h1:TWy0o9J9c6LK9C8t7Msh6IAJNXbsU/nvKLTQUU5HdaY=
+github.com/klauspost/compress v1.9.1/go.mod h1:RyIbtBH6LamlWaDj8nUwkbUhJ87Yi3uG0guNDohfE1A=
 github.com/klauspost/cpuid v1.2.1 h1:vJi+O/nMdFt0vqm8NZBI6wzALWdA2X+egi0ogNyrC/w=
 github.com/klauspost/cpuid v1.2.1/go.mod h1:Pj4uuM528wm8OyEC2QMXAi2YiTZ96dNQPGgoMS4s3ek=
 github.com/kr/pretty v0.1.0 h1:L/CwN0zerZDmRFUapSPitk6f+Q3+0za1rQkzVuMiMFI=
@@ -248,6 +258,8 @@ golang.org/x/sys v0.0.0-20191008105621-543471e840be h1:QAcqgptGM8IQBC9K/RC4o+O9Y
 golang.org/x/sys v0.0.0-20191008105621-543471e840be/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20191025090151-53bf42e6b339 h1:zSqWKgm/o7HAnlAzBQ+aetp9fpuyytsXnKA8eiLHYQM=
 golang.org/x/sys v0.0.0-20191025090151-53bf42e6b339/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20191110163157-d32e6e3b99c4 h1:Hynbrlo6LbYI3H1IqXpkVDOcX/3HiPdhVEuyj5a59RM=
+golang.org/x/sys v0.0.0-20191110163157-d32e6e3b99c4/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.2 h1:tW2bmiBqwgJj/UpqtC8EpXEZVYOwU0yG4iWbprSVAcs=

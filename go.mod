@@ -14,6 +14,7 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/floren/ipfix v1.3.1-0.20180824220655-d9b7be2e36b7
+	github.com/floren/o365 v0.0.1
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
@@ -24,7 +25,7 @@ require (
 	github.com/gravwell/winevent/v3 v3.2.4
 	github.com/h2non/filetype v1.0.10
 	github.com/jcmturner/gofork v1.0.0 // indirect
-	github.com/klauspost/compress v1.8.6
+	github.com/klauspost/compress v1.9.1
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
@@ -37,7 +38,7 @@ require (
 	golang.org/x/exp v0.0.0-20190919035709-81c71964d733 // indirect
 	golang.org/x/net v0.0.0-20190923162816-aa69164e4478 // indirect
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
-	golang.org/x/sys v0.0.0-20191025090151-53bf42e6b339
+	golang.org/x/sys v0.0.0-20191110163157-d32e6e3b99c4
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	golang.org/x/tools v0.0.0-20190920130846-1081e67f6b77 // indirect
 	google.golang.org/api v0.10.0 // indirect
