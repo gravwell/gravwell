@@ -11,6 +11,7 @@ require (
 	github.com/aws/aws-sdk-go v1.24.2
 	github.com/buger/jsonparser v0.0.0-20181115193947-bf1c66bbce23
 	github.com/calmh/ipfix v1.3.0 // indirect
+	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/floren/ipfix v1.3.1-0.20180824220655-d9b7be2e36b7
