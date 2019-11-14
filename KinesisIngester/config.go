@@ -95,6 +95,10 @@ func verifyConfig(c cfgType) error {
 		if v == nil {
 			return fmt.Errorf("Kinesis stream %v config is nil", k)
 		}
+		if v.Iterator_Type == `` {
+			// default to LATEST
+			v.Iterator_Type = "LATEST"
+		}
 		if v.Preprocessor != `` {
 			if err := c.CheckPreprocessor(v.Preprocessor); err != nil {
 				return fmt.Errorf("Kinesis stream %s preprocessor %s error: %v", k, v.Preprocessor, err)
