@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	"path"
+	"sync"
 	"syscall"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
 	"github.com/gravwell/ingest/v3/processors"
+	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
 
@@ -75,6 +77,9 @@ func init() {
 }
 
 func main() {
+	var wg sync.WaitGroup
+	running := true
+
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
 		lg.Fatal("Failed to get configuration: %v", err)
@@ -93,6 +98,13 @@ func main() {
 			}
 		}
 	}
+
+	// Get the state file
+	stateFile, err := utils.NewState(cfg.Global.State_Store_Location, 0600)
+	if err != nil {
+		lg.Fatal("Couldn't open state file: %v", err)
+	}
+	stateMan := NewStateman(stateFile)
 
 	tags, err := cfg.Tags()
 	if err != nil {
@@ -194,10 +206,20 @@ func main() {
 				continue
 			}
 			go func(stream streamDef, shard kinesis.Shard, tagid entry.EntryTag, shardid int) {
+				wg.Add(1)
+				defer wg.Done()
 				gsii := &kinesis.GetShardIteratorInput{}
 				gsii.SetShardId(*shard.ShardId)
-				gsii.SetShardIteratorType(stream.Iterator_Type)
 				gsii.SetStreamName(stream.Stream_Name)
+				seqnum := stateMan.GetSequenceNum(stream.Stream_Name, *shard.ShardId)
+				if seqnum == `` {
+					// we don't have a previous state
+					debugout("No previous sequence number for stream %v shard %v, defaulting to %v\n", stream.Stream_Name, *shard.ShardId, stream.Iterator_Type)
+					gsii.SetShardIteratorType(stream.Iterator_Type)
+				} else {
+					gsii.SetShardIteratorType(`AFTER_SEQUENCE_NUMBER`)
+					gsii.SetStartingSequenceNumber(seqnum)
+				}
 
 				output, err := svc.GetShardIterator(gsii)
 				if err != nil {
@@ -244,8 +266,10 @@ func main() {
 						}
 					}
 				}(eChan)
-				for {
+				var lastSeqNum string
+				for running {
 					gri := &kinesis.GetRecordsInput{}
+					gri.SetLimit(5000)
 					gri.SetShardIterator(iter)
 					var res *kinesis.GetRecordsOutput
 					var err error
@@ -279,6 +303,7 @@ func main() {
 					}
 
 					for _, r := range res.Records {
+						lastSeqNum = *r.SequenceNumber
 						data := r.Data
 						tag := tagid
 						if usepp {
@@ -311,6 +336,10 @@ func main() {
 						}
 						eChan <- ent
 					}
+					// Now update the most recent sequence number
+					if lastSeqNum != `` {
+						stateMan.UpdateSequenceNum(stream.Stream_Name, *shard.ShardId, lastSeqNum)
+					}
 				}
 			}(*stream, *shard, tagid, i)
 		}
@@ -321,6 +350,10 @@ func main() {
 	signal.Notify(quitSig, os.Interrupt, os.Kill)
 
 	<-quitSig
+
+	running = false
+	wg.Wait()
+	stateMan.Close()
 }
 
 func debugout(format string, args ...interface{}) {
@@ -328,4 +361,61 @@ func debugout(format string, args ...interface{}) {
 		return
 	}
 	fmt.Printf(format, args...)
+}
+
+type stateman struct {
+	sync.Mutex
+	states    map[string]map[string]string // map of stream name to shard name to sequence number
+	stateFile *utils.State
+}
+
+func NewStateman(stateFile *utils.State) *stateman {
+	sm := stateman{
+		states:    make(map[string]map[string]string),
+		stateFile: stateFile,
+	}
+	stateFile.Read(&sm.states)
+	return &sm
+}
+
+func (s *stateman) Start() {
+	go func() {
+		for {
+			select {
+			case <-time.After(15 * time.Second):
+				s.Flush()
+			}
+		}
+	}()
+}
+
+func (s *stateman) Close() {
+	s.Flush()
+}
+
+func (s *stateman) Flush() {
+	s.Lock()
+	defer s.Unlock()
+	s.stateFile.Write(s.states)
+}
+
+func (s *stateman) UpdateSequenceNum(stream, shard, seq string) {
+	s.Lock()
+	defer s.Unlock()
+
+	_, ok := s.states[stream]
+	if !ok {
+		// initialize the stream
+		s.states[stream] = make(map[string]string)
+	}
+	s.states[stream][shard] = seq
+}
+
+func (s *stateman) GetSequenceNum(stream, shard string) string {
+	_, ok := s.states[stream]
+	if !ok {
+		// initialize the stream
+		s.states[stream] = make(map[string]string)
+	}
+	return s.states[stream][shard]
 }

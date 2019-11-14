@@ -26,7 +26,7 @@ require (
 	github.com/gravwell/winevent/v3 v3.2.4
 	github.com/h2non/filetype v1.0.10
 	github.com/jcmturner/gofork v1.0.0 // indirect
-	github.com/klauspost/compress v1.9.1
+	github.com/klauspost/compress v1.9.1 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
