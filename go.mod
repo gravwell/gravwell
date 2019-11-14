@@ -30,6 +30,7 @@ require (
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/shirou/gopsutil v2.18.12+incompatible
+	github.com/tealeg/xlsx v1.0.5
 	github.com/turnage/graw v0.0.0-20190218184947-3295929039f6
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	go.opencensus.io v0.22.1 // indirect
