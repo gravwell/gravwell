@@ -10,6 +10,7 @@ package processors
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 
@@ -22,6 +23,10 @@ const (
 	GzipProcessor string = `gzip`
 
 	gzipMagic uint16 = 0x8B1F
+)
+
+var (
+	ErrNotGzipped = errors.New("Input is not a gzipped stream")
 )
 
 type GzipDecompressorConfig struct {
@@ -55,10 +60,9 @@ func (gd *GzipDecompressor) Config(v interface{}) (err error) {
 	return
 }
 
-func (gd *GzipDecompressor) Process(val []byte, tag entry.EntryTag) (rtag entry.EntryTag, rbuf []byte, err error) {
+func (gd *GzipDecompressor) Process(val []byte, tag entry.EntryTag) (rset []EntryData, err error) {
 	var gzok bool
 	var gzr *gzip.Reader
-	rtag = tag
 	if len(val) > 2 {
 		//check for the gzip header
 		gzok = binary.LittleEndian.Uint16(val) == gzipMagic
@@ -66,8 +70,9 @@ func (gd *GzipDecompressor) Process(val []byte, tag entry.EntryTag) (rtag entry.
 	if !gzok {
 		//check if we are passing through
 		if gd.Passthrough_Non_Gzip {
-			rbuf = val
-			return
+			rset = []EntryData{
+				EntryData{Tag: tag, Data: val},
+			}
 		} else {
 			err = ErrNotGzipped
 		}
@@ -79,7 +84,7 @@ func (gd *GzipDecompressor) Process(val []byte, tag entry.EntryTag) (rtag entry.
 		bwtr := bytes.NewBuffer(nil)
 		if _, err = io.Copy(bwtr, gzr); err == nil {
 			if err = gzr.Close(); err == nil {
-				rbuf = bwtr.Bytes()
+				rset = []EntryData{EntryData{Tag: tag, Data: bwtr.Bytes()}}
 			}
 		}
 	}

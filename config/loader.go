@@ -142,6 +142,7 @@ func (vc VariableConfig) mapStruct(v interface{}) error {
 	return nil
 }
 
+// TODO FIXME - figure out how to deal with slices of a type so that we add to them
 func (vc VariableConfig) setField(name string, v reflect.Value) (err error) {
 	strv, ok := vc.Get(nameMapper(name))
 	if !ok {

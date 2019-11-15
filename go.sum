@@ -1,3 +1,5 @@
+github.com/floren/jsonparser v0.0.0-20191025224154-2951042f1c13 h1:adDuiv5zAql8Eb8i1EKeAz27X0uavB00WsDMj6jhUsw=
+github.com/floren/jsonparser v0.0.0-20191025224154-2951042f1c13/go.mod h1:errmMKH8tTB49UR2A8C8DPYkyudelsYJwJFaZHQ6ik8=
 github.com/google/go-write v0.0.0-20181107114627-56629a6b2542 h1:jCpVy/nfZ7ayHSZe3xdDhYy6TftqehkNU6hh8Kq+iW8=
 github.com/google/go-write v0.0.0-20181107114627-56629a6b2542/go.mod h1:NOSj1rhiMiScdUd1ere2UGAG2ZrYdyblYixNPWPlP5w=
 github.com/google/renameio v0.1.0 h1:GOZbcHa3HfsPKPlmyPyN2KEohoMXOhdMbHrvbpl2QaA=
