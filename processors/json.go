@@ -38,6 +38,7 @@ var (
 type JsonExtractConfig struct {
 	Passthrough_Misses bool
 	Strict_Extraction  bool
+	Force_JSON_Object  bool
 	Extractions        string
 }
 
@@ -63,9 +64,10 @@ func NewJsonExtractor(cfg JsonExtractConfig) (*JsonExtractor, error) {
 	return &JsonExtractor{
 		JsonExtractConfig: cfg,
 		bldr: builder{
-			bb:       bytes.NewBuffer(nil),
-			keys:     keys,
-			keynames: keynames,
+			forceJson: cfg.Force_JSON_Object,
+			bb:        bytes.NewBuffer(nil),
+			keys:      keys,
+			keynames:  keynames,
 		},
 	}, nil
 }
@@ -164,14 +166,38 @@ func inStringSet(set []string, key string) bool {
 }
 
 type builder struct {
-	comma    bool
-	cnt      int
-	bb       *bytes.Buffer
-	keys     [][]string
-	keynames []string
+	comma     bool
+	forceJson bool
+	cnt       int
+	bb        *bytes.Buffer
+	keys      [][]string
+	keynames  []string
 }
 
 func (b *builder) extract(data []byte) error {
+	if len(b.keys) > 1 || b.forceJson {
+		return b.extractJson(data)
+	}
+	return b.extractObject(data)
+}
+
+// Extracting a single field and not rewrapping in JSON with a key name
+func (b *builder) extractObject(data []byte) error {
+	v, _, _, err := jsonparser.Get(data, b.keys[0]...)
+	if err != nil {
+		if err == jsonparser.KeyPathNotFoundError {
+			err = nil
+		}
+	} else {
+		//got a successful extraction
+		b.cnt++
+		b.bb.Write(v)
+	}
+	return err
+}
+
+// extract and handle data as a JSON object
+func (b *builder) extractJson(data []byte) error {
 	for i, keys := range b.keys {
 		v, dt, _, err := jsonparser.Get(data, keys...)
 		if err != nil {
@@ -223,6 +249,7 @@ func addData(key string, dt jsonparser.ValueType, v []byte, bb *bytes.Buffer) {
 type JsonArraySplitConfig struct {
 	Passthrough_Misses bool
 	Extraction         string
+	Force_JSON_Object  bool
 }
 
 func JsonArraySplitLoadConfig(vc *config.VariableConfig) (c JsonArraySplitConfig, err error) {
@@ -308,7 +335,9 @@ func (je *JsonArraySplitter) genEntry(dt jsonparser.ValueType, v []byte, tag ent
 	if len(v) != 0 {
 		r.Tag = tag
 		ok = true
-		if dt == jsonparser.String {
+		if !je.Force_JSON_Object {
+			r.Data = v
+		} else if dt == jsonparser.String {
 			r.Data = []byte(fmt.Sprintf(`{"%s":"%s"}`, je.keyname, string(v)))
 		} else {
 			r.Data = []byte(fmt.Sprintf(`{"%s":%s}`, je.keyname, string(v)))

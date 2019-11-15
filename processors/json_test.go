@@ -22,12 +22,13 @@ var (
 
 	testArrayInputJson  = []byte(`{"foo":{"bar":["a", "b", 1.4, {"stuff":"things"}]}}`)
 	testArrayExtraction = `foo.bar`
-	testArrayValues     = []string{
+	testJSONArrayValues = []string{
 		`{"bar":"a"}`,
 		`{"bar":"b"}`,
 		`{"bar":1.4}`,
 		`{"bar":{"stuff":"things"}}`,
 	}
+	testArrayValues = []string{`a`, `b`, `1.4`, `{"stuff":"things"}`}
 )
 
 func TestJsonConfig(t *testing.T) {
@@ -151,6 +152,7 @@ func TestJsonArraySplit(t *testing.T) {
 		type = jsonarraysplit
 		Passthrough-Misses=false
 		Extraction="` + testArrayExtraction + `"
+		Force-JSON-Object=true
 	`)
 	tc := struct {
 		Global struct {
@@ -182,17 +184,17 @@ func TestJsonArraySplit(t *testing.T) {
 	rset, err := p.Process(testArrayInputJson, 123)
 	if err != nil {
 		t.Fatal(err)
-	} else if len(rset) != len(testArrayValues) {
-		t.Fatalf("return count mismatch: %d != %d", len(rset), len(testArrayValues))
+	} else if len(rset) != len(testJSONArrayValues) {
+		t.Fatalf("return count mismatch: %d != %d", len(rset), len(testJSONArrayValues))
 	}
 
 	for i := range rset {
 		if rset[i].Tag != 123 {
 			t.Fatalf("%d invalid return tag", rset[i].Tag)
 		}
-		if string(rset[i].Data) != testArrayValues[i] {
+		if string(rset[i].Data) != testJSONArrayValues[i] {
 			t.Fatalf("%d invalid return value: %s != %s", i,
-				string(rset[i].Data), testArrayValues[i])
+				string(rset[i].Data), testJSONArrayValues[i])
 		}
 	}
 }
@@ -223,7 +225,8 @@ func TestBzipJsonExtractArraySplit(t *testing.T) {
 
 	//add our json extractor
 	ecfg := JsonExtractConfig{
-		Extractions: `foo.bar`,
+		Force_JSON_Object: true,
+		Extractions:       `foo.bar`,
 	}
 	if p, err := NewJsonExtractor(ecfg); err != nil {
 		t.Fatal(p)
@@ -245,7 +248,7 @@ func TestBzipJsonExtractArraySplit(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(tw.ents) != len(testArrayValues) {
-		t.Fatalf("return count mismatch: %d != %d", len(tw.ents), len(testArrayValues))
+		t.Fatalf("return count mismatch: %d != %d", len(tw.ents), len(testJSONArrayValues))
 	}
 	for i := range tw.ents {
 		ent.Data = []byte(testArrayValues[i])
