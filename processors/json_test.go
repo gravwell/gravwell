@@ -16,6 +16,8 @@ import (
 )
 
 var (
+	testSrc = net.ParseIP("192.168.1.1")
+
 	testInputJson   = []byte(`{"foo": 99, "bar": "hello", "foobar": {"baz": 4.12}}`)
 	testOutputJson  = `{"foo":99,"bar":"hello","baz":4.12}`
 	testExtractions = `foo bar foobar.baz`
@@ -73,7 +75,7 @@ func TestJsonConfig(t *testing.T) {
 	if p == nil {
 		t.Fatal("no processor back")
 	}
-	rset, err := p.Process(testInputJson, 0)
+	rset, err := p.Process(makeEntry(testInputJson, 0))
 	if err != nil {
 		t.Fatal(err)
 	} else if len(rset) != 1 {
@@ -181,7 +183,7 @@ func TestJsonArraySplit(t *testing.T) {
 	if p == nil {
 		t.Fatal("no processor back")
 	}
-	rset, err := p.Process(testArrayInputJson, 123)
+	rset, err := p.Process(makeEntry(testArrayInputJson, 123))
 	if err != nil {
 		t.Fatal(err)
 	} else if len(rset) != len(testJSONArrayValues) {
@@ -255,5 +257,14 @@ func TestBzipJsonExtractArraySplit(t *testing.T) {
 		if !entryEqual(tw.ents[i], &ent) {
 			t.Fatal(i, "resulting ent is bad", string(ent.Data))
 		}
+	}
+}
+
+func makeEntry(v []byte, tag entry.EntryTag) *entry.Entry {
+	return &entry.Entry{
+		Tag:  tag,
+		SRC:  testSrc,
+		TS:   entry.Now(),
+		Data: v,
 	}
 }

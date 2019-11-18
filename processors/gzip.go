@@ -60,19 +60,20 @@ func (gd *GzipDecompressor) Config(v interface{}) (err error) {
 	return
 }
 
-func (gd *GzipDecompressor) Process(val []byte, tag entry.EntryTag) (rset []EntryData, err error) {
+func (gd *GzipDecompressor) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 	var gzok bool
 	var gzr *gzip.Reader
-	if len(val) > 2 {
+	if ent == nil {
+		return
+	}
+	if len(ent.Data) > 2 {
 		//check for the gzip header
-		gzok = binary.LittleEndian.Uint16(val) == gzipMagic
+		gzok = binary.LittleEndian.Uint16(ent.Data) == gzipMagic
 	}
 	if !gzok {
 		//check if we are passing through
 		if gd.Passthrough_Non_Gzip {
-			rset = []EntryData{
-				EntryData{Tag: tag, Data: val},
-			}
+			rset = []*entry.Entry{ent}
 		} else {
 			err = ErrNotGzipped
 		}
@@ -80,11 +81,12 @@ func (gd *GzipDecompressor) Process(val []byte, tag entry.EntryTag) (rset []Entr
 	}
 
 	//ok we we have gzip, go ahead and do the things
-	if gzr, err = gzip.NewReader(bytes.NewBuffer(val)); err == nil {
+	if gzr, err = gzip.NewReader(bytes.NewBuffer(ent.Data)); err == nil {
 		bwtr := bytes.NewBuffer(nil)
 		if _, err = io.Copy(bwtr, gzr); err == nil {
 			if err = gzr.Close(); err == nil {
-				rset = []EntryData{EntryData{Tag: tag, Data: bwtr.Bytes()}}
+				ent.Data = bwtr.Bytes()
+				rset = []*entry.Entry{ent}
 			}
 		}
 	}

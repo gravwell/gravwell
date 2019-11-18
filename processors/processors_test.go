@@ -71,7 +71,7 @@ func TestGzipLoadConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := p.Process([]byte("hello"), 0); err != ErrNotGzipped {
+	if _, err := p.Process(makeEntry([]byte("hello"), 0)); err != ErrNotGzipped {
 		t.Fatalf("Failed to catch bad gzip data")
 	}
 	val := `testing this test`
@@ -79,7 +79,7 @@ func TestGzipLoadConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if rset, err := p.Process(x, entry.EntryTag(99)); err != nil {
+	if rset, err := p.Process(makeEntry(x, entry.EntryTag(99))); err != nil {
 		t.Fatal(err)
 	} else if len(rset) != 1 {
 		t.Fatalf("Invalid result count: %d", len(rset))
@@ -99,13 +99,13 @@ func TestGzipProcessor(t *testing.T) {
 		t.Fatal(err)
 	}
 	//ensure we get an error about nongzip
-	if _, err := p.Process([]byte("hello"), 0); err != ErrNotGzipped {
+	if _, err := p.Process(makeEntry([]byte("hello"), 0)); err != ErrNotGzipped {
 		t.Fatalf("Failed to catch bad gzip data")
 	}
-	if _, err := p.Process(nil, 0); err != ErrNotGzipped {
+	if _, err := p.Process(makeEntry(nil, 0)); err != ErrNotGzipped {
 		t.Fatalf("Failed to catch bad gzip data")
 	}
-	if _, err := p.Process([]byte("X"), 0); err != ErrNotGzipped {
+	if _, err := p.Process(makeEntry([]byte("X"), 0)); err != ErrNotGzipped {
 		t.Fatalf("Failed to catch bad gzip data")
 	}
 
@@ -120,7 +120,7 @@ func TestGzipProcessor(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if rset, err := p.Process(x, entry.EntryTag(i)); err != nil {
+		if rset, err := p.Process(makeEntry(x, entry.EntryTag(i))); err != nil {
 			t.Fatal(err)
 		} else if len(rset) != 1 {
 			t.Fatalf("Invalid result count: %d", len(rset))
@@ -136,19 +136,19 @@ func TestGzipProcessor(t *testing.T) {
 	if err = p.Config(cfg); err != nil {
 		t.Fatal(err)
 	}
-	if rset, err := p.Process([]byte("hello"), 0); err != nil {
+	if rset, err := p.Process(makeEntry([]byte("hello"), 0)); err != nil {
 		t.Fatal(err)
 	} else if string(rset[0].Data) != `hello` {
 		t.Fatalf("Failed to pass through nongzip: %v", string(rset[0].Data))
 	}
-	if rset, err := p.Process(nil, 0); err != nil {
+	if rset, err := p.Process(makeEntry(nil, 0)); err != nil {
 		t.Fatal(err)
 	} else if len(rset) != 1 {
 		t.Fatalf("Invalid result count: %d", len(rset))
 	} else if rset[0].Data != nil {
 		t.Fatal("Failed to pass through nongzip")
 	}
-	if rset, err := p.Process([]byte("X"), 0); err != nil {
+	if rset, err := p.Process(makeEntry([]byte("X"), 0)); err != nil {
 		t.Fatal(err)
 	} else if len(rset) != 1 {
 		t.Fatalf("Invalid result count: %d", len(rset))

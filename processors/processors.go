@@ -10,7 +10,7 @@ package processors
 
 import (
 	"errors"
-	"net"
+	"fmt"
 	"strings"
 
 	"github.com/gravwell/ingest/v3/config"
@@ -35,17 +35,12 @@ type ProcessorSet struct {
 	set []Processor
 }
 
-type EntryData struct {
-	Data []byte
-	Tag  entry.EntryTag
-}
-
 type ProcessorConfig map[string]*config.VariableConfig
 
 // Processor is an interface that acts as an inline decompressor
 // the decompressor is used for doing an transparent decompression of data
 type Processor interface {
-	Process([]byte, entry.EntryTag) ([]EntryData, error) //process an data item potentially setting a tag
+	Process(*entry.Entry) ([]*entry.Entry, error) //process an data item potentially setting a tag
 }
 
 func CheckProcessor(id string) error {
@@ -163,28 +158,65 @@ func (pr *ProcessorSet) Process(ent *entry.Entry) error {
 		return pr.wtr.WriteEntry(ent)
 	}
 	//we have processors, start recursing into them
-	return pr.processItem(ent.TS, ent.SRC, ent.Data, ent.Tag, 0)
+	return pr.processItem(ent, 0)
 }
 
 // processItem recurses into each processor generating entries and writing them out
-func (pr *ProcessorSet) processItem(ts entry.Timestamp, src net.IP, data []byte, tag entry.EntryTag, i int) error {
+func (pr *ProcessorSet) processItem(ent *entry.Entry, i int) error {
 	if i >= len(pr.set) {
 		//we are at the end of the line, just write the entry
-		return pr.wtr.WriteEntry(&entry.Entry{
-			TS:   ts,
-			SRC:  src,
-			Data: data,
-			Tag:  tag,
-		})
+		return pr.wtr.WriteEntry(ent)
 	}
-	if set, err := pr.set[i].Process(data, tag); err != nil {
+	if set, err := pr.set[i].Process(ent); err != nil {
 		return err
 	} else {
 		for _, v := range set {
-			if err := pr.processItem(ts, src, v.Data, v.Tag, i+1); err != nil {
+			if err := pr.processItem(v, i+1); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+type tagWriter interface {
+	entWriter
+	Tagger
+}
+
+func (pc ProcessorConfig) ProcessorSet(t tagWriter, names []string) (pr *ProcessorSet, err error) {
+	if pc == nil {
+		err = errors.New("ProcessorConfig not ready")
+		return
+	}
+	pr = NewProcessorSet(t)
+	var p Processor
+	for _, n := range names {
+		if p, err = pc.GetProcessor(n, t); err != nil {
+			err = fmt.Errorf("%s %v", n, err)
+			return
+		}
+		pr.AddProcessor(p)
+	}
+	return
+}
+
+func (pc ProcessorConfig) Validate() (err error) {
+	for k, v := range pc {
+		if _, err = ProcessorLoadConfig(v); err != nil {
+			err = fmt.Errorf("Preprocessor %s config invalid: %v", k, err)
+			return
+		}
+	}
+	return
+}
+
+func (pc ProcessorConfig) CheckProcessors(set []string) (err error) {
+	for _, v := range set {
+		if _, ok := pc[v]; !ok {
+			err = fmt.Errorf("Preprocessor %s not defined", err)
+			break
+		}
+	}
+	return
 }

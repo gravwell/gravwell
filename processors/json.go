@@ -83,8 +83,11 @@ func (j *JsonExtractor) Config(v interface{}) (err error) {
 	return
 }
 
-func (je *JsonExtractor) Process(val []byte, tag entry.EntryTag) (rset []EntryData, err error) {
-	if err = je.bldr.extract(val); err != nil {
+func (je *JsonExtractor) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
+	if ent == nil {
+		return
+	}
+	if err = je.bldr.extract(ent.Data); err != nil {
 		je.bldr.reset()
 		return
 	}
@@ -92,9 +95,10 @@ func (je *JsonExtractor) Process(val []byte, tag entry.EntryTag) (rset []EntryDa
 	if je.Strict_Extraction && cnt != len(je.bldr.keynames) {
 		return nil, nil //just dropping the entry
 	} else if cnt == 0 && je.Passthrough_Misses {
-		rset = []EntryData{EntryData{Tag: tag, Data: val}}
+		rset = []*entry.Entry{ent}
 	} else if len(data) > 0 {
-		rset = []EntryData{EntryData{Tag: tag, Data: data}}
+		ent.Data = data
+		rset = []*entry.Entry{ent}
 	}
 	return
 }
@@ -224,8 +228,10 @@ func (b *builder) render() (r []byte, cnt int) {
 	if b.cnt == 0 {
 		return
 	}
-	io.WriteString(b.bb, "}")
-	r = b.bb.Bytes()
+	if len(b.keys) > 1 || b.forceJson {
+		io.WriteString(b.bb, "}")
+	}
+	r = append([]byte{}, b.bb.Bytes()...) //force allocation
 	cnt = b.cnt
 	b.reset()
 	return
@@ -310,20 +316,23 @@ func (j *JsonArraySplitter) Config(v interface{}) (err error) {
 	return
 }
 
-func (je *JsonArraySplitter) Process(val []byte, tag entry.EntryTag) (rset []EntryData, err error) {
+func (je *JsonArraySplitter) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 	cb := func(v []byte, dt jsonparser.ValueType, off int, lerr error) {
 		if len(v) == 0 {
 			return
 		}
-		if r, ok := je.genEntry(dt, v, tag); ok {
+		if r, ok := je.genEntry(dt, ent, v); ok {
 			rset = append(rset, r)
 		}
 		return
 	}
-	if _, err = jsonparser.ArrayEach(val, cb, je.key...); err != nil {
+	if ent == nil {
+		return
+	}
+	if _, err = jsonparser.ArrayEach(ent.Data, cb, je.key...); err != nil {
 		if err == jsonparser.KeyPathNotFoundError {
 			if je.Passthrough_Misses && rset == nil {
-				rset = []EntryData{EntryData{Data: val, Tag: tag}}
+				rset = []*entry.Entry{ent}
 			}
 			err = nil
 		}
@@ -331,10 +340,17 @@ func (je *JsonArraySplitter) Process(val []byte, tag entry.EntryTag) (rset []Ent
 	return
 }
 
-func (je *JsonArraySplitter) genEntry(dt jsonparser.ValueType, v []byte, tag entry.EntryTag) (r EntryData, ok bool) {
+func (je *JsonArraySplitter) genEntry(dt jsonparser.ValueType, ent *entry.Entry, v []byte) (r *entry.Entry, ok bool) {
+	if ent == nil || v == nil {
+		return
+	}
 	if len(v) != 0 {
-		r.Tag = tag
 		ok = true
+		r = &entry.Entry{
+			Tag: ent.Tag,
+			SRC: ent.SRC,
+			TS:  ent.TS,
+		}
 		if !je.Force_JSON_Object {
 			r.Data = v
 		} else if dt == jsonparser.String {
