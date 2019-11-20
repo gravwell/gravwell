@@ -18,6 +18,7 @@ import (
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/timegrinder/v3"
 )
 
@@ -32,7 +33,6 @@ type closer interface {
 }
 
 type handlerConfig struct {
-	ch               chan *entry.Entry
 	tag              entry.EntryTag
 	lrt              readerType
 	ignoreTimestamps bool
@@ -41,9 +41,10 @@ type handlerConfig struct {
 	src              net.IP
 	wg               *sync.WaitGroup
 	formatOverride   string
+	proc             *processors.ProcessorSet
 }
 
-func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry.Entry, wg *sync.WaitGroup) error {
+func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup) error {
 	//short circuit out on empty
 	if len(cfg.Listener) == 0 {
 		return nil
@@ -76,8 +77,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry
 		if err != nil {
 			lg.FatalCode(0, "Invalid reader type \"%s\": %v\n", v.Reader_Type, err)
 		}
-		cfg := handlerConfig{
-			ch:               ch,
+		hcfg := handlerConfig{
 			tag:              tag,
 			lrt:              lrt,
 			ignoreTimestamps: v.Ignore_Timestamps,
@@ -86,6 +86,12 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry
 			src:              src,
 			wg:               wg,
 			formatOverride:   v.Timestamp_Format_Override,
+		}
+		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
+			lg.Fatal("Preprocessor failure: %v", err)
+		}
+		if err != nil {
+			lg.Fatal("Preprocessor construction error: %v", err)
 		}
 		if tp.TCP() {
 			//get the socket
@@ -100,7 +106,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry
 			connID := addConn(l)
 			//start the acceptor
 			wg.Add(1)
-			go acceptor(l, connID, igst, cfg)
+			go acceptor(l, connID, igst, hcfg)
 		} else if tp.UDP() {
 			addr, err := net.ResolveUDPAddr(tp.String(), str)
 			if err != nil {
@@ -112,9 +118,8 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry
 			}
 			connID := addConn(l)
 			wg.Add(1)
-			go acceptorUDP(l, connID, cfg)
+			go acceptorUDP(l, connID, hcfg)
 		}
-
 	}
 	debugout("Started %d listeners\n", len(cfg.Listener))
 	return nil
@@ -170,19 +175,16 @@ func acceptorUDP(conn *net.UDPConn, id int, cfg handlerConfig) {
 	}
 }
 
-func handleLog(b []byte, ip net.IP, ignoreTS bool, tag entry.EntryTag, ch chan *entry.Entry, tg *timegrinder.TimeGrinder) error {
+func handleLog(b []byte, ip net.IP, ignoreTS bool, tag entry.EntryTag, tg *timegrinder.TimeGrinder) (ent *entry.Entry, err error) {
 	if len(b) == 0 {
-		return nil
+		return
 	}
 	var ok bool
 	var ts entry.Timestamp
 	var extracted time.Time
-	var err error
 	if !ignoreTS {
-		extracted, ok, err = tg.Extract(b)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Catastrophic timegrinder failure: %v\n", err)
-			return err
+		if extracted, ok, err = tg.Extract(b); err != nil {
+			return
 		}
 		if ok {
 			ts = entry.FromStandard(extracted)
@@ -192,13 +194,13 @@ func handleLog(b []byte, ip net.IP, ignoreTS bool, tag entry.EntryTag, ch chan *
 		ts = entry.Now()
 	}
 	//debugout("GOT (%v) %s\n", ts, string(b))
-	ch <- &entry.Entry{
+	ent = &entry.Entry{
 		SRC:  ip,
 		TS:   ts,
 		Tag:  tag,
 		Data: b,
 	}
-	return nil
+	return
 }
 
 func addConn(c closer) int {

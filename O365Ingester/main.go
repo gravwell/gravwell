@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2019 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -9,29 +9,28 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"net"
 	"os"
 	"os/signal"
 	"path"
+	"sync"
 	"syscall"
 	"time"
 
+	"github.com/floren/o365"
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
 	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kinesis"
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/kinesis_ingest.conf`
+	defaultConfigLoc = `/opt/gravwell/etc/o365_ingest.conf`
 )
 
 var (
@@ -40,6 +39,10 @@ var (
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	lg             *log.Logger
+	tracker        *stateTracker
+
+	ErrInvalidStateFile = errors.New("State file exists and is not a regular file")
+	ErrFailedSeek       = errors.New("Failed to seek to the start of the states file")
 )
 
 func init() {
@@ -71,6 +74,10 @@ func init() {
 			}
 		}
 	}
+}
+
+type event struct {
+	Id string
 }
 
 func main() {
@@ -139,158 +146,160 @@ func main() {
 	}
 	debugout("Successfully connected to ingesters\n")
 
-	// Set up environment variables for AWS auth, if extant
-	if cfg.Global.AWS_Access_Key_ID != "" {
-		os.Setenv("AWS_ACCESS_KEY_ID", cfg.Global.AWS_Access_Key_ID)
+	tracker, err = NewTracker(cfg.Global.State_Store_Location, 48*time.Hour, igst)
+	if err != nil {
+		lg.Fatal("Failed to initialize state file: %v", err)
 	}
-	if cfg.Global.AWS_Secret_Access_Key != "" {
-		os.Setenv("AWS_SECRET_ACCESS_KEY", cfg.Global.AWS_Secret_Access_Key)
+	tracker.Start()
+
+	// get the src we'll attach to entries
+	var src net.IP
+	if cfg.Global.Source_Override != `` {
+		// global override
+		src = net.ParseIP(cfg.Global.Source_Override)
+		if src == nil {
+			lg.Fatal("Global Source-Override is invalid")
+		}
 	}
 
-	// make an aws session
-	sess := session.Must(session.NewSession())
+	var wg sync.WaitGroup
 
-	for _, stream := range cfg.KinesisStream {
-		tagid, err := igst.GetTag(stream.Tag_Name)
-		if err != nil {
-			lg.Fatal("Can't resolve tag %v: %v", stream.Tag_Name, err)
-		}
+	// Instantiate the client
+	ocfg := o365.DefaultConfig
+	ocfg.ClientID = cfg.Global.Client_ID
+	ocfg.ClientSecret = cfg.Global.Client_Secret
+	ocfg.DirectoryID = cfg.Global.Directory_ID
+	ocfg.TenantDomain = cfg.Global.Tenant_Domain
+	ocfg.ContentTypes = cfg.ContentTypes()
+	o, err := o365.New(ocfg)
+	if err != nil {
+		lg.Fatal("Failed to get new client: %v", err)
+	}
 
-		procset, err := cfg.Preprocessor.ProcessorSet(igst, stream.Preprocessor)
-		if err != nil {
-			lg.Fatal("Preprocessor construction error: %v", err)
-		}
+	// Make sure there are subscriptions for all our requested content types
+	err = o.EnableSubscriptions()
+	if err != nil {
+		lg.Fatal("Failed to enable subscriptions: %v", err)
+	}
 
-		// get a handle on kinesis
-		svc := kinesis.New(sess, aws.NewConfig().WithRegion(stream.Region))
+	// For each content type we're interested in, launch a
+	// goroutine to read entries from Office 365 maintenance API
+	running := true
+	for k, v := range cfg.ContentType {
+		go func(name string, ct contentType) {
+			debugout("Started reader for content type %v\n", ct.Content_Type)
+			wg.Add(1)
+			defer wg.Done()
 
-		// Get the list of shards
-		shards := []*kinesis.Shard{}
-		dsi := &kinesis.DescribeStreamInput{}
-		dsi.SetStreamName(stream.Stream_Name)
-		for {
-			streamdesc, err := svc.DescribeStream(dsi)
+			// figure out which tag we're using
+			tag, err := igst.GetTag(ct.Tag_Name)
 			if err != nil {
-				lg.Error("Failed to get stream description: %v", err)
-				continue
+				lg.Fatal("Can't resolve tag %v: %v", ct.Tag_Name, err)
 			}
-			newshards := streamdesc.StreamDescription.Shards
-			shards = append(shards, newshards...)
-			if *streamdesc.StreamDescription.HasMoreShards {
-				dsi.SetExclusiveStartShardId(*(newshards[len(newshards)-1].ShardId))
-			} else {
-				break
-			}
-		}
-		debugout("Read %d shards from stream %s\n", len(shards), stream.Stream_Name)
-		for i, shard := range shards {
-			// Detect and skip closed shards
-			if shard.SequenceNumberRange != nil && shard.SequenceNumberRange.EndingSequenceNumber != nil {
-				lg.Info("Shard %v on stream %s appears to be closed, skipping", *shard.ShardId, stream.Stream_Name)
-				continue
-			}
-			go func(stream streamDef, shard kinesis.Shard, tagid entry.EntryTag, shardid int) {
-				gsii := &kinesis.GetShardIteratorInput{}
-				gsii.SetShardId(*shard.ShardId)
-				gsii.SetShardIteratorType(stream.Iterator_Type)
-				gsii.SetStreamName(stream.Stream_Name)
 
-				output, err := svc.GetShardIterator(gsii)
+			// set up time extraction rules
+			tcfg := timegrinder.Config{
+				EnableLeftMostSeed: true,
+			}
+			tg, err := timegrinder.NewTimeGrinder(tcfg)
+			if err != nil {
+				ct.Parse_Time = false
+			}
+			if ct.Assume_Local_Timezone {
+				tg.SetLocalTime()
+			}
+			if ct.Timezone_Override != `` {
+				err = tg.SetTimezone(ct.Timezone_Override)
 				if err != nil {
-					lg.Error("error on shard #%d (%s): %v", shardid, *shard.ShardId, err)
+					fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", ct.Timezone_Override, err)
 					return
 				}
-				if output.ShardIterator == nil {
-					// this is weird, we are going to bail out
-					lg.Error("Got nil initial shard iterator, bailing out")
-					return
-				}
-				iter := *output.ShardIterator
-				tcfg := timegrinder.Config{
-					EnableLeftMostSeed: true,
-				}
-				tg, err := timegrinder.NewTimeGrinder(tcfg)
+			}
+
+			// we'll do a sliding window, they warn it can take a long time for some logs to show up
+			for running {
+				end := time.Now()
+				start := end.Add(-24 * time.Hour)
+
+				content, err := o.ListAvailableContent(ct.Content_Type, start, end)
 				if err != nil {
-					stream.Parse_Time = false
+					lg.Error("Failed to list content type %v: %v", ct.Content_Type, err)
+					time.Sleep(10 * time.Second)
+					continue
 				}
-				if stream.Assume_Local_Timezone {
-					tg.SetLocalTime()
-				}
-				if stream.Timezone_Override != `` {
-					err = tg.SetTimezone(stream.Timezone_Override)
+
+				var uri, contentId string
+				var ok bool
+				var ent *entry.Entry
+				var events []json.RawMessage
+				var eventUnpacked event
+				for _, item := range content {
+					contentId, ok = item["contentId"]
+					if !ok {
+						continue
+					}
+
+					// CHECK IF ALREADY SEEN
+					if tracker.IdExists(contentId) {
+						continue
+					}
+					debugout("extracting %v\n", contentId)
+
+					uri, ok = item["contentUri"]
+					if !ok {
+						continue
+					}
+					result, err := o.GetContent(uri)
 					if err != nil {
-						fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", stream.Timezone_Override, err)
-						return
+						continue
 					}
-				}
-				var src net.IP
-				if cfg.Global.Source_Override != `` {
-					// global override
-					src = net.ParseIP(cfg.Global.Source_Override)
-					if src == nil {
-						lg.Fatal("Global Source-Override is invalid")
-					}
-				}
 
-				for {
-					gri := &kinesis.GetRecordsInput{}
-					gri.SetShardIterator(iter)
-					var res *kinesis.GetRecordsOutput
-					var err error
-					for {
-						res, err = svc.GetRecords(gri)
-						if res != nil {
-							if res.NextShardIterator != nil {
-								iter = *res.NextShardIterator
-							}
-						}
+					// Dumb fact: each item may have multiple events
+					err = json.Unmarshal(result, &events)
+					if err != nil {
+						continue
+					}
+					for _, evt := range events {
+						err = json.Unmarshal(evt, &eventUnpacked)
 						if err != nil {
-							if awsErr, ok := err.(awserr.Error); ok {
-								// process SDK error
-								if awsErr.Code() == kinesis.ErrCodeProvisionedThroughputExceededException {
-									lg.Warn("Throughput exceeded, trying again")
-									time.Sleep(500 * time.Millisecond)
-								} else {
-									lg.Error("%s: %s", awsErr.Code(), awsErr.Message())
-									time.Sleep(100 * time.Millisecond)
-								}
-							} else {
-								lg.Error("unknown error: %v", err)
-							}
-						} else {
-							// if we got no records, chill for a sec before we hit it again
-							if len(res.Records) == 0 {
-								time.Sleep(100 * time.Millisecond)
-							}
-							break
+							continue
 						}
-					}
-
-					for _, r := range res.Records {
-						ent := &entry.Entry{
-							Tag:  tagid,
+						if tracker.IdExists(eventUnpacked.Id) {
+							continue
+						}
+						ent = &entry.Entry{
+							Data: []byte(evt),
+							Tag:  tag,
 							SRC:  src,
-							Data: r.Data,
 						}
-						if stream.Parse_Time == false {
-							ent.TS = entry.FromStandard(*r.ApproximateArrivalTimestamp)
+						if ct.Parse_Time == false {
+							ent.TS = entry.Now()
 						} else {
 							ts, ok, err := tg.Extract(ent.Data)
 							if !ok || err != nil {
 								// something went wrong, switch to using kinesis timestamps
-								stream.Parse_Time = false
-								ent.TS = entry.FromStandard(*r.ApproximateArrivalTimestamp)
+								ct.Parse_Time = false
+								ent.TS = entry.Now()
 							} else {
 								ent.TS = entry.FromStandard(ts)
 							}
 						}
-						if err = procset.Process(ent); err != nil {
-							lg.Error("Failed to handle entry: %v", err)
+
+						// now write the entry
+						if err := igst.WriteEntry(ent); err != nil {
+							lg.Warn("Failed to write entry: %v", err)
 						}
+						// Add the Id to the temporary map
+						tracker.RecordId(eventUnpacked.Id, time.Now())
 					}
+					// Add the contentId to the temporary map
+					tracker.RecordId(contentId, time.Now())
+
 				}
-			}(*stream, *shard, tagid, i)
-		}
+				time.Sleep(5 * time.Second)
+			}
+
+		}(k, *v)
 	}
 
 	//register quit signals so we can die gracefully
@@ -298,6 +307,11 @@ func main() {
 	signal.Notify(quitSig, os.Interrupt, os.Kill)
 
 	<-quitSig
+	running = false
+	wg.Wait()
+
+	// Write the final state info
+	tracker.Close()
 }
 
 func debugout(format string, args ...interface{}) {

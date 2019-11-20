@@ -11,7 +11,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -19,8 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/config"
-
-	"gopkg.in/gcfg.v1"
+	"github.com/gravwell/ingest/v3/processors"
 )
 
 const (
@@ -44,6 +42,7 @@ type listener struct {
 	Tag_Name      string
 	Reader_Type   string
 	Keep_Priority bool // Leave the <nnn> priority value at the start of the log message
+	Preprocessor  []string
 }
 
 type base struct {
@@ -59,45 +58,27 @@ type cfgReadType struct {
 	Global       config.IngestConfig
 	Listener     map[string]*listener
 	JSONListener map[string]*jsonListener
+	Preprocessor processors.ProcessorConfig
 }
 
 type cfgType struct {
 	config.IngestConfig
 	Listener     map[string]*listener
 	JSONListener map[string]*jsonListener
+	Preprocessor processors.ProcessorConfig
 }
 
 func GetConfig(path string) (*cfgType, error) {
-	var content []byte
-	fin, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fi, err := fin.Stat()
-	if err != nil {
-		fin.Close()
-		return nil, err
-	}
-	//This is just a sanity check
-	if fi.Size() > MAX_CONFIG_SIZE {
-		fin.Close()
-		return nil, errors.New("Config File Far too large")
-	}
-	content = make([]byte, fi.Size())
-	n, err := fin.Read(content)
-	fin.Close()
-	if int64(n) != fi.Size() {
-		return nil, errors.New("Failed to read config file")
-	}
 	//read into the intermediary type to maintain backwards compatibility with the old system
 	var cr cfgReadType
-	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
+	if err := config.LoadConfigFile(&cr, path); err != nil {
 		return nil, err
 	}
 	c := &cfgType{
 		IngestConfig: cr.Global,
 		Listener:     cr.Listener,
 		JSONListener: cr.JSONListener,
+		Preprocessor: cr.Preprocessor,
 	}
 
 	if err := verifyConfig(c); err != nil {
@@ -106,7 +87,7 @@ func GetConfig(path string) (*cfgType, error) {
 	// Verify and set UUID
 	if _, ok := c.IngesterUUID(); !ok {
 		id := uuid.New()
-		if err = c.SetIngesterUUID(id, path); err != nil {
+		if err := c.SetIngesterUUID(id, path); err != nil {
 			return nil, err
 		}
 		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
@@ -123,6 +104,9 @@ func verifyConfig(c *cfgType) error {
 	}
 	if len(c.Listener) == 0 && len(c.JSONListener) == 0 {
 		return errors.New("No listeners specified")
+	}
+	if err := c.Preprocessor.Validate(); err != nil {
+		return err
 	}
 	bindMp := make(map[string]string, 1)
 	for k, v := range c.Listener {
@@ -148,6 +132,9 @@ func verifyConfig(c *cfgType) error {
 			return errors.New("Bind-String for " + k + " already in use by " + n)
 		}
 		bindMp[v.Bind_String] = k
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("Listener %s preprocessor invalid: %v", k, err)
+		}
 	}
 	for k, v := range c.JSONListener {
 		if err := v.base.Validate(); err != nil {
@@ -184,6 +171,9 @@ func verifyConfig(c *cfgType) error {
 			return errors.New("Bind-String for " + k + " already in use by " + n)
 		}
 		bindMp[v.Bind_String] = k
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("Listener %s preprocessor invalid: %v", k, err)
+		}
 	}
 	if err := checkJsonConfigs(c.JSONListener); err != nil {
 		return err

@@ -28,25 +28,28 @@ type readerType int
 
 type global struct {
 	config.IngestConfig
-	AWS_Access_Key_ID     string
-	AWS_Secret_Access_Key string
+	State_Store_Location string
+	Client_ID            string
+	Client_Secret        string
+	Directory_ID         string
+	Tenant_Domain        string
 }
 
-type streamDef struct {
-	Stream_Name           string
-	Tag_Name              string
-	Iterator_Type         string
-	Region                string
+type contentType struct {
+	Tag_Name     string
+	Content_Type string
+
 	Assume_Local_Timezone bool
 	Timezone_Override     string
 	Parse_Time            bool
-	Preprocessor          []string
+
+	Preprocessor string
 }
 
 type cfgType struct {
-	Global        global
-	KinesisStream map[string]*streamDef
-	Preprocessor  processors.ProcessorConfig
+	Global       global
+	ContentType  map[string]*contentType
+	Preprocessor processors.PreprocessorConfig
 }
 
 func GetConfig(path string) (*cfgType, error) {
@@ -87,21 +90,32 @@ func verifyConfig(c cfgType) error {
 	if connCount == 0 {
 		return errors.New("No backend targets specified")
 	}
-	if len(c.KinesisStream) == 0 {
-		return errors.New("At least one Kinesis stream required.")
+	if len(c.ContentType) == 0 {
+		return errors.New("At least one content type required.")
 	}
-	if err := c.Preprocessor.Validate(); err != nil {
-		return err
-	}
-	for k, v := range c.KinesisStream {
+	for k, v := range c.ContentType {
 		if v == nil {
-			return fmt.Errorf("Kinesis stream %v config is nil", k)
+			return fmt.Errorf("Content Type %v config is nil", k)
 		}
-		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
-			return fmt.Errorf("Kinesis stream %s preprocessor invalid: %v", k, err)
+		if v.Preprocessor != `` {
+			if err := c.CheckPreprocessor(v.Preprocessor); err != nil {
+				return fmt.Errorf("Content Type %s preprocessor %s error: %v", k, v.Preprocessor, err)
+			}
 		}
 	}
 	return nil
+}
+
+func (c *cfgType) GetPreprocessor(name string) (p processors.Preprocessor, err error) {
+	name = strings.TrimSpace(name)
+	p, err = c.Preprocessor.GetPreprocessor(name)
+	return
+}
+
+func (c *cfgType) CheckPreprocessor(name string) (err error) {
+	name = strings.TrimSpace(name)
+	err = c.Preprocessor.CheckConfig(name)
+	return
 }
 
 func (c *cfgType) Targets() ([]string, error) {
@@ -124,7 +138,7 @@ func (c *cfgType) Targets() ([]string, error) {
 func (c *cfgType) Tags() ([]string, error) {
 	var tags []string
 	tagMp := make(map[string]bool, 1)
-	for _, v := range c.KinesisStream {
+	for _, v := range c.ContentType {
 		if len(v.Tag_Name) == 0 {
 			continue
 		}
@@ -137,6 +151,13 @@ func (c *cfgType) Tags() ([]string, error) {
 		return nil, errors.New("No tags specified")
 	}
 	return tags, nil
+}
+
+func (c *cfgType) ContentTypes() (ret []string) {
+	for _, v := range c.ContentType {
+		ret = append(ret, v.Content_Type)
+	}
+	return
 }
 
 func (c *cfgType) VerifyRemote() bool {

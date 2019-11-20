@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gravwell/ingest/v3"
-	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
 	"github.com/gravwell/ingesters/v3/version"
 )
@@ -90,6 +89,8 @@ func main() {
 
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
+		var tcfg cfgType
+		fmt.Printf("%+v\n", tcfg)
 		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
 		return
 	}
@@ -170,21 +171,17 @@ func main() {
 	}
 	debugout("Successfully connected to ingesters\n")
 	wg := &sync.WaitGroup{}
-	ch := make(chan *entry.Entry, 2048)
 
 	//fire off our simple listeners
-	if err := startSimpleListeners(cfg, igst, ch, wg); err != nil {
+	if err := startSimpleListeners(cfg, igst, wg); err != nil {
 		lg.FatalCode(-1, "Failed to start simple listeners: %v\n", err)
 		return
 	}
 	//fire off our json listeners
-	if err := startJSONListeners(cfg, igst, ch, wg); err != nil {
+	if err := startJSONListeners(cfg, igst, wg); err != nil {
 		lg.FatalCode(-1, "Failed to start json listeners: %v\n", err)
 		return
 	}
-
-	doneChan := make(chan bool)
-	go relay(ch, doneChan, igst)
 
 	debugout("Running\n")
 
@@ -208,10 +205,6 @@ func main() {
 	}()
 	select {
 	case <-wch:
-		//close our output channel
-		close(ch)
-		//wait for our ingest relay to exit
-		<-doneChan
 	case <-time.After(1 * time.Second):
 		lg.Error("Failed to wait for all connections to close.  %d active\n", connCount())
 	}
@@ -223,54 +216,6 @@ func main() {
 	}
 }
 
-func relay(ch chan *entry.Entry, done chan bool, igst *ingest.IngestMuxer) {
-	var ents []*entry.Entry
-
-	tckr := time.NewTicker(time.Second)
-	defer tckr.Stop()
-mainLoop:
-	for {
-		select {
-		case e, ok := <-ch:
-			if !ok {
-				if len(ents) > 0 {
-					if err := igst.WriteBatch(ents); err != nil {
-						if err != ingest.ErrNotRunning {
-							fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
-						}
-					}
-				}
-				ents = nil
-				break mainLoop
-			}
-			if e != nil {
-				ents = append(ents, e)
-			}
-			if len(ents) >= batchSize {
-				if err := igst.WriteBatch(ents); err != nil {
-					if err != ingest.ErrNotRunning {
-						fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
-					} else {
-						break mainLoop
-					}
-				}
-				ents = nil
-			}
-		case _ = <-tckr.C:
-			if len(ents) > 0 {
-				if err := igst.WriteBatch(ents); err != nil {
-					if err != ingest.ErrNotRunning {
-						fmt.Fprintf(os.Stderr, "Failed to throw batch: %v\n", err)
-					} else {
-						break mainLoop
-					}
-				}
-				ents = nil
-			}
-		}
-	}
-	close(done)
-}
 func debugout(format string, args ...interface{}) {
 	if !v {
 		return

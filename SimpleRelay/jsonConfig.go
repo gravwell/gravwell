@@ -30,9 +30,10 @@ var (
 
 type jsonListener struct {
 	base
-	Extractor   string
-	Default_Tag string
-	Tag_Match   []string
+	Extractor    string
+	Default_Tag  string
+	Tag_Match    []string
+	Preprocessor []string
 }
 
 func (jl jsonListener) Validate() error {

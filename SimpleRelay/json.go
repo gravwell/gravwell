@@ -20,13 +20,13 @@ import (
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/timegrinder/v3"
 
 	"github.com/buger/jsonparser"
 )
 
 type jsonHandlerConfig struct {
-	ch               chan *entry.Entry
 	defTag           entry.EntryTag
 	tags             map[string]entry.EntryTag
 	ignoreTimestamps bool
@@ -36,9 +36,10 @@ type jsonHandlerConfig struct {
 	wg               *sync.WaitGroup
 	formatOverride   string
 	flds             []string
+	proc             *processors.ProcessorSet
 }
 
-func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry.Entry, wg *sync.WaitGroup) error {
+func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup) error {
 	var err error
 	//short circuit out on empty
 	if len(cfg.JSONListener) == 0 {
@@ -47,12 +48,14 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, ch chan *entry.E
 
 	for k, v := range cfg.JSONListener {
 		jhc := jsonHandlerConfig{
-			ch:               ch,
 			wg:               wg,
 			tags:             map[string]entry.EntryTag{},
 			ignoreTimestamps: v.Ignore_Timestamps,
 			setLocalTime:     v.Assume_Local_Timezone,
 			timezoneOverride: v.Timezone_Override,
+		}
+		if jhc.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
+			lg.Fatal("Preprocessor failure: %v", err)
 		}
 		if jhc.flds, err = v.GetJsonFields(); err != nil {
 			return err
@@ -218,12 +221,12 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig) {
 		} else if tag, ok = cfg.tags[s]; !ok {
 			tag = cfg.defTag
 		}
-
-		cfg.ch <- &entry.Entry{
+		ent := &entry.Entry{
 			SRC:  cfg.src,
 			TS:   ts,
 			Tag:  tag,
 			Data: data,
 		}
+		cfg.proc.Process(ent)
 	}
 }

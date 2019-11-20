@@ -71,7 +71,9 @@ func lineConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 		data = bytes.Trim(data, "\n\r\t ")
 
 		if len(data) > 0 {
-			if err := handleLog(data, rip, cfg.ignoreTimestamps, cfg.tag, cfg.ch, tg); err != nil {
+			if ent, err := handleLog(data, rip, cfg.ignoreTimestamps, cfg.tag, tg); err != nil {
+				return
+			} else if err = cfg.proc.Process(ent); err != nil {
 				return
 			}
 		}
@@ -132,7 +134,9 @@ func lineConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 				continue
 			}
 			//because we are using and reusing a local buffer, we have to copy the bytes when handing in
-			if err := handleLog(append([]byte(nil), ln...), rip, cfg.ignoreTimestamps, cfg.tag, cfg.ch, tg); err != nil {
+			if ent, err := handleLog(append([]byte(nil), ln...), rip, cfg.ignoreTimestamps, cfg.tag, tg); err != nil {
+				return
+			} else if err = cfg.proc.Process(ent); err != nil {
 				return
 			}
 		}

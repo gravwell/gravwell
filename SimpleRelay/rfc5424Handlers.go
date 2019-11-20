@@ -96,7 +96,9 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 		if len(data) == 0 {
 			continue
 		}
-		if err := handleLog(data, rip, cfg.ignoreTimestamps, cfg.tag, cfg.ch, tg); err != nil {
+		if ent, err := handleLog(data, rip, cfg.ignoreTimestamps, cfg.tag, tg); err != nil {
+			return
+		} else if err = cfg.proc.Process(ent); err != nil {
 			return
 		}
 	}
@@ -143,37 +145,37 @@ func rfc5424ConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 			} else {
 				rip = cfg.src
 			}
-			handleRFC5424Packet(append([]byte(nil), buff[:n]...), rip, cfg.ch, cfg.ignoreTimestamps, cfg.tag, tg)
+			handleRFC5424Packet(append([]byte(nil), buff[:n]...), rip, cfg.ignoreTimestamps, cfg.tag, tg)
 		}
 	}
 
 }
 
 //we can be very very fast on this one by just manually scanning the buffer
-func handleRFC5424Packet(buff []byte, ip net.IP, ch chan *entry.Entry, ignoreTS bool, tag entry.EntryTag, tg *timegrinder.TimeGrinder) {
+func handleRFC5424Packet(buff []byte, ip net.IP, ignoreTS bool, tag entry.EntryTag, tg *timegrinder.TimeGrinder) {
 	var idx []int
 	var idx2 []int
 	re := regexp.MustCompile(`\n<\d{1,3}>`)
 	debugout("Scanning UDP packet %s\n", string(buff))
 	for len(buff) > 0 {
 		if idx = re.FindIndex(buff); idx == nil || len(idx) != 2 {
-			handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, ch, tg)
+			handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, tg)
 			return
 		}
 		if idx[0] == 0 {
 			//at the beginning, rescan
 			if idx2 = re.FindIndex(buff[idx[1]:]); idx2 == nil || len(idx2) != 2 {
 				//nothing, send it out
-				handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, ch, tg)
+				handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, tg)
 				return
 			}
 			//got it send log and update buff
 			end := idx[1] + idx2[0]
-			handleLog(bytes.TrimSpace(buff[0:end]), ip, ignoreTS, tag, ch, tg)
+			handleLog(bytes.TrimSpace(buff[0:end]), ip, ignoreTS, tag, tg)
 			buff = buff[end:]
 			continue
 		}
-		handleLog(bytes.TrimSpace(buff[0:idx[0]]), ip, ignoreTS, tag, ch, tg)
+		handleLog(bytes.TrimSpace(buff[0:idx[0]]), ip, ignoreTS, tag, tg)
 		buff = buff[idx[0]:]
 	}
 }

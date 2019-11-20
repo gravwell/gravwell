@@ -122,6 +122,10 @@ func main() {
 	if err := igst.WaitForHot(a.Timeout); err != nil {
 		log.Fatalf("Failed to wait for hot connection: %v\n", err)
 	}
+	if len(a.Conns) > 0 {
+		//sleep so that all connections can get a crack at negotiating tags
+		time.Sleep(500*time.Millisecond)
+	}
 
 	var ir itemReader
 	switch strings.ToLower(strings.TrimSpace(format)) {
