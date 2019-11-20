@@ -28,6 +28,7 @@ type readerType int
 
 type global struct {
 	config.IngestConfig
+	State_Store_Location  string
 	AWS_Access_Key_ID     string
 	AWS_Secret_Access_Key string
 }
@@ -99,6 +100,10 @@ func verifyConfig(c cfgType) error {
 		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("Kinesis stream %s preprocessor invalid: %v", k, err)
+		}
+		if v.Iterator_Type == `` {
+			// default to LATEST
+			v.Iterator_Type = "LATEST"
 		}
 	}
 	return nil

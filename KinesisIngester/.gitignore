@@ -1,1 +1,3 @@
 KinesisIngester
+*.state
+test.conf
