@@ -53,4 +53,5 @@ require (
 
 //replace github.com/gravwell/winevent/v3 => /opt/src/githubwork/winevent // for debugging
 //replace github.com/gravwell/ingest/v3 => /opt/src/githubwork/ingest // for debugging
-replace github.com/gravwell/ingest/v3 => /home/kris/githubwork/ingest // for debugging
+//replace github.com/gravwell/ingest/v3 => /home/kris/githubwork/ingest // for debugging
+
