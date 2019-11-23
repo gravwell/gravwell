@@ -7,6 +7,7 @@ require (
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542
 	github.com/google/renameio v0.1.0 // indirect
 	github.com/google/uuid v1.1.1
+	github.com/gravwell/timegrinder/v3 v3.2.3
 	github.com/klauspost/compress v1.8.6
 	github.com/klauspost/cpuid v1.2.1 // indirect
 	github.com/traetox/gcfg v1.2.4-0.20191023234045-a093ce14b31d

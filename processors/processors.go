@@ -54,6 +54,8 @@ func CheckProcessor(id string) error {
 		return nil
 	case RegexTimestampProcessor:
 		return nil
+	case RegexExtractProcessor:
+		return nil
 	}
 	return ErrUnknownProcessor
 }
@@ -84,6 +86,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = JsonArraySplitLoadConfig(vc)
 	case RegexTimestampProcessor:
 		cfg, err = RegexTimestampLoadConfig(vc)
+	case RegexExtractProcessor:
+		cfg, err = RegexExtractLoadConfig(vc)
 	default:
 		err = ErrUnknownProcessor
 	}
@@ -139,6 +143,13 @@ func NewProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewRegexTimestampProcessor(cfg)
+	case RegexExtractProcessor:
+		var cfg RegexExtractConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewRegexExtractor(cfg)
+
 	default:
 		err = ErrUnknownProcessor
 	}
