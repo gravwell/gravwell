@@ -11,6 +11,7 @@ package processors
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -319,6 +320,10 @@ func (tw *testWriter) WriteEntry(ent *entry.Entry) error {
 	}
 	tw.ents = append(tw.ents, ent)
 	return nil
+}
+
+func (tw *testWriter) WriteEntryContext(ent *entry.Entry, ctx context.Context) error {
+	return tw.WriteEntry(ent)
 }
 
 func entryEqual(a, b *entry.Entry) bool {

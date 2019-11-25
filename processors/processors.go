@@ -9,6 +9,7 @@
 package processors
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strings"
@@ -68,6 +69,7 @@ type Tagger interface {
 
 type entWriter interface {
 	WriteEntry(*entry.Entry) error
+	WriteEntryContext(*entry.Entry, context.Context) error
 }
 
 type preprocessorBase struct {
@@ -192,6 +194,18 @@ func (pr *ProcessorSet) Process(ent *entry.Entry) error {
 	return pr.processItem(ent, 0)
 }
 
+func (pr *ProcessorSet) ProcessContext(ent *entry.Entry, ctx context.Context) error {
+	if pr == nil || pr.wtr == nil {
+		return ErrNotReady
+	} else if ent == nil {
+		return ErrInvalidEntry
+	} else if len(pr.set) == 0 {
+		return pr.wtr.WriteEntryContext(ent, ctx)
+	}
+	//we have processors, start recursing into them
+	return pr.processItemContext(ent, 0, ctx)
+}
+
 // processItem recurses into each processor generating entries and writing them out
 func (pr *ProcessorSet) processItem(ent *entry.Entry, i int) error {
 	if i >= len(pr.set) {
@@ -203,6 +217,24 @@ func (pr *ProcessorSet) processItem(ent *entry.Entry, i int) error {
 	} else {
 		for _, v := range set {
 			if err := pr.processItem(v, i+1); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// processItemContext recurses into each processor generating entries and writing them out
+func (pr *ProcessorSet) processItemContext(ent *entry.Entry, i int, ctx context.Context) error {
+	if i >= len(pr.set) {
+		//we are at the end of the line, just write the entry
+		return pr.wtr.WriteEntryContext(ent, ctx)
+	}
+	if set, err := pr.set[i].Process(ent); err != nil {
+		return err
+	} else {
+		for _, v := range set {
+			if err := pr.processItemContext(v, i+1, ctx); err != nil {
 				return err
 			}
 		}
