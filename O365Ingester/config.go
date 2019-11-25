@@ -43,13 +43,13 @@ type contentType struct {
 	Timezone_Override     string
 	Parse_Time            bool
 
-	Preprocessor string
+	Preprocessor []string
 }
 
 type cfgType struct {
 	Global       global
 	ContentType  map[string]*contentType
-	Preprocessor processors.PreprocessorConfig
+	Preprocessor processors.ProcessorConfig
 }
 
 func GetConfig(path string) (*cfgType, error) {
@@ -93,29 +93,18 @@ func verifyConfig(c cfgType) error {
 	if len(c.ContentType) == 0 {
 		return errors.New("At least one content type required.")
 	}
+	if err := c.Preprocessor.Validate(); err != nil {
+		return err
+	}
 	for k, v := range c.ContentType {
 		if v == nil {
 			return fmt.Errorf("Content Type %v config is nil", k)
 		}
-		if v.Preprocessor != `` {
-			if err := c.CheckPreprocessor(v.Preprocessor); err != nil {
-				return fmt.Errorf("Content Type %s preprocessor %s error: %v", k, v.Preprocessor, err)
-			}
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("Content Type %s preprocessor %s error: %v", k, v.Preprocessor, err)
 		}
 	}
 	return nil
-}
-
-func (c *cfgType) GetPreprocessor(name string) (p processors.Preprocessor, err error) {
-	name = strings.TrimSpace(name)
-	p, err = c.Preprocessor.GetPreprocessor(name)
-	return
-}
-
-func (c *cfgType) CheckPreprocessor(name string) (err error) {
-	name = strings.TrimSpace(name)
-	err = c.Preprocessor.CheckConfig(name)
-	return
 }
 
 func (c *cfgType) Targets() ([]string, error) {

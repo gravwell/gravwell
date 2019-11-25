@@ -197,6 +197,11 @@ func main() {
 				lg.Fatal("Can't resolve tag %v: %v", ct.Tag_Name, err)
 			}
 
+			procset, err := cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor)
+			if err != nil {
+				lg.Fatal("Preprocessor construction error: %v", err)
+			}
+
 			// set up time extraction rules
 			tcfg := timegrinder.Config{
 				EnableLeftMostSeed: true,
@@ -286,8 +291,8 @@ func main() {
 						}
 
 						// now write the entry
-						if err := igst.WriteEntry(ent); err != nil {
-							lg.Warn("Failed to write entry: %v", err)
+						if err := procset.Process(ent); err != nil {
+							lg.Warn("Failed to handle entry: %v", err)
 						}
 						// Add the Id to the temporary map
 						tracker.RecordId(eventUnpacked.Id, time.Now())
