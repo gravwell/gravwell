@@ -322,7 +322,7 @@ func (tw *testWriter) WriteEntry(ent *entry.Entry) error {
 	return nil
 }
 
-func (tw *testWriter) WriteEntryContext(ent *entry.Entry, ctx context.Context) error {
+func (tw *testWriter) WriteEntryContext(ctx context.Context, ent *entry.Entry) error {
 	return tw.WriteEntry(ent)
 }
 

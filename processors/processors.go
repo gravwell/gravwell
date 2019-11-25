@@ -69,7 +69,7 @@ type Tagger interface {
 
 type entWriter interface {
 	WriteEntry(*entry.Entry) error
-	WriteEntryContext(*entry.Entry, context.Context) error
+	WriteEntryContext(context.Context, *entry.Entry) error
 }
 
 type preprocessorBase struct {
@@ -200,7 +200,7 @@ func (pr *ProcessorSet) ProcessContext(ent *entry.Entry, ctx context.Context) er
 	} else if ent == nil {
 		return ErrInvalidEntry
 	} else if len(pr.set) == 0 {
-		return pr.wtr.WriteEntryContext(ent, ctx)
+		return pr.wtr.WriteEntryContext(ctx, ent)
 	}
 	//we have processors, start recursing into them
 	return pr.processItemContext(ent, 0, ctx)
@@ -228,7 +228,7 @@ func (pr *ProcessorSet) processItem(ent *entry.Entry, i int) error {
 func (pr *ProcessorSet) processItemContext(ent *entry.Entry, i int, ctx context.Context) error {
 	if i >= len(pr.set) {
 		//we are at the end of the line, just write the entry
-		return pr.wtr.WriteEntryContext(ent, ctx)
+		return pr.wtr.WriteEntryContext(ctx, ent)
 	}
 	if set, err := pr.set[i].Process(ent); err != nil {
 		return err
