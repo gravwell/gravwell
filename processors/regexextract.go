@@ -98,7 +98,7 @@ func (c RegexExtractConfig) validate() (rx *regexp.Regexp, tmp *formatter, err e
 	}
 	names := rx.SubexpNames()
 	if len(names) == 0 {
-		err = errors.New("Regular expression does not extract any names")
+		err = ErrMissingExtractNames
 		return
 	}
 	err = tmp.setReplaceNames(names)

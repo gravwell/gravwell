@@ -39,7 +39,7 @@ var (
 
 type VariableConfig struct {
 	gcfg.Idxer
-	Vals map[gcfg.Idx]*string
+	Vals map[gcfg.Idx]*[]string
 }
 
 // LoadConfigFile will open a config file, check the file size
@@ -115,8 +115,21 @@ func (vc VariableConfig) MapTo(v interface{}) (err error) {
 	return
 }
 
-func (vc VariableConfig) Get(name string) (v string, ok bool) {
-	var temp *string
+func (vc VariableConfig) get(name string) (v string, ok bool) {
+	var temp *[]string
+	if temp = vc.Vals[vc.Idx(name)]; temp != nil {
+		var x []string
+		x = *temp
+		if len(x) > 0 {
+			v = x[0]
+			ok = true
+		}
+	}
+	return
+}
+
+func (vc VariableConfig) getSlice(name string) (v []string, ok bool) {
+	var temp *[]string
 	if temp = vc.Vals[vc.Idx(name)]; temp != nil {
 		v = *temp
 		ok = true
@@ -144,7 +157,7 @@ func (vc VariableConfig) mapStruct(v interface{}) error {
 
 // TODO FIXME - figure out how to deal with slices of a type so that we add to them
 func (vc VariableConfig) setField(name string, v reflect.Value) (err error) {
-	strv, ok := vc.Get(nameMapper(name))
+	strv, ok := vc.get(nameMapper(name))
 	if !ok {
 		return
 	}
@@ -201,6 +214,12 @@ func (vc VariableConfig) setField(name string, v reflect.Value) (err error) {
 		}
 	case reflect.String:
 		v.SetString(strv)
+	case reflect.Slice:
+		slc, ok := vc.getSlice(nameMapper(name))
+		if !ok {
+			return
+		}
+		v.Set(reflect.AppendSlice(v, reflect.ValueOf(slc)))
 	default:
 		err = fmt.Errorf("Cannot store into member %v: unknown type %T", name, v.Interface())
 	}

@@ -78,6 +78,8 @@ func TestLoad(t *testing.T) {
 		foo = 1
 		bar = 22
 		name = "stuff"
+		thing = "thing1"
+		thing = "thing2"
 	
 	[preprocessor "barbaz"]
 		type = regexrouter
@@ -129,24 +131,25 @@ func TestLoad(t *testing.T) {
 	if pp, ok := v.Preprocessor[`foobar`]; !ok {
 		t.Fatal("Missing foobar preprocessor")
 	} else {
-		if sv, ok := pp.Get(`Type`); !ok || sv != `gzip` {
+		if sv, ok := pp.get(`Type`); !ok || sv != `gzip` {
 			t.Fatal("Bad type")
 		}
-		if sv, ok := pp.Get(`Foo`); !ok || sv != `1` {
+		if sv, ok := pp.get(`Foo`); !ok || sv != `1` {
 			t.Fatal("Bad foo")
 		}
-		if sv, ok := pp.Get(`Bar`); !ok || sv != `22` {
+		if sv, ok := pp.get(`Bar`); !ok || sv != `22` {
 			t.Fatal("Bad bar")
 		}
-		if sv, ok := pp.Get(`Name`); !ok || sv != `stuff` {
+		if sv, ok := pp.get(`Name`); !ok || sv != `stuff` {
 			t.Fatal("Bad name")
 		}
 		//now map it to a struct
 		foobar := struct {
-			Type string
-			Foo  int16
-			Bar  uint32
-			Name string
+			Type  string
+			Foo   int16
+			Bar   uint32
+			Name  string
+			Thing []string
 		}{}
 		if err := pp.MapTo(&foobar); err != nil {
 			t.Fatal(err)
@@ -154,15 +157,22 @@ func TestLoad(t *testing.T) {
 		if foobar.Type != `gzip` || foobar.Foo != 1 || foobar.Bar != 22 || foobar.Name != "stuff" {
 			t.Fatalf("Invalid foobar mapping: %+v", foobar)
 		}
+		if len(foobar.Thing) != 2 {
+			t.Fatalf("Failed to assign to thing array")
+		} else if foobar.Thing[0] != `thing1` {
+			t.Fatalf("Thing1 is bad: %s", foobar.Thing[0])
+		} else if foobar.Thing[1] != `thing2` {
+			t.Fatalf("Thing2 is bad: %s", foobar.Thing[1])
+		}
 
 	}
 	if pp, ok := v.Preprocessor[`barbaz`]; !ok {
 		t.Fatal("missing barbaz preprocessor")
 	} else {
-		if sv, ok := pp.Get(`Type`); !ok || sv != `regexrouter` {
+		if sv, ok := pp.get(`Type`); !ok || sv != `regexrouter` {
 			t.Fatal("Bad type")
 		}
-		if sv, ok := pp.Get(`Foo-Bar-Baz`); !ok || sv != `stuff:(.*)` {
+		if sv, ok := pp.get(`Foo-Bar-Baz`); !ok || sv != `stuff:(.*)` {
 			t.Fatal("Bad foo-bar-baz")
 		}
 		baz := struct {
