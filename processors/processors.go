@@ -217,7 +217,7 @@ type tagWriter interface {
 
 func (pc ProcessorConfig) ProcessorSet(t tagWriter, names []string) (pr *ProcessorSet, err error) {
 	if pc == nil {
-		err = errors.New("ProcessorConfig not ready")
+		pr = NewProcessorSet(t) //nothing defined
 		return
 	}
 	pr = NewProcessorSet(t)
