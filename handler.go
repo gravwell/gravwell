@@ -47,7 +47,7 @@ type LogHandlerConfig struct {
 }
 
 type logWriter interface {
-	WriteEntry(*entry.Entry) error
+	Process(*entry.Entry) error
 }
 
 func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
@@ -116,11 +116,10 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	if lh.Debugger != nil {
 		lh.Debugger("GOT %s %s\n", ts.Format(time.RFC3339), string(b))
 	}
-	lh.w.WriteEntry(&entry.Entry{
+	return lh.w.Process(&entry.Entry{
 		SRC:  lh.Src,
 		TS:   entry.FromStandard(ts),
 		Tag:  lh.Tag,
 		Data: b,
 	})
-	return nil
 }
