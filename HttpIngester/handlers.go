@@ -15,6 +15,7 @@ import (
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/timegrinder/v3"
 )
 
@@ -24,6 +25,7 @@ type handlerConfig struct {
 	tg       *timegrinder.TimeGrinder
 	method   string
 	auth     authHandler
+	pproc    *processors.ProcessorSet
 }
 
 type handler struct {
@@ -98,7 +100,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Tag:  cfg.tag,
 		Data: b,
 	}
-	if err = h.igst.WriteEntry(&e); err != nil {
+	if err = cfg.pproc.Process(&e); err != nil {
 		lg.Error("Failed to send entry: %v", err)
 	}
 	if v {

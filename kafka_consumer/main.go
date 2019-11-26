@@ -171,6 +171,9 @@ func main() {
 			igst:        igst,
 			lg:          lg,
 		}
+		if kcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.preprocessor); err != nil {
+			lg.Fatal("Preprocessor construction error: %v", err)
+		}
 		kc, err := newKafkaConsumer(kcfg)
 		if err != nil {
 			lg.Error("Failed to build kafka consumer %s: %v\n", k, err)

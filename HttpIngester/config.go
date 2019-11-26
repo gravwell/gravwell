@@ -13,15 +13,13 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"os"
 	"sort"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/config"
-
-	"gopkg.in/gcfg.v1"
+	"github.com/gravwell/ingest/v3/processors"
 )
 
 const (
@@ -42,8 +40,9 @@ type gbl struct {
 }
 
 type cfgReadType struct {
-	Global   gbl
-	Listener map[string]*lst
+	Global       gbl
+	Listener     map[string]*lst
+	Preprocessor processors.ProcessorConfig
 }
 
 type lst struct {
@@ -55,43 +54,24 @@ type lst struct {
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
 	Timestamp_Format_Override string //override the timestamp format
+	Preprocessor              []string
 }
 
 type cfgType struct {
 	gbl
-	Listener map[string]*lst
+	Listener     map[string]*lst
+	Preprocessor processors.ProcessorConfig
 }
 
 func GetConfig(path string) (*cfgType, error) {
-	var content []byte
-	fin, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fi, err := fin.Stat()
-	if err != nil {
-		fin.Close()
-		return nil, err
-	}
-	//This is just a sanity check
-	if fi.Size() > maxConfigSize {
-		fin.Close()
-		return nil, errors.New("Config File Far too large")
-	}
-	content = make([]byte, fi.Size())
-	n, err := fin.Read(content)
-	fin.Close()
-	if int64(n) != fi.Size() {
-		return nil, errors.New("Failed to read config file")
-	}
-
 	var cr cfgReadType
-	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
+	if err := config.LoadConfigFile(&cr, path); err != nil {
 		return nil, err
 	}
 	c := &cfgType{
-		gbl:      cr.Global,
-		Listener: cr.Listener,
+		gbl:          cr.Global,
+		Listener:     cr.Listener,
+		Preprocessor: cr.Preprocessor,
 	}
 	if err := verifyConfig(c); err != nil {
 		return nil, err
@@ -99,7 +79,7 @@ func GetConfig(path string) (*cfgType, error) {
 	// Verify and set UUID
 	if _, ok := c.IngesterUUID(); !ok {
 		id := uuid.New()
-		if err = c.SetIngesterUUID(id, path); err != nil {
+		if err := c.SetIngesterUUID(id, path); err != nil {
 			return nil, err
 		}
 		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
@@ -122,6 +102,9 @@ func verifyConfig(c *cfgType) error {
 	urls := map[string]string{}
 	if len(c.Listener) == 0 {
 		return errors.New("No Sniffers specified")
+	}
+	if err := c.Preprocessor.Validate(); err != nil {
+		return err
 	}
 	for k, v := range c.Listener {
 		var pth string
@@ -163,6 +146,9 @@ func verifyConfig(c *cfgType) error {
 		v.URL = pth
 		if v.Method == `` {
 			v.Method = defaultMethod
+		}
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("HTTP Listener %s preprocessor invalid: %v", k, err)
 		}
 		c.Listener[k] = v
 	}

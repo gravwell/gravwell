@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"sort"
 	"strings"
 	"time"
@@ -20,9 +19,8 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/config"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/timegrinder/v3"
-
-	"gopkg.in/gcfg.v1"
 )
 
 const (
@@ -52,58 +50,41 @@ type ConfigConsumer struct {
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
 	Timestamp_Format_Override string //override the timestamp format
+	Preprocessor              []string
 }
 
 type consumerCfg struct {
-	tag         string
-	leader      string
-	topic       string
-	group       string
-	strat       sarama.BalanceStrategy
-	sync        bool
-	batchSize   int
-	keyAsSrc    bool
-	srcOverride net.IP
-	ignoreTS    bool
-	extractTS   bool
-	tg          *timegrinder.TimeGrinder
+	tag          string
+	leader       string
+	topic        string
+	group        string
+	strat        sarama.BalanceStrategy
+	sync         bool
+	batchSize    int
+	keyAsSrc     bool
+	srcOverride  net.IP
+	ignoreTS     bool
+	extractTS    bool
+	tg           *timegrinder.TimeGrinder
+	preprocessor []string
 }
 
 type cfgReadType struct {
-	Global   config.IngestConfig
-	Consumer map[string]*ConfigConsumer
+	Global       config.IngestConfig
+	Consumer     map[string]*ConfigConsumer
+	Preprocessor processors.ProcessorConfig
 }
 
 type cfgType struct {
 	config.IngestConfig
-	Consumers map[string]*consumerCfg
+	Consumers    map[string]*consumerCfg
+	Preprocessor processors.ProcessorConfig
 }
 
 func GetConfig(path string) (*cfgType, error) {
-	var content []byte
-	fin, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fi, err := fin.Stat()
-	if err != nil {
-		fin.Close()
-		return nil, err
-	}
-	//This is just a sanity check
-	if fi.Size() > MAX_CONFIG_SIZE {
-		fin.Close()
-		return nil, errors.New("Config File Far too large")
-	}
-	content = make([]byte, fi.Size())
-	n, err := fin.Read(content)
-	fin.Close()
-	if int64(n) != fi.Size() {
-		return nil, errors.New("Failed to read config file")
-	}
 	//read into the intermediary type to maintain backwards compatibility with the old system
 	var cr cfgReadType
-	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
+	if err := config.LoadConfigFile(&cr, path); err != nil {
 		return nil, err
 	}
 	//validate the global params
@@ -111,16 +92,22 @@ func GetConfig(path string) (*cfgType, error) {
 		return nil, err
 	} else if len(cr.Consumer) == 0 {
 		return nil, errors.New("no consumers defined")
+	} else if err := cr.Preprocessor.Validate(); err != nil {
+		return nil, err
 	}
 
 	//create our actual config
 	c := &cfgType{
 		IngestConfig: cr.Global,
 		Consumers:    make(map[string]*consumerCfg, len(cr.Consumer)),
+		Preprocessor: cr.Preprocessor,
 	}
 	for k, v := range cr.Consumer {
 		if _, ok := c.Consumers[k]; ok {
 			return nil, fmt.Errorf("Consumer %s is duplicated", k)
+		}
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return nil, fmt.Errorf("Consumer %s preprocessor invalid: %v", k, err)
 		}
 		if cnsmr, err := v.validateAndProcess(); err != nil {
 			return nil, err
@@ -234,6 +221,7 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 	} else {
 		c.group = defaultConsumerGroup
 	}
+	c.preprocessor = cc.Preprocessor
 	c.keyAsSrc = cc.Key_As_Source
 	c.strat, err = cc.balanceStrat()
 	return

@@ -169,6 +169,11 @@ func main() {
 		if hcfg.method = v.Method; hcfg.method == `` {
 			hcfg.method = defaultMethod
 		}
+
+		hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor)
+		if err != nil {
+			lg.Fatal("Preprocessor construction error: %v", err)
+		}
 		//check if authentication is enabled for this URL
 		if pth, ah, err := v.NewAuthHandler(); err != nil {
 			lg.Fatal("Failed to get a new authentication handler: %v", err)

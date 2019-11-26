@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/ingest/v3/processors"
 )
 
 const (
@@ -89,8 +90,9 @@ type kafkaConsumer struct {
 
 type kafkaConsumerConfig struct {
 	consumerCfg
-	igst *ingest.IngestMuxer
-	lg   *log.Logger
+	igst  *ingest.IngestMuxer
+	lg    *log.Logger
+	pproc *processors.ProcessorSet
 }
 
 func newKafkaConsumer(cfg kafkaConsumerConfig) (kc *kafkaConsumer, err error) {
@@ -299,7 +301,7 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 			ent.SRC = kc.src
 		}
 
-		if err = kc.igst.WriteEntryContext(kc.ctx, ent); err != nil {
+		if err = kc.pproc.ProcessContext(ent, kc.ctx); err != nil {
 			return
 		}
 		sz += uint(ent.Size())

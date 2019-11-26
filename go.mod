@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/pubsub v1.0.1
 	cloud.google.com/go/storage v1.1.0 // indirect
 	collectd.org v0.3.1-0.20181025072142-f80706d1e115
-	github.com/Shopify/sarama v1.23.2-0.20190907063523-2af3badd8c04
+	github.com/Shopify/sarama v1.24.1
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/aws/aws-sdk-go v1.24.2
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
@@ -20,13 +20,13 @@ require (
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
 	github.com/gravwell/filewatch/v3 v3.2.3
-	github.com/gravwell/ingest/v3 v3.3.1
+	github.com/gravwell/ingest/v3 v3.3.2-0.20191125235602-555c4e8cef9c
 	github.com/gravwell/netflow/v3 v3.2.3
 	github.com/gravwell/timegrinder/v3 v3.2.3
 	github.com/gravwell/winevent/v3 v3.2.4
 	github.com/h2non/filetype v1.0.10
 	github.com/jcmturner/gofork v1.0.0 // indirect
-	github.com/klauspost/compress v1.9.1 // indirect
+	github.com/klauspost/compress v1.9.2 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
@@ -36,9 +36,9 @@ require (
 	github.com/turnage/graw v0.0.0-20190218184947-3295929039f6
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	go.opencensus.io v0.22.1 // indirect
-	golang.org/x/crypto v0.0.0-20190923035154-9ee001bba392 // indirect
+	golang.org/x/crypto v0.0.0-20191122220453-ac88ee75c92c // indirect
 	golang.org/x/exp v0.0.0-20190919035709-81c71964d733 // indirect
-	golang.org/x/net v0.0.0-20190923162816-aa69164e4478 // indirect
+	golang.org/x/net v0.0.0-20191125084936-ffdde1057850 // indirect
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
 	golang.org/x/sys v0.0.0-20191120155948-bd437916bb0e
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
