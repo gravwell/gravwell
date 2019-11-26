@@ -14,14 +14,18 @@ require (
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/eapache/go-resiliency v1.2.0 // indirect
+	github.com/etcd-io/bbolt v1.3.3 // indirect
 	github.com/floren/ipfix v1.3.1-0.20180824220655-d9b7be2e36b7
 	github.com/floren/o365 v0.0.1
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
-	github.com/gravwell/filewatch/v3 v3.2.3
+	github.com/gravwell/filewatch v3.2.2+incompatible // indirect
+	github.com/gravwell/filewatch/v3 v3.3.1
+	github.com/gravwell/ingest v3.2.2+incompatible // indirect
 	github.com/gravwell/ingest/v3 v3.3.2-0.20191125235602-555c4e8cef9c
 	github.com/gravwell/netflow/v3 v3.2.3
+	github.com/gravwell/timegrinder v3.2.2+incompatible // indirect
 	github.com/gravwell/timegrinder/v3 v3.2.3
 	github.com/gravwell/winevent/v3 v3.2.4
 	github.com/h2non/filetype v1.0.10
@@ -41,7 +45,6 @@ require (
 	golang.org/x/net v0.0.0-20191125084936-ffdde1057850 // indirect
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
 	golang.org/x/sys v0.0.0-20191120155948-bd437916bb0e
-	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	golang.org/x/tools v0.0.0-20190920130846-1081e67f6b77 // indirect
 	google.golang.org/api v0.10.0 // indirect
 	google.golang.org/appengine v1.6.2 // indirect

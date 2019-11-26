@@ -20,7 +20,6 @@ import (
 
 	"github.com/gravwell/filewatch/v3"
 	"github.com/gravwell/ingest/v3"
-	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
 	"github.com/gravwell/ingesters/v3/version"
 )
@@ -141,7 +140,17 @@ func main() {
 		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
 	}
 	debugout("Successfully connected to ingesters\n")
-	ch := make(chan *entry.Entry, 2048)
+
+	//fire off our relay
+	var src net.IP
+	if cfg.Source_Override != "" {
+		// global override
+		if src = net.ParseIP(cfg.Source_Override); src == nil {
+			lg.Fatal("Global Source-Override is invalid")
+		}
+	} else if src, err = igst.SourceIP(); err != nil {
+		lg.Fatal("Failed to resolve source IP from muxer: %v", err)
+	}
 
 	wtcher, err := filewatch.NewWatcher(cfg.StatePath())
 	if err != nil {
@@ -169,9 +178,15 @@ func main() {
 		if err != nil {
 			lg.FatalCode(0, "Invalid timestamp override \"%s\": %v\n", val.Timestamp_Format_Override, err)
 		}
+
+		pproc, err := cfg.Preprocessor.ProcessorSet(igst, val.Preprocessor)
+		if err != nil {
+			lg.FatalCode(0, "Preprocessor construction error: %v", err)
+		}
 		//create our handler for this watcher
 		cfg := filewatch.LogHandlerConfig{
 			Tag:                     tag,
+			Src:                     src,
 			IgnoreTS:                val.Ignore_Timestamps,
 			AssumeLocalTZ:           val.Assume_Local_Timezone,
 			IgnorePrefixes:          ignore,
@@ -182,7 +197,7 @@ func main() {
 		if v {
 			cfg.Debugger = debugout
 		}
-		lh, err := filewatch.NewLogHandler(cfg, ch)
+		lh, err := filewatch.NewLogHandler(cfg, pproc)
 		if err != nil {
 			lg.Fatal("Failed to generate handler: %v", err)
 		}
@@ -216,17 +231,6 @@ func main() {
 	}
 
 	debugout("Started following %d locations\n", len(cfg.Follower))
-	//fire off our relay
-	var src net.IP
-	if cfg.Source_Override != "" {
-		// global override
-		src = net.ParseIP(cfg.Source_Override)
-		if src == nil {
-			lg.Fatal("Global Source-Override is invalid")
-		}
-	}
-	doneChan := make(chan error, 1)
-	go relay(ch, doneChan, src, igst)
 
 	debugout("Running\n")
 
@@ -239,10 +243,8 @@ func main() {
 		lg.Error("Failed to close file follower: %v\n", err)
 	}
 	debugout("Done\n")
-	close(ch) //to inform the relay that no new entries are going to come down the pipe
 
 	//wait for our ingest relay to exit
-	<-doneChan
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("Failed to sync: %v\n", err)
 	}
@@ -251,17 +253,6 @@ func main() {
 	}
 }
 
-func relay(ch chan *entry.Entry, done chan error, srcOverride net.IP, igst *ingest.IngestMuxer) {
-	for e := range ch {
-		if srcOverride != nil {
-			e.SRC = srcOverride
-		}
-		if err := igst.WriteEntry(e); err != nil {
-			lg.Warn("Failed to write entry: %v", err)
-		}
-	}
-	done <- nil
-}
 func debugout(format string, args ...interface{}) {
 	if !v {
 		return

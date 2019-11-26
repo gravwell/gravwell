@@ -11,7 +11,6 @@ package main
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -21,9 +20,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/config"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/timegrinder/v3"
-
-	"gopkg.in/gcfg.v1"
 )
 
 const (
@@ -40,8 +38,9 @@ type bindType int
 type readerType int
 
 type cfgReadType struct {
-	Global   global
-	Follower map[string]*follower
+	Global       global
+	Follower     map[string]*follower
+	Preprocessor processors.ProcessorConfig
 }
 
 type follower struct {
@@ -55,6 +54,7 @@ type follower struct {
 	Timestamp_Format_Override string //override the timestamp format
 	Timestamp_Delimited       bool
 	Timezone_Override         string
+	Preprocessor              []string
 }
 
 type global struct {
@@ -65,40 +65,20 @@ type global struct {
 
 type cfgType struct {
 	global
-	Follower map[string]*follower
+	Follower     map[string]*follower
+	Preprocessor processors.ProcessorConfig
 }
 
 func GetConfig(path string) (*cfgType, error) {
-	var content []byte
-	fin, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fi, err := fin.Stat()
-	if err != nil {
-		fin.Close()
-		return nil, err
-	}
-	//This is just a sanity check
-	if fi.Size() > MAX_CONFIG_SIZE {
-		fin.Close()
-		return nil, errors.New("Config File Far too large")
-	}
-	content = make([]byte, fi.Size())
-	n, err := fin.Read(content)
-	fin.Close()
-	if int64(n) != fi.Size() {
-		return nil, errors.New("Failed to read config file")
-	}
-	//read into the intermediary type to maintain backwards compatibility with the old system
 	var cr cfgReadType
 	cr.Global.Init() //initialize all the global parameters
-	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
+	if err := config.LoadConfigFile(&cr, path); err != nil {
 		return nil, err
 	}
 	c := &cfgType{
-		global:   cr.Global,
-		Follower: cr.Follower,
+		global:       cr.Global,
+		Follower:     cr.Follower,
+		Preprocessor: cr.Preprocessor,
 	}
 	if err := verifyConfig(c); err != nil {
 		return nil, err
@@ -106,7 +86,7 @@ func GetConfig(path string) (*cfgType, error) {
 	// Verify and set UUID
 	if _, ok := c.IngesterUUID(); !ok {
 		id := uuid.New()
-		if err = c.SetIngesterUUID(id, path); err != nil {
+		if err := c.SetIngesterUUID(id, path); err != nil {
 			return nil, err
 		}
 		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
@@ -122,7 +102,10 @@ func verifyConfig(c *cfgType) error {
 		return err
 	}
 	if len(c.Follower) == 0 {
-		return errors.New("No listeners specified")
+		return errors.New("No Followers specified")
+	}
+	if err := c.Preprocessor.Validate(); err != nil {
+		return err
 	}
 	for k, v := range c.Follower {
 		if len(v.Base_Directory) == 0 {
@@ -146,6 +129,9 @@ func verifyConfig(c *cfgType) error {
 			if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
 				return fmt.Errorf("Invalid timezone override %v in follower %v: %v", v.Timezone_Override, k, err)
 			}
+		}
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("Follower %s preprocessor invalid: %v", k, err)
 		}
 	}
 	return nil
