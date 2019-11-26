@@ -17,6 +17,7 @@ import (
 	"regexp"
 
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/timegrinder/v3"
 )
 
@@ -56,6 +57,14 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 	if cfg.setLocalTime {
 		tg.SetLocalTime()
 	}
+	if cfg.timezoneOverride != `` {
+		err = tg.SetTimezone(cfg.timezoneOverride)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", cfg.timezoneOverride, err)
+			return
+		}
+	}
+
 	re := regexp.MustCompile(`\n<\d{1,3}>`)
 
 	s := bufio.NewScanner(c)
@@ -145,33 +154,45 @@ func rfc5424ConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 			} else {
 				rip = cfg.src
 			}
-			handleRFC5424Packet(append([]byte(nil), buff[:n]...), rip, cfg.ignoreTimestamps, cfg.tag, tg)
+			handleRFC5424Packet(append([]byte(nil), buff[:n]...), rip, cfg.ignoreTimestamps, cfg.tag, tg, cfg.proc)
 		}
 	}
 
 }
 
 //we can be very very fast on this one by just manually scanning the buffer
-func handleRFC5424Packet(buff []byte, ip net.IP, ignoreTS bool, tag entry.EntryTag, tg *timegrinder.TimeGrinder) {
+func handleRFC5424Packet(buff []byte, ip net.IP, ignoreTS bool, tag entry.EntryTag, tg *timegrinder.TimeGrinder, proc *processors.ProcessorSet) {
 	var idx []int
 	var idx2 []int
-	re := regexp.MustCompile(`\n<\d{1,3}>`)
+	re := regexp.MustCompile(`^<\d{1,3}>`)
 	debugout("Scanning UDP packet %s\n", string(buff))
 	for len(buff) > 0 {
 		if idx = re.FindIndex(buff); idx == nil || len(idx) != 2 {
-			handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, tg)
+			if ent, err := handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, tg); err != nil {
+				return
+			} else if err = proc.Process(ent); err != nil {
+				return
+			}
 			return
 		}
 		if idx[0] == 0 {
 			//at the beginning, rescan
 			if idx2 = re.FindIndex(buff[idx[1]:]); idx2 == nil || len(idx2) != 2 {
 				//nothing, send it out
-				handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, tg)
+				if ent, err := handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, tg); err != nil {
+					return
+				} else if err = proc.Process(ent); err != nil {
+					return
+				}
 				return
 			}
 			//got it send log and update buff
 			end := idx[1] + idx2[0]
-			handleLog(bytes.TrimSpace(buff[0:end]), ip, ignoreTS, tag, tg)
+			if ent, err := handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, tg); err != nil {
+				return
+			} else if err = proc.Process(ent); err != nil {
+				return
+			}
 			buff = buff[end:]
 			continue
 		}
