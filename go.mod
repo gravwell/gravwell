@@ -23,7 +23,7 @@ require (
 	github.com/gravwell/filewatch v3.2.2+incompatible // indirect
 	github.com/gravwell/filewatch/v3 v3.3.1
 	github.com/gravwell/ingest v3.2.2+incompatible // indirect
-	github.com/gravwell/ingest/v3 v3.3.2-0.20191125235602-555c4e8cef9c
+	github.com/gravwell/ingest/v3 v3.3.2-0.20191126171341-03c16e307648
 	github.com/gravwell/netflow/v3 v3.2.3
 	github.com/gravwell/timegrinder v3.2.2+incompatible // indirect
 	github.com/gravwell/timegrinder/v3 v3.2.3

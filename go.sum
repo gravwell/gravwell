@@ -127,6 +127,8 @@ github.com/gravwell/ingest/v3 v3.3.2-0.20191125234934-293f068cf303 h1:bQ9ZuTLaep
 github.com/gravwell/ingest/v3 v3.3.2-0.20191125234934-293f068cf303/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
 github.com/gravwell/ingest/v3 v3.3.2-0.20191125235602-555c4e8cef9c h1:UOd+02Fsl/EnV+7xoFOPrbMky1WSZxxCMalP9yep/eQ=
 github.com/gravwell/ingest/v3 v3.3.2-0.20191125235602-555c4e8cef9c/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
+github.com/gravwell/ingest/v3 v3.3.2-0.20191126171341-03c16e307648 h1:Zh8UTIdsvdgQ1LBGMLhowfAWfAl22Q1dSfb0qnr3a7o=
+github.com/gravwell/ingest/v3 v3.3.2-0.20191126171341-03c16e307648/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
 github.com/gravwell/netflow/v3 v3.2.3 h1:RdcNKLZEGJ+4PJ2xo/Lm1OVLHBN3TzRYkTDScgrFaNw=
 github.com/gravwell/netflow/v3 v3.2.3/go.mod h1:mOvZuUk8VYa6yQagfJwGNBd08EmJYbKjmK1EJ7jTTjk=
 github.com/gravwell/timegrinder v3.2.2+incompatible h1:lbmjmXpRUGv9b7PV3gWqJFxGebsbYWl4kZ8Tbtnahqw=
