@@ -156,6 +156,11 @@ func main() {
 			lg.Fatal("Can't resolve tag %v: %v", psv.Tag_Name, err)
 		}
 
+		procset, err := cfg.Preprocessor.ProcessorSet(igst, psv.Preprocessor)
+		if err != nil {
+			lg.Fatal("Preprocessor construction error: %v", err)
+		}
+
 		// get the topic
 		topic := client.Topic(psv.Topic_Name)
 		ok, err := topic.Exists(ctx)
@@ -206,8 +211,8 @@ func main() {
 			eChan := make(chan *entry.Entry, 2048)
 			go func(c chan *entry.Entry) {
 				for e := range c {
-					if err := igst.WriteEntry(e); err != nil {
-						lg.Error("Can't write entry: %v", err)
+					if err := procset.Process(e); err != nil {
+						lg.Error("Can't process entry: %v", err)
 					}
 					count++
 				}

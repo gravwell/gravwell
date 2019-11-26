@@ -10,13 +10,13 @@ package main
 
 import (
 	"errors"
-	"os"
+	"fmt"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/ingest/v3/config"
-	"gopkg.in/gcfg.v1"
+	"github.com/gravwell/ingest/v3/processors"
 )
 
 const (
@@ -38,38 +38,18 @@ type pubsubconf struct {
 	Assume_Local_Timezone bool
 	Timezone_Override     string
 	Parse_Time            bool
+	Preprocessor          []string
 }
 
 type cfgType struct {
-	Global global
-	PubSub map[string]*pubsubconf
+	Global       global
+	PubSub       map[string]*pubsubconf
+	Preprocessor processors.ProcessorConfig
 }
 
 func GetConfig(path string) (*cfgType, error) {
-	var content []byte
-	fin, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fi, err := fin.Stat()
-	if err != nil {
-		fin.Close()
-		return nil, err
-	}
-	//This is just a sanity check
-	if fi.Size() > MAX_CONFIG_SIZE {
-		fin.Close()
-		return nil, errors.New("Config File Far too large")
-	}
-	content = make([]byte, fi.Size())
-	n, err := fin.Read(content)
-	fin.Close()
-	if int64(n) != fi.Size() {
-		return nil, errors.New("Failed to read config file")
-	}
-
 	var c cfgType
-	if err := gcfg.ReadStringInto(&c, string(content)); err != nil {
+	if err := config.LoadConfigFile(&c, path); err != nil {
 		return nil, err
 	}
 	if err := verifyConfig(c); err != nil {
@@ -78,7 +58,7 @@ func GetConfig(path string) (*cfgType, error) {
 	// Verify and set UUID
 	if _, ok := c.Global.IngesterUUID(); !ok {
 		id := uuid.New()
-		if err = c.Global.SetIngesterUUID(id, path); err != nil {
+		if err := c.Global.SetIngesterUUID(id, path); err != nil {
 			return nil, err
 		}
 		if id2, ok := c.Global.IngesterUUID(); !ok || id != id2 {
@@ -106,7 +86,18 @@ func verifyConfig(c cfgType) error {
 		return errors.New("No backend targets specified")
 	}
 	if len(c.PubSub) == 0 {
-		return errors.New("At least one Kinesis stream required.")
+		return errors.New("At least one Pubsub stream required.")
+	}
+	if err := c.Preprocessor.Validate(); err != nil {
+		return err
+	}
+	for k, v := range c.PubSub {
+		if v == nil {
+			return fmt.Errorf("pubsub stream %v config is nil", k)
+		}
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("pubsub stream %s preprocessor invalid: %v", k, err)
+		}
 	}
 	return nil
 }

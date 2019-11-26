@@ -20,7 +20,7 @@ require (
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
 	github.com/gravwell/filewatch/v3 v3.2.3
-	github.com/gravwell/ingest/v3 v3.3.1
+	github.com/gravwell/ingest/v3 v3.3.2-0.20191125235602-555c4e8cef9c
 	github.com/gravwell/netflow/v3 v3.2.3
 	github.com/gravwell/timegrinder/v3 v3.2.3
 	github.com/gravwell/winevent/v3 v3.2.4
