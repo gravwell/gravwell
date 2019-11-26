@@ -11,6 +11,7 @@ package filewatch
 import (
 	"bytes"
 	"errors"
+	"net"
 	"time"
 
 	"github.com/gravwell/ingest/v3/entry"
@@ -30,11 +31,12 @@ type logger interface {
 type LogHandler struct {
 	LogHandlerConfig
 	tg *timegrinder.TimeGrinder
-	ch chan *entry.Entry
+	w  logWriter
 }
 
 type LogHandlerConfig struct {
 	Tag                     entry.EntryTag
+	Src                     net.IP
 	IgnoreTS                bool
 	AssumeLocalTZ           bool
 	IgnorePrefixes          [][]byte
@@ -44,11 +46,15 @@ type LogHandlerConfig struct {
 	Debugger                debugOut
 }
 
-func NewLogHandler(cfg LogHandlerConfig, ch chan *entry.Entry) (*LogHandler, error) {
+type logWriter interface {
+	WriteEntry(*entry.Entry) error
+}
+
+func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
 	var tg *timegrinder.TimeGrinder
 	var err error
-	if ch == nil {
-		return nil, errors.New("output channel is nil")
+	if w == nil {
+		return nil, errors.New("output writer is nil")
 	}
 	if cfg.Logger == nil {
 		return nil, errors.New("Logger is nil")
@@ -80,7 +86,7 @@ func NewLogHandler(cfg LogHandlerConfig, ch chan *entry.Entry) (*LogHandler, err
 	}
 	return &LogHandler{
 		LogHandlerConfig: cfg,
-		ch:               ch,
+		w:                w,
 		tg:               tg,
 	}, nil
 }
@@ -110,11 +116,11 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	if lh.Debugger != nil {
 		lh.Debugger("GOT %s %s\n", ts.Format(time.RFC3339), string(b))
 	}
-	lh.ch <- &entry.Entry{
-		SRC:  nil, //ingest API will populate this
+	lh.w.WriteEntry(&entry.Entry{
+		SRC:  lh.Src,
 		TS:   entry.FromStandard(ts),
 		Tag:  lh.Tag,
 		Data: b,
-	}
+	})
 	return nil
 }
