@@ -38,7 +38,7 @@ type collector struct {
 	Bind_String           string //IP port pair 127.0.0.1:1234
 	Tag_Name              string
 	Assume_Local_Timezone bool
-	Ignore_Timestamp      bool
+	Ignore_Timestamps     bool
 	Flow_Type             string
 }
 

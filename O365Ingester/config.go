@@ -41,7 +41,7 @@ type contentType struct {
 
 	Assume_Local_Timezone bool
 	Timezone_Override     string
-	Parse_Time            bool
+	Ignore_Timestamps     bool
 
 	Preprocessor []string
 }

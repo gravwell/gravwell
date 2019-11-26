@@ -183,7 +183,7 @@ func main() {
 			lg.FatalCode(0, "Invalid flow type \"%s\": %v\n", v.Flow_Type, err)
 		}
 		bc.tag = tag
-		bc.ignoreTS = v.Ignore_Timestamp
+		bc.ignoreTS = v.Ignore_Timestamps
 		bc.localTZ = v.Assume_Local_Timezone
 		var bh BindHandler
 		switch ft {

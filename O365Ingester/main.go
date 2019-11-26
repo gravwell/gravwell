@@ -208,7 +208,7 @@ func main() {
 			}
 			tg, err := timegrinder.NewTimeGrinder(tcfg)
 			if err != nil {
-				ct.Parse_Time = false
+				ct.Ignore_Timestamps = true
 			}
 			if ct.Assume_Local_Timezone {
 				tg.SetLocalTime()
@@ -277,13 +277,13 @@ func main() {
 							Tag:  tag,
 							SRC:  src,
 						}
-						if ct.Parse_Time == false {
+						if ct.Ignore_Timestamps {
 							ent.TS = entry.Now()
 						} else {
 							ts, ok, err := tg.Extract(ent.Data)
 							if !ok || err != nil {
-								// something went wrong, switch to using kinesis timestamps
-								ct.Parse_Time = false
+								// something went wrong, switch to using the current time
+								ct.Ignore_Timestamps = true
 								ent.TS = entry.Now()
 							} else {
 								ent.TS = entry.FromStandard(ts)
