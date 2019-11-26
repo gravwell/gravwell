@@ -102,13 +102,12 @@ func (rr *RegexRouter) Process(ent *entry.Entry) (rset []*entry.Entry, err error
 	if ent == nil {
 		return
 	}
-	var tag entry.EntryTag
-	var drop bool
 	if mtchs := rr.rxp.FindSubmatch(ent.Data); rr.matchIdx < len(mtchs) {
-		if tag, drop = rr.handleExtract(mtchs[rr.matchIdx]); drop {
+		if tag, drop, ok := rr.handleExtract(mtchs[rr.matchIdx]); drop {
 			return
+		} else if ok {
+			ent.Tag = tag
 		}
-		ent.Tag = tag
 		rset = []*entry.Entry{ent}
 	} else if !rr.Drop_Misses {
 		rset = []*entry.Entry{ent}
@@ -116,9 +115,8 @@ func (rr *RegexRouter) Process(ent *entry.Entry) (rset []*entry.Entry, err error
 	return
 }
 
-func (rr *RegexRouter) handleExtract(v []byte) (tag entry.EntryTag, drop bool) {
+func (rr *RegexRouter) handleExtract(v []byte) (tag entry.EntryTag, drop, ok bool) {
 	//check if we have a tag
-	var ok bool
 	if tag, ok = rr.routes[string(v)]; !ok {
 		//check if it should be dropped
 		if _, drop = rr.drops[string(v)]; !drop {
