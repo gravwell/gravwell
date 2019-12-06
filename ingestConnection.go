@@ -18,6 +18,11 @@ import (
 	"github.com/gravwell/ingest/v3/entry"
 )
 
+const (
+	nilString     string = `nil`
+	nilConnString string = `disconnected`
+)
+
 var (
 	localSrc        = net.ParseIP("127.0.0.1")
 	ErrEmptyTag     = errors.New("Tag name is empty")
@@ -32,6 +37,19 @@ type IngestConnection struct {
 	running    bool
 	errorState error
 	mtx        sync.RWMutex
+}
+
+func (igst *IngestConnection) String() (s string) {
+	if igst == nil {
+		return nilString
+	} else if igst.conn == nil {
+		s = nilConnString
+	} else if ra := igst.conn.RemoteAddr(); ra == nil {
+		s = nilConnString
+	} else {
+		s = ra.String()
+	}
+	return
 }
 
 func (igst *IngestConnection) Close() error {

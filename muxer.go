@@ -13,7 +13,9 @@ import (
 	"container/list"
 	"context"
 	"errors"
+	"math/rand"
 	"net"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -1006,9 +1008,19 @@ func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, or
 	return
 }
 
+func tickerInterval() time.Duration {
+	//return a time between 750 and 1250 milliseconds
+	return time.Duration(750+rand.Int63n(500)) * time.Millisecond
+}
+
+func (im *IngestMuxer) shouldSched() bool {
+	//if pipelines are empty, schedule ourselves so that we can get a better distribution of entries
+	return len(im.igst) > 1 && len(im.eChan) == 0 && len(im.bChan) == 0
+}
+
 func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool) {
-	tkr := time.NewTicker(time.Second)
-	defer tkr.Stop()
+	tmr := time.NewTimer(tickerInterval())
+	defer tmr.Stop()
 	defer close(connFailure)
 
 	//grab our first conn set
@@ -1051,6 +1063,19 @@ inputLoop:
 					break inputLoop
 				}
 			}
+			//hack to get better distribution across connections in an muxer
+			if im.shouldSched() {
+				if !tmr.Stop() {
+					<-tmr.C
+				}
+				if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
+					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+						break inputLoop
+					}
+				}
+				tmr.Reset(tickerInterval())
+				runtime.Gosched()
+			}
 		case b, ok := <-bC:
 			if !ok {
 				bC = nil
@@ -1076,6 +1101,19 @@ inputLoop:
 					break inputLoop
 				}
 			}
+			//hack to get better distribution across connections in an muxer
+			if im.shouldSched() {
+				if !tmr.Stop() {
+					<-tmr.C
+				}
+				if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
+					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+						break inputLoop
+					}
+				}
+				tmr.Reset(tickerInterval())
+				runtime.Gosched()
+			}
 		case tnc, ok = <-csc: //in case we get an unexpected new connection
 			if !ok {
 				nc.ig.Sync()
@@ -1084,13 +1122,14 @@ inputLoop:
 				break inputLoop
 			}
 			nc = tnc //just an update
-		case <-tkr.C:
+		case <-tmr.C:
 			//periodically check the emergency queue and sync
 			if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
 				}
 			}
+			tmr.Reset(tickerInterval())
 		}
 	}
 }
