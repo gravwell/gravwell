@@ -197,7 +197,7 @@ func main() {
 				lg.Fatal("Can't resolve tag %v: %v", ct.Tag_Name, err)
 			}
 
-			procset, err := cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor)
+			procset, err := cfg.Preprocessor.ProcessorSet(igst, ct.Preprocessor)
 			if err != nil {
 				lg.Fatal("Preprocessor construction error: %v", err)
 			}

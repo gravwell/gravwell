@@ -114,7 +114,7 @@ func (st *stateTracker) cleanStatesNoLock() {
 	}
 }
 
-func (st *stateTracker) tick() {
+func (st *stateTracker) tickNoLock() {
 	// Sync the muxer while we're here
 	err := st.igst.Sync(2 * time.Second)
 	if err != nil {
@@ -135,7 +135,7 @@ func (st *stateTracker) tick() {
 
 func (st *stateTracker) IdExists(id string) bool {
 	st.Lock()
-	st.Unlock()
+	defer st.Unlock()
 	_, ok := st.stateMap[id]
 	if ok {
 		return true
@@ -159,13 +159,15 @@ func (st *stateTracker) Start() {
 	go func() {
 		t := time.Tick(30 * time.Second)
 		for range t {
-			st.tick()
+			st.Lock()
+			st.tickNoLock()
+			st.Unlock()
 		}
 	}()
 }
 
 func (st *stateTracker) Close() {
 	st.Lock()
-	st.tick()
+	st.tickNoLock()
 	st.Unlock()
 }
