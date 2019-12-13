@@ -14,7 +14,7 @@ require (
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/eapache/go-resiliency v1.2.0 // indirect
-	github.com/floren/ipfix v1.4.1-0.20191211225245-ed5c9225d0fc
+	github.com/floren/ipfix v1.4.1-0.20191213175924-addccbe2a2e4
 	github.com/floren/o365 v0.0.1
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9 // indirect
