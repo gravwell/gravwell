@@ -15,7 +15,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/signal"
 	"path"
 	"runtime/pprof"
 	"syscall"
@@ -24,6 +23,7 @@ import (
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/gravwell/ingesters/v3/version"
 
 	"github.com/google/gopacket/layers"
@@ -251,16 +251,13 @@ func main() {
 
 	start := time.Now()
 
-	//register quit signals so we can die gracefully
-	quitSig := make(chan os.Signal, 1)
-	signal.Notify(quitSig, os.Interrupt, os.Kill)
-
 	for i := range sniffs {
 		sniffs[i].active = true
 		go pcapIngester(igst, &sniffs[i])
 	}
 
-	<-quitSig
+	utils.WaitForQuit()
+
 	requestClose(sniffs)
 	res := gatherResponse(sniffs)
 	closeHandles(sniffs)

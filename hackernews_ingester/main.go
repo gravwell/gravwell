@@ -16,12 +16,12 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
 	"strings"
 	"time"
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingesters/v3/utils"
 )
 
 var (
@@ -96,10 +96,6 @@ func main() {
 	}
 	debugout("Successfully connected to ingesters\n")
 
-	//register quit signals so we can die gracefully
-	quitSig := make(chan os.Signal, 1)
-	signal.Notify(quitSig, os.Interrupt, os.Kill)
-
 	igsttag, err := igst.GetTag(*tagName)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Couldn't lookup tag: %v\n", *tagName)
@@ -121,7 +117,7 @@ func main() {
 		go stream.streamReader()
 		go stream.hnIngester(igst)
 	}
-	<-quitSig
+	utils.WaitForQuit()
 
 	debugout("exiting\n")
 }

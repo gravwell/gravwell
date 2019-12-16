@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"os/signal"
 	"path"
 	"runtime/pprof"
 	"syscall"
@@ -20,6 +19,7 @@ import (
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/gravwell/ingesters/v3/version"
 )
 
@@ -193,9 +193,7 @@ func main() {
 	}
 
 	//listen for signals so we can close gracefully
-	sch := make(chan os.Signal, 1)
-	signal.Notify(sch, os.Interrupt, os.Kill)
-	<-sch
+	utils.WaitForQuit()
 
 	//close down our consumers
 	if err := clsrs.Close(); err != nil {

@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/signal"
 	"runtime"
 	"time"
 
@@ -100,9 +99,6 @@ func main() {
 	entChan := make(chan []*entry.Entry, 64)
 	errChan := make(chan error, 1)
 
-	//listen for signals so we can close gracefully
-	sch := make(chan os.Signal, 1)
-	signal.Notify(sch, os.Interrupt, os.Kill)
 	start := time.Now()
 
 	if !simulate {

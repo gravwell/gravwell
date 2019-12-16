@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/signal"
 	"path/filepath"
 	"runtime/pprof"
 	"sync"
@@ -23,6 +22,7 @@ import (
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/gravwell/ingesters/v3/version"
 )
 
@@ -218,9 +218,7 @@ func main() {
 	debugout("Running\n")
 
 	//listen for signals so we can close gracefully
-	sch := make(chan os.Signal, 1)
-	signal.Notify(sch, os.Interrupt, os.Kill)
-	<-sch
+	utils.WaitForQuit()
 	debugout("Closing %d connections\n", connCount())
 	mtx.Lock()
 	for _, v := range connClosers {

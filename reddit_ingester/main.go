@@ -11,11 +11,10 @@ package main
 import (
 	"flag"
 	"log"
-	"os"
-	"os/signal"
 	"sync"
 	"time"
 
+	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/turnage/graw/reddit"
 	"github.com/turnage/graw/streams"
 )
@@ -63,9 +62,7 @@ func main() {
 	}()
 
 	//register quit signals so we can die gracefully
-	quitSig := make(chan os.Signal, 1)
-	signal.Notify(quitSig, os.Interrupt, os.Kill)
-	<-quitSig
+	utils.WaitForQuit()
 
 	dieChan <- true
 	wg.Wait()

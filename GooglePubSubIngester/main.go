@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/signal"
 	"path"
 	"syscall"
 	"time"
@@ -22,6 +21,7 @@ import (
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
 
@@ -277,10 +277,7 @@ func main() {
 	}
 
 	//register quit signals so we can die gracefully
-	quitSig := make(chan os.Signal, 1)
-	signal.Notify(quitSig, os.Interrupt, os.Kill)
-
-	<-quitSig
+	utils.WaitForQuit()
 }
 
 func debugout(format string, args ...interface{}) {

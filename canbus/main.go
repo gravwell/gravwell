@@ -15,11 +15,11 @@ import (
 	"log"
 	"net"
 	"os"
-	"os/signal"
 	"time"
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingesters/v3/utils"
 )
 
 const (
@@ -146,17 +146,13 @@ func main() {
 
 	start := time.Now()
 
-	//register quit signals so we can die gracefully
-	quitSig := make(chan os.Signal, 2)
-	defer close(quitSig)
-	signal.Notify(quitSig, os.Interrupt, os.Kill)
-
 	for i := range sniffs {
 		sniffs[i].active = true
 		go canIngester(igst, sniffs[i])
 	}
 
-	<-quitSig
+	//register quit signals so we can die gracefully
+	utils.WaitForQuit()
 	requestClose(sniffs)
 	res := gatherResponse(sniffs)
 	closeHandles(sniffs)

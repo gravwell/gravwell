@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/signal"
 	"path"
 	"sync"
 	"syscall"
@@ -322,11 +321,7 @@ func main() {
 		}
 	}
 
-	//register quit signals so we can die gracefully
-	quitSig := make(chan os.Signal, 1)
-	signal.Notify(quitSig, os.Interrupt, os.Kill)
-
-	<-quitSig
+	utils.WaitForQuit()
 
 	running = false
 	wg.Wait()
