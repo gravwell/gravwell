@@ -10,9 +10,11 @@ package main
 
 import (
 	"errors"
+	"sync"
+	"time"
+
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
-	"sync"
 )
 
 var (
@@ -47,12 +49,14 @@ func connCount() int {
 }
 
 type bindConfig struct {
-	tag      entry.EntryTag
-	ch       chan *entry.Entry
-	wg       *sync.WaitGroup
-	ignoreTS bool
-	localTZ  bool
-	igst     *ingest.IngestMuxer
+	tag                entry.EntryTag
+	ch                 chan *entry.Entry
+	wg                 *sync.WaitGroup
+	ignoreTS           bool
+	localTZ            bool
+	igst               *ingest.IngestMuxer
+	lastInfoDump       time.Time
+	sessionDumpEnabled bool
 }
 
 type BindHandler interface {

@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/floren/ipfix"
+	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/netflow/v3"
 )
@@ -128,9 +129,10 @@ type IpfixHandler struct {
 	mtx   *sync.Mutex
 	c     *net.UDPConn
 	ready bool
+	igst  *ingest.IngestMuxer
 }
 
-func NewIpfixHandler(c bindConfig) (*IpfixHandler, error) {
+func NewIpfixHandler(c bindConfig, mux *ingest.IngestMuxer) (*IpfixHandler, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
@@ -138,6 +140,7 @@ func NewIpfixHandler(c bindConfig) (*IpfixHandler, error) {
 	return &IpfixHandler{
 		bindConfig: c,
 		mtx:        &sync.Mutex{},
+		igst:       mux,
 	}, nil
 }
 
@@ -186,14 +189,44 @@ func (i *IpfixHandler) Start(id int) error {
 	return nil
 }
 
+type sessionKey struct {
+	ip     [16]byte
+	domain uint32
+}
+
+func getSessionKey(domain uint32, v net.IP) (k sessionKey) {
+	k.domain = domain
+	if v != nil {
+		if r := v.To4(); r != nil {
+			copy(k.ip[0:4], []byte(r))
+		} else {
+			copy(k.ip[0:16], []byte(v.To16()))
+		}
+	}
+	return
+}
+
+func (s *sessionKey) String() string {
+	if r := net.IP(s.ip[0:4]).To4(); r != nil {
+		return fmt.Sprintf("%v:%d", r, s.domain)
+	}
+	return fmt.Sprintf("%v:%d", net.IP(s.ip[:]), s.domain)
+}
+
 func (i *IpfixHandler) routine(id int) {
 	defer i.wg.Done()
 	defer delConn(id)
+
 	var l int
-	s := ipfix.NewSession()
+	var ok bool
+	var s *ipfix.Session
 	var addr *net.UDPAddr
 	var err error
 	var ts entry.Timestamp
+	var version uint16
+	var domainID uint32
+
+	sessionMap := make(map[sessionKey]*ipfix.Session)
 	tbuff := make([]byte, 65507) // just go with max UDP packet size
 	for {
 		if l, addr, err = i.c.ReadFromUDP(tbuff); err != nil {
@@ -204,6 +237,50 @@ func (i *IpfixHandler) routine(id int) {
 
 		// For each message received, we want to parse it, extract and attach
 		// any relevant but missing templates, then re-marshal it and ingest
+
+		// First, to figure out the appropriate Session, we extract the domain ID
+		// We do this manually for speed
+		// Grab the version so we know where to look
+		if l < 2 {
+			debugout("Message too short for IPFIX or Netflow v9, skipping\n")
+			continue
+		}
+		version = binary.BigEndian.Uint16(tbuff[0:])
+		switch version {
+		case 9:
+			// netflow v9
+			// Make sure it's long enough, a netflow v9 message header is 20 bytes long
+			if l < 20 {
+				debugout("Message too short for Netflow v9, skipping\n")
+				continue
+			}
+			domainID = binary.BigEndian.Uint32(tbuff[16:])
+		case 10:
+			// ipfix
+			// Make sure it's long enough, a ipfix message header is 16 bytes long
+			if l < 16 {
+				debugout("Message too short for IPFIX, skipping\n")
+				continue
+			}
+			domainID = binary.BigEndian.Uint32(tbuff[12:])
+		}
+
+		key := getSessionKey(domainID, addr.IP)
+		if s, ok = sessionMap[key]; !ok {
+			// if it's not in the map yet, we need to create a session
+			debugout("Creating new session for %v\n", key.String())
+			i.igst.Info("Creating new session for %v, domain ID %d", addr.IP, domainID)
+			s = ipfix.NewSession()
+			sessionMap[key] = s
+		}
+
+		if i.sessionDumpEnabled && time.Now().Sub(i.lastInfoDump) > 1*time.Hour {
+			for k, _ := range sessionMap {
+				i.igst.Info("IPFIX/Netflow v9 session dump: %v", k.String())
+			}
+			i.lastInfoDump = time.Now()
+		}
+
 		msg, err := s.ParseBuffer(tbuff[:l])
 		if err != nil {
 			debugout("Rejecting packet: %v\n", err)
@@ -217,7 +294,7 @@ func (i *IpfixHandler) routine(id int) {
 		var lbuff []byte
 		templates, err := s.LookupTemplateRecords(msg)
 		if err != nil || (len(msg.DataRecords) == 0 && len(msg.TemplateRecords) == 0) {
-			debugout("Failed to lookup template records for message, passing original\n")
+			debugout("Failed to lookup template records for message, passing original (this is not necessarily an error)\n")
 			lbuff = make([]byte, l)
 			copy(lbuff, tbuff[0:l])
 		} else {

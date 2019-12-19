@@ -40,6 +40,7 @@ type collector struct {
 	Assume_Local_Timezone bool
 	Ignore_Timestamps     bool
 	Flow_Type             string
+	Session_Dump_Enabled  bool
 }
 
 type cfgReadType struct {

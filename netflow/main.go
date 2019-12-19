@@ -185,6 +185,8 @@ func main() {
 		bc.tag = tag
 		bc.ignoreTS = v.Ignore_Timestamps
 		bc.localTZ = v.Assume_Local_Timezone
+		bc.sessionDumpEnabled = v.Session_Dump_Enabled
+		bc.lastInfoDump = time.Now()
 		var bh BindHandler
 		switch ft {
 		case nfv5Type:
@@ -193,7 +195,7 @@ func main() {
 				return
 			}
 		case ipfixType:
-			if bh, err = NewIpfixHandler(bc); err != nil {
+			if bh, err = NewIpfixHandler(bc, igst); err != nil {
 				lg.FatalCode(0, "NewIpfixHandler error: %v\n", err)
 				return
 			}
