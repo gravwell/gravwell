@@ -33,7 +33,8 @@
 
       <Directory Id="TARGETDIR" Name="SourceDir">
          <Directory Id="$(var.Program_Files)">
-            <Directory Id="INSTALLDIR" Name="gravwell">
+            <Directory Id="BASEDIR" Name="gravwell">
+	      <Directory Id="INSTALLDIR" Name="filefollow">
                {{if gt (.Files.Items | len) 0}}
                <Component Id="ApplicationFiles" Guid="{{.Files.GUID}}">
                   {{range $i, $e := .Files.Items}}
@@ -53,6 +54,7 @@
                {{end}}
                {{end}}
 			   
+              </Directory>
             </Directory>
          </Directory>
 

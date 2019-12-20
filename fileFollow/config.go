@@ -156,6 +156,15 @@ func (c *cfgType) Tags() ([]string, error) {
 	return tags, nil
 }
 
+func (cfg *cfgType) Followers() map[string]follower {
+	mp := make(map[string]follower, len(cfg.Follower))
+	for k, v := range cfg.Follower {
+		if v != nil {
+			mp[k] = *v
+		}
+	}
+	return mp
+}
 func (f follower) TimestampOverride() (v string, err error) {
 	v = strings.TrimSpace(f.Timestamp_Format_Override)
 	return

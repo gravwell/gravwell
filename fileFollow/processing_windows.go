@@ -11,14 +11,14 @@ package main
 import (
 	"errors"
 	"fmt"
-	"sync"
+	"net"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
 
 	"github.com/gravwell/filewatch/v3"
 	"github.com/gravwell/ingest/v3"
-	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
 )
@@ -32,18 +32,19 @@ var (
 )
 
 type mainService struct {
-	secret    string
-	timeout   time.Duration
-	tags      []string
-	conns     []string
-	flocs     map[string]FollowType
-	igst      *ingest.IngestMuxer
-	tg        *timegrinder.TimeGrinder
-	wtchr     *filewatch.WatchManager
-	entCh     chan *entry.Entry
-	cachePath string
-	logLevel  string
-	uuid      string
+	secret      string
+	timeout     time.Duration
+	tags        []string
+	conns       []string
+	flocs       map[string]follower
+	igst        *ingest.IngestMuxer
+	tg          *timegrinder.TimeGrinder
+	wtchr       *filewatch.WatchManager
+	pp          processors.ProcessorConfig
+	srcOverride string
+	cachePath   string
+	logLevel    string
+	uuid        string
 }
 
 func NewService(cfg *cfgType) (*mainService, error) {
@@ -58,32 +59,30 @@ func NewService(cfg *cfgType) (*mainService, error) {
 	}
 	debugout("Acquired tags and targets\n")
 	//fire up the watch manager
-	wtcher, err := filewatch.NewWatcher(cfg.StatePath())
+	wtchr, err := filewatch.NewWatcher(cfg.StatePath())
 	if err != nil {
 		return nil, err
 	}
+	//pass in the ingest muxer to the file watcher so it can throw info and errors down the muxer chan
+	wtchr.SetMaxFilesWatched(cfg.Max_Files_Watched)
 
-	var cachePath string
-	if cfg.CacheEnabled() {
-		cachePath = cfg.CachePath()
-	}
-	id, ok := cfg.Global.IngesterUUID()
+	id, ok := cfg.IngesterUUID()
 	if !ok {
 		return nil, errors.New("Couldn't read ingester UUID")
 	}
 
 	debugout("Watching %d Directories\n", len(cfg.Follower))
 	return &mainService{
-		timeout:   cfg.Timeout(),
-		secret:    cfg.Secret(),
-		tags:      tags,
-		conns:     conns,
-		flocs:     cfg.Followers(), //this copies the map
-		entCh:     make(chan *entry.Entry, defaultEntryChannelSize),
-		wtchr:     wtcher,
-		cachePath: cachePath,
-		logLevel:  cfg.LogLevel(),
-		uuid:      id.String(),
+		timeout:     cfg.Timeout(),
+		secret:      cfg.Secret(),
+		tags:        tags,
+		conns:       conns,
+		flocs:       cfg.Followers(), //this copies the map
+		wtchr:       wtchr,
+		pp:          cfg.Preprocessor,
+		logLevel:    cfg.LogLevel(),
+		uuid:        id.String(),
+		srcOverride: cfg.Source_Override,
 	}, nil
 }
 
@@ -119,68 +118,33 @@ func (m *mainService) Execute(args []string, r <-chan svc.ChangeRequest, changes
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
-	consumerErr := make(chan error, 1)
-	consumerClose := make(chan bool, 1)
-	defer close(consumerClose)
 
-	wg := sync.WaitGroup{}
-	wg.Add(1)
-	go m.consumerRoutine(consumerErr, consumerClose, &wg)
+	if err := m.init(); err != nil {
+		ssec = true
+		errno = 1000
+		errorout("Failed to initialize the service: %v", err)
+		return
+	}
+
 loop:
-	for {
-		select {
-		case c := <-r:
-			switch c.Cmd {
-			case svc.Interrogate:
-				//not sure why this is sent twice, but ok
-				//its in the example from official golang libs
-				changes <- c.CurrentStatus
-				changes <- c.CurrentStatus
-			case svc.Stop, svc.Shutdown:
-				//shutdown the watchers to get the consumer routine to exit
-				consumerClose <- true
-				break loop
-			default:
-				errorout("Got invalid control request #%d", c)
-			}
-		case err := <-consumerErr:
-			if err != nil {
-				errorout("FileFollow consumer error: %v", err)
-				errno = 1000
-				ssec = true
-			}
+	for c := range r {
+		switch c.Cmd {
+		case svc.Interrogate:
+			//not sure why this is sent twice, but ok
+			//its in the example from official golang libs
+			changes <- c.CurrentStatus
+			changes <- c.CurrentStatus
+		case svc.Stop, svc.Shutdown:
+			//shutdown the watchers to get the consumer routine to exit
+			break loop
+		default:
+			errorout("Got invalid control request #%d", c)
 			break loop
 		}
 	}
 	infoout("%s stopping", serviceName)
 	changes <- svc.Status{State: svc.StopPending}
-	wg.Wait()
 	return
-}
-
-func (m *mainService) consumerRoutine(errC chan error, closeC chan bool, wg *sync.WaitGroup) {
-	var err error
-	defer wg.Done()
-	if err = m.init(); err != nil {
-		errorout("Failed to start: %v", err)
-		errC <- err
-		return
-	}
-	debugout("Consumer routine loop running\n")
-consumerLoop:
-	for {
-		select {
-		case evt, ok := <-m.entCh:
-			if !ok {
-				break consumerLoop
-			} else if err = m.igst.WriteEntry(evt); err != nil {
-				break consumerLoop
-			}
-		case <-closeC:
-			break consumerLoop
-		}
-	}
-	errC <- err
 }
 
 func (m *mainService) init() error {
@@ -198,10 +162,6 @@ func (m *mainService) init() error {
 		IngesterName:    "winfilefollow",
 		IngesterVersion: version.GetVersion(),
 		IngesterUUID:    m.uuid,
-	}
-	if m.cachePath != `` {
-		ingestConfig.EnableCache = true
-		ingestConfig.CacheConfig.FileBackingLocation = m.cachePath
 	}
 
 	debugout("Starting ingester connections ")
@@ -223,42 +183,92 @@ func (m *mainService) init() error {
 		return err
 	}
 	infoout("Ingester established %d connections\n", hot)
+	m.wtchr.SetLogger(igst)
 
-	//build up the handlers
-	for k, v := range m.flocs {
-		//get the tag for this listener
-		tag, err := igst.GetTag(v.Tag_Name)
-		if err != nil {
-			errorout("Failed to resolve tag \"%s\" for %s: %v\n", v.Tag_Name, k, err)
+	var src net.IP
+	if m.srcOverride != "" {
+		// global override
+		if src = net.ParseIP(m.srcOverride); src == nil {
+			errorout("Global Source-Override is invalid")
 			return err
 		}
+	} else if src, err = igst.SourceIP(); err != nil {
+		errorout("Failed to resolve source IP from muxer: %v", err)
+		return err
+	}
+
+	//build up the handlers
+	for k, val := range m.flocs {
+		pproc, err := m.pp.ProcessorSet(igst, val.Preprocessor)
+		if err != nil {
+			errorout("Preprocessor construction error: %v", err)
+			return err
+		}
+		//get the tag for this listener
+		tag, err := igst.GetTag(val.Tag_Name)
+		if err != nil {
+			errorout("Failed to resolve tag \"%s\" for %s: %v\n", val.Tag_Name, k, err)
+			return err
+		}
+		var ignore [][]byte
+		for _, prefix := range val.Ignore_Line_Prefix {
+			if prefix != "" {
+				ignore = append(ignore, []byte(prefix))
+			}
+		}
+		tsFmtOverride, err := val.TimestampOverride()
+		if err != nil {
+			errorout("Invalid timestamp override \"%s\": %v\n", val.Timestamp_Format_Override, err)
+			return err
+		}
+
 		//create our handler for this watcher
 		cfg := filewatch.LogHandlerConfig{
-			Tag:           tag,
-			IgnoreTS:      v.Ignore_Timestamps,
-			AssumeLocalTZ: v.Assume_Local_Timezone,
-			Logger:        dbgLogger,
+			Tag:                     tag,
+			Src:                     src,
+			IgnoreTS:                val.Ignore_Timestamps,
+			AssumeLocalTZ:           val.Assume_Local_Timezone,
+			IgnorePrefixes:          ignore,
+			TimestampFormatOverride: tsFmtOverride,
+			Logger:                  dbgLogger,
+			TimezoneOverride:        val.Timezone_Override,
 		}
-		lh, err := filewatch.NewLogHandler(cfg, m.entCh)
+
+		lh, err := filewatch.NewLogHandler(cfg, pproc)
 		if err != nil {
 			errorout("Failed to generate handler: %v", err)
 			return err
 		}
 		c := filewatch.WatchConfig{
 			ConfigName: k,
-			BaseDir:    v.Base_Directory,
-			FileFilter: v.File_Filter,
+			BaseDir:    val.Base_Directory,
+			FileFilter: val.File_Filter,
 			Hnd:        lh,
+			Recursive:  val.Recursive,
 		}
+		if rex, ok, err := val.TimestampDelimited(); err != nil {
+			errorout("Invalid timestamp delimiter: %v\n", err)
+		} else if ok {
+			c.Engine = filewatch.RegexEngine
+			c.EngineArgs = rex
+		} else {
+			c.Engine = filewatch.LineEngine
+		}
+
 		if err := m.wtchr.Add(c); err != nil {
 			errorout("Failed to add watch directory for %s (%s): %v\n",
-				v.Base_Directory, v.File_Filter, err)
+				val.Base_Directory, val.File_Filter, err)
 			m.wtchr.Close()
 			return err
 		}
 	}
 	m.wtchr.SetLogger(m.igst)
-	return m.wtchr.Start()
+	if err = m.wtchr.Start(); err == nil {
+		debugout("File watcher started\n")
+	} else {
+		errorout("Failed to start file watcher: %v\n", err)
+	}
+	return err
 }
 
 func debugPrint(f string, args ...interface{}) {

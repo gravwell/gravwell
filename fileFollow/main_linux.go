@@ -1,3 +1,4 @@
+// +build linux
 /*************************************************************************
  * Copyright 2017 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -141,7 +142,6 @@ func main() {
 	}
 	debugout("Successfully connected to ingesters\n")
 
-	//fire off our relay
 	var src net.IP
 	if cfg.Source_Override != "" {
 		// global override
@@ -163,6 +163,10 @@ func main() {
 
 	//build a list of base directories and globs
 	for k, val := range cfg.Follower {
+		pproc, err := cfg.Preprocessor.ProcessorSet(igst, val.Preprocessor)
+		if err != nil {
+			lg.FatalCode(0, "Preprocessor construction error: %v", err)
+		}
 		//get the tag for this listener
 		tag, err := igst.GetTag(val.Tag_Name)
 		if err != nil {
@@ -179,10 +183,6 @@ func main() {
 			lg.FatalCode(0, "Invalid timestamp override \"%s\": %v\n", val.Timestamp_Format_Override, err)
 		}
 
-		pproc, err := cfg.Preprocessor.ProcessorSet(igst, val.Preprocessor)
-		if err != nil {
-			lg.FatalCode(0, "Preprocessor construction error: %v", err)
-		}
 		//create our handler for this watcher
 		cfg := filewatch.LogHandlerConfig{
 			Tag:                     tag,
