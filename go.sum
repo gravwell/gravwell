@@ -10,6 +10,8 @@ github.com/gravwell/ingest/v3 v3.2.5 h1:cWzeSjNDwquI1LNAS9lLOPET5i13aeH4ij1L729Q
 github.com/gravwell/ingest/v3 v3.2.5/go.mod h1:FEwXF8fgcIhMDyq47t30myKxP3d0yqqnS48Y/rlD9Ig=
 github.com/gravwell/ingest/v3 v3.3.2 h1:gy2GimQwEOe2uqmWJlMYEbcINwCW1UAjjskY1kXLSpk=
 github.com/gravwell/ingest/v3 v3.3.2/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
+github.com/gravwell/ingest/v3 v3.3.3 h1:WMRTbUUp1Qfqw6CnqcFATy+IV89gwrpxR3sWtIpfPXQ=
+github.com/gravwell/ingest/v3 v3.3.3/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
 github.com/gravwell/timegrinder/v3 v3.2.3/go.mod h1:5N5jpqRDBJaEw1GotCXb8hmGoNeOPDSBjin1Mz/6g1Q=
 github.com/klauspost/compress v1.8.6/go.mod h1:RyIbtBH6LamlWaDj8nUwkbUhJ87Yi3uG0guNDohfE1A=
 github.com/klauspost/cpuid v1.2.1/go.mod h1:Pj4uuM528wm8OyEC2QMXAi2YiTZ96dNQPGgoMS4s3ek=
