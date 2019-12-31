@@ -14,7 +14,7 @@ require (
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/eapache/go-resiliency v1.2.0 // indirect
-	github.com/floren/ipfix v1.4.1-0.20191213175924-addccbe2a2e4
+	github.com/floren/ipfix v1.4.1
 	github.com/floren/o365 v0.0.1
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/golang/groupcache v0.0.0-20191027212112-611e8accdfc9 // indirect
@@ -22,7 +22,7 @@ require (
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
 	github.com/gravwell/filewatch/v3 v3.3.2
-	github.com/gravwell/ingest/v3 v3.3.2
+	github.com/gravwell/ingest/v3 v3.3.3
 	github.com/gravwell/netflow/v3 v3.2.3
 	github.com/gravwell/timegrinder/v3 v3.2.3
 	github.com/gravwell/winevent/v3 v3.2.7
