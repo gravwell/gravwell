@@ -56,7 +56,7 @@ var (
 )
 
 //we return the rate in bytes per second
-func parseRate(s string) (Bps int64, err error) {
+func ParseRate(s string) (Bps int64, err error) {
 	var r uint64
 	if len(s) == 0 {
 		return
@@ -93,7 +93,7 @@ func ParseSource(v string) (b net.IP, err error) {
 		return
 	}
 	//try as a plain integer
-	if i, err = parseUint64(v); err == nil {
+	if i, err = ParseUint64(v); err == nil {
 		//encode into a buffer
 		bb := make([]byte, 16)
 		binary.BigEndian.PutUint64(bb[8:], i)
@@ -115,7 +115,7 @@ func ParseSource(v string) (b net.IP, err error) {
 	return
 }
 
-func parseUint64(v string) (i uint64, err error) {
+func ParseUint64(v string) (i uint64, err error) {
 	if strings.HasPrefix(v, "0x") {
 		i, err = strconv.ParseUint(strings.TrimPrefix(v, "0x"), 16, 64)
 	} else {
@@ -124,7 +124,7 @@ func parseUint64(v string) (i uint64, err error) {
 	return
 }
 
-func parseInt64(v string) (i int64, err error) {
+func ParseInt64(v string) (i int64, err error) {
 	if strings.HasPrefix(v, "0x") {
 		i, err = strconv.ParseInt(strings.TrimPrefix(v, "0x"), 16, 64)
 	} else {

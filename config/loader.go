@@ -172,7 +172,7 @@ func (vc VariableConfig) setField(name string, v reflect.Value) (err error) {
 		fallthrough
 	case reflect.Int:
 		var vint int64
-		if vint, err = parseInt64(strv); err == nil {
+		if vint, err = ParseInt64(strv); err == nil {
 			if v.OverflowInt(vint) {
 				err = fmt.Errorf("%d overflows %T", vint, v.Interface())
 			} else {
@@ -189,7 +189,7 @@ func (vc VariableConfig) setField(name string, v reflect.Value) (err error) {
 		fallthrough
 	case reflect.Uint:
 		var vint uint64
-		if vint, err = parseUint64(strv); err == nil {
+		if vint, err = ParseUint64(strv); err == nil {
 			if v.OverflowUint(vint) {
 				err = fmt.Errorf("%d overflows %T", vint, v.Interface())
 			} else {

@@ -269,7 +269,7 @@ func (ic *IngestConfig) RateLimit() (bps int64, err error) {
 	if ic.Rate_Limit == `` {
 		return
 	}
-	bps, err = parseRate(ic.Rate_Limit)
+	bps, err = ParseRate(ic.Rate_Limit)
 	return
 }
 
