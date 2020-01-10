@@ -10,8 +10,8 @@ package main
 import (
 	"flag"
 	"log"
-	"os"
-	"os/signal"
+
+	"github.com/gravwell/ingesters/v3/utils"
 )
 
 const (
@@ -63,11 +63,9 @@ func main() {
 	}
 
 	//register for signals so we can die gracefully
-	quitSig := make(chan os.Signal, 2)
-	defer close(quitSig)
-	signal.Notify(quitSig, os.Interrupt, os.Kill)
-	<-quitSig
+	utils.WaitForQuit()
 
+	lg.Info("Received shutdown signal, stopping %d children", len(pms))
 	for _, p := range pms {
 		if err := p.Close(); err != nil {
 			log.Fatal(err)
