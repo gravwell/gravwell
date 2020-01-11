@@ -23,9 +23,15 @@ import (
 )
 
 const (
-	maxConfigSize  int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
-	maxSnapLen     int   = 0xffff
-	defaultSnapLen int   = 96
+	maxConfigSize    int64  = (1024 * 1024 * 2) //2MB, even this is crazy large
+	maxSnapLen       int    = 0xffff
+	defaultSnapLen   int    = 96
+	defaultBpfFilter string = `not tcp port 4023 and not tcp port 4024`
+
+	envInterface string = `GRAVWELL_SNIFF_INTERFACE`
+	envBPFFilter string = `GRAVWELL_SNIFF_BPF_FILTER`
+	envSniffTag  string = `GRAVWELL_SNIFF_TAG`
+	envSnapLen   string = `GRAVWELL_SNIFF_SNAPLEN`
 )
 
 type cfgReadType struct {
@@ -102,14 +108,27 @@ func verifyConfig(c *cfgType) error {
 		return errors.New("No Sniffers specified")
 	}
 	for k, v := range c.Sniffer {
+		if err := config.LoadEnvVar(&v.Interface, envInterface, ``); err != nil {
+			return err
+		}
 		if len(v.Interface) == 0 {
-			return errors.New("No Inteface provided for " + k)
+			if defIface, err := getNonLoopbackInterface(); err != nil {
+				v.Interface = defIface
+			} else {
+				return errors.New("No Inteface provided for " + k)
+			}
+		}
+		if err := config.LoadEnvVar(&v.Tag_Name, envSniffTag, `default`); err != nil {
+			return err
 		}
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = `default`
 		}
 		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 			return errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + k)
+		}
+		if err := getEnvInt(&v.Snap_Len, defaultSnapLen, envSnapLen); err != nil {
+			return err
 		}
 		if v.Snap_Len > maxSnapLen || v.Snap_Len < 0 {
 			return errors.New("Invalid snaplen. Must be < 65535 and > 0")
@@ -121,6 +140,9 @@ func verifyConfig(c *cfgType) error {
 			if net.ParseIP(v.Source_Override) == nil {
 				return errors.New("Failed to parse Source_Override")
 			}
+		}
+		if err := config.LoadEnvVar(&v.BPF_Filter, envBPFFilter, ``); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -144,4 +166,47 @@ func (c *cfgType) Tags() ([]string, error) {
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+func getEnvInt(cnd *int, defval int, nm string) (err error) {
+	var s string
+	if *cnd > 0 {
+		return
+	} else if err = config.LoadEnvVar(&s, nm, ``); err != nil {
+		return
+	} else if s == `` {
+		*cnd = defval
+	} else {
+		//attempt to parse snaplen
+		var t uint64
+		if t, err = config.ParseUint64(s); err == nil {
+			*cnd = int(t)
+		}
+	}
+	return
+}
+
+func getNonLoopbackInterface() (name string, err error) {
+	var ifaces []net.Interface
+	if ifaces, err = net.Interfaces(); err != nil {
+		return
+	} else if len(ifaces) == 0 {
+		err = errors.New("No interfaces found")
+		return
+	}
+
+	for _, iface := range ifaces {
+		if (iface.Flags & net.FlagLoopback) != 0 {
+			continue
+		} else if (iface.Flags & net.FlagPointToPoint) != 0 {
+			continue
+		} else if (iface.Flags * net.FlagUp) == 0 {
+			continue
+		}
+		//got one!
+		name = iface.Name
+		return
+	}
+	err = errors.New("No non-loopback interface found")
+	return
 }
