@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingest/v3/log"
 )
 
 var (
@@ -215,6 +216,9 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	localTags := make([]string, 0, len(c.Tags))
 	for i := range c.Tags {
 		localTags = append(localTags, c.Tags[i])
+	}
+	if c.Logger == nil {
+		c.Logger = log.NewDiscardLogger()
 	}
 
 	//if the cache is enabled, attempt to fire it up
