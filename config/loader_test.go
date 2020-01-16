@@ -41,7 +41,10 @@ func TestMain(m *testing.M) {
 		os.Exit(-1)
 	}
 	r := m.Run()
-	os.RemoveAll(tempDir)
+	if err = os.RemoveAll(tempDir); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create tempdir: %v\n", err)
+		os.Exit(-1)
+	}
 	os.Exit(r)
 }
 

@@ -9,7 +9,6 @@
 package config
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -89,15 +88,15 @@ func (ic *IngestConfig) loadDefaults() error {
 		return err
 	}
 	//Cleartext targets
-	if err := LoadEnvVarList(&ic.Cleartext_Backend_Target, envClearTarget); err != nil {
+	if err := LoadEnvVar(&ic.Cleartext_Backend_Target, envClearTarget, nil); err != nil {
 		return err
 	}
 	//Encrypted targets
-	if err := LoadEnvVarList(&ic.Encrypted_Backend_Target, envEncTarget); err != nil {
+	if err := LoadEnvVar(&ic.Encrypted_Backend_Target, envEncTarget, nil); err != nil {
 		return err
 	}
 	//Pipe targets
-	if err := LoadEnvVarList(&ic.Pipe_Backend_Target, envPipeTarget); err != nil {
+	if err := LoadEnvVar(&ic.Pipe_Backend_Target, envPipeTarget, nil); err != nil {
 		return err
 	}
 	return nil
@@ -363,94 +362,6 @@ func writeFull(w io.Writer, b []byte) error {
 			return errors.New("empty write")
 		} else {
 			written += n
-		}
-	}
-	return nil
-}
-
-// Attempts to read a value from environment variable named envName
-// If there's nothing there, it attempt to append _FILE to the variable
-// name and see if it contains a filename; if so, it reads the
-// contents of the file into cnd.
-func LoadEnvVar(cnd *string, envName, defVal string) error {
-	if cnd == nil {
-		return errors.New("Invalid argument")
-	} else if len(*cnd) > 0 {
-		return nil
-	} else if len(envName) == 0 {
-		return nil
-	}
-	*cnd = os.Getenv(envName)
-	if *cnd != `` {
-		// we read something out of the variable, return
-		return nil
-	}
-
-	// Set default value
-	*cnd = defVal
-
-	// No joy in the environment variable, append _FILE and try
-	filename := os.Getenv(fmt.Sprintf("%s_FILE", envName))
-	if filename == `` {
-		// Nothing, screw it, return the default value
-		return nil
-	}
-	file, err := os.Open(filename)
-	if err != nil {
-		// they specified a file but we can't open it
-		return err
-	}
-	defer file.Close()
-
-	s := bufio.NewScanner(file)
-	s.Scan()
-	l := s.Text()
-	if l == `` {
-		// there was nothing in the file?
-		return errors.New("Empty file or blank first line of file")
-	}
-	*cnd = l
-
-	return nil
-}
-
-func LoadEnvVarList(lst *[]string, envName string) error {
-	if lst == nil {
-		return errors.New("Invalid argument")
-	} else if len(*lst) > 0 {
-		return nil
-	} else if len(envName) == 0 {
-		return nil
-	}
-	arg := os.Getenv(envName)
-	if len(arg) == 0 {
-		// Nothing in the env variable, let's try reading from a file
-		filename := os.Getenv(fmt.Sprintf("%s_FILE", envName))
-		if filename == `` {
-			// Nothing, return
-			return nil
-		}
-		file, err := os.Open(filename)
-		if err != nil {
-			// they specified a file but we can't open it
-			return err
-		}
-		defer file.Close()
-
-		s := bufio.NewScanner(file)
-		s.Scan()
-		l := s.Text()
-		if l == `` {
-			// there was nothing in the file?
-			return errors.New("Empty file or blank first line of file")
-		}
-		arg = l
-	}
-	if bits := strings.Split(arg, ","); len(bits) > 0 {
-		for _, b := range bits {
-			if b = strings.TrimSpace(b); len(b) > 0 {
-				*lst = append(*lst, b)
-			}
 		}
 	}
 	return nil
