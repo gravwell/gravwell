@@ -185,6 +185,48 @@ func TestEnvLoadUInt16(t *testing.T) {
 	}
 }
 
+func TestEnvLoadBool(t *testing.T) {
+	envId := `GRAVWELL_TEST_BOOL`
+	tval := `TRUE`
+	def := false
+	var v bool
+
+	//attempt to load with nothing set
+	if err := LoadEnvVar(&v, envId, def); err != nil {
+		t.Fatal(err)
+	} else if v != def {
+		t.Fatalf("Did not load default value: %v != %v", v, def)
+	}
+
+	//load with something already there
+	if err := LoadEnvVar(&v, envId, false); err != nil {
+		t.Fatal(err)
+	} else if v != def {
+		t.Fatalf("Did not leave existing value: %v %v", v, def)
+	}
+
+	//load something into the environment
+	if err := os.Setenv(envId, tval); err != nil {
+		t.Fatal(err)
+	}
+
+	//try again with something there
+	v = true
+	pre := v
+	if err := LoadEnvVar(&v, envId, def); err != nil {
+		t.Fatal(err)
+	} else if v != pre {
+		t.Fatalf("Did not leave existing value: %v %v", v, pre)
+	}
+	//wipe out the existing and check that we load from the env
+	v = false
+	if err := LoadEnvVar(&v, envId, false); err != nil {
+		t.Fatal(err)
+	} else if !v {
+		t.Fatalf("Did not pull value from environment: %v != true", v)
+	}
+}
+
 func TestEnvFileLoadString(t *testing.T) {
 	envId := `GRAVWELL_STRING_TEST`
 	envFileId := envId + `_FILE`

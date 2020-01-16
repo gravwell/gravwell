@@ -112,11 +112,42 @@ func LoadEnvVar(cnd interface{}, envName string, defVal interface{}) error {
 			}
 		}
 		return loadEnvVarUint16(v, envName, def)
-
+	case *bool:
+		var def bool
+		if defVal != nil {
+			var ok bool
+			if def, ok = defVal.(bool); !ok {
+				return ErrInvalidArg
+			}
+		}
+		return loadEnvVarBool(v, envName, def)
 	case *[]string:
 		return loadEnvVarList(v, envName)
 	}
 	return ErrInvalidArg
+}
+
+func loadEnvVarBool(cnd *bool, envName string, defVal bool) (err error) {
+	if cnd == nil {
+		err = ErrInvalidArg
+		return
+	} else if *cnd {
+		return
+	} else if len(envName) == 0 {
+		return
+	}
+
+	var argstr string
+	//load the argstr
+	if argstr, err = loadEnv(envName); err == errNoEnvArg {
+		*cnd = defVal
+		err = nil
+		return
+	}
+
+	//we loaded an argument string, try to parse it
+	*cnd, err = ParseBool(argstr)
+	return
 }
 
 func loadEnvVarInt64(cnd *int64, envName string, defVal int64) (err error) {

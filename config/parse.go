@@ -115,6 +115,30 @@ func ParseSource(v string) (b net.IP, err error) {
 	return
 }
 
+func ParseBool(v string) (r bool, err error) {
+	v = strings.ToLower(v)
+	switch v {
+	case `true`:
+		fallthrough
+	case `t`:
+		fallthrough
+	case `yes`:
+		fallthrough
+	case `y`:
+		fallthrough
+	case `1`:
+		r = true
+	case `false`:
+	case `f`:
+	case `0`:
+	case `no`:
+	case `n`:
+	default:
+		err = fmt.Errorf("Unknown boolean value")
+	}
+	return
+}
+
 func ParseUint64(v string) (i uint64, err error) {
 	if strings.HasPrefix(v, "0x") {
 		i, err = strconv.ParseUint(strings.TrimPrefix(v, "0x"), 16, 64)
