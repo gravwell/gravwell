@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -310,6 +311,45 @@ func prefix(callDepth int) (s string) {
 		dir, file := filepath.Split(file)
 		file = filepath.Join(filepath.Base(dir), file)
 		s = fmt.Sprintf("%s %s:%d", ts, file, line)
+	}
+	return
+}
+
+func NewStderrLogger(fileOverride string) (*Logger, error) {
+	return newStderrLogger(fileOverride, nil)
+}
+
+func NewStderrLoggerEx(fileOverride string, cb StderrCallback) (*Logger, error) {
+	return newStderrLogger(fileOverride, cb)
+}
+
+type StderrCallback func(io.Writer)
+
+func newStderrLogger(fileOverride string, cb StderrCallback) (lgr *Logger, err error) {
+	var oldstderr int
+	var fout *os.File
+	lgr = New(os.Stderr)
+	if len(fileOverride) > 0 {
+		//get a handle on the output file
+		if fout, err = os.Create(fileOverride); err != nil {
+			return
+		}
+		if cb != nil {
+			cb(fout)
+		}
+
+		//dup stderr
+		if oldstderr, err = syscall.Dup(int(os.Stderr.Fd())); err != nil {
+			fout.Close()
+			return
+		} else {
+			lgr.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
+		}
+
+		//dupe the output file onto stderr so that output goes there
+		if err = syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
+			fout.Close()
+		}
 	}
 	return
 }
