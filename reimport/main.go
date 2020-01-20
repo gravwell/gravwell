@@ -36,19 +36,22 @@ const (
 )
 
 var (
-	inFile  = flag.String("i", "", "Input file to process (specify - for stdin)")
-	ver     = flag.Bool("v", false, "Print version and exit")
-	verbose = flag.Bool("verbose", false, "Print every step")
-	status  = flag.Bool("status", false, "Output ingest rate stats as we go")
-	srcOvr  = flag.String("source-override", "", "Override source with address, hash, or integeter")
-	fmtF    = flag.String("import-format", "", "Set the import file format manually")
-	tagOvr  = flag.String("tag-override", "", "Override the import file tags")
+	inFile     = flag.String("i", "", "Input file to process (specify - for stdin)")
+	ver        = flag.Bool("v", false, "Print version and exit")
+	verbose    = flag.Bool("verbose", false, "Print every step")
+	status     = flag.Bool("status", false, "Output ingest rate stats as we go")
+	srcOvr     = flag.String("source-override", "", "Override source with address, hash, or integeter")
+	fmtF       = flag.String("import-format", "", "Set the import file format manually")
+	tagOvr     = flag.String("tag-override", "", "Override the import file tags")
+	rebaseTime = flag.Bool("rebase-timestamp", false, "Rewrite timestamps so the most recent entry is at the current time. (Warning: may be slow with large files!)")
 
 	nlBytes     = []byte("\n")
 	count       uint64
 	totalBytes  uint64
 	dur         time.Duration
 	srcOverride net.IP
+
+	timeDelta time.Duration // if we're rebasing, this is the adjustment added to each entry's TS
 
 	format string
 )
@@ -88,6 +91,10 @@ func main() {
 		}
 	}
 
+	if *rebaseTime && *inFile == `-` {
+		log.Fatal("Cannot rebase time when reading from stdin!")
+	}
+
 	if format == `` {
 		//attempt to figure it out
 		switch strings.ToLower(filepath.Ext(*inFile)) {
@@ -97,17 +104,6 @@ func main() {
 			format = csvFormat
 		default:
 			log.Fatalf("Could not determine format of input file, please set -import-format")
-		}
-	}
-
-	//get a handle on the input file with a wrapped decompressor if needed
-	var fin io.ReadCloser
-	if *inFile == "-" {
-		fin = os.Stdin
-	} else {
-		fin, err = utils.OpenBufferedFileReader(*inFile, 8192)
-		if err != nil {
-			log.Fatalf("Failed to open %s: %v\n", *inFile, err)
 		}
 	}
 
@@ -124,22 +120,55 @@ func main() {
 	}
 	if len(a.Conns) > 0 {
 		//sleep so that all connections can get a crack at negotiating tags
-		time.Sleep(500*time.Millisecond)
+		time.Sleep(500 * time.Millisecond)
 	}
 
+	//get a handle on the input file with a wrapped decompressor if needed
+	var fin io.ReadCloser
+	if *inFile == "-" {
+		fin = os.Stdin
+	} else {
+		fin, err = utils.OpenBufferedFileReader(*inFile, 8192)
+		if err != nil {
+			log.Fatalf("Failed to open %s: %v\n", *inFile, err)
+		}
+	}
 	var ir itemReader
-	switch strings.ToLower(strings.TrimSpace(format)) {
-	case csvFormat:
-		if ir, err = newCSVReader(fin, igst); err != nil {
-			log.Fatalf("Failed to make CSV reader: %v\n", err)
-		}
-	case jsonFormat:
-		if ir, err = newJSONReader(fin, igst); err != nil {
-			log.Fatalf("Failed to make JSON reader: %v\n", err)
-		}
-	default:
+	ir, err = getReader(fin, igst)
+	if err != nil {
 		igst.Close()
-		log.Fatalf("Invalid format %v\n", format)
+		log.Fatal(err)
+	}
+
+	if *rebaseTime {
+		var newest *entry.Entry
+		var ent *entry.Entry
+		for {
+			if ent, err = ir.ReadEntry(); err != nil {
+				if err == io.EOF {
+					err = nil
+				}
+				break
+			}
+			if newest == nil || ent.TS.After(newest.TS) {
+				newest = ent
+			}
+		}
+		if err != nil {
+			log.Fatalf("Couldn't read full input file: %v", err)
+		}
+		timeDelta = time.Now().Sub(newest.TS.StandardTime())
+		fmt.Printf("timeDelta = %v\n", timeDelta)
+		// Now reset the reader
+		fin, err = utils.OpenBufferedFileReader(*inFile, 8192)
+		if err != nil {
+			log.Fatalf("Failed to open %s: %v\n", *inFile, err)
+		}
+		ir, err = getReader(fin, igst)
+		if err != nil {
+			igst.Close()
+			log.Fatal(err)
+		}
 	}
 
 	if *tagOvr != `` {
@@ -169,6 +198,22 @@ func main() {
 	fmt.Printf("Total Count: %s\n", ingest.HumanCount(count))
 	fmt.Printf("Entry Rate: %s\n", ingest.HumanEntryRate(count, dur))
 	fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(totalBytes, dur))
+}
+
+func getReader(fin io.ReadCloser, igst *ingest.IngestMuxer) (ir itemReader, err error) {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case csvFormat:
+		if ir, err = newCSVReader(fin, igst); err != nil {
+			err = fmt.Errorf("Failed to make CSV reader: %v\n", err)
+		}
+	case jsonFormat:
+		if ir, err = newJSONReader(fin, igst); err != nil {
+			err = fmt.Errorf("Failed to make JSON reader: %v\n", err)
+		}
+	default:
+		err = fmt.Errorf("Invalid format %v\n", format)
+	}
+	return
 }
 
 func doIngest(ir itemReader, igst *ingest.IngestMuxer) (err error) {
@@ -228,6 +273,9 @@ func doImport(ir itemReader, igst *ingest.IngestMuxer) (err error) {
 		}
 		if ent.SRC == nil {
 			ent.SRC = src
+		}
+		if timeDelta != 0 {
+			ent.TS = ent.TS.Add(timeDelta)
 		}
 		if err = igst.WriteEntry(ent); err != nil {
 			break
