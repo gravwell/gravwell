@@ -10,7 +10,6 @@ package config
 import (
 	"bufio"
 	"errors"
-	"fmt"
 	"os"
 	"reflect"
 	"strings"
@@ -22,6 +21,7 @@ var (
 	errNoEnvArg     = errors.New("no env arg")
 	ErrInvalidArg   = errors.New("Invalid arguments")
 	ErrEmptyEnvFile = errors.New("Environment secret file is empty")
+	ErrBadValue     = errors.New("Environment value is invalid")
 )
 
 func loadEnvFile(nm string) (r string, err error) {
@@ -61,6 +61,30 @@ func loadEnv(nm string) (s string, err error) {
 	return
 }
 
+func loadEnvInt(nm string) (v int64, err error) {
+	var s string
+	if len(nm) == 0 {
+		err = ErrInvalidArg
+		return
+	}
+	if s, err = loadEnv(nm); err == nil {
+		v, err = ParseInt64(s)
+	}
+	return
+}
+
+func loadEnvUint(nm string) (v uint64, err error) {
+	var s string
+	if len(nm) == 0 {
+		err = ErrInvalidArg
+		return
+	}
+	if s, err = loadEnv(nm); err == nil {
+		v, err = ParseUint64(s)
+	}
+	return
+}
+
 // Attempts to read a value from environment variable named envName
 // If there's nothing there, it attempt to append _FILE to the variable
 // name and see if it contains a filename; if so, it reads the
@@ -85,6 +109,25 @@ func LoadEnvVar(cnd interface{}, envName string, defVal interface{}) error {
 			}
 		}
 		return loadEnvVarString(v, envName, def)
+	case *int:
+		var def int
+		if defVal != nil {
+			var ok bool
+			if def, ok = defVal.(int); !ok {
+				return ErrInvalidArg
+			}
+		}
+		return loadEnvVarInt(v, envName, def)
+	case *uint:
+		var def uint
+		if defVal != nil {
+			var ok bool
+			if def, ok = defVal.(uint); !ok {
+				return ErrInvalidArg
+			}
+		}
+		return loadEnvVarUint(v, envName, def)
+
 	case *int64:
 		var def int64
 		if defVal != nil {
@@ -103,6 +146,24 @@ func LoadEnvVar(cnd interface{}, envName string, defVal interface{}) error {
 			}
 		}
 		return loadEnvVarUint64(v, envName, def)
+	case *int32:
+		var def int32
+		if defVal != nil {
+			var ok bool
+			if def, ok = defVal.(int32); !ok {
+				return ErrInvalidArg
+			}
+		}
+		return loadEnvVarInt32(v, envName, def)
+	case *uint32:
+		var def uint32
+		if defVal != nil {
+			var ok bool
+			if def, ok = defVal.(uint32); !ok {
+				return ErrInvalidArg
+			}
+		}
+		return loadEnvVarUint32(v, envName, def)
 	case *uint16:
 		var def uint16
 		if defVal != nil {
@@ -112,6 +173,33 @@ func LoadEnvVar(cnd interface{}, envName string, defVal interface{}) error {
 			}
 		}
 		return loadEnvVarUint16(v, envName, def)
+	case *int16:
+		var def int16
+		if defVal != nil {
+			var ok bool
+			if def, ok = defVal.(int16); !ok {
+				return ErrInvalidArg
+			}
+		}
+		return loadEnvVarInt16(v, envName, def)
+	case *uint8:
+		var def uint8
+		if defVal != nil {
+			var ok bool
+			if def, ok = defVal.(uint8); !ok {
+				return ErrInvalidArg
+			}
+		}
+		return loadEnvVarUint8(v, envName, def)
+	case *int8:
+		var def int8
+		if defVal != nil {
+			var ok bool
+			if def, ok = defVal.(int8); !ok {
+				return ErrInvalidArg
+			}
+		}
+		return loadEnvVarInt8(v, envName, def)
 	case *bool:
 		var def bool
 		if defVal != nil {
@@ -150,6 +238,44 @@ func loadEnvVarBool(cnd *bool, envName string, defVal bool) (err error) {
 	return
 }
 
+func loadEnvVarInt(cnd *int, envName string, defVal int) (err error) {
+	if cnd == nil {
+		err = ErrInvalidArg
+		return
+	} else if *cnd != 0 {
+		return
+	} else if len(envName) == 0 {
+		return
+	}
+	var v int64
+	if v, err = loadEnvInt(envName); err == nil {
+		*cnd = int(v)
+	} else if err == errNoEnvArg {
+		err = nil
+		*cnd = defVal
+	}
+	return
+}
+
+func loadEnvVarUint(cnd *uint, envName string, defVal uint) (err error) {
+	if cnd == nil {
+		err = ErrInvalidArg
+		return
+	} else if *cnd != 0 {
+		return
+	} else if len(envName) == 0 {
+		return
+	}
+	var v uint64
+	if v, err = loadEnvUint(envName); err == nil {
+		*cnd = uint(v)
+	} else if err == errNoEnvArg {
+		*cnd = defVal
+		err = nil
+	}
+	return
+}
+
 func loadEnvVarInt64(cnd *int64, envName string, defVal int64) (err error) {
 	if cnd == nil {
 		err = ErrInvalidArg
@@ -159,17 +285,10 @@ func loadEnvVarInt64(cnd *int64, envName string, defVal int64) (err error) {
 	} else if len(envName) == 0 {
 		return
 	}
-
-	var argstr string
-	//load the argstr
-	if argstr, err = loadEnv(envName); err == errNoEnvArg {
-		*cnd = defVal
+	if *cnd, err = loadEnvInt(envName); err == errNoEnvArg {
 		err = nil
-		return
+		*cnd = defVal
 	}
-
-	//we loaded an argument string, try to parse it
-	*cnd, err = ParseInt64(argstr)
 	return
 }
 
@@ -182,17 +301,79 @@ func loadEnvVarUint64(cnd *uint64, envName string, defVal uint64) (err error) {
 	} else if len(envName) == 0 {
 		return
 	}
-
-	var argstr string
-	//load the argstr
-	if argstr, err = loadEnv(envName); err == errNoEnvArg {
+	if *cnd, err = loadEnvUint(envName); err == errNoEnvArg {
 		*cnd = defVal
 		err = nil
+	}
+	return
+}
+
+func loadEnvVarInt32(cnd *int32, envName string, defVal int32) (err error) {
+	if cnd == nil {
+		err = ErrInvalidArg
+		return
+	} else if *cnd != 0 {
+		return
+	} else if len(envName) == 0 {
 		return
 	}
+	var v int64
+	if v, err = loadEnvInt(envName); err == nil {
+		if v > 0x7fffffff || v < -0x7fffffff {
+			err = ErrBadValue
+		} else {
+			*cnd = int32(v)
+		}
+	} else if err == errNoEnvArg {
+		err = nil
+		*cnd = defVal
+	}
+	return
+}
 
-	//we loaded an argument string, try to parse it
-	*cnd, err = ParseUint64(argstr)
+func loadEnvVarUint32(cnd *uint32, envName string, defVal uint32) (err error) {
+	if cnd == nil {
+		err = ErrInvalidArg
+		return
+	} else if *cnd != 0 {
+		return
+	} else if len(envName) == 0 {
+		return
+	}
+	var v uint64
+	if v, err = loadEnvUint(envName); err == nil {
+		if v > 0xffffffff {
+			err = ErrBadValue
+		} else {
+			*cnd = uint32(v)
+		}
+	} else if err == errNoEnvArg {
+		err = nil
+		*cnd = defVal
+	}
+	return
+}
+
+func loadEnvVarInt16(cnd *int16, envName string, defVal int16) (err error) {
+	if cnd == nil {
+		err = ErrInvalidArg
+		return
+	} else if *cnd != 0 {
+		return
+	} else if len(envName) == 0 {
+		return
+	}
+	var v int64
+	if v, err = loadEnvInt(envName); err == nil {
+		if v > 0x7fff || v < -0x7fff {
+			err = ErrBadValue
+		} else {
+			*cnd = int16(v)
+		}
+	} else if err == errNoEnvArg {
+		err = nil
+		*cnd = defVal
+	}
 	return
 }
 
@@ -205,23 +386,62 @@ func loadEnvVarUint16(cnd *uint16, envName string, defVal uint16) (err error) {
 	} else if len(envName) == 0 {
 		return
 	}
-
-	var argstr string
-	//load the argstr
-	if argstr, err = loadEnv(envName); err == errNoEnvArg {
-		*cnd = defVal
-		err = nil
-		return
-	}
-
-	//we loaded an argument string, try to parse it
 	var v uint64
-	if v, err = ParseUint64(argstr); err == nil {
+	if v, err = loadEnvUint(envName); err == nil {
 		if v > 0xffff {
-			err = fmt.Errorf("%d overflows uint16", v)
+			err = ErrBadValue
 		} else {
 			*cnd = uint16(v)
 		}
+	} else if err == errNoEnvArg {
+		err = nil
+		*cnd = defVal
+	}
+	return
+}
+
+func loadEnvVarInt8(cnd *int8, envName string, defVal int8) (err error) {
+	if cnd == nil {
+		err = ErrInvalidArg
+		return
+	} else if *cnd != 0 {
+		return
+	} else if len(envName) == 0 {
+		return
+	}
+	var v int64
+	if v, err = loadEnvInt(envName); err == nil {
+		if v > 0x7f || v < -0x7f {
+			err = ErrBadValue
+		} else {
+			*cnd = int8(v)
+		}
+	} else if err == errNoEnvArg {
+		err = nil
+		*cnd = defVal
+	}
+	return
+}
+
+func loadEnvVarUint8(cnd *uint8, envName string, defVal uint8) (err error) {
+	if cnd == nil {
+		err = ErrInvalidArg
+		return
+	} else if *cnd != 0 {
+		return
+	} else if len(envName) == 0 {
+		return
+	}
+	var v uint64
+	if v, err = loadEnvUint(envName); err == nil {
+		if v > 0xff {
+			err = ErrBadValue
+		} else {
+			*cnd = uint8(v)
+		}
+	} else if err == errNoEnvArg {
+		err = nil
+		*cnd = defVal
 	}
 	return
 }

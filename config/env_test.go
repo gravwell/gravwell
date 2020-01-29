@@ -185,6 +185,57 @@ func TestEnvLoadUInt16(t *testing.T) {
 	}
 }
 
+func TestEnvLoadInt16(t *testing.T) {
+	envId := `GRAVWELL_TEST_INT16`
+	tval := `0x1234`
+	def := int16(9876)
+	var v int16
+
+	//attempt to load with nothing set
+	if err := LoadEnvVar(&v, envId, def); err != nil {
+		t.Fatal(err)
+	} else if v != def {
+		t.Fatalf("Did not load default value: %v != %v", v, def)
+	}
+
+	//load with something already there
+	if err := LoadEnvVar(&v, envId, int16(1000)); err != nil {
+		t.Fatal(err)
+	} else if v != def {
+		t.Fatalf("Did not leave existing value: %v %v", v, def)
+	}
+
+	//load something into the environment
+	if err := os.Setenv(envId, tval); err != nil {
+		t.Fatal(err)
+	}
+
+	//try again with something there
+	if err := LoadEnvVar(&v, envId, int16(22)); err != nil {
+		t.Fatal(err)
+	} else if v != def {
+		t.Fatalf("Did not leave existing value: %v %v", v, def)
+	}
+	//wipe out the existing and check that we load from the env
+	v = 0
+	if err := LoadEnvVar(&v, envId, int16(0x7fff)); err != nil {
+		t.Fatal(err)
+	} else if v != 0x1234 {
+		t.Fatalf("Did not pull value from environment: %v != %v", v, tval)
+	}
+
+	//clear and set it to something that overflows
+	envId = `GRAVWELL_TEST_INT16_OVERFLOW`
+	tval = `0x10000`
+	v = 0
+	if err := os.Setenv(envId, tval); err != nil {
+		t.Fatal(err)
+	}
+	if err := LoadEnvVar(&v, envId, int16(0x7fff)); err == nil {
+		t.Fatal("Failed to catch overflow")
+	}
+}
+
 func TestEnvLoadBool(t *testing.T) {
 	envId := `GRAVWELL_TEST_BOOL`
 	tval := `TRUE`
