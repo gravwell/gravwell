@@ -57,6 +57,8 @@ github.com/elastic/beats v7.5.0+incompatible h1:5HlMZbg/wVYnlUdySIkJDCMWitzZ2tn4
 github.com/elastic/beats v7.5.0+incompatible/go.mod h1:7cX7zGsOwJ01FLkZs9Tg5nBdnQi6XB3hYAyWekpKgeY=
 github.com/envoyproxy/go-control-plane v0.9.0/go.mod h1:YTl/9mNaCwkRvm6d1a2C3ymFceY/DCBVvsKhRF0iEA4=
 github.com/envoyproxy/protoc-gen-validate v0.1.0/go.mod h1:iSmxcyjqTsJpI2R4NaDN7+kN2VEUnK/pcBlmesArF7c=
+github.com/etcd-io/bbolt v1.3.3 h1:gSJmxrs37LgTqR/oyJBWok6k6SvXEUerFTbltIhXkBM=
+github.com/etcd-io/bbolt v1.3.3/go.mod h1:ZF2nL25h33cCyBtcyWeZ2/I3HQOfTP+0PIEvHjkjCrw=
 github.com/floren/ipfix v1.4.1-0.20191211225245-ed5c9225d0fc h1:8gV5BRxnfk+xoI4l+QbKERvnvyoRRZQuZIReo276Ytw=
 github.com/floren/ipfix v1.4.1-0.20191211225245-ed5c9225d0fc/go.mod h1:UtmrqQWM7kiZDMPrrkUR1W08v/WNl8Pc111KSxUgguA=
 github.com/floren/ipfix v1.4.1-0.20191212184715-57e5130a34b7 h1:/084Hi3r/114Q/yfGk/QARsKhKPIRFWIWeIQqqxrSgA=
@@ -116,12 +118,16 @@ github.com/googleapis/gax-go/v2 v2.0.5 h1:sjZBwGj9Jlw33ImPtvFviGYvseOtDM7hkSKB7+
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
 github.com/gravwell/filewatch/v3 v3.3.2 h1:eUxV8pp83+XtIxcs47iaUhQSC56UdGzV56mf1aNlVzA=
 github.com/gravwell/filewatch/v3 v3.3.2/go.mod h1:iAgGT0sa4Wo/a6EPMAgpkL2V3Ppnblp1V3R9KHCMS0s=
+github.com/gravwell/ingest v3.2.2+incompatible h1:ZppzqTOgMi/YHIbvIhb3/mirrTYj/76n/7WdR3KMWdk=
+github.com/gravwell/ingest v3.2.2+incompatible/go.mod h1:wBD3s7hEoM5y/sYrSsO/SOyAv5SvHUkLTorwsBKTRac=
 github.com/gravwell/ingest/v3 v3.3.2 h1:gy2GimQwEOe2uqmWJlMYEbcINwCW1UAjjskY1kXLSpk=
 github.com/gravwell/ingest/v3 v3.3.2/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
 github.com/gravwell/ingest/v3 v3.3.3 h1:WMRTbUUp1Qfqw6CnqcFATy+IV89gwrpxR3sWtIpfPXQ=
 github.com/gravwell/ingest/v3 v3.3.3/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
 github.com/gravwell/ingest/v3 v3.3.4 h1:PHxCfPdogvTX5kKO3nnZhaW2lyszv1VTnKw4gFlHIGo=
 github.com/gravwell/ingest/v3 v3.3.4/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
+github.com/gravwell/ingest/v3 v3.3.5 h1:c/rEx8pHNoNb25ezHyDCGCstpyteUVepiHRSxB9UWlM=
+github.com/gravwell/ingest/v3 v3.3.5/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
 github.com/gravwell/netflow/v3 v3.2.3 h1:RdcNKLZEGJ+4PJ2xo/Lm1OVLHBN3TzRYkTDScgrFaNw=
 github.com/gravwell/netflow/v3 v3.2.3/go.mod h1:mOvZuUk8VYa6yQagfJwGNBd08EmJYbKjmK1EJ7jTTjk=
 github.com/gravwell/timegrinder/v3 v3.2.3 h1:3CGFZGpsVRpodVwkuthBZF3It+wus6Fl1QjbcQdCOLw=
@@ -279,6 +285,8 @@ golang.org/x/sys v0.0.0-20191210023423-ac6580df4449 h1:gSbV7h1NRL2G1xTg/owz62CST
 golang.org/x/sys v0.0.0-20191210023423-ac6580df4449/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200117145432-59e60aa80a0c h1:gUYreENmqtjZb2brVfUas1sC6UivSY8XwKwPo8tloLs=
 golang.org/x/sys v0.0.0-20200117145432-59e60aa80a0c/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5 h1:LfCXLvNmTYH9kEmVgqbnsWfruoXZIrh4YBgqVHtDvw0=
+golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.2 h1:tW2bmiBqwgJj/UpqtC8EpXEZVYOwU0yG4iWbprSVAcs=
