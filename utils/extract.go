@@ -78,20 +78,20 @@ func OpenFileReader(p string) (r ReadResetCloser, err error) {
 	if fin, err = os.Open(p); err != nil {
 		return
 	}
-	if r, err = getReader(fin, tp); err != nil {
+	if r, err = GetReader(fin, tp); err != nil {
 		fin.Close()
 	}
 	return
 }
 
-func getReader(fin *os.File, tp types.Type) (r ReadResetCloser, err error) {
+func GetReader(fin *os.File, tp types.Type) (r ReadResetCloser, err error) {
 	switch tp.MIME.Subtype {
 	case `gzip`:
-		r, err = newGzipReader(newFileReadResetCloser(fin))
+		r, err = newGzipReader(NewFileReadResetCloser(fin))
 	case `x-bzip2`:
-		r, err = newBzip2Reader(newFileReadResetCloser(fin))
+		r, err = newBzip2Reader(NewFileReadResetCloser(fin))
 	default:
-		r = newFileReadResetCloser(fin)
+		r = NewFileReadResetCloser(fin)
 	}
 	return
 }
@@ -100,7 +100,7 @@ type fileResetter struct {
 	*os.File
 }
 
-func newFileReadResetCloser(fin *os.File) ReadResetCloser {
+func NewFileReadResetCloser(fin *os.File) ReadResetCloser {
 	return fileResetter{File: fin}
 }
 
