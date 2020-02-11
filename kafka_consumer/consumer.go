@@ -9,6 +9,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -281,6 +282,7 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 			Tag:  kc.tag,
 			TS:   entry.FromStandard(m.Timestamp),
 			Data: m.Value,
+			SRC:  kc.extractSource(m),
 		}
 		if kc.ignoreTS {
 			ent.TS = entry.Now()
@@ -294,13 +296,6 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 			}
 			// if not ok, we'll just use the timestamp
 		}
-
-		if kc.keyAsSrc && (len(m.Key) == ipv4Len || len(m.Key) == ipv6Len) {
-			ent.SRC = net.IP(m.Key)
-		} else {
-			ent.SRC = kc.src
-		}
-
 		if err = kc.pproc.ProcessContext(ent, kc.ctx); err != nil {
 			return
 		}
@@ -318,5 +313,38 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 	}
 	kc.count += cnt
 	kc.size += sz
+	return
+}
+
+func (kc *kafkaConsumer) extractSource(m *sarama.ConsumerMessage) (ip net.IP) {
+	//short circuit out
+	if m == nil {
+		ip = kc.src
+		return
+	}
+	if kc.headerKeyAsSrc != nil {
+		for _, rh := range m.Headers {
+			if bytes.Equal(kc.headerKeyAsSrc, rh.Key) {
+				ip = kc.extractSrc(rh.Value)
+			}
+		}
+	}
+	//if we didn't get anything, try again with the key as source (if set)
+	if ip == nil && kc.keyAsSrc {
+		ip = kc.extractSrc(m.Key)
+	}
+	//if if we still missed, just use the src
+	if ip == nil {
+		ip = kc.src
+	}
+	return
+}
+
+func (kc *kafkaConsumer) extractSrc(v []byte) (ip net.IP) {
+	if kc.srcAsText {
+		ip = net.ParseIP(string(v))
+	} else if len(v) == ipv4Len || len(v) == ipv6Len {
+		ip = net.IP(v)
+	}
 	return
 }

@@ -42,8 +42,10 @@ type ConfigConsumer struct {
 	Source_Override    string
 	Rebalance_Strategy string
 	Key_As_Source      bool
+	Header_As_Source   string
 	Synchronous        bool
 	Batch_Size         int
+	Source_As_Text     bool
 
 	Ignore_Timestamps         bool //Just apply the current timestamp to lines as we get them
 	Extract_Timestamps        bool // Ignore the kafka timestamp, use timegrinder
@@ -54,19 +56,21 @@ type ConfigConsumer struct {
 }
 
 type consumerCfg struct {
-	tag          string
-	leader       string
-	topic        string
-	group        string
-	strat        sarama.BalanceStrategy
-	sync         bool
-	batchSize    int
-	keyAsSrc     bool
-	srcOverride  net.IP
-	ignoreTS     bool
-	extractTS    bool
-	tg           *timegrinder.TimeGrinder
-	preprocessor []string
+	tag            string
+	leader         string
+	topic          string
+	group          string
+	strat          sarama.BalanceStrategy
+	sync           bool
+	batchSize      int
+	keyAsSrc       bool
+	headerKeyAsSrc []byte
+	srcAsText      bool
+	srcOverride    net.IP
+	ignoreTS       bool
+	extractTS      bool
+	tg             *timegrinder.TimeGrinder
+	preprocessor   []string
 }
 
 type cfgReadType struct {
@@ -223,6 +227,10 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 	}
 	c.preprocessor = cc.Preprocessor
 	c.keyAsSrc = cc.Key_As_Source
+	if cc.Header_As_Source != `` {
+		c.headerKeyAsSrc = []byte(cc.Header_As_Source)
+	}
+	c.srcAsText = cc.Source_As_Text
 	c.strat, err = cc.balanceStrat()
 	return
 }
