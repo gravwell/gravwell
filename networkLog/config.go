@@ -141,7 +141,7 @@ func verifyConfig(c *cfgType) error {
 				return errors.New("Failed to parse Source_Override")
 			}
 		}
-		if err := config.LoadEnvVar(&v.BPF_Filter, envBPFFilter, ``); err != nil {
+		if err := config.LoadEnvVar(&v.BPF_Filter, envBPFFilter, defaultBpfFilter); err != nil {
 			return err
 		}
 	}
