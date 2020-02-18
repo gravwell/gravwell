@@ -13,6 +13,7 @@ import (
 	"container/list"
 	"context"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
 	"runtime"
@@ -1172,12 +1173,20 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	}
 
 	for {
+		select {
+		case _ = <-im.dieChan:
+			return
+		default:
+		}
+		fmt.Printf("Asking for IngestOK\n")
 		ok, err := igst.IngestOK()
 		if err != nil {
+			fmt.Printf("IngestOK failed: %v\n", err)
 			im.connFailed(dst.Address, err)
 			return
 		}
 		if ok {
+			fmt.Printf("Ingest OK, cool!\n")
 			break
 		}
 		time.Sleep(5 * time.Second)
@@ -1247,12 +1256,20 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 				return
 			}
 			for {
+				select {
+				case _ = <-im.dieChan:
+					break
+				default:
+				}
+				fmt.Printf("Asking for IngestOK\n")
 				ok, err := igst.IngestOK()
 				if err != nil {
+					fmt.Printf("IngestOK failed: %v\n", err)
 					im.connFailed(dst.Address, err)
 					return
 				}
 				if ok {
+					fmt.Printf("Ingest OK, cool!\n")
 					break
 				}
 				time.Sleep(5 * time.Second)
