@@ -145,9 +145,6 @@ func (er *EntryReader) Start() error {
 	er.wg.Add(1)
 	go er.ackRoutine()
 
-	// Now do a little bit of setup if possible
-	er.setupConnection()
-
 	return nil
 }
 
@@ -349,9 +346,9 @@ func (er *EntryReader) IngestOK(ok bool) (err error) {
 	return
 }
 
-// setupConnection negotiations ingester API version and other information
+// SetupConnection negotiations ingester API version and other information
 // It should properly handle old ingesters, too
-func (er *EntryReader) setupConnection() (err error) {
+func (er *EntryReader) SetupConnection() (err error) {
 	var n int
 	er.igAPIVersion = MINIMUM_INGEST_OK_VERSION - 1 // default to assuming it's pretty old
 	for {
@@ -359,7 +356,7 @@ func (er *EntryReader) setupConnection() (err error) {
 		cmd, err = er.bIO.Peek(4)
 		if err == bufio.ErrBufferFull {
 			// we just don't have 4 bytes yet, sleep a little and try again
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 			continue
 		} else if err != nil {
 			// some other problem...
