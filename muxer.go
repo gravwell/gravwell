@@ -1258,7 +1258,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			for {
 				select {
 				case _ = <-im.dieChan:
-					break
+					return
 				default:
 				}
 				fmt.Printf("Asking for IngestOK\n")
