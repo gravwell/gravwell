@@ -1171,6 +1171,18 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 		return
 	}
 
+	for {
+		ok, err := igst.IngestOK()
+		if err != nil {
+			im.connFailed(dst.Address, err)
+			return
+		}
+		if ok {
+			break
+		}
+		time.Sleep(5 * time.Second)
+	}
+
 	src, err = igst.Source()
 	if err != nil {
 		im.connFailed(dst.Address, err)
@@ -1233,6 +1245,17 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			if err := igst.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
 				im.connFailed(dst.Address, err)
 				return
+			}
+			for {
+				ok, err := igst.IngestOK()
+				if err != nil {
+					im.connFailed(dst.Address, err)
+					return
+				}
+				if ok {
+					break
+				}
+				time.Sleep(5 * time.Second)
 			}
 			//get the source fired back up
 			src, err = igst.Source()

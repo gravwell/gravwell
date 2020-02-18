@@ -65,7 +65,20 @@ func (igst *IngestConnection) Close() error {
 func (igst *IngestConnection) IdentifyIngester(name, version, id string) (err error) {
 	igst.mtx.Lock()
 	defer igst.mtx.Unlock()
-	return igst.ew.IdentifyIngester(name, version, id)
+	if err = igst.ew.SendIngesterAPIVersion(); err != nil {
+		return
+	}
+	if err = igst.ew.IdentifyIngester(name, version, id); err != nil {
+		return
+	}
+	return
+}
+
+// IngestOK asks the indexer if it is ok to start sending entries yet.
+func (igst *IngestConnection) IngestOK() (ok bool, err error) {
+	igst.mtx.Lock()
+	defer igst.mtx.Unlock()
+	return igst.ew.IngestOK()
 }
 
 func (igst *IngestConnection) outstandingEntries() []*entry.Entry {

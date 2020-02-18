@@ -80,9 +80,10 @@ type EntryReader struct {
 	timeout     time.Duration
 	tagMan      TagManager
 	// the reader stores some info about the other side
-	igName    string
-	igVersion string
-	igUUID    string
+	igName       string
+	igVersion    string
+	igUUID       string
+	igAPIVersion uint16
 }
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
@@ -121,6 +122,10 @@ func (er *EntryReader) GetIngesterInfo() (string, string, string) {
 	return er.igName, er.igVersion, er.igUUID
 }
 
+func (er *EntryReader) GetIngesterAPIVersion() uint16 {
+	return er.igAPIVersion
+}
+
 func (er *EntryReader) Start() error {
 	er.mtx.Lock()
 	defer er.mtx.Unlock()
@@ -139,6 +144,10 @@ func (er *EntryReader) Start() error {
 	er.started = true
 	er.wg.Add(1)
 	go er.ackRoutine()
+
+	// Now do a little bit of setup if possible
+	er.setupConnection()
+
 	return nil
 }
 
@@ -281,7 +290,101 @@ headerLoop:
 				}
 			}
 			continue
+		default: //we should probably bail out if we get desynced
+			continue
+		}
+	}
+	//read entry header worth as well as id (64bit)
+	n, err = io.ReadFull(er.bIO, er.buff[:entry.ENTRY_HEADER_SIZE+8])
+	if err != nil {
+		return err
+	}
+	dataSize, err := ent.DecodeHeader(er.buff)
+	if err != nil {
+		return err
+	}
+	if dataSize > int(MAX_ENTRY_SIZE) {
+		return errors.New("Entry size too large")
+	}
+	*sz = uint32(dataSize) //dataSize is a uint32 internally, so these casts are OK
+	*id = entrySendID(binary.LittleEndian.Uint64(er.buff[entry.ENTRY_HEADER_SIZE:]))
+	return nil
+}
+
+// IngestOK waits for the ingester to send an INGEST_OK message and responds with
+// the argument given. Any other command will make it return an error
+func (er *EntryReader) IngestOK(ok bool) (err error) {
+	var cmd []byte
+	for {
+		cmd, err = er.bIO.Peek(4)
+		if err == bufio.ErrBufferFull {
+			// we just don't have 4 bytes yet, sleep a little and try again
+			time.Sleep(100 * time.Millisecond)
+			continue
+		} else if err != nil {
+			// some other problem...
+			return
+		}
+		break
+	}
+
+	switch IngestCommand(binary.LittleEndian.Uint32(cmd)) {
+	case INGEST_OK_MAGIC:
+		// discard the command since we already read it
+		_, err = er.bIO.Discard(4)
+		if err != nil {
+			// very, very weird
+			return err
+		}
+
+		// Now send response
+		ac := ackCommand{cmd: CONFIRM_INGEST_OK_MAGIC}
+		if ok {
+			ac.val = 1
+		}
+		er.ackChan <- ac
+	default:
+		err = errors.New("Unknown message when looking for IngestOK, exiting")
+	}
+	return
+}
+
+// setupConnection negotiations ingester API version and other information
+// It should properly handle old ingesters, too
+func (er *EntryReader) setupConnection() (err error) {
+	var n int
+	er.igAPIVersion = MINIMUM_INGEST_OK_VERSION - 1 // default to assuming it's pretty old
+	for {
+		var cmd []byte
+		cmd, err = er.bIO.Peek(4)
+		if err == bufio.ErrBufferFull {
+			// we just don't have 4 bytes yet, sleep a little and try again
+			time.Sleep(100 * time.Millisecond)
+			continue
+		} else if err != nil {
+			// some other problem...
+			return
+		}
+
+		switch IngestCommand(binary.LittleEndian.Uint32(cmd)) {
+		case FORCE_ACK_MAGIC:
+			// discard the command since we already read it
+			n, err = er.bIO.Discard(4)
+			if err != nil {
+				// very, very weird
+				return err
+			}
+			if err := er.forceAck(); err != nil {
+				return err
+			}
 		case ID_MAGIC:
+			// discard the command since we already read it
+			n, err = er.bIO.Discard(4)
+			if err != nil {
+				// very, very weird
+				return err
+			}
+
 			// read name
 			n, err = io.ReadFull(er.bIO, er.buff[0:4])
 			if err != nil {
@@ -338,30 +441,34 @@ headerLoop:
 
 			// respond
 			er.ackChan <- ackCommand{cmd: CONFIRM_ID_MAGIC, val: uint64(0)}
+
 			// set id values
 			er.igName = string(name)
 			er.igVersion = string(version)
 			er.igUUID = string(id)
-			continue
-		default: //we should probably bail out if we get desynced
-			continue
+		case API_VER_MAGIC:
+			// discard the command since we already read it
+			n, err = er.bIO.Discard(4)
+			if err != nil {
+				// very, very weird
+				return err
+			}
+
+			// read the version
+			n, err = io.ReadFull(er.bIO, er.buff[0:2])
+			if err != nil {
+				return
+			}
+			if n < 2 {
+				return errFailedFullRead
+			}
+			er.igAPIVersion = binary.LittleEndian.Uint16(er.buff[0:2])
+			er.ackChan <- ackCommand{cmd: CONFIRM_API_VER_MAGIC, val: uint64(0)}
+		default:
+			// any other command means the ingester is no longer interested in identifying itself, so we're done
+			return
 		}
 	}
-	//read entry header worth as well as id (64bit)
-	n, err = io.ReadFull(er.bIO, er.buff[:entry.ENTRY_HEADER_SIZE+8])
-	if err != nil {
-		return err
-	}
-	dataSize, err := ent.DecodeHeader(er.buff)
-	if err != nil {
-		return err
-	}
-	if dataSize > int(MAX_ENTRY_SIZE) {
-		return errors.New("Entry size too large")
-	}
-	*sz = uint32(dataSize) //dataSize is a uint32 internally, so these casts are OK
-	*id = entrySendID(binary.LittleEndian.Uint64(er.buff[entry.ENTRY_HEADER_SIZE:]))
-	return nil
 }
 
 func discard(c chan ackCommand) {
@@ -561,6 +668,10 @@ func (ac ackCommand) size() int {
 		return throttleEncodeSize
 	case CONFIRM_ID_MAGIC:
 		return 4
+	case CONFIRM_API_VER_MAGIC:
+		return 4
+	case CONFIRM_INGEST_OK_MAGIC:
+		return 4
 	}
 	return 0
 }
@@ -598,6 +709,15 @@ func (ac ackCommand) encode(b []byte) (n int, flush bool, err error) {
 	case CONFIRM_ID_MAGIC:
 		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
 		n += 4
+		flush = true
+	case CONFIRM_API_VER_MAGIC:
+		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
+		n += 4
+		flush = true
+	case CONFIRM_INGEST_OK_MAGIC:
+		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
+		binary.LittleEndian.PutUint64(b[4:], ac.val)
+		n += 12
 		flush = true
 	default:
 		err = errUnknownCommand
@@ -639,6 +759,14 @@ func (ac *ackCommand) decode(rdr *bufio.Reader, blocking bool) (ok bool, err err
 		ac.val = binary.LittleEndian.Uint64(val)
 		ok = true
 	case CONFIRM_ID_MAGIC:
+		ok = true
+	case CONFIRM_API_VER_MAGIC:
+		ok = true
+	case CONFIRM_INGEST_OK_MAGIC:
+		if _, err = io.ReadFull(rdr, val); err != nil {
+			return
+		}
+		ac.val = binary.LittleEndian.Uint64(val)
 		ok = true
 	default:
 		err = errUnknownCommand

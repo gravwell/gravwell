@@ -34,28 +34,32 @@ const (
 
 	MAX_UNCONFIRMED_COUNT int = 1024 * 4
 
-	MINIMUM_TAG_RENEGOTIATE_VERSION uint16 = 0x2 // minimum server version to renegotiate tags
-	MINIMUM_ID_VERSION              uint16 = 0x3 // minimum server version to send ID info
-
-	maxThrottleDur time.Duration = 5 * time.Second
+	MINIMUM_TAG_RENEGOTIATE_VERSION uint16        = 0x2 // minimum server version to renegotiate tags
+	MINIMUM_ID_VERSION              uint16        = 0x3 // minimum server version to send ID info
+	MINIMUM_INGEST_OK_VERSION       uint16        = 0x4 // minimum server version to ask
+	maxThrottleDur                  time.Duration = 5 * time.Second
 
 	flushTimeout time.Duration = 10 * time.Second
 )
 
 const (
 	//ingester commands
-	INVALID_MAGIC       IngestCommand = 0x00000000
-	NEW_ENTRY_MAGIC     IngestCommand = 0xC7C95ACB
-	FORCE_ACK_MAGIC     IngestCommand = 0x1ADF7350
-	CONFIRM_ENTRY_MAGIC IngestCommand = 0xF6E0307E
-	THROTTLE_MAGIC      IngestCommand = 0xBDEACC1E
-	PING_MAGIC          IngestCommand = 0x88770001
-	PONG_MAGIC          IngestCommand = 0x88770008
-	TAG_MAGIC           IngestCommand = 0x18675300
-	CONFIRM_TAG_MAGIC   IngestCommand = 0x18675301
-	ERROR_TAG_MAGIC     IngestCommand = 0x18675302
-	ID_MAGIC            IngestCommand = 0x22793400
-	CONFIRM_ID_MAGIC    IngestCommand = 0x22793401
+	INVALID_MAGIC           IngestCommand = 0x00000000
+	NEW_ENTRY_MAGIC         IngestCommand = 0xC7C95ACB
+	FORCE_ACK_MAGIC         IngestCommand = 0x1ADF7350
+	CONFIRM_ENTRY_MAGIC     IngestCommand = 0xF6E0307E
+	THROTTLE_MAGIC          IngestCommand = 0xBDEACC1E
+	PING_MAGIC              IngestCommand = 0x88770001
+	PONG_MAGIC              IngestCommand = 0x88770008
+	TAG_MAGIC               IngestCommand = 0x18675300
+	CONFIRM_TAG_MAGIC       IngestCommand = 0x18675301
+	ERROR_TAG_MAGIC         IngestCommand = 0x18675302
+	ID_MAGIC                IngestCommand = 0x22793400
+	CONFIRM_ID_MAGIC        IngestCommand = 0x22793401
+	API_VER_MAGIC           IngestCommand = 0x22334400
+	CONFIRM_API_VER_MAGIC   IngestCommand = 0x22334401
+	INGEST_OK_MAGIC         IngestCommand = 0x33445500
+	CONFIRM_INGEST_OK_MAGIC IngestCommand = 0x33445501
 )
 
 type IngestCommand uint32
@@ -386,6 +390,131 @@ func (ew *EntryWriter) flush() (err error) {
 	if err = ew.bIO.Flush(); err == nil {
 		err = ew.conn.ClearWriteTimeout()
 	}
+	return
+}
+
+func (ew *EntryWriter) IngestOK() (ok bool, err error) {
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+
+	if ew.serverVersion < MINIMUM_INGEST_OK_VERSION {
+		// Return quietly, it's not a big deal
+		ok = true
+		return
+	}
+
+	// Send Ingest OK magic
+	if err = ew.writeAll(INGEST_OK_MAGIC.Buff()); err != nil {
+		return
+	}
+
+	// flush
+	if err = ew.flush(); err != nil {
+		return
+	}
+
+	// read back the ack
+	var ac ackCommand
+	var lok bool
+igstOkCmdLoop:
+	for {
+		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
+			break
+		}
+		if lok, err = ac.decode(ew.bAckReader, true); err != nil {
+			break
+		}
+		if !lok {
+			err = errors.New("couldn't figure out ackCommand")
+			break
+		}
+
+		switch ac.cmd {
+		case CONFIRM_INGEST_OK_MAGIC:
+			// success... if value != 0, ingest is ok
+			ok = ac.val != 0
+			break igstOkCmdLoop
+		case PONG_MAGIC:
+			// unsolicited, can come whenever
+		default:
+			err = fmt.Errorf("Unexpected response to ingest ok query: %#v", ac)
+			break igstOkCmdLoop
+		}
+	}
+	if err == nil {
+		err = ew.conn.ClearReadTimeout()
+	} else {
+		ew.conn.ClearReadTimeout()
+	}
+	return
+}
+
+func (ew *EntryWriter) SendIngesterAPIVersion() (err error) {
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+
+	if ew.serverVersion < MINIMUM_INGEST_OK_VERSION {
+		// Return quietly, it's not a big deal
+		return
+	}
+
+	// First attempt to sync
+	err = ew.forceAckNoLock()
+	if err != nil {
+		return
+	}
+
+	// Send ID magic
+	// send the buffer and force it out
+	if err = ew.writeAll(API_VER_MAGIC.Buff()); err != nil {
+		return
+	}
+
+	// Send name
+	b := make([]byte, 2)
+	binary.LittleEndian.PutUint16(b, VERSION)
+	if err = ew.writeAll(b); err != nil {
+		return
+	}
+
+	// flush
+	if err = ew.flush(); err != nil {
+		return
+	}
+
+	// read back the ack
+	var ac ackCommand
+	var ok bool
+verCmdLoop:
+	for {
+		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
+			break
+		}
+		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
+			break
+		}
+		if !ok {
+			err = errors.New("couldn't figure out ackCommand")
+			break
+		}
+
+		switch ac.cmd {
+		case CONFIRM_API_VER_MAGIC:
+			// success
+			break verCmdLoop
+		case PONG_MAGIC:
+			// unsolicited, can come whenever
+		default:
+			err = fmt.Errorf("Unexpected response to API version message: %#v", ac)
+			break verCmdLoop
+		}
+	}
+	if err == nil {
+		err = ew.conn.ClearReadTimeout()
+	} else {
+		ew.conn.ClearReadTimeout()
+	}
+
 	return
 }
 
@@ -738,6 +867,14 @@ func (ic IngestCommand) String() string {
 		return `ID`
 	case CONFIRM_ID_MAGIC:
 		return `ID_CONFIRM`
+	case API_VER_MAGIC:
+		return `API_VER`
+	case CONFIRM_API_VER_MAGIC:
+		return `API_VER_CONFIRM`
+	case INGEST_OK_MAGIC:
+		return `INGEST_OK`
+	case CONFIRM_INGEST_OK_MAGIC:
+		return `INGEST_OK_CONFIRM`
 	}
 	return `UNKNOWN`
 }
