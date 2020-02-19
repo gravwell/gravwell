@@ -606,7 +606,7 @@ func (er *EntryReader) SendThrottle(d time.Duration) error {
 		return errAckRoutineClosed
 	}
 	er.ackChan <- ackCommand{cmd: THROTTLE_MAGIC, val: uint64(d)}
-	return nil
+	return er.errState
 }
 
 // throwAck throws an ack down the ackChan for the ack writer to encode and write
