@@ -1154,66 +1154,42 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 		return
 	}
 
-	//attempt connection
-	igst, tt, err := im.getConnection(dst)
-	if err != nil {
-		//add ourselves to the errDest list and exit
-		im.connFailed(dst.Address, err)
-		return
-	}
-	if igst == nil {
-		im.connFailed(dst.Address, errors.New("Nil connection"))
-		return
-	}
-	// set the info
-	if err := igst.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
-		im.connFailed(dst.Address, err)
-		return
-	}
-
-	src, err = igst.Source()
-	if err != nil {
-		im.connFailed(dst.Address, err)
-		return
-	}
-	im.igst[igIdx] = igst
-	im.tagTranslators[igIdx] = &tt
-	im.goHot()
-
+	var igst *IngestConnection
+	var tt tagTrans
+	var err error
 	connErrNotif := make(chan bool, 1)
 	ncc := make(chan connSet, 1)
 	defer close(ncc)
 
 	go im.writeRelayRoutine(ncc, connErrNotif)
 
-	//send the first connection set
-	ncc <- connSet{
-		dst: dst.Address,
-		src: src,
-		ig:  igst,
-		tt:  &tt,
-	}
+	connErrNotif <- true
 
 	//loop, trying to grab entries, or dying
 	for {
 		select {
 		case _, ok := <-connErrNotif:
-			//then close our ingest connection
-			//if it throws an error we don't care, and cant do anything about it
-			igst.Close()
+			if igst != nil {
+				//if it throws an error we don't care, and cant do anything about it
+				im.Error("lost connection to %v", dst.Address)
+				igst.Close()
+			}
 			if !ok {
 				//this means that the relay function bailed
 				im.goDead()
 				im.connFailed(dst.Address, errors.New("Closed"))
 				return
 			}
-			im.goDead() //let the world know of our failures
-			im.igst[igIdx] = nil
-			im.tagTranslators[igIdx] = nil
 
-			//pull any entrys out of the ingest connection and put them into the emergency queue
-			ents := igst.outstandingEntries()
-			im.recycleEntries(nil, ents, &tt)
+			if igst != nil {
+				im.goDead() //let the world know of our failures
+				im.igst[igIdx] = nil
+				im.tagTranslators[igIdx] = nil
+
+				//pull any entrys out of the ingest connection and put them into the emergency queue
+				ents := igst.outstandingEntries()
+				im.recycleEntries(nil, ents, &tt)
+			}
 
 			//attempt to get the connection rolling again
 			igst, tt, err = im.getConnection(dst)
@@ -1225,15 +1201,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 				im.connFailed(dst.Address, errors.New("Nil connection"))
 				return
 			}
-			if err := im.Error("lost connection to %v", dst.Address); err != nil {
-				igst.Close()
-				continue //retry...
-			}
-			// set the info
-			if err := igst.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
-				im.connFailed(dst.Address, err)
-				return
-			}
+
 			//get the source fired back up
 			src, err = igst.Source()
 			if err != nil {
@@ -1363,6 +1331,30 @@ loop:
 			im.Error("Fatal Connection Error, failed to get get tag translation map: %v", err)
 			return
 		}
+
+		// set the info
+		if err := ig.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
+			im.Error("Failed to identify ingester on %v: %v", tgt.Address, err)
+			continue
+		}
+
+		for {
+			select {
+			case _ = <-im.dieChan:
+				return
+			default:
+			}
+			ok, err := ig.IngestOK()
+			if err != nil {
+				im.Error("IngestOK query failed on %v: %v", tgt.Address, err)
+				continue loop
+			}
+			if ok {
+				break
+			}
+			time.Sleep(5 * time.Second)
+		}
+
 		im.Info("Successfully connected to %v", tgt.Address)
 		break
 	}
