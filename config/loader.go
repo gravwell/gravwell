@@ -43,7 +43,7 @@ type VariableConfig struct {
 }
 
 // LoadConfigFile will open a config file, check the file size
-// and load the bytes using LoadBytesConfig
+// and load the bytes using LoadConfigBytes
 func LoadConfigFile(v interface{}, p string) (err error) {
 	var fin *os.File
 	var fi os.FileInfo
@@ -72,6 +72,7 @@ func LoadConfigFile(v interface{}, p string) (err error) {
 	return
 }
 
+// LoadConfigBytes parses the contents of b into the given interface v.
 func LoadConfigBytes(v interface{}, b []byte) error {
 	if int64(len(b)) > maxConfigSize {
 		return ErrConfigFileTooLarge

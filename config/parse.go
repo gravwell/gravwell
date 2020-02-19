@@ -24,6 +24,10 @@ const (
 	gb = 1024 * mb
 )
 
+// AppendDefaultPort will append the network port in defPort to the address
+// in bstr, provided the address does not already contain a port.
+// Thus, AppendDefaultPort("10.0.0.1", 4023) will return "10.0.0.1:4023",
+// but AppendDefaultPort("10.0.0.1:5555", 4023) will return "10.0.0.1:5555".
 func AppendDefaultPort(bstr string, defPort uint16) string {
 	if _, _, err := net.SplitHostPort(bstr); err != nil {
 		if strings.HasSuffix(err.Error(), `missing port in address`) {
@@ -55,7 +59,11 @@ var (
 	}
 )
 
-//we return the rate in bytes per second
+// ParseRate parses a data rate, returning an integer bits per second.
+// The rate string s should consist of numbers optionally followed by one
+// of the following suffixes: k, kb, kbit, kbps, m, mb, mbit, mbps, g, gb,
+// gbit, gbps. If no suffix is present, ParseRate assumes the string specifies
+// bits per second.
 func ParseRate(s string) (Bps int64, err error) {
 	var r uint64
 	if len(s) == 0 {
@@ -115,6 +123,24 @@ func ParseSource(v string) (b net.IP, err error) {
 	return
 }
 
+// ParseBool attempts to parse the string v into a boolean. The following will
+// return true:
+//
+//   - "true"
+//   - "t"
+//   - "yes"
+//   - "y"
+//   - "1"
+//
+// The following will return false:
+//
+//   - "false"
+//   - "f"
+//   - "no"
+//   - "n"
+//   - "0"
+//
+// All other values return an error.
 func ParseBool(v string) (r bool, err error) {
 	v = strings.ToLower(v)
 	switch v {
@@ -139,6 +165,7 @@ func ParseBool(v string) (r bool, err error) {
 	return
 }
 
+// ParseUint64 will attempt to turn the given string into an unsigned 64-bit integer.
 func ParseUint64(v string) (i uint64, err error) {
 	if strings.HasPrefix(v, "0x") {
 		i, err = strconv.ParseUint(strings.TrimPrefix(v, "0x"), 16, 64)
@@ -148,6 +175,7 @@ func ParseUint64(v string) (i uint64, err error) {
 	return
 }
 
+// ParseInt64 will attempt to turn the given string into a signed 64-bit integer.
 func ParseInt64(v string) (i int64, err error) {
 	if strings.HasPrefix(v, "0x") {
 		i, err = strconv.ParseInt(strings.TrimPrefix(v, "0x"), 16, 64)

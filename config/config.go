@@ -6,6 +6,38 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+/*
+The config package provides a common base for Gravwell ingester config files.
+The ingester will typically need to extend the config struct to allow configuration of data sources. An ingester might implement something like the following:
+
+	type cfgType struct {
+		Global       config.IngestConfig
+		Listener     map[string]*lst
+		Preprocessor processors.ProcessorConfig
+	}
+
+	func GetConfig(path string) (*cfgType, error) {
+		var cr cfgType
+		if err := config.LoadConfigFile(&cr, path); err != nil {
+			return nil, err
+		}
+		if err := cr.Global.Verify(); err != nil {
+			return nil, err
+		}
+		// Verify and set UUID
+		if _, ok := cr.Global.IngesterUUID(); !ok {
+			id := uuid.New()
+			if err := cr.Global.SetIngesterUUID(id, path); err != nil {
+				return nil, err
+			}
+			if id2, ok := cr.Global.IngesterUUID(); !ok || id != id2 {
+				return nil, errors.New("Failed to set a new ingester UUID")
+			}
+		}
+		return c, nil
+	}
+
+*/
 package config
 
 import (
@@ -102,6 +134,9 @@ func (ic *IngestConfig) loadDefaults() error {
 	return nil
 }
 
+// Verify checks the configuration parameters of the IngestConfig, verifying
+// that there is at least one indexer target, creating directories as necessary,
+// and generally making sure values are sensible.
 func (ic *IngestConfig) Verify() error {
 	if err := ic.loadDefaults(); err != nil {
 		return err
@@ -185,6 +220,9 @@ func (ic *IngestConfig) Verify() error {
 	return nil
 }
 
+// Targets returns a list of indexer targets, including TCP, TLS, and Unix pipes.
+// Each target will be prepended with the connection type, e.g.:
+//  tcp://10.0.0.1:4023
 func (ic *IngestConfig) Targets() ([]string, error) {
 	var conns []string
 	for _, v := range ic.Cleartext_Backend_Target {
@@ -202,10 +240,14 @@ func (ic *IngestConfig) Targets() ([]string, error) {
 	return conns, nil
 }
 
+// InsecureSkipTLSVerification returns true if the Insecure-Skip-TLS-Verify
+// config parameter was set.
 func (ic *IngestConfig) InsecureSkipTLSVerification() bool {
 	return ic.Insecure_Skip_TLS_Verify
 }
 
+// Timeout returns the timeout for an ingester connection to go live before
+// giving up.
 func (ic *IngestConfig) Timeout() time.Duration {
 	if tos, _ := ic.parseTimeout(); tos > 0 {
 		return tos
@@ -213,6 +255,7 @@ func (ic *IngestConfig) Timeout() time.Duration {
 	return 0
 }
 
+// Secret returns the value of the Ingest-Secret parameter, used to authenticate to the indexer.
 func (ic *IngestConfig) Secret() string {
 	return ic.Ingest_Secret
 }
@@ -264,6 +307,8 @@ func (ic *IngestConfig) parseTimeout() (time.Duration, error) {
 	return time.ParseDuration(tos)
 }
 
+// RateLimit returns the bandwidth limit, in bits per second, which
+// should be applied to the indexer connection.
 func (ic *IngestConfig) RateLimit() (bps int64, err error) {
 	if ic.Rate_Limit == `` {
 		return
@@ -282,6 +327,10 @@ func zeroUUID(id uuid.UUID) bool {
 	return true
 }
 
+// IngesterUUID returns the UUID of this ingester, set with the `Ingester-UUID`
+// parameter. If the UUID is not set, the UUID is invalid, or the UUID is all
+// zeroes, the function will return ok = false. If the UUID is valid, it returns
+// the UUID and ok = true.
 func (ic *IngestConfig) IngesterUUID() (id uuid.UUID, ok bool) {
 	if ic.Ingester_UUID == `` {
 		return
@@ -307,6 +356,9 @@ func reloadContent(loc string) (content string, err error) {
 	return
 }
 
+// SetIngesterUUID modifies the configuration file at loc, setting the
+// Ingester-UUID parameter to the given UUID. This function allows ingesters
+// to assign themselves a UUID if one is not given in the configuration file.
 func (ic *IngestConfig) SetIngesterUUID(id uuid.UUID, loc string) (err error) {
 	if zeroUUID(id) {
 		return errors.New("UUID is empty")
