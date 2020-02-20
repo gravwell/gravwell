@@ -66,7 +66,7 @@ type IngestCommand uint32
 type entrySendID uint64
 
 type EntryWriter struct {
-	conn          Conn
+	conn          conn
 	bIO           *bufio.Writer
 	bAckReader    *bufio.Reader
 	errCount      uint32
@@ -108,7 +108,7 @@ func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
 	}
 
 	return &EntryWriter{
-		conn:       NewUnthrottledConn(cfg.Conn),
+		conn:       newUnthrottledConn(cfg.Conn),
 		bIO:        bufio.NewWriterSize(cfg.Conn, cfg.BufferSize),
 		bAckReader: bufio.NewReaderSize(cfg.Conn, cfg.OutstandingEntryCount*ACK_SIZE),
 		mtx:        &sync.Mutex{},
@@ -130,7 +130,7 @@ func (ew *EntryWriter) OverrideAckTimeout(t time.Duration) error {
 	return nil
 }
 
-func (ew *EntryWriter) SetConn(c Conn) {
+func (ew *EntryWriter) SetConn(c conn) {
 	ew.mtx.Lock()
 	ew.conn = c
 	ew.bIO.Reset(c)

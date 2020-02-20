@@ -103,7 +103,7 @@ type IngestMuxer struct {
 	name            string
 	version         string
 	uuid            string
-	rateParent      *Parent
+	rateParent      *parent
 }
 
 type UniformMuxerConfig struct {
@@ -284,9 +284,9 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		c.ChannelSize = defaultChannelSize
 	}
 
-	var p *Parent
+	var p *parent
 	if c.RateLimitBps > 0 {
-		p = NewParent(c.RateLimitBps, 0)
+		p = newParent(c.RateLimitBps, 0)
 	}
 	return &IngestMuxer{
 		dests:           c.Destinations,
@@ -1319,7 +1319,7 @@ loop:
 			continue
 		}
 		if im.rateParent != nil {
-			ig.ew.SetConn(im.rateParent.NewThrottleConn(ig.ew.conn))
+			ig.ew.SetConn(im.rateParent.newThrottleConn(ig.ew.conn))
 		}
 
 		//no error, attempt to do a tag translation

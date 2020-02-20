@@ -12,12 +12,12 @@ const (
 	defaultBurstMultiplier = 1
 )
 
-type Parent struct {
+type parent struct {
 	burst int
 	lm    *rate.Limiter
 }
 
-type ThrottleConn struct {
+type throttleConn struct {
 	net.Conn
 	burst int
 	lm    *rate.Limiter
@@ -26,7 +26,7 @@ type ThrottleConn struct {
 	cncl  func()
 }
 
-type Conn interface {
+type conn interface {
 	net.Conn
 	SetReadTimeout(time.Duration) error
 	SetWriteTimeout(time.Duration) error
@@ -34,20 +34,20 @@ type Conn interface {
 	ClearReadTimeout() error
 }
 
-func NewParent(bps int64, burstMult int) *Parent {
+func newParent(bps int64, burstMult int) *parent {
 	if burstMult <= 0 {
 		burstMult = defaultBurstMultiplier
 	}
 	burst := int(bps) * burstMult
-	return &Parent{
+	return &parent{
 		burst: burst,
 		lm:    rate.NewLimiter(rate.Limit(bps), burst),
 	}
 }
 
-func (p *Parent) NewThrottleConn(c net.Conn) *ThrottleConn {
+func (p *parent) newThrottleConn(c net.Conn) *throttleConn {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &ThrottleConn{
+	return &throttleConn{
 		Conn:  c,
 		burst: p.burst,
 		lm:    p.lm,
@@ -56,44 +56,44 @@ func (p *Parent) NewThrottleConn(c net.Conn) *ThrottleConn {
 	}
 }
 
-func NewWriteThrottler(bps int64, burstMult int, c net.Conn) (wt *ThrottleConn) {
+func newWriteThrottler(bps int64, burstMult int, c net.Conn) (wt *throttleConn) {
 	if burstMult <= 0 {
 		burstMult = defaultBurstMultiplier
 	}
 	burst := int(bps) * burstMult
-	return &ThrottleConn{
+	return &throttleConn{
 		Conn:  c,
 		burst: burst,
 		lm:    rate.NewLimiter(rate.Limit(bps), burst),
 	}
 }
 
-func (w *ThrottleConn) Close() error {
+func (w *throttleConn) Close() error {
 	if w.cncl != nil {
 		w.cncl()
 	}
 	return w.Conn.Close()
 }
 
-func (w *ThrottleConn) SetReadTimeout(to time.Duration) error {
+func (w *throttleConn) SetReadTimeout(to time.Duration) error {
 	return w.Conn.SetReadDeadline(time.Now().Add(to))
 }
 
-func (w *ThrottleConn) ClearReadTimeout() error {
+func (w *throttleConn) ClearReadTimeout() error {
 	return w.Conn.SetReadDeadline(time.Time{})
 }
 
-func (w *ThrottleConn) SetWriteTimeout(to time.Duration) error {
+func (w *throttleConn) SetWriteTimeout(to time.Duration) error {
 	w.to = to
 	return w.Conn.SetWriteDeadline(time.Now().Add(to))
 }
 
-func (w *ThrottleConn) ClearWriteTimeout() error {
+func (w *throttleConn) ClearWriteTimeout() error {
 	w.to = 0
 	return w.Conn.SetWriteDeadline(time.Time{})
 }
 
-func (w *ThrottleConn) Write(b []byte) (n int, err error) {
+func (w *throttleConn) Write(b []byte) (n int, err error) {
 	var r int
 	ctx := w.ctx
 	if w.to > 0 {
@@ -137,7 +137,7 @@ func (fs fullSpeed) ClearWriteTimeout() error {
 	return fs.Conn.SetWriteDeadline(time.Time{})
 }
 
-func NewUnthrottledConn(c net.Conn) fullSpeed {
+func newUnthrottledConn(c net.Conn) fullSpeed {
 	return fullSpeed{
 		Conn: c,
 	}
