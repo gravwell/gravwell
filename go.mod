@@ -22,7 +22,7 @@ require (
 	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
-	github.com/gravwell/filewatch/v3 v3.3.2
+	github.com/gravwell/filewatch/v3 v3.3.3
 	github.com/gravwell/ingest/v3 v3.3.6
 	github.com/gravwell/netflow/v3 v3.2.3
 	github.com/gravwell/timegrinder/v3 v3.2.3
@@ -46,7 +46,7 @@ require (
 	golang.org/x/net v0.0.0-20191126235420-ef20fe5d7933 // indirect
 	golang.org/x/oauth2 v0.0.0-20191202225959-858c2ad4c8b6 // indirect
 	golang.org/x/sync v0.0.0-20190911185100-cd5d95a43a6e // indirect
-	golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5
+	golang.org/x/sys v0.0.0-20200219091948-cb0a6d8edb6c
 	golang.org/x/tools v0.0.0-20191203233240-b1451cf3445b // indirect
 	google.golang.org/appengine v1.6.5 // indirect
 	google.golang.org/genproto v0.0.0-20191203220235-3fa9dbf08042 // indirect

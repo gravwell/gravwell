@@ -118,6 +118,8 @@ github.com/googleapis/gax-go/v2 v2.0.5 h1:sjZBwGj9Jlw33ImPtvFviGYvseOtDM7hkSKB7+
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
 github.com/gravwell/filewatch/v3 v3.3.2 h1:eUxV8pp83+XtIxcs47iaUhQSC56UdGzV56mf1aNlVzA=
 github.com/gravwell/filewatch/v3 v3.3.2/go.mod h1:iAgGT0sa4Wo/a6EPMAgpkL2V3Ppnblp1V3R9KHCMS0s=
+github.com/gravwell/filewatch/v3 v3.3.3 h1:nIx23vkzNDb6cuEIiUM71sFv9pinv4XJ3kVvuRus6Nw=
+github.com/gravwell/filewatch/v3 v3.3.3/go.mod h1:OZjTQ8VMrswLNK3PvF8O6zFbreDwH3E7+1z5mdlc18E=
 github.com/gravwell/ingest v3.2.2+incompatible h1:ZppzqTOgMi/YHIbvIhb3/mirrTYj/76n/7WdR3KMWdk=
 github.com/gravwell/ingest v3.2.2+incompatible/go.mod h1:wBD3s7hEoM5y/sYrSsO/SOyAv5SvHUkLTorwsBKTRac=
 github.com/gravwell/ingest/v3 v3.3.2 h1:gy2GimQwEOe2uqmWJlMYEbcINwCW1UAjjskY1kXLSpk=
@@ -289,6 +291,8 @@ golang.org/x/sys v0.0.0-20200117145432-59e60aa80a0c h1:gUYreENmqtjZb2brVfUas1sC6
 golang.org/x/sys v0.0.0-20200117145432-59e60aa80a0c/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5 h1:LfCXLvNmTYH9kEmVgqbnsWfruoXZIrh4YBgqVHtDvw0=
 golang.org/x/sys v0.0.0-20200202164722-d101bd2416d5/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
+golang.org/x/sys v0.0.0-20200219091948-cb0a6d8edb6c h1:jceGD5YNJGgGMkJz79agzOln1K9TaZUjv5ird16qniQ=
+golang.org/x/sys v0.0.0-20200219091948-cb0a6d8edb6c/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.1-0.20180807135948-17ff2d5776d2/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
 golang.org/x/text v0.3.2 h1:tW2bmiBqwgJj/UpqtC8EpXEZVYOwU0yG4iWbprSVAcs=
