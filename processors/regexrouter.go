@@ -5,15 +5,17 @@
  * This software may be modified and distributed under the terms of the
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
+
 package processors
 
 import (
 	"errors"
 	"fmt"
-	"github.com/gravwell/ingest/v3/config"
-	"github.com/gravwell/ingest/v3/entry"
 	"regexp"
 	"strings"
+
+	"github.com/gravwell/ingest/v3/config"
+	"github.com/gravwell/ingest/v3/entry"
 )
 
 const (

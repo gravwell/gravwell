@@ -70,6 +70,8 @@ func ConnectionType(dst string) (string, string, error) {
 // InitializeConnection is a simple wrapper to get a line to an ingester.
 // callers can just call this function and get back a hot ingest connection
 // We take care of establishing the connection and shuttling auth around
+//
+// Deprecated: Use the IngestMuxer instead.
 func InitializeConnection(dst, authString string, tags []string, pubKey, privKey string, verifyRemoteKey bool) (*IngestConnection, error) {
 	auth, err := GenAuthHash(authString)
 	if err != nil {
@@ -175,6 +177,8 @@ func checkTLSPublicKey(local, remote []byte) bool {
 // of the remote server and bail if it doesn't match.  This is a basic MitM
 // protection.  This requires that we HAVE the remote public key, getting that will
 // be done else where.
+//
+// Deprecated: Use the IngestMuxer instead.
 func NewTLSConnection(dst string, auth AuthHash, certs *TLSCerts, verify bool, tags []string) (*IngestConnection, error) {
 	if err := checkTags(tags); err != nil {
 		return nil, err
@@ -221,6 +225,8 @@ func newTlsConn(dst string, certs *TLSCerts, verify bool) (net.Conn, net.IP, err
 //
 // dst: should be a address:port pair.
 // For example "ingest.gravwell.com:4042" or "10.0.0.1:4042"
+//
+// Deprecated: Use the IngestMuxer instead.
 func NewTCPConnection(dst string, auth AuthHash, tags []string) (*IngestConnection, error) {
 	err := checkTags(tags)
 	if err != nil {
@@ -256,6 +262,8 @@ func newTcpConn(dst string) (net.Conn, net.IP, error) {
 // pipe.  But it is assumed that gravwell will be running with highly limited
 // priveleges, so if the integrity of the local system is compromised,
 // its already over.
+//
+// Deprecated: Use the IngestMuxer instead.
 func NewPipeConnection(dst string, auth AuthHash, tags []string) (*IngestConnection, error) {
 	err := checkTags(tags)
 	if err != nil {

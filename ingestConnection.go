@@ -29,6 +29,11 @@ var (
 	ErrForbiddenTag = errors.New("Forbidden character in tag")
 )
 
+// IngestConnection is a lower-level interface for connecting to and
+// communicating with a single indexer. It is kept public for compatibility,
+// but should not be used in new projects.
+//
+// Deprecated: Use the IngestMuxer instead.
 type IngestConnection struct {
 	conn       net.Conn
 	ew         *EntryWriter

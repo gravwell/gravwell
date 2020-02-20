@@ -6,38 +6,35 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-/*
-The config package provides a common base for Gravwell ingester config files.
-The ingester will typically need to extend the config struct to allow configuration of data sources. An ingester might implement something like the following:
-
-	type cfgType struct {
-		Global       config.IngestConfig
-		Listener     map[string]*lst
-		Preprocessor processors.ProcessorConfig
-	}
-
-	func GetConfig(path string) (*cfgType, error) {
-		var cr cfgType
-		if err := config.LoadConfigFile(&cr, path); err != nil {
-			return nil, err
-		}
-		if err := cr.Global.Verify(); err != nil {
-			return nil, err
-		}
-		// Verify and set UUID
-		if _, ok := cr.Global.IngesterUUID(); !ok {
-			id := uuid.New()
-			if err := cr.Global.SetIngesterUUID(id, path); err != nil {
-				return nil, err
-			}
-			if id2, ok := cr.Global.IngesterUUID(); !ok || id != id2 {
-				return nil, errors.New("Failed to set a new ingester UUID")
-			}
-		}
-		return c, nil
-	}
-
-*/
+// Package config provides a common base for Gravwell ingester config files.
+// The ingester will typically need to extend the config struct to allow configuration of data sources. An ingester might implement something like the following:
+//
+//	type cfgType struct {
+//		Global       config.IngestConfig
+//		Listener     map[string]*lst
+//		Preprocessor processors.ProcessorConfig
+//	}
+//
+//	func GetConfig(path string) (*cfgType, error) {
+//		var cr cfgType
+//		if err := config.LoadConfigFile(&cr, path); err != nil {
+//			return nil, err
+//		}
+//		if err := cr.Global.Verify(); err != nil {
+//			return nil, err
+//		}
+//		// Verify and set UUID
+//		if _, ok := cr.Global.IngesterUUID(); !ok {
+//			id := uuid.New()
+//			if err := cr.Global.SetIngesterUUID(id, path); err != nil {
+//				return nil, err
+//			}
+//			if id2, ok := cr.Global.IngesterUUID(); !ok || id != id2 {
+//				return nil, errors.New("Failed to set a new ingester UUID")
+//			}
+//		}
+//		return c, nil
+//	}
 package config
 
 import (
