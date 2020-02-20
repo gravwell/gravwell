@@ -138,6 +138,8 @@ github.com/gravwell/timegrinder/v3 v3.2.3 h1:3CGFZGpsVRpodVwkuthBZF3It+wus6Fl1Qj
 github.com/gravwell/timegrinder/v3 v3.2.3/go.mod h1:5N5jpqRDBJaEw1GotCXb8hmGoNeOPDSBjin1Mz/6g1Q=
 github.com/gravwell/winevent/v3 v3.2.7 h1:9enz83fyQVl5dP3PinmiAD28BbSBA8a11jTAhI7nZzk=
 github.com/gravwell/winevent/v3 v3.2.7/go.mod h1:gHkiInUfXg+BGaj3o63F3H+yJKaL2GwEoRY5P0Lrz+U=
+github.com/gravwell/winevent/v3 v3.3.6 h1:DkLz0d0mPMoIBeOXkCdSWU6ksQrKfYxw2V3PvFC1VI0=
+github.com/gravwell/winevent/v3 v3.3.6/go.mod h1:mnBwy7qeYsJ2NhxX3EPFuCqzo4FCWYGTF8MnaWUJUek=
 github.com/h2non/filetype v1.0.10 h1:z+SJfnL6thYJ9kAST+6nPRXp1lMxnOVbMZHNYHMar0s=
 github.com/h2non/filetype v1.0.10/go.mod h1:isekKqOuhMj+s/7r3rIeTErIRy4Rub5uBWHfvMusLMU=
 github.com/hashicorp/go-uuid v1.0.1 h1:fv1ep09latC32wFoVwnqcnKJGnMSdBanPczbHAYm1BE=

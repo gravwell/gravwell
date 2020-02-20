@@ -26,7 +26,7 @@ require (
 	github.com/gravwell/ingest/v3 v3.3.6
 	github.com/gravwell/netflow/v3 v3.2.3
 	github.com/gravwell/timegrinder/v3 v3.2.3
-	github.com/gravwell/winevent/v3 v3.2.7
+	github.com/gravwell/winevent/v3 v3.3.6
 	github.com/h2non/filetype v1.0.10
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
