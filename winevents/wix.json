@@ -6,8 +6,8 @@
   "files": {
     "guid": "d5683554-3145-11e8-a0c2-6bdc9ccf317a",
     "items": [
-      "winevents.exe",
       "config.cfg",
+      "winevents.exe",
       "gravwell.ico"
     ]
   },
