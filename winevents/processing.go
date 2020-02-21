@@ -10,6 +10,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -52,6 +53,7 @@ type mainService struct {
 	cachePath    string
 	igstLogLevel string
 	uuid         string
+	ctx          context.Context
 
 	bmk     *winevent.BookmarkHandler
 	evtSrcs []eventSrc
@@ -152,6 +154,9 @@ func (m *mainService) Execute(args []string, r <-chan svc.ChangeRequest, changes
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 
+	var cancel context.CancelFunc
+	m.ctx, cancel = context.WithCancel(context.Background())
+
 	consumerErr := make(chan error, 1)
 	consumerClose := make(chan bool, 1)
 	defer close(consumerClose)
@@ -169,6 +174,7 @@ loop:
 				changes <- c.CurrentStatus
 				changes <- c.CurrentStatus
 			case svc.Stop, svc.Shutdown:
+				cancel()
 				consumerClose <- true
 				break loop
 			default:
@@ -256,7 +262,7 @@ func (m *mainService) init() error {
 		return fmt.Errorf("Failed start our ingest system: %v", err)
 	}
 	debugout("Started ingester stream\n")
-	if err := igst.WaitForHot(m.timeout); err != nil {
+	if err := igst.WaitForHotContext(m.ctx, m.timeout); err != nil {
 		return err
 	}
 	m.igst = igst
