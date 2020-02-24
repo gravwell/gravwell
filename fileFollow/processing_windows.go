@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"net"
@@ -45,6 +46,7 @@ type mainService struct {
 	cachePath   string
 	logLevel    string
 	uuid        string
+	ctx         context.Context
 }
 
 func NewService(cfg *cfgType) (*mainService, error) {
@@ -118,6 +120,8 @@ func (m *mainService) Execute(args []string, r <-chan svc.ChangeRequest, changes
 	const cmdsAccepted = svc.AcceptStop | svc.AcceptShutdown
 	changes <- svc.Status{State: svc.StartPending}
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
+	var cancel context.CancelFunc
+	m.ctx, cancel = context.WithCancel(context.Background())
 
 	if err := m.init(); err != nil {
 		ssec = true
@@ -136,6 +140,7 @@ loop:
 			changes <- c.CurrentStatus
 		case svc.Stop, svc.Shutdown:
 			//shutdown the watchers to get the consumer routine to exit
+			cancel()
 			break loop
 		default:
 			errorout("Got invalid control request #%d", c)
@@ -174,7 +179,7 @@ func (m *mainService) init() error {
 	}
 
 	debugout("Started ingester stream\n")
-	if err := igst.WaitForHot(m.timeout); err != nil {
+	if err := igst.WaitForHotContext(m.ctx, m.timeout); err != nil {
 		return err
 	}
 	m.igst = igst
