@@ -4,18 +4,12 @@ The Gravwell Windows events ingester is designed to run as a system service and 
 
 ## Building the application
 
-Build service using at least Go version 1.11, but we reccomend the latest go version.
+Build service using at least Go version 1.13, but we reccomend the latest go version.
 
 `
-CGO_ENABLED=0 GOARCH=386 GOOS=windows go build
+CGO_ENABLED=0 GOARCH=amd64 GOOS=windows go build
 `
 
 ## Building the installer
 
-The installer is built using the [go-msi](https://github.com/mh-cbon/go-msi) system and [WiX](https://wixtoolset.org/).  You will need both tools installed.
-
-Once the applications have been built, execute the go-msi command to build the MSI installer.
-
-`
-go-msi.exe make --version 3.2.0 --arch amd64 --msi gravwell_win_events_3.2.0.msi --src templates
-`
+The installer is built using the [WIX Toolset](https://wixtoolset.org/).  To build an MSI, first build the winevents.exe installer and then use the `build.bat` batch script to build an MSI.
