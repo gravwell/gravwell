@@ -1,3 +1,4 @@
+// +build windows
 /*************************************************************************
  * Copyright 2017 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -5,7 +6,6 @@
  * This software may be modified and distributed under the terms of the
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
-// +build windows
 
 package winevent
 
@@ -114,7 +114,7 @@ func (c *CfgType) verify() error {
 	}
 
 	if c.Global.Bookmark_Location == "" {
-		b, err := ServiceFilename(defaultBookmarkName)
+		b, err := ProgramDataFilename(filepath.Join(`gravwell\eventlog\`, defaultBookmarkName))
 		if err != nil {
 			return err
 		}
@@ -346,6 +346,7 @@ func (c *CfgType) LocalFileCachePath() string {
 func (c *CfgType) LogLevel() string {
 	return c.Global.Log_Level
 }
+
 func ServiceFilename(name string) (string, error) {
 	exePath, err := os.Executable()
 	if err != nil {
@@ -356,4 +357,14 @@ func ServiceFilename(name string) (string, error) {
 		return ``, fmt.Errorf("Failed to get location of executable: %v", err)
 	}
 	return filepath.Join(exeDir, name), nil
+}
+
+func ProgramDataFilename(name string) (r string, err error) {
+	if r = os.Getenv(`PROGRAMDATA`); r == `` {
+		//return the ServiceFilename path
+		r, err = ServiceFilename(name)
+	} else {
+		r = filepath.Join(r, name)
+	}
+	return
 }
