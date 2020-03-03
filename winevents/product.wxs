@@ -46,28 +46,37 @@
         </Directory>
       </Directory>
     </Directory>
-    <Property Id="CONFIGFILE" Secure="yes" />
 
+    <Property Id="CONFIGFILE" Secure="yes" />
+    <!-- Configuration properties -->
+    <Property Id="CONFIG_INGEST_SECRET" Secure="yes" Value="IngestSecrets" />
+    <Property Id="CONFIG_CLEARTEXT_BACKEND_TARGET" Secure="yes" Value="127.0.1.1:4023" />
+    <Property Id="CONFIG_LOG_LEVEL" Secure="yes" Value="INFO" />
     <!-- Check if config.cfg is present in the system -->
-    <Property Id="CONFIGCFG_PATH">
+    <Property Id="CONFIGCFG_PATH" Secure="yes" Value="0">
       <DirectorySearch Id="CheckConfigFile" Path="[CommonAppDataFolder]">
         <DirectorySearch Id="CheckConfigFile2" Path="gravwell">
           <DirectorySearch Id="CheckConfigFile3" Path="eventlog">
-            <FileSearch Name="config.cfg" />
+            <FileSearch Id="CheckConfigFile4" Name="config.cfg" />
           </DirectorySearch>
         </DirectorySearch>
       </DirectorySearch>
     </Property>
     <SetProperty Id="CopyConfig" Value="&quot;[SystemFolder]cmd.exe&quot; /c echo f | xcopy &quot;[CONFIGFILE]&quot; &quot;[INSTALLDIR]config.cfg&quot; /Y /Q /R" After="CostFinalize" />
     <CustomAction Id="CopyConfig" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="check" Impersonate="no" />
+    
     <!-- Generate config file (only new installations) -->
-    <SetProperty Id="GenerateConfigCfg" Value="&quot;[SystemFolder]cmd.exe&quot; /c echo test &gt; [CONFIGDIR]config.cfg" After="CostFinalize" />
-    <CustomAction Id="GenerateConfigCfg" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="check" Impersonate="no" />
+    <Binary Id='createConfigFile.vbs' SourceFile='createConfigFile.vbs' />
+    <CustomAction Id='GenerateConfigCfg' VBScriptCall='' BinaryKey='createConfigFile.vbs' Return='check' Execute="deferred" Impersonate="no"/>
+    <!-- Secret should be last since it can potentially include separator (for other values it's illegal) -->
+    <CustomAction Property="GenerateConfigCfg" Id='GenerateConfigCfgValues' Value="[CONFIGDIR]|[CONFIG_LOG_LEVEL]|[CONFIG_CLEARTEXT_BACKEND_TARGET]|[CONFIG_INGEST_SECRET]" />
+
     <InstallExecuteSequence>
       <!-- We will remove existing product AFTER we install new version so we can copy legacy configuration files -->
       <RemoveExistingProducts After="InstallFinalize" />
       <Custom Action="CopyConfig" After="InstallFiles">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED AND CONFIGFILE</Custom>
-      <Custom Action="GenerateConfigCfg" After="InstallFiles">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED AND NOT CONFIGFILE AND NOT CONFIGCFG_PATH</Custom>
+      <Custom Action="GenerateConfigCfgValues" Before="GenerateConfigCfg" />
+      <Custom Action="GenerateConfigCfg" After="InstallFiles"></Custom>
     </InstallExecuteSequence>
     <Feature Id="DefaultFeature" Level="1">
       <ComponentRef Id="component_winevents_exe" />
@@ -87,7 +96,6 @@
     <!-- this should help to propagate env var changes -->
     <CustomActionRef Id="WixBroadcastEnvironmentChange" />
     <InstallUISequence>
-
     </InstallUISequence>
   </Product>
 </Wix>

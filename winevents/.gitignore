@@ -2,3 +2,5 @@
 *.wixobj
 *.msi
 *.ico
+/.vscode
+*.txt
