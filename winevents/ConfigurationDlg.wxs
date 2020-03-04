@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
+  <Fragment>
+    <UI>
+      <Dialog Id="ConfigurationDlg" Width="370" Height="270" Title="!(loc.ConfigurationDlg_Title)" NoMinimize="yes">
+        <Control Type="Bitmap" Id="bitmapBanner" Width="370" Height="44" X="0" Y="0" Text="!(loc.InstallDirDlgBannerBitmap)" />
+        <Control Type="Line" Id="line" Width="370" Height="2" X="0" Y="44" />
+        <Control Type="Text" Id="textHeader" Width="300" Height="14" X="14" Y="7" Transparent="yes">
+          <Text>{\WixUI_Font_Title}!(loc.ConfigurationDlg_Header)</Text>
+        </Control>
+        <Control Type="Text" Id="textDescription" Width="280" Height="28" X="24" Y="21" Transparent="yes">
+          <Text>!(loc.ConfigurationDlg_Description)</Text>
+        </Control>
+        <Control Type="Text" Id="textIngestSecret" Width="112" Height="14" X="8" Y="54">
+          <Text>!(loc.ConfigurationDlg_IngestSecretLabel)</Text>
+        </Control>
+        <Control Type="Text" Id="textCleartextBackendTarget" Width="116" Height="17" X="8" Y="78">
+          <Text>!(loc.ConfigurationDlg_CleartextBackendTarget)</Text>
+        </Control>
+        <Control Type="Edit" Id="editIngestSecret" Width="226" Height="15" X="131" Y="52" Property="CONFIG_INGEST_SECRET" />        
+        <Control Type="Edit" Id="editCleartextBackendTarget" Width="226" Height="15" X="131" Y="76" Property="CONFIG_CLEARTEXT_BACKEND_TARGET" />
+        <Control Type="ComboBox" Property="CONFIG_LOG_LEVEL" Id="comboBoxLogLevel" Width="226" Height="16" X="131" Y="99" ComboList="yes">
+          <ComboBox Property="CONFIG_LOG_LEVEL">
+            <ListItem Text="!(loc.ConfigurationDlg_LogLevel_OFF)" Value="OFF" />
+            <ListItem Text="!(loc.ConfigurationDlg_LogLevel_INFO)" Value="INFO" />
+            <ListItem Text="!(loc.ConfigurationDlg_LogLevel_WARN)" Value="WARN" />
+            <ListItem Text="!(loc.ConfigurationDlg_LogLevel_ERROR)" Value="ERROR" />
+          </ComboBox>
+        </Control>
+        <Control Type="Text" Id="textLogLevel" Width="116" Height="17" X="8" Y="102">
+          <Text>!(loc.ConfigurationDlg_LogLevel)</Text>
+        </Control>
+
+
+        <Control Id="Cancel" Cancel="yes" Type="PushButton" X="304" Y="243" Width="56" Height="17" Text="!(loc.WixUICancel)">
+          <Publish Event="EndDialog" Value="Exit" />
+        </Control>
+
+        <Control Id="Next" Type="PushButton" X="235" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
+          <Publish Event="EndDialog" Value="Return" />
+        </Control>
+
+        <Control Id="Back" Type="PushButton" X="179" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
+          <Publish Event="EndDialog" Value="Return" />
+        </Control>
+      </Dialog>
+    </UI>
+  </Fragment>
+</Wix>
