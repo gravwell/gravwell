@@ -1,70 +1,101 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <?if $(sys.BUILDARCH)="x86"?>
 <?define Program_Files="ProgramFilesFolder"?>
 <?elseif $(sys.BUILDARCH)="x64"?>
 <?define Program_Files="ProgramFiles64Folder"?>
-<?else?>
+<?else ?>
 <?error Unsupported value of sys.BUILDARCH=$(sys.BUILDARCH)?>
-<?endif?>
+<?endif ?>
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
-	<Product Id="*" UpgradeCode="7c775ec8-a978-11e9-9c98-efcc6506c320" Name="gravwell events ingester" Version="3.2.8" Manufacturer="Gravwell Inc" Language="1033">
-		<Package InstallerVersion="200" Compressed="yes" Comments="Windows Installer Package" InstallScope="perMachine" />
-		<Media Id="1" Cabinet="product.cab" EmbedCab="yes" />
-		<Upgrade Id="7c775ec8-a978-11e9-9c98-efcc6506c320">
-			<UpgradeVersion Minimum="3.2.8" OnlyDetect="yes" Property="NEWERVERSIONDETECTED" />
-			<UpgradeVersion Minimum="0.0.0" Maximum="3.2.8" IncludeMinimum="yes" IncludeMaximum="no" Property="OLDERVERSIONBEINGUPGRADED" />
-		</Upgrade>
-		<Condition Message="A newer version of this software is already installed.">NOT NEWERVERSIONDETECTED</Condition>
-		<Directory Id="TARGETDIR" Name="SourceDir">
-			<Directory Id="$(var.Program_Files)">
-				<Directory Id="BASEDIR" Name="gravwell">
-					<Directory Id="INSTALLDIR" Name="eventlog">
-						<Component Id="ApplicationFiles" Guid="d5683554-3145-11e8-a0c2-6bdc9ccf317a">
-							<File Id="executable" Source="winevents.exe" />
-							<File Id="iconfile" Source="gravwell.ico" />
-							<ServiceInstall Vital="yes" ErrorControl="ignore" Type="ownProcess" DisplayName="Gravwell Events Ingester" Description="Gravwell Windows Events Service" Name="GravwellEvents" Start="auto" />
-							<ServiceControl Id="ControlControlGravwellEventsService" Remove="both" Name="GravwellEvents" Start="install" Stop="both" Wait="yes" />
-							<RemoveFile Id="RemoveEXE" Name="*.exe" On="uninstall" />
-							<RemoveFile Id="RemoveICO" Name="*.ico" On="uninstall" />
-						</Component>
-						<Component Id="ConfigFiles" NeverOverwrite="yes" Permanent="yes" Guid="d5683554-3145-11e8-a0c2-6bdc9ccf317b">
-							<File Id="Configfile" Source="config.cfg" />
-						</Component>
-					</Directory>
-				</Directory>
-			</Directory>
-		</Directory>
-		<Property Id="CONFIGFILE" Secure="yes" />
-		<SetProperty Id="CopyConfig" Value="&quot;[SystemFolder]cmd.exe&quot; /c echo f | xcopy &quot;[CONFIGFILE]&quot; &quot;[INSTALLDIR]config.cfg&quot; /Y /Q /R" After="CostFinalize" />
-		<CustomAction Id="CopyConfig" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="check" Impersonate="no" />
-		<SetProperty Id="EditConfig" Value="&quot;notepad.exe&quot; [INSTALLDIR]config.cfg" Before="EditConfig" Sequence="execute" />
-		<CustomAction Id="EditConfig" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no" />
-		<SetProperty Id="StopService" Value="&quot;sc.exe&quot; stop GravwellEvents" Before="StopService" Sequence="execute" />
-		<CustomAction Id="StopService" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no" />
-		<SetProperty Id="StartService" Value="&quot;sc.exe&quot; start GravwellEvents" Before="StartService" Sequence="execute" />
-		<CustomAction Id="StartService" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no" />
-		<SetProperty Id="Purge" Value="&#34;cmd.exe&#34; del /q /s [INSTALLDIR]*.*" After="RemoveFiles" Sequence="execute"/>
-		<CustomAction Id="Purge" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="ignore" Impersonate="no"/>
-		<InstallExecuteSequence>
-			<RemoveExistingProducts After="InstallValidate" />
-			<Custom Action="CopyConfig" After="InstallFiles">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED AND CONFIGFILE</Custom>
-			<Custom Action="EditConfig" After="InstallFiles">NOT CONFIGFILE AND NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED AND UILevel=5</Custom>
-			<Custom Action="StopService" After="EditConfig">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED</Custom>
-			<!--
-			<Custom Action="Purge" Before="StartService">REMOVE ~= "ALL"</Custom>
-			-->
-			<Custom Action="StartService" After="StopService">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED</Custom>
-		</InstallExecuteSequence>
-		<Feature Id="DefaultFeature" Level="1">
-			<ComponentRef Id="ApplicationFiles" />
-			<ComponentRef Id="ConfigFiles" />
-		</Feature>
-		<UI>
-			<!-- Define the installer UI -->
-			<UIRef Id="WixUI_HK" />
-		</UI>
-		<Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
-		<!-- this should help to propagate env var changes -->
-		<CustomActionRef Id="WixBroadcastEnvironmentChange" />
-	</Product>
+  <Product Id="*" UpgradeCode="7c775ec8-a978-11e9-9c98-efcc6506c320" Name="gravwell events ingester" Version="3.2.8" Manufacturer="Gravwell Inc" Language="1033">
+    <Package InstallerVersion="200" Compressed="yes" Comments="Windows Installer Package" InstallScope="perMachine" />
+    <Media Id="1" Cabinet="product.cab" EmbedCab="yes" />
+    <Upgrade Id="7c775ec8-a978-11e9-9c98-efcc6506c320">
+      <UpgradeVersion Minimum="3.2.8" OnlyDetect="yes" Property="NEWERVERSIONDETECTED" />
+      <UpgradeVersion Minimum="0.0.0" Maximum="3.2.8" IncludeMinimum="yes" IncludeMaximum="no" Property="OLDERVERSIONBEINGUPGRADED" />
+    </Upgrade>
+    <Condition Message="A newer version of this software is already installed.">NOT NEWERVERSIONDETECTED</Condition>
+    <Directory Id="TARGETDIR" Name="SourceDir">
+      <Directory Id="$(var.Program_Files)">
+        <Directory Id="BASEDIR" Name="gravwell">
+          <Directory Id="INSTALLDIR" Name="eventlog">
+            <Component Id="component_winevents_exe" Guid="d0ba62a4-eebf-4d54-bf60-1cbeede17e01">
+              <File Id="file_winevents.exe" Source="winevents.exe" />
+              <ServiceInstall Vital="yes" ErrorControl="ignore" Type="ownProcess" Name="GravwellEvents" Id="GravwellEventsService" DisplayName="Gravwell Events Ingester" Description="Gravwell Windows Events Service" Start="auto" />
+              <ServiceControl Id="GravwellEventsService" Remove="uninstall" Name="GravwellEvents" Start="install" Stop="both" Wait="yes" />
+            </Component>
+            <Component Id="component_gravwell_ico" Guid="15f5a270-6548-4021-af6c-70d43b78756c">
+              <File Id="file_gravwell.ico" Source="gravwell.ico" />
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+      <Directory Id="CommonAppDataFolder" Name="ProgramData">
+        <Directory Id="ProgramDataGravwell" Name="gravwell">
+          <Directory Id="CONFIGDIR" Name="eventlog">
+            <Component Id="component_configFolder" Guid="01718e6e-073b-4ba2-b1dc-e090acbed6ab">
+              <!-- Create empty folder -->
+              <CreateFolder />
+            </Component>
+            <Component Id="MigrateLegacyData" Guid="a5a51de4-c9de-495a-8cc0-5e5d707b3075">
+              <CopyFile Id="MigrateLegacyBookmark" SourceDirectory="BASEDIR" SourceName="bookmark" DestinationDirectory="CONFIGDIR" />
+              <CopyFile Id="MigrateLegacyConfigCfg" SourceDirectory="BASEDIR" SourceName="config.cfg" DestinationDirectory="CONFIGDIR" />
+              <CopyFile Id="MigrateLegacyCache" SourceDirectory="BASEDIR" SourceName="*.cache" DestinationDirectory="CONFIGDIR" />
+            </Component>
+          </Directory>
+        </Directory>
+      </Directory>
+    </Directory>
+
+    <Property Id="CONFIGFILE" Secure="yes" />
+    <!-- Configuration properties -->
+    <Property Id="CONFIG_INGEST_SECRET" Secure="yes" Value="IngestSecrets" />
+    <Property Id="CONFIG_CLEARTEXT_BACKEND_TARGET" Secure="yes" Value="127.0.1.1:4023" />
+    <Property Id="CONFIG_LOG_LEVEL" Secure="yes" Value="INFO" />
+    <!-- Check if config.cfg is present in the system -->
+    <Property Id="CONFIGCFG_PATH" Secure="yes" Value="0">
+      <DirectorySearch Id="CheckConfigFile" Path="[CommonAppDataFolder]">
+        <DirectorySearch Id="CheckConfigFile2" Path="gravwell">
+          <DirectorySearch Id="CheckConfigFile3" Path="eventlog">
+            <FileSearch Id="CheckConfigFile4" Name="config.cfg" />
+          </DirectorySearch>
+        </DirectorySearch>
+      </DirectorySearch>
+    </Property>
+    <SetProperty Id="CopyConfig" Value="&quot;[SystemFolder]cmd.exe&quot; /c echo f | xcopy &quot;[CONFIGFILE]&quot; &quot;[INSTALLDIR]config.cfg&quot; /Y /Q /R" After="CostFinalize" />
+    <CustomAction Id="CopyConfig" BinaryKey="WixCA" DllEntry="WixQuietExec" Execute="deferred" Return="check" Impersonate="no" />
+    
+    <!-- Generate config file (only new installations) -->
+    <Binary Id='createConfigFile.vbs' SourceFile='createConfigFile.vbs' />
+    <CustomAction Id='GenerateConfigCfg' VBScriptCall='' BinaryKey='createConfigFile.vbs' Return='check' Execute="deferred" Impersonate="no"/>
+    <!-- Secret should be last since it can potentially include separator (for other values it's illegal) -->
+    <CustomAction Property="GenerateConfigCfg" Id='GenerateConfigCfgValues' Value="[CONFIGDIR]|[CONFIG_LOG_LEVEL]|[CONFIG_CLEARTEXT_BACKEND_TARGET]|[CONFIG_INGEST_SECRET]" />
+
+    <InstallExecuteSequence>
+      <!-- We will remove existing product AFTER we install new version so we can copy legacy configuration files -->
+      <RemoveExistingProducts After="InstallFinalize" />
+      <Custom Action="CopyConfig" After="InstallFiles">NOT Installed AND NOT REMOVE AND NOT OLDERVERSIONBEINGUPGRADED AND CONFIGFILE</Custom>
+      <Custom Action="GenerateConfigCfgValues" Before="GenerateConfigCfg" />
+      <Custom Action="GenerateConfigCfg" After="InstallFiles"></Custom>
+    </InstallExecuteSequence>
+    <Feature Id="DefaultFeature" Level="1">
+      <ComponentRef Id="component_winevents_exe" />
+      <ComponentRef Id="component_gravwell_ico" />
+      <ComponentRef Id="component_configFolder" />
+    </Feature>
+    <!-- This feature is optional depending on older version -->
+    <Feature Id="MigrateLegacyAppData" Level="1">
+      <ComponentRef Id="MigrateLegacyData" />
+      <Condition Level="1">OLDERVERSIONBEINGUPGRADED</Condition>
+    </Feature>
+    <UI>
+      <!-- Define the installer UI -->
+      <UIRef Id="WixUI_HK" />
+    </UI>
+    <Property Id="WIXUI_INSTALLDIR" Value="INSTALLDIR" />
+    <!-- this should help to propagate env var changes -->
+    <CustomActionRef Id="WixBroadcastEnvironmentChange" />
+    <InstallUISequence>
+    </InstallUISequence>
+  </Product>
 </Wix>
