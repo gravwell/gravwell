@@ -25,7 +25,7 @@ import (
 
 const (
 	serviceName       = `GravwellEvents`
-	defaultConfigName = `config.cfg`
+	defaultConfigPath = `gravwell\eventlog\config.cfg`
 )
 
 var (
@@ -49,7 +49,7 @@ func init() {
 	}
 	if *configOverride == "" {
 		var err error
-		confLoc, err = winevent.ServiceFilename(defaultConfigName)
+		confLoc, err = winevent.ProgramDataFilename(defaultConfigPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to get config file path: %v\n", err)
 			os.Exit(-1)
