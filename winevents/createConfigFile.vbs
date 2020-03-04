@@ -21,7 +21,7 @@ configFile.WriteLine ("#note that backslashes (\) are an escape character and mu
 configFile.WriteLine ("Cleartext-Backend-target=" & CONFIG_CLEARTEXT_BACKEND_TARGET & " #example of adding a cleartext connection")
 configFile.WriteLine ("#Cleartext-Backend-target=127.1.0.1:4023 #example of adding another cleartext connection")
 configFile.WriteLine ("#Encrypted-Backend-target=127.1.1.1:4024 #example of adding an encrypted connection")
-configFile.WriteLine ("#Ingest-Cache-Path=""C:\\Program Files\\gravwell\\events.cache""")
+configFile.WriteLine ("#Ingest-Cache-Path=""C:\\ProgramData\\gravwell\\eventlog\\events.cache""")
 configFile.WriteLine ("#Max-Ingest-Cache=1024 #Number of MB to store, localcache will only store 1GB before stopping.  This is a safety net")
 configFile.WriteLine ("Log-Level=" & CONFIG_LOG_LEVEL)
 configFile.WriteLine ()

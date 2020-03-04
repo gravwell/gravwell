@@ -29,6 +29,7 @@
             </Component>
           </Directory>
         </Directory>
+        <Directory Id="LEGACYBASEDIR" Name="gravwell"/>
       </Directory>
       <Directory Id="CommonAppDataFolder" Name="ProgramData">
         <Directory Id="ProgramDataGravwell" Name="gravwell">
@@ -38,9 +39,9 @@
               <CreateFolder />              
             </Component>
             <Component Id="MigrateLegacyData" Guid="a5a51de4-c9de-495a-8cc0-5e5d707b3075">
-              <CopyFile Id="MigrateLegacyBookmark" SourceDirectory="BASEDIR" SourceName="bookmark" DestinationDirectory="CONFIGDIR" />
-              <CopyFile Id="MigrateLegacyConfigCfg" SourceDirectory="BASEDIR" SourceName="config.cfg" DestinationDirectory="CONFIGDIR" />
-              <CopyFile Id="MigrateLegacyCache" SourceDirectory="BASEDIR" SourceName="*.cache" DestinationDirectory="CONFIGDIR" />
+              <CopyFile Id="MigrateLegacyBookmark" SourceDirectory="LEGACYBASEDIR" SourceName="bookmark" DestinationDirectory="CONFIGDIR" />
+              <CopyFile Id="MigrateLegacyConfigCfg" SourceDirectory="LEGACYBASEDIR" SourceName="config.cfg" DestinationDirectory="CONFIGDIR" />
+              <CopyFile Id="MigrateLegacyCache" SourceDirectory="LEGACYBASEDIR" SourceName="*.cache" DestinationDirectory="CONFIGDIR" />
             </Component>
           </Directory>
         </Directory>
@@ -62,9 +63,7 @@
     <Property Id="EXISTING_CONFIGCFG_PATH" Secure="yes">
       <DirectorySearch Id="CheckConfigFile" Path="[CommonAppDataFolder]">
         <DirectorySearch Id="CheckConfigFile2" Path="gravwell">
-          <DirectorySearch Id="CheckConfigFile3" Path="eventlog">
-            <FileSearch Name="config.cfg" />
-          </DirectorySearch>
+          <FileSearch Name="config.cfg" />
         </DirectorySearch>
       </DirectorySearch>
     </Property>
