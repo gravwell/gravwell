@@ -1,6 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <WixLocalization Culture="en-us" 
   xmlns="http://schemas.microsoft.com/wix/2006/localization">
+  <String Id="Product_Name" Overridable="yes">gravwell events ingester</String>
+  <String Id="Package_Comments" Overridable="yes">Windows Installer Package</String>
+  <String Id="Package_NewerVersionDetected" Overridable="yes">A newer version of this software is already installed.</String>
+  <String Id="Service_Name" Overridable="yes">GravwellEvents</String>
+  <String Id="Service_DisplayName" Overridable="yes">Gravwell Events Ingester</String>
+  <String Id="Service_Description" Overridable="yes">Gravwell Windows Events Service</String>
   <String Id="ConfigurationDlg_Header" Overridable="yes">Configuration</String>
   <String Id="ConfigurationDlg_Description" Overridable="yes">Update values for default configuration</String>
   <String Id="ConfigurationDlg_Title" Overridable="yes">[ProductName] Configuration</String>
@@ -11,5 +17,4 @@
   <String Id="ConfigurationDlg_LogLevel_WARN" Overridable="yes">Warning</String>
   <String Id="ConfigurationDlg_LogLevel_ERROR" Overridable="yes">Error</String>
   <String Id="ConfigurationDlg_LogLevel" Overridable="yes">Log level:</String>
-
 </WixLocalization>
