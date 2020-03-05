@@ -9,6 +9,8 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Product Id="*" UpgradeCode="7c775ec8-a978-11e9-9c98-efcc6506c320" Name="!(loc.Product_Name)" Version="3.2.8" Manufacturer="Gravwell Inc" Language="1033">
     <Package InstallerVersion="200" Compressed="yes" Comments="!(loc.Package_Comments)" InstallScope="perMachine" />
+    <Icon Id="gravwellel.ico" SourceFile="gravwell.ico"/>
+    <Property Id="ARPPRODUCTICON" Value="gravwellel.ico" />
     <Media Id="1" Cabinet="product.cab" EmbedCab="yes" />
     <Upgrade Id="7c775ec8-a978-11e9-9c98-efcc6506c320">
       <UpgradeVersion Minimum="3.2.8" OnlyDetect="yes" Property="NEWERVERSIONDETECTED" />
@@ -20,8 +22,8 @@
         <Directory Id="BASEDIR" Name="gravwell">
           <Directory Id="INSTALLDIR" Name="eventlog">
             <Component Id="component_winevents_exe" Guid="d0ba62a4-eebf-4d54-bf60-1cbeede17e01">
-              <File Id="file_winevents.exe" Source="winevents.exe" />
-              <ServiceInstall Vital="yes" ErrorControl="ignore" Type="ownProcess" Name="!(loc.Service_Name)" Id="GravwellEventsService" DisplayName="!(loc.Service_DisplayName)" Description="!(loc.Service_Description)" Start="auto" />
+              <File Id="file_winevents.exe" Source="winevents.exe" Name="!(loc.Service_Name)"/>
+              <ServiceInstall Vital="yes" ErrorControl="normal" Type="ownProcess" Name="!(loc.Service_Name)" Id="GravwellEventsService" DisplayName="!(loc.Service_DisplayName)" Description="!(loc.Service_Description)" Start="auto" />
               <ServiceControl Id="GravwellEventsService" Remove="uninstall" Name="!(loc.Service_Name)" Start="install" Stop="both" Wait="yes" />
             </Component>
             <Component Id="component_gravwell_ico" Guid="15f5a270-6548-4021-af6c-70d43b78756c">
