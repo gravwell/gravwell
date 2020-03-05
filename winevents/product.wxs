@@ -22,7 +22,7 @@
         <Directory Id="BASEDIR" Name="gravwell">
           <Directory Id="INSTALLDIR" Name="eventlog">
             <Component Id="component_winevents_exe" Guid="d0ba62a4-eebf-4d54-bf60-1cbeede17e01">
-              <File Id="file_winevents.exe" Source="winevents.exe" Name="!(loc.Service_Name)"/>
+              <File Id="file_winevents.exe" Source="winevents.exe" Name="!(loc.Service_Name)" KeyPath="yes"/>
               <ServiceInstall Vital="yes" ErrorControl="normal" Type="ownProcess" Name="!(loc.Service_Name)" Id="GravwellEventsService" DisplayName="!(loc.Service_DisplayName)" Description="!(loc.Service_Description)" Start="auto" />
               <ServiceControl Id="GravwellEventsService" Remove="uninstall" Name="!(loc.Service_Name)" Start="install" Stop="both" Wait="yes" />
             </Component>
