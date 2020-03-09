@@ -2,6 +2,7 @@
 <WixLocalization Culture="en-us" 
   xmlns="http://schemas.microsoft.com/wix/2006/localization">
   <String Id="Product_Name" Overridable="yes">gravwell events ingester</String>
+  <String Id="Product_Manufacturer" Overridable="yes">Gravwell Inc</String>
   <String Id="Package_Comments" Overridable="yes">Windows Installer Package</String>
   <String Id="Package_NewerVersionDetected" Overridable="yes">A newer version of this software is already installed.</String>
   <String Id="Service_Name" Overridable="yes">GravwellEvents</String>
