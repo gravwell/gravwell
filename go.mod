@@ -10,6 +10,7 @@ require (
 	github.com/gravwell/timegrinder/v3 v3.2.3
 	github.com/klauspost/compress v1.8.6
 	github.com/klauspost/cpuid v1.2.1 // indirect
+	github.com/minio/highwayhash v1.0.0
 	github.com/traetox/gcfg v1.2.4-0.20191023234045-a093ce14b31d
 	go.etcd.io/bbolt v1.3.3
 	golang.org/x/sys v0.0.0-20190919044723-0c1ff786ef13 // indirect

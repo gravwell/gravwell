@@ -48,19 +48,16 @@ func CheckProcessor(id string) error {
 	id = strings.TrimSpace(strings.ToLower(id))
 	switch id {
 	case GzipProcessor:
-		return nil
 	case JsonExtractProcessor:
-		return nil
 	case JsonArraySplitProcessor:
-		return nil
+	case JsonFilterProcessor:
 	case RegexTimestampProcessor:
-		return nil
 	case RegexExtractProcessor:
-		return nil
 	case RegexRouterProcessor:
-		return nil
+	default:
+		return ErrUnknownProcessor
 	}
-	return ErrUnknownProcessor
+	return nil
 }
 
 type Tagger interface {
@@ -88,6 +85,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = JsonExtractLoadConfig(vc)
 	case JsonArraySplitProcessor:
 		cfg, err = JsonArraySplitLoadConfig(vc)
+	case JsonFilterProcessor:
+		cfg, err = JsonFilterLoadConfig(vc)
 	case RegexTimestampProcessor:
 		cfg, err = RegexTimestampLoadConfig(vc)
 	case RegexExtractProcessor:
@@ -143,6 +142,12 @@ func NewProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewJsonArraySplitter(cfg)
+	case JsonFilterProcessor:
+		var cfg JsonFilterConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewJsonFilter(cfg)
 	case RegexTimestampProcessor:
 		var cfg RegexTimestampConfig
 		if err = vc.MapTo(&cfg); err != nil {
