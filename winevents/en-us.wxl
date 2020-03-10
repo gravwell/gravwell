@@ -18,4 +18,6 @@
   <String Id="ConfigurationDlg_LogLevel_WARN" Overridable="yes">Warning</String>
   <String Id="ConfigurationDlg_LogLevel_ERROR" Overridable="yes">Error</String>
   <String Id="ConfigurationDlg_LogLevel" Overridable="yes">Log level:</String>
+  <String Id="UninstallQuestion_Title" Overridable="yes">Remove configuraton data?</String>
+  <String Id="UninstallQuestion_Message" Overridable="yes">Remove stored configuration properties?</String>
 </WixLocalization>
