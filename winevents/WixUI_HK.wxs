@@ -20,7 +20,7 @@
       <!--   Make sure to include custom dialogs in the installer database via a DialogRef command,
                especially if they are not included explicitly in the publish chain below -->
       <DialogRef Id="LicenseAgreementDlg_HK" />
-      <DialogRef Id="ConfigurationDlg" />      
+      <DialogRef Id="ConfigurationDlg" />
       <Publish Dialog="BrowseDlg" Control="OK" Event="DoAction" Value="WixUIValidatePath" Order="3">1</Publish>
       <Publish Dialog="BrowseDlg" Control="OK" Event="SpawnDialog" Value="InvalidDirDlg" Order="4"><![CDATA[WIXUI_INSTALLDIR_VALID<>"1"]]></Publish>
       <Publish Dialog="ExitDialog" Control="Finish" Event="EndDialog" Value="Return" Order="999">1</Publish>
@@ -49,7 +49,7 @@
       <Publish Dialog="MaintenanceTypeDlg" Control="RepairButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
       <Publish Dialog="MaintenanceTypeDlg" Control="RemoveButton" Event="NewDialog" Value="VerifyReadyDlg">1</Publish>
       <Publish Dialog="MaintenanceTypeDlg" Control="Back" Event="NewDialog" Value="MaintenanceWelcomeDlg">1</Publish>
-    </UI>    
+    </UI>
     <UIRef Id="WixUI_Common" />
   </Fragment>
 </Wix>
