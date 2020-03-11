@@ -30,7 +30,7 @@
       <Publish Dialog="LicenseAgreementDlg_HK" Control="Next" Event="NewDialog" Value="ConfigurationDlg">LicenseAccepted = "1" AND NOT EXTERNAL_CONFIGCFG_PATH AND NOT EXISTING_CONFIGCFG_PATH AND NOT LEGACY_UPGRADE</Publish>
       <Publish Dialog="LicenseAgreementDlg_HK" Control="Next" Event="NewDialog" Value="InstallDirDlg">LicenseAccepted = "1" AND (EXTERNAL_CONFIGCFG_PATH OR EXISTING_CONFIGCFG_PATH OR LEGACY_UPGRADE)</Publish>
 
-      <Publish Dialog="ConfigurationDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg">1</Publish>
+      <Publish Dialog="ConfigurationDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="6">CONFIG_INGEST_SECRET_VALID = "1" AND CONFIG_CLEARTEXT_BACKEND_TARGET_VALID = "1"</Publish>
       <Publish Dialog="ConfigurationDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg_HK">1</Publish>
 
       <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg_HK">EXTERNAL_CONFIGCFG_PATH OR EXISTING_CONFIGCFG_PATH OR LEGACY_UPGRADE</Publish>
