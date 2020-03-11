@@ -13,7 +13,7 @@
     <Property Id="ARPPRODUCTICON" Value="gravwellel.ico" />
     <Media Id="1" Cabinet="product.cab" EmbedCab="yes" />
     <Upgrade Id="7c775ec8-a978-11e9-9c98-efcc6506c320">
-      <UpgradeVersion Minimum="3.2.8" OnlyDetect="yes" Property="NEWERVERSIONDETECTED" />
+      <UpgradeVersion Minimum="$(var.Version)" OnlyDetect="yes" Property="NEWERVERSIONDETECTED" />
       <UpgradeVersion Minimum="0.0.0" Maximum="3.2.8" IncludeMinimum="yes" IncludeMaximum="no" Property="LEGACY_UPGRADE" />
     </Upgrade>
     <Condition Message="!(loc.Package_NewerVersionDetected)">NOT NEWERVERSIONDETECTED</Condition>
@@ -28,8 +28,8 @@
           <Directory Id="INSTALLDIR" Name="eventlog">
             <Component Id="component_winevents_exe" Guid="d0ba62a4-eebf-4d54-bf60-1cbeede17e01">
               <File Id="file_winevents.exe" Source="winevents.exe" Name="!(loc.Service_Name)" KeyPath="yes" />
-              <ServiceInstall Vital="yes" ErrorControl="normal" Type="ownProcess" Name="!(loc.Service_Name) $(var.Version)" Id="GravwellEventsService" DisplayName="!(loc.Service_DisplayName)" Description="!(loc.Service_Description)" Start="auto" />
-              <ServiceControl Id="GravwellEventsService" Remove="uninstall" Name="!(loc.Service_Name) $(var.Version)" Start="install" Stop="both" Wait="yes" />
+              <ServiceInstall Vital="yes" ErrorControl="normal" Type="ownProcess" Name="!(loc.Service_Name)" Id="GravwellEventsService" DisplayName="!(loc.Service_DisplayName)" Description="!(loc.Service_Description)" Start="auto" />
+              <ServiceControl Id="GravwellEventsService" Remove="uninstall" Name="!(loc.Service_Name)" Start="install" Stop="both" Wait="yes" />
             </Component>
             <Component Id="component_gravwell_ico" Guid="15f5a270-6548-4021-af6c-70d43b78756c">
               <File Id="file_gravwell.ico" Source="gravwell.ico" />
