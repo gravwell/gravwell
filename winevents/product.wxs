@@ -81,10 +81,13 @@
     <!-- Secret should be last since it can potentially include separator (for other values it's illegal) -->
     <CustomAction Property="GenerateConfigCfg" Id="GenerateConfigCfgValues" Value="[CONFIGDIR]|[CONFIG_LOG_LEVEL]|[CONFIG_CLEARTEXT_BACKEND_TARGET]|[CONFIG_INGEST_SECRET]" />
 
+    <!-- <Binary Id="Exclam.ico" SourceFile="Exclam.ico" /> -->
     <Binary Id="customActions.vbs" SourceFile="customActions.vbs" />
     <Property Id="UninstallQuestion_Message" Value="!(loc.UninstallQuestion_Message)" />
     <Property Id="UninstallQuestion_Title" Value="!(loc.UninstallQuestion_Title)" />
     <CustomAction Id="QueryPurgeProgramData" VBScriptCall="QueryPurgeProgramData" BinaryKey="customActions.vbs" Return="check" Execute="immediate" />
+    <CustomAction Id="Validate_CONFIG_INGEST_SECRET" VBScriptCall="Validate_CONFIG_INGEST_SECRET" BinaryKey="customActions.vbs" />
+    <CustomAction Id="Validate_CONFIG_CLEARTEXT_BACKEND_TARGET" VBScriptCall="Validate_CONFIG_CLEARTEXT_BACKEND_TARGET" BinaryKey="customActions.vbs" />
 
     <InstallExecuteSequence>
       <!-- We will remove existing product AFTER we install new version so we can copy legacy configuration files -->

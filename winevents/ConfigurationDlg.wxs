@@ -2,6 +2,22 @@
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Fragment>
     <UI>
+      <Dialog Id="InvalidIngestSecretDialog" Width="260" Height="100" Title="!(loc.InvalidIngestSecretDialog_Title)" NoMinimize="yes">
+        <Control Id="Return" Type="PushButton" X="100" Y="72" Width="56" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIOK)">
+          <Publish Event="EndDialog" Value="Return">1</Publish>
+        </Control>
+        <Control Id="Text" Type="Text" X="8" Y="0" Width="244" Height="53" TabSkip="no">
+          <Text>!(loc.InvalidIngestSecretDialog_Message)</Text>
+        </Control>
+      </Dialog>
+      <Dialog Id="InvalidCleartextBackendTargetDialog" Width="260" Height="100" Title="!(loc.InvalidCleartextBackendTargetDialog_Title)" NoMinimize="yes">
+        <Control Id="Return" Type="PushButton" X="100" Y="72" Width="56" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIOK)">
+          <Publish Event="EndDialog" Value="Return">1</Publish>
+        </Control>
+        <Control Id="Text" Type="Text" X="8" Y="0" Width="244" Height="53" TabSkip="no">
+          <Text>!(loc.InvalidCleartextBackendTargetDialog_Message)</Text>
+        </Control>
+      </Dialog>
       <Dialog Id="ConfigurationDlg" Width="370" Height="270" Title="!(loc.ConfigurationDlg_Title)" NoMinimize="yes">
         <Control Type="Bitmap" Id="bitmapBanner" Width="370" Height="44" X="0" Y="0" Text="!(loc.InstallDirDlgBannerBitmap)" />
         <Control Type="Line" Id="line" Width="370" Height="2" X="0" Y="44" />
@@ -17,7 +33,7 @@
         <Control Type="Text" Id="textCleartextBackendTarget" Width="116" Height="17" X="8" Y="78">
           <Text>!(loc.ConfigurationDlg_CleartextBackendTarget)</Text>
         </Control>
-        <Control Type="Edit" Id="editIngestSecret" Width="226" Height="15" X="131" Y="52" Property="CONFIG_INGEST_SECRET" />        
+        <Control Type="Edit" Id="editIngestSecret" Width="226" Height="15" X="131" Y="52" Property="CONFIG_INGEST_SECRET" />
         <Control Type="Edit" Id="editCleartextBackendTarget" Width="226" Height="15" X="131" Y="76" Property="CONFIG_CLEARTEXT_BACKEND_TARGET" />
         <Control Type="ComboBox" Property="CONFIG_LOG_LEVEL" Id="comboBoxLogLevel" Width="226" Height="16" X="131" Y="99" ComboList="yes">
           <ComboBox Property="CONFIG_LOG_LEVEL">
@@ -37,7 +53,11 @@
         </Control>
 
         <Control Id="Next" Type="PushButton" X="235" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
-          <Publish Event="EndDialog" Value="Return" />
+          <Publish Event="DoAction" Value="Validate_CONFIG_INGEST_SECRET">1</Publish>
+          <Publish Event="DoAction" Value="Validate_CONFIG_CLEARTEXT_BACKEND_TARGET">CONFIG_INGEST_SECRET_VALID = "1"</Publish>
+          <Publish Event="SpawnDialog" Value="InvalidIngestSecretDialog">CONFIG_INGEST_SECRET_VALID = "0"</Publish>
+          <Publish Event="SpawnDialog" Value="InvalidCleartextBackendTargetDialog">CONFIG_INGEST_SECRET_VALID = "1" AND CONFIG_CLEARTEXT_BACKEND_TARGET_VALID = "0"</Publish>
+          <Publish Event="EndDialog" Value="Return">CONFIG_INGEST_SECRET_VALID = "1" AND CONFIG_CLEARTEXT_BACKEND_TARGET_VALID = "1"</Publish>
         </Control>
 
         <Control Id="Back" Type="PushButton" X="179" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">

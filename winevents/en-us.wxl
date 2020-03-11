@@ -20,4 +20,17 @@
   <String Id="ConfigurationDlg_LogLevel" Overridable="yes">Log level:</String>
   <String Id="UninstallQuestion_Title" Overridable="yes">Remove configuraton data?</String>
   <String Id="UninstallQuestion_Message" Overridable="yes">Remove stored configuration properties?</String>
+  <String Id="InvalidIngestSecretDialog_Title" Overridable="yes">Invalid value of Ingest Secret</String>
+  <String Id="InvalidIngestSecretDialog_Message" Overridable="yes">
+Value of Ingest Secret:
+• Must contain at least one non-whitespace character
+• Cannot contain any of following characters: 
+  ! @ # $ % ^ &amp; * ( ) = + &lt; &gt; , . : ; ` &quot; ' [\{] [\[] [\}] [\]] | \
+  </String>
+  <String Id="InvalidCleartextBackendTargetDialog_Title" Overridable="yes">Invalid value of Cleartext Backend Target</String>
+  <String Id="InvalidCleartextBackendTargetDialog_Message" Overridable="yes">
+Value of Cleartext Backend Target must be one of:
+• Qualified domain name with optional port number
+• IP address with optional port number
+  </String>
 </WixLocalization>
