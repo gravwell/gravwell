@@ -5,7 +5,8 @@
   <String Id="Product_Manufacturer" Overridable="yes">Gravwell Inc</String>
   <String Id="Package_Comments" Overridable="yes">Windows Installer Package</String>
   <String Id="Package_NewerVersionDetected" Overridable="yes">A newer version of this software is already installed.</String>
-  <String Id="Service_Name" Overridable="yes">GravwellEvents</String>
+  <String Id="Service_Name_Legacy" Overridable="yes">GravwellEvents</String>
+  <String Id="Service_Name" Overridable="yes">GravwellEvents Service</String>
   <String Id="Service_DisplayName" Overridable="yes">Gravwell Events Ingester</String>
   <String Id="Service_Description" Overridable="yes">Gravwell Windows Events Service</String>
   <String Id="ConfigurationDlg_Header" Overridable="yes">Configuration</String>
@@ -18,7 +19,7 @@
   <String Id="ConfigurationDlg_LogLevel_WARN" Overridable="yes">Warning</String>
   <String Id="ConfigurationDlg_LogLevel_ERROR" Overridable="yes">Error</String>
   <String Id="ConfigurationDlg_LogLevel" Overridable="yes">Log level:</String>
-  <String Id="UninstallQuestion_Title" Overridable="yes">Remove configuraton data?</String>
+  <String Id="UninstallQuestion_Title" Overridable="yes">Remove configuration data?</String>
   <String Id="UninstallQuestion_Message" Overridable="yes">Remove stored configuration properties?</String>
   <String Id="InvalidIngestSecretDialog_Title" Overridable="yes">Invalid value of Ingest Secret</String>
   <String Id="InvalidIngestSecretDialog_Message" Overridable="yes">
