@@ -9,6 +9,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -106,7 +107,30 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 			connID := addConn(l)
 			//start the acceptor
 			wg.Add(1)
-			go acceptor(l, connID, igst, hcfg)
+			go acceptor(l, connID, igst, hcfg, tp)
+		} else if tp.TLS() {
+			config := &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
+
+			config.Certificates = make([]tls.Certificate, 1)
+			config.Certificates[0], err = tls.LoadX509KeyPair(v.Cert_File, v.Key_File)
+			if err != nil {
+				lg.Fatal("Certificate load fail: %v", err)
+			}
+			//get the socket
+			addr, err := net.ResolveTCPAddr("tcp", str)
+			if err != nil {
+				lg.FatalCode(0, "Bind-String \"%s\" for %s is invalid: %v\n", v.Bind_String, k, err)
+			}
+			l, err := tls.Listen("tcp", addr.String(), config)
+			if err != nil {
+				lg.FatalCode(0, "Failed to listen on \"%s\" via TLS for %s: %v\n", addr, k, err)
+			}
+			connID := addConn(l)
+			//start the acceptor
+			wg.Add(1)
+			go acceptor(l, connID, igst, hcfg, tp)
 		} else if tp.UDP() {
 			addr, err := net.ResolveUDPAddr(tp.String(), str)
 			if err != nil {
@@ -125,7 +149,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 	return nil
 }
 
-func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerConfig) {
+func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerConfig, tp bindType) {
 	var failCount int
 	defer cfg.wg.Done()
 	defer delConn(id)
@@ -144,8 +168,8 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 			}
 			continue
 		}
-		debugout("Accepted TCP connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt)
-		igst.Info("accepted TCP connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt)
+		debugout("Accepted %v connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt, tp.String())
+		igst.Info("accepted %v connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt, tp.String())
 		failCount = 0
 		switch cfg.lrt {
 		case lineReader:

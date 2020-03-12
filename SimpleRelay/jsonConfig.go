@@ -33,6 +33,8 @@ type jsonListener struct {
 	Extractor    string
 	Default_Tag  string
 	Tag_Match    []string
+	Cert_File    string
+	Key_File     string
 	Preprocessor []string
 }
 
