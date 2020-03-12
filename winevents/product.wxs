@@ -58,7 +58,7 @@
     <Property Id="CONFIG_LOG_LEVEL" Secure="yes" Value="INFO" />
     <Property Id="LEGACY_UPGRADE" Value="0" />
     <SetProperty Id="LEGACY_UPGRADE" Value="1" After="LaunchConditions" Sequence="first">
-      <![CDATA[WIX_UPGRADE_DETECTED="{29174976-23C9-4EE5-9DDB-5E67158A5C3C}"]]>
+      <![CDATA[WIX_UPGRADE_DETECTED="{29174976-23C9-4EE5-9DDB-5E67158A5C3C}" OR WIX_UPGRADE_DETECTED="{06F3AF96-843B-443A-9D15-3B165340DD98}"]]>
     </SetProperty>
     <!-- Check if config.cfg is present in the system -->
     <Property Id="EXISTING_CONFIGCFG_PATH" Secure="yes">
