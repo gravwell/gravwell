@@ -27,6 +27,7 @@ const (
 	udp             bindType = iota
 	tcp6            bindType = iota
 	udp6            bindType = iota
+	TLS             bindType = iota
 
 	lineReader    readerType = iota
 	rfc5424Reader readerType = iota
@@ -42,6 +43,8 @@ type listener struct {
 	Tag_Name      string
 	Reader_Type   string
 	Keep_Priority bool // Leave the <nnn> priority value at the start of the log message
+	Cert_File     string
+	Key_File      string
 	Preprocessor  []string
 }
 
@@ -239,6 +242,8 @@ func translateBindType(bstr string) (bindType, string, error) {
 		return tcp6, bits[1], nil
 	case "udp6":
 		return udp6, bits[1], nil
+	case "tls":
+		return TLS, bits[1], nil
 	default:
 	}
 	return -1, "", errors.New("invalid bind protocol specifier of " + id)
@@ -258,6 +263,10 @@ func (bt bindType) UDP() bool {
 	return false
 }
 
+func (bt bindType) TLS() bool {
+	return bt == TLS
+}
+
 func (bt bindType) String() string {
 	switch bt {
 	case tcp:
@@ -268,6 +277,8 @@ func (bt bindType) String() string {
 		return "udp"
 	case udp6:
 		return "udp6"
+	case TLS:
+		return "tls"
 	}
 	return "unknown"
 }

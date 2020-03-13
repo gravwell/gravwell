@@ -11,6 +11,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"crypto/tls"
 	"fmt"
 	"net"
 	"os"
@@ -97,26 +98,56 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 			jhc.formatOverride = v.Timestamp_Format_Override
 		}
 
-		//get the socket
-		addr, err := net.ResolveTCPAddr("tcp", v.Bind_String)
+		tp, str, err := translateBindType(v.Bind_String)
 		if err != nil {
-			return fmt.Errorf("%s Bind-String \"%s\" is invalid: %v\n", k, v.Bind_String, err)
+			lg.FatalCode(0, "Invalid bind string \"%s\": %v\n", v.Bind_String, err)
 		}
-		l, err := net.ListenTCP("tcp", addr)
-		if err != nil {
-			return fmt.Errorf("%s Failed to listen on \"%s\": %v\n", k, addr, err)
+
+		if tp.TCP() {
+			//get the socket
+			addr, err := net.ResolveTCPAddr("tcp", v.Bind_String)
+			if err != nil {
+				return fmt.Errorf("%s Bind-String \"%s\" is invalid: %v\n", k, v.Bind_String, err)
+			}
+			l, err := net.ListenTCP("tcp", addr)
+			if err != nil {
+				return fmt.Errorf("%s Failed to listen on \"%s\": %v\n", k, addr, err)
+			}
+			connID := addConn(l)
+			//start the acceptor
+			wg.Add(1)
+			go jsonAcceptor(l, connID, igst, jhc, tp)
+		} else if tp.TLS() {
+			config := &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
+
+			config.Certificates = make([]tls.Certificate, 1)
+			config.Certificates[0], err = tls.LoadX509KeyPair(v.Cert_File, v.Key_File)
+			if err != nil {
+				lg.Fatal("Certificate load fail: %v", err)
+			}
+			//get the socket
+			addr, err := net.ResolveTCPAddr("tcp", str)
+			if err != nil {
+				lg.FatalCode(0, "Bind-String \"%s\" for %s is invalid: %v\n", v.Bind_String, k, err)
+			}
+			l, err := tls.Listen("tcp", addr.String(), config)
+			if err != nil {
+				lg.FatalCode(0, "Failed to listen on \"%s\" via TLS for %s: %v\n", addr, k, err)
+			}
+			connID := addConn(l)
+			//start the acceptor
+			wg.Add(1)
+			go jsonAcceptor(l, connID, igst, jhc, tp)
 		}
-		connID := addConn(l)
-		//start the acceptor
-		wg.Add(1)
-		go jsonAcceptor(l, connID, igst, jhc)
 
 	}
 	debugout("Started %d json listeners\n", len(cfg.JSONListener))
 	return nil
 }
 
-func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHandlerConfig) {
+func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHandlerConfig, tp bindType) {
 	defer cfg.wg.Done()
 	defer delConn(id)
 	defer lst.Close()
@@ -129,14 +160,14 @@ func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHa
 				break
 			}
 			failCount++
-			fmt.Fprintf(os.Stderr, "Failed to accept TCP connection: %v\n", err)
+			fmt.Fprintf(os.Stderr, "Failed to accept %v connection: %v\n", tp.String(), err)
 			if failCount > 3 {
 				break
 			}
 			continue
 		}
-		debugout("Accepted TCP connection from %s in json mode\n", conn.RemoteAddr())
-		igst.Info("accepted TCP connection from %s in json mode\n", conn.RemoteAddr())
+		debugout("Accepted %v connection from %s in json mode\n", tp.String(), conn.RemoteAddr())
+		igst.Info("accepted %v connection from %s in json mode\n", tp.String(), conn.RemoteAddr())
 		failCount = 0
 		go jsonConnHandler(conn, cfg)
 	}
@@ -158,7 +189,7 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig) {
 	if cfg.src == nil {
 		ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String())
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to get host from rmote addr \"%s\": %v\n", c.RemoteAddr().String(), err)
+			fmt.Fprintf(os.Stderr, "Failed to get host from remote addr \"%s\": %v\n", c.RemoteAddr().String(), err)
 			return
 		}
 		if rip = net.ParseIP(ipstr); rip == nil {
