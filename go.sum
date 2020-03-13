@@ -13,13 +13,17 @@ github.com/gravwell/ingest/v3 v3.2.3 h1:McEoQiLzjF9hPiNTbZYoMMQe5xNEYqiR4s/w99k4
 github.com/gravwell/ingest/v3 v3.2.3/go.mod h1:E7Te/n20Yc6S6kJC6t4lmHY0WNLndydW2aTshgkvtpE=
 github.com/gravwell/ingest/v3 v3.3.6 h1:+9BM+iof8qoXaLFZRoBFyDhvaWM1qyeYV2VDSx7YQyo=
 github.com/gravwell/ingest/v3 v3.3.6/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
+github.com/gravwell/ingest/v3 v3.3.7 h1:5vc5ubTl6dMiHJFA8iabk4Nz7cWJmCaBmFmS8yik1QU=
+github.com/gravwell/ingest/v3 v3.3.7/go.mod h1:ZK9F/1xQbg+Hl605otW6PbISK1R1wRgAuIYJPrX6E7g=
 github.com/gravwell/timegrinder/v3 v3.2.3/go.mod h1:5N5jpqRDBJaEw1GotCXb8hmGoNeOPDSBjin1Mz/6g1Q=
 github.com/klauspost/compress v1.8.6/go.mod h1:RyIbtBH6LamlWaDj8nUwkbUhJ87Yi3uG0guNDohfE1A=
 github.com/klauspost/cpuid v1.2.1/go.mod h1:Pj4uuM528wm8OyEC2QMXAi2YiTZ96dNQPGgoMS4s3ek=
+github.com/minio/highwayhash v1.0.0/go.mod h1:xQboMTeM9nY9v/LlAOxFctujiv5+Aq2hR5dxBpaMbdc=
 github.com/traetox/gcfg v1.2.4-0.20191023234045-a093ce14b31d h1:Uc3Rsjaen2xosVuhg/HqZckVolXJfy+eMOAitiYqIus=
 github.com/traetox/gcfg v1.2.4-0.20191023234045-a093ce14b31d/go.mod h1:+j91MgNXTQW48n4alxy5ylS12NkJqqMmtZ8El8sfwek=
 go.etcd.io/bbolt v1.3.3 h1:MUGmc65QhB3pIlaQ5bB4LwqSj6GIonVJXpZiaKNyaKk=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
+golang.org/x/sys v0.0.0-20190130150945-aca44879d564/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
 golang.org/x/sys v0.0.0-20190919044723-0c1ff786ef13 h1:/zi0zzlPHWXYXrO1LjNRByFu8sdGgCkj2JLDdBIB84k=
 golang.org/x/sys v0.0.0-20190919044723-0c1ff786ef13/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/text v0.3.2 h1:tW2bmiBqwgJj/UpqtC8EpXEZVYOwU0yG4iWbprSVAcs=
