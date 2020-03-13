@@ -10,6 +10,12 @@
   <Product Id="*" UpgradeCode="7c775ec8-a978-11e9-9c98-efcc6506c320" Name="!(loc.Product_Name)" Version="$(var.Version)" Manufacturer="!(loc.Product_Manufacturer)" Language="1033">
     <Package InstallerVersion="200" Compressed="yes" Comments="!(loc.Package_Comments)" InstallScope="perMachine" />
     <Icon Id="gravwellel.ico" SourceFile="gravwell.ico" />
+	<WixVariable Id="WixUIDialogBmp" Value="background.png" />
+	<WixVariable Id="WixUIBannerBmp" Value="banner.png" />
+	<WixVariable Id="WixUIExclamationIco" Value="gravwell.ico" />
+	<WixVariable Id="WixUIInfoIco" Value="gravwell.ico" />
+	<WixVariable Id="WixUINewIco" Value="gravwell.ico" />
+	<WixVariable Id="WixUIUpIco" Value="gravwell.ico" />
     <Property Id="ARPPRODUCTICON" Value="gravwellel.ico" />
     <Media Id="1" Cabinet="product.cab" EmbedCab="yes" />
     <!-- We will remove existing product AFTER we install new version so we can copy legacy configuration files -->
