@@ -130,17 +130,7 @@ func (c *CfgType) verify() error {
 }
 
 func (c *CfgType) Targets() ([]string, error) {
-	var conns []string
-	for _, v := range c.Global.Cleartext_Backend_Target {
-		conns = append(conns, "tcp://"+v)
-	}
-	for _, v := range c.Global.Encrypted_Backend_Target {
-		conns = append(conns, "tls://"+v)
-	}
-	if len(conns) == 0 {
-		return nil, errors.New("no connections specified")
-	}
-	return conns, nil
+	return c.Global.Targets()
 }
 
 func (c *CfgType) Tags() ([]string, error) {
