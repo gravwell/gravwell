@@ -26,20 +26,20 @@ import (
 )
 
 var (
-	bindString      = flag.String("bind", "0.0.0.0:7777", "Bind string specifying optional IP and port to listen on")
-	maxMBSize       = flag.Int("max-session-mb", 8, "Maximum MBs a single session will accept")
-	tagName         = flag.String("tag-name", "default", "Tag name for ingested data")
-	clearConns      = flag.String("clear-conns", "", "comma seperated server:port list of cleartext targets")
-	tlsConns        = flag.String("tls-conns", "", "comma seperated server:port list of TLS connections")
-	pipeConns       = flag.String("pipe-conns", "", "comma seperated list of paths for named pie connection")
-	tlsPublicKey    = flag.String("tls-public-key", "", "Path to TLS public key")
-	tlsPrivateKey   = flag.String("tls-private-key", "", "Path to TLS private key")
-	tlsRemoteVerify = flag.String("tls-remote-verify", "", "Path to remote public key to verify against")
-	ingestSecret    = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
-	timeoutSec      = flag.Int("timeout", 1, "Connection timeout in seconds")
-	ver             = flag.Bool("version", false, "Print the version information and exit")
-	connSet         []string
-	timeout         time.Duration
+	bindString    = flag.String("bind", "0.0.0.0:7777", "Bind string specifying optional IP and port to listen on")
+	maxMBSize     = flag.Int("max-session-mb", 8, "Maximum MBs a single session will accept")
+	tagName       = flag.String("tag-name", "default", "Tag name for ingested data")
+	clearConns    = flag.String("clear-conns", "", "comma seperated server:port list of cleartext targets")
+	tlsConns      = flag.String("tls-conns", "", "comma seperated server:port list of TLS connections")
+	pipeConns     = flag.String("pipe-conns", "", "comma seperated list of paths for named pie connection")
+	tlsPublicKey  = flag.String("tls-public-key", "", "Path to TLS public key")
+	tlsPrivateKey = flag.String("tls-private-key", "", "Path to TLS private key")
+	tlsNoVerify   = flag.Bool("insecure-tls-remote-noverify", false, "Do not validate remote TLS certs")
+	ingestSecret  = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
+	timeoutSec    = flag.Int("timeout", 1, "Connection timeout in seconds")
+	ver           = flag.Bool("version", false, "Print the version information and exit")
+	connSet       []string
+	timeout       time.Duration
 
 	connClosers map[int]closer
 	connId      int
@@ -133,7 +133,17 @@ func init() {
 }
 
 func main() {
-	igst, err := ingest.NewUniformIngestMuxer(connSet, []string{*tagName}, *ingestSecret, *tlsPublicKey, *tlsPrivateKey, *tlsRemoteVerify)
+	cfg := ingest.UniformMuxerConfig{
+		Destinations:    connSet,
+		Tags:            []string{*tagName},
+		Auth:            *ingestSecret,
+		PublicKey:       *tlsPublicKey,
+		PrivateKey:      *tlsPrivateKey,
+		IngesterVersion: version.GetVersion(),
+		IngesterName:    `session`,
+		VerifyCert:      *tlsNoVerify,
+	}
+	igst, err := ingest.NewUniformMuxer(cfg)
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
 		os.Exit(-1)

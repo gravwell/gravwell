@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strings"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
@@ -75,17 +76,17 @@ func main() {
 		elog = e
 		errW = serviceErrorWriter
 		infW = serviceInfoWriter
-		infoout("%s started", serviceName)
+		infoout("%s started\n", serviceName)
 	}
 	cfg, err := winevent.GetConfig(confLoc)
 	if err != nil {
-		errorout("Failed to get configuration: %v", err)
+		errorout("Failed to get configuration: %v\n", err)
 		return
 	}
 
 	s, err := NewService(cfg)
 	if err != nil {
-		errorout("Failed to create gravwell servicer: %v", err)
+		errorout("Failed to create gravwell servicer: %v\n", err)
 		return
 	}
 
@@ -95,7 +96,7 @@ func main() {
 		runService(s)
 	}
 	if err := s.Close(); err != nil {
-		errorout("Failed to close servicer: %v", err)
+		errorout("Failed to close servicer: %v\n", err)
 	}
 }
 
@@ -120,17 +121,16 @@ loop:
 		case st := <-status:
 			switch st.State {
 			case svc.StopPending:
-				debugout("Service is stopping")
-				fallthrough
+				debugout("Service is stopping\n")
 			case svc.Stopped:
-				debugout("Service stopped")
+				debugout("Service stopped\n")
 				break loop
 			case svc.StartPending:
-				debugout("Service is starting")
+				debugout("Service is starting\n")
 			case svc.Running:
-				debugout("Service is running")
+				debugout("Service is running\n")
 			default:
-				errorout("Got unknown status update: #%d", st.State)
+				errorout("Got unknown status update: #%d\n", st.State)
 			}
 		}
 	}
@@ -138,7 +138,7 @@ loop:
 
 func runService(s *mainService) {
 	if err := svc.Run(serviceName, s); err != nil {
-		errorout("Failed to run service: %v", err)
+		errorout("Failed to run service: %v\n", err)
 		return
 	}
 	debugout("Service stopped\n")
@@ -158,7 +158,7 @@ func interactiveErrorWriter(format string, args ...interface{}) {
 }
 
 func serviceErrorWriter(format string, args ...interface{}) {
-	elog.Error(1, fmt.Sprintf(format, args...))
+	elog.Error(1, fmt.Sprintf(strings.Trim(format, "\n\r"), args...))
 }
 
 func interactiveInfoWriter(format string, args ...interface{}) {
@@ -166,7 +166,7 @@ func interactiveInfoWriter(format string, args ...interface{}) {
 }
 
 func serviceInfoWriter(format string, args ...interface{}) {
-	elog.Info(1, fmt.Sprintf(format, args...))
+	elog.Info(1, fmt.Sprintf(strings.Trim(format, "\n\r"), args...))
 }
 
 func errorout(format string, args ...interface{}) {

@@ -9,13 +9,10 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"net"
-	"regexp"
-	"strconv"
 	"sync"
 	"time"
 
@@ -26,14 +23,6 @@ import (
 	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
 	"github.com/gravwell/winevent/v3"
-)
-
-var (
-	ErrRecordIDNotFound = errors.New("Failed to find RecordID in event")
-
-	eventRecordRegex  = regexp.MustCompile("<EventRecordID>([0-9]+)</EventRecordID>")
-	eventRecordPrefix = []byte(`<EventRecordID>`)
-	eventRecordSuffix = []byte(`</EventRecordID>`)
 )
 
 type eventSrc struct {
@@ -113,6 +102,7 @@ func (m *mainService) shutdown() error {
 			continue
 		}
 		if m.bmk != nil {
+			fmt.Println("shutdown - Updating bookmark", name, last)
 			if err := m.bmk.Update(name, last); err != nil {
 				rerr = fmt.Errorf("Failed to add bookmark for %s: %v", name, err)
 				errorout("%s", rerr)
@@ -122,11 +112,7 @@ func (m *mainService) shutdown() error {
 	m.evtSrcs = nil
 
 	//close the bookmark handler if its open
-	if m.bmk != nil && m.bmk.Open() {
-		if err := m.bmk.Sync(); err != nil {
-			rerr = fmt.Errorf("Failed to sync bookmark: %v", err)
-			errorout("%s", rerr)
-		}
+	if m.bmk != nil {
 		if err := m.bmk.Close(); err != nil {
 			rerr = fmt.Errorf("Failed to close bookmark: %v", err)
 			errorout("%s", rerr)
@@ -191,6 +177,7 @@ loop:
 	}
 	changes <- svc.Status{State: svc.StopPending}
 	wg.Wait()
+	changes <- svc.Status{State: svc.Stopped}
 	return
 }
 
@@ -201,7 +188,7 @@ func (m *mainService) consumerRoutine(errC chan error, closeC chan bool, wg *syn
 		errC <- err
 		return
 	}
-	tkr := time.Tick(500 * time.Millisecond)
+	tkr := time.Tick(250 * time.Millisecond)
 
 consumerLoop:
 	for {
@@ -213,12 +200,21 @@ consumerLoop:
 					errC <- err
 					return
 				} else if !cont {
+					if err := m.bmk.Sync(); err != nil {
+						errorout("Failed to sync bookmark: %v", err)
+						errC <- err
+						return
+					}
 					break
 				}
 			}
 		case <-closeC:
 			break consumerLoop
 		}
+	}
+	if err := m.bmk.Sync(); err != nil {
+		errorout("Failed to sync bookmark: %v", err)
+		errC <- err
 	}
 }
 
@@ -340,9 +336,6 @@ func (m *mainService) consumeEvents() (bool, error) {
 		if threw {
 			again = true
 		}
-		if err := m.bmk.Sync(); err != nil {
-			return false, err
-		}
 	}
 	return again, nil
 }
@@ -369,13 +362,14 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (int, erro
 	if err != nil {
 		return 0, err
 	}
+	var first, last uint64
 
-	for _, e := range ents {
+	for i, e := range ents {
 		var ts entry.Timestamp
 		var ok bool
 		var lts time.Time
 		if !m.ignoreTS {
-			lts, ok, err = m.tg.Extract(e)
+			lts, ok, err = m.tg.Extract(e.Buff)
 			if err != nil {
 				return 0, err
 			}
@@ -384,39 +378,26 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (int, erro
 		if !ok {
 			ts = entry.Now()
 		}
-		recordID, err := extractRecordID(e)
-		if err != nil {
-			return 0, err
-		}
-		eh.h.SetLast(recordID)
 		ent := &entry.Entry{
 			SRC:  ip,
 			TS:   ts,
 			Tag:  eh.tag,
-			Data: e,
+			Data: e.Buff,
 		}
 		if err := m.igst.WriteEntry(ent); err != nil {
 			return 0, err
 		}
-		if err := m.bmk.Update(eh.h.Name(), recordID); err != nil {
+		eh.h.SetLast(e.ID)
+		if err := m.bmk.Update(eh.h.Name(), e.ID); err != nil {
 			return 0, err
 		}
+		if i== 0 {
+			first = e.ID
+		}
+		last = e.ID
 	}
 	if len(ents) > 0 {
-		debugout("Pulled %d events from %s\n", len(ents), eh.h.Name())
+		debugout("Pulled %d events from %s [%d - %d]\n", len(ents), eh.h.Name(), first, last)
 	}
 	return len(ents), nil
-}
-
-func extractRecordID(buf []byte) (uint64, error) {
-	x := eventRecordRegex.Find(buf)
-	if len(x) == 0 {
-		return 0, ErrRecordIDNotFound
-	}
-	x = bytes.TrimPrefix(bytes.TrimSuffix(x, eventRecordSuffix), eventRecordPrefix)
-	v, err := strconv.ParseUint(string(x), 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("Failed to get recordID from %s: %v", x, err)
-	}
-	return v, nil
 }
