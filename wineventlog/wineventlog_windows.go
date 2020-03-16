@@ -20,6 +20,7 @@ package wineventlog
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/xml"
 	"errors"
 	"fmt"
 	"io"
@@ -306,6 +307,50 @@ func CreateBookmarkFromEvent(handle EvtHandle) (EvtHandle, error) {
 		return 0, err
 	}
 	return h, nil
+}
+
+// CreateBookmark just creates a new empty bookmark
+// caller must close the returned handle
+func CreateBookmark() (EvtHandle, error) {
+	return _EvtCreateBookmark(nil)
+}
+
+// UpdateBookmarkFromEvent Updates an existing bookmark from using an event handle
+// This function just wraps the unexported version
+func UpdateBookmarkFromEvent(bookmark, handle EvtHandle) error {
+	return _EvtUpdateBookmark(bookmark, handle)
+}
+
+type Bookmark struct {
+	RecordId uint64 `xml:",attr"`
+}
+
+type BookmarkList struct {
+	Bookmarks []Bookmark `xml:"Bookmark"`
+}
+
+// GetBookmarkRecordId takes a bookmark handle, renders it to XML
+// we the parse the XML to extract the record id and hand it back
+func GetRecordIDFromBookmark(bookmark EvtHandle, buff []byte, bb *bytes.Buffer) (r uint64, err error) {
+	if buff == nil {
+		buff = make([]byte, 4*1024)
+	}
+	if bb == nil {
+		bb = bytes.NewBuffer(nil)
+	}
+	if err = RenderBookmarkXML(bookmark, buff, bb); err != nil {
+		return
+	}
+	var v BookmarkList
+	if err = xml.Unmarshal(bb.Bytes(), &v); err != nil {
+		return
+	}
+	if len(v.Bookmarks) != 1 {
+		err = fmt.Errorf("Invalid rendered bookmarklist, count %d != 1", len(v.Bookmarks))
+		return
+	}
+	r = v.Bookmarks[0].RecordId
+	return
 }
 
 // CreateBookmarkFromXML creates a new bookmark from the serialised representation

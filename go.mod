@@ -12,3 +12,5 @@ require (
 	golang.org/x/time v0.0.0-20191024005414-555d28b269f0 // indirect
 	gopkg.in/gcfg.v1 v1.2.3
 )
+
+//replace github.com/gravwell/winevent/v3/wineventlog => /opt/src/githubwork/winevent/wineventlog // for debugging
