@@ -193,7 +193,7 @@ func (e *EventStreamHandle) getRecordID() (uint64, error) {
 			//NOTE README FIXME - always decrement or we will throw away the entry from this sample
 			id--
 		}
-		return id--, nil
+		return id, nil
 	case wineventlog.ERROR_NO_MORE_ITEMS:
 		return 0, nil
 	}
