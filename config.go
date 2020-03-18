@@ -394,3 +394,7 @@ func ProgramDataFilename(name string) (r string, err error) {
 	}
 	return
 }
+
+func (esp *EventStreamParams) IsFiltering() bool {
+	return esp.Levels != `` || esp.EventIDs != `` || len(esp.Providers) > 0
+}

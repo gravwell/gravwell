@@ -25,17 +25,24 @@ type EventStreamHandle struct {
 	subHandle wineventlog.EvtHandle
 	buff      []byte
 	last      uint64
-	mtx       *sync.Mutex
 	prev      uint64
+	checkGaps bool
+	mtx       *sync.Mutex
 }
 
 func NewStream(param EventStreamParams, last uint64) (e *EventStreamHandle, err error) {
+	if last > 0 {
+		//if we have a last value, we don't want to do reachback
+		// this is important because this query filters everything
+		param.ReachBack = 0
+	}
 	e = &EventStreamHandle{
-		params: param,
-		buff:   make([]byte, param.BuffSize),
-		mtx:    &sync.Mutex{},
-		last:   last,
-		prev:   last,
+		params:    param,
+		buff:      make([]byte, param.BuffSize),
+		mtx:       &sync.Mutex{},
+		last:      last,
+		prev:      last,
+		checkGaps: !param.IsFiltering(),
 	}
 	if err = e.open(); err != nil {
 		e = nil
@@ -44,6 +51,14 @@ func NewStream(param EventStreamParams, last uint64) (e *EventStreamHandle, err 
 }
 
 func (e *EventStreamHandle) open() error {
+	if e.params.ReachBack != 0 {
+		var err error
+		//get a paramid
+		if e.last, err = e.getRecordID(); err != nil {
+			return err
+		}
+		e.params.ReachBack = 0
+	}
 	sigEvent, err := windows.CreateEvent(nil, 0, 0, nil)
 	if err != nil {
 		return err
@@ -55,14 +70,11 @@ func (e *EventStreamHandle) open() error {
 	}
 	//we build our bookmark
 	var bmk wineventlog.EvtHandle
-	flags := wineventlog.EvtSubscribeStartAtOldestRecord
-	if e.last > 0 {
-		flags = wineventlog.EvtSubscribeStartAfterBookmark
-		if bmk, err = wineventlog.CreateBookmarkFromRecordID(e.params.Channel, e.last); err != nil {
-			return err
-		}
-		defer wineventlog.Close(bmk)
+	flags := wineventlog.EvtSubscribeStartAfterBookmark
+	if bmk, err = wineventlog.CreateBookmarkFromRecordID(e.params.Channel, e.last); err != nil {
+		return err
 	}
+	defer wineventlog.Close(bmk)
 
 	subHandle, err := wineventlog.Subscribe(
 		0, //localhost session
@@ -126,6 +138,69 @@ func (e *EventStreamHandle) getHandles(start int) (evtHnds []wineventlog.EvtHand
 	return
 }
 
+func (e *EventStreamHandle) getRecordID() (uint64, error) {
+	bb := bytes.NewBuffer(nil)
+	sigEvent, err := windows.CreateEvent(nil, 0, 0, nil)
+	if err != nil {
+		fmt.Println("CreateEvent", err)
+		return 0, err
+	}
+	defer windows.CloseHandle(sigEvent)
+	query, err := genQuery(e.params)
+	if err != nil {
+		fmt.Println("genQuery", err)
+		return 0, err
+	}
+	//we build our bookmark
+	flags := wineventlog.EvtSubscribeStartAtOldestRecord
+	bmk, err := wineventlog.CreateBookmark()
+	if err != nil {
+		fmt.Println("CreateBookmark", err)
+		return 0, err
+	}
+	defer wineventlog.Close(bmk)
+
+	subHandle, err := wineventlog.Subscribe(
+		0, //localhost session
+		sigEvent,
+		``,    // channel is in the query
+		query, //query has the reachback parameter
+		0,
+		flags)
+	if err != nil {
+		fmt.Println("Subscribe", err)
+		return 0, err
+	}
+	defer wineventlog.Close(subHandle)
+
+	evtHnds, err := wineventlog.EventHandles(subHandle, 1)
+	switch err {
+	case nil:
+		if len(evtHnds) != 1 {
+			return 0, fmt.Errorf("invalid return count %d != 1 on seek", len(evtHnds))
+		}
+		if err = wineventlog.UpdateBookmarkFromEvent(bmk, evtHnds[0]); err != nil {
+			fmt.Println("UpdateBookmarkFromEvent", err)
+			return 0, err
+		}
+		id, err := wineventlog.GetRecordIDFromBookmark(bmk, e.buff, bb)
+		if err != nil {
+			fmt.Println("GetRecordIDFromBookmark", err)
+			return 0, err
+		}
+		wineventlog.Close(evtHnds[0])
+		if id > 0 {
+			//NOTE README FIXME - always decrement or we will throw away the entry from this sample
+			id--
+		}
+		return id--, nil
+	case wineventlog.ERROR_NO_MORE_ITEMS:
+		return 0, nil
+	}
+	fmt.Println("EventHandles", err)
+	return 0, err
+}
+
 type RenderedEvent struct {
 	Buff []byte
 	ID   uint64
@@ -148,7 +223,7 @@ func (e *EventStreamHandle) Read() (ents []RenderedEvent, warn, err error) {
 	defer wineventlog.Close(bmk)
 
 	bb := bytes.NewBuffer(nil)
-	for _, h := range evtHandles {
+	for i, h := range evtHandles {
 		var re RenderedEvent
 		bb.Reset()
 		if err = wineventlog.RenderEventSimple(h, e.buff, bb); err != nil {
@@ -164,9 +239,9 @@ func (e *EventStreamHandle) Read() (ents []RenderedEvent, warn, err error) {
 			ents = nil
 			break
 		}
-		if (e.prev + 1) != re.ID {
+		if e.checkGaps && (e.prev+1) != re.ID {
 			jump := re.ID - e.prev
-			warn = fmt.Errorf("RecordID Jumped %d from %d to %d", jump, e.prev, re.ID)
+			warn = fmt.Errorf("RecordID Jumped %d from %d to %d at request batch offset %d / %d", jump, e.prev, re.ID, i, len(evtHandles))
 		}
 		e.prev = re.ID
 		ents = append(ents, re)
