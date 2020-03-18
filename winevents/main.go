@@ -37,6 +37,7 @@ var (
 	confLoc string
 	verbose bool
 	errW    errWriter = interactiveErrorWriter
+	warnW   errWriter = interactiveWarnWriter
 	infW    errWriter = interactiveInfoWriter
 	elog    debug.Log
 )
@@ -75,6 +76,7 @@ func main() {
 		}
 		elog = e
 		errW = serviceErrorWriter
+		warnW = serviceWarnWriter
 		infW = serviceInfoWriter
 		infoout("%s started\n", serviceName)
 	}
@@ -141,7 +143,7 @@ func runService(s *mainService) {
 		errorout("Failed to run service: %v\n", err)
 		return
 	}
-	debugout("Service stopped\n")
+	infoout("Service stopped\n")
 }
 
 func debugout(format string, args ...interface{}) {
@@ -161,6 +163,14 @@ func serviceErrorWriter(format string, args ...interface{}) {
 	elog.Error(1, fmt.Sprintf(strings.Trim(format, "\n\r"), args...))
 }
 
+func interactiveWarnWriter(format string, args ...interface{}) {
+	fmt.Fprintf(os.Stderr, format, args...)
+}
+
+func serviceWarnWriter(format string, args ...interface{}) {
+	elog.Warning(1, fmt.Sprintf(strings.Trim(format, "\n\r"), args...))
+}
+
 func interactiveInfoWriter(format string, args ...interface{}) {
 	fmt.Printf(format, args...)
 }
@@ -171,12 +181,18 @@ func serviceInfoWriter(format string, args ...interface{}) {
 
 func errorout(format string, args ...interface{}) {
 	if errW != nil {
-		errW(format, args)
+		errW(format, args...)
 	}
 }
 
 func infoout(format string, args ...interface{}) {
 	if infW != nil {
-		infW(format, args)
+		infW(format, args...)
+	}
+}
+
+func warnout(format string, args ...interface{}) {
+	if warnW != nil {
+		warnW(format, args...)
 	}
 }

@@ -86,8 +86,10 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 	}, nil
 }
 
-func (m *mainService) Close() error {
-	return m.shutdown()
+func (m *mainService) Close() (err error) {
+	err = m.shutdown()
+	infoout("Service is closing with %v\n", err)
+	return
 }
 
 func (m *mainService) shutdown() error {
@@ -102,7 +104,7 @@ func (m *mainService) shutdown() error {
 			continue
 		}
 		if m.bmk != nil {
-			fmt.Println("shutdown - Updating bookmark", name, last)
+			infoout("shutdown - Updating bookmark %s to %d\n", name, last)
 			if err := m.bmk.Update(name, last); err != nil {
 				rerr = fmt.Errorf("Failed to add bookmark for %s: %v", name, err)
 				errorout("%s", rerr)
@@ -142,6 +144,7 @@ func (m *mainService) Execute(args []string, r <-chan svc.ChangeRequest, changes
 
 	var cancel context.CancelFunc
 	m.ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
 
 	consumerErr := make(chan error, 1)
 	consumerClose := make(chan bool, 1)
@@ -159,9 +162,11 @@ loop:
 				//its in the example from official golang libs
 				changes <- c.CurrentStatus
 				changes <- c.CurrentStatus
+				infoout("Service interrogate returning %v\n", c.CurrentStatus)
 			case svc.Stop, svc.Shutdown:
 				cancel()
 				consumerClose <- true
+				infoout("Service stopping\n")
 				break loop
 			default:
 				errorout("Got invalid control request #%d", c)
@@ -171,6 +176,8 @@ loop:
 				errorout("Event consumer error: %v", err)
 				errno = 1000
 				ssec = true
+			} else {
+				infoout("Event consumer stopping with %v\n", err)
 			}
 			break loop
 		}
@@ -209,6 +216,7 @@ consumerLoop:
 				}
 			}
 		case <-closeC:
+			infoout("Consumer exiting\n")
 			break consumerLoop
 		}
 	}
@@ -231,7 +239,7 @@ func (m *mainService) init() error {
 		return fmt.Errorf("Failed to create a bookmark at %s: %v", m.bookmarkPath, err)
 	}
 	m.bmk = bmk
-	debugout("Created bookmark\n")
+	debugout("Opened bookmark\n")
 
 	//fire up the ingesters
 	//fire up the ingesters
@@ -259,11 +267,13 @@ func (m *mainService) init() error {
 	}
 	debugout("Started ingester stream\n")
 	if err := igst.WaitForHotContext(m.ctx, m.timeout); err != nil {
+		errorout("Failed to wait for hot ingester connections: %v\n", err)
 		return err
 	}
 	m.igst = igst
 	hot, err := igst.Hot()
 	if err != nil {
+		errorout("Failed to get hot connection count: %v\n", err)
 		return err
 	}
 	infoout("Ingester established %d connections\n", hot)
@@ -283,7 +293,7 @@ func (m *mainService) init() error {
 		if err != nil {
 			return fmt.Errorf("Failed to create new eventStream(%s) on Channel %s: %v", c.Name, c.Channel, err)
 		}
-		debugout("Started stream %s at recordID %d\n", c.Name, last)
+		infoout("Started stream %s at recordID %d\n", c.Name, last)
 		msg := fmt.Sprintf("starting stream %s on channel %s at recordID %d, ingesting to tag %s.", c.Name, c.Channel, last, c.TagName)
 		if c.ReachBack != 0 {
 			msg += fmt.Sprintf(" Reachback is %v.", c.ReachBack)
@@ -310,8 +320,9 @@ func (m *mainService) init() error {
 func (m *mainService) consumeEvents() (bool, error) {
 	//if we can't get an IP then the muxer is probably fully disconnected
 	//just chill
-	ip, _ := m.igst.SourceIP()
+	ip, err := m.igst.SourceIP()
 	if ip == nil {
+		errorout("Failed to get Source IP from ingest muxer: %v\n", err)
 		return false, nil
 	}
 
@@ -319,6 +330,7 @@ func (m *mainService) consumeEvents() (bool, error) {
 	//pull from the event muxer
 	hotConns, err := m.igst.Hot()
 	if err != nil {
+		errorout("Failed to get hot connection count from muxer: %v\n", err)
 		return false, err
 	}
 	if hotConns <= 0 {
@@ -331,6 +343,7 @@ func (m *mainService) consumeEvents() (bool, error) {
 	for _, eh := range m.evtSrcs {
 		threw, err := m.serviceEventStream(eh, ip)
 		if err != nil {
+			errorout("Failed to service event stream %s: %v\n", eh.h.Name(), err)
 			return false, err
 		}
 		if threw {
@@ -358,9 +371,11 @@ func (m *mainService) serviceEventStream(eh eventSrc, ip net.IP) (threw bool, er
 }
 
 func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (int, error) {
-	ents, err := eh.h.Read()
+	ents, warn, err := eh.h.Read()
 	if err != nil {
 		return 0, err
+	} else if warn != nil {
+		warnout("Event stream %s warning %q\n", eh.h.Name(), warn)
 	}
 	var first, last uint64
 
@@ -371,6 +386,7 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (int, erro
 		if !m.ignoreTS {
 			lts, ok, err = m.tg.Extract(e.Buff)
 			if err != nil {
+				errorout("Failed to extract TS: %v\n", err)
 				return 0, err
 			}
 			ts = entry.FromStandard(lts)
@@ -385,13 +401,15 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (int, erro
 			Data: e.Buff,
 		}
 		if err := m.igst.WriteEntry(ent); err != nil {
+			warnout("Failed to extract TS: %v\n", err)
 			return 0, err
 		}
 		eh.h.SetLast(e.ID)
 		if err := m.bmk.Update(eh.h.Name(), e.ID); err != nil {
+			errorout("Failed to update bookmark for %s: %v\n", eh.h.Name(), err)
 			return 0, err
 		}
-		if i== 0 {
+		if i == 0 {
 			first = e.ID
 		}
 		last = e.ID
