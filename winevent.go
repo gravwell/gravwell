@@ -142,20 +142,17 @@ func (e *EventStreamHandle) getRecordID() (uint64, error) {
 	bb := bytes.NewBuffer(nil)
 	sigEvent, err := windows.CreateEvent(nil, 0, 0, nil)
 	if err != nil {
-		fmt.Println("CreateEvent", err)
 		return 0, err
 	}
 	defer windows.CloseHandle(sigEvent)
 	query, err := genQuery(e.params)
 	if err != nil {
-		fmt.Println("genQuery", err)
 		return 0, err
 	}
 	//we build our bookmark
 	flags := wineventlog.EvtSubscribeStartAtOldestRecord
 	bmk, err := wineventlog.CreateBookmark()
 	if err != nil {
-		fmt.Println("CreateBookmark", err)
 		return 0, err
 	}
 	defer wineventlog.Close(bmk)
@@ -168,7 +165,6 @@ func (e *EventStreamHandle) getRecordID() (uint64, error) {
 		0,
 		flags)
 	if err != nil {
-		fmt.Println("Subscribe", err)
 		return 0, err
 	}
 	defer wineventlog.Close(subHandle)
@@ -180,12 +176,10 @@ func (e *EventStreamHandle) getRecordID() (uint64, error) {
 			return 0, fmt.Errorf("invalid return count %d != 1 on seek", len(evtHnds))
 		}
 		if err = wineventlog.UpdateBookmarkFromEvent(bmk, evtHnds[0]); err != nil {
-			fmt.Println("UpdateBookmarkFromEvent", err)
 			return 0, err
 		}
 		id, err := wineventlog.GetRecordIDFromBookmark(bmk, e.buff, bb)
 		if err != nil {
-			fmt.Println("GetRecordIDFromBookmark", err)
 			return 0, err
 		}
 		wineventlog.Close(evtHnds[0])
@@ -197,7 +191,6 @@ func (e *EventStreamHandle) getRecordID() (uint64, error) {
 	case wineventlog.ERROR_NO_MORE_ITEMS:
 		return 0, nil
 	}
-	fmt.Println("EventHandles", err)
 	return 0, err
 }
 
