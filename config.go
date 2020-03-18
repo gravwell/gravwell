@@ -35,6 +35,20 @@ const (
 	defaultReachback = 168 * time.Hour //1 week
 )
 
+const (
+	mb = 1024 * 1024
+
+	defaultBuffSize = 2 * mb  //2MB  Sure... why not
+	minBuffSize     = 1 * mb  //1MB is kindo of a lower bound
+	maxBuffSize     = 32 * mb //a 32MB message is stupid
+
+	defaultHandleRequest = 128
+	//this CANNOT be less than 2
+	//or you will fall into an infinite loop HAMMERING the kernel
+	minHandleRequest = 2
+	maxHandleRequest = 1024
+)
+
 var (
 	defaultLevels = []string{`verbose`, `information`, `warning`, `error`, `critical`}
 
@@ -47,12 +61,14 @@ var (
 )
 
 type EventStreamConfig struct {
-	Tag_Name      string   //which tag are we applying to this event channel
-	Channel       string   //Names like: System, Application, Security...
-	Max_Reachback string   //duration like: 72 hours, or 6 weeks, etc..
-	Level         []string //levels include: verbose,information,warning,error,critical
-	Provider      []string //list of providers to filter on
-	EventID       []string //list of eventID filters: 1000-2000 or -1000
+	Tag_Name       string   //which tag are we applying to this event channel
+	Channel        string   //Names like: System, Application, Security...
+	Max_Reachback  string   //duration like: 72 hours, or 6 weeks, etc..
+	Level          []string //levels include: verbose,information,warning,error,critical
+	Provider       []string //list of providers to filter on
+	EventID        []string //list of eventID filters: 1000-2000 or -1000
+	Request_Size   int      //number of entries to request per cycle
+	Request_Buffer int      //number request buffer
 }
 
 type CfgType struct {
@@ -197,6 +213,22 @@ func (ec *EventStreamConfig) normalize() {
 	for i := range ec.EventID {
 		ec.EventID[i] = strings.TrimSpace(ec.EventID[i])
 	}
+	if ec.Request_Size == 0 {
+		ec.Request_Size = defaultHandleRequest
+	} else if ec.Request_Size > maxHandleRequest {
+		ec.Request_Size = maxHandleRequest
+	} else if ec.Request_Size < minHandleRequest {
+		ec.Request_Size = minHandleRequest
+	}
+
+	ec.Request_Buffer *= mb
+	if ec.Request_Buffer == 0 {
+		ec.Request_Buffer = defaultBuffSize
+	} else if ec.Request_Buffer > maxBuffSize {
+		ec.Request_Buffer = maxBuffSize
+	} else if ec.Request_Buffer < minBuffSize {
+		ec.Request_Buffer = minBuffSize
+	}
 }
 
 func (ec *EventStreamConfig) Validate() error {
@@ -284,6 +316,8 @@ type EventStreamParams struct {
 	EventIDs  string
 	Providers []string
 	ReachBack time.Duration
+	BuffSize  int
+	ReqSize   int
 }
 
 //Validate SHOULD have already been called, we aren't going to check anything here
@@ -310,6 +344,8 @@ func (ec *EventStreamConfig) params(name string) (EventStreamParams, error) {
 		EventIDs:  strings.Join(ec.EventID, ","),
 		Providers: append([]string{}, ec.Provider...),
 		ReachBack: dur,
+		ReqSize:   ec.Request_Size,
+		BuffSize:  ec.Request_Buffer,
 	}, nil
 }
 

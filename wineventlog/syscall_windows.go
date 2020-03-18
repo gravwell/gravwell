@@ -27,8 +27,9 @@ type EvtHandle uintptr
 // Event log error codes.
 // https://msdn.microsoft.com/en-us/library/windows/desktop/ms681382(v=vs.85).aspx
 const (
-	ERROR_INSUFFICIENT_BUFFER             syscall.Errno = 122
-	ERROR_NO_MORE_ITEMS                   syscall.Errno = 259
+	ERROR_INSUFFICIENT_BUFFER syscall.Errno = 122
+	ERROR_NO_MORE_ITEMS       syscall.Errno = 259
+	//ERROR_TIMEOUT                         syscall.Errno = 2
 	ERROR_NONE_MAPPED                     syscall.Errno = 1332
 	RPC_S_INVALID_BOUND                   syscall.Errno = 1734
 	ERROR_INVALID_OPERATION               syscall.Errno = 4317

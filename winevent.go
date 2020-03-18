@@ -11,19 +11,12 @@ package winevent
 
 import (
 	"bytes"
-	//"fmt"
+	"fmt"
 	"sync"
 
 	"golang.org/x/sys/windows"
 
 	"github.com/gravwell/winevent/v3/wineventlog"
-)
-
-const (
-	defaultBuffSize  = 4 * 1024 * 1024 //4MB  Sure... why not
-	maxHandleRequest = 128
-	minHandleRequest = 2                //this CANNOT be less than 2, or you will fall into an infinite loop HAMMERING the kernel
-	maxBuffSize      = 32 * 1024 * 1024 //a 32MB message is stupid
 )
 
 type EventStreamHandle struct {
@@ -33,14 +26,16 @@ type EventStreamHandle struct {
 	buff      []byte
 	last      uint64
 	mtx       *sync.Mutex
+	prev      uint64
 }
 
 func NewStream(param EventStreamParams, last uint64) (e *EventStreamHandle, err error) {
 	e = &EventStreamHandle{
 		params: param,
-		buff:   make([]byte, defaultBuffSize),
+		buff:   make([]byte, param.BuffSize),
 		mtx:    &sync.Mutex{},
 		last:   last,
+		prev:   last,
 	}
 	if err = e.open(); err != nil {
 		e = nil
@@ -107,8 +102,8 @@ func (e *EventStreamHandle) reset() (err error) {
 
 //getHandles will iterate on the call to EventHandles, we do this because on big event log entries the kernel throws
 //RPC_S_INVALID_BOUND which is basically a really shitty way to say "i can't give you all the handles due to size"
-func (e *EventStreamHandle) getHandles(min, max int) (evtHnds []wineventlog.EvtHandle, err error) {
-	for cnt := max; cnt >= min; cnt = cnt / 2 {
+func (e *EventStreamHandle) getHandles(start int) (evtHnds []wineventlog.EvtHandle, err error) {
+	for cnt := start; cnt >= minHandleRequest; cnt = cnt / 2 {
 		evtHnds, err = wineventlog.EventHandles(e.subHandle, cnt)
 		switch err {
 		case nil:
@@ -136,10 +131,10 @@ type RenderedEvent struct {
 	ID   uint64
 }
 
-func (e *EventStreamHandle) Read() (ents []RenderedEvent, err error) {
+func (e *EventStreamHandle) Read() (ents []RenderedEvent, warn, err error) {
 	var bmk wineventlog.EvtHandle
 	var evtHandles []wineventlog.EvtHandle
-	if evtHandles, err = e.getHandles(minHandleRequest, maxHandleRequest); err != nil {
+	if evtHandles, err = e.getHandles(e.params.ReqSize); err != nil {
 		return
 	} else if len(evtHandles) == 0 {
 		return
@@ -169,6 +164,11 @@ func (e *EventStreamHandle) Read() (ents []RenderedEvent, err error) {
 			ents = nil
 			break
 		}
+		if (e.prev + 1) != re.ID {
+			jump := re.ID - e.prev
+			warn = fmt.Errorf("RecordID Jumped %d from %d to %d", jump, e.prev, re.ID)
+		}
+		e.prev = re.ID
 		ents = append(ents, re)
 	}
 	for _, h := range evtHandles {
