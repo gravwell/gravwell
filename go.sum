@@ -154,6 +154,8 @@ github.com/gravwell/winevent/v3 v3.3.8-0.20200318232236-b0175be40baa h1:xyuO1Mfp
 github.com/gravwell/winevent/v3 v3.3.8-0.20200318232236-b0175be40baa/go.mod h1:iRkrYUUttScDgDOI1vZbiAMND7czgb18WZptxeWMHos=
 github.com/gravwell/winevent/v3 v3.3.8-0.20200318232358-7b3c24bf1469 h1:PkQKyBgbwim83T2fAfi3MjHmk4bt/j5cpOdkefOH9aI=
 github.com/gravwell/winevent/v3 v3.3.8-0.20200318232358-7b3c24bf1469/go.mod h1:iRkrYUUttScDgDOI1vZbiAMND7czgb18WZptxeWMHos=
+github.com/gravwell/winevent/v3 v3.3.8-0.20200319225333-5b855f197fae h1:eGFDIZRJsQ9YGXDj6PdKzv8OYFgSccSkl1G4NpmGsX8=
+github.com/gravwell/winevent/v3 v3.3.8-0.20200319225333-5b855f197fae/go.mod h1:iRkrYUUttScDgDOI1vZbiAMND7czgb18WZptxeWMHos=
 github.com/h2non/filetype v1.0.10 h1:z+SJfnL6thYJ9kAST+6nPRXp1lMxnOVbMZHNYHMar0s=
 github.com/h2non/filetype v1.0.10/go.mod h1:isekKqOuhMj+s/7r3rIeTErIRy4Rub5uBWHfvMusLMU=
 github.com/hashicorp/go-uuid v1.0.1 h1:fv1ep09latC32wFoVwnqcnKJGnMSdBanPczbHAYm1BE=

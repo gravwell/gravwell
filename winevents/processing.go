@@ -25,6 +25,10 @@ import (
 	"github.com/gravwell/winevent/v3"
 )
 
+const (
+	eventSampleInterval = 250 * time.Millisecond
+)
+
 type eventSrc struct {
 	h   *winevent.EventStreamHandle
 	tag entry.EntryTag
@@ -195,25 +199,23 @@ func (m *mainService) consumerRoutine(errC chan error, closeC chan bool, wg *syn
 		errC <- err
 		return
 	}
-	tkr := time.Tick(250 * time.Millisecond)
+	tkr := time.Tick(eventSampleInterval)
 
 consumerLoop:
 	for {
 		select {
 		case <-tkr:
-			for {
-				if cont, err := m.consumeEvents(); err != nil {
-					errorout("Failed to consume events: %v", err)
+			if nev, err := m.consumeEvents(); err != nil {
+				errorout("Failed to consume events: %v", err)
+				errC <- err
+				return
+			} else if nev {
+				if err := m.bmk.Sync(); err != nil {
+					errorout("Failed to sync bookmark: %v", err)
 					errC <- err
 					return
-				} else if !cont {
-					if err := m.bmk.Sync(); err != nil {
-						errorout("Failed to sync bookmark: %v", err)
-						errC <- err
-						return
-					}
-					break
 				}
+				break
 			}
 		case <-closeC:
 			infoout("Consumer exiting\n")
@@ -336,44 +338,39 @@ func (m *mainService) consumeEvents() (bool, error) {
 	if hotConns <= 0 {
 		return false, nil
 	}
-	var again bool
-
 	//we have an IP and some hot connections, do stuff
 	//service events
+	var consumed bool
 	for _, eh := range m.evtSrcs {
-		threw, err := m.serviceEventStream(eh, ip)
-		if err != nil {
+		if nev, err := m.serviceEventStream(eh, ip); err != nil {
 			errorout("Failed to service event stream %s: %v\n", eh.h.Name(), err)
-			return false, err
-		}
-		if threw {
-			again = true
+			return consumed, err
+		} else if nev {
+			consumed = true
 		}
 	}
-	return again, nil
+	return consumed, nil
 }
 
-func (m *mainService) serviceEventStream(eh eventSrc, ip net.IP) (threw bool, err error) {
+func (m *mainService) serviceEventStream(eh eventSrc, ip net.IP) (nev bool, err error) {
+	var hit bool
+	full := true
 	//feed from the stream until we don't get any entries out
-	for {
-		if cnt, lerr := m.serviceEventStreamChunk(eh, ip); lerr != nil {
-			if lerr != nil {
-				err = lerr
-				return
-			}
-		} else if cnt > 0 {
-			threw = true
-		} else {
-			break
+	for full {
+		if hit, full, err = m.serviceEventStreamChunk(eh, ip); err != nil {
+			return
+		} else if hit {
+			nev = true
 		}
 	}
 	return
 }
 
-func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (int, error) {
-	ents, warn, err := eh.h.Read()
-	if err != nil {
-		return 0, err
+func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (hit, fullRead bool, err error) {
+	var ents []winevent.RenderedEvent
+	var warn error
+	if ents, fullRead, warn, err = eh.h.Read(); err != nil {
+		return
 	} else if warn != nil {
 		warnout("Event stream %s warning %q\n", eh.h.Name(), warn)
 	}
@@ -387,7 +384,7 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (int, erro
 			lts, ok, err = m.tg.Extract(e.Buff)
 			if err != nil {
 				errorout("Failed to extract TS: %v\n", err)
-				return 0, err
+				return
 			}
 			ts = entry.FromStandard(lts)
 		}
@@ -400,14 +397,14 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (int, erro
 			Tag:  eh.tag,
 			Data: e.Buff,
 		}
-		if err := m.igst.WriteEntry(ent); err != nil {
+		if err = m.igst.WriteEntry(ent); err != nil {
 			warnout("Failed to extract TS: %v\n", err)
-			return 0, err
+			return
 		}
 		eh.h.SetLast(e.ID)
-		if err := m.bmk.Update(eh.h.Name(), e.ID); err != nil {
+		if err = m.bmk.Update(eh.h.Name(), e.ID); err != nil {
 			errorout("Failed to update bookmark for %s: %v\n", eh.h.Name(), err)
-			return 0, err
+			return
 		}
 		if i == 0 {
 			first = e.ID
@@ -415,7 +412,8 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (int, erro
 		last = e.ID
 	}
 	if len(ents) > 0 {
+		hit = true
 		debugout("Pulled %d events from %s [%d - %d]\n", len(ents), eh.h.Name(), first, last)
 	}
-	return len(ents), nil
+	return
 }
