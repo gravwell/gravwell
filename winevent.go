@@ -114,11 +114,12 @@ func (e *EventStreamHandle) reset() (err error) {
 
 //getHandles will iterate on the call to EventHandles, we do this because on big event log entries the kernel throws
 //RPC_S_INVALID_BOUND which is basically a really shitty way to say "i can't give you all the handles due to size"
-func (e *EventStreamHandle) getHandles(start int) (evtHnds []wineventlog.EvtHandle, err error) {
+func (e *EventStreamHandle) getHandles(start int) (evtHnds []wineventlog.EvtHandle, fullRead bool, err error) {
 	for cnt := start; cnt >= minHandleRequest; cnt = cnt / 2 {
 		evtHnds, err = wineventlog.EventHandles(e.subHandle, cnt)
 		switch err {
 		case nil:
+			fullRead = len(evtHnds) == cnt
 			return //got a good read
 		case wineventlog.ERROR_NO_MORE_ITEMS:
 			err = nil
@@ -199,10 +200,10 @@ type RenderedEvent struct {
 	ID   uint64
 }
 
-func (e *EventStreamHandle) Read() (ents []RenderedEvent, warn, err error) {
+func (e *EventStreamHandle) Read() (ents []RenderedEvent, fullRead bool, warn, err error) {
 	var bmk wineventlog.EvtHandle
 	var evtHandles []wineventlog.EvtHandle
-	if evtHandles, err = e.getHandles(e.params.ReqSize); err != nil {
+	if evtHandles, fullRead, err = e.getHandles(e.params.ReqSize); err != nil {
 		return
 	} else if len(evtHandles) == 0 {
 		return
