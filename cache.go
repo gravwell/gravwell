@@ -428,7 +428,7 @@ func (ic *IngestCache) addEntry(ent *entry.Entry) bool {
 }
 
 // addBlock will add a slice of entries back into the cache
-// this is just a convienence wrapper
+// this is just a convenience wrapper
 func (ic *IngestCache) addBlock(blk []*entry.Entry) bool {
 	var trimRequired bool
 	for i := range blk {

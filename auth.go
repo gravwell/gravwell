@@ -115,7 +115,7 @@ func init() {
 func GenAuthHash(password string) (AuthHash, error) {
 	var runningHash []byte
 	var auth AuthHash
-	// hash first with SHA512 to ensure we don't accidentially shrink our keyspace
+	// hash first with SHA512 to ensure we don't accidentally shrink our keyspace
 	h512 := sha512.New()
 	io.WriteString(h512, password)
 	runningHash = h512.Sum(nil)

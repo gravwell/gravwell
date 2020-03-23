@@ -365,7 +365,7 @@ func performBatchCycles(t *testing.T, count int) (time.Duration, uint64) {
 func BenchmarkSingle(b *testing.B) {
 	var totalBytes uint64
 
-	//intialize the system
+	//initialize the system
 	b.StopTimer()
 	if err := cleanup(); err != nil {
 		b.Fatal(err)
@@ -408,7 +408,7 @@ func BenchmarkSingle(b *testing.B) {
 	}
 	//We HAVE to close the server side first (reader) or the client will block on close()
 	//waiting for confirmations from the reader that are buffered and not flushed yet
-	//but if we close the server (reader) first it will force out the confirmations and
+	//but if we close the server (reader) first it will force out the confirmations
 	//and the client won't block.
 	if err = etSrv.Close(); err != nil {
 		b.Fatal(err)
@@ -428,7 +428,7 @@ func BenchmarkSingle(b *testing.B) {
 func BenchmarkBatch(b *testing.B) {
 	var totalBytes uint64
 
-	//intialize the system
+	//initialize the system
 	b.StopTimer()
 	if err := cleanup(); err != nil {
 		b.Fatal(err)
@@ -487,7 +487,7 @@ func BenchmarkBatch(b *testing.B) {
 
 	//We HAVE to close the server side first (reader) or the client will block on close()
 	//waiting for confirmations from the reader that are buffered and not flushed yet
-	//but if we close the server (reader) first it will force out the confirmations and
+	//but if we close the server (reader) first it will force out the confirmations
 	//and the client won't block.
 	if err := etSrv.Close(); err != nil {
 		b.Fatal(err)

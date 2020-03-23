@@ -68,7 +68,7 @@ type TargetError struct {
 
 type IngestMuxer struct {
 	//connHot, and connDead have atomic operations
-	//its important that these are aligned on 8 byte boundries
+	//its important that these are aligned on 8 byte boundaries
 	//or it will panic on 32bit architectures
 	connHot         int32 //how many connections are functioning
 	connDead        int32 //how many connections are dead
@@ -361,7 +361,7 @@ func (im *IngestMuxer) Close() error {
 	}
 	im.state = closed
 
-	//just close the channel, that will be a permenent signal for everything to close
+	//just close the channel, that will be a permanent signal for everything to close
 	close(im.dieChan)
 
 	//there is a chance that we are fully blocked with another async caller
@@ -369,7 +369,7 @@ func (im *IngestMuxer) Close() error {
 	//discard some items from the channel
 	if atomic.LoadInt32(&im.connHot) == 0 && !im.cacheRunning {
 		//no connections are hot, and there is no cache
-		//closeing is GOING to pitch entries, so... it is what it is...
+		//closing is GOING to pitch entries, so... it is what it is...
 		//clear the channels
 	consumer:
 		for {
@@ -571,7 +571,7 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 }
 
 // WaitForHot waits until at least one connection goes into the hot state
-// The timout duration parameter is an optional timeout, if zero, it waits
+// The timeout duration parameter is an optional timeout, if zero, it waits
 // indefinitely
 func (im *IngestMuxer) WaitForHot(to time.Duration) error {
 	return im.WaitForHotContext(context.Background(), to)
@@ -633,7 +633,7 @@ mainLoop:
 			continue
 		}
 	}
-	return nil //somone came up
+	return nil //someone came up
 }
 
 // Hot returns how many connections are functioning
@@ -686,7 +686,7 @@ func (im *IngestMuxer) cacheRoutine() {
 	var cacheActive bool
 
 	//when the cache is fired up, we ALWAYS start
-	//that way we are garunteed to be able to consume entries
+	//that way we are guaranteed to be able to consume entries
 	if err := im.cache.Start(im.eChan, im.bChan); err != nil {
 		im.cacheError = err
 		im.cacheRunning = false
@@ -750,7 +750,7 @@ mainLoop:
 	im.cacheRunning = false
 }
 
-//goHot is a convienence function used by routines when they become active
+//goHot is a convenience function used by routines when they become active
 func (im *IngestMuxer) goHot() {
 	atomic.AddInt32(&im.connDead, -1)
 	//attempt a single on going hot, but don't block
@@ -791,7 +791,7 @@ func (im *IngestMuxer) stopCache() {
 	}
 }
 
-//goDead is a convienence function used by routines when they become dead
+//goDead is a convenience function used by routines when they become dead
 func (im *IngestMuxer) goDead() {
 	//decrement the hot counter
 	if atomic.AddInt32(&im.connHot, -1) == 0 {
@@ -1186,7 +1186,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 				im.igst[igIdx] = nil
 				im.tagTranslators[igIdx] = nil
 
-				//pull any entrys out of the ingest connection and put them into the emergency queue
+				//pull any entries out of the ingest connection and put them into the emergency queue
 				ents := igst.outstandingEntries()
 				im.recycleEntries(nil, ents, &tt)
 			}
@@ -1379,7 +1379,7 @@ func (im *IngestMuxer) newTagTrans(igst *IngestConnection) (tagTrans, error) {
 	return tt, nil
 }
 
-// SourceIP is a convienence function used to pull back a source value
+// SourceIP is a convenience function used to pull back a source value
 func (im *IngestMuxer) SourceIP() (net.IP, error) {
 	var ip net.IP
 	im.mtx.Lock()
