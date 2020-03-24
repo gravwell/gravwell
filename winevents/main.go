@@ -14,6 +14,8 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"time"
+	"errors"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
@@ -113,13 +115,14 @@ func runInteractive(s *mainService) {
 
 	signal.Notify(sigChan, os.Interrupt, os.Kill)
 	go s.Execute(nil, closer, status)
-
 loop:
 	for {
 		select {
 		case <-sigChan:
 			debugout("Caught close signal\n")
-			closer <- svc.ChangeRequest{Cmd: svc.Shutdown}
+			if err := serviceWriteTimeout(closer, svc.ChangeRequest{Cmd: svc.Shutdown}, time.Second); err != nil {
+				errorout("Failed to send shutdown command: %v\n", err)
+			}
 		case st := <-status:
 			switch st.State {
 			case svc.StopPending:
@@ -144,6 +147,15 @@ func runService(s *mainService) {
 		return
 	}
 	infoout("Service stopped\n")
+}
+
+func serviceWriteTimeout(ch chan svc.ChangeRequest, r svc.ChangeRequest, to time.Duration) (err error) {
+	select {
+	case ch <-r:
+	case <-time.After(to):
+		err = errors.New("Timeout")
+	}
+	return
 }
 
 func debugout(format string, args ...interface{}) {

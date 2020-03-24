@@ -46,6 +46,7 @@ type mainService struct {
 	cachePath    string
 	igstLogLevel string
 	uuid         string
+	src          net.IP
 	ctx          context.Context
 
 	bmk     *winevent.BookmarkHandler
@@ -173,11 +174,11 @@ loop:
 				infoout("Service stopping\n")
 				break loop
 			default:
-				errorout("Got invalid control request #%d", c)
+				errorout("Got invalid control request #%d\n", c)
 			}
 		case err := <-consumerErr:
 			if err != nil {
-				errorout("Event consumer error: %v", err)
+				errorout("Event consumer error: %v\n", err)
 				errno = 1000
 				ssec = true
 			} else {
@@ -187,8 +188,10 @@ loop:
 		}
 	}
 	changes <- svc.Status{State: svc.StopPending}
+	infoout("Service transitioned to StopPending, waiting for consumer\n")
 	wg.Wait()
 	changes <- svc.Status{State: svc.Stopped}
+	infoout("Service transitioned to Stopped\n")
 	return
 }
 
@@ -226,6 +229,7 @@ consumerLoop:
 		errorout("Failed to sync bookmark: %v", err)
 		errC <- err
 	}
+	infoout("Consumer exiting\n")
 }
 
 func (m *mainService) init() error {
@@ -243,7 +247,6 @@ func (m *mainService) init() error {
 	m.bmk = bmk
 	debugout("Opened bookmark\n")
 
-	//fire up the ingesters
 	//fire up the ingesters
 	igCfg := ingest.UniformMuxerConfig{
 		Destinations:    m.conns,
@@ -316,34 +319,20 @@ func (m *mainService) init() error {
 		return fmt.Errorf("Failed to load event handles: %v", err)
 	}
 	m.evtSrcs = evtSrcs
+	if m.src, err = m.igst.SourceIP(); err != nil {
+		errorout("Failed to get Source IP from ingest muxer: %v\n", err)
+		return err
+	}
+
 	return nil
 }
 
 func (m *mainService) consumeEvents() (bool, error) {
-	//if we can't get an IP then the muxer is probably fully disconnected
-	//just chill
-	ip, err := m.igst.SourceIP()
-	if ip == nil {
-		errorout("Failed to get Source IP from ingest muxer: %v\n", err)
-		return false, nil
-	}
-
-	//check on how many active connections we have, if there are none, don't
-	//pull from the event muxer
-	hotConns, err := m.igst.Hot()
-	if err != nil {
-		errorout("Failed to get hot connection count from muxer: %v\n", err)
-		return false, err
-	}
-	if hotConns <= 0 {
-		return false, nil
-	}
 	//we have an IP and some hot connections, do stuff
 	//service events
 	var consumed bool
 	for _, eh := range m.evtSrcs {
-		if nev, err := m.serviceEventStream(eh, ip); err != nil {
-			errorout("Failed to service event stream %s: %v\n", eh.h.Name(), err)
+		if nev, err := m.serviceEventStream(eh, m.src); err != nil {
 			return consumed, err
 		} else if nev {
 			consumed = true
@@ -358,9 +347,23 @@ func (m *mainService) serviceEventStream(eh eventSrc, ip net.IP) (nev bool, err 
 	//feed from the stream until we don't get any entries out
 	for full {
 		if hit, full, err = m.serviceEventStreamChunk(eh, ip); err != nil {
+			errorout("Failed to service event stream %s: %v\n", eh.h.Name(), err)
+			if err = eh.h.Reset(); err != nil {
+				errorout("Failed to reset event stream %s: %v\n", eh.h.Name(), err)
+				return
+			} else {
+				warnout("Reset event stream %s\n", eh.h.Name())
+			}
 			return
 		} else if hit {
 			nev = true
+		}
+		select {
+		case <-m.ctx.Done():
+			full = false
+		default:
+			//do nothing
+			continue
 		}
 	}
 	return
@@ -401,7 +404,6 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (hit, full
 			warnout("Failed to extract TS: %v\n", err)
 			return
 		}
-		eh.h.SetLast(e.ID)
 		if err = m.bmk.Update(eh.h.Name(), e.ID); err != nil {
 			errorout("Failed to update bookmark for %s: %v\n", eh.h.Name(), err)
 			return
