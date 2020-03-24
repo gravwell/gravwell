@@ -27,10 +27,20 @@ import (
 	"reflect"
 	"runtime"
 	"syscall"
+	"time"
+	"unicode/utf16"
 
 	"golang.org/x/sys/windows"
 
 	"github.com/elastic/beats/winlogbeat/sys"
+)
+
+const (
+	kb = 1024
+	mb = 1024 * kb
+	gb = 1024 * mb
+
+	maxConfigBufferSize = mb
 )
 
 // Errors
@@ -117,6 +127,116 @@ func EvtOpenLog(session EvtHandle, path string, flags EvtOpenLogFlag) (EvtHandle
 	}
 
 	return _EvtOpenLog(session, pathPtr, uint32(flags))
+}
+
+// EvtGetLogInfo executes the GetLogInfo syscall to provide information about an open log handle
+func EvtGetLogInfo(session EvtHandle, id EvtLogPropertyId) (buff []byte, err error) {
+	buff = make([]byte, 64)
+	var used uint32
+	//first figure out how big of a buffer we need
+	if err = _EvtGetLogInfo(session, id, uint32(len(buff)), &buff[0], &used); err == nil {
+		//good call
+		if used < uint32(len(buff)) {
+			buff = buff[:used]
+		}
+		return
+	} else if err != ERROR_INSUFFICIENT_BUFFER {
+		buff = nil
+		return
+	}
+
+	//try again with a bigger buffer
+	if used > (16 * mb) {
+		buff = nil
+		err = fmt.Errorf("GetLogInfo requested too large of a buffer %d", used)
+		return
+	}
+	buff = make([]byte, used)
+	used = 0
+	if err = _EvtGetLogInfo(session, id, uint32(len(buff)), &buff[0], &used); err != nil {
+		buff = nil
+	} else if used < uint32(len(buff)) {
+		buff = buff[:used]
+	}
+	return
+}
+
+// EvtOpenChannelConfig opens a handle on a channel subscription that represents the channel config
+func EvtOpenChannelConfig(path string) (handle EvtHandle, err error) {
+	var pathPtr *uint16
+	if path == `` {
+		err = fmt.Errorf("Channel path is empty")
+		return
+	}
+	if pathPtr, err = syscall.UTF16PtrFromString(path); err != nil {
+		return
+	}
+	handle, err = _EvtOpenChannelConfig(0, pathPtr)
+	return
+}
+
+// EvtGetChannelConfigProperty queries a channel configuration variable given a handle to the channel configuration
+func EvtGetChannelConfigProperty(handle EvtHandle, id EvtChannelConfigPropertyId) (buff []byte, err error) {
+	var used uint32
+	//figure out how big its supposed to be
+	err = _EvtGetChannelConfigProperty(handle, id, 0, nil, &used)
+	if err != ERROR_INSUFFICIENT_BUFFER {
+		return
+	}
+	if used > maxConfigBufferSize {
+		err = fmt.Errorf("buffer request is too large: %d > %d", used, maxConfigBufferSize)
+		return
+	}
+	buff = make([]byte, used)
+	used = 0
+	err = _EvtGetChannelConfigProperty(handle, id, uint32(len(buff)), &buff[0], &used)
+	return
+}
+
+// GetChannelFilePath queries a channel to get the full path of the file that backs it
+func GetChannelFilePath(ch string) (pth string, err error) {
+	var hnd EvtHandle
+	var buff []byte
+	if hnd, err = EvtOpenChannelConfig(ch); err != nil {
+		return
+	}
+	if buff, err = EvtGetChannelConfigProperty(hnd, EvtChannelLoggingConfigLogFilePath); err != nil {
+		Close(hnd)
+		return
+	}
+	if pth, err = VarantString(buff); err != nil {
+		Close(hnd)
+		return
+	}
+	err = Close(hnd)
+	return
+}
+
+func GetChannelFileCreationTime(ch string) (ts time.Time, err error) {
+	var buff []byte
+	var ft syscall.Filetime
+	var hnd EvtHandle
+	if hnd, err = EvtOpenLog(0, ch, 1); err != nil {
+		return
+	}
+	if buff, err = EvtGetLogInfo(hnd, EvtLogCreationTime); err != nil {
+		Close(hnd)
+		return
+	}
+
+	if l := len(buff); l != 16 {
+		err = fmt.Errorf("Invalid response buffer size: %d != 16", l)
+		Close(hnd)
+	} else if v := binary.LittleEndian.Uint32(buff[l-4:]); v != 17 {
+		err = fmt.Errorf("Invalid response type: %d != 17", v)
+		Close(hnd)
+	} else {
+		ft.LowDateTime = binary.LittleEndian.Uint32(buff)
+		ft.HighDateTime = binary.LittleEndian.Uint32(buff[4:])
+		ts = time.Unix(0, ft.Nanoseconds())
+		err = Close(hnd)
+	}
+	return
 }
 
 // EvtQuery runs a query to retrieve events from a channel or log file that
@@ -562,4 +682,116 @@ func renderXML(eventHandle EvtHandle, flag EvtRenderFlag, renderBuf []byte, out 
 			bufferUsed, len(renderBuf))
 	}
 	return sys.UTF16ToUTF8Bytes(renderBuf[:bufferUsed], out)
+}
+
+func VarantString(buff []byte) (s string, err error) {
+	var v uint32
+	if len(buff) < 16 || (len(buff)%2) != 0 {
+		err = fmt.Errorf("invalid varant buffer")
+		return
+	}
+	//varant strings always have a count of zero
+	if v = binary.LittleEndian.Uint32(buff[8:]); v != 0 {
+		err = fmt.Errorf("Invalid variant count: %d != 0", v)
+		return
+	} else if v = binary.LittleEndian.Uint32(buff[12:]); v != 1 {
+		//make sure the type is a string
+		err = fmt.Errorf("Invalid variant type: %d != 1", v)
+		return
+	}
+	s, _, err = UTF16BytesToString(buff[16:])
+	return
+}
+
+// UTF16BytesToString returns a string that is decoded from the UTF-16 bytes.
+// The byte slice must be of even length otherwise an error will be returned.
+// The integer returned is the offset to the start of the next string with
+// buffer if it exists, otherwise -1 is returned.
+func UTF16BytesToString(b []byte) (string, int, error) {
+	if len(b)%2 != 0 {
+		return "", 0, fmt.Errorf("Slice must have an even length (length=%d)", len(b))
+	}
+
+	offset := -1
+
+	// Find the null terminator if it exists and re-slice the b.
+	if nullIndex := indexNullTerminator(b); nullIndex > -1 {
+		if len(b) > nullIndex+2 {
+			offset = nullIndex + 2
+		}
+
+		b = b[:nullIndex]
+	}
+
+	s := make([]uint16, len(b)/2)
+	for i := range s {
+		s[i] = uint16(b[i*2]) + uint16(b[(i*2)+1])<<8
+	}
+
+	return string(utf16.Decode(s)), offset, nil
+}
+
+// indexNullTerminator returns the index of a null terminator within a buffer
+// containing UTF-16 encoded data. If the null terminator is not found -1 is
+// returned.
+func indexNullTerminator(b []byte) int {
+	if len(b) < 2 {
+		return -1
+	}
+
+	for i := 0; i < len(b); i += 2 {
+		if b[i] == 0 && b[i+1] == 0 {
+			return i
+		}
+	}
+
+	return -1
+}
+
+type LogFileInfo struct {
+	Attributes      uint32
+	LastWrite       time.Time
+	Creation        time.Time
+	NumberOfRecords uint64
+	OldestRecord    uint64
+}
+
+func QueryLogFile(hnd EvtHandle) (lfi LogFileInfo, err error) {
+	var buff []byte
+	if buff, err = EvtGetLogInfo(hnd, EvtLogAttributes); err != nil {
+		return
+	} else if l := len(buff); l >= 16 && binary.LittleEndian.Uint32(buff[l-4:]) == 8 {
+		lfi.Attributes = binary.LittleEndian.Uint32(buff)
+	}
+
+	if buff, err = EvtGetLogInfo(hnd, EvtLogLastWriteTime); err != nil {
+		return
+	} else if l := len(buff); l >= 16 && binary.LittleEndian.Uint32(buff[l-4:]) == 17 {
+		var ft syscall.Filetime
+		ft.LowDateTime = binary.LittleEndian.Uint32(buff)
+		ft.HighDateTime = binary.LittleEndian.Uint32(buff[4:])
+		lfi.LastWrite = time.Unix(0, ft.Nanoseconds()).UTC()
+	}
+	if buff, err = EvtGetLogInfo(hnd, EvtLogCreationTime); err != nil {
+		return
+	} else if l := len(buff); l >= 16 && binary.LittleEndian.Uint32(buff[l-4:]) == 17 {
+		var ft syscall.Filetime
+		ft.LowDateTime = binary.LittleEndian.Uint32(buff)
+		ft.HighDateTime = binary.LittleEndian.Uint32(buff[4:])
+		lfi.Creation = time.Unix(0, ft.Nanoseconds()).UTC()
+	}
+
+	if buff, err = EvtGetLogInfo(hnd, EvtLogNumberOfLogRecords); err != nil {
+		return
+	} else if l := len(buff); l >= 16 && binary.LittleEndian.Uint32(buff[l-4:]) == 10 {
+		lfi.NumberOfRecords = binary.LittleEndian.Uint64(buff)
+	}
+
+	if buff, err = EvtGetLogInfo(hnd, EvtLogOldestRecordNumber); err != nil {
+		return
+	} else if l := len(buff); l >= 16 && binary.LittleEndian.Uint32(buff[l-4:]) == 10 {
+		lfi.OldestRecord = binary.LittleEndian.Uint64(buff)
+	}
+
+	return
 }

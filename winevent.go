@@ -11,23 +11,34 @@ package winevent
 
 import (
 	"bytes"
+	"encoding/binary"
 	"fmt"
 	"sync"
+	"time"
 
 	"golang.org/x/sys/windows"
 
 	"github.com/gravwell/winevent/v3/wineventlog"
 )
 
+const (
+	//if we don't get any events for this long of time, we will poll the
+	//event handle to see if something has gone fucky
+	eventHandleCheckupInterval time.Duration = 10 * time.Second
+)
+
 type EventStreamHandle struct {
-	params    EventStreamParams
-	sigEvent  windows.Handle
-	subHandle wineventlog.EvtHandle
-	buff      []byte
-	last      uint64
-	prev      uint64
-	checkGaps bool
-	mtx       *sync.Mutex
+	params       EventStreamParams
+	subHandle    wineventlog.EvtHandle
+	bmk          wineventlog.EvtHandle
+	filePath     string
+	fileCreation time.Time
+	buff         []byte
+	last         uint64
+	prev         uint64
+	checkGaps    bool
+	mtx          *sync.Mutex
+	lastRead     time.Time
 }
 
 func NewStream(param EventStreamParams, last uint64) (e *EventStreamHandle, err error) {
@@ -43,72 +54,81 @@ func NewStream(param EventStreamParams, last uint64) (e *EventStreamHandle, err 
 		last:      last,
 		prev:      last,
 		checkGaps: !param.IsFiltering(),
+		lastRead:  time.Now(),
 	}
 	if err = e.open(); err != nil {
 		e = nil
+		return
 	}
 	return
 }
 
-func (e *EventStreamHandle) open() error {
-	if e.params.ReachBack != 0 {
-		var err error
+func (e *EventStreamHandle) open() (err error) {
+	e.mtx.Lock()
+	err = e.openNoLock()
+	e.mtx.Unlock()
+	return
+}
+
+func (e *EventStreamHandle) openNoLock() error {
+	var err error
+	params := e.params
+	if e.last > 0 {
 		//get a paramid
 		if e.last, err = e.getRecordID(); err != nil {
 			return err
 		}
-		e.params.ReachBack = 0
+		params.ReachBack = 0
+	}
+	if e.fileCreation, err = wineventlog.GetChannelFileCreationTime(params.Channel); err != nil {
+		return err
+	} else if e.filePath, err = wineventlog.GetChannelFilePath(params.Channel); err != nil {
+		return err
 	}
 	sigEvent, err := windows.CreateEvent(nil, 0, 0, nil)
 	if err != nil {
 		return err
 	}
-	query, err := genQuery(e.params)
+	defer windows.CloseHandle(sigEvent)
+	query, err := genQuery(params)
 	if err != nil {
-		windows.CloseHandle(sigEvent)
 		return err
 	}
 	//we build our bookmark
-	var bmk wineventlog.EvtHandle
 	flags := wineventlog.EvtSubscribeStartAfterBookmark
-	if bmk, err = wineventlog.CreateBookmarkFromRecordID(e.params.Channel, e.last); err != nil {
+	if e.bmk, err = wineventlog.CreateBookmarkFromRecordID(params.Channel, e.last); err != nil {
 		return err
 	}
-	defer wineventlog.Close(bmk)
 
-	subHandle, err := wineventlog.Subscribe(
-		0, //localhost session
-		sigEvent,
-		``,    // channel is in the query
-		query, //query has the reachback parameter
-		bmk,
-		flags)
+	//subscribe to the channel using our local session
+	subHandle, err := wineventlog.Subscribe(0, sigEvent, ``, query, e.bmk, flags)
 	if err != nil {
-		windows.CloseHandle(sigEvent)
 		return err
 	}
 
-	e.mtx.Lock()
-	e.sigEvent = sigEvent
 	e.subHandle = subHandle
-	e.mtx.Unlock()
 	return nil
 }
 
-func (e *EventStreamHandle) close() (err error) {
-	if err = windows.CloseHandle(e.sigEvent); err != nil {
-		wineventlog.Close(e.subHandle) //just close the subhandle
+func (e *EventStreamHandle) closeNoLock() (err error) {
+	if err = wineventlog.Close(e.subHandle); err != nil {
+		wineventlog.Close(e.bmk)
 	} else {
-		err = wineventlog.Close(e.subHandle)
+		err = wineventlog.Close(e.bmk)
 	}
 	return
 }
 
-func (e *EventStreamHandle) reset() (err error) {
+func (e *EventStreamHandle) Reset() (err error) {
 	e.mtx.Lock()
-	e.close()
-	err = e.open()
+	err = e.resetNoLock()
 	e.mtx.Unlock()
+	return
+}
+
+func (e *EventStreamHandle) resetNoLock() (err error) {
+	e.closeNoLock()
+	err = e.openNoLock()
 	return
 }
 
@@ -120,13 +140,14 @@ func (e *EventStreamHandle) getHandles(start int) (evtHnds []wineventlog.EvtHand
 		switch err {
 		case nil:
 			fullRead = len(evtHnds) == cnt
+			e.lastRead = time.Now()
 			return //got a good read
 		case wineventlog.ERROR_NO_MORE_ITEMS:
 			err = nil
 			return //empty
 		case wineventlog.RPC_S_INVALID_BOUND:
 			//our buffer isn't big enough, reset the handle and try again
-			if err = e.reset(); err != nil {
+			if err = e.resetNoLock(); err != nil {
 				return
 			}
 			//we will retry
@@ -135,7 +156,32 @@ func (e *EventStreamHandle) getHandles(start int) (evtHnds []wineventlog.EvtHand
 		}
 	}
 	//if we hit here, then our buffer is not big enough to handle two entries
-	evtHnds, err = wineventlog.EventHandles(e.subHandle, 1)
+	if evtHnds, err = wineventlog.EventHandles(e.subHandle, 1); err == nil && len(evtHnds) == 1 {
+		fullRead = true
+	}
+	return
+}
+
+func (e *EventStreamHandle) checkEventHandles() (warn, err error) {
+	var ts time.Time
+	var pth string
+	if ts, err = wineventlog.GetChannelFileCreationTime(e.params.Channel); err != nil {
+		return
+	} else if ts != e.fileCreation {
+		if err = e.resetNoLock(); err != nil {
+			err = fmt.Errorf("Failed to reset event stream after time change: %v", err)
+		} else {
+			warn = fmt.Errorf("Backing event file reset, reinitializing the event stream")
+		}
+	} else if pth, err = wineventlog.GetChannelFilePath(e.params.Channel); err != nil {
+		return
+	} else if pth != e.filePath {
+		if err = e.resetNoLock(); err != nil {
+			err = fmt.Errorf("Failed to reset event stream after path change: %v", err)
+		} else {
+			warn = fmt.Errorf("Backing event file moved, reinitializing the event stream")
+		}
+	}
 	return
 }
 
@@ -195,27 +241,37 @@ func (e *EventStreamHandle) getRecordID() (uint64, error) {
 	return 0, err
 }
 
+func printLogInfo(buff []byte) {
+	var l int
+	if l = len(buff); l < 16 {
+		fmt.Println("unknown buff")
+		return
+	}
+
+	//print the count and type type
+	count := binary.LittleEndian.Uint32(buff[l-8 : l-4])
+	tp := binary.LittleEndian.Uint32(buff[l-4:])
+	fmt.Println("COUNT:", count, "TYPE:", tp, binary.LittleEndian.Uint32(buff[:4]), binary.LittleEndian.Uint32(buff[4:8]))
+}
+
 type RenderedEvent struct {
 	Buff []byte
 	ID   uint64
 }
 
 func (e *EventStreamHandle) Read() (ents []RenderedEvent, fullRead bool, warn, err error) {
-	var bmk wineventlog.EvtHandle
+	e.mtx.Lock()
+	defer e.mtx.Unlock()
 	var evtHandles []wineventlog.EvtHandle
 	if evtHandles, fullRead, err = e.getHandles(e.params.ReqSize); err != nil {
 		return
 	} else if len(evtHandles) == 0 {
-		return
-	}
-	if bmk, err = wineventlog.CreateBookmark(); err != nil {
-		for _, v := range evtHandles {
-			wineventlog.Close(v)
+		//check if we need to poll the log event values
+		if time.Since(e.lastRead) > eventHandleCheckupInterval {
+			warn, err = e.checkEventHandles()
 		}
 		return
 	}
-	defer wineventlog.Close(bmk)
-
 	bb := bytes.NewBuffer(nil)
 	for i, h := range evtHandles {
 		var re RenderedEvent
@@ -226,10 +282,10 @@ func (e *EventStreamHandle) Read() (ents []RenderedEvent, fullRead bool, warn, e
 		}
 		re.Buff = append(re.Buff, bb.Bytes()...)
 		bb.Reset()
-		if err = wineventlog.UpdateBookmarkFromEvent(bmk, h); err != nil {
+		if err = wineventlog.UpdateBookmarkFromEvent(e.bmk, h); err != nil {
 			ents = nil
 			break
-		} else if re.ID, err = wineventlog.GetRecordIDFromBookmark(bmk, e.buff, bb); err != nil {
+		} else if re.ID, err = wineventlog.GetRecordIDFromBookmark(e.bmk, e.buff, bb); err != nil {
 			ents = nil
 			break
 		}
@@ -238,6 +294,7 @@ func (e *EventStreamHandle) Read() (ents []RenderedEvent, fullRead bool, warn, e
 			warn = fmt.Errorf("RecordID Jumped %d from %d to %d at request batch offset %d / %d", jump, e.prev, re.ID, i, len(evtHandles))
 		}
 		e.prev = re.ID
+		e.last = re.ID
 		ents = append(ents, re)
 	}
 	for _, h := range evtHandles {
@@ -266,9 +323,16 @@ func (e *EventStreamHandle) SetLast(v uint64) {
 	e.mtx.Unlock()
 }
 
+func (e *EventStreamHandle) SinceLastRead() (d time.Duration) {
+	e.mtx.Lock()
+	d = time.Since(e.lastRead)
+	e.mtx.Unlock()
+	return
+}
+
 func (e *EventStreamHandle) Close() (err error) {
 	e.mtx.Lock()
-	err = e.close()
+	err = e.closeNoLock()
 	e.mtx.Unlock()
 	return
 }

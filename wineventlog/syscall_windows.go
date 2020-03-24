@@ -183,6 +183,80 @@ const (
 	EvtSystemPropertyIdEND
 )
 
+type EvtLogPropertyId uint32
+
+// EVT_LOG_PROPERTY_ID enumeration
+// https://docs.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_log_property_id
+const (
+	EvtLogCreationTime EvtLogPropertyId = iota
+	EvtLogLastAccessTime
+	EvtLogLastWriteTime
+	EvtLogFileSize
+	EvtLogAttributes
+	EvtLogNumberOfLogRecords
+	EvtLogOldestRecordNumber
+	EvtLogFull
+)
+
+type EvtVariantType uint32
+
+// EVT_VARIANT_TYPE enumeration
+// https://docs.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_variant_type
+const (
+	EvtVarTypeNull EvtVariantType = iota
+	EvtVarTypeString
+	EvtVarTypeAnsiString
+	EvtVarTypeSByte
+	EvtVarTypeByte
+	EvtVarTypeInt16
+	EvtVarTypeUInt16
+	EvtVarTypeInt32
+	EvtVarTypeUInt32
+	EvtVarTypeInt64
+	EvtVarTypeUInt64
+	EvtVarTypeSingle
+	EvtVarTypeDouble
+	EvtVarTypeBoolean
+	EvtVarTypeBinary
+	EvtVarTypeGuid
+	EvtVarTypeSizeT
+	EvtVarTypeFileTime
+	EvtVarTypeSysTime
+	EvtVarTypeSid
+	EvtVarTypeHexInt32
+	EvtVarTypeHexInt64
+	EvtVarTypeEvtHandle
+	EvtVarTypeEvtXml
+)
+
+type EvtChannelConfigPropertyId uint32
+
+// EVT_CHANNEL_CONFIG_PROPERTY_ID enumeration
+// https://docs.microsoft.com/en-us/windows/win32/api/winevt/ne-winevt-evt_channel_config_property_id
+const (
+	EvtChannelConfigEnabled EvtChannelConfigPropertyId = iota
+	EvtChannelConfigIsolation
+	EvtChannelConfigType
+	EvtChannelConfigOwningPublisher
+	EvtChannelConfigClassicEventlog
+	EvtChannelConfigAccess
+	EvtChannelLoggingConfigRetention
+	EvtChannelLoggingConfigAutoBackup
+	EvtChannelLoggingConfigMaxSize
+	EvtChannelLoggingConfigLogFilePath
+	EvtChannelPublishingConfigLevel
+	EvtChannelPublishingConfigKeywords
+	EvtChannelPublishingConfigControlGuid
+	EvtChannelPublishingConfigBufferSize
+	EvtChannelPublishingConfigMinBuffers
+	EvtChannelPublishingConfigMaxBuffers
+	EvtChannelPublishingConfigLatency
+	EvtChannelPublishingConfigClockType
+	EvtChannelPublishingConfigSidType
+	EvtChannelPublisherList
+	EvtChannelPublishingConfigFileMax
+)
+
 var evtSystemMap = map[EvtSystemPropertyID]string{
 	EvtSystemProviderName:      "Provider Name",
 	EvtSystemProviderGuid:      "Provider GUID",

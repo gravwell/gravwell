@@ -57,27 +57,67 @@ var (
 	modwevtapi = windows.NewLazySystemDLL("wevtapi.dll")
 	modole32   = windows.NewLazySystemDLL("ole32.dll")
 
-	procEvtOpenLog               = modwevtapi.NewProc("EvtOpenLog")
-	procEvtQuery                 = modwevtapi.NewProc("EvtQuery")
-	procEvtSubscribe             = modwevtapi.NewProc("EvtSubscribe")
-	procEvtCreateBookmark        = modwevtapi.NewProc("EvtCreateBookmark")
-	procEvtUpdateBookmark        = modwevtapi.NewProc("EvtUpdateBookmark")
-	procEvtCreateRenderContext   = modwevtapi.NewProc("EvtCreateRenderContext")
-	procEvtRender                = modwevtapi.NewProc("EvtRender")
-	procEvtClose                 = modwevtapi.NewProc("EvtClose")
-	procEvtSeek                  = modwevtapi.NewProc("EvtSeek")
-	procEvtNext                  = modwevtapi.NewProc("EvtNext")
-	procEvtOpenChannelEnum       = modwevtapi.NewProc("EvtOpenChannelEnum")
-	procEvtNextChannelPath       = modwevtapi.NewProc("EvtNextChannelPath")
-	procEvtFormatMessage         = modwevtapi.NewProc("EvtFormatMessage")
-	procEvtOpenPublisherMetadata = modwevtapi.NewProc("EvtOpenPublisherMetadata")
-	procStringFromGUID2          = modole32.NewProc("StringFromGUID2")
+	procEvtOpenLog                  = modwevtapi.NewProc("EvtOpenLog")
+	procEvtQuery                    = modwevtapi.NewProc("EvtQuery")
+	procEvtSubscribe                = modwevtapi.NewProc("EvtSubscribe")
+	procEvtCreateBookmark           = modwevtapi.NewProc("EvtCreateBookmark")
+	procEvtUpdateBookmark           = modwevtapi.NewProc("EvtUpdateBookmark")
+	procEvtCreateRenderContext      = modwevtapi.NewProc("EvtCreateRenderContext")
+	procEvtRender                   = modwevtapi.NewProc("EvtRender")
+	procEvtClose                    = modwevtapi.NewProc("EvtClose")
+	procEvtSeek                     = modwevtapi.NewProc("EvtSeek")
+	procEvtNext                     = modwevtapi.NewProc("EvtNext")
+	procEvtOpenChannelEnum          = modwevtapi.NewProc("EvtOpenChannelEnum")
+	procEvtNextChannelPath          = modwevtapi.NewProc("EvtNextChannelPath")
+	procEvtFormatMessage            = modwevtapi.NewProc("EvtFormatMessage")
+	procEvtOpenPublisherMetadata    = modwevtapi.NewProc("EvtOpenPublisherMetadata")
+	procEvtGetLogInfo               = modwevtapi.NewProc("EvtGetLogInfo")
+	procEvtOpenChannelConfig        = modwevtapi.NewProc("EvtOpenChannelConfig")
+	procEvtGetChannelConfigProperty = modwevtapi.NewProc("EvtGetChannelConfigProperty")
+	procStringFromGUID2             = modole32.NewProc("StringFromGUID2")
 )
 
 func _EvtOpenLog(session EvtHandle, path *uint16, flags uint32) (handle EvtHandle, err error) {
 	r0, _, e1 := syscall.Syscall(procEvtOpenLog.Addr(), 3, uintptr(session), uintptr(unsafe.Pointer(path)), uintptr(flags))
 	handle = EvtHandle(r0)
 	if handle == 0 {
+		if e1 != 0 {
+			err = errnoErr(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func _EvtGetLogInfo(session EvtHandle, id EvtLogPropertyId, buffsize uint32, buff *byte, used *uint32) (err error) {
+	r0, _, e1 := syscall.Syscall6(procEvtGetLogInfo.Addr(), 5, uintptr(session), uintptr(id), uintptr(buffsize), uintptr(unsafe.Pointer(buff)), uintptr(unsafe.Pointer(used)), 0)
+	if r0 == 0 {
+		if e1 != 0 {
+			err = errnoErr(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func _EvtOpenChannelConfig(session EvtHandle, path *uint16) (handle EvtHandle, err error) {
+	r0, _, e1 := syscall.Syscall(procEvtOpenChannelConfig.Addr(), 3, uintptr(session), uintptr(unsafe.Pointer(path)), uintptr(0))
+	handle = EvtHandle(r0)
+	if handle == 0 {
+		if e1 != 0 {
+			err = errnoErr(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func _EvtGetChannelConfigProperty(handle EvtHandle, id EvtChannelConfigPropertyId, buffsize uint32, buff *byte, used *uint32) (err error) {
+	r0, _, e1 := syscall.Syscall6(procEvtGetChannelConfigProperty.Addr(), 6, uintptr(handle), uintptr(id), 0, uintptr(buffsize), uintptr(unsafe.Pointer(buff)), uintptr(unsafe.Pointer(used)))
+	if r0 == 0 {
 		if e1 != 0 {
 			err = errnoErr(e1)
 		} else {
