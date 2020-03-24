@@ -25,6 +25,7 @@ var (
 	srcName    = flag.String("source-name", "GravwellEventGenerator", "Source name for generated events")
 	eventCount = flag.Int("event-count", 100, "Number of events to generate")
 	streaming  = flag.Bool("stream", false, "Stream events in")
+	big        = flag.Bool("big", false, "Send very large entries")
 	count      uint64
 	totalBytes uint64
 	totalCount uint64

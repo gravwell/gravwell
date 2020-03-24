@@ -111,6 +111,7 @@ func main() {
 	if err := igst.Start(); err != nil {
 		log.Fatal(err)
 	}
+
 	if err := igst.WaitForHot(time.Second); err != nil {
 		log.Fatalf("ERROR: Timed out waiting for active connection due to %v\n", err)
 	}
