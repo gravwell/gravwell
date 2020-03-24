@@ -28,8 +28,8 @@ const (
 
 type datum struct {
 	//TS        time.Time `json:"time"`
-	TS string `json:"time"`
-	Account
+	TS        string   `json:"time"`
+	Account   Account  `json:"account"`
 	Class     int      `json:"class"`
 	Groups    []string `json:"groups,omitempty"`
 	UserAgent string   `json:"user_agent"`

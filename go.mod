@@ -8,7 +8,7 @@ require (
 	github.com/etcd-io/bbolt v1.3.3 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gravwell/ingest v3.2.2+incompatible // indirect
-	github.com/gravwell/ingest/v3 v3.2.3
+	github.com/gravwell/ingest/v3 v3.3.7
 	github.com/gravwell/ingesters v3.2.2+incompatible // indirect
 	github.com/gravwell/timegrinder v3.2.2+incompatible // indirect
 	github.com/h2non/filetype v1.0.10 // indirect
