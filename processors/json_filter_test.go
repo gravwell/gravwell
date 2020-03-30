@@ -45,7 +45,7 @@ func TestJsonFilterConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	var tt testTagger
-	p, err := tc.Preprocessor.GetProcessor(`j1`, &tt)
+	p, err := tc.Preprocessor.getProcessor(`j1`, &tt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +168,7 @@ func runFilterTest(cfg []byte, processorName string, entries []testEntry) error 
 		return err
 	}
 	var tt testTagger
-	p, err := tc.Preprocessor.GetProcessor(processorName, &tt)
+	p, err := tc.Preprocessor.getProcessor(processorName, &tt)
 	if err != nil {
 		return err
 	}

@@ -112,16 +112,16 @@ func (pc ProcessorConfig) CheckConfig(name string) (err error) {
 	return
 }
 
-func (pc ProcessorConfig) GetProcessor(name string, tgr Tagger) (p Processor, err error) {
+func (pc ProcessorConfig) getProcessor(name string, tgr Tagger) (p Processor, err error) {
 	if vc, ok := pc[name]; !ok || vc == nil {
 		err = ErrNotFound
 	} else {
-		p, err = NewProcessor(vc, tgr)
+		p, err = newProcessor(vc, tgr)
 	}
 	return
 }
 
-func NewProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error) {
+func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error) {
 	var pb preprocessorBase
 	if err = vc.MapTo(&pb); err != nil {
 		return
@@ -294,7 +294,7 @@ func (pc ProcessorConfig) ProcessorSet(t tagWriter, names []string) (pr *Process
 	pr = NewProcessorSet(t)
 	var p Processor
 	for _, n := range names {
-		if p, err = pc.GetProcessor(n, t); err != nil {
+		if p, err = pc.getProcessor(n, t); err != nil {
 			err = fmt.Errorf("%s %v", n, err)
 			return
 		}

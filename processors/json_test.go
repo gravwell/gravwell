@@ -70,7 +70,7 @@ func TestJsonConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	var tt testTagger
-	p, err := tc.Preprocessor.GetProcessor(`j1`, &tt)
+	p, err := tc.Preprocessor.getProcessor(`j1`, &tt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -81,7 +81,7 @@ func TestJsonConfig(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	} else if len(rset) != 1 {
-		t.Fatal("Invalid return count")
+		t.Fatalf("Invalid return count %v != 1", len(rset))
 	} else if string(rset[0].Data) != testOutputJson {
 		t.Fatal("bad result", string(rset[0].Data))
 	}
@@ -175,10 +175,10 @@ func TestJsonArraySplit(t *testing.T) {
 		t.Fatal(err)
 	}
 	var tt testTagger
-	if _, err := tc.Preprocessor.GetProcessor(`j1`, &tt); err == nil {
+	if _, err := tc.Preprocessor.getProcessor(`j1`, &tt); err == nil {
 		t.Fatal("Failed to pickup missing processor")
 	}
-	p, err := tc.Preprocessor.GetProcessor(`j2`, &tt)
+	p, err := tc.Preprocessor.getProcessor(`j2`, &tt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -238,10 +238,10 @@ func TestJsonMultiProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	var tt testTagger
-	if _, err := tc.Preprocessor.GetProcessor(`j1`, &tt); err == nil {
+	if _, err := tc.Preprocessor.getProcessor(`j1`, &tt); err == nil {
 		t.Fatal("Failed to pickup missing processor")
 	}
-	p, err := tc.Preprocessor.GetProcessor(`j2`, &tt)
+	p, err := tc.Preprocessor.getProcessor(`j2`, &tt)
 	if err != nil {
 		t.Fatal(err)
 	}

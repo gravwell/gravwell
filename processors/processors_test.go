@@ -68,7 +68,7 @@ func TestGzipLoadConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	var tt testTagger
-	p, err := tc.Preprocessor.GetProcessor(`gz1`, &tt)
+	p, err := tc.Preprocessor.getProcessor(`gz1`, &tt)
 	if err != nil {
 		t.Fatal(err)
 	}
