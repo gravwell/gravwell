@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/gravwell/ingest/v3/config"
 	"github.com/gravwell/ingest/v3/entry"
@@ -32,6 +33,7 @@ var (
 )
 
 type ProcessorSet struct {
+	sync.Mutex
 	wtr entWriter
 	set []Processor
 }
@@ -182,14 +184,20 @@ func NewProcessorSet(wtr entWriter) *ProcessorSet {
 }
 
 func (pr *ProcessorSet) Enabled() bool {
+	pr.Lock()
+	defer pr.Unlock()
 	return len(pr.set) > 0 && pr.wtr != nil
 }
 
 func (pr *ProcessorSet) AddProcessor(p Processor) {
+	pr.Lock()
+	defer pr.Unlock()
 	pr.set = append(pr.set, p)
 }
 
 func (pr *ProcessorSet) Process(ent *entry.Entry) error {
+	pr.Lock()
+	defer pr.Unlock()
 	if pr == nil || pr.wtr == nil {
 		return ErrNotReady
 	} else if ent == nil {
@@ -202,6 +210,8 @@ func (pr *ProcessorSet) Process(ent *entry.Entry) error {
 }
 
 func (pr *ProcessorSet) ProcessContext(ent *entry.Entry, ctx context.Context) error {
+	pr.Lock()
+	defer pr.Unlock()
 	if pr == nil || pr.wtr == nil {
 		return ErrNotReady
 	} else if ent == nil {
@@ -252,6 +262,8 @@ func (pr *ProcessorSet) processItemContext(ent *entry.Entry, i int, ctx context.
 // Close will close the underlying preprocessors within the set.  This function DOES NOT close the
 // ingest muxer handle.  It is ONLY for shutting down preprocessors
 func (pr *ProcessorSet) Close() (err error) {
+	pr.Lock()
+	defer pr.Unlock()
 	for _, v := range pr.set {
 		if lerr := v.Close(); lerr != nil {
 			err = addError(lerr, err)
