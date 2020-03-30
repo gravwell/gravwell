@@ -46,6 +46,7 @@ type route struct {
 }
 
 type RegexRouter struct {
+	nocloser
 	RegexRouteConfig
 	routes   map[string]entry.EntryTag
 	drops    map[string]struct{}

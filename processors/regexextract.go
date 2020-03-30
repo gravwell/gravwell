@@ -39,6 +39,7 @@ func RegexExtractLoadConfig(vc *config.VariableConfig) (c RegexExtractConfig, er
 }
 
 type RegexExtractor struct {
+	nocloser
 	RegexExtractConfig
 	tmp *formatter
 	rx  *regexp.Regexp

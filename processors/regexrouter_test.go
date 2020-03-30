@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
 )
 
@@ -37,7 +36,7 @@ func TestRegexRouteConfig(t *testing.T) {
 }
 
 func TestNewRegexRouter(t *testing.T) {
-	var tg tt
+	var tg testTagger
 	//build out the default tag
 	if _, err := tg.NegotiateTag(`default`); err != nil {
 		t.Fatal(err)
@@ -53,8 +52,8 @@ func TestNewRegexRouter(t *testing.T) {
 	if err = rr.Config(rc, &tg); err != nil {
 		t.Fatal(err)
 	}
-	if tg[`footag`] != 1 || tg[`bartag`] != 2 || tg[`A`] != 3 {
-		t.Fatalf("bad tag negotiations: %+v", tg)
+	if tg.mp[`footag`] != 1 || tg.mp[`bartag`] != 2 || tg.mp[`A`] != 3 {
+		t.Fatalf("bad tag negotiations: %+v", tg.mp)
 	}
 }
 
@@ -65,7 +64,7 @@ type testTagSet struct {
 }
 
 func TestRegexRouterProcess(t *testing.T) {
-	var tagger tt
+	var tagger testTagger
 	//build out the default tag
 	if _, err := tagger.NegotiateTag(`default`); err != nil {
 		t.Fatal(err)
@@ -92,7 +91,7 @@ func TestRegexRouterProcess(t *testing.T) {
 			t.Fatalf("invalid drop status on %+v: %d", v, len(set))
 		} else if !v.drop && len(set) != 1 {
 			t.Fatalf("invalid drop status: %d", len(set))
-		} else if tg, ok := tagger[v.tag]; !ok && !v.drop {
+		} else if tg, ok := tagger.mp[v.tag]; !ok && !v.drop {
 			t.Fatalf("tagger didn't create tag %v", v.tag)
 		} else if tg != ent.Tag && !v.drop {
 			t.Fatalf("Invalid tag results: %v != %v", tg, ent.Tag)
@@ -106,7 +105,7 @@ func TestRegexRouterProcess(t *testing.T) {
 		t.Fatal(err)
 	} else if len(set) != 1 {
 		t.Fatal("Failed to hit default on count")
-	} else if set[0].Tag != tagger[`default`] {
+	} else if set[0].Tag != tagger.mp[`default`] {
 		t.Fatal("Failed to hit default tag")
 	}
 
@@ -137,20 +136,4 @@ func makeTestEntry(df string) *entry.Entry {
 		TS:   testTime,
 		Data: []byte(fmt.Sprintf(`foo bar %s and some other things`, df)),
 	}
-}
-
-type tt map[string]entry.EntryTag
-
-func (tg *tt) NegotiateTag(nm string) (tag entry.EntryTag, err error) {
-	var ok bool
-	if *tg == nil {
-		*tg = make(map[string]entry.EntryTag)
-	}
-	if err = ingest.CheckTag(nm); err != nil {
-		return
-	} else if tag, ok = (*tg)[nm]; !ok {
-		tag = entry.EntryTag(len(*tg))
-		(*tg)[nm] = tag
-	}
-	return
 }

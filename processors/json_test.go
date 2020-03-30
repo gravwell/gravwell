@@ -269,4 +269,3 @@ func makeEntry(v []byte, tag entry.EntryTag) *entry.Entry {
 		Data: v,
 	}
 }
-

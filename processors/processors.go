@@ -42,6 +42,7 @@ type ProcessorConfig map[string]*config.VariableConfig
 // the decompressor is used for doing an transparent decompression of data
 type Processor interface {
 	Process(*entry.Entry) ([]*entry.Entry, error) //process an data item potentially setting a tag
+	Close() error                                 //give the processor a chance to tide up
 }
 
 func CheckProcessor(id string) error {
@@ -62,6 +63,7 @@ func CheckProcessor(id string) error {
 
 type Tagger interface {
 	NegotiateTag(name string) (entry.EntryTag, error)
+	LookupTag(entry.EntryTag) (string, bool)
 }
 
 type entWriter interface {
@@ -247,6 +249,26 @@ func (pr *ProcessorSet) processItemContext(ent *entry.Entry, i int, ctx context.
 	return nil
 }
 
+// Close will close the underlying preprocessors within the set.  This function DOES NOT close the
+// ingest muxer handle.  It is ONLY for shutting down preprocessors
+func (pr *ProcessorSet) Close() (err error) {
+	for _, v := range pr.set {
+		if lerr := v.Close(); lerr != nil {
+			err = addError(lerr, err)
+		}
+	}
+	return
+}
+
+func addError(nerr, err error) error {
+	if nerr == nil {
+		return err
+	} else if err == nil {
+		return nerr
+	}
+	return fmt.Errorf("%v : %v", nerr, err)
+}
+
 type tagWriter interface {
 	entWriter
 	Tagger
@@ -282,9 +304,15 @@ func (pc ProcessorConfig) Validate() (err error) {
 func (pc ProcessorConfig) CheckProcessors(set []string) (err error) {
 	for _, v := range set {
 		if _, ok := pc[v]; !ok {
-			err = fmt.Errorf("Preprocessor %s not defined", err)
+			err = fmt.Errorf("Preprocessor %v not defined", err)
 			break
 		}
 	}
 	return
+}
+
+type nocloser struct{}
+
+func (n nocloser) Close() error {
+	return nil
 }

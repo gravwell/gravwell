@@ -302,10 +302,24 @@ type testTagger struct {
 
 func (tt *testTagger) NegotiateTag(name string) (tg entry.EntryTag, err error) {
 	var ok bool
+	if tt.mp == nil {
+		tt.mp = map[string]entry.EntryTag{}
+	}
 	if tg, ok = tt.mp[name]; !ok {
 		tg = tt.i
 		tt.mp[name] = tg
 		tt.i++
+	}
+	return
+}
+
+func (tt *testTagger) LookupTag(tg entry.EntryTag) (name string, ok bool) {
+	for k, v := range tt.mp {
+		if v == tg {
+			name = k
+			ok = true
+			break
+		}
 	}
 	return
 }

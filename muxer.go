@@ -79,7 +79,7 @@ type IngestMuxer struct {
 	dests           []Target
 	errDest         []TargetError
 	tags            []string
-	tagMap          map[string]int
+	tagMap          map[string]entry.EntryTag
 	pubKey          string
 	privKey         string
 	verifyCert      bool
@@ -275,9 +275,9 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	}
 
 	//generate our tag map, the tag map is used only for quick tag lookup/translation by routines
-	tagMap := make(map[string]int, len(localTags))
+	tagMap := make(map[string]entry.EntryTag, len(localTags))
 	for i, v := range localTags {
-		tagMap[v] = i
+		tagMap[v] = entry.EntryTag(i)
 	}
 
 	if c.ChannelSize <= 0 {
@@ -479,24 +479,42 @@ func (im *IngestMuxer) Close() error {
 	return nil
 }
 
-func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) {
+// LookupTag will reverse a tag id into a name, this operation is more expensive than a straight lookup
+// Users that expect to translate a tag repeatedly should maintain their own tag map
+func (im *IngestMuxer) LookupTag(tg entry.EntryTag) (name string, ok bool) {
 	im.mtx.Lock()
-	defer im.mtx.Unlock()
+	for k, v := range im.tagMap {
+		if v == tg {
+			name = k
+			ok = true
+			break
+		}
+	}
+	im.mtx.Unlock()
+	return
+}
 
+// NegotiateTag will attempt to lookup a tag name in the negotiated set
+// The the tag name has not already been negotiated, the muxer will contact
+// each indexer and negotiate it.  This call can potentially block and fail
+func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) {
 	if err = CheckTag(name); err != nil {
 		return
 	}
 
+	im.mtx.Lock()
+	defer im.mtx.Unlock()
+
 	if tag, ok := im.tagMap[name]; ok {
 		// tag already exists, just return it
-		tg = entry.EntryTag(tag)
+		tg = tag
 		return
 	}
 
 	// update the tag list and map
 	im.tags = append(im.tags, name)
 	for i, v := range im.tags {
-		im.tagMap[v] = i
+		im.tagMap[v] = entry.EntryTag(i)
 	}
 	if im.cacheEnabled && im.cacheFileBacked {
 		// Now update the stored tags list
@@ -504,7 +522,7 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 			return
 		}
 	}
-	tg = entry.EntryTag(im.tagMap[name])
+	tg = im.tagMap[name]
 
 	for k, v := range im.igst {
 		if v != nil {
@@ -825,12 +843,9 @@ func (im *IngestMuxer) Size() (int, error) {
 // it is used to speed along tag mappings
 func (im *IngestMuxer) GetTag(tag string) (tg entry.EntryTag, err error) {
 	var ok bool
-	var ltt int
 	im.mtx.Lock()
-	if ltt, ok = im.tagMap[tag]; !ok {
+	if tg, ok = im.tagMap[tag]; !ok {
 		err = ErrTagNotFound
-	} else {
-		tg = entry.EntryTag(ltt)
 	}
 	im.mtx.Unlock()
 	return
@@ -1367,7 +1382,7 @@ func (im *IngestMuxer) newTagTrans(igst *IngestConnection) (tagTrans, error) {
 		return nil, ErrTagMapInvalid
 	}
 	for k, v := range im.tagMap {
-		if v > len(tt) {
+		if int(v) > len(tt) {
 			return nil, ErrTagMapInvalid
 		}
 		tg, ok := igst.GetTag(k)
