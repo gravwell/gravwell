@@ -163,13 +163,15 @@ func main() {
 	debugout("Successfully connected to ingesters\n")
 	wg := &sync.WaitGroup{}
 
+	var flshr flusher
+
 	//fire off our simple listeners
-	if err := startSimpleListeners(cfg, igst, wg); err != nil {
+	if err := startSimpleListeners(cfg, igst, wg, &flshr); err != nil {
 		lg.FatalCode(-1, "Failed to start simple listeners: %v\n", err)
 		return
 	}
 	//fire off our json listeners
-	if err := startJSONListeners(cfg, igst, wg); err != nil {
+	if err := startJSONListeners(cfg, igst, wg, &flshr); err != nil {
 		lg.FatalCode(-1, "Failed to start json listeners: %v\n", err)
 		return
 	}
@@ -197,6 +199,9 @@ func main() {
 	case <-time.After(1 * time.Second):
 		lg.Error("Failed to wait for all connections to close.  %d active\n", connCount())
 	}
+	if err := flshr.Close(); err != nil {
+		lg.Error("Failed to close preprocessors: %v", err)
+	}
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("Failed to sync: %v\n", err)
 	}
@@ -210,4 +215,38 @@ func debugout(format string, args ...interface{}) {
 		return
 	}
 	fmt.Printf(format, args...)
+}
+
+type flusher struct {
+	sync.Mutex
+	set []io.Closer
+}
+
+func (f *flusher) Add(c io.Closer) {
+	if c == nil {
+		return
+	}
+	f.Lock()
+	f.set = append(f.set, c)
+	f.Unlock()
+}
+
+func (f *flusher) Close() (err error) {
+	f.Lock()
+	for _, v := range f.set {
+		if lerr := v.Close(); lerr != nil {
+			err = addError(lerr, err)
+		}
+	}
+	f.Unlock()
+	return
+}
+
+func addError(nerr, err error) error {
+	if nerr == nil {
+		return err
+	} else if err == nil {
+		return nerr
+	}
+	return fmt.Errorf("%v : %v", err, nerr)
 }

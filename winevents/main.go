@@ -9,13 +9,13 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"strings"
 	"time"
-	"errors"
 
 	"golang.org/x/sys/windows/svc"
 	"golang.org/x/sys/windows/svc/debug"
@@ -151,7 +151,7 @@ func runService(s *mainService) {
 
 func serviceWriteTimeout(ch chan svc.ChangeRequest, r svc.ChangeRequest, to time.Duration) (err error) {
 	select {
-	case ch <-r:
+	case ch <- r:
 	case <-time.After(to):
 		err = errors.New("Timeout")
 	}

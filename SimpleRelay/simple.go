@@ -45,7 +45,7 @@ type handlerConfig struct {
 	proc             *processors.ProcessorSet
 }
 
-func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup) error {
+func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher) error {
 	//short circuit out on empty
 	if len(cfg.Listener) == 0 {
 		return nil
@@ -94,6 +94,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 		if err != nil {
 			lg.Fatal("Preprocessor construction error: %v", err)
 		}
+		f.Add(hcfg.proc)
 		if tp.TCP() {
 			//get the socket
 			addr, err := net.ResolveTCPAddr(tp.String(), str)

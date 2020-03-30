@@ -42,6 +42,7 @@ type mainService struct {
 	tg          *timegrinder.TimeGrinder
 	wtchr       *filewatch.WatchManager
 	pp          processors.ProcessorConfig
+	procs       []*processors.ProcessorSet
 	srcOverride string
 	cachePath   string
 	logLevel    string
@@ -101,6 +102,14 @@ func (m *mainService) shutdown() error {
 		return err
 	}
 	if m.igst != nil {
+		for _, v := range m.procs {
+			if v != nil {
+				if err := v.Close(); err != nil {
+					err = fmt.Errorf("Failed to close preprocessor: %v", err)
+					errorout("%s", err)
+				}
+			}
+		}
 		if err := m.igst.Sync(time.Second); err != nil {
 			rerr = fmt.Errorf("Failed to sync the ingest muxer: %v", err)
 			errorout("%s", rerr)
@@ -209,6 +218,7 @@ func (m *mainService) init() error {
 			errorout("Preprocessor construction error: %v", err)
 			return err
 		}
+		m.procs = append(m.procs, pproc)
 		//get the tag for this listener
 		tag, err := igst.GetTag(val.Tag_Name)
 		if err != nil {

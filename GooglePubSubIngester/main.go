@@ -216,6 +216,9 @@ func main() {
 					}
 					count++
 				}
+				if err := procset.Close(); err != nil {
+					lg.Error("Failed to close processor set: %v", err)
+				}
 			}(eChan)
 			tcfg := timegrinder.Config{
 				EnableLeftMostSeed: true,

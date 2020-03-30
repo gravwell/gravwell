@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/gravwell/ingesters/v3/version"
 )
@@ -164,6 +165,8 @@ func main() {
 	debugout("Successfully connected to ingesters\n")
 	clsrs := newClosers()
 
+	var procs []*processors.ProcessorSet
+
 	//fire up our consumers
 	for k, v := range cfg.Consumers {
 		kcfg := kafkaConsumerConfig{
@@ -174,6 +177,7 @@ func main() {
 		if kcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.preprocessor); err != nil {
 			lg.Fatal("Preprocessor construction error: %v", err)
 		}
+		procs = append(procs, kcfg.pproc)
 		kc, err := newKafkaConsumer(kcfg)
 		if err != nil {
 			lg.Error("Failed to build kafka consumer %s: %v\n", k, err)
@@ -198,6 +202,15 @@ func main() {
 	//close down our consumers
 	if err := clsrs.Close(); err != nil {
 		lg.Error("Failed to close all consumers: %v\n", err)
+	}
+
+	//close down all the preprocessors
+	for _, v := range procs {
+		if v != nil {
+			if err := v.Close(); err != nil {
+				lg.Error("Failed to close processors: %v\n", err)
+			}
+		}
 	}
 
 	//sync our data and close the ingester

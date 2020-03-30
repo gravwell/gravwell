@@ -178,6 +178,9 @@ func main() {
 		if cc.srcOverride, err = v.srcOverride(); err != nil {
 			lg.Fatal("%s Source-Override %s error: %v", k, v.Source_Override, err)
 		}
+		if cc.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
+			lg.Fatal("%s Preprocessors are invalid: %v", k, err)
+		}
 
 		cc.src = src
 

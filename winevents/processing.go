@@ -20,6 +20,7 @@ import (
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
 	"github.com/gravwell/winevent/v3"
@@ -30,8 +31,9 @@ const (
 )
 
 type eventSrc struct {
-	h   *winevent.EventStreamHandle
-	tag entry.EntryTag
+	h    *winevent.EventStreamHandle
+	proc *processors.ProcessorSet
+	tag  entry.EntryTag
 }
 
 type mainService struct {
@@ -53,6 +55,7 @@ type mainService struct {
 	evtSrcs []eventSrc
 	igst    *ingest.IngestMuxer
 	tg      *timegrinder.TimeGrinder
+	pp      processors.ProcessorConfig
 }
 
 func NewService(cfg *winevent.CfgType) (*mainService, error) {
@@ -88,6 +91,7 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 		cachePath:    cfg.LocalFileCachePath(),
 		igstLogLevel: cfg.LogLevel(),
 		uuid:         id.String(),
+		pp:           cfg.Preprocessor,
 	}, nil
 }
 
@@ -293,7 +297,10 @@ func (m *mainService) init() error {
 		if err != nil {
 			return fmt.Errorf("Failed to get bookmark for %s: %v", c.Name, err)
 		}
-
+		pproc, err := m.pp.ProcessorSet(igst, c.Preprocessor)
+		if err != nil {
+			return fmt.Errorf("Preprocessor construction error: %v", err)
+		}
 		evt, err := winevent.NewStream(c, last)
 		if err != nil {
 			return fmt.Errorf("Failed to create new eventStream(%s) on Channel %s: %v", c.Name, c.Channel, err)
@@ -313,7 +320,7 @@ func (m *mainService) init() error {
 			msg += fmt.Sprintf(" Recording only the following EventIDs: %v.", c.EventIDs)
 		}
 		igst.Info(msg)
-		evtSrcs = append(evtSrcs, eventSrc{h: evt, tag: tag})
+		evtSrcs = append(evtSrcs, eventSrc{h: evt, proc: pproc, tag: tag})
 	}
 	if len(evtSrcs) == 0 {
 		return fmt.Errorf("Failed to load event handles: %v", err)
@@ -400,8 +407,8 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (hit, full
 			Tag:  eh.tag,
 			Data: e.Buff,
 		}
-		if err = m.igst.WriteEntry(ent); err != nil {
-			warnout("Failed to extract TS: %v\n", err)
+		if err = eh.proc.Process(ent); err != nil {
+			warnout("Failed to Process event: %v\n", err)
 			return
 		}
 		if err = m.bmk.Update(eh.h.Name(), e.ID); err != nil {

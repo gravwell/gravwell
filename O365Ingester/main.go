@@ -303,6 +303,9 @@ func main() {
 				}
 				time.Sleep(5 * time.Second)
 			}
+			if err := procset.Close(); err != nil {
+				lg.Error("Failed to close processor set: %v", err)
+			}
 
 		}(k, *v)
 	}

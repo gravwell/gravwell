@@ -191,9 +191,6 @@ func main() {
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
 	}
-	// defer is LIFO
-	defer igst.Close()
-	defer igst.Sync(time.Second)
 	if cfg.TLSEnabled() {
 		c := cfg.TLS_Certificate_File
 		k := cfg.TLS_Key_File
@@ -204,6 +201,19 @@ func main() {
 		if err := srv.ListenAndServe(); err != nil {
 			lg.Error("Failed to serve HTTP server: %v", err)
 		}
+	}
+	for k, v := range hnd.mp {
+		if v.pproc != nil {
+			if err := v.pproc.Close(); err != nil {
+				lg.Error("Failed to close preprocessors for handler %v: %v", k, err)
+			}
+		}
+	}
+	if err := igst.Sync(time.Second); err != nil {
+		lg.Error("Failed to sync muxer on close: %v", err)
+	}
+	if err := igst.Close(); err != nil {
+		lg.Error("Failed to close muxer: %v", err)
 	}
 }
 

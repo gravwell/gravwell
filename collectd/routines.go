@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingest/v3/processors"
 
 	"collectd.org/api"
 	"collectd.org/network"
@@ -43,14 +44,16 @@ type collConfig struct {
 	overrides   map[string]entry.EntryTag
 	srcOverride net.IP
 	src         net.IP // used if srcOverride is not set
+	proc        *processors.ProcessorSet
 }
 
 func (bc collConfig) Validate() error {
 	if bc.wg == nil {
 		return errors.New("nil wait group")
-	}
-	if bc.igst == nil {
+	} else if bc.igst == nil {
 		return errors.New("Nil ingest muxer")
+	} else if bc.proc == nil {
+		return errors.New("Nil processor set")
 	}
 	return nil
 }
@@ -124,9 +127,14 @@ func (ci *collectdInstance) Close() (err error) {
 	ci.Unlock()
 
 	if err != nil {
+		ci.proc.Close()
 		return
 	} else if ch != nil {
-		err = <-ch
+		if err = <-ch; err == nil {
+			err = ci.proc.Close()
+		} else {
+			ci.proc.Close()
+		}
 	}
 	return
 }
@@ -157,18 +165,17 @@ func (ci *collectdInstance) Write(ctx context.Context, vl *api.ValueList) error 
 		}
 		src = ci.src // worst case we send 0.0.0.0
 	}
-	ents := make([]*entry.Entry, len(dts))
 	ts := entry.FromStandard(vl.Time)
-	for i := range ents {
-		ents[i] = &entry.Entry{
+	for i := range dts {
+		ent := &entry.Entry{
 			TS:   ts,
 			Tag:  tag,
 			SRC:  src,
 			Data: dts[i],
 		}
-	}
-	if err := ci.igst.WriteBatch(ents); err != nil {
-		return err
+		if err := ci.proc.Process(ent); err != nil {
+			return err
+		}
 	}
 	return nil
 }

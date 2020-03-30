@@ -12,16 +12,15 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"sort"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/config"
+	"github.com/gravwell/ingest/v3/processors"
 
 	"collectd.org/network"
-	"gopkg.in/gcfg.v1"
 )
 
 const (
@@ -53,57 +52,39 @@ type collector struct {
 	Password            string
 	Tag_Plugin_Override []string
 	Encoder             string
+	Preprocessor        []string
 }
 
 type cfgReadType struct {
-	Global    config.IngestConfig
-	Collector map[string]*collector
+	Global       config.IngestConfig
+	Collector    map[string]*collector
+	Preprocessor processors.ProcessorConfig
 }
 
 type cfgType struct {
 	config.IngestConfig
-	Collector map[string]*collector
+	Collector    map[string]*collector
+	Preprocessor processors.ProcessorConfig
 }
 
 func GetConfig(path string) (*cfgType, error) {
-	var content []byte
-	fin, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fi, err := fin.Stat()
-	if err != nil {
-		fin.Close()
-		return nil, err
-	}
-	//This is just a sanity check
-	if fi.Size() > MAX_CONFIG_SIZE {
-		fin.Close()
-		return nil, errors.New("Config File Far too large")
-	}
-	content = make([]byte, fi.Size())
-	n, err := fin.Read(content)
-	fin.Close()
-	if int64(n) != fi.Size() {
-		return nil, errors.New("Failed to read config file")
-	}
-	//read into the intermediary type to maintain backwards compatibility with the old system
 	var cr cfgReadType
-	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
+	if err := config.LoadConfigFile(&cr, path); err != nil {
 		return nil, err
 	}
+
 	c := &cfgType{
 		IngestConfig: cr.Global,
 		Collector:    cr.Collector,
+		Preprocessor: cr.Preprocessor,
 	}
-
 	if err := verifyConfig(c); err != nil {
 		return nil, err
 	}
 	// Verify and set UUID
 	if _, ok := c.IngesterUUID(); !ok {
 		id := uuid.New()
-		if err = c.SetIngesterUUID(id, path); err != nil {
+		if err := c.SetIngesterUUID(id, path); err != nil {
 			return nil, err
 		}
 		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
@@ -120,6 +101,9 @@ func verifyConfig(c *cfgType) error {
 	}
 	if len(c.Collector) == 0 {
 		return errors.New("No collectors specified")
+	}
+	if err := c.Preprocessor.Validate(); err != nil {
+		return err
 	}
 	bindMp := make(map[string]string, 1)
 	for k, v := range c.Collector {
@@ -154,6 +138,9 @@ func verifyConfig(c *cfgType) error {
 		}
 		if _, err := TranslateEncoder(v.Encoder); err != nil {
 			return err
+		}
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("Collector %s preprocessor invalid: %v", k, err)
 		}
 	}
 	return nil

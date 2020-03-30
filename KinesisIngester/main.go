@@ -317,6 +317,9 @@ func main() {
 						stateMan.UpdateSequenceNum(stream.Stream_Name, *shard.ShardId, lastSeqNum)
 					}
 				}
+				if err = procset.Close(); err != nil {
+					lg.Error("Failed to close processor set: %v", err)
+				}
 			}(*stream, *shard, tagid, i)
 		}
 	}

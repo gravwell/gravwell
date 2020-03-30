@@ -40,7 +40,7 @@ type jsonHandlerConfig struct {
 	proc             *processors.ProcessorSet
 }
 
-func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup) error {
+func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher) error {
 	var err error
 	//short circuit out on empty
 	if len(cfg.JSONListener) == 0 {
@@ -56,8 +56,10 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 			timezoneOverride: v.Timezone_Override,
 		}
 		if jhc.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
-			lg.Fatal("Preprocessor failure: %v", err)
+			lg.Error("Preprocessor failure: %v", err)
+			return err
 		}
+		f.Add(jhc.proc)
 		if jhc.flds, err = v.GetJsonFields(); err != nil {
 			return err
 		}

@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/filewatch/v3"
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/gravwell/ingesters/v3/version"
 )
@@ -161,12 +162,15 @@ func main() {
 	wtcher.SetLogger(igst)
 	wtcher.SetMaxFilesWatched(cfg.Max_Files_Watched)
 
+	var procs []*processors.ProcessorSet
+
 	//build a list of base directories and globs
 	for k, val := range cfg.Follower {
 		pproc, err := cfg.Preprocessor.ProcessorSet(igst, val.Preprocessor)
 		if err != nil {
 			lg.FatalCode(0, "Preprocessor construction error: %v", err)
 		}
+		procs = append(procs, pproc)
 		//get the tag for this listener
 		tag, err := igst.GetTag(val.Tag_Name)
 		if err != nil {
@@ -241,6 +245,15 @@ func main() {
 		lg.Error("Failed to close file follower: %v\n", err)
 	}
 	debugout("Done\n")
+
+	//close down all the preprocessors
+	for _, v := range procs {
+		if v != nil {
+			if err := v.Close(); err != nil {
+				lg.Error("Failed to close processors: %v\n", err)
+			}
+		}
+	}
 
 	//wait for our ingest relay to exit
 	if err := igst.Sync(time.Second); err != nil {
