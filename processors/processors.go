@@ -6,6 +6,10 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package processors implements preprocessors for ingesters. The intended
+// usage is to create a ProcessorSet and call ProcessorSet.Process(). Calls to
+// ProcessorSet.Process() are thread-safe while Process() calls on specific
+// processors is not.
 package processors
 
 import (
