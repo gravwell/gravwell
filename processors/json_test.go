@@ -10,7 +10,6 @@ package processors
 
 import (
 	"net"
-	"sync"
 	"testing"
 
 	"github.com/gravwell/ingest/v3/config"
@@ -22,7 +21,7 @@ var (
 
 	testInputJson   = []byte(`{"foo": 99, "bar": "hello", "foobar": {"baz": 4.12}}`)
 	testOutputJson  = `{"foo":99,"bar":"hello","baz":4.12}`
-	testExtractions = `foo bar foobar.baz`
+	testExtractions = `foo,bar,foobar.baz`
 
 	testArrayInputJson  = []byte(`{"foo":{"bar":["a", "b", 1.4, {"stuff":"things"}]}}`)
 	testArrayExtraction = `foo.bar`
@@ -201,63 +200,6 @@ func TestJsonArraySplit(t *testing.T) {
 				string(rset[i].Data), testJSONArrayValues[i])
 		}
 	}
-}
-
-func TestJsonMultiProcess(t *testing.T) {
-	b := []byte(`
-	[global]
-	foo = "bar"
-	bar = 1337
-	baz = 1.337
-	foo-bar-baz="foo bar baz"
-
-	[item "A"]
-	name = "test A"
-	value = 0xA
-
-	[preprocessor "j2"]
-		type = jsonextract
-		Passthrough-Misses=false
-		Extractions="` + testArrayExtraction + `"
-		Force-JSON-Object=true
-	`)
-	tc := struct {
-		Global struct {
-			Foo         string
-			Bar         uint16
-			Baz         float32
-			Foo_Bar_Baz string
-		}
-		Item map[string]*struct {
-			Name  string
-			Value int
-		}
-		Preprocessor ProcessorConfig
-	}{}
-	if err := config.LoadConfigBytes(&tc, b); err != nil {
-		t.Fatal(err)
-	}
-	var tt testTagger
-	if _, err := tc.Preprocessor.getProcessor(`j1`, &tt); err == nil {
-		t.Fatal("Failed to pickup missing processor")
-	}
-	p, err := tc.Preprocessor.getProcessor(`j2`, &tt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if p == nil {
-		t.Fatal("no processor back")
-	}
-
-	var wg sync.WaitGroup
-	for i := 0; i < 1000; i++ {
-		wg.Add(1)
-		go func() {
-			p.Process(makeEntry(testArrayInputJson, 123))
-			wg.Done()
-		}()
-	}
-	wg.Wait()
 }
 
 func TestBzipJsonExtractArraySplit(t *testing.T) {

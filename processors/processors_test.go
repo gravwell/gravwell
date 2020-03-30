@@ -15,6 +15,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sync"
 	"testing"
 
 	"github.com/gravwell/ingest/v3/config"
@@ -358,4 +359,75 @@ func entryEqual(a, b *entry.Entry) bool {
 		return false
 	}
 	return bytes.Equal(a.Data, b.Data)
+}
+
+func TestParallel(t *testing.T) {
+	var err error
+
+	var tw testWriter
+
+	ps := NewProcessorSet(&tw)
+
+	ent := entry.Entry{
+		TS:  entry.Now(),
+		SRC: net.ParseIP("192.168.1.1"),
+		Tag: 0,
+	}
+
+	b := []byte(`
+	[global]
+	foo = "bar"
+	bar = 1337
+	baz = 1.337
+	foo-bar-baz="foo bar baz"
+
+	[item "A"]
+	name = "test A"
+	value = 0xA
+
+	[preprocessor "j2"]
+		type = jsonextract
+		Passthrough-Misses=false
+		Extractions="` + testArrayExtraction + `"
+		Force-JSON-Object=true
+	`)
+
+	tc := struct {
+		Global struct {
+			Foo         string
+			Bar         uint16
+			Baz         float32
+			Foo_Bar_Baz string
+		}
+		Item map[string]*struct {
+			Name  string
+			Value int
+		}
+		Preprocessor ProcessorConfig
+	}{}
+
+	if err := config.LoadConfigBytes(&tc, b); err != nil {
+		t.Fatal(err)
+	}
+
+	var tt testTagger
+
+	p, err := tc.Preprocessor.getProcessor(`j2`, &tt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ps.AddProcessor(p)
+
+	var wg sync.WaitGroup
+	for i := 0; i < 1000; i++ {
+		wg.Add(1)
+		go func() {
+			if err := ps.Process(&ent); err != nil {
+				t.Fatal(err)
+			}
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
