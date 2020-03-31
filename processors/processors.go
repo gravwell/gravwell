@@ -61,6 +61,7 @@ func CheckProcessor(id string) error {
 	case RegexTimestampProcessor:
 	case RegexExtractProcessor:
 	case RegexRouterProcessor:
+	case ForwarderProcessor:
 	default:
 		return ErrUnknownProcessor
 	}
@@ -101,6 +102,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = RegexExtractLoadConfig(vc)
 	case RegexRouterProcessor:
 		cfg, err = RegexRouteLoadConfig(vc)
+	case ForwarderProcessor:
+		cfg, err = ForwarderLoadConfig(vc)
 	default:
 		err = ErrUnknownProcessor
 	}
@@ -174,7 +177,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewRegexRouter(cfg, tgr)
-
+	case ForwarderProcessor:
+		var cfg ForwarderConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewForwarder(cfg, tgr)
 	default:
 		err = ErrUnknownProcessor
 	}
@@ -263,14 +271,15 @@ func (pr *ProcessorSet) processItemContext(ent *entry.Entry, i int, ctx context.
 	return nil
 }
 
-// Close will close the underlying preprocessors within the set.  This function DOES NOT close the
-// ingest muxer handle.  It is ONLY for shutting down preprocessors
+// Close will close the underlying preprocessors within the set.
+// This function DOES NOT close the ingest muxer handle.
+// It is ONLY for shutting down preprocessors
 func (pr *ProcessorSet) Close() (err error) {
-	pr.Lock()
-	defer pr.Unlock()
 	for _, v := range pr.set {
-		if lerr := v.Close(); lerr != nil {
-			err = addError(lerr, err)
+		if v != nil {
+			if lerr := v.Close(); lerr != nil {
+				err = addError(lerr, err)
+			}
 		}
 	}
 	return
@@ -331,4 +340,61 @@ type nocloser struct{}
 
 func (n nocloser) Close() error {
 	return nil
+}
+
+const (
+	defaultSetAllocSize   int = 1024
+	defaultSetReallocSize int = 16
+)
+
+var (
+	sa, _ = NewSetAllocator(defaultSetAllocSize, defaultSetReallocSize)
+)
+
+type SetAllocator struct {
+	sync.Mutex
+	set         []*entry.Entry
+	allocSize   int
+	reallocSize int
+}
+
+func NewSetAllocator(allocSize, reallocSize int) (sa *SetAllocator, err error) {
+	if allocSize <= 0 {
+		allocSize = defaultSetAllocSize
+	}
+	if reallocSize <= 0 {
+		reallocSize = defaultSetReallocSize
+	}
+	if reallocSize >= allocSize {
+		err = errors.New("invalid alloc to realloc size")
+		return
+	}
+	sa = &SetAllocator{
+		set:         make([]*entry.Entry, allocSize),
+		allocSize:   allocSize,
+		reallocSize: reallocSize,
+	}
+	return
+}
+
+func (sa *SetAllocator) Get(cnt int) (r []*entry.Entry) {
+	sa.Lock()
+	if cnt > sa.reallocSize {
+		r = make([]*entry.Entry, cnt)
+	} else {
+		if len(sa.set) < cnt {
+			//reallocate
+			sa.set = make([]*entry.Entry, sa.allocSize)
+		}
+		r = sa.set[0:cnt]
+		if sa.set = sa.set[cnt:]; len(sa.set) == 0 {
+			sa.set = nil //help out the GC
+		}
+	}
+	sa.Unlock()
+	return
+}
+
+func PopSet(cnt int) []*entry.Entry {
+	return sa.Get(cnt)
 }
