@@ -310,9 +310,7 @@ func (nf *Forwarder) sendEntry(ent *entry.Entry, conn net.Conn) (nc net.Conn, er
 		}
 		//got a new connection, reset the encoder and roll on
 		nf.enc.Reset(nc)
-		nf.Lock()
 		nf.conn = nc
-		nf.Unlock()
 	}
 	return
 }
