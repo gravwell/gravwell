@@ -148,29 +148,28 @@ func (nf *Forwarder) Process(ent *entry.Entry) (r []*entry.Entry, err error) {
 	if !nf.closed {
 		if !nf.filter(ent) {
 			if nf.Non_Blocking {
-				r, err = nf.nonblockingProcess(ent)
+				nf.nonblockingProcess(ent)
 			} else {
-				r, err = nf.blockingProcess(ent)
+				nf.blockingProcess(ent)
 			}
 		}
 	}
 	nf.Unlock()
+	r = []*entry.Entry{ent}
 	return
 }
 
-func (nf *Forwarder) blockingProcess(ent *entry.Entry) (r []*entry.Entry, err error) {
+func (nf *Forwarder) blockingProcess(ent *entry.Entry) {
 	select {
 	case <-nf.abrt: //aborted on close
 	case nf.ch <- ent:
-		r = []*entry.Entry{ent}
 	}
 	return
 }
 
-func (nf *Forwarder) nonblockingProcess(ent *entry.Entry) (r []*entry.Entry, err error) {
+func (nf *Forwarder) nonblockingProcess(ent *entry.Entry) {
 	select {
 	case nf.ch <- ent:
-		r = []*entry.Entry{ent}
 	default: //if we can't write, sorry, ROLL ON!
 	}
 	return
