@@ -18,11 +18,13 @@ import (
 // WaitForQuit waits until it receives one of the following signals:
 // SIGHUP, SIGINT, SIGQUIT, SIGTERM
 // It returns the received signal.
-func WaitForQuit() os.Signal {
+func WaitForQuit() (r os.Signal) {
 	quitSig := make(chan os.Signal, 1)
 	defer close(quitSig)
 	signal.Notify(quitSig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
-	return <-quitSig
+	r = <-quitSig
+	signal.Stop(quitSig)
+	return
 }
 
 // GetQuitChannel registers and returns a channel that will be notified upon receipt of the following signals:
