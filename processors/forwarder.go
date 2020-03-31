@@ -16,11 +16,13 @@ import (
 	"io"
 	"net"
 	"os"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/config"
 	"github.com/gravwell/ingest/v3/entry"
 )
@@ -58,6 +60,9 @@ type ForwarderConfig struct {
 	Protocol                 string
 	Delimiter                string
 	Format                   string
+	Tag                      []string
+	Regex                    []string
+	Source                   []string
 	Timeout                  uint //timeout in seconds for a write
 	Buffer                   uint //number of entries in flight (basically channel buffer size)
 	Non_Blocking             bool
@@ -75,16 +80,19 @@ func ForwarderLoadConfig(vc *config.VariableConfig) (c ForwarderConfig, err erro
 type Forwarder struct {
 	ForwarderConfig
 	sync.Mutex
-	tgr    Tagger
-	wg     sync.WaitGroup
-	ctx    context.Context
-	cf     context.CancelFunc
-	ch     chan *entry.Entry
-	abrt   chan struct{} //used to abort blocked writes
-	conn   net.Conn
-	enc    EntryEncoder
-	err    error
-	closed bool
+	tgr          Tagger
+	wg           sync.WaitGroup
+	ctx          context.Context
+	cf           context.CancelFunc
+	ch           chan *entry.Entry
+	abrt         chan struct{} //used to abort blocked writes
+	conn         net.Conn
+	enc          EntryEncoder
+	err          error
+	closed       bool
+	tagFilters   map[entry.EntryTag]struct{}
+	regexFilters []*regexp.Regexp
+	srcFilters   []net.IPNet
 }
 
 func NewForwarder(cfg ForwarderConfig, tgr Tagger) (nf *Forwarder, err error) {
@@ -100,8 +108,30 @@ func NewForwarder(cfg ForwarderConfig, tgr Tagger) (nf *Forwarder, err error) {
 		ForwarderConfig: cfg,
 		ch:              make(chan *entry.Entry, cfg.Buffer),
 		abrt:            make(chan struct{}),
+		tagFilters:      map[entry.EntryTag]struct{}{},
 		tgr:             tgr,
 	}
+
+	//build up our tag filter
+	for _, tn := range cfg.Tag {
+		var tg entry.EntryTag
+		if tg, err = tgr.NegotiateTag(tn); err != nil {
+			err = fmt.Errorf("Failed to negotiate tag %s: %v", tn, err)
+			return
+		}
+		nf.tagFilters[tg] = empty
+	}
+	//build up the source filter
+	if nf.srcFilters, err = parseIPNets(cfg.Source); err != nil {
+		err = fmt.Errorf("Invalid source filters: %v", err)
+		return
+	}
+	//build up the regex filters
+	if nf.regexFilters, err = parseRegex(cfg.Regex); err != nil {
+		err = fmt.Errorf("Invalid regex filters: %v", err)
+		return
+	}
+
 	nf.ctx, nf.cf = context.WithCancel(context.Background())
 	if !nf.Non_Blocking {
 		if conn, err = nf.newConnection(false); err != nil {
@@ -116,10 +146,12 @@ func NewForwarder(cfg ForwarderConfig, tgr Tagger) (nf *Forwarder, err error) {
 func (nf *Forwarder) Process(ent *entry.Entry) (r []*entry.Entry, err error) {
 	nf.Lock()
 	if !nf.closed {
-		if nf.Non_Blocking {
-			r, err = nf.nonblockingProcess(ent)
-		} else {
-			r, err = nf.blockingProcess(ent)
+		if !nf.filter(ent) {
+			if nf.Non_Blocking {
+				r, err = nf.nonblockingProcess(ent)
+			} else {
+				r, err = nf.blockingProcess(ent)
+			}
 		}
 	}
 	nf.Unlock()
@@ -144,7 +176,57 @@ func (nf *Forwarder) nonblockingProcess(ent *entry.Entry) (r []*entry.Entry, err
 	return
 }
 
+// filter applies the optional tag and regex filters against the data
+// returning true means drop the entry
+func (nf *Forwarder) filter(ent *entry.Entry) (drop bool) {
+	if drop = nf.filterByTag(ent.Tag); drop {
+		return
+	} else if drop = nf.filterByRegex(ent.Data); drop {
+		return
+	} else if drop = nf.filterBySrc(ent.SRC); drop {
+		return
+	}
+	return
+}
+
+func (nf *Forwarder) filterByTag(tag entry.EntryTag) (drop bool) {
+	if len(nf.tagFilters) > 0 {
+		if _, ok := nf.tagFilters[tag]; !ok {
+			drop = true //NOT in our filter set
+		}
+	}
+	return false
+}
+
+func (nf *Forwarder) filterBySrc(ip net.IP) (drop bool) {
+	if len(nf.srcFilters) > 0 {
+		for _, ipn := range nf.srcFilters {
+			if ipn.Contains(ip) {
+				return // all good
+			}
+		}
+		drop = true //nothing hit and we had filters
+	}
+	return
+}
+
+func (nf *Forwarder) filterByRegex(dt []byte) (drop bool) {
+	if len(nf.regexFilters) > 0 {
+		for _, rx := range nf.regexFilters {
+			if rx.Match(dt) {
+				return //all good
+			}
+		}
+		drop = true //nothing hit and we had filters
+	}
+	return
+}
+
 func (nf *Forwarder) Close() (err error) {
+	if nf.closed {
+		err = ErrClosed
+		return
+	}
 	close(nf.abrt)
 	nf.Lock()
 	nf.closed = true
@@ -301,6 +383,24 @@ func (nfc *ForwarderConfig) Validate() (err error) {
 		err = ErrUnknownProtocol
 		return
 	}
+
+	//check the tags
+	for _, tagname := range nfc.Tag {
+		if err = ingest.CheckTag(tagname); err != nil {
+			err = fmt.Errorf("Invalid tag name: %v", err)
+			return
+		}
+	}
+
+	//check the source specifications
+	if _, err = parseIPNets(nfc.Source); err != nil {
+		return
+	}
+
+	//check the regular expressions
+	if _, err = parseRegex(nfc.Regex); err != nil {
+		return
+	}
 	return
 }
 
@@ -367,6 +467,46 @@ func (nfc *Forwarder) sleep(d time.Duration) (cancelled bool) {
 	case <-nfc.ctx.Done():
 		cancelled = true
 	case <-time.After(d):
+	}
+	return
+}
+
+var (
+	ipv4Mask = net.CIDRMask(32, 32)
+	ipv6Mask = net.CIDRMask(128, 128)
+)
+
+func parseIPNets(specs []string) (r []net.IPNet, err error) {
+	for _, s := range specs {
+		var ipn net.IPNet
+		s = strings.TrimSpace(s)
+		if ip := net.ParseIP(s); ip != nil {
+			ipn.IP = ip
+			if ip.To4() != nil {
+				ipn.Mask = ipv4Mask
+			} else {
+				ipn.Mask = ipv6Mask
+			}
+		} else {
+			var pipn *net.IPNet
+			if _, pipn, err = net.ParseCIDR(s); err != nil {
+				return
+			} else if pipn != nil {
+				ipn = *pipn
+			}
+		}
+		r = append(r, ipn)
+	}
+	return
+}
+
+func parseRegex(specs []string) (r []*regexp.Regexp, err error) {
+	for _, s := range specs {
+		var rx *regexp.Regexp
+		if rx, err = regexp.Compile(s); err != nil {
+			return
+		}
+		r = append(r, rx)
 	}
 	return
 }
