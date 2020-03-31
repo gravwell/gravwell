@@ -75,15 +75,16 @@ func ForwarderLoadConfig(vc *config.VariableConfig) (c ForwarderConfig, err erro
 type Forwarder struct {
 	ForwarderConfig
 	sync.Mutex
-	tgr  Tagger
-	wg   sync.WaitGroup
-	ctx  context.Context
-	cf   context.CancelFunc
-	ch   chan *entry.Entry
-	abrt chan struct{} //used to abort blocked writes
-	conn net.Conn
-	enc  EntryEncoder
-	err  error
+	tgr    Tagger
+	wg     sync.WaitGroup
+	ctx    context.Context
+	cf     context.CancelFunc
+	ch     chan *entry.Entry
+	abrt   chan struct{} //used to abort blocked writes
+	conn   net.Conn
+	enc    EntryEncoder
+	err    error
+	closed bool
 }
 
 func NewForwarder(cfg ForwarderConfig, tgr Tagger) (nf *Forwarder, err error) {
@@ -113,11 +114,15 @@ func NewForwarder(cfg ForwarderConfig, tgr Tagger) (nf *Forwarder, err error) {
 }
 
 func (nf *Forwarder) Process(ent *entry.Entry) (r []*entry.Entry, err error) {
-	if nf.Non_Blocking {
-		r, err = nf.nonblockingProcess(ent)
-	} else {
-		r, err = nf.blockingProcess(ent)
+	nf.Lock()
+	if !nf.closed {
+		if nf.Non_Blocking {
+			r, err = nf.nonblockingProcess(ent)
+		} else {
+			r, err = nf.blockingProcess(ent)
+		}
 	}
+	nf.Unlock()
 	return
 }
 
@@ -142,6 +147,7 @@ func (nf *Forwarder) nonblockingProcess(ent *entry.Entry) (r []*entry.Entry, err
 func (nf *Forwarder) Close() (err error) {
 	close(nf.abrt)
 	nf.Lock()
+	nf.closed = true
 	//close the channel
 	close(nf.ch)
 	defer nf.Unlock()
