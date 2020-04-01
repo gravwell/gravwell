@@ -23,8 +23,7 @@ import (
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/config"
 	"github.com/gravwell/ingest/v3/entry"
-
-	"gopkg.in/gcfg.v1"
+	"github.com/gravwell/ingest/v3/processors"
 )
 
 const (
@@ -69,6 +68,7 @@ type EventStreamConfig struct {
 	EventID        []string //list of eventID filters: 1000-2000 or -1000
 	Request_Size   int      //number of entries to request per cycle
 	Request_Buffer int      //number request buffer
+	Preprocessor   []string
 }
 
 type CfgType struct {
@@ -78,33 +78,12 @@ type CfgType struct {
 		Ignore_Timestamps bool
 	}
 	EventChannel map[string]*EventStreamConfig
+	Preprocessor processors.ProcessorConfig
 }
 
 func GetConfig(path string) (*CfgType, error) {
-	var content []byte
-	fin, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fi, err := fin.Stat()
-	if err != nil {
-		fin.Close()
-		return nil, err
-	}
-	//This is just a sanity check
-	if fi.Size() > maxConfigSize {
-		fin.Close()
-		return nil, errors.New("Config File Far too large")
-	}
-	content = make([]byte, fi.Size())
-	n, err := fin.Read(content)
-	fin.Close()
-	if int64(n) != fi.Size() {
-		return nil, errors.New("Failed to read config file")
-	}
-
 	var c CfgType
-	if err := gcfg.ReadStringInto(&c, string(content)); err != nil {
+	if err := config.LoadConfigFile(&c, path); err != nil {
 		return nil, err
 	}
 	if err := c.verify(); err != nil {
@@ -113,7 +92,7 @@ func GetConfig(path string) (*CfgType, error) {
 	// Verify and set UUID
 	if _, ok := c.Global.IngesterUUID(); !ok {
 		id := uuid.New()
-		if err = c.Global.SetIngesterUUID(id, path); err != nil {
+		if err := c.Global.SetIngesterUUID(id, path); err != nil {
 			return nil, err
 		}
 		if id2, ok := c.Global.IngesterUUID(); !ok || id != id2 {
@@ -127,6 +106,8 @@ func (c *CfgType) verify() error {
 	//verify the global parameters
 	if err := c.Global.Verify(); err != nil {
 		return err
+	} else if err := c.Preprocessor.Validate(); err != nil {
+		return err
 	}
 
 	if c.Global.Bookmark_Location == "" {
@@ -136,10 +117,13 @@ func (c *CfgType) verify() error {
 		}
 		c.Global.Bookmark_Location = b
 	}
-	for _, v := range c.EventChannel {
+	for k, v := range c.EventChannel {
 		v.normalize()
 		if err := v.Validate(); err != nil {
 			return err
+		}
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("Event Stream %s preprocessor invalid: %v", k, err)
 		}
 	}
 	return nil
@@ -309,15 +293,16 @@ func validateEventIDs(ev string) error {
 }
 
 type EventStreamParams struct {
-	Name      string
-	TagName   string
-	Channel   string
-	Levels    string
-	EventIDs  string
-	Providers []string
-	ReachBack time.Duration
-	BuffSize  int
-	ReqSize   int
+	Name         string
+	TagName      string
+	Channel      string
+	Levels       string
+	EventIDs     string
+	Providers    []string
+	ReachBack    time.Duration
+	Preprocessor []string
+	BuffSize     int
+	ReqSize      int
 }
 
 //Validate SHOULD have already been called, we aren't going to check anything here
@@ -337,15 +322,16 @@ func (ec *EventStreamConfig) params(name string) (EventStreamParams, error) {
 		tag = defaultTag
 	}
 	return EventStreamParams{
-		Name:      name,
-		TagName:   tag,
-		Channel:   ec.Channel,
-		Levels:    strings.Join(ec.Level, ","),
-		EventIDs:  strings.Join(ec.EventID, ","),
-		Providers: append([]string{}, ec.Provider...),
-		ReachBack: dur,
-		ReqSize:   ec.Request_Size,
-		BuffSize:  ec.Request_Buffer,
+		Name:         name,
+		TagName:      tag,
+		Channel:      ec.Channel,
+		Levels:       strings.Join(ec.Level, ","),
+		EventIDs:     strings.Join(ec.EventID, ","),
+		Providers:    append([]string{}, ec.Provider...),
+		ReachBack:    dur,
+		Preprocessor: ec.Preprocessor,
+		ReqSize:      ec.Request_Size,
+		BuffSize:     ec.Request_Buffer,
 	}, nil
 }
 

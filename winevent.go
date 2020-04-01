@@ -72,17 +72,18 @@ func (e *EventStreamHandle) open() (err error) {
 
 func (e *EventStreamHandle) openNoLock() error {
 	var err error
-	params := e.params
-	if e.last > 0 {
-		//get a paramid
+	if e.last == 0 {
+		//get a record id
 		if e.last, err = e.getRecordID(); err != nil {
 			return err
 		}
-		params.ReachBack = 0
 	}
-	if e.fileCreation, err = wineventlog.GetChannelFileCreationTime(params.Channel); err != nil {
+	params := e.params
+	//disable the reachback parameter after we get our recordID
+	params.ReachBack = 0
+	if e.fileCreation, err = wineventlog.GetChannelFileCreationTime(e.params.Channel); err != nil {
 		return err
-	} else if e.filePath, err = wineventlog.GetChannelFilePath(params.Channel); err != nil {
+	} else if e.filePath, err = wineventlog.GetChannelFilePath(e.params.Channel); err != nil {
 		return err
 	}
 	sigEvent, err := windows.CreateEvent(nil, 0, 0, nil)
@@ -96,7 +97,7 @@ func (e *EventStreamHandle) openNoLock() error {
 	}
 	//we build our bookmark
 	flags := wineventlog.EvtSubscribeStartAfterBookmark
-	if e.bmk, err = wineventlog.CreateBookmarkFromRecordID(params.Channel, e.last); err != nil {
+	if e.bmk, err = wineventlog.CreateBookmarkFromRecordID(e.params.Channel, e.last); err != nil {
 		return err
 	}
 
@@ -185,6 +186,7 @@ func (e *EventStreamHandle) checkEventHandles() (warn, err error) {
 	return
 }
 
+// getRecordID just grabs the oldest record that matches our bookmark
 func (e *EventStreamHandle) getRecordID() (uint64, error) {
 	bb := bytes.NewBuffer(nil)
 	sigEvent, err := windows.CreateEvent(nil, 0, 0, nil)
@@ -197,8 +199,8 @@ func (e *EventStreamHandle) getRecordID() (uint64, error) {
 		return 0, err
 	}
 	//we build our bookmark
-	flags := wineventlog.EvtSubscribeStartAtOldestRecord
-	bmk, err := wineventlog.CreateBookmark()
+	flags := wineventlog.EvtSubscribeStartAfterBookmark
+	bmk, err := wineventlog.CreateBookmarkFromRecordID(e.params.Channel, e.last)
 	if err != nil {
 		return 0, err
 	}
