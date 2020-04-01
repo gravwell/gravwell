@@ -22,8 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"valinor.localhost/chancacher"
-
+	"github.com/gravwell/chancacher"
 	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
 )
