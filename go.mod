@@ -3,7 +3,7 @@ module github.com/gravwell/manager/v3
 go 1.13
 
 require (
-	github.com/gravwell/ingest/v3 v3.3.7
-	github.com/gravwell/ingesters/v3 v3.3.7
+	github.com/gravwell/ingest/v3 v3.3.8
+	github.com/gravwell/ingesters/v3 v3.3.8
 	gopkg.in/gcfg.v1 v1.2.3
 )

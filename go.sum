@@ -85,6 +85,8 @@ github.com/gravwell/ingest/v3 v3.3.6 h1:+9BM+iof8qoXaLFZRoBFyDhvaWM1qyeYV2VDSx7Y
 github.com/gravwell/ingest/v3 v3.3.6/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
 github.com/gravwell/ingest/v3 v3.3.7 h1:5vc5ubTl6dMiHJFA8iabk4Nz7cWJmCaBmFmS8yik1QU=
 github.com/gravwell/ingest/v3 v3.3.7/go.mod h1:ZK9F/1xQbg+Hl605otW6PbISK1R1wRgAuIYJPrX6E7g=
+github.com/gravwell/ingest/v3 v3.3.8 h1:T//Db58WLBwRNH4n7nIfb9mXRKPKckxtDV5WWwl1cVU=
+github.com/gravwell/ingest/v3 v3.3.8/go.mod h1:ZK9F/1xQbg+Hl605otW6PbISK1R1wRgAuIYJPrX6E7g=
 github.com/gravwell/ingesters v3.2.2+incompatible h1:ogRtk58IRVDS/RZIz5iPsWhn9tCLZbGJDXSi3ukcwTY=
 github.com/gravwell/ingesters/v3 v3.3.3 h1:/SyUzTa/wyDj4XGTH7gs1FQZThmQvF+E4+eSKdkbMRo=
 github.com/gravwell/ingesters/v3 v3.3.3/go.mod h1:X5/DsR1q2D8HfUacv504ibp+0IhTvJbtL71lYQHCIkk=
@@ -94,11 +96,14 @@ github.com/gravwell/ingesters/v3 v3.3.6 h1:CVz7qExIGI3HglSripwLbRzHXdd+8SreEivnv
 github.com/gravwell/ingesters/v3 v3.3.6/go.mod h1:DRhFuk/NqxInIBUN0qIXvJXaMf15WIZd4e1Rg1Z33+s=
 github.com/gravwell/ingesters/v3 v3.3.7 h1:1a3sFas13VcrcnWTHpLHOaBtitBsTiPRCDs6idShN70=
 github.com/gravwell/ingesters/v3 v3.3.7/go.mod h1:F5PTZHeHgLa7G+1gBGuO/U2toa8PxF12BYXYa/KrdAE=
+github.com/gravwell/ingesters/v3 v3.3.8 h1:+eQWKZf25prZuhWmS9jdrnhriDu3Q9juEe06e8tXaO0=
+github.com/gravwell/ingesters/v3 v3.3.8/go.mod h1:uSvC/Mprs85nPG3kqaL+EUZ7TrrtqwhSI6vUnN/Mwks=
 github.com/gravwell/netflow/v3 v3.2.3/go.mod h1:mOvZuUk8VYa6yQagfJwGNBd08EmJYbKjmK1EJ7jTTjk=
 github.com/gravwell/timegrinder/v3 v3.2.3/go.mod h1:5N5jpqRDBJaEw1GotCXb8hmGoNeOPDSBjin1Mz/6g1Q=
 github.com/gravwell/winevent/v3 v3.2.7/go.mod h1:gHkiInUfXg+BGaj3o63F3H+yJKaL2GwEoRY5P0Lrz+U=
 github.com/gravwell/winevent/v3 v3.3.6/go.mod h1:mnBwy7qeYsJ2NhxX3EPFuCqzo4FCWYGTF8MnaWUJUek=
 github.com/gravwell/winevent/v3 v3.3.7/go.mod h1:mnBwy7qeYsJ2NhxX3EPFuCqzo4FCWYGTF8MnaWUJUek=
+github.com/gravwell/winevent/v3 v3.3.9/go.mod h1:rCbhkZMXuEYfI94fVcyDGCwHu9k/aP6bjcuRrXMZlwk=
 github.com/h2non/filetype v1.0.10 h1:z+SJfnL6thYJ9kAST+6nPRXp1lMxnOVbMZHNYHMar0s=
 github.com/h2non/filetype v1.0.10/go.mod h1:isekKqOuhMj+s/7r3rIeTErIRy4Rub5uBWHfvMusLMU=
 github.com/hashicorp/go-uuid v1.0.1/go.mod h1:6SBZvOh/SIDV7/2o3Jml5SYk/TvGqwFJ/bN7x4byOro=
