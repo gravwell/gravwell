@@ -265,6 +265,7 @@ func (m *mainService) init() error {
 		IngesterVersion: version.GetVersion(),
 		IngesterUUID:    m.uuid,
 	}
+	//igCfg.IngesterVersion = versionOverride
 	if m.enableCache {
 		igCfg.EnableCache = true
 		igCfg.CacheConfig.FileBackingLocation = m.cachePath
