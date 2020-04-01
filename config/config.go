@@ -53,7 +53,6 @@ import (
 )
 
 const (
-	defaultMaxCache = 512
 	defaultLogLevel = `ERROR`
 	minThrottle     = (1024 * 1024) / 8
 )
@@ -79,8 +78,6 @@ var (
 	ErrMissingIngestSecret        = errors.New("Ingest-Secret value missing")
 	ErrInvalidLogLevel            = errors.New("Invalid Log Level")
 	ErrInvalidConnectionTimeout   = errors.New("Invalid connection timeout")
-	ErrInvalidIngestCacheSize     = errors.New("Invalid Max Ingest Cache size")
-	ErrCacheEnabledZeroMax        = errors.New("Ingest cache enabled with zero Max Cache size")
 	ErrGlobalSectionNotFound      = errors.New("Global config section not found")
 	ErrInvalidLineLocation        = errors.New("Invalid line location")
 	ErrInvalidUpdateLineParameter = errors.New("Update line location does not contain the specified paramter")
@@ -94,13 +91,14 @@ type IngestConfig struct {
 	Cleartext_Backend_Target   []string
 	Encrypted_Backend_Target   []string
 	Pipe_Backend_Target        []string
-	Ingest_Cache_Path          string
-	Max_Ingest_Cache           int64 //maximum amount of data to cache in MB
 	Log_Level                  string
 	Log_File                   string
 	Source_Override            string // override normal source if desired
 	Rate_Limit                 string
 	Ingester_UUID              string
+	Cache_Depth                int
+	Cache_Path                 string
+	Cache_Mode                 string
 }
 
 func (ic *IngestConfig) loadDefaults() error {
@@ -146,9 +144,6 @@ func (ic *IngestConfig) Verify() error {
 	}
 
 	ic.Log_Level = strings.ToUpper(strings.TrimSpace(ic.Log_Level))
-	if ic.Max_Ingest_Cache == 0 && len(ic.Ingest_Cache_Path) != 0 {
-		ic.Max_Ingest_Cache = defaultMaxCache
-	}
 	if to, err := ic.parseTimeout(); err != nil || to < 0 {
 		if err != nil {
 			return err
@@ -185,30 +180,6 @@ func (ic *IngestConfig) Verify() error {
 		return errors.New("Log Location is not a directory")
 	}
 
-	// Make sure the cache directory exists.
-	cachedir := filepath.Dir(ic.Ingest_Cache_Path)
-	fi, err = os.Stat(cachedir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			//try to make the directory
-			err = os.MkdirAll(cachedir, 0700)
-			if err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	} else if !fi.IsDir() {
-		return errors.New("Cache Location is not a directory")
-	}
-
-	//check the max cache
-	if ic.Max_Ingest_Cache < 0 {
-		return ErrInvalidIngestCacheSize
-	} else if ic.Max_Ingest_Cache == 0 && len(ic.Ingest_Cache_Path) != 0 {
-		return ErrCacheEnabledZeroMax
-	}
-
 	if ic.Source_Override != `` {
 		if net.ParseIP(ic.Source_Override) == nil {
 			return errors.New("Failed to parse Source_Override")
@@ -237,6 +208,18 @@ func (ic *IngestConfig) Targets() ([]string, error) {
 	return conns, nil
 }
 
+func (ic *IngestConfig) CacheMode() string {
+	return ic.Cache_Mode
+}
+
+func (ic *IngestConfig) CacheDepth() int {
+	return ic.Cache_Depth
+}
+
+func (ic *IngestConfig) CachePath() string {
+	return ic.Cache_Path
+}
+
 // InsecureSkipTLSVerification returns true if the Insecure-Skip-TLS-Verify
 // config parameter was set.
 func (ic *IngestConfig) InsecureSkipTLSVerification() bool {
@@ -255,22 +238,6 @@ func (ic *IngestConfig) Timeout() time.Duration {
 // Secret returns the value of the Ingest-Secret parameter, used to authenticate to the indexer.
 func (ic *IngestConfig) Secret() string {
 	return ic.Ingest_Secret
-}
-
-// EnableCache indicates whether a file cache is enabled
-func (ic *IngestConfig) EnableCache() bool {
-	return len(ic.Ingest_Cache_Path) != 0
-}
-
-// LocalFileCachePath returns the path to the local ingest cache
-// an empty string means no cache enabled
-func (ic *IngestConfig) LocalFileCachePath() string {
-	return ic.Ingest_Cache_Path
-}
-
-// MaxCachedData returns the maximum amount of data to be cached in bytes
-func (ic *IngestConfig) MaxCachedData() uint64 {
-	return uint64(ic.Max_Ingest_Cache * mb)
 }
 
 // Return the specified log level
