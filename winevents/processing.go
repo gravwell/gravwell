@@ -30,6 +30,10 @@ const (
 	eventSampleInterval = 250 * time.Millisecond
 )
 
+var (
+	versionOverride string = `3.3.11`
+)
+
 type eventSrc struct {
 	h    *winevent.EventStreamHandle
 	proc *processors.ProcessorSet
