@@ -211,7 +211,7 @@ func (e *EventStreamHandle) getRecordID() (uint64, error) {
 		sigEvent,
 		``,    // channel is in the query
 		query, //query has the reachback parameter
-		0,
+		bmk,
 		flags)
 	if err != nil {
 		return 0, err
