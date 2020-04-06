@@ -14,7 +14,6 @@ require (
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/eapache/go-resiliency v1.2.0 // indirect
-	github.com/etcd-io/bbolt v1.3.3 // indirect
 	github.com/floren/ipfix v1.4.1
 	github.com/floren/o365 v0.0.1
 	github.com/go-ole/go-ole v1.2.4 // indirect
@@ -25,6 +24,7 @@ require (
 	github.com/gravwell/filewatch/v3 v3.3.3
 	github.com/gravwell/ingest/v3 v3.3.7
 	github.com/gravwell/netflow/v3 v3.2.3
+	github.com/gravwell/timegrinder v3.2.2+incompatible
 	github.com/gravwell/timegrinder/v3 v3.2.3
 	github.com/gravwell/winevent/v3 v3.3.8-0.20200319225333-5b855f197fae
 	github.com/h2non/filetype v1.0.10

@@ -12,16 +12,26 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/gravwell/ingesters/v3/version"
+	"github.com/gravwell/timegrinder"
+
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
 const (
@@ -39,9 +49,26 @@ var (
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 
-	v  bool
-	lg *log.Logger
+	v    bool
+	lg   *log.Logger
+	igst *ingest.IngestMuxer
 )
+
+type handlerConfig struct {
+	queue            string
+	region           string
+	akid             string
+	secret           string
+	tag              entry.EntryTag
+	ignoreTimestamps bool
+	setLocalTime     bool
+	timezoneOverride string
+	src              net.IP
+	formatOverride   string
+	wg               *sync.WaitGroup
+	done             chan bool
+	proc             *processors.ProcessorSet
+}
 
 func init() {
 	flag.Parse()
@@ -65,9 +92,6 @@ func init() {
 	}
 
 	v = *verbose
-
-	// TODO: track connections
-	//connClosers = make(map[int]closer, 1)
 }
 
 func main() {
@@ -146,7 +170,7 @@ func main() {
 		igCfg.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
 		igCfg.CacheConfig.MaxCacheSize = cfg.MaxCachedData()
 	}
-	igst, err := ingest.NewUniformMuxer(igCfg)
+	igst, err = ingest.NewUniformMuxer(igCfg)
 	if err != nil {
 		lg.Fatal("Failed build our ingest system: %v\n", err)
 		return
@@ -164,36 +188,66 @@ func main() {
 		return
 	}
 	debugout("Successfully connected to ingesters\n")
-	wg := &sync.WaitGroup{}
+	var wg sync.WaitGroup
+	done := make(chan bool)
 
 	// make sqs connections
+	for k, v := range cfg.Queue {
+		var src net.IP
+
+		if v.Source_Override != `` {
+			src = net.ParseIP(v.Source_Override)
+			if src == nil {
+				lg.FatalCode(0, "Listener %v invalid source override, \"%s\" is not an IP address", k, v.Source_Override)
+			}
+		} else if cfg.Source_Override != `` {
+			// global override
+			src = net.ParseIP(cfg.Source_Override)
+			if src == nil {
+				lg.FatalCode(0, "Global Source-Override is invalid")
+			}
+		}
+
+		//get the tag for this listener
+		tag, err := igst.GetTag(v.Tag_Name)
+		if err != nil {
+			lg.Fatal("Failed to resolve tag \"%s\" for %s: %v\n", v.Tag_Name, k, err)
+		}
+
+		hcfg := &handlerConfig{
+			queue:            v.Queue_Name,
+			region:           v.Region,
+			akid:             v.AKID,
+			secret:           v.Secret,
+			tag:              tag,
+			ignoreTimestamps: v.Ignore_Timestamps,
+			setLocalTime:     v.Assume_Local_Timezone,
+			timezoneOverride: v.Timezone_Override,
+			formatOverride:   v.Timestamp_Format_Override,
+			src:              src,
+			wg:               &wg,
+			done:             done,
+		}
+
+		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
+			lg.Fatal("Preprocessor failure: %v", err)
+		}
+
+		wg.Add(1)
+		go queueRunner(hcfg)
+	}
 
 	debugout("Running\n")
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
 
-	// TODO: ..
-	// debugout("Closing %d connections\n", connCount())
-	//mtx.Lock()
-	//for _, v := range connClosers {
-	//	v.Close()
-	//}
-	//mtx.Unlock() //must unlock so they can delete their connections
+	// wait for graceful shutdown
+	close(done)
+	wg.Wait()
 
-	//wait for everyone to exit with a timeout
-	wch := make(chan bool, 1)
+	igst.GetTag("foo")
 
-	go func() {
-		wg.Wait()
-		wch <- true
-	}()
-	select {
-	case <-wch:
-	case <-time.After(1 * time.Second):
-		// TODO
-		//lg.Error("Failed to wait for all connections to close.  %d active\n", connCount())
-	}
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("Failed to sync: %v\n", err)
 	}
@@ -207,4 +261,101 @@ func debugout(format string, args ...interface{}) {
 		return
 	}
 	fmt.Printf(format, args...)
+}
+
+func queueRunner(hcfg *handlerConfig) {
+	defer hcfg.wg.Done()
+
+	sess := session.Must(session.NewSession(&aws.Config{
+		Region:      aws.String(hcfg.region),
+		Credentials: credentials.NewStaticCredentials(hcfg.akid, hcfg.secret, ""),
+	}))
+
+	svc := sqs.New(sess)
+
+	var tg *timegrinder.TimeGrinder
+	if !hcfg.ignoreTimestamps {
+		var err error
+		tcfg := timegrinder.Config{
+			EnableLeftMostSeed: true,
+			FormatOverride:     hcfg.formatOverride,
+		}
+		tg, err = timegrinder.NewTimeGrinder(tcfg)
+		if err != nil {
+			lg.Error("Failed to get a handle on the timegrinder: %v\n", err)
+			return
+		}
+		if hcfg.setLocalTime {
+			tg.SetLocalTime()
+		}
+		if hcfg.timezoneOverride != "" {
+			err = tg.SetTimezone(hcfg.timezoneOverride)
+			if err != nil {
+				lg.Error("Failed to set timezone to %v: %v\n", hcfg.timezoneOverride, err)
+				return
+			}
+		}
+	}
+
+	for {
+		req := &sqs.ReceiveMessageInput{}
+		req = req.SetQueueUrl(hcfg.queue)
+		err := req.Validate()
+		if err != nil {
+			lg.Error("sqs request validation: %v", err)
+			return
+		}
+
+		out, err := svc.ReceiveMessage(req)
+		if err != nil {
+			lg.Error("sqs receive message: %v", err)
+			return
+		}
+
+		// we may have multiple packed messages
+		for _, v := range out.Messages {
+			msg := []byte(*v.Body)
+
+			var ok bool
+			var ts entry.Timestamp
+			var extracted time.Time
+			if !hcfg.ignoreTimestamps {
+				if extracted, ok, err = tg.Extract(msg); err != nil {
+					lg.Error("Could not extract timestamp for message")
+				}
+				if ok {
+					ts = entry.FromStandard(extracted)
+				}
+			} else {
+				// grab the timestamp from SQS
+				t, mok := v.Attributes["SentTimestamp"]
+				if !mok {
+					lg.Error("SQS did not provide timestamp for message")
+				} else {
+					ut, err := strconv.ParseInt(*t, 10, 64)
+					if err != nil {
+						lg.Error("atoi on unix time: %v", *t)
+					} else {
+						ts = entry.UnixTime(ut, 0)
+						ok = true
+					}
+				}
+			}
+			if !ok {
+				ts = entry.Now()
+			}
+
+			ent := &entry.Entry{
+				SRC:  hcfg.src,
+				TS:   ts,
+				Tag:  hcfg.tag,
+				Data: msg,
+			}
+
+			if err = hcfg.proc.Process(ent); err != nil {
+				lg.Error("Sending message: %v", err)
+				return
+			}
+		}
+	}
 }

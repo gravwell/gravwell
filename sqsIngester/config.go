@@ -29,6 +29,7 @@ type queue struct {
 	base
 	Tag_Name     string
 	Queue_Name   string
+	Region       string
 	AKID         string
 	Secret       string
 	Preprocessor []string
@@ -116,6 +117,19 @@ func verifyConfig(c *cfgType) error {
 
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("Listener %s preprocessor invalid: %v", k, err)
+		}
+
+		if v.Queue_Name == "" {
+			return fmt.Errorf("Queue %s must provide Queue-Name", k)
+		}
+		if v.Region == "" {
+			return fmt.Errorf("Queue %s must provide Region", k)
+		}
+		if v.AKID == "" {
+			return fmt.Errorf("Queue %s must provide AKID", k)
+		}
+		if v.Secret == "" {
+			return fmt.Errorf("Queue %s must provide Secret", k)
 		}
 	}
 
