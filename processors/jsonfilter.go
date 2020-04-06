@@ -52,6 +52,7 @@ func JsonFilterLoadConfig(vc *config.VariableConfig) (c JsonFilterConfig, err er
 type hsh [highwayhash.Size128]byte
 
 type JsonFilter struct {
+	nocloser
 	JsonFilterConfig
 	key       []byte
 	matchPass bool

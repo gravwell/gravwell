@@ -29,8 +29,8 @@ func TestJsonFilterConfig(t *testing.T) {
 		type = jsonfilter
 		Match-Action=pass
 		Match-Logic=and
-		Field-Filter=f1,filter1
-		Field-Filter=f2,filter2
+		Field-Filter=f1,test_data/filter1
+		Field-Filter=f2,test_data/filter2
 	`)
 	tc := struct {
 		Global struct {
@@ -45,7 +45,7 @@ func TestJsonFilterConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	var tt testTagger
-	p, err := tc.Preprocessor.GetProcessor(`j1`, &tt)
+	p, err := tc.Preprocessor.getProcessor(`j1`, &tt)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,8 +62,8 @@ func TestFilterPassAND(t *testing.T) {
 		type = jsonfilter
 		Match-Action=pass
 		Match-Logic=and
-		Field-Filter=f1,filter1
-		Field-Filter=f2.f3,filter2
+		Field-Filter=f1,test_data/filter1
+		Field-Filter=f2.f3,test_data/filter2
 	`)
 	entries := []testEntry{
 		testEntry{`{"f1":"foo", "f2":{"f3":"X"}}`, true}, // both fields match, pass
@@ -81,8 +81,8 @@ func TestFilterDropAND(t *testing.T) {
 		type = jsonfilter
 		Match-Action=drop
 		Match-Logic=and
-		Field-Filter=f1,filter1
-		Field-Filter=f2.f3,filter2
+		Field-Filter=f1,test_data/filter1
+		Field-Filter=f2.f3,test_data/filter2
 	`)
 	entries := []testEntry{
 		testEntry{`{"f1":"foo", "f2":{"f3":"X"}}`, false}, // both fields match, drop
@@ -101,8 +101,8 @@ func TestFilterPassOR(t *testing.T) {
 		type = jsonfilter
 		Match-Action=pass
 		Match-Logic=or
-		Field-Filter=f1,filter1
-		Field-Filter=f2.f3,filter2
+		Field-Filter=f1,test_data/filter1
+		Field-Filter=f2.f3,test_data/filter2
 	`)
 	entries := []testEntry{
 		testEntry{`{"f1":"foo", "f2":{"f3":"X"}}`, true},        // both fields are in the files, pass
@@ -121,8 +121,8 @@ func TestFilterDropOR(t *testing.T) {
 		type = jsonfilter
 		Match-Action=drop
 		Match-Logic=or
-		Field-Filter=f1,filter1
-		Field-Filter=f2.f3,filter2
+		Field-Filter=f1,test_data/filter1
+		Field-Filter=f2.f3,test_data/filter2
 	`)
 	entries := []testEntry{
 		testEntry{`{"f1":"foo", "f2":{"f3":"X"}}`, false},      // both fields are in the files, drop
@@ -141,8 +141,8 @@ func TestFilterFileReuse(t *testing.T) {
 		type = jsonfilter
 		Match-Action=pass
 		Match-Logic=and
-		Field-Filter=f1,filter1
-		Field-Filter=f2,filter1
+		Field-Filter=f1,test_data/filter1
+		Field-Filter=f2,test_data/filter1
 	`)
 	entries := []testEntry{
 		testEntry{`{"f1":"foo", "f2":"foo"`, true},              // both fields are in the files, drop
@@ -168,7 +168,7 @@ func runFilterTest(cfg []byte, processorName string, entries []testEntry) error 
 		return err
 	}
 	var tt testTagger
-	p, err := tc.Preprocessor.GetProcessor(processorName, &tt)
+	p, err := tc.Preprocessor.getProcessor(processorName, &tt)
 	if err != nil {
 		return err
 	}

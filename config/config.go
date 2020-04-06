@@ -7,7 +7,8 @@
  **************************************************************************/
 
 // Package config provides a common base for Gravwell ingester config files.
-// The ingester will typically need to extend the config struct to allow configuration of data sources. An ingester might implement something like the following:
+// The ingester will typically need to extend the config struct to allow configuration of data sources.
+// An ingester might implement something like the following:
 //
 //	type cfgType struct {
 //		Global       config.IngestConfig
