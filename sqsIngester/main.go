@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2020 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -26,7 +26,6 @@ import (
 	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/gravwell/ingesters/v3/version"
-	"github.com/gravwell/timegrinder"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -215,7 +214,7 @@ func main() {
 		}
 
 		hcfg := &handlerConfig{
-			queue:            v.Queue_Name,
+			queue:            v.Queue_URL,
 			region:           v.Region,
 			akid:             v.AKID,
 			secret:           v.Secret,
@@ -273,32 +272,15 @@ func queueRunner(hcfg *handlerConfig) {
 
 	svc := sqs.New(sess)
 
-	var tg *timegrinder.TimeGrinder
-	if !hcfg.ignoreTimestamps {
-		var err error
-		tcfg := timegrinder.Config{
-			EnableLeftMostSeed: true,
-			FormatOverride:     hcfg.formatOverride,
-		}
-		tg, err = timegrinder.NewTimeGrinder(tcfg)
-		if err != nil {
-			lg.Error("Failed to get a handle on the timegrinder: %v\n", err)
-			return
-		}
-		if hcfg.setLocalTime {
-			tg.SetLocalTime()
-		}
-		if hcfg.timezoneOverride != "" {
-			err = tg.SetTimezone(hcfg.timezoneOverride)
-			if err != nil {
-				lg.Error("Failed to set timezone to %v: %v\n", hcfg.timezoneOverride, err)
-				return
-			}
-		}
-	}
-
+	c := make(chan *sqs.ReceiveMessageOutput)
 	for {
-		req := &sqs.ReceiveMessageInput{}
+		// aws uses string pointers, so we have to decalre it on the
+		// stack in order to take it's reference... why aws, why......
+		an := "SentTimestamp"
+		req := &sqs.ReceiveMessageInput{
+			AttributeNames: []*string{&an},
+		}
+
 		req = req.SetQueueUrl(hcfg.queue)
 		err := req.Validate()
 		if err != nil {
@@ -306,9 +288,22 @@ func queueRunner(hcfg *handlerConfig) {
 			return
 		}
 
-		out, err := svc.ReceiveMessage(req)
-		if err != nil {
-			lg.Error("sqs receive message: %v", err)
+		var out *sqs.ReceiveMessageOutput
+		go func() {
+			o, err := svc.ReceiveMessage(req)
+			if err != nil {
+				lg.Error("sqs receive message: %v", err)
+				c <- nil
+			}
+			c <- o
+		}()
+
+		select {
+		case out = <-c:
+			if out == nil {
+				return
+			}
+		case <-hcfg.done:
 			return
 		}
 
@@ -316,32 +311,21 @@ func queueRunner(hcfg *handlerConfig) {
 		for _, v := range out.Messages {
 			msg := []byte(*v.Body)
 
-			var ok bool
 			var ts entry.Timestamp
-			var extracted time.Time
 			if !hcfg.ignoreTimestamps {
-				if extracted, ok, err = tg.Extract(msg); err != nil {
-					lg.Error("Could not extract timestamp for message")
-				}
-				if ok {
-					ts = entry.FromStandard(extracted)
-				}
-			} else {
 				// grab the timestamp from SQS
 				t, mok := v.Attributes["SentTimestamp"]
 				if !mok {
-					lg.Error("SQS did not provide timestamp for message")
+					lg.Error("SQS did not provide timestamp for message: %v", v.Attributes)
 				} else {
 					ut, err := strconv.ParseInt(*t, 10, 64)
 					if err != nil {
-						lg.Error("atoi on unix time: %v", *t)
+						lg.Error("parseint on unix time: %v", *t)
 					} else {
-						ts = entry.UnixTime(ut, 0)
-						ok = true
+						ts = entry.UnixTime(ut/1000, 0)
 					}
 				}
-			}
-			if !ok {
+			} else {
 				ts = entry.Now()
 			}
 

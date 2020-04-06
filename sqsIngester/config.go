@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2020 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -28,7 +28,7 @@ const (
 type queue struct {
 	base
 	Tag_Name     string
-	Queue_Name   string
+	Queue_URL    string
 	Region       string
 	AKID         string
 	Secret       string
@@ -119,8 +119,8 @@ func verifyConfig(c *cfgType) error {
 			return fmt.Errorf("Listener %s preprocessor invalid: %v", k, err)
 		}
 
-		if v.Queue_Name == "" {
-			return fmt.Errorf("Queue %s must provide Queue-Name", k)
+		if v.Queue_URL == "" {
+			return fmt.Errorf("Queue %s must provide Queue-URL", k)
 		}
 		if v.Region == "" {
 			return fmt.Errorf("Queue %s must provide Region", k)
