@@ -112,14 +112,12 @@ github.com/gravwell/filewatch/v3 v3.3.3 h1:nIx23vkzNDb6cuEIiUM71sFv9pinv4XJ3kVvu
 github.com/gravwell/filewatch/v3 v3.3.3/go.mod h1:OZjTQ8VMrswLNK3PvF8O6zFbreDwH3E7+1z5mdlc18E=
 github.com/gravwell/ingest/v3 v3.3.6 h1:+9BM+iof8qoXaLFZRoBFyDhvaWM1qyeYV2VDSx7YQyo=
 github.com/gravwell/ingest/v3 v3.3.6/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
-github.com/gravwell/ingest/v3 v3.3.7 h1:5vc5ubTl6dMiHJFA8iabk4Nz7cWJmCaBmFmS8yik1QU=
-github.com/gravwell/ingest/v3 v3.3.7/go.mod h1:ZK9F/1xQbg+Hl605otW6PbISK1R1wRgAuIYJPrX6E7g=
+github.com/gravwell/ingest/v3 v3.3.8 h1:T//Db58WLBwRNH4n7nIfb9mXRKPKckxtDV5WWwl1cVU=
+github.com/gravwell/ingest/v3 v3.3.8/go.mod h1:ZK9F/1xQbg+Hl605otW6PbISK1R1wRgAuIYJPrX6E7g=
 github.com/gravwell/netflow/v3 v3.2.3 h1:RdcNKLZEGJ+4PJ2xo/Lm1OVLHBN3TzRYkTDScgrFaNw=
 github.com/gravwell/netflow/v3 v3.2.3/go.mod h1:mOvZuUk8VYa6yQagfJwGNBd08EmJYbKjmK1EJ7jTTjk=
 github.com/gravwell/timegrinder/v3 v3.2.3 h1:3CGFZGpsVRpodVwkuthBZF3It+wus6Fl1QjbcQdCOLw=
 github.com/gravwell/timegrinder/v3 v3.2.3/go.mod h1:5N5jpqRDBJaEw1GotCXb8hmGoNeOPDSBjin1Mz/6g1Q=
-github.com/gravwell/winevent/v3 v3.3.8-0.20200319225333-5b855f197fae h1:eGFDIZRJsQ9YGXDj6PdKzv8OYFgSccSkl1G4NpmGsX8=
-github.com/gravwell/winevent/v3 v3.3.8-0.20200319225333-5b855f197fae/go.mod h1:iRkrYUUttScDgDOI1vZbiAMND7czgb18WZptxeWMHos=
 github.com/gravwell/winevent/v3 v3.3.9 h1:sXh2icN8vODPmvUIIyuX071tkK3Ixq1W5zVsb9avqQk=
 github.com/gravwell/winevent/v3 v3.3.9/go.mod h1:rCbhkZMXuEYfI94fVcyDGCwHu9k/aP6bjcuRrXMZlwk=
 github.com/h2non/filetype v1.0.10 h1:z+SJfnL6thYJ9kAST+6nPRXp1lMxnOVbMZHNYHMar0s=
