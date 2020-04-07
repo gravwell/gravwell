@@ -14,7 +14,6 @@ require (
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/eapache/go-resiliency v1.2.0 // indirect
-	github.com/etcd-io/bbolt v1.3.3 // indirect
 	github.com/floren/ipfix v1.4.1
 	github.com/floren/o365 v0.0.1
 	github.com/go-ole/go-ole v1.2.4 // indirect
