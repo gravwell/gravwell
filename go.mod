@@ -24,7 +24,6 @@ require (
 	github.com/gravwell/filewatch/v3 v3.3.3
 	github.com/gravwell/ingest/v3 v3.3.7
 	github.com/gravwell/netflow/v3 v3.2.3
-	github.com/gravwell/timegrinder v3.2.2+incompatible
 	github.com/gravwell/timegrinder/v3 v3.2.3
 	github.com/gravwell/winevent/v3 v3.3.8-0.20200319225333-5b855f197fae
 	github.com/h2non/filetype v1.0.10
