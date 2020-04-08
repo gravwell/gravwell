@@ -143,6 +143,9 @@ func New(c Config) (*TimeGrinder, error) {
 	// Unix nanoseconds
 	procs = append(procs, NewUnixNanoTimeProcessor())
 
+	// LDAP
+	procs = append(procs, NewLDAPProcessor())
+
 	// UK format
 	procs = append(procs, NewUK())
 
