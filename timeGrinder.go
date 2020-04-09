@@ -137,17 +137,26 @@ func New(c Config) (*TimeGrinder, error) {
 	// Unpadded milli
 	procs = append(procs, NewUnpaddedMilliDateTime())
 
-	// Unix milliseconds
-	procs = append(procs, NewUnixMsTimeProcessor())
-
-	// Unix nanoseconds
-	procs = append(procs, NewUnixNanoTimeProcessor())
+	// The order from here matters, as there is overlap in the time formats
+	// for these formats.
 
 	// UK format
 	procs = append(procs, NewUK())
 
 	// Gravwell format
 	procs = append(procs, NewGravwell())
+
+	// LDAP
+	procs = append(procs, NewLDAPProcessor())
+
+	// Unix seconds
+	procs = append(procs, NewUnixSecondsProcessor())
+
+	// Unix milliseconds
+	procs = append(procs, NewUnixMsTimeProcessor())
+
+	// Unix nanoseconds
+	procs = append(procs, NewUnixNanoTimeProcessor())
 
 	var proc Processor
 	if c.FormatOverride != `` {
