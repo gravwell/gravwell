@@ -347,8 +347,8 @@ func (lp ldapProcessor) ExtractionRegex() string {
 }
 
 func (lp ldapProcessor) ToString(t time.Time) string {
-	// TODO
-	return fmt.Sprintf("%d", t.UnixNano())
+	l := (t.Unix() + 11644473600) * 10000000
+	return fmt.Sprintf("%d", l)
 }
 
 func (lp ldapProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
@@ -370,6 +370,62 @@ func (lp ldapProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 
 func (lp ldapProcessor) Match(d []byte) (start, end int, ok bool) {
 	idx := lp.re.FindSubmatchIndex(d)
+	if len(idx) == 4 {
+		start, end = idx[2], idx[3]
+		ok = true
+	}
+	return
+}
+
+type unixSecondsProcessor struct {
+	re     *regexp.Regexp
+	rxstr  string
+	format string
+	name   string
+}
+
+func NewUnixSecondsProcessor() *unixSecondsProcessor {
+	return &unixSecondsProcessor{
+		re:     regexp.MustCompile(UnixSecondsRegex),
+		rxstr:  UnixSecondsRegex,
+		format: ``, //format API doesn't work here
+		name:   UnixSeconds.String(),
+	}
+}
+
+func (up *unixSecondsProcessor) Format() string {
+	return up.format
+}
+
+func (up *unixSecondsProcessor) Name() string {
+	return up.name
+}
+
+func (up *unixSecondsProcessor) ToString(t time.Time) string {
+	uns := t.Unix()
+	return fmt.Sprintf("%d", uns)
+}
+
+func (up *unixSecondsProcessor) ExtractionRegex() string {
+	return _unixSecondsRegex
+}
+
+func (up unixSecondsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	idx := up.re.FindSubmatchIndex(d)
+	if len(idx) != 4 {
+		return
+	}
+	s, err := strconv.ParseInt(string(d[idx[2]:idx[3]]), 10, 64)
+	if err != nil {
+		return
+	}
+	t = time.Unix(s, 0).In(loc)
+	ok = true
+	return
+}
+
+func (up unixSecondsProcessor) Match(d []byte) (start, end int, ok bool) {
+	idx := up.re.FindSubmatchIndex(d)
 	if len(idx) == 4 {
 		start, end = idx[2], idx[3]
 		ok = true

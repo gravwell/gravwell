@@ -47,6 +47,43 @@ func TestStart(t *testing.T) {
 	}
 }
 
+func TestTooManyDigitsUnix(t *testing.T) {
+	tg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := `1511802599000000000000 CQsz7E4Wiy30uCtBR3 199.58.81.140 37358 198.46.205.70 9998 data_before_established	- F bro`
+	_, ok, err := tg.Extract([]byte(candidate))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ok {
+		t.Fatal("Failed to extract timestamp " + candidate)
+	}
+}
+
+func TestNonDigitUnix(t *testing.T) {
+	tg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctime, err := time.Parse(time.RFC3339Nano, `2017-11-27T17:09:59Z`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := `1511802599CQsz7E4Wiy30uCtBR3 199.58.81.140 37358 198.46.205.70 9998 data_before_established	- F bro`
+	ts, ok, err := tg.Extract([]byte(candidate))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("Failed to extract timestamp " + candidate)
+	}
+	if ctime != ts {
+		t.Fatalf("Timestamp extraction is wrong: %v != %v", ctime, ts)
+	}
+}
+
 func TestLDAP(t *testing.T) {
 	tg, err := New(cfg)
 	if err != nil {
@@ -131,6 +168,28 @@ func TestUnixNano(t *testing.T) {
 		t.Fatal(err)
 	}
 	candidate := `1511802599453396081 CQsz7E4Wiy30uCtBR3 199.58.81.140 37358 198.46.205.70 9998 data_before_established	- F bro`
+	ts, ok, err := tg.Extract([]byte(candidate))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("Failed to extract timestamp " + candidate)
+	}
+	if ctime != ts {
+		t.Fatalf("Timestamp extraction is wrong: %v != %v", ctime, ts)
+	}
+}
+
+func TestUnixSeconds(t *testing.T) {
+	tg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctime, err := time.Parse(time.RFC3339Nano, `2017-11-27T17:09:59Z`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := `1511802599 CQsz7E4Wiy30uCtBR3 199.58.81.140 37358 198.46.205.70 9998 data_before_established	- F bro`
 	ts, ok, err := tg.Extract([]byte(candidate))
 	if err != nil {
 		t.Fatal(err)

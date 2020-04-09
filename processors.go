@@ -42,6 +42,7 @@ const (
 	SyslogVariant         Format = `SyslogVariant`
 	UnpaddedDateTime      Format = `UnpaddedDateTime`
 	UnpaddedMilliDateTime Format = `UnpaddedMilliDateTime`
+	UnixSeconds           Format = `UnixSeconds`
 	UnixMs                Format = `UnixMs`
 	UnixNano              Format = `UnixNano`
 	LDAP                  Format = `LDAP`
@@ -72,6 +73,7 @@ const (
 	SyslogVariantFormat         string = `Jan 02 2006 15:04:05`
 	UnpaddedDateTimeFormat      string = `2006-1-2 15:04:05`
 	UnpaddedMilliDateTimeFormat string = `2006-1-2 15:04:05.999999999`
+	UnixSecondsFormat           string = "1234567890"          // Time formatting API doesn't work, this is just for docs
 	UnixMilliFormat             string = `1136473445.99`       // Time formatting API doesn't work, this is just for docs
 	UnixMsFormat                string = `1136473445000`       // Time formatting API doesn't work, this is just for docs
 	UnixNanoFormat              string = `1136473445000000000` // Time formatting API doesn't work, this is just for docs
@@ -103,17 +105,19 @@ const (
 	NGINXRegex                 string = `\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}`
 	UnpaddedDateTimeRegex      string = `\d\d\d\d-\d+-\d+\s+\d+:\d\d:\d\d`
 	UnpaddedMilliDateTimeRegex string = `\d\d\d\d-\d+-\d+\s+\d+:\d\d:\d\d\.\d{1,9}`
-	UnixMilliRegex             string = `\A\s*(\d{9,10}\.\d+)\s`
-	UnixMsRegex                string = `(\A\d{13})[\s,;]`
-	UnixNanoRegex              string = `(\A\d{19})[\s,;]`
-	LDAPRegex                  string = `(\A\d{18})[\s,;]`
+	UnixSecondsRegex           string = `\A\s*(\d{9,10})\D`
+	UnixMilliRegex             string = `\A\s*(\d{9,10}\.\d+)\D`
+	UnixMsRegex                string = `(\A\d{12,13})\D`
+	UnixNanoRegex              string = `(\A\d{18,19})\D`
+	LDAPRegex                  string = `(\A\d{18})\D`
 	UKRegex                    string = `\d\d/\d\d/\d\d\d\d\s\d\d\:\d\d\:\d\d,\d{1,5}`
 	GravwellRegex              string = `\d{1,2}\-\d{1,2}\-\d{4}\s+\d{1,2}\:\d{2}\:\d{2}(\.\d{1,6})?`
 
 	// non base extrators
-	_unixCoreRegex     string = `\s*(\d+\.\d+)\s` //notice that we are NOT at the start of a string here
-	_unixMsCoreRegex   string = `\d{13}`          //just looking for a large integer
-	_unixNanoCoreRegex string = `\d{19}`
+	_unixSecondsRegex  string = `\d{9,10}`
+	_unixCoreRegex     string = `\s*(\d{9,10}\.\d+)\s` //notice that we are NOT at the start of a string here
+	_unixMsCoreRegex   string = `\d{12,13}`            //just looking for a large integer
+	_unixNanoCoreRegex string = `\d{18,19}`
 	_ldapCoreRegex     string = `\d{18}`
 )
 
@@ -153,6 +157,7 @@ var (
 		SyslogVariant,
 		UnpaddedDateTime,
 		UnpaddedMilliDateTime,
+		UnixSeconds,
 		UnixMs,
 		UnixNano,
 		LDAP,
