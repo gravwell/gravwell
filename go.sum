@@ -23,7 +23,10 @@ github.com/gravwell/ingest/v3 v3.3.6 h1:+9BM+iof8qoXaLFZRoBFyDhvaWM1qyeYV2VDSx7Y
 github.com/gravwell/ingest/v3 v3.3.6/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
 github.com/gravwell/ingest/v3 v3.3.8 h1:T//Db58WLBwRNH4n7nIfb9mXRKPKckxtDV5WWwl1cVU=
 github.com/gravwell/ingest/v3 v3.3.8/go.mod h1:ZK9F/1xQbg+Hl605otW6PbISK1R1wRgAuIYJPrX6E7g=
+github.com/gravwell/ingest/v3 v3.3.9 h1:ffG0GPmRrXjvFqXNQbCKdZNL7hpP/m4ee/i7O6dzmyA=
+github.com/gravwell/ingest/v3 v3.3.9/go.mod h1:9xMZrMTwVQMLGYlLvi2d6QPL/V7j5ybCmxlIFEL/ut0=
 github.com/gravwell/timegrinder/v3 v3.2.3/go.mod h1:5N5jpqRDBJaEw1GotCXb8hmGoNeOPDSBjin1Mz/6g1Q=
+github.com/gravwell/timegrinder/v3 v3.2.4/go.mod h1:5N5jpqRDBJaEw1GotCXb8hmGoNeOPDSBjin1Mz/6g1Q=
 github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 h1:rp+c0RAYOWj8l6qbCUTSiRLG/iKnW3K3/QfPPuSsBt4=
 github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901/go.mod h1:Z86h9688Y0wesXCyonoVr47MasHilkuLMqGhRZ4Hpak=
 github.com/klauspost/compress v1.8.6/go.mod h1:RyIbtBH6LamlWaDj8nUwkbUhJ87Yi3uG0guNDohfE1A=
