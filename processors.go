@@ -105,11 +105,11 @@ const (
 	NGINXRegex                 string = `\d{4}\/\d{2}\/\d{2}\s+\d{2}:\d{2}:\d{2}`
 	UnpaddedDateTimeRegex      string = `\d\d\d\d-\d+-\d+\s+\d+:\d\d:\d\d`
 	UnpaddedMilliDateTimeRegex string = `\d\d\d\d-\d+-\d+\s+\d+:\d\d:\d\d\.\d{1,9}`
-	UnixSecondsRegex           string = `\A\s*(\d{9,10})\D`
-	UnixMilliRegex             string = `\A\s*(\d{9,10}\.\d+)\D`
-	UnixMsRegex                string = `(\A\d{12,13})\D`
-	UnixNanoRegex              string = `(\A\d{18,19})\D`
-	LDAPRegex                  string = `(\A\d{18})\D`
+	UnixSecondsRegex           string = `\A\s*(\d{9,10})(?:\D|$)`
+	UnixMilliRegex             string = `\A\s*(\d{9,10}\.\d+)(?:\D|$)`
+	UnixMsRegex                string = `\A\s*(\d{12,13})(?:\D|$)`
+	UnixNanoRegex              string = `\A\s*(\d{18,19})(?:\D|$)`
+	LDAPRegex                  string = `\A\s*(\d{18})(?:\D|$)`
 	UKRegex                    string = `\d\d/\d\d/\d\d\d\d\s\d\d\:\d\d\:\d\d,\d{1,5}`
 	GravwellRegex              string = `\d{1,2}\-\d{1,2}\-\d{4}\s+\d{1,2}\:\d{2}\:\d{2}(\.\d{1,6})?`
 

@@ -62,6 +62,28 @@ func TestTooManyDigitsUnix(t *testing.T) {
 	}
 }
 
+func TestExactUnix(t *testing.T) {
+	tg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctime, err := time.Parse(time.RFC3339Nano, `2017-11-27T17:09:59Z`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate := `1511802599`
+	ts, ok, err := tg.Extract([]byte(candidate))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok {
+		t.Fatal("Failed to extract timestamp " + candidate)
+	}
+	if ctime != ts {
+		t.Fatalf("Timestamp extraction is wrong: %v != %v", ctime, ts)
+	}
+}
+
 func TestNonDigitUnix(t *testing.T) {
 	tg, err := New(cfg)
 	if err != nil {
