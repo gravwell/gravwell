@@ -25,7 +25,6 @@ package timegrinder
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -160,7 +159,6 @@ func New(c Config) (*TimeGrinder, error) {
 
 	var proc Processor
 	if c.FormatOverride != `` {
-		c.FormatOverride = strings.ToLower(c.FormatOverride)
 		//attempt to find the override
 		for i := range procs {
 			if procs[i].Name() == c.FormatOverride {
