@@ -21,11 +21,11 @@ require (
 	github.com/google/go-cmp v0.3.1 // indirect
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
-	github.com/gravwell/filewatch/v3 v3.3.9-0.20200409185624-03b63b39702b
-	github.com/gravwell/ingest/v3 v3.3.9-0.20200409185435-559359ec40b3
+	github.com/gravwell/filewatch/v3 v3.3.9
+	github.com/gravwell/ingest/v3 v3.3.9
 	github.com/gravwell/netflow/v3 v3.2.3
 	github.com/gravwell/timegrinder/v3 v3.2.4
-	github.com/gravwell/winevent/v3 v3.3.9
+	github.com/gravwell/winevent/v3 v3.3.10
 	github.com/h2non/filetype v1.0.10
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/jstemmer/go-junit-report v0.9.1 // indirect
