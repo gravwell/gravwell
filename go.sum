@@ -6,6 +6,8 @@ github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm4
 github.com/google/uuid v1.1.1/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
 github.com/gravwell/ingest/v3 v3.3.9-0.20200409185435-559359ec40b3 h1:deBwW5YnLfFzRBUywCOk0DXpqWqlMWtfDRG29nzxH1w=
 github.com/gravwell/ingest/v3 v3.3.9-0.20200409185435-559359ec40b3/go.mod h1:9xMZrMTwVQMLGYlLvi2d6QPL/V7j5ybCmxlIFEL/ut0=
+github.com/gravwell/ingest/v3 v3.3.9 h1:ffG0GPmRrXjvFqXNQbCKdZNL7hpP/m4ee/i7O6dzmyA=
+github.com/gravwell/ingest/v3 v3.3.9/go.mod h1:9xMZrMTwVQMLGYlLvi2d6QPL/V7j5ybCmxlIFEL/ut0=
 github.com/gravwell/timegrinder/v3 v3.2.4 h1:RVG0Op0w7wrXrwyp2hbaxsggWXcQey4mme/lTpUsQm0=
 github.com/gravwell/timegrinder/v3 v3.2.4/go.mod h1:5N5jpqRDBJaEw1GotCXb8hmGoNeOPDSBjin1Mz/6g1Q=
 github.com/klauspost/compress v1.8.6/go.mod h1:RyIbtBH6LamlWaDj8nUwkbUhJ87Yi3uG0guNDohfE1A=
