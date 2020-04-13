@@ -8,7 +8,7 @@ require (
 	github.com/google/renameio v0.1.0 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gravwell/chancacher v0.1.0
-	github.com/gravwell/timegrinder/v3 v3.2.3
+	github.com/gravwell/timegrinder/v3 v3.2.4
 	github.com/klauspost/compress v1.8.6
 	github.com/klauspost/cpuid v1.2.1 // indirect
 	github.com/minio/highwayhash v1.0.0
