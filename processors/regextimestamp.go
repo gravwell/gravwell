@@ -100,6 +100,7 @@ func NewRegexTimestampProcessor(cfg RegexTimestampConfig) (*RegexTimestamp, erro
 }
 
 type RegexTimestamp struct {
+	nocloser
 	RegexTimestampConfig
 	re       *regexp.Regexp
 	matchidx int

@@ -47,6 +47,7 @@ func NewGzipDecompressor(cfg GzipDecompressorConfig) (*GzipDecompressor, error) 
 
 // GzipDecompressor does not have any state
 type GzipDecompressor struct {
+	nocloser
 	GzipDecompressorConfig
 }
 

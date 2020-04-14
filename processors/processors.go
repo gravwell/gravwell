@@ -6,6 +6,10 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package processors implements preprocessors for ingesters. The intended
+// usage is to create a ProcessorSet and call ProcessorSet.Process(). Calls to
+// ProcessorSet.Process() are thread-safe while Process() calls on specific
+// processors is not.
 package processors
 
 import (
@@ -13,6 +17,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/gravwell/ingest/v3/config"
 	"github.com/gravwell/ingest/v3/entry"
@@ -32,6 +37,7 @@ var (
 )
 
 type ProcessorSet struct {
+	sync.Mutex
 	wtr entWriter
 	set []Processor
 }
@@ -42,6 +48,7 @@ type ProcessorConfig map[string]*config.VariableConfig
 // the decompressor is used for doing an transparent decompression of data
 type Processor interface {
 	Process(*entry.Entry) ([]*entry.Entry, error) //process an data item potentially setting a tag
+	Close() error                                 //give the processor a chance to tide up
 }
 
 func CheckProcessor(id string) error {
@@ -54,6 +61,7 @@ func CheckProcessor(id string) error {
 	case RegexTimestampProcessor:
 	case RegexExtractProcessor:
 	case RegexRouterProcessor:
+	case ForwarderProcessor:
 	default:
 		return ErrUnknownProcessor
 	}
@@ -62,6 +70,7 @@ func CheckProcessor(id string) error {
 
 type Tagger interface {
 	NegotiateTag(name string) (entry.EntryTag, error)
+	LookupTag(entry.EntryTag) (string, bool)
 }
 
 type entWriter interface {
@@ -93,6 +102,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = RegexExtractLoadConfig(vc)
 	case RegexRouterProcessor:
 		cfg, err = RegexRouteLoadConfig(vc)
+	case ForwarderProcessor:
+		cfg, err = ForwarderLoadConfig(vc)
 	default:
 		err = ErrUnknownProcessor
 	}
@@ -108,16 +119,16 @@ func (pc ProcessorConfig) CheckConfig(name string) (err error) {
 	return
 }
 
-func (pc ProcessorConfig) GetProcessor(name string, tgr Tagger) (p Processor, err error) {
+func (pc ProcessorConfig) getProcessor(name string, tgr Tagger) (p Processor, err error) {
 	if vc, ok := pc[name]; !ok || vc == nil {
 		err = ErrNotFound
 	} else {
-		p, err = NewProcessor(vc, tgr)
+		p, err = newProcessor(vc, tgr)
 	}
 	return
 }
 
-func NewProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error) {
+func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error) {
 	var pb preprocessorBase
 	if err = vc.MapTo(&pb); err != nil {
 		return
@@ -166,7 +177,12 @@ func NewProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewRegexRouter(cfg, tgr)
-
+	case ForwarderProcessor:
+		var cfg ForwarderConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewForwarder(cfg, tgr)
 	default:
 		err = ErrUnknownProcessor
 	}
@@ -180,14 +196,20 @@ func NewProcessorSet(wtr entWriter) *ProcessorSet {
 }
 
 func (pr *ProcessorSet) Enabled() bool {
+	pr.Lock()
+	defer pr.Unlock()
 	return len(pr.set) > 0 && pr.wtr != nil
 }
 
 func (pr *ProcessorSet) AddProcessor(p Processor) {
+	pr.Lock()
+	defer pr.Unlock()
 	pr.set = append(pr.set, p)
 }
 
 func (pr *ProcessorSet) Process(ent *entry.Entry) error {
+	pr.Lock()
+	defer pr.Unlock()
 	if pr == nil || pr.wtr == nil {
 		return ErrNotReady
 	} else if ent == nil {
@@ -200,6 +222,8 @@ func (pr *ProcessorSet) Process(ent *entry.Entry) error {
 }
 
 func (pr *ProcessorSet) ProcessContext(ent *entry.Entry, ctx context.Context) error {
+	pr.Lock()
+	defer pr.Unlock()
 	if pr == nil || pr.wtr == nil {
 		return ErrNotReady
 	} else if ent == nil {
@@ -247,6 +271,29 @@ func (pr *ProcessorSet) processItemContext(ent *entry.Entry, i int, ctx context.
 	return nil
 }
 
+// Close will close the underlying preprocessors within the set.
+// This function DOES NOT close the ingest muxer handle.
+// It is ONLY for shutting down preprocessors
+func (pr *ProcessorSet) Close() (err error) {
+	for _, v := range pr.set {
+		if v != nil {
+			if lerr := v.Close(); lerr != nil {
+				err = addError(lerr, err)
+			}
+		}
+	}
+	return
+}
+
+func addError(nerr, err error) error {
+	if nerr == nil {
+		return err
+	} else if err == nil {
+		return nerr
+	}
+	return fmt.Errorf("%v : %v", nerr, err)
+}
+
 type tagWriter interface {
 	entWriter
 	Tagger
@@ -260,7 +307,7 @@ func (pc ProcessorConfig) ProcessorSet(t tagWriter, names []string) (pr *Process
 	pr = NewProcessorSet(t)
 	var p Processor
 	for _, n := range names {
-		if p, err = pc.GetProcessor(n, t); err != nil {
+		if p, err = pc.getProcessor(n, t); err != nil {
 			err = fmt.Errorf("%s %v", n, err)
 			return
 		}
@@ -282,9 +329,72 @@ func (pc ProcessorConfig) Validate() (err error) {
 func (pc ProcessorConfig) CheckProcessors(set []string) (err error) {
 	for _, v := range set {
 		if _, ok := pc[v]; !ok {
-			err = fmt.Errorf("Preprocessor %s not defined", err)
+			err = fmt.Errorf("Preprocessor %v not defined", err)
 			break
 		}
 	}
 	return
+}
+
+type nocloser struct{}
+
+func (n nocloser) Close() error {
+	return nil
+}
+
+const (
+	defaultSetAllocSize   int = 1024
+	defaultSetReallocSize int = 16
+)
+
+var (
+	sa, _ = NewSetAllocator(defaultSetAllocSize, defaultSetReallocSize)
+)
+
+type SetAllocator struct {
+	sync.Mutex
+	set         []*entry.Entry
+	allocSize   int
+	reallocSize int
+}
+
+func NewSetAllocator(allocSize, reallocSize int) (sa *SetAllocator, err error) {
+	if allocSize <= 0 {
+		allocSize = defaultSetAllocSize
+	}
+	if reallocSize <= 0 {
+		reallocSize = defaultSetReallocSize
+	}
+	if reallocSize >= allocSize {
+		err = errors.New("invalid alloc to realloc size")
+		return
+	}
+	sa = &SetAllocator{
+		set:         make([]*entry.Entry, allocSize),
+		allocSize:   allocSize,
+		reallocSize: reallocSize,
+	}
+	return
+}
+
+func (sa *SetAllocator) Get(cnt int) (r []*entry.Entry) {
+	sa.Lock()
+	if cnt > sa.reallocSize {
+		r = make([]*entry.Entry, cnt)
+	} else {
+		if len(sa.set) < cnt {
+			//reallocate
+			sa.set = make([]*entry.Entry, sa.allocSize)
+		}
+		r = sa.set[0:cnt]
+		if sa.set = sa.set[cnt:]; len(sa.set) == 0 {
+			sa.set = nil //help out the GC
+		}
+	}
+	sa.Unlock()
+	return
+}
+
+func PopSet(cnt int) []*entry.Entry {
+	return sa.Get(cnt)
 }

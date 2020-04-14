@@ -50,6 +50,7 @@ func JsonExtractLoadConfig(vc *config.VariableConfig) (c JsonExtractConfig, err 
 
 // JsonExtractor
 type JsonExtractor struct {
+	nocloser
 	JsonExtractConfig
 	bldr builder
 }
@@ -110,7 +111,7 @@ func (jec JsonExtractConfig) getKeyData() (keys [][]string, keynames []string, e
 		return
 	}
 	r := csv.NewReader(strings.NewReader(jec.Extractions))
-	r.Comma = ' ' // space
+	r.Comma = ',' // space
 	r.TrimLeadingSpace = true
 	var flds []string
 	if flds, err = r.Read(); err != nil {
@@ -213,9 +214,9 @@ func (b *builder) extractJson(data []byte) error {
 		}
 		if dt != jsonparser.NotExist {
 			if !b.comma {
-				io.WriteString(b.bb, "{")
+				b.bb.WriteString("{")
 			} else {
-				io.WriteString(b.bb, ",")
+				b.bb.WriteString(",")
 			}
 			addData(b.keynames[i], dt, v, b.bb)
 			b.cnt++
@@ -289,6 +290,7 @@ func (jasc JsonArraySplitConfig) getKeyData() (key []string, keyname string, err
 }
 
 type JsonArraySplitter struct {
+	nocloser
 	JsonArraySplitConfig
 	key     []string
 	keyname string
