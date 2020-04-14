@@ -226,8 +226,16 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 
 	// connect up the chancacher
 	gob.Register(&entry.Entry{})
-	cache := chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"))
-	bcache := chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"))
+	var cache *chancacher.ChanCacher
+	var bcache *chancacher.ChanCacher
+
+	if c.CachePath != "" {
+		cache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"))
+		bcache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"))
+	} else {
+		cache = chancacher.NewChanCacher(c.CacheDepth, "")
+		bcache = chancacher.NewChanCacher(c.CacheDepth, "")
+	}
 
 	if c.CacheMode == "fail" {
 		cache.CacheStop()
@@ -265,6 +273,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		upChan:       make(chan bool, 1),
 		errChan:      make(chan error, len(c.Destinations)),
 		cache:        cache,
+		bcache:       bcache,
 		cacheEnabled: c.CachePath != "",
 		cacheAlways:  c.CacheMode == "always",
 		name:         c.IngesterName,
