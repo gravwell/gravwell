@@ -77,20 +77,22 @@ func init() {
 }
 
 func main() {
+	var lgr *log.Logger
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
 		lg.Fatal("Failed to load config file \"%s\": %v", *confLoc, err)
 	}
-	if cfg.LogLoc() != `` {
-		fout, err := os.OpenFile(cfg.LogLoc(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
-		if err != nil {
-			dlog.Fatal(err)
-		}
-		if err = lg.AddWriter(fout); err != nil {
-			dlog.Fatalf("Failed to add a writer: %v", err)
-		}
-		defer fout.Close()
+
+	//logging is a bit whacky here, we are creating a logger for fatal errors that goes to
+	//stderr and then creating another logger that goes to the logging file
+	// this is so that we can log fatal errors to both stderr and the log file
+	// but ONLY log errors to the webserver to the file
+	if lgr, err = cfg.GetLogger(); err != nil {
+		lg.Fatal("Failed to get logger: %v", err)
+	} else if err = lg.AddWriter(lgr); err != nil {
+		lg.Fatal("Failed to add log file writer to standard logger")
 	}
+	defer lgr.Close()
 	maxBody = cfg.MaxBody()
 
 	debugout("Handling %d listeners", len(cfg.Listener))
@@ -141,6 +143,7 @@ func main() {
 		mp:   map[string]handlerConfig{},
 		auth: map[string]authHandler{},
 		igst: igst,
+		lgr:  lgr,
 	}
 	for _, v := range cfg.Listener {
 		var hcfg handlerConfig
@@ -175,7 +178,7 @@ func main() {
 			lg.Fatal("Preprocessor construction error: %v", err)
 		}
 		//check if authentication is enabled for this URL
-		if pth, ah, err := v.NewAuthHandler(); err != nil {
+		if pth, ah, err := v.NewAuthHandler(lgr); err != nil {
 			lg.Fatal("Failed to get a new authentication handler: %v", err)
 		} else if hnd != nil {
 			if pth != `` {
@@ -190,6 +193,7 @@ func main() {
 		Handler:      hnd,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
+		ErrorLog:     dlog.New(lgr, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags),
 	}
 	if cfg.TLSEnabled() {
 		c := cfg.TLS_Certificate_File

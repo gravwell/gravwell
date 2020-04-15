@@ -15,6 +15,7 @@ import (
 
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/ingest/v3/log"
 	"github.com/gravwell/ingest/v3/processors"
 	"github.com/gravwell/timegrinder/v3"
 )
@@ -29,6 +30,7 @@ type handlerConfig struct {
 }
 
 type handler struct {
+	lgr  *log.Logger
 	mp   map[string]handlerConfig
 	auth map[string]authHandler
 	igst *ingest.IngestMuxer
@@ -45,18 +47,18 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//not an auth, try the actual post URL
 	cfg, ok := h.mp[r.URL.Path]
 	if !ok {
-		lg.Info("bad request URL %v", r.URL.Path)
+		h.lgr.Info("bad request URL %v", r.URL.Path)
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	if r.Method != cfg.method {
-		lg.Info("bad request Method: %s != %s", r.Method, cfg.method)
+		h.lgr.Info("bad request Method: %s != %s", r.Method, cfg.method)
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 	if cfg.auth != nil {
 		if err := cfg.auth.AuthRequest(r); err != nil {
-			lg.Info("%s access denied %v: %v", getRemoteIP(r), r.URL.Path, err)
+			h.lgr.Info("%s access denied %v: %v", getRemoteIP(r), r.URL.Path, err)
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -65,17 +67,17 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	b := make([]byte, maxBody)
 	n, err := readAll(r.Body, b)
 	if err != nil && err != io.EOF {
-		lg.Info("Got bad request: %v", err)
+		h.lgr.Info("Got bad request: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else if n == maxBody {
-		lg.Error("Request too large, 4MB max")
+		h.lgr.Error("Request too large, 4MB max")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	b = b[0:n]
 	if len(b) == 0 {
-		lg.Info("Got an empty post from %s", r.RemoteAddr)
+		h.lgr.Info("Got an empty post from %s", r.RemoteAddr)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -86,7 +88,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		var hts time.Time
 		var ok bool
 		if hts, ok, err = cfg.tg.Extract(b); err != nil {
-			lg.Warn("Catastrophic error from timegrinder: %v", err)
+			h.lgr.Warn("Catastrophic error from timegrinder: %v", err)
 			ts = entry.Now()
 		} else if !ok {
 			ts = entry.Now()
@@ -101,9 +103,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Data: b,
 	}
 	if err = cfg.pproc.Process(&e); err != nil {
-		lg.Error("Failed to send entry: %v", err)
+		h.lgr.Error("Failed to send entry: %v", err)
 	}
 	if v {
-		lg.Info("Sending entry %s %s", ts.String(), string(b))
+		h.lgr.Info("Sending entry %s %s", ts.String(), string(b))
 	}
 }
