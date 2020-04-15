@@ -233,6 +233,22 @@ func (l *Logger) output(lvl Level, f string, args ...interface{}) (err error) {
 	return
 }
 
+// implement writer interface so it can be handed to a standard loger
+func (l *Logger) Write(b []byte) (n int, err error) {
+	l.mtx.Lock()
+	if err = l.ready(); err == nil {
+		n = len(b)
+		for _, w := range l.wtrs {
+			if _, lerr := w.Write(b); lerr != nil {
+				err = lerr
+			}
+		}
+	}
+
+	l.mtx.Unlock()
+	return
+}
+
 func (l Level) String() string {
 	switch l {
 	case OFF:

@@ -51,6 +51,7 @@ import (
 
 	"github.com/google/go-write"
 	"github.com/google/uuid"
+	"github.com/gravwell/ingest/v3/log"
 )
 
 const (
@@ -386,6 +387,23 @@ func (ic *IngestConfig) SetIngesterUUID(id uuid.UUID, loc string) (err error) {
 	ic.Ingester_UUID = id.String()
 	content = strings.Join(lines, "\n")
 	err = updateConfigFile(loc, content)
+	return
+}
+
+func (ic *IngestConfig) GetLogger() (l *log.Logger, err error) {
+	var ll log.Level
+	if ll, err = log.LevelFromString(ic.Log_Level); err != nil {
+		return
+	}
+
+	if ic.Log_File == `` {
+		l = log.NewDiscardLogger()
+	} else {
+		l, err = log.NewFile(ic.Log_File)
+	}
+	if err == nil {
+		err = l.SetLevel(ll)
+	}
 	return
 }
 
