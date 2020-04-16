@@ -24,7 +24,7 @@ import (
 
 const (
 	maxConfigSize  int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
-	defaultMaxBody int   = 4 * 1024 * 1024
+	defaultMaxBody int   = 4 * 1024 * 1024 //4MB
 	defaultLogLoc        = `/opt/gravwell/log/gravwell_http_ingester.log`
 
 	defaultMethod string = `POST`
