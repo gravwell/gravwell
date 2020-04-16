@@ -27,7 +27,7 @@ import (
 const (
 	cookieName       string = `_gravauth`
 	jwtName          string = `_gravjwt`
-	defaultTokenName string = `jwt`
+	defaultTokenName string = `Bearer`
 
 	_none    authType = ``
 	none     authType = `none`
@@ -421,7 +421,7 @@ func (cah *cookieAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 	for k, v := range cah.cookies {
 		//expire cookies
-		if v.After(now) {
+		if now.After(v) {
 			delete(cah.cookies, k)
 		}
 	}
@@ -430,12 +430,13 @@ func (cah *cookieAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Name:    cookieName,
 		Value:   cookie,
 		Expires: expires,
+		Path:    `/`,
 	}
 	http.SetCookie(w, &c)
 	return
 }
 
-func (bah *cookieAuthHandler) AuthRequest(r *http.Request) (err error) {
+func (cah *cookieAuthHandler) AuthRequest(r *http.Request) (err error) {
 	var c *http.Cookie
 	if c, err = r.Cookie(cookieName); err != nil {
 		return
@@ -445,18 +446,17 @@ func (bah *cookieAuthHandler) AuthRequest(r *http.Request) (err error) {
 		return
 	}
 	n := time.Now()
-	bah.Lock()
-	expires, ok := bah.cookies[c.Value]
+	cah.Lock()
+	expires, ok := cah.cookies[c.Value]
 	if ok {
-		if expires.After(n) {
-			ok = false
-			delete(bah.cookies, c.Value)
+		if n.After(expires) {
+			delete(cah.cookies, c.Value)
 			err = errors.New("Session expired")
 		}
 	} else {
 		err = errors.New("Unauthorized")
 	}
-	bah.Unlock()
+	cah.Unlock()
 	return
 }
 

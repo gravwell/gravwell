@@ -34,7 +34,6 @@ type gbl struct {
 	config.IngestConfig
 	Bind                 string
 	Max_Body             int
-	Log_Location         string
 	TLS_Certificate_File string
 	TLS_Key_File         string
 }
@@ -176,13 +175,6 @@ func (c *cfgType) Tags() (tags []string, err error) {
 		sort.Strings(tags)
 	}
 	return
-}
-
-func (c *cfgType) LogLoc() string {
-	if c.Log_Location == `` {
-		return defaultLogLoc
-	}
-	return c.Log_Location
 }
 
 func (c *cfgType) MaxBody() int {
