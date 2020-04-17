@@ -16,7 +16,6 @@ import (
 	"errors"
 	"math/rand"
 	"net"
-	"path/filepath"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -229,13 +228,13 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
 
-	if c.CachePath != "" {
-		cache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"))
-		bcache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"))
-	} else {
-		cache = chancacher.NewChanCacher(c.CacheDepth, "")
-		bcache = chancacher.NewChanCacher(c.CacheDepth, "")
-	}
+	//	if c.CachePath != "" {
+	//		cache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"))
+	//		bcache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"))
+	//	} else {
+	cache = chancacher.NewChanCacher(64, "")
+	bcache = chancacher.NewChanCacher(64, "")
+	//	}
 
 	if c.CacheMode == "fail" {
 		cache.CacheStop()
