@@ -245,8 +245,6 @@ func main() {
 	close(done)
 	wg.Wait()
 
-	igst.GetTag("foo")
-
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("Failed to sync: %v\n", err)
 	}
