@@ -319,7 +319,7 @@ func (h *handlerConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		case "/":
 			// root
-			w.Write([]byte("nothing to see here..."))
+			w.Write([]byte(index))
 			return
 		}
 	}
