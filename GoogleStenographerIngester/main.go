@@ -11,6 +11,7 @@ package main
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -59,7 +60,6 @@ type handlerConfig struct {
 	caCert           string
 	clientCert       string
 	clientKey        string
-	client           *http.Client
 	tag              entry.EntryTag
 	ignoreTimestamps bool
 	setLocalTime     bool
@@ -69,6 +69,11 @@ type handlerConfig struct {
 	wg               *sync.WaitGroup
 	done             chan bool
 	proc             *processors.ProcessorSet
+
+	client  *http.Client
+	jobs    []uint
+	jcount  uint
+	jobLock sync.Mutex
 }
 
 func init() {
@@ -305,6 +310,20 @@ func stenoRunner(hcfg *handlerConfig) {
 }
 
 func (h *handlerConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// get for GET /status or /
+	if r.Method == "GET" {
+		switch r.URL.Path {
+		case "/status":
+			s := h.Status()
+			w.Write([]byte(s))
+			return
+		case "/":
+			// root
+			w.Write([]byte("nothing to see here..."))
+			return
+		}
+	}
+
 	if r.Method != "POST" {
 		return
 	}
@@ -320,16 +339,37 @@ func (h *handlerConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// create a new job
+	h.jobLock.Lock()
+	j := h.jcount
+	h.jcount++
+	h.jobs = append(h.jobs, j)
+	h.jobLock.Unlock()
+
 	// we have a body response, 200 OK the client and fork off a goroutine
 	// to process the body
 	w.WriteHeader(http.StatusOK)
+	w.Write([]byte(fmt.Sprintf("%v", j)))
 
-	go h.processPcap(resp.Body)
+	go h.processPcap(resp.Body, j)
 }
 
-func (h *handlerConfig) processPcap(in io.ReadCloser) {
+func (h *handlerConfig) removeJob(j uint) {
+	h.jobLock.Lock()
+	defer h.jobLock.Unlock()
+
+	for i, v := range h.jobs {
+		if v == j {
+			h.jobs = append(h.jobs[:i], h.jobs[i+1:]...)
+		}
+	}
+}
+
+func (h *handlerConfig) processPcap(in io.ReadCloser, j uint) {
+	time.Sleep(15 * time.Second)
 	// stream in the pcap, batch processing packets to the ingester
 	defer in.Close()
+	defer h.removeJob(j)
 
 	p, err := pcap.NewReader(in)
 	if err != nil {
@@ -369,4 +409,16 @@ func (h *handlerConfig) processPcap(in io.ReadCloser) {
 			return
 		}
 	}
+}
+
+func (h *handlerConfig) Status() []byte {
+	h.jobLock.Lock()
+	defer h.jobLock.Unlock()
+
+	ret, err := json.Marshal(h.jobs)
+	if err != nil {
+		lg.Error("%v", err)
+		return nil
+	}
+	return ret
 }
