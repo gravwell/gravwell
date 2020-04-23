@@ -22,6 +22,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/pprof"
+	"strconv"
 	"sync"
 	"time"
 
@@ -79,7 +80,7 @@ type handlerConfig struct {
 
 type poster struct {
 	Q string
-	S uint32
+	S string
 }
 
 type job struct {
@@ -360,12 +361,14 @@ func (h *handlerConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ss, _ := strconv.Atoi(p.S)
+
 	// create a new job
 	h.jobLock.Lock()
 	j := &job{
 		ID:     h.jcount,
 		Query:  p.Q,
-		Source: p.S,
+		Source: uint32(ss),
 	}
 	h.jcount++
 	h.jobs = append(h.jobs, j)
@@ -435,7 +438,6 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job) {
 			c := byte((0x0000ff00 & j.Source) >> 8)
 			d := byte((0x000000ff & j.Source))
 			ent.SRC = net.IPv4(a, b, c, d)
-			debugout("hand jammed source: %v\n", ent.SRC)
 		}
 
 		j.Bytes += uint(len(data))
