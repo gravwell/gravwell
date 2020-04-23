@@ -77,10 +77,16 @@ type handlerConfig struct {
 	jobLock sync.Mutex
 }
 
+type poster struct {
+	Q string
+	S uint32
+}
+
 type job struct {
-	ID    uint
-	Bytes uint
-	Query string
+	ID     uint
+	Bytes  uint
+	Query  string
+	Source uint32
 }
 
 func init() {
@@ -340,11 +346,15 @@ func (h *handlerConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	var b bytes.Buffer
 	io.Copy(&b, r.Body)
-	q := b.String()
+	var p poster
+	json.Unmarshal(b.Bytes(), &p)
+	qq := bytes.NewBufferString(p.Q)
+
+	debugout("query received: %v\n", p.Q)
 
 	// literally just POST the request's body onto stenographer...
 	url := h.url + "/query"
-	resp, err := h.client.Post(url, "text/plain", &b)
+	resp, err := h.client.Post(url, "text/plain", qq)
 	if err != nil {
 		lg.Error("%v", err)
 		return
@@ -353,8 +363,9 @@ func (h *handlerConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// create a new job
 	h.jobLock.Lock()
 	j := &job{
-		ID:    h.jcount,
-		Query: q,
+		ID:     h.jcount,
+		Query:  p.Q,
+		Source: p.S,
 	}
 	h.jcount++
 	h.jobs = append(h.jobs, j)
@@ -396,7 +407,9 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job) {
 			if err != io.EOF {
 				lg.Error("%v", err)
 			}
-			break
+			if len(data) == 0 {
+				break
+			}
 		}
 
 		var ts entry.Timestamp
@@ -416,10 +429,19 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job) {
 			Tag:  h.tag,
 			Data: data,
 		}
+		if j.Source != 0 {
+			a := byte((0xff000000 & j.Source) >> 24)
+			b := byte((0x00ff0000 & j.Source) >> 16)
+			c := byte((0x0000ff00 & j.Source) >> 8)
+			d := byte((0x000000ff & j.Source))
+			ent.SRC = net.IPv4(a, b, c, d)
+			debugout("hand jammed source: %v\n", ent.SRC)
+		}
 
 		j.Bytes += uint(len(data))
 
 		if err = h.proc.Process(ent); err != nil {
+			debugout("%v", err)
 			lg.Error("Sending message: %v", err)
 			return
 		}
