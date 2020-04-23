@@ -229,6 +229,12 @@ const index = `
           needs_removal.forEach((job_id) => {
             tbody.removeChild(document.querySelector("#job-" + job_id));
           });
+
+          jobs.forEach((j) => {
+            var tr = document.querySelector("#job-" + j.ID);
+            var bstd = tr.querySelector(":nth-child(3)");
+            bstd.innerText = j.Bytes;
+          });
         }
 
         var updateInterval = 2000; // update ever two seconds-ish
