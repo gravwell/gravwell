@@ -162,7 +162,7 @@ const index = `
               }
             };
             xhttp.open("POST", "/", true);
-            xhttp.send();
+            xhttp.send(query);
           });
 
         function maketr(job_id, query, bytes) {
@@ -259,4 +259,4 @@ const index = `
     </script>
   </body>
 </html>
-`;
+`
