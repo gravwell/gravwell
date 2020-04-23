@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/ingest/v3/config"
 	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
 	"github.com/gravwell/ingest/v3/processors"
@@ -433,11 +434,10 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job) {
 			Data: data,
 		}
 		if j.Source != 0 {
-			a := byte((0xff000000 & j.Source) >> 24)
-			b := byte((0x00ff0000 & j.Source) >> 16)
-			c := byte((0x0000ff00 & j.Source) >> 8)
-			d := byte((0x000000ff & j.Source))
-			ent.SRC = net.IPv4(a, b, c, d)
+			b, err := config.ParseSource(fmt.Sprintf("%v", j.Source))
+			if err == nil {
+				ent.SRC = b
+			}
 		}
 
 		j.Bytes += uint(len(data))
