@@ -37,6 +37,7 @@ const index = `
       /*# sourceMappingURL=bootstrap.min.css.map */
     </style>
 
+
     <!-- Favicons -->
     <!--<link
       rel="apple-touch-icon"
@@ -116,6 +117,22 @@ const index = `
           </div>
         </div>
         <div class="form-group">
+          <div class="input-group">
+            <div class="input-group-prepend">
+              <span class="input-group-text">Source Override</span>
+            </div>
+            <input
+              id="source-field"
+              class="form-control"
+              aria-label="Source Override"
+              type="text"
+            />
+            <div id="source-override-feedback" class="invalid-feedback" hidden>
+              Source Override must be a 32-bit integer.
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
           <input
             type="submit"
             class="btn btn-success btn-lg btn-block"
@@ -126,7 +143,7 @@ const index = `
 
       <hr />
 
-      <h2 class="text-center">In Flight Jobs</h2>
+      <h2 class="text-center">In Flight Jobs <small id="job-count"></small></h2>
       <table class="table table-striped">
         <thead>
           <tr>
@@ -138,7 +155,13 @@ const index = `
         <tbody id="table-body"></tbody>
       </table>
 
-      <ul id="job-list" class="list-group"></ul>
+      <div id="spinner-container">
+        <div id="spinner" class="d-flex justify-content-center">
+          <div class="spinner-grow" role="status">
+            <span class="sr-only">Loading...</span>
+          </div>
+        </div>
+      </div>
     </main>
     <!-- /.container -->
 
@@ -149,10 +172,14 @@ const index = `
           .addEventListener("submit", function (e) {
             e.preventDefault();
 
-            update();
+            var query = document.querySelector("#query-field").value;
+            var source = document.querySelector("#source-field").value;
+
+            if (!validateSourceField(source)) {
+              return;
+            }
 
             // POST
-            var query = document.querySelector("#query-field").value;
             var xhttp = new XMLHttpRequest();
             xhttp.onreadystatechange = function () {
               if (this.readyState == 4) {
@@ -162,12 +189,35 @@ const index = `
               }
             };
             xhttp.open("POST", "/", true);
-            xhttp.send(query);
+            xhttp.send(JSON.stringify({ Q: query.trim(), S: source.trim() }));
+
+            update();
           });
 
-        function maketr(job_id, query, bytes) {
-          console.log("make tr");
+        document
+          .querySelector("#source-field")
+          .addEventListener("input", (e) => {
+            validateSourceField(e.target.value);
+          });
 
+        function validateSourceField(value) {
+          var field = document.querySelector("#source-field");
+          var feedback = document.querySelector("#source-override-feedback");
+
+          if (value.trim().match(/^[0-9]*$/)) {
+            field.classList.remove("is-invalid");
+            feedback.setAttribute("hidden", "true");
+            return true;
+          } else {
+            if (!field.classList.contains("is-invalid")) {
+              field.classList.add("is-invalid");
+            }
+            feedback.removeAttribute("hidden");
+            return false;
+          }
+        }
+
+        function maketr(job_id, query, bytes) {
           var jid = document.createElement("td");
           jid.setAttribute("scope", "row");
           jid.innerText = job_id;
@@ -189,10 +239,12 @@ const index = `
         }
 
         function updateJobs(jobs) {
-          console.log(jobs);
           if (jobs == undefined) {
             return;
           }
+
+          document.querySelector("#job-count").innerText =
+            "(" + jobs.length + ")";
 
           var job_map = {};
           jobs.forEach((j) => {
@@ -208,9 +260,6 @@ const index = `
           }
 
           var inflight_jobs = new Set(jobs.map((x) => x.ID));
-
-          console.log("visible", visible_jobs);
-          console.log("inflight", inflight_jobs);
 
           var needs_add = new Set(
             [...inflight_jobs].filter((x) => !visible_jobs.has(x))
@@ -237,14 +286,23 @@ const index = `
           });
         }
 
+        function hideSpinner() {
+          var spinner = document.querySelector("#spinner :first-child");
+          spinner.setAttribute("hidden", "true");
+        }
+
+        function showSpinner() {
+          var spinner = document.querySelector("#spinner :first-child");
+          spinner.removeAttribute("hidden");
+        }
+
         var updateInterval = 2000; // update ever two seconds-ish
         function update() {
           var xhttp = new XMLHttpRequest();
           xhttp.onreadystatechange = function () {
             if (this.readyState == 4) {
               if (this.status == 200) {
-                // Typical action to be performed when the document is ready:
-                console.log(xhttp.responseText);
+                hideSpinner();
                 updateJobs(JSON.parse(xhttp.responseText));
               }
             }
@@ -255,9 +313,16 @@ const index = `
         }
 
         var urlParams = new URLSearchParams(window.location.search);
+
         var queryParam = urlParams.get("q");
         if (queryParam) {
-          document.querySelector("#query-field").innerText = queryParam;
+          document.querySelector("#query-field").value = queryParam;
+        }
+
+        var sourceParam = urlParams.get("s");
+        if (sourceParam) {
+          document.querySelector("#source-field").value = sourceParam;
+          validateSourceField(sourceParam);
         }
 
         setInterval(update, updateInterval);
