@@ -9,6 +9,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -71,9 +72,15 @@ type handlerConfig struct {
 	proc             *processors.ProcessorSet
 
 	client  *http.Client
-	jobs    []uint
+	jobs    []*job
 	jcount  uint
 	jobLock sync.Mutex
+}
+
+type job struct {
+	ID    uint
+	Bytes uint
+	Query string
 }
 
 func init() {
@@ -331,9 +338,13 @@ func (h *handlerConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 	}
 
+	var b bytes.Buffer
+	io.Copy(&b, r.Body)
+	q := b.String()
+
 	// literally just POST the request's body onto stenographer...
 	url := h.url + "/query"
-	resp, err := h.client.Post(url, "text/plain", r.Body)
+	resp, err := h.client.Post(url, "text/plain", &b)
 	if err != nil {
 		lg.Error("%v", err)
 		return
@@ -341,7 +352,10 @@ func (h *handlerConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// create a new job
 	h.jobLock.Lock()
-	j := h.jcount
+	j := &job{
+		ID:    h.jcount,
+		Query: q,
+	}
 	h.jcount++
 	h.jobs = append(h.jobs, j)
 	h.jobLock.Unlock()
@@ -349,7 +363,7 @@ func (h *handlerConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// we have a body response, 200 OK the client and fork off a goroutine
 	// to process the body
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(fmt.Sprintf("%v", j)))
+	w.Write([]byte(fmt.Sprintf("%v", j.ID)))
 
 	go h.processPcap(resp.Body, j)
 }
@@ -359,17 +373,16 @@ func (h *handlerConfig) removeJob(j uint) {
 	defer h.jobLock.Unlock()
 
 	for i, v := range h.jobs {
-		if v == j {
+		if v.ID == j {
 			h.jobs = append(h.jobs[:i], h.jobs[i+1:]...)
 		}
 	}
 }
 
-func (h *handlerConfig) processPcap(in io.ReadCloser, j uint) {
-	time.Sleep(15 * time.Second)
+func (h *handlerConfig) processPcap(in io.ReadCloser, j *job) {
 	// stream in the pcap, batch processing packets to the ingester
 	defer in.Close()
-	defer h.removeJob(j)
+	defer h.removeJob(j.ID)
 
 	p, err := pcap.NewReader(in)
 	if err != nil {
@@ -404,11 +417,14 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j uint) {
 			Data: data,
 		}
 
+		j.Bytes += uint(len(data))
+
 		if err = h.proc.Process(ent); err != nil {
 			lg.Error("Sending message: %v", err)
 			return
 		}
 	}
+	time.Sleep(15 * time.Second)
 }
 
 func (h *handlerConfig) Status() []byte {
