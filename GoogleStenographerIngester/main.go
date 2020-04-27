@@ -291,7 +291,7 @@ func main() {
 	}
 
 	s := &server{}
-	go s.listener(cfg.Global.Listen_Address)
+	go s.listener(cfg.Global.Listen_Address, cfg.Global.Server_Cert, cfg.Global.Server_Key)
 
 	debugout("Running\n")
 
@@ -313,13 +313,13 @@ func debugout(format string, args ...interface{}) {
 	fmt.Printf(format, args...)
 }
 
-func (s *server) listener(laddr string) {
+func (s *server) listener(laddr, c, k string) {
 	// start our listener
 	srv := &http.Server{
 		Addr:    laddr,
 		Handler: s,
 	}
-	lg.Error("%v", srv.ListenAndServe())
+	lg.Error("%v", srv.ListenAndServeTLS(c, k))
 }
 
 // handler is the mux for all stenographer connections, and provides the

@@ -46,6 +46,8 @@ type base struct {
 type global struct {
 	config.IngestConfig
 	Listen_Address string
+	Server_Cert    string
+	Server_Key     string
 }
 
 type cfgType struct {
