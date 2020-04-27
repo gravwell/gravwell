@@ -58,7 +58,6 @@ var (
 )
 
 type handlerConfig struct {
-	laddr            string
 	url              string
 	caCert           string
 	clientCert       string
@@ -70,25 +69,33 @@ type handlerConfig struct {
 	src              net.IP
 	formatOverride   string
 	wg               *sync.WaitGroup
-	done             chan bool
 	proc             *processors.ProcessorSet
 
-	client  *http.Client
+	client *http.Client
+}
+
+var (
 	jobs    []*job
 	jcount  uint
 	jobLock sync.Mutex
-}
+	stenos  map[string]*handlerConfig
+)
 
 type poster struct {
-	Q string
-	S string
+	Q string   // query
+	S string   // source override
+	C []string // connections to submit query to
 }
+
+type server struct{}
 
 type job struct {
 	ID     uint
 	Bytes  uint
 	Query  string
 	Source uint32
+	Conns  []string
+	lock   sync.Mutex
 }
 
 func init() {
@@ -134,17 +141,17 @@ func main() {
 		return
 	}
 
-	if len(cfg.Log_File) > 0 {
-		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
+	if len(cfg.Global.Log_File) > 0 {
+		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Log_File, err)
+			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Global.Log_File, err)
 		}
 		if err = lg.AddWriter(fout); err != nil {
 			lg.Fatal("Failed to add a writer: %v", err)
 		}
-		if len(cfg.Log_Level) > 0 {
-			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Log_Level, err)
+		if len(cfg.Global.Log_Level) > 0 {
+			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
+				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Global.Log_Level, err)
 			}
 		}
 	}
@@ -154,14 +161,14 @@ func main() {
 		lg.FatalCode(0, "Failed to get tags from configuration: %v\n", err)
 		return
 	}
-	conns, err := cfg.Targets()
+	conns, err := cfg.Global.Targets()
 	if err != nil {
 		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
 		return
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
-	lmt, err := cfg.RateLimit()
+	lmt, err := cfg.Global.RateLimit()
 	if err != nil {
 		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
 		return
@@ -169,27 +176,27 @@ func main() {
 	debugout("Rate limiting connection to %d bps\n", lmt)
 
 	//fire up the ingesters
-	debugout("INSECURE skip TLS certificate verification: %v\n", cfg.InsecureSkipTLSVerification())
-	id, ok := cfg.IngesterUUID()
+	debugout("INSECURE skip TLS certificate verification: %v\n", cfg.Global.InsecureSkipTLSVerification())
+	id, ok := cfg.Global.IngesterUUID()
 	if !ok {
 		lg.FatalCode(0, "Couldn't read ingester UUID\n")
 	}
 	igCfg := ingest.UniformMuxerConfig{
 		Destinations:    conns,
 		Tags:            tags,
-		Auth:            cfg.Secret(),
-		LogLevel:        cfg.LogLevel(),
-		VerifyCert:      !cfg.InsecureSkipTLSVerification(),
+		Auth:            cfg.Global.Secret(),
+		LogLevel:        cfg.Global.LogLevel(),
+		VerifyCert:      !cfg.Global.InsecureSkipTLSVerification(),
 		IngesterName:    ingesterName,
 		IngesterVersion: version.GetVersion(),
 		IngesterUUID:    id.String(),
 		RateLimitBps:    lmt,
 		Logger:          lg,
 	}
-	if cfg.EnableCache() {
+	if cfg.Global.EnableCache() {
 		igCfg.EnableCache = true
-		igCfg.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
-		igCfg.CacheConfig.MaxCacheSize = cfg.MaxCachedData()
+		igCfg.CacheConfig.FileBackingLocation = cfg.Global.LocalFileCachePath()
+		igCfg.CacheConfig.MaxCacheSize = cfg.Global.MaxCachedData()
 	}
 	igst, err = ingest.NewUniformMuxer(igCfg)
 	if err != nil {
@@ -204,15 +211,16 @@ func main() {
 		return
 	}
 	debugout("Waiting for connections to indexers ... ")
-	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
+	if err := igst.WaitForHot(cfg.Global.Timeout()); err != nil {
 		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
 		return
 	}
 	debugout("Successfully connected to ingesters\n")
 	var wg sync.WaitGroup
-	done := make(chan bool)
 
-	// make sqs connections
+	// setup stenographer connections
+	stenos = make(map[string]*handlerConfig)
+
 	for k, v := range cfg.Stenographer {
 		var src net.IP
 
@@ -221,9 +229,9 @@ func main() {
 			if src == nil {
 				lg.FatalCode(0, "Listener %v invalid source override, \"%s\" is not an IP address", k, v.Source_Override)
 			}
-		} else if cfg.Source_Override != `` {
+		} else if cfg.Global.Source_Override != `` {
 			// global override
-			src = net.ParseIP(cfg.Source_Override)
+			src = net.ParseIP(cfg.Global.Source_Override)
 			if src == nil {
 				lg.FatalCode(0, "Global Source-Override is invalid")
 			}
@@ -236,7 +244,6 @@ func main() {
 		}
 
 		hcfg := &handlerConfig{
-			laddr:            v.Listen_Address,
 			url:              v.URL,
 			caCert:           v.CA_Cert,
 			clientCert:       v.Client_Cert,
@@ -248,25 +255,48 @@ func main() {
 			formatOverride:   v.Timestamp_Format_Override,
 			src:              src,
 			wg:               &wg,
-			done:             done,
 		}
 
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Fatal("Preprocessor failure: %v", err)
 		}
 
-		wg.Add(1)
-		go stenoRunner(hcfg)
+		// Load client cert
+		cert, err := tls.LoadX509KeyPair(hcfg.clientCert, hcfg.clientKey)
+		if err != nil {
+			lg.Error("%v", err)
+			return
+		}
+
+		// Load CA cert
+		caCert, err := ioutil.ReadFile(hcfg.caCert)
+		if err != nil {
+			lg.Error("%v", err)
+			return
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+
+		// Setup HTTPS client
+		tlsConfig := &tls.Config{
+			InsecureSkipVerify: true,
+			Certificates:       []tls.Certificate{cert},
+			RootCAs:            caCertPool,
+		}
+		tlsConfig.BuildNameToCertificate()
+		transport := &http.Transport{TLSClientConfig: tlsConfig}
+		hcfg.client = &http.Client{Transport: transport}
+
+		stenos[k] = hcfg
 	}
+
+	s := &server{}
+	go s.listener(cfg.Global.Listen_Address)
 
 	debugout("Running\n")
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
-
-	// wait for graceful shutdown
-	close(done)
-	wg.Wait()
 
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("Failed to sync: %v\n", err)
@@ -283,58 +313,40 @@ func debugout(format string, args ...interface{}) {
 	fmt.Printf(format, args...)
 }
 
-func stenoRunner(hcfg *handlerConfig) {
-	defer hcfg.wg.Done()
-
-	// Load client cert
-	cert, err := tls.LoadX509KeyPair(hcfg.clientCert, hcfg.clientKey)
-	if err != nil {
-		lg.Error("%v", err)
-		return
-	}
-
-	// Load CA cert
-	caCert, err := ioutil.ReadFile(hcfg.caCert)
-	if err != nil {
-		lg.Error("%v", err)
-		return
-	}
-	caCertPool := x509.NewCertPool()
-	caCertPool.AppendCertsFromPEM(caCert)
-
-	// Setup HTTPS client
-	tlsConfig := &tls.Config{
-		InsecureSkipVerify: true,
-		Certificates:       []tls.Certificate{cert},
-		RootCAs:            caCertPool,
-	}
-	tlsConfig.BuildNameToCertificate()
-	transport := &http.Transport{TLSClientConfig: tlsConfig}
-	hcfg.client = &http.Client{Transport: transport}
-
+func (s *server) listener(laddr string) {
 	// start our listener
-	s := &http.Server{
-		Addr:    hcfg.laddr,
-		Handler: hcfg,
+	srv := &http.Server{
+		Addr:    laddr,
+		Handler: s,
 	}
-	go func() {
-		lg.Error("%v", s.ListenAndServe())
-	}()
-
-	<-hcfg.done
+	lg.Error("%v", srv.ListenAndServe())
 }
 
-func (h *handlerConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+// handler is the mux for all stenographer connections, and provides the
+// following HTTP interface:
+//	GET /
+//		Simple embedded webserver content, see html.go
+//	POST /
+//		Submit a new query with given stenographer connections and source override
+//	GET /status
+//		Return a JSON object of current job status across all stenographer connections
+//	GET /conns
+//		Return a JSON object of all stenographer connections
+func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// get for GET /status or /
 	if r.Method == "GET" {
 		switch r.URL.Path {
 		case "/status":
-			s := h.Status()
+			s := status()
 			w.Write([]byte(s))
 			return
 		case "/":
 			// root
 			w.Write([]byte(index))
+			return
+		case "/conns":
+			c := conns()
+			w.Write([]byte(c))
 			return
 		}
 	}
@@ -350,54 +362,63 @@ func (h *handlerConfig) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	io.Copy(&b, r.Body)
 	var p poster
 	json.Unmarshal(b.Bytes(), &p)
-	qq := bytes.NewBufferString(p.Q)
 
 	debugout("query received: %v\n", p.Q)
 
-	// literally just POST the request's body onto stenographer...
-	url := h.url + "/query"
-	resp, err := h.client.Post(url, "text/plain", qq)
-	if err != nil {
-		lg.Error("%v", err)
-		return
-	}
-
 	ss, _ := strconv.Atoi(p.S)
 
+	var wg sync.WaitGroup
+
 	// create a new job
-	h.jobLock.Lock()
+	jobLock.Lock()
 	j := &job{
-		ID:     h.jcount,
+		ID:     jcount,
 		Query:  p.Q,
 		Source: uint32(ss),
+		Conns:  p.C,
 	}
-	h.jcount++
-	h.jobs = append(h.jobs, j)
-	h.jobLock.Unlock()
+	jcount++
+	jobs = append(jobs, j)
+	jobLock.Unlock()
 
-	// we have a body response, 200 OK the client and fork off a goroutine
-	// to process the body
+	for _, v := range p.C {
+		if h, ok := stenos[v]; ok {
+			url := h.url + "/query"
+			qq := bytes.NewBufferString(p.Q)
+			resp, err := h.client.Post(url, "text/plain", qq)
+			if err != nil {
+				lg.Error("%v", err)
+				continue
+			}
+			wg.Add(1)
+			go h.processPcap(resp.Body, j, wg)
+		}
+	}
+
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(fmt.Sprintf("%v", j.ID)))
 
-	go h.processPcap(resp.Body, j)
+	go func() {
+		wg.Wait()
+		removeJob(j.ID)
+	}()
 }
 
-func (h *handlerConfig) removeJob(j uint) {
-	h.jobLock.Lock()
-	defer h.jobLock.Unlock()
+func removeJob(j uint) {
+	jobLock.Lock()
+	defer jobLock.Unlock()
 
-	for i, v := range h.jobs {
+	for i, v := range jobs {
 		if v.ID == j {
-			h.jobs = append(h.jobs[:i], h.jobs[i+1:]...)
+			jobs = append(jobs[:i], jobs[i+1:]...)
 		}
 	}
 }
 
-func (h *handlerConfig) processPcap(in io.ReadCloser, j *job) {
+func (h *handlerConfig) processPcap(in io.ReadCloser, j *job, wg sync.WaitGroup) {
 	// stream in the pcap, batch processing packets to the ingester
 	defer in.Close()
-	defer h.removeJob(j.ID)
+	defer wg.Done()
 
 	p, err := pcap.NewReader(in)
 	if err != nil {
@@ -440,7 +461,9 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job) {
 			}
 		}
 
+		j.lock.Lock()
 		j.Bytes += uint(len(data))
+		j.lock.Unlock()
 
 		if err = h.proc.Process(ent); err != nil {
 			debugout("%v", err)
@@ -448,14 +471,26 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job) {
 			return
 		}
 	}
-	time.Sleep(15 * time.Second)
 }
 
-func (h *handlerConfig) Status() []byte {
-	h.jobLock.Lock()
-	defer h.jobLock.Unlock()
+func status() []byte {
+	jobLock.Lock()
+	defer jobLock.Unlock()
 
-	ret, err := json.Marshal(h.jobs)
+	ret, err := json.Marshal(jobs)
+	if err != nil {
+		lg.Error("%v", err)
+		return nil
+	}
+	return ret
+}
+
+func conns() []byte {
+	var sc []string
+	for k, _ := range stenos {
+		sc = append(sc, k)
+	}
+	ret, err := json.Marshal(sc)
 	if err != nil {
 		lg.Error("%v", err)
 		return nil

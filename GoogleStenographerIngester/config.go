@@ -27,13 +27,12 @@ const (
 
 type stenographer struct {
 	base
-	Tag_Name       string
-	Listen_Address string
-	URL            string
-	CA_Cert        string
-	Client_Cert    string
-	Client_Key     string
-	Preprocessor   []string
+	Tag_Name     string
+	URL          string
+	CA_Cert      string
+	Client_Cert  string
+	Client_Key   string
+	Preprocessor []string
 }
 
 type base struct {
@@ -44,50 +43,43 @@ type base struct {
 	Timestamp_Format_Override string //override the timestamp format
 }
 
-type cfgReadType struct {
-	Global       config.IngestConfig
-	Stenographer map[string]*stenographer
-	Preprocessor processors.ProcessorConfig
+type global struct {
+	config.IngestConfig
+	Listen_Address string
 }
 
 type cfgType struct {
-	config.IngestConfig
+	Global       global
 	Stenographer map[string]*stenographer
 	Preprocessor processors.ProcessorConfig
 }
 
 func GetConfig(path string) (*cfgType, error) {
-	//read into the intermediary type to maintain backwards compatibility with the old system
-	var cr cfgReadType
-	if err := config.LoadConfigFile(&cr, path); err != nil {
+	var c cfgType
+	if err := config.LoadConfigFile(&c, path); err != nil {
 		return nil, err
 	}
-	c := &cfgType{
-		IngestConfig: cr.Global,
-		Stenographer: cr.Stenographer,
-		Preprocessor: cr.Preprocessor,
-	}
 
-	if err := verifyConfig(c); err != nil {
+	if err := verifyConfig(&c); err != nil {
 		return nil, err
 	}
 
 	// Verify and set UUID
-	if _, ok := c.IngesterUUID(); !ok {
+	if _, ok := c.Global.IngesterUUID(); !ok {
 		id := uuid.New()
-		if err := c.SetIngesterUUID(id, path); err != nil {
+		if err := c.Global.SetIngesterUUID(id, path); err != nil {
 			return nil, err
 		}
-		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
+		if id2, ok := c.Global.IngesterUUID(); !ok || id != id2 {
 			return nil, errors.New("Failed to set a new ingester UUID")
 		}
 	}
-	return c, nil
+	return &c, nil
 }
 
 func verifyConfig(c *cfgType) error {
 	//verify the global parameters
-	if err := c.Verify(); err != nil {
+	if err := c.Global.Verify(); err != nil {
 		return err
 	}
 
@@ -97,6 +89,10 @@ func verifyConfig(c *cfgType) error {
 
 	if err := c.Preprocessor.Validate(); err != nil {
 		return err
+	}
+
+	if c.Global.Listen_Address == "" {
+		return fmt.Errorf("config must provide Listen-Address")
 	}
 
 	for k, v := range c.Stenographer {
@@ -120,9 +116,6 @@ func verifyConfig(c *cfgType) error {
 			return fmt.Errorf("Listener %s preprocessor invalid: %v", k, err)
 		}
 
-		if v.Listen_Address == "" {
-			return fmt.Errorf("%s must provide Listen-Address", k)
-		}
 		if v.URL == "" {
 			return fmt.Errorf("%s must provide URL", k)
 		}
