@@ -122,7 +122,7 @@ const index = `
 
       <hr />
 
-      <h2 class="text-center">In Flight Jobs <small id="job-count"></small></h2>
+      <h2 class="text-center">In-Flight Jobs <small id="job-count"></small></h2>
       <table class="table table-striped">
         <thead>
           <tr>
