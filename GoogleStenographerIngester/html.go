@@ -17,7 +17,7 @@ const index = `
     <meta name="description" content="" />
     <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors" />
     <meta name="generator" content="Jekyll v3.8.6" />
-    <title>Google Stenographer Ingester</title>
+    <title>Gravwell Packet Fleet</title>
 
     <!-- Bootstrap core CSS -->
     <style type="text/css">
@@ -90,7 +90,7 @@ const index = `
 
     <main role="main" class="container">
       <h1 class="text-center">
-        Google Stenographer Ingester
+        Gravwell Packet Fleet
       </h1>
       <form id="query-form">
         <div class="form-group">
