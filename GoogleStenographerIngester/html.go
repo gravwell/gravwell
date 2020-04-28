@@ -31,70 +31,66 @@ const index = `
       /*# sourceMappingURL=bootstrap.min.css.map */
     </style>
 
-    <!-- Favicons -->
-    <!--<link
-      rel="apple-touch-icon"
-      href="/docs/4.4/assets/img/favicons/apple-touch-icon.png"
-      sizes="180x180"
-    />
-    <link
-      rel="icon"
-      href="/docs/4.4/assets/img/favicons/favicon-32x32.png"
-      sizes="32x32"
-      type="image/png"
-    />
-    <link
-      rel="icon"
-      href="/docs/4.4/assets/img/favicons/favicon-16x16.png"
-      sizes="16x16"
-      type="image/png"
-    />
-    <link rel="manifest" href="/docs/4.4/assets/img/favicons/manifest.json" />
-    <link
-      rel="mask-icon"
-      href="/docs/4.4/assets/img/favicons/safari-pinned-tab.svg"
-      color="#563d7c"document
-    />
-    <link rel="icon" href="/docs/4.4/assets/img/favicons/favicon.ico" />
-    <meta
-      name="msapplication-config"
-      content="/docs/4.4/assets/img/favicons/browserconfig.xml"
-    />-->
-    <meta name="theme-color" content="#563d7c" />
-
-    <style>
-      .bd-placeholder-img {
-        font-size: 1.125rem;
-        text-anchor: middle;
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        -ms-user-select: none;
-        user-select: none;
+    <style type="text/css">
+      body {
+        font-family: Roboto, Arial, monospace;
       }
 
-      @media (min-width: 768px) {
-        .bd-placeholder-img-lg {
-          font-size: 3.5rem;
-        }
+      #submit-button {
+        background-color: #ef5350;
+        border-color: #ef5350;
+        color: white;
       }
+
+      /* #top-nav {
+        background-color: #5C6BC0 !important;
+      } */
 
       body {
         padding-top: 5rem;
       }
-      .starter-template {
-        padding: 3rem 1.5rem;
-        text-align: center;
-      }
     </style>
   </head>
   <body>
-    <nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
-      <a class="navbar-brand" href="#">Google Stenographer Ingester</a>
+    <nav id="top-nav" class="navbar navbar-expand-md bg-light fixed-top">
+      <a class="navbar-brand" href="#">
+        <!-- Generator: Adobe Illustrator 21.0.2, SVG Export Plug-In . SVG Version: 6.00 Build 0)  -->
+        <svg
+          version="1.1"
+          id="Layer_1"
+          xmlns="http://www.w3.org/2000/svg"
+          x="0px"
+          y="0px"
+          width="52.5"
+          height="30"
+          viewBox="3 2 207 120"
+          xml:space="preserve"
+        >
+          <style type="text/css">
+            .st0 {
+              fill: #ef5552;
+            }
+            .st1 {
+              fill: #5e6bb2;
+            }
+          </style>
+          <title>Gravwell Logo</title>
+          <polygon
+            class="st0"
+            points="150.5,121.3 60.9,31.8 16.6,75.8 3,62.1 60.9,4.1 150.5,93.6 182.4,61.9 196.3,75.5 "
+          />
+          <polygon
+            class="st1"
+            points="210,62.4 202.1,54.5 202.1,54.5 150.7,3.1 61.2,92.7 30.5,62.1 16.6,75.9 61.2,120.4 150.7,30.8
+196.3,75.6 "
+          />
+        </svg>
+      </a>
     </nav>
 
     <main role="main" class="container">
       <h1 class="text-center">
-        Stenographer Ingester
+        Google Stenographer Ingester
       </h1>
       <form id="query-form">
         <div class="form-group">
@@ -120,7 +116,7 @@ const index = `
           <!-- Checkboxes here -->
         </div>
         <div class="form-group">
-          <input type="submit" class="btn btn-success btn-lg btn-block" value="Submit" />
+          <input type="submit" id="submit-button" class="btn btn-lg btn-block" value="Submit" />
         </div>
       </form>
 
@@ -445,5 +441,4 @@ const index = `
     </script>
   </body>
 </html>
-
 `
