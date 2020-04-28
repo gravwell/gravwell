@@ -200,11 +200,10 @@ const index = `
           var query = queryField.value;
           var source = sourceField.value;
 
-          if (!validateSourceField(source)) {
-            return;
-          }
+          var validSource = validateSourceField(source);
+          var validConns = validateConnCheckboxes();
 
-          if (!validateConnCheckboxes()) {
+          if (!validSource || !validConns) {
             return;
           }
 
