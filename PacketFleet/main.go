@@ -38,8 +38,8 @@ import (
 )
 
 const (
-	defaultConfigLoc     = `/opt/gravwell/etc/stenographer_ingester.conf`
-	ingesterName         = `stenographerIngester`
+	defaultConfigLoc     = `/opt/gravwell/etc/packet_fleet.conf`
+	ingesterName         = `PacketFleet`
 	batchSize            = 512
 	maxDataSize      int = 8 * 1024 * 1024
 	initDataSize     int = 512 * 1024
