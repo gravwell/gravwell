@@ -18,6 +18,7 @@ import (
 	"net"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -278,7 +279,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		cache:        cache,
 		bcache:       bcache,
 		cacheEnabled: c.CachePath != "",
-		cacheAlways:  c.CacheMode == "always",
+		cacheAlways:  strings.ToLower(c.CacheMode) == "always",
 		name:         c.IngesterName,
 		version:      c.IngesterVersion,
 		uuid:         c.IngesterUUID,
