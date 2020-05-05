@@ -73,6 +73,9 @@ const (
 	globalHeader = `[global]`
 	headerStart  = `[`
 	uuidParam    = `Ingester-UUID`
+
+	CACHE_MODE_DEFAULT  = "always"
+	CACHE_DEPTH_DEFAULT = 128
 )
 
 var (
@@ -101,6 +104,7 @@ type IngestConfig struct {
 	Cache_Depth                int
 	Cache_Path                 string
 	Cache_Mode                 string
+	Cache_Size                 int
 }
 
 func (ic *IngestConfig) loadDefaults() error {
@@ -187,6 +191,20 @@ func (ic *IngestConfig) Verify() error {
 			return errors.New("Failed to parse Source_Override")
 		}
 	}
+
+	// cache checks and defaults
+	switch strings.ToLower(ic.Cache_Mode) {
+	case "":
+		ic.Cache_Mode = CACHE_MODE_DEFAULT
+	case "always", "fail":
+	default:
+		return errors.New("Cache-Mode must be [always,fail]")
+	}
+	if ic.Cache_Depth == 0 {
+		ic.Cache_Depth = CACHE_DEPTH_DEFAULT
+	}
+	// there are no defaults for the cache_size.
+
 	return nil
 }
 
@@ -208,18 +226,6 @@ func (ic *IngestConfig) Targets() ([]string, error) {
 		return nil, ErrNoConnections
 	}
 	return conns, nil
-}
-
-func (ic *IngestConfig) CacheMode() string {
-	return ic.Cache_Mode
-}
-
-func (ic *IngestConfig) CacheDepth() int {
-	return ic.Cache_Depth
-}
-
-func (ic *IngestConfig) CachePath() string {
-	return ic.Cache_Path
 }
 
 // InsecureSkipTLSVerification returns true if the Insecure-Skip-TLS-Verify

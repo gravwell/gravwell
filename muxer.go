@@ -16,6 +16,7 @@ import (
 	"errors"
 	"math/rand"
 	"net"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -116,6 +117,7 @@ type UniformMuxerConfig struct {
 	VerifyCert      bool
 	CacheDepth      int
 	CachePath       string
+	CacheSize       int
 	CacheMode       string
 	LogLevel        string
 	Logger          Logger
@@ -133,6 +135,7 @@ type MuxerConfig struct {
 	VerifyCert      bool
 	CacheDepth      int
 	CachePath       string
+	CacheSize       int
 	CacheMode       string
 	LogLevel        string
 	Logger          Logger
@@ -186,6 +189,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		PrivateKey:      c.PrivateKey,
 		VerifyCert:      c.VerifyCert,
 		CachePath:       c.CachePath,
+		CacheSize:       c.CacheSize,
 		CacheMode:       c.CacheMode,
 		CacheDepth:      c.CacheDepth,
 		LogLevel:        c.LogLevel,
@@ -228,13 +232,13 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
 
-	//	if c.CachePath != "" {
-	//		cache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"))
-	//		bcache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"))
-	//	} else {
-	cache = chancacher.NewChanCacher(64, "")
-	bcache = chancacher.NewChanCacher(64, "")
-	//	}
+	if c.CachePath != "" {
+		cache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), c.CacheSize)
+		bcache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), c.CacheSize)
+	} else {
+		cache = chancacher.NewChanCacher(c.CacheDepth, "", 0)
+		bcache = chancacher.NewChanCacher(c.CacheDepth, "", 0)
+	}
 
 	if c.CacheMode == "fail" {
 		cache.CacheStop()
