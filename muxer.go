@@ -16,6 +16,7 @@ import (
 	"errors"
 	"math/rand"
 	"net"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -24,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravwell/chancacher"
+	"github.com/gravwell/ingest/v3/config"
 	"github.com/gravwell/ingest/v3/entry"
 	"github.com/gravwell/ingest/v3/log"
 )
@@ -50,7 +52,6 @@ const (
 	running muxState = 1
 	closed  muxState = 2
 
-	defaultChannelSize   int           = 64
 	defaultRetryTime     time.Duration = 10 * time.Second
 	recycleTimeout       time.Duration = time.Second
 	maxEmergencyListSize int           = 256
@@ -100,6 +101,7 @@ type IngestMuxer struct {
 	logLevel       gll
 	lgr            Logger
 	cacheEnabled   bool
+	cachePath      string
 	cache          *chancacher.ChanCacher
 	bcache         *chancacher.ChanCacher
 	cacheAlways    bool
@@ -156,7 +158,7 @@ func NewMuxer(c MuxerConfig) (*IngestMuxer, error) {
 
 // NewIngestMuxer creates a new muxer that will automatically distribute entries amongst the clients
 func NewUniformIngestMuxer(dests, tags []string, authString, pubKey, privKey, remoteKey string) (*IngestMuxer, error) {
-	return NewUniformIngestMuxerExt(dests, tags, authString, pubKey, privKey, remoteKey, defaultChannelSize)
+	return NewUniformIngestMuxerExt(dests, tags, authString, pubKey, privKey, remoteKey, config.CACHE_DEPTH_DEFAULT)
 }
 
 func NewUniformIngestMuxerExt(dests, tags []string, authString, pubKey, privKey, remoteKey string, cacheDepth int) (*IngestMuxer, error) {
@@ -204,7 +206,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 }
 
 func NewIngestMuxer(dests []Target, tags []string, pubKey, privKey string) (*IngestMuxer, error) {
-	return NewIngestMuxerExt(dests, tags, pubKey, privKey, defaultChannelSize)
+	return NewIngestMuxerExt(dests, tags, pubKey, privKey, config.CACHE_DEPTH_DEFAULT)
 }
 
 func NewIngestMuxerExt(dests []Target, tags []string, pubKey, privKey string, cacheDepth int) (*IngestMuxer, error) {
@@ -246,10 +248,44 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		bcache.CacheStop()
 	}
 
-	//generate our tag map, the tag map is used only for quick tag lookup/translation by routines
-	tagMap := make(map[string]entry.EntryTag, len(localTags))
-	for i, v := range localTags {
-		tagMap[v] = entry.EntryTag(i)
+	// It's possible that the configuration, and therefore tag names and
+	// order, changed between runs of a muxer, and there is data in a cache
+	// that's recovering. The cache has tag IDs from the /previous/ run, so
+	// we read the old translations (that were previously saved) and then
+	// add our tags to them. If the old tag map doesn't exist, then it's
+	// anyone's guess where those entries might end up. Those are the
+	// breaks.
+	var tagMap map[string]entry.EntryTag
+	var err error
+	if c.CachePath != "" {
+		tagMap, err = readTagCache(c.CachePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// tag IDs can be all over the place, so we start from the largest tag
+	// ID in the returned map + 1
+	var tagNext entry.EntryTag
+	if len(tagMap) != 0 {
+		for _, v := range tagMap {
+			if v > tagNext {
+				tagNext = v
+			}
+		}
+		tagNext++
+	}
+
+	// add any new tags to that list
+	for _, v := range localTags {
+		if _, ok := tagMap[v]; !ok {
+			tagMap[v] = entry.EntryTag(tagNext)
+			tagNext++
+		}
+	}
+
+	if c.CachePath != "" {
+		writeTagCache(tagMap, c.CachePath)
 	}
 
 	var p *parent
@@ -279,12 +315,52 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		cache:        cache,
 		bcache:       bcache,
 		cacheEnabled: c.CachePath != "",
+		cachePath:    c.CachePath,
 		cacheAlways:  strings.ToLower(c.CacheMode) == "always",
 		name:         c.IngesterName,
 		version:      c.IngesterVersion,
 		uuid:         c.IngesterUUID,
 		rateParent:   p,
 	}, nil
+}
+
+func readTagCache(p string) (map[string]entry.EntryTag, error) {
+	ret := make(map[string]entry.EntryTag)
+	path := filepath.Join(p, "tagcache")
+	if _, err := os.Stat(path); err != nil {
+		return ret, nil
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	dec := gob.NewDecoder(f)
+	err = dec.Decode(&ret)
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+func writeTagCache(t map[string]entry.EntryTag, p string) error {
+	path := filepath.Join(p, "tagcache")
+
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+
+	enc := gob.NewEncoder(f)
+	err = enc.Encode(&t)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //Start starts the connection process. This will return immediately, and does
@@ -381,10 +457,21 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 
 	// update the tag list and map
 	im.tags = append(im.tags, name)
-	for i, v := range im.tags {
-		im.tagMap[v] = entry.EntryTag(i)
+
+	var tagNext entry.EntryTag
+	for _, v := range im.tagMap {
+		if v > tagNext {
+			tagNext = v
+		}
 	}
+	im.tagMap[name] = entry.EntryTag(tagNext + 1)
+
 	tg = im.tagMap[name]
+
+	// update the tag cache
+	if im.cachePath != "" {
+		writeTagCache(im.tagMap, im.cachePath)
+	}
 
 	for k, v := range im.igst {
 		if v != nil {
@@ -497,12 +584,11 @@ mainLoop:
 				continue
 			}
 
-			// TODO: add a flag that enables waitforhot to return immediatly if needed.
-			//if im.cacheEnabled {
-			//	im.cache.CacheStart()
-			//	im.bcache.CacheStart()
-			//	return nil
-			//}
+			if im.cacheEnabled {
+				im.cache.CacheStart()
+				im.bcache.CacheStart()
+				return nil
+			}
 
 			return ErrConnectionTimeout
 		case err := <-im.errChan:
