@@ -25,8 +25,6 @@ import (
 // without a clean way to triage. It's best to just enforce a sensible maximum.
 const MaxDepth = 1000000
 
-const TIMEOUT = time.Second
-
 // A ChanCacher is a pipeline of channels with a variable-sized internal
 // buffer. The buffer can also cache to disk. The user is expected to connect
 // ChanCacher.In and ChanCacher.Out.
@@ -34,11 +32,12 @@ type ChanCacher struct {
 	In      chan interface{}
 	Out     chan interface{}
 	runDone bool
+	maxSize int
 
 	cachePath      string
 	cache          bool
-	cacheR         *os.File
-	cacheW         *os.File
+	cacheR         *fileCounter
+	cacheW         *fileCounter
 	cacheEnc       *gob.Encoder
 	cacheModified  bool
 	cacheLock      sync.Mutex
@@ -56,11 +55,13 @@ type ChanCacher struct {
 // provide a path to backingPath. chancachers create two files using this
 // prefix named cache_a and cache_b.
 //
+// The maxSize argument sets the maximum amount of disk commit, in bytes.
+//
 // When a new ChanCacher is made, if cachePath points to existing cache files,
 // the ChanCacher will immediately attempt to drain them from disk. In this
 // way, you can recover data sent to disk on a crash or previous use of
 // Commit().
-func NewChanCacher(maxDepth int, cachePath string) *ChanCacher {
+func NewChanCacher(maxDepth int, cachePath string, maxSize int) *ChanCacher {
 	// as close to infinite as possible...
 	if maxDepth == -1 || maxDepth > MaxDepth {
 		maxDepth = MaxDepth
@@ -73,6 +74,7 @@ func NewChanCacher(maxDepth int, cachePath string) *ChanCacher {
 		cachePaused: make(chan bool),
 		cacheDone:   make(chan bool),
 		cacheAck:    make(chan bool),
+		maxSize:     maxSize,
 	}
 
 	// we start the cache unpaused, and because of go idioms, we have to
@@ -91,17 +93,18 @@ func NewChanCacher(maxDepth int, cachePath string) *ChanCacher {
 		}
 
 		// create r and w files
-		//c.cacheR, err = os.Create(filepath.Join(c.cachePath, "cache_a"))
-		c.cacheR, err = os.OpenFile(filepath.Join(c.cachePath, "cache_a"), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+		r, err := os.OpenFile(filepath.Join(c.cachePath, "cache_a"), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
 			// TODO: log
 		}
 
-		//c.cacheW, err = os.Create(filepath.Join(c.cachePath, "cache_b"))
-		c.cacheW, err = os.OpenFile(filepath.Join(c.cachePath, "cache_b"), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+		w, err := os.OpenFile(filepath.Join(c.cachePath, "cache_b"), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
 			// TODO: log
 		}
+
+		c.cacheR = NewFileCounter(r)
+		c.cacheW = NewFileCounter(w)
 
 		c.cacheEnc = gob.NewEncoder(c.cacheW)
 
@@ -229,6 +232,10 @@ func (c *ChanCacher) cacheHandler() {
 }
 
 func (c *ChanCacher) cacheValue(v interface{}) {
+	for c.maxSize != 0 && c.Size() >= c.maxSize {
+		time.Sleep(100 * time.Millisecond)
+	}
+
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
 	err := c.cacheEnc.Encode(&v)
@@ -338,4 +345,10 @@ func (c *ChanCacher) finishCache() {
 		close(c.cacheDone)
 		c.cacheIsDone = true
 	}
+}
+
+// Returns the number of bytes committed to disk. This does not include data in
+// the in-memory buffer.
+func (c *ChanCacher) Size() int {
+	return c.cacheR.Count() + c.cacheW.Count()
 }
