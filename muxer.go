@@ -57,6 +57,8 @@ const (
 	maxEmergencyListSize int           = 256
 	unknownAddr          string        = `unknown`
 	waitTickerDur        time.Duration = 50 * time.Millisecond
+
+	megabyte = 1024 * 1024
 )
 
 type muxState int
@@ -236,8 +238,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	var bcache *chancacher.ChanCacher
 
 	if c.CachePath != "" {
-		cache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), c.CacheSize)
-		bcache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), c.CacheSize)
+		cache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), megabyte*c.CacheSize)
+		bcache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), megabyte*c.CacheSize)
 	} else {
 		cache = chancacher.NewChanCacher(c.CacheDepth, "", 0)
 		bcache = chancacher.NewChanCacher(c.CacheDepth, "", 0)
@@ -255,7 +257,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// add our tags to them. If the old tag map doesn't exist, then it's
 	// anyone's guess where those entries might end up. Those are the
 	// breaks.
-	var tagMap map[string]entry.EntryTag
+	tagMap := make(map[string]entry.EntryTag)
 	var err error
 	if c.CachePath != "" {
 		tagMap, err = readTagCache(c.CachePath)
