@@ -192,12 +192,12 @@ func (l *Logger) Critical(f string, args ...interface{}) error {
 
 // Fatal writes a log, closes the logger, and issues an os.Exit(-1)
 func (l *Logger) Fatal(f string, args ...interface{}) {
-	l.fatalCode(3, -1, f, args...)
+	l.fatalCode(4, -1, f, args...)
 }
 
 // FatalCode is identical to a log.Fatal, except it allows for controlling the exit code
 func (l *Logger) FatalCode(code int, f string, args ...interface{}) {
-	l.fatalCode(3, code, f, args...)
+	l.fatalCode(4, code, f, args...)
 }
 
 func (l *Logger) fatalCode(lvl, code int, f string, args ...interface{}) {
@@ -222,7 +222,7 @@ func (l *Logger) output(lvl Level, f string, args ...interface{}) (err error) {
 		if !strings.HasSuffix(f, "\n") {
 			nl = "\n"
 		}
-		ln := prefix(3) + " " + lvl.String() + " " + fmt.Sprintf(f, args...) + nl
+		ln := prefix(4) + " " + lvl.String() + " " + fmt.Sprintf(f, args...) + nl
 		for _, w := range l.wtrs {
 			if _, lerr := io.WriteString(w, ln); lerr != nil {
 				err = lerr
