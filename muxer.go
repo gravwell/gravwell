@@ -237,12 +237,25 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
 
+	var err error
 	if c.CachePath != "" {
-		cache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), megabyte*c.CacheSize)
-		bcache = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), megabyte*c.CacheSize)
+		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), megabyte*c.CacheSize)
+		if err != nil {
+			return nil, err
+		}
+		bcache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), megabyte*c.CacheSize)
+		if err != nil {
+			return nil, err
+		}
 	} else {
-		cache = chancacher.NewChanCacher(c.CacheDepth, "", 0)
-		bcache = chancacher.NewChanCacher(c.CacheDepth, "", 0)
+		cache, err = chancacher.NewChanCacher(c.CacheDepth, "", 0)
+		if err != nil {
+			return nil, err
+		}
+		bcache, err = chancacher.NewChanCacher(c.CacheDepth, "", 0)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if c.CacheMode == "fail" {
@@ -258,7 +271,6 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// anyone's guess where those entries might end up. Those are the
 	// breaks.
 	tagMap := make(map[string]entry.EntryTag)
-	var err error
 	if c.CachePath != "" {
 		tagMap, err = readTagCache(c.CachePath)
 		if err != nil {
