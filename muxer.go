@@ -482,7 +482,7 @@ func (im *IngestMuxer) Close() error {
 // LookupTag will reverse a tag id into a name, this operation is more expensive than a straight lookup
 // Users that expect to translate a tag repeatedly should maintain their own tag map
 func (im *IngestMuxer) LookupTag(tg entry.EntryTag) (name string, ok bool) {
-	im.mtx.Lock()
+	im.mtx.RLock()
 	for k, v := range im.tagMap {
 		if v == tg {
 			name = k
@@ -490,7 +490,7 @@ func (im *IngestMuxer) LookupTag(tg entry.EntryTag) (name string, ok bool) {
 			break
 		}
 	}
-	im.mtx.Unlock()
+	im.mtx.RUnlock()
 	return
 }
 
@@ -642,12 +642,12 @@ mainLoop:
 			return ErrConnectionTimeout
 		case err := <-im.errChan:
 			//lock the mutex and check if all our connections failed
-			im.mtx.Lock()
+			im.mtx.RLock()
 			if len(im.errDest) == len(im.dests) {
-				im.mtx.Unlock()
+				im.mtx.RUnlock()
 				return errors.New("All connections failed " + err.Error())
 			}
-			im.mtx.Unlock()
+			im.mtx.RUnlock()
 			continue
 		}
 	}
@@ -656,8 +656,8 @@ mainLoop:
 
 // Hot returns how many connections are functioning
 func (im *IngestMuxer) Hot() (int, error) {
-	im.mtx.Lock()
-	defer im.mtx.Unlock()
+	im.mtx.RLock()
+	defer im.mtx.RUnlock()
 	if im.state != running {
 		return -1, ErrNotRunning
 	}
@@ -820,8 +820,8 @@ func (im *IngestMuxer) goDead() {
 
 // Dead returns how many connections are currently dead
 func (im *IngestMuxer) Dead() (int, error) {
-	im.mtx.Lock()
-	defer im.mtx.Unlock()
+	im.mtx.RLock()
+	defer im.mtx.RUnlock()
 	if im.state != running {
 		return -1, ErrNotRunning
 	}
@@ -830,8 +830,8 @@ func (im *IngestMuxer) Dead() (int, error) {
 
 // Size returns the total number of specified connections, hot or dead
 func (im *IngestMuxer) Size() (int, error) {
-	im.mtx.Lock()
-	defer im.mtx.Unlock()
+	im.mtx.RLock()
+	defer im.mtx.RUnlock()
 	if im.state != running {
 		return -1, ErrNotRunning
 	}
@@ -843,11 +843,11 @@ func (im *IngestMuxer) Size() (int, error) {
 // it is used to speed along tag mappings
 func (im *IngestMuxer) GetTag(tag string) (tg entry.EntryTag, err error) {
 	var ok bool
-	im.mtx.Lock()
+	im.mtx.RLock()
 	if tg, ok = im.tagMap[tag]; !ok {
 		err = ErrTagNotFound
 	}
-	im.mtx.Unlock()
+	im.mtx.RUnlock()
 	return
 }
 
@@ -1047,6 +1047,7 @@ func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool
 	var nc connSet
 	var ok bool
 	var err error
+	var ttag entry.EntryTag
 	if nc, ok = im.getNewConnSet(csc, connFailure, true); !ok {
 		return
 	}
@@ -1072,12 +1073,31 @@ inputLoop:
 			if e == nil {
 				continue
 			}
-			e.Tag = nc.tt.Translate(e.Tag)
+			ttag, ok = nc.tt.Translate(e.Tag)
+			if !ok {
+				// If the ingest muxer has no idea what this tag is, drop it and notify
+				if name, ok := im.LookupTag(e.Tag); !ok {
+					im.Error("Got entry tagged with completely unknown intermediate tag %v, dropping it", e.Tag)
+					continue inputLoop
+				} else {
+					im.Info("Got entry tagged with tag %v (%v), need to renegotiate connection", name, e.Tag)
+					// Could not translate, but it's a valid tag the muxer has seen before.
+					// We need to push this to the equeue and reconnect
+					// so we get the correct tag set.
+					im.recycleEntries(e, nil, nc.tt, false)
+					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+						break inputLoop
+					}
+					continue inputLoop
+				}
+			}
+			e.Tag = ttag
+
 			if len(e.SRC) == 0 {
 				e.SRC = nc.src
 			}
 			if err = nc.ig.WriteEntry(e); err != nil {
-				im.recycleEntries(e, nil, nc.tt)
+				im.recycleEntries(e, nil, nc.tt, true)
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
 				}
@@ -1108,14 +1128,35 @@ inputLoop:
 			}
 			for i := range b {
 				if b[i] != nil {
-					b[i].Tag = nc.tt.Translate(b[i].Tag)
+					ttag, ok = nc.tt.Translate(b[i].Tag)
+					if !ok {
+						if name, ok := im.LookupTag(b[i].Tag); !ok {
+							im.Error("Got entry tagged with completely unknown intermediate tag %v, dropping it", b[i].Tag)
+							continue inputLoop
+						} else {
+							im.Info("Got entry tagged with tag %v (%v), need to renegotiate connection", name, b[i].Tag) // Could not translate! We need to push this to the equeue and reconnect
+							// so we get the correct tag set.
+
+							// first, reverse anything we've translated already
+							for j := 0; j < i; j++ {
+								b[j].Tag = nc.tt.Reverse(b[j].Tag)
+							}
+							im.recycleEntries(nil, b, nc.tt, false)
+							if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+								break inputLoop
+							}
+							continue inputLoop
+						}
+					}
+					b[i].Tag = ttag
+
 					if len(b[i].SRC) == 0 {
 						b[i].SRC = nc.src
 					}
 				}
 			}
 			if err = nc.ig.WriteBatchEntry(b); err != nil {
-				im.recycleEntries(nil, b, nc.tt)
+				im.recycleEntries(nil, b, nc.tt, true)
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
 				}
@@ -1186,7 +1227,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 		case _, ok := <-connErrNotif:
 			if igst != nil {
 				//if it throws an error we don't care, and cant do anything about it
-				im.Error("lost connection to %v", dst.Address)
+				im.Warn("reconnecting to %v", dst.Address)
 				igst.Close()
 			}
 			if !ok {
@@ -1203,7 +1244,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 
 				//pull any entrys out of the ingest connection and put them into the emergency queue
 				ents := igst.outstandingEntries()
-				im.recycleEntries(nil, ents, &tt)
+				im.recycleEntries(nil, ents, &tt, true)
 			}
 
 			//attempt to get the connection rolling again
@@ -1225,8 +1266,11 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 				return
 			}
 
+			im.mtx.Lock()
 			im.igst[igIdx] = igst
 			im.tagTranslators[igIdx] = &tt
+			im.mtx.Unlock()
+
 			im.goHot()
 			ncc <- connSet{
 				dst: dst.Address,
@@ -1240,10 +1284,10 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 
 //we don't want to fully block here, so we attempt to push back on the channel
 //and listen for a die signal
-func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt *tagTrans) {
+func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt *tagTrans, reverseTags bool) {
 	//reset the tags to the globally translatable set
 	//this operation is expensive
-	if len(ents) > 0 {
+	if len(ents) > 0 && reverseTags {
 		for i := range ents {
 			if ents[i] != nil {
 				ents[i].Tag = tt.Reverse(ents[i].Tag)
@@ -1298,12 +1342,6 @@ func isFatalConnError(err error) bool {
 		fallthrough
 	case ErrFailedAuthHashGen:
 		fallthrough
-	case ErrFailedAuth:
-		fallthrough
-	case ErrFailedTagNegotiation:
-		fallthrough
-	case ErrInvalidCerts:
-		fallthrough
 	case ErrForbiddenTag:
 		fallthrough
 	case ErrFailedParseLocalIP:
@@ -1318,7 +1356,9 @@ func (im *IngestMuxer) getConnection(tgt Target) (ig *IngestConnection, tt tagTr
 loop:
 	for {
 		//attempt a connection, timeouts are built in to the IngestConnection
+		im.mtx.RLock()
 		if ig, err = InitializeConnection(tgt.Address, tgt.Secret, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
+			im.mtx.RUnlock()
 			if isFatalConnError(err) {
 				im.Error("Fatal Connection Error on %v: %v", tgt.Address, err)
 				break loop
@@ -1343,9 +1383,11 @@ loop:
 			ig.Close()
 			ig = nil
 			tt = nil
+			im.mtx.RUnlock()
 			im.Error("Fatal Connection Error, failed to get get tag translation map: %v", err)
-			return
+			continue
 		}
+		im.mtx.RUnlock()
 
 		// set the info
 		if err := ig.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
@@ -1397,8 +1439,8 @@ func (im *IngestMuxer) newTagTrans(igst *IngestConnection) (tagTrans, error) {
 // SourceIP is a convienence function used to pull back a source value
 func (im *IngestMuxer) SourceIP() (net.IP, error) {
 	var ip net.IP
-	im.mtx.Lock()
-	defer im.mtx.Unlock()
+	im.mtx.RLock()
+	defer im.mtx.RUnlock()
 	if im.connHot == 0 || len(im.igst) == 0 {
 		return ip, errors.New("No active connections")
 	}
@@ -1500,6 +1542,7 @@ func (eq *emergencyQueue) pop() (e *entry.Entry, ents []*entry.Entry, ok bool) {
 
 func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) {
 	//iterate on the emergency queue attempting to write elements to the remote side
+	var ttag entry.EntryTag
 	for {
 		e, blk, populated := eq.pop()
 		if !populated {
@@ -1507,7 +1550,13 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 			break
 		}
 		if e != nil {
-			e.Tag = tt.Translate(e.Tag)
+			ttag, ok = tt.Translate(e.Tag)
+			if !ok {
+				// could not translate, push it back on the queue and bail
+				eq.push(e, blk)
+				return
+			}
+			e.Tag = ttag
 			if err := igst.WriteEntry(e); err != nil {
 				//reset the tag
 				e.Tag = tt.Reverse(e.Tag)
@@ -1528,7 +1577,17 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 			//so no need to check or set here
 			for i := range blk {
 				if blk[i] != nil {
-					blk[i].Tag = tt.Translate(blk[i].Tag)
+					ttag, ok = tt.Translate(blk[i].Tag)
+					if !ok {
+						// could not translate, push it back on the queue and bail
+						// first we need to reverse the ones we have already translated, ugh
+						for j := 0; j < i; j++ {
+							blk[j].Tag = tt.Reverse(blk[j].Tag)
+						}
+						eq.push(e, blk)
+						return
+					}
+					blk[i].Tag = ttag
 				}
 			}
 			if err := igst.WriteBatchEntry(blk); err != nil {
@@ -1551,17 +1610,17 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 type tagTrans []entry.EntryTag
 
 // Translate translates a local tag to a remote tag.  Senders should not use this function
-func (tt tagTrans) Translate(t entry.EntryTag) entry.EntryTag {
+func (tt tagTrans) Translate(t entry.EntryTag) (entry.EntryTag, bool) {
 	//check if this is the gravwell and if soo, pass it on through
 	if t == entry.GravwellTagId {
-		return t
+		return t, true
 	}
 	//if this is a tag we have not negotiated, set it to the first one we have
 	//we are assuming that its an error, but we still want the entry
 	if int(t) >= len(tt) {
-		return tt[0]
+		return tt[0], false
 	}
-	return tt[t]
+	return tt[t], true
 }
 
 func (tt *tagTrans) RegisterTag(local entry.EntryTag, remote entry.EntryTag) error {
