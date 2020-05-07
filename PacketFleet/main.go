@@ -391,7 +391,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			wg.Add(1)
-			go h.processPcap(resp.Body, j, wg)
+			go h.processPcap(resp.Body, j, &wg)
 		}
 	}
 
@@ -415,7 +415,7 @@ func removeJob(j uint) {
 	}
 }
 
-func (h *handlerConfig) processPcap(in io.ReadCloser, j *job, wg sync.WaitGroup) {
+func (h *handlerConfig) processPcap(in io.ReadCloser, j *job, wg *sync.WaitGroup) {
 	// stream in the pcap, batch processing packets to the ingester
 	defer in.Close()
 	defer wg.Done()
