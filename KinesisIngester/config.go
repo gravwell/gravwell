@@ -163,14 +163,6 @@ func (c *cfgType) LogLevel() string {
 	return c.Global.Log_Level
 }
 
-func (c *cfgType) CachePath() string {
-	return c.Global.Ingest_Cache_Path
-}
-
-func (c *cfgType) CacheEnabled() bool {
-	return c.Global.Ingest_Cache_Path != ``
-}
-
 func (c *cfgType) parseTimeout() (time.Duration, error) {
 	tos := strings.TrimSpace(c.Global.Connection_Timeout)
 	if len(tos) == 0 {

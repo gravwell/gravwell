@@ -139,11 +139,10 @@ func main() {
 		IngesterName: ingesterName,
 		RateLimitBps: lmt,
 		Logger:       lg,
-	}
-	if cfg.EnableCache() {
-		igCfg.EnableCache = true
-		igCfg.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
-		igCfg.CacheConfig.MaxCacheSize = cfg.MaxCachedData()
+		CacheDepth:   cfg.Cache_Depth,
+		CachePath:    cfg.Cache_Path,
+		CacheSize:    cfg.Cache_Size,
+		CacheMode:    cfg.Cache_Mode,
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
