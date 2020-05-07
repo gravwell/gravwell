@@ -13,9 +13,11 @@ package chancacher
 
 import (
 	"encoding/gob"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -61,7 +63,17 @@ type ChanCacher struct {
 // the ChanCacher will immediately attempt to drain them from disk. In this
 // way, you can recover data sent to disk on a crash or previous use of
 // Commit().
-func NewChanCacher(maxDepth int, cachePath string, maxSize int) *ChanCacher {
+func NewChanCacher(maxDepth int, cachePath string, maxSize int) (*ChanCacher, error) {
+	if cachePath != "" {
+		fi, err := os.Stat(cachePath)
+		if err != nil && !strings.Contains(err.Error(), "no such file or directory") {
+			return nil, err
+		}
+		if fi != nil && !fi.IsDir() {
+			return nil, fmt.Errorf("cache path not a directory")
+		}
+	}
+
 	// as close to infinite as possible...
 	if maxDepth == -1 || maxDepth > MaxDepth {
 		maxDepth = MaxDepth
@@ -88,19 +100,18 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) *ChanCacher {
 
 		err = os.MkdirAll(c.cachePath, 0755)
 		if err != nil {
-			// TODO: log
-			return nil
+			return nil, err
 		}
 
 		// create r and w files
 		r, err := os.OpenFile(filepath.Join(c.cachePath, "cache_a"), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
-			// TODO: log
+			return nil, err
 		}
 
 		w, err := os.OpenFile(filepath.Join(c.cachePath, "cache_b"), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
 		if err != nil {
-			// TODO: log
+			return nil, err
 		}
 
 		c.cacheR = NewFileCounter(r)
@@ -112,7 +123,7 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) *ChanCacher {
 		// mark the cache as modified.
 		fi, err := c.cacheW.Stat()
 		if err != nil {
-			// TODO: log
+			return nil, err
 		}
 		if fi.Size() != 0 {
 			c.cacheModified = true
@@ -120,7 +131,7 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) *ChanCacher {
 
 		go c.cacheHandler()
 	}
-	return c
+	return c, nil
 }
 
 // run connects in->out channels, watching the depth on out. When out is full,
