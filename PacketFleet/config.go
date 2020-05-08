@@ -46,6 +46,7 @@ type base struct {
 type global struct {
 	config.IngestConfig
 	Listen_Address string
+	Use_TLS        bool
 	Server_Cert    string
 	Server_Key     string
 }
