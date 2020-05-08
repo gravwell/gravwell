@@ -116,6 +116,8 @@ github.com/gravwell/filewatch/v3 v3.3.9 h1:/dWEJcWZ4c+D1+02ndGP0k2drusH+qEOnCLiu
 github.com/gravwell/filewatch/v3 v3.3.9/go.mod h1:lmVVKcuDrwcSJ0ZqrjVTCoxcnzCij2wCSKZpCG2VBCY=
 github.com/gravwell/filewatch/v3 v3.3.10 h1:B3Stfm8j2sNfWzHfmfM91merI+yDp/okL9CdZ4VeEVY=
 github.com/gravwell/filewatch/v3 v3.3.10/go.mod h1:bYKlX6Pxr5n+DX+TLrujXwRT+9mvZgLoTPx9aubRQ5E=
+github.com/gravwell/filewatch/v3 v3.3.11 h1:mSfn9mHrX/1tmzgw7zC40Id7MmlRbhxyUM6th5ZK4/8=
+github.com/gravwell/filewatch/v3 v3.3.11/go.mod h1:FOZxD/o6IggsZu1NC1jWZuNdjuR0waVhyIrBI5UuRT0=
 github.com/gravwell/ingest/v3 v3.3.6 h1:+9BM+iof8qoXaLFZRoBFyDhvaWM1qyeYV2VDSx7YQyo=
 github.com/gravwell/ingest/v3 v3.3.6/go.mod h1:5aiOjQZNnXW7e0DmN5qIDlNE/3MD76cqIng5dIZ2kuQ=
 github.com/gravwell/ingest/v3 v3.3.8 h1:T//Db58WLBwRNH4n7nIfb9mXRKPKckxtDV5WWwl1cVU=
@@ -130,6 +132,8 @@ github.com/gravwell/ingest/v3 v3.3.10 h1:W4dsyOuzPXtmGPnxbHywLtKvN1z0nPK71Hh4Ths
 github.com/gravwell/ingest/v3 v3.3.10/go.mod h1:re6Y8ITpcEJsmYiTyiFJlj/Eudpv17zs+ba94XtdwUs=
 github.com/gravwell/ingest/v3 v3.3.11-0.20200507223742-dd5276150c0b h1:y8qo6NUK6+GKG4r9rUwIOltf73ph/61hNYda+LMgPZk=
 github.com/gravwell/ingest/v3 v3.3.11-0.20200507223742-dd5276150c0b/go.mod h1:re6Y8ITpcEJsmYiTyiFJlj/Eudpv17zs+ba94XtdwUs=
+github.com/gravwell/ingest/v3 v3.3.11 h1:nJ+DV+CZxZ0ulbVoWbLuwgkN93L1N+Ho7aTUn1sZG7Y=
+github.com/gravwell/ingest/v3 v3.3.11/go.mod h1:re6Y8ITpcEJsmYiTyiFJlj/Eudpv17zs+ba94XtdwUs=
 github.com/gravwell/netflow/v3 v3.2.3 h1:RdcNKLZEGJ+4PJ2xo/Lm1OVLHBN3TzRYkTDScgrFaNw=
 github.com/gravwell/netflow/v3 v3.2.3/go.mod h1:mOvZuUk8VYa6yQagfJwGNBd08EmJYbKjmK1EJ7jTTjk=
 github.com/gravwell/timegrinder/v3 v3.2.3 h1:3CGFZGpsVRpodVwkuthBZF3It+wus6Fl1QjbcQdCOLw=
@@ -144,6 +148,8 @@ github.com/gravwell/winevent/v3 v3.3.10 h1://vrG2A0dNb3Wo+wGWWOrrh3QyE7o6FXC5Ec6
 github.com/gravwell/winevent/v3 v3.3.10/go.mod h1:aiw5RhqKD0SMKmQdFTkJ1DCq0SlGNrFvvetPPQbAZCU=
 github.com/gravwell/winevent/v3 v3.3.11 h1:8WvP/X46yYrP0QvJZVxn+1B7REYW3eFa2NxYYY6aPnM=
 github.com/gravwell/winevent/v3 v3.3.11/go.mod h1:0wP6zzhS5Ii+Uclgcm9h9ohRyNYU6CQnMEGiN2MNFOo=
+github.com/gravwell/winevent/v3 v3.3.12 h1:Qfe1gdsP4D+4E/3rg8vF6VmbC8JIIWAo6L+3i4LQFs8=
+github.com/gravwell/winevent/v3 v3.3.12/go.mod h1:hl9Nj1zabo9CIcTPQL+79CkCtIoMPfod/YYau60rCWM=
 github.com/h2non/filetype v1.0.10 h1:z+SJfnL6thYJ9kAST+6nPRXp1lMxnOVbMZHNYHMar0s=
 github.com/h2non/filetype v1.0.10/go.mod h1:isekKqOuhMj+s/7r3rIeTErIRy4Rub5uBWHfvMusLMU=
 github.com/hashicorp/go-uuid v1.0.1 h1:fv1ep09latC32wFoVwnqcnKJGnMSdBanPczbHAYm1BE=
