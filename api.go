@@ -27,4 +27,7 @@ type Logger interface {
 	Info(string, ...interface{}) error
 	Warn(string, ...interface{}) error
 	Error(string, ...interface{}) error
+	InfoWithDepth(int, string, ...interface{}) error
+	WarnWithDepth(int, string, ...interface{}) error
+	ErrorWithDepth(int, string, ...interface{}) error
 }

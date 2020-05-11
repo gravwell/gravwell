@@ -29,6 +29,10 @@ const (
 	CRITICAL Level = 5
 )
 
+const (
+	DEFAULT_DEPTH = 3
+)
+
 var (
 	ErrNotOpen      = errors.New("Logger is not open")
 	ErrInvalidLevel = errors.New("Log level is invalid")
@@ -37,11 +41,10 @@ var (
 type Level int
 
 type Logger struct {
-	wtrs           []io.WriteCloser
-	mtx            sync.Mutex
-	lvl            Level
-	hot            bool
-	callstackDepth int
+	wtrs []io.WriteCloser
+	mtx  sync.Mutex
+	lvl  Level
+	hot  bool
 }
 
 // NewFile creates a new logger with the first writer being a file
@@ -58,22 +61,16 @@ func NewFile(f string) (*Logger, error) {
 // New creates a new logger with the given writer at log level INFO
 func New(wtr io.WriteCloser) *Logger {
 	return &Logger{
-		wtrs:           []io.WriteCloser{wtr},
-		mtx:            sync.Mutex{},
-		lvl:            INFO,
-		hot:            true,
-		callstackDepth: 3,
+		wtrs: []io.WriteCloser{wtr},
+		mtx:  sync.Mutex{},
+		lvl:  INFO,
+		hot:  true,
 	}
 }
 
 func NewDiscardLogger() *Logger {
 	var dc discardCloser
 	return New(dc)
-}
-
-// Override the default (3) callstack depth when logging file:line numbers
-func (l *Logger) SetCallstackDepth(depth int) {
-	l.callstackDepth = depth
 }
 
 // Close closes the logger and all currently associated writers
@@ -170,41 +167,71 @@ func (l *Logger) GetLevel() Level {
 // Debug writes a DEBUG level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Debug(f string, args ...interface{}) error {
-	return l.output(DEBUG, f, args...)
+	return l.output(DEFAULT_DEPTH, DEBUG, f, args...)
 }
 
 // Info writes an INFO level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Info(f string, args ...interface{}) error {
-	return l.output(INFO, f, args...)
+	return l.output(DEFAULT_DEPTH, INFO, f, args...)
 }
 
 // Warn writes an WARN level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Warn(f string, args ...interface{}) error {
-	return l.output(WARN, f, args...)
+	return l.output(DEFAULT_DEPTH, WARN, f, args...)
 }
 
 // Error writes an ERROR level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Error(f string, args ...interface{}) error {
-	return l.output(ERROR, f, args...)
+	return l.output(DEFAULT_DEPTH, ERROR, f, args...)
 }
 
 // Critical writes a CRITICALinfo level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Critical(f string, args ...interface{}) error {
-	return l.output(CRITICAL, f, args...)
+	return l.output(DEFAULT_DEPTH, CRITICAL, f, args...)
+}
+
+// Debug writes a DEBUG level log to the underlying writer,
+// if the logging level is higher than DEBUG no action is taken
+func (l *Logger) DebugWithDepth(d int, f string, args ...interface{}) error {
+	return l.output(d, DEBUG, f, args...)
+}
+
+// Info writes an INFO level log to the underlying writer,
+// if the logging level is higher than DEBUG no action is taken
+func (l *Logger) InfoWithDepth(d int, f string, args ...interface{}) error {
+	return l.output(d, INFO, f, args...)
+}
+
+// Warn writes an WARN level log to the underlying writer,
+// if the logging level is higher than DEBUG no action is taken
+func (l *Logger) WarnWithDepth(d int, f string, args ...interface{}) error {
+	return l.output(d, WARN, f, args...)
+}
+
+// Error writes an ERROR level log to the underlying writer,
+// if the logging level is higher than DEBUG no action is taken
+func (l *Logger) ErrorWithDepth(d int, f string, args ...interface{}) error {
+	return l.output(d, ERROR, f, args...)
+}
+
+// Critical writes a CRITICALinfo level log to the underlying writer,
+// if the logging level is higher than DEBUG no action is taken
+func (l *Logger) CriticalWithDepth(d int, f string, args ...interface{}) error {
+	return l.output(d, CRITICAL, f, args...)
 }
 
 // Fatal writes a log, closes the logger, and issues an os.Exit(-1)
 func (l *Logger) Fatal(f string, args ...interface{}) {
-	l.fatalCode(l.callstackDepth, -1, f, args...)
+	l.fatalCode(4, -1, f, args...)
 }
 
 // FatalCode is identical to a log.Fatal, except it allows for controlling the exit code
 func (l *Logger) FatalCode(code int, f string, args ...interface{}) {
-	l.fatalCode(l.callstackDepth, code, f, args...)
+	l.fatalCode(4, code, f, args...)
 }
 
 func (l *Logger) fatalCode(lvl, code int, f string, args ...interface{}) {
@@ -222,14 +249,14 @@ func (l *Logger) fatalCode(lvl, code int, f string, args ...interface{}) {
 	l.mtx.Unlock() //won't ever happen, but leave it so that changes later don't cause mutex problems
 }
 
-func (l *Logger) output(lvl Level, f string, args ...interface{}) (err error) {
+func (l *Logger) output(depth int, lvl Level, f string, args ...interface{}) (err error) {
 	l.mtx.Lock()
 	if err = l.ready(); err == nil && l.lvl <= lvl && l.lvl != OFF {
 		var nl string
 		if !strings.HasSuffix(f, "\n") {
 			nl = "\n"
 		}
-		ln := prefix(l.callstackDepth) + " " + lvl.String() + " " + fmt.Sprintf(f, args...) + nl
+		ln := prefix(depth) + " " + lvl.String() + " " + fmt.Sprintf(f, args...) + nl
 		for _, w := range l.wtrs {
 			if _, lerr := io.WriteString(w, ln); lerr != nil {
 				err = lerr
