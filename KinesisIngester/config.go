@@ -20,7 +20,8 @@ import (
 )
 
 const (
-	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
+	defaultStateStore = `/opt/gravwell/etc/kinesis_ingest.state`
+	defaultLogFile    = `/opt/gravwell/log/kinesis.log`
 )
 
 type bindType int
@@ -55,7 +56,16 @@ func GetConfig(path string) (*cfgType, error) {
 	if err := config.LoadConfigFile(&c, path); err != nil {
 		return nil, err
 	}
+	//initialize the state store location if its empty
+	if c.Global.State_Store_Location == `` {
+		c.Global.State_Store_Location = defaultStateStore
+	}
+	if c.Global.Log_File == `` {
+		c.Global.Log_File = defaultLogFile
+	}
 	if err := verifyConfig(c); err != nil {
+		return nil, err
+	} else if err = c.Global.Verify(); err != nil {
 		return nil, err
 	}
 	// Verify and set UUID

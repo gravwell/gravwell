@@ -87,6 +87,7 @@ func main() {
 		if err != nil {
 			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Global.Log_File, err)
 		}
+		defer fout.Close()
 		if err = lg.AddWriter(fout); err != nil {
 			lg.Fatal("Failed to add a writer: %v", err)
 		}
