@@ -859,8 +859,9 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 		return nil
 	}
 	im.mtx.RLock()
-	defer im.mtx.RUnlock()
-	if im.state != running {
+	runok := im.state == running
+	im.mtx.RUnlock()
+	if !runok {
 		return ErrNotRunning
 	}
 	im.eChan <- e
@@ -876,8 +877,9 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 		return nil
 	}
 	im.mtx.RLock()
-	defer im.mtx.RUnlock()
-	if im.state != running {
+	runok := im.state == running
+	im.mtx.RUnlock()
+	if !runok {
 		return ErrNotRunning
 	}
 	select {
@@ -898,10 +900,10 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 		return
 	}
 	im.mtx.RLock()
-	defer im.mtx.RUnlock()
-	if im.state != running {
-		err = ErrNotRunning
-		return
+	runok := im.state == running
+	im.mtx.RUnlock()
+	if !runok {
+		return ErrNotRunning
 	}
 	select {
 	case im.eChan <- e:
@@ -919,8 +921,9 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 		return nil
 	}
 	im.mtx.RLock()
-	defer im.mtx.RUnlock()
-	if im.state != running {
+	runok := im.state == running
+	im.mtx.RUnlock()
+	if !runok {
 		return ErrNotRunning
 	}
 	im.bChan <- b
@@ -936,8 +939,9 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 		return nil
 	}
 	im.mtx.RLock()
-	defer im.mtx.RUnlock()
-	if im.state != running {
+	runok := im.state == running
+	im.mtx.RUnlock()
+	if !runok {
 		return ErrNotRunning
 	}
 	select {
