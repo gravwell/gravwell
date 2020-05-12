@@ -44,8 +44,7 @@ type ProcessorSet struct {
 
 type ProcessorConfig map[string]*config.VariableConfig
 
-// Processor is an interface that acts as an inline decompressor
-// the decompressor is used for doing an transparent decompression of data
+// Processor is an interface that takes a block of entries and processes them, returning a new block
 type Processor interface {
 	Process(*entry.Entry) ([]*entry.Entry, error) //process an data item potentially setting a tag
 	Close() error                                 //give the processor a chance to tide up

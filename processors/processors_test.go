@@ -22,6 +22,14 @@ import (
 	"github.com/gravwell/ingest/v3/entry"
 )
 
+const (
+	benchmarkBlockSize = 512
+)
+
+var (
+	benchmarkVal = []byte(`{"something": "a long string with stuff an things", "foo": 99, "baz": {"foobar": 1234567, "bazbar": 99.123456}}`)
+)
+
 // TestCheckProcessors just ensures we actually clean and trigger properly on preprocessor IDs
 func TestCheckProcessors(t *testing.T) {
 	//do some generic tests
@@ -430,4 +438,88 @@ func TestParallel(t *testing.T) {
 		}()
 	}
 	wg.Wait()
+}
+
+func BenchmarkEmptyProcessor(b *testing.B) {
+	var dw discardWriter
+	ps := NewProcessorSet(&dw)
+	ent := entry.Entry{
+		TS:   entry.Now(),
+		SRC:  net.ParseIP("192.168.1.1"),
+		Tag:  0,
+		Data: []byte("Hello"),
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := ps.Process(&ent); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkSingleDummyProcessor(b *testing.B) {
+	var dw discardWriter
+	var dp dummyProcessor
+	ps := NewProcessorSet(&dw)
+	ps.AddProcessor(&dp)
+	ent := entry.Entry{
+		TS:   entry.Now(),
+		SRC:  net.ParseIP("192.168.1.1"),
+		Tag:  0,
+		Data: []byte("Hello"),
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := ps.Process(&ent); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkSingleGzip(b *testing.B) {
+	var dw discardWriter
+	cfg := GzipDecompressorConfig{
+		Passthrough_Non_Gzip: false,
+	}
+	p, err := NewGzipDecompressor(cfg)
+	if err != nil {
+		b.Fatal(err)
+	}
+	ps := NewProcessorSet(&dw)
+	ps.AddProcessor(p)
+	data, err := gzipCompress(benchmarkVal)
+	if err != nil {
+		b.Fatal(err)
+	}
+	ent := makeEntry(data, 0)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if err := ps.Process(ent); err != nil {
+			b.Fatal(err)
+		}
+		ent.Data = data
+	}
+}
+
+type dummyProcessor struct {
+}
+
+func (dp *dummyProcessor) Close() error {
+	return nil
+}
+
+func (dp *dummyProcessor) Process(ent *entry.Entry) (r []*entry.Entry, err error) {
+	r = []*entry.Entry{ent}
+	return
+}
+
+type discardWriter struct {
+}
+
+func (dw *discardWriter) WriteEntry(ent *entry.Entry) error {
+	return nil
+}
+
+func (dw *discardWriter) WriteEntryContext(ctx context.Context, ent *entry.Entry) error {
+	return dw.WriteEntry(ent)
 }

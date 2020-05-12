@@ -42,6 +42,8 @@ func GzipLoadConfig(vc *config.VariableConfig) (c GzipDecompressorConfig, err er
 func NewGzipDecompressor(cfg GzipDecompressorConfig) (*GzipDecompressor, error) {
 	return &GzipDecompressor{
 		GzipDecompressorConfig: cfg,
+		rdr:                    bytes.NewReader(nil),
+		zrdr:                   new(gzip.Reader),
 	}, nil
 }
 
@@ -49,6 +51,8 @@ func NewGzipDecompressor(cfg GzipDecompressorConfig) (*GzipDecompressor, error) 
 type GzipDecompressor struct {
 	nocloser
 	GzipDecompressorConfig
+	rdr  *bytes.Reader
+	zrdr *gzip.Reader
 }
 
 func (gd *GzipDecompressor) Config(v interface{}) (err error) {
@@ -64,7 +68,6 @@ func (gd *GzipDecompressor) Config(v interface{}) (err error) {
 
 func (gd *GzipDecompressor) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 	var gzok bool
-	var gzr *gzip.Reader
 	if ent == nil {
 		return
 	}
@@ -82,14 +85,15 @@ func (gd *GzipDecompressor) Process(ent *entry.Entry) (rset []*entry.Entry, err 
 		return
 	}
 
+	gd.rdr.Reset(ent.Data)
+	gd.zrdr.Reset(gd.rdr)
+	bwtr := bytes.NewBuffer(nil)
+
 	//ok we we have gzip, go ahead and do the things
-	if gzr, err = gzip.NewReader(bytes.NewBuffer(ent.Data)); err == nil {
-		bwtr := bytes.NewBuffer(nil)
-		if _, err = io.Copy(bwtr, gzr); err == nil {
-			if err = gzr.Close(); err == nil {
-				ent.Data = bwtr.Bytes()
-				rset = []*entry.Entry{ent}
-			}
+	if _, err = io.Copy(bwtr, gd.zrdr); err == nil {
+		if err = gd.zrdr.Close(); err == nil {
+			ent.Data = bwtr.Bytes()
+			rset = []*entry.Entry{ent}
 		}
 	}
 	return
