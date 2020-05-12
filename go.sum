@@ -134,6 +134,8 @@ github.com/gravwell/ingest/v3 v3.3.11-0.20200507223742-dd5276150c0b h1:y8qo6NUK6
 github.com/gravwell/ingest/v3 v3.3.11-0.20200507223742-dd5276150c0b/go.mod h1:re6Y8ITpcEJsmYiTyiFJlj/Eudpv17zs+ba94XtdwUs=
 github.com/gravwell/ingest/v3 v3.3.11 h1:nJ+DV+CZxZ0ulbVoWbLuwgkN93L1N+Ho7aTUn1sZG7Y=
 github.com/gravwell/ingest/v3 v3.3.11/go.mod h1:re6Y8ITpcEJsmYiTyiFJlj/Eudpv17zs+ba94XtdwUs=
+github.com/gravwell/ingest/v3 v3.3.12-0.20200512161721-c5f77e20eaf2 h1:F1mkz7kil+LBABJ158UB5PPgGnsq+IbboO47ZwgCdEQ=
+github.com/gravwell/ingest/v3 v3.3.12-0.20200512161721-c5f77e20eaf2/go.mod h1:re6Y8ITpcEJsmYiTyiFJlj/Eudpv17zs+ba94XtdwUs=
 github.com/gravwell/netflow/v3 v3.2.3 h1:RdcNKLZEGJ+4PJ2xo/Lm1OVLHBN3TzRYkTDScgrFaNw=
 github.com/gravwell/netflow/v3 v3.2.3/go.mod h1:mOvZuUk8VYa6yQagfJwGNBd08EmJYbKjmK1EJ7jTTjk=
 github.com/gravwell/timegrinder/v3 v3.2.3 h1:3CGFZGpsVRpodVwkuthBZF3It+wus6Fl1QjbcQdCOLw=

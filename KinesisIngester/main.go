@@ -104,6 +104,8 @@ func main() {
 		lg.Fatal("Couldn't open state file: %v", err)
 	}
 	stateMan := NewStateman(stateFile)
+	stateMan.Start()
+	defer stateMan.Close()
 
 	tags, err := cfg.Tags()
 	if err != nil {
@@ -204,30 +206,8 @@ func main() {
 			go func(stream streamDef, shard kinesis.Shard, tagid entry.EntryTag, shardid int) {
 				wg.Add(1)
 				defer wg.Done()
-				gsii := &kinesis.GetShardIteratorInput{}
-				gsii.SetShardId(*shard.ShardId)
-				gsii.SetStreamName(stream.Stream_Name)
-				seqnum := stateMan.GetSequenceNum(stream.Stream_Name, *shard.ShardId)
-				if seqnum == `` {
-					// we don't have a previous state
-					debugout("No previous sequence number for stream %v shard %v, defaulting to %v\n", stream.Stream_Name, *shard.ShardId, stream.Iterator_Type)
-					gsii.SetShardIteratorType(stream.Iterator_Type)
-				} else {
-					gsii.SetShardIteratorType(`AFTER_SEQUENCE_NUMBER`)
-					gsii.SetStartingSequenceNumber(seqnum)
-				}
 
-				output, err := svc.GetShardIterator(gsii)
-				if err != nil {
-					lg.Error("error on shard #%d (%s): %v", shardid, *shard.ShardId, err)
-					return
-				}
-				if output.ShardIterator == nil {
-					// this is weird, we are going to bail out
-					lg.Error("Got nil initial shard iterator, bailing out")
-					return
-				}
-				iter := *output.ShardIterator
+				// set up timegrinder and other long-lived stuff
 				tcfg := timegrinder.Config{
 					EnableLeftMostSeed: true,
 				}
@@ -254,72 +234,108 @@ func main() {
 					}
 				}
 
-				var lastSeqNum string
-				for running {
-					gri := &kinesis.GetRecordsInput{}
-					gri.SetLimit(5000)
-					gri.SetShardIterator(iter)
-					var res *kinesis.GetRecordsOutput
-					var err error
-					for {
-						res, err = svc.GetRecords(gri)
-						if res != nil {
-							if res.NextShardIterator != nil {
-								iter = *res.NextShardIterator
-							}
-						}
-						if err != nil {
-							if awsErr, ok := err.(awserr.Error); ok {
-								// process SDK error
-								if awsErr.Code() == kinesis.ErrCodeProvisionedThroughputExceededException {
-									lg.Warn("Throughput exceeded, trying again")
-									time.Sleep(500 * time.Millisecond)
-								} else {
-									lg.Error("%s: %s", awsErr.Code(), awsErr.Message())
-									time.Sleep(100 * time.Millisecond)
-								}
-							} else {
-								lg.Error("unknown error: %v", err)
-							}
-						} else {
-							// if we got no records, chill for a sec before we hit it again
-							if len(res.Records) == 0 {
-								time.Sleep(100 * time.Millisecond)
-							}
-							break
-						}
+			reconnectLoop:
+				for {
+					gsii := &kinesis.GetShardIteratorInput{}
+					gsii.SetShardId(*shard.ShardId)
+					gsii.SetStreamName(stream.Stream_Name)
+					seqnum := stateMan.GetSequenceNum(stream.Stream_Name, *shard.ShardId)
+					if seqnum == `` {
+						// we don't have a previous state
+						debugout("No previous sequence number for stream %v shard %v, defaulting to %v\n", stream.Stream_Name, *shard.ShardId, stream.Iterator_Type)
+						gsii.SetShardIteratorType(stream.Iterator_Type)
+					} else {
+						gsii.SetShardIteratorType(`AFTER_SEQUENCE_NUMBER`)
+						gsii.SetStartingSequenceNumber(seqnum)
 					}
 
-					for _, r := range res.Records {
-						lastSeqNum = *r.SequenceNumber
-						ent := &entry.Entry{
-							Tag:  tagid,
-							SRC:  src,
-							Data: r.Data,
-						}
-						if stream.Parse_Time == false {
-							ent.TS = entry.FromStandard(*r.ApproximateArrivalTimestamp)
-						} else {
-							ts, ok, err := tg.Extract(ent.Data)
-							if !ok || err != nil {
-								// something went wrong, switch to using kinesis timestamps
-								stream.Parse_Time = false
-								ent.TS = entry.FromStandard(*r.ApproximateArrivalTimestamp)
+					output, err := svc.GetShardIterator(gsii)
+					if err != nil {
+						lg.Error("error on shard #%d (%s): %v", shardid, *shard.ShardId, err)
+						time.Sleep(5 * time.Second)
+						continue
+					}
+					if output.ShardIterator == nil {
+						// this is weird, we are going to bail out
+						lg.Error("Got nil initial shard iterator, sleeping and retrying")
+						time.Sleep(5 * time.Second)
+						continue
+					}
+					iter := *output.ShardIterator
+
+					var lastSeqNum string
+					for running {
+						gri := &kinesis.GetRecordsInput{}
+						gri.SetLimit(5000)
+						gri.SetShardIterator(iter)
+						var res *kinesis.GetRecordsOutput
+						var err error
+						for {
+							res, err = svc.GetRecords(gri)
+							if res != nil {
+								if res.NextShardIterator != nil {
+									iter = *res.NextShardIterator
+								}
+							}
+							if err != nil {
+								if awsErr, ok := err.(awserr.Error); ok {
+									// process SDK error
+									if awsErr.Code() == kinesis.ErrCodeProvisionedThroughputExceededException {
+										lg.Warn("Throughput exceeded, trying again")
+										time.Sleep(500 * time.Millisecond)
+									} else if awsErr.Code() == kinesis.ErrCodeExpiredIteratorException {
+										lg.Info("Iterator expired, re-initializing")
+										time.Sleep(100 * time.Millisecond)
+										continue reconnectLoop
+									} else {
+										lg.Error("%s: %s", awsErr.Code(), awsErr.Message())
+										time.Sleep(500 * time.Millisecond)
+									}
+								} else {
+									lg.Error("unknown error: %v", err)
+								}
 							} else {
-								ent.TS = entry.FromStandard(ts)
+								// if we got no records, chill for a sec before we hit it again
+								if len(res.Records) == 0 {
+									time.Sleep(100 * time.Millisecond)
+								}
+								break
 							}
 						}
-						if err = procset.Process(ent); err != nil {
-							lg.Error("Failed to handle entry: %v", err)
+
+						for _, r := range res.Records {
+							lastSeqNum = *r.SequenceNumber
+							ent := &entry.Entry{
+								Tag:  tagid,
+								SRC:  src,
+								Data: r.Data,
+							}
+							if stream.Parse_Time == false {
+								ent.TS = entry.FromStandard(*r.ApproximateArrivalTimestamp)
+							} else {
+								ts, ok, err := tg.Extract(ent.Data)
+								if !ok || err != nil {
+									// something went wrong, switch to using kinesis timestamps
+									stream.Parse_Time = false
+									ent.TS = entry.FromStandard(*r.ApproximateArrivalTimestamp)
+								} else {
+									ent.TS = entry.FromStandard(ts)
+								}
+							}
+							if err = procset.Process(ent); err != nil {
+								lg.Error("Failed to handle entry: %v", err)
+							}
+						}
+						// Now update the most recent sequence number
+						if lastSeqNum != `` {
+							stateMan.UpdateSequenceNum(stream.Stream_Name, *shard.ShardId, lastSeqNum)
 						}
 					}
-					// Now update the most recent sequence number
-					if lastSeqNum != `` {
-						stateMan.UpdateSequenceNum(stream.Stream_Name, *shard.ShardId, lastSeqNum)
+					if err = procset.Close(); err != nil {
+						lg.Error("Failed to close processor set: %v", err)
 					}
-				}
-				if err = procset.Close(); err != nil {
-					lg.Error("Failed to close processor set: %v", err)
+					// if we get to this point, exit the for loop
+					break
 				}
 			}(*stream, *shard, tagid, i)
 		}
@@ -329,7 +345,6 @@ func main() {
 
 	running = false
 	wg.Wait()
-	stateMan.Close()
 }
 
 func debugout(format string, args ...interface{}) {
