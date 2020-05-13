@@ -36,6 +36,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/shirou/gopsutil v2.19.11+incompatible
 	github.com/tealeg/xlsx v1.0.5
+	github.com/traetox/gcfg v1.2.4-0.20191023234045-a093ce14b31d
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	go.opencensus.io v0.22.2 // indirect
@@ -50,7 +51,6 @@ require (
 	google.golang.org/appengine v1.6.5 // indirect
 	google.golang.org/genproto v0.0.0-20191203220235-3fa9dbf08042 // indirect
 	google.golang.org/grpc v1.25.1 // indirect
-	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/jcmturner/gokrb5.v7 v7.3.0 // indirect
 )
 

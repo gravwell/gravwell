@@ -19,7 +19,7 @@ import (
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/config"
 
-	"gopkg.in/gcfg.v1"
+	"github.com/traetox/gcfg"
 )
 
 const (
