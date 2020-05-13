@@ -6,8 +6,8 @@ github.com/google/renameio v0.1.0 h1:GOZbcHa3HfsPKPlmyPyN2KEohoMXOhdMbHrvbpl2QaA
 github.com/google/renameio v0.1.0/go.mod h1:KWCgfxg9yswjAJkECMjeO8J8rahYeXnNhOm40UhjYkI=
 github.com/google/uuid v1.1.1 h1:Gkbcsh/GbpXz7lPftLA3P6TYMwjCLYm83jiFQZF/3gY=
 github.com/google/uuid v1.1.1/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+yHo=
-github.com/gravwell/timegrinder/v3 v3.2.4 h1:RVG0Op0w7wrXrwyp2hbaxsggWXcQey4mme/lTpUsQm0=
-github.com/gravwell/timegrinder/v3 v3.2.4/go.mod h1:5N5jpqRDBJaEw1GotCXb8hmGoNeOPDSBjin1Mz/6g1Q=
+github.com/gravwell/gcfg v1.2.5 h1:gkn0wbZz0I9XmQGs4Z0cq5iBe5qDx4IH5cjGzqyQjSw=
+github.com/gravwell/gcfg v1.2.5/go.mod h1:lWsvu9YGmTXgqdrR4W926Ok7Vh8jvrwIhFMkn91PgU4=
 github.com/gravwell/timegrinder/v3 v3.2.5 h1:leBKTehiuY64p6CmJyW0N+1RIa1KKg9U8yCqhziFFDg=
 github.com/gravwell/timegrinder/v3 v3.2.5/go.mod h1:5N5jpqRDBJaEw1GotCXb8hmGoNeOPDSBjin1Mz/6g1Q=
 github.com/klauspost/compress v1.8.6 h1:970MQcQdxX7hfgc/aqmB4a3grW0ivUVV6i1TLkP8CiE=
@@ -16,8 +16,6 @@ github.com/klauspost/cpuid v1.2.1 h1:vJi+O/nMdFt0vqm8NZBI6wzALWdA2X+egi0ogNyrC/w
 github.com/klauspost/cpuid v1.2.1/go.mod h1:Pj4uuM528wm8OyEC2QMXAi2YiTZ96dNQPGgoMS4s3ek=
 github.com/minio/highwayhash v1.0.0 h1:iMSDhgUILCr0TNm8LWlSjF8N0ZIj2qbO8WHp6Q/J2BA=
 github.com/minio/highwayhash v1.0.0/go.mod h1:xQboMTeM9nY9v/LlAOxFctujiv5+Aq2hR5dxBpaMbdc=
-github.com/traetox/gcfg v1.2.4-0.20191023234045-a093ce14b31d h1:Uc3Rsjaen2xosVuhg/HqZckVolXJfy+eMOAitiYqIus=
-github.com/traetox/gcfg v1.2.4-0.20191023234045-a093ce14b31d/go.mod h1:+j91MgNXTQW48n4alxy5ylS12NkJqqMmtZ8El8sfwek=
 go.etcd.io/bbolt v1.3.3 h1:MUGmc65QhB3pIlaQ5bB4LwqSj6GIonVJXpZiaKNyaKk=
 go.etcd.io/bbolt v1.3.3/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 golang.org/x/sys v0.0.0-20190130150945-aca44879d564/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=

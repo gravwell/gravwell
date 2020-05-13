@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/traetox/gcfg"
+	"github.com/gravwell/gcfg"
 )
 
 const (
