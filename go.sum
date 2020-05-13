@@ -68,6 +68,8 @@ github.com/google/uuid v1.1.1/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+
 github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+vpHVxEJEs9eg=
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
 github.com/gravwell/filewatch/v3 v3.3.10/go.mod h1:bYKlX6Pxr5n+DX+TLrujXwRT+9mvZgLoTPx9aubRQ5E=
+github.com/gravwell/gcfg v1.2.5 h1:gkn0wbZz0I9XmQGs4Z0cq5iBe5qDx4IH5cjGzqyQjSw=
+github.com/gravwell/gcfg v1.2.5/go.mod h1:lWsvu9YGmTXgqdrR4W926Ok7Vh8jvrwIhFMkn91PgU4=
 github.com/gravwell/ingest/v3 v3.3.10 h1:W4dsyOuzPXtmGPnxbHywLtKvN1z0nPK71Hh4Thsc8b0=
 github.com/gravwell/ingest/v3 v3.3.10/go.mod h1:re6Y8ITpcEJsmYiTyiFJlj/Eudpv17zs+ba94XtdwUs=
 github.com/gravwell/ingesters/v3 v3.3.10 h1:xhAP47XaeDzjvliZ0UMmsD4GQreyym3AcshwzYqxDR0=

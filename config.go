@@ -16,8 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravwell/gcfg"
 	"github.com/gravwell/ingest/v3/log"
-	"github.com/traetox/gcfg"
 )
 
 const (
