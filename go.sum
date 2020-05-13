@@ -110,6 +110,8 @@ github.com/googleapis/gax-go/v2 v2.0.5 h1:sjZBwGj9Jlw33ImPtvFviGYvseOtDM7hkSKB7+
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
 github.com/gravwell/filewatch/v3 v3.3.11 h1:mSfn9mHrX/1tmzgw7zC40Id7MmlRbhxyUM6th5ZK4/8=
 github.com/gravwell/filewatch/v3 v3.3.11/go.mod h1:FOZxD/o6IggsZu1NC1jWZuNdjuR0waVhyIrBI5UuRT0=
+github.com/gravwell/gcfg v1.2.5 h1:gkn0wbZz0I9XmQGs4Z0cq5iBe5qDx4IH5cjGzqyQjSw=
+github.com/gravwell/gcfg v1.2.5/go.mod h1:lWsvu9YGmTXgqdrR4W926Ok7Vh8jvrwIhFMkn91PgU4=
 github.com/gravwell/ingest/v3 v3.3.11 h1:nJ+DV+CZxZ0ulbVoWbLuwgkN93L1N+Ho7aTUn1sZG7Y=
 github.com/gravwell/ingest/v3 v3.3.11/go.mod h1:re6Y8ITpcEJsmYiTyiFJlj/Eudpv17zs+ba94XtdwUs=
 github.com/gravwell/ingest/v3 v3.3.12-0.20200512161721-c5f77e20eaf2 h1:F1mkz7kil+LBABJ158UB5PPgGnsq+IbboO47ZwgCdEQ=

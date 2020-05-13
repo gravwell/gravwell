@@ -22,6 +22,7 @@ require (
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
 	github.com/gravwell/filewatch/v3 v3.3.11
+	github.com/gravwell/gcfg v1.2.5
 	github.com/gravwell/ingest/v3 v3.3.12-0.20200512161721-c5f77e20eaf2
 	github.com/gravwell/netflow/v3 v3.2.3
 	github.com/gravwell/timegrinder/v3 v3.2.5
@@ -36,7 +37,6 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/shirou/gopsutil v2.19.11+incompatible
 	github.com/tealeg/xlsx v1.0.5
-	github.com/traetox/gcfg v1.2.4-0.20191023234045-a093ce14b31d
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	go.opencensus.io v0.22.2 // indirect

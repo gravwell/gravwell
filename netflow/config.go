@@ -18,7 +18,7 @@ import (
 	"github.com/gravwell/ingest/v3"
 	"github.com/gravwell/ingest/v3/config"
 
-	"github.com/traetox/gcfg"
+	"github.com/gravwell/gcfg"
 )
 
 const (
