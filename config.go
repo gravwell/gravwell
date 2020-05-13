@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/gravwell/ingest/v3/log"
-	"gopkg.in/gcfg.v1"
+	"github.com/traetox/gcfg"
 )
 
 const (
