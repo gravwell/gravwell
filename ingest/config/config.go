@@ -51,7 +51,7 @@ import (
 
 	"github.com/google/go-write"
 	"github.com/google/uuid"
-	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 const (

@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 //gravwell log level type

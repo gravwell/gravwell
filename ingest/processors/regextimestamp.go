@@ -13,9 +13,9 @@ import (
 	"fmt"
 	"regexp"
 
-	"github.com/gravwell/ingest/v3/config"
-	"github.com/gravwell/ingest/v3/entry"
-	"github.com/gravwell/timegrinder/v3"
+	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (

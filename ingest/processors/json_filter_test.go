@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/gravwell/ingest/v3/config"
+	"github.com/gravwell/gravwell/v3/ingest/config"
 )
 
 type testEntry struct {

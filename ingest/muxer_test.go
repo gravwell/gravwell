@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 const (

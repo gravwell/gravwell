@@ -20,8 +20,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gravwell/ingest/v3/entry"
-	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 var (
