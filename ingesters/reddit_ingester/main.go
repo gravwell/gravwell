@@ -14,7 +14,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/ingesters/v3/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/turnage/graw/reddit"
 	"github.com/turnage/graw/streams"
 )

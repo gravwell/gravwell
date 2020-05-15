@@ -22,8 +22,8 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 
 	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/ingesters/v3/version"
-	"github.com/gravwell/winevent/v3"
+	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/gravwell/v3/winevent"
 )
 
 const (

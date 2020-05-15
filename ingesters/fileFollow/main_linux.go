@@ -18,12 +18,12 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravwell/filewatch/v3"
+	"github.com/gravwell/gravwell/v3/filewatch"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/ingesters/v3/utils"
-	"github.com/gravwell/ingesters/v3/version"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
 const (

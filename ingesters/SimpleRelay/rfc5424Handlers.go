@@ -18,7 +18,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/timegrinder/v3"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {

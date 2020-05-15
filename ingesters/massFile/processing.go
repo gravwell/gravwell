@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/timegrinder/v3"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (

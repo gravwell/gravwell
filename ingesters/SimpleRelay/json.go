@@ -22,7 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/timegrinder/v3"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 
 	"github.com/buger/jsonparser"
 )

@@ -20,7 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/timegrinder/v3"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (

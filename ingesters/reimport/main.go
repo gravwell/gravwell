@@ -22,9 +22,9 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/ingesters/v3/args"
-	"github.com/gravwell/ingesters/v3/utils"
-	"github.com/gravwell/ingesters/v3/version"
+	"github.com/gravwell/gravwell/v3/ingesters/args"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
 const (

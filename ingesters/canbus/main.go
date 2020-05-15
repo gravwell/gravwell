@@ -19,7 +19,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/ingesters/v3/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
 const (

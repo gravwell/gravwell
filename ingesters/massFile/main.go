@@ -19,7 +19,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/ingesters/v3/version"
+	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/shirou/gopsutil/mem"
 )
 
