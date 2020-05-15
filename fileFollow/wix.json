@@ -1,0 +1,25 @@
+{
+  "product": "gravwell file follower ingester",
+  "company": "Gravwell Inc",
+  "license": "LICENSE",
+  "upgrade-code": "bedb975e-b218-11e9-873c-435282de337c",
+  "files": {
+    "guid": "fc46acdc-3145-11e8-a107-5b54fe855f8c",
+    "items": [
+      "winfilefollow.exe",
+      "file_follow.cfg",
+      "gravwellff.ico"
+    ]
+  },
+  "env": {
+    "guid": "a5e56b7a-c585-11e7-b854-93df1b9a59be",
+    "vars": [
+    ]
+  },
+  "shortcuts": {
+    "guid": "a5e85e16-c585-11e7-a435-87793feceeec",
+    "items": []
+  },
+  "choco": {},
+  "hooks": []
+}

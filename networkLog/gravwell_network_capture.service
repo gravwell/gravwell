@@ -1,0 +1,24 @@
+[Unit]
+Description=Gravwell Network Capture Service
+After=network-online.target
+OnFailure=gravwell_crash_report@%n.service
+
+[Service]
+Type=simple
+ExecStart=/opt/gravwell/bin/gravwell_network_capture -stderr %n
+WorkingDirectory=/opt/gravwell
+Restart=always
+User=gravwell
+Group=gravwell
+LimitNPROC=infinity
+LimitNOFILE=infinity
+PIDFile=/var/run/gravwell_network_capture.pid
+TimeoutStopSec=5
+KillMode=process
+KillSignal=SIGINT
+StandardOutput=null
+StandardError=journal
+
+
+[Install]
+WantedBy=multi-user.target
