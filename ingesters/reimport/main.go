@@ -19,9 +19,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/ingest/v3"
-	"github.com/gravwell/ingest/v3/config"
-	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/ingesters/v3/args"
 	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/gravwell/ingesters/v3/version"

@@ -26,11 +26,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/ingest/v3"
-	"github.com/gravwell/ingest/v3/config"
-	"github.com/gravwell/ingest/v3/entry"
-	"github.com/gravwell/ingest/v3/log"
-	"github.com/gravwell/ingest/v3/processors"
+	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/ingesters/v3/utils"
 	"github.com/gravwell/ingesters/v3/version"
 

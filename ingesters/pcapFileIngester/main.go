@@ -16,8 +16,8 @@ import (
 	"runtime"
 	"time"
 
-	"github.com/gravwell/ingest/v3"
-	"github.com/gravwell/ingest/v3/entry"
+	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/ingesters/v3/args"
 	"github.com/gravwell/ingesters/v3/utils"
 

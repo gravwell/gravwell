@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/ingest/v3"
+	"github.com/gravwell/gravwell/v3/ingest"
 
 	"github.com/gravwell/gcfg"
 )

@@ -16,8 +16,8 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/gravwell/ingest/v3/entry"
-	"github.com/gravwell/ingest/v3/processors"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/timegrinder/v3"
 )
 

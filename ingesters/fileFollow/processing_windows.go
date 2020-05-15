@@ -18,8 +18,8 @@ import (
 	"golang.org/x/sys/windows/svc"
 
 	"github.com/gravwell/filewatch/v3"
-	"github.com/gravwell/ingest/v3"
-	"github.com/gravwell/ingest/v3/processors"
+	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/ingesters/v3/version"
 	"github.com/gravwell/timegrinder/v3"
 )

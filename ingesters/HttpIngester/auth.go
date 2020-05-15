@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 const (
