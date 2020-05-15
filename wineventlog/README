@@ -1,0 +1,3 @@
+This is a direct lift of the code at https://github.com/elastic/beats/tree/master/winlogbeat/sys/wineventlog
+which is governed by the Apache2.0 license.  We had to lift the code due to the vendoring that the elastic
+repository enforces.

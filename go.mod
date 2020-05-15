@@ -7,16 +7,13 @@ require (
 	github.com/bxcodec/faker/v3 v3.3.1
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542
-	github.com/google/renameio v0.1.0 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gravwell/gcfg v1.2.5
 	github.com/klauspost/compress v1.8.6
-	github.com/klauspost/cpuid v1.2.1 // indirect
 	github.com/minio/highwayhash v1.0.0
 	go.etcd.io/bbolt v1.3.4
+	golang.org/x/sys v0.0.0-20200219091948-cb0a6d8edb6c
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1
-	gopkg.in/gcfg.v1 v1.2.3 // indirect
-	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
 
 // Leave this until https://github.com/buger/jsonparser/pull/180 is merged
