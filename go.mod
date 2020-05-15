@@ -5,6 +5,7 @@ go 1.13
 require (
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/bxcodec/faker/v3 v3.3.1
+	github.com/fsnotify/fsnotify v1.4.9
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542
 	github.com/google/renameio v0.1.0 // indirect
 	github.com/google/uuid v1.1.1

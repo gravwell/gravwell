@@ -14,8 +14,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/gravwell/ingest/v3/entry"
-	"github.com/gravwell/timegrinder/v3"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 type debugOut func(string, ...interface{})
