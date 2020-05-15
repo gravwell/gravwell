@@ -1,2 +1,3 @@
-github.com/bxcodec/faker/v3 v3.1.0 h1:VCCPusvvk1My6RjWFnqVbh6EdHDqjWmrHJCHduUksV0=
-github.com/bxcodec/faker/v3 v3.1.0/go.mod h1:gF31YgnMSMKgkvl+fyEo1xuSMbEuieyqfeslGYFjneM=
+github.com/bxcodec/faker v2.0.1+incompatible h1:P0KUpUw5w6WJXwrPfv35oc91i4d8nf40Nwln+M/+faA=
+github.com/bxcodec/faker/v3 v3.3.1 h1:G7uldFk+iO/ES7W4v7JlI/WU9FQ6op9VJ15YZlDEhGQ=
+github.com/bxcodec/faker/v3 v3.3.1/go.mod h1:gF31YgnMSMKgkvl+fyEo1xuSMbEuieyqfeslGYFjneM=

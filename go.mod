@@ -1,5 +1,5 @@
-module github.com/gravwell/ipexist/v3
+module github.com/gravwell/gravwell/v3
 
 go 1.13
 
-require github.com/bxcodec/faker/v3 v3.1.0
+require github.com/bxcodec/faker/v3 v3.3.1
