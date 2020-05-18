@@ -16,7 +16,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravwell/ingest/v3/log"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 var (

@@ -11,7 +11,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/gravwell/ingesters/v3/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
 const (
