@@ -5,6 +5,7 @@ go 1.13
 require (
 	cloud.google.com/go/pubsub v1.3.1
 	collectd.org v0.3.1-0.20181025072142-f80706d1e115
+	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/Shopify/sarama v1.24.1
 	github.com/aws/aws-sdk-go v1.25.46
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e

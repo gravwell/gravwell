@@ -1,0 +1,21 @@
+Note that this is different from the other generators in the repository. This tool is intended to be run on a Windows system. It generates Windows event logs, which can be ingested using the separate winevent ingester.
+
+The events end up in the Application channel. The default event source is called 'GravwellEventGenerator'. The EventIDs are random numbers between 1 and 9999, and the generator randomly picks between Info, Warning, and Error for the event severity level.
+
+Flags:
+
+-source-name <srcname>: Set the event source name. Default "GravwellEventGenerator".
+-event-count <n>: Specify how many events to generate. Default 100.
+-stream: If set, the generator will run indefinitely, generating event-count events every second until killed.
+
+To build:
+
+GOOS=windows go build
+
+To run (on a Windows system):
+
+windowsEventGenerator.exe
+
+windowsEventGenerator -event-count 10000
+
+windowsEventGenerator -stream -event-count 10 -source-name MyEventSource
