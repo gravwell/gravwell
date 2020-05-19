@@ -168,7 +168,7 @@ func (igst *IngestConnection) NegotiateTag(name string) (tg entry.EntryTag, err 
 	return
 }
 
-/* Sync causes the entry writer to force an ack from teh server.  This ensures that all
+/* Sync causes the entry writer to force an ack from the server.  This ensures that all
 *  entries that have been written are flushed and fully acked by the server. */
 func (igst *IngestConnection) Sync() error {
 	igst.mtx.Lock()
@@ -203,7 +203,7 @@ func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]
 	var state StateResponse
 	var chal Challenge
 
-	//recieve the challenge
+	//receive the challenge
 	if err := chal.Read(conn); err != nil {
 		return nil, 0, err
 	}

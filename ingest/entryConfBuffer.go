@@ -24,7 +24,7 @@ const (
 var (
 	errEmptyList       = errors.New("Empty list")
 	errEmptyConfBuff   = errors.New("Empty confirmation buffer")
-	errCorruptConfBuff = errors.New("entry confirmationg buff is corrupt")
+	errCorruptConfBuff = errors.New("entry confirmation buff is corrupt")
 	errEntryNotFound   = errors.New("EntryID not found")
 	errFullBuffer      = errors.New("Buffer is full")
 )
@@ -35,7 +35,7 @@ type entryConfirmation struct {
 }
 
 // This structure and its methods is NOT thread safe, the caller
-// should ensure that all accesses are syncronous
+// should ensure that all accesses are synchronous
 type entryConfBuffer struct {
 	buff     [](*entryConfirmation)
 	capacity int
@@ -159,7 +159,7 @@ func (ecb *entryConfBuffer) popHead() (*entry.Entry, error) {
 // list and shift all items forward to fill the gap
 func (ecb *entryConfBuffer) popUnalligned(id entrySendID) error {
 	var curr, next int
-	//simple sanity check incase we are popping the head
+	//simple sanity check in case we are popping the head
 	if ecb.buff[ecb.head] != nil && ecb.buff[ecb.head].EntryID == id {
 		_, err := ecb.popHead()
 		return err
@@ -191,7 +191,7 @@ func (ecb *entryConfBuffer) popUnalligned(id entrySendID) error {
 			//next points to the last item
 			ecb.buff[next] = nil
 			//the first time should never hit here, so we can
-			//just decriment count and don't need to shift head
+			//just decrement count and don't need to shift head
 			ecb.count--
 
 			return nil
