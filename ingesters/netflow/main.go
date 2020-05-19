@@ -133,11 +133,10 @@ func main() {
 		IngesterVersion: version.GetVersion(),
 		IngesterUUID:    id.String(),
 		Logger:          lg,
-	}
-	if cfg.EnableCache() {
-		igCfg.EnableCache = true
-		igCfg.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
-		igCfg.CacheConfig.MaxCacheSize = cfg.MaxCachedData()
+		CacheDepth:      cfg.Cache_Depth,
+		CachePath:       cfg.Cache_Path,
+		CacheSize:       cfg.Cache_Size,
+		CacheMode:       cfg.Cache_Mode,
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {

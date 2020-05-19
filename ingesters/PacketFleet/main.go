@@ -192,11 +192,10 @@ func main() {
 		IngesterUUID:    id.String(),
 		RateLimitBps:    lmt,
 		Logger:          lg,
-	}
-	if cfg.Global.EnableCache() {
-		igCfg.EnableCache = true
-		igCfg.CacheConfig.FileBackingLocation = cfg.Global.LocalFileCachePath()
-		igCfg.CacheConfig.MaxCacheSize = cfg.Global.MaxCachedData()
+		CacheDepth:      cfg.Global.Cache_Depth,
+		CachePath:       cfg.Global.Cache_Path,
+		CacheSize:       cfg.Global.Cache_Size,
+		CacheMode:       cfg.Global.Cache_Mode,
 	}
 	igst, err = ingest.NewUniformMuxer(igCfg)
 	if err != nil {

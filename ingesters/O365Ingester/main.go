@@ -124,10 +124,10 @@ func main() {
 		IngesterName:    "Kinesis",
 		IngesterVersion: version.GetVersion(),
 		IngesterUUID:    id.String(),
-	}
-	if cfg.CacheEnabled() {
-		ingestConfig.EnableCache = true
-		ingestConfig.CacheConfig.FileBackingLocation = cfg.CachePath()
+		CacheDepth:      cfg.Global.Cache_Depth,
+		CachePath:       cfg.Global.Cache_Path,
+		CacheSize:       cfg.Global.Cache_Size,
+		CacheMode:       cfg.Global.Cache_Mode,
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
