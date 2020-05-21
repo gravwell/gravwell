@@ -598,7 +598,7 @@ mainLoop:
 				continue
 			}
 
-			if im.cacheEnabled {
+			if im.cacheEnabled && im.cacheAlways {
 				im.cache.CacheStart()
 				im.bcache.CacheStart()
 				return nil
