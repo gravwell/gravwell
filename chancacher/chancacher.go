@@ -15,6 +15,7 @@ import (
 	"encoding/gob"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,13 +95,41 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) (*ChanCacher, er
 	// just leave it initiated...
 	close(c.cachePaused)
 
-	go c.run()
 	if c.cache {
 		var err error
 
 		err = os.MkdirAll(c.cachePath, 0755)
 		if err != nil {
 			return nil, err
+		}
+
+		a := filepath.Join(c.cachePath, "cache_a")
+		b := filepath.Join(c.cachePath, "cache_b")
+
+		// check if we need to merge
+		var sizeA, sizeB int64
+		fi, err := os.Stat(a)
+		if err == nil {
+			sizeA = fi.Size()
+		}
+		fi, err = os.Stat(b)
+		if err == nil {
+			sizeB = fi.Size()
+		}
+
+		// if only one file has data in it, just shuffle the files
+		// around. If both have data, merge. If neither have data, no
+		// action is needed.
+		if sizeB != 0 && sizeA == 0 {
+			err := os.Rename(b, a)
+			if err != nil {
+				return nil, err
+			}
+		} else if sizeB != 0 && sizeA != 0 {
+			err := merge(a, b)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		// create r and w files
@@ -121,7 +150,7 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) (*ChanCacher, er
 
 		// if the write cache data data in it already (recover), then
 		// mark the cache as modified.
-		fi, err := c.cacheW.Stat()
+		fi, err = c.cacheW.Stat()
 		if err != nil {
 			return nil, err
 		}
@@ -131,6 +160,7 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) (*ChanCacher, er
 
 		go c.cacheHandler()
 	}
+	go c.run()
 	return c, nil
 }
 
@@ -362,4 +392,76 @@ func (c *ChanCacher) finishCache() {
 // the in-memory buffer.
 func (c *ChanCacher) Size() int {
 	return c.cacheR.Count() + c.cacheW.Count()
+}
+
+// Merge two gob encoded files into a single file. Paths a and b are specified,
+// with the resulting file in a.
+func merge(a, b string) error {
+	fa, err := os.Open(a)
+	if err != nil {
+		return err
+	}
+	defer fa.Close()
+
+	fb, err := os.Open(b)
+	if err != nil {
+		return err
+	}
+	defer fb.Close()
+
+	t, err := ioutil.TempFile(filepath.Dir(a), "merge")
+	if err != nil {
+		return err
+	}
+	defer t.Close()
+	defer os.Remove(t.Name())
+
+	enc := gob.NewEncoder(t)
+
+	adec := gob.NewDecoder(fa)
+	var v interface{}
+	for {
+		err = adec.Decode(&v)
+		if err != nil {
+			if err != io.EOF {
+				return err
+			}
+			break
+		}
+		if v == nil {
+			continue
+		}
+		err = enc.Encode(&v)
+		if err != nil {
+			return err
+		}
+	}
+
+	bdec := gob.NewDecoder(fb)
+	for {
+		err = bdec.Decode(&v)
+		if err != nil {
+			if err != io.EOF {
+				return err
+			}
+			break
+		}
+		if v == nil {
+			continue
+		}
+		err = enc.Encode(&v)
+		if err != nil {
+			return err
+		}
+	}
+
+	// remove a, b
+	fa.Close()
+	os.Remove(a)
+	fb.Close()
+	os.Remove(b)
+
+	// and move our temporary file to a
+	t.Close()
+	return os.Rename(t.Name(), a)
 }
