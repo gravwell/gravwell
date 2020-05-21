@@ -270,6 +270,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// add our tags to them. If the old tag map doesn't exist, then it's
 	// anyone's guess where those entries might end up. Those are the
 	// breaks.
+	var taglist []string
 	tagMap := make(map[string]entry.EntryTag)
 	if c.CachePath != "" {
 		tagMap, err = readTagCache(c.CachePath)
@@ -282,7 +283,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// ID in the returned map + 1
 	var tagNext entry.EntryTag
 	if len(tagMap) != 0 {
-		for _, v := range tagMap {
+		for k, v := range tagMap {
+			taglist = append(taglist, k)
 			if v > tagNext {
 				tagNext = v
 			}
@@ -293,6 +295,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// add any new tags to that list
 	for _, v := range localTags {
 		if _, ok := tagMap[v]; !ok {
+			taglist = append(taglist, v)
 			tagMap[v] = entry.EntryTag(tagNext)
 			tagNext++
 		}
@@ -308,7 +311,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	}
 	return &IngestMuxer{
 		dests:        c.Destinations,
-		tags:         localTags,
+		tags:         taglist,
 		tagMap:       tagMap,
 		pubKey:       c.PublicKey,
 		privKey:      c.PrivateKey,
@@ -403,7 +406,7 @@ func (im *IngestMuxer) Start() error {
 func (im *IngestMuxer) Close() error {
 	// Inform the world that we're done.
 	im.Info("Ingester %v exiting\n", im.name)
-	im.Sync(time.Second)
+	time.Sleep(500 * time.Millisecond)
 
 	im.mtx.Lock()
 	if im.state == closed {
@@ -431,6 +434,12 @@ func (im *IngestMuxer) Close() error {
 	// commit any outstanding data to disk, if the backing path is enabled.
 	im.cache.Commit()
 	im.bcache.Commit()
+
+	// If BOTH caches are empty, we can delete the stored tag map
+	if im.cache.Size() == 0 && im.bcache.Size() == 0 {
+		path := filepath.Join(im.cachePath, "tagcache")
+		os.Remove(path)
+	}
 
 	//everyone is dead, clean up
 	close(im.upChan)
@@ -518,7 +527,7 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 	}
 	ts := time.Now()
 	im.mtx.Lock()
-	for len(im.eChan) > 0 || len(im.bChan) > 0 {
+	for len(im.eChanOut) > 0 || len(im.bChanOut) > 0 {
 		if err := ctx.Err(); err != nil {
 			im.mtx.Unlock()
 			return err
@@ -1074,19 +1083,19 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	for {
 		select {
 		case _, ok := <-connErrNotif:
-			if igst != nil {
-				//if it throws an error we don't care, and cant do anything about it
-				im.Warn("reconnecting to %v", dst.Address)
-				igst.Close()
-			}
 			if !ok {
 				//this means that the relay function bailed
+				if igst != nil {
+					igst.Close()
+				}
 				im.goDead()
 				im.connFailed(dst.Address, errors.New("Closed"))
 				return
 			}
 
 			if igst != nil {
+				im.Warn("reconnecting to %v", dst.Address)
+				igst.Close()
 				im.goDead() //let the world know of our failures
 				im.igst[igIdx] = nil
 				im.tagTranslators[igIdx] = nil
