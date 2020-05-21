@@ -23,7 +23,7 @@ func TestFileCounter(t *testing.T) {
 	defer f.Close()
 	defer os.Remove(f.Name())
 
-	fc := NewFileCounter(f)
+	fc, _ := NewFileCounter(f)
 
 	data := []byte{'1', '2', '3', '4', '5'}
 
@@ -53,6 +53,47 @@ func TestFileCounter(t *testing.T) {
 	}
 
 	if fc.Count() != 0 {
+		t.Errorf("count mismatch: %v != 0", fc.Count())
+	}
+
+}
+
+func TestFileCounterCount(t *testing.T) {
+	f, err := ioutil.TempFile("", "testfilecounter")
+	if err != nil {
+		t.Errorf("tempfile: %v", err)
+		t.FailNow()
+	}
+	defer f.Close()
+	defer os.Remove(f.Name())
+
+	fc, _ := NewFileCounter(f)
+
+	data := []byte{'1', '2', '3', '4', '5'}
+
+	n, err := fc.Write(data)
+	if err != nil {
+		t.Errorf("could not write data: %v", err)
+		t.FailNow()
+	}
+	if n != 5 {
+		t.Errorf("could not write enough data: %v", n)
+	}
+
+	if fc.Count() != 5 {
+		t.Errorf("count mismatch: %v != 5", fc.Count())
+	}
+
+	// Now re-open
+	f2, err := os.Open(f.Name())
+	if err != nil {
+		t.Errorf("Open: %v", err)
+		t.FailNow()
+	}
+	defer f2.Close()
+	fc, _ = NewFileCounter(f2)
+
+	if fc.Count() != 5 {
 		t.Errorf("count mismatch: %v != 0", fc.Count())
 	}
 
