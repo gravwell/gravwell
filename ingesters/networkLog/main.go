@@ -159,8 +159,8 @@ func main() {
 		VerifyCert:      !cfg.InsecureSkipTLSVerification(),
 		Logger:          lg,
 		CacheDepth:      cfg.Cache_Depth,
-		CachePath:       cfg.Cache_Path,
-		CacheSize:       cfg.Cache_Size,
+		CachePath:       cfg.Ingest_Cache_Path,
+		CacheSize:       cfg.Max_Ingest_Cache,
 		CacheMode:       cfg.Cache_Mode,
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)

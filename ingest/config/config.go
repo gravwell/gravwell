@@ -76,6 +76,7 @@ const (
 
 	CACHE_MODE_DEFAULT  = "always"
 	CACHE_DEPTH_DEFAULT = 128
+	CACHE_SIZE_DEFAULT  = 1000
 )
 
 var (
@@ -102,9 +103,9 @@ type IngestConfig struct {
 	Rate_Limit                 string
 	Ingester_UUID              string
 	Cache_Depth                int
-	Cache_Path                 string
 	Cache_Mode                 string
-	Cache_Size                 int
+	Ingest_Cache_Path          string
+	Max_Ingest_Cache           int
 }
 
 func (ic *IngestConfig) loadDefaults() error {
@@ -150,6 +151,9 @@ func (ic *IngestConfig) Verify() error {
 	}
 
 	ic.Log_Level = strings.ToUpper(strings.TrimSpace(ic.Log_Level))
+	if ic.Max_Ingest_Cache == 0 && len(ic.Ingest_Cache_Path) != 0 {
+		ic.Max_Ingest_Cache = CACHE_SIZE_DEFAULT
+	}
 	if to, err := ic.parseTimeout(); err != nil || to < 0 {
 		if err != nil {
 			return err

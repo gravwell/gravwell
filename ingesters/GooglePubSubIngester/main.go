@@ -117,8 +117,8 @@ func main() {
 		IngesterVersion: version.GetVersion(),
 		IngesterUUID:    id.String(),
 		CacheDepth:      cfg.Global.Cache_Depth,
-		CachePath:       cfg.Global.Cache_Path,
-		CacheSize:       cfg.Global.Cache_Size,
+		CachePath:       cfg.Global.Ingest_Cache_Path,
+		CacheSize:       cfg.Global.Max_Ingest_Cache,
 		CacheMode:       cfg.Global.Cache_Mode,
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
