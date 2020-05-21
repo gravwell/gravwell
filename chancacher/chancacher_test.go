@@ -27,7 +27,7 @@ func (t *ChanCacheTester) Size() uint64 {
 }
 
 func TestBlockDepth(t *testing.T) {
-	c := NewChanCacher(2, "", 0)
+	c, _ := NewChanCacher(2, "", 0)
 
 	v := &ChanCacheTester{V: 1}
 
@@ -74,7 +74,7 @@ func TestTearDownCache(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	c := NewChanCacher(2, dir, 0)
+	c, _ := NewChanCacher(2, dir, 0)
 
 	for i := 0; i < 100; i++ {
 		select {
@@ -133,7 +133,7 @@ func TestTearDownCache(t *testing.T) {
 }
 
 func TestTearDownNoCache(t *testing.T) {
-	c := NewChanCacher(2, "", 0)
+	c, _ := NewChanCacher(2, "", 0)
 
 	v := &ChanCacheTester{V: 1}
 
@@ -180,7 +180,7 @@ func TestRecover(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	c := NewChanCacher(2, dir, 0)
+	c, _ := NewChanCacher(2, dir, 0)
 
 	for i := 0; i < 100; i++ {
 		select {
@@ -198,7 +198,7 @@ func TestRecover(t *testing.T) {
 	// now create a new ChanCacher in dir and read the data out.
 	defer os.RemoveAll(dir)
 
-	c = NewChanCacher(2, dir, 0)
+	c, _ = NewChanCacher(2, dir, 0)
 
 	// reads on the cache are not guaranteed to be in-order, so instead we
 	// count the number of times we've seen each value, and expect to see a
@@ -241,7 +241,7 @@ func TestCommit(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	c := NewChanCacher(2, dir, 0)
+	c, _ := NewChanCacher(2, dir, 0)
 
 	for i := 0; i < 100; i++ {
 		select {
@@ -277,7 +277,7 @@ func TestDrain(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	c := NewChanCacher(2, dir, 0)
+	c, _ := NewChanCacher(2, dir, 0)
 
 	for i := 0; i < 100; i++ {
 		select {
@@ -335,7 +335,7 @@ func TestCacheStartStop(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	c := NewChanCacher(2, dir, 0)
+	c, _ := NewChanCacher(2, dir, 0)
 
 	for i := 0; i < 99; i++ {
 		select {
@@ -402,7 +402,7 @@ func TestCache(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	c := NewChanCacher(2, dir, 0)
+	c, _ := NewChanCacher(2, dir, 0)
 
 	for i := 0; i < 100; i++ {
 		select {
@@ -453,7 +453,7 @@ func TestCacheHasData(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	c := NewChanCacher(2, dir, 0)
+	c, _ := NewChanCacher(2, dir, 0)
 
 	if c.CacheHasData() {
 		t.Fail()
@@ -482,7 +482,7 @@ func TestCacheMaxSize(t *testing.T) {
 	}
 	defer os.RemoveAll(dir)
 
-	c := NewChanCacher(0, dir, 10)
+	c, _ := NewChanCacher(0, dir, 10)
 
 	c.In <- &ChanCacheTester{V: 1}
 	c.In <- &ChanCacheTester{V: 1}
@@ -529,7 +529,7 @@ func BenchmarkReference(b *testing.B) {
 }
 
 func BenchmarkUnbufferedSmall(b *testing.B) {
-	c := NewChanCacher(0, "", 0)
+	c, _ := NewChanCacher(0, "", 0)
 
 	v := &ChanCacheTester{V: 1}
 
@@ -547,7 +547,7 @@ func BenchmarkUnbufferedSmall(b *testing.B) {
 }
 
 func BenchmarkBufferedSmall(b *testing.B) {
-	c := NewChanCacher(10, "", 0)
+	c, _ := NewChanCacher(10, "", 0)
 
 	v := &ChanCacheTester{V: 1}
 
@@ -565,7 +565,7 @@ func BenchmarkBufferedSmall(b *testing.B) {
 }
 
 func BenchmarkBufferedLarge(b *testing.B) {
-	c := NewChanCacher(1000000, "", 0)
+	c, _ := NewChanCacher(1000000, "", 0)
 
 	v := &ChanCacheTester{V: 1}
 
@@ -590,7 +590,7 @@ func BenchmarkCacheBlocked(b *testing.B) {
 	}
 	defer os.RemoveAll(dir)
 
-	c := NewChanCacher(2, dir, 0)
+	c, _ := NewChanCacher(2, dir, 0)
 
 	COUNT := 10000000
 
@@ -611,7 +611,7 @@ func BenchmarkCacheStreaming(b *testing.B) {
 	}
 	defer os.RemoveAll(dir)
 
-	c := NewChanCacher(2, dir, 0)
+	c, _ := NewChanCacher(2, dir, 0)
 
 	COUNT := 10000000
 
