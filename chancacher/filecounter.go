@@ -7,10 +7,15 @@ type fileCounter struct {
 	count int
 }
 
-func NewFileCounter(f *os.File) *fileCounter {
-	return &fileCounter{
-		File: f,
+func NewFileCounter(f *os.File) (*fileCounter, error) {
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, err
 	}
+	return &fileCounter{
+		File:  f,
+		count: int(fi.Size()),
+	}, nil
 }
 
 func (f *fileCounter) Write(b []byte) (n int, err error) {

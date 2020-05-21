@@ -114,8 +114,12 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) (*ChanCacher, er
 			return nil, err
 		}
 
-		c.cacheR = NewFileCounter(r)
-		c.cacheW = NewFileCounter(w)
+		if c.cacheR, err = NewFileCounter(r); err != nil {
+			return nil, err
+		}
+		if c.cacheW, err = NewFileCounter(w); err != nil {
+			return nil, err
+		}
 
 		c.cacheEnc = gob.NewEncoder(c.cacheW)
 
