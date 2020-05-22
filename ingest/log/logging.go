@@ -226,12 +226,12 @@ func (l *Logger) CriticalWithDepth(d int, f string, args ...interface{}) error {
 
 // Fatal writes a log, closes the logger, and issues an os.Exit(-1)
 func (l *Logger) Fatal(f string, args ...interface{}) {
-	l.fatalCode(4, -1, f, args...)
+	l.fatalCode(DEFAULT_DEPTH, -1, f, args...)
 }
 
 // FatalCode is identical to a log.Fatal, except it allows for controlling the exit code
 func (l *Logger) FatalCode(code int, f string, args ...interface{}) {
-	l.fatalCode(4, code, f, args...)
+	l.fatalCode(DEFAULT_DEPTH, code, f, args...)
 }
 
 func (l *Logger) fatalCode(lvl, code int, f string, args ...interface{}) {
