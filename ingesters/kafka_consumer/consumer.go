@@ -9,7 +9,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -25,9 +24,8 @@ import (
 )
 
 const (
-	ipv4Len = 4
-	ipv6Len = 16
-
+	ipv4Len          = 4
+	ipv6Len          = 16
 	currKafkaVersion = `2.1.1`
 )
 
@@ -80,7 +78,6 @@ type kafkaConsumer struct {
 	kafkaConsumerConfig
 	mtx      sync.Mutex
 	started  bool
-	tag      entry.EntryTag
 	ctx      context.Context
 	cf       context.CancelFunc
 	count    uint
@@ -91,9 +88,11 @@ type kafkaConsumer struct {
 
 type kafkaConsumerConfig struct {
 	consumerCfg
-	igst  *ingest.IngestMuxer
-	lg    *log.Logger
-	pproc *processors.ProcessorSet
+	defTag entry.EntryTag
+	igst   *ingest.IngestMuxer
+	lg     *log.Logger
+	pproc  *processors.ProcessorSet
+	tgr    *tagger
 }
 
 func newKafkaConsumer(cfg kafkaConsumerConfig) (kc *kafkaConsumer, err error) {
@@ -104,9 +103,6 @@ func newKafkaConsumer(cfg kafkaConsumerConfig) (kc *kafkaConsumer, err error) {
 	} else {
 		kc = &kafkaConsumer{
 			kafkaConsumerConfig: cfg,
-		}
-		if kc.tag, err = cfg.igst.GetTag(cfg.tag); err != nil {
-			kc = nil
 		}
 		kc.ctx, kc.cf = context.WithCancel(context.Background())
 	}
@@ -274,15 +270,26 @@ loop:
 	return nil
 }
 
+func (kc *kafkaConsumer) resolveTag(tn string) (tag entry.EntryTag, ok bool, err error) {
+	if tag, ok = kc.tgr.tagmap[tn]; ok {
+		return
+	}
+	//don't have it, so check if its ok
+	if ok = kc.tgr.allowed(tn); ok {
+		if tag, err = kc.igst.NegotiateTag(tn); err == nil {
+			kc.tgr.tagmap[tn] = tag
+		}
+	}
+	return
+}
+
 func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sarama.ConsumerMessage) (err error) {
 	var sz uint
 	var cnt uint
 	for _, m := range msgs {
 		ent := &entry.Entry{
-			Tag:  kc.tag,
 			TS:   entry.FromStandard(m.Timestamp),
 			Data: m.Value,
-			SRC:  kc.extractSource(m),
 		}
 		if kc.ignoreTS {
 			ent.TS = entry.Now()
@@ -295,6 +302,9 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 				ent.TS = entry.FromStandard(hts)
 			}
 			// if not ok, we'll just use the timestamp
+		}
+		if ent.Tag, ent.SRC, err = kc.resolveSourceAndTag(m); err != nil {
+			return
 		}
 		if err = kc.pproc.ProcessContext(ent, kc.ctx); err != nil {
 			return
@@ -316,35 +326,39 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 	return
 }
 
-func (kc *kafkaConsumer) extractSource(m *sarama.ConsumerMessage) (ip net.IP) {
+func (kc *kafkaConsumer) resolveSourceAndTag(m *sarama.ConsumerMessage) (tag entry.EntryTag, ip net.IP, err error) {
 	//short circuit out
 	if m == nil {
 		ip = kc.src
+		tag = kc.defTag
 		return
 	}
-	if kc.headerKeyAsSrc != nil {
-		for _, rh := range m.Headers {
-			if bytes.Equal(kc.headerKeyAsSrc, rh.Key) {
-				ip = kc.extractSrc(rh.Value)
+	var tagHit bool
+
+	for _, rh := range m.Headers {
+		if string(rh.Key) == kc.srcKey {
+			ip = kc.extractSrc(rh.Value)
+		} else if string(rh.Key) == kc.tagKey {
+			if tag, tagHit, err = kc.resolveTag(string(rh.Value)); err != nil {
+				return
 			}
 		}
-	}
-	//if we didn't get anything, try again with the key as source (if set)
-	if ip == nil && kc.keyAsSrc {
-		ip = kc.extractSrc(m.Key)
 	}
 	//if if we still missed, just use the src
 	if ip == nil {
 		ip = kc.src
 	}
+	if !tagHit {
+		tag = kc.defTag
+	}
 	return
 }
 
 func (kc *kafkaConsumer) extractSrc(v []byte) (ip net.IP) {
-	if kc.srcAsText {
-		ip = net.ParseIP(string(v))
-	} else if len(v) == ipv4Len || len(v) == ipv6Len {
+	if kc.srcBin && (len(v) == ipv4Len || len(v) == ipv6Len) {
 		ip = net.IP(v)
+	} else {
+		ip = net.ParseIP(string(v))
 	}
 	return
 }
