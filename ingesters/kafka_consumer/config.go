@@ -32,20 +32,23 @@ const (
 	defaultPort          uint16 = 9092
 	defaultBatchSize     int    = 512
 	defaultConsumerGroup string = `gravwell`
+	defaultSRCHeader            = `SRC`
+	defaultTagHeader            = `TAG`
 )
 
 type ConfigConsumer struct {
-	Tag_Name           string
 	Leader             string
 	Topic              string
 	Consumer_Group     string
 	Source_Override    string
 	Rebalance_Strategy string
-	Key_As_Source      bool
-	Header_As_Source   string
+	Source_Header      string
+	Tag_Header         string
+	Source_As_Binary   bool
 	Synchronous        bool
 	Batch_Size         int
-	Source_As_Text     bool
+	Default_Tag        string
+	taggerConfig
 
 	Ignore_Timestamps         bool //Just apply the current timestamp to lines as we get them
 	Extract_Timestamps        bool // Ignore the kafka timestamp, use timegrinder
@@ -56,21 +59,22 @@ type ConfigConsumer struct {
 }
 
 type consumerCfg struct {
-	tag            string
-	leader         string
-	topic          string
-	group          string
-	strat          sarama.BalanceStrategy
-	sync           bool
-	batchSize      int
-	keyAsSrc       bool
-	headerKeyAsSrc []byte
-	srcAsText      bool
-	srcOverride    net.IP
-	ignoreTS       bool
-	extractTS      bool
-	tg             *timegrinder.TimeGrinder
-	preprocessor   []string
+	taggerConfig
+	defTag       string
+	leader       string
+	topic        string
+	group        string
+	strat        sarama.BalanceStrategy
+	sync         bool
+	batchSize    int
+	srcKey       string
+	tagKey       string
+	srcBin       bool
+	srcOverride  net.IP
+	ignoreTS     bool
+	extractTS    bool
+	tg           *timegrinder.TimeGrinder
+	preprocessor []string
 }
 
 type cfgReadType struct {
@@ -125,14 +129,31 @@ func GetConfig(path string) (*cfgType, error) {
 func (c *cfgType) Tags() (tags []string, err error) {
 	tagMp := make(map[string]bool, len(c.Consumers))
 	//iterate over consumers
-	for _, v := range c.Consumers {
-		if len(v.tag) == 0 {
+	for name, v := range c.Consumers {
+		var ltags []string
+		if v.defTag == `` {
+			err = fmt.Errorf("Consumer %s is missing Default-Tag definition", name)
+			return
+		} else if err = ingest.CheckTag(v.defTag); err != nil {
+			err = fmt.Errorf("Consumer %s Default-Tag is invalid: %v", name, err)
+			return
+		} else if _, ok := tagMp[v.defTag]; !ok {
+			tags = append(tags, v.defTag)
+			tagMp[v.defTag] = true
+		}
+		if ltags, _, err = v.taggerConfig.TagSet(); err != nil {
+			return
+		} else if len(ltags) == 0 {
 			continue
+		} else {
+			for _, lt := range ltags {
+				if _, ok := tagMp[lt]; !ok {
+					tags = append(tags, lt)
+					tagMp[lt] = true
+				}
+			}
 		}
-		if _, ok := tagMp[v.tag]; !ok {
-			tags = append(tags, v.tag)
-			tagMp[v.tag] = true
-		}
+
 	}
 
 	if len(tags) == 0 {
@@ -145,13 +166,25 @@ func (c *cfgType) Tags() (tags []string, err error) {
 
 func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 	//check tag
-	if len(cc.Tag_Name) == 0 {
-		err = errors.New("missing tag name")
+	if len(cc.Default_Tag) == 0 {
+		err = errors.New("missing Default-Tag")
 		return
-	} else if err = ingest.CheckTag(cc.Tag_Name); err != nil {
+	} else if err = ingest.CheckTag(cc.Default_Tag); err != nil {
+		return
+	} else if err = cc.taggerConfig.validate(); err != nil {
 		return
 	}
-	c.tag = cc.Tag_Name
+	c.defTag = cc.Default_Tag
+	c.taggerConfig = cc.taggerConfig
+	if cc.Source_Header == `` {
+		cc.Source_Header = defaultSRCHeader
+	}
+	if cc.Tag_Header == `` {
+		cc.Tag_Header = defaultTagHeader
+	}
+	c.srcKey = cc.Source_Header
+	c.tagKey = cc.Tag_Header
+	c.srcBin = cc.Source_As_Binary
 
 	//check leader
 	if len(cc.Leader) == 0 {
@@ -226,11 +259,7 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 		c.group = defaultConsumerGroup
 	}
 	c.preprocessor = cc.Preprocessor
-	c.keyAsSrc = cc.Key_As_Source
-	if cc.Header_As_Source != `` {
-		c.headerKeyAsSrc = []byte(cc.Header_As_Source)
-	}
-	c.srcAsText = cc.Source_As_Text
+
 	c.strat, err = cc.balanceStrat()
 	return
 }
