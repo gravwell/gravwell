@@ -20,6 +20,7 @@ require (
 	github.com/floren/o365 v0.0.1
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/go-ole/go-ole v1.2.4 // indirect
+	github.com/gobwas/glob v0.2.3
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
