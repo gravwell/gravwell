@@ -309,7 +309,11 @@ func (i *IpfixHandler) routine(id int) {
 			}
 		}
 
-		ts = entry.Now()
+		if i.ignoreTS {
+			ts = entry.Now()
+		} else {
+			ts = entry.UnixTime(int64(msg.Header.ExportTime), 0)
+		}
 		e := &entry.Entry{
 			Tag:  i.tag,
 			SRC:  addr.IP,
