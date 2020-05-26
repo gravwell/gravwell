@@ -108,9 +108,6 @@ func main() {
 			}
 		}
 	}
-	for name, c := range cfg.Consumers {
-		fmt.Printf("%s: %+v\n", name, c)
-	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
