@@ -14,6 +14,8 @@ import (
 	"net"
 	"os"
 	"path"
+	"runtime"
+	"runtime/pprof"
 	"sync"
 	"syscall"
 	"time"
@@ -40,6 +42,8 @@ var (
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
+	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
+	memprofile     = flag.String("memprofile", "", "File to write memory profile data to.  Disabled if blank")
 	lg             *log.Logger
 )
 
@@ -75,6 +79,27 @@ func init() {
 }
 
 func main() {
+	if *cpuprofile != "" {
+		f, err := os.Create(*cpuprofile)
+		if err != nil {
+			lg.Fatal("%v", err)
+		}
+		pprof.StartCPUProfile(f)
+		defer pprof.StopCPUProfile()
+	}
+	if *memprofile != "" {
+		defer func() {
+			f, err := os.Create(*memprofile)
+			if err != nil {
+				fmt.Println("Failed to create memory profile", err)
+				return
+			}
+			runtime.GC()
+			pprof.WriteHeapProfile(f)
+			f.Close()
+		}()
+	}
+
 	var wg sync.WaitGroup
 	running := true
 
@@ -170,11 +195,6 @@ func main() {
 			lg.Fatal("Can't resolve tag %v: %v", stream.Tag_Name, err)
 		}
 
-		procset, err := cfg.Preprocessor.ProcessorSet(igst, stream.Preprocessor)
-		if err != nil {
-			lg.Fatal("Preprocessor construction error: %v", err)
-		}
-
 		// get a handle on kinesis
 		svc := kinesis.New(sess, aws.NewConfig().WithRegion(stream.Region))
 
@@ -232,6 +252,11 @@ func main() {
 					if src == nil {
 						lg.Fatal("Global Source-Override is invalid")
 					}
+				}
+
+				procset, err := cfg.Preprocessor.ProcessorSet(igst, stream.Preprocessor)
+				if err != nil {
+					lg.Fatal("Preprocessor construction error: %v", err)
 				}
 
 			reconnectLoop:
