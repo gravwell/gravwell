@@ -403,6 +403,9 @@ func (s *stateman) UpdateSequenceNum(stream, shard, seq string) {
 }
 
 func (s *stateman) GetSequenceNum(stream, shard string) string {
+	s.Lock()
+	defer s.Unlock()
+
 	_, ok := s.states[stream]
 	if !ok {
 		// initialize the stream
