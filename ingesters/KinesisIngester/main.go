@@ -291,7 +291,7 @@ func main() {
 					var lastSeqNum string
 					for running {
 						gri := &kinesis.GetRecordsInput{}
-						gri.SetLimit(10)
+						gri.SetLimit(5000)
 						gri.SetShardIterator(iter)
 						var res *kinesis.GetRecordsOutput
 						var err error
