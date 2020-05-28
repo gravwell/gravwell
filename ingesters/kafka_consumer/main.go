@@ -174,6 +174,9 @@ func main() {
 			igst:        igst,
 			lg:          lg,
 		}
+		if kcfg.tgr, err = newTagger(v.taggerConfig, v.defTag, igst); err != nil {
+			lg.Fatal("Failed to establish a new tagger: %v", err)
+		}
 		if kcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.preprocessor); err != nil {
 			lg.Fatal("Preprocessor construction error: %v", err)
 		}
