@@ -26,10 +26,9 @@ const (
 )
 
 type VpcConfig struct {
-	Compressed          bool
-	Passthrough_Partial bool
-	Min_Buff_MB         uint
-	Max_Buff_MB         uint
+	Min_Buff_MB  uint
+	Max_Buff_MB  uint
+	Extract_JSON bool
 }
 
 func VpcLoadConfig(vc *config.VariableConfig) (c VpcConfig, err error) {
@@ -89,7 +88,7 @@ func (p *Vpc) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 	if ent == nil {
 		return
 	}
-	if p.VpcConfig.Compressed && len(ent.Data) > 2 {
+	if len(ent.Data) > 2 {
 		//check for the gzip header
 		if binary.LittleEndian.Uint16(ent.Data) == gzipMagic {
 			p.rdr.Reset(ent.Data)
@@ -127,18 +126,19 @@ func (p *Vpc) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 	var ts int64
 	var v []byte
 	for i := range logEvents {
-		v, _, _, err = jsonparser.Get(logEvents[i], "extractedFields")
-		if err != nil {
-			return
-		}
-		// build up the entry
-		r = &entry.Entry{
-			Tag:  ent.Tag,
-			SRC:  ent.SRC,
-			Data: v,
+		if p.VpcConfig.Extract_JSON {
+			v, _, _, err = jsonparser.Get(logEvents[i], "extractedFields")
+			if err != nil {
+				return
+			}
+		} else {
+			v, _, _, err = jsonparser.Get(logEvents[i], "message")
+			if err != nil {
+				return
+			}
 		}
 		// Attempt to get the timestamp
-		tsString, err = jsonparser.GetString(v, "end")
+		tsString, err = jsonparser.GetString(logEvents[i], "extractedFields", "start")
 		if err != nil {
 			return
 		}
@@ -146,7 +146,14 @@ func (p *Vpc) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 		if err != nil {
 			return
 		}
-		r.TS = entry.UnixTime(ts, 0)
+
+		// build up the entry
+		r = &entry.Entry{
+			Tag:  ent.Tag,
+			SRC:  ent.SRC,
+			Data: v,
+			TS:   entry.UnixTime(ts, 0),
+		}
 		rset = append(rset, r)
 	}
 	return
