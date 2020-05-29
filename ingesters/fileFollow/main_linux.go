@@ -120,11 +120,10 @@ func main() {
 		IngesterUUID:    id.String(),
 		VerifyCert:      !cfg.InsecureSkipTLSVerification(),
 		Logger:          lg,
-	}
-	if cfg.EnableCache() {
-		ingestConfig.EnableCache = true
-		ingestConfig.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
-		ingestConfig.CacheConfig.MaxCacheSize = cfg.MaxCachedData()
+		CacheDepth:      cfg.Cache_Depth,
+		CachePath:       cfg.Ingest_Cache_Path,
+		CacheSize:       cfg.Max_Ingest_Cache,
+		CacheMode:       cfg.Cache_Mode,
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {

@@ -102,7 +102,7 @@ func InitializeConnection(dst, authString string, tags []string, pubKey, privKey
 	default:
 		break
 	}
-	//this SHOULD never hit, but saftey first kids
+	//this SHOULD never hit, but safety first kids
 	return nil, ErrInvalidDest
 }
 
@@ -258,9 +258,9 @@ func newTcpConn(dst string) (net.Conn, net.IP, error) {
 }
 
 // This function will create a new NamedPipe connection to a local system.
-// We have NO WAY of knowing which process is REALLY on the othe other end of the
+// We have NO WAY of knowing which process is REALLY on the other end of the
 // pipe.  But it is assumed that gravwell will be running with highly limited
-// priveleges, so if the integrity of the local system is compromised,
+// privileges, so if the integrity of the local system is compromised,
 // its already over.
 //
 // Deprecated: Use the IngestMuxer instead.

@@ -148,7 +148,7 @@ func (ew *EntryWriter) Close() (err error) {
 			return
 		}
 		//read acks is a liberal implementation which will pull any available
-		//acks from the read buffer.  we don't care if we get an error here
+		//acks from the read buffer. We don't care if we get an error here
 		//because this is largely used when trying to refire a connection
 		err = ew.readAcks(true)
 	}
@@ -261,7 +261,7 @@ func (ew *EntryWriter) OpenSlots(ent *entry.Entry) int {
 }
 
 // WriteWithHint behaves exactly like Write but also returns a bool
-// which indicates whether or not the a flush was required.  This
+// which indicates whether or not the flush was required.  This
 // function method is primarily used when muxing across multiple
 // indexers, so the muxer knows when to transition to the next indexer
 func (ew *EntryWriter) WriteWithHint(ent *entry.Entry) (bool, error) {
