@@ -61,6 +61,7 @@ func CheckProcessor(id string) error {
 	case RegexExtractProcessor:
 	case RegexRouterProcessor:
 	case ForwarderProcessor:
+	case VpcProcessor:
 	default:
 		return ErrUnknownProcessor
 	}
@@ -103,6 +104,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = RegexRouteLoadConfig(vc)
 	case ForwarderProcessor:
 		cfg, err = ForwarderLoadConfig(vc)
+	case VpcProcessor:
+		cfg, err = VpcLoadConfig(vc)
 	default:
 		err = ErrUnknownProcessor
 	}
@@ -182,6 +185,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewForwarder(cfg, tgr)
+	case VpcProcessor:
+		var cfg VpcConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewVpcProcessor(cfg)
 	default:
 		err = ErrUnknownProcessor
 	}
