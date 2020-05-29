@@ -9,6 +9,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"net"
@@ -189,6 +190,8 @@ func main() {
 	// make an aws session
 	sess := session.Must(session.NewSession())
 
+	dieChan := make(chan bool)
+
 	for _, stream := range cfg.KinesisStream {
 		tagid, err := igst.GetTag(stream.Tag_Name)
 		if err != nil {
@@ -217,6 +220,37 @@ func main() {
 			}
 		}
 		debugout("Read %d shards from stream %s\n", len(shards), stream.Stream_Name)
+
+		// Now start up the metrics reporter
+		var metricsTrackers []*shardMetrics
+		if stream.Metrics_Interval > 0 {
+			go func(stream streamDef) {
+				for {
+					select {
+					case <-dieChan:
+						return
+					case <-time.After(time.Duration(stream.Metrics_Interval) * time.Second):
+						report := metricsReport{StreamName: stream.Stream_Name, ShardCount: len(shards)}
+						for i := range metricsTrackers {
+							l, b, e, r := metricsTrackers[i].ReadAndReset()
+							report.AverageLag += l
+							report.CompressedDataSize += b
+							report.EntryDataSize += e
+							report.KinesisRequests += r
+						}
+						report.AverageLag = report.AverageLag / int64(len(metricsTrackers))
+						if stream.JSON_Metrics {
+							jr, err := json.Marshal(report)
+							if err == nil {
+								igst.Info("%v", string(jr))
+							}
+						} else {
+							igst.Info("Stream %v: %v shards, avg %v ms behind latest. Since last update: %v compressed bytes read in %v requests, %v bytes uncompressed & processed", stream.Stream_Name, len(shards), report.AverageLag, report.CompressedDataSize, report.KinesisRequests, report.EntryDataSize)
+						}
+					}
+				}
+			}(*stream)
+		}
 		for i, shard := range shards {
 			// Detect and skip closed shards
 			if shard.SequenceNumberRange != nil && shard.SequenceNumberRange.EndingSequenceNumber != nil {
@@ -254,9 +288,18 @@ func main() {
 					}
 				}
 
+				// one processor set per shard
 				procset, err := cfg.Preprocessor.ProcessorSet(igst, stream.Preprocessor)
 				if err != nil {
 					lg.Fatal("Preprocessor construction error: %v", err)
+				}
+
+				// make the shardMetrics and add it to the array
+				tracker := shardMetrics{}
+				metricsTrackers = append(metricsTrackers, &tracker)
+				if stream.Metrics_Interval == 0 {
+					// disable it
+					tracker.Disabled = true
 				}
 
 			reconnectLoop:
@@ -328,6 +371,7 @@ func main() {
 							}
 						}
 
+						var entrySize int
 						for _, r := range res.Records {
 							lastSeqNum = *r.SequenceNumber
 							ent := &entry.Entry{
@@ -350,7 +394,9 @@ func main() {
 							if err = procset.Process(ent); err != nil {
 								lg.Error("Failed to handle entry: %v", err)
 							}
+							entrySize += int(ent.Size())
 						}
+						tracker.Update(res, entrySize)
 						// Now update the most recent sequence number
 						if lastSeqNum != `` {
 							stateMan.UpdateSequenceNum(stream.Stream_Name, *shard.ShardId, lastSeqNum)
@@ -369,6 +415,7 @@ func main() {
 	utils.WaitForQuit()
 
 	running = false
+	close(dieChan)
 	wg.Wait()
 }
 
@@ -377,6 +424,53 @@ func debugout(format string, args ...interface{}) {
 		return
 	}
 	fmt.Printf(format, args...)
+}
+
+type metricsReport struct {
+	StreamName         string
+	ShardCount         int
+	AverageLag         int64
+	CompressedDataSize uint64
+	EntryDataSize      uint64
+	KinesisRequests    uint64
+}
+
+type shardMetrics struct {
+	sync.Mutex
+	Disabled     bool
+	millisbehind int64
+	datasize     uint64
+	entrysize    uint64
+	requests     uint64
+}
+
+func (s *shardMetrics) Update(res *kinesis.GetRecordsOutput, entrySize int) {
+	s.Lock()
+	defer s.Unlock()
+	if s.Disabled {
+		return
+	}
+	s.millisbehind = *res.MillisBehindLatest
+	s.requests++
+	var dsize int
+	for i := range res.Records {
+		dsize += len(res.Records[i].Data)
+	}
+	s.datasize += uint64(dsize)
+	s.entrysize += uint64(entrySize)
+}
+
+func (s *shardMetrics) ReadAndReset() (millis int64, datasize uint64, entrysize uint64, requests uint64) {
+	s.Lock()
+	defer s.Unlock()
+	millis = s.millisbehind
+	datasize = s.datasize
+	s.datasize = 0
+	entrysize = s.entrysize
+	s.entrysize = 0
+	requests = s.requests
+	s.requests = 0
+	return
 }
 
 type stateman struct {

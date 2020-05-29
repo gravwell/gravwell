@@ -42,6 +42,8 @@ type streamDef struct {
 	Assume_Local_Timezone bool
 	Timezone_Override     string
 	Parse_Time            bool
+	Metrics_Interval      int  // Seconds between metrics update, 0 disables
+	JSON_Metrics          bool // set to true for json-output metrics instead of plaintext
 	Preprocessor          []string
 }
 
