@@ -436,7 +436,7 @@ func (im *IngestMuxer) Close() error {
 	im.bcache.Commit()
 
 	// If BOTH caches are empty, we can delete the stored tag map
-	if im.cache.Size() == 0 && im.bcache.Size() == 0 {
+	if im.cacheEnabled && im.cache.Size() == 0 && im.bcache.Size() == 0 {
 		path := filepath.Join(im.cachePath, "tagcache")
 		os.Remove(path)
 	}
