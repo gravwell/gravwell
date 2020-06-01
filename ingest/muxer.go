@@ -48,17 +48,16 @@ var (
 )
 
 const (
+	mb               = 1024 * 1024
 	empty   muxState = 0
 	running muxState = 1
 	closed  muxState = 2
 
 	defaultRetryTime     time.Duration = 10 * time.Second
 	recycleTimeout       time.Duration = time.Second
-	maxEmergencyListSize int           = 256
+	maxEmergencyListSize int           = 64
 	unknownAddr          string        = `unknown`
 	waitTickerDur        time.Duration = 50 * time.Millisecond
-
-	megabyte = 1024 * 1024
 )
 
 type muxState int
@@ -239,11 +238,11 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 
 	var err error
 	if c.CachePath != "" {
-		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), megabyte*c.CacheSize)
+		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize)
 		if err != nil {
 			return nil, err
 		}
-		bcache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), megabyte*c.CacheSize)
+		bcache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), mb*c.CacheSize)
 		if err != nil {
 			return nil, err
 		}
@@ -744,7 +743,6 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 // a timeout.  It is therefor every expensive and shouldn't be used for normal writes
 // The typical use case is via the gravwell_log calls
 func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err error) {
-	tmr := time.NewTimer(d)
 	if e == nil {
 		return
 	}
@@ -754,6 +752,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	if !runok {
 		return ErrNotRunning
 	}
+	tmr := time.NewTimer(d)
 	select {
 	case im.eChan <- e:
 	case _ = <-tmr.C:
@@ -793,6 +792,7 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 	if !runok {
 		return ErrNotRunning
 	}
+
 	select {
 	case im.bChan <- b:
 	case <-ctx.Done():
@@ -940,7 +940,8 @@ inputLoop:
 					// Could not translate, but it's a valid tag the muxer has seen before.
 					// We need to push this to the equeue and reconnect
 					// so we get the correct tag set.
-					im.recycleEntries(e, nil, nc.tt, false)
+					// DO NOT reverse translate, muxer knows about the tag
+					im.recycleEntry(e)
 					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 						break inputLoop
 					}
@@ -953,10 +954,12 @@ inputLoop:
 				e.SRC = nc.src
 			}
 			if err = nc.ig.WriteEntry(e); err != nil {
-				im.recycleEntries(e, nil, nc.tt, true)
+				e.Tag = nc.tt.Reverse(e.Tag)
+				im.recycleEntry(e)
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
 				}
+				continue inputLoop
 			}
 			//hack to get better distribution across connections in an muxer
 			if im.shouldSched() {
@@ -990,21 +993,26 @@ inputLoop:
 					if !ok {
 						if name, ok := im.LookupTag(b[i].Tag); !ok {
 							im.Error("Got entry tagged with completely unknown intermediate tag %v, dropping it", b[i].Tag)
-							continue inputLoop
+							// first, reverse anything we've translated already
+							for j := 0; j < i; j++ {
+								b[j].Tag = nc.tt.Reverse(b[j].Tag)
+							}
+							im.recycleEntryBatch(b[:i]) //recycle and save what we can
 						} else {
-							im.Info("Got entry tagged with tag %v (%v), need to renegotiate connection", name, b[i].Tag) // Could not translate! We need to push this to the equeue and reconnect
+							im.Info("Got entry tagged with tag %v (%v), need to renegotiate connection", name, b[i].Tag)
+							// Could not translate! We need to push this to the equeue and reconnect
 							// so we get the correct tag set.
 
 							// first, reverse anything we've translated already
 							for j := 0; j < i; j++ {
 								b[j].Tag = nc.tt.Reverse(b[j].Tag)
 							}
-							im.recycleEntries(nil, b, nc.tt, false)
+							im.recycleEntryBatch(b)
 							if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 								break inputLoop
 							}
-							continue inputLoop
 						}
+						continue inputLoop
 					}
 					b[i].Tag = ttag
 
@@ -1013,8 +1021,12 @@ inputLoop:
 					}
 				}
 			}
-			if err = nc.ig.WriteBatchEntry(b); err != nil {
-				im.recycleEntries(nil, b, nc.tt, true)
+			var n int
+			if n, err = nc.ig.writeBatchEntry(b); err != nil {
+				for i := n; i < len(b); i++ {
+					b[i].Tag = nc.tt.Reverse(b[i].Tag)
+				}
+				im.recycleEntryBatch(b[n:])
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
 				}
@@ -1102,7 +1114,12 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 
 				//pull any entries out of the ingest connection and put them into the emergency queue
 				ents := igst.outstandingEntries()
-				im.recycleEntries(nil, ents, &tt, true)
+				for i := range ents {
+					if ents[i] != nil {
+						ents[i].Tag = tt.Reverse(ents[i].Tag)
+					}
+				}
+				im.recycleEntryBatch(ents)
 			}
 
 			//attempt to get the connection rolling again
@@ -1140,17 +1157,9 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	}
 }
 
-//we don't want to fully block here, so we attempt to push back on the channel
-//and listen for a die signal
-func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt *tagTrans, reverseTags bool) {
-	//reset the tags to the globally translatable set
-	//this operation is expensive
-	if len(ents) > 0 && reverseTags {
-		for i := range ents {
-			if ents[i] != nil {
-				ents[i].Tag = tt.Reverse(ents[i].Tag)
-			}
-		}
+func (im *IngestMuxer) recycleEntryBatch(ents []*entry.Entry) {
+	if len(ents) == 0 {
+		return
 	}
 
 	//we wait for up to one second to push values onto feeder channels
@@ -1159,30 +1168,33 @@ func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt *t
 	tmr := time.NewTimer(recycleTimeout)
 	defer tmr.Stop()
 
-	// try the single entry
-	if e != nil {
-		e.Tag = tt.Reverse(e.Tag)
-		select {
-		case _ = <-tmr.C:
-			if err := im.eq.push(e, ents); err != nil {
-				//FIXME - throw a fit about this via some logging, aight?
-				return
-			}
-			//timer expired, reset it in case we have a block too
-			tmr.Reset(0)
-		case im.eChan <- e:
+	select {
+	case _ = <-tmr.C:
+		if err := im.eq.push(nil, ents); err != nil {
+			//FIXME - throw a fit about this
 		}
+	case im.bChan <- ents:
 	}
-	//try block entry
-	if len(ents) > 0 {
-		select {
-		case _ = <-tmr.C:
-			if err := im.eq.push(nil, ents); err != nil {
-				//FIXME - throw a fit about this
-				return
-			}
-		case im.bChan <- ents:
+	return
+}
+
+func (im *IngestMuxer) recycleEntry(ent *entry.Entry) {
+	if ent == nil {
+		return
+	}
+
+	//we wait for up to one second to push values onto feeder channels
+	//if nothing eats them by then, we drop them into the emergency queue
+	//and bail out
+	tmr := time.NewTimer(recycleTimeout)
+	defer tmr.Stop()
+
+	select {
+	case _ = <-tmr.C:
+		if err := im.eq.push(ent, nil); err != nil {
+			//FIXME - throw a fit about this
 		}
+	case im.eChan <- ent:
 	}
 	return
 }
@@ -1425,6 +1437,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 				}
 
 				//return our failure
+				ok = false
 				break
 			}
 			//all is good set e to nil in case we can't write the block
@@ -1439,7 +1452,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 					if !ok {
 						// could not translate, push it back on the queue and bail
 						// first we need to reverse the ones we have already translated, ugh
-						for j := 0; j < i; j++ {
+						for j := 0; j <= i; j++ {
 							blk[j].Tag = tt.Reverse(blk[j].Tag)
 						}
 						eq.push(e, blk)
@@ -1458,6 +1471,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 				if err := eq.push(e, blk); err != nil {
 					//FIXME - log this?
 				}
+				ok = false
 				break
 			}
 		}
