@@ -30,5 +30,8 @@ func (f *fileCounter) Read(b []byte) (n int, err error) {
 }
 
 func (f *fileCounter) Count() int {
+	if f == nil || f.File == nil {
+		return 0
+	}
 	return f.count
 }

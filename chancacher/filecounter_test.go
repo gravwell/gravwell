@@ -98,3 +98,19 @@ func TestFileCounterCount(t *testing.T) {
 	}
 
 }
+
+func TestFileCounterNil(t *testing.T) {
+	var f *fileCounter
+	f = nil
+	c := f.Count()
+	if c != 0 {
+		t.Errorf("Count should be 0, got %v", c)
+		t.FailNow()
+	}
+	f = &fileCounter{}
+	c = f.Count()
+	if c != 0 {
+		t.Errorf("Count should be 0, got %v", c)
+		t.FailNow()
+	}
+}
