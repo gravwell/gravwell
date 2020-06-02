@@ -240,7 +240,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	if c.CachePath != "" {
 		//
 		// boltdb (old cache) transition stub. Delete this call, as
-		// well as boltcache.go when we no longer need this.
+		// well as boltcache.go and boltcache_test.go when we no longer
+		// need this.
 		//
 		err = boltTransition(c)
 		if err != nil {

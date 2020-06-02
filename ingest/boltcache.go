@@ -94,6 +94,7 @@ func boltTransition(c MuxerConfig) error {
 	if err != nil {
 		return err
 	}
+	defer os.RemoveAll(tmpd)
 
 	cc, err := chancacher.NewChanCacher(0, tmpd, 0)
 	if err != nil {
