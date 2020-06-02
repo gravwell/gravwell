@@ -322,9 +322,10 @@ func performBatchCycles(t *testing.T, count int) (time.Duration, uint64) {
 		totalBytes += ent.Size()
 		//check if we need to throw a batch
 		if entsIndex >= cap(ents) {
-			err = etCli.WriteBatch(ents[0:entsIndex])
-			if err != nil {
+			if n, err := etCli.WriteBatch(ents[0:entsIndex]); err != nil {
 				t.Fatal(err)
+			} else if n != entsIndex {
+				t.Fatal("failed to write all entries")
 			}
 			entsIndex = 0
 		}
@@ -332,9 +333,10 @@ func performBatchCycles(t *testing.T, count int) (time.Duration, uint64) {
 		entsIndex++
 	}
 	if entsIndex > 0 {
-		err = etCli.WriteBatch(ents[0:entsIndex])
-		if err != nil {
+		if n, err := etCli.WriteBatch(ents[0:entsIndex]); err != nil {
 			t.Fatal(err)
+		} else if n != entsIndex {
+			t.Fatal("failed two write full batch")
 		}
 	}
 
@@ -463,8 +465,7 @@ func BenchmarkBatch(b *testing.B) {
 		totalBytes += ent.Size()
 		//check if we need to throw a batch
 		if entsIndex >= cap(ents) {
-			err = etCli.WriteBatch(ents[0:entsIndex])
-			if err != nil {
+			if _, err = etCli.WriteBatch(ents[0:entsIndex]); err != nil {
 				b.Fatal(err)
 			}
 			entsIndex = 0
@@ -473,8 +474,7 @@ func BenchmarkBatch(b *testing.B) {
 		entsIndex++
 	}
 	if entsIndex > 0 {
-		err = etCli.WriteBatch(ents[0:entsIndex])
-		if err != nil {
+		if _, err = etCli.WriteBatch(ents[0:entsIndex]); err != nil {
 			b.Fatal(err)
 		}
 	}

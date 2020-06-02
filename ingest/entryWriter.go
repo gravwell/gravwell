@@ -286,7 +286,7 @@ func (ew *EntryWriter) WriteWithHint(ent *entry.Entry) (bool, error) {
 // WriteBatch takes a slice of entries and writes them,
 // this function is useful in multithreaded environments where
 // we want to lessen the impact of hits on a channel by threads
-func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) error {
+func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) (int, error) {
 	var err error
 
 	ew.mtx.Lock()
@@ -294,11 +294,11 @@ func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) error {
 
 	for i := range ents {
 		if _, err = ew.writeEntry(ents[i], false); err != nil {
-			return err
+			return i, err
 		}
 	}
 
-	return nil
+	return len(ents), nil
 }
 
 func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
