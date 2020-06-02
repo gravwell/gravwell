@@ -1452,7 +1452,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 					if !ok {
 						// could not translate, push it back on the queue and bail
 						// first we need to reverse the ones we have already translated, ugh
-						for j := 0; j <= i; j++ {
+						for j := 0; j < i; j++ {
 							blk[j].Tag = tt.Reverse(blk[j].Tag)
 						}
 						eq.push(e, blk)

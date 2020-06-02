@@ -306,7 +306,6 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 		if ent.Tag, ent.SRC, err = kc.resolveSourceAndTag(m); err != nil {
 			return
 		}
-		fmt.Println(ent.Tag, string(ent.Data))
 		if err = kc.pproc.ProcessContext(ent, kc.ctx); err != nil {
 			return
 		}
