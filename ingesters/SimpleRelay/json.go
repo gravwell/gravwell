@@ -169,7 +169,7 @@ func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHa
 			continue
 		}
 		debugout("Accepted %v connection from %s in json mode\n", tp.String(), conn.RemoteAddr())
-		igst.Info("accepted %v connection from %s in json mode\n", tp.String(), conn.RemoteAddr())
+		igst.Info("accepted %v connection from %s in json mode", tp.String(), conn.RemoteAddr())
 		failCount = 0
 		go jsonConnHandler(conn, cfg)
 	}

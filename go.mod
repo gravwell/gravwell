@@ -47,3 +47,5 @@ require (
 
 // Leave this until https://github.com/buger/jsonparser/pull/180 is merged
 replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20191025224154-2951042f1c13
+
+//replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell

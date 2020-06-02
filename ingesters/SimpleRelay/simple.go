@@ -170,7 +170,7 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 			continue
 		}
 		debugout("Accepted %v connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt, tp.String())
-		igst.Info("accepted %v connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt, tp.String())
+		igst.Info("accepted %v connection from %s in %v mode", conn.RemoteAddr(), cfg.lrt, tp.String())
 		failCount = 0
 		switch cfg.lrt {
 		case lineReader:
