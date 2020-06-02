@@ -90,7 +90,7 @@ func boltTransition(c MuxerConfig) error {
 
 	// We probably do. Create a temporary chancacher, read the bolt cache
 	// into it, and then shuffle the files around.
-	tmpd, err := ioutil.TempDir("", "ingestCacheTransition")
+	tmpd, err := ioutil.TempDir(filepath.Dir(c.CachePath), "ingestCacheTransition")
 	if err != nil {
 		return err
 	}
