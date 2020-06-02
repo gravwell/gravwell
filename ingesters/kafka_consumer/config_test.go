@@ -59,12 +59,6 @@ func TestBasicConfig(t *testing.T) {
 	if cfg.Secret() != `IngestSecrets` {
 		t.Fatal("invalid secret")
 	}
-	if cfg.MaxCachedData() != 1024*1024*1024 {
-		t.Fatal("invalid cache size")
-	}
-	if cfg.LocalFileCachePath() != `/opt/gravwell/cache/kafka.cache` {
-		t.Fatal("invalid cache path")
-	}
 	if len(cfg.Consumers) != 3 {
 		t.Fatal(fmt.Sprintf("invalid listener counts: %d != 7", len(cfg.Consumers)))
 	}
@@ -83,24 +77,32 @@ Pipe-Backend-Target=/opt/gravwell/comms/pipe #a named pipe connection, this shou
 Ingest-Cache-Path=/opt/gravwell/cache/kafka.cache #adding an ingest cache for local storage when uplinks fail
 Max-Ingest-Cache=1024 #Number of MB to store, localcache will only store 1GB before stopping.  This is a safety net
 Log-Level=INFO
-Log-File=/opt/gravwell/log/kafka.log
+Log-File=/tmp/kafka.log
 
 [Consumer "default"]
 	Leader="127.0.0.1"
 	Topic="foo"
-	Tag-Name=foo
+	Default-Tag=foo
+	Tags=bar*
+	Tags=*baz
+	Tag-Header=TAG
 
 [Consumer "test"]
 	Leader="127.0.0.1:1234"
 	Topic="test"
-	Tag-Name=test
+	Default-Tag=foo
+	Tags=bar*
+	Tags=*baz
+	Source-Header=SRC
 
 [Consumer "test2"]
 	Leader="[dead::beef]:1234"
 	Topic="test2"
-	Tag-Name=test2
-	Key-As-Source=true
-	Header-As-Source=TS
-	Source-As-Text=true
+	Default-Tag=foo
+	Tags=bar*
+	Tags=*baz
+	Source-As-Binary=true
+	Tag-Header=TAG
+	Source-Header=SRC
 `
 )
