@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/floren/ipfix"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/netflow"
+	"github.com/gravwell/ipfix"
 )
 
 var (
