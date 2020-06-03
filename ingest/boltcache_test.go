@@ -107,3 +107,71 @@ func TestTransition(t *testing.T) {
 		t.Fatalf("invalid tagMap: %v", tagMap)
 	}
 }
+
+func TestEmptyTransition(t *testing.T) {
+	gob.Register(&entry.Entry{})
+
+	// build an empty old cache
+	echan := make(chan *entry.Entry, 8)
+	bchan := make(chan []*entry.Entry, 8)
+
+	tmp, err := ioutil.TempFile("", "bolttest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	tmp.Close()
+	defer os.Remove(tmp.Name())
+
+	ic, err := NewIngestCache(IngestCacheConfig{
+		FileBackingLocation: tmp.Name(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// write out some fake tags
+	if err := ic.UpdateStoredTagList([]string{"a", "b", "c"}); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ic.Start(echan, bchan); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ic.Stop(); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := ic.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// build a MuxerConfig and transition
+	err = boltTransition(MuxerConfig{
+		CachePath: tmp.Name(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// tmp is now a directory bcause of the transition
+	defer os.RemoveAll(tmp.Name())
+
+	// read back data with chancacher
+	cc, err := chancacher.NewChanCacher(0, filepath.Join(tmp.Name(), "e"), 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	close(cc.In)
+
+	// verify tags
+	tagMap, err := readTagCache(tmp.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(tagMap) != 0 {
+		t.Fatalf("invalid tagMap: %v", tagMap)
+	}
+}
