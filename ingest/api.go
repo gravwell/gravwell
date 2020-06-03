@@ -9,15 +9,32 @@
 package ingest
 
 import (
+	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
+	"strings"
 )
 
 const (
 	//MAJOR API VERSIONS should always be compatible, there just may be additional features
 	API_VERSION_MAJOR uint32 = 0
-	API_VERSION_MINOR uint32 = 4
+	API_VERSION_MINOR uint32 = 5
 )
+
+const (
+	configurationBlockSize          uint32          = 1
+	maxStreamConfigurationBlockSize uint32          = 1024 * 1024 //just a sanity check
+	CompressNone                    CompressionType = 0
+	CompressSnappy                  CompressionType = 0x10
+)
+
+var (
+	ErrInvalidBuffer      = errors.New("invalid buffer")
+	ErrInvalidConfigBlock = errors.New("Invalid configuration block size")
+)
+
+type CompressionType uint8
 
 func PrintVersion(wtr io.Writer) {
 	fmt.Fprintf(wtr, "API Version:\t%d.%d\n", API_VERSION_MAJOR, API_VERSION_MINOR)
@@ -30,4 +47,98 @@ type Logger interface {
 	InfoWithDepth(int, string, ...interface{}) error
 	WarnWithDepth(int, string, ...interface{}) error
 	ErrorWithDepth(int, string, ...interface{}) error
+}
+
+// StreamConfiguration is a structure that can be sent back and
+type StreamConfiguration struct {
+	Compression CompressionType
+}
+
+func (c StreamConfiguration) Write(wtr io.Writer) (err error) {
+	var n int
+	buff := make([]byte, configurationBlockSize+4)
+	binary.LittleEndian.PutUint32(buff, configurationBlockSize)
+	if err = c.encode(buff[4:]); err != nil {
+		return
+	}
+	if n, err = wtr.Write(buff); err != nil {
+		return
+	} else if n != len(buff) {
+		err = errors.New("Failed to write configuration block")
+	}
+	return
+}
+
+func (c *StreamConfiguration) Read(rdr io.Reader) (err error) {
+	//read the block size
+	var bsz uint32
+	var n int
+	if err = binary.Read(rdr, binary.LittleEndian, &bsz); err != nil {
+		return
+	}
+	if bsz > maxStreamConfigurationBlockSize || bsz == 0 {
+		err = ErrInvalidConfigBlock
+		return
+	}
+	buff := make([]byte, bsz)
+	if n, err = rdr.Read(buff); err != nil {
+		return
+	} else if n != len(buff) {
+		err = errors.New("Failed to read configuration block")
+		return
+	}
+
+	err = c.decode(buff)
+
+	return
+}
+
+func (c StreamConfiguration) encode(buff []byte) (err error) {
+	if len(buff) == 0 {
+		err = ErrInvalidBuffer
+		return
+	}
+	buff[0] = byte(c.Compression)
+	return
+}
+
+func (c *StreamConfiguration) decode(buff []byte) (err error) {
+	if len(buff) < 1 {
+		err = ErrInvalidBuffer
+		return
+	}
+	c.Compression = CompressionType(buff[0])
+
+	err = c.validate()
+	return
+}
+
+func (c *StreamConfiguration) validate() (err error) {
+	if err = c.Compression.validate(); err != nil {
+		return
+	}
+
+	return
+}
+
+func (ct CompressionType) validate() (err error) {
+	switch ct {
+	case CompressNone:
+	case CompressSnappy:
+	default:
+		err = fmt.Errorf("Unknown compression id %x", ct)
+	}
+	return
+}
+
+func ParseCompression(v string) (ct CompressionType, err error) {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case ``:
+	case `none`:
+	case `snappy`:
+		ct = CompressSnappy
+	default:
+		err = fmt.Errorf("Unknown compression type %q", v)
+	}
+	return
 }

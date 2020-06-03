@@ -90,6 +90,7 @@ var (
 )
 
 type IngestConfig struct {
+	IngestStreamConfig
 	Ingest_Secret              string
 	Connection_Timeout         string
 	Verify_Remote_Certificates bool //legacy, will be removed
@@ -106,6 +107,10 @@ type IngestConfig struct {
 	Cache_Mode                 string
 	Ingest_Cache_Path          string
 	Max_Ingest_Cache           int
+}
+
+type IngestStreamConfig struct {
+	Enable_Compression bool
 }
 
 func (ic *IngestConfig) loadDefaults() error {

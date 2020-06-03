@@ -73,6 +73,7 @@ type TargetError struct {
 }
 
 type IngestMuxer struct {
+	cfg StreamConfiguration //stream configuration
 	//connHot, and connDead have atomic operations
 	//its important that these are aligned on 8 byte boundaries
 	//or it will panic on 32bit architectures
@@ -113,6 +114,7 @@ type IngestMuxer struct {
 }
 
 type UniformMuxerConfig struct {
+	config.IngestStreamConfig
 	Destinations    []string
 	Tags            []string
 	Auth            string
@@ -132,6 +134,7 @@ type UniformMuxerConfig struct {
 }
 
 type MuxerConfig struct {
+	config.IngestStreamConfig
 	Destinations    []Target
 	Tags            []string
 	PublicKey       string
@@ -187,21 +190,22 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		return nil, ErrNoTargets
 	}
 	cfg := MuxerConfig{
-		Destinations:    destinations,
-		Tags:            c.Tags,
-		PublicKey:       c.PublicKey,
-		PrivateKey:      c.PrivateKey,
-		VerifyCert:      c.VerifyCert,
-		CachePath:       c.CachePath,
-		CacheSize:       c.CacheSize,
-		CacheMode:       c.CacheMode,
-		CacheDepth:      c.CacheDepth,
-		LogLevel:        c.LogLevel,
-		IngesterName:    c.IngesterName,
-		IngesterVersion: c.IngesterVersion,
-		IngesterUUID:    c.IngesterUUID,
-		RateLimitBps:    c.RateLimitBps,
-		Logger:          c.Logger,
+		IngestStreamConfig: c.IngestStreamConfig,
+		Destinations:       destinations,
+		Tags:               c.Tags,
+		PublicKey:          c.PublicKey,
+		PrivateKey:         c.PrivateKey,
+		VerifyCert:         c.VerifyCert,
+		CachePath:          c.CachePath,
+		CacheSize:          c.CacheSize,
+		CacheMode:          c.CacheMode,
+		CacheDepth:         c.CacheDepth,
+		LogLevel:           c.LogLevel,
+		IngesterName:       c.IngesterName,
+		IngesterVersion:    c.IngesterVersion,
+		IngesterUUID:       c.IngesterUUID,
+		RateLimitBps:       c.RateLimitBps,
+		Logger:             c.Logger,
 	}
 	return newIngestMuxer(cfg)
 }
@@ -319,6 +323,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		p = newParent(c.RateLimitBps, 0)
 	}
 	return &IngestMuxer{
+		cfg:          getStreamConfig(c.IngestStreamConfig),
 		dests:        c.Destinations,
 		tags:         taglist,
 		tagMap:       tagMap,
@@ -1254,7 +1259,7 @@ loop:
 			continue
 		}
 		if im.rateParent != nil {
-			ig.ew.SetConn(im.rateParent.newThrottleConn(ig.ew.conn))
+			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn))
 		}
 
 		//no error, attempt to do a tag translation
@@ -1284,12 +1289,19 @@ loop:
 			ok, err := ig.IngestOK()
 			if err != nil {
 				im.Error("IngestOK query failed on %v: %v", tgt.Address, err)
+				ig.Close()
 				continue loop
 			}
 			if ok {
 				break
 			}
 			time.Sleep(5 * time.Second)
+		}
+
+		if err := ig.ew.ConfigureStream(im.cfg); err != nil {
+			im.Warn("Failed to configure stream on %v: %v", tgt.Address, err)
+			ig.Close()
+			continue
 		}
 
 		im.Info("Successfully connected to %v", tgt.Address)
@@ -1528,4 +1540,11 @@ func (tt tagTrans) Reverse(t entry.EntryTag) entry.EntryTag {
 		}
 	}
 	return 0
+}
+
+func getStreamConfig(cfg config.IngestStreamConfig) (sc StreamConfiguration) {
+	if cfg.Enable_Compression {
+		sc.Compression = CompressSnappy
+	}
+	return
 }
