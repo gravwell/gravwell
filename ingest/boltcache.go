@@ -144,29 +144,32 @@ func boltTransition(c MuxerConfig) error {
 
 		close(cc.In)
 		cc.Commit()
-	}
 
-	// Shuffle files
-	bc.Close()
-	err = os.Remove(c.CachePath)
-	if err != nil {
-		return err
-	}
-	err = os.MkdirAll(filepath.Join(c.CachePath, "e"), 0755)
-	if err != nil {
-		return err
-	}
-	err = os.Rename(filepath.Join(tmpd, "cache_a"), filepath.Join(c.CachePath, "e", "cache_a"))
-	if err != nil {
-		return err
-	}
-	err = os.Rename(filepath.Join(tmpd, "cache_b"), filepath.Join(c.CachePath, "e", "cache_b"))
-	if err != nil {
-		return err
-	}
-	err = os.Rename(filepath.Join(tmpd, "tagcache"), filepath.Join(c.CachePath, "tagcache"))
-	if err != nil {
-		return err
+		// Shuffle files
+		bc.Close()
+		err = os.Remove(c.CachePath)
+		if err != nil {
+			return err
+		}
+		err = os.MkdirAll(filepath.Join(c.CachePath, "e"), 0755)
+		if err != nil {
+			return err
+		}
+		err = os.Rename(filepath.Join(tmpd, "cache_a"), filepath.Join(c.CachePath, "e", "cache_a"))
+		if err != nil {
+			return err
+		}
+		err = os.Rename(filepath.Join(tmpd, "cache_b"), filepath.Join(c.CachePath, "e", "cache_b"))
+		if err != nil {
+			return err
+		}
+		err = os.Rename(filepath.Join(tmpd, "tagcache"), filepath.Join(c.CachePath, "tagcache"))
+		if err != nil {
+			return err
+		}
+	} else {
+		// just remove the old cache
+		return os.Remove(c.CachePath)
 	}
 
 	return nil
