@@ -438,8 +438,8 @@ func (ew *EntryWriter) ConfigureStream(c StreamConfiguration) (err error) {
 	}
 
 	//we are in good shape, configure the stream
-	if c.Compression != CompressNone {
-		if err = ew.startCompression(c.Compression); err != nil {
+	if resp.Compression != CompressNone {
+		if err = ew.startCompression(resp.Compression); err != nil {
 			return
 		}
 	}
