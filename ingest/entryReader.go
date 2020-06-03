@@ -12,12 +12,14 @@ import (
 	"bufio"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
 	"syscall"
 	"time"
 
+	"github.com/golang/snappy"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
@@ -62,6 +64,7 @@ type ackCommand struct {
 
 type EntryReader struct {
 	conn       net.Conn
+	flshr      flusher
 	bIO        *bufio.Reader
 	bAckWriter *bufio.Writer
 	errCount   uint32
@@ -124,6 +127,54 @@ func (er *EntryReader) GetIngesterInfo() (string, string, string) {
 
 func (er *EntryReader) GetIngesterAPIVersion() uint16 {
 	return er.igAPIVersion
+}
+
+// configureStream will
+func (er *EntryReader) ConfigureStream() (err error) {
+	var req StreamConfiguration
+	er.mtx.Lock()
+	defer er.mtx.Unlock()
+
+	if er.igAPIVersion < MINIMUM_DYN_CONFIG_VERSION {
+		//just return quietly, its ok
+		return
+	}
+	//set our timeouts and perform the exchange
+	if err = req.Read(er.bIO); err != nil {
+		return
+	} else if err = req.validate(); err != nil {
+		return
+	} else if err = req.Write(er.bAckWriter); err != nil {
+		return
+	} else if err = er.bAckWriter.Flush(); err != nil {
+		return
+	} else if err = er.resetTimeout(); err != nil {
+		return
+	}
+
+	//we are in good shape, configure the stream
+	if req.Compression != CompressNone {
+		err = er.startCompression(req.Compression)
+	}
+	return
+}
+
+// startCompression gets the entryReader/Writer ready to work with a compressed connection
+// caller MUST HOLD THE LOCK
+func (ew *EntryReader) startCompression(ct CompressionType) (err error) {
+	switch ct {
+	case CompressNone: //do nothing
+	case CompressSnappy:
+		//get a writer rolling
+		wtr := snappy.NewWriter(ew.conn)
+		ew.flshr = wtr
+		ew.bAckWriter.Reset(wtr)
+		//get a reader rolling
+		ew.bIO.Reset(snappy.NewReader(ew.conn))
+	default:
+		err = fmt.Errorf("Unknown compression id %x", ct)
+	}
+	return
 }
 
 func (er *EntryReader) Start() error {
