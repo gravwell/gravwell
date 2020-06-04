@@ -182,7 +182,7 @@ func main() {
 		lg.FatalCode(0, "Couldn't read ingester UUID\n")
 	}
 	igCfg := ingest.UniformMuxerConfig{
-		IngestStreamConfig: cfg.IngestStreamConfig,
+		IngestStreamConfig: cfg.Global.IngestStreamConfig,
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Global.Secret(),
