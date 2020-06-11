@@ -242,6 +242,8 @@ func (c *ChanCacher) cacheHandler() {
 		}
 
 		c.cacheReading = false
+		c.cacheR.Seek(0, 0)
+		c.cacheR.Truncate(0)
 
 		// This is the only place where CacheHasData() will return false
 
@@ -251,9 +253,6 @@ func (c *ChanCacher) cacheHandler() {
 			return
 		default:
 		}
-
-		c.cacheR.Seek(0, 0)
-		c.cacheR.Truncate(0)
 
 		// Wait for W to have data.
 		for !c.cacheModified {
@@ -277,6 +276,9 @@ func (c *ChanCacher) cacheHandler() {
 }
 
 func (c *ChanCacher) cacheValue(v interface{}) {
+	if v == nil {
+		return
+	}
 	for c.maxSize != 0 && c.Size() >= c.maxSize {
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -372,10 +374,14 @@ func (c *ChanCacher) Commit() {
 		case <-c.cacheAck:
 			readerStopped = true
 		case v := <-c.Out:
-			c.cacheValue(v)
+			if v != nil {
+				c.cacheValue(v)
+			}
 		}
 	}
 
+	c.cacheR.Sync()
+	c.cacheW.Sync()
 	c.cacheR.Close()
 	c.cacheW.Close()
 
