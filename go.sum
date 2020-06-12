@@ -162,13 +162,8 @@ github.com/google/uuid v1.1.1/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+
 github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+vpHVxEJEs9eg=
 github.com/googleapis/gax-go/v2 v2.0.5 h1:sjZBwGj9Jlw33ImPtvFviGYvseOtDM7hkSKB7+Tv3SM=
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
-github.com/gravwell/gcfg v1.2.5 h1:gkn0wbZz0I9XmQGs4Z0cq5iBe5qDx4IH5cjGzqyQjSw=
-github.com/gravwell/gcfg v1.2.5 h1:gkn0wbZz0I9XmQGs4Z0cq5iBe5qDx4IH5cjGzqyQjSw=
-github.com/gravwell/gcfg v1.2.5 h1:gkn0wbZz0I9XmQGs4Z0cq5iBe5qDx4IH5cjGzqyQjSw=
-github.com/gravwell/gcfg v1.2.5/go.mod h1:lWsvu9YGmTXgqdrR4W926Ok7Vh8jvrwIhFMkn91PgU4=
-github.com/gravwell/gcfg v1.2.5/go.mod h1:lWsvu9YGmTXgqdrR4W926Ok7Vh8jvrwIhFMkn91PgU4=
-github.com/gravwell/gcfg v1.2.5/go.mod h1:lWsvu9YGmTXgqdrR4W926Ok7Vh8jvrwIhFMkn91PgU4=
-github.com/gravwell/gcfg v1.2.5/go.mod h1:lWsvu9YGmTXgqdrR4W926Ok7Vh8jvrwIhFMkn91PgU4=
+github.com/gravwell/gcfg v1.2.7 h1:PtSl5LSNDh6yLrmYKUN5WMJKDm8Zbxl18yKxpcPeb9c=
+github.com/gravwell/gcfg v1.2.7/go.mod h1:N+S2rmWz+IHo5zTQaDshQr+qEVGldBRzAnlRkf1yO8c=
 github.com/gravwell/ipfix v1.4.3 h1:OwEqbafjR2brezAnGHUHU9JbHKAeO1EL6BjIwqJvqGs=
 github.com/gravwell/ipfix v1.4.3/go.mod h1:/Ogrd3FQi+GGD+BXzX8/kBQKdOrgrf6c8u8LSEA3WI8=
 github.com/h2non/filetype v1.0.10 h1:z+SJfnL6thYJ9kAST+6nPRXp1lMxnOVbMZHNYHMar0s=
