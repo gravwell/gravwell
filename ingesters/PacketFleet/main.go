@@ -344,13 +344,13 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s := status()
 			w.Write([]byte(s))
 			return
-		case "/":
-			// root
-			w.Write([]byte(index))
-			return
 		case "/conns":
 			c := conns()
 			w.Write([]byte(c))
+			return
+		default:
+			// root
+			w.Write([]byte(index))
 			return
 		}
 	}
@@ -393,6 +393,12 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				lg.Error("%v", err)
 				continue
+			}
+			if resp.StatusCode != 200 {
+				resp.Body.Close()
+				lg.Error("invalid query")
+				w.WriteHeader(http.StatusBadRequest)
+				return
 			}
 			wg.Add(1)
 			go h.processPcap(resp.Body, j, &wg)
