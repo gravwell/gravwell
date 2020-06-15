@@ -344,13 +344,13 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s := status()
 			w.Write([]byte(s))
 			return
-		case "/":
-			// root
-			w.Write([]byte(index))
-			return
 		case "/conns":
 			c := conns()
 			w.Write([]byte(c))
+			return
+		default:
+			// root
+			w.Write([]byte(index))
 			return
 		}
 	}
