@@ -394,6 +394,12 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				lg.Error("%v", err)
 				continue
 			}
+			if resp.StatusCode != 200 {
+				resp.Body.Close()
+				lg.Error("invalid query")
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
 			wg.Add(1)
 			go h.processPcap(resp.Body, j, &wg)
 		}
