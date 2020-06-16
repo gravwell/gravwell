@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -244,7 +245,7 @@ func main() {
 		}
 
 		hcfg := &handlerConfig{
-			url:              v.URL,
+			url:              strings.TrimRight(v.URL, "/"),
 			caCert:           v.CA_Cert,
 			clientCert:       v.Client_Cert,
 			clientKey:        v.Client_Key,
