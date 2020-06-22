@@ -1298,7 +1298,7 @@ loop:
 			if ok {
 				break
 			}
-			im.Info("Indexer %v does not yet allow ingest, sleeping", tgt.Address)
+			im.Warn("Indexer %v does not yet allow ingest, sleeping", tgt.Address)
 			time.Sleep(5 * time.Second)
 		}
 
