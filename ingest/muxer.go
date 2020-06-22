@@ -1243,6 +1243,7 @@ loop:
 	for {
 		//attempt a connection, timeouts are built in to the IngestConnection
 		im.mtx.RLock()
+		im.Info("Initializing connection to %v", tgt.Address)
 		if ig, err = InitializeConnection(tgt.Address, tgt.Secret, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
 			im.mtx.RUnlock()
 			if isFatalConnError(err) {
@@ -1259,6 +1260,7 @@ loop:
 			}
 			continue
 		}
+		im.Info("Connection to %v established, completing negotiation & requesting approval to ingest", tgt.Address)
 		if im.rateParent != nil {
 			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn))
 		}
@@ -1296,6 +1298,7 @@ loop:
 			if ok {
 				break
 			}
+			im.Info("Indexer %v does not yet allow ingest, sleeping", tgt.Address)
 			time.Sleep(5 * time.Second)
 		}
 
@@ -1305,7 +1308,7 @@ loop:
 			continue
 		}
 
-		im.Info("Successfully connected to %v", tgt.Address)
+		im.Info("Successfully connected to %v with ingest OK", tgt.Address)
 		break
 	}
 	return
