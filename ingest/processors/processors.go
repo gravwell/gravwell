@@ -44,10 +44,10 @@ type ProcessorSet struct {
 
 type ProcessorConfig map[string]*config.VariableConfig
 
-// Processor is an interface that takes a block of entries and processes them, returning a new block
+// Processor is an interface that takes an entry and processes it, returning a new block
 type Processor interface {
-	Process(*entry.Entry) ([]*entry.Entry, error) //process an data item potentially setting a tag
-	Close() error                                 //give the processor a chance to tide up
+	Process(*entry.Entry) ([]*entry.Entry, error)                         //process an data item potentially setting a tag
+	Close() error                                                         //give the processor a chance to tide up
 }
 
 func CheckProcessor(id string) error {

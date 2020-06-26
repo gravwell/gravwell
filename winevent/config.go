@@ -355,6 +355,10 @@ func (c *CfgType) LocalFileCachePath() string {
 	return c.Global.Ingest_Cache_Path
 }
 
+func (c *CfgType) CacheSize() int {
+	return c.Global.Max_Ingest_Cache
+}
+
 func (c *CfgType) LogLevel() string {
 	return c.Global.Log_Level
 }
