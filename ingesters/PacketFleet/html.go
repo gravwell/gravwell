@@ -89,6 +89,12 @@ const index = `
     </nav>
 
     <main role="main" class="container">
+      <div id="invalid-query-alert" class="alert alert-danger" role="alert" hidden>
+        Invalid query <code id="invalid-query"></code>
+        <button type="button" class="close" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
       <h1 class="text-center">
         Gravwell Packet Fleet
       </h1>
@@ -156,6 +162,11 @@ const index = `
         var updateInterval = 2000; // ms
 
         /*
+         * GLOBALS
+         */
+        var invalidQueryAlertTimer = null;
+
+        /*
          * DOM elements
          */
         var queryForm = document.querySelector('#query-form');
@@ -163,6 +174,10 @@ const index = `
         var sourceField = document.querySelector('#source-field');
         var sourceFeedback = document.querySelector('#source-override-feedback');
         var connCbContainer = document.querySelector('#conn-cb-container');
+
+        var invalidQueryAlert = document.querySelector('#invalid-query-alert');
+        var invalidQuery = document.querySelector('#invalid-query');
+        var invalidQueryAlertClose = document.querySelector('#invalid-query-alert > button');
 
         var jobCount = document.querySelector('#job-count');
         var tableBody = document.querySelector('#table-body');
@@ -179,6 +194,11 @@ const index = `
         if (queryParam) {
           queryField.value = queryParam;
         }
+
+        // Close invalid query alert when the button is pressed
+        invalidQueryAlertClose.addEventListener('click', function () {
+          dismissInvalidQueryAlert();
+        });
 
         // Set source field according to query parameter ?s=
         var sourceParam = urlParams.get('s');
@@ -208,6 +228,11 @@ const index = `
           }
 
           var xhttp = new XMLHttpRequest();
+          xhttp.onreadystatechange = function () {
+            if (this.readyState === XMLHttpRequest.DONE && this.status !== 200) {
+              showInvalidQueryAlert(query);
+            }
+          };
           xhttp.open('POST', '/', true);
           xhttp.send(
             JSON.stringify({
@@ -435,6 +460,24 @@ const index = `
           if (feedback) {
             feedback.remove();
           }
+        }
+
+        function showInvalidQueryAlert(q) {
+          invalidQueryAlert.removeAttribute('hidden');
+          if (invalidQueryAlertTimer) {
+            clearTimeout(invalidQueryAlertTimer);
+          }
+          invalidQueryAlertTimer = setTimeout(dismissInvalidQueryAlert, 10000);
+          invalidQuery.innerText = q;
+        }
+
+        function dismissInvalidQueryAlert() {
+          if (invalidQueryAlertTimer) {
+            clearTimeout(invalidQueryAlertTimer);
+          }
+
+          invalidQueryAlert.setAttribute('hidden', 'true');
+          invalidQuery.innerText = '';
         }
       })();
     </script>
