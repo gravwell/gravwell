@@ -30,6 +30,11 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
+const (
+	CacheModeAlways = `always`
+	CacheModeFail   = `fail`
+)
+
 var (
 	ErrAllConnsDown          = errors.New("All connections down")
 	ErrNotRunning            = errors.New("Not running")
@@ -271,7 +276,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		}
 	}
 
-	if c.CacheMode == "fail" {
+	if c.CacheMode == CacheModeFail {
 		cache.CacheStop()
 		bcache.CacheStop()
 	}
@@ -347,7 +352,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		bcache:       bcache,
 		cacheEnabled: c.CachePath != "",
 		cachePath:    c.CachePath,
-		cacheAlways:  strings.ToLower(c.CacheMode) == "always",
+		cacheAlways:  strings.ToLower(c.CacheMode) == CacheModeAlways,
 		name:         c.IngesterName,
 		version:      c.IngesterVersion,
 		uuid:         c.IngesterUUID,
