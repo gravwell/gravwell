@@ -98,7 +98,7 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) (*ChanCacher, er
 	if c.cache {
 		var err error
 
-		err = os.MkdirAll(c.cachePath, 0755)
+		err = os.MkdirAll(c.cachePath, 0750)
 		if err != nil {
 			return nil, err
 		}
@@ -133,12 +133,12 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) (*ChanCacher, er
 		}
 
 		// create r and w files
-		r, err := os.OpenFile(filepath.Join(c.cachePath, "cache_a"), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+		r, err := os.OpenFile(filepath.Join(c.cachePath, "cache_a"), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0640)
 		if err != nil {
 			return nil, err
 		}
 
-		w, err := os.OpenFile(filepath.Join(c.cachePath, "cache_b"), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0644)
+		w, err := os.OpenFile(filepath.Join(c.cachePath, "cache_b"), os.O_APPEND|os.O_CREATE|os.O_RDWR, 0640)
 		if err != nil {
 			return nil, err
 		}
