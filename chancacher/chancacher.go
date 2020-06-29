@@ -13,14 +13,18 @@ package chancacher
 
 import (
 	"encoding/gob"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
+)
+
+var (
+	ErrInvalidCachePath = errors.New("Invalid cache path")
 )
 
 // The maximum channel depth, which is also used when the channel depth is set
@@ -66,12 +70,14 @@ type ChanCacher struct {
 // Commit().
 func NewChanCacher(maxDepth int, cachePath string, maxSize int) (*ChanCacher, error) {
 	if cachePath != "" {
-		fi, err := os.Stat(cachePath)
-		if err != nil && !strings.Contains(err.Error(), "no such file or directory") {
-			return nil, err
-		}
-		if fi != nil && !fi.IsDir() {
-			return nil, fmt.Errorf("cache path not a directory")
+		if fi, err := os.Stat(cachePath); err != nil {
+			if !os.IsNotExist(err) {
+				return nil, err
+			}
+			//just a not-exist error, we will fix this later
+		} else if !fi.IsDir() {
+			//exists but is not a directory, this is an error
+			return nil, errors.WithMessagef(ErrInvalidCachePath, "Cache Path %q exists and is not a directory", cachePath)
 		}
 	}
 
