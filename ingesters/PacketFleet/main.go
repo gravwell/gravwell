@@ -399,6 +399,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				resp.Body.Close()
 				lg.Error("invalid query")
 				w.WriteHeader(http.StatusBadRequest)
+				removeJob(j.ID)
 				return
 			}
 			wg.Add(1)
