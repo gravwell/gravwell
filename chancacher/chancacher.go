@@ -13,14 +13,14 @@ package chancacher
 
 import (
 	"encoding/gob"
+	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 var (
@@ -77,7 +77,7 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) (*ChanCacher, er
 			//just a not-exist error, we will fix this later
 		} else if !fi.IsDir() {
 			//exists but is not a directory, this is an error
-			return nil, errors.WithMessagef(ErrInvalidCachePath, "Cache Path %q exists and is not a directory", cachePath)
+			return nil, fmt.Errorf("Cache Path %q is not a directory: %w", cachePath, ErrInvalidCachePath)
 		}
 	}
 
