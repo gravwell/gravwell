@@ -66,6 +66,9 @@ const (
 	envEncTarget         string = `GRAVWELL_ENCRYPTED_TARGETS`
 	envPipeTarget        string = `GRAVWELL_PIPE_TARGETS`
 	envCompressionTarget string = `GRAVWELL_ENABLE_COMPRESSION`
+	envCacheMode         string = `GRAVWELL_CACHE_MODE`
+	envCachePath         string = `GRAVWELL_CACHE_PATH`
+	envMaxCache          string = `GRAVWELL_CACHE_SIZE`
 
 	DefaultCleartextPort uint16 = 4023
 	DefaultTLSPort       uint16 = 4024
@@ -141,6 +144,16 @@ func (ic *IngestConfig) loadDefaults() error {
 	}
 	//Compression
 	if err := LoadEnvVar(&ic.Enable_Compression, envCompressionTarget, false); err != nil {
+		return err
+	}
+	// Cache
+	if err := LoadEnvVar(&ic.Cache_Mode, envCacheMode, nil); err != nil {
+		return err
+	}
+	if err := LoadEnvVar(&ic.Ingest_Cache_Path, envCachePath, nil); err != nil {
+		return err
+	}
+	if err := LoadEnvVar(&ic.Max_Ingest_Cache, envMaxCache, nil); err != nil {
 		return err
 	}
 	return nil
