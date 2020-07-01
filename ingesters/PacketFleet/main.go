@@ -136,7 +136,6 @@ func main() {
 
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		var tcfg cfgType
 		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
 		return
 	}
