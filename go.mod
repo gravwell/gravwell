@@ -24,7 +24,7 @@ require (
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542
 	github.com/google/gopacket v1.1.17
 	github.com/google/uuid v1.1.1
-	github.com/gravwell/gcfg v1.2.7
+	github.com/gravwell/gcfg v1.2.8
 	github.com/gravwell/ipfix v1.4.3
 	github.com/h2non/filetype v1.0.10
 	github.com/jcmturner/gofork v1.0.0 // indirect
@@ -34,7 +34,6 @@ require (
 	github.com/minio/highwayhash v1.0.0
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
-	github.com/pkg/errors v0.9.1
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/shirou/gopsutil v2.19.11+incompatible
 	github.com/stretchr/testify v1.5.1
