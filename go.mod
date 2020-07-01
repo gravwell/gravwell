@@ -34,6 +34,7 @@ require (
 	github.com/minio/highwayhash v1.0.0
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
+	github.com/pkg/errors v0.9.1
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/shirou/gopsutil v2.19.11+incompatible
 	github.com/stretchr/testify v1.5.1
