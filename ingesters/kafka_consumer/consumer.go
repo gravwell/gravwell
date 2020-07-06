@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -27,6 +28,7 @@ const (
 	ipv4Len          = 4
 	ipv6Len          = 16
 	currKafkaVersion = `2.1.1`
+	minTLSVersion    = tls.VersionTLS12
 )
 
 type closer interface {
@@ -122,6 +124,17 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 		}
 		cfg.Consumer.Group.Rebalance.Strategy = kc.strat
 		cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
+
+		if kc.useTLS {
+			cfg.Net.TLS.Enable = true
+			cfg.Net.TLS.Config = &tls.Config{
+				MinVersion: minTLSVersion,
+			}
+			if kc.skipVerify {
+				cfg.Net.TLS.Config.InsecureSkipVerify = true
+			}
+		}
+
 		var clnt sarama.ConsumerGroup
 		if clnt, err = sarama.NewConsumerGroup([]string{kc.leader}, kc.group, cfg); err != nil {
 			return
