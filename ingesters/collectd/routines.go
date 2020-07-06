@@ -66,6 +66,7 @@ type collectdInstance struct {
 	errCh          chan error
 	useOverrides   bool
 	useSrcOverride bool
+	cancel         *context.CancelFunc
 }
 
 func newCollectdInstance(cc collConfig, laddr *net.UDPAddr) (*collectdInstance, error) {
@@ -108,7 +109,11 @@ func (ci *collectdInstance) Start() error {
 }
 
 func (ci *collectdInstance) routine(ch chan error) {
-	ch <- ci.srv.ListenAndWrite(context.Background())
+	ctx, cancel := context.WithCancel(context.Background())
+	ci.Lock()
+	ci.cancel = &cancel
+	ci.Unlock()
+	ch <- ci.srv.ListenAndWrite(ctx)
 	ci.Lock()
 	ci.state = done
 	ci.Unlock()
@@ -116,20 +121,18 @@ func (ci *collectdInstance) routine(ch chan error) {
 
 func (ci *collectdInstance) Close() (err error) {
 	ci.Lock()
+	if ci.cancel != nil {
+		(*ci.cancel)()
+	}
 	ch := ci.errCh
 	if ci.state != running && ci.state != done {
 		ci.Unlock()
 		err = errors.New("Not running")
 		return
-	} else if ci.srv.Conn != nil {
-		ci.srv.Conn.Close()
 	}
 	ci.Unlock()
 
-	if err != nil {
-		ci.proc.Close()
-		return
-	} else if ch != nil {
+	if ch != nil {
 		if err = <-ch; err == nil {
 			err = ci.proc.Close()
 		} else {
@@ -173,7 +176,7 @@ func (ci *collectdInstance) Write(ctx context.Context, vl *api.ValueList) error 
 			SRC:  src,
 			Data: dts[i],
 		}
-		if err := ci.proc.Process(ent); err != nil {
+		if err := ci.proc.ProcessContext(ent, ctx); err != nil {
 			return err
 		}
 	}
