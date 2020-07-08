@@ -50,27 +50,40 @@ type ConfigConsumer struct {
 	Default_Tag        string
 	taggerConfig
 
+	//TLS stuff
+	Use_TLS                  bool
+	Insecure_Skip_TLS_Verify bool
+
+	//consumer configs
 	Ignore_Timestamps         bool //Just apply the current timestamp to lines as we get them
 	Extract_Timestamps        bool // Ignore the kafka timestamp, use timegrinder
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
 	Timestamp_Format_Override string //override the timestamp format
-	Preprocessor              []string
+
+	//list of preprocessors to run
+	Preprocessor []string
 }
 
 type consumerCfg struct {
 	taggerConfig
-	defTag       string
-	leader       string
-	topic        string
-	group        string
-	strat        sarama.BalanceStrategy
-	sync         bool
-	batchSize    int
-	srcKey       string
-	tagKey       string
-	srcBin       bool
-	srcOverride  net.IP
+	defTag      string
+	leader      string
+	topic       string
+	group       string
+	strat       sarama.BalanceStrategy
+	sync        bool
+	batchSize   int
+	srcKey      string
+	tagKey      string
+	srcBin      bool
+	srcOverride net.IP
+
+	//tls configs
+	useTLS     bool
+	skipVerify bool
+
+	//consumer configs for timestamps and time grinding
 	ignoreTS     bool
 	extractTS    bool
 	tg           *timegrinder.TimeGrinder
@@ -258,6 +271,12 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 	} else {
 		c.group = defaultConsumerGroup
 	}
+
+	if cc.Use_TLS {
+		c.useTLS = true
+		c.skipVerify = cc.Insecure_Skip_TLS_Verify
+	}
+
 	c.preprocessor = cc.Preprocessor
 
 	c.strat, err = cc.balanceStrat()
