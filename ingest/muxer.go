@@ -480,6 +480,17 @@ func (im *IngestMuxer) LookupTag(tg entry.EntryTag) (name string, ok bool) {
 	return
 }
 
+// KnownTags will return a string slice of tags that the muxer actively knows about
+func (im *IngestMuxer) KnownTags() (tgs []string) {
+	im.mtx.RLock()
+	tgs = make([]string, 0, len(im.tagMap))
+	for k := range im.tagMap {
+		tgs = append(tgs, k)
+	}
+	im.mtx.RUnlock()
+	return
+}
+
 // NegotiateTag will attempt to lookup a tag name in the negotiated set
 // The the tag name has not already been negotiated, the muxer will contact
 // each indexer and negotiate it.  This call can potentially block and fail
@@ -593,6 +604,12 @@ func (im *IngestMuxer) WaitForHotContext(ctx context.Context, to time.Duration) 
 	} else if cnt > 0 {
 		return nil
 	}
+	//if we have a cache enabled in always mode, just short circuit out
+	if im.cacheEnabled && im.cacheAlways {
+		im.cache.CacheStart()
+		im.bcache.CacheStart()
+		return nil
+	}
 
 	//no connections are up, wait for them
 	tckDur := waitTickerDur
@@ -625,12 +642,6 @@ mainLoop:
 			} else if time.Since(ts) < to {
 				//we haven't hit our timeout yet, just continue
 				continue
-			}
-
-			if im.cacheEnabled && im.cacheAlways {
-				im.cache.CacheStart()
-				im.bcache.CacheStart()
-				return nil
 			}
 
 			return ErrConnectionTimeout
