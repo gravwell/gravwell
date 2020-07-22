@@ -131,10 +131,13 @@ func logLevel(v string) gll {
 
 type nilLogger struct{}
 
-func (n nilLogger) Error(s string, i ...interface{}) error { return nil }
-func (n nilLogger) Warn(s string, i ...interface{}) error  { return nil }
-func (n nilLogger) Info(s string, i ...interface{}) error  { return nil }
+func (n nilLogger) Error(s string, i ...interface{}) error                 { return nil }
+func (n nilLogger) Warn(s string, i ...interface{}) error                  { return nil }
+func (n nilLogger) Info(s string, i ...interface{}) error                  { return nil }
+func (n nilLogger) ErrorWithDepth(x int, s string, i ...interface{}) error { return nil }
+func (n nilLogger) WarnWithDepth(x int, s string, i ...interface{}) error  { return nil }
+func (n nilLogger) InfoWithDepth(x int, s string, i ...interface{}) error  { return nil }
 
-func NoLogger() IngestLogger {
+func NoLogger() Logger {
 	return &nilLogger{}
 }

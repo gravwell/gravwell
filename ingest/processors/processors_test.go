@@ -333,6 +333,14 @@ func (tt *testTagger) LookupTag(tg entry.EntryTag) (name string, ok bool) {
 	return
 }
 
+func (tt *testTagger) KnownTags() []string {
+	r := make([]string, 0, len(tt.mp))
+	for k := range tt.mp {
+		r = append(r, k)
+	}
+	return r
+}
+
 type testWriter struct {
 	ents []*entry.Entry
 }

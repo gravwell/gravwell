@@ -62,6 +62,7 @@ func CheckProcessor(id string) error {
 	case RegexRouterProcessor:
 	case ForwarderProcessor:
 	case VpcProcessor:
+	case GravwellForwarderProcessor:
 	default:
 		return ErrUnknownProcessor
 	}
@@ -71,6 +72,7 @@ func CheckProcessor(id string) error {
 type Tagger interface {
 	NegotiateTag(name string) (entry.EntryTag, error)
 	LookupTag(entry.EntryTag) (string, bool)
+	KnownTags() []string
 }
 
 type entWriter interface {
@@ -106,6 +108,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = ForwarderLoadConfig(vc)
 	case VpcProcessor:
 		cfg, err = VpcLoadConfig(vc)
+	case GravwellForwarderProcessor:
+		cfg, err = GravwellForwarderLoadConfig(vc)
 	default:
 		err = ErrUnknownProcessor
 	}
@@ -191,6 +195,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewVpcProcessor(cfg)
+	case GravwellForwarderProcessor:
+		var cfg GravwellForwarderConfig
+		if cfg, err = GravwellForwarderLoadConfig(vc); err != nil {
+			return
+		}
+		p, err = NewGravwellForwarder(cfg, tgr)
 	default:
 		err = ErrUnknownProcessor
 	}
