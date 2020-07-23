@@ -10,6 +10,7 @@ package filewatch
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net"
 	"time"
@@ -44,10 +45,11 @@ type LogHandlerConfig struct {
 	TimezoneOverride        string
 	Logger                  logger
 	Debugger                debugOut
+	Ctx                     context.Context
 }
 
 type logWriter interface {
-	Process(*entry.Entry) error
+	ProcessContext(*entry.Entry, context.Context) error
 }
 
 func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
@@ -116,10 +118,10 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	if lh.Debugger != nil {
 		lh.Debugger("GOT %s %s\n", ts.Format(time.RFC3339), string(b))
 	}
-	return lh.w.Process(&entry.Entry{
+	return lh.w.ProcessContext(&entry.Entry{
 		SRC:  lh.Src,
 		TS:   entry.FromStandard(ts),
 		Tag:  lh.Tag,
 		Data: b,
-	})
+	}, lh.LogHandlerConfig.Ctx)
 }
