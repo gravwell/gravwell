@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -67,6 +68,7 @@ type handlerConfig struct {
 	wg               *sync.WaitGroup
 	done             chan bool
 	proc             *processors.ProcessorSet
+	ctx              context.Context
 }
 
 func init() {
@@ -190,6 +192,8 @@ func main() {
 	var wg sync.WaitGroup
 	done := make(chan bool)
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// make sqs connections
 	for k, v := range cfg.Queue {
 		var src net.IP
@@ -226,6 +230,7 @@ func main() {
 			src:              src,
 			wg:               &wg,
 			done:             done,
+			ctx:              ctx,
 		}
 
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
@@ -240,6 +245,9 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
+
+	// stop outstanding writes
+	cancel()
 
 	// wait for graceful shutdown
 	close(done)
@@ -334,7 +342,7 @@ func queueRunner(hcfg *handlerConfig) {
 				Data: msg,
 			}
 
-			if err = hcfg.proc.Process(ent); err != nil {
+			if err = hcfg.proc.ProcessContext(ent, hcfg.ctx); err != nil {
 				lg.Error("Sending message: %v", err)
 				return
 			}
