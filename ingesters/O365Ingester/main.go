@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -183,6 +184,8 @@ func main() {
 		lg.Fatal("Failed to enable subscriptions: %v", err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	// For each content type we're interested in, launch a
 	// goroutine to read entries from Office 365 maintenance API
 	running := true
@@ -292,7 +295,7 @@ func main() {
 						}
 
 						// now write the entry
-						if err := procset.Process(ent); err != nil {
+						if err := procset.ProcessContext(ent, ctx); err != nil {
 							lg.Warn("Failed to handle entry: %v", err)
 						}
 						// Add the Id to the temporary map
@@ -313,6 +316,12 @@ func main() {
 
 	//register quit signals so we can die gracefully
 	utils.WaitForQuit()
+
+	go func() {
+		time.Sleep(time.Second)
+		cancel()
+	}()
+
 	running = false
 	wg.Wait()
 
