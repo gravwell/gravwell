@@ -10,6 +10,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"net"
@@ -164,6 +165,8 @@ func main() {
 
 	var procs []*processors.ProcessorSet
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	//build a list of base directories and globs
 	for k, val := range cfg.Follower {
 		pproc, err := cfg.Preprocessor.ProcessorSet(igst, val.Preprocessor)
@@ -197,6 +200,7 @@ func main() {
 			TimestampFormatOverride: tsFmtOverride,
 			Logger:                  lg,
 			TimezoneOverride:        val.Timezone_Override,
+			Ctx:                     ctx,
 		}
 		if v {
 			cfg.Debugger = debugout
@@ -245,6 +249,9 @@ func main() {
 		lg.Error("Failed to close file follower: %v\n", err)
 	}
 	debugout("Done\n")
+
+	// no need to punt cancel for a second here
+	cancel()
 
 	//close down all the preprocessors
 	for _, v := range procs {
