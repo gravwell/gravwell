@@ -11,6 +11,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -38,9 +39,10 @@ type jsonHandlerConfig struct {
 	formatOverride   string
 	flds             []string
 	proc             *processors.ProcessorSet
+	ctx              context.Context
 }
 
-func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher) error {
+func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher, ctx context.Context) error {
 	var err error
 	//short circuit out on empty
 	if len(cfg.JSONListener) == 0 {
@@ -54,6 +56,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 			ignoreTimestamps: v.Ignore_Timestamps,
 			setLocalTime:     v.Assume_Local_Timezone,
 			timezoneOverride: v.Timezone_Override,
+			ctx:              ctx,
 		}
 		if jhc.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Error("Preprocessor failure: %v", err)
@@ -260,6 +263,6 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig) {
 			Tag:  tag,
 			Data: data,
 		}
-		cfg.proc.Process(ent)
+		cfg.proc.ProcessContext(ent, cfg.ctx)
 	}
 }
