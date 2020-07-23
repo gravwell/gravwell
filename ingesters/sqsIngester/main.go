@@ -246,8 +246,11 @@ func main() {
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
 
-	// stop outstanding writes
-	cancel()
+	// stop outstanding writes in 1 second while we wait
+	go func() {
+		time.Sleep(time.Second)
+		cancel()
+	}()
 
 	// wait for graceful shutdown
 	close(done)
