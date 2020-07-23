@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -163,13 +164,15 @@ func main() {
 
 	var flshr flusher
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	//fire off our simple listeners
-	if err := startSimpleListeners(cfg, igst, wg, &flshr); err != nil {
+	if err := startSimpleListeners(cfg, igst, wg, &flshr, ctx); err != nil {
 		lg.FatalCode(-1, "Failed to start simple listeners: %v\n", err)
 		return
 	}
 	//fire off our json listeners
-	if err := startJSONListeners(cfg, igst, wg, &flshr); err != nil {
+	if err := startJSONListeners(cfg, igst, wg, &flshr, ctx); err != nil {
 		lg.FatalCode(-1, "Failed to start json listeners: %v\n", err)
 		return
 	}
@@ -179,6 +182,12 @@ func main() {
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
 	debugout("Closing %d connections\n", connCount())
+
+	go func() {
+		time.Sleep(time.Second)
+		cancel()
+	}()
+
 	mtx.Lock()
 	for _, v := range connClosers {
 		v.Close()

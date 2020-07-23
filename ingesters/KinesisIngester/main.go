@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -193,6 +194,8 @@ func main() {
 
 	dieChan := make(chan bool)
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	for _, stream := range cfg.KinesisStream {
 		tagid, err := igst.GetTag(stream.Tag_Name)
 		if err != nil {
@@ -252,6 +255,7 @@ func main() {
 				}
 			}(*stream)
 		}
+
 		for i, shard := range shards {
 			// Detect and skip closed shards
 			if shard.SequenceNumberRange != nil && shard.SequenceNumberRange.EndingSequenceNumber != nil {
@@ -392,7 +396,7 @@ func main() {
 									ent.TS = entry.FromStandard(ts)
 								}
 							}
-							if err = procset.Process(ent); err != nil {
+							if err = procset.ProcessContext(ent, ctx); err != nil {
 								lg.Error("Failed to handle entry: %v", err)
 							}
 							entrySize += int(ent.Size())
@@ -417,6 +421,12 @@ func main() {
 
 	running = false
 	close(dieChan)
+
+	go func() {
+		time.Sleep(time.Second)
+		cancel()
+	}()
+
 	wg.Wait()
 }
 
