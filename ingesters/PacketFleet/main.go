@@ -10,6 +10,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -71,6 +72,7 @@ type handlerConfig struct {
 	formatOverride   string
 	wg               *sync.WaitGroup
 	proc             *processors.ProcessorSet
+	ctx              context.Context
 
 	client *http.Client
 }
@@ -220,6 +222,8 @@ func main() {
 	// setup stenographer connections
 	stenos = make(map[string]*handlerConfig)
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	for k, v := range cfg.Stenographer {
 		var src net.IP
 
@@ -254,6 +258,7 @@ func main() {
 			formatOverride:   v.Timestamp_Format_Override,
 			src:              src,
 			wg:               &wg,
+			ctx:              ctx,
 		}
 
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
@@ -296,6 +301,8 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
+
+	cancel()
 
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("Failed to sync: %v\n", err)
@@ -475,7 +482,7 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job, wg *sync.WaitGroup
 		j.Bytes += uint(len(data))
 		j.lock.Unlock()
 
-		if err = h.proc.Process(ent); err != nil {
+		if err = h.proc.ProcessContext(ent, h.ctx); err != nil {
 			debugout("%v", err)
 			lg.Error("Sending message: %v", err)
 			return
