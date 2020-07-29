@@ -10,6 +10,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -23,6 +24,7 @@ import (
 	"path/filepath"
 	"runtime/pprof"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -70,6 +72,7 @@ type handlerConfig struct {
 	formatOverride   string
 	wg               *sync.WaitGroup
 	proc             *processors.ProcessorSet
+	ctx              context.Context
 
 	client *http.Client
 }
@@ -135,8 +138,6 @@ func main() {
 
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		var tcfg cfgType
-		fmt.Printf("%+v\n", tcfg)
 		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
 		return
 	}
@@ -182,21 +183,21 @@ func main() {
 		lg.FatalCode(0, "Couldn't read ingester UUID\n")
 	}
 	igCfg := ingest.UniformMuxerConfig{
-		Destinations:    conns,
-		Tags:            tags,
-		Auth:            cfg.Global.Secret(),
-		LogLevel:        cfg.Global.LogLevel(),
-		VerifyCert:      !cfg.Global.InsecureSkipTLSVerification(),
-		IngesterName:    ingesterName,
-		IngesterVersion: version.GetVersion(),
-		IngesterUUID:    id.String(),
-		RateLimitBps:    lmt,
-		Logger:          lg,
-	}
-	if cfg.Global.EnableCache() {
-		igCfg.EnableCache = true
-		igCfg.CacheConfig.FileBackingLocation = cfg.Global.LocalFileCachePath()
-		igCfg.CacheConfig.MaxCacheSize = cfg.Global.MaxCachedData()
+		IngestStreamConfig: cfg.Global.IngestStreamConfig,
+		Destinations:       conns,
+		Tags:               tags,
+		Auth:               cfg.Global.Secret(),
+		LogLevel:           cfg.Global.LogLevel(),
+		VerifyCert:         !cfg.Global.InsecureSkipTLSVerification(),
+		IngesterName:       ingesterName,
+		IngesterVersion:    version.GetVersion(),
+		IngesterUUID:       id.String(),
+		RateLimitBps:       lmt,
+		Logger:             lg,
+		CacheDepth:         cfg.Global.Cache_Depth,
+		CachePath:          cfg.Global.Ingest_Cache_Path,
+		CacheSize:          cfg.Global.Max_Ingest_Cache,
+		CacheMode:          cfg.Global.Cache_Mode,
 	}
 	igst, err = ingest.NewUniformMuxer(igCfg)
 	if err != nil {
@@ -221,6 +222,8 @@ func main() {
 	// setup stenographer connections
 	stenos = make(map[string]*handlerConfig)
 
+	ctx, cancel := context.WithCancel(context.Background())
+
 	for k, v := range cfg.Stenographer {
 		var src net.IP
 
@@ -244,7 +247,7 @@ func main() {
 		}
 
 		hcfg := &handlerConfig{
-			url:              v.URL,
+			url:              strings.TrimRight(v.URL, "/"),
 			caCert:           v.CA_Cert,
 			clientCert:       v.Client_Cert,
 			clientKey:        v.Client_Key,
@@ -255,6 +258,7 @@ func main() {
 			formatOverride:   v.Timestamp_Format_Override,
 			src:              src,
 			wg:               &wg,
+			ctx:              ctx,
 		}
 
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
@@ -297,6 +301,8 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
+
+	cancel()
 
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("Failed to sync: %v\n", err)
@@ -344,13 +350,13 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			s := status()
 			w.Write([]byte(s))
 			return
-		case "/":
-			// root
-			w.Write([]byte(index))
-			return
 		case "/conns":
 			c := conns()
 			w.Write([]byte(c))
+			return
+		default:
+			// root
+			w.Write([]byte(index))
 			return
 		}
 	}
@@ -393,6 +399,13 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				lg.Error("%v", err)
 				continue
+			}
+			if resp.StatusCode != 200 {
+				resp.Body.Close()
+				lg.Error("invalid query")
+				w.WriteHeader(http.StatusBadRequest)
+				removeJob(j.ID)
+				return
 			}
 			wg.Add(1)
 			go h.processPcap(resp.Body, j, &wg)
@@ -469,7 +482,7 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job, wg *sync.WaitGroup
 		j.Bytes += uint(len(data))
 		j.lock.Unlock()
 
-		if err = h.proc.Process(ent); err != nil {
+		if err = h.proc.ProcessContext(ent, h.ctx); err != nil {
 			debugout("%v", err)
 			lg.Error("Sending message: %v", err)
 			return

@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/snappy"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
@@ -37,6 +38,7 @@ const (
 	MINIMUM_TAG_RENEGOTIATE_VERSION uint16        = 0x2 // minimum server version to renegotiate tags
 	MINIMUM_ID_VERSION              uint16        = 0x3 // minimum server version to send ID info
 	MINIMUM_INGEST_OK_VERSION       uint16        = 0x4 // minimum server version to ask
+	MINIMUM_DYN_CONFIG_VERSION      uint16        = 0x5 // minimum server version to send dynamic config block
 	maxThrottleDur                  time.Duration = 5 * time.Second
 
 	flushTimeout time.Duration = 10 * time.Second
@@ -65,8 +67,13 @@ const (
 type IngestCommand uint32
 type entrySendID uint64
 
+type flusher interface {
+	Flush() error
+}
+
 type EntryWriter struct {
 	conn          conn
+	flshr         flusher
 	bIO           *bufio.Writer
 	bAckReader    *bufio.Reader
 	errCount      uint32
@@ -106,11 +113,12 @@ func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
 	if err != nil {
 		return nil, err
 	}
+	utc := newUnthrottledConn(cfg.Conn)
 
 	return &EntryWriter{
-		conn:       newUnthrottledConn(cfg.Conn),
-		bIO:        bufio.NewWriterSize(cfg.Conn, cfg.BufferSize),
-		bAckReader: bufio.NewReaderSize(cfg.Conn, cfg.OutstandingEntryCount*ACK_SIZE),
+		conn:       utc,
+		bIO:        bufio.NewWriterSize(utc, cfg.BufferSize),
+		bAckReader: bufio.NewReaderSize(utc, cfg.OutstandingEntryCount*ACK_SIZE),
 		mtx:        &sync.Mutex{},
 		ecb:        ecb,
 		hot:        true,
@@ -130,7 +138,11 @@ func (ew *EntryWriter) OverrideAckTimeout(t time.Duration) error {
 	return nil
 }
 
-func (ew *EntryWriter) SetConn(c conn) {
+type connWrapper func(conn) conn
+
+//wrapConn passes in a function that can wrap a reader/writer
+//when called we reset the write buffer, caller should make sure there isn't anything buffered
+func (ew *EntryWriter) setConn(c conn) {
 	ew.mtx.Lock()
 	ew.conn = c
 	ew.bIO.Reset(c)
@@ -148,7 +160,7 @@ func (ew *EntryWriter) Close() (err error) {
 			return
 		}
 		//read acks is a liberal implementation which will pull any available
-		//acks from the read buffer.  we don't care if we get an error here
+		//acks from the read buffer. We don't care if we get an error here
 		//because this is largely used when trying to refire a connection
 		err = ew.readAcks(true)
 	}
@@ -261,7 +273,7 @@ func (ew *EntryWriter) OpenSlots(ent *entry.Entry) int {
 }
 
 // WriteWithHint behaves exactly like Write but also returns a bool
-// which indicates whether or not the a flush was required.  This
+// which indicates whether or not the flush was required.  This
 // function method is primarily used when muxing across multiple
 // indexers, so the muxer knows when to transition to the next indexer
 func (ew *EntryWriter) WriteWithHint(ent *entry.Entry) (bool, error) {
@@ -286,7 +298,7 @@ func (ew *EntryWriter) WriteWithHint(ent *entry.Entry) (bool, error) {
 // WriteBatch takes a slice of entries and writes them,
 // this function is useful in multithreaded environments where
 // we want to lessen the impact of hits on a channel by threads
-func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) error {
+func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) (int, error) {
 	var err error
 
 	ew.mtx.Lock()
@@ -294,11 +306,11 @@ func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) error {
 
 	for i := range ents {
 		if _, err = ew.writeEntry(ents[i], false); err != nil {
-			return err
+			return i, err
 		}
 	}
 
-	return nil
+	return len(ents), nil
 }
 
 func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
@@ -388,7 +400,66 @@ func (ew *EntryWriter) flush() (err error) {
 
 	//issue the flush with timeout
 	if err = ew.bIO.Flush(); err == nil {
+		//check if we can cast to a flusher and flush
+		if ew.flshr != nil {
+			if err = ew.flshr.Flush(); err != nil {
+				return
+			}
+		}
 		err = ew.conn.ClearWriteTimeout()
+	}
+	return
+}
+
+// configureStream will
+func (ew *EntryWriter) ConfigureStream(c StreamConfiguration) (err error) {
+	var resp StreamConfiguration
+	if err = c.validate(); err != nil {
+		return
+	}
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+
+	if ew.serverVersion < MINIMUM_DYN_CONFIG_VERSION {
+		//just return quietly, its ok
+		return
+	}
+	//set our timeouts and perform the exchange
+	if err = ew.conn.SetReadTimeout(time.Second); err != nil {
+		return
+	} else if err = c.Write(ew.bIO); err != nil {
+		return
+	} else if err = ew.bIO.Flush(); err != nil {
+		return
+	} else if err = resp.Read(ew.bAckReader); err != nil {
+		return
+	} else if err = ew.conn.ClearReadTimeout(); err != nil {
+		return
+	}
+
+	//we are in good shape, configure the stream
+	if resp.Compression != CompressNone {
+		if err = ew.startCompression(resp.Compression); err != nil {
+			return
+		}
+	}
+	return
+}
+
+// startCompression gets the entryReader/Writer ready to work with a compressed connection
+// caller MUST HOLD THE LOCK
+func (ew *EntryWriter) startCompression(ct CompressionType) (err error) {
+	switch ct {
+	case CompressNone: //do nothing
+	case CompressSnappy:
+		//get a reader rolling
+		ew.bAckReader.Reset(snappy.NewReader(ew.conn))
+		//get a writer rolling
+		wtr := snappy.NewWriter(ew.conn)
+		ew.flshr = wtr
+		ew.bIO.Reset(wtr)
+	default:
+		err = fmt.Errorf("Unknown compression id %x", ct)
 	}
 	return
 }

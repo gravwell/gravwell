@@ -322,9 +322,10 @@ func performBatchCycles(t *testing.T, count int) (time.Duration, uint64) {
 		totalBytes += ent.Size()
 		//check if we need to throw a batch
 		if entsIndex >= cap(ents) {
-			err = etCli.WriteBatch(ents[0:entsIndex])
-			if err != nil {
+			if n, err := etCli.WriteBatch(ents[0:entsIndex]); err != nil {
 				t.Fatal(err)
+			} else if n != entsIndex {
+				t.Fatal("failed to write all entries")
 			}
 			entsIndex = 0
 		}
@@ -332,9 +333,10 @@ func performBatchCycles(t *testing.T, count int) (time.Duration, uint64) {
 		entsIndex++
 	}
 	if entsIndex > 0 {
-		err = etCli.WriteBatch(ents[0:entsIndex])
-		if err != nil {
+		if n, err := etCli.WriteBatch(ents[0:entsIndex]); err != nil {
 			t.Fatal(err)
+		} else if n != entsIndex {
+			t.Fatal("failed two write full batch")
 		}
 	}
 
@@ -365,7 +367,7 @@ func performBatchCycles(t *testing.T, count int) (time.Duration, uint64) {
 func BenchmarkSingle(b *testing.B) {
 	var totalBytes uint64
 
-	//intialize the system
+	//initialize the system
 	b.StopTimer()
 	if err := cleanup(); err != nil {
 		b.Fatal(err)
@@ -408,7 +410,7 @@ func BenchmarkSingle(b *testing.B) {
 	}
 	//We HAVE to close the server side first (reader) or the client will block on close()
 	//waiting for confirmations from the reader that are buffered and not flushed yet
-	//but if we close the server (reader) first it will force out the confirmations and
+	//but if we close the server (reader) first it will force out the confirmations
 	//and the client won't block.
 	if err = etSrv.Close(); err != nil {
 		b.Fatal(err)
@@ -428,7 +430,7 @@ func BenchmarkSingle(b *testing.B) {
 func BenchmarkBatch(b *testing.B) {
 	var totalBytes uint64
 
-	//intialize the system
+	//initialize the system
 	b.StopTimer()
 	if err := cleanup(); err != nil {
 		b.Fatal(err)
@@ -463,8 +465,7 @@ func BenchmarkBatch(b *testing.B) {
 		totalBytes += ent.Size()
 		//check if we need to throw a batch
 		if entsIndex >= cap(ents) {
-			err = etCli.WriteBatch(ents[0:entsIndex])
-			if err != nil {
+			if _, err = etCli.WriteBatch(ents[0:entsIndex]); err != nil {
 				b.Fatal(err)
 			}
 			entsIndex = 0
@@ -473,8 +474,7 @@ func BenchmarkBatch(b *testing.B) {
 		entsIndex++
 	}
 	if entsIndex > 0 {
-		err = etCli.WriteBatch(ents[0:entsIndex])
-		if err != nil {
+		if _, err = etCli.WriteBatch(ents[0:entsIndex]); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -487,7 +487,7 @@ func BenchmarkBatch(b *testing.B) {
 
 	//We HAVE to close the server side first (reader) or the client will block on close()
 	//waiting for confirmations from the reader that are buffered and not flushed yet
-	//but if we close the server (reader) first it will force out the confirmations and
+	//but if we close the server (reader) first it will force out the confirmations
 	//and the client won't block.
 	if err := etSrv.Close(); err != nil {
 		b.Fatal(err)

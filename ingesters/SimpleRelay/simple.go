@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"net"
@@ -43,13 +44,15 @@ type handlerConfig struct {
 	wg               *sync.WaitGroup
 	formatOverride   string
 	proc             *processors.ProcessorSet
+	ctx              context.Context
 }
 
-func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher) error {
+func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher, ctx context.Context) error {
 	//short circuit out on empty
 	if len(cfg.Listener) == 0 {
 		return nil
 	}
+
 	//fire up our simple backends
 	for k, v := range cfg.Listener {
 		var src net.IP
@@ -87,6 +90,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 			src:              src,
 			wg:               wg,
 			formatOverride:   v.Timestamp_Format_Override,
+			ctx:              ctx,
 		}
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Fatal("Preprocessor failure: %v", err)
@@ -170,7 +174,7 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 			continue
 		}
 		debugout("Accepted %v connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt, tp.String())
-		igst.Info("accepted %v connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt, tp.String())
+		igst.Info("accepted %v connection from %s in %v mode", conn.RemoteAddr(), cfg.lrt, tp.String())
 		failCount = 0
 		switch cfg.lrt {
 		case lineReader:

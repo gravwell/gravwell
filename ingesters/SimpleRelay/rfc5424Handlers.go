@@ -11,6 +11,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -107,7 +108,7 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 		}
 		if ent, err := handleLog(data, rip, cfg.ignoreTimestamps, cfg.tag, tg); err != nil {
 			return
-		} else if err = cfg.proc.Process(ent); err != nil {
+		} else if err = cfg.proc.ProcessContext(ent, cfg.ctx); err != nil {
 			return
 		}
 	}
@@ -154,14 +155,14 @@ func rfc5424ConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 			} else {
 				rip = cfg.src
 			}
-			handleRFC5424Packet(append([]byte(nil), buff[:n]...), rip, cfg.ignoreTimestamps, cfg.tag, tg, cfg.proc)
+			handleRFC5424Packet(append([]byte(nil), buff[:n]...), rip, cfg.ignoreTimestamps, cfg.tag, tg, cfg.proc, cfg.ctx)
 		}
 	}
 
 }
 
 //we can be very very fast on this one by just manually scanning the buffer
-func handleRFC5424Packet(buff []byte, ip net.IP, ignoreTS bool, tag entry.EntryTag, tg *timegrinder.TimeGrinder, proc *processors.ProcessorSet) {
+func handleRFC5424Packet(buff []byte, ip net.IP, ignoreTS bool, tag entry.EntryTag, tg *timegrinder.TimeGrinder, proc *processors.ProcessorSet, ctx context.Context) {
 	var idx []int
 	var idx2 []int
 	re := regexp.MustCompile(`^<\d{1,3}>`)
@@ -170,7 +171,7 @@ func handleRFC5424Packet(buff []byte, ip net.IP, ignoreTS bool, tag entry.EntryT
 		if idx = re.FindIndex(buff); idx == nil || len(idx) != 2 {
 			if ent, err := handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, tg); err != nil {
 				return
-			} else if err = proc.Process(ent); err != nil {
+			} else if err = proc.ProcessContext(ent, ctx); err != nil {
 				return
 			}
 			return
@@ -181,7 +182,7 @@ func handleRFC5424Packet(buff []byte, ip net.IP, ignoreTS bool, tag entry.EntryT
 				//nothing, send it out
 				if ent, err := handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, tg); err != nil {
 					return
-				} else if err = proc.Process(ent); err != nil {
+				} else if err = proc.ProcessContext(ent, ctx); err != nil {
 					return
 				}
 				return
@@ -190,7 +191,7 @@ func handleRFC5424Packet(buff []byte, ip net.IP, ignoreTS bool, tag entry.EntryT
 			end := idx[1] + idx2[0]
 			if ent, err := handleLog(bytes.TrimSpace(buff), ip, ignoreTS, tag, tg); err != nil {
 				return
-			} else if err = proc.Process(ent); err != nil {
+			} else if err = proc.ProcessContext(ent, ctx); err != nil {
 				return
 			}
 			buff = buff[end:]

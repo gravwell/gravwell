@@ -44,7 +44,7 @@ type ProcessorSet struct {
 
 type ProcessorConfig map[string]*config.VariableConfig
 
-// Processor is an interface that takes a block of entries and processes them, returning a new block
+// Processor is an interface that takes an entry and processes it, returning a new block
 type Processor interface {
 	Process(*entry.Entry) ([]*entry.Entry, error) //process an data item potentially setting a tag
 	Close() error                                 //give the processor a chance to tide up
@@ -61,6 +61,8 @@ func CheckProcessor(id string) error {
 	case RegexExtractProcessor:
 	case RegexRouterProcessor:
 	case ForwarderProcessor:
+	case VpcProcessor:
+	case GravwellForwarderProcessor:
 	default:
 		return ErrUnknownProcessor
 	}
@@ -70,6 +72,7 @@ func CheckProcessor(id string) error {
 type Tagger interface {
 	NegotiateTag(name string) (entry.EntryTag, error)
 	LookupTag(entry.EntryTag) (string, bool)
+	KnownTags() []string
 }
 
 type entWriter interface {
@@ -103,6 +106,10 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = RegexRouteLoadConfig(vc)
 	case ForwarderProcessor:
 		cfg, err = ForwarderLoadConfig(vc)
+	case VpcProcessor:
+		cfg, err = VpcLoadConfig(vc)
+	case GravwellForwarderProcessor:
+		cfg, err = GravwellForwarderLoadConfig(vc)
 	default:
 		err = ErrUnknownProcessor
 	}
@@ -182,6 +189,18 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewForwarder(cfg, tgr)
+	case VpcProcessor:
+		var cfg VpcConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewVpcProcessor(cfg)
+	case GravwellForwarderProcessor:
+		var cfg GravwellForwarderConfig
+		if cfg, err = GravwellForwarderLoadConfig(vc); err != nil {
+			return
+		}
+		p, err = NewGravwellForwarder(cfg, tgr)
 	default:
 		err = ErrUnknownProcessor
 	}

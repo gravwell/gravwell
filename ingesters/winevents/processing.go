@@ -28,6 +28,7 @@ import (
 
 const (
 	eventSampleInterval = 250 * time.Millisecond
+	exitTimeout         = 3 * time.Second
 )
 
 var (
@@ -50,6 +51,7 @@ type mainService struct {
 	streams      []winevent.EventStreamParams
 	enableCache  bool
 	cachePath    string
+	cacheSize    int
 	igstLogLevel string
 	uuid         string
 	src          net.IP
@@ -93,6 +95,7 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 		streams:      chanConf,
 		enableCache:  cfg.EnableCache(),
 		cachePath:    cfg.LocalFileCachePath(),
+		cacheSize:    cfg.CacheSize(),
 		igstLogLevel: cfg.LogLevel(),
 		uuid:         id.String(),
 		pp:           cfg.Preprocessor,
@@ -177,7 +180,6 @@ loop:
 				changes <- c.CurrentStatus
 				infoout("Service interrogate returning %v\n", c.CurrentStatus)
 			case svc.Stop, svc.Shutdown:
-				cancel()
 				consumerClose <- true
 				infoout("Service stopping\n")
 				break loop
@@ -197,10 +199,26 @@ loop:
 	}
 	changes <- svc.Status{State: svc.StopPending}
 	infoout("Service transitioned to StopPending, waiting for consumer\n")
-	wg.Wait()
+	waitTimeout(&wg, cancel, exitTimeout) //wait with a timeout
 	changes <- svc.Status{State: svc.Stopped}
 	infoout("Service transitioned to Stopped\n")
 	return
+}
+
+//waitTimeout will wait up to to duration on the wait group, then it just fires a
+func waitTimeout(wg *sync.WaitGroup, cf func(), to time.Duration) {
+	ch := make(chan struct{})
+	go func(c chan struct{}) {
+		defer close(c)
+		wg.Wait()
+	}(ch)
+	select {
+	case <-ch:
+	case <-time.After(to):
+		errorout("Timed out waiting for ingest routine to exit, cancelling\n")
+		cf() //cancel the context and wait on the waitgroup channel
+		<-ch
+	}
 }
 
 func (m *mainService) consumerRoutine(errC chan error, closeC chan bool, wg *sync.WaitGroup) {
@@ -267,8 +285,9 @@ func (m *mainService) init() error {
 	}
 	//igCfg.IngesterVersion = versionOverride
 	if m.enableCache {
-		igCfg.EnableCache = true
-		igCfg.CacheConfig.FileBackingLocation = m.cachePath
+		igCfg.CacheMode = ingest.CacheModeAlways
+		igCfg.CachePath = m.cachePath
+		igCfg.CacheSize = m.cacheSize
 	}
 	debugout("Starting ingester connections")
 	igst, err := ingest.NewUniformMuxer(igCfg)
@@ -412,7 +431,7 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (hit, full
 			Tag:  eh.tag,
 			Data: e.Buff,
 		}
-		if err = eh.proc.Process(ent); err != nil {
+		if err = eh.proc.ProcessContext(ent, m.ctx); err != nil {
 			warnout("Failed to Process event: %v\n", err)
 			return
 		}

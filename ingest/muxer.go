@@ -12,16 +12,27 @@ import (
 	"bytes"
 	"container/list"
 	"context"
+	"encoding/gob"
 	"errors"
 	"math/rand"
 	"net"
+	"os"
+	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/chancacher"
+	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+)
+
+const (
+	CacheModeAlways = `always`
+	CacheModeFail   = `fail`
 )
 
 var (
@@ -42,14 +53,14 @@ var (
 )
 
 const (
+	mb               = 1024 * 1024
 	empty   muxState = 0
 	running muxState = 1
 	closed  muxState = 2
 
-	defaultChannelSize   int           = 64
 	defaultRetryTime     time.Duration = 10 * time.Second
 	recycleTimeout       time.Duration = time.Second
-	maxEmergencyListSize int           = 256
+	maxEmergencyListSize int           = 64
 	unknownAddr          string        = `unknown`
 	waitTickerDur        time.Duration = 50 * time.Millisecond
 )
@@ -67,55 +78,58 @@ type TargetError struct {
 }
 
 type IngestMuxer struct {
+	cfg StreamConfiguration //stream configuration
 	//connHot, and connDead have atomic operations
-	//its important that these are aligned on 8 byte boundries
+	//its important that these are aligned on 8 byte boundaries
 	//or it will panic on 32bit architectures
-	connHot         int32 //how many connections are functioning
-	connDead        int32 //how many connections are dead
-	mtx             *sync.RWMutex
-	sig             *sync.Cond
-	igst            []*IngestConnection
-	tagTranslators  []*tagTrans
-	dests           []Target
-	errDest         []TargetError
-	tags            []string
-	tagMap          map[string]entry.EntryTag
-	pubKey          string
-	privKey         string
-	verifyCert      bool
-	eChan           chan *entry.Entry
-	bChan           chan []*entry.Entry
-	eq              *emergencyQueue
-	dieChan         chan bool
-	upChan          chan bool
-	errChan         chan error
-	wg              *sync.WaitGroup
-	state           muxState
-	logLevel        gll
-	lgr             Logger
-	cacheEnabled    bool
-	cache           *IngestCache
-	cacheWg         *sync.WaitGroup
-	cacheFileBacked bool
-	cacheRunning    bool
-	cacheError      error
-	cacheSignal     chan bool
-	name            string
-	version         string
-	uuid            string
-	rateParent      *parent
+	connHot        int32 //how many connections are functioning
+	connDead       int32 //how many connections are dead
+	mtx            *sync.RWMutex
+	sig            *sync.Cond
+	igst           []*IngestConnection
+	tagTranslators []*tagTrans
+	dests          []Target
+	errDest        []TargetError
+	tags           []string
+	tagMap         map[string]entry.EntryTag
+	pubKey         string
+	privKey        string
+	verifyCert     bool
+	eChan          chan interface{}
+	eChanOut       chan interface{}
+	bChan          chan interface{}
+	bChanOut       chan interface{}
+	eq             *emergencyQueue
+	dieChan        chan bool
+	upChan         chan bool
+	errChan        chan error
+	wg             *sync.WaitGroup
+	state          muxState
+	logLevel       gll
+	lgr            Logger
+	cacheEnabled   bool
+	cachePath      string
+	cache          *chancacher.ChanCacher
+	bcache         *chancacher.ChanCacher
+	cacheAlways    bool
+	name           string
+	version        string
+	uuid           string
+	rateParent     *parent
 }
 
 type UniformMuxerConfig struct {
+	config.IngestStreamConfig
 	Destinations    []string
 	Tags            []string
 	Auth            string
 	PublicKey       string
 	PrivateKey      string
 	VerifyCert      bool
-	ChannelSize     int
-	EnableCache     bool
-	CacheConfig     IngestCacheConfig
+	CacheDepth      int
+	CachePath       string
+	CacheSize       int
+	CacheMode       string
 	LogLevel        string
 	Logger          Logger
 	IngesterName    string
@@ -125,14 +139,16 @@ type UniformMuxerConfig struct {
 }
 
 type MuxerConfig struct {
+	config.IngestStreamConfig
 	Destinations    []Target
 	Tags            []string
 	PublicKey       string
 	PrivateKey      string
 	VerifyCert      bool
-	ChannelSize     int
-	EnableCache     bool
-	CacheConfig     IngestCacheConfig
+	CacheDepth      int
+	CachePath       string
+	CacheSize       int
+	CacheMode       string
 	LogLevel        string
 	Logger          Logger
 	IngesterName    string
@@ -151,17 +167,17 @@ func NewMuxer(c MuxerConfig) (*IngestMuxer, error) {
 
 // NewIngestMuxer creates a new muxer that will automatically distribute entries amongst the clients
 func NewUniformIngestMuxer(dests, tags []string, authString, pubKey, privKey, remoteKey string) (*IngestMuxer, error) {
-	return NewUniformIngestMuxerExt(dests, tags, authString, pubKey, privKey, remoteKey, defaultChannelSize)
+	return NewUniformIngestMuxerExt(dests, tags, authString, pubKey, privKey, remoteKey, config.CACHE_DEPTH_DEFAULT)
 }
 
-func NewUniformIngestMuxerExt(dests, tags []string, authString, pubKey, privKey, remoteKey string, chanSize int) (*IngestMuxer, error) {
+func NewUniformIngestMuxerExt(dests, tags []string, authString, pubKey, privKey, remoteKey string, cacheDepth int) (*IngestMuxer, error) {
 	c := UniformMuxerConfig{
 		Destinations: dests,
 		Tags:         tags,
 		Auth:         authString,
 		PublicKey:    pubKey,
 		PrivateKey:   privKey,
-		ChannelSize:  chanSize,
+		CacheDepth:   cacheDepth,
 	}
 	return newUniformIngestMuxerEx(c)
 }
@@ -179,36 +195,39 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		return nil, ErrNoTargets
 	}
 	cfg := MuxerConfig{
-		Destinations:    destinations,
-		Tags:            c.Tags,
-		PublicKey:       c.PublicKey,
-		PrivateKey:      c.PrivateKey,
-		VerifyCert:      c.VerifyCert,
-		ChannelSize:     c.ChannelSize,
-		EnableCache:     c.EnableCache,
-		CacheConfig:     c.CacheConfig,
-		LogLevel:        c.LogLevel,
-		IngesterName:    c.IngesterName,
-		IngesterVersion: c.IngesterVersion,
-		IngesterUUID:    c.IngesterUUID,
-		RateLimitBps:    c.RateLimitBps,
-		Logger:          c.Logger,
+		IngestStreamConfig: c.IngestStreamConfig,
+		Destinations:       destinations,
+		Tags:               c.Tags,
+		PublicKey:          c.PublicKey,
+		PrivateKey:         c.PrivateKey,
+		VerifyCert:         c.VerifyCert,
+		CachePath:          c.CachePath,
+		CacheSize:          c.CacheSize,
+		CacheMode:          c.CacheMode,
+		CacheDepth:         c.CacheDepth,
+		LogLevel:           c.LogLevel,
+		IngesterName:       c.IngesterName,
+		IngesterVersion:    c.IngesterVersion,
+		IngesterUUID:       c.IngesterUUID,
+		RateLimitBps:       c.RateLimitBps,
+		Logger:             c.Logger,
 	}
 	return newIngestMuxer(cfg)
 }
 
 func NewIngestMuxer(dests []Target, tags []string, pubKey, privKey string) (*IngestMuxer, error) {
-	return NewIngestMuxerExt(dests, tags, pubKey, privKey, defaultChannelSize)
+	return NewIngestMuxerExt(dests, tags, pubKey, privKey, config.CACHE_DEPTH_DEFAULT)
 }
 
-func NewIngestMuxerExt(dests []Target, tags []string, pubKey, privKey string, chanSize int) (*IngestMuxer, error) {
+func NewIngestMuxerExt(dests []Target, tags []string, pubKey, privKey string, cacheDepth int) (*IngestMuxer, error) {
 	c := MuxerConfig{
 		Destinations: dests,
 		Tags:         tags,
 		PublicKey:    pubKey,
 		PrivateKey:   privKey,
-		ChannelSize:  chanSize,
+		CacheDepth:   cacheDepth,
 	}
+
 	return newIngestMuxer(c)
 }
 
@@ -221,67 +240,87 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		c.Logger = log.NewDiscardLogger()
 	}
 
-	//if the cache is enabled, attempt to fire it up
-	var cache *IngestCache
-	var cacheSig chan bool
+	// connect up the chancacher
+	gob.Register(&entry.Entry{})
+	var cache *chancacher.ChanCacher
+	var bcache *chancacher.ChanCacher
+
 	var err error
-	if c.EnableCache {
-		cache, err = NewIngestCache(c.CacheConfig)
+	if c.CachePath != "" {
+		//
+		// boltdb (old cache) transition stub. Delete this call, as
+		// well as boltcache.go and boltcache_test.go when we no longer
+		// need this.
+		//
+		err = boltTransition(c)
 		if err != nil {
 			return nil, err
 		}
-		cacheSig = make(chan bool, 1)
 
-		// If there were stored entries, re-initialize localTags and the tagMap
-		if cache.Count() > 0 {
-			ctags, err := cache.GetTagList()
-			if err != nil {
-				return nil, err
-			}
-			if len(ctags) > 0 {
-				// First, check if there are cached tags which are NOT in our configured set
-				var uniques []string
-			uniqueLoop:
-				for _, ct := range ctags {
-					for _, lt := range localTags {
-						if ct == lt {
-							continue uniqueLoop
-						}
-					}
-					uniques = append(uniques, ct)
-				}
-				if len(uniques) > 0 {
-					c.Logger.Warn("The cache file contains entries. To ensure ingestion under the correct tags, the ingester will negotiate the following tags even if the config file does not currently require them: %v", uniques)
-				}
-
-				// Now, append any new configured tags to the end of the cached tags and use that as our localTags
-			tagLoop:
-				for _, lt := range localTags {
-					for _, ct := range ctags {
-						if lt == ct {
-							// the tag was already in the set, skip
-							continue tagLoop
-						}
-					}
-					ctags = append(ctags, lt)
-				}
-				localTags = ctags
-			}
+		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize)
+		if err != nil {
+			return nil, err
 		}
-		// Now update the stored tags list no matter what
-		if err := cache.UpdateStoredTagList(localTags); err != nil {
+		bcache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), mb*c.CacheSize)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		cache, err = chancacher.NewChanCacher(c.CacheDepth, "", 0)
+		if err != nil {
+			return nil, err
+		}
+		bcache, err = chancacher.NewChanCacher(c.CacheDepth, "", 0)
+		if err != nil {
 			return nil, err
 		}
 	}
 
-	//generate our tag map, the tag map is used only for quick tag lookup/translation by routines
-	tagMap := make(map[string]entry.EntryTag, len(localTags))
-	for i, v := range localTags {
-		tagMap[v] = entry.EntryTag(i)
+	if c.CacheMode == CacheModeFail {
+		cache.CacheStop()
+		bcache.CacheStop()
 	}
 
-	if c.ChannelSize <= 0 {
-		c.ChannelSize = defaultChannelSize
+	// It's possible that the configuration, and therefore tag names and
+	// order, changed between runs of a muxer, and there is data in a cache
+	// that's recovering. The cache has tag IDs from the /previous/ run, so
+	// we read the old translations (that were previously saved) and then
+	// add our tags to them. If the old tag map doesn't exist, then it's
+	// anyone's guess where those entries might end up. Those are the
+	// breaks.
+	var taglist []string
+	tagMap := make(map[string]entry.EntryTag)
+	if c.CachePath != "" {
+		tagMap, err = readTagCache(c.CachePath)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// tag IDs can be all over the place, so we start from the largest tag
+	// ID in the returned map + 1
+	var tagNext entry.EntryTag
+	if len(tagMap) != 0 {
+		for k, v := range tagMap {
+			taglist = append(taglist, k)
+			if v > tagNext {
+				tagNext = v
+			}
+		}
+		tagNext++
+	}
+
+	// add any new tags to that list
+	for _, v := range localTags {
+		if _, ok := tagMap[v]; !ok {
+			taglist = append(taglist, v)
+			tagMap[v] = entry.EntryTag(tagNext)
+			tagNext++
+		}
+	}
+
+	if c.CachePath != "" {
+		writeTagCache(tagMap, c.CachePath)
 	}
 
 	var p *parent
@@ -289,33 +328,75 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		p = newParent(c.RateLimitBps, 0)
 	}
 	return &IngestMuxer{
-		dests:           c.Destinations,
-		tags:            localTags,
-		tagMap:          tagMap,
-		pubKey:          c.PublicKey,
-		privKey:         c.PrivateKey,
-		verifyCert:      c.VerifyCert,
-		mtx:             &sync.RWMutex{},
-		wg:              &sync.WaitGroup{},
-		state:           empty,
-		lgr:             c.Logger,
-		logLevel:        logLevel(c.LogLevel),
-		eChan:           make(chan *entry.Entry, c.ChannelSize),
-		bChan:           make(chan []*entry.Entry, c.ChannelSize),
-		eq:              newEmergencyQueue(),
-		dieChan:         make(chan bool, len(c.Destinations)),
-		upChan:          make(chan bool, 1),
-		errChan:         make(chan error, len(c.Destinations)),
-		cache:           cache,
-		cacheEnabled:    c.EnableCache,
-		cacheWg:         &sync.WaitGroup{},
-		cacheFileBacked: c.CacheConfig.FileBackingLocation != ``,
-		cacheSignal:     cacheSig,
-		name:            c.IngesterName,
-		version:         c.IngesterVersion,
-		uuid:            c.IngesterUUID,
-		rateParent:      p,
+		cfg:          getStreamConfig(c.IngestStreamConfig),
+		dests:        c.Destinations,
+		tags:         taglist,
+		tagMap:       tagMap,
+		pubKey:       c.PublicKey,
+		privKey:      c.PrivateKey,
+		verifyCert:   c.VerifyCert,
+		mtx:          &sync.RWMutex{},
+		wg:           &sync.WaitGroup{},
+		state:        empty,
+		lgr:          c.Logger,
+		logLevel:     logLevel(c.LogLevel),
+		eChan:        cache.In,
+		eChanOut:     cache.Out,
+		bChan:        bcache.In,
+		bChanOut:     bcache.Out,
+		eq:           newEmergencyQueue(),
+		dieChan:      make(chan bool, len(c.Destinations)),
+		upChan:       make(chan bool, 1),
+		errChan:      make(chan error, len(c.Destinations)),
+		cache:        cache,
+		bcache:       bcache,
+		cacheEnabled: c.CachePath != "",
+		cachePath:    c.CachePath,
+		cacheAlways:  strings.ToLower(c.CacheMode) == CacheModeAlways,
+		name:         c.IngesterName,
+		version:      c.IngesterVersion,
+		uuid:         c.IngesterUUID,
+		rateParent:   p,
 	}, nil
+}
+
+func readTagCache(p string) (map[string]entry.EntryTag, error) {
+	ret := make(map[string]entry.EntryTag)
+	path := filepath.Join(p, "tagcache")
+	if _, err := os.Stat(path); err != nil {
+		return ret, nil
+	}
+
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	dec := gob.NewDecoder(f)
+	err = dec.Decode(&ret)
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+func writeTagCache(t map[string]entry.EntryTag, p string) error {
+	path := filepath.Join(p, "tagcache")
+
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+
+	enc := gob.NewEncoder(f)
+	err = enc.Encode(&t)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 //Start starts the connection process. This will return immediately, and does
@@ -326,12 +407,6 @@ func (im *IngestMuxer) Start() error {
 	defer im.mtx.Unlock()
 	if im.state != empty || len(im.igst) != 0 {
 		return ErrNotReady
-	}
-	//fire up the cache if its in use
-	if im.cacheEnabled {
-		im.cacheWg.Add(1)
-		im.cacheRunning = true
-		go im.cacheRoutine()
 	}
 
 	//fire up the ingest routines
@@ -350,9 +425,7 @@ func (im *IngestMuxer) Start() error {
 func (im *IngestMuxer) Close() error {
 	// Inform the world that we're done.
 	im.Info("Ingester %v exiting\n", im.name)
-	im.Sync(time.Second)
-
-	var ok bool
+	time.Sleep(500 * time.Millisecond)
 
 	im.mtx.Lock()
 	if im.state == closed {
@@ -361,32 +434,8 @@ func (im *IngestMuxer) Close() error {
 	}
 	im.state = closed
 
-	//just close the channel, that will be a permenent signal for everything to close
+	//just close the channel, that will be a permanent signal for everything to close
 	close(im.dieChan)
-
-	//there is a chance that we are fully blocked with another async caller
-	//writing to the channel, so we set the state to closed and check if we need to
-	//discard some items from the channel
-	if atomic.LoadInt32(&im.connHot) == 0 && !im.cacheRunning {
-		//no connections are hot, and there is no cache
-		//closeing is GOING to pitch entries, so... it is what it is...
-		//clear the channels
-	consumer:
-		for {
-			select {
-			case _, ok = <-im.eChan:
-				if !ok {
-					break consumer
-				}
-			case _, ok = <-im.bChan:
-				if !ok {
-					break consumer
-				}
-			default:
-				break consumer
-			}
-		}
-	}
 
 	//we MUST unlock the mutex while we wait so that if a connection
 	//goes into an errors state it can lock the mutex to adjust the errDest
@@ -395,83 +444,20 @@ func (im *IngestMuxer) Close() error {
 	//wait for everyone to quit
 	im.wg.Wait()
 
-	//if the cache is in use, signal for it to terminate and wait
-	if im.cacheRunning && im.cacheSignal != nil {
-		close(im.cacheSignal)
-		im.cacheWg.Wait()
-	}
-
 	im.mtx.Lock()
 	defer im.mtx.Unlock()
 
-	//close the echan now that all the routines have closed
 	close(im.eChan)
 	close(im.bChan)
 
-	//sync the cache and close it
-	if im.cacheEnabled && im.cache != nil {
-		if im.cacheFileBacked {
-			// pull all outstanding items from each ingester connection and the channel
-			// and shove them into the cache, then sync it
-			for i := range im.igst {
-				if im.igst[i] == nil {
-					continue //skip nil ingesters, these SHOULDN'T be nil
-				}
-				ents := im.igst[i].outstandingEntries()
-				for i := range ents {
-					if ents[i] == nil {
-						continue
-					}
-					im.cache.addEntry(ents[i])
-				}
-			}
-			//clean out the entry channel too
-			for e := range im.eChan {
-				if e == nil {
-					continue
-				}
-				im.cache.addEntry(e)
-			}
-			//clean out the entry block channel too
-			for b := range im.bChan {
-				if b == nil {
-					continue
-				}
-				for _, e := range b {
-					if e == nil {
-						continue
-					}
-					im.cache.addEntry(e)
-				}
-			}
+	// commit any outstanding data to disk, if the backing path is enabled.
+	im.cache.Commit()
+	im.bcache.Commit()
 
-			// clear the emergency queue into cache
-			for {
-				ent, ents, ok := im.eq.pop()
-				if !ok {
-					break
-				}
-				if ent != nil {
-					im.cache.addEntry(ent)
-				}
-				if len(ents) > 0 {
-					for _, e := range ents {
-						im.cache.addEntry(e)
-					}
-				}
-			}
-
-			//if we are file backed, sync the backing cache
-			if err := im.cache.Sync(); err != nil {
-				return err
-			}
-		}
-		if err := im.cache.UpdateStoredTagList(im.tags); err != nil {
-			return err
-		}
-		if err := im.cache.Close(); err != nil {
-			return err
-		}
+	// If BOTH caches are empty, we can delete the stored tag map
+	if im.cacheEnabled && im.cache.Size() == 0 && im.bcache.Size() == 0 {
+		path := filepath.Join(im.cachePath, "tagcache")
+		os.Remove(path)
 	}
 
 	//everyone is dead, clean up
@@ -489,6 +475,17 @@ func (im *IngestMuxer) LookupTag(tg entry.EntryTag) (name string, ok bool) {
 			ok = true
 			break
 		}
+	}
+	im.mtx.RUnlock()
+	return
+}
+
+// KnownTags will return a string slice of tags that the muxer actively knows about
+func (im *IngestMuxer) KnownTags() (tgs []string) {
+	im.mtx.RLock()
+	tgs = make([]string, 0, len(im.tagMap))
+	for k := range im.tagMap {
+		tgs = append(tgs, k)
 	}
 	im.mtx.RUnlock()
 	return
@@ -513,22 +510,28 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 
 	// update the tag list and map
 	im.tags = append(im.tags, name)
-	for i, v := range im.tags {
-		im.tagMap[v] = entry.EntryTag(i)
-	}
-	if im.cacheEnabled && im.cacheFileBacked {
-		// Now update the stored tags list
-		if err = im.cache.UpdateStoredTagList(im.tags); err != nil {
-			return
+
+	var tagNext entry.EntryTag
+	for _, v := range im.tagMap {
+		if v > tagNext {
+			tagNext = v
 		}
 	}
+	im.tagMap[name] = entry.EntryTag(tagNext + 1)
+
 	tg = im.tagMap[name]
+
+	// update the tag cache
+	if im.cachePath != "" {
+		writeTagCache(im.tagMap, im.cachePath)
+	}
 
 	for k, v := range im.igst {
 		if v != nil {
 			remoteTag, err := v.NegotiateTag(name)
 			if err != nil {
 				// something went wrong, kill it and let it re-initialize
+				im.Error("NegotiateTag on %v for %v: %v", v.conn.RemoteAddr(), name, err)
 				v.Close()
 				continue
 			}
@@ -550,12 +553,12 @@ func (im *IngestMuxer) Sync(to time.Duration) error {
 }
 
 func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error {
-	if atomic.LoadInt32(&im.connHot) == 0 && !im.cacheRunning {
+	if atomic.LoadInt32(&im.connHot) == 0 && !im.cacheEnabled {
 		return ErrAllConnsDown
 	}
 	ts := time.Now()
 	im.mtx.Lock()
-	for len(im.eChan) > 0 || len(im.bChan) > 0 {
+	for len(im.eChanOut) > 0 || len(im.bChanOut) > 0 {
 		if err := ctx.Err(); err != nil {
 			im.mtx.Unlock()
 			return err
@@ -589,7 +592,7 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 }
 
 // WaitForHot waits until at least one connection goes into the hot state
-// The timout duration parameter is an optional timeout, if zero, it waits
+// The timeout duration parameter is an optional timeout, if zero, it waits
 // indefinitely
 func (im *IngestMuxer) WaitForHot(to time.Duration) error {
 	return im.WaitForHotContext(context.Background(), to)
@@ -599,6 +602,12 @@ func (im *IngestMuxer) WaitForHotContext(ctx context.Context, to time.Duration) 
 	if cnt, err := im.Hot(); err != nil {
 		return err
 	} else if cnt > 0 {
+		return nil
+	}
+	//if we have a cache enabled in always mode, just short circuit out
+	if im.cacheEnabled && im.cacheAlways {
+		im.cache.CacheStart()
+		im.bcache.CacheStart()
 		return nil
 	}
 
@@ -634,11 +643,7 @@ mainLoop:
 				//we haven't hit our timeout yet, just continue
 				continue
 			}
-			//timeout, check state and force a return
-			//if we have a hot, filebacked cache, then endpoints are go for ingest
-			if im.cacheRunning && im.cacheError == nil && im.cacheFileBacked {
-				return nil
-			}
+
 			return ErrConnectionTimeout
 		case err := <-im.errChan:
 			//lock the mutex and check if all our connections failed
@@ -651,7 +656,7 @@ mainLoop:
 			continue
 		}
 	}
-	return nil //somone came up
+	return nil //someone came up
 }
 
 // Hot returns how many connections are functioning
@@ -664,117 +669,16 @@ func (im *IngestMuxer) Hot() (int, error) {
 	return int(atomic.LoadInt32(&im.connHot)), nil
 }
 
-// unload cache will attempt to push out to the ingest connection
-// the returned boolean indicates whether we were able to entirely unload the cache
-// the cache MUST be stopped when we call this function
-// we are potentially bypassing the channel and adding directly into it
-func (im *IngestMuxer) unloadCache() (bool, error) {
-	//attempt to pull all our entries from the cache and push them through the entry channel
-	//this is used when a connection goes hot, we pull from our cache and drop them into channel
-	//for the muxer to fire at indexers
-	for {
-		//pop a block and attempt to push into the ingest routine
-		blk, err := im.cache.PopBlock()
-		if err != nil {
-			return false, err
-		}
-		if blk == nil {
-			break //no more blocks
-		}
-		ents := blk.Entries()
-		select {
-		case im.bChan <- ents:
-		case _, ok := <-im.cacheSignal:
-			//push things back into the cache if we have zero connections or
-			// the cacheSignal channel closed
-			v := atomic.LoadInt32(&im.connHot)
-			//if !ok || atomic.LoadInt32(&im.connHot) == 0 {
-			if !ok || v == 0 {
-				//push the block items back into the cache and bail
-				im.cache.addBlock(ents)
-				return false, nil //we need a transition
-			}
-		}
-	}
-	return true, nil
-}
-
-func (im *IngestMuxer) cacheRoutine() {
-	defer im.cacheWg.Done()
-	var cacheActive bool
-
-	//when the cache is fired up, we ALWAYS start
-	//that way we are garunteed to be able to consume entries
-	if err := im.cache.Start(im.eChan, im.bChan); err != nil {
-		im.cacheError = err
-		im.cacheRunning = false
-		return
-	}
-	cacheActive = true
-
-mainLoop:
-	for {
-		if _, ok := <-im.cacheSignal; !ok {
-			break mainLoop
-		}
-		//we have been signaled about a start or stop
-		if atomic.LoadInt32(&im.connHot) > 0 {
-			if cacheActive == true {
-				//a connection just went hot, stop the cache and
-				//attempt to dump entries out to the connection
-				cacheActive = false
-				if err := im.cache.Stop(); err != nil {
-					im.cacheError = err
-					break mainLoop
-				}
-				//attempt to unload the cache
-				emptied, err := im.unloadCache()
-				if err != nil {
-					im.cacheError = err
-					break mainLoop
-				}
-				if !emptied {
-					//the cache couldn't empty due to ingesters disconnecting
-					//fire it back up and continue our loop
-					cacheActive = true
-					if err := im.cache.Start(im.eChan, im.bChan); err != nil {
-						im.cacheError = err
-						break mainLoop
-					}
-				}
-			}
-			//we were not active and another ingester came online, do nothing
-		} else {
-			//no hot connections
-			if cacheActive == false {
-				//we just transitioned into no active ingest links
-				//and the cache is not active, get it fired up and rolling
-				cacheActive = true
-				if err := im.cache.Start(im.eChan, im.bChan); err != nil {
-					im.cacheError = err
-					break mainLoop
-				}
-			}
-		}
-	}
-
-	//check if we need to stop the cache on our way out
-	if cacheActive {
-		if err := im.cache.Stop(); err != nil {
-			im.cacheError = err
-		}
-		cacheActive = false
-	}
-	im.cacheRunning = false
-}
-
-//goHot is a convienence function used by routines when they become active
+//goHot is a convenience function used by routines when they become active
 func (im *IngestMuxer) goHot() {
 	atomic.AddInt32(&im.connDead, -1)
 	//attempt a single on going hot, but don't block
 	//increment the hot counter
 	if atomic.AddInt32(&im.connHot, 1) == 1 {
-		im.stopCache()
+		if !im.cacheAlways {
+			im.cache.CacheStop()
+			im.bcache.CacheStop()
+		}
 	}
 	select {
 	case im.upChan <- true:
@@ -782,38 +686,14 @@ func (im *IngestMuxer) goHot() {
 	}
 }
 
-func (im *IngestMuxer) startCache() {
-	if im.cacheRunning {
-		//try to tell the cache about the need to fire back up
-		//if we can't send the signal, then the cache routine is busy.
-		//this is fine, because the cache routine will test the hot count
-		//in its loop and do the right thing
-		select {
-		case im.cacheSignal <- true: //true means an ingester stopped
-		default:
-		}
-
-	}
-}
-
-func (im *IngestMuxer) stopCache() {
-	if im.cacheRunning {
-		//try to tell the cache about the stoppage
-		//if we can't send the signal, then the cache routine is busy
-		//this is fine, because the cache routine will test the hot count
-		//in its loop and do the right thing
-		select {
-		case im.cacheSignal <- false: //false means an ingester started
-		default:
-		}
-	}
-}
-
-//goDead is a convienence function used by routines when they become dead
+//goDead is a convenience function used by routines when they become dead
 func (im *IngestMuxer) goDead() {
 	//decrement the hot counter
 	if atomic.AddInt32(&im.connHot, -1) == 0 {
-		im.startCache()
+		if !im.cacheAlways {
+			im.cache.CacheStart()
+			im.bcache.CacheStart()
+		}
 	}
 	atomic.AddInt32(&im.connDead, 1)
 }
@@ -895,7 +775,6 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 // a timeout.  It is therefor every expensive and shouldn't be used for normal writes
 // The typical use case is via the gravwell_log calls
 func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err error) {
-	tmr := time.NewTimer(d)
 	if e == nil {
 		return
 	}
@@ -905,6 +784,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	if !runok {
 		return ErrNotRunning
 	}
+	tmr := time.NewTimer(d)
 	select {
 	case im.eChan <- e:
 	case _ = <-tmr.C:
@@ -944,6 +824,7 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 	if !runok {
 		return ErrNotRunning
 	}
+
 	select {
 	case im.bChan <- b:
 	case <-ctx.Done():
@@ -1038,7 +919,7 @@ func tickerInterval() time.Duration {
 
 func (im *IngestMuxer) shouldSched() bool {
 	//if pipelines are empty, schedule ourselves so that we can get a better distribution of entries
-	return len(im.igst) > 1 && len(im.eChan) == 0 && len(im.bChan) == 0
+	return len(im.igst) > 1 && im.cache.BufferSize() == 0 && im.bcache.BufferSize() == 0
 }
 
 func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool) {
@@ -1056,8 +937,8 @@ func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool
 		return
 	}
 
-	eC := im.eChan
-	bC := im.bChan
+	eC := im.eChanOut
+	bC := im.bChanOut
 
 inputLoop:
 	for {
@@ -1066,7 +947,7 @@ inputLoop:
 			nc.ig.Sync()
 			nc.ig.Close()
 			return
-		case e, ok := <-eC:
+		case ee, ok := <-eC:
 			if !ok {
 				eC = nil
 				if bC == nil {
@@ -1074,9 +955,12 @@ inputLoop:
 				}
 				continue
 			}
-			if e == nil {
+			if ee == nil {
 				continue
 			}
+
+			e := ee.(*entry.Entry)
+
 			ttag, ok = nc.tt.Translate(e.Tag)
 			if !ok {
 				// If the ingest muxer has no idea what this tag is, drop it and notify
@@ -1088,7 +972,8 @@ inputLoop:
 					// Could not translate, but it's a valid tag the muxer has seen before.
 					// We need to push this to the equeue and reconnect
 					// so we get the correct tag set.
-					im.recycleEntries(e, nil, nc.tt, false)
+					// DO NOT reverse translate, muxer knows about the tag
+					im.recycleEntry(e)
 					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 						break inputLoop
 					}
@@ -1101,10 +986,12 @@ inputLoop:
 				e.SRC = nc.src
 			}
 			if err = nc.ig.WriteEntry(e); err != nil {
-				im.recycleEntries(e, nil, nc.tt, true)
+				e.Tag = nc.tt.Reverse(e.Tag)
+				im.recycleEntry(e)
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
 				}
+				continue inputLoop
 			}
 			//hack to get better distribution across connections in an muxer
 			if im.shouldSched() {
@@ -1119,7 +1006,7 @@ inputLoop:
 				tmr.Reset(tickerInterval())
 				runtime.Gosched()
 			}
-		case b, ok := <-bC:
+		case bb, ok := <-bC:
 			if !ok {
 				bC = nil
 				if eC == nil {
@@ -1127,30 +1014,37 @@ inputLoop:
 				}
 				continue
 			}
-			if b == nil {
+			if bb == nil {
 				continue
 			}
+
+			b := bb.([]*entry.Entry)
 			for i := range b {
 				if b[i] != nil {
 					ttag, ok = nc.tt.Translate(b[i].Tag)
 					if !ok {
 						if name, ok := im.LookupTag(b[i].Tag); !ok {
 							im.Error("Got entry tagged with completely unknown intermediate tag %v, dropping it", b[i].Tag)
-							continue inputLoop
+							// first, reverse anything we've translated already
+							for j := 0; j < i; j++ {
+								b[j].Tag = nc.tt.Reverse(b[j].Tag)
+							}
+							im.recycleEntryBatch(b[:i]) //recycle and save what we can
 						} else {
-							im.Info("Got entry tagged with tag %v (%v), need to renegotiate connection", name, b[i].Tag) // Could not translate! We need to push this to the equeue and reconnect
+							im.Info("Got entry tagged with tag %v (%v), need to renegotiate connection", name, b[i].Tag)
+							// Could not translate! We need to push this to the equeue and reconnect
 							// so we get the correct tag set.
 
 							// first, reverse anything we've translated already
 							for j := 0; j < i; j++ {
 								b[j].Tag = nc.tt.Reverse(b[j].Tag)
 							}
-							im.recycleEntries(nil, b, nc.tt, false)
+							im.recycleEntryBatch(b)
 							if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 								break inputLoop
 							}
-							continue inputLoop
 						}
+						continue inputLoop
 					}
 					b[i].Tag = ttag
 
@@ -1159,8 +1053,12 @@ inputLoop:
 					}
 				}
 			}
-			if err = nc.ig.WriteBatchEntry(b); err != nil {
-				im.recycleEntries(nil, b, nc.tt, true)
+			var n int
+			if n, err = nc.ig.writeBatchEntry(b); err != nil {
+				for i := n; i < len(b); i++ {
+					b[i].Tag = nc.tt.Reverse(b[i].Tag)
+				}
+				im.recycleEntryBatch(b[n:])
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
 				}
@@ -1229,26 +1127,31 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	for {
 		select {
 		case _, ok := <-connErrNotif:
-			if igst != nil {
-				//if it throws an error we don't care, and cant do anything about it
-				im.Warn("reconnecting to %v", dst.Address)
-				igst.Close()
-			}
 			if !ok {
 				//this means that the relay function bailed
+				if igst != nil {
+					igst.Close()
+				}
 				im.goDead()
 				im.connFailed(dst.Address, errors.New("Closed"))
 				return
 			}
 
 			if igst != nil {
+				im.Warn("reconnecting to %v", dst.Address)
+				igst.Close()
 				im.goDead() //let the world know of our failures
 				im.igst[igIdx] = nil
 				im.tagTranslators[igIdx] = nil
 
-				//pull any entrys out of the ingest connection and put them into the emergency queue
+				//pull any entries out of the ingest connection and put them into the emergency queue
 				ents := igst.outstandingEntries()
-				im.recycleEntries(nil, ents, &tt, true)
+				for i := range ents {
+					if ents[i] != nil {
+						ents[i].Tag = tt.Reverse(ents[i].Tag)
+					}
+				}
+				im.recycleEntryBatch(ents)
 			}
 
 			//attempt to get the connection rolling again
@@ -1286,17 +1189,9 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	}
 }
 
-//we don't want to fully block here, so we attempt to push back on the channel
-//and listen for a die signal
-func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt *tagTrans, reverseTags bool) {
-	//reset the tags to the globally translatable set
-	//this operation is expensive
-	if len(ents) > 0 && reverseTags {
-		for i := range ents {
-			if ents[i] != nil {
-				ents[i].Tag = tt.Reverse(ents[i].Tag)
-			}
-		}
+func (im *IngestMuxer) recycleEntryBatch(ents []*entry.Entry) {
+	if len(ents) == 0 {
+		return
 	}
 
 	//we wait for up to one second to push values onto feeder channels
@@ -1305,30 +1200,33 @@ func (im *IngestMuxer) recycleEntries(e *entry.Entry, ents []*entry.Entry, tt *t
 	tmr := time.NewTimer(recycleTimeout)
 	defer tmr.Stop()
 
-	// try the single entry
-	if e != nil {
-		e.Tag = tt.Reverse(e.Tag)
-		select {
-		case _ = <-tmr.C:
-			if err := im.eq.push(e, ents); err != nil {
-				//FIXME - throw a fit about this via some logging, aight?
-				return
-			}
-			//timer expired, reset it in case we have a block too
-			tmr.Reset(0)
-		case im.eChan <- e:
+	select {
+	case _ = <-tmr.C:
+		if err := im.eq.push(nil, ents); err != nil {
+			//FIXME - throw a fit about this
 		}
+	case im.bChan <- ents:
 	}
-	//try block entry
-	if len(ents) > 0 {
-		select {
-		case _ = <-tmr.C:
-			if err := im.eq.push(nil, ents); err != nil {
-				//FIXME - throw a fit about this
-				return
-			}
-		case im.bChan <- ents:
+	return
+}
+
+func (im *IngestMuxer) recycleEntry(ent *entry.Entry) {
+	if ent == nil {
+		return
+	}
+
+	//we wait for up to one second to push values onto feeder channels
+	//if nothing eats them by then, we drop them into the emergency queue
+	//and bail out
+	tmr := time.NewTimer(recycleTimeout)
+	defer tmr.Stop()
+
+	select {
+	case _ = <-tmr.C:
+		if err := im.eq.push(ent, nil); err != nil {
+			//FIXME - throw a fit about this
 		}
+	case im.eChan <- ent:
 	}
 	return
 }
@@ -1361,6 +1259,7 @@ loop:
 	for {
 		//attempt a connection, timeouts are built in to the IngestConnection
 		im.mtx.RLock()
+		im.Info("Initializing connection to %v", tgt.Address)
 		if ig, err = InitializeConnection(tgt.Address, tgt.Secret, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
 			im.mtx.RUnlock()
 			if isFatalConnError(err) {
@@ -1377,8 +1276,9 @@ loop:
 			}
 			continue
 		}
+		im.Info("Connection to %v established, completing negotiation & requesting approval to ingest", tgt.Address)
 		if im.rateParent != nil {
-			ig.ew.SetConn(im.rateParent.newThrottleConn(ig.ew.conn))
+			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn))
 		}
 
 		//no error, attempt to do a tag translation
@@ -1408,15 +1308,23 @@ loop:
 			ok, err := ig.IngestOK()
 			if err != nil {
 				im.Error("IngestOK query failed on %v: %v", tgt.Address, err)
+				ig.Close()
 				continue loop
 			}
 			if ok {
 				break
 			}
+			im.Warn("Indexer %v does not yet allow ingest, sleeping", tgt.Address)
 			time.Sleep(5 * time.Second)
 		}
 
-		im.Info("Successfully connected to %v", tgt.Address)
+		if err := ig.ew.ConfigureStream(im.cfg); err != nil {
+			im.Warn("Failed to configure stream on %v: %v", tgt.Address, err)
+			ig.Close()
+			continue
+		}
+
+		im.Info("Successfully connected to %v with ingest OK", tgt.Address)
 		break
 	}
 	return
@@ -1440,7 +1348,7 @@ func (im *IngestMuxer) newTagTrans(igst *IngestConnection) (tagTrans, error) {
 	return tt, nil
 }
 
-// SourceIP is a convienence function used to pull back a source value
+// SourceIP is a convenience function used to pull back a source value
 func (im *IngestMuxer) SourceIP() (net.IP, error) {
 	var ip net.IP
 	im.mtx.RLock()
@@ -1571,6 +1479,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 				}
 
 				//return our failure
+				ok = false
 				break
 			}
 			//all is good set e to nil in case we can't write the block
@@ -1604,6 +1513,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 				if err := eq.push(e, blk); err != nil {
 					//FIXME - log this?
 				}
+				ok = false
 				break
 			}
 		}
@@ -1650,4 +1560,11 @@ func (tt tagTrans) Reverse(t entry.EntryTag) entry.EntryTag {
 		}
 	}
 	return 0
+}
+
+func getStreamConfig(cfg config.IngestStreamConfig) (sc StreamConfiguration) {
+	if cfg.Enable_Compression {
+		sc.Compression = CompressSnappy
+	}
+	return
 }

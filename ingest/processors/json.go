@@ -110,11 +110,8 @@ func (jec JsonExtractConfig) getKeyData() (keys [][]string, keynames []string, e
 		err = ErrMissingExtractions
 		return
 	}
-	r := csv.NewReader(strings.NewReader(jec.Extractions))
-	r.Comma = ',' // space
-	r.TrimLeadingSpace = true
 	var flds []string
-	if flds, err = r.Read(); err != nil {
+	if flds, err = splitField(jec.Extractions); err != nil {
 		return
 	}
 	for _, key := range flds {
@@ -213,17 +210,21 @@ func (b *builder) extractJson(data []byte) error {
 			return err
 		}
 		if dt != jsonparser.NotExist {
-			if !b.comma {
-				b.bb.WriteString("{")
-			} else {
-				b.bb.WriteString(",")
-			}
-			addData(b.keynames[i], dt, v, b.bb)
-			b.cnt++
-			b.comma = true
+			b.add(b.keynames[i], dt, v)
 		}
 	}
 	return nil
+}
+
+func (b *builder) add(key string, dt jsonparser.ValueType, v []byte) {
+	if !b.comma {
+		b.bb.WriteString("{")
+	} else {
+		b.bb.WriteString(",")
+	}
+	addData(key, dt, v, b.bb)
+	b.cnt++
+	b.comma = true
 }
 
 func (b *builder) render() (r []byte, cnt int) {
@@ -258,6 +259,7 @@ type JsonArraySplitConfig struct {
 	Passthrough_Misses bool
 	Extraction         string
 	Force_JSON_Object  bool
+	Additional_Fields  string
 }
 
 func JsonArraySplitLoadConfig(vc *config.VariableConfig) (c JsonArraySplitConfig, err error) {
@@ -270,30 +272,25 @@ func (jasc JsonArraySplitConfig) getKeyData() (key []string, keyname string, err
 		err = ErrMissingExtractions
 		return
 	}
-	r := csv.NewReader(strings.NewReader(jasc.Extraction))
-	r.Comma = ' ' // space
-	r.TrimLeadingSpace = true
 	var flds []string
-	if flds, err = r.Read(); err != nil {
+	if flds, err = splitField(jasc.Extraction); err != nil {
 		return
 	}
 	if len(flds) != 1 {
 		err = ErrSingleArraySplitOnly
 		return
 	}
-	if key = strings.Split(flds[0], `.`); len(key) == 0 {
-		err = ErrMissingExtractions
-		return
-	}
-	keyname = key[len(key)-1]
+	key, keyname, err = getKeys(flds[0])
 	return
 }
 
 type JsonArraySplitter struct {
 	nocloser
 	JsonArraySplitConfig
-	key     []string
-	keyname string
+	key        []string
+	keyname    string
+	useBuilder bool
+	bldr       builder
 }
 
 func NewJsonArraySplitter(cfg JsonArraySplitConfig) (*JsonArraySplitter, error) {
@@ -301,10 +298,38 @@ func NewJsonArraySplitter(cfg JsonArraySplitConfig) (*JsonArraySplitter, error) 
 	if err != nil {
 		return nil, err
 	}
+	var bldr builder
+	var useBuilder bool
+	if cfg.Additional_Fields != `` {
+		if flds, err := splitField(cfg.Additional_Fields); err != nil {
+			return nil, err
+		} else {
+			var additional [][]string
+			var additionalNames []string
+			for _, fld := range flds {
+				var keys []string
+				var name string
+				if keys, name, err = getKeys(fld); err != nil {
+					return nil, err
+				}
+				additional = append(additional, keys)
+				additionalNames = append(additionalNames, name)
+			}
+			bldr = builder{
+				forceJson: cfg.Force_JSON_Object,
+				bb:        bytes.NewBuffer(nil),
+				keys:      additional,
+				keynames:  additionalNames,
+			}
+			useBuilder = true
+		}
+	}
 	return &JsonArraySplitter{
 		JsonArraySplitConfig: cfg,
 		key:                  key,
 		keyname:              keyname,
+		bldr:                 bldr,
+		useBuilder:           useBuilder,
 	}, nil
 }
 
@@ -321,10 +346,24 @@ func (j *JsonArraySplitter) Config(v interface{}) (err error) {
 
 func (je *JsonArraySplitter) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 	cb := func(v []byte, dt jsonparser.ValueType, off int, lerr error) {
-		if len(v) == 0 {
+		if len(v) == 0 || lerr != nil {
 			return
 		}
-		if r, ok := je.genEntry(dt, ent, v); ok {
+		if je.useBuilder {
+			//manually add our array value
+			je.bldr.add(je.keyname, dt, v)
+			if err = je.bldr.extract(ent.Data); err != nil {
+				return
+			}
+			if data, cnt := je.bldr.render(); cnt > 0 {
+				rset = append(rset, &entry.Entry{
+					Tag:  ent.Tag,
+					SRC:  ent.SRC,
+					TS:   ent.TS,
+					Data: data,
+				})
+			}
+		} else if r, ok := je.genEntry(dt, ent, v); ok {
 			rset = append(rset, r)
 		}
 		return
@@ -361,6 +400,23 @@ func (je *JsonArraySplitter) genEntry(dt jsonparser.ValueType, ent *entry.Entry,
 		} else {
 			r.Data = []byte(fmt.Sprintf(`{"%s":%s}`, je.keyname, string(v)))
 		}
+	}
+	return
+}
+
+func splitField(s string) (flds []string, err error) {
+	r := csv.NewReader(strings.NewReader(s))
+	r.Comma = ',' //
+	r.TrimLeadingSpace = true
+	flds, err = r.Read()
+	return
+}
+
+func getKeys(s string) (keys []string, name string, err error) {
+	if keys = strings.Split(s, `.`); len(keys) == 0 {
+		err = ErrMissingExtractions
+	} else {
+		name = keys[len(keys)-1]
 	}
 	return
 }

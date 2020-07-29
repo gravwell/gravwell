@@ -11,13 +11,16 @@ package ingest
 import (
 	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 	"unsafe"
 
 	bolt "go.etcd.io/bbolt"
 
+	"github.com/gravwell/gravwell/v3/chancacher"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
@@ -72,6 +75,104 @@ type IngestCache struct {
 	running         bool
 	wg              sync.WaitGroup
 	stCh            chan bool
+}
+
+func boltTransition(c MuxerConfig) error {
+	// check if we have a bolt cache
+	// with regular files we'll just assume are bolt caches...
+	fi, err := os.Stat(c.CachePath)
+	if err != nil {
+		return nil
+	}
+	if fi.IsDir() {
+		return nil
+	}
+
+	// We probably do. Create a temporary chancacher, read the bolt cache
+	// into it, and then shuffle the files around.
+	tmpd, err := ioutil.TempDir(filepath.Dir(c.CachePath), "ingestCacheTransition")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmpd)
+
+	cc, err := chancacher.NewChanCacher(0, tmpd, 0)
+	if err != nil {
+		return err
+	}
+
+	bc, err := NewIngestCache(IngestCacheConfig{
+		FileBackingLocation: c.CachePath,
+	})
+	if err != nil {
+		return err
+	}
+
+	// process!
+	if bc.Count() > 0 {
+		// tags
+		ctags, err := bc.GetTagList()
+		if err != nil {
+			return err
+		}
+
+		// bolt tags just map to their index in the returned slice, so
+		// we can generate the tags for chancacher with a simple range.
+		tagMap := make(map[string]entry.EntryTag)
+		for i, v := range ctags {
+			tagMap[v] = entry.EntryTag(i)
+		}
+		err = writeTagCache(tagMap, tmpd)
+		if err != nil {
+			return nil
+		}
+
+		// now simply read/write each entry from/to the old/new cache
+		for {
+			eb, err := bc.PopBlock()
+			if err != nil {
+				return err
+			}
+			if eb == nil {
+				break
+			}
+			ents := eb.Entries()
+			for _, v := range ents {
+				cc.In <- v
+			}
+		}
+
+		close(cc.In)
+		cc.Commit()
+
+		// Shuffle files
+		bc.Close()
+		err = os.Remove(c.CachePath)
+		if err != nil {
+			return err
+		}
+		err = os.MkdirAll(filepath.Join(c.CachePath, "e"), 0755)
+		if err != nil {
+			return err
+		}
+		err = os.Rename(filepath.Join(tmpd, "cache_a"), filepath.Join(c.CachePath, "e", "cache_a"))
+		if err != nil {
+			return err
+		}
+		err = os.Rename(filepath.Join(tmpd, "cache_b"), filepath.Join(c.CachePath, "e", "cache_b"))
+		if err != nil {
+			return err
+		}
+		err = os.Rename(filepath.Join(tmpd, "tagcache"), filepath.Join(c.CachePath, "tagcache"))
+		if err != nil {
+			return err
+		}
+	} else {
+		// just remove the old cache
+		return os.Remove(c.CachePath)
+	}
+
+	return nil
 }
 
 // NewIngestCache creates a ingest cache and gets a handle on the store if specified.
@@ -428,7 +529,7 @@ func (ic *IngestCache) addEntry(ent *entry.Entry) bool {
 }
 
 // addBlock will add a slice of entries back into the cache
-// this is just a convienence wrapper
+// this is just a convenience wrapper
 func (ic *IngestCache) addBlock(blk []*entry.Entry) bool {
 	var trimRequired bool
 	for i := range blk {

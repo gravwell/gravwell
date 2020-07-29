@@ -113,11 +113,16 @@ func (igst *IngestConnection) WriteEntry(ent *entry.Entry) error {
 }
 
 // WriteBatchEntry DOES NOT populate the source on write, the caller must do so
-func (igst *IngestConnection) WriteBatchEntry(ents []*entry.Entry) error {
+func (igst *IngestConnection) WriteBatchEntry(ents []*entry.Entry) (err error) {
+	_, err = igst.writeBatchEntry(ents)
+	return
+}
+
+func (igst *IngestConnection) writeBatchEntry(ents []*entry.Entry) (int, error) {
 	igst.mtx.RLock()
 	defer igst.mtx.RUnlock()
 	if igst.running == false {
-		return errors.New("Not running")
+		return 0, errors.New("Not running")
 	}
 	return igst.ew.WriteBatch(ents)
 }
@@ -168,7 +173,7 @@ func (igst *IngestConnection) NegotiateTag(name string) (tg entry.EntryTag, err 
 	return
 }
 
-/* Sync causes the entry writer to force an ack from teh server.  This ensures that all
+/* Sync causes the entry writer to force an ack from the server.  This ensures that all
 *  entries that have been written are flushed and fully acked by the server. */
 func (igst *IngestConnection) Sync() error {
 	igst.mtx.Lock()
@@ -203,7 +208,7 @@ func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]
 	var state StateResponse
 	var chal Challenge
 
-	//recieve the challenge
+	//receive the challenge
 	if err := chal.Read(conn); err != nil {
 		return nil, 0, err
 	}

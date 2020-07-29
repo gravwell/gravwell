@@ -55,17 +55,20 @@ import (
 )
 
 const (
-	defaultMaxCache = 512
 	defaultLogLevel = `ERROR`
 	minThrottle     = (1024 * 1024) / 8
 )
 
 const (
-	envSecret      string = `GRAVWELL_INGEST_SECRET`
-	envLogLevel    string = `GRAVWELL_LOG_LEVEL`
-	envClearTarget string = `GRAVWELL_CLEARTEXT_TARGETS`
-	envEncTarget   string = `GRAVWELL_ENCRYPTED_TARGETS`
-	envPipeTarget  string = `GRAVWELL_PIPE_TARGETS`
+	envSecret            string = `GRAVWELL_INGEST_SECRET`
+	envLogLevel          string = `GRAVWELL_LOG_LEVEL`
+	envClearTarget       string = `GRAVWELL_CLEARTEXT_TARGETS`
+	envEncTarget         string = `GRAVWELL_ENCRYPTED_TARGETS`
+	envPipeTarget        string = `GRAVWELL_PIPE_TARGETS`
+	envCompressionTarget string = `GRAVWELL_ENABLE_COMPRESSION`
+	envCacheMode         string = `GRAVWELL_CACHE_MODE`
+	envCachePath         string = `GRAVWELL_CACHE_PATH`
+	envMaxCache          string = `GRAVWELL_CACHE_SIZE`
 
 	DefaultCleartextPort uint16 = 4023
 	DefaultTLSPort       uint16 = 4024
@@ -74,6 +77,10 @@ const (
 	globalHeader = `[global]`
 	headerStart  = `[`
 	uuidParam    = `Ingester-UUID`
+
+	CACHE_MODE_DEFAULT  = "always"
+	CACHE_DEPTH_DEFAULT = 128
+	CACHE_SIZE_DEFAULT  = 1000
 )
 
 var (
@@ -81,14 +88,13 @@ var (
 	ErrMissingIngestSecret        = errors.New("Ingest-Secret value missing")
 	ErrInvalidLogLevel            = errors.New("Invalid Log Level")
 	ErrInvalidConnectionTimeout   = errors.New("Invalid connection timeout")
-	ErrInvalidIngestCacheSize     = errors.New("Invalid Max Ingest Cache size")
-	ErrCacheEnabledZeroMax        = errors.New("Ingest cache enabled with zero Max Cache size")
 	ErrGlobalSectionNotFound      = errors.New("Global config section not found")
 	ErrInvalidLineLocation        = errors.New("Invalid line location")
 	ErrInvalidUpdateLineParameter = errors.New("Update line location does not contain the specified paramter")
 )
 
 type IngestConfig struct {
+	IngestStreamConfig
 	Ingest_Secret              string
 	Connection_Timeout         string
 	Verify_Remote_Certificates bool //legacy, will be removed
@@ -96,13 +102,19 @@ type IngestConfig struct {
 	Cleartext_Backend_Target   []string
 	Encrypted_Backend_Target   []string
 	Pipe_Backend_Target        []string
-	Ingest_Cache_Path          string
-	Max_Ingest_Cache           int64 //maximum amount of data to cache in MB
 	Log_Level                  string
 	Log_File                   string
 	Source_Override            string // override normal source if desired
 	Rate_Limit                 string
 	Ingester_UUID              string
+	Cache_Depth                int
+	Cache_Mode                 string
+	Ingest_Cache_Path          string
+	Max_Ingest_Cache           int
+}
+
+type IngestStreamConfig struct {
+	Enable_Compression bool
 }
 
 func (ic *IngestConfig) loadDefaults() error {
@@ -130,6 +142,20 @@ func (ic *IngestConfig) loadDefaults() error {
 	if err := LoadEnvVar(&ic.Pipe_Backend_Target, envPipeTarget, nil); err != nil {
 		return err
 	}
+	//Compression
+	if err := LoadEnvVar(&ic.Enable_Compression, envCompressionTarget, false); err != nil {
+		return err
+	}
+	// Cache
+	if err := LoadEnvVar(&ic.Cache_Mode, envCacheMode, nil); err != nil {
+		return err
+	}
+	if err := LoadEnvVar(&ic.Ingest_Cache_Path, envCachePath, nil); err != nil {
+		return err
+	}
+	if err := LoadEnvVar(&ic.Max_Ingest_Cache, envMaxCache, nil); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -149,7 +175,7 @@ func (ic *IngestConfig) Verify() error {
 
 	ic.Log_Level = strings.ToUpper(strings.TrimSpace(ic.Log_Level))
 	if ic.Max_Ingest_Cache == 0 && len(ic.Ingest_Cache_Path) != 0 {
-		ic.Max_Ingest_Cache = defaultMaxCache
+		ic.Max_Ingest_Cache = CACHE_SIZE_DEFAULT
 	}
 	if to, err := ic.parseTimeout(); err != nil || to < 0 {
 		if err != nil {
@@ -187,35 +213,25 @@ func (ic *IngestConfig) Verify() error {
 		return errors.New("Log Location is not a directory")
 	}
 
-	// Make sure the cache directory exists.
-	cachedir := filepath.Dir(ic.Ingest_Cache_Path)
-	fi, err = os.Stat(cachedir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			//try to make the directory
-			err = os.MkdirAll(cachedir, 0700)
-			if err != nil {
-				return err
-			}
-		} else {
-			return err
-		}
-	} else if !fi.IsDir() {
-		return errors.New("Cache Location is not a directory")
-	}
-
-	//check the max cache
-	if ic.Max_Ingest_Cache < 0 {
-		return ErrInvalidIngestCacheSize
-	} else if ic.Max_Ingest_Cache == 0 && len(ic.Ingest_Cache_Path) != 0 {
-		return ErrCacheEnabledZeroMax
-	}
-
 	if ic.Source_Override != `` {
 		if net.ParseIP(ic.Source_Override) == nil {
 			return errors.New("Failed to parse Source_Override")
 		}
 	}
+
+	// cache checks and defaults
+	switch strings.ToLower(ic.Cache_Mode) {
+	case "":
+		ic.Cache_Mode = CACHE_MODE_DEFAULT
+	case "always", "fail":
+	default:
+		return errors.New("Cache-Mode must be [always,fail]")
+	}
+	if ic.Cache_Depth == 0 {
+		ic.Cache_Depth = CACHE_DEPTH_DEFAULT
+	}
+	// there are no defaults for the cache_size.
+
 	return nil
 }
 
@@ -257,22 +273,6 @@ func (ic *IngestConfig) Timeout() time.Duration {
 // Secret returns the value of the Ingest-Secret parameter, used to authenticate to the indexer.
 func (ic *IngestConfig) Secret() string {
 	return ic.Ingest_Secret
-}
-
-// EnableCache indicates whether a file cache is enabled
-func (ic *IngestConfig) EnableCache() bool {
-	return len(ic.Ingest_Cache_Path) != 0
-}
-
-// LocalFileCachePath returns the path to the local ingest cache
-// an empty string means no cache enabled
-func (ic *IngestConfig) LocalFileCachePath() string {
-	return ic.Ingest_Cache_Path
-}
-
-// MaxCachedData returns the maximum amount of data to be cached in bytes
-func (ic *IngestConfig) MaxCachedData() uint64 {
-	return uint64(ic.Max_Ingest_Cache * mb)
 }
 
 // Return the specified log level
@@ -352,41 +352,6 @@ func reloadContent(loc string) (content string, err error) {
 	var bts []byte
 	bts, err = ioutil.ReadFile(loc)
 	content = string(bts)
-	return
-}
-
-// SetIngesterUUID modifies the configuration file at loc, setting the
-// Ingester-UUID parameter to the given UUID. This function allows ingesters
-// to assign themselves a UUID if one is not given in the configuration file.
-func (ic *IngestConfig) SetIngesterUUID(id uuid.UUID, loc string) (err error) {
-	if zeroUUID(id) {
-		return errors.New("UUID is empty")
-	}
-	var content string
-	if content, err = reloadContent(loc); err != nil {
-		return
-	}
-	//crack the config file into lines
-	lines := strings.Split(content, "\n")
-	lo := argInGlobalLines(lines, uuidParam)
-	if lo == -1 {
-		//UUID value not set, insert immediately after global
-		gStart, _, ok := globalLineBoundary(lines)
-		if !ok {
-			err = ErrGlobalSectionNotFound
-			return
-		}
-		lines, err = insertLine(lines, fmt.Sprintf(`%s="%s"`, uuidParam, id.String()), gStart+1)
-	} else {
-		//found it, update it
-		lines, err = updateLine(lines, uuidParam, fmt.Sprintf(`"%s"`, id), lo)
-	}
-	if err != nil {
-		return
-	}
-	ic.Ingester_UUID = id.String()
-	content = strings.Join(lines, "\n")
-	err = updateConfigFile(loc, content)
 	return
 }
 

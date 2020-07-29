@@ -132,7 +132,7 @@ func (m *mainService) Execute(args []string, r <-chan svc.ChangeRequest, changes
 	var cancel context.CancelFunc
 	m.ctx, cancel = context.WithCancel(context.Background())
 
-	if err := m.init(); err != nil {
+	if err := m.init(m.ctx); err != nil {
 		ssec = true
 		errno = 1000
 		errorout("Failed to initialize the service: %v", err)
@@ -161,7 +161,7 @@ loop:
 	return
 }
 
-func (m *mainService) init() error {
+func (m *mainService) init(ctx context.Context) error {
 	//check that there is something to load up and watch
 	if len(m.flocs) == 0 {
 		return errors.New("No watch locations specified")
@@ -247,6 +247,7 @@ func (m *mainService) init() error {
 			TimestampFormatOverride: tsFmtOverride,
 			Logger:                  dbgLogger,
 			TimezoneOverride:        val.Timezone_Override,
+			Ctx:                     ctx,
 		}
 
 		lh, err := filewatch.NewLogHandler(cfg, pproc)

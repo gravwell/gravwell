@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -116,18 +117,19 @@ func main() {
 		lg.FatalCode(0, "Couldn't read ingester UUID\n")
 	}
 	ingestConfig := ingest.UniformMuxerConfig{
-		Destinations:    conns,
-		Tags:            tags,
-		Auth:            cfg.Secret(),
-		LogLevel:        cfg.LogLevel(),
-		Logger:          lg,
-		IngesterName:    "Kinesis",
-		IngesterVersion: version.GetVersion(),
-		IngesterUUID:    id.String(),
-	}
-	if cfg.CacheEnabled() {
-		ingestConfig.EnableCache = true
-		ingestConfig.CacheConfig.FileBackingLocation = cfg.CachePath()
+		IngestStreamConfig: cfg.Global.IngestStreamConfig,
+		Destinations:       conns,
+		Tags:               tags,
+		Auth:               cfg.Secret(),
+		LogLevel:           cfg.LogLevel(),
+		Logger:             lg,
+		IngesterName:       "Kinesis",
+		IngesterVersion:    version.GetVersion(),
+		IngesterUUID:       id.String(),
+		CacheDepth:         cfg.Global.Cache_Depth,
+		CachePath:          cfg.Global.Ingest_Cache_Path,
+		CacheSize:          cfg.Global.Max_Ingest_Cache,
+		CacheMode:          cfg.Global.Cache_Mode,
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
@@ -181,6 +183,8 @@ func main() {
 	if err != nil {
 		lg.Fatal("Failed to enable subscriptions: %v", err)
 	}
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// For each content type we're interested in, launch a
 	// goroutine to read entries from Office 365 maintenance API
@@ -291,7 +295,7 @@ func main() {
 						}
 
 						// now write the entry
-						if err := procset.Process(ent); err != nil {
+						if err := procset.ProcessContext(ent, ctx); err != nil {
 							lg.Warn("Failed to handle entry: %v", err)
 						}
 						// Add the Id to the temporary map
@@ -312,6 +316,12 @@ func main() {
 
 	//register quit signals so we can die gracefully
 	utils.WaitForQuit()
+
+	go func() {
+		time.Sleep(time.Second)
+		cancel()
+	}()
+
 	running = false
 	wg.Wait()
 

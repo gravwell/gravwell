@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"io"
@@ -67,6 +68,7 @@ type handlerConfig struct {
 	wg               *sync.WaitGroup
 	done             chan bool
 	proc             *processors.ProcessorSet
+	ctx              context.Context
 }
 
 func init() {
@@ -153,21 +155,21 @@ func main() {
 		lg.FatalCode(0, "Couldn't read ingester UUID\n")
 	}
 	igCfg := ingest.UniformMuxerConfig{
-		Destinations:    conns,
-		Tags:            tags,
-		Auth:            cfg.Secret(),
-		LogLevel:        cfg.LogLevel(),
-		VerifyCert:      !cfg.InsecureSkipTLSVerification(),
-		IngesterName:    ingesterName,
-		IngesterVersion: version.GetVersion(),
-		IngesterUUID:    id.String(),
-		RateLimitBps:    lmt,
-		Logger:          lg,
-	}
-	if cfg.EnableCache() {
-		igCfg.EnableCache = true
-		igCfg.CacheConfig.FileBackingLocation = cfg.LocalFileCachePath()
-		igCfg.CacheConfig.MaxCacheSize = cfg.MaxCachedData()
+		IngestStreamConfig: cfg.IngestStreamConfig,
+		Destinations:       conns,
+		Tags:               tags,
+		Auth:               cfg.Secret(),
+		LogLevel:           cfg.LogLevel(),
+		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
+		IngesterName:       ingesterName,
+		IngesterVersion:    version.GetVersion(),
+		IngesterUUID:       id.String(),
+		RateLimitBps:       lmt,
+		Logger:             lg,
+		CacheDepth:         cfg.Cache_Depth,
+		CachePath:          cfg.Ingest_Cache_Path,
+		CacheSize:          cfg.Max_Ingest_Cache,
+		CacheMode:          cfg.Cache_Mode,
 	}
 	igst, err = ingest.NewUniformMuxer(igCfg)
 	if err != nil {
@@ -189,6 +191,8 @@ func main() {
 	debugout("Successfully connected to ingesters\n")
 	var wg sync.WaitGroup
 	done := make(chan bool)
+
+	ctx, cancel := context.WithCancel(context.Background())
 
 	// make sqs connections
 	for k, v := range cfg.Queue {
@@ -226,6 +230,7 @@ func main() {
 			src:              src,
 			wg:               &wg,
 			done:             done,
+			ctx:              ctx,
 		}
 
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
@@ -240,6 +245,12 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
+
+	// stop outstanding writes in 1 second while we wait
+	go func() {
+		time.Sleep(time.Second)
+		cancel()
+	}()
 
 	// wait for graceful shutdown
 	close(done)
@@ -334,7 +345,7 @@ func queueRunner(hcfg *handlerConfig) {
 				Data: msg,
 			}
 
-			if err = hcfg.proc.Process(ent); err != nil {
+			if err = hcfg.proc.ProcessContext(ent, hcfg.ctx); err != nil {
 				lg.Error("Sending message: %v", err)
 				return
 			}

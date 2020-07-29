@@ -108,18 +108,19 @@ func main() {
 		lg.FatalCode(0, "Couldn't read ingester UUID\n")
 	}
 	ingestConfig := ingest.UniformMuxerConfig{
-		Destinations:    conns,
-		Tags:            tags,
-		Auth:            cfg.Secret(),
-		LogLevel:        cfg.LogLevel(),
-		Logger:          lg,
-		IngesterName:    "GooglePubSub",
-		IngesterVersion: version.GetVersion(),
-		IngesterUUID:    id.String(),
-	}
-	if cfg.CacheEnabled() {
-		ingestConfig.EnableCache = true
-		ingestConfig.CacheConfig.FileBackingLocation = cfg.CachePath()
+		IngestStreamConfig: cfg.Global.IngestStreamConfig,
+		Destinations:       conns,
+		Tags:               tags,
+		Auth:               cfg.Secret(),
+		LogLevel:           cfg.LogLevel(),
+		Logger:             lg,
+		IngesterName:       "GooglePubSub",
+		IngesterVersion:    version.GetVersion(),
+		IngesterUUID:       id.String(),
+		CacheDepth:         cfg.Global.Cache_Depth,
+		CachePath:          cfg.Global.Ingest_Cache_Path,
+		CacheSize:          cfg.Global.Max_Ingest_Cache,
+		CacheMode:          cfg.Global.Cache_Mode,
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {

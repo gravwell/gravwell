@@ -27,7 +27,7 @@ const (
 	// The number of times to hash the shared secret
 	HASH_ITERATIONS uint16 = 16
 	// Auth protocol version number
-	VERSION uint16 = 0x4
+	VERSION uint16 = 0x5
 	// Authenticated, but not ready for ingest
 	STATE_AUTHENTICATED uint32 = 0xBEEF42
 	// Not authenticated
@@ -115,7 +115,7 @@ func init() {
 func GenAuthHash(password string) (AuthHash, error) {
 	var runningHash []byte
 	var auth AuthHash
-	// hash first with SHA512 to ensure we don't accidentially shrink our keyspace
+	// hash first with SHA512 to ensure we don't accidentally shrink our keyspace
 	h512 := sha512.New()
 	io.WriteString(h512, password)
 	runningHash = h512.Sum(nil)
