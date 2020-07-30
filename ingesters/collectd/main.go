@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
@@ -150,11 +149,6 @@ func main() {
 	}
 	debugout("Successfully connected to ingesters\n")
 
-	var src net.IP
-	if src, err = igst.SourceIP(); err != nil {
-		lg.Error("Failed to get a source IP from ingester")
-	}
-
 	//get our collectors built up
 	wg := &sync.WaitGroup{}
 	ccBase := collConfig{
@@ -182,7 +176,7 @@ func main() {
 			lg.Fatal("%s Preprocessors are invalid: %v", k, err)
 		}
 
-		cc.src = src
+		cc.src = nil
 
 		cc.overrides = map[string]entry.EntryTag{}
 		for plugin, tagname := range overrides {

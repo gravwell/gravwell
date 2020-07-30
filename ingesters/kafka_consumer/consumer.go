@@ -194,7 +194,7 @@ func (kc *kafkaConsumer) Setup(cgs sarama.ConsumerGroupSession) (err error) {
 	kc.lg.Info("Kafka consumer %s waiting for hot ingester\n", cgs.MemberID())
 	if err = igst.WaitForHotContext(kc.ctx, 0); err == nil {
 		kc.lg.Info("Kafka consumer %s getting source ip\n", cgs.MemberID())
-		kc.src, err = igst.SourceIP()
+		kc.src = nil
 	}
 	kc.lg.Info("Consumer setup complete, got source %s\n", kc.src)
 	return

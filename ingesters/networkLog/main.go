@@ -204,10 +204,7 @@ func main() {
 		} else {
 			src, err = getSourceIP(v.Interface)
 			if err != nil {
-				if src, err = igst.SourceIP(); err != nil {
-					closeSniffers(sniffs)
-					lg.FatalCode(0, "Failed to get source for %s: %v", v.Interface, err)
-				}
+				src = nil
 			}
 		}
 
