@@ -27,7 +27,8 @@ const (
 )
 
 var (
-	ErrNilGF = errors.New("GravwellForwarder object is nil")
+	ErrNilGF           = errors.New("GravwellForwarder object is nil")
+	ErrFailedTagLookup = errors.New("GravwellForwarder failed to lookup tag")
 )
 
 type GravwellForwarderConfig struct {
@@ -114,7 +115,25 @@ func (gf *GravwellForwarder) Close() error {
 }
 
 func (gf *GravwellForwarder) Process(ent *entry.Entry) (r []*entry.Entry, err error) {
-	r = []*entry.Entry{ent}
-	err = gf.mxr.WriteEntry(ent)
+	if ent != nil {
+		var ok bool
+		lent := *ent
+		//lookup the tag to see if we have a translation for it
+		if lent.Tag, ok = gf.tm[ent.Tag]; !ok {
+			//figure out what the tag name is an try to negotiate it
+			var tagname string
+			if tagname, ok = gf.tgr.LookupTag(ent.Tag); !ok {
+				err = ErrFailedTagLookup
+			} else if lent.Tag, err = gf.mxr.NegotiateTag(tagname); err == nil {
+				//negotiated, so go ahead and update our local map
+				gf.tm[ent.Tag] = lent.Tag
+			}
+		}
+		if err == nil {
+			err = gf.mxr.WriteEntry(&lent)
+		}
+		//always send along the entry
+		r = []*entry.Entry{ent}
+	}
 	return
 }
