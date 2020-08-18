@@ -1,0 +1,31 @@
+# Microsoft Graph Security Client
+
+Pulls alerts & security scores from the MS Graph API.
+
+## Setup
+
+Register a new application with Azure AD. Give it SecurityActions.ReadAll and SecurityEvents.ReadAll permissions. Generate an authentication token and save it.
+
+In the config file, set `Client-ID` to the "Application (client) ID" for the app, set `Client-Secret` to the auth token you just generated, and set `Tenant-Domain` to your domain (e.g. "gravwell.onmicrosoft.com").
+
+Set up one or more ContentType definitions. The following types are available: "alerts", "secureScores", and "controlProfiles".
+
+Your configuration should end up looking something like this:
+
+```
+Client-ID=4d2066ab-7ac8-4b4c-ba62-b4e7ca2b1de6
+Client-Secret="replaceme"
+Tenant-Domain=gravwell.onmicrosoft.com
+
+[ContentType "alerts"]
+	Content-Type="alerts"
+	Tag-Name="graph-alerts"
+
+[ContentType "scores"]
+	Content-Type="secureScores"
+	Tag-Name="graph-scores"
+
+[ContentType "profiles"]
+	Content-Type="controlProfiles"
+	Tag-Name="graph-profiles"
+```
