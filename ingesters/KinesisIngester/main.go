@@ -209,10 +209,17 @@ func main() {
 		shards := []*kinesis.Shard{}
 		dsi := &kinesis.DescribeStreamInput{}
 		dsi.SetStreamName(stream.Stream_Name)
+		count := 0
 		for {
 			streamdesc, err := svc.DescribeStream(dsi)
 			if err != nil {
-				lg.Error("Failed to get stream description: %v", err)
+				count++
+				lg.Error("Failed to get stream description for stream %v: %v", stream.Stream_Name, err)
+				if count >= 5 {
+					// give up and LOUDLY quit
+					lg.Fatal("Giving up fetch stream description for stream %v after 5 attempts, exiting.", stream.Stream_Name)
+				}
+				time.Sleep(1 * time.Second)
 				continue
 			}
 			newshards := streamdesc.StreamDescription.Shards

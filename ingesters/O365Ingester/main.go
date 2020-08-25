@@ -123,7 +123,7 @@ func main() {
 		Auth:               cfg.Secret(),
 		LogLevel:           cfg.LogLevel(),
 		Logger:             lg,
-		IngesterName:       "Kinesis",
+		IngesterName:       "Office 365",
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
 		CacheDepth:         cfg.Global.Cache_Depth,

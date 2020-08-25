@@ -350,10 +350,7 @@ func (m *mainService) init() error {
 		return fmt.Errorf("Failed to load event handles: %v", err)
 	}
 	m.evtSrcs = evtSrcs
-	if m.src, err = m.igst.SourceIP(); err != nil {
-		errorout("Failed to get Source IP from ingest muxer: %v\n", err)
-		return err
-	}
+	m.src = nil
 
 	return nil
 }

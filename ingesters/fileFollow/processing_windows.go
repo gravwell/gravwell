@@ -44,10 +44,13 @@ type mainService struct {
 	pp          processors.ProcessorConfig
 	procs       []*processors.ProcessorSet
 	srcOverride string
-	cachePath   string
 	logLevel    string
 	uuid        string
 	ctx         context.Context
+	cacheDepth  int
+	cachePath   string
+	cacheSize   int
+	cacheMode   string
 }
 
 func NewService(cfg *cfgType) (*mainService, error) {
@@ -86,6 +89,10 @@ func NewService(cfg *cfgType) (*mainService, error) {
 		logLevel:    cfg.LogLevel(),
 		uuid:        id.String(),
 		srcOverride: cfg.Source_Override,
+		cacheDepth:  cfg.Cache_Depth,
+		cachePath:   cfg.Ingest_Cache_Path,
+		cacheSize:   cfg.Max_Ingest_Cache,
+		cacheMode:   cfg.Cache_Mode,
 	}, nil
 }
 
@@ -176,6 +183,10 @@ func (m *mainService) init(ctx context.Context) error {
 		IngesterName:    "winfilefollow",
 		IngesterVersion: version.GetVersion(),
 		IngesterUUID:    m.uuid,
+		CacheDepth:      m.cacheDepth,
+		CachePath:       m.cachePath,
+		CacheSize:       m.cacheSize,
+		CacheMode:       m.cacheMode,
 	}
 
 	debugout("Starting ingester connections ")
