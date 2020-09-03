@@ -21,6 +21,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"github.com/gofrs/flock"
 )
 
 var (
@@ -54,6 +56,8 @@ type ChanCacher struct {
 	cacheAck       chan bool
 	cacheIsDone    bool
 	cacheCommitted bool
+
+	fileLock *flock.Flock
 }
 
 // Create a new ChanCacher with maximum depth, and optional backing file.  If
@@ -138,6 +142,16 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) (*ChanCacher, er
 			}
 		}
 
+		// set a lock for these files
+		c.fileLock = flock.New(filepath.Join(c.cachePath, "lock"))
+		locked, err := c.fileLock.TryLock()
+		if err != nil {
+			return nil, err
+		}
+		if !locked {
+			return nil, fmt.Errorf("could not get file lock!")
+		}
+
 		// create r and w files
 		r, err := os.OpenFile(filepath.Join(c.cachePath, "cache_a"), os.O_CREATE|os.O_RDWR, 0640)
 		if err != nil {
@@ -215,6 +229,8 @@ func (c *ChanCacher) run() {
 
 		// verify the cache reader has stopped trying to write to c.Out
 		<-c.cacheAck
+
+		c.fileLock.Unlock()
 	}
 
 	// Buffered channels allow reading data until they're empty, even if
