@@ -79,6 +79,7 @@ func (im *IngestMuxer) gravwellWriteIfHot(level gll, line string) (err error) {
 		Data: []byte(ts.Format(time.RFC3339) + ` ` + level.String() + ` ` + im.name + ` ` + line),
 		TS:   ts,
 		Tag:  entry.GravwellTagId,
+		SRC:  im.logSourceOverride,
 	}
 
 	return im.WriteEntryTimeout(e, logTimeout)
@@ -90,6 +91,7 @@ func (im *IngestMuxer) gravwellWrite(level gll, line string) error {
 		Data: []byte(ts.Format(time.RFC3339) + ` ` + level.String() + ` ` + line),
 		TS:   ts,
 		Tag:  entry.GravwellTagId,
+		SRC:  im.logSourceOverride,
 	}
 	return im.WriteEntry(e)
 }
