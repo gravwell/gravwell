@@ -111,6 +111,7 @@ type IngestConfig struct {
 	Cache_Mode                 string
 	Ingest_Cache_Path          string
 	Max_Ingest_Cache           int
+	Log_Source_Override        string // override log messages only
 }
 
 type IngestStreamConfig struct {
@@ -216,6 +217,11 @@ func (ic *IngestConfig) Verify() error {
 	if ic.Source_Override != `` {
 		if net.ParseIP(ic.Source_Override) == nil {
 			return errors.New("Failed to parse Source_Override")
+		}
+	}
+	if ic.Log_Source_Override != `` {
+		if net.ParseIP(ic.Log_Source_Override) == nil {
+			return errors.New("Failed to parse Log_Source_Override")
 		}
 	}
 

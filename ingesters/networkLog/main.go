@@ -163,6 +163,7 @@ func main() {
 		CachePath:          cfg.Ingest_Cache_Path,
 		CacheSize:          cfg.Max_Ingest_Cache,
 		CacheMode:          cfg.Cache_Mode,
+		LogSourceOverride:  net.ParseIP(cfg.Log_Source_Override),
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
