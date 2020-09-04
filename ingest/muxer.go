@@ -82,79 +82,82 @@ type IngestMuxer struct {
 	//connHot, and connDead have atomic operations
 	//its important that these are aligned on 8 byte boundaries
 	//or it will panic on 32bit architectures
-	connHot        int32 //how many connections are functioning
-	connDead       int32 //how many connections are dead
-	mtx            *sync.RWMutex
-	sig            *sync.Cond
-	igst           []*IngestConnection
-	tagTranslators []*tagTrans
-	dests          []Target
-	errDest        []TargetError
-	tags           []string
-	tagMap         map[string]entry.EntryTag
-	pubKey         string
-	privKey        string
-	verifyCert     bool
-	eChan          chan interface{}
-	eChanOut       chan interface{}
-	bChan          chan interface{}
-	bChanOut       chan interface{}
-	eq             *emergencyQueue
-	dieChan        chan bool
-	upChan         chan bool
-	errChan        chan error
-	wg             *sync.WaitGroup
-	state          muxState
-	logLevel       gll
-	lgr            Logger
-	cacheEnabled   bool
-	cachePath      string
-	cache          *chancacher.ChanCacher
-	bcache         *chancacher.ChanCacher
-	cacheAlways    bool
-	name           string
-	version        string
-	uuid           string
-	rateParent     *parent
+	connHot           int32 //how many connections are functioning
+	connDead          int32 //how many connections are dead
+	mtx               *sync.RWMutex
+	sig               *sync.Cond
+	igst              []*IngestConnection
+	tagTranslators    []*tagTrans
+	dests             []Target
+	errDest           []TargetError
+	tags              []string
+	tagMap            map[string]entry.EntryTag
+	pubKey            string
+	privKey           string
+	verifyCert        bool
+	eChan             chan interface{}
+	eChanOut          chan interface{}
+	bChan             chan interface{}
+	bChanOut          chan interface{}
+	eq                *emergencyQueue
+	dieChan           chan bool
+	upChan            chan bool
+	errChan           chan error
+	wg                *sync.WaitGroup
+	state             muxState
+	logLevel          gll
+	lgr               Logger
+	cacheEnabled      bool
+	cachePath         string
+	cache             *chancacher.ChanCacher
+	bcache            *chancacher.ChanCacher
+	cacheAlways       bool
+	name              string
+	version           string
+	uuid              string
+	rateParent        *parent
+	logSourceOverride net.IP
 }
 
 type UniformMuxerConfig struct {
 	config.IngestStreamConfig
-	Destinations    []string
-	Tags            []string
-	Auth            string
-	PublicKey       string
-	PrivateKey      string
-	VerifyCert      bool
-	CacheDepth      int
-	CachePath       string
-	CacheSize       int
-	CacheMode       string
-	LogLevel        string
-	Logger          Logger
-	IngesterName    string
-	IngesterVersion string
-	IngesterUUID    string
-	RateLimitBps    int64
+	Destinations      []string
+	Tags              []string
+	Auth              string
+	PublicKey         string
+	PrivateKey        string
+	VerifyCert        bool
+	CacheDepth        int
+	CachePath         string
+	CacheSize         int
+	CacheMode         string
+	LogLevel          string
+	Logger            Logger
+	IngesterName      string
+	IngesterVersion   string
+	IngesterUUID      string
+	RateLimitBps      int64
+	LogSourceOverride net.IP
 }
 
 type MuxerConfig struct {
 	config.IngestStreamConfig
-	Destinations    []Target
-	Tags            []string
-	PublicKey       string
-	PrivateKey      string
-	VerifyCert      bool
-	CacheDepth      int
-	CachePath       string
-	CacheSize       int
-	CacheMode       string
-	LogLevel        string
-	Logger          Logger
-	IngesterName    string
-	IngesterVersion string
-	IngesterUUID    string
-	RateLimitBps    int64
+	Destinations      []Target
+	Tags              []string
+	PublicKey         string
+	PrivateKey        string
+	VerifyCert        bool
+	CacheDepth        int
+	CachePath         string
+	CacheSize         int
+	CacheMode         string
+	LogLevel          string
+	Logger            Logger
+	IngesterName      string
+	IngesterVersion   string
+	IngesterUUID      string
+	RateLimitBps      int64
+	LogSourceOverride net.IP
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
@@ -211,6 +214,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		IngesterUUID:       c.IngesterUUID,
 		RateLimitBps:       c.RateLimitBps,
 		Logger:             c.Logger,
+		LogSourceOverride:  c.LogSourceOverride,
 	}
 	return newIngestMuxer(cfg)
 }
@@ -328,35 +332,36 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		p = newParent(c.RateLimitBps, 0)
 	}
 	return &IngestMuxer{
-		cfg:          getStreamConfig(c.IngestStreamConfig),
-		dests:        c.Destinations,
-		tags:         taglist,
-		tagMap:       tagMap,
-		pubKey:       c.PublicKey,
-		privKey:      c.PrivateKey,
-		verifyCert:   c.VerifyCert,
-		mtx:          &sync.RWMutex{},
-		wg:           &sync.WaitGroup{},
-		state:        empty,
-		lgr:          c.Logger,
-		logLevel:     logLevel(c.LogLevel),
-		eChan:        cache.In,
-		eChanOut:     cache.Out,
-		bChan:        bcache.In,
-		bChanOut:     bcache.Out,
-		eq:           newEmergencyQueue(),
-		dieChan:      make(chan bool, len(c.Destinations)),
-		upChan:       make(chan bool, 1),
-		errChan:      make(chan error, len(c.Destinations)),
-		cache:        cache,
-		bcache:       bcache,
-		cacheEnabled: c.CachePath != "",
-		cachePath:    c.CachePath,
-		cacheAlways:  strings.ToLower(c.CacheMode) == CacheModeAlways,
-		name:         c.IngesterName,
-		version:      c.IngesterVersion,
-		uuid:         c.IngesterUUID,
-		rateParent:   p,
+		cfg:               getStreamConfig(c.IngestStreamConfig),
+		dests:             c.Destinations,
+		tags:              taglist,
+		tagMap:            tagMap,
+		pubKey:            c.PublicKey,
+		privKey:           c.PrivateKey,
+		verifyCert:        c.VerifyCert,
+		mtx:               &sync.RWMutex{},
+		wg:                &sync.WaitGroup{},
+		state:             empty,
+		lgr:               c.Logger,
+		logLevel:          logLevel(c.LogLevel),
+		eChan:             cache.In,
+		eChanOut:          cache.Out,
+		bChan:             bcache.In,
+		bChanOut:          bcache.Out,
+		eq:                newEmergencyQueue(),
+		dieChan:           make(chan bool, len(c.Destinations)),
+		upChan:            make(chan bool, 1),
+		errChan:           make(chan error, len(c.Destinations)),
+		cache:             cache,
+		bcache:            bcache,
+		cacheEnabled:      c.CachePath != "",
+		cachePath:         c.CachePath,
+		cacheAlways:       strings.ToLower(c.CacheMode) == CacheModeAlways,
+		name:              c.IngesterName,
+		version:           c.IngesterVersion,
+		uuid:              c.IngesterUUID,
+		rateParent:        p,
+		logSourceOverride: c.LogSourceOverride,
 	}, nil
 }
 
