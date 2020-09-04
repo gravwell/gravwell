@@ -34,6 +34,7 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/minio/highwayhash v1.0.0
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
+	github.com/open-networks/go-msgraph v0.0.0-20200217121338-a7bf31e9c1f2
 	github.com/pierrec/lz4 v2.3.0+incompatible // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/shirou/gopsutil v2.19.11+incompatible
@@ -52,3 +53,5 @@ require (
 replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20191025224154-2951042f1c13
 
 // replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
+
+replace github.com/open-networks/go-msgraph => github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3
