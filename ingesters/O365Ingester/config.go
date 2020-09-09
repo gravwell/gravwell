@@ -108,20 +108,7 @@ func verifyConfig(c cfgType) error {
 }
 
 func (c *cfgType) Targets() ([]string, error) {
-	var conns []string
-	for _, v := range c.Global.Cleartext_Backend_Target {
-		conns = append(conns, "tcp://"+v)
-	}
-	for _, v := range c.Global.Encrypted_Backend_Target {
-		conns = append(conns, "tls://"+v)
-	}
-	for _, v := range c.Global.Pipe_Backend_Target {
-		conns = append(conns, "pipe://"+v)
-	}
-	if len(conns) == 0 {
-		return nil, errors.New("no connections specified")
-	}
-	return conns, nil
+	return c.Global.Targets()
 }
 
 func (c *cfgType) Tags() ([]string, error) {
