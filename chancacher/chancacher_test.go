@@ -26,6 +26,34 @@ func (t *ChanCacheTester) Size() uint64 {
 	return 1
 }
 
+func TestFlock(t *testing.T) {
+	dir, err := ioutil.TempDir("", "chancachertest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	c, err := NewChanCacher(2, dir, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	close(c.In)
+	<-c.Out
+
+	c, err = NewChanCacher(2, dir, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = NewChanCacher(2, dir, 0)
+	if err == nil {
+		t.Fatal("lock taken twice!")
+	}
+
+	close(c.In)
+	<-c.Out
+}
+
 func TestBlockDepth(t *testing.T) {
 	c, _ := NewChanCacher(2, "", 0)
 
@@ -194,6 +222,7 @@ func TestRecover(t *testing.T) {
 
 	close(c.In)
 	c.Commit()
+	<-c.Out
 
 	// now create a new ChanCacher in dir and read the data out.
 	defer os.RemoveAll(dir)

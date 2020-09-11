@@ -194,7 +194,7 @@ func (nf *Forwarder) filterByTag(tag entry.EntryTag) (drop bool) {
 			drop = true //NOT in our filter set
 		}
 	}
-	return false
+	return
 }
 
 func (nf *Forwarder) filterBySrc(ip net.IP) (drop bool) {
