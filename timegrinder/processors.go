@@ -6,7 +6,6 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-//ANSIC       = "Mon Jan _2 15:04:05 2006"
 package timegrinder
 
 import (
