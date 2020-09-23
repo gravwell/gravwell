@@ -258,6 +258,8 @@ func (m *mainService) init(ctx context.Context) error {
 			TimestampFormatOverride: tsFmtOverride,
 			Logger:                  dbgLogger,
 			TimezoneOverride:        val.Timezone_Override,
+			UserTimeRegex:           val.Timestamp_Regex,
+			UserTimeFormat:          val.Timestamp_Format_String,
 			Ctx:                     ctx,
 		}
 
