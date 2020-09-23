@@ -10,13 +10,17 @@ package filewatch
 
 import (
 	"bufio"
+	"io"
 	"regexp"
+	"time"
 )
 
 type RegexReader struct {
 	baseReader
-	rx  *regexp.Regexp
-	scn *bufio.Scanner
+	rx       *regexp.Regexp
+	brdr     *bufio.Reader
+	currLine []byte
+	lastRead time.Time
 }
 
 func NewRegexReader(cfg ReaderConfig) (*RegexReader, error) {
@@ -31,34 +35,73 @@ func NewRegexReader(cfg ReaderConfig) (*RegexReader, error) {
 	rr := &RegexReader{
 		baseReader: br,
 		rx:         rx,
-		scn:        bufio.NewScanner(cfg.Fin),
+		currLine:   make([]byte, 0, cfg.MaxLineLen),
+		brdr:       bufio.NewReader(cfg.Fin),
+		lastRead:   time.Now(),
 	}
-	rr.scn.Split(rr.splitter)
-	rr.scn.Buffer(make([]byte, cfg.MaxLineLen), 2*cfg.MaxLineLen)
 	return rr, nil
 }
 
 func (rr *RegexReader) ReadEntry() (ln []byte, ok bool, wasEOF bool, err error) {
-	if ok = rr.scn.Scan(); ok {
-		ln = rr.scn.Bytes()
-	} else {
-		if err = rr.scn.Err(); err == nil {
-			wasEOF = true
-		}
+	// Attempt to pull an entry (<pattern> + bytes up to next pattern incidence) from currLine
+	// If successful, trim currLine, increment rx.idx, and return the entry
+	var newIdx int
+	newIdx, ln, err = rr.splitter(rr.currLine)
+	if newIdx != 0 {
+		// We got some data
+		rr.currLine = rr.currLine[newIdx:]
+		rr.idx += int64(len(ln))
+		ok = true
+		return
+	}
+
+	// Otherwise, read some bytes
+	b := make([]byte, 8*1024)
+	n, lerr := rr.brdr.Read(b)
+	if lerr != nil && lerr != io.EOF {
+		// something bad happened
+		err = lerr
+		return
+	}
+	// set wasEOF if appropriate
+	if lerr == io.EOF {
+		wasEOF = true
+	}
+	if n == 0 {
+		// didn't read anything, alas
+		return
+	}
+
+	// update the last time we managed to read from the file
+	rr.lastRead = time.Now()
+
+	// Append bytes to currLine
+	rr.currLine = append(rr.currLine, b[:n]...)
+	if len(rr.currLine) > rr.maxLine {
+		// too long, trim it
+		rr.currLine = rr.currLine[len(rr.currLine)-rr.maxLine:]
+	}
+
+	// Attempt to pull an entry (<pattern> + bytes up to next pattern incidence) from currLine
+	// If successful, trim currLine, increment rx.idx, and return the entry
+	newIdx, ln, err = rr.splitter(rr.currLine)
+	if newIdx != 0 {
+		// We got some data
+		rr.currLine = rr.currLine[newIdx:]
+		rr.idx += int64(len(ln))
+		ok = true
+		return
 	}
 
 	return
 }
 
-func (rr *RegexReader) splitter(data []byte, atEOF bool) (int, []byte, error) {
-	if atEOF && len(data) == 0 {
+func (rr *RegexReader) splitter(data []byte) (int, []byte, error) {
+	if len(data) == 0 {
 		return 0, nil, nil
 	}
 	if idx := rr.getREIdx(data); idx > 0 {
 		return idx, data[0:idx], nil
-	}
-	if atEOF {
-		return len(data), data, nil
 	}
 	//request more data
 	return 0, nil, nil
@@ -77,6 +120,11 @@ func (rr *RegexReader) getREIdx(data []byte) (r int) {
 	} else {
 		//index is at location zero, find the next one
 		if idxs2 := rr.rx.FindIndex(data[idxs[1]:]); len(idxs2) != 2 {
+			// did not find one
+			// If it's been a while, just take what we have
+			if time.Now().Sub(rr.lastRead) > 5*time.Second {
+				r = len(data)
+			}
 			return
 		} else {
 			r = idxs[1] + idxs2[0]
