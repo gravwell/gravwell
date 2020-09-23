@@ -199,6 +199,8 @@ func main() {
 			AssumeLocalTZ:           val.Assume_Local_Timezone,
 			IgnorePrefixes:          ignore,
 			TimestampFormatOverride: tsFmtOverride,
+			UserTimeRegex:           val.Timestamp_Regex,
+			UserTimeFormat:          val.Timestamp_Format_String,
 			Logger:                  lg,
 			TimezoneOverride:        val.Timezone_Override,
 			Ctx:                     ctx,
@@ -222,6 +224,9 @@ func main() {
 		} else if ok {
 			c.Engine = filewatch.RegexEngine
 			c.EngineArgs = rex
+		} else if val.Regex_Delimiter != `` {
+			c.Engine = filewatch.RegexEngine
+			c.EngineArgs = val.Regex_Delimiter
 		} else {
 			c.Engine = filewatch.LineEngine
 		}
