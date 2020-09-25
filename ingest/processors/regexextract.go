@@ -78,7 +78,7 @@ func (re *RegexExtractor) Process(ent *entry.Entry) (rset []*entry.Entry, err er
 		return
 	}
 	if mtchs := re.rx.FindSubmatch(ent.Data); len(mtchs) == re.cnt {
-		ent.Data = re.tmp.render(mtchs)
+		ent.Data = re.tmp.render(ent, mtchs)
 		rset = []*entry.Entry{ent}
 	} else if re.Passthrough_Misses {
 		rset = []*entry.Entry{ent}
@@ -108,7 +108,7 @@ func (c RegexExtractConfig) validate() (rx *regexp.Regexp, tmp *formatter, err e
 }
 
 type replaceNode interface {
-	Bytes([][]byte) []byte
+	Bytes(*entry.Entry, [][]byte) []byte
 }
 
 type formatter struct {
@@ -146,10 +146,10 @@ func (f *formatter) setReplaceNames(names []string) (err error) {
 	return
 }
 
-func (f *formatter) render(vals [][]byte) (data []byte) {
+func (f *formatter) render(ent *entry.Entry, vals [][]byte) (data []byte) {
 	f.bb.Reset()
 	for i := range f.nodes {
-		f.bb.Write(f.nodes[i].Bytes(vals))
+		f.bb.Write(f.nodes[i].Bytes(ent, vals))
 	}
 	data = append([]byte{}, f.bb.Bytes()...)
 	return
@@ -168,7 +168,7 @@ type constNode struct {
 	val []byte
 }
 
-func (c constNode) Bytes(lo [][]byte) []byte {
+func (c constNode) Bytes(ent *entry.Entry, lo [][]byte) []byte {
 	return c.val
 }
 
@@ -177,11 +177,18 @@ type lookupNode struct {
 	idx  int
 }
 
-func (l lookupNode) Bytes(lo [][]byte) []byte {
+func (l lookupNode) Bytes(ent *entry.Entry, lo [][]byte) []byte {
 	if l.idx <= len(lo) && l.idx >= 0 {
 		return lo[l.idx]
 	}
 	return nil
+}
+
+type srcNode struct {
+}
+
+func (s srcNode) Bytes(ent *entry.Entry, lo [][]byte) []byte {
+	return []byte(fmt.Sprintf("%v", ent.SRC))
 }
 
 func consumeNode(v []byte) (n replaceNode, r []byte, err error) {
@@ -199,8 +206,14 @@ func consumeNode(v []byte) (n replaceNode, r []byte, err error) {
 			return
 		}
 		r = v[eidx+1:]
-		n = &lookupNode{
-			name: string(v[:eidx]),
+		name := string(v[:eidx])
+		switch name {
+		case "_SRC_":
+			n = &srcNode{}
+		default:
+			n = &lookupNode{
+				name: name,
+			}
 		}
 	case -1: //completely missed
 		//end of string, consume as a const node

@@ -9,6 +9,7 @@
 package processors
 
 import (
+	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -86,5 +87,35 @@ func TestRegexExtract(t *testing.T) {
 	}
 	if string(tent.Data) != `START STUFF	THINGS END` {
 		t.Fatal("Bad result")
+	}
+}
+
+func TestRegexExtractSRC(t *testing.T) {
+	cfg := RegexExtractConfig{
+		Template: "${_SRC_} ${stuff}",
+		Regex:    testRegex,
+	}
+	re, err := NewRegexExtractor(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ent := &entry.Entry{
+		Tag:  testTag,
+		SRC:  testIP,
+		TS:   testTime,
+		Data: []byte(`101 THINGS STUFF`),
+	}
+	ents, err := re.Process(ent)
+	if err != nil {
+		t.Fatal(err)
+	} else if len(ents) != 1 {
+		t.Fatal("bad count", len(ents))
+	}
+	tent := ents[0]
+	if tent.Tag != ent.Tag || !tent.SRC.Equal(ent.SRC) || tent.TS != ent.TS {
+		t.Fatal("bad entry header data:", tent)
+	}
+	if string(tent.Data) != fmt.Sprintf("%v STUFF", testIP) {
+		t.Fatalf("Bad result: %v", string(tent.Data))
 	}
 }
