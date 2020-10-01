@@ -191,6 +191,20 @@ func (s srcNode) Bytes(ent *entry.Entry, lo [][]byte) []byte {
 	return []byte(fmt.Sprintf("%v", ent.SRC))
 }
 
+type dataNode struct {
+}
+
+func (s dataNode) Bytes(ent *entry.Entry, lo [][]byte) []byte {
+	return []byte(fmt.Sprintf("%v", string(ent.Data)))
+}
+
+type tsNode struct {
+}
+
+func (s tsNode) Bytes(ent *entry.Entry, lo [][]byte) []byte {
+	return []byte(fmt.Sprintf("%v", ent.TS))
+}
+
 func consumeNode(v []byte) (n replaceNode, r []byte, err error) {
 	if len(v) == 0 {
 		return
@@ -210,6 +224,10 @@ func consumeNode(v []byte) (n replaceNode, r []byte, err error) {
 		switch name {
 		case "_SRC_":
 			n = &srcNode{}
+		case "_DATA_":
+			n = &dataNode{}
+		case "_TS_":
+			n = &tsNode{}
 		default:
 			n = &lookupNode{
 				name: name,
