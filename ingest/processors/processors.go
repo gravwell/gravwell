@@ -63,6 +63,7 @@ func CheckProcessor(id string) error {
 	case ForwarderProcessor:
 	case VpcProcessor:
 	case GravwellForwarderProcessor:
+	case DropProcessor:
 	default:
 		return ErrUnknownProcessor
 	}
@@ -90,6 +91,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		return
 	}
 	switch strings.TrimSpace(strings.ToLower(pb.Type)) {
+	case DropProcessor:
+		cfg, err = DropLoadConfig(vc)
 	case GzipProcessor:
 		cfg, err = GzipLoadConfig(vc)
 	case JsonExtractProcessor:
@@ -141,6 +144,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 	}
 	id := strings.TrimSpace(strings.ToLower(pb.Type))
 	switch id {
+	case DropProcessor:
+		var cfg DropConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewDrop(cfg)
 	case GzipProcessor:
 		var cfg GzipDecompressorConfig
 		if err = vc.MapTo(&cfg); err != nil {
