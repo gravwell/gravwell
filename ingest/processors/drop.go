@@ -33,7 +33,7 @@ func NewDrop(cfg DropConfig) (*Drop, error) {
 	}, nil
 }
 
-// Drop does not have any state, and doesn't do shit
+// Drop does not have any state, and doesn't do much
 type Drop struct {
 	nocloser
 	DropConfig
