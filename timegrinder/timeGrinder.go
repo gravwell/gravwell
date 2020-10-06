@@ -6,20 +6,11 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-/* EXAMPLES
-   UnixDate    = "Mon Jan _2 15:04:05 MST 2006"
-   RubyDate    = "Mon Jan 02 15:04:05 -0700 2006"
-   RFC822      = "02 Jan 06 15:04 MST"
-   RFC822Z     = "02 Jan 06 15:04 -0700" // RFC822 with numeric zone
-   RFC850      = "Monday, 02-Jan-06 15:04:05 MST"
-   RFC1123     = "Mon, 02 Jan 2006 15:04:05 MST"
-   RFC1123Z    = "Mon, 02 Jan 2006 15:04:05 -0700" // RFC1123 with numeric zone
-   RFC3339     = "2006-01-02T15:04:05Z07:00"
-   RFC3339Nano = "2006-01-02T15:04:05.999999999Z07:00"
-
-   SysLog      = "Jan 02 15:04:05"
-*/
-
+// Package timegrinder is a package for locating and parsing timestamps within arbitrary data.
+// It is intended to be as efficient as possible, so the most-recently-successful extraction
+// pattern is tracked for re-use.
+// The package also provides functions for defining arbitrary extractions through the
+// NewUserProcessor function.
 package timegrinder
 
 import (
@@ -50,12 +41,14 @@ type TimeGrinder struct {
 	loc      *time.Location
 }
 
+// Config defines a few configuration options when instantiating a new TimeGrinder.
 type Config struct {
 	//force TimeGrinder to scan all possible formats on first entry, seeding with left most
 	//We assume that most streams are not going to using a bunch of different timestamps
 	//so we take the hit on the first iteration to try to get the left most time format
 	EnableLeftMostSeed bool
-	FormatOverride     string
+	// FormatOverride sets a format (e.g. "AnsiC") which should be tried first during parsing.
+	FormatOverride string
 }
 
 // NewTimeGrinder just calls New, it is maintained for API compatability but may go away soon.  Use New.
@@ -63,10 +56,9 @@ func NewTimeGrinder(c Config) (*TimeGrinder, error) {
 	return New(c)
 }
 
-/* New constructs and returns a new TimeGrinder object
- * On error, it will return a nil and error variable
- * The TimeGrinder object is completely safe for concurrent use.
- */
+// New constructs and returns a new TimeGrinder object.
+// On error, it will return a nil and error variable.
+// The TimeGrinder object is completely safe for concurrent use.
 func New(c Config) (*TimeGrinder, error) {
 	procs := make([]Processor, 0, 16)
 
@@ -200,6 +192,9 @@ func (tg *TimeGrinder) OverrideProcessor() (Processor, error) {
 	return nil, errors.New("No override processor set")
 }
 
+// AddProcessor inserts a new Processor at the *beginning* of the processor list.
+// For compatibility, it still returns the index of the inserted processor, but that
+// index will always be 0.
 func (tg *TimeGrinder) AddProcessor(p Processor) (idx int, err error) {
 	//grab the name of the processor
 	name := p.Name()
@@ -209,9 +204,9 @@ func (tg *TimeGrinder) AddProcessor(p Processor) (idx int, err error) {
 			return
 		}
 	}
-	tg.procs = append(tg.procs, p)
+	tg.procs = append([]Processor{p}, tg.procs...)
 	tg.count++
-	idx = tg.count
+	idx = 0
 	return
 }
 
@@ -244,8 +239,8 @@ func (tg *TimeGrinder) setSeed(data []byte) (hit bool) {
 	return
 }
 
-/* Extract returns time and error.  If no time can be extracted time is the zero
-   value and bool is false.  Error indicates a catastrophic failure. */
+// Extract returns time and error.  If no time can be extracted time is the zero
+// value and bool is false.  Error indicates a catastrophic failure.
 func (tg *TimeGrinder) Extract(data []byte) (t time.Time, ok bool, err error) {
 	var i int
 	var c int
@@ -278,10 +273,10 @@ func (tg *TimeGrinder) Extract(data []byte) (t time.Time, ok bool, err error) {
 	return
 }
 
-/* Match identifies where in a byte array a properly formatted timestamp could be
-   and returns the indexes in the data slice of that format.  It DOES NOT attempt to parse
-   the timestamp.  This is a faster way to say "a tiestamp could be here"
-   ok is always true on successful match */
+// Match identifies where in a byte array a properly formatted timestamp could be
+// and returns the indexes in the data slice of that format.  It DOES NOT attempt to parse
+// the timestamp.  This is a faster way to say "a timestamp could be here".
+// ok is always true on successful match
 func (tg *TimeGrinder) Match(data []byte) (start, end int, ok bool) {
 	var i int
 	var c int

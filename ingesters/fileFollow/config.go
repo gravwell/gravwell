@@ -54,7 +54,11 @@ type follower struct {
 	Timestamp_Format_Override string //override the timestamp format
 	Timestamp_Delimited       bool
 	Timezone_Override         string
+	Regex_Delimiter           string
 	Preprocessor              []string
+	// these two must be used together
+	Timestamp_Regex         string
+	Timestamp_Format_String string
 }
 
 type global struct {
@@ -116,6 +120,15 @@ func verifyConfig(c *cfgType) error {
 		}
 		if v.Timestamp_Delimited && v.Timestamp_Format_Override == `` {
 			return ErrTimestampDelimiterMissingOverride
+		}
+		if (v.Timestamp_Regex != `` && v.Timestamp_Format_String == ``) || (v.Timestamp_Regex == `` && v.Timestamp_Format_String != ``) {
+			return errors.New("Timestamp-Regex and Timestamp-Format-String must both be specified, or both left unset")
+		}
+		if v.Timestamp_Regex != `` {
+			// check that it is valid
+			if _, err := timegrinder.NewUserProcessor("user", v.Timestamp_Regex, v.Timestamp_Format_String); err != nil {
+				return fmt.Errorf("Failed to parse Timestamp-Regex and Timestamp-Format-String defs: %v", err)
+			}
 		}
 		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 			return errors.New("Invalid characters in the Tag-Name for " + k)

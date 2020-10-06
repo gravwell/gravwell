@@ -43,6 +43,8 @@ type LogHandlerConfig struct {
 	IgnorePrefixes          [][]byte
 	TimestampFormatOverride string
 	TimezoneOverride        string
+	UserTimeRegex           string
+	UserTimeFormat          string
 	Logger                  logger
 	Debugger                debugOut
 	Ctx                     context.Context
@@ -79,6 +81,15 @@ func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
 		if cfg.TimezoneOverride != `` {
 			err = tg.SetTimezone(cfg.TimezoneOverride)
 			if err != nil {
+				return nil, err
+			}
+		}
+		if cfg.UserTimeRegex != `` {
+			proc, err := timegrinder.NewUserProcessor("user", cfg.UserTimeRegex, cfg.UserTimeFormat)
+			if err != nil {
+				return nil, err
+			}
+			if _, err := tg.AddProcessor(proc); err != nil {
 				return nil, err
 			}
 		}
