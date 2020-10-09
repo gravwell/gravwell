@@ -9,8 +9,10 @@
 package timegrinder
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
+	"sync"
 	"testing"
 	"time"
 )
@@ -44,6 +46,41 @@ func init() {
 func TestStart(t *testing.T) {
 	if baseTimeError != nil {
 		t.Fatal(baseTimeError)
+	}
+}
+
+func TestGlobalExtractor(t *testing.T) {
+	tests := make([]error, 8)
+	formats := []string{
+		time.UnixDate,
+		time.RubyDate,
+		time.RFC3339,
+		time.Stamp,
+		time.RFC850,
+		`2006-01-02 15:04:05`,     //dpkg
+		`Jan _2 15:04:05`,         //syslog
+		`1-2-2006 15:04:05.99999`, //gravwell format
+	}
+	var wg sync.WaitGroup
+	wg.Add(len(tests))
+	for i := range tests {
+		go func(errp *error, w *sync.WaitGroup, format string) {
+			w.Done()
+			for j := 0; j < 128; j++ {
+				if _, ok, err := Extract([]byte(time.Now().Format(format))); err != nil {
+					*errp = err
+				} else if !ok {
+					*errp = errors.New("missed extract")
+				}
+			}
+			return
+		}(&tests[i], &wg, formats[i])
+	}
+	wg.Wait()
+	for i := range tests {
+		if tests[i] != nil {
+			t.Fatalf("Failed on %q: %v", formats[i], tests[i])
+		}
 	}
 }
 

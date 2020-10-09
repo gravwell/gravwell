@@ -25,11 +25,13 @@ const (
 
 var (
 	monthLookup map[string]time.Month
+	tg          *TimeGrinder
 )
 
 func init() {
 	monthLookup = make(map[string]time.Month, 36)
 	populateMonthLookup(monthLookup)
+	tg, _ = New(Config{}) //get a default timegrinder up
 }
 
 type TimeGrinder struct {
@@ -49,6 +51,15 @@ type Config struct {
 	EnableLeftMostSeed bool
 	// FormatOverride sets a format (e.g. "AnsiC") which should be tried first during parsing.
 	FormatOverride string
+}
+
+func Extract(b []byte) (t time.Time, ok bool, err error) {
+	if tg == nil {
+		err = errors.New("not ready")
+	} else {
+		t, ok, err = tg.Extract(b)
+	}
+	return
 }
 
 // NewTimeGrinder just calls New, it is maintained for API compatability but may go away soon.  Use New.
