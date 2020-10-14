@@ -536,7 +536,6 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 			remoteTag, err := v.NegotiateTag(name)
 			if err != nil {
 				// something went wrong, kill it and let it re-initialize
-				im.Error("NegotiateTag on %v for %v: %v", v.conn.RemoteAddr(), name, err)
 				v.Close()
 				continue
 			}
