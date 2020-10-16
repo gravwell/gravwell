@@ -25,7 +25,8 @@ import (
 
 const (
 	serviceName       = `GravwellFileFollow`
-	defaultConfigName = `file_follow.cfg`
+	defaultConfigPath = `gravwell\filefollow\file_follow.cfg`
+	defaultStateLoc   = `gravwell\filefollow\file_follow.state`
 )
 
 var (
@@ -50,7 +51,7 @@ func init() {
 
 	if *configOverride == "" {
 		var err error
-		confLoc, err = winevent.ServiceFilename(defaultConfigName)
+		confLoc, err = winevent.ProgramDataFilename(defaultConfigPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to get config file path: %v\n", err)
 			os.Exit(-1)
@@ -210,4 +211,11 @@ func (dl debugLogger) Error(f string, args ...interface{}) error {
 func (dl debugLogger) Critical(f string, args ...interface{}) error {
 	errorout(f, args...)
 	return nil
+}
+
+func (g *global) verifyStateStore() (err error) {
+	if g.State_Store_Location == `` {
+		g.State_Store_Location, err = winevent.ProgramDataFilename(defaultStateLoc)
+	}
+	return
 }
