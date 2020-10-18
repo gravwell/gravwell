@@ -140,11 +140,32 @@ func newJSONReader(rdr io.Reader, igst *ingest.IngestMuxer) (*jsonReader, error)
 	}, nil
 }
 
+// we have some duplicates here so that the decoder can handle both formats
 type jsonEntry struct {
-	Timestamp time.Time
-	Src       string
-	Data      []byte
+	TS        time.Time `json:",omitempty"`
+	Timestamp time.Time `json:",omitempty"` //old way
+	SRC       net.IP    `json:",omitempty"`
+	Src       net.IP    `json:",omitempty"` //old way
 	Tag       string
+	Data      []byte
+}
+
+func (je jsonEntry) ts() (ts entry.Timestamp) {
+	if !je.TS.IsZero() {
+		ts = entry.FromStandard(je.TS)
+	} else if !je.Timestamp.IsZero() {
+		ts = entry.FromStandard(je.Timestamp)
+	}
+	return
+}
+
+func (je jsonEntry) src() (src net.IP) {
+	if len(je.SRC) > 0 {
+		src = je.SRC
+	} else if len(je.Src) > 0 {
+		src = je.Src
+	}
+	return
 }
 
 func (j *jsonReader) ReadEntry() (ent *entry.Entry, err error) {
@@ -163,8 +184,8 @@ func (j *jsonReader) ReadEntry() (ent *entry.Entry, err error) {
 		return
 	}
 	return &entry.Entry{
-		TS:   entry.FromStandard(jent.Timestamp),
-		SRC:  net.ParseIP(jent.Src),
+		TS:   jent.ts(),
+		SRC:  jent.src(),
 		Tag:  tag,
 		Data: jent.Data,
 	}, nil

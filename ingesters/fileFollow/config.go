@@ -25,8 +25,7 @@ import (
 )
 
 const (
-	MAX_CONFIG_SIZE           int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
-	defaultStateStoreLocation       = `/opt/gravwell/etc/file_follow.state`
+	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
 )
 
 var (
@@ -75,7 +74,6 @@ type cfgType struct {
 
 func GetConfig(path string) (*cfgType, error) {
 	var cr cfgReadType
-	cr.Global.Init() //initialize all the global parameters
 	if err := config.LoadConfigFile(&cr, path); err != nil {
 		return nil, err
 	}
@@ -227,19 +225,11 @@ func (f follower) TimezoneOverride() string {
 	return f.Timezone_Override
 }
 
-func (g *global) Init() {
-	if g.State_Store_Location == `` {
-		g.State_Store_Location = defaultStateStoreLocation
-	}
-}
-
 func (g *global) Verify() (err error) {
 	if err = g.IngestConfig.Verify(); err != nil {
 		return
 	}
-	if g.State_Store_Location == `` {
-		err = ErrInvalidStateStoreLocation
-	}
+	err = g.verifyStateStore()
 	return
 }
 

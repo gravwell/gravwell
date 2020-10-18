@@ -29,6 +29,7 @@ import (
 
 const (
 	defaultConfigLoc = `/opt/gravwell/etc/file_follow.conf`
+	defaultStateLoc  = `/opt/gravwell/etc/file_follow.state`
 )
 
 var (
@@ -282,4 +283,11 @@ func debugout(format string, args ...interface{}) {
 		return
 	}
 	fmt.Printf(format, args...)
+}
+
+func (g *global) verifyStateStore() (err error) {
+	if g.State_Store_Location == `` {
+		g.State_Store_Location = defaultStateLoc
+	}
+	return
 }

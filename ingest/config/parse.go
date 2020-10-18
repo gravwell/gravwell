@@ -29,8 +29,12 @@ const (
 // Thus, AppendDefaultPort("10.0.0.1", 4023) will return "10.0.0.1:4023",
 // but AppendDefaultPort("10.0.0.1:5555", 4023) will return "10.0.0.1:5555".
 func AppendDefaultPort(bstr string, defPort uint16) string {
+	// first, try to parse as a plain IP
+	if ip := net.ParseIP(bstr); ip != nil {
+		return net.JoinHostPort(bstr, strconv.FormatUint(uint64(defPort), 10))
+	}
 	if _, _, err := net.SplitHostPort(bstr); err != nil {
-		if strings.HasSuffix(err.Error(), `missing port in address`) {
+		if aerr, ok := err.(*net.AddrError); ok && aerr.Err == "missing port in address" {
 			return fmt.Sprintf("%s:%d", bstr, defPort)
 		}
 	}

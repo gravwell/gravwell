@@ -22,7 +22,7 @@ func (ic *IngestConfig) SetIngesterUUID(id uuid.UUID, loc string) (err error) {
 		return
 	}
 	//crack the config file into lines
-	lines := strings.Split(content, "\r\n")
+	lines := strings.Split(content, "\n")
 	lo := argInGlobalLines(lines, uuidParam)
 	if lo == -1 {
 		//UUID value not set, insert immediately after global
@@ -40,7 +40,7 @@ func (ic *IngestConfig) SetIngesterUUID(id uuid.UUID, loc string) (err error) {
 		return
 	}
 	ic.Ingester_UUID = id.String()
-	content = strings.Join(lines, "\r\n")
+	content = strings.Join(lines, "\n")
 	err = updateConfigFile(loc, content)
 	return
 }

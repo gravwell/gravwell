@@ -1,2 +1,0 @@
-Building the installer:
-	go-msi.exe make --version 3.2.0 --arch amd64 --msi gravwell_file_follow_3.2.0.msi --src templates
