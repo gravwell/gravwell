@@ -319,6 +319,9 @@ func (ic *IngestConfig) RateLimit() (bps int64, err error) {
 		return
 	}
 	bps, err = ParseRate(ic.Rate_Limit)
+	if bps < minThrottle {
+		err = errors.New("Ingest cannot be limited below 1mbit")
+	}
 	return
 }
 
