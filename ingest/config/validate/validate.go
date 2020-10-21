@@ -24,7 +24,7 @@ var (
 )
 
 func ValidateConfig(fnc interface{}, pth string) {
-	if !*vflag && !*vpflag {
+	if !*vflag {
 		return
 	}
 	//check the parameters
