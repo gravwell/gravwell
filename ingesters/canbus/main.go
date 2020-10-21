@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
@@ -64,6 +65,7 @@ func init() {
 		confLoc = *configOverride
 	}
 	v = *verbose
+	validate.ValidateConfig(GetConfig, confLoc) // this will exit if the flags are set
 }
 
 func main() {
