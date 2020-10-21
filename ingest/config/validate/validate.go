@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	vflag  = flag.Bool("validate", false, "Load configuration file and exit")
+	vflag = flag.Bool("validate", false, "Load configuration file and exit")
 )
 
 func ValidateConfig(fnc interface{}, pth string) {
@@ -69,5 +69,6 @@ func ValidateConfig(fnc interface{}, pth string) {
 		fmt.Printf("Config file %q returned a nil object\n", pth)
 		os.Exit(exitCode)
 	}
+	fmt.Println(pth, "is valid")
 	os.Exit(0) //all good
 }
