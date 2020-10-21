@@ -51,6 +51,7 @@ type mainService struct {
 	cachePath   string
 	cacheSize   int
 	cacheMode   string
+	lmt         int64
 }
 
 func NewService(cfg *cfgType) (*mainService, error) {
@@ -63,6 +64,11 @@ func NewService(cfg *cfgType) (*mainService, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get backend targets from configuration: %v", err)
 	}
+	lmt, err := cfg.RateLimit()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get rate limit from configuration: %w\n", err)
+	}
+
 	debugout("Acquired tags and targets\n")
 	//fire up the watch manager
 	wtchr, err := filewatch.NewWatcher(cfg.StatePath())
@@ -93,6 +99,7 @@ func NewService(cfg *cfgType) (*mainService, error) {
 		cachePath:   cfg.Ingest_Cache_Path,
 		cacheSize:   cfg.Max_Ingest_Cache,
 		cacheMode:   cfg.Cache_Mode,
+		lmt:         lmt,
 	}, nil
 }
 
@@ -183,6 +190,7 @@ func (m *mainService) init(ctx context.Context) error {
 		IngesterName:    "winfilefollow",
 		IngesterVersion: version.GetVersion(),
 		IngesterUUID:    m.uuid,
+		RateLimitBps:    m.lmt,
 		CacheDepth:      m.cacheDepth,
 		CachePath:       m.cachePath,
 		CacheSize:       m.cacheSize,

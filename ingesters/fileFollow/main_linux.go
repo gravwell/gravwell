@@ -104,6 +104,13 @@ func main() {
 		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
 	}
 
+	lmt, err := cfg.RateLimit()
+	if err != nil {
+		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		return
+	}
+	debugout("Rate limiting connection to %d bps\n", lmt)
+
 	//fire up the ingesters
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 	debugout("INSECURE skipping TLS certs verification: %v\n", cfg.InsecureSkipTLSVerification())
@@ -120,6 +127,7 @@ func main() {
 		IngesterName:       "filefollow",
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		RateLimitBps:       lmt,
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
 		Logger:             lg,
 		CacheDepth:         cfg.Cache_Depth,
