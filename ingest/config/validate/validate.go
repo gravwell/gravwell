@@ -21,7 +21,6 @@ const (
 
 var (
 	vflag  = flag.Bool("validate", false, "Load configuration file and exit")
-	vpflag = flag.Bool("print-configuration", false, "Load configuration and print it, implies validation")
 )
 
 func ValidateConfig(fnc interface{}, pth string) {
@@ -70,15 +69,5 @@ func ValidateConfig(fnc interface{}, pth string) {
 		fmt.Printf("Config file %q returned a nil object\n", pth)
 		os.Exit(exitCode)
 	}
-	if *vpflag {
-		if err = PrintConfig(obj); err != nil {
-			fmt.Printf("Failed to print configuration type %T due to %v\n", obj, err)
-		}
-	}
 	os.Exit(0) //all good
-}
-
-func PrintConfig(v interface{}) error {
-	fmt.Printf("%+v\n", v) //TODO FIX ME
-	return nil
 }
