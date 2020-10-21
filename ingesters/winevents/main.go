@@ -22,6 +22,7 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/winevent"
 )
@@ -62,6 +63,7 @@ func init() {
 		confLoc = *configOverride
 	}
 	verbose = *verboseF
+	validate.ValidateConfig(winevent.GetConfig, confLoc)
 }
 
 func main() {

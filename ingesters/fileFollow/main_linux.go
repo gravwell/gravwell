@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/filewatch"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
@@ -29,6 +30,7 @@ import (
 
 const (
 	defaultConfigLoc = `/opt/gravwell/etc/file_follow.conf`
+	defaultStateLoc  = `/opt/gravwell/etc/file_follow.state`
 )
 
 var (
@@ -72,6 +74,7 @@ func init() {
 	}
 
 	v = *verbose
+	validate.ValidateConfig(GetConfig, *confLoc)
 }
 
 func main() {
@@ -290,4 +293,11 @@ func debugout(format string, args ...interface{}) {
 		return
 	}
 	fmt.Printf(format, args...)
+}
+
+func (g *global) verifyStateStore() (err error) {
+	if g.State_Store_Location == `` {
+		g.State_Store_Location = defaultStateLoc
+	}
+	return
 }
