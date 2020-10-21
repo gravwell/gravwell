@@ -56,6 +56,7 @@ type mainService struct {
 	uuid         string
 	src          net.IP
 	ctx          context.Context
+	lmt          int64
 
 	bmk     *winevent.BookmarkHandler
 	evtSrcs []eventSrc
@@ -75,6 +76,12 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 		return nil, fmt.Errorf("Failed to get backend targets from configuration: %v", err)
 	}
 	debugout("Acquired tags and targets\n")
+
+	lmt, err := cfg.Global.RateLimit()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get rate limit from configuration: %w\n", err)
+	}
+	debugout("Rate limiting connection to %d bps\n", lmt)
 
 	chanConf, err := cfg.Streams()
 	if err != nil {
@@ -99,6 +106,7 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 		igstLogLevel: cfg.LogLevel(),
 		uuid:         id.String(),
 		pp:           cfg.Preprocessor,
+		lmt:          lmt,
 	}, nil
 }
 
@@ -282,6 +290,7 @@ func (m *mainService) init() error {
 		IngesterName:    "winevent",
 		IngesterVersion: version.GetVersion(),
 		IngesterUUID:    m.uuid,
+		RateLimitBps:    m.lmt,
 	}
 	//igCfg.IngesterVersion = versionOverride
 	if m.enableCache {
