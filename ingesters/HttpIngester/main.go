@@ -157,6 +157,9 @@ func main() {
 		igst: igst,
 		lgr:  lgr,
 	}
+	if hcurl, ok := cfg.HealthCheck(); ok {
+		hnd.healthCheckURL = hcurl
+	}
 	for _, v := range cfg.Listener {
 		var hcfg handlerConfig
 		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {

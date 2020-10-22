@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"path"
 	"sort"
 	"strings"
 
@@ -36,6 +37,7 @@ type gbl struct {
 	Max_Body             int
 	TLS_Certificate_File string
 	TLS_Key_File         string
+	Health_Check_URL     string
 }
 
 type cfgReadType struct {
@@ -104,6 +106,9 @@ func verifyConfig(c *cfgType) error {
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
 		return err
+	}
+	if hc, ok := c.HealthCheck(); ok {
+		urls[hc] = `health check`
 	}
 	for k, v := range c.Listener {
 		var pth string
@@ -199,5 +204,14 @@ func (g gbl) ValidateTLS() (err error) {
 
 func (g gbl) TLSEnabled() (r bool) {
 	r = g.TLS_Certificate_File != `` && g.TLS_Key_File != ``
+	return
+}
+
+func (g gbl) HealthCheck() (pth string, ok bool) {
+	if g.Health_Check_URL != `` {
+		if pth = path.Clean(g.Health_Check_URL); pth != `.` {
+			ok = true
+		}
+	}
 	return
 }
