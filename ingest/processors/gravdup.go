@@ -47,6 +47,7 @@ type GravwellForwarder struct {
 	GravwellForwarderConfig
 	ingest.UniformMuxerConfig
 	tm  map[entry.EntryTag]entry.EntryTag
+	hot bool
 	tgr Tagger
 	ctx context.Context
 	cf  context.CancelFunc
@@ -115,6 +116,13 @@ func (gf *GravwellForwarder) Close() error {
 }
 
 func (gf *GravwellForwarder) Process(ent *entry.Entry) (r []*entry.Entry, err error) {
+	//on first call, ensure that our muxer connection is hot
+	if !gf.hot {
+		if err = gf.mxr.WaitForHot(gf.Timeout()); err != nil {
+			return
+		}
+		gf.hot = true
+	}
 	if ent != nil {
 		var ok bool
 		lent := *ent
