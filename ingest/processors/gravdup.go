@@ -130,7 +130,9 @@ func (gf *GravwellForwarder) Process(ent *entry.Entry) (r []*entry.Entry, err er
 		if lent.Tag, ok = gf.tm[ent.Tag]; !ok {
 			//figure out what the tag name is an try to negotiate it
 			var tagname string
-			if tagname, ok = gf.tgr.LookupTag(ent.Tag); !ok {
+			if ent.Tag == entry.GravwellTagId {
+				tagname = entry.GravwellTagName
+			} else if tagname, ok = gf.tgr.LookupTag(ent.Tag); !ok {
 				err = ErrFailedTagLookup
 			} else if lent.Tag, err = gf.mxr.NegotiateTag(tagname); err == nil {
 				//negotiated, so go ahead and update our local map
