@@ -413,6 +413,11 @@ func (im *IngestMuxer) Start() error {
 	if im.state != empty || len(im.igst) != 0 {
 		return ErrNotReady
 	}
+	//if we have a cache enabled in always mode, fire it up now
+	if im.cacheEnabled && im.cacheAlways {
+		im.cache.CacheStart()
+		im.bcache.CacheStart()
+	}
 
 	//fire up the ingest routines
 	im.igst = make([]*IngestConnection, len(im.dests))
@@ -613,8 +618,6 @@ func (im *IngestMuxer) WaitForHotContext(ctx context.Context, to time.Duration) 
 	}
 	//if we have a cache enabled in always mode, just short circuit out
 	if im.cacheEnabled && im.cacheAlways {
-		im.cache.CacheStart()
-		im.bcache.CacheStart()
 		return nil
 	}
 
