@@ -23,9 +23,10 @@ const ()
 
 var (
 	verboseFlag                   = flag.Bool("v", false, "Verbose output")
+	ver                           = flag.Bool("version", false, "Print the version information and exit")
 	expireIDs       time.Duration = 48 * time.Hour
-	parentAuthors   map[string]commentToAuthor
-	cleanThreshhold int = 1000000
+	parentAuthors                 = map[string]commentToAuthor{}
+	cleanThreshhold int           = 1000000
 
 	verbose bool
 )
@@ -34,12 +35,6 @@ type commentToAuthor struct {
 	ID     string
 	Author string
 	TS     time.Time
-}
-
-func init() {
-	flag.Parse()
-	parentAuthors = map[string]commentToAuthor{}
-	verbose = *verboseFlag
 }
 
 func main() {

@@ -37,8 +37,8 @@ const (
 
 var (
 	inFile     = flag.String("i", "", "Input file to process (specify - for stdin)")
-	ver        = flag.Bool("v", false, "Print version and exit")
-	verbose    = flag.Bool("verbose", false, "Print every step")
+	ver        = flag.Bool("version", false, "Print version and exit")
+	verbose    = flag.Bool("v", false, "Print every step")
 	status     = flag.Bool("status", false, "Output ingest rate stats as we go")
 	srcOvr     = flag.String("source-override", "", "Override source with address, hash, or integeter")
 	fmtF       = flag.String("import-format", "", "Set the import file format manually")
