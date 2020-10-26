@@ -50,8 +50,7 @@ require (
 )
 
 // Leave this until https://github.com/buger/jsonparser/pull/180 is merged
-replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20191025224154-2951042f1c13
+replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20200807143944-7168565e7e04
+replace github.com/open-networks/go-msgraph => github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3
 
 // replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
-
-replace github.com/open-networks/go-msgraph => github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3
