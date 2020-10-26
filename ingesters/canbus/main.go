@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
 const (
@@ -30,6 +31,7 @@ const (
 var (
 	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
+	ver            = flag.Bool("version", false, "Print the version information and exit")
 
 	ErrInvalidPacket error = errors.New("Invalid packet")
 
@@ -59,6 +61,11 @@ type sniffer struct {
 
 func init() {
 	flag.Parse()
+	if *ver {
+		version.PrintVersion(os.Stdout)
+		ingest.PrintVersion(os.Stdout)
+		os.Exit(0)
+	}
 	if *configOverride == "" {
 		confLoc = defaultConfigLoc
 	} else {

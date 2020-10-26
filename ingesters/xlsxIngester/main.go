@@ -37,7 +37,7 @@ var (
 	tso       = flag.String("timestamp-override", "", "Timestamp override")
 	tzo       = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
 	inFile    = flag.String("i", "", "Input XLSX file to process")
-	ver       = flag.Bool("v", false, "Print version and exit")
+	ver       = flag.Bool("version", false, "Print version and exit")
 	utc       = flag.Bool("utc", false, "Assume UTC time")
 	ignoreTS  = flag.Bool("ignore-ts", false, "Ignore timetamp")
 	ignorePfx = flag.String("ignore-prefix", "", "Ignore lines that start with the prefix")

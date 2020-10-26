@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingesters/args"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/version"
 
 	"github.com/google/gopacket"
 	pcap "github.com/google/gopacket/pcapgo"
@@ -35,6 +36,7 @@ var (
 	tsOverride = flag.Bool("ts-override", false, "Override the timestamps and start them at now")
 	simIngest  = flag.Bool("no-ingest", false, "Do not ingest the packets, just read the pcap file")
 	srcOvr     = flag.String("source-override", "", "Override source with address, hash, or integeter")
+	ver        = flag.Bool("version", false, "Print the version information and exit")
 
 	pktCount uint64
 	pktSize  uint64
@@ -43,6 +45,11 @@ var (
 
 func init() {
 	flag.Parse()
+	if *ver {
+		version.PrintVersion(os.Stdout)
+		ingest.PrintVersion(os.Stdout)
+		os.Exit(0)
+	}
 
 	if *pcapFile == `` {
 		fmt.Printf("A PCAP file is required\n")
