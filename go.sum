@@ -86,6 +86,8 @@ github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3 h1:f0irndm+5FeJc
 github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3/go.mod h1:FQfGFirjPYyn2Y2iIEaAxwT6FY5pigmZVkIGhL1K2kI=
 github.com/floren/jsonparser v0.0.0-20191025224154-2951042f1c13 h1:adDuiv5zAql8Eb8i1EKeAz27X0uavB00WsDMj6jhUsw=
 github.com/floren/jsonparser v0.0.0-20191025224154-2951042f1c13/go.mod h1:errmMKH8tTB49UR2A8C8DPYkyudelsYJwJFaZHQ6ik8=
+github.com/floren/jsonparser v0.0.0-20200807143944-7168565e7e04 h1:c2d/uMuGEKuujpo8adfjGL0aYEGBQzRVzi7Ux3qbBGs=
+github.com/floren/jsonparser v0.0.0-20200807143944-7168565e7e04/go.mod h1:tgcrVJ81GPSF0mz+0nu1Xaz0fazGPrmmJfJtxjbHhUQ=
 github.com/floren/o365 v0.0.1 h1:KBGcVt63OSnKwW1KlI+M5IRV7YdQpWsD6M/7Xp1+BOM=
 github.com/floren/o365 v0.0.1/go.mod h1:+1TeJc/IBX0gGAfBf1ZHNJboVRZDNKor7sizUwEoEuM=
 github.com/fortytw2/leaktest v1.3.0 h1:u8491cBMTQ8ft8aeV+adlcytMZylmA5nnwwkRZjI8vw=

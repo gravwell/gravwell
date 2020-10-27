@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
@@ -74,6 +75,7 @@ func init() {
 
 	v = *verbose
 	connClosers = make(map[int]closer, 1)
+	validate.ValidateConfig(GetConfig, *confLoc)
 }
 
 func main() {
@@ -117,6 +119,13 @@ func main() {
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
+	lmt, err := cfg.RateLimit()
+	if err != nil {
+		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		return
+	}
+	debugout("Rate limiting connection to %d bps\n", lmt)
+
 	//fire up the ingesters
 	debugout("INSECURE skipping TLS verification: %v\n", cfg.InsecureSkipTLSVerification())
 	id, ok := cfg.IngesterUUID()
@@ -133,6 +142,7 @@ func main() {
 		IngesterName:       ingesterName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		RateLimitBps:       lmt,
 		Logger:             lg,
 		CacheDepth:         cfg.Cache_Depth,
 		CachePath:          cfg.Ingest_Cache_Path,

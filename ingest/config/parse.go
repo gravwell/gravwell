@@ -11,7 +11,6 @@ package config
 import (
 	"encoding/binary"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -48,49 +47,51 @@ type multSuff struct {
 
 var (
 	rateSuffix = []multSuff{
-		multSuff{mult: 1024, suffix: `k`},
-		multSuff{mult: 1024, suffix: `kb`},
 		multSuff{mult: 1024, suffix: `kbit`},
 		multSuff{mult: 1024, suffix: `kbps`},
-		multSuff{mult: 1024 * 1024, suffix: `m`},
-		multSuff{mult: 1024 * 1024, suffix: `mb`},
+		multSuff{mult: 1024, suffix: `Kbit`},
+		multSuff{mult: 1024, suffix: `Kbps`},
+		multSuff{mult: 8 * 1024, suffix: `KBps`},
+
 		multSuff{mult: 1024 * 1024, suffix: `mbit`},
 		multSuff{mult: 1024 * 1024, suffix: `mbps`},
-		multSuff{mult: 1024 * 1024 * 1024, suffix: `g`},
-		multSuff{mult: 1024 * 1024 * 1024, suffix: `gb`},
+		multSuff{mult: 1024 * 1024, suffix: `Mbit`},
+		multSuff{mult: 1024 * 1024, suffix: `Mbps`},
+		multSuff{mult: 8 * 1024 * 1024, suffix: `MBps`},
+
 		multSuff{mult: 1024 * 1024 * 1024, suffix: `gbit`},
 		multSuff{mult: 1024 * 1024 * 1024, suffix: `gbps`},
+		multSuff{mult: 1024 * 1024 * 1024, suffix: `Gbit`},
+		multSuff{mult: 1024 * 1024 * 1024, suffix: `Gbps`},
+		multSuff{mult: 8 * 1024 * 1024 * 1024, suffix: `GBps`},
 	}
 )
 
 // ParseRate parses a data rate, returning an integer bits per second.
 // The rate string s should consist of numbers optionally followed by one
 // of the following suffixes: k, kb, kbit, kbps, m, mb, mbit, mbps, g, gb,
-// gbit, gbps. If no suffix is present, ParseRate assumes the string specifies
+// gbit, gbps.
+// If no suffix is present, ParseRate assumes the string specifies
 // bits per second.
-func ParseRate(s string) (Bps int64, err error) {
+func ParseRate(s string) (bps int64, err error) {
 	var r uint64
 	if len(s) == 0 {
 		return
 	}
-	s = strings.ToLower(s)
 	for _, v := range rateSuffix {
 		if strings.HasSuffix(s, v.suffix) {
 			s = strings.TrimSuffix(s, v.suffix)
 			if r, err = strconv.ParseUint(s, 10, 64); err != nil {
 				return
 			}
-			Bps = (int64(r) * v.mult) / 8
+			bps = int64(r) * v.mult
 			return
 		}
 	}
 	if r, err = strconv.ParseUint(s, 10, 64); err != nil {
 		return
 	}
-	Bps = int64(r / 8)
-	if Bps < minThrottle {
-		err = errors.New("Ingest cannot be limited below 1mbit")
-	}
+	bps = int64(r)
 	return
 }
 

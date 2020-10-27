@@ -35,7 +35,7 @@ var (
 	tso     = flag.String("timestamp-override", "", "Timestamp override")
 	tzo     = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
 	inFile  = flag.String("i", "", "Input file to process (specify - for stdin)")
-	ver     = flag.Bool("v", false, "Print version and exit")
+	ver     = flag.Bool("version", false, "Print version and exit")
 	utc     = flag.Bool("utc", false, "Assume UTC time")
 	verbose = flag.Bool("verbose", false, "Print every step")
 	rexStr  = flag.String("rexp", "", "Regular expression string to perform entry breaks on")

@@ -108,9 +108,9 @@ func verifyConfig(c *cfgType) error {
 	bindMp := make(map[string]string, 1)
 	for k, v := range c.Collector {
 		if len(v.Bind_String) == 0 {
-			v.Bind_String = config.AppendDefaultPort(`0.0.0.0`, defBindPort)
 			return errors.New("No Bind-String provided for " + k)
 		}
+		v.Bind_String = config.AppendDefaultPort(v.Bind_String, defBindPort)
 		if v.Security_Level == `` {
 			v.Security_Level = defSecLevel
 		}

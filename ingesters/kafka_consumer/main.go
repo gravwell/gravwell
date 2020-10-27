@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
@@ -75,6 +76,7 @@ func handleFlags() {
 	}
 
 	v = *verbose
+	validate.ValidateConfig(GetConfig, *confLoc)
 }
 
 func main() {

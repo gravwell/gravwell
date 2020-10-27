@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
 var (
@@ -30,6 +31,7 @@ var (
 	clearConns   = flag.String("clear-conns", "", "comma seperated server:port list of cleartext targets")
 	ingestSecret = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
 	verbose      = flag.Bool("v", false, "Display verbose status updates to stdout")
+	ver          = flag.Bool("version", false, "Print the version information and exit")
 )
 
 type HNStream struct {
@@ -41,6 +43,11 @@ type HNStream struct {
 
 func init() {
 	flag.Parse()
+	if *ver {
+		version.PrintVersion(os.Stdout)
+		ingest.PrintVersion(os.Stdout)
+		os.Exit(0)
+	}
 }
 
 func main() {
