@@ -541,7 +541,7 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 			remoteTag, err := v.NegotiateTag(name)
 			if err != nil {
 				// something went wrong, kill it and let it re-initialize
-				im.LocalError("NegotiateTag on %v for %v: %v", v.conn.RemoteAddr(), name, err)
+				im.Error("NegotiateTag on %v for %v: %v", v.conn.RemoteAddr(), name, err)
 				v.Close()
 				continue
 			}
@@ -1275,7 +1275,7 @@ loop:
 			}
 			continue
 		}
-		im.LocalInfo("Connection to %v established, completing negotiation & requesting approval to ingest", tgt.Address)
+		im.Info("Connection to %v established, completing negotiation & requesting approval to ingest", tgt.Address)
 		if im.rateParent != nil {
 			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn))
 		}
