@@ -746,8 +746,7 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	if e == nil {
 		return nil
 	}
-	runok := im.state == running
-	if !runok {
+	if im.state == running {
 		return ErrNotRunning
 	}
 	im.eChan <- e
@@ -762,8 +761,7 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	if e == nil {
 		return nil
 	}
-	runok := im.state == running
-	if !runok {
+	if im.state == running {
 		return ErrNotRunning
 	}
 	select {
@@ -782,8 +780,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	if e == nil {
 		return
 	}
-	runok := im.state == running
-	if !runok {
+	if im.state == running {
 		return ErrNotRunning
 	}
 	tmr := time.NewTimer(d)
@@ -1278,6 +1275,7 @@ loop:
 			}
 			continue
 		}
+		im.LocalInfo("Connection to %v established, completing negotiation & requesting approval to ingest", tgt.Address)
 		if im.rateParent != nil {
 			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn))
 		}
@@ -1293,7 +1291,6 @@ loop:
 			continue
 		}
 		im.mtx.RUnlock()
-		im.Info("Connection to %v established, completing negotiation & requesting approval to ingest", tgt.Address)
 
 		// set the info
 		if err := ig.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
