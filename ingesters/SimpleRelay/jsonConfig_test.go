@@ -115,10 +115,10 @@ func TestLoadConfig(t *testing.T) {
 	if cfg.Secret() != `IngestSecrets` {
 		t.Fatal("invalid secret")
 	}
-	if cfg.MaxCachedData() != 1024*1024*1024 {
+	if cfg.Max_Ingest_Cache != 1024*1024*1024 {
 		t.Fatal("invalid cache size")
 	}
-	if cfg.LocalFileCachePath() != `/opt/gravwell/cache/simple_relay.cache` {
+	if cfg.Ingest_Cache_Path != `/opt/gravwell/cache/simple_relay.cache` {
 		t.Fatal("invalid cache path")
 	}
 	if len(cfg.JSONListener) != 1 {
