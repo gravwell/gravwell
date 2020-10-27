@@ -746,7 +746,7 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	if e == nil {
 		return nil
 	}
-	if im.state == running {
+	if im.state != running {
 		return ErrNotRunning
 	}
 	im.eChan <- e
@@ -761,7 +761,7 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	if e == nil {
 		return nil
 	}
-	if im.state == running {
+	if im.state != running {
 		return ErrNotRunning
 	}
 	select {
@@ -780,7 +780,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	if e == nil {
 		return
 	}
-	if im.state == running {
+	if im.state != running {
 		return ErrNotRunning
 	}
 	tmr := time.NewTimer(d)
