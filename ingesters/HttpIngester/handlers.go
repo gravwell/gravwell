@@ -30,14 +30,21 @@ type handlerConfig struct {
 }
 
 type handler struct {
-	lgr  *log.Logger
-	mp   map[string]handlerConfig
-	auth map[string]authHandler
-	igst *ingest.IngestMuxer
+	lgr            *log.Logger
+	mp             map[string]handlerConfig
+	auth           map[string]authHandler
+	igst           *ingest.IngestMuxer
+	healthCheckURL string
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+
+	//check if its just a health check
+	if h.healthCheckURL == r.URL.Path {
+		//just return, this is an implied 200
+		return
+	}
 
 	//check if the request is an authentication request
 	if ah, ok := h.auth[r.URL.Path]; ok && ah != nil {

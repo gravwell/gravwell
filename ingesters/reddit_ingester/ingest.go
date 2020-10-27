@@ -14,11 +14,13 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
 var (
@@ -45,6 +47,12 @@ type ingestWriter struct {
 
 func init() {
 	flag.Parse()
+	if *ver {
+		version.PrintVersion(os.Stdout)
+		ingest.PrintVersion(os.Stdout)
+		os.Exit(0)
+	}
+	verbose = *verboseFlag
 	timeout = time.Second * time.Duration(*timeoutSec)
 
 	if *tagName == "" {

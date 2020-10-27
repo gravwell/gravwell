@@ -114,6 +114,13 @@ func main() {
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
+	lmt, err := cfg.Global.RateLimit()
+	if err != nil {
+		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		return
+	}
+	debugout("Rate limiting connection to %d bps\n", lmt)
+
 	//fire up the ingesters
 	id, ok := cfg.Global.IngesterUUID()
 	if !ok {
@@ -129,6 +136,7 @@ func main() {
 		IngesterName:       "Microsoft Graph",
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		RateLimitBps:       lmt,
 		CacheDepth:         cfg.Global.Cache_Depth,
 		CachePath:          cfg.Global.Ingest_Cache_Path,
 		CacheSize:          cfg.Global.Max_Ingest_Cache,

@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
@@ -68,6 +69,7 @@ func init() {
 
 	v = *verbose
 	connClosers = make(map[int]closer, 1)
+	validate.ValidateConfig(GetConfig, *confLoc)
 }
 func main() {
 	if *cpuprofile != "" {

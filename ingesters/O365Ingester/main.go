@@ -23,6 +23,7 @@ import (
 
 	"github.com/floren/o365"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
@@ -53,6 +54,7 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	validate.ValidateConfig(GetConfig, *configLoc)
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {

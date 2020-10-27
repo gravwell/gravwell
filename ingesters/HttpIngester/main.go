@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/timegrinder"
@@ -74,6 +75,7 @@ func init() {
 			}
 		}
 	}
+	validate.ValidateConfig(GetConfig, *confLoc)
 }
 
 func main() {
@@ -104,6 +106,14 @@ func main() {
 	if err != nil {
 		lg.Fatal("Failed to get backend targets from configuration: %v", err)
 	}
+	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
+
+	lmt, err := cfg.RateLimit()
+	if err != nil {
+		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		return
+	}
+	debugout("Rate limiting connection to %d bps\n", lmt)
 
 	debugout("Loaded %d tags", len(tags))
 	id, ok := cfg.IngesterUUID()
@@ -121,6 +131,7 @@ func main() {
 		IngesterName:       "httppost",
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		RateLimitBps:       lmt,
 		CacheDepth:         cfg.Cache_Depth,
 		CachePath:          cfg.Ingest_Cache_Path,
 		CacheSize:          cfg.Max_Ingest_Cache,
@@ -145,6 +156,9 @@ func main() {
 		auth: map[string]authHandler{},
 		igst: igst,
 		lgr:  lgr,
+	}
+	if hcurl, ok := cfg.HealthCheck(); ok {
+		hnd.healthCheckURL = hcurl
 	}
 	for _, v := range cfg.Listener {
 		var hcfg handlerConfig
