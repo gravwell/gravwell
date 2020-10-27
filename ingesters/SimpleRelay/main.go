@@ -46,7 +46,7 @@ var (
 	lg *log.Logger
 )
 
-func handleFlags() {
+func mainInit() {
 	flag.Parse()
 	if *ver {
 		version.PrintVersion(os.Stdout)
@@ -73,7 +73,7 @@ func handleFlags() {
 }
 
 func main() {
-	handleFlags()
+	mainInit()
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
