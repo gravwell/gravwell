@@ -541,9 +541,7 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 			remoteTag, err := v.NegotiateTag(name)
 			if err != nil {
 				// something went wrong, kill it and let it re-initialize
-				im.mtx.Unlock()
-				im.Error("NegotiateTag on %v for %v: %v", v.conn.RemoteAddr(), name, err)
-				im.mtx.Lock()
+				im.LocalError("NegotiateTag on %v for %v: %v", v.conn.RemoteAddr(), name, err)
 				v.Close()
 				continue
 			}
@@ -748,9 +746,7 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	if e == nil {
 		return nil
 	}
-	im.mtx.RLock()
 	runok := im.state == running
-	im.mtx.RUnlock()
 	if !runok {
 		return ErrNotRunning
 	}
@@ -766,9 +762,7 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	if e == nil {
 		return nil
 	}
-	im.mtx.RLock()
 	runok := im.state == running
-	im.mtx.RUnlock()
 	if !runok {
 		return ErrNotRunning
 	}
@@ -788,9 +782,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	if e == nil {
 		return
 	}
-	im.mtx.RLock()
 	runok := im.state == running
-	im.mtx.RUnlock()
 	if !runok {
 		return ErrNotRunning
 	}
@@ -1268,8 +1260,8 @@ func (im *IngestMuxer) getConnection(tgt Target) (ig *IngestConnection, tt tagTr
 loop:
 	for {
 		//attempt a connection, timeouts are built in to the IngestConnection
-		im.mtx.RLock()
 		im.Info("Initializing connection to %v", tgt.Address)
+		im.mtx.RLock()
 		if ig, err = InitializeConnection(tgt.Address, tgt.Secret, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
 			im.mtx.RUnlock()
 			if isFatalConnError(err) {
@@ -1286,7 +1278,6 @@ loop:
 			}
 			continue
 		}
-		im.Info("Connection to %v established, completing negotiation & requesting approval to ingest", tgt.Address)
 		if im.rateParent != nil {
 			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn))
 		}
@@ -1302,6 +1293,7 @@ loop:
 			continue
 		}
 		im.mtx.RUnlock()
+		im.Info("Connection to %v established, completing negotiation & requesting approval to ingest", tgt.Address)
 
 		// set the info
 		if err := ig.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
