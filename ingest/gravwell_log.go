@@ -34,9 +34,6 @@ var (
 )
 
 type IngestLogger interface {
-	LocalError(string, ...interface{}) error
-	LocalWarn(string, ...interface{}) error
-	LocalInfo(string, ...interface{}) error
 	Error(string, ...interface{}) error
 	Warn(string, ...interface{}) error
 	Info(string, ...interface{}) error
@@ -71,36 +68,6 @@ func (im *IngestMuxer) Info(format string, args ...interface{}) error {
 		im.lgr.InfoWithDepth(4, format, args...)
 	}
 	return im.gravwellWriteIfHot(gravwellInfo, fmt.Sprintf(format, args...))
-}
-
-func (im *IngestMuxer) LocalError(format string, args ...interface{}) error {
-	if im.logLevel > gravwellError {
-		return nil
-	}
-	if im.lgr != nil {
-		return im.lgr.ErrorWithDepth(4, format, args...)
-	}
-	return nil
-}
-
-func (im *IngestMuxer) LocalWarn(format string, args ...interface{}) error {
-	if im.logLevel > gravwellWarn {
-		return nil
-	}
-	if im.lgr != nil {
-		return im.lgr.WarnWithDepth(4, format, args...)
-	}
-	return nil
-}
-
-func (im *IngestMuxer) LocalInfo(format string, args ...interface{}) error {
-	if im.logLevel > gravwellInfo {
-		return nil
-	}
-	if im.lgr != nil {
-		return im.lgr.InfoWithDepth(4, format, args...)
-	}
-	return nil
 }
 
 func (im *IngestMuxer) gravwellWriteIfHot(level gll, line string) (err error) {
