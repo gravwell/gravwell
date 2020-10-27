@@ -46,7 +46,7 @@ var (
 	lg *log.Logger
 )
 
-func init() {
+func mainInit() {
 	flag.Parse()
 	if *ver {
 		version.PrintVersion(os.Stdout)
@@ -71,7 +71,9 @@ func init() {
 	connClosers = make(map[int]closer, 1)
 	validate.ValidateConfig(GetConfig, *confLoc)
 }
+
 func main() {
+	mainInit()
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
