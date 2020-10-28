@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
 	"os"
@@ -374,14 +375,14 @@ func readTagCache(p string) (map[string]entry.EntryTag, error) {
 
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to open tagcache: %w", err)
 	}
 	defer f.Close()
 
 	dec := gob.NewDecoder(f)
 	err = dec.Decode(&ret)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Could not decode tagcache: %w", err)
 	}
 
 	return ret, nil
