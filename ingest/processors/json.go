@@ -29,6 +29,7 @@ const (
 var (
 	ErrMissStrictConflict   = errors.New("Strict-Extraction and Passthrough-Misses are mutually exclusive")
 	ErrMissingExtractions   = errors.New("Extractions specifications missing")
+	ErrNoAdditionalFields   = errors.New("Additional-Fields cannot be set if Extractions parameter is unset")
 	ErrInvalidExtractions   = errors.New("Invalid Extractions")
 	ErrInvalidKeyname       = errors.New("Invalid keyname")
 	ErrDuplicateKey         = errors.New("Duplicate extraction key")
@@ -267,10 +268,17 @@ func JsonArraySplitLoadConfig(vc *config.VariableConfig) (c JsonArraySplitConfig
 	return
 }
 
-func (jasc JsonArraySplitConfig) getKeyData() (key []string, keyname string, err error) {
+func (jasc *JsonArraySplitConfig) getKeyData() (key []string, keyname string, err error) {
 	if len(jasc.Extraction) == 0 {
-		err = ErrMissingExtractions
-		return
+		// This is allowed *as long as they don't specify an additional fields*
+		if len(jasc.Additional_Fields) == 0 {
+			// Set this to ensure we don't mess with the contents
+			jasc.Force_JSON_Object = false
+			return
+		} else {
+			err = ErrNoAdditionalFields
+			return
+		}
 	}
 	var flds []string
 	if flds, err = splitField(jasc.Extraction); err != nil {

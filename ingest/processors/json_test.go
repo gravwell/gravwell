@@ -39,6 +39,12 @@ var (
 	}
 
 	testArrayValues = []string{`a`, `b`, `1.4`, `{"stuff":"things"}`}
+
+	bareArrayInput  = []byte(`[{"foo":"bar"}, {"bar":"foo"}]`)
+	bareArrayValues = []string{
+		`{"foo":"bar"}`,
+		`{"bar":"foo"}`,
+	}
 )
 
 func TestJsonConfig(t *testing.T) {
@@ -205,6 +211,64 @@ func TestJsonArraySplit(t *testing.T) {
 		if string(rset[i].Data) != testJSONArrayValues[i] {
 			t.Fatalf("%d invalid return value: %s != %s", i,
 				string(rset[i].Data), testJSONArrayValues[i])
+		}
+	}
+}
+
+func TestJsonArraySplitData(t *testing.T) {
+	b := []byte(`
+	[global]
+	foo = "bar"
+	bar = 1337
+	baz = 1.337
+	foo-bar-baz="foo bar baz"
+
+	[item "A"]
+	name = "test A"
+	value = 0xA
+
+	[preprocessor "j2"]
+		type = jsonarraysplit
+		Passthrough-Misses=false
+	`)
+	tc := struct {
+		Global struct {
+			Foo         string
+			Bar         uint16
+			Baz         float32
+			Foo_Bar_Baz string
+		}
+		Item map[string]*struct {
+			Name  string
+			Value int
+		}
+		Preprocessor ProcessorConfig
+	}{}
+	if err := config.LoadConfigBytes(&tc, b); err != nil {
+		t.Fatal(err)
+	}
+	var tt testTagger
+	p, err := tc.Preprocessor.getProcessor(`j2`, &tt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p == nil {
+		t.Fatal("no processor back")
+	}
+	rset, err := p.Process(makeEntry(bareArrayInput, 123))
+	if err != nil {
+		t.Fatal(err)
+	} else if len(rset) != len(bareArrayValues) {
+		t.Fatalf("return count mismatch: %d != %d", len(rset), len(bareArrayValues))
+	}
+
+	for i := range rset {
+		if rset[i].Tag != 123 {
+			t.Fatalf("%d invalid return tag", rset[i].Tag)
+		}
+		if string(rset[i].Data) != bareArrayValues[i] {
+			t.Fatalf("%d invalid return value: %s != %s", i,
+				string(rset[i].Data), bareArrayValues[i])
 		}
 	}
 }
