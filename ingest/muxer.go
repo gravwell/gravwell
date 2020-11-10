@@ -29,6 +29,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+
+	"github.com/google/renameio"
 )
 
 const (
@@ -391,18 +393,15 @@ func readTagCache(p string) (map[string]entry.EntryTag, error) {
 func writeTagCache(t map[string]entry.EntryTag, p string) error {
 	path := filepath.Join(p, "tagcache")
 
-	f, err := os.Create(path)
+	var b bytes.Buffer
+
+	enc := gob.NewEncoder(&b)
+	err := enc.Encode(&t)
 	if err != nil {
 		return err
 	}
 
-	enc := gob.NewEncoder(f)
-	err = enc.Encode(&t)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return renameio.WriteFile(path, b.Bytes(), 0660)
 }
 
 //Start starts the connection process. This will return immediately, and does
