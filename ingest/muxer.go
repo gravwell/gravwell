@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/gob"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
 	"os"
@@ -28,6 +29,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+
+	"github.com/google/renameio"
 )
 
 const (
@@ -368,20 +371,20 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 func readTagCache(p string) (map[string]entry.EntryTag, error) {
 	ret := make(map[string]entry.EntryTag)
 	path := filepath.Join(p, "tagcache")
-	if _, err := os.Stat(path); err != nil {
+	if fi, err := os.Stat(path); err != nil || fi.Size() == 0 {
 		return ret, nil
 	}
 
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Failed to open tagcache: %w", err)
 	}
 	defer f.Close()
 
 	dec := gob.NewDecoder(f)
 	err = dec.Decode(&ret)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("Could not decode tagcache: %w", err)
 	}
 
 	return ret, nil
@@ -390,18 +393,15 @@ func readTagCache(p string) (map[string]entry.EntryTag, error) {
 func writeTagCache(t map[string]entry.EntryTag, p string) error {
 	path := filepath.Join(p, "tagcache")
 
-	f, err := os.Create(path)
+	var b bytes.Buffer
+
+	enc := gob.NewEncoder(&b)
+	err := enc.Encode(&t)
 	if err != nil {
 		return err
 	}
 
-	enc := gob.NewEncoder(f)
-	err = enc.Encode(&t)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return renameio.WriteFile(path, b.Bytes(), 0660)
 }
 
 //Start starts the connection process. This will return immediately, and does
