@@ -371,7 +371,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 func readTagCache(p string) (map[string]entry.EntryTag, error) {
 	ret := make(map[string]entry.EntryTag)
 	path := filepath.Join(p, "tagcache")
-	if _, err := os.Stat(path); err != nil {
+	if fi, err := os.Stat(path); err != nil || fi.Size() == 0 {
 		return ret, nil
 	}
 
