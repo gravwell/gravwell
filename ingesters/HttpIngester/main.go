@@ -97,7 +97,7 @@ func main() {
 	defer lgr.Close()
 	maxBody = cfg.MaxBody()
 
-	debugout("Handling %d listeners", len(cfg.Listener))
+	debugout("Handling %d listeners\n", len(cfg.Listener))
 	tags, err := cfg.Tags()
 	if err != nil {
 		lg.Fatal("Failed to load tags: %v", err)
@@ -115,7 +115,7 @@ func main() {
 	}
 	debugout("Rate limiting connection to %d bps\n", lmt)
 
-	debugout("Loaded %d tags", len(tags))
+	debugout("Loaded %d tags\n", len(tags))
 	id, ok := cfg.IngesterUUID()
 	if !ok {
 		lg.FatalCode(0, "Couldn't read ingester UUID\n")
@@ -202,6 +202,7 @@ func main() {
 			hcfg.auth = ah
 		}
 		hnd.mp[v.URL] = hcfg
+		debugout("URL %s handling %s\n", v.URL, v.Tag_Name)
 	}
 	srv := &http.Server{
 		Addr:         cfg.Bind,
@@ -213,10 +214,13 @@ func main() {
 	if cfg.TLSEnabled() {
 		c := cfg.TLS_Certificate_File
 		k := cfg.TLS_Key_File
+		debugout("Binding to %v with TLS enabled using %s/%s\n", cfg.Bind,
+			cfg.TLS_Certificate_File, cfg.TLS_Key_File)
 		if err := srv.ListenAndServeTLS(c, k); err != nil {
 			lg.Error("Failed to serve HTTPS server: %v", err)
 		}
 	} else {
+		debugout("Binding to %v in cleartext mode\n", cfg.Bind)
 		if err := srv.ListenAndServe(); err != nil {
 			lg.Error("Failed to serve HTTP server: %v", err)
 		}
