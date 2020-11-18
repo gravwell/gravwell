@@ -28,12 +28,11 @@ const (
 
 type cfgType struct {
 	Global struct {
-		Ingest_Secret              string
-		Connection_Timeout         string
-		Verify_Remote_Certificates bool
-		Cleartext_Backend_Target   []string
-		Encrypted_Backend_Target   []string
-		Pipe_Backend_Target        []string
+		Ingest_Secret            string
+		Connection_Timeout       string
+		Cleartext_Backend_Target []string
+		Encrypted_Backend_Target []string
+		Pipe_Backend_Target      []string
 	}
 	Sniffer map[string]*struct {
 		Interface       string //interface name to bind to
@@ -147,10 +146,6 @@ func (c *cfgType) Tags() ([]string, error) {
 		return nil, errors.New("No tags specified")
 	}
 	return tags, nil
-}
-
-func (c *cfgType) VerifyRemote() bool {
-	return c.Global.Verify_Remote_Certificates
 }
 
 func (c *cfgType) Timeout() time.Duration {

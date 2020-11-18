@@ -95,23 +95,22 @@ var (
 
 type IngestConfig struct {
 	IngestStreamConfig
-	Ingest_Secret              string
-	Connection_Timeout         string
-	Verify_Remote_Certificates bool //legacy, will be removed
-	Insecure_Skip_TLS_Verify   bool
-	Cleartext_Backend_Target   []string
-	Encrypted_Backend_Target   []string
-	Pipe_Backend_Target        []string
-	Log_Level                  string
-	Log_File                   string
-	Source_Override            string // override normal source if desired
-	Rate_Limit                 string
-	Ingester_UUID              string
-	Cache_Depth                int
-	Cache_Mode                 string
-	Ingest_Cache_Path          string
-	Max_Ingest_Cache           int
-	Log_Source_Override        string // override log messages only
+	Ingest_Secret            string
+	Connection_Timeout       string
+	Insecure_Skip_TLS_Verify bool
+	Cleartext_Backend_Target []string
+	Encrypted_Backend_Target []string
+	Pipe_Backend_Target      []string
+	Log_Level                string
+	Log_File                 string
+	Source_Override          string // override normal source if desired
+	Rate_Limit               string
+	Ingester_UUID            string
+	Cache_Depth              int
+	Cache_Mode               string
+	Ingest_Cache_Path        string
+	Max_Ingest_Cache         int
+	Log_Source_Override      string // override log messages only
 }
 
 type IngestStreamConfig struct {
@@ -119,10 +118,6 @@ type IngestStreamConfig struct {
 }
 
 func (ic *IngestConfig) loadDefaults() error {
-	//arrange the logic to be secure by default or when there is ambiguity
-	if ic.Verify_Remote_Certificates {
-		ic.Insecure_Skip_TLS_Verify = false
-	}
 	//Ingest secret
 	if err := LoadEnvVar(&ic.Ingest_Secret, envSecret, ``); err != nil {
 		return err

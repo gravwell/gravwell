@@ -143,10 +143,6 @@ func (c *cfgType) Tags() ([]string, error) {
 	return tags, nil
 }
 
-func (c *cfgType) VerifyRemote() bool {
-	return c.Global.Verify_Remote_Certificates
-}
-
 func (c *cfgType) Timeout() time.Duration {
 	if tos, _ := c.parseTimeout(); tos > 0 {
 		return tos

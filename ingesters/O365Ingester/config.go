@@ -136,10 +136,6 @@ func (c *cfgType) ContentTypes() (ret []string) {
 	return
 }
 
-func (c *cfgType) VerifyRemote() bool {
-	return c.Global.Verify_Remote_Certificates
-}
-
 func (c *cfgType) Timeout() time.Duration {
 	if tos, _ := c.parseTimeout(); tos > 0 {
 		return tos
