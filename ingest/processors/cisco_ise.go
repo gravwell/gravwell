@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
@@ -27,15 +28,23 @@ var (
 const (
 	CiscoISEProcessor string = `cisco_ise`
 
+	outputRaw string = `raw`
+	outputCEF string = `cef`
+
 	defaultMultipartMaxBuffer = 8 * 1024 * 1024 //8MB, which is ALOT
+
+	iseRaw = 0
+	iseCef = 1
 )
 
 type CiscoISEConfig struct {
 	Passthrough_Misses          bool
 	Enable_Multipart_Reassembly bool
-	Max_Multipart_Buffer        uint
+	Max_Multipart_Buffer        uint64
 	Max_Multipart_Latency       string
+	Output_Format               string
 	maxLatency                  time.Duration
+	format                      uint
 }
 
 func CiscoISELoadConfig(vc *config.VariableConfig) (c CiscoISEConfig, err error) {
@@ -44,21 +53,56 @@ func CiscoISELoadConfig(vc *config.VariableConfig) (c CiscoISEConfig, err error)
 	}
 	if c.Max_Multipart_Latency != `` {
 		if c.maxLatency, err = time.ParseDuration(c.Max_Multipart_Latency); err != nil {
-			err = fmt.Errorf("Invalid Max-Multipart-Latency %q: %v", c.Max_Multipart_Latency, err)
+			if err = fmt.Errorf("Invalid Max-Multipart-Latency %q: %v", c.Max_Multipart_Latency, err); err != nil {
+				return
+			}
 		}
+	}
+
+	//check if an output format has been specified and validate it
+	switch strings.ToLower(c.Output_Format) {
+	case outputCEF:
+		c.format = iseCef
+	case ``: //default is raw
+	case outputRaw:
+		c.format = iseRaw
+	default:
+		err = fmt.Errorf("Unknown output format %q", c.Output_Format)
 	}
 
 	return
 }
 
-func NewCiscoISEProcessor(cfg CiscoISEConfig) (*CiscoISE, error) {
-	return &CiscoISE{
-		CiscoISEConfig: cfg,
-	}, nil
-}
+// formatter functions
+type iseFormatter func([]byte) ([]byte, bool)
 
 type CiscoISE struct {
 	CiscoISEConfig
+	fmt iseFormatter
+	ma  *multipartAssembler
+}
+
+func NewCiscoISEProcessor(cfg CiscoISEConfig) (ise *CiscoISE, err error) {
+	var f iseFormatter
+	switch cfg.format {
+	case iseRaw:
+		f = iseRawFormatter
+	case iseCef:
+		f = iseCefFormatter
+	default:
+		err = fmt.Errorf("invalid formatter id %d", cfg.format)
+		return
+	}
+	//check if we are re-assembling
+	ise = &CiscoISE{
+		CiscoISEConfig: cfg,
+		fmt:            f,
+	}
+	if cfg.Enable_Multipart_Reassembly {
+		ise.ma = newMultipartAssembler(cfg.Max_Multipart_Buffer, cfg.maxLatency)
+	}
+
+	return
 }
 
 func (p *CiscoISE) Config(v interface{}) (err error) {
@@ -73,10 +117,27 @@ func (p *CiscoISE) Config(v interface{}) (err error) {
 }
 
 func (p *CiscoISE) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
+	if p.Enable_Multipart_Reassembly {
+		rset, err = p.processReassemble(ent)
+	} else {
+		//just attempt to reformat the entry
+		if nv, ok := p.fmt(ent.Data); ok {
+			ent.Data = nv
+		} else if !p.Passthrough_Misses {
+			//bad formatting, just skip it
+			return
+		}
+		rset = []*entry.Entry{ent}
+	}
 	return
 }
 
-func (p *CiscoISE) Close() error {
+func (p *CiscoISE) processReassemble(ent *entry.Entry) (rset []*entry.Entry, err error) {
+	//add the item to our re-assembler
+	return
+}
+
+func (p *CiscoISE) Close() (err error) {
 	return nil
 }
 
@@ -104,7 +165,7 @@ func newMultipartAssembler(maxBuff uint64, maxLatency time.Duration) *multipartA
 	}
 }
 
-func (ma *multipartAssembler) add(msg remoteISE) (val string, ejected, bad bool) {
+func (ma *multipartAssembler) add(msg remoteISE, meta interface{}) (msr messageSequenceResult, ejected, bad bool) {
 	src := msg.remoteISEHeaderSource
 	//check if we have an existing message
 	if v, ok := ma.tracker[src]; ok {
@@ -115,14 +176,14 @@ func (ma *multipartAssembler) add(msg remoteISE) (val string, ejected, bad bool)
 			return
 		} else if ejected {
 			//this is the final message, eject it
-			val = v.finalize()
+			msr = v.finalize()
 			delete(ma.tracker, src)
 			ma.total -= sz
 		} else {
 			ma.total += uint64(len(msg.body)) //add in the size
 		}
 	} else {
-		if msi, ok := newMessageSequence(msg); !ok {
+		if msi, ok := newMessageSequence(msg, meta); !ok {
 			bad = true
 			return
 		} else {
@@ -144,7 +205,7 @@ func (ma *multipartAssembler) shouldFlush() bool {
 	return false
 }
 
-func (ma *multipartAssembler) flush(force bool) (outputs []string) {
+func (ma *multipartAssembler) flush(force bool) (outputs []messageSequenceResult) {
 	var cutoff time.Time
 	var checkTime bool
 	if ma.maxLatency > 0 {
@@ -168,6 +229,11 @@ func (ma *multipartAssembler) flush(force bool) (outputs []string) {
 	return
 }
 
+type messageSequenceResult struct {
+	output string
+	meta   interface{}
+}
+
 type messageSequence struct {
 	remoteISEHeaderSource
 	size   uint64
@@ -175,10 +241,11 @@ type messageSequence struct {
 	curr   uint16
 	bodies []string
 	last   time.Time
+	meta   interface{}
 }
 
 // newMessageSequence generates a new message sequence from a given remoteISE
-func newMessageSequence(msg remoteISE) (ms *messageSequence, ok bool) {
+func newMessageSequence(msg remoteISE, meta interface{}) (ms *messageSequence, ok bool) {
 	if msg.total == 0 || msg.seq >= msg.total {
 		return // this is bad mmmkay
 	}
@@ -191,6 +258,7 @@ func newMessageSequence(msg remoteISE) (ms *messageSequence, ok bool) {
 		size:                  uint64(len(msg.body) + len(msg.host) + len(msg.cat)),
 		bodies:                bodies,
 		last:                  time.Now(),
+		meta:                  meta,
 	}
 	ok = true
 	return
@@ -218,10 +286,11 @@ func (ms *messageSequence) add(msg remoteISE) (done, bad bool) {
 	return
 }
 
-func (ms *messageSequence) finalize() (r string) {
+func (ms *messageSequence) finalize() (msr messageSequenceResult) {
 	for i := range ms.bodies {
-		r += ms.bodies[i]
+		msr.output += ms.bodies[i]
 	}
+	msr.meta = ms.meta
 	return
 }
 
@@ -281,4 +350,15 @@ func (rim *remoteISE) Parse(val string) (err error) {
 		err = fmt.Errorf("%w sequence %d > total %d", ErrInvalidRemoteISESeq, rim.seq, rim.total)
 	}
 	return
+}
+
+// iseRawFormatter is just a passthrough
+func iseRawFormatter(v []byte) ([]byte, bool) {
+	return v, true
+}
+
+// iseCefFormatter attempts to crack the message apart and reform it as a CEF message
+// this WILDLY violates the CEF spec, but so does everyone else
+func iseCefFormatter(v []byte) ([]byte, bool) {
+	return v, true
 }

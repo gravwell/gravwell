@@ -43,7 +43,7 @@ func TestRemoteAssembler(t *testing.T) {
 		if err := rih.Parse(v); err != nil {
 			t.Fatal(err)
 		}
-		output, ejected, bad := mpa.add(rih)
+		res, ejected, bad := mpa.add(rih, float64(32.0))
 		if bad {
 			t.Fatal("Bad value", v)
 		} else if ejected {
@@ -52,11 +52,15 @@ func TestRemoteAssembler(t *testing.T) {
 				t.Fatal("Invalid eject sequence", i, ejectOn)
 			}
 			//check that we got the right thing out
-			if output != mergedData {
-				t.Fatalf("Merged data is invalid:\n\t%s\n\t%s\n", output, mergedData)
+			if res.output != mergedData {
+				t.Fatalf("Merged data is invalid:\n\t%s\n\t%s\n", res.output, mergedData)
+			} else if vf, ok := res.meta.(float64); !ok || vf != 32.0 {
+				t.Fatal("Metadata object is bad")
 			}
-		} else if output != `` {
+		} else if res.output != `` {
 			t.Fatal("got output when we didn't want any")
+		} else if res.meta != nil {
+			t.Fatal("Metadata object is bad")
 		}
 	}
 
@@ -96,8 +100,12 @@ func TestRemoteAssembler(t *testing.T) {
 	}
 
 	//check that what we got out matches the stray
-	if purgeSet[0] != strayMerged {
+	if purgeSet[0].output != strayMerged {
 		t.Fatalf("Merged data is invalid:\n\t%s\n\t%s\n", purgeSet[0], strayMerged)
+	} else if purgeSet[0].meta == nil {
+		t.Fatalf("Merged meta is invalid")
+	} else if vf, ok := purgeSet[0].meta.(float64); !ok || vf != 32.0 {
+		t.Fatal("Metadata object is bad")
 	}
 
 	//force a purge
