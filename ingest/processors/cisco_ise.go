@@ -173,13 +173,20 @@ func (p *CiscoISE) processReassemble(ent *entry.Entry) (rset []*entry.Entry, err
 
 	//got a potential value, see if we have any that need to be ejected due to size or time
 	if p.ma.shouldFlush() {
-		if outputs := p.ma.flush(false); len(outputs) > 0 {
-			for _, out := range outputs {
-				if rent, ok := out.meta.(*entry.Entry); ok {
-					rent.Data = []byte(out.output)
-					if p.fmt(rent) || p.Passthrough_Misses {
-						rset = append(rset, rent)
-					}
+		if ents := p.flush(false); len(ents) > 0 {
+			rset = append(rset, ents...)
+		}
+	}
+	return
+}
+
+func (p *CiscoISE) flush(force bool) (ents []*entry.Entry) {
+	if outputs := p.ma.flush(force); len(outputs) > 0 {
+		for _, out := range outputs {
+			if rent, ok := out.meta.(*entry.Entry); ok {
+				rent.Data = []byte(out.output)
+				if p.fmt(rent) || p.Passthrough_Misses {
+					ents = append(ents, rent)
 				}
 			}
 		}
@@ -189,7 +196,7 @@ func (p *CiscoISE) processReassemble(ent *entry.Entry) (rset []*entry.Entry, err
 }
 
 func (p *CiscoISE) Flush() []*entry.Entry {
-	return nil //TODO make this do a forced flush
+	return p.flush(true)
 }
 
 func (p *CiscoISE) Close() (err error) {
@@ -269,18 +276,33 @@ func (ma *multipartAssembler) flush(force bool) (outputs []messageSequenceResult
 	}
 
 	var oldest time.Time
+	var oldestkey remoteISEHeaderSource
 	for k, v := range ma.tracker {
 		if force || (checkTime && v.last.Before(cutoff)) {
 			outputs = append(outputs, v.finalize())
 			delete(ma.tracker, k)
+			ma.total -= v.size
 		} else if oldest.IsZero() || v.last.Before(oldest) {
 			oldest = v.last
+			oldestkey = k
 		}
 	}
 	if oldest.IsZero() {
 		oldest = time.Now()
 	}
 	ma.oldest = oldest
+	if len(ma.tracker) == 0 {
+		ma.total = 0 //just to make sure we can reset properly
+	}
+
+	if ma.total > ma.max {
+		// we NEED to eject something, so eject the oldest
+		if v, ok := ma.tracker[oldestkey]; ok {
+			outputs = append(outputs, v.finalize())
+			delete(ma.tracker, oldestkey)
+			ma.total -= v.size
+		}
+	}
 	return
 }
 

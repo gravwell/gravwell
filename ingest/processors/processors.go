@@ -316,7 +316,7 @@ func (pr *ProcessorSet) Close() (err error) {
 		if v != nil {
 			for _, ent := range v.Flush() {
 				if lerr := pr.processItem(ent, i+1); lerr != nil {
-					err = lerr
+					err = addError(lerr, err)
 				}
 			}
 			if lerr := v.Close(); lerr != nil {
