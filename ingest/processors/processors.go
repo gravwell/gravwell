@@ -371,7 +371,7 @@ func (pc ProcessorConfig) Validate() (err error) {
 func (pc ProcessorConfig) CheckProcessors(set []string) (err error) {
 	for _, v := range set {
 		if _, ok := pc[v]; !ok {
-			err = fmt.Errorf("Preprocessor %v not defined", err)
+			err = fmt.Errorf("Preprocessor %v not defined", v)
 			break
 		}
 	}
