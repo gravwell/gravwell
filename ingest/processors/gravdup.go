@@ -115,6 +115,10 @@ func (gf *GravwellForwarder) Close() error {
 	return gf.mxr.Close()
 }
 
+func (gf *GravwellForwarder) Flush() []*entry.Entry {
+	return nil
+}
+
 func (gf *GravwellForwarder) Process(ent *entry.Entry) (r []*entry.Entry, err error) {
 	//on first call, ensure that our muxer connection is hot
 	if !gf.hot {

@@ -516,6 +516,10 @@ func (dp *dummyProcessor) Close() error {
 	return nil
 }
 
+func (dp *dummyProcessor) Flush() []*entry.Entry {
+	return nil
+}
+
 func (dp *dummyProcessor) Process(ent *entry.Entry) (r []*entry.Entry, err error) {
 	r = []*entry.Entry{ent}
 	return

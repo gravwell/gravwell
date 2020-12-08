@@ -9,6 +9,7 @@
 package processors
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"regexp"
@@ -22,7 +23,9 @@ import (
 
 var (
 	ErrInvalidRemoteISEHeader = errors.New("Failed to match remote ISE header")
+	ErrInvalidISEHeader       = errors.New("Failed to match ISE header")
 	ErrInvalidRemoteISESeq    = errors.New("Invalid multipart message sequence")
+	ErrInvalidISESeq          = errors.New("Invalid ISE message sequence")
 )
 
 const (
@@ -32,6 +35,8 @@ const (
 	outputCEF string = `cef`
 
 	defaultMultipartMaxBuffer = 8 * 1024 * 1024 //8MB, which is ALOT
+
+	iseTimestampFormat string = `2006-01-02 15:04:05.999999999 -07:00`
 
 	iseRaw = 0
 	iseCef = 1
@@ -134,7 +139,40 @@ func (p *CiscoISE) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 
 func (p *CiscoISE) processReassemble(ent *entry.Entry) (rset []*entry.Entry, err error) {
 	//add the item to our re-assembler
+	var rmsg remoteISE
+	if err = rmsg.Parse(string(ent.Data)); err != nil {
+		err = nil // do not pass parsing errors up
+		if p.Passthrough_Misses {
+			rset = []*entry.Entry{ent}
+		}
+	} else if msr, ejected, bad := p.ma.add(rmsg, ent); bad {
+		if p.Passthrough_Misses {
+			rset = []*entry.Entry{ent}
+		}
+	} else if ejected {
+		if rent, ok := msr.meta.(*entry.Entry); ok {
+			rent.Data = []byte(msr.output)
+			rset = []*entry.Entry{ent}
+		}
+	}
+
+	//got a potential value, see if we have any that need to be ejected due to size or time
+	if p.ma.shouldFlush() {
+		if outputs := p.ma.flush(false); len(outputs) > 0 {
+			for _, out := range outputs {
+				if rent, ok := out.meta.(*entry.Entry); ok {
+					rent.Data = []byte(out.output)
+					rset = append(rset, rent)
+				}
+			}
+		}
+	}
+
 	return
+}
+
+func (p *CiscoISE) Flush() []*entry.Entry {
+	return nil //TODO make this do a forced flush
 }
 
 func (p *CiscoISE) Close() (err error) {
@@ -296,8 +334,8 @@ func (ms *messageSequence) finalize() (msr messageSequenceResult) {
 
 var (
 	//setup remote header extraction RX (see https://www.cisco.com/c/en/us/td/docs/security/ise/syslog/Cisco_ISE_Syslogs/m_IntrotoSyslogs.pdf page 4)
-	remoteHeaderRx          = regexp.MustCompile(`^(?P<ts>\S+\s\d+\s\d+\:\d+\:\d+)\s(?P<host>\S+)\s(?P<cat>\S+)\s(?P<msgid>\d+)\s(?P<total>\d+)\s(?P<seq>\d+)\s(?P<body>.+)$`)
-	remoteHeaderRxParts int = 8
+	remoteHeaderRx          = regexp.MustCompile(`^(?P<ts>\S+\s\d+\s\d+\:\d+\:\d+)(\s[-+]?\d+:\d+)?\s(?P<host>\S+)\s(?P<cat>\S+)\s(?P<msgid>\d+)\s(?P<total>\d+)\s(?P<seq>\d+)\s(?P<body>.+)$`)
+	remoteHeaderRxParts int = 9
 )
 
 // remoteISEHeaderSource is the sub structure that represents a specific message category
@@ -315,6 +353,7 @@ type remoteISE struct {
 	body  string
 }
 
+// Parse will extract the remote ISE message header and body, we do NOT handle the timestamp here, it is discarded
 func (rim *remoteISE) Parse(val string) (err error) {
 	var v uint64
 	r := remoteHeaderRx.FindStringSubmatch(val)
@@ -323,7 +362,7 @@ func (rim *remoteISE) Parse(val string) (err error) {
 		return
 	}
 	//skip past the complete match and grab the string values, we are skipping the timestamp on multipart messages
-	r = r[2:]
+	r = r[3:] //bits are 0:complete match 1:timestamp 2: optional timezone
 	rim.host = r[0]
 	rim.cat = r[1]
 	//id uint32/3
@@ -352,7 +391,149 @@ func (rim *remoteISE) Parse(val string) (err error) {
 	return
 }
 
-// iseRawFormatter is just a passthrough
+var (
+	iseHeaderRx          = regexp.MustCompile(`^(?P<ts>\d+\-\d+\-\d+\s\d+\:\d+\:\d+(\.\d+)?(\s[-+]?\d+:\d+)?)\s(?P<seq>\d+)\s(?P<ode>\S+)\s(?P<sev>\S+)\s(?P<class>[^\:]+)\:\s(?P<body>.+)$`)
+	iseHeaderRxParts int = 9
+)
+
+type iseMessage struct {
+	ts    time.Time
+	seq   uint32
+	ode   string
+	sev   string
+	class string
+	text  string
+	attrs []iseKV
+}
+
+type iseKV struct {
+	key   string
+	value string
+}
+
+func (m *iseMessage) Parse(raw string) (err error) {
+	var v uint64
+	r := iseHeaderRx.FindStringSubmatch(raw)
+	if len(r) != (iseHeaderRxParts) {
+		err = ErrInvalidISEHeader
+		return
+	}
+	//skip past the total match
+	r = r[1:]
+
+	//parse the timestamp
+	if m.ts, err = time.Parse(iseTimestampFormat, r[0]); err != nil {
+		err = fmt.Errorf("Invalid ISE timestamp %w", err)
+		return
+	}
+
+	//skip past the timestamp chunks
+	r = r[3:]
+
+	//grab the seq
+	if v, err = strconv.ParseUint(r[0], 10, 32); err != nil {
+		err = fmt.Errorf("%w %v", ErrInvalidISEHeader, err)
+		return
+	}
+	m.seq = uint32(v)
+
+	//grab the ODE, severity, and class
+	m.ode = r[1]
+	m.sev = r[2]
+	m.class = r[3]
+
+	//get the body up and start cracking it
+	body := []byte(r[4])
+
+	//read the text message
+	idx := indexOfNonEscapedComma(body)
+	if idx == -1 {
+		//no attributes, assign text and bail
+		m.text = r[4]
+		return
+	} else {
+		m.text = string(body[:idx])
+		body = body[idx+1:]
+	}
+
+	// start feeding on attributes
+	for len(body) > 0 {
+		var kv iseKV
+		idx = indexOfNonEscapedComma(body)
+		if idx == -1 {
+			//end of body, we are bailing one way or another
+			if kv.parse(body) {
+				m.attrs = append(m.attrs, kv)
+			}
+			break
+		}
+		if kv.parse(body[:idx]) {
+			m.attrs = append(m.attrs, kv)
+		}
+		body = body[idx+1:]
+	}
+
+	return
+}
+
+func (m *iseMessage) equal(n *iseMessage) bool {
+	if m == n {
+		return true
+	} else if m == nil || n == nil {
+		return false
+	}
+	if !m.ts.Equal(n.ts) {
+		return false
+	}
+	if m.seq != n.seq || m.ode != n.ode || m.sev != n.sev || m.class != n.class || m.text != n.text {
+		return false
+	}
+	if len(m.attrs) != len(n.attrs) {
+		return false
+	}
+	for i, v := range m.attrs {
+		if v != n.attrs[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func (kv *iseKV) parse(val []byte) bool {
+	idx := bytes.IndexByte(val, '=')
+	if idx == -1 {
+		return false
+	}
+	kv.key = string(bytes.Trim(val[0:idx], "\n\t "))
+	kv.value = string(bytes.Trim(val[idx+1:], "\n\t "))
+	return true
+}
+
+func indexOfNonEscapedComma(data []byte) (r int) {
+	var idx int
+	var offset int
+	r = -1
+	for {
+		if idx = bytes.IndexByte(data[offset:], ','); idx < 0 {
+			//never found it, just return
+			break
+		} else if idx == 0 {
+			r = offset
+			break
+		}
+		//ok, index is > 0 so check if its escaped
+		if data[offset+idx-1] != '\\' {
+			//not escaped, set r and break
+			r = offset + idx
+			break
+		}
+		//advance offset and continue, this is escaped
+		offset += idx + 1 //advance past the comma
+	}
+	return
+}
+
+// iseRawFormatter is just a passthrough, send as is
 func iseRawFormatter(v []byte) ([]byte, bool) {
 	return v, true
 }

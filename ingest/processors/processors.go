@@ -47,7 +47,8 @@ type ProcessorConfig map[string]*config.VariableConfig
 // Processor is an interface that takes an entry and processes it, returning a new block
 type Processor interface {
 	Process(*entry.Entry) ([]*entry.Entry, error) //process an data item potentially setting a tag
-	Close() error                                 //give the processor a chance to tide up
+	Flush() []*entry.Entry
+	Close() error //give the processor a chance to tidy up
 }
 
 func CheckProcessor(id string) error {
@@ -366,6 +367,10 @@ func (pc ProcessorConfig) CheckProcessors(set []string) (err error) {
 type nocloser struct{}
 
 func (n nocloser) Close() error {
+	return nil
+}
+
+func (n nocloser) Flush() []*entry.Entry {
 	return nil
 }
 
