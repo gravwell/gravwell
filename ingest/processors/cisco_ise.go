@@ -10,6 +10,7 @@ package processors
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"regexp"
@@ -31,15 +32,17 @@ var (
 const (
 	CiscoISEProcessor string = `cisco_ise`
 
-	outputRaw string = `raw`
-	outputCEF string = `cef`
+	outputRaw  string = `raw`
+	outputCEF  string = `cef`
+	outputJSON string = `json`
 
 	defaultMultipartMaxBuffer = 8 * 1024 * 1024 //8MB, which is ALOT
 
 	iseTimestampFormat string = `2006-01-02 15:04:05.999999999 -07:00`
 
-	iseRaw = 0
-	iseCef = 1
+	iseRaw  = 0
+	iseCef  = 1
+	iseJSON = 2
 )
 
 type CiscoISEConfig struct {
@@ -56,6 +59,11 @@ func CiscoISELoadConfig(vc *config.VariableConfig) (c CiscoISEConfig, err error)
 	if err = vc.MapTo(&c); err != nil {
 		return
 	}
+	err = c.validate()
+	return
+}
+
+func (c *CiscoISEConfig) validate() (err error) {
 	if c.Max_Multipart_Latency != `` {
 		if c.maxLatency, err = time.ParseDuration(c.Max_Multipart_Latency); err != nil {
 			if err = fmt.Errorf("Invalid Max-Multipart-Latency %q: %v", c.Max_Multipart_Latency, err); err != nil {
@@ -66,6 +74,8 @@ func CiscoISELoadConfig(vc *config.VariableConfig) (c CiscoISEConfig, err error)
 
 	//check if an output format has been specified and validate it
 	switch strings.ToLower(c.Output_Format) {
+	case outputJSON:
+		c.format = iseJSON
 	case outputCEF:
 		c.format = iseCef
 	case ``: //default is raw
@@ -79,7 +89,7 @@ func CiscoISELoadConfig(vc *config.VariableConfig) (c CiscoISEConfig, err error)
 }
 
 // formatter functions
-type iseFormatter func([]byte) ([]byte, bool)
+type iseFormatter func(*entry.Entry) bool
 
 type CiscoISE struct {
 	CiscoISEConfig
@@ -88,8 +98,13 @@ type CiscoISE struct {
 }
 
 func NewCiscoISEProcessor(cfg CiscoISEConfig) (ise *CiscoISE, err error) {
+	if err = cfg.validate(); err != nil {
+		return
+	}
 	var f iseFormatter
 	switch cfg.format {
+	case iseJSON:
+		f = iseJSONFormatter
 	case iseRaw:
 		f = iseRawFormatter
 	case iseCef:
@@ -126,10 +141,8 @@ func (p *CiscoISE) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 		rset, err = p.processReassemble(ent)
 	} else {
 		//just attempt to reformat the entry
-		if nv, ok := p.fmt(ent.Data); ok {
-			ent.Data = nv
-		} else if !p.Passthrough_Misses {
-			//bad formatting, just skip it
+		if !p.fmt(ent) && !p.Passthrough_Misses {
+			//bad formatting and no passthrough, just skip it
 			return
 		}
 		rset = []*entry.Entry{ent}
@@ -152,7 +165,9 @@ func (p *CiscoISE) processReassemble(ent *entry.Entry) (rset []*entry.Entry, err
 	} else if ejected {
 		if rent, ok := msr.meta.(*entry.Entry); ok {
 			rent.Data = []byte(msr.output)
-			rset = []*entry.Entry{ent}
+			if p.fmt(rent) || p.Passthrough_Misses {
+				rset = []*entry.Entry{rent}
+			}
 		}
 	}
 
@@ -162,7 +177,9 @@ func (p *CiscoISE) processReassemble(ent *entry.Entry) (rset []*entry.Entry, err
 			for _, out := range outputs {
 				if rent, ok := out.meta.(*entry.Entry); ok {
 					rent.Data = []byte(out.output)
-					rset = append(rset, rent)
+					if p.fmt(rent) || p.Passthrough_Misses {
+						rset = append(rset, rent)
+					}
 				}
 			}
 		}
@@ -534,12 +551,82 @@ func indexOfNonEscapedComma(data []byte) (r int) {
 }
 
 // iseRawFormatter is just a passthrough, send as is
-func iseRawFormatter(v []byte) ([]byte, bool) {
-	return v, true
+func iseRawFormatter(ent *entry.Entry) bool {
+	return true
 }
 
 // iseCefFormatter attempts to crack the message apart and reform it as a CEF message
 // this WILDLY violates the CEF spec, but so does everyone else
-func iseCefFormatter(v []byte) ([]byte, bool) {
-	return v, true
+func iseCefFormatter(ent *entry.Entry) bool {
+	var msg iseMessage
+	if err := msg.Parse(string(ent.Data)); err != nil {
+		return false
+	}
+	//update the timestamp
+	ent.TS = entry.FromStandard(msg.ts)
+	ent.Data = msg.formatAsCEF()
+	return true
+}
+
+func (m *iseMessage) formatAsCEF() []byte {
+	var b strings.Builder
+	fmt.Fprintf(&b, "CEF:0|CISCO|ISE_DEVICE|||%s|%s| sequence=%d ode=%s class=%s text=%s",
+		m.class, m.sev, m.seq, m.ode, m.class, m.text)
+	for _, attr := range m.attrs {
+		fmt.Fprintf(&b, " %s=%s",
+			strings.ReplaceAll(attr.key, " ", ""),      //replace all spaces in keys
+			strings.ReplaceAll(attr.value, "=", "\\=")) //replace all equal signs in values
+	}
+	return []byte(b.String())
+}
+
+// iseJSONFormatter attempts to crack the message apart and reform it as a JSON object
+func iseJSONFormatter(ent *entry.Entry) bool {
+	var msg iseMessage
+	if err := msg.Parse(string(ent.Data)); err != nil {
+		return false
+	}
+	if v, err := json.Marshal(msg); err == nil {
+		ent.Data = v
+		ent.TS = entry.FromStandard(msg.ts)
+		return true
+	}
+	return false
+}
+
+func (m iseMessage) MarshalJSON() ([]byte, error) {
+	return json.Marshal(struct {
+		TS         time.Time
+		Sequence   uint32
+		ODE        string
+		Severity   string
+		Class      string
+		Text       string
+		Attributes kvAttrs
+	}{
+		TS:         m.ts,
+		Sequence:   m.seq,
+		ODE:        m.ode,
+		Severity:   m.sev,
+		Class:      m.class,
+		Text:       m.text,
+		Attributes: kvAttrs(m.attrs),
+	})
+}
+
+type kvAttrs []iseKV
+
+func (kv kvAttrs) MarshalJSON() ([]byte, error) {
+	var sb strings.Builder
+	sb.WriteString("{")
+	end := len(kv) - 1
+	for i, v := range kv {
+		if i == end {
+			fmt.Fprintf(&sb, "%q:%q", v.key, v.value)
+		} else {
+			fmt.Fprintf(&sb, "%q:%q, ", v.key, v.value)
+		}
+	}
+	sb.WriteString("}")
+	return []byte(sb.String()), nil
 }
