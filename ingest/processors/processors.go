@@ -312,8 +312,13 @@ func (pr *ProcessorSet) processItemContext(ent *entry.Entry, i int, ctx context.
 // This function DOES NOT close the ingest muxer handle.
 // It is ONLY for shutting down preprocessors
 func (pr *ProcessorSet) Close() (err error) {
-	for _, v := range pr.set {
+	for i, v := range pr.set {
 		if v != nil {
+			for _, ent := range v.Flush() {
+				if lerr := pr.processItem(ent, i+1); lerr != nil {
+					err = lerr
+				}
+			}
 			if lerr := v.Close(); lerr != nil {
 				err = addError(lerr, err)
 			}
