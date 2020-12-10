@@ -20,6 +20,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/minio/minio/pkg/wildcard"
 )
 
 var (
@@ -51,6 +52,8 @@ type CiscoISEConfig struct {
 	Max_Multipart_Buffer        uint64
 	Max_Multipart_Latency       string
 	Output_Format               string
+	Attribute_Drop_Filter       []string
+	Attribute_Strip_Header      bool
 	maxLatency                  time.Duration
 	format                      uint
 }
@@ -81,6 +84,12 @@ func (c *CiscoISEConfig) validate() (err error) {
 	case ``: //default is raw
 	case outputRaw:
 		c.format = iseRaw
+		//ensure there are not any filters specified
+		if len(c.Attribute_Drop_Filter) > 0 {
+			err = fmt.Errorf("The %s Output-Format is not compatible with Attribute-Drop-Filters", c.Output_Format)
+		} else if c.Attribute_Strip_Header {
+			err = fmt.Errorf("The %s Output-Format is not compatible with Attribute-Strip-Header", c.Output_Format)
+		}
 	default:
 		err = fmt.Errorf("Unknown output format %q", c.Output_Format)
 	}
@@ -89,7 +98,7 @@ func (c *CiscoISEConfig) validate() (err error) {
 }
 
 // formatter functions
-type iseFormatter func(*entry.Entry) bool
+type iseFormatter func(*entry.Entry, []string, bool) bool
 
 type CiscoISE struct {
 	CiscoISEConfig
@@ -141,7 +150,7 @@ func (p *CiscoISE) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 		rset, err = p.processReassemble(ent)
 	} else {
 		//just attempt to reformat the entry
-		if !p.fmt(ent) && !p.Passthrough_Misses {
+		if !p.fmt(ent, p.Attribute_Drop_Filter, p.Attribute_Strip_Header) && !p.Passthrough_Misses {
 			//bad formatting and no passthrough, just skip it
 			return
 		}
@@ -165,7 +174,7 @@ func (p *CiscoISE) processReassemble(ent *entry.Entry) (rset []*entry.Entry, err
 	} else if ejected {
 		if rent, ok := msr.meta.(*entry.Entry); ok {
 			rent.Data = []byte(msr.output)
-			if p.fmt(rent) || p.Passthrough_Misses {
+			if p.fmt(rent, p.Attribute_Drop_Filter, p.Attribute_Strip_Header) || p.Passthrough_Misses {
 				rset = []*entry.Entry{rent}
 			}
 		}
@@ -185,7 +194,7 @@ func (p *CiscoISE) flush(force bool) (ents []*entry.Entry) {
 		for _, out := range outputs {
 			if rent, ok := out.meta.(*entry.Entry); ok {
 				rent.Data = []byte(out.output)
-				if p.fmt(rent) || p.Passthrough_Misses {
+				if p.fmt(rent, p.Attribute_Drop_Filter, p.Attribute_Strip_Header) || p.Passthrough_Misses {
 					ents = append(ents, rent)
 				}
 			}
@@ -450,7 +459,7 @@ type iseKV struct {
 	value string
 }
 
-func (m *iseMessage) Parse(raw string) (err error) {
+func (m *iseMessage) Parse(raw string, attribFilters []string, stripHeaders bool) (err error) {
 	var v uint64
 	r := iseHeaderRx.FindStringSubmatch(raw)
 	if len(r) != (iseHeaderRxParts) {
@@ -485,7 +494,7 @@ func (m *iseMessage) Parse(raw string) (err error) {
 	body := []byte(r[4])
 
 	//read the text message
-	idx := indexOfNonEscapedComma(body)
+	idx := indexOfNonEscaped(body, ',')
 	if idx == -1 {
 		//no attributes, assign text and bail
 		m.text = r[4]
@@ -498,15 +507,15 @@ func (m *iseMessage) Parse(raw string) (err error) {
 	// start feeding on attributes
 	for len(body) > 0 {
 		var kv iseKV
-		idx = indexOfNonEscapedComma(body)
+		idx = indexOfNonEscaped(body, ',')
 		if idx == -1 {
 			//end of body, we are bailing one way or another
-			if kv.parse(body) {
+			if kv.parse(body, attribFilters, stripHeaders) {
 				m.attrs = append(m.attrs, kv)
 			}
 			break
 		}
-		if kv.parse(body[:idx]) {
+		if kv.parse(body[:idx], attribFilters, stripHeaders) {
 			m.attrs = append(m.attrs, kv)
 		}
 		body = body[idx+1:]
@@ -538,22 +547,50 @@ func (m *iseMessage) equal(n *iseMessage) bool {
 	return true
 }
 
-func (kv *iseKV) parse(val []byte) bool {
-	idx := bytes.IndexByte(val, '=')
-	if idx == -1 {
+func (kv *iseKV) parse(val []byte, filters []string, stripHeaders bool) bool {
+	val = bytes.TrimSpace(val)
+	//check if this is attribute is filtered
+	if filtered(string(val), filters) {
 		return false
 	}
-	kv.key = string(bytes.Trim(val[0:idx], "\n\t "))
-	kv.value = string(bytes.Trim(val[idx+1:], "\n\t "))
+	if idx := indexOfNonEscaped(val, '='); idx == -1 {
+		return false
+	} else {
+		kv.key = string(bytes.TrimSpace(val[0:idx]))
+		kv.value = string(bytes.TrimSpace(val[idx+1:]))
+	}
+	if stripHeaders {
+		kv.stripHeaders()
+	}
 	return true
 }
 
-func indexOfNonEscapedComma(data []byte) (r int) {
+func (kv *iseKV) stripHeaders() {
+	//check if the value leads with any of our no-no characters
+	if len(kv.value) == 0 {
+		return //short circuit out
+	}
+	val := []byte(kv.value)
+	key := kv.key
+	if val[0] == '(' || val[0] == '{' {
+		return //nope
+	}
+	//iterate in
+	for idx := indexOfNonEscaped(val, '='); idx != -1 && idx != 0; idx = indexOfNonEscaped(val, '=') {
+		key = string(val[:idx])
+		val = val[idx+1:]
+	}
+	kv.key = key
+	kv.value = string(val)
+	return
+}
+
+func indexOfNonEscaped(data []byte, delim byte) (r int) {
 	var idx int
 	var offset int
 	r = -1
 	for {
-		if idx = bytes.IndexByte(data[offset:], ','); idx < 0 {
+		if idx = bytes.IndexByte(data[offset:], delim); idx < 0 {
 			//never found it, just return
 			break
 		} else if idx == 0 {
@@ -573,15 +610,15 @@ func indexOfNonEscapedComma(data []byte) (r int) {
 }
 
 // iseRawFormatter is just a passthrough, send as is
-func iseRawFormatter(ent *entry.Entry) bool {
+func iseRawFormatter(ent *entry.Entry, filters []string, stripHeaders bool) bool {
 	return true
 }
 
 // iseCefFormatter attempts to crack the message apart and reform it as a CEF message
 // this WILDLY violates the CEF spec, but so does everyone else
-func iseCefFormatter(ent *entry.Entry) bool {
+func iseCefFormatter(ent *entry.Entry, filters []string, stripHeaders bool) bool {
 	var msg iseMessage
-	if err := msg.Parse(string(ent.Data)); err != nil {
+	if err := msg.Parse(string(ent.Data), filters, stripHeaders); err != nil {
 		return false
 	}
 	//update the timestamp
@@ -603,9 +640,9 @@ func (m *iseMessage) formatAsCEF() []byte {
 }
 
 // iseJSONFormatter attempts to crack the message apart and reform it as a JSON object
-func iseJSONFormatter(ent *entry.Entry) bool {
+func iseJSONFormatter(ent *entry.Entry, filters []string, stripHeaders bool) bool {
 	var msg iseMessage
-	if err := msg.Parse(string(ent.Data)); err != nil {
+	if err := msg.Parse(string(ent.Data), filters, stripHeaders); err != nil {
 		return false
 	}
 	if v, err := json.Marshal(msg); err == nil {
@@ -651,4 +688,13 @@ func (kv kvAttrs) MarshalJSON() ([]byte, error) {
 	}
 	sb.WriteString("}")
 	return []byte(sb.String()), nil
+}
+
+func filtered(v string, filters []string) bool {
+	for _, f := range filters {
+		if wildcard.Match(f, v) {
+			return true
+		}
+	}
+	return false
 }
