@@ -11,6 +11,7 @@ package ingest
 import (
 	"bufio"
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -87,6 +88,7 @@ type EntryReader struct {
 	igVersion    string
 	igUUID       string
 	igAPIVersion uint16
+	igState      IngesterState // the most recent state message received
 }
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
@@ -127,6 +129,11 @@ func (er *EntryReader) GetIngesterInfo() (string, string, string) {
 
 func (er *EntryReader) GetIngesterAPIVersion() uint16 {
 	return er.igAPIVersion
+}
+
+// GetIngesterState returns the most recent state object received from the ingester.
+func (er *EntryReader) GetIngesterState() IngesterState {
+	return er.igState
 }
 
 // configureStream will
@@ -337,6 +344,39 @@ headerLoop:
 					er.ackChan <- ackCommand{cmd: CONFIRM_TAG_MAGIC, val: uint64(tg)}
 				}
 			}
+			continue
+		case INGESTER_STATE_MAGIC:
+			// read length of buffer
+			n, err = io.ReadFull(er.bIO, er.buff[0:4])
+			if err != nil {
+				return err
+			}
+			if n < 4 {
+				return errFailedFullRead
+			}
+			length := binary.LittleEndian.Uint32(er.buff[0:4])
+			stateBuff := make([]byte, length)
+			n, err = io.ReadFull(er.bIO, stateBuff)
+			if err != nil {
+				return err
+			}
+			if n < int(length) {
+				return errFailedFullRead
+			}
+
+			// Just send a confirmation
+			er.ackChan <- ackCommand{cmd: CONFIRM_INGESTER_STATE_MAGIC}
+
+			// Decode
+			var state IngesterState
+			if err = json.Unmarshal(stateBuff, &state); err != nil {
+				// ignore it, it's just a state message
+				continue
+			}
+
+			// store it for later retrieval
+			er.igState = state
+
 			continue
 		default: //we should probably bail out if we get desynced
 			continue
@@ -720,6 +760,8 @@ func (ac ackCommand) size() int {
 		return 4
 	case CONFIRM_INGEST_OK_MAGIC:
 		return 4
+	case CONFIRM_INGESTER_STATE_MAGIC:
+		return 4
 	}
 	return 0
 }
@@ -766,6 +808,10 @@ func (ac ackCommand) encode(b []byte) (n int, flush bool, err error) {
 		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
 		binary.LittleEndian.PutUint64(b[4:], ac.val)
 		n += 12
+		flush = true
+	case CONFIRM_INGESTER_STATE_MAGIC:
+		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
+		n += 4
 		flush = true
 	default:
 		err = errUnknownCommand
@@ -815,6 +861,8 @@ func (ac *ackCommand) decode(rdr *bufio.Reader, blocking bool) (ok bool, err err
 			return
 		}
 		ac.val = binary.LittleEndian.Uint64(val)
+		ok = true
+	case CONFIRM_INGESTER_STATE_MAGIC:
 		ok = true
 	default:
 		err = errUnknownCommand

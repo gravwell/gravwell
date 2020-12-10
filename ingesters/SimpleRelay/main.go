@@ -153,9 +153,9 @@ func main() {
 		lg.Fatal("Failed build our ingest system: %v\n", err)
 		return
 	}
-
 	defer igst.Close()
 	debugout("Started ingester muxer\n")
+
 	if err := igst.Start(); err != nil {
 		lg.Fatal("Failed start our ingest system: %v\n", err)
 		return
@@ -166,6 +166,17 @@ func main() {
 		return
 	}
 	debugout("Successfully connected to ingesters\n")
+
+	// prepare the configuration we're going to send upstream
+	cmap := map[string]interface{}{
+		"Listener":     cfg.Listener,
+		"JSONListener": cfg.JSONListener,
+	}
+	err = igst.SetRawConfiguration(cmap)
+	if err != nil {
+		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+	}
+
 	wg := &sync.WaitGroup{}
 
 	var flshr flusher
