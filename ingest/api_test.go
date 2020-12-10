@@ -81,3 +81,20 @@ func TestStreamConfiguration(t *testing.T) {
 		t.Fatalf("ReadWrite failure: %+v != %+v\n", x, y)
 	}
 }
+
+func TestIngestState(t *testing.T) {
+	bb := bytes.NewBuffer(make([]byte, 0, 64))
+	x := IngesterState{
+		Name: "foobar",
+	}
+	var y IngesterState
+	if err := x.Write(bb); err != nil {
+		t.Fatal(err)
+	}
+	if err := y.Read(bb); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(x, y) {
+		t.Fatalf("ReadWrite failure: %+v != %+v\n", x, y)
+	}
+}

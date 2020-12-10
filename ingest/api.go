@@ -10,28 +10,32 @@ package ingest
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"strings"
 )
 
 const (
 	//MAJOR API VERSIONS should always be compatible, there just may be additional features
 	API_VERSION_MAJOR uint32 = 0
-	API_VERSION_MINOR uint32 = 5
+	API_VERSION_MINOR uint32 = 6
 )
 
 const (
 	configurationBlockSize          uint32          = 1
 	maxStreamConfigurationBlockSize uint32          = 1024 * 1024 //just a sanity check
+	maxIngestStateSize              uint32          = 1024 * 1024 * 1024
 	CompressNone                    CompressionType = 0
 	CompressSnappy                  CompressionType = 0x10
 )
 
 var (
-	ErrInvalidBuffer      = errors.New("invalid buffer")
-	ErrInvalidConfigBlock = errors.New("Invalid configuration block size")
+	ErrInvalidBuffer            = errors.New("invalid buffer")
+	ErrInvalidIngestStateHeader = errors.New("Invalid ingest state header")
+	ErrInvalidConfigBlock       = errors.New("Invalid configuration block size")
 )
 
 type CompressionType uint8
@@ -140,5 +144,72 @@ func ParseCompression(v string) (ct CompressionType, err error) {
 	default:
 		err = fmt.Errorf("Unknown compression type %q", v)
 	}
+	return
+}
+
+type IngesterState struct {
+	UUID          string
+	Name          string
+	Version       string
+	IP            net.IP //child IP, won't be populated unless in child
+	Entries       uint64
+	CacheState    string
+	CacheSize     uint64
+	Children      map[string]IngesterState
+	Configuration json.RawMessage `json:",omitempty"`
+	Metadata      string
+}
+
+func (s *IngesterState) Write(wtr io.Writer) (err error) {
+	// First, encode to JSON
+	var data []byte
+	if data, err = json.Marshal(s); err != nil {
+		return err
+	}
+
+	// Now send the size
+	var n int
+	buff := make([]byte, 4)
+	binary.LittleEndian.PutUint32(buff, uint32(len(data)))
+	if n, err = wtr.Write(buff); err != nil {
+		return
+	} else if n != len(buff) {
+		err = errors.New("Failed to write ingest state size block")
+	}
+
+	// and write the JSON
+	if n, err = wtr.Write(data); err != nil {
+		return
+	} else if n != len(data) {
+		err = errors.New("Failed to write encoded ingest state")
+	}
+
+	return
+}
+
+func (s *IngesterState) Read(rdr io.Reader) (err error) {
+	// First read out the size (32-bit integer)
+	var bsz uint32
+	var n int
+	if err = binary.Read(rdr, binary.LittleEndian, &bsz); err != nil {
+		return
+	}
+	if bsz > maxIngestStateSize || bsz == 0 {
+		err = ErrInvalidIngestStateHeader
+		return
+	}
+
+	// Now read that much data off the reader
+	buff := make([]byte, bsz)
+	if n, err = rdr.Read(buff); err != nil {
+		return
+	} else if n != len(buff) {
+		err = errors.New("Failed to read ingest state")
+		return
+	}
+
+	// Finally, decode the JSON
+	err = json.Unmarshal(buff, s)
+
 	return
 }
