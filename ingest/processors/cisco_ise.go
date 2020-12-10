@@ -677,27 +677,11 @@ type kvAttrs []iseKV
 
 func (kv kvAttrs) MarshalJSON() ([]byte, error) {
 	r := strings.NewReplacer(`\,`, `,`, `\\`, `\`, `\"`, `"`, `\'`, `'`)
-	var sb bytes.Buffer
-	end := len(kv) - 1
-	sb.WriteString("{")
-	for i, v := range kv {
-		if bts, err := json.Marshal(r.Replace(v.key)); err != nil {
-			return nil, err
-		} else if _, err = sb.Write(bts); err != nil {
-			return nil, err
-		}
-		sb.WriteString(":")
-		if bts, err := json.Marshal(r.Replace(v.value)); err != nil {
-			return nil, err
-		} else if _, err = sb.Write(bts); err != nil {
-			return nil, err
-		}
-		if i != end {
-			sb.WriteString(",")
-		}
+	mp := make(map[string]string, len(kv))
+	for _, v := range kv {
+		mp[r.Replace(v.key)] = r.Replace(v.value)
 	}
-	sb.WriteString("}")
-	return []byte(sb.Bytes()), nil
+	return json.Marshal(mp)
 }
 
 func filtered(v string, filters []string) bool {
