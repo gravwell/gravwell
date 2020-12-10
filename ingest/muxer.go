@@ -511,7 +511,7 @@ func (im *IngestMuxer) SetRawConfiguration(c json.RawMessage) {
 	im.ingesterState.Configuration = c
 }
 
-func (im *IngestMuxer) SetMetadata(s string) {
+func (im *IngestMuxer) SetMetadata(s json.RawMessage) {
 	im.ingesterState.Metadata = s
 }
 

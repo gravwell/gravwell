@@ -27,7 +27,7 @@ const (
 const (
 	configurationBlockSize          uint32          = 1
 	maxStreamConfigurationBlockSize uint32          = 1024 * 1024 //just a sanity check
-	maxIngestStateSize              uint32          = 1024 * 1024 * 1024
+	maxIngestStateSize              uint32          = 1024 * 1024
 	CompressNone                    CompressionType = 0
 	CompressSnappy                  CompressionType = 0x10
 )
@@ -157,7 +157,7 @@ type IngesterState struct {
 	CacheSize     uint64
 	Children      map[string]IngesterState
 	Configuration json.RawMessage `json:",omitempty"`
-	Metadata      string
+	Metadata      json.RawMessage `json:",omitempty"`
 }
 
 func (s *IngesterState) Write(wtr io.Writer) (err error) {
