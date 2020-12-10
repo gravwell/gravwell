@@ -507,12 +507,28 @@ func (im *IngestMuxer) stateReportRoutine() {
 	}
 }
 
-func (im *IngestMuxer) SetRawConfiguration(c json.RawMessage) {
-	im.ingesterState.Configuration = c
+func (im *IngestMuxer) SetRawConfiguration(obj interface{}) (err error) {
+	if obj == nil {
+		return
+	}
+	var msg []byte
+	if msg, err = json.Marshal(obj); err != nil {
+		return
+	}
+	im.ingesterState.Configuration = json.RawMessage(msg)
+	return
 }
 
-func (im *IngestMuxer) SetMetadata(s json.RawMessage) {
-	im.ingesterState.Metadata = s
+func (im *IngestMuxer) SetMetadata(obj interface{}) (err error) {
+	if obj == nil {
+		return
+	}
+	var msg []byte
+	if msg, err = json.Marshal(obj); err != nil {
+		return
+	}
+	im.ingesterState.Metadata = json.RawMessage(msg)
+	return
 }
 
 func (im *IngestMuxer) RegisterChild(k string, v IngesterState) {

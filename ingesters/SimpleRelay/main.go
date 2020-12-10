@@ -10,7 +10,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
@@ -173,11 +172,10 @@ func main() {
 		"Listener":     cfg.Listener,
 		"JSONListener": cfg.JSONListener,
 	}
-	cfgJson, err := json.Marshal(cmap)
+	err = igst.SetRawConfiguration(cmap)
 	if err != nil {
-		lg.FatalCode(0, "Failed to prepare configuration blob\n")
+		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
 	}
-	igst.SetRawConfiguration(json.RawMessage(cfgJson))
 
 	wg := &sync.WaitGroup{}
 
