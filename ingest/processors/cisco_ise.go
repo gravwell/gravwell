@@ -676,18 +676,28 @@ func (m iseMessage) MarshalJSON() ([]byte, error) {
 type kvAttrs []iseKV
 
 func (kv kvAttrs) MarshalJSON() ([]byte, error) {
-	var sb strings.Builder
-	sb.WriteString("{")
+	r := strings.NewReplacer(`\,`, `,`, `\\`, `\`, `\"`, `"`, `\'`, `'`)
+	var sb bytes.Buffer
 	end := len(kv) - 1
+	sb.WriteString("{")
 	for i, v := range kv {
-		if i == end {
-			fmt.Fprintf(&sb, "%q:%q", v.key, v.value)
-		} else {
-			fmt.Fprintf(&sb, "%q:%q, ", v.key, v.value)
+		if bts, err := json.Marshal(r.Replace(v.key)); err != nil {
+			return nil, err
+		} else if _, err = sb.Write(bts); err != nil {
+			return nil, err
+		}
+		sb.WriteString(":")
+		if bts, err := json.Marshal(r.Replace(v.value)); err != nil {
+			return nil, err
+		} else if _, err = sb.Write(bts); err != nil {
+			return nil, err
+		}
+		if i != end {
+			sb.WriteString(",")
 		}
 	}
 	sb.WriteString("}")
-	return []byte(sb.String()), nil
+	return []byte(sb.Bytes()), nil
 }
 
 func filtered(v string, filters []string) bool {
