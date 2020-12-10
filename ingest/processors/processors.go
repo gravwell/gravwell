@@ -47,7 +47,8 @@ type ProcessorConfig map[string]*config.VariableConfig
 // Processor is an interface that takes an entry and processes it, returning a new block
 type Processor interface {
 	Process(*entry.Entry) ([]*entry.Entry, error) //process an data item potentially setting a tag
-	Close() error                                 //give the processor a chance to tide up
+	Flush() []*entry.Entry
+	Close() error //give the processor a chance to tidy up
 }
 
 func CheckProcessor(id string) error {
@@ -64,6 +65,7 @@ func CheckProcessor(id string) error {
 	case VpcProcessor:
 	case GravwellForwarderProcessor:
 	case DropProcessor:
+	case CiscoISEProcessor:
 	default:
 		return ErrUnknownProcessor
 	}
@@ -113,6 +115,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = VpcLoadConfig(vc)
 	case GravwellForwarderProcessor:
 		cfg, err = GravwellForwarderLoadConfig(vc)
+	case CiscoISEProcessor:
+		cfg, err = CiscoISELoadConfig(vc)
 	default:
 		err = ErrUnknownProcessor
 	}
@@ -210,6 +214,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewGravwellForwarder(cfg, tgr)
+	case CiscoISEProcessor:
+		var cfg CiscoISEConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewCiscoISEProcessor(cfg)
 	default:
 		err = ErrUnknownProcessor
 	}
@@ -302,8 +312,13 @@ func (pr *ProcessorSet) processItemContext(ent *entry.Entry, i int, ctx context.
 // This function DOES NOT close the ingest muxer handle.
 // It is ONLY for shutting down preprocessors
 func (pr *ProcessorSet) Close() (err error) {
-	for _, v := range pr.set {
+	for i, v := range pr.set {
 		if v != nil {
+			for _, ent := range v.Flush() {
+				if lerr := pr.processItem(ent, i+1); lerr != nil {
+					err = addError(lerr, err)
+				}
+			}
 			if lerr := v.Close(); lerr != nil {
 				err = addError(lerr, err)
 			}
@@ -356,7 +371,7 @@ func (pc ProcessorConfig) Validate() (err error) {
 func (pc ProcessorConfig) CheckProcessors(set []string) (err error) {
 	for _, v := range set {
 		if _, ok := pc[v]; !ok {
-			err = fmt.Errorf("Preprocessor %v not defined", err)
+			err = fmt.Errorf("Preprocessor %v not defined", v)
 			break
 		}
 	}
@@ -366,6 +381,10 @@ func (pc ProcessorConfig) CheckProcessors(set []string) (err error) {
 type nocloser struct{}
 
 func (n nocloser) Close() error {
+	return nil
+}
+
+func (n nocloser) Flush() []*entry.Entry {
 	return nil
 }
 

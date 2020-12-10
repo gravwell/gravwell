@@ -162,3 +162,7 @@ func (p *Vpc) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 func (p *Vpc) Close() error {
 	return nil
 }
+
+func (p *Vpc) Flush() []*entry.Entry {
+	return nil
+}

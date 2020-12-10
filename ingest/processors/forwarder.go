@@ -239,6 +239,10 @@ func (nf *Forwarder) Close() (err error) {
 	return
 }
 
+func (nf *Forwarder) Flush() []*entry.Entry {
+	return nil
+}
+
 // wait for the waitgroup with a timeout
 func (nf *Forwarder) wait(tosec uint) {
 	var to time.Duration
