@@ -11,6 +11,8 @@ package processors
 import (
 	"testing"
 	"time"
+
+	"github.com/gobwas/glob"
 )
 
 func TestParseRemoteHeader(t *testing.T) {
@@ -194,7 +196,11 @@ func TestParseISEMessageWithFiltering(t *testing.T) {
 	}
 	input := mergedData
 
-	filters := []string{`Step*`, `NAS-*`}
+	filterStrings := []string{`Step*`, `NAS-*`}
+	var filters []glob.Glob
+	for _, s := range filterStrings {
+		filters = append(filters, glob.MustCompile(s))
+	}
 
 	var m iseMessage
 	if err := m.Parse(input, filters, false); err != nil {
@@ -220,7 +226,11 @@ func TestParseISEMessageWithStripping(t *testing.T) {
 	}
 	input := mergedData
 
-	filters := []string{`Step*`, `NAS-*`, `Net*`, `Ext*`}
+	filterStrings := []string{`Step*`, `NAS-*`, `Net*`, `Ext*`}
+	var filters []glob.Glob
+	for _, s := range filterStrings {
+		filters = append(filters, glob.MustCompile(s))
+	}
 
 	var m iseMessage
 	if err := m.Parse(input, filters, true); err != nil {

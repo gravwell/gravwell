@@ -18,9 +18,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gobwas/glob"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/minio/minio/pkg/wildcard"
 )
 
 var (
@@ -56,6 +56,7 @@ type CiscoISEConfig struct {
 	Attribute_Strip_Header      bool
 	maxLatency                  time.Duration
 	format                      uint
+	filters                     []glob.Glob
 }
 
 func CiscoISELoadConfig(vc *config.VariableConfig) (c CiscoISEConfig, err error) {
@@ -94,11 +95,21 @@ func (c *CiscoISEConfig) validate() (err error) {
 		err = fmt.Errorf("Unknown output format %q", c.Output_Format)
 	}
 
+	//compile our globs
+	var filter glob.Glob
+	for _, f := range c.Attribute_Drop_Filter {
+		if filter, err = glob.Compile(f); err != nil {
+			err = fmt.Errorf("Invalid filter %s: %w", f, err)
+			return
+		}
+		c.filters = append(c.filters, filter)
+	}
+
 	return
 }
 
 // formatter functions
-type iseFormatter func(*entry.Entry, []string, bool) bool
+type iseFormatter func(*entry.Entry, []glob.Glob, bool) bool
 
 type CiscoISE struct {
 	CiscoISEConfig
@@ -150,7 +161,7 @@ func (p *CiscoISE) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
 		rset, err = p.processReassemble(ent)
 	} else {
 		//just attempt to reformat the entry
-		if !p.fmt(ent, p.Attribute_Drop_Filter, p.Attribute_Strip_Header) && !p.Passthrough_Misses {
+		if !p.fmt(ent, p.filters, p.Attribute_Strip_Header) && !p.Passthrough_Misses {
 			//bad formatting and no passthrough, just skip it
 			return
 		}
@@ -174,7 +185,7 @@ func (p *CiscoISE) processReassemble(ent *entry.Entry) (rset []*entry.Entry, err
 	} else if ejected {
 		if rent, ok := msr.meta.(*entry.Entry); ok {
 			rent.Data = []byte(msr.output)
-			if p.fmt(rent, p.Attribute_Drop_Filter, p.Attribute_Strip_Header) || p.Passthrough_Misses {
+			if p.fmt(rent, p.filters, p.Attribute_Strip_Header) || p.Passthrough_Misses {
 				rset = []*entry.Entry{rent}
 			}
 		}
@@ -194,7 +205,7 @@ func (p *CiscoISE) flush(force bool) (ents []*entry.Entry) {
 		for _, out := range outputs {
 			if rent, ok := out.meta.(*entry.Entry); ok {
 				rent.Data = []byte(out.output)
-				if p.fmt(rent, p.Attribute_Drop_Filter, p.Attribute_Strip_Header) || p.Passthrough_Misses {
+				if p.fmt(rent, p.filters, p.Attribute_Strip_Header) || p.Passthrough_Misses {
 					ents = append(ents, rent)
 				}
 			}
@@ -459,7 +470,7 @@ type iseKV struct {
 	value string
 }
 
-func (m *iseMessage) Parse(raw string, attribFilters []string, stripHeaders bool) (err error) {
+func (m *iseMessage) Parse(raw string, attribFilters []glob.Glob, stripHeaders bool) (err error) {
 	var v uint64
 	r := iseHeaderRx.FindStringSubmatch(raw)
 	if len(r) != (iseHeaderRxParts) {
@@ -547,7 +558,7 @@ func (m *iseMessage) equal(n *iseMessage) bool {
 	return true
 }
 
-func (kv *iseKV) parse(val []byte, filters []string, stripHeaders bool) bool {
+func (kv *iseKV) parse(val []byte, filters []glob.Glob, stripHeaders bool) bool {
 	val = bytes.TrimSpace(val)
 	//check if this is attribute is filtered
 	if filtered(string(val), filters) {
@@ -610,13 +621,13 @@ func indexOfNonEscaped(data []byte, delim byte) (r int) {
 }
 
 // iseRawFormatter is just a passthrough, send as is
-func iseRawFormatter(ent *entry.Entry, filters []string, stripHeaders bool) bool {
+func iseRawFormatter(ent *entry.Entry, filters []glob.Glob, stripHeaders bool) bool {
 	return true
 }
 
 // iseCefFormatter attempts to crack the message apart and reform it as a CEF message
 // this WILDLY violates the CEF spec, but so does everyone else
-func iseCefFormatter(ent *entry.Entry, filters []string, stripHeaders bool) bool {
+func iseCefFormatter(ent *entry.Entry, filters []glob.Glob, stripHeaders bool) bool {
 	var msg iseMessage
 	if err := msg.Parse(string(ent.Data), filters, stripHeaders); err != nil {
 		return false
@@ -640,7 +651,7 @@ func (m *iseMessage) formatAsCEF() []byte {
 }
 
 // iseJSONFormatter attempts to crack the message apart and reform it as a JSON object
-func iseJSONFormatter(ent *entry.Entry, filters []string, stripHeaders bool) bool {
+func iseJSONFormatter(ent *entry.Entry, filters []glob.Glob, stripHeaders bool) bool {
 	var msg iseMessage
 	if err := msg.Parse(string(ent.Data), filters, stripHeaders); err != nil {
 		return false
@@ -684,9 +695,9 @@ func (kv kvAttrs) MarshalJSON() ([]byte, error) {
 	return json.Marshal(mp)
 }
 
-func filtered(v string, filters []string) bool {
+func filtered(v string, filters []glob.Glob) bool {
 	for _, f := range filters {
-		if wildcard.Match(f, v) {
+		if f.Match(v) {
 			return true
 		}
 	}
