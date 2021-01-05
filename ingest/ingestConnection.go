@@ -173,6 +173,17 @@ func (igst *IngestConnection) NegotiateTag(name string) (tg entry.EntryTag, err 
 	return
 }
 
+func (igst *IngestConnection) SendIngesterState(state IngesterState) error {
+	igst.mtx.Lock()
+	defer igst.mtx.Unlock()
+
+	if !igst.running {
+		return ErrNotRunning
+	}
+
+	return igst.ew.SendIngesterState(state)
+}
+
 /* Sync causes the entry writer to force an ack from the server.  This ensures that all
 *  entries that have been written are flushed and fully acked by the server. */
 func (igst *IngestConnection) Sync() error {

@@ -39,6 +39,7 @@ const (
 	MINIMUM_ID_VERSION              uint16        = 0x3 // minimum server version to send ID info
 	MINIMUM_INGEST_OK_VERSION       uint16        = 0x4 // minimum server version to ask
 	MINIMUM_DYN_CONFIG_VERSION      uint16        = 0x5 // minimum server version to send dynamic config block
+	MINIMUM_INGEST_STATE_VERSION    uint16        = 0x6 // minimum server version to send detailed ingester state messages
 	maxThrottleDur                  time.Duration = 5 * time.Second
 
 	flushTimeout time.Duration = 10 * time.Second
@@ -46,22 +47,24 @@ const (
 
 const (
 	//ingester commands
-	INVALID_MAGIC           IngestCommand = 0x00000000
-	NEW_ENTRY_MAGIC         IngestCommand = 0xC7C95ACB
-	FORCE_ACK_MAGIC         IngestCommand = 0x1ADF7350
-	CONFIRM_ENTRY_MAGIC     IngestCommand = 0xF6E0307E
-	THROTTLE_MAGIC          IngestCommand = 0xBDEACC1E
-	PING_MAGIC              IngestCommand = 0x88770001
-	PONG_MAGIC              IngestCommand = 0x88770008
-	TAG_MAGIC               IngestCommand = 0x18675300
-	CONFIRM_TAG_MAGIC       IngestCommand = 0x18675301
-	ERROR_TAG_MAGIC         IngestCommand = 0x18675302
-	ID_MAGIC                IngestCommand = 0x22793400
-	CONFIRM_ID_MAGIC        IngestCommand = 0x22793401
-	API_VER_MAGIC           IngestCommand = 0x22334400
-	CONFIRM_API_VER_MAGIC   IngestCommand = 0x22334401
-	INGEST_OK_MAGIC         IngestCommand = 0x33445500
-	CONFIRM_INGEST_OK_MAGIC IngestCommand = 0x33445501
+	INVALID_MAGIC                IngestCommand = 0x00000000
+	NEW_ENTRY_MAGIC              IngestCommand = 0xC7C95ACB
+	FORCE_ACK_MAGIC              IngestCommand = 0x1ADF7350
+	CONFIRM_ENTRY_MAGIC          IngestCommand = 0xF6E0307E
+	THROTTLE_MAGIC               IngestCommand = 0xBDEACC1E
+	PING_MAGIC                   IngestCommand = 0x88770001
+	PONG_MAGIC                   IngestCommand = 0x88770008
+	TAG_MAGIC                    IngestCommand = 0x18675300
+	CONFIRM_TAG_MAGIC            IngestCommand = 0x18675301
+	ERROR_TAG_MAGIC              IngestCommand = 0x18675302
+	ID_MAGIC                     IngestCommand = 0x22793400
+	CONFIRM_ID_MAGIC             IngestCommand = 0x22793401
+	API_VER_MAGIC                IngestCommand = 0x22334400
+	CONFIRM_API_VER_MAGIC        IngestCommand = 0x22334401
+	INGEST_OK_MAGIC              IngestCommand = 0x33445500
+	CONFIRM_INGEST_OK_MAGIC      IngestCommand = 0x33445501
+	INGESTER_STATE_MAGIC         IngestCommand = 0x44556600
+	CONFIRM_INGESTER_STATE_MAGIC IngestCommand = 0x44556601
 )
 
 type IngestCommand uint32
@@ -443,6 +446,71 @@ func (ew *EntryWriter) ConfigureStream(c StreamConfiguration) (err error) {
 			return
 		}
 	}
+	return
+}
+
+// SendIngesterState sends a whole lot of information to the indexer about the
+// state of the ingester.
+func (ew *EntryWriter) SendIngesterState(state IngesterState) (err error) {
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+
+	if ew.serverVersion < MINIMUM_INGEST_STATE_VERSION {
+		//just return quietly, its ok
+		return
+	}
+
+	// First attempt to sync
+	err = ew.forceAckNoLock()
+	if err != nil {
+		return
+	}
+
+	// write the header
+	if err = ew.writeAll(INGESTER_STATE_MAGIC.Buff()); err != nil {
+		return
+	}
+	// write the message itself
+	if err = state.Write(ew.bIO); err != nil {
+		return
+	}
+
+	if err = ew.flush(); err != nil {
+		return
+	}
+
+	// Read back an ackCommand
+	var ac ackCommand
+	var ok bool
+stateCmdLoop:
+	for {
+		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
+			break
+		}
+		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
+			break
+		}
+		if !ok {
+			err = errors.New("couldn't figure out ackCommand")
+			break
+		}
+		switch ac.cmd {
+		case CONFIRM_INGESTER_STATE_MAGIC:
+			// yay.
+			break stateCmdLoop
+		case PONG_MAGIC:
+			// unsolicited, can come whenever
+		default:
+			err = fmt.Errorf("Unexpected response to ingester state request: %#v", ac)
+			break stateCmdLoop
+		}
+	}
+	if err == nil {
+		err = ew.conn.ClearReadTimeout()
+	} else {
+		ew.conn.ClearReadTimeout()
+	}
+
 	return
 }
 
@@ -946,6 +1014,10 @@ func (ic IngestCommand) String() string {
 		return `INGEST_OK`
 	case CONFIRM_INGEST_OK_MAGIC:
 		return `INGEST_OK_CONFIRM`
+	case INGESTER_STATE_MAGIC:
+		return `INGESTER_STATE`
+	case CONFIRM_INGESTER_STATE_MAGIC:
+		return `INGESTER_STATE_CONFIRM`
 	}
 	return `UNKNOWN`
 }

@@ -31,8 +31,6 @@ var (
 		"comma seperated server:port list of cleartext targets")
 	tlsConns        = flag.String("tls-conns", "", "comma seperated server:port list of TLS connections")
 	pipeConns       = flag.String("pipe-conns", "", "comma seperated list of paths for named pie connection")
-	tlsPublicKey    = flag.String("tls-public-key", "", "Path to TLS public key")
-	tlsPrivateKey   = flag.String("tls-private-key", "", "Path to TLS private key")
 	tlsRemoteVerify = flag.String("tls-remote-verify", "", "Path to remote public key to verify against")
 	ingestSecret    = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
 	entryCount      = flag.Int("entry-count", 100, "Number of entries to generate")
@@ -62,9 +60,6 @@ func init() {
 		}
 	}
 	if *tlsConns != "" {
-		if *tlsPublicKey == "" || *tlsPrivateKey == "" {
-			log.Fatal("Public/private keys required for TLS connection\n")
-		}
 		for _, conn := range strings.Split(*tlsConns, ",") {
 			conn = config.AppendDefaultPort(strings.TrimSpace(conn), config.DefaultTLSPort)
 			if len(conn) > 0 {
@@ -125,7 +120,7 @@ func main() {
 }
 
 func ingestDirect() error {
-	igst, err := ingest.NewUniformIngestMuxer(connSet, []string{*tagName}, *ingestSecret, *tlsPublicKey, *tlsPrivateKey, *tlsRemoteVerify)
+	igst, err := ingest.NewUniformIngestMuxer(connSet, []string{*tagName}, *ingestSecret, ``, ``, *tlsRemoteVerify)
 	if err := igst.Start(); err != nil {
 		return err
 	}

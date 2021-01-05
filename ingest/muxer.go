@@ -13,6 +13,7 @@ import (
 	"container/list"
 	"context"
 	"encoding/gob"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -29,6 +30,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+
+	"github.com/google/renameio"
 )
 
 const (
@@ -118,6 +121,7 @@ type IngestMuxer struct {
 	uuid              string
 	rateParent        *parent
 	logSourceOverride net.IP
+	ingesterState     IngesterState
 }
 
 type UniformMuxerConfig struct {
@@ -332,6 +336,16 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	if c.RateLimitBps > 0 {
 		p = newParent(c.RateLimitBps, 0)
 	}
+
+	// Initialize the state
+	state := IngesterState{
+		UUID:       c.IngesterUUID,
+		Name:       c.IngesterName,
+		Version:    c.IngesterVersion,
+		CacheState: c.CacheMode,
+		Children:   make(map[string]IngesterState),
+	}
+
 	return &IngestMuxer{
 		cfg:               getStreamConfig(c.IngestStreamConfig),
 		dests:             c.Destinations,
@@ -363,13 +377,14 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		uuid:              c.IngesterUUID,
 		rateParent:        p,
 		logSourceOverride: c.LogSourceOverride,
+		ingesterState:     state,
 	}, nil
 }
 
 func readTagCache(p string) (map[string]entry.EntryTag, error) {
 	ret := make(map[string]entry.EntryTag)
 	path := filepath.Join(p, "tagcache")
-	if _, err := os.Stat(path); err != nil {
+	if fi, err := os.Stat(path); err != nil || fi.Size() == 0 {
 		return ret, nil
 	}
 
@@ -391,18 +406,15 @@ func readTagCache(p string) (map[string]entry.EntryTag, error) {
 func writeTagCache(t map[string]entry.EntryTag, p string) error {
 	path := filepath.Join(p, "tagcache")
 
-	f, err := os.Create(path)
+	var b bytes.Buffer
+
+	enc := gob.NewEncoder(&b)
+	err := enc.Encode(&t)
 	if err != nil {
 		return err
 	}
 
-	enc := gob.NewEncoder(f)
-	err = enc.Encode(&t)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return renameio.WriteFile(path, b.Bytes(), 0660)
 }
 
 //Start starts the connection process. This will return immediately, and does
@@ -429,6 +441,9 @@ func (im *IngestMuxer) Start() error {
 		go im.connRoutine(i)
 	}
 	im.state = running
+	// start the state report goroutine
+	go im.stateReportRoutine()
+
 	return nil
 }
 
@@ -474,6 +489,54 @@ func (im *IngestMuxer) Close() error {
 	//everyone is dead, clean up
 	close(im.upChan)
 	return nil
+}
+
+func (im *IngestMuxer) stateReportRoutine() {
+	for im.state == running {
+		im.mtx.Lock()
+		// update the cache stats real quick
+		im.ingesterState.CacheSize = uint64(im.cache.Size())
+		for _, v := range im.igst {
+			if v != nil {
+				// we don't fuss over the return value
+				v.SendIngesterState(im.ingesterState)
+			}
+		}
+		im.mtx.Unlock()
+		time.Sleep(5 * time.Second)
+	}
+}
+
+func (im *IngestMuxer) SetRawConfiguration(obj interface{}) (err error) {
+	if obj == nil {
+		return
+	}
+	var msg []byte
+	if msg, err = json.Marshal(obj); err != nil {
+		return
+	}
+	im.ingesterState.Configuration = json.RawMessage(msg)
+	return
+}
+
+func (im *IngestMuxer) SetMetadata(obj interface{}) (err error) {
+	if obj == nil {
+		return
+	}
+	var msg []byte
+	if msg, err = json.Marshal(obj); err != nil {
+		return
+	}
+	im.ingesterState.Metadata = json.RawMessage(msg)
+	return
+}
+
+func (im *IngestMuxer) RegisterChild(k string, v IngesterState) {
+	im.ingesterState.Children[k] = v
+}
+
+func (im *IngestMuxer) UnregisterChild(k string) {
+	delete(im.ingesterState.Children, k)
 }
 
 // LookupTag will reverse a tag id into a name, this operation is more expensive than a straight lookup
@@ -751,6 +814,7 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 		return ErrNotRunning
 	}
 	im.eChan <- e
+	im.ingesterState.Entries++
 	return nil
 }
 
@@ -767,6 +831,7 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	}
 	select {
 	case im.eChan <- e:
+		im.ingesterState.Entries++
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -787,6 +852,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	tmr := time.NewTimer(d)
 	select {
 	case im.eChan <- e:
+		im.ingesterState.Entries++
 	case _ = <-tmr.C:
 		err = ErrWriteTimeout
 	}
@@ -807,6 +873,7 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 		return ErrNotRunning
 	}
 	im.bChan <- b
+	im.ingesterState.Entries += uint64(len(b))
 	return nil
 }
 
@@ -827,6 +894,7 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 
 	select {
 	case im.bChan <- b:
+		im.ingesterState.Entries += uint64(len(b))
 	case <-ctx.Done():
 		return ctx.Err()
 	}
