@@ -355,6 +355,9 @@ headerLoop:
 				return errFailedFullRead
 			}
 			length := binary.LittleEndian.Uint32(er.buff[0:4])
+			if length > maxIngestStateSize {
+				return ErrInvalidIngestStateHeader
+			}
 			stateBuff := make([]byte, length)
 			n, err = io.ReadFull(er.bIO, stateBuff)
 			if err != nil {

@@ -166,6 +166,8 @@ func (s *IngesterState) Write(wtr io.Writer) (err error) {
 	var data []byte
 	if data, err = json.Marshal(s); err != nil {
 		return err
+	} else if len(data) > int(maxIngestStateSize) || len(data) == 0 {
+		return ErrInvalidIngestStateHeader
 	}
 
 	// Now send the size
