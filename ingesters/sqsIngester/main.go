@@ -166,6 +166,7 @@ func main() {
 		IngesterName:       ingesterName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		IngesterLabel:      cfg.Label,
 		RateLimitBps:       lmt,
 		Logger:             lg,
 		CacheDepth:         cfg.Cache_Depth,

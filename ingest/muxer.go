@@ -141,6 +141,7 @@ type UniformMuxerConfig struct {
 	IngesterName      string
 	IngesterVersion   string
 	IngesterUUID      string
+	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
 }
@@ -161,6 +162,7 @@ type MuxerConfig struct {
 	IngesterName      string
 	IngesterVersion   string
 	IngesterUUID      string
+	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
 }
@@ -217,6 +219,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		IngesterName:       c.IngesterName,
 		IngesterVersion:    c.IngesterVersion,
 		IngesterUUID:       c.IngesterUUID,
+		IngesterLabel:      c.IngesterLabel,
 		RateLimitBps:       c.RateLimitBps,
 		Logger:             c.Logger,
 		LogSourceOverride:  c.LogSourceOverride,
@@ -341,6 +344,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	state := IngesterState{
 		UUID:       c.IngesterUUID,
 		Name:       c.IngesterName,
+		Label:      c.IngesterLabel,
 		Version:    c.IngesterVersion,
 		CacheState: c.CacheMode,
 		Children:   make(map[string]IngesterState),

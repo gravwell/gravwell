@@ -14,8 +14,10 @@ require (
 	github.com/bxcodec/faker/v3 v3.3.1
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
+	github.com/dvyukov/go-fuzz v0.0.0-20201127111758-49e582c6c23d // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/elastic/beats v7.6.2+incompatible
+	github.com/elazarl/go-bindata-assetfs v1.0.1 // indirect
 	github.com/floren/o365 v0.0.1
 	github.com/fsnotify/fsnotify v1.4.9
 	github.com/go-ole/go-ole v1.2.4 // indirect
@@ -40,6 +42,7 @@ require (
 	github.com/pierrec/lz4 v2.4.0+incompatible // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/shirou/gopsutil v2.20.9+incompatible
+	github.com/stephens2424/writerset v1.0.2 // indirect
 	github.com/stretchr/testify v1.5.1
 	github.com/tealeg/xlsx v1.0.5
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119

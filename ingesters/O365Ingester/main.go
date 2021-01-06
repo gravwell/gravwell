@@ -128,6 +128,7 @@ func main() {
 		IngesterName:       "Office 365",
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		IngesterLabel:      cfg.Global.Label,
 		CacheDepth:         cfg.Global.Cache_Depth,
 		CachePath:          cfg.Global.Ingest_Cache_Path,
 		CacheSize:          cfg.Global.Max_Ingest_Cache,

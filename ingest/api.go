@@ -151,6 +151,7 @@ type IngesterState struct {
 	UUID          string
 	Name          string
 	Version       string
+	Label         string
 	IP            net.IP //child IP, won't be populated unless in child
 	Entries       uint64
 	CacheState    string

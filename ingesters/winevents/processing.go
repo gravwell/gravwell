@@ -54,6 +54,7 @@ type mainService struct {
 	cacheSize    int
 	igstLogLevel string
 	uuid         string
+	label        string
 	src          net.IP
 	ctx          context.Context
 	lmt          int64
@@ -105,6 +106,7 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 		cacheSize:    cfg.CacheSize(),
 		igstLogLevel: cfg.LogLevel(),
 		uuid:         id.String(),
+		label:        cfg.Global.Label,
 		pp:           cfg.Preprocessor,
 		lmt:          lmt,
 	}, nil

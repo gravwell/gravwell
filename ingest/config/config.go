@@ -112,6 +112,7 @@ type IngestConfig struct {
 	Ingest_Cache_Path          string
 	Max_Ingest_Cache           int
 	Log_Source_Override        string // override log messages only
+	Label                      string //arbitrary label that can be attached to an ingester
 }
 
 type IngestStreamConfig struct {
