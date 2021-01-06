@@ -130,6 +130,7 @@ func main() {
 		IngesterName:       "filefollow",
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		IngesterLabel:      cfg.Label,
 		RateLimitBps:       lmt,
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
 		Logger:             lg,

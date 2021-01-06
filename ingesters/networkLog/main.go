@@ -166,6 +166,7 @@ func main() {
 		IngesterName:       "networkLog",
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		IngesterLabel:      cfg.Label,
 		RateLimitBps:       lmt,
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
 		Logger:             lg,

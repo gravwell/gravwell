@@ -131,6 +131,7 @@ func main() {
 		IngesterName:       "httppost",
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		IngesterLabel:      cfg.Label,
 		RateLimitBps:       lmt,
 		CacheDepth:         cfg.Cache_Depth,
 		CachePath:          cfg.Ingest_Cache_Path,

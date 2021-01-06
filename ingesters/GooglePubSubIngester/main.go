@@ -126,6 +126,7 @@ func main() {
 		IngesterName:       "GooglePubSub",
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		IngesterLabel:      cfg.Global.Label,
 		RateLimitBps:       lmt,
 		CacheDepth:         cfg.Global.Cache_Depth,
 		CachePath:          cfg.Global.Ingest_Cache_Path,
