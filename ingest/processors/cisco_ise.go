@@ -162,13 +162,13 @@ func (p *CiscoISE) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 	}
 	rset := ents[:0]
 	for _, v := range ents {
-		if ent, err := p.processEnt(v); ent != nil && err != nil {
+		if ent, err := p.processEnt(v); ent != nil && err == nil {
 			rset = append(rset, ent)
 		}
 	}
 
 	//got a potential value, see if we have any that need to be ejected due to size or time
-	if p.ma.shouldFlush() {
+	if p.Enable_Multipart_Reassembly && p.ma.shouldFlush() {
 		if ents := p.flush(false); len(ents) > 0 {
 			rset = append(rset, ents...)
 		}

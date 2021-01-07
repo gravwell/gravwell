@@ -103,22 +103,23 @@ func (p *Vpc) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 }
 
 func (p *Vpc) processItem(ent *entry.Entry) (rset []*entry.Entry, err error) {
-	if len(ent.Data) > 2 {
-		//check for the gzip header
-		if binary.LittleEndian.Uint16(ent.Data) == gzipMagic {
-			p.rdr.Reset(ent.Data)
-			p.zrdr.Reset(p.rdr)
-			p.bb.Reset()
+	//check for the gzip header
+	if len(ent.Data) > 2 && binary.LittleEndian.Uint16(ent.Data) == gzipMagic {
+		p.rdr.Reset(ent.Data)
+		p.zrdr.Reset(p.rdr)
+		p.bb.Reset()
 
-			//ok we we have gzip, go ahead and do the things
-			if _, err = io.Copy(p.bb, p.zrdr); err == nil {
-				if err = p.zrdr.Close(); err == nil {
-					ent.Data = append(nb, p.bb.Bytes()...)
-				}
-			}
-			if p.bb.Cap() > p.maxBuff {
-				p.bb = bytes.NewBuffer(make([]byte, p.baseBuff))
-			}
+		//ok we we have gzip, go ahead and do the things
+		if _, err = io.Copy(p.bb, p.zrdr); err != nil {
+			return
+		} else if err = p.zrdr.Close(); err != nil {
+			return
+		} else {
+			ent.Data = append(nb, p.bb.Bytes()...)
+
+		}
+		if p.bb.Cap() > p.maxBuff {
+			p.bb = bytes.NewBuffer(make([]byte, p.baseBuff))
 		}
 	}
 
@@ -142,23 +143,19 @@ func (p *Vpc) processItem(ent *entry.Entry) (rset []*entry.Entry, err error) {
 	var v []byte
 	for i := range logEvents {
 		if p.VpcConfig.Extract_JSON {
-			v, _, _, err = jsonparser.Get(logEvents[i], "extractedFields")
-			if err != nil {
+			if v, _, _, err = jsonparser.Get(logEvents[i], "extractedFields"); err != nil {
 				return
 			}
 		} else {
-			v, _, _, err = jsonparser.Get(logEvents[i], "message")
-			if err != nil {
+			if v, _, _, err = jsonparser.Get(logEvents[i], "message"); err != nil {
 				return
 			}
 		}
 		// Attempt to get the timestamp
-		tsString, err = jsonparser.GetString(logEvents[i], "extractedFields", "start")
-		if err != nil {
+		if tsString, err = jsonparser.GetString(logEvents[i], "extractedFields", "start"); err != nil {
 			return
 		}
-		ts, err = strconv.ParseInt(tsString, 10, 64)
-		if err != nil {
+		if ts, err = strconv.ParseInt(tsString, 10, 64); err != nil {
 			return
 		}
 

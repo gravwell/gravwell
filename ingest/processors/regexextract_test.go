@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	//"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
@@ -117,5 +117,64 @@ func TestRegexExtractSRC(t *testing.T) {
 	}
 	if string(tent.Data) != fmt.Sprintf("%v STUFF", testIP) {
 		t.Fatalf("Bad result: %v", string(tent.Data))
+	}
+}
+
+func TestRegexExtractProcess(t *testing.T) {
+	b := []byte(`
+	[global]
+	foo = "bar"
+	bar = 1337
+	baz = 1.337
+	foo-bar-baz="foo bar baz"
+
+	[item "A"]
+	name = "test A"
+	value = 0xA
+
+	[preprocessor "re1"]
+		type = regexextract
+		Passthrough-Misses=false
+		Template="${_SRC_} ${stuff}"
+		Regex=` + "`" + testRegex + "`")
+	tc := struct {
+		Global struct {
+			Foo         string
+			Bar         uint16
+			Baz         float32
+			Foo_Bar_Baz string
+		}
+		Item map[string]*struct {
+			Name  string
+			Value int
+		}
+		Preprocessor ProcessorConfig
+	}{}
+	if err := config.LoadConfigBytes(&tc, b); err != nil {
+		t.Fatal(err)
+	}
+	var tt testTagger
+	p, err := tc.Preprocessor.getProcessor(`re1`, &tt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ent := &entry.Entry{
+		Tag:  testTag,
+		SRC:  testIP,
+		TS:   testTime,
+		Data: []byte(`101 THINGS STUFF`),
+	}
+	if ents, err := p.Process([]*entry.Entry{ent}); err != nil {
+		t.Fatal(err)
+	} else if len(ents) != 1 {
+		t.Fatal("bad count", len(ents))
+	} else {
+		tent := ents[0]
+		if tent.Tag != ent.Tag || !tent.SRC.Equal(ent.SRC) || tent.TS != ent.TS {
+			t.Fatal("bad entry header data:", tent)
+		}
+		if string(tent.Data) != fmt.Sprintf("%v STUFF", testIP) {
+			t.Fatalf("Bad result: %v", string(tent.Data))
+		}
 	}
 }

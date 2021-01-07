@@ -443,3 +443,14 @@ func (dw *discardWriter) WriteEntryContext(ctx context.Context, ent *entry.Entry
 func (dw *discardWriter) WriteBatchContext(ctx context.Context, ents []*entry.Entry) error {
 	return dw.WriteBatch(ents)
 }
+
+func makeEntry(v []byte, tag entry.EntryTag) []*entry.Entry {
+	return []*entry.Entry{
+		&entry.Entry{
+			Tag:  tag,
+			SRC:  testSrc,
+			TS:   entry.Now(),
+			Data: v,
+		},
+	}
+}
