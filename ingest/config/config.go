@@ -95,28 +95,28 @@ var (
 
 type IngestConfig struct {
 	IngestStreamConfig
-	Ingest_Secret              string
-	Connection_Timeout         string
-	Verify_Remote_Certificates bool //legacy, will be removed
-	Insecure_Skip_TLS_Verify   bool
-	Cleartext_Backend_Target   []string
-	Encrypted_Backend_Target   []string
-	Pipe_Backend_Target        []string
-	Log_Level                  string
-	Log_File                   string
-	Source_Override            string // override normal source if desired
-	Rate_Limit                 string
-	Ingester_UUID              string
-	Cache_Depth                int
-	Cache_Mode                 string
-	Ingest_Cache_Path          string
-	Max_Ingest_Cache           int
-	Log_Source_Override        string // override log messages only
-	Label                      string //arbitrary label that can be attached to an ingester
+	Ingest_Secret              string   `json:"-"` // DO NOT send this when marshalling
+	Connection_Timeout         string   `json:",omitempty"`
+	Verify_Remote_Certificates bool     `json:"-"` //legacy, will be removed
+	Insecure_Skip_TLS_Verify   bool     `json:",omitempty"`
+	Cleartext_Backend_Target   []string `json:",omitempty"`
+	Encrypted_Backend_Target   []string `json:",omitempty"`
+	Pipe_Backend_Target        []string `json:",omitempty"`
+	Log_Level                  string   `json:",omitempty"`
+	Log_File                   string   `json:",omitempty"`
+	Source_Override            string   `json:",omitempty"` // override normal source if desired
+	Rate_Limit                 string   `json:",omitempty"`
+	Ingester_UUID              string   `json:",omitempty"`
+	Cache_Depth                int      `json:",omitempty"`
+	Cache_Mode                 string   `json:",omitempty"`
+	Ingest_Cache_Path          string   `json:",omitempty"`
+	Max_Ingest_Cache           int      `json:",omitempty"`
+	Log_Source_Override        string   `json:",omitempty"` // override log messages only
+	Label                      string   `json:",omitempty"` //arbitrary label that can be attached to an ingester
 }
 
 type IngestStreamConfig struct {
-	Enable_Compression bool
+	Enable_Compression bool `json:",omitempty"`
 }
 
 func (ic *IngestConfig) loadDefaults() error {
