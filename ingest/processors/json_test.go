@@ -396,11 +396,13 @@ func TestBzipJsonExtractArraySplit(t *testing.T) {
 	}
 }
 
-func makeEntry(v []byte, tag entry.EntryTag) *entry.Entry {
-	return &entry.Entry{
-		Tag:  tag,
-		SRC:  testSrc,
-		TS:   entry.Now(),
-		Data: v,
+func makeEntry(v []byte, tag entry.EntryTag) []*entry.Entry {
+	return []*entry.Entry{
+		&entry.Entry{
+			Tag:  tag,
+			SRC:  testSrc,
+			TS:   entry.Now(),
+			Data: v,
+		},
 	}
 }

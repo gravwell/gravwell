@@ -842,7 +842,7 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	return nil
 }
 
-// WriteEntryAttempt attempts to put an entry into the queue to be sent out
+// WriteEntryTimeout attempts to put an entry into the queue to be sent out
 // of the first available writer routine.  This write is opportunistic and contains
 // a timeout.  It is therefor every expensive and shouldn't be used for normal writes
 // The typical use case is via the gravwell_log calls

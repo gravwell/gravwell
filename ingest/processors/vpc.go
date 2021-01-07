@@ -84,10 +84,25 @@ func (p *Vpc) Config(v interface{}) (err error) {
 	return
 }
 
-func (p *Vpc) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
-	if ent == nil {
-		return
+func (p *Vpc) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
+	if len(ents) == 0 {
+		return nil, nil
 	}
+	var r []*entry.Entry
+	for _, ent := range ents {
+		if ent == nil {
+			continue
+		}
+		if set, err := p.processItem(ent); err != nil {
+			continue
+		} else if len(set) > 0 {
+			r = append(r, set...)
+		}
+	}
+	return r, nil
+}
+
+func (p *Vpc) processItem(ent *entry.Entry) (rset []*entry.Entry, err error) {
 	if len(ent.Data) > 2 {
 		//check for the gzip header
 		if binary.LittleEndian.Uint16(ent.Data) == gzipMagic {

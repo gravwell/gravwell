@@ -156,38 +156,14 @@ func (p *CiscoISE) Config(v interface{}) (err error) {
 	return
 }
 
-func (p *CiscoISE) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
-	if p.Enable_Multipart_Reassembly {
-		rset, err = p.processReassemble(ent)
-	} else {
-		//just attempt to reformat the entry
-		if !p.fmt(ent, p.filters, p.Attribute_Strip_Header) && !p.Passthrough_Misses {
-			//bad formatting and no passthrough, just skip it
-			return
-		}
-		rset = []*entry.Entry{ent}
+func (p *CiscoISE) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
+	if len(ents) == 0 {
+		return nil, nil
 	}
-	return
-}
-
-func (p *CiscoISE) processReassemble(ent *entry.Entry) (rset []*entry.Entry, err error) {
-	//add the item to our re-assembler
-	var rmsg remoteISE
-	if err = rmsg.Parse(string(ent.Data)); err != nil {
-		err = nil // do not pass parsing errors up
-		if p.Passthrough_Misses {
-			rset = []*entry.Entry{ent}
-		}
-	} else if msr, ejected, bad := p.ma.add(rmsg, ent); bad {
-		if p.Passthrough_Misses {
-			rset = []*entry.Entry{ent}
-		}
-	} else if ejected {
-		if rent, ok := msr.meta.(*entry.Entry); ok {
-			rent.Data = []byte(msr.output)
-			if p.fmt(rent, p.filters, p.Attribute_Strip_Header) || p.Passthrough_Misses {
-				rset = []*entry.Entry{rent}
-			}
+	rset := ents[:0]
+	for _, v := range ents {
+		if ent, err := p.processEnt(v); ent != nil && err != nil {
+			rset = append(rset, ent)
 		}
 	}
 
@@ -197,6 +173,45 @@ func (p *CiscoISE) processReassemble(ent *entry.Entry) (rset []*entry.Entry, err
 			rset = append(rset, ents...)
 		}
 	}
+
+	return rset, nil
+}
+
+func (p *CiscoISE) processEnt(ent *entry.Entry) (r *entry.Entry, err error) {
+	if p.Enable_Multipart_Reassembly {
+		r, err = p.processReassemble(ent)
+	} else {
+		//just attempt to reformat the entry
+		if !p.fmt(ent, p.filters, p.Attribute_Strip_Header) && !p.Passthrough_Misses {
+			//bad formatting and no passthrough, just skip it
+			return
+		}
+		r = ent
+	}
+	return
+}
+
+func (p *CiscoISE) processReassemble(ent *entry.Entry) (r *entry.Entry, err error) {
+	//add the item to our re-assembler
+	var rmsg remoteISE
+	if err = rmsg.Parse(string(ent.Data)); err != nil {
+		err = nil // do not pass parsing errors up
+		if p.Passthrough_Misses {
+			r = ent
+		}
+	} else if msr, ejected, bad := p.ma.add(rmsg, ent); bad {
+		if p.Passthrough_Misses {
+			r = ent
+		}
+	} else if ejected {
+		if rent, ok := msr.meta.(*entry.Entry); ok {
+			rent.Data = []byte(msr.output)
+			if p.fmt(rent, p.filters, p.Attribute_Strip_Header) || p.Passthrough_Misses {
+				r = rent
+			}
+		}
+	}
+
 	return
 }
 

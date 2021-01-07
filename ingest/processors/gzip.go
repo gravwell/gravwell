@@ -97,7 +97,20 @@ func (gd *GzipDecompressor) Config(v interface{}) (err error) {
 	return
 }
 
-func (gd *GzipDecompressor) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
+func (gd *GzipDecompressor) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
+	if len(ents) == 0 {
+		return nil, nil
+	}
+	rset := ents[:0]
+	for _, v := range ents {
+		if ent, err := gd.procEnt(v); err == nil && ent != nil {
+			rset = append(rset, ent)
+		}
+	}
+	return rset, nil
+}
+
+func (gd *GzipDecompressor) procEnt(ent *entry.Entry) (rset *entry.Entry, err error) {
 	var gzok bool
 	if ent == nil {
 		return
@@ -109,7 +122,7 @@ func (gd *GzipDecompressor) Process(ent *entry.Entry) (rset []*entry.Entry, err 
 	if !gzok {
 		//check if we are passing through
 		if gd.Passthrough_Non_Gzip {
-			rset = []*entry.Entry{ent}
+			rset = ent
 		} else {
 			err = ErrNotGzipped
 		}
@@ -125,7 +138,7 @@ func (gd *GzipDecompressor) Process(ent *entry.Entry) (rset []*entry.Entry, err 
 	if _, err = io.Copy(gd.bb, gd.zrdr); err == nil {
 		if err = gd.zrdr.Close(); err == nil {
 			ent.Data = append(nb, gd.bb.Bytes()...)
-			rset = []*entry.Entry{ent}
+			rset = ent
 		}
 	}
 	if gd.bb.Cap() > gd.maxBuff {

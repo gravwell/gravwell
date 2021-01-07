@@ -44,130 +44,6 @@ func TestCheckProcessors(t *testing.T) {
 	}
 }
 
-func TestGzipLoadConfig(t *testing.T) {
-	b := []byte(`
-	[global]
-	foo = "bar"
-	bar = 1337
-	baz = 1.337
-	foo-bar-baz="foo bar baz"
-
-	[item "A"]
-	name = "test A"
-	value = 0xA
-
-	[preprocessor "gz1"]
-		type = gzip
-		Passthrough-Non-Gzip=false
-	`)
-	tc := struct {
-		Global struct {
-			Foo         string
-			Bar         uint16
-			Baz         float32
-			Foo_Bar_Baz string
-		}
-		Item map[string]*struct {
-			Name  string
-			Value int
-		}
-		Preprocessor ProcessorConfig
-	}{}
-	if err := config.LoadConfigBytes(&tc, b); err != nil {
-		t.Fatal(err)
-	}
-	var tt testTagger
-	p, err := tc.Preprocessor.getProcessor(`gz1`, &tt)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := p.Process(makeEntry([]byte("hello"), 0)); err != ErrNotGzipped {
-		t.Fatalf("Failed to catch bad gzip data")
-	}
-	val := `testing this test`
-	x, err := gzipCompressVal(val)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if rset, err := p.Process(makeEntry(x, entry.EntryTag(99))); err != nil {
-		t.Fatal(err)
-	} else if len(rset) != 1 {
-		t.Fatalf("Invalid result count: %d", len(rset))
-	} else if string(rset[0].Data) != val {
-		t.Fatalf("Bad results: %v != %v", string(rset[0].Data), val)
-	} else if rset[0].Tag != entry.EntryTag(99) {
-		t.Fatalf("Bad result tag: %d != 99", rset[0].Tag)
-	}
-}
-
-func TestGzipProcessor(t *testing.T) {
-	cfg := GzipDecompressorConfig{
-		Passthrough_Non_Gzip: false,
-	}
-	p, err := NewGzipDecompressor(cfg)
-	if err != nil {
-		t.Fatal(err)
-	}
-	//ensure we get an error about nongzip
-	if _, err := p.Process(makeEntry([]byte("hello"), 0)); err != ErrNotGzipped {
-		t.Fatalf("Failed to catch bad gzip data")
-	}
-	if _, err := p.Process(makeEntry(nil, 0)); err != ErrNotGzipped {
-		t.Fatalf("Failed to catch bad gzip data")
-	}
-	if _, err := p.Process(makeEntry([]byte("X"), 0)); err != ErrNotGzipped {
-		t.Fatalf("Failed to catch bad gzip data")
-	}
-
-	//try a few items
-	toCheck := []string{
-		`this is my string, there are many like it, but this string is mine`,
-		`x`,
-		``,
-	}
-	for i, v := range toCheck {
-		x, err := gzipCompressVal(v)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if rset, err := p.Process(makeEntry(x, entry.EntryTag(i))); err != nil {
-			t.Fatal(err)
-		} else if len(rset) != 1 {
-			t.Fatalf("Invalid result count: %d", len(rset))
-		} else if string(rset[0].Data) != v {
-			t.Fatalf("Bad results: %v != %v", string(rset[0].Data), v)
-		} else if rset[0].Tag != entry.EntryTag(i) {
-			t.Fatalf("Bad result tag: %d != %d", rset[0].Tag, i)
-		}
-	}
-
-	//change the config to allow pass through
-	cfg.Passthrough_Non_Gzip = true
-	if err = p.Config(cfg); err != nil {
-		t.Fatal(err)
-	}
-	if rset, err := p.Process(makeEntry([]byte("hello"), 0)); err != nil {
-		t.Fatal(err)
-	} else if string(rset[0].Data) != `hello` {
-		t.Fatalf("Failed to pass through nongzip: %v", string(rset[0].Data))
-	}
-	if rset, err := p.Process(makeEntry(nil, 0)); err != nil {
-		t.Fatal(err)
-	} else if len(rset) != 1 {
-		t.Fatalf("Invalid result count: %d", len(rset))
-	} else if rset[0].Data != nil {
-		t.Fatal("Failed to pass through nongzip")
-	}
-	if rset, err := p.Process(makeEntry([]byte("X"), 0)); err != nil {
-		t.Fatal(err)
-	} else if len(rset) != 1 {
-		t.Fatalf("Invalid result count: %d", len(rset))
-	} else if string(rset[0].Data) != "X" {
-		t.Fatal("Failed to pass through nongzip")
-	}
-
-}
-
 func TestEmptyProcessorSet(t *testing.T) {
 	ps := NewProcessorSet(nil)
 	ent := entry.Entry{
@@ -353,8 +229,32 @@ func (tw *testWriter) WriteEntry(ent *entry.Entry) error {
 	return nil
 }
 
+func (tw *testWriter) WriteBatch(ents []*entry.Entry) error {
+	if len(ents) == 0 {
+		return errors.New("empty set")
+	}
+	for _, ent := range ents {
+		if err := tw.WriteEntry(ent); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (tw *testWriter) WriteEntryContext(ctx context.Context, ent *entry.Entry) error {
 	return tw.WriteEntry(ent)
+}
+
+func (tw *testWriter) WriteBatchContext(ctx context.Context, ents []*entry.Entry) error {
+	if len(ents) == 0 {
+		return errors.New("empty set")
+	}
+	for _, ent := range ents {
+		if err := tw.WriteEntryContext(ctx, ent); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func entryEqual(a, b *entry.Entry) bool {
@@ -499,7 +399,8 @@ func BenchmarkSingleGzip(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
-	ent := makeEntry(data, 0)
+	ents := makeEntry(data, 0)
+	ent := ents[0]
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		if err := ps.Process(ent); err != nil {
@@ -520,9 +421,8 @@ func (dp *dummyProcessor) Flush() []*entry.Entry {
 	return nil
 }
 
-func (dp *dummyProcessor) Process(ent *entry.Entry) (r []*entry.Entry, err error) {
-	r = []*entry.Entry{ent}
-	return
+func (dp *dummyProcessor) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
+	return ents, nil
 }
 
 type discardWriter struct {
@@ -532,6 +432,14 @@ func (dw *discardWriter) WriteEntry(ent *entry.Entry) error {
 	return nil
 }
 
+func (dw *discardWriter) WriteBatch(ents []*entry.Entry) error {
+	return nil
+}
+
 func (dw *discardWriter) WriteEntryContext(ctx context.Context, ent *entry.Entry) error {
 	return dw.WriteEntry(ent)
+}
+
+func (dw *discardWriter) WriteBatchContext(ctx context.Context, ents []*entry.Entry) error {
+	return dw.WriteBatch(ents)
 }

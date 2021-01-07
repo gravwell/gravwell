@@ -145,38 +145,51 @@ func (j *JsonFilter) Config(v interface{}) (err error) {
 	return
 }
 
-func (j *JsonFilter) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
+func (j *JsonFilter) Process(ents []*entry.Entry) (rset []*entry.Entry, err error) {
+	if len(ents) == 0 {
+		return
+	}
+	rset = ents[:0]
+	for _, ent := range ents {
+		if ent == nil {
+			continue
+		}
+		if ent = j.processItem(ent); ent != nil {
+			rset = append(rset, ent)
+		}
+	}
+	return
+}
+
+func (j *JsonFilter) processItem(ent *entry.Entry) *entry.Entry {
 	var ok bool
 	var v []byte
+	var err error //errors are ignored
 	for fieldname, keys := range j.fields {
 		ok = false
-		v, _, _, err = jsonparser.Get(ent.Data, keys...)
-		if err == nil {
+		if v, _, _, err = jsonparser.Get(ent.Data, keys...); err == nil {
 			// This way if there was a problem extracting, we just leave ok = false
 			_, ok = j.filters[fieldname][highwayhash.Sum128(v, j.key)]
-		} else {
-			err = nil // we just ignore the error
 		}
 		if ok && !j.matchAnd {
 			// !j.matchAnd means they specified OR logic, and we have a match, so we return
 			if j.matchPass {
-				return []*entry.Entry{ent}, nil
+				return ent
 			} else {
-				return
+				return nil //drop it
 			}
 		} else if !ok && j.matchAnd {
 			// they specified AND but we didn't match, return
 			if !j.matchPass {
-				return []*entry.Entry{ent}, nil
+				return ent
 			} else {
-				return
+				return nil
 			}
 		}
 	}
 	// if we got here, we had all match with AND, or *nothing* matched with OR
 	if (j.matchAnd && j.matchPass) || (!j.matchAnd && !j.matchPass) || len(j.fields) == 0 {
-		return []*entry.Entry{ent}, nil
-	} else {
-		return
+		return ent
 	}
+	return nil //missed
 }

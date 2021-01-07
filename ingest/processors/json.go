@@ -86,24 +86,38 @@ func (j *JsonExtractor) Config(v interface{}) (err error) {
 	return
 }
 
-func (je *JsonExtractor) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
-	if ent == nil {
+func (je *JsonExtractor) Process(ents []*entry.Entry) (rset []*entry.Entry, err error) {
+	if len(ents) == 0 {
 		return
 	}
-	if err = je.bldr.extract(ent.Data); err != nil {
+	rset = ents[:0]
+	for _, ent := range ents {
+		if ent == nil {
+			continue
+		} else if ent = je.processItem(ent); ent != nil {
+			rset = append(rset, ent)
+		}
+	}
+	return
+}
+
+func (je *JsonExtractor) processItem(ent *entry.Entry) *entry.Entry {
+	if err := je.bldr.extract(ent.Data); err != nil {
 		je.bldr.reset()
-		return
+		if je.Passthrough_Misses {
+			return ent
+		}
+		return nil
 	}
 	data, cnt := je.bldr.render()
 	if je.Strict_Extraction && cnt != len(je.bldr.keynames) {
-		return nil, nil //just dropping the entry
+		return nil //just dropping the entry
 	} else if cnt == 0 && je.Passthrough_Misses {
-		rset = []*entry.Entry{ent}
+		return ent
 	} else if len(data) > 0 {
 		ent.Data = data
-		rset = []*entry.Entry{ent}
 	}
-	return
+	return ent
 }
 
 func (jec JsonExtractConfig) getKeyData() (keys [][]string, keynames []string, err error) {
@@ -352,7 +366,25 @@ func (j *JsonArraySplitter) Config(v interface{}) (err error) {
 	return
 }
 
-func (je *JsonArraySplitter) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
+func (je *JsonArraySplitter) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
+	if len(ents) == 0 {
+		return nil, nil
+	}
+	var r []*entry.Entry
+	for _, ent := range ents {
+		if ent == nil {
+			continue
+		}
+		if set, err := je.processItem(ent); err != nil {
+			continue
+		} else if len(set) > 0 {
+			r = append(r, set...)
+		}
+	}
+	return r, nil
+}
+
+func (je *JsonArraySplitter) processItem(ent *entry.Entry) (rset []*entry.Entry, err error) {
 	cb := func(v []byte, dt jsonparser.ValueType, off int, lerr error) {
 		if len(v) == 0 || lerr != nil {
 			return

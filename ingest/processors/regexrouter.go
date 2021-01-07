@@ -101,21 +101,32 @@ func (rr *RegexRouter) init(cfg RegexRouteConfig, tagger Tagger) (err error) {
 	return
 }
 
-func (rr *RegexRouter) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
-	if ent == nil {
+func (rr *RegexRouter) Process(ents []*entry.Entry) (rset []*entry.Entry, err error) {
+	if len(ents) == 0 {
 		return
 	}
+	rset = ents[:0]
+	for _, ent := range ents {
+		if ent == nil {
+			continue
+		} else if ent = rr.processItem(ent); ent != nil {
+			rset = append(rset, ent)
+		}
+	}
+	return
+}
+
+func (rr *RegexRouter) processItem(ent *entry.Entry) *entry.Entry {
 	if mtchs := rr.rxp.FindSubmatch(ent.Data); rr.matchIdx < len(mtchs) {
 		if tag, drop, ok := rr.handleExtract(mtchs[rr.matchIdx]); drop {
-			return
+			return nil
 		} else if ok {
 			ent.Tag = tag
 		}
-		rset = []*entry.Entry{ent}
-	} else if !rr.Drop_Misses {
-		rset = []*entry.Entry{ent}
+	} else if rr.Drop_Misses {
+		return nil
 	}
-	return
+	return ent
 }
 
 func (rr *RegexRouter) handleExtract(v []byte) (tag entry.EntryTag, drop, ok bool) {

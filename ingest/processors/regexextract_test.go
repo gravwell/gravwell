@@ -75,7 +75,7 @@ func TestRegexExtract(t *testing.T) {
 		TS:   testTime,
 		Data: []byte(`101 THINGS STUFF`),
 	}
-	ents, err := re.Process(ent)
+	ents, err := re.Process([]*entry.Entry{ent})
 	if err != nil {
 		t.Fatal(err)
 	} else if len(ents) != 1 {
@@ -105,7 +105,7 @@ func TestRegexExtractSRC(t *testing.T) {
 		TS:   testTime,
 		Data: []byte(`101 THINGS STUFF`),
 	}
-	ents, err := re.Process(ent)
+	ents, err := re.Process([]*entry.Entry{ent})
 	if err != nil {
 		t.Fatal(err)
 	} else if len(ents) != 1 {
