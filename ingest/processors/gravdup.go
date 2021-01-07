@@ -10,6 +10,7 @@ package processors
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -151,4 +152,15 @@ func (gf *GravwellForwarder) Process(ents []*entry.Entry) (r []*entry.Entry, err
 		}
 	}
 	return
+}
+
+// we DO NOT want to ship the ingest secret here, so we mask it off
+func (gfc GravwellForwarderConfig) MarshalJSON() ([]byte, error) {
+	x := struct {
+		config.IngestConfig
+		Ingest_Secret string `json:",omitempty"`
+	}{
+		IngestConfig: gfc.IngestConfig,
+	}
+	return json.Marshal(x)
 }
