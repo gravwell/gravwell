@@ -84,11 +84,12 @@ type EntryReader struct {
 	timeout     time.Duration
 	tagMan      TagManager
 	// the reader stores some info about the other side
-	igName       string
-	igVersion    string
-	igUUID       string
-	igAPIVersion uint16
-	igState      IngesterState // the most recent state message received
+	igName         string
+	igVersion      string
+	igUUID         string
+	igAPIVersion   uint16
+	igState        IngesterState           // the most recent state message received
+	stateCallbacks []IngesterStateCallback // functions to be called when an IngesterState message is received
 }
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
@@ -134,6 +135,17 @@ func (er *EntryReader) GetIngesterAPIVersion() uint16 {
 // GetIngesterState returns the most recent state object received from the ingester.
 func (er *EntryReader) GetIngesterState() IngesterState {
 	return er.igState
+}
+
+type IngesterStateCallback func(IngesterState)
+
+// AddIngesterStateCallback registers a callback function which will be called every
+// time the EntryReader reads an IngesterState message from the client.
+// Calling AddIngesterStateCallback multiple times will add additional callbacks to the
+// list.
+// Warning: If a callback hangs, the entire entry reader will hang.
+func (er *EntryReader) AddIngesterStateCallback(f IngesterStateCallback) {
+	er.stateCallbacks = append(er.stateCallbacks, f)
 }
 
 // configureStream will
@@ -379,6 +391,11 @@ headerLoop:
 
 			// store it for later retrieval
 			er.igState = state
+
+			// run callbacks
+			for i := range er.stateCallbacks {
+				er.stateCallbacks[i](state)
+			}
 
 			continue
 		default: //we should probably bail out if we get desynced
