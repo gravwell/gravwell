@@ -50,6 +50,6 @@ func (gd *Drop) Config(v interface{}) (err error) {
 	return
 }
 
-func (gd *Drop) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
+func (gd *Drop) Process(ent []*entry.Entry) (rset []*entry.Entry, err error) {
 	return
 }

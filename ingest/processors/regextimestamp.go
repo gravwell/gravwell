@@ -118,13 +118,30 @@ func (rt *RegexTimestamp) Config(v interface{}) (err error) {
 	return
 }
 
-func (rt *RegexTimestamp) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
+func (rt *RegexTimestamp) Process(ents []*entry.Entry) (rset []*entry.Entry, err error) {
+	if len(ents) == 0 {
+		return
+	}
+	rset = ents[:0]
+	for _, ent := range ents {
+		if ent == nil {
+			continue
+		}
+		if ent, err = rt.processItem(ent); err != nil {
+			return
+		} else if ent != nil {
+			rset = append(rset, ent)
+		}
+	}
+	return
+}
+
+func (rt *RegexTimestamp) processItem(ent *entry.Entry) (*entry.Entry, error) {
 	matches := rt.re.FindSubmatch(ent.Data)
 	// grab the extraction
 	if len(matches) < rt.matchidx {
 		// no extraction, skip it
-		rset = []*entry.Entry{ent}
-		return
+		return ent, nil
 	}
 	extracted, ok, err := rt.tg.Extract(matches[rt.matchidx])
 	if err != nil {
@@ -133,6 +150,5 @@ func (rt *RegexTimestamp) Process(ent *entry.Entry) (rset []*entry.Entry, err er
 		// successful parse
 		ent.TS = entry.FromStandard(extracted)
 	}
-	rset = []*entry.Entry{ent}
-	return
+	return ent, nil
 }

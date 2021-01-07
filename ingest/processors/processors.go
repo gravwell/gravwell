@@ -46,7 +46,7 @@ type ProcessorConfig map[string]*config.VariableConfig
 
 // Processor is an interface that takes an entry and processes it, returning a new block
 type Processor interface {
-	Process(*entry.Entry) ([]*entry.Entry, error) //process an data item potentially setting a tag
+	Process([]*entry.Entry) ([]*entry.Entry, error) //process an data item potentially setting a tag
 	Flush() []*entry.Entry
 	Close() error //give the processor a chance to tidy up
 }
@@ -81,6 +81,8 @@ type Tagger interface {
 type entWriter interface {
 	WriteEntry(*entry.Entry) error
 	WriteEntryContext(context.Context, *entry.Entry) error
+	WriteBatch([]*entry.Entry) error
+	WriteBatchContext(context.Context, []*entry.Entry) error
 }
 
 type preprocessorBase struct {
@@ -244,65 +246,101 @@ func (pr *ProcessorSet) AddProcessor(p Processor) {
 	pr.set = append(pr.set, p)
 }
 
-func (pr *ProcessorSet) Process(ent *entry.Entry) error {
-	pr.Lock()
-	defer pr.Unlock()
-	if pr == nil || pr.wtr == nil {
-		return ErrNotReady
-	} else if ent == nil {
+func (pr *ProcessorSet) Process(ent *entry.Entry) (err error) {
+	if ent == nil {
 		return ErrInvalidEntry
-	} else if len(pr.set) == 0 {
-		return pr.wtr.WriteEntry(ent)
 	}
-	//we have processors, start recursing into them
-	return pr.processItem(ent, 0)
+	pr.Lock()
+	if pr == nil || pr.wtr == nil {
+		err = ErrNotReady
+	} else if len(pr.set) == 0 {
+		err = pr.wtr.WriteEntry(ent)
+	} else {
+		//we have processors, start recursing into them
+		err = pr.processItems([]*entry.Entry{ent}, 0)
+	}
+	pr.Unlock()
+	return
 }
 
-func (pr *ProcessorSet) ProcessContext(ent *entry.Entry, ctx context.Context) error {
-	pr.Lock()
-	defer pr.Unlock()
-	if pr == nil || pr.wtr == nil {
-		return ErrNotReady
-	} else if ent == nil {
-		return ErrInvalidEntry
-	} else if len(pr.set) == 0 {
-		return pr.wtr.WriteEntryContext(ctx, ent)
+func (pr *ProcessorSet) ProcessBatch(ents []*entry.Entry) (err error) {
+	if len(ents) == 0 {
+		return nil
 	}
-	//we have processors, start recursing into them
-	return pr.processItemContext(ent, 0, ctx)
+	pr.Lock()
+	if pr == nil || pr.wtr == nil {
+		err = ErrNotReady
+	} else if len(pr.set) == 0 {
+		err = pr.wtr.WriteBatch(ents)
+	} else {
+		//we have processors, start recursing into them
+		err = pr.processItems(ents, 0)
+	}
+	pr.Unlock()
+	return
+}
+
+func (pr *ProcessorSet) ProcessContext(ent *entry.Entry, ctx context.Context) (err error) {
+	if ent == nil {
+		return ErrInvalidEntry
+	}
+	pr.Lock()
+	if pr == nil || pr.wtr == nil {
+		err = ErrNotReady
+	} else if len(pr.set) == 0 {
+		err = pr.wtr.WriteEntryContext(ctx, ent)
+	} else {
+		//we have processors, start recursing into them
+		err = pr.processItemsContext([]*entry.Entry{ent}, 0, ctx)
+	}
+	pr.Unlock()
+	return
+}
+
+func (pr *ProcessorSet) ProcessBatchContext(ents []*entry.Entry, ctx context.Context) (err error) {
+	if len(ents) == 0 {
+		return nil
+	}
+	pr.Lock()
+	if pr == nil || pr.wtr == nil {
+		err = ErrNotReady
+	} else if len(pr.set) == 0 {
+		err = pr.wtr.WriteBatchContext(ctx, ents)
+	} else {
+		//we have processors, start recursing into them
+		err = pr.processItemsContext(ents, 0, ctx)
+	}
+	pr.Unlock()
+	return
 }
 
 // processItem recurses into each processor generating entries and writing them out
-func (pr *ProcessorSet) processItem(ent *entry.Entry, i int) error {
+func (pr *ProcessorSet) processItems(ents []*entry.Entry, i int) error {
 	if i >= len(pr.set) {
 		//we are at the end of the line, just write the entry
-		return pr.wtr.WriteEntry(ent)
+		return pr.wtr.WriteBatch(ents)
 	}
-	if set, err := pr.set[i].Process(ent); err != nil {
+	if set, err := pr.set[i].Process(ents); err != nil {
 		return err
 	} else {
-		for _, v := range set {
-			if err := pr.processItem(v, i+1); err != nil {
-				return err
-			}
+		if err := pr.processItems(set, i+1); err != nil {
+			return err
 		}
 	}
 	return nil
 }
 
 // processItemContext recurses into each processor generating entries and writing them out
-func (pr *ProcessorSet) processItemContext(ent *entry.Entry, i int, ctx context.Context) error {
+func (pr *ProcessorSet) processItemsContext(ents []*entry.Entry, i int, ctx context.Context) error {
 	if i >= len(pr.set) {
 		//we are at the end of the line, just write the entry
-		return pr.wtr.WriteEntryContext(ctx, ent)
+		return pr.wtr.WriteBatchContext(ctx, ents)
 	}
-	if set, err := pr.set[i].Process(ent); err != nil {
+	if set, err := pr.set[i].Process(ents); err != nil {
 		return err
 	} else {
-		for _, v := range set {
-			if err := pr.processItemContext(v, i+1, ctx); err != nil {
-				return err
-			}
+		if err := pr.processItemsContext(set, i+1, ctx); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -314,8 +352,8 @@ func (pr *ProcessorSet) processItemContext(ent *entry.Entry, i int, ctx context.
 func (pr *ProcessorSet) Close() (err error) {
 	for i, v := range pr.set {
 		if v != nil {
-			for _, ent := range v.Flush() {
-				if lerr := pr.processItem(ent, i+1); lerr != nil {
+			if ents := v.Flush(); len(ents) > 0 {
+				if lerr := pr.processItems(ents, i+1); lerr != nil {
 					err = addError(lerr, err)
 				}
 			}
