@@ -14,6 +14,7 @@ package processors
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -34,6 +35,8 @@ var (
 	ErrNotFound         = errors.New("Processor not found")
 	ErrNotReady         = errors.New("ProcessorSet not ready")
 	ErrInvalidEntry     = errors.New("ErrInvalidEntry")
+
+	emptyStruct = []byte(`{}`)
 )
 
 type ProcessorSet struct {
@@ -132,6 +135,23 @@ func (pc ProcessorConfig) CheckConfig(name string) (err error) {
 		_, err = ProcessorLoadConfig(vc)
 	}
 	return
+}
+
+func (pc ProcessorConfig) MarshalJSON() ([]byte, error) {
+	if len(pc) == 0 {
+		return emptyStruct, nil
+	}
+	mp := map[string]interface{}{}
+	for k, v := range pc {
+		cfg, err := ProcessorLoadConfig(v)
+		if err != nil {
+			return nil, err
+		} else if cfg == nil {
+			continue
+		}
+		mp[k] = cfg
+	}
+	return json.Marshal(mp)
 }
 
 func (pc ProcessorConfig) getProcessor(name string, tgr Tagger) (p Processor, err error) {
