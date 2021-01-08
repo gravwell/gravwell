@@ -28,7 +28,7 @@ const (
 
 type cfgType struct {
 	Global struct {
-		Ingest_Secret              string
+		Ingest_Secret              string `json:"-"` // DO NOT send this when marshalling
 		Connection_Timeout         string
 		Verify_Remote_Certificates bool
 		Cleartext_Backend_Target   []string

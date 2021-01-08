@@ -152,6 +152,12 @@ func main() {
 	}
 	debugout("Successfully connected to ingesters\n")
 
+	// prepare the configuration we're going to send upstream
+	err = igst.SetRawConfiguration(cfg)
+	if err != nil {
+		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+	}
+
 	tracker, err = NewTracker(cfg.Global.State_Store_Location, 48*time.Hour, igst)
 	if err != nil {
 		lg.Fatal("Failed to initialize state file: %v", err)

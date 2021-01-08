@@ -49,7 +49,7 @@ type collector struct {
 	Source_Override     string
 	Security_Level      string
 	User                string
-	Password            string
+	Password            string `json:"-"` // DO NOT send this when marshalling
 	Tag_Plugin_Override []string
 	Encoder             string
 	Preprocessor        []string
