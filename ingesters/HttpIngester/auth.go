@@ -57,10 +57,10 @@ type authType string
 type auth struct {
 	AuthType   authType
 	Username   string
-	Password   string
+	Password   string `json:"-"` // DO NOT send this when marshalling
 	LoginURL   string
 	TokenName  string
-	TokenValue string
+	TokenValue string `json:"-"` // DO NOT send this when marshalling
 }
 
 type authHandler interface {

@@ -31,7 +31,7 @@ type queue struct {
 	Queue_URL    string
 	Region       string
 	AKID         string
-	Secret       string
+	Secret       string `json:"-"` // DO NOT send this when marshalling
 	Preprocessor []string
 }
 

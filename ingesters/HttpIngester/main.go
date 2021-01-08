@@ -152,6 +152,13 @@ func main() {
 		lg.Fatal("Timedout waiting for backend connections: %v", err)
 	}
 	debugout("Successfully connected to ingesters\n")
+
+	// prepare the configuration we're going to send upstream
+	err = igst.SetRawConfiguration(cfg)
+	if err != nil {
+		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+	}
+
 	hnd := &handler{
 		mp:   map[string]handlerConfig{},
 		auth: map[string]authHandler{},
