@@ -287,9 +287,6 @@ func (er *EntryReader) read() (*entry.Entry, error) {
 	if err = er.fillHeader(ent, &id, &sz); err != nil {
 		return nil, err
 	}
-	if sz > uint32(MAX_ENTRY_SIZE) {
-		return nil, ErrOversizedEntry
-	}
 	ent.Data = make([]byte, sz)
 	if _, err = io.ReadFull(er.bIO, ent.Data); err != nil {
 		return nil, err
@@ -416,7 +413,7 @@ headerLoop:
 		return err
 	}
 	if dataSize > int(MAX_ENTRY_SIZE) {
-		return errors.New("Entry size too large")
+		return ErrOversizedEntry
 	}
 	*sz = uint32(dataSize) //dataSize is a uint32 internally, so these casts are OK
 	*id = entrySendID(binary.LittleEndian.Uint64(er.buff[entry.ENTRY_HEADER_SIZE:]))
