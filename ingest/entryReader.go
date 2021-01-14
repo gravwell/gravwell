@@ -46,6 +46,7 @@ var (
 	errBufferTooSmall      = errors.New("Buffer too small for encoded command")
 	errFailBufferTooSmall  = errors.New("Buffer too small for encoded command")
 	errFailedToReadCommand = errors.New("Failed to read command")
+	ErrOversizedEntry      = errors.New("Entry data exceeds maximum size")
 
 	ackBatchReadTimerDuration = 10 * time.Millisecond
 	defaultReaderTimeout      = 10 * time.Minute
@@ -285,6 +286,9 @@ func (er *EntryReader) read() (*entry.Entry, error) {
 
 	if err = er.fillHeader(ent, &id, &sz); err != nil {
 		return nil, err
+	}
+	if sz > uint32(MAX_ENTRY_SIZE) {
+		return nil, ErrOversizedEntry
 	}
 	ent.Data = make([]byte, sz)
 	if _, err = io.ReadFull(er.bIO, ent.Data); err != nil {

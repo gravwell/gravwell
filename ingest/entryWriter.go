@@ -26,8 +26,8 @@ const (
 	//READ_ENTRY_HEADER_SIZE should be 46 bytes
 	//34 + 4 + 4 + 8 (magic, data len, entry ID)
 	READ_ENTRY_HEADER_SIZE int = entry.ENTRY_HEADER_SIZE + 12
+	MAX_ENTRY_SIZE         int = 1024 * 1024 * 1024
 	//TODO: We should make this configurable by configuration
-	MAX_ENTRY_SIZE              int           = 1024 * 1024 * 1024
 	WRITE_BUFFER_SIZE           int           = 1024 * 1024
 	MAX_WRITE_ERROR             int           = 4
 	BUFFERED_ACK_READER_SIZE    int           = ACK_SIZE * MAX_UNCONFIRMED_COUNT
@@ -327,6 +327,11 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 		if err := ew.serviceAcks(true); err != nil {
 			return false, err
 		}
+	}
+
+	//check that we aren't attempting to write an entry that is too large
+	if len(ent.Data) > MAX_ENTRY_SIZE {
+		return false, ErrOversizedEntry
 	}
 
 	//throw the magic
