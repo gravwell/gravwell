@@ -335,6 +335,10 @@ headerLoop:
 				return errFailedFullRead
 			}
 			length := binary.LittleEndian.Uint32(er.buff[0:4])
+			//ensure we aren't getting something crazy
+			if int(length) > MAX_TAG_LENGTH {
+				return ErrOversizedTag
+			}
 			name := make([]byte, length)
 			n, err = io.ReadFull(er.bIO, name)
 			if err != nil {
@@ -342,6 +346,9 @@ headerLoop:
 			}
 			if n < int(length) {
 				return errFailedFullRead
+			} else if err := CheckTag(string(name)); err != nil {
+				er.ackChan <- ackCommand{cmd: ERROR_TAG_MAGIC, val: uint64(0)}
+				continue
 			}
 
 			// Now that we've read, we can either send back a CONFIRM

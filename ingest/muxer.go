@@ -246,6 +246,9 @@ func NewIngestMuxerExt(dests []Target, tags []string, pubKey, privKey string, ca
 func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	localTags := make([]string, 0, len(c.Tags))
 	for i := range c.Tags {
+		if err := CheckTag(c.Tags[i]); err != nil {
+			return nil, fmt.Errorf("Invalid tag %q %v", c.Tags[i], err)
+		}
 		localTags = append(localTags, c.Tags[i])
 	}
 	if c.Logger == nil {
