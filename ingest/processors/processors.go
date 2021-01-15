@@ -69,6 +69,7 @@ func CheckProcessor(id string) error {
 	case GravwellForwarderProcessor:
 	case DropProcessor:
 	case CiscoISEProcessor:
+	case SrcRouterProcessor:
 	default:
 		return ErrUnknownProcessor
 	}
@@ -122,6 +123,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = GravwellForwarderLoadConfig(vc)
 	case CiscoISEProcessor:
 		cfg, err = CiscoISELoadConfig(vc)
+	case SrcRouterProcessor:
+		cfg, err = SrcRouteLoadConfig(vc)
 	default:
 		err = ErrUnknownProcessor
 	}
@@ -242,6 +245,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewCiscoISEProcessor(cfg)
+	case SrcRouterProcessor:
+		var cfg SrcRouteConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewSrcRouter(cfg, tgr)
 	default:
 		err = ErrUnknownProcessor
 	}
