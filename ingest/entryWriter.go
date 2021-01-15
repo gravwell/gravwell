@@ -749,6 +749,9 @@ idCmdLoop:
 }
 
 func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) {
+	if err = CheckTag(name); err != nil {
+		return
+	}
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
 
