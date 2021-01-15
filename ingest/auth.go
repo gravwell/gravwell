@@ -207,9 +207,6 @@ func GenerateResponse(auth AuthHash, ch Challenge) (*ChallengeResponse, error) {
 		return nil, err
 	}
 	runningHash = sha.Sum(nil)
-	if err != nil {
-		return nil, err
-	}
 
 	for i := uint16(0); i < ch.Iterate; i++ {
 		md := md5.New()

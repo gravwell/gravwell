@@ -52,6 +52,7 @@ var (
 	ErrEmergencyListOverflow = errors.New("Emergency list overflow")
 	ErrTimeout               = errors.New("Timed out waiting for ingesters")
 	ErrWriteTimeout          = errors.New("Timed out waiting to write entry")
+	ErrInvalidEntry          = errors.New("Invalid entry value")
 
 	errNotImp = errors.New("Not implemented yet")
 )
@@ -816,6 +817,8 @@ func (im *IngestMuxer) GetTag(tag string) (tg entry.EntryTag, err error) {
 func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	if e == nil {
 		return nil
+	} else if len(e.Data) > MAX_ENTRY_SIZE {
+		return ErrOversizedEntry
 	}
 	if im.state != running {
 		return ErrNotRunning
@@ -832,6 +835,8 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) error {
 	if e == nil {
 		return nil
+	} else if len(e.Data) > MAX_ENTRY_SIZE {
+		return ErrOversizedEntry
 	}
 	if im.state != running {
 		return ErrNotRunning
@@ -852,6 +857,8 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err error) {
 	if e == nil {
 		return
+	} else if len(e.Data) > MAX_ENTRY_SIZE {
+		return ErrOversizedEntry
 	}
 	if im.state != running {
 		return ErrNotRunning
@@ -873,6 +880,14 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	if len(b) == 0 {
 		return nil
 	}
+	//scan the entries
+	for i := range b {
+		if b == nil {
+			return ErrInvalidEntry
+		} else if len(b[i].Data) > MAX_ENTRY_SIZE {
+			return ErrOversizedEntry
+		}
+	}
 	im.mtx.RLock()
 	runok := im.state == running
 	im.mtx.RUnlock()
@@ -892,6 +907,15 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 	if len(b) == 0 {
 		return nil
 	}
+	//scan the entries
+	for i := range b {
+		if b == nil {
+			return ErrInvalidEntry
+		} else if len(b[i].Data) > MAX_ENTRY_SIZE {
+			return ErrOversizedEntry
+		}
+	}
+
 	im.mtx.RLock()
 	runok := im.state == running
 	im.mtx.RUnlock()
@@ -913,6 +937,9 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 // entry writer routine, if all routines are dead, THIS WILL BLOCK once the
 // channel fills up.  We figure this is a natural "wait" mechanism
 func (im *IngestMuxer) Write(tm entry.Timestamp, tag entry.EntryTag, data []byte) error {
+	if len(data) > MAX_ENTRY_SIZE {
+		return ErrOversizedEntry
+	}
 	e := &entry.Entry{
 		Data: data,
 		TS:   tm,
@@ -927,6 +954,9 @@ func (im *IngestMuxer) Write(tm entry.Timestamp, tag entry.EntryTag, data []byte
 // channel fills up.  We figure this is a natural "wait" mechanism
 // if the context isn't needed use Write instead
 func (im *IngestMuxer) WriteContext(ctx context.Context, tm entry.Timestamp, tag entry.EntryTag, data []byte) error {
+	if len(data) > MAX_ENTRY_SIZE {
+		return ErrOversizedEntry
+	}
 	e := &entry.Entry{
 		Data: data,
 		TS:   tm,

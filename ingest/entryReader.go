@@ -46,6 +46,7 @@ var (
 	errBufferTooSmall      = errors.New("Buffer too small for encoded command")
 	errFailBufferTooSmall  = errors.New("Buffer too small for encoded command")
 	errFailedToReadCommand = errors.New("Failed to read command")
+	ErrOversizedEntry      = errors.New("Entry data exceeds maximum size")
 
 	ackBatchReadTimerDuration = 10 * time.Millisecond
 	defaultReaderTimeout      = 10 * time.Minute
@@ -419,7 +420,7 @@ headerLoop:
 		return err
 	}
 	if dataSize > int(MAX_ENTRY_SIZE) {
-		return errors.New("Entry size too large")
+		return ErrOversizedEntry
 	}
 	*sz = uint32(dataSize) //dataSize is a uint32 internally, so these casts are OK
 	*id = entrySendID(binary.LittleEndian.Uint64(er.buff[entry.ENTRY_HEADER_SIZE:]))

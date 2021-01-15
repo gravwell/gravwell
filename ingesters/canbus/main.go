@@ -143,6 +143,14 @@ func main() {
 	}
 	debugout("Successfully connected to ingesters\n")
 
+	// prepare the configuration we're going to send upstream
+	err = igst.SetRawConfiguration(cfg)
+	if err != nil {
+		closeSniffers(sniffs)
+		log.Fatal("Failed to set configuration for ingester state messages")
+		return
+	}
+
 	//set tags and source for each sniffer
 	for i := range sniffs {
 		tag, err := igst.GetTag(sniffs[i].TagName)
