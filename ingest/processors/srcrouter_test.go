@@ -22,6 +22,29 @@ var (
 	src = SrcRouteConfig{
 		Route: []string{`1.1.1.1:foo`, `2.2.2.2:bar`, `3.3.3.3:`},
 	}
+
+	badSrcConfigs = []SrcRouteConfig{
+		// No routes
+		SrcRouteConfig{
+			Route: []string{``},
+		},
+		// Incomplete definition
+		SrcRouteConfig{
+			Route: []string{`1.1.1.1`},
+		},
+		// Invalid IP addr
+		SrcRouteConfig{
+			Route: []string{`xyzzy:foobar`},
+		},
+		// Incomplete spec (missing final colon)
+		SrcRouteConfig{
+			Route: []string{`1234::`},
+		},
+		// Bad tag
+		SrcRouteConfig{
+			Route: []string{`1.1.1.1:x!f_$$$`},
+		},
+	}
 )
 
 func TestSrcRouteConfig(t *testing.T) {
@@ -29,6 +52,14 @@ func TestSrcRouteConfig(t *testing.T) {
 		t.Fatal(err)
 	} else if len(rts) != 3 {
 		t.Fatal("bad route count")
+	}
+}
+
+func TestBadSrcRouteConfig(t *testing.T) {
+	for i, c := range badSrcConfigs {
+		if _, err := c.validate(); err == nil {
+			t.Fatalf("Failed to catch bad config %d (%+v)\n", i, c)
+		}
 	}
 }
 

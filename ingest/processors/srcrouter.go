@@ -15,6 +15,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
@@ -157,6 +158,8 @@ func (src SrcRouteConfig) validate() (rts []srcroute, err error) {
 		}
 		if r.tag == `` {
 			r.drop = true
+		} else if err = ingest.CheckTag(r.tag); err != nil {
+			return
 		}
 		rts = append(rts, r)
 	}
@@ -171,7 +174,13 @@ func getSrcRoute(v string) (a string, b string, err error) {
 		l := len(bits)
 		b = strings.TrimSpace(bits[l-1])
 		t := strings.TrimSpace(strings.Join(bits[:l-1], splitChar))
-		a = net.ParseIP(t).String()
+		ip := net.ParseIP(t)
+		if ip == nil {
+			// bad IP spec
+			err = fmt.Errorf("Invalid IP specification: %v", t)
+			return
+		}
+		a = ip.String()
 	}
 	return
 }
