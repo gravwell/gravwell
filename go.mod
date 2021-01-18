@@ -8,6 +8,7 @@ require (
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/Shopify/sarama v1.24.1
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
+	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56
 	github.com/aws/aws-sdk-go v1.29.11
 	github.com/bet365/jingo v0.10.0
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e

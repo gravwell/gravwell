@@ -15,6 +15,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/asergeyev/nradix"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -39,8 +40,7 @@ type srcroute struct {
 type SrcRouter struct {
 	nocloser
 	SrcRouteConfig
-	routes map[string]entry.EntryTag
-	drops  map[string]struct{}
+	tree *nradix.Tree
 }
 
 func SrcRouteLoadConfig(vc *config.VariableConfig) (c SrcRouteConfig, err error) {
@@ -73,18 +73,23 @@ func (sr *SrcRouter) init(cfg SrcRouteConfig, tagger Tagger) (err error) {
 		return
 	}
 	sr.SrcRouteConfig = cfg
-	sr.routes = make(map[string]entry.EntryTag)
-	sr.drops = make(map[string]struct{})
+	sr.tree = nradix.NewTree(32) // it will grow, but make a decent starting point
 	for _, r := range rts {
+		//check if the item already exists
 		if r.drop {
-			sr.drops[r.val] = empty
+			if err = sr.tree.AddCIDR(r.val, false); err != nil {
+				err = fmt.Errorf("Failed to add %q: %v", r.val, err)
+				return
+			}
 		} else {
 			var tg entry.EntryTag
 			if tg, err = tagger.NegotiateTag(r.tag); err != nil {
 				err = fmt.Errorf("Failed to get tag %s for %s: %v", r.tag, r.val, err)
 				return
+			} else if err = sr.tree.AddCIDR(r.val, tg); err != nil {
+				err = fmt.Errorf("Failed to add %q: %v", r.val, err)
+				return
 			}
-			sr.routes[r.val] = tg
 		}
 	}
 	return
@@ -112,24 +117,21 @@ func (sr *SrcRouter) processItem(ent *entry.Entry) *entry.Entry {
 	} else if ok {
 		// We found a tag to send it to
 		ent.Tag = tag
-	} else if sr.Drop_Misses {
-		// No route found and we're dropping misses
-		return nil
 	}
 	return ent
 }
 
 func (sr *SrcRouter) handleExtract(v net.IP) (tag entry.EntryTag, drop, ok bool) {
 	//check if we have a tag
-	if tag, ok = sr.routes[v.String()]; !ok {
-		//check if it should be dropped
-		if _, drop = sr.drops[v.String()]; !drop {
-			if sr.Drop_Misses {
-				drop = true
-			}
-		}
+	r, _ := sr.tree.FindCIDR(v.String())
+	if r == nil {
+		drop = sr.Drop_Misses //straight not found
+	} else if _, ok = r.(bool); ok {
+		drop = true
+	} else if tag, ok = r.(entry.EntryTag); !ok {
+		//found, but we can't convert it, this REALLY should never happen
+		drop = sr.Drop_Misses
 	}
-
 	return
 }
 
@@ -174,13 +176,22 @@ func getSrcRoute(v string) (a string, b string, err error) {
 		l := len(bits)
 		b = strings.TrimSpace(bits[l-1])
 		t := strings.TrimSpace(strings.Join(bits[:l-1], splitChar))
-		ip := net.ParseIP(t)
-		if ip == nil {
-			// bad IP spec
-			err = fmt.Errorf("Invalid IP specification: %v", t)
-			return
+		//attempt to parse as a CIDER
+		if _, _, err = net.ParseCIDR(t); err != nil {
+			//try to parse as an IP
+			if ip := net.ParseIP(t); ip == nil {
+				err = fmt.Errorf("Invalid IP specification: %v", t)
+				return
+			} else if ip.To4() != nil {
+				t = ip.String() + "/32"
+				err = nil
+			} else {
+				t = ip.String() + "/128"
+				err = nil
+			}
 		}
-		a = ip.String()
+		//its valid, just hand back the string
+		a = t
 	}
 	return
 }

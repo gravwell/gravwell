@@ -116,6 +116,9 @@ func TestSrcRouterProcess(t *testing.T) {
 	}
 	rc := src
 	rc.Route = append(rc.Route, `4.4.4.4:`)
+	rc.Route = append(rc.Route, `6.0.0.0/8:`)
+	rc.Route = append(rc.Route, `7.7.0.0/16:foo`)
+	rc.Route = append(rc.Route, `8.8.8.0/24:bar`)
 	rr, err := NewSrcRouter(rc, &tagger)
 	if err != nil {
 		t.Fatal(err)
@@ -126,6 +129,9 @@ func TestSrcRouterProcess(t *testing.T) {
 		testSrcTagSet{src: `3.3.3.3`, tag: ``, drop: true},
 		testSrcTagSet{src: `4.4.4.4`, tag: ``, drop: true},
 		testSrcTagSet{src: `5.5.5.5`, tag: `default`, drop: false},
+		testSrcTagSet{src: `6.6.6.6`, tag: ``, drop: true},
+		testSrcTagSet{src: `7.7.7.7`, tag: `foo`, drop: false},
+		testSrcTagSet{src: `8.8.8.8`, tag: `bar`, drop: false},
 	}
 
 	for _, v := range testSet {
@@ -135,7 +141,7 @@ func TestSrcRouterProcess(t *testing.T) {
 		} else if v.drop && len(set) != 0 {
 			t.Fatalf("invalid drop status on %+v: %d", v, len(set))
 		} else if !v.drop && len(set) != 1 {
-			t.Fatalf("invalid drop status: %d", len(set))
+			t.Fatalf("invalid drop status on %q: %d", v.src, len(set))
 		} else if tg, ok := tagger.mp[v.tag]; !ok && !v.drop {
 			t.Fatalf("tagger didn't create tag %v", v.tag)
 		} else if tg != ent.Tag && !v.drop {
