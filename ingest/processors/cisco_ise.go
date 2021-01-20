@@ -156,47 +156,62 @@ func (p *CiscoISE) Config(v interface{}) (err error) {
 	return
 }
 
-func (p *CiscoISE) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
+func (p *CiscoISE) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
+	if len(ents) == 0 {
+		return nil, nil
+	}
+	rset := ents[:0]
+	for _, v := range ents {
+		if ent, err := p.processEnt(v); ent != nil && err == nil {
+			rset = append(rset, ent)
+		}
+	}
+
+	//got a potential value, see if we have any that need to be ejected due to size or time
+	if p.Enable_Multipart_Reassembly && p.ma.shouldFlush() {
+		if ents := p.flush(false); len(ents) > 0 {
+			rset = append(rset, ents...)
+		}
+	}
+
+	return rset, nil
+}
+
+func (p *CiscoISE) processEnt(ent *entry.Entry) (r *entry.Entry, err error) {
 	if p.Enable_Multipart_Reassembly {
-		rset, err = p.processReassemble(ent)
+		r, err = p.processReassemble(ent)
 	} else {
 		//just attempt to reformat the entry
 		if !p.fmt(ent, p.filters, p.Attribute_Strip_Header) && !p.Passthrough_Misses {
 			//bad formatting and no passthrough, just skip it
 			return
 		}
-		rset = []*entry.Entry{ent}
+		r = ent
 	}
 	return
 }
 
-func (p *CiscoISE) processReassemble(ent *entry.Entry) (rset []*entry.Entry, err error) {
+func (p *CiscoISE) processReassemble(ent *entry.Entry) (r *entry.Entry, err error) {
 	//add the item to our re-assembler
 	var rmsg remoteISE
 	if err = rmsg.Parse(string(ent.Data)); err != nil {
 		err = nil // do not pass parsing errors up
 		if p.Passthrough_Misses {
-			rset = []*entry.Entry{ent}
+			r = ent
 		}
 	} else if msr, ejected, bad := p.ma.add(rmsg, ent); bad {
 		if p.Passthrough_Misses {
-			rset = []*entry.Entry{ent}
+			r = ent
 		}
 	} else if ejected {
 		if rent, ok := msr.meta.(*entry.Entry); ok {
 			rent.Data = []byte(msr.output)
 			if p.fmt(rent, p.filters, p.Attribute_Strip_Header) || p.Passthrough_Misses {
-				rset = []*entry.Entry{rent}
+				r = rent
 			}
 		}
 	}
 
-	//got a potential value, see if we have any that need to be ejected due to size or time
-	if p.ma.shouldFlush() {
-		if ents := p.flush(false); len(ents) > 0 {
-			rset = append(rset, ents...)
-		}
-	}
 	return
 }
 

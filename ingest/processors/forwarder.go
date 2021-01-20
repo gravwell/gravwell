@@ -143,20 +143,24 @@ func NewForwarder(cfg ForwarderConfig, tgr Tagger) (nf *Forwarder, err error) {
 	return
 }
 
-func (nf *Forwarder) Process(ent *entry.Entry) (r []*entry.Entry, err error) {
+func (nf *Forwarder) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 	nf.Lock()
 	if !nf.closed {
-		if !nf.filter(ent) {
-			if nf.Non_Blocking {
-				nf.nonblockingProcess(ent)
-			} else {
-				nf.blockingProcess(ent)
+		for _, ent := range ents {
+			if ent == nil {
+				continue
+			}
+			if !nf.filter(ent) {
+				if nf.Non_Blocking {
+					nf.nonblockingProcess(ent)
+				} else {
+					nf.blockingProcess(ent)
+				}
 			}
 		}
 	}
 	nf.Unlock()
-	r = []*entry.Entry{ent}
-	return
+	return ents, nil
 }
 
 func (nf *Forwarder) blockingProcess(ent *entry.Entry) {

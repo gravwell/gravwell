@@ -73,17 +73,32 @@ func (re *RegexExtractor) Config(v interface{}) (err error) {
 	return
 }
 
-func (re *RegexExtractor) Process(ent *entry.Entry) (rset []*entry.Entry, err error) {
-	if ent == nil {
+func (re *RegexExtractor) Process(ents []*entry.Entry) (rset []*entry.Entry, err error) {
+	if len(ents) == 0 {
 		return
+	}
+	rset = ents[:0]
+	for _, ent := range ents {
+		if ent, err = re.processEntry(ent); err != nil {
+			return
+		} else if ent != nil {
+			rset = append(rset, ent)
+		}
+	}
+	return
+}
+
+func (re *RegexExtractor) processEntry(ent *entry.Entry) (*entry.Entry, error) {
+	if ent == nil {
+		return nil, nil
 	}
 	if mtchs := re.rx.FindSubmatch(ent.Data); len(mtchs) == re.cnt {
 		ent.Data = re.tmp.render(ent, mtchs)
-		rset = []*entry.Entry{ent}
-	} else if re.Passthrough_Misses {
-		rset = []*entry.Entry{ent}
-	} //else is a DROP
-	return
+	} else if !re.Passthrough_Misses {
+		//NOT passing through misses, so set ent to nil, this is a DROP
+		ent = nil
+	}
+	return ent, nil
 }
 
 func (c RegexExtractConfig) validate() (rx *regexp.Regexp, tmp *formatter, err error) {

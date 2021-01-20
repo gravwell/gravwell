@@ -85,7 +85,7 @@ func TestRegexRouterProcess(t *testing.T) {
 
 	for _, v := range testSet {
 		ent := makeTestEntry(v.data)
-		if set, err := rr.Process(ent); err != nil {
+		if set, err := rr.Process([]*entry.Entry{ent}); err != nil {
 			t.Fatal(err)
 		} else if v.drop && len(set) != 0 {
 			t.Fatalf("invalid drop status on %+v: %d", v, len(set))
@@ -101,7 +101,7 @@ func TestRegexRouterProcess(t *testing.T) {
 	//make an entry that completely fails the regex
 	ent := makeTestEntry(``)
 	ent.Data = []byte("12343ablkjsdrlkjdslkrjdslkj")
-	if set, err := rr.Process(ent); err != nil {
+	if set, err := rr.Process([]*entry.Entry{ent}); err != nil {
 		t.Fatal(err)
 	} else if len(set) != 1 {
 		t.Fatal("Failed to hit default on count")
@@ -115,14 +115,14 @@ func TestRegexRouterProcess(t *testing.T) {
 		t.Fatal(err)
 	}
 	//check with the item that will completely miss the regex
-	if set, err := rr.Process(ent); err != nil {
+	if set, err := rr.Process([]*entry.Entry{ent}); err != nil {
 		t.Fatal(err)
 	} else if len(set) != 0 {
 		t.Fatal("Failed to hit default on count")
 	}
 	//try with one that will hit the regex but not the routes or drops
 	ent = makeTestEntry(`testval`)
-	if set, err := rr.Process(ent); err != nil {
+	if set, err := rr.Process([]*entry.Entry{ent}); err != nil {
 		t.Fatal(err)
 	} else if len(set) != 0 {
 		t.Fatal("Failed to hit default on count")

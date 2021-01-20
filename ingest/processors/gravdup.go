@@ -10,6 +10,7 @@ package processors
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 
@@ -119,7 +120,7 @@ func (gf *GravwellForwarder) Flush() []*entry.Entry {
 	return nil
 }
 
-func (gf *GravwellForwarder) Process(ent *entry.Entry) (r []*entry.Entry, err error) {
+func (gf *GravwellForwarder) Process(ents []*entry.Entry) (r []*entry.Entry, err error) {
 	//on first call, ensure that our muxer connection is hot
 	if !gf.hot {
 		if err = gf.mxr.WaitForHot(gf.Timeout()); err != nil {
@@ -127,27 +128,39 @@ func (gf *GravwellForwarder) Process(ent *entry.Entry) (r []*entry.Entry, err er
 		}
 		gf.hot = true
 	}
-	if ent != nil {
-		var ok bool
-		lent := *ent
-		//lookup the tag to see if we have a translation for it
-		if lent.Tag, ok = gf.tm[ent.Tag]; !ok {
-			//figure out what the tag name is an try to negotiate it
-			var tagname string
-			if ent.Tag == entry.GravwellTagId {
-				tagname = entry.GravwellTagName
-			} else if tagname, ok = gf.tgr.LookupTag(ent.Tag); !ok {
-				err = ErrFailedTagLookup
-			} else if lent.Tag, err = gf.mxr.NegotiateTag(tagname); err == nil {
-				//negotiated, so go ahead and update our local map
-				gf.tm[ent.Tag] = lent.Tag
+	r = ents
+	for _, ent := range ents {
+		if ent != nil {
+			var ok bool
+			lent := *ent // this is so that we don't mutate the tag on the underlying entry
+			//lookup the tag to see if we have a translation for it
+			if lent.Tag, ok = gf.tm[ent.Tag]; !ok {
+				//figure out what the tag name is an try to negotiate it
+				var tagname string
+				if ent.Tag == entry.GravwellTagId {
+					tagname = entry.GravwellTagName
+				} else if tagname, ok = gf.tgr.LookupTag(ent.Tag); !ok {
+					err = ErrFailedTagLookup
+				} else if lent.Tag, err = gf.mxr.NegotiateTag(tagname); err == nil {
+					//negotiated, so go ahead and update our local map
+					gf.tm[ent.Tag] = lent.Tag
+				}
+			}
+			if err == nil {
+				err = gf.mxr.WriteEntry(&lent)
 			}
 		}
-		if err == nil {
-			err = gf.mxr.WriteEntry(&lent)
-		}
-		//always send along the entry
-		r = []*entry.Entry{ent}
 	}
 	return
+}
+
+// we DO NOT want to ship the ingest secret here, so we mask it off
+func (gfc GravwellForwarderConfig) MarshalJSON() ([]byte, error) {
+	x := struct {
+		config.IngestConfig
+		Ingest_Secret string `json:",omitempty"`
+	}{
+		IngestConfig: gfc.IngestConfig,
+	}
+	return json.Marshal(x)
 }

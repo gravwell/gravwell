@@ -26,6 +26,7 @@ const (
 var (
 	localSrc        = net.ParseIP("127.0.0.1")
 	ErrEmptyTag     = errors.New("Tag name is empty")
+	ErrOversizedTag = errors.New("Tag name is too long")
 	ErrForbiddenTag = errors.New("Forbidden character in tag")
 )
 
@@ -151,6 +152,9 @@ func (igst *IngestConnection) GetTag(name string) (entry.EntryTag, bool) {
 }
 
 func (igst *IngestConnection) NegotiateTag(name string) (tg entry.EntryTag, err error) {
+	if err = CheckTag(name); err != nil {
+		return
+	}
 	igst.mtx.Lock()
 	defer igst.mtx.Unlock()
 
@@ -288,9 +292,10 @@ func checkTags(tags []string) error {
 // CheckTag takes a tag name and returns an error if it contains any
 // characters which are not allowed in tags.
 func CheckTag(tag string) error {
-	tag = strings.TrimSpace(tag)
-	if len(tag) == 0 {
+	if tag = strings.TrimSpace(tag); len(tag) == 0 {
 		return ErrEmptyTag
+	} else if len(tag) > MAX_TAG_LENGTH {
+		return ErrOversizedTag
 	}
 	if strings.ContainsAny(tag, FORBIDDEN_TAG_SET) {
 		return ErrForbiddenTag

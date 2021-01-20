@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gobwas/glob"
+	"github.com/gravwell/gravwell/v3/ingest/config"
 )
 
 func TestParseRemoteHeader(t *testing.T) {
@@ -237,6 +238,63 @@ func TestParseISEMessageWithStripping(t *testing.T) {
 		t.Fatalf("Failed to parse %q: %v", input, err)
 	} else if !m.equal(&output) {
 		t.Fatalf("input does not match output\n%+v\n%+v", m, output)
+	}
+}
+
+func TestCiscoISEProcess(t *testing.T) {
+	b := []byte(`
+	[global]
+	foo = "bar"
+	bar = 1337
+	baz = 1.337
+	foo-bar-baz="foo bar baz"
+
+	[item "A"]
+	name = "test A"
+	value = 0xA
+
+	[preprocessor "ise"]
+		type = cisco_ise
+		Enable-MultiPart-Reassembly=true
+		Output-format=json
+		Passthrough-Misses=false
+	`)
+	tc := struct {
+		Global struct {
+			Foo         string
+			Bar         uint16
+			Baz         float32
+			Foo_Bar_Baz string
+		}
+		Item map[string]*struct {
+			Name  string
+			Value int
+		}
+		Preprocessor ProcessorConfig
+	}{}
+	if err := config.LoadConfigBytes(&tc, b); err != nil {
+		t.Fatal(err)
+	}
+	var tt testTagger
+	p, err := tc.Preprocessor.getProcessor(`ise`, &tt)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for i, d := range testdata {
+		set, err := p.Process(makeEntry([]byte(d), 0))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if i == (len(testdata) - 1) {
+			if len(set) != 1 {
+				t.Fatal("Failed to dump at end of test data")
+			}
+		} else {
+			if len(set) != 0 {
+				t.Fatal("Premature dump", i)
+			}
+		}
 	}
 }
 

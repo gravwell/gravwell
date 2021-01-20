@@ -166,6 +166,7 @@ func main() {
 		IngesterName:       "networkLog",
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		IngesterLabel:      cfg.Label,
 		RateLimitBps:       lmt,
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
 		Logger:             lg,
@@ -188,6 +189,12 @@ func main() {
 		lg.Fatal("Timedout waiting for backend connections: %v", err)
 	}
 	debugout("Successfully connected to ingesters\n")
+
+	// prepare the configuration we're going to send upstream
+	err = igst.SetRawConfiguration(cfg)
+	if err != nil {
+		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+	}
 
 	//loop through our sniffers and get a config up for each
 	var sniffs []sniffer

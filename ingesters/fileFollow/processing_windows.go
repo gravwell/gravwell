@@ -46,6 +46,7 @@ type mainService struct {
 	srcOverride string
 	logLevel    string
 	uuid        string
+	label       string
 	ctx         context.Context
 	cacheDepth  int
 	cachePath   string
@@ -94,6 +95,7 @@ func NewService(cfg *cfgType) (*mainService, error) {
 		pp:          cfg.Preprocessor,
 		logLevel:    cfg.LogLevel(),
 		uuid:        id.String(),
+		label:       cfg.Label,
 		srcOverride: cfg.Source_Override,
 		cacheDepth:  cfg.Cache_Depth,
 		cachePath:   cfg.Ingest_Cache_Path,
@@ -190,6 +192,7 @@ func (m *mainService) init(ctx context.Context) error {
 		IngesterName:    "winfilefollow",
 		IngesterVersion: version.GetVersion(),
 		IngesterUUID:    m.uuid,
+		IngesterLabel:   m.label,
 		RateLimitBps:    m.lmt,
 		CacheDepth:      m.cacheDepth,
 		CachePath:       m.cachePath,

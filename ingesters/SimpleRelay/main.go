@@ -140,6 +140,7 @@ func main() {
 		IngesterName:       ingesterName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		IngesterLabel:      cfg.Label,
 		RateLimitBps:       lmt,
 		Logger:             lg,
 		CacheDepth:         cfg.Cache_Depth,
@@ -168,11 +169,7 @@ func main() {
 	debugout("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
-	cmap := map[string]interface{}{
-		"Listener":     cfg.Listener,
-		"JSONListener": cfg.JSONListener,
-	}
-	err = igst.SetRawConfiguration(cmap)
+	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
 		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
 	}

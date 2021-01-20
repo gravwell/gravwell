@@ -136,6 +136,7 @@ func main() {
 		IngesterName:       ingesterName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
+		IngesterLabel:      cfg.Label,
 		RateLimitBps:       lmt,
 		Logger:             lg,
 		CacheDepth:         cfg.Cache_Depth,
@@ -160,6 +161,12 @@ func main() {
 		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
 	}
 	debugout("Successfully connected to ingesters\n")
+
+	// prepare the configuration we're going to send upstream
+	err = igst.SetRawConfiguration(cfg)
+	if err != nil {
+		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+	}
 
 	//get our collectors built up
 	wg := &sync.WaitGroup{}

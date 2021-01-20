@@ -52,6 +52,7 @@ var (
 	ErrEmergencyListOverflow = errors.New("Emergency list overflow")
 	ErrTimeout               = errors.New("Timed out waiting for ingesters")
 	ErrWriteTimeout          = errors.New("Timed out waiting to write entry")
+	ErrInvalidEntry          = errors.New("Invalid entry value")
 
 	errNotImp = errors.New("Not implemented yet")
 )
@@ -141,6 +142,7 @@ type UniformMuxerConfig struct {
 	IngesterName      string
 	IngesterVersion   string
 	IngesterUUID      string
+	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
 }
@@ -161,6 +163,7 @@ type MuxerConfig struct {
 	IngesterName      string
 	IngesterVersion   string
 	IngesterUUID      string
+	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
 }
@@ -217,6 +220,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		IngesterName:       c.IngesterName,
 		IngesterVersion:    c.IngesterVersion,
 		IngesterUUID:       c.IngesterUUID,
+		IngesterLabel:      c.IngesterLabel,
 		RateLimitBps:       c.RateLimitBps,
 		Logger:             c.Logger,
 		LogSourceOverride:  c.LogSourceOverride,
@@ -243,6 +247,9 @@ func NewIngestMuxerExt(dests []Target, tags []string, pubKey, privKey string, ca
 func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	localTags := make([]string, 0, len(c.Tags))
 	for i := range c.Tags {
+		if err := CheckTag(c.Tags[i]); err != nil {
+			return nil, fmt.Errorf("Invalid tag %q %v", c.Tags[i], err)
+		}
 		localTags = append(localTags, c.Tags[i])
 	}
 	if c.Logger == nil {
@@ -341,6 +348,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	state := IngesterState{
 		UUID:       c.IngesterUUID,
 		Name:       c.IngesterName,
+		Label:      c.IngesterLabel,
 		Version:    c.IngesterVersion,
 		CacheState: c.CacheMode,
 		Children:   make(map[string]IngesterState),
@@ -809,6 +817,8 @@ func (im *IngestMuxer) GetTag(tag string) (tg entry.EntryTag, err error) {
 func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	if e == nil {
 		return nil
+	} else if len(e.Data) > MAX_ENTRY_SIZE {
+		return ErrOversizedEntry
 	}
 	if im.state != running {
 		return ErrNotRunning
@@ -825,6 +835,8 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) error {
 	if e == nil {
 		return nil
+	} else if len(e.Data) > MAX_ENTRY_SIZE {
+		return ErrOversizedEntry
 	}
 	if im.state != running {
 		return ErrNotRunning
@@ -838,13 +850,15 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	return nil
 }
 
-// WriteEntryAttempt attempts to put an entry into the queue to be sent out
+// WriteEntryTimeout attempts to put an entry into the queue to be sent out
 // of the first available writer routine.  This write is opportunistic and contains
 // a timeout.  It is therefor every expensive and shouldn't be used for normal writes
 // The typical use case is via the gravwell_log calls
 func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err error) {
 	if e == nil {
 		return
+	} else if len(e.Data) > MAX_ENTRY_SIZE {
+		return ErrOversizedEntry
 	}
 	if im.state != running {
 		return ErrNotRunning
@@ -866,6 +880,14 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	if len(b) == 0 {
 		return nil
 	}
+	//scan the entries
+	for i := range b {
+		if b == nil {
+			return ErrInvalidEntry
+		} else if len(b[i].Data) > MAX_ENTRY_SIZE {
+			return ErrOversizedEntry
+		}
+	}
 	im.mtx.RLock()
 	runok := im.state == running
 	im.mtx.RUnlock()
@@ -885,6 +907,15 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 	if len(b) == 0 {
 		return nil
 	}
+	//scan the entries
+	for i := range b {
+		if b == nil {
+			return ErrInvalidEntry
+		} else if len(b[i].Data) > MAX_ENTRY_SIZE {
+			return ErrOversizedEntry
+		}
+	}
+
 	im.mtx.RLock()
 	runok := im.state == running
 	im.mtx.RUnlock()
@@ -906,6 +937,9 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 // entry writer routine, if all routines are dead, THIS WILL BLOCK once the
 // channel fills up.  We figure this is a natural "wait" mechanism
 func (im *IngestMuxer) Write(tm entry.Timestamp, tag entry.EntryTag, data []byte) error {
+	if len(data) > MAX_ENTRY_SIZE {
+		return ErrOversizedEntry
+	}
 	e := &entry.Entry{
 		Data: data,
 		TS:   tm,
@@ -920,6 +954,9 @@ func (im *IngestMuxer) Write(tm entry.Timestamp, tag entry.EntryTag, data []byte
 // channel fills up.  We figure this is a natural "wait" mechanism
 // if the context isn't needed use Write instead
 func (im *IngestMuxer) WriteContext(ctx context.Context, tm entry.Timestamp, tag entry.EntryTag, data []byte) error {
+	if len(data) > MAX_ENTRY_SIZE {
+		return ErrOversizedEntry
+	}
 	e := &entry.Entry{
 		Data: data,
 		TS:   tm,

@@ -30,7 +30,7 @@ type global struct {
 	config.IngestConfig
 	State_Store_Location string
 	Client_ID            string
-	Client_Secret        string
+	Client_Secret        string `json:"-"` // DO NOT send this when marshalling
 	Directory_ID         string
 	Tenant_Domain        string
 }

@@ -151,6 +151,7 @@ type IngesterState struct {
 	UUID          string
 	Name          string
 	Version       string
+	Label         string
 	IP            net.IP //child IP, won't be populated unless in child
 	Entries       uint64
 	CacheState    string
@@ -165,6 +166,8 @@ func (s *IngesterState) Write(wtr io.Writer) (err error) {
 	var data []byte
 	if data, err = json.Marshal(s); err != nil {
 		return err
+	} else if len(data) > int(maxIngestStateSize) || len(data) == 0 {
+		return ErrInvalidIngestStateHeader
 	}
 
 	// Now send the size
