@@ -19,7 +19,8 @@ import (
 )
 
 var (
-	testDir string
+	testDir  string
+	reserved string = "34.5.66.70"
 )
 
 func TestMain(m *testing.M) {
@@ -247,6 +248,12 @@ func TestRemove(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+
+	// attempt to remove the reserved ip, which should just be a non-error
+	if err = bm.RemoveIP(net.ParseIP(reserved)); err != nil {
+		t.Fatal(err)
+	}
+
 	//encode to a file
 	f, err = ioutil.TempFile(testDir, "test")
 	if err != nil {
@@ -460,6 +467,9 @@ func genIP() (ip net.IP) {
 			continue
 		}
 		if ip.IsLoopback() || ip.IsMulticast() || (ip[0] == 0xff && ip[1] == 0xff) {
+			continue
+		}
+		if ip.Equal(net.ParseIP(reserved)) {
 			continue
 		}
 		break

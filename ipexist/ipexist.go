@@ -153,7 +153,7 @@ func (ipbm *IpBitMap) RemoveIP(ip net.IP) (err error) {
 	if off == 0xFFFF {
 		return
 	} else if off > ipbm.maxOffset {
-		err = ErrInvalidBaseOffset
+		return
 	}
 
 	ipbm.bitmaps[off-1].clear(lower)
