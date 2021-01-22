@@ -191,6 +191,103 @@ func TestAdd(t *testing.T) {
 	}
 }
 
+func TestRemove(t *testing.T) {
+	var ips []net.IP
+	bm := NewIPBitMap()
+	//build up our set
+	for i := 0; i < 10000; i++ {
+		ip := genIP()
+		if err := bm.AddIP(ip); err != nil {
+			t.Fatal(err)
+		}
+		ips = append(ips, ip)
+	}
+
+	//ensure we get good hits
+	for i, ip := range ips {
+		if ok, err := bm.IPExists(ip); err != nil {
+			t.Fatal(err)
+		} else if !ok {
+			t.Fatal("IP missed", i, ip, len(ip), ip[0], ip[1])
+		}
+	}
+	//encode to a file
+	f, err := ioutil.TempFile(testDir, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fname := f.Name()
+	if err := bm.Encode(f); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	//load it back up
+	if f, err = os.Open(fname); err != nil {
+		t.Fatal(err)
+	}
+	if bm, err = LoadIPBitMap(f); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for i, ip := range ips {
+		if ok, err := bm.IPExists(ip); err != nil {
+			t.Fatal(err)
+		} else if !ok {
+			t.Fatal("IP missed", i, ip)
+		}
+	}
+
+	idxs := []int{5, 77, 200, 5000, 542, 700}
+	for _, v := range idxs {
+		if err = bm.RemoveIP(ips[v]); err != nil {
+			t.Fatal(err)
+		}
+	}
+	//encode to a file
+	f, err = ioutil.TempFile(testDir, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fname = f.Name()
+	if err := bm.Encode(f); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	//load it back up
+	if f, err = os.Open(fname); err != nil {
+		t.Fatal(err)
+	}
+	if bm, err = LoadIPBitMap(f); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	for i, ip := range ips {
+		if ok, err := bm.IPExists(ip); err != nil {
+			t.Fatal(err)
+		} else if !ok {
+			var hit bool
+			for _, v := range idxs {
+				if ip.Equal(ips[v]) {
+					hit = true
+					break
+				}
+			}
+			if !hit {
+				t.Fatal("IP missed", i, ip)
+			}
+		}
+	}
+}
+
 // All the same tests but now with memory mapped file backing
 func TestEncodeDecodeMemoryMapped(t *testing.T) {
 	mmn, err := getTempFileName()

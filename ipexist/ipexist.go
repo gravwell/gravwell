@@ -128,6 +128,38 @@ func (ipbm *IpBitMap) AddIP(ip net.IP) (err error) {
 	return
 }
 
+func (ipbm *IpBitMap) RemoveIP(ip net.IP) (err error) {
+	if ip == nil {
+		err = ErrInvalidIPv4
+		return
+	} else if ip = ip.To4(); len(ip) != 4 {
+		err = ErrInvalidIPv4
+		return
+	}
+	//read the upper 2 octets
+	upper := binary.BigEndian.Uint16(ip[0:2])
+	if upper == 0xffff {
+		return // we do not support broadcast
+	}
+	//read the bottom two octets
+	lower := binary.BigEndian.Uint16(ip[2:4])
+	off := ipbm.bitmapOffsets[upper]
+
+	// we're cool if it doesn't exist
+	if off == 0 {
+		return
+	}
+
+	if off == 0xFFFF {
+		return
+	} else if off > ipbm.maxOffset {
+		err = ErrInvalidBaseOffset
+	}
+
+	ipbm.bitmaps[off-1].clear(lower)
+	return
+}
+
 func (ipbm *IpBitMap) IPExists(ip net.IP) (ok bool, err error) {
 	if ip == nil {
 		err = ErrInvalidIPv4
