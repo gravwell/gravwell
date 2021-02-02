@@ -29,6 +29,7 @@ require (
 	github.com/google/gopacket v1.1.17
 	github.com/google/renameio v0.1.0
 	github.com/google/uuid v1.1.1
+	github.com/gorilla/websocket v1.4.2
 	github.com/gravwell/gcfg v1.2.8
 	github.com/gravwell/ipfix v1.4.3
 	github.com/h2non/filetype v1.0.10
@@ -50,7 +51,7 @@ require (
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	go.etcd.io/bbolt v1.3.5
 	golang.org/x/crypto v0.0.0-20201124201722-c8d3bf9c5392 // indirect
-	golang.org/x/net v0.0.0-20200904194848-62affa334b73 // indirect
+	golang.org/x/net v0.0.0-20200904194848-62affa334b73
 	golang.org/x/sys v0.0.0-20200915084602-288bc346aa39
 	golang.org/x/text v0.3.3 // indirect
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1
