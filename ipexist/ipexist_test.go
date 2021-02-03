@@ -19,7 +19,8 @@ import (
 )
 
 var (
-	testDir string
+	testDir  string
+	reserved string = "34.5.66.70"
 )
 
 func TestMain(m *testing.M) {
@@ -187,6 +188,109 @@ func TestAdd(t *testing.T) {
 			t.Fatal(err)
 		} else if !ok {
 			t.Fatal("IP missed", i, ip)
+		}
+	}
+}
+
+func TestRemove(t *testing.T) {
+	var ips []net.IP
+	bm := NewIPBitMap()
+	//build up our set
+	for i := 0; i < 10000; i++ {
+		ip := genIP()
+		if err := bm.AddIP(ip); err != nil {
+			t.Fatal(err)
+		}
+		ips = append(ips, ip)
+	}
+
+	//ensure we get good hits
+	for i, ip := range ips {
+		if ok, err := bm.IPExists(ip); err != nil {
+			t.Fatal(err)
+		} else if !ok {
+			t.Fatal("IP missed", i, ip, len(ip), ip[0], ip[1])
+		}
+	}
+	//encode to a file
+	f, err := ioutil.TempFile(testDir, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fname := f.Name()
+	if err := bm.Encode(f); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	//load it back up
+	if f, err = os.Open(fname); err != nil {
+		t.Fatal(err)
+	}
+	if bm, err = LoadIPBitMap(f); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for i, ip := range ips {
+		if ok, err := bm.IPExists(ip); err != nil {
+			t.Fatal(err)
+		} else if !ok {
+			t.Fatal("IP missed", i, ip)
+		}
+	}
+
+	idxs := []int{5, 77, 200, 5000, 542, 700}
+	for _, v := range idxs {
+		if err = bm.RemoveIP(ips[v]); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// attempt to remove the reserved ip, which should just be a non-error
+	if err = bm.RemoveIP(net.ParseIP(reserved)); err != nil {
+		t.Fatal(err)
+	}
+
+	//encode to a file
+	f, err = ioutil.TempFile(testDir, "test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fname = f.Name()
+	if err := bm.Encode(f); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+	//load it back up
+	if f, err = os.Open(fname); err != nil {
+		t.Fatal(err)
+	}
+	if bm, err = LoadIPBitMap(f); err != nil {
+		t.Fatal(err)
+	}
+	if err = f.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	for i, ip := range ips {
+		if ok, err := bm.IPExists(ip); err != nil {
+			t.Fatal(err)
+		} else if !ok {
+			var hit bool
+			for _, v := range idxs {
+				if ip.Equal(ips[v]) {
+					hit = true
+					break
+				}
+			}
+			if !hit {
+				t.Fatal("IP missed", i, ip)
+			}
 		}
 	}
 }
@@ -363,6 +467,9 @@ func genIP() (ip net.IP) {
 			continue
 		}
 		if ip.IsLoopback() || ip.IsMulticast() || (ip[0] == 0xff && ip[1] == 0xff) {
+			continue
+		}
+		if ip.Equal(net.ParseIP(reserved)) {
 			continue
 		}
 		break
