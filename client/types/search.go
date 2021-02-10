@@ -59,8 +59,14 @@ type GenerateAXRequest struct {
 // and corresponding Element extractions as gathered from a single extraction module
 type GenerateAXResponse struct {
 	Extractor AXDefinition
-	Entries   []SearchEntry
-	Explore   []ExploreResult
+	// Confidence is a range from 0 to 10, with 10 meaning "we are very confident"
+	// and 0 meaning "we didn't extract anything of worth".
+	// Some modules, like xml, will return values lower than 10 even if they extracted
+	// lots of data, because other modules like winlog should take precedence if they
+	// succeed.
+	Confidence float64
+	Entries    []SearchEntry
+	Explore    []ExploreResult
 }
 
 type ExploreResult struct {
