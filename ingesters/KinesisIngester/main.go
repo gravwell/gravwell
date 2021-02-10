@@ -287,28 +287,32 @@ func main() {
 				lg.Info("Shard %v on stream %s appears to be closed, skipping", *shard.ShardId, stream.Stream_Name)
 				continue
 			}
-			go func(stream streamDef, shard kinesis.Shard, tagid entry.EntryTag, shardid int) {
+			//get timegrinder stood up
+			tcfg := timegrinder.Config{
+				EnableLeftMostSeed: true,
+			}
+			tgr, err := timegrinder.NewTimeGrinder(tcfg)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to create timegrinder: %v\n", err)
+				return
+			} else if err := cfg.TimeFormat.LoadFormats(tgr); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to set load custom time formats: %v\n", err)
+				return
+			}
+			if stream.Assume_Local_Timezone {
+				tgr.SetLocalTime()
+			}
+			if stream.Timezone_Override != `` {
+				if err = tgr.SetTimezone(stream.Timezone_Override); err != nil {
+					fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", stream.Timezone_Override, err)
+					return
+				}
+			}
+
+			go func(stream streamDef, shard kinesis.Shard, tagid entry.EntryTag, shardid int, tg *timegrinder.TimeGrinder) {
 				wg.Add(1)
 				defer wg.Done()
-
 				// set up timegrinder and other long-lived stuff
-				tcfg := timegrinder.Config{
-					EnableLeftMostSeed: true,
-				}
-				tg, err := timegrinder.NewTimeGrinder(tcfg)
-				if err != nil {
-					stream.Parse_Time = false
-				}
-				if stream.Assume_Local_Timezone {
-					tg.SetLocalTime()
-				}
-				if stream.Timezone_Override != `` {
-					err = tg.SetTimezone(stream.Timezone_Override)
-					if err != nil {
-						fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", stream.Timezone_Override, err)
-						return
-					}
-				}
 				var src net.IP
 				if cfg.Global.Source_Override != `` {
 					// global override
@@ -438,7 +442,7 @@ func main() {
 					// if we get to this point, exit the for loop
 					break
 				}
-			}(*stream, *shard, tagid, i)
+			}(*stream, *shard, tagid, i, tgr)
 		}
 	}
 

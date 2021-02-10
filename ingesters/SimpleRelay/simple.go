@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/timegrinder"
@@ -45,6 +46,7 @@ type handlerConfig struct {
 	formatOverride   string
 	proc             *processors.ProcessorSet
 	ctx              context.Context
+	timeFormats      config.CustomTimeFormat
 }
 
 func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher, ctx context.Context) error {
@@ -91,6 +93,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 			wg:               wg,
 			formatOverride:   v.Timestamp_Format_Override,
 			ctx:              ctx,
+			timeFormats:      cfg.TimeFormat,
 		}
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Fatal("Preprocessor failure: %v", err)

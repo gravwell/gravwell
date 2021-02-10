@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/timegrinder"
@@ -40,6 +41,7 @@ type jsonHandlerConfig struct {
 	flds             []string
 	proc             *processors.ProcessorSet
 	ctx              context.Context
+	timeFormats      config.CustomTimeFormat
 }
 
 func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher, ctx context.Context) error {
@@ -57,6 +59,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 			setLocalTime:     v.Assume_Local_Timezone,
 			timezoneOverride: v.Timezone_Override,
 			ctx:              ctx,
+			timeFormats:      cfg.TimeFormat,
 		}
 		if jhc.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Error("Preprocessor failure: %v", err)
@@ -214,6 +217,9 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig) {
 		tg, err = timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to get a handle on the timegrinder: %v\n", err)
+			return
+		} else if err = cfg.timeFormats.LoadFormats(tg); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load custom time formats: %v\n", err)
 			return
 		}
 		if cfg.setLocalTime {

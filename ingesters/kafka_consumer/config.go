@@ -94,12 +94,14 @@ type cfgReadType struct {
 	Global       config.IngestConfig
 	Consumer     map[string]*ConfigConsumer
 	Preprocessor processors.ProcessorConfig
+	TimeFormat   config.CustomTimeFormat
 }
 
 type cfgType struct {
 	config.IngestConfig
 	Consumers    map[string]*consumerCfg
 	Preprocessor processors.ProcessorConfig
+	TimeFormat   config.CustomTimeFormat
 }
 
 func GetConfig(path string) (*cfgType, error) {
@@ -115,6 +117,8 @@ func GetConfig(path string) (*cfgType, error) {
 		return nil, errors.New("no consumers defined")
 	} else if err := cr.Preprocessor.Validate(); err != nil {
 		return nil, err
+	} else if err = cr.TimeFormat.Validate(); err != nil {
+		return nil, err
 	}
 
 	//create our actual config
@@ -122,6 +126,7 @@ func GetConfig(path string) (*cfgType, error) {
 		IngestConfig: cr.Global,
 		Consumers:    make(map[string]*consumerCfg, len(cr.Consumer)),
 		Preprocessor: cr.Preprocessor,
+		TimeFormat:   cr.TimeFormat,
 	}
 	for k, v := range cr.Consumer {
 		if _, ok := c.Consumers[k]; ok {
@@ -131,6 +136,8 @@ func GetConfig(path string) (*cfgType, error) {
 			return nil, fmt.Errorf("Consumer %s preprocessor invalid: %v", k, err)
 		}
 		if cnsmr, err := v.validateAndProcess(); err != nil {
+			return nil, err
+		} else if err := c.TimeFormat.LoadFormats(cnsmr.tg); err != nil {
 			return nil, err
 		} else {
 			c.Consumers[k] = &cnsmr

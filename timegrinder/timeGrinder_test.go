@@ -554,16 +554,101 @@ func TestFormatChange(t *testing.T) {
 
 }
 
+func TestCustomFormats(t *testing.T) {
+	cf := CustomFormat{
+		Name:   `customfoo`,
+		Regex:  `\d{4}\.\d{1,2}\.\d{1,2}_\d{1,2}\.\d{1,2}\.\d{1,2}(.\d+)?`, //example 2021.2.14_13:54:22.9
+		Format: `2006.01.02_15.04.05.999999999`,
+	}
+	if p, err := NewCustomProcessor(cf); err != nil {
+		t.Fatal(err)
+	} else if err := runFullSecTestsSingle(p, p.Format()); err != nil {
+		t.Fatal(err)
+	}
+
+	if p, err := NewCustomProcessor(cf); err != nil {
+		t.Fatal(err)
+	} else if tg, err := New(cfg); err != nil {
+		t.Fatal(err)
+	} else if _, err = tg.AddProcessor(p); err != nil {
+		t.Fatal(err)
+	} else if err := runFullSecTestsCustom(tg, cf.Format); err != nil {
+		t.Fatal(err)
+	}
+
+	cf = CustomFormat{
+		Name:   `customfoo2`,
+		Regex:  `\d{4}\.\d{1,2}\.\d{1,2}_\d{1,2}\.\d{1,2}\.\d{1,2}(_\d+)?`, //example 2021.2.14_13:54:22.9
+		Format: `2006.01.02_15.04.05_999999999`,
+	}
+
+	if p, err := NewCustomProcessor(cf); err != nil {
+		t.Fatal(err)
+	} else if tg, err := New(cfg); err != nil {
+		t.Fatal(err)
+	} else if _, err = tg.AddProcessor(p); err != nil {
+		t.Fatal(err)
+	} else if err := runFullSecTestsCustom(tg, cf.Format); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestCustomCollision(t *testing.T) {
+	cf := CustomFormat{
+		Name:   string(AnsiC),
+		Regex:  `\d{4}\.\d{1,2}\.\d{1,2}_\d{1,2}\.\d{1,2}\.\d{1,2}(.\d+)?`, //example 2021.2.14_13:54:22.9
+		Format: `2006.01.02_15.04.05.999999999`,
+	}
+	//check with a duplicate, make sure it gets kicked
+	if p, err := NewCustomProcessor(cf); err != nil {
+		t.Fatal(err)
+	} else if tg, err := New(cfg); err != nil {
+		t.Fatal(err)
+	} else if _, err = tg.AddProcessor(p); err == nil {
+		t.Fatal("Failed to catch duplicate name")
+	}
+}
+
+func TestCustomMissingDate(t *testing.T) {
+	cf := CustomFormat{
+		Name:   `missingdate`,
+		Regex:  `\d{1,2}\.\d{1,2}\.\d{1,2}(.\d+)?`, //example 2021.2.14_13:54:22.9
+		Format: `15.04.05.999999999`,
+	}
+
+	if p, err := NewCustomProcessor(cf); err != nil {
+		t.Fatal(err)
+	} else if err := runFullSecTestsSingleCurr(p, p.Format()); err != nil {
+		t.Fatal(err)
+	}
+
+	//check with a format that does not have a date, make sure today's date gets applied
+	if p, err := NewCustomProcessor(cf); err != nil {
+		t.Fatal(err)
+	} else if tg, err := New(cfg); err != nil {
+		t.Fatal(err)
+	} else if _, err = tg.AddProcessor(p); err != nil {
+		t.Fatal(err)
+	} else if err := runFullSecTestsCustomCurr(tg, cf.Format); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func runFullSecTestsCurr(format string) error {
 	tg, err := New(cfg)
 	if err != nil {
 		return err
 	}
-	b := time.Now()
-	b = b.Round(time.Second)
+	return runFullSecTestsCustomCurr(tg, format)
+}
+
+func runFullSecTestsCustomCurr(tg *TimeGrinder, format string) error {
+	b := time.Now().UTC()
+	b = b.Truncate(24 * time.Hour)
 	for i := 0; i < TEST_COUNT; i++ {
-		t := b.Add(time.Duration(rand.Int63()%100000) * time.Second)
-		ts := genTimeLine(t.UTC(), format)
+		diff := time.Duration(rand.Int63()%120)*time.Second + time.Duration(rand.Int63()%1000)*time.Millisecond
+		t := b.Add(diff)
+		ts := genTimeLine(t, format)
 		tgt, ok, err := tg.Extract(ts)
 		if err != nil {
 			return err
@@ -572,7 +657,10 @@ func runFullSecTestsCurr(format string) error {
 			return fmt.Errorf("Failed to extract timestamp [%s]", ts)
 		}
 		if !t.UTC().Equal(tgt) {
-			return fmt.Errorf("Timestamps not equal: %v != %v", t.UTC(), tgt)
+			//check if its just missing some precision, some formats don't have it
+			if !t.Truncate(time.Second).Equal(tgt) {
+				return fmt.Errorf("Timestamps not equal: %v != %v", t.UTC(), tgt)
+			}
 		}
 	}
 	return nil
@@ -587,17 +675,21 @@ func runFullSecTests(format string) error {
 
 func runFullSecTestsCustom(tg *TimeGrinder, format string) error {
 	for i := 0; i < TEST_COUNT; i++ {
-		t := baseTime.Add(time.Duration(rand.Int63()%100000) * time.Second)
+		diff := time.Duration(rand.Int63()%100000)*time.Second + time.Duration(rand.Int63()%1000)*time.Millisecond
+		t := baseTime.Add(diff)
 		ts := genTimeLine(t.UTC(), format)
 		tgt, ok, err := tg.Extract(ts)
 		if err != nil {
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("Failed to extract timestamp (%s) [%s]", format, ts)
+			return fmt.Errorf("Failed to extract timestamp (%s / %s) [%s]", format, t.UTC(), ts)
 		}
 		if !t.Equal(tgt) {
-			return fmt.Errorf("Timestamps not equal: %v != %v", t, tgt)
+			//check if its just missing some precision, some formats don't have it
+			if !t.Truncate(time.Second).Equal(tgt) {
+				return fmt.Errorf("Timestamps not equal: %v != %v", t, tgt)
+			}
 		}
 	}
 	return nil
@@ -605,7 +697,8 @@ func runFullSecTestsCustom(tg *TimeGrinder, format string) error {
 
 func runFullSecTestsSingle(p Processor, format string) error {
 	for i := 0; i < TEST_COUNT; i++ {
-		t := baseTime.Add(time.Duration(rand.Int63()%100000) * time.Second)
+		diff := time.Duration(rand.Int63()%100000)*time.Second + time.Duration(rand.Int63()%1000)*time.Millisecond
+		t := baseTime.Add(diff)
 		ts := genTimeLine(t.UTC(), format)
 		tgt, ok, _ := p.Extract(ts, time.UTC)
 		if !ok {
@@ -613,7 +706,31 @@ func runFullSecTestsSingle(p Processor, format string) error {
 				format, p.Format(), p.ExtractionRegex(), ts)
 		}
 		if !t.Equal(tgt) {
-			return fmt.Errorf("Timestamps not equal: %v != %v", t, tgt)
+			//check if its just missing some precision, some formats don't have it
+			if !t.Truncate(time.Second).Equal(tgt) {
+				return fmt.Errorf("Timestamps not equal: %v != %v", t, tgt)
+			}
+		}
+	}
+	return nil
+
+}
+
+func runFullSecTestsSingleCurr(p Processor, format string) error {
+	b := time.Now().UTC().Truncate(24 * time.Hour)
+	for i := 0; i < TEST_COUNT; i++ {
+		diff := time.Duration(rand.Int63()%60)*time.Second + time.Duration(rand.Int63()%1000)*time.Millisecond
+		t := b.Add(diff)
+		ts := genTimeLine(t.UTC(), format)
+		tgt, ok, _ := p.Extract(ts, time.UTC)
+		if !ok {
+			return fmt.Errorf("Failed to extract timestamp (%s)(%s) {%s}\n[%s]",
+				format, p.Format(), p.ExtractionRegex(), ts)
+		}
+		if !t.Equal(tgt) {
+			if !t.Truncate(time.Second).Equal(tgt) {
+				return fmt.Errorf("Timestamps not equal: %v != %v", t.UTC(), tgt.UTC())
+			}
 		}
 	}
 	return nil
