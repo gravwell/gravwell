@@ -19,9 +19,9 @@ import (
 
 	"github.com/gravwell/gravwell/v3/filewatch"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
-	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (
@@ -39,7 +39,7 @@ type mainService struct {
 	conns       []string
 	flocs       map[string]follower
 	igst        *ingest.IngestMuxer
-	tg          *timegrinder.TimeGrinder
+	timeFormats config.CustomTimeFormat
 	wtchr       *filewatch.WatchManager
 	pp          processors.ProcessorConfig
 	procs       []*processors.ProcessorSet
@@ -92,6 +92,7 @@ func NewService(cfg *cfgType) (*mainService, error) {
 		conns:       conns,
 		flocs:       cfg.Followers(), //this copies the map
 		wtchr:       wtchr,
+		timeFormats: cfg.TimeFormat,
 		pp:          cfg.Preprocessor,
 		logLevel:    cfg.LogLevel(),
 		uuid:        id.String(),
@@ -272,6 +273,7 @@ func (m *mainService) init(ctx context.Context) error {
 			UserTimeRegex:           val.Timestamp_Regex,
 			UserTimeFormat:          val.Timestamp_Format_String,
 			Ctx:                     ctx,
+			TimeFormat:              m.timeFormats,
 		}
 
 		lh, err := filewatch.NewLogHandler(cfg, pproc)
