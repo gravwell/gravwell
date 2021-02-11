@@ -9,7 +9,9 @@
 package main
 
 import (
+	"bufio"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -21,12 +23,13 @@ import (
 )
 
 type handlerConfig struct {
-	ignoreTs bool
-	tag      entry.EntryTag
-	tg       *timegrinder.TimeGrinder
-	method   string
-	auth     authHandler
-	pproc    *processors.ProcessorSet
+	ignoreTs  bool
+	multiline bool
+	tag       entry.EntryTag
+	tg        *timegrinder.TimeGrinder
+	method    string
+	auth      authHandler
+	pproc     *processors.ProcessorSet
 }
 
 type handler struct {
@@ -70,7 +73,32 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if cfg.multiline {
+		h.handleMulti(cfg, r, w)
+	} else {
+		h.handleSingle(cfg, r, w)
+	}
+	r.Body.Close()
+}
 
+func (h *handler) handleMulti(cfg handlerConfig, r *http.Request, w http.ResponseWriter) {
+	ip := getRemoteIP(r)
+	scanner := bufio.NewScanner(r.Body)
+	for scanner.Scan() {
+		if err := h.handleEntry(cfg, scanner.Bytes(), ip); err != nil {
+			h.lgr.Error("Failed to handle entry from %s: %v", ip, err)
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		h.lgr.Warn("Failed to handle multiline upload: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	return
+}
+
+func (h *handler) handleSingle(cfg handlerConfig, r *http.Request, w http.ResponseWriter) {
 	b := make([]byte, maxBody)
 	n, err := readAll(r.Body, b)
 	if err != nil && err != io.EOF {
@@ -86,8 +114,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if len(b) == 0 {
 		h.lgr.Info("Got an empty post from %s", r.RemoteAddr)
 		w.WriteHeader(http.StatusBadRequest)
-		return
+	} else if err = h.handleEntry(cfg, b, getRemoteIP(r)); err != nil {
+		h.lgr.Error("Failed to handle entry from %s: %v", r.RemoteAddr, err)
+		w.WriteHeader(http.StatusInternalServerError)
 	}
+}
+
+func (h *handler) handleEntry(cfg handlerConfig, b []byte, ip net.IP) (err error) {
 	var ts entry.Timestamp
 	if cfg.ignoreTs || cfg.tg == nil {
 		ts = entry.Now()
@@ -105,14 +138,16 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	e := entry.Entry{
 		TS:   ts,
-		SRC:  getRemoteIP(r),
+		SRC:  ip,
 		Tag:  cfg.tag,
 		Data: b,
 	}
 	if err = cfg.pproc.Process(&e); err != nil {
 		h.lgr.Error("Failed to send entry: %v", err)
+		return
 	}
 	if v {
 		h.lgr.Info("Sending entry %s %s", ts.String(), string(b))
 	}
+	return
 }

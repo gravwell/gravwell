@@ -213,13 +213,15 @@ func main() {
 		tg, err := timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
 			ct.Ignore_Timestamps = true
+		} else if err = cfg.TimeFormat.LoadFormats(tg); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to set load custom time formats: %v\n", err)
+			return
 		}
 		if ct.Assume_Local_Timezone {
 			tg.SetLocalTime()
 		}
 		if ct.Timezone_Override != `` {
-			err = tg.SetTimezone(ct.Timezone_Override)
-			if err != nil {
+			if err = tg.SetTimezone(ct.Timezone_Override); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", ct.Timezone_Override, err)
 				return
 			}

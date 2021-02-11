@@ -50,6 +50,7 @@ type cfgType struct {
 	Global       global
 	ContentType  map[string]*contentType
 	Preprocessor processors.ProcessorConfig
+	TimeFormat   config.CustomTimeFormat
 }
 
 func GetConfig(path string) (*cfgType, error) {
@@ -94,6 +95,8 @@ func verifyConfig(c cfgType) error {
 		return errors.New("At least one content type required.")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
+		return err
+	} else if err = c.TimeFormat.Validate(); err != nil {
 		return err
 	}
 	for k, v := range c.ContentType {

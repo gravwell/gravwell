@@ -44,6 +44,7 @@ type cfgReadType struct {
 	Global       gbl
 	Listener     map[string]*lst
 	Preprocessor processors.ProcessorConfig
+	TimeFormat   config.CustomTimeFormat
 }
 
 type lst struct {
@@ -51,6 +52,7 @@ type lst struct {
 	URL                       string //the URL we will listen to
 	Method                    string //method the listener expects
 	Tag_Name                  string //the tag to assign to the request
+	Multiline                 bool   //each request may have many entries
 	Ignore_Timestamps         bool   //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
@@ -62,6 +64,7 @@ type cfgType struct {
 	gbl
 	Listener     map[string]*lst
 	Preprocessor processors.ProcessorConfig
+	TimeFormat   config.CustomTimeFormat
 }
 
 func GetConfig(path string) (*cfgType, error) {
@@ -73,6 +76,7 @@ func GetConfig(path string) (*cfgType, error) {
 		gbl:          cr.Global,
 		Listener:     cr.Listener,
 		Preprocessor: cr.Preprocessor,
+		TimeFormat:   cr.TimeFormat,
 	}
 	if err := verifyConfig(c); err != nil {
 		return nil, err
@@ -105,6 +109,8 @@ func verifyConfig(c *cfgType) error {
 		return errors.New("No Sniffers specified")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
+		return err
+	} else if err = c.TimeFormat.Validate(); err != nil {
 		return err
 	}
 	if hc, ok := c.HealthCheck(); ok {

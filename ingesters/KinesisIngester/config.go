@@ -51,6 +51,7 @@ type cfgType struct {
 	Global        global
 	KinesisStream map[string]*streamDef
 	Preprocessor  processors.ProcessorConfig
+	TimeFormat    config.CustomTimeFormat
 }
 
 func GetConfig(path string) (*cfgType, error) {
@@ -104,6 +105,8 @@ func verifyConfig(c cfgType) error {
 		return errors.New("At least one Kinesis stream required.")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
+		return err
+	} else if err = c.TimeFormat.Validate(); err != nil {
 		return err
 	}
 	for k, v := range c.KinesisStream {

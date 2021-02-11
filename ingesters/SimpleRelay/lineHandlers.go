@@ -52,6 +52,9 @@ func lineConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to get a handle on the timegrinder: %v\n", err)
 			return
+		} else if err = cfg.timeFormats.LoadFormats(tg); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load custom time formats: %v\n", err)
+			return
 		}
 		if cfg.setLocalTime {
 			tg.SetLocalTime()
@@ -100,6 +103,9 @@ func lineConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 	tg, err := timegrinder.NewTimeGrinder(tcfg)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get a handle on the timegrinder: %v\n", err)
+		return
+	} else if err = cfg.timeFormats.LoadFormats(tg); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load custom time formats: %v\n", err)
 		return
 	}
 	if cfg.setLocalTime {
