@@ -202,6 +202,15 @@ type SearchInfo struct {
 	NoHistory             bool // set to true if this search was launched with the "no history" flag, typically means it is an automated search.
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
+	Import                ImportInfo `json:",omitempty"` //information attached if there this search is saved and from an external import
+}
+
+type ImportInfo struct {
+	Imported  bool
+	Time      time.Time //timestamp of when the results were imported
+	BatchName string    //potential import batch name
+	BatchInfo string    //potential import batch notes
+
 }
 
 type StatsUpdate struct {

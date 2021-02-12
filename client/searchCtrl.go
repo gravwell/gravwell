@@ -27,6 +27,8 @@ const (
 	SEARCH_HISTORY_USER = `user`
 	importFormGID       = `GID`
 	importFormFile      = `file`
+	importFormBatchName = `BatchName`
+	importFormBatchInfo = `BatchInfo`
 )
 
 // DeleteSearch will request that a search is deleted by search ID
@@ -1221,11 +1223,38 @@ func (c *Client) ImportSearch(rdr io.Reader, gid int32) (err error) {
 	if gid > 0 {
 		if !c.userDetails.InGroup(gid) {
 			err = fmt.Errorf("Logged in user not in group %d", gid)
+			return
 		}
 		flds = map[string]string{
 			importFormGID: strconv.FormatInt(int64(gid), 10),
 		}
 	}
+	return c.importSearch(rdr, flds)
+}
+
+// ImportSearchBatchInfo uploads an archived search to Gravwell with optional batch information.
+// The gid parameter specifies a group to share with, if desired.
+// The name and info parameters are optional extended batch information
+func (c *Client) ImportSearchBatchInfo(rdr io.Reader, gid int32, name, info string) (err error) {
+	flds := map[string]string{}
+	if gid > 0 {
+		if !c.userDetails.InGroup(gid) {
+			err = fmt.Errorf("Logged in user not in group %d", gid)
+			return
+		}
+		flds[importFormGID] = strconv.FormatInt(int64(gid), 10)
+	}
+	if name != `` {
+		flds[importFormBatchName] = name
+	}
+	if info != `` {
+		flds[importFormBatchInfo] = info
+	}
+
+	return c.importSearch(rdr, flds)
+}
+
+func (c *Client) importSearch(rdr io.Reader, flds map[string]string) (err error) {
 	var resp *http.Response
 	if resp, err = c.uploadMultipartFile(searchCtrlImportUrl(), importFormFile, `file`, rdr, flds); err != nil {
 		return

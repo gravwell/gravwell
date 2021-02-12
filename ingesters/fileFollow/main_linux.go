@@ -222,6 +222,7 @@ func main() {
 			Logger:                  lg,
 			TimezoneOverride:        val.Timezone_Override,
 			Ctx:                     ctx,
+			TimeFormat:              cfg.TimeFormat,
 		}
 		if v {
 			cfg.Debugger = debugout

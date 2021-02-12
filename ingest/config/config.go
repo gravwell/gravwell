@@ -426,8 +426,8 @@ func (ctf CustomTimeFormat) Validate() (err error) {
 		if v == nil {
 			continue
 		}
-		cf := timegrinder.CustomFormat {
-			Name: k,
+		cf := timegrinder.CustomFormat{
+			Name:   k,
 			Format: v.Format,
 			Regex:  v.Regex,
 		}
@@ -449,8 +449,8 @@ func (ctf CustomTimeFormat) LoadFormats(tg *timegrinder.TimeGrinder) (err error)
 		if v == nil {
 			continue
 		}
-		cf := timegrinder.CustomFormat {
-			Name: k,
+		cf := timegrinder.CustomFormat{
+			Name:   k,
 			Format: v.Format,
 			Regex:  v.Regex,
 		}

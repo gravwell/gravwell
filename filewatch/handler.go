@@ -15,6 +15,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
@@ -48,6 +49,7 @@ type LogHandlerConfig struct {
 	Logger                  logger
 	Debugger                debugOut
 	Ctx                     context.Context
+	TimeFormat              config.CustomTimeFormat
 }
 
 type logWriter interface {
@@ -68,9 +70,13 @@ func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
 			EnableLeftMostSeed: true,
 		}
 		tcfg.FormatOverride = cfg.TimestampFormatOverride
-		tg, err = timegrinder.NewTimeGrinder(tcfg)
-		if err != nil {
+		if tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
 			return nil, err
+		} else if err = cfg.TimeFormat.LoadFormats(tg); err != nil {
+			return nil, err
+		}
+		if cfg.Debugger != nil {
+			cfg.Debugger("Loaded %d custom time formats\n", len(cfg.TimeFormat))
 		}
 		if cfg.AssumeLocalTZ && cfg.TimezoneOverride != `` {
 			return nil, errors.New("Cannot specify AssumeLocalTZ and TimezoneOverride in the same LogHandlerConfig")

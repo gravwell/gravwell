@@ -40,6 +40,7 @@ type cfgReadType struct {
 	Global       global
 	Follower     map[string]*follower
 	Preprocessor processors.ProcessorConfig
+	TimeFormat   config.CustomTimeFormat
 }
 
 type follower struct {
@@ -58,6 +59,8 @@ type follower struct {
 	// these two must be used together
 	Timestamp_Regex         string
 	Timestamp_Format_String string
+	// so that we can initialize the timegrinder
+	timeFormats config.CustomTimeFormat
 }
 
 type global struct {
@@ -70,6 +73,7 @@ type cfgType struct {
 	global
 	Follower     map[string]*follower
 	Preprocessor processors.ProcessorConfig
+	TimeFormat   config.CustomTimeFormat
 }
 
 func GetConfig(path string) (*cfgType, error) {
@@ -81,6 +85,7 @@ func GetConfig(path string) (*cfgType, error) {
 		global:       cr.Global,
 		Follower:     cr.Follower,
 		Preprocessor: cr.Preprocessor,
+		TimeFormat:   cr.TimeFormat,
 	}
 	if err := verifyConfig(c); err != nil {
 		return nil, err
@@ -107,6 +112,8 @@ func verifyConfig(c *cfgType) error {
 		return errors.New("No Followers specified")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
+		return err
+	} else if err = c.TimeFormat.Validate(); err != nil {
 		return err
 	}
 	for k, v := range c.Follower {
@@ -171,7 +178,9 @@ func (cfg *cfgType) Followers() map[string]follower {
 	mp := make(map[string]follower, len(cfg.Follower))
 	for k, v := range cfg.Follower {
 		if v != nil {
-			mp[k] = *v
+			f := *v
+			f.timeFormats = cfg.TimeFormat
+			mp[k] = f
 		}
 	}
 	return mp
@@ -196,6 +205,8 @@ func (f follower) TimestampDelimited() (rex string, ok bool, err error) {
 	var tg *timegrinder.TimeGrinder
 	var proc timegrinder.Processor
 	if tg, err = timegrinder.New(cfg); err != nil {
+		return
+	} else if err = f.timeFormats.LoadFormats(tg); err != nil {
 		return
 	}
 	if proc, err = tg.OverrideProcessor(); err != nil {
