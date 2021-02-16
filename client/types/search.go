@@ -129,10 +129,15 @@ type StartSearchRequest struct {
 	SearchStart  string
 	SearchEnd    string
 	Background   bool
-	NoHistory    bool            `json:",omitempty"`
-	Metadata     json.RawMessage `json:",omitempty"`
-	Name         string          `json:",omitempty"`
-	Filters      []FilterRequest
+	NoHistory    bool `json:",omitempty"`
+	//Preview indicates that the renderer should only capture enough to show some usage of data
+	//A raw, text, hex renderer will grab a few hundred or thousand entries
+	//charts will grab enough to draw something useful
+	//everything else will get "enough"
+	Preview  bool            `json:",omitempty"`
+	Metadata json.RawMessage `json:",omitempty"`
+	Name     string          `json:",omitempty"`
+	Filters  []FilterRequest
 }
 
 // The webserver responds yay/nay plus new subprotocols if the search is valid.
@@ -203,6 +208,10 @@ type SearchInfo struct {
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
 	Import                ImportInfo `json:",omitempty"` //information attached if there this search is saved and from an external import
+	// Preview indicates that this search is a preview search
+	// this means that the query most likely did not cover the entire time range that was originally requested
+	// A preview search is used when a user is trying to understand what they have or establish AX relationships
+	Preview bool
 }
 
 type ImportInfo struct {

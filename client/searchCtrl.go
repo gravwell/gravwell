@@ -184,23 +184,47 @@ func (c *Client) ParseSearchWithResponse(query string, filters []types.FilterReq
 // and the specified start and end times. If "nohistory" is set, the search will
 // be hidden in the user's search history; if false, it will be visible.
 func (c *Client) StartBackgroundSearch(query string, start, end time.Time, nohistory bool) (s Search, err error) {
-	s.SearchString = query
-	s.SearchStart = start.Format(time.RFC3339Nano)
-	s.SearchEnd = end.Format(time.RFC3339Nano)
-	s.Background = true
-	s.NoHistory = nohistory
+	sr := types.StartSearchRequest{
+		SearchString: query,
+		SearchStart:  start.Format(time.RFC3339Nano),
+		SearchEnd:    end.Format(time.RFC3339Nano),
+		NoHistory:    nohistory,
+		Background:   true,
+	}
 
+	s, err = c.StartSearchEx(sr)
+	return
+}
+
+// StartSearch launches a foregrounded search with the given query and start/end.
+// If "nohistory" is set, the search will
+// be hidden in the user's search history; if false, it will be visible.
+func (c *Client) StartSearch(query string, start, end time.Time, nohistory bool) (s Search, err error) {
+	sr := types.StartSearchRequest{
+		SearchString: query,
+		SearchStart:  start.Format(time.RFC3339Nano),
+		SearchEnd:    end.Format(time.RFC3339Nano),
+		NoHistory:    nohistory,
+	}
+	s, err = c.StartSearchEx(sr)
+	return
+}
+
+// StartSearchExtended launches a search using a StartSearchRequest object
+// This function grants the maximum amount of control over the search starting process
+func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error) {
 	//grab subprotocol connection and subproto parent
 	s.SearchSockets, err = c.GetSearchSockets()
 	if err != nil {
 		return
 	}
 	searchSubProto := s.SearchSockets.Search
+	// we get a new set of sockets on each GetSearchSocket.
+	// So we can close the main search suproto when done
+	// The main protocols for the search will be left open
 	defer searchSubProto.Close()
-	router := s.SearchSockets.Client
-	defer router.Close()
 
-	if err = searchSubProto.WriteJSON(s.StartSearchRequest); err != nil {
+	if err = searchSubProto.WriteJSON(sr); err != nil {
 		return
 	}
 
@@ -209,28 +233,32 @@ func (c *Client) StartBackgroundSearch(query string, start, end time.Time, nohis
 		return
 	}
 	if ssresp.Error != "" {
-		return s, fmt.Errorf("Search request error: %v", ssresp.Error)
+		err = fmt.Errorf("Search request error: %s", ssresp.Error)
+		return
+	}
+
+	if ssresp.OutputSearchSubproto != `` {
+		if err = s.SearchSockets.Client.AddSubProtocol(ssresp.OutputSearchSubproto); err != nil {
+			return
+		}
+		if s.SearchOutput, err = s.SearchSockets.Client.GetSubProtoConn(ssresp.OutputSearchSubproto); err != nil {
+			return
+		}
 	}
 
 	sAck := types.StartSearchAck{
 		Ok:                   true,
 		OutputSearchSubproto: ssresp.OutputSearchSubproto,
 	}
-	if err := searchSubProto.WriteJSON(sAck); err != nil {
-		return s, fmt.Errorf("Failed to ack the search server: %v", err)
+	if err = searchSubProto.WriteJSON(sAck); err != nil {
+		err = fmt.Errorf("Failed to ack the search server: %w", err)
+		return
 	}
 
 	s.ID = ssresp.SearchID
 	s.RenderMod = ssresp.RenderModule
-
+	s.StartSearchRequest = sr
 	return
-}
-
-// StartSearch launches a foregrounded search with the given query and start/end.
-// If "nohistory" is set, the search will
-// be hidden in the user's search history; if false, it will be visible.
-func (c *Client) StartSearch(query string, start, end time.Time, nohistory bool) (s Search, err error) {
-	return c.StartFilteredSearch(query, start, end, nohistory, []types.FilterRequest{})
 }
 
 // StopSearch asks the search to stop progressing through the underlying data.
@@ -251,51 +279,15 @@ func (c *Client) StopSearch(id string) (err error) {
 // If "nohistory" is set, the search will
 // be hidden in the user's search history; if false, it will be visible.
 func (c *Client) StartFilteredSearch(query string, start, end time.Time, nohistory bool, filters []types.FilterRequest) (s Search, err error) {
-	s.SearchString = query
-	s.SearchStart = start.Format(time.RFC3339Nano)
-	s.SearchEnd = end.Format(time.RFC3339Nano)
-	s.NoHistory = nohistory
-	s.Filters = filters
-
-	//grab subprotocol connection and subproto parent
-	s.SearchSockets, err = c.GetSearchSockets()
-	if err != nil {
-		return
-	}
-	searchSubProto := s.SearchSockets.Search
-
-	if err = searchSubProto.WriteJSON(s.StartSearchRequest); err != nil {
-		return
+	sr := types.StartSearchRequest{
+		SearchString: query,
+		SearchStart:  start.Format(time.RFC3339Nano),
+		SearchEnd:    end.Format(time.RFC3339Nano),
+		NoHistory:    nohistory,
+		Filters:      filters,
 	}
 
-	ssresp := types.StartSearchResponse{}
-	if err = searchSubProto.ReadJSON(&ssresp); err != nil {
-		return
-	}
-	if ssresp.Error != "" {
-		err = fmt.Errorf("Search request error: %s", ssresp.Error)
-		return
-	}
-
-	if err = s.SearchSockets.Client.AddSubProtocol(ssresp.OutputSearchSubproto); err != nil {
-		return
-	}
-	if s.SearchOutput, err = s.SearchSockets.Client.GetSubProtoConn(ssresp.OutputSearchSubproto); err != nil {
-		return
-	}
-
-	sAck := types.StartSearchAck{
-		Ok:                   true,
-		OutputSearchSubproto: ssresp.OutputSearchSubproto,
-	}
-	if err = searchSubProto.WriteJSON(sAck); err != nil {
-		err = fmt.Errorf("Failed to ack the search server: %w", err)
-		return
-	}
-
-	s.ID = ssresp.SearchID
-	s.RenderMod = ssresp.RenderModule
-
+	s, err = c.StartSearchEx(sr)
 	return
 }
 
