@@ -219,6 +219,10 @@ func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error
 		return
 	}
 	searchSubProto := s.SearchSockets.Search
+	// we get a new set of sockets on each GetSearchSocket.
+	// So we can close the main search suproto when done
+	// The main protocols for the search will be left open
+	defer searchSubProto.Close()
 
 	if err = searchSubProto.WriteJSON(sr); err != nil {
 		return
