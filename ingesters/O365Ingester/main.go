@@ -17,6 +17,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
@@ -84,6 +85,7 @@ type event struct {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
 		lg.Fatal("Failed to get configuration: %v", err)

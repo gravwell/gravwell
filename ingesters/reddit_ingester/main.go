@@ -11,6 +11,7 @@ package main
 import (
 	"flag"
 	"log"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -38,6 +39,7 @@ type commentToAuthor struct {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	iw, err := NewIngestWriter()
 	if err != nil {
 		log.Println("Failed to create new ingest writer", err)
