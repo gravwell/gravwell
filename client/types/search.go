@@ -136,8 +136,10 @@ type StartSearchRequest struct {
 	//everything else will get "enough"
 	Preview  bool            `json:",omitempty"`
 	Metadata json.RawMessage `json:",omitempty"`
+	Addendum json.RawMessage `json:",omitempty"`
 	Name     string          `json:",omitempty"`
-	Filters  []FilterRequest
+
+	Filters []FilterRequest
 }
 
 // The webserver responds yay/nay plus new subprotocols if the search is valid.
@@ -157,6 +159,7 @@ type StartSearchResponse struct {
 	Background           bool            `json:",omitempty"`
 	CollapsingIndex      int             // index of the first collapsed module
 	Metadata             json.RawMessage `json:",omitempty"`
+	Addendum             json.RawMessage `json:",omitempty"`
 	SearchHints
 }
 
