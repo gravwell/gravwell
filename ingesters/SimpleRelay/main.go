@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"runtime/pprof"
 	"sync"
 	"time"
@@ -73,6 +74,7 @@ func mainInit() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	mainInit()
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)

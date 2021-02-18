@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"runtime/debug"
 	"runtime/pprof"
 	"syscall"
 	"time"
@@ -106,6 +107,7 @@ func init() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	if *profileFile != `` {
 		f, err := os.Create(*profileFile)
 		if err != nil {

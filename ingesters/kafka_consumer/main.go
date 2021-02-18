@@ -14,6 +14,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"runtime/debug"
 	"runtime/pprof"
 	"syscall"
 	"time"
@@ -80,6 +81,7 @@ func handleFlags() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	handleFlags()
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)

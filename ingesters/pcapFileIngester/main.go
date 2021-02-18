@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -60,6 +61,7 @@ func init() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	a, err := args.Parse()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Invalid arguments: %v\n", err)

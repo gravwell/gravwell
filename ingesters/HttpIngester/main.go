@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -79,6 +80,7 @@ func init() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	var lgr *log.Logger
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {

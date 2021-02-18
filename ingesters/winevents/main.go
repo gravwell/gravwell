@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	dbg "runtime/debug"
 	"strings"
 	"time"
 
@@ -67,6 +68,7 @@ func init() {
 }
 
 func main() {
+	dbg.SetTraceback("all")
 	inter, err := svc.IsAnInteractiveSession()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get interactive session status: %v\n", err)
