@@ -17,6 +17,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"runtime/debug"
 	"sync"
 	"syscall"
 	"time"
@@ -84,6 +85,7 @@ type event struct {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
 		lg.Fatal("Failed to get configuration: %v", err)
@@ -200,7 +202,29 @@ func main() {
 	// goroutine to read entries from Office 365 maintenance API
 	running := true
 	for k, v := range cfg.ContentType {
-		go func(name string, ct contentType) {
+		//get timegrinder stood up
+		tcfg := timegrinder.Config{
+			EnableLeftMostSeed: true,
+		}
+		tgr, err := timegrinder.NewTimeGrinder(tcfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to create timegrinder: %v\n", err)
+			return
+		} else if err := cfg.TimeFormat.LoadFormats(tgr); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to set load custom time formats: %v\n", err)
+			return
+		}
+		if v.Assume_Local_Timezone {
+			tgr.SetLocalTime()
+		}
+		if v.Timezone_Override != `` {
+			if err = tgr.SetTimezone(v.Timezone_Override); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", v.Timezone_Override, err)
+				return
+			}
+		}
+
+		go func(name string, ct contentType, tg *timegrinder.TimeGrinder) {
 			debugout("Started reader for content type %v\n", ct.Content_Type)
 			wg.Add(1)
 			defer wg.Done()
@@ -214,25 +238,6 @@ func main() {
 			procset, err := cfg.Preprocessor.ProcessorSet(igst, ct.Preprocessor)
 			if err != nil {
 				lg.Fatal("Preprocessor construction error: %v", err)
-			}
-
-			// set up time extraction rules
-			tcfg := timegrinder.Config{
-				EnableLeftMostSeed: true,
-			}
-			tg, err := timegrinder.NewTimeGrinder(tcfg)
-			if err != nil {
-				ct.Ignore_Timestamps = true
-			}
-			if ct.Assume_Local_Timezone {
-				tg.SetLocalTime()
-			}
-			if ct.Timezone_Override != `` {
-				err = tg.SetTimezone(ct.Timezone_Override)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", ct.Timezone_Override, err)
-					return
-				}
 			}
 
 			// we'll do a sliding window, they warn it can take a long time for some logs to show up
@@ -321,7 +326,7 @@ func main() {
 				lg.Error("Failed to close processor set: %v", err)
 			}
 
-		}(k, *v)
+		}(k, *v, tgr)
 	}
 
 	//register quit signals so we can die gracefully

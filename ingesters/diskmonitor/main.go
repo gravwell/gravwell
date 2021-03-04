@@ -19,6 +19,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -113,6 +114,7 @@ type Reading struct {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	//test that the disk stats path exists
 	if st, err := os.Stat(dpath); err != nil {
 		log.Fatal(fmt.Sprintf("Failed to open %s: %v", dpath, err))

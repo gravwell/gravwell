@@ -17,6 +17,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -79,6 +80,7 @@ func init() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	var lgr *log.Logger
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
@@ -169,7 +171,9 @@ func main() {
 		hnd.healthCheckURL = hcurl
 	}
 	for _, v := range cfg.Listener {
-		var hcfg handlerConfig
+		hcfg := handlerConfig{
+			multiline: v.Multiline,
+		}
 		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			lg.Fatal("Failed to pull tag %v: %v", v.Tag_Name, err)
 		}
@@ -182,6 +186,8 @@ func main() {
 			}
 			if hcfg.tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
 				lg.Fatal("Failed to generate new timegrinder: %v", err)
+			} else if cfg.TimeFormat.LoadFormats(hcfg.tg); err != nil {
+				lg.Fatal("Failed to load custom time formats: %v", err)
 			}
 			if v.Assume_Local_Timezone {
 				hcfg.tg.SetLocalTime()

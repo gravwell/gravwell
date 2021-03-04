@@ -59,8 +59,14 @@ type GenerateAXRequest struct {
 // and corresponding Element extractions as gathered from a single extraction module
 type GenerateAXResponse struct {
 	Extractor AXDefinition
-	Entries   []SearchEntry
-	Explore   []ExploreResult
+	// Confidence is a range from 0 to 10, with 10 meaning "we are very confident"
+	// and 0 meaning "we didn't extract anything of worth".
+	// Some modules, like xml, will return values lower than 10 even if they extracted
+	// lots of data, because other modules like winlog should take precedence if they
+	// succeed.
+	Confidence float64
+	Entries    []SearchEntry
+	Explore    []ExploreResult
 }
 
 type ExploreResult struct {
@@ -123,10 +129,17 @@ type StartSearchRequest struct {
 	SearchStart  string
 	SearchEnd    string
 	Background   bool
-	NoHistory    bool            `json:",omitempty"`
-	Metadata     json.RawMessage `json:",omitempty"`
-	Name         string          `json:",omitempty"`
-	Filters      []FilterRequest
+	NoHistory    bool `json:",omitempty"`
+	//Preview indicates that the renderer should only capture enough to show some usage of data
+	//A raw, text, hex renderer will grab a few hundred or thousand entries
+	//charts will grab enough to draw something useful
+	//everything else will get "enough"
+	Preview  bool            `json:",omitempty"`
+	Metadata json.RawMessage `json:",omitempty"`
+	Addendum json.RawMessage `json:",omitempty"`
+	Name     string          `json:",omitempty"`
+
+	Filters []FilterRequest
 }
 
 // The webserver responds yay/nay plus new subprotocols if the search is valid.
@@ -146,6 +159,7 @@ type StartSearchResponse struct {
 	Background           bool            `json:",omitempty"`
 	CollapsingIndex      int             // index of the first collapsed module
 	Metadata             json.RawMessage `json:",omitempty"`
+	Addendum             json.RawMessage `json:",omitempty"`
 	SearchHints
 }
 
@@ -196,6 +210,19 @@ type SearchInfo struct {
 	NoHistory             bool // set to true if this search was launched with the "no history" flag, typically means it is an automated search.
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
+	Import                ImportInfo `json:",omitempty"` //information attached if there this search is saved and from an external import
+	// Preview indicates that this search is a preview search
+	// this means that the query most likely did not cover the entire time range that was originally requested
+	// A preview search is used when a user is trying to understand what they have or establish AX relationships
+	Preview bool
+}
+
+type ImportInfo struct {
+	Imported  bool
+	Time      time.Time //timestamp of when the results were imported
+	BatchName string    //potential import batch name
+	BatchInfo string    //potential import batch notes
+
 }
 
 type StatsUpdate struct {

@@ -16,6 +16,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -51,6 +52,7 @@ func init() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	tags := []string{*tagName}
 
 	var connSet []string

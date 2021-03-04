@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -74,6 +75,7 @@ func init() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	if *inFile == "" {
 		log.Fatal("Input file path required")
 	}

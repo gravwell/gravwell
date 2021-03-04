@@ -15,6 +15,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"runtime/debug"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -76,6 +77,7 @@ func init() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	cfg, err := GetConfig(confLoc)
 	if err != nil {
 		log.Fatal("Failed to get configuration: ", err)

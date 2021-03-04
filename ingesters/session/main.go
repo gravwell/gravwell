@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -133,6 +134,7 @@ func init() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	cfg := ingest.UniformMuxerConfig{
 		Destinations:    connSet,
 		Tags:            []string{*tagName},

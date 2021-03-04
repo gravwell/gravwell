@@ -540,11 +540,15 @@ func (im *IngestMuxer) SetMetadata(obj interface{}) (err error) {
 }
 
 func (im *IngestMuxer) RegisterChild(k string, v IngesterState) {
+	im.mtx.Lock()
 	im.ingesterState.Children[k] = v
+	im.mtx.Unlock()
 }
 
 func (im *IngestMuxer) UnregisterChild(k string) {
+	im.mtx.Lock()
 	delete(im.ingesterState.Children, k)
+	im.mtx.Unlock()
 }
 
 // LookupTag will reverse a tag id into a name, this operation is more expensive than a straight lookup

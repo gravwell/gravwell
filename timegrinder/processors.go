@@ -202,23 +202,23 @@ func (p *processor) Name() string {
 	return p.name
 }
 
-func (a *processor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, off int) {
+func extract(rx, rxt *regexp.Regexp, d []byte, format string, loc *time.Location) (t time.Time, ok bool, off int) {
 	var err error
 	off = -1
-	idxs := a.rxp.FindIndex(d)
+	idxs := rx.FindIndex(d)
 	if len(idxs) != 2 {
 		return
 	}
-	if a.trxpEx != nil {
+	if rxt != nil {
 		if x := d[idxs[1]:]; len(x) > 0 {
-			if a.trxpEx.Match(x) {
+			if rxt.Match(x) {
 				//exclusion match hit, bail
 				return
 			}
 		}
 	}
 
-	if t, err = time.ParseInLocation(a.format, string(d[idxs[0]:idxs[1]]), loc); err != nil {
+	if t, err = time.ParseInLocation(format, string(d[idxs[0]:idxs[1]]), loc); err != nil {
 		return
 	}
 	ok = true
@@ -226,14 +226,18 @@ func (a *processor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool,
 	return
 }
 
-func (a *processor) Match(d []byte) (start, end int, ok bool) {
-	idxs := a.rxp.FindIndex(d)
+func (a *processor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
+	return extract(a.rxp, a.trxpEx, d, a.format, loc)
+}
+
+func match(rx, rxt *regexp.Regexp, d []byte) (start, end int, ok bool) {
+	idxs := rx.FindIndex(d)
 	if len(idxs) != 2 {
 		return
 	}
-	if a.trxpEx != nil {
+	if rxt != nil {
 		if x := d[idxs[1]:]; len(x) > 0 {
-			if a.trxpEx.Match(x) {
+			if rxt.Match(x) {
 				//exclusion match hit, bail
 				return
 			}
@@ -242,6 +246,10 @@ func (a *processor) Match(d []byte) (start, end int, ok bool) {
 	start, end = idxs[0], idxs[1]
 	ok = true
 	return
+}
+
+func (a *processor) Match(d []byte) (int, int, bool) {
+	return match(a.rxp, a.trxpEx, d)
 }
 
 func NewAnsiCProcessor() *processor {

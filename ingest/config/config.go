@@ -52,6 +52,7 @@ import (
 	"github.com/google/go-write"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (
@@ -118,6 +119,13 @@ type IngestConfig struct {
 type IngestStreamConfig struct {
 	Enable_Compression bool `json:",omitempty"`
 }
+
+type TimeFormat struct {
+	Format string
+	Regex  string
+}
+
+type CustomTimeFormat map[string]*TimeFormat
 
 func (ic *IngestConfig) loadDefaults() error {
 	//arrange the logic to be secure by default or when there is ambiguity
@@ -408,4 +416,49 @@ func writeFull(w io.Writer, b []byte) error {
 		}
 	}
 	return nil
+}
+
+func (ctf CustomTimeFormat) Validate() (err error) {
+	if len(ctf) == 0 {
+		return
+	}
+	for k, v := range ctf {
+		if v == nil {
+			continue
+		}
+		cf := timegrinder.CustomFormat{
+			Name:   k,
+			Format: v.Format,
+			Regex:  v.Regex,
+		}
+		if err = cf.Validate(); err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (ctf CustomTimeFormat) LoadFormats(tg *timegrinder.TimeGrinder) (err error) {
+	if len(ctf) == 0 {
+		return
+	} else if err = ctf.Validate(); err != nil {
+		return
+	}
+	for k, v := range ctf {
+		var p timegrinder.Processor
+		if v == nil {
+			continue
+		}
+		cf := timegrinder.CustomFormat{
+			Name:   k,
+			Format: v.Format,
+			Regex:  v.Regex,
+		}
+		if p, err = timegrinder.NewCustomProcessor(cf); err != nil {
+			return
+		} else if _, err = tg.AddProcessor(p); err != nil {
+			return
+		}
+	}
+	return
 }

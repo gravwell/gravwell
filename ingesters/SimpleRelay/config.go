@@ -62,6 +62,7 @@ type cfgReadType struct {
 	Listener     map[string]*listener
 	JSONListener map[string]*jsonListener
 	Preprocessor processors.ProcessorConfig
+	TimeFormat   config.CustomTimeFormat
 }
 
 type cfgType struct {
@@ -69,6 +70,7 @@ type cfgType struct {
 	Listener     map[string]*listener
 	JSONListener map[string]*jsonListener
 	Preprocessor processors.ProcessorConfig
+	TimeFormat   config.CustomTimeFormat
 }
 
 func GetConfig(path string) (*cfgType, error) {
@@ -82,6 +84,7 @@ func GetConfig(path string) (*cfgType, error) {
 		Listener:     cr.Listener,
 		JSONListener: cr.JSONListener,
 		Preprocessor: cr.Preprocessor,
+		TimeFormat:   cr.TimeFormat,
 	}
 
 	if err := verifyConfig(c); err != nil {
@@ -109,6 +112,8 @@ func verifyConfig(c *cfgType) error {
 		return errors.New("No listeners specified")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
+		return err
+	} else if err = c.TimeFormat.Validate(); err != nil {
 		return err
 	}
 	bindMp := make(map[string]string, 1)

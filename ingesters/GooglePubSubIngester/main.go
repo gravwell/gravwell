@@ -15,6 +15,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -74,6 +75,7 @@ func init() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
 		lg.Fatal("Failed to get configuration: %v", err)

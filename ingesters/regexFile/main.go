@@ -17,6 +17,7 @@ import (
 	"log"
 	"os"
 	"regexp"
+	"runtime/debug"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -67,6 +68,7 @@ func init() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	if *inFile == "" {
 		log.Fatal("Input file path required")
 	}

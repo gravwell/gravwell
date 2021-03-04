@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 	"path"
+	"runtime/debug"
 	"syscall"
 	"time"
 
@@ -78,6 +79,7 @@ func init() {
 }
 
 func main() {
+	debug.SetTraceback("all")
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
 		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
@@ -222,6 +224,7 @@ func main() {
 			Logger:                  lg,
 			TimezoneOverride:        val.Timezone_Override,
 			Ctx:                     ctx,
+			TimeFormat:              cfg.TimeFormat,
 		}
 		if v {
 			cfg.Debugger = debugout
