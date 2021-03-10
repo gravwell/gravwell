@@ -134,6 +134,10 @@ type BaseResponse struct {
 	// For condensing, this means that given the range, there are values available after the Last range
 	AdditionalEntries bool
 	Finished          bool
+	// Indicates that the query results exceeded the on-disk storage limits
+	OverLimit bool
+	// Indicates the range of entries that were dropped due to storage limits
+	LimitDroppedRange TimeRange
 }
 
 // We have a generic StatsRequest type that ONLY implements the BaseRequest.
