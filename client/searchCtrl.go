@@ -511,8 +511,9 @@ func (c *Client) getStringTagTableEntries(s Search, start, end uint64) (ste []ty
 				continue
 			}
 			e.Enumerated = append(e.Enumerated, types.EnumeratedPair{
-				Name:  columns[i],
-				Value: v,
+				Name:     columns[i],
+				Value:    v,
+				RawValue: types.RawEnumeratedValue{Type: 1, Data: []byte(v)},
 			})
 		}
 		ste = append(ste, e)
