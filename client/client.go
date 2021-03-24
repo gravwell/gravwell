@@ -132,7 +132,7 @@ func NewClient(server string, enforceCertificate, useHttps bool, objLogger objlo
 	hdrMap := newHeaderMap()
 	hdrMap.add(`User-Agent`, clientUserAgent)
 
-	//if not object logger is passed in, just get a nil one
+	//if no object logger is passed in, just get a nil one
 	if objLogger == nil {
 		objLogger, _ = objlog.NewNilLogger()
 	}
