@@ -6,6 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// getSDR and getSEL both derived from https://github.com/k-sone/ipmigo/tree/master/examples
+
 package main
 
 import (
@@ -88,6 +90,8 @@ func init() {
 func main() {
 	debug.SetTraceback("all")
 
+	// config setup
+
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
 		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
@@ -119,14 +123,14 @@ func main() {
 		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
 		return
 	}
-
 	lmt, err := cfg.Global.RateLimit()
 	if err != nil {
 		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
 		return
 	}
 
-	//fire up the ingesters
+	// create ingest connection(s)
+
 	id, ok := cfg.Global.IngesterUUID()
 	if !ok {
 		lg.FatalCode(0, "Couldn't read ingester UUID\n")
@@ -174,10 +178,10 @@ func main() {
 		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
 	}
 
+	// fire up IPMI handlers
+
 	var wg sync.WaitGroup
-
 	ipmiConns = make(map[string]*handlerConfig)
-
 	ctx, cancel := context.WithCancel(context.Background())
 
 	for k, v := range cfg.IPMI {
@@ -225,7 +229,8 @@ func main() {
 		go v.run()
 	}
 
-	//listen for signals so we can close gracefully
+	// listen for signals so we can close gracefully
+
 	utils.WaitForQuit()
 
 	cancel()
@@ -262,8 +267,10 @@ func (h *handlerConfig) run() {
 		}
 		defer h.client.Close()
 
+		// successful connection, spin on getting records
+
 		for {
-			// grab all SDR records
+			// grab all SDR records and throw them as a single entry
 			sdr, err := h.getSDR()
 			if err != nil {
 				lg.Error("%v", err)
@@ -280,11 +287,12 @@ func (h *handlerConfig) run() {
 				}
 			}
 
-			// grab all SEL events
+			// grab all SEL records that we haven't already seen
 			sel, err := h.getSEL()
 			if err != nil {
 				lg.Error("%v", err)
 			} else {
+				// throw them as individual entries
 				for _, v := range sel {
 					b, err := json.Marshal(v)
 					if err != nil {
@@ -326,8 +334,9 @@ func (h *handlerConfig) run() {
 }
 
 type tSDR struct {
-	Type string
-	Data []*tSDRData
+	Type   string
+	Target string
+	Data   []*tSDRData
 }
 
 type tSDRData struct {
@@ -415,16 +424,18 @@ func (h *handlerConfig) getSDR() ([]byte, error) {
 	}
 
 	ret := &tSDR{
-		Type: "SDR",
-		Data: data,
+		Target: h.target,
+		Type:   "SDR",
+		Data:   data,
 	}
 
 	return json.Marshal(ret)
 }
 
 type tSEL struct {
-	Type string
-	Data ipmigo.SELRecord
+	Target string
+	Type   string
+	Data   ipmigo.SELRecord
 }
 
 func (h *handlerConfig) getSEL() ([]*tSEL, error) {
@@ -434,23 +445,21 @@ func (h *handlerConfig) getSEL() ([]*tSEL, error) {
 		return nil, fmt.Errorf("Failed to get SEL entries on target %v: %w", h.target, err)
 	}
 
-	// Get latest 10 events
-	count := 10
-	offset := 0
-	if total > count {
-		offset = total - count
-	}
-	selrecords, total, err := ipmigo.SELGetEntries(h.client, offset, count)
+	selrecords, total, err := ipmigo.SELGetEntries(h.client, 0, total)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get SEL entries on target %v: %w", h.target, err)
 	}
 
+	// only return records we haven't already seen by ID. If you restart
+	// the ingester, well you're going to reingest ALL SEL events that
+	// haven't already been cleared.
 	var ret []*tSEL
 	for _, v := range selrecords {
 		if _, ok := h.SELIDs[v.ID()]; !ok {
 			ret = append(ret, &tSEL{
-				Type: "SEL",
-				Data: v,
+				Target: h.target,
+				Type:   "SEL",
+				Data:   v,
 			})
 			h.SELIDs[v.ID()] = true
 		}

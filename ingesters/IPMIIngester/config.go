@@ -20,10 +20,6 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
 
-const (
-	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
-)
-
 type ipmi struct {
 	Tag_Name          string
 	Target            string
