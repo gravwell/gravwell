@@ -336,11 +336,10 @@ func (h *handlerConfig) run() {
 type tSDR struct {
 	Type   string
 	Target string
-	Data   []*tSDRData
+	Data   map[string]*tSDRData
 }
 
 type tSDRData struct {
-	Name    string
 	Type    string
 	Reading string
 	Units   string
@@ -348,7 +347,11 @@ type tSDRData struct {
 }
 
 func (h *handlerConfig) getSDR() ([]byte, error) {
-	var data []*tSDRData
+	var data = &tSDR{
+		Type:   "SDR",
+		Target: h.target,
+		Data:   make(map[string]*tSDRData),
+	}
 
 	records, err := ipmigo.SDRGetRecordsRepo(h.client, func(id uint16, t ipmigo.SDRType) bool {
 		return t == ipmigo.SDRTypeFullSensor || t == ipmigo.SDRTypeCompactSensor
@@ -414,22 +417,15 @@ func (h *handlerConfig) getSDR() ([]byte, error) {
 			}
 		}
 
-		data = append(data, &tSDRData{
-			Name:    sname,
+		data.Data[sname] = &tSDRData{
 			Type:    stype,
 			Reading: reading,
 			Units:   units,
 			Status:  status,
-		})
+		}
 	}
 
-	ret := &tSDR{
-		Target: h.target,
-		Type:   "SDR",
-		Data:   data,
-	}
-
-	return json.Marshal(ret)
+	return json.Marshal(data)
 }
 
 type tSEL struct {
