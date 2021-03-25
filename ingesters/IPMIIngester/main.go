@@ -50,15 +50,17 @@ var (
 const PERIOD = 10 * time.Second
 
 type handlerConfig struct {
-	target   string
-	username string
-	password string
-	tag      entry.EntryTag
-	src      net.IP
-	wg       *sync.WaitGroup
-	proc     *processors.ProcessorSet
-	ctx      context.Context
-	client   *ipmigo.Client
+	target           string
+	username         string
+	password         string
+	tag              entry.EntryTag
+	src              net.IP
+	wg               *sync.WaitGroup
+	proc             *processors.ProcessorSet
+	ctx              context.Context
+	client           *ipmigo.Client
+	SELIDs           map[uint16]bool
+	ignoreTimestamps bool
 }
 
 func init() {
@@ -201,13 +203,15 @@ func main() {
 		}
 
 		hcfg := &handlerConfig{
-			target:   v.Target,
-			username: v.Username,
-			password: v.Password,
-			tag:      tag,
-			src:      src,
-			wg:       &wg,
-			ctx:      ctx,
+			target:           v.Target,
+			username:         v.Username,
+			password:         v.Password,
+			tag:              tag,
+			src:              src,
+			wg:               &wg,
+			ctx:              ctx,
+			SELIDs:           make(map[uint16]bool),
+			ignoreTimestamps: v.Ignore_Timestamps,
 		}
 
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
@@ -264,7 +268,16 @@ func (h *handlerConfig) run() {
 			if err != nil {
 				lg.Error("%v", err)
 			} else {
-				fmt.Println(string(sdr))
+				ent := &entry.Entry{
+					SRC:  h.src,
+					TS:   entry.Now(),
+					Tag:  h.tag,
+					Data: sdr,
+				}
+
+				if err = h.proc.ProcessContext(ent, h.ctx); err != nil {
+					lg.Error("Sending message: %v", err)
+				}
 			}
 
 			// grab all SEL events
@@ -272,7 +285,39 @@ func (h *handlerConfig) run() {
 			if err != nil {
 				lg.Error("%v", err)
 			} else {
-				fmt.Println(string(sel))
+				for _, v := range sel {
+					b, err := json.Marshal(v)
+					if err != nil {
+						lg.Error("Encoding SEL record: %v", err)
+						continue
+					}
+
+					var ts entry.Timestamp
+					if h.ignoreTimestamps {
+						ts = entry.Now()
+					} else {
+						switch s := v.Data.(type) {
+						case *ipmigo.SELEventRecord:
+							ts = entry.UnixTime(int64((&s.Timestamp).Value), 0)
+						case *ipmigo.SELTimestampedOEMRecord:
+							ts = entry.UnixTime(int64((&s.Timestamp).Value), 0)
+						default:
+							// other types just don't have a timestamp
+							ts = entry.Now()
+						}
+					}
+
+					ent := &entry.Entry{
+						SRC:  h.src,
+						TS:   ts,
+						Tag:  h.tag,
+						Data: b,
+					}
+
+					if err = h.proc.ProcessContext(ent, h.ctx); err != nil {
+						lg.Error("Sending message: %v", err)
+					}
+				}
 			}
 
 			time.Sleep(PERIOD)
@@ -379,10 +424,10 @@ func (h *handlerConfig) getSDR() ([]byte, error) {
 
 type tSEL struct {
 	Type string
-	Data []ipmigo.SELRecord
+	Data ipmigo.SELRecord
 }
 
-func (h *handlerConfig) getSEL() ([]byte, error) {
+func (h *handlerConfig) getSEL() ([]*tSEL, error) {
 	// Get total count
 	_, total, err := ipmigo.SELGetEntries(h.client, 0, 0)
 	if err != nil {
@@ -400,10 +445,16 @@ func (h *handlerConfig) getSEL() ([]byte, error) {
 		return nil, fmt.Errorf("Failed to get SEL entries on target %v: %w", h.target, err)
 	}
 
-	ret := &tSEL{
-		Type: "SEL",
-		Data: selrecords,
+	var ret []*tSEL
+	for _, v := range selrecords {
+		if _, ok := h.SELIDs[v.ID()]; !ok {
+			ret = append(ret, &tSEL{
+				Type: "SEL",
+				Data: v,
+			})
+			h.SELIDs[v.ID()] = true
+		}
 	}
 
-	return json.Marshal(ret)
+	return ret, nil
 }

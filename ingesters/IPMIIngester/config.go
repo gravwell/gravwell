@@ -25,12 +25,13 @@ const (
 )
 
 type ipmi struct {
-	Tag_Name        string
-	Target          string
-	Username        string
-	Password        string
-	Preprocessor    []string
-	Source_Override string
+	Tag_Name          string
+	Target            string
+	Username          string
+	Password          string
+	Preprocessor      []string
+	Source_Override   string
+	Ignore_Timestamps bool //Just apply the current timestamp to lines as we get them
 }
 
 type cfgType struct {
