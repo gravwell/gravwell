@@ -38,6 +38,8 @@ require (
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901
 	github.com/klauspost/compress v1.11.12
+	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
+	github.com/klauspost/compress v1.11.3
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/minio/highwayhash v1.0.0
