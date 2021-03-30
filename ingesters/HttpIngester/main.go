@@ -218,6 +218,30 @@ func main() {
 		hnd.mp[v.URL] = hcfg
 		debugout("URL %s handling %s\n", v.URL, v.Tag_Name)
 	}
+
+	for _, v := range cfg.HECListener {
+		hcfg := handlerConfig{
+			hecCompat: true,
+		}
+		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
+			lg.Fatal("Failed to pull tag %v: %v", v.Tag_Name, err)
+		}
+		if v.Ignore_Timestamps {
+			hcfg.ignoreTs = true
+		}
+		hcfg.method = http.MethodPost
+
+		hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor)
+		if err != nil {
+			lg.Fatal("Preprocessor construction error: %v", err)
+		}
+		if hcfg.auth, err = newPresharedTokenHandler(`Splunk`, v.TokenValue, lgr); err != nil {
+			lg.Fatal("Failed to generate HEC-Compatible-Listener auth: %v", err)
+		}
+		hnd.mp[v.URL] = hcfg
+		debugout("URL %s handling %s\n", v.URL, v.Tag_Name)
+	}
+
 	srv := &http.Server{
 		Addr:         cfg.Bind,
 		Handler:      hnd,
@@ -228,8 +252,7 @@ func main() {
 	if cfg.TLSEnabled() {
 		c := cfg.TLS_Certificate_File
 		k := cfg.TLS_Key_File
-		debugout("Binding to %v with TLS enabled using %s/%s\n", cfg.Bind,
-			cfg.TLS_Certificate_File, cfg.TLS_Key_File)
+		debugout("Binding to %v with TLS enabled using %s %s\n", cfg.Bind, cfg.TLS_Certificate_File, cfg.TLS_Key_File)
 		if err := srv.ListenAndServeTLS(c, k); err != nil {
 			lg.Error("Failed to serve HTTPS server: %v", err)
 		}
