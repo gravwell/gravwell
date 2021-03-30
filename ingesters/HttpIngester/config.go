@@ -24,9 +24,10 @@ import (
 )
 
 const (
-	maxConfigSize  int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
-	defaultMaxBody int   = 4 * 1024 * 1024   //4MB
-	defaultLogLoc        = `/opt/gravwell/log/gravwell_http_ingester.log`
+	maxConfigSize  int64  = (1024 * 1024 * 2) //2MB, even this is crazy large
+	defaultMaxBody int    = 4 * 1024 * 1024   //4MB
+	defaultLogLoc         = `/opt/gravwell/log/gravwell_http_ingester.log`
+	defaultHECUrl  string = `/services/collector/event`
 
 	defaultMethod string = `POST`
 )
@@ -41,10 +42,11 @@ type gbl struct {
 }
 
 type cfgReadType struct {
-	Global       gbl
-	Listener     map[string]*lst
-	Preprocessor processors.ProcessorConfig
-	TimeFormat   config.CustomTimeFormat
+	Global                  gbl
+	Listener                map[string]*lst
+	HEC_Compatible_Listener map[string]*hecCompatible
+	Preprocessor            processors.ProcessorConfig
+	TimeFormat              config.CustomTimeFormat
 }
 
 type lst struct {
@@ -60,9 +62,18 @@ type lst struct {
 	Preprocessor              []string
 }
 
+type hecCompatible struct {
+	URL               string //override the URL, defaults to "/services/collector/event"
+	TokenValue        string `json:"-"` //DO NOT SEND THIS when marshalling
+	Tag_Name          string //the tag to assign to the request
+	Ignore_Timestamps bool
+	Preprocessor      []string
+}
+
 type cfgType struct {
 	gbl
 	Listener     map[string]*lst
+	HECListener  map[string]*hecCompatible
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
 }
@@ -75,6 +86,7 @@ func GetConfig(path string) (*cfgType, error) {
 	c := &cfgType{
 		gbl:          cr.Global,
 		Listener:     cr.Listener,
+		HECListener:  cr.HEC_Compatible_Listener,
 		Preprocessor: cr.Preprocessor,
 		TimeFormat:   cr.TimeFormat,
 	}
@@ -105,8 +117,8 @@ func verifyConfig(c *cfgType) error {
 		return err
 	}
 	urls := map[string]string{}
-	if len(c.Listener) == 0 {
-		return errors.New("No Sniffers specified")
+	if len(c.Listener) == 0 && len(c.HECListener) == 0 {
+		return errors.New("No Listeners specified")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
 		return err
@@ -117,26 +129,14 @@ func verifyConfig(c *cfgType) error {
 		urls[hc] = `health check`
 	}
 	for k, v := range c.Listener {
-		var pth string
-		if len(v.URL) == 0 {
-			return errors.New("No URL provided for " + k)
-		}
-		p, err := url.Parse(v.URL)
+		pth, err := v.validate(k)
 		if err != nil {
-			return fmt.Errorf("URL structure is invalid: %v", err)
+			return err
 		}
-		if p.Scheme != `` {
-			return errors.New("May not specify scheme in listening URL")
-		} else if p.Host != `` {
-			return errors.New("May not specify host in listening URL")
-		}
-		pth = p.Path
-
 		if orig, ok := urls[pth]; ok {
 			return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.URL, k, orig)
 		}
-		urls[pth] = k
-		//validate the auth
+		//validate authentication
 		if enabled, err := v.auth.Validate(); err != nil {
 			return fmt.Errorf("Auth for %s is invalid: %v", k, err)
 		} else if enabled && v.LoginURL != `` {
@@ -146,22 +146,28 @@ func verifyConfig(c *cfgType) error {
 			}
 			urls[v.LoginURL] = k
 		}
-		if len(v.Tag_Name) == 0 {
-			v.Tag_Name = `default`
-		}
-		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
-			return errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + k)
-		}
-		//normalize the path
-		v.URL = pth
-		if v.Method == `` {
-			v.Method = defaultMethod
-		}
+
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("HTTP Listener %s preprocessor invalid: %v", k, err)
 		}
+		urls[pth] = k
 		c.Listener[k] = v
 	}
+	for k, v := range c.HECListener {
+		pth, err := v.validate(k)
+		if err != nil {
+			return err
+		}
+		if orig, ok := urls[pth]; ok {
+			return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.URL, k, orig)
+		}
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("HTTP HEC-Compatible-Listener %s preprocessor invalid: %v", k, err)
+		}
+		urls[pth] = k
+		c.HECListener[k] = v
+	}
+
 	if len(urls) == 0 {
 		return fmt.Errorf("No listeners specified")
 	}
@@ -180,6 +186,16 @@ func (c *cfgType) Tags() (tags []string, err error) {
 			tagMp[v.Tag_Name] = true
 		}
 	}
+	for _, v := range c.HECListener {
+		if len(v.Tag_Name) == 0 {
+			continue
+		}
+		if _, ok := tagMp[v.Tag_Name]; !ok {
+			tags = append(tags, v.Tag_Name)
+			tagMp[v.Tag_Name] = true
+		}
+	}
+
 	if len(tags) == 0 {
 		err = errors.New("No tags specified")
 	} else {
@@ -220,4 +236,57 @@ func (g gbl) HealthCheck() (pth string, ok bool) {
 		}
 	}
 	return
+}
+
+func (v *lst) validate(name string) (string, error) {
+	if len(v.URL) == 0 {
+		return ``, errors.New("No URL provided for " + name)
+	}
+	p, err := url.Parse(v.URL)
+	if err != nil {
+		return ``, fmt.Errorf("URL structure is invalid: %v", err)
+	}
+	if p.Scheme != `` {
+		return ``, errors.New("May not specify scheme in listening URL")
+	} else if p.Host != `` {
+		return ``, errors.New("May not specify host in listening URL")
+	}
+	pth := p.Path
+	if len(v.Tag_Name) == 0 {
+		v.Tag_Name = `default`
+	}
+	if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
+		return ``, errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + name)
+	}
+	//normalize the path
+	v.URL = pth
+	if v.Method == `` {
+		v.Method = defaultMethod
+	}
+	return pth, nil
+}
+
+func (v *hecCompatible) validate(name string) (string, error) {
+	if len(v.URL) == 0 {
+		v.URL = defaultHECUrl
+	}
+	p, err := url.Parse(v.URL)
+	if err != nil {
+		return ``, fmt.Errorf("URL structure is invalid: %v", err)
+	}
+	if p.Scheme != `` {
+		return ``, errors.New("May not specify scheme in listening URL")
+	} else if p.Host != `` {
+		return ``, errors.New("May not specify host in listening URL")
+	}
+	pth := p.Path
+	if len(v.Tag_Name) == 0 {
+		v.Tag_Name = `default`
+	}
+	if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
+		return ``, errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + name)
+	}
+	//normalize the path
+	v.URL = pth
+	return pth, nil
 }
