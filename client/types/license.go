@@ -31,19 +31,21 @@ const (
 	Unlimited  LicenseType = 0x387dd2c0faa6e1e3 //MxN configuration (many headends, many backends)
 
 	// feature override bitmasks
-	Replication  FeatureOverride = 1
-	SingleSignon FeatureOverride = 1 << 1
-	Overwatch    FeatureOverride = 1 << 2
-	NoStats      FeatureOverride = 1 << 3
-	UnlimitedCPU FeatureOverride = 1 << 4
-	ABAC         FeatureOverride = 1 << 5
+	Replication     FeatureOverride = 1
+	SingleSignon    FeatureOverride = 1 << 1
+	Overwatch       FeatureOverride = 1 << 2
+	NoStats         FeatureOverride = 1 << 3
+	UnlimitedCPU    FeatureOverride = 1 << 4
+	ABAC            FeatureOverride = 1 << 5
+	UnlimitedIngest FeatureOverride = 1 << 6
 
-	ReplicationName  string = `replication`
-	SingleSignonName string = `sso`
-	OverwatchName    string = `overwatch`
-	NoStatsName      string = `nostats`
-	UnlimitedCPUName string = `unlimitedcpu`
-	ABACName         string = `abac`
+	ReplicationName     string = `replication`
+	SingleSignonName    string = `sso`
+	OverwatchName       string = `overwatch`
+	NoStatsName         string = `nostats`
+	UnlimitedCPUName    string = `unlimitedcpu`
+	ABACName            string = `abac`
+	UnlimitedIngestName string = `unlimitedingest`
 
 	// ingest rate constants
 	gb            = 1024 * 1024 * 1024
@@ -57,9 +59,23 @@ var (
 )
 
 var (
-	Overrides     []FeatureOverride = []FeatureOverride{Replication, SingleSignon, Overwatch, NoStats, UnlimitedCPU}
-	OverrideNames []string          = []string{
-		ReplicationName, SingleSignonName, OverwatchName, NoStatsName, UnlimitedCPUName}
+	Overrides = []FeatureOverride{
+		Replication,
+		SingleSignon,
+		Overwatch,
+		NoStats,
+		UnlimitedCPU,
+		UnlimitedIngest,
+	}
+
+	OverrideNames = []string{
+		ReplicationName,
+		SingleSignonName,
+		OverwatchName,
+		NoStatsName,
+		UnlimitedCPUName,
+		UnlimitedIngestName,
+	}
 )
 
 type LicenseType uint64
@@ -107,7 +123,7 @@ func (li LicenseInfo) Validate() error {
 	if _, err := uuid.Parse(li.CustomerUUID); err != nil {
 		return errors.New("Bad UUID " + err.Error())
 	}
-	if li.Type != Cluster && li.Type != Single && li.Type != Unlimited && li.Type != Eval && li.Type != Community {
+	if !li.Type.Valid() {
 		return errors.New("Invalid license type")
 	}
 	return nil
@@ -389,6 +405,8 @@ func NewFeatureOverride(name string) (fo FeatureOverride, err error) {
 		fo = NoStats
 	case UnlimitedCPUName:
 		fo = UnlimitedCPU
+	case UnlimitedIngestName:
+		fo = UnlimitedIngest
 	case ABACName:
 		fo = ABAC
 	default:
@@ -432,6 +450,9 @@ func (fo FeatureOverride) String() (r string) {
 	}
 	if fo.Set(UnlimitedCPU) {
 		r += `Unlimited CPU `
+	}
+	if fo.Set(UnlimitedIngest) {
+		r += `Unlimited Ingest `
 	}
 	if fo.Set(ABAC) {
 		r += `ABAC `
