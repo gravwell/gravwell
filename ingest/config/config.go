@@ -96,6 +96,7 @@ var (
 
 type IngestConfig struct {
 	IngestStreamConfig
+	Ingester_Name              string   `json:",omitempty"`
 	Ingest_Secret              string   `json:"-"` // DO NOT send this when marshalling
 	Connection_Timeout         string   `json:",omitempty"`
 	Verify_Remote_Certificates bool     `json:"-"` //legacy, will be removed

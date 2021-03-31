@@ -442,7 +442,7 @@ func (cah *cookieAuthHandler) AuthRequest(r *http.Request) (err error) {
 		return
 	}
 	if c == nil || c.Value == `` {
-		err = fmt.Errorf("invalid cookie")
+		err = errors.New("invalid cookie")
 		return
 	}
 	n := time.Now()
@@ -466,7 +466,7 @@ func getJWTToken(r *http.Request) (string, error) {
 
 func getAuthToken(r *http.Request, tokName string) (ret string, err error) {
 	if tokName == `` {
-		err = fmt.Errorf("Empty token name")
+		err = errors.New("Empty token name")
 		return
 	}
 	prefix := tokName + ` `
@@ -484,7 +484,7 @@ func getAuthToken(r *http.Request, tokName string) (ret string, err error) {
 
 func getParamToken(r *http.Request, tokName string) (ret string, err error) {
 	if tokName == `` {
-		err = fmt.Errorf("Empty token name")
+		err = errors.New("Empty token name")
 		return
 	}
 	keys, ok := r.URL.Query()[tokName]
