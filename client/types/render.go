@@ -200,11 +200,13 @@ type IdxStatResponse struct {
 }
 
 type IngestStats struct {
-	QuotaUsed  uint64 // Quota used so far
-	QuotaMax   uint64 // Total quota
-	TotalCount uint64 //Total Entries since the ingest server started
-	TotalSize  uint64 //Total Data since the ingest server started
-	Ingesters  []IngesterStats
+	QuotaUsed    uint64 // Quota used so far
+	QuotaMax     uint64 // Total quota
+	TotalCount   uint64 //Total Entries since the ingest server started
+	TotalSize    uint64 //Total Data since the ingest server started
+	LastDayCount uint64 //total entries in last 24 hours
+	LastDaySize  uint64 //total ingested in last 24 hours
+	Ingesters    []IngesterStats
 }
 
 type IngesterStats struct {
