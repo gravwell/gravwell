@@ -37,9 +37,8 @@ require (
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901
-	github.com/klauspost/compress v1.11.12
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
-	github.com/klauspost/compress v1.11.3
+	github.com/klauspost/compress v1.11.12
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/minio/highwayhash v1.0.0
@@ -51,7 +50,7 @@ require (
 	github.com/stephens2424/writerset v1.0.2 // indirect
 	github.com/stretchr/testify v1.5.1
 	github.com/tealeg/xlsx v1.0.5
-	github.com/traetox/buffer v0.0.0-20210326195018-9f9dc6358691
+	github.com/traetox/buffer v0.0.0-20210401203802-696176a8d26f
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	go.etcd.io/bbolt v1.3.5
@@ -72,3 +71,5 @@ replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20200
 replace github.com/open-networks/go-msgraph => github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3
 
 // replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
+
+replace github.com/traetox/buffer => /home/kris/githubwork/buffer

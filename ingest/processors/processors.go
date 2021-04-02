@@ -259,7 +259,7 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 		if err = vc.MapTo(&cfg); err != nil {
 			return
 		}
-		p, err = NewPersistentBuffer(cfg)
+		p, err = NewPersistentBuffer(cfg, tgr)
 	default:
 		err = ErrUnknownProcessor
 	}

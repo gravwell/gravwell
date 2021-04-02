@@ -9,10 +9,12 @@
 package processors
 
 import (
+	"fmt"
 	"path/filepath"
 	"testing"
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 func TestPersistentBufferLoadConfig(t *testing.T) {
@@ -64,7 +66,8 @@ func TestPersistentBuffer(t *testing.T) {
 		BufferSize: `1MB`,
 		Filename:   fout,
 	}
-	d, err := NewPersistentBuffer(dc)
+	var tt testTagger
+	d, err := NewPersistentBuffer(dc, &tt)
 	if err != nil {
 		t.Fatal(err)
 	} else if d == nil {
@@ -75,5 +78,108 @@ func TestPersistentBuffer(t *testing.T) {
 		t.Fatal(err)
 	} else if len(set) != len(ents) {
 		t.Fatalf("PersistentBuffer did not pass through: %d != %d", len(set), len(ents))
+	} else if err = d.Close(); err != nil {
+		t.Fatalf("Failed to close: %v", err)
+	}
+
+	ents = makeEntry([]byte("this is a test"), 1)
+	if set, err := d.Process(ents); err != nil {
+		t.Fatal(err)
+	} else if len(set) != len(ents) {
+		t.Fatalf("PersistentBuffer did not pass through: %d != %d", len(set), len(ents))
+	} else if err = d.Close(); err != nil {
+		t.Fatalf("Failed to close: %v", err)
+	}
+
+
+	//open the buffer and make sure we can pop 2 items off
+	pbc, err := OpenPersistentBuffer(fout)
+	if err != nil {
+		t.Fatalf("Failed to open buffer: %v", err)
+	}
+
+	var cnt int
+	for {
+		if strents, err := pbc.Pop(); err != nil {
+			if err == ErrBufferEmpty {
+				break
+			}
+			t.Fatalf("Failed to pop: %v", err)
+		} else {
+			cnt += len(strents)
+		}
+	}
+
+	if err = pbc.Close(); err != nil {
+		t.Fatalf("Failed to close persistent buffer: %v", err)
+	}
+
+	if cnt != len(ents) {
+		t.Fatalf("Failed to pop correct number of entries: %d != %d", cnt, len(ents))
+	}
+}
+
+func TestPBRollover(t *testing.T) {
+	fout := filepath.Join(t.TempDir(), `test2`)
+	dc := PersistentBufferConfig{
+		BufferSize: `1MB`,
+		Filename:   fout,
+	}
+	var tt testTagger
+	d, err := NewPersistentBuffer(dc, &tt)
+	if err != nil {
+		t.Fatal(err)
+	} else if d == nil {
+		t.Fatalf("nil drop")
+	}
+
+	tags := make([]entry.EntryTag, 4)
+	for i := 0; i < 4; i++ {
+		if tg, err := tt.NegotiateTag(fmt.Sprintf("TAG%d", i)); err != nil {
+			t.Fatal(err)
+		} else {
+			tags[i] = tg
+		}
+	}
+
+	// make enough entries that our buffer rolls
+	for i := 0; i < 4096; i++ {
+		for j := 0; j < 4; j++ {
+			fmt.Println(i, j)
+			ents := makeEntry([]byte("this is a test"), tags[j])
+			if set, err := d.Process(ents); err != nil {
+				t.Fatal(err)
+			} else if len(set) != len(ents) {
+				t.Fatalf("PersistentBuffer did not pass through: %d != %d", len(set), len(ents))
+			} else if err = d.Close(); err != nil {
+				t.Fatalf("Failed to close: %v", err)
+			}
+		}
+	}
+
+	//open the buffer and make sure we can pop 2 items off
+	pbc, err := OpenPersistentBuffer(fout)
+	if err != nil {
+		t.Fatalf("Failed to open buffer: %v", err)
+	}
+
+	var cnt int
+	for {
+		if strents, err := pbc.Pop(); err != nil {
+			if err == ErrBufferEmpty {
+				break
+			}
+			t.Fatalf("Failed to pop: %v", err)
+		} else {
+			cnt += len(strents)
+		}
+	}
+
+	if err = pbc.Close(); err != nil {
+		t.Fatalf("Failed to close persistent buffer: %v", err)
+	}
+
+	if cnt == 0 {
+		t.Fatalf("Failed to pop entries: %d", cnt)
 	}
 }

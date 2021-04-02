@@ -272,6 +272,8 @@ github.com/traetox/buffer v0.0.0-20190408164202-7cab898e1166 h1:1FLBoh0FzfA3Mdgk
 github.com/traetox/buffer v0.0.0-20190408164202-7cab898e1166/go.mod h1:RlwSL/GJcjPui2a+MZtkIj5PpK8bv2oHywWJACCAD5M=
 github.com/traetox/buffer v0.0.0-20210326195018-9f9dc6358691 h1:57FeeQRUUpQlIwji3uJYLdEesukGOsRhXIMPxjRYIxM=
 github.com/traetox/buffer v0.0.0-20210326195018-9f9dc6358691/go.mod h1:RlwSL/GJcjPui2a+MZtkIj5PpK8bv2oHywWJACCAD5M=
+github.com/traetox/buffer v0.0.0-20210401203802-696176a8d26f h1:KUNwC9pMqs7A0AgSbwZuSDL7QksrkRTZ2i9tlBbdURI=
+github.com/traetox/buffer v0.0.0-20210401203802-696176a8d26f/go.mod h1:RlwSL/GJcjPui2a+MZtkIj5PpK8bv2oHywWJACCAD5M=
 github.com/turnage/graw v0.0.0-20191104042329-405cc3092119 h1:WpxPyCI7eEFG4Ix5m/UhTkrFZxSI6YAASpQswMn08b0=
 github.com/turnage/graw v0.0.0-20191104042329-405cc3092119/go.mod h1:mCzFVBigviR4gb9WRHCFEZ4Z8eWB1dGz+fzLOHpkG8I=
 github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb h1:qR56NGRvs2hTUbkn6QF8bEJzxPIoMw3Np3UigBeJO5A=

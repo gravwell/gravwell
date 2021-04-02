@@ -10,9 +10,15 @@ package main
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/json"
+	"errors"
 	"io"
+	"io/ioutil"
+	"math"
 	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -23,6 +29,7 @@ import (
 )
 
 type handlerConfig struct {
+	hecCompat bool
 	ignoreTs  bool
 	multiline bool
 	tag       entry.EntryTag
@@ -42,6 +49,8 @@ type handler struct {
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
+	debugout("REQUEST %s %v\n", r.Method, r.URL)
+	debugout("HEADERS %v\n", r.Header)
 
 	//check if its just a health check
 	if h.healthCheckURL == r.URL.Path {
@@ -73,12 +82,71 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if cfg.multiline {
+	if cfg.hecCompat {
+		h.handleHEC(cfg, r, w)
+	} else if cfg.multiline {
 		h.handleMulti(cfg, r, w)
 	} else {
 		h.handleSingle(cfg, r, w)
 	}
 	r.Body.Close()
+}
+
+type hecEvent struct {
+	Event json.RawMessage `json:"event"`
+	TS    custTime        `json:"time"`
+}
+
+type custTime time.Time
+
+func (c *custTime) UnmarshalJSON(v []byte) (err error) {
+	var f float64
+	v = bytes.Trim(v, `"`) //trim quotes if they are there
+	if f, err = strconv.ParseFloat(string(v), 64); err != nil {
+		return
+	} else if f < 0 || f > float64(0xffffffffff) {
+		err = errors.New("invalid timestamp value")
+	}
+	sec, dec := math.Modf(f)
+	*c = custTime(time.Unix(int64(sec), int64(dec*(1e9))))
+	return
+}
+
+func (h *handler) handleHEC(cfg handlerConfig, r *http.Request, w http.ResponseWriter) {
+	b, err := ioutil.ReadAll(io.LimitReader(r.Body, int64(maxBody+256))) //give some slack for the extra splunk garbage
+	if err != nil && err != io.EOF {
+		h.lgr.Info("Got bad request: %v", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	} else if len(b) > maxBody {
+		h.lgr.Error("Request too large, 4MB max")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if len(b) == 0 {
+		h.lgr.Info("Got an empty post from %s", r.RemoteAddr)
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	var x hecEvent
+	if err = json.Unmarshal(b, &x); err == nil {
+		b = []byte(x.Event)
+	} //else means we just keep the entire raw thing
+
+	//if we couldn't get the timestmap, use now
+	if time.Time(x.TS).IsZero() {
+		x.TS = custTime(time.Now().UTC())
+	}
+	e := entry.Entry{
+		TS:   entry.FromStandard(time.Time(x.TS)),
+		SRC:  getRemoteIP(r),
+		Tag:  cfg.tag,
+		Data: b,
+	}
+	if err = cfg.pproc.Process(&e); err != nil {
+		h.lgr.Error("Failed to send entry: %v", err)
+		return
+	}
+	debugout("Sending entry %+v", e)
 }
 
 func (h *handler) handleMulti(cfg handlerConfig, r *http.Request, w http.ResponseWriter) {
@@ -101,20 +169,16 @@ func (h *handler) handleMulti(cfg handlerConfig, r *http.Request, w http.Respons
 }
 
 func (h *handler) handleSingle(cfg handlerConfig, r *http.Request, w http.ResponseWriter) {
-	debugout("singlehandler REQUEST %s %v\n", r.Method, r.URL)
-	debugout("singlehandler HEADERS %v\n", r.Header)
-	b := make([]byte, maxBody)
-	n, err := readAll(r.Body, b)
+	b, err := ioutil.ReadAll(io.LimitReader(r.Body, int64(maxBody+1)))
 	if err != nil && err != io.EOF {
 		h.lgr.Info("Got bad request: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
-	} else if n == maxBody {
+	} else if len(b) > maxBody {
 		h.lgr.Error("Request too large, 4MB max")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	b = b[0:n]
 	if len(b) == 0 {
 		h.lgr.Info("Got an empty post from %s", r.RemoteAddr)
 		w.WriteHeader(http.StatusBadRequest)
@@ -151,8 +215,6 @@ func (h *handler) handleEntry(cfg handlerConfig, b []byte, ip net.IP) (err error
 		h.lgr.Error("Failed to send entry: %v", err)
 		return
 	}
-	if v {
-		h.lgr.Info("Sending entry %s %s", ts.String(), string(b))
-	}
+	debugout("Sending entry %+v", e)
 	return
 }

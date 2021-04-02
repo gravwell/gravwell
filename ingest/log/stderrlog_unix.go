@@ -1,3 +1,5 @@
+// +build linux darwin
+
 /*************************************************************************
  * Copyright 2017 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
