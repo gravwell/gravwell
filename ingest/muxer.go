@@ -263,16 +263,6 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 
 	var err error
 	if c.CachePath != "" {
-		//
-		// boltdb (old cache) transition stub. Delete this call, as
-		// well as boltcache.go and boltcache_test.go when we no longer
-		// need this.
-		//
-		err = boltTransition(c)
-		if err != nil {
-			return nil, err
-		}
-
 		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize)
 		if err != nil {
 			return nil, err
