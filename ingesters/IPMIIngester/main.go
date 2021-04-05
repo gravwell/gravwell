@@ -433,9 +433,10 @@ func (h *handlerConfig) getSDR() ([]byte, error) {
 }
 
 type tSEL struct {
-	Target string
-	Type   string
-	Data   ipmigo.SELRecord
+	Target      string
+	Type        string
+	Data        ipmigo.SELRecord
+	Description string
 }
 
 func (h *handlerConfig) getSEL() ([]*tSEL, error) {
@@ -456,11 +457,16 @@ func (h *handlerConfig) getSEL() ([]*tSEL, error) {
 	var ret []*tSEL
 	for _, v := range selrecords {
 		if _, ok := h.SELIDs[v.ID()]; !ok {
-			ret = append(ret, &tSEL{
+			r := &tSEL{
 				Target: h.target,
 				Type:   "SEL",
 				Data:   v,
-			})
+			}
+			switch s := v.(type) {
+			case *ipmigo.SELEventRecord:
+				r.Description = s.Description()
+			}
+			ret = append(ret, r)
 			h.SELIDs[v.ID()] = true
 		}
 	}
