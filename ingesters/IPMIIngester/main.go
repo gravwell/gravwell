@@ -49,7 +49,7 @@ var (
 	ipmiConns map[string]*handlerConfig
 )
 
-const PERIOD = 10 * time.Second
+const PERIOD = time.Minute
 
 type handlerConfig struct {
 	target           string
@@ -206,23 +206,25 @@ func main() {
 			lg.Fatal("Failed to resolve tag \"%s\" for %s: %v\n", v.Tag_Name, k, err)
 		}
 
-		hcfg := &handlerConfig{
-			target:           v.Target,
-			username:         v.Username,
-			password:         v.Password,
-			tag:              tag,
-			src:              src,
-			wg:               &wg,
-			ctx:              ctx,
-			SELIDs:           make(map[uint16]bool),
-			ignoreTimestamps: v.Ignore_Timestamps,
-		}
+		for _, x := range v.Target {
+			hcfg := &handlerConfig{
+				target:           x,
+				username:         v.Username,
+				password:         v.Password,
+				tag:              tag,
+				src:              src,
+				wg:               &wg,
+				ctx:              ctx,
+				SELIDs:           make(map[uint16]bool),
+				ignoreTimestamps: v.Ignore_Timestamps,
+			}
 
-		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
-			lg.Fatal("Preprocessor failure: %v", err)
-		}
+			if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
+				lg.Fatal("Preprocessor failure: %v", err)
+			}
 
-		ipmiConns[k] = hcfg
+			ipmiConns[k+x] = hcfg
+		}
 	}
 
 	for _, v := range ipmiConns {

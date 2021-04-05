@@ -22,7 +22,7 @@ import (
 
 type ipmi struct {
 	Tag_Name          string
-	Target            string
+	Target            []string
 	Username          string
 	Password          string
 	Preprocessor      []string
