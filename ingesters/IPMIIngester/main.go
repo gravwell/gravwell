@@ -49,7 +49,7 @@ var (
 	ipmiConns map[string]*handlerConfig
 )
 
-const PERIOD = time.Minute
+const PERIOD = 10 * time.Second // used for cooldown between device connection errors
 
 type handlerConfig struct {
 	target           string
@@ -63,6 +63,7 @@ type handlerConfig struct {
 	client           *ipmigo.Client
 	SELIDs           map[uint16]bool
 	ignoreTimestamps bool
+	rate             int
 }
 
 func init() {
@@ -217,6 +218,7 @@ func main() {
 				ctx:              ctx,
 				SELIDs:           make(map[uint16]bool),
 				ignoreTimestamps: v.Ignore_Timestamps,
+				rate:             v.Rate,
 			}
 
 			if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
@@ -330,7 +332,7 @@ func (h *handlerConfig) run() {
 				}
 			}
 
-			time.Sleep(PERIOD)
+			time.Sleep(time.Duration(h.rate) * time.Second)
 		}
 	}
 }

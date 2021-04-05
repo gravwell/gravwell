@@ -27,6 +27,7 @@ type ipmi struct {
 	Password          string
 	Preprocessor      []string
 	Source_Override   string
+	Rate              int
 	Ignore_Timestamps bool //Just apply the current timestamp to lines as we get them
 }
 
@@ -74,6 +75,10 @@ func verifyConfig(c *cfgType) error {
 	}
 
 	for k, v := range c.IPMI {
+		if v.Rate == 0 {
+			v.Rate = 60
+		}
+
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = `default`
 		}
