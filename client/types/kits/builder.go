@@ -26,12 +26,22 @@ var (
 	ErrEmptyID        = errors.New("Empty bundle ID")
 )
 
+// Builder is used to construct a kit. A typical workflow is:
+//
+// • Instantiate Builder using NewBuilder or NewBuilderFile
+//
+// • Add kit items by calling Add method on Builder
+//
+// • Use SetCover, SetBanner, SetIcon methods if desired
+//
+// • Call WriteManifest method and Close method
 type Builder struct {
 	tw       *tar.Writer
 	fout     io.WriteCloser
 	manifest Manifest
 }
 
+// BuilderConfig sets basic options for a kit.
 type BuilderConfig struct {
 	Version      uint
 	Name         string
@@ -43,6 +53,8 @@ type BuilderConfig struct {
 	ConfigMacros []types.KitConfigMacro
 }
 
+// NewBuilder creates a new Builder object. It takes a kit configuration (BuilderConfig)
+// and a WriteCloser as arguments. The completed kit will be written to the WriteCloser.
 func NewBuilder(cfg BuilderConfig, fout io.WriteCloser) (pb *Builder, err error) {
 	if err = cfg.Validate(); err != nil {
 		return
@@ -64,6 +76,8 @@ func NewBuilder(cfg BuilderConfig, fout io.WriteCloser) (pb *Builder, err error)
 	}, nil
 }
 
+// NewBuilderFile instantiates a new Builder object. It takes a kit configuration and
+// a file path where the resulting kit should be saved.
 func NewBuilderFile(cfg BuilderConfig, output string) (pb *Builder, err error) {
 	if err = cfg.Validate(); err != nil {
 		return
@@ -79,27 +93,28 @@ func NewBuilderFile(cfg BuilderConfig, output string) (pb *Builder, err error) {
 	return
 }
 
-// Manifest returns the manifest for the kit
+// Manifest returns the manifest for the kit.
 func (pb *Builder) Manifest() Manifest {
 	return pb.manifest
 }
 
-// Name returns the name in the manifest
+// Name returns the name set for the kit.
 func (pb *Builder) Name() string {
 	return pb.manifest.Name
 }
 
-// Description returns the description in the manifest
+// Description returns kit's description.
 func (pb *Builder) Description() string {
 	return pb.manifest.Desc
 }
 
-// ID returns the ID in the manifest
+// ID returns the kit ID.
 func (pb *Builder) ID() string {
 	return pb.manifest.ID
 }
 
-// Abort bails and closes the output stream
+// Abort bails and closes the output stream. It does not properly shut down the kit
+// archive writer; the resulting kit will likely not be valid.
 func (pb *Builder) Abort() error {
 	if pb.fout == nil {
 		return ErrNotActive
@@ -107,6 +122,7 @@ func (pb *Builder) Abort() error {
 	return pb.fout.Close()
 }
 
+// Close attempts to properly terminate the kit archive writer and close the Builder.
 func (pb *Builder) Close() (err error) {
 	if pb.fout == nil {
 		err = ErrNotActive
@@ -118,6 +134,11 @@ func (pb *Builder) Close() (err error) {
 	return
 }
 
+// WriteManifest writes the current state of the kit manifest to the archive. It
+// should be the last thing called before completing the kit, after all items
+// have been added. The "sig" parameter is an optional manifest signature which will be
+// added to the kit if it is not nil. Call Manifest() to get the manifest, generate
+// the signature based on that manifest, then call WriteManifest with that signature.
 func (pb *Builder) WriteManifest(sig []byte) (err error) {
 	//encode the manifest as JSON with tab indention
 	var bts []byte
@@ -148,6 +169,8 @@ func (pb *Builder) WriteManifest(sig []byte) (err error) {
 	return
 }
 
+// Add includes an item in the kit. The parameters are name (the name for the
+// item), tp (the type of item), and v (the JSON-encoded item itself).
 func (pb *Builder) Add(name string, tp ItemType, v []byte) error {
 	if !tp.Valid() {
 		return ErrInvalidType
@@ -188,6 +211,8 @@ func (pb *Builder) Add(name string, tp ItemType, v []byte) error {
 	return nil
 }
 
+// AddFile includes an item in the kit, reading from an open file descriptor
+// rather than from a slice of bytes.
 func (pb *Builder) AddFile(name string, tp ItemType, f *os.File) error {
 	var sz int64
 	var n int64
@@ -242,6 +267,8 @@ func (pb *Builder) AddFile(name string, tp ItemType, f *os.File) error {
 	return nil
 }
 
+// AddReader includes an item in the kit, reading from an io.Reader instead
+// of a slice of bytes.
 func (pb *Builder) AddReader(name string, tp ItemType, r io.Reader) error {
 	bb := bytes.NewBuffer(nil)
 	if n, err := io.Copy(bb, r); err != nil {
@@ -252,6 +279,8 @@ func (pb *Builder) AddReader(name string, tp ItemType, r io.Reader) error {
 	return pb.Add(name, tp, bb.Bytes())
 }
 
+// SetIcon sets the icon image for the kit. The parameter must be the name
+// of an existing item already in the kit with ItemType == File.
 func (pb *Builder) SetIcon(id string) error {
 	if id == `` {
 		return ErrInvalidImageID
@@ -259,6 +288,8 @@ func (pb *Builder) SetIcon(id string) error {
 	return pb.manifest.SetIcon(id)
 }
 
+// SetCover sets the cover image for the kit. The parameter must be the name
+// of an existing item already in the kit with ItemType == File.
 func (pb *Builder) SetCover(id string) error {
 	if id == `` {
 		return ErrInvalidImageID
@@ -266,6 +297,8 @@ func (pb *Builder) SetCover(id string) error {
 	return pb.manifest.SetCover(id)
 }
 
+// SetBanner sets the banner image for the kit. The parameter must be the name
+// of an existing item already in the kit with ItemType == File.
 func (pb *Builder) SetBanner(id string) error {
 	if id == `` {
 		return ErrInvalidImageID
@@ -309,6 +342,7 @@ func getReaderHash(rdr io.ReadSeeker) (hsh [sha256.Size]byte, err error) {
 	return
 }
 
+// Validate ensures that the BuilderConfig is acceptable.
 func (c *BuilderConfig) Validate() error {
 	if c.Version == 0 {
 		c.Version = Version

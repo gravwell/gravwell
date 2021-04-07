@@ -83,6 +83,7 @@ var (
 
 type ItemType int
 
+// Manifest contains information about a kit and a listing of items in the kit.
 type Manifest struct {
 	ID           string
 	Name         string
@@ -98,12 +99,16 @@ type Manifest struct {
 	ConfigMacros []types.KitConfigMacro
 }
 
+// Item describes a single object within the kit. Note that it does not contain the actual body
+// of the object, it just describes the item name and type, and gives a hash which can be used
+// to verify item integrity.
 type Item struct {
 	Name string            //the name given to the item (script name, dashboard name, etc...)
 	Type ItemType          //type specifier
 	Hash [sha256.Size]byte //hash in the bundle
 }
 
+// Add includes an item in the manifest's item list.
 func (m *Manifest) Add(item Item) error {
 	//check type
 	if !item.Type.Valid() {
@@ -142,6 +147,7 @@ func (m *Manifest) checkFileItem(val string) (bool, error) {
 	return false, nil
 }
 
+// SetIcon sets the icon field to point at an existing File item in the manifest.
 func (m *Manifest) SetIcon(id string) error {
 	if ok, err := m.checkFileItem(id); err != nil {
 		return err
@@ -154,6 +160,7 @@ func (m *Manifest) SetIcon(id string) error {
 	return nil
 }
 
+// SetCover sets the cover field to point at an existing File item in the manifest.
 func (m *Manifest) SetCover(id string) error {
 	if ok, err := m.checkFileItem(id); err != nil {
 		return err
@@ -166,6 +173,7 @@ func (m *Manifest) SetCover(id string) error {
 	return nil
 }
 
+// SetBanner sets the banner field to point at an existing File item in the manifest.
 func (m *Manifest) SetBanner(id string) error {
 	if ok, err := m.checkFileItem(id); err != nil {
 		return err
@@ -178,6 +186,8 @@ func (m *Manifest) SetBanner(id string) error {
 	return nil
 }
 
+// CompatibleVersion checks the given version against the minimum and maximum versions
+// specified in the manifest. It returns an error if the version is outside the range.
 func (m *Manifest) CompatibleVersion(v types.CanonicalVersion) (err error) {
 	if !v.Enabled() {
 		return
@@ -190,18 +200,22 @@ func (m *Manifest) CompatibleVersion(v types.CanonicalVersion) (err error) {
 	return
 }
 
+// Marshal returns a slice of bytes containing indented JSON representing the manifest.
 func (m *Manifest) Marshal() ([]byte, error) {
 	return json.MarshalIndent(m, ``, "\t")
 }
 
+// Unmarshal unpacks JSON into the manifest.
 func (m *Manifest) Unmarshal(v []byte) error {
 	return json.Unmarshal(v, m)
 }
 
+// Load reads a JSON-encoded manifest from an io.Reader and unpacks it into the current manifest.
 func (m *Manifest) Load(rdr io.Reader) error {
 	return json.NewDecoder(rdr).Decode(m)
 }
 
+// TranslateType converts a string (e.g. "scheduled search") into an ItemType.
 func TranslateType(tp string) (it ItemType, err error) {
 	tp = strings.ToLower(strings.TrimSpace(tp))
 	for _, v := range itemSet {
@@ -214,6 +228,7 @@ func TranslateType(tp string) (it ItemType, err error) {
 	return
 }
 
+// TranslateExt translates a file extension (e.g. "dashboard") into an ItemType.
 func TranslateExt(ext string) (it ItemType, err error) {
 	ext = strings.ToLower(strings.TrimSpace(ext))
 	for _, v := range itemSet {
@@ -226,6 +241,8 @@ func TranslateExt(ext string) (it ItemType, err error) {
 	return
 }
 
+// String returns the human-friendly name for the item type. Note that these
+// names may contain spaces e.g. "scheduled search".
 func (it ItemType) String() string {
 	for _, v := range itemSet {
 		if it == v.tp {
@@ -235,6 +252,7 @@ func (it ItemType) String() string {
 	return `UNKNOWN`
 }
 
+// Ext returns a file extension for the item type. These will not contain spaces.
 func (it ItemType) Ext() string {
 	for _, v := range itemSet {
 		if v.tp == it {
@@ -244,6 +262,7 @@ func (it ItemType) Ext() string {
 	return `UNKNOWN`
 }
 
+// Valid returns true if an ItemType is valid.
 func (it ItemType) Valid() bool {
 	return (it >= 0 && int(it) < (len(itemSet)-1)) || it == External
 }
@@ -254,6 +273,7 @@ type itemstruct struct {
 	Hash string
 }
 
+// MarshalJSON packs an Item into JSON encoding.
 func (i Item) MarshalJSON() ([]byte, error) {
 	x := itemstruct{
 		Name: i.Name,
@@ -263,6 +283,7 @@ func (i Item) MarshalJSON() ([]byte, error) {
 	return json.Marshal(x)
 }
 
+// UnmarshalJSON unpacks an Item from JSON encoding.
 func (i *Item) UnmarshalJSON(v []byte) (err error) {
 	var x itemstruct
 	if err = json.Unmarshal(v, &x); err != nil {
@@ -281,14 +302,17 @@ func (i *Item) UnmarshalJSON(v []byte) (err error) {
 	return
 }
 
+// Filename returns a suitable filename for the item.
 func (i Item) Filename() string {
 	return i.Name + `.` + i.Type.Ext()
 }
 
+// Equal returns true if the two items have matching names, types, and hashes.
 func (i Item) Equal(ni Item) bool {
 	return i.Name == ni.Name && i.Type == ni.Type && i.Hash == ni.Hash
 }
 
+// String returns the item's name for printing.
 func (i Item) String() string {
 	return i.Name
 }

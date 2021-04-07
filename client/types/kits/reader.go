@@ -29,15 +29,32 @@ var (
 	ErrNotVerified = errors.New("Kit Reader has not verified the kit")
 )
 
+// Reader is used to extract kit archives for processing and installation.
+// A typical workflow is:
+//
+// • Instantiate Reader using NewReader
+//
+// • Call Verify method to ensure kit file is valid
+//
+// • Call Process method with a callback function to extract items from kit.
 type Reader struct {
 	rdr      utils.ReadResetCloser
-	verify   sigVerificationFunc
+	verify   SigVerificationFunc
 	manifest Manifest
 	verified bool
 	signed   bool
 }
 
-func NewReader(rdr utils.ReadResetCloser, verify sigVerificationFunc) (rp *Reader, err error) {
+// NewReader returns a Reader which will parse a kit from the given ReadResetCloser.
+// Note that rdr is a ReadResetCloser; the Reset function is used to reset the reader to
+// the beginning of the stream. The github.com/gravwell/gravwell/v3/ingesters/utils package
+// includes several convenient ReadResetCloser implementations.
+//
+// The verify parameter is an optional function used to verify the kit's manifest signature.
+// The function will be called with the manifest and signature passed as slices of bytes;
+// it is the responsibility of the user to implement signature validation. Pass 'nil' to
+// disable signature verification.
+func NewReader(rdr utils.ReadResetCloser, verify SigVerificationFunc) (rp *Reader, err error) {
 	if err = rdr.Reset(); err != nil {
 		return
 	}
@@ -48,6 +65,9 @@ func NewReader(rdr utils.ReadResetCloser, verify sigVerificationFunc) (rp *Reade
 	return
 }
 
+// Manifest returns the manifest object for the kit. It will return
+// an error if the reader is not properly initialized or if the Verify
+// function has not been called.
 func (rp *Reader) Manifest() (m Manifest, err error) {
 	if rp.rdr == nil {
 		err = ErrNotOpen
@@ -59,6 +79,9 @@ func (rp *Reader) Manifest() (m Manifest, err error) {
 	return
 }
 
+// Signed returns true if the kit has been signed. It will return an error if
+// the reader has not been initialized or if the Verify method has not been
+// previously called.
 func (rp *Reader) Signed() (signed bool, err error) {
 	if rp.rdr == nil {
 		err = ErrNotOpen
@@ -70,6 +93,8 @@ func (rp *Reader) Signed() (signed bool, err error) {
 	return
 }
 
+// Verify validates the contents of the kit and prepares the Reader for use.
+// It calls the Verify function to extract the kit's manifest and check the signature.
 func (rp *Reader) Verify() (err error) {
 	if rp.rdr == nil {
 		err = ErrNotOpen
@@ -86,9 +111,14 @@ func (rp *Reader) Verify() (err error) {
 	return
 }
 
-type callbackfunc func(name string, tp ItemType, hash [sha256.Size]byte, rdr io.Reader) error
+// CallbackFunc is the function type which is passed to the Process method. The function
+// will be called for each Item in the kit. The item itself can be read from the io.Reader.
+type CallbackFunc func(name string, tp ItemType, hash [sha256.Size]byte, rdr io.Reader) error
 
-func (rp *Reader) Process(cb callbackfunc) (err error) {
+// Process walks the contents of the kit, extracting individual items and calling
+// the CallbackFunc for each item. If the callback returns an error, Process will terminate
+// early.
+func (rp *Reader) Process(cb CallbackFunc) (err error) {
 	if rp.rdr == nil {
 		err = ErrNotOpen
 		return
@@ -134,9 +164,14 @@ func (rp *Reader) getItem(n string) (item Item, err error) {
 	return
 }
 
-type sigVerificationFunc func(manifest []byte, sig []byte) error
+// SigVerificationFunc is the function type used to validate a manifest signature. It is
+// passed the manifest and signature as slices of bytes. For standard public-key signature
+// verification, use a lambda function which captures the key.
+type SigVerificationFunc func(manifest []byte, sig []byte) error
 
-func Verify(rdr io.Reader, sigVerify sigVerificationFunc) (signed bool, manifest Manifest, err error) {
+// Verify reads a kit from the rdr and checks that all items are valid. If sigVerify is not
+// nil, it will be called to verify the manifest signature.
+func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest Manifest, err error) {
 	fileHashes := map[string][sha256.Size]byte{}
 	var m, s []byte
 	var hdr *tar.Header
@@ -214,6 +249,19 @@ func Verify(rdr io.Reader, sigVerify sigVerificationFunc) (signed bool, manifest
 	return
 }
 
+// GetKitItem extracts additional data about a given Item by extracting the object from
+// the rdr and fetching metadata from it. It is typically used in conjunction with the Process
+// method, e.g.:
+//
+// 	kitreader.Process(func(name string, tp kits.ItemType, hash [sha256.Size]byte, rdr io.Reader) error {
+//		if itm, err := kits.GetKitItem(name, tp, rdr); err != nil {
+//			return err
+//		} else {
+//			itm.Hash = hash
+//			kitItems = append(kitItems, itm)
+//		}
+//		return nil
+//	})
 func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err error) {
 	switch tp {
 	case Resource:

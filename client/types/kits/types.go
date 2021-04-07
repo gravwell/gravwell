@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 )
 
+// PackedMacro is a stripped-down representation of a macro object for inclusion in a kit.
 type PackedMacro struct {
 	Name        string
 	Description string
@@ -26,6 +27,7 @@ type PackedMacro struct {
 	Labels      []string
 }
 
+// PackSearchMacro turns a regular SearchMacro object into a PackedMacro.
 func PackSearchMacro(m *types.SearchMacro) (p PackedMacro) {
 	p = PackedMacro{
 		Name:        m.Name,
@@ -36,6 +38,7 @@ func PackSearchMacro(m *types.SearchMacro) (p PackedMacro) {
 	return
 }
 
+// Validate ensures that the fields of the PackedMacro are valid.
 func (pm *PackedMacro) Validate() error {
 	if pm.Name == `` {
 		return errors.New("Missing macro name")
@@ -45,6 +48,7 @@ func (pm *PackedMacro) Validate() error {
 	return nil
 }
 
+// JSONMetadata returns additional information about the macro.
 func (pm *PackedMacro) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
 		Name        string
@@ -58,6 +62,7 @@ func (pm *PackedMacro) JSONMetadata() (json.RawMessage, error) {
 	return json.RawMessage(b), err
 }
 
+// PackedResource is a stripped-down representation of a resource for inclusion in a kit.
 type PackedResource struct {
 	VersionNumber int // resource version #, increment at each Write
 	ResourceName  string
@@ -67,6 +72,8 @@ type PackedResource struct {
 	Data          []byte
 }
 
+// PackResourceUpdate takes a ResourceUpdate (which contains a complete description of a
+// resource, including its contents) and converts it into a PackedResource.
 func PackResourceUpdate(ru types.ResourceUpdate) (p PackedResource) {
 	p = PackedResource{
 		VersionNumber: ru.Metadata.VersionNumber,
@@ -82,6 +89,7 @@ func PackResourceUpdate(ru types.ResourceUpdate) (p PackedResource) {
 	return
 }
 
+// Validate checks the contents of a PackedResource for validity.
 func (p *PackedResource) Validate() error {
 	if p.VersionNumber <= 0 {
 		return errors.New("Invalid version number")
@@ -106,6 +114,7 @@ func (p *PackedResource) Validate() error {
 	return nil
 }
 
+// JSONMetadata returns additional information about the resource.
 func (p *PackedResource) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
 		VersionNumber int
@@ -121,6 +130,7 @@ func (p *PackedResource) JSONMetadata() (json.RawMessage, error) {
 	return json.RawMessage(b), err
 }
 
+// PackedScheduledSearch is a stripped-down representation of a scheduled search for inclusion in a kit.
 type PackedScheduledSearch struct {
 	Name        string // the name of this scheduled search
 	Description string // freeform description
@@ -133,6 +143,7 @@ type PackedScheduledSearch struct {
 	DefaultDeploymentRules types.ScriptDeployConfig
 }
 
+// PackScheduledSearch converts a ScheduledSearch into a PackedScheduledSearch for inclusion in a kit.
 func PackScheduledSearch(ss *types.ScheduledSearch) (p PackedScheduledSearch) {
 	p = PackedScheduledSearch{
 		Name:         ss.Name,
@@ -146,6 +157,7 @@ func PackScheduledSearch(ss *types.ScheduledSearch) (p PackedScheduledSearch) {
 	return
 }
 
+// TypeName returns either "script" or "search" depending on the type of the PackedScheduledSearch.
 func (pss *PackedScheduledSearch) TypeName() string {
 	if len(pss.Script) > 0 {
 		return "script"
@@ -153,6 +165,7 @@ func (pss *PackedScheduledSearch) TypeName() string {
 	return "search"
 }
 
+// Validate checks the fields of the PackedScheduledSearch.
 func (pss *PackedScheduledSearch) Validate() error {
 	if pss.Name == `` {
 		return fmt.Errorf("Missing scheduled %v name", pss.TypeName())
@@ -166,6 +179,7 @@ func (pss *PackedScheduledSearch) Validate() error {
 	return nil
 }
 
+// Unpackage expands a PackedScheduledSearch into a ScheduledSearch.
 func (pss *PackedScheduledSearch) Unpackage(uid, gid int32) (ss types.ScheduledSearch) {
 	ss.Owner = uid
 	if gid != 0 {
@@ -181,6 +195,7 @@ func (pss *PackedScheduledSearch) Unpackage(uid, gid int32) (ss types.ScheduledS
 	return
 }
 
+// JSONMetadata returns additional info about the PackedScheduledSearch in JSON format.
 func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
 		Name                   string
@@ -202,7 +217,7 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 	return json.RawMessage(b), err
 }
 
-// type used for dashboards in packages
+// PackedDashboard is a stripped-down type used for dashboards in kits.
 type PackedDashboard struct {
 	UUID        string
 	Name        string
@@ -211,6 +226,7 @@ type PackedDashboard struct {
 	Labels      []string
 }
 
+// PackDashboard converts a Dashboard into a PackedDashboard.
 func PackDashboard(d types.Dashboard) (pd PackedDashboard) {
 	if pd.UUID = d.GUID; pd.UUID == `` {
 		pd.UUID = uuid.New().String()
@@ -223,6 +239,7 @@ func PackDashboard(d types.Dashboard) (pd PackedDashboard) {
 
 }
 
+// JSONMetadata returns additional info about the PackedDashboard in JSON format.
 func (pd *PackedDashboard) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
 		UUID        string
