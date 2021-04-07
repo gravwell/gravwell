@@ -239,6 +239,18 @@ func PackDashboard(d types.Dashboard) (pd PackedDashboard) {
 
 }
 
+// Validate checks the fields of the PackedDashboard.
+func (pd *PackedDashboard) Validate() error {
+	if pd.Name == `` {
+		return fmt.Errorf("Missing dashboard name")
+	} else if pd.Description == `` {
+		return errors.New("Missing dashboard description")
+	} else if len(pd.Data) == 0 {
+		return fmt.Errorf("Empty dashboard")
+	}
+	return nil
+}
+
 // JSONMetadata returns additional info about the PackedDashboard in JSON format.
 func (pd *PackedDashboard) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(&struct {
