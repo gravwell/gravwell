@@ -6,6 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package kits provides tools for interacting with kit archives directly. Most users
+// will not need to deal with this.
 package kits
 
 import (
