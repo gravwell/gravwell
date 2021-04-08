@@ -240,7 +240,7 @@ func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest
 	// Do the signing verification if provided
 	if sigVerify != nil {
 		if err = sigVerify(m, s); err != nil {
-			err = ErrInvalidSignature
+			err = fmt.Errorf("%w - %v", err, ErrInvalidSignature)
 			return
 		}
 	}
