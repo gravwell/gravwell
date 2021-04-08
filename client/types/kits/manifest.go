@@ -197,7 +197,7 @@ func (m *Manifest) CompatibleVersion(v types.CanonicalVersion) (err error) {
 	if m.MinVersion.Enabled() && m.MinVersion.Compare(v) < 0 {
 		err = fmt.Errorf("Invalid Gravwell version, at least %s required", m.MinVersion.String())
 	} else if m.MaxVersion.Enabled() && m.MaxVersion.Compare(v) > 0 {
-		err = fmt.Errorf("Invalid Gravwell version, at max supported is %s", m.MaxVersion.String())
+		err = fmt.Errorf("Invalid Gravwell version, max supported is %s", m.MaxVersion.String())
 	}
 	return
 }
