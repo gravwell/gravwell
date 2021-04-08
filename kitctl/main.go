@@ -45,16 +45,21 @@ func main() {
 		packKit(args[1:])
 	case "info":
 		// Information about the kit in the current directory
+		log.Fatalf("%v not implemented", args[0])
 	case "init":
 		// Start a new kit from scratch in the current directory
+		log.Fatalf("%v not implemented", args[0])
 	case "scan":
 		// Attempt to reconcile what's on-disk vs. what's in the manifest
+		log.Fatalf("%v not implemented", args[0])
 	case "set":
 		// Set various fields of the kit
+		log.Fatalf("%v not implemented", args[0])
 	case "dep":
 		// Manage dependencies
+		log.Fatalf("%v not implemented", args[0])
 	default:
-		log.Printf("Invalid command %v.", args[0])
+		log.Fatalf("Invalid command %v.", args[0])
 	}
 }
 
