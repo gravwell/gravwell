@@ -33,14 +33,16 @@ const (
 )
 
 var (
-	tso     = flag.String("timestamp-override", "", "Timestamp override")
-	tzo     = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
-	inFile  = flag.String("i", "", "Input file to process (specify - for stdin)")
-	ver     = flag.Bool("version", false, "Print version and exit")
-	utc     = flag.Bool("utc", false, "Assume UTC time")
-	verbose = flag.Bool("verbose", false, "Print every step")
-	rexStr  = flag.String("rexp", "", "Regular expression string to perform entry breaks on")
-	igTs    = flag.Bool("ignore-ts", false, "Ignore the timestamp")
+	tso          = flag.String("timestamp-override", "", "Timestamp override")
+	tzo          = flag.String("timezone-override", "", "Timezone override e.g. America/Chicago")
+	inFile       = flag.String("i", "", "Input file to process (specify - for stdin)")
+	ver          = flag.Bool("version", false, "Print version and exit")
+	utc          = flag.Bool("utc", false, "Assume UTC time")
+	verbose      = flag.Bool("verbose", false, "Print every step")
+	rexStr       = flag.String("rexp", "", "Regular expression string to perform entry breaks on")
+	igTs         = flag.Bool("ignore-ts", false, "Ignore the timestamp")
+	custTsRegex  = flag.String("cust-ts-regex", "", "Regular expression for custom timestamp")
+	custTsFormat = flag.String("cust-ts-format", "", "Date format for custom timestamp")
 
 	count      uint64
 	totalBytes uint64
@@ -48,6 +50,7 @@ var (
 	re         *regexp.Regexp
 	nlBytes    = "\n"
 	ignoreTS   bool
+	custTs     timegrinder.CustomFormat
 )
 
 func init() {
@@ -84,6 +87,17 @@ func main() {
 	if *tso != "" {
 		if err = timegrinder.ValidateFormatOverride(*tso); err != nil {
 			log.Fatalf("Invalid timestamp override: %v\n", err)
+		}
+	}
+
+	if *custTsRegex != "" || *custTsFormat != "" {
+		custTs = timegrinder.CustomFormat{
+			Name:   "custom",
+			Regex:  *custTsRegex,
+			Format: *custTsFormat,
+		}
+		if err = custTs.Validate(); err != nil {
+			log.Fatalf("Invalid custom timestamp formats: %v", err)
 		}
 	}
 
@@ -156,6 +170,15 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso
 
 		if *tzo != `` {
 			if err = tg.SetTimezone(*tzo); err != nil {
+				return err
+			}
+		}
+		// If custTs has been set, include it
+		if custTs.Name != "" {
+			var p timegrinder.Processor
+			if p, err = timegrinder.NewCustomProcessor(custTs); err != nil {
+				return err
+			} else if _, err = tg.AddProcessor(p); err != nil {
 				return err
 			}
 		}
