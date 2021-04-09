@@ -13,7 +13,7 @@ require (
 	github.com/bet365/jingo v0.10.0
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/bxcodec/faker/v3 v3.3.1
-	github.com/cloudflare/buffer v0.0.0-20190408164202-7cab898e1166 // indirect
+	github.com/cloudflare/buffer v0.0.0-20190408164202-7cab898e1166
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dvyukov/go-fuzz v0.0.0-20201127111758-49e582c6c23d // indirect
@@ -50,7 +50,6 @@ require (
 	github.com/stephens2424/writerset v1.0.2 // indirect
 	github.com/stretchr/testify v1.5.1
 	github.com/tealeg/xlsx v1.0.5
-	github.com/traetox/buffer v0.0.0-20210401203802-696176a8d26f
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	go.etcd.io/bbolt v1.3.5
@@ -72,4 +71,4 @@ replace github.com/open-networks/go-msgraph => github.com/floren/go-msgraph v0.0
 
 // replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
 
-replace github.com/traetox/buffer => /home/kris/githubwork/buffer
+replace github.com/cloudflare/buffer => github.com/traetox/buffer v0.0.0-20210409000708-97e100fbf3c5

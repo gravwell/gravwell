@@ -14,10 +14,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/cloudflare/buffer" //waiting on PR from github.com/traetox/buffer
 	"github.com/gravwell/gravwell/v3/client/types"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/traetox/buffer"
 )
 
 var (
@@ -73,7 +73,7 @@ func NewPersistentBuffer(cfg PersistentBufferConfig, tagger Tagger) (*Persistent
 	if err != nil {
 		return nil, err
 	}
-	b, err := buffer.New(cfg.Filename, capacity)
+	b, err := buffer.Open(cfg.Filename, capacity)
 	if err != nil {
 		return nil, err
 	}
@@ -117,7 +117,7 @@ func (gd *PersistentBuffer) Process(ents []*entry.Entry) (rset []*entry.Entry, e
 	}
 
 	if err = gob.NewEncoder(gd.bb).Encode(strents); err == nil {
-		gd.b.Insert(gd.bb.Bytes())
+		gd.b.InsertWithOverwrite(gd.bb.Bytes())
 	}
 	rset = ents
 	return
@@ -150,7 +150,7 @@ type PersistentBufferConsumer struct {
 
 func OpenPersistentBuffer(pth string) (pbc *PersistentBufferConsumer, err error) {
 	var b *buffer.Buffer
-	if b, err = buffer.Open(pth); err != nil {
+	if b, err = buffer.Open(pth, 0); err != nil {
 		return
 	}
 	pbc = &PersistentBufferConsumer{

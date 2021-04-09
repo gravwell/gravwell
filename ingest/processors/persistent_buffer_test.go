@@ -18,7 +18,7 @@ import (
 )
 
 func TestPersistentBufferLoadConfig(t *testing.T) {
-	b := []byte(`
+	b := []byte(fmt.Sprintf(`
 	[global]
 	foo = "bar"
 	bar = 1337
@@ -31,9 +31,9 @@ func TestPersistentBufferLoadConfig(t *testing.T) {
 
 	[preprocessor "hole"]
 		type = persistent-buffer
-		filename = "/tmp/test"
+		filename = "%s/temp"
 		buffersize = "2MB"
-	`)
+	`, t.TempDir()))
 	tc := struct {
 		Global struct {
 			Foo         string
@@ -73,24 +73,21 @@ func TestPersistentBuffer(t *testing.T) {
 	} else if d == nil {
 		t.Fatalf("nil drop")
 	}
-	ents := makeEntry([]byte("this is a test"), 1)
-	if set, err := d.Process(ents); err != nil {
-		t.Fatal(err)
-	} else if len(set) != len(ents) {
-		t.Fatalf("PersistentBuffer did not pass through: %d != %d", len(set), len(ents))
-	} else if err = d.Close(); err != nil {
-		t.Fatalf("Failed to close: %v", err)
+
+	var origCnt int
+	for i := 0; i < 16; i++ {
+		ents := makeEntry([]byte("this is a test"), 4)
+		origCnt += len(ents)
+		if set, err := d.Process(ents); err != nil {
+			t.Fatal(err)
+		} else if len(set) != len(ents) {
+			t.Fatalf("PersistentBuffer did not pass through: %d != %d", len(set), len(ents))
+		}
 	}
 
-	ents = makeEntry([]byte("this is a test"), 1)
-	if set, err := d.Process(ents); err != nil {
-		t.Fatal(err)
-	} else if len(set) != len(ents) {
-		t.Fatalf("PersistentBuffer did not pass through: %d != %d", len(set), len(ents))
-	} else if err = d.Close(); err != nil {
+	if err = d.Close(); err != nil {
 		t.Fatalf("Failed to close: %v", err)
 	}
-
 
 	//open the buffer and make sure we can pop 2 items off
 	pbc, err := OpenPersistentBuffer(fout)
@@ -114,8 +111,8 @@ func TestPersistentBuffer(t *testing.T) {
 		t.Fatalf("Failed to close persistent buffer: %v", err)
 	}
 
-	if cnt != len(ents) {
-		t.Fatalf("Failed to pop correct number of entries: %d != %d", cnt, len(ents))
+	if cnt != origCnt {
+		t.Fatalf("Failed to pop correct number of entries: %d != %d", cnt, origCnt)
 	}
 }
 
@@ -145,18 +142,18 @@ func TestPBRollover(t *testing.T) {
 	// make enough entries that our buffer rolls
 	for i := 0; i < 4096; i++ {
 		for j := 0; j < 4; j++ {
-			fmt.Println(i, j)
 			ents := makeEntry([]byte("this is a test"), tags[j])
 			if set, err := d.Process(ents); err != nil {
 				t.Fatal(err)
 			} else if len(set) != len(ents) {
 				t.Fatalf("PersistentBuffer did not pass through: %d != %d", len(set), len(ents))
-			} else if err = d.Close(); err != nil {
-				t.Fatalf("Failed to close: %v", err)
 			}
 		}
 	}
 
+	if err = d.Close(); err != nil {
+		t.Fatalf("Failed to close: %v", err)
+	}
 	//open the buffer and make sure we can pop 2 items off
 	pbc, err := OpenPersistentBuffer(fout)
 	if err != nil {
