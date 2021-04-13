@@ -116,6 +116,17 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int) (*ChanCacher, er
 		a := filepath.Join(c.cachePath, "cache_a")
 		b := filepath.Join(c.cachePath, "cache_b")
 
+		// remove old merge_* files if they exist. It's possible to
+		// kill an ingester before we have a chance to remove it after
+		// merging, so we just do a little housekeeping ourselves.
+		detritus, err := filepath.Glob(filepath.Join(c.cachePath, "merge*"))
+		if err != nil {
+			return nil, err
+		}
+		for _, v := range detritus {
+			os.Remove(v)
+		}
+
 		// check if we need to merge
 		var sizeA, sizeB int64
 		fi, err := os.Stat(a)
