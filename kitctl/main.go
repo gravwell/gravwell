@@ -23,8 +23,13 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
-func usage() {
-}
+var (
+	fID     = flag.String("id", "", "Kit ID")
+	fName   = flag.String("name", "", "Kit name")
+	fDesc   = flag.String("desc", "", "Kit description")
+	fMinVer = flag.String("minver", "", "Minimum version")
+	fMaxVer = flag.String("maxver", "", "Maximum version")
+)
 
 func main() {
 	flag.Parse()
@@ -32,7 +37,6 @@ func main() {
 	args := flag.Args()
 	if len(args) == 0 {
 		log.Printf("Must specify a command.")
-		usage()
 		return
 	}
 
@@ -48,7 +52,7 @@ func main() {
 		log.Fatalf("%v not implemented", args[0])
 	case "init":
 		// Start a new kit from scratch in the current directory
-		log.Fatalf("%v not implemented", args[0])
+		initKit(args[1:])
 	case "scan":
 		// Attempt to reconcile what's on-disk vs. what's in the manifest
 		log.Fatalf("%v not implemented", args[0])
@@ -60,6 +64,52 @@ func main() {
 		log.Fatalf("%v not implemented", args[0])
 	default:
 		log.Fatalf("Invalid command %v.", args[0])
+	}
+}
+
+func initKit(args []string) {
+	var err error
+	// Make sure there's not already a kit here
+	if _, err = os.Stat("MANIFEST"); !os.IsNotExist(err) {
+		log.Fatalf("MANIFEST file already exists, aborting")
+	}
+
+	// Parse and validate args that need parsing
+	var minver, maxver types.CanonicalVersion
+	if *fMinVer != `` {
+		minver, err = types.ParseCanonicalVersion(*fMinVer)
+		if err != nil {
+			log.Fatalf("Could not parse minver: %v", err)
+		}
+	}
+	if *fMaxVer != `` {
+		maxver, err = types.ParseCanonicalVersion(*fMaxVer)
+		if err != nil {
+			log.Fatalf("Could not parse maxver: %v", err)
+		}
+	}
+	// Make sure max > min, if max is set. Yes, this works, the Compare function is confusing.
+	if maxver.Enabled() && maxver.Compare(minver) > 0 {
+		log.Fatalf("Max version must be either zero or greater than minver.")
+	}
+
+	// Create a Manifest structure, populating with command-line flags if set
+	mf := kits.Manifest{
+		ID:         *fID,
+		Name:       *fName,
+		Desc:       *fDesc,
+		Version:    1,
+		MinVersion: minver,
+		MaxVersion: maxver,
+	}
+
+	// Write manifest to disk
+	mb, err := json.MarshalIndent(mf, "", "	")
+	if err != nil {
+		log.Fatalf("Failed to re-marshal MANIFEST: %v", err)
+	}
+	if err := ioutil.WriteFile("MANIFEST", mb, 0644); err != nil {
+		log.Fatalf("Failed to write-out MANIFEST file: %v", err)
 	}
 }
 
