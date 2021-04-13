@@ -32,7 +32,7 @@ type AXDefinition struct {
 	Name        string    `toml:"name,omitempty" json:",omitempty"`
 	Desc        string    `toml:"desc,omitempty" json:",omitempty"`
 	Module      string    `toml:"module"`
-	Params      string    `toml:"params"`
+	Params      string    `toml:"params" json:",omitempty"`
 	Args        string    `toml:"args,omitempty" json:",omitempty"`
 	Tag         string    `toml:"tag"`
 	Labels      []string  `toml:"-"`

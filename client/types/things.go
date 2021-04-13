@@ -83,12 +83,28 @@ func (t *Thing) DecodeContents(obj interface{}) error {
 	return nil
 }
 
+// TemplateContents is what goes in the template's Contents field. This is entirely
+// the domain of the GUI.
+type TemplateContents struct {
+	Query     string             `json:"query,omitempty"`
+	Variables []TemplateVariable `json:"variables"`
+}
+
+type TemplateVariable struct {
+	Name         string `json:"name"`
+	Label        string `json:"label"`
+	Description  string `json:"description"`
+	Required     bool   `json:"required"`
+	DefaultValue string `json:"defaultValue"`
+	PreviewValue string `json:"previewValue"`
+}
+
 // UserTemplate is what is stored in the "thing" object, it is encoded into Contents
 type UserTemplate struct {
 	GUID        uuid.UUID
 	Name        string
 	Description string
-	Contents    RawObject
+	Contents    TemplateContents
 	Labels      []string
 }
 
@@ -111,7 +127,7 @@ type WireUserTemplate struct {
 	GUID        uuid.UUID
 	Name        string
 	Description string
-	Contents    RawObject
+	Contents    TemplateContents
 	Updated     time.Time
 	Labels      []string
 }
@@ -142,7 +158,7 @@ type PackedUserTemplate struct {
 	UUID        string
 	Name        string
 	Description string
-	Data        RawObject
+	Data        TemplateContents
 	Labels      []string
 }
 
@@ -270,7 +286,7 @@ type UserFile struct {
 	GUID     uuid.UUID
 	Name     string
 	Desc     string
-	Contents []byte
+	Contents []byte `json:",omitempty"`
 	Labels   []string
 }
 
@@ -361,7 +377,7 @@ func (wsl WireSearchLibrary) Thing() (t Thing, err error) {
 type SearchLibrary struct {
 	Name        string
 	Description string
-	Query       string
+	Query       string `json:",omitempty"`
 	GUID        uuid.UUID
 	Labels      []string  `json:",omitempty"`
 	Metadata    RawObject `json:",omitempty"`

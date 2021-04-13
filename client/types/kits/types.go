@@ -23,7 +23,7 @@ import (
 type PackedMacro struct {
 	Name        string
 	Description string
-	Expansion   string
+	Expansion   string `json:",omitempty"`
 	Labels      []string
 }
 
