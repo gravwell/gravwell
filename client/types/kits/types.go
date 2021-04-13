@@ -243,8 +243,6 @@ func PackDashboard(d types.Dashboard) (pd PackedDashboard) {
 func (pd *PackedDashboard) Validate() error {
 	if pd.Name == `` {
 		return fmt.Errorf("Missing dashboard name")
-	} else if pd.Description == `` {
-		return errors.New("Missing dashboard description")
 	} else if len(pd.Data) == 0 {
 		return fmt.Errorf("Empty dashboard")
 	}
