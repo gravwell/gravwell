@@ -16,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/gravwell/gravwell/v3/client/types"
 	"github.com/gravwell/gravwell/v3/client/types/kits"
 )
 
@@ -107,7 +108,285 @@ func readMacro(dir, name string) (pm kits.PackedMacro, err error) {
 	}
 	// Now read the expansion and insert it
 	bts, err = ioutil.ReadFile(expansionPath)
-	pm.Expansion = string(bts)
+	if err == nil {
+		pm.Expansion = string(bts)
+	} else if os.IsNotExist(err) {
+		err = nil
+	}
+	return
+}
+
+/**************************************************************************
+ * User Files
+ **************************************************************************/
+
+func writeUserFile(dir string, name string, x types.UserFile) error {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "file")
+	if err := os.MkdirAll(p, 0755); err != nil {
+		return err
+	}
+
+	// Now drop two files: .meta and .contents
+	contentsPath := filepath.Join(p, fmt.Sprintf("%v.contents", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	if err := ioutil.WriteFile(contentsPath, x.Contents, 0644); err != nil {
+		return err
+	}
+	x.Contents = []byte{}
+	mb, err := json.MarshalIndent(x, "", "	")
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(metaPath, mb, 0644)
+}
+
+func readUserFile(dir, name string) (x types.UserFile, err error) {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "file")
+	contentsPath := filepath.Join(p, fmt.Sprintf("%v.contents", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	// Read the metadata file first
+	var bts []byte
+	bts, err = ioutil.ReadFile(metaPath)
+	if err != nil {
+		return
+	}
+	if err = json.Unmarshal(bts, &x); err != nil {
+		return
+	}
+	// Now read the contents and insert it
+	bts, err = ioutil.ReadFile(contentsPath)
+	if err == nil {
+		x.Contents = bts
+	} else if os.IsNotExist(err) {
+		err = nil
+	}
+	return
+}
+
+/**************************************************************************
+ * Search Library
+ **************************************************************************/
+
+func writeSearchLibrary(dir string, name string, x types.WireSearchLibrary) error {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "searchlibrary")
+	if err := os.MkdirAll(p, 0755); err != nil {
+		return err
+	}
+
+	// Now drop two files: .meta and .query
+	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	if err := ioutil.WriteFile(queryPath, []byte(x.Query), 0644); err != nil {
+		return err
+	}
+	x.Query = ``
+	mb, err := json.MarshalIndent(x.SearchLibrary, "", "	")
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(metaPath, mb, 0644)
+}
+
+func readSearchLibrary(dir, name string) (x types.WireSearchLibrary, err error) {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "searchlibrary")
+	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	// Read the metadata file first
+	var bts []byte
+	bts, err = ioutil.ReadFile(metaPath)
+	if err != nil {
+		return
+	}
+	if err = json.Unmarshal(bts, &x); err != nil {
+		return
+	}
+	// Now read the contents and insert it
+	bts, err = ioutil.ReadFile(queryPath)
+	if err == nil {
+		x.Query = string(bts)
+	} else if os.IsNotExist(err) {
+		err = nil
+	}
+	return
+}
+
+/**************************************************************************
+ * Extractors
+ **************************************************************************/
+
+func writeExtractor(dir string, name string, x types.AXDefinition) error {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "autoextractor")
+	if err := os.MkdirAll(p, 0755); err != nil {
+		return err
+	}
+
+	// Now drop three files: .meta, .params, and .args
+	paramsPath := filepath.Join(p, fmt.Sprintf("%v.params", name))
+	argsPath := filepath.Join(p, fmt.Sprintf("%v.args", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	if err := ioutil.WriteFile(paramsPath, []byte(x.Params), 0644); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(argsPath, []byte(x.Args), 0644); err != nil {
+		return err
+	}
+	x.Params = ``
+	x.Args = ``
+	mb, err := json.MarshalIndent(x, "", "	")
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(metaPath, mb, 0644)
+}
+
+func readExtractor(dir, name string) (x types.AXDefinition, err error) {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "autoextractor")
+	paramsPath := filepath.Join(p, fmt.Sprintf("%v.params", name))
+	argsPath := filepath.Join(p, fmt.Sprintf("%v.args", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	// Read the metadata file first
+	var bts []byte
+	bts, err = ioutil.ReadFile(metaPath)
+	if err != nil {
+		return
+	}
+	if err = json.Unmarshal(bts, &x); err != nil {
+		return
+	}
+	// Now read the params and insert it
+	bts, err = ioutil.ReadFile(paramsPath)
+	if err == nil {
+		x.Params = string(bts)
+	} else if os.IsNotExist(err) {
+		err = nil
+	}
+	bts, err = ioutil.ReadFile(argsPath)
+	if err == nil {
+		x.Args = string(bts)
+	} else if os.IsNotExist(err) {
+		err = nil
+	}
+	return
+}
+
+/**************************************************************************
+ * Templates
+ **************************************************************************/
+
+func writeTemplate(dir string, name string, x types.PackedUserTemplate) error {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "template")
+	if err := os.MkdirAll(p, 0755); err != nil {
+		return err
+	}
+
+	// Now drop two files: .meta and .query
+	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	if err := ioutil.WriteFile(queryPath, []byte(x.Data.Query), 0644); err != nil {
+		return err
+	}
+	x.Data.Query = ``
+	mb, err := json.MarshalIndent(x, "", "	")
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(metaPath, mb, 0644)
+}
+
+func readTemplate(dir, name string) (x types.PackedUserTemplate, err error) {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "template")
+	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	// Read the metadata file first
+	var bts []byte
+	bts, err = ioutil.ReadFile(metaPath)
+	if err != nil {
+		return
+	}
+	if err = json.Unmarshal(bts, &x); err != nil {
+		return
+	}
+	// Now read the contents and insert it
+	bts, err = ioutil.ReadFile(queryPath)
+	if err == nil {
+		x.Data.Query = string(bts)
+	} else if os.IsNotExist(err) {
+		err = nil
+	}
+	return
+}
+
+/**************************************************************************
+ * Playbooks
+ **************************************************************************/
+
+func writePlaybook(dir string, name string, x types.Playbook) error {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "playbook")
+	if err := os.MkdirAll(p, 0755); err != nil {
+		return err
+	}
+
+	// Now drop three files: .meta, .playbook_metadata, and .body
+	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", name))
+	pbMetaPath := filepath.Join(p, fmt.Sprintf("%v.playbook_metadata", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	if err := ioutil.WriteFile(bodyPath, x.Body, 0644); err != nil {
+		return err
+	}
+	if err := ioutil.WriteFile(pbMetaPath, x.Metadata, 0644); err != nil {
+		return err
+	}
+	// Now write out the rest to the meta file
+	x.Body = []byte{}
+	x.Metadata = []byte{}
+	mb, err := json.MarshalIndent(x, "", "	")
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(metaPath, mb, 0644)
+}
+
+func readPlaybook(dir, name string) (x types.Playbook, err error) {
+	// Make sure the parent exists
+	p := filepath.Join(dir, "playbook")
+	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", name))
+	pbMetaPath := filepath.Join(p, fmt.Sprintf("%v.playbook_metadata", name))
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	// Read the metadata file first
+	var bts []byte
+	bts, err = ioutil.ReadFile(metaPath)
+	if err != nil {
+		return
+	}
+	if err = json.Unmarshal(bts, &x); err != nil {
+		return
+	}
+	// Now read the body and insert it
+	bts, err = ioutil.ReadFile(bodyPath)
+	if err == nil {
+		x.Body = bts
+	} else if os.IsNotExist(err) {
+		err = nil
+	} else {
+		return
+	}
+	// And read the playbook_metadata file
+	bts, err = ioutil.ReadFile(pbMetaPath)
+	if err == nil {
+		x.Metadata = bts
+	} else if os.IsNotExist(err) {
+		err = nil
+	}
+
 	return
 }
 

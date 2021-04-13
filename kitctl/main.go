@@ -203,7 +203,7 @@ func packKit(args []string) {
 			}
 		case kits.Template:
 			var x types.PackedUserTemplate
-			if err := genericRead(wd, itm, &x); err != nil {
+			if x, err = readTemplate(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
@@ -220,7 +220,7 @@ func packKit(args []string) {
 		// Other types just ship as-is
 		case kits.Extractor:
 			var x types.AXDefinition
-			if err := genericRead(wd, itm, &x); err != nil {
+			if x, err = readExtractor(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
@@ -228,7 +228,7 @@ func packKit(args []string) {
 			}
 		case kits.File:
 			var x types.UserFile
-			if err := genericRead(wd, itm, &x); err != nil {
+			if x, err = readUserFile(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
@@ -236,7 +236,7 @@ func packKit(args []string) {
 			}
 		case kits.SearchLibrary:
 			var x types.WireSearchLibrary
-			if err := genericRead(wd, itm, &x); err != nil {
+			if x, err = readSearchLibrary(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
@@ -244,7 +244,7 @@ func packKit(args []string) {
 			}
 		case kits.Playbook:
 			var x types.Playbook
-			if err := genericRead(wd, itm, &x); err != nil {
+			if x, err = readPlaybook(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
@@ -370,7 +370,7 @@ func unpackKit(args []string) {
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
-			if err := genericWrite(wd, tp, name, p); err != nil {
+			if err := writeTemplate(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.Pivot:
@@ -390,7 +390,7 @@ func unpackKit(args []string) {
 			if err = p.Validate(); err != nil {
 				return fmt.Errorf("Failed to validate extractor %v: %v", name, err)
 			}
-			if err := genericWrite(wd, tp, name, p); err != nil {
+			if err := writeExtractor(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.File:
@@ -398,7 +398,7 @@ func unpackKit(args []string) {
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
-			if err := genericWrite(wd, tp, name, p); err != nil {
+			if err := writeUserFile(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.SearchLibrary:
@@ -406,7 +406,7 @@ func unpackKit(args []string) {
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
-			if err := genericWrite(wd, tp, name, p); err != nil {
+			if err := writeSearchLibrary(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.Playbook:
@@ -414,7 +414,7 @@ func unpackKit(args []string) {
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
-			if err := genericWrite(wd, tp, name, p); err != nil {
+			if err := writePlaybook(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.License:
