@@ -9,8 +9,10 @@
 package client
 
 import (
-	"github.com/gravwell/gravwell/v3/client/types"
+	"encoding/json"
 	"net/http"
+
+	"github.com/gravwell/gravwell/v3/client/types"
 
 	"github.com/google/uuid"
 )
@@ -38,7 +40,12 @@ func (c *Client) ListAllTemplates() (templates []types.WireUserTemplate, err err
 // NewTemplate creates a new template with the given GUID, name, description, contents.
 // If guid is set to uuid.Nil, a random GUID will be chosen automatically.
 func (c *Client) NewTemplate(guid uuid.UUID, name, description string, contents types.RawObject) (storedGuid uuid.UUID, err error) {
-	template := types.UserTemplate{GUID: guid, Contents: contents, Name: name, Description: description}
+	// Mash the content blob into an appropriate type
+	var ct types.TemplateContents
+	if err = json.Unmarshal(contents, &c); err != nil {
+		return
+	}
+	template := types.UserTemplate{GUID: guid, Contents: ct, Name: name, Description: description}
 	err = c.methodStaticPushURL(http.MethodPost, templatesUrl(), template, &storedGuid)
 	return
 }
