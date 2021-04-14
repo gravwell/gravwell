@@ -255,11 +255,28 @@ func packKit(args []string) {
 			if err != nil {
 				log.Fatalf("Could not read license %v: %v", itm.Name, err)
 			}
-			if err := marshallAdd(itm, x); err != nil {
-				log.Fatal(err)
+			if err := bldr.Add(itm.Name, itm.Type, x); err != nil {
+				log.Fatalf("Couldn't add %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
 		default:
 			log.Fatalf("Error parsing item %v, unknown item type %v", itm.Name, itm.Type)
+		}
+	}
+
+	// The last step: set the icon, banner, and cover
+	if mf.Icon != "" {
+		if err := bldr.SetIcon(mf.Icon); err != nil {
+			log.Fatalf("Could not set icon: %v", err)
+		}
+	}
+	if mf.Cover != "" {
+		if err := bldr.SetCover(mf.Cover); err != nil {
+			log.Fatalf("Could not set cover: %v", err)
+		}
+	}
+	if mf.Banner != "" {
+		if err := bldr.SetBanner(mf.Banner); err != nil {
+			log.Fatalf("Could not set banner: %v", err)
 		}
 	}
 
