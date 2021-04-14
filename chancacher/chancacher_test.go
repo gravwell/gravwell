@@ -12,6 +12,8 @@ import (
 	"encoding/gob"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -465,6 +467,164 @@ func TestCache(t *testing.T) {
 
 	// verify counts
 	for i := 0; i < 100; i++ {
+		count, ok := results[i]
+		if !ok {
+			t.Error("didn't get result:", i)
+		} else if count != 1 {
+			t.Errorf("mismatched count: %v: %v", i, count)
+		}
+	}
+}
+
+func TestDetritus(t *testing.T) {
+	gob.Register(&ChanCacheTester{})
+
+	dir, err := ioutil.TempDir("", "chancachertest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	f, err := ioutil.TempFile(dir, "merge")
+	f.Close()
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	NewChanCacher(2, dir, 0)
+
+	_, err = os.Stat(f.Name())
+	if !strings.Contains(err.Error(), "no such file") {
+		t.Error("file still exists!", err)
+		t.FailNow()
+	}
+}
+
+func TestMerge(t *testing.T) {
+	gob.Register(&ChanCacheTester{})
+
+	staging, err := ioutil.TempDir("", "chancachertest_staging")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(staging)
+
+	dir, err := ioutil.TempDir("", "chancachertest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	c, _ := NewChanCacher(2, dir, 0)
+
+	for i := 0; i < 100; i++ {
+		select {
+		case c.In <- &ChanCacheTester{V: i}:
+		// success
+		case <-time.After(DEFAULT_TIMEOUT):
+			t.Error("channel should not block!")
+			t.FailNow()
+		}
+	}
+
+	close(c.In)
+	c.Commit()
+	<-c.Out
+
+	// move our data to staging
+	file := "cache_a"
+	fi, err := os.Stat(filepath.Join(dir, "cache_a"))
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	if fi.Size() == 0 {
+		file = "cache_b"
+		fi, err = os.Stat(filepath.Join(dir, "cache_b"))
+		if err != nil {
+			t.Error(err)
+			t.FailNow()
+		}
+		if fi.Size() == 0 {
+			t.Error("no data in cache!")
+			t.FailNow()
+		}
+	}
+	err = os.Rename(filepath.Join(dir, file), filepath.Join(staging, file))
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	// now do it again
+	c, _ = NewChanCacher(2, dir, 0)
+
+	for i := 100; i < 200; i++ {
+		select {
+		case c.In <- &ChanCacheTester{V: i}:
+		// success
+		case <-time.After(DEFAULT_TIMEOUT):
+			t.Error("channel should not block!")
+			t.FailNow()
+		}
+	}
+
+	close(c.In)
+	c.Commit()
+	<-c.Out
+
+	// now put the staging file back in the zero-length data file
+	filedst := "cache_a"
+	fi, err = os.Stat(filepath.Join(dir, "cache_a"))
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	if fi.Size() != 0 {
+		filedst = "cache_b"
+		fi, err = os.Stat(filepath.Join(dir, "cache_b"))
+		if err != nil {
+			t.Error(err)
+			t.FailNow()
+		}
+		if fi.Size() != 0 {
+			t.Error("both files have data in cache!")
+			t.FailNow()
+		}
+	}
+
+	err = os.Rename(filepath.Join(staging, file), filepath.Join(dir, filedst))
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	c, _ = NewChanCacher(2, dir, 0)
+
+	// reads on the cache are not guaranteed to be in-order, so instead we
+	// count the number of times we've seen each value, and expect to see a
+	// count of 1 for 0-199.
+	results := make(map[int]int)
+
+	// now we should read everything back in order
+	for i := 0; i < 200; i++ {
+		select {
+		case v := <-c.Out:
+			if v == nil {
+				t.Error("nil result!")
+			} else {
+				//fmt.Println(v.(*ChanCacheTester).V)
+				results[v.(*ChanCacheTester).V]++
+			}
+		case <-time.After(DEFAULT_TIMEOUT):
+			t.Error("channel should not block!")
+			//t.FailNow()
+		}
+	}
+
+	// verify counts
+	for i := 0; i < 200; i++ {
 		count, ok := results[i]
 		if !ok {
 			t.Error("didn't get result:", i)

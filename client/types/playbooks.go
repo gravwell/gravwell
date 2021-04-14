@@ -25,8 +25,8 @@ type Playbook struct {
 	Global      bool
 	Name        string
 	Desc        string
-	Body        []byte
-	Metadata    []byte
+	Body        []byte `json:",omitempty"`
+	Metadata    []byte `json:",omitempty"`
 	Labels      []string
 	LastUpdated time.Time
 	Author      AuthorInfo
