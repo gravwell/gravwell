@@ -70,9 +70,8 @@ func CheckProcessor(id string) error {
 	case DropProcessor:
 	case CiscoISEProcessor:
 	case SrcRouterProcessor:
-	case PersistentBufferProcessor:
 	default:
-		return ErrUnknownProcessor
+		return checkProcessorOS(id)
 	}
 	return nil
 }
@@ -126,10 +125,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = CiscoISELoadConfig(vc)
 	case SrcRouterProcessor:
 		cfg, err = SrcRouteLoadConfig(vc)
-	case PersistentBufferProcessor:
-		cfg, err = PersistentBufferLoadConfig(vc)
 	default:
-		err = ErrUnknownProcessor
+		cfg, err = processorLoadConfigOS(vc)
 	}
 	return
 }
@@ -254,14 +251,8 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewSrcRouter(cfg, tgr)
-	case PersistentBufferProcessor:
-		var cfg PersistentBufferConfig
-		if err = vc.MapTo(&cfg); err != nil {
-			return
-		}
-		p, err = NewPersistentBuffer(cfg, tgr)
 	default:
-		err = ErrUnknownProcessor
+		p, err = newProcessorOS(vc, tgr)
 	}
 	return
 }
