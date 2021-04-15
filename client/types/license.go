@@ -93,6 +93,7 @@ type LicenseInfo struct {
 	MaxNodes  uint32
 	Overrides FeatureOverride
 	Metadata  []byte
+	NFR       bool //non-commercial license override
 }
 
 type LicenseIndexerStatus struct {

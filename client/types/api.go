@@ -243,6 +243,7 @@ type GUISettings struct {
 	MaxResourceSize uint64 // the largest resource you're allowed to make
 
 	IngestAllowed bool // set to true if the user is allowed to use the ingest APIs
+	NonCommercial bool // set to true if the license is a non-commercial license
 }
 
 type SearchAgentConfig struct {

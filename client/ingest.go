@@ -51,7 +51,11 @@ func (c *Client) IngestFile(file, tag, src string, ignoreTimestamp, assumeLocalT
 		err = errors.New("file is empty")
 		return
 	}
+	resp, err = c.Ingest(fin, tag, src, ignoreTimestamp, assumeLocalTimezone)
+	return
+}
 
+func (c *Client) Ingest(rdr io.Reader, tag, src string, ignoreTimestamp, assumeLocalTimezone bool) (resp types.IngestResponse, err error) {
 	r, w := io.Pipe()
 
 	wtr := multipart.NewWriter(w)
@@ -74,7 +78,7 @@ func (c *Client) IngestFile(file, tag, src string, ignoreTimestamp, assumeLocalT
 			fmt.Fprintf(os.Stderr, "Failed to create multipart form file: %v\n", err)
 			return
 		}
-		if _, err := io.Copy(mp, fin); err != nil {
+		if _, err := io.Copy(mp, rdr); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to copy data into multipart file: %v\n", err)
 			return
 		}
