@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingest/processors/tags"
 )
 
 const (
@@ -94,7 +95,7 @@ type kafkaConsumerConfig struct {
 	igst   *ingest.IngestMuxer
 	lg     *log.Logger
 	pproc  *processors.ProcessorSet
-	tgr    *tagger
+	tgr    *tags.Tagger
 }
 
 func newKafkaConsumer(cfg kafkaConsumerConfig) (kc *kafkaConsumer, err error) {
@@ -284,15 +285,11 @@ loop:
 }
 
 func (kc *kafkaConsumer) resolveTag(tn string) (tag entry.EntryTag, ok bool, err error) {
-	if tag, ok = kc.tgr.tagmap[tn]; ok {
+	if tag, err = kc.tgr.Negotiate(tn); err != nil {
 		return
 	}
 	//don't have it, so check if its ok
-	if ok = kc.tgr.allowed(tn); ok {
-		if tag, err = kc.igst.NegotiateTag(tn); err == nil {
-			kc.tgr.tagmap[tn] = tag
-		}
-	}
+	ok = kc.tgr.Allowed(tag)
 	return
 }
 

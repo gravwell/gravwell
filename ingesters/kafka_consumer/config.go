@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingest/processors/tags"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -48,7 +49,7 @@ type ConfigConsumer struct {
 	Synchronous        bool
 	Batch_Size         int
 	Default_Tag        string
-	taggerConfig
+	tags.TaggerConfig
 
 	//TLS stuff
 	Use_TLS                  bool
@@ -66,7 +67,7 @@ type ConfigConsumer struct {
 }
 
 type consumerCfg struct {
-	taggerConfig
+	tags.TaggerConfig
 	defTag      string
 	leader      string
 	topic       string
@@ -161,7 +162,7 @@ func (c *cfgType) Tags() (tags []string, err error) {
 			tags = append(tags, v.defTag)
 			tagMp[v.defTag] = true
 		}
-		if ltags, _, err = v.taggerConfig.TagSet(); err != nil {
+		if ltags, _, err = v.TaggerConfig.TagSet(); err != nil {
 			return
 		} else if len(ltags) == 0 {
 			continue
@@ -191,11 +192,11 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 		return
 	} else if err = ingest.CheckTag(cc.Default_Tag); err != nil {
 		return
-	} else if err = cc.taggerConfig.validate(); err != nil {
+	} else if err = cc.TaggerConfig.Validate(); err != nil {
 		return
 	}
 	c.defTag = cc.Default_Tag
-	c.taggerConfig = cc.taggerConfig
+	c.TaggerConfig = cc.TaggerConfig
 	if cc.Source_Header == `` {
 		cc.Source_Header = defaultSRCHeader
 	}
