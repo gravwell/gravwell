@@ -249,6 +249,7 @@ type SearchMacro struct {
 	ID          uint64
 	UID         int32
 	GIDs        []int32
+	Global      bool
 	Name        string
 	Description string
 	Expansion   string
