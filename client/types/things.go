@@ -162,6 +162,25 @@ type PackedUserTemplate struct {
 	Labels      []string
 }
 
+type oldTemplateContents struct {
+	Query               string `json:"query"`
+	Variable            string `json:"variable"`
+	VariableLabel       string `json:"variableLabel"`
+	VariableDescription string `json:"variableDescription"`
+	Required            bool   `json:"required"`
+	TestValue           string `json:"testValue"`
+}
+
+// A compatibility solution.
+type newPackedUserTemplate PackedUserTemplate
+type oldPackedUserTemplate struct {
+	UUID        string
+	Name        string
+	Description string
+	Data        oldTemplateContents
+	Labels      []string
+}
+
 func (t UserTemplate) Pack() (put PackedUserTemplate) {
 	if put.UUID = t.GUID.String(); put.UUID == `` {
 		put.UUID = uuid.New().String()
@@ -171,6 +190,38 @@ func (t UserTemplate) Pack() (put PackedUserTemplate) {
 	put.Data = t.Contents
 	put.Labels = t.Labels
 	return
+}
+
+func (t *PackedUserTemplate) UnmarshalJSON(data []byte) error {
+	// First try the current type
+	var nt newPackedUserTemplate
+	if err := json.Unmarshal(data, &nt); err != nil {
+		// something is majorly wrong.
+		return err
+	}
+	if len(t.Data.Variables) > 0 {
+		*t = PackedUserTemplate(nt)
+		return nil
+	}
+	// If there are no variables in the result, try the old way.
+	var ot oldPackedUserTemplate
+	if err := json.Unmarshal(data, &ot); err != nil {
+		// something is majorly wrong.
+		return err
+	}
+	t.UUID = ot.UUID
+	t.Name = ot.Name
+	t.Description = ot.Description
+	t.Labels = ot.Labels
+	t.Data.Query = ot.Data.Query
+	t.Data.Variables = []TemplateVariable{{
+		Name:         ot.Data.Variable,
+		Label:        ot.Data.VariableLabel,
+		Description:  ot.Data.VariableDescription,
+		Required:     ot.Data.Required,
+		DefaultValue: ot.Data.TestValue,
+	}}
+	return nil
 }
 
 func (put *PackedUserTemplate) JSONMetadata() (json.RawMessage, error) {
