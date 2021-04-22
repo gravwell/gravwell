@@ -16,8 +16,8 @@ import (
 
 const (
 	MajorVersion = 4
-	MinorVersion = 1
-	PointVersion = 7
+	MinorVersion = 2
+	PointVersion = 0
 )
 
 var (
