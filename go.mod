@@ -13,6 +13,7 @@ require (
 	github.com/bet365/jingo v0.10.0
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/bxcodec/faker/v3 v3.3.1
+	github.com/cloudflare/buffer v0.0.0-20190408164202-7cab898e1166
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dvyukov/go-fuzz v0.0.0-20201127111758-49e582c6c23d // indirect
@@ -33,10 +34,11 @@ require (
 	github.com/gravwell/gcfg v1.2.8
 	github.com/gravwell/ipfix v1.4.3
 	github.com/h2non/filetype v1.0.10
+	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
-	github.com/klauspost/compress v1.11.3
+	github.com/klauspost/compress v1.11.12
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/minio/highwayhash v1.0.0
@@ -68,3 +70,5 @@ replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20200
 replace github.com/open-networks/go-msgraph => github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3
 
 // replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
+
+replace github.com/cloudflare/buffer => github.com/traetox/buffer v0.0.0-20210409000708-97e100fbf3c5

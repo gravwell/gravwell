@@ -1,20 +1,21 @@
-// +build windows
-
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2018 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package log
+package processors
 
 import (
-	"errors"
+	"github.com/inhies/go-bytesize"
 )
 
-func newStderrLogger(fileOverride string, cb StderrCallback) (lgr *Logger, err error) {
-	err = errors.New("stderr logger not avialable on windows or ARM")
+func parseDataSize(v string) (s int, err error) {
+	var bs bytesize.ByteSize
+	if bs, err = bytesize.Parse(v); err == nil {
+		s = int(bs)
+	}
 	return
 }

@@ -71,7 +71,7 @@ func CheckProcessor(id string) error {
 	case CiscoISEProcessor:
 	case SrcRouterProcessor:
 	default:
-		return ErrUnknownProcessor
+		return checkProcessorOS(id)
 	}
 	return nil
 }
@@ -126,7 +126,7 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 	case SrcRouterProcessor:
 		cfg, err = SrcRouteLoadConfig(vc)
 	default:
-		err = ErrUnknownProcessor
+		cfg, err = processorLoadConfigOS(vc)
 	}
 	return
 }
@@ -252,7 +252,7 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 		}
 		p, err = NewSrcRouter(cfg, tgr)
 	default:
-		err = ErrUnknownProcessor
+		p, err = newProcessorOS(vc, tgr)
 	}
 	return
 }

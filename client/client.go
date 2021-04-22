@@ -249,7 +249,10 @@ func (c *Client) Login(user, pass string) error {
 	loginCreds.Add(PASS_FIELD, pass)
 
 	//build up the request
-	req, err := http.NewRequest(`POST`, uri, strings.NewReader(loginCreds.Encode()))
+	req, err := http.NewRequest(http.MethodPost, uri, strings.NewReader(loginCreds.Encode()))
+	if err != nil {
+		return err
+	}
 	c.hm.populateRequest(req.Header)
 	req.Header.Set(`Content-Type`, `application/x-www-form-urlencoded`)
 
@@ -257,14 +260,11 @@ func (c *Client) Login(user, pass string) error {
 	resp, err := c.clnt.Do(req)
 	if err != nil {
 		return err
-	}
-	defer resp.Body.Close()
-
-	//check response
-	if resp == nil {
+	} else if resp == nil {
 		//this really should never happen
 		return errors.New("Invalid response")
 	}
+	defer resp.Body.Close()
 
 	//look for the redirect response
 	switch resp.StatusCode {
@@ -282,6 +282,53 @@ func (c *Client) Login(user, pass string) error {
 		return err
 	}
 	return c.processLoginResponse(loginResp)
+}
+
+// RefreshLoginToken will ask the webserver to refresh the login state
+// this means we get a new JWT and cookie and discard the old one.
+// The client must be logged in to use this API
+func (c *Client) RefreshLoginToken() (err error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	if c.state != STATE_AUTHED {
+		return errors.New("not logged in")
+	}
+	//build up URL we are going to throw at
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, REFRESH_TOKEN_URL)
+
+	req, err := http.NewRequest(http.MethodGet, uri, nil)
+	if err != nil {
+		return err
+	}
+	c.hm.populateRequest(req.Header)
+
+	resp, err := c.clnt.Do(req)
+	if err != nil {
+		return err
+	} else if resp == nil {
+		//this really should never happen
+		return errors.New("Invalid response")
+	}
+	defer resp.Body.Close()
+
+	//look for the redirect response
+	switch resp.StatusCode {
+	case http.StatusLocked:
+		return ErrAccountLocked
+	case http.StatusUnprocessableEntity:
+		return ErrLoginFail
+	case http.StatusOK:
+	default:
+		return fmt.Errorf("Invalid response: %d", resp.StatusCode)
+	}
+
+	var loginResp types.LoginResponse
+	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
+		return err
+	}
+	return c.processLoginResponse(loginResp)
+
 }
 
 func (c *Client) importLoginToken(token string) (err error) {

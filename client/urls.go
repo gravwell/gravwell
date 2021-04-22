@@ -24,6 +24,7 @@ const (
 	LOGIN_URL                        = `/api/login`
 	LOGOUT_URL                       = `/api/logout`
 	TEMP_TOKEN_URL                   = `/api/login/tmptoken`
+	REFRESH_TOKEN_URL                = `/api/login/refreshtoken`
 	USER_INFO_URL                    = `/api/info/whoami`
 	DESC_URL                         = `/api/stats/sysDesc`
 	STATE_URL                        = `/api/stats/ping`

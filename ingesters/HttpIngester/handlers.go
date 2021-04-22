@@ -150,6 +150,8 @@ func (h *handler) handleHEC(cfg handlerConfig, r *http.Request, w http.ResponseW
 }
 
 func (h *handler) handleMulti(cfg handlerConfig, r *http.Request, w http.ResponseWriter) {
+	debugout("multhandler REQUEST %s %v\n", r.Method, r.URL)
+	debugout("multhandler HEADERS %v\n", r.Header)
 	ip := getRemoteIP(r)
 	scanner := bufio.NewScanner(r.Body)
 	for scanner.Scan() {
@@ -208,6 +210,7 @@ func (h *handler) handleEntry(cfg handlerConfig, b []byte, ip net.IP) (err error
 		Tag:  cfg.tag,
 		Data: b,
 	}
+	debugout("Handling: %+v\n", e)
 	if err = cfg.pproc.Process(&e); err != nil {
 		h.lgr.Error("Failed to send entry: %v", err)
 		return

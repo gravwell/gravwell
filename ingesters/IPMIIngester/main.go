@@ -269,7 +269,6 @@ func (h *handlerConfig) run() {
 			time.Sleep(PERIOD)
 			continue
 		}
-		defer h.client.Close()
 
 		// successful connection, spin on getting records
 
@@ -278,6 +277,8 @@ func (h *handlerConfig) run() {
 			sdr, err := h.getSDR()
 			if err != nil {
 				lg.Error("%v", err)
+				h.client.Close()
+				break
 			} else {
 				ent := &entry.Entry{
 					SRC:  h.src,
@@ -295,6 +296,8 @@ func (h *handlerConfig) run() {
 			sel, err := h.getSEL()
 			if err != nil {
 				lg.Error("%v", err)
+				h.client.Close()
+				break
 			} else {
 				// throw them as individual entries
 				for _, v := range sel {
