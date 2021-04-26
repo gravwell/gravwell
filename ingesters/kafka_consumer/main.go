@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingest/processors/tags"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
@@ -114,7 +115,7 @@ func main() {
 		}
 	}
 
-	tags, err := cfg.Tags()
+	ltags, err := cfg.Tags()
 	if err != nil {
 		lg.FatalCode(0, "Failed to get tags from configuration: %v\n", err)
 		return
@@ -124,7 +125,7 @@ func main() {
 		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
 		return
 	}
-	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
+	debugout("Handling %d tags over %d targets\n", len(ltags), len(conns))
 
 	lmt, err := cfg.RateLimit()
 	if err != nil {
@@ -138,7 +139,7 @@ func main() {
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.IngestStreamConfig,
 		Destinations:       conns,
-		Tags:               tags,
+		Tags:               ltags,
 		Auth:               cfg.Secret(),
 		LogLevel:           cfg.LogLevel(),
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
@@ -187,7 +188,8 @@ func main() {
 			igst:        igst,
 			lg:          lg,
 		}
-		if kcfg.tgr, err = newTagger(v.taggerConfig, v.defTag, igst); err != nil {
+		v.TaggerConfig.Tags = append(v.TaggerConfig.Tags, v.defTag)
+		if kcfg.tgr, err = tags.NewTagger(v.TaggerConfig, igst); err != nil {
 			lg.Fatal("Failed to establish a new tagger: %v", err)
 		}
 		if kcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.preprocessor); err != nil {
