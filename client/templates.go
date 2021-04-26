@@ -42,7 +42,7 @@ func (c *Client) ListAllTemplates() (templates []types.WireUserTemplate, err err
 func (c *Client) NewTemplate(guid uuid.UUID, name, description string, contents types.RawObject) (storedGuid uuid.UUID, err error) {
 	// Mash the content blob into an appropriate type
 	var ct types.TemplateContents
-	if err = json.Unmarshal(contents, &c); err != nil {
+	if err = json.Unmarshal(contents, &ct); err != nil {
 		return
 	}
 	template := types.UserTemplate{GUID: guid, Contents: ct, Name: name, Description: description}
