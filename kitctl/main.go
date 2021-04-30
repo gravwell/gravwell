@@ -25,11 +25,12 @@ import (
 )
 
 var (
-	fID     = flag.String("id", "", "Kit ID")
-	fName   = flag.String("name", "", "Kit/item name")
-	fDesc   = flag.String("desc", "", "Kit/item description")
-	fMinVer = flag.String("minver", "", "Minimum version")
-	fMaxVer = flag.String("maxver", "", "Maximum version")
+	fID      = flag.String("id", "", "Kit ID")
+	fName    = flag.String("name", "", "Kit/item name")
+	fDesc    = flag.String("desc", "", "Kit/item description")
+	fVersion = flag.Uint("version", 0, "Kit version")
+	fMinVer  = flag.String("minver", "", "Minimum version")
+	fMaxVer  = flag.String("maxver", "", "Maximum version")
 
 	fDefaultValue = flag.String("default-value", "", "Default value")
 	fMacroType    = flag.String("macro-type", "", "Config macro type ('tag' or 'other')")
@@ -53,7 +54,7 @@ func main() {
 		packKit(args[1:])
 	case "info":
 		// Information about the kit in the current directory
-		log.Fatalf("%v not implemented", args[0])
+		kitInfo(args[1:])
 	case "init":
 		// Start a new kit from scratch in the current directory
 		initKit(args[1:])
@@ -65,12 +66,104 @@ func main() {
 		log.Fatalf("%v not implemented", args[0])
 	case "dep":
 		// Manage dependencies
-		log.Fatalf("%v not implemented", args[0])
+		dep(args[1:])
 	case "configmacro":
 		// Manage config macros
 		configMacro(args[1:])
 	default:
 		log.Fatalf("Invalid command %v.", args[0])
+	}
+}
+
+// the "info" command just prints out some basic details about the kit for now.
+func kitInfo(args []string) {
+	mf, err := readManifest()
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Printf("•Kit ID: %v\n", mf.ID)
+	fmt.Printf("•Name: %v\n", mf.Name)
+	fmt.Printf("•Description: %v\n", mf.Desc)
+	fmt.Printf("•Version: %v\n", mf.Version)
+	fmt.Printf("•Minimum Gravwell version required: %v\n", mf.MinVersion)
+	fmt.Printf("•Maximum Gravwell version allowed: %v\n", mf.MaxVersion)
+	fmt.Printf("•Dependencies:\n")
+	if len(mf.Dependencies) > 0 {
+		for _, d := range mf.Dependencies {
+			fmt.Printf("	%v >= %v\n", d.ID, d.MinVersion)
+		}
+	} else {
+		fmt.Printf("	none\n")
+	}
+	fmt.Printf("•Items:\n")
+	if len(mf.Items) > 0 {
+		for _, d := range mf.Items {
+			fmt.Printf("	%v			%v\n", d.Type, d.Name)
+		}
+	} else {
+		fmt.Printf("	none\n")
+	}
+}
+
+func dep(args []string) {
+	mf, err := readManifest()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(args) == 0 {
+		fmt.Printf("Usage:\n")
+		fmt.Printf("	kitctl dep list		# show existing dependencies\n")
+		fmt.Printf("	kitctl dep add		# add new dependency\n")
+		fmt.Printf("	kitctl dep del		# delete dependency\n")
+		return
+	}
+	switch args[0] {
+	case "list":
+		for _, m := range mf.Dependencies {
+			fmt.Printf("%v >= %v\n", m.ID, m.MinVersion)
+		}
+	case "add":
+		// Make sure all the required flags are set
+		var fail bool
+		if *fID == `` {
+			fail = true
+			log.Printf("Must set dependency ID with -id flag")
+		}
+		if *fVersion == 0 {
+			fail = true
+			log.Printf("Must set minimum dependency version with -version flag")
+		}
+		if fail {
+			log.Fatalf("Aborting dep add")
+		}
+		// Now walk all the existing dependencies and make sure it doesn't conflict
+		for _, m := range mf.Dependencies {
+			if m.ID == *fID {
+				log.Fatalf("New dependency conflicts with existing: %+v", m)
+			}
+		}
+		// Create the dep
+		d := types.KitDependency{
+			ID:         *fID,
+			MinVersion: *fVersion,
+		}
+		// Insert it into the manifest
+		mf.Dependencies = append(mf.Dependencies, d)
+		// Write out the manifest
+		writeManifest(mf)
+	case "del":
+		if *fID == `` {
+			log.Fatalf("Must specify dependency to delete with -id flag")
+		}
+		for i, m := range mf.Dependencies {
+			if m.ID == *fID {
+				mf.Dependencies = append(mf.Dependencies[:i], mf.Dependencies[i+1:]...)
+				break
+			}
+		}
+		writeManifest(mf)
+	default:
+		log.Fatalf("Invalid dep command %v", args[0])
 	}
 }
 
@@ -183,7 +276,10 @@ func initKit(args []string) {
 	if _, err = os.Stat("MANIFEST"); !os.IsNotExist(err) {
 		log.Fatalf("MANIFEST file already exists, aborting")
 	}
-
+	version := uint(1)
+	if *fVersion > 0 {
+		version = *fVersion
+	}
 	// Parse and validate args that need parsing
 	var minver, maxver types.CanonicalVersion
 	if *fMinVer != `` {
@@ -208,7 +304,7 @@ func initKit(args []string) {
 		ID:         *fID,
 		Name:       *fName,
 		Desc:       *fDesc,
-		Version:    1,
+		Version:    version,
 		MinVersion: minver,
 		MaxVersion: maxver,
 	}
@@ -241,6 +337,7 @@ func packKit(args []string) {
 	}
 
 	// Prepare the BuilderConfig
+	// Note that we no longer automatically bump the version; do that yourself.
 	bc := kits.BuilderConfig{
 		Version:      mf.Version,
 		Name:         mf.Name,
@@ -251,7 +348,6 @@ func packKit(args []string) {
 		Dependencies: mf.Dependencies,
 		ConfigMacros: mf.ConfigMacros,
 	}
-	bc.Version++
 
 	// Get builder
 	bldr, err := kits.NewBuilderFile(bc, args[0])
