@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/gravwell/gravwell/v3/client/types"
 	"github.com/gravwell/gravwell/v3/client/types/kits"
@@ -25,10 +26,13 @@ import (
 
 var (
 	fID     = flag.String("id", "", "Kit ID")
-	fName   = flag.String("name", "", "Kit name")
-	fDesc   = flag.String("desc", "", "Kit description")
+	fName   = flag.String("name", "", "Kit/item name")
+	fDesc   = flag.String("desc", "", "Kit/item description")
 	fMinVer = flag.String("minver", "", "Minimum version")
 	fMaxVer = flag.String("maxver", "", "Maximum version")
+
+	fDefaultValue = flag.String("default-value", "", "Default value")
+	fMacroType    = flag.String("macro-type", "", "Config macro type ('tag' or 'other')")
 )
 
 func main() {
@@ -62,8 +66,114 @@ func main() {
 	case "dep":
 		// Manage dependencies
 		log.Fatalf("%v not implemented", args[0])
+	case "configmacro":
+		// Manage config macros
+		configMacro(args[1:])
 	default:
 		log.Fatalf("Invalid command %v.", args[0])
+	}
+}
+
+func configMacro(args []string) {
+	mf, err := readManifest()
+	if err != nil {
+		log.Fatal(err)
+	}
+	if len(args) == 0 {
+		fmt.Printf("Usage:\n")
+		fmt.Printf("	kitctl configmacro list		# show existing macros\n")
+		fmt.Printf("	kitctl configmacro show		# show detailed info about a particular macro\n")
+		fmt.Printf("	kitctl configmacro add		# add new macro\n")
+		fmt.Printf("	kitctl configmacro del		# delete macro\n")
+		return
+	}
+	switch args[0] {
+	case "list":
+		for _, m := range mf.ConfigMacros {
+			fmt.Println(m.MacroName)
+		}
+	case "show":
+		if *fName == `` {
+			log.Fatalf("Must specify macro to show with -name flag")
+		}
+		for _, m := range mf.ConfigMacros {
+			if m.MacroName == *fName {
+				fmt.Printf("Name: %v\n", m.MacroName)
+				fmt.Printf("Description: %v\n", m.Description)
+				fmt.Printf("Default value: %v\n", m.DefaultValue)
+				fmt.Printf("Type: %v\n", m.Type)
+				break
+			}
+		}
+	case "add":
+		// Make sure all the required flags are set
+		var fail bool
+		if *fName == `` {
+			fail = true
+			log.Printf("Must set macro name with -name flag")
+		}
+		if *fDesc == `` {
+			fail = true
+			log.Printf("Must set macro description with -desc flag")
+		}
+		if *fDefaultValue == `` {
+			fail = true
+			log.Printf("Must set macro default value with -default-value flag")
+		}
+		var mType string
+		if *fMacroType == `` {
+			fail = true
+			log.Printf("Must set macro type with -macro-type flag")
+		} else {
+			mType = strings.ToUpper(*fMacroType)
+			if mType != "TAG" && mType != "OTHER" {
+				log.Fatalf("Macro type must be either 'tag' or 'other'")
+			}
+		}
+		if fail {
+			log.Fatalf("Aborting configmacro add")
+		}
+		// Make sure the macro name is ok
+		if err := types.CheckMacroName(*fName); err != nil {
+			log.Fatalf("Macro name contains illegal character. Allowed characters: %v", types.AllowedMacroChars)
+		}
+		// Now walk all the existing macros and make sure it doesn't conflict
+		// Start with config macros
+		for _, m := range mf.ConfigMacros {
+			if m.MacroName == *fName {
+				log.Fatalf("New config macro conflicts with existing config macro: %+v", m)
+			}
+		}
+		// And then check regular macros
+		for _, m := range mf.Items {
+			if m.Type == kits.Macro && m.Name == *fName {
+				log.Fatalf("New config macro conflicts with existing regular macro: %+v", m)
+			}
+		}
+		// Create the config macro
+		cm := types.KitConfigMacro{
+			MacroName:    *fName,
+			Description:  *fDesc,
+			DefaultValue: *fDefaultValue,
+			Type:         mType,
+		}
+		// Insert it into the manifest
+		mf.ConfigMacros = append(mf.ConfigMacros, cm)
+		// Write out the manifest
+		writeManifest(mf)
+	case "del":
+		if *fName == `` {
+			log.Fatalf("Must specify macro to delete with -name flag")
+		}
+		for i, m := range mf.ConfigMacros {
+			if m.MacroName == *fName {
+				mf.ConfigMacros = append(mf.ConfigMacros[:i], mf.ConfigMacros[i+1:]...)
+				break
+			}
+		}
+		writeManifest(mf)
+	default:
+		log.Fatalf("Invalid configmacro command %v", args[0])
 	}
 }
 
@@ -125,14 +235,9 @@ func packKit(args []string) {
 		return
 	}
 
-	// Get the manifest file
-	mb, err := ioutil.ReadFile("MANIFEST")
+	mf, err := readManifest()
 	if err != nil {
-		log.Fatalf("Couldn't read MANIFEST: %v", err)
-	}
-	var mf kits.Manifest
-	if err := json.Unmarshal(mb, &mf); err != nil {
-		log.Fatalf("Couldn't parse MANIFEST: %v", err)
+		log.Fatal(err)
 	}
 
 	// Prepare the BuilderConfig
@@ -319,13 +424,8 @@ func unpackKit(args []string) {
 		log.Fatalf("Failed to read manifest: %v", err)
 	}
 
-	// And write the MANIFEST back out onto disk
-	mb, err := json.MarshalIndent(mf, "", "	")
-	if err != nil {
-		log.Fatalf("Failed to re-marshal MANIFEST: %v", err)
-	}
-	if err := ioutil.WriteFile("MANIFEST", mb, 0644); err != nil {
-		log.Fatalf("Failed to write-out MANIFEST file: %v", err)
+	if err := writeManifest(mf); err != nil {
+		log.Fatal(err)
 	}
 
 	// Walk each kit item
