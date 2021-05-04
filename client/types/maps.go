@@ -171,9 +171,6 @@ func (loc Location) Valid() bool {
 	if loc.Long > 180.0 || loc.Long < -180.0 {
 		return false
 	}
-	if loc.Lat == 0.0 && loc.Long == 0.0 {
-		return false
-	}
 	return true
 }
 
