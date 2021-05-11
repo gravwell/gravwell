@@ -247,6 +247,7 @@ type GUISettings struct {
 }
 
 type SearchAgentConfig struct {
+	Searchagent_UUID                 string
 	Webserver_Address                []string
 	Insecure_Skip_TLS_Verify         bool
 	Insecure_Use_HTTP                bool
