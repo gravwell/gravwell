@@ -74,6 +74,7 @@ type KitState struct {
 	ID                   string
 	Name                 string
 	Description          string
+	Readme               string
 	UUID                 string
 	Signed               bool
 	AdminRequired        bool
@@ -124,6 +125,7 @@ type KitBuildRequest struct {
 	ID                string
 	Name              string
 	Description       string
+	Readme            string
 	Version           uint
 	MinVersion        CanonicalVersion  `json:",omitempty"`
 	MaxVersion        CanonicalVersion  `json:",omitempty"`
