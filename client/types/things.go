@@ -199,7 +199,7 @@ func (t *PackedUserTemplate) UnmarshalJSON(data []byte) error {
 		// something is majorly wrong.
 		return err
 	}
-	if len(t.Data.Variables) > 0 {
+	if len(nt.Data.Variables) > 0 {
 		*t = PackedUserTemplate(nt)
 		return nil
 	}
