@@ -349,6 +349,7 @@ type KitMetadata struct {
 	UUID          string
 	Version       uint
 	Description   string
+	Readme        string
 	Signed        bool
 	AdminRequired bool
 	MinVersion    CanonicalVersion
