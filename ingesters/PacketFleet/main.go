@@ -43,6 +43,7 @@ import (
 const (
 	defaultConfigLoc     = `/opt/gravwell/etc/packet_fleet.conf`
 	ingesterName         = `PacketFleet`
+	appName              = `gravwell_packetfleet`
 	batchSize            = 512
 	maxDataSize      int = 8 * 1024 * 1024
 	initDataSize     int = 512 * 1024
@@ -122,6 +123,7 @@ func init() {
 		fmt.Fprintf(os.Stderr, "Failed to get stderr logger: %v\n", err)
 		os.Exit(-1)
 	}
+	lg.SetAppname(appName)
 
 	v = *verbose
 }
