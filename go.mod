@@ -14,6 +14,7 @@ require (
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/bxcodec/faker/v3 v3.3.1
 	github.com/cloudflare/buffer v0.0.0-20190408164202-7cab898e1166
+	github.com/crewjam/rfc5424 v0.1.0 // indirect
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dvyukov/go-fuzz v0.0.0-20201127111758-49e582c6c23d // indirect
