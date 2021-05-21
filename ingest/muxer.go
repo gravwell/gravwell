@@ -111,6 +111,8 @@ type IngestMuxer struct {
 	wg                *sync.WaitGroup
 	state             muxState
 	logLevel          gll
+	hostname          string
+	appname           string
 	lgr               Logger
 	cacheEnabled      bool
 	cachePath         string
@@ -357,6 +359,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		state:             empty,
 		lgr:               c.Logger,
 		logLevel:          logLevel(c.LogLevel),
+		hostname:          c.Logger.Hostname(),
+		appname:           c.Logger.Appname(),
 		eChan:             cache.In,
 		eChanOut:          cache.Out,
 		bChan:             bcache.In,
