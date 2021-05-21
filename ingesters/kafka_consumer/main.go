@@ -31,6 +31,7 @@ import (
 const (
 	defaultConfigLoc     = `/opt/gravwell/etc/kafka.conf`
 	ingesterName         = `kafka_consumer`
+	appName              = `gravwell_kafka_consumer`
 	batchSize            = 512
 	maxDataSize      int = 8 * 1024 * 1024
 	initDataSize     int = 512 * 1024
@@ -55,6 +56,7 @@ func handleFlags() {
 		os.Exit(0)
 	}
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
+	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
 			lg.Fatal("Failed to dup stderr: %v\n", err)
