@@ -72,6 +72,14 @@ func (m *metadata) SetHostname(hostname string) error {
 	return nil
 }
 
+func (m *metadata) Appname() string {
+	return m.appname
+}
+
+func (m *metadata) Hostname() string {
+	return m.hostname
+}
+
 func (m *metadata) SetAppname(appname string) error {
 	if appname != `` {
 		if err := checkName(appname); err != nil {
@@ -151,6 +159,10 @@ func (l *Logger) Close() (err error) {
 
 func (l *Logger) EnableRawMode() {
 	l.raw = true //no need for a mutex here
+}
+
+func (l *Logger) RawMode() bool {
+	return l.raw
 }
 
 func (l *Logger) ready() error {
