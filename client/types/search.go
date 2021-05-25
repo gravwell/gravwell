@@ -40,6 +40,7 @@ var (
 // An Element is an item which has been extracted from an entry using the
 // data exploration system.
 type Element struct {
+	Module      string
 	Name        string
 	Path        string
 	Value       interface{}
@@ -71,8 +72,11 @@ type GenerateAXResponse struct {
 
 type ExploreResult struct {
 	Elements []Element
-	Module   string
-	Tag      string
+	// This represents the module which generated the result, but
+	// individual Elements may have a different module set for
+	// purposes of filtering.
+	Module string
+	Tag    string
 }
 
 type PingReq struct {
@@ -101,7 +105,8 @@ type SearchHints struct {
 type FilterRequest struct {
 	Tag    string
 	Module string
-	Path   string
+	Path   string // The path to extract
+	Name   string // The desired output name
 	Op     string
 	Value  string
 }
