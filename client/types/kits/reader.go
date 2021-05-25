@@ -243,8 +243,8 @@ func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest
 			err = fmt.Errorf("%w - %v", err, ErrInvalidSignature)
 			return
 		}
+		signed = true
 	}
-	signed = true
 
 	return
 }
