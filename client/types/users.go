@@ -157,10 +157,9 @@ type AdminActionResp struct {
 }
 
 type RenderModuleInfo struct {
-	Name         string
-	Description  string
-	Examples     []string
-	SortRequired bool
+	Name        string
+	Description string
+	Examples    []string
 }
 
 type RespError struct {
