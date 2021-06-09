@@ -34,7 +34,7 @@ const (
 )
 
 var (
-	ErrIllegalMacroCharacter error = errors.New("Illegal macro name character")
+	ErrIllegalMacroCharacter error = errors.New("Illegal character in macro name")
 )
 
 // An Element is an item which has been extracted from an entry using the
@@ -266,7 +266,7 @@ type SearchMacro struct {
 func CheckMacroName(name string) error {
 	for _, char := range name {
 		if !strings.Contains(AllowedMacroChars, string(char)) {
-			return fmt.Errorf("%w: %v", ErrIllegalMacroCharacter, char)
+			return fmt.Errorf("%w: %c (%U)", ErrIllegalMacroCharacter, char, char)
 		}
 	}
 	return nil
