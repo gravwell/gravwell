@@ -41,7 +41,7 @@ var (
 // data exploration system.
 type Element struct {
 	Module      string
-	Args        string
+	Args        string `json:",omitempty"`
 	Name        string
 	Path        string
 	Value       interface{}
@@ -106,7 +106,7 @@ type SearchHints struct {
 type FilterRequest struct {
 	Tag    string
 	Module string
-	Args   string
+	Args   string `json:",omitempty"`
 	Path   string // The path to extract
 	Name   string // The desired output name
 	Op     string
