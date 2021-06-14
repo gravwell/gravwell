@@ -41,6 +41,7 @@ var (
 // data exploration system.
 type Element struct {
 	Module      string
+	Args        string
 	Name        string
 	Path        string
 	Value       interface{}
@@ -105,6 +106,7 @@ type SearchHints struct {
 type FilterRequest struct {
 	Tag    string
 	Module string
+	Args   string
 	Path   string // The path to extract
 	Name   string // The desired output name
 	Op     string
