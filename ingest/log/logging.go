@@ -446,19 +446,19 @@ func (l Level) priority() rfc5424.Priority {
 	case OFF:
 		return 0
 	case DEBUG:
-		return rfc5424.Debug
+		return rfc5424.User + rfc5424.Debug
 	case INFO:
-		return rfc5424.Info
+		return rfc5424.User + rfc5424.Info
 	case WARN:
-		return rfc5424.Warning
+		return rfc5424.User + rfc5424.Warning
 	case ERROR:
-		return rfc5424.Error
+		return rfc5424.User + rfc5424.Error
 	case CRITICAL:
-		return rfc5424.Crit
+		return rfc5424.User + rfc5424.Crit
 	case FATAL:
-		return rfc5424.Emergency
+		return rfc5424.User + rfc5424.Emergency
 	}
-	return rfc5424.Debug
+	return rfc5424.User + rfc5424.Debug
 }
 
 func LevelFromString(s string) (l Level, err error) {
