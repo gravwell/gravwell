@@ -32,7 +32,7 @@ import (
 
 const (
 	defaultConfigLoc = `/opt/gravwell/etc/pubsub_ingest.conf`
-	appName          = `gravwell_pubsub`
+	appName          = `pubsub`
 )
 
 var (

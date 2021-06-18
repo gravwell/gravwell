@@ -33,7 +33,7 @@ import (
 const (
 	defaultConfigLoc = `/opt/gravwell/etc/file_follow.conf`
 	defaultStateLoc  = `/opt/gravwell/etc/file_follow.state`
-	appName          = `gravwell_filefollow`
+	appName          = `filefollow`
 )
 
 var (

@@ -31,7 +31,7 @@ import (
 const (
 	defaultConfigLoc = `/opt/gravwell/etc/netflow_capture.conf`
 	ingesterName     = `flow`
-	appName          = `gravwell_netflow`
+	appName          = `netflow`
 	batchSize        = 512
 )
 

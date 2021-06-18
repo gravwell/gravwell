@@ -34,7 +34,7 @@ import (
 
 const (
 	defaultConfigLoc = `/opt/gravwell/etc/msgraph_ingest.conf`
-	appName          = `gravwell_msgraph`
+	appName          = `msgraph`
 )
 
 var (

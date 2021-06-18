@@ -30,7 +30,7 @@ import (
 
 const (
 	defaultConfigLoc = `/opt/gravwell/etc/gravwell_http_ingester.conf`
-	appName          = `gravwell_http`
+	appName          = `httpingester`
 )
 
 var (

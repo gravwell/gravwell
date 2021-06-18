@@ -36,7 +36,7 @@ const (
 	defaultConfigLoc     = `/opt/gravwell/etc/network_capture.conf`
 	packetsThrowSize int = 1024 * 1024 * 2
 	ingesterName         = "networkLog"
-	appName              = `gravwell_networklog`
+	appName              = `networklog`
 )
 
 var (

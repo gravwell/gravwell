@@ -34,7 +34,7 @@ import (
 
 const (
 	defaultConfigLoc        = `/opt/gravwell/etc/o365_ingest.conf`
-	appName          string = `gravwell_o365`
+	appName          string = `o365`
 )
 
 var (
