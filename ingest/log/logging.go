@@ -226,7 +226,7 @@ func (l *Logger) DeleteWriter(wtr io.Writer) error {
 // DeleteRelay removes a relay from the logger.
 func (l *Logger) DeleteRelay(rl Relay) error {
 	if rl == nil {
-		return errors.New("Invalid relay, is nil")
+		return errors.New("Nil relay")
 	}
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
