@@ -177,7 +177,7 @@ func (l *Logger) ready() error {
 	return nil
 }
 
-// AddWriter will add a new writer which will get all the log lines as they are handled
+// AddWriter will add a new writer which will get all the log lines as they are handled.
 func (l *Logger) AddWriter(wtr io.WriteCloser) error {
 	if wtr == nil {
 		return errors.New("Invalid writer, is nil")
