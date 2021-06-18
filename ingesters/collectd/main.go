@@ -22,7 +22,7 @@ import (
 const (
 	defaultConfigLoc = `/opt/gravwell/etc/collectd.conf`
 	ingesterName     = `collectd`
-	appName          = `gravwell_collectd`
+	appName          = `collectd`
 )
 
 var (

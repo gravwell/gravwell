@@ -39,7 +39,7 @@ import (
 
 const (
 	defaultConfigLoc        = `/opt/gravwell/etc/kinesis_ingest.conf`
-	appName          string = `gravwell_kinesis`
+	appName          string = `kinesis`
 )
 
 var (
@@ -169,7 +169,7 @@ func main() {
 		Auth:               cfg.Secret(),
 		LogLevel:           cfg.LogLevel(),
 		Logger:             lg,
-		IngesterName:       "Kinesis",
+		IngesterName:       appName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
 		IngesterLabel:      cfg.Global.Label,
