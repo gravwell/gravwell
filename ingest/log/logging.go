@@ -103,9 +103,14 @@ func (m *metadata) guessHostnameAppname() {
 	}
 }
 
+type Relay interface {
+	WriteLog(time.Time, []byte) error
+}
+
 type Logger struct {
 	metadata
 	wtrs []io.WriteCloser
+	rls  []Relay
 	mtx  sync.Mutex
 	lvl  Level
 	hot  bool
@@ -166,13 +171,13 @@ func (l *Logger) RawMode() bool {
 }
 
 func (l *Logger) ready() error {
-	if !l.hot || len(l.wtrs) == 0 {
+	if !l.hot || (len(l.wtrs) == 0 && len(l.rls) == 0) {
 		return ErrNotOpen
 	}
 	return nil
 }
 
-// Add a new writer which will get all the log lines as they are handled
+// AddWriter will add a new writer which will get all the log lines as they are handled.
 func (l *Logger) AddWriter(wtr io.WriteCloser) error {
 	if wtr == nil {
 		return errors.New("Invalid writer, is nil")
@@ -183,6 +188,20 @@ func (l *Logger) AddWriter(wtr io.WriteCloser) error {
 		return err
 	}
 	l.wtrs = append(l.wtrs, wtr)
+	return nil
+}
+
+// AddRelay will add a new relay which will get all log entries as they are handled.
+func (l *Logger) AddRelay(r Relay) error {
+	if r == nil {
+		return errors.New("Nil relay")
+	}
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	if err := l.ready(); err != nil {
+		return err
+	}
+	l.rls = append(l.rls, r)
 	return nil
 }
 
@@ -199,6 +218,24 @@ func (l *Logger) DeleteWriter(wtr io.Writer) error {
 	for i := len(l.wtrs) - 1; i >= 0; i-- {
 		if l.wtrs[i] == wtr {
 			l.wtrs = append(l.wtrs[:i], l.wtrs[i+1:]...)
+		}
+	}
+	return nil
+}
+
+// DeleteRelay removes a relay from the logger.
+func (l *Logger) DeleteRelay(rl Relay) error {
+	if rl == nil {
+		return errors.New("Nil relay")
+	}
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	if err := l.ready(); err != nil {
+		return err
+	}
+	for i := len(l.rls) - 1; i >= 0; i-- {
+		if l.rls[i] == rl {
+			l.rls = append(l.rls[:i], l.rls[i+1:]...)
 		}
 	}
 	return nil
@@ -310,33 +347,15 @@ func (l *Logger) FatalCode(code int, f string, args ...interface{}) {
 }
 
 func (l *Logger) fatalCode(depth, code int, f string, args ...interface{}) {
-	var ln string
-	var nlReq bool
-	if l.raw {
-		ln = prefix(depth) + " FATAL " + fmt.Sprintf(f, args...)
-	} else {
-		ln = l.genRfcOutput(callLoc(depth), FATAL, fmt.Sprintf(f, args...))
-	}
-	if !strings.HasPrefix(ln, "\n") {
-		nlReq = true
-	}
-	l.mtx.Lock()
-	for _, w := range l.wtrs {
-		io.WriteString(w, ln)
-		if nlReq {
-			io.WriteString(w, "\n")
-		}
-		w.Close()
-	}
+	l.output(depth, FATAL, f, args...)
 	os.Exit(code)
-	l.mtx.Unlock() //won't ever happen, but leave it so that changes later don't cause mutex problems
 }
 
 func (l *Logger) output(depth int, lvl Level, f string, args ...interface{}) (err error) {
 	var nlReq bool
 	l.mtx.Lock()
 	if err = l.ready(); err == nil && l.lvl <= lvl && l.lvl != OFF {
-		ln := l.genOutput(callLoc(depth), lvl, f, args...)
+		ln, ts := l.genOutput(callLoc(depth), lvl, f, args...)
 		if !strings.HasPrefix(ln, "\n") {
 			nlReq = true
 		}
@@ -349,22 +368,28 @@ func (l *Logger) output(depth int, lvl Level, f string, args ...interface{}) (er
 				}
 			}
 		}
+		for _, r := range l.rls {
+			if lerr := r.WriteLog(ts, []byte(ln)); lerr != nil {
+				err = lerr
+			}
+		}
 	}
 	l.mtx.Unlock()
 	return
 }
 
-func (l *Logger) genOutput(pfx string, lvl Level, f string, args ...interface{}) (ln string) {
+func (l *Logger) genOutput(pfx string, lvl Level, f string, args ...interface{}) (string, time.Time) {
 	if l.raw {
 		return l.genRawOutput(pfx, lvl, f, args...)
 	}
 	return l.genRfcOutput(pfx, lvl, fmt.Sprintf(f, args...))
 }
 
-func (l *Logger) genRfcOutput(pfx string, lvl Level, payload string) (ln string) {
+func (l *Logger) genRfcOutput(pfx string, lvl Level, payload string) (ln string, ts time.Time) {
+	ts = time.Now()
 	m := rfc5424.Message{
 		Priority:  lvl.priority(),
-		Timestamp: time.Now(),
+		Timestamp: ts,
 		Hostname:  l.hostname,
 		AppName:   l.appname,
 		MessageID: pfx,
@@ -376,13 +401,10 @@ func (l *Logger) genRfcOutput(pfx string, lvl Level, payload string) (ln string)
 	return
 }
 
-func (l *Logger) genRawOutput(pfx string, lvl Level, f string, args ...interface{}) string {
-	var nl string
-	if !strings.HasSuffix(f, "\n") {
-		nl = "\n"
-	}
-	ts := time.Now().UTC().Format(time.RFC3339)
-	return ts + " " + pfx + " " + lvl.String() + " " + fmt.Sprintf(f, args...) + nl
+func (l *Logger) genRawOutput(pfx string, lvl Level, f string, args ...interface{}) (ln string, ts time.Time) {
+	ts = time.Now()
+	ln = ts.UTC().Format(time.RFC3339) + " " + pfx + " " + lvl.String() + " " + fmt.Sprintf(f, args...)
+	return
 }
 
 // implement writer interface so it can be handed to a standard loger
