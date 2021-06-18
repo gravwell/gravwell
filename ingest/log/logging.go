@@ -194,7 +194,7 @@ func (l *Logger) AddWriter(wtr io.WriteCloser) error {
 // AddRelay will add a new relay which will get all log entries as they are handled.
 func (l *Logger) AddRelay(r Relay) error {
 	if r == nil {
-		return errors.New("Invalid relay, is nil")
+		return errors.New("Nil relay")
 	}
 	l.mtx.Lock()
 	defer l.mtx.Unlock()
