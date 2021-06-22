@@ -119,7 +119,7 @@ func TestSearchEntryEncodeDecodeRaw(t *testing.T) {
 }
 
 func TestElementNull(t *testing.T) {
-	// Test with an empty []byte
+	// Test with the field unset
 	s := Element{
 		Module:  "syslog",
 		Name:    "MsgID",
@@ -128,6 +128,25 @@ func TestElementNull(t *testing.T) {
 	}
 	var b []byte
 	var err error
+	if b, err = json.Marshal(s); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "null") {
+		t.Fatalf("Found null in %v", string(b))
+	}
+
+	// Get a little trickier
+	type foo struct {
+		v []byte
+	}
+	var f foo
+	s = Element{
+		Module:  "syslog",
+		Name:    "MsgID",
+		Path:    "MsgID",
+		Value:   f.v,
+		Filters: []string{"=="},
+	}
 	if b, err = json.Marshal(s); err != nil {
 		t.Fatal(err)
 	}

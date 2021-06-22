@@ -52,7 +52,7 @@ type Element struct {
 // MarshalJSON implemented so we can avoid sending a "null" Value.
 func (e Element) MarshalJSON() ([]byte, error) {
 	// Handle the nil Value first
-	if e.Value == nil {
+	if vb, ok := e.Value.([]byte); e.Value == nil || (ok && len(vb) == 0) {
 		return json.Marshal(&struct {
 			Module      string
 			Name        string
