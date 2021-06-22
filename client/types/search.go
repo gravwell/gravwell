@@ -49,6 +49,28 @@ type Element struct {
 	Filters     []string
 }
 
+// MarshalJSON implemented so we can avoid sending a "null" Value.
+func (e Element) MarshalJSON() ([]byte, error) {
+	// Handle the nil Value first
+	if e.Value == nil {
+		return json.Marshal(&struct {
+			Module      string
+			Name        string
+			Path        string
+			SubElements []Element `json:",omitempty"`
+			Filters     []string
+		}{
+			Module:      e.Module,
+			Name:        e.Name,
+			Path:        e.Path,
+			SubElements: e.SubElements,
+			Filters:     e.Filters,
+		})
+	}
+	type alias Element
+	return json.Marshal(alias(e))
+}
+
 // A GenerateAXRequest contains a tag name and a set of entries.
 // It is used by clients to request all possible extractions from the given entries.
 // All entries should have the same tag.

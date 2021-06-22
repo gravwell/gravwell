@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -115,4 +116,38 @@ func TestSearchEntryEncodeDecodeRaw(t *testing.T) {
 	} else if !s.Equal(d) {
 		t.Fatalf("EncodeDecode failed:\n%+v\n%+v", s, d)
 	}
+}
+
+func TestElementNull(t *testing.T) {
+	// Test with an empty []byte
+	s := Element{
+		Module:  "syslog",
+		Name:    "MsgID",
+		Path:    "MsgID",
+		Filters: []string{"=="},
+	}
+	var b []byte
+	var err error
+	if b, err = json.Marshal(s); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(b), "null") {
+		t.Fatalf("Found null in %v", string(b))
+	}
+
+	// Test with an empty string to make sure we set Value in that case
+	s = Element{
+		Module:  "syslog",
+		Name:    "MsgID",
+		Path:    "MsgID",
+		Value:   "",
+		Filters: []string{"=="},
+	}
+	if b, err = json.Marshal(s); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(b), "Value") {
+		t.Fatalf("No Value in %v", string(b))
+	}
+
 }
