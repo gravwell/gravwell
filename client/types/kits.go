@@ -206,7 +206,6 @@ func (pbr *KitBuildRequest) Validate() error {
 	if !isLetterNumberPeriod(pbr.ID) {
 		return errors.New("Invalid ID")
 	}
-	//TODO Issue #2813 validate the format the ID to be xxx.yyy.zzz...
 	if pbr.Name = strings.TrimSpace(pbr.Name); len(pbr.Name) == 0 {
 		return errors.New("empty Name")
 	}
@@ -230,7 +229,6 @@ func (pbr *KitBuildRequest) Validate() error {
 			return fmt.Errorf("Invalid scheduled search/script ID %d", pbr.ScheduledSearches[i])
 		}
 	}
-	//TODO Issue 2813 validate the macros (there might be more to do here)
 	for i := range pbr.Macros {
 		if pbr.Macros[i] == 0 {
 			return errors.New("Invalid macro ID")
