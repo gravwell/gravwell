@@ -180,6 +180,35 @@ func (ps *KitState) UpdateItem(name, tp, id string) error {
 	return errors.New("not found")
 }
 
+func (ps *KitState) AddItem(itm KitItem) error {
+	for i := range ps.Items {
+		if ps.Items[i].Name == itm.Name && ps.Items[i].Type == itm.Type {
+			return errors.New("already exists")
+		}
+	}
+	ps.Items = append(ps.Items, itm)
+	return nil
+}
+
+func (ps *KitState) GetItem(name, tp string) (KitItem, error) {
+	for i := range ps.Items {
+		if ps.Items[i].Name == name && ps.Items[i].Type == tp {
+			return ps.Items[i], nil
+		}
+	}
+	return KitItem{}, errors.New("not found")
+}
+
+func (ps *KitState) RemoveItem(name, tp string) error {
+	for i := range ps.Items {
+		if ps.Items[i].Name == name && ps.Items[i].Type == tp {
+			ps.Items = append(ps.Items[:i], ps.Items[i+1:]...)
+			return nil
+		}
+	}
+	return errors.New("not found")
+}
+
 func (pbr *KitBuildRequest) validateReferencedFile(val, name string) error {
 	guid, err := uuid.Parse(val)
 	if err != nil {
