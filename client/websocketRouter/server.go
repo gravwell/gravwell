@@ -11,6 +11,7 @@ package websocketRouter
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -139,7 +140,7 @@ func NewSubProtoServer(w http.ResponseWriter, r *http.Request, readBufferSize, w
 	if len(subprotos) <= 0 {
 		writeDeadLine(conn, subProtoNegotiationDeadline, ERR_RESP)
 		conn.Close()
-		return nil, err
+		return nil, fmt.Errorf("must request at least one subprotocol")
 	}
 
 	if err = writeDeadLine(conn, subProtoNegotiationDeadline, ACK_RESP); err != nil {
