@@ -38,7 +38,8 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/kinesis_ingest.conf`
+	defaultConfigLoc        = `/opt/gravwell/etc/kinesis_ingest.conf`
+	appName          string = `kinesis`
 )
 
 var (
@@ -59,6 +60,7 @@ func init() {
 		os.Exit(0)
 	}
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
+	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
 			lg.Fatal("Failed to dup stderr: %v\n", err)
@@ -167,7 +169,7 @@ func main() {
 		Auth:               cfg.Secret(),
 		LogLevel:           cfg.LogLevel(),
 		Logger:             lg,
-		IngesterName:       "Kinesis",
+		IngesterName:       appName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
 		IngesterLabel:      cfg.Global.Label,

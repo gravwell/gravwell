@@ -45,7 +45,8 @@ type Builder struct {
 type BuilderConfig struct {
 	Version      uint
 	Name         string
-	Description  string
+	Description  string // A short description of the kit
+	Readme       string // A more detailed description of the kit
 	ID           string
 	MinVersion   types.CanonicalVersion
 	MaxVersion   types.CanonicalVersion
@@ -63,6 +64,7 @@ func NewBuilder(cfg BuilderConfig, fout io.WriteCloser) (pb *Builder, err error)
 		ID:           cfg.ID,
 		Name:         cfg.Name,
 		Desc:         cfg.Description,
+		Readme:       cfg.Readme,
 		Version:      cfg.Version,
 		MinVersion:   cfg.MinVersion,
 		MaxVersion:   cfg.MaxVersion,

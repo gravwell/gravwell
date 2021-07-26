@@ -128,15 +128,27 @@ type BaseResponse struct {
 	Metadata   *SearchMetadata           `json:",omitempty"`
 	Tags       map[string]entry.EntryTag `json:",omitempty"`
 	Error      string                    `json:",omitempty"`
-	EntryCount uint64                    // we may return zero, so we have to always throw
-	// There are more entries for the given timeframe available
+
+	// Finished is true when the query has completed.
+	Finished bool
+
+	// EntryCount is the number of entries which *entered* the renderer.
+	EntryCount uint64
+	// For some renderers, the EntryCount accurately represents the total
+	// number of results available. This field is set to 'true' in that case,
+	// meaning the EntryCount number can be displayed alongside the results
+	// without confusion.
+	EntryCountValid bool
+
+	// If set, there are more entries for the given timeframe available.
 	// For non-condensing this means EntryCount > request.Last
-	// For condensing, this means that given the range, there are values available after the Last range
+	// For condensing, this means that given the range, there are values
+	// available after the Last range.
 	AdditionalEntries bool
-	Finished          bool
-	// Indicates that the query results exceeded the on-disk storage limits
+
+	// Indicates that the query results exceeded the on-disk storage limits.
 	OverLimit bool
-	// Indicates the range of entries that were dropped due to storage limits
+	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
 }
 

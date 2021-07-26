@@ -26,6 +26,14 @@ func (c *Client) IngestEntries(entries []types.StringTagEntry) error {
 	return c.putStaticURL(JSON_INGEST_URL, entries)
 }
 
+// IngestInternal is used to perform ingest on internal logs for external components.
+// Things like the searchagent and other drone controllers can use this to get their
+// internal logs into the the gravwell tag without an ingest connection.
+// This API requires admin status.
+func (c *Client) IngestInternal(entries []types.StringTagEntry) error {
+	return c.putStaticURL(INTERNAL_INGEST_URL, entries)
+}
+
 // IngestFile uploads the contents of a file on disk and ingests them.
 //
 // The 'file' argument should point at a valid file on disk containing line-delimited log entries,

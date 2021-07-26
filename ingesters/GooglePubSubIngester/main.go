@@ -32,6 +32,7 @@ import (
 
 const (
 	defaultConfigLoc = `/opt/gravwell/etc/pubsub_ingest.conf`
+	appName          = `pubsub`
 )
 
 var (
@@ -50,6 +51,7 @@ func init() {
 		os.Exit(0)
 	}
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
+	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
 			lg.Fatal("Failed to dup stderr: %v\n", err)

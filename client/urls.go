@@ -101,6 +101,7 @@ const (
 	MAIL_CONFIGURE_URL               = `/api/mail/configure`
 	JSON_INGEST_URL                  = "/api/ingest/json"
 	LINES_INGEST_URL                 = "/api/ingest/lines"
+	INTERNAL_INGEST_URL              = "/api/ingest/internal"
 	TAGS_URL                         = "/api/tags"
 	INDEXER_MANAGE_ADD_URL           = "/api/indexer/manage/add"
 	INDEXER_INFO_URL                 = "/api/indexer/info"

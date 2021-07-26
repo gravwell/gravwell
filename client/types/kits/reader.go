@@ -36,6 +36,8 @@ var (
 //
 // • Call Verify method to ensure kit file is valid
 //
+// • Optionally call Signed method to ensure kit file was signed
+//
 // • Call Process method with a callback function to extract items from kit.
 type Reader struct {
 	rdr      utils.ReadResetCloser
@@ -43,6 +45,7 @@ type Reader struct {
 	manifest Manifest
 	verified bool
 	signed   bool
+	sigerr   error // any error from signing
 }
 
 // NewReader returns a Reader which will parse a kit from the given ReadResetCloser.
@@ -50,17 +53,17 @@ type Reader struct {
 // the beginning of the stream. The github.com/gravwell/gravwell/v3/ingesters/utils package
 // includes several convenient ReadResetCloser implementations.
 //
-// The verify parameter is an optional function used to verify the kit's manifest signature.
+// The sigVerify parameter is an optional function used to validate the kit's manifest signature.
 // The function will be called with the manifest and signature passed as slices of bytes;
 // it is the responsibility of the user to implement signature validation. Pass 'nil' to
 // disable signature verification.
-func NewReader(rdr utils.ReadResetCloser, verify SigVerificationFunc) (rp *Reader, err error) {
+func NewReader(rdr utils.ReadResetCloser, sigVerify SigVerificationFunc) (rp *Reader, err error) {
 	if err = rdr.Reset(); err != nil {
 		return
 	}
 	rp = &Reader{
 		rdr:    rdr,
-		verify: verify,
+		verify: sigVerify,
 	}
 	return
 }
@@ -80,9 +83,10 @@ func (rp *Reader) Manifest() (m Manifest, err error) {
 }
 
 // Signed returns true if the kit has been signed. It will return an error if
-// the reader has not been initialized or if the Verify method has not been
-// previously called.
+// the reader has not been initialized, if the Verify method has not been
+// previously called, or if there was a problem with the kit signature.
 func (rp *Reader) Signed() (signed bool, err error) {
+	err = rp.sigerr
 	if rp.rdr == nil {
 		err = ErrNotOpen
 	} else if !rp.verified {
@@ -95,6 +99,9 @@ func (rp *Reader) Signed() (signed bool, err error) {
 
 // Verify validates the contents of the kit and prepares the Reader for use.
 // It calls the Verify function to extract the kit's manifest and check the signature.
+// Note that Verify does not return an error if the kit signature is invalid, because
+// a kit should be able to pass basic verification and still fail the sig check;
+// use the Signed function to check that.
 func (rp *Reader) Verify() (err error) {
 	if rp.rdr == nil {
 		err = ErrNotOpen
@@ -104,7 +111,7 @@ func (rp *Reader) Verify() (err error) {
 		return
 	}
 
-	rp.signed, rp.manifest, err = Verify(rp.rdr, rp.verify)
+	rp.signed, rp.manifest, rp.sigerr, err = Verify(rp.rdr, rp.verify)
 	if err == nil {
 		rp.verified = true
 	}
@@ -171,7 +178,9 @@ type SigVerificationFunc func(manifest []byte, sig []byte) error
 
 // Verify reads a kit from the rdr and checks that all items are valid. If sigVerify is not
 // nil, it will be called to verify the manifest signature.
-func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest Manifest, err error) {
+// It returns two errors, one from the signature verification function and
+// one for all other errors.
+func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest Manifest, sigerr error, err error) {
 	fileHashes := map[string][sha256.Size]byte{}
 	var m, s []byte
 	var hdr *tar.Header
@@ -239,12 +248,12 @@ func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest
 	}
 	// Do the signing verification if provided
 	if sigVerify != nil {
-		if err = sigVerify(m, s); err != nil {
-			err = fmt.Errorf("%w - %v", err, ErrInvalidSignature)
-			return
+		if sigerr = sigVerify(m, s); sigerr != nil {
+			sigerr = fmt.Errorf("%w - %v", sigerr, ErrInvalidSignature)
+		} else {
+			signed = true
 		}
 	}
-	signed = true
 
 	return
 }

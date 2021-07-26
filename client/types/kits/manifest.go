@@ -90,6 +90,7 @@ type Manifest struct {
 	ID           string
 	Name         string
 	Desc         string
+	Readme       string
 	Version      uint
 	MinVersion   types.CanonicalVersion
 	MaxVersion   types.CanonicalVersion
