@@ -74,6 +74,7 @@ type KitState struct {
 	ID                   string
 	Name                 string
 	Description          string
+	Readme               string
 	UUID                 string
 	Signed               bool
 	AdminRequired        bool
@@ -124,6 +125,7 @@ type KitBuildRequest struct {
 	ID                string
 	Name              string
 	Description       string
+	Readme            string
 	Version           uint
 	MinVersion        CanonicalVersion  `json:",omitempty"`
 	MaxVersion        CanonicalVersion  `json:",omitempty"`
@@ -178,6 +180,35 @@ func (ps *KitState) UpdateItem(name, tp, id string) error {
 	return errors.New("not found")
 }
 
+func (ps *KitState) AddItem(itm KitItem) error {
+	for i := range ps.Items {
+		if ps.Items[i].Name == itm.Name && ps.Items[i].Type == itm.Type {
+			return errors.New("already exists")
+		}
+	}
+	ps.Items = append(ps.Items, itm)
+	return nil
+}
+
+func (ps *KitState) GetItem(name, tp string) (KitItem, error) {
+	for i := range ps.Items {
+		if ps.Items[i].Name == name && ps.Items[i].Type == tp {
+			return ps.Items[i], nil
+		}
+	}
+	return KitItem{}, errors.New("not found")
+}
+
+func (ps *KitState) RemoveItem(name, tp string) error {
+	for i := range ps.Items {
+		if ps.Items[i].Name == name && ps.Items[i].Type == tp {
+			ps.Items = append(ps.Items[:i], ps.Items[i+1:]...)
+			return nil
+		}
+	}
+	return errors.New("not found")
+}
+
 func (pbr *KitBuildRequest) validateReferencedFile(val, name string) error {
 	guid, err := uuid.Parse(val)
 	if err != nil {
@@ -204,7 +235,6 @@ func (pbr *KitBuildRequest) Validate() error {
 	if !isLetterNumberPeriod(pbr.ID) {
 		return errors.New("Invalid ID")
 	}
-	//TODO Issue #2813 validate the format the ID to be xxx.yyy.zzz...
 	if pbr.Name = strings.TrimSpace(pbr.Name); len(pbr.Name) == 0 {
 		return errors.New("empty Name")
 	}
@@ -228,7 +258,6 @@ func (pbr *KitBuildRequest) Validate() error {
 			return fmt.Errorf("Invalid scheduled search/script ID %d", pbr.ScheduledSearches[i])
 		}
 	}
-	//TODO Issue 2813 validate the macros (there might be more to do here)
 	for i := range pbr.Macros {
 		if pbr.Macros[i] == 0 {
 			return errors.New("Invalid macro ID")
@@ -347,6 +376,7 @@ type KitMetadata struct {
 	UUID          string
 	Version       uint
 	Description   string
+	Readme        string
 	Signed        bool
 	AdminRequired bool
 	MinVersion    CanonicalVersion

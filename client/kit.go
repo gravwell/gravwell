@@ -10,9 +10,11 @@ package client
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -145,6 +147,39 @@ func (c *Client) InstallKit(id string, cfg types.KitConfig) (err error) {
 func (c *Client) DeleteKit(id string) (err error) {
 	err = c.deleteStaticURL(kitIdUrl(id), nil)
 	return
+}
+
+// DeleteKitEx attempts to uninstall a kit. If kit items have been modified,
+// it will return an error and a list of modified items. If nothing has been
+// changed, it returns an empty list and a nil error.
+func (c *Client) DeleteKitEx(id string) ([]types.SourcedKitItem, error) {
+	var resp *http.Response
+	var err error
+	resp, err = c.methodRequestURL(http.MethodDelete, kitIdUrl(id), ``, nil)
+	if err != nil {
+		// this means we weren't able to get a request to the server, return the error
+		return []types.SourcedKitItem{}, err
+	}
+	if resp.StatusCode != http.StatusOK {
+		// There are basically two kinds of errors:
+		// 1. Kit items have been modified; body contains a list of modified items
+		// 2. Other errors (kit doesn't exist, malformed ID, etc.)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return []types.SourcedKitItem{}, err
+		}
+		var ks struct {
+			ModifiedItems []types.SourcedKitItem
+			Error         string
+		}
+		if err := json.Unmarshal(body, &ks); err != nil {
+			// This was a type 2 error: "something else"
+			return []types.SourcedKitItem{}, fmt.Errorf("Bad status %v: %v", resp.Status, string(body))
+		}
+		return ks.ModifiedItems, errors.New(ks.Error)
+	}
+	// Success, the kit should be deleted now.
+	return []types.SourcedKitItem{}, nil
 }
 
 // AdminDeleteKit is an admin-only function which can delete a kit owned by

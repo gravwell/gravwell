@@ -29,7 +29,8 @@ const (
 )
 
 var (
-	nilTime = time.Time{}
+	nilTime             = time.Time{}
+	ErrZeroSubProtocols = errors.New("requested zero subprotocols")
 )
 
 // SubProtoServer is the main routing system for use in handling new clients.
@@ -139,7 +140,7 @@ func NewSubProtoServer(w http.ResponseWriter, r *http.Request, readBufferSize, w
 	if len(subprotos) <= 0 {
 		writeDeadLine(conn, subProtoNegotiationDeadline, ERR_RESP)
 		conn.Close()
-		return nil, err
+		return nil, ErrZeroSubProtocols
 	}
 
 	if err = writeDeadLine(conn, subProtoNegotiationDeadline, ACK_RESP); err != nil {

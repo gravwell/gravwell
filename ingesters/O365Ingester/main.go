@@ -33,7 +33,8 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/o365_ingest.conf`
+	defaultConfigLoc        = `/opt/gravwell/etc/o365_ingest.conf`
+	appName          string = `o365`
 )
 
 var (
@@ -57,6 +58,7 @@ func init() {
 	}
 	validate.ValidateConfig(GetConfig, *configLoc)
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
+	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
 			lg.Fatal("Failed to dup stderr: %v\n", err)

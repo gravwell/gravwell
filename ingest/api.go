@@ -51,6 +51,8 @@ type Logger interface {
 	InfoWithDepth(int, string, ...interface{}) error
 	WarnWithDepth(int, string, ...interface{}) error
 	ErrorWithDepth(int, string, ...interface{}) error
+	Hostname() string
+	Appname() string
 }
 
 // StreamConfiguration is a structure that can be sent back and
