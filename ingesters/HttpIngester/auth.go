@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/dgrijalva/jwt-go"
+	"github.com/golang-jwt/jwt"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 

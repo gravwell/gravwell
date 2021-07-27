@@ -26,6 +26,7 @@ require (
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/flock v0.8.0
+	github.com/golang-jwt/jwt v3.2.1+incompatible // indirect
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542
 	github.com/google/gopacket v1.1.17
