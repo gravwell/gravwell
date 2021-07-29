@@ -163,6 +163,10 @@ func (cdp ChartableDataPoint) MarshalJSON() ([]byte, error) {
 	return json.Marshal(float64(cdp))
 }
 
+func (cdp ChartableDataPoint) IsNaN() bool {
+	return math.IsNaN(float64(cdp))
+}
+
 type chartableDataPoints []ChartableDataPoint
 
 func (cd chartableDataPoints) MarshalJSON() ([]byte, error) {
