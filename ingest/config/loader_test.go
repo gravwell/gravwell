@@ -134,16 +134,16 @@ func TestLoad(t *testing.T) {
 	if pp, ok := v.Preprocessor[`foobar`]; !ok {
 		t.Fatal("Missing foobar preprocessor")
 	} else {
-		if sv, ok := pp.get(`Type`); !ok || sv != `gzip` {
+		if sv, ok := pp.Get(`Type`); !ok || sv != `gzip` {
 			t.Fatal("Bad type")
 		}
-		if sv, ok := pp.get(`Foo`); !ok || sv != `1` {
+		if sv, ok := pp.Get(`Foo`); !ok || sv != `1` {
 			t.Fatal("Bad foo")
 		}
-		if sv, ok := pp.get(`Bar`); !ok || sv != `22` {
+		if sv, ok := pp.Get(`Bar`); !ok || sv != `22` {
 			t.Fatal("Bad bar")
 		}
-		if sv, ok := pp.get(`Name`); !ok || sv != `stuff` {
+		if sv, ok := pp.Get(`Name`); !ok || sv != `stuff` {
 			t.Fatal("Bad name")
 		}
 		//now map it to a struct
@@ -172,10 +172,10 @@ func TestLoad(t *testing.T) {
 	if pp, ok := v.Preprocessor[`barbaz`]; !ok {
 		t.Fatal("missing barbaz preprocessor")
 	} else {
-		if sv, ok := pp.get(`Type`); !ok || sv != `regexrouter` {
+		if sv, ok := pp.Get(`Type`); !ok || sv != `regexrouter` {
 			t.Fatal("Bad type")
 		}
-		if sv, ok := pp.get(`Foo-Bar-Baz`); !ok || sv != `stuff:(.*)` {
+		if sv, ok := pp.Get(`Foo-Bar-Baz`); !ok || sv != `stuff:(.*)` {
 			t.Fatal("Bad foo-bar-baz")
 		}
 		baz := struct {

@@ -116,7 +116,7 @@ func (vc VariableConfig) MapTo(v interface{}) (err error) {
 	return
 }
 
-func (vc VariableConfig) get(name string) (v string, ok bool) {
+func (vc VariableConfig) Get(name string) (v string, ok bool) {
 	var temp *[]string
 	if temp = vc.Vals[vc.Idx(name)]; temp != nil {
 		var x []string
@@ -158,7 +158,7 @@ func (vc VariableConfig) mapStruct(v interface{}) error {
 
 // TODO FIXME - figure out how to deal with slices of a type so that we add to them
 func (vc VariableConfig) setField(name string, v reflect.Value) (err error) {
-	strv, ok := vc.get(nameMapper(name))
+	strv, ok := vc.Get(nameMapper(name))
 	if !ok {
 		return
 	}
