@@ -129,7 +129,25 @@ func (vc VariableConfig) Get(name string) (v string, ok bool) {
 	return
 }
 
+func (vc VariableConfig) VariableMap() (mp map[string][]string, err error) {
+	if vc.Vals == nil {
+		err = ErrBadMap
+	} else {
+		names := vc.Names()
+		mp = make(map[string][]string, len(names))
+		for _, name := range names {
+			if v, ok := vc.getSlice(name); ok {
+				mp[name] = v
+			}
+		}
+	}
+	return
+}
+
 func (vc VariableConfig) getSlice(name string) (v []string, ok bool) {
+	if vc.Vals == nil {
+		return
+	}
 	var temp *[]string
 	if temp = vc.Vals[vc.Idx(name)]; temp != nil {
 		v = *temp
