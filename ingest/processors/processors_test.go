@@ -14,7 +14,9 @@ import (
 	"context"
 	"errors"
 	"io"
+	"log"
 	"net"
+	"os"
 	"sync"
 	"testing"
 
@@ -28,7 +30,17 @@ const (
 
 var (
 	benchmarkVal = []byte(`{"something": "a long string with stuff an things", "foo": 99, "baz": {"foobar": 1234567, "bazbar": 99.123456}}`)
+	goPath       string
 )
+
+func TestMain(m *testing.M) {
+	var ok bool
+	if goPath, ok = os.LookupEnv(`GOPATH`); !ok {
+		log.Fatalf("Failed to resolve GOPATH for test files")
+	}
+	r := m.Run()
+	os.Exit(r)
+}
 
 // TestCheckProcessors just ensures we actually clean and trigger properly on preprocessor IDs
 func TestCheckProcessors(t *testing.T) {
@@ -340,7 +352,7 @@ func TestParallel(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			if err := ps.Process(&ent); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			wg.Done()
 		}()

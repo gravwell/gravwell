@@ -36,6 +36,8 @@ require (
 	github.com/gravwell/gcfg v1.2.8
 	github.com/gravwell/ipfix v1.4.3
 	github.com/h2non/filetype v1.0.10
+	github.com/hashicorp/go-hclog v0.16.2 // indirect
+	github.com/hashicorp/go-plugin v1.4.2 // indirect
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/jcmturner/gofork v1.0.0 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901

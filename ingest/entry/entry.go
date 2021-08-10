@@ -16,9 +16,7 @@ import (
 )
 
 const (
-	/* 34 = 4 + 8 + 8 + 2 + 16
-
-	 */
+	/* 34 = 4 + 8 + 8 + 2 + 16 */
 	ENTRY_HEADER_SIZE int      = 34
 	SRC_SIZE          int      = 16
 	IPV4_SRC_SIZE     int      = 4
