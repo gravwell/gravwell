@@ -55,6 +55,8 @@ func TestPluginLoadError(t *testing.T) {
 		`Upper`: `true`,
 		`Lower`: `true`,
 		`Error`: `testing`,
+		//`Verbose`: `true`,
+		//`Debug`: `true`,
 	}
 	// resolve the testPluginPath for our hashicorp plugin system
 	testPluginPath = getPluginPath(basicTest)
@@ -72,10 +74,12 @@ func TestPluginLoadError(t *testing.T) {
 	}
 }
 
-func TestPluginProcess(t *testing.T) {
+func TestPluginFlush(t *testing.T) {
 	vars := map[string]string{
 		`Upper`: `true`,
 		`Lower`: `true`,
+		//`Verbose`: `true`,
+		//`Debug`: `true`,
 	}
 	// resolve the testPluginPath for our hashicorp plugin system
 	testPluginPath = getPluginPath(basicTest)

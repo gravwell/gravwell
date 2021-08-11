@@ -73,6 +73,7 @@ func (t *TestPlugin) Process(ents []*entry.Entry) (ret []*entry.Entry, err error
 }
 
 func (t *TestPlugin) Flush() []*entry.Entry {
+	t.log("flushing")
 	return nil
 }
 

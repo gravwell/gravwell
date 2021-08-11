@@ -61,7 +61,7 @@ type PluginConfig struct {
 
 type PluginResponse struct {
 	Ents  []*entry.Entry
-	Error error
+	Error string
 }
 
 // HandshakeConfig to negotiate the plugin child, this is NOT a security feature
@@ -78,7 +78,6 @@ func PluginLoadConfig(vc *config.VariableConfig) (pc PluginConfig, err error) {
 	if err = vc.MapTo(&pc); err != nil {
 		return
 	} else if pc.Plugin_Path == `` {
-		fmt.Printf("%+v\n", vc)
 		err = ErrMissingPluginPath
 		return
 	}
@@ -142,7 +141,6 @@ func newClient(pc PluginConfig) (c *plugin.Client, cp plugin.ClientProtocol, p P
 		c = nil
 		p = nil
 		err = fmt.Errorf("Plugin %s does not implement the Plugin interface", pc.Plugin_Path)
-		fmt.Printf("%T %+v\n", raw, raw)
 	}
 	return
 
@@ -186,7 +184,6 @@ func (p *IngesterProcessorPlugin) Client(b *plugin.MuxBroker, c *rpc.Client) (in
 // implements the plugin interface.  Basically the actual plugin part.
 func (p *IngesterProcessorPlugin) Server(*plugin.MuxBroker) (interface{}, error) {
 	if p.impl == nil {
-		fmt.Printf("Server %s\n%+v\n", os.Args[0], p)
 		return nil, ErrNotReady
 	}
 	return &procPluginServer{
@@ -258,7 +255,7 @@ func (ppc *procPluginClient) Process(ents []*entry.Entry) (ret []*entry.Entry, e
 	if ppc == nil || ppc.c == nil {
 		err = ErrNotReady
 	} else if err = ppc.c.Call("Plugin.Process", ents, &resp); err == nil {
-		ret, err = resp.Ents, resp.Error
+		ret, err = resp.Ents, errors.New(resp.Error)
 	}
 	return
 }
@@ -268,7 +265,7 @@ func (ppc *procPluginClient) Flush() (ents []*entry.Entry) {
 		return
 	}
 	var resp PluginResponse
-	if err := ppc.c.Call("Plugin.Flush", nil, &resp); err == nil && resp.Error == nil {
+	if err := ppc.c.Call("Plugin.Flush", 0, &resp); err == nil && len(resp.Error) == 0 {
 		ents = resp.Ents
 	}
 	return
@@ -280,7 +277,9 @@ func (ppc *procPluginClient) LoadConfig(vars map[string][]string) (err error) {
 		err = ErrNotReady
 	} else {
 		if err = ppc.c.Call("Plugin.LoadConfig", vars, &resp); err == nil {
-			err = resp.Error
+			if len(resp.Error) > 0 {
+				err = errors.New(resp.Error)
+			}
 		}
 	}
 	return
@@ -300,12 +299,12 @@ type procPluginServer struct {
 	impl Plugin
 }
 
-func (pps *procPluginServer) Flush(_ interface{}, resp *PluginResponse) (err error) {
+func (pps *procPluginServer) Flush(_ int, resp *PluginResponse) (err error) {
 	if resp == nil {
 		return ErrInvalidParameters //what else do we do?
 	} else if pps.impl == nil {
-		resp.Error = ErrNotReady
 		err = ErrNotReady
+		resp.Error = err.Error()
 	} else {
 		resp.Ents = pps.impl.Flush()
 	}
@@ -316,10 +315,13 @@ func (pps *procPluginServer) Process(ents []*entry.Entry, resp *PluginResponse) 
 	if resp == nil {
 		err = ErrInvalidParameters
 	} else if pps.impl == nil {
-		resp.Error = ErrNotReady
 		err = ErrNotReady
+		resp.Error = err.Error()
 	} else {
-		resp.Ents, resp.Error = pps.impl.Process(ents)
+		if resp.Ents, err = pps.impl.Process(ents); err != nil {
+			resp.Ents = nil
+			resp.Error = err.Error()
+		}
 	}
 	return
 }
@@ -328,10 +330,12 @@ func (pps *procPluginServer) LoadConfig(vars map[string][]string, resp *PluginRe
 	if resp == nil {
 		err = ErrInvalidParameters
 	} else if pps.impl == nil {
-		resp.Error = ErrNotReady
 		err = ErrNotReady
+		resp.Error = err.Error()
 	} else {
-		resp.Error = pps.impl.LoadConfig(vars)
+		if lerr := pps.impl.LoadConfig(vars); lerr != nil {
+			resp.Error = lerr.Error()
+		}
 	}
 	return
 }
