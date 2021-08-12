@@ -235,6 +235,9 @@ type GUISettings struct {
 	DisableMapTileProxy   bool
 	MapTileUrl            string
 
+	// If true, the UI shouldn't display any notifications about new features
+	DisableFeaturePopups bool
+
 	ServerTime           time.Time
 	ServerTimezone       string
 	ServerTimezoneOffset int
