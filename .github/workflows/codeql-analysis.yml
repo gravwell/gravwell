@@ -63,9 +63,9 @@ jobs:
     #    and modify them (or add more) to build your code if your project
     #    uses a compiled language
 
-    #- run: |
-    #   make bootstrap
-    #   make release
+    - run: |
+       sudo apt-get update
+       sudo apt-get install -y libpcap-dev
 
     - name: Perform CodeQL Analysis
       uses: github/codeql-action/analyze@v1
