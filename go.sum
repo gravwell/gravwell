@@ -97,6 +97,8 @@ github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3 h1:f0irndm+5FeJc
 github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3/go.mod h1:FQfGFirjPYyn2Y2iIEaAxwT6FY5pigmZVkIGhL1K2kI=
 github.com/floren/jsonparser v0.0.0-20200807143944-7168565e7e04 h1:c2d/uMuGEKuujpo8adfjGL0aYEGBQzRVzi7Ux3qbBGs=
 github.com/floren/jsonparser v0.0.0-20200807143944-7168565e7e04/go.mod h1:tgcrVJ81GPSF0mz+0nu1Xaz0fazGPrmmJfJtxjbHhUQ=
+github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb h1:XRsoLQTeRindbOuSflYX5jAAsTjqhy09km3djCTiycQ=
+github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb/go.mod h1:6RYKKt7H4d4+iWqouImQ9R2FZql3VbhNgx27UK13J/0=
 github.com/floren/o365 v0.0.1 h1:KBGcVt63OSnKwW1KlI+M5IRV7YdQpWsD6M/7Xp1+BOM=
 github.com/floren/o365 v0.0.1/go.mod h1:+1TeJc/IBX0gGAfBf1ZHNJboVRZDNKor7sizUwEoEuM=
 github.com/fortytw2/leaktest v1.3.0 h1:u8491cBMTQ8ft8aeV+adlcytMZylmA5nnwwkRZjI8vw=
@@ -115,6 +117,8 @@ github.com/gobwas/glob v0.2.3 h1:A4xDbljILXROh+kObIiy5kIaPYD8e96x1tgBhUI5J+Y=
 github.com/gobwas/glob v0.2.3/go.mod h1:d3Ez4x06l9bZtSvzIay5+Yzi0fmZzPgnTbPcKjJAkT8=
 github.com/gofrs/flock v0.8.0 h1:MSdYClljsF3PbENUUEx85nkWfJSGfzYI9yEBZOJz6CY=
 github.com/gofrs/flock v0.8.0/go.mod h1:F1TvTiK9OcQqauNUHlbJvyl9Qa1QvF/gOUDKA14jxHU=
+github.com/golang-jwt/jwt v3.2.1+incompatible h1:73Z+4BJcrTC+KczS6WvTPvRGOp1WmfEP4Q1lOd9Z/+c=
+github.com/golang-jwt/jwt v3.2.1+incompatible/go.mod h1:8pz2t5EyA70fFQQSrl6XZXzqecmYZeUEB8OUGHkxJ+I=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b h1:VKtxabqXZkF25pY9ekfRL6a582T4P37/31XEstQ5p58=
 github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b/go.mod h1:SBH7ygxi8pfUlaOkMMuAQtPIUF8ecWP5IEl/CR7VP2Q=
 github.com/golang/groupcache v0.0.0-20190702054246-869f871628b6 h1:ZgQEtGgCBiWRM39fZuwSd1LwSqqSW0hOdXCYYDX0R3I=

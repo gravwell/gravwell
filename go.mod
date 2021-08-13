@@ -26,6 +26,7 @@ require (
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/flock v0.8.0
+	github.com/golang-jwt/jwt v3.2.1+incompatible // indirect
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-write v0.0.0-20181107114627-56629a6b2542
 	github.com/google/gopacket v1.1.17
@@ -66,7 +67,7 @@ require (
 )
 
 // Leave this until https://github.com/buger/jsonparser/pull/180 is merged
-replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20200807143944-7168565e7e04
+replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb
 
 replace github.com/open-networks/go-msgraph => github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3
 
