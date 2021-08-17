@@ -21,7 +21,7 @@ const (
 	//MAJOR API VERSIONS should always be compatible, there just may be
 	//additional features
 	API_VERSION_MAJOR uint32 = 0
-	API_VERSION_MINOR uint32 = 1
+	API_VERSION_MINOR uint32 = 2
 )
 
 // Helpers for the marshaling functions
@@ -47,6 +47,10 @@ type VersionInfo struct {
 type ApiInfo struct {
 	Major uint32
 	Minor uint32
+}
+
+func (a ApiInfo) String() string {
+	return fmt.Sprintf("%d.%d", a.Major, a.Minor)
 }
 
 type BuildInfo struct {
