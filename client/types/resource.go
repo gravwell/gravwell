@@ -98,3 +98,9 @@ func (ru *ResourceUpdate) Stream() io.Reader {
 	}
 	return bytes.NewBuffer(ru.Data)
 }
+
+func (ru *ResourceUpdate) Close() {
+	if ru != nil && ru.Reader != nil {
+		ru.Reader.Close()
+	}
+}
