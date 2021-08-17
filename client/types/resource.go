@@ -9,7 +9,9 @@
 package types
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"reflect"
 	"time"
 )
@@ -33,6 +35,7 @@ type ResourceMetadata struct {
 type ResourceUpdate struct {
 	Metadata ResourceMetadata
 	Data     []byte
+	Reader   io.ReadCloser
 }
 
 // This is used for client->server resource sync operations, basically "I am a
@@ -76,4 +79,22 @@ func (m1 ResourceMetadata) Equal(m2 ResourceMetadata) bool {
 
 func (m ResourceMetadata) String() string {
 	return fmt.Sprintf("%s:%d", m.GUID, m.Domain)
+}
+
+func (ru *ResourceUpdate) Bytes() (b []byte) {
+	if ru.Data != nil {
+		b = ru.Data
+	} else {
+		bb := bytes.NewBuffer(nil)
+		io.Copy(bb, ru.Reader)
+		b = bb.Bytes()
+	}
+	return
+}
+
+func (ru *ResourceUpdate) Stream() io.Reader {
+	if ru.Reader != nil {
+		return ru.Reader
+	}
+	return bytes.NewBuffer(ru.Data)
 }
