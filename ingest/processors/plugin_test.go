@@ -24,18 +24,17 @@ const (
 	basicTest      = `test/test`
 )
 
-var (
-	testPluginPath string
-)
-
 func TestPluginLoadConfig(t *testing.T) {
 	vars := map[string]string{
 		`Upper`: `true`,
 	}
 	// resolve the testPluginPath for our hashicorp plugin system
-	testPluginPath = getPluginPath(basicTest)
+	testPluginPath := getPluginPath(basicTest)
+	if !pluginAvailable(testPluginPath) {
+		return
+	}
 
-	vc, err := loadConfig(getPluginPath(basicTest), vars)
+	vc, err := loadConfig(testPluginPath, vars)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,9 +58,12 @@ func TestPluginLoadError(t *testing.T) {
 		//`Debug`: `true`,
 	}
 	// resolve the testPluginPath for our hashicorp plugin system
-	testPluginPath = getPluginPath(basicTest)
+	testPluginPath := getPluginPath(basicTest)
+	if !pluginAvailable(testPluginPath) {
+		return
+	}
 
-	vc, err := loadConfig(getPluginPath(basicTest), vars)
+	vc, err := loadConfig(testPluginPath, vars)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -82,9 +84,12 @@ func TestPluginFlush(t *testing.T) {
 		//`Debug`: `true`,
 	}
 	// resolve the testPluginPath for our hashicorp plugin system
-	testPluginPath = getPluginPath(basicTest)
+	testPluginPath := getPluginPath(basicTest)
+	if !pluginAvailable(testPluginPath) {
+		return
+	}
 
-	vc, err := loadConfig(getPluginPath(basicTest), vars)
+	vc, err := loadConfig(testPluginPath, vars)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -107,7 +112,6 @@ func TestPluginFlush(t *testing.T) {
 	if err := p.Close(); err != nil {
 		t.Fatal(err)
 	}
-
 }
 
 const skel = `
@@ -153,5 +157,18 @@ func loadConfig(pth string, vars map[string]string) (vc *config.VariableConfig, 
 		err = errors.New("Variable config is empty")
 	}
 
+	return
+}
+
+var pluginMissHit bool
+
+func pluginAvailable(pth string) (r bool) {
+	if fi, err := os.Stat(pth); err == nil && fi.Mode().IsRegular() {
+		r = true
+	}
+	if !r && !pluginMissHit {
+		fmt.Println(pth, "is not available, did you build the test plugin")
+		pluginMissHit = true
+	}
 	return
 }
