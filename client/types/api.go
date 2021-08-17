@@ -49,10 +49,6 @@ type ApiInfo struct {
 	Minor uint32
 }
 
-func (a ApiInfo) String() string {
-	return fmt.Sprintf("%d.%d", a.Major, a.Minor)
-}
-
 type BuildInfo struct {
 	CanonicalVersion
 	BuildDate  time.Time `json:",omitempty"`
