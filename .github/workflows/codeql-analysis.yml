@@ -26,12 +26,14 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GOOS: linux
-      # i am silly and ignorant
-      CODEQL_EXTRACTOR_GO_BUILD_COMMAND: "ls"
     permissions:
       actions: read
       contents: read
       security-events: write
+    paths-ignore:
+      - generators/windowsEventGenerator
+      - winevent
+      - ingesters/winevents
 
     strategy:
       fail-fast: false
