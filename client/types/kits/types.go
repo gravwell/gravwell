@@ -81,7 +81,7 @@ func PackResourceUpdate(ru types.ResourceUpdate) (p PackedResource) {
 		Description:   ru.Metadata.Description,
 		Size:          ru.Metadata.Size,
 		Hash:          ru.Metadata.Hash,
-		Data:          ru.Data,
+		Data:          ru.Bytes(),
 	}
 	if p.VersionNumber == 0 {
 		p.VersionNumber = 1
