@@ -37,11 +37,12 @@ func (c *Client) GetFlowList() ([]types.ScheduledSearch, error) {
 // - groups: an optional array of groups which should be able to access this object.
 func (c *Client) CreateFlow(name, description, schedule, flow string, groups []int32) (int32, error) {
 	ss := types.ScheduledSearch{
-		Groups:      groups,
-		Name:        name,
-		Description: description,
-		Schedule:    schedule,
-		Flow:        flow,
+		Groups:        groups,
+		Name:          name,
+		Description:   description,
+		Schedule:      schedule,
+		ScheduledType: types.ScheduledTypeFlow,
+		Flow:          flow,
 	}
 	var resp int32
 	if err := c.postStaticURL(flowUrl(), ss, &resp); err != nil {
