@@ -330,6 +330,7 @@ func (c *Client) AttachSearch(id string) (s Search, err error) {
 		return s, err
 	}
 	s.SearchOutput = rconn
+	s.RenderMod = resp.RendererMod
 	return s, nil
 }
 
