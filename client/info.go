@@ -138,7 +138,8 @@ func (c *Client) AddSelfTargetedNotification(notifType uint32, msg, link string,
 	return c.methodStaticPushURL(http.MethodPost, notificationsSelfTargetedUrl(), n, nil)
 }
 
-// CheckApiVersion returns the REST API version of the webserver.
+// CheckApiVersion assert the REST API version of the webserver is compatible
+// with the client.
 func (c *Client) CheckApiVersion() (string, error) {
 	var version types.VersionInfo
 	if err := c.getStaticURL(API_VERSION_URL, &version); err != nil {
@@ -148,6 +149,13 @@ func (c *Client) CheckApiVersion() (string, error) {
 		return err.Error(), nil
 	}
 	return "", nil
+}
+
+// GetApiVersion returns the REST API version of the webserver.
+func (c *Client) GetApiVersion() (types.ApiInfo, error) {
+	var version types.VersionInfo
+	err := c.getStaticURL(API_VERSION_URL, &version)
+	return version.API, err
 }
 
 func (c *Client) getLogLevelInfo() (types.LoggingLevels, error) {

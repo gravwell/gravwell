@@ -97,6 +97,13 @@ const (
 	SCHEDULED_SEARCH_USER_URL        = "/api/scheduledsearches/user/%d"
 	SCHEDULED_SEARCH_CHECKIN_URL     = "/api/scheduledsearches/checkin"
 	SCHEDULED_SEARCH_PARSE           = "/api/scheduledsearches/parse"
+	FLOW_URL                         = "/api/flows"
+	FLOW_ID_URL                      = "/api/flows/%d"
+	FLOW_RESULTS_ID_URL              = "/api/flows/%d/results"
+	FLOW_ERROR_ID_URL                = "/api/flows/%d/error"
+	FLOW_STATE_ID_URL                = "/api/flows/%d/state"
+	FLOW_USER_URL                    = "/api/flows/user/%d"
+	FLOW_PARSE_URL                   = "/api/flows/parse"
 	MAIL_URL                         = "/api/mail"
 	MAIL_CONFIGURE_URL               = `/api/mail/configure`
 	JSON_INGEST_URL                  = "/api/ingest/json"
@@ -360,6 +367,33 @@ func scheduledSearchUserUrl(uid int32) string {
 
 func scheduledSearchCheckinUrl() string {
 	return SCHEDULED_SEARCH_CHECKIN_URL
+}
+func flowUrl() string {
+	return FLOW_URL
+}
+
+func flowParseUrl() string {
+	return FLOW_PARSE_URL
+}
+
+func flowIdUrl(id int32) string {
+	return fmt.Sprintf(FLOW_ID_URL, id)
+}
+
+func flowResultsIdUrl(id int32) string {
+	return fmt.Sprintf(FLOW_RESULTS_ID_URL, id)
+}
+
+func flowErrorIdUrl(id int32) string {
+	return fmt.Sprintf(FLOW_ERROR_ID_URL, id)
+}
+
+func flowStateIdUrl(id int32) string {
+	return fmt.Sprintf(FLOW_STATE_ID_URL, id)
+}
+
+func flowUserUrl(uid int32) string {
+	return fmt.Sprintf(FLOW_USER_URL, uid)
 }
 
 func loggingUrl() string {
