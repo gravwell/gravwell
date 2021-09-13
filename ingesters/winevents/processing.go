@@ -59,11 +59,12 @@ type mainService struct {
 	ctx          context.Context
 	lmt          int64
 
-	bmk     *winevent.BookmarkHandler
-	evtSrcs []eventSrc
-	igst    *ingest.IngestMuxer
-	tg      *timegrinder.TimeGrinder
-	pp      processors.ProcessorConfig
+	bmk            *winevent.BookmarkHandler
+	evtSrcs        []eventSrc
+	igst           *ingest.IngestMuxer
+	tg             *timegrinder.TimeGrinder
+	pp             processors.ProcessorConfig
+	shutdownCalled bool
 }
 
 func NewService(cfg *winevent.CfgType) (*mainService, error) {
@@ -119,6 +120,9 @@ func (m *mainService) Close() (err error) {
 }
 
 func (m *mainService) shutdown() error {
+	if m.shutdownCalled {
+		return nil // already shtudown
+	}
 	var rerr error
 	//close any service handles that happen to be open
 	for _, e := range m.evtSrcs {
@@ -159,6 +163,7 @@ func (m *mainService) shutdown() error {
 			}
 		}
 	}
+	m.shutdownCalled = true
 	return rerr
 }
 
@@ -210,8 +215,14 @@ loop:
 	changes <- svc.Status{State: svc.StopPending}
 	infoout("Service transitioned to StopPending, waiting for consumer\n")
 	waitTimeout(&wg, cancel, exitTimeout) //wait with a timeout
+
+	//ok, shutdown the ingester
+	if err := m.shutdown(); err != nil {
+		errorout("Service shutdown error: %v\n", err)
+	} else {
+		infoout("Service transitioned to Stopped\n")
+	}
 	changes <- svc.Status{State: svc.Stopped}
-	infoout("Service transitioned to Stopped\n")
 	return
 }
 
