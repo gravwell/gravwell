@@ -18,6 +18,10 @@ import (
 
 const (
 	ScriptVersionAnko int = 0 // default is anko
+
+	ScheduledTypeSearch string = "search"
+	ScheduledTypeScript string = "script"
+	ScheduledTypeFlow   string = "flow"
 )
 
 type ScriptDeployConfig struct {
@@ -44,10 +48,19 @@ type ScheduledSearch struct {
 	DebugMode   bool // set this to true to enable debug mode
 	Synced      bool
 
+	// This sets what kind of scheduled "thing" it is: search, script, or flow
+	ScheduledType string
+
+	// Fields for scheduled searches
 	SearchString       string // The actual search to run
 	Duration           int64  // How many seconds back to search, MUST BE NEGATIVE
 	SearchSinceLastRun bool   // If set, ignore Duration and run from last run time to now.
-	Script             string // If set, execute the contents rather than running SearchString
+
+	// For scheduled scripts
+	Script string // If set, execute the contents rather than running SearchString
+
+	// For scheduled flows
+	Flow string
 
 	// These fields are updated by the search agent after it runs a search
 	PersistentMaps  map[string]map[string]interface{}
@@ -70,7 +83,21 @@ type ScheduledSearchParseResponse struct {
 	ErrorColumn int
 }
 
+type FlowParseRequest struct {
+	Flow string
+}
+
+type FlowParseResponse struct {
+	OK             bool
+	Error          string `json:",omitempty"`
+	OutputPayloads map[int]map[string]interface{}
+}
+
 func (ss *ScheduledSearch) TypeName() string {
+	// if the type is set, use that
+	if ss.ScheduledType != "" {
+		return ss.ScheduledType
+	}
 	if len(ss.Script) > 0 {
 		return "script"
 	}
