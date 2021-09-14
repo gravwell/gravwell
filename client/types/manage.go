@@ -35,6 +35,7 @@ type ShardInfo struct {
 	Entries     uint64
 	Size        uint64
 	RemoteState ReplicationState `json:",omitempty"`
+	Cold        bool             //true if the shard is in the code storage
 }
 
 type WellInfo struct {
@@ -43,6 +44,8 @@ type WellInfo struct {
 	Shards      []ShardInfo
 	Accelerator string `json:",omitempty"`
 	Engine      string `json:",omitempty"`
+	Path        string `json:",omitempty"` //hot storage location
+	ColdPath    string `json:",omitempty"` //cold storage location
 }
 
 func (wi *WellInfo) sort() {
