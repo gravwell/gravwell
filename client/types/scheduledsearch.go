@@ -18,10 +18,14 @@ import (
 
 const (
 	ScriptVersionAnko int = 0 // default is anko
+	ScriptVersionGo   int = 1 // new hotness is go
 
 	ScheduledTypeSearch string = "search"
 	ScheduledTypeScript string = "script"
 	ScheduledTypeFlow   string = "flow"
+
+	ScheduledScriptTypeAnko string = `anko`
+	ScheduledScriptTypeGo   string = `go`
 )
 
 type ScriptDeployConfig struct {
@@ -57,7 +61,8 @@ type ScheduledSearch struct {
 	SearchSinceLastRun bool   // If set, ignore Duration and run from last run time to now.
 
 	// For scheduled scripts
-	Script string // If set, execute the contents rather than running SearchString
+	Script        string // If set, execute the contents rather than running SearchString
+	ScriptVersion int    // what script type is this: anko, go
 
 	// For scheduled flows
 	Flow string
