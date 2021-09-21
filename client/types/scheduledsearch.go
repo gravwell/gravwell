@@ -33,6 +33,10 @@ type ScriptDeployConfig struct {
 	RunImmediately bool
 }
 
+var (
+	ErrUnknownScriptVersion = errors.New("Unknown script verison")
+)
+
 // ScheduledSearch represents a scheduled search, including rules, description,
 // etc.
 type ScheduledSearch struct {

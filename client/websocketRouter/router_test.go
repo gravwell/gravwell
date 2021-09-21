@@ -220,7 +220,7 @@ func testGoodClientTalking(t *testing.T, subIDs []string, to time.Duration) {
 
 	go func() {
 		if err := spc.Run(); err != nil {
-			t.Fatal(err)
+			t.Error(err)
 		}
 	}()
 	//there is a race condition here where we get up and start trying to write before
