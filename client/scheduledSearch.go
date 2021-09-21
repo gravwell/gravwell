@@ -72,13 +72,19 @@ func (c *Client) CreateScheduledSearch(name, description, schedule, searchquery 
 // - script: a valid anko script.
 //
 // - groups: an optional array of groups which should be able to access this object.
-func (c *Client) CreateScheduledScript(name, description, schedule, script string, groups []int32) (int32, error) {
+//
+// - version: the type of scheduled script (anko, go)
+func (c *Client) CreateScheduledScript(name, description, schedule, script string, version int, groups []int32) (int32, error) {
+	if err := checkScriptVersion(version); err != nil {
+		return -1, err
+	}
 	ss := types.ScheduledSearch{
-		Groups:      groups,
-		Name:        name,
-		Description: description,
-		Schedule:    schedule,
-		Script:      script,
+		Groups:        groups,
+		Name:          name,
+		Description:   description,
+		Schedule:      schedule,
+		Script:        script,
+		ScriptVersion: version,
 	}
 	var resp int32
 	if err := c.postStaticURL(scheduledSearchUrl(), ss, &resp); err != nil {
@@ -163,5 +169,15 @@ func (c *Client) ParseScheduledScript(data string, version int) (line, column in
 	}
 	line, column = resp.ErrorLine, resp.ErrorColumn
 	err = errors.New(resp.Error)
+	return
+}
+
+func checkScriptVersion(v int) (err error) {
+	switch v {
+	case types.ScriptVersionAnko:
+	case types.ScriptVersionGo:
+	default:
+		err = types.ErrUnknownScriptVersion
+	}
 	return
 }
