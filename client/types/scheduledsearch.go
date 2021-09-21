@@ -247,6 +247,16 @@ func (sl ScriptLang) String() string {
 	return `UNKNOWN`
 }
 
+func (sl ScriptLang) Valid() (err error) {
+	switch sl {
+	case ScriptAnko:
+	case ScriptGo:
+	default:
+		err = ErrUnknownScriptLanguage
+	}
+	return
+}
+
 func ParseScriptLang(v string) (l ScriptLang, err error) {
 	switch strings.TrimSpace(strings.ToLower(v)) {
 	case scheduledScriptAnko:
