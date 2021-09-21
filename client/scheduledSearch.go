@@ -150,6 +150,9 @@ func (c *Client) ClearScheduledSearchState(id int32) error {
 // if there is no error line and column will have a return value of 0
 // if there is an error, err will be populated and potentially a line and column if the error was in the script
 func (c *Client) ParseScheduledScript(data string, lang types.ScriptLang) (line, column int, err error) {
+	if err = lang.Valid(); err != nil {
+		return
+	}
 	var resp types.ScheduledSearchParseResponse
 	req := types.ScheduledSearchParseRequest{
 		Version: int(lang),
