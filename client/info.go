@@ -91,7 +91,7 @@ func (c *Client) getMyInfo() (types.UserDetails, error) {
 
 // MyNotificationCount returns the number of notifications for the current user.
 func (c *Client) MyNotificationCount() (int, error) {
-	n, err := c.getNotifications(0, false)
+	n, err := c.getNotifications(time.Time{}, false)
 	if err != nil {
 		return -1, err
 	}
@@ -100,7 +100,7 @@ func (c *Client) MyNotificationCount() (int, error) {
 
 // MyNewNotificationCount returns the number of new notifications since the last read notification.
 func (c *Client) MyNewNotificationCount() (int, error) {
-	n, err := c.getNotifications(c.sessionData.LastNotificationID, false)
+	n, err := c.getNotifications(c.sessionData.LastNotificationTime, false)
 	if err != nil {
 		return -1, err
 	}
@@ -110,23 +110,25 @@ func (c *Client) MyNewNotificationCount() (int, error) {
 // MyNotifications returns all notifications for the current user.
 // Calling MyNotifications updates the last-read notification.
 func (c *Client) MyNotifications() (types.NotificationSet, error) {
-	return c.getNotifications(0, true)
+	return c.getNotifications(time.Time{}, true)
 }
 
 // MyNewNotifications returns notifications which have not been previously read.
 // Calling MyNewNotifications updates the last-read notification.
 func (c *Client) MyNewNotifications() (types.NotificationSet, error) {
-	return c.getNotifications(c.sessionData.LastNotificationID, true)
+	return c.getNotifications(c.sessionData.LastNotificationTime, true)
 }
 
-func (c *Client) getNotifications(id uint64, update bool) (n types.NotificationSet, err error) {
-	if err = c.getStaticURL(notificationsUrl(id), &n); err == nil && update {
-		for k := range n {
-			if k > c.sessionData.LastNotificationID {
-				c.sessionData.LastNotificationID = k
+func (c *Client) getNotifications(after time.Time, update bool) (n types.NotificationSet, err error) {
+	c.qm.set("after", after.Format("2006-01-02T15:04:05.999999999Z07"))
+	if err = c.getStaticURL(notificationsUrl(0), &n); err == nil && update {
+		for _, v := range n {
+			if v.Sent.After(c.sessionData.LastNotificationTime) {
+				c.sessionData.LastNotificationTime = v.Sent
 			}
 		}
 	}
+	c.qm.remove("after")
 	return
 }
 
