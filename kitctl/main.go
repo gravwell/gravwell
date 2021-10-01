@@ -42,10 +42,13 @@ func main() {
 	args := flag.Args()
 	if len(args) == 0 {
 		log.Printf("Must specify a command.")
+		help([]string{})
 		return
 	}
 
 	switch args[0] {
+	case "help":
+		help(args[1:])
 	case "unpack":
 		// Unpack the given kit into the current directory
 		unpackKit(args[1:])
@@ -74,8 +77,29 @@ func main() {
 		// Manage config macros
 		configMacro(args[1:])
 	default:
-		log.Fatalf("Invalid command %v.", args[0])
+		log.Fatalf("Invalid command %v. Try kitctl help", args[0])
 	}
+}
+
+func help(args []string) {
+	fmt.Printf("Usage: kitctl [flags] <cmd> [arguments]\n\n")
+	fmt.Println("kitctl provides tools for working with a Gravwell kit managed inside a git repository. It unpacks a kit archive file into discrete files which can be more easily modified. Once modifications are done, it can re-pack the contents into an archive file again.\n")
+	fmt.Printf("Commands:\n")
+	fmt.Println("	unpack <input file>: unpack a kit into the current directory")
+	fmt.Println("	pack <output file>: pack the current directory into a kit file")
+	fmt.Println("	import <input file>: include the contents of another kit into the already-unpacked kit in the current directory")
+	fmt.Println("	info: prints information about the kit in the current directory")
+	fmt.Println("	init: starts a new kit from scratch in the current directory")
+	fmt.Println("	dep list: list the current kit's dependencies")
+	fmt.Println("	dep add: add another dependency to the current kit")
+	fmt.Println("	dep del: delete a dependency from the current kit")
+	fmt.Println("	configmacro list: list the kit's config macros")
+	fmt.Println("	configmacro show: show info about a particular config macro")
+	fmt.Println("	configmacro add: add a new config macro to the kit")
+	fmt.Println("	configmacro del: delete a config macro from the kit")
+	fmt.Println("")
+	fmt.Println("Flags:")
+	flag.PrintDefaults()
 }
 
 // the "info" command just prints out some basic details about the kit for now.
