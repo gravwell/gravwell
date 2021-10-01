@@ -52,6 +52,9 @@ func main() {
 	case "pack":
 		// Pack the current directory into a kit
 		packKit(args[1:])
+	case "import":
+		// Merge in the contents of another kit file
+		importKit(args[1:])
 	case "info":
 		// Information about the kit in the current directory
 		kitInfo(args[1:])
@@ -488,6 +491,93 @@ func packKit(args []string) {
 	}
 }
 
+func importKit(args []string) {
+	// Figure out where we are
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Couldn't figure out working directory: %v", err)
+	}
+
+	// Check args
+	if len(args) != 1 {
+		fmt.Printf("Usage: kitctl import <kitfile>\n")
+		return
+	}
+
+	// Get the original manifest
+	mf, err := readManifest()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Open the new file
+	fi, err := utils.OpenFileReader(args[0])
+	if err != nil {
+		log.Fatalf("Could not open file %v: %v", args[0], err)
+	}
+
+	// Get reader
+	rdr, err := kits.NewReader(fi, nil)
+	if err != nil {
+		log.Fatalf("Could not get reader for kit file: %v", err)
+	}
+	if err := rdr.Verify(); err != nil {
+		log.Fatalf("Could not verify kit: %v", err)
+	}
+
+	// Copy out the MANIFEST file
+	newmf, err := rdr.Manifest()
+	if err != nil {
+		log.Fatalf("Failed to read manifest: %v", err)
+	}
+
+	// Read out the files from the incoming kit and put them on disk
+	// We do this first so the files are here, even if the manifest merging fails
+	if err := unpackKitItems(wd, rdr); err != nil {
+		log.Fatal(err)
+	}
+
+	// Merge the incoming stuff from the new manifest
+	// What do we do if there's a conflict?
+	// Well, the most likely use-case is that it happens because you're
+	// updating some items in a kit, so we're just gonna overwrite.
+	// But we'll notify, too.
+	// First, merge Items
+itemLoop:
+	for i := range newmf.Items {
+		for j := range mf.Items {
+			if newmf.Items[i].Name == mf.Items[j].Name && newmf.Items[i].Type == mf.Items[j].Type {
+				log.Printf("Replacing existing item %v", newmf.Items[i].Name)
+				mf.Items[j] = newmf.Items[i]
+				break itemLoop
+			}
+		}
+		// No conflict, just append
+		log.Printf("Importing new kit item %v", newmf.Items[i].Name)
+		mf.Items = append(mf.Items, newmf.Items[i])
+	}
+
+	// Next, merge ConfigMacros
+macroLoop:
+	for i := range newmf.ConfigMacros {
+		for j := range mf.ConfigMacros {
+			if newmf.ConfigMacros[i].MacroName == mf.ConfigMacros[j].MacroName {
+				log.Printf("Replacing existing config macro %v", newmf.ConfigMacros[i].MacroName)
+				mf.ConfigMacros[j] = newmf.ConfigMacros[i]
+				break macroLoop
+			}
+		}
+		// No conflict, just append
+		log.Printf("Importing new config macro %v", newmf.ConfigMacros[i].MacroName)
+		mf.ConfigMacros = append(mf.ConfigMacros, newmf.ConfigMacros[i])
+	}
+
+	// Write out the new manifest
+	if err := writeManifest(mf); err != nil {
+		log.Fatal(err)
+	}
+}
+
 func unpackKit(args []string) {
 	// Figure out where we are
 	wd, err := os.Getwd()
@@ -524,8 +614,15 @@ func unpackKit(args []string) {
 		log.Fatal(err)
 	}
 
+	if err := unpackKitItems(wd, rdr); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func unpackKitItems(wd string, rdr *kits.Reader) error {
 	// Walk each kit item
-	err = rdr.Process(func(name string, tp kits.ItemType, hash [sha256.Size]byte, rdr io.Reader) error {
+	return rdr.Process(func(name string, tp kits.ItemType, hash [sha256.Size]byte, rdr io.Reader) error {
+		var err error
 		// For each item:
 		// Verify the hash of the file
 		// Unmarshal the item
@@ -643,8 +740,4 @@ func unpackKit(args []string) {
 		}
 		return nil
 	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
 }
