@@ -22,7 +22,7 @@ require (
 	github.com/elastic/beats v7.6.2+incompatible
 	github.com/elazarl/go-bindata-assetfs v1.0.1 // indirect
 	github.com/floren/o365 v0.0.1
-	github.com/fsnotify/fsnotify v1.4.9
+	github.com/fsnotify/fsnotify v1.5.1
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/gobwas/glob v0.2.3
 	github.com/gofrs/flock v0.8.0
@@ -46,6 +46,7 @@ require (
 	github.com/minio/highwayhash v1.0.0
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/open-networks/go-msgraph v0.0.0-20200217121338-a7bf31e9c1f2
+	github.com/open2b/scriggo v0.52.2 // indirect
 	github.com/pierrec/lz4 v2.4.0+incompatible // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/shirou/gopsutil v2.20.9+incompatible
@@ -56,11 +57,10 @@ require (
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	go.etcd.io/bbolt v1.3.5
 	golang.org/x/crypto v0.0.0-20201124201722-c8d3bf9c5392 // indirect
-	golang.org/x/net v0.0.0-20200904194848-62affa334b73
-	golang.org/x/sys v0.0.0-20200915084602-288bc346aa39
+	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
+	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c
 	golang.org/x/text v0.3.3 // indirect
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1
-	golang.org/x/tools v0.0.0-20200929223013-bf155c11ec6f // indirect
 	google.golang.org/protobuf v1.22.0 // indirect
 	gopkg.in/jcmturner/gokrb5.v7 v7.3.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8 // indirect
