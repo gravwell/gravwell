@@ -7,7 +7,6 @@ import (
 	"gravwell" //package expose the builtin plugin funcs
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
 
 const (
@@ -16,7 +15,7 @@ const (
 
 var (
 	cfg   CaseConfig
-	tg    processors.Tagger
+	tg    gravwell.Tagger
 	ready bool
 
 	ErrNotReady = errors.New("not ready")
@@ -27,7 +26,7 @@ type CaseConfig struct {
 	Lower bool
 }
 
-func Config(cm gravwell.ConfigMap, tgr processors.Tagger) (err error) {
+func Config(cm gravwell.ConfigMap, tgr gravwell.Tagger) (err error) {
 	if cm == nil || tgr == nil {
 		err = errors.New("bad parameters")
 	}
@@ -36,6 +35,8 @@ func Config(cm gravwell.ConfigMap, tgr processors.Tagger) (err error) {
 
 	if cfg.Upper && cfg.Lower {
 		err = errors.New("upper and lower case are exclusive")
+	} else if !cfg.Upper && !cfg.Lower {
+		err = errors.New("at least one upper/lower config must be set")
 	} else {
 		tg = tgr
 		ready = true

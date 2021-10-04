@@ -5,7 +5,6 @@ GOOS linux
 IMPORT github.com/gravwell/gravwell/v3/ingest
 IMPORT github.com/gravwell/gravwell/v3/ingest/config
 IMPORT github.com/gravwell/gravwell/v3/ingest/entry
-IMPORT github.com/gravwell/gravwell/v3/ingest/processors
 IMPORT github.com/crewjam/rfc5424
 IMPORT github.com/dchest/safefile
 IMPORT github.com/gobwas/glob

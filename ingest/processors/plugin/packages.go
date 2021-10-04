@@ -63,7 +63,6 @@ import (
 	ingest "github.com/gravwell/gravwell/v3/ingest"
 	config "github.com/gravwell/gravwell/v3/ingest/config"
 	entry "github.com/gravwell/gravwell/v3/ingest/entry"
-	processors "github.com/gravwell/gravwell/v3/ingest/processors"
 	ipfix "github.com/gravwell/ipfix"
 	filetype "github.com/h2non/filetype"
 	ipmigo "github.com/k-sone/ipmigo"
@@ -1616,7 +1615,7 @@ func init() {
 		Declarations: decs,
 	}
 	// "github.com/gravwell/gravwell/v3/ingest/config"
-	decs = make(native.Declarations, 38)
+	decs = make(native.Declarations, 39)
 	decs["AppendDefaultPort"] = config.AppendDefaultPort
 	decs["CACHE_DEPTH_DEFAULT"] = native.UntypedNumericConst("128")
 	decs["CACHE_MODE_DEFAULT"] = native.UntypedStringConst("always")
@@ -1643,6 +1642,7 @@ func init() {
 	decs["ErrInvalidUpdateLineParameter"] = &config.ErrInvalidUpdateLineParameter
 	decs["ErrMissingIngestSecret"] = &config.ErrMissingIngestSecret
 	decs["ErrNoConnections"] = &config.ErrNoConnections
+	decs["ErrNotFound"] = &config.ErrNotFound
 	decs["IngestConfig"] = reflect.TypeOf((*config.IngestConfig)(nil)).Elem()
 	decs["IngestStreamConfig"] = reflect.TypeOf((*config.IngestStreamConfig)(nil)).Elem()
 	decs["LoadConfigBytes"] = config.LoadConfigBytes
@@ -1704,133 +1704,6 @@ func init() {
 	decs["UnixTime"] = entry.UnixTime
 	packages["github.com/gravwell/gravwell/v3/ingest/entry"] = native.Package{
 		Name:         "entry",
-		Declarations: decs,
-	}
-	// "github.com/gravwell/gravwell/v3/ingest/processors"
-	decs = make(native.Declarations, 121)
-	decs["CheckProcessor"] = processors.CheckProcessor
-	decs["CiscoISE"] = reflect.TypeOf((*processors.CiscoISE)(nil)).Elem()
-	decs["CiscoISEConfig"] = reflect.TypeOf((*processors.CiscoISEConfig)(nil)).Elem()
-	decs["CiscoISELoadConfig"] = processors.CiscoISELoadConfig
-	decs["CiscoISEProcessor"] = processors.CiscoISEProcessor
-	decs["Drop"] = reflect.TypeOf((*processors.Drop)(nil)).Elem()
-	decs["DropConfig"] = reflect.TypeOf((*processors.DropConfig)(nil)).Elem()
-	decs["DropLoadConfig"] = processors.DropLoadConfig
-	decs["DropProcessor"] = processors.DropProcessor
-	decs["EntryEncoder"] = reflect.TypeOf((*processors.EntryEncoder)(nil)).Elem()
-	decs["ErrBufferEmpty"] = &processors.ErrBufferEmpty
-	decs["ErrClosed"] = &processors.ErrClosed
-	decs["ErrDuplicateKey"] = &processors.ErrDuplicateKey
-	decs["ErrDuplicateKeyname"] = &processors.ErrDuplicateKeyname
-	decs["ErrEmptyMatch"] = &processors.ErrEmptyMatch
-	decs["ErrEmptyRegex"] = &processors.ErrEmptyRegex
-	decs["ErrFailedTagLookup"] = &processors.ErrFailedTagLookup
-	decs["ErrInvalidEntry"] = &processors.ErrInvalidEntry
-	decs["ErrInvalidExtractions"] = &processors.ErrInvalidExtractions
-	decs["ErrInvalidISEHeader"] = &processors.ErrInvalidISEHeader
-	decs["ErrInvalidISESeq"] = &processors.ErrInvalidISESeq
-	decs["ErrInvalidKeyname"] = &processors.ErrInvalidKeyname
-	decs["ErrInvalidRemoteISEHeader"] = &processors.ErrInvalidRemoteISEHeader
-	decs["ErrInvalidRemoteISESeq"] = &processors.ErrInvalidRemoteISESeq
-	decs["ErrInvalidWriter"] = &processors.ErrInvalidWriter
-	decs["ErrMatchAction"] = &processors.ErrMatchAction
-	decs["ErrMatchLogic"] = &processors.ErrMatchLogic
-	decs["ErrMissStrictConflict"] = &processors.ErrMissStrictConflict
-	decs["ErrMissingExtractNames"] = &processors.ErrMissingExtractNames
-	decs["ErrMissingExtractions"] = &processors.ErrMissingExtractions
-	decs["ErrMissingRegex"] = &processors.ErrMissingRegex
-	decs["ErrMissingRouteExtraction"] = &processors.ErrMissingRouteExtraction
-	decs["ErrMissingRoutes"] = &processors.ErrMissingRoutes
-	decs["ErrMissingTarget"] = &processors.ErrMissingTarget
-	decs["ErrNilConfig"] = &processors.ErrNilConfig
-	decs["ErrNilGF"] = &processors.ErrNilGF
-	decs["ErrNilTagger"] = &processors.ErrNilTagger
-	decs["ErrNoAdditionalFields"] = &processors.ErrNoAdditionalFields
-	decs["ErrNoSubexps"] = &processors.ErrNoSubexps
-	decs["ErrNoUnixOnWindows"] = &processors.ErrNoUnixOnWindows
-	decs["ErrNotFound"] = &processors.ErrNotFound
-	decs["ErrNotGzipped"] = &processors.ErrNotGzipped
-	decs["ErrNotReady"] = &processors.ErrNotReady
-	decs["ErrSingleArraySplitOnly"] = &processors.ErrSingleArraySplitOnly
-	decs["ErrUnknownFormat"] = &processors.ErrUnknownFormat
-	decs["ErrUnknownProcessor"] = &processors.ErrUnknownProcessor
-	decs["ErrUnknownProtocol"] = &processors.ErrUnknownProtocol
-	decs["ErrUnknownType"] = &processors.ErrUnknownType
-	decs["Forwarder"] = reflect.TypeOf((*processors.Forwarder)(nil)).Elem()
-	decs["ForwarderConfig"] = reflect.TypeOf((*processors.ForwarderConfig)(nil)).Elem()
-	decs["ForwarderLoadConfig"] = processors.ForwarderLoadConfig
-	decs["ForwarderProcessor"] = processors.ForwarderProcessor
-	decs["GravwellForwarder"] = reflect.TypeOf((*processors.GravwellForwarder)(nil)).Elem()
-	decs["GravwellForwarderConfig"] = reflect.TypeOf((*processors.GravwellForwarderConfig)(nil)).Elem()
-	decs["GravwellForwarderLoadConfig"] = processors.GravwellForwarderLoadConfig
-	decs["GravwellForwarderProcessor"] = processors.GravwellForwarderProcessor
-	decs["GzipDecompressor"] = reflect.TypeOf((*processors.GzipDecompressor)(nil)).Elem()
-	decs["GzipDecompressorConfig"] = reflect.TypeOf((*processors.GzipDecompressorConfig)(nil)).Elem()
-	decs["GzipLoadConfig"] = processors.GzipLoadConfig
-	decs["GzipProcessor"] = processors.GzipProcessor
-	decs["JsonArraySplitConfig"] = reflect.TypeOf((*processors.JsonArraySplitConfig)(nil)).Elem()
-	decs["JsonArraySplitLoadConfig"] = processors.JsonArraySplitLoadConfig
-	decs["JsonArraySplitProcessor"] = processors.JsonArraySplitProcessor
-	decs["JsonArraySplitter"] = reflect.TypeOf((*processors.JsonArraySplitter)(nil)).Elem()
-	decs["JsonExtractConfig"] = reflect.TypeOf((*processors.JsonExtractConfig)(nil)).Elem()
-	decs["JsonExtractLoadConfig"] = processors.JsonExtractLoadConfig
-	decs["JsonExtractProcessor"] = processors.JsonExtractProcessor
-	decs["JsonExtractor"] = reflect.TypeOf((*processors.JsonExtractor)(nil)).Elem()
-	decs["JsonFilter"] = reflect.TypeOf((*processors.JsonFilter)(nil)).Elem()
-	decs["JsonFilterConfig"] = reflect.TypeOf((*processors.JsonFilterConfig)(nil)).Elem()
-	decs["JsonFilterLoadConfig"] = processors.JsonFilterLoadConfig
-	decs["JsonFilterProcessor"] = processors.JsonFilterProcessor
-	decs["NewCiscoISEProcessor"] = processors.NewCiscoISEProcessor
-	decs["NewDrop"] = processors.NewDrop
-	decs["NewForwarder"] = processors.NewForwarder
-	decs["NewGravwellForwarder"] = processors.NewGravwellForwarder
-	decs["NewGzipDecompressor"] = processors.NewGzipDecompressor
-	decs["NewJsonArraySplitter"] = processors.NewJsonArraySplitter
-	decs["NewJsonExtractor"] = processors.NewJsonExtractor
-	decs["NewJsonFilter"] = processors.NewJsonFilter
-	decs["NewPersistentBuffer"] = processors.NewPersistentBuffer
-	decs["NewProcessorSet"] = processors.NewProcessorSet
-	decs["NewRegexExtractor"] = processors.NewRegexExtractor
-	decs["NewRegexRouter"] = processors.NewRegexRouter
-	decs["NewRegexTimestampProcessor"] = processors.NewRegexTimestampProcessor
-	decs["NewSetAllocator"] = processors.NewSetAllocator
-	decs["NewSrcRouter"] = processors.NewSrcRouter
-	decs["NewVpcProcessor"] = processors.NewVpcProcessor
-	decs["OpenPersistentBuffer"] = processors.OpenPersistentBuffer
-	decs["PersistentBuffer"] = reflect.TypeOf((*processors.PersistentBuffer)(nil)).Elem()
-	decs["PersistentBufferConfig"] = reflect.TypeOf((*processors.PersistentBufferConfig)(nil)).Elem()
-	decs["PersistentBufferConsumer"] = reflect.TypeOf((*processors.PersistentBufferConsumer)(nil)).Elem()
-	decs["PersistentBufferLoadConfig"] = processors.PersistentBufferLoadConfig
-	decs["PersistentBufferProcessor"] = native.UntypedStringConst("persistent-buffer")
-	decs["PopSet"] = processors.PopSet
-	decs["Processor"] = reflect.TypeOf((*processors.Processor)(nil)).Elem()
-	decs["ProcessorConfig"] = reflect.TypeOf((*processors.ProcessorConfig)(nil)).Elem()
-	decs["ProcessorLoadConfig"] = processors.ProcessorLoadConfig
-	decs["ProcessorSet"] = reflect.TypeOf((*processors.ProcessorSet)(nil)).Elem()
-	decs["RegexExtractConfig"] = reflect.TypeOf((*processors.RegexExtractConfig)(nil)).Elem()
-	decs["RegexExtractLoadConfig"] = processors.RegexExtractLoadConfig
-	decs["RegexExtractProcessor"] = native.UntypedStringConst("regexextract")
-	decs["RegexExtractor"] = reflect.TypeOf((*processors.RegexExtractor)(nil)).Elem()
-	decs["RegexRouteConfig"] = reflect.TypeOf((*processors.RegexRouteConfig)(nil)).Elem()
-	decs["RegexRouteLoadConfig"] = processors.RegexRouteLoadConfig
-	decs["RegexRouter"] = reflect.TypeOf((*processors.RegexRouter)(nil)).Elem()
-	decs["RegexRouterProcessor"] = native.UntypedStringConst("regexrouter")
-	decs["RegexTimestamp"] = reflect.TypeOf((*processors.RegexTimestamp)(nil)).Elem()
-	decs["RegexTimestampConfig"] = reflect.TypeOf((*processors.RegexTimestampConfig)(nil)).Elem()
-	decs["RegexTimestampLoadConfig"] = processors.RegexTimestampLoadConfig
-	decs["RegexTimestampProcessor"] = processors.RegexTimestampProcessor
-	decs["SetAllocator"] = reflect.TypeOf((*processors.SetAllocator)(nil)).Elem()
-	decs["SrcRouteConfig"] = reflect.TypeOf((*processors.SrcRouteConfig)(nil)).Elem()
-	decs["SrcRouteLoadConfig"] = processors.SrcRouteLoadConfig
-	decs["SrcRouter"] = reflect.TypeOf((*processors.SrcRouter)(nil)).Elem()
-	decs["SrcRouterProcessor"] = native.UntypedStringConst("srcrouter")
-	decs["Tagger"] = reflect.TypeOf((*processors.Tagger)(nil)).Elem()
-	decs["Vpc"] = reflect.TypeOf((*processors.Vpc)(nil)).Elem()
-	decs["VpcConfig"] = reflect.TypeOf((*processors.VpcConfig)(nil)).Elem()
-	decs["VpcLoadConfig"] = processors.VpcLoadConfig
-	decs["VpcProcessor"] = processors.VpcProcessor
-	packages["github.com/gravwell/gravwell/v3/ingest/processors"] = native.Package{
-		Name:         "processors",
 		Declarations: decs,
 	}
 	// "github.com/gravwell/ipfix"

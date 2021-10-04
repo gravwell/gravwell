@@ -340,7 +340,7 @@ func TestParallel(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			if err := ps.Process(&ent); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			wg.Done()
 		}()

@@ -1,6 +1,0 @@
-SET PACKAGE plugin
-SET VARIABLE overridable
-GOOS linux
-
-
-

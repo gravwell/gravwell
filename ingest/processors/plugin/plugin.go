@@ -12,13 +12,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io/fs"
 	"reflect"
 	"sync"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/open2b/scriggo"
 	"github.com/open2b/scriggo/native"
 )
@@ -33,6 +33,7 @@ var (
 const (
 	BuiltinPackageName string = `gravwell`
 	ConfigMapName      string = `ConfigMap`
+	TaggerName         string = `Tagger`
 	ExecuteFuncName    string = `Execute`
 	ConfigFuncName     string = `Config`
 	FlushFuncName      string = `Flush`
@@ -55,21 +56,26 @@ func NewPluginProgram(content []byte) (pp *PluginProgram, err error) {
 		err = ErrInvalidScript
 		return
 	}
+	fsys := scriggo.Files{`main.go`: content}
+	pp, err = NewPlugin(fsys)
+	return
+}
+
+func NewPlugin(fsys fs.FS) (pp *PluginProgram, err error) {
 	ppTemp := &PluginProgram{
 		rc: make(chan error, 1),
 		dc: make(chan error, 1),
 	}
 	ppTemp.ctx, ppTemp.cancel = context.WithCancel(context.Background())
-	if err = buildProgram(content, ppTemp); err != nil {
+	if err = buildProgram(fsys, ppTemp); err != nil {
 		return
 	}
 	pp = ppTemp
 	return
 }
 
-func buildProgram(content []byte, pp *PluginProgram) (err error) {
+func buildProgram(fsys fs.FS, pp *PluginProgram) (err error) {
 	defer buildCatcher(&err) //catch the nasties
-	fsys := scriggo.Files{`main.go`: content}
 	local := native.Packages{
 		BuiltinPackageName: native.Package{
 			Name:         BuiltinPackageName,
@@ -101,7 +107,14 @@ type ConfigMap interface {
 	GetStringSlice(string) ([]string, error)
 }
 
-type ConfigFunc func(ConfigMap, processors.Tagger) error
+// this is a copy of the interface in processors, but we can't import processors due to import cycles
+type Tagger interface {
+	NegotiateTag(name string) (entry.EntryTag, error)
+	LookupTag(entry.EntryTag) (string, bool)
+	KnownTags() []string
+}
+
+type ConfigFunc func(ConfigMap, Tagger) error
 type FlushFunc func() []*entry.Entry
 type ProcessFunc func([]*entry.Entry) ([]*entry.Entry, error)
 
@@ -195,7 +208,7 @@ func (pp *PluginProgram) Close() (err error) {
 	return
 }
 
-func (pp *PluginProgram) Config(vc *config.VariableConfig, tg processors.Tagger) error {
+func (pp *PluginProgram) Config(vc *config.VariableConfig, tg Tagger) error {
 	if pp == nil || pp.cf == nil {
 		return ErrNotReady
 	} else if st := pp.getState(); st != registered {
@@ -261,6 +274,7 @@ func builtinItems(pp *PluginProgram) native.Declarations {
 	decs[FlushFuncName] = reflect.TypeOf((*FlushFunc)(nil)).Elem()
 	decs[ProcessFuncName] = reflect.TypeOf((*ProcessFunc)(nil)).Elem()
 	decs[ConfigMapName] = reflect.TypeOf((*ConfigMap)(nil)).Elem()
+	decs[TaggerName] = reflect.TypeOf((*Tagger)(nil)).Elem()
 	return decs
 }
 
