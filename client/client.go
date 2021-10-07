@@ -79,8 +79,8 @@ type Client struct {
 // The ActiveSession structure represents a login session on the server. The
 // JWT field contains a negotiated authentication token (with expiration).
 type ActiveSession struct {
-	JWT                string
-	LastNotificationID uint64
+	JWT                  string
+	LastNotificationTime time.Time
 }
 
 func init() {

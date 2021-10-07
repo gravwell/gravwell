@@ -35,6 +35,7 @@ var (
 	ErrInvalidMapKeyType      = errors.New("invalid map key type, must be string")
 	ErrInvalidMapValueType    = errors.New("invalid map value type, must be pointer to struct")
 	ErrBadMap                 = errors.New("VariableConfig has not be initialized")
+	ErrNotFound               = errors.New("not found")
 )
 
 type VariableConfig struct {
@@ -224,6 +225,64 @@ func (vc VariableConfig) setField(name string, v reflect.Value) (err error) {
 	default:
 		err = fmt.Errorf("Cannot store into member %v: unknown type %T", name, v.Interface())
 	}
+	return
+}
+
+// just wraps setField but returns ErrNotFound if the item hasn't been set
+func (vc VariableConfig) valueMapper(name string, v interface{}) (err error) {
+	if v == nil {
+		return ErrInvalidArgument
+	}
+	strv, ok := vc.get(nameMapper(name))
+	if !ok {
+		return
+	}
+	switch x := v.(type) {
+	case *int64:
+		*x, err = ParseInt64(strv)
+	case *uint64:
+		*x, err = ParseUint64(strv)
+	case *float64:
+		*x, err = strconv.ParseFloat(strv, 64)
+	case *bool:
+		*x, err = strconv.ParseBool(strings.ToLower(strv))
+	case *string:
+		*x = strv
+	case *[]byte:
+		*x = []byte(strv)
+	default:
+		err = fmt.Errorf("Cannot store into member %v: unknown type %T", name, v)
+	}
+	return
+}
+
+func (vc VariableConfig) GetInt(name string) (r int64, err error) {
+	err = vc.valueMapper(name, &r)
+	return
+}
+
+func (vc VariableConfig) GetUint(name string) (r uint64, err error) {
+	err = vc.valueMapper(name, &r)
+	return
+}
+
+func (vc VariableConfig) GetFloat(name string) (r float64, err error) {
+	err = vc.valueMapper(name, &r)
+	return
+}
+
+func (vc VariableConfig) GetBool(name string) (r bool, err error) {
+	err = vc.valueMapper(name, &r)
+	return
+}
+
+func (vc VariableConfig) GetString(name string) (r string, err error) {
+	err = vc.valueMapper(name, &r)
+	return
+}
+
+func (vc VariableConfig) GetStringSlice(name string) (r []string, err error) {
+	err = vc.valueMapper(name, &r)
 	return
 }
 

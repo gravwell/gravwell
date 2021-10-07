@@ -70,6 +70,7 @@ func CheckProcessor(id string) error {
 	case DropProcessor:
 	case CiscoISEProcessor:
 	case SrcRouterProcessor:
+	case PluginProcessor:
 	default:
 		return checkProcessorOS(id)
 	}
@@ -125,6 +126,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = CiscoISELoadConfig(vc)
 	case SrcRouterProcessor:
 		cfg, err = SrcRouteLoadConfig(vc)
+	case PluginProcessor:
+		cfg, err = PluginLoadConfig(vc)
 	default:
 		cfg, err = processorLoadConfigOS(vc)
 	}
@@ -251,6 +254,13 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewSrcRouter(cfg, tgr)
+	case PluginProcessor:
+		var cfg PluginConfig
+		// PluginLoadConfig needs to be called instead of MapTo so that it can do some additional validation
+		if cfg, err = PluginLoadConfig(vc); err == nil {
+			p, err = NewPluginProcessor(cfg, tgr)
+		}
+		return
 	default:
 		p, err = newProcessorOS(vc, tgr)
 	}
