@@ -15,6 +15,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -24,11 +25,17 @@ import (
 type debugOut func(string, ...interface{})
 
 type logger interface {
-	Debug(string, ...interface{}) error
-	Info(string, ...interface{}) error
-	Warn(string, ...interface{}) error
-	Error(string, ...interface{}) error
-	Critical(string, ...interface{}) error
+	Criticalf(string, ...interface{}) error
+	Errorf(string, ...interface{}) error
+	Warnf(string, ...interface{}) error
+	Infof(string, ...interface{}) error
+	Debugf(string, ...interface{}) error
+
+	Critical(string, ...rfc5424.SDParam) error
+	Error(string, ...rfc5424.SDParam) error
+	Warn(string, ...rfc5424.SDParam) error
+	Info(string, ...rfc5424.SDParam) error
+	Debug(string, ...rfc5424.SDParam) error
 }
 
 type LogHandler struct {
