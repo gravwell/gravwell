@@ -105,7 +105,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			lg.Fatal("failed to open profile file", log.KV("file", *cpuprofile), log.KVErr(err))
+			lg.FatalCode(0, "failed to open profile file", log.KV("file", *cpuprofile), log.KVErr(err))
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)

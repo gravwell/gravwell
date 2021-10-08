@@ -13,7 +13,6 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
@@ -61,27 +61,27 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 		if v.Source_Override != `` {
 			src = net.ParseIP(v.Source_Override)
 			if src == nil {
-				lg.FatalCode(0, "Listener %v invalid source override, \"%s\" is not an IP address", k, v.Source_Override)
+				return fmt.Errorf("Listener %v invalid source override \"%s\"", k, v.Source_Override)
 			}
 		} else if cfg.Source_Override != `` {
 			// global override
 			src = net.ParseIP(cfg.Source_Override)
 			if src == nil {
-				lg.FatalCode(0, "Global Source-Override is invalid")
+				return fmt.Errorf("global source override \"%s\" is invalid", cfg.Source_Override)
 			}
 		}
 		//get the tag for this listener
 		tag, err := igst.GetTag(v.Tag_Name)
 		if err != nil {
-			lg.Fatal("Failed to resolve tag \"%s\" for %s: %v\n", v.Tag_Name, k, err)
+			lg.Fatal("failed to resolve tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
 		}
 		tp, str, err := translateBindType(v.Bind_String)
 		if err != nil {
-			lg.FatalCode(0, "Invalid bind string \"%s\": %v\n", v.Bind_String, err)
+			lg.FatalCode(0, "invalid bind", log.KV("bind-string", v.Bind_String), log.KVErr(err))
 		}
 		lrt, err := translateReaderType(v.Reader_Type)
 		if err != nil {
-			lg.FatalCode(0, "Invalid reader type \"%s\": %v\n", v.Reader_Type, err)
+			lg.FatalCode(0, "invalid reader type", log.KV("reader-type", v.Reader_Type), log.KVErr(err))
 		}
 		hcfg := handlerConfig{
 			tag:              tag,
@@ -96,21 +96,18 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 			timeFormats:      cfg.TimeFormat,
 		}
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
-			lg.Fatal("Preprocessor failure: %v", err)
-		}
-		if err != nil {
-			lg.Fatal("Preprocessor construction error: %v", err)
+			lg.Fatal("preprocessor error", log.KVErr(err))
 		}
 		f.Add(hcfg.proc)
 		if tp.TCP() {
 			//get the socket
 			addr, err := net.ResolveTCPAddr(tp.String(), str)
 			if err != nil {
-				lg.FatalCode(0, "Bind-String \"%s\" for %s is invalid: %v\n", v.Bind_String, k, err)
+				return fmt.Errorf("%s Bind-String \"%s\" is invalid: %v\n", k, v.Bind_String, err)
 			}
 			l, err := net.ListenTCP(tp.String(), addr)
 			if err != nil {
-				lg.FatalCode(0, "Failed to listen on \"%s\" via %s for %s: %v\n", addr, tp.String(), k, err)
+				return fmt.Errorf("%s Failed to listen on \"%s\": %v\n", k, addr, err)
 			}
 			connID := addConn(l)
 			//start the acceptor
@@ -124,16 +121,16 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 			config.Certificates = make([]tls.Certificate, 1)
 			config.Certificates[0], err = tls.LoadX509KeyPair(v.Cert_File, v.Key_File)
 			if err != nil {
-				lg.Fatal("Certificate load fail: %v", err)
+				lg.FatalCode(0, "failed to load certificate", log.KV("cert-file", v.Cert_File), log.KV("key-file", v.Key_File), log.KVErr(err))
 			}
 			//get the socket
 			addr, err := net.ResolveTCPAddr("tcp", str)
 			if err != nil {
-				lg.FatalCode(0, "Bind-String \"%s\" for %s is invalid: %v\n", v.Bind_String, k, err)
+				lg.FatalCode(0, "invalid Bind-String", log.KV("bind-string", v.Bind_String), log.KV("listener", k), log.KVErr(err))
 			}
 			l, err := tls.Listen("tcp", addr.String(), config)
 			if err != nil {
-				lg.FatalCode(0, "Failed to listen on \"%s\" via TLS for %s: %v\n", addr, k, err)
+				lg.FatalCode(0, "failed to listen via TLS", log.KV("address", addr), log.KV("listener", k), log.KVErr(err))
 			}
 			connID := addConn(l)
 			//start the acceptor
@@ -142,15 +139,15 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 		} else if tp.UDP() {
 			addr, err := net.ResolveUDPAddr(tp.String(), str)
 			if err != nil {
-				lg.FatalCode(0, "Bind-String \"%s\" for %s is invalid: %v\n", v.Bind_String, k, err)
+				lg.FatalCode(0, "invalid Bind-String", log.KV("bind-string", v.Bind_String), log.KV("listener", k), log.KVErr(err))
 			}
 			l, err := net.ListenUDP(tp.String(), addr)
 			if err != nil {
-				lg.FatalCode(0, "Failed to listen on \"%s\" via %s for %s: %v\n", addr, tp.String(), k, err)
+				lg.FatalCode(0, "failed to listen via udp", log.KV("address", addr), log.KV("listener", k), log.KVErr(err))
 			}
 			connID := addConn(l)
 			wg.Add(1)
-			go acceptorUDP(l, connID, hcfg)
+			go acceptorUDP(l, connID, hcfg, igst)
 		}
 	}
 	debugout("Started %d listeners\n", len(cfg.Listener))
@@ -170,14 +167,14 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 				break
 			}
 			failCount++
-			fmt.Fprintf(os.Stderr, "Failed to accept TCP connection: %v\n", err)
+			igst.Warn("failed to accept TCP connection", log.KVErr(err))
 			if failCount > 3 {
 				break
 			}
 			continue
 		}
 		debugout("Accepted %v connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt, tp.String())
-		igst.Info("accepted %v connection from %s in %v mode", conn.RemoteAddr(), cfg.lrt, tp.String())
+		igst.Info("accepted connection", log.KV("address", conn.RemoteAddr()), log.KV("reader-type", cfg.lrt), log.KV("mode", tp))
 		failCount = 0
 		switch cfg.lrt {
 		case lineReader:
@@ -185,13 +182,13 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 		case rfc5424Reader:
 			go rfc5424ConnHandlerTCP(conn, cfg)
 		default:
-			fmt.Fprintf(os.Stderr, "Invalid reader type on connection\n")
+			igst.Error("invalid reader type", log.KV("reader-type", cfg.lrt))
 			return
 		}
 	}
 }
 
-func acceptorUDP(conn *net.UDPConn, id int, cfg handlerConfig) {
+func acceptorUDP(conn *net.UDPConn, id int, cfg handlerConfig, igst *ingest.IngestMuxer) {
 	defer cfg.wg.Done()
 	defer delConn(id)
 	defer conn.Close()
@@ -202,7 +199,7 @@ func acceptorUDP(conn *net.UDPConn, id int, cfg handlerConfig) {
 	case rfc5424Reader:
 		rfc5424ConnHandlerUDP(conn, cfg)
 	default:
-		fmt.Fprintf(os.Stderr, "Invalid reader type on connection\n")
+		igst.Error("invalid reader type", log.KV("reader-type", cfg.lrt))
 		return
 	}
 }

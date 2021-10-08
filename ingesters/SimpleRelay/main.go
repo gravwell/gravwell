@@ -81,7 +81,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			lg.Fatal("Failed to open %s for profile file: %v\n", *cpuprofile, err)
+			lg.FatalCode(0, "failed to open profile file", log.KV("file", *cpuprofile), log.KVErr(err))
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -90,40 +90,40 @@ func main() {
 
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return
 	}
 
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Log_Level), log.KVErr(err))
 			}
 		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get tags from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
 		return
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	lmt, err := cfg.RateLimit()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Rate limiting connection to %d bps\n", lmt)
@@ -132,7 +132,7 @@ func main() {
 	debugout("INSECURE skip TLS certificate verification: %v\n", cfg.InsecureSkipTLSVerification())
 	id, ok := cfg.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "Couldn't read ingester UUID")
 	}
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.IngestStreamConfig,
@@ -155,19 +155,19 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
-		lg.Fatal("Failed build our ingest system: %v\n", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 		return
 	}
 	defer igst.Close()
 	debugout("Started ingester muxer\n")
 
 	if err := igst.Start(); err != nil {
-		lg.Fatal("Failed start our ingest system: %v\n", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
 	}
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 		return
 	}
 	debugout("Successfully connected to ingesters\n")
@@ -175,7 +175,7 @@ func main() {
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "failed to set configuration for ingester state messages")
 	}
 
 	wg := &sync.WaitGroup{}
@@ -186,12 +186,12 @@ func main() {
 
 	//fire off our simple listeners
 	if err := startSimpleListeners(cfg, igst, wg, &flshr, ctx); err != nil {
-		lg.FatalCode(-1, "Failed to start simple listeners: %v\n", err)
+		lg.FatalCode(0, "Failed to start simple listeners", log.KVErr(err))
 		return
 	}
 	//fire off our json listeners
 	if err := startJSONListeners(cfg, igst, wg, &flshr, ctx); err != nil {
-		lg.FatalCode(-1, "Failed to start json listeners: %v\n", err)
+		lg.FatalCode(0, "Failed to start json listeners", log.KVErr(err))
 		return
 	}
 
@@ -222,16 +222,16 @@ func main() {
 	select {
 	case <-wch:
 	case <-time.After(1 * time.Second):
-		lg.Error("Failed to wait for all connections to close.  %d active\n", connCount())
+		lg.Error("Failed to wait for all connections to close", log.KV("timeout", time.Second), log.KV("active", connCount()))
 	}
 	if err := flshr.Close(); err != nil {
-		lg.Error("Failed to close preprocessors: %v", err)
+		lg.Error("failed to close preprocessors", log.KVErr(err))
 	}
 	if err := igst.Sync(time.Second); err != nil {
-		lg.Error("Failed to sync: %v\n", err)
+		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
-		lg.Error("Failed to close: %v\n", err)
+		lg.Error("failed to close", log.KVErr(err))
 	}
 }
 
