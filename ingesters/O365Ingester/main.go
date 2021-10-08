@@ -57,6 +57,7 @@ func init() {
 		os.Exit(0)
 	}
 	validate.ValidateConfig(GetConfig, *configLoc)
+
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
@@ -122,6 +123,11 @@ func main() {
 	if !ok {
 		lg.FatalCode(0, "could not read ingester UUID")
 	}
+	lmt, err := cfg.Global.RateLimit()
+	if err != nil {
+		lg.FatalCode(0, "Failed to get rate limit from configuration", log.KVErr(err))
+		return
+	}
 	ingestConfig := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.Global.IngestStreamConfig,
 		Destinations:       conns,
@@ -133,6 +139,7 @@ func main() {
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
 		IngesterLabel:      cfg.Global.Label,
+		RateLimitBps:       lmt,
 		CacheDepth:         cfg.Global.Cache_Depth,
 		CachePath:          cfg.Global.Ingest_Cache_Path,
 		CacheSize:          cfg.Global.Max_Ingest_Cache,
