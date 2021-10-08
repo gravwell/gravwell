@@ -159,7 +159,7 @@ func main() {
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
+		lg.FatalCode(0, "failed to set configuration for ingester state message", log.KVErr(err))
 	}
 
 	tracker, err = NewTracker(cfg.Global.State_Store_Location, 48*time.Hour, igst)
