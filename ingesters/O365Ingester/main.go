@@ -61,7 +61,7 @@ func init() {
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr: %v\n", err)
+			lg.Fatal("Failed to dup stderr", log.KVErr(err))
 		} else {
 			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
 		}
@@ -75,8 +75,8 @@ func init() {
 			ingest.PrintVersion(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
 				fout.Close()
+				lg.Fatal("failed to dup2 stderr", log.KVErr(err))
 			}
 		}
 	}
@@ -90,37 +90,37 @@ func main() {
 	debug.SetTraceback("all")
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
-		lg.Fatal("Failed to get configuration: %v", err)
+		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 	}
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Global.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Global.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Global.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Global.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Global.Log_Level), log.KVErr(err))
 			}
 		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.Fatal("Failed to get tags from configuration: %v", err)
+		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.Fatal("Failed to get backend targets from configuration: %s", err)
+		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	//fire up the ingesters
 	id, ok := cfg.Global.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "could not read ingester UUID")
 	}
 	ingestConfig := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.Global.IngestStreamConfig,
@@ -141,30 +141,30 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
-		lg.Fatal("Failed build our ingest system: %v", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		lg.FatalCode(0, "Failed start our ingest system: %v", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
 	}
 
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 	}
 	debugout("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 	}
 
 	tracker, err = NewTracker(cfg.Global.State_Store_Location, 48*time.Hour, igst)
 	if err != nil {
-		lg.Fatal("Failed to initialize state file: %v", err)
+		lg.Fatal("failed to initialize state file", log.KVErr(err))
 	}
 	tracker.Start()
 
@@ -174,7 +174,7 @@ func main() {
 		// global override
 		src = net.ParseIP(cfg.Global.Source_Override)
 		if src == nil {
-			lg.Fatal("Global Source-Override is invalid")
+			lg.FatalCode(0, "Global Source-Override is invalid")
 		}
 	}
 
@@ -189,13 +189,13 @@ func main() {
 	ocfg.ContentTypes = cfg.ContentTypes()
 	o, err := o365.New(ocfg)
 	if err != nil {
-		lg.Fatal("Failed to get new client: %v", err)
+		lg.FatalCode(0, "Failed to get new client", log.KVErr(err))
 	}
 
 	// Make sure there are subscriptions for all our requested content types
 	err = o.EnableSubscriptions()
 	if err != nil {
-		lg.Fatal("Failed to enable subscriptions: %v", err)
+		lg.FatalCode(0, "Failed to enable subscriptions", log.KVErr(err))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -210,10 +210,10 @@ func main() {
 		}
 		tgr, err := timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create timegrinder: %v\n", err)
+			lg.FatalCode(0, "failed to create timegrinder", log.KVErr(err))
 			return
 		} else if err := cfg.TimeFormat.LoadFormats(tgr); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to set load custom time formats: %v\n", err)
+			lg.FatalCode(0, "failed to set load custom time formats", log.KVErr(err))
 			return
 		}
 		if v.Assume_Local_Timezone {
@@ -221,7 +221,7 @@ func main() {
 		}
 		if v.Timezone_Override != `` {
 			if err = tgr.SetTimezone(v.Timezone_Override); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", v.Timezone_Override, err)
+				lg.FatalCode(0, "failed to set timezone", log.KV("timezone", v.Timezone_Override), log.KVErr(err))
 				return
 			}
 		}
@@ -234,12 +234,12 @@ func main() {
 			// figure out which tag we're using
 			tag, err := igst.GetTag(ct.Tag_Name)
 			if err != nil {
-				lg.Fatal("Can't resolve tag %v: %v", ct.Tag_Name, err)
+				lg.Fatal("failed to resolve tag", log.KV("tag", ct.Tag_Name), log.KV("handler", name), log.KVErr(err))
 			}
 
 			procset, err := cfg.Preprocessor.ProcessorSet(igst, ct.Preprocessor)
 			if err != nil {
-				lg.Fatal("Preprocessor construction error: %v", err)
+				lg.Fatal("preprocessor failure", log.KVErr(err))
 			}
 
 			// we'll do a sliding window, they warn it can take a long time for some logs to show up
@@ -249,7 +249,7 @@ func main() {
 
 				content, err := o.ListAvailableContent(ct.Content_Type, start, end)
 				if err != nil {
-					lg.Error("Failed to list content type %v: %v", ct.Content_Type, err)
+					lg.Error("failed to list content type", log.KV("content-type", ct.Content_Type), log.KVErr(err))
 					time.Sleep(10 * time.Second)
 					continue
 				}
@@ -313,7 +313,7 @@ func main() {
 
 						// now write the entry
 						if err := procset.ProcessContext(ent, ctx); err != nil {
-							lg.Warn("Failed to handle entry: %v", err)
+							lg.Warn("failed to handle entry", log.KVErr(err))
 						}
 						// Add the Id to the temporary map
 						tracker.RecordId(eventUnpacked.Id, time.Now())
@@ -325,7 +325,7 @@ func main() {
 				time.Sleep(5 * time.Second)
 			}
 			if err := procset.Close(); err != nil {
-				lg.Error("Failed to close processor set: %v", err)
+				lg.Error("failed to close processor set", log.KVErr(err))
 			}
 
 		}(k, *v, tgr)
