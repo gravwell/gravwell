@@ -133,7 +133,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			lg.Fatal("Failed to open %s for profile file: %v\n", *cpuprofile, err)
+			lg.FatalCode(0, "failed to open profile file", log.KV("file", *cpuprofile), log.KVErr(err))
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -142,40 +142,40 @@ func main() {
 
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return
 	}
 
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Global.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Global.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Global.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Global.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Global.Log_Level), log.KVErr(err))
 			}
 		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get tags from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
 		return
 	}
 	conns, err := cfg.Global.Targets()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	lmt, err := cfg.Global.RateLimit()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Rate limiting connection to %d bps\n", lmt)
@@ -184,7 +184,7 @@ func main() {
 	debugout("INSECURE skip TLS certificate verification: %v\n", cfg.Global.InsecureSkipTLSVerification())
 	id, ok := cfg.Global.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "Couldn't read ingester UUID")
 	}
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.Global.IngestStreamConfig,
@@ -207,19 +207,19 @@ func main() {
 	}
 	igst, err = ingest.NewUniformMuxer(igCfg)
 	if err != nil {
-		lg.Fatal("Failed build our ingest system: %v\n", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 		return
 	}
 
 	defer igst.Close()
 	debugout("Started ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		lg.Fatal("Failed start our ingest system: %v\n", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
 	}
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Global.Timeout()); err != nil {
-		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Global.Timeout()), log.KVErr(err))
 		return
 	}
 	debugout("Successfully connected to ingesters\n")
@@ -227,7 +227,7 @@ func main() {
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KVErr(err))
 	}
 
 	var wg sync.WaitGroup
@@ -243,20 +243,20 @@ func main() {
 		if v.Source_Override != `` {
 			src = net.ParseIP(v.Source_Override)
 			if src == nil {
-				lg.FatalCode(0, "Listener %v invalid source override, \"%s\" is not an IP address", k, v.Source_Override)
+				lg.Fatal("invalid Source-Override", log.KV("source-override", v.Source_Override))
 			}
 		} else if cfg.Global.Source_Override != `` {
 			// global override
 			src = net.ParseIP(cfg.Global.Source_Override)
 			if src == nil {
-				lg.FatalCode(0, "Global Source-Override is invalid")
+				lg.Fatal("invalid Global Source-Override", log.KV("source-override", cfg.Global.Source_Override))
 			}
 		}
 
 		//get the tag for this listener
 		tag, err := igst.GetTag(v.Tag_Name)
 		if err != nil {
-			lg.Fatal("Failed to resolve tag \"%s\" for %s: %v\n", v.Tag_Name, k, err)
+			lg.Fatal("failed to resolve tag", log.KV("handler", k), log.KV("tag", v.Tag_Name), log.KVErr(err))
 		}
 
 		hcfg := &handlerConfig{
@@ -275,20 +275,20 @@ func main() {
 		}
 
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
-			lg.Fatal("Preprocessor failure: %v", err)
+			lg.Fatal("preprocessor error", log.KV("handler", k), log.KV("preprocessor", v.Preprocessor), log.KVErr(err))
 		}
 
 		// Load client cert
 		cert, err := tls.LoadX509KeyPair(hcfg.clientCert, hcfg.clientKey)
 		if err != nil {
-			lg.Error("%v", err)
+			lg.FatalCode(0, "failed to load certificate", log.KV("cert-file", hcfg.clientCert), log.KV("key-file", hcfg.clientKey), log.KVErr(err))
 			return
 		}
 
 		// Load CA cert
 		caCert, err := ioutil.ReadFile(hcfg.caCert)
 		if err != nil {
-			lg.Error("%v", err)
+			lg.FatalCode(0, "failed to load CA certificate", log.KV("ca-cert", hcfg.caCert), log.KVErr(err))
 			return
 		}
 		caCertPool := x509.NewCertPool()
@@ -318,10 +318,10 @@ func main() {
 	cancel()
 
 	if err := igst.Sync(time.Second); err != nil {
-		lg.Error("Failed to sync: %v\n", err)
+		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
-		lg.Error("Failed to close: %v\n", err)
+		lg.Error("failed to close", log.KVErr(err))
 	}
 }
 
@@ -339,9 +339,13 @@ func (s *server) listener(laddr string, usetls bool, c, k string) {
 		Handler: s,
 	}
 	if usetls {
-		lg.Error("%v", srv.ListenAndServeTLS(c, k))
+		if err := srv.ListenAndServeTLS(c, k); err != nil {
+			lg.Error("failed to listenAndServeTLS", log.KVErr(err))
+		}
 	} else {
-		lg.Error("%v", srv.ListenAndServe())
+		if err := srv.ListenAndServe(); err != nil {
+			lg.Error("failed to listenAndServe", log.KVErr(err))
+		}
 	}
 }
 
@@ -410,12 +414,12 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			qq := bytes.NewBufferString(p.Q)
 			resp, err := h.client.Post(url, "text/plain", qq)
 			if err != nil {
-				lg.Error("%v", err)
+				lg.Error("client post error", log.KV("url", url), log.KVErr(err))
 				continue
 			}
 			if resp.StatusCode != 200 {
 				resp.Body.Close()
-				lg.Error("invalid query")
+				lg.Error("invalid query", log.KV("status", resp.StatusCode))
 				w.WriteHeader(http.StatusBadRequest)
 				removeJob(j.ID)
 				return
@@ -452,7 +456,7 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job, wg *sync.WaitGroup
 
 	p, err := pcap.NewReader(in)
 	if err != nil {
-		lg.Error("%v", err)
+		lg.Error("failed to get new PCAP reader", log.KVErr(err))
 		return
 	}
 
@@ -460,7 +464,7 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job, wg *sync.WaitGroup
 		data, ci, err := p.ReadPacketData()
 		if err != nil {
 			if err != io.EOF {
-				lg.Error("%v", err)
+				lg.Error("failed to read packet data", log.KVErr(err))
 			}
 			if len(data) == 0 {
 				break
@@ -497,7 +501,7 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job, wg *sync.WaitGroup
 
 		if err = h.proc.ProcessContext(ent, h.ctx); err != nil {
 			debugout("%v", err)
-			lg.Error("Sending message: %v", err)
+			lg.Error("failed to send message", log.KVErr(err))
 			return
 		}
 	}
@@ -509,7 +513,7 @@ func status() []byte {
 
 	ret, err := json.Marshal(jobs)
 	if err != nil {
-		lg.Error("%v", err)
+		lg.Error("failed to marshal JSON", log.KVErr(err))
 		return nil
 	}
 	return ret
@@ -522,7 +526,7 @@ func conns() []byte {
 	}
 	ret, err := json.Marshal(sc)
 	if err != nil {
-		lg.Error("%v", err)
+		lg.Error("failed to marshal JSON", log.KVErr(err))
 		return nil
 	}
 	return ret
