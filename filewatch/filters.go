@@ -123,7 +123,7 @@ func (fm *FilterManager) expungeOldFiles() error {
 			return errors.New("Could not find any suitable file to stop watching to add new file.")
 		}
 
-		fm.logger.Info("expunging old log file", log.KV("file", oldest.FilePath))
+		fm.logger.Info("expunging old log file", log.KV("path", oldest.FilePath))
 		_, err := fm.nolockRemoveFollower(oldest.FilePath, false)
 		if err != nil {
 			return err

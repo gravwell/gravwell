@@ -317,7 +317,7 @@ watchRoutine:
 				if fi.IsDir() {
 					parents, ok := wm.watched[filepath.Dir(evt.Name)]
 					if !ok {
-						wm.logger.Error("file_follower failed to find parent directory", log.KV("directory", evt.Name))
+						wm.logger.Error("file_follower failed to find parent directory", log.KV("path", evt.Name))
 						continue
 					}
 					for _, parent := range parents {
@@ -326,36 +326,36 @@ watchRoutine:
 							continue
 						}
 						parent.BaseDir = evt.Name
-						wm.logger.Info("file_follower adding watcher for subdirectory", log.KV("directory", evt.Name), log.KV("patterns", parent.FileFilter))
+						wm.logger.Info("file_follower adding watcher for subdirectory", log.KV("path", evt.Name), log.KV("patterns", parent.FileFilter))
 						if err := wm.Add(parent); err != nil {
-							wm.logger.Error("file_follower failed to add watcher for new directory", log.KV("directory", evt.Name), log.KVErr(err))
+							wm.logger.Error("file_follower failed to add watcher for new directory", log.KV("path", evt.Name), log.KVErr(err))
 							continue
 						}
 					}
 				} else {
 					if ok, err := wm.watchNewFile(evt.Name); err != nil {
-						wm.logger.Error("file_follower failed to watch new file", log.KV("file", evt.Name), log.KVErr(err))
+						wm.logger.Error("file_follower failed to watch new file", log.KV("path", evt.Name), log.KVErr(err))
 					} else if ok {
-						wm.logger.Info("file_follower watching new file", log.KV("file", evt.Name))
+						wm.logger.Info("file_follower watching new file", log.KV("path", evt.Name))
 					}
 				}
 			} else if evt.Op == fsnotify.Remove {
 				if ok, err := wm.deleteWatchedFile(evt.Name); err != nil {
-					wm.logger.Error("file_follower failed to stop watching file", log.KV("file", evt.Name), log.KVErr(err))
+					wm.logger.Error("file_follower failed to stop watching file", log.KV("path", evt.Name), log.KVErr(err))
 				} else if ok {
-					wm.logger.Info("file_follower stopped watching file", log.KV("file", evt.Name))
+					wm.logger.Info("file_follower stopped watching file", log.KV("path", evt.Name))
 				}
 			} else if evt.Op == fsnotify.Rename {
 				if err := wm.renameWatchedFile(evt.Name); err != nil {
-					wm.logger.Error("file_follower failed to track renamed file", log.KV("file", evt.Name), log.KVErr(err))
+					wm.logger.Error("file_follower failed to track renamed file", log.KV("path", evt.Name), log.KVErr(err))
 				}
 			} else if evt.Op == fsnotify.Write {
 				// write event, check if we are watching the file, add if needed
 				if !wm.fman.IsWatched(evt.Name) {
 					if ok, err := wm.fman.LoadFile(evt.Name); err != nil {
-						wm.logger.Error("file_follower failed to watch file", log.KV("file", evt.Name), log.KVErr(err))
+						wm.logger.Error("file_follower failed to watch file", log.KV("path", evt.Name), log.KVErr(err))
 					} else if ok {
-						wm.logger.Info("file_follower watching file", log.KV("file", evt.Name))
+						wm.logger.Info("file_follower watching file", log.KV("path", evt.Name))
 					}
 				}
 			}
