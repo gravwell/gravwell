@@ -85,7 +85,7 @@ func (pm *processManager) routine(die chan bool) {
 				Setpgid: true,
 			},
 		}
-		pm.lg.Info("Starting %s: %v %v", pm.Name, args[0], args[1:])
+		pm.lg.Info("starting process", log.KV("name", pm.Name), log.KV("binary", args[0]), log.KV("args", args[1:]))
 		go func(c *exec.Cmd, ec chan exitstatus) {
 			var x exitstatus
 			if x.err = c.Start(); x.err == nil {
@@ -104,14 +104,14 @@ func (pm *processManager) routine(die chan bool) {
 		case <-die:
 			//kill the process and wait for it to exit
 			if cmd.Process != nil {
-				pm.lg.Info("Shutting down %s", pm.Name)
+				pm.lg.Info("shutting down", log.KV("name", pm.Name))
 				if err := requestKill(cmd, exitCh); err != nil {
-					pm.lg.Error("Failed to kill %s when exiting: %v", pm.Name, err)
+					pm.lg.Error("failed to kill when exiting", log.KV("name", pm.Name), log.KVErr(err))
 				}
 			}
 			return
 		case status := <-exitCh:
-			pm.lg.Info("Process %s exited with %d(%v)", pm.Name, status.code, status.err)
+			pm.lg.Info("process exited", log.KV("name", pm.Name), log.KV("code", status.code), log.KVErr(status.err))
 			//this will just cycle and retry
 			if status.code != 0 && pm.ErrHandler != `` {
 				//fire of the crash report
@@ -122,9 +122,9 @@ func (pm *processManager) routine(die chan bool) {
 					Dir:  pm.WorkingDir,
 				}
 				if err := cmd.Run(); err != nil {
-					pm.lg.Warn("crash handler for %s failed: %v", pm.Name, err)
+					pm.lg.Warn("crash handler failed", log.KV("name", pm.Name), log.KVErr(err))
 				} else {
-					pm.lg.Info("crash handler fired for %s", pm.Name)
+					pm.lg.Info("crash handler fired", log.KV("name", pm.Name))
 				}
 			}
 		}
@@ -185,7 +185,7 @@ func (r restarter) sleepit(die chan bool, d time.Duration) (died bool) {
 	if d <= 0 {
 		return
 	}
-	r.lgr.Info("%s restarted too many times, sleeping %v", r.Name, d)
+	r.lgr.Info("restarted too many times, sleeping", log.KV("name", r.Name), log.KV("duration", d))
 	tmr := time.NewTimer(r.CooldownPeriod)
 	defer tmr.Stop()
 	select {
@@ -215,7 +215,7 @@ func (r restarter) shouldSleep() (d time.Duration) {
 		return
 	} else if time.Since(oldestRestart) < r.RestartPeriod {
 		d = r.CooldownPeriod
-		r.lgr.Info("%v < %v = %v", time.Since(oldestRestart), r.RestartPeriod, time.Since(oldestRestart) < r.RestartPeriod)
+		r.lgr.Info("restart cooldown", log.KV("last-restart", time.Since(oldestRestart)), log.KV("restart-period", r.RestartPeriod))
 	}
 	return
 }

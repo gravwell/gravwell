@@ -66,18 +66,18 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//not an auth, try the actual post URL
 	cfg, ok := h.mp[r.URL.Path]
 	if !ok {
-		h.lgr.Info("bad request URL %v", r.URL.Path)
+		h.lgr.Info("bad request URL", log.KV("url", r.URL.Path))
 		w.WriteHeader(http.StatusNotFound)
 		return
 	}
 	if r.Method != cfg.method {
-		h.lgr.Info("bad request Method: %s != %s", r.Method, cfg.method)
+		h.lgr.Info("bad request method", log.KV("method", r.Method), log.KV("required-method", cfg.method))
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
 	if cfg.auth != nil {
 		if err := cfg.auth.AuthRequest(r); err != nil {
-			h.lgr.Info("%s access denied %v: %v", getRemoteIP(r), r.URL.Path, err)
+			h.lgr.Info("access denied", log.KV("address", getRemoteIP(r)), log.KV("url", r.URL.Path), log.KVErr(err))
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
@@ -115,16 +115,16 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 func (h *handler) handleHEC(cfg handlerConfig, r *http.Request, w http.ResponseWriter) {
 	b, err := ioutil.ReadAll(io.LimitReader(r.Body, int64(maxBody+256))) //give some slack for the extra splunk garbage
 	if err != nil && err != io.EOF {
-		h.lgr.Info("Got bad request: %v", err)
+		h.lgr.Info("bad request", log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else if len(b) > maxBody {
-		h.lgr.Error("Request too large, 4MB max")
+		h.lgr.Error("request too large, 4MB max", log.KV("request-size", len(b)), log.KV("max-size", maxBody))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if len(b) == 0 {
-		h.lgr.Info("Got an empty post from %s", r.RemoteAddr)
+		h.lgr.Info("got an empty post", log.KV("address", r.RemoteAddr))
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	var x hecEvent
@@ -143,7 +143,7 @@ func (h *handler) handleHEC(cfg handlerConfig, r *http.Request, w http.ResponseW
 		Data: b,
 	}
 	if err = cfg.pproc.Process(&e); err != nil {
-		h.lgr.Error("Failed to send entry: %v", err)
+		h.lgr.Error("failed to send entry", log.KVErr(err))
 		return
 	}
 	debugout("Sending entry %+v", e)
@@ -156,13 +156,13 @@ func (h *handler) handleMulti(cfg handlerConfig, r *http.Request, w http.Respons
 	scanner := bufio.NewScanner(r.Body)
 	for scanner.Scan() {
 		if err := h.handleEntry(cfg, scanner.Bytes(), ip); err != nil {
-			h.lgr.Error("Failed to handle entry from %s: %v", ip, err)
+			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
 	}
 	if err := scanner.Err(); err != nil {
-		h.lgr.Warn("Failed to handle multiline upload: %v", err)
+		h.lgr.Warn("failed to handle multiline upload", log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 	}
 	return
@@ -171,19 +171,19 @@ func (h *handler) handleMulti(cfg handlerConfig, r *http.Request, w http.Respons
 func (h *handler) handleSingle(cfg handlerConfig, r *http.Request, w http.ResponseWriter) {
 	b, err := ioutil.ReadAll(io.LimitReader(r.Body, int64(maxBody+1)))
 	if err != nil && err != io.EOF {
-		h.lgr.Info("Got bad request: %v", err)
+		h.lgr.Info("got bad request", log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else if len(b) > maxBody {
-		h.lgr.Error("Request too large, 4MB max")
+		h.lgr.Error("request too large, 4MB max")
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if len(b) == 0 {
-		h.lgr.Info("Got an empty post from %s", r.RemoteAddr)
+		h.lgr.Info("got an empty post", log.KV("address", r.RemoteAddr))
 		w.WriteHeader(http.StatusBadRequest)
 	} else if err = h.handleEntry(cfg, b, getRemoteIP(r)); err != nil {
-		h.lgr.Error("Failed to handle entry from %s: %v", r.RemoteAddr, err)
+		h.lgr.Error("failed to handle entry", log.KV("address", r.RemoteAddr), log.KVErr(err))
 		w.WriteHeader(http.StatusInternalServerError)
 	}
 }
@@ -196,7 +196,7 @@ func (h *handler) handleEntry(cfg handlerConfig, b []byte, ip net.IP) (err error
 		var hts time.Time
 		var ok bool
 		if hts, ok, err = cfg.tg.Extract(b); err != nil {
-			h.lgr.Warn("Catastrophic error from timegrinder: %v", err)
+			h.lgr.Warn("catastrophic error from timegrinder", log.KVErr(err))
 			ts = entry.Now()
 		} else if !ok {
 			ts = entry.Now()
@@ -212,7 +212,7 @@ func (h *handler) handleEntry(cfg handlerConfig, b []byte, ip net.IP) (err error
 	}
 	debugout("Handling: %+v\n", e)
 	if err = cfg.pproc.Process(&e); err != nil {
-		h.lgr.Error("Failed to send entry: %v", err)
+		h.lgr.Error("failed to send entry", log.KVErr(err))
 		return
 	}
 	debugout("Sending entry %+v", e)

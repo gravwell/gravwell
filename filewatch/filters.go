@@ -17,6 +17,7 @@ import (
 	"sync"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 type filter struct {
@@ -122,7 +123,7 @@ func (fm *FilterManager) expungeOldFiles() error {
 			return errors.New("Could not find any suitable file to stop watching to add new file.")
 		}
 
-		fm.logger.Info("Expunging old log file %v", oldest.FilePath)
+		fm.logger.Info("expunging old log file", log.KV("file", oldest.FilePath))
 		_, err := fm.nolockRemoveFollower(oldest.FilePath, false)
 		if err != nil {
 			return err

@@ -17,6 +17,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -125,7 +126,7 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	if !lh.IgnoreTS {
 		ts, ok, err = lh.tg.Extract(b)
 		if err != nil {
-			lh.Logger.Error("Catastrophic timegrinder failure: %v", err)
+			lh.Logger.Error("catastrophic timegrinder failure", log.KVErr(err))
 			return err
 		}
 	}

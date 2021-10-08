@@ -452,7 +452,7 @@ func (im *IngestMuxer) Start() error {
 // Close the connection
 func (im *IngestMuxer) Close() error {
 	// Inform the world that we're done.
-	im.Info("Ingester %v exiting\n", im.name)
+	im.Info("Ingester exiting", log.KV("name", im.name))
 	time.Sleep(500 * time.Millisecond)
 
 	im.mtx.Lock()
@@ -611,7 +611,8 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 			remoteTag, err := v.NegotiateTag(name)
 			if err != nil {
 				// something went wrong, kill it and let it re-initialize
-				im.Error("NegotiateTag on %v for %v: %v", v.conn.RemoteAddr(), name, err)
+				im.Error("NegotiateTag error", log.KV("remoteaddr", v.conn.RemoteAddr()),
+					log.KV("tag", name), log.KV("error", err))
 				v.Close()
 				continue
 			}
@@ -705,7 +706,7 @@ mainLoop:
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-im.upChan:
-			im.Info("Ingester %v has gone hot", im.name)
+			im.Info("Ingester gone hot", log.KV("name", im.name))
 			break mainLoop
 		case <-tckr.C:
 			//check if connections are hot
@@ -1006,9 +1007,9 @@ func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, or
 		}
 		//ok, we synced, pass things back
 		if orig {
-			im.Info("connected to %v", nc.dst)
+			im.Info("connected", log.KV("dst", nc.dst))
 		} else {
-			im.Info("re-connected to %v", nc.dst)
+			im.Info("re-connected", log.KV("dst", nc.dst))
 		}
 		break
 	}
@@ -1068,10 +1069,10 @@ inputLoop:
 			if !ok {
 				// If the ingest muxer has no idea what this tag is, drop it and notify
 				if name, ok := im.LookupTag(e.Tag); !ok {
-					im.Error("Got entry tagged with completely unknown intermediate tag %v, dropping it", e.Tag)
+					im.Error("Got entry tagged with completely unknown intermediate tag, dropping it", log.KV("tagvalue", e.Tag))
 					continue inputLoop
 				} else {
-					im.Info("Got entry tagged with tag %v (%v), need to renegotiate connection", name, e.Tag)
+					im.Info("Got entry with new tag, need to renegotiate connection", log.KV("tag", name), log.KV("tagvalue", e.Tag))
 					// Could not translate, but it's a valid tag the muxer has seen before.
 					// We need to push this to the equeue and reconnect
 					// so we get the correct tag set.
@@ -1127,14 +1128,14 @@ inputLoop:
 					ttag, ok = nc.tt.Translate(b[i].Tag)
 					if !ok {
 						if name, ok := im.LookupTag(b[i].Tag); !ok {
-							im.Error("Got entry tagged with completely unknown intermediate tag %v, dropping it", b[i].Tag)
+							im.Error("Got entry tagged with completely unknown intermediate tag, dropping it", log.KV("tagvalue", b[i].Tag))
 							// first, reverse anything we've translated already
 							for j := 0; j < i; j++ {
 								b[j].Tag = nc.tt.Reverse(b[j].Tag)
 							}
 							im.recycleEntryBatch(b[:i]) //recycle and save what we can
 						} else {
-							im.Info("Got entry tagged with tag %v (%v), need to renegotiate connection", name, b[i].Tag)
+							im.Info("Got entry with new tag, need to renegotiate connection", log.KV("tag", name), log.KV("tagvalue", b[i].Tag))
 							// Could not translate! We need to push this to the equeue and reconnect
 							// so we get the correct tag set.
 
@@ -1241,7 +1242,7 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 			}
 
 			if igst != nil {
-				im.Warn("reconnecting to %v", dst.Address)
+				im.Warn("reconnecting", log.KV("address", dst.Address))
 				igst.Close()
 				im.goDead() //let the world know of our failures
 				im.igst[igIdx] = nil
@@ -1361,15 +1362,15 @@ func (im *IngestMuxer) getConnection(tgt Target) (ig *IngestConnection, tt tagTr
 loop:
 	for {
 		//attempt a connection, timeouts are built in to the IngestConnection
-		im.Info("Initializing connection to %v", tgt.Address)
+		im.Info("initializing connection", log.KV("address", tgt.Address))
 		im.mtx.RLock()
 		if ig, err = InitializeConnection(tgt.Address, tgt.Secret, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
 			im.mtx.RUnlock()
 			if isFatalConnError(err) {
-				im.Error("Fatal Connection Error on %v: %v", tgt.Address, err)
+				im.Error("fatal connection error", log.KV("address", tgt.Address), log.KV("error", err))
 				break loop
 			}
-			im.Warn("Connection error on %v: %v", tgt.Address, err)
+			im.Warn("connection error", log.KV("address", tgt.Address), log.KV("error", err))
 			//non-fatal, sleep and continue
 			select {
 			case _ = <-time.After(defaultRetryTime):
@@ -1379,7 +1380,7 @@ loop:
 			}
 			continue
 		}
-		im.Info("Connection to %v established, completing negotiation & requesting approval to ingest", tgt.Address)
+		im.Info("connection established, completing negotiation and requesting approval to ingest", log.KV("address", tgt.Address))
 		if im.rateParent != nil {
 			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn))
 		}
@@ -1391,14 +1392,14 @@ loop:
 			ig = nil
 			tt = nil
 			im.mtx.RUnlock()
-			im.Error("Fatal Connection Error, failed to get get tag translation map: %v", err)
+			im.Error("fatal connection error, failed to get get tag translation map", log.KV("error", err))
 			continue
 		}
 		im.mtx.RUnlock()
 
 		// set the info
 		if err := ig.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
-			im.Error("Failed to identify ingester on %v: %v", tgt.Address, err)
+			im.Error("Failed to identify ingester", log.KV("address", tgt.Address), log.KV("error", err))
 			continue
 		}
 
@@ -1410,24 +1411,24 @@ loop:
 			}
 			ok, err := ig.IngestOK()
 			if err != nil {
-				im.Error("IngestOK query failed on %v: %v", tgt.Address, err)
+				im.Error("IngestOK query failed", log.KV("address", tgt.Address), log.KV("error", err))
 				ig.Close()
 				continue loop
 			}
 			if ok {
 				break
 			}
-			im.Warn("Indexer %v does not yet allow ingest, sleeping", tgt.Address)
+			im.Warn("indexer does not yet allow ingest, sleeping", log.KV("address", tgt.Address))
 			time.Sleep(5 * time.Second)
 		}
 
 		if err := ig.ew.ConfigureStream(im.cfg); err != nil {
-			im.Warn("Failed to configure stream on %v: %v", tgt.Address, err)
+			im.Warn("failed to configure stream", log.KV("address", tgt.Address), log.KV("error", err))
 			ig.Close()
 			continue
 		}
 
-		im.Info("Successfully connected to %v with ingest OK", tgt.Address)
+		im.Info("successfully connected with ingest OK", log.KV("address", tgt.Address))
 		break
 	}
 	return
