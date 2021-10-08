@@ -19,6 +19,7 @@ import (
 	"runtime/debug"
 	"runtime/pprof"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -55,20 +56,29 @@ func mainInit() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
-	var fp string
-	var err error
-	if *stderrOverride != `` {
-		fp = filepath.Join(`/dev/shm/`, *stderrOverride)
-	}
-	cb := func(w io.Writer) {
-		version.PrintVersion(w)
-		ingest.PrintVersion(w)
-	}
-	if lg, err = log.NewStderrLoggerEx(fp, cb); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get stderr logger: %v\n", err)
-		os.Exit(-1)
-	}
+	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(appName)
+	if *stderrOverride != `` {
+		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
+			lg.Fatal("failed to dup stderr", log.KVErr(err))
+		} else {
+			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
+		}
+
+		fp := filepath.Join(`/dev/shm/`, *stderrOverride)
+		fout, err := os.Create(fp)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to create %s: %v\n", fp, err)
+		} else {
+			version.PrintVersion(fout)
+			ingest.PrintVersion(fout)
+			//file created, dup it
+			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
+				fout.Close()
+				lg.FatalCode(0, "failed to dup2 stderr", log.KVErr(err))
+			}
+		}
+	}
 
 	v = *verbose
 	connClosers = make(map[int]closer, 1)

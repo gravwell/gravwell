@@ -239,12 +239,11 @@ func main() {
 		}
 	}
 
+	lg.Info("collectd ingester exiting", log.KV("UUID", id))
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
 		lg.Error("failed to close", log.KVErr(err))
 	}
-
-	lg.Info("collectd ingester exiting")
 }

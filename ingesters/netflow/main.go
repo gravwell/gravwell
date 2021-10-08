@@ -56,7 +56,7 @@ func init() {
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr: %v\n", err)
+			lg.Fatal("failed to dup stderr", log.KVErr(err))
 		} else {
 			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
 		}
@@ -70,8 +70,8 @@ func init() {
 			ingest.PrintVersion(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
 				fout.Close()
+				lg.FatalCode(0, "failed to dup2 stderr", log.KVErr(err))
 			}
 		}
 	}
@@ -86,7 +86,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			lg.Fatal("Failed to open %s for profile file: %v\n", *cpuprofile, err)
+			lg.FatalCode(0, "failed to open profile file", log.KV("file", *cpuprofile), log.KVErr(err))
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -95,37 +95,37 @@ func main() {
 
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return
 	}
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Log_Level), log.KVErr(err))
 			}
 		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.Fatal("Failed to get tags from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.Fatal("Failed to get backend targets from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	lmt, err := cfg.RateLimit()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Rate limiting connection to %d bps\n", lmt)
@@ -134,7 +134,7 @@ func main() {
 	debugout("INSECURE skipping TLS verification: %v\n", cfg.InsecureSkipTLSVerification())
 	id, ok := cfg.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "Couldn't read ingester UUID")
 	}
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.IngestStreamConfig,
@@ -157,24 +157,24 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
-		lg.Fatal("Failed build our ingest system: %v\n", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 	}
 
 	defer igst.Close()
 	debugout("Started ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		lg.Fatal("Failed start our ingest system: %v\n", err)
+		lg.FatalCode(0, "failed start our ingest system", log.KVErr(err))
 	}
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 	}
 	debugout("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KVErr(err))
 	}
 
 	wg := sync.WaitGroup{}
@@ -199,11 +199,11 @@ func main() {
 		//get the tag for this listener
 		tag, err := igst.GetTag(v.Tag_Name)
 		if err != nil {
-			lg.FatalCode(0, "Failed to resolve tag \"%s\" for %s: %v\n", v.Tag_Name, k, err)
+			lg.FatalCode(0, "failed to resolve tag", log.KV("tag", v.Tag_Name), log.KV("collector", k), log.KVErr(err))
 		}
 		ft, err := translateFlowType(v.Flow_Type)
 		if err != nil {
-			lg.FatalCode(0, "Invalid flow type \"%s\": %v\n", v.Flow_Type, err)
+			lg.FatalCode(0, "invalid flow type", log.KV("flow-type", v.Flow_Type), log.KV("collector", k), log.KVErr(err))
 		}
 		bc.tag = tag
 		bc.ignoreTS = v.Ignore_Timestamps
@@ -214,24 +214,24 @@ func main() {
 		switch ft {
 		case nfv5Type:
 			if bh, err = NewNetflowV5Handler(bc); err != nil {
-				lg.FatalCode(0, "NewNetflowV5Handler error: %v\n", err)
+				lg.FatalCode(0, "NewNetflowV5Handlerfailed", log.KVErr(err))
 				return
 			}
 		case ipfixType:
 			if bh, err = NewIpfixHandler(bc, igst); err != nil {
-				lg.FatalCode(0, "NewIpfixHandler error: %v\n", err)
+				lg.FatalCode(0, "NewIpfixHandler failed", log.KVErr(err))
 				return
 			}
 		default:
-			lg.FatalCode(0, "Invalid flow type %v\n", ft)
+			lg.FatalCode(0, "invalid flow type", log.KV("flowtype", ft))
 			return
 		}
 		if err = bh.Listen(v.Bind_String); err != nil {
-			lg.FatalCode(0, "Failed to listen on %s handler: %v\n", bh.String(), err)
+			lg.FatalCode(0, "failed to listen", log.KV("bind-string", bh.String()), log.KVErr(err))
 		}
 		id := addConn(bh)
 		if err := bh.Start(id); err != nil {
-			lg.FatalCode(0, "%s.Start() error: %v\n", bh.String(), err)
+			lg.FatalCode(0, "start error", log.KV("collector", bh.String()), log.KVErr(err))
 		}
 		wg.Add(1)
 	}
@@ -265,13 +265,14 @@ func main() {
 		//wait for our ingest relay to exit
 		<-doneChan
 	case <-time.After(1 * time.Second):
-		lg.Error("Failed to wait for all connections to close.  %d active\n", connCount())
+		lg.Error("failed to wait for all connections to close", log.KV("active", connCount()))
 	}
+	lg.Info("netflow ingester exiting", log.KV("UUID", id))
 	if err := igst.Sync(time.Second); err != nil {
-		lg.Error("Failed to sync: %v\n", err)
+		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
-		lg.Error("Failed to close: %v\n", err)
+		lg.Error("failed to close", log.KVErr(err))
 	}
 }
 
@@ -288,7 +289,7 @@ mainLoop:
 				if len(ents) > 0 {
 					if err := igst.WriteBatch(ents); err != nil {
 						if err != ingest.ErrNotRunning {
-							lg.Error("Failed to WriteBatch: %v\n", err)
+							lg.Error("failed to WriteBatch", log.KVErr(err))
 						}
 					}
 				}
@@ -304,7 +305,7 @@ mainLoop:
 			if len(ents) >= batchSize {
 				if err := igst.WriteBatch(ents); err != nil {
 					if err != ingest.ErrNotRunning {
-						lg.Error("Failed to WriteBatch: %v\n", err)
+						lg.Error("failed to WriteBatch", log.KVErr(err))
 					} else {
 						break mainLoop
 					}
@@ -315,7 +316,7 @@ mainLoop:
 			if len(ents) > 0 {
 				if err := igst.WriteBatch(ents); err != nil {
 					if err != ingest.ErrNotRunning {
-						lg.Error("Failed to WriteBatch: %v\n", err)
+						lg.Error("failed to WriteBatch", log.KVErr(err))
 					} else {
 						break mainLoop
 					}
