@@ -237,6 +237,7 @@ func main() {
 	if err := flshr.Close(); err != nil {
 		lg.Error("failed to close preprocessors", log.KVErr(err))
 	}
+	lg.Info("simplerelay ingester exiting", log.KV("UUID", id))
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}

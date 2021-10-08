@@ -59,7 +59,7 @@ func handleFlags() {
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr: %v\n", err)
+			lg.Fatal("Failed to dup stderr", log.KVErr(err))
 		} else {
 			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
 		}
@@ -73,8 +73,8 @@ func handleFlags() {
 			ingest.PrintVersion(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
 				fout.Close()
+				lg.Fatal("failed to dup2 stderr", log.KVErr(err))
 			}
 		}
 	}
@@ -89,7 +89,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			lg.Fatal("Failed to open %s for profile file: %v\n", *cpuprofile, err)
+			lg.Fatal("failed to open profile file", log.KV("file", *cpuprofile), log.KVErr(err))
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -98,42 +98,48 @@ func main() {
 
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return
 	}
 
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Log_Level), log.KVErr(err))
 			}
 		}
 	}
 
 	ltags, err := cfg.Tags()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get tags from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
 		return
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Handling %d tags over %d targets\n", len(ltags), len(conns))
 
+	//fire up the ingesters
+	id, ok := cfg.IngesterUUID()
+	if !ok {
+		lg.FatalCode(0, "could not read ingester UUID")
+	}
 	lmt, err := cfg.RateLimit()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		lg.FatalCode(0, "Failed to get rate limit from configuration", log.KVErr(err))
 		return
 	}
+
 	debugout("Rate limiting connection to %d bps\n", lmt)
 
 	//fire up the ingesters
@@ -147,6 +153,7 @@ func main() {
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
 		IngesterName:       ingesterName,
 		RateLimitBps:       lmt,
+		IngesterUUID:       id.String(),
 		Logger:             lg,
 		CacheDepth:         cfg.Cache_Depth,
 		CachePath:          cfg.Ingest_Cache_Path,
@@ -156,19 +163,19 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
-		lg.Fatal("Failed build our ingest system: %v\n", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 		return
 	}
 
 	defer igst.Close()
 	debugout("Started ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		lg.Fatal("Failed start our ingest system: %v\n", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
 	}
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 		return
 	}
 	debugout("Successfully connected to ingesters\n")
@@ -176,7 +183,7 @@ func main() {
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "failed to set configuration for ingester state message", log.KVErr(err))
 	}
 
 	clsrs := newClosers()
@@ -192,25 +199,25 @@ func main() {
 		}
 		v.TaggerConfig.Tags = append(v.TaggerConfig.Tags, v.defTag)
 		if kcfg.tgr, err = tags.NewTagger(v.TaggerConfig, igst); err != nil {
-			lg.Fatal("Failed to establish a new tagger: %v", err)
+			lg.Fatal("failed to establish a new tagger", log.KVErr(err))
 		}
 		if kcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.preprocessor); err != nil {
-			lg.Fatal("Preprocessor construction error: %v", err)
+			lg.Fatal("preprocessor construction error", log.KVErr(err))
 		}
 		procs = append(procs, kcfg.pproc)
 		kc, err := newKafkaConsumer(kcfg)
 		if err != nil {
-			lg.Error("Failed to build kafka consumer %s: %v\n", k, err)
+			lg.Error("failed to build kafka consumer", log.KV("consumer", k), log.KVErr(err))
 			if err = clsrs.Close(); err != nil {
-				lg.Error("Failed to close all consumers: %v\n", err)
+				lg.Error("failed to close all consumers", log.KVErr(err))
 			}
 			return
 		}
 		wg := clsrs.add(kc)
 		if err = kc.Start(wg); err != nil {
-			lg.Error("Failed to start kafka consumer %s: %v\n", k, err)
+			lg.Error("failed to start kafka consumer", log.KV("consumer", k), log.KVErr(err))
 			if err = clsrs.Close(); err != nil {
-				lg.Error("Failed to close all consumers: %v\n", err)
+				lg.Error("failed to close all consumers", log.KVErr(err))
 			}
 			return
 		}
@@ -221,24 +228,24 @@ func main() {
 
 	//close down our consumers
 	if err := clsrs.Close(); err != nil {
-		lg.Error("Failed to close all consumers: %v\n", err)
+		lg.Error("failed to close all consumers", log.KVErr(err))
 	}
 
 	//close down all the preprocessors
 	for _, v := range procs {
 		if v != nil {
 			if err := v.Close(); err != nil {
-				lg.Error("Failed to close processors: %v\n", err)
+				lg.Error("failed to close processors", log.KVErr(err))
 			}
 		}
 	}
 
-	//sync our data and close the ingester
+	lg.Info("kafka_consumer ingester exiting", log.KV("UUID", id))
 	if err := igst.Sync(time.Second); err != nil {
-		lg.Error("Failed to sync: %v\n", err)
+		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
-		lg.Error("Failed to close: %v\n", err)
+		lg.Error("failed to close", log.KVErr(err))
 	}
 }
 
