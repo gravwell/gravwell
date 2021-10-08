@@ -15,12 +15,12 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"runtime/debug"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -73,18 +73,28 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
-	var fp string
-	var err error
+	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
+	lg.SetAppname(ingesterName)
 	if *stderrOverride != `` {
-		fp = filepath.Join(`/dev/shm/`, *stderrOverride)
-	}
-	cb := func(w io.Writer) {
-		version.PrintVersion(w)
-		ingest.PrintVersion(w)
-	}
-	if lg, err = log.NewStderrLoggerEx(fp, cb); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to get stderr logger: %v\n", err)
-		os.Exit(-1)
+		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
+			lg.Fatal("failed to dup stderr", log.KVErr(err))
+		} else {
+			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
+		}
+
+		fp := filepath.Join(`/dev/shm/`, *stderrOverride)
+		fout, err := os.Create(fp)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to create %s: %v\n", fp, err)
+		} else {
+			version.PrintVersion(fout)
+			ingest.PrintVersion(fout)
+			//file created, dup it
+			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
+				fout.Close()
+				lg.FatalCode(0, "failed to dup2 stderr", log.KVErr(err))
+			}
+		}
 	}
 }
 
@@ -92,49 +102,46 @@ func main() {
 	debug.SetTraceback("all")
 
 	// config setup
-
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return
 	}
 
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Global.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Global.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Global.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Global.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Global.Log_Level), log.KVErr(err))
 			}
 		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get tags from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
 		return
 	}
 	conns, err := cfg.Global.Targets()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
 		return
 	}
+
 	lmt, err := cfg.Global.RateLimit()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
 		return
 	}
-
-	// create ingest connection(s)
-
 	id, ok := cfg.Global.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "Couldn't read ingester UUID")
 	}
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.Global.IngestStreamConfig,
@@ -157,26 +164,26 @@ func main() {
 	}
 	igst, err = ingest.NewUniformMuxer(igCfg)
 	if err != nil {
-		lg.Fatal("Failed build our ingest system: %v\n", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 		return
 	}
 
 	defer igst.Close()
 
 	if err := igst.Start(); err != nil {
-		lg.Fatal("Failed start our ingest system: %v\n", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
 	}
 
 	if err := igst.WaitForHot(cfg.Global.Timeout()); err != nil {
-		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Global.Timeout()), log.KVErr(err))
 		return
 	}
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KVErr(err))
 	}
 
 	// fire up IPMI handlers
@@ -191,20 +198,20 @@ func main() {
 		if v.Source_Override != `` {
 			src = net.ParseIP(v.Source_Override)
 			if src == nil {
-				lg.FatalCode(0, "Listener %v invalid source override, \"%s\" is not an IP address", k, v.Source_Override)
+				lg.FatalCode(0, "Source-Override is invalid", log.KV("source-override", v.Source_Override), log.KV("listener", k))
 			}
 		} else if cfg.Global.Source_Override != `` {
 			// global override
 			src = net.ParseIP(cfg.Global.Source_Override)
 			if src == nil {
-				lg.FatalCode(0, "Global Source-Override is invalid")
+				lg.FatalCode(0, "Global Source-Override is invalid", log.KV("source-override", cfg.Global.Source_Override))
 			}
 		}
 
 		//get the tag for this listener
 		tag, err := igst.GetTag(v.Tag_Name)
 		if err != nil {
-			lg.Fatal("Failed to resolve tag \"%s\" for %s: %v\n", v.Tag_Name, k, err)
+			lg.Fatal("failed to resolve tag", log.KV("listener", k), log.KV("tag", v.Tag_Name), log.KVErr(err))
 		}
 
 		for _, x := range v.Target {
@@ -222,7 +229,7 @@ func main() {
 			}
 
 			if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
-				lg.Fatal("Preprocessor failure: %v", err)
+				lg.FatalCode(0, "preprocessor construction error", log.KVErr(err))
 			}
 
 			ipmiConns[k+x] = hcfg
@@ -239,11 +246,12 @@ func main() {
 
 	cancel()
 
+	lg.Info("IPMI ingester exiting", log.KV("UUID", id))
 	if err := igst.Sync(time.Second); err != nil {
-		lg.Error("Failed to sync: %v\n", err)
+		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
-		lg.Error("Failed to close: %v\n", err)
+		lg.Error("failed to close", log.KVErr(err))
 	}
 }
 
@@ -259,13 +267,13 @@ func (h *handlerConfig) run() {
 			CipherSuiteID: 3,
 		})
 		if err != nil {
-			lg.Error("Failed to connect to %v: %w", h.target, err)
+			lg.Error("failed to connect", log.KV("address", h.target), log.KVErr(err))
 			time.Sleep(PERIOD)
 			continue
 		}
 
 		if err := h.client.Open(); err != nil {
-			lg.Error("Failed to connect to %v: %w", h.target, err)
+			lg.Error("failed to connect", log.KV("address", h.target), log.KVErr(err))
 			time.Sleep(PERIOD)
 			continue
 		}
@@ -276,7 +284,7 @@ func (h *handlerConfig) run() {
 			// grab all SDR records and throw them as a single entry
 			sdr, err := h.getSDR()
 			if err != nil {
-				lg.Error("%v", err)
+				lg.Error("get SDR error", log.KVErr(err))
 				h.client.Close()
 				break
 			} else {
@@ -288,14 +296,14 @@ func (h *handlerConfig) run() {
 				}
 
 				if err = h.proc.ProcessContext(ent, h.ctx); err != nil {
-					lg.Error("Sending message: %v", err)
+					lg.Error("failed to send entry", log.KVErr(err))
 				}
 			}
 
 			// grab all SEL records that we haven't already seen
 			sel, err := h.getSEL()
 			if err != nil {
-				lg.Error("%v", err)
+				lg.Error("get SEL error", log.KVErr(err))
 				h.client.Close()
 				break
 			} else {
@@ -303,7 +311,7 @@ func (h *handlerConfig) run() {
 				for _, v := range sel {
 					b, err := json.Marshal(v)
 					if err != nil {
-						lg.Error("Encoding SEL record: %v", err)
+						lg.Error("encoding SEL record error", log.KVErr(err))
 						continue
 					}
 
@@ -330,7 +338,7 @@ func (h *handlerConfig) run() {
 					}
 
 					if err = h.proc.ProcessContext(ent, h.ctx); err != nil {
-						lg.Error("Sending message: %v", err)
+						lg.Error("failed to send entry", log.KVErr(err))
 					}
 				}
 			}

@@ -173,7 +173,6 @@ func main() {
 		// global override
 		if src = net.ParseIP(cfg.Source_Override); src == nil {
 			lg.Fatal("Global Source-Override is invalid", log.KV("source-override", cfg.Source_Override))
-			lg.Fatal("Global Source-Override is invalid")
 		}
 	} else if src, err = igst.SourceIP(); err != nil {
 		lg.Fatal("failed to resolve source IP from muxer", log.KVErr(err))
