@@ -42,16 +42,22 @@ func main() {
 	args := flag.Args()
 	if len(args) == 0 {
 		log.Printf("Must specify a command.")
+		help([]string{})
 		return
 	}
 
 	switch args[0] {
+	case "help":
+		help(args[1:])
 	case "unpack":
 		// Unpack the given kit into the current directory
 		unpackKit(args[1:])
 	case "pack":
 		// Pack the current directory into a kit
 		packKit(args[1:])
+	case "import":
+		// Merge in the contents of another kit file
+		importKit(args[1:])
 	case "info":
 		// Information about the kit in the current directory
 		kitInfo(args[1:])
@@ -71,8 +77,29 @@ func main() {
 		// Manage config macros
 		configMacro(args[1:])
 	default:
-		log.Fatalf("Invalid command %v.", args[0])
+		log.Fatalf("Invalid command %v. Try kitctl help", args[0])
 	}
+}
+
+func help(args []string) {
+	fmt.Printf("Usage: kitctl [flags] <cmd> [arguments]\n\n")
+	fmt.Println("kitctl provides tools for working with a Gravwell kit managed inside a git repository. It unpacks a kit archive file into discrete files which can be more easily modified. Once modifications are done, it can re-pack the contents into an archive file again.\n")
+	fmt.Printf("Commands:\n")
+	fmt.Println("	unpack <input file>: unpack a kit into the current directory")
+	fmt.Println("	pack <output file>: pack the current directory into a kit file")
+	fmt.Println("	import <input file>: include the contents of another kit into the already-unpacked kit in the current directory")
+	fmt.Println("	info: prints information about the kit in the current directory")
+	fmt.Println("	init: starts a new kit from scratch in the current directory")
+	fmt.Println("	dep list: list the current kit's dependencies")
+	fmt.Println("	dep add: add another dependency to the current kit")
+	fmt.Println("	dep del: delete a dependency from the current kit")
+	fmt.Println("	configmacro list: list the kit's config macros")
+	fmt.Println("	configmacro show: show info about a particular config macro")
+	fmt.Println("	configmacro add: add a new config macro to the kit")
+	fmt.Println("	configmacro del: delete a config macro from the kit")
+	fmt.Println("")
+	fmt.Println("Flags:")
+	flag.PrintDefaults()
 }
 
 // the "info" command just prints out some basic details about the kit for now.
@@ -488,6 +515,93 @@ func packKit(args []string) {
 	}
 }
 
+func importKit(args []string) {
+	// Figure out where we are
+	wd, err := os.Getwd()
+	if err != nil {
+		log.Fatalf("Couldn't figure out working directory: %v", err)
+	}
+
+	// Check args
+	if len(args) != 1 {
+		fmt.Printf("Usage: kitctl import <kitfile>\n")
+		return
+	}
+
+	// Get the original manifest
+	mf, err := readManifest()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Open the new file
+	fi, err := utils.OpenFileReader(args[0])
+	if err != nil {
+		log.Fatalf("Could not open file %v: %v", args[0], err)
+	}
+
+	// Get reader
+	rdr, err := kits.NewReader(fi, nil)
+	if err != nil {
+		log.Fatalf("Could not get reader for kit file: %v", err)
+	}
+	if err := rdr.Verify(); err != nil {
+		log.Fatalf("Could not verify kit: %v", err)
+	}
+
+	// Copy out the MANIFEST file
+	newmf, err := rdr.Manifest()
+	if err != nil {
+		log.Fatalf("Failed to read manifest: %v", err)
+	}
+
+	// Read out the files from the incoming kit and put them on disk
+	// We do this first so the files are here, even if the manifest merging fails
+	if err := unpackKitItems(wd, rdr); err != nil {
+		log.Fatal(err)
+	}
+
+	// Merge the incoming stuff from the new manifest
+	// What do we do if there's a conflict?
+	// Well, the most likely use-case is that it happens because you're
+	// updating some items in a kit, so we're just gonna overwrite.
+	// But we'll notify, too.
+	// First, merge Items
+itemLoop:
+	for i := range newmf.Items {
+		for j := range mf.Items {
+			if newmf.Items[i].Name == mf.Items[j].Name && newmf.Items[i].Type == mf.Items[j].Type {
+				log.Printf("Replacing existing item %v", newmf.Items[i].Name)
+				mf.Items[j] = newmf.Items[i]
+				break itemLoop
+			}
+		}
+		// No conflict, just append
+		log.Printf("Importing new kit item %v", newmf.Items[i].Name)
+		mf.Items = append(mf.Items, newmf.Items[i])
+	}
+
+	// Next, merge ConfigMacros
+macroLoop:
+	for i := range newmf.ConfigMacros {
+		for j := range mf.ConfigMacros {
+			if newmf.ConfigMacros[i].MacroName == mf.ConfigMacros[j].MacroName {
+				log.Printf("Replacing existing config macro %v", newmf.ConfigMacros[i].MacroName)
+				mf.ConfigMacros[j] = newmf.ConfigMacros[i]
+				break macroLoop
+			}
+		}
+		// No conflict, just append
+		log.Printf("Importing new config macro %v", newmf.ConfigMacros[i].MacroName)
+		mf.ConfigMacros = append(mf.ConfigMacros, newmf.ConfigMacros[i])
+	}
+
+	// Write out the new manifest
+	if err := writeManifest(mf); err != nil {
+		log.Fatal(err)
+	}
+}
+
 func unpackKit(args []string) {
 	// Figure out where we are
 	wd, err := os.Getwd()
@@ -524,8 +638,15 @@ func unpackKit(args []string) {
 		log.Fatal(err)
 	}
 
+	if err := unpackKitItems(wd, rdr); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func unpackKitItems(wd string, rdr *kits.Reader) error {
 	// Walk each kit item
-	err = rdr.Process(func(name string, tp kits.ItemType, hash [sha256.Size]byte, rdr io.Reader) error {
+	return rdr.Process(func(name string, tp kits.ItemType, hash [sha256.Size]byte, rdr io.Reader) error {
+		var err error
 		// For each item:
 		// Verify the hash of the file
 		// Unmarshal the item
@@ -643,8 +764,4 @@ func unpackKit(args []string) {
 		}
 		return nil
 	})
-
-	if err != nil {
-		log.Fatal(err)
-	}
 }

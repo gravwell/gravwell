@@ -72,13 +72,19 @@ func (c *Client) CreateScheduledSearch(name, description, schedule, searchquery 
 // - script: a valid anko script.
 //
 // - groups: an optional array of groups which should be able to access this object.
-func (c *Client) CreateScheduledScript(name, description, schedule, script string, groups []int32) (int32, error) {
+//
+// - lang: the language of scheduled script (anko, go)
+func (c *Client) CreateScheduledScript(name, description, schedule, script string, lang types.ScriptLang, groups []int32) (int32, error) {
+	if err := lang.Valid(); err != nil {
+		return -1, err
+	}
 	ss := types.ScheduledSearch{
-		Groups:      groups,
-		Name:        name,
-		Description: description,
-		Schedule:    schedule,
-		Script:      script,
+		Groups:         groups,
+		Name:           name,
+		Description:    description,
+		Schedule:       schedule,
+		Script:         script,
+		ScriptLanguage: lang,
 	}
 	var resp int32
 	if err := c.postStaticURL(scheduledSearchUrl(), ss, &resp); err != nil {
@@ -143,10 +149,13 @@ func (c *Client) ClearScheduledSearchState(id int32) error {
 // ParseScheduledScript asks the API to parse a script given an ID
 // if there is no error line and column will have a return value of 0
 // if there is an error, err will be populated and potentially a line and column if the error was in the script
-func (c *Client) ParseScheduledScript(data string, version int) (line, column int, err error) {
+func (c *Client) ParseScheduledScript(data string, lang types.ScriptLang) (line, column int, err error) {
+	if err = lang.Valid(); err != nil {
+		return
+	}
 	var resp types.ScheduledSearchParseResponse
 	req := types.ScheduledSearchParseRequest{
-		Version: version,
+		Version: int(lang),
 		Script:  data,
 	}
 	if err = c.methodStaticPushURL(http.MethodPut, scheduledSearchParseUrl(), req, &resp); err != nil {

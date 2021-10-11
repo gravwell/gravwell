@@ -11,14 +11,15 @@ package types
 import (
 	"bytes"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 )
 
 const (
-	ScriptVersionAnko int = 0 // default is anko
-	ScriptVersionGo   int = 1 // new hotness is go
+	ScriptAnko ScriptLang = 0 // default is anko
+	ScriptGo   ScriptLang = 1 // new hotness is go
 
 	ScheduledTypeSearch string = "search"
 	ScheduledTypeScript string = "script"
@@ -28,10 +29,16 @@ const (
 	ScheduledScriptTypeGo   string = `go`
 )
 
+type ScriptLang uint
+
 type ScriptDeployConfig struct {
 	Disabled       bool
 	RunImmediately bool
 }
+
+var (
+	ErrUnknownScriptLanguage = errors.New("Unknown script language")
+)
 
 // ScheduledSearch represents a scheduled search, including rules, description,
 // etc.
@@ -61,8 +68,8 @@ type ScheduledSearch struct {
 	SearchSinceLastRun bool   // If set, ignore Duration and run from last run time to now.
 
 	// For scheduled scripts
-	Script        string // If set, execute the contents rather than running SearchString
-	ScriptVersion int    // what script type is this: anko, go
+	Script         string     // If set, execute the contents rather than running SearchString
+	ScriptLanguage ScriptLang // what script type is this: anko, go
 
 	// For scheduled flows
 	Flow string
@@ -228,4 +235,39 @@ func (s ScheduledSearch) Equal(v ScheduledSearch) bool {
 	}
 
 	return true
+}
+
+const scheduledScriptAnko string = `anko`
+const scheduledScriptGo string = `go`
+
+func (sl ScriptLang) String() string {
+	switch sl {
+	case ScriptAnko:
+		return scheduledScriptAnko
+	case ScriptGo:
+		return scheduledScriptGo
+	}
+	return `UNKNOWN`
+}
+
+func (sl ScriptLang) Valid() (err error) {
+	switch sl {
+	case ScriptAnko:
+	case ScriptGo:
+	default:
+		err = ErrUnknownScriptLanguage
+	}
+	return
+}
+
+func ParseScriptLang(v string) (l ScriptLang, err error) {
+	switch strings.TrimSpace(strings.ToLower(v)) {
+	case scheduledScriptAnko:
+		l = ScriptAnko
+	case scheduledScriptGo:
+		l = ScriptGo
+	default:
+		err = ErrUnknownScriptLanguage
+	}
+	return
 }
