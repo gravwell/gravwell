@@ -108,7 +108,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 
 		tp, str, err := translateBindType(v.Bind_String)
 		if err != nil {
-			lg.FatalCode(0, "invalid bind", log.KV("bind-string", v.Bind_String), log.KVErr(err))
+			lg.FatalCode(0, "invalid bind", log.KV("bindstring", v.Bind_String), log.KVErr(err))
 		}
 
 		if tp.TCP() {
@@ -133,16 +133,16 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 			config.Certificates = make([]tls.Certificate, 1)
 			config.Certificates[0], err = tls.LoadX509KeyPair(v.Cert_File, v.Key_File)
 			if err != nil {
-				lg.Fatal("failed to load certificate", log.KV("cert-file", v.Cert_File), log.KV("key-file", v.Key_File), log.KVErr(err))
+				lg.Fatal("failed to load certificate", log.KV("certfile", v.Cert_File), log.KV("keyfile", v.Key_File), log.KVErr(err))
 			}
 			//get the socket
 			addr, err := net.ResolveTCPAddr("tcp", str)
 			if err != nil {
-				lg.FatalCode(0, "invalid Bind-String", log.KV("bind-string", v.Bind_String), log.KV("json-listener", k), log.KVErr(err))
+				lg.FatalCode(0, "invalid Bind-String", log.KV("bindstring", v.Bind_String), log.KV("jsonlistener", k), log.KVErr(err))
 			}
 			l, err := tls.Listen("tcp", addr.String(), config)
 			if err != nil {
-				lg.FatalCode(0, "failed to listen via TLS", log.KV("address", addr), log.KV("json-listener", k), log.KVErr(err))
+				lg.FatalCode(0, "failed to listen via TLS", log.KV("address", addr), log.KV("jsonlistener", k), log.KVErr(err))
 			}
 			connID := addConn(l)
 			//start the acceptor
@@ -175,7 +175,7 @@ func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHa
 			continue
 		}
 		debugout("Accepted %v connection from %s in json mode\n", tp.String(), conn.RemoteAddr())
-		igst.Info("accepted connection in json mode", log.KV("local-address", tp.String()), log.KV("remote-address", conn.RemoteAddr()))
+		igst.Info("accepted connection in json mode", log.KV("localaddress", tp.String()), log.KV("remoteaddress", conn.RemoteAddr()))
 		failCount = 0
 		go jsonConnHandler(conn, cfg, igst)
 	}
@@ -197,11 +197,11 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 	if cfg.src == nil {
 		ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String())
 		if err != nil {
-			igst.Error("failed to get host from remote addr", log.KV("remote-address", c.RemoteAddr().String()), log.KVErr(err))
+			igst.Error("failed to get host from remote addr", log.KV("remoteaddress", c.RemoteAddr().String()), log.KVErr(err))
 			return
 		}
 		if rip = net.ParseIP(ipstr); rip == nil {
-			igst.Error("failed to get remote address", log.KV("remote-address", ipstr))
+			igst.Error("failed to get remote address", log.KV("remoteaddress", ipstr))
 			return
 		}
 	} else {

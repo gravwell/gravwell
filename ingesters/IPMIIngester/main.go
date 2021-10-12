@@ -246,7 +246,7 @@ func main() {
 
 	cancel()
 
-	lg.Info("IPMI ingester exiting", log.KV("uuid", id))
+	lg.Info("IPMI ingester exiting", log.KV("ingesteruuid", id))
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}

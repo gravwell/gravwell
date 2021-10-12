@@ -114,7 +114,7 @@ func main() {
 	if *profileFile != `` {
 		f, err := os.Create(*profileFile)
 		if err != nil {
-			lg.Fatal("failed to open pprof", log.KV("profile-file", *profileFile), log.KVErr(err))
+			lg.Fatal("failed to open pprof", log.KV("path", *profileFile), log.KVErr(err))
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -127,14 +127,14 @@ func main() {
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Log_File), log.KVErr(err))
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
 			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Log_Level), log.KVErr(err))
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Log_Level), log.KVErr(err))
 			}
 		}
 	}
@@ -206,7 +206,7 @@ func main() {
 	for k, v := range cfg.Sniffer {
 		if v == nil {
 			closeSniffers(sniffs)
-			lg.FatalCode(0, "Invalid sniffer, nil", log.KV("name", k))
+			lg.FatalCode(0, "Invalid sniffer, nil", log.KV("sniffer", k))
 		}
 		//The config may specify a particular source IP for this sniffer.
 		//If not, derive one.
@@ -404,7 +404,7 @@ func pcapIngester(igst *ingest.IngestMuxer, s *sniffer) {
 	ch := make(chan []capPacket, 1024)
 	go packetExtractor(s.handle, ch)
 	debugout("Starting sniffer %s on %s with \"%s\"\n", s.name, s.Interface, s.BPFFilter)
-	lg.Info("starting sniffer", log.KV("sniffer", s.name), log.KV("interface", s.Interface), log.KV("bpf-filter", s.BPFFilter))
+	lg.Info("starting sniffer", log.KV("sniffer", s.name), log.KV("interface", s.Interface), log.KV("bpffilter", s.BPFFilter))
 
 mainLoop:
 	for {

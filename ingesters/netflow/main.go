@@ -86,7 +86,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			lg.FatalCode(0, "failed to open profile file", log.KV("file", *cpuprofile), log.KVErr(err))
+			lg.FatalCode(0, "failed to open profile file", log.KV("path", *cpuprofile), log.KVErr(err))
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -101,14 +101,14 @@ func main() {
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Log_File), log.KVErr(err))
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
 			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Log_Level), log.KVErr(err))
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Log_Level), log.KVErr(err))
 			}
 		}
 	}
@@ -203,7 +203,7 @@ func main() {
 		}
 		ft, err := translateFlowType(v.Flow_Type)
 		if err != nil {
-			lg.FatalCode(0, "invalid flow type", log.KV("flow-type", v.Flow_Type), log.KV("collector", k), log.KVErr(err))
+			lg.FatalCode(0, "invalid flow type", log.KV("flowtype", v.Flow_Type), log.KV("collector", k), log.KVErr(err))
 		}
 		bc.tag = tag
 		bc.ignoreTS = v.Ignore_Timestamps
@@ -227,7 +227,7 @@ func main() {
 			return
 		}
 		if err = bh.Listen(v.Bind_String); err != nil {
-			lg.FatalCode(0, "failed to listen", log.KV("bind-string", bh.String()), log.KVErr(err))
+			lg.FatalCode(0, "failed to listen", log.KV("bindstring", bh.String()), log.KVErr(err))
 		}
 		id := addConn(bh)
 		if err := bh.Start(id); err != nil {
@@ -267,7 +267,7 @@ func main() {
 	case <-time.After(1 * time.Second):
 		lg.Error("failed to wait for all connections to close", log.KV("active", connCount()))
 	}
-	lg.Info("netflow ingester exiting", log.KV("UUID", id))
+	lg.Info("netflow ingester exiting", log.KV("ingesteruuid", id))
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}
