@@ -111,14 +111,14 @@ func main() {
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Global.Log_File), log.KVErr(err))
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Global.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
 			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Global.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Global.Log_Level), log.KVErr(err))
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
 			}
 		}
 	}
@@ -198,13 +198,13 @@ func main() {
 		if v.Source_Override != `` {
 			src = net.ParseIP(v.Source_Override)
 			if src == nil {
-				lg.FatalCode(0, "Source-Override is invalid", log.KV("source-override", v.Source_Override), log.KV("listener", k))
+				lg.FatalCode(0, "Source-Override is invalid", log.KV("sourceoverride", v.Source_Override), log.KV("listener", k))
 			}
 		} else if cfg.Global.Source_Override != `` {
 			// global override
 			src = net.ParseIP(cfg.Global.Source_Override)
 			if src == nil {
-				lg.FatalCode(0, "Global Source-Override is invalid", log.KV("source-override", cfg.Global.Source_Override))
+				lg.FatalCode(0, "Global Source-Override is invalid", log.KV("sourceoverride", cfg.Global.Source_Override))
 			}
 		}
 
@@ -246,7 +246,7 @@ func main() {
 
 	cancel()
 
-	lg.Info("IPMI ingester exiting", log.KV("UUID", id))
+	lg.Info("IPMI ingester exiting", log.KV("uuid", id))
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}

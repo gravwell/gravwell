@@ -80,20 +80,20 @@ func main() {
 	debug.SetTraceback("all")
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
-		lg.Fatal("failed to get configuration", log.KV("file", *configLoc), log.KVErr(err))
+		lg.Fatal("failed to get configuration", log.KV("path", *configLoc), log.KVErr(err))
 	}
 
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Global.Log_File), log.KVErr(err))
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Global.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
 			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Global.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Global.Log_Level), log.KVErr(err))
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
 			}
 		}
 	}
@@ -225,7 +225,7 @@ func main() {
 					sdiff := tmpsize - oldsize
 					oldcount = tmpcount
 					oldsize = tmpsize
-					lg.Info("ingest stats", log.KV("eps", cdiff), log.KV("bps", sdiff), log.KV("size", oldsize))
+					lg.Info("ingest stats", log.KV("eps", cdiff), log.KV("bps", sdiff), log.KV("bytes", oldsize))
 				}
 			}()
 		}

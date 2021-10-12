@@ -90,7 +90,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			lg.Fatal("Failed to create cpu profile", log.KV("file", *cpuprofile), log.KVErr(err))
+			lg.Fatal("Failed to create cpu profile", log.KV("path", *cpuprofile), log.KVErr(err))
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
@@ -99,7 +99,7 @@ func main() {
 		defer func() {
 			f, err := os.Create(*memprofile)
 			if err != nil {
-				lg.Fatal("Failed to create memory profile", log.KV("file", *memprofile), log.KVErr(err))
+				lg.Fatal("Failed to create memory profile", log.KV("path", *memprofile), log.KVErr(err))
 				return
 			}
 			runtime.GC()
@@ -118,7 +118,7 @@ func main() {
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Global.Log_File), log.KVErr(err))
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Global.Log_File), log.KVErr(err))
 		}
 		defer fout.Close()
 		if err = lg.AddWriter(fout); err != nil {
@@ -126,7 +126,7 @@ func main() {
 		}
 		if len(cfg.Global.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Global.Log_Level), log.KVErr(err))
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
 			}
 		}
 	}
@@ -134,7 +134,7 @@ func main() {
 	// Get the state file
 	stateFile, err := utils.NewState(cfg.Global.State_Store_Location, 0600)
 	if err != nil {
-		lg.Fatal("failed to open state file", log.KV("file", cfg.Global.State_Store_Location), log.KVErr(err))
+		lg.Fatal("failed to open state file", log.KV("path", cfg.Global.State_Store_Location), log.KVErr(err))
 	}
 	stateMan := NewStateman(stateFile)
 	stateMan.Start()
@@ -275,15 +275,15 @@ func main() {
 						if stream.JSON_Metrics {
 							jr, err := json.Marshal(report)
 							if err == nil {
-								igst.Info("report metrics", log.KV("metrics", string(jr)))
+								igst.Infof("%v", string(jr))
 							}
 						} else {
 							igst.Info("stream stats",
 								log.KV("stream", stream.Stream_Name),
 								log.KV("shards", len(shards)),
 								log.KV("delay", report.AverageLag),
-								log.KV("compressed-size", report.CompressedDataSize),
-								log.KV("request-count", report.KinesisRequests),
+								log.KV("compressedsize", report.CompressedDataSize),
+								log.KV("requestcount", report.KinesisRequests),
 								log.KV("size", report.EntryDataSize))
 						}
 					}
@@ -363,7 +363,7 @@ func main() {
 
 					output, err := svc.GetShardIterator(gsii)
 					if err != nil {
-						lg.Error("error on shard", log.KV("number", shardid), log.KV("shard", *shard.ShardId), log.KVErr(err))
+						lg.Error("error on shard", log.KV("number", shardid), log.KV("stream", stream.Stream_Name), log.KV("shard", *shard.ShardId), log.KVErr(err))
 						time.Sleep(5 * time.Second)
 						continue
 					}
@@ -393,14 +393,14 @@ func main() {
 								if awsErr, ok := err.(awserr.Error); ok {
 									// process SDK error
 									if awsErr.Code() == kinesis.ErrCodeProvisionedThroughputExceededException {
-										lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId))
+										lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId),log.KV("stream", stream.Stream_Name))
 										time.Sleep(500 * time.Millisecond)
 									} else if awsErr.Code() == kinesis.ErrCodeExpiredIteratorException {
-										lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId))
+										lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId),log.KV("stream", stream.Stream_Name))
 										time.Sleep(100 * time.Millisecond)
 										continue reconnectLoop
 									} else {
-										lg.Error("answer error", log.KV("code", awsErr.Code()), log.KV("message", awsErr.Message()))
+										lg.Error("answer error", log.KV("code", awsErr.Code()), log.KV("message", awsErr.Message()), log.KV("shard", *shard.ShardId),log.KV("stream", stream.Stream_Name))
 										time.Sleep(500 * time.Millisecond)
 									}
 								} else {
