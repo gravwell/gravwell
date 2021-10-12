@@ -86,7 +86,7 @@ func init() {
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr: %v\n", err)
+			lg.Fatal("Failed to dup stderr", log.KVErr(err))
 		} else {
 			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
 		}
@@ -100,8 +100,8 @@ func init() {
 			ingest.PrintVersion(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
 				fout.Close()
+				lg.Fatal("failed to dup2 stderr", log.KVErr(err))
 			}
 		}
 	}
@@ -114,7 +114,7 @@ func main() {
 	if *profileFile != `` {
 		f, err := os.Create(*profileFile)
 		if err != nil {
-			lg.Fatal("failed to open pprof: %v", err)
+			lg.Fatal("failed to open pprof", log.KV("path", *profileFile), log.KVErr(err))
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -122,36 +122,36 @@ func main() {
 	}
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		lg.Fatal("Failed to get configuration: %v", err)
+		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 	}
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Log_Level), log.KVErr(err))
 			}
 		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get tags from configuration: %v", err)
+		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get backend targets from configuration: %v", err)
+		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	lmt, err := cfg.RateLimit()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Rate limiting connection to %d bps\n", lmt)
@@ -160,7 +160,7 @@ func main() {
 	debugout("INSECURE skipping TLS verification: %v\n", cfg.InsecureSkipTLSVerification())
 	id, ok := cfg.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "could not read ingester UUID")
 	}
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.IngestStreamConfig,
@@ -183,22 +183,22 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
-		lg.Fatal("Failed to create new uniform muxer: %v ", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 	}
 	debugout("Started ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		lg.Fatal("Failed start our ingest system: %v", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 	}
 	debugout("Waiting for connections to indexers\n")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.Fatal("Timedout waiting for backend connections: %v", err)
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 	}
 	debugout("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "failed to set configuration for ingester state message", log.KVErr(err))
 	}
 
 	//loop through our sniffers and get a config up for each
@@ -206,7 +206,7 @@ func main() {
 	for k, v := range cfg.Sniffer {
 		if v == nil {
 			closeSniffers(sniffs)
-			lg.FatalCode(0, "Invalid sniffer named %s: Nil struct", k)
+			lg.FatalCode(0, "Invalid sniffer, nil", log.KV("sniffer", k))
 		}
 		//The config may specify a particular source IP for this sniffer.
 		//If not, derive one.
@@ -235,14 +235,14 @@ func main() {
 		hnd, err := pcap.OpenLive(v.Interface, int32(v.Snap_Len), v.Promisc, pktTimeout)
 		if err != nil {
 			closeSniffers(sniffs)
-			lg.FatalCode(0, "Failed to get initialize handler on %s for %s", v.Interface, k)
+			lg.FatalCode(0, "failed to initialize handler", log.KV("interface", v.Interface), log.KV("sniffer", k), log.KVErr(err))
 		}
 		//apply a filter if one is specified
 		if v.BPF_Filter != `` {
 			if err := hnd.SetBPFFilter(v.BPF_Filter); err != nil {
 				hnd.Close()
 				closeSniffers(sniffs)
-				lg.FatalCode(0, "Invalid BPF Filter for %s: %v", k, err)
+				lg.FatalCode(0, "invalid BPF filter", log.KV("sniffer", k), log.KVErr(err))
 			}
 		}
 		sniffs = append(sniffs, sniffer{
@@ -264,7 +264,7 @@ func main() {
 		tag, err := igst.GetTag(sniffs[i].TagName)
 		if err != nil {
 			closeSniffers(sniffs)
-			lg.Fatal("Failed to resolve tag %s: %v", sniffs[i].TagName, err)
+			lg.Fatal("failed to resolve tag", log.KV("tag", sniffs[i].TagName), log.KVErr(err))
 		}
 		sniffs[i].tag = tag
 	}
@@ -281,20 +281,19 @@ func main() {
 	requestClose(sniffs)
 	res := gatherResponse(sniffs)
 	closeHandles(sniffs)
-	if err := igst.Sync(time.Second); err != nil {
-		lg.Error("Failed to sync the ingester: %v\n", err)
-	}
 	durr := time.Since(start)
 
-	if err == nil {
-		lg.Info("Completed in %v (%s)\n", durr, ingest.HumanSize(res.Bytes))
-		lg.Info("Total Count: %s\n", ingest.HumanCount(res.Count))
-		lg.Info("Entry Rate: %s\n", ingest.HumanEntryRate(res.Count, durr))
-		lg.Info("Ingest Rate: %s\n", ingest.HumanRate(res.Bytes, durr))
+	if err = igst.Sync(time.Second); err != nil {
+		lg.Error("failed to sync", log.KVErr(err))
 	}
-	if err := igst.Close(); err != nil {
-		lg.Error("Failed to close the ingester: %v\n", err)
-		return
+	if err = igst.Close(); err != nil {
+		lg.Error("failed to close", log.KVErr(err))
+	}
+	if err == nil {
+		debugout("Completed in %v (%s)\n", durr, ingest.HumanSize(res.Bytes))
+		debugout("Total Count: %s\n", ingest.HumanCount(res.Count))
+		debugout("Entry Rate: %s\n", ingest.HumanEntryRate(res.Count, durr))
+		debugout("Ingest Rate: %s\n", ingest.HumanRate(res.Bytes, durr))
 	}
 }
 
@@ -314,14 +313,14 @@ mainLoop:
 		if err != nil {
 			if !threwErr {
 				threwErr = true
-				lg.Error("Failed to get pcap device on reopen (%v)\n", err)
+				lg.Error("failed to get pcap device on reopen", log.KV("interface", s.Interface), log.KVErr(err))
 			}
 			continue
 		}
 		if s.BPFFilter != `` {
 			if err := hnd.SetBPFFilter(s.BPFFilter); err != nil {
 				//this is fatal, this shouldn't be possible, but here we are
-				lg.Error("Invalid BPF Filter on reopen: %v\n", err)
+				lg.Error("invalid BPF Filter on reopen", log.KV("interface", s.Interface), log.KVErr(err))
 				hnd.Close()
 				break mainLoop
 			}
@@ -364,7 +363,7 @@ func packetExtractor(hnd *pcap.Handle, c chan []capPacket) {
 				}
 				continue
 			}
-			debugout("Failed to get packet from source: %v\n", err)
+			debugout("failed to get packet from source: %v\n", err)
 			break
 		}
 		if trimSize > 0 && len(data) > trimSize {
@@ -405,8 +404,7 @@ func pcapIngester(igst *ingest.IngestMuxer, s *sniffer) {
 	ch := make(chan []capPacket, 1024)
 	go packetExtractor(s.handle, ch)
 	debugout("Starting sniffer %s on %s with \"%s\"\n", s.name, s.Interface, s.BPFFilter)
-	igst.Info("Starting sniffer %s on %s with \"%s\"\n", s.name, s.Interface, s.BPFFilter)
-	lg.Info("Starting sniffer %s on %s with \"%s\"\n", s.name, s.Interface, s.BPFFilter)
+	lg.Info("starting sniffer", log.KV("sniffer", s.name), log.KV("interface", s.Interface), log.KV("bpffilter", s.BPFFilter))
 
 mainLoop:
 	for {
@@ -418,11 +416,11 @@ mainLoop:
 		case pkts, ok := <-ch: //get a packet
 			if !ok {
 				//Something bad happened, attempt to restart the pcap
-				igst.Error("Failed to read next packet, attempting to rebuild packet source")
+				igst.Error("failed to read next packet, attempting to rebuild packet source")
 				s.handle.Close()
 				s.handle, ok = rebuildPacketSource(s)
 				if !ok {
-					igst.Error("Couldn't rebuild packet start")
+					igst.Error("couldn't rebuild packet start")
 					//Still failing, time to bail out
 					break mainLoop
 				}
@@ -430,7 +428,7 @@ mainLoop:
 				ch = make(chan []capPacket, 1024)
 				go packetExtractor(s.handle, ch)
 				debugout("Rebuilding packet source\n")
-				igst.Info("Rebuilt packet source")
+				igst.Info("rebuilt packet source")
 				continue
 			}
 			staticSet := make([]entry.Entry, len(pkts))
@@ -446,7 +444,7 @@ mainLoop:
 			}
 			if err := igst.WriteBatch(set); err != nil {
 				s.handle.Close()
-				lg.Error("Failed to write entry: %v\n", err)
+				lg.Error("failed to handle entry", log.KVErr(err))
 				s.res <- results{
 					Bytes: 0,
 					Count: 0,

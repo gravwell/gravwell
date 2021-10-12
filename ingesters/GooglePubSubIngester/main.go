@@ -54,7 +54,7 @@ func init() {
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr: %v\n", err)
+			lg.Fatal("failed to dup stderr", log.KVErr(err))
 		} else {
 			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
 		}
@@ -80,37 +80,37 @@ func main() {
 	debug.SetTraceback("all")
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
-		lg.Fatal("Failed to get configuration: %v", err)
+		lg.Fatal("failed to get configuration", log.KV("path", *configLoc), log.KVErr(err))
 	}
 
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Global.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Global.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Global.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Global.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
 			}
 		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.Fatal("Failed to get tags from configuration: %v", err)
+		lg.Fatal("failed to get tags from configuration", log.KVErr(err))
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.Fatal("Failed to get backend targets from configuration: %v", err)
+		lg.Fatal("failed to get backend targets from configuration", log.KVErr(err))
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	lmt, err := cfg.Global.RateLimit()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Rate limiting connection to %d bps\n", lmt)
@@ -118,7 +118,7 @@ func main() {
 	//fire up the ingesters
 	id, ok := cfg.Global.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "could not read ingester UUID")
 	}
 	ingestConfig := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.Global.IngestStreamConfig,
@@ -140,24 +140,24 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
-		lg.Fatal("Failed build our ingest system: %v\n", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		lg.Fatal("Failed start our ingest system: %v\n", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 	}
 
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "Timed out waiting for backend connections: %v\n", err)
+		lg.FatalCode(0, "timed out waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 	}
 	debugout("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KVErr(err))
 	}
 
 	// Set up environment variables for AWS auth, if extant
@@ -169,29 +169,29 @@ func main() {
 	ctx := context.Background()
 	client, err := pubsub.NewClient(ctx, cfg.Global.Project_ID)
 	if err != nil {
-		lg.Fatal("Couldn't create pubsub client: %v\n", err)
+		lg.Fatal("failed to create pubsub client", log.KVErr(err))
 		return
 	}
 
 	for _, psv := range cfg.PubSub {
 		tagid, err := igst.GetTag(psv.Tag_Name)
 		if err != nil {
-			lg.Fatal("Can't resolve tag %v: %v", psv.Tag_Name, err)
+			lg.Fatal("failed to resolve tag", log.KV("tag", psv.Tag_Name), log.KVErr(err))
 		}
 
 		procset, err := cfg.Preprocessor.ProcessorSet(igst, psv.Preprocessor)
 		if err != nil {
-			lg.Fatal("Preprocessor construction error: %v", err)
+			lg.Fatal("preprocessor construction failed", log.KVErr(err))
 		}
 
 		// get the topic
 		topic := client.Topic(psv.Topic_Name)
 		ok, err := topic.Exists(ctx)
 		if err != nil {
-			lg.Fatal("Error checking topic: %v", err)
+			lg.Fatal("error checking topic", log.KVErr(err))
 		}
 		if !ok {
-			lg.Fatal("Topic %v doesn't exist", psv.Topic_Name)
+			lg.Fatal("topic does not exist", log.KV("topic", psv.Topic_Name))
 		}
 
 		// Get the subscription, creating if needed
@@ -199,7 +199,7 @@ func main() {
 		sub := client.Subscription(subname)
 		ok, err = sub.Exists(ctx)
 		if err != nil {
-			lg.Fatal("Error checking subscription existence: %v", err)
+			lg.Fatal("error checking subscription", log.KVErr(err))
 		}
 		if !ok {
 			// doesn't exist, try creating it
@@ -208,7 +208,7 @@ func main() {
 				AckDeadline: 10 * time.Second,
 			})
 			if err != nil {
-				lg.Fatal("Error creating subscription: %v", err)
+				lg.Fatal("error creating subscription", log.KVErr(err))
 			}
 		}
 
@@ -225,7 +225,7 @@ func main() {
 					sdiff := tmpsize - oldsize
 					oldcount = tmpcount
 					oldsize = tmpsize
-					lg.Info("%d entries per second at %d bytes per second (%d bytes total)", cdiff, sdiff, oldsize)
+					lg.Info("ingest stats", log.KV("eps", cdiff), log.KV("bps", sdiff), log.KV("bytes", oldsize))
 				}
 			}()
 		}
@@ -235,12 +235,12 @@ func main() {
 			go func(c chan *entry.Entry) {
 				for e := range c {
 					if err := procset.Process(e); err != nil {
-						lg.Error("Can't process entry: %v", err)
+						lg.Error("failed to process entry", log.KVErr(err))
 					}
 					count++
 				}
 				if err := procset.Close(); err != nil {
-					lg.Error("Failed to close processor set: %v", err)
+					lg.Error("failed to close processor", log.KVErr(err))
 				}
 			}(eChan)
 			tcfg := timegrinder.Config{
@@ -266,7 +266,7 @@ func main() {
 				// global override
 				src = net.ParseIP(cfg.Global.Source_Override)
 				if src == nil {
-					lg.Fatal("Global Source-Override is invalid")
+					lg.Fatal("Global Source-Override is invalid", log.KV("override", cfg.Global.Source_Override))
 				}
 			}
 
@@ -296,7 +296,7 @@ func main() {
 				cctx, cancel := context.WithCancel(ctx)
 				defer cancel()
 				if err := sub.Receive(cctx, callback); err != nil {
-					lg.Error("Receive failed: %v", err)
+					lg.Error("receive failed", log.KVErr(err))
 				}
 			}
 		}(sub, tagid, psv)

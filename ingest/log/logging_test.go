@@ -56,7 +56,7 @@ func TestNew(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = lgr.Critical("test: %d", 99); err != nil {
+	if err = lgr.Criticalf("test: %d", 99); err != nil {
 		t.Fatal(err)
 	}
 
@@ -70,7 +70,7 @@ func TestAppend(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = lgr.Error("test: %d", 99); err != nil {
+	if err = lgr.Errorf("test: %d", 99); err != nil {
 		t.Fatal(err)
 	}
 
@@ -84,19 +84,25 @@ func TestValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err = lgr.Warn("test: %d", 99); err != nil {
+	if err = lgr.Warnf("ERROR test: %d", 99); err != nil {
 		t.Fatal(err)
 	}
-	if err = lgr.Info("test: %d\n", 99); err != nil {
+	if err = lgr.Warnf("WARN test: %d", 99); err != nil {
 		t.Fatal(err)
 	}
-	if err = lgr.Debug("test: %d", 99); err != nil {
+	if err = lgr.Infof("INFO test: %d\n", 99); err != nil {
+		t.Fatal(err)
+	}
+	if err = lgr.Debugf("DEBUG test: %d", 99); err != nil {
+		t.Fatal(err)
+	}
+	if err = lgr.Error("tester", KV("id", 99)); err != nil {
 		t.Fatal(err)
 	}
 	if err = lgr.SetLevel(OFF); err != nil {
 		t.Fatal(err)
 	}
-	if err = lgr.Critical("testing off: %d", 88); err != nil {
+	if err = lgr.Criticalf("CRITICAL testing off: %d", 88); err != nil {
 		t.Fatal(err)
 	}
 	if err = lgr.Close(); err != nil {
@@ -107,17 +113,17 @@ func TestValue(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := string(bts)
-	if !strings.Contains(s, "CRITICAL test: 99\n") {
-		t.Fatal("Missing critical value: ", s)
-	}
 	if !strings.Contains(s, "ERROR test: 99\n") {
-		t.Fatal("Missing critical value: ", s)
+		t.Fatal("Missing error value: ", s)
 	}
 	if !strings.Contains(s, "WARN test: 99\n") {
-		t.Fatal("Missing critical value: ", s)
+		t.Fatal("Missing warn value: ", s)
 	}
 	if !strings.Contains(s, "INFO test: 99\n") {
-		t.Fatal("Missing critical value: ", s)
+		t.Fatal("Missing info value: ", s)
+	}
+	if !strings.Contains(s, "tester") || !strings.Contains(s, `id="99"`) {
+		t.Fatal("Missing info value: ", s)
 	}
 	if strings.Contains(s, "DEBUG test: 99\n") {
 		t.Fatal("Has debug level: ", s)
@@ -126,7 +132,7 @@ func TestValue(t *testing.T) {
 		t.Fatal("Has CRITICAL level: ", s)
 	}
 	if strings.Contains(s, "\n\n") {
-		t.Fatal("did not filter double newlines")
+		t.Fatalf("did not filter double newlines:\n%q\n", s)
 	}
 }
 
@@ -147,11 +153,11 @@ func TestMulti(t *testing.T) {
 		toCheck = append(toCheck, fout.Name())
 	}
 
-	if err = lgr.Critical("0x%x", 0x1337); err != nil {
+	if err = lgr.Criticalf("CRITICAL 0x%x", 0x1337); err != nil {
 		t.Fatal(err)
 	}
 
-	if err = lgr.Error("test %d", 1337); err != nil {
+	if err = lgr.Errorf("ERROR test %d", 1337); err != nil {
 		t.Fatal(err)
 	}
 	for _, n := range toCheck {
@@ -191,7 +197,7 @@ func TestAddRemove(t *testing.T) {
 		toCheck = append(toCheck, fout.Name())
 	}
 
-	if err = lgr.Critical("0x%x", 0x1337); err != nil {
+	if err = lgr.Criticalf("CRITICAL 0x%x", 0x1337); err != nil {
 		t.Fatal(err)
 	}
 
@@ -203,7 +209,7 @@ func TestAddRemove(t *testing.T) {
 	}
 
 	//log something that should ONLY go to the tempdir
-	if err = lgr.Error("test %d", 1337); err != nil {
+	if err = lgr.Errorf("ERROR test %d", 1337); err != nil {
 		t.Fatal(err)
 	}
 

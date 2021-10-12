@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 
@@ -62,8 +63,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 			timeFormats:      cfg.TimeFormat,
 		}
 		if jhc.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
-			lg.Error("Preprocessor failure: %v", err)
-			return err
+			lg.Fatal("preprocessor error", log.KVErr(err))
 		}
 		f.Add(jhc.proc)
 		if jhc.flds, err = v.GetJsonFields(); err != nil {
@@ -108,7 +108,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 
 		tp, str, err := translateBindType(v.Bind_String)
 		if err != nil {
-			lg.FatalCode(0, "Invalid bind string \"%s\": %v\n", v.Bind_String, err)
+			lg.FatalCode(0, "invalid bind", log.KV("bindstring", v.Bind_String), log.KVErr(err))
 		}
 
 		if tp.TCP() {
@@ -133,16 +133,16 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 			config.Certificates = make([]tls.Certificate, 1)
 			config.Certificates[0], err = tls.LoadX509KeyPair(v.Cert_File, v.Key_File)
 			if err != nil {
-				lg.Fatal("Certificate load fail: %v", err)
+				lg.Fatal("failed to load certificate", log.KV("certfile", v.Cert_File), log.KV("keyfile", v.Key_File), log.KVErr(err))
 			}
 			//get the socket
 			addr, err := net.ResolveTCPAddr("tcp", str)
 			if err != nil {
-				lg.FatalCode(0, "Bind-String \"%s\" for %s is invalid: %v\n", v.Bind_String, k, err)
+				lg.FatalCode(0, "invalid Bind-String", log.KV("bindstring", v.Bind_String), log.KV("jsonlistener", k), log.KVErr(err))
 			}
 			l, err := tls.Listen("tcp", addr.String(), config)
 			if err != nil {
-				lg.FatalCode(0, "Failed to listen on \"%s\" via TLS for %s: %v\n", addr, k, err)
+				lg.FatalCode(0, "failed to listen via TLS", log.KV("address", addr), log.KV("jsonlistener", k), log.KVErr(err))
 			}
 			connID := addConn(l)
 			//start the acceptor
@@ -175,14 +175,14 @@ func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHa
 			continue
 		}
 		debugout("Accepted %v connection from %s in json mode\n", tp.String(), conn.RemoteAddr())
-		igst.Info("accepted %v connection from %s in json mode", tp.String(), conn.RemoteAddr())
+		igst.Info("accepted connection in json mode", log.KV("localaddress", tp.String()), log.KV("remoteaddress", conn.RemoteAddr()))
 		failCount = 0
-		go jsonConnHandler(conn, cfg)
+		go jsonConnHandler(conn, cfg, igst)
 	}
 	return
 }
 
-func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig) {
+func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer) {
 	cfg.wg.Add(1)
 	id := addConn(c)
 	defer cfg.wg.Done()
@@ -197,11 +197,11 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig) {
 	if cfg.src == nil {
 		ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String())
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to get host from remote addr \"%s\": %v\n", c.RemoteAddr().String(), err)
+			igst.Error("failed to get host from remote addr", log.KV("remoteaddress", c.RemoteAddr().String()), log.KVErr(err))
 			return
 		}
 		if rip = net.ParseIP(ipstr); rip == nil {
-			fmt.Fprintf(os.Stderr, "Failed to get remote addr from \"%s\"\n", ipstr)
+			igst.Error("failed to get remote address", log.KV("remoteaddress", ipstr))
 			return
 		}
 	} else {
@@ -216,10 +216,10 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig) {
 		}
 		tg, err = timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to get a handle on the timegrinder: %v\n", err)
+			igst.Error("failed to get a handle on the timegrinder", log.KVErr(err))
 			return
 		} else if err = cfg.timeFormats.LoadFormats(tg); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to load custom time formats: %v\n", err)
+			igst.Error("failed to load custom time formats", log.KVErr(err))
 			return
 		}
 		if cfg.setLocalTime {
@@ -228,7 +228,7 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig) {
 		if cfg.timezoneOverride != `` {
 			err = tg.SetTimezone(cfg.timezoneOverride)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", cfg.timezoneOverride, err)
+				igst.Error("failed to set timezone", log.KV("timezone", cfg.timezoneOverride), log.KVErr(err))
 				return
 			}
 		}
@@ -248,7 +248,7 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig) {
 			var extracted time.Time
 			extracted, ok, err = tg.Extract(data)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Catastrophic timegrinder failure: %v\n", err)
+				igst.Error("catastrophic timegrinder failure", log.KVErr(err))
 				return
 			} else if ok {
 				ts = entry.FromStandard(extracted)

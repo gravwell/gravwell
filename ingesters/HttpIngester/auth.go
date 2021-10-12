@@ -298,7 +298,7 @@ func (jah *jwtAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var u, p string
 	//parse the post form
 	if err := r.ParseForm(); err != nil {
-		jah.lgr.Info("bad login request %v", err)
+		jah.lgr.Info("bad login request", log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -307,7 +307,7 @@ func (jah *jwtAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	p = r.FormValue(passFormValue)
 	if u != jah.user || p != jah.pass {
 		w.WriteHeader(http.StatusForbidden)
-		jah.lgr.Info("%v Failed login", getRemoteIP(r))
+		jah.lgr.Info("failed login", log.KV("address", getRemoteIP(r)))
 		return
 	}
 
@@ -321,11 +321,11 @@ func (jah *jwtAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	if ss, err := token.SignedString([]byte(jah.secret)); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		jah.lgr.Info("%v Bad JWT token: %v", getRemoteIP(r), err)
+		jah.lgr.Info("bad JWT token", log.KV("address", getRemoteIP(r)), log.KVErr(err))
 	} else {
 		//set the header
 		io.WriteString(w, ss)
-		jah.lgr.Info("%v Successful login", getRemoteIP(r))
+		jah.lgr.Info("successful login", log.KV("address", getRemoteIP(r)))
 	}
 	return
 }
@@ -395,7 +395,7 @@ func (cah *cookieAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var u, p string
 	//parse the post form
 	if err := r.ParseForm(); err != nil {
-		cah.lgr.Info("bad login request %v", err)
+		cah.lgr.Info("bad login request", log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -404,14 +404,14 @@ func (cah *cookieAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	p = r.FormValue(passFormValue)
 	if u != cah.user || p != cah.pass {
 		w.WriteHeader(http.StatusForbidden)
-		cah.lgr.Info("%v Failed login", getRemoteIP(r))
+		cah.lgr.Info("failed login", log.KV("address", getRemoteIP(r)))
 		return
 	}
 	expires := time.Now().UTC().Add(jwtDuration)
 	//make a cookie
 	cookie, err := randBase64(32)
 	if err != nil {
-		cah.lgr.Error("Failed to generate cookie: %v", err)
+		cah.lgr.Error("failed to generate cookie", log.KVErr(err))
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
