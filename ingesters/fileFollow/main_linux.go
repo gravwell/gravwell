@@ -91,14 +91,14 @@ func main() {
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Log_File), log.KVErr(err))
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
 			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Log_Level), log.KVErr(err))
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Log_Level), log.KVErr(err))
 			}
 		}
 	}
@@ -172,7 +172,7 @@ func main() {
 	if cfg.Source_Override != "" {
 		// global override
 		if src = net.ParseIP(cfg.Source_Override); src == nil {
-			lg.Fatal("Global Source-Override is invalid", log.KV("source-override", cfg.Source_Override))
+			lg.Fatal("Global Source-Override is invalid", log.KV("sourceoverride", cfg.Source_Override))
 		}
 	} else if src, err = igst.SourceIP(); err != nil {
 		lg.Fatal("failed to resolve source IP from muxer", log.KVErr(err))
@@ -211,7 +211,7 @@ func main() {
 		}
 		tsFmtOverride, err := val.TimestampOverride()
 		if err != nil {
-			lg.FatalCode(0, "invalid timestamp override", log.KV("timestamp-override", val.Timestamp_Format_Override), log.KVErr(err))
+			lg.FatalCode(0, "invalid timestamp override", log.KV("timestampoverride", val.Timestamp_Format_Override), log.KVErr(err))
 		}
 
 		//create our handler for this watcher
@@ -256,7 +256,7 @@ func main() {
 		}
 		if err := wtcher.Add(c); err != nil {
 			wtcher.Close()
-			lg.Fatal("failed to add watch directory", log.KV("directory", val.Base_Directory),
+			lg.Fatal("failed to add watch directory", log.KV("path", val.Base_Directory),
 				log.KV("filter", val.File_Filter), log.KVErr(err))
 		}
 	}
@@ -293,7 +293,7 @@ func main() {
 	}
 
 	//wait for our ingest relay to exit
-	lg.Info("filefollower ingester exiting", log.KV("UUID", id))
+	lg.Info("filefollower ingester exiting", log.KV("ingesteruuid", id))
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}

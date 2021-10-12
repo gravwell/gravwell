@@ -77,11 +77,11 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 		}
 		tp, str, err := translateBindType(v.Bind_String)
 		if err != nil {
-			lg.FatalCode(0, "invalid bind", log.KV("bind-string", v.Bind_String), log.KVErr(err))
+			lg.FatalCode(0, "invalid bind", log.KV("bindstring", v.Bind_String), log.KVErr(err))
 		}
 		lrt, err := translateReaderType(v.Reader_Type)
 		if err != nil {
-			lg.FatalCode(0, "invalid reader type", log.KV("reader-type", v.Reader_Type), log.KVErr(err))
+			lg.FatalCode(0, "invalid reader type", log.KV("readertype", v.Reader_Type), log.KVErr(err))
 		}
 		hcfg := handlerConfig{
 			tag:              tag,
@@ -121,12 +121,12 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 			config.Certificates = make([]tls.Certificate, 1)
 			config.Certificates[0], err = tls.LoadX509KeyPair(v.Cert_File, v.Key_File)
 			if err != nil {
-				lg.FatalCode(0, "failed to load certificate", log.KV("cert-file", v.Cert_File), log.KV("key-file", v.Key_File), log.KVErr(err))
+				lg.FatalCode(0, "failed to load certificate", log.KV("certfile", v.Cert_File), log.KV("keyfile", v.Key_File), log.KVErr(err))
 			}
 			//get the socket
 			addr, err := net.ResolveTCPAddr("tcp", str)
 			if err != nil {
-				lg.FatalCode(0, "invalid Bind-String", log.KV("bind-string", v.Bind_String), log.KV("listener", k), log.KVErr(err))
+				lg.FatalCode(0, "invalid Bind-String", log.KV("bindstring", v.Bind_String), log.KV("listener", k), log.KVErr(err))
 			}
 			l, err := tls.Listen("tcp", addr.String(), config)
 			if err != nil {
@@ -139,7 +139,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 		} else if tp.UDP() {
 			addr, err := net.ResolveUDPAddr(tp.String(), str)
 			if err != nil {
-				lg.FatalCode(0, "invalid Bind-String", log.KV("bind-string", v.Bind_String), log.KV("listener", k), log.KVErr(err))
+				lg.FatalCode(0, "invalid Bind-String", log.KV("bindstring", v.Bind_String), log.KV("listener", k), log.KVErr(err))
 			}
 			l, err := net.ListenUDP(tp.String(), addr)
 			if err != nil {
@@ -174,7 +174,7 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 			continue
 		}
 		debugout("Accepted %v connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt, tp.String())
-		igst.Info("accepted connection", log.KV("address", conn.RemoteAddr()), log.KV("reader-type", cfg.lrt), log.KV("mode", tp))
+		igst.Info("accepted connection", log.KV("address", conn.RemoteAddr()), log.KV("readertype", cfg.lrt), log.KV("mode", tp))
 		failCount = 0
 		switch cfg.lrt {
 		case lineReader:
@@ -182,7 +182,7 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 		case rfc5424Reader:
 			go rfc5424ConnHandlerTCP(conn, cfg)
 		default:
-			igst.Error("invalid reader type", log.KV("reader-type", cfg.lrt))
+			igst.Error("invalid reader type", log.KV("readertype", cfg.lrt))
 			return
 		}
 	}
@@ -199,7 +199,7 @@ func acceptorUDP(conn *net.UDPConn, id int, cfg handlerConfig, igst *ingest.Inge
 	case rfc5424Reader:
 		rfc5424ConnHandlerUDP(conn, cfg)
 	default:
-		igst.Error("invalid reader type", log.KV("reader-type", cfg.lrt))
+		igst.Error("invalid reader type", log.KV("readertype", cfg.lrt))
 		return
 	}
 }

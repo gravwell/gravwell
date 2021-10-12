@@ -215,7 +215,7 @@ func (r restarter) shouldSleep() (d time.Duration) {
 		return
 	} else if time.Since(oldestRestart) < r.RestartPeriod {
 		d = r.CooldownPeriod
-		r.lgr.Info("restart cooldown", log.KV("last-restart", time.Since(oldestRestart)), log.KV("restart-period", r.RestartPeriod))
+		r.lgr.Info("restart cooldown", log.KV("elapsed", time.Since(oldestRestart)), log.KV("restartperiod", r.RestartPeriod))
 	}
 	return
 }

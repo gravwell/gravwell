@@ -80,7 +80,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			lg.FatalCode(0, "failed to open profile file", log.KV("file", *cpuprofile), log.KVErr(err))
+			lg.FatalCode(0, "failed to open profile file", log.KV("path", *cpuprofile), log.KVErr(err))
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -96,14 +96,14 @@ func main() {
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Log_File), log.KVErr(err))
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
 			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Log_Level), log.KVErr(err))
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Log_Level), log.KVErr(err))
 			}
 		}
 	}
@@ -194,7 +194,7 @@ func main() {
 		}
 
 		if cc.srcOverride, err = v.srcOverride(); err != nil {
-			lg.Fatal("invalid Source-Override", log.KV("collector", k), log.KV("source-override", v.Source_Override), log.KVErr(err))
+			lg.Fatal("invalid Source-Override", log.KV("collector", k), log.KV("sourceoverride", v.Source_Override), log.KVErr(err))
 		}
 		if cc.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Fatal("preprocessor error", log.KV("collector", k), log.KV("preprocessor", v.Preprocessor), log.KVErr(err))
@@ -239,7 +239,7 @@ func main() {
 		}
 	}
 
-	lg.Info("collectd ingester exiting", log.KV("UUID", id))
+	lg.Info("collectd ingester exiting", log.KV("ingesteruuid", id))
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}

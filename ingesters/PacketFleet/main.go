@@ -133,7 +133,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			lg.FatalCode(0, "failed to open profile file", log.KV("file", *cpuprofile), log.KVErr(err))
+			lg.FatalCode(0, "failed to open profile file", log.KV("path", *cpuprofile), log.KVErr(err))
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -149,14 +149,14 @@ func main() {
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Global.Log_File), log.KVErr(err))
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Global.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
 			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Global.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Global.Log_Level), log.KVErr(err))
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
 			}
 		}
 	}
@@ -243,13 +243,13 @@ func main() {
 		if v.Source_Override != `` {
 			src = net.ParseIP(v.Source_Override)
 			if src == nil {
-				lg.Fatal("invalid Source-Override", log.KV("source-override", v.Source_Override))
+				lg.Fatal("invalid Source-Override", log.KV("sourceoverride", v.Source_Override))
 			}
 		} else if cfg.Global.Source_Override != `` {
 			// global override
 			src = net.ParseIP(cfg.Global.Source_Override)
 			if src == nil {
-				lg.Fatal("invalid Global Source-Override", log.KV("source-override", cfg.Global.Source_Override))
+				lg.Fatal("invalid Global Source-Override", log.KV("sourceoverride", cfg.Global.Source_Override))
 			}
 		}
 
@@ -281,14 +281,14 @@ func main() {
 		// Load client cert
 		cert, err := tls.LoadX509KeyPair(hcfg.clientCert, hcfg.clientKey)
 		if err != nil {
-			lg.FatalCode(0, "failed to load certificate", log.KV("cert-file", hcfg.clientCert), log.KV("key-file", hcfg.clientKey), log.KVErr(err))
+			lg.FatalCode(0, "failed to load certificate", log.KV("certfile", hcfg.clientCert), log.KV("keyfile", hcfg.clientKey), log.KVErr(err))
 			return
 		}
 
 		// Load CA cert
 		caCert, err := ioutil.ReadFile(hcfg.caCert)
 		if err != nil {
-			lg.FatalCode(0, "failed to load CA certificate", log.KV("ca-cert", hcfg.caCert), log.KVErr(err))
+			lg.FatalCode(0, "failed to load CA certificate", log.KV("cacert", hcfg.caCert), log.KVErr(err))
 			return
 		}
 		caCertPool := x509.NewCertPool()

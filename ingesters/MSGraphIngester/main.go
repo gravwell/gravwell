@@ -96,14 +96,14 @@ func main() {
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("file", cfg.Global.Log_File), log.KVErr(err))
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Global.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
 			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Global.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("log-level", cfg.Global.Log_Level), log.KVErr(err))
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
 			}
 		}
 	}
@@ -279,7 +279,7 @@ type routineCfg struct {
 }
 
 func alertRoutine(c routineCfg) {
-	lg.Info("started reader for content type", log.KV("content-type", c.ct.Content_Type))
+	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	c.wg.Add(1)
 	defer c.wg.Done()
 
@@ -342,7 +342,7 @@ func alertRoutine(c routineCfg) {
 }
 
 func secureScoreRoutine(c routineCfg) {
-	lg.Info("started reader for content type", log.KV("content-type", c.ct.Content_Type))
+	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	c.wg.Add(1)
 	defer c.wg.Done()
 
@@ -406,7 +406,7 @@ func secureScoreRoutine(c routineCfg) {
 }
 
 func secureScoreProfileRoutine(c routineCfg) {
-	lg.Info("started reader for content type", log.KV("content-type", c.ct.Content_Type))
+	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	c.wg.Add(1)
 	defer c.wg.Done()
 

@@ -71,7 +71,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method != cfg.method {
-		h.lgr.Info("bad request method", log.KV("method", r.Method), log.KV("required-method", cfg.method))
+		h.lgr.Info("bad request method", log.KV("method", r.Method), log.KV("requiredmethod", cfg.method))
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
 	}
@@ -119,7 +119,7 @@ func (h *handler) handleHEC(cfg handlerConfig, r *http.Request, w http.ResponseW
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else if len(b) > maxBody {
-		h.lgr.Error("request too large, 4MB max", log.KV("request-size", len(b)), log.KV("max-size", maxBody))
+		h.lgr.Error("request too large", log.KV("requestsize", len(b)), log.KV("maxsize", maxBody))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
