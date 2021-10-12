@@ -248,6 +248,10 @@ func (vc VariableConfig) valueMapper(name string, v interface{}) (err error) {
 		*x, err = strconv.ParseBool(strings.ToLower(strv))
 	case *string:
 		*x = strv
+	case *[]string:
+		if ss, ok := vc.getSlice(nameMapper(name)); ok {
+			*x = ss
+		}
 	case *[]byte:
 		*x = []byte(strv)
 	default:

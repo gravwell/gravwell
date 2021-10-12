@@ -1,9 +1,7 @@
 package main
 
 import (
-	"bytes"
 	"errors"
-	"fmt"
 	"gravwell" //package expose the builtin plugin funcs
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -19,6 +17,10 @@ var (
 
 	ErrNotReady = errors.New("not ready")
 )
+
+func nop() error {
+	return nil
+}
 
 func Config(cm gravwell.ConfigMap, tgr gravwell.Tagger) (err error) {
 	if cm == nil || tgr == nil {

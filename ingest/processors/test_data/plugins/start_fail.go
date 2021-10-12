@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"gravwell" //package expose the builtin plugin funcs
@@ -10,7 +9,7 @@ import (
 )
 
 const (
-	PluginName = "noregister"
+	PluginName = "nostart"
 )
 
 var (
@@ -21,6 +20,10 @@ var (
 )
 
 func Start() error {
+	return errors.New("no start for you!")
+}
+
+func Close() error {
 	return nil
 }
 
@@ -45,9 +48,7 @@ func Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 }
 
 func main() {
-	/*
-		if err := gravwell.Execute(PluginName, Config, Start, Process, Flush); err != nil {
-			panic(fmt.Sprintf("Failed to execute dynamic plugin %s - %v\n", PluginName, err))
-		}
-	*/
+	if err := gravwell.Execute(PluginName, Config, Start, Close, Process, Flush); err != nil {
+		panic(fmt.Sprintf("Failed to execute dynamic plugin %s - %v\n", PluginName, err))
+	}
 }
