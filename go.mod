@@ -5,6 +5,7 @@ go 1.16
 require (
 	cloud.google.com/go/pubsub v1.3.1
 	collectd.org v0.3.1-0.20181025072142-f80706d1e115
+	github.com/OrlovEvgeny/go-mcache v0.0.0-20200121124330-1a8195b34f3a // indirect
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/Shopify/sarama v1.24.1
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
@@ -16,7 +17,6 @@ require (
 	github.com/cloudflare/buffer v0.0.0-20190408164202-7cab898e1166
 	github.com/crewjam/rfc5424 v0.1.0
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
-	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/dvyukov/go-fuzz v0.0.0-20201127111758-49e582c6c23d // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/elastic/beats v7.6.2+incompatible
@@ -43,6 +43,7 @@ require (
 	github.com/klauspost/compress v1.11.12
 	github.com/kr/pretty v0.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
+	github.com/miekg/dns v1.1.43 // indirect
 	github.com/minio/highwayhash v1.0.0
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
 	github.com/open-networks/go-msgraph v0.0.0-20200217121338-a7bf31e9c1f2

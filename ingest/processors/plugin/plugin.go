@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/open2b/scriggo"
@@ -308,4 +309,48 @@ func (ps pluginState) String() string {
 		return `done`
 	}
 	return `unknown`
+}
+
+type TestTagger struct {
+	mp map[string]entry.EntryTag
+}
+
+func NewTestTagger() *TestTagger {
+	return &TestTagger{
+		mp: map[string]entry.EntryTag{},
+	}
+}
+
+func (tt *TestTagger) NegotiateTag(name string) (tag entry.EntryTag, err error) {
+	if err = ingest.CheckTag(name); err != nil {
+		return
+	}
+	var ok bool
+	if tag, ok = tt.mp[name]; ok {
+		return
+	}
+	tag = entry.EntryTag(len(tt.mp))
+	tt.mp[name] = tag
+	return
+}
+
+func (tt *TestTagger) LookupTag(tag entry.EntryTag) (r string, ok bool) {
+	for k, v := range tt.mp {
+		if v == tag {
+			r = k
+			ok = true
+			break
+		}
+	}
+	return
+}
+
+func (tt *TestTagger) KnownTags() (r []string) {
+	if tt != nil && len(tt.mp) > 0 {
+		r = make([]string, 0, len(tt.mp))
+		for k := range tt.mp {
+			r = append(r, k)
+		}
+	}
+	return
 }
