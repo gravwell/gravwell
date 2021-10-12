@@ -31,8 +31,9 @@ const ( //config names (remember that a '-' in the config file becomes a '_' in 
 	dnsServerConfigName        = `DNS_Server`
 	appendFormatConfigName     = `Append_Format`
 	timeoutConfigName          = `Timeout`
-	debugModeName              = `Debug`
 	workerCountName            = `Worker_Count`
+	synchronousName            = `Synchronous`
+	debugModeName              = `Debug`
 )
 
 var (
@@ -63,6 +64,7 @@ type LookupConfig struct {
 	Timeout                   time.Duration
 	Debug                     bool
 	WorkerCount               int64
+	Synchronous               bool
 	re                        *regexp.Regexp
 	hostIdx                   int
 	recordIdx                 int
@@ -77,6 +79,7 @@ func Config(cm gravwell.ConfigMap, tgr gravwell.Tagger) (err error) {
 		err = errors.New("bad parameters")
 	}
 	cfg.Debug, _ = cm.GetBool(debugModeName)
+	cfg.Synchronous, _ = cm.GetBool(synchronousName)
 
 	if cfg.Regex, err = cm.GetString(regexConfigName); err != nil {
 		return fmt.Errorf("Failed to get regex config variable: %w", err)
