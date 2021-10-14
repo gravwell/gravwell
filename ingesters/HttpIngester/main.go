@@ -59,7 +59,7 @@ func init() {
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr: %v\n", err)
+			lg.Fatal("Failed to dup stderr", log.KVErr(err))
 		} else {
 			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
 		}
@@ -86,7 +86,7 @@ func main() {
 	var lgr *log.Logger
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		lg.Fatal("Failed to load config file \"%s\": %v", *confLoc, err)
+		lg.Fatal("failed to load config file", log.KV("file", *confLoc), log.KVErr(err))
 	}
 
 	//logging is a bit whacky here, we are creating a logger for fatal errors that goes to
@@ -94,9 +94,9 @@ func main() {
 	// this is so that we can log fatal errors to both stderr and the log file
 	// but ONLY log errors to the webserver to the file
 	if lgr, err = cfg.GetLogger(); err != nil {
-		lg.Fatal("Failed to get logger: %v", err)
+		lg.Fatal("failed to get logger", log.KVErr(err))
 	} else if err = lg.AddWriter(lgr); err != nil {
-		lg.Fatal("Failed to add log file writer to standard logger")
+		lg.Fatal("failed to add log file writer to standard logger")
 	}
 	defer lgr.Close()
 	maxBody = cfg.MaxBody()
@@ -104,17 +104,17 @@ func main() {
 	debugout("Handling %d listeners\n", len(cfg.Listener))
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.Fatal("Failed to load tags: %v", err)
+		lg.Fatal("failed to load tags", log.KVErr(err))
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.Fatal("Failed to get backend targets from configuration: %v", err)
+		lg.Fatal("failed to get backend targets from configuration", log.KVErr(err))
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	lmt, err := cfg.RateLimit()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Rate limiting connection to %d bps\n", lmt)
@@ -122,7 +122,7 @@ func main() {
 	debugout("Loaded %d tags\n", len(tags))
 	id, ok := cfg.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "could not read ingester UUID")
 	}
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.IngestStreamConfig,
@@ -145,22 +145,22 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
-		lg.Fatal("Failed to create new uniform muxer: %v ", err)
+		lg.Fatal("failed to create new uniform muxer", log.KVErr(err))
 	}
 	debugout("Started ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		lg.Fatal("Failed start our ingest system: %v", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 	}
 	debugout("Waiting for connections to indexers\n")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.Fatal("Timedout waiting for backend connections: %v", err)
+		lg.Fatal("Timedout waiting for backend connections", log.KVErr(err))
 	}
 	debugout("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "Failed to set configuration for ingester state messages")
 	}
 
 	hnd := &handler{
@@ -177,7 +177,7 @@ func main() {
 			multiline: v.Multiline,
 		}
 		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
-			lg.Fatal("Failed to pull tag %v: %v", v.Tag_Name, err)
+			lg.Fatal("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
 		}
 		if v.Ignore_Timestamps {
 			hcfg.ignoreTs = true
@@ -187,16 +187,16 @@ func main() {
 				FormatOverride:     v.Timestamp_Format_Override,
 			}
 			if hcfg.tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
-				lg.Fatal("Failed to generate new timegrinder: %v", err)
+				lg.Fatal("failed to generate new timegrinder", log.KVErr(err))
 			} else if cfg.TimeFormat.LoadFormats(hcfg.tg); err != nil {
-				lg.Fatal("Failed to load custom time formats: %v", err)
+				lg.Fatal("failed to load custom time formats", log.KVErr(err))
 			}
 			if v.Assume_Local_Timezone {
 				hcfg.tg.SetLocalTime()
 			}
 			if v.Timezone_Override != `` {
 				if err = hcfg.tg.SetTimezone(v.Timezone_Override); err != nil {
-					lg.Fatal("Failed to override timezone: %v", err)
+					lg.Fatal("failed to override timezone", log.KVErr(err))
 				}
 			}
 		}
@@ -206,11 +206,11 @@ func main() {
 
 		hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor)
 		if err != nil {
-			lg.Fatal("Preprocessor construction error: %v", err)
+			lg.Fatal("preprocessor construction error", log.KVErr(err))
 		}
 		//check if authentication is enabled for this URL
 		if pth, ah, err := v.NewAuthHandler(lgr); err != nil {
-			lg.Fatal("Failed to get a new authentication handler: %v", err)
+			lg.Fatal("failed to get a new authentication handler", log.KVErr(err))
 		} else if hnd != nil {
 			if pth != `` {
 				hnd.auth[pth] = ah
@@ -226,7 +226,7 @@ func main() {
 			hecCompat: true,
 		}
 		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
-			lg.Fatal("Failed to pull tag %v: %v", v.Tag_Name, err)
+			lg.Fatal("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
 		}
 		if v.Ignore_Timestamps {
 			hcfg.ignoreTs = true
@@ -235,10 +235,10 @@ func main() {
 
 		hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor)
 		if err != nil {
-			lg.Fatal("Preprocessor construction error: %v", err)
+			lg.Fatal("preprocessor construction error", log.KVErr(err))
 		}
 		if hcfg.auth, err = newPresharedTokenHandler(`Splunk`, v.TokenValue, lgr); err != nil {
-			lg.Fatal("Failed to generate HEC-Compatible-Listener auth: %v", err)
+			lg.Fatal("failed to generate HEC-Compatible-Listener auth", log.KVErr(err))
 		}
 		hnd.mp[v.URL] = hcfg
 		debugout("URL %s handling %s\n", v.URL, v.Tag_Name)
@@ -256,26 +256,26 @@ func main() {
 		k := cfg.TLS_Key_File
 		debugout("Binding to %v with TLS enabled using %s %s\n", cfg.Bind, cfg.TLS_Certificate_File, cfg.TLS_Key_File)
 		if err := srv.ListenAndServeTLS(c, k); err != nil {
-			lg.Error("Failed to serve HTTPS server: %v", err)
+			lg.Error("failed to serve HTTPS server", log.KVErr(err))
 		}
 	} else {
 		debugout("Binding to %v in cleartext mode\n", cfg.Bind)
 		if err := srv.ListenAndServe(); err != nil {
-			lg.Error("Failed to serve HTTP server: %v", err)
+			lg.Error("failed to serve HTTP server", log.KVErr(err))
 		}
 	}
 	for k, v := range hnd.mp {
 		if v.pproc != nil {
 			if err := v.pproc.Close(); err != nil {
-				lg.Error("Failed to close preprocessors for handler %v: %v", k, err)
+				lg.Error("failed to close preprocessors for handler", log.KV("preprocessor", k), log.KVErr(err))
 			}
 		}
 	}
 	if err := igst.Sync(time.Second); err != nil {
-		lg.Error("Failed to sync muxer on close: %v", err)
+		lg.Error("failed to sync muxer on close", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
-		lg.Error("Failed to close muxer: %v", err)
+		lg.Error("failed to close muxer", log.KVErr(err))
 	}
 }
 

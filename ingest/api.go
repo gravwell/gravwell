@@ -16,6 +16,8 @@ import (
 	"io"
 	"net"
 	"strings"
+
+	"github.com/crewjam/rfc5424"
 )
 
 const (
@@ -45,12 +47,18 @@ func PrintVersion(wtr io.Writer) {
 }
 
 type Logger interface {
-	Info(string, ...interface{}) error
-	Warn(string, ...interface{}) error
-	Error(string, ...interface{}) error
-	InfoWithDepth(int, string, ...interface{}) error
-	WarnWithDepth(int, string, ...interface{}) error
-	ErrorWithDepth(int, string, ...interface{}) error
+	Infof(string, ...interface{}) error
+	Warnf(string, ...interface{}) error
+	Errorf(string, ...interface{}) error
+	Info(string, ...rfc5424.SDParam) error
+	Warn(string, ...rfc5424.SDParam) error
+	Error(string, ...rfc5424.SDParam) error
+	InfofWithDepth(int, string, ...interface{}) error
+	WarnfWithDepth(int, string, ...interface{}) error
+	ErrorfWithDepth(int, string, ...interface{}) error
+	InfoWithDepth(int, string, ...rfc5424.SDParam) error
+	WarnWithDepth(int, string, ...rfc5424.SDParam) error
+	ErrorWithDepth(int, string, ...rfc5424.SDParam) error
 	Hostname() string
 	Appname() string
 }

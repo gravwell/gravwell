@@ -18,6 +18,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/netflow"
 	"github.com/gravwell/ipfix"
 )
@@ -269,14 +270,14 @@ func (i *IpfixHandler) routine(id int) {
 		if s, ok = sessionMap[key]; !ok {
 			// if it's not in the map yet, we need to create a session
 			debugout("Creating new session for %v\n", key.String())
-			i.igst.Info("Creating new session for %v, domain ID %d", addr.IP, domainID)
+			i.igst.Info("creating new session", log.KV("address", addr.IP), log.KV("domain", domainID))
 			s = ipfix.NewSession()
 			sessionMap[key] = s
 		}
 
 		if i.sessionDumpEnabled && time.Now().Sub(i.lastInfoDump) > 1*time.Hour {
 			for k, _ := range sessionMap {
-				i.igst.Info("IPFIX/Netflow v9 session dump: %v", k.String())
+				i.igst.Info("IPFIX/Netflow v9 session dump", log.KV("session", k.String()))
 			}
 			i.lastInfoDump = time.Now()
 		}

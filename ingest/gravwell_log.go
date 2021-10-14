@@ -16,6 +16,7 @@ import (
 
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 //gravwell log level type
@@ -35,40 +36,74 @@ var (
 )
 
 type IngestLogger interface {
-	Error(string, ...interface{}) error
-	Warn(string, ...interface{}) error
-	Info(string, ...interface{}) error
+	Errorf(string, ...interface{}) error
+	Warnf(string, ...interface{}) error
+	Infof(string, ...interface{}) error
+	Error(string, ...rfc5424.SDParam) error
+	Warn(string, ...rfc5424.SDParam) error
+	Info(string, ...rfc5424.SDParam) error
 }
 
-// Error send an error entry down the line with the gravwell tag
-func (im *IngestMuxer) Error(format string, args ...interface{}) error {
+// Errorf send an error entry down the line with the gravwell tag
+func (im *IngestMuxer) Errorf(format string, args ...interface{}) error {
 	if im.logLevel > gravwellError {
 		return nil
 	}
 	if im.lgr != nil {
-		im.lgr.ErrorWithDepth(4, format, args...)
+		im.lgr.ErrorfWithDepth(4, format, args...)
 	}
 	return im.gravwellWriteIfHot(gravwellError, fmt.Sprintf(format, args...))
 }
 
-func (im *IngestMuxer) Warn(format string, args ...interface{}) error {
+func (im *IngestMuxer) Warnf(format string, args ...interface{}) error {
 	if im.logLevel > gravwellWarn {
 		return nil
 	}
 	if im.lgr != nil {
-		im.lgr.WarnWithDepth(4, format, args...)
+		im.lgr.WarnfWithDepth(4, format, args...)
 	}
 	return im.gravwellWriteIfHot(gravwellWarn, fmt.Sprintf(format, args...))
 }
 
-func (im *IngestMuxer) Info(format string, args ...interface{}) error {
+func (im *IngestMuxer) Infof(format string, args ...interface{}) error {
 	if im.logLevel > gravwellInfo {
 		return nil
 	}
 	if im.lgr != nil {
-		im.lgr.InfoWithDepth(4, format, args...)
+		im.lgr.InfofWithDepth(4, format, args...)
 	}
 	return im.gravwellWriteIfHot(gravwellInfo, fmt.Sprintf(format, args...))
+}
+
+// Error send an error entry down the line with the gravwell tag
+func (im *IngestMuxer) Error(msg string, args ...rfc5424.SDParam) error {
+	if im.logLevel > gravwellError {
+		return nil
+	}
+	if im.lgr != nil {
+		im.lgr.ErrorWithDepth(4, msg, args...)
+	}
+	return im.gravwellWriteStructuredIfHot(gravwellError, msg, args...)
+}
+
+func (im *IngestMuxer) Warn(msg string, args ...rfc5424.SDParam) error {
+	if im.logLevel > gravwellWarn {
+		return nil
+	}
+	if im.lgr != nil {
+		im.lgr.WarnWithDepth(4, msg, args...)
+	}
+	return im.gravwellWriteStructuredIfHot(gravwellWarn, msg, args...)
+}
+
+func (im *IngestMuxer) Info(msg string, args ...rfc5424.SDParam) error {
+	if im.logLevel > gravwellInfo {
+		return nil
+	}
+	if im.lgr != nil {
+		im.lgr.InfoWithDepth(4, msg, args...)
+	}
+	return im.gravwellWriteStructuredIfHot(gravwellInfo, msg, args...)
 }
 
 func (im *IngestMuxer) gravwellWriteIfHot(level gll, line string) (err error) {
@@ -78,6 +113,25 @@ func (im *IngestMuxer) gravwellWriteIfHot(level gll, line string) (err error) {
 	ts := time.Now()
 	var data []byte
 	if data, err = im.generateLog(ts, level, line); err != nil {
+		return
+	}
+	e := &entry.Entry{
+		Data: data,
+		TS:   entry.FromStandard(ts),
+		Tag:  entry.GravwellTagId,
+		SRC:  im.logSourceOverride,
+	}
+
+	return im.WriteEntryTimeout(e, logTimeout)
+}
+
+func (im *IngestMuxer) gravwellWriteStructuredIfHot(level gll, msg string, sds ...rfc5424.SDParam) (err error) {
+	if atomic.LoadInt32(&im.connHot) == 0 {
+		return
+	}
+	ts := time.Now()
+	var data []byte
+	if data, err = log.GenRFCMessage(ts, level.Priority(), im.hostname, im.appname, log.CallLoc(log.DEFAULT_DEPTH), msg, sds...); err != nil {
 		return
 	}
 	e := &entry.Entry{
@@ -105,15 +159,8 @@ func (im *IngestMuxer) gravwellWrite(level gll, line string) error {
 	return im.WriteEntry(e)
 }
 
-func (im *IngestMuxer) generateLog(ts time.Time, level gll, msg string) (b []byte, err error) {
-	b, err = rfc5424.Message{
-		Priority:  level.Priority(),
-		Timestamp: ts,
-		Hostname:  im.hostname,
-		AppName:   im.appname,
-		Message:   []byte(msg),
-	}.MarshalBinary()
-	return
+func (im *IngestMuxer) generateLog(ts time.Time, level gll, msg string, sds ...rfc5424.SDParam) ([]byte, error) {
+	return log.GenRFCMessage(ts, level.Priority(), im.hostname, im.appname, log.CallLoc(log.DEFAULT_DEPTH+1), msg, sds...)
 }
 
 func (g gll) String() string {
@@ -167,14 +214,20 @@ func logLevel(v string) gll {
 
 type nilLogger struct{}
 
-func (n nilLogger) Error(s string, i ...interface{}) error                 { return nil }
-func (n nilLogger) Warn(s string, i ...interface{}) error                  { return nil }
-func (n nilLogger) Info(s string, i ...interface{}) error                  { return nil }
-func (n nilLogger) ErrorWithDepth(x int, s string, i ...interface{}) error { return nil }
-func (n nilLogger) WarnWithDepth(x int, s string, i ...interface{}) error  { return nil }
-func (n nilLogger) InfoWithDepth(x int, s string, i ...interface{}) error  { return nil }
-func (n nilLogger) Hostname() string                                       { return `` }
-func (n nilLogger) Appname() string                                        { return `` }
+func (n nilLogger) Errorf(s string, i ...interface{}) error                    { return nil }
+func (n nilLogger) Warnf(s string, i ...interface{}) error                     { return nil }
+func (n nilLogger) Infof(s string, i ...interface{}) error                     { return nil }
+func (n nilLogger) ErrorfWithDepth(x int, s string, i ...interface{}) error    { return nil }
+func (n nilLogger) WarnfWithDepth(x int, s string, i ...interface{}) error     { return nil }
+func (n nilLogger) InfofWithDepth(x int, s string, i ...interface{}) error     { return nil }
+func (n nilLogger) Error(a string, i ...rfc5424.SDParam) error                 { return nil }
+func (n nilLogger) Warn(a string, i ...rfc5424.SDParam) error                  { return nil }
+func (n nilLogger) Info(a string, i ...rfc5424.SDParam) error                  { return nil }
+func (n nilLogger) ErrorWithDepth(a int, b string, c ...rfc5424.SDParam) error { return nil }
+func (n nilLogger) WarnWithDepth(a int, b string, c ...rfc5424.SDParam) error  { return nil }
+func (n nilLogger) InfoWithDepth(a int, b string, c ...rfc5424.SDParam) error  { return nil }
+func (n nilLogger) Hostname() string                                           { return `` }
+func (n nilLogger) Appname() string                                            { return `` }
 
 func NoLogger() Logger {
 	return &nilLogger{}

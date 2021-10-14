@@ -214,7 +214,11 @@ func (pp *PluginProgram) Close() (err error) {
 		}
 		return
 	}
-	perr := pp.closef()
+
+	var perr error
+	if cf := pp.closef; cf != nil {
+		perr = cf()
+	}
 	pp.Done()
 	time.Sleep(250 * time.Millisecond) //let the program close out
 	pp.cancel()                        //go down hard

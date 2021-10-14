@@ -105,7 +105,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			lg.Fatal("Failed to open %s for profile file: %v\n", *cpuprofile, err)
+			lg.FatalCode(0, "failed to open profile file", log.KV("path", *cpuprofile), log.KVErr(err))
 		}
 		defer f.Close()
 		pprof.StartCPUProfile(f)
@@ -114,42 +114,40 @@ func main() {
 
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		var tcfg cfgType
-		fmt.Printf("%+v\n", tcfg)
-		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return
 	}
 
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Log_Level), log.KVErr(err))
 			}
 		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get tags from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
 		return
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	lmt, err := cfg.RateLimit()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Rate limiting connection to %d bps\n", lmt)
@@ -158,7 +156,7 @@ func main() {
 	debugout("INSECURE skip TLS certificate verification: %v\n", cfg.InsecureSkipTLSVerification())
 	id, ok := cfg.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "could not read ingester UUID")
 	}
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.IngestStreamConfig,
@@ -181,19 +179,19 @@ func main() {
 	}
 	igst, err = ingest.NewUniformMuxer(igCfg)
 	if err != nil {
-		lg.Fatal("Failed build our ingest system: %v\n", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 		return
 	}
 
 	defer igst.Close()
 	debugout("Started ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		lg.Fatal("Failed start our ingest system: %v\n", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
 	}
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 		return
 	}
 	debugout("Successfully connected to ingesters\n")
@@ -201,7 +199,7 @@ func main() {
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "failed to set configuration for ingester state messages")
 	}
 
 	var wg sync.WaitGroup
@@ -216,7 +214,7 @@ func main() {
 		if v.Source_Override != `` {
 			src = net.ParseIP(v.Source_Override)
 			if src == nil {
-				lg.FatalCode(0, "Listener %v invalid source override, \"%s\" is not an IP address", k, v.Source_Override)
+				lg.FatalCode(0, "listener invalid source override, is not an IP address", log.KV("listener", k), log.KV("sourceoverride", v.Source_Override))
 			}
 		} else if cfg.Source_Override != `` {
 			// global override
@@ -229,7 +227,7 @@ func main() {
 		//get the tag for this listener
 		tag, err := igst.GetTag(v.Tag_Name)
 		if err != nil {
-			lg.Fatal("Failed to resolve tag \"%s\" for %s: %v\n", v.Tag_Name, k, err)
+			lg.Fatal("failed to resolve tag", log.KV("tag", v.Tag_Name), log.KV("listener", k), log.KVErr(err))
 		}
 
 		hcfg := &handlerConfig{
@@ -249,7 +247,7 @@ func main() {
 		}
 
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
-			lg.Fatal("Preprocessor failure: %v", err)
+			lg.Fatal("preprocessor failure", log.KVErr(err))
 		}
 
 		wg.Add(1)
@@ -272,10 +270,10 @@ func main() {
 	wg.Wait()
 
 	if err := igst.Sync(time.Second); err != nil {
-		lg.Error("Failed to sync: %v\n", err)
+		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
-		lg.Error("Failed to close: %v\n", err)
+		lg.Error("failed to close", log.KVErr(err))
 	}
 }
 
@@ -308,7 +306,7 @@ func queueRunner(hcfg *handlerConfig) {
 		req = req.SetQueueUrl(hcfg.queue)
 		err := req.Validate()
 		if err != nil {
-			lg.Error("sqs request validation: %v", err)
+			lg.Error("sqs request validation failed", log.KVErr(err))
 			return
 		}
 
@@ -316,7 +314,7 @@ func queueRunner(hcfg *handlerConfig) {
 		go func() {
 			o, err := svc.ReceiveMessage(req)
 			if err != nil {
-				lg.Error("sqs receive message: %v", err)
+				lg.Error("sqs receive message error", log.KVErr(err))
 				c <- nil
 			}
 			c <- o
@@ -340,11 +338,11 @@ func queueRunner(hcfg *handlerConfig) {
 				// grab the timestamp from SQS
 				t, mok := v.Attributes["SentTimestamp"]
 				if !mok {
-					lg.Error("SQS did not provide timestamp for message: %v", v.Attributes)
+					lg.Error("SQS did not provide timestamp for message", log.KV("attributes", v.Attributes))
 				} else {
 					ut, err := strconv.ParseInt(*t, 10, 64)
 					if err != nil {
-						lg.Error("parseint on unix time: %v", *t)
+						lg.Error("failed parseint on unix time", log.KV("value", *t), log.KVErr(err))
 					} else {
 						ts = entry.UnixTime(ut/1000, 0)
 					}
@@ -361,7 +359,7 @@ func queueRunner(hcfg *handlerConfig) {
 			}
 
 			if err = hcfg.proc.ProcessContext(ent, hcfg.ctx); err != nil {
-				lg.Error("Sending message: %v", err)
+				lg.Error("failed to ingest entry", log.KVErr(err))
 				return
 			}
 		}

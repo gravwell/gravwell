@@ -22,6 +22,7 @@ import (
 	"github.com/fsnotify/fsnotify"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 var (
@@ -303,7 +304,7 @@ watchRoutine:
 			if !ok {
 				break watchRoutine
 			}
-			wm.logger.Error("file_follower filesystem notification error %v", err)
+			wm.logger.Error("file_follower filesystem notification error", log.KVErr(err))
 		case evt, ok := <-wm.watcher.Events:
 			if !ok {
 				break watchRoutine
@@ -316,51 +317,51 @@ watchRoutine:
 				if fi.IsDir() {
 					parents, ok := wm.watched[filepath.Dir(evt.Name)]
 					if !ok {
-						wm.logger.Error("file_follower failed to find parent directory for %s", evt.Name)
+						wm.logger.Error("file_follower failed to find parent directory", log.KV("path", evt.Name))
 						continue
 					}
 					for _, parent := range parents {
 						if !parent.Recursive {
-							wm.logger.Info("file_follower not adding watcher for subdirectory %v: parent not recusive", evt.Name)
+							wm.logger.Info("file_follower not adding watcher for subdirectory, parent not recusive", log.KV("directory", evt.Name))
 							continue
 						}
 						parent.BaseDir = evt.Name
-						wm.logger.Info("file_follower adding watcher for subdirectory %v, patterns = %v", evt.Name, parent.FileFilter)
+						wm.logger.Info("file_follower adding watcher for subdirectory", log.KV("path", evt.Name), log.KV("patterns", parent.FileFilter))
 						if err := wm.Add(parent); err != nil {
-							wm.logger.Error("file_follower failed to add watcher for new directory %v: %v", evt.Name, err)
+							wm.logger.Error("file_follower failed to add watcher for new directory", log.KV("path", evt.Name), log.KVErr(err))
 							continue
 						}
 					}
 				} else {
 					if ok, err := wm.watchNewFile(evt.Name); err != nil {
-						wm.logger.Error("file_follower failed to watch new file %s due to %v", evt.Name, err)
+						wm.logger.Error("file_follower failed to watch new file", log.KV("path", evt.Name), log.KVErr(err))
 					} else if ok {
-						wm.logger.Info("file_follower now watching %s", evt.Name)
+						wm.logger.Info("file_follower watching new file", log.KV("path", evt.Name))
 					}
 				}
 			} else if evt.Op == fsnotify.Remove {
 				if ok, err := wm.deleteWatchedFile(evt.Name); err != nil {
-					wm.logger.Error("file_follower failed to stop watching %s due to %v", evt.Name, err)
+					wm.logger.Error("file_follower failed to stop watching file", log.KV("path", evt.Name), log.KVErr(err))
 				} else if ok {
-					wm.logger.Info("file_follower stopped watching %s", evt.Name)
+					wm.logger.Info("file_follower stopped watching file", log.KV("path", evt.Name))
 				}
 			} else if evt.Op == fsnotify.Rename {
 				if err := wm.renameWatchedFile(evt.Name); err != nil {
-					wm.logger.Error("file_follower failed to track renamed file %s due to %v", evt.Name, err)
+					wm.logger.Error("file_follower failed to track renamed file", log.KV("path", evt.Name), log.KVErr(err))
 				}
 			} else if evt.Op == fsnotify.Write {
 				// write event, check if we are watching the file, add if needed
 				if !wm.fman.IsWatched(evt.Name) {
 					if ok, err := wm.fman.LoadFile(evt.Name); err != nil {
-						wm.logger.Error("file_follower failed to watch file %s due to %v", evt.Name, err)
+						wm.logger.Error("file_follower failed to watch file", log.KV("path", evt.Name), log.KVErr(err))
 					} else if ok {
-						wm.logger.Info("file_follower now watching %s", evt.Name)
+						wm.logger.Info("file_follower watching file", log.KV("path", evt.Name))
 					}
 				}
 			}
 		case _ = <-tckr.C:
 			if err := wm.fman.FlushStates(); err != nil {
-				wm.logger.Error("file_follower failed to flush states: %v", err)
+				wm.logger.Error("file_follower failed to flush states", log.KVErr(err))
 			}
 		}
 	}

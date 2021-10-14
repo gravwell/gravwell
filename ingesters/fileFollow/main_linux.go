@@ -57,7 +57,7 @@ func init() {
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr: %v\n", err)
+			lg.Fatal("Failed to dup stderr", log.KVErr(err))
 		} else {
 			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
 		}
@@ -71,8 +71,8 @@ func init() {
 			ingest.PrintVersion(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
 				fout.Close()
+				lg.Fatal("Failed to dup2 stderr", log.KVErr(err))
 			}
 		}
 	}
@@ -85,36 +85,36 @@ func main() {
 	debug.SetTraceback("all")
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
-		lg.FatalCode(0, "Failed to get configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 	}
 
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Log_Level), log.KVErr(err))
 			}
 		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get tags from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get backend targets from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
 	}
 
 	lmt, err := cfg.RateLimit()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Rate limiting connection to %d bps\n", lmt)
@@ -124,7 +124,7 @@ func main() {
 	debugout("INSECURE skipping TLS certs verification: %v\n", cfg.InsecureSkipTLSVerification())
 	id, ok := cfg.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "Couldn't read ingester UUID")
 	}
 	ingestConfig := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.IngestStreamConfig,
@@ -147,40 +147,40 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
-		lg.Fatal("Failed build ingest system: %v\n", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		lg.Fatal("Failed start ingest system: %v\n", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
 	}
 
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 	}
 	debugout("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KVErr(err))
 	}
 
 	var src net.IP
 	if cfg.Source_Override != "" {
 		// global override
 		if src = net.ParseIP(cfg.Source_Override); src == nil {
-			lg.Fatal("Global Source-Override is invalid")
+			lg.Fatal("Global Source-Override is invalid", log.KV("sourceoverride", cfg.Source_Override))
 		}
 	} else if src, err = igst.SourceIP(); err != nil {
-		lg.Fatal("Failed to resolve source IP from muxer: %v", err)
+		lg.Fatal("failed to resolve source IP from muxer", log.KVErr(err))
 	}
 
 	wtcher, err := filewatch.NewWatcher(cfg.StatePath())
 	if err != nil {
-		lg.Fatal("Failed to create notification watcher: %v\n", err)
+		lg.Fatal("failed to create notification watcher", log.KVErr(err))
 	}
 
 	//pass in the ingest muxer to the file watcher so it can throw info and errors down the muxer chan
@@ -195,13 +195,13 @@ func main() {
 	for k, val := range cfg.Follower {
 		pproc, err := cfg.Preprocessor.ProcessorSet(igst, val.Preprocessor)
 		if err != nil {
-			lg.FatalCode(0, "Preprocessor construction error: %v", err)
+			lg.FatalCode(0, "preprocessor construction error", log.KVErr(err))
 		}
 		procs = append(procs, pproc)
 		//get the tag for this listener
 		tag, err := igst.GetTag(val.Tag_Name)
 		if err != nil {
-			lg.Fatal("Failed to resolve tag \"%s\" for %s: %v\n", val.Tag_Name, k, err)
+			lg.Fatal("failed to resolve tag", log.KV("watcher", k), log.KV("tag", val.Tag_Name), log.KVErr(err))
 		}
 		var ignore [][]byte
 		for _, prefix := range val.Ignore_Line_Prefix {
@@ -211,7 +211,7 @@ func main() {
 		}
 		tsFmtOverride, err := val.TimestampOverride()
 		if err != nil {
-			lg.FatalCode(0, "Invalid timestamp override \"%s\": %v\n", val.Timestamp_Format_Override, err)
+			lg.FatalCode(0, "invalid timestamp override", log.KV("timestampoverride", val.Timestamp_Format_Override), log.KVErr(err))
 		}
 
 		//create our handler for this watcher
@@ -234,7 +234,7 @@ func main() {
 		}
 		lh, err := filewatch.NewLogHandler(cfg, pproc)
 		if err != nil {
-			lg.Fatal("Failed to generate handler: %v", err)
+			lg.Fatal("failed to generate handler", log.KVErr(err))
 		}
 		c := filewatch.WatchConfig{
 			ConfigName: k,
@@ -244,7 +244,7 @@ func main() {
 			Recursive:  val.Recursive,
 		}
 		if rex, ok, err := val.TimestampDelimited(); err != nil {
-			lg.FatalCode(0, "Invalid timestamp delimiter: %v\n", err)
+			lg.FatalCode(0, "invalid timestamp delimiter", log.KVErr(err))
 		} else if ok {
 			c.Engine = filewatch.RegexEngine
 			c.EngineArgs = rex
@@ -256,13 +256,13 @@ func main() {
 		}
 		if err := wtcher.Add(c); err != nil {
 			wtcher.Close()
-			lg.Fatal("Failed to add watch directory for %s (%s): %v\n",
-				val.Base_Directory, val.File_Filter, err)
+			lg.Fatal("failed to add watch directory", log.KV("path", val.Base_Directory),
+				log.KV("filter", val.File_Filter), log.KVErr(err))
 		}
 	}
 
 	if err := wtcher.Start(); err != nil {
-		lg.Error("Failed to start file watcher: %v\n", err)
+		lg.Error("failed to start file watcher", log.KVErr(err))
 		wtcher.Close()
 		igst.Close()
 		os.Exit(-1)
@@ -276,7 +276,7 @@ func main() {
 	utils.WaitForQuit()
 	debugout("Attempting to close the watcher... ")
 	if err := wtcher.Close(); err != nil {
-		lg.Error("Failed to close file follower: %v\n", err)
+		lg.Error("failed to close file follower", log.KVErr(err))
 	}
 	debugout("Done\n")
 
@@ -287,17 +287,18 @@ func main() {
 	for _, v := range procs {
 		if v != nil {
 			if err := v.Close(); err != nil {
-				lg.Error("Failed to close processors: %v\n", err)
+				lg.Error("failed to close processors", log.KVErr(err))
 			}
 		}
 	}
 
 	//wait for our ingest relay to exit
+	lg.Info("filefollower ingester exiting", log.KV("ingesteruuid", id))
 	if err := igst.Sync(time.Second); err != nil {
-		lg.Error("Failed to sync: %v\n", err)
+		lg.Error("failed to sync", log.KVErr(err))
 	}
-	if err = igst.Close(); err != nil {
-		lg.Error("Failed to close ingest muxer: %v", err)
+	if err := igst.Close(); err != nil {
+		lg.Error("failed to close", log.KVErr(err))
 	}
 }
 
