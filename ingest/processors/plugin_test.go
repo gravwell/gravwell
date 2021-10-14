@@ -1,3 +1,6 @@
+//go:build !go1.17
+// +build !go1.17
+
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
