@@ -194,15 +194,25 @@ func (pp *PluginProgram) Run(to time.Duration) (err error) {
 	select {
 	case err = <-pp.rc:
 		if err == nil {
-			//if we are registered, fire up the Start function
-			err = pp.startf()
-			pp.setState(running)
+			pp.setState(registered)
 		}
 	case err = <-pp.dc:
 		err = fmt.Errorf("program exited before registration: %w", err)
 	case <-time.After(to):
 		err = errors.New("Timed out waiting for program to register")
 		pp.cancel()
+	}
+	return
+}
+
+func (pp *PluginProgram) Start() (err error) {
+	if st := pp.getState(); st == registered {
+		//if we are registered, fire up the Start function
+		if err = pp.startf(); err == nil {
+			pp.setState(running)
+		}
+	} else {
+		err = fmt.Errorf("program is in an invlaid state %v", st)
 	}
 	return
 }
@@ -234,7 +244,7 @@ func (pp *PluginProgram) Close() (err error) {
 func (pp *PluginProgram) Config(vc *config.VariableConfig, tg Tagger) error {
 	if pp == nil || pp.cf == nil {
 		return ErrNotReady
-	} else if st := pp.getState(); st != running {
+	} else if st := pp.getState(); st != registered {
 		return fmt.Errorf("bad state, %s != %s", st, registered)
 	}
 	return pp.cf(vc, tg)

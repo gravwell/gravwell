@@ -51,7 +51,6 @@ import (
 	"expvar"
 	"flag"
 	"fmt"
-	mcache "github.com/OrlovEvgeny/go-mcache"
 	rfc5424 "github.com/crewjam/rfc5424"
 	safefile "github.com/dchest/safefile"
 	glob "github.com/gobwas/glob"
@@ -1239,16 +1238,6 @@ func init() {
 	decs["Stringer"] = reflect.TypeOf((*fmt.Stringer)(nil)).Elem()
 	packages["fmt"] = native.Package{
 		Name:         "fmt",
-		Declarations: decs,
-	}
-	// "github.com/OrlovEvgeny/go-mcache"
-	decs = make(native.Declarations, 4)
-	decs["CacheDriver"] = reflect.TypeOf((*mcache.CacheDriver)(nil)).Elem()
-	decs["New"] = mcache.New
-	decs["StartInstance"] = mcache.StartInstance
-	decs["TTL_FOREVER"] = mcache.TTL_FOREVER
-	packages["github.com/OrlovEvgeny/go-mcache"] = native.Package{
-		Name:         "mcache",
 		Declarations: decs,
 	}
 	// "github.com/crewjam/rfc5424"

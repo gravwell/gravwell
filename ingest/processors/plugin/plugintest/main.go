@@ -21,8 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	//"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingest/processors/plugin"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
@@ -35,8 +34,9 @@ var (
 
 func main() {
 	flag.Parse()
+	var pc processors.PluginConfig
+	var p *processors.Plugin
 	var rdr utils.ReimportReader
-	var plugin_data []byte
 	var vc *config.VariableConfig
 	var err error
 	if *configPath == `` {
@@ -49,11 +49,11 @@ func main() {
 	} else if vc, err = loadPluginConfig(config_data); err != nil {
 		fmt.Printf("Failed to load plugin config: %v\n", err)
 		os.Exit(1)
-	} else if val, err := vc.GetString("plugin_path"); err != nil {
-		fmt.Printf("config file does not specify Plugin-Path, please fix it\n")
+	} else if pc, err = processors.PluginLoadConfig(vc); err != nil {
+		fmt.Printf("Failed to PluginLoadConfig: %v\n", err)
 		os.Exit(1)
-	} else if plugin_data, err = ioutil.ReadFile(val); err != nil {
-		fmt.Printf("Failed to load plugin %q: %v\n", val, err)
+	} else if p, err = processors.NewPluginProcessor(pc, &testTagHandler{}); err != nil {
+		fmt.Printf("Failed to create plugin: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -73,29 +73,23 @@ func main() {
 		}
 		defer fin.Close()
 	}
-	//load the plugin machine
-	pp, err := plugin.NewPluginProgram(plugin_data)
-	if err != nil {
-		fmt.Printf("Failed to load plugin:\n%v\n", err)
-		os.Exit(1)
-	} else if err = pp.Run(time.Second); err != nil {
-		fmt.Printf("Failed to execute plugin: %v\n", err)
-		os.Exit(1)
-	} else if err = pp.Config(vc, plugin.NewTestTagger()); err != nil {
-		fmt.Printf("Failed to execute plugin config: %v\n", err)
-		os.Exit(1)
-	}
-
+	start := time.Now()
+	var input int
+	var output int
 	if rdr == nil {
 		fmt.Println("no data file provided")
 	} else {
 		//start iterating through the data file providing entries to the plugin
 		// we randomly provide blocks and single entries
 		for ents, err := popEnts(rdr); ents != nil && err == nil; ents, err = popEnts(rdr) {
-			if set, err := pp.Process(ents); err != nil {
+			set, err := p.Process(ents)
+			if err != nil {
 				fmt.Printf("plugin returned error: %v\n", err)
 				break
-			} else if *debug {
+			}
+			input += len(ents)
+			output += len(set)
+			if *debug {
 				for _, ent := range set {
 					fmt.Printf("%v\t%s\n", ent.TS, string(ent.Data))
 				}
@@ -106,14 +100,28 @@ func main() {
 		}
 	}
 
-	if err = pp.Close(); err != nil {
+	if set := p.Flush(); len(set) > 0 {
+		output += len(set)
+		if *debug {
+			for _, ent := range set {
+				fmt.Printf("%v\t%s\n", ent.TS, string(ent.Data))
+			}
+		}
+	}
+
+	if err = p.Close(); err != nil {
 		fmt.Printf("Failed to close plugin: %v\n", err)
 		os.Exit(1)
 	}
+	dur := time.Since(start)
+	fmt.Printf("INPUT: %d\n", input)
+	fmt.Printf("OUTPUT: %d\n", output)
+	fmt.Println("PROCESSING TIME:", dur)
+	fmt.Println("PROCESSING RATE:", ingest.HumanEntryRate(uint64(input), dur))
 }
 
 func popEnts(rdr utils.ReimportReader) (ents []*entry.Entry, err error) {
-	cnt := rand.Intn(16)
+	cnt := rand.Intn(15) + 1
 	for i := 0; i < cnt; i++ {
 		var ent *entry.Entry
 		if ent, err = rdr.ReadEntry(); err == nil {
@@ -185,6 +193,10 @@ func (tth *testTagHandler) OverrideTags(v entry.EntryTag) {
 	tth.override = v
 }
 
+func (tth *testTagHandler) NegotiateTag(v string) (entry.EntryTag, error) {
+	return tth.GetTag(v)
+}
+
 func (tth *testTagHandler) GetTag(v string) (r entry.EntryTag, err error) {
 	if err = ingest.CheckTag(v); err != nil {
 		return
@@ -196,6 +208,26 @@ func (tth *testTagHandler) GetTag(v string) (r entry.EntryTag, err error) {
 			tth.mp = map[string]entry.EntryTag{}
 		}
 		tth.mp[v] = r
+	}
+	return
+}
+
+func (tth *testTagHandler) LookupTag(tag entry.EntryTag) (r string, ok bool) {
+	for k, v := range tth.mp {
+		if v == tag {
+			r, ok = k, true
+			break
+		}
+	}
+	return
+}
+
+func (tth *testTagHandler) KnownTags() (r []string) {
+	if len(tth.mp) > 0 {
+		r = make([]string, 0, len(tth.mp))
+		for k := range tth.mp {
+			r = append(r, k)
+		}
 	}
 	return
 }
