@@ -228,11 +228,18 @@ func (vc VariableConfig) setField(name string, v reflect.Value) (err error) {
 	return
 }
 
-// just wraps setField but returns ErrNotFound if the item hasn't been set
+// just wraps setField with some type handling
 func (vc VariableConfig) valueMapper(name string, v interface{}) (err error) {
 	if v == nil {
 		return ErrInvalidArgument
 	}
+	if x, ok := v.(*[]string); ok {
+		if ss, ok := vc.getSlice(nameMapper(name)); ok {
+			*x = ss
+		}
+		return
+	}
+	// because slices are different
 	strv, ok := vc.get(nameMapper(name))
 	if !ok {
 		return
@@ -282,7 +289,9 @@ func (vc VariableConfig) GetString(name string) (r string, err error) {
 }
 
 func (vc VariableConfig) GetStringSlice(name string) (r []string, err error) {
-	err = vc.valueMapper(name, &r)
+	if ss, ok := vc.getSlice(nameMapper(name)); ok {
+		r = ss
+	}
 	return
 }
 

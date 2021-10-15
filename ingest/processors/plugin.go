@@ -1,3 +1,5 @@
+// +build !386,!arm,!mips,!mipsle,!s390x
+
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -101,9 +103,11 @@ func NewPluginProcessor(cfg PluginConfig, tg Tagger) (p *Plugin, err error) {
 		if pp, err = plugin.NewPlugin(cfg.pd); err == nil {
 			if err = pp.Run(registerTimeout); err == nil {
 				if err = pp.Config(cfg.vc, tg); err == nil {
-					p = &Plugin{
-						PluginConfig: cfg,
-						pp:           pp,
+					if err = pp.Start(); err == nil {
+						p = &Plugin{
+							PluginConfig: cfg,
+							pp:           pp,
+						}
 					}
 				}
 			}

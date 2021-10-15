@@ -1,3 +1,5 @@
+// +build !386,!arm,!mips,!mipsle,!s390x
+
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -19,7 +21,7 @@ import (
 )
 
 func main() {
-	gravwell.Execute("test", cf, pf, ff)
+	gravwell.Execute("test", cf, nop, nop, pf, ff)
 }
 
 func cf(cm gravwell.ConfigMap, tg gravwell.Tagger) error {
@@ -32,6 +34,10 @@ func ff() []*entry.Entry {
 
 func pf([]*entry.Entry) ([]*entry.Entry, error) {
 	return nil, nil
+}
+
+func nop() error {
+	return nil
 }
 `
 
@@ -166,8 +172,12 @@ func Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 	return ents, nil
 }
 
+func nop() error {
+	return nil
+}
+
 func main() {
-	if err := gravwell.Execute(PluginName, Config, Process, Flush); err != nil {
+	if err := gravwell.Execute(PluginName, Config, nop, nop, Process, Flush); err != nil {
 		panic(fmt.Sprintf("Failed to execute dynamic plugin %s - %v\n", PluginName, err))
 	}
 }`
