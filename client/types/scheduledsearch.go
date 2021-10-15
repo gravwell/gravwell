@@ -24,9 +24,6 @@ const (
 	ScheduledTypeSearch string = "search"
 	ScheduledTypeScript string = "script"
 	ScheduledTypeFlow   string = "flow"
-
-	ScheduledScriptTypeAnko string = `anko`
-	ScheduledScriptTypeGo   string = `go`
 )
 
 type ScriptLang uint
