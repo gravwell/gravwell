@@ -1,3 +1,4 @@
+//go:build linux && go1.16 && !go1.17 && !386 && !arm && !mips && !mipsle && !s390x
 // +build linux,go1.16,!go1.17,!386,!arm,!mips,!mipsle,!s390x
 
 package plugin
