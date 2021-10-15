@@ -22,8 +22,9 @@ import (
 )
 
 var (
-	v4gen *ipgen.V4Gen
-	v6gen *ipgen.V6Gen
+	v4gen     *ipgen.V4Gen
+	v6gen     *ipgen.V6Gen
+	serverIPs []net.IP
 )
 
 func init() {
@@ -36,6 +37,9 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to instantiate v6 generator: %v\n", err)
 	}
+	for i := 0; i < 4; i++ {
+		serverIPs = append(serverIPs, v4gen.IP())
+	}
 }
 
 func main() {
@@ -43,11 +47,11 @@ func main() {
 	var totalBytes uint64
 	var totalCount uint64
 	var src net.IP
-	cfg, err := base.GetGeneratorConfig(`syslog`)
+	cfg, err := base.GetGeneratorConfig(`bind`)
 	if err != nil {
 		log.Fatal(err)
 	}
-	if igst, src, err = base.NewIngestMuxer(`sysloggenerator`, ``, cfg, time.Second); err != nil {
+	if igst, src, err = base.NewIngestMuxer(`bindgenerator`, ``, cfg, time.Second); err != nil {
 		log.Fatal(err)
 	}
 	tag, err := igst.GetTag(cfg.Tag)
@@ -83,12 +87,55 @@ func main() {
 	}
 }
 
+// argument order is: TS, <rand uint64> <clientip> <client port> <host> <host> <A or AAAAA> <serverip>
+// TS format is
+const format = `%v queries: info: client @0x%x %v#%d (%s): query: %s IN %s + (%v)`
+const tsformat = `02-Jan-2006 15:04:05.999`
+
 func genData(ts time.Time) []byte {
-	sev := rand.Intn(24)
-	fac := rand.Intn(7)
-	prio := (sev << 3) | fac
-	return []byte(fmt.Sprintf("<%d>1 %s %s %s %d - %s %s",
-		prio, ts.Format(tsFormat), getHost(), getApp(), rand.Intn(0xffff), genStructData(), rd.Paragraph()))
+	host, a := randHostname()
+	return []byte(fmt.Sprintf(format, ts.Format(tsformat), randAddr(), v4gen.IP(), randPort(), host, host, a, serverIP()))
+}
+
+func randAddr() (r uint64) {
+	r = rand.Uint64() & 0xfff
+	r = r | 0x7f466d899000
+	return
+}
+
+func randPort() (r uint16) {
+	v := rand.Intn(0xdfff) + 0x2000
+	r = uint16(v)
+	return
+}
+
+var (
+	protos = []string{`A`, `AAAA`}
+)
+
+func randProto() string {
+	if (rand.Uint32() & 0x7) == 0x7 {
+		return protos[1]
+	}
+	return protos[0]
+}
+
+var (
+	tlds = []string{
+		`io`, `com`, `net`, `us`, `co.uk`,
+	}
+)
+
+func randTLD() string {
+	return tlds[rand.Intn(len(tlds))]
+}
+
+func randHostname() (host, A string) {
+	return fmt.Sprintf("%s.%s.%s", rd.Noun(), rd.Noun(), randTLD()), randProto()
+}
+
+func serverIP() net.IP {
+	return serverIPs[rand.Intn(len(serverIPs))]
 }
 
 func genStructData() string {

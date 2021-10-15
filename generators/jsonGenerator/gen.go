@@ -9,8 +9,6 @@
 package main
 
 import (
-	"fmt"
-	"io"
 	"log"
 	"math/rand"
 	"time"
@@ -18,8 +16,6 @@ import (
 	rd "github.com/Pallinder/go-randomdata"
 	"github.com/bet365/jingo"
 	"github.com/gravwell/gravwell/v3/generators/ipgen"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 const (
@@ -48,67 +44,6 @@ func init() {
 	if err != nil {
 		log.Fatalf("Failed to instantiate v4 generator: %v", err)
 	}
-}
-
-func throw(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, dur time.Duration) (err error) {
-	sp := dur / time.Duration(cnt)
-	ts := time.Now().Add(-1 * dur)
-	for i := uint64(0); i < cnt; i++ {
-		dt := genData(ts)
-		if err = igst.WriteEntry(&entry.Entry{
-			TS:   entry.FromStandard(ts),
-			Tag:  tag,
-			SRC:  src,
-			Data: dt,
-		}); err != nil {
-			return
-		}
-		ts = ts.Add(sp)
-		totalBytes += uint64(len(dt))
-		totalCount++
-	}
-	return
-}
-
-func throwFile(w io.Writer, cnt uint64, dur time.Duration) (err error) {
-	sp := dur / time.Duration(cnt)
-	ts := time.Now()
-	for i := uint64(0); i < cnt; i++ {
-		dt := genData(ts)
-		if _, err = fmt.Fprintf(w, "%s\n", string(dt)); err != nil {
-			break
-		}
-		ts = ts.Add(-1 * sp)
-		totalBytes += uint64(len(dt))
-	}
-	return
-}
-
-func stream(igst *ingest.IngestMuxer, tag entry.EntryTag, cnt uint64, stop *bool) (err error) {
-	sp := time.Second / time.Duration(cnt)
-	var ent *entry.Entry
-loop:
-	for !*stop {
-		ts := time.Now()
-		start := ts
-		for i := uint64(0); i < cnt; i++ {
-			dt := genData(ts)
-			ent = &entry.Entry{
-				TS:   entry.FromStandard(ts),
-				Tag:  tag,
-				SRC:  src,
-				Data: dt,
-			}
-			if err = igst.WriteEntry(ent); err != nil {
-				break loop
-			}
-			totalBytes += uint64(len(dt))
-			totalCount++
-			ts = ts.Add(sp)
-		}
-		time.Sleep(time.Second - time.Since(start))
-	}
-	return
 }
 
 // genData creates a marshalled JSON buffer
