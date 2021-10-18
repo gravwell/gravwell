@@ -116,6 +116,7 @@ func (sp syslogProcessor) Extract(d []byte, loc *time.Location) (time.Time, bool
 }
 
 func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	offset = -1
 	idx := up.re.FindSubmatchIndex(d)
 	if len(idx) != 4 {
 		return
@@ -124,6 +125,7 @@ func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 	if err != nil {
 		return
 	}
+	offset = idx[2]
 	sec := int64(s)
 	nsec := int64((s - float64(sec)) * 1000000000.0)
 	t = time.Unix(sec, nsec).In(loc)
@@ -174,6 +176,7 @@ func (unp unixMsProcessor) ExtractionRegex() string {
 }
 
 func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	offset = -1
 	idx := unp.re.FindSubmatchIndex(d)
 	if len(idx) != 4 {
 		return
@@ -182,6 +185,7 @@ func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, o
 	if err != nil {
 		return
 	}
+	offset = idx[2]
 	t = time.Unix(0, ms*1000000).In(loc)
 	ok = true
 	return
@@ -230,6 +234,7 @@ func (unp unixNanoProcessor) ToString(t time.Time) string {
 }
 
 func (unp unixNanoProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	offset = -1
 	idx := unp.re.FindSubmatchIndex(d)
 	if len(idx) != 4 {
 		return
@@ -238,6 +243,7 @@ func (unp unixNanoProcessor) Extract(d []byte, loc *time.Location) (t time.Time,
 	if err != nil {
 		return
 	}
+	offset = idx[2]
 	t = time.Unix(0, nsec).In(loc)
 	ok = true
 	return
@@ -352,6 +358,7 @@ func (lp ldapProcessor) ToString(t time.Time) string {
 }
 
 func (lp ldapProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	offset = -1
 	idx := lp.re.FindSubmatchIndex(d)
 	if len(idx) != 4 {
 		return
@@ -361,6 +368,7 @@ func (lp ldapProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 	if err != nil {
 		return
 	}
+	offset = idx[2]
 
 	s := (ldap / 10000000) - 11644473600
 	t = time.Unix(s, 0).In(loc)
@@ -411,6 +419,7 @@ func (up *unixSecondsProcessor) ExtractionRegex() string {
 }
 
 func (up unixSecondsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	offset = -1
 	idx := up.re.FindSubmatchIndex(d)
 	if len(idx) != 4 {
 		return
@@ -419,6 +428,7 @@ func (up unixSecondsProcessor) Extract(d []byte, loc *time.Location) (t time.Tim
 	if err != nil {
 		return
 	}
+	offset = idx[2]
 	t = time.Unix(s, 0).In(loc)
 	ok = true
 	return
