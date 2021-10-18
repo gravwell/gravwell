@@ -148,6 +148,9 @@ func New(c Config) (*TimeGrinder, error) {
 	// Gravwell format
 	procs = append(procs, NewGravwell())
 
+	// Bind format
+	procs = append(procs, NewBind())
+
 	// LDAP
 	procs = append(procs, NewLDAPProcessor())
 
@@ -321,7 +324,7 @@ func (tg *TimeGrinder) Match(data []byte) (start, end int, ok bool) {
 
 /* DebugExtract returns a time, offset, and error.  If no time was extracted, the offset is -1
    Error indicates a catastrophic failure. */
-func (tg *TimeGrinder) DebugExtract(data []byte) (t time.Time, offset int, err error) {
+func (tg *TimeGrinder) DebugExtract(data []byte) (t time.Time, offset int, name string, err error) {
 	var i int
 	var c int
 
@@ -329,6 +332,8 @@ func (tg *TimeGrinder) DebugExtract(data []byte) (t time.Time, offset int, err e
 		if t, _, offset = tg.override.Extract(data, tg.loc); offset < 0 {
 			return
 		}
+		name = tg.override.Name()
+		return
 	}
 
 	if tg.seed {
@@ -342,6 +347,7 @@ func (tg *TimeGrinder) DebugExtract(data []byte) (t time.Time, offset int, err e
 		t, _, offset = tg.procs[i].Extract(data, tg.loc)
 		if offset >= 0 {
 			tg.curr = i
+			name = tg.procs[i].Name()
 			return
 		}
 		//move the current forward
@@ -349,6 +355,8 @@ func (tg *TimeGrinder) DebugExtract(data []byte) (t time.Time, offset int, err e
 	}
 	//if we hit here we failed to extract a timestamp, reset to zero the attempts at zero
 	tg.curr = 0
+	name = ``
+	offset = -1
 	return
 }
 
