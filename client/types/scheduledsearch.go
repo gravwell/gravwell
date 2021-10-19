@@ -69,8 +69,7 @@ type ScheduledSearch struct {
 	ScriptLanguage ScriptLang // what script type is this: anko, go
 
 	// For scheduled flows
-	Flow string // The flow specification itself
-	LastPayloads map[int]map[string]interface{} // Outputs from each node
+	Flow     string         // The flow specification itself
 	LastLogs map[int]string // Logs from each node
 
 	// These fields are updated by the search agent after it runs a search
