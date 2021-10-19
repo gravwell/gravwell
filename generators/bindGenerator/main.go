@@ -43,7 +43,7 @@ func init() {
 }
 
 func main() {
-	var igst *ingest.IngestMuxer
+	var genconn base.GeneratorConn
 	var totalBytes uint64
 	var totalCount uint64
 	var src net.IP
@@ -51,30 +51,30 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if igst, src, err = base.NewIngestMuxer(`bindgenerator`, ``, cfg, time.Second); err != nil {
+	if genconn, src, err = base.NewIngestMuxer(`bindgenerator`, ``, cfg, time.Second); err != nil {
 		log.Fatal(err)
 	}
-	tag, err := igst.GetTag(cfg.Tag)
+	tag, err := genconn.GetTag(cfg.Tag)
 	if err != nil {
 		log.Fatalf("Failed to lookup tag %s: %v", cfg.Tag, err)
 	}
 	start := time.Now()
 
 	if !cfg.Streaming {
-		if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg.Count, cfg.Duration, genData); err != nil {
+		if totalCount, totalBytes, err = base.OneShot(genconn, tag, src, cfg.Count, cfg.Duration, genData); err != nil {
 			log.Fatal("Failed to throw entries ", err)
 		}
 	} else {
-		if totalCount, totalBytes, err = base.Stream(igst, tag, src, cfg.Count, genData); err != nil {
+		if totalCount, totalBytes, err = base.Stream(genconn, tag, src, cfg.Count, genData); err != nil {
 			log.Fatal("Failed to stream entries ", err)
 		}
 	}
 
-	if err = igst.Sync(time.Second); err != nil {
+	if err = genconn.Sync(time.Second); err != nil {
 		log.Fatal("Failed to sync ingest muxer ", err)
 	}
 
-	if err = igst.Close(); err != nil {
+	if err = genconn.Close(); err != nil {
 		log.Fatal("Failed to close ingest muxer ", err)
 	}
 

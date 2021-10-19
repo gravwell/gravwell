@@ -393,14 +393,14 @@ func main() {
 								if awsErr, ok := err.(awserr.Error); ok {
 									// process SDK error
 									if awsErr.Code() == kinesis.ErrCodeProvisionedThroughputExceededException {
-										lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId),log.KV("stream", stream.Stream_Name))
+										lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
 										time.Sleep(500 * time.Millisecond)
 									} else if awsErr.Code() == kinesis.ErrCodeExpiredIteratorException {
-										lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId),log.KV("stream", stream.Stream_Name))
+										lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
 										time.Sleep(100 * time.Millisecond)
 										continue reconnectLoop
 									} else {
-										lg.Error("answer error", log.KV("code", awsErr.Code()), log.KV("message", awsErr.Message()), log.KV("shard", *shard.ShardId),log.KV("stream", stream.Stream_Name))
+										lg.Error("answer error", log.KV("code", awsErr.Code()), log.KV("message", awsErr.Message()), log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
 										time.Sleep(500 * time.Millisecond)
 									}
 								} else {

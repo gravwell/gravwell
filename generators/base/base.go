@@ -35,6 +35,7 @@ var (
 	compression     = flag.Bool("compression", false, "Enable ingest compression")
 	entryCount      = flag.Int("entry-count", 100, "Number of entries to generate")
 	streaming       = flag.Bool("stream", false, "Stream entries in")
+	rawConn         = flag.String("raw-connection", "", "Deliver line broken entries over a TCP connection instead of gravwell protocol")
 	span            = flag.String("duration", "1h", "Total Duration")
 	srcOverride     = flag.String("source-override", "", "Source override value")
 )
@@ -46,6 +47,8 @@ var (
 
 type GeneratorConfig struct {
 	ok          bool
+	modeRaw     bool
+	Raw         string
 	Streaming   bool
 	Compression bool
 	Tag         string
@@ -66,8 +69,28 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 	if cfg.ok {
 		return cfg, nil
 	}
-	gc.Compression = *compression
 	gc.LogLevel = log.OFF
+	gc.Streaming = *streaming
+	gc.Count = uint64(*entryCount)
+	if *span == "" {
+		err = errors.New("Missing duration")
+		return
+	}
+	if gc.Duration, err = getDuration(*span); err != nil {
+		err = fmt.Errorf("invalid duration %s %w", *span, err)
+		return
+	}
+
+	if *rawConn != `` {
+		if _, _, err = net.SplitHostPort(*rawConn); err != nil {
+			err = fmt.Errorf("invalid raw connection string %q - %v", *rawConn, err)
+			return
+		}
+		gc.modeRaw = true
+		gc.Raw = *rawConn
+		return
+	}
+	gc.Compression = *compression
 	if gc.Tag = *tagName; gc.Tag == `` {
 		if gc.Tag = defaultTag; gc.Tag == `` {
 			err = errors.New("A tag name must be specified")
@@ -83,7 +106,6 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		err = errors.New("Ingest auth is missing")
 		return
 	}
-	gc.Streaming = *streaming
 	var connSet []string
 
 	if *clearConns != "" {
@@ -119,15 +141,6 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		err = errors.New("invalid entry count")
 		return
 	}
-	gc.Count = uint64(*entryCount)
-	if *span == "" {
-		err = errors.New("Missing duration")
-		return
-	}
-	if gc.Duration, err = getDuration(*span); err != nil {
-		err = fmt.Errorf("invalid duration %s %w", *span, err)
-		return
-	}
 	if *srcOverride != `` {
 		if src := net.ParseIP(*srcOverride); src == nil {
 			gc.SRC = src
@@ -138,10 +151,28 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 	return
 }
 
-func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (igst *ingest.IngestMuxer, src net.IP, err error) {
+type GeneratorConn interface {
+	Close() error
+	GetTag(string) (entry.EntryTag, error)
+	NegotiateTag(string) (entry.EntryTag, error)
+	LookupTag(entry.EntryTag) (string, bool)
+	WaitForHot(time.Duration) error
+	Write(entry.Timestamp, entry.EntryTag, []byte) error
+	WriteBatch([]*entry.Entry) error
+	WriteEntry(*entry.Entry) error
+	Sync(time.Duration) error
+	SourceIP() (net.IP, error)
+}
+
+func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (conn GeneratorConn, src net.IP, err error) {
 	if !gc.ok {
 		err = errors.New("config is invalid")
 		return
+	} else if gc.modeRaw {
+		if conn, err = newRawConn(gc, to); err == nil {
+			src, err = conn.SourceIP()
+			return
+		}
 	}
 	if name == `` {
 		name = os.Args[0]
@@ -172,6 +203,7 @@ func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (ig
 			Enable_Compression: gc.Compression,
 		},
 	}
+	var igst *ingest.IngestMuxer
 	if igst, err = ingest.NewUniformMuxer(umc); err != nil {
 		return
 	} else if err = igst.Start(); err != nil {
@@ -185,6 +217,10 @@ func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (ig
 		src = gc.SRC
 	} else if src, err = igst.SourceIP(); err != nil {
 		igst.Close()
+	}
+
+	if err == nil {
+		conn = igst
 	}
 
 	return
@@ -225,13 +261,13 @@ func getDuration(v string) (d time.Duration, err error) {
 
 type DataGen func(time.Time) []byte
 
-func OneShot(igst *ingest.IngestMuxer, tag entry.EntryTag, src net.IP, cnt uint64, dur time.Duration, dg DataGen) (totalCount, totalBytes uint64, err error) {
-	if dg == nil || igst == nil || dur < 0 {
+func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, dur time.Duration, dg DataGen) (totalCount, totalBytes uint64, err error) {
+	if dg == nil || conn == nil || dur < 0 {
 		err = errors.New("invalid parameters")
 		return
 	}
 	if src == nil {
-		if src, err = igst.SourceIP(); err != nil {
+		if src, err = conn.SourceIP(); err != nil {
 			err = fmt.Errorf("Failed to get source ip: %w", err)
 			return
 		}
@@ -245,7 +281,7 @@ func OneShot(igst *ingest.IngestMuxer, tag entry.EntryTag, src net.IP, cnt uint6
 			SRC:  src,
 			Data: dg(ts),
 		}
-		if err = igst.WriteEntry(ent); err != nil {
+		if err = conn.WriteEntry(ent); err != nil {
 			break
 		}
 		ts = ts.Add(sp)
@@ -255,12 +291,12 @@ func OneShot(igst *ingest.IngestMuxer, tag entry.EntryTag, src net.IP, cnt uint6
 	return
 }
 
-func Stream(igst *ingest.IngestMuxer, tag entry.EntryTag, src net.IP, cnt uint64, dg DataGen) (totalCount, totalBytes uint64, err error) {
+func Stream(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, dg DataGen) (totalCount, totalBytes uint64, err error) {
 	var stop bool
 	r := make(chan error, 1)
 	go func(ret chan error, stp *bool) {
 		var err error
-		totalCount, totalBytes, err = streamRunner(igst, tag, src, cfg.Count, stp, dg)
+		totalCount, totalBytes, err = streamRunner(conn, tag, src, cfg.Count, stp, dg)
 		r <- err
 	}(r, &stop)
 	c := make(chan os.Signal, 1)
@@ -278,13 +314,13 @@ func Stream(igst *ingest.IngestMuxer, tag entry.EntryTag, src net.IP, cnt uint64
 	return
 }
 
-func streamRunner(igst *ingest.IngestMuxer, tag entry.EntryTag, src net.IP, cnt uint64, stop *bool, dg DataGen) (totalCount, totalBytes uint64, err error) {
-	if dg == nil || igst == nil || stop == nil {
+func streamRunner(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, stop *bool, dg DataGen) (totalCount, totalBytes uint64, err error) {
+	if dg == nil || conn == nil || stop == nil {
 		err = errors.New("invalid parameters")
 		return
 	}
 	if src == nil {
-		if src, err = igst.SourceIP(); err != nil {
+		if src, err = conn.SourceIP(); err != nil {
 			err = fmt.Errorf("Failed to get source ip: %w", err)
 			return
 		}
@@ -302,7 +338,7 @@ loop:
 				SRC:  src,
 				Data: dg(ts),
 			}
-			if err = igst.WriteEntry(ent); err != nil {
+			if err = conn.WriteEntry(ent); err != nil {
 				break loop
 			}
 			totalBytes += uint64(len(ent.Data))
