@@ -25,7 +25,7 @@ import (
 )
 
 func TestBasicPlugin(t *testing.T) {
-	pp, err := NewPluginProgram([]byte(basicPlugin))
+	pp, err := NewPluginProgram([]byte(basicPlugin), false)
 	if err != nil {
 		t.Fatal(err)
 	} else if err := pp.Run(time.Second); err != nil {
@@ -36,7 +36,7 @@ func TestBasicPlugin(t *testing.T) {
 }
 
 func TestNoRegister(t *testing.T) {
-	pp, err := NewPluginProgram([]byte(basicBadPlugin))
+	pp, err := NewPluginProgram([]byte(basicBadPlugin), false)
 	if err != nil {
 		t.Fatal(err)
 	} else if err := pp.Run(time.Second); err == nil {
@@ -47,7 +47,7 @@ func TestNoRegister(t *testing.T) {
 }
 
 func TestNoRegisterNoExit(t *testing.T) {
-	pp, err := NewPluginProgram([]byte(badIdlePlugin))
+	pp, err := NewPluginProgram([]byte(badIdlePlugin), false)
 	if err != nil {
 		t.Fatal(err)
 	} else if err := pp.Run(time.Second); err == nil {
@@ -60,7 +60,7 @@ func TestNoRegisterNoExit(t *testing.T) {
 func TestBad(t *testing.T) {
 	bad := []string{badPackage, empty, broken, noMain, badCall}
 	for i, b := range bad {
-		if _, err := NewPluginProgram([]byte(b)); err == nil {
+		if _, err := NewPluginProgram([]byte(b), false); err == nil {
 			t.Fatalf("Failed to catch bad program[%d]", i)
 		}
 	}
@@ -82,7 +82,7 @@ func TestCalls(t *testing.T) {
 	//build up som entries and pass them in
 	ents := makeEnts(16)
 
-	if pp, err := NewPluginProgram([]byte(recase)); err != nil {
+	if pp, err := NewPluginProgram([]byte(recase), false); err != nil {
 		t.Fatal(err)
 	} else if err := pp.Run(time.Second); err != nil {
 		t.Fatal(err)
