@@ -88,6 +88,8 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		}
 		gc.modeRaw = true
 		gc.Raw = *rawConn
+		gc.ok = true
+		gc.Tag = `default`
 		return
 	}
 	gc.Compression = *compression
@@ -171,9 +173,11 @@ func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (co
 	} else if gc.modeRaw {
 		if conn, err = newRawConn(gc, to); err == nil {
 			src, err = conn.SourceIP()
-			return
 		}
+		fmt.Printf("%T %v\n", conn, src)
+		return
 	}
+	fmt.Println("not in raw")
 	if name == `` {
 		name = os.Args[0]
 	}
