@@ -174,10 +174,8 @@ func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (co
 		if conn, err = newRawConn(gc, to); err == nil {
 			src, err = conn.SourceIP()
 		}
-		fmt.Printf("%T %v\n", conn, src)
 		return
 	}
-	fmt.Println("not in raw")
 	if name == `` {
 		name = os.Args[0]
 	}
