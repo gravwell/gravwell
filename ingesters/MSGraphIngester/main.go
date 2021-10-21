@@ -62,7 +62,7 @@ func init() {
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr: %v\n", err)
+			lg.Fatal("Failed to dup stderr", log.KVErr(err))
 		} else {
 			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
 		}
@@ -76,8 +76,8 @@ func init() {
 			ingest.PrintVersion(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
 				fout.Close()
+				lg.Fatal("failed to dup2 stderr", log.KVErr(err))
 			}
 		}
 	}
@@ -91,44 +91,42 @@ func main() {
 	debug.SetTraceback("all")
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
-		lg.Fatal("Failed to get configuration: %v", err)
+		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 	}
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Global.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Global.Log_File), log.KVErr(err))
 		}
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Global.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Global.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
 			}
 		}
 	}
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.Fatal("Failed to get tags from configuration: %v", err)
+		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.Fatal("Failed to get backend targets from configuration: %s", err)
+		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
-
-	lmt, err := cfg.Global.RateLimit()
-	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
-		return
-	}
-	debugout("Rate limiting connection to %d bps\n", lmt)
 
 	//fire up the ingesters
 	id, ok := cfg.Global.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "could not read ingester UUID")
+	}
+	lmt, err := cfg.Global.RateLimit()
+	if err != nil {
+		lg.FatalCode(0, "Failed to get rate limit from configuration", log.KVErr(err))
+		return
 	}
 	ingestConfig := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.Global.IngestStreamConfig,
@@ -149,30 +147,30 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
-		lg.Fatal("Failed build our ingest system: %v", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		lg.FatalCode(0, "Failed start our ingest system: %v", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
 	}
 
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 	}
 	debugout("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "failed to set configuration for ingester state message", log.KVErr(err))
 	}
 
 	tracker, err = NewTracker(cfg.Global.State_Store_Location, 48*time.Hour, igst)
 	if err != nil {
-		lg.Fatal("Failed to initialize state file: %v", err)
+		lg.Fatal("failed to initialize state file", log.KVErr(err))
 	}
 	tracker.Start()
 
@@ -181,7 +179,7 @@ func main() {
 		// global override
 		src = net.ParseIP(cfg.Global.Source_Override)
 		if src == nil {
-			lg.Fatal("Global Source-Override is invalid")
+			lg.FatalCode(0, "Global Source-Override is invalid")
 		}
 	}
 
@@ -190,7 +188,7 @@ func main() {
 	// Instantiate the client
 	graphClient, err := msgraph.NewGraphClient(cfg.Global.Tenant_Domain, cfg.Global.Client_ID, cfg.Global.Client_Secret)
 	if err != nil {
-		lg.Fatal("Failed to get new client: %v", err)
+		lg.FatalCode(0, "Failed to get new client", log.KVErr(err))
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -202,12 +200,12 @@ func main() {
 		// figure out which tag we're using
 		tag, err := igst.GetTag(ct.Tag_Name)
 		if err != nil {
-			lg.Fatal("Can't resolve tag %v: %v", ct.Tag_Name, err)
+			lg.Fatal("failed to resolve tag", log.KV("tag", ct.Tag_Name), log.KVErr(err))
 		}
 
 		procset, err := cfg.Preprocessor.ProcessorSet(igst, ct.Preprocessor)
 		if err != nil {
-			lg.Fatal("Preprocessor construction error: %v", err)
+			lg.Fatal("preprocessor failure", log.KVErr(err))
 		}
 
 		// set up time extraction rules
@@ -218,7 +216,7 @@ func main() {
 		if err != nil {
 			ct.Ignore_Timestamps = true
 		} else if err = cfg.TimeFormat.LoadFormats(tg); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to set load custom time formats: %v\n", err)
+			lg.FatalCode(0, "failed to set load custom time formats", log.KVErr(err))
 			return
 		}
 		if ct.Assume_Local_Timezone {
@@ -226,8 +224,7 @@ func main() {
 		}
 		if ct.Timezone_Override != `` {
 			if err = tg.SetTimezone(ct.Timezone_Override); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", ct.Timezone_Override, err)
-				return
+				lg.FatalCode(0, "failed to set timezone", log.KV("timezone", ct.Timezone_Override), log.KVErr(err))
 			}
 		}
 		// build the config
@@ -282,7 +279,7 @@ type routineCfg struct {
 }
 
 func alertRoutine(c routineCfg) {
-	lg.Info("Started reader for content type %v\n", c.ct.Content_Type)
+	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	c.wg.Add(1)
 	defer c.wg.Done()
 
@@ -290,7 +287,7 @@ func alertRoutine(c routineCfg) {
 		debugout("Querying alerts\n")
 		alerts, err := c.graphClient.ListAlerts()
 		if err != nil {
-			lg.Error("Failed to list alerts: %v", err)
+			lg.Error("failed to list alerts", log.KVErr(err))
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -308,7 +305,7 @@ func alertRoutine(c routineCfg) {
 			// Now re-pack this as json
 			packed, err := json.Marshal(item)
 			if err != nil {
-				lg.Warn("Failed to re-pack entry %v: %v", item.ID, err)
+				lg.Warn("failed to re-pack entry", log.KV("id", item.ID), log.KVErr(err))
 				continue
 			}
 
@@ -324,7 +321,7 @@ func alertRoutine(c routineCfg) {
 			}
 			// now write the entry
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
-				lg.Warn("Failed to handle entry: %v", err)
+				lg.Warn("failed to handle entry", log.KVErr(err))
 			}
 			// Mark down this alert as ingested
 			tracker.RecordId(item.ID, time.Now())
@@ -339,13 +336,13 @@ func alertRoutine(c routineCfg) {
 		}
 	}
 	if err := c.procset.Close(); err != nil {
-		lg.Error("Failed to close processor set: %v", err)
+		lg.Error("failed to close processor set", log.KVErr(err))
 	}
 
 }
 
 func secureScoreRoutine(c routineCfg) {
-	lg.Info("Started reader for content type %v\n", c.ct.Content_Type)
+	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	c.wg.Add(1)
 	defer c.wg.Done()
 
@@ -353,7 +350,7 @@ func secureScoreRoutine(c routineCfg) {
 		debugout("Querying secure scores\n")
 		scores, err := c.graphClient.ListSecureScores()
 		if err != nil {
-			lg.Error("Failed to list secure scores: %v", err)
+			lg.Error("failed to list secure scores", log.KVErr(err))
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -371,7 +368,7 @@ func secureScoreRoutine(c routineCfg) {
 			// Now re-pack this as json
 			packed, err := json.Marshal(item)
 			if err != nil {
-				lg.Warn("Failed to re-pack secure score entry %v: %v", item.ID, err)
+				lg.Warn("failed to re-pack secure score entry", log.KV("id", item.ID), log.KVErr(err))
 				continue
 			}
 
@@ -387,7 +384,7 @@ func secureScoreRoutine(c routineCfg) {
 			}
 			// now write the entry
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
-				lg.Warn("Failed to handle entry: %v", err)
+				lg.Warn("failed to handle entry", log.KVErr(err))
 			}
 			// Mark down this alert as ingested
 			tracker.RecordId(item.ID, time.Now())
@@ -403,13 +400,13 @@ func secureScoreRoutine(c routineCfg) {
 		}
 	}
 	if err := c.procset.Close(); err != nil {
-		lg.Error("Failed to close processor set: %v", err)
+		lg.Error("failed to close processor set", log.KVErr(err))
 	}
 
 }
 
 func secureScoreProfileRoutine(c routineCfg) {
-	lg.Info("Started reader for content type %v\n", c.ct.Content_Type)
+	lg.Info("started reader for content type", log.KV("contenttype", c.ct.Content_Type))
 	c.wg.Add(1)
 	defer c.wg.Done()
 
@@ -417,7 +414,7 @@ func secureScoreProfileRoutine(c routineCfg) {
 		debugout("Querying secure score profiles\n")
 		profiles, err := c.graphClient.ListSecureScoreControlProfiles()
 		if err != nil {
-			lg.Error("Failed to list secure score profiles: %v", err)
+			lg.Error("failed to list secure score profiles", log.KVErr(err))
 			time.Sleep(10 * time.Second)
 			continue
 		}
@@ -430,7 +427,7 @@ func secureScoreProfileRoutine(c routineCfg) {
 			// Re-pack this as json
 			packed, err := json.Marshal(item)
 			if err != nil {
-				lg.Warn("Failed to re-pack secure score profile %v: %v", item.ID, err)
+				lg.Warn("failed to re-pack secure score profile", log.KV("id", item.ID), log.KVErr(err))
 				continue
 			}
 
@@ -445,7 +442,7 @@ func secureScoreProfileRoutine(c routineCfg) {
 
 			// write the entry
 			if err := c.procset.ProcessContext(ent, c.ctx); err != nil {
-				lg.Warn("Failed to handle entry: %v", err)
+				lg.Warn("failed to handle entry", log.KVErr(err))
 			}
 
 		}
@@ -459,7 +456,7 @@ func secureScoreProfileRoutine(c routineCfg) {
 		}
 	}
 	if err := c.procset.Close(); err != nil {
-		lg.Error("Failed to close processor set: %v", err)
+		lg.Error("failed to close processor set", log.KVErr(err))
 	}
 
 }

@@ -19,6 +19,7 @@ import (
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
@@ -192,34 +193,72 @@ func infoout(format string, args ...interface{}) {
 type debugLogger struct {
 }
 
-func (dl debugLogger) Debug(f string, args ...interface{}) error {
+func (dl debugLogger) Debugf(f string, args ...interface{}) error {
 	debugout(f, args...)
 	return nil
 }
 
-func (dl debugLogger) Info(f string, args ...interface{}) error {
+func (dl debugLogger) Infof(f string, args ...interface{}) error {
 	infoout(f, args...)
 	return nil
 }
 
-func (dl debugLogger) Warn(f string, args ...interface{}) error {
+func (dl debugLogger) Warnf(f string, args ...interface{}) error {
 	infoout(f, args...)
 	return nil
 }
 
-func (dl debugLogger) Error(f string, args ...interface{}) error {
+func (dl debugLogger) Errorf(f string, args ...interface{}) error {
 	errorout(f, args...)
 	return nil
 }
 
-func (dl debugLogger) Critical(f string, args ...interface{}) error {
+func (dl debugLogger) Criticalf(f string, args ...interface{}) error {
 	errorout(f, args...)
+	return nil
+}
+
+func (dl debugLogger) Debug(msg string, args ...rfc5424.SDParam) error {
+	infoout(formatStructured(msg, args...))
+	return nil
+}
+
+func (dl debugLogger) Info(msg string, args ...rfc5424.SDParam) error {
+	infoout(formatStructured(msg, args...))
+	return nil
+}
+
+func (dl debugLogger) Warn(msg string, args ...rfc5424.SDParam) error {
+	infoout(formatStructured(msg, args...))
+	return nil
+}
+
+func (dl debugLogger) Error(msg string, args ...rfc5424.SDParam) error {
+	errorout(formatStructured(msg, args...))
+	return nil
+}
+
+func (dl debugLogger) Critical(msg string, args ...rfc5424.SDParam) error {
+	errorout(formatStructured(msg, args...))
 	return nil
 }
 
 func (g *global) verifyStateStore() (err error) {
 	if g.State_Store_Location == `` {
 		g.State_Store_Location, err = winevent.ProgramDataFilename(defaultStateLoc)
+	}
+	return
+}
+
+func formatStructured(msg string, args ...rfc5424.SDParam) (r string) {
+	if len(msg) > 0 {
+		r = msg
+	}
+	for _, arg := range args {
+		if len(r) > 0 {
+			r += " "
+		}
+		r += fmt.Sprintf("%q=%q", arg.Name, arg.Value)
 	}
 	return
 }

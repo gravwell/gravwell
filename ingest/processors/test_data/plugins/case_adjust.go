@@ -26,6 +26,10 @@ type CaseConfig struct {
 	Lower bool
 }
 
+func nop() error {
+	return nil //this is a synchronous plugin, so no "start" or "close"
+}
+
 func Config(cm gravwell.ConfigMap, tgr gravwell.Tagger) (err error) {
 	if cm == nil || tgr == nil {
 		err = errors.New("bad parameters")
@@ -65,7 +69,7 @@ func Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 }
 
 func main() {
-	if err := gravwell.Execute(PluginName, Config, Process, Flush); err != nil {
+	if err := gravwell.Execute(PluginName, Config, nop, nop, Process, Flush); err != nil {
 		panic(fmt.Sprintf("Failed to execute dynamic plugin %s - %v\n", PluginName, err))
 	}
 }

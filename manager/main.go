@@ -12,6 +12,7 @@ import (
 	"flag"
 	"log"
 
+	il "github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
@@ -56,7 +57,7 @@ func main() {
 		}
 		pms = append(pms, pm)
 	}
-	lg.Info("Starting %d processes", len(pms))
+	lg.Info("starting processes", il.KV("count", len(pms)))
 	for _, p := range pms {
 		if err := p.Start(); err != nil {
 			log.Fatal(err)
@@ -66,7 +67,7 @@ func main() {
 	//register for signals so we can die gracefully
 	utils.WaitForQuit()
 
-	lg.Info("Received shutdown signal, stopping %d children", len(pms))
+	lg.Info("received shutdown signal, stopping children", il.KV("count", len(pms)))
 	for _, p := range pms {
 		if err := p.Close(); err != nil {
 			log.Fatal(err)

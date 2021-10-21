@@ -1,3 +1,4 @@
+//go:build !386 && !arm && !mips && !mipsle && !s390x
 // +build !386,!arm,!mips,!mipsle,!s390x
 
 /*************************************************************************
@@ -19,6 +20,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/open2b/scriggo"
@@ -40,6 +42,8 @@ const (
 	ConfigFuncName     string = `Config`
 	FlushFuncName      string = `Flush`
 	ProcessFuncName    string = `Process`
+	StartFuncName      string = `Start`
+	CloseFuncName      string = `Close`
 )
 
 type pluginState int
@@ -116,6 +120,8 @@ type Tagger interface {
 	KnownTags() []string
 }
 
+type StartFunc func() error
+type CloseFunc func() error
 type ConfigFunc func(ConfigMap, Tagger) error
 type FlushFunc func() []*entry.Entry
 type ProcessFunc func([]*entry.Entry) ([]*entry.Entry, error)
@@ -128,6 +134,8 @@ type PluginProgram struct {
 	cf         ConfigFunc
 	ff         FlushFunc
 	pf         ProcessFunc
+	startf     StartFunc
+	closef     CloseFunc
 	name       string
 	rc         chan error // signal channel to tell the outside world that the plugin has registered
 	dc         chan error // signal channel to tell the outside world that the program finished
@@ -150,11 +158,11 @@ func (pp *PluginProgram) getState() (v pluginState) {
 	return
 }
 
-func (pp *PluginProgram) register(name string, cf ConfigFunc, pf ProcessFunc, ff FlushFunc) (err error) {
+func (pp *PluginProgram) register(name string, cf ConfigFunc, startf StartFunc, closef CloseFunc, pf ProcessFunc, ff FlushFunc) (err error) {
 	if name == `` {
 		err = errors.New("invalid name")
 		return
-	} else if cf == nil || pf == nil || ff == nil {
+	} else if cf == nil || pf == nil || ff == nil || startf == nil || closef == nil {
 		err = errors.New("invalid parameters")
 		return
 	}
@@ -168,6 +176,7 @@ func (pp *PluginProgram) register(name string, cf ConfigFunc, pf ProcessFunc, ff
 	}
 	pp.name = name
 	pp.cf, pp.pf, pp.ff = cf, pf, ff
+	pp.startf, pp.closef = startf, closef
 	pp.setState(registered)
 	pp.rc <- nil
 	close(pp.rc)
@@ -185,11 +194,26 @@ func (pp *PluginProgram) Run(to time.Duration) (err error) {
 	go pp.execute()
 	select {
 	case err = <-pp.rc:
+		if err == nil {
+			pp.setState(registered)
+		}
 	case err = <-pp.dc:
 		err = fmt.Errorf("program exited before registration: %w", err)
 	case <-time.After(to):
 		err = errors.New("Timed out waiting for program to register")
 		pp.cancel()
+	}
+	return
+}
+
+func (pp *PluginProgram) Start() (err error) {
+	if st := pp.getState(); st == registered {
+		//if we are registered, fire up the Start function
+		if err = pp.startf(); err == nil {
+			pp.setState(running)
+		}
+	} else {
+		err = fmt.Errorf("program is in an invlaid state %v", st)
 	}
 	return
 }
@@ -201,11 +225,19 @@ func (pp *PluginProgram) Close() (err error) {
 		}
 		return
 	}
+
+	var perr error
+	if cf := pp.closef; cf != nil {
+		perr = cf()
+	}
 	pp.Done()
 	time.Sleep(250 * time.Millisecond) //let the program close out
 	pp.cancel()                        //go down hard
 	if err = <-pp.dc; err == nil {
 		err = pp.err
+	}
+	if err == nil {
+		err = perr
 	}
 	return
 }
@@ -222,7 +254,7 @@ func (pp *PluginProgram) Config(vc *config.VariableConfig, tg Tagger) error {
 func (pp *PluginProgram) Flush() []*entry.Entry {
 	if pp == nil || pp.cf == nil {
 		return nil
-	} else if st := pp.getState(); st != registered {
+	} else if st := pp.getState(); st != running {
 		return nil
 	}
 
@@ -232,7 +264,7 @@ func (pp *PluginProgram) Flush() []*entry.Entry {
 func (pp *PluginProgram) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 	if pp == nil || pp.cf == nil {
 		return nil, ErrNotReady
-	} else if st := pp.getState(); st != registered {
+	} else if st := pp.getState(); st != running {
 		return nil, fmt.Errorf("bad state, %s != %s", st, running)
 	}
 
@@ -310,4 +342,48 @@ func (ps pluginState) String() string {
 		return `done`
 	}
 	return `unknown`
+}
+
+type TestTagger struct {
+	mp map[string]entry.EntryTag
+}
+
+func NewTestTagger() *TestTagger {
+	return &TestTagger{
+		mp: map[string]entry.EntryTag{},
+	}
+}
+
+func (tt *TestTagger) NegotiateTag(name string) (tag entry.EntryTag, err error) {
+	if err = ingest.CheckTag(name); err != nil {
+		return
+	}
+	var ok bool
+	if tag, ok = tt.mp[name]; ok {
+		return
+	}
+	tag = entry.EntryTag(len(tt.mp))
+	tt.mp[name] = tag
+	return
+}
+
+func (tt *TestTagger) LookupTag(tag entry.EntryTag) (r string, ok bool) {
+	for k, v := range tt.mp {
+		if v == tag {
+			r = k
+			ok = true
+			break
+		}
+	}
+	return
+}
+
+func (tt *TestTagger) KnownTags() (r []string) {
+	if tt != nil && len(tt.mp) > 0 {
+		r = make([]string, 0, len(tt.mp))
+		for k := range tt.mp {
+			r = append(r, k)
+		}
+	}
+	return
 }

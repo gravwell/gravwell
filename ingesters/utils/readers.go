@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package main
+package utils
 
 import (
 	"encoding/csv"
@@ -15,6 +15,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -23,6 +25,9 @@ import (
 
 const (
 	csvTsLayout string = ``
+
+	JsonFormat string = `json`
+	CsvFormat  string = `csv`
 )
 
 var (
@@ -30,26 +35,31 @@ var (
 	csvCols           = []string{`Timestamp`, `Source`, `Tag`, `Data`}
 )
 
-type tagHandler struct {
+type TagHandler interface {
+	OverrideTags(entry.EntryTag)
+	GetTag(string) (entry.EntryTag, error)
+}
+
+type ingestTagHandler struct {
 	tags        map[string]entry.EntryTag
 	igst        *ingest.IngestMuxer
 	tagOverride bool
 	tag         entry.EntryTag
 }
 
-func newTagHandler(igst *ingest.IngestMuxer) tagHandler {
-	return tagHandler{
+func NewIngestTagHandler(igst *ingest.IngestMuxer) TagHandler {
+	return &ingestTagHandler{
 		tags: map[string]entry.EntryTag{},
 		igst: igst,
 	}
 }
 
-func (th *tagHandler) OverrideTags(tg entry.EntryTag) {
+func (th *ingestTagHandler) OverrideTags(tg entry.EntryTag) {
 	th.tagOverride = true
 	th.tag = tg
 }
 
-func (th *tagHandler) getTag(v string) (tg entry.EntryTag, err error) {
+func (th *ingestTagHandler) GetTag(v string) (tg entry.EntryTag, err error) {
 	var ok bool
 	//get the tag
 	if th.tagOverride {
@@ -64,14 +74,14 @@ func (th *tagHandler) getTag(v string) (tg entry.EntryTag, err error) {
 	return
 }
 
-type csvReader struct {
-	tagHandler
+type CSVReader struct {
+	TagHandler
 	rdr *csv.Reader
 	row int
 }
 
-func newCSVReader(rdr io.Reader, igst *ingest.IngestMuxer) (*csvReader, error) {
-	if rdr == nil || igst == nil {
+func NewCSVReader(rdr io.Reader, th TagHandler) (*CSVReader, error) {
+	if rdr == nil || th == nil {
 		return nil, errors.New("invalid parameters")
 	}
 	crdr := csv.NewReader(rdr)
@@ -89,13 +99,13 @@ func newCSVReader(rdr io.Reader, igst *ingest.IngestMuxer) (*csvReader, error) {
 		}
 	}
 
-	return &csvReader{
-		tagHandler: newTagHandler(igst),
+	return &CSVReader{
+		TagHandler: th,
 		rdr:        crdr,
 	}, nil
 }
 
-func (c *csvReader) ReadEntry() (*entry.Entry, error) {
+func (c *CSVReader) ReadEntry() (*entry.Entry, error) {
 	var ts time.Time
 	var tag entry.EntryTag
 	//read columns
@@ -112,7 +122,7 @@ func (c *csvReader) ReadEntry() (*entry.Entry, error) {
 		return nil, fmt.Errorf("Invalid timestmap on row %d: %v", c.row, err)
 	}
 
-	if tag, err = c.getTag(cols[2]); err != nil {
+	if tag, err = c.GetTag(cols[2]); err != nil {
 		return nil, fmt.Errorf("%v on row %d", err, c.row)
 	}
 	return &entry.Entry{
@@ -124,18 +134,18 @@ func (c *csvReader) ReadEntry() (*entry.Entry, error) {
 
 }
 
-type jsonReader struct {
-	tagHandler
+type JSONReader struct {
+	TagHandler
 	rdr *json.Decoder
 	cnt int
 }
 
-func newJSONReader(rdr io.Reader, igst *ingest.IngestMuxer) (*jsonReader, error) {
-	if rdr == nil || igst == nil {
+func NewJSONReader(rdr io.Reader, th TagHandler) (*JSONReader, error) {
+	if rdr == nil || th == nil {
 		return nil, errors.New("invalid parameters")
 	}
-	return &jsonReader{
-		tagHandler: newTagHandler(igst),
+	return &JSONReader{
+		TagHandler: th,
 		rdr:        json.NewDecoder(rdr),
 	}, nil
 }
@@ -168,7 +178,7 @@ func (je jsonEntry) src() (src net.IP) {
 	return
 }
 
-func (j *jsonReader) ReadEntry() (ent *entry.Entry, err error) {
+func (j *JSONReader) ReadEntry() (ent *entry.Entry, err error) {
 	var jent jsonEntry
 	var tag entry.EntryTag
 	j.cnt++
@@ -179,7 +189,7 @@ func (j *jsonReader) ReadEntry() (ent *entry.Entry, err error) {
 		err = fmt.Errorf("Failed to decode json on row %d: %v", j.cnt, err)
 		return
 	}
-	if tag, err = j.getTag(jent.Tag); err != nil {
+	if tag, err = j.GetTag(jent.Tag); err != nil {
 		err = fmt.Errorf("%v on row %d", err, j.cnt)
 		return
 	}
@@ -189,4 +199,45 @@ func (j *jsonReader) ReadEntry() (ent *entry.Entry, err error) {
 		Tag:  tag,
 		Data: jent.Data,
 	}, nil
+}
+
+type ReimportReader interface {
+	ReadEntry() (*entry.Entry, error)
+	OverrideTags(tg entry.EntryTag)
+}
+
+func GetImportReader(format string, fin io.ReadCloser, th TagHandler) (ir ReimportReader, err error) {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case CsvFormat:
+		if ir, err = NewCSVReader(fin, th); err != nil {
+			err = fmt.Errorf("Failed to make CSV reader: %v\n", err)
+		}
+	case JsonFormat:
+		if ir, err = NewJSONReader(fin, th); err != nil {
+			err = fmt.Errorf("Failed to make JSON reader: %v\n", err)
+		}
+	default:
+		err = fmt.Errorf("Invalid format %v\n", format)
+	}
+	return
+}
+
+func GetImportFormat(override, fp string) (format string, err error) {
+	override = strings.ToLower(strings.TrimSpace(override))
+	if override == `` {
+		override = filepath.Ext(fp)
+	}
+	switch override {
+	case `.json`:
+		fallthrough
+	case JsonFormat:
+		format = JsonFormat
+	case `.csv`:
+		fallthrough
+	case CsvFormat:
+		format = CsvFormat
+	default:
+		err = fmt.Errorf("Failed to determine input format")
+	}
+	return
 }

@@ -15,19 +15,27 @@ import (
 	"net"
 	"time"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 type debugOut func(string, ...interface{})
 
 type logger interface {
-	Debug(string, ...interface{}) error
-	Info(string, ...interface{}) error
-	Warn(string, ...interface{}) error
-	Error(string, ...interface{}) error
-	Critical(string, ...interface{}) error
+	Criticalf(string, ...interface{}) error
+	Errorf(string, ...interface{}) error
+	Warnf(string, ...interface{}) error
+	Infof(string, ...interface{}) error
+	Debugf(string, ...interface{}) error
+
+	Critical(string, ...rfc5424.SDParam) error
+	Error(string, ...rfc5424.SDParam) error
+	Warn(string, ...rfc5424.SDParam) error
+	Info(string, ...rfc5424.SDParam) error
+	Debug(string, ...rfc5424.SDParam) error
 }
 
 type LogHandler struct {
@@ -125,7 +133,7 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	if !lh.IgnoreTS {
 		ts, ok, err = lh.tg.Extract(b)
 		if err != nil {
-			lh.Logger.Error("Catastrophic timegrinder failure: %v", err)
+			lh.Logger.Error("catastrophic timegrinder failure", log.KVErr(err))
 			return err
 		}
 	}

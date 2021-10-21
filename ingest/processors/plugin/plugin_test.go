@@ -1,4 +1,5 @@
-// +build !386,!arm,!mips,!mipsle,!s390x
+//go:build !386 && !arm && !mips && !mipsle && !s390x && !go1.17
+// +build !386,!arm,!mips,!mipsle,!s390x,!go1.17
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -87,6 +88,8 @@ func TestCalls(t *testing.T) {
 		t.Fatal(err)
 	} else if err = pp.Config(&tc.Config, tgr); err != nil {
 		t.Fatalf("Failed config: %v", err)
+	} else if err = pp.Start(); err != nil {
+		t.Fatalf("Failed start: %v", err)
 	} else if pp.Flush() != nil {
 		t.Fatalf("should not have gotten entries back on a flush")
 	} else if rents, err := pp.Process(ents); err != nil {
