@@ -79,8 +79,6 @@ type LookupConfig struct {
 
 // The Config function
 func Config(cm gravwell.ConfigMap, tgr gravwell.Tagger) (err error) {
-	//mtx.Lock()
-	//defer mtx.Unlock()
 	var temp string
 	if cm == nil || tgr == nil {
 		err = errors.New("bad parameters")
@@ -243,7 +241,8 @@ func newWorkerGroup(nsaddr []string, cnt, wb int, to time.Duration, ctx context.
 		}
 	}
 	wg = &workerGroup{
-		mtx:        &sync.Mutex{},
+		inputMtx:   &sync.Mutex{},
+		outputMtx:  &sync.Mutex{},
 		wg:         &sync.WaitGroup{},
 		jobCounter: &sync.WaitGroup{},
 		cache:      newDnsCache(int(cfg.MaxCacheCount)),
@@ -255,32 +254,34 @@ func newWorkerGroup(nsaddr []string, cnt, wb int, to time.Duration, ctx context.
 	return
 }
 
-func startWorkerGroup(wg *workerGroup) error {
-	wg.mtx.Lock()
-	defer wg.mtx.Unlock()
+func startWorkerGroup(wg *workerGroup) (err error) {
+	wg.inputMtx.Lock()
 	if wg.started {
+		wg.inputMtx.Unlock()
 		return errors.New("already started")
+	} else {
+		wg.started = true
+		for i := range wg.workers {
+			wg.workers[i].wg.Add(1)
+			go workerRoutine(wg.workers[i], wg.cache, wg.retry, wg.input, wg.output)
+		}
+		wg.wg.Add(1)
+		go workerGroupResponseHandler(wg, wg.output)
+		wg.running = true
 	}
-	wg.started = true
-	for i := range wg.workers {
-		wg.workers[i].wg.Add(1)
-		go workerRoutine(wg.workers[i], wg.cache, wg.retry, wg.input, wg.output)
-	}
-	wg.wg.Add(1)
-	go workerGroupResponseHandler(wg, wg.output)
-	wg.running = true
+	wg.inputMtx.Unlock()
 	return nil
 }
 
 func stopWorkerGroup(wg *workerGroup) error {
-	wg.mtx.Lock()
+	wg.inputMtx.Lock()
 	if !wg.started {
-		wg.mtx.Unlock()
+		wg.inputMtx.Unlock()
 		return errors.New("not started")
 	}
 	wg.running = false
 	close(wg.input)
-	wg.mtx.Unlock() //unlock so that workers and consumer can unlock
+	wg.inputMtx.Unlock() //unlock so that workers and consumer can unlock
 	for _, w := range wg.workers {
 		w.wg.Wait()
 	}
@@ -292,7 +293,7 @@ func stopWorkerGroup(wg *workerGroup) error {
 		enrichEntry(r.ent, ips)
 		wg.output <- r.ent
 	}
-	wg.mtx.Lock() //relock to close out workers
+	wg.inputMtx.Lock() //relock to close out workers
 
 	//close the workers
 	for _, w := range wg.workers {
@@ -300,7 +301,7 @@ func stopWorkerGroup(wg *workerGroup) error {
 	}
 	//close output
 	close(wg.output)
-	wg.mtx.Unlock()
+	wg.inputMtx.Unlock()
 	wg.wg.Wait()
 	return nil
 }
@@ -332,14 +333,14 @@ func addWorkerGroupJob(wg *workerGroup, ent *entry.Entry) (ok bool) {
 	}
 	var r request
 	r.host, r.aaaa, ok = extract(ent.Data)
-	wg.mtx.Lock()
+	wg.inputMtx.Lock()
 	if wg.started && wg.running {
 		r.ent = ent
-		wg.input <- r
 		workers.jobCounter.Add(1)
+		wg.input <- r
 		ok = true
 	}
-	wg.mtx.Unlock()
+	wg.inputMtx.Unlock()
 	return
 }
 
@@ -347,19 +348,19 @@ func workerGroupAppendReadySet(wg *workerGroup, set []*entry.Entry) {
 	if len(set) == 0 {
 		return
 	}
-	wg.mtx.Lock()
+	wg.outputMtx.Lock()
 	wg.ready = append(wg.ready, set...)
 	workers.jobCounter.Add(-1 * len(set))
-	wg.mtx.Unlock()
+	wg.outputMtx.Unlock()
 }
 
 func workerGroupConsumeReadySet(wg *workerGroup) (set []*entry.Entry) {
-	wg.mtx.Lock()
+	wg.outputMtx.Lock()
 	if len(wg.ready) > 0 {
 		set = append(set, wg.ready...)
 		wg.ready = wg.ready[0:0]
 	}
-	wg.mtx.Unlock()
+	wg.outputMtx.Unlock()
 	return
 }
 
@@ -385,7 +386,8 @@ func workerGroupResponseHandler(wg *workerGroup, in chan *entry.Entry) {
 }
 
 type workerGroup struct {
-	mtx        *sync.Mutex
+	inputMtx   *sync.Mutex
+	outputMtx  *sync.Mutex
 	wg         *sync.WaitGroup
 	jobCounter *sync.WaitGroup
 	cache      *dnsCache
@@ -692,11 +694,6 @@ func recurseResolveRunner(nm string, co *dns.Conn, m *dns.Msg, depth int, inIPs 
 	return
 }
 
-type cachekey struct {
-	name string
-	aaaa bool
-}
-
 type cacheval struct {
 	expire time.Time
 	ips    []net.IP
@@ -705,8 +702,15 @@ type cacheval struct {
 type dnsCache struct {
 	mtx      *sync.Mutex
 	max      int
-	mp       map[cachekey]cacheval
+	mp       map[string]cacheval
 	lastScan time.Time
+}
+
+func cachekey(host string, aaaa bool) string {
+	if aaaa {
+		return host + `AAAA`
+	}
+	return host + `A`
 }
 
 func newDnsCache(max int) *dnsCache {
@@ -716,12 +720,13 @@ func newDnsCache(max int) *dnsCache {
 	return &dnsCache{
 		mtx: &sync.Mutex{},
 		max: max,
-		mp:  map[cachekey]cacheval{},
+		//mp:  map[cachekey]cacheval{},
+		mp: map[string]cacheval{},
 	}
 }
 
 func cacheGet(dc *dnsCache, name string, aaaa bool) (ips []net.IP, ok bool) {
-	key := cachekey{name: name, aaaa: aaaa}
+	key := cachekey(name, aaaa)
 	var val cacheval
 	dc.mtx.Lock()
 	if dur := time.Since(dc.lastScan); dur > cacheScanDur || len(dc.mp) > dc.max {
@@ -735,7 +740,7 @@ func cacheGet(dc *dnsCache, name string, aaaa bool) (ips []net.IP, ok bool) {
 }
 
 func cacheSet(dc *dnsCache, name string, aaaa bool, ips []net.IP, ttl time.Duration) {
-	key := cachekey{name: name, aaaa: aaaa}
+	key := cachekey(name, aaaa)
 	if ttl <= 0 {
 		return
 	}
@@ -747,6 +752,8 @@ func cacheSet(dc *dnsCache, name string, aaaa bool, ips []net.IP, ttl time.Durat
 
 func cacheScan(dc *dnsCache) {
 	now := time.Now()
+	dc.lastScan = now
+	//return
 	for k, v := range dc.mp {
 		if v.expire.Before(now) {
 			delete(dc.mp, k)
@@ -756,11 +763,11 @@ func cacheScan(dc *dnsCache) {
 		//nuke 10% of the entries
 		toKill := len(dc.mp) / 10
 		for k := range dc.mp {
-			if toKill > 0 {
-				delete(dc.mp, k)
-				toKill--
+			delete(dc.mp, k)
+			toKill--
+			if toKill <= 0 {
+				break
 			}
 		}
 	}
-	dc.lastScan = time.Now()
 }
