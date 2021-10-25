@@ -63,7 +63,7 @@ func init() {
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
 		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr: %v\n", err)
+			lg.Fatal("Failed to dup stderr", log.KVErr(err))
 		} else {
 			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
 		}
@@ -77,8 +77,8 @@ func init() {
 			ingest.PrintVersion(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
 				fout.Close()
+				lg.Fatal("failed to dup2 stderr", log.KVErr(err))
 			}
 		}
 	}
@@ -90,7 +90,7 @@ func main() {
 	if *cpuprofile != "" {
 		f, err := os.Create(*cpuprofile)
 		if err != nil {
-			lg.Fatal("%v", err)
+			lg.Fatal("Failed to create cpu profile", log.KV("path", *cpuprofile), log.KVErr(err))
 		}
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
@@ -99,7 +99,7 @@ func main() {
 		defer func() {
 			f, err := os.Create(*memprofile)
 			if err != nil {
-				fmt.Println("Failed to create memory profile", err)
+				lg.Fatal("Failed to create memory profile", log.KV("path", *memprofile), log.KVErr(err))
 				return
 			}
 			runtime.GC()
@@ -113,20 +113,20 @@ func main() {
 
 	cfg, err := GetConfig(*configLoc)
 	if err != nil {
-		lg.Fatal("Failed to get configuration: %v", err)
+		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 	}
 	if len(cfg.Global.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
 		if err != nil {
-			lg.FatalCode(0, "Failed to open log file %s: %v", cfg.Global.Log_File, err)
+			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Global.Log_File), log.KVErr(err))
 		}
 		defer fout.Close()
 		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("Failed to add a writer: %v", err)
+			lg.Fatal("failed to add a writer", log.KVErr(err))
 		}
 		if len(cfg.Global.Log_Level) > 0 {
 			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "Invalid Log Level \"%s\": %v", cfg.Global.Log_Level, err)
+				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
 			}
 		}
 	}
@@ -134,7 +134,7 @@ func main() {
 	// Get the state file
 	stateFile, err := utils.NewState(cfg.Global.State_Store_Location, 0600)
 	if err != nil {
-		lg.Fatal("Couldn't open state file: %v", err)
+		lg.Fatal("failed to open state file", log.KV("path", cfg.Global.State_Store_Location), log.KVErr(err))
 	}
 	stateMan := NewStateman(stateFile)
 	stateMan.Start()
@@ -142,17 +142,17 @@ func main() {
 
 	tags, err := cfg.Tags()
 	if err != nil {
-		lg.Fatal("Failed to get tags from configuration: %v", err)
+		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
 	}
 	conns, err := cfg.Targets()
 	if err != nil {
-		lg.Fatal("Failed to get backend targets from configuration: %s", err)
+		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
 	}
 	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
 
 	lmt, err := cfg.Global.RateLimit()
 	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration: %v\n", err)
+		lg.FatalCode(0, "Failed to get rate limit from configuration", log.KVErr(err))
 		return
 	}
 	debugout("Rate limiting connection to %d bps\n", lmt)
@@ -160,7 +160,7 @@ func main() {
 	//fire up the ingesters
 	id, ok := cfg.Global.IngesterUUID()
 	if !ok {
-		lg.FatalCode(0, "Couldn't read ingester UUID\n")
+		lg.FatalCode(0, "could not read ingester UUID")
 	}
 	ingestConfig := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.Global.IngestStreamConfig,
@@ -182,25 +182,25 @@ func main() {
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
-		lg.Fatal("Failed build our ingest system: %v", err)
+		lg.Fatal("failed build our ingest system", log.KVErr(err))
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
 	if err := igst.Start(); err != nil {
-		lg.FatalCode(0, "Failed start our ingest system: %v", err)
+		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
 	}
 
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "Timedout waiting for backend connections: %v\n", err)
+		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 	}
 	debugout("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages\n")
+		lg.FatalCode(0, "failed to set configuration for ingester state message", log.KVErr(err))
 	}
 
 	// Set up environment variables for AWS auth, if extant
@@ -221,7 +221,7 @@ func main() {
 	for _, stream := range cfg.KinesisStream {
 		tagid, err := igst.GetTag(stream.Tag_Name)
 		if err != nil {
-			lg.Fatal("Can't resolve tag %v: %v", stream.Tag_Name, err)
+			lg.Fatal("failed to resolve tag", log.KV("tag", stream.Tag_Name), log.KV("stream", stream.Stream_Name), log.KVErr(err))
 		}
 
 		// get a handle on kinesis
@@ -236,10 +236,10 @@ func main() {
 			streamdesc, err := svc.DescribeStream(dsi)
 			if err != nil {
 				count++
-				lg.Error("Failed to get stream description for stream %v: %v", stream.Stream_Name, err)
+				lg.Error("failed to get stream description", log.KV("stream", stream.Stream_Name), log.KVErr(err))
 				if count >= 5 {
 					// give up and LOUDLY quit
-					lg.Fatal("Giving up fetch stream description for stream %v after 5 attempts, exiting.", stream.Stream_Name)
+					lg.Fatal("giving up fetch stream description for stream after 5 attempts, exiting.", log.KV("stream", stream.Stream_Name))
 				}
 				time.Sleep(1 * time.Second)
 				continue
@@ -275,10 +275,16 @@ func main() {
 						if stream.JSON_Metrics {
 							jr, err := json.Marshal(report)
 							if err == nil {
-								igst.Info("%v", string(jr))
+								igst.Infof("%v", string(jr))
 							}
 						} else {
-							igst.Info("Stream %v: %v shards, avg %v ms behind latest. Since last update: %v compressed bytes read in %v requests, %v bytes uncompressed & processed", stream.Stream_Name, len(shards), report.AverageLag, report.CompressedDataSize, report.KinesisRequests, report.EntryDataSize)
+							igst.Info("stream stats",
+								log.KV("stream", stream.Stream_Name),
+								log.KV("shards", len(shards)),
+								log.KV("delay", report.AverageLag),
+								log.KV("compressedsize", report.CompressedDataSize),
+								log.KV("requestcount", report.KinesisRequests),
+								log.KV("size", report.EntryDataSize))
 						}
 					}
 				}
@@ -288,7 +294,7 @@ func main() {
 		for i, shard := range shards {
 			// Detect and skip closed shards
 			if shard.SequenceNumberRange != nil && shard.SequenceNumberRange.EndingSequenceNumber != nil {
-				lg.Info("Shard %v on stream %s appears to be closed, skipping", *shard.ShardId, stream.Stream_Name)
+				lg.Info("shard appears closed, skipping", log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
 				continue
 			}
 			//get timegrinder stood up
@@ -297,10 +303,10 @@ func main() {
 			}
 			tgr, err := timegrinder.NewTimeGrinder(tcfg)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to create timegrinder: %v\n", err)
+				lg.FatalCode(0, "failed to create timegrinder", log.KVErr(err))
 				return
 			} else if err := cfg.TimeFormat.LoadFormats(tgr); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to set load custom time formats: %v\n", err)
+				lg.FatalCode(0, "failed to load custom time formats", log.KVErr(err))
 				return
 			}
 			if stream.Assume_Local_Timezone {
@@ -308,7 +314,7 @@ func main() {
 			}
 			if stream.Timezone_Override != `` {
 				if err = tgr.SetTimezone(stream.Timezone_Override); err != nil {
-					fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", stream.Timezone_Override, err)
+					lg.FatalCode(0, "failed to set timezone", log.KV("timezone", stream.Timezone_Override), log.KVErr(err))
 					return
 				}
 			}
@@ -329,7 +335,7 @@ func main() {
 				// one processor set per shard
 				procset, err := cfg.Preprocessor.ProcessorSet(igst, stream.Preprocessor)
 				if err != nil {
-					lg.Fatal("Preprocessor construction error: %v", err)
+					lg.Fatal("preprocessor construction error", log.KVErr(err))
 				}
 
 				// make the shardMetrics and add it to the array
@@ -357,13 +363,13 @@ func main() {
 
 					output, err := svc.GetShardIterator(gsii)
 					if err != nil {
-						lg.Error("error on shard #%d (%s): %v", shardid, *shard.ShardId, err)
+						lg.Error("error on shard", log.KV("number", shardid), log.KV("stream", stream.Stream_Name), log.KV("shard", *shard.ShardId), log.KVErr(err))
 						time.Sleep(5 * time.Second)
 						continue
 					}
 					if output.ShardIterator == nil {
 						// this is weird, we are going to bail out
-						lg.Error("Got nil initial shard iterator, sleeping and retrying")
+						lg.Error("got nil initial shard iterator, sleeping and retrying")
 						time.Sleep(5 * time.Second)
 						continue
 					}
@@ -387,18 +393,18 @@ func main() {
 								if awsErr, ok := err.(awserr.Error); ok {
 									// process SDK error
 									if awsErr.Code() == kinesis.ErrCodeProvisionedThroughputExceededException {
-										lg.Warn("Throughput exceeded, trying again")
+										lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
 										time.Sleep(500 * time.Millisecond)
 									} else if awsErr.Code() == kinesis.ErrCodeExpiredIteratorException {
-										lg.Info("Iterator expired, re-initializing")
+										lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
 										time.Sleep(100 * time.Millisecond)
 										continue reconnectLoop
 									} else {
-										lg.Error("%s: %s", awsErr.Code(), awsErr.Message())
+										lg.Error("answer error", log.KV("code", awsErr.Code()), log.KV("message", awsErr.Message()), log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
 										time.Sleep(500 * time.Millisecond)
 									}
 								} else {
-									lg.Error("unknown error: %v", err)
+									lg.Error("unknown error", log.KVErr(err))
 								}
 							} else {
 								// if we got no records, chill for a sec before we hit it again
@@ -430,7 +436,7 @@ func main() {
 								}
 							}
 							if err = procset.ProcessContext(ent, ctx); err != nil {
-								lg.Error("Failed to handle entry: %v", err)
+								lg.Error("Failed to handle entry", log.KVErr(err))
 							}
 							entrySize += int(ent.Size())
 						}
@@ -441,7 +447,7 @@ func main() {
 						}
 					}
 					if err = procset.Close(); err != nil {
-						lg.Error("Failed to close processor set: %v", err)
+						lg.Error("Failed to close processor set", log.KVErr(err))
 					}
 					// if we get to this point, exit the for loop
 					break

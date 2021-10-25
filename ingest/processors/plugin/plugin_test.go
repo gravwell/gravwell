@@ -1,4 +1,5 @@
-// +build !386,!arm,!mips,!mipsle,!s390x
+//go:build !386 && !arm && !mips && !mipsle && !s390x && !go1.17
+// +build !386,!arm,!mips,!mipsle,!s390x,!go1.17
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -24,7 +25,7 @@ import (
 )
 
 func TestBasicPlugin(t *testing.T) {
-	pp, err := NewPluginProgram([]byte(basicPlugin))
+	pp, err := NewPluginProgram([]byte(basicPlugin), false)
 	if err != nil {
 		t.Fatal(err)
 	} else if err := pp.Run(time.Second); err != nil {
@@ -35,7 +36,7 @@ func TestBasicPlugin(t *testing.T) {
 }
 
 func TestNoRegister(t *testing.T) {
-	pp, err := NewPluginProgram([]byte(basicBadPlugin))
+	pp, err := NewPluginProgram([]byte(basicBadPlugin), false)
 	if err != nil {
 		t.Fatal(err)
 	} else if err := pp.Run(time.Second); err == nil {
@@ -46,7 +47,7 @@ func TestNoRegister(t *testing.T) {
 }
 
 func TestNoRegisterNoExit(t *testing.T) {
-	pp, err := NewPluginProgram([]byte(badIdlePlugin))
+	pp, err := NewPluginProgram([]byte(badIdlePlugin), false)
 	if err != nil {
 		t.Fatal(err)
 	} else if err := pp.Run(time.Second); err == nil {
@@ -59,7 +60,7 @@ func TestNoRegisterNoExit(t *testing.T) {
 func TestBad(t *testing.T) {
 	bad := []string{badPackage, empty, broken, noMain, badCall}
 	for i, b := range bad {
-		if _, err := NewPluginProgram([]byte(b)); err == nil {
+		if _, err := NewPluginProgram([]byte(b), false); err == nil {
 			t.Fatalf("Failed to catch bad program[%d]", i)
 		}
 	}
@@ -81,12 +82,14 @@ func TestCalls(t *testing.T) {
 	//build up som entries and pass them in
 	ents := makeEnts(16)
 
-	if pp, err := NewPluginProgram([]byte(recase)); err != nil {
+	if pp, err := NewPluginProgram([]byte(recase), false); err != nil {
 		t.Fatal(err)
 	} else if err := pp.Run(time.Second); err != nil {
 		t.Fatal(err)
 	} else if err = pp.Config(&tc.Config, tgr); err != nil {
 		t.Fatalf("Failed config: %v", err)
+	} else if err = pp.Start(); err != nil {
+		t.Fatalf("Failed start: %v", err)
 	} else if pp.Flush() != nil {
 		t.Fatalf("should not have gotten entries back on a flush")
 	} else if rents, err := pp.Process(ents); err != nil {

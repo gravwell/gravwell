@@ -9,131 +9,59 @@
 package main
 
 import (
-	"errors"
-	"flag"
 	"fmt"
 	"log"
+	"math/rand"
 	"net"
-	"os"
-	"os/signal"
-	"strconv"
-	"strings"
 	"time"
 
+	rd "github.com/Pallinder/go-randomdata"
+	"github.com/gravwell/gravwell/v3/generators/base"
+	"github.com/gravwell/gravwell/v3/generators/ipgen"
 	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
 )
 
 var (
-	tagName    = flag.String("tag-name", "syslog", "Tag name for ingested data")
-	clearConns = flag.String("clear-conns", "172.17.0.2:4023,172.17.0.3:4023,172.17.0.4:4023,172.17.0.5:4023",
-		"comma seperated server:port list of cleartext targets")
-	tlsConns        = flag.String("tls-conns", "", "comma seperated server:port list of TLS connections")
-	pipeConns       = flag.String("pipe-conns", "", "comma seperated list of paths for named pie connection")
-	tlsRemoteVerify = flag.String("tls-remote-verify", "", "Path to remote public key to verify against")
-	ingestSecret    = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
-	entryCount      = flag.Int("entry-count", 100, "Number of entries to generate")
-	streaming       = flag.Bool("stream", false, "Stream entries in")
-	span            = flag.String("duration", "1h", "Total Duration")
-	srcOverride     = flag.String("source-override", "", "Source override value")
-	count           uint64
-	totalBytes      uint64
-	totalCount      uint64
-	duration        time.Duration
-	connSet         []string
-	src             net.IP
+	v4gen *ipgen.V4Gen
+	v6gen *ipgen.V6Gen
 )
 
 func init() {
-	flag.Parse()
-	if *tagName == "" {
-		log.Fatal("A tag name must be specified\n")
-	}
-	if *clearConns != "" {
-		for _, conn := range strings.Split(*clearConns, ",") {
-			conn = config.AppendDefaultPort(strings.TrimSpace(conn), config.DefaultCleartextPort)
-			if len(conn) > 0 {
-				connSet = append(connSet, fmt.Sprintf("tcp://%s", conn))
-			}
-		}
-	}
-	if *tlsConns != "" {
-		for _, conn := range strings.Split(*tlsConns, ",") {
-			conn = config.AppendDefaultPort(strings.TrimSpace(conn), config.DefaultTLSPort)
-			if len(conn) > 0 {
-				connSet = append(connSet, fmt.Sprintf("tls://%s", conn))
-			}
-		}
-	}
-	if *pipeConns != "" {
-		for _, conn := range strings.Split(*pipeConns, ",") {
-			conn = strings.TrimSpace(conn)
-			if len(conn) > 0 {
-				connSet = append(connSet, fmt.Sprintf("pipe://%s", conn))
-			}
-		}
-	}
-	if len(connSet) <= 0 {
-		log.Fatal("No connections were specified\nWe need at least one\n")
-	}
-	if *entryCount <= 0 {
-		log.Fatal("invalid entry count")
-	}
-	count = uint64(*entryCount)
-	if *span == "" {
-		log.Fatal("Missing duration")
-	}
 	var err error
-	if duration, err = getDuration(*span); err != nil {
-		log.Fatal(err)
+	v4gen, err = ipgen.RandomWeightedV4Generator(3)
+	if err != nil {
+		log.Fatalf("Failed to instantiate v4 generator: %v\n", err)
 	}
-	if *srcOverride != `` {
-		src = net.ParseIP(*srcOverride)
-	} else {
-		src = net.ParseIP("192.168.1.1")
+	v6gen, err = ipgen.RandomWeightedV6Generator(30)
+	if err != nil {
+		log.Fatalf("Failed to instantiate v6 generator: %v\n", err)
 	}
 }
 
 func main() {
-	var err error
-	//build up processors
-	igst, err := ingest.NewUniformIngestMuxer(connSet, []string{*tagName}, *ingestSecret, ``, ``, ``)
-	if err := igst.Start(); err != nil {
+	var igst base.GeneratorConn
+	var totalBytes uint64
+	var totalCount uint64
+	var src net.IP
+	cfg, err := base.GetGeneratorConfig(`syslog`)
+	if err != nil {
 		log.Fatal(err)
 	}
-	if err := igst.WaitForHot(time.Second); err != nil {
-		log.Fatalf("ERROR: Timed out waiting for active connection due to %v\n", err)
+	if igst, src, err = base.NewIngestMuxer(`sysloggenerator`, ``, cfg, time.Second); err != nil {
+		log.Fatal(err)
 	}
-	//get the TagID for our default tag
-	tag, err := igst.GetTag(*tagName)
+	tag, err := igst.GetTag(cfg.Tag)
 	if err != nil {
-		log.Fatalf("Failed to look up tag %s: %v\n", *tagName, err)
+		log.Fatalf("Failed to lookup tag %s: %v", cfg.Tag, err)
 	}
 	start := time.Now()
 
-	if !*streaming {
-		if err = throw(igst, tag, count, duration); err != nil {
+	if !cfg.Streaming {
+		if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg.Count, cfg.Duration, genData); err != nil {
 			log.Fatal("Failed to throw entries ", err)
 		}
 	} else {
-		var stop bool
-		r := make(chan error, 1)
-		go func(ret chan error, stp *bool) {
-			ret <- stream(igst, tag, count, stp)
-		}(r, &stop)
-		c := make(chan os.Signal, 1)
-		signal.Notify(c, os.Interrupt)
-		select {
-		case _ = <-c:
-			stop = true
-			select {
-			case err = <-r:
-			case _ = <-time.After(3 * time.Second):
-				err = errors.New("Timed out waiting for exit")
-			}
-		case err = <-r:
-		}
-		if err != nil {
+		if totalCount, totalBytes, err = base.Stream(igst, tag, src, cfg.Count, genData); err != nil {
 			log.Fatal("Failed to stream entries ", err)
 		}
 	}
@@ -155,35 +83,14 @@ func main() {
 	}
 }
 
-type dursuffix struct {
-	suffix string
-	mult   time.Duration
+func genData(ts time.Time) []byte {
+	sev := rand.Intn(24)
+	fac := rand.Intn(7)
+	prio := (sev << 3) | fac
+	return []byte(fmt.Sprintf("<%d>1 %s %s %s %d - %s %s",
+		prio, ts.Format(tsFormat), getHost(), getApp(), rand.Intn(0xffff), genStructData(), rd.Paragraph()))
 }
 
-func getDuration(v string) (d time.Duration, err error) {
-	v = strings.ToLower(strings.TrimSpace(v))
-	dss := []dursuffix{
-		dursuffix{suffix: `s`, mult: time.Second},
-		dursuffix{suffix: `m`, mult: time.Minute},
-		dursuffix{suffix: `h`, mult: time.Hour},
-		dursuffix{suffix: `d`, mult: 24 * time.Hour},
-		dursuffix{suffix: `w`, mult: 24 * 7 * time.Hour},
-	}
-	for _, ds := range dss {
-		if strings.HasSuffix(v, ds.suffix) {
-			v = strings.TrimSuffix(v, ds.suffix)
-			var x int64
-			if x, err = strconv.ParseInt(v, 10, 64); err != nil {
-				return
-			}
-			if x <= 0 {
-				err = errors.New("Duration must be > 0")
-				return
-			}
-			d = time.Duration(x) * ds.mult
-			return
-		}
-	}
-	err = errors.New("Unknown duration suffix")
-	return
+func genStructData() string {
+	return fmt.Sprintf(`[%s source-address="%s" source-port=%d destination-address="%s" destination-port=%d useragent="%s"]`, rd.Email(), v4gen.IP().String(), 0x2000+rand.Intn(0xffff-0x2000), v4gen.IP().String(), 1+rand.Intn(2047), rd.UserAgentString())
 }

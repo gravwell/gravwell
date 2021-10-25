@@ -170,9 +170,9 @@ func (kc *kafkaConsumer) routine(client sarama.ConsumerGroup, wg *sync.WaitGroup
 	var i int
 	for {
 		i++
-		kc.lg.Info("Consumer start attempt %d\n", i)
+		kc.lg.Info("consumer start", log.KV("attempt", i))
 		if err := client.Consume(kc.ctx, []string{kc.topic}, kc); err != nil {
-			kc.lg.Error("Consumer error: %v", err)
+			kc.lg.Error("consumer error", log.KVErr(err))
 			break
 		}
 		if kc.ctx.Err() != nil {
@@ -183,7 +183,7 @@ func (kc *kafkaConsumer) routine(client sarama.ConsumerGroup, wg *sync.WaitGroup
 
 //Setup can handle setup and gets a chance to fire up internal state prior to starting
 func (kc *kafkaConsumer) Setup(cgs sarama.ConsumerGroupSession) (err error) {
-	kc.lg.Info("Kafka consumer %s starting\n", cgs.MemberID())
+	kc.lg.Info("Kafka consumer starting", log.KV("consumer", cgs.MemberID()))
 	//update our member id and reset the count
 	//also get a local handle on the ingest muxer and wait for a hot connection
 	kc.mtx.Lock()
@@ -192,30 +192,33 @@ func (kc *kafkaConsumer) Setup(cgs sarama.ConsumerGroupSession) (err error) {
 	kc.size = 0
 	igst := kc.igst
 	kc.mtx.Unlock()
-	kc.lg.Info("Kafka consumer %s waiting for hot ingester\n", cgs.MemberID())
+	kc.lg.Info("Kafka consumer waiting for hot ingester", log.KV("consumer", cgs.MemberID()))
 	if err = igst.WaitForHotContext(kc.ctx, 0); err == nil {
-		kc.lg.Info("Kafka consumer %s getting source ip\n", cgs.MemberID())
-		kc.src = nil
+		if ip, err := igst.SourceIP(); err == nil {
+			kc.src = ip
+		} else {
+			kc.src = nil
+		}
+		kc.lg.Info("kafka consumer getting source", log.KV("consumer", cgs.MemberID()), log.KV("source", kc.src))
 	}
-	kc.lg.Info("Consumer setup complete, got source %s\n", kc.src)
 	return
 }
 
 //Cleanup executes at the end of a session, this a chance to clean up and sync our ingester
 func (kc *kafkaConsumer) Cleanup(cgs sarama.ConsumerGroupSession) (err error) {
-	kc.lg.Info("Kafka consumer %s cleaning up\n", cgs.MemberID())
+	kc.lg.Info("kafka consumer cleaning up", log.KV("consumer", cgs.MemberID()))
 	//get a local handle on the ingest muxer
 	kc.mtx.Lock()
 	igst := kc.igst
 	kc.mtx.Unlock()
 
 	if igst != nil {
-		igst.Info("Kafka group %s (%s) wrote %d entries %d bytes",
-			kc.group, kc.memberId, kc.count, kc.size)
+		igst.Info("kafka consumer stats", log.KV("consumer", cgs.MemberID()), log.KV("group", kc.group),
+			log.KV("member", kc.memberId), log.KV("count", kc.count), log.KV("size", kc.size))
 		if err = igst.Sync(0); err != nil {
-			kc.lg.Info("Consumer cleanup failed: %v\n", err)
+			kc.lg.Info("consumer cleanup failed", log.KV("consumer", cgs.MemberID()), log.KVErr(err))
 		} else {
-			kc.lg.Info("Consumer cleanup complete\n")
+			kc.lg.Info("Consumer cleanup complete", log.KV("consumer", cgs.MemberID()))
 		}
 	}
 	return
@@ -237,7 +240,7 @@ func (kc *kafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim
 	var currTS int64
 	batch := make([]*sarama.ConsumerMessage, 0, kc.batchSize)
 
-	kc.lg.Info("Consumer %s group %s started\n", kc.memberId, kc.group)
+	kc.lg.Info("consumer started", log.KV("consumer", kc.memberId), log.KV("group", kc.group))
 loop:
 	for {
 		select {
@@ -251,7 +254,7 @@ loop:
 			if currTS != ts && len(batch) > 0 {
 				//flush the existing batch
 				if err := kc.flush(session, batch); err != nil {
-					kc.lg.Error("Failed to write %d entries: %v", len(batch), err)
+					kc.lg.Error("failed to write entries", log.KV("count", len(batch)), log.KVErr(err))
 					return err
 				}
 				batch = batch[0:0]
@@ -262,7 +265,7 @@ loop:
 			if len(batch) == cap(batch) {
 				//flush the existing batch
 				if err := kc.flush(session, batch); err != nil {
-					kc.lg.Error("Failed to write %d entries: %v", len(batch), err)
+					kc.lg.Error("failed to write entries", log.KV("count", len(batch)), log.KVErr(err))
 					return err
 				}
 				currTS = 0
@@ -272,7 +275,7 @@ loop:
 			if len(batch) > 0 {
 				//flush the existing batch
 				if err := kc.flush(session, batch); err != nil {
-					kc.lg.Error("Failed to write %d entries: %v", len(batch), err)
+					kc.lg.Error("failed to write entries", log.KV("count", len(batch)), log.KVErr(err))
 					return err
 				}
 				currTS = 0
@@ -280,7 +283,7 @@ loop:
 			}
 		}
 	}
-	kc.lg.Info("Consumer %s group %s exited\n", kc.memberId, kc.group)
+	kc.lg.Info("consumer exited", log.KV("consumer", kc.memberId), log.KV("group", kc.group))
 	return nil
 }
 
@@ -307,7 +310,7 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 			var hts time.Time
 			var ok bool
 			if hts, ok, err = kc.tg.Extract(ent.Data); err != nil {
-				kc.lg.Warn("Catastrophic error from timegrinder: %v", err)
+				kc.lg.Warn("catastrophic timegrinder error", log.KVErr(err))
 			} else if ok {
 				ent.TS = entry.FromStandard(hts)
 			}

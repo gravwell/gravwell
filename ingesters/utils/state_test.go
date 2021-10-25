@@ -91,7 +91,7 @@ func TestUpdates(t *testing.T) {
 				Baz: 1.1,
 			}
 			if err = s.Write(tv); err != nil {
-				t.Fatal(err)
+				t.Error(err)
 			}
 			wg.Done()
 		}(wg, s, i)

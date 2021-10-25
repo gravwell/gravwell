@@ -17,7 +17,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
-	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -31,9 +30,6 @@ import (
 const (
 	initBuffSize = 4 * 1024 * 1024
 	maxBuffSize  = 128 * 1024 * 1024
-
-	jsonFormat string = `json`
-	csvFormat  string = `csv`
 )
 
 var (
@@ -57,20 +53,12 @@ var (
 	format string
 )
 
-type itemReader interface {
-	ReadEntry() (*entry.Entry, error)
-	OverrideTags(tg entry.EntryTag)
-}
-
 func init() {
 	flag.Parse()
 	if *ver {
 		version.PrintVersion(os.Stdout)
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
-	}
-	if *fmtF != `` {
-		format = strings.ToLower(strings.TrimSpace(*fmtF))
 	}
 }
 
@@ -97,16 +85,8 @@ func main() {
 		log.Fatal("Cannot rebase time when reading from stdin!")
 	}
 
-	if format == `` {
-		//attempt to figure it out
-		switch strings.ToLower(filepath.Ext(*inFile)) {
-		case `.json`:
-			format = jsonFormat
-		case `.csv`:
-			format = csvFormat
-		default:
-			log.Fatalf("Could not determine format of input file, please set -import-format")
-		}
+	if format, err = utils.GetImportFormat(*fmtF, *inFile); err != nil {
+		log.Fatalf("%v, please set -import-format", err)
 	}
 
 	//fire up a uniform muxer
@@ -134,9 +114,12 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to open %s: %v\n", *inFile, err)
 		}
+		if format == `` {
+			format = filepath.Ext(*inFile)
+		}
 	}
-	var ir itemReader
-	ir, err = getReader(fin, igst)
+	var ir utils.ReimportReader
+	ir, err = utils.GetImportReader(format, fin, utils.NewIngestTagHandler(igst))
 	if err != nil {
 		igst.Close()
 		log.Fatal(err)
@@ -166,7 +149,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Failed to open %s: %v\n", *inFile, err)
 		}
-		ir, err = getReader(fin, igst)
+		ir, err = utils.GetImportReader(format, fin, utils.NewIngestTagHandler(igst))
 		if err != nil {
 			igst.Close()
 			log.Fatal(err)
@@ -202,23 +185,7 @@ func main() {
 	fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(totalBytes, dur))
 }
 
-func getReader(fin io.ReadCloser, igst *ingest.IngestMuxer) (ir itemReader, err error) {
-	switch strings.ToLower(strings.TrimSpace(format)) {
-	case csvFormat:
-		if ir, err = newCSVReader(fin, igst); err != nil {
-			err = fmt.Errorf("Failed to make CSV reader: %v\n", err)
-		}
-	case jsonFormat:
-		if ir, err = newJSONReader(fin, igst); err != nil {
-			err = fmt.Errorf("Failed to make JSON reader: %v\n", err)
-		}
-	default:
-		err = fmt.Errorf("Invalid format %v\n", format)
-	}
-	return
-}
-
-func doIngest(ir itemReader, igst *ingest.IngestMuxer) (err error) {
+func doIngest(ir utils.ReimportReader, igst *ingest.IngestMuxer) (err error) {
 	//if not doing regular updates, just fire it off
 	if !*status {
 		err = doImport(ir, igst)
@@ -253,7 +220,7 @@ loop:
 	return
 }
 
-func doImport(ir itemReader, igst *ingest.IngestMuxer) (err error) {
+func doImport(ir utils.ReimportReader, igst *ingest.IngestMuxer) (err error) {
 	var ent *entry.Entry
 	src := srcOverride
 	if src == nil {

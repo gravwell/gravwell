@@ -1,3 +1,4 @@
+//go:build !386 && !arm && !mips && !mipsle && !s390x
 // +build !386,!arm,!mips,!mipsle,!s390x
 
 /*************************************************************************
@@ -48,6 +49,7 @@ type PluginData struct {
 type PluginConfig struct {
 	Plugin_Path   []string               //path to the plugin files (this may support multifile plugins later
 	Plugin_Engine string                 // defaults to scriggo
+	Debug         bool                   // defaults to false
 	vc            *config.VariableConfig // we keep a handle on the variable to config to pass to the underlying plugin script
 	pd            PluginData
 	// all other config items are dynamic and passed to the underlying plugin
@@ -100,12 +102,14 @@ type Plugin struct {
 func NewPluginProcessor(cfg PluginConfig, tg Tagger) (p *Plugin, err error) {
 	if err = cfg.validate(); err == nil {
 		var pp *plugin.PluginProgram
-		if pp, err = plugin.NewPlugin(cfg.pd); err == nil {
+		if pp, err = plugin.NewPlugin(cfg.pd, cfg.Debug); err == nil {
 			if err = pp.Run(registerTimeout); err == nil {
 				if err = pp.Config(cfg.vc, tg); err == nil {
-					p = &Plugin{
-						PluginConfig: cfg,
-						pp:           pp,
+					if err = pp.Start(); err == nil {
+						p = &Plugin{
+							PluginConfig: cfg,
+							pp:           pp,
+						}
 					}
 				}
 			}
