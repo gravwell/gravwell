@@ -24,6 +24,9 @@ const (
 	maxRecursion         int           = 32        //this is crazy
 	workerBuffer         int           = 16        //buffer size of requests PER WORKER
 	cacheScanDur         time.Duration = 30 * time.Second
+
+	v4ArpaPtr string = `in-addr.arpa`
+	v6ArpaPtr string = `ip6.arpa`
 )
 
 const ( //config names (remember that a '-' in the config file becomes a '_' in the name
@@ -35,8 +38,9 @@ const ( //config names (remember that a '-' in the config file becomes a '_' in 
 	timeoutConfigName          = `Timeout`
 	workerCountName            = `Worker_Count`
 	maxCacheCountName          = `Max_Cache_Count`
-	synchronousName            = `Synchronous`
 	debugModeName              = `Debug`
+	disableCnameRecursionName  = `Disable-CNAME-Recursion`
+	resolveReverseLookupsName  = `Resolve-Reverse-Lookups`
 )
 
 var (
@@ -69,9 +73,10 @@ type LookupConfig struct {
 	AppendFormat              string
 	Timeout                   time.Duration
 	Debug                     bool
+	DisableCNAMERecursion     bool
+	ResolveReverseLookups     bool
 	WorkerCount               int64
 	MaxCacheCount             int64
-	Synchronous               bool
 	re                        *regexp.Regexp
 	hostIdx                   int
 	recordIdx                 int
@@ -79,12 +84,15 @@ type LookupConfig struct {
 
 // The Config function
 func Config(cm gravwell.ConfigMap, tgr gravwell.Tagger) (err error) {
+	//mtx.Lock()
+	//defer mtx.Unlock()
 	var temp string
 	if cm == nil || tgr == nil {
 		err = errors.New("bad parameters")
 	}
 	cfg.Debug, _ = cm.GetBool(debugModeName)
-	cfg.Synchronous, _ = cm.GetBool(synchronousName)
+	cfg.DisableCNAMERecursion, _ = cm.GetBool(disableCnameRecursionName)
+	cfg.ResolveReverseLookups, _ = cm.GetBool(resolveReverseLookupsName)
 
 	if cfg.Regex, err = cm.GetString(regexConfigName); err != nil {
 		return fmt.Errorf("Failed to get regex config variable: %w", err)
@@ -241,8 +249,7 @@ func newWorkerGroup(nsaddr []string, cnt, wb int, to time.Duration, ctx context.
 		}
 	}
 	wg = &workerGroup{
-		inputMtx:   &sync.Mutex{},
-		outputMtx:  &sync.Mutex{},
+		mtx:        &sync.Mutex{},
 		wg:         &sync.WaitGroup{},
 		jobCounter: &sync.WaitGroup{},
 		cache:      newDnsCache(int(cfg.MaxCacheCount)),
@@ -254,34 +261,32 @@ func newWorkerGroup(nsaddr []string, cnt, wb int, to time.Duration, ctx context.
 	return
 }
 
-func startWorkerGroup(wg *workerGroup) (err error) {
-	wg.inputMtx.Lock()
+func startWorkerGroup(wg *workerGroup) error {
+	wg.mtx.Lock()
+	defer wg.mtx.Unlock()
 	if wg.started {
-		wg.inputMtx.Unlock()
 		return errors.New("already started")
-	} else {
-		wg.started = true
-		for i := range wg.workers {
-			wg.workers[i].wg.Add(1)
-			go workerRoutine(wg.workers[i], wg.cache, wg.retry, wg.input, wg.output)
-		}
-		wg.wg.Add(1)
-		go workerGroupResponseHandler(wg, wg.output)
-		wg.running = true
 	}
-	wg.inputMtx.Unlock()
+	wg.started = true
+	for i := range wg.workers {
+		wg.workers[i].wg.Add(1)
+		go workerRoutine(wg.workers[i], wg.cache, wg.retry, wg.input, wg.output)
+	}
+	wg.wg.Add(1)
+	go workerGroupResponseHandler(wg, wg.output)
+	wg.running = true
 	return nil
 }
 
 func stopWorkerGroup(wg *workerGroup) error {
-	wg.inputMtx.Lock()
+	wg.mtx.Lock()
 	if !wg.started {
-		wg.inputMtx.Unlock()
+		wg.mtx.Unlock()
 		return errors.New("not started")
 	}
 	wg.running = false
 	close(wg.input)
-	wg.inputMtx.Unlock() //unlock so that workers and consumer can unlock
+	wg.mtx.Unlock() //unlock so that workers and consumer can unlock
 	for _, w := range wg.workers {
 		w.wg.Wait()
 	}
@@ -289,11 +294,13 @@ func stopWorkerGroup(wg *workerGroup) error {
 	w := wg.workers[0]
 	for len(wg.retry) > 0 {
 		r := <-wg.retry
-		ips, _, _ := resolve(w, r.host, r.aaaa)
-		enrichEntry(r.ent, ips)
+		if shouldResolve(r.host) {
+			ips, _, _ := resolve(w, r.host, r.aaaa)
+			enrichEntry(r.ent, ips)
+		}
 		wg.output <- r.ent
 	}
-	wg.inputMtx.Lock() //relock to close out workers
+	wg.mtx.Lock() //relock to close out workers
 
 	//close the workers
 	for _, w := range wg.workers {
@@ -301,7 +308,7 @@ func stopWorkerGroup(wg *workerGroup) error {
 	}
 	//close output
 	close(wg.output)
-	wg.inputMtx.Unlock()
+	wg.mtx.Unlock()
 	wg.wg.Wait()
 	return nil
 }
@@ -333,14 +340,14 @@ func addWorkerGroupJob(wg *workerGroup, ent *entry.Entry) (ok bool) {
 	}
 	var r request
 	r.host, r.aaaa, ok = extract(ent.Data)
-	wg.inputMtx.Lock()
+	wg.mtx.Lock()
 	if wg.started && wg.running {
 		r.ent = ent
-		workers.jobCounter.Add(1)
 		wg.input <- r
+		workers.jobCounter.Add(1)
 		ok = true
 	}
-	wg.inputMtx.Unlock()
+	wg.mtx.Unlock()
 	return
 }
 
@@ -348,19 +355,19 @@ func workerGroupAppendReadySet(wg *workerGroup, set []*entry.Entry) {
 	if len(set) == 0 {
 		return
 	}
-	wg.outputMtx.Lock()
+	wg.mtx.Lock()
 	wg.ready = append(wg.ready, set...)
 	workers.jobCounter.Add(-1 * len(set))
-	wg.outputMtx.Unlock()
+	wg.mtx.Unlock()
 }
 
 func workerGroupConsumeReadySet(wg *workerGroup) (set []*entry.Entry) {
-	wg.outputMtx.Lock()
+	wg.mtx.Lock()
 	if len(wg.ready) > 0 {
 		set = append(set, wg.ready...)
 		wg.ready = wg.ready[0:0]
 	}
-	wg.outputMtx.Unlock()
+	wg.mtx.Unlock()
 	return
 }
 
@@ -386,8 +393,7 @@ func workerGroupResponseHandler(wg *workerGroup, in chan *entry.Entry) {
 }
 
 type workerGroup struct {
-	inputMtx   *sync.Mutex
-	outputMtx  *sync.Mutex
+	mtx        *sync.Mutex
 	wg         *sync.WaitGroup
 	jobCounter *sync.WaitGroup
 	cache      *dnsCache
@@ -459,6 +465,9 @@ func workerRoutine(w *worker, cache *dnsCache, retry, in chan request, out chan 
 			enrichEntry(r.ent, ips)
 			out <- r.ent
 			processed++
+		} else if !shouldResolve(r.host) { //check if we should resolve this host
+			out <- r.ent
+			processed++
 		} else if ips, ttl, err := resolve(w, r.host, r.aaaa); err != nil {
 			//failed to resolve, put it back on the reque channel, wait 1 second and try again
 			retry <- r
@@ -476,6 +485,9 @@ func workerRoutine(w *worker, cache *dnsCache, retry, in chan request, out chan 
 		case r, ok := <-retry:
 			if !ok {
 				return
+			} else if !shouldResolve(r.host) {
+				out <- r.ent
+				processed++
 			} else if ips, _, err := resolve(w, r.host, r.aaaa); err != nil {
 				retry <- r //kick it back into the retry loop and bail
 				debug("Resolution error on %s %v\n", r.host, err)
@@ -574,13 +586,13 @@ func resolve(w *worker, host string, aaaa bool) (ips []net.IP, ttl time.Duration
 		}
 		//reinit worked, and so did exchange, do not return
 	}
-	ips, ttl, err = handleResponse(w, w.m, r)
+	ips, ttl, err = handleResponse(w, w.m, r, cfg.DisableCNAMERecursion)
 	return
 }
 
 // handleResponse will walk all the rsponses and respond appropriately, we currently only handle A, AAAA, and CNAME
 // resposnes, everything else is ignored, this means if we get a refuse or
-func handleResponse(w *worker, m, r *dns.Msg) (ips []net.IP, ttl time.Duration, err error) {
+func handleResponse(w *worker, m, r *dns.Msg, disableCNAMERecursion bool) (ips []net.IP, ttl time.Duration, err error) {
 	for _, v := range r.Answer {
 		if a, ok := v.(*dns.A); ok {
 			if ip := a.A; ip != nil {
@@ -602,7 +614,7 @@ func handleResponse(w *worker, m, r *dns.Msg) (ips []net.IP, ttl time.Duration, 
 					}
 				}
 			}
-		} else if cn, ok := v.(*dns.CNAME); ok {
+		} else if cn, ok := v.(*dns.CNAME); ok && !disableCNAMERecursion {
 			if cn.Target != `` {
 				if lips, ttlSec := recurseResolveRunner(cn.Hdr.Name, w.co, w.m, 0, nil, 0); len(lips) > 0 {
 					ips = dedupAppendSet(ips, lips)
@@ -694,6 +706,11 @@ func recurseResolveRunner(nm string, co *dns.Conn, m *dns.Msg, depth int, inIPs 
 	return
 }
 
+type cachekey struct {
+	name string
+	aaaa bool
+}
+
 type cacheval struct {
 	expire time.Time
 	ips    []net.IP
@@ -702,15 +719,8 @@ type cacheval struct {
 type dnsCache struct {
 	mtx      *sync.Mutex
 	max      int
-	mp       map[string]cacheval
+	mp       map[cachekey]cacheval
 	lastScan time.Time
-}
-
-func cachekey(host string, aaaa bool) string {
-	if aaaa {
-		return host + `AAAA`
-	}
-	return host + `A`
 }
 
 func newDnsCache(max int) *dnsCache {
@@ -720,13 +730,12 @@ func newDnsCache(max int) *dnsCache {
 	return &dnsCache{
 		mtx: &sync.Mutex{},
 		max: max,
-		//mp:  map[cachekey]cacheval{},
-		mp: map[string]cacheval{},
+		mp:  map[cachekey]cacheval{},
 	}
 }
 
 func cacheGet(dc *dnsCache, name string, aaaa bool) (ips []net.IP, ok bool) {
-	key := cachekey(name, aaaa)
+	key := cachekey{name: name, aaaa: aaaa}
 	var val cacheval
 	dc.mtx.Lock()
 	if dur := time.Since(dc.lastScan); dur > cacheScanDur || len(dc.mp) > dc.max {
@@ -740,7 +749,7 @@ func cacheGet(dc *dnsCache, name string, aaaa bool) (ips []net.IP, ok bool) {
 }
 
 func cacheSet(dc *dnsCache, name string, aaaa bool, ips []net.IP, ttl time.Duration) {
-	key := cachekey(name, aaaa)
+	key := cachekey{name: name, aaaa: aaaa}
 	if ttl <= 0 {
 		return
 	}
@@ -752,8 +761,6 @@ func cacheSet(dc *dnsCache, name string, aaaa bool, ips []net.IP, ttl time.Durat
 
 func cacheScan(dc *dnsCache) {
 	now := time.Now()
-	dc.lastScan = now
-	//return
 	for k, v := range dc.mp {
 		if v.expire.Before(now) {
 			delete(dc.mp, k)
@@ -763,11 +770,24 @@ func cacheScan(dc *dnsCache) {
 		//nuke 10% of the entries
 		toKill := len(dc.mp) / 10
 		for k := range dc.mp {
-			delete(dc.mp, k)
-			toKill--
-			if toKill <= 0 {
-				break
+			if toKill > 0 {
+				delete(dc.mp, k)
+				toKill--
 			}
 		}
 	}
+	dc.lastScan = time.Now()
+}
+
+func isReverseLookup(host string) bool {
+	return strings.HasSuffix(host, v4ArpaPtr) || strings.HasSuffix(host, v6ArpaPtr)
+}
+
+func shouldResolve(host string) bool {
+	if cfg.ResolveReverseLookups {
+		//resolving everything, return true
+		return true
+	}
+	//NOT resolving reverse lookups
+	return !isReverseLookup(host) //only resolve if this is not a reverse lookup
 }
