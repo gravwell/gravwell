@@ -13,6 +13,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"strings"
 	"time"
 
 	rd "github.com/Pallinder/go-randomdata"
@@ -131,13 +132,55 @@ func randTLD() string {
 }
 
 func randHostname() (host, A string) {
-	return fmt.Sprintf("%s.%s.%s", rd.Noun(), rd.Noun(), randTLD()), randProto()
+	A = randProto()
+	if (rand.Uint32() & 0x7) == 0x3 {
+		host = randReverseLookupHost(A)
+	} else {
+		host = fmt.Sprintf("%s.%s.%s", rd.Noun(), rd.Noun(), randTLD())
+	}
+	return
+}
+
+func randReverseLookupHost(aaaa string) (host string) {
+	if len(aaaa) == 4 {
+		host = fmt.Sprintf("%s.ip6.arpa", ipRevGen(v6gen.IP()))
+	} else {
+		host = fmt.Sprintf("%s.in-addr.arpa", ipRevGen(v4gen.IP()))
+	}
+	return
+}
+
+func ipRevGen(ip net.IP) string {
+	if len(ip) == 16 {
+		return ip6RevGen(ip)
+	}
+	var sb strings.Builder
+	end := len(ip) - 1
+	for i := end; i >= 0; i-- {
+		b := ip[i]
+		if i == end {
+			fmt.Fprintf(&sb, "%d", b)
+		} else {
+			fmt.Fprintf(&sb, ".%d", b)
+		}
+	}
+	return sb.String()
+}
+
+func ip6RevGen(ip net.IP) string {
+	var sb strings.Builder
+	end := len(ip) - 1
+	for i := end; i >= 0; i-- {
+		b := ip[i]
+		if i == end {
+			fmt.Fprintf(&sb, "%x.%x", b&0xf, b>>4)
+		} else {
+			fmt.Fprintf(&sb, ".%x.%x", b&0xf, b>>4)
+		}
+	}
+	return sb.String()
 }
 
 func serverIP() net.IP {
 	return serverIPs[rand.Intn(len(serverIPs))]
-}
-
-func genStructData() string {
-	return fmt.Sprintf(`[%s source-address="%s" source-port=%d destination-address="%s" destination-port=%d useragent="%s"]`, rd.Email(), v4gen.IP().String(), 0x2000+rand.Intn(0xffff-0x2000), v4gen.IP().String(), 1+rand.Intn(2047), rd.UserAgentString())
 }
