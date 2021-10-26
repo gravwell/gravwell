@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -129,6 +130,18 @@ func GetConfig(path string) (*cfgType, error) {
 		Preprocessor: cr.Preprocessor,
 		TimeFormat:   cr.TimeFormat,
 	}
+
+	// Verify and set UUID
+	if _, ok := c.IngesterUUID(); !ok {
+		id := uuid.New()
+		if err := c.SetIngesterUUID(id, path); err != nil {
+			return nil, err
+		}
+		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
+			return nil, errors.New("Failed to set a new ingester UUID")
+		}
+	}
+
 	for k, v := range cr.Consumer {
 		if _, ok := c.Consumers[k]; ok {
 			return nil, fmt.Errorf("Consumer %s is duplicated", k)
