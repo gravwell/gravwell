@@ -122,19 +122,24 @@ func randProto() string {
 }
 
 var (
-	tlds = []string{
-		`io`, `com`, `net`, `us`, `co.uk`,
-	}
+	tlds    = []string{`io`, `com`, `net`, `us`, `co.uk`}
+	badTLDs = []string{`gravwell`, `foobar`, `barbaz`}
 )
 
 func randTLD() string {
 	return tlds[rand.Intn(len(tlds))]
 }
 
+func badTLD() string {
+	return badTLDs[rand.Intn(len(badTLDs))]
+}
+
 func randHostname() (host, A string) {
 	A = randProto()
-	if (rand.Uint32() & 0x7) == 0x3 {
+	if r := rand.Uint32(); (r & 0x7) == 0x3 {
 		host = randReverseLookupHost(A)
+	} else if (r & 0x7f) == 42 {
+		host = fmt.Sprintf("%s.%s", rd.Noun(), badTLD())
 	} else {
 		host = fmt.Sprintf("%s.%s.%s", rd.Noun(), rd.Noun(), randTLD())
 	}
