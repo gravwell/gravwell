@@ -41,6 +41,7 @@ const ( //config names (remember that a '-' in the config file becomes a '_' in 
 	debugModeName              = `Debug`
 	disableCnameRecursionName  = `Disable-CNAME-Recursion`
 	resolveReverseLookupsName  = `Resolve-Reverse-Lookups`
+	retryCountName             = `Retry_Count`
 )
 
 var (
@@ -76,6 +77,7 @@ type LookupConfig struct {
 	DisableCNAMERecursion     bool
 	ResolveReverseLookups     bool
 	WorkerCount               int64
+	RetryCount                uint64
 	MaxCacheCount             int64
 	re                        *regexp.Regexp
 	hostIdx                   int
@@ -102,6 +104,8 @@ func Config(cm gravwell.ConfigMap, tgr gravwell.Tagger) (err error) {
 		return fmt.Errorf("Failed to get regex field extraction record type variable: %w", err)
 	} else if cfg.WorkerCount, err = cm.GetInt(workerCountName); err != nil {
 		return fmt.Errorf("Failed to get worker count: %w", err)
+	} else if cfg.RetryCount, err = cm.GetUint(retryCountName); err != nil {
+		return fmt.Errorf("Failed to get retry count: %w", err)
 	} else if cfg.DNSServer, err = cm.GetStringSlice(dnsServerConfigName); err != nil {
 		return fmt.Errorf("Failed to get DNS_Server: %w", err)
 	} else if cfg.Regex == `` || cfg.RegexExtractionHost == `` || cfg.RegexExtractionRecordType == `` {
@@ -228,9 +232,10 @@ func debug(format string, vals ...interface{}) {
 }
 
 type request struct {
-	ent  *entry.Entry
-	host string
-	aaaa bool
+	ent     *entry.Entry
+	host    string
+	aaaa    bool
+	retries uint64
 }
 
 func newWorkerGroup(nsaddr []string, cnt, wb int, to time.Duration, ctx context.Context) (wg *workerGroup, err error) {
@@ -461,18 +466,34 @@ func workerRoutine(w *worker, cache *dnsCache, retry, in chan request, out chan 
 		if !ok {
 			break
 		}
-		if ips, ok := cacheGet(cache, r.host, r.aaaa); ok {
+		if !shouldResolve(r.host) { //check if we should resolve this host
+			debug("skipping resolve %s %v\n", r.host, r.aaaa)
+			out <- r.ent
+			processed++
+		} else if ips, ok := cacheGet(cache, r.host, r.aaaa); ok {
+			debug("cache hit %s %v\n", r.host, r.aaaa)
 			enrichEntry(r.ent, ips)
 			out <- r.ent
 			processed++
-		} else if !shouldResolve(r.host) { //check if we should resolve this host
-			out <- r.ent
-			processed++
 		} else if ips, ttl, err := resolve(w, r.host, r.aaaa); err != nil {
+			if r.retries < cfg.RetryCount {
+				//failed to resolve, put it back on the reque channel, wait 1 second and try again
+				debug("%v retrying %s %v %d/%d\n", err, r.host, r.aaaa, r.retries, cfg.RetryCount)
+				r.retries++
+				retry <- r
+				time.Sleep(500 * time.Millisecond)
+			} else {
+				debug("%v skipping retry %s %v %d/%d\n", err, r.host, r.aaaa, r.retries, cfg.RetryCount)
+				//just send it, setting the cache while we are at it
+				cacheSet(cache, r.host, r.aaaa, nil, time.Minute) //we set the TTL to 60 seconds, so we won't retry for 60s
+				retry <- r
+			}
+
 			//failed to resolve, put it back on the reque channel, wait 1 second and try again
 			retry <- r
 			time.Sleep(time.Second)
 		} else {
+			debug("resolved %s %v %v %v\n", r.host, r.aaaa, ips, ttl)
 			enrichEntry(r.ent, ips)
 			out <- r.ent
 			processed++
@@ -485,7 +506,14 @@ func workerRoutine(w *worker, cache *dnsCache, retry, in chan request, out chan 
 		case r, ok := <-retry:
 			if !ok {
 				return
-			} else if !shouldResolve(r.host) {
+			}
+			if !shouldResolve(r.host) {
+				debug("skipping resolve %s %v\n", r.host, r.aaaa)
+				out <- r.ent
+				processed++
+			} else if ips, ok := cacheGet(cache, r.host, r.aaaa); ok {
+				debug("cache hit %s %v\n", r.host, r.aaaa)
+				enrichEntry(r.ent, ips)
 				out <- r.ent
 				processed++
 			} else if ips, _, err := resolve(w, r.host, r.aaaa); err != nil {
@@ -493,6 +521,7 @@ func workerRoutine(w *worker, cache *dnsCache, retry, in chan request, out chan 
 				debug("Resolution error on %s %v\n", r.host, err)
 				return
 			} else {
+				debug("resolved %s %v %v\n", r.host, r.aaaa, ips)
 				enrichEntry(r.ent, ips)
 				out <- r.ent
 				processed++
