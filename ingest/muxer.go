@@ -126,6 +126,7 @@ type IngestMuxer struct {
 	logSourceOverride net.IP
 	ingesterState     IngesterState
 	logbuff           *EntryBuffer // for holding logs until we can push them
+	start             time.Time    // when the muxer was started
 }
 
 type UniformMuxerConfig struct {
@@ -345,6 +346,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		Version:    c.IngesterVersion,
 		CacheState: c.CacheMode,
 		Children:   make(map[string]IngesterState),
+		Tags:       c.Tags,
 	}
 
 	var ci *CircularIndex
@@ -453,6 +455,7 @@ func (im *IngestMuxer) Start() error {
 	for i := 0; i < len(im.dests); i++ {
 		go im.connRoutine(i)
 	}
+	im.start = time.Now()
 	im.state = running
 	// start the state report goroutine
 	go im.stateReportRoutine()
@@ -509,6 +512,8 @@ func (im *IngestMuxer) stateReportRoutine() {
 		im.mtx.Lock()
 		// update the cache stats real quick
 		im.ingesterState.CacheSize = uint64(im.cache.Size())
+		im.ingesterState.Uptime = time.Since(im.start)
+		im.ingesterState.Tags = im.tags
 		for _, v := range im.igst {
 			if v != nil {
 				// we don't fuss over the return value
@@ -601,6 +606,7 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 
 	// update the tag list and map
 	im.tags = append(im.tags, name)
+	im.ingesterState.Tags = im.tags
 
 	var tagNext entry.EntryTag
 	for _, v := range im.tagMap {
@@ -835,6 +841,7 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	}
 	im.eChan <- e
 	im.ingesterState.Entries++
+	im.ingesterState.Size += uint64(len(e.Data))
 	return nil
 }
 
@@ -854,6 +861,7 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	select {
 	case im.eChan <- e:
 		im.ingesterState.Entries++
+		im.ingesterState.Size += uint64(len(e.Data))
 	case <-ctx.Done():
 		return ctx.Err()
 	}
@@ -877,6 +885,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	select {
 	case im.eChan <- e:
 		im.ingesterState.Entries++
+		im.ingesterState.Size += uint64(len(e.Data))
 	case _ = <-tmr.C:
 		err = ErrWriteTimeout
 	}
@@ -906,6 +915,9 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	}
 	im.bChan <- b
 	im.ingesterState.Entries += uint64(len(b))
+	for i := range b {
+		im.ingesterState.Size += uint64(len(b[i].Data))
+	}
 	return nil
 }
 
@@ -936,6 +948,9 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 	select {
 	case im.bChan <- b:
 		im.ingesterState.Entries += uint64(len(b))
+		for i := range b {
+			im.ingesterState.Size += uint64(len(b[i].Data))
+		}
 	case <-ctx.Done():
 		return ctx.Err()
 	}

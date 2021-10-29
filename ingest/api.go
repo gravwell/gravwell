@@ -16,6 +16,7 @@ import (
 	"io"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/crewjam/rfc5424"
 )
@@ -162,8 +163,11 @@ type IngesterState struct {
 	Name          string
 	Version       string
 	Label         string
-	IP            net.IP //child IP, won't be populated unless in child
-	Entries       uint64
+	IP            net.IP        //child IP, won't be populated unless in child
+	Entries       uint64        // How many entries the ingester has written
+	Size          uint64        // How many bytes the ingester has written
+	Uptime        time.Duration // Nanoseconds since the ingest muxer was initialized
+	Tags          []string      // The tags registered with the ingester
 	CacheState    string
 	CacheSize     uint64
 	Children      map[string]IngesterState
