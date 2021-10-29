@@ -232,3 +232,31 @@ func (n nilLogger) Appname() string                                            {
 func NoLogger() Logger {
 	return &nilLogger{}
 }
+
+// WriteLog writes a log entry to the muxer, making IngestMuxer compatible
+// with the log.Relay interface.
+func (im *IngestMuxer) WriteLog(ts time.Time, b []byte) error {
+	e := entry.Entry{
+		Data: b,
+		TS:   entry.FromStandard(ts),
+		Tag:  entry.GravwellTagId,
+		SRC:  im.logSourceOverride,
+	}
+	if atomic.LoadInt32(&im.connHot) == 0 {
+		// No hot connections, drop it in the buffer and return
+		im.logbuff.Add(e)
+		return nil
+	}
+
+	blk := im.logbuff.Drain()
+	blk = append(blk, e)
+
+	for i := range blk {
+		if err := im.WriteEntryTimeout(&blk[i], logTimeout); err != nil {
+			// something went wrong, jam whatever's left back into the buffer and bail out
+			im.logbuff.AddBlock(blk[i:])
+			break
+		}
+	}
+	return nil
+}

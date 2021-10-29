@@ -125,7 +125,8 @@ type IngestMuxer struct {
 	rateParent        *parent
 	logSourceOverride net.IP
 	ingesterState     IngesterState
-	start             time.Time // when the muxer was started
+	logbuff           *EntryBuffer // for holding logs until we can push them
+	start             time.Time    // when the muxer was started
 }
 
 type UniformMuxerConfig struct {
@@ -348,6 +349,15 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		Tags:       c.Tags,
 	}
 
+	var ci *CircularIndex
+	if ci, err = NewCircularIndex(4096); err != nil {
+		return nil, err
+	}
+	logbuff := &EntryBuffer{
+		ci:   ci,
+		buff: make([]entry.Entry, 4096),
+	}
+
 	return &IngestMuxer{
 		cfg:               getStreamConfig(c.IngestStreamConfig),
 		dests:             c.Destinations,
@@ -382,6 +392,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		rateParent:        p,
 		logSourceOverride: c.LogSourceOverride,
 		ingesterState:     state,
+		logbuff:           logbuff,
 	}, nil
 }
 
