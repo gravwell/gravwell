@@ -9,26 +9,11 @@
 package ingest
 
 import (
-	"fmt"
-	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-)
-
-//gravwell log level type
-type gll int
-
-const (
-	gravwellOff   gll = 3
-	gravwellError gll = 2
-	gravwellWarn  gll = 1
-	gravwellInfo  gll = 0
-
-	defaultLogLevel = gravwellError
 )
 
 var (
@@ -46,170 +31,46 @@ type IngestLogger interface {
 
 // Errorf send an error entry down the line with the gravwell tag
 func (im *IngestMuxer) Errorf(format string, args ...interface{}) error {
-	if im.logLevel > gravwellError {
-		return nil
-	}
 	if im.lgr != nil {
-		im.lgr.ErrorfWithDepth(4, format, args...)
+		return im.lgr.ErrorfWithDepth(4, format, args...)
 	}
-	return im.gravwellWriteIfHot(gravwellError, fmt.Sprintf(format, args...))
+	return nil
 }
 
 func (im *IngestMuxer) Warnf(format string, args ...interface{}) error {
-	if im.logLevel > gravwellWarn {
-		return nil
-	}
 	if im.lgr != nil {
 		im.lgr.WarnfWithDepth(4, format, args...)
 	}
-	return im.gravwellWriteIfHot(gravwellWarn, fmt.Sprintf(format, args...))
+	return nil
 }
 
 func (im *IngestMuxer) Infof(format string, args ...interface{}) error {
-	if im.logLevel > gravwellInfo {
-		return nil
-	}
 	if im.lgr != nil {
 		im.lgr.InfofWithDepth(4, format, args...)
 	}
-	return im.gravwellWriteIfHot(gravwellInfo, fmt.Sprintf(format, args...))
+	return nil
 }
 
 // Error send an error entry down the line with the gravwell tag
 func (im *IngestMuxer) Error(msg string, args ...rfc5424.SDParam) error {
-	if im.logLevel > gravwellError {
-		return nil
-	}
 	if im.lgr != nil {
 		im.lgr.ErrorWithDepth(4, msg, args...)
 	}
-	return im.gravwellWriteStructuredIfHot(gravwellError, msg, args...)
+	return nil
 }
 
 func (im *IngestMuxer) Warn(msg string, args ...rfc5424.SDParam) error {
-	if im.logLevel > gravwellWarn {
-		return nil
-	}
 	if im.lgr != nil {
 		im.lgr.WarnWithDepth(4, msg, args...)
 	}
-	return im.gravwellWriteStructuredIfHot(gravwellWarn, msg, args...)
+	return nil
 }
 
 func (im *IngestMuxer) Info(msg string, args ...rfc5424.SDParam) error {
-	if im.logLevel > gravwellInfo {
-		return nil
-	}
 	if im.lgr != nil {
 		im.lgr.InfoWithDepth(4, msg, args...)
 	}
-	return im.gravwellWriteStructuredIfHot(gravwellInfo, msg, args...)
-}
-
-func (im *IngestMuxer) gravwellWriteIfHot(level gll, line string) (err error) {
-	if atomic.LoadInt32(&im.connHot) == 0 {
-		return
-	}
-	ts := time.Now()
-	var data []byte
-	if data, err = im.generateLog(ts, level, line); err != nil {
-		return
-	}
-	e := &entry.Entry{
-		Data: data,
-		TS:   entry.FromStandard(ts),
-		Tag:  entry.GravwellTagId,
-		SRC:  im.logSourceOverride,
-	}
-
-	return im.WriteEntryTimeout(e, logTimeout)
-}
-
-func (im *IngestMuxer) gravwellWriteStructuredIfHot(level gll, msg string, sds ...rfc5424.SDParam) (err error) {
-	if atomic.LoadInt32(&im.connHot) == 0 {
-		return
-	}
-	ts := time.Now()
-	var data []byte
-	if data, err = log.GenRFCMessage(ts, level.Priority(), im.hostname, im.appname, log.CallLoc(log.DEFAULT_DEPTH), msg, sds...); err != nil {
-		return
-	}
-	e := &entry.Entry{
-		Data: data,
-		TS:   entry.FromStandard(ts),
-		Tag:  entry.GravwellTagId,
-		SRC:  im.logSourceOverride,
-	}
-
-	return im.WriteEntryTimeout(e, logTimeout)
-}
-
-func (im *IngestMuxer) gravwellWrite(level gll, line string) error {
-	ts := time.Now()
-	data, err := im.generateLog(ts, level, line)
-	if err != nil {
-		return err
-	}
-	e := &entry.Entry{
-		Data: data,
-		TS:   entry.FromStandard(ts),
-		Tag:  entry.GravwellTagId,
-		SRC:  im.logSourceOverride,
-	}
-	return im.WriteEntry(e)
-}
-
-func (im *IngestMuxer) generateLog(ts time.Time, level gll, msg string, sds ...rfc5424.SDParam) ([]byte, error) {
-	return log.GenRFCMessage(ts, level.Priority(), im.hostname, im.appname, log.CallLoc(log.DEFAULT_DEPTH+1), msg, sds...)
-}
-
-func (g gll) String() string {
-	switch g {
-	case gravwellOff:
-		return `OFF`
-	case gravwellInfo:
-		return `INFO`
-	case gravwellWarn:
-		return `WARN`
-	case gravwellError:
-		return `ERROR`
-	}
-	return `UNKNOWN`
-}
-
-func (g gll) Priority() rfc5424.Priority {
-	switch g {
-	case gravwellOff:
-		return 0
-	case gravwellInfo:
-		return rfc5424.Info
-	case gravwellWarn:
-		return rfc5424.Warning
-	case gravwellError:
-		return rfc5424.Error
-	}
-	return rfc5424.Debug
-}
-
-// logLevel converts a string, 'v' into a Gravwell loglevel
-func logLevel(v string) gll {
-	v = strings.TrimSpace(strings.ToUpper(v))
-	if len(v) == 0 {
-		return defaultLogLevel
-	}
-	switch v {
-	case `OFF`:
-		return gravwellOff
-	case `INFO`:
-		return gravwellInfo
-	case `WARN`:
-		return gravwellWarn
-	case `ERROR`:
-		fallthrough
-	default:
-		break
-	}
-	return gravwellError
+	return nil
 }
 
 type nilLogger struct{}

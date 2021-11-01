@@ -110,7 +110,6 @@ type IngestMuxer struct {
 	errChan           chan error
 	wg                *sync.WaitGroup
 	state             muxState
-	logLevel          gll
 	hostname          string
 	appname           string
 	lgr               Logger
@@ -141,7 +140,7 @@ type UniformMuxerConfig struct {
 	CachePath         string
 	CacheSize         int
 	CacheMode         string
-	LogLevel          string
+	LogLevel          string // deprecated, no longer used
 	Logger            Logger
 	IngesterName      string
 	IngesterVersion   string
@@ -162,7 +161,7 @@ type MuxerConfig struct {
 	CachePath         string
 	CacheSize         int
 	CacheMode         string
-	LogLevel          string
+	LogLevel          string // deprecated, no longer used
 	Logger            Logger
 	IngesterName      string
 	IngesterVersion   string
@@ -370,7 +369,6 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		wg:                &sync.WaitGroup{},
 		state:             empty,
 		lgr:               c.Logger,
-		logLevel:          logLevel(c.LogLevel),
 		hostname:          c.Logger.Hostname(),
 		appname:           c.Logger.Appname(),
 		eChan:             cache.In,

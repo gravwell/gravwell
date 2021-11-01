@@ -175,7 +175,7 @@ func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHa
 			continue
 		}
 		debugout("Accepted %v connection from %s in json mode\n", tp.String(), conn.RemoteAddr())
-		igst.Info("accepted connection in json mode", log.KV("localaddress", tp.String()), log.KV("remoteaddress", conn.RemoteAddr()))
+		lg.Info("accepted connection in json mode", log.KV("localaddress", tp.String()), log.KV("remoteaddress", conn.RemoteAddr()))
 		failCount = 0
 		go jsonConnHandler(conn, cfg, igst)
 	}
@@ -197,11 +197,11 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 	if cfg.src == nil {
 		ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String())
 		if err != nil {
-			igst.Error("failed to get host from remote addr", log.KV("remoteaddress", c.RemoteAddr().String()), log.KVErr(err))
+			lg.Error("failed to get host from remote addr", log.KV("remoteaddress", c.RemoteAddr().String()), log.KVErr(err))
 			return
 		}
 		if rip = net.ParseIP(ipstr); rip == nil {
-			igst.Error("failed to get remote address", log.KV("remoteaddress", ipstr))
+			lg.Error("failed to get remote address", log.KV("remoteaddress", ipstr))
 			return
 		}
 	} else {
@@ -216,10 +216,10 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 		}
 		tg, err = timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
-			igst.Error("failed to get a handle on the timegrinder", log.KVErr(err))
+			lg.Error("failed to get a handle on the timegrinder", log.KVErr(err))
 			return
 		} else if err = cfg.timeFormats.LoadFormats(tg); err != nil {
-			igst.Error("failed to load custom time formats", log.KVErr(err))
+			lg.Error("failed to load custom time formats", log.KVErr(err))
 			return
 		}
 		if cfg.setLocalTime {
@@ -228,7 +228,7 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 		if cfg.timezoneOverride != `` {
 			err = tg.SetTimezone(cfg.timezoneOverride)
 			if err != nil {
-				igst.Error("failed to set timezone", log.KV("timezone", cfg.timezoneOverride), log.KVErr(err))
+				lg.Error("failed to set timezone", log.KV("timezone", cfg.timezoneOverride), log.KVErr(err))
 				return
 			}
 		}
@@ -248,7 +248,7 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 			var extracted time.Time
 			extracted, ok, err = tg.Extract(data)
 			if err != nil {
-				igst.Error("catastrophic timegrinder failure", log.KVErr(err))
+				lg.Error("catastrophic timegrinder failure", log.KVErr(err))
 				return
 			} else if ok {
 				ts = entry.FromStandard(extracted)
