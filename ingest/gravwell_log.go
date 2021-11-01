@@ -39,14 +39,14 @@ func (im *IngestMuxer) Errorf(format string, args ...interface{}) error {
 
 func (im *IngestMuxer) Warnf(format string, args ...interface{}) error {
 	if im.lgr != nil {
-		im.lgr.WarnfWithDepth(4, format, args...)
+		return im.lgr.WarnfWithDepth(4, format, args...)
 	}
 	return nil
 }
 
 func (im *IngestMuxer) Infof(format string, args ...interface{}) error {
 	if im.lgr != nil {
-		im.lgr.InfofWithDepth(4, format, args...)
+		return im.lgr.InfofWithDepth(4, format, args...)
 	}
 	return nil
 }
@@ -54,21 +54,21 @@ func (im *IngestMuxer) Infof(format string, args ...interface{}) error {
 // Error send an error entry down the line with the gravwell tag
 func (im *IngestMuxer) Error(msg string, args ...rfc5424.SDParam) error {
 	if im.lgr != nil {
-		im.lgr.ErrorWithDepth(4, msg, args...)
+		return im.lgr.ErrorWithDepth(4, msg, args...)
 	}
 	return nil
 }
 
 func (im *IngestMuxer) Warn(msg string, args ...rfc5424.SDParam) error {
 	if im.lgr != nil {
-		im.lgr.WarnWithDepth(4, msg, args...)
+		return im.lgr.WarnWithDepth(4, msg, args...)
 	}
 	return nil
 }
 
 func (im *IngestMuxer) Info(msg string, args ...rfc5424.SDParam) error {
 	if im.lgr != nil {
-		im.lgr.InfoWithDepth(4, msg, args...)
+		return im.lgr.InfoWithDepth(4, msg, args...)
 	}
 	return nil
 }
