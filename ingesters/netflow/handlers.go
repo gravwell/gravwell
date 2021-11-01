@@ -16,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/netflow"
@@ -130,10 +129,9 @@ type IpfixHandler struct {
 	mtx   *sync.Mutex
 	c     *net.UDPConn
 	ready bool
-	igst  *ingest.IngestMuxer
 }
 
-func NewIpfixHandler(c bindConfig, mux *ingest.IngestMuxer) (*IpfixHandler, error) {
+func NewIpfixHandler(c bindConfig) (*IpfixHandler, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
@@ -141,7 +139,6 @@ func NewIpfixHandler(c bindConfig, mux *ingest.IngestMuxer) (*IpfixHandler, erro
 	return &IpfixHandler{
 		bindConfig: c,
 		mtx:        &sync.Mutex{},
-		igst:       mux,
 	}, nil
 }
 
@@ -270,14 +267,14 @@ func (i *IpfixHandler) routine(id int) {
 		if s, ok = sessionMap[key]; !ok {
 			// if it's not in the map yet, we need to create a session
 			debugout("Creating new session for %v\n", key.String())
-			i.igst.Info("creating new session", log.KV("address", addr.IP), log.KV("domain", domainID))
+			lg.Info("creating new session", log.KV("address", addr.IP), log.KV("domain", domainID))
 			s = ipfix.NewSession()
 			sessionMap[key] = s
 		}
 
 		if i.sessionDumpEnabled && time.Now().Sub(i.lastInfoDump) > 1*time.Hour {
 			for k, _ := range sessionMap {
-				i.igst.Info("IPFIX/Netflow v9 session dump", log.KV("session", k.String()))
+				lg.Info("IPFIX/Netflow v9 session dump", log.KV("session", k.String()))
 			}
 			i.lastInfoDump = time.Now()
 		}

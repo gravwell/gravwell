@@ -125,7 +125,6 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Secret(),
-		LogLevel:           cfg.LogLevel(),
 		Logger:             lg,
 		IngesterName:       "GooglePubSub",
 		IngesterVersion:    version.GetVersion(),
@@ -144,6 +143,7 @@ func main() {
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
+	lg.AddRelay(igst)
 	if err := igst.Start(); err != nil {
 		lg.Fatal("failed start our ingest system", log.KVErr(err))
 	}

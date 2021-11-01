@@ -133,7 +133,6 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Secret(),
-		LogLevel:           cfg.LogLevel(),
 		Logger:             lg,
 		IngesterName:       "Microsoft Graph",
 		IngesterVersion:    version.GetVersion(),
@@ -144,6 +143,7 @@ func main() {
 		CachePath:          cfg.Global.Ingest_Cache_Path,
 		CacheSize:          cfg.Global.Max_Ingest_Cache,
 		CacheMode:          cfg.Global.Cache_Mode,
+		LogSourceOverride:  net.ParseIP(cfg.Global.Log_Source_Override),
 	}
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
 	if err != nil {
@@ -151,6 +151,7 @@ func main() {
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
+	lg.AddRelay(igst)
 	if err := igst.Start(); err != nil {
 		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
