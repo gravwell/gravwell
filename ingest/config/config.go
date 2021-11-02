@@ -301,6 +301,10 @@ func (ic *IngestConfig) LogLevel() string {
 	return ic.Log_Level
 }
 
+func (ic *IngestConfig) SelfIngest() bool {
+	return ic.Disable_Self_Ingest == false
+}
+
 func (ic *IngestConfig) checkLogLevel() error {
 	if len(ic.Log_Level) == 0 {
 		ic.Log_Level = defaultLogLevel
