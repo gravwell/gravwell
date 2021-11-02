@@ -260,6 +260,7 @@ type SearchAgentConfig struct {
 	Log_File                         string
 	Log_Level                        string
 	Disable_Network_Script_Functions bool // disables "risky" scripting functions (network stuff)
+	Disable_Self_Ingest              bool // disables ingesting search agent logs to indexers
 	HTTP_Proxy                       string
 }
 
