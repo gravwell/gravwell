@@ -186,7 +186,9 @@ func main() {
 	}
 	debugout("Started ingester muxer\n")
 	// Henceforth, logs will also go out via the muxer to the gravwell tag
-	lg.AddRelay(igst)
+	if cfg.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	if err := igst.Start(); err != nil {
 		lg.Fatal("failed start our ingest system", log.KVErr(err))
 	}
