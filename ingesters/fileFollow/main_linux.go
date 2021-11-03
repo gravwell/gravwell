@@ -150,7 +150,9 @@ func main() {
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
-	lg.AddRelay(igst)
+	if cfg.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	if err := igst.Start(); err != nil {
 		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
