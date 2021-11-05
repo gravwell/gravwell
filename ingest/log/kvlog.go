@@ -27,31 +27,31 @@ func NewLoggerWithKV(l *Logger, sds ...rfc5424.SDParam) *KVLogger {
 // Debug writes a DEBUG level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (kvl *KVLogger) Debug(msg string, sds ...rfc5424.SDParam) error {
-	return kvl.outputStructured(DEFAULT_DEPTH+1, DEBUG, msg, append(kvl.sds, sds...)...)
+	return kvl.outputStructured(DEFAULT_DEPTH, DEBUG, msg, append(kvl.sds, sds...)...)
 }
 
 // Infof writes an INFO level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
 func (kvl *KVLogger) Info(msg string, sds ...rfc5424.SDParam) error {
-	return kvl.outputStructured(DEFAULT_DEPTH+1, INFO, msg, append(kvl.sds, sds...)...)
+	return kvl.outputStructured(DEFAULT_DEPTH, INFO, msg, append(kvl.sds, sds...)...)
 }
 
 // Warn writes an WARN level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (kvl *KVLogger) Warn(msg string, sds ...rfc5424.SDParam) error {
-	return kvl.outputStructured(DEFAULT_DEPTH+1, WARN, msg, append(kvl.sds, sds...)...)
+	return kvl.outputStructured(DEFAULT_DEPTH, WARN, msg, append(kvl.sds, sds...)...)
 }
 
 // Error writes an ERROR level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (kvl *KVLogger) Error(msg string, sds ...rfc5424.SDParam) error {
-	return kvl.outputStructured(DEFAULT_DEPTH+1, ERROR, msg, append(kvl.sds, sds...)...)
+	return kvl.outputStructured(DEFAULT_DEPTH, ERROR, msg, append(kvl.sds, sds...)...)
 }
 
 // Critical writes a CRITICALinfo level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (kvl *KVLogger) Critical(msg string, sds ...rfc5424.SDParam) error {
-	return kvl.outputStructured(DEFAULT_DEPTH+1, CRITICAL, msg, append(kvl.sds, sds...)...)
+	return kvl.outputStructured(DEFAULT_DEPTH, CRITICAL, msg, append(kvl.sds, sds...)...)
 }
 
 // AddKVs allows for adding additional KVs to the KV logger
