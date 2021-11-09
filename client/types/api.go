@@ -350,3 +350,22 @@ func (m *LoggingLevels) MarshalJSON() ([]byte, error) {
 		Levels: emptyStrings(m.Levels),
 	})
 }
+
+type Token struct {
+	ID           uint32    `json:"id"`
+	Name         string    `json:"name"`
+	Desc         string    `json:"description"`
+	Created      time.Time `json:"created"`
+	Capabilities []string  `json:"capabilities"`
+}
+
+type TokenCreate struct {
+	Name         string   `json:"name"`
+	Desc         string   `json:"description"`
+	Capabilities []string `json:"capabilities"`
+}
+
+type TokenCreateResponse struct {
+	Token
+	Value string `json:"value"`
+}
