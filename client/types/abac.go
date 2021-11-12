@@ -11,8 +11,10 @@ package types
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/google/uuid"
 )
 
 type Capability uint16
@@ -88,9 +90,109 @@ type CapabilityTemplate struct {
 func (c Capability) CapabilityDesc() CapabilityDesc {
 	return CapabilityDesc{
 		Cap:  c,
-		Name: c.String(),
+		Name: c.Name(),
 		Desc: c.Description(),
 	}
+}
+
+func (c Capability) Name() string {
+	switch c {
+	case Search:
+		return `Search`
+	case Download:
+		return `Download`
+	case SaveSearch:
+		return `SaveSearch`
+	case AttachSearch:
+		return `AttachSearch`
+	case BackgroundSearch:
+		return `BackgroundSearch`
+	case GetTags:
+		return `GetTags`
+	case SetSearchGroup:
+		return `SetSearchGroup`
+	case SearchHistory:
+		return `SearchHistory`
+	case SearchGroupHistory:
+		return `SearchGroupHistory`
+	case SearchAllHistory:
+		return `SearchAllHistory`
+	case DashboardRead:
+		return `DashboardRead`
+	case DashboardWrite:
+		return `DashboardWrite`
+	case ResourceRead:
+		return `ResourceRead`
+	case ResourceWrite:
+		return `ResourceWrite`
+	case TemplateRead:
+		return `TemplateRead`
+	case TemplateWrite:
+		return `TemplateWrite`
+	case PivotRead:
+		return `PivotRead`
+	case PivotWrite:
+		return `PivotWrite`
+	case MacroRead:
+		return `MacroRead`
+	case MacroWrite:
+		return `MacroWrite`
+	case LibraryRead:
+		return `LibraryRead`
+	case LibraryWrite:
+		return `LibraryWrite`
+	case ExtractorRead:
+		return `ExtractorRead`
+	case ExtractorWrite:
+		return `ExtractorWrite`
+	case UserFileRead:
+		return `UserFileRead`
+	case UserFileWrite:
+		return `UserFileWrite`
+	case KitRead:
+		return `KitRead`
+	case KitWrite:
+		return `KitWrite`
+	case KitBuild:
+		return `KitBuild`
+	case KitDownload:
+		return `KitDownload`
+	case ScheduleRead:
+		return `ScheduleRead`
+	case ScheduleWrite:
+		return `ScheduleWrite`
+	case SOARLibs:
+		return `SOARLibs`
+	case SOAREmail:
+		return `SOAREmail`
+	case PlaybookRead:
+		return `PlaybookRead`
+	case PlaybookWrite:
+		return `PlaybookWrite`
+	case LicenseRead:
+		return `LicenseRead`
+	case Stats:
+		return `Stats`
+	case Ingest:
+		return `Ingest`
+	case ListUsers:
+		return `ListUsers`
+	case ListGroups:
+		return `ListGroups`
+	case ListGroupMembers:
+		return `ListGroupMembers`
+	case NotificationRead:
+		return `NotificationRead`
+	case NotificationWrite:
+		return `NotificationWrite`
+	case SystemInfoRead:
+		return `SystemInfoRead`
+	case TokenRead:
+		return `TokenRead`
+	case TokenWrite:
+		return `TokenWrite`
+	}
+	return `UNKNOWN`
 }
 
 func (c *Capability) Parse(v string) (err error) {
@@ -509,4 +611,34 @@ func (dtr DefaultTagRule) String() string {
 		return `Default Allow`
 	}
 	return `Default Deny`
+}
+
+type Token struct {
+	ID           uuid.UUID `json:"id"`
+	Name         string    `json:"name"`
+	Desc         string    `json:"description"`
+	UID          int32     `json:"uid"`
+	Created      time.Time `json:"created"`
+	Capabilities []string  `json:"capabilities"`
+}
+
+type TokenCreate struct {
+	Name         string   `json:"name"`
+	Desc         string   `json:"description"`
+	Capabilities []string `json:"capabilities"`
+}
+
+type TokenFull struct {
+	Token
+	Value string `json:"value"`
+}
+
+type TokenFullWire struct {
+	TokenFull
+	Caps []byte
+}
+
+type TokenCapability struct {
+	Capability string `json:"capability"`
+	Desc       string `json:"description"`
 }
