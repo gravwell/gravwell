@@ -10,7 +10,10 @@ package types
 
 import (
 	"errors"
+	"strings"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 )
 
@@ -64,6 +67,12 @@ const (
 	NotificationRead  Capability = 42
 	NotificationWrite Capability = 43
 	SystemInfoRead    Capability = 44
+	TokenRead         Capability = 45
+	TokenWrite        Capability = 46
+)
+
+var (
+	ErrUnknownCapability = errors.New("Unknown capability")
 )
 
 type CapabilityDesc struct {
@@ -81,9 +90,212 @@ type CapabilityTemplate struct {
 func (c Capability) CapabilityDesc() CapabilityDesc {
 	return CapabilityDesc{
 		Cap:  c,
-		Name: c.String(),
+		Name: c.Name(),
 		Desc: c.Description(),
 	}
+}
+
+func (c Capability) Name() string {
+	switch c {
+	case Search:
+		return `Search`
+	case Download:
+		return `Download`
+	case SaveSearch:
+		return `SaveSearch`
+	case AttachSearch:
+		return `AttachSearch`
+	case BackgroundSearch:
+		return `BackgroundSearch`
+	case GetTags:
+		return `GetTags`
+	case SetSearchGroup:
+		return `SetSearchGroup`
+	case SearchHistory:
+		return `SearchHistory`
+	case SearchGroupHistory:
+		return `SearchGroupHistory`
+	case SearchAllHistory:
+		return `SearchAllHistory`
+	case DashboardRead:
+		return `DashboardRead`
+	case DashboardWrite:
+		return `DashboardWrite`
+	case ResourceRead:
+		return `ResourceRead`
+	case ResourceWrite:
+		return `ResourceWrite`
+	case TemplateRead:
+		return `TemplateRead`
+	case TemplateWrite:
+		return `TemplateWrite`
+	case PivotRead:
+		return `PivotRead`
+	case PivotWrite:
+		return `PivotWrite`
+	case MacroRead:
+		return `MacroRead`
+	case MacroWrite:
+		return `MacroWrite`
+	case LibraryRead:
+		return `LibraryRead`
+	case LibraryWrite:
+		return `LibraryWrite`
+	case ExtractorRead:
+		return `ExtractorRead`
+	case ExtractorWrite:
+		return `ExtractorWrite`
+	case UserFileRead:
+		return `UserFileRead`
+	case UserFileWrite:
+		return `UserFileWrite`
+	case KitRead:
+		return `KitRead`
+	case KitWrite:
+		return `KitWrite`
+	case KitBuild:
+		return `KitBuild`
+	case KitDownload:
+		return `KitDownload`
+	case ScheduleRead:
+		return `ScheduleRead`
+	case ScheduleWrite:
+		return `ScheduleWrite`
+	case SOARLibs:
+		return `SOARLibs`
+	case SOAREmail:
+		return `SOAREmail`
+	case PlaybookRead:
+		return `PlaybookRead`
+	case PlaybookWrite:
+		return `PlaybookWrite`
+	case LicenseRead:
+		return `LicenseRead`
+	case Stats:
+		return `Stats`
+	case Ingest:
+		return `Ingest`
+	case ListUsers:
+		return `ListUsers`
+	case ListGroups:
+		return `ListGroups`
+	case ListGroupMembers:
+		return `ListGroupMembers`
+	case NotificationRead:
+		return `NotificationRead`
+	case NotificationWrite:
+		return `NotificationWrite`
+	case SystemInfoRead:
+		return `SystemInfoRead`
+	case TokenRead:
+		return `TokenRead`
+	case TokenWrite:
+		return `TokenWrite`
+	}
+	return `UNKNOWN`
+}
+
+func (c *Capability) Parse(v string) (err error) {
+	v = strings.ToLower(strings.TrimSpace(v))
+	switch v {
+	case `search`:
+		*c = Search
+	case `download`:
+		*c = Download
+	case `savesearch`:
+		*c = SaveSearch
+	case `attachsearch`:
+		*c = AttachSearch
+	case `backgroundsearch`:
+		*c = BackgroundSearch
+	case `gettags`:
+		*c = GetTags
+	case `setsearchgroup`:
+		*c = SetSearchGroup
+	case `searchhistory`:
+		*c = SearchHistory
+	case `searchgrouphistory`:
+		*c = SearchGroupHistory
+	case `searchallhistory`:
+		*c = SearchAllHistory
+	case `dashboardread`:
+		*c = DashboardRead
+	case `dashboardwrite`:
+		*c = DashboardWrite
+	case `resourceread`:
+		*c = ResourceRead
+	case `resourcewrite`:
+		*c = ResourceWrite
+	case `templateread`:
+		*c = TemplateRead
+	case `templatewrite`:
+		*c = TemplateWrite
+	case `pivotread`:
+		*c = PivotRead
+	case `pivotwrite`:
+		*c = PivotWrite
+	case `macroread`:
+		*c = MacroRead
+	case `macrowrite`:
+		*c = MacroWrite
+	case `libraryread`:
+		*c = LibraryRead
+	case `librarywrite`:
+		*c = LibraryWrite
+	case `extractorread`:
+		*c = ExtractorRead
+	case `extractorwrite`:
+		*c = ExtractorWrite
+	case `userfileread`:
+		*c = UserFileRead
+	case `userfilewrite`:
+		*c = UserFileWrite
+	case `kitread`:
+		*c = KitRead
+	case `kitwrite`:
+		*c = KitWrite
+	case `kitbuild`:
+		*c = KitBuild
+	case `kitdownload`:
+		*c = KitDownload
+	case `scheduleread`:
+		*c = ScheduleRead
+	case `schedulewrite`:
+		*c = ScheduleWrite
+	case `soarlibs`:
+		*c = SOARLibs
+	case `soaremail`:
+		*c = SOAREmail
+	case `playbookread`:
+		*c = PlaybookRead
+	case `playbookwrite`:
+		*c = PlaybookWrite
+	case `licenseread`:
+		*c = LicenseRead
+	case `stats`:
+		*c = Stats
+	case `ingest`:
+		*c = Ingest
+	case `listusers`:
+		*c = ListUsers
+	case `listgroups`:
+		*c = ListGroups
+	case `listgroupmembers`:
+		*c = ListGroupMembers
+	case `notificationread`:
+		*c = NotificationRead
+	case `notificationwrite`:
+		*c = NotificationWrite
+	case `systeminforead`:
+		*c = SystemInfoRead
+	case `tokenread`:
+		*c = TokenRead
+	case `tokenwrite`:
+		*c = TokenWrite
+	default:
+		err = ErrUnknownCapability
+	}
+	return
 }
 
 func (c Capability) String() string {
@@ -178,6 +390,10 @@ func (c Capability) String() string {
 		return `Notification Write`
 	case SystemInfoRead:
 		return `Read system info`
+	case TokenRead:
+		return `Read Authorization Tokens`
+	case TokenWrite:
+		return `Write Authorization Tokens`
 	}
 	return `UNKNOWN`
 }
@@ -274,6 +490,10 @@ func (c Capability) Description() string {
 		return `User can dismiss notifications and create new ones`
 	case SystemInfoRead:
 		return `User can read system info about idnexers and webservers`
+	case TokenRead:
+		return `User can read authorization tokens`
+	case TokenWrite:
+		return `User can write authorization tokens`
 	}
 	return `UNKNOWN`
 }
@@ -391,4 +611,34 @@ func (dtr DefaultTagRule) String() string {
 		return `Default Allow`
 	}
 	return `Default Deny`
+}
+
+type Token struct {
+	ID           uuid.UUID `json:"id"`
+	Name         string    `json:"name"`
+	Desc         string    `json:"description"`
+	UID          int32     `json:"uid"`
+	Created      time.Time `json:"created"`
+	Capabilities []string  `json:"capabilities"`
+}
+
+type TokenCreate struct {
+	Name         string   `json:"name"`
+	Desc         string   `json:"description"`
+	Capabilities []string `json:"capabilities"`
+}
+
+type TokenFull struct {
+	Token
+	Value string `json:"value"`
+}
+
+type TokenFullWire struct {
+	TokenFull
+	Caps []byte
+}
+
+type TokenCapability struct {
+	Capability string `json:"capability"`
+	Desc       string `json:"description"`
 }

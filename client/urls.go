@@ -151,6 +151,9 @@ const (
 	PLAYBOOKS_ID_URL                 = `/api/playbooks/%s`
 	BACKUP_URL                       = `/api/backup`
 	DEPLOYMENT_URL                   = `/api/deployment`
+	TOKENS_URL                       = `/api/tokens`
+	TOKENS_ID_URL                    = `/api/tokens/%s`
+	TOKENS_CAPABILITIES_URL          = `/api/tokens/capabilities`
 
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
@@ -545,4 +548,16 @@ func backupUrl() string {
 
 func deploymentUrl() string {
 	return DEPLOYMENT_URL
+}
+
+func tokensUrl() string {
+	return TOKENS_URL
+}
+
+func tokenIdUrl(id uuid.UUID) string {
+	return fmt.Sprintf(TOKENS_ID_URL, id.String())
+}
+
+func tokenCapabilitiesUrl() string {
+	return TOKENS_CAPABILITIES_URL
 }
