@@ -13,8 +13,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/ingest"
 )
 
 type Capability uint16
