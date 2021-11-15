@@ -618,7 +618,7 @@ type Token struct {
 	Name         string    `json:"name"`
 	Desc         string    `json:"description"`
 	UID          int32     `json:"uid"`
-	Created      time.Time `json:"created"`
+	Created      time.Time `json:"createdAt"`
 	Capabilities []string  `json:"capabilities"`
 }
 
