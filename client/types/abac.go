@@ -637,8 +637,3 @@ type TokenFullWire struct {
 	TokenFull
 	Caps []byte
 }
-
-type TokenCapability struct {
-	Capability string `json:"capability"`
-	Desc       string `json:"description"`
-}
