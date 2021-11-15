@@ -630,7 +630,7 @@ type TokenCreate struct {
 
 type TokenFull struct {
 	Token
-	Value string `json:"value"`
+	Value string `json:"token"`
 }
 
 type TokenFullWire struct {
