@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func (c *Client) TokenCapabilities() (cl []types.TokenCapability, err error) {
+func (c *Client) TokenCapabilities() (cl []string, err error) {
 	err = c.getStaticURL(tokenCapabilitiesUrl(), &cl)
 	return
 }

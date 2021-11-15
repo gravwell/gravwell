@@ -618,7 +618,7 @@ type Token struct {
 	Name         string    `json:"name"`
 	Desc         string    `json:"description"`
 	UID          int32     `json:"uid"`
-	Created      time.Time `json:"created"`
+	Created      time.Time `json:"createdAt"`
 	Capabilities []string  `json:"capabilities"`
 }
 
@@ -636,9 +636,4 @@ type TokenFull struct {
 type TokenFullWire struct {
 	TokenFull
 	Caps []byte
-}
-
-type TokenCapability struct {
-	Capability string `json:"capability"`
-	Desc       string `json:"description"`
 }
