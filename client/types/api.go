@@ -189,6 +189,10 @@ type LoginResponse struct {
 	JWT         string `json:",omitempty"`
 }
 
+type SSOStatus struct {
+	Enabled bool `json:"enabled"`
+}
+
 type WarnResp struct {
 	Name string
 	Err  error `json:",omitempty"`
