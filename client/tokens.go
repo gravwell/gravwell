@@ -42,5 +42,5 @@ func (c *Client) UpdateToken(id uuid.UUID, tr types.TokenCreate) (t types.Token,
 }
 
 func (c *Client) DeleteToken(id uuid.UUID) (err error) {
-	return c.deleteStaticURL(tokenIdUrl(id), nil)
+	return c.methodStaticPushURL(http.MethodGet, tokenIdUrl(id), nil, nil, http.StatusNoContent)
 }

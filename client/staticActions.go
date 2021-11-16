@@ -89,6 +89,15 @@ func (c *Client) methodStaticParamURL(method, pth string, params map[string]stri
 	return c.staticRequest(req, obj, nil)
 }
 
+func respOk(rcode int, okCodes ...int) bool {
+	for _, c := range okCodes {
+		if rcode == c {
+			return true
+		}
+	}
+	return false
+}
+
 func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses []int) error {
 	if c.state != STATE_AUTHED {
 		return ErrNoLogin
@@ -117,13 +126,7 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 		return ErrNotFound
 	}
 
-	var statOk bool
-	for i := range okResponses {
-		if resp.StatusCode == okResponses[i] {
-			statOk = true
-			break
-		}
-	}
+	statOk := respOk(resp.StatusCode, okResponses...)
 	//either its in the list, or the list is empty and StatusOK is implied
 	if !(statOk || (resp.StatusCode == http.StatusOK && len(okResponses) == 0)) {
 		c.objLog.Log("WEB "+req.Method, req.URL.String()+" "+resp.Status, nil)
@@ -140,7 +143,7 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 	return nil
 }
 
-func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj interface{}) error {
+func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj interface{}, okResps ...int) error {
 	var err error
 
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, url)
@@ -169,7 +172,7 @@ func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj
 		c.state = STATE_LOGGED_OFF
 		return ErrNotAuthed
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResps...) {
 		c.objLog.Log("WEB "+method, url+" "+resp.Status, nil)
 		return fmt.Errorf("Bad Status %s(%d): %s", resp.Status, resp.StatusCode, getBodyErr(resp.Body))
 	}
@@ -183,7 +186,7 @@ func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj
 	return nil
 }
 
-func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interface{}) error {
+func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interface{}, okResps ...int) error {
 	var jsonBytes []byte
 	var err error
 
@@ -221,7 +224,7 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 		c.state = STATE_LOGGED_OFF
 		return ErrNotAuthed
 	}
-	if resp.StatusCode != http.StatusOK {
+	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResps...) {
 		c.objLog.Log("WEB "+method, url+" "+resp.Status, nil)
 		return fmt.Errorf("Bad Status %s(%d): %s", resp.Status, resp.StatusCode, getBodyErr(resp.Body))
 	}
