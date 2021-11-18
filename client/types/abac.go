@@ -619,14 +619,14 @@ type Token struct {
 	Desc         string    `json:"description"`
 	UID          int32     `json:"uid"`
 	Created      time.Time `json:"createdAt"`
-	Expires      time.Time `json:"expires,omitempty"`
+	Expires      time.Time `json:"expiresAt,omitempty"`
 	Capabilities []string  `json:"capabilities"`
 }
 
 type TokenCreate struct {
 	Name         string    `json:"name"`
 	Desc         string    `json:"description"`
-	Expires      time.Time `json:"expires,omitempty"`
+	Expires      time.Time `json:"expiresAt,omitempty"`
 	Capabilities []string  `json:"capabilities"`
 }
 
@@ -645,4 +645,15 @@ func (t Token) Expired() bool {
 		return false
 	}
 	return time.Now().After(t.Expires)
+}
+
+func (t Token) ExpiresString() string {
+	if t.Expires.IsZero() {
+		return `NEVER`
+	}
+	return t.Expires.Format(time.RFC3339)
+}
+
+func (t Token) CapabilitiesString() string {
+	return strings.Join(t.Capabilities, " ")
 }
