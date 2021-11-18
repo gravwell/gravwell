@@ -619,13 +619,15 @@ type Token struct {
 	Desc         string    `json:"description"`
 	UID          int32     `json:"uid"`
 	Created      time.Time `json:"createdAt"`
+	Expires      time.Time `json:"expires,omitempty"`
 	Capabilities []string  `json:"capabilities"`
 }
 
 type TokenCreate struct {
-	Name         string   `json:"name"`
-	Desc         string   `json:"description"`
-	Capabilities []string `json:"capabilities"`
+	Name         string    `json:"name"`
+	Desc         string    `json:"description"`
+	Expires      time.Time `json:"expires,omitempty"`
+	Capabilities []string  `json:"capabilities"`
 }
 
 type TokenFull struct {
@@ -636,4 +638,11 @@ type TokenFull struct {
 type TokenFullWire struct {
 	TokenFull
 	Caps []byte
+}
+
+func (t Token) Expired() bool {
+	if t.Expires.IsZero() {
+		return false
+	}
+	return time.Now().After(t.Expires)
 }
