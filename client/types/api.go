@@ -39,6 +39,13 @@ type es struct{}
 
 var empty es
 
+// ErrorObject is a basic error object with the error value and an optional
+// info structure that has more info about the error
+type ErrorObject struct {
+	Err  string `json:"error"`
+	Info string `json:"info,omitempty"`
+}
+
 type VersionInfo struct {
 	API   ApiInfo
 	Build BuildInfo
