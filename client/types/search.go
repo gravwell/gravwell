@@ -145,8 +145,7 @@ type StartSearchRequest struct {
 	Metadata json.RawMessage `json:",omitempty"`
 	Addendum json.RawMessage `json:",omitempty"`
 	Name     string          `json:",omitempty"`
-
-	Filters []FilterRequest
+	Filters  []FilterRequest
 }
 
 // The webserver responds yay/nay plus new subprotocols if the search is valid.
