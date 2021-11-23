@@ -149,7 +149,6 @@ func main() {
 		Destinations:       conns,
 		Tags:               ltags,
 		Auth:               cfg.Secret(),
-		LogLevel:           cfg.LogLevel(),
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
 		IngesterName:       ingesterName,
 		RateLimitBps:       lmt,
@@ -169,6 +168,9 @@ func main() {
 
 	defer igst.Close()
 	debugout("Started ingester muxer\n")
+	if cfg.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	if err := igst.Start(); err != nil {
 		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return

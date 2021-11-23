@@ -70,6 +70,7 @@ const (
 	envCacheMode         string = `GRAVWELL_CACHE_MODE`
 	envCachePath         string = `GRAVWELL_CACHE_PATH`
 	envMaxCache          string = `GRAVWELL_CACHE_SIZE`
+	envDisableSelfIngest string = `GRAVWELL_DISABLE_SELF_INGEST`
 
 	DefaultCleartextPort uint16 = 4023
 	DefaultTLSPort       uint16 = 4024
@@ -106,6 +107,7 @@ type IngestConfig struct {
 	Pipe_Backend_Target        []string `json:",omitempty"`
 	Log_Level                  string   `json:",omitempty"`
 	Log_File                   string   `json:",omitempty"`
+	Disable_Self_Ingest        bool     //do not ship logs via the gravwell tag
 	Source_Override            string   `json:",omitempty"` // override normal source if desired
 	Rate_Limit                 string   `json:",omitempty"`
 	Ingester_UUID              string   `json:",omitempty"`
@@ -165,6 +167,9 @@ func (ic *IngestConfig) loadDefaults() error {
 		return err
 	}
 	if err := LoadEnvVar(&ic.Max_Ingest_Cache, envMaxCache, nil); err != nil {
+		return err
+	}
+	if err := LoadEnvVar(&ic.Disable_Self_Ingest, envDisableSelfIngest, false); err != nil {
 		return err
 	}
 	return nil
@@ -294,6 +299,10 @@ func (ic *IngestConfig) Secret() string {
 // Return the specified log level
 func (ic *IngestConfig) LogLevel() string {
 	return ic.Log_Level
+}
+
+func (ic *IngestConfig) SelfIngest() bool {
+	return ic.Disable_Self_Ingest == false
 }
 
 func (ic *IngestConfig) checkLogLevel() error {

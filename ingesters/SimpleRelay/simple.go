@@ -167,14 +167,14 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 				break
 			}
 			failCount++
-			igst.Warn("failed to accept TCP connection", log.KVErr(err))
+			lg.Warn("failed to accept TCP connection", log.KVErr(err))
 			if failCount > 3 {
 				break
 			}
 			continue
 		}
 		debugout("Accepted %v connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt, tp.String())
-		igst.Info("accepted connection", log.KV("address", conn.RemoteAddr()), log.KV("readertype", cfg.lrt), log.KV("mode", tp))
+		lg.Info("accepted connection", log.KV("address", conn.RemoteAddr()), log.KV("readertype", cfg.lrt), log.KV("mode", tp))
 		failCount = 0
 		switch cfg.lrt {
 		case lineReader:
@@ -182,7 +182,7 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 		case rfc5424Reader:
 			go rfc5424ConnHandlerTCP(conn, cfg)
 		default:
-			igst.Error("invalid reader type", log.KV("readertype", cfg.lrt))
+			lg.Error("invalid reader type", log.KV("readertype", cfg.lrt))
 			return
 		}
 	}
@@ -199,7 +199,7 @@ func acceptorUDP(conn *net.UDPConn, id int, cfg handlerConfig, igst *ingest.Inge
 	case rfc5424Reader:
 		rfc5424ConnHandlerUDP(conn, cfg)
 	default:
-		igst.Error("invalid reader type", log.KV("readertype", cfg.lrt))
+		lg.Error("invalid reader type", log.KV("readertype", cfg.lrt))
 		return
 	}
 }

@@ -167,7 +167,6 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Secret(),
-		LogLevel:           cfg.LogLevel(),
 		Logger:             lg,
 		IngesterName:       appName,
 		IngesterVersion:    version.GetVersion(),
@@ -186,6 +185,10 @@ func main() {
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
+	// Henceforth, logs will also go out via the muxer to the gravwell tag
+	if cfg.Global.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	if err := igst.Start(); err != nil {
 		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
@@ -275,10 +278,10 @@ func main() {
 						if stream.JSON_Metrics {
 							jr, err := json.Marshal(report)
 							if err == nil {
-								igst.Infof("%v", string(jr))
+								lg.Infof("%v", string(jr))
 							}
 						} else {
-							igst.Info("stream stats",
+							lg.Info("stream stats",
 								log.KV("stream", stream.Stream_Name),
 								log.KV("shards", len(shards)),
 								log.KV("delay", report.AverageLag),

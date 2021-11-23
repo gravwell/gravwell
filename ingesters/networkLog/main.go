@@ -167,18 +167,17 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Secret(),
-		LogLevel:           cfg.LogLevel(),
 		IngesterName:       ingesterName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
 		IngesterLabel:      cfg.Label,
 		RateLimitBps:       lmt,
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
-		Logger:             lg,
 		CacheDepth:         cfg.Cache_Depth,
 		CachePath:          cfg.Ingest_Cache_Path,
 		CacheSize:          cfg.Max_Ingest_Cache,
 		CacheMode:          cfg.Cache_Mode,
+		Logger:             lg,
 		LogSourceOverride:  net.ParseIP(cfg.Log_Source_Override),
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
@@ -186,9 +185,14 @@ func main() {
 		lg.Fatal("failed build our ingest system", log.KVErr(err))
 	}
 	debugout("Started ingester muxer\n")
+	// Henceforth, logs will also go out via the muxer to the gravwell tag
+	if cfg.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	if err := igst.Start(); err != nil {
 		lg.Fatal("failed start our ingest system", log.KVErr(err))
 	}
+
 	debugout("Waiting for connections to indexers\n")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
 		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
@@ -416,11 +420,11 @@ mainLoop:
 		case pkts, ok := <-ch: //get a packet
 			if !ok {
 				//Something bad happened, attempt to restart the pcap
-				igst.Error("failed to read next packet, attempting to rebuild packet source")
+				lg.Error("failed to read packet, attempting to rebuild packet source")
 				s.handle.Close()
 				s.handle, ok = rebuildPacketSource(s)
 				if !ok {
-					igst.Error("couldn't rebuild packet start")
+					lg.Error("couldn't rebuild packet source")
 					//Still failing, time to bail out
 					break mainLoop
 				}
@@ -428,7 +432,7 @@ mainLoop:
 				ch = make(chan []capPacket, 1024)
 				go packetExtractor(s.handle, ch)
 				debugout("Rebuilding packet source\n")
-				igst.Info("rebuilt packet source")
+				lg.Info("rebuilt packet source")
 				continue
 			}
 			staticSet := make([]entry.Entry, len(pkts))

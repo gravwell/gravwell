@@ -39,6 +39,13 @@ type es struct{}
 
 var empty es
 
+// ErrorObject is a basic error object with the error value and an optional
+// info structure that has more info about the error
+type ErrorObject struct {
+	Err  string `json:"error"`
+	Info string `json:"info,omitempty"`
+}
+
 type VersionInfo struct {
 	API   ApiInfo
 	Build BuildInfo
@@ -189,6 +196,10 @@ type LoginResponse struct {
 	JWT         string `json:",omitempty"`
 }
 
+type SSOStatus struct {
+	Enabled bool `json:"enabled"`
+}
+
 type WarnResp struct {
 	Name string
 	Err  error `json:",omitempty"`
@@ -260,6 +271,7 @@ type SearchAgentConfig struct {
 	Log_File                         string
 	Log_Level                        string
 	Disable_Network_Script_Functions bool // disables "risky" scripting functions (network stuff)
+	Disable_Self_Ingest              bool // disables ingesting search agent logs to indexers
 	HTTP_Proxy                       string
 }
 
