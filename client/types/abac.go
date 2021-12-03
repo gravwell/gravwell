@@ -71,6 +71,10 @@ const (
 	TokenWrite        Capability = 46
 )
 
+const (
+	TokenHeader string = `Gravwell-Token`
+)
+
 var (
 	ErrUnknownCapability = errors.New("Unknown capability")
 )
