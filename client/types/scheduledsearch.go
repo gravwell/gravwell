@@ -108,6 +108,7 @@ type FlowParseRequest struct {
 type FlowParseResponse struct {
 	OK             bool
 	Error          string `json:",omitempty"`
+	ErrorNode      int    // the node which failed to parse (ignore if Error is empty)
 	OutputPayloads map[int]map[string]interface{}
 }
 
