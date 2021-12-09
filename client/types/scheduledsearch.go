@@ -82,11 +82,11 @@ type ScheduledSearch struct {
 }
 
 type FlowNodeResult struct {
-	Payload map[string]interface{} // Only populated if the flow ran with the debug flag
-	Log     string
-	Error   error
-	Start   int64 // unix nanoseconds
-	End     int64 // unix nanoseconds
+	Payload map[string]interface{} `json:",omitempty"` // Only populated if the flow ran with the debug flag
+	Log     string                 `json:",omitempty"`
+	Error   string                 `json:",omitempty"`
+	Start   int64                  // unix nanoseconds
+	End     int64                  // unix nanoseconds
 }
 
 type ScheduledSearchParseRequest struct {
