@@ -412,6 +412,9 @@ func (f *FilterManager) addFollower(fcfg FollowerConfig) error {
 	if err != nil {
 		return err
 	}
+	f.logger.Info("following new file",
+		log.KV("path", fcfg.FilePath),
+		log.KV("follower", fcfg.BaseName))
 	if err := fl.Start(); err != nil {
 		fl.Close()
 		return err
