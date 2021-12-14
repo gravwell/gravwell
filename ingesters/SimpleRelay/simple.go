@@ -36,6 +36,7 @@ type closer interface {
 }
 
 type handlerConfig struct {
+	name             string
 	tag              entry.EntryTag
 	lrt              readerType
 	ignoreTimestamps bool
@@ -84,6 +85,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 			lg.FatalCode(0, "invalid reader type", log.KV("readertype", v.Reader_Type), log.KVErr(err))
 		}
 		hcfg := handlerConfig{
+			name:             k,
 			tag:              tag,
 			lrt:              lrt,
 			ignoreTimestamps: v.Ignore_Timestamps,
@@ -174,7 +176,7 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 			continue
 		}
 		debugout("Accepted %v connection from %s in %v mode\n", conn.RemoteAddr(), cfg.lrt, tp.String())
-		lg.Info("accepted connection", log.KV("address", conn.RemoteAddr()), log.KV("readertype", cfg.lrt), log.KV("mode", tp))
+		lg.Info("accepted connection", log.KV("address", conn.RemoteAddr()), log.KV("readertype", cfg.lrt), log.KV("mode", tp), log.KV("listener", cfg.name))
 		failCount = 0
 		switch cfg.lrt {
 		case lineReader:
