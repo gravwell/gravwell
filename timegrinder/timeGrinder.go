@@ -62,6 +62,15 @@ func Extract(b []byte) (t time.Time, ok bool, err error) {
 	return
 }
 
+func Match(b []byte) (start, end int, ok bool) {
+	if tg == nil {
+		ok = false
+	} else {
+		start, end, ok = tg.Match(b)
+	}
+	return
+}
+
 // NewTimeGrinder just calls New, it is maintained for API compatability but may go away soon.  Use New.
 func NewTimeGrinder(c Config) (*TimeGrinder, error) {
 	return New(c)
