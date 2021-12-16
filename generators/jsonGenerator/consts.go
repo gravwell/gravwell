@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	gcount    int = 32
-	usercount int = 2048
+	maxGroups int = 64
+	maxUsers  int = 1024 * 1024
 )
 
 var (
@@ -35,7 +35,13 @@ type Account struct {
 	Country string `json:"country"`
 }
 
-func init() {
+func seedUsers(usercount, gcount int) {
+	if usercount > maxUsers {
+		usercount = maxUsers
+	}
+	if gcount > maxGroups {
+		gcount = maxGroups
+	}
 	for i := 0; i < gcount; i++ {
 		groups = append(groups, rd.Noun())
 	}

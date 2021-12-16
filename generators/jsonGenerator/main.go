@@ -27,6 +27,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	seedUsers(int(cfg.Count), 256)
 	if igst, src, err = base.NewIngestMuxer(`jsongenerator`, ``, cfg, time.Second); err != nil {
 		log.Fatal(err)
 	}
