@@ -141,11 +141,14 @@ type StartSearchRequest struct {
 	//A raw, text, hex renderer will grab a few hundred or thousand entries
 	//charts will grab enough to draw something useful
 	//everything else will get "enough"
-	Preview  bool            `json:",omitempty"`
-	Metadata json.RawMessage `json:",omitempty"`
-	Addendum json.RawMessage `json:",omitempty"`
-	Name     string          `json:",omitempty"`
-	Filters  []FilterRequest
+	Preview bool `json:",omitempty"`
+	//NonTemporal is used to hint that we do not want this query to be temporal IF POSSIBLE
+	//some queries cannot respect this, but things like table and some charts can
+	NonTemporal bool            `json:",omitempty"`
+	Metadata    json.RawMessage `json:",omitempty"`
+	Addendum    json.RawMessage `json:",omitempty"`
+	Name        string          `json:",omitempty"`
+	Filters     []FilterRequest
 }
 
 // The webserver responds yay/nay plus new subprotocols if the search is valid.
@@ -163,6 +166,7 @@ type StartSearchResponse struct {
 	SearchStartRange     time.Time       `json:",omitempty"`
 	SearchEndRange       time.Time       `json:",omitempty"`
 	Background           bool            `json:",omitempty"`
+	NonTemporal          bool            `json:",omitempty"`
 	CollapsingIndex      int             // index of the first collapsed module
 	Metadata             json.RawMessage `json:",omitempty"`
 	Addendum             json.RawMessage `json:",omitempty"`
