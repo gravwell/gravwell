@@ -38,6 +38,7 @@ var (
 	rawConn         = flag.String("raw-connection", "", "Deliver line broken entries over a TCP connection instead of gravwell protocol")
 	span            = flag.String("duration", "1h", "Total Duration")
 	srcOverride     = flag.String("source-override", "", "Source override value")
+	status          = flag.Bool("status", false, "show ingest rates as we run")
 )
 
 var (
@@ -273,6 +274,11 @@ func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, dur
 			err = fmt.Errorf("Failed to get source ip: %w", err)
 			return
 		}
+	}
+	if *status {
+		su, _ := newStatusUpdater(&totalCount, &totalBytes)
+		su.Start()
+		defer su.Stop()
 	}
 	sp := dur / time.Duration(cnt)
 	ts := time.Now().Add(-1 * dur)
