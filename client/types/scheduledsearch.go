@@ -10,7 +10,6 @@ package types
 
 import (
 	"bytes"
-	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -70,8 +69,8 @@ type ScheduledSearch struct {
 	ScriptLanguage ScriptLang // what script type is this: anko, go
 
 	// For scheduled flows
-	Flow        string                 // The flow specification itself
-	FlowResults map[int]FlowNodeResult // results for each node in the flow
+	Flow            string                 // The flow specification itself
+	FlowNodeResults map[int]FlowNodeResult // results for each node in the flow
 
 	// These fields are updated by the search agent after it runs a search
 	PersistentMaps  map[string]map[string]interface{}
@@ -85,32 +84,9 @@ type ScheduledSearch struct {
 type FlowNodeResult struct {
 	Payload map[string]interface{}
 	Log     string
-	Error   error
+	Error   string
 	Start   int64 // unix nanoseconds
 	End     int64 // unix nanoseconds
-}
-
-// MarshalJSON is necessary because we store a proper error on the backend, but want to
-// send a string to the frontend.
-func (r FlowNodeResult) MarshalJSON() ([]byte, error) {
-	var errorMsg string
-	if r.Error != nil {
-		errorMsg = r.Error.Error()
-	}
-	x := struct {
-		Payload map[string]interface{} `json:",omitempty"` // Only populated if the flow ran with the debug flag
-		Log     string                 `json:",omitempty"`
-		Error   string                 `json:",omitempty"`
-		Start   int64                  // unix nanoseconds
-		End     int64                  // unix nanoseconds
-	}{
-		Payload: r.Payload,
-		Log:     r.Log,
-		Error:   errorMsg,
-		Start:   r.Start,
-		End:     r.End,
-	}
-	return json.Marshal(x)
 }
 
 type ScheduledSearchParseRequest struct {
