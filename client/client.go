@@ -359,6 +359,17 @@ func (c *Client) ImportLoginToken(token string) (err error) {
 	return
 }
 
+func (c *Client) ExportLoginToken() (token string, err error) {
+	c.mtx.Lock()
+	if c.sessionData.JWT != `` {
+		token = c.sessionData.JWT
+	} else {
+		err = ErrNoLogin
+	}
+	c.mtx.Unlock()
+	return
+}
+
 func (c *Client) processLoginResponse(loginResp types.LoginResponse) error {
 	//check that we had a good login
 	if !loginResp.LoginStatus {
