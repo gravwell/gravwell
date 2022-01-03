@@ -666,3 +666,200 @@ func (c *Client) DeploymentInfo() (di types.DeploymentInfo, err error) {
 	}
 	return
 }
+
+// PurgeUser will first enumerate every asset that is owned by the user and delete them
+// then it will delete the user
+func (c *Client) PurgeUser(id int32) error {
+	if !c.userDetails.Admin {
+		return ErrNotAdmin
+	}
+	//impersonate the user
+	nc, err := c.Impersonate(id)
+	if err != nil {
+		return fmt.Errorf("Failed to impersonate %d - %w", id, err)
+	}
+	//enumerate and delete user assets
+
+	//persistent searches
+	if ss, err := nc.ListSearchStatuses(); err != nil {
+		return fmt.Errorf("Failed to list search statuses %w", err)
+	} else if len(ss) > 0 {
+		for _, s := range ss {
+			if s.UID == id {
+				if err = nc.DeleteSearch(s.ID); err != nil {
+					return fmt.Errorf("Failed to delete user search %v %w", s.ID, err)
+				}
+			}
+		}
+	}
+
+	//scheduled searches
+	if err := nc.ClearUserScheduledSearches(id); err != nil {
+		return fmt.Errorf("Failed to purge the users scheduled searches %d %w", id, err)
+	}
+
+	//user files
+	if ufs, err := nc.UserFiles(); err != nil {
+		return fmt.Errorf("Failed to get user files %d %w", id, err)
+	} else if len(ufs) > 0 {
+		for _, uf := range ufs {
+			if uf.UID == id {
+				if err := nc.DeleteUserFile(uf.GUID); err != nil {
+					return fmt.Errorf("Failed to purge user file %v %w", uf.GUID, err)
+				}
+			}
+		}
+	}
+
+	//kits
+	if ks, err := nc.ListKits(); err != nil {
+		return fmt.Errorf("Failed to list kits %w", err)
+	} else if len(ks) > 0 {
+		for _, k := range ks {
+			if k.UID == id {
+				if err := nc.ForceDeleteKit(k.ID); err != nil {
+					return fmt.Errorf("Failed to purge user kit %v - %w", k.ID, err)
+				}
+			}
+		}
+	}
+
+	//kit builds
+	if kbs, err := nc.ListKitBuildHistory(); err != nil {
+		return fmt.Errorf("Failed to list kit build history %w", err)
+	} else if len(kbs) > 0 {
+		for _, k := range kbs {
+			if err := nc.DeleteKitBuildHistory(k.ID); err != nil {
+				return fmt.Errorf("Failed to purge user kit build request %v - %w", k.ID, err)
+			}
+		}
+	}
+
+	//actionables
+	if pvs, err := nc.ListPivots(); err != nil {
+		return fmt.Errorf("Failed to list pivots %w", err)
+	} else if len(pvs) > 0 {
+		for _, p := range pvs {
+			if p.UID == id {
+				if err = nc.DeletePivot(p.GUID); err != nil {
+					return fmt.Errorf("Failed to purge user pivots %v - %w", p.GUID, err)
+				}
+			}
+		}
+	}
+
+	//macros
+	if ms, err := nc.GetUserMacros(id); err != nil {
+		return fmt.Errorf("Failed to list macros %w", err)
+	} else if len(ms) > 0 {
+		for _, p := range ms {
+			if p.UID == id {
+				if err = nc.DeleteMacro(p.ID); err != nil {
+					return fmt.Errorf("Failed to delete user macro %v - %w", p.ID, err)
+				}
+			}
+		}
+	}
+
+	//API tokens
+	if toks, err := nc.ListTokens(); err != nil {
+		return fmt.Errorf("failed to get user API tokens %w", err)
+	} else if len(toks) > 0 {
+		for _, t := range toks {
+			if t.UID == id {
+				if err := nc.DeleteToken(t.ID); err != nil {
+					return fmt.Errorf("Failed to delete user token %v - %w", t.ID, err)
+				}
+			}
+		}
+	}
+
+	//extractors
+	if exts, err := nc.GetExtractions(); err != nil {
+		return fmt.Errorf("Failed to get user autoextractors %w", err)
+	} else if len(exts) > 0 {
+		for _, e := range exts {
+			if e.UID == id {
+				if _, err := nc.DeleteExtraction(e.UUID.String()); err != nil {
+					return fmt.Errorf("Failed to delete user extraction %v - %w", e.UUID, err)
+				}
+			}
+		}
+	}
+
+	//resources
+	if rsr, err := nc.GetResourceList(); err != nil {
+		return fmt.Errorf("Failed to get user resource list %w", err)
+	} else if len(rsr) > 0 {
+		for _, r := range rsr {
+			if r.UID == id {
+				if err := nc.DeleteResource(r.GUID); err != nil {
+					return fmt.Errorf("Failed to delete user resource %v %w", r.GUID, err)
+				}
+			}
+		}
+	}
+
+	//templates
+	if tmpls, err := nc.ListTemplates(); err != nil {
+		return fmt.Errorf("Failed to get user templates %w", err)
+	} else if len(tmpls) > 0 {
+		for _, t := range tmpls {
+			if t.UID == id {
+				if err := nc.DeleteTemplate(t.GUID); err != nil {
+					return fmt.Errorf("Failed to delete user template %v %w", t.GUID, err)
+				}
+			}
+		}
+	}
+
+	//playbooks
+	if pbs, err := nc.GetUserPlaybooks(); err != nil {
+		return fmt.Errorf("Failed to get user playbooks %d %w", id, err)
+	} else if len(pbs) > 0 {
+		for _, pb := range pbs {
+			if pb.UID == id {
+				if err := nc.DeletePlaybook(pb.GUID); err != nil {
+					return fmt.Errorf("Failed to purge user playbook %v %w", pb.GUID, err)
+				}
+			}
+		}
+	}
+
+	//dashboards
+	if dbs, err := nc.GetUserDashboards(id); err != nil {
+		return fmt.Errorf("Failed to get user dashboards %d %w", id, err)
+	} else if len(dbs) > 0 {
+		for _, db := range dbs {
+			if db.UID == id {
+				if err := nc.DeleteDashboard(db.ID); err != nil {
+					return fmt.Errorf("Failed to delete user dashboard %d %w", db.ID, err)
+				}
+			}
+		}
+	}
+
+	//query library
+	if sls, err := nc.ListSearchLibrary(); err != nil {
+		return fmt.Errorf("Failed to get user search library list %w", err)
+	} else if len(sls) > 0 {
+		for _, sl := range sls {
+			if sl.UID == id {
+				if err := nc.DeleteSearchLibrary(sl.GUID); err != nil {
+					return fmt.Errorf("Failed to delete user search library %v %w", sl.GUID, err)
+				}
+			}
+		}
+	}
+
+	//preferences
+	if err := nc.DeletePreferences(id); err != nil {
+		return fmt.Errorf("Failed to purge user preferences %d %w", id, err)
+	}
+
+	if err := nc.Close(); err != nil {
+		return fmt.Errorf("Failed to close impersonated client during purge %w", err)
+	}
+
+	return c.DeleteUser(id) //finally, delete the user
+}
