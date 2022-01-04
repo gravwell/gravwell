@@ -694,8 +694,16 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//scheduled searches
-	if err := nc.ClearUserScheduledSearches(id); err != nil {
-		return fmt.Errorf("Failed to purge the users scheduled searches %d %w", id, err)
+	if ss, err := nc.GetScheduledSearchList(); err != nil {
+		return fmt.Errorf("Failed to get the users scheduled searches %d %w", id, err)
+	} else if len(ss) > 0 {
+		for _, s := range ss {
+			if s.Owner == id {
+				if err := nc.DeleteScheduledSearch(s.ID); err != nil {
+					return fmt.Errorf("Failed to purge scheduled searches %d %d %w", id, s.ID, err)
+				}
+			}
+		}
 	}
 
 	//user files
