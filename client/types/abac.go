@@ -69,6 +69,7 @@ const (
 	SystemInfoRead    Capability = 44
 	TokenRead         Capability = 45
 	TokenWrite        Capability = 46
+	_maxCap           Capability = 47 //REMINDER - when adding capabilities, make sure to enpand this number
 )
 
 const (
@@ -78,6 +79,29 @@ const (
 var (
 	ErrUnknownCapability = errors.New("Unknown capability")
 )
+
+// The default access rule to apply to tags (false = allow).
+type DefaultAccessRule bool
+
+const (
+	DefaultAllow = false
+	DefaultDeny  = true
+)
+
+type ABACRules struct {
+	Capabilities CapabilitySet `json:"-"` //do not include in API responses
+	Tags         TagAccess     `json:"-"` //do not include in API responses
+}
+
+type CapabilitySet struct {
+	Default   DefaultAccessRule `json:"-"` //do not include in API responses
+	Overrides []byte            `json:"-"` //do not include in API responses
+}
+
+type CapabilityState struct {
+	Default   DefaultAccessRule
+	Overrides []string
+}
 
 type CapabilityDesc struct {
 	Cap  Capability
@@ -91,12 +115,51 @@ type CapabilityTemplate struct {
 	Caps []Capability
 }
 
+func (cs CapabilitySet) Has(c Capability) bool {
+	if cs.Default == DefaultAllow {
+		return !cs.IsSet(c) //invert if in the override set
+	}
+	//default deny, send back if in the override set
+	return cs.IsSet(c)
+}
+
+func (cs CapabilitySet) IsSet(c Capability) bool {
+	return CheckCapability(cs.Overrides, c)
+}
+
+func (cs *CapabilitySet) SetOverride(c Capability) (r bool) {
+	if !c.Valid() {
+		return
+	}
+	if cs.IsSet(c) {
+		r = true
+	} else if buff, err := AddCapability(cs.Overrides, c); err == nil {
+		r = true
+		cs.Overrides = buff
+	}
+	return
+}
+
+func (cs *CapabilitySet) ClearOverride(c Capability) (r bool) {
+	if !c.Valid() {
+		return
+	}
+	if cs.IsSet(c) {
+		RemoveCapability(cs.Overrides, c)
+	}
+	return true // it's cleared
+}
+
 func (c Capability) CapabilityDesc() CapabilityDesc {
 	return CapabilityDesc{
 		Cap:  c,
 		Name: c.Name(),
 		Desc: c.Description(),
 	}
+}
+
+func (c Capability) Valid() bool {
+	return c < _maxCap
 }
 
 func (c Capability) Name() string {
@@ -507,16 +570,8 @@ type CapError struct {
 	Error error
 }
 
-// The default access rule to apply to tags (false = allow).
-type DefaultTagRule bool
-
-const (
-	TagDefaultAllow = false
-	TagDefaultDeny  = true
-)
-
 type TagAccess struct {
-	Default DefaultTagRule
+	Default DefaultAccessRule
 	Tags    []string
 }
 
@@ -610,11 +665,46 @@ func FilterTags(tags []string, prime TagAccess, set []TagAccess) (r []string) {
 	return
 }
 
-func (dtr DefaultTagRule) String() string {
-	if dtr == TagDefaultAllow {
+func (dtr DefaultAccessRule) String() string {
+	if dtr == DefaultAllow {
 		return `Default Allow`
 	}
 	return `Default Deny`
+}
+
+func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
+	//check if the user has an explicit deny or allow assigned directly to them
+	//if so, THAT is our answer
+	allowed = ud.ABAC.Capabilities.Default == DefaultAllow
+	if ud.ABAC.Capabilities.IsSet(c) {
+		//explicit override, thats the answer
+		allowed = !allowed
+		return
+	}
+	//there is no explicit setting on the user, check groups
+	for _, g := range ud.Groups {
+		if !g.ABAC.Capabilities.Has(c) {
+			return false
+		}
+	}
+	return
+}
+
+func CreateUserCapabilityList(ud *UserDetails) (r []CapabilityDesc) {
+	for _, c := range fullCapList {
+		if CheckUserCapabilityAccess(ud, c) {
+			r = append(r, c.CapabilityDesc())
+		}
+	}
+	return
+}
+
+func (ud *UserDetails) HasCapability(c Capability) bool {
+	return CheckUserCapabilityAccess(ud, c)
+}
+
+func (ud *UserDetails) CapabilityList() []CapabilityDesc {
+	return CreateUserCapabilityList(ud)
 }
 
 type Token struct {
@@ -660,4 +750,71 @@ func (t Token) ExpiresString() string {
 
 func (t Token) CapabilitiesString() string {
 	return strings.Join(t.Capabilities, " ")
+}
+
+// Encode encodes a list of capabilities into a buffer
+func EncodeCapabilities(caps []Capability) (b []byte, err error) {
+	if len(caps) == 0 {
+		return
+	}
+	//check our list
+	if err = ValidateCapabilities(caps); err != nil {
+		return
+	}
+	//sweep and calculate the buffer size to minimize allocations
+	var l int
+	for _, c := range caps {
+		if off, _ := bitmask(c); off > l {
+			l = off
+		}
+	}
+	b = make([]byte, l+1)
+	for _, c := range caps {
+		if b, err = AddCapability(b, c); err != nil {
+			b = nil
+			return
+		}
+	}
+	return
+}
+
+// AddCapability adds the capability c to the bitmask b
+func AddCapability(b []byte, cp Capability) (r []byte, err error) {
+	off, mask := bitmask(cp)
+	if off >= len(b) {
+		r = make([]byte, off+1)
+		copy(r, b)
+	} else {
+		r = b
+	}
+	//check again for safety
+	r[off] |= mask
+	return
+}
+
+// RemoveCapability removes the capability c in the bitmask b
+func RemoveCapability(b []byte, c Capability) (r bool) {
+	if off, mask := bitmask(c); off < len(b) {
+		//remove the bit
+		if r = (b[off] & mask) != 0; r {
+			b[off] ^= mask
+		}
+	}
+	return
+}
+
+// CheckCapability checks if the capability c is set in the bitmask b
+func CheckCapability(b []byte, c Capability) (r bool) {
+	if off, mask := bitmask(c); off < len(b) {
+		//remove the bit
+		r = (b[off] & mask) != 0
+	}
+	return
+}
+
+// bitmask calculates the offset and mask required to encode into a buffer
+func bitmask(c Capability) (offset int, mask byte) {
+	offset = (int(c) / 8)
+	mask = byte(1 << (int(c) % 8))
+	return
 }

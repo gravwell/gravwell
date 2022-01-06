@@ -27,34 +27,34 @@ func (c *Client) CapabilityTemplateList() (cl []types.CapabilityTemplate, err er
 }
 
 // CurrentUserCapabilities returns the list of capabilities enabled for the current user.
-func (c *Client) CurrentUserCapabilities() (cl []types.CapabilityDesc, err error) {
-	err = c.getStaticURL(CAPABILITY_CURRENT_USER_LIST_URL, &cl)
+func (c *Client) CurrentUserCapabilities() (cs types.CapabilityState, err error) {
+	err = c.getStaticURL(CAPABILITY_CURRENT_USER_LIST_URL, &cs)
 	return
 }
 
 // GetUserCapabilities (admin-only) returns the list of capabilities enabled
 // for the specified user.
-func (c *Client) GetUserCapabilities(uid int32) (lst []types.CapabilityDesc, err error) {
-	err = c.getStaticURL(fmt.Sprintf(CAPABILITY_USER_URL, uid), &lst)
+func (c *Client) GetUserCapabilities(uid int32) (cs types.CapabilityState, err error) {
+	err = c.getStaticURL(fmt.Sprintf(CAPABILITY_USER_URL, uid), &cs)
 	return
 }
 
 // SetUserCaapbilities (admin-only) sets a user's capabilities to the provided list.
-func (c *Client) SetUserCapabilities(uid int32, lst []types.Capability) (err error) {
-	err = c.putStaticURL(fmt.Sprintf(CAPABILITY_USER_URL, uid), &lst)
+func (c *Client) SetUserCapabilities(uid int32, cs types.CapabilityState) (err error) {
+	err = c.putStaticURL(fmt.Sprintf(CAPABILITY_USER_URL, uid), &cs)
 	return
 }
 
 // GetGroupCapabilities (admin-only) returns the list of capabilities enabled
 // for a given group.
-func (c *Client) GetGroupCapabilities(gid int32) (lst []types.CapabilityDesc, err error) {
-	err = c.getStaticURL(fmt.Sprintf(CAPABILITY_GROUP_URL, gid), &lst)
+func (c *Client) GetGroupCapabilities(gid int32) (cs types.CapabilityState, err error) {
+	err = c.getStaticURL(fmt.Sprintf(CAPABILITY_GROUP_URL, gid), &cs)
 	return
 }
 
 // SetGroupCapabilities (admin-only) sets the capability list for a group.
-func (c *Client) SetGroupCapabilities(gid int32, lst []types.Capability) (err error) {
-	err = c.putStaticURL(fmt.Sprintf(CAPABILITY_GROUP_URL, gid), &lst)
+func (c *Client) SetGroupCapabilities(gid int32, cs types.CapabilityState) (err error) {
+	err = c.putStaticURL(fmt.Sprintf(CAPABILITY_GROUP_URL, gid), &cs)
 	return
 }
 

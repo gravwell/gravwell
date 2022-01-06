@@ -98,28 +98,26 @@ type UserSessions struct {
 }
 
 type UserDetails struct {
-	UID          int32
-	User         string
-	Name         string
-	Email        string
-	Admin        bool
-	Locked       bool
-	TS           time.Time `json:",omitempty"`
-	DefaultGID   int32     `json:",omitempty"`
-	Groups       []GroupDetails
-	Hash         []byte `json:"-"` //do not include in API responses
-	Synced       bool
-	Capabilities []byte    `json:"-"` //do not include in API responses
-	Tags         TagAccess `json:"-"` //do not include in API responses
+	UID        int32
+	User       string
+	Name       string
+	Email      string
+	Admin      bool
+	Locked     bool
+	TS         time.Time `json:",omitempty"`
+	DefaultGID int32     `json:",omitempty"`
+	Groups     []GroupDetails
+	Hash       []byte `json:"-"` //do not include in API responses
+	Synced     bool
+	ABAC       ABACRules `json:"-"` //do not include in API responses
 }
 
 type GroupDetails struct {
-	GID          int32
-	Name         string
-	Desc         string
-	Synced       bool
-	Capabilities []byte    `json:"-"` //do not include in API responses
-	Tags         TagAccess `json:"-"` //do not include in API responses
+	GID    int32
+	Name   string
+	Desc   string
+	Synced bool
+	ABAC   ABACRules `json:"-"` //do not include in API responses
 }
 
 type AddUser struct {
@@ -291,7 +289,7 @@ func (ud *UserDetails) GroupNames() (gps []string) {
 
 func (ud *UserDetails) GroupTagAccess() (r []TagAccess) {
 	for i := range ud.Groups {
-		r = append(r, ud.Groups[i].Tags)
+		r = append(r, ud.Groups[i].ABAC.Tags)
 	}
 	return
 }
