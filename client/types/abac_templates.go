@@ -18,9 +18,10 @@ const (
 )
 
 var (
-	fullCapList   []Capability
-	templateSet   []CapabilityTemplate
-	capabilitySet = [...]CapabilityDesc{
+	fullCapStringList []string
+	fullCapList       []Capability
+	templateSet       []CapabilityTemplate
+	capabilitySet     = [...]CapabilityDesc{
 		Search.CapabilityDesc(),
 		Download.CapabilityDesc(),
 		AttachSearch.CapabilityDesc(),
@@ -99,8 +100,10 @@ var (
 
 func init() {
 	fullCapList = make([]Capability, 0, len(capabilitySet))
+	fullCapStringList = make([]string, 0, len(capabilitySet))
 	for _, v := range capabilitySet {
 		fullCapList = append(fullCapList, v.Cap)
+		fullCapStringList = append(fullCapStringList, v.Cap.Name())
 	}
 	templateSet = []CapabilityTemplate{
 		CapabilityTemplate{
@@ -126,6 +129,10 @@ func TemplateList() []CapabilityTemplate {
 
 func CapabilityList() []Capability {
 	return fullCapList
+}
+
+func CapabilityStringList() []string {
+	return fullCapStringList
 }
 
 func ValidateCapabilities(cps []Capability) (err error) {

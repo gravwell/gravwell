@@ -96,7 +96,7 @@ type ABACRules struct {
 }
 
 // CapabilitySet is the compacted set of default values and overrides
-// The CapabilitySet is translated from teh CapabilityState and held internally for faster operations
+// The CapabilitySet is translated from the CapabilityState and held internally for faster operations
 type CapabilitySet struct {
 	Default   DefaultAccessRule `json:"-"` //do not include in API responses
 	Overrides []byte            `json:"-"` //do not include in API responses
@@ -124,6 +124,7 @@ type CapabilityTemplate struct {
 	Caps []Capability
 }
 
+// Has checks if a capability is allowed given the default value and overrides
 func (cs CapabilitySet) Has(c Capability) bool {
 	if cs.Default == DefaultAllow {
 		return !cs.IsSet(c) //invert if in the override set
@@ -132,10 +133,12 @@ func (cs CapabilitySet) Has(c Capability) bool {
 	return cs.IsSet(c)
 }
 
+// IsSet checks if a capability override is set
 func (cs CapabilitySet) IsSet(c Capability) bool {
 	return CheckCapability(cs.Overrides, c)
 }
 
+// SetOverride sets an override on the capability set
 func (cs *CapabilitySet) SetOverride(c Capability) (r bool) {
 	if !c.Valid() {
 		return
@@ -149,6 +152,7 @@ func (cs *CapabilitySet) SetOverride(c Capability) (r bool) {
 	return
 }
 
+// ClearOverride removes a capability override from the CapabilitySet
 func (cs *CapabilitySet) ClearOverride(c Capability) (r bool) {
 	if !c.Valid() {
 		return
@@ -159,6 +163,7 @@ func (cs *CapabilitySet) ClearOverride(c Capability) (r bool) {
 	return true // it's cleared
 }
 
+// CapabilityDesc converts a Capability into a CapabilityDescription
 func (c Capability) CapabilityDesc() CapabilityDesc {
 	return CapabilityDesc{
 		Cap:  c,
@@ -167,10 +172,12 @@ func (c Capability) CapabilityDesc() CapabilityDesc {
 	}
 }
 
+// Check if the capability value is valid/known
 func (c Capability) Valid() bool {
 	return c < _maxCap
 }
 
+// Name returns the ASCII name of a capability
 func (c Capability) Name() string {
 	switch c {
 	case Search:
@@ -271,6 +278,8 @@ func (c Capability) Name() string {
 	return `UNKNOWN`
 }
 
+// Parse attempts to resolve a capability value from a name
+// Parse will ignore case and trim surrounding whitespace
 func (c *Capability) Parse(v string) (err error) {
 	v = strings.ToLower(strings.TrimSpace(v))
 	switch v {
@@ -374,6 +383,7 @@ func (c *Capability) Parse(v string) (err error) {
 	return
 }
 
+// String implements the stringer interface, it does not return a parsable name but rather a shorthand description
 func (c Capability) String() string {
 	switch c {
 	case Search:
@@ -474,6 +484,7 @@ func (c Capability) String() string {
 	return `UNKNOWN`
 }
 
+// Description returns an ASCII description of a capability value
 func (c Capability) Description() string {
 	switch c {
 	case Search:
@@ -679,6 +690,32 @@ func FilterTags(tags []string, prime TagAccess, set []TagAccess) (r []string) {
 	return
 }
 
+func (ud *UserDetails) HasTagAccess(tg string) (allowed bool) {
+	var explicit bool
+	//any rules applied to a user that explicitely call out a tag override all other group rules
+	if explicit, allowed = ud.ABAC.Tags.Check(tg); explicit {
+		return
+	}
+	for _, g := range ud.Groups {
+		if explicit, allowed = g.ABAC.Tags.Check(tg); explicit || !allowed {
+			return
+		}
+	}
+	return
+}
+
+func (ud *UserDetails) FilterTags(all []string) (r []string) {
+	if ud.Admin {
+		return all
+	}
+	for _, t := range all {
+		if ud.HasTagAccess(t) {
+			r = append(r, t)
+		}
+	}
+	return
+}
+
 func (dtr DefaultAccessRule) String() string {
 	if dtr == DefaultAllow {
 		return `Default Allow`
@@ -686,6 +723,7 @@ func (dtr DefaultAccessRule) String() string {
 	return `Default Deny`
 }
 
+// CheckUserCapabilityAccess checks if a user has access to a given capability based on their direct and group assignments
 func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
 	//check if the user has an explicit deny or allow assigned directly to them
 	//if so, THAT is our answer
@@ -704,6 +742,7 @@ func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
 	return
 }
 
+// CreateUserCapabilityList creates a comprehensive list of capabilities the user has access to based on their direct and group assignments
 func CreateUserCapabilityList(ud *UserDetails) (r []CapabilityDesc) {
 	for _, c := range fullCapList {
 		if CheckUserCapabilityAccess(ud, c) {
@@ -713,10 +752,12 @@ func CreateUserCapabilityList(ud *UserDetails) (r []CapabilityDesc) {
 	return
 }
 
+// HasCapability returns whether the user has access to a given capability
 func (ud *UserDetails) HasCapability(c Capability) bool {
 	return CheckUserCapabilityAccess(ud, c)
 }
 
+// CapabilityList creates a comprehensive list of capabilities the user has access to based on their direct and group assignments
 func (ud *UserDetails) CapabilityList() []CapabilityDesc {
 	return CreateUserCapabilityList(ud)
 }
@@ -753,6 +794,7 @@ type TokenFullWire struct {
 	Caps []byte
 }
 
+// Expired returns whether a token is expired or not, if no expiration is set then the token is not expired
 func (t Token) Expired() bool {
 	if t.Expires.IsZero() {
 		return false
@@ -760,6 +802,7 @@ func (t Token) Expired() bool {
 	return time.Now().After(t.Expires)
 }
 
+// ExpiresString returns a human friendly string of when a token expires
 func (t Token) ExpiresString() string {
 	if t.Expires.IsZero() {
 		return `NEVER`
@@ -767,6 +810,7 @@ func (t Token) ExpiresString() string {
 	return t.Expires.Format(time.RFC3339)
 }
 
+// CapabilitiesString returns a human friendly space delimited list of capabilities
 func (t Token) CapabilitiesString() string {
 	return strings.Join(t.Capabilities, " ")
 }
@@ -835,5 +879,38 @@ func CheckCapability(b []byte, c Capability) (r bool) {
 func bitmask(c Capability) (offset int, mask byte) {
 	offset = (int(c) / 8)
 	mask = byte(1 << (int(c) % 8))
+	return
+}
+
+// HasCapability checks if a given ABACRules set has a capability
+func (abr *ABACRules) HasCapability(c Capability) (allowed bool) {
+	allowed = abr.Capabilities.Default == DefaultAllow
+	if abr.Capabilities.IsSet(c) {
+		//explicit override, thats the answer
+		allowed = !allowed
+	}
+	return
+}
+
+// CapabilityList returns a comprehensive set of capability descriptions that the given ruleset has access to
+func (abr *ABACRules) CapabilityList() (r []CapabilityDesc) {
+	for _, c := range fullCapList {
+		if abr.HasCapability(c) {
+			r = append(r, c.CapabilityDesc())
+		}
+	}
+	return
+}
+
+// CapabilitySet converts the human friendly CapabilityState into an optimized and encoded CapabilitySet for internal use
+func (st CapabilityState) CapabilitySet() (cs CapabilitySet, err error) {
+	var c Capability
+	cs.Default = st.Default
+	for _, s := range st.Overrides {
+		if err = c.Parse(s); err != nil {
+			return
+		}
+		cs.SetOverride(c)
+	}
 	return
 }
