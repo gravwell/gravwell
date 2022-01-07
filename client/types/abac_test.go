@@ -21,8 +21,8 @@ func TestEmpty(t *testing.T) {
 
 func TestBasicWhitelist(t *testing.T) {
 	ta := TagAccess{
-		Default: DefaultDeny,
-		Tags:    []string{`foo`, `bar`, `baz`},
+		Default:   DefaultDeny,
+		Overrides: []string{`foo`, `bar`, `baz`},
 	}
 	//check allow
 	if exp, ok := ta.Check(`baz`); !ok {
@@ -39,8 +39,8 @@ func TestBasicWhitelist(t *testing.T) {
 
 func TestBasicBlacklist(t *testing.T) {
 	ta := TagAccess{
-		Default: DefaultAllow,
-		Tags:    []string{`foo`, `bar`, `baz`},
+		Default:   DefaultAllow,
+		Overrides: []string{`foo`, `bar`, `baz`},
 	}
 	//check allow
 	if exp, ok := ta.Check(`foobar`); !ok {
@@ -57,18 +57,18 @@ func TestBasicBlacklist(t *testing.T) {
 
 func TestBasicIntersection(t *testing.T) {
 	prime := TagAccess{
-		Default: DefaultAllow,
-		Tags:    []string{`foo`, `bar`, `baz`},
+		Default:   DefaultAllow,
+		Overrides: []string{`foo`, `bar`, `baz`},
 	}
 
 	set := []TagAccess{
 		TagAccess{
-			Default: DefaultAllow,
-			Tags:    []string{`foo`, `foobar`},
+			Default:   DefaultAllow,
+			Overrides: []string{`foo`, `foobar`},
 		},
 		TagAccess{
-			Default: DefaultDeny,
-			Tags:    []string{`foobar`, `barbaz`},
+			Default:   DefaultDeny,
+			Overrides: []string{`foobar`, `barbaz`},
 		},
 	}
 	//check foo - denied by prime and set[0]
@@ -99,7 +99,7 @@ func TestValidate(t *testing.T) {
 	}
 
 	//add a few tags, some of them twice
-	ta.Tags = []string{
+	ta.Overrides = []string{
 		`foo`,
 		`bar`,
 		`baz`,
@@ -115,24 +115,24 @@ func TestValidate(t *testing.T) {
 		t.Fatal("failed to allow ok tag")
 	} else if exp, ok = ta.Check(`foobaz`); ok || exp {
 		t.Fatal("failed to disallow tag")
-	} else if len(ta.Tags) != 4 {
+	} else if len(ta.Overrides) != 4 {
 		t.Fatal("Did not remove duplicate tag")
 	}
 }
 
 func TestFilterWhitelist(t *testing.T) {
 	ta := TagAccess{
-		Default: DefaultDeny,
-		Tags:    []string{`foo`, `bar`, `baz`},
+		Default:   DefaultDeny,
+		Overrides: []string{`foo`, `bar`, `baz`},
 	}
 	set := []TagAccess{
 		TagAccess{
-			Default: DefaultAllow,
-			Tags:    []string{`foo`, `foobar`},
+			Default:   DefaultAllow,
+			Overrides: []string{`foo`, `foobar`},
 		},
 		TagAccess{
-			Default: DefaultDeny,
-			Tags:    []string{`foobar`, `barbaz`},
+			Default:   DefaultDeny,
+			Overrides: []string{`foobar`, `barbaz`},
 		},
 	}
 
@@ -160,12 +160,12 @@ func TestFilterWhitelist(t *testing.T) {
 
 func TestConflict(t *testing.T) {
 	a := TagAccess{
-		Default: DefaultAllow,
-		Tags:    []string{`foo`, `foobar`},
+		Default:   DefaultAllow,
+		Overrides: []string{`foo`, `foobar`},
 	}
 	b := TagAccess{
-		Default: DefaultDeny,
-		Tags:    []string{`foobar`, `barbaz`},
+		Default:   DefaultDeny,
+		Overrides: []string{`foobar`, `barbaz`},
 	}
 	if conflict, tag := CheckTagConflict(a, b); !conflict {
 		t.Fatal("failed to detect tag conflict")

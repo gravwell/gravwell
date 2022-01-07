@@ -88,27 +88,36 @@ const (
 	DefaultDeny  = true
 )
 
+// ABACRules is the main structure that holds default stats and overrides for for API and tag access
+// the Capabilities and Tags sub structures handle access independently
 type ABACRules struct {
 	Capabilities CapabilitySet `json:"-"` //do not include in API responses
 	Tags         TagAccess     `json:"-"` //do not include in API responses
 }
 
+// CapabilitySet is the compacted set of default values and overrides
+// The CapabilitySet is translated from teh CapabilityState and held internally for faster operations
 type CapabilitySet struct {
 	Default   DefaultAccessRule `json:"-"` //do not include in API responses
 	Overrides []byte            `json:"-"` //do not include in API responses
 }
 
+// CapabilityState is the expanded set of capabilities that is exchanged between clients the the API
+// The overrides specified using the full name of a capability to make the API more explicit
 type CapabilityState struct {
 	Default   DefaultAccessRule
 	Overrides []string
 }
 
+// CapabilityDesc is an enhanced structure containing a capability value, its name, and a brief description
 type CapabilityDesc struct {
 	Cap  Capability
 	Name string
 	Desc string
 }
 
+// CapabilityTemplate is group of capabilities with a name and description, this is used to build up a simplified set of
+// macro capabilities like "can run all searches" or "can read results but not write them"
 type CapabilityTemplate struct {
 	Name string
 	Desc string
@@ -565,14 +574,19 @@ func (c Capability) Description() string {
 	return `UNKNOWN`
 }
 
+// CapError is an enhanced error that will return why an API told you know
+// Typically its an error message and the capability you would need in order to use the API
 type CapError struct {
 	Cap   Capability
 	Error error
 }
 
+// TagAccess is the structure that holds a default access to tags and a set of optional explicit overrides
+// if the default rule is allow, any tag set in Overrides is disallowed
+// if the default rule is deny, any tag set in the overrides is allowed
 type TagAccess struct {
-	Default DefaultAccessRule
-	Tags    []string
+	Default   DefaultAccessRule
+	Overrides []string //override sets an explicit allow or deny depending on Default state
 }
 
 // Check returns two values:
@@ -585,7 +599,7 @@ func (ta TagAccess) Check(tg string) (explicit bool, grant bool) {
 }
 
 func (ta TagAccess) tagInSet(tg string) bool {
-	for _, v := range ta.Tags {
+	for _, v := range ta.Overrides {
 		if v == tg {
 			return true
 		}
@@ -600,9 +614,9 @@ func (ta TagAccess) tagInSet(tg string) bool {
 //		!@#$%^&*()=+<>,.:;`\"'{[}]|
 //	3. You cannot specify more than 65536 tags.
 func (ta *TagAccess) Validate() (err error) {
-	otags := ta.Tags[0:0]
-	tm := make(map[string]es, len(ta.Tags))
-	for _, tg := range ta.Tags {
+	otags := ta.Overrides[0:0]
+	tm := make(map[string]es, len(ta.Overrides))
+	for _, tg := range ta.Overrides {
 		if err = ingest.CheckTag(tg); err != nil {
 			return
 		}
@@ -614,7 +628,7 @@ func (ta *TagAccess) Validate() (err error) {
 	if len(otags) > 0xffff {
 		err = errors.New("Too many tags")
 	} else {
-		ta.Tags = otags
+		ta.Overrides = otags
 	}
 	return
 }
@@ -628,8 +642,8 @@ func CheckTagConflict(a, b TagAccess) (conflict bool, tag string) {
 	}
 
 	//they do not match, so there better not be any overlaps
-	for _, at := range a.Tags {
-		for _, bt := range b.Tags {
+	for _, at := range a.Overrides {
+		for _, bt := range b.Overrides {
 			if at == bt {
 				conflict = true
 				tag = at
@@ -707,6 +721,7 @@ func (ud *UserDetails) CapabilityList() []CapabilityDesc {
 	return CreateUserCapabilityList(ud)
 }
 
+// Token is a complete API compatible token, it contains ownership information and all capabilities associated with the token
 type Token struct {
 	ID           uuid.UUID `json:"id"`
 	Name         string    `json:"name"`
@@ -717,6 +732,7 @@ type Token struct {
 	Capabilities []string  `json:"capabilities"`
 }
 
+// TokenCreate is the structure used to ask the API to make a new token, only the request parameters are present
 type TokenCreate struct {
 	Name         string    `json:"name"`
 	Desc         string    `json:"description"`
@@ -724,11 +740,14 @@ type TokenCreate struct {
 	Capabilities []string  `json:"capabilities"`
 }
 
+// TokenFull represents the response value for a token create request
+// this type is the only type that contains the token value and is ONLY provided when creating a new token
 type TokenFull struct {
 	Token
 	Value string `json:"token"`
 }
 
+// TokenFullWire is the internal type for storing token values
 type TokenFullWire struct {
 	TokenFull
 	Caps []byte
