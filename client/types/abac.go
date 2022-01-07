@@ -914,3 +914,14 @@ func (st CapabilityState) CapabilitySet() (cs CapabilitySet, err error) {
 	}
 	return
 }
+
+// CapabilityState takes a capability template and converts it into a capability set that can be sent to the API
+// This defaults to a state with default deny and explicit allow
+func (ct CapabilityTemplate) CapabilityState() (s CapabilityState) {
+	s.Default = DefaultDeny
+	s.Overrides = make([]string, 0, len(ct.Caps))
+	for _, c := range ct.Caps {
+		s.Overrides = append(s.Overrides, c.Name())
+	}
+	return
+}
