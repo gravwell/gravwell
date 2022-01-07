@@ -91,15 +91,15 @@ const (
 // ABACRules is the main structure that holds default stats and overrides for for API and tag access
 // the Capabilities and Tags sub structures handle access independently
 type ABACRules struct {
-	Capabilities CapabilitySet `json:"-"` //do not include in API responses
-	Tags         TagAccess     `json:"-"` //do not include in API responses
+	Capabilities CapabilitySet
+	Tags         TagAccess
 }
 
 // CapabilitySet is the compacted set of default values and overrides
 // The CapabilitySet is translated from the CapabilityState and held internally for faster operations
 type CapabilitySet struct {
-	Default   DefaultAccessRule `json:"-"` //do not include in API responses
-	Overrides []byte            `json:"-"` //do not include in API responses
+	Default   DefaultAccessRule
+	Overrides []byte
 }
 
 // CapabilityState is the expanded set of capabilities that is exchanged between clients the the API
@@ -935,6 +935,17 @@ func (abr *ABACRules) CapabilityList() (r []CapabilityDesc) {
 	for _, c := range fullCapList {
 		if abr.HasCapability(c) {
 			r = append(r, c.CapabilityDesc())
+		}
+	}
+	return
+}
+
+// export a CapabilityState from the underlying capability rules
+func (abr *ABACRules) CapabilityState() (r CapabilityState) {
+	r.Default = abr.Capabilities.Default
+	for _, c := range fullCapList {
+		if abr.Capabilities.IsSet(c) {
+			r.Overrides = append(r.Overrides, c.Name())
 		}
 	}
 	return
