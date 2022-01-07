@@ -69,7 +69,7 @@ const (
 	SystemInfoRead    Capability = 44
 	TokenRead         Capability = 45
 	TokenWrite        Capability = 46
-	_maxCap           Capability = 47 //REMINDER - when adding capabilities, make sure to enpand this number
+	_maxCap           Capability = 47 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
 const (
@@ -167,6 +167,16 @@ func (cs *CapabilitySet) ClearOverride(c Capability) (r bool) {
 		RemoveCapability(cs.Overrides, c)
 	}
 	return true // it's cleared
+}
+
+// CapabilityList returns a list of capability descrptions that are in this set
+func (cs *CapabilitySet) CapabilityList() (r []CapabilityDesc) {
+	for _, c := range fullCapList {
+		if cs.Has(c) {
+			r = append(r, c.CapabilityDesc())
+		}
+	}
+	return
 }
 
 // CapabilityDesc converts a Capability into a CapabilityDescription
@@ -939,6 +949,15 @@ func (st CapabilityState) CapabilitySet() (cs CapabilitySet, err error) {
 			return
 		}
 		cs.SetOverride(c)
+	}
+	return
+}
+
+// CapabilityList returns a list of capability descriptions that this capability state has access to
+func (st CapabilityState) CapabilityList() (lst []CapabilityDesc, err error) {
+	var cs CapabilitySet
+	if cs, err = st.CapabilitySet(); err == nil {
+		lst = cs.CapabilityList()
 	}
 	return
 }
