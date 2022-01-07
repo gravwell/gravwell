@@ -27,8 +27,8 @@ func (c *Client) CapabilityTemplateList() (cl []types.CapabilityTemplate, err er
 }
 
 // CurrentUserCapabilities returns the list of capabilities enabled for the current user.
-func (c *Client) CurrentUserCapabilities() (cs types.CapabilityState, err error) {
-	err = c.getStaticURL(CAPABILITY_CURRENT_USER_LIST_URL, &cs)
+func (c *Client) CurrentUserCapabilities() (set []types.CapabilityDesc, err error) {
+	err = c.getStaticURL(CAPABILITY_CURRENT_USER_LIST_URL, &set)
 	return
 }
 
