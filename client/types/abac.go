@@ -124,13 +124,19 @@ type CapabilityTemplate struct {
 	Caps []Capability
 }
 
+// check returns two values:
+//	explicit: Whether or not the capability is in the CapabilitySet object.
+//	grant: Whether or not the capability is allowed to be accessed.
+func (cs CapabilitySet) check(c Capability) (explicit bool, grant bool) {
+	explicit = cs.IsSet(c)
+	grant = explicit == bool(cs.Default)
+	return
+}
+
 // Has checks if a capability is allowed given the default value and overrides
 func (cs CapabilitySet) Has(c Capability) bool {
-	if cs.Default == DefaultAllow {
-		return !cs.IsSet(c) //invert if in the override set
-	}
-	//default deny, send back if in the override set
-	return cs.IsSet(c)
+	_, allow := cs.check(c)
+	return allow
 }
 
 // IsSet checks if a capability override is set
@@ -600,10 +606,10 @@ type TagAccess struct {
 	Overrides []string //override sets an explicit allow or deny depending on Default state
 }
 
-// Check returns two values:
+// check returns two values:
 //	explicit: Whether or not the tag is in the TagAccess object.
 //	grant: Whether or not the tag is allowed to be accessed.
-func (ta TagAccess) Check(tg string) (explicit bool, grant bool) {
+func (ta TagAccess) check(tg string) (explicit bool, grant bool) {
 	explicit = ta.tagInSet(tg)
 	grant = explicit == bool(ta.Default)
 	return
@@ -669,11 +675,11 @@ func CheckTagConflict(a, b TagAccess) (conflict bool, tag string) {
 func CheckTagAccess(tg string, prime TagAccess, set []TagAccess) (allowed bool) {
 	var explicit bool
 	//any rules applied to a user that explicitely call out a tag override all other group rules
-	if explicit, allowed = prime.Check(tg); explicit {
+	if explicit, allowed = prime.check(tg); explicit {
 		return
 	}
 	for _, g := range set {
-		if explicit, allowed = g.Check(tg); explicit || !allowed {
+		if explicit, allowed = g.check(tg); explicit || !allowed {
 			return
 		}
 	}
@@ -693,12 +699,24 @@ func FilterTags(tags []string, prime TagAccess, set []TagAccess) (r []string) {
 func (ud *UserDetails) HasTagAccess(tg string) (allowed bool) {
 	var explicit bool
 	//any rules applied to a user that explicitely call out a tag override all other group rules
-	if explicit, allowed = ud.ABAC.Tags.Check(tg); explicit {
+	if explicit, allowed = ud.ABAC.Tags.check(tg); explicit {
 		return
 	}
+	//there is no explicit setting on the user, check groups
 	for _, g := range ud.Groups {
-		if explicit, allowed = g.ABAC.Tags.Check(tg); explicit || !allowed {
-			return
+		localExplicit, localAllow := g.ABAC.Tags.check(tg)
+		if localExplicit {
+			if !localAllow {
+				//explicit deny
+				allowed = false
+				return
+			}
+			//explicit allow, toggle explicit
+			explicit = true
+			allowed = true
+		} else if !explicit && !localAllow {
+			//if we are NOT explicit AND the new rule says deny, go ahead and set to deny
+			allowed = localAllow
 		}
 	}
 	return
@@ -725,18 +743,28 @@ func (dtr DefaultAccessRule) String() string {
 
 // CheckUserCapabilityAccess checks if a user has access to a given capability based on their direct and group assignments
 func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
+	var explicit bool
 	//check if the user has an explicit deny or allow assigned directly to them
 	//if so, THAT is our answer
-	allowed = ud.ABAC.Capabilities.Default == DefaultAllow
-	if ud.ABAC.Capabilities.IsSet(c) {
-		//explicit override, thats the answer
-		allowed = !allowed
+	if explicit, allowed = ud.ABAC.Capabilities.check(c); explicit {
 		return
 	}
+
 	//there is no explicit setting on the user, check groups
 	for _, g := range ud.Groups {
-		if !g.ABAC.Capabilities.Has(c) {
-			return false
+		localExplicit, localAllow := g.ABAC.Capabilities.check(c)
+		if localExplicit {
+			if !localAllow {
+				//explicit deny
+				allowed = false
+				return
+			}
+			//explicit allow, toggle explicit
+			explicit = true
+			allowed = true
+		} else if !explicit && !localAllow {
+			//if we are NOT explicit AND the new rule says deny, go ahead and set to deny
+			allowed = localAllow
 		}
 	}
 	return

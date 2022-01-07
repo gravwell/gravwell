@@ -14,7 +14,7 @@ import (
 
 func TestEmpty(t *testing.T) {
 	var ta TagAccess
-	if _, ok := ta.Check(`foo`); !ok {
+	if _, ok := ta.check(`foo`); !ok {
 		t.Fatal("Empty disallowed a tag")
 	}
 }
@@ -25,14 +25,14 @@ func TestBasicWhitelist(t *testing.T) {
 		Overrides: []string{`foo`, `bar`, `baz`},
 	}
 	//check allow
-	if exp, ok := ta.Check(`baz`); !ok {
+	if exp, ok := ta.check(`baz`); !ok {
 		t.Fatal("Invalid deny")
 	} else if !exp {
 		t.Fatal("Invalid explicit")
 	}
 
 	//check  miss
-	if _, ok := ta.Check(`foobar`); ok {
+	if _, ok := ta.check(`foobar`); ok {
 		t.Fatal("Invalid allow")
 	}
 }
@@ -43,14 +43,14 @@ func TestBasicBlacklist(t *testing.T) {
 		Overrides: []string{`foo`, `bar`, `baz`},
 	}
 	//check allow
-	if exp, ok := ta.Check(`foobar`); !ok {
+	if exp, ok := ta.check(`foobar`); !ok {
 		t.Fatal("Invalid deny")
 	} else if exp {
 		t.Fatal("invalid explicit")
 	}
 
 	//check  miss
-	if exp, ok := ta.Check(`foo`); ok || !exp {
+	if exp, ok := ta.check(`foo`); ok || !exp {
 		t.Fatal("Missed hard deny")
 	}
 }
@@ -94,7 +94,7 @@ func TestValidate(t *testing.T) {
 	var ta TagAccess
 	if err := ta.Validate(); err != nil {
 		t.Fatal(err)
-	} else if exp, ok := ta.Check(`foo`); !ok || exp {
+	} else if exp, ok := ta.check(`foo`); !ok || exp {
 		t.Fatal("empty after validate disallowed a tag", ok, exp)
 	}
 
@@ -109,11 +109,11 @@ func TestValidate(t *testing.T) {
 	ta.Default = DefaultDeny
 	if err := ta.Validate(); err != nil {
 		t.Fatal(err)
-	} else if exp, ok := ta.Check(`foo`); !ok || !exp {
+	} else if exp, ok := ta.check(`foo`); !ok || !exp {
 		t.Fatal("failed to allow ok tag")
-	} else if exp, ok = ta.Check(`foobar`); !ok || !exp {
+	} else if exp, ok = ta.check(`foobar`); !ok || !exp {
 		t.Fatal("failed to allow ok tag")
-	} else if exp, ok = ta.Check(`foobaz`); ok || exp {
+	} else if exp, ok = ta.check(`foobaz`); ok || exp {
 		t.Fatal("failed to disallow tag")
 	} else if len(ta.Overrides) != 4 {
 		t.Fatal("Did not remove duplicate tag")
@@ -290,8 +290,17 @@ func TestOverlapWithUserExplicit(t *testing.T) {
 	//now setup a group with an explicit allow and make sure the default deny still overrides
 	ud.ABAC.Capabilities.ClearOverride(Search)
 	ud.Groups[1].ABAC.Capabilities.Default = DefaultDeny
+	if !ud.HasCapability(Search) {
+		t.Fatal("User does NOT have Search capability after explicit group allow but default deny")
+	}
+
+	//setup an explicit allow and explicit deny, ensure it is denied
+	ud.Groups[0].ABAC.Capabilities.Default = DefaultAllow
+	ud.Groups[0].ABAC.Capabilities.SetOverride(Search)
+	ud.Groups[1].ABAC.Capabilities.Default = DefaultDeny
+	ud.Groups[1].ABAC.Capabilities.SetOverride(Search)
 	if ud.HasCapability(Search) {
-		t.Fatal("User has Search capability after explicit group allow but default deny")
+		t.Fatal("User has Search capability after conflicting explicit group overrides")
 	}
 }
 
