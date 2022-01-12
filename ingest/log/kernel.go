@@ -1,5 +1,6 @@
-//go:build windows
-// +build windows
+//go:build !linux
+
+// -build linux
 
 /*************************************************************************
  * Copyright 2017 Gravwell, Inc. All rights reserved.
@@ -11,11 +12,4 @@
 
 package log
 
-import (
-	"errors"
-)
-
-func newStderrLogger(fileOverride string, cb StderrCallback) (lgr *Logger, err error) {
-	err = errors.New("stderr logger not avialable on windows or ARM")
-	return
-}
+const kernelVersion = ``

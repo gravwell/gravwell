@@ -118,6 +118,7 @@ func init() {
 	cb := func(w io.Writer) {
 		version.PrintVersion(w)
 		ingest.PrintVersion(w)
+		log.PrintOSInfo(w)
 	}
 	if lg, err = log.NewStderrLoggerEx(fp, cb); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get stderr logger: %v\n", err)

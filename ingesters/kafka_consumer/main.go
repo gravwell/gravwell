@@ -71,6 +71,7 @@ func handleFlags() {
 		} else {
 			version.PrintVersion(fout)
 			ingest.PrintVersion(fout)
+			log.PrintOSInfo(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
 				fout.Close()
