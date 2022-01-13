@@ -255,5 +255,5 @@ func (h *trackingLH) HandleLog(b []byte, ts time.Time) error {
 type testTagger struct{}
 
 func (tt testTagger) Tag() string {
-	return `defualt`
+	return `default`
 }
