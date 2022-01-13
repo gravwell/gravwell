@@ -668,6 +668,7 @@ func TestMultiWatcherWithMoveWithMatchNewFilter(t *testing.T) {
 }
 
 type safeTrackingLH struct {
+	testTagger
 	mp  map[string]time.Time
 	cnt int
 }
