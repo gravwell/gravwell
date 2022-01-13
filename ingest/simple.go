@@ -74,11 +74,19 @@ func ConnectionType(dst string) (string, string, error) {
 //
 // Deprecated: Use the IngestMuxer instead.
 func InitializeConnection(dst, authString string, tags []string, pubKey, privKey string, verifyRemoteKey bool) (*IngestConnection, error) {
-	auth, err := GenAuthHash(authString)
+	tgt := Target{
+		Address: dst,
+		Secret:  authString,
+	}
+	return initConnection(tgt, tags, pubKey, privKey, verifyRemoteKey)
+}
+
+func initConnection(tgt Target, tags []string, pubKey, privKey string, verifyRemoteKey bool) (*IngestConnection, error) {
+	auth, err := GenAuthHash(tgt.Secret)
 	if err != nil {
 		return nil, err
 	}
-	t, dest, err := ConnectionType(dst)
+	t, dest, err := ConnectionType(tgt.Address)
 	if err != nil {
 		return nil, err
 	}
@@ -95,11 +103,11 @@ func InitializeConnection(dst, authString string, tags []string, pubKey, privKey
 		} else if certs == nil {
 			return nil, ErrInvalidCerts
 		}
-		return NewTLSConnection(dest, auth, certs, verifyRemoteKey, tags)
+		return newTLSConnection(dest, tgt.Tenant, auth, certs, verifyRemoteKey, tags)
 	case "tcp":
-		return NewTCPConnection(dest, auth, tags)
+		return newTCPConnection(dest, tgt.Tenant, auth, tags)
 	case "pipe":
-		return NewPipeConnection(dest, auth, tags)
+		return newPipeConnection(dest, tgt.Tenant, auth, tags)
 	default:
 		break
 	}
@@ -181,6 +189,10 @@ func checkTLSPublicKey(local, remote []byte) bool {
 //
 // Deprecated: Use the IngestMuxer instead.
 func NewTLSConnection(dst string, auth AuthHash, certs *TLSCerts, verify bool, tags []string) (*IngestConnection, error) {
+	return newTLSConnection(dst, SystemTenant, auth, certs, verify, tags)
+}
+
+func newTLSConnection(dst, tenant string, auth AuthHash, certs *TLSCerts, verify bool, tags []string) (*IngestConnection, error) {
 	if err := checkTags(tags); err != nil {
 		return nil, err
 	}
@@ -189,7 +201,7 @@ func NewTLSConnection(dst string, auth AuthHash, certs *TLSCerts, verify bool, t
 		return nil, err
 	}
 
-	return completeIngestConnection(conn, src, auth, tags)
+	return completeIngestConnection(conn, src, tenant, auth, tags)
 }
 
 //negotiate a TLS connection and check the public cert if requested
@@ -229,6 +241,10 @@ func newTlsConn(dst string, certs *TLSCerts, verify bool) (net.Conn, net.IP, err
 //
 // Deprecated: Use the IngestMuxer instead.
 func NewTCPConnection(dst string, auth AuthHash, tags []string) (*IngestConnection, error) {
+	return newTCPConnection(dst, SystemTenant, auth, tags)
+}
+
+func newTCPConnection(dst, tenant string, auth AuthHash, tags []string) (*IngestConnection, error) {
 	err := checkTags(tags)
 	if err != nil {
 		return nil, err
@@ -237,7 +253,7 @@ func NewTCPConnection(dst string, auth AuthHash, tags []string) (*IngestConnecti
 	if err != nil {
 		return nil, err
 	}
-	return completeIngestConnection(conn, src, auth, tags)
+	return completeIngestConnection(conn, src, tenant, auth, tags)
 }
 
 func newTcpConn(dst string) (net.Conn, net.IP, error) {
@@ -266,6 +282,10 @@ func newTcpConn(dst string) (net.Conn, net.IP, error) {
 //
 // Deprecated: Use the IngestMuxer instead.
 func NewPipeConnection(dst string, auth AuthHash, tags []string) (*IngestConnection, error) {
+	return newPipeConnection(dst, SystemTenant, auth, tags)
+}
+
+func newPipeConnection(dst, tenant string, auth AuthHash, tags []string) (*IngestConnection, error) {
 	err := checkTags(tags)
 	if err != nil {
 		return nil, err
@@ -274,7 +294,7 @@ func NewPipeConnection(dst string, auth AuthHash, tags []string) (*IngestConnect
 	if err != nil {
 		return nil, err
 	}
-	return completeIngestConnection(conn, src, auth, tags)
+	return completeIngestConnection(conn, src, tenant, auth, tags)
 }
 
 func newPipeConn(dst string) (net.Conn, net.IP, error) {
@@ -286,8 +306,8 @@ func newPipeConn(dst string) (net.Conn, net.IP, error) {
 	return conn, localhostAddr, nil
 }
 
-func negotiateEntryWriter(conn net.Conn, auth AuthHash, tags []string) (*EntryWriter, map[string]entry.EntryTag, error) {
-	tagIDs, serverVersion, err := authenticate(conn, auth, tags)
+func negotiateEntryWriter(conn net.Conn, tenant string, auth AuthHash, tags []string) (*EntryWriter, map[string]entry.EntryTag, error) {
+	tagIDs, serverVersion, err := authenticate(conn, tenant, auth, tags)
 	if err != nil {
 		conn.Close()
 		return nil, nil, err
@@ -302,8 +322,8 @@ func negotiateEntryWriter(conn net.Conn, auth AuthHash, tags []string) (*EntryWr
 }
 
 //completeIngestConnection performs the authentication and tag negotiation
-func completeIngestConnection(conn net.Conn, src net.IP, auth AuthHash, tags []string) (*IngestConnection, error) {
-	ew, tagIDs, err := negotiateEntryWriter(conn, auth, tags)
+func completeIngestConnection(conn net.Conn, src net.IP, tenant string, auth AuthHash, tags []string) (*IngestConnection, error) {
+	ew, tagIDs, err := negotiateEntryWriter(conn, tenant, auth, tags)
 	if err != nil {
 		return nil, err
 	}
