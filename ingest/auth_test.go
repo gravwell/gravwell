@@ -21,7 +21,7 @@ const (
 	testTagCount = 256
 )
 
-func TestChallenge(t *testing.T) {
+func TestAuthChallenge(t *testing.T) {
 	var chalA Challenge
 	bb := bytes.NewBuffer(nil)
 	hsh, err := GenAuthHash(pwd)
@@ -44,7 +44,7 @@ func TestChallenge(t *testing.T) {
 	}
 }
 
-func TestChallengeResponse(t *testing.T) {
+func TestAuthChallengeResponse(t *testing.T) {
 	var cr ChallengeResponse
 	bb := bytes.NewBuffer(nil)
 	hsh, err := GenAuthHash(pwd)
@@ -70,7 +70,34 @@ func TestChallengeResponse(t *testing.T) {
 	}
 }
 
-func TestStateResponse(t *testing.T) {
+func TestAuthChallengeBadResponse(t *testing.T) {
+	var cr ChallengeResponse
+	bb := bytes.NewBuffer(nil)
+	hsh, err := GenAuthHash(pwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chal, err := NewChallenge(hsh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := GenerateResponse(hsh, chal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Response[0]++
+	if err := resp.Write(bb); err != nil {
+		t.Fatal(err)
+	}
+	if err := cr.Read(bb); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyResponse(hsh, chal, cr); err == nil {
+		t.Fatalf("failed to catch bad response")
+	}
+}
+
+func TestAuthStateResponse(t *testing.T) {
 	bb := bytes.NewBuffer(nil)
 	var sr2 StateResponse
 	sr := StateResponse{
@@ -88,7 +115,7 @@ func TestStateResponse(t *testing.T) {
 	}
 }
 
-func TestTagRequest(t *testing.T) {
+func TestAuthTagRequest(t *testing.T) {
 	bb := bytes.NewBuffer(nil)
 	var tr TagRequest
 	var tr2 TagRequest
@@ -116,7 +143,7 @@ func TestTagRequest(t *testing.T) {
 	}
 }
 
-func TestTagResponse(t *testing.T) {
+func TestAuthTagResponse(t *testing.T) {
 	bb := bytes.NewBuffer(nil)
 	tr := TagResponse{
 		Tags: make(map[string]entry.EntryTag, 1),
@@ -147,5 +174,88 @@ func TestTagResponse(t *testing.T) {
 		if v2 != v {
 			t.Fatal("Invalid value", v2, v)
 		}
+	}
+}
+
+func TestAuthTenantEnabledChallengeResponse(t *testing.T) {
+	var cr ChallengeResponse
+	bb := bytes.NewBuffer(nil)
+	hsh, err := GenAuthHash(pwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chal, err := NewChallenge(hsh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := GenerateResponse(hsh, chal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Tenant = `bobby`
+	if err := resp.Write(bb); err != nil {
+		t.Fatal(err)
+	}
+	if err := cr.Read(bb); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyResponse(hsh, chal, cr); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAuthDisabledChallengeResponse(t *testing.T) {
+	var cr ChallengeResponse
+	bb := bytes.NewBuffer(nil)
+	hsh, err := GenAuthHash(pwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chal, err := NewChallenge(hsh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chal.Version--
+	resp, err := GenerateResponse(hsh, chal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := resp.Write(bb); err != nil {
+		t.Fatal(err)
+	}
+	if err := cr.Read(bb); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyResponse(hsh, chal, cr); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAuthTenantEnabledBadVersionChallengeResponse(t *testing.T) {
+	var cr ChallengeResponse
+	bb := bytes.NewBuffer(nil)
+	hsh, err := GenAuthHash(pwd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chal, err := NewChallenge(hsh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := GenerateResponse(hsh, chal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// the version should ensure that even though we have a tenant name that it won't use it
+	resp.Tenant = `bobby`
+	resp.Version = 6
+	if err := resp.Write(bb); err != nil {
+		t.Fatal(err)
+	}
+	if err := cr.Read(bb); err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyResponse(hsh, chal, cr); err != nil {
+		t.Fatal(err)
 	}
 }

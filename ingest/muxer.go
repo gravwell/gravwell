@@ -74,6 +74,7 @@ type muxState int
 
 type Target struct {
 	Address string
+	Tenant  string
 	Secret  string
 }
 
@@ -132,6 +133,7 @@ type UniformMuxerConfig struct {
 	config.IngestStreamConfig
 	Destinations      []string
 	Tags              []string
+	Tenant            string
 	Auth              string
 	PublicKey         string
 	PrivateKey        string
@@ -204,6 +206,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 	for i := range c.Destinations {
 		destinations[i].Address = c.Destinations[i]
 		destinations[i].Secret = c.Auth
+		destinations[i].Tenant = c.Tenant
 	}
 	if len(destinations) == 0 {
 		return nil, ErrNoTargets
@@ -1372,6 +1375,8 @@ func isFatalConnError(err error) bool {
 		fallthrough
 	case ErrFailedAuthHashGen:
 		fallthrough
+	case ErrTenantAuthUnsupported:
+		fallthrough
 	case ErrForbiddenTag:
 		fallthrough
 	case ErrFailedParseLocalIP:
@@ -1388,7 +1393,7 @@ loop:
 		//attempt a connection, timeouts are built in to the IngestConnection
 		im.Info("initializing connection", log.KV("indexer", tgt.Address), log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
 		im.mtx.RLock()
-		if ig, err = InitializeConnection(tgt.Address, tgt.Secret, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
+		if ig, err = initConnection(tgt, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
 			im.mtx.RUnlock()
 			if isFatalConnError(err) {
 				im.Error("fatal connection error", log.KV("indexer", tgt.Address), log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid), log.KV("error", err))

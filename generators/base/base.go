@@ -32,6 +32,7 @@ var (
 	pipeConns       = flag.String("pipe-conns", "", "comma seperated list of paths for named pie connection")
 	tlsRemoteVerify = flag.String("tls-remote-verify", "", "Path to remote public key to verify against")
 	ingestSecret    = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
+	ingestTenant    = flag.String("ingest-tenant", "", "Ingest tenant ID, blank for system tenant")
 	compression     = flag.Bool("compression", false, "Enable ingest compression")
 	entryCount      = flag.Int("entry-count", 100, "Number of entries to generate")
 	streaming       = flag.Bool("stream", false, "Stream entries in")
@@ -55,6 +56,7 @@ type GeneratorConfig struct {
 	Tag         string
 	ConnSet     []string
 	Auth        string
+	Tenant      string
 	Count       uint64
 	Duration    time.Duration
 	SRC         net.IP
@@ -109,6 +111,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		err = errors.New("Ingest auth is missing")
 		return
 	}
+	gc.Tenant = *ingestTenant
 	var connSet []string
 
 	if *clearConns != "" {
@@ -197,6 +200,7 @@ func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (co
 		Destinations:  gc.ConnSet,
 		Tags:          []string{gc.Tag},
 		Auth:          gc.Auth,
+		Tenant:        gc.Tenant,
 		IngesterName:  name,
 		IngesterUUID:  guid,
 		IngesterLabel: `generator`,
