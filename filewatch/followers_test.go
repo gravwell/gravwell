@@ -226,6 +226,7 @@ func newFileName() (string, error) {
 }
 
 type countingLH struct {
+	testTagger
 	cnt int64
 }
 
@@ -237,6 +238,7 @@ func (h *countingLH) HandleLog(b []byte, ts time.Time) error {
 }
 
 type trackingLH struct {
+	testTagger
 	mp map[string]time.Time
 }
 
@@ -248,4 +250,10 @@ func (h *trackingLH) HandleLog(b []byte, ts time.Time) error {
 		h.mp[string(b)] = ts
 	}
 	return nil
+}
+
+type testTagger struct{}
+
+func (tt testTagger) Tag() string {
+	return `defualt`
 }

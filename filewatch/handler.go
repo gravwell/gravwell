@@ -45,6 +45,7 @@ type LogHandler struct {
 }
 
 type LogHandlerConfig struct {
+	TagName                 string
 	Tag                     entry.EntryTag
 	Src                     net.IP
 	IgnoreTS                bool
@@ -118,6 +119,10 @@ func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
 	}, nil
 }
 
+func (lh *LogHandler) Tag() string {
+	return lh.LogHandlerConfig.TagName
+}
+
 func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	if len(b) == 0 {
 		return nil
@@ -146,7 +151,7 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	return lh.w.ProcessContext(&entry.Entry{
 		SRC:  lh.Src,
 		TS:   entry.FromStandard(ts),
-		Tag:  lh.Tag,
+		Tag:  lh.LogHandlerConfig.Tag,
 		Data: b,
 	}, lh.LogHandlerConfig.Ctx)
 }

@@ -220,6 +220,7 @@ func main() {
 
 		//create our handler for this watcher
 		cfg := filewatch.LogHandlerConfig{
+			TagName:                 val.Tag_Name,
 			Tag:                     tag,
 			Src:                     src,
 			IgnoreTS:                val.Ignore_Timestamps,

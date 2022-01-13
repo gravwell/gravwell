@@ -29,6 +29,7 @@ var (
 
 type handler interface {
 	HandleLog([]byte, time.Time) error
+	Tag() string
 }
 
 type FileId struct {
