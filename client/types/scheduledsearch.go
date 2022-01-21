@@ -69,7 +69,8 @@ type ScheduledSearch struct {
 	ScriptLanguage ScriptLang // what script type is this: anko, go
 
 	// For scheduled flows
-	Flow string
+	Flow        string                 // The flow specification itself
+	FlowResults map[int]FlowNodeResult // results for each node in the flow
 
 	// These fields are updated by the search agent after it runs a search
 	PersistentMaps  map[string]map[string]interface{}
@@ -78,6 +79,14 @@ type ScheduledSearch struct {
 	LastSearchIDs   []string      // the IDs of the most recently performed searches
 	LastError       string        // any error from the last run of the scheduled search
 	DebugOutput     []byte        // output of the script if debugmode was enabled
+}
+
+type FlowNodeResult struct {
+	Payload map[string]interface{} // Only populated if the flow ran with the debug flag
+	Log     string
+	Error   error
+	Start   int64 // unix nanoseconds
+	End     int64 // unix nanoseconds
 }
 
 type ScheduledSearchParseRequest struct {

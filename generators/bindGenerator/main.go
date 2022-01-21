@@ -13,6 +13,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"strings"
 	"time"
 
 	rd "github.com/Pallinder/go-randomdata"
@@ -43,7 +44,7 @@ func init() {
 }
 
 func main() {
-	var igst *ingest.IngestMuxer
+	var genconn base.GeneratorConn
 	var totalBytes uint64
 	var totalCount uint64
 	var src net.IP
@@ -51,30 +52,30 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	if igst, src, err = base.NewIngestMuxer(`bindgenerator`, ``, cfg, time.Second); err != nil {
+	if genconn, src, err = base.NewIngestMuxer(`bindgenerator`, ``, cfg, time.Second); err != nil {
 		log.Fatal(err)
 	}
-	tag, err := igst.GetTag(cfg.Tag)
+	tag, err := genconn.GetTag(cfg.Tag)
 	if err != nil {
 		log.Fatalf("Failed to lookup tag %s: %v", cfg.Tag, err)
 	}
 	start := time.Now()
 
 	if !cfg.Streaming {
-		if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg.Count, cfg.Duration, genData); err != nil {
+		if totalCount, totalBytes, err = base.OneShot(genconn, tag, src, cfg.Count, cfg.Duration, genData); err != nil {
 			log.Fatal("Failed to throw entries ", err)
 		}
 	} else {
-		if totalCount, totalBytes, err = base.Stream(igst, tag, src, cfg.Count, genData); err != nil {
+		if totalCount, totalBytes, err = base.Stream(genconn, tag, src, cfg.Count, genData); err != nil {
 			log.Fatal("Failed to stream entries ", err)
 		}
 	}
 
-	if err = igst.Sync(time.Second); err != nil {
+	if err = genconn.Sync(time.Second); err != nil {
 		log.Fatal("Failed to sync ingest muxer ", err)
 	}
 
-	if err = igst.Close(); err != nil {
+	if err = genconn.Close(); err != nil {
 		log.Fatal("Failed to close ingest muxer ", err)
 	}
 
@@ -121,23 +122,70 @@ func randProto() string {
 }
 
 var (
-	tlds = []string{
-		`io`, `com`, `net`, `us`, `co.uk`,
-	}
+	tlds    = []string{`io`, `com`, `net`, `us`, `co.uk`}
+	badTLDs = []string{`gravwell`, `foobar`, `barbaz`}
 )
 
 func randTLD() string {
 	return tlds[rand.Intn(len(tlds))]
 }
 
+func badTLD() string {
+	return badTLDs[rand.Intn(len(badTLDs))]
+}
+
 func randHostname() (host, A string) {
-	return fmt.Sprintf("%s.%s.%s", rd.Noun(), rd.Noun(), randTLD()), randProto()
+	A = randProto()
+	if r := rand.Uint32(); (r & 0x7) == 0x3 {
+		host = randReverseLookupHost(A)
+	} else if (r & 0x7f) == 42 {
+		host = fmt.Sprintf("%s.%s", rd.Noun(), badTLD())
+	} else {
+		host = fmt.Sprintf("%s.%s.%s", rd.Noun(), rd.Noun(), randTLD())
+	}
+	return
+}
+
+func randReverseLookupHost(aaaa string) (host string) {
+	if len(aaaa) == 4 {
+		host = fmt.Sprintf("%s.ip6.arpa", ipRevGen(v6gen.IP()))
+	} else {
+		host = fmt.Sprintf("%s.in-addr.arpa", ipRevGen(v4gen.IP()))
+	}
+	return
+}
+
+func ipRevGen(ip net.IP) string {
+	if len(ip) == 16 {
+		return ip6RevGen(ip)
+	}
+	var sb strings.Builder
+	end := len(ip) - 1
+	for i := end; i >= 0; i-- {
+		b := ip[i]
+		if i == end {
+			fmt.Fprintf(&sb, "%d", b)
+		} else {
+			fmt.Fprintf(&sb, ".%d", b)
+		}
+	}
+	return sb.String()
+}
+
+func ip6RevGen(ip net.IP) string {
+	var sb strings.Builder
+	end := len(ip) - 1
+	for i := end; i >= 0; i-- {
+		b := ip[i]
+		if i == end {
+			fmt.Fprintf(&sb, "%x.%x", b&0xf, b>>4)
+		} else {
+			fmt.Fprintf(&sb, ".%x.%x", b&0xf, b>>4)
+		}
+	}
+	return sb.String()
 }
 
 func serverIP() net.IP {
 	return serverIPs[rand.Intn(len(serverIPs))]
-}
-
-func genStructData() string {
-	return fmt.Sprintf(`[%s source-address="%s" source-port=%d destination-address="%s" destination-port=%d useragent="%s"]`, rd.Email(), v4gen.IP().String(), 0x2000+rand.Intn(0xffff-0x2000), v4gen.IP().String(), 1+rand.Intn(2047), rd.UserAgentString())
 }

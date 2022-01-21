@@ -129,7 +129,6 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Secret(),
-		LogLevel:           cfg.LogLevel(),
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
 		Logger:             lg,
 		IngesterName:       "httppost",
@@ -148,6 +147,9 @@ func main() {
 		lg.Fatal("failed to create new uniform muxer", log.KVErr(err))
 	}
 	debugout("Started ingester muxer\n")
+	if cfg.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	if err := igst.Start(); err != nil {
 		lg.Fatal("failed start our ingest system", log.KVErr(err))
 	}

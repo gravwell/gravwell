@@ -141,7 +141,6 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Secret(),
-		LogLevel:           cfg.LogLevel(),
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
 		IngesterName:       ingesterName,
 		IngesterVersion:    version.GetVersion(),
@@ -162,6 +161,9 @@ func main() {
 
 	defer igst.Close()
 	debugout("Started ingester muxer\n")
+	if cfg.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	if err := igst.Start(); err != nil {
 		lg.FatalCode(0, "failed start our ingest system", log.KVErr(err))
 	}
@@ -218,7 +220,7 @@ func main() {
 				return
 			}
 		case ipfixType:
-			if bh, err = NewIpfixHandler(bc, igst); err != nil {
+			if bh, err = NewIpfixHandler(bc); err != nil {
 				lg.FatalCode(0, "NewIpfixHandler failed", log.KVErr(err))
 				return
 			}

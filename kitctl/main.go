@@ -573,7 +573,7 @@ itemLoop:
 			if newmf.Items[i].Name == mf.Items[j].Name && newmf.Items[i].Type == mf.Items[j].Type {
 				log.Printf("Replacing existing item %v", newmf.Items[i].Name)
 				mf.Items[j] = newmf.Items[i]
-				break itemLoop
+				continue itemLoop
 			}
 		}
 		// No conflict, just append
@@ -588,7 +588,7 @@ macroLoop:
 			if newmf.ConfigMacros[i].MacroName == mf.ConfigMacros[j].MacroName {
 				log.Printf("Replacing existing config macro %v", newmf.ConfigMacros[i].MacroName)
 				mf.ConfigMacros[j] = newmf.ConfigMacros[i]
-				break macroLoop
+				continue macroLoop
 			}
 		}
 		// No conflict, just append

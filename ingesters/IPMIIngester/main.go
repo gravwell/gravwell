@@ -148,7 +148,6 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Global.Secret(),
-		LogLevel:           cfg.Global.LogLevel(),
 		VerifyCert:         !cfg.Global.InsecureSkipTLSVerification(),
 		IngesterName:       ingesterName,
 		IngesterVersion:    version.GetVersion(),
@@ -167,8 +166,10 @@ func main() {
 		lg.Fatal("failed build our ingest system", log.KVErr(err))
 		return
 	}
-
 	defer igst.Close()
+	if cfg.Global.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 
 	if err := igst.Start(); err != nil {
 		lg.Fatal("failed start our ingest system", log.KVErr(err))

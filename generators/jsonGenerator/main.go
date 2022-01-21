@@ -19,7 +19,7 @@ import (
 )
 
 func main() {
-	var igst *ingest.IngestMuxer
+	var igst base.GeneratorConn
 	var totalBytes uint64
 	var totalCount uint64
 	var src net.IP

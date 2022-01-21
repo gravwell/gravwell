@@ -167,7 +167,6 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Secret(),
-		LogLevel:           cfg.LogLevel(),
 		Logger:             lg,
 		IngesterName:       appName,
 		IngesterVersion:    version.GetVersion(),
@@ -186,6 +185,10 @@ func main() {
 	}
 	defer igst.Close()
 	debugout("Starting ingester muxer\n")
+	// Henceforth, logs will also go out via the muxer to the gravwell tag
+	if cfg.Global.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	if err := igst.Start(); err != nil {
 		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
@@ -275,10 +278,10 @@ func main() {
 						if stream.JSON_Metrics {
 							jr, err := json.Marshal(report)
 							if err == nil {
-								igst.Infof("%v", string(jr))
+								lg.Infof("%v", string(jr))
 							}
 						} else {
-							igst.Info("stream stats",
+							lg.Info("stream stats",
 								log.KV("stream", stream.Stream_Name),
 								log.KV("shards", len(shards)),
 								log.KV("delay", report.AverageLag),
@@ -393,14 +396,14 @@ func main() {
 								if awsErr, ok := err.(awserr.Error); ok {
 									// process SDK error
 									if awsErr.Code() == kinesis.ErrCodeProvisionedThroughputExceededException {
-										lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId),log.KV("stream", stream.Stream_Name))
+										lg.Warn("throughput exceeded, trying again", log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
 										time.Sleep(500 * time.Millisecond)
 									} else if awsErr.Code() == kinesis.ErrCodeExpiredIteratorException {
-										lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId),log.KV("stream", stream.Stream_Name))
+										lg.Info("Iterator expired, re-initializing", log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
 										time.Sleep(100 * time.Millisecond)
 										continue reconnectLoop
 									} else {
-										lg.Error("answer error", log.KV("code", awsErr.Code()), log.KV("message", awsErr.Message()), log.KV("shard", *shard.ShardId),log.KV("stream", stream.Stream_Name))
+										lg.Error("answer error", log.KV("code", awsErr.Code()), log.KV("message", awsErr.Message()), log.KV("shard", *shard.ShardId), log.KV("stream", stream.Stream_Name))
 										time.Sleep(500 * time.Millisecond)
 									}
 								} else {

@@ -57,20 +57,21 @@ const (
 	done       pluginState = 4
 )
 
-func NewPluginProgram(content []byte) (pp *PluginProgram, err error) {
+func NewPluginProgram(content []byte, debug bool) (pp *PluginProgram, err error) {
 	if len(content) == 0 {
 		err = ErrInvalidScript
 		return
 	}
 	fsys := scriggo.Files{`main.go`: content}
-	pp, err = NewPlugin(fsys)
+	pp, err = NewPlugin(fsys, debug)
 	return
 }
 
-func NewPlugin(fsys fs.FS) (pp *PluginProgram, err error) {
+func NewPlugin(fsys fs.FS, debug bool) (pp *PluginProgram, err error) {
 	ppTemp := &PluginProgram{
-		rc: make(chan error, 1),
-		dc: make(chan error, 1),
+		debug: debug,
+		rc:    make(chan error, 1),
+		dc:    make(chan error, 1),
 	}
 	ppTemp.ctx, ppTemp.cancel = context.WithCancel(context.Background())
 	if err = buildProgram(fsys, ppTemp); err != nil {
@@ -129,6 +130,7 @@ type ProcessFunc func([]*entry.Entry) ([]*entry.Entry, error)
 type PluginProgram struct {
 	sync.WaitGroup
 	sync.Mutex
+	debug      bool
 	ctx        context.Context
 	cancel     context.CancelFunc
 	cf         ConfigFunc
@@ -285,9 +287,14 @@ func (pp *PluginProgram) execute() {
 		pp.setState(bad)
 		return
 	}
-	defer execCatcher(pp.dc) //catch the nasties
+	pf := noPrint
+	if pp.debug {
+		pf = stdoutPrint
+	}
+	//defer execCatcher(pp.dc) //catch the nasties
 	opts := scriggo.RunOptions{
 		Context: pp.ctx,
+		Print:   pf,
 	}
 	pp.Add(1)
 	pp.setState(running)
@@ -320,6 +327,7 @@ func buildCatcher(err *error) {
 
 func execCatcher(dc chan error) {
 	if r := recover(); r != nil {
+		fmt.Println("RECOVER", r)
 		if dc != nil {
 			dc <- fmt.Errorf("Critical Error, failed to execute program - %v", r)
 		}
@@ -386,4 +394,9 @@ func (tt *TestTagger) KnownTags() (r []string) {
 		}
 	}
 	return
+}
+
+func noPrint(interface{}) {}
+func stdoutPrint(val interface{}) {
+	fmt.Printf("%v", val)
 }

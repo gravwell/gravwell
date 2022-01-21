@@ -149,18 +149,17 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Secret(),
-		LogLevel:           cfg.LogLevel(),
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
 		IngesterName:       ingesterName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
 		IngesterLabel:      cfg.Label,
 		RateLimitBps:       lmt,
-		Logger:             lg,
 		CacheDepth:         cfg.Cache_Depth,
 		CachePath:          cfg.Ingest_Cache_Path,
 		CacheSize:          cfg.Max_Ingest_Cache,
 		CacheMode:          cfg.Cache_Mode,
+		Logger:             lg,
 		LogSourceOverride:  net.ParseIP(cfg.Log_Source_Override),
 	}
 	igst, err := ingest.NewUniformMuxer(igCfg)
@@ -170,11 +169,15 @@ func main() {
 	}
 	defer igst.Close()
 	debugout("Started ingester muxer\n")
-
+	// Henceforth, logs will also go out via the muxer to the gravwell tag
+	if cfg.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	if err := igst.Start(); err != nil {
 		lg.Fatal("failed start our ingest system", log.KVErr(err))
 		return
 	}
+
 	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
 		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
@@ -185,7 +188,7 @@ func main() {
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
-		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KVErr(err))
+		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KV("ingesteruuid", id), log.KVErr(err))
 	}
 
 	wg := &sync.WaitGroup{}
@@ -196,20 +199,21 @@ func main() {
 
 	//fire off our simple listeners
 	if err := startSimpleListeners(cfg, igst, wg, &flshr, ctx); err != nil {
-		lg.FatalCode(0, "Failed to start simple listeners", log.KVErr(err))
+		lg.FatalCode(0, "Failed to start simple listeners", log.KV("ingesteruuid", id), log.KVErr(err))
 		return
 	}
 	//fire off our json listeners
 	if err := startJSONListeners(cfg, igst, wg, &flshr, ctx); err != nil {
-		lg.FatalCode(0, "Failed to start json listeners", log.KVErr(err))
+		lg.FatalCode(0, "Failed to start json listeners", log.KV("ingesteruuid", id), log.KVErr(err))
 		return
 	}
 
-	debugout("Running\n")
+	lg.Info("Ingester running")
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
 	debugout("Closing %d connections\n", connCount())
+	lg.Info("Closing active connections", log.KV("ingesteruuid", id), log.KV("active", connCount()))
 
 	go func() {
 		time.Sleep(time.Second)
@@ -237,7 +241,7 @@ func main() {
 	if err := flshr.Close(); err != nil {
 		lg.Error("failed to close preprocessors", log.KVErr(err))
 	}
-	lg.Info("simplerelay ingester exiting", log.KV("ingesteruuid", id))
+	lg.Info("Ingester exiting", log.KV("ingesteruuid", id))
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}

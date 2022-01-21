@@ -152,6 +152,7 @@ type KitBuildRequest struct {
 type StoredBuildRequest struct {
 	UID int32
 	KitBuildRequest
+	BuildDate time.Time
 }
 
 type KitBuildResponse struct {
