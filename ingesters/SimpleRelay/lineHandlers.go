@@ -16,6 +16,7 @@ import (
 	"net"
 	"os"
 
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -46,7 +47,6 @@ func lineConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 		var err error
 		tcfg := timegrinder.Config{
 			EnableLeftMostSeed: true,
-			FormatOverride:     cfg.formatOverride,
 		}
 		tg, err = timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
@@ -66,7 +66,12 @@ func lineConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 				return
 			}
 		}
-
+		if cfg.formatOverride != `` {
+			if err = tg.SetFormatOverride(cfg.formatOverride); err != nil {
+				lg.Error("Failed to load format override", log.KV("override", cfg.formatOverride), log.KVErr(err))
+				return
+			}
+		}
 	}
 	bio := bufio.NewReader(c)
 	for {
@@ -98,7 +103,6 @@ func lineConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 	buff := make([]byte, 16*1024) //local buffer that should be big enough for even the largest UDP packets
 	tcfg := timegrinder.Config{
 		EnableLeftMostSeed: true,
-		FormatOverride:     cfg.formatOverride,
 	}
 	tg, err := timegrinder.NewTimeGrinder(tcfg)
 	if err != nil {
@@ -115,6 +119,12 @@ func lineConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 		err = tg.SetTimezone(cfg.timezoneOverride)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", cfg.timezoneOverride, err)
+			return
+		}
+	}
+	if cfg.formatOverride != `` {
+		if err = tg.SetFormatOverride(cfg.formatOverride); err != nil {
+			lg.Error("Failed to load format override", log.KV("override", cfg.formatOverride), log.KVErr(err))
 			return
 		}
 	}

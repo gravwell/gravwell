@@ -35,6 +35,7 @@ func init() {
 }
 
 type TimeGrinder struct {
+	Config
 	procs    []Processor
 	curr     int
 	count    int
@@ -79,7 +80,7 @@ func NewTimeGrinder(c Config) (*TimeGrinder, error) {
 // New constructs and returns a new TimeGrinder object.
 // On error, it will return a nil and error variable.
 // The TimeGrinder object is completely safe for concurrent use.
-func New(c Config) (*TimeGrinder, error) {
+func New(c Config) (tg *TimeGrinder, err error) {
 	procs := make([]Processor, 0, 16)
 
 	//build ANSIC processor
@@ -172,23 +173,31 @@ func New(c Config) (*TimeGrinder, error) {
 	// Unix nanoseconds
 	procs = append(procs, NewUnixNanoTimeProcessor())
 
-	var proc Processor
+	tg = &TimeGrinder{
+		procs: procs,
+		count: len(procs),
+		loc:   time.UTC,
+		seed:  c.EnableLeftMostSeed,
+	}
 	if c.FormatOverride != `` {
+		err = tg.SetFormatOverride(c.FormatOverride)
+	}
+	return
+}
+
+func (tg *TimeGrinder) SetFormatOverride(v string) (err error) {
+	if v != `` {
 		//attempt to find the override
-		for i := range procs {
-			if procs[i].Name() == c.FormatOverride {
-				proc = procs[i]
+		for i := range tg.procs {
+			if tg.procs[i].Name() == v {
+				tg.override = tg.procs[i]
+				tg.FormatOverride = v
+				return
 			}
 		}
 	}
-
-	return &TimeGrinder{
-		procs:    procs,
-		count:    len(procs),
-		loc:      time.UTC,
-		seed:     c.EnableLeftMostSeed,
-		override: proc,
-	}, nil
+	err = fmt.Errorf("override %q not found", v)
+	return
 }
 
 func (tg *TimeGrinder) SetLocalTime() {
