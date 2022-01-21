@@ -154,6 +154,11 @@ func GetConfig(path string) (*cfgType, error) {
 		} else if err := c.TimeFormat.LoadFormats(cnsmr.tg); err != nil {
 			return nil, err
 		} else {
+			if v.Timestamp_Format_Override != `` {
+				if err = cnsmr.tg.SetFormatOverride(v.Timestamp_Format_Override); err != nil {
+					return nil, err
+				}
+			}
 			c.Consumers[k] = &cnsmr
 		}
 	}

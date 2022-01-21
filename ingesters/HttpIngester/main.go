@@ -186,12 +186,16 @@ func main() {
 		} else {
 			tcfg := timegrinder.Config{
 				EnableLeftMostSeed: true,
-				FormatOverride:     v.Timestamp_Format_Override,
 			}
 			if hcfg.tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
 				lg.Fatal("failed to generate new timegrinder", log.KVErr(err))
-			} else if cfg.TimeFormat.LoadFormats(hcfg.tg); err != nil {
+			} else if err = cfg.TimeFormat.LoadFormats(hcfg.tg); err != nil {
 				lg.Fatal("failed to load custom time formats", log.KVErr(err))
+			}
+			if v.Timestamp_Format_Override != `` {
+				if err = hcfg.tg.SetFormatOverride(v.Timestamp_Format_Override); err != nil {
+					lg.Fatal("Failed to set override timestamp", log.KVErr(err))
+				}
 			}
 			if v.Assume_Local_Timezone {
 				hcfg.tg.SetLocalTime()

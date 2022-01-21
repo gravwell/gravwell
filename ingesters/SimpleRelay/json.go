@@ -212,7 +212,6 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 		var err error
 		tcfg := timegrinder.Config{
 			EnableLeftMostSeed: true,
-			FormatOverride:     cfg.formatOverride,
 		}
 		tg, err = timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
@@ -229,6 +228,12 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 			err = tg.SetTimezone(cfg.timezoneOverride)
 			if err != nil {
 				lg.Error("failed to set timezone", log.KV("timezone", cfg.timezoneOverride), log.KVErr(err))
+				return
+			}
+		}
+		if cfg.formatOverride != `` {
+			if err = tg.SetFormatOverride(cfg.formatOverride); err != nil {
+				lg.Error("Failed to load format override", log.KV("override", cfg.formatOverride), log.KVErr(err))
 				return
 			}
 		}
