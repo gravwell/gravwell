@@ -77,11 +77,15 @@ func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
 		tcfg := timegrinder.Config{
 			EnableLeftMostSeed: true,
 		}
-		tcfg.FormatOverride = cfg.TimestampFormatOverride
 		if tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
 			return nil, err
 		} else if err = cfg.TimeFormat.LoadFormats(tg); err != nil {
 			return nil, err
+		}
+		if cfg.TimestampFormatOverride != `` {
+			if err = tg.SetFormatOverride(cfg.TimestampFormatOverride); err != nil {
+				return nil, err
+			}
 		}
 		if cfg.Debugger != nil {
 			cfg.Debugger("Loaded %d custom time formats\n", len(cfg.TimeFormat))
