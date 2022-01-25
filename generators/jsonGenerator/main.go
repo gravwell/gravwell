@@ -38,11 +38,11 @@ func main() {
 	start := time.Now()
 
 	if !cfg.Streaming {
-		if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg.Count, cfg.Duration, genData); err != nil {
+		if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg, genData); err != nil {
 			log.Fatal("Failed to throw entries ", err)
 		}
 	} else {
-		if totalCount, totalBytes, err = base.Stream(igst, tag, src, cfg.Count, genData); err != nil {
+		if totalCount, totalBytes, err = base.Stream(igst, tag, src, cfg, genData); err != nil {
 			log.Fatal("Failed to stream entries ", err)
 		}
 	}

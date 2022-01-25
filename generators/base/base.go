@@ -40,6 +40,7 @@ var (
 	span            = flag.String("duration", "1h", "Total Duration")
 	srcOverride     = flag.String("source-override", "", "Source override value")
 	status          = flag.Bool("status", false, "show ingest rates as we run")
+	startTime       = flag.String("start-time", "", "optional starting timestamp for entries, must be RFC3339 format")
 )
 
 var (
@@ -59,6 +60,7 @@ type GeneratorConfig struct {
 	Tenant      string
 	Count       uint64
 	Duration    time.Duration
+	Start       time.Time
 	SRC         net.IP
 	Logger      *log.Logger
 	LogLevel    log.Level
@@ -81,6 +83,10 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 	}
 	if gc.Duration, err = getDuration(*span); err != nil {
 		err = fmt.Errorf("invalid duration %s %w", *span, err)
+		return
+	}
+	if gc.Start, err = getStartTime(*startTime); err != nil {
+		err = fmt.Errorf("invalid start-time %s %w", *startTime, err)
 		return
 	}
 
@@ -266,10 +272,17 @@ func getDuration(v string) (d time.Duration, err error) {
 	return
 }
 
+func getStartTime(v string) (t time.Time, err error) {
+	if v != `` {
+		t, err = time.Parse(time.RFC3339, v)
+	}
+	return
+}
+
 type DataGen func(time.Time) []byte
 
-func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, dur time.Duration, dg DataGen) (totalCount, totalBytes uint64, err error) {
-	if dg == nil || conn == nil || dur < 0 {
+func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorConfig, dg DataGen) (totalCount, totalBytes uint64, err error) {
+	if dg == nil || cfg.Count == 0 || cfg.Duration < 0 {
 		err = errors.New("invalid parameters")
 		return
 	}
@@ -284,9 +297,12 @@ func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, dur
 		su.Start()
 		defer su.Stop()
 	}
-	sp := dur / time.Duration(cnt)
-	ts := time.Now().Add(-1 * dur)
-	for i := uint64(0); i < cnt; i++ {
+	sp := cfg.Duration / time.Duration(cfg.Count)
+	var ts time.Time
+	if ts = cfg.Start; ts.IsZero() {
+		ts = time.Now().Add(-1 * cfg.Duration)
+	}
+	for i := uint64(0); i < cfg.Count; i++ {
 		ent := &entry.Entry{
 			TS:   entry.FromStandard(ts),
 			Tag:  tag,
@@ -303,7 +319,7 @@ func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, dur
 	return
 }
 
-func Stream(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, dg DataGen) (totalCount, totalBytes uint64, err error) {
+func Stream(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorConfig, dg DataGen) (totalCount, totalBytes uint64, err error) {
 	var stop bool
 	r := make(chan error, 1)
 	go func(ret chan error, stp *bool) {
