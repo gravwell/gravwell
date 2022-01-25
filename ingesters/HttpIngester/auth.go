@@ -40,16 +40,18 @@ const (
 	userFormValue string = `username`
 	passFormValue string = `password`
 	issuer        string = `gravwell`
+	authHeader    string = `Authorization`
 
 	jwtDuration time.Duration = 24 * 2 * time.Hour
 )
 
 var (
-	ErrInvalidAuthType   = errors.New("Invalid authentication type")
-	ErrLoginURLRequired  = errors.New("Authentication type requires a login URL")
-	ErrUnauthorized      = errors.New("Unauthorized")
-	ErrMissingTokenName  = errors.New("Token name is invalid")
-	ErrMissingTokenValue = errors.New("Token value cannot be empty")
+	ErrInvalidAuthType    = errors.New("Invalid authentication type")
+	ErrLoginURLRequired   = errors.New("Authentication type requires a login URL")
+	ErrUnauthorized       = errors.New("Unauthorized")
+	ErrMissingTokenName   = errors.New("Token name is invalid")
+	ErrMissingTokenValue  = errors.New("Token value cannot be empty")
+	ErrMissingHeaderValue = errors.New("Token header value cannot be empty")
 )
 
 type authType string
@@ -193,6 +195,7 @@ func (bah *basicAuthHandler) AuthRequest(r *http.Request) error {
 type tokHandler struct {
 	noLogin
 	lgr      *log.Logger
+	hdrName  string
 	tokName  string
 	tokValue string
 }
@@ -201,15 +204,18 @@ type preTokenHandler struct {
 	tokHandler
 }
 
-func newPresharedTokenHandler(name, value string, lgr *log.Logger) (hnd authHandler, err error) {
+func newPresharedHeaderTokenHandler(hdr, name, value string, lgr *log.Logger) (hnd authHandler, err error) {
 	if name == `` {
 		err = ErrMissingTokenName
 	} else if value == `` {
 		err = ErrMissingTokenValue
+	} else if hdr == `` {
+		err = ErrMissingHeaderValue
 	} else {
 		hnd = &preTokenHandler{
 			tokHandler: tokHandler{
 				lgr:      lgr,
+				hdrName:  hdr,
 				tokName:  name,
 				tokValue: value,
 			},
@@ -218,8 +224,12 @@ func newPresharedTokenHandler(name, value string, lgr *log.Logger) (hnd authHand
 	return
 }
 
+func newPresharedTokenHandler(name, value string, lgr *log.Logger) (hnd authHandler, err error) {
+	return newPresharedHeaderTokenHandler(authHeader, name, value, lgr)
+}
+
 func (pth *preTokenHandler) AuthRequest(r *http.Request) error {
-	tok, err := getAuthToken(r, pth.tokName)
+	tok, err := getHeaderAuthToken(r, pth.hdrName, pth.tokName)
 	if err != nil {
 		return err
 	} else if tok != pth.tokValue {
@@ -464,22 +474,29 @@ func getJWTToken(r *http.Request) (string, error) {
 	return getAuthToken(r, `Bearer`)
 }
 
-func getAuthToken(r *http.Request, tokName string) (ret string, err error) {
-	if tokName == `` {
+func getHeaderAuthToken(r *http.Request, hdrName, tokName string) (ret string, err error) {
+	if hdrName == `` {
+		err = errors.New("Empty header name")
+		return
+	} else if tokName == `` {
 		err = errors.New("Empty token name")
 		return
 	}
 	prefix := tokName + ` `
-	if auth := r.Header.Get(`Authorization`); auth != `` {
+	if auth := r.Header.Get(hdrName); auth != `` {
 		if strings.HasPrefix(auth, prefix) {
 			ret = strings.TrimPrefix(auth, prefix)
 		} else {
-			err = errors.New("invalid authorization token name")
+			err = errors.New("invalid header token name")
 		}
 	} else {
-		err = errors.New("Missing Authorization header value")
+		fmt.Println("BAD", hdrName, r.Header)
 	}
 	return
+}
+
+func getAuthToken(r *http.Request, tokName string) (ret string, err error) {
+	return getHeaderAuthToken(r, `Authorization`, tokName)
 }
 
 func getParamToken(r *http.Request, tokName string) (ret string, err error) {

@@ -228,27 +228,11 @@ func main() {
 		debugout("URL %s handling %s\n", v.URL, v.Tag_Name)
 	}
 
-	for _, v := range cfg.HECListener {
-		hcfg := handlerConfig{
-			hecCompat: true,
-		}
-		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
-			lg.Fatal("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
-		}
-		if v.Ignore_Timestamps {
-			hcfg.ignoreTs = true
-		}
-		hcfg.method = http.MethodPost
-
-		hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor)
-		if err != nil {
-			lg.Fatal("preprocessor construction error", log.KVErr(err))
-		}
-		if hcfg.auth, err = newPresharedTokenHandler(`Splunk`, v.TokenValue, lgr); err != nil {
-			lg.Fatal("failed to generate HEC-Compatible-Listener auth", log.KVErr(err))
-		}
-		hnd.mp[v.URL] = hcfg
-		debugout("URL %s handling %s\n", v.URL, v.Tag_Name)
+	if err = includeHecListeners(hnd, igst, cfg, lgr); err != nil {
+		lg.Fatal("failed to include HEC Listeners", log.KVErr(err))
+	}
+	if err = includeKDSListeners(hnd, igst, cfg, lgr); err != nil {
+		lg.Fatal("failed to include KDS Listeners", log.KVErr(err))
 	}
 
 	srv := &http.Server{

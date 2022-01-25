@@ -24,10 +24,9 @@ import (
 )
 
 const (
-	maxConfigSize  int64  = (1024 * 1024 * 2) //2MB, even this is crazy large
-	defaultMaxBody int    = 4 * 1024 * 1024   //4MB
-	defaultLogLoc         = `/opt/gravwell/log/gravwell_http_ingester.log`
-	defaultHECUrl  string = `/services/collector/event`
+	maxConfigSize  int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
+	defaultMaxBody int   = 4 * 1024 * 1024   //4MB
+	defaultLogLoc        = `/opt/gravwell/log/gravwell_http_ingester.log`
 
 	defaultMethod string = `POST`
 )
@@ -42,11 +41,12 @@ type gbl struct {
 }
 
 type cfgReadType struct {
-	Global                  gbl
-	Listener                map[string]*lst
-	HEC_Compatible_Listener map[string]*hecCompatible
-	Preprocessor            processors.ProcessorConfig
-	TimeFormat              config.CustomTimeFormat
+	Global                           gbl
+	Listener                         map[string]*lst
+	HEC_Compatible_Listener          map[string]*hecCompatible
+	Kinesis_Delivery_Stream_Listener map[string]*kds
+	Preprocessor                     processors.ProcessorConfig
+	TimeFormat                       config.CustomTimeFormat
 }
 
 type lst struct {
@@ -62,18 +62,11 @@ type lst struct {
 	Preprocessor              []string
 }
 
-type hecCompatible struct {
-	URL               string //override the URL, defaults to "/services/collector/event"
-	TokenValue        string `json:"-"` //DO NOT SEND THIS when marshalling
-	Tag_Name          string //the tag to assign to the request
-	Ignore_Timestamps bool
-	Preprocessor      []string
-}
-
 type cfgType struct {
 	gbl
 	Listener     map[string]*lst
 	HECListener  map[string]*hecCompatible
+	KDSListener  map[string]*kds
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
 }
@@ -87,6 +80,7 @@ func GetConfig(path string) (*cfgType, error) {
 		gbl:          cr.Global,
 		Listener:     cr.Listener,
 		HECListener:  cr.HEC_Compatible_Listener,
+		KDSListener:  cr.Kinesis_Delivery_Stream_Listener,
 		Preprocessor: cr.Preprocessor,
 		TimeFormat:   cr.TimeFormat,
 	}
@@ -117,7 +111,7 @@ func verifyConfig(c *cfgType) error {
 		return err
 	}
 	urls := map[string]string{}
-	if len(c.Listener) == 0 && len(c.HECListener) == 0 {
+	if len(c.Listener) == 0 && len(c.HECListener) == 0 && len(c.KDSListener) == 0 {
 		return errors.New("No Listeners specified")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
@@ -168,6 +162,21 @@ func verifyConfig(c *cfgType) error {
 		c.HECListener[k] = v
 	}
 
+	for k, v := range c.KDSListener {
+		pth, err := v.validate(k)
+		if err != nil {
+			return err
+		}
+		if orig, ok := urls[pth]; ok {
+			return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.URL, k, orig)
+		}
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("HTTP Kinesis-Delivery-Stream %s preprocessor invalid: %v", k, err)
+		}
+		urls[pth] = k
+		c.KDSListener[k] = v
+	}
+
 	if len(urls) == 0 {
 		return fmt.Errorf("No listeners specified")
 	}
@@ -187,6 +196,15 @@ func (c *cfgType) Tags() (tags []string, err error) {
 		}
 	}
 	for _, v := range c.HECListener {
+		if len(v.Tag_Name) == 0 {
+			continue
+		}
+		if _, ok := tagMp[v.Tag_Name]; !ok {
+			tags = append(tags, v.Tag_Name)
+			tagMp[v.Tag_Name] = true
+		}
+	}
+	for _, v := range c.KDSListener {
 		if len(v.Tag_Name) == 0 {
 			continue
 		}
@@ -263,30 +281,5 @@ func (v *lst) validate(name string) (string, error) {
 	if v.Method == `` {
 		v.Method = defaultMethod
 	}
-	return pth, nil
-}
-
-func (v *hecCompatible) validate(name string) (string, error) {
-	if len(v.URL) == 0 {
-		v.URL = defaultHECUrl
-	}
-	p, err := url.Parse(v.URL)
-	if err != nil {
-		return ``, fmt.Errorf("URL structure is invalid: %v", err)
-	}
-	if p.Scheme != `` {
-		return ``, errors.New("May not specify scheme in listening URL")
-	} else if p.Host != `` {
-		return ``, errors.New("May not specify host in listening URL")
-	}
-	pth := p.Path
-	if len(v.Tag_Name) == 0 {
-		v.Tag_Name = `default`
-	}
-	if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
-		return ``, errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + name)
-	}
-	//normalize the path
-	v.URL = pth
 	return pth, nil
 }
