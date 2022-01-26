@@ -31,7 +31,6 @@ const (
 // KinesisDeliveryStream
 type kds struct {
 	URL               string //override the URL, defaults to "/services/collector/event"
-	TokenName         string `json:"-"` //DO NOT SEND THIS when marshalling
 	TokenValue        string `json:"-"` //DO NOT SEND THIS when marshalling
 	Tag_Name          string //the tag to assign to the request
 	Ignore_Timestamps bool
@@ -122,6 +121,7 @@ type kdsresp struct {
 }
 
 func (k kdsresp) send(w http.ResponseWriter, code int) {
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(k)
 }
@@ -163,7 +163,7 @@ func includeKDSListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			lg.Error("preprocessor construction error", log.KVErr(err))
 			return
 		}
-		if hcfg.auth, err = newPresharedHeaderTokenHandler(kdsAuthTokenHeader, v.TokenName, v.TokenValue, lgr); err != nil {
+		if hcfg.auth, err = newPresharedHeaderTokenHandler(kdsAuthTokenHeader, v.TokenValue, lgr); err != nil {
 			lg.Error("failed to generate Kinesis-Delivery-Stream auth", log.KVErr(err))
 			return
 		}

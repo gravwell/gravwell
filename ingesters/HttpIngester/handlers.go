@@ -44,9 +44,14 @@ type handler struct {
 	healthCheckURL string
 }
 
-func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	debugout("REQUEST %s %v\n", r.Method, r.URL)
-	debugout("HEADERS %v\n", r.Header)
+func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	w := &trackingRW{
+		ResponseWriter: rw,
+	}
+	defer func(trw *trackingRW, req *http.Request) {
+		debugout("REQUEST %s %v %d %d\n", req.Method, req.URL, trw.code, trw.bytes)
+		debugout("\tHEADERS %v\n", req.Header)
+	}(w, r)
 	ip := getRemoteIP(r)
 	rdr, err := getReadableBody(r)
 	if err != nil {
@@ -177,5 +182,22 @@ func getReadableBody(r *http.Request) (rc io.ReadCloser, err error) {
 	default:
 		rc = r.Body
 	}
+	return
+}
+
+type trackingRW struct {
+	http.ResponseWriter
+	code  int
+	bytes int
+}
+
+func (trw *trackingRW) WriteHeader(code int) {
+	trw.code = code
+	trw.ResponseWriter.WriteHeader(code)
+}
+
+func (trw *trackingRW) Write(b []byte) (r int, err error) {
+	r, err = trw.ResponseWriter.Write(b)
+	trw.bytes += r
 	return
 }
