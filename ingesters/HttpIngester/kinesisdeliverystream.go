@@ -79,7 +79,7 @@ type record struct {
 	Data []byte `json:"data"`
 }
 
-func (h *handler) handleKDS(cfg handlerConfig, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
+func handleKDS(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
 	var kr kinesisRequest
 	if err := json.NewDecoder(io.LimitReader(rdr, int64(maxBody+256))).Decode(&kr); err != nil {
 		h.lgr.Info("bad request", log.KV("address", ip), log.KVErr(err))
@@ -147,8 +147,8 @@ func sendKDSOk(w http.ResponseWriter, id string) {
 
 func includeKDSListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
 	for _, v := range cfg.KDSListener {
-		hcfg := handlerConfig{
-			kdsCompat: true,
+		hcfg := routeHandler{
+			handler: handleKDS,
 		}
 		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			lg.Error("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
@@ -157,7 +157,6 @@ func includeKDSListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 		if v.Ignore_Timestamps {
 			hcfg.ignoreTs = true
 		}
-		hcfg.method = http.MethodPost
 
 		if hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Error("preprocessor construction error", log.KVErr(err))
@@ -167,7 +166,9 @@ func includeKDSListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			lg.Error("failed to generate Kinesis-Delivery-Stream auth", log.KVErr(err))
 			return
 		}
-		hnd.mp[v.URL] = hcfg
+		if hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
+			return
+		}
 		debugout("KDS Handler URL %s handling %s\n", v.URL, v.Tag_Name)
 	}
 	return

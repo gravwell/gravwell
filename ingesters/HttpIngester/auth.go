@@ -36,6 +36,7 @@ const (
 	cookie   authType = `cookie`
 	preToken authType = `preshared-token`
 	preParam authType = `preshared-parameter`
+	hdrToken authType = `preshared-header`
 
 	userFormValue string = `username`
 	passFormValue string = `password`
@@ -109,6 +110,15 @@ func (a *auth) Validate() (enabled bool, err error) {
 			return
 		}
 		enabled = true
+	case hdrToken:
+		if a.TokenName == `` {
+			a.TokenName = defaultTokenName
+		}
+		if a.TokenValue == `` {
+			err = fmt.Errorf("Missing Token-Value for auth type %s", a.AuthType)
+			return
+		}
+		enabled = true
 	}
 	return
 }
@@ -135,6 +145,8 @@ func (a auth) NewAuthHandler(lgr *log.Logger) (url string, hnd authHandler, err 
 		hnd, err = newPresharedTokenHandler(a.TokenName, a.TokenValue, lgr)
 	case preParam:
 		hnd, err = newPresharedParamHandler(a.TokenName, a.TokenValue, lgr)
+	case hdrToken:
+		hnd, err = newPresharedHeaderTokenHandler(a.TokenName, a.TokenValue, lgr)
 	default:
 		err = fmt.Errorf("Unknown authentication type %q", a.AuthType)
 	}
@@ -150,6 +162,9 @@ func parseAuthType(v string) (r authType, err error) {
 	case basic:
 	case jwtT:
 	case cookie:
+	case preToken:
+	case preParam:
+	case hdrToken:
 	default:
 		r = none
 		err = ErrInvalidAuthType
@@ -385,7 +400,7 @@ func newCookieAuthHandler(user, pass string, lgr *log.Logger) (hnd authHandler, 
 	} else if pass == `` {
 		err = errors.New("empty password")
 	} else if lgr == nil {
-		err = errors.New("empty password")
+		err = errors.New("empty logger")
 	} else {
 		hnd = &cookieAuthHandler{
 			lgr:     lgr,

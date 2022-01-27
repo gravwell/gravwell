@@ -12,6 +12,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"path"
 	"sort"
@@ -28,7 +29,7 @@ const (
 	defaultMaxBody int   = 4 * 1024 * 1024   //4MB
 	defaultLogLoc        = `/opt/gravwell/log/gravwell_http_ingester.log`
 
-	defaultMethod string = `POST`
+	defaultMethod = http.MethodPost
 )
 
 type gbl struct {
@@ -110,7 +111,7 @@ func verifyConfig(c *cfgType) error {
 	if err := c.ValidateTLS(); err != nil {
 		return err
 	}
-	urls := map[string]string{}
+	urls := map[route]string{}
 	if len(c.Listener) == 0 && len(c.HECListener) == 0 && len(c.KDSListener) == 0 {
 		return errors.New("No Listeners specified")
 	}
@@ -120,31 +121,32 @@ func verifyConfig(c *cfgType) error {
 		return err
 	}
 	if hc, ok := c.HealthCheck(); ok {
-		urls[hc] = `health check`
+		urls[newRoute(http.MethodGet, hc)] = `health check`
 	}
 	for k, v := range c.Listener {
 		pth, err := v.validate(k)
 		if err != nil {
 			return err
 		}
-		if orig, ok := urls[pth]; ok {
-			return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.URL, k, orig)
+		rt := newRoute(v.Method, pth)
+		if orig, ok := urls[rt]; ok {
+			return fmt.Errorf("%s %s duplicated in %s (was in %s)", v.Method, v.URL, k, orig)
 		}
 		//validate authentication
 		if enabled, err := v.auth.Validate(); err != nil {
 			return fmt.Errorf("Auth for %s is invalid: %v", k, err)
 		} else if enabled && v.LoginURL != `` {
 			//check the url
-			if orig, ok := urls[v.LoginURL]; ok {
-				return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.LoginURL, k, orig)
+			if orig, ok := urls[newRoute(http.MethodPost, v.LoginURL)]; ok {
+				return fmt.Errorf("%s %s duplicated in %s (was in %s)", v.Method, v.URL, k, orig)
 			}
-			urls[v.LoginURL] = k
+			urls[newRoute(http.MethodPost, v.LoginURL)] = k
 		}
 
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("HTTP Listener %s preprocessor invalid: %v", k, err)
 		}
-		urls[pth] = k
+		urls[rt] = k
 		c.Listener[k] = v
 	}
 	for k, v := range c.HECListener {
@@ -152,13 +154,14 @@ func verifyConfig(c *cfgType) error {
 		if err != nil {
 			return err
 		}
-		if orig, ok := urls[pth]; ok {
+		rt := newRoute(http.MethodPost, pth)
+		if orig, ok := urls[rt]; ok {
 			return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.URL, k, orig)
 		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("HTTP HEC-Compatible-Listener %s preprocessor invalid: %v", k, err)
 		}
-		urls[pth] = k
+		urls[rt] = k
 		c.HECListener[k] = v
 	}
 
@@ -167,13 +170,14 @@ func verifyConfig(c *cfgType) error {
 		if err != nil {
 			return err
 		}
-		if orig, ok := urls[pth]; ok {
+		rt := newRoute(http.MethodPost, pth)
+		if orig, ok := urls[rt]; ok {
 			return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.URL, k, orig)
 		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return fmt.Errorf("HTTP Kinesis-Delivery-Stream %s preprocessor invalid: %v", k, err)
 		}
-		urls[pth] = k
+		urls[rt] = k
 		c.KDSListener[k] = v
 	}
 

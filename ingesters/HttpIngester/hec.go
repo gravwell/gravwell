@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -37,7 +38,13 @@ type hecCompatible struct {
 	TokenValue        string `json:"-"` //DO NOT SEND THIS when marshalling
 	Tag_Name          string //the tag to assign to the request
 	Ignore_Timestamps bool
+	Ack_URL           string
 	Preprocessor      []string
+}
+
+type hecHandler struct {
+	acking bool
+	id     uint64
 }
 
 func (v *hecCompatible) validate(name string) (string, error) {
@@ -85,7 +92,7 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 	return
 }
 
-func (h *handler) handleHEC(cfg handlerConfig, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
+func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
 	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+256))) //give some slack for the extra splunk garbage
 	if err != nil && err != io.EOF {
 		h.lgr.Info("bad request", log.KV("address", ip), log.KVErr(err))
@@ -120,12 +127,34 @@ func (h *handler) handleHEC(cfg handlerConfig, w http.ResponseWriter, rdr io.Rea
 		return
 	}
 	debugout("Sending entry %+v", e)
+	if hh.acking {
+		json.NewEncoder(w).Encode(ack{
+			ID: strconv.FormatUint(atomic.AddUint64(&hh.id, 1), 10),
+		})
+	}
+}
+
+func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	var arq ackReq
+	if err := json.NewDecoder(r.Body).Decode(&arq); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	curr := atomic.LoadUint64(&hh.id)
+	resp := ackResp{
+		IDs: make(map[string]bool, len(arq.IDs)),
+	}
+	for _, id := range arq.IDs {
+		resp.IDs[strconv.FormatUint(id, 10)] = id <= curr
+	}
+	json.NewEncoder(w).Encode(resp)
 }
 
 func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
 	for _, v := range cfg.HECListener {
-		hcfg := handlerConfig{
-			hecCompat: true,
+		hh := &hecHandler{}
+		hcfg := routeHandler{
+			handler: hh.handle,
 		}
 		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			lg.Error("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
@@ -134,7 +163,6 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 		if v.Ignore_Timestamps {
 			hcfg.ignoreTs = true
 		}
-		hcfg.method = http.MethodPost
 
 		if hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Error("preprocessor construction error", log.KVErr(err))
@@ -144,8 +172,29 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			lg.Error("failed to generate HEC-Compatible-Listener auth", log.KVErr(err))
 			return
 		}
-		hnd.mp[v.URL] = hcfg
+		if hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
+			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
+			return
+		}
+		if v.Ack_URL != `` {
+			if err = hnd.addCustomHandler(http.MethodPost, v.Ack_URL, hh); err != nil {
+				lg.Error("failed to add HEC-Compatible-Listener ACK handler", log.KVErr(err))
+				return
+			}
+		}
 		debugout("HEC Handler URL %s handling %s\n", v.URL, v.Tag_Name)
 	}
 	return
+}
+
+type ack struct {
+	ID string `json:"ackID"`
+}
+
+type ackReq struct {
+	IDs []uint64 `json:"acks"`
+}
+
+type ackResp struct {
+	IDs map[string]bool `json:"acks"`
 }
