@@ -500,7 +500,19 @@ func getHeaderToken(r *http.Request, hdrName string) (ret string, err error) {
 }
 
 func getAuthToken(r *http.Request, tokName string) (ret string, err error) {
-	return getHeaderToken(r, `Authorization`)
+	var hv string
+	if hv, err = getHeaderToken(r, `Authorization`); err != nil {
+		return
+	}
+	bits := strings.Fields(hv)
+	if len(tokName) == 0 && len(bits) == 1 {
+		ret = bits[0]
+	} else if len(tokName) > 0 && len(bits) == 2 && bits[0] == tokName {
+		ret = bits[1]
+	} else {
+		err = errors.New("invalid auth token")
+	}
+	return
 }
 
 func getParamToken(r *http.Request, tokName string) (ret string, err error) {

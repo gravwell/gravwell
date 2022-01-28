@@ -31,7 +31,8 @@ import (
 )
 
 const (
-	defaultHECUrl string = `/services/collector/event`
+	defaultHECUrl    string = `/services/collector/event`
+	defaultHECRawUrl string = `/services/collector/raw`
 )
 
 type hecCompatible struct {
@@ -136,6 +137,34 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 	}
 }
 
+func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
+	debugout("HEC RAW\n")
+	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+1)))
+	if err != nil && err != io.EOF {
+		h.lgr.Info("got bad request", log.KV("address", ip), log.KVErr(err))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	} else if len(b) > maxBody {
+		h.lgr.Error("request too large, 4MB max")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if len(b) == 0 {
+		h.lgr.Info("got an empty post", log.KV("address", ip))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	} else if err = h.handleEntry(cfg, b, ip); err != nil {
+		h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	if hh.acking {
+		json.NewEncoder(w).Encode(ack{
+			ID: strconv.FormatUint(atomic.AddUint64(&hh.id, 1), 10),
+		})
+	}
+}
+
 func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var arq ackReq
 	if err := json.NewDecoder(r.Body).Decode(&arq); err != nil {
@@ -179,10 +208,12 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			lg.Error("failed to generate HEC-Compatible-Listener auth", log.KVErr(err))
 			return
 		}
-		if hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
+		//had the main handler for events
+		if err = hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
 			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
 			return
 		}
+		// add the other handlers for health, ack, and raw mode
 		bp := path.Dir(v.URL)
 		if v.Ack {
 			if err = hnd.addCustomHandler(http.MethodPost, path.Join(bp, `ack`), hh); err != nil {
@@ -194,6 +225,13 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			lg.Error("failed to add HEC-Compatible-Listener ACK health handler", log.KVErr(err))
 			return
 		}
+		// add in the raw handler
+		hcfg.handler = hh.handleRaw
+		if err = hnd.addHandler(http.MethodPost, path.Join(bp, `raw`), hcfg); err != nil {
+			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
+			return
+		}
+
 		debugout("HEC Handler URL %s handling %s\n", v.URL, v.Tag_Name)
 	}
 	return

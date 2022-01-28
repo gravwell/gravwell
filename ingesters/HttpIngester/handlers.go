@@ -144,6 +144,7 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		for k, v := range req.Header {
 			debugout("\t\t%v: %v\n", k, v)
 		}
+		debugout("\n")
 		debugout("ROUTES: %+v %+v %+v\n", h.mp, h.auth, h.custom)
 	}(w, r)
 	ip := getRemoteIP(r)
