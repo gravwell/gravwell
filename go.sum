@@ -165,6 +165,8 @@ github.com/gorilla/websocket v1.4.2 h1:+/TMaTYc4QFitKJxsQ7Yye35DkWvkdLcvGKqM+x0U
 github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/gravwell/gcfg v1.2.9-0.20210818172109-3d05a45a2665 h1:DkJAKR3QVbf0QOPEy6+iB6ANVzsSxpsiMVrtncmawcc=
 github.com/gravwell/gcfg v1.2.9-0.20210818172109-3d05a45a2665/go.mod h1:N+S2rmWz+IHo5zTQaDshQr+qEVGldBRzAnlRkf1yO8c=
+github.com/gravwell/gcfg v1.2.9-0.20220128204816-1742bc68c091 h1:xwfqSDXHWMAVg2LsOrubVfP7KFRYSiFsoy+sZXlu5/4=
+github.com/gravwell/gcfg v1.2.9-0.20220128204816-1742bc68c091/go.mod h1:N+S2rmWz+IHo5zTQaDshQr+qEVGldBRzAnlRkf1yO8c=
 github.com/gravwell/ipfix v1.4.3 h1:OwEqbafjR2brezAnGHUHU9JbHKAeO1EL6BjIwqJvqGs=
 github.com/gravwell/ipfix v1.4.3/go.mod h1:/Ogrd3FQi+GGD+BXzX8/kBQKdOrgrf6c8u8LSEA3WI8=
 github.com/h2non/filetype v1.0.10 h1:z+SJfnL6thYJ9kAST+6nPRXp1lMxnOVbMZHNYHMar0s=
