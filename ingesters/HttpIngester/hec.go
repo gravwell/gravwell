@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"path"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -38,11 +39,12 @@ type hecCompatible struct {
 	TokenValue        string `json:"-"` //DO NOT SEND THIS when marshalling
 	Tag_Name          string //the tag to assign to the request
 	Ignore_Timestamps bool
-	Ack_URL           string
+	Ack               bool
 	Preprocessor      []string
 }
 
 type hecHandler struct {
+	hecHealth
 	acking bool
 	id     uint64
 }
@@ -152,7 +154,12 @@ func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
 	for _, v := range cfg.HECListener {
-		hh := &hecHandler{}
+		hh := &hecHandler{
+			hecHealth: hecHealth{
+				igst:  hnd.igst,
+				token: v.TokenValue,
+			},
+		}
 		hcfg := routeHandler{
 			handler: hh.handle,
 		}
@@ -176,15 +183,37 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
 			return
 		}
-		if v.Ack_URL != `` {
-			if err = hnd.addCustomHandler(http.MethodPost, v.Ack_URL, hh); err != nil {
+		bp := path.Dir(v.URL)
+		if v.Ack {
+			if err = hnd.addCustomHandler(http.MethodPost, path.Join(bp, `ack`), hh); err != nil {
 				lg.Error("failed to add HEC-Compatible-Listener ACK handler", log.KVErr(err))
 				return
 			}
 		}
+		if err = hnd.addCustomHandler(http.MethodGet, path.Join(bp, `health`), &hh.hecHealth); err != nil {
+			lg.Error("failed to add HEC-Compatible-Listener ACK health handler", log.KVErr(err))
+			return
+		}
 		debugout("HEC Handler URL %s handling %s\n", v.URL, v.Tag_Name)
 	}
 	return
+}
+
+type hecHealth struct {
+	token string
+	igst  *ingest.IngestMuxer
+}
+
+func (hh *hecHealth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if hh == nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	} else if r.URL.Query().Get(`token`) != hh.token {
+		w.WriteHeader(http.StatusBadRequest)
+	} else if hh.igst == nil {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	} else if cnt, err := hh.igst.Hot(); err != nil || cnt == 0 {
+		w.WriteHeader(http.StatusServiceUnavailable)
+	}
 }
 
 type ack struct {

@@ -186,14 +186,15 @@ func New(c Config) (tg *TimeGrinder, err error) {
 }
 
 func (tg *TimeGrinder) SetFormatOverride(v string) (err error) {
-	if v != `` {
-		//attempt to find the override
-		for i := range tg.procs {
-			if tg.procs[i].Name() == v {
-				tg.override = tg.procs[i]
-				tg.FormatOverride = v
-				return
-			}
+	if v == `` {
+		return
+	}
+	//attempt to find the override
+	for i := range tg.procs {
+		if tg.procs[i].Name() == v {
+			tg.override = tg.procs[i]
+			tg.FormatOverride = v
+			return
 		}
 	}
 	err = fmt.Errorf("override %q not found", v)

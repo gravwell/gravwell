@@ -144,6 +144,7 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		for k, v := range req.Header {
 			debugout("\t\t%v: %v\n", k, v)
 		}
+		debugout("ROUTES: %+v %+v %+v\n", h.mp, h.auth, h.custom)
 	}(w, r)
 	ip := getRemoteIP(r)
 	rdr, err := getReadableBody(r)
@@ -265,6 +266,9 @@ func (trw *trackingRW) WriteHeader(code int) {
 func (trw *trackingRW) Write(b []byte) (r int, err error) {
 	r, err = trw.ResponseWriter.Write(b)
 	trw.bytes += r
+	if trw.code == 0 {
+		trw.code = 200
+	}
 	return
 }
 
