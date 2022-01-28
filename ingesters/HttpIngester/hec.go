@@ -28,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (
@@ -197,6 +198,11 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 		}
 		if v.Ignore_Timestamps {
 			hcfg.ignoreTs = true
+		} else {
+			if hcfg.tg, err = timegrinder.New(timegrinder.Config{}); err != nil {
+				lg.Error("Failed to create timegrinder", log.KVErr(err))
+				return
+			}
 		}
 
 		if hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
