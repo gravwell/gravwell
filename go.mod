@@ -31,7 +31,7 @@ require (
 	github.com/google/renameio v0.1.0
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.2
-	github.com/gravwell/gcfg v1.2.9-0.20210818172109-3d05a45a2665
+	github.com/gravwell/gcfg v1.2.9-0.20220128204816-1742bc68c091
 	github.com/gravwell/ipfix v1.4.3
 	github.com/h2non/filetype v1.0.10
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
