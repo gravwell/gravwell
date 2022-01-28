@@ -151,7 +151,6 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	}
 	if len(b) == 0 {
 		h.lgr.Info("got an empty post", log.KV("address", ip))
-		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else if err = h.handleEntry(cfg, b, ip); err != nil {
 		h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
