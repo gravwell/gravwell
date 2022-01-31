@@ -229,9 +229,9 @@ func (m *mainService) init(ctx context.Context) error {
 			errorout("Global Source-Override is invalid")
 			return err
 		}
-	} else if src, err = igst.SourceIP(); err != nil {
-		errorout("Failed to resolve source IP from muxer: %v", err)
-		return err
+	} else {
+		//it is ok to set src to nil, this can and will fail sometimes, ingest muxer will correct on ingest
+		src, _ = igst.SourceIP()
 	}
 
 	//build up the handlers

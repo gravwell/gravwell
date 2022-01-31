@@ -177,8 +177,9 @@ func main() {
 		if src = net.ParseIP(cfg.Source_Override); src == nil {
 			lg.Fatal("Global Source-Override is invalid", log.KV("sourceoverride", cfg.Source_Override))
 		}
-	} else if src, err = igst.SourceIP(); err != nil {
-		lg.Fatal("failed to resolve source IP from muxer", log.KVErr(err))
+	} else {
+		//it is fine to set it to nil, it will be set by the ingest muxer, this can and WILL fail sometimes
+		src, _ = igst.SourceIP()
 	}
 
 	wtcher, err := filewatch.NewWatcher(cfg.StatePath())

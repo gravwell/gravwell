@@ -123,7 +123,10 @@ func (sr *SrcRouter) processItem(ent *entry.Entry) *entry.Entry {
 
 func (sr *SrcRouter) handleExtract(v net.IP) (tag entry.EntryTag, drop, ok bool) {
 	//check if we have a tag
-	r, _ := sr.tree.FindCIDR(v.String())
+	var r interface{}
+	if v != nil {
+		r, _ = sr.tree.FindCIDR(v.String())
+	}
 	if r == nil {
 		drop = sr.Drop_Misses //straight not found
 	} else if _, ok = r.(bool); ok {
