@@ -25,6 +25,7 @@ const (
 	// license type magic numbers
 	Eval       LicenseType = 0xb7c489d229961f64 //single instance (backend and frontend must be on the same machine) but we throw a bunch of stuff up in the GUI
 	Community  LicenseType = 0xa332f9b1f64789d2 // single instance, limited ingest per day
+	Fractional LicenseType = 0xe5354cae719162c3 // single instance, full features, limited ingest per day
 	Single     LicenseType = 0x6f848b5ce61db26a //single instance (backend and frontend must be on the same machine)
 	Enterprise LicenseType = 0x6e67a154aa1d503e //single instance, but all features allowed
 	Cluster    LicenseType = 0x16e6aac870ea32ee //MxN configuration (many headends, restricted backends)
@@ -215,7 +216,7 @@ func (li LicenseInfo) Get(key string) (val interface{}, err error) {
 func (lt LicenseInfo) IngestMetadata() (rate uint64, err error) {
 	var val interface{}
 	var ok bool
-	if lt.Type != Community {
+	if lt.Type != Community && lt.Type != Fractional {
 		err = ErrIngestNotRestricted
 		return
 	}
@@ -240,6 +241,8 @@ func (lt LicenseType) Valid() bool {
 		return true
 	case Community:
 		return true
+	case Fractional:
+		return true
 	case Enterprise:
 		return true
 	}
@@ -252,12 +255,30 @@ func (lt LicenseType) CanUpgrade(dest LicenseType) bool {
 		// not a conflict, both identical
 		return true
 	}
-
-	if lt == Community && dest == Eval {
+	switch lt {
+	case Community:
 		//community -> eval is ok
-		return true
+		if dest == Eval {
+			return true
+		}
+	case Eval:
+		if dest == Community {
+			return false
+		}
+		return true //upgrading from eval to paid license is ok
+	case Fractional:
+		if dest == Single || dest == Enterprise || dest == Cluster {
+			return true // upgrading license is OK
+		}
+	case Single:
+		if dest == Enterprise || dest == Cluster {
+			return true //upgrading license is ok
+		}
+	case Enterprise:
+		if dest == Cluster {
+			return true //upgrading license is ok
+		}
 	}
-
 	// everything else is disallowed
 	// if a user needs to make any other changes, they have to talk to sales
 	return false
@@ -275,6 +296,8 @@ func (lt LicenseType) String() string {
 		return `eval`
 	case Community:
 		return `community`
+	case Fractional:
+		return `fractional`
 	case Enterprise:
 		return `enterprise`
 	default:
@@ -294,6 +317,8 @@ func (lt LicenseType) Abbr() string {
 		return `E`
 	case Community:
 		return `P`
+	case Fractional:
+		return `F`
 	case Enterprise:
 		return `N`
 	default:
@@ -318,6 +343,8 @@ func (lt LicenseType) SingleNode() (r bool) {
 	case Eval:
 		r = true
 	case Enterprise:
+		r = true
+	case Fractional:
 		r = true
 	case Single:
 		r = true
@@ -371,6 +398,8 @@ func ParseType(c string) (LicenseType, error) {
 		return Eval, nil
 	case `community`:
 		return Community, nil
+	case `fractional`:
+		return Fractional, nil
 	case `enterprise`:
 		return Enterprise, nil
 	}
