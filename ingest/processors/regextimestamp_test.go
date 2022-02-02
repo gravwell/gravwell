@@ -30,7 +30,7 @@ func TestRegexTimestamp(t *testing.T) {
 	[preprocessor "re1"]
 		type = regextimestamp
 		TS-Match-Name=ts
-		Timestamp-Format-Override="rfc3339"
+		Timestamp-Format-Override="RFC3339"
 		Regex=` + "`foobar=(?P<ts>\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\S+) BAR`")
 	tc := struct {
 		Global struct {
