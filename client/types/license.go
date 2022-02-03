@@ -13,7 +13,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"math"
 	"strconv"
 	"strings"
 
@@ -49,9 +48,7 @@ const (
 	UnlimitedIngestName string = `unlimitedingest`
 
 	// ingest rate constants
-	gb            = 1024 * 1024 * 1024
-	ResKey string = `igstr` // ingest rate key
-
+	gb = 1024 * 1024 * 1024
 )
 
 var (
@@ -152,10 +149,6 @@ func (li LicenseInfo) SKU() string {
 	if li.Overrides != 0 {
 		overrides = fmt.Sprintf("x%x", uint64(li.Overrides))
 	}
-	rate, _ := li.IngestMetadata()
-	if rate != 0 {
-		return fmt.Sprintf("%d%s%s%s-%d", li.Version, li.Type.Abbr(), maxnodes, overrides, rate/gb)
-	}
 	return fmt.Sprintf("%d%s%s%s", li.Version, li.Type.Abbr(), maxnodes, overrides)
 }
 
@@ -164,13 +157,6 @@ func (li LicenseInfo) SSOEnabled() bool {
 		return true
 	}
 	return li.Overrides.Set(SingleSignon)
-}
-
-func (li LicenseInfo) MaxUsers() int {
-	if li.Type == Community {
-		return 2
-	}
-	return math.MaxInt32
 }
 
 func (li LicenseInfo) ReplicationEnabled() bool {
@@ -209,22 +195,6 @@ func (li LicenseInfo) Get(key string) (val interface{}, err error) {
 	}
 	if val, ok = md[key]; !ok {
 		err = ErrNoMetadata
-	}
-	return
-}
-
-func (lt LicenseInfo) IngestMetadata() (rate uint64, err error) {
-	var val interface{}
-	var ok bool
-	if lt.Type != Community && lt.Type != Fractional {
-		err = ErrIngestNotRestricted
-		return
-	}
-	if val, err = lt.Get(ResKey); err != nil {
-		return
-	}
-	if rate, ok = val.(uint64); !ok {
-		rate = 0
 	}
 	return
 }
