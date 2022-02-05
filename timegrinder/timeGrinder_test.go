@@ -103,7 +103,7 @@ func TestGlobalMatcher(t *testing.T) {
 			w.Done()
 			for j := 0; j < 128; j++ {
 				if _, _, ok := Match([]byte(time.Now().Format(format) + "somedata")); !ok {
-					t.Fatal("did not match")
+					t.Error("did not match")
 				}
 			}
 
