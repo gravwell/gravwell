@@ -65,7 +65,6 @@ type follower struct {
 	wg         *sync.WaitGroup
 	lh         handler
 	lastAct    time.Time
-	fwriteTime time.Time //the last modified time of the file
 }
 
 func NewFollower(cfg FollowerConfig) (*follower, error) {
