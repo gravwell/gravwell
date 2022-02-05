@@ -492,6 +492,31 @@ func (f *FilterManager) launchFollowers(fpath string, deleteState bool) (ok bool
 	return
 }
 
+func (f *FilterManager) checkState(wf watchedFile) (hasWork bool, err error) {
+	//get base dir
+	fname := filepath.Base(wf.pth)
+	fdir := filepath.Dir(wf.pth)
+	var si *int64
+	//swing through all filters and launch a follower for each one that matches
+	for _, v := range f.filters {
+		//check base directory and pattern match
+		if v.loc != fdir || !f.matchFile(v.mtchs, fname) {
+			continue
+		}
+		//see if we have state information for this file
+		if si = f.seekInfo(v.bname, wf.pth); si == nil {
+			//no state information, if the size is > 0, go ahead and declare that there is work to do
+			if wf.size > 0 {
+				hasWork = true
+			}
+		} else if *si < wf.size {
+			//we have a state, check if there is new data
+			hasWork = true
+		}
+	}
+	return
+}
+
 //swings through our current set of followers, check if the fileID matches.  If a match is
 //found we return true.  This allows us to continue to follow files that are renamed.
 //we are given the basename, if a rename is found, search the filters.  If no filter is
@@ -550,6 +575,81 @@ func (f *FilterManager) matchFile(mtchs []string, fname string) (matched bool) {
 	return
 }
 
+func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, error) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	//get ID
+	id, err := getFileIdFromName(wf.pth)
+	if err != nil {
+		return false, err
+	}
+
+	//check if this is just a renaming
+	isRename, err := f.checkRename(wf.pth, id)
+	if err != nil {
+		return false, err
+	} else if isRename {
+		return true, nil //just a file renaming, continue
+	}
+
+	//get base dir
+	fname := filepath.Base(wf.pth)
+	fdir := filepath.Dir(wf.pth)
+	var si *int64
+
+	//swing through all filters and launch a follower for each one that matches
+	for i, v := range f.filters {
+		//check base directory and pattern match
+		if v.loc != fdir || !f.matchFile(v.mtchs, fname) {
+			continue
+		}
+		//see if we have state information for this file
+		si = f.seekInfo(v.bname, wf.pth)
+
+		//if not add it
+		if si == nil {
+			if wf.size == 0 {
+				continue //empty file, ignore it
+			}
+			//new file, add seek info and catch it up
+			si = f.addSeekInfo(v.bname, wf.pth)
+		} else if wf.size <= *si {
+			// one of two things happened here:
+			// 1. file was truncated and/or rewritten, which means we need to ignore it hand handle through normal means
+			// 2. file size is accounted for, so ignore here
+			continue
+		}
+		//this file needs to be caught up
+		fcfg := FollowerConfig{
+			FollowerEngineConfig: v.FollowerEngineConfig,
+			BaseName:             v.bname,
+			FilePath:             wf.pth,
+			State:                si,
+			FilterID:             i,
+			Handler:              v.lh,
+		}
+		//this file needs to be caugh up
+		if quit, err := f.catchupFollower(fcfg, qc); err != nil || quit {
+			return quit, err
+		}
+	}
+	return false, nil
+
+}
+
+//catchup file is a linear operation to get outstanding files up to date
+func (f *FilterManager) catchupFollower(fcfg FollowerConfig, qc chan os.Signal) (bool, error) {
+	if fl, err := NewFollower(fcfg); err != nil {
+		return false, err
+	} else if quit, err := fl.Sync(qc); err != nil || quit {
+		fl.Close()
+		return quit, err
+	} else if err = fl.Close(); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
 func (f *FilterManager) LoadFile(fpath string) (bool, error) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
@@ -559,6 +659,21 @@ func (f *FilterManager) LoadFile(fpath string) (bool, error) {
 		return false, err
 	}
 	return ok, nil
+}
+
+func (f *FilterManager) LoadFileList(lst []watchedFile) error {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	if len(lst) > f.maxFilesWatched {
+		lst = lst[0:f.maxFilesWatched]
+	}
+	for _, wf := range lst {
+		var err error
+		if _, err = f.launchFollowers(wf.pth, false); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func appendErr(err, nerr error) error {
