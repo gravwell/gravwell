@@ -130,6 +130,39 @@ func (f *follower) FileId() FileId {
 	return f.id
 }
 
+func (f *follower) Sync(qc chan os.Signal) (bool, error) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	if f.lnr == nil {
+		return false, ErrNotReady
+	}
+	if f.abortCh != nil || f.running != 0 {
+		return false, ErrAlreadyStarted
+	}
+	for {
+		ln, ok, _, err := f.lnr.ReadEntry()
+		if err != nil {
+			return false, err
+		} else if !ok {
+			break
+		}
+		//actually handle the line
+		now := time.Now()
+		if err := f.lh.HandleLog(ln, now); err != nil {
+			return false, err
+		}
+		*f.state = f.lnr.Index()
+		f.lastAct = now
+		select {
+		case _ = <-qc:
+			f.lastAct = now
+			return true, nil //just asked to quit
+		default:
+		}
+	}
+	return false, nil
+}
+
 func (f *follower) Start() error {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()

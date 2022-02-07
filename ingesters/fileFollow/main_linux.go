@@ -12,7 +12,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net"
@@ -85,6 +84,7 @@ func init() {
 
 func main() {
 	debug.SetTraceback("all")
+	utils.MaxProcTune(1) // this thing hits the filesystem, parallelism will almost always be bad
 	cfg, err := GetConfig(*confLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
@@ -133,7 +133,7 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Secret(),
-		IngesterName:       "filefollow",
+		IngesterName:       appName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
 		IngesterLabel:      cfg.Label,
@@ -194,8 +194,6 @@ func main() {
 
 	var procs []*processors.ProcessorSet
 
-	ctx, cancel := context.WithCancel(context.Background())
-
 	//build a list of base directories and globs
 	for k, val := range cfg.Follower {
 		pproc, err := cfg.Preprocessor.ProcessorSet(igst, val.Preprocessor)
@@ -232,7 +230,7 @@ func main() {
 			UserTimeFormat:          val.Timestamp_Format_String,
 			Logger:                  lg,
 			TimezoneOverride:        val.Timezone_Override,
-			Ctx:                     ctx,
+			Ctx:                     wtcher.Context(),
 			TimeFormat:              cfg.TimeFormat,
 		}
 		if v {
@@ -266,28 +264,31 @@ func main() {
 				log.KV("filter", val.File_Filter), log.KVErr(err))
 		}
 	}
-
-	if err := wtcher.Start(); err != nil {
-		lg.Error("failed to start file watcher", log.KVErr(err))
+	qc := utils.GetQuitChannel()
+	if quit, err := wtcher.Catchup(qc); err != nil {
+		lg.Error("failed to catchup file watcher", log.KVErr(err))
 		wtcher.Close()
 		igst.Close()
 		os.Exit(-1)
+	} else if !quit {
+		//doing a normal startup
+		if err := wtcher.Start(); err != nil {
+			lg.Error("failed to start file watcher", log.KVErr(err))
+			wtcher.Close()
+			igst.Close()
+			os.Exit(-1)
+		}
+
+		debugout("Started following %d locations\n", len(cfg.Follower))
+		debugout("Running\n")
+		//listen for signals so we can close gracefully
+		<-qc
 	}
-
-	debugout("Started following %d locations\n", len(cfg.Follower))
-
-	debugout("Running\n")
-
-	//listen for signals so we can close gracefully
-	utils.WaitForQuit()
 	debugout("Attempting to close the watcher... ")
 	if err := wtcher.Close(); err != nil {
 		lg.Error("failed to close file follower", log.KVErr(err))
 	}
 	debugout("Done\n")
-
-	// no need to punt cancel for a second here
-	cancel()
 
 	//close down all the preprocessors
 	for _, v := range procs {
