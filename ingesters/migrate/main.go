@@ -40,7 +40,9 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
-	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
+	if *verbose {
+		lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
+	}
 	lg.SetAppname(appName)
 
 	v = *verbose
