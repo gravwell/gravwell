@@ -133,7 +133,7 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Secret(),
-		IngesterName:       "filefollow",
+		IngesterName:       appName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
 		IngesterLabel:      cfg.Label,
