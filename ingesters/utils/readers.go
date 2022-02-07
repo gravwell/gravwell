@@ -9,6 +9,8 @@
 package utils
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -18,9 +20,12 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (
@@ -28,11 +33,15 @@ const (
 
 	JsonFormat string = `json`
 	CsvFormat  string = `csv`
+
+	initBuffSize = 4 * 1024 * 1024
+	maxBuffSize  = 128 * 1024 * 1024
 )
 
 var (
 	errInvalidColumns = errors.New("invalid csv import columns")
 	csvCols           = []string{`Timestamp`, `Source`, `Tag`, `Data`}
+	nlBytes           = []byte("\n")
 )
 
 type TagHandler interface {
@@ -240,4 +249,139 @@ func GetImportFormat(override, fp string) (format string, err error) {
 		err = fmt.Errorf("Failed to determine input format")
 	}
 	return
+}
+
+type LineDelimitedStream struct {
+	Rdr          io.Reader
+	Proc         *processors.ProcessorSet
+	Tag          entry.EntryTag
+	TG           *timegrinder.TimeGrinder
+	SRC          net.IP
+	IgnorePrefixes [][]byte
+	CleanQuotes  bool
+	Verbose      bool
+	Quotable     bool
+	BatchSize    int
+}
+
+func IngestLineDelimitedStream(cfg LineDelimitedStream) (uint64, uint64, error) {
+	var bts []byte
+	var ts time.Time
+	var ok bool
+	var err error
+	var blk []*entry.Entry
+	var count, totalBytes uint64
+	if cfg.BatchSize > 0 {
+		blk = make([]*entry.Entry, 0, cfg.BatchSize)
+	}
+	ignorePrefixFlag := len(cfg.IgnorePrefixes) > 0
+
+	scn := bufio.NewScanner(cfg.Rdr)
+	if cfg.Quotable {
+		scn.Split(quotableSplitter)
+	}
+	scn.Buffer(make([]byte, initBuffSize), maxBuffSize)
+
+	scannerLoop:
+	for scn.Scan() {
+		if bts = bytes.TrimSuffix(scn.Bytes(), nlBytes); len(bts) == 0 {
+			continue
+		}
+		if cfg.CleanQuotes {
+			if bts = trimQuotes(bts); len(bts) == 0 {
+				continue
+			}
+		}
+		if ignorePrefixFlag {
+			for _, pfx := range cfg.IgnorePrefixes {
+				if bytes.HasPrefix(bts, pfx) {
+					continue scannerLoop
+				}
+			}
+		}
+		if cfg.TG == nil {
+			ts = time.Now()
+		} else if ts, ok, err = cfg.TG.Extract(bts); err != nil {
+			return count, totalBytes, err
+		} else if !ok {
+			ts = time.Now()
+		}
+		ent := &entry.Entry{
+			TS:  entry.FromStandard(ts),
+			Tag: cfg.Tag,
+			SRC: cfg.SRC,
+		}
+		ent.Data = append(ent.Data, bts...) //force reallocation due to the scanner
+		if cfg.BatchSize == 0 {
+			if err = cfg.Proc.Process(ent); err != nil {
+				return count, totalBytes, err
+			}
+		} else {
+			blk = append(blk, ent)
+			if len(blk) >= cfg.BatchSize {
+				if err = cfg.Proc.ProcessBatch(blk); err != nil {
+					return count, totalBytes, err
+				}
+				blk = make([]*entry.Entry, 0, cfg.BatchSize)
+			}
+		}
+		if cfg.Verbose {
+			fmt.Println(ent.TS, ent.Tag, ent.SRC, string(ent.Data))
+		}
+		count++
+		totalBytes += uint64(len(ent.Data))
+	}
+	if len(blk) > 0 {
+		if err = cfg.Proc.ProcessBatch(blk); err != nil {
+			return count, totalBytes, err
+		}
+	}
+	return count, totalBytes, scn.Err()
+}
+
+func quotableSplitter(data []byte, atEOF bool) (int, []byte, error) {
+	var openQuote bool
+	var escaped bool
+	var r rune
+	var width int
+	if atEOF && len(data) == 0 {
+		return 0, nil, nil
+	}
+	for i := 0; i < len(data); i += width {
+		r, width = utf8.DecodeRune(data[i:])
+		if escaped {
+			//don't care what the character is, we are skipping it
+			escaped = false
+			continue
+		}
+		if r == '\\' {
+			escaped = true
+		} else if r == '"' {
+			openQuote = !openQuote
+		} else if r == '\n' && !openQuote {
+			// we have our full newline
+			return i + 1, dropCR(data[:i]), nil
+		}
+	}
+	if atEOF {
+		return len(data), dropCR(data), nil
+	}
+	//request more data
+	return 0, nil, nil
+}
+
+func dropCR(data []byte) []byte {
+	if len(data) > 0 && data[len(data)-1] == '\r' {
+		return data[0 : len(data)-1]
+	}
+	return data
+}
+
+func trimQuotes(data []byte) []byte {
+	if len(data) >= 2 {
+		if data[0] == '"' && data[len(data)-1] == '"' {
+			data = data[1 : len(data)-1]
+		}
+	}
+	return data
 }
