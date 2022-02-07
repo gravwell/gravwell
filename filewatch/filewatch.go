@@ -269,6 +269,16 @@ func (wm *WatchManager) initExisting() error {
 	return wm.fman.LoadFileList(toProcess)
 }
 
+// Catchup is used to synchronously process files that have outstanding work to be done.
+// The purpose of this is so that when the file follower first starts with a large number of outstanding
+// files to be processed, it can more intelligently process them one at a time.
+// The real purpose is so that the usecase where a user points the follower at a massive number of files
+// during an improt scenario we don't start grabbing things all willy nilly and with high concurrency
+// we are better off ordering the work to be done and doing it synchronously
+//
+// the input parameter is a quit channel, basically wired to the signal handler
+// the return values are a shouldQuit(booL) and error
+// the boolean value is true when the signal handler fired, telling us that the ingester should exit
 func (wm *WatchManager) Catchup(qc chan os.Signal) (bool, error) {
 	wm.mtx.Lock()
 	defer wm.mtx.Unlock()

@@ -53,18 +53,18 @@ type FollowerConfig struct {
 
 type follower struct {
 	FileName
-	filterId   int
-	id         FileId
-	lnr        Reader
-	state      *int64
-	mtx        *sync.Mutex
-	running    int32
-	err        error
-	abortCh    chan bool
-	fsn        *fsnotify.Watcher
-	wg         *sync.WaitGroup
-	lh         handler
-	lastAct    time.Time
+	filterId int
+	id       FileId
+	lnr      Reader
+	state    *int64
+	mtx      *sync.Mutex
+	running  int32
+	err      error
+	abortCh  chan bool
+	fsn      *fsnotify.Watcher
+	wg       *sync.WaitGroup
+	lh       handler
+	lastAct  time.Time
 }
 
 func NewFollower(cfg FollowerConfig) (*follower, error) {

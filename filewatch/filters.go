@@ -500,12 +500,15 @@ func (f *FilterManager) launchFollowers(fpath string, deleteState bool) (ok bool
 	return
 }
 
-func (f *FilterManager) checkState(wf watchedFile) (hasWork bool, err error) {
+// checkState will grab a watched file and look it up in the state tracker
+// if the file is not known to the state tracker we assume it is new and return that it has work
+// if it IS in the state tracker, we check if it is larger than what we logged or smaller.
+// any value other than what is currently in the state tracker indicates that this file needs some work
+func (f *FilterManager) checkState(wf watchedFile) (si *int64, hasWork bool, err error) {
 	//get base dir
 	fname := filepath.Base(wf.pth)
 	fdir := filepath.Dir(wf.pth)
-	var si *int64
-	//swing through all filters and launch a follower for each one that matches
+	//swing through all filters and for each follower that matches, check if the file has work to be done
 	for _, v := range f.filters {
 		//check base directory and pattern match
 		if v.loc != fdir || !f.matchFile(v.mtchs, fname) {
@@ -516,6 +519,7 @@ func (f *FilterManager) checkState(wf watchedFile) (hasWork bool, err error) {
 			//no state information, if the size is > 0, go ahead and declare that there is work to do
 			if wf.size > 0 {
 				hasWork = true
+				si = f.addSeekInfo(v.bname, wf.pth)
 			}
 		} else if *si < wf.size {
 			//we have a state, check if there is new data
@@ -583,6 +587,14 @@ func (f *FilterManager) matchFile(mtchs []string, fname string) (matched bool) {
 	return
 }
 
+// CatchupFile will synchronously consume all outstanding data from the file.
+// This function is typically used at startup so that we can linearly process outstanding
+// data from files one at a time before turning on all our file followers.  It is a pre-optimization
+// to deal with scenarios where the file follower has been offline for an extended period of time
+// or a user is attempting import a large amount of data during a migration.
+//
+// the returned boolean indicates that the quitchan (qc) has fired, this allows us to pass up
+// that the process has been asked to quit.
 func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, error) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
@@ -605,27 +617,17 @@ func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, er
 	fdir := filepath.Dir(wf.pth)
 	var si *int64
 
-	//swing through all filters and launch a follower for each one that matches
+	//swing through all filters and spin up a follower then synchronously process outstanding data
 	for i, v := range f.filters {
+		var hasWork bool
 		//check base directory and pattern match
 		if v.loc != fdir || !f.matchFile(v.mtchs, fname) {
 			continue
 		}
-		//see if we have state information for this file
-		si = f.seekInfo(v.bname, wf.pth)
-
-		//if not add it
-		if si == nil {
-			if wf.size == 0 {
-				continue //empty file, ignore it
-			}
-			//new file, add seek info and catch it up
-			si = f.addSeekInfo(v.bname, wf.pth)
-		} else if wf.size <= *si {
-			// one of two things happened here:
-			// 1. file was truncated and/or rewritten, which means we need to ignore it hand handle through normal means
-			// 2. file size is accounted for, so ignore here
-			continue
+		if si, hasWork, err = f.checkState(wf); err != nil {
+			return false, err
+		} else if !hasWork {
+			continue // no work to do
 		}
 		//this file needs to be caught up
 		fcfg := FollowerConfig{
