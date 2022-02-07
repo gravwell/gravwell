@@ -657,6 +657,7 @@ func (f *FilterManager) catchupFollower(fcfg FollowerConfig, qc chan os.Signal) 
 	} else if err = fl.Close(); err != nil {
 		return false, err
 	}
+	f.logger.Info("file preprocessed at startup", log.KV("path", fcfg.FilePath))
 	return false, nil
 }
 
