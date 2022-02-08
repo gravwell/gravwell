@@ -170,7 +170,7 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 	}
 
 	//extract all the filters from the match
-	fltrs, err := extractFilters(c.FileFilter)
+	fltrs, err := ExtractFilters(c.FileFilter)
 	if err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 	return nil
 }
 
-func extractFilters(ff string) ([]string, error) {
+func ExtractFilters(ff string) ([]string, error) {
 	if strings.HasPrefix(ff, "{") && strings.HasSuffix(ff, "}") {
 		ff = strings.TrimPrefix(strings.TrimSuffix(ff, "}"), "{")
 	}
