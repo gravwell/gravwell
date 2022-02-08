@@ -9,9 +9,9 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
-	"os"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -117,12 +117,12 @@ type statusUpdate struct {
 	size  uint64
 }
 
-func statusEater(sc chan statusUpdate) {
+func statusEater(sc <-chan statusUpdate) {
 	for _ = range sc {
 	}
 }
 
-func statusPrinter(sc chan statusUpdate) {
+func statusPrinter(sc <-chan statusUpdate) {
 	var totalCount, totalBytes uint64
 	var lastCount, lastBytes uint64
 	tckr := time.NewTicker(3 * time.Second)
@@ -137,7 +137,7 @@ func statusPrinter(sc chan statusUpdate) {
 			diffCount := totalCount - lastCount
 			diffBytes := totalBytes - lastBytes
 
-			fmt.Printf("\r%s %s\t%s %s                 ",
+			fmt.Printf("\r%s %s   %s %s                 ",
 				ingest.HumanEntryRate(diffCount, dur),
 				ingest.HumanRate(diffBytes, dur),
 				ingest.HumanSize(totalBytes),
@@ -155,11 +155,17 @@ func statusPrinter(sc chan statusUpdate) {
 	}
 }
 
-func checkSig(qc chan os.Signal) bool {
+func checkSig(ctx context.Context) bool {
 	select {
-	case <-qc:
+	case <-ctx.Done():
 		return true
 	default:
 	}
 	return false
 }
+
+type discard struct {
+}
+
+func (d *discard) Close() error                { return nil }
+func (d *discard) Write(b []byte) (int, error) { return len(b), nil }

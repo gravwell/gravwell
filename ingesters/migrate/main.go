@@ -12,7 +12,9 @@
 package main
 
 import (
+	"context"
 	"flag"
+	"fmt"
 	"net"
 	"os"
 
@@ -40,12 +42,11 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
-	if *verbose {
-		lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
+	lg = log.New(&discard{})
+	if !*status {
+		lg.AddWriter(os.Stdout)
 	}
 	lg.SetAppname(appName)
-
-	v = *verbose
 	validate.ValidateConfig(GetConfig, *confLoc)
 }
 
@@ -73,21 +74,34 @@ func main() {
 	}
 
 	igst := getIngestConnection(cfg, lg)
-	defer igst.Close()
 	st, err := NewStateTracker(cfg.StatePath())
 	if err != nil {
 		lg.FatalCode(0, "Failed to load state store file", log.KVErr(err))
 	}
-	statusChan := make(chan statusUpdate, 1)
+	ctx, cf := context.WithCancel(context.Background())
+	qc := utils.GetQuitChannel()
+	statusChan, errChan := processSources(cfg, st, igst, ctx)
 	if *status {
 		go statusPrinter(statusChan)
 	} else {
 		go statusEater(statusChan)
 	}
-	if err := processSources(cfg, st, igst, statusChan); err != nil {
-		igst.Close()
-		st.Close()
-		lg.FatalCode(0, "failed to process files", log.KVErr(err))
+
+	select {
+	case <-qc:
+		lg.Info("interrupt caught, waiting for processors to exit")
+		fmt.Println("interrupt caught, waiting for processors to exit")
+		cf()
+		err = <-errChan //wait for the processor to exit
+		debugout("Finished with %v after interrupt\n", err)
+	case err = <-errChan:
+		cf()
+		if err != nil {
+			lg.Error("migration error", log.KVErr(err))
+			debugout("error: %v\n", err)
+		} else {
+			debugout("done\n")
+		}
 	}
 
 	debugout("Closing migration engine\n")
@@ -100,11 +114,19 @@ func main() {
 	debugout("Completed\n")
 }
 
-func processSources(cfg *cfgType, st *StateTracker, igst *ingest.IngestMuxer, sc chan statusUpdate) (err error) {
-	var shouldQuit bool
-	qc := utils.GetQuitChannel()
+func processSources(cfg *cfgType, st *StateTracker, igst *ingest.IngestMuxer, ctx context.Context) (<-chan statusUpdate, <-chan error) {
+	sc := make(chan statusUpdate, 1)
+	ec := make(chan error, 1)
+	go processSourcesAsync(cfg, st, igst, ctx, sc, ec)
+	return sc, ec
+}
+
+func processSourcesAsync(cfg *cfgType, st *StateTracker, igst *ingest.IngestMuxer, ctx context.Context, sc chan statusUpdate, errch chan error) {
+	defer close(errch)
+	defer close(sc)
 	//process flat files
-	if shouldQuit, err = processFiles(cfg, st, igst, qc, sc); err != nil || shouldQuit {
+	if err := processFiles(cfg, st, igst, ctx, sc); err != nil {
+		errch <- err
 		return
 	}
 
