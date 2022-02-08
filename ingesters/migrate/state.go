@@ -11,7 +11,6 @@ package main
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"os"
 	"sync"
@@ -68,7 +67,6 @@ func loadExistingState(pth string) (ents []StateEntry, err error) {
 				break
 			}
 			fin.Close()
-			fmt.Println("Failed to decode", err)
 			return //something else is wrong
 		}
 		ents = append(ents, ent)
