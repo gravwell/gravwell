@@ -110,6 +110,7 @@ type FlowParseResponse struct {
 	Error          string `json:",omitempty"`
 	ErrorNode      int    // the node which failed to parse (ignore if Error is empty)
 	OutputPayloads map[int]map[string]interface{}
+	InitialPayload map[string]interface{} // the payload which gets passed to nodes with no dependencies
 }
 
 func (ss *ScheduledSearch) TypeName() string {
