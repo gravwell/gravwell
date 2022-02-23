@@ -24,6 +24,8 @@ const (
 	ScheduledTypeSearch string = "search"
 	ScheduledTypeScript string = "script"
 	ScheduledTypeFlow   string = "flow"
+
+	SEQ_NODE_NOT_EXECUTED = 9999999
 )
 
 type ScriptLang uint
@@ -87,6 +89,9 @@ type FlowNodeResult struct {
 	Error   string
 	Start   int64 // unix nanoseconds
 	End     int64 // unix nanoseconds
+	// The first node executed has sequence 0, the next is sequence 1, etc.
+	// Nodes which were not executed have Sequence = SEQ_NODE_NOT_EXECUTED
+	Sequence int
 }
 
 type ScheduledSearchParseRequest struct {
