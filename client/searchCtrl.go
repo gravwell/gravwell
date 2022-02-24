@@ -1186,6 +1186,18 @@ func closeSockets(s *SearchSockets) (err error) {
 // DetachSearch disconnects the client from a search. This may lead to the search being
 // garbage collected.
 func (c *Client) DetachSearch(s Search) {
+	if s.SearchOutput == nil {
+		return
+	}
+	req := types.BaseRequest {
+		ID: types.REQ_CLOSE,
+	}
+	if err := s.SearchOutput.WriteJSON(req); err == nil {
+		var resp types.BaseResponse
+		//dont' really care waht it is
+		s.SearchOutput.ReadJSON(&resp)
+	}
+	//attempt to send the close command
 	closeSockets(s.SearchSockets)
 	if s.SearchOutput != nil {
 		s.SearchOutput.Close()
