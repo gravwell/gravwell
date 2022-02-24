@@ -1194,7 +1194,7 @@ func (c *Client) DetachSearch(s Search) {
 	}
 	if err := s.SearchOutput.WriteJSON(req); err == nil {
 		var resp types.BaseResponse
-		//dont' really care waht it is
+		//don't really care what the response is
 		s.SearchOutput.ReadJSON(&resp)
 	}
 	//attempt to send the close command
