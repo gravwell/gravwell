@@ -1189,14 +1189,11 @@ func (c *Client) DetachSearch(s Search) {
 	if s.SearchOutput == nil {
 		return
 	}
-	req := types.BaseRequest {
+	req := types.BaseRequest{
 		ID: types.REQ_CLOSE,
 	}
-	if err := s.SearchOutput.WriteJSON(req); err == nil {
-		var resp types.BaseResponse
-		//don't really care what the response is
-		s.SearchOutput.ReadJSON(&resp)
-	}
+	s.SearchOutput.WriteJSON(req)
+
 	//attempt to send the close command
 	closeSockets(s.SearchSockets)
 	if s.SearchOutput != nil {
