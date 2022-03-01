@@ -11,6 +11,7 @@ package types
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -111,11 +112,74 @@ type FlowParseRequest struct {
 }
 
 type FlowParseResponse struct {
-	OK             bool
-	Error          string `json:",omitempty"`
-	ErrorNode      int    // the node which failed to parse (ignore if Error is empty)
+	OK bool
+
+	// Error and ErrorNode are now deprecated; look at the Failures map
+	// to see if there were parse problems. They are retained for compatibility.
+	Error     string `json:",omitempty"`
+	ErrorNode int    // the node which failed to parse (ignore if Error is empty)
+
 	OutputPayloads map[int]map[string]interface{}
 	InitialPayload map[string]interface{} // the payload which gets passed to nodes with no dependencies
+	Failures       map[int]NodeParseFailure
+}
+
+// NodeParseFailure represents all problems encountered during a node's Parse phase
+type NodeParseFailure struct {
+	Errors []NodeParseError
+}
+
+// Error returns an error string for the NodeParseFailure. It just returns the first error
+// if there are multiple errors; to handle it better, walk the Errors array yourself.
+func (f NodeParseFailure) Error() string {
+	if len(f.Errors) > 0 {
+		// just print the first error
+		return f.Errors[0].String()
+	}
+	return ""
+}
+
+// AddError registers a new error. It can take regular errors, NodeParseError, or NodeParseFailure.
+func (f *NodeParseFailure) AddError(e error) {
+	if e == nil {
+		return
+	}
+	switch t := e.(type) {
+	case NodeParseError:
+		f.Errors = append(f.Errors, t)
+	case *NodeParseError:
+		f.Errors = append(f.Errors, *t)
+	case NodeParseFailure:
+		f.Errors = append(f.Errors, t.Errors...)
+	case *NodeParseFailure:
+		f.Errors = append(f.Errors, t.Errors...)
+	default:
+		f.Errors = append(f.Errors, NodeParseError{Err: e.Error()})
+	}
+}
+
+// ErrCount returns the number of errors registered.
+func (f *NodeParseFailure) ErrCount() int {
+	return len(f.Errors)
+}
+
+// NodeParseError represents a single problem encountered during the parse phase,
+// e.g. an un-set config field. Field represents which config field, if any, was
+// the source of the problem; if unset, the error was of a more general nature.
+type NodeParseError struct {
+	Err   string
+	Field string `json:",omitempty"`
+}
+
+func (f NodeParseError) Error() string {
+	return f.String()
+}
+
+func (f NodeParseError) String() string {
+	if f.Field != "" {
+		return fmt.Sprintf("%v: %v", f.Field, f.Err)
+	}
+	return f.Err
 }
 
 func (ss *ScheduledSearch) TypeName() string {
