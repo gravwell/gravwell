@@ -31,6 +31,10 @@ const (
 	importFormBatchInfo = `BatchInfo`
 )
 
+var (
+	ErrSearchNotAttached = errors.New("search not attached")
+)
+
 // DeleteSearch will request that a search is deleted by search ID
 func (c *Client) DeleteSearch(sid string) error {
 	return c.deleteStaticURL(searchCtrlIdUrl(sid), nil)
@@ -137,9 +141,25 @@ func (c *Client) GetSearchHistoryRange(start, end int) ([]types.SearchLog, error
 type Search struct {
 	ID            string
 	RenderMod     string
-	SearchSockets *SearchSockets
-	SearchOutput  *websocketRouter.SubProtoConn
+	searchSockets *SearchSockets
+	searchOutput  *websocketRouter.SubProtoConn
 	types.StartSearchRequest
+}
+
+func (s *Search) Exchange(req, resp interface{}) (err error) {
+	if s.searchSockets == nil || s.searchOutput == nil {
+		err = ErrSearchNotAttached
+		return
+	} else if req == nil {
+		err = errors.New("invalid request")
+		return
+	} else if err = s.searchOutput.WriteJSON(req); err != nil {
+		return
+	}
+	if resp != nil {
+		err = s.searchOutput.ReadJSON(resp)
+	}
+	return
 }
 
 // ParseSearch validates a search query. Gravwell will return an error if the query
@@ -214,11 +234,11 @@ func (c *Client) StartSearch(query string, start, end time.Time, nohistory bool)
 // This function grants the maximum amount of control over the search starting process
 func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error) {
 	//grab subprotocol connection and subproto parent
-	s.SearchSockets, err = c.GetSearchSockets()
+	s.searchSockets, err = c.GetSearchSockets()
 	if err != nil {
 		return
 	}
-	searchSubProto := s.SearchSockets.Search
+	searchSubProto := s.searchSockets.Search
 	// we get a new set of sockets on each GetSearchSocket.
 	// So we can close the main search suproto when done
 	// The main protocols for the search will be left open
@@ -238,10 +258,10 @@ func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error
 	}
 
 	if ssresp.OutputSearchSubproto != `` {
-		if err = s.SearchSockets.Client.AddSubProtocol(ssresp.OutputSearchSubproto); err != nil {
+		if err = s.searchSockets.Client.AddSubProtocol(ssresp.OutputSearchSubproto); err != nil {
 			return
 		}
-		if s.SearchOutput, err = s.SearchSockets.Client.GetSubProtoConn(ssresp.OutputSearchSubproto); err != nil {
+		if s.searchOutput, err = s.searchSockets.Client.GetSubProtoConn(ssresp.OutputSearchSubproto); err != nil {
 			return
 		}
 	}
@@ -296,21 +316,20 @@ func (c *Client) StartFilteredSearch(query string, start, end time.Time, nohisto
 func (c *Client) AttachSearch(id string) (s Search, err error) {
 	//grab subprotocol connection and subproto parent
 	s.ID = id
-	s.SearchSockets, err = c.GetAttachSockets()
+	s.searchSockets, err = c.GetAttachSockets()
 	if err != nil {
 		return
 	}
-	conn := s.SearchSockets.Attach
+	conn := s.searchSockets.Attach
 
 	//attempt to attach to it
 	req := types.AttachSearchRequest{
 		ID: id,
 	}
+	var resp types.AttachSearchResponse
 	if err := conn.WriteJSON(req); err != nil {
 		return s, err
 	}
-
-	var resp types.AttachSearchResponse
 	if err := conn.ReadJSON(&resp); err != nil {
 		return s, err
 	}
@@ -322,14 +341,14 @@ func (c *Client) AttachSearch(id string) (s Search, err error) {
 	}
 
 	//kick off our renderer
-	if err := s.SearchSockets.Client.AddSubProtocol(resp.Subproto); err != nil {
+	if err := s.searchSockets.Client.AddSubProtocol(resp.Subproto); err != nil {
 		return s, err
 	}
-	rconn, err := s.SearchSockets.Client.GetSubProtoConn(resp.Subproto)
+	rconn, err := s.searchSockets.Client.GetSubProtoConn(resp.Subproto)
 	if err != nil {
 		return s, err
 	}
-	s.SearchOutput = rconn
+	s.searchOutput = rconn
 	s.RenderMod = resp.RendererMod
 	return s, nil
 }
@@ -342,19 +361,12 @@ func (c *Client) GetAvailableEntryCount(s Search) (uint64, bool, error) {
 	req := types.BaseRequest{
 		ID: types.REQ_ENTRY_COUNT,
 	}
-	if s.SearchOutput == nil {
-		return 0, false, errors.New("Search not attached")
-	}
-	if err := s.SearchOutput.WriteJSON(req); err != nil {
-		return 0, false, err
-	}
 	resp := types.BaseResponse{}
-	if err := s.SearchOutput.ReadJSON(&resp); err != nil {
+	if err := s.Exchange(req, &resp); err != nil {
 		return 0, false, err
-	} else if resp.Error != `` {
-		return 0, false, errors.New(resp.Error)
-	}
-	if resp.ID != types.RESP_ENTRY_COUNT {
+	} else if err = resp.Err(); err != nil {
+		return 0, false, err
+	} else if resp.ID != types.RESP_ENTRY_COUNT {
 		return 0, false, errors.New("Invalid response ID")
 	}
 	return resp.EntryCount, resp.Finished, nil
@@ -376,12 +388,10 @@ func (c *Client) WaitForSearch(s Search) (err error) {
 		ID: types.REQ_SEARCH_DETAILS,
 	}
 	var resp types.BaseResponse
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	} else if err = s.SearchOutput.ReadJSON(&resp); err != nil {
+	} else if err = resp.Err(); err != nil {
 		return
-	} else if resp.Error != `` {
-		return errors.New(resp.Error)
 	}
 
 	return
@@ -422,22 +432,14 @@ func (c *Client) getStringTagTextEntries(s Search, start, end uint64) (ste []typ
 			},
 		},
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
-		return
-	}
-	//see what the server has to say about that
 	resp := types.TextResponse{}
-	if err = s.SearchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != types.RESP_GET_ENTRIES {
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			} else {
-				err = errors.New("Invalid response ID")
-			}
-			return
-		}
-	}
-	if resp.Entries == nil {
+	if err = s.Exchange(req, &resp); err != nil {
+		return
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != types.RESP_GET_ENTRIES {
+		return nil, errors.New("Invalid response ID")
+	} else if resp.Entries == nil {
 		return nil, errors.New("Empty entry response")
 	}
 
@@ -472,21 +474,14 @@ func (c *Client) getStringTagTableEntries(s Search, start, end uint64) (ste []ty
 			},
 		},
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
+	resp := types.TableResponse{}
+	if err = s.Exchange(req, &resp); err != nil {
+		return
+	} else if err = resp.Err(); err != nil {
 		return
 	}
-	//see what the server has to say about that
-	resp := types.TableResponse{}
-	if err = s.SearchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != types.RESP_GET_ENTRIES {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
-	}
-	if err != nil {
+	if resp.ID != types.RESP_GET_ENTRIES {
+		err = errors.New("Invalid response ID")
 		return
 	}
 	ste = []types.StringTagEntry{}
@@ -527,17 +522,12 @@ func (c *Client) getTextResults(s Search, req types.TextRequest) (resp types.Tex
 		err = fmt.Errorf("Search %v has invalid renderer type %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.SearchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -623,17 +613,13 @@ func (c *Client) getTableResults(s Search, req types.TableRequest) (resp types.T
 		err = fmt.Errorf("Search %v has invalid renderer type: expected table, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
+
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.SearchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -677,17 +663,12 @@ func (c *Client) getGaugeResults(s Search, req types.TableRequest) (resp types.G
 		err = fmt.Errorf("Search %v has invalid renderer type: expected gauge, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.SearchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -745,17 +726,12 @@ func (c *Client) getChartResults(s Search, req types.ChartRequest) (resp types.C
 		err = fmt.Errorf("Search %v has invalid renderer type: expected chart, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.SearchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -799,17 +775,12 @@ func (c *Client) getFdgResults(s Search, req types.FdgRequest) (resp types.FdgRe
 		err = fmt.Errorf("Search %v has invalid renderer type: expected fdg, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.SearchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -853,17 +824,13 @@ func (c *Client) getStackGraphResults(s Search, req types.StackGraphRequest) (re
 		err = fmt.Errorf("Search %v has invalid renderer type: expected stackgraph, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
+
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.SearchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -907,17 +874,12 @@ func (c *Client) getPointmapResults(s Search, req types.PointmapRequest) (resp t
 		err = fmt.Errorf("Search %v has invalid renderer type: expected pointmap, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.SearchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -965,17 +927,12 @@ func (c *Client) getHeatmapResults(s Search, req types.HeatmapRequest) (resp typ
 		err = fmt.Errorf("Search %v has invalid renderer type: expected heatmap, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.SearchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -1023,17 +980,12 @@ func (c *Client) getP2PResults(s Search, req types.P2PRequest) (resp types.P2PRe
 		err = fmt.Errorf("Search %v has invalid renderer type: expected point2point, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.SearchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -1096,20 +1048,15 @@ func (c *Client) GetExploreEntries(s Search, start, end uint64) ([]types.SearchE
 			},
 		},
 	}
-	if err := s.SearchOutput.WriteJSON(req); err != nil {
-		return nil, nil, err
-	}
-	//see what the server has to say about that
 	resp := types.TextResponse{}
-	if err := s.SearchOutput.ReadJSON(&resp); err != nil {
+	if err := s.Exchange(req, &resp); err != nil {
 		return nil, nil, err
-	}
-	if resp.ID != types.RESP_GET_EXPLORE_ENTRIES {
-		if resp.Error != "" {
-			return nil, nil, errors.New(resp.Error)
-		}
+	} else if err = resp.Err(); err != nil {
+		return nil, nil, err
+	} else if resp.ID != types.RESP_GET_EXPLORE_ENTRIES {
 		return nil, nil, errors.New("Invalid response ID")
 	}
+	//see what the server has to say about that
 	if resp.Entries == nil {
 		return nil, nil, errors.New("Empty entry response")
 	}
@@ -1126,20 +1073,13 @@ func (c *Client) GetSearchMetadata(s Search) (sm types.SearchMetadata, err error
 			ID: types.REQ_SEARCH_METADATA,
 		},
 	}
-	if err = s.SearchOutput.WriteJSON(req); err != nil {
-		return
-	}
 	var resp types.StatsResponse
-	if err = s.SearchOutput.ReadJSON(&resp); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if resp.ID != types.RESP_SEARCH_METADATA {
-		if resp.Error != "" {
-			err = errors.New(resp.Error)
-		} else {
-			err = errors.New("Invalid response ID")
-		}
+	} else if err = resp.Err(); err != nil {
 		return
+	} else if resp.ID != types.RESP_SEARCH_METADATA {
+		err = errors.New("Invalid response ID")
 	}
 	if resp.Metadata != nil {
 		sm = *resp.Metadata
@@ -1186,18 +1126,18 @@ func closeSockets(s *SearchSockets) (err error) {
 // DetachSearch disconnects the client from a search. This may lead to the search being
 // garbage collected.
 func (c *Client) DetachSearch(s Search) {
-	if s.SearchOutput == nil {
+	if s.searchOutput == nil {
 		return
 	}
 	req := types.BaseRequest{
 		ID: types.REQ_CLOSE,
 	}
-	s.SearchOutput.WriteJSON(req)
+	s.searchOutput.WriteJSON(req)
 
 	//attempt to send the close command
-	closeSockets(s.SearchSockets)
-	if s.SearchOutput != nil {
-		s.SearchOutput.Close()
+	closeSockets(s.searchSockets)
+	if s.searchOutput != nil {
+		s.searchOutput.Close()
 	}
 }
 
