@@ -10,6 +10,7 @@ package types
 
 import (
 	"encoding/json"
+	"errors"
 	"hash/fnv"
 	"io"
 	"sort"
@@ -150,6 +151,13 @@ type BaseResponse struct {
 	OverLimit bool
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
+}
+
+func (br BaseResponse) Err() error {
+	if br.Error != `` {
+		return errors.New(br.Error)
+	}
+	return nil
 }
 
 // We have a generic StatsRequest type that ONLY implements the BaseRequest.
