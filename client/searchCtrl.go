@@ -827,17 +827,13 @@ func (c *Client) getStackGraphResults(s Search, req types.StackGraphRequest) (re
 		err = fmt.Errorf("Search %v has invalid renderer type: expected stackgraph, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.searchOutput.WriteJSON(req); err != nil {
+
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.searchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -881,17 +877,12 @@ func (c *Client) getPointmapResults(s Search, req types.PointmapRequest) (resp t
 		err = fmt.Errorf("Search %v has invalid renderer type: expected pointmap, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.searchOutput.WriteJSON(req); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.searchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -939,17 +930,12 @@ func (c *Client) getHeatmapResults(s Search, req types.HeatmapRequest) (resp typ
 		err = fmt.Errorf("Search %v has invalid renderer type: expected heatmap, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.searchOutput.WriteJSON(req); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.searchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -997,17 +983,12 @@ func (c *Client) getP2PResults(s Search, req types.P2PRequest) (resp types.P2PRe
 		err = fmt.Errorf("Search %v has invalid renderer type: expected point2point, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.searchOutput.WriteJSON(req); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if err = s.searchOutput.ReadJSON(&resp); err == nil {
-		if resp.ID != req.ID {
-			err = errors.New("Invalid response ID")
-			if resp.Error != `` {
-				err = errors.New(resp.Error)
-			}
-			return
-		}
+	} else if err = resp.Err(); err != nil {
+		return
+	} else if resp.ID != req.ID {
+		err = errors.New("Invalid response ID")
 	}
 	return
 }
@@ -1070,20 +1051,15 @@ func (c *Client) GetExploreEntries(s Search, start, end uint64) ([]types.SearchE
 			},
 		},
 	}
-	if err := s.searchOutput.WriteJSON(req); err != nil {
-		return nil, nil, err
-	}
-	//see what the server has to say about that
 	resp := types.TextResponse{}
-	if err := s.searchOutput.ReadJSON(&resp); err != nil {
+	if err := s.Exchange(req, &resp); err != nil {
 		return nil, nil, err
-	}
-	if resp.ID != types.RESP_GET_EXPLORE_ENTRIES {
-		if resp.Error != "" {
-			return nil, nil, errors.New(resp.Error)
-		}
+	} else if err = resp.Err(); err != nil {
+		return nil, nil, err
+	} else if resp.ID != types.RESP_GET_EXPLORE_ENTRIES {
 		return nil, nil, errors.New("Invalid response ID")
 	}
+	//see what the server has to say about that
 	if resp.Entries == nil {
 		return nil, nil, errors.New("Empty entry response")
 	}
@@ -1100,20 +1076,13 @@ func (c *Client) GetSearchMetadata(s Search) (sm types.SearchMetadata, err error
 			ID: types.REQ_SEARCH_METADATA,
 		},
 	}
-	if err = s.searchOutput.WriteJSON(req); err != nil {
-		return
-	}
 	var resp types.StatsResponse
-	if err = s.searchOutput.ReadJSON(&resp); err != nil {
+	if err = s.Exchange(req, &resp); err != nil {
 		return
-	}
-	if resp.ID != types.RESP_SEARCH_METADATA {
-		if resp.Error != "" {
-			err = errors.New(resp.Error)
-		} else {
-			err = errors.New("Invalid response ID")
-		}
+	} else if err = resp.Err(); err != nil {
 		return
+	} else if resp.ID != types.RESP_SEARCH_METADATA {
+		err = errors.New("Invalid response ID")
 	}
 	if resp.Metadata != nil {
 		sm = *resp.Metadata
