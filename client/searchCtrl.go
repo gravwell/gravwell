@@ -726,9 +726,6 @@ func (c *Client) getChartResults(s Search, req types.ChartRequest) (resp types.C
 		err = fmt.Errorf("Search %v has invalid renderer type: expected chart, saw %v", s.ID, s.RenderMod)
 		return
 	}
-	if err = s.searchOutput.WriteJSON(req); err != nil {
-		return
-	}
 	if err = s.Exchange(req, &resp); err != nil {
 		return
 	} else if err = resp.Err(); err != nil {
