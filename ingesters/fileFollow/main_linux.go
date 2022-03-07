@@ -282,7 +282,10 @@ func main() {
 		debugout("Started following %d locations\n", len(cfg.Follower))
 		debugout("Running\n")
 		//listen for signals so we can close gracefully
-		<-qc
+		select {
+		case <-qc:
+		case <-wtcher.Context().Done():
+		}
 	}
 	debugout("Attempting to close the watcher... ")
 	if err := wtcher.Close(); err != nil {

@@ -27,6 +27,10 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
+const (
+	MAX_QUEUED_EVENTS_PATH = "/proc/sys/fs/inotify/max_queued_events"
+)
+
 var (
 	ErrNotReady         = errors.New("fsnotify watcher is not ready")
 	ErrLocationNotDir   = errors.New("Watched Location is not a directory")
@@ -339,7 +343,24 @@ watchRoutine:
 			if !ok {
 				break watchRoutine
 			}
-			wm.logger.Error("filesystem notification error", log.KVErr(err))
+
+			// grab the current value of the queue depth
+			d, rerr := os.ReadFile(MAX_QUEUED_EVENTS_PATH)
+			if rerr != nil {
+				// ignore the error but let us know please
+				d = []byte(fmt.Sprintf("could not read from %v", MAX_QUEUED_EVENTS_PATH))
+			}
+			wm.logger.Error("Filesystem notification error. Increase the queued events kernel parameter or decrease the number of tracked files.", log.KVErr(err), log.KV("max_queued_events", string(d)), log.KV("help", "https://docs.gravwell.io/#!ingesters/file_follow.md"))
+
+			wm.mtx.Lock()
+			defer wm.mtx.Unlock()
+			if wm.fman != nil {
+				wm.fman.Close()
+			}
+			wm.watcher = nil
+			wm.fman = nil
+			wm.cancel()
+			return
 		case evt, ok := <-wm.watcher.Events:
 			if !ok {
 				break watchRoutine

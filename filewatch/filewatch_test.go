@@ -21,6 +21,7 @@ import (
 const (
 	bName          string = `test`
 	testMultiCount int    = 16
+	WATCH_OVERFLOW int    = 16384 + 1 // plus 1 to overflow
 )
 
 var (
@@ -49,7 +50,7 @@ type addFunction func(string, *WatchManager) error
 type runFunction func(string) error
 type tailFunction func(*WatchManager) error
 
-func fireWatcher(af addFunction, rf runFunction, tf tailFunction, t *testing.T) {
+func fireWatcher(af addFunction, pf, rf runFunction, tf tailFunction, t *testing.T) {
 	//get a working dir and temp state file
 	workingDir, err := ioutil.TempDir(tempPath, `watched`)
 	if err != nil {
@@ -71,6 +72,16 @@ func fireWatcher(af addFunction, rf runFunction, tf tailFunction, t *testing.T) 
 	if af != nil {
 		//run the user function
 		if err := af(workingDir, w); err != nil {
+			w.Close()
+			os.RemoveAll(stateFilePath)
+			os.RemoveAll(workingDir)
+			t.Fatal(err)
+		}
+	}
+
+	if pf != nil {
+		// run the preflight function
+		if err := pf(workingDir); err != nil {
 			w.Close()
 			os.RemoveAll(stateFilePath)
 			os.RemoveAll(workingDir)
@@ -130,42 +141,44 @@ func TestSingleWatcher(t *testing.T) {
 			t.Fatal(errors.New("Filter not installed"))
 		}
 		return nil
-	}, func(workingDir string) error {
-		_, res, err = writeLines(filepath.Join(workingDir, `paco123`))
-		if err != nil {
-			t.Fatal(err)
-		}
-		for i := 0; i < 100; i++ {
-			if lh.Len() == len(res) {
-				break
+	},
+		nil,
+		func(workingDir string) error {
+			_, res, err = writeLines(filepath.Join(workingDir, `paco123`))
+			if err != nil {
+				t.Fatal(err)
 			}
-			time.Sleep(time.Millisecond * 10)
-		}
-		return nil
-	}, func(wm *WatchManager) error {
-		if err := wm.fman.nolockDumpStates(); err != nil {
-			return err
-		}
-		sts, err := ReadStateFile(stateFilePath)
-		if err != nil {
-			return err
-		}
-		if len(sts) != len(wm.fman.followers) {
-			return fmt.Errorf("state file doesn't match %d != %d", len(sts), len(wm.fman.followers))
-		}
-		if len(sts) != len(wm.fman.states) {
-			return errors.New("states doesn't match statefile")
-		}
-		for k, v := range wm.fman.states {
-			if v == nil {
-				return errors.New("invalid state value")
+			for i := 0; i < 100; i++ {
+				if lh.Len() == len(res) {
+					break
+				}
+				time.Sleep(time.Millisecond * 10)
 			}
-			if sts[filepath.Join(k.FilePath, k.BaseName)] != *v {
-				return fmt.Errorf("Invalid value for %v", k)
+			return nil
+		}, func(wm *WatchManager) error {
+			if err := wm.fman.nolockDumpStates(); err != nil {
+				return err
 			}
-		}
-		return nil
-	}, t)
+			sts, err := ReadStateFile(stateFilePath)
+			if err != nil {
+				return err
+			}
+			if len(sts) != len(wm.fman.followers) {
+				return fmt.Errorf("state file doesn't match %d != %d", len(sts), len(wm.fman.followers))
+			}
+			if len(sts) != len(wm.fman.states) {
+				return errors.New("states doesn't match statefile")
+			}
+			for k, v := range wm.fman.states {
+				if v == nil {
+					return errors.New("invalid state value")
+				}
+				if sts[filepath.Join(k.FilePath, k.BaseName)] != *v {
+					return fmt.Errorf("Invalid value for %v", k)
+				}
+			}
+			return nil
+		}, t)
 
 	//check the results
 	if len(res) != lh.Len() {
@@ -201,37 +214,39 @@ func TestMultiWatcherNoDelete(t *testing.T) {
 			t.Fatal(errors.New("All filters not installed"))
 		}
 		return nil
-	}, func(workingDir string) error {
-		//perform the writes
-		for i := 0; i < testMultiCount; i++ {
-			_, r, err := writeLines(filepath.Join(workingDir, fmt.Sprintf(`test%dpaco123`, i)))
-			if err != nil {
-				t.Fatal(err)
+	},
+		nil,
+		func(workingDir string) error {
+			//perform the writes
+			for i := 0; i < testMultiCount; i++ {
+				_, r, err := writeLines(filepath.Join(workingDir, fmt.Sprintf(`test%dpaco123`, i)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				res = append(res, r)
 			}
-			res = append(res, r)
-		}
 
-		var i int
-		for i < 100 {
-			//check all our lengths
-			missed := false
-			for j := 0; j < testMultiCount; j++ {
-				if lhs[j].Len() != len(res[j]) {
-					missed = true
+			var i int
+			for i < 100 {
+				//check all our lengths
+				missed := false
+				for j := 0; j < testMultiCount; j++ {
+					if lhs[j].Len() != len(res[j]) {
+						missed = true
+						break
+					}
+				}
+				if !missed {
 					break
 				}
+				time.Sleep(10 * time.Millisecond)
+				i++
 			}
-			if !missed {
-				break
+			if i >= 100 {
+				return errors.New("timed out waiting for all lines")
 			}
-			time.Sleep(10 * time.Millisecond)
-			i++
-		}
-		if i >= 100 {
-			return errors.New("timed out waiting for all lines")
-		}
-		return nil
-	}, nil, t)
+			return nil
+		}, nil, t)
 
 	//check the results
 	for i := range lhs {
@@ -245,6 +260,41 @@ func TestMultiWatcherNoDelete(t *testing.T) {
 		}
 	}
 }
+
+//
+// Disabled test that can flex the queue overload error.
+//
+//func TestOverflow(t *testing.T) {
+//	lh := newSafeTrackingLH()
+//	fireWatcher(func(workingDir string, w *WatchManager) error {
+//		watchCfg := WatchConfig{
+//			ConfigName: bName,
+//			BaseDir:    workingDir,
+//			FileFilter: `paco*`,
+//			Hnd:        lh,
+//		}
+//		//add in one filter
+//		if err := w.Add(watchCfg); err != nil {
+//			t.Fatal(err)
+//		}
+//		if w.Filters() != 1 {
+//			t.Fatal(errors.New("Filter not installed"))
+//		}
+//		return nil
+//	}, func(workingDir string) error {
+//		// just touch enough files to overload the watcher
+//		for i := 0; i < WATCH_OVERFLOW; i++ {
+//			err := os.WriteFile(filepath.Join(workingDir, fmt.Sprintf("paco%v", i)), []byte("test"), 0644)
+//			if err != nil {
+//				t.Fatal(err)
+//			}
+//		}
+//		return nil
+//	}, func(workingDir string) error {
+//		time.Sleep(5 * time.Second)
+//		return nil
+//	}, nil, t)
+//}
 
 func TestMultiWatcherWithOverlap(t *testing.T) {
 	var res map[string]bool
@@ -271,7 +321,7 @@ func TestMultiWatcherWithOverlap(t *testing.T) {
 			t.Fatal(errors.New("All filters not installed"))
 		}
 		return nil
-	}, func(workingDir string) error {
+	}, nil, func(workingDir string) error {
 		//perform the writes on just one file, it will match everything
 		_, r, err := writeLines(filepath.Join(workingDir, matcher))
 		if err != nil {
@@ -346,7 +396,7 @@ func TestMultiWatcherWithDelete(t *testing.T) {
 			t.Fatal(errors.New("All filters not installed"))
 		}
 		return nil
-	}, func(workingDir string) error {
+	}, nil, func(workingDir string) error {
 		//perform the writes
 		for i := 0; i < testMultiCount; i++ {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
@@ -431,7 +481,7 @@ func TestMultiWatcherWithMoveNoMatch(t *testing.T) {
 			t.Fatal(errors.New("All filters not installed"))
 		}
 		return nil
-	}, func(workingDir string) error {
+	}, nil, func(workingDir string) error {
 		//perform the writes
 		for i := 0; i < testMultiCount; i++ {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
@@ -517,7 +567,7 @@ func TestMultiWatcherWithMoveWithMatch(t *testing.T) {
 			t.Fatal(errors.New("All filters not installed"))
 		}
 		return nil
-	}, func(workingDir string) error {
+	}, nil, func(workingDir string) error {
 		//perform the writes
 		for i := 0; i < testMultiCount; i++ {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
@@ -604,7 +654,7 @@ func TestMultiWatcherWithMoveWithMatchNewFilter(t *testing.T) {
 			t.Fatal(errors.New("All filters not installed"))
 		}
 		return nil
-	}, func(workingDir string) error {
+	}, nil, func(workingDir string) error {
 		//perform the writes
 		for i := 0; i < testMultiCount; i++ {
 			fname := fmt.Sprintf(`test%dpaco123`, i)
