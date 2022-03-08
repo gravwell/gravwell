@@ -23,9 +23,10 @@ import (
 
 const (
 	// base universal requests
-	REQ_GET_ENTRIES uint32 = 0x10
-	REQ_STREAMING   uint32 = 0x11
-	REQ_TS_RANGE    uint32 = 0x12
+	REQ_GET_ENTRIES     uint32 = 0x10
+	REQ_STREAMING       uint32 = 0x11
+	REQ_TS_RANGE        uint32 = 0x12
+	REQ_GET_RAW_ENTRIES uint32 = 0x13
 
 	// data exploration requests
 	REQ_GET_EXPLORE_ENTRIES uint32 = 0xf010
@@ -43,9 +44,10 @@ const (
 	REQ_SEARCH_METADATA uint32 = 0x10001
 
 	// base universal responses
-	RESP_GET_ENTRIES uint32 = 0x10
-	RESP_STREAMING   uint32 = 0x11
-	RESP_TS_RANGE    uint32 = 0x12
+	RESP_GET_ENTRIES     uint32 = 0x10
+	RESP_STREAMING       uint32 = 0x11
+	RESP_TS_RANGE        uint32 = 0x12
+	RESP_GET_RAW_ENTRIES uint32 = 0x13
 
 	// data exploration responses
 	RESP_GET_EXPLORE_ENTRIES uint32 = 0xf010
