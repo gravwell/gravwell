@@ -583,7 +583,16 @@ func (c *Client) GetPcapTsRange(s Search, start, end time.Time, first, last uint
 // GetRawResults queries a range of search results from the raw renderer. It returns
 // a types.TextResponse structure containing the results (see the Entries field).
 func (c *Client) GetRawResults(s Search, start, end uint64) (types.TextResponse, error) {
-	return c.GetTextResults(s, start, end)
+	req := types.TextRequest{
+		BaseRequest: types.BaseRequest{
+			ID: types.REQ_GET_RAW_ENTRIES,
+			EntryRange: &types.EntryRange{
+				First: start,
+				Last:  end,
+			},
+		},
+	}
+	return c.getTextResults(s, req)
 }
 
 // GetRawTsRange queries search results for a time range from the raw renderer. It returns
