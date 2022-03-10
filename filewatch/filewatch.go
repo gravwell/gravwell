@@ -29,6 +29,7 @@ import (
 
 const (
 	MAX_QUEUED_EVENTS_PATH = "/proc/sys/fs/inotify/max_queued_events"
+	EVENT_QUEUE_BUFFER     = 100000
 )
 
 var (
@@ -65,7 +66,7 @@ func NewWatcher(stateFilePath string) (*WatchManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	w, err := fsnotify.NewWatcher()
+	w, err := fsnotify.NewBufferedWatcher(EVENT_QUEUE_BUFFER)
 	if err != nil {
 		return nil, err
 	}
@@ -339,7 +340,6 @@ watchRoutine:
 	for {
 		select {
 		case err, ok = <-wm.watcher.Errors:
-			//we bail on error, not sure if any of this is recoverable, look into it
 			if !ok {
 				break watchRoutine
 			}
