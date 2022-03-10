@@ -353,6 +353,7 @@ watchRoutine:
 				}
 				wm.logger.Error("Filesystem notification error. Events are being dropped. Increase the queued events kernel parameter or decrease the number of tracked files.", log.KVErr(err), log.KV("max_queued_events", string(d)), log.KV("help", "https://docs.gravwell.io/#!ingesters/file_follow.md"))
 			}
+			err = nil
 		case evt, ok := <-wm.watcher.Events:
 			if !ok {
 				break watchRoutine
