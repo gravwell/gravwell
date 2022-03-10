@@ -67,6 +67,8 @@ replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20210
 
 replace github.com/open-networks/go-msgraph => github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3
 
+replace github.com/fsnotify/fsnotify => github.com/traetox/fsnotify v1.5.2-0.20220310052716-a0d82fe7e596
+
 // replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
 
 replace github.com/cloudflare/buffer => github.com/traetox/buffer v0.0.0-20210409000708-97e100fbf3c5
