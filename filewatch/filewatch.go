@@ -344,23 +344,15 @@ watchRoutine:
 				break watchRoutine
 			}
 
-			// grab the current value of the queue depth
-			d, rerr := os.ReadFile(MAX_QUEUED_EVENTS_PATH)
-			if rerr != nil {
-				// ignore the error but let us know please
-				d = []byte(fmt.Sprintf("could not read from %v", MAX_QUEUED_EVENTS_PATH))
+			if err == fsnotify.ErrEventOverflow {
+				// grab the current value of the queue depth
+				d, rerr := os.ReadFile(MAX_QUEUED_EVENTS_PATH)
+				if rerr != nil {
+					// ignore the error but let us know please
+					d = []byte(fmt.Sprintf("could not read from %v", MAX_QUEUED_EVENTS_PATH))
+				}
+				wm.logger.Error("Filesystem notification error. Events are being dropped. Increase the queued events kernel parameter or decrease the number of tracked files.", log.KVErr(err), log.KV("max_queued_events", string(d)), log.KV("help", "https://docs.gravwell.io/#!ingesters/file_follow.md"))
 			}
-			wm.logger.Error("Filesystem notification error. Increase the queued events kernel parameter or decrease the number of tracked files.", log.KVErr(err), log.KV("max_queued_events", string(d)), log.KV("help", "https://docs.gravwell.io/#!ingesters/file_follow.md"))
-
-			wm.mtx.Lock()
-			defer wm.mtx.Unlock()
-			if wm.fman != nil {
-				wm.fman.Close()
-			}
-			wm.watcher = nil
-			wm.fman = nil
-			wm.cancel()
-			return
 		case evt, ok := <-wm.watcher.Events:
 			if !ok {
 				break watchRoutine
