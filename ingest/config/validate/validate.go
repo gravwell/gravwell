@@ -23,7 +23,7 @@ var (
 	vflag = flag.Bool("validate", false, "Load configuration file and exit")
 )
 
-func ValidateConfig(fnc interface{}, pth string) {
+func ValidateConfig(fnc interface{}, pth, confdPath string) {
 	if !*vflag {
 		return
 	}
@@ -41,14 +41,14 @@ func ValidateConfig(fnc interface{}, pth string) {
 	if fnType.Kind() != reflect.Func {
 		fmt.Println("Given configuration function is not a function")
 		os.Exit(exitCode)
-	} else if fnType.NumIn() != 1 {
+	} else if fnType.NumIn() != 2 {
 		fmt.Printf("Given configuration function expects %d parameters instead of 1\n", fnType.NumIn())
 		os.Exit(exitCode)
 	} else if fnType.NumOut() != 2 {
 		fmt.Printf("Given configuration function produces %d output values instead of 2\n", fnType.NumOut())
 		os.Exit(exitCode)
 	}
-	res := fn.Call([]reflect.Value{reflect.ValueOf(pth)})
+	res := fn.Call([]reflect.Value{reflect.ValueOf(pth), reflect.ValueOf(confdPath)})
 	if len(res) != 2 {
 		fmt.Printf("Given configuration function returned the wrong number of values: %d != 2\n", len(res))
 		os.Exit(exitCode)
@@ -69,6 +69,10 @@ func ValidateConfig(fnc interface{}, pth string) {
 		fmt.Printf("Config file %q returned a nil object\n", pth)
 		os.Exit(exitCode)
 	}
-	fmt.Println(pth, "is valid")
+	if confdPath != `` {
+		fmt.Println(pth, "with overlay", confdPath, "is valid")
+	} else {
+		fmt.Println(pth, "is valid")
+	}
 	os.Exit(0) //all good
 }
