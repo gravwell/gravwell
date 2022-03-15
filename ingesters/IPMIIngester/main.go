@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -73,6 +74,8 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	validate.ValidateConfig(GetConfig, *confLoc, ``)
+
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(ingesterName)
 	if *stderrOverride != `` {

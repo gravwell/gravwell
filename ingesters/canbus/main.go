@@ -73,7 +73,7 @@ func init() {
 		confLoc = *configOverride
 	}
 	v = *verbose
-	validate.ValidateConfig(GetConfig, confLoc) // this will exit if the flags are set
+	validate.ValidateConfig(GetConfig, confLoc, ``) // this will exit if the flags are set, also no overlays
 }
 
 func main() {

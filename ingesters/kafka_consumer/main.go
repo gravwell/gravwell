@@ -81,7 +81,7 @@ func handleFlags() {
 	}
 
 	v = *verbose
-	validate.ValidateConfig(GetConfig, *confLoc)
+	validate.ValidateConfig(GetConfig, *confLoc, ``)
 }
 
 func main() {

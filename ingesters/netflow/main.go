@@ -79,7 +79,7 @@ func init() {
 
 	v = *verbose
 	connClosers = make(map[int]closer, 1)
-	validate.ValidateConfig(GetConfig, *confLoc)
+	validate.ValidateConfig(GetConfig, *confLoc, ``)
 }
 
 func main() {

@@ -31,13 +31,15 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/file_follow.conf`
-	defaultStateLoc  = `/opt/gravwell/etc/file_follow.state`
-	appName          = `filefollow`
+	defaultConfigLoc  = `/opt/gravwell/etc/file_follow.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/file_follow.conf.d`
+	defaultStateLoc   = `/opt/gravwell/etc/file_follow.state`
+	appName           = `filefollow`
 )
 
 var (
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
@@ -79,7 +81,7 @@ func init() {
 	}
 
 	v = *verbose
-	validate.ValidateConfig(GetConfig, *confLoc)
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 }
 
 func main() {

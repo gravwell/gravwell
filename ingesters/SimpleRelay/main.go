@@ -58,6 +58,7 @@ func mainInit() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
@@ -85,7 +86,6 @@ func mainInit() {
 
 	v = *verbose
 	connClosers = make(map[int]closer, 1)
-	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 }
 
 func main() {

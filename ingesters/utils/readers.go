@@ -23,8 +23,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -252,16 +252,16 @@ func GetImportFormat(override, fp string) (format string, err error) {
 }
 
 type LineDelimitedStream struct {
-	Rdr          io.Reader
-	Proc         *processors.ProcessorSet
-	Tag          entry.EntryTag
-	TG           *timegrinder.TimeGrinder
-	SRC          net.IP
+	Rdr            io.Reader
+	Proc           *processors.ProcessorSet
+	Tag            entry.EntryTag
+	TG             *timegrinder.TimeGrinder
+	SRC            net.IP
 	IgnorePrefixes [][]byte
-	CleanQuotes  bool
-	Verbose      bool
-	Quotable     bool
-	BatchSize    int
+	CleanQuotes    bool
+	Verbose        bool
+	Quotable       bool
+	BatchSize      int
 }
 
 func IngestLineDelimitedStream(cfg LineDelimitedStream) (uint64, uint64, error) {
@@ -282,7 +282,7 @@ func IngestLineDelimitedStream(cfg LineDelimitedStream) (uint64, uint64, error) 
 	}
 	scn.Buffer(make([]byte, initBuffSize), maxBuffSize)
 
-	scannerLoop:
+scannerLoop:
 	for scn.Scan() {
 		if bts = bytes.TrimSuffix(scn.Bytes(), nlBytes); len(bts) == 0 {
 			continue

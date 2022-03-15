@@ -47,7 +47,7 @@ func init() {
 		lg.AddWriter(os.Stdout)
 	}
 	lg.SetAppname(appName)
-	validate.ValidateConfig(GetConfig, *confLoc)
+	validate.ValidateConfig(GetConfig, *confLoc, ``)
 }
 
 func main() {
