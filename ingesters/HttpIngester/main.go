@@ -29,12 +29,14 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/gravwell_http_ingester.conf`
-	appName          = `httpingester`
+	defaultConfigLoc  = `/opt/gravwell/etc/gravwell_http_ingester.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/simple_relay.conf.d`
+	appName           = `httpingester`
 )
 
 var (
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
@@ -79,7 +81,7 @@ func init() {
 			}
 		}
 	}
-	validate.ValidateConfig(GetConfig, *confLoc)
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 }
 
 func main() {

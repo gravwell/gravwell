@@ -83,7 +83,7 @@ func init() {
 			}
 		}
 	}
-	validate.ValidateConfig(GetConfig, *configLoc)
+	validate.ValidateConfig(GetConfig, *configLoc, ``)
 }
 
 func main() {

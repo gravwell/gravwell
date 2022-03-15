@@ -30,17 +30,19 @@ import (
 )
 
 const (
-	defaultConfigLoc     = `/opt/gravwell/etc/simple_relay.conf`
-	ingesterName         = `simplerelay`
-	appName              = `simplerelay`
-	batchSize            = 512
-	maxDataSize      int = 8 * 1024 * 1024
-	initDataSize     int = 512 * 1024
+	defaultConfigLoc      = `/opt/gravwell/etc/simple_relay.conf`
+	defaultConfigDLoc     = `/opt/gravwell/etc/simple_relay.conf.d`
+	ingesterName          = `simplerelay`
+	appName               = `simplerelay`
+	batchSize             = 512
+	maxDataSize       int = 8 * 1024 * 1024
+	initDataSize      int = 512 * 1024
 )
 
 var (
 	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
@@ -56,6 +58,7 @@ func mainInit() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
@@ -83,7 +86,6 @@ func mainInit() {
 
 	v = *verbose
 	connClosers = make(map[int]closer, 1)
-	validate.ValidateConfig(GetConfig, *confLoc)
 }
 
 func main() {
@@ -99,7 +101,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return

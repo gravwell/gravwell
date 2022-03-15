@@ -73,7 +73,7 @@ func init() {
 		}
 	}
 	v = *verbose
-	validate.ValidateConfig(GetConfig, *confLoc)
+	validate.ValidateConfig(GetConfig, *confLoc, ``)//no overlays
 }
 
 func main() {
