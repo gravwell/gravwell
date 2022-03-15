@@ -219,41 +219,6 @@ func (lt LicenseType) Valid() bool {
 	return false
 }
 
-// THIS IS ONLY USED when determining how the automatic license generation behaves
-func (lt LicenseType) CanUpgrade(dest LicenseType) bool {
-	if lt == dest {
-		// not a conflict, both identical
-		return true
-	}
-	switch lt {
-	case Community:
-		//community -> eval is ok
-		if dest == Eval {
-			return true
-		}
-	case Eval:
-		if dest == Community {
-			return false
-		}
-		return true //upgrading from eval to paid license is ok
-	case Fractional:
-		if dest == Single || dest == Enterprise || dest == Cluster {
-			return true // upgrading license is OK
-		}
-	case Single:
-		if dest == Enterprise || dest == Cluster {
-			return true //upgrading license is ok
-		}
-	case Enterprise:
-		if dest == Cluster {
-			return true //upgrading license is ok
-		}
-	}
-	// everything else is disallowed
-	// if a user needs to make any other changes, they have to talk to sales
-	return false
-}
-
 func (lt LicenseType) String() string {
 	switch lt {
 	case Cluster:
