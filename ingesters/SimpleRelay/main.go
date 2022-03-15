@@ -31,6 +31,7 @@ import (
 
 const (
 	defaultConfigLoc     = `/opt/gravwell/etc/simple_relay.conf`
+	defaultConfigDLoc    = `/opt/gravwell/etc/simple_relay.conf.d`
 	ingesterName         = `simplerelay`
 	appName              = `simplerelay`
 	batchSize            = 512
@@ -41,6 +42,7 @@ const (
 var (
 	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc        = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
@@ -99,7 +101,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return
