@@ -54,9 +54,11 @@ type cfgType struct {
 	TimeFormat    config.CustomTimeFormat
 }
 
-func GetConfig(path string) (*cfgType, error) {
+func GetConfig(path, overlayPath string) (*cfgType, error) {
 	var c cfgType
 	if err := config.LoadConfigFile(&c, path); err != nil {
+		return nil, err
+	} else if err = config.LoadConfigOverlays(&c, overlayPath); err != nil {
 		return nil, err
 	}
 	//initialize the state store location if its empty

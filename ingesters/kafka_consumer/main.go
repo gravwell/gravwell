@@ -29,17 +29,19 @@ import (
 )
 
 const (
-	defaultConfigLoc     = `/opt/gravwell/etc/kafka.conf`
-	ingesterName         = `kafka_consumer`
-	appName              = `kafka`
-	batchSize            = 512
-	maxDataSize      int = 8 * 1024 * 1024
-	initDataSize     int = 512 * 1024
+	defaultConfigLoc      = `/opt/gravwell/etc/kafka.conf`
+	defaultConfigDLoc     = `/opt/gravwell/etc/kafka.conf.d`
+	ingesterName          = `kafka_consumer`
+	appName               = `kafka`
+	batchSize             = 512
+	maxDataSize       int = 8 * 1024 * 1024
+	initDataSize      int = 512 * 1024
 )
 
 var (
 	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
@@ -81,7 +83,7 @@ func handleFlags() {
 	}
 
 	v = *verbose
-	validate.ValidateConfig(GetConfig, *confLoc, ``)
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 }
 
 func main() {
@@ -97,7 +99,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return

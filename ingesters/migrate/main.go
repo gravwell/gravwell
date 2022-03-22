@@ -26,13 +26,14 @@ import (
 )
 
 var (
-	confLoc = flag.String("config-file", ``, "Location for configuration file")
-	verbose = flag.Bool("v", false, "Display verbose status updates to stdout")
-	ver     = flag.Bool("version", false, "Print the version information and exit")
-	status  = flag.Bool("status", false, "Print status updates and ingest rate")
-	v       bool
-	lg      *log.Logger
-	src     net.IP
+	confLoc  = flag.String("config-file", ``, "Location for configuration file")
+	confdLoc = flag.String("config-overlays", ``, "Location for configuration overlay files")
+	verbose  = flag.Bool("v", false, "Display verbose status updates to stdout")
+	ver      = flag.Bool("version", false, "Print the version information and exit")
+	status   = flag.Bool("status", false, "Print status updates and ingest rate")
+	v        bool
+	lg       *log.Logger
+	src      net.IP
 )
 
 func init() {
@@ -47,13 +48,13 @@ func init() {
 		lg.AddWriter(os.Stdout)
 	}
 	lg.SetAppname(appName)
-	validate.ValidateConfig(GetConfig, *confLoc, ``)
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 }
 
 func main() {
 	// this thing hits the filesystem, parallelism will almost always be bad
 	utils.MaxProcTune(1)
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 	}

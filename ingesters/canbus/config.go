@@ -11,13 +11,11 @@ package main
 import (
 	"errors"
 	"net"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
-
-	"github.com/gravwell/gcfg"
+	"github.com/gravwell/gravwell/v3/ingest/config"
 )
 
 const (
@@ -42,37 +40,17 @@ type cfgType struct {
 	}
 }
 
-func GetConfig(path string) (*cfgType, error) {
-	var content []byte
-	fin, err := os.Open(path)
-	if err != nil {
+func GetConfig(path, overlayPath string) (*cfgType, error) {
+	var cr cfgType
+	if err := config.LoadConfigFile(&cr, path); err != nil {
+		return nil, err
+	} else if err = config.LoadConfigOverlays(&cr, overlayPath); err != nil {
 		return nil, err
 	}
-	fi, err := fin.Stat()
-	if err != nil {
-		fin.Close()
+	if err := verifyConfig(&cr); err != nil {
 		return nil, err
 	}
-	//This is just a sanity check
-	if fi.Size() > maxConfigSize {
-		fin.Close()
-		return nil, errors.New("Config File Far too large")
-	}
-	content = make([]byte, fi.Size())
-	n, err := fin.Read(content)
-	fin.Close()
-	if int64(n) != fi.Size() {
-		return nil, errors.New("Failed to read config file")
-	}
-
-	var c cfgType
-	if err := gcfg.ReadStringInto(&c, string(content)); err != nil {
-		return nil, err
-	}
-	if err := verifyConfig(&c); err != nil {
-		return nil, err
-	}
-	return &c, nil
+	return &cr, nil
 }
 
 func verifyConfig(c *cfgType) error {

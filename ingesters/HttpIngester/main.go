@@ -51,7 +51,9 @@ func init() {
 		version.PrintVersion(os.Stdout)
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
-	} else if *verbose {
+	}
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
+	if *verbose {
 		v = true
 	}
 	if *confLoc == `` {
@@ -81,13 +83,12 @@ func init() {
 			}
 		}
 	}
-	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 }
 
 func main() {
 	debug.SetTraceback("all")
 	var lgr *log.Logger
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.Fatal("failed to load config file", log.KV("file", *confLoc), log.KVErr(err))
 	}
