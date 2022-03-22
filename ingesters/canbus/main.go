@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	configOverride = flag.String("config-file-override", defaultConfigLoc, "Override location for configuration file")
+	configOverride = flag.String("config-file", defaultConfigLoc, "Override location for configuration file")
 	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
