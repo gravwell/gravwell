@@ -31,14 +31,13 @@ const (
 )
 
 var (
-	configOverride = flag.String("config-file", defaultConfigLoc, "Override location for configuration file")
-	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
-	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
-	ver            = flag.Bool("version", false, "Print the version information and exit")
+	confLoc  = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
+	verbose  = flag.Bool("v", false, "Display verbose status updates to stdout")
+	ver      = flag.Bool("version", false, "Print the version information and exit")
 
 	ErrInvalidPacket error = errors.New("Invalid packet")
 
-	confLoc      string
 	totalPackets uint64
 	totalBytes   uint64
 	v            bool
@@ -69,18 +68,13 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
-	if *configOverride == "" {
-		confLoc = defaultConfigLoc
-	} else {
-		confLoc = *configOverride
-	}
 	v = *verbose
-	validate.ValidateConfig(GetConfig, confLoc, *confdLoc) // this will exit if the flags are set, also no overlays
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc) // this will exit if the flags are set, also no overlays
 }
 
 func main() {
 	debug.SetTraceback("all")
-	cfg, err := GetConfig(confLoc, *confdLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		log.Fatal("Failed to get configuration: ", err)
 	}
