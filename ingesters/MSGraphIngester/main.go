@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -33,12 +34,14 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/msgraph_ingest.conf`
-	appName          = `msgraph`
+	defaultConfigLoc  = `/opt/gravwell/etc/msgraph_ingest.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/msgraph_ingest.conf.d`
+	appName           = `msgraph`
 )
 
 var (
 	configLoc      = flag.String("config-file", defaultConfigLoc, "Location of configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
@@ -58,6 +61,7 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	validate.ValidateConfig(GetConfig, *configLoc, *confdLoc)
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
@@ -90,7 +94,7 @@ type event struct {
 
 func main() {
 	debug.SetTraceback("all")
-	cfg, err := GetConfig(*configLoc)
+	cfg, err := GetConfig(*configLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 	}

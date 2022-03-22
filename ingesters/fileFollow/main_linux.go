@@ -55,6 +55,7 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
@@ -81,13 +82,12 @@ func init() {
 	}
 
 	v = *verbose
-	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 }
 
 func main() {
 	debug.SetTraceback("all")
 	utils.MaxProcTune(1) // this thing hits the filesystem, parallelism will almost always be bad
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 	}

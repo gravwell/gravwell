@@ -86,7 +86,7 @@ func main() {
 	} else {
 		fmt.Fprintf(os.Stderr, "Starting as interactive application\n")
 	}
-	cfg, err := GetConfig(confLoc)
+	cfg, err := GetConfig(confLoc, ``) // windows doesn't support the conf.d style overlays
 	if err != nil {
 		errorout("Failed to get configuration: %v", err)
 		return

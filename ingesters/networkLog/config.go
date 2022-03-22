@@ -11,15 +11,12 @@ package main
 import (
 	"errors"
 	"net"
-	"os"
 	"sort"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
-
-	"github.com/gravwell/gcfg"
 )
 
 const (
@@ -53,31 +50,12 @@ type cfgType struct {
 	Sniffer map[string]*snif
 }
 
-func GetConfig(path string) (*cfgType, error) {
-	var content []byte
-	fin, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	fi, err := fin.Stat()
-	if err != nil {
-		fin.Close()
-		return nil, err
-	}
-	//This is just a sanity check
-	if fi.Size() > maxConfigSize {
-		fin.Close()
-		return nil, errors.New("Config File Far too large")
-	}
-	content = make([]byte, fi.Size())
-	n, err := fin.Read(content)
-	fin.Close()
-	if int64(n) != fi.Size() {
-		return nil, errors.New("Failed to read config file")
-	}
-
+func GetConfig(path, overlayPath string) (*cfgType, error) {
+	//read into the intermediary type to maintain backwards compatibility with the old system
 	var cr cfgReadType
-	if err := gcfg.ReadStringInto(&cr, string(content)); err != nil {
+	if err := config.LoadConfigFile(&cr, path); err != nil {
+		return nil, err
+	} else if err = config.LoadConfigOverlays(&cr, overlayPath); err != nil {
 		return nil, err
 	}
 	c := &cfgType{
@@ -90,7 +68,7 @@ func GetConfig(path string) (*cfgType, error) {
 	// Verify and set UUID
 	if _, ok := c.IngesterUUID(); !ok {
 		id := uuid.New()
-		if err = c.SetIngesterUUID(id, path); err != nil {
+		if err := c.SetIngesterUUID(id, path); err != nil {
 			return nil, err
 		}
 		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
