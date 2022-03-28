@@ -248,18 +248,6 @@ func (m *mainService) init(ctx context.Context) error {
 			errorout("Failed to resolve tag \"%s\" for %s: %v\n", val.Tag_Name, k, err)
 			return err
 		}
-		var ignore [][]byte
-		for _, prefix := range val.Ignore_Line_Prefix {
-			if prefix != "" {
-				ignore = append(ignore, []byte(prefix))
-			}
-		}
-		var globs []string
-		for _, glob := range val.Ignore_Glob {
-			if glob != "" {
-				globs = append(globs, glob)
-			}
-		}
 		tsFmtOverride, err := val.TimestampOverride()
 		if err != nil {
 			errorout("Invalid timestamp override \"%s\": %v\n", val.Timestamp_Format_Override, err)
@@ -273,8 +261,8 @@ func (m *mainService) init(ctx context.Context) error {
 			Src:                     src,
 			IgnoreTS:                val.Ignore_Timestamps,
 			AssumeLocalTZ:           val.Assume_Local_Timezone,
-			IgnorePrefixes:          ignore,
-			IgnoreGlobs:             globs,
+			IgnorePrefixes:          val.Ignore_Line_Prefix,
+			IgnoreGlobs:             val.Ignore_Glob,
 			TimestampFormatOverride: tsFmtOverride,
 			Logger:                  dbgLogger,
 			TimezoneOverride:        val.Timezone_Override,

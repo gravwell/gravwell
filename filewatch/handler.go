@@ -52,7 +52,7 @@ type LogHandlerConfig struct {
 	Src                     net.IP
 	IgnoreTS                bool
 	AssumeLocalTZ           bool
-	IgnorePrefixes          [][]byte
+	IgnorePrefixes          []string
 	IgnoreGlobs             []string
 	TimestampFormatOverride string
 	TimezoneOverride        string
@@ -67,6 +67,21 @@ type LogHandlerConfig struct {
 type lineIgnorer struct {
 	prefixes [][]byte
 	globs    []glob.Glob
+}
+
+func NewIgnorer(prefixes, globs []string) (*lineIgnorer, error) {
+	li := &lineIgnorer{}
+	for _, v := range prefixes {
+		li.prefixes = append(li.prefixes, []byte(v))
+	}
+	for _, v := range globs {
+		c, err := glob.Compile(v)
+		if err != nil {
+			return nil, err
+		}
+		li.globs = append(li.globs, c)
+	}
+	return li, nil
 }
 
 // Ignore returns true if the given byte slice matches any of the prefixes or
@@ -144,16 +159,9 @@ func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
 		return nil, errors.New("no timegrinder but not ignoring timestamps")
 	}
 
-	li := &lineIgnorer{
-		prefixes: cfg.IgnorePrefixes,
-	}
-
-	for _, v := range cfg.IgnoreGlobs {
-		c, err := glob.Compile(v)
-		if err != nil {
-			return nil, err
-		}
-		li.globs = append(li.globs, c)
+	li, err := NewIgnorer(cfg.IgnorePrefixes, cfg.IgnoreGlobs)
+	if err != nil {
+		return nil, err
 	}
 
 	return &LogHandler{

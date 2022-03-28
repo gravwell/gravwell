@@ -208,18 +208,7 @@ func main() {
 		if err != nil {
 			lg.Fatal("failed to resolve tag", log.KV("watcher", k), log.KV("tag", val.Tag_Name), log.KVErr(err))
 		}
-		var ignore [][]byte
-		for _, prefix := range val.Ignore_Line_Prefix {
-			if prefix != "" {
-				ignore = append(ignore, []byte(prefix))
-			}
-		}
-		var globs []string
-		for _, glob := range val.Ignore_Glob {
-			if glob != "" {
-				globs = append(globs, glob)
-			}
-		}
+
 		tsFmtOverride, err := val.TimestampOverride()
 		if err != nil {
 			lg.FatalCode(0, "invalid timestamp override", log.KV("timestampoverride", val.Timestamp_Format_Override), log.KVErr(err))
@@ -232,8 +221,8 @@ func main() {
 			Src:                     src,
 			IgnoreTS:                val.Ignore_Timestamps,
 			AssumeLocalTZ:           val.Assume_Local_Timezone,
-			IgnorePrefixes:          ignore,
-			IgnoreGlobs:             globs,
+			IgnorePrefixes:          val.Ignore_Line_Prefix,
+			IgnoreGlobs:             val.Ignore_Glob,
 			TimestampFormatOverride: tsFmtOverride,
 			UserTimeRegex:           val.Timestamp_Regex,
 			UserTimeFormat:          val.Timestamp_Format_String,
