@@ -43,6 +43,7 @@ type LogHandler struct {
 	LogHandlerConfig
 	tg *timegrinder.TimeGrinder
 	w  logWriter
+	li *lineIgnorer
 }
 
 type LogHandlerConfig struct {
@@ -53,7 +54,6 @@ type LogHandlerConfig struct {
 	AssumeLocalTZ           bool
 	IgnorePrefixes          [][]byte
 	IgnoreGlobs             []string
-	compiledGlobs           []glob.Glob
 	TimestampFormatOverride string
 	TimezoneOverride        string
 	UserTimeRegex           string
@@ -62,6 +62,30 @@ type LogHandlerConfig struct {
 	Debugger                debugOut
 	Ctx                     context.Context
 	TimeFormat              config.CustomTimeFormat
+}
+
+type lineIgnorer struct {
+	prefixes [][]byte
+	globs    []glob.Glob
+}
+
+// Ignore returns true if the given byte slice matches any of the prefixes or
+// globs in the ignorer.
+func (l *lineIgnorer) Ignore(b []byte) bool {
+	for _, prefix := range l.prefixes {
+		if bytes.HasPrefix(b, prefix) {
+			return true
+		}
+	}
+
+	bString := string(b)
+	for _, glob := range l.globs {
+		if glob.Match(bString) {
+			return true
+		}
+	}
+
+	return false
 }
 
 type logWriter interface {
@@ -120,18 +144,23 @@ func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
 		return nil, errors.New("no timegrinder but not ignoring timestamps")
 	}
 
+	li := &lineIgnorer{
+		prefixes: cfg.IgnorePrefixes,
+	}
+
 	for _, v := range cfg.IgnoreGlobs {
 		c, err := glob.Compile(v)
 		if err != nil {
 			return nil, err
 		}
-		cfg.compiledGlobs = append(cfg.compiledGlobs, c)
+		li.globs = append(li.globs, c)
 	}
 
 	return &LogHandler{
 		LogHandlerConfig: cfg,
 		w:                w,
 		tg:               tg,
+		li:               li,
 	}, nil
 }
 
@@ -146,17 +175,9 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	var ok bool
 	var ts time.Time
 	var err error
-	for _, prefix := range lh.IgnorePrefixes {
-		if bytes.HasPrefix(b, prefix) {
-			return nil
-		}
-	}
 
-	bString := string(b)
-	for _, glob := range lh.compiledGlobs {
-		if glob.Match(bString) {
-			return nil
-		}
+	if lh.li.Ignore(b) {
+		return nil
 	}
 
 	if !lh.IgnoreTS {
