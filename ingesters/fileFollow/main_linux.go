@@ -214,6 +214,12 @@ func main() {
 				ignore = append(ignore, []byte(prefix))
 			}
 		}
+		var globs []string
+		for _, glob := range val.Ignore_Glob {
+			if glob != "" {
+				globs = append(globs, glob)
+			}
+		}
 		tsFmtOverride, err := val.TimestampOverride()
 		if err != nil {
 			lg.FatalCode(0, "invalid timestamp override", log.KV("timestampoverride", val.Timestamp_Format_Override), log.KVErr(err))
@@ -227,6 +233,7 @@ func main() {
 			IgnoreTS:                val.Ignore_Timestamps,
 			AssumeLocalTZ:           val.Assume_Local_Timezone,
 			IgnorePrefixes:          ignore,
+			IgnoreGlobs:             globs,
 			TimestampFormatOverride: tsFmtOverride,
 			UserTimeRegex:           val.Timestamp_Regex,
 			UserTimeFormat:          val.Timestamp_Format_String,

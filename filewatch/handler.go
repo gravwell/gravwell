@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
+	"github.com/gobwas/glob"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -51,6 +52,8 @@ type LogHandlerConfig struct {
 	IgnoreTS                bool
 	AssumeLocalTZ           bool
 	IgnorePrefixes          [][]byte
+	IgnoreGlobs             []string
+	compiledGlobs           []glob.Glob
 	TimestampFormatOverride string
 	TimezoneOverride        string
 	UserTimeRegex           string
@@ -116,6 +119,15 @@ func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
 	if !cfg.IgnoreTS && tg == nil {
 		return nil, errors.New("no timegrinder but not ignoring timestamps")
 	}
+
+	for _, v := range cfg.IgnoreGlobs {
+		c, err := glob.Compile(v)
+		if err != nil {
+			return nil, err
+		}
+		cfg.compiledGlobs = append(cfg.compiledGlobs, c)
+	}
+
 	return &LogHandler{
 		LogHandlerConfig: cfg,
 		w:                w,
@@ -139,6 +151,14 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 			return nil
 		}
 	}
+
+	bString := string(b)
+	for _, glob := range lh.compiledGlobs {
+		if glob.Match(bString) {
+			return nil
+		}
+	}
+
 	if !lh.IgnoreTS {
 		ts, ok, err = lh.tg.Extract(b)
 		if err != nil {
