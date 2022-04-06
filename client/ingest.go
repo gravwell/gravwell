@@ -19,6 +19,12 @@ import (
 	"github.com/gravwell/gravwell/v3/client/types"
 )
 
+// TestIngest returns whether or not this client is allowed to ingest data
+// if ingest is allowed err will be nil
+func (c *Client) TestIngest() (err error) {
+	return c.methodStaticURL(http.MethodHead, TEST_INGEST_URL, nil)
+}
+
 // IngestEntries takes an array of entries and uploads them to the webserver, which
 // will then distribute them out to its indexers.
 // Returns the number of ingested entries and any error.

@@ -63,7 +63,7 @@ func init() {
 		confLoc = *configOverride
 	}
 	verbose = *verboseF
-	validate.ValidateConfig(GetConfig, confLoc)
+	validate.ValidateConfig(GetConfig, confLoc, ``) //windows doesn't support conf.d style overlays for now
 }
 
 func main() {
@@ -86,7 +86,7 @@ func main() {
 	} else {
 		fmt.Fprintf(os.Stderr, "Starting as interactive application\n")
 	}
-	cfg, err := GetConfig(confLoc)
+	cfg, err := GetConfig(confLoc, ``) // windows doesn't support the conf.d style overlays
 	if err != nil {
 		errorout("Failed to get configuration: %v", err)
 		return

@@ -27,6 +27,11 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
+const (
+	MAX_QUEUED_EVENTS_PATH = "/proc/sys/fs/inotify/max_queued_events"
+	EVENT_QUEUE_BUFFER     = 100000
+)
+
 var (
 	ErrNotReady         = errors.New("fsnotify watcher is not ready")
 	ErrLocationNotDir   = errors.New("Watched Location is not a directory")
@@ -61,7 +66,7 @@ func NewWatcher(stateFilePath string) (*WatchManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	w, err := fsnotify.NewWatcher()
+	w, err := fsnotify.NewBufferedWatcher(EVENT_QUEUE_BUFFER)
 	if err != nil {
 		return nil, err
 	}
@@ -170,7 +175,7 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 	}
 
 	//extract all the filters from the match
-	fltrs, err := extractFilters(c.FileFilter)
+	fltrs, err := ExtractFilters(c.FileFilter)
 	if err != nil {
 		return err
 	}
@@ -221,7 +226,7 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 	return nil
 }
 
-func extractFilters(ff string) ([]string, error) {
+func ExtractFilters(ff string) ([]string, error) {
 	if strings.HasPrefix(ff, "{") && strings.HasSuffix(ff, "}") {
 		ff = strings.TrimPrefix(strings.TrimSuffix(ff, "}"), "{")
 	}
@@ -269,6 +274,16 @@ func (wm *WatchManager) initExisting() error {
 	return wm.fman.LoadFileList(toProcess)
 }
 
+// Catchup is used to synchronously process files that have outstanding work to be done.
+// The purpose of this is so that when the file follower first starts with a large number of outstanding
+// files to be processed, it can more intelligently process them one at a time.
+// The real purpose is so that the usecase where a user points the follower at a massive number of files
+// during an improt scenario we don't start grabbing things all willy nilly and with high concurrency
+// we are better off ordering the work to be done and doing it synchronously
+//
+// the input parameter is a quit channel, basically wired to the signal handler
+// the return values are a shouldQuit(booL) and error
+// the boolean value is true when the signal handler fired, telling us that the ingester should exit
 func (wm *WatchManager) Catchup(qc chan os.Signal) (bool, error) {
 	wm.mtx.Lock()
 	defer wm.mtx.Unlock()
@@ -325,11 +340,20 @@ watchRoutine:
 	for {
 		select {
 		case err, ok = <-wm.watcher.Errors:
-			//we bail on error, not sure if any of this is recoverable, look into it
 			if !ok {
 				break watchRoutine
 			}
-			wm.logger.Error("file_follower filesystem notification error", log.KVErr(err))
+
+			if err == fsnotify.ErrEventOverflow {
+				// grab the current value of the queue depth
+				d, rerr := os.ReadFile(MAX_QUEUED_EVENTS_PATH)
+				if rerr != nil {
+					// ignore the error but let us know please
+					d = []byte(fmt.Sprintf("could not read from %v", MAX_QUEUED_EVENTS_PATH))
+				}
+				wm.logger.Error("Filesystem notification error. Events are being dropped. Increase the queued events kernel parameter or decrease the number of tracked files.", log.KVErr(err), log.KV("max_queued_events", string(d)), log.KV("help", "https://docs.gravwell.io/#!ingesters/file_follow.md"))
+			}
+			err = nil
 		case evt, ok := <-wm.watcher.Events:
 			if !ok {
 				break watchRoutine
@@ -342,51 +366,51 @@ watchRoutine:
 				if fi.IsDir() {
 					parents, ok := wm.watched[filepath.Dir(evt.Name)]
 					if !ok {
-						wm.logger.Error("file_follower failed to find parent directory", log.KV("path", evt.Name))
+						wm.logger.Error("failed to find parent directory", log.KV("path", evt.Name))
 						continue
 					}
 					for _, parent := range parents {
 						if !parent.Recursive {
-							wm.logger.Info("file_follower not adding watcher for subdirectory, parent not recusive", log.KV("directory", evt.Name))
+							wm.logger.Info("not adding watcher for subdirectory, parent not recusive", log.KV("directory", evt.Name))
 							continue
 						}
 						parent.BaseDir = evt.Name
-						wm.logger.Info("file_follower adding watcher for subdirectory", log.KV("path", evt.Name), log.KV("patterns", parent.FileFilter))
+						wm.logger.Info("adding watcher for subdirectory", log.KV("path", evt.Name), log.KV("patterns", parent.FileFilter))
 						if err := wm.Add(parent); err != nil {
-							wm.logger.Error("file_follower failed to add watcher for new directory", log.KV("path", evt.Name), log.KVErr(err))
+							wm.logger.Error("failed to add watcher for new directory", log.KV("path", evt.Name), log.KVErr(err))
 							continue
 						}
 					}
 				} else {
 					if ok, err := wm.watchNewFile(evt.Name); err != nil {
-						wm.logger.Error("file_follower failed to watch new file", log.KV("path", evt.Name), log.KVErr(err))
+						wm.logger.Error("failed to watch new file", log.KV("path", evt.Name), log.KVErr(err))
 					} else if ok {
-						wm.logger.Info("file_follower watching new file", log.KV("path", evt.Name))
+						wm.logger.Info("watching new file", log.KV("path", evt.Name))
 					}
 				}
 			} else if evt.Op == fsnotify.Remove {
 				if ok, err := wm.deleteWatchedFile(evt.Name); err != nil {
-					wm.logger.Error("file_follower failed to stop watching file", log.KV("path", evt.Name), log.KVErr(err))
+					wm.logger.Error("failed to stop watching file", log.KV("path", evt.Name), log.KVErr(err))
 				} else if ok {
-					wm.logger.Info("file_follower stopped watching file", log.KV("path", evt.Name))
+					wm.logger.Info("stopped watching file", log.KV("path", evt.Name))
 				}
 			} else if evt.Op == fsnotify.Rename {
 				if err := wm.renameWatchedFile(evt.Name); err != nil {
-					wm.logger.Error("file_follower failed to track renamed file", log.KV("path", evt.Name), log.KVErr(err))
+					wm.logger.Error("failed to track renamed file", log.KV("path", evt.Name), log.KVErr(err))
 				}
 			} else if evt.Op == fsnotify.Write {
 				// write event, check if we are watching the file, add if needed
 				if !wm.fman.IsWatched(evt.Name) {
 					if ok, err := wm.fman.LoadFile(evt.Name); err != nil {
-						wm.logger.Error("file_follower failed to watch file", log.KV("path", evt.Name), log.KVErr(err))
+						wm.logger.Error("failed to watch file", log.KV("path", evt.Name), log.KVErr(err))
 					} else if ok {
-						wm.logger.Info("file_follower watching file", log.KV("path", evt.Name))
+						wm.logger.Info("watching file", log.KV("path", evt.Name))
 					}
 				}
 			}
 		case _ = <-tckr.C:
 			if err := wm.fman.FlushStates(); err != nil {
-				wm.logger.Error("file_follower failed to flush states", log.KVErr(err))
+				wm.logger.Error("failed to flush states", log.KVErr(err))
 			}
 		}
 	}

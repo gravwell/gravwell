@@ -10,7 +10,7 @@ require (
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56
 	github.com/aws/aws-sdk-go v1.29.11
-	github.com/bet365/jingo v0.10.0
+	github.com/bet365/jingo v0.10.0 // indirect
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/bxcodec/faker/v3 v3.3.1
 	github.com/cloudflare/buffer v0.0.0-20190408164202-7cab898e1166
@@ -22,6 +22,7 @@ require (
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/gobwas/glob v0.2.3
+	github.com/goccy/go-json v0.8.1
 	github.com/gofrs/flock v0.8.0
 	github.com/golang-jwt/jwt v3.2.1+incompatible
 	github.com/golang/snappy v0.0.1
@@ -65,6 +66,8 @@ require (
 replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb
 
 replace github.com/open-networks/go-msgraph => github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3
+
+replace github.com/fsnotify/fsnotify => github.com/traetox/fsnotify v1.5.2-0.20220310052716-a0d82fe7e596
 
 // replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
 

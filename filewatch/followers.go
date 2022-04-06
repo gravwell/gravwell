@@ -29,6 +29,7 @@ var (
 
 type handler interface {
 	HandleLog([]byte, time.Time) error
+	Tag() string
 }
 
 type FileId struct {
@@ -52,19 +53,18 @@ type FollowerConfig struct {
 
 type follower struct {
 	FileName
-	filterId   int
-	id         FileId
-	lnr        Reader
-	state      *int64
-	mtx        *sync.Mutex
-	running    int32
-	err        error
-	abortCh    chan bool
-	fsn        *fsnotify.Watcher
-	wg         *sync.WaitGroup
-	lh         handler
-	lastAct    time.Time
-	fwriteTime time.Time //the last modified time of the file
+	filterId int
+	id       FileId
+	lnr      Reader
+	state    *int64
+	mtx      *sync.Mutex
+	running  int32
+	err      error
+	abortCh  chan bool
+	fsn      *fsnotify.Watcher
+	wg       *sync.WaitGroup
+	lh       handler
+	lastAct  time.Time
 }
 
 func NewFollower(cfg FollowerConfig) (*follower, error) {

@@ -55,10 +55,12 @@ type cfgType struct {
 	Preprocessor processors.ProcessorConfig
 }
 
-func GetConfig(path string) (*cfgType, error) {
+func GetConfig(path, overlayPath string) (*cfgType, error) {
 	//read into the intermediary type to maintain backwards compatibility with the old system
 	var cr cfgReadType
 	if err := config.LoadConfigFile(&cr, path); err != nil {
+		return nil, err
+	} else if err = config.LoadConfigOverlays(&cr, overlayPath); err != nil {
 		return nil, err
 	}
 	c := &cfgType{

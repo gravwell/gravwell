@@ -10,6 +10,7 @@ package types
 
 import (
 	"bytes"
+	"fmt"
 	"net"
 	"time"
 
@@ -58,6 +59,11 @@ func (se SearchEntry) GetEnumerated(name string) (val string, ok bool) {
 	return
 }
 
+// String implements the  Stringer interface
+func (se SearchEntry) String() string {
+	return string(se.Data) //basically a YOLO cast, maybe it prints, maybe it doesn't
+}
+
 // Return the string representation of an enumerated value in a StringTagEntry.
 func (se StringTagEntry) GetEnumerated(name string) (val string, ok bool) {
 	for _, v := range se.Enumerated {
@@ -78,6 +84,11 @@ func (se SearchEntry) Equal(v SearchEntry) bool {
 		return false
 	}
 	return true
+}
+
+// String implements the fmt.Stringer
+func (se StringTagEntry) String() string {
+	return string(se.Data)
 }
 
 // Return true if both StringTagEntry objects are equal.
@@ -102,4 +113,12 @@ func enumeratedEqual(a, b []EnumeratedPair) bool {
 		}
 	}
 	return true
+}
+
+func (ep EnumeratedPair) String() string {
+	return fmt.Sprintf("%s:%s", ep.Name, ep.Value)
+}
+
+func (rev RawEnumeratedValue) String() string {
+	return string(rev.Data)
 }

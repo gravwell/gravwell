@@ -36,20 +36,24 @@ const (
 	cookie   authType = `cookie`
 	preToken authType = `preshared-token`
 	preParam authType = `preshared-parameter`
+	hdrToken authType = `preshared-header`
 
 	userFormValue string = `username`
 	passFormValue string = `password`
 	issuer        string = `gravwell`
+	authHeader    string = `Authorization`
 
 	jwtDuration time.Duration = 24 * 2 * time.Hour
 )
 
 var (
-	ErrInvalidAuthType   = errors.New("Invalid authentication type")
-	ErrLoginURLRequired  = errors.New("Authentication type requires a login URL")
-	ErrUnauthorized      = errors.New("Unauthorized")
-	ErrMissingTokenName  = errors.New("Token name is invalid")
-	ErrMissingTokenValue = errors.New("Token value cannot be empty")
+	ErrInvalidAuthType    = errors.New("Invalid authentication type")
+	ErrLoginURLRequired   = errors.New("Authentication type requires a login URL")
+	ErrUnauthorized       = errors.New("Unauthorized")
+	ErrMissingTokenName   = errors.New("Token name is invalid")
+	ErrMissingTokenValue  = errors.New("Token value cannot be empty")
+	ErrMissingHeaderValue = errors.New("Token header value cannot be empty")
+	ErrHeaderNotFound     = errors.New("Token header value not found")
 )
 
 type authType string
@@ -106,6 +110,15 @@ func (a *auth) Validate() (enabled bool, err error) {
 			return
 		}
 		enabled = true
+	case hdrToken:
+		if a.TokenName == `` {
+			a.TokenName = defaultTokenName
+		}
+		if a.TokenValue == `` {
+			err = fmt.Errorf("Missing Token-Value for auth type %s", a.AuthType)
+			return
+		}
+		enabled = true
 	}
 	return
 }
@@ -132,6 +145,8 @@ func (a auth) NewAuthHandler(lgr *log.Logger) (url string, hnd authHandler, err 
 		hnd, err = newPresharedTokenHandler(a.TokenName, a.TokenValue, lgr)
 	case preParam:
 		hnd, err = newPresharedParamHandler(a.TokenName, a.TokenValue, lgr)
+	case hdrToken:
+		hnd, err = newPresharedHeaderTokenHandler(a.TokenName, a.TokenValue, lgr)
 	default:
 		err = fmt.Errorf("Unknown authentication type %q", a.AuthType)
 	}
@@ -147,6 +162,9 @@ func parseAuthType(v string) (r authType, err error) {
 	case basic:
 	case jwtT:
 	case cookie:
+	case preToken:
+	case preParam:
+	case hdrToken:
 	default:
 		r = none
 		err = ErrInvalidAuthType
@@ -193,7 +211,7 @@ func (bah *basicAuthHandler) AuthRequest(r *http.Request) error {
 type tokHandler struct {
 	noLogin
 	lgr      *log.Logger
-	tokName  string
+	hdrName  string
 	tokValue string
 }
 
@@ -201,16 +219,16 @@ type preTokenHandler struct {
 	tokHandler
 }
 
-func newPresharedTokenHandler(name, value string, lgr *log.Logger) (hnd authHandler, err error) {
-	if name == `` {
-		err = ErrMissingTokenName
-	} else if value == `` {
+func newPresharedHeaderTokenHandler(hdr, value string, lgr *log.Logger) (hnd authHandler, err error) {
+	if value == `` {
 		err = ErrMissingTokenValue
+	} else if hdr == `` {
+		err = ErrMissingHeaderValue
 	} else {
 		hnd = &preTokenHandler{
 			tokHandler: tokHandler{
 				lgr:      lgr,
-				tokName:  name,
+				hdrName:  hdr,
 				tokValue: value,
 			},
 		}
@@ -218,9 +236,12 @@ func newPresharedTokenHandler(name, value string, lgr *log.Logger) (hnd authHand
 	return
 }
 
+func newPresharedTokenHandler(name, value string, lgr *log.Logger) (hnd authHandler, err error) {
+	return newPresharedHeaderTokenHandler(authHeader, name+" "+value, lgr)
+}
+
 func (pth *preTokenHandler) AuthRequest(r *http.Request) error {
-	tok, err := getAuthToken(r, pth.tokName)
-	if err != nil {
+	if tok, err := getHeaderToken(r, pth.hdrName); err != nil {
 		return err
 	} else if tok != pth.tokValue {
 		return ErrUnauthorized
@@ -241,7 +262,7 @@ func newPresharedParamHandler(name, value string, lgr *log.Logger) (hnd authHand
 		hnd = &preParamHandler{
 			tokHandler: tokHandler{
 				lgr:      lgr,
-				tokName:  name,
+				hdrName:  name,
 				tokValue: value,
 			},
 		}
@@ -250,7 +271,7 @@ func newPresharedParamHandler(name, value string, lgr *log.Logger) (hnd authHand
 }
 
 func (pth *preParamHandler) AuthRequest(r *http.Request) error {
-	tok, err := getParamToken(r, pth.tokName)
+	tok, err := getParamToken(r, pth.hdrName)
 	if err != nil {
 		return err
 	} else if tok != pth.tokValue {
@@ -379,7 +400,7 @@ func newCookieAuthHandler(user, pass string, lgr *log.Logger) (hnd authHandler, 
 	} else if pass == `` {
 		err = errors.New("empty password")
 	} else if lgr == nil {
-		err = errors.New("empty password")
+		err = errors.New("empty logger")
 	} else {
 		hnd = &cookieAuthHandler{
 			lgr:     lgr,
@@ -464,20 +485,32 @@ func getJWTToken(r *http.Request) (string, error) {
 	return getAuthToken(r, `Bearer`)
 }
 
+func getHeaderToken(r *http.Request, hdrName string) (ret string, err error) {
+	if hdrName == `` {
+		err = errors.New("Empty header name")
+		return
+	} else if len(r.Header) == 0 {
+		err = ErrHeaderNotFound
+	} else if vals, ok := r.Header[hdrName]; !ok || len(vals) == 0 {
+		err = ErrHeaderNotFound
+	} else {
+		ret = vals[0]
+	}
+	return
+}
+
 func getAuthToken(r *http.Request, tokName string) (ret string, err error) {
-	if tokName == `` {
-		err = errors.New("Empty token name")
+	var hv string
+	if hv, err = getHeaderToken(r, `Authorization`); err != nil {
 		return
 	}
-	prefix := tokName + ` `
-	if auth := r.Header.Get(`Authorization`); auth != `` {
-		if strings.HasPrefix(auth, prefix) {
-			ret = strings.TrimPrefix(auth, prefix)
-		} else {
-			err = errors.New("invalid authorization token name")
-		}
+	bits := strings.Fields(hv)
+	if len(tokName) == 0 && len(bits) == 1 {
+		ret = bits[0]
+	} else if len(tokName) > 0 && len(bits) == 2 && bits[0] == tokName {
+		ret = bits[1]
 	} else {
-		err = errors.New("Missing Authorization header value")
+		err = errors.New("invalid auth token")
 	}
 	return
 }

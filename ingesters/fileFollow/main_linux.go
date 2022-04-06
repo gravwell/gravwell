@@ -31,13 +31,15 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/file_follow.conf`
-	defaultStateLoc  = `/opt/gravwell/etc/file_follow.state`
-	appName          = `filefollow`
+	defaultConfigLoc  = `/opt/gravwell/etc/file_follow.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/file_follow.conf.d`
+	defaultStateLoc   = `/opt/gravwell/etc/file_follow.state`
+	appName           = `filefollow`
 )
 
 var (
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
@@ -53,6 +55,7 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
@@ -69,6 +72,7 @@ func init() {
 		} else {
 			version.PrintVersion(fout)
 			ingest.PrintVersion(fout)
+			log.PrintOSInfo(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
 				fout.Close()
@@ -78,13 +82,12 @@ func init() {
 	}
 
 	v = *verbose
-	validate.ValidateConfig(GetConfig, *confLoc)
 }
 
 func main() {
 	debug.SetTraceback("all")
 	utils.MaxProcTune(1) // this thing hits the filesystem, parallelism will almost always be bad
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 	}
@@ -132,7 +135,7 @@ func main() {
 		Destinations:       conns,
 		Tags:               tags,
 		Auth:               cfg.Secret(),
-		IngesterName:       "filefollow",
+		IngesterName:       appName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
 		IngesterLabel:      cfg.Label,
@@ -205,12 +208,7 @@ func main() {
 		if err != nil {
 			lg.Fatal("failed to resolve tag", log.KV("watcher", k), log.KV("tag", val.Tag_Name), log.KVErr(err))
 		}
-		var ignore [][]byte
-		for _, prefix := range val.Ignore_Line_Prefix {
-			if prefix != "" {
-				ignore = append(ignore, []byte(prefix))
-			}
-		}
+
 		tsFmtOverride, err := val.TimestampOverride()
 		if err != nil {
 			lg.FatalCode(0, "invalid timestamp override", log.KV("timestampoverride", val.Timestamp_Format_Override), log.KVErr(err))
@@ -218,11 +216,13 @@ func main() {
 
 		//create our handler for this watcher
 		cfg := filewatch.LogHandlerConfig{
+			TagName:                 val.Tag_Name,
 			Tag:                     tag,
 			Src:                     src,
 			IgnoreTS:                val.Ignore_Timestamps,
 			AssumeLocalTZ:           val.Assume_Local_Timezone,
-			IgnorePrefixes:          ignore,
+			IgnorePrefixes:          val.Ignore_Line_Prefix,
+			IgnoreGlobs:             val.Ignore_Glob,
 			TimestampFormatOverride: tsFmtOverride,
 			UserTimeRegex:           val.Timestamp_Regex,
 			UserTimeFormat:          val.Timestamp_Format_String,
@@ -280,7 +280,10 @@ func main() {
 		debugout("Started following %d locations\n", len(cfg.Follower))
 		debugout("Running\n")
 		//listen for signals so we can close gracefully
-		<-qc
+		select {
+		case <-qc:
+		case <-wtcher.Context().Done():
+		}
 	}
 	debugout("Attempting to close the watcher... ")
 	if err := wtcher.Close(); err != nil {

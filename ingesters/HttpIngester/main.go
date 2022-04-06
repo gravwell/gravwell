@@ -29,12 +29,14 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/gravwell_http_ingester.conf`
-	appName          = `httpingester`
+	defaultConfigLoc  = `/opt/gravwell/etc/gravwell_http_ingester.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/simple_relay.conf.d`
+	appName           = `httpingester`
 )
 
 var (
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
@@ -49,7 +51,9 @@ func init() {
 		version.PrintVersion(os.Stdout)
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
-	} else if *verbose {
+	}
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
+	if *verbose {
 		v = true
 	}
 	if *confLoc == `` {
@@ -71,6 +75,7 @@ func init() {
 		} else {
 			version.PrintVersion(fout)
 			ingest.PrintVersion(fout)
+			log.PrintOSInfo(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
@@ -78,13 +83,12 @@ func init() {
 			}
 		}
 	}
-	validate.ValidateConfig(GetConfig, *confLoc)
 }
 
 func main() {
 	debug.SetTraceback("all")
 	var lgr *log.Logger
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.Fatal("failed to load config file", log.KV("file", *confLoc), log.KVErr(err))
 	}
@@ -131,7 +135,7 @@ func main() {
 		Auth:               cfg.Secret(),
 		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
 		Logger:             lg,
-		IngesterName:       "httppost",
+		IngesterName:       appName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
 		IngesterLabel:      cfg.Label,
@@ -164,19 +168,20 @@ func main() {
 	if err != nil {
 		lg.FatalCode(0, "Failed to set configuration for ingester state messages")
 	}
-
-	hnd := &handler{
-		mp:   map[string]handlerConfig{},
-		auth: map[string]authHandler{},
-		igst: igst,
-		lgr:  lgr,
+	hnd, err := newHandler(igst, lgr)
+	if err != nil {
+		lg.FatalCode(0, "Failed to create new handler")
 	}
+
 	if hcurl, ok := cfg.HealthCheck(); ok {
-		hnd.healthCheckURL = hcurl
+		hnd.healthCheckURL = path.Clean(hcurl)
 	}
 	for _, v := range cfg.Listener {
-		hcfg := handlerConfig{
-			multiline: v.Multiline,
+		hcfg := routeHandler{
+			handler: handleSingle,
+		}
+		if v.Multiline {
+			hcfg.handler = handleMulti
 		}
 		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			lg.Fatal("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
@@ -206,8 +211,8 @@ func main() {
 				}
 			}
 		}
-		if hcfg.method = v.Method; hcfg.method == `` {
-			hcfg.method = defaultMethod
+		if v.Method == `` {
+			v.Method = defaultMethod
 		}
 
 		hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor)
@@ -219,35 +224,23 @@ func main() {
 			lg.Fatal("failed to get a new authentication handler", log.KVErr(err))
 		} else if hnd != nil {
 			if pth != `` {
-				hnd.auth[pth] = ah
+				if err = hnd.addAuthHandler(http.MethodPost, pth, ah); err != nil {
+					lg.Fatal("failed to add auth handler", log.KV("url", pth), log.KVErr(err))
+				}
 			}
 			hcfg.auth = ah
 		}
-		hnd.mp[v.URL] = hcfg
+		if err = hnd.addHandler(v.Method, v.URL, hcfg); err != nil {
+			lg.Fatal("failed to add handler", log.KV("url", v.URL), log.KVErr(err))
+		}
 		debugout("URL %s handling %s\n", v.URL, v.Tag_Name)
 	}
 
-	for _, v := range cfg.HECListener {
-		hcfg := handlerConfig{
-			hecCompat: true,
-		}
-		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
-			lg.Fatal("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
-		}
-		if v.Ignore_Timestamps {
-			hcfg.ignoreTs = true
-		}
-		hcfg.method = http.MethodPost
-
-		hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor)
-		if err != nil {
-			lg.Fatal("preprocessor construction error", log.KVErr(err))
-		}
-		if hcfg.auth, err = newPresharedTokenHandler(`Splunk`, v.TokenValue, lgr); err != nil {
-			lg.Fatal("failed to generate HEC-Compatible-Listener auth", log.KVErr(err))
-		}
-		hnd.mp[v.URL] = hcfg
-		debugout("URL %s handling %s\n", v.URL, v.Tag_Name)
+	if err = includeHecListeners(hnd, igst, cfg, lgr); err != nil {
+		lg.Fatal("failed to include HEC Listeners", log.KVErr(err))
+	}
+	if err = includeKDSListeners(hnd, igst, cfg, lgr); err != nil {
+		lg.Fatal("failed to include KDS Listeners", log.KVErr(err))
 	}
 
 	srv := &http.Server{

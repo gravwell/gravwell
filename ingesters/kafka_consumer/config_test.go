@@ -47,7 +47,7 @@ func TestBasicConfig(t *testing.T) {
 	} else if n != len(baseConfig) {
 		t.Fatal(fmt.Sprintf("Failed to write full file: %d != %d", n, len(baseConfig)))
 	}
-	cfg, err := GetConfig(fout.Name())
+	cfg, err := GetConfig(fout.Name(), ``)
 	if err != nil {
 		t.Fatal(err)
 	}

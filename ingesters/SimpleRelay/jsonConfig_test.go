@@ -103,7 +103,7 @@ func TestLoadConfig(t *testing.T) {
 	} else if n != len(jsonbaseConfig) {
 		t.Fatal(fmt.Sprintf("Failed to write full file: %d != %d", n, len(jsonbaseConfig)))
 	}
-	cfg, err := GetConfig(fout.Name())
+	cfg, err := GetConfig(fout.Name(), ``)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -21,14 +21,16 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/collectd.conf`
-	ingesterName     = `collectd`
-	appName          = `collectd`
+	defaultConfigLoc  = `/opt/gravwell/etc/collectd.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/collectd.conf.d`
+	ingesterName      = `collectd`
+	appName           = `collectd`
 )
 
 var (
 	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Override location for configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
@@ -64,6 +66,7 @@ func init() {
 		} else {
 			version.PrintVersion(fout)
 			ingest.PrintVersion(fout)
+			log.PrintOSInfo(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
 				fout.Close()
@@ -72,7 +75,7 @@ func init() {
 		}
 	}
 	v = *verbose
-	validate.ValidateConfig(GetConfig, *confLoc)
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc) //no overlays
 }
 
 func main() {
@@ -87,7 +90,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return

@@ -29,7 +29,7 @@ var (
 	configPath = flag.String("config-path", "", "Path to the plugin configuration")
 	dataPath   = flag.String("data-path", "", "Optional path to data export file")
 	fmtF       = flag.String("import-format", "", "Set the import file format manually")
-	debug      = flag.Bool("debug", true, "Print each entry as its processed")
+	verbose    = flag.Bool("verbose", false, "Print each entry as its processed")
 )
 
 func main() {
@@ -89,7 +89,7 @@ func main() {
 			}
 			input += len(ents)
 			output += len(set)
-			if *debug {
+			if *verbose {
 				for _, ent := range set {
 					fmt.Printf("%v\t%s\n", ent.TS, string(ent.Data))
 				}
@@ -102,7 +102,7 @@ func main() {
 
 	if set := p.Flush(); len(set) > 0 {
 		output += len(set)
-		if *debug {
+		if *verbose {
 			for _, ent := range set {
 				fmt.Printf("%v\t%s\n", ent.TS, string(ent.Data))
 			}

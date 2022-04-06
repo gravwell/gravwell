@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
+	"github.com/gobwas/glob"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -42,14 +43,17 @@ type LogHandler struct {
 	LogHandlerConfig
 	tg *timegrinder.TimeGrinder
 	w  logWriter
+	li *lineIgnorer
 }
 
 type LogHandlerConfig struct {
+	TagName                 string
 	Tag                     entry.EntryTag
 	Src                     net.IP
 	IgnoreTS                bool
 	AssumeLocalTZ           bool
-	IgnorePrefixes          [][]byte
+	IgnorePrefixes          []string
+	IgnoreGlobs             []string
 	TimestampFormatOverride string
 	TimezoneOverride        string
 	UserTimeRegex           string
@@ -58,6 +62,45 @@ type LogHandlerConfig struct {
 	Debugger                debugOut
 	Ctx                     context.Context
 	TimeFormat              config.CustomTimeFormat
+}
+
+type lineIgnorer struct {
+	prefixes [][]byte
+	globs    []glob.Glob
+}
+
+func NewIgnorer(prefixes, globs []string) (*lineIgnorer, error) {
+	li := &lineIgnorer{}
+	for _, v := range prefixes {
+		li.prefixes = append(li.prefixes, []byte(v))
+	}
+	for _, v := range globs {
+		c, err := glob.Compile(v)
+		if err != nil {
+			return nil, err
+		}
+		li.globs = append(li.globs, c)
+	}
+	return li, nil
+}
+
+// Ignore returns true if the given byte slice matches any of the prefixes or
+// globs in the ignorer.
+func (l *lineIgnorer) Ignore(b []byte) bool {
+	for _, prefix := range l.prefixes {
+		if bytes.HasPrefix(b, prefix) {
+			return true
+		}
+	}
+
+	bString := string(b)
+	for _, glob := range l.globs {
+		if glob.Match(bString) {
+			return true
+		}
+	}
+
+	return false
 }
 
 type logWriter interface {
@@ -115,11 +158,22 @@ func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
 	if !cfg.IgnoreTS && tg == nil {
 		return nil, errors.New("no timegrinder but not ignoring timestamps")
 	}
+
+	li, err := NewIgnorer(cfg.IgnorePrefixes, cfg.IgnoreGlobs)
+	if err != nil {
+		return nil, err
+	}
+
 	return &LogHandler{
 		LogHandlerConfig: cfg,
 		w:                w,
 		tg:               tg,
+		li:               li,
 	}, nil
+}
+
+func (lh *LogHandler) Tag() string {
+	return lh.LogHandlerConfig.TagName
 }
 
 func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
@@ -129,11 +183,11 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	var ok bool
 	var ts time.Time
 	var err error
-	for _, prefix := range lh.IgnorePrefixes {
-		if bytes.HasPrefix(b, prefix) {
-			return nil
-		}
+
+	if lh.li.Ignore(b) {
+		return nil
 	}
+
 	if !lh.IgnoreTS {
 		ts, ok, err = lh.tg.Extract(b)
 		if err != nil {
@@ -150,7 +204,7 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	return lh.w.ProcessContext(&entry.Entry{
 		SRC:  lh.Src,
 		TS:   entry.FromStandard(ts),
-		Tag:  lh.Tag,
+		Tag:  lh.LogHandlerConfig.Tag,
 		Data: b,
 	}, lh.LogHandlerConfig.Ctx)
 }

@@ -31,6 +31,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -41,17 +42,19 @@ import (
 )
 
 const (
-	defaultConfigLoc     = `/opt/gravwell/etc/packet_fleet.conf`
-	ingesterName         = `PacketFleet`
-	appName              = `packetfleet`
-	batchSize            = 512
-	maxDataSize      int = 8 * 1024 * 1024
-	initDataSize     int = 512 * 1024
+	defaultConfigLoc      = `/opt/gravwell/etc/packet_fleet.conf`
+	defaultConfigDLoc     = `/opt/gravwell/etc/packet_fleet.conf.d`
+	ingesterName          = `PacketFleet`
+	appName               = `packetfleet`
+	batchSize             = 512
+	maxDataSize       int = 8 * 1024 * 1024
+	initDataSize      int = 512 * 1024
 )
 
 var (
 	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
@@ -110,6 +113,7 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 	var fp string
 	var err error
 	if *stderrOverride != `` {
@@ -118,6 +122,7 @@ func init() {
 	cb := func(w io.Writer) {
 		version.PrintVersion(w)
 		ingest.PrintVersion(w)
+		log.PrintOSInfo(w)
 	}
 	if lg, err = log.NewStderrLoggerEx(fp, cb); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get stderr logger: %v\n", err)
@@ -140,7 +145,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return
