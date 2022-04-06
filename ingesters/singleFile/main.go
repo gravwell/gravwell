@@ -9,8 +9,6 @@
 package main
 
 import (
-	"bufio"
-	"bytes"
 	"flag"
 	"fmt"
 	"io"
@@ -19,20 +17,15 @@ import (
 	"os"
 	"runtime/debug"
 	"time"
-	"unicode/utf8"
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/args"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/timegrinder"
-)
-
-const (
-	initBuffSize = 4 * 1024 * 1024
-	maxBuffSize  = 128 * 1024 * 1024
 )
 
 var (
@@ -50,7 +43,6 @@ var (
 	status      = flag.Bool("status", false, "Output ingest rate stats as we go")
 	srcOvr      = flag.String("source-override", "", "Override source with address, hash, or integeter")
 
-	nlBytes          = []byte("\n")
 	count            uint64
 	totalBytes       uint64
 	dur              time.Duration
@@ -102,7 +94,28 @@ func main() {
 
 	if *srcOvr != `` {
 		if srcOverride, err = config.ParseSource(*srcOvr); err != nil {
-			log.Fatalf("Invalid source override")
+			log.Fatal("Invalid source override")
+		}
+	}
+	var tg *timegrinder.TimeGrinder
+	if !noTg {
+		//build a new timegrinder
+		c := timegrinder.Config{
+			EnableLeftMostSeed: true,
+			FormatOverride:     *tso,
+		}
+
+		if tg, err = timegrinder.NewTimeGrinder(c); err != nil {
+			log.Fatalf("failed to build timegrinder: %v\n", err)
+		}
+		if *utc {
+			tg.SetUTC()
+		}
+
+		if *tzo != `` {
+			if err = tg.SetTimezone(*tzo); err != nil {
+				log.Fatalf("Failed to set timegrinder timezeon: %v\n", err)
+			}
 		}
 	}
 
@@ -133,8 +146,13 @@ func main() {
 		log.Fatalf("Failed to resolve tag %s: %v\n", a.Tags[0], err)
 	}
 
+	src := srcOverride
+	if src == nil {
+		src, _ = igst.SourceIP()
+	}
+
 	//go ingest the file
-	if err := doIngest(fin, igst, tag, *tso); err != nil {
+	if err := doIngest(fin, igst, tag, tg, src); err != nil {
 		log.Fatalf("Failed to ingest file: %v\n", err)
 	}
 
@@ -153,18 +171,39 @@ func main() {
 	fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(totalBytes, dur))
 }
 
-func doIngest(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso string) (err error) {
+func doIngest(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tg *timegrinder.TimeGrinder, src net.IP) (err error) {
+	var ignore [][]byte
+	if ignorePrefixFlag {
+		ignore = [][]byte{ignorePrefix}
+	}
+	cfg := utils.LineDelimitedStream{
+		Rdr:            fin,
+		Proc:           processors.NewProcessorSet(igst),
+		Tag:            tag,
+		SRC:            src,
+		TG:             tg,
+		IgnorePrefixes: ignore,
+		CleanQuotes:    *cleanQuotes,
+		BatchSize:      *blockSize,
+		Verbose:        *verbose,
+		Quotable:       *quotable,
+	}
 	//if not doing regular updates, just fire it off
 	if !*status {
-		err = ingestFile(fin, igst, tag, tso)
-		return
+		c, b, err := utils.IngestLineDelimitedStream(cfg)
+		count += c
+		totalBytes += b
+		return err
 	}
 
 	errCh := make(chan error, 1)
 	tckr := time.NewTicker(time.Second)
 	defer tckr.Stop()
 	go func(ch chan error) {
-		ch <- ingestFile(fin, igst, tag, tso)
+		c, b, err := utils.IngestLineDelimitedStream(cfg)
+		count += c
+		totalBytes += b
+		ch <- err
 	}(errCh)
 
 loop:
@@ -186,153 +225,4 @@ loop:
 		}
 	}
 	return
-}
-
-func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tso string) error {
-	var bts []byte
-	var ts time.Time
-	var ok bool
-	var tg *timegrinder.TimeGrinder
-	var err error
-	var blk []*entry.Entry
-	if !noTg {
-		//build a new timegrinder
-		c := timegrinder.Config{
-			EnableLeftMostSeed: true,
-			FormatOverride:     tso,
-		}
-
-		if tg, err = timegrinder.NewTimeGrinder(c); err != nil {
-			return err
-		}
-		if *utc {
-			tg.SetUTC()
-		}
-
-		if *tzo != `` {
-			if err = tg.SetTimezone(*tzo); err != nil {
-				return err
-			}
-		}
-	}
-
-	src := srcOverride
-	if src == nil {
-		var err error
-		if src, err = igst.SourceIP(); err != nil {
-			return err
-		}
-	}
-
-	if bsize > 0 {
-		blk = make([]*entry.Entry, 0, bsize)
-	}
-
-	scn := bufio.NewScanner(fin)
-	if *quotable {
-		scn.Split(quotableSplitter)
-	}
-	scn.Buffer(make([]byte, initBuffSize), maxBuffSize)
-
-	start := time.Now()
-	for scn.Scan() {
-		if bts = bytes.TrimSuffix(scn.Bytes(), nlBytes); len(bts) == 0 {
-			continue
-		}
-		if *cleanQuotes {
-			if bts = trimQuotes(bts); len(bts) == 0 {
-				continue
-			}
-		}
-		if ignorePrefixFlag {
-			if bytes.HasPrefix(bts, ignorePrefix) {
-				continue
-			}
-		}
-		if noTg {
-			ts = time.Now()
-		} else if ts, ok, err = tg.Extract(bts); err != nil {
-			return err
-		} else if !ok {
-			ts = time.Now()
-		}
-		ent := &entry.Entry{
-			TS:  entry.FromStandard(ts),
-			Tag: tag,
-			SRC: src,
-		}
-		ent.Data = append(ent.Data, bts...) //force reallocation due to the scanner
-		if bsize == 0 {
-			if err = igst.WriteEntry(ent); err != nil {
-				return err
-			}
-		} else {
-			blk = append(blk, ent)
-			if len(blk) >= bsize {
-				if err = igst.WriteBatch(blk); err != nil {
-					return err
-				}
-				blk = make([]*entry.Entry, 0, bsize)
-			}
-		}
-		if *verbose {
-			fmt.Println(ent.TS, ent.Tag, ent.SRC, string(ent.Data))
-		}
-		count++
-		totalBytes += uint64(len(ent.Data))
-	}
-	if len(blk) > 0 {
-		if err = igst.WriteBatch(blk); err != nil {
-			return err
-		}
-	}
-	dur = time.Since(start)
-	return scn.Err()
-}
-
-func quotableSplitter(data []byte, atEOF bool) (int, []byte, error) {
-	var openQuote bool
-	var escaped bool
-	var r rune
-	var width int
-	if atEOF && len(data) == 0 {
-		return 0, nil, nil
-	}
-	for i := 0; i < len(data); i += width {
-		r, width = utf8.DecodeRune(data[i:])
-		if escaped {
-			//don't care what the character is, we are skipping it
-			escaped = false
-			continue
-		}
-		if r == '\\' {
-			escaped = true
-		} else if r == '"' {
-			openQuote = !openQuote
-		} else if r == '\n' && !openQuote {
-			// we have our full newline
-			return i + 1, dropCR(data[:i]), nil
-		}
-	}
-	if atEOF {
-		return len(data), dropCR(data), nil
-	}
-	//request more data
-	return 0, nil, nil
-}
-
-func dropCR(data []byte) []byte {
-	if len(data) > 0 && data[len(data)-1] == '\r' {
-		return data[0 : len(data)-1]
-	}
-	return data
-}
-
-func trimQuotes(data []byte) []byte {
-	if len(data) >= 2 {
-		if data[0] == '"' && data[len(data)-1] == '"' {
-			data = data[1 : len(data)-1]
-		}
-	}
-	return data
 }

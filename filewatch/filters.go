@@ -412,6 +412,14 @@ func (f *FilterManager) addFollower(fcfg FollowerConfig) error {
 	if err != nil {
 		return err
 	}
+	var tag string
+	if fcfg.Handler != nil {
+		tag = fcfg.Handler.Tag()
+	}
+	f.logger.Info("following new file",
+		log.KV("path", fcfg.FilePath),
+		log.KV("follower", fcfg.BaseName),
+		log.KV("tag", tag))
 	if err := fl.Start(); err != nil {
 		fl.Close()
 		return err
@@ -492,6 +500,35 @@ func (f *FilterManager) launchFollowers(fpath string, deleteState bool) (ok bool
 	return
 }
 
+// checkState will grab a watched file and look it up in the state tracker
+// if the file is not known to the state tracker we assume it is new and return that it has work
+// if it IS in the state tracker, we check if it is larger than what we logged or smaller.
+// any value other than what is currently in the state tracker indicates that this file needs some work
+func (f *FilterManager) checkState(wf watchedFile) (si *int64, hasWork bool, err error) {
+	//get base dir
+	fname := filepath.Base(wf.pth)
+	fdir := filepath.Dir(wf.pth)
+	//swing through all filters and for each follower that matches, check if the file has work to be done
+	for _, v := range f.filters {
+		//check base directory and pattern match
+		if v.loc != fdir || !f.matchFile(v.mtchs, fname) {
+			continue
+		}
+		//see if we have state information for this file
+		if si = f.seekInfo(v.bname, wf.pth); si == nil {
+			//no state information, if the size is > 0, go ahead and declare that there is work to do
+			if wf.size > 0 {
+				hasWork = true
+				si = f.addSeekInfo(v.bname, wf.pth)
+			}
+		} else if *si < wf.size {
+			//we have a state, check if there is new data
+			hasWork = true
+		}
+	}
+	return
+}
+
 //swings through our current set of followers, check if the fileID matches.  If a match is
 //found we return true.  This allows us to continue to follow files that are renamed.
 //we are given the basename, if a rename is found, search the filters.  If no filter is
@@ -550,6 +587,80 @@ func (f *FilterManager) matchFile(mtchs []string, fname string) (matched bool) {
 	return
 }
 
+// CatchupFile will synchronously consume all outstanding data from the file.
+// This function is typically used at startup so that we can linearly process outstanding
+// data from files one at a time before turning on all our file followers.  It is a pre-optimization
+// to deal with scenarios where the file follower has been offline for an extended period of time
+// or a user is attempting import a large amount of data during a migration.
+//
+// the returned boolean indicates that the quitchan (qc) has fired, this allows us to pass up
+// that the process has been asked to quit.
+func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, error) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	//get ID
+	id, err := getFileIdFromName(wf.pth)
+	if err != nil {
+		return false, err
+	}
+
+	//check if this is just a renaming
+	isRename, err := f.checkRename(wf.pth, id)
+	if err != nil {
+		return false, err
+	} else if isRename {
+		return true, nil //just a file renaming, continue
+	}
+
+	//get base dir
+	fname := filepath.Base(wf.pth)
+	fdir := filepath.Dir(wf.pth)
+	var si *int64
+
+	//swing through all filters and spin up a follower then synchronously process outstanding data
+	for i, v := range f.filters {
+		var hasWork bool
+		//check base directory and pattern match
+		if v.loc != fdir || !f.matchFile(v.mtchs, fname) {
+			continue
+		}
+		if si, hasWork, err = f.checkState(wf); err != nil {
+			return false, err
+		} else if !hasWork {
+			continue // no work to do
+		}
+		//this file needs to be caught up
+		fcfg := FollowerConfig{
+			FollowerEngineConfig: v.FollowerEngineConfig,
+			BaseName:             v.bname,
+			FilePath:             wf.pth,
+			State:                si,
+			FilterID:             i,
+			Handler:              v.lh,
+		}
+		//this file needs to be caugh up
+		if quit, err := f.catchupFollower(fcfg, qc); err != nil || quit {
+			return quit, err
+		}
+	}
+	return false, nil
+
+}
+
+//catchup file is a linear operation to get outstanding files up to date
+func (f *FilterManager) catchupFollower(fcfg FollowerConfig, qc chan os.Signal) (bool, error) {
+	if fl, err := NewFollower(fcfg); err != nil {
+		return false, err
+	} else if quit, err := fl.Sync(qc); err != nil || quit {
+		fl.Close()
+		return quit, err
+	} else if err = fl.Close(); err != nil {
+		return false, err
+	}
+	f.logger.Info("file preprocessed at startup", log.KV("path", fcfg.FilePath))
+	return false, nil
+}
+
 func (f *FilterManager) LoadFile(fpath string) (bool, error) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
@@ -559,6 +670,21 @@ func (f *FilterManager) LoadFile(fpath string) (bool, error) {
 		return false, err
 	}
 	return ok, nil
+}
+
+func (f *FilterManager) LoadFileList(lst []watchedFile) error {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	if len(lst) > f.maxFilesWatched {
+		lst = lst[0:f.maxFilesWatched]
+	}
+	for _, wf := range lst {
+		var err error
+		if _, err = f.launchFollowers(wf.pth, false); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func appendErr(err, nerr error) error {

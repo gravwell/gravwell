@@ -43,6 +43,15 @@ func (c *Client) ListAllSearchLibrary() (wsl []types.WireSearchLibrary, err erro
 	return
 }
 
+// GetSearchLibrary returns a query which matches the UUID given.
+// It first checks for a query with a matching ThingUUID.
+// If that is not found, it looks for a query with a matching GUID, prioritizing
+// queries belonging to the current user.
+func (c *Client) GetSearchLibrary(id uuid.UUID) (sl types.WireSearchLibrary, err error) {
+	err = c.getStaticURL(searchLibIdUrl(id), &sl)
+	return
+}
+
 // DeleteSearchLibrary deletes a specific libary entry.
 func (c *Client) DeleteSearchLibrary(id uuid.UUID) (err error) {
 	err = c.deleteStaticURL(searchLibIdUrl(id), nil)

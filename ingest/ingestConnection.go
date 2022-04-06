@@ -217,7 +217,7 @@ func (igst *IngestConnection) Source() (net.IP, error) {
 	return igst.src, nil
 }
 
-func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]entry.EntryTag, uint16, error) {
+func authenticate(conn io.ReadWriter, tenant string, hash AuthHash, tags []string) (map[string]entry.EntryTag, uint16, error) {
 	var tagReq TagRequest
 	var tagResp TagResponse
 	var state StateResponse
@@ -233,9 +233,12 @@ func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]
 	if err != nil {
 		return nil, 0, err
 	} else if resp == nil {
-		return nil, 0, errors.New("Got a nil challenge response")
+		return nil, 0, ErrNilChallengeResponse
 	}
-
+	if tenant != `` && resp.Version < MinTenantAuthVersion {
+		return nil, 0, ErrTenantAuthUnsupported
+	}
+	resp.Tenant = tenant
 	//throw response
 	if err := resp.Write(conn); err != nil {
 		return nil, 0, err
@@ -245,7 +248,6 @@ func authenticate(conn io.ReadWriter, hash AuthHash, tags []string) (map[string]
 	if err := state.Read(conn); err != nil {
 		return nil, 0, err
 	}
-
 	if state.ID != STATE_AUTHENTICATED {
 		if state.ID == STATE_NOT_AUTHENTICATED {
 			return nil, 0, ErrFailedAuth

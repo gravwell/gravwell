@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -34,12 +35,14 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/ipmi.conf`
-	ingesterName     = `IPMI`
+	defaultConfigLoc  = `/opt/gravwell/etc/ipmi.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/ipmi.conf.d`
+	ingesterName      = `IPMI`
 )
 
 var (
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 
@@ -73,6 +76,8 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
+
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(ingesterName)
 	if *stderrOverride != `` {
@@ -89,6 +94,7 @@ func init() {
 		} else {
 			version.PrintVersion(fout)
 			ingest.PrintVersion(fout)
+			log.PrintOSInfo(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
 				fout.Close()
@@ -102,7 +108,7 @@ func main() {
 	debug.SetTraceback("all")
 
 	// config setup
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return

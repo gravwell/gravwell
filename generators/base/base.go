@@ -32,12 +32,15 @@ var (
 	pipeConns       = flag.String("pipe-conns", "", "comma seperated list of paths for named pie connection")
 	tlsRemoteVerify = flag.String("tls-remote-verify", "", "Path to remote public key to verify against")
 	ingestSecret    = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
+	ingestTenant    = flag.String("ingest-tenant", "", "Ingest tenant ID, blank for system tenant")
 	compression     = flag.Bool("compression", false, "Enable ingest compression")
 	entryCount      = flag.Int("entry-count", 100, "Number of entries to generate")
 	streaming       = flag.Bool("stream", false, "Stream entries in")
 	rawConn         = flag.String("raw-connection", "", "Deliver line broken entries over a TCP connection instead of gravwell protocol")
 	span            = flag.String("duration", "1h", "Total Duration")
 	srcOverride     = flag.String("source-override", "", "Source override value")
+	status          = flag.Bool("status", false, "show ingest rates as we run")
+	startTime       = flag.String("start-time", "", "optional starting timestamp for entries, must be RFC3339 format")
 )
 
 var (
@@ -54,8 +57,10 @@ type GeneratorConfig struct {
 	Tag         string
 	ConnSet     []string
 	Auth        string
+	Tenant      string
 	Count       uint64
 	Duration    time.Duration
+	Start       time.Time
 	SRC         net.IP
 	Logger      *log.Logger
 	LogLevel    log.Level
@@ -78,6 +83,10 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 	}
 	if gc.Duration, err = getDuration(*span); err != nil {
 		err = fmt.Errorf("invalid duration %s %w", *span, err)
+		return
+	}
+	if gc.Start, err = getStartTime(*startTime); err != nil {
+		err = fmt.Errorf("invalid start-time %s %w", *startTime, err)
 		return
 	}
 
@@ -108,6 +117,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		err = errors.New("Ingest auth is missing")
 		return
 	}
+	gc.Tenant = *ingestTenant
 	var connSet []string
 
 	if *clearConns != "" {
@@ -196,6 +206,7 @@ func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (co
 		Destinations:  gc.ConnSet,
 		Tags:          []string{gc.Tag},
 		Auth:          gc.Auth,
+		Tenant:        gc.Tenant,
 		IngesterName:  name,
 		IngesterUUID:  guid,
 		IngesterLabel: `generator`,
@@ -261,10 +272,17 @@ func getDuration(v string) (d time.Duration, err error) {
 	return
 }
 
+func getStartTime(v string) (t time.Time, err error) {
+	if v != `` {
+		t, err = time.Parse(time.RFC3339, v)
+	}
+	return
+}
+
 type DataGen func(time.Time) []byte
 
-func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, dur time.Duration, dg DataGen) (totalCount, totalBytes uint64, err error) {
-	if dg == nil || conn == nil || dur < 0 {
+func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorConfig, dg DataGen) (totalCount, totalBytes uint64, err error) {
+	if dg == nil || cfg.Count == 0 || cfg.Duration < 0 {
 		err = errors.New("invalid parameters")
 		return
 	}
@@ -274,9 +292,17 @@ func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, dur
 			return
 		}
 	}
-	sp := dur / time.Duration(cnt)
-	ts := time.Now().Add(-1 * dur)
-	for i := uint64(0); i < cnt; i++ {
+	if *status {
+		su, _ := newStatusUpdater(&totalCount, &totalBytes)
+		su.Start()
+		defer su.Stop()
+	}
+	sp := cfg.Duration / time.Duration(cfg.Count)
+	var ts time.Time
+	if ts = cfg.Start; ts.IsZero() {
+		ts = time.Now().Add(-1 * cfg.Duration)
+	}
+	for i := uint64(0); i < cfg.Count; i++ {
 		ent := &entry.Entry{
 			TS:   entry.FromStandard(ts),
 			Tag:  tag,
@@ -293,7 +319,7 @@ func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, dur
 	return
 }
 
-func Stream(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, dg DataGen) (totalCount, totalBytes uint64, err error) {
+func Stream(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorConfig, dg DataGen) (totalCount, totalBytes uint64, err error) {
 	var stop bool
 	r := make(chan error, 1)
 	go func(ret chan error, stp *bool) {

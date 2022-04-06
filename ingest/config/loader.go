@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -22,7 +23,8 @@ import (
 )
 
 const (
-	maxConfigSize int64 = 4 * mb // This is a MASSIVE config file
+	maxConfigSize int64  = 4 * mb // This is a MASSIVE config file
+	confExt       string = `.conf`
 )
 
 var (
@@ -36,6 +38,7 @@ var (
 	ErrInvalidMapValueType    = errors.New("invalid map value type, must be pointer to struct")
 	ErrBadMap                 = errors.New("VariableConfig has not be initialized")
 	ErrNotFound               = errors.New("not found")
+	ErrIsNotDirectory         = errors.New("path is not a directory")
 )
 
 type VariableConfig struct {
@@ -69,6 +72,44 @@ func LoadConfigFile(v interface{}, p string) (err error) {
 		err = ErrFailedFileRead
 	} else if err = fin.Close(); err == nil {
 		err = LoadConfigBytes(v, bb.Bytes())
+	}
+	return
+}
+
+// LoadConfigOverlays scans the given directory path for files that end in .conf
+// if they exist we load them up into the interface
+func LoadConfigOverlays(v interface{}, pth string) (err error) {
+	if pth == `` || v == nil {
+		return //just leave
+	}
+	//stat the path and make sure its a directory
+	var fi os.FileInfo
+	if fi, err = os.Stat(pth); err != nil {
+		if os.IsNotExist(err) {
+			err = nil //not a problem, move on
+		}
+		return
+	} else if !fi.IsDir() {
+		err = ErrIsNotDirectory
+		return
+	}
+
+	//ok, we have a directory, read it and consume the confs
+	var dents []os.DirEntry
+	if dents, err = os.ReadDir(pth); err != nil {
+		return //something failed
+	}
+	for _, dent := range dents {
+		if !dent.Type().IsRegular() {
+			continue
+		} else if filepath.Ext(dent.Name()) != confExt {
+			continue
+		}
+		p := filepath.Join(pth, dent.Name())
+		if err = LoadConfigFile(v, p); err != nil {
+			err = fmt.Errorf("failed to load %q %w", p, err)
+			return
+		}
 	}
 	return
 }

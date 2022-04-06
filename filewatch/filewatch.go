@@ -10,11 +10,13 @@
 package filewatch
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -23,6 +25,11 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+)
+
+const (
+	MAX_QUEUED_EVENTS_PATH = "/proc/sys/fs/inotify/max_queued_events"
+	EVENT_QUEUE_BUFFER     = 100000
 )
 
 var (
@@ -41,6 +48,8 @@ type WatchManager struct {
 	watched    map[string][]WatchConfig
 	routineRet chan error
 	logger     ingest.IngestLogger
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 type WatchConfig struct {
@@ -57,10 +66,11 @@ func NewWatcher(stateFilePath string) (*WatchManager, error) {
 	if err != nil {
 		return nil, err
 	}
-	w, err := fsnotify.NewWatcher()
+	w, err := fsnotify.NewBufferedWatcher(EVENT_QUEUE_BUFFER)
 	if err != nil {
 		return nil, err
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 
 	return &WatchManager{
 		mtx:     &sync.Mutex{},
@@ -68,11 +78,17 @@ func NewWatcher(stateFilePath string) (*WatchManager, error) {
 		watcher: w,
 		watched: map[string][]WatchConfig{},
 		logger:  ingest.NoLogger(),
+		ctx:     ctx,
+		cancel:  cancel,
 	}, nil
 }
 
 func (wm *WatchManager) SetMaxFilesWatched(max int) {
 	wm.fman.SetMaxFilesWatched(max)
+}
+
+func (wm *WatchManager) Context() context.Context {
+	return wm.ctx
 }
 
 func (wm *WatchManager) SetLogger(lgr ingest.IngestLogger) {
@@ -108,6 +124,7 @@ func (wm *WatchManager) Filters() int {
 func (wm *WatchManager) Close() error {
 	var retCh chan error
 	wm.mtx.Lock()
+	defer wm.cancel() //cancel the context dead last
 	if wm.watcher != nil {
 		if err := wm.watcher.Close(); err != nil {
 			wm.mtx.Unlock()
@@ -158,7 +175,7 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 	}
 
 	//extract all the filters from the match
-	fltrs, err := extractFilters(c.FileFilter)
+	fltrs, err := ExtractFilters(c.FileFilter)
 	if err != nil {
 		return err
 	}
@@ -209,7 +226,7 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 	return nil
 }
 
-func extractFilters(ff string) ([]string, error) {
+func ExtractFilters(ff string) ([]string, error) {
 	if strings.HasPrefix(ff, "{") && strings.HasSuffix(ff, "}") {
 		ff = strings.TrimPrefix(strings.TrimSuffix(ff, "}"), "{")
 	}
@@ -248,28 +265,51 @@ func (wm *WatchManager) Start() error {
 }
 
 func (wm *WatchManager) initExisting() error {
-	//ready all files in the directory, this COULD potentially be millions
-	//if someone is dumb enough to drop that many files for follwing in a single directory
-	//we will slow down and most likely puke when we attempt to register fsnotify handlers
-	//this is an OS/user problem, not ours
-	for k := range wm.watched {
-		fis, err := ioutil.ReadDir(k)
-		if err != nil {
-			return fmt.Errorf("Failed to initialize %v: %v", k, err)
-		}
-		for i := range fis {
-			if !fis[i].Mode().IsRegular() {
-				continue
-			}
-			//check if we have a state for this file
-			fpath := filepath.Join(k, fis[i].Name())
-			//potentially load existing state
-			if _, err := wm.fman.LoadFile(fpath); err != nil {
-				return err
-			}
+	//generate list of files that could be processed
+	//this could be MANNY files if people are doing some mass ingest
+	toProcess, err := wm.getWatchedFileList()
+	if err != nil {
+		return err
+	}
+	return wm.fman.LoadFileList(toProcess)
+}
+
+// Catchup is used to synchronously process files that have outstanding work to be done.
+// The purpose of this is so that when the file follower first starts with a large number of outstanding
+// files to be processed, it can more intelligently process them one at a time.
+// The real purpose is so that the usecase where a user points the follower at a massive number of files
+// during an improt scenario we don't start grabbing things all willy nilly and with high concurrency
+// we are better off ordering the work to be done and doing it synchronously
+//
+// the input parameter is a quit channel, basically wired to the signal handler
+// the return values are a shouldQuit(booL) and error
+// the boolean value is true when the signal handler fired, telling us that the ingester should exit
+func (wm *WatchManager) Catchup(qc chan os.Signal) (bool, error) {
+	wm.mtx.Lock()
+	defer wm.mtx.Unlock()
+	if wm.fman == nil || wm.watcher == nil {
+		return false, ErrNotReady
+	}
+	if len(wm.watched) == 0 {
+		return false, ErrNoDirsWatched
+	}
+	if wm.routineRet != nil {
+		return false, ErrAlreadyStarted
+	}
+
+	//generate list of files that could be processed
+	//this could be MANNY files if people are doing some mass ingest
+	toProcess, err := wm.getWatchedFileList()
+	if err != nil {
+		return false, err
+	}
+
+	for _, wf := range toProcess {
+		if quit, err := wm.fman.CatchupFile(wf, qc); err != nil || quit {
+			return quit, err
 		}
 	}
-	return nil
+	return false, nil
 }
 
 func (wm *WatchManager) watchNewFile(fpath string) (bool, error) {
@@ -300,11 +340,20 @@ watchRoutine:
 	for {
 		select {
 		case err, ok = <-wm.watcher.Errors:
-			//we bail on error, not sure if any of this is recoverable, look into it
 			if !ok {
 				break watchRoutine
 			}
-			wm.logger.Error("file_follower filesystem notification error", log.KVErr(err))
+
+			if err == fsnotify.ErrEventOverflow {
+				// grab the current value of the queue depth
+				d, rerr := os.ReadFile(MAX_QUEUED_EVENTS_PATH)
+				if rerr != nil {
+					// ignore the error but let us know please
+					d = []byte(fmt.Sprintf("could not read from %v", MAX_QUEUED_EVENTS_PATH))
+				}
+				wm.logger.Error("Filesystem notification error. Events are being dropped. Increase the queued events kernel parameter or decrease the number of tracked files.", log.KVErr(err), log.KV("max_queued_events", string(d)), log.KV("help", "https://docs.gravwell.io/#!ingesters/file_follow.md"))
+			}
+			err = nil
 		case evt, ok := <-wm.watcher.Events:
 			if !ok {
 				break watchRoutine
@@ -317,51 +366,51 @@ watchRoutine:
 				if fi.IsDir() {
 					parents, ok := wm.watched[filepath.Dir(evt.Name)]
 					if !ok {
-						wm.logger.Error("file_follower failed to find parent directory", log.KV("path", evt.Name))
+						wm.logger.Error("failed to find parent directory", log.KV("path", evt.Name))
 						continue
 					}
 					for _, parent := range parents {
 						if !parent.Recursive {
-							wm.logger.Info("file_follower not adding watcher for subdirectory, parent not recusive", log.KV("directory", evt.Name))
+							wm.logger.Info("not adding watcher for subdirectory, parent not recusive", log.KV("directory", evt.Name))
 							continue
 						}
 						parent.BaseDir = evt.Name
-						wm.logger.Info("file_follower adding watcher for subdirectory", log.KV("path", evt.Name), log.KV("patterns", parent.FileFilter))
+						wm.logger.Info("adding watcher for subdirectory", log.KV("path", evt.Name), log.KV("patterns", parent.FileFilter))
 						if err := wm.Add(parent); err != nil {
-							wm.logger.Error("file_follower failed to add watcher for new directory", log.KV("path", evt.Name), log.KVErr(err))
+							wm.logger.Error("failed to add watcher for new directory", log.KV("path", evt.Name), log.KVErr(err))
 							continue
 						}
 					}
 				} else {
 					if ok, err := wm.watchNewFile(evt.Name); err != nil {
-						wm.logger.Error("file_follower failed to watch new file", log.KV("path", evt.Name), log.KVErr(err))
+						wm.logger.Error("failed to watch new file", log.KV("path", evt.Name), log.KVErr(err))
 					} else if ok {
-						wm.logger.Info("file_follower watching new file", log.KV("path", evt.Name))
+						wm.logger.Info("watching new file", log.KV("path", evt.Name))
 					}
 				}
 			} else if evt.Op == fsnotify.Remove {
 				if ok, err := wm.deleteWatchedFile(evt.Name); err != nil {
-					wm.logger.Error("file_follower failed to stop watching file", log.KV("path", evt.Name), log.KVErr(err))
+					wm.logger.Error("failed to stop watching file", log.KV("path", evt.Name), log.KVErr(err))
 				} else if ok {
-					wm.logger.Info("file_follower stopped watching file", log.KV("path", evt.Name))
+					wm.logger.Info("stopped watching file", log.KV("path", evt.Name))
 				}
 			} else if evt.Op == fsnotify.Rename {
 				if err := wm.renameWatchedFile(evt.Name); err != nil {
-					wm.logger.Error("file_follower failed to track renamed file", log.KV("path", evt.Name), log.KVErr(err))
+					wm.logger.Error("failed to track renamed file", log.KV("path", evt.Name), log.KVErr(err))
 				}
 			} else if evt.Op == fsnotify.Write {
 				// write event, check if we are watching the file, add if needed
 				if !wm.fman.IsWatched(evt.Name) {
 					if ok, err := wm.fman.LoadFile(evt.Name); err != nil {
-						wm.logger.Error("file_follower failed to watch file", log.KV("path", evt.Name), log.KVErr(err))
+						wm.logger.Error("failed to watch file", log.KV("path", evt.Name), log.KVErr(err))
 					} else if ok {
-						wm.logger.Info("file_follower watching file", log.KV("path", evt.Name))
+						wm.logger.Info("watching file", log.KV("path", evt.Name))
 					}
 				}
 			}
 		case _ = <-tckr.C:
 			if err := wm.fman.FlushStates(); err != nil {
-				wm.logger.Error("file_follower failed to flush states", log.KVErr(err))
+				wm.logger.Error("failed to flush states", log.KVErr(err))
 			}
 		}
 	}
@@ -382,4 +431,37 @@ func (wm *WatchManager) Dump() string {
 	}
 
 	return b.String()
+}
+
+type watchedFile struct {
+	pth     string
+	size    int64
+	modTime time.Time
+}
+
+func (wm *WatchManager) getWatchedFileList() (wfs []watchedFile, err error) {
+	var fis []os.FileInfo
+	for k := range wm.watched {
+		if fis, err = ioutil.ReadDir(k); err != nil {
+			err = fmt.Errorf("Failed to initialize %v: %w", k, err)
+			return
+		}
+		for i := range fis {
+			if !fis[i].Mode().IsRegular() {
+				continue
+			}
+			wfs = append(wfs, watchedFile{
+				pth:     filepath.Join(k, fis[i].Name()),
+				size:    fis[i].Size(),
+				modTime: fis[i].ModTime(),
+			})
+		}
+	}
+	//now sort by last modified date as a minor optimization
+	if len(wfs) > 0 {
+		sort.SliceStable(wfs, func(i, j int) bool {
+			return wfs[i].modTime.Before(wfs[i].modTime)
+		})
+	}
+	return
 }

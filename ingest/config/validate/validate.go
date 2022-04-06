@@ -23,7 +23,13 @@ var (
 	vflag = flag.Bool("validate", false, "Load configuration file and exit")
 )
 
-func ValidateConfig(fnc interface{}, pth string) {
+// ValidateConfig will take a configuration handling function and two paths.
+// The first path is the base config file, and the second path points at the conf.d directory.
+// The config handling function will take those two paths and process a config and return two values.
+// The first value is an opaque object (hence the reflect voodoo).  The second value is an error object
+// the point of this function is to make it easy for ingester writers to just hand in their GetConfig function
+// and the two paths and get a "go/no go" on the configurations
+func ValidateConfig(fnc interface{}, pth, confdPath string) {
 	if !*vflag {
 		return
 	}
@@ -41,14 +47,19 @@ func ValidateConfig(fnc interface{}, pth string) {
 	if fnType.Kind() != reflect.Func {
 		fmt.Println("Given configuration function is not a function")
 		os.Exit(exitCode)
-	} else if fnType.NumIn() != 1 {
-		fmt.Printf("Given configuration function expects %d parameters instead of 1\n", fnType.NumIn())
-		os.Exit(exitCode)
 	} else if fnType.NumOut() != 2 {
 		fmt.Printf("Given configuration function produces %d output values instead of 2\n", fnType.NumOut())
 		os.Exit(exitCode)
 	}
-	res := fn.Call([]reflect.Value{reflect.ValueOf(pth)})
+
+	args := []reflect.Value{reflect.ValueOf(pth)}
+	if argc := fnType.NumIn(); argc < 1 || argc > 2 {
+		fmt.Printf("Given configuration function expects %d parameters instead of 1 or 2\n", argc)
+		os.Exit(exitCode)
+	} else if argc == 2 {
+		args = append(args, reflect.ValueOf(confdPath))
+	}
+	res := fn.Call(args)
 	if len(res) != 2 {
 		fmt.Printf("Given configuration function returned the wrong number of values: %d != 2\n", len(res))
 		os.Exit(exitCode)
@@ -69,6 +80,10 @@ func ValidateConfig(fnc interface{}, pth string) {
 		fmt.Printf("Config file %q returned a nil object\n", pth)
 		os.Exit(exitCode)
 	}
-	fmt.Println(pth, "is valid")
+	if confdPath != `` {
+		fmt.Println(pth, "with overlay", confdPath, "is valid")
+	} else {
+		fmt.Println(pth, "is valid")
+	}
 	os.Exit(0) //all good
 }

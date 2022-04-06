@@ -10,15 +10,14 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/json"
+	"compress/gzip"
 	"errors"
 	"io"
 	"io/ioutil"
-	"math"
 	"net"
 	"net/http"
-	"strconv"
+	"path"
+	"sync"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -28,167 +27,188 @@ import (
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
-type handlerConfig struct {
-	hecCompat bool
-	ignoreTs  bool
-	multiline bool
-	tag       entry.EntryTag
-	tg        *timegrinder.TimeGrinder
-	method    string
-	auth      authHandler
-	pproc     *processors.ProcessorSet
+type handleFunc func(*handler, routeHandler, http.ResponseWriter, io.Reader, net.IP)
+type routeHandler struct {
+	ignoreTs bool
+	tag      entry.EntryTag
+	tg       *timegrinder.TimeGrinder
+	handler  handleFunc
+	auth     authHandler
+	pproc    *processors.ProcessorSet
 }
 
 type handler struct {
-	lgr            *log.Logger
-	mp             map[string]handlerConfig
-	auth           map[string]authHandler
+	sync.RWMutex
 	igst           *ingest.IngestMuxer
+	lgr            *log.Logger
+	mp             map[route]routeHandler
+	auth           map[route]authHandler
+	custom         map[route]http.Handler
 	healthCheckURL string
 }
 
-func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
-	debugout("REQUEST %s %v\n", r.Method, r.URL)
-	debugout("HEADERS %v\n", r.Header)
+func (rh routeHandler) handle(h *handler, w http.ResponseWriter, r io.Reader, ip net.IP) {
+	if w == nil {
+		return
+	} else if r == nil || h == nil || rh.handler == nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	rh.handler(h, rh, w, r, ip)
+}
+
+func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger) (h *handler, err error) {
+	if igst == nil {
+		err = errors.New("nil muxer")
+	} else if lgr == nil {
+		err = errors.New("nil logger")
+	} else {
+		h = &handler{
+			RWMutex: sync.RWMutex{},
+			mp:      map[route]routeHandler{},
+			auth:    map[route]authHandler{},
+			custom:  map[route]http.Handler{},
+			igst:    igst,
+			lgr:     lgr,
+		}
+	}
+	return
+}
+
+func (h *handler) checkConflict(r route) error {
+	h.RLock()
+	defer h.RUnlock()
+	//check heathcheck
+	if r.method == http.MethodGet && h.healthCheckURL == r.uri {
+		return errors.New("route conflicts with health check URL")
+	}
+	//check auth
+	if _, ok := h.auth[r]; ok {
+		return errors.New("route conflicts with authentication URL")
+	}
+	//check basic handlers
+	if _, ok := h.mp[r]; ok {
+		return errors.New("route conflicts with ingest URL")
+	}
+	//check custom handlers
+	if _, ok := h.custom[r]; ok {
+		return errors.New("route conflicts with custom handler")
+	}
+	return nil
+}
+
+func (h *handler) addHandler(method, pth string, cfg routeHandler) (err error) {
+	r := newRoute(method, pth)
+	//check if there is a conflict
+	if err = h.checkConflict(r); err == nil {
+		h.Lock()
+		//check heathcheck
+		h.mp[r] = cfg
+		h.Unlock()
+	}
+	return
+}
+
+func (h *handler) addAuthHandler(method, pth string, ah authHandler) (err error) {
+	r := newRoute(method, pth)
+	//check if there is a conflict
+	if err = h.checkConflict(r); err == nil {
+		h.Lock()
+		h.auth[r] = ah
+		h.Unlock()
+	}
+	return
+}
+
+func (h *handler) addCustomHandler(method, pth string, ah http.Handler) (err error) {
+	r := newRoute(method, pth)
+	//check if there is a conflict
+	if err = h.checkConflict(r); err == nil {
+		h.Lock()
+		h.custom[r] = ah
+		h.Unlock()
+	}
+	return
+}
+
+func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	w := &trackingRW{
+		ResponseWriter: rw,
+	}
+	defer func(trw *trackingRW, req *http.Request) {
+		if !v {
+			return
+		}
+		debugout("REQUEST %s %v %d %d\n", req.Method, req.URL, trw.code, trw.bytes)
+		debugout("\tHEADERS\n")
+		for k, v := range req.Header {
+			debugout("\t\t%v: %v\n", k, v)
+		}
+		debugout("\n")
+		debugout("ROUTES: %+v %+v %+v\n", h.mp, h.auth, h.custom)
+	}(w, r)
+	ip := getRemoteIP(r)
+	rdr, err := getReadableBody(r)
+	if err != nil {
+		h.lgr.Error("failed to get body reader", log.KV("address", ip), log.KVErr(err))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	defer rdr.Close()
+	rt := route{
+		method: r.Method,
+		uri:    path.Clean(r.URL.Path),
+	}
 
 	//check if its just a health check
-	if h.healthCheckURL == r.URL.Path {
+	if h.healthCheckURL == rt.uri && rt.method == http.MethodGet {
 		//just return, this is an implied 200
 		return
 	}
 
+	h.RLock()
 	//check if the request is an authentication request
-	if ah, ok := h.auth[r.URL.Path]; ok && ah != nil {
+	if ah, ok := h.auth[rt]; ok && ah != nil {
+		h.RUnlock()
 		ah.Login(w, r)
 		return
 	}
+
+	//check if this is a custom handler request
+	if ch, ok := h.custom[rt]; ok {
+		h.RUnlock()
+		if ch == nil {
+			//ummm, ok?
+			w.WriteHeader(http.StatusInternalServerError)
+		} else {
+			ch.ServeHTTP(w, r)
+		}
+		return
+	}
+
 	//not an auth, try the actual post URL
-	cfg, ok := h.mp[r.URL.Path]
+	rh, ok := h.mp[rt]
+	h.RUnlock()
 	if !ok {
-		h.lgr.Info("bad request URL", log.KV("url", r.URL.Path))
+		h.lgr.Info("bad request URL", log.KV("url", rt.uri), log.KV("method", r.Method))
 		w.WriteHeader(http.StatusNotFound)
 		return
-	}
-	if r.Method != cfg.method {
-		h.lgr.Info("bad request method", log.KV("method", r.Method), log.KV("requiredmethod", cfg.method))
-		w.WriteHeader(http.StatusMethodNotAllowed)
+	} else if rh.handler == nil {
+		h.lgr.Info("no handler", log.KV("url", rt.uri), log.KV("method", r.Method))
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if cfg.auth != nil {
-		if err := cfg.auth.AuthRequest(r); err != nil {
-			h.lgr.Info("access denied", log.KV("address", getRemoteIP(r)), log.KV("url", r.URL.Path), log.KVErr(err))
+	if rh.auth != nil {
+		if err := rh.auth.AuthRequest(r); err != nil {
+			h.lgr.Info("access denied", log.KV("address", getRemoteIP(r)), log.KV("url", rt.uri), log.KVErr(err))
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
 	}
-	if cfg.hecCompat {
-		h.handleHEC(cfg, r, w)
-	} else if cfg.multiline {
-		h.handleMulti(cfg, r, w)
-	} else {
-		h.handleSingle(cfg, r, w)
-	}
+	rh.handle(h, w, rdr, ip)
 	r.Body.Close()
 }
-
-type hecEvent struct {
-	Event json.RawMessage `json:"event"`
-	TS    custTime        `json:"time"`
-}
-
-type custTime time.Time
-
-func (c *custTime) UnmarshalJSON(v []byte) (err error) {
-	var f float64
-	v = bytes.Trim(v, `"`) //trim quotes if they are there
-	if f, err = strconv.ParseFloat(string(v), 64); err != nil {
-		return
-	} else if f < 0 || f > float64(0xffffffffff) {
-		err = errors.New("invalid timestamp value")
-	}
-	sec, dec := math.Modf(f)
-	*c = custTime(time.Unix(int64(sec), int64(dec*(1e9))))
-	return
-}
-
-func (h *handler) handleHEC(cfg handlerConfig, r *http.Request, w http.ResponseWriter) {
-	b, err := ioutil.ReadAll(io.LimitReader(r.Body, int64(maxBody+256))) //give some slack for the extra splunk garbage
-	if err != nil && err != io.EOF {
-		h.lgr.Info("bad request", log.KVErr(err))
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	} else if len(b) > maxBody {
-		h.lgr.Error("request too large", log.KV("requestsize", len(b)), log.KV("maxsize", maxBody))
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if len(b) == 0 {
-		h.lgr.Info("got an empty post", log.KV("address", r.RemoteAddr))
-		w.WriteHeader(http.StatusBadRequest)
-	}
-	var x hecEvent
-	if err = json.Unmarshal(b, &x); err == nil {
-		b = []byte(x.Event)
-	} //else means we just keep the entire raw thing
-
-	//if we couldn't get the timestmap, use now
-	if time.Time(x.TS).IsZero() {
-		x.TS = custTime(time.Now().UTC())
-	}
-	e := entry.Entry{
-		TS:   entry.FromStandard(time.Time(x.TS)),
-		SRC:  getRemoteIP(r),
-		Tag:  cfg.tag,
-		Data: b,
-	}
-	if err = cfg.pproc.Process(&e); err != nil {
-		h.lgr.Error("failed to send entry", log.KVErr(err))
-		return
-	}
-	debugout("Sending entry %+v", e)
-}
-
-func (h *handler) handleMulti(cfg handlerConfig, r *http.Request, w http.ResponseWriter) {
-	debugout("multhandler REQUEST %s %v\n", r.Method, r.URL)
-	debugout("multhandler HEADERS %v\n", r.Header)
-	ip := getRemoteIP(r)
-	scanner := bufio.NewScanner(r.Body)
-	for scanner.Scan() {
-		if err := h.handleEntry(cfg, scanner.Bytes(), ip); err != nil {
-			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-	}
-	if err := scanner.Err(); err != nil {
-		h.lgr.Warn("failed to handle multiline upload", log.KVErr(err))
-		w.WriteHeader(http.StatusBadRequest)
-	}
-	return
-}
-
-func (h *handler) handleSingle(cfg handlerConfig, r *http.Request, w http.ResponseWriter) {
-	b, err := ioutil.ReadAll(io.LimitReader(r.Body, int64(maxBody+1)))
-	if err != nil && err != io.EOF {
-		h.lgr.Info("got bad request", log.KVErr(err))
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	} else if len(b) > maxBody {
-		h.lgr.Error("request too large, 4MB max")
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	if len(b) == 0 {
-		h.lgr.Info("got an empty post", log.KV("address", r.RemoteAddr))
-		w.WriteHeader(http.StatusBadRequest)
-	} else if err = h.handleEntry(cfg, b, getRemoteIP(r)); err != nil {
-		h.lgr.Error("failed to handle entry", log.KV("address", r.RemoteAddr), log.KVErr(err))
-		w.WriteHeader(http.StatusInternalServerError)
-	}
-}
-
-func (h *handler) handleEntry(cfg handlerConfig, b []byte, ip net.IP) (err error) {
+func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP) (err error) {
 	var ts entry.Timestamp
 	if cfg.ignoreTs || cfg.tg == nil {
 		ts = entry.Now()
@@ -217,4 +237,98 @@ func (h *handler) handleEntry(cfg handlerConfig, b []byte, ip net.IP) (err error
 	}
 	debugout("Sending entry %+v", e)
 	return
+}
+
+// getReadableBody checks the encoding header and if this request is gzip compressed
+// then we transparently wrap it in a gzip reader
+func getReadableBody(r *http.Request) (rc io.ReadCloser, err error) {
+	switch r.Header.Get("Content-Encoding") {
+	case "GZIP": //because AWS...
+		fallthrough
+	case "gzip":
+		rc, err = gzip.NewReader(r.Body)
+	default:
+		rc = r.Body
+	}
+	return
+}
+
+type trackingRW struct {
+	http.ResponseWriter
+	code  int
+	bytes int
+}
+
+func (trw *trackingRW) WriteHeader(code int) {
+	trw.code = code
+	trw.ResponseWriter.WriteHeader(code)
+}
+
+func (trw *trackingRW) Write(b []byte) (r int, err error) {
+	r, err = trw.ResponseWriter.Write(b)
+	trw.bytes += r
+	if trw.code == 0 {
+		trw.code = 200
+	}
+	return
+}
+
+type route struct {
+	method string
+	uri    string
+}
+
+func newRoute(method, uri string) route {
+	if method == `` {
+		method = defaultMethod
+	}
+	uri = path.Clean(uri)
+	return route{
+		method: method,
+		uri:    uri,
+	}
+}
+
+func (r route) String() string {
+	if r.method == `` {
+		return path.Clean(r.uri)
+	}
+	return r.method + "://" + path.Clean(r.uri)
+}
+
+func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
+	debugout("multhandler\n")
+	scanner := bufio.NewScanner(rdr)
+	for scanner.Scan() {
+		if err := h.handleEntry(cfg, scanner.Bytes(), ip); err != nil {
+			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		h.lgr.Warn("failed to handle multiline upload", log.KVErr(err))
+		w.WriteHeader(http.StatusBadRequest)
+	}
+	return
+}
+
+func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
+	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+1)))
+	if err != nil && err != io.EOF {
+		h.lgr.Info("got bad request", log.KV("address", ip), log.KVErr(err))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	} else if len(b) > maxBody {
+		h.lgr.Error("request too large, 4MB max")
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if len(b) == 0 {
+		h.lgr.Info("got an empty post", log.KV("address", ip))
+		w.WriteHeader(http.StatusBadRequest)
+	} else if err = h.handleEntry(cfg, b, ip); err != nil {
+		h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+		w.WriteHeader(http.StatusInternalServerError)
+	}
 }

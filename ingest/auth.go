@@ -27,7 +27,7 @@ const (
 	// The number of times to hash the shared secret
 	HASH_ITERATIONS uint16 = 16
 	// Auth protocol version number
-	VERSION uint16 = 0x6
+	VERSION uint16 = 0x7
 	// Authenticated, but not ready for ingest
 	STATE_AUTHENTICATED uint32 = 0xBEEF42
 	// Not authenticated
@@ -35,12 +35,18 @@ const (
 	// Authenticated and ready for ingest
 	STATE_HOT uint32 = 0xCAFE54
 
+	// Minimum auth version supporting tenants
+	MinTenantAuthVersion uint16 = 0x7
+	MaxTenantNameLength  uint16 = 512 //maximum length of a tenant name in bytes
+	SystemTenant         string = ``  // blank string, basically the root/system/infrastructure user
+
 	// Max length for a state response message
 	maxStateResponseLen uint16 = 4096
 	// Maximum size of a message requesting tags from ingester
 	maxTagRequestLen uint32 = 32 * 1024 * 1024 //32megs for a request, which is crazy huge
 	// Maximum size of a message mapping tag names to tag numbers
 	maxTagResponseLen uint32 = 64 * 1024 * 1024 //64megs for a response, which is crazy huge
+
 )
 
 var (
@@ -50,10 +56,22 @@ var (
 	ErrFailedAuthHashGen       = errors.New("Failed to generate authentication hash")
 	ErrFailedAuth              = errors.New("Failed authentication, bad secret")
 	ErrFailedTagNegotiation    = errors.New("Failed to negotiate tags")
+	ErrShortRead               = errors.New("Failed to read complete buffer")
+	ErrShortWrite              = errors.New("Failed to write complete buffer")
+	ErrInvalidAuthVersion      = errors.New("auth version is invalid")
+	ErrInvalidTenantName       = errors.New("auth tenant name is invalid")
+	ErrNilChallengeResponse    = errors.New("Got a nil challenge response")
+	ErrTenantAuthUnsupported   = errors.New("authentication endpoint does not support tenants")
 
 	prng        *rand.Rand
 	prngCounter int
 )
+
+var tenantAuthHeader = [32]byte{
+	0x67, 0x72, 0x61, 0x76, 0x77, 0x65, 0x6c, 0x6c,
+	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0,
+	0x74, 0x65, 0x6e, 0x61, 0x6e, 0x74, 0x30, 0x31}
 
 // AuthHash represents a hashed shared secret.
 type AuthHash [16]byte
@@ -75,6 +93,8 @@ type Challenge struct {
 // the challenge/response process.
 type ChallengeResponse struct {
 	Response [32]byte
+	Version  uint16
+	Tenant   string
 }
 
 // TagRequest is used to request tags for the ingester
@@ -182,12 +202,18 @@ func NewChallenge(auth AuthHash) (Challenge, error) {
 	for i := 0; i < len(chal); i++ {
 		chal[i] = byte(prng.Intn(0xff))
 	}
-	return Challenge{iter, chal, VERSION}, nil
+	return Challenge{
+		Iterate:       iter,
+		RandChallenge: chal,
+		Version:       VERSION,
+	}, nil
 }
 
 // GenerateResponse creates a ChallengeResponse based on the Challenge and AuthHash
-func GenerateResponse(auth AuthHash, ch Challenge) (*ChallengeResponse, error) {
-	var resp ChallengeResponse
+func GenerateResponse(auth AuthHash, ch Challenge) (resp *ChallengeResponse, err error) {
+	resp = &ChallengeResponse{
+		Version: ch.Version,
+	}
 	//hash first with SHA512
 	runningHash := make([]byte, 32)
 	authSlice := make([]byte, len(auth))
@@ -198,28 +224,23 @@ func GenerateResponse(auth AuthHash, ch Challenge) (*ChallengeResponse, error) {
 		authSlice[i] = auth[i]
 	}
 	sha := sha512.New()
-	_, err := sha.Write(runningHash)
-	if err != nil {
-		return nil, err
-	}
-	_, err = sha.Write(authSlice)
-	if err != nil {
-		return nil, err
+	if _, err = sha.Write(runningHash); err != nil {
+		return
+	} else if _, err = sha.Write(authSlice); err != nil {
+		return
 	}
 	runningHash = sha.Sum(nil)
 
 	for i := uint16(0); i < ch.Iterate; i++ {
 		md := md5.New()
-		_, err := md.Write(runningHash)
-		if err != nil {
-			return nil, err
+		if _, err = md.Write(runningHash); err != nil {
+			return
 		}
 		runningHash = md.Sum(nil)
 
 		sha := sha256.New()
-		_, err = sha.Write(runningHash)
-		if err != nil {
-			return nil, err
+		if _, err = sha.Write(runningHash); err != nil {
+			return
 		}
 		runningHash = sha.Sum(nil)
 	}
@@ -228,17 +249,113 @@ func GenerateResponse(auth AuthHash, ch Challenge) (*ChallengeResponse, error) {
 	for i := 0; i < len(resp.Response); i++ {
 		resp.Response[i] = runningHash[i]
 	}
-	return &resp, nil
+	return
 }
 
 // Decode the ChallengeResponse from the reader
 func (cr *ChallengeResponse) Read(r io.Reader) error {
-	return binary.Read(r, binary.LittleEndian, cr)
+	var buff [32]byte
+	if n, err := r.Read(buff[:]); err != nil {
+		return err
+	} else if n != len(cr.Response) {
+		return ErrShortRead
+	}
+	if buff != tenantAuthHeader {
+		cr.Response = buff
+		return nil
+	}
+	if n, err := r.Read(buff[:]); err != nil {
+		return err
+	} else if n != len(cr.Response) {
+		return ErrShortRead
+	}
+	cr.Response = buff
+
+	return cr.readTenantResponse(r)
+}
+
+func (cr *ChallengeResponse) readTenantResponse(r io.Reader) error {
+	//read the version and length
+	var version uint16
+	var length uint16
+	if err := binary.Read(r, binary.LittleEndian, &version); err != nil {
+		return err
+	} else if err = binary.Read(r, binary.LittleEndian, &length); err != nil {
+		return err
+	}
+	if version < MinTenantAuthVersion {
+		return ErrInvalidAuthVersion
+	} else if length > MaxTenantNameLength {
+		return ErrInvalidTenantName
+	}
+	namebuff := make([]byte, length)
+	if n, err := r.Read(namebuff); err != nil {
+		return err
+	} else if n != int(length) {
+		return ErrShortRead
+	}
+	cr.Version = version
+	cr.Tenant = string(namebuff)
+	return nil
 }
 
 // Write the challenge response to the writer
 func (cr *ChallengeResponse) Write(w io.Writer) error {
-	return binary.Write(w, binary.LittleEndian, cr)
+	if cr.Version < MinTenantAuthVersion || len(cr.Tenant) == 0 {
+		return cr.writeNonTenantAuth(w)
+	}
+	return cr.writeTenantAuth(w)
+}
+
+func (cr *ChallengeResponse) writeNonTenantAuth(w io.Writer) error {
+	if n, err := w.Write(cr.Response[:]); err != nil {
+		return err
+	} else if n != len(cr.Response) {
+		return ErrShortWrite
+	}
+	return nil
+}
+
+func (cr *ChallengeResponse) writeTenantAuth(w io.Writer) error {
+	//double check what we have
+	if len(cr.Tenant) > int(MaxTenantNameLength) {
+		return ErrInvalidTenantName
+	} else if cr.Version < MinTenantAuthVersion {
+		return ErrInvalidAuthVersion
+	}
+
+	// write header
+	if n, err := w.Write(tenantAuthHeader[:]); err != nil {
+		return err
+	} else if n != len(tenantAuthHeader) {
+		return ErrShortWrite
+	}
+
+	// then response
+	if n, err := w.Write(cr.Response[:]); err != nil {
+		return err
+	} else if n != len(cr.Response) {
+		return ErrShortWrite
+	}
+
+	// then version and tenant length and tenant string
+	if err := binary.Write(w, binary.LittleEndian, cr.Version); err != nil {
+		return err
+	} else if err = binary.Write(w, binary.LittleEndian, uint16(len(cr.Tenant))); err != nil {
+		return err
+	}
+	// then tenant name
+	return writeString(w, cr.Tenant)
+}
+
+func writeString(w io.Writer, v string) error {
+	l := len(v)
+	if n, err := w.Write([]byte(v)); err != nil {
+		return err
+	} else if l != n {
+		return ErrShortWrite
+	}
+	return nil
 }
 
 // Read the challenge from reader

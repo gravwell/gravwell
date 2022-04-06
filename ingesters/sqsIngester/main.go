@@ -37,17 +37,19 @@ import (
 )
 
 const (
-	defaultConfigLoc     = `/opt/gravwell/etc/sqs.conf`
-	ingesterName         = `sqsIngester`
-	appName              = `amazonsqs`
-	batchSize            = 512
-	maxDataSize      int = 8 * 1024 * 1024
-	initDataSize     int = 512 * 1024
+	defaultConfigLoc      = `/opt/gravwell/etc/sqs.conf`
+	defaultConfigDLoc     = `/opt/gravwell/etc/sqs.conf.d`
+	ingesterName          = `sqsIngester`
+	appName               = `amazonsqs`
+	batchSize             = 512
+	maxDataSize       int = 8 * 1024 * 1024
+	initDataSize      int = 512 * 1024
 )
 
 var (
 	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
@@ -81,6 +83,7 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 	var fp string
 	var err error
 	if *stderrOverride != `` {
@@ -89,6 +92,7 @@ func init() {
 	cb := func(w io.Writer) {
 		version.PrintVersion(w)
 		ingest.PrintVersion(w)
+		log.PrintOSInfo(w)
 	}
 	if lg, err = log.NewStderrLoggerEx(fp, cb); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get stderr logger: %v\n", err)
@@ -97,7 +101,6 @@ func init() {
 	lg.SetAppname(appName)
 
 	v = *verbose
-	validate.ValidateConfig(GetConfig, *confLoc)
 }
 
 func main() {
@@ -112,7 +115,7 @@ func main() {
 		defer pprof.StopCPUProfile()
 	}
 
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 		return

@@ -33,14 +33,16 @@ import (
 )
 
 const (
-	defaultConfigLoc     = `/opt/gravwell/etc/network_capture.conf`
-	packetsThrowSize int = 1024 * 1024 * 2
-	ingesterName         = "networkLog"
-	appName              = `networklog`
+	defaultConfigLoc      = `/opt/gravwell/etc/network_capture.conf`
+	defaultConfigDLoc     = `/opt/gravwell/etc/network_capture.conf.d`
+	packetsThrowSize  int = 1024 * 1024 * 2
+	ingesterName          = "networkLog"
+	appName               = `networklog`
 )
 
 var (
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	profileFile    = flag.String("profile", "", "Start a CPU profiler, disabled if blank")
@@ -82,6 +84,7 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
@@ -98,6 +101,7 @@ func init() {
 		} else {
 			version.PrintVersion(fout)
 			ingest.PrintVersion(fout)
+			log.PrintOSInfo(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
 				fout.Close()
@@ -106,7 +110,6 @@ func init() {
 		}
 	}
 	v = *verbose
-	validate.ValidateConfig(GetConfig, *confLoc)
 }
 
 func main() {
@@ -120,7 +123,7 @@ func main() {
 		pprof.StartCPUProfile(f)
 		defer pprof.StopCPUProfile()
 	}
-	cfg, err := GetConfig(*confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 	}

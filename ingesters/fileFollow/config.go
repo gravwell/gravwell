@@ -51,6 +51,7 @@ type follower struct {
 	Assume_Local_Timezone     bool
 	Recursive                 bool // Should we descend into child directories?
 	Ignore_Line_Prefix        []string
+	Ignore_Glob               []string
 	Timestamp_Format_Override string //override the timestamp format
 	Timestamp_Delimited       bool
 	Timezone_Override         string
@@ -76,9 +77,11 @@ type cfgType struct {
 	TimeFormat   config.CustomTimeFormat
 }
 
-func GetConfig(path string) (*cfgType, error) {
+func GetConfig(path, overlayPath string) (*cfgType, error) {
 	var cr cfgReadType
 	if err := config.LoadConfigFile(&cr, path); err != nil {
+		return nil, err
+	} else if err = config.LoadConfigOverlays(&cr, overlayPath); err != nil {
 		return nil, err
 	}
 	c := &cfgType{

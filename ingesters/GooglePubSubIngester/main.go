@@ -31,12 +31,14 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/pubsub_ingest.conf`
-	appName          = `pubsub`
+	defaultConfigLoc  = `/opt/gravwell/etc/pubsub_ingest.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/pubsub_ingest.conf.d`
+	appName           = `pubsub`
 )
 
 var (
 	configLoc      = flag.String("config-file", defaultConfigLoc, "Location of configuration file")
+	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
@@ -66,6 +68,7 @@ func init() {
 		} else {
 			version.PrintVersion(fout)
 			ingest.PrintVersion(fout)
+			log.PrintOSInfo(fout)
 			//file created, dup it
 			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
@@ -73,12 +76,12 @@ func init() {
 			}
 		}
 	}
-	validate.ValidateConfig(GetConfig, *configLoc)
+	validate.ValidateConfig(GetConfig, *configLoc, *confdLoc)
 }
 
 func main() {
 	debug.SetTraceback("all")
-	cfg, err := GetConfig(*configLoc)
+	cfg, err := GetConfig(*configLoc, *confdLoc)
 	if err != nil {
 		lg.Fatal("failed to get configuration", log.KV("path", *configLoc), log.KVErr(err))
 	}

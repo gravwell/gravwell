@@ -14,61 +14,61 @@ import (
 
 func TestEmpty(t *testing.T) {
 	var ta TagAccess
-	if _, ok := ta.Check(`foo`); !ok {
+	if _, ok := ta.check(`foo`); !ok {
 		t.Fatal("Empty disallowed a tag")
 	}
 }
 
 func TestBasicWhitelist(t *testing.T) {
 	ta := TagAccess{
-		Default: TagDefaultDeny,
-		Tags:    []string{`foo`, `bar`, `baz`},
+		Default:   DefaultDeny,
+		Overrides: []string{`foo`, `bar`, `baz`},
 	}
 	//check allow
-	if exp, ok := ta.Check(`baz`); !ok {
+	if exp, ok := ta.check(`baz`); !ok {
 		t.Fatal("Invalid deny")
 	} else if !exp {
 		t.Fatal("Invalid explicit")
 	}
 
 	//check  miss
-	if _, ok := ta.Check(`foobar`); ok {
+	if _, ok := ta.check(`foobar`); ok {
 		t.Fatal("Invalid allow")
 	}
 }
 
 func TestBasicBlacklist(t *testing.T) {
 	ta := TagAccess{
-		Default: TagDefaultAllow,
-		Tags:    []string{`foo`, `bar`, `baz`},
+		Default:   DefaultAllow,
+		Overrides: []string{`foo`, `bar`, `baz`},
 	}
 	//check allow
-	if exp, ok := ta.Check(`foobar`); !ok {
+	if exp, ok := ta.check(`foobar`); !ok {
 		t.Fatal("Invalid deny")
 	} else if exp {
 		t.Fatal("invalid explicit")
 	}
 
 	//check  miss
-	if exp, ok := ta.Check(`foo`); ok || !exp {
+	if exp, ok := ta.check(`foo`); ok || !exp {
 		t.Fatal("Missed hard deny")
 	}
 }
 
 func TestBasicIntersection(t *testing.T) {
 	prime := TagAccess{
-		Default: TagDefaultAllow,
-		Tags:    []string{`foo`, `bar`, `baz`},
+		Default:   DefaultAllow,
+		Overrides: []string{`foo`, `bar`, `baz`},
 	}
 
 	set := []TagAccess{
 		TagAccess{
-			Default: TagDefaultAllow,
-			Tags:    []string{`foo`, `foobar`},
+			Default:   DefaultAllow,
+			Overrides: []string{`foo`, `foobar`},
 		},
 		TagAccess{
-			Default: TagDefaultDeny,
-			Tags:    []string{`foobar`, `barbaz`},
+			Default:   DefaultDeny,
+			Overrides: []string{`foobar`, `barbaz`},
 		},
 	}
 	//check foo - denied by prime and set[0]
@@ -94,45 +94,45 @@ func TestValidate(t *testing.T) {
 	var ta TagAccess
 	if err := ta.Validate(); err != nil {
 		t.Fatal(err)
-	} else if exp, ok := ta.Check(`foo`); !ok || exp {
+	} else if exp, ok := ta.check(`foo`); !ok || exp {
 		t.Fatal("empty after validate disallowed a tag", ok, exp)
 	}
 
 	//add a few tags, some of them twice
-	ta.Tags = []string{
+	ta.Overrides = []string{
 		`foo`,
 		`bar`,
 		`baz`,
 		`foo`,
 		`foobar`,
 	}
-	ta.Default = TagDefaultDeny
+	ta.Default = DefaultDeny
 	if err := ta.Validate(); err != nil {
 		t.Fatal(err)
-	} else if exp, ok := ta.Check(`foo`); !ok || !exp {
+	} else if exp, ok := ta.check(`foo`); !ok || !exp {
 		t.Fatal("failed to allow ok tag")
-	} else if exp, ok = ta.Check(`foobar`); !ok || !exp {
+	} else if exp, ok = ta.check(`foobar`); !ok || !exp {
 		t.Fatal("failed to allow ok tag")
-	} else if exp, ok = ta.Check(`foobaz`); ok || exp {
+	} else if exp, ok = ta.check(`foobaz`); ok || exp {
 		t.Fatal("failed to disallow tag")
-	} else if len(ta.Tags) != 4 {
+	} else if len(ta.Overrides) != 4 {
 		t.Fatal("Did not remove duplicate tag")
 	}
 }
 
 func TestFilterWhitelist(t *testing.T) {
 	ta := TagAccess{
-		Default: TagDefaultDeny,
-		Tags:    []string{`foo`, `bar`, `baz`},
+		Default:   DefaultDeny,
+		Overrides: []string{`foo`, `bar`, `baz`},
 	}
 	set := []TagAccess{
 		TagAccess{
-			Default: TagDefaultAllow,
-			Tags:    []string{`foo`, `foobar`},
+			Default:   DefaultAllow,
+			Overrides: []string{`foo`, `foobar`},
 		},
 		TagAccess{
-			Default: TagDefaultDeny,
-			Tags:    []string{`foobar`, `barbaz`},
+			Default:   DefaultDeny,
+			Overrides: []string{`foobar`, `barbaz`},
 		},
 	}
 
@@ -160,12 +160,12 @@ func TestFilterWhitelist(t *testing.T) {
 
 func TestConflict(t *testing.T) {
 	a := TagAccess{
-		Default: TagDefaultAllow,
-		Tags:    []string{`foo`, `foobar`},
+		Default:   DefaultAllow,
+		Overrides: []string{`foo`, `foobar`},
 	}
 	b := TagAccess{
-		Default: TagDefaultDeny,
-		Tags:    []string{`foobar`, `barbaz`},
+		Default:   DefaultDeny,
+		Overrides: []string{`foobar`, `barbaz`},
 	}
 	if conflict, tag := CheckTagConflict(a, b); !conflict {
 		t.Fatal("failed to detect tag conflict")
@@ -173,7 +173,7 @@ func TestConflict(t *testing.T) {
 		t.Fatalf("Failed to detect conflicting tag: %s != %s", tag, `foobar`)
 	}
 
-	b.Default = TagDefaultAllow
+	b.Default = DefaultAllow
 	if conflict, _ := CheckTagConflict(a, b); conflict {
 		t.Fatal("invalid conflict detected")
 	}
@@ -189,4 +189,154 @@ func checkVals(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+func TestAddRemove(t *testing.T) {
+	cs := CapabilitySet{
+		Default: DefaultDeny,
+	}
+	//check a few when in default deny
+	if cs.Has(Search) {
+		t.Fatal("Search set on clean")
+	} else if cs.Has(SOAREmail) {
+		t.Fatal("SOAREmail set on clean")
+	} else if cs.Has(DashboardRead) {
+		t.Fatal("DashboardRead on clean")
+	}
+
+	//change to default allow and recheck
+	cs.Default = DefaultAllow
+	if !cs.Has(Search) {
+		t.Fatal("Search not set on default allow")
+	} else if !cs.Has(SOAREmail) {
+		t.Fatal("SOAREmail not set on default allow")
+	} else if !cs.Has(DashboardRead) {
+		t.Fatal("DashboardRead not set on default allow")
+	}
+
+	//set a few overrides (they should NOT be set)
+	if !cs.SetOverride(Search) {
+		t.Fatal("Failed to set search override")
+	} else if cs.Has(Search) {
+		t.Fatal("capability is not denied after override")
+	}
+	//switch default
+	cs.Default = DefaultDeny
+	if !cs.Has(Search) {
+		t.Fatal("capability is not allowed after override")
+	}
+
+	//remove override
+	if !cs.ClearOverride(Search) {
+		t.Fatal("failed to clear override")
+	} else if cs.Has(Search) {
+		t.Fatal("capability is not allowed afer clearing override")
+	}
+}
+
+func TestOverlap(t *testing.T) {
+	//setup user with default allow and two groups, all allow
+	ud := UserDetails{
+		ABAC: ABACRules{Capabilities: CapabilitySet{Default: DefaultAllow}},
+		Groups: []GroupDetails{
+			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{Default: DefaultAllow}}},
+			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{Default: DefaultAllow}}},
+		},
+	}
+
+	//check that the user cannot do... anything
+	for _, c := range fullCapList {
+		if !ud.HasCapability(c) {
+			t.Fatal("user does not have capability with all allow")
+		}
+	}
+
+	//swap the last group to deny and recheck
+	ud.Groups[1].ABAC.Capabilities.Default = DefaultDeny
+	for _, c := range fullCapList {
+		if ud.HasCapability(c) {
+			t.Fatal("user has capability with group deny")
+		}
+	}
+}
+
+func TestOverlapWithUserExplicit(t *testing.T) {
+	//setup user with default allow and two groups, all allow
+	ud := UserDetails{
+		ABAC: ABACRules{Capabilities: CapabilitySet{Default: DefaultAllow}},
+		Groups: []GroupDetails{
+			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{Default: DefaultAllow}}},
+			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{Default: DefaultAllow}}},
+		},
+	}
+
+	//setup a group to explicitely override a denial for Search
+	//swap the last group to deny and recheck
+	ud.Groups[1].ABAC.Capabilities.SetOverride(Search)
+	if ud.HasCapability(Search) {
+		t.Fatal("User has Search capability after group explicit denial")
+	}
+
+	//now swap the user assigned default and explicitely allow
+	ud.ABAC.Capabilities.Default = DefaultDeny
+	if ud.HasCapability(Search) {
+		t.Fatal("User has Search capability after default denial")
+	}
+	ud.ABAC.Capabilities.SetOverride(Search)
+	if !ud.HasCapability(Search) {
+		t.Fatal("User does NOT have Search capability after explicit allow")
+	}
+
+	//now setup a group with an explicit allow and make sure the default deny still overrides
+	ud.ABAC.Capabilities.ClearOverride(Search)
+	ud.Groups[1].ABAC.Capabilities.Default = DefaultDeny
+	if !ud.HasCapability(Search) {
+		t.Fatal("User does NOT have Search capability after explicit group allow but default deny")
+	}
+
+	//setup an explicit allow and explicit deny, ensure it is denied
+	ud.Groups[0].ABAC.Capabilities.Default = DefaultAllow
+	ud.Groups[0].ABAC.Capabilities.SetOverride(Search)
+	ud.Groups[1].ABAC.Capabilities.Default = DefaultDeny
+	ud.Groups[1].ABAC.Capabilities.SetOverride(Search)
+	if ud.HasCapability(Search) {
+		t.Fatal("User has Search capability after conflicting explicit group overrides")
+	}
+}
+
+func TestCapabilityList(t *testing.T) {
+	//setup user with default allow and two groups, all allow
+	ud := UserDetails{
+		ABAC: ABACRules{Capabilities: CapabilitySet{Default: DefaultAllow}},
+		Groups: []GroupDetails{
+			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{Default: DefaultAllow}}},
+			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{Default: DefaultAllow}}},
+		},
+	}
+	if lst := ud.CapabilityList(); len(lst) != int(_maxCap) {
+		t.Fatalf("wide open user does not have all capabilities: %d != %d", len(lst), _maxCap)
+	}
+
+	//set default to deny and check again
+	ud.ABAC.Capabilities.Default = DefaultDeny
+	if lst := ud.CapabilityList(); len(lst) != 0 {
+		t.Fatalf("shut out user has capabilities: %d != 0", len(lst))
+	}
+
+	//do it again via group
+	ud.ABAC.Capabilities.Default = DefaultAllow
+	ud.Groups[1].ABAC.Capabilities.Default = DefaultDeny
+	if lst := ud.CapabilityList(); len(lst) != 0 {
+		t.Fatalf("shut out user has capabilities: %d != 0", len(lst))
+	}
+
+	//allow a few explicite in the group
+	ud.Groups[1].ABAC.Capabilities.SetOverride(Search)
+	ud.Groups[1].ABAC.Capabilities.SetOverride(GetTags)
+	ud.ABAC.Capabilities.SetOverride(Search)
+	if lst := ud.CapabilityList(); len(lst) != 1 {
+		t.Fatalf("shut out user has capabilities: %d != 1", len(lst))
+	} else if lst[0].Name != GetTags.Name() {
+		t.Fatalf("invalid allowed list: %v", lst)
+	}
 }

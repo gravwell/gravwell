@@ -26,17 +26,18 @@ import (
 )
 
 const (
-	defaultConfigLoc = `/opt/gravwell/etc/can_capture.conf`
+	defaultConfigLoc  = `/opt/gravwell/etc/can_capture.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/can_capture.conf.d`
 )
 
 var (
-	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
-	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
-	ver            = flag.Bool("version", false, "Print the version information and exit")
+	confLoc  = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
+	confdLoc = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
+	verbose  = flag.Bool("v", false, "Display verbose status updates to stdout")
+	ver      = flag.Bool("version", false, "Print the version information and exit")
 
 	ErrInvalidPacket error = errors.New("Invalid packet")
 
-	confLoc      string
 	totalPackets uint64
 	totalBytes   uint64
 	v            bool
@@ -67,18 +68,13 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
-	if *configOverride == "" {
-		confLoc = defaultConfigLoc
-	} else {
-		confLoc = *configOverride
-	}
 	v = *verbose
-	validate.ValidateConfig(GetConfig, confLoc) // this will exit if the flags are set
+	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc) // this will exit if the flags are set, also no overlays
 }
 
 func main() {
 	debug.SetTraceback("all")
-	cfg, err := GetConfig(confLoc)
+	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		log.Fatal("Failed to get configuration: ", err)
 	}

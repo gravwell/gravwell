@@ -31,6 +31,7 @@ import (
 )
 
 type jsonHandlerConfig struct {
+	name             string
 	defTag           entry.EntryTag
 	tags             map[string]entry.EntryTag
 	ignoreTimestamps bool
@@ -54,6 +55,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 
 	for k, v := range cfg.JSONListener {
 		jhc := jsonHandlerConfig{
+			name:             k,
 			wg:               wg,
 			tags:             map[string]entry.EntryTag{},
 			ignoreTimestamps: v.Ignore_Timestamps,
@@ -175,7 +177,7 @@ func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHa
 			continue
 		}
 		debugout("Accepted %v connection from %s in json mode\n", tp.String(), conn.RemoteAddr())
-		lg.Info("accepted connection in json mode", log.KV("localaddress", tp.String()), log.KV("remoteaddress", conn.RemoteAddr()))
+		lg.Info("accepted connection", log.KV("address", conn.RemoteAddr()), log.KV("readertype", `json`), log.KV("mode", tp), log.KV("listener", cfg.name))
 		failCount = 0
 		go jsonConnHandler(conn, cfg, igst)
 	}
