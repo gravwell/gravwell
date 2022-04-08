@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
 
@@ -82,7 +83,7 @@ func verifyConfig(c *cfgType) error {
 		}
 
 		if len(v.Tag_Name) == 0 {
-			v.Tag_Name = `default`
+			v.Tag_Name = entry.DefaultTagName
 		}
 		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 			return errors.New("Invalid characters in the Tag-Name for " + k)

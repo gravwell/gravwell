@@ -29,7 +29,7 @@ import (
 var (
 	bindString    = flag.String("bind", "0.0.0.0:7777", "Bind string specifying optional IP and port to listen on")
 	maxMBSize     = flag.Int("max-session-mb", 8, "Maximum MBs a single session will accept")
-	tagName       = flag.String("tag-name", "default", "Tag name for ingested data")
+	tagName       = flag.String("tag-name", entry.DefaultTagName, "Tag name for ingested data")
 	clearConns    = flag.String("clear-conns", "", "comma seperated server:port list of cleartext targets")
 	tlsConns      = flag.String("tls-conns", "", "comma seperated server:port list of TLS connections")
 	pipeConns     = flag.String("pipe-conns", "", "comma seperated list of paths for named pie connection")

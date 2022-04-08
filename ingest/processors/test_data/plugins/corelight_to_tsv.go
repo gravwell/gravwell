@@ -20,9 +20,8 @@ const (
 )
 
 var (
-	tg    gravwell.Tagger
+	tg gravwell.Tagger
 )
-
 
 func main() {
 	makeTagFields()
@@ -144,7 +143,7 @@ func getTagTs(mp map[string]interface{}) (tag string, ts time.Time, ok bool) {
 		println("parse fail", tss, err)
 		ok = false
 	} else {
-		tag = "zeek"+tagval
+		tag = "zeek" + tagval
 	}
 	println("TAG TS", tag, ts)
 	return
@@ -183,7 +182,7 @@ func makeTagFields() {
 
 var tagFields map[string][]string
 
-var tagHeaders = map[string]string {
+var tagHeaders = map[string]string{
 	"zeekconn":        "ts,uid,orig_h,orig_p,resp_h,resp_p,proto,service,duration,orig_ip_bytes,resp_ip_bytes,conn_state,local_orig,local_resp,missed_bytes,history,orig_pkts,orig_ip_bytes,resp_pkts,resp_ip_bytes,tunnel_parents,vlan",
 	"zeekdhcp":        "ts,uids,client_addr,server_addr,mac,host_name,client_fqdn,domain,requested_addr,assigned_addr,lease_time,client_message,server_message,msg_types,duration",
 	"zeekdns":         "ts,uid,orig_h,orig_p,resp_h,resp_p,proto,trans_id,rtt,query,qclass,qclass_name,qtype,qtype_name,rcode,rcode_name,AA,TC,RD,RA,Z,answers,TTLs,rejected",

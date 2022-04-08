@@ -17,10 +17,11 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 var (
-	tagName         = flag.String("tag-name", "default", "Tag name for ingested data")
+	tagName         = flag.String("tag-name", entry.DefaultTagName, "Tag name for ingested data")
 	pipeConns       = flag.String("pipe-conn", "", "Path to pipe connection")
 	clearConns      = flag.String("clear-conns", "", "comma seperated server:port list of cleartext targets")
 	tlsConns        = flag.String("tls-conns", "", "comma seperated server:port list of TLS connections")

@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/filewatch"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
@@ -237,7 +238,7 @@ func (f *files) Validate(procs processors.ProcessorConfig) (err error) {
 		return errors.New("No Base-Directory provided")
 	}
 	if len(f.Tag_Name) == 0 {
-		f.Tag_Name = `default`
+		f.Tag_Name = entry.DefaultTagName
 	}
 	if strings.ContainsAny(f.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 		return errors.New("Invalid characters in the Tag-Name")

@@ -1,3 +1,4 @@
+//go:build !integration
 // +build !integration
 
 // Licensed to Elasticsearch B.V. under one or more contributor
