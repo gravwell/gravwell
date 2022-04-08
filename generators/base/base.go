@@ -98,7 +98,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		gc.modeRaw = true
 		gc.Raw = *rawConn
 		gc.ok = true
-		gc.Tag = `default`
+		gc.Tag = entry.DefaultTagName
 		return
 	}
 	gc.Compression = *compression

@@ -16,6 +16,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 const (
@@ -78,7 +79,7 @@ func verifyConfig(c *cfgType) error {
 			return errors.New("No Inteface provided for " + k)
 		}
 		if len(v.Tag_Name) == 0 {
-			v.Tag_Name = `default`
+			v.Tag_Name = entry.DefaultTagName
 		}
 		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 			return errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + k)

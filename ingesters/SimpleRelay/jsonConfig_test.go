@@ -124,7 +124,7 @@ func TestLoadConfig(t *testing.T) {
 	if len(cfg.JSONListener) != 1 {
 		t.Fatal("Invalid listeners")
 	}
-	l, ok := cfg.JSONListener[`default`]
+	l, ok := cfg.JSONListener[entry.DefaultTagName]
 	if !ok {
 		t.Fatal("missing default listener")
 	}
