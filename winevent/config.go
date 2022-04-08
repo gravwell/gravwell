@@ -1,3 +1,4 @@
+//go:build windows
 // +build windows
 
 /*************************************************************************
@@ -31,7 +32,6 @@ const (
 	defaultBookmarkName       = `bookmark`
 	maxConfigSize       int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
 
-	defaultTag       = entry.DefaultTagName
 	defaultReachback = 168 * time.Hour //1 week
 )
 
@@ -141,7 +141,7 @@ func (c *CfgType) Tags() ([]string, error) {
 	for _, v := range c.EventChannel {
 		tag = v.Tag_Name
 		if len(tag) == 0 {
-			tag = defaultTag
+			tag = entry.DefaultTagName
 		}
 		if _, ok := tagMp[tag]; !ok {
 			tags = append(tags, tag)
@@ -320,7 +320,7 @@ func (ec *EventStreamConfig) params(name string) (EventStreamParams, error) {
 	}
 	tag := ec.Tag_Name
 	if len(tag) == 0 {
-		tag = defaultTag
+		tag = entry.DefaultTagName
 	}
 	return EventStreamParams{
 		Name:         name,
