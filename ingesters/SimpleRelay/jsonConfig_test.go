@@ -13,6 +13,8 @@ import (
 	"io"
 	"io/ioutil"
 	"testing"
+
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 const (
