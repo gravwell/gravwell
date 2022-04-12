@@ -685,7 +685,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			if err = p.Validate(); err != nil {
 				return fmt.Errorf("Failed to validate scheduled search %v: %v", name, err)
 			}
-			if err := writeScheduledSearch(wd, p); err != nil {
+			if err := writeScheduledSearch(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out scheduled search %v: %v", name, err)
 			}
 		case kits.Dashboard:

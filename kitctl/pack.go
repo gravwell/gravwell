@@ -394,25 +394,30 @@ func readPlaybook(dir, name string) (x types.Playbook, err error) {
  * Scheduled Search
  **************************************************************************/
 
-func writeScheduledSearch(dir string, x kits.PackedScheduledSearch) error {
+func writeScheduledSearch(dir string, name string, x kits.PackedScheduledSearch) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "scheduled")
 	if err := os.MkdirAll(p, 0755); err != nil {
 		return err
 	}
 
-	// Now drop three files: .meta, .search, and .script
-	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", x.Name))
-	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", x.Name))
-	scriptPath := filepath.Join(p, fmt.Sprintf("%v.script", x.Name))
+	// Now drop files: .meta, .search, .flow, and .script
+	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
+	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", name))
+	scriptPath := filepath.Join(p, fmt.Sprintf("%v.script", name))
+	flowPath := filepath.Join(p, fmt.Sprintf("%v.flow", name))
 	if err := ioutil.WriteFile(searchPath, []byte(x.SearchString), 0644); err != nil {
 		return err
 	}
 	if err := ioutil.WriteFile(scriptPath, []byte(x.Script), 0644); err != nil {
 		return err
 	}
+	if err := ioutil.WriteFile(flowPath, []byte(x.Flow), 0644); err != nil {
+		return err
+	}
 	x.SearchString = ``
 	x.Script = ``
+	x.Flow = ``
 	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
@@ -425,6 +430,7 @@ func readScheduledSearch(dir, name string) (x kits.PackedScheduledSearch, err er
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", name))
 	scriptPath := filepath.Join(p, fmt.Sprintf("%v.script", name))
+	flowPath := filepath.Join(p, fmt.Sprintf("%v.flow", name))
 	// Read the metadata file first
 	var bts []byte
 	bts, err = ioutil.ReadFile(metaPath)
@@ -434,14 +440,27 @@ func readScheduledSearch(dir, name string) (x kits.PackedScheduledSearch, err er
 	if err = json.Unmarshal(bts, &x); err != nil {
 		return
 	}
-	// Now read search and script files
+	// Now read search, flow, and script files
 	bts, err = ioutil.ReadFile(searchPath)
-	x.SearchString = string(bts)
 	if err != nil {
 		return
 	}
+	x.SearchString = string(bts)
 	bts, err = ioutil.ReadFile(scriptPath)
+	if err != nil {
+		return
+	}
 	x.Script = string(bts)
+	bts, err = ioutil.ReadFile(flowPath)
+	if err != nil {
+		// Flows are newer, so they might not exist in older stuff.
+		if os.IsNotExist(err) {
+			err = nil
+		} else {
+			return
+		}
+	}
+	x.Flow = string(bts)
 	return
 }
 
