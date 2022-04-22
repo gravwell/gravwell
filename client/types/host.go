@@ -10,6 +10,8 @@ package types
 
 import (
 	"encoding/json"
+
+	"github.com/shirou/gopsutil/load"
 )
 
 // System information as displayed in the System Overview in Gravwell.
@@ -58,9 +60,11 @@ type HostSysStats struct {
 	HostHash              string       `json:",omitempty"`
 	Net                   NetworkUsage `json:",omitempty"`
 	IO                    []DiskIO
-	VirtSystem            string    `json:",omitempty"` // e.g. "kvm" or "xen"
-	VirtRole              string    `json:",omitempty"` // "host" or "guest"
-	BuildInfo             BuildInfo `json:",omitempty"` // e.g. 3.3.1
+	VirtSystem            string       `json:",omitempty"` // e.g. "kvm" or "xen"
+	VirtRole              string       `json:",omitempty"` // "host" or "guest"
+	BuildInfo             BuildInfo    `json:",omitempty"` // e.g. 3.3.1
+	LoadAverage           load.AvgStat `json:",omitempty"`
+	Iowait                float64
 }
 
 type DeploymentInfo struct {
