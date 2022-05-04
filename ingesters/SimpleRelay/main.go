@@ -205,6 +205,11 @@ func main() {
 		lg.FatalCode(0, "Failed to start simple listeners", log.KV("ingesteruuid", id), log.KVErr(err))
 		return
 	}
+	// fire off our regex listeners
+	if err := startRegexListeners(cfg, igst, wg, &flshr, ctx); err != nil {
+		lg.FatalCode(0, "Failed to start regex listeners", log.KV("ingesteruuid", id), log.KVErr(err))
+		return
+	}
 	//fire off our json listeners
 	if err := startJSONListeners(cfg, igst, wg, &flshr, ctx); err != nil {
 		lg.FatalCode(0, "Failed to start json listeners", log.KV("ingesteruuid", id), log.KVErr(err))

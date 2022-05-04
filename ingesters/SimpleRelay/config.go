@@ -59,19 +59,21 @@ type base struct {
 }
 
 type cfgReadType struct {
-	Global       config.IngestConfig
-	Listener     map[string]*listener
-	JSONListener map[string]*jsonListener
-	Preprocessor processors.ProcessorConfig
-	TimeFormat   config.CustomTimeFormat
+	Global        config.IngestConfig
+	Listener      map[string]*listener
+	JSONListener  map[string]*jsonListener
+	RegexListener map[string]*regexListener
+	Preprocessor  processors.ProcessorConfig
+	TimeFormat    config.CustomTimeFormat
 }
 
 type cfgType struct {
 	config.IngestConfig
-	Listener     map[string]*listener
-	JSONListener map[string]*jsonListener
-	Preprocessor processors.ProcessorConfig
-	TimeFormat   config.CustomTimeFormat
+	Listener      map[string]*listener
+	JSONListener  map[string]*jsonListener
+	RegexListener map[string]*regexListener
+	Preprocessor  processors.ProcessorConfig
+	TimeFormat    config.CustomTimeFormat
 }
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
@@ -83,11 +85,12 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		return nil, err
 	}
 	c := &cfgType{
-		IngestConfig: cr.Global,
-		Listener:     cr.Listener,
-		JSONListener: cr.JSONListener,
-		Preprocessor: cr.Preprocessor,
-		TimeFormat:   cr.TimeFormat,
+		IngestConfig:  cr.Global,
+		Listener:      cr.Listener,
+		RegexListener: cr.RegexListener,
+		JSONListener:  cr.JSONListener,
+		Preprocessor:  cr.Preprocessor,
+		TimeFormat:    cr.TimeFormat,
 	}
 
 	if err := verifyConfig(c); err != nil {
@@ -111,7 +114,7 @@ func verifyConfig(c *cfgType) error {
 	if err := c.Verify(); err != nil {
 		return err
 	}
-	if len(c.Listener) == 0 && len(c.JSONListener) == 0 {
+	if len(c.Listener) == 0 && len(c.RegexListener) == 0 && len(c.JSONListener) == 0 {
 		return errors.New("No listeners specified")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
@@ -123,6 +126,33 @@ func verifyConfig(c *cfgType) error {
 	for k, v := range c.Listener {
 		if err := v.base.Validate(); err != nil {
 			return fmt.Errorf("Listener %s configuration error: %v", k, err)
+		}
+		if len(v.Tag_Name) == 0 {
+			v.Tag_Name = entry.DefaultTagName
+		}
+		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
+			return errors.New("Invalid characters in the Tag-Name for " + k)
+		}
+		if v.Timezone_Override != "" {
+			if v.Assume_Local_Timezone {
+				// cannot do both
+				return fmt.Errorf("Cannot specify Assume-Local-Timezone and Timezone-Override in the same listener %v", k)
+			}
+			if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
+				return fmt.Errorf("Invalid timezone override %v in listener %v: %v", v.Timezone_Override, k, err)
+			}
+		}
+		if n, ok := bindMp[v.Bind_String]; ok {
+			return errors.New("Bind-String for " + k + " already in use by " + n)
+		}
+		bindMp[v.Bind_String] = k
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("Listener %s preprocessor invalid: %v", k, err)
+		}
+	}
+	for k, v := range c.RegexListener {
+		if err := v.base.Validate(); err != nil {
+			return fmt.Errorf("RegexListener %s configuration error: %v", k, err)
 		}
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = entry.DefaultTagName
@@ -197,6 +227,16 @@ func (c *cfgType) Tags() ([]string, error) {
 	tagMp := make(map[string]bool, 1)
 	//iterate over simple listeners
 	for _, v := range c.Listener {
+		if len(v.Tag_Name) == 0 {
+			continue
+		}
+		if _, ok := tagMp[v.Tag_Name]; !ok {
+			tags = append(tags, v.Tag_Name)
+			tagMp[v.Tag_Name] = true
+		}
+	}
+
+	for _, v := range c.RegexListener {
 		if len(v.Tag_Name) == 0 {
 			continue
 		}
