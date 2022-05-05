@@ -276,11 +276,11 @@ func regexLoop(c io.Reader, cfg regexHandlerConfig, rip net.IP, out chan *entry.
 			lg.Info("regex connection saw EOF, finishing up")
 			done = true
 		} else if n == 0 {
-			bio.ReadByte()
-			bio.UnreadByte()
 			continue
 		}
-		buf.Write(rd[:n])
+		if n > 0 {
+			buf.Write(rd[:n])
+		}
 
 		// now try and match the regex as many times as we can on whatever's in the buffer
 		for buf.Len() > 0 {
