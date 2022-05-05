@@ -29,6 +29,10 @@ import (
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
+const (
+	DefaultMaxBuffer = 8 * 1024 * 1024 // Buffer up to 8 MB when looking for a regular expression.
+)
+
 type regexHandlerConfig struct {
 	name             string
 	defTag           entry.EntryTag
@@ -42,6 +46,8 @@ type regexHandlerConfig struct {
 	ctx              context.Context
 	regex            string
 	timeFormats      config.CustomTimeFormat
+	trimWhitespace   bool
+	maxBuffer        int
 }
 
 func startRegexListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher, ctx context.Context) error {
@@ -61,6 +67,8 @@ func startRegexListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGr
 			ctx:              ctx,
 			timeFormats:      cfg.TimeFormat,
 			regex:            v.Regex,
+			trimWhitespace:   v.Trim_Whitespace,
+			maxBuffer:        v.Max_Buffer,
 		}
 		if rhc.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Fatal("preprocessor error", log.KVErr(err))
@@ -177,18 +185,6 @@ func regexConnHandler(c net.Conn, cfg regexHandlerConfig, igst *ingest.IngestMux
 	defer delConn(id)
 	defer c.Close()
 	var rip net.IP
-	var ts entry.Timestamp
-	var tg *timegrinder.TimeGrinder
-	var ok bool
-	var regex *regexp.Regexp
-	var err error
-
-	if regex, err = regexp.Compile(cfg.regex); err != nil {
-		// will never happen (we always check the regex first)
-		return
-	}
-	prefixIndex := regex.SubexpIndex("prefix")
-	suffixIndex := regex.SubexpIndex("suffix")
 
 	if cfg.src == nil {
 		ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String())
@@ -202,6 +198,32 @@ func regexConnHandler(c net.Conn, cfg regexHandlerConfig, igst *ingest.IngestMux
 		}
 	} else {
 		rip = cfg.src
+	}
+
+	out := make(chan *entry.Entry, 128)
+	go regexLoop(c, cfg, rip, out)
+
+	for ent := range out {
+		cfg.proc.ProcessContext(ent, cfg.ctx)
+	}
+}
+
+func regexLoop(c io.Reader, cfg regexHandlerConfig, rip net.IP, out chan *entry.Entry) {
+	var tg *timegrinder.TimeGrinder
+	var ts entry.Timestamp
+	var regex *regexp.Regexp
+	var err error
+	var ok bool
+
+	if regex, err = regexp.Compile(cfg.regex); err != nil {
+		// will never happen (we always check the regex first)
+		return
+	}
+	prefixIndex := regex.SubexpIndex("prefix")
+	suffixIndex := regex.SubexpIndex("suffix")
+
+	if cfg.maxBuffer == 0 {
+		cfg.maxBuffer = DefaultMaxBuffer
 	}
 
 	if !cfg.ignoreTimestamps {
@@ -235,6 +257,7 @@ func regexConnHandler(c net.Conn, cfg regexHandlerConfig, igst *ingest.IngestMux
 		}
 	}
 
+	defer close(out)
 	rd := make([]byte, 1024)
 	bio := bufio.NewReader(c)
 	var buf bytes.Buffer // we read from the connection into this buffer
@@ -250,7 +273,7 @@ func regexConnHandler(c net.Conn, cfg regexHandlerConfig, igst *ingest.IngestMux
 			lg.Error("error reading from regex connection", log.KVErr(err))
 			return
 		} else if err == io.EOF {
-			lg.Info("regex connection saw EOF, finishing up (n = %d)")
+			lg.Info("regex connection saw EOF, finishing up")
 			done = true
 		} else if n == 0 {
 			bio.ReadByte()
@@ -290,7 +313,13 @@ func regexConnHandler(c net.Conn, cfg regexHandlerConfig, igst *ingest.IngestMux
 				buf.Reset()
 			} else {
 				// no match, no EOF
-				break
+				// If we've exceeded the max buffer size, just write out the entry in progress. It's
+				// not very nice that way we don't discard data.
+				if buf.Len() > cfg.maxBuffer {
+					entryData.Write(buf.Next(cfg.maxBuffer))
+				} else {
+					break
+				}
 			}
 
 			// We might get here and find that there's no data in the buffer. For instance, if you're trying to match multi-line
@@ -315,13 +344,17 @@ func regexConnHandler(c net.Conn, cfg regexHandlerConfig, igst *ingest.IngestMux
 			if !ok {
 				ts = entry.Now()
 			}
+			if cfg.trimWhitespace {
+				data = bytes.TrimSpace(data)
+			}
 			ent := &entry.Entry{
 				SRC:  cfg.src,
 				TS:   ts,
 				Tag:  cfg.defTag,
 				Data: data,
 			}
-			cfg.proc.ProcessContext(ent, cfg.ctx)
+
+			out <- ent
 		}
 	}
 }

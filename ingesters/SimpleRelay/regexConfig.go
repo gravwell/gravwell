@@ -18,11 +18,13 @@ import (
 
 type regexListener struct {
 	base
-	Regex        string
-	Tag_Name     string
-	Cert_File    string
-	Key_File     string
-	Preprocessor []string
+	Regex           string
+	Tag_Name        string
+	Cert_File       string
+	Key_File        string
+	Trim_Whitespace bool
+	Max_Buffer      int // maximum number of bytes to buffer without finding a regular expression
+	Preprocessor    []string
 }
 
 func (rl regexListener) Validate() error {
