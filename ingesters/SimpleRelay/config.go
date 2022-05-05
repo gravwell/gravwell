@@ -151,7 +151,7 @@ func verifyConfig(c *cfgType) error {
 		}
 	}
 	for k, v := range c.RegexListener {
-		if err := v.base.Validate(); err != nil {
+		if err := v.Validate(); err != nil {
 			return fmt.Errorf("RegexListener %s configuration error: %v", k, err)
 		}
 		if len(v.Tag_Name) == 0 {

@@ -270,8 +270,8 @@ func regexLoop(c io.Reader, cfg regexHandlerConfig, rip net.IP, out chan *entry.
 		// make a new one on each loop so we're safe to call Bytes() at the end
 		// read a bunch of bytes off the connection
 		if n, err = bio.Read(rd); err != nil && err != io.EOF {
-			lg.Error("error reading from regex connection", log.KVErr(err))
-			return
+			lg.Error("error reading from regex connection, ingesting partial entry and exiting", log.KVErr(err))
+			done = true
 		} else if err == io.EOF {
 			lg.Info("regex connection saw EOF, finishing up")
 			done = true
