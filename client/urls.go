@@ -157,6 +157,7 @@ const (
 	TOKENS_URL                       = `/api/tokens`
 	TOKENS_ID_URL                    = `/api/tokens/%s`
 	TOKENS_CAPABILITIES_URL          = `/api/tokens/capabilities`
+	SETTINGS_URL                     = `/api/settings`
 
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`

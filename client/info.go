@@ -43,6 +43,19 @@ func (v VersionStruct) String() string {
 	return fmt.Sprintf("%d.%d.%d", v.Major, v.Minor, v.Revision)
 }
 
+func (c *Client) GetGuiSettings() (types.GUISettings, error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	return c.getGuiSettings()
+}
+
+func (c *Client) getGuiSettings() (types.GUISettings, error) {
+	settings := types.GUISettings{}
+	err := c.getStaticURL(SETTINGS_URL, &settings)
+	return settings, err
+
+}
+
 // MySessions returns an array of the current user's sessions.
 func (c *Client) MySessions() ([]types.Session, error) {
 	if c.userDetails.UID == 0 {
