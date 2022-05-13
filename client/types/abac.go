@@ -69,7 +69,9 @@ const (
 	SystemInfoRead    Capability = 44
 	TokenRead         Capability = 45
 	TokenWrite        Capability = 46
-	_maxCap           Capability = 47 //REMINDER - when adding capabilities, make sure to expand this number
+	SecretRead        Capability = 47
+	SecretWrite       Capability = 48
+	_maxCap           Capability = 49 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
 const (
@@ -290,6 +292,10 @@ func (c Capability) Name() string {
 		return `TokenRead`
 	case TokenWrite:
 		return `TokenWrite`
+	case SecretRead:
+		return `SecretRead`
+	case SecretWrite:
+		return `SecretWrite`
 	}
 	return `UNKNOWN`
 }
@@ -392,6 +398,10 @@ func (c *Capability) Parse(v string) (err error) {
 	case `tokenread`:
 		*c = TokenRead
 	case `tokenwrite`:
+		*c = TokenWrite
+	case `secretread`:
+		*c = TokenRead
+	case `secretwrite`:
 		*c = TokenWrite
 	default:
 		err = ErrUnknownCapability
@@ -496,6 +506,10 @@ func (c Capability) String() string {
 		return `Read Authorization Tokens`
 	case TokenWrite:
 		return `Write Authorization Tokens`
+	case SecretRead:
+		return `Read Secrets`
+	case SecretWrite:
+		return `Write and Delete Secrets`
 	}
 	return `UNKNOWN`
 }
@@ -597,6 +611,10 @@ func (c Capability) Description() string {
 		return `User can read authorization tokens`
 	case TokenWrite:
 		return `User can write authorization tokens`
+	case SecretRead:
+		return `User can read and access secrets`
+	case SecretWrite:
+		return `User can create, update, and delete secrets`
 	}
 	return `UNKNOWN`
 }
