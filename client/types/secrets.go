@@ -31,6 +31,7 @@ type SecretCreate struct {
 	Desc   string  `json:"description"`
 	Groups []int32 `json:"groups,omitempty"`
 	Global bool    `json:"global"`
+	Value  string  `json:"value"`
 }
 
 // SecretFull represents the full secret including its value.  This type is not sent through any traditional APIs
