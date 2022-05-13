@@ -32,8 +32,9 @@ type ShardInfo struct {
 	Name        string
 	Start       time.Time
 	End         time.Time
-	Entries     uint64
-	Size        uint64
+	Entries     uint64           //number of entries in the shard
+	Size        uint64           //raw size of data in the shard
+	Stored      uint64           //actual disk usage of the shard
 	RemoteState ReplicationState `json:",omitempty"`
 	Cold        bool             //true if the shard is in the code storage
 }
