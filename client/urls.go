@@ -31,6 +31,7 @@ const (
 	STATS_URL                        = `/api/stats/sysStats`
 	IDX_URL                          = `/api/stats/idxStats`
 	INGESTER_URL                     = `/api/stats/igstStats`
+	WELLS_URL                        = `/api/stats/wellStats`
 	ADD_USER_URL                     = `/api/users`
 	USERS_LIST_URL                   = `/api/users`
 	USERS_INFO_URL                   = `/api/users/%d`
@@ -114,7 +115,6 @@ const (
 	TEST_INGEST_URL                  = "/api/ingest/test"
 	TAGS_URL                         = "/api/tags"
 	INDEXER_MANAGE_ADD_URL           = "/api/indexer/manage/add"
-	INDEXER_INFO_URL                 = "/api/indexer/info"
 	KIT_URL                          = `/api/kits`
 	KIT_ID_URL                       = `/api/kits/%s`
 	KIT_BUILD_URL                    = `/api/kits/build`
@@ -436,7 +436,7 @@ func addIndexerUrl() string {
 }
 
 func wellDataUrl() string {
-	return INDEXER_INFO_URL
+	return WELLS_URL
 }
 
 func userMacrosUrl(id int32) string {
