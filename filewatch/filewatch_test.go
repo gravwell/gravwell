@@ -156,7 +156,7 @@ func TestSingleWatcher(t *testing.T) {
 			}
 			return nil
 		}, func(wm *WatchManager) error {
-			if err := wm.fman.nolockDumpStates(); err != nil {
+			if err := wm.fman.FlushStates(); err != nil {
 				return err
 			}
 			sts, err := ReadStateFile(stateFilePath)
@@ -292,7 +292,7 @@ func TestOverflow(t *testing.T) {
 		time.Sleep(10 * time.Second)
 		return nil
 	}, func(wm *WatchManager) error {
-		if err := wm.fman.nolockDumpStates(); err != nil {
+		if err := wm.fman.FlushStates(); err != nil {
 			return err
 		}
 		sts, err := ReadStateFile(stateFilePath)

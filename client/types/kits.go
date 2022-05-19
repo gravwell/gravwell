@@ -134,6 +134,7 @@ type KitBuildRequest struct {
 	Pivots            []uuid.UUID       `json:",omitempty"`
 	Resources         []string          `json:",omitempty"`
 	ScheduledSearches []int32           `json:",omitempty"`
+	Flows             []int32           `json:",omitempty"`
 	Macros            []uint64          `json:",omitempty"`
 	Extractors        []uuid.UUID       `json:",omitempty"`
 	Files             []uuid.UUID       `json:",omitempty"`
@@ -259,6 +260,11 @@ func (pbr *KitBuildRequest) Validate() error {
 			return fmt.Errorf("Invalid scheduled search/script ID %d", pbr.ScheduledSearches[i])
 		}
 	}
+	for i := range pbr.Flows {
+		if pbr.Flows[i] <= 0 {
+			return fmt.Errorf("Invalid flow ID %d", pbr.Flows[i])
+		}
+	}
 	for i := range pbr.Macros {
 		if pbr.Macros[i] == 0 {
 			return errors.New("Invalid macro ID")
@@ -318,7 +324,7 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 
-	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks)
+	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks)
 	if kitItemCount == 0 {
 		return errors.New("Build request does not contain any items")
 	}
