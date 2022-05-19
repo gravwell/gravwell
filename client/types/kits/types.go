@@ -141,24 +141,32 @@ type PackedScheduledSearch struct {
 	Duration               int64  `json:",omitempty"` // How many seconds back to search, MUST BE NEGATIVE
 	Script                 string `json:",omitempty"` // If set, execute the contents rather than running SearchString
 	DefaultDeploymentRules types.ScriptDeployConfig
+	Flow                   string `json:",omitempty"`
+	ScheduledType          string
 }
 
 // PackScheduledSearch converts a ScheduledSearch into a PackedScheduledSearch for inclusion in a kit.
 func PackScheduledSearch(ss *types.ScheduledSearch) (p PackedScheduledSearch) {
 	p = PackedScheduledSearch{
-		Name:         ss.Name,
-		Description:  ss.Description,
-		Schedule:     ss.Schedule,
-		SearchString: ss.SearchString,
-		Duration:     ss.Duration,
-		Script:       ss.Script,
-		Labels:       ss.Labels,
+		Name:          ss.Name,
+		Description:   ss.Description,
+		Schedule:      ss.Schedule,
+		SearchString:  ss.SearchString,
+		Duration:      ss.Duration,
+		Script:        ss.Script,
+		Labels:        ss.Labels,
+		Flow:          ss.Flow,
+		ScheduledType: ss.ScheduledType,
 	}
 	return
 }
 
 // TypeName returns either "script" or "search" depending on the type of the PackedScheduledSearch.
 func (pss *PackedScheduledSearch) TypeName() string {
+	if len(pss.ScheduledType) > 0 {
+		return pss.ScheduledType
+	}
+	// Legacy stuff (no ScheduledType set) will be either script or search.
 	if len(pss.Script) > 0 {
 		return "script"
 	}
@@ -192,6 +200,8 @@ func (pss *PackedScheduledSearch) Unpackage(uid, gid int32) (ss types.ScheduledS
 	ss.Duration = pss.Duration
 	ss.Script = pss.Script
 	ss.Labels = pss.Labels
+	ss.Flow = pss.Flow
+	ss.ScheduledType = pss.ScheduledType
 	return
 }
 
@@ -204,6 +214,8 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 		SearchString           string `json:",omitempty"`
 		Duration               int64  `json:",omitempty"`
 		Script                 string `json:",omitempty"`
+		Flow                   string `json:",omitempty"`
+		ScheduledType          string `json:",omitempty"`
 		DefaultDeploymentRules types.ScriptDeployConfig
 	}{
 		Name:                   pss.Name,
@@ -212,6 +224,8 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 		SearchString:           pss.SearchString,
 		Duration:               pss.Duration,
 		Script:                 pss.Script,
+		Flow:                   pss.Flow,
+		ScheduledType:          pss.TypeName(),
 		DefaultDeploymentRules: pss.DefaultDeploymentRules,
 	})
 	return json.RawMessage(b), err

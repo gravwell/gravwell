@@ -301,9 +301,9 @@ type SourceMetadataEntry struct {
 }
 
 type SearchMetadata struct {
-	ValueStats  []SearchMetadataEntry
-	SourceStats []SourceMetadataEntry
-	TagStats    map[string]uint
+	ValueStats  []SearchMetadataEntry `json:",omitempty"`
+	SourceStats []SourceMetadataEntry `json:",omitempty"`
+	TagStats    map[string]uint       `json:",omitempty"`
 }
 
 func (ss *StatSet) AddParts(ts entry.Timestamp, stats []SearchModuleStats) {
