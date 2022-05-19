@@ -53,7 +53,7 @@ func (v *kds) validate(name string) (string, error) {
 	}
 	pth := p.Path
 	if len(v.Tag_Name) == 0 {
-		v.Tag_Name = `default`
+		v.Tag_Name = entry.DefaultTagName
 	}
 	if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 		return ``, errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + name)

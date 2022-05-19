@@ -19,16 +19,10 @@ const (
 	/* 34 = 4 + 8 + 8 + 2 + 16
 
 	 */
-	ENTRY_HEADER_SIZE int      = 34
-	SRC_SIZE          int      = 16
-	IPV4_SRC_SIZE     int      = 4
-	DefaultTagName    string   = `default`
-	DefaultTagId      EntryTag = 0
-	GravwellTagName   string   = `gravwell`
-	GravwellTagId     EntryTag = 0xFFFF
+	ENTRY_HEADER_SIZE int = 34
+	SRC_SIZE          int = 16
+	IPV4_SRC_SIZE     int = 4
 
-	MaxDataSize          uint32 = 0x7FFFFFFF
-	MaxSliceCount        uint32 = 0x3FFFFFFF
 	maxSliceAllocSize    int    = 0x4000000  //if a slice is less than 64MB, do it all at once
 	maxSliceTransferSize uint64 = 0xffffffff //slices can't be larger than 4GB in one transfer
 )
