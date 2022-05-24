@@ -27,7 +27,7 @@
 Value of Ingest Secret:
 • Must contain at least one non-whitespace character
 • Cannot contain any of following characters: 
-  ! @ # $ % ^ &amp; * ( ) = + &lt; &gt; , . : ; ` &quot; ' [\{] [\[] [\}] [\]] | \
+  ` &quot; '
   </String>
   <String Id="InvalidCleartextBackendTargetDialog_Title" Overridable="yes">Invalid value of Cleartext Backend Target</String>
   <String Id="InvalidCleartextBackendTargetDialog_Message" Overridable="yes">
