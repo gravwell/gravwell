@@ -39,6 +39,32 @@ type ShardInfo struct {
 	Cold        bool             //true if the shard is in the code storage
 }
 
+// custom marshaller to deal with the fact that the json marshaller can't handle the "empty" uuid value
+func (si ShardInfo) MarshalJSON() ([]byte, error) {
+	x := struct {
+		Name        string
+		Start       time.Time
+		End         time.Time
+		Entries     uint64
+		Size        uint64
+		Stored      uint64
+		Cold        bool              //true if the shard is in the code storage
+		RemoteState *ReplicationState `json:",omitempty"`
+	}{
+		Name:    si.Name,
+		Start:   si.Start,
+		End:     si.End,
+		Entries: si.Entries,
+		Size:    si.Size,
+		Stored:  si.Stored,
+		Cold:    si.Cold,
+	}
+	if !si.RemoteState.isEmpty() {
+		x.RemoteState = &si.RemoteState
+	}
+	return json.Marshal(x)
+}
+
 type WellInfo struct {
 	Name        string
 	Tags        []string
@@ -138,28 +164,4 @@ func (e emptyWellList) MarshalJSON() ([]byte, error) {
 
 func (rs ReplicationState) isEmpty() bool {
 	return rs.Entries == 0 && rs.Size == 0 && rs.UUID == uuid.Nil
-}
-
-// custom marshaller to deal with the fact that the json marshaller can't handle the "empty" uuid value
-func (si ShardInfo) MarshalJSON() ([]byte, error) {
-	x := struct {
-		Name        string
-		Start       time.Time
-		End         time.Time
-		Entries     uint64
-		Size        uint64
-		Cold        bool              //true if the shard is in the code storage
-		RemoteState *ReplicationState `json:",omitempty"`
-	}{
-		Name:    si.Name,
-		Start:   si.Start,
-		End:     si.End,
-		Entries: si.Entries,
-		Size:    si.Size,
-		Cold:    si.Cold,
-	}
-	if !si.RemoteState.isEmpty() {
-		x.RemoteState = &si.RemoteState
-	}
-	return json.Marshal(x)
 }
