@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2022 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -16,11 +16,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
-)
-
-const (
-	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
 )
 
 var (
@@ -111,9 +108,9 @@ func verifyConfig(c *cfgType) error {
 // Tags returns a list of tags specified in the config.
 // It will always include the gravwell tag.
 func (c *cfgType) Tags() ([]string, error) {
-	tags := []string{"gravwell"}
+	tags := []string{entry.GravwellTagName}
 	tagMp := make(map[string]bool, 1)
-	tagMp["gravwell"] = true
+	tagMp[entry.GravwellTagName] = true
 	for _, v := range c.Files {
 		if len(v.Tag_Name) == 0 {
 			continue
