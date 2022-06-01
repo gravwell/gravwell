@@ -31,6 +31,7 @@ func NewSyslogProcessor() *syslogProcessor {
 			rxstr:  SyslogRegex,
 			format: SyslogFormat,
 			name:   Syslog.String(),
+			min:    len(SyslogFormat),
 		},
 	}
 }
@@ -40,6 +41,7 @@ type unixProcessor struct {
 	rxstr  string
 	format string
 	name   string
+	min    int
 }
 
 func NewUnixMilliTimeProcessor() *unixProcessor {
@@ -48,6 +50,7 @@ func NewUnixMilliTimeProcessor() *unixProcessor {
 		rxstr:  UnixMilliRegex,
 		format: ``, //format API doesn't work here
 		name:   UnixMilli.String(),
+		min:    10,
 	}
 }
 
@@ -104,18 +107,24 @@ func NewUserProcessor(name, rxps, fmts string) (*processor, error) {
 }
 
 func (sp syslogProcessor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
+	if len(d) < sp.min {
+		return time.Time{}, false, -1
+	}
 	t, ok, offset := sp.processor.Extract(d, loc)
 	if !ok {
 		return time.Time{}, false, -1
 	}
 	//check if we need to add the current year
 	if t.Year() == 0 {
-		return t.AddDate(time.Now().Year(), 0, 0), true, -1
+		return t.AddDate(time.Now().Year(), 0, 0), true, offset
 	}
 	return t, true, offset
 }
 
 func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	if len(d) < up.min {
+		return time.Time{}, false, -1
+	}
 	offset = -1
 	idx := up.re.FindSubmatchIndex(d)
 	if len(idx) != 4 {
@@ -147,6 +156,7 @@ type unixMsProcessor struct {
 	rxstr  string
 	format string
 	name   string
+	min    int
 }
 
 // We assume you're not ingesting data from 1970, so we look for at least 13 digits of nanoseconds
@@ -156,6 +166,7 @@ func NewUnixMsTimeProcessor() *unixMsProcessor {
 		rxstr:  UnixMsRegex,
 		format: ``, //API doesn't work here
 		name:   UnixMs.String(),
+		min:    12,
 	}
 }
 
@@ -176,6 +187,9 @@ func (unp unixMsProcessor) ExtractionRegex() string {
 }
 
 func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	if len(d) < unp.min {
+		return
+	}
 	offset = -1
 	idx := unp.re.FindSubmatchIndex(d)
 	if len(idx) != 4 {
@@ -192,6 +206,9 @@ func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, o
 }
 
 func (unp unixMsProcessor) Match(d []byte) (start, end int, ok bool) {
+	if len(d) < unp.min {
+		return
+	}
 	idx := unp.re.FindSubmatchIndex(d)
 	if len(idx) == 4 {
 		start, end = idx[2], idx[3]
@@ -205,6 +222,7 @@ type unixNanoProcessor struct {
 	rxstr  string
 	format string
 	name   string
+	min    int
 }
 
 // We assume you're not ingesting data from 1970, so we look for at least 16 digits of nanoseconds
@@ -214,6 +232,7 @@ func NewUnixNanoTimeProcessor() *unixNanoProcessor {
 		rxstr:  UnixNanoRegex,
 		format: ``, //api doesn't work here
 		name:   UnixNano.String(),
+		min:    18,
 	}
 }
 
@@ -234,6 +253,9 @@ func (unp unixNanoProcessor) ToString(t time.Time) string {
 }
 
 func (unp unixNanoProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	if len(d) < unp.min {
+		return
+	}
 	offset = -1
 	idx := unp.re.FindSubmatchIndex(d)
 	if len(idx) != 4 {
@@ -250,6 +272,9 @@ func (unp unixNanoProcessor) Extract(d []byte, loc *time.Location) (t time.Time,
 }
 
 func (unp unixNanoProcessor) Match(d []byte) (start, end int, ok bool) {
+	if len(d) < unp.min {
+		return
+	}
 	idx := unp.re.FindSubmatchIndex(d)
 	if len(idx) == 4 {
 		start, end = idx[2], idx[3]
@@ -264,6 +289,7 @@ func NewUK() Processor {
 		rxstr:  UKRegex,
 		format: UKFormat,
 		name:   UK.String(),
+		min:    20, //deal with low precision
 	}
 }
 
@@ -272,6 +298,7 @@ type ukProc struct {
 	rxstr  string
 	format string
 	name   string
+	min    int
 }
 
 func (p *ukProc) Format() string {
@@ -291,6 +318,9 @@ func (p *ukProc) Name() string {
 }
 
 func (p *ukProc) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
+	if len(d) < p.min {
+		return time.Time{}, false, -1
+	}
 	idxs := p.rx.FindIndex(d)
 	if len(idxs) != 2 {
 		return time.Time{}, false, -1
@@ -305,6 +335,9 @@ func (p *ukProc) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
 }
 
 func (p *ukProc) Match(d []byte) (start, end int, ok bool) {
+	if len(d) < p.min {
+		return
+	}
 	idxs := p.rx.FindIndex(d)
 	if len(idxs) == 2 {
 		start, end = idxs[0], idxs[1]
@@ -328,6 +361,7 @@ type ldapProcessor struct {
 	rxstr  string
 	format string
 	name   string
+	min    int
 }
 
 // We assume you're not ingesting data from 1970, so we look for at least 16 digits of nanoseconds
@@ -337,6 +371,7 @@ func NewLDAPProcessor() *ldapProcessor {
 		rxstr:  LDAPRegex,
 		format: ``, //api doesn't work here
 		name:   LDAP.String(),
+		min:    18,
 	}
 }
 
@@ -358,6 +393,9 @@ func (lp ldapProcessor) ToString(t time.Time) string {
 }
 
 func (lp ldapProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	if len(d) < lp.min {
+		return
+	}
 	offset = -1
 	idx := lp.re.FindSubmatchIndex(d)
 	if len(idx) != 4 {
@@ -377,6 +415,9 @@ func (lp ldapProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 }
 
 func (lp ldapProcessor) Match(d []byte) (start, end int, ok bool) {
+	if len(d) < lp.min {
+		return
+	}
 	idx := lp.re.FindSubmatchIndex(d)
 	if len(idx) == 4 {
 		start, end = idx[2], idx[3]
@@ -390,6 +431,7 @@ type unixSecondsProcessor struct {
 	rxstr  string
 	format string
 	name   string
+	min    int
 }
 
 func NewUnixSecondsProcessor() *unixSecondsProcessor {
@@ -398,6 +440,7 @@ func NewUnixSecondsProcessor() *unixSecondsProcessor {
 		rxstr:  UnixSecondsRegex,
 		format: ``, //format API doesn't work here
 		name:   UnixSeconds.String(),
+		min:    9, //see regex for why
 	}
 }
 
@@ -419,6 +462,9 @@ func (up *unixSecondsProcessor) ExtractionRegex() string {
 }
 
 func (up unixSecondsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	if len(d) < up.min {
+		return
+	}
 	offset = -1
 	idx := up.re.FindSubmatchIndex(d)
 	if len(idx) != 4 {
@@ -435,6 +481,9 @@ func (up unixSecondsProcessor) Extract(d []byte, loc *time.Location) (t time.Tim
 }
 
 func (up unixSecondsProcessor) Match(d []byte) (start, end int, ok bool) {
+	if len(d) < up.min {
+		return
+	}
 	idx := up.re.FindSubmatchIndex(d)
 	if len(idx) == 4 {
 		start, end = idx[2], idx[3]

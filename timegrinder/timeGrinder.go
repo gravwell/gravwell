@@ -16,6 +16,7 @@ package timegrinder
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,7 @@ const (
 var (
 	monthLookup map[string]time.Month
 	tg          *TimeGrinder
+	gmtx        sync.Mutex
 )
 
 func init() {
@@ -55,20 +57,24 @@ type Config struct {
 }
 
 func Extract(b []byte) (t time.Time, ok bool, err error) {
+	gmtx.Lock()
 	if tg == nil {
 		err = errors.New("not ready")
 	} else {
 		t, ok, err = tg.Extract(b)
 	}
+	gmtx.Unlock()
 	return
 }
 
 func Match(b []byte) (start, end int, ok bool) {
+	gmtx.Lock()
 	if tg == nil {
 		ok = false
 	} else {
 		start, end, ok = tg.Match(b)
 	}
+	gmtx.Unlock()
 	return
 }
 
@@ -240,6 +246,16 @@ func (tg *TimeGrinder) AddProcessor(p Processor) (idx int, err error) {
 	tg.procs = append([]Processor{p}, tg.procs...)
 	tg.count++
 	idx = 0
+	return
+}
+
+func (tg *TimeGrinder) GetProcessor(name string) (p Processor, ok bool) {
+	for _, v := range tg.procs {
+		if v.Name() == name {
+			p, ok = v, true
+			break
+		}
+	}
 	return
 }
 
