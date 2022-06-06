@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2022 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -14,12 +14,10 @@ import (
 	"sort"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
-)
-
-const (
-	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
 )
 
 var (
@@ -33,6 +31,7 @@ type readerType int
 type cfgReadType struct {
 	Global       global
 	Files        map[string]*files
+	Splunk       map[string]*splunk
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
 }
@@ -45,6 +44,7 @@ type global struct {
 type cfgType struct {
 	global
 	Files        map[string]*files
+	Splunk       map[string]*splunk
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
 }
@@ -59,6 +59,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	c := &cfgType{
 		global:       cr.Global,
 		Files:        cr.Files,
+		Splunk:       cr.Splunk,
 		Preprocessor: cr.Preprocessor,
 		TimeFormat:   cr.TimeFormat,
 	}
@@ -83,8 +84,8 @@ func verifyConfig(c *cfgType) error {
 	if err := c.Verify(); err != nil {
 		return err
 	}
-	if len(c.Files) == 0 {
-		return errors.New("No Filess specified")
+	if len(c.Files) == 0 && len(c.Splunk) == 0 {
+		return errors.New("No Files or Splunk stanzas specified")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
 		return err
@@ -96,12 +97,20 @@ func verifyConfig(c *cfgType) error {
 			return fmt.Errorf("Files config %s failed %w", k, err)
 		}
 	}
+	for k, v := range c.Splunk {
+		if err := v.Validate(c.Preprocessor); err != nil {
+			return fmt.Errorf("Splunk config %s failed %w", k, err)
+		}
+	}
 	return nil
 }
 
+// Tags returns a list of tags specified in the config.
+// It will always include the gravwell tag.
 func (c *cfgType) Tags() ([]string, error) {
-	var tags []string
+	tags := []string{entry.GravwellTagName}
 	tagMp := make(map[string]bool, 1)
+	tagMp[entry.GravwellTagName] = true
 	for _, v := range c.Files {
 		if len(v.Tag_Name) == 0 {
 			continue
@@ -111,11 +120,42 @@ func (c *cfgType) Tags() ([]string, error) {
 			tagMp[v.Tag_Name] = true
 		}
 	}
-	if len(tags) == 0 {
-		return nil, errors.New("No tags specified")
+	for _, v := range c.Splunk {
+		if tgs, err := v.Tags(); err != nil {
+			return tags, err
+		} else {
+			for _, tag := range tgs {
+				tags = append(tags, tag)
+				tagMp[tag] = true
+			}
+		}
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+func (c *cfgType) getSplunkConn(splunkName string) (sc splunkConn, err error) {
+	for k, vv := range c.Splunk {
+		if k == splunkName {
+			// Connect to Splunk server
+			sc = newSplunkConn(vv.Server, vv.Token)
+			return
+		}
+	}
+	err = errors.New("Not found")
+	return
+}
+
+func (c *cfgType) getSplunkPreprocessors(splunkName string, igst *ingest.IngestMuxer) (pproc *processors.ProcessorSet, err error) {
+	for k, vv := range c.Splunk {
+		if k == splunkName {
+			// get the ingester up and rolling
+			pproc, err = cfg.Preprocessor.ProcessorSet(igst, vv.Preprocessor)
+			return
+		}
+	}
+	err = errors.New("Not found")
+	return
 }
 
 func (g *global) Verify() (err error) {
