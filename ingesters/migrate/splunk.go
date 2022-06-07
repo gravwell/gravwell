@@ -92,7 +92,6 @@ func (s *splunk) Tags() ([]string, error) {
 		}
 		tags = append(tags, parts[1])
 	}
-	lg.Infof("tags = %v\n", tags)
 	return tags, nil
 }
 
@@ -316,7 +315,6 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 	chunk := 60 * time.Minute
 	var done bool
 	for i := 0; !done; i++ {
-		//		lg.Infof("up to %v\n", progress.ConsumedUpTo)
 		if checkSig(ctx) {
 			return nil
 		}
@@ -336,7 +334,6 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 							if count >= MAXCHUNK && time.Duration(chunk/2) > time.Second {
 								resizing = true // keep trying
 								chunk = chunk / 2
-								lg.Infof("CHECK: %v too big, decreasing to %v", count, chunk)
 							}
 						}
 					}
@@ -352,7 +349,6 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 			end = time.Now()
 			done = true
 		}
-		lg.Infof("Querying from %v to %v", progress.ConsumedUpTo, end)
 
 		// run query with current earliest=ConsumedUpTo, latest=ConsumedUpTo+60m
 		query := fmt.Sprintf("search index=\"%s\" sourcetype=\"%s\"", progress.Index, progress.Sourcetype)
@@ -361,7 +357,6 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		}
 		progress.ConsumedUpTo = end
 		splunkTracker.Update(cfgName, progress)
-		lg.Infof("%v entries so far", count)
 		updateChan <- fmt.Sprintf("Migrated %d entries, up to %v", count, progress.ConsumedUpTo)
 	}
 	return nil
@@ -394,7 +389,6 @@ func checkMappings(cfgName string, ctx context.Context, updateChan chan string) 
 	}
 	var count int
 	for _, x := range st {
-		lg.Infof("Sourcetype: %v\n", x)
 		for i := range x.Sourcetypes {
 			// See if this one exists already
 			_, err := status.Lookup(x.Index, x.Sourcetypes[i])
@@ -574,7 +568,7 @@ func (c *splunkConn) GetIndexSourcetypes() (m []sourcetypeIndex, err error) {
 	if b, err = ioutil.ReadAll(resp.Body); err != nil {
 		return
 	}
-	ioutil.WriteFile("/tmp/output", b, 0600)
+
 	var x struct {
 		baseResponse
 		Results []sourcetypeIndex `json:"results"`
