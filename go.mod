@@ -55,6 +55,7 @@ require (
 	github.com/tealeg/xlsx v1.0.5
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
+	github.com/xdg-go/scram v1.1.1 // indirect
 	golang.org/x/crypto v0.0.0-20201124201722-c8d3bf9c5392 // indirect
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 	golang.org/x/sys v0.0.0-20220318055525-2edf467146b5
