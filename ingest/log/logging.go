@@ -666,16 +666,20 @@ func checkName(v string) (err error) {
 	return
 }
 
-// trimPathLength will trim the input path to no more than i bytes of the
-// basename of input. For example, "KafkaFederator/kafkaWriter.go:352" will be
-// trimmed to "kafkaWriter.go:352"
+// trimPathLength will trim the input path to no more than the last i bytes of
+// the basename of input. For example, "KafkaFederator/kafkaWriter.go:352" will
+// be trimmed to "kafkaWriter.go:352"
 func trimPathLength(i int, input string) string {
 	if len(input) <= i {
 		return input
 	}
 	base := filepath.Base(input)
 
-	return trimLength(i, base)
+	if len(base) <= i {
+		return base
+	}
+
+	return base[len(base)-32:]
 }
 
 func trimLength(i int, input string) string {

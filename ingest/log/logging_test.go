@@ -258,3 +258,11 @@ func TestTrimPathLength(t *testing.T) {
 		t.Fatal("trimPathLength", output)
 	}
 }
+
+func TestTrimPathLengthBaseTooLong(t *testing.T) {
+	input := "KafkaFederator/wayTooManyBytesInThisFilenameWhoDidThis.go:355"
+	output := trimPathLength(32, input)
+	if output != "sInThisFilenameWhoDidThis.go:355" {
+		t.Fatal("trimPathLength", output)
+	}
+}
