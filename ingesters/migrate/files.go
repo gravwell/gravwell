@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2022 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -46,105 +46,115 @@ type files struct {
 	Preprocessor              []string
 }
 
-func processFiles(cfg *cfgType, st *StateTracker, igst *ingest.IngestMuxer, ctx context.Context, uc chan statusUpdate) (err error) {
+func fileJob(cfgName string, ctx context.Context, uc chan string) (err error) {
 	//build a list of base directories and globs
-	for k, val := range cfg.Files {
-		var filelist []string
-		debugout("Processing flat file config %s\n", k)
-		if filelist, err = getFileList(val, st); err != nil {
-			lg.Error("failed to get file list", log.KV("file-processor", k), log.KVErr(err))
-			return err
-		} else if len(filelist) == 0 {
-			continue
-		}
-		//we have files, get the ingester up and rolling
-		pproc, err := cfg.Preprocessor.ProcessorSet(igst, val.Preprocessor)
-		if err != nil {
-			lg.Error("preprocessor construction error", log.KVErr(err))
-			return err
-		}
-		//get the tag for this listener
-		tag, err := igst.GetTag(val.Tag_Name)
-		if err != nil {
-			lg.Error("failed to resolve tag", log.KV("watcher", k), log.KV("tag", val.Tag_Name), log.KVErr(err))
-			return err
-		}
-		var ignore [][]byte
-		for _, prefix := range val.Ignore_Line_Prefix {
-			if prefix != "" {
-				ignore = append(ignore, []byte(prefix))
-			}
-		}
-
-		var tg *timegrinder.TimeGrinder
-		if !val.Ignore_Timestamps {
-			tcfg := timegrinder.Config{
-				EnableLeftMostSeed: true,
-			}
-			if tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
-				lg.Error("failed to create timegrinder", log.KVErr(err))
-				return err
-			} else if err = cfg.TimeFormat.LoadFormats(tg); err != nil {
-				lg.Error("failed to load custom time formats", log.KVErr(err))
-				return err
-			}
-			if val.Timestamp_Format_Override != `` {
-				if err = tg.SetFormatOverride(val.Timestamp_Format_Override); err != nil {
-					lg.Error("failed to set timestamp override", log.KV("timestampoverride", val.Timestamp_Format_Override), log.KVErr(err))
-					return err
-				}
-			}
-			if val.Assume_Local_Timezone && val.Timezone_Override != `` {
-				return errors.New("Cannot specify AssumeLocalTZ and TimezoneOverride in the same LogHandlerConfig")
-			}
-			if val.Assume_Local_Timezone {
-				tg.SetLocalTime()
-			}
-			if val.Timezone_Override != `` {
-				if err = tg.SetTimezone(val.Timezone_Override); err != nil {
-					lg.Error("failed to set timezone override", log.KV("timezone", val.Timezone_Override), log.KVErr(err))
-					return err
-				}
-			}
-		}
-
-		rdrCfg := utils.LineDelimitedStream{
-			Proc:           pproc,
-			Tag:            tag,
-			SRC:            src,
-			TG:             tg,
-			IgnorePrefixes: ignore,
-			BatchSize:      128,
-			Verbose:        *verbose,
-		}
-
-		for _, f := range filelist {
-			var su statusUpdate
-			var rc io.ReadCloser
-			if checkSig(ctx) {
-				return nil
-			}
-			if rc, err = utils.OpenBufferedFileReader(f, 8192); err != nil {
-				lg.Error("failed to open file", log.KV("path", f), log.KVErr(err))
-				return err
-			}
-			rdrCfg.Rdr = rc
-			if su.count, su.size, err = utils.IngestLineDelimitedStream(rdrCfg); err != nil {
-				rc.Close()
-				lg.Error("failed to ingest file", log.KV("path", f), log.KVErr(err))
-				return err
-			}
-			if err = rc.Close(); err != nil {
-				lg.Error("failed to close file", log.KV("path", f), log.KVErr(err))
-				return err
-			} else if err = st.Add(filesStateType, fileStatus{Path: f, Count: su.count, Size: su.size}); err != nil {
-				lg.Error("failed to set status of file", log.KV("path", f), log.KVErr(err))
-				return err
-			}
-			uc <- su
-			lg.Info("migrated file", log.KV("path", f))
+	val, ok := cfg.Files[cfgName]
+	if !ok {
+		return ErrNotFound
+	}
+	var filelist []string
+	lg.Infof("Processing flat file config %s\n", cfgName)
+	uc <- fmt.Sprintf("Processing flat file config %s\n", cfgName)
+	if filelist, err = getFileList(val, st); err != nil {
+		lg.Error("failed to get file list", log.KV("file-processor", cfgName), log.KVErr(err))
+		return err
+	} else if len(filelist) == 0 {
+		uc <- fmt.Sprintf("Config %v has no unprocessed files", cfgName)
+		return nil
+	}
+	//we have files, get the ingester up and rolling
+	pproc, err := cfg.Preprocessor.ProcessorSet(igst, val.Preprocessor)
+	if err != nil {
+		lg.Error("preprocessor construction error", log.KVErr(err))
+		return err
+	}
+	//get the tag for this listener
+	tag, err := igst.GetTag(val.Tag_Name)
+	if err != nil {
+		lg.Error("failed to resolve tag", log.KV("watcher", cfgName), log.KV("tag", val.Tag_Name), log.KVErr(err))
+		return err
+	}
+	var ignore [][]byte
+	for _, prefix := range val.Ignore_Line_Prefix {
+		if prefix != "" {
+			ignore = append(ignore, []byte(prefix))
 		}
 	}
+
+	var tg *timegrinder.TimeGrinder
+	if !val.Ignore_Timestamps {
+		tcfg := timegrinder.Config{
+			EnableLeftMostSeed: true,
+		}
+		if tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
+			lg.Error("failed to create timegrinder", log.KVErr(err))
+			return err
+		} else if err = cfg.TimeFormat.LoadFormats(tg); err != nil {
+			lg.Error("failed to load custom time formats", log.KVErr(err))
+			return err
+		}
+		if val.Timestamp_Format_Override != `` {
+			if err = tg.SetFormatOverride(val.Timestamp_Format_Override); err != nil {
+				lg.Error("failed to set timestamp override", log.KV("timestampoverride", val.Timestamp_Format_Override), log.KVErr(err))
+				return err
+			}
+		}
+		if val.Assume_Local_Timezone && val.Timezone_Override != `` {
+			return errors.New("Cannot specify AssumeLocalTZ and TimezoneOverride in the same LogHandlerConfig")
+		}
+		if val.Assume_Local_Timezone {
+			tg.SetLocalTime()
+		}
+		if val.Timezone_Override != `` {
+			if err = tg.SetTimezone(val.Timezone_Override); err != nil {
+				lg.Error("failed to set timezone override", log.KV("timezone", val.Timezone_Override), log.KVErr(err))
+				return err
+			}
+		}
+	}
+
+	rdrCfg := utils.LineDelimitedStream{
+		Proc:           pproc,
+		Tag:            tag,
+		SRC:            src,
+		TG:             tg,
+		IgnorePrefixes: ignore,
+		BatchSize:      128,
+		Verbose:        *verbose,
+	}
+
+	var count, size uint64
+	var fileCount int
+	for _, f := range filelist {
+		fileCount++
+		var c, s uint64
+		var rc io.ReadCloser
+		if checkSig(ctx) {
+			return nil
+		}
+		if rc, err = utils.OpenBufferedFileReader(f, 8192); err != nil {
+			lg.Error("failed to open file", log.KV("path", f), log.KVErr(err))
+			return err
+		}
+		rdrCfg.Rdr = rc
+		if c, s, err = utils.IngestLineDelimitedStream(rdrCfg); err != nil {
+			rc.Close()
+			lg.Error("failed to ingest file", log.KV("path", f), log.KVErr(err))
+			return err
+		}
+		count += c
+		size += s
+		if err = rc.Close(); err != nil {
+			lg.Error("failed to close file", log.KV("path", f), log.KVErr(err))
+			return err
+		} else if err = st.Add(filesStateType, fileStatus{Path: f, Count: c, Size: s}); err != nil {
+			lg.Error("failed to set status of file", log.KV("path", f), log.KVErr(err))
+			return err
+		}
+		uc <- fmt.Sprintf("Ingested %d files (%d entries, %d bytes)", fileCount, count, size)
+		lg.Info("migrated file", log.KV("path", f))
+	}
+	uc <- fmt.Sprintf("Ingested %d files (%d entries, %d bytes)", fileCount, count, size)
 	return nil
 }
 

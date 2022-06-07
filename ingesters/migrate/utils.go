@@ -37,11 +37,9 @@ func getIngestConnection(cfg *cfgType, lg *log.Logger) *ingest.IngestMuxer {
 	if err != nil {
 		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
 	}
-	debugout("Rate limiting connection to %d bps\n", lmt)
+	lg.Infof("Rate limiting connection", log.KV("bps", lmt))
 
 	//fire up the ingesters
-	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
-	debugout("INSECURE skipping TLS certs verification: %v\n", cfg.InsecureSkipTLSVerification())
 	id, ok := cfg.IngesterUUID()
 	if !ok {
 		lg.FatalCode(0, "Couldn't read ingester UUID")
@@ -68,7 +66,6 @@ func getIngestConnection(cfg *cfgType, lg *log.Logger) *ingest.IngestMuxer {
 	if err != nil {
 		lg.Fatal("failed build our ingest system", log.KVErr(err))
 	}
-	debugout("Starting ingester muxer\n")
 	if cfg.SelfIngest() {
 		lg.AddRelay(igst)
 	}
@@ -76,13 +73,12 @@ func getIngestConnection(cfg *cfgType, lg *log.Logger) *ingest.IngestMuxer {
 		igst.Close()
 		lg.Fatal("failed start our ingest system", log.KVErr(err))
 	}
+	lg.Infof("Waiting for connections to ingesters")
 
-	debugout("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
 		igst.Close()
 		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 	}
-	debugout("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)

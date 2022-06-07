@@ -12,8 +12,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -278,13 +280,13 @@ func writeMappings(cfgName string) {
 }
 
 func setTagMapping(cfgName string, x SplunkToGravwell, tag string) {
-	var newTag string
+	newTag := tag
+	startFrom := x.ConsumedUpTo
 	save := func() {
-		if newTag != "" {
-			// if we got this far, they typed a valid tag
-			x.Tag = newTag
-			splunkTracker.Update(cfgName, x)
-		}
+		// if we got this far, they typed a valid tag
+		x.Tag = newTag
+		x.ConsumedUpTo = startFrom
+		splunkTracker.Update(cfgName, x)
 		app.SetRoot(grid, true).SetFocus(grid)
 		splunkMappingMenu(cfgName)
 	}
@@ -305,9 +307,21 @@ func setTagMapping(cfgName string, x SplunkToGravwell, tag string) {
 	tagChanged := func(text string) {
 		newTag = text
 	}
+	timestampCheck := func(ts string, lastChar rune) bool {
+		if !unicode.IsNumber(lastChar) {
+			return false
+		}
+		return true
+	}
+	timestampChanged := func(ts string) {
+		if i, err := strconv.Atoi(ts); err == nil {
+			startFrom = time.Unix(int64(i), 0)
+		}
+	}
 	// Pop up the form
 	form := tview.NewForm().
 		AddInputField("Tag", tag, 50, tagCheck, tagChanged).
+		AddInputField("(Optional) Unix timestamp to start from", fmt.Sprintf("%d", x.ConsumedUpTo.Unix()), 50, timestampCheck, timestampChanged).
 		AddButton("Save", save).
 		AddButton("Cancel", cancel)
 
