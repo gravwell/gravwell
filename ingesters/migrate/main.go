@@ -21,7 +21,6 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
@@ -66,7 +65,7 @@ func main() {
 	doneChan := make(chan bool)
 	time.Sleep(500 * time.Millisecond)
 	// this thing hits the filesystem, parallelism will almost always be bad
-	utils.MaxProcTune(1)
+	//utils.MaxProcTune(1)
 	cfg, err = GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		llg.FatalCode(0, "failed to get configuration", log.KVErr(err))

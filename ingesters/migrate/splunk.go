@@ -30,6 +30,8 @@ import (
 const (
 	splunkTsFmt     string = "2006-01-02T03:04:05-0700"
 	splunkStateType string = `splunk`
+
+	MAXCHUNK int = 1000000
 )
 
 var (
@@ -43,6 +45,7 @@ var (
 type splunk struct {
 	Server                  string   // the Splunk server, e.g. splunk.example.com
 	Token                   string   // a Splunk auth token
+	Ingest_From_Unix_Time   int      // a timestamp to use as the default start time for this Splunk server (default 1)
 	Index_Sourcetype_To_Tag []string // a mapping of index+sourcetype to Gravwell tag
 	Preprocessor            []string
 }
@@ -50,6 +53,9 @@ type splunk struct {
 func (s *splunk) Validate(procs processors.ProcessorConfig) (err error) {
 	if len(s.Server) == 0 {
 		return errors.New("No Splunk server specified")
+	}
+	if s.Ingest_From_Unix_Time == 0 {
+		s.Ingest_From_Unix_Time = 1
 	}
 	if err = procs.CheckProcessors(s.Preprocessor); err != nil {
 		return fmt.Errorf("Files preprocessor invalid: %v", err)
@@ -217,7 +223,6 @@ func initializeSplunk(cfg *cfgType, st *StateTracker, ctx context.Context) (stop
 			return fmt.Errorf("nil splunk status")
 		}
 		cachedTracker.UpdateServer(s.Name, *s)
-		lg.Infof("cached status = %v", s)
 		return nil
 	}); err != nil {
 		return true, fmt.Errorf("Failed to decode splunk states %w", err)
@@ -233,8 +238,10 @@ func initializeSplunk(cfg *cfgType, st *StateTracker, ctx context.Context) (stop
 			return true, err
 		} else {
 			for _, x := range mappings {
+				// Set "ConsumedUpTo" to whatever the user may have set for Ingest-From-Unix-Time, then
+				// if we've already done some ingestion before, it'll get overwritten by the cache lookup
+				x.ConsumedUpTo = time.Unix(int64(v.Ingest_From_Unix_Time), 0)
 				if c, err := cached.Lookup(x.Index, x.Sourcetype); err == nil {
-					lg.Infof("Matched %v\n", c)
 					x = c
 				}
 				status.Update(x)
@@ -286,7 +293,9 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		var data string
 		if x, ok := s["_time"]; ok {
 			if str, ok := x.(string); ok {
-				ts, _ = time.Parse("2006-01-02T03:04:05.000-07:00", str)
+				if ts, err = time.Parse("2006-01-02T15:04:05.000-07:00", str); err != nil {
+					lg.Warnf("Failed to parse timestamp %v: %v\n", str, err)
+				}
 			}
 		}
 		if x, ok := s["_raw"]; ok {
@@ -311,36 +320,40 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		if checkSig(ctx) {
 			return nil
 		}
-		end := progress.ConsumedUpTo.Add(chunk)
-		if end.After(time.Now()) {
-			end = time.Now()
-			done = true
-		}
 
 		// Tweak the window if necessary
-		resizing := i%10 == 0
+		if i%5 == 0 && chunk < 24*time.Hour {
+			// increase chunk size every 5 iterations in case things are bursty
+			chunk = chunk * 2
+		}
+		resizing := true
 		for resizing {
 			cb := func(s map[string]interface{}) {
 				resizing = false
 				if x, ok := s["count"]; ok {
 					if cstr, ok := x.(string); ok {
 						if count, err := strconv.Atoi(cstr); err == nil {
-							if count < 1000 && chunk < 12*time.Hour {
-								chunk = chunk * 2
-							}
-							if count > 200000 && time.Duration(chunk/2) > time.Second {
+							if count >= MAXCHUNK && time.Duration(chunk/2) > time.Second {
 								resizing = true // keep trying
 								chunk = chunk / 2
+								lg.Infof("CHECK: %v too big, decreasing to %v", count, chunk)
 							}
 						}
 					}
 				}
 			}
 			query := fmt.Sprintf("| tstats count WHERE index=\"%s\" AND sourcetype=\"%s\"", progress.Index, progress.Sourcetype)
-			if err := sc.RunSearch(query, progress.ConsumedUpTo, end, cb); err != nil {
+			if err := sc.RunSearch(query, progress.ConsumedUpTo, progress.ConsumedUpTo.Add(chunk), cb); err != nil {
 				return err
 			}
 		}
+		end := progress.ConsumedUpTo.Add(chunk)
+		if end.After(time.Now()) {
+			end = time.Now()
+			done = true
+		}
+		lg.Infof("Querying from %v to %v", progress.ConsumedUpTo, end)
+
 		// run query with current earliest=ConsumedUpTo, latest=ConsumedUpTo+60m
 		query := fmt.Sprintf("search index=\"%s\" sourcetype=\"%s\"", progress.Index, progress.Sourcetype)
 		if err := sc.RunSearch(query, progress.ConsumedUpTo, end, cb); err != nil {
@@ -348,6 +361,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		}
 		progress.ConsumedUpTo = end
 		splunkTracker.Update(cfgName, progress)
+		lg.Infof("%v entries so far", count)
 		updateChan <- fmt.Sprintf("Migrated %d entries, up to %v", count, progress.ConsumedUpTo)
 	}
 	return nil
@@ -380,12 +394,13 @@ func checkMappings(cfgName string, ctx context.Context, updateChan chan string) 
 	}
 	var count int
 	for _, x := range st {
+		lg.Infof("Sourcetype: %v\n", x)
 		for i := range x.Sourcetypes {
 			// See if this one exists already
 			_, err := status.Lookup(x.Index, x.Sourcetypes[i])
 			if err == ErrNotFound {
 				// Doesn't exist, create a new one
-				tmp := SplunkToGravwell{Index: x.Index, Sourcetype: x.Sourcetypes[i], ConsumedUpTo: time.Unix(1, 0)}
+				tmp := SplunkToGravwell{Index: x.Index, Sourcetype: x.Sourcetypes[i], ConsumedUpTo: time.Unix(int64(c.Ingest_From_Unix_Time), 0)}
 				count++
 				status.Update(tmp)
 			}
@@ -414,6 +429,7 @@ type splunkContent struct {
 }
 
 type splunkResponse struct {
+	baseResponse
 	Entries []splunkEntry `json:"entry"`
 }
 
@@ -465,6 +481,7 @@ func (c *splunkConn) GetEventIndexes() (indexes []splunkEntry, err error) {
 }
 
 type splunkSearchLaunchResponse struct {
+	baseResponse
 	SID string `json:"sid"`
 }
 
@@ -494,9 +511,24 @@ func (c *splunkConn) GetSourceTypes() (sourcetypes []string, err error) {
 	return
 }
 
+type sourcetypes []string
+
+func (s *sourcetypes) UnmarshalJSON(v []byte) (err error) {
+	var x []string
+	var str string
+	if err = json.Unmarshal(v, &x); err == nil {
+		*s = sourcetypes(x)
+	} else if err = json.Unmarshal(v, &str); err == nil {
+		*s = sourcetypes([]string{str})
+	} else {
+		return errors.New("Cannot unmarshal sourcetype")
+	}
+	return nil
+}
+
 type sourcetypeIndex struct {
-	Index       string   `json:"index"`
-	Sourcetypes []string `json:"sourcetypes"`
+	Index       string      `json:"index"`
+	Sourcetypes sourcetypes `json:"sourcetypes"`
 }
 
 func (c *splunkConn) GetIndexSourcetypes() (m []sourcetypeIndex, err error) {
@@ -527,7 +559,9 @@ func (c *splunkConn) GetIndexSourcetypes() (m []sourcetypeIndex, err error) {
 	if err = json.Unmarshal(b, &sr); err != nil {
 		return
 	}
-
+	if err = sr.WasError(); err != nil {
+		return
+	}
 	// Now fetch and parse the results
 	u = fmt.Sprintf("%s/services/search/jobs/%s/results?output_mode=json", c.BaseURL, sr.SID)
 	if req, err = http.NewRequest(http.MethodGet, u, nil); err != nil {
@@ -540,11 +574,15 @@ func (c *splunkConn) GetIndexSourcetypes() (m []sourcetypeIndex, err error) {
 	if b, err = ioutil.ReadAll(resp.Body); err != nil {
 		return
 	}
-
+	ioutil.WriteFile("/tmp/output", b, 0600)
 	var x struct {
+		baseResponse
 		Results []sourcetypeIndex `json:"results"`
 	}
 	if err = json.Unmarshal(b, &x); err != nil {
+		return
+	}
+	if err = x.WasError(); err != nil {
 		return
 	}
 	m = x.Results
@@ -559,6 +597,7 @@ func (c *splunkConn) RunSearch(query string, earliest, latest time.Time, cb sear
 	var resp *http.Response
 	form := url.Values{}
 	form.Add("output_mode", "json")
+	form.Add("max_count", fmt.Sprintf("%d", MAXCHUNK))
 	form.Add("exec_mode", "blocking")
 	form.Add("earliest_time", fmt.Sprintf("%d", earliest.Unix()))
 	form.Add("latest_time", fmt.Sprintf("%d", latest.Unix()))
@@ -580,10 +619,13 @@ func (c *splunkConn) RunSearch(query string, earliest, latest time.Time, cb sear
 	if err = json.Unmarshal(b, &sr); err != nil {
 		return
 	}
+	if err = sr.WasError(); err != nil {
+		return err
+	}
 
 	// Now fetch and parse the results
 	var offset int
-	chunk := 30000
+	chunk := 5000
 	for {
 		u = fmt.Sprintf("%s/services/search/jobs/%s/results?output_mode=json&count=%d&offset=%d", c.BaseURL, sr.SID, chunk, offset)
 		if req, err = http.NewRequest(http.MethodGet, u, nil); err != nil {
@@ -600,6 +642,9 @@ func (c *splunkConn) RunSearch(query string, earliest, latest time.Time, cb sear
 		if err = json.Unmarshal(b, &results); err != nil {
 			return
 		}
+		if err = results.WasError(); err != nil {
+			lg.Errorf("Failed to get splunk results: %v", err)
+		}
 		if len(results.Results) == 0 {
 			break
 		}
@@ -612,5 +657,24 @@ func (c *splunkConn) RunSearch(query string, earliest, latest time.Time, cb sear
 }
 
 type splunkJsonResults struct {
+	baseResponse
 	Results []map[string]interface{} `json:"results"`
+}
+
+type baseResponse struct {
+	Messages []splunkMessage `json:"messages"`
+}
+
+type splunkMessage struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
+}
+
+func (b *baseResponse) WasError() error {
+	for _, m := range b.Messages {
+		if m.Type == "FATAL" || m.Type == "WARN" {
+			return fmt.Errorf("%s", m.Text)
+		}
+	}
+	return nil
 }
