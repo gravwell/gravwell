@@ -242,3 +242,19 @@ func TestAddRemove(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestTrimLength(t *testing.T) {
+	input := "twelve bytes"
+	output := trimLength(10, input)
+	if output != "twelve byt" {
+		t.Fatal("trimLength", output)
+	}
+}
+
+func TestTrimPathLength(t *testing.T) {
+	input := "KafkaFederator/kafkaWriter.go:355"
+	output := trimPathLength(32, input)
+	if output != "kafkaWriter.go:355" {
+		t.Fatal("trimPathLength", output)
+	}
+}

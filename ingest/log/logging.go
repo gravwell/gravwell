@@ -474,13 +474,20 @@ func (l *Logger) genRfcOutput(ts time.Time, pfx string, lvl Level, msg string, s
 	return
 }
 
+// Per RFC5424 https://www.rfc-editor.org/rfc/rfc5424.html#section-6.2.7
+//
+// There are maximum lengths for some of the fields below:
+//	AppName: 48
+//	ProcID: 128
+//	MsgID: 32
+//	Hostname: 255
 func GenRFCMessage(ts time.Time, prio rfc5424.Priority, hostname, appname, msgid, msg string, sds ...rfc5424.SDParam) ([]byte, error) {
 	m := rfc5424.Message{
 		Priority:  prio,
 		Timestamp: ts,
-		Hostname:  hostname,
-		AppName:   appname,
-		MessageID: msgid,
+		Hostname:  trimLength(255, hostname),
+		AppName:   trimLength(48, appname),
+		MessageID: trimPathLength(32, msgid),
 		Message:   []byte(msg),
 	}
 	if len(sds) > 0 {
@@ -657,4 +664,23 @@ func checkName(v string) (err error) {
 		return
 	}
 	return
+}
+
+// trimPathLength will trim the input path to no more than i bytes of the
+// basename of input. For example, "KafkaFederator/kafkaWriter.go:352" will be
+// trimmed to "kafkaWriter.go:352"
+func trimPathLength(i int, input string) string {
+	if len(input) <= i {
+		return input
+	}
+	base := filepath.Base(input)
+
+	return trimLength(i, base)
+}
+
+func trimLength(i int, input string) string {
+	if len(input) <= i {
+		return input
+	}
+	return input[:i]
 }
