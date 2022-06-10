@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	splunkTsFmt     string = "2006-01-02T03:04:05-0700"
+	splunkTsFmt     string = "2006-01-02T15:04:05-0700"
 	splunkStateType string = `splunk`
 
 	MAXCHUNK int = 1000000
