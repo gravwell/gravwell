@@ -39,14 +39,14 @@ func (c *Client) ListAllTemplates() (templates []types.WireUserTemplate, err err
 
 // NewTemplate creates a new template with the given GUID, name, description, contents.
 // If guid is set to uuid.Nil, a random GUID will be chosen automatically.
-func (c *Client) NewTemplate(guid uuid.UUID, name, description string, contents types.RawObject) (storedGuid uuid.UUID, err error) {
+func (c *Client) NewTemplate(guid uuid.UUID, name, description string, contents types.RawObject) (details types.WireUserTemplate, err error) {
 	// Mash the content blob into an appropriate type
 	var ct types.TemplateContents
 	if err = json.Unmarshal(contents, &ct); err != nil {
 		return
 	}
 	template := types.UserTemplate{GUID: guid, Contents: ct, Name: name, Description: description}
-	err = c.methodStaticPushURL(http.MethodPost, templatesUrl(), template, &storedGuid)
+	err = c.methodStaticPushURL(http.MethodPost, templatesUrl(), template, &details)
 	return
 }
 
