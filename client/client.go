@@ -293,7 +293,7 @@ func (c *Client) RefreshLoginToken() (err error) {
 	defer c.mtx.Unlock()
 
 	if c.state != STATE_AUTHED {
-		return errors.New("not logged in")
+		return ErrNoLogin
 	}
 	//build up URL we are going to throw at
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, REFRESH_TOKEN_URL)
