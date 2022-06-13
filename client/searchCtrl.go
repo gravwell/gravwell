@@ -409,6 +409,8 @@ func (c *Client) GetEntries(s Search, start, end uint64) ([]types.StringTagEntry
 		return []types.StringTagEntry{}, nil
 	}
 	switch s.RenderMod {
+	case types.RenderNamePcap:
+		fallthrough
 	case types.RenderNameRaw:
 		fallthrough
 	case types.RenderNameHex:
