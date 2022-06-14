@@ -9,7 +9,6 @@
 package timegrinder
 
 import (
-	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
@@ -61,16 +60,18 @@ func TestGlobalExtractor(t *testing.T) {
 		`Jan _2 15:04:05`,         //syslog
 		`1-2-2006 15:04:05.99999`, //gravwell format
 	}
+	//do this in parallel to try and force collisions
 	var wg sync.WaitGroup
 	wg.Add(len(tests))
 	for i := range tests {
 		go func(errp *error, w *sync.WaitGroup, format string) {
 			w.Done()
-			for j := 0; j < 128; j++ {
-				if _, ok, err := Extract([]byte(time.Now().Format(format))); err != nil {
+			for j := 0; j < BENCH_LOOP_COUNT; j++ {
+				val := time.Now().Add(time.Duration(j) * -1).Format(format)
+				if _, ok, err := Extract([]byte(val)); err != nil {
 					*errp = err
 				} else if !ok {
-					*errp = errors.New("missed extract")
+					*errp = fmt.Errorf("missed extract on %q", val)
 				}
 			}
 			return
@@ -79,7 +80,7 @@ func TestGlobalExtractor(t *testing.T) {
 	wg.Wait()
 	for i := range tests {
 		if tests[i] != nil {
-			t.Fatalf("Failed on %q: %v", formats[i], tests[i])
+			t.Fatalf("Failed on #%d %q: %v", i, formats[i], tests[i])
 		}
 	}
 }
@@ -101,12 +102,12 @@ func TestGlobalMatcher(t *testing.T) {
 	for i := range tests {
 		go func(errp *error, w *sync.WaitGroup, format string) {
 			w.Done()
-			for j := 0; j < 128; j++ {
-				if _, _, ok := Match([]byte(time.Now().Format(format) + "somedata")); !ok {
-					t.Error("did not match")
+			for j := 0; j < BENCH_LOOP_COUNT; j++ {
+				val := time.Now().Add(time.Duration(j)*time.Second).Format(format) + "somedata"
+				if _, _, ok := Match([]byte(val)); !ok {
+					t.Errorf("did not match %s", val)
 				}
 			}
-
 			return
 		}(&tests[i], &wg, formats[i])
 	}
@@ -668,6 +669,81 @@ func TestCustomMissingDate(t *testing.T) {
 	}
 }
 
+func TestAll(t *testing.T) {
+	tg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, p := range tg.procs {
+		if layout := p.Format(); layout != `` {
+			ts := time.Now().UTC()
+			val := ts.Format(layout)
+			//try it with the specific processor
+			if _, _, ok := p.Match([]byte(val)); !ok {
+				t.Fatalf("%s missed match on %q %q", p.Name(), layout, val)
+			} else if _, _, loc := p.Extract([]byte("foobar "+val+" barbaz"), time.UTC); loc < 0 {
+				t.Fatalf("%s missed extract on %q %q %d", p.Name(), layout, val, loc)
+			}
+		}
+	}
+}
+
+type testSet struct {
+	name string
+	data string
+	ts   time.Time
+}
+
+var testSetList = []testSet{
+	testSet{name: `AnsiC`, data: `this is AnsiC Jan 10 12:44:18 2022`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `Unix`, data: `some Unix Jan 10 12:44:18 UTC 2022`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `Ruby`, data: `ruby format Jan 10 12:44:18 +0000 2022`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `RFC822`, data: `stuff 10 Jan 22 12:44 UTC`, ts: time.Date(2022, time.January, 10, 12, 44, 0, 0, time.UTC)},
+	testSet{name: `RFC822Z`, data: `stuff 10 Jan 22 12:44 +0000`, ts: time.Date(2022, time.January, 10, 12, 44, 0, 0, time.UTC)},
+	testSet{name: `RFC850`, data: `10-Jan-22 12:44:18 UTC`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `RFC1123`, data: `stuff 10 Jan 2022 12:44:18 UTC `, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `RFC1123Z`, data: `stuff 10 Jan 2022 12:44:18 +0000 `, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `RFC3339`, data: `lsdkfj 2022-01-10T12:44:18Z00:00`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `RFC3339Nano`, data: `lsdkfj 2022-01-10T12:44:18.123456000Z00:00`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123456000, time.UTC)},
+	testSet{name: `ZonelessRFC3339`, data: `lsdkfj 2022-01-10T12:44:18.123456000`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123456000, time.UTC)},
+	testSet{name: `Apache`, data: `apache 10/Jan/2022:12:44:18 +0000`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `ApacheNoTz`, data: `apache 10/Jan/2022:12:44:18`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `NGINX`, data: `nginx 2022/01/10 12:44:18`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `Syslog`, data: `xyz Jan 10 12:44:18`, ts: time.Date(year(), time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `SyslogFile`, data: `sf 2022-01-10T12:44:18.123456000+00:00`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123456000, time.UTC)},
+	testSet{name: `SyslogFileTZ`, data: `sf 2022-01-10T12:44:18.123456000+0000`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123456000, time.UTC)},
+	testSet{name: `SyslogVariant`, data: `sf Jan 10 2022 12:44:18`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `DPKG`, data: `dpgk 2022-01-10 12:44:18`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `UnpaddedDateTime`, data: `2022-1-10 12:44:18`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `UnpaddedMilliDateTime`, data: `2022-1-10 12:44:18.123456000`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123456000, time.UTC)},
+	testSet{name: `Gravwell`, data: `1-10-2022 12:44:04.12345`, ts: time.Date(2022, time.January, 10, 12, 44, 4, 123450000, time.UTC)},
+	testSet{name: `Bind`, data: `10-Jan-2022 12:44:04.123`, ts: time.Date(2022, time.January, 10, 12, 44, 4, 123000000, time.UTC)},
+	testSet{name: `UK`, data: `10/01/2022 12:44:04,12345`, ts: time.Date(2022, time.January, 10, 12, 44, 4, 123450000, time.UTC)},
+	testSet{name: `LDAP`, data: `132862922580000000 ldap garbage`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `UnixSeconds`, data: `1641818658 unix`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `UnixMs`, data: `1641818658123 unix`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123000000, time.UTC)},
+	testSet{name: `UnixNano`, data: `1641818658123456000 unix`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123456000, time.UTC)},
+	testSet{name: `UnixMilli`, data: `1641818658.0 unix`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+}
+
+func TestExtractions(t *testing.T) {
+	tg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tsl := range testSetList {
+		if p, ok := tg.GetProcessor(tsl.name); !ok {
+			t.Fatalf("Failed to find processor %s", tsl.name)
+		} else if ts, ok, loc := p.Extract([]byte(tsl.data), time.UTC); !ok || loc < 0 {
+			t.Fatalf("processor %s did not match %s - %v %v", tsl.name, tsl.data, ok, loc)
+		} else if !ts.Equal(tsl.ts) {
+			t.Fatalf("processor %s output not equal: %v != %v", tsl.name, ts, tsl.ts)
+		}
+	}
+}
+
 func runFullSecTestsCurr(format string) error {
 	tg, err := New(cfg)
 	if err != nil {
@@ -829,4 +905,8 @@ func BenchmarkAnsiCNoCheck(b *testing.B) {
 			b.Fatal("Missed extraction")
 		}
 	}
+}
+
+func year() int {
+	return time.Now().UTC().Year()
 }

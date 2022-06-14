@@ -253,8 +253,9 @@ type GUISettings struct {
 	ServerTimezone       string
 	ServerTimezoneOffset int
 
-	MaxFileSize     uint64 // the maximum size allowed for user file uploads
-	MaxResourceSize uint64 // the largest resource you're allowed to make
+	MaxFileSize        uint64 // the maximum size allowed for user file uploads
+	MaxResourceSize    uint64 // the largest resource you're allowed to make
+	MaxJsonRequestSize uint64 // the largest object you're allowed to send in a JSON request body
 
 	IngestAllowed bool // set to true if the user is allowed to use the ingest APIs
 	NonCommercial bool // set to true if the license is a non-commercial license

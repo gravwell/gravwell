@@ -89,6 +89,7 @@ type EntryReader struct {
 	igVersion      string
 	igUUID         string
 	igAPIVersion   uint16
+	igStateMtx     *sync.Mutex
 	igState        IngesterState           // the most recent state message received
 	stateCallbacks []IngesterStateCallback // functions to be called when an IngesterState message is received
 }
@@ -116,6 +117,7 @@ func NewEntryReaderEx(cfg EntryReaderWriterConfig) (*EntryReader, error) {
 		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
 		timeout:    cfg.Timeout,
 		tagMan:     cfg.TagMan,
+		igStateMtx: &sync.Mutex{},
 	}, nil
 }
 
@@ -134,8 +136,13 @@ func (er *EntryReader) GetIngesterAPIVersion() uint16 {
 }
 
 // GetIngesterState returns the most recent state object received from the ingester.
-func (er *EntryReader) GetIngesterState() IngesterState {
-	return er.igState
+func (er *EntryReader) GetIngesterState() (is IngesterState) {
+	if er != nil {
+		er.igStateMtx.Lock()
+		is = er.igState.Copy() // we must copy out the ingest state because it holds a map
+		er.igStateMtx.Unlock()
+	}
+	return
 }
 
 type IngesterStateCallback func(IngesterState)
@@ -398,7 +405,9 @@ headerLoop:
 			}
 
 			// store it for later retrieval
+			er.igStateMtx.Lock()
 			er.igState = state
+			er.igStateMtx.Unlock()
 
 			// run callbacks
 			for i := range er.stateCallbacks {

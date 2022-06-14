@@ -24,17 +24,23 @@
         <Control Type="Text" Id="textHeader" Width="300" Height="14" X="14" Y="7" Transparent="yes">
           <Text>{\WixUI_Font_Title}!(loc.ConfigurationDlg_Header)</Text>
         </Control>
-        <Control Type="Text" Id="textDescription" Width="280" Height="28" X="24" Y="21" Transparent="yes">
+	<Control Type="Text" Id="textDescription" Width="280" Height="28" X="24" Y="21" Transparent="yes">
           <Text>!(loc.ConfigurationDlg_Description)</Text>
         </Control>
-        <Control Type="Text" Id="textIngestSecret" Width="112" Height="14" X="8" Y="54">
+        
+	<Control Type="Text" Id="textIngestSecret" Width="112" Height="14" X="8" Y="54">
           <Text>!(loc.ConfigurationDlg_IngestSecretLabel)</Text>
         </Control>
-        <Control Type="Text" Id="textCleartextBackendTarget" Width="116" Height="17" X="8" Y="78">
+	<Control Type="Edit" Id="editIngestSecret" Width="226" Height="15" X="131" Y="52" Property="CONFIG_INGEST_SECRET" />
+        
+	<Control Type="Text" Id="textCleartextBackendTarget" Width="116" Height="17" X="8" Y="78">
           <Text>!(loc.ConfigurationDlg_CleartextBackendTarget)</Text>
         </Control>
-        <Control Type="Edit" Id="editIngestSecret" Width="226" Height="15" X="131" Y="52" Property="CONFIG_INGEST_SECRET" />
         <Control Type="Edit" Id="editCleartextBackendTarget" Width="226" Height="15" X="131" Y="76" Property="CONFIG_CLEARTEXT_BACKEND_TARGET" />
+        
+	<Control Type="Text" Id="textLogLevel" Width="116" Height="17" X="8" Y="102">
+          <Text>!(loc.ConfigurationDlg_LogLevel)</Text>
+        </Control>
         <Control Type="ComboBox" Property="CONFIG_LOG_LEVEL" Id="comboBoxLogLevel" Width="226" Height="16" X="131" Y="99" ComboList="yes">
           <ComboBox Property="CONFIG_LOG_LEVEL">
             <ListItem Text="!(loc.ConfigurationDlg_LogLevel_OFF)" Value="OFF" />
@@ -43,10 +49,11 @@
             <ListItem Text="!(loc.ConfigurationDlg_LogLevel_ERROR)" Value="ERROR" />
           </ComboBox>
         </Control>
-        <Control Type="Text" Id="textLogLevel" Width="116" Height="17" X="8" Y="102">
-          <Text>!(loc.ConfigurationDlg_LogLevel)</Text>
-        </Control>
 
+	<Control Type="Text" Id="textIncludeSysmon" Width="116" Height="15" X="8" Y="126">
+          <Text>!(loc.ConfigurationDlg_IncludeSysmon)</Text>
+        </Control>
+        <Control Type="CheckBox" Id="includeSysmonCheckBox" X="131" Y="124" Width="16" Height="16" CheckBoxValue="Checked" Property="CONFIG_ENABLE_SYSMON" />
 
         <Control Id="Cancel" Cancel="yes" Type="PushButton" X="304" Y="243" Width="56" Height="17" Text="!(loc.WixUICancel)">
           <Publish Event="EndDialog" Value="Exit" />

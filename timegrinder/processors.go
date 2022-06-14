@@ -78,7 +78,7 @@ const (
 	UnixMsFormat                string = `1136473445000`       // Time formatting API doesn't work, this is just for docs
 	UnixNanoFormat              string = `1136473445000000000` // Time formatting API doesn't work, this is just for docs
 	LDAPFormat                  string = `123456789012345678`  // Time formatting API doesn't work, this is just for docs
-	UKFormat                    string = `02/01/2006 15:04:05.99999`
+	UKFormat                    string = `02/01/2006 15:04:05,99999`
 	GravwellFormat              string = `1-2-2006 15:04:05.99999`
 	BindFormat                  string = `02-Jan-2006 15:04:05.999`
 )
@@ -87,14 +87,14 @@ const (
 const (
 	AnsiCRegex                 string = `[JFMASOND][anebriyunlgpctov]+\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+\d{4}`
 	UnixRegex                  string = `[JFMASOND][anebriyunlgpctov]+\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+[A-Z]{3}\s+\d{4}`
-	RubyRegex                  string = `[JFMASOND][anebriyunlgpctov]+\s+\d{2}\s+\d\d:\d\d:\d\d\s+[\-|\+]\d{4}\s+\d{4}`
+	RubyRegex                  string = `[JFMASOND][anebriyunlgpctov]+\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+[\-|\+]\d{4}\s+\d{4}`
 	RFC822Regex                string = `\d{2}\s[JFMASOND][anebriyunlgpctov]+\s+\d{2}\s\d\d:\d\d\s[A-Z]{3}`
 	RFC822ZRegex               string = `\d{2}\s[JFMASOND][anebriyunlgpctov]+\s+\d{2}\s\d\d:\d\d\s[\-|\+]\d{4}`
 	RFC850Regex                string = `\d{2}\-[JFMASOND][anebriyunlgpctov]+\-\d{2}\s\d\d:\d\d:\d\d\s[A-Z]{3}`
 	RFC1123Regex               string = `\d{2} [JFMASOND][anebriyunlgpctov]+ \d{4}\s\d\d:\d\d:\d\d\s[A-Z]{3}`
 	RFC1123ZRegex              string = `\d{2} [JFMASOND][anebriyunlgpctov]+ \d{4}\s\d\d:\d\d:\d\d\s[\-|\+]\d{4}`
-	RFC3339Regex               string = `\d{4}-\d{2}-\d{2}T\d\d:\d\d:\d\dZ`
-	RFC3339NanoRegex           string = `\d{4}-\d{2}-\d{2}T\d\d:\d\d:\d\d.\d+Z`
+	RFC3339Regex               string = `\d{4}-\d{2}-\d{2}T\d\d:\d\d:\d\d[Z\-+]`
+	RFC3339NanoRegex           string = `\d{4}-\d{2}-\d{2}T\d\d:\d\d:\d\d.\d+[Z\-+]`
 	ZonelessRFC3339Regex       string = `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.*\d*`
 	ApacheRegex                string = `\d{1,2}/[JFMASOND][anebriyunlgpctov]+/\d{4}:\d\d:\d\d:\d\d\s[\-|\+]\d{4}`
 	ApacheNoTzRegex            string = `\d{1,2}/[JFMASOND][anebriyunlgpctov]+/\d{4}:\d\d:\d\d:\d\d`
@@ -184,6 +184,7 @@ type processor struct {
 	rxstr  string
 	format string
 	name   string
+	min    int
 }
 
 func (p *processor) Format() string {
@@ -231,6 +232,9 @@ func extract(rx, rxt *regexp.Regexp, d []byte, format string, loc *time.Location
 }
 
 func (a *processor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
+	if len(d) < a.min {
+		return time.Time{}, false, -1 //cannot possibly hit
+	}
 	return extract(a.rxp, a.trxpEx, d, a.format, loc)
 }
 
@@ -253,6 +257,9 @@ func match(rx, rxt *regexp.Regexp, d []byte) (start, end int, ok bool) {
 }
 
 func (a *processor) Match(d []byte) (int, int, bool) {
+	if len(d) < a.min {
+		return -1, -1, false //cannot possibly hit
+	}
 	return match(a.rxp, a.trxpEx, d)
 }
 
@@ -262,6 +269,7 @@ func NewAnsiCProcessor() *processor {
 		rxstr:  AnsiCRegex,
 		format: AnsiCFormat,
 		name:   AnsiC.String(),
+		min:    len(AnsiCFormat),
 	}
 }
 
@@ -271,6 +279,7 @@ func NewUnixProcessor() *processor {
 		rxstr:  UnixRegex,
 		format: UnixFormat,
 		name:   Unix.String(),
+		min:    len(UnixFormat) - 2, //for shorter timezones
 	}
 }
 
@@ -280,6 +289,7 @@ func NewRubyProcessor() *processor {
 		rxstr:  RubyRegex,
 		format: RubyFormat,
 		name:   Ruby.String(),
+		min:    17, //deal with lack of timezone offsets
 	}
 }
 
@@ -289,6 +299,7 @@ func NewRFC822Processor() *processor {
 		rxstr:  RFC822Regex,
 		format: RFC822Format,
 		name:   RFC822.String(),
+		min:    len(RFC822Format) - 2, //for shorter timezones
 	}
 }
 
@@ -298,6 +309,7 @@ func NewRFC822ZProcessor() *processor {
 		rxstr:  RFC822ZRegex,
 		format: RFC822ZFormat,
 		name:   RFC822Z.String(),
+		min:    len(RFC822ZFormat) - 5, //deal with lack of timezone in some formats
 	}
 }
 
@@ -307,6 +319,7 @@ func NewRFC850Processor() *processor {
 		rxstr:  RFC850Regex,
 		format: RFC850Format,
 		name:   RFC850.String(),
+		min:    len(RFC850Format) - 1, //for shorter timezones
 	}
 }
 
@@ -316,6 +329,7 @@ func NewRFC1123Processor() *processor {
 		rxstr:  RFC1123Regex,
 		format: RFC1123Format,
 		name:   RFC1123.String(),
+		min:    len(RFC1123Format) - 2, //for shorter timezones
 	}
 }
 
@@ -325,6 +339,7 @@ func NewRFC1123ZProcessor() *processor {
 		rxstr:  RFC1123ZRegex,
 		format: RFC1123ZFormat,
 		name:   RFC1123Z.String(),
+		min:    20, //deal with lack of timezone in some formats
 	}
 }
 
@@ -334,6 +349,7 @@ func NewRFC3339Processor() *processor {
 		rxstr:  RFC3339Regex,
 		format: RFC3339Format,
 		name:   RFC3339.String(),
+		min:    len(RFC3339Format) - 5, //to deal with the lack of a timezone in some formats
 	}
 }
 
@@ -343,6 +359,7 @@ func NewRFC3339NanoProcessor() *processor {
 		rxstr:  RFC3339NanoRegex,
 		format: RFC3339NanoFormat,
 		name:   RFC3339Nano.String(),
+		min:    22, //deal with really small precision and no timezone
 	}
 }
 
@@ -352,6 +369,7 @@ func NewApacheProcessor() *processor {
 		rxstr:  ApacheRegex,
 		format: ApacheFormat,
 		name:   Apache.String(),
+		min:    20, //deal with missing timezone and low precision
 	}
 }
 
@@ -362,6 +380,7 @@ func NewApacheNoTZProcessor() *processor {
 		rxstr:  ApacheNoTzRegex,
 		format: ApacheNoTzFormat,
 		name:   ApacheNoTz.String(),
+		min:    15, //deal with no tz and no offset
 	}
 }
 
@@ -371,6 +390,7 @@ func NewSyslogFileProcessor() *processor {
 		rxstr:  SyslogFileRegex,
 		format: SyslogFileFormat,
 		name:   SyslogFile.String(),
+		min:    len(SyslogFileFormat) - 13, //to deal with low precision output and lack of timezone
 	}
 }
 
@@ -380,6 +400,7 @@ func NewSyslogFileProcessorTZ2() *processor {
 		rxstr:  SyslogFileTZRegex,
 		format: SyslogFileTZFormat,
 		name:   SyslogFileTZ.String(),
+		min:    19, //to deal with low precision output and lack of timezone
 	}
 }
 
@@ -389,6 +410,7 @@ func NewDPKGProcessor() *processor {
 		rxstr:  DPKGRegex,
 		format: DPKGFormat,
 		name:   DPKG.String(),
+		min:    len(DPKGFormat),
 	}
 }
 
@@ -398,6 +420,7 @@ func NewNGINXProcessor() *processor {
 		rxstr:  NGINXRegex,
 		format: NGINXFormat,
 		name:   NGINX.String(),
+		min:    len(NGINXFormat),
 	}
 }
 
@@ -408,6 +431,7 @@ func NewZonelessRFC3339() *processor {
 		rxstr:  ZonelessRFC3339Regex,
 		format: ZonelessRFC3339Format,
 		name:   ZonelessRFC3339.String(),
+		min:    len(ZonelessRFC3339Format) - 13, //todeal with low precision and lack of timezone
 	}
 }
 
@@ -417,6 +441,7 @@ func NewSyslogVariant() *processor {
 		rxstr:  SyslogVariantRegex,
 		format: SyslogVariantFormat,
 		name:   SyslogVariant.String(),
+		min:    17, //deal with no timezone
 	}
 }
 
@@ -426,6 +451,7 @@ func NewUnpaddedDateTime() *processor {
 		rxstr:  UnpaddedDateTimeRegex,
 		format: UnpaddedDateTimeFormat,
 		name:   UnpaddedDateTime.String(),
+		min:    len(UnpaddedDateTimeFormat), //to deal with low precision
 	}
 }
 
@@ -435,6 +461,7 @@ func NewUnpaddedMilliDateTime() *processor {
 		rxstr:  UnpaddedMilliDateTimeRegex,
 		format: UnpaddedMilliDateTimeFormat,
 		name:   UnpaddedMilliDateTime.String(),
+		min:    len(UnpaddedMilliDateTimeFormat) - 8, //to deal with low precision
 	}
 }
 
@@ -444,6 +471,7 @@ func NewGravwell() *processor {
 		rxstr:  GravwellRegex,
 		format: GravwellFormat,
 		name:   Gravwell.String(),
+		min:    len(GravwellFormat) - 4, //to deal with lower precision
 	}
 }
 
@@ -453,6 +481,7 @@ func NewBind() *processor {
 		rxstr:  BindRegex,
 		format: BindFormat,
 		name:   Bind.String(),
+		min:    len(BindFormat) - 3, //to deal with lower precision
 	}
 }
 

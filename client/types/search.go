@@ -71,8 +71,15 @@ type GenerateAXResponse struct {
 	Explore    []ExploreResult
 }
 
+// ExploreRequest is used to request that the webserver perform a complete cracking of
+// all entries in the given range, the webserver will return an array of ExploreResult
+type ExploreRequest struct {
+	Start int64
+	End   int64
+}
+
 type ExploreResult struct {
-	Elements []Element
+	Elements []Element `json:",omitempty"`
 	// This represents the module which generated the result, but
 	// individual Elements may have a different module set for
 	// purposes of filtering.

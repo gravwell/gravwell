@@ -18,7 +18,7 @@ Function Validate_CONFIG_INGEST_SECRET()
   Secret = Trim(Session.Property("CONFIG_INGEST_SECRET"))
   IsValid = "0"
   Set RE = new RegExp
-  RE.Pattern = "\!|\@|\#|\$|\%|\%|\&|\*|\(|\)|\=|\+|\>|\<|\,|\.|\:|\;|\`|\^|\{|\}|\[|\]|\|\\|\""|\'"
+  RE.Pattern = "\""|\'|`"
 
   If Len(Secret) > 0 Then
     Match = RE.Test(Secret)

@@ -9,6 +9,7 @@
 package client
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -29,7 +30,22 @@ func (c *Client) TestIngest() (err error) {
 // will then distribute them out to its indexers.
 // Returns the number of ingested entries and any error.
 func (c *Client) IngestEntries(entries []types.StringTagEntry) error {
-	return c.putStaticURL(JSON_INGEST_URL, entries)
+	// IngestEntries now just wraps ingest, because that's a more advanced API
+	// and doesn't have memory restrictions
+	var empty []types.EnumeratedPair
+	cb := func(wtr io.Writer) error {
+		for _, e := range entries {
+			e.Enumerated = empty
+			if b, err := json.Marshal(e); err != nil {
+				return err
+			} else {
+				wtr.Write(b)
+			}
+		}
+		return nil
+	}
+	_, err := c.ingest(cb, "", "", "reimport", false, false)
+	return err
 }
 
 // IngestInternal is used to perform ingest on internal logs for external components.
@@ -70,6 +86,19 @@ func (c *Client) IngestFile(file, tag, src string, ignoreTimestamp, assumeLocalT
 }
 
 func (c *Client) Ingest(rdr io.Reader, tag, src string, ignoreTimestamp, assumeLocalTimezone bool) (resp types.IngestResponse, err error) {
+	cb := func(mp io.Writer) error {
+		if _, err := io.Copy(mp, rdr); err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to copy data into multipart file: %v\n", err)
+			return err
+		}
+		return nil
+	}
+	return c.ingest(cb, tag, src, "", ignoreTimestamp, assumeLocalTimezone)
+}
+
+type ingestCallback func(io.Writer) error
+
+func (c *Client) ingest(cb ingestCallback, tag, src, tp string, ignoreTimestamp, assumeLocalTimezone bool) (resp types.IngestResponse, err error) {
 	r, w := io.Pipe()
 
 	wtr := multipart.NewWriter(w)
@@ -79,6 +108,7 @@ func (c *Client) Ingest(rdr io.Reader, tag, src string, ignoreTimestamp, assumeL
 		// set the tag
 		wtr.WriteField("tag", tag)
 		wtr.WriteField("source", src)
+		wtr.WriteField("type", tp)
 		// set options if given
 		if ignoreTimestamp {
 			wtr.WriteField("noparsetimestamp", "true")
@@ -92,8 +122,7 @@ func (c *Client) Ingest(rdr io.Reader, tag, src string, ignoreTimestamp, assumeL
 			fmt.Fprintf(os.Stderr, "Failed to create multipart form file: %v\n", err)
 			return
 		}
-		if _, err := io.Copy(mp, rdr); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to copy data into multipart file: %v\n", err)
+		if err = cb(mp); err != nil {
 			return
 		}
 		// now finalize
