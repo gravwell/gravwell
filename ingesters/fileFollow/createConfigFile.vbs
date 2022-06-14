@@ -1,6 +1,7 @@
 Dim fso, configFile
 Dim params, paramsArray, CONFIGDIR
 Dim CONFIG_LOG_LEVEL, CONFIG_CLEARTEXT_BACKEND_TARGET, CONFIG_INGEST_SECRET
+Const Quote = """"
 Set fso = CreateObject("Scripting.FileSystemObject")
 
 params = Session.Property("CustomActionData")
@@ -14,7 +15,7 @@ CONFIG_INGEST_SECRET = mid(params, len(CONFIGDIR) + len(CONFIG_LOG_LEVEL) + len(
 Set configFile = fso.CreateTextFile(CONFIGDIR & "file_follow.cfg", True)
 
 configFile.WriteLine ("[Global]")
-configFile.WriteLine ("Ingest-Secret = " & CONFIG_INGEST_SECRET)
+configFile.WriteLine ("Ingest-Secret = " & Quote & CONFIG_INGEST_SECRET & Quote)
 configFile.WriteLine ("Connection-Timeout = 0")
 configFile.WriteLine ("Insecure-Skip-TLS-Verify = true")
 configFile.WriteLine ("#note that backslashes (\) are an escape character and must be escaped themselves")

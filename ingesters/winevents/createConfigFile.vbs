@@ -1,6 +1,7 @@
 Dim fso, configFile
 Dim params, paramsArray, CONFIGDIR
-Dim CONFIG_LOG_LEVEL, CONFIG_CLEARTEXT_BACKEND_TARGET, CONFIG_INGEST_SECRET
+Dim CONFIG_LOG_LEVEL, CONFIG_CLEARTEXT_BACKEND_TARGET, CONFIG_INGEST_SECRET, CONFIG_ENABLE_SYSMON
+Const Quote = """"
 Set fso = CreateObject("Scripting.FileSystemObject")
 
 params = Session.Property("CustomActionData")
@@ -8,13 +9,15 @@ paramsArray = split(params, "|")
 CONFIGDIR = paramsArray(0)
 CONFIG_LOG_LEVEL = paramsArray(1)
 CONFIG_CLEARTEXT_BACKEND_TARGET = paramsArray(2)
+CONFIG_ENABLE_SYSMON = paramsArray(3)
 
-CONFIG_INGEST_SECRET = mid(params, len(CONFIGDIR) + len(CONFIG_LOG_LEVEL) + len(CONFIG_CLEARTEXT_BACKEND_TARGET) + 4)
+Rem CONFIG_INGEST_SECRET = mid(params, len(CONFIGDIR) + len(CONFIG_LOG_LEVEL) + len(CONFIG_CLEARTEXT_BACKEND_TARGET) + 4)
+CONFIG_INGEST_SECRET = mid(params, len(CONFIGDIR) + len(CONFIG_LOG_LEVEL) + len(CONFIG_CLEARTEXT_BACKEND_TARGET) + len(CONFIG_ENABLE_SYSMON) + 5)
 
 Set configFile = fso.CreateTextFile(CONFIGDIR & "config.cfg", True)
 
 configFile.WriteLine ("[Global]")
-configFile.WriteLine ("Ingest-Secret = " & CONFIG_INGEST_SECRET)
+configFile.WriteLine ("Ingest-Secret = " & Quote & CONFIG_INGEST_SECRET & Quote)
 configFile.WriteLine ("Connection-Timeout = 0")
 configFile.WriteLine ("Insecure-Skip-TLS-Verify = true")
 configFile.WriteLine ("#note that backslashes (\) are an escape character and must be escaped themselves")
@@ -61,12 +64,21 @@ configFile.WriteLine ("	#no Level means pull all levels")
 configFile.WriteLine ("	#no Max-Reachback means look for logs starting from now")
 configFile.WriteLine ("	Channel=Setup #pull from the system channel")
 configFile.WriteLine ()
+If CONFIG_ENABLE_SYSMON="Checked" Then
+configFile.WriteLine ("[EventChannel ""sysmon""]")
+configFile.WriteLine ("	Tag-Name=sysmon")
+configFile.WriteLine ("	Channel=""Microsoft-Windows-Sysmon/Operational""")
+configFile.WriteLine ("	Max-Reachback=24h  #reachback must be expressed in hours (h), minutes (m), or seconds(s)")
+configFile.WriteLine ("")
+configFile.WriteLine ("############# EXAMPLE additional listeners #############")
+Else
 configFile.WriteLine ("############# EXAMPLE additional listeners #############")
 configFile.WriteLine ("#[EventChannel ""sysmon""]")
 configFile.WriteLine ("#	Tag-Name=sysmon")
 configFile.WriteLine ("#	Channel=""Microsoft-Windows-Sysmon/Operational""")
 configFile.WriteLine ("#	Max-Reachback=24h  #reachback must be expressed in hours (h), minutes (m), or seconds(s)")
 configFile.WriteLine ("#")
+End If
 configFile.WriteLine ("#")
 configFile.WriteLine ("#[EventChannel ""Application""]")
 configFile.WriteLine ("#	Channel=Application #pull from the application channel")

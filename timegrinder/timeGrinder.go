@@ -16,6 +16,7 @@ package timegrinder
 import (
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -26,6 +27,7 @@ const (
 var (
 	monthLookup map[string]time.Month
 	tg          *TimeGrinder
+	gmtx        sync.Mutex
 )
 
 func init() {
@@ -55,20 +57,24 @@ type Config struct {
 }
 
 func Extract(b []byte) (t time.Time, ok bool, err error) {
+	gmtx.Lock()
 	if tg == nil {
 		err = errors.New("not ready")
 	} else {
 		t, ok, err = tg.Extract(b)
 	}
+	gmtx.Unlock()
 	return
 }
 
 func Match(b []byte) (start, end int, ok bool) {
+	gmtx.Lock()
 	if tg == nil {
 		ok = false
 	} else {
 		start, end, ok = tg.Match(b)
 	}
+	gmtx.Unlock()
 	return
 }
 
@@ -243,6 +249,16 @@ func (tg *TimeGrinder) AddProcessor(p Processor) (idx int, err error) {
 	return
 }
 
+func (tg *TimeGrinder) GetProcessor(name string) (p Processor, ok bool) {
+	for _, v := range tg.procs {
+		if v.Name() == name {
+			p, ok = v, true
+			break
+		}
+	}
+	return
+}
+
 func (tg *TimeGrinder) setSeed(data []byte) (hit bool) {
 	var offset int
 	var leftmost int
@@ -341,8 +357,8 @@ func (tg *TimeGrinder) Match(data []byte) (start, end int, ok bool) {
 	return
 }
 
-/* DebugExtract returns a time, offset, and error.  If no time was extracted, the offset is -1
-   Error indicates a catastrophic failure. */
+// DebugExtract returns a time, offset, and error.  If no time was extracted, the offset is -1
+// Error indicates a catastrophic failure.
 func (tg *TimeGrinder) DebugExtract(data []byte) (t time.Time, offset int, name string, err error) {
 	var i int
 	var c int
@@ -377,6 +393,46 @@ func (tg *TimeGrinder) DebugExtract(data []byte) (t time.Time, offset int, name 
 	name = ``
 	offset = -1
 	return
+}
+
+// DebugMatch attempts to match a timestamp within a given data set and returns additional metadata about
+// which processor matched and where in the data it matched
+func (tg *TimeGrinder) DebugMatch(data []byte) (ts time.Time, name string, start, end int, ok bool) {
+	var i int
+	var c int
+
+	if tg.override != nil {
+		if start, end, ok = tg.override.Match(data); ok {
+			if ts, ok, _ = tg.override.Extract(data, tg.loc); ok {
+				name = tg.override.Name()
+			}
+		}
+		return
+	}
+
+	if tg.seed {
+		if lok := tg.setSeed(data); lok {
+			tg.seed = false
+		}
+	}
+
+	i = tg.curr
+	for c = 0; c < tg.count; c++ {
+		if start, end, ok = tg.procs[i].Match(data); ok {
+			if ts, ok, _ = tg.procs[i].Extract(data, tg.loc); ok {
+				name = tg.procs[i].Name()
+				tg.curr = i
+				return //hit
+			}
+		}
+		//move the current forward
+		i = (i + 1) % tg.count
+	}
+	//if we hit here we failed to extract a timestamp, reset to zero for a fresh run
+	tg.curr = 0
+	ok = false
+	return
+
 }
 
 func populateMonthLookup(ml map[string]time.Month) {

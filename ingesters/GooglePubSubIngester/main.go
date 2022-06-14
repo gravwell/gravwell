@@ -189,24 +189,30 @@ func main() {
 			lg.Fatal("preprocessor construction failed", log.KVErr(err))
 		}
 
-		// get the topic
-		topic := client.Topic(psv.Topic_Name)
-		ok, err := topic.Exists(ctx)
-		if err != nil {
-			lg.Fatal("error checking topic", log.KVErr(err))
-		}
-		if !ok {
-			lg.Fatal("topic does not exist", log.KV("topic", psv.Topic_Name))
-		}
-
 		// Get the subscription, creating if needed
-		subname := fmt.Sprintf("ingest_%s", psv.Topic_Name)
+		subname := psv.Subscription_Name
+		if subname == `` {
+			subname = fmt.Sprintf("ingest_%s", psv.Topic_Name)
+		}
 		sub := client.Subscription(subname)
 		ok, err = sub.Exists(ctx)
 		if err != nil {
 			lg.Fatal("error checking subscription", log.KVErr(err))
 		}
 		if !ok {
+			//Subscription does not exist, attempt to create it
+			// this may fail due to permissions
+
+			// get the topic
+			topic := client.Topic(psv.Topic_Name)
+			ok, err := topic.Exists(ctx)
+			if err != nil {
+				lg.Fatal("error checking topic", log.KVErr(err))
+			}
+			if !ok {
+				lg.Fatal("topic does not exist", log.KV("topic", psv.Topic_Name))
+			}
+
 			// doesn't exist, try creating it
 			sub, err = client.CreateSubscription(ctx, subname, pubsub.SubscriptionConfig{
 				Topic:       topic,

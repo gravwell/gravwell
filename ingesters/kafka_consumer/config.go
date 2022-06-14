@@ -9,6 +9,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"crypto/sha512"
 	"errors"
 	"fmt"
 	"net"
@@ -23,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingest/processors/tags"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/xdg-go/scram"
 )
 
 const (
@@ -36,7 +39,17 @@ const (
 	defaultConsumerGroup string = `gravwell`
 	defaultSRCHeader            = `SRC`
 	defaultTagHeader            = `TAG`
+
+	authPlain       = `plain`
+	authScramSHA256 = `scramsha256`
+	authScramSHA512 = `scramsha512`
 )
+
+type KafkaAuthConfig struct {
+	Auth_Type string
+	Username  string
+	Password  string
+}
 
 type ConfigConsumer struct {
 	Leader             string
@@ -50,7 +63,10 @@ type ConfigConsumer struct {
 	Synchronous        bool
 	Batch_Size         int
 	Default_Tag        string
+
 	tags.TaggerConfig
+
+	KafkaAuthConfig
 
 	//TLS stuff
 	Use_TLS                  bool
@@ -80,6 +96,8 @@ type consumerCfg struct {
 	tagKey      string
 	srcBin      bool
 	srcOverride net.IP
+
+	auth KafkaAuthConfig
 
 	//tls configs
 	useTLS     bool
@@ -214,7 +232,10 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 		return
 	} else if err = cc.TaggerConfig.Validate(); err != nil {
 		return
+	} else if err = cc.KafkaAuthConfig.Validate(); err != nil {
+		return
 	}
+	c.auth = cc.KafkaAuthConfig
 	c.defTag = cc.Default_Tag
 	c.TaggerConfig = cc.TaggerConfig
 	if cc.Source_Header == `` {
@@ -325,4 +346,84 @@ func (cc ConfigConsumer) balanceStrat() (st sarama.BalanceStrategy, err error) {
 		err = errors.New("Unknown balance strategy")
 	}
 	return
+}
+
+func (kac KafkaAuthConfig) Validate() (err error) {
+	if kac.Auth_Type == `` {
+	}
+	switch strings.ToLower(kac.Auth_Type) {
+	case ``:
+		return //no auth
+	case authPlain:
+	case authScramSHA256:
+	case authScramSHA512:
+	default:
+		err = fmt.Errorf("Unknown auth type %q", kac.Auth_Type)
+		return
+	}
+	//auth is active
+	if kac.Username == `` {
+		err = fmt.Errorf("Missing Username")
+	} else if kac.Password == `` {
+		err = fmt.Errorf("Missing Password")
+	}
+	return
+}
+
+func (kac KafkaAuthConfig) SetAuth(cfg *sarama.Config) (err error) {
+	if err = kac.Validate(); err != nil {
+		return
+	} else if kac.Auth_Type == `` {
+		return
+	}
+	//enable the basics
+	cfg.Net.SASL.Enable = true
+	cfg.Net.SASL.Handshake = true
+	cfg.Net.SASL.User = kac.Username
+	cfg.Net.SASL.Password = kac.Password
+
+	switch strings.ToLower(kac.Auth_Type) {
+	case authPlain:
+		cfg.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+	case authScramSHA256:
+		cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+			return &XDGSCRAMClient{HashGeneratorFcn: SHA256}
+		}
+		cfg.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
+	case authScramSHA512:
+		cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+			return &XDGSCRAMClient{HashGeneratorFcn: SHA512}
+		}
+		cfg.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA512
+	}
+	return
+}
+
+var (
+	SHA256 scram.HashGeneratorFcn = sha256.New
+	SHA512 scram.HashGeneratorFcn = sha512.New
+)
+
+type XDGSCRAMClient struct {
+	*scram.Client
+	*scram.ClientConversation
+	scram.HashGeneratorFcn
+}
+
+func (x *XDGSCRAMClient) Begin(userName, password, authzID string) (err error) {
+	x.Client, err = x.HashGeneratorFcn.NewClient(userName, password, authzID)
+	if err != nil {
+		return err
+	}
+	x.ClientConversation = x.Client.NewConversation()
+	return nil
+}
+
+func (x *XDGSCRAMClient) Step(challenge string) (response string, err error) {
+	response, err = x.ClientConversation.Step(challenge)
+	return
+}
+
+func (x *XDGSCRAMClient) Done() bool {
+	return x.ClientConversation.Done()
 }

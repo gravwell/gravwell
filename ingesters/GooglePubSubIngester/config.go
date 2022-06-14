@@ -34,6 +34,7 @@ type global struct {
 
 type pubsubconf struct {
 	Topic_Name            string
+	Subscription_Name     string
 	Tag_Name              string
 	Assume_Local_Timezone bool
 	Timezone_Override     string

@@ -230,3 +230,16 @@ func (s *IngesterState) Read(rdr io.Reader) (err error) {
 
 	return
 }
+
+// Copy creates a deep copy of the ingester state, this is important when handing the data type off to a gob encoder
+// if the server updates the ingester state when it is attempting to encode a state blob we could get a race
+// where the internal map is updated while we are attempting to encode it, this would cause fault
+func (s IngesterState) Copy() (r IngesterState) {
+	r = s
+	//copy the map
+	r.Children = make(map[string]IngesterState, len(s.Children))
+	for k, v := range s.Children {
+		r.Children[k] = v.Copy()
+	}
+	return
+}

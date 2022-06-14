@@ -74,6 +74,7 @@ type Client struct {
 	userAgent   string
 	tlsConfig   *tls.Config
 	transport   *http.Transport
+	guiSettings types.GUISettings
 }
 
 // The ActiveSession structure represents a login session on the server. The
@@ -473,7 +474,9 @@ func (c *Client) syncNoLock() error {
 		return err
 	}
 	c.userDetails = userDets
-	return nil
+	// pull down "GUI settings"
+	c.guiSettings, err = c.getGuiSettings()
+	return err
 }
 
 // Close shuts down the client and cleans up connections. It does NOT terminate sessions.

@@ -135,6 +135,9 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 				cfg.Net.TLS.Config.InsecureSkipVerify = true
 			}
 		}
+		if err = kc.auth.SetAuth(cfg); err != nil {
+			return
+		}
 
 		var clnt sarama.ConsumerGroup
 		if clnt, err = sarama.NewConsumerGroup([]string{kc.leader}, kc.group, cfg); err != nil {

@@ -62,6 +62,7 @@
     <Property Id="CONFIG_INGEST_SECRET" Secure="yes" Value="IngestSecrets" />
     <Property Id="CONFIG_CLEARTEXT_BACKEND_TARGET" Secure="yes" Value="127.0.1.1:4023" />
     <Property Id="CONFIG_LOG_LEVEL" Secure="yes" Value="INFO" />
+    <Property Id="CONFIG_ENABLE_SYSMON" Secure="yes" />
     <Property Id="LEGACY_UPGRADE" Value="0" />
     <SetProperty Id="LEGACY_UPGRADE" Value="1" After="LaunchConditions" Sequence="first">
       <![CDATA[WIX_UPGRADE_DETECTED="{29174976-23C9-4EE5-9DDB-5E67158A5C3C}" OR WIX_UPGRADE_DETECTED="{06F3AF96-843B-443A-9D15-3B165340DD98}"]]>
@@ -84,7 +85,7 @@
     <Binary Id="createConfigFile.vbs" SourceFile="createConfigFile.vbs" />
     <CustomAction Id="GenerateConfigCfg" VBScriptCall="" BinaryKey="createConfigFile.vbs" Return="check" Execute="deferred" Impersonate="no" />
     <!-- Secret should be last since it can potentially include separator (for other values it's illegal) -->
-    <CustomAction Property="GenerateConfigCfg" Id="GenerateConfigCfgValues" Value="[CONFIGDIR]|[CONFIG_LOG_LEVEL]|[CONFIG_CLEARTEXT_BACKEND_TARGET]|[CONFIG_INGEST_SECRET]" />
+    <CustomAction Property="GenerateConfigCfg" Id="GenerateConfigCfgValues" Value="[CONFIGDIR]|[CONFIG_LOG_LEVEL]|[CONFIG_CLEARTEXT_BACKEND_TARGET]|[CONFIG_ENABLE_SYSMON]|[CONFIG_INGEST_SECRET]" />
 
     <Binary Id="customActions.vbs" SourceFile="customActions.vbs" />
     <Property Id="UninstallQuestion_Message" Value="!(loc.UninstallQuestion_Message)" />
