@@ -141,6 +141,19 @@ func (c *Client) SetDefaultSearchGroup(uid int32, gid int32) error {
 	return c.methodStaticPushURL(http.MethodPut, usersSearchGroupUrl(uid), req, nil)
 }
 
+// GetDefaultSearchGroup returns the specified users default search group
+// Admins can get any user's default search group, but regular users can only get their own.
+func (c *Client) GetDefaultSearchGroup(uid int32) (gid int32, err error) {
+	err = c.getStaticURL(usersSearchGroupUrl(uid), &gid)
+	return
+}
+
+// DeleteDefaultSearchGroup removes the default search group for a specified user
+// Admins can delete any user's default search group, but regular users can only delete their own.
+func (c *Client) DeleteDefaultSearchGroup(uid int32) error {
+	return c.deleteStaticURL(usersSearchGroupUrl(uid), nil)
+}
+
 // AdminUpdateInfo changes basic information about the specified user.
 // Admins can set any user's info, but regular users can only set their own.
 func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
@@ -190,10 +203,7 @@ func (c *Client) AddUserToGroup(uid, gid int32) error {
 
 // DeleteUserFromGroup removes a user from a group.
 func (c *Client) DeleteUserFromGroup(uid, gid int32) error {
-	uag := types.UserAddGroups{
-		GIDs: []int32{gid},
-	}
-	return c.deleteStaticURL(usersGroupUrl(uid), uag)
+	return c.deleteStaticURL(usersGroupIdUrl(uid, gid), nil)
 }
 
 // ListGroups returns information about groups to which the user belongs.
