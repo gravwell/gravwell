@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"syscall"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -27,8 +28,13 @@ import (
 )
 
 const (
-	eventSampleInterval = 250 * time.Millisecond
-	exitTimeout         = 3 * time.Second
+	eventSampleInterval       = 250 * time.Millisecond
+	eventChannelRetryInterval = 10 * time.Second
+	exitTimeout               = 3 * time.Second
+
+	//don't ask, this took some digging, not well documented
+	//this is the error number that comes back when a channel disappears
+	ERROR_EVT_CHANNEL_NOT_FOUND uintptr = 15007
 )
 
 var (
@@ -36,12 +42,14 @@ var (
 )
 
 type eventSrc struct {
-	h    *winevent.EventStreamHandle
-	proc *processors.ProcessorSet
-	tag  entry.EntryTag
+	params winevent.EventStreamParams
+	h      *winevent.EventStreamHandle
+	proc   *processors.ProcessorSet
+	tag    entry.EntryTag
 }
 
 type mainService struct {
+	cfg          *winevent.CfgType
 	secret       string
 	timeout      time.Duration
 	ignoreTS     bool
@@ -58,9 +66,10 @@ type mainService struct {
 	src          net.IP
 	ctx          context.Context
 	lmt          int64
+	deadStreams  map[string]winevent.EventStreamParams
 
 	bmk            *winevent.BookmarkHandler
-	evtSrcs        []eventSrc
+	evtSrcs        map[string]eventSrc
 	igst           *ingest.IngestMuxer
 	tg             *timegrinder.TimeGrinder
 	pp             processors.ProcessorConfig
@@ -95,6 +104,7 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 	}
 	debugout("Parsed %d streams\n", len(chanConf))
 	return &mainService{
+		cfg:          cfg, //set the config so we can shove push it via the ingest channel
 		timeout:      cfg.Timeout(),
 		secret:       cfg.Secret(),
 		tags:         tags,
@@ -110,6 +120,8 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 		label:        cfg.Global.Label,
 		pp:           cfg.Preprocessor,
 		lmt:          lmt,
+		evtSrcs:      map[string]eventSrc{},
+		deadStreams:  map[string]winevent.EventStreamParams{},
 	}, nil
 }
 
@@ -249,11 +261,22 @@ func (m *mainService) consumerRoutine(errC chan error, closeC chan bool, wg *syn
 		errC <- err
 		return
 	}
+
+	// if this routine exits the process is exiting so we don't really worry about
+	// the leaky ticker from time.Tick
 	tkr := time.Tick(eventSampleInterval)
+	rebuildTkr := time.Tick(eventChannelRetryInterval)
 
 consumerLoop:
 	for {
 		select {
+		case <-rebuildTkr:
+			//make a best effort to fire up streams that could not be built at startup
+			//this can happen when channels are configured that are not available
+			//like sysmon, we retry to grab them periodically
+			if len(m.deadStreams) > 0 {
+				m.retryDeadStreams()
+			}
 		case <-tkr:
 			if nev, err := m.consumeEvents(); err != nil {
 				errorout("Failed to consume events: %v", err)
@@ -331,49 +354,128 @@ func (m *mainService) init() error {
 		errorout("Failed to get hot connection count: %v\n", err)
 		return err
 	}
+	// prepare the configuration we're going to send upstream
+	if m.cfg != nil {
+		if err = igst.SetRawConfiguration(*m.cfg); err != nil {
+			errorout("failed to set configuration for ingester state messages: %v", err)
+			return err
+		}
+	}
+
 	infoout("Ingester established %d connections\n", hot)
 
-	var evtSrcs []eventSrc
 	for _, c := range m.streams {
-		tag, err := igst.GetTag(c.TagName)
+		evt, fatal, err := m.initStream(c, true) //tell the init function to honk about errors
 		if err != nil {
-			return fmt.Errorf("Failed to translate tag %s: %v", c.TagName, err)
+			if fatal {
+				return err
+			}
+			//non fatal error, throw the stream on the dead stream stack
+			m.deadStreams[c.Name] = c
+			continue
 		}
-		last, err := bmk.Get(c.Name)
-		if err != nil {
-			return fmt.Errorf("Failed to get bookmark for %s: %v", c.Name, err)
-		}
-		pproc, err := m.pp.ProcessorSet(igst, c.Preprocessor)
-		if err != nil {
-			return fmt.Errorf("Preprocessor construction error: %v", err)
-		}
-		evt, err := winevent.NewStream(c, last)
-		if err != nil {
-			return fmt.Errorf("Failed to create new eventStream(%s) on Channel %s: %v", c.Name, c.Channel, err)
-		}
-		infoout("Started stream %s at recordID %d\n", c.Name, last)
-		msg := fmt.Sprintf("starting stream %s on channel %s at recordID %d, ingesting to tag %s.", c.Name, c.Channel, last, c.TagName)
-		if c.ReachBack != 0 {
-			msg += fmt.Sprintf(" Reachback is %v.", c.ReachBack)
-		}
-		if len(c.Providers) != 0 {
-			msg += fmt.Sprintf(" Providers: %v.", c.Providers)
-		}
-		if c.Levels != `` {
-			msg += fmt.Sprintf(" Allowed levels: %v.", c.Levels)
-		}
-		if c.EventIDs != `` {
-			msg += fmt.Sprintf(" Recording only the following EventIDs: %v.", c.EventIDs)
-		}
-		igst.Info(msg)
-		evtSrcs = append(evtSrcs, eventSrc{h: evt, proc: pproc, tag: tag})
+		m.evtSrcs[c.Name] = evt
 	}
-	if len(evtSrcs) == 0 {
+	if len(m.evtSrcs) == 0 {
 		return fmt.Errorf("Failed to load event handles: %v", err)
 	}
-	m.evtSrcs = evtSrcs
 	m.src = nil
 
+	return nil
+}
+
+func (m *mainService) initStream(c winevent.EventStreamParams, errReport bool) (eventSrc, bool, error) {
+	tag, err := m.igst.GetTag(c.TagName)
+	if err != nil {
+		//failing to get the tag is fatal
+		return eventSrc{}, true, fmt.Errorf("Failed to translate tag %s: %v", c.TagName, err)
+	}
+	last, err := m.bmk.Get(c.Name)
+	if err != nil {
+		//failing to get the bookmark is fatal
+		return eventSrc{}, true, fmt.Errorf("Failed to get bookmark for %s: %v", c.Name, err)
+	}
+	pproc, err := m.pp.ProcessorSet(m.igst, c.Preprocessor)
+	if err != nil {
+		//failing to create the preprocessor set is fatal
+		return eventSrc{}, true, fmt.Errorf("Preprocessor construction error: %v", err)
+	}
+
+	var evt *winevent.EventStreamHandle
+	if evt, err = winevent.NewStream(c, last); err != nil {
+		//failing to create a new event stream is NOT fatal, this could be due to a few things
+		//for example if they asked for the sysmon stream but did not install sysmon this will fail
+		//they could also have configured a stream and then uninstalled the system that provides that stream
+		//just honk about it via errorout and throw the eventSrc name onto the dead channel list
+		//we will try again later
+		if errReport {
+			errorout("Failed to create new eventStream(%s) on Channel %s: %v", c.Name, c.Channel, err)
+		}
+		return eventSrc{}, false, err
+	}
+	infoout("Started stream %s at recordID %d\n", c.Name, last)
+	/* TODO/FIXME issue #428
+	params := []rfc5424.SDParam{
+		log.KV("stream", c.Name),
+		log.KV("channel", c.Channel),
+		log.KV("tag", c.TagName),
+	}
+	if c.ReachBack != 0 {
+		params = append(params, log.KV("reachback", fmt.Sprintf("%v", c.ReachBack)))
+	}
+	if len(c.Providers) != 0 {
+		params = append(params, log.KV("providers", fmt.Sprintf("%v", c.Providers)))
+	}
+	if c.Levels != `` {
+		params = append(params, log.KV("levels", fmt.Sprintf("%v", c.Levels)))
+	}
+	if c.EventIDs != `` {
+		params = append(params, log.KV("eventIDs", fmt.Sprintf("%v", c.EventIDs)))
+	}
+	m.lgr.Info("starting stream", params...)
+	*/
+	return eventSrc{params: c, h: evt, proc: pproc, tag: tag}, false, nil //all good
+}
+
+func (m *mainService) retryDeadStreams() error {
+	if m == nil || len(m.deadStreams) == 0 {
+		return nil //thing to try
+	}
+
+	for k, c := range m.deadStreams {
+		evt, fatal, err := m.initStream(c, false) //we already honked, don't keep honking
+		if err != nil {
+			if fatal {
+				return err
+			}
+			//non fatal error, just continue
+			continue
+		}
+		//success, remove from dead streams and add to our set of streams
+		delete(m.deadStreams, k)
+		m.evtSrcs[c.Name] = evt
+
+		/* TODO/FIXME issue #428
+		params := []rfc5424.SDParam{
+			log.KV("stream", c.Name),
+			log.KV("channel", c.Channel),
+			log.KV("tag", c.TagName),
+		}
+		if c.ReachBack != 0 {
+			params = append(params, log.KV("reachback", fmt.Sprintf("%v", c.ReachBack)))
+		}
+		if len(c.Providers) != 0 {
+			params = append(params, log.KV("providers", fmt.Sprintf("%v", c.Providers)))
+		}
+		if c.Levels != `` {
+			params = append(params, log.KV("levels", fmt.Sprintf("%v", c.Levels)))
+		}
+		if c.EventIDs != `` {
+			params = append(params, log.KV("eventIDs", fmt.Sprintf("%v", c.EventIDs)))
+		}
+		m.lgr.Info("recovered stream", params...)
+		*/
+	}
 	return nil
 }
 
@@ -381,9 +483,22 @@ func (m *mainService) consumeEvents() (bool, error) {
 	//we have an IP and some hot connections, do stuff
 	//service events
 	var consumed bool
-	for _, eh := range m.evtSrcs {
+	for k, eh := range m.evtSrcs {
 		if nev, err := m.serviceEventStream(eh, m.src); err != nil {
-			return consumed, err
+			if isStreamDoesNotExist(err) {
+				//close the event stream
+				eh.h.Close()
+				eh.proc.Close()
+				//remove it from the hot set
+				delete(m.evtSrcs, k)
+
+				//add to the dead streams
+				m.deadStreams[k] = eh.params
+				//handled, continue on your way
+			} else {
+				//some other error, bail
+				return consumed, err
+			}
 		} else if nev {
 			consumed = true
 		}
@@ -468,4 +583,17 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (hit, full
 		debugout("Pulled %d events from %s [%d - %d]\n", len(ents), eh.h.Name(), first, last)
 	}
 	return
+}
+
+// isStreamDoesNotExist is looking for the syscall Errno which indicates a stream has disapeared
+// the error message states that the file handle is invalid and then punts out a message that appears
+// to change between versions of windows, but the errno "so far" appears consistent.
+// The error number is defined in winerror.h.
+func isStreamDoesNotExist(err error) bool {
+	if err != nil {
+		if syscallErr, ok := err.(syscall.Errno); ok {
+			return uintptr(syscallErr) == ERROR_EVT_CHANNEL_NOT_FOUND
+		}
+	}
+	return false
 }
