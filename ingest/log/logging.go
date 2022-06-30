@@ -408,7 +408,8 @@ func (l *Logger) CriticalWithDepth(d int, msg string, sds ...rfc5424.SDParam) er
 
 // Fatal writes a log, closes the logger, and issues an os.Exit(-1)
 func (l *Logger) Fatal(msg string, sds ...rfc5424.SDParam) {
-	l.FatalCode(-1, msg, sds...)
+	l.outputStructured(DEFAULT_DEPTH, FATAL, msg, sds...)
+	os.Exit(-1)
 }
 
 // FatalCode is identical to a log.Fatal, except it allows for controlling the exit code

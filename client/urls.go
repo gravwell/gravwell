@@ -46,6 +46,7 @@ const (
 	USER_SESSIONS_URL                = `/api/users/%d/sessions`
 	CHANGE_PASS_URL                  = `/api/users/%d/pwd`
 	USERS_GROUP_URL                  = `/api/users/%d/group`
+	USERS_GROUP_ID_URL               = `/api/users/%d/group/%d`
 	USERS_SEARCH_GROUP_URL           = `/api/users/%d/searchgroup`
 	WS_STAT_URL                      = `/api/ws/stats`
 	WS_SEARCH_URL                    = `/api/ws/search`
@@ -190,6 +191,10 @@ func usersChangePassUrl(id int32) string {
 
 func usersGroupUrl(uid int32) string {
 	return fmt.Sprintf(USERS_GROUP_URL, uid)
+}
+
+func usersGroupIdUrl(uid, gid int32) string {
+	return fmt.Sprintf(USERS_GROUP_ID_URL, uid, gid)
 }
 
 func usersSearchGroupUrl(uid int32) string {
