@@ -141,6 +141,7 @@ const (
 	PIVOTS_ID_DETAILS_URL            = "/api/pivots/%s/details"
 	USER_FILES_URL                   = "/api/files"
 	USER_FILES_ID_URL                = "/api/files/%s"
+	USER_FILES_DETAILS_ID_URL        = "/api/files/%s/details"
 	LIBRARY_URL                      = "/api/library"
 	LIBRARY_ID_URL                   = "/api/library/%s"
 	LIBS_URL                         = `/api/libs`
@@ -549,6 +550,10 @@ func userFilesUrl() string {
 
 func userFilesIdUrl(id uuid.UUID) string {
 	return fmt.Sprintf(USER_FILES_ID_URL, id)
+}
+
+func userFilesDetailsIdUrl(id uuid.UUID) string {
+	return fmt.Sprintf(USER_FILES_DETAILS_ID_URL, id)
 }
 
 func searchLibUrl() string {
