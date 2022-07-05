@@ -110,7 +110,7 @@ func (c *Client) DeleteResource(guid string) error {
 
 // UpdateMetadata sets the specified resource's metadata.
 func (c *Client) UpdateMetadata(guid string, metadata types.ResourceMetadata) error {
-	return c.putStaticURL(resourcesGuidUrl(guid), metadata)
+	return c.putStaticURL(resourcesGuidUrl(guid), metadata, nil)
 }
 
 // GetResource returns the contents of the resource with the specified name. The

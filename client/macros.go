@@ -67,5 +67,5 @@ func (c *Client) AddMacro(m types.SearchMacro) (id uint64, err error) {
 
 // UpdateMacro modifies an existing macro.
 func (c *Client) UpdateMacro(m types.SearchMacro) error {
-	return c.putStaticURL(macroUrl(m.ID), m)
+	return c.putStaticURL(macroUrl(m.ID), m, nil)
 }

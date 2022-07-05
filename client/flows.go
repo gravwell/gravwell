@@ -55,12 +55,12 @@ func (c *Client) CreateFlow(name, description, schedule, flow string, groups []i
 // run. It only updates the LastRun, LastRunDuration, LastSearchIDs,
 // and LastError fields.
 func (c *Client) UpdateFlowResults(ss types.ScheduledSearch) error {
-	return c.putStaticURL(flowResultsIdUrl(ss.ID), ss)
+	return c.putStaticURL(flowResultsIdUrl(ss.ID), ss, nil)
 }
 
 // UpdateFlow is used to modify an existing flow.
 func (c *Client) UpdateFlow(ss types.ScheduledSearch) error {
-	return c.putStaticURL(flowIdUrl(ss.ID), ss)
+	return c.putStaticURL(flowIdUrl(ss.ID), ss, nil)
 }
 
 // DeleteFlow removes the specified flow.

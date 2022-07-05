@@ -137,7 +137,7 @@ func (c *Client) KitInfo(id uuid.UUID) (ki types.IdKitState, err error) {
 // is the UUID of the staged kit. The cfg parameter provides install-time
 // options.
 func (c *Client) InstallKit(id string, cfg types.KitConfig) (err error) {
-	err = c.putStaticURL(kitIdUrl(id), cfg)
+	err = c.putStaticURL(kitIdUrl(id), cfg, nil)
 	return
 }
 

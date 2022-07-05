@@ -63,7 +63,7 @@ func (c *Client) BackgroundSearch(sid string) error {
 // Setting it to 0 will disable group access.
 func (c *Client) SetGroup(sid string, gid int32) error {
 	request := struct{ GID int32 }{gid}
-	return c.putStaticURL(searchCtrlGroupUrl(sid), request)
+	return c.putStaticURL(searchCtrlGroupUrl(sid), request, nil)
 }
 
 // ListSearchStatuses returns a list of all searches the current user has access to
@@ -289,7 +289,7 @@ func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error
 // unless the caller is an admin
 func (c *Client) StopSearch(id string) (err error) {
 	//send request
-	err = c.putStaticURL(searchCtrlStopUrl(id), nil)
+	err = c.putStaticURL(searchCtrlStopUrl(id), nil, nil)
 	return
 }
 
