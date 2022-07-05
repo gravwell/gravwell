@@ -134,6 +134,15 @@ func (c *Client) GetUserFile(id uuid.UUID) (bts []byte, err error) {
 	return
 }
 
+// GetUserFileDetails fetches the metadata (everything except the contents) about a given file.
+func (c *Client) GetUserFileDetails(id uuid.UUID) (meta types.UserFileDetails, err error) {
+	if err = c.getStaticURL(userFilesDetailsIdUrl(id), &meta); err != nil {
+		return
+	}
+
+	return
+}
+
 // uploadUserFile does the dirty work of firing off a file upload
 func (c *Client) uploadUserFile(method, url string, fin *os.File, meta types.UserFileDetails) (guid uuid.UUID, err error) {
 	var resp *http.Response

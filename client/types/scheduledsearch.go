@@ -314,6 +314,11 @@ func (s ScheduledSearch) Equal(v ScheduledSearch) bool {
 	return true
 }
 
+type UserMailResponse struct {
+	Sent     bool
+	Enqueued bool
+}
+
 const scheduledScriptAnko string = `anko`
 const scheduledScriptGo string = `go`
 
