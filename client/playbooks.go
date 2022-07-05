@@ -48,7 +48,7 @@ func (c *Client) AddPlaybook(name, desc string, body []byte) (uuid.UUID, error) 
 // UpdatePlaybook modifies an existing playbook. The UUID or GUID field of the parameter
 // must match an existing playbook on the system that the user has access to.
 func (c *Client) UpdatePlaybook(m types.Playbook) error {
-	return c.putStaticURL(playbookUrl(m.UUID), m)
+	return c.putStaticURL(playbookUrl(m.UUID), m, nil)
 }
 
 // GetAllPlaybooks (admin-only) returns all playbooks for all users.

@@ -337,7 +337,7 @@ func (c *Client) ConfigureMail(user, pass, server string, port uint16, useTLS, n
 		UseTLS:             useTLS,
 		InsecureSkipVerify: noVerify,
 	}
-	return c.postStaticURL(MAIL_CONFIGURE_URL, &msg, nil)
+	return c.putStaticURL(MAIL_CONFIGURE_URL, &msg, nil)
 }
 
 // WellData returns information about the storage wells on the indexers.

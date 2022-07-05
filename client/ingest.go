@@ -53,7 +53,7 @@ func (c *Client) IngestEntries(entries []types.StringTagEntry) error {
 // internal logs into the the gravwell tag without an ingest connection.
 // This API requires admin status.
 func (c *Client) IngestInternal(entries []types.StringTagEntry) error {
-	return c.putStaticURL(INTERNAL_INGEST_URL, entries)
+	return c.putStaticURL(INTERNAL_INGEST_URL, entries, nil)
 }
 
 // IngestFile uploads the contents of a file on disk and ingests them.

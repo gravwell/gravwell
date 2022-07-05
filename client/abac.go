@@ -41,7 +41,7 @@ func (c *Client) GetUserCapabilities(uid int32) (cs types.CapabilityState, err e
 
 // SetUserCaapbilities (admin-only) sets a user's capabilities to the provided list.
 func (c *Client) SetUserCapabilities(uid int32, cs types.CapabilityState) (err error) {
-	err = c.putStaticURL(fmt.Sprintf(CAPABILITY_USER_URL, uid), &cs)
+	err = c.putStaticURL(fmt.Sprintf(CAPABILITY_USER_URL, uid), &cs, nil)
 	return
 }
 
@@ -54,7 +54,7 @@ func (c *Client) GetGroupCapabilities(gid int32) (cs types.CapabilityState, err 
 
 // SetGroupCapabilities (admin-only) sets the capability list for a group.
 func (c *Client) SetGroupCapabilities(gid int32, cs types.CapabilityState) (err error) {
-	err = c.putStaticURL(fmt.Sprintf(CAPABILITY_GROUP_URL, gid), &cs)
+	err = c.putStaticURL(fmt.Sprintf(CAPABILITY_GROUP_URL, gid), &cs, nil)
 	return
 }
 
@@ -72,12 +72,12 @@ func (c *Client) GetGroupTagAccess(gid int32) (ta types.TagAccess, err error) {
 
 // SetUserTagAccess (admin-only) sets the tag access rules for a user.
 func (c *Client) SetUserTagAccess(uid int32, ta types.TagAccess) (err error) {
-	err = c.putStaticURL(fmt.Sprintf(USER_TAG_ACCESS_URL, uid), ta)
+	err = c.putStaticURL(fmt.Sprintf(USER_TAG_ACCESS_URL, uid), ta, nil)
 	return
 }
 
 // SetGroupTagAccess (admin-only) sets the tag access rules for a group.
 func (c *Client) SetGroupTagAccess(gid int32, ta types.TagAccess) (err error) {
-	err = c.putStaticURL(fmt.Sprintf(GROUP_TAG_ACCESS_URL, gid), ta)
+	err = c.putStaticURL(fmt.Sprintf(GROUP_TAG_ACCESS_URL, gid), ta, nil)
 	return
 }

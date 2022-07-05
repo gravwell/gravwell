@@ -45,7 +45,7 @@ func (c *Client) IsAdmin() (bool, error) {
 // LockUserAccount (admin-only) locks a user account. The user will be unable
 // to log in until unlocked, and all existing sessions will be terminated.
 func (c *Client) LockUserAccount(id int32) error {
-	return c.putStaticURL(lockUrl(id), nil)
+	return c.putStaticURL(lockUrl(id), nil, nil)
 }
 
 // LockUserAccount (admin-only) unlocks a user account.
@@ -107,7 +107,7 @@ func (c *Client) SetAdmin(id int32, admin bool) error {
 
 //changePass will change a users password
 func (c *Client) changePass(id int32, req types.ChangePassword) error {
-	if err := c.putStaticURL(usersChangePassUrl(id), req); err != nil {
+	if err := c.putStaticURL(usersChangePassUrl(id), req, nil); err != nil {
 		return err
 	}
 	return nil
@@ -181,7 +181,7 @@ func (c *Client) DeleteGroup(gid int32) error {
 
 // UpdateGroup (admin-only) will update the specified group's details.
 func (c *Client) UpdateGroup(gid int32, gdet types.GroupDetails) error {
-	return c.putStaticURL(groupIdUrl(gid), gdet)
+	return c.putStaticURL(groupIdUrl(gid), gdet, nil)
 }
 
 // GetAllUsers returns information about all users on the system.
@@ -356,7 +356,7 @@ func (c *Client) AddDashboard(name, desc string, obj interface{}) (uint64, error
 // UpdateDashboard takes a types.Dashboard as an argument and updates the corresponding
 // dashboard on the server to match.
 func (c *Client) UpdateDashboard(db *types.Dashboard) error {
-	return c.putStaticURL(dashboardUrl(db.ID), db)
+	return c.putStaticURL(dashboardUrl(db.ID), db, nil)
 }
 
 // Sessions lists sessions for the specified user.
@@ -390,7 +390,7 @@ func (c *Client) GetMyPreferences(obj interface{}) error {
 
 // PutPreferences updates the specified user's preferences with obj.
 func (c *Client) PutPreferences(id int32, obj interface{}) error {
-	return c.putStaticURL(preferencesUrl(id), obj)
+	return c.putStaticURL(preferencesUrl(id), obj, nil)
 }
 
 // PutMyPreferences updates the current user's preferences with obj.
@@ -398,7 +398,7 @@ func (c *Client) PutMyPreferences(obj interface{}) error {
 	if c.userDetails.UID == 0 {
 		return ErrNotSynced
 	}
-	return c.putStaticURL(preferencesUrl(c.userDetails.UID), obj)
+	return c.putStaticURL(preferencesUrl(c.userDetails.UID), obj, nil)
 }
 
 // GetAllPreferences (admin-only) fetches preferences for all users.

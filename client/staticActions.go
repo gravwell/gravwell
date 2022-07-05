@@ -37,8 +37,8 @@ func (c *Client) getStaticURL(url string, obj interface{}) error {
 	return c.methodStaticURL(http.MethodGet, url, obj)
 }
 
-func (c *Client) putStaticURL(url string, obj interface{}) error {
-	return c.methodStaticPushURL(http.MethodPut, url, obj, nil)
+func (c *Client) putStaticURL(url string, obj interface{}, recvObj interface{}) error {
+	return c.methodStaticPushURL(http.MethodPut, url, obj, recvObj)
 }
 
 func (c *Client) putStaticRawURL(url string, data []byte) error {

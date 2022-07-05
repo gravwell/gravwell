@@ -97,12 +97,12 @@ func (c *Client) CreateScheduledScript(name, description, schedule, script strin
 // run. It only updates the PersistentMaps, LastRun, LastRunDuration, LastSearchIDs,
 // and LastError fields
 func (c *Client) UpdateScheduledSearchResults(ss types.ScheduledSearch) error {
-	return c.putStaticURL(scheduledSearchResultsIdUrl(ss.ID), ss)
+	return c.putStaticURL(scheduledSearchResultsIdUrl(ss.ID), ss, nil)
 }
 
 // UpdateScheduledSearch is used to modify an existing scheduled search.
 func (c *Client) UpdateScheduledSearch(ss types.ScheduledSearch) error {
-	return c.putStaticURL(scheduledSearchIdUrl(ss.ID), ss)
+	return c.putStaticURL(scheduledSearchIdUrl(ss.ID), ss, nil)
 }
 
 // DeleteScheduledSearch removes the specified scheduled search.
@@ -133,7 +133,7 @@ func (c *Client) ClearUserScheduledSearches(uid int32) error {
 
 // ScheduledSearchCheckin (admin-only) informs the webserver that the search agent is active.
 func (c *Client) ScheduledSearchCheckin(cfg types.SearchAgentConfig) error {
-	return c.putStaticURL(scheduledSearchCheckinUrl(), cfg)
+	return c.putStaticURL(scheduledSearchCheckinUrl(), cfg, nil)
 }
 
 // ClearScheduledSearchError clears the error field on the specified scheduled search.
