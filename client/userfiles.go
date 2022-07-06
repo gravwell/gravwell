@@ -121,7 +121,7 @@ func (c *Client) UpdateUserFileMetadata(id uuid.UUID, uf types.UserFileDetails) 
 func (c *Client) GetUserFile(id uuid.UUID) (bts []byte, err error) {
 	bb := bytes.NewBuffer(nil)
 	var resp *http.Response
-	if resp, err = c.methodRequestURL(http.MethodGet, userFilesIdUrl(id), ``, nil); err != nil {
+	if resp, err = c.methodRequestURL(http.MethodGet, userFilesRawIdUrl(id), ``, nil); err != nil {
 		return
 	}
 	if _, err = io.CopyN(bb, resp.Body, maxFileSize); err != nil && err != io.EOF {
@@ -136,7 +136,7 @@ func (c *Client) GetUserFile(id uuid.UUID) (bts []byte, err error) {
 
 // GetUserFileDetails fetches the metadata (everything except the contents) about a given file.
 func (c *Client) GetUserFileDetails(id uuid.UUID) (meta types.UserFileDetails, err error) {
-	if err = c.getStaticURL(userFilesDetailsIdUrl(id), &meta); err != nil {
+	if err = c.getStaticURL(userFilesIdUrl(id), &meta); err != nil {
 		return
 	}
 
