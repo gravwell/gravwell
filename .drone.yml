@@ -39,6 +39,8 @@ steps:
     - go test github.com/gravwell/gravwell/v3/client
     - go test github.com/gravwell/gravwell/v3/client/types
 
+node:
+  host: neutest
 
 ---
 
@@ -102,6 +104,6 @@ node:
   host: neutest
 ---
 kind: signature
-hmac: 667380ffcf87b60d3c427c04cb10080a9fddc3e9649b7027001be269a9f0889d
+hmac: e358aa6ec6061b72ad18be530ab15859e7b94e06f5900a15890d8cb8a16fbb6f
 
 ...
