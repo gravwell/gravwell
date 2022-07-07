@@ -9,8 +9,9 @@
 package client
 
 import (
-	"github.com/gravwell/gravwell/v3/client/types"
 	"net/http"
+
+	"github.com/gravwell/gravwell/v3/client/types"
 
 	"github.com/google/uuid"
 )
@@ -39,7 +40,9 @@ func (c *Client) ListAllPivots() (pivots []types.WirePivot, err error) {
 // If guid is set to uuid.Nil, a random GUID will be chosen automatically.
 func (c *Client) NewPivot(guid uuid.UUID, name, description string, contents types.RawObject) (storedGuid uuid.UUID, err error) {
 	pivot := types.Pivot{GUID: guid, Contents: contents, Name: name, Description: description}
-	err = c.methodStaticPushURL(http.MethodPost, pivotsUrl(), pivot, &storedGuid)
+	var ret types.WirePivot
+	err = c.methodStaticPushURL(http.MethodPost, pivotsUrl(), pivot, &ret)
+	storedGuid = ret.GUID
 	return
 }
 
