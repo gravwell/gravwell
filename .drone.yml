@@ -101,7 +101,6 @@ trigger:
 node:
   host: neutest
 ---
----
 kind: signature
 hmac: 667380ffcf87b60d3c427c04cb10080a9fddc3e9649b7027001be269a9f0889d
 
