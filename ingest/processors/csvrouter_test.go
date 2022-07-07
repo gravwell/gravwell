@@ -71,6 +71,8 @@ func TestCSVRouterProcess(t *testing.T) {
 		testTagSet{data: `a,baz,c`, tag: ``, drop: true},
 		testTagSet{data: `a,dropme`, tag: ``, drop: true},
 		testTagSet{data: `UncleEddy`, tag: `default`, drop: false},
+		testTagSet{data: `internal,quotes,foo"bar`, tag: `default`, drop: false},
+		testTagSet{data: `a,     foo,c`, tag: `footag`, drop: false},
 	}
 
 	for _, v := range testSet {

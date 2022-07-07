@@ -104,6 +104,9 @@ func (cr *CSVRouter) Process(ents []*entry.Entry) (rset []*entry.Entry, err erro
 func (cr *CSVRouter) processItem(ent *entry.Entry) *entry.Entry {
 	r := csv.NewReader(bytes.NewReader(ent.Data))
 	r.FieldsPerRecord = -1
+	r.LazyQuotes = false
+	r.TrimLeadingSpace = true
+
 	if fields, err := r.Read(); err == nil && cr.CSVRouteConfig.Route_Extraction < len(fields) {
 		if tag, drop, ok := cr.handleExtract(fields[cr.CSVRouteConfig.Route_Extraction]); drop {
 			return nil
