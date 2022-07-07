@@ -576,9 +576,17 @@ func (c *Client) AddExtraction(d types.AXDefinition) (id uuid.UUID, wrs []types.
 	if err = d.Validate(); err != nil {
 		return
 	}
-	if err = c.postStaticURL(extractionsUrl(), d, &id); err == io.EOF {
+	var ax types.AXDefinition
+	if err = c.postStaticURL(extractionsUrl(), d, &ax); err == io.EOF {
 		err = nil
 	}
+	id = ax.UUID
+	return
+}
+
+// GetExtraction fetches a single extractor definition by UUID
+func (c *Client) GetExtraction(id string) (d types.AXDefinition, err error) {
+	err = c.getStaticURL(extractionIdUrl(id), &d)
 	return
 }
 
