@@ -348,9 +348,9 @@ func (c *Client) AddDashboard(name, desc string, obj interface{}) (uint64, error
 	if err != nil {
 		return 0, err
 	}
-	var id uint64
-	err = c.postStaticURL(myDashboardUrl(), dbAdd, &id)
-	return id, err
+	var d types.Dashboard
+	err = c.postStaticURL(myDashboardUrl(), dbAdd, &d)
+	return d.ID, err
 }
 
 // UpdateDashboard takes a types.Dashboard as an argument and updates the corresponding
