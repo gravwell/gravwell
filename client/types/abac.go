@@ -584,13 +584,13 @@ func (c Capability) Description() string {
 	case SOARLibs:
 		return `User can import SOAR libraries`
 	case SOAREmail:
-		return `User can use the SOAR email functionality`
+		return `User can use SOAR email functions`
 	case PlaybookRead:
 		return `User can read playbooks`
 	case PlaybookWrite:
 		return `User can create, update, and delete playbooks`
 	case LicenseRead:
-		return `User can view the license information`
+		return `User can view license information`
 	case Stats:
 		return `User can view system and ingest stats`
 	case Ingest:
@@ -600,13 +600,13 @@ func (c Capability) Description() string {
 	case ListGroups:
 		return `User can list all groups on the system`
 	case ListGroupMembers:
-		return `User can list the mebers of a group`
+		return `User can list the members of a group`
 	case NotificationRead:
 		return `User can read notifications`
 	case NotificationWrite:
 		return `User can dismiss notifications and create new ones`
 	case SystemInfoRead:
-		return `User can read system info about idnexers and webservers`
+		return `User can read system info about indexers and webservers`
 	case TokenRead:
 		return `User can read authorization tokens`
 	case TokenWrite:
