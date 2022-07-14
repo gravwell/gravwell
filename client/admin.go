@@ -336,9 +336,10 @@ func (c *Client) DeleteDashboardByGuid(id string) error {
 }
 
 // CloneDashboard creates a copy of a dashboard and returns the ID of the new dashboard.
-func (c *Client) CloneDashboard(origid uint64) (id uint64, err error) {
-	err = c.getStaticURL(cloneDashboardUrl(origid), &id)
-	return
+func (c *Client) CloneDashboard(origid uint64) (uint64, error) {
+	var d types.Dashboard
+	err := c.getStaticURL(cloneDashboardUrl(origid), &d)
+	return d.ID, err
 }
 
 // AddDashboard creates a new dashboard and returns the ID. The obj parameter will be
