@@ -107,10 +107,15 @@ type Relay interface {
 	WriteLog(time.Time, []byte) error
 }
 
+type LevelRelay interface {
+	WriteLog(Level, time.Time, []byte) error
+}
+
 type Logger struct {
 	metadata
 	wtrs []io.WriteCloser
 	rls  []Relay
+	lrls []LevelRelay
 	mtx  sync.Mutex
 	lvl  Level
 	hot  bool
@@ -171,7 +176,7 @@ func (l *Logger) RawMode() bool {
 }
 
 func (l *Logger) ready() error {
-	if !l.hot || (len(l.wtrs) == 0 && len(l.rls) == 0) {
+	if !l.hot || (len(l.wtrs) == 0 && len(l.rls) == 0 && len(l.lrls) == 0) {
 		return ErrNotOpen
 	}
 	return nil
@@ -202,6 +207,20 @@ func (l *Logger) AddRelay(r Relay) error {
 		return err
 	}
 	l.rls = append(l.rls, r)
+	return nil
+}
+
+// AddLevelRelay will add a new relay which will get all log entries as they are handled.
+func (l *Logger) AddLevelRelay(r LevelRelay) error {
+	if r == nil {
+		return errors.New("Nil relay")
+	}
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	if err := l.ready(); err != nil {
+		return err
+	}
+	l.lrls = append(l.lrls, r)
 	return nil
 }
 
@@ -429,7 +448,7 @@ func (l *Logger) outputf(depth int, lvl Level, f string, args ...interface{}) (e
 	}
 	ts := time.Now()
 	ln := strings.TrimRight(l.genOutputf(ts, CallLoc(depth), lvl, f, args...), "\n\t\r")
-	return l.writeOutput(ts, ln)
+	return l.writeOutput(lvl, ts, ln)
 }
 
 func (l *Logger) outputStructured(depth int, lvl Level, msg string, sds ...rfc5424.SDParam) (err error) {
@@ -438,10 +457,10 @@ func (l *Logger) outputStructured(depth int, lvl Level, msg string, sds ...rfc54
 	}
 	ts := time.Now()
 	ln := strings.TrimRight(l.genRfcOutput(ts, CallLoc(depth), lvl, msg, sds...), "\n\t\r")
-	return l.writeOutput(ts, ln)
+	return l.writeOutput(lvl, ts, ln)
 }
 
-func (l *Logger) writeOutput(ts time.Time, ln string) (err error) {
+func (l *Logger) writeOutput(lvl Level, ts time.Time, ln string) (err error) {
 	l.mtx.Lock()
 	if err = l.ready(); err == nil {
 		for _, w := range l.wtrs {
@@ -453,6 +472,11 @@ func (l *Logger) writeOutput(ts time.Time, ln string) (err error) {
 		}
 		for _, r := range l.rls {
 			if lerr := r.WriteLog(ts, []byte(ln)); lerr != nil {
+				err = lerr
+			}
+		}
+		for _, r := range l.lrls {
+			if lerr := r.WriteLog(lvl, ts, []byte(ln)); lerr != nil {
 				err = lerr
 			}
 		}
