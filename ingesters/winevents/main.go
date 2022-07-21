@@ -78,7 +78,7 @@ func main() {
 		lg = log.NewDiscardLogger()
 		e, err := eventlog.Open(serviceName)
 		if err != nil {
-			lg.Error("failed to get event log handle", log.KVErr(err))
+			fmt.Fprintf(os.Stderr, "failed to get event log handle: %v\n", err)
 			return
 		}
 		lg.AddLevelRelay(levelLogger{elog: e})
