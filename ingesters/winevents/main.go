@@ -30,6 +30,7 @@ import (
 
 const (
 	serviceName       = `GravwellEvents`
+	appName           = `winevent`
 	defaultConfigPath = `gravwell\eventlog\config.cfg`
 )
 
@@ -40,7 +41,6 @@ var (
 
 	confLoc string
 	verbose bool
-	elog    debug.Log
 	lg      *log.Logger
 )
 
@@ -83,12 +83,19 @@ func main() {
 		}
 		lg.AddLevelRelay(levelLogger{elog: e})
 	}
-	lg.Info("service started", log.KV("name", serviceName))
+	lg.SetAppname(appName)
+
 	cfg, err := winevent.GetConfig(confLoc)
 	if err != nil {
 		lg.Error("failed to get configuration", log.KVErr(err))
 		return
 	}
+	if len(cfg.Global.Log_Level) > 0 {
+		if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
+			lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
+		}
+	}
+	lg.Info("service started", log.KV("name", serviceName))
 
 	s, err := NewService(cfg)
 	if err != nil {
@@ -179,15 +186,15 @@ func (l levelLogger) WriteLog(lvl log.Level, ts time.Time, msg []byte) error {
 			fmt.Fprintln(os.Stdout, string(msg))
 		}
 	case log.INFO:
-		return elog.Info(1, string(msg))
+		return l.elog.Info(1, string(msg))
 	case log.WARN:
-		return elog.Warning(1, string(msg))
+		return l.elog.Warning(1, string(msg))
 	case log.ERROR:
 		fallthrough
 	case log.CRITICAL:
 		fallthrough
 	case log.FATAL:
-		return elog.Error(1, string(msg))
+		return l.elog.Error(1, string(msg))
 	}
 	return nil
 }

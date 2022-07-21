@@ -341,7 +341,9 @@ func (m *mainService) init() error {
 	if err != nil {
 		return fmt.Errorf("Failed build our ingest system: %v", err)
 	}
-
+	if m.cfg.Global.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	if err := igst.Start(); err != nil {
 		return fmt.Errorf("Failed start our ingest system: %v", err)
 	}
