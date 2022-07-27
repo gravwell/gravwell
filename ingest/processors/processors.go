@@ -57,20 +57,21 @@ type Processor interface {
 func CheckProcessor(id string) error {
 	id = strings.TrimSpace(strings.ToLower(id))
 	switch id {
+	case CSVRouterProcessor:
+	case CiscoISEProcessor:
+	case DropProcessor:
+	case ForwarderProcessor:
+	case GravwellForwarderProcessor:
 	case GzipProcessor:
-	case JsonExtractProcessor:
 	case JsonArraySplitProcessor:
+	case JsonExtractProcessor:
 	case JsonFilterProcessor:
-	case RegexTimestampProcessor:
+	case PluginProcessor:
 	case RegexExtractProcessor:
 	case RegexRouterProcessor:
-	case ForwarderProcessor:
-	case VpcProcessor:
-	case GravwellForwarderProcessor:
-	case DropProcessor:
-	case CiscoISEProcessor:
+	case RegexTimestampProcessor:
 	case SrcRouterProcessor:
-	case PluginProcessor:
+	case VpcProcessor:
 	default:
 		return checkProcessorOS(id)
 	}
@@ -116,6 +117,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = RegexExtractLoadConfig(vc)
 	case RegexRouterProcessor:
 		cfg, err = RegexRouteLoadConfig(vc)
+	case CSVRouterProcessor:
+		cfg, err = CSVRouteLoadConfig(vc)
 	case ForwarderProcessor:
 		cfg, err = ForwarderLoadConfig(vc)
 	case VpcProcessor:
@@ -224,6 +227,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewRegexRouter(cfg, tgr)
+	case CSVRouterProcessor:
+		var cfg CSVRouteConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewCSVRouter(cfg, tgr)
 	case ForwarderProcessor:
 		var cfg ForwarderConfig
 		if err = vc.MapTo(&cfg); err != nil {
