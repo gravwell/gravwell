@@ -73,5 +73,5 @@ func (c *Client) DeleteNotification(id uint64) error {
 
 // UpdateNotification will update a notification using a notification ID
 func (c *Client) UpdateNotification(id uint64, n types.Notification) error {
-	return c.putStaticURL(notificationsUrl(id), n)
+	return c.putStaticURL(notificationsUrl(id), n, nil)
 }

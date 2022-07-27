@@ -44,11 +44,11 @@ func (c *Client) CreateFlow(name, description, schedule, flow string, groups []i
 		ScheduledType: types.ScheduledTypeFlow,
 		Flow:          flow,
 	}
-	var resp int32
+	var resp types.ScheduledSearch
 	if err := c.postStaticURL(flowUrl(), ss, &resp); err != nil {
 		return 0, err
 	}
-	return resp, nil
+	return resp.ID, nil
 }
 
 // UpdateFlowResults is used to update the flow after it has been
