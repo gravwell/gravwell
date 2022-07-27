@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/signal"
 	dbg "runtime/debug"
-	"strings"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -24,12 +23,14 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/winevent"
 )
 
 const (
 	serviceName       = `GravwellEvents`
+	appName           = `winevent`
 	defaultConfigPath = `gravwell\eventlog\config.cfg`
 )
 
@@ -40,10 +41,7 @@ var (
 
 	confLoc string
 	verbose bool
-	errW    errWriter = interactiveErrorWriter
-	warnW   errWriter = interactiveWarnWriter
-	infW    errWriter = interactiveInfoWriter
-	elog    debug.Log
+	lg      *log.Logger
 )
 
 func init() {
@@ -74,27 +72,34 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to get interactive session status: %v\n", err)
 		return
 	}
-	if !inter {
+	if inter {
+		lg = log.New(os.Stdout)
+	} else {
+		lg = log.NewDiscardLogger()
 		e, err := eventlog.Open(serviceName)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to get event log handle: %v\n", err)
+			fmt.Fprintf(os.Stderr, "failed to get event log handle: %v\n", err)
 			return
 		}
-		elog = e
-		errW = serviceErrorWriter
-		warnW = serviceWarnWriter
-		infW = serviceInfoWriter
-		infoout("%s started\n", serviceName)
+		lg.AddLevelRelay(levelLogger{elog: e})
 	}
+	lg.SetAppname(appName)
+
 	cfg, err := winevent.GetConfig(confLoc)
 	if err != nil {
-		errorout("Failed to get configuration: %v\n", err)
+		lg.Error("failed to get configuration", log.KVErr(err))
 		return
 	}
+	if len(cfg.Global.Log_Level) > 0 {
+		if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
+			lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
+		}
+	}
+	lg.Info("service started", log.KV("name", serviceName))
 
 	s, err := NewService(cfg)
 	if err != nil {
-		errorout("Failed to create gravwell servicer: %v\n", err)
+		lg.Error("failed to create gravwell service", log.KVErr(err))
 		return
 	}
 
@@ -104,7 +109,7 @@ func main() {
 		runService(s)
 	}
 	if err := s.Close(); err != nil {
-		errorout("Failed to close servicer: %v\n", err)
+		lg.Error("failed to create gravwell service", log.KVErr(err))
 	}
 }
 
@@ -125,21 +130,21 @@ loop:
 		case <-sigChan:
 			debugout("Caught close signal\n")
 			if err := serviceWriteTimeout(closer, svc.ChangeRequest{Cmd: svc.Shutdown}, time.Second); err != nil {
-				errorout("Failed to send shutdown command: %v\n", err)
+				lg.Error("failed to send shutdown command", log.KVErr(err))
 			}
 		case st := <-status:
 			switch st.State {
 			case svc.StopPending:
-				debugout("Service is stopping\n")
+				lg.Debug("service is stopping")
 			case svc.Stopped:
-				debugout("Service stopped\n")
+				lg.Debug("service stopped")
 				break loop
 			case svc.StartPending:
-				debugout("Service is starting\n")
+				lg.Debug("service is starting")
 			case svc.Running:
-				debugout("Service is running\n")
+				lg.Debug("service is running")
 			default:
-				errorout("Got unknown status update: #%d\n", st.State)
+				lg.Error("got unknown status update", log.KV("state", st.State))
 			}
 		}
 	}
@@ -147,10 +152,10 @@ loop:
 
 func runService(s *mainService) {
 	if err := svc.Run(serviceName, s); err != nil {
-		errorout("Failed to run service: %v\n", err)
+		lg.Error("failed to run service", log.KVErr(err))
 		return
 	}
-	infoout("Service stopped\n")
+	lg.Info("service stopped")
 }
 
 func serviceWriteTimeout(ch chan svc.ChangeRequest, r svc.ChangeRequest, to time.Duration) (err error) {
@@ -169,46 +174,27 @@ func debugout(format string, args ...interface{}) {
 	fmt.Printf(format, args...)
 }
 
-type errWriter func(format string, args ...interface{})
-
-func interactiveErrorWriter(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, format, args...)
+type levelLogger struct {
+	elog debug.Log
 }
 
-func serviceErrorWriter(format string, args ...interface{}) {
-	elog.Error(1, fmt.Sprintf(strings.Trim(format, "\n\r"), args...))
-}
-
-func interactiveWarnWriter(format string, args ...interface{}) {
-	fmt.Fprintf(os.Stderr, format, args...)
-}
-
-func serviceWarnWriter(format string, args ...interface{}) {
-	elog.Warning(1, fmt.Sprintf(strings.Trim(format, "\n\r"), args...))
-}
-
-func interactiveInfoWriter(format string, args ...interface{}) {
-	fmt.Printf(format, args...)
-}
-
-func serviceInfoWriter(format string, args ...interface{}) {
-	elog.Info(1, fmt.Sprintf(strings.Trim(format, "\n\r"), args...))
-}
-
-func errorout(format string, args ...interface{}) {
-	if errW != nil {
-		errW(format, args...)
+// levelLogger implements the log.LevelRelay interface
+func (l levelLogger) WriteLog(lvl log.Level, ts time.Time, msg []byte) error {
+	switch lvl {
+	case log.DEBUG:
+		if verbose {
+			fmt.Fprintln(os.Stdout, string(msg))
+		}
+	case log.INFO:
+		return l.elog.Info(1, string(msg))
+	case log.WARN:
+		return l.elog.Warning(1, string(msg))
+	case log.ERROR:
+		fallthrough
+	case log.CRITICAL:
+		fallthrough
+	case log.FATAL:
+		return l.elog.Error(1, string(msg))
 	}
-}
-
-func infoout(format string, args ...interface{}) {
-	if infW != nil {
-		infW(format, args...)
-	}
-}
-
-func warnout(format string, args ...interface{}) {
-	if warnW != nil {
-		warnW(format, args...)
-	}
+	return nil
 }

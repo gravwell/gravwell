@@ -54,11 +54,11 @@ func (c *Client) CreateScheduledSearch(name, description, schedule, searchquery 
 		SearchString: searchquery,
 		Duration:     int64(duration.Seconds()),
 	}
-	var resp int32
+	var resp types.ScheduledSearch
 	if err := c.postStaticURL(scheduledSearchUrl(), ss, &resp); err != nil {
 		return 0, err
 	}
-	return resp, nil
+	return resp.ID, nil
 }
 
 // Create a scheduled search that executes a script instead of a search. The parameters are:
@@ -86,11 +86,11 @@ func (c *Client) CreateScheduledScript(name, description, schedule, script strin
 		Script:         script,
 		ScriptLanguage: lang,
 	}
-	var resp int32
+	var resp types.ScheduledSearch
 	if err := c.postStaticURL(scheduledSearchUrl(), ss, &resp); err != nil {
 		return 0, err
 	}
-	return resp, nil
+	return resp.ID, nil
 }
 
 // UpdateScheduledSearchResults is used to update the scheduled search after it has been
