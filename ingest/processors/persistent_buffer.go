@@ -17,7 +17,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/cloudflare/buffer" //waiting on PR from github.com/traetox/buffer
+	"github.com/gravwell/buffer"
 	"github.com/gravwell/gravwell/v3/client/types"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
