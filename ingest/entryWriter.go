@@ -433,13 +433,16 @@ func (ew *EntryWriter) ConfigureStream(c StreamConfiguration) (err error) {
 		return
 	}
 	//set our timeouts and perform the exchange
-	if err = ew.conn.SetReadTimeout(time.Second); err != nil {
-		return
-	} else if err = c.Write(ew.bIO); err != nil {
+	if err = c.Write(ew.bIO); err != nil {
+		err = fmt.Errorf("failed to write StreamConfiguration %w", err)
 		return
 	} else if err = ew.bIO.Flush(); err != nil {
+		err = fmt.Errorf("failed to flush StreamConfiguration %w", err)
+		return
+	} else if err = ew.conn.SetReadTimeout(time.Second); err != nil {
 		return
 	} else if err = resp.Read(ew.bAckReader); err != nil {
+		err = fmt.Errorf("failed to read ACK on StreamConfiguration %w", err)
 		return
 	} else if err = ew.conn.ClearReadTimeout(); err != nil {
 		return
@@ -448,6 +451,7 @@ func (ew *EntryWriter) ConfigureStream(c StreamConfiguration) (err error) {
 	//we are in good shape, configure the stream
 	if resp.Compression != CompressNone {
 		if err = ew.startCompression(resp.Compression); err != nil {
+			err = fmt.Errorf("failed to startCompression %w", err)
 			return
 		}
 	}

@@ -501,7 +501,7 @@ func (c Capability) String() string {
 	case NotificationWrite:
 		return `Notification Write`
 	case SystemInfoRead:
-		return `Read system info`
+		return `Read System Info`
 	case TokenRead:
 		return `Read Authorization Tokens`
 	case TokenWrite:
@@ -518,7 +518,7 @@ func (c Capability) String() string {
 func (c Capability) Description() string {
 	switch c {
 	case Search:
-		return `User can execute adhoc queries`
+		return `User can execute ad-hoc queries`
 	case Download:
 		return `User can download search results`
 	case AttachSearch:
@@ -550,9 +550,9 @@ func (c Capability) Description() string {
 	case TemplateWrite:
 		return `User can create and modify templates`
 	case PivotRead:
-		return `User can read and use search pivots`
+		return `User can read and use actionables`
 	case PivotWrite:
-		return `User can create and modify search pivots`
+		return `User can create and modify actionables`
 	case MacroRead:
 		return `User can read and use macros`
 	case MacroWrite:
@@ -580,17 +580,17 @@ func (c Capability) Description() string {
 	case ScheduleRead:
 		return `User can view scheduled queries and see results`
 	case ScheduleWrite:
-		return `User can create and update Scheduled Queries and SOAR scripts`
+		return `User can create and update scheduled queries and SOAR scripts`
 	case SOARLibs:
 		return `User can import SOAR libraries`
 	case SOAREmail:
-		return `User can use the SOAR Email functionality`
+		return `User can use SOAR email functions`
 	case PlaybookRead:
 		return `User can read playbooks`
 	case PlaybookWrite:
 		return `User can create, update, and delete playbooks`
 	case LicenseRead:
-		return `User can view the license information`
+		return `User can view license information`
 	case Stats:
 		return `User can view system and ingest stats`
 	case Ingest:
@@ -600,13 +600,13 @@ func (c Capability) Description() string {
 	case ListGroups:
 		return `User can list all groups on the system`
 	case ListGroupMembers:
-		return `User can list the mebers of a group`
+		return `User can list the members of a group`
 	case NotificationRead:
 		return `User can read notifications`
 	case NotificationWrite:
 		return `User can dismiss notifications and create new ones`
 	case SystemInfoRead:
-		return `User can read system info about idnexers and webservers`
+		return `User can read system info about indexers and webservers`
 	case TokenRead:
 		return `User can read authorization tokens`
 	case TokenWrite:

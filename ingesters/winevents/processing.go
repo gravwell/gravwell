@@ -19,8 +19,10 @@ import (
 
 	"golang.org/x/sys/windows/svc"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/timegrinder"
@@ -127,7 +129,7 @@ func NewService(cfg *winevent.CfgType) (*mainService, error) {
 
 func (m *mainService) Close() (err error) {
 	err = m.shutdown()
-	infoout("Service is closing with %v\n", err)
+	lg.Info("service is closing", log.KVErr(err))
 	return
 }
 
@@ -141,15 +143,15 @@ func (m *mainService) shutdown() error {
 		last := e.h.Last()
 		name := e.h.Name()
 		if err := e.h.Close(); err != nil {
+			lg.Error("failed to close event source", log.KV("name", name), log.KVErr(err))
 			rerr = fmt.Errorf("Failed to close %s: %v", name, err)
-			errorout("%s", rerr)
 			continue
 		}
 		if m.bmk != nil {
-			infoout("shutdown - Updating bookmark %s to %d\n", name, last)
+			lg.Info("shutdown - Updating bookmark", log.KV("name", name), log.KV("last", last))
 			if err := m.bmk.Update(name, last); err != nil {
+				lg.Error("failed to add bookmark", log.KV("name", name), log.KVErr(err))
 				rerr = fmt.Errorf("Failed to add bookmark for %s: %v", name, err)
-				errorout("%s", rerr)
 			}
 		}
 	}
@@ -158,18 +160,18 @@ func (m *mainService) shutdown() error {
 	//close the bookmark handler if its open
 	if m.bmk != nil {
 		if err := m.bmk.Close(); err != nil {
+			lg.Error("failed to close bookmark", log.KVErr(err))
 			rerr = fmt.Errorf("Failed to close bookmark: %v", err)
-			errorout("%s", rerr)
 		}
 	}
 	if m.igst != nil {
 		if err := m.igst.Sync(time.Second); err != nil {
+			lg.Error("failed to sync ingest muxer", log.KVErr(err))
 			rerr = fmt.Errorf("Failed to sync the ingest muxer: %v", err)
-			errorout("%s", rerr)
 		} else {
 			if err := m.igst.Close(); err != nil {
+				lg.Error("failed to close ingest muxer", log.KVErr(err))
 				rerr = fmt.Errorf("Failed to close the ingest muxer: %v", err)
-				errorout("%s", rerr)
 			} else {
 				m.igst = nil
 			}
@@ -205,34 +207,34 @@ loop:
 				//its in the example from official golang libs
 				changes <- c.CurrentStatus
 				changes <- c.CurrentStatus
-				infoout("Service interrogate returning %v\n", c.CurrentStatus)
+				lg.Info("service interrogate returning", log.KV("status", c.CurrentStatus))
 			case svc.Stop, svc.Shutdown:
 				consumerClose <- true
-				infoout("Service stopping\n")
+				lg.Info("service stopping")
 				break loop
 			default:
-				errorout("Got invalid control request #%d\n", c)
+				lg.Error("got invalid control request", log.KV("request", c))
 			}
 		case err := <-consumerErr:
 			if err != nil {
-				errorout("Event consumer error: %v\n", err)
+				lg.Error("event consumer error", log.KVErr(err))
 				errno = 1000
 				ssec = true
 			} else {
-				infoout("Event consumer stopping with %v\n", err)
+				lg.Info("event consumer stopping", log.KVErr(err))
 			}
 			break loop
 		}
 	}
 	changes <- svc.Status{State: svc.StopPending}
-	infoout("Service transitioned to StopPending, waiting for consumer\n")
+	lg.Info("service transitioned to StopPending, waiting for consumer")
 	waitTimeout(&wg, cancel, exitTimeout) //wait with a timeout
 
 	//ok, shutdown the ingester
 	if err := m.shutdown(); err != nil {
-		errorout("Service shutdown error: %v\n", err)
+		lg.Error("service shutdown error", log.KVErr(err))
 	} else {
-		infoout("Service transitioned to Stopped\n")
+		lg.Info("service transitioned to Stopped")
 	}
 	changes <- svc.Status{State: svc.Stopped}
 	return
@@ -248,7 +250,7 @@ func waitTimeout(wg *sync.WaitGroup, cf func(), to time.Duration) {
 	select {
 	case <-ch:
 	case <-time.After(to):
-		errorout("Timed out waiting for ingest routine to exit, cancelling\n")
+		lg.Error("timed out waiting for ingest routine to exit, cancelling")
 		cf() //cancel the context and wait on the waitgroup channel
 		<-ch
 	}
@@ -257,7 +259,7 @@ func waitTimeout(wg *sync.WaitGroup, cf func(), to time.Duration) {
 func (m *mainService) consumerRoutine(errC chan error, closeC chan bool, wg *sync.WaitGroup) {
 	defer wg.Done()
 	if err := m.init(); err != nil {
-		errorout("Failed to start: %v", err)
+		lg.Error("gailed to start consumer routine", log.KVErr(err))
 		errC <- err
 		return
 	}
@@ -279,27 +281,27 @@ consumerLoop:
 			}
 		case <-tkr:
 			if nev, err := m.consumeEvents(); err != nil {
-				errorout("Failed to consume events: %v", err)
+				lg.Error("failed to consume events", log.KVErr(err))
 				errC <- err
 				return
 			} else if nev {
 				if err := m.bmk.Sync(); err != nil {
-					errorout("Failed to sync bookmark: %v", err)
+					lg.Error("failed to sync bookmark", log.KVErr(err))
 					errC <- err
 					return
 				}
 				break
 			}
 		case <-closeC:
-			infoout("Consumer exiting\n")
+			lg.Info("Consumer exiting")
 			break consumerLoop
 		}
 	}
 	if err := m.bmk.Sync(); err != nil {
-		errorout("Failed to sync bookmark: %v", err)
+		lg.Error("failed to sync bookmark", log.KVErr(err))
 		errC <- err
 	}
-	infoout("Consumer exiting\n")
+	lg.Info("Consumer exiting\n")
 }
 
 func (m *mainService) init() error {
@@ -339,30 +341,32 @@ func (m *mainService) init() error {
 	if err != nil {
 		return fmt.Errorf("Failed build our ingest system: %v", err)
 	}
-
+	if m.cfg.Global.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	if err := igst.Start(); err != nil {
 		return fmt.Errorf("Failed start our ingest system: %v", err)
 	}
 	debugout("Started ingester stream\n")
 	if err := igst.WaitForHotContext(m.ctx, m.timeout); err != nil {
-		errorout("Failed to wait for hot ingester connections: %v\n", err)
+		lg.Error("failed to wait for hot ingester connections", log.KVErr(err))
 		return err
 	}
 	m.igst = igst
 	hot, err := igst.Hot()
 	if err != nil {
-		errorout("Failed to get hot connection count: %v\n", err)
+		lg.Error("failed to get hot connection count", log.KVErr(err))
 		return err
 	}
 	// prepare the configuration we're going to send upstream
 	if m.cfg != nil {
 		if err = igst.SetRawConfiguration(*m.cfg); err != nil {
-			errorout("failed to set configuration for ingester state messages: %v", err)
+			lg.Error("failed to set configuration for ingester state messages", log.KVErr(err))
 			return err
 		}
 	}
 
-	infoout("Ingester established %d connections\n", hot)
+	lg.Info("Ingester connection established", log.KV("hot-connections", hot))
 
 	for _, c := range m.streams {
 		evt, fatal, err := m.initStream(c, true) //tell the init function to honk about errors
@@ -409,12 +413,10 @@ func (m *mainService) initStream(c winevent.EventStreamParams, errReport bool) (
 		//just honk about it via errorout and throw the eventSrc name onto the dead channel list
 		//we will try again later
 		if errReport {
-			errorout("Failed to create new eventStream(%s) on Channel %s: %v", c.Name, c.Channel, err)
+			lg.Error("failed to create new eventStream", log.KV("name", c.Name), log.KV("channel", c.Channel), log.KVErr(err))
 		}
 		return eventSrc{}, false, err
 	}
-	infoout("Started stream %s at recordID %d\n", c.Name, last)
-	/* TODO/FIXME issue #428
 	params := []rfc5424.SDParam{
 		log.KV("stream", c.Name),
 		log.KV("channel", c.Channel),
@@ -432,8 +434,7 @@ func (m *mainService) initStream(c winevent.EventStreamParams, errReport bool) (
 	if c.EventIDs != `` {
 		params = append(params, log.KV("eventIDs", fmt.Sprintf("%v", c.EventIDs)))
 	}
-	m.lgr.Info("starting stream", params...)
-	*/
+	lg.Info("starting stream", params...)
 	return eventSrc{params: c, h: evt, proc: pproc, tag: tag}, false, nil //all good
 }
 
@@ -512,12 +513,12 @@ func (m *mainService) serviceEventStream(eh eventSrc, ip net.IP) (nev bool, err 
 	//feed from the stream until we don't get any entries out
 	for full {
 		if hit, full, err = m.serviceEventStreamChunk(eh, ip); err != nil {
-			errorout("Failed to service event stream %s: %v\n", eh.h.Name(), err)
+			lg.Error("failed to service event stream", log.KV("name", eh.h.Name()), log.KVErr(err))
 			if err = eh.h.Reset(); err != nil {
-				errorout("Failed to reset event stream %s: %v\n", eh.h.Name(), err)
+				lg.Error("failed to reset event stream", log.KV("name", eh.h.Name()), log.KVErr(err))
 				return
 			} else {
-				warnout("Reset event stream %s\n", eh.h.Name())
+				lg.Warn("reset event stream", log.KV("name", eh.h.Name()))
 			}
 			return
 		} else if hit {
@@ -540,7 +541,7 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (hit, full
 	if ents, fullRead, warn, err = eh.h.Read(); err != nil {
 		return
 	} else if warn != nil {
-		warnout("Event stream %s warning %q\n", eh.h.Name(), warn)
+		lg.Warn("event stream warning", log.KV("name", eh.h.Name()), log.KV("warning", warn))
 	}
 	var first, last uint64
 
@@ -551,7 +552,7 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (hit, full
 		if !m.ignoreTS {
 			lts, ok, err = m.tg.Extract(e.Buff)
 			if err != nil {
-				errorout("Failed to extract TS: %v\n", err)
+				lg.Error("failed to extract TS", log.KVErr(err))
 				return
 			}
 			ts = entry.FromStandard(lts)
@@ -566,11 +567,11 @@ func (m *mainService) serviceEventStreamChunk(eh eventSrc, ip net.IP) (hit, full
 			Data: e.Buff,
 		}
 		if err = eh.proc.ProcessContext(ent, m.ctx); err != nil {
-			warnout("Failed to Process event: %v\n", err)
+			lg.Warn("failed to Process event", log.KVErr(err))
 			return
 		}
 		if err = m.bmk.Update(eh.h.Name(), e.ID); err != nil {
-			errorout("Failed to update bookmark for %s: %v\n", eh.h.Name(), err)
+			lg.Error("failed to update bookmark", log.KV("name", eh.h.Name()), log.KVErr(err))
 			return
 		}
 		if i == 0 {
