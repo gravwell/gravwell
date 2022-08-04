@@ -150,7 +150,7 @@ func (c *cfgType) getSplunkPreprocessors(splunkName string, igst *ingest.IngestM
 	for k, vv := range c.Splunk {
 		if k == splunkName {
 			// get the ingester up and rolling
-			pproc, err = cfg.Preprocessor.ProcessorSet(igst, vv.Preprocessor)
+			pproc, err = c.Preprocessor.ProcessorSet(igst, vv.Preprocessor)
 			return
 		}
 	}
