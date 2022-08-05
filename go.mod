@@ -11,6 +11,7 @@ require (
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56
 	github.com/aws/aws-sdk-go v1.29.11
 	github.com/bet365/jingo v0.10.0 // indirect
+	github.com/brianvoe/gofakeit v3.18.0+incompatible // indirect
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/bxcodec/faker/v3 v3.3.1
 	github.com/crewjam/rfc5424 v0.1.0
