@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -110,6 +111,27 @@ type LicenseIndexerInfo struct {
 	Indexer string      `json:"indexer"`
 	Error   error       `json:"error,omitempty"`
 	Info    LicenseInfo `json:"info,omitempty"`
+}
+
+// LicenseUsageBucket is a time bucket of license quota activity
+// A typical license tracks a 24 hour rolling window with 1 hour buckets
+// Unlimited licenses do not track ingest at all
+type LicenseUsageBucket struct {
+	Start time.Time //start of this bucket
+	End   time.Time //end of this bucket
+	Size  uint64    //ingest bucket size
+	Count uint64    //ingest bucket count
+}
+
+// LicenseUsage is the data structure that is handed back to indicate how much of a license quota is used
+// and what the usage looks like over the rolling windows.
+// Unlimited licenses will return Unlimited = true with everything else empty
+type LicenseUsage struct {
+	Unlimited bool                 // license is unlimited, nothing else will be here
+	Quota     uint64               // license ingest limitation
+	Used      uint64               // license ingest usage
+	Entries   uint64               // total count of entries (does not impact license)
+	History   []LicenseUsageBucket `json:",omitempty"`
 }
 
 // Validate ensures the license info is valid.
