@@ -132,6 +132,15 @@ type LicenseUsage struct {
 	Used      uint64               // license ingest usage
 	Entries   uint64               // total count of entries (does not impact license)
 	History   []LicenseUsageBucket `json:",omitempty"`
+	Error     error                `json:",omitempty"`
+}
+
+// LicenseUsageReport is the meta structure that contains all the license tracking data for potentially many indexers
+// The typical use cases are a single cluster with unlimited ingest, a single indexer with unlimited ingest, or a single indexer with limited ingest
+// however, overwatch topologies may have mixed licensing across the indexers
+type LicenseUsageReport struct {
+	Unlimited bool                    //every single reporting indexer has unlimited ingest OR an error, nothing to report
+	Indexers  map[string]LicenseUsage `json:",omitempty"` // if all indexers are unlimited this won't bbe included at all
 }
 
 // Validate ensures the license info is valid.
