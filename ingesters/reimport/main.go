@@ -37,7 +37,7 @@ var (
 	ver        = flag.Bool("version", false, "Print version and exit")
 	verbose    = flag.Bool("v", false, "Print every step")
 	status     = flag.Bool("status", false, "Output ingest rate stats as we go")
-	srcOvr     = flag.String("source-override", "", "Override source with address, hash, or integeter")
+	srcOvr     = flag.String("source-override", "", "Override source with address, hash, or integer")
 	fmtF       = flag.String("import-format", "", "Set the import file format manually")
 	tagOvr     = flag.String("tag-override", "", "Override the import file tags")
 	rebaseTime = flag.Bool("rebase-timestamp", false, "Rewrite timestamps so the most recent entry is at the current time. (Warning: may be slow with large files!)")

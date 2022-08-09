@@ -36,7 +36,7 @@ var (
 	pcapFile   = flag.String("pcap-file", "", "Path to the pcap file")
 	tsOverride = flag.Bool("ts-override", false, "Override the timestamps and start them at now")
 	simIngest  = flag.Bool("no-ingest", false, "Do not ingest the packets, just read the pcap file")
-	srcOvr     = flag.String("source-override", "", "Override source with address, hash, or integeter")
+	srcOvr     = flag.String("source-override", "", "Override source with address, hash, or integer")
 	ver        = flag.Bool("version", false, "Print the version information and exit")
 
 	pktCount uint64

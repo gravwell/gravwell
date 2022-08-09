@@ -27,9 +27,9 @@ import (
 
 var (
 	tagName         = flag.String("tag-name", "", "Tag name for ingested data")
-	clearConns      = flag.String("clear-conns", "", "comma seperated server:port list of cleartext targets")
-	tlsConns        = flag.String("tls-conns", "", "comma seperated server:port list of TLS connections")
-	pipeConns       = flag.String("pipe-conns", "", "comma seperated list of paths for named pie connection")
+	clearConns      = flag.String("clear-conns", "", "Comma-separated server:port list of cleartext targets")
+	tlsConns        = flag.String("tls-conns", "", "Comma-separated server:port list of TLS connections")
+	pipeConns       = flag.String("pipe-conns", "", "Comma-separated list of paths for named pipe connection")
 	tlsRemoteVerify = flag.String("tls-remote-verify", "", "Path to remote public key to verify against")
 	ingestSecret    = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
 	ingestTenant    = flag.String("ingest-tenant", "", "Ingest tenant ID, blank for system tenant")
