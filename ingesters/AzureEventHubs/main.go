@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"runtime/debug"
+	"sync"
 	"syscall"
 	"time"
 
@@ -34,7 +35,7 @@ import (
 const (
 	defaultConfigLoc  = `/opt/gravwell/etc/azure_event_hubs.conf`
 	defaultConfigDLoc = `/opt/gravwell/etc/azure_event_hubs.conf.d`
-	appName           = `eventhubs`
+	appName           = `AzureEventHubs`
 )
 
 var (
@@ -131,7 +132,7 @@ func main() {
 		Tags:               tags,
 		Auth:               cfg.Secret(),
 		Logger:             lg,
-		IngesterName:       "AzureEventHubs",
+		IngesterName:       appName,
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       id.String(),
 		IngesterLabel:      cfg.Global.Label,
@@ -194,7 +195,10 @@ func main() {
 	// failure, without totally smashing the disk like it would if we allowed an update
 	// on every entry read.
 	quitSig := make(chan bool)
+	var wg sync.WaitGroup
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		last := make(map[string]persist.Checkpoint)
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -231,7 +235,9 @@ func main() {
 
 	for k, def := range cfg.EventHub {
 		// We can parallelize the connections to the individual hubs.
+		wg.Add(1)
 		go func(hubname string, hubDef eventHubConf) {
+			defer wg.Done()
 			// Shadow the logger with one that always appends the hub info
 			lg := log.NewLoggerWithKV(lg,
 				log.KV("hub", hubname),
@@ -400,9 +406,10 @@ func main() {
 	// Tell our goroutines to bail out
 	close(quitSig)
 
+	wg.Wait()
+	lg.Info("all goroutines done")
+
 	// Write out persistence info one last time by hand.
-	// Even if the goroutine happens to be writing the persistence at this moment too, it's ok because
-	// the persisters have internal mutexes -- we won't stomp on each other.
 	for _, r := range readers {
 		// read it from the memory persister
 		checkpoint, err := memPersist.Read(r.namespace, r.hub, r.consumerGroup, r.partitionID)
@@ -415,6 +422,7 @@ func main() {
 			lg.Error("Failed to write checkpoint to disk", log.KVErr(err))
 		}
 	}
+	lg.Info("state saved, exiting")
 }
 
 func debugout(format string, args ...interface{}) {
