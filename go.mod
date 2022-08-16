@@ -5,6 +5,8 @@ go 1.16
 require (
 	cloud.google.com/go/pubsub v1.3.1
 	collectd.org v0.3.1-0.20181025072142-f80706d1e115
+	github.com/Azure/azure-amqp-common-go v1.1.4 // indirect
+	github.com/Azure/azure-event-hubs-go v1.3.1 // indirect
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/Shopify/sarama v1.24.1
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
