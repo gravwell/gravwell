@@ -195,6 +195,7 @@ func main() {
 	// on every entry read.
 	quitSig := make(chan bool)
 	go func() {
+		last := make(map[string]persist.Checkpoint)
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {
@@ -211,6 +212,14 @@ func main() {
 						lg.Error("Failed to read checkpoint", log.KVErr(err))
 						continue
 					}
+					// See if it's any different
+					if prev, ok := last[r.key()]; ok {
+						if prev.Offset == checkpoint.Offset {
+							// no change, skip
+							continue
+						}
+					}
+					last[r.key()] = checkpoint
 					// and write it to disk
 					if err := diskPersist.Write(r.namespace, r.hub, r.consumerGroup, r.partitionID, checkpoint); err != nil {
 						lg.Error("Failed to write checkpoint to disk", log.KVErr(err))
@@ -392,6 +401,8 @@ func main() {
 	close(quitSig)
 
 	// Write out persistence info one last time by hand.
+	// Even if the goroutine happens to be writing the persistence at this moment too, it's ok because
+	// the persisters have internal mutexes -- we won't stomp on each other.
 	for _, r := range readers {
 		// read it from the memory persister
 		checkpoint, err := memPersist.Read(r.namespace, r.hub, r.consumerGroup, r.partitionID)
@@ -418,4 +429,8 @@ type readerInfo struct {
 	hub           string
 	consumerGroup string
 	partitionID   string
+}
+
+func (r readerInfo) key() string {
+	return fmt.Sprintf("%s|%s|%s|%s", r.namespace, r.hub, r.consumerGroup, r.partitionID)
 }
