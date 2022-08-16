@@ -378,8 +378,6 @@ func main() {
 		}(k, *def)
 	}
 
-	lg.Info("all hubs successfully started")
-
 	//register quit signals so we can die gracefully
 	utils.WaitForQuit()
 
