@@ -11,6 +11,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -23,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
@@ -36,8 +38,6 @@ const (
 
 var (
 	splunkTracker *statusTracker = newSplunkTracker()
-
-	startTime time.Time = time.Unix(1, 0)
 
 	ErrNotFound = errors.New("Status not found")
 )
@@ -54,43 +54,69 @@ func (s *splunk) Validate(procs processors.ProcessorConfig) (err error) {
 	if len(s.Server) == 0 {
 		return errors.New("No Splunk server specified")
 	}
-	if s.Ingest_From_Unix_Time == 0 {
-		s.Ingest_From_Unix_Time = 1
-	}
+
 	if err = procs.CheckProcessors(s.Preprocessor); err != nil {
 		return fmt.Errorf("Files preprocessor invalid: %v", err)
 	}
 	return
 }
 
+func (s *splunk) startTime() time.Time {
+	if s.Ingest_From_Unix_Time <= 0 {
+		return time.Unix(1, 0)
+	}
+	return time.Unix(int64(s.Ingest_From_Unix_Time), 0)
+}
+
 func (s *splunk) ParseMappings() ([]SplunkToGravwell, error) {
 	var result []SplunkToGravwell
 	for _, x := range s.Index_Sourcetype_To_Tag {
-		parts := strings.Split(x, ":")
-		if len(parts) != 2 {
-			return result, fmt.Errorf("Invalid Index-Sourcetype-To-Tag=%v", x)
+		idx, sourcetype, tag, err := parseMapping(x)
+		if err != nil {
+			return nil, err
 		}
-		s := parts[0]
-		tag := parts[1]
-		parts = strings.Split(s, ",")
-		if len(parts) != 2 {
-			return result, fmt.Errorf("Invalid Index-Sourcetype-To-Tag=%v", x)
-		}
-		idx := parts[0]
-		sourcetype := parts[1]
-		result = append(result, SplunkToGravwell{Tag: tag, Index: idx, Sourcetype: sourcetype, ConsumedUpTo: startTime})
+		result = append(result, SplunkToGravwell{Tag: tag, Index: idx, Sourcetype: sourcetype, ConsumedUpTo: s.startTime()})
 	}
 	return result, nil
 }
 
+func parseMapping(v string) (index, sourcetype, tag string, err error) {
+	var fields []string
+	dec := csv.NewReader(strings.NewReader(v))
+	dec.LazyQuotes = true
+	dec.TrimLeadingSpace = true
+	if fields, err = dec.Read(); err != nil {
+		return
+	} else if len(fields) != 3 {
+		err = fmt.Errorf("improper index sourcetype to tag mapping %q, have %d fields need 3", v, len(fields))
+		return
+	}
+	if index = fields[0]; len(index) == 0 {
+		err = fmt.Errorf("missing index on tag mapping %q", v)
+		return
+	}
+
+	if sourcetype = fields[1]; len(sourcetype) == 0 {
+		err = fmt.Errorf("missing sourcetype on tag mapping %q", v)
+		return
+	}
+
+	if tag = fields[2]; len(tag) == 0 {
+		err = fmt.Errorf("missing tag on tag mapping %q", v)
+		return
+	}
+	err = ingest.CheckTag(tag)
+	return
+}
+
 func (s *splunk) Tags() ([]string, error) {
 	var tags []string
-	for _, x := range s.Index_Sourcetype_To_Tag {
-		parts := strings.Split(x, ":")
-		if len(parts) != 2 {
-			return tags, fmt.Errorf("Invalid Index-Sourcetype-To-Tag=%v", x)
+	if stg, err := s.ParseMappings(); err != nil {
+		return nil, err
+	} else {
+		for _, v := range stg {
+			tags = append(tags, v.Tag)
 		}
-		tags = append(tags, parts[1])
 	}
 	return tags, nil
 }
@@ -239,7 +265,7 @@ func initializeSplunk(cfg *cfgType, st *StateTracker, ctx context.Context) (stop
 			for _, x := range mappings {
 				// Set "ConsumedUpTo" to whatever the user may have set for Ingest-From-Unix-Time, then
 				// if we've already done some ingestion before, it'll get overwritten by the cache lookup
-				x.ConsumedUpTo = time.Unix(int64(v.Ingest_From_Unix_Time), 0)
+				x.ConsumedUpTo = v.startTime()
 				if c, err := cached.Lookup(x.Index, x.Sourcetype); err == nil {
 					x = c
 				}
@@ -265,7 +291,11 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 	if err != nil {
 		return err
 	}
-	if progress.ConsumedUpTo == startTime {
+	splunkConfig, err := cfg.getSplunkConfig(cfgName)
+	if err != nil {
+		return err
+	}
+	if progress.ConsumedUpTo == splunkConfig.startTime() {
 		// try to figure out when we should start
 		var indexes []splunkEntry
 		if indexes, err = sc.GetEventIndexes(); err != nil {
@@ -394,7 +424,7 @@ func checkMappings(cfgName string, ctx context.Context, updateChan chan string) 
 			_, err := status.Lookup(x.Index, x.Sourcetypes[i])
 			if err == ErrNotFound {
 				// Doesn't exist, create a new one
-				tmp := SplunkToGravwell{Index: x.Index, Sourcetype: x.Sourcetypes[i], ConsumedUpTo: time.Unix(int64(c.Ingest_From_Unix_Time), 0)}
+				tmp := SplunkToGravwell{Index: x.Index, Sourcetype: x.Sourcetypes[i], ConsumedUpTo: x.startTime()}
 				count++
 				status.Update(tmp)
 			}
