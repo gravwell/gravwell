@@ -15,7 +15,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
+	"math"
 	"net/http"
 	"net/url"
 	"sort"
@@ -33,7 +35,7 @@ const (
 	splunkTsFmt     string = "2006-01-02T15:04:05-0700"
 	splunkStateType string = `splunk`
 
-	MAXCHUNK int = 1000000
+	MAXCHUNK int = 500000
 )
 
 var (
@@ -305,7 +307,8 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 			if indexes[i].Name == progress.Index {
 				if t, err := time.Parse(splunkTsFmt, indexes[i].Content.MinTime); err != nil {
 					return err
-				} else {
+				} else if t.After(progress.ConsumedUpTo) {
+					lg.Infof("Fast-forwarding ingest job for index %v sourcetype %v to actual beginning of data (%v)\n", progress.Index, progress.Sourcetype, t)
 					progress.ConsumedUpTo = t
 				}
 				break
@@ -316,21 +319,22 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 
 	var count uint64
 
-	cb := func(s map[string]interface{}) {
+	cb := func(s map[string]string) {
 		// Grab the timestamp and the raw data
 		var ts time.Time
 		var data string
-		if x, ok := s["_time"]; ok {
-			if str, ok := x.(string); ok {
-				if ts, err = time.Parse("2006-01-02T15:04:05.000-07:00", str); err != nil {
-					lg.Warnf("Failed to parse timestamp %v: %v\n", str, err)
-				}
+		var ok bool
+		if x, ok := s["epoch_time"]; ok {
+			if f, err := strconv.ParseFloat(x, 64); err == nil {
+				sec, dec := math.Modf(f)
+				ts = time.Unix(int64(sec), int64(dec*(1e9)))
+			} else {
+				lg.Warnf("Failed to parse timestamp %v: %v\n", x, err)
 			}
 		}
-		if x, ok := s["_raw"]; ok {
-			if data, ok = x.(string); !ok {
-				lg.Infof("could not cast to string!\n")
-			}
+		if data, ok = s["_raw"]; !ok {
+			lg.Infof("could not get data!\n")
+			return
 		}
 		ent := &entry.Entry{
 			SRC:  nil, // TODO
@@ -350,7 +354,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		}
 
 		// Tweak the window if necessary
-		if i%5 == 0 && chunk < 24*time.Hour {
+		if i%5 == 1 && chunk < 24*time.Hour {
 			// increase chunk size every 5 iterations in case things are bursty
 			chunk = chunk * 2
 		}
@@ -381,8 +385,8 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		}
 
 		// run query with current earliest=ConsumedUpTo, latest=ConsumedUpTo+60m
-		query := fmt.Sprintf("search index=\"%s\" sourcetype=\"%s\"", progress.Index, progress.Sourcetype)
-		if err := sc.RunSearch(query, progress.ConsumedUpTo, end, cb); err != nil {
+		query := fmt.Sprintf("search index=\"%s\" sourcetype=\"%s\" | rename _time AS epoch_time | table epoch_time _raw", progress.Index, progress.Sourcetype)
+		if err := sc.RunExportSearch(query, progress.ConsumedUpTo, end, cb); err != nil {
 			return err
 		}
 		progress.ConsumedUpTo = end
@@ -424,7 +428,7 @@ func checkMappings(cfgName string, ctx context.Context, updateChan chan string) 
 			_, err := status.Lookup(x.Index, x.Sourcetypes[i])
 			if err == ErrNotFound {
 				// Doesn't exist, create a new one
-				tmp := SplunkToGravwell{Index: x.Index, Sourcetype: x.Sourcetypes[i], ConsumedUpTo: x.startTime()}
+				tmp := SplunkToGravwell{Index: x.Index, Sourcetype: x.Sourcetypes[i], ConsumedUpTo: c.startTime()}
 				count++
 				status.Update(tmp)
 			}
@@ -635,6 +639,7 @@ func (c *splunkConn) RunSearch(query string, earliest, latest time.Time, cb sear
 	if resp, err = c.Client.Do(req); err != nil {
 		return
 	}
+	defer resp.Body.Close()
 	if b, err = ioutil.ReadAll(resp.Body); err != nil {
 		return
 	}
@@ -659,6 +664,7 @@ func (c *splunkConn) RunSearch(query string, earliest, latest time.Time, cb sear
 		if resp, err = c.Client.Do(req); err != nil {
 			return
 		}
+		defer resp.Body.Close()
 		if b, err = ioutil.ReadAll(resp.Body); err != nil {
 			return
 		}
@@ -676,6 +682,55 @@ func (c *splunkConn) RunSearch(query string, earliest, latest time.Time, cb sear
 			cb(results.Results[i])
 		}
 		offset += len(results.Results)
+	}
+	return
+}
+
+type exportCallback func(map[string]string)
+
+func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, cb exportCallback) (err error) {
+	var req *http.Request
+	var resp *http.Response
+	form := url.Values{}
+	form.Add("output_mode", "csv")
+	form.Add("earliest_time", fmt.Sprintf("%d", earliest.Unix()))
+	form.Add("latest_time", fmt.Sprintf("%d", latest.Unix()))
+	form.Add("search", query)
+	u := fmt.Sprintf("%s/services/search/jobs/export", c.BaseURL)
+	if req, err = http.NewRequest(http.MethodPost, u, strings.NewReader(form.Encode())); err != nil {
+		return
+	}
+	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	if resp, err = c.Client.Do(req); err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	// wrap the body in a CSV reader
+	rdr := csv.NewReader(resp.Body)
+
+	// get the header
+	header, err := rdr.Read()
+	if err == io.EOF {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	ent := map[string]string{}
+	for {
+		record, err := rdr.Read()
+		if err == io.EOF {
+			return nil
+		} else if err != nil {
+			return err
+		}
+		if len(record) != len(header) {
+			return errors.New("record length did not match header length")
+		}
+		for i := range header {
+			ent[header[i]] = record[i]
+		}
+		cb(ent)
 	}
 	return
 }

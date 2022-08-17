@@ -9,6 +9,8 @@
 package main
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -275,7 +277,12 @@ func writeMappings(cfgName string) {
 
 	// now do the individual mappings
 	for _, m := range status.GetAllFullyMapped() {
-		f.Write([]byte(fmt.Sprintf("Index-Sourcetype-To-Tag=%s,%s:%s\n", m.Index, m.Sourcetype, m.Tag)))
+		var buf bytes.Buffer
+		w := csv.NewWriter(&buf)
+		w.Write([]string{m.Index, m.Sourcetype, m.Tag})
+		w.Flush()
+		out := bytes.TrimSpace(buf.Bytes())
+		f.Write([]byte(fmt.Sprintf("Index-Sourcetype-To-Tag=`%s`\n", out)))
 	}
 }
 
