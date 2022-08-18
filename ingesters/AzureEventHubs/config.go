@@ -40,7 +40,7 @@ type eventHubConf struct {
 	Event_Hub             string
 	Consumer_Group        string // defaults to "$Default"
 	Token_Name            string
-	Token_Key             string
+	Token_Key             string `json:"-"` // DO NOT send this when marshalling
 	Initial_Checkpoint    string // "start" or "end" of stream, defaults to "start"
 	Tag_Name              string
 	Assume_Local_Timezone bool
