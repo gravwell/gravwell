@@ -27,7 +27,7 @@ type job struct {
 }
 
 func (j *job) IdString() string {
-	return fmt.Sprintf("Job %d", j.id)
+	return fmt.Sprintf("Job %d: %s", j.id, j.name)
 }
 
 func (j *job) LatestUpdate() string {

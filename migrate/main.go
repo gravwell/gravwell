@@ -86,7 +86,8 @@ func main() {
 		}
 	}
 
-	ctx, _ := context.WithCancel(context.Background())
+	ctx, cf := context.WithCancel(context.Background())
+	defer cf()
 	st, err = NewStateTracker(cfg.StatePath())
 	if err != nil {
 		llg.FatalCode(0, "Failed to load state store file", log.KVErr(err))

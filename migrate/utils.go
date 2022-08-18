@@ -37,7 +37,7 @@ func getIngestConnection(cfg *cfgType, lg *log.Logger) *ingest.IngestMuxer {
 	if err != nil {
 		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
 	}
-	lg.Infof("Rate limiting connection", log.KV("bps", lmt))
+	lg.Info("Rate limiting connection", log.KV("bps", lmt))
 
 	//fire up the ingesters
 	id, ok := cfg.IngesterUUID()
