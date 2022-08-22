@@ -125,6 +125,7 @@ type FilterRequest struct {
 	Name   string // The desired output name
 	Op     string
 	Value  string
+	Pos    int `json:",omitempty"` // Module position. Set by the webserver and used for keying filter requests for modules by position at parse time
 }
 
 type ParseSearchRequest struct {
