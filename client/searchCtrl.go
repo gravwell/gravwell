@@ -162,6 +162,25 @@ func (s *Search) Exchange(req, resp interface{}) (err error) {
 	return
 }
 
+// Ping sends a message via the search's websockets (if present)
+// to keep the sockets open. If you intend to run a search and then
+// wait a long time before interacting with it further, you
+// should periodically call Ping() to keep the connection alive.
+func (s *Search) Ping() error {
+	if s.searchSockets != nil && s.searchSockets.Pong != nil {
+		var preq types.PingReq
+		if err := s.searchSockets.Pong.WriteJSON(preq); err != nil {
+			return err
+		}
+		if err := s.searchSockets.Pong.ReadJSON(&preq); err != nil {
+			return err
+		}
+	} else {
+		return ErrSearchNotAttached
+	}
+	return nil
+}
+
 // ParseSearch validates a search query. Gravwell will return an error if the query
 // is not valid.
 func (c *Client) ParseSearch(query string) (err error) {
@@ -1118,6 +1137,13 @@ func closeSockets(s *SearchSockets) (err error) {
 		}
 		if s.Attach != nil {
 			if lerr := s.Attach.Close(); lerr != nil {
+				if err == nil {
+					err = lerr
+				}
+			}
+		}
+		if s.Pong != nil {
+			if lerr := s.Pong.Close(); lerr != nil {
 				if err == nil {
 					err = lerr
 				}
