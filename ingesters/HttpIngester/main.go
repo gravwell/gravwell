@@ -30,7 +30,7 @@ import (
 
 const (
 	defaultConfigLoc  = `/opt/gravwell/etc/gravwell_http_ingester.conf`
-	defaultConfigDLoc = `/opt/gravwell/etc/simple_relay.conf.d`
+	defaultConfigDLoc = `/opt/gravwell/etc/gravwell_http_ingester.conf.d`
 	appName           = `httpingester`
 )
 
