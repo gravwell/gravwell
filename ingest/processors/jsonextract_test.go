@@ -24,6 +24,94 @@ var (
 	testExtractions = `foo,bar,foobar.baz`
 )
 
+func TestJsonExtractorEmptyConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = jsonextract
+		Strict-Extraction=false
+		Extractions="` + testExtractions + `"
+	`
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*JsonExtractor); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *JsonExtractor", p)
+	} else {
+		if cp.Drop_Misses || !cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
+func TestJsonExtractorBasicConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = jsonextract
+		Passthrough-Misses=false
+		Strict-Extraction=false
+		Extractions="` + testExtractions + `"
+	`
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*JsonExtractor); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *JsonExtractor", p)
+	} else {
+		if !cp.Drop_Misses || cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
+func TestJsonExtractorConflictingConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = jsonextract
+		Passthrough-Misses=false
+		Drop-Misses=true
+		Strict-Extraction=false
+		Extractions="` + testExtractions + `"
+	`
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*JsonExtractor); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *JsonExtractor", p)
+	} else {
+		if !cp.Drop_Misses || cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
+func TestJsonExtractorDropConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = jsonextract
+		Drop-Misses=true
+		Strict-Extraction=false
+		Extractions="` + testExtractions + `"
+	`
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*JsonExtractor); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *JsonExtractor", p)
+	} else {
+		if !cp.Drop_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
 func TestJsonConfig(t *testing.T) {
 	b := []byte(`
 	[global]
@@ -38,8 +126,8 @@ func TestJsonConfig(t *testing.T) {
 
 	[preprocessor "j1"]
 		type = jsonextract
-		Strict-Extraction=false
 		Passthrough-Misses=false
+		Strict-Extraction=false
 		Extractions="` + testExtractions + `"
 	`)
 	tc := struct {

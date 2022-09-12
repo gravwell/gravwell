@@ -25,7 +25,7 @@ const (
 )
 
 var (
-	ErrMissStrictConflict   = errors.New("Strict-Extraction and Passthrough-Misses are mutually exclusive")
+	ErrMissStrictConflict   = errors.New("Strict-Extraction requires Drop-Misses=true")
 	ErrMissingExtractions   = errors.New("Extractions specifications missing")
 	ErrNoAdditionalFields   = errors.New("Additional-Fields cannot be set if Extractions parameter is unset")
 	ErrInvalidExtractions   = errors.New("Invalid Extractions")
@@ -36,14 +36,32 @@ var (
 )
 
 type JsonExtractConfig struct {
-	Passthrough_Misses bool
+	Passthrough_Misses bool //deprecated DO NOT USE
+	Drop_Misses        bool
 	Strict_Extraction  bool
 	Force_JSON_Object  bool
 	Extractions        string
 }
 
 func JsonExtractLoadConfig(vc *config.VariableConfig) (c JsonExtractConfig, err error) {
-	err = vc.MapTo(&c)
+	//to support legacy config, set Passthrough_Misses to true so that we can catch them setting it to false
+	//default is now to send them through
+	c.Passthrough_Misses = true
+	if err = vc.MapTo(&c); err == nil {
+		err = c.validate()
+	}
+	return
+}
+
+func (c *JsonExtractConfig) validate() (err error) {
+	//handle the legacy config items and potential overrides
+	// if Drop-Misses is set, that overrides everything
+	if c.Drop_Misses == false {
+		if c.Passthrough_Misses == false {
+			c.Drop_Misses = true
+		}
+	}
+	_, _, err = c.getKeyData()
 	return
 }
 
@@ -55,7 +73,7 @@ type JsonExtractor struct {
 }
 
 func NewJsonExtractor(cfg JsonExtractConfig) (*JsonExtractor, error) {
-	if cfg.Passthrough_Misses && cfg.Strict_Extraction {
+	if cfg.Drop_Misses == false && cfg.Strict_Extraction {
 		return nil, ErrMissStrictConflict
 	}
 	keys, keynames, err := cfg.getKeyData()
@@ -102,7 +120,7 @@ func (je *JsonExtractor) Process(ents []*entry.Entry) (rset []*entry.Entry, err 
 func (je *JsonExtractor) processItem(ent *entry.Entry) *entry.Entry {
 	if err := je.bldr.extract(ent.Data); err != nil {
 		je.bldr.reset()
-		if je.Passthrough_Misses {
+		if je.Drop_Misses == false {
 			return ent
 		}
 		return nil
@@ -110,7 +128,7 @@ func (je *JsonExtractor) processItem(ent *entry.Entry) *entry.Entry {
 	data, cnt := je.bldr.render()
 	if je.Strict_Extraction && cnt != len(je.bldr.keynames) {
 		return nil //just dropping the entry
-	} else if cnt == 0 && je.Passthrough_Misses {
+	} else if cnt == 0 && je.Drop_Misses == false {
 		return ent
 	} else if len(data) > 0 {
 		ent.Data = data

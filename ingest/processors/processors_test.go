@@ -30,6 +30,10 @@ var (
 	benchmarkVal = []byte(`{"something": "a long string with stuff an things", "foo": 99, "baz": {"foobar": 1234567, "bazbar": 99.123456}}`)
 )
 
+type testConfigStruct struct {
+	Preprocessor ProcessorConfig
+}
+
 // TestCheckProcessors just ensures we actually clean and trigger properly on preprocessor IDs
 func TestCheckProcessors(t *testing.T) {
 	//do some generic tests
@@ -303,7 +307,7 @@ func TestParallel(t *testing.T) {
 
 	[preprocessor "j2"]
 		type = jsonextract
-		Passthrough-Misses=false
+		Drop-Misses=true
 		Extractions="` + testArrayExtraction + `"
 		Force-JSON-Object=true
 	`)
@@ -408,6 +412,15 @@ func BenchmarkSingleGzip(b *testing.B) {
 		}
 		ent.Data = data
 	}
+}
+
+func testLoadPreprocessor(cfgS, pName string) (Processor, error) {
+	var tc testConfigStruct
+	if err := config.LoadConfigBytes(&tc, []byte(cfgS)); err != nil {
+		return nil, err
+	}
+	var tt testTagger
+	return tc.Preprocessor.getProcessor(pName, &tt)
 }
 
 type dummyProcessor struct {
