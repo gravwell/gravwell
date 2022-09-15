@@ -24,14 +24,31 @@ const (
 )
 
 type JsonArraySplitConfig struct {
-	Passthrough_Misses bool
+	Passthrough_Misses bool //deprecated DO NOT USE
+	Drop_Misses        bool
 	Extraction         string
 	Force_JSON_Object  bool
 	Additional_Fields  string
 }
 
 func JsonArraySplitLoadConfig(vc *config.VariableConfig) (c JsonArraySplitConfig, err error) {
-	err = vc.MapTo(&c)
+	//to support legacy config, set Passthrough_Misses to true so that we can catch them setting it to false
+	//default is now to send them through
+	c.Passthrough_Misses = true
+	if err = vc.MapTo(&c); err == nil {
+		err = c.validate()
+	}
+	return
+}
+
+func (jasc *JsonArraySplitConfig) validate() (err error) {
+	//handle the legacy config items and potential overrides
+	// if Drop-Misses is set, that overrides everything
+	if jasc.Drop_Misses == false {
+		if jasc.Passthrough_Misses == false {
+			jasc.Drop_Misses = true
+		}
+	}
 	return
 }
 
@@ -166,7 +183,7 @@ func (je *JsonArraySplitter) processItem(ent *entry.Entry) (rset []*entry.Entry,
 	}
 	if _, err = jsonparser.ArrayEach(ent.Data, cb, je.key...); err != nil {
 		if err == jsonparser.KeyPathNotFoundError {
-			if je.Passthrough_Misses && rset == nil {
+			if je.Drop_Misses == false && rset == nil {
 				rset = []*entry.Entry{ent}
 			}
 			err = nil

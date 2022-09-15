@@ -40,6 +40,72 @@ var (
 	}
 )
 
+func TestJsonArraySplitterEmptyConfig(t *testing.T) {
+	b := `
+	[preprocessor "j2"]
+		type = jsonarraysplit
+		Extraction="` + testArrayExtraction + `"
+		Force-JSON-Object=true
+	`
+	p, err := testLoadPreprocessor(b, `j2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*JsonArraySplitter); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *JsonArraySplitter", p)
+	} else {
+		if cp.Drop_Misses || !cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
+func TestJsonArraySplitterBasicConfig(t *testing.T) {
+	b := `
+	[preprocessor "j2"]
+		type = jsonarraysplit
+		Passthrough-Misses=false
+		Extraction="` + testArrayExtraction + `"
+		Force-JSON-Object=true
+	`
+	p, err := testLoadPreprocessor(b, `j2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*JsonArraySplitter); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *JsonArraySplitter", p)
+	} else {
+		if !cp.Drop_Misses || cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
+func TestJsonArraySplitterConflictingConfig(t *testing.T) {
+	b := `
+	[preprocessor "j2"]
+		type = jsonarraysplit
+		Passthrough-Misses=false
+		Drop-Misses=true
+		Extraction="` + testArrayExtraction + `"
+		Force-JSON-Object=true
+	`
+	p, err := testLoadPreprocessor(b, `j2`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*JsonArraySplitter); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *JsonArraySplitter", p)
+	} else {
+		if !cp.Drop_Misses || cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
 func TestJsonArraySplit(t *testing.T) {
 	b := []byte(`
 	[global]
@@ -54,7 +120,7 @@ func TestJsonArraySplit(t *testing.T) {
 
 	[preprocessor "j2"]
 		type = jsonarraysplit
-		Passthrough-Misses=false
+		Drop-Misses=true
 		Extraction="` + testArrayExtraction + `"
 		Force-JSON-Object=true
 	`)

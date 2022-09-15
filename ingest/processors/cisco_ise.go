@@ -47,7 +47,8 @@ const (
 )
 
 type CiscoISEConfig struct {
-	Passthrough_Misses          bool
+	Passthrough_Misses          bool //deprecated DO NOT USE
+	Drop_Misses                 bool
 	Enable_Multipart_Reassembly bool
 	Max_Multipart_Buffer        uint64
 	Max_Multipart_Latency       string
@@ -60,10 +61,12 @@ type CiscoISEConfig struct {
 }
 
 func CiscoISELoadConfig(vc *config.VariableConfig) (c CiscoISEConfig, err error) {
-	if err = vc.MapTo(&c); err != nil {
-		return
+	//to support legacy config, set Passthrough_Misses to true so that we can catch them setting it to false
+	//default is now to send them through
+	c.Passthrough_Misses = true
+	if err = vc.MapTo(&c); err == nil {
+		err = c.validate()
 	}
-	err = c.validate()
 	return
 }
 
@@ -103,6 +106,14 @@ func (c *CiscoISEConfig) validate() (err error) {
 			return
 		}
 		c.filters = append(c.filters, filter)
+	}
+
+	//handle the legacy config items and potential overrides
+	// if Drop-Misses is set, that overrides everything
+	if c.Drop_Misses == false {
+		if c.Passthrough_Misses == false {
+			c.Drop_Misses = true
+		}
 	}
 
 	return
@@ -182,7 +193,7 @@ func (p *CiscoISE) processEnt(ent *entry.Entry) (r *entry.Entry, err error) {
 		r, err = p.processReassemble(ent)
 	} else {
 		//just attempt to reformat the entry
-		if !p.fmt(ent, p.filters, p.Attribute_Strip_Header) && !p.Passthrough_Misses {
+		if !p.fmt(ent, p.filters, p.Attribute_Strip_Header) && p.Drop_Misses {
 			//bad formatting and no passthrough, just skip it
 			return
 		}
@@ -196,17 +207,17 @@ func (p *CiscoISE) processReassemble(ent *entry.Entry) (r *entry.Entry, err erro
 	var rmsg remoteISE
 	if err = rmsg.Parse(string(ent.Data)); err != nil {
 		err = nil // do not pass parsing errors up
-		if p.Passthrough_Misses {
+		if !p.Drop_Misses {
 			r = ent
 		}
 	} else if msr, ejected, bad := p.ma.add(rmsg, ent); bad {
-		if p.Passthrough_Misses {
+		if !p.Drop_Misses {
 			r = ent
 		}
 	} else if ejected {
 		if rent, ok := msr.meta.(*entry.Entry); ok {
 			rent.Data = []byte(msr.output)
-			if p.fmt(rent, p.filters, p.Attribute_Strip_Header) || p.Passthrough_Misses {
+			if p.fmt(rent, p.filters, p.Attribute_Strip_Header) || !p.Drop_Misses {
 				r = rent
 			}
 		}
@@ -220,7 +231,7 @@ func (p *CiscoISE) flush(force bool) (ents []*entry.Entry) {
 		for _, out := range outputs {
 			if rent, ok := out.meta.(*entry.Entry); ok {
 				rent.Data = []byte(out.output)
-				if p.fmt(rent, p.filters, p.Attribute_Strip_Header) || p.Passthrough_Misses {
+				if p.fmt(rent, p.filters, p.Attribute_Strip_Header) || !p.Drop_Misses {
 					ents = append(ents, rent)
 				}
 			}
