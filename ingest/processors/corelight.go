@@ -25,7 +25,7 @@ const (
 )
 
 var (
-	defaultTag    = `` // kris you're a weirdo
+	defaultTag string
 	defaultPrefix = "zeek"
 )
 
