@@ -67,6 +67,10 @@ func TestCorelightTransitions(t *testing.T) {
 			t.Fatal(`too many entries came out`)
 		} else if string(ents[0].Data) != v.output {
 			t.Fatalf("Output mismatch %d:\n%s\n%s\n", i, string(ents[0].Data), v.output)
+		} else if tn, ok := c.tg.LookupTag(ents[0].Tag); !ok {
+			t.Fatal("failed to lookup tag")
+		} else if tn != v.tag {
+			t.Fatalf("invalid tag: %v != %v", tn, v.tag)
 		}
 	}
 }
@@ -78,9 +82,6 @@ type testCheck struct {
 }
 
 var corelightTestData = []testCheck{
-	testCheck{
-		tag:    `zeekftp`,
-		output: ftp1_out,
-		input:  ftp1_in,
-	},
+	testCheck{tag: `zeekftp`, input: ftp1_in, output: ftp1_out},
+	testCheck{tag: `zeekftp`, input: ftp2_in, output: ftp2_out},
 }

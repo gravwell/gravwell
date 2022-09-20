@@ -154,7 +154,10 @@ func (c *Corelight) process(mp map[string]interface{}, og []byte) (tag string, t
 	} else if line, ok = emitLine(ts, headers, mp); !ok {
 		tag = defaultTag
 		line = og
+	} else {
+		line = bytes.TrimRight(line, "-\t\n")
 	}
+
 	return
 }
 
@@ -183,7 +186,7 @@ func (c *Corelight) getTagTs(mp map[string]interface{}) (tag string, ts time.Tim
 func emitLine(ts time.Time, headers []string, mp map[string]interface{}) (line []byte, ok bool) {
 	bb := bytes.NewBuffer(nil)
 	var f64 float64
-	fmt.Fprintf(bb, "%.3f", float64(ts.UnixNano())/1000000000.0)
+	fmt.Fprintf(bb, "%.5f", float64(ts.UnixNano())/1000000000.0)
 	for _, h := range headers[1:] { //always skip the TS
 		if v, ok := mp[h]; ok {
 			if f64, ok = v.(float64); ok {
@@ -225,7 +228,7 @@ var tagHeaders = map[string]string{
 	"rfb":         "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,client_major_version,client_minor_version,server_major_version,server_minor_version,authentication_method,auth,share_flag,desktop_name,width,height",
 	"radius":      "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,username,mac,remote_ip,connect_info,result,logged",
 	"rdp":         "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,cookie,result,security_protocol,client_build,client_name,client_dig_product_id,desktop_width,desktop_height,requested_color_depth,cert_type,cert_count,cert_permanent,encryption_level,encryption_method",
-	"ftp":         "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,user,password,command,arg,mime_type,file_size,reply_code,reply_msg,data_channel.passive,data_channel.orig_h,data_channel.resp_h,data_channel.resp_p",
+	"ftp":         "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,user,password,command,arg,mime_type,file_size,reply_code,reply_msg,data_channel.passive,data_channel.orig_h,data_channel.resp_h,data_channel.resp_p,fuid",
 	"intel":       "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,indicator,indicator_type,seen_where,seen_node,matched,sources,fuid,file_mime_type,file_desc",
 	"irc":         "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,nick,user,command,value,additional_info,dcc_file_name,dcc_file_size,dcc_mime_type,fuid",
 	"kerberos":    "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,request_type,client,service,success,error_msg,from,till,cipher,forwardable,renewable,client_cert,client_cert_fuid,server_cert_subject,server_cert_fuid",
