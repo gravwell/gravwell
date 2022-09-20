@@ -83,6 +83,10 @@ type testCheck struct {
 
 var corelightTestData = []testCheck{
 	testCheck{tag: `zeekconn`, input: conn1_in, output: conn1_out},
+	testCheck{tag: `zeekconn`, input: conn2_in, output: conn2_out},
+	testCheck{tag: `zeekdns`, input: dns1_in, output: dns1_out},
+	testCheck{tag: `zeekdns`, input: dns2_in, output: dns2_out},
+	testCheck{tag: `zeekdhcp`, input: dhcp1_in, output: dhcp1_out},
 	testCheck{tag: `zeekftp`, input: ftp1_in, output: ftp1_out},
 	testCheck{tag: `zeekftp`, input: ftp2_in, output: ftp2_out},
 }
