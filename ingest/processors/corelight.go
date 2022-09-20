@@ -18,6 +18,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (
@@ -41,6 +42,7 @@ type CorelightConfig struct {
 // them as TSV, matching the standard Zeek log types.
 type Corelight struct {
 	nocloser
+	timegrind *timegrinder.TimeGrinder
 	tg        Tagger
 	tagFields map[string][]string
 	tags      map[string]entry.EntryTag
@@ -58,7 +60,13 @@ func CorelightLoadConfig(vc *config.VariableConfig) (c CorelightConfig, err erro
 }
 
 func NewCorelight(cfg CorelightConfig, tagger Tagger) (*Corelight, error) {
+	tcfg := timegrinder.Config{}
+	timegrind, err := timegrinder.NewTimeGrinder(tcfg)
+	if err != nil {
+		return nil, err
+	}
 	rr := &Corelight{
+		timegrind:       timegrind,
 		CorelightConfig: cfg,
 		tg:              tagger,
 	}
@@ -173,7 +181,7 @@ func (c *Corelight) getTagTs(mp map[string]interface{}) (tag string, ts time.Tim
 		return
 	} else if tss, ok = tsv.(string); !ok {
 		return
-	} else if ts, err = time.Parse(time.RFC3339Nano, tss); err != nil {
+	} else if ts, ok, err = c.timegrind.Extract([]byte(tss)); err != nil {
 		ok = false
 	} else {
 		tag = c.Prefix + tagval
@@ -205,7 +213,7 @@ func emitLine(ts time.Time, headers []string, mp map[string]interface{}) (line [
 }
 
 var tagHeaders = map[string]string{
-	"conn":        "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,proto,service,duration,id.orig_ip_bytes,id.resp_ip_bytes,conn_state,local_orig,local_resp,missed_bytes,history,id.orig_pkts,id.orig_ip_bytes,id.resp_pkts,id.resp_ip_bytes,tunnel_parents,vlan",
+	"conn":        "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,proto,service,duration,orig_bytes,resp_bytes,conn_state,local_orig,local_resp,missed_bytes,history,orig_pkts,orig_ip_bytes,resp_pkts,resp_ip_bytes,tunnel_parents,vlan",
 	"dhcp":        "ts,uids,client_addr,server_addr,mac,host_name,client_fqdn,domain,requested_addr,assigned_addr,lease_time,client_message,server_message,msg_types,duration",
 	"dns":         "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,proto,trans_id,rtt,query,qclass,qclass_name,qtype,qtype_name,rcode,rcode_name,AA,TC,RD,RA,Z,answers,TTLs,rejected",
 	"files":       "ts,fuid,tx_hosts,rx_hosts,conn_uids,source,depth,analyzers,mime_type,filename,duration,local_orig,is_orig,seen_bytes,total_bytes,missing_bytes,overflow_bytes,timedout,parent_fuid,md5,sha1,sha256,extracted,extracted_cutoff,extracted_size",
