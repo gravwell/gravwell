@@ -275,7 +275,7 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 		return
 	case CorelightProcessor:
 		var cfg CorelightConfig
-		if err = vc.MapTo(&cfg); err != nil {
+		if cfg, err = CorelightLoadConfig(vc); err != nil {
 			return
 		}
 		p, err = NewCorelight(cfg, tgr)
