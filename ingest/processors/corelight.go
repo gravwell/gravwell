@@ -154,8 +154,6 @@ func (c *Corelight) process(mp map[string]interface{}, og []byte) (tag string, t
 	} else if line, ok = emitLine(ts, headers, mp); !ok {
 		tag = defaultTag
 		line = og
-	} else {
-		line = bytes.TrimRight(line, "-\t\n")
 	}
 
 	return
@@ -186,7 +184,7 @@ func (c *Corelight) getTagTs(mp map[string]interface{}) (tag string, ts time.Tim
 func emitLine(ts time.Time, headers []string, mp map[string]interface{}) (line []byte, ok bool) {
 	bb := bytes.NewBuffer(nil)
 	var f64 float64
-	fmt.Fprintf(bb, "%.5f", float64(ts.UnixNano())/1000000000.0)
+	fmt.Fprintf(bb, "%.6f", float64(ts.UnixNano())/1000000000.0)
 	for _, h := range headers[1:] { //always skip the TS
 		if v, ok := mp[h]; ok {
 			if f64, ok = v.(float64); ok {
