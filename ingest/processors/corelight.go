@@ -25,7 +25,7 @@ const (
 )
 
 var (
-	defaultTag string
+	defaultTag    string
 	defaultPrefix = "zeek"
 )
 
@@ -48,15 +48,20 @@ type Corelight struct {
 }
 
 func CorelightLoadConfig(vc *config.VariableConfig) (c CorelightConfig, err error) {
-	err = vc.MapTo(&c)
-	if c.Prefix == "" {
+	if err = vc.MapTo(&c); err != nil {
+		return
+	}
+	if c.Prefix == `` {
 		c.Prefix = defaultPrefix
 	}
 	return
 }
 
 func NewCorelight(cfg CorelightConfig, tagger Tagger) (*Corelight, error) {
-	rr := &Corelight{tg: tagger}
+	rr := &Corelight{
+		CorelightConfig: cfg,
+		tg:              tagger,
+	}
 	if err := rr.init(cfg, tagger); err != nil {
 		return nil, err
 	}
