@@ -243,4 +243,5 @@ var tagHeaders = map[string]string{
 	"signature":   "ts,uid,orig_h,orig_p,resp_h,resp_p,note,sig_id,event_msg,sub_msg,sig_count,host_count",
 	"smb_mapping": "ts,uid,orig_h,orig_p,resp_h,resp_p,path,service,native_file_system,share_type",
 	"smb_files":   "ts,uid,orig_h,orig_p,resp_h,resp_p,fuid,action,path,name,size,prev_name,modified,accessed,created,changed",
+	"zeekdnp3":    "ts,uid,id,fc_request,fc_reply,iin",
 }
