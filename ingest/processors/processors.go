@@ -72,6 +72,7 @@ func CheckProcessor(id string) error {
 	case RegexTimestampProcessor:
 	case SrcRouterProcessor:
 	case VpcProcessor:
+	case CorelightProcessor:
 	default:
 		return checkProcessorOS(id)
 	}
@@ -131,6 +132,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = SrcRouteLoadConfig(vc)
 	case PluginProcessor:
 		cfg, err = PluginLoadConfig(vc)
+	case CorelightProcessor:
+		cfg, err = CorelightLoadConfig(vc)
 	default:
 		cfg, err = processorLoadConfigOS(vc)
 	}
@@ -270,6 +273,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			p, err = NewPluginProcessor(cfg, tgr)
 		}
 		return
+	case CorelightProcessor:
+		var cfg CorelightConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewCorelight(cfg, tgr)
 	default:
 		p, err = newProcessorOS(vc, tgr)
 	}
