@@ -80,7 +80,7 @@ type testCheck struct {
 var corelightTestData = []testCheck{
 	testCheck{
 		tag:    `zeekftp`,
-		output: "1597559164.077\tCLkXf2CMo11hD8FQ5\t192.168.4.76\t53380\t196.216.2.24\t21\tanonymous\tftp@example.com\tEPSV\t\t\t\t229\tEntering Extended Passive Mode (|||31746|).\ttrue\t192.168.4.76\t196.216.2.24\t31746",
+		output: "1597559163.553\tCLkXf2CMo11hD8FQ5\t192.168.4.76\t53380\t196.216.2.24\t21\tanonymous\tftp@example.com\tEPSV\t-\t-\t-\t229\tEntering Extended Passive Mode (|||31746|).\ttrue\t192.168.4.76\t196.216.2.24\t31746",
 		input: `
 {
   "_path": "ftp",
