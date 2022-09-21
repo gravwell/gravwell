@@ -1,5 +1,14 @@
 package processors
 
+const foobar1_out = "1600266221.005323\thello\tmy\t3.14000\t-"
+const foobar1_in = `{
+  "_path": "foobar",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "this": "hello",
+  "that": "my",
+  "the": 3.14
+}`
+
 const conn1_out = `1597559163.553287	CMdzit1AMNsmfAIiQc	192.168.4.76	36844	192.168.4.1	53	udp	dns	0.06685	62	141	SF	-	-	0	Dd	2	118	2	197	-	-`
 const conn1_in = `{
   "_path": "conn",
@@ -322,13 +331,102 @@ const http1_in = `{
   ]
 }`
 
-const foobar1_out = "1600266221.005323\thello\tmy\t3.14000\t-"
-const foobar1_in = `{
-  "_path": "foobar",
+const files1_out = "1600266221.005323	FBbQxG1GXLXgmWhbk9	[23.195.64.241]	[192.168.4.37]	[CzoFRWTQ6YIzfFXHk]	HTTP	0	[EXTRACT PE]	application/x-dosexec	-	0.01550	-	false	179272	179272	0	0	false	-	-	-	-	HTTP-FBbQxG1GXLXgmWhbk9.exe	false	-"
+const files1_in = `{
+  "_path": "files",
   "ts": "2020-09-16T14:23:41.005323Z",
-  "this": "hello",
-  "that": "my",
-  "the": 3.14
+  "fuid": "FBbQxG1GXLXgmWhbk9",
+  "tx_hosts": [
+    "23.195.64.241"
+  ],
+  "rx_hosts": [
+    "192.168.4.37"
+  ],
+  "conn_uids": [
+    "CzoFRWTQ6YIzfFXHk"
+  ],
+  "source": "HTTP",
+  "depth": 0,
+  "analyzers": [
+    "EXTRACT",
+    "PE"
+  ],
+  "mime_type": "application/x-dosexec",
+  "duration": 0.015498876571655273,
+  "is_orig": false,
+  "seen_bytes": 179272,
+  "total_bytes": 179272,
+  "missing_bytes": 0,
+  "overflow_bytes": 0,
+  "timedout": false,
+  "extracted": "HTTP-FBbQxG1GXLXgmWhbk9.exe",
+  "extracted_cutoff": false
 }`
 
-//TODO ssl, x509, smtp, pe
+const ssl1_out = "1600266221.005323	CsukF91Bx9mrqdEaH9	192.168.4.49	56718	13.32.202.10	443	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	secp256r1	www.taosecurity.com	false	-	h2	true	[F2XEvj1CahhdhtfvT4 FZ7ygD3ERPfEVVohG9 F7vklpOKI4yX9wmvh FAnbnR32nIIr2j9XV]	[]	CN=www.taosecurity.com	CN=Amazon,OU=Server CA 1B,O=Amazon,C=US	-	-	-"
+const ssl1_in = `{
+  "_path": "ssl",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "CsukF91Bx9mrqdEaH9",
+  "id.orig_h": "192.168.4.49",
+  "id.orig_p": 56718,
+  "id.resp_h": "13.32.202.10",
+  "id.resp_p": 443,
+  "version": "TLSv12",
+  "cipher": "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+  "curve": "secp256r1",
+  "server_name": "www.taosecurity.com",
+  "resumed": false,
+  "next_protocol": "h2",
+  "established": true,
+  "cert_chain_fuids": [
+    "F2XEvj1CahhdhtfvT4",
+    "FZ7ygD3ERPfEVVohG9",
+    "F7vklpOKI4yX9wmvh",
+    "FAnbnR32nIIr2j9XV"
+  ],
+  "client_cert_chain_fuids": [],
+  "subject": "CN=www.taosecurity.com",
+  "issuer": "CN=Amazon,OU=Server CA 1B,O=Amazon,C=US"
+}`
+
+const ssl2_out = "1600266221.005323	CcJfBs3hXLJn7oHVu7	192.168.4.142	58802	13.32.202.2	443	TLSv13	TLS_AES_128_GCM_SHA256	x25519	www.taosecurity.com	true	-	-	true	-	-	-	-	-	-	-"
+const ssl2_in = `{
+  "_path": "ssl",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "CcJfBs3hXLJn7oHVu7",
+  "id.orig_h": "192.168.4.142",
+  "id.orig_p": 58802,
+  "id.resp_h": "13.32.202.2",
+  "id.resp_p": 443,
+  "version": "TLSv13",
+  "cipher": "TLS_AES_128_GCM_SHA256",
+  "curve": "x25519",
+  "server_name": "www.taosecurity.com",
+  "resumed": true,
+  "established": true
+}`
+
+const x5091_out = "1600266220.005323	F2XEvj1CahhdhtfvT4	3	0B58BC3898391F36592BA1BE1F6B03EF	CN=www.taosecurity.com	CN=Amazon,OU=Server CA 1B,O=Amazon,C=US	1590969600	1625140800	rsaEncryption	sha256WithRSAEncryption	rsa	2048	65537	-	[www.taosecurity.com taosecurity.com *.taosecurity.com]	-	-	-	false	-"
+const x5091_in = `{
+  "_path": "x509",
+  "ts": "1600266220.005323",
+  "id": "F2XEvj1CahhdhtfvT4",
+  "certificate.version": 3,
+  "certificate.serial": "0B58BC3898391F36592BA1BE1F6B03EF",
+  "certificate.subject": "CN=www.taosecurity.com",
+  "certificate.issuer": "CN=Amazon,OU=Server CA 1B,O=Amazon,C=US",
+  "certificate.not_valid_before": 1590969600,
+  "certificate.not_valid_after": 1625140800,
+  "certificate.key_alg": "rsaEncryption",
+  "certificate.sig_alg": "sha256WithRSAEncryption",
+  "certificate.key_type": "rsa",
+  "certificate.key_length": 2048,
+  "certificate.exponent": "65537",
+  "san.dns": [
+    "www.taosecurity.com",
+    "taosecurity.com",
+    "*.taosecurity.com"
+  ],
+  "basic_constraints.ca": false
+}`
