@@ -42,12 +42,56 @@ func TestCorelightConfig(t *testing.T) {
 		}
 	}
 
+	//test bad prefix
+	b = `
+	[preprocessor "corelight"]
+		type = corelight
+		Prefix="foobar:this-that'TheOther"
+	`
+	p, err = testLoadPreprocessor(b, `corelight`)
+	if err == nil {
+		t.Fatal("failed to catch bad prefix")
+	}
+
+	//test with custom config
+	//test bad prefix
+	b = `
+	[preprocessor "corelight"]
+		type = corelight
+		Custom-Format="foobar:ts,this,that,the,other"
+		Custom-Format="barbaz:just, one,more , thing "
+	`
+	p, err = testLoadPreprocessor(b, `corelight`)
+	if err != nil {
+		t.Fatal("failed to load custom format")
+	}
+	//cast to the corelight processor
+	if c, ok := p.(*Corelight); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *Corelight", p)
+	} else {
+		if _, ok := c.tags["zeekfoobar"]; !ok {
+			t.Fatal("did not load custom tag zeekfoobar")
+		} else if _, ok = c.tags["zeekbarbaz"]; !ok {
+			t.Fatal("did not load custom tag zeekbarbaz")
+		}
+		if hdrs, ok := c.tagFields["zeekfoobar"]; !ok || len(hdrs) != 5 {
+			t.Fatalf("failed to load zeekfoobar headers: %v", hdrs)
+		}
+		if hdrs, ok := c.tagFields["zeekbarbaz"]; !ok || len(hdrs) != 4 {
+			t.Fatalf("failed to load zeekfoobar headers: %v", hdrs)
+		} else if hdrs[1] != "one" || hdrs[2] != "more" || hdrs[3] != "thing" {
+			t.Fatalf("invalid header values %v", hdrs)
+		}
+	}
+
 }
 
 func TestCorelightTransitions(t *testing.T) {
 	b := `
 	[preprocessor "corelight"]
 		type = corelight
+		Custom-Format="foobar:ts,this,that,the,other"
+		Custom-Format="barbaz:just, one,more , thing "
 	`
 	p, err := testLoadPreprocessor(b, `corelight`)
 	if err != nil {
@@ -82,6 +126,7 @@ type testCheck struct {
 }
 
 var corelightTestData = []testCheck{
+	testCheck{tag: `zeekfoobar`, input: foobar1_in, output: foobar1_out},
 	testCheck{tag: `zeekconn`, input: conn1_in, output: conn1_out},
 	testCheck{tag: `zeekconn`, input: conn2_in, output: conn2_out},
 	testCheck{tag: `zeekdns`, input: dns1_in, output: dns1_out},
@@ -89,4 +134,8 @@ var corelightTestData = []testCheck{
 	testCheck{tag: `zeekdhcp`, input: dhcp1_in, output: dhcp1_out},
 	testCheck{tag: `zeekftp`, input: ftp1_in, output: ftp1_out},
 	testCheck{tag: `zeekftp`, input: ftp2_in, output: ftp2_out},
+	testCheck{tag: `zeekssh`, input: ssh1_in, output: ssh1_out},
+	testCheck{tag: `zeekssh`, input: ssh2_in, output: ssh2_out},
+	testCheck{tag: `zeekssh`, input: ssh3_in, output: ssh3_out},
+	testCheck{tag: `zeekssh`, input: ssh4_in, output: ssh4_out},
 }
