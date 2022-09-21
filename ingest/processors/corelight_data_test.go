@@ -544,3 +544,78 @@ const ntp2_in = `{
   "xmt_time": "2020-10-08T00:29:07.964314Z",
   "num_exts": 0
 }`
+
+const notice1_out = `1600820676.395445	CxdbSa2KGTlMl3PPB2	192.168.4.129	51020	40.71.25.43	8080	FtEE2txjFBxLDbffi	-	-	tcp	SSL::Invalid_Server_Cert	SSL certificate validation failed with (unable to get local issuer certificate)	CN=*.cloudapp.net,OU=Smart Controller Development,O=GTO Access Systems\, LLC,DC=smartcontroller,DC=local	192.168.4.129	40.71.25.43	8080	-	so16-enp0s8-1	[Notice::ACTION_LOG]	3600	-	-	-	-	-	-`
+const notice1_in = `{
+  "_path": "notice",
+  "ts": "2020-09-23T00:24:36.395445Z",
+  "uid": "CxdbSa2KGTlMl3PPB2",
+  "id.orig_h": "192.168.4.129",
+  "id.orig_p": 51020,
+  "id.resp_h": "40.71.25.43",
+  "id.resp_p": 8080,
+  "fuid": "FtEE2txjFBxLDbffi",
+  "proto": "tcp",
+  "note": "SSL::Invalid_Server_Cert",
+  "msg": "SSL certificate validation failed with (unable to get local issuer certificate)",
+  "sub": "CN=*.cloudapp.net,OU=Smart Controller Development,O=GTO Access Systems\\, LLC,DC=smartcontroller,DC=local",
+  "src": "192.168.4.129",
+  "dst": "40.71.25.43",
+  "p": 8080,
+  "peer_descr": "so16-enp0s8-1",
+  "actions": [
+    "Notice::ACTION_LOG"
+  ],
+  "suppress_for": 3600
+}`
+
+const notice2_out = `1600820676.395445	-	-	-	-	-	-	-	-	-	ATTACK::Discovery	Detected activity from host 192.168.10.31, total attempts 5 within timeframe 5.0 mins	-	-	-	-	-	-	[Notice::ACTION_LOG]	3600	-	-	-	-	-	-`
+const notice2_in = `{
+  "_path": "notice",
+  "ts": "2020-09-23T00:24:36.395445Z",
+  "note": "ATTACK::Discovery",
+  "msg": "Detected activity from host 192.168.10.31, total attempts 5 within timeframe 5.0 mins",
+  "actions": [
+    "Notice::ACTION_LOG"
+  ],
+  "suppress_for": 3600
+}`
+
+const notice3_out = `1600820676.395445	CR7Vww4LuLkMzi4jMd	192.168.10.31	49238	192.168.10.30	445	FwVZpk12AKBjE11UNg	application/x-dosexec	temp	tcp	ATTACK::Lateral_Movement_Extracted_File	Saved a copy of the file written to SMB admin file share	CR7Vww4LuLkMzi4jMd_FwVZpk12AKBjE11UNg__admin-pc_c$temp_mimikatz.exe	192.168.10.31	192.168.10.30	445	-	-	[Notice::ACTION_LOG]	3600	-	-	-	-	-	-`
+const notice3_in = `{
+  "_path": "notice",
+  "ts": "2020-09-23T00:24:36.395445Z",
+  "uid": "CR7Vww4LuLkMzi4jMd",
+  "id.orig_h": "192.168.10.31",
+  "id.orig_p": 49238,
+  "id.resp_h": "192.168.10.30",
+  "id.resp_p": 445,
+  "fuid": "FwVZpk12AKBjE11UNg",
+  "file_mime_type": "application/x-dosexec",
+  "file_desc": "temp",
+  "proto": "tcp",
+  "note": "ATTACK::Lateral_Movement_Extracted_File",
+  "msg": "Saved a copy of the file written to SMB admin file share",
+  "sub": "CR7Vww4LuLkMzi4jMd_FwVZpk12AKBjE11UNg__admin-pc_c$temp_mimikatz.exe",
+  "src": "192.168.10.31",
+  "dst": "192.168.10.30",
+  "p": 445,
+  "actions": [
+    "Notice::ACTION_LOG"
+  ],
+  "suppress_for": 3600
+}`
+
+const weird1_out = `1600820676.395445	CxdbSa2KGTlMl3PPB2	192.168.4.129	51020	40.71.25.43	8080	bad_HTTP_request	-	false	so16-enp0s8-1	-`
+const weird1_in = `{
+  "_path": "weird",
+  "ts": "2020-09-23T00:24:36.395445Z",
+  "uid": "CxdbSa2KGTlMl3PPB2",
+  "id.orig_h": "192.168.4.129",
+  "id.orig_p": 51020,
+  "id.resp_h": "40.71.25.43",
+  "id.resp_p": 8080,
+  "name": "bad_HTTP_request",
+  "notice": false,
+  "peer": "so16-enp0s8-1"
+}`
