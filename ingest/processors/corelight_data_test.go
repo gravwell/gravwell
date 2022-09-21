@@ -1,5 +1,14 @@
 package processors
 
+const foobar1_out = "1600266221.005323\thello\tmy\t3.14000\t-"
+const foobar1_in = `{
+  "_path": "foobar",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "this": "hello",
+  "that": "my",
+  "the": 3.14
+}`
+
 const conn1_out = `1597559163.553287	CMdzit1AMNsmfAIiQc	192.168.4.76	36844	192.168.4.1	53	udp	dns	0.06685	62	141	SF	-	-	0	Dd	2	118	2	197	-	-`
 const conn1_in = `{
   "_path": "conn",
@@ -294,13 +303,130 @@ const ssh4_in = `{
   "hasshServerAlgorithms": "curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1;chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com;hmac-md5-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-ripemd160-etm@openssh.com,hmac-sha1-96-etm@openssh.com,hmac-md5-96-etm@openssh.com,hmac-md5,hmac-sha1,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2-256,hmac-sha2-512,hmac-ripemd160,hmac-ripemd160@openssh.com,hmac-sha1-96,hmac-md5-96;none,zlib@openssh.com"
 }`
 
-const foobar1_out = "1600266221.005323\thello\tmy\t3.14000\t-"
-const foobar1_in = `{
-  "_path": "foobar",
+const http1_out = "1600266221.005323	C5bLoe2Mvxqhawzqqd	192.168.4.76	46378	31.3.245.133	80	1	GET	testmyids.com	/	-	1.1	curl/7.47.0	-	0	39	200	OK	-	-	[]	-	-	-	-	-	-	[FEEsZS1w0Z0VJIb5x4]	-	[text/plain]"
+const http1_in = `{
+  "_path": "http",
   "ts": "2020-09-16T14:23:41.005323Z",
-  "this": "hello",
-  "that": "my",
-  "the": 3.14
+  "uid": "C5bLoe2Mvxqhawzqqd",
+  "id.orig_h": "192.168.4.76",
+  "id.orig_p": 46378,
+  "id.resp_h": "31.3.245.133",
+  "id.resp_p": 80,
+  "trans_depth": 1,
+  "method": "GET",
+  "host": "testmyids.com",
+  "uri": "/",
+  "version": "1.1",
+  "user_agent": "curl/7.47.0",
+  "request_body_len": 0,
+  "response_body_len": 39,
+  "status_code": 200,
+  "status_msg": "OK",
+  "tags": [],
+  "resp_fuids": [
+    "FEEsZS1w0Z0VJIb5x4"
+  ],
+  "resp_mime_types": [
+    "text/plain"
+  ]
 }`
 
-//TODO ssl, x509, smtp, pe
+const files1_out = "1600266221.005323	FBbQxG1GXLXgmWhbk9	[23.195.64.241]	[192.168.4.37]	[CzoFRWTQ6YIzfFXHk]	HTTP	0	[EXTRACT PE]	application/x-dosexec	-	0.01550	-	false	179272	179272	0	0	false	-	-	-	-	HTTP-FBbQxG1GXLXgmWhbk9.exe	false	-"
+const files1_in = `{
+  "_path": "files",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "fuid": "FBbQxG1GXLXgmWhbk9",
+  "tx_hosts": [
+    "23.195.64.241"
+  ],
+  "rx_hosts": [
+    "192.168.4.37"
+  ],
+  "conn_uids": [
+    "CzoFRWTQ6YIzfFXHk"
+  ],
+  "source": "HTTP",
+  "depth": 0,
+  "analyzers": [
+    "EXTRACT",
+    "PE"
+  ],
+  "mime_type": "application/x-dosexec",
+  "duration": 0.015498876571655273,
+  "is_orig": false,
+  "seen_bytes": 179272,
+  "total_bytes": 179272,
+  "missing_bytes": 0,
+  "overflow_bytes": 0,
+  "timedout": false,
+  "extracted": "HTTP-FBbQxG1GXLXgmWhbk9.exe",
+  "extracted_cutoff": false
+}`
+
+const ssl1_out = "1600266221.005323	CsukF91Bx9mrqdEaH9	192.168.4.49	56718	13.32.202.10	443	TLSv12	TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256	secp256r1	www.taosecurity.com	false	-	h2	true	[F2XEvj1CahhdhtfvT4 FZ7ygD3ERPfEVVohG9 F7vklpOKI4yX9wmvh FAnbnR32nIIr2j9XV]	[]	CN=www.taosecurity.com	CN=Amazon,OU=Server CA 1B,O=Amazon,C=US	-	-	-"
+const ssl1_in = `{
+  "_path": "ssl",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "CsukF91Bx9mrqdEaH9",
+  "id.orig_h": "192.168.4.49",
+  "id.orig_p": 56718,
+  "id.resp_h": "13.32.202.10",
+  "id.resp_p": 443,
+  "version": "TLSv12",
+  "cipher": "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256",
+  "curve": "secp256r1",
+  "server_name": "www.taosecurity.com",
+  "resumed": false,
+  "next_protocol": "h2",
+  "established": true,
+  "cert_chain_fuids": [
+    "F2XEvj1CahhdhtfvT4",
+    "FZ7ygD3ERPfEVVohG9",
+    "F7vklpOKI4yX9wmvh",
+    "FAnbnR32nIIr2j9XV"
+  ],
+  "client_cert_chain_fuids": [],
+  "subject": "CN=www.taosecurity.com",
+  "issuer": "CN=Amazon,OU=Server CA 1B,O=Amazon,C=US"
+}`
+
+const ssl2_out = "1600266221.005323	CcJfBs3hXLJn7oHVu7	192.168.4.142	58802	13.32.202.2	443	TLSv13	TLS_AES_128_GCM_SHA256	x25519	www.taosecurity.com	true	-	-	true	-	-	-	-	-	-	-"
+const ssl2_in = `{
+  "_path": "ssl",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "CcJfBs3hXLJn7oHVu7",
+  "id.orig_h": "192.168.4.142",
+  "id.orig_p": 58802,
+  "id.resp_h": "13.32.202.2",
+  "id.resp_p": 443,
+  "version": "TLSv13",
+  "cipher": "TLS_AES_128_GCM_SHA256",
+  "curve": "x25519",
+  "server_name": "www.taosecurity.com",
+  "resumed": true,
+  "established": true
+}`
+
+const x5091_out = "1600266220.005323	F2XEvj1CahhdhtfvT4	3	0B58BC3898391F36592BA1BE1F6B03EF	CN=www.taosecurity.com	CN=Amazon,OU=Server CA 1B,O=Amazon,C=US	1590969600	1625140800	rsaEncryption	sha256WithRSAEncryption	rsa	2048	65537	-	[www.taosecurity.com taosecurity.com *.taosecurity.com]	-	-	-	false	-"
+const x5091_in = `{
+  "_path": "x509",
+  "ts": "1600266220.005323",
+  "id": "F2XEvj1CahhdhtfvT4",
+  "certificate.version": 3,
+  "certificate.serial": "0B58BC3898391F36592BA1BE1F6B03EF",
+  "certificate.subject": "CN=www.taosecurity.com",
+  "certificate.issuer": "CN=Amazon,OU=Server CA 1B,O=Amazon,C=US",
+  "certificate.not_valid_before": 1590969600,
+  "certificate.not_valid_after": 1625140800,
+  "certificate.key_alg": "rsaEncryption",
+  "certificate.sig_alg": "sha256WithRSAEncryption",
+  "certificate.key_type": "rsa",
+  "certificate.key_length": 2048,
+  "certificate.exponent": "65537",
+  "san.dns": [
+    "www.taosecurity.com",
+    "taosecurity.com",
+    "*.taosecurity.com"
+  ],
+  "basic_constraints.ca": false
+}`

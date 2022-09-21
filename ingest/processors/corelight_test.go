@@ -138,4 +138,42 @@ var corelightTestData = []testCheck{
 	testCheck{tag: `zeekssh`, input: ssh2_in, output: ssh2_out},
 	testCheck{tag: `zeekssh`, input: ssh3_in, output: ssh3_out},
 	testCheck{tag: `zeekssh`, input: ssh4_in, output: ssh4_out},
+	testCheck{tag: `zeekhttp`, input: http1_in, output: http1_out},
+	testCheck{tag: `zeekfiles`, input: files1_in, output: files1_out},
+	testCheck{tag: `zeekssl`, input: ssl1_in, output: ssl1_out},
+	testCheck{tag: `zeekssl`, input: ssl2_in, output: ssl2_out},
+	testCheck{tag: `zeekx509`, input: x5091_in, output: x5091_out},
+}
+
+// try overriding the x509 parser, make sure overrides work
+func TestCorelightOverride(t *testing.T) {
+	tag := `zeekx509`
+	output := `1600266220.005323	3	CN=www.taosecurity.com`
+	b := `
+	[preprocessor "corelight"]
+		type = corelight
+		Custom-Format="x509:ts,certificate.version,certificate.subject"
+	`
+	p, err := testLoadPreprocessor(b, `corelight`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the corelight processor
+	c, ok := p.(*Corelight)
+	if !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *Corelight", p)
+	}
+	var ent entry.Entry
+	ent.Data = []byte(x5091_in)
+	if ents, err := c.Process([]*entry.Entry{&ent}); err != nil {
+		t.Fatalf("failed to process: %v\n", err)
+	} else if len(ents) != 1 {
+		t.Fatal(`too many entries came out`)
+	} else if string(ents[0].Data) != output {
+		t.Fatalf("Output mismatch:\n%s\n%s\n", string(ents[0].Data), output)
+	} else if tn, ok := c.tg.LookupTag(ents[0].Tag); !ok {
+		t.Fatal("failed to lookup tag")
+	} else if tn != tag {
+		t.Fatalf("invalid tag: %v != %v", tn, tag)
+	}
 }
