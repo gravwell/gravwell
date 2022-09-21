@@ -138,4 +138,5 @@ var corelightTestData = []testCheck{
 	testCheck{tag: `zeekssh`, input: ssh2_in, output: ssh2_out},
 	testCheck{tag: `zeekssh`, input: ssh3_in, output: ssh3_out},
 	testCheck{tag: `zeekssh`, input: ssh4_in, output: ssh4_out},
+	testCheck{tag: `zeekhttp`, input: http1_in, output: http1_out},
 }

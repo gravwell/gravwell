@@ -294,6 +294,34 @@ const ssh4_in = `{
   "hasshServerAlgorithms": "curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group-exchange-sha1,diffie-hellman-group14-sha1,diffie-hellman-group1-sha1;chacha20-poly1305@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr,aes128-gcm@openssh.com,aes256-gcm@openssh.com;hmac-md5-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-ripemd160-etm@openssh.com,hmac-sha1-96-etm@openssh.com,hmac-md5-96-etm@openssh.com,hmac-md5,hmac-sha1,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2-256,hmac-sha2-512,hmac-ripemd160,hmac-ripemd160@openssh.com,hmac-sha1-96,hmac-md5-96;none,zlib@openssh.com"
 }`
 
+const http1_out = "1600266221.005323	C5bLoe2Mvxqhawzqqd	192.168.4.76	46378	31.3.245.133	80	1	GET	testmyids.com	/	-	1.1	curl/7.47.0	-	0	39	200	OK	-	-	[]	-	-	-	-	-	-	[FEEsZS1w0Z0VJIb5x4]	-	[text/plain]"
+const http1_in = `{
+  "_path": "http",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "C5bLoe2Mvxqhawzqqd",
+  "id.orig_h": "192.168.4.76",
+  "id.orig_p": 46378,
+  "id.resp_h": "31.3.245.133",
+  "id.resp_p": 80,
+  "trans_depth": 1,
+  "method": "GET",
+  "host": "testmyids.com",
+  "uri": "/",
+  "version": "1.1",
+  "user_agent": "curl/7.47.0",
+  "request_body_len": 0,
+  "response_body_len": 39,
+  "status_code": 200,
+  "status_msg": "OK",
+  "tags": [],
+  "resp_fuids": [
+    "FEEsZS1w0Z0VJIb5x4"
+  ],
+  "resp_mime_types": [
+    "text/plain"
+  ]
+}`
+
 const foobar1_out = "1600266221.005323\thello\tmy\t3.14000\t-"
 const foobar1_in = `{
   "_path": "foobar",
