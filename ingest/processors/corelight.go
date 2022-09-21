@@ -11,6 +11,7 @@ package processors
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -97,24 +98,15 @@ func cleanHeaders(hdrs []string) []string {
 }
 
 func (c *Corelight) init(cfg CorelightConfig, tagger Tagger) (err error) {
-	var specs []corelightSpec
+	specs := make([]corelightSpec, 0, len(tagHeaders)+len(cfg.Custom_Format))
 	if err = cfg.Validate(); err != nil {
 		return
 	} else if specs, err = loadCustomFormats(cfg.Custom_Format); err != nil {
 		return
 	}
+	specs = append(specs, defaultSpecs()...)
 	c.tagFields = make(map[string][]string, len(tagHeaders))
 	c.tags = make(map[string]entry.EntryTag)
-	var k, v string
-	for k, v = range tagHeaders {
-		tagName := c.Prefix + k
-		c.tagFields[tagName] = cleanHeaders(strings.Split(v, ","))
-		if tv, err := c.tg.NegotiateTag(tagName); err != nil {
-			return err
-		} else {
-			c.tags[tagName] = tv
-		}
-	}
 	for _, spec := range specs {
 		tagName := c.Prefix + spec.prefix
 		var tv entry.EntryTag
@@ -250,6 +242,18 @@ type corelightSpec struct {
 	headers []string
 }
 
+func defaultSpecs() (specs []corelightSpec) {
+	specs = make([]corelightSpec, 0, len(tagHeaders))
+	for k, v := range tagHeaders {
+		spec := corelightSpec{
+			prefix: k,
+		}
+		spec.headers, _ = loadHeaders(v)
+		specs = append(specs, spec)
+	}
+	return
+}
+
 func loadCustomFormats(strs []string) (specs []corelightSpec, err error) {
 	for _, v := range strs {
 		v = strings.TrimSpace(v)
@@ -269,14 +273,21 @@ func loadCustomFormats(strs []string) (specs []corelightSpec, err error) {
 			}
 
 			//parse out the headers
-			if spec.headers = cleanHeaders(strings.Split(v, ",")); len(spec.headers) == 0 {
+			if spec.headers, err = loadHeaders(bits[1]); err != nil {
 				err = fmt.Errorf("%q custom format is invalid, missing headers", v)
 				return
 			}
 			specs = append(specs, spec)
 		}
 	}
+	return
+}
 
+func loadHeaders(v string) (hdrs []string, err error) {
+	v = strings.TrimSpace(v)
+	if hdrs = cleanHeaders(strings.Split(v, ",")); len(hdrs) == 0 {
+		err = errors.New("missing headers")
+	}
 	return
 }
 
