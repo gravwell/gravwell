@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/timegrinder"
@@ -36,6 +37,9 @@ type CorelightConfig struct {
 	// conn logs will be ingested to the 'zeekconn' tag, dhcp logs to 'zeekdhcp',
 	// and so on.
 	Prefix string
+
+	// Custom_Format specifies a custom override for a path value and headers, there can be many
+	Custom_Format []string
 }
 
 // A Corelight processor takes JSON-formatted Corelight logs and reformats
@@ -53,9 +57,7 @@ func CorelightLoadConfig(vc *config.VariableConfig) (c CorelightConfig, err erro
 	if err = vc.MapTo(&c); err != nil {
 		return
 	}
-	if c.Prefix == `` {
-		c.Prefix = defaultPrefix
-	}
+	err = c.Validate()
 	return
 }
 
@@ -87,21 +89,40 @@ func (c *Corelight) Config(v interface{}, tagger Tagger) (err error) {
 	return
 }
 
+func cleanHeaders(hdrs []string) []string {
+	for i := range hdrs {
+		hdrs[i] = strings.TrimSpace(hdrs[i])
+	}
+	return hdrs
+}
+
 func (c *Corelight) init(cfg CorelightConfig, tagger Tagger) (err error) {
-	if c.Prefix == "" {
-		c.Prefix = defaultPrefix
+	var specs []corelightSpec
+	if err = cfg.Validate(); err != nil {
+		return
+	} else if specs, err = loadCustomFormats(cfg.Custom_Format); err != nil {
+		return
 	}
 	c.tagFields = make(map[string][]string, len(tagHeaders))
 	c.tags = make(map[string]entry.EntryTag)
 	var k, v string
 	for k, v = range tagHeaders {
 		tagName := c.Prefix + k
-		c.tagFields[tagName] = strings.Split(v, ",")
+		c.tagFields[tagName] = cleanHeaders(strings.Split(v, ","))
 		if tv, err := c.tg.NegotiateTag(tagName); err != nil {
 			return err
 		} else {
 			c.tags[tagName] = tv
 		}
+	}
+	for _, spec := range specs {
+		tagName := c.Prefix + spec.prefix
+		var tv entry.EntryTag
+		if tv, err = c.tg.NegotiateTag(tagName); err != nil {
+			return
+		}
+		c.tags[tagName] = tv
+		c.tagFields[tagName] = spec.headers
 	}
 
 	return
@@ -212,16 +233,65 @@ func emitLine(ts time.Time, headers []string, mp map[string]interface{}) (line [
 	return
 }
 
+func (cl *CorelightConfig) Validate() (err error) {
+	if cl.Prefix == `` {
+		cl.Prefix = defaultPrefix
+	}
+	if err = ingest.CheckTag(cl.Prefix); err != nil {
+		err = fmt.Errorf("prefix %q is invalid %w", cl.Prefix, err)
+		return
+	}
+	_, err = loadCustomFormats(cl.Custom_Format)
+	return
+}
+
+type corelightSpec struct {
+	prefix  string
+	headers []string
+}
+
+func loadCustomFormats(strs []string) (specs []corelightSpec, err error) {
+	for _, v := range strs {
+		v = strings.TrimSpace(v)
+		if bits := strings.SplitN(v, ":", 2); len(bits) != 2 {
+			err = fmt.Errorf("%q custom format is invalid", v)
+			return
+		} else {
+			var spec corelightSpec
+
+			//grab and check the prefix
+			if spec.prefix = strings.TrimSpace(bits[0]); len(spec.prefix) == 0 {
+				err = fmt.Errorf("%q custom format is invalid", v)
+				return
+			} else if err = ingest.CheckTag(spec.prefix); err != nil {
+				err = fmt.Errorf("%q custom format is invalid %w", v, err)
+				return
+			}
+
+			//parse out the headers
+			if spec.headers = cleanHeaders(strings.Split(v, ",")); len(spec.headers) == 0 {
+				err = fmt.Errorf("%q custom format is invalid, missing headers", v)
+				return
+			}
+			specs = append(specs, spec)
+		}
+	}
+
+	return
+}
+
 var tagHeaders = map[string]string{
-	"conn":        "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,proto,service,duration,orig_bytes,resp_bytes,conn_state,local_orig,local_resp,missed_bytes,history,orig_pkts,orig_ip_bytes,resp_pkts,resp_ip_bytes,tunnel_parents,vlan",
-	"dhcp":        "ts,uids,client_addr,server_addr,mac,host_name,client_fqdn,domain,requested_addr,assigned_addr,lease_time,client_message,server_message,msg_types,duration",
-	"dns":         "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,proto,trans_id,rtt,query,qclass,qclass_name,qtype,qtype_name,rcode,rcode_name,AA,TC,RD,RA,Z,answers,TTLs,rejected",
-	"files":       "ts,fuid,tx_hosts,rx_hosts,conn_uids,source,depth,analyzers,mime_type,filename,duration,local_orig,is_orig,seen_bytes,total_bytes,missing_bytes,overflow_bytes,timedout,parent_fuid,md5,sha1,sha256,extracted,extracted_cutoff,extracted_size",
-	"http":        "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,trans_depth,method,host,uri,referrer,version,user_agent,id.origin,request_body_len,id.response_body_len,status_code,status_msg,info_code,info_msg,tags,username,password,proxied,id.orig_fuids,id.orig_filenames,id.orig_mime_types,id.resp_fuids,id.resp_filenames,id.resp_mime_types",
-	"ssl":         "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,version,cipher,curve,server_name,resumed,last_alert,next_protocol,established,cert_chain_fuids,client_cert_chain_fuids,subject,issuer,client_subject,client_issuer,validation_status",
-	"weird":       "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,name,addl,notice,peer",
-	"x509":        "ts,uid,version,serial,subject,issuer,not_valid_before,not_valid_after,key_alg,sig_alg,key_type,key_length,exponent,curve,dns,uri,email,ip,ca,path_len",
-	"ssh":         "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,version,auth_success,auth_attempts,direction,client,server,cipher_alg,mac_alg,compression_alg,kex_alg,host_key_alg,host_key,inferences",
+	"conn":  "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,proto,service,duration,orig_bytes,resp_bytes,conn_state,local_orig,local_resp,missed_bytes,history,orig_pkts,orig_ip_bytes,resp_pkts,resp_ip_bytes,tunnel_parents,vlan",
+	"dhcp":  "ts,uids,client_addr,server_addr,mac,host_name,client_fqdn,domain,requested_addr,assigned_addr,lease_time,client_message,server_message,msg_types,duration",
+	"dns":   "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,proto,trans_id,rtt,query,qclass,qclass_name,qtype,qtype_name,rcode,rcode_name,AA,TC,RD,RA,Z,answers,TTLs,rejected",
+	"files": "ts,fuid,tx_hosts,rx_hosts,conn_uids,source,depth,analyzers,mime_type,filename,duration,local_orig,is_orig,seen_bytes,total_bytes,missing_bytes,overflow_bytes,timedout,parent_fuid,md5,sha1,sha256,extracted,extracted_cutoff,extracted_size",
+	"http":  "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,trans_depth,method,host,uri,referrer,version,user_agent,id.origin,request_body_len,id.response_body_len,status_code,status_msg,info_code,info_msg,tags,username,password,proxied,id.orig_fuids,id.orig_filenames,id.orig_mime_types,id.resp_fuids,id.resp_filenames,id.resp_mime_types",
+	"ssl":   "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,version,cipher,curve,server_name,resumed,last_alert,next_protocol,established,cert_chain_fuids,client_cert_chain_fuids,subject,issuer,client_subject,client_issuer,validation_status",
+	"weird": "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,name,addl,notice,peer",
+	"x509":  "ts,uid,version,serial,subject,issuer,not_valid_before,not_valid_after,key_alg,sig_alg,key_type,key_length,exponent,curve,dns,uri,email,ip,ca,path_len",
+
+	"ssh": "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,version,auth_success,auth_attempts,direction,client,server,cipher_alg,mac_alg,compression_alg,kex_alg,host_key_alg,host_key,inferences",
+
 	"sip":         "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,trans_depth,method,uri,date,request_fromrequest_to,id.response_from,id.response_to,reply_to,call_id,seq,subject,request_path,id.response_path,user_agent,status_code,status_msg,warning,request_body_len,id.response_body_len,content_type",
 	"dpd":         "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,proto,analyzer,failure_reason,packet_segment",
 	"snmp":        "ts,uid,id.orig_h,id.orig_p,id.resp_h,id.resp_p,duration,version,community,get_requests,get_bulk_requests,get_responses,set_requests,display_string,up_since",
