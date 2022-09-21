@@ -151,6 +151,9 @@ var corelightTestData = []testCheck{
 	testCheck{tag: `zeeknotice`, input: notice2_in, output: notice2_out},
 	testCheck{tag: `zeeknotice`, input: notice3_in, output: notice3_out},
 	testCheck{tag: `zeekweird`, input: weird1_in, output: weird1_out},
+	testCheck{tag: `zeekdpd`, input: dpd1_in, output: dpd1_out},
+	testCheck{tag: `zeekirc`, input: irc1_in, output: irc1_out},
+	testCheck{tag: `zeekrdp`, input: rdp1_in, output: rdp1_out},
 }
 
 // try overriding the x509 parser, make sure overrides work

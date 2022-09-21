@@ -619,3 +619,48 @@ const weird1_in = `{
   "notice": false,
   "peer": "so16-enp0s8-1"
 }`
+
+const dpd1_out = "1600266221.005323	C8blOJ21azairPrWf8	192.168.4.142	50540	184.168.176.1	443	tcp	SSL	Invalid version late in TLS connection. Packet reported version: 21588	-"
+const dpd1_in = `{
+  "_path": "dpd",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "C8blOJ21azairPrWf8",
+  "id.orig_h": "192.168.4.142",
+  "id.orig_p": 50540,
+  "id.resp_h": "184.168.176.1",
+  "id.resp_p": 443,
+  "proto": "tcp",
+  "analyzer": "SSL",
+  "failure_reason": "Invalid version late in TLS connection. Packet reported version: 21588"
+}`
+
+const irc1_out = "1600266221.005323	CDsHGC2ZJuJh10XNbk	192.168.4.142	52856	195.154.200.232	6667	zeektest	zeektest	JOIN	#freenode		-	-	-	-"
+const irc1_in = `{
+  "_path": "irc",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "CDsHGC2ZJuJh10XNbk",
+  "id.orig_h": "192.168.4.142",
+  "id.orig_p": 52856,
+  "id.resp_h": "195.154.200.232",
+  "id.resp_p": 6667,
+  "nick": "zeektest",
+  "user": "zeektest",
+  "command": "JOIN",
+  "value": "#freenode",
+  "addl": ""
+}`
+
+const rdp1_out = "1600266221.005323	CFdEZNjN5MtPzGMS8	192.168.4.160	59758	192.168.4.161	3389	test	encrypted	HYBRID	-	-	-	-	-	-	-	-	-	0	-	-	-"
+const rdp1_in = `{
+  "_path": "rdp",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "CFdEZNjN5MtPzGMS8",
+  "id.orig_h": "192.168.4.160",
+  "id.orig_p": 59758,
+  "id.resp_h": "192.168.4.161",
+  "id.resp_p": 3389,
+  "cookie": "test",
+  "result": "encrypted",
+  "security_protocol": "HYBRID",
+  "cert_count": 0
+}`
