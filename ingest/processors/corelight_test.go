@@ -154,6 +154,11 @@ var corelightTestData = []testCheck{
 	testCheck{tag: `zeekdpd`, input: dpd1_in, output: dpd1_out},
 	testCheck{tag: `zeekirc`, input: irc1_in, output: irc1_out},
 	testCheck{tag: `zeekrdp`, input: rdp1_in, output: rdp1_out},
+	testCheck{tag: `zeekkerberos`, input: kerberos1_in, output: kerberos1_out},
+	testCheck{tag: `zeeksmb_mapping`, input: smb_mapping1_in, output: smb_mapping1_out},
+	testCheck{tag: `zeeksmb_files`, input: smb_files1_in, output: smb_files1_out},
+	testCheck{tag: `zeektunnel`, input: tunnel1_in, output: tunnel1_out},
+	testCheck{tag: `zeeksoftware`, input: software1_in, output: software1_out},
 }
 
 // try overriding the x509 parser, make sure overrides work
