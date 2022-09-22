@@ -430,3 +430,237 @@ const x5091_in = `{
   ],
   "basic_constraints.ca": false
 }`
+
+const smtp1_out = `1254722768.219663	C1qe8w3QHRF2N5tVV5	10.10.1.4	1470	74.53.140.153	25	1	GP	gurpartap@patriots.in	[raj_deol2002in@yahoo.co.in]	Mon, 5 Oct 2009 11:36:07 +0530	"Gurpartap Singh" <gurpartap@patriots.in>	[<raj_deol2002in@yahoo.co.in>]	-	-	<000301ca4581$ef9e57f0$cedb07d0$@in>	-	SMTP	-	-	-	250 OK id=1Mugho-0003Dg-Un	[74.53.140.153 10.10.1.4]	Microsoft Office Outlook 12.0	false`
+const smtp1_in = `{
+  "_path": "smtp",
+  "ts": "1254722768.219663",
+  "uid": "C1qe8w3QHRF2N5tVV5",
+  "id.orig_h": "10.10.1.4",
+  "id.orig_p": 1470,
+  "id.resp_h": "74.53.140.153",
+  "id.resp_p": 25,
+  "trans_depth": 1,
+  "helo": "GP",
+  "mailfrom": "gurpartap@patriots.in",
+  "rcptto": [
+    "raj_deol2002in@yahoo.co.in"
+  ],
+  "date": "Mon, 5 Oct 2009 11:36:07 +0530",
+  "from": "\"Gurpartap Singh\" <gurpartap@patriots.in>",
+  "to": [
+    "<raj_deol2002in@yahoo.co.in>"
+  ],
+  "msg_id": "<000301ca4581$ef9e57f0$cedb07d0$@in>",
+  "subject": "SMTP",
+  "last_reply": "250 OK id=1Mugho-0003Dg-Un",
+  "path": [
+    "74.53.140.153",
+    "10.10.1.4"
+  ],
+  "user_agent": "Microsoft Office Outlook 12.0",
+  "tls": false,
+  "fuids": [
+    "Fel9gs4OtNEV6gUJZ5",
+    "Ft4M3f2yMvLlmwtbq9",
+    "FL9Y0d45OI4LpS6fmh"
+  ]
+}`
+
+const pe1_out = `1600820676.395445	FGYKX64SkXc4OcvlFf	AMD64	2020-09-19T00:10:08.000000Z	Windows XP x64 or Server 2003	WINDOWS_GUI	true	true	true	true	false	true	true	true	true	[.text .rdata .data .pdata .00cfg .rsrc .reloc]`
+const pe1_in = `{
+  "_path": "pe",
+  "ts": "2020-09-23T00:24:36.395445Z",
+  "id": "FGYKX64SkXc4OcvlFf",
+  "machine": "AMD64",
+  "compile_ts": "2020-09-19T00:10:08.000000Z",
+  "os": "Windows XP x64 or Server 2003",
+  "subsystem": "WINDOWS_GUI",
+  "is_exe": true,
+  "is_64bit": true,
+  "uses_aslr": true,
+  "uses_dep": true,
+  "uses_code_integrity": false,
+  "uses_seh": true,
+  "has_import_table": true,
+  "has_export_table": false,
+  "has_cert_table": true,
+  "has_debug_data": true,
+  "section_names": [
+    ".text",
+    ".rdata",
+    ".data",
+    ".pdata",
+    ".00cfg",
+    ".rsrc",
+    ".reloc"
+  ]
+}`
+
+const ntp1_out = `1600820676.395445	CqlPpF1AQVLMPgGiL5	192.168.4.49	38461	208.79.89.249	123	4	3	0	1	1	0	0	\x00\x00\x00\x00	1970-01-01T00:00:00.000000Z	1970-01-01T00:00:00.000000Z	1970-01-01T00:00:00.000000Z	2020-10-08T00:29:07.215586Z	0`
+const ntp1_in = `{
+  "_path": "ntp",
+  "ts": "2020-09-23T00:24:36.395445Z",
+  "uid": "CqlPpF1AQVLMPgGiL5",
+  "id.orig_h": "192.168.4.49",
+  "id.orig_p": 38461,
+  "id.resp_h": "208.79.89.249",
+  "id.resp_p": 123,
+  "version": 4,
+  "mode": 3,
+  "stratum": 0,
+  "poll": 1,
+  "precision": 1,
+  "root_delay": 0,
+  "root_disp": 0,
+  "ref_id": "\\x00\\x00\\x00\\x00",
+  "ref_time": "1970-01-01T00:00:00.000000Z",
+  "org_time": "1970-01-01T00:00:00.000000Z",
+  "rec_time": "1970-01-01T00:00:00.000000Z",
+  "xmt_time": "2020-10-08T00:29:07.215586Z",
+  "num_exts": 0
+}`
+
+const ntp2_out = `1600820676.395445	CqlPpF1AQVLMPgGiL5	192.168.4.49	38461	208.79.89.249	123	4	4	2	8	0.00000	0.00922	0.02122	127.67.113.92	2020-10-08T00:24:15.942204Z	2020-10-08T00:29:07.215586Z	2020-10-08T00:29:07.964281Z	2020-10-08T00:29:07.964314Z	0`
+const ntp2_in = `{
+  "_path": "ntp",
+  "ts": "2020-09-23T00:24:36.395445Z",
+  "uid": "CqlPpF1AQVLMPgGiL5",
+  "id.orig_h": "192.168.4.49",
+  "id.orig_p": 38461,
+  "id.resp_h": "208.79.89.249",
+  "id.resp_p": 123,
+  "version": 4,
+  "mode": 4,
+  "stratum": 2,
+  "poll": 8,
+  "precision": 5.960464477539063e-08,
+  "root_delay": 0.00921630859375,
+  "root_disp": 0.0212249755859375,
+  "ref_id": "127.67.113.92",
+  "ref_time": "2020-10-08T00:24:15.942204Z",
+  "org_time": "2020-10-08T00:29:07.215586Z",
+  "rec_time": "2020-10-08T00:29:07.964281Z",
+  "xmt_time": "2020-10-08T00:29:07.964314Z",
+  "num_exts": 0
+}`
+
+const notice1_out = `1600820676.395445	CxdbSa2KGTlMl3PPB2	192.168.4.129	51020	40.71.25.43	8080	FtEE2txjFBxLDbffi	-	-	tcp	SSL::Invalid_Server_Cert	SSL certificate validation failed with (unable to get local issuer certificate)	CN=*.cloudapp.net,OU=Smart Controller Development,O=GTO Access Systems\, LLC,DC=smartcontroller,DC=local	192.168.4.129	40.71.25.43	8080	-	so16-enp0s8-1	[Notice::ACTION_LOG]	3600	-	-	-	-	-	-`
+const notice1_in = `{
+  "_path": "notice",
+  "ts": "2020-09-23T00:24:36.395445Z",
+  "uid": "CxdbSa2KGTlMl3PPB2",
+  "id.orig_h": "192.168.4.129",
+  "id.orig_p": 51020,
+  "id.resp_h": "40.71.25.43",
+  "id.resp_p": 8080,
+  "fuid": "FtEE2txjFBxLDbffi",
+  "proto": "tcp",
+  "note": "SSL::Invalid_Server_Cert",
+  "msg": "SSL certificate validation failed with (unable to get local issuer certificate)",
+  "sub": "CN=*.cloudapp.net,OU=Smart Controller Development,O=GTO Access Systems\\, LLC,DC=smartcontroller,DC=local",
+  "src": "192.168.4.129",
+  "dst": "40.71.25.43",
+  "p": 8080,
+  "peer_descr": "so16-enp0s8-1",
+  "actions": [
+    "Notice::ACTION_LOG"
+  ],
+  "suppress_for": 3600
+}`
+
+const notice2_out = `1600820676.395445	-	-	-	-	-	-	-	-	-	ATTACK::Discovery	Detected activity from host 192.168.10.31, total attempts 5 within timeframe 5.0 mins	-	-	-	-	-	-	[Notice::ACTION_LOG]	3600	-	-	-	-	-	-`
+const notice2_in = `{
+  "_path": "notice",
+  "ts": "2020-09-23T00:24:36.395445Z",
+  "note": "ATTACK::Discovery",
+  "msg": "Detected activity from host 192.168.10.31, total attempts 5 within timeframe 5.0 mins",
+  "actions": [
+    "Notice::ACTION_LOG"
+  ],
+  "suppress_for": 3600
+}`
+
+const notice3_out = `1600820676.395445	CR7Vww4LuLkMzi4jMd	192.168.10.31	49238	192.168.10.30	445	FwVZpk12AKBjE11UNg	application/x-dosexec	temp	tcp	ATTACK::Lateral_Movement_Extracted_File	Saved a copy of the file written to SMB admin file share	CR7Vww4LuLkMzi4jMd_FwVZpk12AKBjE11UNg__admin-pc_c$temp_mimikatz.exe	192.168.10.31	192.168.10.30	445	-	-	[Notice::ACTION_LOG]	3600	-	-	-	-	-	-`
+const notice3_in = `{
+  "_path": "notice",
+  "ts": "2020-09-23T00:24:36.395445Z",
+  "uid": "CR7Vww4LuLkMzi4jMd",
+  "id.orig_h": "192.168.10.31",
+  "id.orig_p": 49238,
+  "id.resp_h": "192.168.10.30",
+  "id.resp_p": 445,
+  "fuid": "FwVZpk12AKBjE11UNg",
+  "file_mime_type": "application/x-dosexec",
+  "file_desc": "temp",
+  "proto": "tcp",
+  "note": "ATTACK::Lateral_Movement_Extracted_File",
+  "msg": "Saved a copy of the file written to SMB admin file share",
+  "sub": "CR7Vww4LuLkMzi4jMd_FwVZpk12AKBjE11UNg__admin-pc_c$temp_mimikatz.exe",
+  "src": "192.168.10.31",
+  "dst": "192.168.10.30",
+  "p": 445,
+  "actions": [
+    "Notice::ACTION_LOG"
+  ],
+  "suppress_for": 3600
+}`
+
+const weird1_out = `1600820676.395445	CxdbSa2KGTlMl3PPB2	192.168.4.129	51020	40.71.25.43	8080	bad_HTTP_request	-	false	so16-enp0s8-1	-`
+const weird1_in = `{
+  "_path": "weird",
+  "ts": "2020-09-23T00:24:36.395445Z",
+  "uid": "CxdbSa2KGTlMl3PPB2",
+  "id.orig_h": "192.168.4.129",
+  "id.orig_p": 51020,
+  "id.resp_h": "40.71.25.43",
+  "id.resp_p": 8080,
+  "name": "bad_HTTP_request",
+  "notice": false,
+  "peer": "so16-enp0s8-1"
+}`
+
+const dpd1_out = "1600266221.005323	C8blOJ21azairPrWf8	192.168.4.142	50540	184.168.176.1	443	tcp	SSL	Invalid version late in TLS connection. Packet reported version: 21588	-"
+const dpd1_in = `{
+  "_path": "dpd",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "C8blOJ21azairPrWf8",
+  "id.orig_h": "192.168.4.142",
+  "id.orig_p": 50540,
+  "id.resp_h": "184.168.176.1",
+  "id.resp_p": 443,
+  "proto": "tcp",
+  "analyzer": "SSL",
+  "failure_reason": "Invalid version late in TLS connection. Packet reported version: 21588"
+}`
+
+const irc1_out = "1600266221.005323	CDsHGC2ZJuJh10XNbk	192.168.4.142	52856	195.154.200.232	6667	zeektest	zeektest	JOIN	#freenode		-	-	-	-"
+const irc1_in = `{
+  "_path": "irc",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "CDsHGC2ZJuJh10XNbk",
+  "id.orig_h": "192.168.4.142",
+  "id.orig_p": 52856,
+  "id.resp_h": "195.154.200.232",
+  "id.resp_p": 6667,
+  "nick": "zeektest",
+  "user": "zeektest",
+  "command": "JOIN",
+  "value": "#freenode",
+  "addl": ""
+}`
+
+const rdp1_out = "1600266221.005323	CFdEZNjN5MtPzGMS8	192.168.4.160	59758	192.168.4.161	3389	test	encrypted	HYBRID	-	-	-	-	-	-	-	-	-	0	-	-	-"
+const rdp1_in = `{
+  "_path": "rdp",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "CFdEZNjN5MtPzGMS8",
+  "id.orig_h": "192.168.4.160",
+  "id.orig_p": 59758,
+  "id.resp_h": "192.168.4.161",
+  "id.resp_p": 3389,
+  "cookie": "test",
+  "result": "encrypted",
+  "security_protocol": "HYBRID",
+  "cert_count": 0
+}`

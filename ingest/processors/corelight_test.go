@@ -143,6 +143,17 @@ var corelightTestData = []testCheck{
 	testCheck{tag: `zeekssl`, input: ssl1_in, output: ssl1_out},
 	testCheck{tag: `zeekssl`, input: ssl2_in, output: ssl2_out},
 	testCheck{tag: `zeekx509`, input: x5091_in, output: x5091_out},
+	testCheck{tag: `zeeksmtp`, input: smtp1_in, output: smtp1_out},
+	testCheck{tag: `zeekpe`, input: pe1_in, output: pe1_out},
+	testCheck{tag: `zeekntp`, input: ntp1_in, output: ntp1_out},
+	testCheck{tag: `zeekntp`, input: ntp2_in, output: ntp2_out},
+	testCheck{tag: `zeeknotice`, input: notice1_in, output: notice1_out},
+	testCheck{tag: `zeeknotice`, input: notice2_in, output: notice2_out},
+	testCheck{tag: `zeeknotice`, input: notice3_in, output: notice3_out},
+	testCheck{tag: `zeekweird`, input: weird1_in, output: weird1_out},
+	testCheck{tag: `zeekdpd`, input: dpd1_in, output: dpd1_out},
+	testCheck{tag: `zeekirc`, input: irc1_in, output: irc1_out},
+	testCheck{tag: `zeekrdp`, input: rdp1_in, output: rdp1_out},
 }
 
 // try overriding the x509 parser, make sure overrides work
