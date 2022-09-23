@@ -30,7 +30,7 @@ var (
 	clearConns = flag.String("clear-conns", "172.17.0.2:4023",
 		"comma-separated server:port list of cleartext targets")
 	tlsConns        = flag.String("tls-conns", "", "comma-separated server:port list of TLS connections")
-	pipeConns       = flag.String("pipe-conns", "", "comma-separated list of paths for named pie connection")
+	pipeConns       = flag.String("pipe-conns", "", "comma-separated list of paths for named pipe connection")
 	tlsPublicKey    = flag.String("tls-public-key", "", "Path to TLS public key")
 	tlsPrivateKey   = flag.String("tls-private-key", "", "Path to TLS private key")
 	tlsRemoteVerify = flag.String("tls-remote-verify", "", "Path to remote public key to verify against")

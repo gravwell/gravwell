@@ -64,6 +64,90 @@ func TestRegexExtractConfig(t *testing.T) {
 	}
 }
 
+func TestRegexExtractorEmptyConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = regexextract
+		Template="${_SRC_} ${stuff}"
+		Regex=` + "`" + testRegex + "`"
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the regexextract preprocess or
+	if cp, ok := p.(*RegexExtractor); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *RegexExtractor", p)
+	} else {
+		if cp.Drop_Misses || !cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
+func TestRegexExtractorBasicConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = regexextract
+		Passthrough-Misses=false
+		Template="${_SRC_} ${stuff}"
+		Regex=` + "`" + testRegex + "`"
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the regexextract preprocess or
+	if cp, ok := p.(*RegexExtractor); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *RegexExtractor", p)
+	} else {
+		if !cp.Drop_Misses || cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
+func TestRegexExtractorConflictingConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = regexextract
+		Passthrough-Misses=false
+		Drop-Misses=true
+		Template="${_SRC_} ${stuff}"
+		Regex=` + "`" + testRegex + "`"
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the regexextract preprocess or
+	if cp, ok := p.(*RegexExtractor); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *RegexExtractor", p)
+	} else {
+		if !cp.Drop_Misses || cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
+func TestRegexExtractorDropConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = regexextract
+		Drop-Misses=true
+		Template="${_SRC_} ${stuff}"
+		Regex=` + "`" + testRegex + "`"
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the regexextract preprocess or
+	if cp, ok := p.(*RegexExtractor); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *RegexExtractor", p)
+	} else {
+		if !cp.Drop_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
 func TestRegexExtract(t *testing.T) {
 	re, err := NewRegexExtractor(testRegexConfig)
 	if err != nil {

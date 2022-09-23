@@ -134,6 +134,15 @@ func (c *cfgType) Tags() ([]string, error) {
 	return tags, nil
 }
 
+func (c *cfgType) getSplunkConfig(splunkName string) (s splunk, err error) {
+	if sp, ok := c.Splunk[splunkName]; !ok || sp == nil {
+		err = errors.New("Not found")
+	} else {
+		s = *sp
+	}
+	return
+}
+
 func (c *cfgType) getSplunkConn(splunkName string) (sc splunkConn, err error) {
 	for k, vv := range c.Splunk {
 		if k == splunkName {
@@ -150,7 +159,7 @@ func (c *cfgType) getSplunkPreprocessors(splunkName string, igst *ingest.IngestM
 	for k, vv := range c.Splunk {
 		if k == splunkName {
 			// get the ingester up and rolling
-			pproc, err = cfg.Preprocessor.ProcessorSet(igst, vv.Preprocessor)
+			pproc, err = c.Preprocessor.ProcessorSet(igst, vv.Preprocessor)
 			return
 		}
 	}

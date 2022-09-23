@@ -16,6 +16,94 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 )
 
+func TestCiscoISEEmptyConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = cisco_ise
+		Enable-MultiPart-Reassembly=true
+		Output-format=json
+	`
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*CiscoISE); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *CiscoISE", p)
+	} else {
+		if cp.Drop_Misses || !cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
+func TestCiscoISEBasicConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = cisco_ise
+		Enable-MultiPart-Reassembly=true
+		Output-format=json
+		Passthrough-Misses=false
+	`
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*CiscoISE); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *CiscoISE", p)
+	} else {
+		if !cp.Drop_Misses || cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
+func TestCiscoISEConflictingConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = cisco_ise
+		Enable-MultiPart-Reassembly=true
+		Output-format=json
+		Passthrough-Misses=false
+		Drop-Misses=true
+	`
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*CiscoISE); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *CiscoISE", p)
+	} else {
+		if !cp.Drop_Misses || cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
+func TestCiscoISEDropConfig(t *testing.T) {
+	b := `
+	[preprocessor "ise"]
+		type = cisco_ise
+		Enable-MultiPart-Reassembly=true
+		Output-format=json
+		Drop-Misses=true
+	`
+	p, err := testLoadPreprocessor(b, `ise`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*CiscoISE); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *CiscoISE", p)
+	} else {
+		if !cp.Drop_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
+	}
+}
+
 func TestParseRemoteHeader(t *testing.T) {
 	//just test that we can parse each
 	for _, tv := range testdata {
@@ -279,6 +367,15 @@ func TestCiscoISEProcess(t *testing.T) {
 	p, err := tc.Preprocessor.getProcessor(`ise`, &tt)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	//cast to the cisco preprocess or
+	if cp, ok := p.(*CiscoISE); !ok {
+		t.Fatalf("preprocessor is the wrong type: %T != *CiscoISE", p)
+	} else {
+		if !cp.Drop_Misses || cp.Passthrough_Misses {
+			t.Fatalf("invalid miss config: %v %v", cp.Drop_Misses, cp.Passthrough_Misses)
+		}
 	}
 
 	for i, d := range testdata {

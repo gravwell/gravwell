@@ -5,15 +5,17 @@ go 1.16
 require (
 	cloud.google.com/go/pubsub v1.3.1
 	collectd.org v0.3.1-0.20181025072142-f80706d1e115
+	github.com/Azure/azure-amqp-common-go v1.1.4 // indirect
+	github.com/Azure/azure-event-hubs-go v1.3.1 // indirect
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/Shopify/sarama v1.24.1
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56
 	github.com/aws/aws-sdk-go v1.29.11
 	github.com/bet365/jingo v0.10.0 // indirect
+	github.com/brianvoe/gofakeit v3.18.0+incompatible // indirect
 	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
 	github.com/bxcodec/faker/v3 v3.3.1
-	github.com/cloudflare/buffer v0.0.0-20190408164202-7cab898e1166
 	github.com/crewjam/rfc5424 v0.1.0
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/eapache/go-resiliency v1.2.0 // indirect
@@ -32,6 +34,7 @@ require (
 	github.com/google/renameio v0.1.0
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.2
+	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect
 	github.com/gravwell/gcfg v1.2.9-0.20220128204816-1742bc68c091
 	github.com/gravwell/ipfix v1.4.3
 	github.com/h2non/filetype v1.0.10
@@ -73,5 +76,3 @@ replace github.com/open-networks/go-msgraph => github.com/floren/go-msgraph v0.0
 replace github.com/fsnotify/fsnotify => github.com/traetox/fsnotify v1.5.2-0.20220310052716-a0d82fe7e596
 
 // replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
-
-replace github.com/cloudflare/buffer => github.com/traetox/buffer v0.0.0-20210409000708-97e100fbf3c5

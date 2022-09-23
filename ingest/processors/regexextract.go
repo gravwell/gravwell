@@ -28,13 +28,48 @@ var (
 )
 
 type RegexExtractConfig struct {
-	Passthrough_Misses bool
+	Passthrough_Misses bool //deprecated DO NOT USE
+	Drop_Misses        bool
 	Regex              string
 	Template           string
 }
 
 func RegexExtractLoadConfig(vc *config.VariableConfig) (c RegexExtractConfig, err error) {
-	err = vc.MapTo(&c)
+	//to support legacy config, set Passthrough_Misses to true so that we can catch them setting it to false
+	//default is now to send them through
+	c.Passthrough_Misses = true
+	if err = vc.MapTo(&c); err == nil {
+		_, _, err = c.validate()
+	}
+	return
+}
+
+func (c *RegexExtractConfig) validate() (rx *regexp.Regexp, tmp *formatter, err error) {
+	if c.Regex == `` {
+		err = errors.New("Missing regular expression")
+		return
+	} else if c.Template == `` {
+		err = errors.New("Missing template")
+		return
+	} else if tmp, err = newFormatter(c.Template); err != nil {
+		return
+	} else if rx, err = regexp.Compile(c.Regex); err != nil {
+		return
+	}
+	names := rx.SubexpNames()
+	if len(names) == 0 {
+		err = ErrMissingExtractNames
+		return
+	}
+	//handle the legacy config items and potential overrides
+	// if Drop-Misses is set, that overrides everything
+	if c.Drop_Misses == false {
+		if c.Passthrough_Misses == false {
+			c.Drop_Misses = true
+		}
+	}
+
+	err = tmp.setReplaceNames(names)
 	return
 }
 
@@ -94,32 +129,11 @@ func (re *RegexExtractor) processEntry(ent *entry.Entry) (*entry.Entry, error) {
 	}
 	if mtchs := re.rx.FindSubmatch(ent.Data); len(mtchs) == re.cnt {
 		ent.Data = re.tmp.render(ent, mtchs)
-	} else if !re.Passthrough_Misses {
+	} else if re.Drop_Misses {
 		//NOT passing through misses, so set ent to nil, this is a DROP
 		ent = nil
 	}
 	return ent, nil
-}
-
-func (c RegexExtractConfig) validate() (rx *regexp.Regexp, tmp *formatter, err error) {
-	if c.Regex == `` {
-		err = errors.New("Missing regular expression")
-		return
-	} else if c.Template == `` {
-		err = errors.New("Missing template")
-		return
-	} else if tmp, err = newFormatter(c.Template); err != nil {
-		return
-	} else if rx, err = regexp.Compile(c.Regex); err != nil {
-		return
-	}
-	names := rx.SubexpNames()
-	if len(names) == 0 {
-		err = ErrMissingExtractNames
-		return
-	}
-	err = tmp.setReplaceNames(names)
-	return
 }
 
 type replaceNode interface {
