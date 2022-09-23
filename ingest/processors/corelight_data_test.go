@@ -664,3 +664,82 @@ const rdp1_in = `{
   "security_protocol": "HYBRID",
   "cert_count": 0
 }`
+
+const kerberos1_out = "1600266221.005323	CT7qITytKtae83Tyi	192.168.10.31	49242	192.168.10.10	88	TGS	RonHD/CONTOSO.LOCAL	HOST/admin-pc	true	-	-	2136422885	aes256-cts-hmac-sha1-96	true	true	-	-	-	-"
+const kerberos1_in = `{
+  "_path": "kerberos",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "CT7qITytKtae83Tyi",
+  "id.orig_h": "192.168.10.31",
+  "id.orig_p": 49242,
+  "id.resp_h": "192.168.10.10",
+  "id.resp_p": 88,
+  "request_type": "TGS",
+  "client": "RonHD/CONTOSO.LOCAL",
+  "service": "HOST/admin-pc",
+  "success": true,
+  "till": 2136422885,
+  "cipher": "aes256-cts-hmac-sha1-96",
+  "forwardable": true,
+  "renewable": true
+}`
+
+const smb_mapping1_out = `1600266221.005323	C6HQVsDf8VCu0XTJe	192.168.10.31	49239	192.168.10.30	445	\\admin-pc\ADMIN$	-	-	DISK`
+const smb_mapping1_in = `{
+  "_path": "smb_mapping",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "C6HQVsDf8VCu0XTJe",
+  "id.orig_h": "192.168.10.31",
+  "id.orig_p": 49239,
+  "id.resp_h": "192.168.10.30",
+  "id.resp_p": 445,
+  "path": "\\\\admin-pc\\ADMIN$",
+  "share_type": "DISK"
+}`
+
+const smb_files1_out = `1600266221.005323	C6HQVsDf8VCu0XTJe	192.168.10.31	49239	192.168.10.30	445	-	SMB::FILE_OPEN	\\admin-pc\ADMIN$	PSEXESVC.exe	0	-	1507565599.60778	1507565599.60778	1507565599.60778	1507565599.60778`
+const smb_files1_in = `{
+  "_path": "smb_files",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "C6HQVsDf8VCu0XTJe",
+  "id.orig_h": "192.168.10.31",
+  "id.orig_p": 49239,
+  "id.resp_h": "192.168.10.30",
+  "id.resp_p": 445,
+  "action": "SMB::FILE_OPEN",
+  "path": "\\\\admin-pc\\ADMIN$",
+  "name": "PSEXESVC.exe",
+  "size": 0,
+  "times.modified": 1507565599.607777,
+  "times.accessed": 1507565599.607777,
+  "times.created": 1507565599.607777,
+  "times.changed": 1507565599.607777
+}`
+
+const tunnel1_out = `1600266221.005323	CBvCtfO5sjjyQb2V4	16.0.0.200	0	192.52.166.154	0	Tunnel::GRE	Tunnel::DISCOVER`
+const tunnel1_in = `{
+  "_path": "tunnel",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "uid": "CBvCtfO5sjjyQb2V4",
+  "id.orig_h": "16.0.0.200",
+  "id.orig_p": 0,
+  "id.resp_h": "192.52.166.154",
+  "id.resp_p": 0,
+  "tunnel_type": "Tunnel::GRE",
+  "action": "Tunnel::DISCOVER"
+}`
+
+const software1_out = `1600266221.005323	192.168.4.25	-	HTTP::BROWSER	Windows-Update-Agent	10	0	10011	16384	Client	Windows-Update-Agent/10.0.10011.16384 Client-Protocol/2.0`
+const software1_in = `{
+  "_path": "software",
+  "ts": "2020-09-16T14:23:41.005323Z",
+  "host": "192.168.4.25",
+  "software_type": "HTTP::BROWSER",
+  "name": "Windows-Update-Agent",
+  "version.major": 10,
+  "version.minor": 0,
+  "version.minor2": 10011,
+  "version.minor3": 16384,
+  "version.addl": "Client",
+  "unparsed_version": "Windows-Update-Agent/10.0.10011.16384 Client-Protocol/2.0"
+}`
