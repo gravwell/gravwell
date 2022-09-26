@@ -43,10 +43,11 @@ type listener struct {
 	base
 	Tag_Name      string
 	Reader_Type   string
-	Keep_Priority bool // Leave the <nnn> priority value at the start of the log message
+	Drop_Priority bool // remove the <nnn> priority value at the start of the log message, useful for things like fortinet
 	Cert_File     string
 	Key_File      string
 	Preprocessor  []string
+	Keep_Priority bool //NOTE DEPRECATED AND UNUSED.  Left so that config parsing doesn't break
 }
 
 type base struct {
@@ -141,6 +142,9 @@ func verifyConfig(c *cfgType) error {
 			if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
 				return fmt.Errorf("Invalid timezone override %v in listener %v: %v", v.Timezone_Override, k, err)
 			}
+		}
+		if err := checkListenerSettings(v); err != nil {
+			return fmt.Errorf("Listener %q is invalid: %v", k, err)
 		}
 		if n, ok := bindMp[v.Bind_String]; ok {
 			return errors.New("Bind-String for " + k + " already in use by " + n)
@@ -265,6 +269,21 @@ func (c *cfgType) Tags() ([]string, error) {
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+func checkListenerSettings(l *listener) (err error) {
+	var lt readerType
+	if l == nil {
+		return errors.New("nil listener")
+	}
+	if lt, err = translateReaderType(l.Reader_Type); err != nil {
+		return
+	}
+	if lt != rfc5424Reader && l.Drop_Priority {
+		err = fmt.Errorf("Drop-Priority is not compatible with reader type %s", lt)
+		return
+	}
+	return
 }
 
 func (l base) Validate() error {
