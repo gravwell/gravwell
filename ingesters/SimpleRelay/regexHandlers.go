@@ -273,7 +273,6 @@ func regexLoop(c io.Reader, cfg regexHandlerConfig, rip net.IP, out chan *entry.
 			lg.Error("error reading from regex connection, ingesting partial entry and exiting", log.KVErr(err))
 			done = true
 		} else if err == io.EOF {
-			lg.Info("regex connection saw EOF, finishing up")
 			done = true
 		} else if n == 0 {
 			continue
