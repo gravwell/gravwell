@@ -47,6 +47,7 @@ type listener struct {
 	Cert_File     string
 	Key_File      string
 	Preprocessor  []string
+	Keep_Priority bool //NOTE DEPRECATED AND UNUSED.  Left so that config parsing doesn't break
 }
 
 type base struct {
