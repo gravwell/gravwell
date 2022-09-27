@@ -171,7 +171,7 @@ Log-File=/tmp/simple_relay.log
 [Listener "fortinet tcp"]
 	#NOTICE! Lines CANNOT span multiple UDP packets, if they do, they will be treated
 	#as seperate entries
-	Bind-String = tcp://127.0.0.1:9998 #bind ONLY to localhost on UDP
+	Bind-String = tcp://127.0.0.1:9998
 	Tag-Name = tcpfortinet
 	Reader-Type=rfc6587
 	Drop-Priority=true
