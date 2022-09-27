@@ -60,8 +60,8 @@ func TestBasicConfig(t *testing.T) {
 	if cfg.Ingest_Cache_Path != `/tmp/cache/simple_relay.cache` {
 		t.Fatal("invalid cache path")
 	}
-	if len(cfg.Listener) != 7 {
-		t.Fatal(fmt.Sprintf("invalid listener counts: %d != 7", len(cfg.Listener)))
+	if len(cfg.Listener) != 9 {
+		t.Fatal(fmt.Sprintf("invalid listener counts: %d != 9", len(cfg.Listener)))
 	}
 }
 
@@ -70,6 +70,7 @@ func TestBadConfig(t *testing.T) {
 		badConfigNoListener,
 		badConfigWrongListener,
 		badConfigDropPriority,
+		badConfigReaderBind,
 	}
 
 	for _, v := range cfgs {
@@ -159,6 +160,22 @@ Log-File=/tmp/simple_relay.log
 	Tag-Name = udpliner
 	Reader-Type=line
 
+[Listener "fortinet udp"]
+	#NOTICE! Lines CANNOT span multiple UDP packets, if they do, they will be treated
+	#as seperate entries
+	Bind-String = udp://127.0.0.1:9998 #bind ONLY to localhost on UDP
+	Tag-Name = udpfortinet
+	Reader-Type=rfc5424
+	Drop-Priority=true
+
+[Listener "fortinet tcp"]
+	#NOTICE! Lines CANNOT span multiple UDP packets, if they do, they will be treated
+	#as seperate entries
+	Bind-String = tcp://127.0.0.1:9998 #bind ONLY to localhost on UDP
+	Tag-Name = tcpfortinet
+	Reader-Type=rfc6587
+	Drop-Priority=true
+
 [Listener "GenericEvents"]
 	#example generic event handler, it takes lines, and attaches current timestamp
 	Bind-String = 127.0.0.1:8888
@@ -195,5 +212,18 @@ Log-File=/tmp/simple_relay.log
 [Listener "GenericEvents"]
 	Bind-String="udp://0.0.0.0:8888"
 	Drop-Priority=true
+`
+
+	badConfigReaderBind string = `
+[Global]
+Ingest-Secret = IngestSecrets
+Cleartext-Backend-target=127.0.0.1:4023 #example of adding a cleartext connection
+Log-Level=INFO
+Log-File=/tmp/simple_relay.log
+
+[Listener "GenericEvents"]
+	Bind-String="udp://0.0.0.0:8888"
+	Drop-Priority=true
+	Reader-Type=rfc6587
 `
 )
