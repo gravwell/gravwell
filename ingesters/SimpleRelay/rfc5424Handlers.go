@@ -30,7 +30,7 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 	defer delConn(id)
 	defer c.Close()
 	var rip net.IP
-	debugout("new connection from %v", c.RemoteAddr().String())
+	debugout("new connection from %v\n", c.RemoteAddr().String())
 
 	if cfg.src == nil {
 		ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String())
@@ -79,12 +79,16 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 	s := bufio.NewScanner(c)
 	s.Buffer(make([]byte, initDataSize), maxDataSize)
 	splitter := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		debugout("data = %v", string(data))
+		debugout("data = %v\n", string(data))
 		idx := re.FindIndex(data)
 		if idx == nil || len(idx) != 2 {
 			if atEOF {
 				token = data
 				err = bufio.ErrFinalToken
+			} else if len(data) >= maxRFCSize {
+				//we are oversized, just throw what we have
+				advance = maxRFCSize
+				token = data[0:advance]
 			}
 			return //ask for more data
 		}

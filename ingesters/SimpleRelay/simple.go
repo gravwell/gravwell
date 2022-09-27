@@ -185,6 +185,8 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 			go lineConnHandlerTCP(conn, cfg)
 		case rfc5424Reader:
 			go rfc5424ConnHandlerTCP(conn, cfg)
+		case rfc6587Reader:
+			go rfc6587ConnHandlerTCP(conn, cfg)
 		default:
 			lg.Error("invalid reader type", log.KV("readertype", cfg.lrt))
 			return

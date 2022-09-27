@@ -32,6 +32,7 @@ const (
 
 	lineReader    readerType = iota
 	rfc5424Reader readerType = iota
+	rfc6587Reader readerType = iota
 )
 
 var ()
@@ -273,14 +274,22 @@ func (c *cfgType) Tags() ([]string, error) {
 
 func checkListenerSettings(l *listener) (err error) {
 	var lt readerType
+	var bt bindType
 	if l == nil {
 		return errors.New("nil listener")
 	}
 	if lt, err = translateReaderType(l.Reader_Type); err != nil {
 		return
 	}
-	if lt != rfc5424Reader && l.Drop_Priority {
+	if bt, _, err = translateBindType(l.Bind_String); err != nil {
+		return
+	}
+	if l.Drop_Priority && !(lt == rfc5424Reader || lt == rfc6587Reader) {
 		err = fmt.Errorf("Drop-Priority is not compatible with reader type %s", lt)
+		return
+	}
+	if lt == rfc6587Reader && bt.UDP() {
+		err = fmt.Errorf("RFC6587 reader type is not compatible with a UDP bind string")
 		return
 	}
 	return
@@ -357,6 +366,8 @@ func translateReaderType(s string) (readerType, error) {
 		return lineReader, nil
 	case `rfc5424`:
 		return rfc5424Reader, nil
+	case `rfc6587`:
+		return rfc6587Reader, nil
 	case ``:
 		return lineReader, nil
 	}
@@ -369,6 +380,8 @@ func (rt readerType) String() string {
 		return `LINE`
 	case rfc5424Reader:
 		return `RFC5424`
+	case rfc6587Reader:
+		return `RFC6587`
 	}
 	return "UNKNOWN"
 }
