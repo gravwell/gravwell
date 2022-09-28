@@ -24,10 +24,11 @@ var (
 	dataType = flag.String("type", "", "Data type to generate (json, csv, etc.), call `-type ?` for usage")
 
 	dataTypes = map[string]base.DataGen{
-		"json":   genDataJSON,
-		"binary": genDataBinary,
-		"bind":   genDataBind,
-		"csv":    genDataCSV,
+		"json":    genDataJSON,
+		"binary":  genDataBinary,
+		"bind":    genDataBind,
+		"csv":     genDataCSV,
+		"dnsmasq": genDataDnsmasq,
 	}
 )
 
