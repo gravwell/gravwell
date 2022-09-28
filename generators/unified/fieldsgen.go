@@ -14,16 +14,13 @@ import (
 	"time"
 
 	rd "github.com/Pallinder/go-randomdata"
-	"github.com/google/uuid"
 )
 
-func genDataCSV(ts time.Time) []byte {
+func genDataFields(ts time.Time) []byte {
 	ipa, ipb := ips()
-	return []byte(fmt.Sprintf("%s,%s,%d,%s,"+
-		"%s,%d,%s,%d,"+
-		"\"%s\n%s\", \"%s\",%s,%x",
-		ts.Format(tsFormat), getApp(), rand.Intn(0xffff), uuid.New(),
-		ipa, 2048+rand.Intn(0xffff-2048), ipb, 1+rand.Intn(2047),
-		rd.Paragraph(), rd.FirstName(rd.RandomGender), rd.Country(rd.TwoCharCountry), rd.City(),
-		[]byte(v6gen.IP())))
+	return []byte(fmt.Sprintf("%s%s%s%s%s%s%d%s%s%s%d%s\"%s\"",
+		ts.Format(tsFormat), delim, getApp(), delim,
+		ipa, delim, 1+rand.Intn(2048), delim,
+		ipb, delim, 2048+rand.Intn(0xffff-2048), delim,
+		rd.Paragraph()))
 }

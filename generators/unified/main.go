@@ -21,7 +21,8 @@ import (
 )
 
 var (
-	dataType = flag.String("type", "", "Data type to generate (json, csv, etc.), call `-type ?` for usage")
+	dataType      = flag.String("type", "", "Data type to generate (json, csv, etc.), call `-type ?` for usage")
+	delimOverride = flag.String("fields-delim-override", "", "Override the delimiter (for fields data type)")
 
 	dataTypes = map[string]base.DataGen{
 		"json":    genDataJSON,
@@ -29,11 +30,18 @@ var (
 		"bind":    genDataBind,
 		"csv":     genDataCSV,
 		"dnsmasq": genDataDnsmasq,
+		"fields":  genDataFields,
 	}
+
+	// for fields
+	delim string = "\t"
 )
 
 func main() {
 	flag.Parse()
+	if *delimOverride != `` {
+		delim = *delimOverride
+	}
 
 	// validate the type they asked for
 	gen, ok := dataTypes[*dataType]

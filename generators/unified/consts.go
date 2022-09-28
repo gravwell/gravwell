@@ -126,3 +126,11 @@ func getHost() string {
 func getApp() string {
 	return apps[rand.Intn(len(apps))]
 }
+
+func ips() (string, string) {
+	if (rand.Int() & 3) == 0 {
+		//more IPv4 than 6
+		return v6gen.IP().String(), v6gen.IP().String()
+	}
+	return v4gen.IP().String(), v4gen.IP().String()
+}
