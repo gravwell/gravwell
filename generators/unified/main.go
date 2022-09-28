@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v3/generators/base"
-	"github.com/gravwell/gravwell/v3/generators/ipgen"
 	"github.com/gravwell/gravwell/v3/ingest"
 )
 
@@ -28,31 +27,9 @@ var (
 		"json":   genDataJSON,
 		"binary": genDataBinary,
 		"bind":   genDataBind,
+		"csv":    genDataCSV,
 	}
-
-	v4gen      *ipgen.V4Gen
-	v6gen      *ipgen.V6Gen
-	serverIPs  []net.IP
-	serverIP6s []net.IP
 )
-
-func init() {
-	var err error
-	v4gen, err = ipgen.RandomWeightedV4Generator(40)
-	if err != nil {
-		log.Fatalf("Failed to instantiate v4 generator: %v", err)
-	}
-	v6gen, err = ipgen.RandomWeightedV6Generator(30)
-	if err != nil {
-		log.Fatalf("Failed to instantiate v6 generator: %v\n", err)
-	}
-	for i := 0; i < 4; i++ {
-		serverIPs = append(serverIPs, v4gen.IP())
-	}
-	for i := 0; i < 4; i++ {
-		serverIP6s = append(serverIP6s, v6gen.IP())
-	}
-}
 
 func main() {
 	flag.Parse()

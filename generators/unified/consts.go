@@ -9,21 +9,61 @@
 package main
 
 import (
+	"log"
 	"math/rand"
+	"net"
 	"strings"
 
 	rd "github.com/Pallinder/go-randomdata"
+	"github.com/gravwell/gravwell/v3/generators/ipgen"
 )
 
 const (
 	maxGroups int = 64
 	maxUsers  int = 1024 * 1024
+
+	hcount   int    = 32
+	appcount int    = 2048
+	tsFormat string = `2006-01-02T15:04:05.999999Z07:00`
 )
 
 var (
 	groups []string
 	users  []Account
+
+	hosts []string
+	apps  []string
+
+	v4gen      *ipgen.V4Gen
+	v6gen      *ipgen.V6Gen
+	serverIPs  []net.IP
+	serverIP6s []net.IP
 )
+
+func init() {
+	var err error
+	v4gen, err = ipgen.RandomWeightedV4Generator(40)
+	if err != nil {
+		log.Fatalf("Failed to instantiate v4 generator: %v", err)
+	}
+	v6gen, err = ipgen.RandomWeightedV6Generator(30)
+	if err != nil {
+		log.Fatalf("Failed to instantiate v6 generator: %v\n", err)
+	}
+	for i := 0; i < 4; i++ {
+		serverIPs = append(serverIPs, v4gen.IP())
+	}
+	for i := 0; i < 4; i++ {
+		serverIP6s = append(serverIP6s, v6gen.IP())
+	}
+
+	for i := 0; i < hcount; i++ {
+		hosts = append(hosts, rd.Noun())
+	}
+	for i := 0; i < appcount; i++ {
+		apps = append(apps, rd.Adjective())
+	}
+}
 
 type Account struct {
 	User    string `json:"user"`
@@ -77,4 +117,12 @@ func getGroups() (r []string) {
 		}
 	}
 	return
+}
+
+func getHost() string {
+	return hosts[rand.Intn(len(hosts))]
+}
+
+func getApp() string {
+	return apps[rand.Intn(len(apps))]
 }
