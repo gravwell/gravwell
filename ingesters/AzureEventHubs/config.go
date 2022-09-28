@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	eventhubs "github.com/Azure/azure-event-hubs-go"
+	eventhubs "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"

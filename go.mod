@@ -6,7 +6,9 @@ require (
 	cloud.google.com/go/pubsub v1.3.1
 	collectd.org v0.3.1-0.20181025072142-f80706d1e115
 	github.com/Azure/azure-amqp-common-go v1.1.4 // indirect
+	github.com/Azure/azure-amqp-common-go/v3 v3.2.3 // indirect
 	github.com/Azure/azure-event-hubs-go v1.3.1 // indirect
+	github.com/Azure/azure-event-hubs-go/v3 v3.3.18 // indirect
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/Shopify/sarama v1.24.1
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
@@ -54,7 +56,7 @@ require (
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
 	github.com/rivo/tview v0.0.0-20220307222120-9994674d60a8 // indirect
 	github.com/shirou/gopsutil v2.20.9+incompatible
-	github.com/stretchr/testify v1.5.1
+	github.com/stretchr/testify v1.6.1
 	github.com/tealeg/xlsx v1.0.5
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
