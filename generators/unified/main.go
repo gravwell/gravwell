@@ -27,9 +27,13 @@ var (
 	dataTypes = map[string]base.DataGen{
 		"json":   genDataJSON,
 		"binary": genDataBinary,
+		"bind":   genDataBind,
 	}
 
-	v4gen *ipgen.V4Gen
+	v4gen      *ipgen.V4Gen
+	v6gen      *ipgen.V6Gen
+	serverIPs  []net.IP
+	serverIP6s []net.IP
 )
 
 func init() {
@@ -37,6 +41,16 @@ func init() {
 	v4gen, err = ipgen.RandomWeightedV4Generator(40)
 	if err != nil {
 		log.Fatalf("Failed to instantiate v4 generator: %v", err)
+	}
+	v6gen, err = ipgen.RandomWeightedV6Generator(30)
+	if err != nil {
+		log.Fatalf("Failed to instantiate v6 generator: %v\n", err)
+	}
+	for i := 0; i < 4; i++ {
+		serverIPs = append(serverIPs, v4gen.IP())
+	}
+	for i := 0; i < 4; i++ {
+		serverIP6s = append(serverIP6s, v6gen.IP())
 	}
 }
 
