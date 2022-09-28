@@ -193,7 +193,7 @@ func rfc5424ConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 
 }
 
-//we can be very very fast on this one by just manually scanning the buffer
+// we can be very very fast on this one by just manually scanning the buffer
 func handleRFC5424Packet(buff []byte, ip net.IP, ignoreTS, dropPrio bool, tag entry.EntryTag, tg *timegrinder.TimeGrinder, proc *processors.ProcessorSet, ctx context.Context) {
 	var idx []int
 	var idx2 []int
