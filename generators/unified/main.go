@@ -32,6 +32,7 @@ var (
 		"fields":  genDataFields,
 		"json":    genDataJSON,
 		"regex":   genDataRegex,
+		"syslog":  genDataSyslog,
 	}
 
 	// for fields
