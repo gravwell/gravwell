@@ -26,7 +26,7 @@ const (
 	//READ_ENTRY_HEADER_SIZE should be 46 bytes
 	//34 + 4 + 4 + 8 (magic, data len, entry ID)
 	READ_ENTRY_HEADER_SIZE int = entry.ENTRY_HEADER_SIZE + 12
-	MAX_ENTRY_SIZE         int = 1024 * 1024 * 1024
+	MAX_ENTRY_SIZE         int = int(entry.MaxDataSize)
 	//TODO: We should make this configurable by configuration
 	WRITE_BUFFER_SIZE           int           = 1024 * 1024
 	MAX_WRITE_ERROR             int           = 4
