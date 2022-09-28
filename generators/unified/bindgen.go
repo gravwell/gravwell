@@ -49,14 +49,14 @@ func randPort() (r uint16) {
 }
 
 var (
-	protos = []string{`A`, `AAAA`}
+	queryTypes = []string{`A`, `AAAA`}
 )
 
 func randProto() string {
 	if (rand.Uint32() & 0x7) == 0x7 {
-		return protos[1]
+		return queryTypes[1]
 	}
-	return protos[0]
+	return queryTypes[0]
 }
 
 var (

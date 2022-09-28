@@ -25,14 +25,15 @@ var (
 	delimOverride = flag.String("fields-delim-override", "", "Override the delimiter (for fields data type)")
 
 	dataTypes = map[string]base.DataGen{
-		"binary":  genDataBinary,
-		"bind":    genDataBind,
-		"csv":     genDataCSV,
-		"dnsmasq": genDataDnsmasq,
-		"fields":  genDataFields,
-		"json":    genDataJSON,
-		"regex":   genDataRegex,
-		"syslog":  genDataSyslog,
+		"binary":   genDataBinary,
+		"bind":     genDataBind,
+		"csv":      genDataCSV,
+		"dnsmasq":  genDataDnsmasq,
+		"fields":   genDataFields,
+		"json":     genDataJSON,
+		"regex":    genDataRegex,
+		"syslog":   genDataSyslog,
+		"zeekconn": genDataZeekConn,
 	}
 
 	// for fields

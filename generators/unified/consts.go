@@ -27,6 +27,103 @@ const (
 	tsFormat string = `2006-01-02T15:04:05.999999Z07:00`
 )
 
+// this is all Zeek stuff:
+var (
+	protos   = []string{"icmp", "tcp", "udp"}
+	alphabet = []byte("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	services = map[string][]string{
+		"icmp": []string{"-"},
+		"tcp":  []string{"-", "http", "ssl", "ssh"},
+		"udp":  []string{"-", "dns", "dhcp", "krb", "dtls"},
+	}
+	states = []string{
+		"OTH",
+		"SF",
+		"S0",
+		"SH",
+		"SHR",
+		"RSTR",
+		"S1",
+		"RSTO",
+		"RSTRH",
+		"S3",
+	}
+
+	histories = []string{
+		"Dc",
+		"ShADadFf",
+		"-",
+		"Dd",
+		"C",
+		"D",
+		"HcADF",
+		"ShADadfF",
+		"CC",
+		"S",
+		"ShADadFRfR",
+		"DadA",
+		"^dDa",
+		"ShADad",
+		"ShADadfFr",
+		"ShADadR",
+		"HcAD",
+		"ShADadFfR",
+		"Cd",
+		"^d",
+		"ShADdaFf",
+		"DFdfR",
+		"ShR",
+		"^dADa",
+		"Sh",
+		"ShADadfR",
+		"^dDaA",
+		"ShADadtFf",
+		"ShADadf",
+		"ShADadfFR",
+		"ShAFf",
+		"ShADadFfrrr",
+		"DFafA",
+		"ShADadtfFrr",
+		"ShADadFRf",
+		"ShADadr",
+		"^dfADFr",
+		"ShADdaFfR",
+		"DFdfrR",
+		"ShADdFaf",
+		"ShADadtFfR",
+		"ShADadfr",
+		"ShADadttttFf",
+		"ShADadFfrr",
+		"ShADadtttFf",
+		"ShADaFdRfR",
+		"ShADadFfT",
+		"ShADadFfRRR",
+		"ShADFadRfR",
+		"ShADadtfRrr",
+		"ShADadtfF",
+		"ShADFadfR",
+		"DFr",
+		"DadAt",
+		"DFdrrR",
+		"DadAf",
+		"^dfA",
+		"ShADFadRf",
+		"Fr",
+		"ShADadtR",
+		"ShADadFfRR",
+		"ShADdfFa",
+		"ShADadtfFR",
+		"ShADadftR",
+		"DFdrR",
+		"DFadfR",
+		"ShADadttf",
+		"SW",
+		"ShADadTtfFrr",
+		"^r",
+		"ShADadFTfR",
+	}
+)
+
 var (
 	groups []string
 	users  []Account
@@ -133,4 +230,24 @@ func ips() (string, string) {
 		return v6gen.IP().String(), v6gen.IP().String()
 	}
 	return v4gen.IP().String(), v4gen.IP().String()
+}
+
+func ports() (int, int) {
+	var orig_port, resp_port int
+	if rand.Int()%2 == 0 {
+		orig_port = 1 + rand.Intn(2048)
+		resp_port = 2048 + rand.Intn(0xffff-2048)
+	} else {
+		orig_port = 2048 + rand.Intn(0xffff-2048)
+		resp_port = 1 + rand.Intn(2048)
+	}
+	return orig_port, resp_port
+}
+
+func randomBase62(l int) string {
+	r := make([]byte, l)
+	for i := 0; i < l; i++ {
+		r[i] = alphabet[rand.Intn(len(alphabet))]
+	}
+	return string(r)
 }
