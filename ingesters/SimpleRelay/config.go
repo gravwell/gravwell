@@ -42,22 +42,22 @@ type readerType int
 
 type listener struct {
 	base
-	Tag_Name      string
 	Reader_Type   string
 	Drop_Priority bool // remove the <nnn> priority value at the start of the log message, useful for things like fortinet
-	Cert_File     string
-	Key_File      string
-	Preprocessor  []string
 	Keep_Priority bool //NOTE DEPRECATED AND UNUSED.  Left so that config parsing doesn't break
 }
 
 type base struct {
+	Tag_Name                  string
 	Bind_String               string //IP port pair 127.0.0.1:1234
 	Ignore_Timestamps         bool   //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
 	Source_Override           string
 	Timestamp_Format_Override string //override the timestamp format
+	Cert_File                 string
+	Key_File                  string
+	Preprocessor              []string
 }
 
 type cfgReadType struct {
