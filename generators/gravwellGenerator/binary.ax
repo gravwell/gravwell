@@ -1,4 +1,4 @@
-# Extraction defintion for the csv generator with everything
+# Extraction defintion for the binary generator with everything
 [[extraction]]
 	name="Binary generator full extraction"
 	module="slice"
