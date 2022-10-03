@@ -18,29 +18,15 @@
 package wineventlog
 
 import (
-	"bytes"
+	"encoding/xml"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
-	"text/template"
 	"time"
-
-	"github.com/joeshaw/multierror"
-)
-
-const (
-	query = `<QueryList>
-  <Query Id="0">
-    <Select Path="{{.Path}}">*{{if .Select}}[System[{{join .Select " and "}}]]{{end}}</Select>{{if .Suppress}}
-    <Suppress Path="{{.Path}}">*[System[({{join .Suppress " or "}})]]</Suppress>{{end}}
-  </Query>
-</QueryList>`
 )
 
 var (
-	templateFuncMap      = template.FuncMap{"join": strings.Join}
-	queryTemplate        = template.Must(template.New("query").Funcs(templateFuncMap).Parse(query))
 	incEventIDRegex      = regexp.MustCompile(`^\d+$`)
 	incEventIDRangeRegex = regexp.MustCompile(`^(\d+)\s*-\s*(\d+)$`)
 	excEventIDRegex      = regexp.MustCompile(`^-(\d+)$`)
@@ -70,58 +56,193 @@ type Query struct {
 	Provider []string
 }
 
+type queryList struct {
+	XMLName xml.Name `xml:"QueryList"`
+	Query   query    `xml:"Query"`
+}
+
+type query struct {
+	XMLName  xml.Name     `xml:"Query"`
+	Id       int          `xml:"Id,attr"`
+	Select   []selector   `xml:"Select"`
+	Suppress []suppressor `xml:"Suppress,omitempty"`
+}
+
+type selector struct {
+	XMLName xml.Name `xml:"Select"`
+	Path    string   `xml:"Path,attr"`
+	Body    string   `xml:",innerxml"`
+}
+
+type suppressor struct {
+	XMLName xml.Name `xml:"Suppress"`
+	Path    string   `xml:"Path,attr"`
+	Body    string   `xml:",innerxml"`
+}
+
 // Build builds a query from the given parameters. The query is returned as a
 // XML string and can be used with Subscribe function.
-func (q Query) Build() (string, error) {
-	var errs multierror.Errors
+func (q Query) Build() (ret string, err error) {
 	if q.Log == "" {
-		errs = append(errs, fmt.Errorf("empty log name"))
+		err = fmt.Errorf("empty log name")
+		return
 	}
 
-	qp := &queryParams{Path: q.Log}
-	builders := []func(Query) error{
-		qp.ignoreOlderSelect,
-		qp.eventIDSelect,
-		qp.levelSelect,
-		qp.providerSelect,
+	//get reachback filter
+	ignoreOlder := ignoreOlderSelect(q)
+
+	//go get the level selectors
+	var levels string
+	if levels, err = levelSelect(q); err != nil {
+		return
 	}
-	for _, build := range builders {
-		if err := build(q); err != nil {
-			errs = append(errs, err)
+
+	//go get the providers
+	var providers string
+	if providers, err = providerSelect(q); err != nil {
+		return
+	}
+
+	//get event ID inclusions and exclusions
+	var includes, excludes []string
+	if includes, excludes, err = eventIDSelect(q); err != nil {
+		return
+	}
+
+	// build up the base of includes with providers levels
+	var base string
+	if len(ignoreOlder) > 0 {
+		base = ignoreOlder
+	}
+	if len(levels) > 0 {
+		if len(base) == 0 {
+			base = levels
+		} else {
+			base = base + " and " + levels
 		}
 	}
-	if len(errs) > 0 {
-		return "", errs.Err()
+	if len(providers) > 0 {
+		if len(base) == 0 {
+			base = providers
+		} else {
+			base = base + " and " + providers
+		}
 	}
-	return executeTemplate(queryTemplate, qp)
+
+	includeSet := splitStrings(includes, 10)
+	excludeSet := splitStrings(excludes, 10)
+
+	ql := queryList{
+		Query: query{
+			Id: 0,
+		},
+	}
+
+	// if include and exclude are zero, throw the base and we are done
+	if len(includes) == 0 {
+		ql.Query.Select = []selector{
+			selector{
+				Path: q.Log,
+				Body: formBody(base, nil),
+			},
+		}
+	} else {
+		//otherwise iterate and create a bunch of selectors
+		for _, inc := range includeSet {
+			ql.Query.Select = append(ql.Query.Select, selector{Path: q.Log, Body: formBody(base, inc)})
+		}
+	}
+
+	if len(excludeSet) > 0 {
+		for _, ex := range excludeSet {
+			ql.Query.Suppress = append(ql.Query.Suppress, suppressor{Path: q.Log, Body: formBody(``, ex)})
+		}
+	}
+
+	//finally render the XML object
+	var bts []byte
+	if bts, err = xml.Marshal(ql); err == nil {
+		ret = string(bts)
+	}
+	return
+}
+
+func splitStrings(set []string, max int) [][]string {
+	if len(set) == 0 {
+		return nil
+	} else if max <= 0 || len(set) < max {
+		return [][]string{set}
+	}
+
+	var ret [][]string
+	for len(set) > 0 {
+		if len(set) > max {
+			ret = append(ret, set[:max])
+			set = set[max:]
+		} else {
+			ret = append(ret, set)
+			set = nil
+		}
+	}
+	return ret
+}
+
+func joinSelects(selects []string) (r string) {
+	switch len(selects) {
+	case 0: //do nothing
+	case 1:
+		r = selects[0]
+	default:
+		r = "(" + strings.Join(selects, " or ") + ")"
+	}
+	return
+}
+
+func formBody(base string, selects []string) (r string) {
+	var coreStr string
+	if len(selects) > 0 {
+		if base != `` {
+			coreStr = joinSelects(selects) + " and " + base
+		} else {
+			coreStr = joinSelects(selects)
+		}
+	} else {
+		coreStr = base
+	}
+	if coreStr == `` {
+		r = `*`
+	} else {
+		r = fmt.Sprintf("*[System[%s]]", coreStr)
+	}
+
+	return
 }
 
 // queryParams are the parameters that are used to create a query from a
 // template.
 type queryParams struct {
-	Path     string
-	Select   []string
-	Suppress []string
+	Path      string
+	Providers []string
+	Levels    []string
+	EventIDs  []string
+	Select    []string
+	Suppress  []string
 }
 
-func (qp *queryParams) ignoreOlderSelect(q Query) error {
+func ignoreOlderSelect(q Query) string {
 	if q.IgnoreOlder <= 0 {
-		return nil
+		return ``
 	}
 
 	ms := q.IgnoreOlder.Nanoseconds() / int64(time.Millisecond)
-	qp.Select = append(qp.Select,
-		fmt.Sprintf("TimeCreated[timediff(@SystemTime) &lt;= %d]", ms))
-	return nil
+	return fmt.Sprintf("TimeCreated[timediff(@SystemTime) &lt;= %d]", ms)
 }
 
-func (qp *queryParams) eventIDSelect(q Query) error {
+func eventIDSelect(q Query) (includes, excludes []string, err error) {
 	if q.EventID == "" {
-		return nil
+		return
 	}
 
-	var includes []string
-	var excludes []string
 	components := strings.Split(q.EventID, ",")
 	for _, c := range components {
 		c = strings.TrimSpace(c)
@@ -136,27 +257,29 @@ func (qp *queryParams) eventIDSelect(q Query) error {
 			r1, _ := strconv.Atoi(m[1])
 			r2, _ := strconv.Atoi(m[2])
 			if r1 >= r2 {
-				return fmt.Errorf("event ID range '%s' is invalid", c)
+				err = fmt.Errorf("event ID range '%s' is invalid", c)
+				return
 			}
 			includes = append(includes,
 				fmt.Sprintf("(EventID &gt;= %d and EventID &lt;= %d)", r1, r2))
 		default:
-			return fmt.Errorf("invalid event ID query component ('%s')", c)
+			err = fmt.Errorf("invalid event ID query component ('%s')", c)
+			return
 		}
 	}
-
-	if len(includes) == 1 {
-		qp.Select = append(qp.Select, includes...)
-	} else if len(includes) > 1 {
-		qp.Select = append(qp.Select, "("+strings.Join(includes, " or ")+")")
-	}
-	if len(excludes) == 1 {
-		qp.Suppress = append(qp.Suppress, excludes...)
-	} else if len(excludes) > 1 {
-		qp.Suppress = append(qp.Suppress, "("+strings.Join(excludes, " or ")+")")
-	}
-
-	return nil
+	return
+	/*
+		if len(includes) == 1 {
+			qp.Select = []Select{append(qp.Select, includes...)}
+		} else if len(includes) > 1 {
+			qp.Select = append(qp.Select, "("+strings.Join(includes, " or ")+")")
+		}
+		if len(excludes) == 1 {
+			qp.Suppress = append(qp.Suppress, excludes...)
+		} else if len(excludes) > 1 {
+			qp.Suppress = append(qp.Suppress, "("+strings.Join(excludes, " or ")+")")
+		}
+	*/
 }
 
 // levelSelect returns a xpath selector for the event Level. The returned
@@ -169,9 +292,9 @@ func (qp *queryParams) eventIDSelect(q Query) error {
 //  warning,     warn - 3
 //  error,       err  - 2
 //  critical,    crit - 1
-func (qp *queryParams) levelSelect(q Query) error {
+func levelSelect(q Query) (levels string, err error) {
 	if q.Level == "" {
-		return nil
+		return
 	}
 
 	l := func(level int) string { return fmt.Sprintf("Level = %d", level) }
@@ -181,7 +304,8 @@ func (qp *queryParams) levelSelect(q Query) error {
 		expr = strings.TrimSpace(expr)
 		switch strings.ToLower(expr) {
 		default:
-			return fmt.Errorf("invalid level ('%s') for query", q.Level)
+			err = fmt.Errorf("invalid level ('%s') for query", q.Level)
+			return
 		case "verbose", "5":
 			levelSelect = append(levelSelect, l(5))
 		case "information", "info", "4":
@@ -196,36 +320,23 @@ func (qp *queryParams) levelSelect(q Query) error {
 			levelSelect = append(levelSelect, l(0))
 		}
 	}
-
 	if len(levelSelect) > 0 {
-		qp.Select = append(qp.Select, "("+strings.Join(levelSelect, " or ")+")")
+		levels = "(" + strings.Join(levelSelect, " or ") + ")"
 	}
-
-	return nil
+	return
 }
 
-func (qp *queryParams) providerSelect(q Query) error {
+func providerSelect(q Query) (providers string, err error) {
 	if len(q.Provider) == 0 {
-		return nil
+		return
 	}
 
-	var selects []string
+	var lst []string
 	for _, p := range q.Provider {
-		selects = append(selects, fmt.Sprintf("@Name='%s'", p))
+		lst = append(lst, fmt.Sprintf("@Name='%s'", p))
 	}
-
-	qp.Select = append(qp.Select,
-		fmt.Sprintf("Provider[%s]", strings.Join(selects, " or ")))
-	return nil
-}
-
-// executeTemplate populates a template with the given data and returns the
-// value as a string.
-func executeTemplate(t *template.Template, data interface{}) (string, error) {
-	var buf bytes.Buffer
-	err := t.Execute(&buf, data)
-	if err != nil {
-		return "", err
+	if len(lst) > 0 {
+		providers = fmt.Sprintf("Provider[%s]", strings.Join(lst, " or "))
 	}
-	return buf.String(), nil
+	return
 }
