@@ -1,5 +1,0 @@
-#example accelerator definition for the binary generator
-[Tag-Accelerator "binary"]
-	Accelerator-Name=slice
-	Accelerator-Args="int16([0:2]) as LE16 int16be([2:4]) as BE16 int32([4:8]) as LE32 int32be([8:12]) as BE32 int64([12:20]) as LE64 int64be([20:28]) as BE64 float32([28:32]) as F32 float64be([32:40]) as BEF64 ipv4([40:44]) as IP string([44:]) as STR"
-	Tags="binary"
