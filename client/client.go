@@ -282,7 +282,11 @@ func (c *Client) Login(user, pass string) error {
 	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
 		return err
 	}
-	return c.processLoginResponse(loginResp)
+	if err := c.processLoginResponse(loginResp); err != nil {
+		return err
+	}
+
+	return c.syncNoLock()
 }
 
 // RefreshLoginToken will ask the webserver to refresh the login state
@@ -458,7 +462,9 @@ func (c *Client) TestGet(path string) error {
 }
 
 // Sync fetches some useful information for local reference, such as user details.
-// In general, you should call Sync immediately after authenticating.
+// It is typically not necessary to call this function; in the past, you had to
+// call Sync immediately after authenticating, but the
+// Login function now fetches the same information automatically.
 func (c *Client) Sync() (err error) {
 	c.mtx.Lock()
 	err = c.syncNoLock()
