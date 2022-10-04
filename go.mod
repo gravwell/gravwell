@@ -65,6 +65,7 @@ require (
 	golang.org/x/net v0.0.0-20210405180319-a5a99cb37ef4
 	golang.org/x/sys v0.0.0-20220318055525-2edf467146b5
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1
+	google.golang.org/grpc v1.28.0 // indirect
 	google.golang.org/protobuf v1.22.0 // indirect
 	gopkg.in/jcmturner/gokrb5.v7 v7.3.0 // indirect
 	gopkg.in/yaml.v2 v2.2.8 // indirect
