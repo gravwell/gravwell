@@ -23,17 +23,15 @@ func (c *Client) ListTemplates() (templates []types.WireUserTemplate, err error)
 	return
 }
 
-// ListAllTemplates returns the list of all templates in the system, admin only API
+// ListAllTemplates returns the list of all templates in the system.
+// Non-administrators will receive the same list as returned by ListTemplates.
 func (c *Client) ListAllTemplates() (templates []types.WireUserTemplate, err error) {
-	if !c.userDetails.Admin {
-		err = ErrNotAdmin
-	} else {
-		c.SetAdminMode()
-		if err = c.getStaticURL(templatesUrl(), &templates); err != nil {
-			templates = nil
-		}
-		c.ClearAdminMode()
+	c.SetAdminMode()
+	if err = c.getStaticURL(templatesUrl(), &templates); err != nil {
+		templates = nil
 	}
+	c.ClearAdminMode()
+
 	return
 }
 

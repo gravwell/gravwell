@@ -9,8 +9,9 @@
 package client
 
 import (
-	"github.com/gravwell/gravwell/v3/client/types"
 	"net/http"
+
+	"github.com/gravwell/gravwell/v3/client/types"
 
 	"github.com/google/uuid"
 )
@@ -28,18 +29,13 @@ func (c *Client) ListSearchLibrary() (wsl []types.WireSearchLibrary, err error) 
 }
 
 // ListAllSearchLibrary (admin-only) returns the list of all search library entries for all users.
+// Non-administrators will receive the same list as returned by ListSearchLibrary.
 func (c *Client) ListAllSearchLibrary() (wsl []types.WireSearchLibrary, err error) {
-	//check our status locally, server will kick it too, but no reason in even
-	//making the request if we know it will fail
-	if !c.userDetails.Admin {
-		err = ErrNotAdmin
-	} else {
-		c.SetAdminMode()
-		if err = c.getStaticURL(searchLibUrl(), &wsl); err != nil {
-			wsl = nil
-		}
-		c.ClearAdminMode()
+	c.SetAdminMode()
+	if err = c.getStaticURL(searchLibUrl(), &wsl); err != nil {
+		wsl = nil
 	}
+	c.ClearAdminMode()
 	return
 }
 
