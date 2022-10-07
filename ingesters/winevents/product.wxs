@@ -86,7 +86,7 @@
     <Binary Id="createConfigFile.vbs" SourceFile="createConfigFile.vbs" />
     <CustomAction Id="GenerateConfigCfg" VBScriptCall="" BinaryKey="createConfigFile.vbs" Return="check" Execute="deferred" Impersonate="no" />
     <!-- Secret should be last since it can potentially include separator (for other values it's illegal) -->
-    <CustomAction Property="GenerateConfigCfg" Id="GenerateConfigCfgValues" Value="[CONFIGDIR]|[CONFIG_LOG_LEVEL]|[CONFIG_CLEARTEXT_BACKEND_TARGET]|[CONFIG_ENABLE_SYSMON]|[CONFIG_ENABLE_SYSMON]|[CONFIG_INGEST_SECRET]" />
+    <CustomAction Property="GenerateConfigCfg" Id="GenerateConfigCfgValues" Value="[CONFIGDIR]|[CONFIG_LOG_LEVEL]|[CONFIG_CLEARTEXT_BACKEND_TARGET]|[CONFIG_ENABLE_SYSMON]|[CONFIG_ENABLE_FORWARDED]|[CONFIG_INGEST_SECRET]" />
 
     <Binary Id="customActions.vbs" SourceFile="customActions.vbs" />
     <Property Id="UninstallQuestion_Message" Value="!(loc.UninstallQuestion_Message)" />

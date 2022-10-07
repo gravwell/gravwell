@@ -1,6 +1,6 @@
 Dim fso, configFile
 Dim params, paramsArray, CONFIGDIR
-Dim CONFIG_LOG_LEVEL, CONFIG_CLEARTEXT_BACKEND_TARGET, CONFIG_INGEST_SECRET, CONFIG_ENABLE_SYSMON
+Dim CONFIG_LOG_LEVEL, CONFIG_CLEARTEXT_BACKEND_TARGET, CONFIG_INGEST_SECRET, CONFIG_ENABLE_SYSMON, CONFIG_ENABLE_FORWARDED
 Const Quote = """"
 Set fso = CreateObject("Scripting.FileSystemObject")
 
@@ -76,18 +76,9 @@ If CONFIG_ENABLE_SYSMON="Checked" Then
 configFile.WriteLine ("[EventChannel ""sysmon""]")
 configFile.WriteLine ("	Tag-Name=sysmon")
 configFile.WriteLine ("	Channel=""Microsoft-Windows-Sysmon/Operational""")
-configFile.WriteLine ("	Max-Reachback=24h  #reachback must be expressed in hours (h), minutes (m), or seconds(s)")
 configFile.WriteLine ("")
-configFile.WriteLine ("############# EXAMPLE additional listeners #############")
-Else
-configFile.WriteLine ("############# EXAMPLE additional listeners #############")
-configFile.WriteLine ("#[EventChannel ""sysmon""]")
-configFile.WriteLine ("#	Tag-Name=sysmon")
-configFile.WriteLine ("#	Channel=""Microsoft-Windows-Sysmon/Operational""")
-configFile.WriteLine ("#	Max-Reachback=24h  #reachback must be expressed in hours (h), minutes (m), or seconds(s)")
-configFile.WriteLine ("#")
 End If
-configFile.WriteLine ("#")
+configFile.WriteLine ("############# EXAMPLE additional listeners #############")
 configFile.WriteLine ("#[EventChannel ""Application""]")
 configFile.WriteLine ("#	Channel=Application #pull from the application channel")
 configFile.WriteLine ("#	Tag-Name=winApp #Apply a new tag name")
