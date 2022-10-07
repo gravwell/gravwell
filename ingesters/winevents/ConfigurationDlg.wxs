@@ -54,6 +54,11 @@
           <Text>!(loc.ConfigurationDlg_IncludeSysmon)</Text>
         </Control>
         <Control Type="CheckBox" Id="includeSysmonCheckBox" X="131" Y="124" Width="16" Height="16" CheckBoxValue="Checked" Property="CONFIG_ENABLE_SYSMON" />
+	
+	<Control Type="Text" Id="textIncludeForwarded" Width="116" Height="15" X="8" Y="126">
+          <Text>!(loc.ConfigurationDlg_IncludeForwarded)</Text>
+        </Control>
+        <Control Type="CheckBox" Id="includeForwardedCheckBox" X="131" Y="124" Width="16" Height="16" CheckBoxValue="Checked" Property="CONFIG_ENABLE_FORWARDED" />
 
         <Control Id="Cancel" Cancel="yes" Type="PushButton" X="304" Y="243" Width="56" Height="17" Text="!(loc.WixUICancel)">
           <Publish Event="EndDialog" Value="Exit" />
