@@ -44,7 +44,7 @@ type listener struct {
 	base
 	Reader_Type   string
 	Drop_Priority bool // remove the <nnn> priority value at the start of the log message, useful for things like fortinet
-	Keep_Priority bool //NOTE DEPRECATED AND UNUSED.  Left so that config parsing doesn't break
+	Keep_Priority bool `json:"-"` //NOTE DEPRECATED AND UNUSED.  Left so that config parsing doesn't break
 }
 
 type base struct {
