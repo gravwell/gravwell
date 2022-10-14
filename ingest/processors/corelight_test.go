@@ -193,3 +193,35 @@ func TestCorelightOverride(t *testing.T) {
 		t.Fatalf("invalid tag: %v != %v", tn, tag)
 	}
 }
+
+func BenchmarkCorelightDecode(b *testing.B) {
+	str := `
+	[preprocessor "corelight"]
+		type = corelight
+		Custom-Format="foobar:ts,this,that,the,other"
+		Custom-Format="barbaz:just, one,more , thing "
+	`
+	p, err := testLoadPreprocessor(str, `corelight`)
+	if err != nil {
+		b.Fatal(err)
+	}
+	//cast to the corelight processor
+	c, ok := p.(*Corelight)
+	if !ok {
+		b.Fatalf("preprocessor is the wrong type: %T != *Corelight", p)
+	}
+	b.ResetTimer()
+
+	for i := 0; i < b.N; {
+		for j, v := range corelightTestData {
+			var ent entry.Entry
+			ent.Data = []byte(v.input)
+			if ents, err := c.Process([]*entry.Entry{&ent}); err != nil {
+				b.Fatalf("failed to process %d: %v\n", j, err)
+			} else if len(ents) != 1 {
+				b.Fatal(`too many entries came out`)
+			}
+			i += 1
+		}
+	}
+}

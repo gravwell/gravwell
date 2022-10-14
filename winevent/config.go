@@ -285,10 +285,28 @@ func validateEventIDs(ev string) error {
 		return nil
 	}
 
+	//try to parse as a CSV of ints
+	if err := parseCSVInts(ev); err == nil {
+		return nil
+	}
+
 	//try to parse it as a straight up int
-	v, err := strconv.ParseInt(ev, 10, 16)
-	if err != nil || v == 0 {
+	if _, err := strconv.ParseInt(ev, 10, 16); err != nil {
 		return ErrInvalidEventIds
+	}
+	return nil
+}
+
+func parseCSVInts(val string) error {
+	bits := strings.Split(val, ",")
+	if len(bits) == 0 {
+		return errors.New("empty list")
+	}
+	for _, ev := range bits {
+		ev = strings.TrimSpace(ev)
+		if _, err := strconv.ParseInt(ev, 10, 16); err != nil {
+			return fmt.Errorf("%w %s is not a valid EventID", ErrInvalidEventIds, ev)
+		}
 	}
 	return nil
 }

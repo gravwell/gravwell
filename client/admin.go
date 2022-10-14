@@ -667,22 +667,16 @@ func (c *Client) Restore(rdr io.Reader) (err error) {
 
 // DistributedWebservers queries to determine if the webserver is in distributed mode
 // and therefore using the datastore.  This means that certain resource changes may take some
-// time to fully distribute.
+// time to fully distribute. This is an admin-only function.
 func (c *Client) DeploymentInfo() (di types.DeploymentInfo, err error) {
-	if !c.userDetails.Admin {
-		err = ErrNotAdmin
-	} else {
-		err = c.getStaticURL(deploymentUrl(), &di)
-	}
+	err = c.getStaticURL(deploymentUrl(), &di)
+
 	return
 }
 
 // PurgeUser will first enumerate every asset that is owned by the user and delete them
-// then it will delete the user
+// then it will delete the user. This is an admin-only function.
 func (c *Client) PurgeUser(id int32) error {
-	if !c.userDetails.Admin {
-		return ErrNotAdmin
-	}
 	//impersonate the user
 	nc, err := c.Impersonate(id)
 	if err != nil {

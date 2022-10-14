@@ -1,0 +1,5 @@
+[Tag-Accelerator "json"]
+	Tags="json"
+	Accelerator-Name="json"
+	Accelerator-Args="class group useragent ip user email state country"
+

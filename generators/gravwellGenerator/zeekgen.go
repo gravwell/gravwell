@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2019 Gravwell, Inc. All rights reserved.
+ * Copyright 2018 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -10,35 +10,11 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"math/rand"
 	"time"
-
-	"github.com/gravwell/gravwell/v3/generators/ipgen"
 )
 
-const (
-	streamBlock = 10
-)
-
-var (
-	v4gen *ipgen.V4Gen
-	v6gen *ipgen.V6Gen
-)
-
-func init() {
-	var err error
-	v4gen, err = ipgen.RandomWeightedV4Generator(3)
-	if err != nil {
-		log.Fatal("Failed to instantiate v4 generator: %v", err)
-	}
-	v6gen, err = ipgen.RandomWeightedV6Generator(30)
-	if err != nil {
-		log.Fatal("Failed to instantiate v6 generator: %v", err)
-	}
-}
-
-func genConnData(ts time.Time) []byte {
+func genDataZeekConn(ts time.Time) []byte {
 	uid := randomBase62(17)
 
 	orig, resp := ips()
@@ -94,32 +70,4 @@ func genConnData(ts time.Time) []byte {
 		resp_pkts, resp_ip_bytes,
 		tunnel_parents,
 	))
-}
-
-func ips() (string, string) {
-	if *enableIPv6 && (rand.Int()&3) == 0 {
-		//more IPv4 than 6
-		return v6gen.IP().String(), v6gen.IP().String()
-	}
-	return v4gen.IP().String(), v4gen.IP().String()
-}
-
-func ports() (int, int) {
-	var orig_port, resp_port int
-	if rand.Int()%2 == 0 {
-		orig_port = 1 + rand.Intn(2048)
-		resp_port = 2048 + rand.Intn(0xffff-2048)
-	} else {
-		orig_port = 2048 + rand.Intn(0xffff-2048)
-		resp_port = 1 + rand.Intn(2048)
-	}
-	return orig_port, resp_port
-}
-
-func randomBase62(l int) string {
-	r := make([]byte, l)
-	for i := 0; i < l; i++ {
-		r[i] = alphabet[rand.Intn(len(alphabet))]
-	}
-	return string(r)
 }

@@ -41,6 +41,7 @@ type handlerConfig struct {
 	lrt              readerType
 	ignoreTimestamps bool
 	setLocalTime     bool
+	dropPriority     bool
 	timezoneOverride string
 	src              net.IP
 	wg               *sync.WaitGroup
@@ -90,6 +91,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 			lrt:              lrt,
 			ignoreTimestamps: v.Ignore_Timestamps,
 			setLocalTime:     v.Assume_Local_Timezone,
+			dropPriority:     v.Drop_Priority,
 			timezoneOverride: v.Timezone_Override,
 			src:              src,
 			wg:               wg,
@@ -183,6 +185,8 @@ func acceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg handlerCon
 			go lineConnHandlerTCP(conn, cfg)
 		case rfc5424Reader:
 			go rfc5424ConnHandlerTCP(conn, cfg)
+		case rfc6587Reader:
+			go rfc6587ConnHandlerTCP(conn, cfg)
 		default:
 			lg.Error("invalid reader type", log.KV("readertype", cfg.lrt))
 			return

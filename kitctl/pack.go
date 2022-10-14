@@ -64,6 +64,7 @@ func readResource(dir string, name string) (pr kits.PackedResource, err error) {
 	hsh := md5.New()
 	hsh.Write(pr.Data)
 	pr.Hash = hsh.Sum(nil)
+	pr.Size = uint64(len(pr.Data))
 	return
 }
 

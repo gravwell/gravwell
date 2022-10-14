@@ -9,17 +9,11 @@
 package main
 
 import (
-	"log"
 	"math/rand"
 	"time"
 
 	rd "github.com/Pallinder/go-randomdata"
 	"github.com/goccy/go-json"
-	"github.com/gravwell/gravwell/v3/generators/ipgen"
-)
-
-const (
-	streamBlock = 10
 )
 
 type datum struct {
@@ -32,23 +26,11 @@ type datum struct {
 	Data      string   `json:"data,escape"`
 }
 
-var (
-	v4gen *ipgen.V4Gen
-)
-
-func init() {
-	var err error
-	v4gen, err = ipgen.RandomWeightedV4Generator(40)
-	if err != nil {
-		log.Fatalf("Failed to instantiate v4 generator: %v", err)
-	}
-}
-
-// genData creates a marshalled JSON buffer
+// genDataJSON creates a marshalled JSON buffer
 // the jingo encoder is faster, but because we throw the buffers into our entries
 // and hand them into the ingest muxer we can't really track those buffers so we won't get the benefit
 // of the buffered pool.  The encoder is still about 3X faster than the standard library encoder
-func genData(ts time.Time) (r []byte) {
+func genDataJSON(ts time.Time) (r []byte) {
 	var d datum
 	d.TS = ts.UTC().Format(time.RFC3339)
 	d.Class = rand.Int() % 0xffff

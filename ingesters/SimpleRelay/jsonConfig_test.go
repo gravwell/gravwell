@@ -120,7 +120,7 @@ func TestLoadConfig(t *testing.T) {
 	if cfg.Max_Ingest_Cache != 1024 {
 		t.Fatal("invalid cache size")
 	}
-	if cfg.Ingest_Cache_Path != `/opt/gravwell/cache/simple_relay.cache` {
+	if cfg.Ingest_Cache_Path != `/tmp/cache/simple_relay.cache` {
 		t.Fatal("invalid cache path")
 	}
 	if len(cfg.JSONListener) != 1 {
@@ -174,11 +174,11 @@ Insecure-Skip-TLS-Verify=false
 Cleartext-Backend-target=127.0.0.1:4023 #example of adding a cleartext connection
 Cleartext-Backend-target=127.1.0.1:4023 #example of adding another cleartext connection
 Encrypted-Backend-target=127.1.1.1:4024 #example of adding an encrypted connection
-Pipe-Backend-Target=/opt/gravwell/comms/pipe #a named pipe connection, this should be used when ingester is on the same machine as a backend
-Ingest-Cache-Path=/opt/gravwell/cache/simple_relay.cache #adding an ingest cache for local storage when uplinks fail
+Pipe-Backend-Target=/tmp/pipe #a named pipe connection, this should be used when ingester is on the same machine as a backend
+Ingest-Cache-Path=/tmp/cache/simple_relay.cache #adding an ingest cache for local storage when uplinks fail
 Max-Ingest-Cache=1024 #Number of MB to store, localcache will only store 1GB before stopping.  This is a safety net
 Log-Level=INFO
-Log-File=/opt/gravwell/log/simple_relay.log
+Log-File=/tmp/simple_relay.log
 
 #basic default logger, all entries will go to the default tag
 # this is useful for sending generic line-delimited

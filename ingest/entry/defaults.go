@@ -12,7 +12,7 @@ const (
 	DefaultTagId  EntryTag = 0
 	GravwellTagId EntryTag = 0xFFFF
 
-	MaxDataSize   uint32 = 0x7FFFFFFF
+	MaxDataSize   uint32 = 0x3FFFFFFF
 	MaxSliceCount uint32 = 0x3FFFFFFF
 )
 

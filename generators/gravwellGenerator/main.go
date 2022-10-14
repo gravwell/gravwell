@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/generators/base"
@@ -20,35 +21,51 @@ import (
 )
 
 var (
-	enableIPv6 = flag.Bool("enable-v6", false, "Enable IPv6 in generated entries")
-	recordType = flag.String("type", "conn", "Type of bro log to generate")
+	dataType      = flag.String("type", "", "Data type to generate (json, csv, etc.), call `-type ?` for usage")
+	delimOverride = flag.String("fields-delim-override", "", "Override the delimiter (for fields data type)")
 
-	genData  base.DataGen
-	broTypes = map[string]base.DataGen{
-		"conn": genConnData,
+	dataTypes = map[string]base.DataGen{
+		"binary":   genDataBinary,
+		"bind":     genDataBind,
+		"csv":      genDataCSV,
+		"dnsmasq":  genDataDnsmasq,
+		"fields":   genDataFields,
+		"json":     genDataJSON,
+		"regex":    genDataRegex,
+		"syslog":   genDataSyslog,
+		"zeekconn": genDataZeekConn,
 	}
+
+	// for fields
+	delim string = "\t"
 )
 
 func main() {
+	flag.Parse()
+	if *delimOverride != `` {
+		delim = *delimOverride
+	}
+
+	// validate the type they asked for
+	gen, ok := dataTypes[*dataType]
+	if !ok {
+		fmt.Fprintf(os.Stderr, "Invalid -type %v. Valid choices:\n", *dataType)
+		for k, _ := range dataTypes {
+			fmt.Fprintf(os.Stderr, "	%v\n", k)
+		}
+		log.Fatal("Must provide valid type argument")
+	}
+
 	var igst base.GeneratorConn
 	var totalBytes uint64
 	var totalCount uint64
 	var src net.IP
-	var ok bool
-	cfg, err := base.GetGeneratorConfig(`zeek`)
+	cfg, err := base.GetGeneratorConfig(*dataType)
 	if err != nil {
 		log.Fatal(err)
 	}
-
-	if genData, ok = broTypes[*recordType]; !ok {
-		msg := fmt.Sprintf("Invalid bro log type %v. Supported types:\n", *recordType)
-		for t, _ := range broTypes {
-			msg += fmt.Sprintf("\t%s\n", t)
-		}
-		log.Fatal(msg)
-	}
-
-	if igst, src, err = base.NewIngestMuxer(`zeekgenerator`, ``, cfg, time.Second); err != nil {
+	seedUsers(int(cfg.Count), 256)
+	if igst, src, err = base.NewIngestMuxer(`unifiedgenerator`, ``, cfg, time.Second); err != nil {
 		log.Fatal(err)
 	}
 	tag, err := igst.GetTag(cfg.Tag)
@@ -58,11 +75,11 @@ func main() {
 	start := time.Now()
 
 	if !cfg.Streaming {
-		if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg, genData); err != nil {
+		if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg, gen); err != nil {
 			log.Fatal("Failed to throw entries ", err)
 		}
 	} else {
-		if totalCount, totalBytes, err = base.Stream(igst, tag, src, cfg, genData); err != nil {
+		if totalCount, totalBytes, err = base.Stream(igst, tag, src, cfg, gen); err != nil {
 			log.Fatal("Failed to stream entries ", err)
 		}
 	}

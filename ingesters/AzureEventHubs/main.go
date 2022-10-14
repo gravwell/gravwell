@@ -20,9 +20,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Azure/azure-amqp-common-go/persist"
-	"github.com/Azure/azure-amqp-common-go/sas"
-	eventhubs "github.com/Azure/azure-event-hubs-go"
+	"github.com/Azure/azure-amqp-common-go/v3/sas"
+	eventhubs "github.com/Azure/azure-event-hubs-go/v3"
+	"github.com/Azure/azure-event-hubs-go/v3/persist"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"

@@ -42,17 +42,13 @@ func (c *Client) UserFiles() (ufds []types.UserFileDetails, err error) {
 }
 
 // AllUserFiles pulls the complete list of all user files for the entire system.
-// Only administrators can use this API.
+// Non-administrators will receive the same list as returned by UserFiles.
 func (c *Client) AllUserFiles() (ufds []types.UserFileDetails, err error) {
-	if !c.userDetails.Admin {
-		err = ErrNotAdmin
-	} else {
-		c.SetAdminMode()
-		if err = c.getStaticURL(userFilesUrl(), &ufds); err != nil {
-			ufds = nil
-		}
-		c.ClearAdminMode()
+	c.SetAdminMode()
+	if err = c.getStaticURL(userFilesUrl(), &ufds); err != nil {
+		ufds = nil
 	}
+	c.ClearAdminMode()
 	return
 }
 
