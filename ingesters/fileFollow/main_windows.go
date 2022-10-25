@@ -109,13 +109,10 @@ func main() {
 }
 
 func runInteractive(s *mainService) {
-	//fire off the event consumers
+	//fire off the event consumers, there is no reason to close any of these, we are leaving anyway
 	closer := make(chan svc.ChangeRequest, 1)
-	defer close(closer)
 	status := make(chan svc.Status, 1)
-	defer close(status)
 	sigChan := make(chan os.Signal, 1)
-	defer close(sigChan)
 
 	signal.Notify(sigChan, os.Interrupt, os.Kill)
 	go s.Execute(nil, closer, status)
@@ -180,13 +177,13 @@ func serviceInfoWriter(format string, args ...interface{}) {
 
 func errorout(format string, args ...interface{}) {
 	if errW != nil {
-		errW(format, args)
+		errW(format, args...)
 	}
 }
 
 func infoout(format string, args ...interface{}) {
 	if infW != nil {
-		infW(format, args)
+		infW(format, args...)
 	}
 }
 
