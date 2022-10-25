@@ -60,3 +60,12 @@ Function Validate_CONFIG_CLEARTEXT_BACKEND_TARGET()
   Session.Property("CONFIG_CLEARTEXT_BACKEND_TARGET_VALID") = IsValid
   Validate_CONFIG_CLEARTEXT_BACKEND_TARGET = 1
 End Function
+
+Function Select_WATCHED_DIRECTORY()
+  Dim objFolder, objShell
+  Set objShell = CreateObject("Shell.Application")
+  Set objFolder = objShell.BrowseForFolder(0, "Select Folder to watch", 65, Session.Property("CONFIG_WATCHED_DIRECTORY"))
+  If Not (objFolder Is Nothing) Then
+    Session.Property("CONFIG_WATCHED_DIRECTORY") = objFolder.Self.path
+  End If
+End Function

@@ -47,9 +47,24 @@
           <Text>!(loc.ConfigurationDlg_LogLevel)</Text>
         </Control>
 
+        <Control Type="Text" Id="textTagName" Width="116" Height="17" X="8" Y="122">
+          <Text>!(loc.ConfigurationDlg_TagNameLabel)</Text>
+        </Control>
+        <Control Type="Edit" Id="editTagName" Width="226" Height="15" X="131" Y="122" Property="CONFIG_TAG_NAME" />
 
-        <Control Id="Cancel" Cancel="yes" Type="PushButton" X="304" Y="243" Width="56" Height="17" Text="!(loc.WixUICancel)">
-          <Publish Event="EndDialog" Value="Exit" />
+
+        <Control Type="Text" Id="textFileFilter" Width="116" Height="17" X="8" Y="142">
+          <Text>!(loc.ConfigurationDlg_FileFilterLabel)</Text>
+        </Control>
+        <Control Type="Edit" Id="editFileFilter" Width="226" Height="15" X="131" Y="142" Property="CONFIG_FILE_FILTER" />
+
+        <Control Type="Text" Id="textWatchDirectory" Width="112" Height="14" X="8" Y="142">
+          <Text>!(loc.ConfigurationDlg_WatchedDirectoryLabel)</Text>
+        </Control>
+		<Control Type="Edit" Id="editWatchedDirectory" Width="120" Height="15" X="131" Y="162" Property="CONFIG_WATCHED_DIRECTORY" />
+		<Control Id="SelectWatchFolder" Type="PushButton" Text="Browse" X="280" Y="162" Width="80" Height="17" Property="CONFIG_WATCHED_DIRECTORY" >
+				<Publish Event="DoAction" Value="Select_WATCHED_DIRECTORY" Order="1"><![CDATA[1]]></Publish>
+				<Publish Property="CONFIG_WATCHED_DIRECTORY" Value="[CONFIG_WATCHED_DIRECTORY]" Order="2"><![CDATA[1]]></Publish>
         </Control>
 
         <Control Id="Next" Type="PushButton" X="235" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">

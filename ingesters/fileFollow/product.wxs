@@ -60,6 +60,9 @@
     <Property Id="CONFIGFILE" Secure="yes" Value="0" />
     <Property Id="PURGE" Secure="yes" Value="0" />
     <Property Id="CONFIG_INGEST_SECRET" Secure="yes" Value="IngestSecrets" />
+	<Property Id="CONFIG_WATCHED_DIRECTORY" Secure="yes" Value="c:\\temp" />
+	<Property Id="CONFIG_FILE_FILTER" Secure="yes" Value="*.log" />
+	<Property Id="CONFIG_TAG_NAME" Secure="yes" Value="windows_logs" />
     <Property Id="CONFIG_CLEARTEXT_BACKEND_TARGET" Secure="yes" Value="127.0.1.1:4023" />
     <Property Id="CONFIG_LOG_LEVEL" Secure="yes" Value="INFO" />
     <Property Id="LEGACY_UPGRADE" Value="0" />
@@ -82,7 +85,7 @@
     <Binary Id="createConfigFile.vbs" SourceFile="createConfigFile.vbs" />
     <CustomAction Id="GenerateConfigCfg" VBScriptCall="" BinaryKey="createConfigFile.vbs" Return="check" Execute="deferred" Impersonate="no" />
     <!-- Secret should be last since it can potentially include separator (for other values it's illegal) -->
-    <CustomAction Property="GenerateConfigCfg" Id="GenerateConfigCfgValues" Value="[CONFIGDIR]|[CONFIG_LOG_LEVEL]|[CONFIG_CLEARTEXT_BACKEND_TARGET]|[CONFIG_INGEST_SECRET]" />
+    <CustomAction Property="GenerateConfigCfg" Id="GenerateConfigCfgValues" Value="[CONFIGDIR]|[CONFIG_LOG_LEVEL]|[CONFIG_CLEARTEXT_BACKEND_TARGET]|[CONFIG_TAG_NAME]|[CONFIG_FILE_FILTER]|[CONFIG_WATCHED_DIRECTORY]|[CONFIG_INGEST_SECRET]" />
 
     <Binary Id="customActions.vbs" SourceFile="customActions.vbs" />
     <Property Id="UninstallQuestion_Message" Value="!(loc.UninstallQuestion_Message)" />
@@ -90,6 +93,7 @@
     <CustomAction Id="QueryPurgeProgramData" VBScriptCall="QueryPurgeProgramData" BinaryKey="customActions.vbs" Return="check" Execute="immediate" />
     <CustomAction Id="Validate_CONFIG_INGEST_SECRET" VBScriptCall="Validate_CONFIG_INGEST_SECRET" BinaryKey="customActions.vbs" />
     <CustomAction Id="Validate_CONFIG_CLEARTEXT_BACKEND_TARGET" VBScriptCall="Validate_CONFIG_CLEARTEXT_BACKEND_TARGET" BinaryKey="customActions.vbs" />
+    <CustomAction Id="Select_WATCHED_DIRECTORY" VBScriptCall="Select_WATCHED_DIRECTORY" BinaryKey="customActions.vbs" />
 
     <InstallExecuteSequence>
       <Custom Action="GenerateConfigCfgValues" After="InstallFiles" />

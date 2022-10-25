@@ -1,6 +1,6 @@
 Dim fso, configFile
 Dim params, paramsArray, CONFIGDIR
-Dim CONFIG_LOG_LEVEL, CONFIG_CLEARTEXT_BACKEND_TARGET, CONFIG_INGEST_SECRET
+Dim CONFIG_LOG_LEVEL, CONFIG_CLEARTEXT_BACKEND_TARGET, CONFIG_INGEST_SECRET, CONFIG_WATCHED_FOLDER
 Const Quote = """"
 Set fso = CreateObject("Scripting.FileSystemObject")
 
@@ -9,8 +9,11 @@ paramsArray = split(params, "|")
 CONFIGDIR = paramsArray(0)
 CONFIG_LOG_LEVEL = paramsArray(1)
 CONFIG_CLEARTEXT_BACKEND_TARGET = paramsArray(2)
+CONFIG_TAG_NAME = paramsArray(3)
+CONFIG_FILE_FILTER = paramsArray(4)
+CONFIG_WATCHED_FOLDER = paramsArray(5)
 
-CONFIG_INGEST_SECRET = mid(params, len(CONFIGDIR) + len(CONFIG_LOG_LEVEL) + len(CONFIG_CLEARTEXT_BACKEND_TARGET) + 4)
+CONFIG_INGEST_SECRET = mid(params, len(CONFIGDIR) + len(CONFIG_LOG_LEVEL) + len(CONFIG_CLEARTEXT_BACKEND_TARGET) + len(CONFIG_FILE_FILTER) + len(CONFIG_TAG_NAME) + len(CONFIG_WATCHED_FOLDER) + 7)
 
 Set configFile = fso.CreateTextFile(CONFIGDIR & "file_follow.cfg", True)
 
@@ -27,10 +30,10 @@ configFile.WriteLine ("#Max-Ingest-Cache=1024 #Number of MB to store, localcache
 configFile.WriteLine ("Log-Level=" & CONFIG_LOG_LEVEL)
 configFile.WriteLine ("Max-Files-Watched=64")
 configFile.WriteLine ()
-configFile.WriteLine ("[Follower ""cbs""]")
-configFile.WriteLine ("	Base-Directory=""C:\\Windows\\Logs\\CBS""")
-configFile.WriteLine ("	File-Filter=""*.log""")
-configFile.WriteLine ("	Tag-Name=auth")
+configFile.WriteLine ("[Follower ""installer""]")
+configFile.WriteLine ("	Base-Directory = " & Quote & CONFIG_WATCHED_FOLDER & Quote)
+configFile.WriteLine ("	File-Filter=" & Quote & CONFIG_FILE_FILTER & Quote)
+configFile.WriteLine ("	Tag-Name=" & Quote & CONFIG_TAG_NAME & Quote)
 configFile.WriteLine ("	Assume-Local-Timezone=true #Default for assume localtime is false")
 configFile.WriteLine ("	#Ignore-Line-Prefix=""/""")
 configFile.Close
