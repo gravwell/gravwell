@@ -7,7 +7,7 @@
       <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
       <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
       <Property Id="WixUI_Mode" Value="InstallDir" />
-      <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" /> 
+	  <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" />
       <Property Id="ARPNOMODIFY" Value="yes" Secure="yes" />
       <DialogRef Id="BrowseDlg" />
       <DialogRef Id="DiskCostDlg" />
@@ -32,7 +32,7 @@
       <Publish Dialog="LicenseAgreementDlg_HK" Control="Next" Event="NewDialog" Value="ConfigurationDlg">LicenseAccepted = "1" AND CONFIGFILE = 0 AND NOT EXISTING_CONFIGCFG_PATH AND LEGACY_UPGRADE = 0</Publish>
       <Publish Dialog="LicenseAgreementDlg_HK" Control="Next" Event="NewDialog" Value="InstallDirDlg">LicenseAccepted = "1" AND (NOT CONFIGFILE = 0 OR EXISTING_CONFIGCFG_PATH OR LEGACY_UPGRADE = 1)</Publish>
 
-      <Publish Dialog="ConfigurationDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="6">CONFIG_INGEST_SECRET_VALID = "1" AND CONFIG_CLEARTEXT_BACKEND_TARGET_VALID = "1"</Publish>
+      <Publish Dialog="ConfigurationDlg" Control="Next" Event="NewDialog" Value="InstallDirDlg" Order="6">CONFIG_INGEST_SECRET_VALID = "1" AND CONFIG_CLEARTEXT_BACKEND_TARGET_VALID = "1"  AND CONFIG_WATCHER_VALID = "1"</Publish>
       <Publish Dialog="ConfigurationDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg_HK">1</Publish>
 
       <Publish Dialog="InstallDirDlg" Control="Back" Event="NewDialog" Value="LicenseAgreementDlg_HK">NOT CONFIGFILE = 0 OR EXISTING_CONFIGCFG_PATH OR LEGACY_UPGRADE = 1</Publish>

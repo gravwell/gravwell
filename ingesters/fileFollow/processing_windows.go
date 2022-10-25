@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -301,14 +302,39 @@ func (m *mainService) init(ctx context.Context) error {
 		}
 	}
 	m.wtchr.SetLogger(m.igst)
-	if err = m.wtchr.Start(); err == nil {
-		debugout("File watcher started\n")
-	} else {
-		errorout("Failed to start file watcher: %v\n", err)
+
+	//make a new context that we can cancel to get the relay routine to quit
+	ctx2, cf := context.WithCancel(ctx)
+	defer cf()
+
+	// go do the catchup for startup
+	var quit bool
+	debugout("Performing catchup scan\n")
+	if quit, err = m.wtchr.Catchup(relayContextChannel(ctx2)); err != nil {
+		debugout("Failed to perform catchup: %v\n", err)
+		return err
+	}
+	cf() //to get the routine to shutdown
+	debugout("Starting watchers\n")
+	if !quit {
+		if err = m.wtchr.Start(); err == nil {
+			debugout("File watcher started\n")
+		} else {
+			errorout("Failed to start file watcher: %v\n", err)
+		}
 	}
 	return err
 }
 
 func debugPrint(f string, args ...interface{}) {
 	infoout(f, args...)
+}
+
+func relayContextChannel(ctx context.Context) (qc chan os.Signal) {
+	qc = make(chan os.Signal)
+	go func(c chan os.Signal, ctx context.Context) {
+		<-ctx.Done()
+		close(c)
+	}(qc, ctx)
+	return
 }
