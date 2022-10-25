@@ -8,6 +8,10 @@
 
 package filewatch
 
+import (
+	"errors"
+)
+
 // NewReader creates a new reader based on either the regex engine or line reader engine
 // the Linux version of file follow does NOT support EVTX engines
 func NewReader(cfg ReaderConfig) (Reader, error) {

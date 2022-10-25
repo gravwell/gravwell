@@ -97,7 +97,7 @@ func GetConfig(path string) (*CfgType, error) {
 			return nil, err
 		}
 		if id2, ok := c.Global.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
+			return nil, errors.New("failed to set a new ingester UUID")
 		}
 	}
 	return &c, nil
@@ -324,7 +324,7 @@ type EventStreamParams struct {
 	ReqSize      int
 }
 
-//Validate SHOULD have already been called, we aren't going to check anything here
+// Validate SHOULD have already been called, we aren't going to check anything here
 func (ec *EventStreamConfig) params(name string) (EventStreamParams, error) {
 	var dur time.Duration
 	if len(ec.Max_Reachback) == 0 {
