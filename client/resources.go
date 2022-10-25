@@ -111,6 +111,13 @@ func (c *Client) UpdateMetadata(guid string, metadata types.ResourceMetadata) er
 	return c.putStaticURL(resourcesGuidUrl(guid), metadata)
 }
 
+// GetResourceMetadata gets the specified resource's metadata.
+func (c *Client) GetResourceMetadata(guid string) (*types.ResourceMetadata, error) {
+	var metadata types.ResourceMetadata
+	err := c.getStaticURL(resourcesGuidUrl(guid), &metadata)
+	return &metadata, err
+}
+
 // GetResource returns the contents of the resource with the specified name. The
 // name can be either the user-friendly Name field, or a stringified GUID. Because
 // resources can be shared, and resources are not required to have globally-unique names,
