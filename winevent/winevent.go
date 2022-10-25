@@ -113,6 +113,24 @@ func (e *EventStreamHandle) openNoLock() error {
 	return nil
 }
 
+func SeekFileToBookmark(hnd, bookmark wineventlog.EvtHandle) (err error) {
+	// This seeks to the last read event and strictly validates that the bookmarked record number exists.
+	if err = wineventlog.EvtSeek(hnd, 0, bookmark, wineventlog.EvtSeekRelativeToBookmark|wineventlog.EvtSeekStrict); err == nil {
+		// Then we advance past the last read event to avoid sending that event again.
+		// This won't fail if we're at the end of the file.
+		if seekErr := wineventlog.EvtSeek(hnd, 1, bookmark, wineventlog.EvtSeekRelativeToBookmark); seekErr != nil {
+			err = fmt.Errorf("failed to seek past bookmarked position: %w", seekErr)
+		}
+	} else {
+		err = nil //trying to go to the start
+		//its too large, go ahead and seek to the beginning
+		if seekErr := wineventlog.EvtSeek(hnd, 0, 0, wineventlog.EvtSeekRelativeToFirst); seekErr != nil {
+			err = fmt.Errorf("failed to seek to beginning: %w", seekErr)
+		}
+	}
+	return
+}
+
 func (e *EventStreamHandle) closeNoLock() (err error) {
 	if err = wineventlog.Close(e.subHandle); err != nil {
 		wineventlog.Close(e.bmk)
@@ -135,8 +153,8 @@ func (e *EventStreamHandle) resetNoLock() (err error) {
 	return
 }
 
-//getHandles will iterate on the call to EventHandles, we do this because on big event log entries the kernel throws
-//RPC_S_INVALID_BOUND which is basically a really shitty way to say "i can't give you all the handles due to size"
+// getHandles will iterate on the call to EventHandles, we do this because on big event log entries the kernel throws
+// RPC_S_INVALID_BOUND which is basically a really shitty way to say "i can't give you all the handles due to size"
 func (e *EventStreamHandle) getHandles(start int) (evtHnds []wineventlog.EvtHandle, fullRead bool, err error) {
 	for cnt := start; cnt >= minHandleRequest; cnt = cnt / 2 {
 		evtHnds, err = wineventlog.EventHandles(e.subHandle, cnt)
