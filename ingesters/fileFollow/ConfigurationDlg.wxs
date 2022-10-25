@@ -18,6 +18,14 @@
           <Text>!(loc.InvalidCleartextBackendTargetDialog_Message)</Text>
         </Control>
       </Dialog>
+	  <Dialog Id="InvalidWatchedDirectoryDialog" Width="260" Height="100" Title="!(loc.InvalidWatchedDirectoryDialog_Title)" NoMinimize="yes">
+        <Control Id="Return" Type="PushButton" X="100" Y="72" Width="56" Height="17" Default="yes" Cancel="yes" Text="!(loc.WixUIOK)">
+          <Publish Event="EndDialog" Value="Return">1</Publish>
+        </Control>
+        <Control Id="Text" Type="Text" X="8" Y="0" Width="244" Height="53" TabSkip="no">
+          <Text>!(loc.InvalidWatchedDirectoryDialog_Message)</Text>
+        </Control>
+      </Dialog>
       <Dialog Id="ConfigurationDlg" Width="370" Height="270" Title="!(loc.ConfigurationDlg_Title)" NoMinimize="yes">
         <Control Type="Bitmap" Id="bitmapBanner" Width="370" Height="44" X="0" Y="0" Text="!(loc.InstallDirDlgBannerBitmap)" />
         <Control Type="Line" Id="line" Width="370" Height="2" X="0" Y="44" />
@@ -27,15 +35,21 @@
         <Control Type="Text" Id="textDescription" Width="280" Height="28" X="24" Y="21" Transparent="yes">
           <Text>!(loc.ConfigurationDlg_Description)</Text>
         </Control>
-        <Control Type="Text" Id="textIngestSecret" Width="112" Height="14" X="8" Y="54">
+        
+		<Control Type="Text" Id="textIngestSecret" Width="112" Height="14" X="8" Y="54">
           <Text>!(loc.ConfigurationDlg_IngestSecretLabel)</Text>
         </Control>
-        <Control Type="Text" Id="textCleartextBackendTarget" Width="116" Height="17" X="8" Y="78">
+		<Control Type="Edit" Id="editIngestSecret" Width="226" Height="15" X="131" Y="52" Property="CONFIG_INGEST_SECRET" />
+        
+		<Control Type="Text" Id="textCleartextBackendTarget" Width="116" Height="17" X="8" Y="78">
           <Text>!(loc.ConfigurationDlg_CleartextBackendTarget)</Text>
         </Control>
-        <Control Type="Edit" Id="editIngestSecret" Width="226" Height="15" X="131" Y="52" Property="CONFIG_INGEST_SECRET" />
         <Control Type="Edit" Id="editCleartextBackendTarget" Width="226" Height="15" X="131" Y="76" Property="CONFIG_CLEARTEXT_BACKEND_TARGET" />
-        <Control Type="ComboBox" Property="CONFIG_LOG_LEVEL" Id="comboBoxLogLevel" Width="226" Height="16" X="131" Y="99" ComboList="yes">
+        
+		<Control Type="Text" Id="textLogLevel" Width="116" Height="17" X="8" Y="102">
+          <Text>!(loc.ConfigurationDlg_LogLevel)</Text>
+        </Control>
+        <Control Type="ComboBox" Property="CONFIG_LOG_LEVEL" Id="comboBoxLogLevel" Width="226" Height="16" X="131" Y="100" ComboList="yes">
           <ComboBox Property="CONFIG_LOG_LEVEL">
             <ListItem Text="!(loc.ConfigurationDlg_LogLevel_OFF)" Value="OFF" />
             <ListItem Text="!(loc.ConfigurationDlg_LogLevel_INFO)" Value="INFO" />
@@ -43,36 +57,36 @@
             <ListItem Text="!(loc.ConfigurationDlg_LogLevel_ERROR)" Value="ERROR" />
           </ComboBox>
         </Control>
-        <Control Type="Text" Id="textLogLevel" Width="116" Height="17" X="8" Y="102">
-          <Text>!(loc.ConfigurationDlg_LogLevel)</Text>
-        </Control>
 
-        <Control Type="Text" Id="textTagName" Width="116" Height="17" X="8" Y="122">
+        <Control Type="Text" Id="textTagName" Width="116" Height="17" X="8" Y="126">
           <Text>!(loc.ConfigurationDlg_TagNameLabel)</Text>
         </Control>
-        <Control Type="Edit" Id="editTagName" Width="226" Height="15" X="131" Y="122" Property="CONFIG_TAG_NAME" />
+        <Control Type="Edit" Id="editTagName" Width="226" Height="15" X="131" Y="124" Property="CONFIG_TAG_NAME" />
 
-
-        <Control Type="Text" Id="textFileFilter" Width="116" Height="17" X="8" Y="142">
+        <Control Type="Text" Id="textFileFilter" Width="116" Height="17" X="8" Y="150">
           <Text>!(loc.ConfigurationDlg_FileFilterLabel)</Text>
         </Control>
-        <Control Type="Edit" Id="editFileFilter" Width="226" Height="15" X="131" Y="142" Property="CONFIG_FILE_FILTER" />
+        <Control Type="Edit" Id="editFileFilter" Width="226" Height="15" X="131" Y="148" Property="CONFIG_FILE_FILTER" />
 
-        <Control Type="Text" Id="textWatchDirectory" Width="112" Height="14" X="8" Y="142">
+        <Control Type="Text" Id="textWatchDirectory" Width="112" Height="14" X="8" Y="174">
           <Text>!(loc.ConfigurationDlg_WatchedDirectoryLabel)</Text>
         </Control>
-		<Control Type="Edit" Id="editWatchedDirectory" Width="120" Height="15" X="131" Y="162" Property="CONFIG_WATCHED_DIRECTORY" />
-		<Control Id="SelectWatchFolder" Type="PushButton" Text="Browse" X="280" Y="162" Width="80" Height="17" Property="CONFIG_WATCHED_DIRECTORY" >
+		<Control Type="Edit" Id="textWatchedDirectory" Width="120" Height="15" X="131" Y="172" Property="CONFIG_WATCHED_DIRECTORY" >
+		   <Condition Action="disable">1</Condition>
+		</Control>
+		<Control Id="SelectWatchFolder" Type="PushButton" Text="Browse" X="280" Y="172" Width="80" Height="17" Property="CONFIG_WATCHED_DIRECTORY" >
 				<Publish Event="DoAction" Value="Select_WATCHED_DIRECTORY" Order="1"><![CDATA[1]]></Publish>
 				<Publish Property="CONFIG_WATCHED_DIRECTORY" Value="[CONFIG_WATCHED_DIRECTORY]" Order="2"><![CDATA[1]]></Publish>
         </Control>
 
         <Control Id="Next" Type="PushButton" X="235" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
-          <Publish Event="DoAction" Value="Validate_CONFIG_INGEST_SECRET">1</Publish>
-          <Publish Event="DoAction" Value="Validate_CONFIG_CLEARTEXT_BACKEND_TARGET">CONFIG_INGEST_SECRET_VALID = "1"</Publish>
-          <Publish Event="SpawnDialog" Value="InvalidIngestSecretDialog">CONFIG_INGEST_SECRET_VALID = "0"</Publish>
-          <Publish Event="SpawnDialog" Value="InvalidCleartextBackendTargetDialog">CONFIG_INGEST_SECRET_VALID = "1" AND CONFIG_CLEARTEXT_BACKEND_TARGET_VALID = "0"</Publish>
-          <Publish Event="EndDialog" Value="Return">CONFIG_INGEST_SECRET_VALID = "1" AND CONFIG_CLEARTEXT_BACKEND_TARGET_VALID = "1"</Publish>
+          <Publish Event="DoAction" Value="Validate_CONFIG_INGEST_SECRET" Order="1">1</Publish>
+          <Publish Event="DoAction" Value="Validate_CONFIG_CLEARTEXT_BACKEND_TARGET" Order="2">CONFIG_INGEST_SECRET_VALID = "1"</Publish>
+		  <Publish Event="DoAction" Value="Validate_CONFIG_WATCHER" Order="3">CONFIG_INGEST_SECRET_VALID = "1" AND CONFIG_CLEARTEXT_BACKEND_TARGET_VALID = "1"</Publish>
+		  <Publish Event="SpawnDialog" Value="InvalidWatchedDirectoryDialog" Order="4">CONFIG_WATCHER_VALID = "0"</Publish>
+          <Publish Event="SpawnDialog" Value="InvalidCleartextBackendTargetDialog" Order="5">CONFIG_WATCHER_VALID = "1" AND CONFIG_CLEARTEXT_BACKEND_TARGET_VALID = "0"</Publish>
+		  <Publish Event="SpawnDialog" Value="InvalidIngestSecretDialog" Order="6">CONFIG_WATCHER_VALID = "1" AND CONFIG_CLEARTEXT_BACKEND_TARGET_VALID = "1" AND CONFIG_INGEST_SECRET_VALID = "0"</Publish>
+		  <Publish Event="EndDialog" Value="Return" Order="7">CONFIG_INGEST_SECRET_VALID = "1" AND CONFIG_CLEARTEXT_BACKEND_TARGET_VALID = "1"  AND CONFIG_WATCHER_VALID = "1"</Publish>
         </Control>
 
         <Control Id="Back" Type="PushButton" X="179" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">

@@ -69,3 +69,35 @@ Function Select_WATCHED_DIRECTORY()
     Session.Property("CONFIG_WATCHED_DIRECTORY") = objFolder.Self.path
   End If
 End Function
+
+Function Validate_CONFIG_WATCHER()
+  Dim Dir, Tag, Filter, IsValid
+  Dir = Trim(Session.Property("CONFIG_WATCHED_DIRECTORY"))
+  Tag = Trim(Session.Property("CONFIG_TAG_NAME"))
+  Filter = Trim(Session.Property("CONFIG_FILE_FILTER"))
+  IsValid = "1"
+  
+  'TODO make this actually check the tag for banned characters
+  If Len(Tag) > 0 Then  
+	Session.Property("CONFIG_TAG_NAME") = Tag
+  Else
+    IsValid = "0"
+  End If
+  
+  'we can only really check that it is not empty
+  If Len(Filter) > 0 Then
+	Session.Property("CONFIG_FILE_FILTER") = Filter
+  Else
+    IsValid = "0"
+  End If
+  
+  'TODO we should check if this folder actually exists
+  If Len(Dir) > 0 Then
+	Session.Property("CONFIG_WATCHED_DIRECTORY") = Dir
+  Else
+    IsValid = "0"
+  End If
+ 
+  Session.Property("CONFIG_WATCHER_VALID") = IsValid
+  Validate_CONFIG_WATCHER = 1
+End Function
