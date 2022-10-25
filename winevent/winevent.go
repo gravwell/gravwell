@@ -154,7 +154,7 @@ func (e *EventStreamHandle) resetNoLock() (err error) {
 }
 
 // getHandles will iterate on the call to EventHandles, we do this because on big event log entries the kernel throws
-// RPC_S_INVALID_BOUND which is basically a really shitty way to say "i can't give you all the handles due to size"
+// RPC_S_INVALID_BOUND which is basically a really atrocious way to say "i can't give you all the handles due to size"
 func (e *EventStreamHandle) getHandles(start int) (evtHnds []wineventlog.EvtHandle, fullRead bool, err error) {
 	for cnt := start; cnt >= minHandleRequest; cnt = cnt / 2 {
 		evtHnds, err = wineventlog.EventHandles(e.subHandle, cnt)
