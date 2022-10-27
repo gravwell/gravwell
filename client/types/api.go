@@ -249,6 +249,9 @@ type GUISettings struct {
 	// If true, the UI shouldn't display any notifications about new features
 	DisableFeaturePopups bool
 
+	// Indicates that we're in cloud mode - changes some behaviors
+	CloudMode bool
+
 	ServerTime           time.Time
 	ServerTimezone       string
 	ServerTimezoneOffset int
