@@ -41,7 +41,7 @@ Value of Cleartext Backend Target must be one of:
   <String Id="InvalidWatchedDirectoryDialog_Title" Overridable="yes">Invalid or missing Watched Directory and/or tag name</String>
   <String Id="InvalidWatchedDirectoryDialog_Message" Overridable="yes">
 Watched Directory must be an existing valid folder.
-Tag name must be a valid non-empty tag anme.
+Tag name must be a valid non-empty tag name.
 File Filter must be a valid glob pattern, use * to match all files.
   </String>
 </WixLocalization>
