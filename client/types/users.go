@@ -168,8 +168,8 @@ type SearchModuleInfo struct {
 	Name         string
 	Info         string
 	Examples     []string
-	Collapsing   bool
-	FrontendOnly bool // true if this module MUST run on frontend (anko)
+	Collapsing   func(string) bool `json:"-"`
+	FrontendOnly bool              // true if this module MUST run on frontend (anko)
 	Sorting      bool
 }
 
@@ -179,7 +179,7 @@ type ChangePassword struct {
 }
 
 type Notification struct {
-	UID         int32
+	UID         int32hh
 	GID         int32
 	Sender      int32     //who sent it
 	Type        uint32    //ID which specifies the type of notification
