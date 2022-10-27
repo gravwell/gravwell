@@ -38,4 +38,10 @@ Value of Cleartext Backend Target must be one of:
 • Qualified domain name with optional port number
 • IP address with optional port number
   </String>
+  <String Id="InvalidWatchedDirectoryDialog_Title" Overridable="yes">Invalid or missing Watched Directory and/or tag name</String>
+  <String Id="InvalidWatchedDirectoryDialog_Message" Overridable="yes">
+Watched Directory must be an existing valid folder.
+Tag name must be a valid non-empty tag anme.
+File Filter must be a valid glob pattern, use * to match all files.
+  </String>
 </WixLocalization>
