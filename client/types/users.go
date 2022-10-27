@@ -179,7 +179,7 @@ type ChangePassword struct {
 }
 
 type Notification struct {
-	UID         int32hh
+	UID         int32
 	GID         int32
 	Sender      int32     //who sent it
 	Type        uint32    //ID which specifies the type of notification
