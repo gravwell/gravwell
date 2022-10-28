@@ -11,7 +11,6 @@ package ingest
 import (
 	"bytes"
 	"crypto/md5"
-	crand "crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/binary"
@@ -116,15 +115,7 @@ type StateResponse struct {
 }
 
 func init() {
-	//seed the random number generator with a cryptographically secure seed
-	//we use crypto/rand to generate this initial seed
-	//the cheap way of doing it is to ask for 8 bytes of random
-	//cast it to an int64 and seed math/rand
-	v := make([]byte, 8)
-	if _, err := crand.Read(v); err != nil {
-		panic("Failed to get random seed " + err.Error())
-	}
-	prng = rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(v))))
+	prng = NewRNG()
 	prngCounter = rand.Intn(512) + 512
 }
 
@@ -185,11 +176,7 @@ func VerifyResponse(auth AuthHash, chal Challenge, resp ChallengeResponse) error
 func checkAndReseedPRNG() {
 	prngCounter -= 1
 	if prngCounter == 0 {
-		v := make([]byte, 8)
-		if _, err := crand.Read(v); err != nil {
-			panic("Failed to get random seed " + err.Error())
-		}
-		prng.Seed(int64(binary.LittleEndian.Uint64(v)))
+		prng.Seed(SecureSeed())
 		prngCounter = rand.Intn(512) + 512
 	}
 }
