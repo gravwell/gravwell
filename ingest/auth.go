@@ -179,7 +179,7 @@ func VerifyResponse(auth AuthHash, chal Challenge, resp ChallengeResponse) error
 
 func checkAndReseedPRNG() error {
 	prngCounter -= 1
-	if prngCounter == 0 {
+	if prngCounter < 0 {
 		if seed, err := SecureSeed(); err != nil {
 			return err
 		} else {
@@ -193,9 +193,7 @@ func checkAndReseedPRNG() error {
 // NewChallenge generates a random hash string and a random iteration count
 func NewChallenge(auth AuthHash) (Challenge, error) {
 	var chal [32]byte
-	if err := checkAndReseedPRNG(); err != nil {
-		return Challenge{}, err
-	}
+	checkAndReseedPRNG()
 	iter := uint16(10000 + prng.Intn(10000))
 	for i := 0; i < len(chal); i++ {
 		chal[i] = byte(prng.Intn(0xff))
