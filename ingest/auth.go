@@ -179,7 +179,7 @@ func VerifyResponse(auth AuthHash, chal Challenge, resp ChallengeResponse) error
 
 func checkAndReseedPRNG() error {
 	prngCounter -= 1
-	if prngCounter < 0 {
+	if prngCounter <= 0 {
 		if seed, err := SecureSeed(); err != nil {
 			return err
 		} else {
