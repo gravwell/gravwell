@@ -115,7 +115,11 @@ type StateResponse struct {
 }
 
 func init() {
-	prng = NewRNG()
+	var err error
+	prng, err = NewRNG()
+	if err != nil {
+		panic(err)
+	}
 	prngCounter = rand.Intn(512) + 512
 }
 
@@ -173,18 +177,25 @@ func VerifyResponse(auth AuthHash, chal Challenge, resp ChallengeResponse) error
 	return nil
 }
 
-func checkAndReseedPRNG() {
+func checkAndReseedPRNG() error {
 	prngCounter -= 1
 	if prngCounter == 0 {
-		prng.Seed(SecureSeed())
-		prngCounter = rand.Intn(512) + 512
+		if seed, err := SecureSeed(); err != nil {
+			return err
+		} else {
+			prng.Seed(seed)
+			prngCounter = rand.Intn(512) + 512
+		}
 	}
+	return nil
 }
 
 // NewChallenge generates a random hash string and a random iteration count
 func NewChallenge(auth AuthHash) (Challenge, error) {
 	var chal [32]byte
-	checkAndReseedPRNG()
+	if err := checkAndReseedPRNG(); err != nil {
+		return Challenge{}, err
+	}
 	iter := uint16(10000 + prng.Intn(10000))
 	for i := 0; i < len(chal); i++ {
 		chal[i] = byte(prng.Intn(0xff))
