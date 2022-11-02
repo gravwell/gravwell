@@ -46,6 +46,9 @@ const (
 	// Maximum size of a message mapping tag names to tag numbers
 	maxTagResponseLen uint32 = 64 * 1024 * 1024 //64megs for a response, which is crazy huge
 
+	minPrngLife  = 1024 //how many iterations on the PRNG before we demand a new cryptographically secure seed
+	prngVariance = 1024 //how much randomness in the PRNG life we allow
+
 )
 
 var (
@@ -115,8 +118,12 @@ type StateResponse struct {
 }
 
 func init() {
-	prng = NewRNG()
-	prngCounter = rand.Intn(512) + 512
+	var err error
+	prng, err = NewRNG()
+	if err != nil {
+		panic(err)
+	}
+	prngCounter = rand.Intn(prngVariance) + minPrngLife
 }
 
 // GenAuthHash takes a key and generates a hash using the "password" token
@@ -175,9 +182,11 @@ func VerifyResponse(auth AuthHash, chal Challenge, resp ChallengeResponse) error
 
 func checkAndReseedPRNG() {
 	prngCounter -= 1
-	if prngCounter == 0 {
-		prng.Seed(SecureSeed())
-		prngCounter = rand.Intn(512) + 512
+	if prngCounter <= 0 {
+		if seed, err := SecureSeed(); err == nil {
+			prng.Seed(seed)
+		}
+		prngCounter = rand.Intn(prngVariance) + minPrngLife
 	}
 }
 

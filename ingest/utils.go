@@ -11,8 +11,13 @@ package ingest
 import (
 	crand "crypto/rand"
 	"encoding/binary"
+	"errors"
 	"math/rand"
 	"sync"
+)
+
+var (
+	ErrUnderFill = errors.New("short cryptographic buffer read")
 )
 
 // The implementation of this is actually in the Go stdlib, it's just not exported
@@ -40,16 +45,35 @@ func (r *LockedSource) Seed(seed int64) {
 	r.lk.Unlock()
 }
 
-func NewRNG() *rand.Rand {
-	return rand.New(NewLockedSource(rand.NewSource(SecureSeed())))
+func NewRNG() (*rand.Rand, error) {
+	seed, err := SecureSeed()
+	if err != nil {
+		return nil, err
+	}
+	return rand.New(NewLockedSource(rand.NewSource(seed))), nil
 }
 
 func NewInsecureRNG() *rand.Rand {
 	return rand.New(NewLockedSource(rand.NewSource(rand.Int63())))
 }
 
-func SecureSeed() int64 {
+func SecureSeed() (int64, error) {
 	bts := make([]byte, 8)
-	crand.Read(bts)
-	return int64(binary.LittleEndian.Uint64(bts))
+	if err := cfill(bts); err != nil {
+		if err = cfill(bts); err != nil {
+			if err = cfill(bts); err != nil {
+				return -1, err
+			}
+		}
+	}
+	return int64(binary.LittleEndian.Uint64(bts)), nil
+}
+
+func cfill(v []byte) error {
+	if n, err := crand.Read(v); err != nil {
+		return err
+	} else if n != len(v) {
+		return ErrUnderFill
+	}
+	return nil
 }
