@@ -177,17 +177,14 @@ func VerifyResponse(auth AuthHash, chal Challenge, resp ChallengeResponse) error
 	return nil
 }
 
-func checkAndReseedPRNG() error {
+func checkAndReseedPRNG() {
 	prngCounter -= 1
 	if prngCounter <= 0 {
-		if seed, err := SecureSeed(); err != nil {
-			return err
-		} else {
+		if seed, err := SecureSeed(); err == nil {
 			prng.Seed(seed)
 			prngCounter = rand.Intn(512) + 512
 		}
 	}
-	return nil
 }
 
 // NewChallenge generates a random hash string and a random iteration count
