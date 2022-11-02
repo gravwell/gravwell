@@ -22,7 +22,6 @@ require (
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/elastic/beats v7.6.2+incompatible
-	github.com/floren/o365 v0.0.1
 	github.com/fsnotify/fsnotify v1.5.1
 	github.com/gdamore/tcell/v2 v2.5.1 // indirect
 	github.com/go-ole/go-ole v1.2.4 // indirect
@@ -39,6 +38,7 @@ require (
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect
 	github.com/gravwell/gcfg v1.2.9-0.20220128204816-1742bc68c091
 	github.com/gravwell/ipfix v1.4.3
+	github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4 // indirect
 	github.com/h2non/filetype v1.0.10
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/jcmturner/gofork v1.0.0 // indirect
