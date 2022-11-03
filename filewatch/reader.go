@@ -38,16 +38,6 @@ type ReaderConfig struct {
 	EngineArgs string
 }
 
-func NewReader(cfg ReaderConfig) (Reader, error) {
-	switch cfg.Engine {
-	case RegexEngine:
-		return NewRegexReader(cfg)
-	case LineEngine: //default/empty is line reader
-		return NewLineReader(cfg)
-	}
-	return nil, errors.New("Unknown engine")
-}
-
 type baseReader struct {
 	f       *os.File
 	idx     int64

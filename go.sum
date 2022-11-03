@@ -140,8 +140,6 @@ github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3 h1:f0irndm+5FeJc
 github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3/go.mod h1:FQfGFirjPYyn2Y2iIEaAxwT6FY5pigmZVkIGhL1K2kI=
 github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb h1:XRsoLQTeRindbOuSflYX5jAAsTjqhy09km3djCTiycQ=
 github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb/go.mod h1:6RYKKt7H4d4+iWqouImQ9R2FZql3VbhNgx27UK13J/0=
-github.com/floren/o365 v0.0.1 h1:KBGcVt63OSnKwW1KlI+M5IRV7YdQpWsD6M/7Xp1+BOM=
-github.com/floren/o365 v0.0.1/go.mod h1:+1TeJc/IBX0gGAfBf1ZHNJboVRZDNKor7sizUwEoEuM=
 github.com/form3tech-oss/jwt-go v3.2.2+incompatible h1:TcekIExNqud5crz4xD2pavyTgWiPvpYe4Xau31I0PRk=
 github.com/form3tech-oss/jwt-go v3.2.2+incompatible/go.mod h1:pbq4aXjuKjdthFRnoDwaVPLA+WlJuPGy+QneDUgJi2k=
 github.com/fortytw2/leaktest v1.2.0/go.mod h1:jDsjWgpAGjm2CA7WthBh/CdZYEPF31XHquHwclZch5g=
@@ -231,6 +229,9 @@ github.com/gravwell/gcfg v1.2.9-0.20220128204816-1742bc68c091 h1:xwfqSDXHWMAVg2L
 github.com/gravwell/gcfg v1.2.9-0.20220128204816-1742bc68c091/go.mod h1:N+S2rmWz+IHo5zTQaDshQr+qEVGldBRzAnlRkf1yO8c=
 github.com/gravwell/ipfix v1.4.3 h1:OwEqbafjR2brezAnGHUHU9JbHKAeO1EL6BjIwqJvqGs=
 github.com/gravwell/ipfix v1.4.3/go.mod h1:/Ogrd3FQi+GGD+BXzX8/kBQKdOrgrf6c8u8LSEA3WI8=
+github.com/gravwell/o365 v0.0.0-20191111222151-45103472eddc h1:duc1IbvWZXoTuq+OvO+vMX5YelG8cfwbFFBabO/wIqY=
+github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4 h1:xvSVqY+HwgOscWCKkErHGgqTnibYb8K5r4j+m4zESVA=
+github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4/go.mod h1:FkNvhN1LrF2t4gvxUGB6TQ5ixTyOXrc3EYFnD0CsloQ=
 github.com/grpc-ecosystem/grpc-gateway v1.5.0/go.mod h1:RSKVYQBd5MCa4OVpNdGskqpgL2+G+NZTnrVHpWWfpdw=
 github.com/h2non/filetype v1.0.10 h1:z+SJfnL6thYJ9kAST+6nPRXp1lMxnOVbMZHNYHMar0s=
 github.com/h2non/filetype v1.0.10/go.mod h1:isekKqOuhMj+s/7r3rIeTErIRy4Rub5uBWHfvMusLMU=

@@ -168,8 +168,8 @@ type SearchModuleInfo struct {
 	Name         string
 	Info         string
 	Examples     []string
-	Collapsing   bool
-	FrontendOnly bool // true if this module MUST run on frontend (anko)
+	Collapsing   func(string) bool `json:"-"`
+	FrontendOnly bool              // true if this module MUST run on frontend (anko)
 	Sorting      bool
 }
 

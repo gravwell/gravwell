@@ -11,7 +11,6 @@ package ingest
 import (
 	"bytes"
 	"crypto/md5"
-	crand "crypto/rand"
 	"crypto/sha256"
 	"crypto/sha512"
 	"encoding/binary"
@@ -46,6 +45,9 @@ const (
 	maxTagRequestLen uint32 = 32 * 1024 * 1024 //32megs for a request, which is crazy huge
 	// Maximum size of a message mapping tag names to tag numbers
 	maxTagResponseLen uint32 = 64 * 1024 * 1024 //64megs for a response, which is crazy huge
+
+	minPrngLife  = 1024 //how many iterations on the PRNG before we demand a new cryptographically secure seed
+	prngVariance = 1024 //how much randomness in the PRNG life we allow
 
 )
 
@@ -116,16 +118,12 @@ type StateResponse struct {
 }
 
 func init() {
-	//seed the random number generator with a cryptographically secure seed
-	//we use crypto/rand to generate this initial seed
-	//the cheap way of doing it is to ask for 8 bytes of random
-	//cast it to an int64 and seed math/rand
-	v := make([]byte, 8)
-	if _, err := crand.Read(v); err != nil {
-		panic("Failed to get random seed " + err.Error())
+	var err error
+	prng, err = NewRNG()
+	if err != nil {
+		panic(err)
 	}
-	prng = rand.New(rand.NewSource(int64(binary.LittleEndian.Uint64(v))))
-	prngCounter = rand.Intn(512) + 512
+	prngCounter = rand.Intn(prngVariance) + minPrngLife
 }
 
 // GenAuthHash takes a key and generates a hash using the "password" token
@@ -184,13 +182,11 @@ func VerifyResponse(auth AuthHash, chal Challenge, resp ChallengeResponse) error
 
 func checkAndReseedPRNG() {
 	prngCounter -= 1
-	if prngCounter == 0 {
-		v := make([]byte, 8)
-		if _, err := crand.Read(v); err != nil {
-			panic("Failed to get random seed " + err.Error())
+	if prngCounter <= 0 {
+		if seed, err := SecureSeed(); err == nil {
+			prng.Seed(seed)
 		}
-		prng.Seed(int64(binary.LittleEndian.Uint64(v)))
-		prngCounter = rand.Intn(512) + 512
+		prngCounter = rand.Intn(prngVariance) + minPrngLife
 	}
 }
 

@@ -33,6 +33,7 @@ type global struct {
 	Client_Secret        string `json:"-"` // DO NOT send this when marshalling
 	Directory_ID         string
 	Tenant_Domain        string
+	Plan_Name            string
 }
 
 type contentType struct {

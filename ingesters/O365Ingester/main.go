@@ -22,7 +22,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/floren/o365"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -30,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/o365"
 )
 
 const (
@@ -199,6 +199,7 @@ func main() {
 	ocfg.DirectoryID = cfg.Global.Directory_ID
 	ocfg.TenantDomain = cfg.Global.Tenant_Domain
 	ocfg.ContentTypes = cfg.ContentTypes()
+	ocfg.PlanName = cfg.Global.Plan_Name
 	o, err := o365.New(ocfg)
 	if err != nil {
 		lg.FatalCode(0, "Failed to get new client", log.KVErr(err))
