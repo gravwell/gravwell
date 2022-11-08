@@ -17,7 +17,6 @@ import (
 	"os"
 	"path"
 	"runtime/debug"
-	"runtime/pprof"
 	"syscall"
 	"time"
 
@@ -45,7 +44,6 @@ var (
 	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
-	profileFile    = flag.String("profile", "", "Start a CPU profiler, disabled if blank")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 
 	pktTimeout time.Duration = 500 * time.Millisecond
@@ -114,15 +112,6 @@ func init() {
 
 func main() {
 	debug.SetTraceback("all")
-	if *profileFile != `` {
-		f, err := os.Create(*profileFile)
-		if err != nil {
-			lg.Fatal("failed to open pprof", log.KV("path", *profileFile), log.KVErr(err))
-		}
-		defer f.Close()
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
 	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))

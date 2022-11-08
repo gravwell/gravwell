@@ -16,9 +16,7 @@ import (
 	"net"
 	"os"
 	"path"
-	"runtime"
 	"runtime/debug"
-	"runtime/pprof"
 	"sync"
 	"syscall"
 	"time"
@@ -49,8 +47,6 @@ var (
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
-	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
-	memprofile     = flag.String("memprofile", "", "File to write memory profile data to.  Disabled if blank")
 	lg             *log.Logger
 )
 
@@ -90,27 +86,6 @@ func init() {
 
 func main() {
 	debug.SetTraceback("all")
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			lg.Fatal("Failed to create cpu profile", log.KV("path", *cpuprofile), log.KVErr(err))
-		}
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
-	if *memprofile != "" {
-		defer func() {
-			f, err := os.Create(*memprofile)
-			if err != nil {
-				lg.Fatal("Failed to create memory profile", log.KV("path", *memprofile), log.KVErr(err))
-				return
-			}
-			runtime.GC()
-			pprof.WriteHeapProfile(f)
-			f.Close()
-		}()
-	}
-
 	var wg sync.WaitGroup
 	running := true
 

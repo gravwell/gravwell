@@ -15,7 +15,6 @@ import (
 	"os"
 	"path"
 	"runtime/debug"
-	"runtime/pprof"
 	"syscall"
 	"time"
 
@@ -39,7 +38,6 @@ const (
 )
 
 var (
-	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
 	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
@@ -89,15 +87,6 @@ func handleFlags() {
 func main() {
 	debug.SetTraceback("all")
 	handleFlags()
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			lg.Fatal("failed to open profile file", log.KV("path", *cpuprofile), log.KVErr(err))
-		}
-		defer f.Close()
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
 
 	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
