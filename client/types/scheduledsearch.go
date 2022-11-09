@@ -54,10 +54,10 @@ type ScheduledSearch struct {
 	Schedule    string // when to run: a cron spec
 	Timezone    string // a location to use for the timezone, e.g. "America/New_York"
 	Updated     time.Time
-	Disabled    bool
+	Disabled    bool // scheduling is disabled, do not run this search/script/flow
 	OneShot     bool // Set this flag to 'true' to make the search fire ONCE
 	DebugMode   bool // set this to true to enable debug mode
-	Synced      bool
+	Synced      bool // used internally to indicate the scheduled search has been synced
 
 	// if true, search agent will attempt to "backfill" missed runs since
 	// the more recent of Updated or LastRun.
@@ -67,9 +67,11 @@ type ScheduledSearch struct {
 	ScheduledType string
 
 	// Fields for scheduled searches
-	SearchString       string // The actual search to run
-	Duration           int64  // How many seconds back to search, MUST BE NEGATIVE
-	SearchSinceLastRun bool   // If set, ignore Duration and run from last run time to now.
+	SearchString       string        // The actual search to run
+	Duration           int64         // How many seconds back to search, MUST BE NEGATIVE
+	SearchSinceLastRun bool          // If set, ignore Duration and run from last run time to now.
+	Alert              bool          // set to true for scheduled queries that are a basis for an alert
+	AlertConfig        AlertMetadata `json:",omitempty"` //if scheduled search is an alert, this config adds values
 
 	// For scheduled scripts
 	Script         string     // If set, execute the contents rather than running SearchString
@@ -79,6 +81,10 @@ type ScheduledSearch struct {
 	Flow            string                 // The flow specification itself
 	FlowNodeResults map[int]FlowNodeResult // results for each node in the flow
 
+	// For Reactive scheduling (flows and scripts only)
+	Reactive       bool            // do not schedule, instead this is fired externally
+	ReactiveInputs []ReactiveInput //set of inputs that will be available to the flow at start
+
 	// These fields are updated by the search agent after it runs a search
 	PersistentMaps  map[string]map[string]interface{}
 	LastRun         time.Time
@@ -86,6 +92,22 @@ type ScheduledSearch struct {
 	LastSearchIDs   []string      // the IDs of the most recently performed searches
 	LastError       string        // any error from the last run of the scheduled search
 	DebugOutput     []byte        // output of the script if debugmode was enabled
+}
+
+type AlertMetadata struct {
+	Name     string            //name of the alert - REQUIRED
+	Category string            //category of the alert - OPTIONAL
+	Level    string            //level of the alert (info, warn, high, critical) - REQUIRED
+	Target   uuid.UUID         //The flow or script that will be fired if the query has results (may be blank)
+	Metadata map[string]string `json:",omitempty"` //set of additional free form keys that can be attached to an alert
+}
+
+// ReactiveInput represents a configured key that must be present in an reactive flow
+// The name indicates the name to be injected into the payload of a flow or the global environment for a script
+type ReactiveInput struct {
+	Required   bool   // if set to true then the reactive flow will not start if the value is missing
+	Name       string // name of the value to be injected
+	DebugValue string // temporary debug value to be injected into the payload when doing debug/testing runs
 }
 
 type FlowNodeResult struct {
