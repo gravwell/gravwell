@@ -56,8 +56,8 @@ type KeyComponents struct {
 	Keys []string
 }
 
-//ChartableValueSet is what is returned when we have a request for data
-//the length of Names MUST BE the same length as each set of Values in each Set
+// ChartableValueSet is what is returned when we have a request for data
+// the length of Names MUST BE the same length as each set of Values in each Set
 type ChartableValueSet struct {
 	Names      []string
 	KeyComps   []KeyComponents `json:",omitempty"`

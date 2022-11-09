@@ -240,7 +240,7 @@ loop:
 	return
 }
 
-//waitTimeout will wait up to to duration on the wait group, then it just fires a
+// waitTimeout will wait up to to duration on the wait group, then it just fires a
 func waitTimeout(wg *sync.WaitGroup, cf func(), to time.Duration) {
 	ch := make(chan struct{})
 	go func(c chan struct{}) {

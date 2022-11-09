@@ -136,6 +136,7 @@ func (cv CanonicalVersion) NewerVersion(ncv CanonicalVersion) bool {
 }
 
 // Compare returns the following:
+//
 //	0	- equal versions
 //	<0	- incoming is older than existing
 //	>0	- incoming is newer then existing
@@ -324,7 +325,7 @@ func (ei emptyFloat64s) MarshalJSON() ([]byte, error) {
 	return json.Marshal([]float64(ei))
 }
 
-//marshalling and handlers for our raw object type
+// marshalling and handlers for our raw object type
 func (o RawObject) MarshalJSON() ([]byte, error) {
 	if len(o) == 0 || o == nil {
 		return emptyObj, nil

@@ -185,7 +185,7 @@ func (ss *SubProtoServer) GetDefaultMessageChan() (chan UnkProtoMsg, error) {
 	return ss.defaultHandlerChan, nil
 }
 
-//WriteDefaultMessage sends an object down the default subproto connection.
+// WriteDefaultMessage sends an object down the default subproto connection.
 func (ss *SubProtoServer) WriteDefaultMessage(proto string, obj interface{}) error {
 	return ss.writeProtoJSON(proto, obj)
 }

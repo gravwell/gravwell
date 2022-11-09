@@ -127,6 +127,7 @@ type CapabilityTemplate struct {
 }
 
 // check returns two values:
+//
 //	explicit: Whether or not the capability is in the CapabilitySet object.
 //	grant: Whether or not the capability is allowed to be accessed.
 func (cs CapabilitySet) check(c Capability) (explicit bool, grant bool) {
@@ -635,6 +636,7 @@ type TagAccess struct {
 }
 
 // check returns two values:
+//
 //	explicit: Whether or not the tag is in the TagAccess object.
 //	grant: Whether or not the tag is allowed to be accessed.
 func (ta TagAccess) check(tg string) (explicit bool, grant bool) {
@@ -654,10 +656,10 @@ func (ta TagAccess) tagInSet(tg string) bool {
 
 // Validate walks all tags in a TagAccess object, ensuring they meet all length
 // and formatting rules:
-//	1. Length cannot be greater than 4096 characters.
-//	2. The tag cannot contain any of the following characters:
-//		!@#$%^&*()=+<>,.:;`\"'{[}]|
-//	3. You cannot specify more than 65536 tags.
+//  1. Length cannot be greater than 4096 characters.
+//  2. The tag cannot contain any of the following characters:
+//     !@#$%^&*()=+<>,.:;`\"'{[}]|
+//  3. You cannot specify more than 65536 tags.
 func (ta *TagAccess) Validate() (err error) {
 	otags := ta.Overrides[0:0]
 	tm := make(map[string]es, len(ta.Overrides))

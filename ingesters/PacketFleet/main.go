@@ -346,6 +346,7 @@ func (s *server) listener(laddr string, usetls bool, c, k string) {
 
 // handler is the mux for all stenographer connections, and provides the
 // following HTTP interface:
+//
 //	GET /
 //		Simple embedded webserver content, see html.go
 //	POST /

@@ -298,8 +298,9 @@ func (c *Client) WellData() (mp map[string]types.IndexerWellData, err error) {
 // GetLibFile fetches the contents of a particular SOAR library file, as used in
 // scheduled search scripts. The repo and commit arguments are optional.
 // Examples:
-//   c.GetLibFile("https://github.com/gravwell/libs", "cd9d6c5", "alerts/email.ank")
-//   c.GetLibFile("", "", "utils/links.ank")
+//
+//	c.GetLibFile("https://github.com/gravwell/libs", "cd9d6c5", "alerts/email.ank")
+//	c.GetLibFile("", "", "utils/links.ank")
 func (c *Client) GetLibFile(repo, commit, fn string) (bts []byte, err error) {
 	if fn == `` {
 		err = errors.New("Missing filename")

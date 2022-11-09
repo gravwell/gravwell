@@ -51,7 +51,7 @@ var strayMergedValues = []iseKV{
 	iseKV{key: `AuthorizationPolicyMatchedRule`, value: `APC-VPN-POSTURE-SUCCESS`},
 }
 
-//full merged data value without any filtering
+// full merged data value without any filtering
 var mergedDataValues = []iseKV{
 	iseKV{key: `ConfigVersionId`, value: `44`},
 	iseKV{key: `Device IP Address`, value: `14.14.14.25`},
@@ -178,7 +178,7 @@ var mergedDataValues = []iseKV{
 	iseKV{key: `Response`, value: `{Class=EMPLOYEE-POSTURE-AGENT; Class=CACS:0a700e191cff70005fbbf63f:ISE_DEVICE/384429556/212087299; cisco-av-pair=profile-name=Windows10-Workstation; LicenseTypes=2051; }`},
 }
 
-//full merged data value, filter anything that matches Step* or NAS-*
+// full merged data value, filter anything that matches Step* or NAS-*
 var mergedDataValuesFiltered = []iseKV{
 	iseKV{key: `ConfigVersionId`, value: `44`},
 	iseKV{key: `Device IP Address`, value: `14.14.14.25`},

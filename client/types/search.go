@@ -291,7 +291,7 @@ func CheckMacroName(name string) error {
 	return nil
 }
 
-//custom Marshallers
+// custom Marshallers
 func (si SearchInfo) MarshalJSON() ([]byte, error) {
 	type alias SearchInfo
 	return json.Marshal(struct {

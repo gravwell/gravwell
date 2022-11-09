@@ -19,9 +19,9 @@ import (
 
 // ParseSource attempts to parse a string as a source override
 // The priority logic is:
-//     1. IP address
-//     2. Numeric ID
-//     3. hexadecimal hash
+//  1. IP address
+//  2. Numeric ID
+//  3. hexadecimal hash
 func ParseSource(v string) (ret net.IP, err error) {
 	var r uint64
 	var x []byte
