@@ -261,7 +261,7 @@ func (er *EntryReader) Read() (e *entry.Entry, err error) {
 	return e, err
 }
 
-//reset the read deadline on the underlying connection, caller must hold the lock
+// reset the read deadline on the underlying connection, caller must hold the lock
 func (er *EntryReader) resetTimeout() error {
 	if er.timeout <= 0 {
 		return er.conn.SetReadDeadline(nilTime)

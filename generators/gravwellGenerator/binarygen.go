@@ -18,7 +18,7 @@ import (
 	rd "github.com/Pallinder/go-randomdata"
 )
 
-//format int16:beuint16:int32:beuint32:int64:beuint64:float32:befloat64:IPv4:string
+// format int16:beuint16:int32:beuint32:int64:beuint64:float32:befloat64:IPv4:string
 func genDataBinary(ts time.Time) []byte {
 	bb := bytes.NewBuffer(make([]byte, 128))
 	bb.Reset()

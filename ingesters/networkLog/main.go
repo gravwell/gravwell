@@ -293,7 +293,7 @@ func main() {
 	}
 }
 
-//Called if something bad happens and we need to re-open the packet source
+// Called if something bad happens and we need to re-open the packet source
 func rebuildPacketSource(s *sniffer) (*pcap.Handle, bool) {
 	var threwErr bool
 mainLoop:
@@ -327,7 +327,7 @@ mainLoop:
 	return nil, false //ummm... shouldn't happen?
 }
 
-//A captured packet
+// A captured packet
 type capPacket struct {
 	ts   entry.Timestamp
 	data []byte
@@ -390,8 +390,8 @@ func packetExtractor(hnd *pcap.Handle, c chan []capPacket) {
 	}
 }
 
-//Main loop for a sniffer. Gets packets from the sniffer and sends
-//them to the ingester.
+// Main loop for a sniffer. Gets packets from the sniffer and sends
+// them to the ingester.
 func pcapIngester(igst *ingest.IngestMuxer, s *sniffer) {
 	count := uint64(0)
 	totalBytes := uint64(0)
@@ -458,8 +458,8 @@ mainLoop:
 	}
 }
 
-//Attempt to find a reasonable IP for a given interface name
-//Returns the first IP it finds.
+// Attempt to find a reasonable IP for a given interface name
+// Returns the first IP it finds.
 func getSourceIP(dev string) (net.IP, error) {
 	iface, err := net.InterfaceByName(dev)
 	if err != nil {
@@ -491,7 +491,7 @@ func debugout(format string, args ...interface{}) {
 	fmt.Printf(format, args...)
 }
 
-//Add the bytes & packet count from src into dst.
+// Add the bytes & packet count from src into dst.
 func addResults(dst *results, src results) {
 	if dst == nil {
 		return
@@ -500,7 +500,7 @@ func addResults(dst *results, src results) {
 	dst.Count += src.Count
 }
 
-//Ask each sniffer to shut down.
+// Ask each sniffer to shut down.
 func requestClose(sniffs []sniffer) {
 	for _, s := range sniffs {
 		if s.active {
@@ -509,7 +509,7 @@ func requestClose(sniffs []sniffer) {
 	}
 }
 
-//Gather total statistics from all sniffers and return
+// Gather total statistics from all sniffers and return
 func gatherResponse(sniffs []sniffer) results {
 	var r results
 	for _, s := range sniffs {
@@ -520,7 +520,7 @@ func gatherResponse(sniffs []sniffer) results {
 	return r
 }
 
-//Close the sniffers' pcap handles
+// Close the sniffers' pcap handles
 func closeHandles(sniffs []sniffer) {
 	for _, s := range sniffs {
 		if s.handle != nil {
@@ -529,9 +529,9 @@ func closeHandles(sniffs []sniffer) {
 	}
 }
 
-//Ask each sniffer to stop collection, gather the total
-//statistics, and then attempt to close pcap handles just
-//to be safe (should be closed by requestClose())
+// Ask each sniffer to stop collection, gather the total
+// statistics, and then attempt to close pcap handles just
+// to be safe (should be closed by requestClose())
 func closeSniffers(sniffs []sniffer) results {
 	requestClose(sniffs)
 	r := gatherResponse(sniffs)

@@ -433,9 +433,9 @@ func writeTagCache(t map[string]entry.EntryTag, p string) error {
 	return renameio.WriteFile(path, b.Bytes(), 0660)
 }
 
-//Start starts the connection process. This will return immediately, and does
-//not mean that connections are ready. Callers should call WaitForHot immediately after
-//to wait for the connections to be ready.
+// Start starts the connection process. This will return immediately, and does
+// not mean that connections are ready. Callers should call WaitForHot immediately after
+// to wait for the connections to be ready.
 func (im *IngestMuxer) Start() error {
 	im.mtx.Lock()
 	defer im.mtx.Unlock()
@@ -766,7 +766,7 @@ func (im *IngestMuxer) Hot() (int, error) {
 	return int(atomic.LoadInt32(&im.connHot)), nil
 }
 
-//goHot is a convenience function used by routines when they become active
+// goHot is a convenience function used by routines when they become active
 func (im *IngestMuxer) goHot() {
 	atomic.AddInt32(&im.connDead, -1)
 	//attempt a single on going hot, but don't block
@@ -783,7 +783,7 @@ func (im *IngestMuxer) goHot() {
 	}
 }
 
-//goDead is a convenience function used by routines when they become dead
+// goDead is a convenience function used by routines when they become dead
 func (im *IngestMuxer) goDead() {
 	//decrement the hot counter
 	if atomic.AddInt32(&im.connHot, -1) == 0 {
@@ -991,7 +991,7 @@ func (im *IngestMuxer) WriteContext(ctx context.Context, tm entry.Timestamp, tag
 	return im.WriteEntryContext(ctx, e)
 }
 
-//connFailed will put the destination in a failed state and inform the muxer
+// connFailed will put the destination in a failed state and inform the muxer
 func (im *IngestMuxer) connFailed(dst string, err error) {
 	im.mtx.Lock()
 	defer im.mtx.Unlock()
@@ -1009,7 +1009,7 @@ type connSet struct {
 	src net.IP
 }
 
-//keep attempting to get a new connection set that we can actually write to
+// keep attempting to get a new connection set that we can actually write to
 func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, orig bool) (nc connSet, ok bool) {
 	if !orig {
 		//try to send, if we can't just roll on
@@ -1227,7 +1227,7 @@ inputLoop:
 	}
 }
 
-//the routine that manages
+// the routine that manages
 func (im *IngestMuxer) connRoutine(igIdx int) {
 	var src net.IP
 	defer im.wg.Done()
@@ -1362,8 +1362,8 @@ func (im *IngestMuxer) recycleEntry(ent *entry.Entry) {
 	return
 }
 
-//fatal connection errors is looking for errors which are non-recoverable
-//Recoverable errors are related to timeouts, refused connections, and read errors
+// fatal connection errors is looking for errors which are non-recoverable
+// Recoverable errors are related to timeouts, refused connections, and read errors
 func isFatalConnError(err error) bool {
 	if err == nil {
 		return false

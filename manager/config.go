@@ -245,7 +245,7 @@ func getFirst(s string) string {
 	return ``
 }
 
-//check that the file exists and has at least some executable bits set
+// check that the file exists and has at least some executable bits set
 func checkExecutable(p string) error {
 	fi, err := os.Stat(p)
 	if err != nil {

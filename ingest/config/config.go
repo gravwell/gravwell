@@ -258,7 +258,8 @@ func (ic *IngestConfig) Verify() error {
 
 // Targets returns a list of indexer targets, including TCP, TLS, and Unix pipes.
 // Each target will be prepended with the connection type, e.g.:
-//  tcp://10.0.0.1:4023
+//
+//	tcp://10.0.0.1:4023
 func (ic *IngestConfig) Targets() ([]string, error) {
 	var conns []string
 	for _, v := range ic.Cleartext_Backend_Target {
@@ -344,7 +345,7 @@ func (ic *IngestConfig) RateLimit() (bps int64, err error) {
 	return
 }
 
-//returns whether the supplied uuid is all zeros
+// returns whether the supplied uuid is all zeros
 func zeroUUID(id uuid.UUID) bool {
 	for _, v := range id {
 		if v != 0 {

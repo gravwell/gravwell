@@ -87,7 +87,7 @@ func (c *Client) GetUserInfo(id int32) (types.UserDetails, error) {
 	return udet, nil
 }
 
-//SetAdmin (admin-only) changes the admin status for the user with the given ID.
+// SetAdmin (admin-only) changes the admin status for the user with the given ID.
 func (c *Client) SetAdmin(id int32, admin bool) error {
 	var method string
 	resp := types.AdminActionResp{}
@@ -105,7 +105,7 @@ func (c *Client) SetAdmin(id int32, admin bool) error {
 	return nil
 }
 
-//changePass will change a users password
+// changePass will change a users password
 func (c *Client) changePass(id int32, req types.ChangePassword) error {
 	if err := c.putStaticURL(usersChangePassUrl(id), req); err != nil {
 		return err

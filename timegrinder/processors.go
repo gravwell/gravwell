@@ -15,7 +15,7 @@ import (
 	"time"
 )
 
-//Timestamp Override Names
+// Timestamp Override Names
 type Format string
 
 const (
@@ -50,7 +50,7 @@ const (
 	Gravwell              Format = `Gravwell`
 )
 
-//Timestamp Formats
+// Timestamp Formats
 const (
 	AnsiCFormat                 string = `Jan _2 15:04:05 2006`
 	UnixFormat                  string = `Jan _2 15:04:05 MST 2006`
@@ -83,7 +83,7 @@ const (
 	BindFormat                  string = `02-Jan-2006 15:04:05.999`
 )
 
-//Regular Expression Extractors
+// Regular Expression Extractors
 const (
 	AnsiCRegex                 string = `[JFMASOND][anebriyunlgpctov]+\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+\d{4}`
 	UnixRegex                  string = `[JFMASOND][anebriyunlgpctov]+\s+\d{1,2}\s+\d\d:\d\d:\d\d\s+[A-Z]{3}\s+\d{4}`
