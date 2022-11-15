@@ -97,7 +97,7 @@ func GetConfig(path string) (*CfgType, error) {
 			return nil, err
 		}
 		if id2, ok := c.Global.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
+			return nil, errors.New("failed to set a new ingester UUID")
 		}
 	}
 	return &c, nil
@@ -285,10 +285,28 @@ func validateEventIDs(ev string) error {
 		return nil
 	}
 
+	//try to parse as a CSV of ints
+	if err := parseCSVInts(ev); err == nil {
+		return nil
+	}
+
 	//try to parse it as a straight up int
-	v, err := strconv.ParseInt(ev, 10, 16)
-	if err != nil || v == 0 {
+	if _, err := strconv.ParseInt(ev, 10, 16); err != nil {
 		return ErrInvalidEventIds
+	}
+	return nil
+}
+
+func parseCSVInts(val string) error {
+	bits := strings.Split(val, ",")
+	if len(bits) == 0 {
+		return errors.New("empty list")
+	}
+	for _, ev := range bits {
+		ev = strings.TrimSpace(ev)
+		if _, err := strconv.ParseInt(ev, 10, 16); err != nil {
+			return fmt.Errorf("%w %s is not a valid EventID", ErrInvalidEventIds, ev)
+		}
 	}
 	return nil
 }
@@ -306,7 +324,7 @@ type EventStreamParams struct {
 	ReqSize      int
 }
 
-//Validate SHOULD have already been called, we aren't going to check anything here
+// Validate SHOULD have already been called, we aren't going to check anything here
 func (ec *EventStreamConfig) params(name string) (EventStreamParams, error) {
 	var dur time.Duration
 	if len(ec.Max_Reachback) == 0 {

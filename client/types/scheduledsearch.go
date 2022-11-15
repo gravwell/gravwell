@@ -59,6 +59,10 @@ type ScheduledSearch struct {
 	DebugMode   bool // set this to true to enable debug mode
 	Synced      bool
 
+	// if true, search agent will attempt to "backfill" missed runs since
+	// the more recent of Updated or LastRun.
+	BackfillEnabled bool
+
 	// This sets what kind of scheduled "thing" it is: search, script, or flow
 	ScheduledType string
 

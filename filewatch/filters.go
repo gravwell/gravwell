@@ -28,7 +28,7 @@ type filter struct {
 	lh    handler
 }
 
-//a unique name that allows multiple IDs pointing at the same file
+// a unique name that allows multiple IDs pointing at the same file
 type FileName struct {
 	BaseName string
 	FilePath string
@@ -181,8 +181,8 @@ func (fm *FilterManager) FlushStates() error {
 	return fm.nolockDumpStates()
 }
 
-//nolockDumpStates pushes the current set of states out to a file
-//caller MUST HOLD THE LOCK
+// nolockDumpStates pushes the current set of states out to a file
+// caller MUST HOLD THE LOCK
 func (fm *FilterManager) nolockDumpStates() error {
 	if fm.stateFout == nil {
 		return nil
@@ -248,7 +248,7 @@ func (f *FilterManager) nolockRemoveFollower(fpath string, purgeState bool) (rem
 	return
 }
 
-//walk the directory looking for files, pull the file ID and check if it matches the current file ID
+// walk the directory looking for files, pull the file ID and check if it matches the current file ID
 func (f *FilterManager) findFileId(base string, mtchs []string, id FileId) (p string, ok bool, err error) {
 	var lid FileId
 	//walk the the directory
@@ -384,8 +384,8 @@ func (f *FilterManager) NewFollower(fpath string) (bool, error) {
 	return f.launchFollowers(fpath, true) // we are deleting the existing state if its there
 }
 
-//addFollower gets a new follower, adds it to our list, and launches its routine
-//the caller MUST hold the lock
+// addFollower gets a new follower, adds it to our list, and launches its routine
+// the caller MUST hold the lock
 func (f *FilterManager) addFollower(fcfg FollowerConfig) error {
 	f.expungeOldFiles()
 	stid := FileName{
@@ -428,7 +428,7 @@ func (f *FilterManager) addFollower(fcfg FollowerConfig) error {
 	return nil
 }
 
-//look for seek infor for the filename, caller MUST HOLD LOCK
+// look for seek infor for the filename, caller MUST HOLD LOCK
 func (f *FilterManager) seekInfo(bname, fpath string) *int64 {
 	for k, v := range f.states {
 		if k.BaseName == bname && k.FilePath == fpath {
@@ -448,7 +448,7 @@ func (f *FilterManager) addSeekInfo(bname, fpath string) *int64 {
 	return si
 }
 
-//actually kick off the file follower
+// actually kick off the file follower
 func (f *FilterManager) launchFollowers(fpath string, deleteState bool) (ok bool, err error) {
 	//get ID
 	id, err := getFileIdFromName(fpath)
@@ -529,13 +529,13 @@ func (f *FilterManager) checkState(wf watchedFile) (si *int64, hasWork bool, err
 	return
 }
 
-//swings through our current set of followers, check if the fileID matches.  If a match is
-//found we return true.  This allows us to continue to follow files that are renamed.
-//we are given the basename, if a rename is found, search the filters.  If no filter is
-//found that matches then we close out the follower and delete the state
-//if
-//we update the state base name and close out the follower.  If it match
-//Caller MUST HOLD THE LOCK
+// swings through our current set of followers, check if the fileID matches.  If a match is
+// found we return true.  This allows us to continue to follow files that are renamed.
+// we are given the basename, if a rename is found, search the filters.  If no filter is
+// found that matches then we close out the follower and delete the state
+// if
+// we update the state base name and close out the follower.  If it match
+// Caller MUST HOLD THE LOCK
 func (f *FilterManager) checkRename(fpath string, id FileId) (isRename bool, err error) {
 	var fname string
 	var fdir string
@@ -647,7 +647,7 @@ func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, er
 
 }
 
-//catchup file is a linear operation to get outstanding files up to date
+// catchup file is a linear operation to get outstanding files up to date
 func (f *FilterManager) catchupFollower(fcfg FollowerConfig, qc chan os.Signal) (bool, error) {
 	if fl, err := NewFollower(fcfg); err != nil {
 		return false, err

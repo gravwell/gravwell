@@ -38,17 +38,11 @@ func TestMain(m *testing.M) {
 }
 
 func TestBasicConfig(t *testing.T) {
-	fout, err := ioutil.TempFile(tmpDir, `cfg`)
+	cfgPath, err := dropConfig(baseConfig)
 	if err != nil {
-		t.Fatal()
-	}
-	defer fout.Close()
-	if n, err := io.WriteString(fout, baseConfig); err != nil {
 		t.Fatal(err)
-	} else if n != len(baseConfig) {
-		t.Fatal(fmt.Sprintf("Failed to write full file: %d != %d", n, len(baseConfig)))
 	}
-	cfg, err := GetConfig(fout.Name(), ``)
+	cfg, err := GetConfig(cfgPath, ``)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -63,12 +57,48 @@ func TestBasicConfig(t *testing.T) {
 	if cfg.Max_Ingest_Cache != 1024 {
 		t.Fatalf("invalid cache size: %d != %d", cfg.Max_Ingest_Cache, 1024)
 	}
-	if cfg.Ingest_Cache_Path != `/opt/gravwell/cache/simple_relay.cache` {
+	if cfg.Ingest_Cache_Path != `/tmp/cache/simple_relay.cache` {
 		t.Fatal("invalid cache path")
 	}
-	if len(cfg.Listener) != 7 {
-		t.Fatal(fmt.Sprintf("invalid listener counts: %d != 7", len(cfg.Listener)))
+	if len(cfg.Listener) != 9 {
+		t.Fatal(fmt.Sprintf("invalid listener counts: %d != 9", len(cfg.Listener)))
 	}
+}
+
+func TestBadConfig(t *testing.T) {
+	cfgs := []string{
+		badConfigNoListener,
+		badConfigWrongListener,
+		badConfigDropPriority,
+		badConfigReaderBind,
+	}
+
+	for _, v := range cfgs {
+		cfgPath, err := dropConfig(v)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := GetConfig(cfgPath, ``); err == nil {
+			t.Fatalf("failed to catch bad config:\n%s\n", v)
+		}
+	}
+}
+
+func dropConfig(cfg string) (pth string, err error) {
+	var fout *os.File
+	var n int
+	if fout, err = ioutil.TempFile(tmpDir, `cfg`); err != nil {
+		return
+	}
+	defer fout.Close()
+	if n, err = io.WriteString(fout, cfg); err != nil {
+		return
+	} else if n != len(cfg) {
+		err = fmt.Errorf("Failed to write full file: %d != %d", n, len(cfg))
+	} else {
+		pth = fout.Name()
+	}
+	return
 }
 
 const (
@@ -80,11 +110,11 @@ Insecure-Skip-TLS-Verify=false
 Cleartext-Backend-target=127.0.0.1:4023 #example of adding a cleartext connection
 Cleartext-Backend-target=127.1.0.1:4023 #example of adding another cleartext connection
 Encrypted-Backend-target=127.1.1.1:4024 #example of adding an encrypted connection
-Pipe-Backend-Target=/opt/gravwell/comms/pipe #a named pipe connection, this should be used when ingester is on the same machine as a backend
-Ingest-Cache-Path=/opt/gravwell/cache/simple_relay.cache #adding an ingest cache for local storage when uplinks fail
+Pipe-Backend-Target=/tmp/pipe #a named pipe connection, this should be used when ingester is on the same machine as a backend
+Ingest-Cache-Path=/tmp/cache/simple_relay.cache #adding an ingest cache for local storage when uplinks fail
 Max-Ingest-Cache=1024 #Number of MB to store, localcache will only store 1GB before stopping.  This is a safety net
 Log-Level=INFO
-Log-File=/opt/gravwell/log/simple_relay.log
+Log-File=/tmp/simple_relay.log
 
 #basic default logger, all entries will go to the default tag
 # this is useful for sending generic line-delimited
@@ -121,6 +151,7 @@ Log-File=/opt/gravwell/log/simple_relay.log
 	Bind-String = udp://127.0.0.1:514 #bind ONLY to localhost on UDP
 	Tag-Name = syslog2
 	Reader-Type=rfc5424
+	Drop-Priority=true
 
 [Listener "strange UDP line reader"]
 	#NOTICE! Lines CANNOT span multiple UDP packets, if they do, they will be treated
@@ -129,10 +160,68 @@ Log-File=/opt/gravwell/log/simple_relay.log
 	Tag-Name = udpliner
 	Reader-Type=line
 
+[Listener "fortinet udp"]
+	#NOTICE! Lines CANNOT span multiple UDP packets, if they do, they will be treated
+	#as seperate entries
+	Bind-String = udp://127.0.0.1:9998 #bind ONLY to localhost on UDP
+	Tag-Name = udpfortinet
+	Reader-Type=rfc5424
+	Drop-Priority=true
+
+[Listener "fortinet tcp"]
+	Bind-String = tcp://127.0.0.1:9998
+	Tag-Name = tcpfortinet
+	Reader-Type=rfc6587
+	Drop-Priority=true
+
 [Listener "GenericEvents"]
 	#example generic event handler, it takes lines, and attaches current timestamp
 	Bind-String = 127.0.0.1:8888
 	Tag-Name = generic
-	Ignore-Timestamps = true
-	`
+	Ignore-Timestamps = true`
+
+	badConfigNoListener string = `
+[Global]
+Ingest-Secret = IngestSecrets
+Cleartext-Backend-target=127.0.0.1:4023 #example of adding a cleartext connection
+Log-Level=INFO
+Log-File=/tmp/simple_relay.log
+`
+
+	badConfigWrongListener string = `
+[Global]
+Ingest-Secret = IngestSecrets
+Cleartext-Backend-target=127.0.0.1:4023 #example of adding a cleartext connection
+Log-Level=INFO
+Log-File=/tmp/simple_relay.log
+
+[Listener "GenericEvents"]
+	Bind-String="udp://0.0.0.0:8888"
+	Reader-Type=foobar
+`
+
+	badConfigDropPriority string = `
+[Global]
+Ingest-Secret = IngestSecrets
+Cleartext-Backend-target=127.0.0.1:4023 #example of adding a cleartext connection
+Log-Level=INFO
+Log-File=/tmp/simple_relay.log
+
+[Listener "GenericEvents"]
+	Bind-String="udp://0.0.0.0:8888"
+	Drop-Priority=true
+`
+
+	badConfigReaderBind string = `
+[Global]
+Ingest-Secret = IngestSecrets
+Cleartext-Backend-target=127.0.0.1:4023 #example of adding a cleartext connection
+Log-Level=INFO
+Log-File=/tmp/simple_relay.log
+
+[Listener "GenericEvents"]
+	Bind-String="udp://0.0.0.0:8888"
+	Drop-Priority=true
+	Reader-Type=rfc6587
+`
 )

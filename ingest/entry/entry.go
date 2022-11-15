@@ -35,6 +35,7 @@ var (
 	ErrFailedBodyRead    = errors.New("Failed to read body while decoding")
 	ErrSliceLenTooLarge  = errors.New("Slice length is too large for encoding")
 	ErrSliceSizeTooLarge = errors.New("Slice size is too large for encoding")
+	ErrDataSizeTooLarge  = errors.New("Entry data size is too large, must be < 1GB")
 )
 
 type EntryTag uint16
@@ -54,7 +55,7 @@ func (ent *Entry) Size() uint64 {
 	return uint64(len(ent.Data)) + uint64(ENTRY_HEADER_SIZE)
 }
 
-//decodeHeader copies copies the SRC buffer
+// decodeHeader copies copies the SRC buffer
 func (ent *Entry) decodeHeader(buff []byte) int {
 	var datasize uint32
 	var ipv4 bool
@@ -89,7 +90,7 @@ func (ent *Entry) decodeHeader(buff []byte) int {
 	return int(datasize)
 }
 
-//decodeHeaderAlt gets a direct handle on the SRC buffer
+// decodeHeaderAlt gets a direct handle on the SRC buffer
 func (ent *Entry) decodeHeaderAlt(buff []byte) int {
 	var datasize uint32
 	var ipv4 bool
@@ -124,26 +125,28 @@ func (ent *Entry) DecodeHeader(buff []byte) (int, error) {
 	return ent.decodeHeader(buff), nil
 }
 
-//DecodeEntry will copy values out of the buffer to generate an entry with its own
-//copies of data.  This ensures that entries don't maintain ties to blocks
-//DecodeEntry assumes that a size check has already happened
+// DecodeEntry will copy values out of the buffer to generate an entry with its own
+// copies of data.  This ensures that entries don't maintain ties to blocks
+// DecodeEntry assumes that a size check has already happened
 func (ent *Entry) DecodeEntry(buff []byte) {
 	dataSize := ent.decodeHeader(buff)
 	ent.Data = append([]byte(nil), buff[ENTRY_HEADER_SIZE:ENTRY_HEADER_SIZE+int(dataSize)]...)
 }
 
-//DecodeEntryAlt doesn't copy the SRC or data out, it just references the slice handed in
-//it also assumes a size check for the entry header size has occurred by the caller
+// DecodeEntryAlt doesn't copy the SRC or data out, it just references the slice handed in
+// it also assumes a size check for the entry header size has occurred by the caller
 func (ent *Entry) DecodeEntryAlt(buff []byte) {
 	dataSize := ent.decodeHeaderAlt(buff)
 	ent.Data = buff[ENTRY_HEADER_SIZE : ENTRY_HEADER_SIZE+int(dataSize)]
 }
 
-//EncodeHeader Encodes the header into the buffer for the file transport
-//think file indexer
+// EncodeHeader Encodes the header into the buffer for the file transport
+// think file indexer
 func (ent *Entry) EncodeHeader(buff []byte) error {
 	if len(buff) < ENTRY_HEADER_SIZE {
 		return ErrInvalidBufferSize
+	} else if len(ent.Data) > int(MaxDataSize) {
+		return ErrDataSizeTooLarge
 	}
 	/* buffer should come formatted as follows in littleendian format:
 	data size (uint32)

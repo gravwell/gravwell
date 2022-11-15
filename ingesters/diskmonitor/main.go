@@ -38,7 +38,7 @@ var (
 	sectSize      = flag.Int("sector-size", 512, "Disk Sector size")
 	tagName       = flag.String("tag-name", "diskstats", "Tag name assigned to ingested data")
 	clearHeadHole = flag.String("clear-conns", "", "Comma deliminated Server:Port pair specifying a connection")
-	pipeHeadHole  = flag.String("pipe-conn", "", "path specifying a named pie connection")
+	pipeHeadHole  = flag.String("pipe-conn", "", "path specifying a named pipe connection")
 	ingestSecret  = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
 	period        = flag.String("period", "3s", "Duration between disk samples")
 	ver           = flag.Bool("version", false, "Print version information and exit")

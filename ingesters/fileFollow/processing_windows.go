@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	"golang.org/x/sys/windows/svc"
@@ -148,11 +149,17 @@ func (m *mainService) Execute(args []string, r <-chan svc.ChangeRequest, changes
 	changes <- svc.Status{State: svc.Running, Accepts: cmdsAccepted}
 	var cancel context.CancelFunc
 	m.ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
 
-	if err := m.init(m.ctx); err != nil {
+	if quit, err := m.initWithCancel(m.ctx, cancel, r, changes); err != nil {
 		ssec = true
 		errno = 1000
 		errorout("Failed to initialize the service: %v", err)
+		changes <- svc.Status{State: svc.StopPending}
+		return
+	} else if quit {
+		infoout("%s stopping", serviceName)
+		changes <- svc.Status{State: svc.StopPending}
 		return
 	}
 
@@ -175,6 +182,48 @@ loop:
 	}
 	infoout("%s stopping", serviceName)
 	changes <- svc.Status{State: svc.StopPending}
+	return
+}
+
+func (m *mainService) initWithCancel(ctx context.Context, cf context.CancelFunc, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (quit bool, err error) {
+	ret := make(chan error, 1)
+
+	go func(ctx context.Context, rc chan error) {
+		rc <- m.init(ctx)
+		close(rc)
+	}(ctx, ret)
+
+loop:
+	for {
+		select {
+		case c := <-r:
+			switch c.Cmd {
+			case svc.Interrogate:
+				//not sure why this is sent twice, but ok
+				//its in the example from official golang libs
+				changes <- c.CurrentStatus
+				changes <- c.CurrentStatus
+			case svc.Stop, svc.Shutdown:
+				//shutdown the watchers to get the consumer routine to exit
+				cf()
+				if err = <-ret; err == context.Canceled {
+					err = nil
+				}
+				quit = true
+				break loop
+			default:
+				errorout("Got invalid control request #%d", c) //ignore this here
+			}
+		case err = <-ret:
+			if err != nil {
+				quit = true
+				if err == context.Canceled {
+					err = nil //don't report this
+				}
+			}
+			break loop
+		}
+	}
 	return
 }
 
@@ -301,14 +350,39 @@ func (m *mainService) init(ctx context.Context) error {
 		}
 	}
 	m.wtchr.SetLogger(m.igst)
-	if err = m.wtchr.Start(); err == nil {
-		debugout("File watcher started\n")
-	} else {
-		errorout("Failed to start file watcher: %v\n", err)
+
+	//make a new context that we can cancel to get the relay routine to quit
+	ctx2, cf := context.WithCancel(ctx)
+	defer cf()
+
+	// go do the catchup for startup
+	var quit bool
+	debugout("Performing catchup scan\n")
+	if quit, err = m.wtchr.Catchup(relayContextChannel(ctx2)); err != nil {
+		debugout("Failed to perform catchup: %v\n", err)
+		return err
+	}
+	cf() //to get the routine to shutdown
+	debugout("Starting watchers\n")
+	if !quit {
+		if err = m.wtchr.Start(); err == nil {
+			debugout("File watcher started\n")
+		} else {
+			errorout("Failed to start file watcher: %v\n", err)
+		}
 	}
 	return err
 }
 
 func debugPrint(f string, args ...interface{}) {
 	infoout(f, args...)
+}
+
+func relayContextChannel(ctx context.Context) (qc chan os.Signal) {
+	qc = make(chan os.Signal)
+	go func(c chan os.Signal, ctx context.Context) {
+		<-ctx.Done()
+		close(c)
+	}(qc, ctx)
+	return
 }

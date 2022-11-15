@@ -32,6 +32,7 @@ const (
 
 	lineReader    readerType = iota
 	rfc5424Reader readerType = iota
+	rfc6587Reader readerType = iota
 )
 
 var ()
@@ -41,21 +42,22 @@ type readerType int
 
 type listener struct {
 	base
-	Tag_Name      string
 	Reader_Type   string
-	Keep_Priority bool // Leave the <nnn> priority value at the start of the log message
-	Cert_File     string
-	Key_File      string
-	Preprocessor  []string
+	Drop_Priority bool // remove the <nnn> priority value at the start of the log message, useful for things like fortinet
+	Keep_Priority bool `json:"-"` //NOTE DEPRECATED AND UNUSED.  Left so that config parsing doesn't break
 }
 
 type base struct {
+	Tag_Name                  string
 	Bind_String               string //IP port pair 127.0.0.1:1234
 	Ignore_Timestamps         bool   //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
 	Source_Override           string
 	Timestamp_Format_Override string //override the timestamp format
+	Cert_File                 string
+	Key_File                  string
+	Preprocessor              []string
 }
 
 type cfgReadType struct {
@@ -141,6 +143,9 @@ func verifyConfig(c *cfgType) error {
 			if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
 				return fmt.Errorf("Invalid timezone override %v in listener %v: %v", v.Timezone_Override, k, err)
 			}
+		}
+		if err := checkListenerSettings(v); err != nil {
+			return fmt.Errorf("Listener %q is invalid: %v", k, err)
 		}
 		if n, ok := bindMp[v.Bind_String]; ok {
 			return errors.New("Bind-String for " + k + " already in use by " + n)
@@ -267,6 +272,29 @@ func (c *cfgType) Tags() ([]string, error) {
 	return tags, nil
 }
 
+func checkListenerSettings(l *listener) (err error) {
+	var lt readerType
+	var bt bindType
+	if l == nil {
+		return errors.New("nil listener")
+	}
+	if lt, err = translateReaderType(l.Reader_Type); err != nil {
+		return
+	}
+	if bt, _, err = translateBindType(l.Bind_String); err != nil {
+		return
+	}
+	if l.Drop_Priority && !(lt == rfc5424Reader || lt == rfc6587Reader) {
+		err = fmt.Errorf("Drop-Priority is not compatible with reader type %s", lt)
+		return
+	}
+	if lt == rfc6587Reader && bt.UDP() {
+		err = fmt.Errorf("RFC6587 reader type is not compatible with a UDP bind string")
+		return
+	}
+	return
+}
+
 func (l base) Validate() error {
 	if len(l.Bind_String) == 0 {
 		return errors.New("No Bind-String provided")
@@ -338,6 +366,8 @@ func translateReaderType(s string) (readerType, error) {
 		return lineReader, nil
 	case `rfc5424`:
 		return rfc5424Reader, nil
+	case `rfc6587`:
+		return rfc6587Reader, nil
 	case ``:
 		return lineReader, nil
 	}
@@ -350,6 +380,8 @@ func (rt readerType) String() string {
 		return `LINE`
 	case rfc5424Reader:
 		return `RFC5424`
+	case rfc6587Reader:
+		return `RFC6587`
 	}
 	return "UNKNOWN"
 }

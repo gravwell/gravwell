@@ -20,7 +20,8 @@ import (
 )
 
 var (
-	ErrMalformedBookmarkFile = errors.New("Malformed bookmark file")
+	ErrMalformedBookmarkFile = errors.New("malformed bookmark file")
+	ErrNotOpen               = errors.New("not open")
 )
 
 type BookmarkHandler struct {
@@ -70,7 +71,7 @@ func (b *BookmarkHandler) Update(name string, val uint64) error {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 	if b.f == nil {
-		return errors.New("Not open")
+		return ErrNotOpen
 	}
 	b.bookmarks[name] = val
 	return nil
@@ -80,7 +81,7 @@ func (b *BookmarkHandler) Get(name string) (uint64, error) {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 	if b.f == nil {
-		return 0, errors.New("Not open")
+		return 0, ErrNotOpen
 	}
 	v, ok := b.bookmarks[name]
 	if !ok {
@@ -92,17 +93,14 @@ func (b *BookmarkHandler) Get(name string) (uint64, error) {
 func (b *BookmarkHandler) Open() bool {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
-	if b.f == nil {
-		return false
-	}
-	return true
+	return b.f != nil
 }
 
 func (b *BookmarkHandler) Sync() error {
 	b.mtx.Lock()
 	defer b.mtx.Unlock()
 	if b.f == nil {
-		return errors.New("Not open")
+		return ErrNotOpen
 	}
 	return storebookmarks(b.f, b.bookmarks)
 }

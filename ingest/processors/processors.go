@@ -72,6 +72,7 @@ func CheckProcessor(id string) error {
 	case RegexTimestampProcessor:
 	case SrcRouterProcessor:
 	case VpcProcessor:
+	case CorelightProcessor:
 	default:
 		return checkProcessorOS(id)
 	}
@@ -131,6 +132,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = SrcRouteLoadConfig(vc)
 	case PluginProcessor:
 		cfg, err = PluginLoadConfig(vc)
+	case CorelightProcessor:
+		cfg, err = CorelightLoadConfig(vc)
 	default:
 		cfg, err = processorLoadConfigOS(vc)
 	}
@@ -193,13 +196,13 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 		p, err = NewGzipDecompressor(cfg)
 	case JsonExtractProcessor:
 		var cfg JsonExtractConfig
-		if err = vc.MapTo(&cfg); err != nil {
+		if cfg, err = JsonExtractLoadConfig(vc); err != nil {
 			return
 		}
 		p, err = NewJsonExtractor(cfg)
 	case JsonArraySplitProcessor:
 		var cfg JsonArraySplitConfig
-		if err = vc.MapTo(&cfg); err != nil {
+		if cfg, err = JsonArraySplitLoadConfig(vc); err != nil {
 			return
 		}
 		p, err = NewJsonArraySplitter(cfg)
@@ -217,7 +220,7 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 		p, err = NewRegexTimestampProcessor(cfg)
 	case RegexExtractProcessor:
 		var cfg RegexExtractConfig
-		if err = vc.MapTo(&cfg); err != nil {
+		if cfg, err = RegexExtractLoadConfig(vc); err != nil {
 			return
 		}
 		p, err = NewRegexExtractor(cfg)
@@ -253,7 +256,7 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 		p, err = NewGravwellForwarder(cfg, tgr)
 	case CiscoISEProcessor:
 		var cfg CiscoISEConfig
-		if err = vc.MapTo(&cfg); err != nil {
+		if cfg, err = CiscoISELoadConfig(vc); err != nil {
 			return
 		}
 		p, err = NewCiscoISEProcessor(cfg)
@@ -270,6 +273,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			p, err = NewPluginProcessor(cfg, tgr)
 		}
 		return
+	case CorelightProcessor:
+		var cfg CorelightConfig
+		if cfg, err = CorelightLoadConfig(vc); err != nil {
+			return
+		}
+		p, err = NewCorelight(cfg, tgr)
 	default:
 		p, err = newProcessorOS(vc, tgr)
 	}

@@ -9,8 +9,9 @@
 package client
 
 import (
-	"github.com/gravwell/gravwell/v3/client/types"
 	"net/http"
+
+	"github.com/gravwell/gravwell/v3/client/types"
 
 	"github.com/google/uuid"
 )
@@ -22,16 +23,14 @@ func (c *Client) ListPivots() (pivots []types.WirePivot, err error) {
 }
 
 // ListAllPivots returns the list of all pivots in the system
+// Non-administrators will receive the same list as returned by ListPivots.
 func (c *Client) ListAllPivots() (pivots []types.WirePivot, err error) {
-	if !c.userDetails.Admin {
-		err = ErrNotAdmin
-	} else {
-		c.SetAdminMode()
-		if err = c.getStaticURL(pivotsUrl(), &pivots); err != nil {
-			pivots = nil
-		}
-		c.ClearAdminMode()
+	c.SetAdminMode()
+	if err = c.getStaticURL(pivotsUrl(), &pivots); err != nil {
+		pivots = nil
 	}
+	c.ClearAdminMode()
+
 	return
 }
 

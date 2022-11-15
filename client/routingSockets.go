@@ -145,6 +145,7 @@ type SearchSockets struct {
 	Parse  *websocketRouter.SubProtoConn
 	Search *websocketRouter.SubProtoConn
 	Attach *websocketRouter.SubProtoConn
+	Pong   *websocketRouter.SubProtoConn
 	Client *websocketRouter.SubProtoClient
 }
 
@@ -155,7 +156,7 @@ func (c *Client) GetSearchSockets() (*SearchSockets, error) {
 
 	//get our param list rolling
 	params := sockParams{
-		subProtos:    []string{PROTO_PARSE, PROTO_SEARCH, PROTO_ATTACH},
+		subProtos:    []string{PROTO_PARSE, PROTO_SEARCH, PROTO_ATTACH, PROTO_PONG},
 		negSubProtos: subs,
 		uri:          fmt.Sprintf("%s://%s%s", c.wsScheme, c.serverURL.Host, WS_SEARCH_URL),
 	}
@@ -178,6 +179,7 @@ func (c *Client) GetSearchSockets() (*SearchSockets, error) {
 		Parse:  subConns[0],
 		Search: subConns[1],
 		Attach: subConns[2],
+		Pong:   subConns[3],
 		Client: p,
 	}, nil
 }
@@ -185,7 +187,7 @@ func (c *Client) GetSearchSockets() (*SearchSockets, error) {
 // GetAttachSockets will hit the search routing websocket page and pull back only the attach
 // socket.
 func (c *Client) GetAttachSockets() (*SearchSockets, error) {
-	subs := []string{PROTO_ATTACH}
+	subs := []string{PROTO_ATTACH, PROTO_PONG}
 
 	//get our param list rolling
 	params := sockParams{
@@ -210,6 +212,7 @@ func (c *Client) GetAttachSockets() (*SearchSockets, error) {
 	//the subs come back in the same order we asked for them
 	return &SearchSockets{
 		Attach: subConns[0],
+		Pong:   subConns[1],
 		Client: p,
 	}, nil
 }
