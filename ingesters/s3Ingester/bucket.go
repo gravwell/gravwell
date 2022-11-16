@@ -6,6 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/url"
+	"path"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -49,6 +52,7 @@ type BucketConfig struct {
 
 type BucketReader struct {
 	BucketConfig
+	arn     string
 	session *session.Session
 	svc     *s3.S3
 	filter  *matcher
@@ -57,7 +61,10 @@ type BucketReader struct {
 }
 
 func NewBucketReader(cfg BucketConfig) (br *BucketReader, err error) {
+	var arn string
 	if err = cfg.validate(); err != nil {
+		return
+	} else if arn, err = getARN(cfg.AuthConfig.Bucket_URL); err != nil {
 		return
 	}
 	var filter *matcher
@@ -80,6 +87,7 @@ func NewBucketReader(cfg BucketConfig) (br *BucketReader, err error) {
 
 	br = &BucketReader{
 		BucketConfig: cfg,
+		arn:          arn,
 		session:      sess,
 		svc:          svc,
 		filter:       filter,
@@ -127,6 +135,8 @@ func (ac *AuthConfig) validate() (err error) {
 		err = errors.New("missing region")
 	} else if ac.Bucket_URL == `` {
 		err = errors.New("missing bucket URL")
+	} else if _, err = getARN(ac.Bucket_URL); err != nil {
+		return
 	} else if ac.ID == `` {
 		err = errors.New("missing ID")
 	} else if ac.Secret == `` {
@@ -152,7 +162,7 @@ func (br *BucketReader) Process(obj *s3.Object) (err error) {
 func (br *BucketReader) ProcessContext(obj *s3.Object, ctx context.Context) (err error) {
 	var r *s3.GetObjectOutput
 	r, err = br.svc.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(br.Bucket_URL),
+		Bucket: aws.String(br.arn),
 		Key:    obj.Key,
 	})
 	if err != nil {
@@ -193,7 +203,7 @@ func (br *BucketReader) ProcessContext(obj *s3.Object, ctx context.Context) (err
 func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err error) {
 	//list the objects in the bucket
 	req := s3.ListObjectsV2Input{
-		Bucket: aws.String(br.Bucket_URL),
+		Bucket: aws.String(br.arn),
 	}
 
 	var lerr error
@@ -208,7 +218,7 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err 
 				continue //skip empty objects or things we should not track
 			}
 			//lookup the object in the objectTracker
-			state, ok := ot.Get(br.Bucket_URL, key)
+			state, ok := ot.Get(br.arn, key)
 			if ok && state.Updated.Equal(lm) {
 				continue //already handled this
 			}
@@ -217,14 +227,14 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err 
 			if lerr = br.Process(item); lerr != nil {
 				br.Logger.Error("failed to process object",
 					log.KV("bucket", br.Name),
-					log.KV("url", br.Bucket_URL),
+					log.KV("arn", br.arn),
 					log.KV("object", key),
 					log.KVErr(err))
 				return false //quit the scan
 			} else {
 				br.Logger.Info("consumed object",
 					log.KV("bucket", br.Name),
-					log.KV("url", br.Bucket_URL),
+					log.KV("arn", br.arn),
 					log.KV("object", key),
 					log.KV("size", sz))
 			}
@@ -232,7 +242,7 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err 
 				Updated: lm,
 				Size:    sz,
 			}
-			lerr = ot.Set(br.Bucket_URL, key, state, false)
+			lerr = ot.Set(br.arn, key, state, false)
 			if ctx.Err() != nil {
 				return false //context says stop, bail
 			}
@@ -243,5 +253,73 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err 
 	if err = br.svc.ListObjectsV2Pages(&req, objListHandler); err == nil {
 		err = lerr
 	}
+	return
+}
+
+// ARN is designed to try and figure out the bucket name from either a pure bucket name
+// bucket HTTP url, or amazon ARN specification
+// Examples include https://<bucketname>.s3.amazonaws.com
+// arn:aws:s3:::<bucketname>
+// <bucketname>
+// <bucketname>.s3.amazonaws.com
+// s3://<bucketname>
+func getARN(v string) (arn string, err error) {
+	//properly formed ARN
+	if strings.HasPrefix(v, `arn:aws:s3`) {
+		arn = v
+		return
+	}
+	//check for a URL scheme
+	if strings.Contains(v, `://`) {
+		//parse as URL and extract the starting name
+		var uri *url.URL
+		if uri, err = url.Parse(v); err != nil {
+			return
+		} else if uri == nil {
+			err = fmt.Errorf("invalid bucket URL or ARN: %s", v)
+			return
+		}
+		switch uri.Scheme {
+		case `s3`:
+			arn = uri.Host
+			return
+		case `http`:
+			fallthrough
+		case `https`:
+			//potentially move port
+			var host string
+			if host, _, err = net.SplitHostPort(uri.Host); err != nil {
+				host = uri.Host
+				err = nil
+			}
+			//now check if the host is a straight up amazon
+			if host == `s3.amazonaws.com` {
+				//then grab the first element of the path
+				p := path.Clean(uri.Path)
+				if len(p) > 0 && p[0] == '/' {
+					p = p[1:]
+				}
+				if bits := strings.Split(p, "/"); len(bits) > 0 {
+					arn = bits[0]
+				} else {
+					err = fmt.Errorf("Unknown Bucket ARN or URL %q", v)
+				}
+				return
+			} else if strings.HasSuffix(uri.Host, `.s3.amazonaws.com`) {
+				arn = strings.TrimSuffix(uri.Host, `.s3.amazonaws.com`)
+			}
+			return
+		default:
+			err = errors.New("Unknown ARN scheme")
+			return
+		}
+	} else {
+		//good luck
+		if strings.HasSuffix(v, `.s3.amazonaws.com`) {
+			v = strings.TrimSuffix(v, `.s3.amazonaws.com`)
+		}
+		arn = v
+	}
+
 	return
 }
