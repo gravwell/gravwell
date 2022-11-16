@@ -38,6 +38,7 @@ type bucket struct {
 	Source_Override string
 	File_Filters    []string
 	Preprocessor    []string
+	Max_Line_Size   int
 }
 
 type global struct {
@@ -104,6 +105,9 @@ func verifyConfig(c *cfgType) error {
 
 	if len(c.Bucket) == 0 {
 		return errors.New("No buckets specified")
+	}
+	if c.State_Store_Location == `` {
+		c.State_Store_Location = defaultStateLoc
 	}
 
 	if err := c.Preprocessor.Validate(); err != nil {
