@@ -105,6 +105,9 @@ func verifyConfig(c *cfgType) error {
 	if len(c.Bucket) == 0 {
 		return errors.New("No buckets specified")
 	}
+	if c.State_Store_Location == `` {
+		c.State_Store_Location = defaultStateLoc
+	}
 
 	if err := c.Preprocessor.Validate(); err != nil {
 		return err
