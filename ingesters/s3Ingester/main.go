@@ -102,6 +102,7 @@ func main() {
 			TagName:        v.Tag_Name,
 			SourceOverride: v.Source_Override,
 			Logger:         ib.Logger,
+			MaxLineSize:    v.Max_Line_Size,
 		}
 		if bcfg.Tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			ib.Logger.FatalCode(0, "failed to get established tag",

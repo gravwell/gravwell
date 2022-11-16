@@ -21,7 +21,7 @@ import (
 const (
 	maxMaxRetries      = 10
 	defaultMaxRetries  = 3
-	defaultMaxLineSize = 512 * 1024
+	defaultMaxLineSize = 4 * 1024 * 1024
 )
 
 type AuthConfig struct {

@@ -38,6 +38,7 @@ type bucket struct {
 	Source_Override string
 	File_Filters    []string
 	Preprocessor    []string
+	Max_Line_Size   int
 }
 
 type global struct {
