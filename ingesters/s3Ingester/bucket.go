@@ -31,7 +31,8 @@ type AuthConfig struct {
 	ID         string
 	Secret     string
 	Region     string
-	Bucket_URL string //this is the amazon ARN URL
+	Bucket_URL string `json:"-"` //DEPRECATED, DO NOT USE this is an artifact from initial version, my bad
+	Bucket_ARN string // Amazon ARN (should be JUST the bucket ARN
 	MaxRetries int
 }
 
@@ -64,7 +65,7 @@ func NewBucketReader(cfg BucketConfig) (br *BucketReader, err error) {
 	var arn string
 	if err = cfg.validate(); err != nil {
 		return
-	} else if arn, err = getARN(cfg.AuthConfig.Bucket_URL); err != nil {
+	} else if arn, err = getARN(cfg.AuthConfig.Bucket_ARN); err != nil {
 		return
 	}
 	var filter *matcher
@@ -133,15 +134,26 @@ func (bc *BucketConfig) srcOverride() net.IP {
 func (ac *AuthConfig) validate() (err error) {
 	if ac.Region == `` {
 		err = errors.New("missing region")
-	} else if ac.Bucket_URL == `` {
-		err = errors.New("missing bucket URL")
-	} else if _, err = getARN(ac.Bucket_URL); err != nil {
 		return
 	} else if ac.ID == `` {
 		err = errors.New("missing ID")
+		return
 	} else if ac.Secret == `` {
 		err = errors.New("missing secret")
-	} else if ac.MaxRetries <= 0 || ac.MaxRetries > maxMaxRetries {
+		return
+	}
+
+	if ac.Bucket_ARN == `` && ac.Bucket_URL != `` {
+		ac.Bucket_ARN = ac.Bucket_URL
+	}
+	if ac.Bucket_ARN == `` {
+		err = errors.New("missing bucket ARN")
+		return
+	} else if _, err = getARN(ac.Bucket_ARN); err != nil {
+		return
+	}
+
+	if ac.MaxRetries <= 0 || ac.MaxRetries > maxMaxRetries {
 		ac.MaxRetries = defaultMaxRetries
 	}
 	return
