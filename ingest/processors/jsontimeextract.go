@@ -23,7 +23,6 @@ const (
 	JsonTimestampProcessor string = `jsontimeextract`
 )
 
-var ()
 
 type JsonTimestampConfig struct {
 	// Optional timestamp override
