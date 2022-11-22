@@ -14,9 +14,12 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gravwell/gravwell/v3/client/types"
 
@@ -627,22 +630,53 @@ func (c *Client) UploadExtraction(b []byte) (wrs []types.WarnResp, err error) {
 // not included; set the 'includeSS' option to include them.
 func (c *Client) Backup(wtr io.Writer, includeSS bool) (err error) {
 	var resp *http.Response
-	mp := map[string]string{}
-	if includeSS {
-		mp[`savedsearch`] = `true`
+	dlr := net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: time.Second,
 	}
-	if resp, err = c.methodParamRequestURL(http.MethodGet, backupUrl(), mp, nil); err != nil {
+	//backups can take a long time to make, so we have to tweak the client a bit
+	tr := http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dlr.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          1,
+		IdleConnTimeout:       time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	clnt := http.Client{
+		Transport:     &tr,
+		CheckRedirect: redirectPolicy,  //use default redirect policy
+		Timeout:       5 * time.Minute, // these requests might take a REALLY long time, so jack the timeout way up
+		Jar:           c.clnt.Jar,
+	}
+	uri := backupUrl()
+	var req *http.Request
+	if req, err = http.NewRequest(http.MethodGet, fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, uri), nil); err != nil {
+		return
+	}
+	c.hm.populateRequest(req.Header) // add in the headers
+
+	var vals url.Values
+	if vals, err = url.ParseQuery(c.qm.encode()); err != nil {
+		return
+	}
+	// add in any queries like ?admin=true
+	if includeSS {
+		vals.Add(`savedsearch`, `true`)
+	}
+	req.URL.RawQuery = vals.Encode()
+	if resp, err = clnt.Do(req); err == nil {
+		c.objLog.Log(http.MethodGet+" "+resp.Status, uri, nil)
+	} else {
+		c.objLog.Log(http.MethodGet+" "+err.Error(), uri, nil)
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		err = fmt.Errorf("Invalid response %s(%d)", resp.Status, resp.StatusCode)
-		return
-	}
-
-	if _, err = io.Copy(wtr, resp.Body); err != nil {
+	} else if _, err = io.Copy(wtr, resp.Body); err != nil {
 		err = fmt.Errorf("Failed to download complete backup package: %w", err)
-		return
 	}
 
 	return
