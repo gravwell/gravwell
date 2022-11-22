@@ -643,6 +643,7 @@ func (c *Client) Backup(wtr io.Writer, includeSS bool) (err error) {
 		IdleConnTimeout:       time.Second,
 		TLSHandshakeTimeout:   10 * time.Second,
 		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       c.tlsConfig, //grab tls config from client
 	}
 	clnt := http.Client{
 		Transport:     &tr,
