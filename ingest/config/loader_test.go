@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -254,5 +255,32 @@ func TestFileLoad(t *testing.T) {
 		} else if s.Iterator_Type != `LATEST` || s.Parse_Time || !s.Assume_Local_Timezone {
 			t.Fatalf("Bad Stream1: %+v\n", s)
 		}
+	}
+}
+
+func TestLoadBadKey(t *testing.T) {
+	testFile := filepath.Join(tempDir, `bad_test.cfg`)
+	tcfg := append(testConfig, []byte("\tFoobar=stuff\n")...)
+	if err := ioutil.WriteFile(testFile, tcfg, 0660); err != nil {
+		t.Fatal(err)
+	}
+	var tc testIngesterConfig
+	err := LoadConfigFile(&tc, testFile)
+	if err == nil {
+		t.Fatal("Failed to catch bad key")
+	}
+	//check that the error called out "Stream"
+	if !strings.Contains(err.Error(), `Stream`) {
+		t.Fatalf("Faild to call out Section Stream in error %q", err)
+	}
+
+	//check that the error called out "stream1"
+	if !strings.Contains(err.Error(), `stream1`) {
+		t.Fatalf("Faild to call out Section name stream1 in error %q", err)
+	}
+
+	//check that the error called out "Foobar"
+	if !strings.Contains(err.Error(), `Foobar`) {
+		t.Fatalf("Faild to call out Key name Foobar in error %q", err)
 	}
 }
