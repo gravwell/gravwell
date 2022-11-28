@@ -29,7 +29,7 @@ const (
 
 type AuthConfig struct {
 	ID         string
-	Secret     string
+	Secret     string `json:"-"`
 	Region     string
 	Bucket_URL string `json:"-"` //DEPRECATED, DO NOT USE this is an artifact from initial version, my bad
 	Bucket_ARN string // Amazon ARN (should be JUST the bucket ARN
