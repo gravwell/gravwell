@@ -3,18 +3,18 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
-	"net/url"
-	"path"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/buger/jsonparser"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -41,6 +41,7 @@ type BucketConfig struct {
 	TimeConfig
 	Verbose        bool
 	MaxLineSize    int
+	Reader         string //defaults to line
 	Name           string
 	FileFilters    []string
 	Tag            entry.EntryTag
@@ -59,10 +60,12 @@ type BucketReader struct {
 	filter  *matcher
 	tg      timegrinder.TimeGrinder
 	src     net.IP
+	rdr     reader
 }
 
 func NewBucketReader(cfg BucketConfig) (br *BucketReader, err error) {
 	var arn string
+	var rdr reader
 	if err = cfg.validate(); err != nil {
 		return
 	} else if arn, err = getARN(cfg.AuthConfig.Bucket_ARN); err != nil {
@@ -70,6 +73,9 @@ func NewBucketReader(cfg BucketConfig) (br *BucketReader, err error) {
 	}
 	var filter *matcher
 	if filter, err = newMatcher(cfg.FileFilters); err != nil {
+		return
+	}
+	if rdr, err = parseReader(cfg.Reader); err != nil {
 		return
 	}
 	var sess *session.Session
@@ -93,6 +99,7 @@ func NewBucketReader(cfg BucketConfig) (br *BucketReader, err error) {
 		svc:          svc,
 		filter:       filter,
 		src:          cfg.srcOverride(),
+		rdr:          rdr,
 	}
 	return
 }
@@ -181,34 +188,14 @@ func (br *BucketReader) ProcessContext(obj *s3.Object, ctx context.Context) (err
 		return
 	}
 	defer r.Body.Close()
-
-	sc := bufio.NewScanner(r.Body)
-	sc.Buffer(nil, br.MaxLineSize)
-	for sc.Scan() {
-		bts := sc.Bytes()
-		if len(bts) == 0 {
-			continue
-		}
-		ts, ok, _ := br.TG.Extract(bts)
-		if !ok {
-			ts = time.Now()
-		}
-		ent := entry.Entry{
-			TS:   entry.FromStandard(ts),
-			SRC:  br.src,                      //may be nil, ingest muxer will handle if it is
-			Data: append([]byte(nil), bts...), //scanner re-uses the buffer
-			Tag:  br.Tag,
-		}
-		if ctx != nil {
-			err = br.Proc.ProcessContext(&ent, ctx)
-		} else {
-			err = br.Proc.Process(&ent)
-		}
-		if err != nil {
-			return //just leave
-		}
+	switch br.rdr {
+	case lineReader:
+		err = br.processLinesContext(ctx, r.Body)
+	case cloudtrailReader:
+		err = br.processCloudtrailContext(ctx, r.Body)
+	default:
+		err = errors.New("no reader set")
 	}
-
 	return
 }
 
@@ -268,70 +255,99 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err 
 	return
 }
 
-// ARN is designed to try and figure out the bucket name from either a pure bucket name
-// bucket HTTP url, or amazon ARN specification
-// Examples include https://<bucketname>.s3.amazonaws.com
-// arn:aws:s3:::<bucketname>
-// <bucketname>
-// <bucketname>.s3.amazonaws.com
-// s3://<bucketname>
-func getARN(v string) (arn string, err error) {
-	//properly formed ARN
-	if strings.HasPrefix(v, `arn:aws:s3`) {
-		arn = v
-		return
-	}
-	//check for a URL scheme
-	if strings.Contains(v, `://`) {
-		//parse as URL and extract the starting name
-		var uri *url.URL
-		if uri, err = url.Parse(v); err != nil {
-			return
-		} else if uri == nil {
-			err = fmt.Errorf("invalid bucket URL or ARN: %s", v)
-			return
+func (br *BucketReader) processLinesContext(ctx context.Context, rdr io.Reader) (err error) {
+	sc := bufio.NewScanner(rdr)
+	sc.Buffer(nil, br.MaxLineSize)
+	for sc.Scan() {
+		bts := sc.Bytes()
+		if len(bts) == 0 {
+			continue
 		}
-		switch uri.Scheme {
-		case `s3`:
-			arn = uri.Host
-			return
-		case `http`:
-			fallthrough
-		case `https`:
-			//potentially move port
-			var host string
-			if host, _, err = net.SplitHostPort(uri.Host); err != nil {
-				host = uri.Host
-				err = nil
-			}
-			//now check if the host is a straight up amazon
-			if host == `s3.amazonaws.com` {
-				//then grab the first element of the path
-				p := path.Clean(uri.Path)
-				if len(p) > 0 && p[0] == '/' {
-					p = p[1:]
-				}
-				if bits := strings.Split(p, "/"); len(bits) > 0 {
-					arn = bits[0]
-				} else {
-					err = fmt.Errorf("Unknown Bucket ARN or URL %q", v)
-				}
-				return
-			} else if strings.HasSuffix(uri.Host, `.s3.amazonaws.com`) {
-				arn = strings.TrimSuffix(uri.Host, `.s3.amazonaws.com`)
-			}
-			return
-		default:
-			err = errors.New("Unknown ARN scheme")
-			return
+		ts, ok, _ := br.TG.Extract(bts)
+		if !ok {
+			ts = time.Now()
 		}
-	} else {
-		//good luck
-		if strings.HasSuffix(v, `.s3.amazonaws.com`) {
-			v = strings.TrimSuffix(v, `.s3.amazonaws.com`)
+		ent := entry.Entry{
+			TS:   entry.FromStandard(ts),
+			SRC:  br.src,                      //may be nil, ingest muxer will handle if it is
+			Data: append([]byte(nil), bts...), //scanner re-uses the buffer
+			Tag:  br.Tag,
 		}
-		arn = v
+		if ctx != nil {
+			err = br.Proc.ProcessContext(&ent, ctx)
+		} else {
+			err = br.Proc.Process(&ent)
+		}
+		if err != nil {
+			return //just leave
+		}
 	}
 
+	return
+}
+
+func (br *BucketReader) processCloudtrailContext(ctx context.Context, rdr io.Reader) (err error) {
+	var obj json.RawMessage
+	dec := json.NewDecoder(rdr)
+
+	var cberr error
+	cb := func(val []byte, vt jsonparser.ValueType, off int, lerr error) {
+		if lerr != nil {
+			cberr = lerr
+			return
+		}
+		var bts []byte
+		// if our record is an object try to grab a handle on the eventTime member
+		// if not, just take the whole thing, this is an optimization to process timestamps
+		if vt == jsonparser.Object {
+			if eventTime, err := jsonparser.GetString(val, `eventTime`); err == nil {
+				bts = []byte(eventTime)
+			} else {
+				bts = val // could not match, just set to whole thing and let TG do its thing
+			}
+		} else {
+			bts = val
+		}
+		ts, ok, _ := br.TG.Extract(bts)
+		if !ok {
+			ts = time.Now()
+		}
+		ent := entry.Entry{
+			TS:   entry.FromStandard(ts),
+			SRC:  br.src,                      //may be nil, ingest muxer will handle if it is
+			Data: append([]byte(nil), val...), //scanner re-uses the buffer
+			Tag:  br.Tag,
+		}
+		if ctx != nil {
+			cberr = br.Proc.ProcessContext(&ent, ctx)
+		} else {
+			cberr = br.Proc.Process(&ent)
+		}
+		return
+	}
+
+	for {
+		var recordarray []byte
+		var dt jsonparser.ValueType
+		if err = dec.Decode(&obj); err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			break
+		}
+		if recordarray, dt, _, err = jsonparser.Get([]byte(obj), `Records`); err != nil {
+			err = fmt.Errorf("failed to find Records array in cloudtrail log: %v", err)
+			break
+		} else if dt != jsonparser.Array {
+			err = fmt.Errorf("Records member is an invalid type: %v", dt)
+			break
+		}
+		if _, err = jsonparser.ArrayEach(recordarray, cb); err != nil {
+			break
+		} else if cberr != nil {
+			err = cberr
+			break
+		}
+	}
 	return
 }
