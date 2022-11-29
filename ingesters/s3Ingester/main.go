@@ -28,7 +28,7 @@ const (
 	defaultConfigDLoc     = `/opt/gravwell/etc/s3.conf.d`
 	defaultStateLoc       = `/opt/gravwell/etc/s3.state`
 	ingesterName          = `S3 Ingester`
-	appName               = `S3`
+	appName               = `s3`
 	batchSize             = 512
 	maxDataSize       int = 8 * 1024 * 1024
 	initDataSize      int = 512 * 1024
@@ -98,6 +98,7 @@ func main() {
 			TimeConfig:     v.TimeConfig,
 			Verbose:        ib.Verbose,
 			Name:           k,
+			Reader:         v.Reader,
 			FileFilters:    v.File_Filters,
 			TagName:        v.Tag_Name,
 			SourceOverride: v.Source_Override,

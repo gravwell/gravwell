@@ -683,6 +683,8 @@ func checkName(v string) (err error) {
 			continue
 		} else if r >= 'A' && r <= 'Z' {
 			continue
+		} else if r >= '0' && r <= '9' {
+			continue
 		} else if r == '.' || r == '_' || r == '-' || r == ':' {
 			continue
 		}

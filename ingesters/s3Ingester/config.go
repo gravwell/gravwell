@@ -34,6 +34,7 @@ type TimeConfig struct {
 type bucket struct {
 	TimeConfig
 	AuthConfig
+	Reader          string //defaults to line
 	Tag_Name        string
 	Source_Override string
 	File_Filters    []string
@@ -143,6 +144,9 @@ func verifyConfig(c *cfgType) error {
 		}
 		if err := v.AuthConfig.validate(); err != nil {
 			return err
+		}
+		if _, err := parseReader(v.Reader); err != nil {
+			return fmt.Errorf("Invalid Reader %q - %v", v.Reader, err)
 		}
 	}
 
