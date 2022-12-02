@@ -143,8 +143,8 @@ func (ew *EntryWriter) OverrideAckTimeout(t time.Duration) error {
 
 type connWrapper func(conn) conn
 
-//wrapConn passes in a function that can wrap a reader/writer
-//when called we reset the write buffer, caller should make sure there isn't anything buffered
+// wrapConn passes in a function that can wrap a reader/writer
+// when called we reset the write buffer, caller should make sure there isn't anything buffered
 func (ew *EntryWriter) setConn(c conn) {
 	ew.mtx.Lock()
 	ew.conn = c
@@ -398,8 +398,8 @@ func (ew *EntryWriter) writeAll(b []byte) error {
 	return nil
 }
 
-//flush attempts to push our buffer to the wire with a timeout
-//if the timeout expires we attempt to service acks and go back to attempting to flush
+// flush attempts to push our buffer to the wire with a timeout
+// if the timeout expires we attempt to service acks and go back to attempting to flush
 func (ew *EntryWriter) flush() (err error) {
 	//set the write timeout
 	if err = ew.conn.SetWriteTimeout(flushTimeout); err != nil {
@@ -869,7 +869,7 @@ func (ew *EntryWriter) serviceAcks(blocking bool) error {
 	return nil
 }
 
-//readAcks pulls out all of the acks in the ackBuffer and services them
+// readAcks pulls out all of the acks in the ackBuffer and services them
 func (ew *EntryWriter) readAcks(blocking bool) (err error) {
 	var ac ackCommand
 	var ok bool

@@ -37,7 +37,7 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/gorilla/websocket v1.4.2
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 // indirect
-	github.com/gravwell/gcfg v1.2.9-0.20220128204816-1742bc68c091
+	github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018
 	github.com/gravwell/ipfix v1.4.3
 	github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4 // indirect
 	github.com/h2non/filetype v1.0.10

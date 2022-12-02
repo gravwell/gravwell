@@ -3,8 +3,10 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"time"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
+	"github.com/buger/jsonparser"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -26,9 +29,10 @@ const (
 
 type AuthConfig struct {
 	ID         string
-	Secret     string
+	Secret     string `json:"-"`
 	Region     string
-	Bucket_URL string //this is the amazon ARN URL
+	Bucket_URL string `json:"-"` //DEPRECATED, DO NOT USE this is an artifact from initial version, my bad
+	Bucket_ARN string // Amazon ARN (should be JUST the bucket ARN
 	MaxRetries int
 }
 
@@ -37,6 +41,7 @@ type BucketConfig struct {
 	TimeConfig
 	Verbose        bool
 	MaxLineSize    int
+	Reader         string //defaults to line
 	Name           string
 	FileFilters    []string
 	Tag            entry.EntryTag
@@ -49,19 +54,28 @@ type BucketConfig struct {
 
 type BucketReader struct {
 	BucketConfig
+	arn     string
 	session *session.Session
 	svc     *s3.S3
 	filter  *matcher
 	tg      timegrinder.TimeGrinder
 	src     net.IP
+	rdr     reader
 }
 
 func NewBucketReader(cfg BucketConfig) (br *BucketReader, err error) {
+	var arn string
+	var rdr reader
 	if err = cfg.validate(); err != nil {
+		return
+	} else if arn, err = getARN(cfg.AuthConfig.Bucket_ARN); err != nil {
 		return
 	}
 	var filter *matcher
 	if filter, err = newMatcher(cfg.FileFilters); err != nil {
+		return
+	}
+	if rdr, err = parseReader(cfg.Reader); err != nil {
 		return
 	}
 	var sess *session.Session
@@ -80,10 +94,12 @@ func NewBucketReader(cfg BucketConfig) (br *BucketReader, err error) {
 
 	br = &BucketReader{
 		BucketConfig: cfg,
+		arn:          arn,
 		session:      sess,
 		svc:          svc,
 		filter:       filter,
 		src:          cfg.srcOverride(),
+		rdr:          rdr,
 	}
 	return
 }
@@ -125,13 +141,26 @@ func (bc *BucketConfig) srcOverride() net.IP {
 func (ac *AuthConfig) validate() (err error) {
 	if ac.Region == `` {
 		err = errors.New("missing region")
-	} else if ac.Bucket_URL == `` {
-		err = errors.New("missing bucket URL")
+		return
 	} else if ac.ID == `` {
 		err = errors.New("missing ID")
+		return
 	} else if ac.Secret == `` {
 		err = errors.New("missing secret")
-	} else if ac.MaxRetries <= 0 || ac.MaxRetries > maxMaxRetries {
+		return
+	}
+
+	if ac.Bucket_ARN == `` && ac.Bucket_URL != `` {
+		ac.Bucket_ARN = ac.Bucket_URL
+	}
+	if ac.Bucket_ARN == `` {
+		err = errors.New("missing bucket ARN")
+		return
+	} else if _, err = getARN(ac.Bucket_ARN); err != nil {
+		return
+	}
+
+	if ac.MaxRetries <= 0 || ac.MaxRetries > maxMaxRetries {
 		ac.MaxRetries = defaultMaxRetries
 	}
 	return
@@ -152,15 +181,82 @@ func (br *BucketReader) Process(obj *s3.Object) (err error) {
 func (br *BucketReader) ProcessContext(obj *s3.Object, ctx context.Context) (err error) {
 	var r *s3.GetObjectOutput
 	r, err = br.svc.GetObject(&s3.GetObjectInput{
-		Bucket: aws.String(br.Bucket_URL),
+		Bucket: aws.String(br.arn),
 		Key:    obj.Key,
 	})
 	if err != nil {
 		return
 	}
 	defer r.Body.Close()
+	switch br.rdr {
+	case lineReader:
+		err = br.processLinesContext(ctx, r.Body)
+	case cloudtrailReader:
+		err = br.processCloudtrailContext(ctx, r.Body)
+	default:
+		err = errors.New("no reader set")
+	}
+	return
+}
 
-	sc := bufio.NewScanner(r.Body)
+func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err error) {
+	//list the objects in the bucket
+	req := s3.ListObjectsV2Input{
+		Bucket: aws.String(br.arn),
+	}
+
+	var lerr error
+	objListHandler := func(resp *s3.ListObjectsV2Output, lastPage bool) bool {
+		for _, item := range resp.Contents {
+			//do a quick check for stupidity
+			if item.Size == nil || item.LastModified == nil || item.Key == nil {
+				continue
+			}
+			sz, lm, key := *item.Size, *item.LastModified, *item.Key
+			if sz == 0 || !br.ShouldTrack(key) {
+				continue //skip empty objects or things we should not track
+			}
+			//lookup the object in the objectTracker
+			state, ok := ot.Get(br.arn, key)
+			if ok && state.Updated.Equal(lm) {
+				continue //already handled this
+			}
+
+			//ok, lets process this thing
+			if lerr = br.Process(item); lerr != nil {
+				br.Logger.Error("failed to process object",
+					log.KV("bucket", br.Name),
+					log.KV("arn", br.arn),
+					log.KV("object", key),
+					log.KVErr(err))
+				return false //quit the scan
+			} else {
+				br.Logger.Info("consumed object",
+					log.KV("bucket", br.Name),
+					log.KV("arn", br.arn),
+					log.KV("object", key),
+					log.KV("size", sz))
+			}
+			state = trackedObjectState{
+				Updated: lm,
+				Size:    sz,
+			}
+			lerr = ot.Set(br.arn, key, state, false)
+			if ctx.Err() != nil {
+				return false //context says stop, bail
+			}
+		}
+		return true //continue the scan
+	}
+
+	if err = br.svc.ListObjectsV2Pages(&req, objListHandler); err == nil {
+		err = lerr
+	}
+	return
+}
+
+func (br *BucketReader) processLinesContext(ctx context.Context, rdr io.Reader) (err error) {
+	sc := bufio.NewScanner(rdr)
 	sc.Buffer(nil, br.MaxLineSize)
 	for sc.Scan() {
 		bts := sc.Bytes()
@@ -190,58 +286,68 @@ func (br *BucketReader) ProcessContext(obj *s3.Object, ctx context.Context) (err
 	return
 }
 
-func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err error) {
-	//list the objects in the bucket
-	req := s3.ListObjectsV2Input{
-		Bucket: aws.String(br.Bucket_URL),
-	}
+func (br *BucketReader) processCloudtrailContext(ctx context.Context, rdr io.Reader) (err error) {
+	var obj json.RawMessage
+	dec := json.NewDecoder(rdr)
 
-	var lerr error
-	objListHandler := func(resp *s3.ListObjectsV2Output, lastPage bool) bool {
-		for _, item := range resp.Contents {
-			//do a quick check for stupidity
-			if item.Size == nil || item.LastModified == nil || item.Key == nil {
-				continue
-			}
-			sz, lm, key := *item.Size, *item.LastModified, *item.Key
-			if sz == 0 || !br.ShouldTrack(key) {
-				continue //skip empty objects or things we should not track
-			}
-			//lookup the object in the objectTracker
-			state, ok := ot.Get(br.Bucket_URL, key)
-			if ok && state.Updated.Equal(lm) {
-				continue //already handled this
-			}
-
-			//ok, lets process this thing
-			if lerr = br.Process(item); lerr != nil {
-				br.Logger.Error("failed to process object",
-					log.KV("bucket", br.Name),
-					log.KV("url", br.Bucket_URL),
-					log.KV("object", key),
-					log.KVErr(err))
-				return false //quit the scan
-			} else {
-				br.Logger.Info("consumed object",
-					log.KV("bucket", br.Name),
-					log.KV("url", br.Bucket_URL),
-					log.KV("object", key),
-					log.KV("size", sz))
-			}
-			state = trackedObjectState{
-				Updated: lm,
-				Size:    sz,
-			}
-			lerr = ot.Set(br.Bucket_URL, key, state, false)
-			if ctx.Err() != nil {
-				return false //context says stop, bail
-			}
+	var cberr error
+	cb := func(val []byte, vt jsonparser.ValueType, off int, lerr error) {
+		if lerr != nil {
+			cberr = lerr
+			return
 		}
-		return true //continue the scan
+		var bts []byte
+		// if our record is an object try to grab a handle on the eventTime member
+		// if not, just take the whole thing, this is an optimization to process timestamps
+		if vt == jsonparser.Object {
+			if eventTime, err := jsonparser.GetString(val, `eventTime`); err == nil {
+				bts = []byte(eventTime)
+			} else {
+				bts = val // could not match, just set to whole thing and let TG do its thing
+			}
+		} else {
+			bts = val
+		}
+		ts, ok, _ := br.TG.Extract(bts)
+		if !ok {
+			ts = time.Now()
+		}
+		ent := entry.Entry{
+			TS:   entry.FromStandard(ts),
+			SRC:  br.src,                      //may be nil, ingest muxer will handle if it is
+			Data: append([]byte(nil), val...), //scanner re-uses the buffer
+			Tag:  br.Tag,
+		}
+		if ctx != nil {
+			cberr = br.Proc.ProcessContext(&ent, ctx)
+		} else {
+			cberr = br.Proc.Process(&ent)
+		}
+		return
 	}
 
-	if err = br.svc.ListObjectsV2Pages(&req, objListHandler); err == nil {
-		err = lerr
+	for {
+		var recordarray []byte
+		var dt jsonparser.ValueType
+		if err = dec.Decode(&obj); err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			break
+		}
+		if recordarray, dt, _, err = jsonparser.Get([]byte(obj), `Records`); err != nil {
+			err = fmt.Errorf("failed to find Records array in cloudtrail log: %v", err)
+			break
+		} else if dt != jsonparser.Array {
+			err = fmt.Errorf("Records member is an invalid type: %v", dt)
+			break
+		}
+		if _, err = jsonparser.ArrayEach(recordarray, cb); err != nil {
+			break
+		} else if cberr != nil {
+			err = cberr
+			break
+		}
 	}
 	return
 }

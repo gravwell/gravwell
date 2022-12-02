@@ -66,6 +66,7 @@ func CheckProcessor(id string) error {
 	case JsonArraySplitProcessor:
 	case JsonExtractProcessor:
 	case JsonFilterProcessor:
+	case JsonTimestampProcessor:
 	case PluginProcessor:
 	case RegexExtractProcessor:
 	case RegexRouterProcessor:
@@ -112,6 +113,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = JsonArraySplitLoadConfig(vc)
 	case JsonFilterProcessor:
 		cfg, err = JsonFilterLoadConfig(vc)
+	case JsonTimestampProcessor:
+		cfg, err = JsonTimestampLoadConfig(vc)
 	case RegexTimestampProcessor:
 		cfg, err = RegexTimestampLoadConfig(vc)
 	case RegexExtractProcessor:
@@ -212,6 +215,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewJsonFilter(cfg)
+	case JsonTimestampProcessor:
+		var cfg JsonTimestampConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewJsonTimestamp(cfg)
 	case RegexTimestampProcessor:
 		var cfg RegexTimestampConfig
 		if err = vc.MapTo(&cfg); err != nil {

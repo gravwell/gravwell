@@ -182,9 +182,9 @@ func (c *Client) ServerIP() net.IP {
 	return net.IPv4(0, 0, 0, 0)
 }
 
-//we allow a single redirect to allow for the muxer to clean up requests
-//basically the gorilla muxer we are using will force a 301 redirect on a path
-//such as '//' to '/'  We allow for one of those
+// we allow a single redirect to allow for the muxer to clean up requests
+// basically the gorilla muxer we are using will force a 301 redirect on a path
+// such as '//' to '/'  We allow for one of those
 func redirectPolicy(req *http.Request, via []*http.Request) error {
 	if len(via) >= 2 {
 		return errors.New("Disallowed multiple redirects")
@@ -572,7 +572,7 @@ func (c *Client) DialWebsocket(pth string) (conn *websocket.Conn, resp *http.Res
 	return
 }
 
-// SetUserAgent changes the User-Agent field the client sends with requests (default: ``GravwellCLI'').
+// SetUserAgent changes the User-Agent field the client sends with requests (default: “GravwellCLI”).
 func (c *Client) SetUserAgent(v string) error {
 	if v == `` {
 		return ErrEmptyUserAgent

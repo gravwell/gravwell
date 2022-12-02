@@ -47,7 +47,7 @@ type TLSCerts struct {
 	Cert tls.Certificate
 }
 
-//ConnectionType cracks out the type of connection and returns its type, the target, and/or an error
+// ConnectionType cracks out the type of connection and returns its type, the target, and/or an error
 func ConnectionType(dst string) (string, string, error) {
 	bits := strings.Split(dst, "://")
 	if len(bits) != 2 {
@@ -204,7 +204,7 @@ func newTLSConnection(dst, tenant string, auth AuthHash, certs *TLSCerts, verify
 	return completeIngestConnection(conn, src, tenant, auth, tags)
 }
 
-//negotiate a TLS connection and check the public cert if requested
+// negotiate a TLS connection and check the public cert if requested
 func newTlsConn(dst string, certs *TLSCerts, verify bool) (net.Conn, net.IP, error) {
 	var src net.IP
 
@@ -321,7 +321,7 @@ func negotiateEntryWriter(conn net.Conn, tenant string, auth AuthHash, tags []st
 	return ew, tagIDs, nil
 }
 
-//completeIngestConnection performs the authentication and tag negotiation
+// completeIngestConnection performs the authentication and tag negotiation
 func completeIngestConnection(conn net.Conn, src net.IP, tenant string, auth AuthHash, tags []string) (*IngestConnection, error) {
 	ew, tagIDs, err := negotiateEntryWriter(conn, tenant, auth, tags)
 	if err != nil {

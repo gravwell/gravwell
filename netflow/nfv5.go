@@ -124,8 +124,8 @@ func (h *NFv5Header) encode(b []byte) (err error) {
 	return
 }
 
-//decodeAlt decodes by hand with the assumption that we are operating on a LittleEndian machine
-//the code is slower and not used, but is left here anyway
+// decodeAlt decodes by hand with the assumption that we are operating on a LittleEndian machine
+// the code is slower and not used, but is left here anyway
 func (h *NFv5Header) decodeAlt(b []byte) error {
 	if len(b) < HeaderSize {
 		return ErrHeaderTooShort

@@ -287,11 +287,12 @@ func eventIDSelect(q Query) (includes, excludes []string, err error) {
 // level. Note that level 0 is used as a catch-all/unknown level.
 //
 // Accepted levels:
-//  verbose           - 5
-//  information, info - 4 or 0
-//  warning,     warn - 3
-//  error,       err  - 2
-//  critical,    crit - 1
+//
+//	verbose           - 5
+//	information, info - 4 or 0
+//	warning,     warn - 3
+//	error,       err  - 2
+//	critical,    crit - 1
 func levelSelect(q Query) (levels string, err error) {
 	if q.Level == "" {
 		return

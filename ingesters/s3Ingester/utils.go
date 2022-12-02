@@ -5,13 +5,28 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/url"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/bmatcuk/doublestar/v4"
 )
+
+const (
+	lineReader       reader = `line`
+	cloudtrailReader reader = `cloudtrail`
+)
+
+var (
+	ErrUnknownReader = errors.New("Unknown reader")
+)
+
+type reader string
 
 type matcher struct {
 	patterns []string
@@ -145,5 +160,86 @@ func (ot *objectTracker) Get(bucket, obj string) (state trackedObjectState, ok b
 		state, ok = bkt[obj]
 	}
 	ot.Unlock()
+	return
+}
+
+func parseReader(v string) (reader, error) {
+	v = strings.TrimSpace(strings.ToLower(v))
+	switch reader(v) {
+	case ``: //empty means line
+		return lineReader, nil
+	case lineReader:
+		return lineReader, nil
+	case cloudtrailReader:
+		return cloudtrailReader, nil
+	}
+	return ``, ErrUnknownReader
+}
+
+// ARN is designed to try and figure out the bucket name from either a pure bucket name
+// bucket HTTP url, or amazon ARN specification
+// Examples include https://<bucketname>.s3.amazonaws.com
+// arn:aws:s3:::<bucketname>
+// <bucketname>
+// <bucketname>.s3.amazonaws.com
+// s3://<bucketname>
+func getARN(v string) (arn string, err error) {
+	//properly formed ARN
+	if strings.HasPrefix(v, `arn:aws:s3`) {
+		arn = v
+		return
+	}
+	//check for a URL scheme
+	if strings.Contains(v, `://`) {
+		//parse as URL and extract the starting name
+		var uri *url.URL
+		if uri, err = url.Parse(v); err != nil {
+			return
+		} else if uri == nil {
+			err = fmt.Errorf("invalid bucket URL or ARN: %s", v)
+			return
+		}
+		switch uri.Scheme {
+		case `s3`:
+			arn = uri.Host
+			return
+		case `http`:
+			fallthrough
+		case `https`:
+			//potentially move port
+			var host string
+			if host, _, err = net.SplitHostPort(uri.Host); err != nil {
+				host = uri.Host
+				err = nil
+			}
+			//now check if the host is a straight up amazon
+			if host == `s3.amazonaws.com` {
+				//then grab the first element of the path
+				p := path.Clean(uri.Path)
+				if len(p) > 0 && p[0] == '/' {
+					p = p[1:]
+				}
+				if bits := strings.Split(p, "/"); len(bits) > 0 {
+					arn = bits[0]
+				} else {
+					err = fmt.Errorf("Unknown Bucket ARN or URL %q", v)
+				}
+				return
+			} else if strings.HasSuffix(uri.Host, `.s3.amazonaws.com`) {
+				arn = strings.TrimSuffix(uri.Host, `.s3.amazonaws.com`)
+			}
+			return
+		default:
+			err = errors.New("Unknown ARN scheme")
+			return
+		}
+	} else {
+		//good luck
+		if strings.HasSuffix(v, `.s3.amazonaws.com`) {
+			v = strings.TrimSuffix(v, `.s3.amazonaws.com`)
+		}
+		arn = v
+	}
+
 	return
 }

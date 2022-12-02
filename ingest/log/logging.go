@@ -502,6 +502,7 @@ func (l *Logger) genRfcOutput(ts time.Time, pfx string, lvl Level, msg string, s
 // Per RFC5424 https://www.rfc-editor.org/rfc/rfc5424.html#section-6.2.7
 //
 // There are maximum lengths for some of the fields below:
+//
 //	AppName: 48
 //	ProcID: 128
 //	MsgID: 32
@@ -640,7 +641,7 @@ func (dc discardCloser) Close() error {
 	return nil
 }
 
-//we have a separate func for error so the call depths are always consistent
+// we have a separate func for error so the call depths are always consistent
 // prefix attaches the timestamp and filepath to the log entry
 // the lvl indicates how far up the caller stack we need to go
 func prefix(callDepth int) (s string) {
@@ -681,6 +682,8 @@ func checkName(v string) (err error) {
 		if r >= 'a' && r <= 'z' {
 			continue
 		} else if r >= 'A' && r <= 'Z' {
+			continue
+		} else if r >= '0' && r <= '9' {
 			continue
 		} else if r == '.' || r == '_' || r == '-' || r == ':' {
 			continue
