@@ -340,11 +340,18 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		p = newParent(c.RateLimitBps, 0)
 	}
 
+	// figure out our hostname
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "(cannot determine hostname)"
+	}
+
 	// Initialize the state
 	state := IngesterState{
 		UUID:       c.IngesterUUID,
 		Name:       c.IngesterName,
 		Label:      c.IngesterLabel,
+		Hostname:   hostname,
 		Version:    c.IngesterVersion,
 		CacheState: c.CacheMode,
 		Children:   make(map[string]IngesterState),
