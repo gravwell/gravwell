@@ -67,6 +67,7 @@ type PackedResource struct {
 	VersionNumber int // resource version #, increment at each Write
 	ResourceName  string
 	Description   string
+	Labels        []string
 	Size          uint64
 	Hash          []byte
 	Data          []byte
@@ -79,6 +80,7 @@ func PackResourceUpdate(ru types.ResourceUpdate) (p PackedResource) {
 		VersionNumber: ru.Metadata.VersionNumber,
 		ResourceName:  ru.Metadata.ResourceName,
 		Description:   ru.Metadata.Description,
+		Labels:        ru.Metadata.Labels,
 		Size:          ru.Metadata.Size,
 		Hash:          ru.Metadata.Hash,
 		Data:          ru.Bytes(),
@@ -121,11 +123,13 @@ func (p *PackedResource) JSONMetadata() (json.RawMessage, error) {
 		ResourceName  string
 		Description   string
 		Size          uint64
+		Labels        []string
 	}{
 		VersionNumber: p.VersionNumber,
 		ResourceName:  p.ResourceName,
 		Description:   p.Description,
 		Size:          p.Size,
+		Labels:        p.Labels,
 	})
 	return json.RawMessage(b), err
 }
