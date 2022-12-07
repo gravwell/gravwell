@@ -1,5 +1,5 @@
-//go:build !386 && !arm && !mips && !mipsle && !s390x && !go1.18
-// +build !386,!arm,!mips,!mipsle,!s390x,!go1.18
+//go:build !386 && !arm && !mips && !mipsle && !s390x
+// +build !386,!arm,!mips,!mipsle,!s390x
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -26,6 +26,17 @@ import (
 
 func TestBasicPlugin(t *testing.T) {
 	pp, err := NewPluginProgram([]byte(basicPlugin), false)
+	if err != nil {
+		t.Fatal(err)
+	} else if err := pp.Run(time.Second); err != nil {
+		t.Fatal(err)
+	} else if err = pp.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestAllPackages(t *testing.T) {
+	pp, err := NewPluginProgram([]byte(allPackages), false)
 	if err != nil {
 		t.Fatal(err)
 	} else if err := pp.Run(time.Second); err != nil {
