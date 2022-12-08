@@ -158,6 +158,8 @@ const (
 	TOKENS_URL                       = `/api/tokens`
 	TOKENS_ID_URL                    = `/api/tokens/%s`
 	TOKENS_CAPABILITIES_URL          = `/api/tokens/capabilities`
+	SECRETS_URL                      = `/api/secrets`
+	SECRETS_ID_URL                   = `/api/secrets/%s`
 	SETTINGS_URL                     = `/api/settings`
 
 	// Special APIs for installing licenses
@@ -577,4 +579,12 @@ func tokenIdUrl(id uuid.UUID) string {
 
 func tokenCapabilitiesUrl() string {
 	return TOKENS_CAPABILITIES_URL
+}
+
+func secretsUrl() string {
+	return SECRETS_URL
+}
+
+func secretIdUrl(id uuid.UUID) string {
+	return fmt.Sprintf(SECRETS_ID_URL, id.String())
 }
