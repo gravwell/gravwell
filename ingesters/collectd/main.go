@@ -16,6 +16,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/utils/caps"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
@@ -159,6 +160,12 @@ func main() {
 		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 	}
 	debugout("Successfully connected to ingesters\n")
+
+	//check capabilities so we can scream and throw a potential warning upstream
+	if !caps.Has(caps.NET_BIND_SERVICE) {
+		lg.Warn("missing capability", log.KV("capability", "NET_BIND_SERVICE"), log.KV("warning", "may not be able to bind to service ports"))
+		debugout("missing capability NET_BIND_SERVICE, may not be able to bind to service ports")
+	}
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)

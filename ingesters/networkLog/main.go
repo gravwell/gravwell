@@ -25,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/utils/caps"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 
 	"github.com/google/gopacket/layers"
@@ -195,6 +196,15 @@ func main() {
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
 		lg.FatalCode(0, "failed to set configuration for ingester state message", log.KVErr(err))
+	}
+
+	//check capabilities so we can scream and throw a potential warning upstream
+	if !caps.Has(caps.NET_RAW) {
+		lg.Warn("missing capability", log.KV("capability", "NET_RAW"), log.KV("warning", "may not be able establish raw sockets"))
+		debugout("missing capability NET_RAW, may not be able to establish raw sockets")
+	} else if !caps.Has(caps.NET_ADMIN) {
+		lg.Warn("missing capability", log.KV("capability", "NET_ADMIN"), log.KV("warning", "may not be able put device into promisc mode"))
+		debugout("missing capability NET_ADMIN, may not be able to put device into promisc mode")
 	}
 
 	//loop through our sniffers and get a config up for each
