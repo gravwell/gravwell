@@ -90,6 +90,8 @@ type ScheduledSearch struct {
 
 type FlowNodeResult struct {
 	Payload map[string]interface{}
+	ID      int    // the node ID
+	Type    string // the type of node, e.g. RunQuery
 	Log     string
 	Error   string
 	Start   int64 // unix nanoseconds
