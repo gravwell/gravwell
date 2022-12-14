@@ -47,3 +47,13 @@ func (c *Client) UpdateSecret(id uuid.UUID, sc types.SecretCreate) (s types.Secr
 func (c *Client) DeleteSecret(id uuid.UUID) (err error) {
 	return c.methodStaticPushURL(http.MethodDelete, secretIdUrl(id), nil, nil, http.StatusNoContent)
 }
+
+// GetFullSecret fetches the entire Secret, including the value.
+// This can only be used if you have authenticated using the searchagent token.
+// The search agent knows how to set up the Client object correctly for this.
+// If you are not writing something which acts like the search agent, you don't
+// want this function, it won't work.
+func (c *Client) GetFullSecret(id uuid.UUID) (s types.SecretFull, err error) {
+	err = c.getStaticURL(secretIdFullUrl(id), &s)
+	return
+}
