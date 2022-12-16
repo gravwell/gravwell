@@ -179,6 +179,9 @@ func New(c Config) (tg *TimeGrinder, err error) {
 	// Unix nanoseconds
 	procs = append(procs, NewUnixNanoTimeProcessor())
 
+	// DirectAdmin format
+	procs = append(procs, NewDirectAdmin())
+
 	tg = &TimeGrinder{
 		procs: procs,
 		count: len(procs),
