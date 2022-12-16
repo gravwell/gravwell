@@ -48,6 +48,7 @@ const (
 	UK                    Format = `UK`
 	Bind                  Format = `Bind`
 	Gravwell              Format = `Gravwell`
+	DirectAdmin           Format = `DirectAdmin`
 )
 
 // Timestamp Formats
@@ -81,6 +82,7 @@ const (
 	UKFormat                    string = `02/01/2006 15:04:05,99999`
 	GravwellFormat              string = `1-2-2006 15:04:05.99999`
 	BindFormat                  string = `02-Jan-2006 15:04:05.999`
+	DirectAdminFormat           string = `2006:01:02-15:04:05`
 )
 
 // Regular Expression Extractors
@@ -114,6 +116,7 @@ const (
 	UKRegex                    string = `\d\d/\d\d/\d\d\d\d\s\d\d\:\d\d\:\d\d,\d{1,5}`
 	GravwellRegex              string = `\d{1,2}\-\d{1,2}\-\d{4}\s+\d{1,2}\:\d{2}\:\d{2}(\.\d{1,6})?`
 	BindRegex                  string = `\d{2}\-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\-\d{4} \d{2}:\d{2}:\d{2}\.\d{1,3}`
+	DirectAdminRegex           string = `\d{4}:\d{2}:\d{2}-\d{2}:\d{2}:\d{2}`
 
 	// non base extrators
 	_unixSecondsRegex  string = `\d{9,10}`
@@ -166,6 +169,7 @@ var (
 		UK,
 		Gravwell,
 		Bind,
+		DirectAdmin,
 	}
 )
 
@@ -482,6 +486,16 @@ func NewBind() *processor {
 		format: BindFormat,
 		name:   Bind.String(),
 		min:    len(BindFormat) - 3, //to deal with lower precision
+	}
+}
+
+func NewDirectAdmin() *processor {
+	return &processor{
+		rxp:    regexp.MustCompile(DirectAdminRegex),
+		rxstr:  DirectAdminRegex,
+		format: DirectAdminFormat,
+		name:   DirectAdmin.String(),
+		min:    len(DirectAdminFormat) - 2, //deal with missing leading zeros
 	}
 }
 
