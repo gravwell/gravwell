@@ -82,10 +82,16 @@ type ScheduledSearch struct {
 	// These fields are updated by the search agent after it runs a search
 	PersistentMaps  map[string]map[string]interface{}
 	LastRun         time.Time
-	LastRunDuration time.Duration // how many nanoseconds did it take
-	LastSearchIDs   []string      // the IDs of the most recently performed searches
-	LastError       string        // any error from the last run of the scheduled search
-	DebugOutput     []byte        // output of the script if debugmode was enabled
+	LastRunDuration time.Duration    // how many nanoseconds did it take
+	LastSearchIDs   []string         // the IDs of the most recently performed searches
+	LastError       string           // any error from the last run of the scheduled search
+	ErrorHistory    []ScheduledError // a list of previously-occurring errors
+	DebugOutput     []byte           // output of the script if debugmode was enabled
+}
+
+type ScheduledError struct {
+	Error     string
+	Timestamp time.Time
 }
 
 type FlowNodeResult struct {
