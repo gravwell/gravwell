@@ -296,7 +296,7 @@ func (eb *EntryBlock) Decode(b []byte) error {
 
 	for i := uint32(0); i < ebh.entryCount; i++ {
 		var ent Entry
-		n, err := ent.DecodeHeader(b[offset:])
+		n, hasEvs, err := ent.DecodeHeader(b[offset:])
 		if err != nil {
 			return err
 		}
@@ -306,6 +306,13 @@ func (eb *EntryBlock) Decode(b []byte) error {
 		}
 		offset += uint64(ENTRY_HEADER_SIZE)
 		ent.Data = b[offset : offset+dlen]
+		if hasEvs {
+			if evlen, err := ent.evb.decode(b[offset+dlen:]); err != nil {
+				return ErrInvalidSrcBuff
+			} else {
+				dlen += uint64(evlen)
+			}
+		}
 		offset += dlen
 		eb.entries = append(eb.entries, &ent)
 		sz += uint32(ent.Size())

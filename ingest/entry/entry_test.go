@@ -29,7 +29,7 @@ func TestEncodeDecode(t *testing.T) {
 		t.Fatal(err)
 	}
 	var e2 Entry
-	n, err := e2.DecodeHeader(b)
+	n, hasEvs, err := e2.DecodeHeader(b)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -44,6 +44,9 @@ func TestEncodeDecode(t *testing.T) {
 	}
 	if len(e.Data) != n {
 		t.Fatal(fmt.Errorf("datalen mismatch: %v != %v", len(e.Data), n))
+	}
+	if hasEvs {
+		t.Fatal("we don't have evs, but header thought so")
 	}
 }
 

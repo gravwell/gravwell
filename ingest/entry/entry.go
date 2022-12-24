@@ -52,12 +52,30 @@ func (ent *Entry) Key() EntryKey {
 	return EntryKey(ent.TS.Sec)
 }
 
+func (ent *Entry) AddEnumeratedValue(ev EnumeratedValue) (err error) {
+	if ev.Valid() {
+		ent.evb.Add(ev)
+	} else {
+		err = ErrInvalid
+	}
+	return
+}
+
+func (ent *Entry) AddEnumeratedValueEx(name string, val interface{}) error {
+	ev, err := NewEnumeratedValue(name, val)
+	if err != nil {
+		return err
+	}
+	ent.evb.Add(ev)
+	return nil
+}
+
 func (ent *Entry) Size() uint64 {
 	return uint64(len(ent.Data)) + uint64(ENTRY_HEADER_SIZE) + ent.evb.Size()
 }
 
 // decodeHeader copies copies the SRC buffer
-func (ent *Entry) decodeHeader(buff []byte) int {
+func (ent *Entry) decodeHeader(buff []byte) (int, bool) {
 	var datasize uint32
 	var ipv4 bool
 	/* buffer should come formatted as follows:
@@ -67,13 +85,16 @@ func (ent *Entry) decodeHeader(buff []byte) int {
 	Tag (16bit)
 	SRC (16 bytes)
 	*/
-	//TODO: force this to LittleEndian
+	//decode the datasize and grab the flags from the datasize
 	datasize = binary.LittleEndian.Uint32(buff)
+	flags := uint8(datasize >> 30)
+	datasize &= flagMask // clear flags from datasize
+
 	//check if we are an ipv4 address
-	if (datasize & 0x80000000) != 0 {
+	if (flags & flagIPv4) != 0 {
 		ipv4 = true
-		datasize &= 0x7FFFFFFF //clear the bit
 	}
+
 	ent.TS.Decode(buff[4:])
 	ent.Tag = EntryTag(binary.LittleEndian.Uint16(buff[16:]))
 	if ipv4 {
@@ -88,11 +109,11 @@ func (ent *Entry) decodeHeader(buff []byte) int {
 		}
 		copy(ent.SRC, buff[18:ENTRY_HEADER_SIZE])
 	}
-	return int(datasize)
+	return int(datasize), (flags & flagEVs) != 0
 }
 
 // decodeHeaderAlt gets a direct handle on the SRC buffer
-func (ent *Entry) decodeHeaderAlt(buff []byte) int {
+func (ent *Entry) decodeHeaderAlt(buff []byte) (int, bool) {
 	var datasize uint32
 	var ipv4 bool
 	/* buffer should come formatted as follows:
@@ -102,12 +123,15 @@ func (ent *Entry) decodeHeaderAlt(buff []byte) int {
 	Tag (16bit)
 	SRC (16 bytes)
 	*/
-	//TODO: force this to LittleEndian
+
+	//decode the datasize and grab the flags from the datasize
 	datasize = binary.LittleEndian.Uint32(buff)
+	flags := uint8(datasize >> 30)
+	datasize &= flagMask // clear flags from datasize
+
 	//check if we are an ipv4 address
-	if (datasize & 0x80000000) != 0 {
+	if (flags & flagIPv4) != 0 {
 		ipv4 = true
-		datasize &= 0x7FFFFFFF //clear the bit
 	}
 	ent.TS.Decode(buff[4:])
 	ent.Tag = EntryTag(binary.LittleEndian.Uint16(buff[16:]))
@@ -116,29 +140,39 @@ func (ent *Entry) decodeHeaderAlt(buff []byte) int {
 	} else {
 		ent.SRC = buff[18:ENTRY_HEADER_SIZE]
 	}
-	return int(datasize)
+	return int(datasize), (flags & flagEVs) != 0
 }
 
-func (ent *Entry) DecodeHeader(buff []byte) (int, error) {
+func (ent *Entry) DecodeHeader(buff []byte) (int, bool, error) {
 	if len(buff) < ENTRY_HEADER_SIZE {
-		return 0, ErrInvalidBufferSize
+		return 0, false, ErrInvalidBufferSize
 	}
-	return ent.decodeHeader(buff), nil
+	dataLen, hasEvs := ent.decodeHeader(buff)
+	return dataLen, hasEvs, nil
 }
 
 // DecodeEntry will copy values out of the buffer to generate an entry with its own
 // copies of data.  This ensures that entries don't maintain ties to blocks
 // DecodeEntry assumes that a size check has already happened
-func (ent *Entry) DecodeEntry(buff []byte) {
-	dataSize := ent.decodeHeader(buff)
+func (ent *Entry) DecodeEntry(buff []byte) error {
+	dataSize, hasEvs := ent.decodeHeader(buff)
 	ent.Data = append([]byte(nil), buff[ENTRY_HEADER_SIZE:ENTRY_HEADER_SIZE+int(dataSize)]...)
+	if hasEvs {
+		return ent.evb.Decode(append([]byte(nil), buff[:ENTRY_HEADER_SIZE+int(dataSize)]...))
+	}
+	return nil
 }
 
 // DecodeEntryAlt doesn't copy the SRC or data out, it just references the slice handed in
 // it also assumes a size check for the entry header size has occurred by the caller
-func (ent *Entry) DecodeEntryAlt(buff []byte) {
-	dataSize := ent.decodeHeaderAlt(buff)
+func (ent *Entry) DecodeEntryAlt(buff []byte) error {
+	dataSize, hasEvs := ent.decodeHeaderAlt(buff)
 	ent.Data = buff[ENTRY_HEADER_SIZE : ENTRY_HEADER_SIZE+int(dataSize)]
+	if hasEvs {
+		buff = buff[:ENTRY_HEADER_SIZE+int(dataSize)]
+		return ent.evb.Decode(buff)
+	}
+	return nil
 }
 
 // EncodeHeader Encodes the header into the buffer for the file transport
@@ -156,12 +190,12 @@ func (ent *Entry) EncodeHeader(buff []byte) error {
 	Tag (16bit)
 	SRC (16 bytes)
 	*/
-	//TODO: force this to LittleEndian
+	var flags uint8
 	if len(ent.SRC) == IPV4_SRC_SIZE {
-		binary.LittleEndian.PutUint32(buff, uint32(len(ent.Data))|0x80000000)
-	} else {
-		binary.LittleEndian.PutUint32(buff, uint32(len(ent.Data)))
+		flags |= flagIPv4
 	}
+	binary.LittleEndian.PutUint32(buff, uint32(len(ent.Data)))
+	buff[0] |= flags
 	ent.TS.Encode(buff[4:16])
 	binary.LittleEndian.PutUint16(buff[16:], uint16(ent.Tag))
 	copy(buff[18:ENTRY_HEADER_SIZE], ent.SRC)
@@ -286,15 +320,21 @@ func (ent *Entry) DecodeReader(rdr io.Reader) error {
 	if err := readAll(rdr, headerBuff); err != nil {
 		return err
 	}
-	n := ent.decodeHeader(headerBuff)
+	n, hasEvs := ent.decodeHeader(headerBuff)
 	if n <= 0 || n > (int(MaxDataSize)-ENTRY_HEADER_SIZE) {
 		return ErrInvalidHeader
 	}
 	ent.Data = make([]byte, n)
 	if err := readAll(rdr, ent.Data); err != nil {
 		return err
+	} else if hasEvs {
+		return ent.evb.DecodeReader(rdr)
 	}
 	return nil
+}
+
+func (ent *Entry) ReadEVs(rdr io.Reader) error {
+	return ent.evb.DecodeReader(rdr)
 }
 
 func (ent *Entry) MarshallBytes() ([]byte, error) {
