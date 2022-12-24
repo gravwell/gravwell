@@ -45,6 +45,7 @@ type Entry struct {
 	SRC  net.IP
 	Tag  EntryTag
 	Data []byte
+	evs  []EnumeratedValue
 }
 
 func (ent *Entry) Key() EntryKey {

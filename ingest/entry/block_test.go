@@ -430,7 +430,12 @@ func genRandomEntry() (Entry, error) {
 	if len(source) != 16 {
 		return Entry{}, errors.New("Source is not valid")
 	}
-	return Entry{ts, source, DEFAULT_SEARCH_TAG, randBuff[offset : offset+size]}, nil
+	return Entry{
+		TS:   ts,
+		SRC:  source,
+		Tag:  DEFAULT_SEARCH_TAG,
+		Data: randBuff[offset : offset+size],
+	}, nil
 }
 
 func compareEntry(a, b *Entry) error {
