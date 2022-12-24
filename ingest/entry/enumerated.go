@@ -70,7 +70,6 @@ func (ev EnumeratedValue) String() string {
 // and the enumerated data must be valid
 func (ev EnumeratedValue) Valid() bool {
 	if l := len(ev.Name); l == 0 || l > MaxEvNameLength || !ev.Value.Valid() {
-		fmt.Println(l, l > MaxEvNameLength, ev.Value.evtype)
 		return false
 	}
 	return true
@@ -86,7 +85,17 @@ func (ev EnumeratedValue) Encode() []byte {
 		return nil
 	}
 	r := make([]byte, evHeaderLen+len(ev.Name)+len(ev.Value.data))
+	if _, err := ev.encode(r); err != nil {
+		return nil
+	}
+	return r
+}
 
+func (ev EnumeratedValue) encode(r []byte) (n int, err error) {
+	esize := ev.Size()
+	if len(r) < esize {
+		return -1, ErrInvalidBufferSize
+	}
 	//drop the header
 	binary.LittleEndian.PutUint16(r, uint16(ev.Size()))
 	binary.LittleEndian.PutUint16(r[2:], uint16(len(ev.Name)))
@@ -100,7 +109,7 @@ func (ev EnumeratedValue) Encode() []byte {
 	//drop the data
 	copy(r[evHeaderLen+len(ev.Name):], ev.Value.data)
 
-	return r
+	return esize, nil
 }
 
 // EncodeWriter will encode an enumerated value into a writer
@@ -125,51 +134,65 @@ func (ev EnumeratedValue) EncodeWriter(w io.Writer) error {
 
 // Decode will attempt to decode an enumerated value from a byte slice, if the Encode will pack the enumerated value into a byte slice.  Invalid EVs return nil
 func (ev *EnumeratedValue) Decode(r []byte) (err error) {
+	_, err = ev.decode(r)
+	return
+}
+
+// decode is a helper function that returns how much of the buffer we consumed
+// this is used for decoding evblocks
+func (ev *EnumeratedValue) decode(r []byte) (n int, err error) {
 	var h evheader
 	if h, err = decodeHeader(r); err != nil {
-		return
+		return -1, err
 	}
 	if len(r) < int(h.totalLen) {
-		return ErrTruncatedEnumeratedValue
+		return -1, ErrTruncatedEnumeratedValue
 	}
-	ev.Name = string(r[evHeaderLen : evHeaderLen+h.nameLen])
-	ev.Value.data = r[evHeaderLen+h.nameLen:]
+	r = r[evHeaderLen:]
+	ev.Name = string(r[:h.nameLen])
+	r = r[h.nameLen:]
+	ev.Value.data = r[:h.dataLen]
 	ev.Value.evtype = h.dataType
 
 	if !ev.Valid() {
 		err = ErrCorruptedEnumeratedValue
+	} else {
+		n = int(h.totalLen)
 	}
 	return
 }
 
 func (ev *EnumeratedValue) DecodeReader(r io.Reader) error {
-	var h evheader
+	_, err := ev.decodeReader(r)
+	return err
+}
 
+func (ev *EnumeratedValue) decodeReader(r io.Reader) (int, error) {
+	var h evheader
 	//read out the header
 	buff := make([]byte, evHeaderLen)
 	if err := readAll(r, buff); err != nil {
-		return err
+		return -1, err
 	} else if h, err = decodeHeader(buff); err != nil {
-		fmt.Println("Failed to decode header", err)
-		return err
+		return -1, err
 	}
 
 	//read out the name
 	buff = make([]byte, h.nameLen)
 	if err := readAll(r, buff); err != nil {
-		return err
+		return -1, err
 	}
 	ev.Name = string(buff)
 
 	ev.Value.evtype = h.dataType
 	ev.Value.data = make([]byte, h.dataLen)
 	if err := readAll(r, ev.Value.data); err != nil {
-		return err
+		return -1, err
 	}
 	if !ev.Valid() {
-		return ErrCorruptedEnumeratedValue
+		return -1, ErrCorruptedEnumeratedValue
 	}
-	return nil //all good
+	return int(evHeaderLen + h.nameLen + h.dataLen), nil //all good
 }
 
 func decodeHeader(r []byte) (h evheader, err error) {

@@ -45,7 +45,7 @@ type Entry struct {
 	SRC  net.IP
 	Tag  EntryTag
 	Data []byte
-	evs  []EnumeratedValue
+	evb  evblock
 }
 
 func (ent *Entry) Key() EntryKey {
@@ -53,7 +53,7 @@ func (ent *Entry) Key() EntryKey {
 }
 
 func (ent *Entry) Size() uint64 {
-	return uint64(len(ent.Data)) + uint64(ENTRY_HEADER_SIZE)
+	return uint64(len(ent.Data)) + uint64(ENTRY_HEADER_SIZE) + ent.evb.Size()
 }
 
 // decodeHeader copies copies the SRC buffer
