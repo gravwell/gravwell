@@ -65,6 +65,12 @@ func (eb evblock) Populated() bool {
 	return eb.size > 0
 }
 
+// Reset resets the entry block
+func (eb *evblock) Reset() {
+	eb.size = 0
+	eb.evs = eb.evs[0:0]
+}
+
 // Values is an accessor to actualy get the set of enumerated values out of the evblock
 // this returns the slice directly, so callers COULD mess with the slice and break the size
 // tracker.  Basically don't re-use or assign to this slice, if you do the evblock you pulled it from
@@ -148,13 +154,9 @@ func (eb evblock) EncodeWriter(w io.Writer) (err error) {
 	return
 }
 
-// Decode decodes an evblock directly from a buffer
-func (eb *evblock) Decode(b []byte) (err error) {
-	_, err = eb.decode(b)
-	return
-}
-
-func (eb *evblock) decode(b []byte) (int, error) {
+// Decode decodes an evblock directly from a buffer and returns the number of bytes consumed
+// This function will copy all referenced memory so the underlying buffer can be re-used
+func (eb *evblock) Decode(b []byte) (int, error) {
 	eb.size = 0
 	if eb.evs != nil {
 		eb.evs = eb.evs[0:0]
@@ -195,17 +197,52 @@ func (eb *evblock) decode(b []byte) (int, error) {
 	return total, nil
 }
 
-// DecodeReader decodes an evblock directly from a buffer
-func (eb *evblock) DecodeReader(r io.Reader) error {
-	sz, err := eb.decodeReader(r)
-	if err == nil {
-		eb.size = uint64(sz)
-		return nil
+// DecodeAlt decodes an evblock directly from a buffer and returns the number of bytes consumed
+// All data is directly referenced to the provided buffer, the buffer cannot be re-used while any numerated
+// value is still in use
+func (eb *evblock) DecodeAlt(b []byte) (int, error) {
+	eb.size = 0
+	if eb.evs != nil {
+		eb.evs = eb.evs[0:0]
 	}
-	return err
+
+	//check if the buffer is big enough for the header
+	if len(b) < evblockHeaderLen {
+		return -1, ErrInvalidBufferSize
+	}
+	h, err := decodeEvblockHeader(b)
+	if err != nil {
+		return -1, err
+	} else if int(h.size) > len(b) {
+		return -1, ErrEnumeratedValueBlockCorrupt
+	}
+
+	//advance past the header on the buffer so we can iterate
+	total := int(evblockHeaderLen)
+	b = b[evblockHeaderLen:]
+	for i := uint16(0); i < h.count; i++ {
+		var ev EnumeratedValue
+		if n, err := ev.decodeAlt(b); err != nil {
+			return -1, err
+		} else if n > len(b) {
+			return -1, ErrCorruptedEnumeratedValue
+		} else {
+			b = b[n:]
+			total += n
+			eb.evs = append(eb.evs, ev)
+		}
+	}
+
+	//now check if we actually consumed what the header said we should, this should all match perfectly
+	if total != int(h.size) {
+		return -1, ErrCorruptedEnumeratedValue
+	}
+	eb.size = uint64(total)
+	return total, nil
 }
 
-func (eb *evblock) decodeReader(r io.Reader) (int, error) {
+// DecodeReader decodes an evblock directly from a buffer
+func (eb *evblock) DecodeReader(r io.Reader) (int, error) {
 	var h evblockheader
 	var err error
 	eb.size = 0
@@ -238,6 +275,7 @@ func (eb *evblock) decodeReader(r io.Reader) (int, error) {
 	if total != int(h.size) {
 		return -1, ErrCorruptedEnumeratedValue
 	}
+	eb.size = uint64(total)
 	return total, nil
 }
 

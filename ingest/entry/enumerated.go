@@ -140,7 +140,34 @@ func (ev *EnumeratedValue) Decode(r []byte) (err error) {
 
 // decode is a helper function that returns how much of the buffer we consumed
 // this is used for decoding evblocks
+// This function will make a copy of all referenced bytes so that the provided buffer can be re-used
 func (ev *EnumeratedValue) decode(r []byte) (n int, err error) {
+	var h evheader
+	if h, err = decodeHeader(r); err != nil {
+		return -1, err
+	}
+	if len(r) < int(h.totalLen) {
+		return -1, ErrTruncatedEnumeratedValue
+	}
+	r = r[evHeaderLen:]
+	ev.Name = string(append([]byte(nil), r[:h.nameLen]...))
+	r = r[h.nameLen:]
+	ev.Value.data = append([]byte(nil), r[:h.dataLen]...)
+	ev.Value.evtype = h.dataType
+
+	if !ev.Valid() {
+		err = ErrCorruptedEnumeratedValue
+	} else {
+		n = int(h.totalLen)
+	}
+	return
+}
+
+// decodeAlt is a helper function that returns how much of the buffer we consumed
+// this is used for decoding evblocks
+// This function will will directly reference the underlying buffer.
+// Callers cannot re-use the buffer if the enumerated values are enumerated values are in use
+func (ev *EnumeratedValue) decodeAlt(r []byte) (n int, err error) {
 	var h evheader
 	if h, err = decodeHeader(r); err != nil {
 		return -1, err

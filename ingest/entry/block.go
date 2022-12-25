@@ -307,7 +307,7 @@ func (eb *EntryBlock) Decode(b []byte) error {
 		offset += uint64(ENTRY_HEADER_SIZE)
 		ent.Data = b[offset : offset+dlen]
 		if hasEvs {
-			if evlen, err := ent.evb.decode(b[offset+dlen:]); err != nil {
+			if evlen, err := ent.evb.Decode(b[offset+dlen:]); err != nil {
 				return ErrInvalidSrcBuff
 			} else {
 				dlen += uint64(evlen)

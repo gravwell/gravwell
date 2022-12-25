@@ -154,25 +154,80 @@ func (ent *Entry) DecodeHeader(buff []byte) (int, bool, error) {
 // DecodeEntry will copy values out of the buffer to generate an entry with its own
 // copies of data.  This ensures that entries don't maintain ties to blocks
 // DecodeEntry assumes that a size check has already happened
-func (ent *Entry) DecodeEntry(buff []byte) error {
+// You probably want Decode
+func (ent *Entry) DecodeEntry(buff []byte) (err error) {
 	dataSize, hasEvs := ent.decodeHeader(buff)
 	ent.Data = append([]byte(nil), buff[ENTRY_HEADER_SIZE:ENTRY_HEADER_SIZE+int(dataSize)]...)
 	if hasEvs {
-		return ent.evb.Decode(append([]byte(nil), buff[:ENTRY_HEADER_SIZE+int(dataSize)]...))
+		_, err = ent.evb.Decode(append([]byte(nil), buff[:ENTRY_HEADER_SIZE+int(dataSize)]...))
 	}
-	return nil
+	return
 }
 
 // DecodeEntryAlt doesn't copy the SRC or data out, it just references the slice handed in
 // it also assumes a size check for the entry header size has occurred by the caller
-func (ent *Entry) DecodeEntryAlt(buff []byte) error {
+// You probably want DecodeAlt
+func (ent *Entry) DecodeEntryAlt(buff []byte) (err error) {
 	dataSize, hasEvs := ent.decodeHeaderAlt(buff)
 	ent.Data = buff[ENTRY_HEADER_SIZE : ENTRY_HEADER_SIZE+int(dataSize)]
 	if hasEvs {
 		buff = buff[:ENTRY_HEADER_SIZE+int(dataSize)]
-		return ent.evb.Decode(buff)
+		_, err = ent.evb.Decode(buff)
 	}
-	return nil
+	return
+}
+
+// Decode completely decodes an entry and returns the number of bytes consumed from a buffer
+// This is useful for iterating over entries in a raw buffer.
+// Decode will decode the entire entry and all of its EVs, copying all bytes so that
+// the caller can re-use the underlying buffer
+func (ent *Entry) Decode(buff []byte) (int, error) {
+	var off int
+	dataSize, hasEvs, err := ent.DecodeHeader(buff)
+	if err != nil {
+		return -1, err
+	}
+	off += ENTRY_HEADER_SIZE
+	if buff = buff[ENTRY_HEADER_SIZE:]; len(buff) < dataSize {
+		return -1, ErrInvalidBufferSize
+	}
+	ent.Data = append([]byte(nil), buff[:int(dataSize)]...)
+	buff = buff[dataSize:]
+	off += int(dataSize)
+	if hasEvs {
+		var n int
+		if n, err = ent.evb.Decode(buff); err == nil {
+			off += n
+		}
+	}
+	return off, err
+}
+
+// DecodeAlt completely decodes an entry and returns the number of bytes consumed from a buffer
+// This is useful for iterating over entries in a raw buffer.
+// This decode method directly references the underlying buffer, callers cannot re-use the buffer
+// if the entry and/or its EVs will be used
+func (ent *Entry) DecodeAlt(buff []byte) (int, error) {
+	var off int
+	if len(buff) < ENTRY_HEADER_SIZE {
+		return 0, ErrInvalidBufferSize
+	}
+	dataSize, hasEvs := ent.decodeHeaderAlt(buff)
+	off += ENTRY_HEADER_SIZE
+	if buff = buff[ENTRY_HEADER_SIZE:]; len(buff) < dataSize {
+		return 0, ErrInvalidBufferSize
+	}
+	ent.Data = buff[:int(dataSize)]
+	buff = buff[dataSize:]
+	off += int(dataSize)
+	if hasEvs {
+		n, err := ent.evb.DecodeAlt(buff)
+		if err != nil {
+			return 0, err
+		}
+		off += n
+	}
+	return off, nil
 }
 
 // EncodeHeader Encodes the header into the buffer for the file transport
@@ -327,14 +382,19 @@ func (ent *Entry) DecodeReader(rdr io.Reader) error {
 	ent.Data = make([]byte, n)
 	if err := readAll(rdr, ent.Data); err != nil {
 		return err
-	} else if hasEvs {
-		return ent.evb.DecodeReader(rdr)
+	}
+	if hasEvs {
+		_, err := ent.evb.DecodeReader(rdr)
+		return err
+	} else {
+		ent.evb.Reset()
 	}
 	return nil
 }
 
 func (ent *Entry) ReadEVs(rdr io.Reader) error {
-	return ent.evb.DecodeReader(rdr)
+	_, err := ent.evb.DecodeReader(rdr)
+	return err
 }
 
 func (ent *Entry) MarshallBytes() ([]byte, error) {

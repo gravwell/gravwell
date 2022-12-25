@@ -211,5 +211,14 @@ func testEVCycle(a interface{}) (err error) {
 	} else if err = ev3.Compare(ev); err != nil {
 		return fmt.Errorf("Encode/Decode mismatch: %v", err)
 	}
+
+	//decode with Alt interface
+	var ev4 EnumeratedValue
+	if err := ev4.Decode(bts); err != nil {
+		return fmt.Errorf("failed to decode from buffer: %v", err)
+	} else if err = ev.Compare(ev4); err != nil {
+		return fmt.Errorf("Encode/Decode mismatch: %v", err)
+	}
+
 	return
 }

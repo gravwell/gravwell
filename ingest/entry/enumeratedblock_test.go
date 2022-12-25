@@ -48,11 +48,11 @@ func TestEnumeratedValueBlockEncodeDecode(t *testing.T) {
 
 	//decode using each method
 	var teb evblock
-	if err = teb.Decode(buff); err != nil {
+	if _, err = teb.Decode(buff); err != nil {
 		t.Fatal(err)
 	} else if err = teb.Compare(evb); err != nil {
 		t.Fatal(err)
-	} else if err = teb.DecodeReader(bb); err != nil {
+	} else if _, err = teb.DecodeReader(bb); err != nil {
 		t.Fatal(err)
 	} else if err = teb.Compare(evb); err != nil {
 		t.Fatal(err)

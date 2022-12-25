@@ -280,8 +280,9 @@ func getStartTime(v string) (t time.Time, err error) {
 }
 
 type DataGen func(time.Time) []byte
+type Finalizer func(*entry.Entry)
 
-func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorConfig, dg DataGen) (totalCount, totalBytes uint64, err error) {
+func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorConfig, dg DataGen, f Finalizer) (totalCount, totalBytes uint64, err error) {
 	if dg == nil || cfg.Count == 0 || cfg.Duration < 0 {
 		err = errors.New("invalid parameters")
 		return
@@ -304,10 +305,15 @@ func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorCo
 	}
 	for i := uint64(0); i < cfg.Count; i++ {
 		ent := &entry.Entry{
-			TS:   entry.FromStandard(ts),
-			Tag:  tag,
-			SRC:  src,
-			Data: dg(ts),
+			TS:  entry.FromStandard(ts),
+			Tag: tag,
+			SRC: src,
+		}
+		if dg != nil {
+			ent.Data = dg(ts)
+		}
+		if f != nil {
+			f(ent)
 		}
 		if err = conn.WriteEntry(ent); err != nil {
 			break
@@ -319,12 +325,12 @@ func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorCo
 	return
 }
 
-func Stream(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorConfig, dg DataGen) (totalCount, totalBytes uint64, err error) {
+func Stream(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorConfig, dg DataGen, f Finalizer) (totalCount, totalBytes uint64, err error) {
 	var stop bool
 	r := make(chan error, 1)
 	go func(ret chan error, stp *bool) {
 		var err error
-		totalCount, totalBytes, err = streamRunner(conn, tag, src, cfg.Count, stp, dg)
+		totalCount, totalBytes, err = streamRunner(conn, tag, src, cfg.Count, stp, dg, f)
 		r <- err
 	}(r, &stop)
 	c := make(chan os.Signal, 1)
@@ -342,7 +348,7 @@ func Stream(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorCon
 	return
 }
 
-func streamRunner(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, stop *bool, dg DataGen) (totalCount, totalBytes uint64, err error) {
+func streamRunner(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, stop *bool, dg DataGen, f Finalizer) (totalCount, totalBytes uint64, err error) {
 	if dg == nil || conn == nil || stop == nil {
 		err = errors.New("invalid parameters")
 		return
@@ -361,10 +367,15 @@ loop:
 		start := ts
 		for i := uint64(0); i < cnt; i++ {
 			ent = &entry.Entry{
-				TS:   entry.FromStandard(ts),
-				Tag:  tag,
-				SRC:  src,
-				Data: dg(ts),
+				TS:  entry.FromStandard(ts),
+				Tag: tag,
+				SRC: src,
+			}
+			if dg != nil {
+				ent.Data = dg(ts)
+			}
+			if f != nil {
+				f(ent)
 			}
 			if err = conn.WriteEntry(ent); err != nil {
 				break loop
