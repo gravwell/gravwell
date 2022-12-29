@@ -38,7 +38,7 @@ func TestEnumeratedValueBlockEncodeDecode(t *testing.T) {
 	}
 
 	bb := bytes.NewBuffer(nil)
-	if err = evb.EncodeWriter(bb); err != nil {
+	if _, err = evb.EncodeWriter(bb); err != nil {
 		t.Fatal(err)
 	}
 

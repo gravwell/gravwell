@@ -317,7 +317,7 @@ func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) (int, error) {
 }
 
 func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
-	var flushed bool
+	var flushed, hasEvs bool
 	var err error
 	//if our conf buffer is full force an ack service
 	if ew.ecb.Full() {
@@ -338,7 +338,7 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 	binary.LittleEndian.PutUint32(ew.buff, uint32(NEW_ENTRY_MAGIC))
 
 	//build out the header with size
-	if err = ent.EncodeHeader(ew.buff[4 : entry.ENTRY_HEADER_SIZE+4]); err != nil {
+	if hasEvs, err = ent.EncodeHeader(ew.buff[4 : entry.ENTRY_HEADER_SIZE+4]); err != nil {
 		return false, err
 	}
 	binary.LittleEndian.PutUint64(ew.buff[entry.ENTRY_HEADER_SIZE+4:], uint64(ew.id))
@@ -357,6 +357,21 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 	if err = ew.writeAll(ent.Data); err != nil {
 		return false, err
 	}
+
+	//check if we need to send enumerated values too
+	if hasEvs {
+		//check if we need to flush
+		if evsz := ent.EVSize(); evsz > ew.bIO.Available() {
+			flushed = true
+			if err = ew.flush(); err != nil {
+				return false, err
+			}
+		}
+		if _, err = ent.EVEncodeWriter(ew.bIO); err != nil {
+			return false, err
+		}
+	}
+
 	if flush {
 		flushed = flush
 		if err = ew.flush(); err != nil {

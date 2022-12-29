@@ -9,6 +9,7 @@
 package entry
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"io"
@@ -79,7 +80,7 @@ func (ent *Entry) decodeHeader(buff []byte) (int, bool) {
 	var datasize uint32
 	var ipv4 bool
 	/* buffer should come formatted as follows:
-	data size uint32
+	data size uint32  //top 2 bits contain flags
 	TS seconds (int64)
 	TS nanoseconds (int64)
 	Tag (16bit)
@@ -89,7 +90,6 @@ func (ent *Entry) decodeHeader(buff []byte) (int, bool) {
 	datasize = binary.LittleEndian.Uint32(buff)
 	flags := uint8(datasize >> 30)
 	datasize &= flagMask // clear flags from datasize
-
 	//check if we are an ipv4 address
 	if (flags & flagIPv4) != 0 {
 		ipv4 = true
@@ -117,7 +117,7 @@ func (ent *Entry) decodeHeaderAlt(buff []byte) (int, bool) {
 	var datasize uint32
 	var ipv4 bool
 	/* buffer should come formatted as follows:
-	data size uint32
+	data size uint32  //top 2 bits contain flags
 	TS seconds (int64)
 	TS nanoseconds (int64)
 	Tag (16bit)
@@ -230,13 +230,13 @@ func (ent *Entry) DecodeAlt(buff []byte) (int, error) {
 	return off, nil
 }
 
-// EncodeHeader Encodes the header into the buffer for the file transport
-// think file indexer
-func (ent *Entry) EncodeHeader(buff []byte) error {
+// EncodeHeader Encodes the header into the buffer for the file transport think file indexer
+// EncodeHeader returns a boolean indicating if EVs are marked
+func (ent *Entry) EncodeHeader(buff []byte) (bool, error) {
 	if len(buff) < ENTRY_HEADER_SIZE {
-		return ErrInvalidBufferSize
+		return false, ErrInvalidBufferSize
 	} else if len(ent.Data) > int(MaxDataSize) {
-		return ErrDataSizeTooLarge
+		return false, ErrDataSizeTooLarge
 	}
 	/* buffer should come formatted as follows in littleendian format:
 	data size (uint32)
@@ -245,27 +245,41 @@ func (ent *Entry) EncodeHeader(buff []byte) error {
 	Tag (16bit)
 	SRC (16 bytes)
 	*/
+	var hasEvs bool
 	var flags uint8
 	if len(ent.SRC) == IPV4_SRC_SIZE {
 		flags |= flagIPv4
 	}
+	if ent.evb.Populated() {
+		flags |= flagEVs
+		hasEvs = true
+	}
 	binary.LittleEndian.PutUint32(buff, uint32(len(ent.Data)))
-	buff[0] |= flags
+	buff[3] |= (flags << 6) //mask in the flags
 	ent.TS.Encode(buff[4:16])
 	binary.LittleEndian.PutUint16(buff[16:], uint16(ent.Tag))
 	copy(buff[18:ENTRY_HEADER_SIZE], ent.SRC)
-	return nil
+	return hasEvs, nil
 }
 
-func (ent *Entry) Encode(buff []byte) error {
-	if err := ent.EncodeHeader(buff); err != nil {
-		return err
+func (ent *Entry) Encode(buff []byte) (int, error) {
+	hasEvs, err := ent.EncodeHeader(buff)
+	if err != nil {
+		return -1, err
 	}
 	if len(buff) < (len(ent.Data) + ENTRY_HEADER_SIZE) {
-		return ErrInvalidBufferSize
+		return -1, ErrInvalidBufferSize
 	}
 	copy(buff[ENTRY_HEADER_SIZE:], ent.Data)
-	return nil
+	r := len(ent.Data) + ENTRY_HEADER_SIZE
+	if hasEvs {
+		n, err := ent.evb.EncodeBuffer(buff[r:])
+		if err != nil {
+			return -1, err
+		}
+		r += n
+	}
+	return r, nil
 }
 
 func writeAll(wtr io.Writer, buff []byte) error {
@@ -298,17 +312,42 @@ func readAll(rdr io.Reader, buff []byte) error {
 	return nil
 }
 
-func (ent *Entry) EncodeWriter(wtr io.Writer) error {
+func (ent *Entry) EncodeWriter(wtr io.Writer) (int, error) {
 	headerBuff := make([]byte, ENTRY_HEADER_SIZE)
-	if err := ent.EncodeHeader(headerBuff); err != nil {
-		return err
+	hasEvs, err := ent.EncodeHeader(headerBuff)
+	if err != nil {
+		return -1, err
 	}
-	if n, err := wtr.Write(headerBuff); err != nil {
-		return err
+	n, err := wtr.Write(headerBuff)
+	if err != nil {
+		return -1, err
 	} else if n != ENTRY_HEADER_SIZE {
-		return ErrFailedHeaderWrite
+		return -1, ErrFailedHeaderWrite
+	} else if err = writeAll(wtr, ent.Data); err != nil {
+		return -1, err
+	} else {
+		n += len(ent.Data)
 	}
-	return writeAll(wtr, ent.Data)
+	if hasEvs {
+		nn, err := ent.evb.EncodeWriter(wtr)
+		if err != nil {
+			return -1, err
+		}
+		n += nn
+	}
+	return n, err
+}
+
+func (ent *Entry) EVCount() int {
+	return ent.evb.Count()
+}
+
+func (ent *Entry) EVSize() int {
+	return int(ent.evb.Size())
+}
+
+func (ent *Entry) EVEncodeWriter(wtr io.Writer) (int, error) {
+	return ent.evb.EncodeWriter(wtr)
 }
 
 type EntrySlice []Entry
@@ -330,7 +369,7 @@ func (es EntrySlice) EncodeWriter(wtr io.Writer) error {
 		return err
 	}
 	for i := range es {
-		if err := es[i].EncodeWriter(wtr); err != nil {
+		if _, err := es[i].EncodeWriter(wtr); err != nil {
 			return err
 		}
 	}
@@ -398,14 +437,10 @@ func (ent *Entry) ReadEVs(rdr io.Reader) error {
 }
 
 func (ent *Entry) MarshallBytes() ([]byte, error) {
-	buff := make([]byte, len(ent.Data)+ENTRY_HEADER_SIZE)
-	if err := ent.EncodeHeader(buff); err != nil {
+	buff := make([]byte, ent.Size())
+	if _, err := ent.Encode(buff); err != nil {
 		return nil, err
 	}
-	if len(buff) < (len(ent.Data) + ENTRY_HEADER_SIZE) {
-		return nil, ErrInvalidBufferSize
-	}
-	copy(buff[ENTRY_HEADER_SIZE:], ent.Data)
 	return buff, nil
 }
 
@@ -416,4 +451,25 @@ func (ent *Entry) DeepCopy() (c Entry) {
 	c.Tag = ent.Tag
 	c.Data = append([]byte(nil), ent.Data...)
 	return
+}
+
+func (ent *Entry) Compare(v *Entry) error {
+	if ent == nil {
+		if v == nil {
+			return nil
+		}
+		return errors.New("mismatched nil")
+	} else if v == nil {
+		return errors.New("mismatched nil")
+	}
+	if ent.TS != v.TS {
+		return errors.New("differing timestamp")
+	} else if ent.Tag != v.Tag {
+		return errors.New("differing tags")
+	} else if bytes.Compare(ent.SRC, v.SRC) != 0 {
+		return errors.New("differeing source values")
+	} else if bytes.Compare(ent.Data, v.Data) != 0 {
+		return errors.New("differing data")
+	}
+	return ent.evb.Compare(v.evb)
 }

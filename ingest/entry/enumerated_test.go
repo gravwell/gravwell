@@ -185,7 +185,7 @@ func testEVCycle(a interface{}) (err error) {
 	}
 
 	bb := bytes.NewBuffer(nil)
-	if err = ev.EncodeWriter(bb); err != nil {
+	if _, err = ev.EncodeWriter(bb); err != nil {
 		return fmt.Errorf("Failed to encode into a writer: %v", err)
 	}
 

@@ -229,18 +229,19 @@ func (eb *EntryBlock) encode(buff []byte) (int, error) {
 		return 0, ErrInvalidDestBuff
 	}
 	//encode each of the entries
-	offset := uint64(0)
+	offset := int(0)
 	for i := range eb.entries {
-		sz := eb.entries[i].Size()
-		if (offset + sz) > uint64(len(buff)) {
+		sz := int(eb.entries[i].Size())
+		if (offset + sz) > len(buff) {
 			return 0, ErrInvalidDestBuff
 		}
-		if err := eb.entries[i].Encode(buff[offset:(offset + sz)]); err != nil {
+		if n, err := eb.entries[i].Encode(buff[offset:(offset + sz)]); err != nil {
 			return 0, err
+		} else {
+			offset += n
 		}
-		offset += sz
 	}
-	return int(offset), nil
+	return offset, nil
 }
 
 // EncodeAppend takes the current buffer, and appends addional entries to the buffer

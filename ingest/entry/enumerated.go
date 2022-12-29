@@ -113,9 +113,9 @@ func (ev EnumeratedValue) encode(r []byte) (n int, err error) {
 }
 
 // EncodeWriter will encode an enumerated value into a writer
-func (ev EnumeratedValue) EncodeWriter(w io.Writer) error {
+func (ev EnumeratedValue) EncodeWriter(w io.Writer) (int, error) {
 	if !ev.Valid() {
-		return ErrInvalid
+		return -1, ErrInvalid
 	}
 	r := make([]byte, evHeaderLen)
 	//drop the header
@@ -125,11 +125,13 @@ func (ev EnumeratedValue) EncodeWriter(w io.Writer) error {
 	r[6] = ev.Value.evtype
 	r[7] = 0
 	if err := writeAll(w, r); err != nil {
-		return err //failed to write header
+		return -1, err //failed to write header
 	} else if err = writeAll(w, []byte(ev.Name)); err != nil {
-		return err //failed to write name
+		return -1, err //failed to write name
+	} else if err = writeAll(w, ev.Value.data); err != nil {
+		return -1, err
 	}
-	return writeAll(w, ev.Value.data)
+	return evHeaderLen + len(ev.Name) + len(ev.Value.data), nil
 }
 
 // Decode will attempt to decode an enumerated value from a byte slice, if the Encode will pack the enumerated value into a byte slice.  Invalid EVs return nil
