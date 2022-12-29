@@ -29,8 +29,8 @@ var (
 	ErrEnumeratedValueBlockCorrupt      = errors.New("enumerated value block buffer is corrupted")
 )
 
-// evblockheader type expressed for documentation, defines transport header for evlocks
-type evblockheader struct {
+// EVBlockHeader type expressed for documentation, defines transport header for evlocks
+type EVBlockHeader struct {
 	size  uint32 //this is the complete size, including the header
 	count uint16
 	delim uint16
@@ -211,7 +211,7 @@ func (eb *evblock) Decode(b []byte) (int, error) {
 	if len(b) < evblockHeaderLen {
 		return -1, ErrInvalidBufferSize
 	}
-	h, err := decodeEvblockHeader(b)
+	h, err := DecodeEVBlockHeader(b)
 	if err != nil {
 		return -1, err
 	} else if int(h.size) > len(b) {
@@ -255,7 +255,7 @@ func (eb *evblock) DecodeAlt(b []byte) (int, error) {
 	if len(b) < evblockHeaderLen {
 		return -1, ErrInvalidBufferSize
 	}
-	h, err := decodeEvblockHeader(b)
+	h, err := DecodeEVBlockHeader(b)
 	if err != nil {
 		return -1, err
 	} else if int(h.size) > len(b) {
@@ -288,7 +288,7 @@ func (eb *evblock) DecodeAlt(b []byte) (int, error) {
 
 // DecodeReader decodes an evblock directly from a buffer
 func (eb *evblock) DecodeReader(r io.Reader) (int, error) {
-	var h evblockheader
+	var h EVBlockHeader
 	var err error
 	eb.size = 0
 	if eb.evs != nil {
@@ -301,7 +301,7 @@ func (eb *evblock) DecodeReader(r io.Reader) (int, error) {
 		return -1, nil
 	}
 
-	if h, err = decodeEvblockHeader(buff); err != nil {
+	if h, err = DecodeEVBlockHeader(buff); err != nil {
 		return -1, err
 	}
 
@@ -324,12 +324,12 @@ func (eb *evblock) DecodeReader(r io.Reader) (int, error) {
 	return total, nil
 }
 
-func decodeEvblockHeader(buff []byte) (h evblockheader, err error) {
+func DecodeEVBlockHeader(buff []byte) (h EVBlockHeader, err error) {
 	h.size = binary.LittleEndian.Uint32(buff)
 	h.count = binary.LittleEndian.Uint16(buff[4:])
 	h.delim = binary.LittleEndian.Uint16(buff[6:])
 	if h.delim != 0 || h.count > MaxEvBlockCount || h.size > MaxEvBlockSize {
-		fmt.Println("decodeEvblockHeader", h.delim, h.count, h.size)
+		fmt.Println("DecodeEVBlockHeader", h.delim, h.count, h.size)
 		debug.PrintStack()
 		err = ErrEnumeratedValueBlockCorrupt
 		return

@@ -75,9 +75,7 @@ func (ent *Entry) Size() uint64 {
 	return uint64(len(ent.Data)) + uint64(ENTRY_HEADER_SIZE) + ent.evb.Size()
 }
 
-// decodeHeader copies copies the SRC buffer
-func (ent *Entry) decodeHeader(buff []byte) (int, bool) {
-	var datasize uint32
+func DecodeHeader(buff []byte) (ts Timestamp, src net.IP, tag EntryTag, hasEvs bool, datasize uint32) {
 	var ipv4 bool
 	/* buffer should come formatted as follows:
 	data size uint32  //top 2 bits contain flags
@@ -86,61 +84,43 @@ func (ent *Entry) decodeHeader(buff []byte) (int, bool) {
 	Tag (16bit)
 	SRC (16 bytes)
 	*/
+
 	//decode the datasize and grab the flags from the datasize
 	datasize = binary.LittleEndian.Uint32(buff)
 	flags := uint8(datasize >> 30)
 	datasize &= flagMask // clear flags from datasize
+	hasEvs = ((flags & flagEVs) != 0)
+
 	//check if we are an ipv4 address
 	if (flags & flagIPv4) != 0 {
 		ipv4 = true
 	}
-
-	ent.TS.Decode(buff[4:])
-	ent.Tag = EntryTag(binary.LittleEndian.Uint16(buff[16:]))
+	ts.Decode(buff[4:])
+	tag = EntryTag(binary.LittleEndian.Uint16(buff[16:]))
 	if ipv4 {
-		if len(ent.SRC) < IPV4_SRC_SIZE {
-			ent.SRC = make([]byte, IPV4_SRC_SIZE)
-		}
-		copy(ent.SRC, buff[18:22])
-		ent.SRC = ent.SRC[:4]
+		src = buff[18:22]
 	} else {
-		if len(ent.SRC) < SRC_SIZE {
-			ent.SRC = make([]byte, SRC_SIZE)
-		}
-		copy(ent.SRC, buff[18:ENTRY_HEADER_SIZE])
+		src = buff[18:ENTRY_HEADER_SIZE]
 	}
-	return int(datasize), (flags & flagEVs) != 0
+	return
+}
+
+// decodeHeader copies copies the SRC buffer
+func (ent *Entry) decodeHeader(buff []byte) (int, bool) {
+	var hasEvs bool
+	var datasize uint32
+	var src net.IP
+	ent.TS, src, ent.Tag, hasEvs, datasize = DecodeHeader(buff)
+	ent.SRC = append(net.IP(nil), src...)
+	return int(datasize), hasEvs
 }
 
 // decodeHeaderAlt gets a direct handle on the SRC buffer
 func (ent *Entry) decodeHeaderAlt(buff []byte) (int, bool) {
+	var hasEvs bool
 	var datasize uint32
-	var ipv4 bool
-	/* buffer should come formatted as follows:
-	data size uint32  //top 2 bits contain flags
-	TS seconds (int64)
-	TS nanoseconds (int64)
-	Tag (16bit)
-	SRC (16 bytes)
-	*/
-
-	//decode the datasize and grab the flags from the datasize
-	datasize = binary.LittleEndian.Uint32(buff)
-	flags := uint8(datasize >> 30)
-	datasize &= flagMask // clear flags from datasize
-
-	//check if we are an ipv4 address
-	if (flags & flagIPv4) != 0 {
-		ipv4 = true
-	}
-	ent.TS.Decode(buff[4:])
-	ent.Tag = EntryTag(binary.LittleEndian.Uint16(buff[16:]))
-	if ipv4 {
-		ent.SRC = buff[18:22]
-	} else {
-		ent.SRC = buff[18:ENTRY_HEADER_SIZE]
-	}
-	return int(datasize), (flags & flagEVs) != 0
+	ent.TS, ent.SRC, ent.Tag, hasEvs, datasize = DecodeHeader(buff)
+	return int(datasize), hasEvs
 }
 
 func (ent *Entry) DecodeHeader(buff []byte) (int, bool, error) {

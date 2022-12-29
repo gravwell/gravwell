@@ -27,7 +27,7 @@ func TestEncodeDecodeHeader(t *testing.T) {
 	}
 	//encode the header
 	b := make([]byte, ENTRY_HEADER_SIZE)
-	if err := e.EncodeHeader(b); err != nil {
+	if _, err := e.EncodeHeader(b); err != nil {
 		t.Fatal(err)
 	}
 	var e2 Entry
