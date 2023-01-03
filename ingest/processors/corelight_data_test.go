@@ -467,6 +467,43 @@ const smtp1_in = `{
   ]
 }`
 
+// only difference is we are testing a tab in the encoded JSON gets turned into a space
+const smtp2_out = `1254722768.219663	C1qe8w3QHRF2N5tVV5	10.10.1.4	1470	74.53.140.153	25	1	GP	gurpartap@patriots.in	[raj_deol2002in@yahoo.co.in]	Mon, 5 Oct 2009 11:36:07 +0530	"Gurpartap Singh" <gurpartap@patriots.in>	[<raj_deol2002in@yahoo.co.in>]	-	-	<000301ca4581$ef9e57f0$cedb07d0$@in>	-	SMTP	-	-	-	250 OK id=1Mugho-0003Dg-Un	[74.53.140.153 10.10.1.4]	Microsoft Office Outlook 12.0	false`
+const smtp2_in = `{
+  "_path": "smtp",
+  "ts": "1254722768.219663",
+  "uid": "C1qe8w3QHRF2N5tVV5",
+  "id.orig_h": "10.10.1.4",
+  "id.orig_p": 1470,
+  "id.resp_h": "74.53.140.153",
+  "id.resp_p": 25,
+  "trans_depth": 1,
+  "helo": "GP",
+  "mailfrom": "gurpartap@patriots.in",
+  "rcptto": [
+    "raj_deol2002in@yahoo.co.in"
+  ],
+  "date": "Mon, 5 Oct 2009 11:36:07 +0530",
+  "from": "\"Gurpartap Singh\" <gurpartap@patriots.in>",
+  "to": [
+    "<raj_deol2002in@yahoo.co.in>"
+  ],
+  "msg_id": "<000301ca4581$ef9e57f0$cedb07d0$@in>",
+  "subject": "SMTP",
+  "last_reply": "250 OK id=1Mugho-0003Dg-Un",
+  "path": [
+    "74.53.140.153",
+    "10.10.1.4"
+  ],
+  "user_agent": "Microsoft\tOffice Outlook 12.0",
+  "tls": false,
+  "fuids": [
+    "Fel9gs4OtNEV6gUJZ5",
+    "Ft4M3f2yMvLlmwtbq9",
+    "FL9Y0d45OI4LpS6fmh"
+  ]
+}`
+
 const pe1_out = `1600820676.395445	FGYKX64SkXc4OcvlFf	AMD64	2020-09-19T00:10:08.000000Z	Windows XP x64 or Server 2003	WINDOWS_GUI	true	true	true	true	false	true	true	true	true	[.text .rdata .data .pdata .00cfg .rsrc .reloc]`
 const pe1_in = `{
   "_path": "pe",
