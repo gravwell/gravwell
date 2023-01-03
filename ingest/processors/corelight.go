@@ -208,9 +208,18 @@ func (c *Corelight) getTagTs(mp map[string]interface{}) (tag string, ts time.Tim
 	return
 }
 
+func tabReplace(v rune) rune {
+	if v == '\t' {
+		return ' '
+	}
+	return v
+}
+
 func emitLine(ts time.Time, headers []string, mp map[string]interface{}) (line []byte, ok bool) {
 	bb := bytes.NewBuffer(nil)
 	var f64 float64
+	var s string
+	var bts []byte
 	fmt.Fprintf(bb, "%.6f", float64(ts.UnixNano())/1000000000.0)
 	for _, h := range headers[1:] { //always skip the TS
 		if v, ok := mp[h]; ok {
@@ -220,6 +229,10 @@ func emitLine(ts time.Time, headers []string, mp map[string]interface{}) (line [
 				} else {
 					fmt.Fprintf(bb, "\t%.5f", f64)
 				}
+			} else if s, ok = v.(string); ok {
+				fmt.Fprintf(bb, "\t%s", strings.Map(tabReplace, s))
+			} else if bts, ok = v.([]byte); ok {
+				fmt.Fprintf(bb, "\t%s", string(bytes.Map(tabReplace, bts)))
 			} else {
 				fmt.Fprintf(bb, "\t%v", v)
 			}
