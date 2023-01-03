@@ -196,16 +196,21 @@ func testEVCycle(a interface{}) (err error) {
 
 	//decode using a buffer
 	var ev2 EnumeratedValue
-	if err := ev2.Decode(bts); err != nil {
+	if n, err := ev2.Decode(bts); err != nil {
 		return fmt.Errorf("failed to decode from buffer: %v", err)
+	} else if n != len(bts) {
+		return fmt.Errorf("Decode byte count invalid: %x != %x", n, len(bts))
 	} else if err = ev.Compare(ev2); err != nil {
 		return fmt.Errorf("Encode/Decode mismatch: %v", err)
 	}
 
 	//decode using a reader
 	var ev3 EnumeratedValue
-	if err := ev3.DecodeReader(bb); err != nil {
+	l := bb.Len()
+	if n, err := ev3.DecodeReader(bb); err != nil {
 		return fmt.Errorf("failed to decode from reader: %v", err)
+	} else if n != l {
+		return fmt.Errorf("Decode byte count invalid: %x != %x", n, l)
 	} else if err = ev3.Compare(ev2); err != nil {
 		return fmt.Errorf("Encode/Decode mismatch: %v", err)
 	} else if err = ev3.Compare(ev); err != nil {
@@ -214,8 +219,10 @@ func testEVCycle(a interface{}) (err error) {
 
 	//decode with Alt interface
 	var ev4 EnumeratedValue
-	if err := ev4.Decode(bts); err != nil {
+	if n, err := ev4.Decode(bts); err != nil {
 		return fmt.Errorf("failed to decode from buffer: %v", err)
+	} else if n != len(bts) {
+		return fmt.Errorf("Decode byte count invalid: %x != %x", n, len(bts))
 	} else if err = ev.Compare(ev4); err != nil {
 		return fmt.Errorf("Encode/Decode mismatch: %v", err)
 	}

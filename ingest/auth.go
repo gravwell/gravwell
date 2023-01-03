@@ -26,7 +26,7 @@ const (
 	// The number of times to hash the shared secret
 	HASH_ITERATIONS uint16 = 16
 	// Auth protocol version number
-	VERSION uint16 = 0x7
+	VERSION uint16 = 0x8
 	// Authenticated, but not ready for ingest
 	STATE_AUTHENTICATED uint32 = 0xBEEF42
 	// Not authenticated

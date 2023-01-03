@@ -13,11 +13,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"runtime/debug"
 )
 
 const (
-	evblockHeaderLen = 8
+	EVBlockHeaderLen = 8
 	MaxEvBlockCount  = 0xffff           //bonkers, but we need to be safe
 	MaxEvBlockSize   = 1024 * 1024 * 32 //not too lean, but let's remove opportunity for crazy memory pressure
 
@@ -31,8 +30,8 @@ var (
 
 // EVBlockHeader type expressed for documentation, defines transport header for evlocks
 type EVBlockHeader struct {
-	size  uint32 //this is the complete size, including the header
-	count uint16
+	Size  uint32 //this is the complete size, including the header
+	Count uint16
 	delim uint16
 }
 
@@ -50,7 +49,7 @@ type evblock struct {
 // Add adds an enumerated value to an evbloc, this function keeps a running tally of size for fast query
 func (eb *evblock) Add(ev EnumeratedValue) {
 	if eb.size == 0 {
-		eb.size = evblockHeaderLen
+		eb.size = EVBlockHeaderLen
 	}
 	eb.size += uint64(ev.Size())
 	eb.evs = append(eb.evs, ev)
@@ -118,7 +117,7 @@ func (eb evblock) Encode() (bts []byte, err error) {
 	bts[7] = 0
 
 	// now loop on Evs encoding into the buffer
-	evb := bts[evblockHeaderLen:] // get a handle on a dedicated buffer we can iterate on
+	evb := bts[EVBlockHeaderLen:] // get a handle on a dedicated buffer we can iterate on
 	for _, ev := range eb.evs {
 		var n int
 		if n, err = ev.encode(evb); err != nil {
@@ -150,10 +149,10 @@ func (eb evblock) EncodeBuffer(bts []byte) (r int, err error) {
 	bts[6] = 0
 	bts[7] = 0
 
-	r = evblockHeaderLen
+	r = EVBlockHeaderLen
 
 	// now loop on Evs encoding into the buffer
-	evb := bts[evblockHeaderLen:] // get a handle on a dedicated buffer we can iterate on
+	evb := bts[EVBlockHeaderLen:] // get a handle on a dedicated buffer we can iterate on
 	for _, ev := range eb.evs {
 		var n int
 		if n, err = ev.encode(evb); err != nil {
@@ -174,7 +173,7 @@ func (eb evblock) EncodeWriter(w io.Writer) (r int, err error) {
 	if err = eb.Valid(); err != nil {
 		return
 	}
-	bts := make([]byte, evblockHeaderLen)
+	bts := make([]byte, EVBlockHeaderLen)
 	//encode the header
 	binary.LittleEndian.PutUint32(bts, uint32(eb.size))
 	binary.LittleEndian.PutUint16(bts[4:], uint16(len(eb.evs)))
@@ -185,7 +184,7 @@ func (eb evblock) EncodeWriter(w io.Writer) (r int, err error) {
 	if err = writeAll(w, bts); err != nil {
 		return
 	}
-	r = evblockHeaderLen
+	r = EVBlockHeaderLen
 
 	//now go write the individual EVs
 	for _, ev := range eb.evs {
@@ -208,22 +207,22 @@ func (eb *evblock) Decode(b []byte) (int, error) {
 	}
 
 	//check if the buffer is big enough for the header
-	if len(b) < evblockHeaderLen {
+	if len(b) < EVBlockHeaderLen {
 		return -1, ErrInvalidBufferSize
 	}
 	h, err := DecodeEVBlockHeader(b)
 	if err != nil {
 		return -1, err
-	} else if int(h.size) > len(b) {
+	} else if int(h.Size) > len(b) {
 		return -1, ErrEnumeratedValueBlockCorrupt
 	}
 
 	//advance past the header on the buffer so we can iterate
-	total := int(evblockHeaderLen)
-	b = b[evblockHeaderLen:]
-	for i := uint16(0); i < h.count; i++ {
+	total := int(EVBlockHeaderLen)
+	b = b[EVBlockHeaderLen:]
+	for i := uint16(0); i < h.Count; i++ {
 		var ev EnumeratedValue
-		if n, err := ev.decode(b); err != nil {
+		if n, err := ev.Decode(b); err != nil {
 			return -1, err
 		} else if n > len(b) {
 			return -1, ErrCorruptedEnumeratedValue
@@ -235,7 +234,7 @@ func (eb *evblock) Decode(b []byte) (int, error) {
 	}
 
 	//now check if we actually consumed what the header said we should, this should all match perfectly
-	if total != int(h.size) {
+	if total != int(h.Size) {
 		return -1, ErrCorruptedEnumeratedValue
 	}
 	eb.size = uint64(total)
@@ -252,22 +251,22 @@ func (eb *evblock) DecodeAlt(b []byte) (int, error) {
 	}
 
 	//check if the buffer is big enough for the header
-	if len(b) < evblockHeaderLen {
+	if len(b) < EVBlockHeaderLen {
 		return -1, ErrInvalidBufferSize
 	}
 	h, err := DecodeEVBlockHeader(b)
 	if err != nil {
 		return -1, err
-	} else if int(h.size) > len(b) {
+	} else if int(h.Size) > len(b) {
 		return -1, ErrEnumeratedValueBlockCorrupt
 	}
 
 	//advance past the header on the buffer so we can iterate
-	total := int(evblockHeaderLen)
-	b = b[evblockHeaderLen:]
-	for i := uint16(0); i < h.count; i++ {
+	total := int(EVBlockHeaderLen)
+	b = b[EVBlockHeaderLen:]
+	for i := uint16(0); i < h.Count; i++ {
 		var ev EnumeratedValue
-		if n, err := ev.decodeAlt(b); err != nil {
+		if n, err := ev.DecodeAlt(b); err != nil {
 			return -1, err
 		} else if n > len(b) {
 			return -1, ErrCorruptedEnumeratedValue
@@ -279,7 +278,7 @@ func (eb *evblock) DecodeAlt(b []byte) (int, error) {
 	}
 
 	//now check if we actually consumed what the header said we should, this should all match perfectly
-	if total != int(h.size) {
+	if total != int(h.Size) {
 		return -1, ErrCorruptedEnumeratedValue
 	}
 	eb.size = uint64(total)
@@ -296,7 +295,7 @@ func (eb *evblock) DecodeReader(r io.Reader) (int, error) {
 	}
 
 	//get the header and check it
-	buff := make([]byte, evblockHeaderLen)
+	buff := make([]byte, EVBlockHeaderLen)
 	if err = readAll(r, buff); err != nil {
 		return -1, nil
 	}
@@ -305,11 +304,11 @@ func (eb *evblock) DecodeReader(r io.Reader) (int, error) {
 		return -1, err
 	}
 
-	total := int(evblockHeaderLen)
-	for i := uint16(0); i < h.count; i++ {
+	total := int(EVBlockHeaderLen)
+	for i := uint16(0); i < h.Count; i++ {
 		var ev EnumeratedValue
 		var n int
-		if n, err = ev.decodeReader(r); err != nil {
+		if n, err = ev.DecodeReader(r); err != nil {
 			return -1, err
 		}
 		total += n
@@ -317,7 +316,7 @@ func (eb *evblock) DecodeReader(r io.Reader) (int, error) {
 	}
 
 	//now check if we actually consumed what the header said we should, this should all match perfectly
-	if total != int(h.size) {
+	if total != int(h.Size) {
 		return -1, ErrCorruptedEnumeratedValue
 	}
 	eb.size = uint64(total)
@@ -325,12 +324,10 @@ func (eb *evblock) DecodeReader(r io.Reader) (int, error) {
 }
 
 func DecodeEVBlockHeader(buff []byte) (h EVBlockHeader, err error) {
-	h.size = binary.LittleEndian.Uint32(buff)
-	h.count = binary.LittleEndian.Uint16(buff[4:])
+	h.Size = binary.LittleEndian.Uint32(buff)
+	h.Count = binary.LittleEndian.Uint16(buff[4:])
 	h.delim = binary.LittleEndian.Uint16(buff[6:])
-	if h.delim != 0 || h.count > MaxEvBlockCount || h.size > MaxEvBlockSize {
-		fmt.Println("DecodeEVBlockHeader", h.delim, h.count, h.size)
-		debug.PrintStack()
+	if h.delim != 0 || h.Count > MaxEvBlockCount || h.Size > MaxEvBlockSize {
 		err = ErrEnumeratedValueBlockCorrupt
 		return
 	}
@@ -351,4 +348,24 @@ func (eb evblock) Compare(eb2 evblock) error {
 		}
 	}
 	return nil
+}
+
+func (eb evblock) DeepCopy() (r evblock) {
+	if eb.size == 0 || len(eb.evs) == 0 {
+		return
+	}
+	r = evblock{
+		size: eb.size,
+		evs:  make([]EnumeratedValue, 0, len(eb.evs)),
+	}
+	for _, ev := range eb.evs {
+		r.evs = append(r.evs, EnumeratedValue{
+			Name: ev.Name, //strings are immuntable, no need to copy
+			Value: EnumeratedData{
+				evtype: ev.Value.evtype,
+				data:   append([]byte(nil), ev.Value.data...),
+			},
+		})
+	}
+	return
 }

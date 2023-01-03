@@ -40,6 +40,7 @@ const (
 	MINIMUM_INGEST_OK_VERSION       uint16        = 0x4 // minimum server version to ask
 	MINIMUM_DYN_CONFIG_VERSION      uint16        = 0x5 // minimum server version to send dynamic config block
 	MINIMUM_INGEST_STATE_VERSION    uint16        = 0x6 // minimum server version to send detailed ingester state messages
+	MINIMUM_INGEST_EV_VERSION       uint16        = 0x8 // minimum server version to send enumerated values attached to entries
 	maxThrottleDur                  time.Duration = 5 * time.Second
 
 	flushTimeout time.Duration = 10 * time.Second
@@ -332,6 +333,17 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 	//check that we aren't attempting to write an entry that is too large
 	if len(ent.Data) > MAX_ENTRY_SIZE {
 		return false, ErrOversizedEntry
+	}
+
+	// if the server is too old stip Evs from theentry
+	if ew.serverVersion < MINIMUM_INGEST_EV_VERSION {
+		//make a new local entry with no EVs
+		ent = &entry.Entry{
+			TS:   ent.TS,
+			Tag:  ent.Tag,
+			SRC:  ent.SRC,
+			Data: ent.Data,
+		}
 	}
 
 	//throw the magic

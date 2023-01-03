@@ -79,6 +79,18 @@ func (ev EnumeratedValue) Size() int {
 	return len(ev.Name) + len(ev.Value.data) + evHeaderLen
 }
 
+// TypeID returns the underlying type identifier used to cast a raw buffer across types
+// this is just a little accessor used to get raw access to fields without exposing them for assignment
+func (ev EnumeratedValue) TypeID() uint8 {
+	return ev.Value.evtype
+}
+
+// ValueBuff returns the underlying buffer representing the enumerated values data
+// this is just a little accessor used to get raw access to fields without exposing them for assignment
+func (ev EnumeratedValue) ValueBuff() []byte {
+	return ev.Value.data
+}
+
 // Encode will pack the enumerated value into a byte slice.  Invalid EVs return nil
 func (ev EnumeratedValue) Encode() []byte {
 	if !ev.Valid() {
@@ -134,16 +146,10 @@ func (ev EnumeratedValue) EncodeWriter(w io.Writer) (int, error) {
 	return evHeaderLen + len(ev.Name) + len(ev.Value.data), nil
 }
 
-// Decode will attempt to decode an enumerated value from a byte slice, if the Encode will pack the enumerated value into a byte slice.  Invalid EVs return nil
-func (ev *EnumeratedValue) Decode(r []byte) (err error) {
-	_, err = ev.decode(r)
-	return
-}
-
-// decode is a helper function that returns how much of the buffer we consumed
+// Decode is a helper function that returns how much of the buffer we consumed
 // this is used for decoding evblocks
 // This function will make a copy of all referenced bytes so that the provided buffer can be re-used
-func (ev *EnumeratedValue) decode(r []byte) (n int, err error) {
+func (ev *EnumeratedValue) Decode(r []byte) (n int, err error) {
 	var h evheader
 	if h, err = decodeHeader(r); err != nil {
 		return -1, err
@@ -165,11 +171,11 @@ func (ev *EnumeratedValue) decode(r []byte) (n int, err error) {
 	return
 }
 
-// decodeAlt is a helper function that returns how much of the buffer we consumed
+// DcodeAlt is a helper function that returns how much of the buffer we consumed
 // this is used for decoding evblocks
 // This function will will directly reference the underlying buffer.
 // Callers cannot re-use the buffer if the enumerated values are enumerated values are in use
-func (ev *EnumeratedValue) decodeAlt(r []byte) (n int, err error) {
+func (ev *EnumeratedValue) DecodeAlt(r []byte) (n int, err error) {
 	var h evheader
 	if h, err = decodeHeader(r); err != nil {
 		return -1, err
@@ -191,12 +197,7 @@ func (ev *EnumeratedValue) decodeAlt(r []byte) (n int, err error) {
 	return
 }
 
-func (ev *EnumeratedValue) DecodeReader(r io.Reader) error {
-	_, err := ev.decodeReader(r)
-	return err
-}
-
-func (ev *EnumeratedValue) decodeReader(r io.Reader) (int, error) {
+func (ev *EnumeratedValue) DecodeReader(r io.Reader) (int, error) {
 	var h evheader
 	//read out the header
 	buff := make([]byte, evHeaderLen)

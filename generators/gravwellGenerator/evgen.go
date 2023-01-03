@@ -17,7 +17,7 @@ import (
 )
 
 func genDataEnumeratedValue(ts time.Time) []byte {
-	return []byte(ts.Format(time.RFC3339Nano))
+	return []byte(`CheckEVs, nothing interesting here`)
 }
 
 func finEnumeratedValue(ent *entry.Entry) {
@@ -31,4 +31,5 @@ func finEnumeratedValue(ent *entry.Entry) {
 	ent.AddEnumeratedValueEx(`delay`, time.Since(ent.TS.StandardTime()))
 	ent.AddEnumeratedValueEx(`now`, time.Now())
 	ent.AddEnumeratedValueEx(`stuff`, rd.Paragraph())
+	ent.AddEnumeratedValueEx(`email`, rd.Email())
 }

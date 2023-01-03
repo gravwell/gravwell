@@ -53,6 +53,16 @@ func (ent *Entry) Key() EntryKey {
 	return EntryKey(ent.TS.Sec)
 }
 
+// EnumeratedValues returns the slice of enumerated values, this is an accessor to prevent direct assignment
+func (ent Entry) EnumeratedValues() []EnumeratedValue {
+	return ent.evb.Values()
+}
+
+// ClearEnumeratedValues is a convienence function to remove all enumerated values
+func (ent *Entry) ClearEnumeratedValues() {
+	ent.evb.Reset()
+}
+
 func (ent *Entry) AddEnumeratedValue(ev EnumeratedValue) (err error) {
 	if ev.Valid() {
 		ent.evb.Add(ev)
@@ -75,6 +85,7 @@ func (ent *Entry) Size() uint64 {
 	return uint64(len(ent.Data)) + uint64(ENTRY_HEADER_SIZE) + ent.evb.Size()
 }
 
+// DecodeHeader hands back a completely decoded header with direct references to the underlying data
 func DecodeHeader(buff []byte) (ts Timestamp, src net.IP, tag EntryTag, hasEvs bool, datasize uint32) {
 	var ipv4 bool
 	/* buffer should come formatted as follows:
@@ -102,6 +113,56 @@ func DecodeHeader(buff []byte) (ts Timestamp, src net.IP, tag EntryTag, hasEvs b
 	} else {
 		src = buff[18:ENTRY_HEADER_SIZE]
 	}
+	return
+}
+
+// DecodeHeaderTagSec checks that the buffer is big enough for a header then ONLY extracts the tag and second component of the timestamp
+// this function is used for rapidly scanning an entry header to decide if we want to decode it
+// we assume the caller has already ensured that the buffer is large enough to at least contain a header
+func DecodeHeaderTagSec(buff []byte) (tag EntryTag, sec int64) {
+	tag = EntryTag(binary.LittleEndian.Uint16(buff[16:]))
+	sec = int64(binary.LittleEndian.Uint64(buff[4:]))
+	return
+}
+
+// EntrySize just decodes enough of the header to decide the actual encoded size of an entry
+// this function is typically used for rapidly skipping an entry
+func EntrySize(buff []byte) (n int, err error) {
+	if len(buff) < ENTRY_HEADER_SIZE {
+		err = ErrInvalidHeader
+		return
+	}
+	datasize := binary.LittleEndian.Uint32(buff)
+	flags := uint8(datasize >> 30)
+
+	n = int(datasize & flagMask) // clear flags from datasize
+	if len(buff) < n {
+		err = ErrInvalidBufferSize
+		return
+	}
+	if (flags & flagEVs) == 0 {
+		return
+	}
+
+	//we have EVs, check the buffer again
+	var hdr EVBlockHeader
+	if hdr, err = DecodeEVBlockHeader(buff[n:]); err == nil {
+		n += int(hdr.Size)
+	}
+	return
+}
+
+// DecodePartialHeader decodes only the timestamp second, tag, hasEvs, and DataSize
+// this function is used for quickly scanning through entries in their encoded form
+func DecodePartialHeader(buff []byte) (ts Timestamp, tag EntryTag, ipv4, hasEvs bool, datasize uint32) {
+	//decode the datasize and grab the flags from the datasize
+	datasize = binary.LittleEndian.Uint32(buff)
+	flags := uint8(datasize >> 30)
+	datasize &= flagMask // clear flags from datasize
+	hasEvs = ((flags & flagEVs) != 0)
+	ipv4 = ((flags & flagIPv4) != 0)
+	tag = EntryTag(binary.LittleEndian.Uint16(buff[16:]))
+	ts.Decode(buff[4:])
 	return
 }
 
@@ -427,9 +488,14 @@ func (ent *Entry) MarshallBytes() ([]byte, error) {
 // DeepCopy provides a complete copy of an entry, this is REALLY expensive, so make sure its worth it
 func (ent *Entry) DeepCopy() (c Entry) {
 	c.TS = ent.TS
-	c.SRC = append(net.IP(nil), ent.SRC...)
+	if len(ent.SRC) > 0 {
+		c.SRC = append(net.IP(nil), ent.SRC...)
+	}
 	c.Tag = ent.Tag
-	c.Data = append([]byte(nil), ent.Data...)
+	if len(ent.Data) > 0 {
+		c.Data = append([]byte(nil), ent.Data...)
+	}
+	c.evb = ent.evb.DeepCopy()
 	return
 }
 
