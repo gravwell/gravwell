@@ -288,6 +288,12 @@ func (c *Client) ConfigureMail(user, pass, server string, port uint16, useTLS, n
 	return c.postStaticURL(MAIL_CONFIGURE_URL, &msg, nil)
 }
 
+// DeleteMailConfiguration removes a users mail configuration fom preferences
+// this completely uninstalls any mail configs
+func (c *Client) DeleteMailConfig() error {
+	return c.methodStaticPushURL(http.MethodDelete, MAIL_CONFIGURE_URL, nil, nil, http.StatusOK, http.StatusNotFound)
+}
+
 // WellData returns information about the storage wells on the indexers.
 // The return value is a map of indexer name strings to IndexerWellData objects.
 func (c *Client) WellData() (mp map[string]types.IndexerWellData, err error) {
