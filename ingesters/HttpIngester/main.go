@@ -78,7 +78,7 @@ func init() {
 			ingest.PrintVersion(fout)
 			log.PrintOSInfo(fout)
 			//file created, dup it
-			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
+			if err := syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
 				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
 				fout.Close()
 			}
