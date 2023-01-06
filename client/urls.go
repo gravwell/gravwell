@@ -58,6 +58,7 @@ const (
 	GROUP_MACROS_URL                 = `/api/groups/%d/macros`
 	GROUP_URL                        = `/api/groups`
 	SEARCH_CTRL_LIST_URL             = `/api/searchctrl`
+	SEARCH_CTRL_LIST_DETAILS_URL     = `/api/searchctrl/details`
 	SEARCH_CTRL_LIST_ALL_URL         = `/api/searchctrl/all`
 	SEARCH_CTRL_URL                  = `/api/searchctrl/%s`
 	SEARCH_CTRL_DETAILS              = `/api/searchctrl/%s/details`
@@ -279,6 +280,10 @@ func searchCtrlStopUrl(id string) string {
 
 func searchCtrlImportUrl() string {
 	return SEARCH_CTRL_IMPORT_URL
+}
+
+func searchCtrlListDetailsUrl() string {
+	return SEARCH_CTRL_LIST_DETAILS_URL
 }
 
 func searchCtrlIdUrl(id string) string {

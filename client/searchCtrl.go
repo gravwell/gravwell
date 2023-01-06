@@ -86,6 +86,15 @@ func (c *Client) ListAllSearchStatuses() ([]types.SearchCtrlStatus, error) {
 	return scs, nil
 }
 
+// ListSearchDetails returns details for all searches the current user has access to
+// and their current status. If the admin flag is set (by calling SetAdminMode())
+// this will return info for all searches on the system.
+func (c *Client) ListSearchDetails() ([]types.SearchInfo, error) {
+	var details []types.SearchInfo
+	err := c.getStaticURL(searchCtrlListDetailsUrl(), &details)
+	return details, err
+}
+
 // GetSearchHistory retrieves the current search history for the currently logged
 // in user.  It only pulls back searches invoked by the individual user.
 func (c *Client) GetSearchHistory() ([]types.SearchLog, error) {
