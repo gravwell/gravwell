@@ -288,10 +288,18 @@ func (c *Client) ConfigureMail(user, pass, server string, port uint16, useTLS, n
 	return c.postStaticURL(MAIL_CONFIGURE_URL, &msg, nil)
 }
 
-// DeleteMailConfiguration removes a users mail configuration fom preferences
+// DeleteMailConfig removes a users mail configuration fom preferences
 // this completely uninstalls any mail configs
 func (c *Client) DeleteMailConfig() error {
 	return c.methodStaticPushURL(http.MethodDelete, MAIL_CONFIGURE_URL, nil, nil, http.StatusOK, http.StatusNotFound)
+}
+
+// MailConfig retrieves the current mail config
+// if no mail config is set an empty UserMailConfig is returned
+// Even on a valid mail config the Password portion is not present in the response
+func (c *Client) MailConfig() (mc types.UserMailConfig, err error) {
+	err = c.getStaticURL(MAIL_CONFIGURE_URL, &mc)
+	return
 }
 
 // WellData returns information about the storage wells on the indexers.
