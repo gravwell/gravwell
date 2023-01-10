@@ -58,6 +58,7 @@ const (
 	GROUP_MACROS_URL                 = `/api/groups/%d/macros`
 	GROUP_URL                        = `/api/groups`
 	SEARCH_CTRL_LIST_URL             = `/api/searchctrl`
+	SEARCH_CTRL_LIST_DETAILS_URL     = `/api/searchctrl/details`
 	SEARCH_CTRL_LIST_ALL_URL         = `/api/searchctrl/all`
 	SEARCH_CTRL_URL                  = `/api/searchctrl/%s`
 	SEARCH_CTRL_DETAILS              = `/api/searchctrl/%s/details`
@@ -141,6 +142,7 @@ const (
 	PIVOTS_ID_DETAILS_URL            = "/api/pivots/%s/details"
 	USER_FILES_URL                   = "/api/files"
 	USER_FILES_ID_URL                = "/api/files/%s"
+	USER_FILES_ID_DETAILS_URL        = "/api/files/%s/details"
 	LIBRARY_URL                      = "/api/library"
 	LIBRARY_ID_URL                   = "/api/library/%s"
 	LIBS_URL                         = `/api/libs`
@@ -278,6 +280,10 @@ func searchCtrlStopUrl(id string) string {
 
 func searchCtrlImportUrl() string {
 	return SEARCH_CTRL_IMPORT_URL
+}
+
+func searchCtrlListDetailsUrl() string {
+	return SEARCH_CTRL_LIST_DETAILS_URL
 }
 
 func searchCtrlIdUrl(id string) string {
@@ -552,6 +558,10 @@ func userFilesUrl() string {
 
 func userFilesIdUrl(id uuid.UUID) string {
 	return fmt.Sprintf(USER_FILES_ID_URL, id)
+}
+
+func userFilesIdDetailsUrl(id uuid.UUID) string {
+	return fmt.Sprintf(USER_FILES_ID_DETAILS_URL, id)
 }
 
 func searchLibUrl() string {
