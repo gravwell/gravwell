@@ -19,9 +19,10 @@ import (
 )
 
 const (
-	tsFormat string = `2006-01-02T15:04:05.999999Z07:00`
-	kb              = 1024
-	mb              = 1024 * kb
+	tsFormat   string = `2006-01-02T15:04:05.999999Z07:00`
+	kb                = 1024
+	mb                = 1024 * kb
+	maxLogSize        = 31 * kb
 )
 
 func throw(wlog *eventlog.Log, cnt uint64) (err error) {
@@ -85,15 +86,20 @@ func genBigData(ts time.Time) string {
 	if pad == nil {
 		genPad()
 	}
-	datalen := 2048 + rand.Intn(24*kb)
+	datalen := 2048 + rand.Intn(maxLogSize)
+	if datalen > maxLogSize {
+		datalen = maxLogSize
+	}
 	offset := rand.Intn(len(pad) - datalen)
 	return string(pad[offset : offset+datalen])
 }
 
 func genPad() {
-	sb := strings.Builder{}
-	for sb.Len() < 8*mb {
-		sb.WriteString(rd.Paragraph())
+	if len(pad) == 0 {
+		sb := strings.Builder{}
+		for sb.Len() < 8*mb {
+			sb.WriteString(rd.Paragraph())
+		}
+		pad = []byte(sb.String())
 	}
-	pad = []byte(sb.String())
 }

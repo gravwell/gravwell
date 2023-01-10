@@ -164,6 +164,7 @@ type IngesterState struct {
 	Version       string
 	Label         string
 	IP            net.IP        //child IP, won't be populated unless in child
+	Hostname      string        // whatever the ingester thinks its hostname is
 	Entries       uint64        // How many entries the ingester has written
 	Size          uint64        // How many bytes the ingester has written
 	Uptime        time.Duration // Nanoseconds since the ingest muxer was initialized

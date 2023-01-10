@@ -120,6 +120,11 @@ func (c *Client) GetUserFile(id uuid.UUID) (bts []byte, err error) {
 	if resp, err = c.methodRequestURL(http.MethodGet, userFilesIdUrl(id), ``, nil); err != nil {
 		return
 	}
+	// Make sure the reply was ok
+	if resp.StatusCode != 200 {
+		err = fmt.Errorf("Invalid response code %d", resp.StatusCode)
+		return
+	}
 	if _, err = io.CopyN(bb, resp.Body, maxFileSize); err != nil && err != io.EOF {
 		resp.Body.Close()
 		return
