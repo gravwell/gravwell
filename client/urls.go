@@ -69,7 +69,7 @@ const (
 	SEARCH_CTRL_DOWNLOAD_URL         = `/api/searchctrl/%s/download/%s`
 	SEARCH_CTRL_IMPORT_URL           = `/api/searchctrl/import`
 	SEARCH_HISTORY_URL               = `/api/searchhistory/%s/%d`
-	NOTIFICATIONS_URL                = `/api/notifications/`
+	NOTIFICATIONS_URL                = `/api/notifications`
 	NOTIFICATIONS_ID_URL             = `/api/notifications/%d`
 	NOTIFICATIONS_SELF_TARGETED_URL  = `/api/notifications/targeted/self`
 	LOGGING_PATH_URL                 = `/api/logging`
