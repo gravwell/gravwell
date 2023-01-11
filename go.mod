@@ -46,7 +46,7 @@ require (
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/miekg/dns v1.1.43
 	github.com/minio/highwayhash v1.0.0
-	github.com/open-networks/go-msgraph v0.0.0-20200217121338-a7bf31e9c1f2
+	github.com/open-networks/go-msgraph v0.3.1
 	github.com/open2b/scriggo v0.52.2
 	github.com/pierrec/lz4 v2.4.0+incompatible // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20190826022208-cac0b30c2563 // indirect
@@ -67,8 +67,6 @@ require (
 
 // Leave this until https://github.com/buger/jsonparser/pull/180 is merged
 replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb
-
-replace github.com/open-networks/go-msgraph => github.com/floren/go-msgraph v0.0.0-20200818171114-ec95909b54e3
 
 replace github.com/fsnotify/fsnotify => github.com/traetox/fsnotify v1.5.2-0.20220310052716-a0d82fe7e596
 
