@@ -265,6 +265,8 @@ github.com/mitchellh/mapstructure v1.1.2 h1:fmNYVwqnSfB9mZU6OS2O6GsXM+wcskZDuKQz
 github.com/mitchellh/mapstructure v1.1.2/go.mod h1:FVVH3fgwuzCH5S8UJGiWEs2h04kUh9fWfEaFds41c1Y=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e h1:fD57ERR4JtEqsWbfPhv4DMiApHyliiK5xCTNVSPiaAs=
 github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e/go.mod h1:zD1mROLANZcx1PVRCS0qkT7pwLkGfwJo4zjcN/Tysno=
+github.com/open-networks/go-msgraph v0.3.1 h1:/mBxAhjOzixoFJkg8u2HrxqtBTw6RyqPCc8U1QT35KA=
+github.com/open-networks/go-msgraph v0.3.1/go.mod h1:Wlvu+lCEuErbyguDk5pVct2LVKcUfJuno54/Ij8q9zY=
 github.com/open2b/scriggo v0.52.2 h1:gGwfp+E/1dwZj/9wVDljyTXHBG6v/7GlqS1H0fHvGUU=
 github.com/open2b/scriggo v0.52.2/go.mod h1:BT/Y/AXiydiLxhbfupynMyF0n2L9/qB57jTbu5+fgh4=
 github.com/pierrec/lz4 v2.2.6+incompatible/go.mod h1:pdkljMzZIN41W+lC3N2tnIh5sFi+IEE17M5jbnwPHcY=
