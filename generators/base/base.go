@@ -319,7 +319,7 @@ func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorCo
 			break
 		}
 		ts = ts.Add(sp)
-		totalBytes += uint64(len(ent.Data))
+		totalBytes += uint64(ent.Size())
 		totalCount++
 	}
 	return
@@ -380,7 +380,7 @@ loop:
 			if err = conn.WriteEntry(ent); err != nil {
 				break loop
 			}
-			totalBytes += uint64(len(ent.Data))
+			totalBytes += uint64(ent.Size())
 			totalCount++
 			ts = ts.Add(sp)
 		}
