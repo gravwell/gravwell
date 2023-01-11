@@ -28,16 +28,16 @@ var (
 	ErrEnumeratedValueBlockCorrupt      = errors.New("enumerated value block buffer is corrupted")
 )
 
-// EVBlockHeader type expressed for documentation, defines transport header for evlocks
+// EVBlockHeader type expressed for documentation, defines transport header for evlocks.
 type EVBlockHeader struct {
 	Size  uint32 //this is the complete size, including the header
 	Count uint16
-	delim uint16
+	pad   uint16 //used as a bit of an encoding sanity check and to get word alignment
 }
 
 // evblock is a block of enumerated values, this is used to help with transporting enumerated values
 // over the wire and to guard against users of the API doing wonky things that become expensive
-// to encode/decode
+// to encode/decode.
 type evblock struct {
 	// keep the size running as we go so encoding is less expensive to ask for it
 	// size is the encoded size, it includes the header, we keep this so its easy
@@ -46,7 +46,7 @@ type evblock struct {
 	evs  []EnumeratedValue
 }
 
-// Add adds an enumerated value to an evbloc, this function keeps a running tally of size for fast query
+// Add adds an enumerated value to an evbloc, this function keeps a running tally of size for fast query.
 func (eb *evblock) Add(ev EnumeratedValue) {
 	if eb.size == 0 {
 		eb.size = EVBlockHeaderLen
@@ -55,22 +55,22 @@ func (eb *evblock) Add(ev EnumeratedValue) {
 	eb.evs = append(eb.evs, ev)
 }
 
-// Size is just a helper accessor to help with encoding efficiency
+// Size is just a helper accessor to help with encoding efficiency.
 func (eb evblock) Size() uint64 {
 	return eb.size
 }
 
-// Count is just a helper accessor to spit out the number of EVs in the block
+// Count is just a helper accessor to spit out the number of EVs in the block.
 func (eb evblock) Count() int {
 	return len(eb.evs)
 }
 
-// Populated is a helper to check if there are any EVs
+// Populated is a helper to check if there are any EVs.
 func (eb evblock) Populated() bool {
 	return eb.size > 0
 }
 
-// Reset resets the entry block
+// Reset resets the entry block, the underlying slice is not freed.
 func (eb *evblock) Reset() {
 	eb.size = 0
 	eb.evs = eb.evs[0:0]
@@ -79,7 +79,7 @@ func (eb *evblock) Reset() {
 // Values is an accessor to actualy get the set of enumerated values out of the evblock
 // this returns the slice directly, so callers COULD mess with the slice and break the size
 // tracker.  Basically don't re-use or assign to this slice, if you do the evblock you pulled it from
-// is no longer valid
+// is no longer valid.
 func (eb evblock) Values() []EnumeratedValue {
 	if len(eb.evs) > 0 {
 		return eb.evs
@@ -100,7 +100,7 @@ func (eb evblock) Valid() error {
 	return nil
 }
 
-// Encode encodes an evblock into a byte buffer
+// Encode encodes an evblock into a byte buffer.
 func (eb evblock) Encode() (bts []byte, err error) {
 	// check if its valid
 	if err = eb.Valid(); err != nil {
@@ -132,6 +132,7 @@ func (eb evblock) Encode() (bts []byte, err error) {
 }
 
 // EncodeBuffer encodes an evblock into a caller provided byte buffer
+// and returns the number of bytes consumed and a potential error.
 func (eb evblock) EncodeBuffer(bts []byte) (r int, err error) {
 	// check if its valid
 	if err = eb.Valid(); err != nil {
@@ -168,6 +169,7 @@ func (eb evblock) EncodeBuffer(bts []byte) (r int, err error) {
 }
 
 // EncodeWriter encodes an evblock directly into a writer
+// and returns the number of bytes consumed and a potential error.
 func (eb evblock) EncodeWriter(w io.Writer) (r int, err error) {
 	// check if its valid
 	if err = eb.Valid(); err != nil {
@@ -198,8 +200,8 @@ func (eb evblock) EncodeWriter(w io.Writer) (r int, err error) {
 	return
 }
 
-// Decode decodes an evblock directly from a buffer and returns the number of bytes consumed
-// This function will copy all referenced memory so the underlying buffer can be re-used
+// Decode decodes an evblock directly from a buffer and returns the number of bytes consumed.
+// This function will copy all referenced memory so the underlying buffer can be re-used.
 func (eb *evblock) Decode(b []byte) (int, error) {
 	eb.size = 0
 	if eb.evs != nil {
@@ -241,9 +243,9 @@ func (eb *evblock) Decode(b []byte) (int, error) {
 	return total, nil
 }
 
-// DecodeAlt decodes an evblock directly from a buffer and returns the number of bytes consumed
+// DecodeAlt decodes an evblock directly from a buffer and returns the number of bytes consumed.
 // All data is directly referenced to the provided buffer, the buffer cannot be re-used while any numerated
-// value is still in use
+// value is still in use.
 func (eb *evblock) DecodeAlt(b []byte) (int, error) {
 	eb.size = 0
 	if eb.evs != nil {
@@ -285,7 +287,7 @@ func (eb *evblock) DecodeAlt(b []byte) (int, error) {
 	return total, nil
 }
 
-// DecodeReader decodes an evblock directly from a buffer
+// DecodeReader decodes an evblock directly from a buffer and returns the number of bytes read and a potential error.
 func (eb *evblock) DecodeReader(r io.Reader) (int, error) {
 	var h EVBlockHeader
 	var err error
@@ -323,11 +325,13 @@ func (eb *evblock) DecodeReader(r io.Reader) (int, error) {
 	return total, nil
 }
 
+// DecodeEVBlockHeader decodes an EVBlockHeader from a buffer and validates it.
+// An empty EVBlockHeader and error is returned if the buffer or resulting EVBlockHeader is invalid.
 func DecodeEVBlockHeader(buff []byte) (h EVBlockHeader, err error) {
 	h.Size = binary.LittleEndian.Uint32(buff)
 	h.Count = binary.LittleEndian.Uint16(buff[4:])
-	h.delim = binary.LittleEndian.Uint16(buff[6:])
-	if h.delim != 0 || h.Count > MaxEvBlockCount || h.Size > MaxEvBlockSize {
+	h.pad = binary.LittleEndian.Uint16(buff[6:])
+	if h.pad != 0 || h.Count > MaxEvBlockCount || h.Size > MaxEvBlockSize {
 		err = ErrEnumeratedValueBlockCorrupt
 		return
 	}
@@ -336,6 +340,7 @@ func DecodeEVBlockHeader(buff []byte) (h EVBlockHeader, err error) {
 	return
 }
 
+// Compare compares two evblocks and returns an error describing the differences if there are any.
 func (eb evblock) Compare(eb2 evblock) error {
 	if eb.size != eb2.size {
 		return fmt.Errorf("mismatch size: %d != %d", eb.size, eb2.size)
@@ -350,6 +355,8 @@ func (eb evblock) Compare(eb2 evblock) error {
 	return nil
 }
 
+// DeepCopy performs a deep copy of an evblock so that any handles on underlying bytes are discarded.
+// This function is expensive, use sparingly.
 func (eb evblock) DeepCopy() (r evblock) {
 	if eb.size == 0 || len(eb.evs) == 0 {
 		return

@@ -24,7 +24,7 @@ import (
 const (
 	//MAJOR API VERSIONS should always be compatible, there just may be additional features
 	API_VERSION_MAJOR uint32 = 0
-	API_VERSION_MINOR uint32 = 8
+	API_VERSION_MINOR uint32 = uint32(VERSION)
 )
 
 const (

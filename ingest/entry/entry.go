@@ -58,11 +58,14 @@ func (ent Entry) EnumeratedValues() []EnumeratedValue {
 	return ent.evb.Values()
 }
 
-// ClearEnumeratedValues is a convienence function to remove all enumerated values
+// ClearEnumeratedValues is a convenience function to remove all enumerated values
 func (ent *Entry) ClearEnumeratedValues() {
 	ent.evb.Reset()
 }
 
+// AddEnumeratedValue will attach a natively typed enumerated value to an entry.
+// An error is returned if the enumerated value is invalid or adding it would cause
+// the entry to exceed the maximum entry size.
 func (ent *Entry) AddEnumeratedValue(ev EnumeratedValue) (err error) {
 	if ev.Valid() {
 		ent.evb.Add(ev)
@@ -72,6 +75,10 @@ func (ent *Entry) AddEnumeratedValue(ev EnumeratedValue) (err error) {
 	return
 }
 
+// AddEnumeratedValueEx will attach a natively typed enumerated value to an entry.
+// An error is returned if the enumerated value is invalid or adding it would cause
+// the entry to exceed the maximum entry size.  An error is also returned if the
+// the provided value type is not natively supported.
 func (ent *Entry) AddEnumeratedValueEx(name string, val interface{}) error {
 	ev, err := NewEnumeratedValue(name, val)
 	if err != nil {
@@ -81,11 +88,12 @@ func (ent *Entry) AddEnumeratedValueEx(name string, val interface{}) error {
 	return nil
 }
 
+// Size returns the size of an entry as if it were encoded.
 func (ent *Entry) Size() uint64 {
 	return uint64(len(ent.Data)) + uint64(ENTRY_HEADER_SIZE) + ent.evb.Size()
 }
 
-// DecodeHeader hands back a completely decoded header with direct references to the underlying data
+// DecodeHeader hands back a completely decoded header with direct references to the underlying data.
 func DecodeHeader(buff []byte) (ts Timestamp, src net.IP, tag EntryTag, hasEvs bool, datasize uint32) {
 	var ipv4 bool
 	/* buffer should come formatted as follows:
@@ -116,17 +124,19 @@ func DecodeHeader(buff []byte) (ts Timestamp, src net.IP, tag EntryTag, hasEvs b
 	return
 }
 
-// DecodeHeaderTagSec checks that the buffer is big enough for a header then ONLY extracts the tag and second component of the timestamp
-// this function is used for rapidly scanning an entry header to decide if we want to decode it
-// we assume the caller has already ensured that the buffer is large enough to at least contain a header
+// DecodeHeaderTagSec checks that the buffer is big enough for a header
+// then ONLY extracts the tag and second component of the timestamp.
+// This function is used for rapidly scanning an entry header to decide
+// if we want to decode it, we assume the caller has already ensured that
+// the buffer is large enough to at least contain a header.
 func DecodeHeaderTagSec(buff []byte) (tag EntryTag, sec int64) {
 	tag = EntryTag(binary.LittleEndian.Uint16(buff[16:]))
 	sec = int64(binary.LittleEndian.Uint64(buff[4:]))
 	return
 }
 
-// EntrySize just decodes enough of the header to decide the actual encoded size of an entry
-// this function is typically used for rapidly skipping an entry
+// EntrySize just decodes enough of the header to decide the actual encoded
+// size of an entry this function is typically used for rapidly skipping an entry.
 func EntrySize(buff []byte) (n int, err error) {
 	if len(buff) < ENTRY_HEADER_SIZE {
 		err = ErrInvalidHeader
@@ -152,8 +162,8 @@ func EntrySize(buff []byte) (n int, err error) {
 	return
 }
 
-// DecodePartialHeader decodes only the timestamp second, tag, hasEvs, and DataSize
-// this function is used for quickly scanning through entries in their encoded form
+// DecodePartialHeader decodes only the timestamp second, tag, hasEvs, and DataSize.
+// This function is used for quickly scanning through entries in their encoded form.
 func DecodePartialHeader(buff []byte) (ts Timestamp, tag EntryTag, ipv4, hasEvs bool, datasize uint32) {
 	//decode the datasize and grab the flags from the datasize
 	datasize = binary.LittleEndian.Uint32(buff)
@@ -166,7 +176,8 @@ func DecodePartialHeader(buff []byte) (ts Timestamp, tag EntryTag, ipv4, hasEvs 
 	return
 }
 
-// decodeHeader copies copies the SRC buffer
+// decodeHeader copies copies the SRC buffer,
+// it returns the data size and whether the entry has EVs.
 func (ent *Entry) decodeHeader(buff []byte) (int, bool) {
 	var hasEvs bool
 	var datasize uint32
@@ -176,7 +187,8 @@ func (ent *Entry) decodeHeader(buff []byte) (int, bool) {
 	return int(datasize), hasEvs
 }
 
-// decodeHeaderAlt gets a direct handle on the SRC buffer
+// decodeHeaderAlt gets a direct handle on the SRC buffer,
+// it returns the data size and whether the entry has EVs.
 func (ent *Entry) decodeHeaderAlt(buff []byte) (int, bool) {
 	var hasEvs bool
 	var datasize uint32
@@ -184,6 +196,8 @@ func (ent *Entry) decodeHeaderAlt(buff []byte) (int, bool) {
 	return int(datasize), hasEvs
 }
 
+// DecodeHeader will decode an entry header from the provided buffer
+// and return the data size, whether there are EVs, and potentially an error.
 func (ent *Entry) DecodeHeader(buff []byte) (int, bool, error) {
 	if len(buff) < ENTRY_HEADER_SIZE {
 		return 0, false, ErrInvalidBufferSize
@@ -194,8 +208,8 @@ func (ent *Entry) DecodeHeader(buff []byte) (int, bool, error) {
 
 // DecodeEntry will copy values out of the buffer to generate an entry with its own
 // copies of data.  This ensures that entries don't maintain ties to blocks
-// DecodeEntry assumes that a size check has already happened
-// You probably want Decode
+// DecodeEntry assumes that a size check has already happened.
+// You probably want Decode.
 func (ent *Entry) DecodeEntry(buff []byte) (err error) {
 	dataSize, hasEvs := ent.decodeHeader(buff)
 	ent.Data = append([]byte(nil), buff[ENTRY_HEADER_SIZE:ENTRY_HEADER_SIZE+int(dataSize)]...)
@@ -206,8 +220,8 @@ func (ent *Entry) DecodeEntry(buff []byte) (err error) {
 }
 
 // DecodeEntryAlt doesn't copy the SRC or data out, it just references the slice handed in
-// it also assumes a size check for the entry header size has occurred by the caller
-// You probably want DecodeAlt
+// it also assumes a size check for the entry header size has occurred by the caller.
+// You probably want DecodeAlt.
 func (ent *Entry) DecodeEntryAlt(buff []byte) (err error) {
 	dataSize, hasEvs := ent.decodeHeaderAlt(buff)
 	ent.Data = buff[ENTRY_HEADER_SIZE : ENTRY_HEADER_SIZE+int(dataSize)]
@@ -221,7 +235,8 @@ func (ent *Entry) DecodeEntryAlt(buff []byte) (err error) {
 // Decode completely decodes an entry and returns the number of bytes consumed from a buffer
 // This is useful for iterating over entries in a raw buffer.
 // Decode will decode the entire entry and all of its EVs, copying all bytes so that
-// the caller can re-use the underlying buffer
+// the caller can re-use the underlying buffer.
+// The function returns the number of bytes consumed by the decode and a potential error.
 func (ent *Entry) Decode(buff []byte) (int, error) {
 	var off int
 	dataSize, hasEvs, err := ent.DecodeHeader(buff)
@@ -247,7 +262,8 @@ func (ent *Entry) Decode(buff []byte) (int, error) {
 // DecodeAlt completely decodes an entry and returns the number of bytes consumed from a buffer
 // This is useful for iterating over entries in a raw buffer.
 // This decode method directly references the underlying buffer, callers cannot re-use the buffer
-// if the entry and/or its EVs will be used
+// if the entry and/or its EVs will be used.
+// The function returns the number of bytes consumed by the decode and a potential error.
 func (ent *Entry) DecodeAlt(buff []byte) (int, error) {
 	var off int
 	if len(buff) < ENTRY_HEADER_SIZE {
@@ -271,8 +287,8 @@ func (ent *Entry) DecodeAlt(buff []byte) (int, error) {
 	return off, nil
 }
 
-// EncodeHeader Encodes the header into the buffer for the file transport think file indexer
-// EncodeHeader returns a boolean indicating if EVs are marked
+// EncodeHeader encodes the header into the buffer for the transport, the function only encodes the header.
+// The function returns a boolean indicating if EVs are marked and a potential error.
 func (ent *Entry) EncodeHeader(buff []byte) (bool, error) {
 	if len(buff) < ENTRY_HEADER_SIZE {
 		return false, ErrInvalidBufferSize
@@ -303,6 +319,8 @@ func (ent *Entry) EncodeHeader(buff []byte) (bool, error) {
 	return hasEvs, nil
 }
 
+// Encode encodes an entry into the provided buffer.  The function returns the number of bytes
+// consumed in the buffer as well as any potential errors.
 func (ent *Entry) Encode(buff []byte) (int, error) {
 	hasEvs, err := ent.EncodeHeader(buff)
 	if err != nil {
@@ -323,6 +341,7 @@ func (ent *Entry) Encode(buff []byte) (int, error) {
 	return r, nil
 }
 
+// writeAll is a helper function to handle segmented writes to an io.Writer.
 func writeAll(wtr io.Writer, buff []byte) error {
 	var written int
 	for written < len(buff) {
@@ -338,6 +357,7 @@ func writeAll(wtr io.Writer, buff []byte) error {
 	return nil
 }
 
+// readAll is a helper function to handle segmented reads from an io.Reader.
 func readAll(rdr io.Reader, buff []byte) error {
 	var r int
 	for r < len(buff) {
@@ -353,6 +373,8 @@ func readAll(rdr io.Reader, buff []byte) error {
 	return nil
 }
 
+// EncodeWriter will fully encode an entry to an io.Writer,
+// it returns the number of bytes written and a potential error.
 func (ent *Entry) EncodeWriter(wtr io.Writer) (int, error) {
 	headerBuff := make([]byte, ENTRY_HEADER_SIZE)
 	hasEvs, err := ent.EncodeHeader(headerBuff)
@@ -379,20 +401,25 @@ func (ent *Entry) EncodeWriter(wtr io.Writer) (int, error) {
 	return n, err
 }
 
+// EVCount is a helper function that ruturns the number of EVs attached to the entry.
 func (ent *Entry) EVCount() int {
 	return ent.evb.Count()
 }
 
+// EVSize is a helper function that ruturns the number of bytes consumed by the EVs on an entry.
 func (ent *Entry) EVSize() int {
 	return int(ent.evb.Size())
 }
 
+// EVEncodeWriter is a helper function for writing just the EVs to a provided io.writer,
+// the function also returns the number of bytes written and a potential error.
 func (ent *Entry) EVEncodeWriter(wtr io.Writer) (int, error) {
 	return ent.evb.EncodeWriter(wtr)
 }
 
 type EntrySlice []Entry
 
+// EncodeWriter encodes a slice of entries to an io.Writer.
 func (es EntrySlice) EncodeWriter(wtr io.Writer) error {
 	if len(es) > int(MaxSliceCount) {
 		return ErrSliceLenTooLarge
@@ -417,6 +444,7 @@ func (es EntrySlice) EncodeWriter(wtr io.Writer) error {
 	return nil
 }
 
+// DecodeReader decodes a slice of entries from an io.Reader.
 func (es *EntrySlice) DecodeReader(rdr io.Reader) error {
 	var l uint32
 	var sz uint32
@@ -441,6 +469,7 @@ func (es *EntrySlice) DecodeReader(rdr io.Reader) error {
 	return nil
 }
 
+// Size eturns the encoded size of a slice of entries.
 func (es *EntrySlice) Size() uint64 {
 	sz := uint64(8) //uint32 len and size header
 
@@ -450,6 +479,7 @@ func (es *EntrySlice) Size() uint64 {
 	return sz
 }
 
+// DecodeReader decodes a slice of entries from an io.Reader.
 func (ent *Entry) DecodeReader(rdr io.Reader) error {
 	headerBuff := make([]byte, ENTRY_HEADER_SIZE)
 	if err := readAll(rdr, headerBuff); err != nil {
@@ -472,11 +502,13 @@ func (ent *Entry) DecodeReader(rdr io.Reader) error {
 	return nil
 }
 
+// ReadEVs is a deprecated function, use DecodeReader instead.
 func (ent *Entry) ReadEVs(rdr io.Reader) error {
 	_, err := ent.evb.DecodeReader(rdr)
 	return err
 }
 
+// MarshallBytes implements a gob encoder, the function is deprecated.
 func (ent *Entry) MarshallBytes() ([]byte, error) {
 	buff := make([]byte, ent.Size())
 	if _, err := ent.Encode(buff); err != nil {
@@ -485,7 +517,7 @@ func (ent *Entry) MarshallBytes() ([]byte, error) {
 	return buff, nil
 }
 
-// DeepCopy provides a complete copy of an entry, this is REALLY expensive, so make sure its worth it
+// DeepCopy provides a complete copy of an entry, this is REALLY expensive, so make sure its worth it.
 func (ent *Entry) DeepCopy() (c Entry) {
 	c.TS = ent.TS
 	if len(ent.SRC) > 0 {
@@ -499,6 +531,8 @@ func (ent *Entry) DeepCopy() (c Entry) {
 	return
 }
 
+// Compare will perform a deep compare between to entries, used for testing.
+// An error is returned if describing how entries do not match if they do not match.
 func (ent *Entry) Compare(v *Entry) error {
 	if ent == nil {
 		if v == nil {

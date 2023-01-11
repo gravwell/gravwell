@@ -48,6 +48,8 @@ type EnumeratedData struct {
 	evtype uint8 //you don't get access to this, sorry
 }
 
+// InverEnumeratedData takes a native type and creates a properly annotated enumerated value data section.
+// The function returns an empty EnumeratedData if the type provided type is invalid.
 func InferEnumeratedData(val interface{}) (EnumeratedData, error) {
 	switch v := val.(type) {
 	case bool:
@@ -108,7 +110,7 @@ func InferEnumeratedData(val interface{}) (EnumeratedData, error) {
 	return EnumeratedData{}, ErrUnknownType
 }
 
-// BoolEnumData creates an EnumeratedData from a native boolean
+// BoolEnumData creates an EnumeratedData from a native boolean.
 func BoolEnumData(v bool) EnumeratedData {
 	val := []byte{0}
 	if v {
@@ -188,17 +190,14 @@ func Uint64EnumData(v uint64) EnumeratedData {
 	}
 }
 
-// IntEnumData is a convienence wrapper, ints are casted up to int64
 func IntEnumData(v int) EnumeratedData {
 	return Int64EnumData(int64(v))
 }
 
-// UintEnumData is a convienence wrapper, uints are casted up to uint64
 func UintEnumData(v uint) EnumeratedData {
 	return Uint64EnumData(uint64(v))
 }
 
-// sized floats
 func Float32EnumData(v float32) EnumeratedData {
 	dt := make([]byte, 4)
 	binary.LittleEndian.PutUint32(dt, math.Float32bits(v))
@@ -217,7 +216,6 @@ func Float64EnumData(v float64) EnumeratedData {
 	}
 }
 
-// non-integer stuff (string, slice, mac, ip, etc...)
 func StringEnumData(v string) EnumeratedData {
 	return EnumeratedData{
 		data:   []byte(v),
@@ -264,7 +262,7 @@ func DurationEnumData(v time.Duration) EnumeratedData {
 	}
 }
 
-// Interface is a helper function that will return an interface populated with the native type
+// Interface is a helper function that will return an interface populated with the native type.
 func (ev EnumeratedData) Interface() (v interface{}) {
 	switch ev.evtype {
 	case typeBool:
@@ -435,7 +433,7 @@ func (ev EnumeratedData) String() string {
 }
 
 // Valid is a helper function that declares if an enumerated data item is valid
-// this means that the type is known and the encoded bytes match what is expected
+// this means that the type is known and the encoded bytes match what is expected.
 func (ev EnumeratedData) Valid() bool {
 	switch ev.evtype {
 	case typeBool:

@@ -37,7 +37,7 @@ type evheader struct {
 	nameLen  uint16
 	dataLen  uint16
 	dataType uint8
-	delim    uint8
+	pad      uint8 //used as a bit of an encoding sanity check and to get word alignment
 }
 
 type EnumeratedValue struct {
@@ -46,8 +46,8 @@ type EnumeratedValue struct {
 }
 
 // NewEnumeratedvalue will take the data interface and make a best effort to figure out
-// what type it is being given and shove it into this encoding
-// this is the slowest method for creating an enumerated value, use the native types
+// what type it is being given and shove it into this encoding.
+// This is the slowest method for creating an enumerated value, use the native types.
 func NewEnumeratedValue(name string, data interface{}) (ev EnumeratedValue, err error) {
 	if len(name) == 0 || len(name) > MaxEvNameLength {
 		err = ErrInvalidName
@@ -60,14 +60,14 @@ func NewEnumeratedValue(name string, data interface{}) (ev EnumeratedValue, err 
 	return
 }
 
-// Implement the stringer for Enumerated Values just in case
+// String implements the stringer for Enumerated Values.
 func (ev EnumeratedValue) String() string {
 	return ev.Name + ":" + ev.Value.String()
 }
 
-// Valid is a helper function that will indicate if an enumerated value is valid
-// to be valid the enumerated value name must be populated and less than MaxEvNameLength
-// and the enumerated data must be valid
+// Valid is a helper function that will indicate if an enumerated value is valid.
+// To be valid the enumerated value name must be populated and less than MaxEvNameLength
+// and the enumerated data must be valid.
 func (ev EnumeratedValue) Valid() bool {
 	if l := len(ev.Name); l == 0 || l > MaxEvNameLength || !ev.Value.Valid() {
 		return false
@@ -75,23 +75,24 @@ func (ev EnumeratedValue) Valid() bool {
 	return true
 }
 
+// Size returns the encoded size of an enumerated value
 func (ev EnumeratedValue) Size() int {
 	return len(ev.Name) + len(ev.Value.data) + evHeaderLen
 }
 
-// TypeID returns the underlying type identifier used to cast a raw buffer across types
-// this is just a little accessor used to get raw access to fields without exposing them for assignment
+// TypeID returns the underlying type identifier used to cast a raw buffer across types.
+// This is just a little accessor used to get raw access to fields without exposing them for assignment.
 func (ev EnumeratedValue) TypeID() uint8 {
 	return ev.Value.evtype
 }
 
-// ValueBuff returns the underlying buffer representing the enumerated values data
-// this is just a little accessor used to get raw access to fields without exposing them for assignment
+// ValueBuff returns the underlying buffer representing the enumerated values data.
+// This is just a little accessor used to get raw access to fields without exposing them for assignment.
 func (ev EnumeratedValue) ValueBuff() []byte {
 	return ev.Value.data
 }
 
-// Encode will pack the enumerated value into a byte slice.  Invalid EVs return nil
+// Encode will pack the enumerated value into a byte slice.  Invalid EVs return nil.
 func (ev EnumeratedValue) Encode() []byte {
 	if !ev.Valid() {
 		return nil
@@ -103,6 +104,7 @@ func (ev EnumeratedValue) Encode() []byte {
 	return r
 }
 
+// encode encodes an ev into the provided buffer, returning the number of bytes produced and a potential error.
 func (ev EnumeratedValue) encode(r []byte) (n int, err error) {
 	esize := ev.Size()
 	if len(r) < esize {
@@ -124,7 +126,7 @@ func (ev EnumeratedValue) encode(r []byte) (n int, err error) {
 	return esize, nil
 }
 
-// EncodeWriter will encode an enumerated value into a writer
+// EncodeWriter will encode an enumerated value into a writer, it returns the number of bytes written and a potential error.
 func (ev EnumeratedValue) EncodeWriter(w io.Writer) (int, error) {
 	if !ev.Valid() {
 		return -1, ErrInvalid
@@ -146,9 +148,10 @@ func (ev EnumeratedValue) EncodeWriter(w io.Writer) (int, error) {
 	return evHeaderLen + len(ev.Name) + len(ev.Value.data), nil
 }
 
-// Decode is a helper function that returns how much of the buffer we consumed
+// Decode is a helper function that returns how much of the buffer we consumed,
 // this is used for decoding evblocks
-// This function will make a copy of all referenced bytes so that the provided buffer can be re-used
+// This function will make a copy of all referenced bytes so that the provided buffer can be re-used.
+// The function returns the number of bytes consumed and a potential error.
 func (ev *EnumeratedValue) Decode(r []byte) (n int, err error) {
 	var h evheader
 	if h, err = decodeHeader(r); err != nil {
@@ -172,9 +175,10 @@ func (ev *EnumeratedValue) Decode(r []byte) (n int, err error) {
 }
 
 // DcodeAlt is a helper function that returns how much of the buffer we consumed
-// this is used for decoding evblocks
+// this is used for decoding evblocks.
 // This function will will directly reference the underlying buffer.
-// Callers cannot re-use the buffer if the enumerated values are enumerated values are in use
+// Callers cannot re-use the buffer if the enumerated values are enumerated values are in use.
+// The function returns the number of bytes consumed and a potential error.
 func (ev *EnumeratedValue) DecodeAlt(r []byte) (n int, err error) {
 	var h evheader
 	if h, err = decodeHeader(r); err != nil {
@@ -197,6 +201,7 @@ func (ev *EnumeratedValue) DecodeAlt(r []byte) (n int, err error) {
 	return
 }
 
+// DecodeReader decodes an enumerated value from the io.Reader and returns the number of bytes read as well as a potential error.
 func (ev *EnumeratedValue) DecodeReader(r io.Reader) (int, error) {
 	var h evheader
 	//read out the header
@@ -225,6 +230,7 @@ func (ev *EnumeratedValue) DecodeReader(r io.Reader) (int, error) {
 	return int(evHeaderLen + h.nameLen + h.dataLen), nil //all good
 }
 
+// decodeHeader decodes and validates an evheader from a byte buffer.
 func decodeHeader(r []byte) (h evheader, err error) {
 	//make sure we can at least grab a header
 	if len(r) < evHeaderLen {
@@ -255,7 +261,7 @@ func decodeHeader(r []byte) (h evheader, err error) {
 	return
 }
 
-// Compare is a helper function to do comparisons and get errors out describing what is not the same
+// Compare is a helper function to do comparisons and get errors out describing what is not the same.
 func (ev EnumeratedValue) Compare(ev2 EnumeratedValue) (err error) {
 	//make sure its identical to what went in
 	if ev.Name != ev2.Name {
