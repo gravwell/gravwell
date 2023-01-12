@@ -10,6 +10,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -32,6 +34,12 @@ const (
 	batchSize             = 512
 	maxDataSize       int = 8 * 1024 * 1024
 	initDataSize      int = 512 * 1024
+
+	testTimeout time.Duration = 3 * time.Second
+)
+
+var (
+	fTestConfig = flag.Bool("test-config", false, "Test the S3 config without ingesting, will validate credentials and permissions")
 )
 
 type handlerConfig struct {
@@ -127,7 +135,19 @@ func main() {
 		}
 	}
 
+	if *fTestConfig {
+		err = testConfig(brs)
+		igst.Close()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "\nConfiguration test failed: %v\n", err)
+			os.Exit(255)
+		} else {
+			fmt.Println("\nConfiguration test succeeded")
+			os.Exit(0)
+		}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
+
 	var wg sync.WaitGroup
 	ib.Debug("Running\n")
 
@@ -152,4 +172,25 @@ func main() {
 	if err := ot.Flush(); err != nil {
 		ib.Logger.Error("failed to flush state", log.KVErr(err))
 	}
+}
+
+func testConfig(brs []*BucketReader) (err error) {
+	if len(brs) == 0 {
+		err = errors.New("no bucket readers defined")
+		return
+	}
+	p := context.Background()
+	for _, br := range brs {
+		if br == nil {
+			return errors.New("nil bucket reader")
+		}
+		ctx, cancel := context.WithTimeout(p, testTimeout)
+		err = br.Test(ctx)
+		cancel()
+		if err != nil {
+			err = fmt.Errorf("Bucket %q failed %w", br.Name, err)
+			break
+		}
+	}
+	return
 }
