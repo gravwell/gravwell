@@ -68,6 +68,10 @@ func TestEncodeDecodeBasic(t *testing.T) {
 		t.Fatal(err)
 	} else if n != len(buff) { //check that the reported size matches the encoded size
 		t.Fatalf("encoded buffer size is incorrect: %d != %d", n, len(buff))
+	} else if nn, err := EntrySize(buff); err != nil {
+		t.Fatal(err)
+	} else if nn != n {
+		t.Fatalf("EntrySize disagrees: %d != %d", n, nn)
 	}
 
 	//encode using a writer and compare buffers
@@ -76,6 +80,10 @@ func TestEncodeDecodeBasic(t *testing.T) {
 		t.Fatal(err)
 	} else if bb.Len() != n {
 		t.Fatalf("encoded writer size is incorrect: %d != %d", n, len(buff))
+	} else if nn, err := EntrySize(bb.Bytes()); err != nil {
+		t.Fatal(err)
+	} else if nn != n {
+		t.Fatalf("EntrySize disagrees: %d != %d", n, nn)
 	}
 
 	//check that the encoded output was the same
@@ -115,6 +123,10 @@ func TestEncodeDecodeEnumeratedValues(t *testing.T) {
 		t.Fatal(err)
 	} else if n != len(buff) { //check that the reported size matches the encoded size
 		t.Fatalf("encoded buffer size is incorrect: %d != %d", n, len(buff))
+	} else if nn, err := EntrySize(buff); err != nil {
+		t.Fatal(err)
+	} else if nn != n {
+		t.Fatalf("EntrySize disagrees: %d != %d", n, nn)
 	}
 
 	e = &Entry{
@@ -131,6 +143,10 @@ func TestEncodeDecodeEnumeratedValues(t *testing.T) {
 		t.Fatal(err)
 	} else if bb.Len() != n {
 		t.Fatalf("encoded writer size is incorrect: %d != %d", n, len(buff))
+	} else if nn, err := EntrySize(bb.Bytes()); err != nil {
+		t.Fatal(err)
+	} else if nn != n {
+		t.Fatalf("EntrySize disagrees: %d != %d", n, nn)
 	}
 
 	//check that the encoded output was the same
