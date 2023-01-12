@@ -253,6 +253,12 @@ func performReaderCycles(t *testing.T, count, segments int) (time.Duration, uint
 		if ent == nil {
 			t.Fatal("got a nil entry")
 		}
+		// if an even number > 0 attach up to 128 entries
+		if i > 0 && (i%2) == 0 {
+			if err = attachEVs(ent, i%128); err != nil {
+				t.Fatal("Failed to attache EVs", err)
+			}
+		}
 		totalBytes += ent.Size()
 		if err = etCli.Write(ent); err != nil {
 			t.Fatal(err)
@@ -634,4 +640,53 @@ func makeEntryWithKey(key int64) *entry.Entry {
 		Tag:  0,
 		Data: dt,
 	}
+}
+
+func attachEVs(ent *entry.Entry, cnt int) (err error) {
+	for i := 0; i < cnt; i++ {
+		var val interface{}
+		id := uint8(i % 17)
+		switch id {
+		case 0:
+			val = bool(true)
+		case 1:
+			val = byte(42)
+		case 2:
+			val = int8(32)
+		case 3:
+			val = int16(100)
+		case 4:
+			val = uint16(200)
+		case 5:
+			val = int32(300)
+		case 6:
+			val = uint32(400)
+		case 7:
+			val = int64(10000)
+		case 8:
+			val = uint64(10000)
+		case 9:
+			val = float32(9999)
+		case 10:
+			val = float64(3.14159)
+		case 11:
+			val = `stuff`
+		case 12:
+			val = []byte("things and that\r\n\t\x00")
+		case 13:
+			val = net.ParseIP("192.168.1.1")
+		case 14:
+			val, _ = net.ParseMAC("22:8c:9a:6b:39:04")
+		case 15:
+			val = time.Date(2022, 12, 25, 13, 21, 32, 12345, time.UTC)
+		case 16:
+			val = (time.Minute + 32*time.Second)
+		default:
+			val = []byte("so... damn... missed it uhuh")
+		}
+		if err = ent.AddEnumeratedValueEx(fmt.Sprintf("ev %d", i), val); err != nil {
+			return
+		}
+	}
+	return
 }

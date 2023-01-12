@@ -14,6 +14,11 @@ const (
 
 	MaxDataSize   uint32 = 0x3FFFFFFF
 	MaxSliceCount uint32 = 0x3FFFFFFF
+
+	flagMask uint32 = 0x3FFFFFFF
+
+	flagIPv4 = 0x2 //bit 2
+	flagEVs  = 0x1 //bit 1
 )
 
 var (
