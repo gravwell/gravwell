@@ -145,7 +145,7 @@ func EntrySize(buff []byte) (n int, err error) {
 	datasize := binary.LittleEndian.Uint32(buff)
 	flags := uint8(datasize >> 30)
 
-	n = int(datasize & flagMask) // clear flags from datasize
+	n = int(datasize&flagMask) + ENTRY_HEADER_SIZE // clear flags from datasize
 	if len(buff) < n {
 		err = ErrInvalidBufferSize
 		return
