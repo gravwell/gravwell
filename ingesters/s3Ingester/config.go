@@ -226,6 +226,21 @@ func (g *global) verifyStateStore() (err error) {
 }
 
 func (tc TimeConfig) validate() (err error) {
-	//TODO FIXME check the timezone override and maybe the timestamp format override
+	if tc.Timezone_Override != `` {
+		if _, err = time.LoadLocation(tc.Timezone_Override); err != nil {
+			return
+		}
+	}
+	if tc.Timestamp_Format_Override != `` {
+		//check that we have a valid timestamp
+		var zero = time.Date(1, time.January, 1, 0, 0, 0, 0, time.UTC)
+		var ts time.Time
+		if ts, err = time.Parse(tc.Timestamp_Format_Override, tc.Timestamp_Format_Override); err != nil {
+			return
+		} else if ts.IsZero() || ts.Equal(zero) {
+			err = fmt.Errorf("Timestamp-Format-Override %s is not a valid timestamp format", tc.Timestamp_Format_Override)
+			return
+		}
+	}
 	return
 }
