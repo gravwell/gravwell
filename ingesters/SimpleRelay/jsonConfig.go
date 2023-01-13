@@ -171,15 +171,10 @@ func getJsonFields(v string) (flds []string, err error) {
 }
 
 func checkJsonConfigs(lsts map[string]*jsonListener) error {
-	extractors := map[string]string{}
 	for k, v := range lsts {
 		if err := v.Validate(); err != nil {
-			return err
+			return fmt.Errorf("JSONListener %q configuration is invalid: %w", k, err)
 		}
-		if x, ok := extractors[v.Extractor]; ok {
-			return fmt.Errorf("Duplicate extractor \"%s\" in %s.  Originally in %s", v.Extractor, k, x)
-		}
-		extractors[v.Extractor] = k
 	}
 	return nil
 }
