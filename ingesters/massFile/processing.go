@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -123,7 +122,7 @@ func groupLargeLogs(src, wrk string, totalSize int64) error {
 func newfm(wdir string) *fileMultiplexer {
 	return &fileMultiplexer{
 		fmap: make(map[int64]*os.File, maxFileHandles),
-		wdir: wdir,
+		wdir: filepath.Clean(wdir),
 	}
 }
 
@@ -148,8 +147,9 @@ func (fm *fileMultiplexer) writeLine(ts int64, ln []byte) error {
 			}
 		}
 		var err error
-		f, err = os.OpenFile(path.Join(fm.wdir, strconv.FormatInt(fID, 16)),
-			os.O_CREATE|os.O_RDWR, 0666)
+		// wdir is already cleaned
+		pth := filepath.Join(fm.wdir, strconv.FormatInt(fID, 16))
+		f, err = os.OpenFile(pth, os.O_CREATE|os.O_RDWR, 0666)
 		if err != nil {
 			return err
 		}
