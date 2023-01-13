@@ -2,7 +2,7 @@
 // +build !386,!arm,!mips,!mipsle,!s390x,!go1.18
 
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
