@@ -60,6 +60,7 @@ type handlerConfig struct {
 }
 
 func main() {
+	var cfg *cfgType
 	ibc := base.IngesterBaseConfig{
 		IngesterName:                 ingesterName,
 		AppName:                      appName,
@@ -71,16 +72,8 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to get configuration %v\n", err)
 		return
-	} else if ib.Cfg == nil {
-		fmt.Fprintf(os.Stderr, "configuration is nil\n")
-		return
-	}
-	cfg, ok := ib.Cfg.(*cfgType)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "ingester base returned invalid config type %T\n", ib.Cfg)
-		return
-	} else if cfg == nil {
-		fmt.Fprintf(os.Stderr, "configuration is nil\n")
+	} else if err = ib.AssignConfig(&cfg); err != nil || cfg == nil {
+		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
 
@@ -136,8 +129,8 @@ func main() {
 	}
 
 	if *fTestConfig {
-		err = testConfig(brs)
 		igst.Close()
+		err = testConfig(brs, ib.Verbose)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "\nConfiguration test failed: %v\n", err)
 			os.Exit(255)
@@ -174,7 +167,7 @@ func main() {
 	}
 }
 
-func testConfig(brs []*BucketReader) (err error) {
+func testConfig(brs []*BucketReader, verbose bool) (err error) {
 	if len(brs) == 0 {
 		err = errors.New("no bucket readers defined")
 		return
@@ -184,9 +177,19 @@ func testConfig(brs []*BucketReader) (err error) {
 		if br == nil {
 			return errors.New("nil bucket reader")
 		}
+		if verbose {
+			fmt.Printf("Testing %s ... ", br.Name)
+		}
 		ctx, cancel := context.WithTimeout(p, testTimeout)
 		err = br.Test(ctx)
 		cancel()
+		if verbose {
+			if err == nil {
+				fmt.Printf("success\n")
+			} else {
+				fmt.Printf("FAILURE\n")
+			}
+		}
 		if err != nil {
 			err = fmt.Errorf("Bucket %q failed %w", br.Name, err)
 			break
