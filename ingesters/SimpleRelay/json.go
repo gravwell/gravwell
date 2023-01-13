@@ -277,7 +277,7 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 				//just a plain old error
 				ll.Error("invalid json object", log.KV("max-size", cfg.maxObjectSize), log.KVErr(err))
 			}
-			break // we pretty much have to just hang up
+			return // we pretty much have to just hang up
 		}
 		// got a good read, make sure to reset N
 		lr.N = cfg.maxObjectSize
