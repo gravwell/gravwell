@@ -203,8 +203,10 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 	var lip net.IP // just used for loggin
 	var ts entry.Timestamp
 	var tg *timegrinder.TimeGrinder
-	var tag entry.EntryTag
 	var ok bool
+
+	//initialize our tag to the default tag
+	tag := cfg.defTag
 
 	if ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String()); err != nil {
 		lg.Error("failed to get host from remote addr", log.KV("remoteaddress", c.RemoteAddr().String()), log.KVErr(err))
@@ -251,6 +253,7 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 			}
 		}
 	}
+
 	lr := &io.LimitedReader{
 		R: bufio.NewReader(c),
 		N: cfg.maxObjectSize,
