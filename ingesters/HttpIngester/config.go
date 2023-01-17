@@ -202,13 +202,18 @@ func (c *cfgType) Tags() (tags []string, err error) {
 			tagMp[v.Tag_Name] = true
 		}
 	}
-	for _, v := range c.HECListener {
-		if len(v.Tag_Name) == 0 {
-			continue
+	for k, v := range c.HECListener {
+		var ltags []string
+		if ltags, err = v.tags(); err != nil {
+			err = fmt.Errorf("failed to get tags on Hec-Compatible-Listener %s %w", k, err)
+			return
 		}
-		if _, ok := tagMp[v.Tag_Name]; !ok {
-			tags = append(tags, v.Tag_Name)
-			tagMp[v.Tag_Name] = true
+		fmt.Println("GOT TAGS", ltags)
+		for _, lt := range ltags {
+			if _, ok := tagMp[lt]; !ok {
+				tags = append(tags, lt)
+				tagMp[lt] = true
+			}
 		}
 	}
 	for _, v := range c.KDSListener {
