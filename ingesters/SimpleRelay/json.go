@@ -9,7 +9,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
@@ -27,6 +26,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 
 	"github.com/buger/jsonparser"
@@ -254,33 +254,25 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 		}
 	}
 
-	lr := &io.LimitedReader{
-		R: bufio.NewReader(c),
-		N: cfg.maxObjectSize,
+	dec, err := utils.NewJsonLimitedDecoder(c, cfg.maxObjectSize)
+	if err != nil {
+		ll.Error("Failed to create limited json decoder", log.KVErr(err))
+		return
 	}
-	dec := json.NewDecoder(lr)
 	for {
 		var obj json.RawMessage
 		if err := dec.Decode(&obj); err != nil {
 			// check if limited reader is exhausted so that we can throw a better error
-			// we do not log a standard EOF, will log if EOF and N==0 because that means
-			// we got an oversized object and want to honk about it.  The json decoder
-			// will also likely honk with something other than pure EOF if it gets an
-			// EOF while decoding an object, so we honk about that too
-			if lr.N == 0 {
-				if err == io.EOF || errors.Is(err, io.EOF) {
-					ll.Error("oversized json object", log.KV("max-size", cfg.maxObjectSize))
-				} else {
-					ll.Error("oversized json object", log.KV("max-size", cfg.maxObjectSize), log.KVErr(err))
-				}
-			} else if err != io.EOF {
+			if errors.Is(err, utils.ErrOversizedObject) {
+				ll.Error("oversized json object", log.KV("max-size", cfg.maxObjectSize))
+			} else if errors.Is(err, io.EOF) {
+				ll.Info("client disconnected")
+			} else {
 				//just a plain old error
 				ll.Error("invalid json object", log.KV("max-size", cfg.maxObjectSize), log.KVErr(err))
 			}
 			return // we pretty much have to just hang up
 		}
-		// got a good read, make sure to reset N
-		lr.N = cfg.maxObjectSize
 		//we have a message, compact it
 		if cfg.disableCompact {
 			// just trip obvious garbage
