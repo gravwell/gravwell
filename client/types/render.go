@@ -229,6 +229,7 @@ type IngestStats struct {
 	LastDayCount uint64 //total entries in last 24 hours
 	LastDaySize  uint64 //total ingested in last 24 hours
 	Ingesters    []IngesterStats
+	Missing      []ingest.IngesterState `json:",omitempty"` //ingesters that have been seen before but not actively connected now
 }
 
 type IngesterStats struct {
