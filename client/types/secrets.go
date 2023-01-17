@@ -22,7 +22,7 @@ type Secret struct {
 	UID     int32     `json:"uid"`
 	Groups  []int32   `json:"groups,omitempty"`
 	Global  bool      `json:"global"`
-	Created time.Time `json:"createdAt"`
+	Created time.Time `json:"created"`
 }
 
 // SecretCreate is the structure used to ask the API to make a new secret, only the request parameters are present
