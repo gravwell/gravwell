@@ -36,10 +36,18 @@ func (c *Client) SecretInfo(id uuid.UUID) (s types.Secret, err error) {
 	return
 }
 
-// UpdateSecret changes the settings of a particular secret.
+// UpdateSecret changes the value of a particular secret.
 // The actual secret string will not be returned.
-func (c *Client) UpdateSecret(id uuid.UUID, sc types.SecretCreate) (s types.Secret, err error) {
+func (c *Client) UpdateSecret(id uuid.UUID, value string) (s types.Secret, err error) {
+	sc := types.SecretCreate{Value: value}
 	err = c.methodStaticPushURL(http.MethodPut, secretIdUrl(id), sc, &s)
+	return
+}
+
+// UpdateSecretDetails changes the details (not the value) of a particular secret.
+// The actual secret string will not be returned.
+func (c *Client) UpdateSecretDetails(id uuid.UUID, sc types.SecretCreate) (s types.Secret, err error) {
+	err = c.methodStaticPushURL(http.MethodPut, secretIdDetailsUrl(id), sc, &s)
 	return
 }
 
