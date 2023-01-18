@@ -208,7 +208,6 @@ func (c *cfgType) Tags() (tags []string, err error) {
 			err = fmt.Errorf("failed to get tags on Hec-Compatible-Listener %s %w", k, err)
 			return
 		}
-		fmt.Println("GOT TAGS", ltags)
 		for _, lt := range ltags {
 			if _, ok := tagMp[lt]; !ok {
 				tags = append(tags, lt)
