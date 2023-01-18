@@ -162,6 +162,7 @@ const (
 	TOKENS_CAPABILITIES_URL          = `/api/tokens/capabilities`
 	SECRETS_URL                      = `/api/secrets`
 	SECRETS_ID_URL                   = `/api/secrets/%s`
+	SECRETS_ID_DETAILS_URL           = `/api/secrets/%s/details`
 	SECRETS_ID_FULL_URL              = `/api/secrets/%s/full`
 	SETTINGS_URL                     = `/api/settings`
 
@@ -600,6 +601,9 @@ func secretIdUrl(id uuid.UUID) string {
 	return fmt.Sprintf(SECRETS_ID_URL, id.String())
 }
 
+func secretIdDetailsUrl(id uuid.UUID) string {
+	return fmt.Sprintf(SECRETS_ID_DETAILS_URL, id.String())
+}
 func secretIdFullUrl(id uuid.UUID) string {
 	return fmt.Sprintf(SECRETS_ID_FULL_URL, id.String())
 }
