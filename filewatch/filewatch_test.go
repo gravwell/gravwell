@@ -750,7 +750,7 @@ func newSafeTrackingLH() *safeTrackingLH {
 	}
 }
 
-func (h *safeTrackingLH) HandleLog(b []byte, ts time.Time) error {
+func (h *safeTrackingLH) HandleLog(b []byte, ts time.Time, fname string) error {
 	if h.mp == nil {
 		return errors.New("not ready")
 	}

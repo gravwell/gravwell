@@ -16,6 +16,7 @@ import (
 	"net"
 	"strconv"
 	"time"
+	"unicode/utf8"
 )
 
 const (
@@ -221,6 +222,26 @@ func StringEnumData(v string) EnumeratedData {
 		data:   []byte(v),
 		evtype: typeUnicode,
 	}
+}
+
+// StringEnumDataTrimmed will create a Unicode enumerated value with leading characters trimmed off
+// if and only if the provided string is too long.  This function is commonly used in the file follower.
+// This function is UTF-8 aware and will respect entire unicode characters.
+func StringEnumDataTail(v string) EnumeratedData {
+	if len(v) < MaxEvDataLength {
+		//no need to do anything
+		return StringEnumData(v)
+	}
+	//trim it down
+	var size int
+	for len(v) > MaxEvDataLength {
+		// if we have an invalid UTF8 string then we just start cutting bytes hoping to find a valid char
+		if _, size = utf8.DecodeRuneInString(v); size <= 0 {
+			size = 1
+		}
+		v = v[size:]
+	}
+	return StringEnumData(v)
 }
 
 func SliceEnumData(v []byte) EnumeratedData {
