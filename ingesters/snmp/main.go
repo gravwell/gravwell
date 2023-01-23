@@ -25,9 +25,8 @@ import (
 )
 
 const (
-	defaultConfigLoc  = `/opt/gravwell/etc/s3.conf`
-	defaultConfigDLoc = `/opt/gravwell/etc/s3.conf.d`
-	defaultStateLoc   = `/opt/gravwell/etc/s3.state`
+	defaultConfigLoc  = `/opt/gravwell/etc/snmp.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/snmp.conf.d`
 	ingesterName      = `SNMP Ingester`
 	appName           = `snmp`
 
