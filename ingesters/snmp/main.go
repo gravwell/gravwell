@@ -94,10 +94,17 @@ func main() {
 		}
 
 		l := gosnmp.NewTrapListener()
-		l.Params = gosnmp.Default
-		l.Params.Community = lcfg.Community
-		//l.Params.Logger = gosnmp.NewLogger(glog.New(os.Stdout, "", 0))
-		if lcfg.getSnmpVersion() == gosnmp.Version3 {
+		l.Params = &gosnmp.GoSNMP{
+			Transport:          "udp",
+			Version:            lcfg.getSnmpVersion(),
+			Timeout:            time.Duration(2) * time.Second,
+			Retries:            3,
+			ExponentialTimeout: true,
+			MaxOids:            gosnmp.MaxOids,
+			Community:          lcfg.Community,
+			//Logger:             gosnmp.NewLogger(glog.New(os.Stdout, "", 0)),
+		}
+		if l.Params.Version == gosnmp.Version3 {
 			l.Params.SecurityParameters = &gosnmp.UsmSecurityParameters{
 				UserName:                 lcfg.Username,
 				AuthenticationProtocol:   lcfg.getAuthProto(),
@@ -109,7 +116,6 @@ func main() {
 			l.Params.MsgFlags = lcfg.getMsgFlags()
 			l.Params.SecurityModel = gosnmp.UserSecurityModel
 		}
-		l.Params.Version = lcfg.getSnmpVersion()
 		traps = append(traps, l)
 
 		// Set up the callback
@@ -117,7 +123,7 @@ func main() {
 			if s == nil || u == nil {
 				return
 			}
-			if 0x3&s.MsgFlags != 0x3&l.Params.MsgFlags {
+			if l.Params.Version == gosnmp.Version3 && 0x3&s.MsgFlags != 0x3&l.Params.MsgFlags {
 				ib.Logger.Warn("dropping trap due to invalid msgflags",
 					log.KV("received-flags", 0x3&s.MsgFlags),
 					log.KV("expected-flags", 0x3&l.Params.MsgFlags),
