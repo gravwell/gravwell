@@ -230,6 +230,7 @@ func main() {
 			TimezoneOverride:        val.Timezone_Override,
 			Ctx:                     wtcher.Context(),
 			TimeFormat:              cfg.TimeFormat,
+			AttachFilename:          val.Attach_Filename,
 		}
 		if v {
 			cfg.Debugger = debugout

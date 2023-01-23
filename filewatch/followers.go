@@ -28,7 +28,7 @@ var (
 )
 
 type handler interface {
-	HandleLog([]byte, time.Time) error
+	HandleLog([]byte, time.Time, string) error
 	Tag() string
 }
 
@@ -148,7 +148,7 @@ func (f *follower) Sync(qc chan os.Signal) (bool, error) {
 		}
 		//actually handle the line
 		now := time.Now()
-		if err := f.lh.HandleLog(ln, now); err != nil {
+		if err := f.lh.HandleLog(ln, now, f.FilePath); err != nil {
 			return false, err
 		}
 		*f.state = f.lnr.Index()
@@ -260,7 +260,7 @@ func (f *follower) processLines(writeEvent bool) error {
 			break
 		}
 		//actually handle the line
-		if err := f.lh.HandleLog(ln, time.Now()); err != nil {
+		if err := f.lh.HandleLog(ln, time.Now(), f.FilePath); err != nil {
 			return err
 		}
 		*f.state = f.lnr.Index()

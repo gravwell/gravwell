@@ -229,3 +229,12 @@ func testEVCycle(a interface{}) (err error) {
 
 	return
 }
+
+func TestEnumeratedStringTail(t *testing.T) {
+	tgt := strings.Repeat("A", MaxEvDataLength)
+	orig := strings.Repeat("FOOBAR", 100) + tgt
+	ed := StringEnumDataTail(orig)
+	if len(tgt) != len(ed.String()) {
+		t.Fatalf("bad return size: %d != %d", len(tgt), len(ed.String()))
+	}
+}

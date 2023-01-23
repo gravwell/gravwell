@@ -319,6 +319,7 @@ func (m *mainService) init(ctx context.Context) error {
 			UserTimeFormat:          val.Timestamp_Format_String,
 			Ctx:                     ctx,
 			TimeFormat:              m.timeFormats,
+			AttachFilename:          val.Attach_Filename,
 		}
 
 		lh, err := filewatch.NewLogHandler(cfg, pproc)
