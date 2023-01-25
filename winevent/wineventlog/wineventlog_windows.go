@@ -31,8 +31,6 @@ import (
 	"unicode/utf16"
 
 	"golang.org/x/sys/windows"
-
-	"github.com/elastic/beats/winlogbeat/sys"
 )
 
 const (
@@ -49,6 +47,11 @@ var (
 	// data is null.
 	ErrorEvtVarTypeNull = errors.New("null EVT_VARIANT data")
 )
+
+type InsufficientBufferError struct {
+	Cause        error
+	RequiredSize int
+}
 
 // bookmarkTemplate is a parameterized string that requires two parameters,
 // the channel name and the record ID. The formatted string can be used to open
@@ -342,48 +345,6 @@ func RenderEventSimple(eh EvtHandle, buf []byte, out io.Writer) error {
 	return RenderEventXML(eh, buf, out)
 }
 
-// RenderEvent reads the event data associated with the EvtHandle and renders
-// the data as XML. An error and XML can be returned by this method if an error
-// occurs while rendering the XML with RenderingInfo and the method is able to
-// recover by rendering the XML without RenderingInfo.
-func RenderEvent(
-	eventHandle EvtHandle,
-	lang uint32,
-	renderBuf []byte,
-	pubHandleProvider func(string) sys.MessageFiles,
-	out io.Writer,
-) error {
-	providerName, err := evtRenderProviderName(renderBuf, eventHandle)
-	if err != nil {
-		return err
-	}
-
-	var publisherHandle uintptr
-	if pubHandleProvider != nil {
-		messageFiles := pubHandleProvider(providerName)
-		if messageFiles.Err == nil {
-			// There is only ever a single handle when using the Windows Event
-			// Log API.
-			publisherHandle = messageFiles.Handles[0].Handle
-		}
-	}
-
-	// Only a single string is returned when rendering XML.
-	err = FormatEventString(EvtFormatMessageXml,
-		eventHandle, providerName, EvtHandle(publisherHandle), lang, renderBuf, out)
-	// Recover by rendering the XML without the RenderingInfo (message string).
-	if err != nil {
-		// Do not try to recover from InsufficientBufferErrors because these
-		// can be retried with a larger buffer.
-		if _, ok := err.(sys.InsufficientBufferError); ok {
-			return err
-		}
-		err = RenderEventXML(eventHandle, renderBuf, out)
-	}
-
-	return err
-}
-
 // RenderEventXML renders the event as XML. If the event is already rendered, as
 // in a forwarded event whose content type is "RenderedText", then the XML will
 // include the RenderingInfo (message). If the event is not rendered then the
@@ -581,7 +542,7 @@ func FormatEventString(
 		uint32(len(buffer)/2), &buffer[0], &bufferUsed)
 	bufferUsed *= 2
 	if err == ERROR_INSUFFICIENT_BUFFER {
-		return sys.InsufficientBufferError{Cause: err, RequiredSize: int(bufferUsed)}
+		return InsufficientBufferError{Cause: err, RequiredSize: int(bufferUsed)}
 	}
 	if err != nil {
 		return err
@@ -589,7 +550,7 @@ func FormatEventString(
 
 	// This assumes there is only a single string value to read. This will
 	// not work to read keys (when messageFlag == EvtFormatMessageKeyword).
-	return sys.UTF16ToUTF8Bytes(buffer[:bufferUsed], out)
+	return UTF16LEBufferToUTF8Writer(buffer[:bufferUsed], out)
 }
 
 // offset reads a pointer value from the reader then calculates an offset from
@@ -644,8 +605,8 @@ func readString(buffer []byte, reader io.Reader) (string, error) {
 		}
 		return "", err
 	}
-	str, _, err := sys.UTF16BytesToString(buffer[offset:])
-	return str, err
+
+	return UTF16LEToUTF8(buffer[offset:])
 }
 
 // evtRenderProviderName renders the ProviderName of an event.
@@ -654,7 +615,7 @@ func evtRenderProviderName(renderBuf []byte, eventHandle EvtHandle) (string, err
 	err := _EvtRender(providerNameContext, eventHandle, EvtRenderEventValues,
 		uint32(len(renderBuf)), &renderBuf[0], &bufferUsed, &propertyCount)
 	if err == ERROR_INSUFFICIENT_BUFFER {
-		return "", sys.InsufficientBufferError{Cause: err, RequiredSize: int(bufferUsed)}
+		return "", InsufficientBufferError{Cause: err, RequiredSize: int(bufferUsed)}
 	}
 	if err != nil {
 		return "", fmt.Errorf("evtRenderProviderName %v", err)
@@ -670,7 +631,7 @@ func renderXML(eventHandle EvtHandle, flag EvtRenderFlag, renderBuf []byte, out 
 	err := _EvtRender(0, eventHandle, flag, uint32(len(renderBuf)),
 		&renderBuf[0], &bufferUsed, &propertyCount)
 	if err == ERROR_INSUFFICIENT_BUFFER {
-		return sys.InsufficientBufferError{Cause: err, RequiredSize: int(bufferUsed)}
+		return InsufficientBufferError{Cause: err, RequiredSize: int(bufferUsed)}
 	}
 	if err != nil {
 		return err
@@ -681,7 +642,7 @@ func renderXML(eventHandle EvtHandle, flag EvtRenderFlag, renderBuf []byte, out 
 			"to the buffer, but the buffer can only hold %d bytes",
 			bufferUsed, len(renderBuf))
 	}
-	return sys.UTF16ToUTF8Bytes(renderBuf[:bufferUsed], out)
+	return UTF16LEBufferToUTF8Writer(renderBuf[:bufferUsed], out)
 }
 
 func VarantString(buff []byte) (s string, err error) {
@@ -794,4 +755,11 @@ func QueryLogFile(hnd EvtHandle) (lfi LogFileInfo, err error) {
 	}
 
 	return
+}
+
+func (ibe InsufficientBufferError) Error() string {
+	if ibe.Cause == nil {
+		return ``
+	}
+	return fmt.Sprintf("%v need %d", ibe.Cause, ibe.RequiredSize)
 }

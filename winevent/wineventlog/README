@@ -1,3 +1,6 @@
-This is a direct lift of the code at https://github.com/elastic/beats/tree/master/winlogbeat/sys/wineventlog
-which is governed by the Apache2.0 license.  We had to lift the code due to the vendoring that the elastic
-repository enforces.
+This code started its life as a direct lift of the code at https://github.com/elastic/beats/tree/master/winlogbeat/sys/wineventlog
+which is governed by the Apache2.0 license.  We had to lift the code due to the vendoring that the elastic respository enforces.
+
+But now it's so heavily modified it's basically its own beast, but still governed under the Apache2.0 license.
+
+Abandon hope all ye who enter here, the Windows eventlog system is a patchwork of hellfire, brimestone, UTF-16, and XML.
