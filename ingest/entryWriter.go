@@ -502,6 +502,9 @@ func (ew *EntryWriter) SendIngesterState(state IngesterState) (err error) {
 		return
 	}
 
+	//update the last seen
+	state.LastSeen = time.Now()
+
 	// write the header
 	if err = ew.writeAll(INGESTER_STATE_MAGIC.Buff()); err != nil {
 		return

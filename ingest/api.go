@@ -171,6 +171,7 @@ type IngesterState struct {
 	Tags          []string      // The tags registered with the ingester
 	CacheState    string
 	CacheSize     uint64
+	LastSeen      time.Time
 	Children      map[string]IngesterState
 	Configuration json.RawMessage `json:",omitempty"`
 	Metadata      json.RawMessage `json:",omitempty"`

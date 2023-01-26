@@ -354,6 +354,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		Hostname:   hostname,
 		Version:    c.IngesterVersion,
 		CacheState: c.CacheMode,
+		LastSeen:   time.Now(),
 		Children:   make(map[string]IngesterState),
 		Tags:       c.Tags,
 	}
