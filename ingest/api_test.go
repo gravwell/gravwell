@@ -85,7 +85,9 @@ func TestStreamConfiguration(t *testing.T) {
 func TestIngestState(t *testing.T) {
 	bb := bytes.NewBuffer(make([]byte, 0, 64))
 	x := IngesterState{
-		Name: "foobar",
+		Name:     "foobar",
+		Tags:     []string{},
+		Children: map[string]IngesterState{},
 	}
 	var y IngesterState
 	if err := x.Write(bb); err != nil {
