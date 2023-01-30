@@ -114,9 +114,9 @@ func (sp syslogProcessor) Extract(d []byte, loc *time.Location) (time.Time, bool
 	if !ok {
 		return time.Time{}, false, -1
 	}
-	//check if we need to add the current year
+	//check if we need to set the year
 	if t.Year() == 0 {
-		return t.AddDate(time.Now().Year(), 0, 0), true, offset
+		return tweakYear(t), true, offset
 	}
 	return t, true, offset
 }
@@ -490,4 +490,19 @@ func (up unixSecondsProcessor) Match(d []byte) (start, end int, ok bool) {
 		ok = true
 	}
 	return
+}
+
+// tweakYear tries to figure out an appropriate year for the timestamp
+// if the current year is zero.
+func tweakYear(t time.Time) time.Time {
+	if t.Year() != 0 {
+		return t
+	}
+	now := time.Now()
+	// If setting the current year puts us too far in the future,
+	// more than 25 hours, we'll set the previous year instead.
+	if t.AddDate(now.Year(), 0, 0).Sub(now) > (25 * time.Hour) {
+		return t.AddDate(now.Year()-1, 0, 0)
+	}
+	return t.AddDate(time.Now().Year(), 0, 0)
 }
