@@ -499,10 +499,11 @@ func tweakYear(t time.Time) time.Time {
 		return t
 	}
 	now := time.Now()
+	year := now.Year()
 	// If setting the current year puts us too far in the future,
 	// more than 25 hours, we'll set the previous year instead.
-	if t.AddDate(now.Year(), 0, 0).Sub(now) > (25 * time.Hour) {
-		return t.AddDate(now.Year()-1, 0, 0)
+	if t.AddDate(year, 0, 0).Sub(now) > (25 * time.Hour) {
+		return t.AddDate(year-1, 0, 0)
 	}
-	return t.AddDate(time.Now().Year(), 0, 0)
+	return t.AddDate(year, 0, 0)
 }
