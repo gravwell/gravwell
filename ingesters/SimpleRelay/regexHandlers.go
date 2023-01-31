@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -109,7 +110,7 @@ func startRegexListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGr
 
 		if tp.TCP() {
 			//get the socket
-			addr, err := net.ResolveTCPAddr("tcp", v.Bind_String)
+			addr, err := net.ResolveTCPAddr("tcp", str)
 			if err != nil {
 				return fmt.Errorf("%s Bind-String \"%s\" is invalid: %v\n", k, v.Bind_String, err)
 			}
@@ -144,6 +145,18 @@ func startRegexListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGr
 			//start the acceptor
 			wg.Add(1)
 			go regexAcceptor(l, connID, igst, rhc, tp)
+		} else if tp.UDP() {
+			addr, err := net.ResolveUDPAddr(`udp`, str)
+			if err != nil {
+				lg.FatalCode(0, "invalid Bind-String", log.KV("bindstring", v.Bind_String), log.KV("listener", k), log.KVErr(err))
+			}
+			l, err := net.ListenUDP(`udp`, addr)
+			if err != nil {
+				lg.FatalCode(0, "failed to listen via udp", log.KV("address", addr), log.KV("listener", k), log.KVErr(err))
+			}
+			connID := addConn(l)
+			wg.Add(1)
+			go regexAcceptorUDP(l, connID, rhc, igst)
 		}
 
 	}
@@ -178,6 +191,78 @@ func regexAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg regex
 	return
 }
 
+func regexAcceptorUDP(conn *net.UDPConn, id int, cfg regexHandlerConfig, igst *ingest.IngestMuxer) {
+	defer cfg.wg.Done()
+	defer delConn(id)
+	defer conn.Close()
+
+	buff := make([]byte, 16*1024) //local buffer that should be big enough for even the largest UDP packets
+	tcfg := timegrinder.Config{
+		EnableLeftMostSeed: true,
+	}
+	tg, err := timegrinder.NewTimeGrinder(tcfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get a handle on the timegrinder: %v\n", err)
+		return
+	} else if err = cfg.timeFormats.LoadFormats(tg); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load custom time formats: %v\n", err)
+		return
+	}
+	if cfg.setLocalTime {
+		tg.SetLocalTime()
+	}
+	if cfg.timezoneOverride != `` {
+		err = tg.SetTimezone(cfg.timezoneOverride)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", cfg.timezoneOverride, err)
+			return
+		}
+	}
+	if cfg.formatOverride != `` {
+		if err = tg.SetFormatOverride(cfg.formatOverride); err != nil {
+			lg.Error("Failed to load format override", log.KV("override", cfg.formatOverride), log.KVErr(err))
+			return
+		}
+	}
+	regex, err := regexp.Compile(cfg.regex)
+	if err != nil {
+		// will never happen (we always check the regex first)
+		return
+	}
+	rs := regexState{
+		rx:          regex,
+		prefixIndex: regex.SubexpIndex("prefix"),
+		suffixIndex: regex.SubexpIndex("suffix"),
+	}
+	if cfg.maxBuffer == 0 {
+		cfg.maxBuffer = DefaultMaxBuffer
+	}
+
+	for {
+		var rip net.IP
+		n, raddr, err := conn.ReadFromUDP(buff)
+		if err != nil {
+			break
+		}
+		if n == 0 {
+			continue
+		}
+		if raddr == nil {
+			continue
+		}
+		if n > len(buff) {
+			continue
+		}
+		if cfg.src == nil {
+			rip = raddr.IP
+		} else {
+			rip = cfg.src
+		}
+		regexLoop(bytes.NewReader(buff[:n]), cfg, rip, rs, tg)
+	}
+
+}
+
 func regexConnHandler(c net.Conn, cfg regexHandlerConfig, igst *ingest.IngestMuxer) {
 	cfg.wg.Add(1)
 	id := addConn(c)
@@ -200,32 +285,21 @@ func regexConnHandler(c net.Conn, cfg regexHandlerConfig, igst *ingest.IngestMux
 		rip = cfg.src
 	}
 
-	out := make(chan *entry.Entry, 128)
-	go regexLoop(c, cfg, rip, out)
-
-	for ent := range out {
-		cfg.proc.ProcessContext(ent, cfg.ctx)
-	}
-}
-
-func regexLoop(c io.Reader, cfg regexHandlerConfig, rip net.IP, out chan *entry.Entry) {
-	var tg *timegrinder.TimeGrinder
-	var ts entry.Timestamp
-	var regex *regexp.Regexp
-	var err error
-	var ok bool
-
-	if regex, err = regexp.Compile(cfg.regex); err != nil {
+	regex, err := regexp.Compile(cfg.regex)
+	if err != nil {
 		// will never happen (we always check the regex first)
 		return
 	}
-	prefixIndex := regex.SubexpIndex("prefix")
-	suffixIndex := regex.SubexpIndex("suffix")
-
+	rs := regexState{
+		rx:          regex,
+		prefixIndex: regex.SubexpIndex("prefix"),
+		suffixIndex: regex.SubexpIndex("suffix"),
+	}
 	if cfg.maxBuffer == 0 {
 		cfg.maxBuffer = DefaultMaxBuffer
 	}
 
+	var tg *timegrinder.TimeGrinder
 	if !cfg.ignoreTimestamps {
 		var err error
 		tcfg := timegrinder.Config{
@@ -257,14 +331,28 @@ func regexLoop(c io.Reader, cfg regexHandlerConfig, rip net.IP, out chan *entry.
 		}
 	}
 
-	defer close(out)
-	rd := make([]byte, 1024)
+	regexLoop(c, cfg, rip, rs, tg)
+}
+
+type regexState struct {
+	rx          *regexp.Regexp
+	prefixIndex int
+	suffixIndex int
+}
+
+func regexLoop(c io.Reader, cfg regexHandlerConfig, rip net.IP, rs regexState, tg *timegrinder.TimeGrinder) {
+	var ts entry.Timestamp
+	var err error
+	var ok bool
+
+	rd := make([]byte, 4096)
 	bio := bufio.NewReader(c)
 	var buf bytes.Buffer // we read from the connection into this buffer
 	var data []byte
 	var prefix, suffix []byte
 	var done bool
 	var n int
+readerLoop:
 	for !done {
 		// we build the entry data into this buffer.
 		// make a new one on each loop so we're safe to call Bytes() at the end
@@ -286,7 +374,7 @@ func regexLoop(c io.Reader, cfg regexHandlerConfig, rip net.IP, out chan *entry.
 			var entryData bytes.Buffer
 			entryData.Write(prefix)
 			b := buf.Bytes()
-			match := regex.FindIndex(b)
+			match := rs.rx.FindIndex(b)
 			// if there's no match, continue, *unless* we saw EOF in which case just send it
 			if match != nil {
 				// if there is a match, grab the bytes preceding it
@@ -294,14 +382,14 @@ func regexLoop(c io.Reader, cfg regexHandlerConfig, rip net.IP, out chan *entry.
 				// read the actual contents of the match
 				contents := buf.Next(match[1] - match[0])
 				// see if there's any prefix/suffix stuff
-				parts := regex.FindSubmatch(contents)
-				if prefixIndex >= 0 && len(parts) >= prefixIndex {
-					prefix = parts[prefixIndex]
+				parts := rs.rx.FindSubmatch(contents)
+				if rs.prefixIndex >= 0 && len(parts) >= rs.prefixIndex {
+					prefix = parts[rs.prefixIndex]
 				} else {
 					prefix = []byte{} // shouldn't happen
 				}
-				if suffixIndex >= 0 && len(parts) >= suffixIndex {
-					suffix = parts[suffixIndex]
+				if rs.suffixIndex >= 0 && len(parts) >= rs.suffixIndex {
+					suffix = parts[rs.suffixIndex]
 				} else {
 					suffix = []byte{} // shouldn't happen
 				}
@@ -325,7 +413,7 @@ func regexLoop(c io.Reader, cfg regexHandlerConfig, rip net.IP, out chan *entry.
 			// syslog messages by just matching on the priority + date part at the beginning, we're going to start out with an empty
 			// "entry" because the very first thing we see is the delimiter.
 			if entryData.Len() == 0 {
-				continue
+				continue readerLoop
 			}
 
 			data = entryData.Bytes()
@@ -352,8 +440,7 @@ func regexLoop(c io.Reader, cfg regexHandlerConfig, rip net.IP, out chan *entry.
 				Tag:  cfg.defTag,
 				Data: data,
 			}
-
-			out <- ent
+			cfg.proc.ProcessContext(ent, cfg.ctx)
 		}
 	}
 }

@@ -13,11 +13,14 @@ import (
 	"context"
 	"net"
 	"os"
+	"regexp"
 	"sync"
 	"testing"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 func makeConfig() regexHandlerConfig {
@@ -34,26 +37,32 @@ func TestRegexTrimWhitespace(t *testing.T) {
 	cfg := makeConfig()
 	cfg.trimWhitespace = true
 	cfg.regex = "X"
-	out := make(chan *entry.Entry)
 	input := bytes.NewBuffer([]byte(" foo X bar "))
-	go regexLoop(input, cfg, net.IP{}, out)
-	var ents []*entry.Entry
-	for e := range out {
-		ents = append(ents, e)
+
+	trk := &tracker{}
+	cfg.proc = processors.NewProcessorSet(&nilWriter{})
+	cfg.proc.AddProcessor(trk)
+	rs := regexState{
+		rx:          regexp.MustCompile(cfg.regex),
+		prefixIndex: -1,
+		suffixIndex: -1,
 	}
-	if len(ents) != 2 {
-		for i, e := range ents {
+	tg, _ := timegrinder.New(timegrinder.Config{})
+
+	regexLoop(input, cfg, net.IP{}, rs, tg)
+	if len(trk.ents) != 2 {
+		for i, e := range trk.ents {
 			t.Logf("entry %d: %s\n", i, e.Data)
 		}
-		t.Fatalf("Expected 2 entries, got %d", len(ents))
+		t.Fatalf("Expected 2 entries, got %d", len(trk.ents))
 	}
 	expected := [][]byte{
 		[]byte("foo"),
 		[]byte("bar"),
 	}
-	for i := range ents {
-		if !bytes.Equal(ents[i].Data, expected[i]) {
-			t.Fatalf("Invalid entry %d, expected %s (%v) got %s (%v)", i, ents[i].Data, ents[i].Data, expected[i], expected[i])
+	for i := range trk.ents {
+		if !bytes.Equal(trk.ents[i].Data, expected[i]) {
+			t.Fatalf("Invalid entry %d, expected %s (%v) got %s (%v)", i, trk.ents[i].Data, trk.ents[i].Data, expected[i], expected[i])
 		}
 	}
 }
@@ -63,26 +72,56 @@ func TestRegexMaxBuffer(t *testing.T) {
 	cfg := makeConfig()
 	cfg.maxBuffer = 3
 	cfg.regex = "X"
-	out := make(chan *entry.Entry)
 	input := bytes.NewBuffer([]byte("foobar"))
-	go regexLoop(input, cfg, net.IP{}, out)
-	var ents []*entry.Entry
-	for e := range out {
-		ents = append(ents, e)
+
+	trk := &tracker{}
+	cfg.proc = processors.NewProcessorSet(&nilWriter{})
+	cfg.proc.AddProcessor(trk)
+	rs := regexState{
+		rx:          regexp.MustCompile(cfg.regex),
+		prefixIndex: -1,
+		suffixIndex: -1,
 	}
-	if len(ents) != 2 {
-		for i, e := range ents {
+	tg, _ := timegrinder.New(timegrinder.Config{})
+
+	regexLoop(input, cfg, net.IP{}, rs, tg)
+	if len(trk.ents) != 2 {
+		for i, e := range trk.ents {
 			t.Logf("entry %d: %s\n", i, e.Data)
 		}
-		t.Fatalf("Expected 2 entries, got %d", len(ents))
+		t.Fatalf("Expected 2 entries, got %d", len(trk.ents))
 	}
 	expected := [][]byte{
 		[]byte("foo"),
 		[]byte("bar"),
 	}
-	for i := range ents {
-		if !bytes.Equal(ents[i].Data, expected[i]) {
-			t.Fatalf("Invalid entry %d, expected %s (%v) got %s (%v)", i, ents[i].Data, ents[i].Data, expected[i], expected[i])
+	for i := range trk.ents {
+		if !bytes.Equal(trk.ents[i].Data, expected[i]) {
+			t.Fatalf("Invalid entry %d, expected %s (%v) got %s (%v)", i, trk.ents[i].Data, trk.ents[i].Data, expected[i], expected[i])
 		}
 	}
 }
+
+type tracker struct {
+	ents []*entry.Entry
+}
+
+func (t *tracker) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
+	t.ents = append(t.ents, ents...)
+	return ents, nil
+}
+
+func (t *tracker) Flush() []*entry.Entry {
+	return nil
+}
+
+func (t *tracker) Close() error {
+	return nil
+}
+
+type nilWriter struct{}
+
+func (n *nilWriter) WriteEntry(*entry.Entry) error                           { return nil }
+func (n *nilWriter) WriteEntryContext(context.Context, *entry.Entry) error   { return nil }
+func (n *nilWriter) WriteBatch([]*entry.Entry) error                         { return nil }
+func (n *nilWriter) WriteBatchContext(context.Context, []*entry.Entry) error { return nil }

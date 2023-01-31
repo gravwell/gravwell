@@ -124,7 +124,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 
 		if tp.TCP() {
 			//get the socket
-			addr, err := net.ResolveTCPAddr("tcp", v.Bind_String)
+			addr, err := net.ResolveTCPAddr("tcp", str)
 			if err != nil {
 				return fmt.Errorf("%s Bind-String \"%s\" is invalid: %v\n", k, v.Bind_String, err)
 			}
@@ -159,6 +159,19 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 			//start the acceptor
 			wg.Add(1)
 			go jsonAcceptor(l, connID, igst, jhc, tp)
+		} else if tp.UDP() {
+			addr, err := net.ResolveUDPAddr(tp.String(), str)
+			if err != nil {
+				lg.FatalCode(0, "invalid Bind-String", log.KV("bindstring", v.Bind_String), log.KV("listener", k), log.KVErr(err))
+			}
+			l, err := net.ListenUDP(tp.String(), addr)
+			if err != nil {
+				lg.FatalCode(0, "failed to listen via udp", log.KV("address", addr), log.KV("listener", k), log.KVErr(err))
+			}
+			connID := addConn(l)
+			wg.Add(1)
+			go jsonAcceptorUDP(l, connID, igst, jhc)
+
 		}
 
 	}
@@ -193,6 +206,66 @@ func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHa
 	return
 }
 
+func jsonAcceptorUDP(conn *net.UDPConn, id int, igst *ingest.IngestMuxer, cfg jsonHandlerConfig) {
+	defer cfg.wg.Done()
+	defer delConn(id)
+	defer conn.Close()
+
+	buff := make([]byte, 16*1024) //local buffer that should be big enough for even the largest UDP packets
+	tcfg := timegrinder.Config{
+		EnableLeftMostSeed: true,
+	}
+	tg, err := timegrinder.NewTimeGrinder(tcfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get a handle on the timegrinder: %v\n", err)
+		return
+	} else if err = cfg.timeFormats.LoadFormats(tg); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load custom time formats: %v\n", err)
+		return
+	}
+	if cfg.setLocalTime {
+		tg.SetLocalTime()
+	}
+	if cfg.timezoneOverride != `` {
+		err = tg.SetTimezone(cfg.timezoneOverride)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", cfg.timezoneOverride, err)
+			return
+		}
+	}
+	if cfg.formatOverride != `` {
+		if err = tg.SetFormatOverride(cfg.formatOverride); err != nil {
+			lg.Error("Failed to load format override", log.KV("override", cfg.formatOverride), log.KVErr(err))
+			return
+		}
+	}
+	ll := log.NewLoggerWithKV(lg, log.KV("json-listener", cfg.name))
+	for {
+		n, raddr, err := conn.ReadFromUDP(buff)
+		if err != nil {
+			break
+		}
+		if n == 0 {
+			continue
+		}
+		if raddr == nil {
+			continue
+		}
+		if n > len(buff) {
+			continue
+		}
+		var rip net.IP
+		if cfg.src == nil {
+			rip = raddr.IP
+		} else {
+			rip = cfg.src
+		}
+		// get a local logger up that will always add some more info
+		handleJSONStream(bytes.NewReader(buff[0:]), cfg, rip, tg, ll)
+	}
+
+}
+
 func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer) {
 	cfg.wg.Add(1)
 	id := addConn(c)
@@ -200,13 +273,8 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 	defer delConn(id)
 	defer c.Close()
 	var rip net.IP
-	var lip net.IP // just used for loggin
-	var ts entry.Timestamp
+	var lip net.IP // just used for logging
 	var tg *timegrinder.TimeGrinder
-	var ok bool
-
-	//initialize our tag to the default tag
-	tag := cfg.defTag
 
 	if ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String()); err != nil {
 		lg.Error("failed to get host from remote addr", log.KV("remoteaddress", c.RemoteAddr().String()), log.KVErr(err))
@@ -222,7 +290,7 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 		rip = cfg.src
 	}
 	// get a local logger up that will always add some more info
-	ll := log.NewLoggerWithKV(lg, log.KV("json-listener", cfg.name), log.KV("remoteaddress", lip.String()))
+	ll := log.NewLoggerWithKV(lg, log.KV("json-listener", cfg.name))
 
 	if !cfg.ignoreTimestamps {
 		var err error
@@ -254,24 +322,39 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 		}
 	}
 
-	dec, err := utils.NewJsonLimitedDecoder(c, cfg.maxObjectSize)
+	if err := handleJSONStream(c, cfg, rip, tg, ll); err != nil {
+		ll.Error("JSON Stream handler error", log.KVErr(err))
+	}
+	return
+}
+
+func handleJSONStream(rdr io.Reader, cfg jsonHandlerConfig, rip net.IP, tg *timegrinder.TimeGrinder, ll *log.KVLogger) error {
+	var ts entry.Timestamp
+	var ok bool
+
+	//initialize our tag to the default tag
+	tag := cfg.defTag
+
+	dec, err := utils.NewJsonLimitedDecoder(rdr, cfg.maxObjectSize)
 	if err != nil {
 		ll.Error("Failed to create limited json decoder", log.KVErr(err))
-		return
+		return err
 	}
+consumerLoop:
 	for {
 		var obj json.RawMessage
 		if err := dec.Decode(&obj); err != nil {
 			// check if limited reader is exhausted so that we can throw a better error
 			if errors.Is(err, utils.ErrOversizedObject) {
-				ll.Error("oversized json object", log.KV("max-size", cfg.maxObjectSize))
+				ll.Error("oversized json object", log.KV("remoteaddress", rip), log.KV("max-size", cfg.maxObjectSize))
 			} else if errors.Is(err, io.EOF) {
 				ll.Info("client disconnected")
+				break consumerLoop //break out of the main loop
 			} else {
 				//just a plain old error
-				ll.Error("invalid json object", log.KV("max-size", cfg.maxObjectSize), log.KVErr(err))
+				ll.Error("invalid json object", log.KV("remoteaddress", rip), log.KV("max-size", cfg.maxObjectSize), log.KVErr(err))
 			}
-			return // we pretty much have to just hang up
+			return err // we pretty much have to just hang up
 		}
 		//we have a message, compact it
 		if cfg.disableCompact {
@@ -290,8 +373,8 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 			ts = entry.Now()
 		} else {
 			if extracted, ok, err := tg.Extract(data); err != nil {
-				ll.Error("catastrophic timegrinder failure", log.KVErr(err))
-				return
+				ll.Error("catastrophic timegrinder failure", log.KV("remoteaddress", rip), log.KVErr(err))
+				return err
 			} else if ok {
 				ts = entry.FromStandard(extracted)
 			} else {
@@ -315,6 +398,7 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 		}
 		cfg.proc.ProcessContext(ent, cfg.ctx)
 	}
+	return nil
 }
 
 func compactObject(obj json.RawMessage) (r json.RawMessage) {
