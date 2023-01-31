@@ -146,11 +146,11 @@ func startRegexListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGr
 			wg.Add(1)
 			go regexAcceptor(l, connID, igst, rhc, tp)
 		} else if tp.UDP() {
-			addr, err := net.ResolveUDPAddr(tp.String(), str)
+			addr, err := net.ResolveUDPAddr(`udp`, str)
 			if err != nil {
 				lg.FatalCode(0, "invalid Bind-String", log.KV("bindstring", v.Bind_String), log.KV("listener", k), log.KVErr(err))
 			}
-			l, err := net.ListenUDP(tp.String(), addr)
+			l, err := net.ListenUDP(`udp`, addr)
 			if err != nil {
 				lg.FatalCode(0, "failed to listen via udp", log.KV("address", addr), log.KV("listener", k), log.KVErr(err))
 			}
@@ -258,7 +258,7 @@ func regexAcceptorUDP(conn *net.UDPConn, id int, cfg regexHandlerConfig, igst *i
 		} else {
 			rip = cfg.src
 		}
-		regexLoop(bytes.NewReader(buff[0:]), cfg, rip, rs, tg)
+		regexLoop(bytes.NewReader(buff[:n]), cfg, rip, rs, tg)
 	}
 
 }
