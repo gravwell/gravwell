@@ -239,6 +239,7 @@ func jsonAcceptorUDP(conn *net.UDPConn, id int, igst *ingest.IngestMuxer, cfg js
 			return
 		}
 	}
+	ll := log.NewLoggerWithKV(lg, log.KV("json-listener", cfg.name))
 	for {
 		n, raddr, err := conn.ReadFromUDP(buff)
 		if err != nil {
@@ -260,7 +261,6 @@ func jsonAcceptorUDP(conn *net.UDPConn, id int, igst *ingest.IngestMuxer, cfg js
 			rip = cfg.src
 		}
 		// get a local logger up that will always add some more info
-		ll := log.NewLoggerWithKV(lg, log.KV("json-listener", cfg.name), log.KV("remoteaddress", rip.String()))
 		handleJSONStream(bytes.NewReader(buff[0:]), cfg, rip, tg, ll)
 	}
 
@@ -290,7 +290,7 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 		rip = cfg.src
 	}
 	// get a local logger up that will always add some more info
-	ll := log.NewLoggerWithKV(lg, log.KV("json-listener", cfg.name), log.KV("remoteaddress", lip.String()))
+	ll := log.NewLoggerWithKV(lg, log.KV("json-listener", cfg.name))
 
 	if !cfg.ignoreTimestamps {
 		var err error
@@ -346,13 +346,13 @@ consumerLoop:
 		if err := dec.Decode(&obj); err != nil {
 			// check if limited reader is exhausted so that we can throw a better error
 			if errors.Is(err, utils.ErrOversizedObject) {
-				ll.Error("oversized json object", log.KV("max-size", cfg.maxObjectSize))
+				ll.Error("oversized json object", log.KV("remoteaddress", rip), log.KV("max-size", cfg.maxObjectSize))
 			} else if errors.Is(err, io.EOF) {
 				ll.Info("client disconnected")
 				break consumerLoop //break out of the main loop
 			} else {
 				//just a plain old error
-				ll.Error("invalid json object", log.KV("max-size", cfg.maxObjectSize), log.KVErr(err))
+				ll.Error("invalid json object", log.KV("remoteaddress", rip), log.KV("max-size", cfg.maxObjectSize), log.KVErr(err))
 			}
 			return err // we pretty much have to just hang up
 		}
@@ -373,7 +373,7 @@ consumerLoop:
 			ts = entry.Now()
 		} else {
 			if extracted, ok, err := tg.Extract(data); err != nil {
-				ll.Error("catastrophic timegrinder failure", log.KVErr(err))
+				ll.Error("catastrophic timegrinder failure", log.KV("remoteaddress", rip), log.KVErr(err))
 				return err
 			} else if ok {
 				ts = entry.FromStandard(extracted)
