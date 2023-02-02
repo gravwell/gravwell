@@ -31,6 +31,7 @@ var (
 		"dnsmasq":  genDataDnsmasq,
 		"fields":   genDataFields,
 		"json":     genDataJSON,
+		"xml":      genDataXML,
 		"regex":    genDataRegex,
 		"syslog":   genDataSyslog,
 		"zeekconn": genDataZeekConn,
