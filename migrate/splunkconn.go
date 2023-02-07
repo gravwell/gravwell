@@ -246,6 +246,7 @@ func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, c
 	defer resp.Body.Close()
 	// wrap the body in a CSV reader
 	rdr := csv.NewReader(resp.Body)
+	rdr.LazyQuotes = true
 
 	// get the header
 	header, err := rdr.Read()
