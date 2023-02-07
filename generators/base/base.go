@@ -37,6 +37,8 @@ var (
 	entryCount      = flag.Int("entry-count", 100, "Number of entries to generate")
 	streaming       = flag.Bool("stream", false, "Stream entries in")
 	rawConn         = flag.String("raw-connection", "", "Deliver line broken entries over a TCP connection instead of gravwell protocol")
+	hecTarget       = flag.String("hec-target", "", "Target a HEC endpoint")
+	hecModeRaw      = flag.Bool("hec-mode-raw", false, "Send events to the raw HEC endpoint")
 	span            = flag.String("duration", "1h", "Total Duration")
 	srcOverride     = flag.String("source-override", "", "Source override value")
 	status          = flag.Bool("status", false, "show ingest rates as we run")
@@ -51,7 +53,10 @@ var (
 type GeneratorConfig struct {
 	ok          bool
 	modeRaw     bool
+	modeHEC     bool
+	modeHECRaw  bool
 	Raw         string
+	HEC         string
 	Streaming   bool
 	Compression bool
 	Tag         string
@@ -118,6 +123,15 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		return
 	}
 	gc.Tenant = *ingestTenant
+
+	if *hecTarget != `` {
+		gc.modeHEC = true
+		gc.modeHECRaw = *hecModeRaw
+		gc.HEC = *hecTarget
+		gc.ok = true
+		return
+	}
+
 	var connSet []string
 
 	if *clearConns != "" {
@@ -182,6 +196,11 @@ func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (co
 		return
 	} else if gc.modeRaw {
 		if conn, err = newRawConn(gc, to); err == nil {
+			src, err = conn.SourceIP()
+		}
+		return
+	} else if gc.modeHEC {
+		if conn, err = newHecConn(name, gc, to); err == nil {
 			src, err = conn.SourceIP()
 		}
 		return
