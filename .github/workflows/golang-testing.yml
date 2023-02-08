@@ -49,12 +49,9 @@ jobs:
         go build -o /dev/null ./timegrinder/cmd
         go build -o /dev/null ./ipexist/textinput
         go build -o /dev/null ./kitctl
-        go build -o /dev/null ./ingesters/winevents
         go build -o /dev/null ./ingesters/GooglePubSubIngester
         go build -o /dev/null ./ingesters/massFile
         go build -o /dev/null ./ingesters/diskmonitor
-        go build -o /dev/null ./ingesters/utils
-        go build -o /dev/null ./ingesters/utils/caps
         go build -o /dev/null ./ingesters/HttpIngester
         go build -o /dev/null ./ingesters/collectd
         go build -o /dev/null ./ingesters/xlsxIngester
@@ -74,12 +71,10 @@ jobs:
         go build -o /dev/null ./ingesters/hackernews_ingester
         go build -o /dev/null ./ingesters/Shodan
         go build -o /dev/null ./ingesters/singleFile
-        go build -o /dev/null ./ingesters/args
         go build -o /dev/null ./ingesters/sqsIngester
         go build -o /dev/null ./ingesters/multiFile
         go build -o /dev/null ./ingesters/networkLog
         go build -o /dev/null ./ingesters/session
-        go build -o /dev/null ./ingesters/base
         go build -o /dev/null ./ingesters/regexFile
         go build -o /dev/null ./ingesters/pcapFileIngester
         go build -o /dev/null ./ingesters/SimpleRelay
