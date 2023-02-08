@@ -26,7 +26,7 @@ jobs:
         cache: true
 
     - name: Install libpcap
-      run: sudo apt-get install -y libpcap-dev libpcap
+      run: sudo apt-get install -y libpcap-dev
 
     - name: Test
       run: |
