@@ -25,67 +25,69 @@ jobs:
         go-version: 1.19.5
 
     - name: Test
-      run: go test -v ./generators/ipgen
-      run: go test -v ./chancacher
-      run: go test -v ./ingest
-      run: go test -v ./timegrinder
-      run: go test -v ./filewatch
-      run: go test -v ./ingesters/utils
-      run: go test -v ./ingesters/utils
-      run: go test -v ./ingesters/kafka_consumer
-      run: go test -v ./ingesters/SimpleRelay
-      run: go test -v ./ipexist
-      run: go test -v ./netflow
-      run: go test -v ./client/...
+      run: |
+        go test -v ./generators/ipgen
+        go test -v ./chancacher
+        go test -v ./ingest
+        go test -v ./timegrinder
+        go test -v ./filewatch
+        go test -v ./ingesters/utils
+        go test -v ./ingesters/utils
+        go test -v ./ingesters/kafka_consumer
+        go test -v ./ingesters/SimpleRelay
+        go test -v ./ipexist
+        go test -v ./netflow
+        go test -v ./client/...
     
     - name: Build
-      run: go build -o /dev/null ./generators/gravwellGenerator
-      run: go build -o /dev/null ./manager
-      run: go build -o /dev/null ./migrate
-      run: go build -o /dev/null ./tools/timetester
-      run: go build -o /dev/null ./timegrinder/cmd
-      run: go build -o /dev/null ./ipexist/textinput
-      run: go build -o /dev/null ./kitctl
-      run: go build -o /dev/null ./ingesters
-      run: go build -o /dev/null ./ingesters/winevents
-      run: go build -o /dev/null ./ingesters/GooglePubSubIngester
-      run: go build -o /dev/null ./ingesters/massFile
-      run: go build -o /dev/null ./ingesters/diskmonitor
-      run: go build -o /dev/null ./ingesters/utils
-      run: go build -o /dev/null ./ingesters/utils/caps
-      run: go build -o /dev/null ./ingesters/HttpIngester
-      run: go build -o /dev/null ./ingesters/collectd
-      run: go build -o /dev/null ./ingesters/xlsxIngester
-      run: go build -o /dev/null ./ingesters/netflow
-      run: go build -o /dev/null ./ingesters/version
-      run: go build -o /dev/null ./ingesters/KinesisIngester
-      run: go build -o /dev/null ./ingesters/reimport
-      run: go build -o /dev/null ./ingesters/kafka_consumer
-      run: go build -o /dev/null ./ingesters/MSGraphIngester
-      run: go build -o /dev/null ./ingesters/IPMIIngester
-      run: go build -o /dev/null ./ingesters/fileFollow
-      run: go build -o /dev/null ./ingesters/canbus
-      run: go build -o /dev/null ./ingesters/reddit_ingester
-      run: go build -o /dev/null ./ingesters/s3Ingester
-      run: go build -o /dev/null ./ingesters/snmp
-      run: go build -o /dev/null ./ingesters/AzureEventHubs
-      run: go build -o /dev/null ./ingesters/hackernews_ingester
-      run: go build -o /dev/null ./ingesters/Shodan
-      run: go build -o /dev/null ./ingesters/singleFile
-      run: go build -o /dev/null ./ingesters/args
-      run: go build -o /dev/null ./ingesters/sqsIngester
-      run: go build -o /dev/null ./ingesters/multiFile
-      run: go build -o /dev/null ./ingesters/networkLog
-      run: go build -o /dev/null ./ingesters/session
-      run: go build -o /dev/null ./ingesters/base
-      run: go build -o /dev/null ./ingesters/regexFile
-      run: go build -o /dev/null ./ingesters/pcapFileIngester
-      run: go build -o /dev/null ./ingesters/SimpleRelay
-      run: go build -o /dev/null ./ingesters/O365Ingester
-      run: go build -o /dev/null ./ingesters/PacketFleet
-      run: GOOS=windows go build -o /dev/null ./ingesters/fileFollow
-      run: GOOS=windows go build -o /dev/null ./ingesters/winevents
-      run: GOOS=windows go build ./generators/windowsEventGenerator
+      run: |
+        go build -o /dev/null ./generators/gravwellGenerator
+        go build -o /dev/null ./manager
+        go build -o /dev/null ./migrate
+        go build -o /dev/null ./tools/timetester
+        go build -o /dev/null ./timegrinder/cmd
+        go build -o /dev/null ./ipexist/textinput
+        go build -o /dev/null ./kitctl
+        go build -o /dev/null ./ingesters
+        go build -o /dev/null ./ingesters/winevents
+        go build -o /dev/null ./ingesters/GooglePubSubIngester
+        go build -o /dev/null ./ingesters/massFile
+        go build -o /dev/null ./ingesters/diskmonitor
+        go build -o /dev/null ./ingesters/utils
+        go build -o /dev/null ./ingesters/utils/caps
+        go build -o /dev/null ./ingesters/HttpIngester
+        go build -o /dev/null ./ingesters/collectd
+        go build -o /dev/null ./ingesters/xlsxIngester
+        go build -o /dev/null ./ingesters/netflow
+        go build -o /dev/null ./ingesters/version
+        go build -o /dev/null ./ingesters/KinesisIngester
+        go build -o /dev/null ./ingesters/reimport
+        go build -o /dev/null ./ingesters/kafka_consumer
+        go build -o /dev/null ./ingesters/MSGraphIngester
+        go build -o /dev/null ./ingesters/IPMIIngester
+        go build -o /dev/null ./ingesters/fileFollow
+        go build -o /dev/null ./ingesters/canbus
+        go build -o /dev/null ./ingesters/reddit_ingester
+        go build -o /dev/null ./ingesters/s3Ingester
+        go build -o /dev/null ./ingesters/snmp
+        go build -o /dev/null ./ingesters/AzureEventHubs
+        go build -o /dev/null ./ingesters/hackernews_ingester
+        go build -o /dev/null ./ingesters/Shodan
+        go build -o /dev/null ./ingesters/singleFile
+        go build -o /dev/null ./ingesters/args
+        go build -o /dev/null ./ingesters/sqsIngester
+        go build -o /dev/null ./ingesters/multiFile
+        go build -o /dev/null ./ingesters/networkLog
+        go build -o /dev/null ./ingesters/session
+        go build -o /dev/null ./ingesters/base
+        go build -o /dev/null ./ingesters/regexFile
+        go build -o /dev/null ./ingesters/pcapFileIngester
+        go build -o /dev/null ./ingesters/SimpleRelay
+        go build -o /dev/null ./ingesters/O365Ingester
+        go build -o /dev/null ./ingesters/PacketFleet
+        GOOS=windows go build -o /dev/null ./ingesters/fileFollow
+        GOOS=windows go build -o /dev/null ./ingesters/winevents
+        GOOS=windows go build ./generators/windowsEventGenerator
 
     - name: Final status
       run: echo "Status is ${{ job.status }} 🚀"
