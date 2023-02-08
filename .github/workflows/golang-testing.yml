@@ -49,7 +49,6 @@ jobs:
         go build -o /dev/null ./timegrinder/cmd
         go build -o /dev/null ./ipexist/textinput
         go build -o /dev/null ./kitctl
-        go build -o /dev/null ./ingesters
         go build -o /dev/null ./ingesters/winevents
         go build -o /dev/null ./ingesters/GooglePubSubIngester
         go build -o /dev/null ./ingesters/massFile
