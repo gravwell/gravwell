@@ -32,6 +32,7 @@ type RegexExtractConfig struct {
 	Drop_Misses        bool
 	Regex              string
 	Template           string
+	Attach             []string // list of regular expression items to attach as intrinsic EVs
 }
 
 func RegexExtractLoadConfig(vc *config.VariableConfig) (c RegexExtractConfig, err error) {
@@ -39,12 +40,43 @@ func RegexExtractLoadConfig(vc *config.VariableConfig) (c RegexExtractConfig, er
 	//default is now to send them through
 	c.Passthrough_Misses = true
 	if err = vc.MapTo(&c); err == nil {
-		_, _, err = c.validate()
+		_, _, _, err = c.validate()
 	}
 	return
 }
 
-func (c *RegexExtractConfig) validate() (rx *regexp.Regexp, tmp *formatter, err error) {
+func stringInSet(v string, set []string) int {
+	for i, s := range set {
+		if s == v {
+			return i
+		}
+	}
+	return -1
+}
+
+func (c *RegexExtractConfig) genAttachFields(names []string) (af []attachFields, err error) {
+	if len(c.Attach) == 0 {
+		return
+	}
+	for _, name := range c.Attach {
+		if len(name) == 0 {
+			continue
+		}
+		idx := stringInSet(name, names)
+		if idx == -1 {
+			err = fmt.Errorf("%s is not extracted in the regular expression", name)
+			return
+		}
+		af = append(af, attachFields{
+			name:     name,
+			matchIdx: idx,
+		})
+	}
+
+	return
+}
+
+func (c *RegexExtractConfig) validate() (rx *regexp.Regexp, tmp *formatter, af []attachFields, err error) {
 	if c.Regex == `` {
 		err = errors.New("Missing regular expression")
 		return
@@ -69,20 +101,29 @@ func (c *RegexExtractConfig) validate() (rx *regexp.Regexp, tmp *formatter, err 
 		}
 	}
 
-	err = tmp.setReplaceNames(names)
+	if err = tmp.setReplaceNames(names); err != nil {
+		return
+	}
+	af, err = c.genAttachFields(names)
 	return
 }
 
 type RegexExtractor struct {
 	nocloser
 	RegexExtractConfig
-	tmp *formatter
-	rx  *regexp.Regexp
-	cnt int
+	tmp       *formatter
+	rx        *regexp.Regexp
+	cnt       int
+	attachSet []attachFields
+}
+
+type attachFields struct {
+	name     string
+	matchIdx int
 }
 
 func NewRegexExtractor(cfg RegexExtractConfig) (*RegexExtractor, error) {
-	rx, tmp, err := cfg.validate()
+	rx, tmp, atch, err := cfg.validate()
 	if err != nil {
 		return nil, err
 	}
@@ -91,6 +132,7 @@ func NewRegexExtractor(cfg RegexExtractConfig) (*RegexExtractor, error) {
 		RegexExtractConfig: cfg,
 		tmp:                tmp,
 		rx:                 rx,
+		attachSet:          atch,
 		cnt:                len(rx.SubexpNames()),
 	}, nil
 }
@@ -99,7 +141,7 @@ func (re *RegexExtractor) Config(v interface{}) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(RegexExtractConfig); ok {
-		if re.rx, re.tmp, err = cfg.validate(); err == nil {
+		if re.rx, re.tmp, re.attachSet, err = cfg.validate(); err == nil {
 			re.RegexExtractConfig = cfg
 		}
 	} else {
@@ -129,11 +171,30 @@ func (re *RegexExtractor) processEntry(ent *entry.Entry) (*entry.Entry, error) {
 	}
 	if mtchs := re.rx.FindSubmatch(ent.Data); len(mtchs) == re.cnt {
 		ent.Data = re.tmp.render(ent, mtchs)
+		if len(re.attachSet) > 0 {
+			re.performAttaches(ent, mtchs)
+		}
 	} else if re.Drop_Misses {
 		//NOT passing through misses, so set ent to nil, this is a DROP
 		ent = nil
 	}
 	return ent, nil
+}
+
+func (re *RegexExtractor) performAttaches(ent *entry.Entry, matches [][]byte) {
+	for _, a := range re.attachSet {
+		if a.matchIdx < len(matches) {
+			if m := matches[a.matchIdx]; m != nil {
+				ent.AddEnumeratedValue(
+					entry.EnumeratedValue{
+						Name:  a.name,
+						Value: entry.StringEnumData(string(m)),
+					},
+				)
+			}
+		}
+	}
+	return
 }
 
 type replaceNode interface {
