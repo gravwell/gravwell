@@ -24,7 +24,7 @@ import (
 const (
 	//MAJOR API VERSIONS should always be compatible, there just may be additional features
 	API_VERSION_MAJOR uint32 = 0
-	API_VERSION_MINOR uint32 = 6
+	API_VERSION_MINOR uint32 = uint32(VERSION)
 )
 
 const (
@@ -171,6 +171,7 @@ type IngesterState struct {
 	Tags          []string      // The tags registered with the ingester
 	CacheState    string
 	CacheSize     uint64
+	LastSeen      time.Time
 	Children      map[string]IngesterState
 	Configuration json.RawMessage `json:",omitempty"`
 	Metadata      json.RawMessage `json:",omitempty"`
@@ -243,4 +244,63 @@ func (s IngesterState) Copy() (r IngesterState) {
 		r.Children[k] = v.Copy()
 	}
 	return
+}
+
+type es []string
+
+func (e es) MarshalJSON() ([]byte, error) {
+	if len(e) == 0 {
+		return []byte("[]"), nil
+	}
+	return json.Marshal([]string(e))
+}
+
+type mis struct {
+	mp map[string]IngesterState
+}
+
+func (m mis) MarshalJSON() ([]byte, error) {
+	if len(m.mp) == 0 {
+		return []byte("{}"), nil
+	}
+	return json.Marshal(m.mp)
+}
+
+func (s IngesterState) MarshalJSON() ([]byte, error) {
+	x := struct {
+		UUID          string
+		Name          string
+		Version       string
+		Label         string
+		IP            net.IP
+		Hostname      string
+		Entries       uint64
+		Size          uint64
+		Uptime        time.Duration
+		Tags          es
+		CacheState    string
+		CacheSize     uint64
+		LastSeen      time.Time
+		Children      mis
+		Configuration json.RawMessage `json:",omitempty"`
+		Metadata      json.RawMessage `json:",omitempty"`
+	}{
+		UUID:          s.UUID,
+		Name:          s.Name,
+		Version:       s.Version,
+		Label:         s.Label,
+		IP:            s.IP,
+		Hostname:      s.Hostname,
+		Entries:       s.Entries,
+		Size:          s.Size,
+		Uptime:        s.Uptime,
+		Tags:          es(s.Tags),
+		CacheState:    s.CacheState,
+		CacheSize:     s.CacheSize,
+		LastSeen:      s.LastSeen,
+		Children:      mis{mp: s.Children},
+		Configuration: s.Configuration,
+		Metadata:      s.Metadata,
+	}
+	return json.Marshal(x)
 }

@@ -1,0 +1,91 @@
+# This workflow is designed to setup a golang workspace and execute the unit tests
+
+name: golang-testing
+
+on:
+  push:
+    branches: [ dev ]
+  pull_request:
+    branches: [ dev ]
+
+jobs:
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - run: echo "Executing on  ${{ runner.os }} due to ${{ github.event_name }}"
+    - run: echo "Branch is ${{ github.ref }} executing on  ${{ runner.os }} due to ${{ github.event_name }}"
+
+    - name: Checkout repo
+      uses: actions/checkout@v3
+
+    - name: Set up Go
+      uses: actions/setup-go@v3
+      with:
+        go-version: 1.19.5
+        cache: true
+
+    - name: Install libpcap
+      run: sudo apt-get install -y libpcap-dev
+
+    - name: Test
+      run: |
+        go test -v ./generators/ipgen
+        go test -v ./chancacher
+        go test -v ./ingest
+        go test -v ./timegrinder
+        go test -v ./filewatch
+        go test -v ./ingesters/utils
+        go test -v ./ingesters/utils
+        go test -v ./ingesters/kafka_consumer
+        go test -v ./ingesters/SimpleRelay
+        go test -v ./ipexist
+        go test -v ./netflow
+        go test -v ./client/...
+    
+    - name: Build
+      run: |
+        go build -o /dev/null ./generators/gravwellGenerator
+        go build -o /dev/null ./manager
+        go build -o /dev/null ./migrate
+        go build -o /dev/null ./tools/timetester
+        go build -o /dev/null ./timegrinder/cmd
+        go build -o /dev/null ./ipexist/textinput
+        go build -o /dev/null ./kitctl
+        go build -o /dev/null ./ingesters/GooglePubSubIngester
+        go build -o /dev/null ./ingesters/massFile
+        go build -o /dev/null ./ingesters/diskmonitor
+        go build -o /dev/null ./ingesters/HttpIngester
+        go build -o /dev/null ./ingesters/collectd
+        go build -o /dev/null ./ingesters/xlsxIngester
+        go build -o /dev/null ./ingesters/netflow
+        go build -o /dev/null ./ingesters/version
+        go build -o /dev/null ./ingesters/KinesisIngester
+        go build -o /dev/null ./ingesters/reimport
+        go build -o /dev/null ./ingesters/kafka_consumer
+        go build -o /dev/null ./ingesters/MSGraphIngester
+        go build -o /dev/null ./ingesters/IPMIIngester
+        go build -o /dev/null ./ingesters/fileFollow
+        go build -o /dev/null ./ingesters/canbus
+        go build -o /dev/null ./ingesters/reddit_ingester
+        go build -o /dev/null ./ingesters/s3Ingester
+        go build -o /dev/null ./ingesters/snmp
+        go build -o /dev/null ./ingesters/AzureEventHubs
+        go build -o /dev/null ./ingesters/hackernews_ingester
+        go build -o /dev/null ./ingesters/Shodan
+        go build -o /dev/null ./ingesters/singleFile
+        go build -o /dev/null ./ingesters/sqsIngester
+        go build -o /dev/null ./ingesters/multiFile
+        go build -o /dev/null ./ingesters/networkLog
+        go build -o /dev/null ./ingesters/session
+        go build -o /dev/null ./ingesters/regexFile
+        go build -o /dev/null ./ingesters/pcapFileIngester
+        go build -o /dev/null ./ingesters/SimpleRelay
+        go build -o /dev/null ./ingesters/O365Ingester
+        go build -o /dev/null ./ingesters/PacketFleet
+        GOOS=windows go build -o /dev/null ./ingesters/fileFollow
+        GOOS=windows go build -o /dev/null ./ingesters/winevents
+        GOOS=windows go build ./generators/windowsEventGenerator
+
+    - name: Final status
+      run: echo "Status is ${{ job.status }} 🚀"

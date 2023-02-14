@@ -65,6 +65,13 @@ func newBaseReader(f *os.File, maxLine int, startIdx int64) (br baseReader, err 
 	return
 }
 
+func (br *baseReader) Name() string {
+	if br != nil && br.f != nil {
+		return br.f.Name()
+	}
+	return ``
+}
+
 func (br *baseReader) SeekFile(offset int64) error {
 	_, err := br.f.Seek(offset, 0)
 	br.idx = offset

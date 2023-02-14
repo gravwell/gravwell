@@ -10,6 +10,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -32,6 +34,12 @@ const (
 	batchSize             = 512
 	maxDataSize       int = 8 * 1024 * 1024
 	initDataSize      int = 512 * 1024
+
+	testTimeout time.Duration = 3 * time.Second
+)
+
+var (
+	fTestConfig = flag.Bool("test-config", false, "Test the S3 config without ingesting, will validate credentials and permissions")
 )
 
 type handlerConfig struct {
@@ -52,6 +60,7 @@ type handlerConfig struct {
 }
 
 func main() {
+	var cfg *cfgType
 	ibc := base.IngesterBaseConfig{
 		IngesterName:                 ingesterName,
 		AppName:                      appName,
@@ -63,16 +72,8 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to get configuration %v\n", err)
 		return
-	} else if ib.Cfg == nil {
-		fmt.Fprintf(os.Stderr, "configuration is nil\n")
-		return
-	}
-	cfg, ok := ib.Cfg.(*cfgType)
-	if !ok {
-		fmt.Fprintf(os.Stderr, "ingester base returned invalid config type %T\n", ib.Cfg)
-		return
-	} else if cfg == nil {
-		fmt.Fprintf(os.Stderr, "configuration is nil\n")
+	} else if err = ib.AssignConfig(&cfg); err != nil || cfg == nil {
+		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
 
@@ -127,7 +128,19 @@ func main() {
 		}
 	}
 
+	if *fTestConfig {
+		igst.Close()
+		err = testConfig(brs, ib.Verbose)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "\nConfiguration test failed: %v\n", err)
+			os.Exit(255)
+		} else {
+			fmt.Println("\nConfiguration test succeeded")
+			os.Exit(0)
+		}
+	}
 	ctx, cancel := context.WithCancel(context.Background())
+
 	var wg sync.WaitGroup
 	ib.Debug("Running\n")
 
@@ -152,4 +165,35 @@ func main() {
 	if err := ot.Flush(); err != nil {
 		ib.Logger.Error("failed to flush state", log.KVErr(err))
 	}
+}
+
+func testConfig(brs []*BucketReader, verbose bool) (err error) {
+	if len(brs) == 0 {
+		err = errors.New("no bucket readers defined")
+		return
+	}
+	p := context.Background()
+	for _, br := range brs {
+		if br == nil {
+			return errors.New("nil bucket reader")
+		}
+		if verbose {
+			fmt.Printf("Testing %s ... ", br.Name)
+		}
+		ctx, cancel := context.WithTimeout(p, testTimeout)
+		err = br.Test(ctx)
+		cancel()
+		if verbose {
+			if err == nil {
+				fmt.Printf("success\n")
+			} else {
+				fmt.Printf("FAILURE\n")
+			}
+		}
+		if err != nil {
+			err = fmt.Errorf("Bucket %q failed %w", br.Name, err)
+			break
+		}
+	}
+	return
 }

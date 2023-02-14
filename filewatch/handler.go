@@ -23,6 +23,10 @@ import (
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
+const (
+	evFilenameName = `file`
+)
+
 type debugOut func(string, ...interface{})
 
 type logger interface {
@@ -62,6 +66,7 @@ type LogHandlerConfig struct {
 	Debugger                debugOut
 	Ctx                     context.Context
 	TimeFormat              config.CustomTimeFormat
+	AttachFilename          bool
 }
 
 type lineIgnorer struct {
@@ -176,7 +181,7 @@ func (lh *LogHandler) Tag() string {
 	return lh.LogHandlerConfig.TagName
 }
 
-func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
+func (lh *LogHandler) HandleLog(b []byte, catchts time.Time, fname string) error {
 	if len(b) == 0 {
 		return nil
 	}
@@ -201,10 +206,17 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time) error {
 	if lh.Debugger != nil {
 		lh.Debugger("GOT %s %s\n", ts.Format(time.RFC3339), string(b))
 	}
-	return lh.w.ProcessContext(&entry.Entry{
+	ent := &entry.Entry{
 		SRC:  lh.Src,
 		TS:   entry.FromStandard(ts),
 		Tag:  lh.LogHandlerConfig.Tag,
 		Data: b,
-	}, lh.LogHandlerConfig.Ctx)
+	}
+	if lh.AttachFilename {
+		ent.AddEnumeratedValue(entry.EnumeratedValue{
+			Name:  evFilenameName,
+			Value: entry.StringEnumDataTail(fname),
+		})
+	}
+	return lh.w.ProcessContext(ent, lh.LogHandlerConfig.Ctx)
 }

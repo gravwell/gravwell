@@ -51,6 +51,7 @@ type follower struct {
 	Ignore_Timestamps         bool //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone     bool
 	Recursive                 bool // Should we descend into child directories?
+	Attach_Filename           bool // attach the full path of the file to each entry
 	Ignore_Line_Prefix        []string
 	Ignore_Glob               []string
 	Timestamp_Format_Override string //override the timestamp format

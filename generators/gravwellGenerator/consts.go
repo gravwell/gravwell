@@ -163,10 +163,10 @@ func init() {
 }
 
 type Account struct {
-	User    string `json:"user"`
-	Name    string `json:"name"`
-	Email   string `json:"email"`
-	Phone   string `json:"phone"`
+	User    string `json:"user" xml:"user,attr"`
+	Name    string `json:"name" xml:"name,attr"`
+	Email   string `json:"email" xml:"email,attr"`
+	Phone   string `json:"phone" xml:"phone,attr"`
 	Address string `json:"address"`
 	State   string `json:"state"`
 	Country string `json:"country"`

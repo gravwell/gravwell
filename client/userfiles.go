@@ -135,6 +135,12 @@ func (c *Client) GetUserFile(id uuid.UUID) (bts []byte, err error) {
 	return
 }
 
+// GetUserFileDetails fetches info about a particular file by GUID or ThingUUID.
+func (c *Client) GetUserFileDetails(id uuid.UUID) (dets types.UserFileDetails, err error) {
+	err = c.getStaticURL(userFilesIdDetailsUrl(id), &dets)
+	return
+}
+
 // uploadUserFile does the dirty work of firing off a file upload
 func (c *Client) uploadUserFile(method, url string, fin *os.File, meta types.UserFileDetails) (guid uuid.UUID, err error) {
 	var resp *http.Response

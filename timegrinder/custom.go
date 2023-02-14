@@ -33,6 +33,7 @@ type CustomFormat struct {
 	Format string
 
 	dateMissing bool // indicates that the extraction only gets time, so add date
+	yearMissing bool // indicates that the extraction doesn't set the year
 }
 
 // Validate will check that the custom format is well formed and usable
@@ -66,6 +67,9 @@ func (cf *CustomFormat) Validate() (err error) {
 	} else if t.Year() == 0 && t.Month() == 1 && t.Day() == 1 {
 		//this is ok, but we need to add the date
 		cf.dateMissing = true
+	}
+	if t.Year() == 0 {
+		cf.yearMissing = true
 	}
 	return
 }
@@ -104,6 +108,10 @@ func (cp *customProcessor) Match(d []byte) (int, int, bool) {
 func (cp *customProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
 	if t, ok, offset = extract(cp.rx, nil, d, cp.CustomFormat.Format, loc); ok && cp.dateMissing {
 		t = addDate(t)
+	}
+	//check if we need to set the year
+	if cp.yearMissing {
+		t = tweakYear(t)
 	}
 	return
 }
