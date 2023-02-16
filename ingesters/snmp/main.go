@@ -129,6 +129,12 @@ func main() {
 					log.KV("expected-flags", 0x3&l.Params.MsgFlags),
 					log.KV("client", u.IP.String()))
 				return
+			} else if l.Params.Version == gosnmp.Version2c && s.Community != l.Params.Community {
+				ib.Logger.Warn("dropping trap due to invalid community",
+					log.KV("received-community", s.Community),
+					log.KV("received-community", l.Params.Community),
+					log.KV("client", u.IP.String()))
+				return
 			}
 			ent := entry.Entry{
 				TS:  entry.Now(),
