@@ -145,7 +145,6 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			debugout("\t\t%v: %v\n", k, v)
 		}
 		debugout("\n")
-		debugout("ROUTES: %+v %+v %+v\n", h.mp, h.auth, h.custom)
 	}(w, r)
 	ip := getRemoteIP(r)
 	rdr, err := getReadableBody(r)
@@ -189,6 +188,7 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	//not an auth, try the actual post URL
 	rh, ok := h.mp[rt]
 	h.RUnlock()
+	debugout("LOOKUP UP ROUTE: %s %s\n", rt.method, rt.uri)
 	if !ok {
 		h.lgr.Info("bad request URL", log.KV("url", rt.uri), log.KV("method", r.Method))
 		w.WriteHeader(http.StatusNotFound)

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -178,15 +179,17 @@ func parseReader(v string) (reader, error) {
 
 // ARN is designed to try and figure out the bucket name from either a pure bucket name
 // bucket HTTP url, or amazon ARN specification
-// Examples include https://<bucketname>.s3.amazonaws.com
+// Examples include:
+// https://<bucketname>.s3.amazonaws.com
 // arn:aws:s3:::<bucketname>
 // <bucketname>
 // <bucketname>.s3.amazonaws.com
 // s3://<bucketname>
-func getARN(v string) (arn string, err error) {
+// http(s)://[host]/<bucketname>/more/path/variables
+func getBucketName(v string) (bucketName string, err error) {
 	//properly formed ARN
 	if strings.HasPrefix(v, `arn:aws:s3`) {
-		arn = v
+		bucketName = v
 		return
 	}
 	//check for a URL scheme
@@ -201,7 +204,7 @@ func getARN(v string) (arn string, err error) {
 		}
 		switch uri.Scheme {
 		case `s3`:
-			arn = uri.Host
+			bucketName = uri.Host
 			return
 		case `http`:
 			fallthrough
@@ -212,21 +215,14 @@ func getARN(v string) (arn string, err error) {
 				host = uri.Host
 				err = nil
 			}
-			//now check if the host is a straight up amazon
-			if host == `s3.amazonaws.com` {
-				//then grab the first element of the path
-				p := path.Clean(uri.Path)
-				if len(p) > 0 && p[0] == '/' {
-					p = p[1:]
+			if strings.HasSuffix(host, `.s3.amazonaws.com`) {
+				bucketName = strings.TrimSuffix(uri.Host, `.s3.amazonaws.com`)
+			} else {
+				//try to resolve the bucket based on the URL path
+				//grab the first element of the path
+				if bucketName = basePath(uri.Path); bucketName == `` {
+					err = fmt.Errorf("Failed to extract the Bucket for URL %q", v)
 				}
-				if bits := strings.Split(p, "/"); len(bits) > 0 {
-					arn = bits[0]
-				} else {
-					err = fmt.Errorf("Unknown Bucket ARN or URL %q", v)
-				}
-				return
-			} else if strings.HasSuffix(uri.Host, `.s3.amazonaws.com`) {
-				arn = strings.TrimSuffix(uri.Host, `.s3.amazonaws.com`)
 			}
 			return
 		default:
@@ -238,8 +234,30 @@ func getARN(v string) (arn string, err error) {
 		if strings.HasSuffix(v, `.s3.amazonaws.com`) {
 			v = strings.TrimSuffix(v, `.s3.amazonaws.com`)
 		}
-		arn = v
+		bucketName = v
 	}
 
 	return
 }
+
+func basePath(orig string) (s string) {
+	if s = path.Clean(orig); s == `.` {
+		s = ``
+		return
+	}
+	for {
+		dir, file := path.Split(s)
+		if dir == `.` || dir == `/` || dir == `` {
+			s = file
+			break
+		} else if s = path.Clean(dir); s == `.` {
+			s = ``
+			break
+		}
+	}
+	return
+}
+
+var (
+	awsUrlRegex = regexp.MustCompile(`s3[-\.]?([a-zA-Z\-0-9]+)?\.amazonaws\.com`)
+)

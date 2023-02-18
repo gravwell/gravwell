@@ -281,9 +281,10 @@ func isTimeout(err error) bool {
 
 func (er *EntryReader) read() (*entry.Entry, error) {
 	var (
-		err error
-		sz  uint32
-		id  entrySendID
+		err    error
+		sz     uint32
+		id     entrySendID
+		hasEvs bool
 	)
 	if er.entCacheIdx >= len(er.entCache) {
 		er.entCache = make([]entry.Entry, entCacheRechargeSize)
@@ -291,12 +292,16 @@ func (er *EntryReader) read() (*entry.Entry, error) {
 	}
 	ent := &er.entCache[er.entCacheIdx]
 
-	if err = er.fillHeader(ent, &id, &sz); err != nil {
+	if err = er.fillHeader(ent, &id, &sz, &hasEvs); err != nil {
 		return nil, err
 	}
 	ent.Data = make([]byte, sz)
 	if _, err = io.ReadFull(er.bIO, ent.Data); err != nil {
 		return nil, err
+	} else if hasEvs {
+		if err = ent.ReadEVs(er.bIO); err != nil {
+			return nil, err
+		}
 	}
 	if err = er.throwAck(id); err != nil {
 		return nil, err
@@ -307,7 +312,7 @@ func (er *EntryReader) read() (*entry.Entry, error) {
 
 // we just eat bytes until we hit the magic number,  this is a rudimentary
 // error recovery where a bad read can skip the entry
-func (er *EntryReader) fillHeader(ent *entry.Entry, id *entrySendID, sz *uint32) error {
+func (er *EntryReader) fillHeader(ent *entry.Entry, id *entrySendID, sz *uint32, evs *bool) error {
 	var err error
 	var n int
 	//read the "new entry" magic number
@@ -424,7 +429,7 @@ headerLoop:
 	if err != nil {
 		return err
 	}
-	dataSize, err := ent.DecodeHeader(er.buff)
+	dataSize, hasEvs, err := ent.DecodeHeader(er.buff)
 	if err != nil {
 		return err
 	}
@@ -433,6 +438,7 @@ headerLoop:
 	}
 	*sz = uint32(dataSize) //dataSize is a uint32 internally, so these casts are OK
 	*id = entrySendID(binary.LittleEndian.Uint64(er.buff[entry.ENTRY_HEADER_SIZE:]))
+	*evs = hasEvs
 	return nil
 }
 

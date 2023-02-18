@@ -31,9 +31,14 @@ var (
 		"dnsmasq":  genDataDnsmasq,
 		"fields":   genDataFields,
 		"json":     genDataJSON,
+		"xml":      genDataXML,
 		"regex":    genDataRegex,
 		"syslog":   genDataSyslog,
 		"zeekconn": genDataZeekConn,
+		"evs":      genDataEnumeratedValue,
+	}
+	finalizers = map[string]base.Finalizer{
+		"evs": finEnumeratedValue,
 	}
 
 	// for fields
@@ -46,7 +51,7 @@ func main() {
 		delim = *delimOverride
 	}
 
-	// validate the type they asked for
+	// validate the type they asked for, a generator MUST be configured
 	gen, ok := dataTypes[*dataType]
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Invalid -type %v. Valid choices:\n", *dataType)
@@ -55,6 +60,8 @@ func main() {
 		}
 		log.Fatal("Must provide valid type argument")
 	}
+	//its ok if there is no finalizer
+	fin := finalizers[*dataType]
 
 	var igst base.GeneratorConn
 	var totalBytes uint64
@@ -75,11 +82,11 @@ func main() {
 	start := time.Now()
 
 	if !cfg.Streaming {
-		if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg, gen); err != nil {
+		if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg, gen, fin); err != nil {
 			log.Fatal("Failed to throw entries ", err)
 		}
 	} else {
-		if totalCount, totalBytes, err = base.Stream(igst, tag, src, cfg, gen); err != nil {
+		if totalCount, totalBytes, err = base.Stream(igst, tag, src, cfg, gen, fin); err != nil {
 			log.Fatal("Failed to stream entries ", err)
 		}
 	}

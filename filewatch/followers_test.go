@@ -230,7 +230,7 @@ type countingLH struct {
 	cnt int64
 }
 
-func (h *countingLH) HandleLog(b []byte, ts time.Time) error {
+func (h *countingLH) HandleLog(b []byte, ts time.Time, fname string) error {
 	if len(b) > 0 && !ts.IsZero() {
 		h.cnt++
 	}
@@ -242,7 +242,7 @@ type trackingLH struct {
 	mp map[string]time.Time
 }
 
-func (h *trackingLH) HandleLog(b []byte, ts time.Time) error {
+func (h *trackingLH) HandleLog(b []byte, ts time.Time, fname string) error {
 	if h.mp == nil {
 		h.mp = map[string]time.Time{}
 	}

@@ -206,7 +206,6 @@ import (
 	_ "github.com/h2non/filetype"
 	_ "github.com/k-sone/ipmigo"
 	_ "github.com/klauspost/compress"
-	_ "github.com/open-networks/go-msgraph"
 	_ "github.com/tealeg/xlsx"
 	_ "github.com/miekg/dns"
 	_ "github.com/buger/jsonparser"

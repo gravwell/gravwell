@@ -148,7 +148,6 @@ import (
 	ipmigo "github.com/k-sone/ipmigo"
 	compress "github.com/klauspost/compress"
 	dns "github.com/miekg/dns"
-	msgraph "github.com/open-networks/go-msgraph"
 	"github.com/open2b/scriggo/native"
 	xlsx "github.com/tealeg/xlsx"
 )
@@ -2486,58 +2485,6 @@ func init() {
 	decs["ZoneParser"] = reflect.TypeOf((*dns.ZoneParser)(nil)).Elem()
 	packages["github.com/miekg/dns"] = native.Package{
 		Name:         "dns",
-		Declarations: decs,
-	}
-	// "github.com/open-networks/go-msgraph"
-	decs = make(native.Declarations, 46)
-	decs["APIVersion"] = msgraph.APIVersion
-	decs["Alert"] = reflect.TypeOf((*msgraph.Alert)(nil)).Elem()
-	decs["AlertTrigger"] = reflect.TypeOf((*msgraph.AlertTrigger)(nil)).Elem()
-	decs["Attendee"] = reflect.TypeOf((*msgraph.Attendee)(nil)).Elem()
-	decs["Attendees"] = reflect.TypeOf((*msgraph.Attendees)(nil)).Elem()
-	decs["AverageComparativeScore"] = reflect.TypeOf((*msgraph.AverageComparativeScore)(nil)).Elem()
-	decs["BaseURL"] = msgraph.BaseURL
-	decs["Calendar"] = reflect.TypeOf((*msgraph.Calendar)(nil)).Elem()
-	decs["CalendarEvent"] = reflect.TypeOf((*msgraph.CalendarEvent)(nil)).Elem()
-	decs["CalendarEvents"] = reflect.TypeOf((*msgraph.CalendarEvents)(nil)).Elem()
-	decs["Calendars"] = reflect.TypeOf((*msgraph.Calendars)(nil)).Elem()
-	decs["CertificationControl"] = reflect.TypeOf((*msgraph.CertificationControl)(nil)).Elem()
-	decs["CloudAppSecurityState"] = reflect.TypeOf((*msgraph.CloudAppSecurityState)(nil)).Elem()
-	decs["ComplianceInformation"] = reflect.TypeOf((*msgraph.ComplianceInformation)(nil)).Elem()
-	decs["ControlScore"] = reflect.TypeOf((*msgraph.ControlScore)(nil)).Elem()
-	decs["EmailAddress"] = reflect.TypeOf((*msgraph.EmailAddress)(nil)).Elem()
-	decs["ErrFindCalendar"] = &msgraph.ErrFindCalendar
-	decs["ErrFindGroup"] = &msgraph.ErrFindGroup
-	decs["ErrFindUser"] = &msgraph.ErrFindUser
-	decs["ErrNotGraphClientSourced"] = &msgraph.ErrNotGraphClientSourced
-	decs["FileHash"] = reflect.TypeOf((*msgraph.FileHash)(nil)).Elem()
-	decs["FileSecurityState"] = reflect.TypeOf((*msgraph.FileSecurityState)(nil)).Elem()
-	decs["FullDayEventTimeZone"] = &msgraph.FullDayEventTimeZone
-	decs["GraphClient"] = reflect.TypeOf((*msgraph.GraphClient)(nil)).Elem()
-	decs["Group"] = reflect.TypeOf((*msgraph.Group)(nil)).Elem()
-	decs["Groups"] = reflect.TypeOf((*msgraph.Groups)(nil)).Elem()
-	decs["HostSecurityState"] = reflect.TypeOf((*msgraph.HostSecurityState)(nil)).Elem()
-	decs["LoginBaseURL"] = msgraph.LoginBaseURL
-	decs["MalwareState"] = reflect.TypeOf((*msgraph.MalwareState)(nil)).Elem()
-	decs["MaxPageSize"] = msgraph.MaxPageSize
-	decs["NetworkConnection"] = reflect.TypeOf((*msgraph.NetworkConnection)(nil)).Elem()
-	decs["NewGraphClient"] = msgraph.NewGraphClient
-	decs["Process"] = reflect.TypeOf((*msgraph.Process)(nil)).Elem()
-	decs["RegistryKeyState"] = reflect.TypeOf((*msgraph.RegistryKeyState)(nil)).Elem()
-	decs["ResponseStatus"] = reflect.TypeOf((*msgraph.ResponseStatus)(nil)).Elem()
-	decs["SecureScore"] = reflect.TypeOf((*msgraph.SecureScore)(nil)).Elem()
-	decs["SecureScoreControlProfile"] = reflect.TypeOf((*msgraph.SecureScoreControlProfile)(nil)).Elem()
-	decs["SecureScoreControlStateUpdate"] = reflect.TypeOf((*msgraph.SecureScoreControlStateUpdate)(nil)).Elem()
-	decs["SecurityResource"] = reflect.TypeOf((*msgraph.SecurityResource)(nil)).Elem()
-	decs["SecurityVendorInformation"] = reflect.TypeOf((*msgraph.SecurityVendorInformation)(nil)).Elem()
-	decs["Token"] = reflect.TypeOf((*msgraph.Token)(nil)).Elem()
-	decs["User"] = reflect.TypeOf((*msgraph.User)(nil)).Elem()
-	decs["UserSecurityState"] = reflect.TypeOf((*msgraph.UserSecurityState)(nil)).Elem()
-	decs["Users"] = reflect.TypeOf((*msgraph.Users)(nil)).Elem()
-	decs["VulnerabilityState"] = reflect.TypeOf((*msgraph.VulnerabilityState)(nil)).Elem()
-	decs["WinIANA"] = &msgraph.WinIANA
-	packages["github.com/open-networks/go-msgraph"] = native.Package{
-		Name:         "msgraph",
 		Declarations: decs,
 	}
 	// "github.com/tealeg/xlsx"

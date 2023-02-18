@@ -9,22 +9,24 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"crypto/tls"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 
 	"github.com/buger/jsonparser"
@@ -44,6 +46,8 @@ type jsonHandlerConfig struct {
 	proc             *processors.ProcessorSet
 	ctx              context.Context
 	timeFormats      config.CustomTimeFormat
+	maxObjectSize    int64
+	disableCompact   bool
 }
 
 func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher, ctx context.Context) error {
@@ -54,6 +58,9 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 	}
 
 	for k, v := range cfg.JSONListener {
+		if err := v.Validate(); err != nil {
+			return fmt.Errorf("JSONListener %s configuration is invalid: %w", k, err)
+		}
 		jhc := jsonHandlerConfig{
 			name:             k,
 			wg:               wg,
@@ -63,6 +70,8 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 			timezoneOverride: v.Timezone_Override,
 			ctx:              ctx,
 			timeFormats:      cfg.TimeFormat,
+			maxObjectSize:    int64(v.Max_Object_Size),
+			disableCompact:   v.Disable_Compact,
 		}
 		if jhc.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Fatal("preprocessor error", log.KVErr(err))
@@ -115,7 +124,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 
 		if tp.TCP() {
 			//get the socket
-			addr, err := net.ResolveTCPAddr("tcp", v.Bind_String)
+			addr, err := net.ResolveTCPAddr("tcp", str)
 			if err != nil {
 				return fmt.Errorf("%s Bind-String \"%s\" is invalid: %v\n", k, v.Bind_String, err)
 			}
@@ -150,6 +159,19 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 			//start the acceptor
 			wg.Add(1)
 			go jsonAcceptor(l, connID, igst, jhc, tp)
+		} else if tp.UDP() {
+			addr, err := net.ResolveUDPAddr(tp.String(), str)
+			if err != nil {
+				lg.FatalCode(0, "invalid Bind-String", log.KV("bindstring", v.Bind_String), log.KV("listener", k), log.KVErr(err))
+			}
+			l, err := net.ListenUDP(tp.String(), addr)
+			if err != nil {
+				lg.FatalCode(0, "failed to listen via udp", log.KV("address", addr), log.KV("listener", k), log.KVErr(err))
+			}
+			connID := addConn(l)
+			wg.Add(1)
+			go jsonAcceptorUDP(l, connID, igst, jhc)
+
 		}
 
 	}
@@ -184,6 +206,66 @@ func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHa
 	return
 }
 
+func jsonAcceptorUDP(conn *net.UDPConn, id int, igst *ingest.IngestMuxer, cfg jsonHandlerConfig) {
+	defer cfg.wg.Done()
+	defer delConn(id)
+	defer conn.Close()
+
+	buff := make([]byte, 16*1024) //local buffer that should be big enough for even the largest UDP packets
+	tcfg := timegrinder.Config{
+		EnableLeftMostSeed: true,
+	}
+	tg, err := timegrinder.NewTimeGrinder(tcfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get a handle on the timegrinder: %v\n", err)
+		return
+	} else if err = cfg.timeFormats.LoadFormats(tg); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load custom time formats: %v\n", err)
+		return
+	}
+	if cfg.setLocalTime {
+		tg.SetLocalTime()
+	}
+	if cfg.timezoneOverride != `` {
+		err = tg.SetTimezone(cfg.timezoneOverride)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to set timezone to %v: %v\n", cfg.timezoneOverride, err)
+			return
+		}
+	}
+	if cfg.formatOverride != `` {
+		if err = tg.SetFormatOverride(cfg.formatOverride); err != nil {
+			lg.Error("Failed to load format override", log.KV("override", cfg.formatOverride), log.KVErr(err))
+			return
+		}
+	}
+	ll := log.NewLoggerWithKV(lg, log.KV("json-listener", cfg.name))
+	for {
+		n, raddr, err := conn.ReadFromUDP(buff)
+		if err != nil {
+			break
+		}
+		if n == 0 {
+			continue
+		}
+		if raddr == nil {
+			continue
+		}
+		if n > len(buff) {
+			continue
+		}
+		var rip net.IP
+		if cfg.src == nil {
+			rip = raddr.IP
+		} else {
+			rip = cfg.src
+		}
+		// get a local logger up that will always add some more info
+		handleJSONStream(bytes.NewReader(buff[0:]), cfg, rip, tg, ll)
+	}
+
+}
+
 func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer) {
 	cfg.wg.Add(1)
 	id := addConn(c)
@@ -191,24 +273,24 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 	defer delConn(id)
 	defer c.Close()
 	var rip net.IP
-	var ts entry.Timestamp
+	var lip net.IP // just used for logging
 	var tg *timegrinder.TimeGrinder
-	var tag entry.EntryTag
-	var ok bool
+
+	if ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String()); err != nil {
+		lg.Error("failed to get host from remote addr", log.KV("remoteaddress", c.RemoteAddr().String()), log.KVErr(err))
+		return
+	} else if lip = net.ParseIP(ipstr); lip == nil {
+		lg.Error("failed to get remote address", log.KV("remoteaddress", ipstr))
+		return
+	}
 
 	if cfg.src == nil {
-		ipstr, _, err := net.SplitHostPort(c.RemoteAddr().String())
-		if err != nil {
-			lg.Error("failed to get host from remote addr", log.KV("remoteaddress", c.RemoteAddr().String()), log.KVErr(err))
-			return
-		}
-		if rip = net.ParseIP(ipstr); rip == nil {
-			lg.Error("failed to get remote address", log.KV("remoteaddress", ipstr))
-			return
-		}
+		rip = lip //use the logging remote ip that we resolved above
 	} else {
 		rip = cfg.src
 	}
+	// get a local logger up that will always add some more info
+	ll := log.NewLoggerWithKV(lg, log.KV("json-listener", cfg.name))
 
 	if !cfg.ignoreTimestamps {
 		var err error
@@ -217,65 +299,114 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 		}
 		tg, err = timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
-			lg.Error("failed to get a handle on the timegrinder", log.KVErr(err))
+			ll.Error("failed to get a handle on the timegrinder", log.KVErr(err))
 			return
 		} else if err = cfg.timeFormats.LoadFormats(tg); err != nil {
-			lg.Error("failed to load custom time formats", log.KVErr(err))
+			ll.Error("failed to load custom time formats", log.KVErr(err))
 			return
 		}
 		if cfg.setLocalTime {
 			tg.SetLocalTime()
 		}
 		if cfg.timezoneOverride != `` {
-			err = tg.SetTimezone(cfg.timezoneOverride)
-			if err != nil {
-				lg.Error("failed to set timezone", log.KV("timezone", cfg.timezoneOverride), log.KVErr(err))
+			if err = tg.SetTimezone(cfg.timezoneOverride); err != nil {
+				ll.Error("failed to set timezone", log.KV("timezone", cfg.timezoneOverride), log.KVErr(err))
 				return
 			}
 		}
 		if cfg.formatOverride != `` {
 			if err = tg.SetFormatOverride(cfg.formatOverride); err != nil {
-				lg.Error("Failed to load format override", log.KV("override", cfg.formatOverride), log.KVErr(err))
+				ll.Error("Failed to load format override", log.KV("override", cfg.formatOverride), log.KVErr(err))
 				return
 			}
 		}
 	}
-	bio := bufio.NewReader(c)
+
+	if err := handleJSONStream(c, cfg, rip, tg, ll); err != nil {
+		ll.Error("JSON Stream handler error", log.KVErr(err))
+	}
+	return
+}
+
+func handleJSONStream(rdr io.Reader, cfg jsonHandlerConfig, rip net.IP, tg *timegrinder.TimeGrinder, ll *log.KVLogger) error {
+	var ts entry.Timestamp
+	var ok bool
+
+	//initialize our tag to the default tag
+	tag := cfg.defTag
+
+	dec, err := utils.NewJsonLimitedDecoder(rdr, cfg.maxObjectSize)
+	if err != nil {
+		ll.Error("Failed to create limited json decoder", log.KVErr(err))
+		return err
+	}
+consumerLoop:
 	for {
-		//get the data entry and clean it a bit
-		data, err := bio.ReadBytes('\n')
-		if err != nil {
-			break
+		var obj json.RawMessage
+		if err := dec.Decode(&obj); err != nil {
+			// check if limited reader is exhausted so that we can throw a better error
+			if errors.Is(err, utils.ErrOversizedObject) {
+				ll.Error("oversized json object", log.KV("remoteaddress", rip), log.KV("max-size", cfg.maxObjectSize))
+			} else if errors.Is(err, io.EOF) {
+				ll.Info("client disconnected")
+				break consumerLoop //break out of the main loop
+			} else {
+				//just a plain old error
+				ll.Error("invalid json object", log.KV("remoteaddress", rip), log.KV("max-size", cfg.maxObjectSize), log.KVErr(err))
+			}
+			return err // we pretty much have to just hang up
 		}
-		if data = bytes.Trim(data, "\n\r\t "); len(data) == 0 {
+		//we have a message, compact it
+		if cfg.disableCompact {
+			// just trip obvious garbage
+			obj = json.RawMessage(bytes.Trim([]byte(obj), "\n\r\t "))
+		} else {
+			obj = compactObject(obj)
+		}
+		if len(obj) == 0 {
 			continue
 		}
+		data := []byte(obj)
+
 		//get the timestamp
-		if !cfg.ignoreTimestamps {
-			var extracted time.Time
-			extracted, ok, err = tg.Extract(data)
-			if err != nil {
-				lg.Error("catastrophic timegrinder failure", log.KVErr(err))
-				return
+		if cfg.ignoreTimestamps {
+			ts = entry.Now()
+		} else {
+			if extracted, ok, err := tg.Extract(data); err != nil {
+				ll.Error("catastrophic timegrinder failure", log.KV("remoteaddress", rip), log.KVErr(err))
+				return err
 			} else if ok {
 				ts = entry.FromStandard(extracted)
+			} else {
+				ts = entry.Now()
 			}
 		}
-		if !ok {
-			ts = entry.Now()
-		}
-		//try to derive a tag out
-		if s, err := jsonparser.GetString(data, cfg.flds...); err != nil {
-			tag = cfg.defTag
-		} else if tag, ok = cfg.tags[s]; !ok {
-			tag = cfg.defTag
+
+		//try to derive a tag out if we have matchers
+		if len(cfg.flds) > 0 {
+			if s, err := jsonparser.GetString(data, cfg.flds...); err != nil {
+				tag = cfg.defTag
+			} else if tag, ok = cfg.tags[s]; !ok {
+				tag = cfg.defTag
+			}
 		}
 		ent := &entry.Entry{
-			SRC:  cfg.src,
+			SRC:  rip,
 			TS:   ts,
 			Tag:  tag,
 			Data: data,
 		}
 		cfg.proc.ProcessContext(ent, cfg.ctx)
 	}
+	return nil
+}
+
+func compactObject(obj json.RawMessage) (r json.RawMessage) {
+	bb := bytes.NewBuffer(nil)
+	if err := json.Compact(bb, obj); err == nil {
+		r = bb.Bytes()
+	} else {
+		r = obj
+	}
+	return
 }

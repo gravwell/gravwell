@@ -58,6 +58,7 @@ const (
 	GROUP_MACROS_URL                 = `/api/groups/%d/macros`
 	GROUP_URL                        = `/api/groups`
 	SEARCH_CTRL_LIST_URL             = `/api/searchctrl`
+	SEARCH_CTRL_LIST_DETAILS_URL     = `/api/searchctrl/details`
 	SEARCH_CTRL_LIST_ALL_URL         = `/api/searchctrl/all`
 	SEARCH_CTRL_URL                  = `/api/searchctrl/%s`
 	SEARCH_CTRL_DETAILS              = `/api/searchctrl/%s/details`
@@ -68,7 +69,7 @@ const (
 	SEARCH_CTRL_DOWNLOAD_URL         = `/api/searchctrl/%s/download/%s`
 	SEARCH_CTRL_IMPORT_URL           = `/api/searchctrl/import`
 	SEARCH_HISTORY_URL               = `/api/searchhistory/%s/%d`
-	NOTIFICATIONS_URL                = `/api/notifications/`
+	NOTIFICATIONS_URL                = `/api/notifications`
 	NOTIFICATIONS_ID_URL             = `/api/notifications/%d`
 	NOTIFICATIONS_SELF_TARGETED_URL  = `/api/notifications/targeted/self`
 	LOGGING_PATH_URL                 = `/api/logging`
@@ -141,6 +142,7 @@ const (
 	PIVOTS_ID_DETAILS_URL            = "/api/pivots/%s/details"
 	USER_FILES_URL                   = "/api/files"
 	USER_FILES_ID_URL                = "/api/files/%s"
+	USER_FILES_ID_DETAILS_URL        = "/api/files/%s/details"
 	LIBRARY_URL                      = "/api/library"
 	LIBRARY_ID_URL                   = "/api/library/%s"
 	LIBS_URL                         = `/api/libs`
@@ -160,6 +162,7 @@ const (
 	TOKENS_CAPABILITIES_URL          = `/api/tokens/capabilities`
 	SECRETS_URL                      = `/api/secrets`
 	SECRETS_ID_URL                   = `/api/secrets/%s`
+	SECRETS_ID_DETAILS_URL           = `/api/secrets/%s/details`
 	SECRETS_ID_FULL_URL              = `/api/secrets/%s/full`
 	SETTINGS_URL                     = `/api/settings`
 
@@ -278,6 +281,10 @@ func searchCtrlStopUrl(id string) string {
 
 func searchCtrlImportUrl() string {
 	return SEARCH_CTRL_IMPORT_URL
+}
+
+func searchCtrlListDetailsUrl() string {
+	return SEARCH_CTRL_LIST_DETAILS_URL
 }
 
 func searchCtrlIdUrl(id string) string {
@@ -554,6 +561,10 @@ func userFilesIdUrl(id uuid.UUID) string {
 	return fmt.Sprintf(USER_FILES_ID_URL, id)
 }
 
+func userFilesIdDetailsUrl(id uuid.UUID) string {
+	return fmt.Sprintf(USER_FILES_ID_DETAILS_URL, id)
+}
+
 func searchLibUrl() string {
 	return LIBRARY_URL
 }
@@ -590,6 +601,9 @@ func secretIdUrl(id uuid.UUID) string {
 	return fmt.Sprintf(SECRETS_ID_URL, id.String())
 }
 
+func secretIdDetailsUrl(id uuid.UUID) string {
+	return fmt.Sprintf(SECRETS_ID_DETAILS_URL, id.String())
+}
 func secretIdFullUrl(id uuid.UUID) string {
 	return fmt.Sprintf(SECRETS_ID_FULL_URL, id.String())
 }

@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"os"
 	"testing"
 )
 
@@ -30,20 +31,12 @@ var (
 	source   net.IP
 )
 
-func init() {
+func TestMain(m *testing.M) {
 	ts = Now()
 	key = ts.Sec
 	source = net.ParseIP("DEAD:BEEF:a:b:c:d:CAFE:DEED")
 	randBuff = makeRandBuff(MB * RANDOM_BUFF_SIZE_MB)
-}
-
-func makeRandBuff(sz int) []byte {
-	b := make([]byte, sz)
-
-	for i := 0; i < (RANDOM_BUFF_SIZE_MB * MB); i++ {
-		b[i] = byte(rand.Intn(0xff))
-	}
-	return b
+	os.Exit(m.Run())
 }
 
 func TestCreateBlock(t *testing.T) {
@@ -430,7 +423,12 @@ func genRandomEntry() (Entry, error) {
 	if len(source) != 16 {
 		return Entry{}, errors.New("Source is not valid")
 	}
-	return Entry{ts, source, DEFAULT_SEARCH_TAG, randBuff[offset : offset+size]}, nil
+	return Entry{
+		TS:   ts,
+		SRC:  source,
+		Tag:  DEFAULT_SEARCH_TAG,
+		Data: randBuff[offset : offset+size],
+	}, nil
 }
 
 func compareEntry(a, b *Entry) error {
@@ -455,4 +453,13 @@ func compareEntry(a, b *Entry) error {
 		}
 	}
 	return nil
+}
+
+func makeRandBuff(sz int) []byte {
+	b := make([]byte, sz)
+
+	for i := 0; i < (RANDOM_BUFF_SIZE_MB * MB); i++ {
+		b[i] = byte(rand.Intn(0xff))
+	}
+	return b
 }
