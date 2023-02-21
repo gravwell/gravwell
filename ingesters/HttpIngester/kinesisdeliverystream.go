@@ -80,7 +80,7 @@ type record struct {
 	Data []byte `json:"data"`
 }
 
-func handleKDS(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
+func handleKDS(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	var kr kinesisRequest
 	if err := json.NewDecoder(io.LimitReader(rdr, int64(maxBody+256))).Decode(&kr); err != nil {
 		h.lgr.Info("bad request", log.KV("address", ip), log.KVErr(err))
