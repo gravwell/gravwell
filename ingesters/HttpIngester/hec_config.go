@@ -24,12 +24,13 @@ import (
 )
 
 const (
-	defaultHECUrl    string = `/services/collector/event`
-	defaultHECRawUrl string = `/services/collector/raw`
+	defaultHECUrl      string = `/services/collector`
+	defaultLineBreaker string = "\n"
 )
 
 type hecCompatible struct {
-	URL               string //override the URL, defaults to "/services/collector/event"
+	URL               string //override the base URL, defaults to "/services/collector/event"
+	Raw_Line_Breaker  string // character(s) to use as line breakers on the raw endpoint. Default "\n"
 	TokenValue        string `json:"-"` //DO NOT SEND THIS when marshalling
 	Tag_Name          string //the tag to assign to the request
 	Ignore_Timestamps bool
@@ -55,6 +56,9 @@ func (v *hecCompatible) validate(name string) (string, error) {
 	pth := p.Path
 	if len(v.Tag_Name) == 0 {
 		v.Tag_Name = entry.DefaultTagName
+	}
+	if len(v.Raw_Line_Breaker) == 0 {
+		v.Raw_Line_Breaker = defaultLineBreaker
 	}
 	if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
 		return ``, errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + name)
@@ -154,9 +158,10 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 				igst:  hnd.igst,
 				token: v.TokenValue,
 			},
-			name:      k,
-			maxSize:   fixupMaxSize(v.Max_Size),
-			tagRouter: v.loadTagRouter(igst),
+			rawLineBreaker: v.Raw_Line_Breaker,
+			name:           k,
+			maxSize:        fixupMaxSize(v.Max_Size),
+			tagRouter:      v.loadTagRouter(igst),
 		}
 		hcfg := routeHandler{
 			handler: hh.handle,
@@ -182,18 +187,21 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			lg.Error("failed to generate HEC-Compatible-Listener auth", log.KVErr(err))
 			return
 		}
+		bp := path.Dir(v.URL)
 		//had the main handler for events
 		if err = hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
 			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
 			return
 		}
+		// the `/event` path just acts like the root
+		if err = hnd.addHandler(http.MethodPost, path.Join(bp, `event`), hcfg); err != nil {
+			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
+			return
+		}
 		// add the other handlers for health, ack, and raw mode
-		bp := path.Dir(v.URL)
-		if v.Ack {
-			if err = hnd.addCustomHandler(http.MethodPost, path.Join(bp, `ack`), hh); err != nil {
-				lg.Error("failed to add HEC-Compatible-Listener ACK handler", log.KVErr(err))
-				return
-			}
+		if err = hnd.addCustomHandler(http.MethodPost, path.Join(bp, `ack`), hh); err != nil {
+			lg.Error("failed to add HEC-Compatible-Listener ACK handler", log.KVErr(err))
+			return
 		}
 		if err = hnd.addCustomHandler(http.MethodGet, path.Join(bp, `health`), &hh.hecHealth); err != nil {
 			lg.Error("failed to add HEC-Compatible-Listener ACK health handler", log.KVErr(err))
