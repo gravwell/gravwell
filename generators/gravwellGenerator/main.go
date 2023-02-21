@@ -18,6 +18,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/generators/base"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 var (
@@ -72,12 +73,12 @@ func main() {
 		log.Fatal(err)
 	}
 	seedUsers(int(cfg.Count), 256)
+
+	var tag entry.EntryTag
 	if igst, src, err = base.NewIngestMuxer(`unifiedgenerator`, ``, cfg, time.Second); err != nil {
 		log.Fatal(err)
-	}
-	tag, err := igst.GetTag(cfg.Tag)
-	if err != nil {
-		log.Fatalf("Failed to lookup tag %s: %v", cfg.Tag, err)
+	} else if tag, err = igst.GetTag(cfg.Tag); err != nil {
+		log.Fatalf("Failed to lookup tag %s: %v\n", cfg.Tag, err)
 	}
 	start := time.Now()
 
