@@ -187,7 +187,7 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			lg.Error("failed to generate HEC-Compatible-Listener auth", log.KVErr(err))
 			return
 		}
-		bp := path.Dir(v.URL)
+		bp := v.URL
 		//had the main handler for events
 		if err = hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
 			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
