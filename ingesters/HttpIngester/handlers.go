@@ -27,7 +27,9 @@ import (
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
-type handleFunc func(*handler, routeHandler, http.ResponseWriter, io.Reader, net.IP)
+// note that handleFuncs should read from the reader, not from the Request.Body.
+type handleFunc func(*handler, routeHandler, http.ResponseWriter, *http.Request, io.Reader, net.IP)
+
 type routeHandler struct {
 	ignoreTs bool
 	tag      entry.EntryTag
@@ -44,17 +46,18 @@ type handler struct {
 	mp             map[route]routeHandler
 	auth           map[route]authHandler
 	custom         map[route]http.Handler
+	rawLineBreaker string
 	healthCheckURL string
 }
 
-func (rh routeHandler) handle(h *handler, w http.ResponseWriter, r io.Reader, ip net.IP) {
+func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Request, rdr io.Reader, ip net.IP) {
 	if w == nil {
 		return
-	} else if r == nil || h == nil || rh.handler == nil {
+	} else if rdr == nil || h == nil || rh.handler == nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	rh.handler(h, rh, w, r, ip)
+	rh.handler(h, rh, w, req, rdr, ip)
 }
 
 func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger) (h *handler, err error) {
@@ -190,6 +193,7 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	h.RUnlock()
 	debugout("LOOKUP UP ROUTE: %s %s\n", rt.method, rt.uri)
 	if !ok {
+		debugout("NO ROUTE\n")
 		h.lgr.Info("bad request URL", log.KV("url", rt.uri), log.KV("method", r.Method))
 		w.WriteHeader(http.StatusNotFound)
 		return
@@ -205,7 +209,7 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	rh.handle(h, w, rdr, ip)
+	rh.handle(h, w, r, rdr, ip)
 	r.Body.Close()
 }
 func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP) (err error) {
@@ -296,7 +300,7 @@ func (r route) String() string {
 	return r.method + "://" + path.Clean(r.uri)
 }
 
-func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
+func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	debugout("multhandler\n")
 	scanner := bufio.NewScanner(rdr)
 	for scanner.Scan() {
@@ -313,7 +317,7 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Rea
 	return
 }
 
-func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
+func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+1)))
 	if err != nil && err != io.EOF {
 		h.lgr.Info("got bad request", log.KV("address", ip), log.KVErr(err))

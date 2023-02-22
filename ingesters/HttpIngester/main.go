@@ -94,10 +94,8 @@ func main() {
 		lg.Fatal("failed to load config file", log.KV("file", *confLoc), log.KVErr(err))
 	}
 
-	//logging is a bit whacky here, we are creating a logger for fatal errors that goes to
-	//stderr and then creating another logger that goes to the logging file
-	// this is so that we can log fatal errors to both stderr and the log file
-	// but ONLY log errors to the webserver to the file
+	// lgr points only to the log file defined in the config.
+	// We add it as a writer to lg, then just use lg everywhere.
 	if lgr, err = cfg.GetLogger(); err != nil {
 		lg.Fatal("failed to get logger", log.KVErr(err))
 	} else if err = lg.AddWriter(lgr); err != nil {
@@ -175,7 +173,7 @@ func main() {
 	if err != nil {
 		lg.FatalCode(0, "Failed to set configuration for ingester state messages")
 	}
-	hnd, err := newHandler(igst, lgr)
+	hnd, err := newHandler(igst, lg)
 	if err != nil {
 		lg.FatalCode(0, "Failed to create new handler")
 	}
@@ -227,7 +225,7 @@ func main() {
 			lg.Fatal("preprocessor construction error", log.KVErr(err))
 		}
 		//check if authentication is enabled for this URL
-		if pth, ah, err := v.NewAuthHandler(lgr); err != nil {
+		if pth, ah, err := v.NewAuthHandler(lg); err != nil {
 			lg.Fatal("failed to get a new authentication handler", log.KVErr(err))
 		} else if hnd != nil {
 			if pth != `` {
@@ -243,10 +241,10 @@ func main() {
 		debugout("URL %s handling %s\n", v.URL, v.Tag_Name)
 	}
 
-	if err = includeHecListeners(hnd, igst, cfg, lgr); err != nil {
+	if err = includeHecListeners(hnd, igst, cfg, lg); err != nil {
 		lg.Fatal("failed to include HEC Listeners", log.KVErr(err))
 	}
-	if err = includeKDSListeners(hnd, igst, cfg, lgr); err != nil {
+	if err = includeKDSListeners(hnd, igst, cfg, lg); err != nil {
 		lg.Fatal("failed to include KDS Listeners", log.KVErr(err))
 	}
 
@@ -255,7 +253,7 @@ func main() {
 		Handler:      hnd,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 5 * time.Second,
-		ErrorLog:     dlog.New(lgr, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags),
+		ErrorLog:     dlog.New(lg, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags),
 	}
 	if cfg.TLSEnabled() {
 		c := cfg.TLS_Certificate_File
