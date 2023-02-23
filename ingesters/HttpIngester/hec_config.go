@@ -187,9 +187,13 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			lg.Error("failed to generate HEC-Compatible-Listener auth", log.KVErr(err))
 			return
 		}
-		bp := path.Dir(v.URL)
+		bp := v.URL
+		// detect if you're specifying `URL=/services/collector/event` in the old way and handle it sneakily
+		if path.Base(bp) == "event" {
+			bp = path.Dir(bp)
+		}
 		//had the main handler for events
-		if err = hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
+		if err = hnd.addHandler(http.MethodPost, bp, hcfg); err != nil {
 			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
 			return
 		}
