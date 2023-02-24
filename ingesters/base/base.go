@@ -56,9 +56,6 @@ type IngesterBase struct {
 }
 
 func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
-	if err = ibc.validate(); err != nil {
-		return
-	}
 	ib.IngesterBaseConfig = ibc
 	confLoc := flag.String("config-file", ibc.DefaultConfigLocation, "Location for configuration file")
 	confdLoc := flag.String("config-overlays", ibc.DefaultConfigOverlayLocation, "Location for configuration overlay files")
@@ -72,6 +69,10 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
+	if err = ibc.validate(); err != nil {
+		return
+	}
+
 	validate.ValidateConfig(ibc.GetConfigFunc, *confLoc, *confdLoc)
 	var fp string
 	if pth := filepath.Clean(*stderrOverride); pth != `` && pth != `.` {
@@ -240,10 +241,6 @@ func (ibc IngesterBaseConfig) validate() error {
 		return errors.New("missing ingester name")
 	} else if ibc.AppName == `` {
 		return errors.New("missing app name")
-	} else if ibc.DefaultConfigLocation == `` {
-		return errors.New("missing default config file location")
-	} else if ibc.DefaultConfigOverlayLocation == `` {
-		return errors.New("missing default config overlay location")
 	}
 
 	return nil
