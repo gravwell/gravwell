@@ -229,7 +229,12 @@ type IngestStats struct {
 	LastDayCount uint64 //total entries in last 24 hours
 	LastDaySize  uint64 //total ingested in last 24 hours
 	Ingesters    []IngesterStats
-	Missing      []ingest.IngesterState //ingesters that have been seen before but not actively connected now
+	Missing      []MissingIngester //ingesters that have been seen before but not actively connected now
+}
+
+type MissingIngester struct {
+	ingest.IngesterState
+	LastSeen time.Time
 }
 
 type IngesterStats struct {
@@ -447,6 +452,15 @@ func (eis emptyIngesterStates) MarshalJSON() ([]byte, error) {
 	return json.Marshal([]ingest.IngesterState(eis))
 }
 
+type emptyMissingIngester []MissingIngester
+
+func (eis emptyMissingIngester) MarshalJSON() ([]byte, error) {
+	if len(eis) == 0 {
+		return emptyList, nil
+	}
+	return json.Marshal([]MissingIngester(eis))
+}
+
 func (is IngestStats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		QuotaUsed  uint64
@@ -454,14 +468,14 @@ func (is IngestStats) MarshalJSON() ([]byte, error) {
 		TotalCount uint64
 		TotalSize  uint64
 		Ingesters  emptyIngesterStats
-		Missing    emptyIngesterStates
+		Missing    emptyMissingIngester
 	}{
 		QuotaUsed:  is.QuotaUsed,
 		QuotaMax:   is.QuotaMax,
 		TotalCount: is.TotalCount,
 		TotalSize:  is.TotalSize,
 		Ingesters:  emptyIngesterStats(is.Ingesters),
-		Missing:    emptyIngesterStates(is.Missing),
+		Missing:    emptyMissingIngester(is.Missing),
 	})
 }
 
