@@ -75,7 +75,7 @@ func main() {
 	seedUsers(int(cfg.Count), 256)
 
 	var tag entry.EntryTag
-	if igst, src, err = base.NewIngestMuxer(`unifiedgenerator`, ``, cfg, time.Second); err != nil {
+	if igst, src, err = base.NewIngestMuxer(`unifiedgenerator`, `00000000-0000-0000-0000-000000000001`, cfg, time.Second); err != nil {
 		log.Fatal(err)
 	} else if tag, err = igst.GetTag(cfg.Tag); err != nil {
 		log.Fatalf("Failed to lookup tag %s: %v\n", cfg.Tag, err)
