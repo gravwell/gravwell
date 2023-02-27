@@ -401,9 +401,9 @@ func (c *Capability) Parse(v string) (err error) {
 	case `tokenwrite`:
 		*c = TokenWrite
 	case `secretread`:
-		*c = TokenRead
+		*c = SecretRead
 	case `secretwrite`:
-		*c = TokenWrite
+		*c = SecretWrite
 	default:
 		err = ErrUnknownCapability
 	}
