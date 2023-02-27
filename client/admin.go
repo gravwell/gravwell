@@ -629,6 +629,11 @@ func (c *Client) UploadExtraction(b []byte) (wrs []types.WarnResp, err error) {
 // it out to the io.Writer provided. By default, scheduled searches / scheduled scripts are
 // not included; set the 'includeSS' option to include them.
 func (c *Client) Backup(wtr io.Writer, includeSS bool) (err error) {
+	cfg := types.BackupConfig{IncludeSS: includeSS}
+	return c.BackupWithConfig(wtr, cfg)
+}
+
+func (c *Client) BackupWithConfig(wtr io.Writer, cfg types.BackupConfig) (err error) {
 	var resp *http.Response
 	dlr := net.Dialer{
 		Timeout:   10 * time.Second,
@@ -663,10 +668,14 @@ func (c *Client) Backup(wtr io.Writer, includeSS bool) (err error) {
 		return
 	}
 	// add in any queries like ?admin=true
-	if includeSS {
+	if cfg.IncludeSS {
 		vals.Add(`savedsearch`, `true`)
 	}
+	if cfg.OmitSensitive {
+		vals.Add(`omit_sensitive`, `true`)
+	}
 	req.URL.RawQuery = vals.Encode()
+	req.Header.Add("Password", cfg.Password)
 	if resp, err = clnt.Do(req); err == nil {
 		c.objLog.Log(http.MethodGet+" "+resp.Status, uri, nil)
 	} else {
@@ -687,6 +696,23 @@ func (c *Client) Backup(wtr io.Writer, includeSS bool) (err error) {
 func (c *Client) Restore(rdr io.Reader) (err error) {
 	var resp *http.Response
 	if resp, err = c.uploadMultipartFile(backupUrl(), backupFormFile, `file`, rdr, nil); err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		if err = decodeBodyError(resp.Body); err != nil {
+			err = fmt.Errorf("response error status %d %v", resp.StatusCode, err)
+		} else {
+			err = fmt.Errorf("Invalid response %s(%d)", resp.Status, resp.StatusCode)
+		}
+	}
+	return
+}
+
+// RestoreEncrypted reads a backup archive from rdr and unpacks it on the Gravwell server.
+func (c *Client) RestoreEncrypted(rdr io.Reader, password string) (err error) {
+	var resp *http.Response
+	if resp, err = c.uploadMultipartFile(backupUrl(), backupFormFile, `file`, rdr, map[string]string{"password": password}); err != nil {
 		return
 	}
 	defer resp.Body.Close()
