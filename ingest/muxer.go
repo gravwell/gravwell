@@ -560,6 +560,7 @@ func (im *IngestMuxer) SetMetadata(obj interface{}) (err error) {
 
 func (im *IngestMuxer) RegisterChild(k string, v IngesterState) {
 	im.mtx.Lock()
+	v.LastSeen = time.Now() // if its being registered, we want to update its state
 	im.ingesterState.Children[k] = v
 	im.mtx.Unlock()
 }
