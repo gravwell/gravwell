@@ -947,6 +947,7 @@ func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
 
 // CreateUserCapabilityList creates a comprehensive list of capabilities the user has access to based on their direct and group assignments
 func CreateUserCapabilityList(ud *UserDetails) (r []CapabilityDesc) {
+	r = []CapabilityDesc{}
 	for _, c := range fullCapList {
 		if CheckUserCapabilityAccess(ud, c) {
 			r = append(r, c.CapabilityDesc())
@@ -1108,6 +1109,7 @@ func (abr *ABACRules) CapabilityList() (r []CapabilityDesc) {
 // export a CapabilityState from the underlying capability rules
 func (abr *ABACRules) CapabilityState() (r CapabilityState) {
 	r.Default = abr.Capabilities.Default
+	r.Overrides = []string{}
 	for _, c := range fullCapList {
 		if abr.Capabilities.IsSet(c) {
 			r.Overrides = append(r.Overrides, c.Name())
