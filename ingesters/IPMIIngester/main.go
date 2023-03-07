@@ -32,7 +32,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/utils/caps"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 
-	"github.com/k-sone/ipmigo"
+	"github.com/gravwell/ipmigo"
 )
 
 const (
