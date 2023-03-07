@@ -211,6 +211,8 @@ github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018 h1:yOl1BFerz+cq4Fe
 github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018/go.mod h1:N+S2rmWz+IHo5zTQaDshQr+qEVGldBRzAnlRkf1yO8c=
 github.com/gravwell/ipfix v1.4.3 h1:OwEqbafjR2brezAnGHUHU9JbHKAeO1EL6BjIwqJvqGs=
 github.com/gravwell/ipfix v1.4.3/go.mod h1:/Ogrd3FQi+GGD+BXzX8/kBQKdOrgrf6c8u8LSEA3WI8=
+github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e h1:VehL0WBsjIFCQZ8k9Cp0YwLqzlfJsPjOYiGOdt5/lMs=
+github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e/go.mod h1:M+H6GtUeSTEWG8E2uVrvQ+7byR3lFrtxk3AFq/Hf+HU=
 github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4 h1:xvSVqY+HwgOscWCKkErHGgqTnibYb8K5r4j+m4zESVA=
 github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4/go.mod h1:FkNvhN1LrF2t4gvxUGB6TQ5ixTyOXrc3EYFnD0CsloQ=
 github.com/h2non/filetype v1.0.10 h1:z+SJfnL6thYJ9kAST+6nPRXp1lMxnOVbMZHNYHMar0s=
