@@ -93,7 +93,7 @@ func TestMain(m *testing.M) {
 	}
 }
 
-//fire up the server and stop it
+// fire up the server and stop it
 func TestStartStop(t *testing.T) {
 	ts, err := startWebserver()
 	if err != nil {
@@ -105,7 +105,7 @@ func TestStartStop(t *testing.T) {
 	}
 }
 
-//hit the server with a non-websocket client, it should puke
+// hit the server with a non-websocket client, it should puke
 func TestBadClient(t *testing.T) {
 	ts, err := startWebserver()
 	if err != nil {
@@ -130,8 +130,8 @@ func TestBadClient(t *testing.T) {
 	}
 }
 
-//hit the server with a client an immediately disconnect
-//just perform the handshake
+// hit the server with a client an immediately disconnect
+// just perform the handshake
 func TestGoodClient(t *testing.T) {
 	ts, err := startWebserver()
 	if err != nil {
@@ -151,14 +151,14 @@ func TestGoodClient(t *testing.T) {
 	}
 }
 
-//hit the server with a client and fire up talkers to actually route
-//messages.
+// hit the server with a client and fire up talkers to actually route
+// messages.
 func TestGoodClientTalking(t *testing.T) {
 	subIDs := defaultSubs
 	testGoodClientTalking(t, subIDs, testTimeout)
 }
 
-//test an authenticated client
+// test an authenticated client
 func TestAuthedGoodClientTalking(t *testing.T) {
 	var subIDs []string
 	for i := 0; i < 4; i++ {
@@ -167,7 +167,7 @@ func TestAuthedGoodClientTalking(t *testing.T) {
 	testGoodClientTalking(t, subIDs, testTimeout)
 }
 
-//test an authenticated client
+// test an authenticated client
 func TestBadAuthGoodClientTalking(t *testing.T) {
 	var subIDs []string
 	for i := 0; i < 4; i++ {
@@ -193,8 +193,8 @@ func TestBadAuthGoodClientTalking(t *testing.T) {
 	}
 }
 
-//hammer the system to see how it holds up
-//this will also fork off many go routines...
+// hammer the system to see how it holds up
+// this will also fork off many go routines...
 func TestHammerGoodClientTalking(t *testing.T) {
 	var subIDs []string
 	runtime.GOMAXPROCS(runtime.NumCPU()) //give it some threads on this one
@@ -259,7 +259,7 @@ func testGoodClientTalking(t *testing.T, subIDs []string, to time.Duration) {
 	}
 }
 
-//test the procedure for booting clients
+// test the procedure for booting clients
 func TestBootClients(t *testing.T) {
 	//get the server up
 	ts, err := startWebserver()
@@ -343,7 +343,7 @@ func bootableClient(c *SubProtoClient, readyChan chan bool, doneChan chan error)
 	doneChan <- nil
 }
 
-//test the procedure for booting clients with just a connection
+// test the procedure for booting clients with just a connection
 func TestBootClientConns(t *testing.T) {
 	//get the server up
 	ts, err := startWebserver()
@@ -569,7 +569,7 @@ func (h *handler) Error() error {
 	return nil
 }
 
-//Get a free TCP port
+// Get a free TCP port
 func getFreeTCPPort() (int, error) {
 	a, err := net.ResolveTCPAddr("tcp", "localhost:0")
 	if err != nil {

@@ -52,6 +52,7 @@ func (c *Client) UpdatePlaybook(m types.Playbook) error {
 }
 
 // GetAllPlaybooks (admin-only) returns all playbooks for all users.
+// Non-administrators will receive the same list as returned by GetUserPlaybooks.
 func (c *Client) GetAllPlaybooks() (pbs []types.Playbook, err error) {
 	//check our status locally, server will kick it too, but no reason in even
 	//making the request if we know it will fail

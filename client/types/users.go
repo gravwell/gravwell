@@ -168,8 +168,8 @@ type SearchModuleInfo struct {
 	Name         string
 	Info         string
 	Examples     []string
-	Collapsing   bool
-	FrontendOnly bool // true if this module MUST run on frontend (anko)
+	Collapsing   func(string) bool `json:"-"`
+	FrontendOnly bool              // true if this module MUST run on frontend (anko)
 	Sorting      bool
 }
 
@@ -213,7 +213,7 @@ var (
 	ClearBackendNotification NotificationAction = 1
 )
 
-//structure for license updates and warnings
+// structure for license updates and warnings
 type LicenseUpdateError struct {
 	Name string
 	Err  string
@@ -301,7 +301,7 @@ func (ups UserPreferences) MarshalJSON() ([]byte, error) {
 	return json.Marshal([]UserPreference(ups))
 }
 
-//marshaller hacks to get it to return [] on empty lists
+// marshaller hacks to get it to return [] on empty lists
 func (u UserDetails) MarshalJSON() ([]byte, error) {
 	type alias UserDetails
 	return json.Marshal(&struct {

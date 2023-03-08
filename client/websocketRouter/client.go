@@ -143,10 +143,10 @@ func (spc *SubProtoClient) closeSubProtoConns() {
 	}
 }
 
-//AddSubProtocol adds another subprotocol to the client
-//additional protocols can be added at any time so long
-//as the client is active.  Adding a subprotocol does not inform
-//the other side of the fact
+// AddSubProtocol adds another subprotocol to the client
+// additional protocols can be added at any time so long
+// as the client is active.  Adding a subprotocol does not inform
+// the other side of the fact
 func (spc *SubProtoClient) AddSubProtocol(sub string) error {
 	spc.mtx.Lock()
 	defer spc.mtx.Unlock()
@@ -202,8 +202,11 @@ func (spc *SubProtoClient) GetSubProtoConn(subProto string) (*SubProtoConn, erro
 	return sub, nil
 }
 
-/* CloseSubProtoConn will close a subprotocol connection if it exists
-   if the connection does not exist we just return, no error */
+/*
+CloseSubProtoConn will close a subprotocol connection if it exists
+
+	if the connection does not exist we just return, no error
+*/
 func (spc *SubProtoClient) CloseSubProtoConn(subProto string) error {
 	spc.mtx.Lock()
 	defer spc.mtx.Unlock()
@@ -270,7 +273,7 @@ func (spc *SubProtoClient) Start() error {
 	return nil
 }
 
-//routine is the go routine that acts as the muxer for the various subprotocols
+// routine is the go routine that acts as the muxer for the various subprotocols
 func (spc *SubProtoClient) routine(wg *sync.WaitGroup) {
 	var err error
 	var errCount int

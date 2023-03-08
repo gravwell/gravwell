@@ -151,7 +151,7 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 	return
 }
 
-//close the connection
+// close the connection
 func (kc *kafkaConsumer) Close() (err error) {
 	if kc == nil {
 		err = errors.New("nil consumer")
@@ -184,7 +184,7 @@ func (kc *kafkaConsumer) routine(client sarama.ConsumerGroup, wg *sync.WaitGroup
 	}
 }
 
-//Setup can handle setup and gets a chance to fire up internal state prior to starting
+// Setup can handle setup and gets a chance to fire up internal state prior to starting
 func (kc *kafkaConsumer) Setup(cgs sarama.ConsumerGroupSession) (err error) {
 	kc.lg.Info("Kafka consumer starting", log.KV("consumer", cgs.MemberID()))
 	//update our member id and reset the count
@@ -207,7 +207,7 @@ func (kc *kafkaConsumer) Setup(cgs sarama.ConsumerGroupSession) (err error) {
 	return
 }
 
-//Cleanup executes at the end of a session, this a chance to clean up and sync our ingester
+// Cleanup executes at the end of a session, this a chance to clean up and sync our ingester
 func (kc *kafkaConsumer) Cleanup(cgs sarama.ConsumerGroupSession) (err error) {
 	kc.lg.Info("kafka consumer cleaning up", log.KV("consumer", cgs.MemberID()))
 	//get a local handle on the ingest muxer
@@ -227,7 +227,7 @@ func (kc *kafkaConsumer) Cleanup(cgs sarama.ConsumerGroupSession) (err error) {
 	return
 }
 
-//ConsumeClaim actually eats entries from the session and writes them into our ingester
+// ConsumeClaim actually eats entries from the session and writes them into our ingester
 func (kc *kafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
 	//README the ConsumeClaim function is running in a go routine
 	//it is entirely possible for multiple of these routines to be running at a time

@@ -83,9 +83,16 @@ type ExploreResult struct {
 	// This represents the module which generated the result, but
 	// individual Elements may have a different module set for
 	// purposes of filtering.
-	Module string
-	Tag    string
+	Module      string
+	Tag         string
+	WordOffsets []WordOffset `json:",omitempty"`
 }
+
+// A WordOffset contains two byte indexes into a string, denoting
+// the location of a "word" within that string. The usual substring
+// convention is followed, so the WordOffset of "foo" in "foo bar"
+// is WordOffset{0, 3}, or in standard notation [0, 3).
+type WordOffset [2]int
 
 type PingReq struct {
 	X error `json:",omitempty"`
@@ -284,7 +291,7 @@ func CheckMacroName(name string) error {
 	return nil
 }
 
-//custom Marshallers
+// custom Marshallers
 func (si SearchInfo) MarshalJSON() ([]byte, error) {
 	type alias SearchInfo
 	return json.Marshal(struct {

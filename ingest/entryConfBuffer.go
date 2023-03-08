@@ -96,7 +96,7 @@ func (ecb *entryConfBuffer) Size() int {
 	return ecb.capacity
 }
 
-//Free returns how many slots are available
+// Free returns how many slots are available
 func (ecb *entryConfBuffer) Free() int {
 	return ecb.capacity - ecb.count
 

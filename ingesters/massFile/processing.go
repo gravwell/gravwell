@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -57,7 +56,7 @@ func (u *updater) update(c int64) {
 	}
 }
 
-//this is used when there isn't enough working RAM to do everything
+// this is used when there isn't enough working RAM to do everything
 func groupLargeLogs(src, wrk string, totalSize int64) error {
 	fmt.Println("Running pre-optimization phase 1/2...")
 	start := time.Now()
@@ -123,7 +122,7 @@ func groupLargeLogs(src, wrk string, totalSize int64) error {
 func newfm(wdir string) *fileMultiplexer {
 	return &fileMultiplexer{
 		fmap: make(map[int64]*os.File, maxFileHandles),
-		wdir: wdir,
+		wdir: filepath.Clean(wdir),
 	}
 }
 
@@ -148,8 +147,9 @@ func (fm *fileMultiplexer) writeLine(ts int64, ln []byte) error {
 			}
 		}
 		var err error
-		f, err = os.OpenFile(path.Join(fm.wdir, strconv.FormatInt(fID, 16)),
-			os.O_CREATE|os.O_RDWR, 0666)
+		// wdir is already cleaned
+		pth := filepath.Join(fm.wdir, strconv.FormatInt(fID, 16))
+		f, err = os.OpenFile(pth, os.O_CREATE|os.O_RDWR, 0666)
 		if err != nil {
 			return err
 		}
@@ -169,8 +169,8 @@ func (fm *fileMultiplexer) writeLine(ts int64, ln []byte) error {
 	return nil
 }
 
-//basically just closes 16 random file handles, no optimization here
-//we are relying on the fact that a map ranges in kindof random order
+// basically just closes 16 random file handles, no optimization here
+// we are relying on the fact that a map ranges in kindof random order
 func (fm *fileMultiplexer) trimFileHandles() error {
 	var c int
 	for k, v := range fm.fmap {
@@ -241,8 +241,8 @@ consumeLoop:
 	return nil
 }
 
-//here we assume the working set is alrady optimized, so we read them in and ingest directly
-//without sorting first
+// here we assume the working set is alrady optimized, so we read them in and ingest directly
+// without sorting first
 func ingestFromFiles(dir string, totalSize int64, iv *ingestVars) error {
 	fmt.Println("Starting pre-optimized file ingest...")
 	start := time.Now()

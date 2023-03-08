@@ -74,6 +74,28 @@ const (
 	_maxCap           Capability = 49 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
+type CapabilityCategory string
+
+const (
+	SearchAndDataCat  = `Search and Data`
+	ActionablesCat    = `Actionables`
+	DashboardsCat     = `Dashboards`
+	ExtractorsCat     = `Extractors`
+	FilesCat          = `Files`
+	KitsCat           = `Kits`
+	MacrosCat         = `Macros`
+	NotificationsCat  = `Notifications`
+	PlaybooksCat      = `Playbooks`
+	QueryLibraryCat   = `Query Library`
+	ResourcesCat      = `Resources`
+	AutomationsCat    = `Automations`
+	TemplatesCat      = `Templates`
+	TokensCat         = `Tokens`
+	UsersAndGroupsCat = `Users and Groups`
+	SystemAndStatsCat = `System and Stats`
+	SecretsCat        = `Secrets`
+)
+
 const (
 	TokenHeader string = `Gravwell-Token`
 )
@@ -113,9 +135,10 @@ type CapabilityState struct {
 
 // CapabilityDesc is an enhanced structure containing a capability value, its name, and a brief description
 type CapabilityDesc struct {
-	Cap  Capability
-	Name string
-	Desc string
+	Cap      Capability
+	Name     string
+	Desc     string
+	Category CapabilityCategory
 }
 
 // CapabilityTemplate is group of capabilities with a name and description, this is used to build up a simplified set of
@@ -127,6 +150,7 @@ type CapabilityTemplate struct {
 }
 
 // check returns two values:
+//
 //	explicit: Whether or not the capability is in the CapabilitySet object.
 //	grant: Whether or not the capability is allowed to be accessed.
 func (cs CapabilitySet) check(c Capability) (explicit bool, grant bool) {
@@ -184,9 +208,10 @@ func (cs *CapabilitySet) CapabilityList() (r []CapabilityDesc) {
 // CapabilityDesc converts a Capability into a CapabilityDescription
 func (c Capability) CapabilityDesc() CapabilityDesc {
 	return CapabilityDesc{
-		Cap:  c,
-		Name: c.Name(),
-		Desc: c.Description(),
+		Cap:      c,
+		Name:     c.Name(),
+		Desc:     c.Description(),
+		Category: c.Category(),
 	}
 }
 
@@ -300,6 +325,127 @@ func (c Capability) Name() string {
 	return `UNKNOWN`
 }
 
+// Name returns the ASCII name of a capability
+func (c Capability) Category() CapabilityCategory {
+	switch c {
+	case Search:
+		return SearchAndDataCat
+	case Download:
+		return SearchAndDataCat
+	case SaveSearch:
+		return SearchAndDataCat
+	case AttachSearch:
+		return SearchAndDataCat
+	case BackgroundSearch:
+		return SearchAndDataCat
+	case GetTags:
+		return SearchAndDataCat
+	case SetSearchGroup:
+		return SearchAndDataCat
+	case SearchHistory:
+		return SearchAndDataCat
+	case SearchGroupHistory:
+		return SearchAndDataCat
+	case SearchAllHistory:
+		return SearchAndDataCat
+	case Ingest:
+		return SearchAndDataCat
+
+	case PivotRead:
+		return ActionablesCat
+	case PivotWrite:
+		return ActionablesCat
+
+	case DashboardRead:
+		return DashboardsCat
+	case DashboardWrite:
+		return DashboardsCat
+
+	case ExtractorRead:
+		return ExtractorsCat
+	case ExtractorWrite:
+		return ExtractorsCat
+
+	case UserFileRead:
+		return FilesCat
+	case UserFileWrite:
+		return FilesCat
+
+	case KitRead:
+		return KitsCat
+	case KitWrite:
+		return KitsCat
+	case KitBuild:
+		return KitsCat
+	case KitDownload:
+		return KitsCat
+
+	case MacroRead:
+		return MacrosCat
+	case MacroWrite:
+		return MacrosCat
+
+	case NotificationRead:
+		return NotificationsCat
+	case NotificationWrite:
+		return NotificationsCat
+
+	case PlaybookRead:
+		return PlaybooksCat
+	case PlaybookWrite:
+		return PlaybooksCat
+
+	case LibraryRead:
+		return QueryLibraryCat
+	case LibraryWrite:
+		return QueryLibraryCat
+
+	case ResourceRead:
+		return ResourcesCat
+	case ResourceWrite:
+		return ResourcesCat
+
+	case ScheduleRead:
+		return AutomationsCat
+	case ScheduleWrite:
+		return AutomationsCat
+	case SOARLibs:
+		return AutomationsCat
+	case SOAREmail:
+		return AutomationsCat
+
+	case TemplateRead:
+		return TemplatesCat
+	case TemplateWrite:
+		return TemplatesCat
+
+	case TokenRead:
+		return TokensCat
+	case TokenWrite:
+		return TokensCat
+
+	case ListUsers:
+		return UsersAndGroupsCat
+	case ListGroups:
+		return UsersAndGroupsCat
+	case ListGroupMembers:
+		return UsersAndGroupsCat
+
+	case LicenseRead:
+		return SystemAndStatsCat
+	case Stats:
+		return SystemAndStatsCat
+	case SystemInfoRead:
+		return SystemAndStatsCat
+
+	case SecretRead:
+		return SecretsCat
+	case SecretWrite:
+		return SecretsCat
+	}
+	return `UNKNOWN`
+}
+
 // Parse attempts to resolve a capability value from a name
 // Parse will ignore case and trim surrounding whitespace
 func (c *Capability) Parse(v string) (err error) {
@@ -400,9 +546,9 @@ func (c *Capability) Parse(v string) (err error) {
 	case `tokenwrite`:
 		*c = TokenWrite
 	case `secretread`:
-		*c = TokenRead
+		*c = SecretRead
 	case `secretwrite`:
-		*c = TokenWrite
+		*c = SecretWrite
 	default:
 		err = ErrUnknownCapability
 	}
@@ -635,6 +781,7 @@ type TagAccess struct {
 }
 
 // check returns two values:
+//
 //	explicit: Whether or not the tag is in the TagAccess object.
 //	grant: Whether or not the tag is allowed to be accessed.
 func (ta TagAccess) check(tg string) (explicit bool, grant bool) {
@@ -654,10 +801,10 @@ func (ta TagAccess) tagInSet(tg string) bool {
 
 // Validate walks all tags in a TagAccess object, ensuring they meet all length
 // and formatting rules:
-//	1. Length cannot be greater than 4096 characters.
-//	2. The tag cannot contain any of the following characters:
-//		!@#$%^&*()=+<>,.:;`\"'{[}]|
-//	3. You cannot specify more than 65536 tags.
+//  1. Length cannot be greater than 4096 characters.
+//  2. The tag cannot contain any of the following characters:
+//     !@#$%^&*()=+<>,.:;`\"'{[}]|
+//  3. You cannot specify more than 65536 tags.
 func (ta *TagAccess) Validate() (err error) {
 	otags := ta.Overrides[0:0]
 	tm := make(map[string]es, len(ta.Overrides))
@@ -800,6 +947,7 @@ func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
 
 // CreateUserCapabilityList creates a comprehensive list of capabilities the user has access to based on their direct and group assignments
 func CreateUserCapabilityList(ud *UserDetails) (r []CapabilityDesc) {
+	r = []CapabilityDesc{}
 	for _, c := range fullCapList {
 		if CheckUserCapabilityAccess(ud, c) {
 			r = append(r, c.CapabilityDesc())
@@ -961,6 +1109,7 @@ func (abr *ABACRules) CapabilityList() (r []CapabilityDesc) {
 // export a CapabilityState from the underlying capability rules
 func (abr *ABACRules) CapabilityState() (r CapabilityState) {
 	r.Default = abr.Capabilities.Default
+	r.Overrides = []string{}
 	for _, c := range fullCapList {
 		if abr.Capabilities.IsSet(c) {
 			r.Overrides = append(r.Overrides, c.Name())

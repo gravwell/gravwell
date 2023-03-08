@@ -288,6 +288,20 @@ func (c *Client) ConfigureMail(user, pass, server string, port uint16, useTLS, n
 	return c.putStaticURL(MAIL_CONFIGURE_URL, &msg, nil)
 }
 
+// DeleteMailConfig removes a users mail configuration fom preferences
+// this completely uninstalls any mail configs
+func (c *Client) DeleteMailConfig() error {
+	return c.methodStaticPushURL(http.MethodDelete, MAIL_CONFIGURE_URL, nil, nil, http.StatusOK, http.StatusNotFound)
+}
+
+// MailConfig retrieves the current mail config
+// if no mail config is set an empty UserMailConfig is returned
+// Even on a valid mail config the Password portion is not present in the response
+func (c *Client) MailConfig() (mc types.UserMailConfig, err error) {
+	err = c.getStaticURL(MAIL_CONFIGURE_URL, &mc)
+	return
+}
+
 // WellData returns information about the storage wells on the indexers.
 // The return value is a map of indexer name strings to IndexerWellData objects.
 func (c *Client) WellData() (mp map[string]types.IndexerWellData, err error) {
@@ -298,8 +312,9 @@ func (c *Client) WellData() (mp map[string]types.IndexerWellData, err error) {
 // GetLibFile fetches the contents of a particular SOAR library file, as used in
 // scheduled search scripts. The repo and commit arguments are optional.
 // Examples:
-//   c.GetLibFile("https://github.com/gravwell/libs", "cd9d6c5", "alerts/email.ank")
-//   c.GetLibFile("", "", "utils/links.ank")
+//
+//	c.GetLibFile("https://github.com/gravwell/libs", "cd9d6c5", "alerts/email.ank")
+//	c.GetLibFile("", "", "utils/links.ank")
 func (c *Client) GetLibFile(repo, commit, fn string) (bts []byte, err error) {
 	if fn == `` {
 		err = errors.New("Missing filename")

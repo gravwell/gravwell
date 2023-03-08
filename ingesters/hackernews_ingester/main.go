@@ -29,7 +29,7 @@ import (
 var (
 	tagName      = flag.String("tag-name", "hackernews", "Tag name for ingested data")
 	pipeConns    = flag.String("pipe-conn", "", "Path to pipe connection")
-	clearConns   = flag.String("clear-conns", "", "comma seperated server:port list of cleartext targets")
+	clearConns   = flag.String("clear-conns", "", "Comma-separated server:port list of cleartext targets")
 	ingestSecret = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
 	verbose      = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver          = flag.Bool("version", false, "Print the version information and exit")

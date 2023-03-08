@@ -33,6 +33,12 @@ type DiskStats struct {
 	Partition string
 	Total     uint64
 	Used      uint64
+	// unique ID for this disk on this host
+	// essentially a hash of indexer UUID, Mount, and Partition
+	// this is used to uniquely identify a disk and mount on a specific host
+	// uses are for when multiple indexers have the same disk topology
+	// or docker clusters where everything is identical
+	ID string
 }
 
 // Disk statistics as shown in the System Stats - Hardware and Disks view in Gravwell.

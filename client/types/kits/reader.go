@@ -262,7 +262,7 @@ func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest
 // the rdr and fetching metadata from it. It is typically used in conjunction with the Process
 // method, e.g.:
 //
-// 	kitreader.Process(func(name string, tp kits.ItemType, hash [sha256.Size]byte, rdr io.Reader) error {
+//	kitreader.Process(func(name string, tp kits.ItemType, hash [sha256.Size]byte, rdr io.Reader) error {
 //		if itm, err := kits.GetKitItem(name, tp, rdr); err != nil {
 //			return err
 //		} else {

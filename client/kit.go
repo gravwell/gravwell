@@ -185,13 +185,10 @@ func (c *Client) DeleteKitEx(id string) ([]types.SourcedKitItem, error) {
 // AdminDeleteKit is an admin-only function which can delete a kit owned by
 // any user.
 func (c *Client) AdminDeleteKit(id string) (err error) {
-	if !c.userDetails.Admin {
-		err = ErrNotAdmin
-	} else {
-		c.SetAdminMode()
-		err = c.deleteStaticURL(kitIdUrl(id), nil)
-		c.ClearAdminMode()
-	}
+	c.SetAdminMode()
+	err = c.deleteStaticURL(kitIdUrl(id), nil)
+	c.ClearAdminMode()
+
 	return
 }
 
@@ -228,16 +225,14 @@ func (c *Client) KitDownloadRequest(id string) (*http.Response, error) {
 }
 
 // AdminListKits is an admin-only function which lists all kits on the system.
+// Non-administrators will get the same list as returned by ListKits.
 func (c *Client) AdminListKits() (pkgs []types.IdKitState, err error) {
-	if !c.userDetails.Admin {
-		err = ErrNotAdmin
-	} else {
-		c.SetAdminMode()
-		if err = c.getStaticURL(kitUrl(), &pkgs); err != nil {
-			pkgs = nil
-		}
-		c.ClearAdminMode()
+	c.SetAdminMode()
+	if err = c.getStaticURL(kitUrl(), &pkgs); err != nil {
+		pkgs = nil
 	}
+	c.ClearAdminMode()
+
 	return
 }
 

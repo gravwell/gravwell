@@ -9,11 +9,14 @@
 package main
 
 import (
+	"bytes"
+	"encoding/csv"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -32,7 +35,8 @@ var (
 
 	grid *tview.Grid
 
-	jt *jobTracker
+	jt      *jobTracker
+	jobLock sync.Mutex
 
 	helpActive bool
 )
@@ -101,6 +105,8 @@ func guiMain(doneChan chan bool, st *StateTracker) {
 			}
 		case tcell.KeyCtrlH:
 			toggleHelp()
+		case tcell.KeyCtrlP:
+			jobClean()
 		}
 		return event
 	})
@@ -126,7 +132,7 @@ func guiMain(doneChan chan bool, st *StateTracker) {
 			app.Draw()
 		})
 	help.SetTitle("Help").SetBorder(true)
-	help.Write([]byte("Ctrl-Y: Focus main pane    Ctrl-J: Focus jobs pane    Ctrl-L: Focus logs pane\nCtrl-H: Get more help      Ctrl-C: Exit"))
+	help.Write([]byte("Ctrl-Y: Focus main pane    Ctrl-J: Focus jobs pane        Ctrl-L: Focus logs pane\nCtrl-H: Get more help      Ctrl-P: Purge completed jobs   Ctrl-C: Exit"))
 
 	grid = tview.NewGrid().
 		SetRows(0, 0, 4).
@@ -142,8 +148,21 @@ func guiMain(doneChan chan bool, st *StateTracker) {
 	}
 }
 
+func jobClean() {
+	jobLock.Lock()
+	jobs.Clear()
+	for _, j := range jt.GetAllJobs() {
+		if j.Done() {
+			continue
+		}
+		jobs.AddItem(j.IdString(), j.LatestUpdate(), 0, nil)
+	}
+	jobLock.Unlock()
+}
+
 func jobUpdater() {
 	for {
+		jobLock.Lock()
 		// Walk each job and extract the job ID from its main text
 		for i := 0; i < jobs.GetItemCount(); i++ {
 			main, _ := jobs.GetItemText(i)
@@ -155,6 +174,7 @@ func jobUpdater() {
 			}
 			app.QueueUpdateDraw(func() { jobs.SetItemText(i, job.IdString(), job.LatestUpdate()) })
 		}
+		jobLock.Unlock()
 		time.Sleep(500 * time.Millisecond)
 	}
 }
@@ -190,6 +210,8 @@ func startFileJob(cfgName string) {
 	if j == nil {
 		return
 	}
+	jobLock.Lock()
+	defer jobLock.Unlock()
 	jobs.AddItem(j.IdString(), "Starting...", 0, nil)
 }
 
@@ -220,7 +242,9 @@ func splunkMappingMenu(cfgName string) {
 		if j == nil {
 			return
 		}
+		jobLock.Lock()
 		jobs.AddItem(j.IdString(), "Starting...", 0, nil)
+		jobLock.Unlock()
 
 		go func() {
 			for !j.Done() {
@@ -275,7 +299,12 @@ func writeMappings(cfgName string) {
 
 	// now do the individual mappings
 	for _, m := range status.GetAllFullyMapped() {
-		f.Write([]byte(fmt.Sprintf("Index-Sourcetype-To-Tag=%s,%s:%s\n", m.Index, m.Sourcetype, m.Tag)))
+		var buf bytes.Buffer
+		w := csv.NewWriter(&buf)
+		w.Write([]string{m.Index, m.Sourcetype, m.Tag})
+		w.Flush()
+		out := bytes.TrimSpace(buf.Bytes())
+		f.Write([]byte(fmt.Sprintf("Index-Sourcetype-To-Tag=`%s`\n", out)))
 	}
 }
 
@@ -330,11 +359,16 @@ func setTagMapping(cfgName string, x SplunkToGravwell, tag string) {
 }
 
 func splunkMigrateMenu(cfgName string) {
-	menu.Clear().SetTitle("Migrate splunk data")
-	menu.AddItem("Exit", "Previous menu", 'x', func() { splunkMenu(cfgName) })
-	menu.AddItem("", "", 0, nil)
 	maps := splunkTracker.GetStatus(cfgName)
 	progresses := maps.GetAllFullyMapped()
+	menu.Clear().SetTitle("Migrate splunk data")
+	menu.AddItem("Exit", "Previous menu", 'x', func() { splunkMenu(cfgName) })
+	menu.AddItem("Start All", "Launch all jobs (use this with care!)", 0, func() {
+		for i := range progresses {
+			startMigrate(cfgName, progresses[i])
+		}
+	})
+	menu.AddItem("", "", 0, nil)
 	for i := range progresses {
 		x := progresses[i]
 		tag := x.Tag
@@ -354,6 +388,8 @@ func startMigrate(cfgName string, progress SplunkToGravwell) {
 	if j == nil {
 		return
 	}
+	jobLock.Lock()
+	defer jobLock.Unlock()
 	jobs.AddItem(j.IdString(), "Starting...", 0, nil)
 }
 

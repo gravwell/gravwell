@@ -22,7 +22,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/floren/o365"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -30,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/o365"
 )
 
 const (
@@ -78,7 +78,7 @@ func init() {
 			ingest.PrintVersion(fout)
 			log.PrintOSInfo(fout)
 			//file created, dup it
-			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
+			if err := syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
 				fout.Close()
 				lg.Fatal("failed to dup2 stderr", log.KVErr(err))
 			}
@@ -199,6 +199,7 @@ func main() {
 	ocfg.DirectoryID = cfg.Global.Directory_ID
 	ocfg.TenantDomain = cfg.Global.Tenant_Domain
 	ocfg.ContentTypes = cfg.ContentTypes()
+	ocfg.PlanName = cfg.Global.Plan_Name
 	o, err := o365.New(ocfg)
 	if err != nil {
 		lg.FatalCode(0, "Failed to get new client", log.KVErr(err))

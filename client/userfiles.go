@@ -42,17 +42,13 @@ func (c *Client) UserFiles() (ufds []types.UserFileDetails, err error) {
 }
 
 // AllUserFiles pulls the complete list of all user files for the entire system.
-// Only administrators can use this API.
+// Non-administrators will receive the same list as returned by UserFiles.
 func (c *Client) AllUserFiles() (ufds []types.UserFileDetails, err error) {
-	if !c.userDetails.Admin {
-		err = ErrNotAdmin
-	} else {
-		c.SetAdminMode()
-		if err = c.getStaticURL(userFilesUrl(), &ufds); err != nil {
-			ufds = nil
-		}
-		c.ClearAdminMode()
+	c.SetAdminMode()
+	if err = c.getStaticURL(userFilesUrl(), &ufds); err != nil {
+		ufds = nil
 	}
+	c.ClearAdminMode()
 	return
 }
 
@@ -124,6 +120,11 @@ func (c *Client) GetUserFile(id uuid.UUID) (bts []byte, err error) {
 	if resp, err = c.methodRequestURL(http.MethodGet, userFilesIdUrl(id), ``, nil); err != nil {
 		return
 	}
+	// Make sure the reply was ok
+	if resp.StatusCode != 200 {
+		err = fmt.Errorf("Invalid response code %d", resp.StatusCode)
+		return
+	}
 	if _, err = io.CopyN(bb, resp.Body, maxFileSize); err != nil && err != io.EOF {
 		resp.Body.Close()
 		return
@@ -134,12 +135,9 @@ func (c *Client) GetUserFile(id uuid.UUID) (bts []byte, err error) {
 	return
 }
 
-// GetUserFileDetails fetches the metadata (everything except the contents) about a given file.
-func (c *Client) GetUserFileDetails(id uuid.UUID) (meta types.UserFileDetails, err error) {
-	if err = c.getStaticURL(userFilesDetailsIdUrl(id), &meta); err != nil {
-		return
-	}
-
+// GetUserFileDetails fetches info (everything except the contents) about a particular file by GUID or ThingUUID.
+func (c *Client) GetUserFileDetails(id uuid.UUID) (dets types.UserFileDetails, err error) {
+	err = c.getStaticURL(userFilesIdDetailsUrl(id), &dets)
 	return
 }
 

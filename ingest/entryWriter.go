@@ -26,7 +26,7 @@ const (
 	//READ_ENTRY_HEADER_SIZE should be 46 bytes
 	//34 + 4 + 4 + 8 (magic, data len, entry ID)
 	READ_ENTRY_HEADER_SIZE int = entry.ENTRY_HEADER_SIZE + 12
-	MAX_ENTRY_SIZE         int = 1024 * 1024 * 1024
+	MAX_ENTRY_SIZE         int = int(entry.MaxDataSize)
 	//TODO: We should make this configurable by configuration
 	WRITE_BUFFER_SIZE           int           = 1024 * 1024
 	MAX_WRITE_ERROR             int           = 4
@@ -40,6 +40,7 @@ const (
 	MINIMUM_INGEST_OK_VERSION       uint16        = 0x4 // minimum server version to ask
 	MINIMUM_DYN_CONFIG_VERSION      uint16        = 0x5 // minimum server version to send dynamic config block
 	MINIMUM_INGEST_STATE_VERSION    uint16        = 0x6 // minimum server version to send detailed ingester state messages
+	MINIMUM_INGEST_EV_VERSION       uint16        = 0x8 // minimum server version to send enumerated values attached to entries
 	maxThrottleDur                  time.Duration = 5 * time.Second
 
 	flushTimeout time.Duration = 10 * time.Second
@@ -143,8 +144,8 @@ func (ew *EntryWriter) OverrideAckTimeout(t time.Duration) error {
 
 type connWrapper func(conn) conn
 
-//wrapConn passes in a function that can wrap a reader/writer
-//when called we reset the write buffer, caller should make sure there isn't anything buffered
+// wrapConn passes in a function that can wrap a reader/writer
+// when called we reset the write buffer, caller should make sure there isn't anything buffered
 func (ew *EntryWriter) setConn(c conn) {
 	ew.mtx.Lock()
 	ew.conn = c
@@ -317,7 +318,7 @@ func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) (int, error) {
 }
 
 func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
-	var flushed bool
+	var flushed, hasEvs bool
 	var err error
 	//if our conf buffer is full force an ack service
 	if ew.ecb.Full() {
@@ -334,11 +335,22 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 		return false, ErrOversizedEntry
 	}
 
+	// if the server is too old stip Evs from theentry
+	if ew.serverVersion < MINIMUM_INGEST_EV_VERSION {
+		//make a new local entry with no EVs
+		ent = &entry.Entry{
+			TS:   ent.TS,
+			Tag:  ent.Tag,
+			SRC:  ent.SRC,
+			Data: ent.Data,
+		}
+	}
+
 	//throw the magic
 	binary.LittleEndian.PutUint32(ew.buff, uint32(NEW_ENTRY_MAGIC))
 
 	//build out the header with size
-	if err = ent.EncodeHeader(ew.buff[4 : entry.ENTRY_HEADER_SIZE+4]); err != nil {
+	if hasEvs, err = ent.EncodeHeader(ew.buff[4 : entry.ENTRY_HEADER_SIZE+4]); err != nil {
 		return false, err
 	}
 	binary.LittleEndian.PutUint64(ew.buff[entry.ENTRY_HEADER_SIZE+4:], uint64(ew.id))
@@ -357,6 +369,21 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 	if err = ew.writeAll(ent.Data); err != nil {
 		return false, err
 	}
+
+	//check if we need to send enumerated values too
+	if hasEvs {
+		//check if we need to flush
+		if evsz := ent.EVSize(); evsz > ew.bIO.Available() {
+			flushed = true
+			if err = ew.flush(); err != nil {
+				return false, err
+			}
+		}
+		if _, err = ent.EVEncodeWriter(ew.bIO); err != nil {
+			return false, err
+		}
+	}
+
 	if flush {
 		flushed = flush
 		if err = ew.flush(); err != nil {
@@ -398,8 +425,8 @@ func (ew *EntryWriter) writeAll(b []byte) error {
 	return nil
 }
 
-//flush attempts to push our buffer to the wire with a timeout
-//if the timeout expires we attempt to service acks and go back to attempting to flush
+// flush attempts to push our buffer to the wire with a timeout
+// if the timeout expires we attempt to service acks and go back to attempting to flush
 func (ew *EntryWriter) flush() (err error) {
 	//set the write timeout
 	if err = ew.conn.SetWriteTimeout(flushTimeout); err != nil {
@@ -474,6 +501,9 @@ func (ew *EntryWriter) SendIngesterState(state IngesterState) (err error) {
 	if err != nil {
 		return
 	}
+
+	//update the last seen
+	state.LastSeen = time.Now()
 
 	// write the header
 	if err = ew.writeAll(INGESTER_STATE_MAGIC.Buff()); err != nil {
@@ -869,7 +899,7 @@ func (ew *EntryWriter) serviceAcks(blocking bool) error {
 	return nil
 }
 
-//readAcks pulls out all of the acks in the ackBuffer and services them
+// readAcks pulls out all of the acks in the ackBuffer and services them
 func (ew *EntryWriter) readAcks(blocking bool) (err error) {
 	var ac ackCommand
 	var ok bool

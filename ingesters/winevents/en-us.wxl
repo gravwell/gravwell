@@ -12,14 +12,15 @@
   <String Id="ConfigurationDlg_Header" Overridable="yes">Configuration</String>
   <String Id="ConfigurationDlg_Description" Overridable="yes">Update values for default configuration</String>
   <String Id="ConfigurationDlg_Title" Overridable="yes">[ProductName] Configuration</String>
-  <String Id="ConfigurationDlg_IncludeSysmon" Overridable="yes">Include Sysmon Channel:</String>
+  <String Id="ConfigurationDlg_IncludeSysmon" Overridable="yes">Include Sysmon:</String>
+  <String Id="ConfigurationDlg_IncludeForwarded" Overridable="yes">Include Forwarded Events:</String>
   <String Id="ConfigurationDlg_IngestSecretLabel" Overridable="yes">Ingest secret:</String>
   <String Id="ConfigurationDlg_CleartextBackendTarget" Overridable="yes">Cleartext TCP Target:</String>
   <String Id="ConfigurationDlg_LogLevel_OFF" Overridable="yes">Off</String>
   <String Id="ConfigurationDlg_LogLevel_INFO" Overridable="yes">Information</String>
   <String Id="ConfigurationDlg_LogLevel_WARN" Overridable="yes">Warning</String>
   <String Id="ConfigurationDlg_LogLevel_ERROR" Overridable="yes">Error</String>
-  <String Id="ConfigurationDlg_LogLevel" Overridable="yes">Log level:</String>
+  <String Id="ConfigurationDlg_LogLevel" Overridable="yes">Internal log level:</String>
   <String Id="UninstallQuestion_Title" Overridable="yes">Remove configuration data?</String>
   <String Id="UninstallQuestion_Message" Overridable="yes">Remove stored configuration properties?</String>
   <String Id="InvalidIngestSecretDialog_Title" Overridable="yes">Invalid value of Ingest Secret</String>

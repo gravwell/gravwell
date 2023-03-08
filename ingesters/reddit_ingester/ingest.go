@@ -26,7 +26,7 @@ import (
 var (
 	tagName      = flag.String("tag-name", "reddit", "Tag name for ingested data")
 	pipeConns    = flag.String("pipe-conn", "", "Path to pipe connection")
-	clearConns   = flag.String("clear-conns", "", "comma seperated server:port list of cleartext targets")
+	clearConns   = flag.String("clear-conns", "", "Comma-separated server:port list of cleartext targets")
 	ingestSecret = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
 	timeoutSec   = flag.Int("timeout", 1, "Connection timeout in seconds")
 	connSet      []string

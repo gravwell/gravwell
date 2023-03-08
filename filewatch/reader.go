@@ -38,16 +38,6 @@ type ReaderConfig struct {
 	EngineArgs string
 }
 
-func NewReader(cfg ReaderConfig) (Reader, error) {
-	switch cfg.Engine {
-	case RegexEngine:
-		return NewRegexReader(cfg)
-	case LineEngine: //default/empty is line reader
-		return NewLineReader(cfg)
-	}
-	return nil, errors.New("Unknown engine")
-}
-
 type baseReader struct {
 	f       *os.File
 	idx     int64
@@ -73,6 +63,13 @@ func newBaseReader(f *os.File, maxLine int, startIdx int64) (br baseReader, err 
 		br.maxLine = maxLine
 	}
 	return
+}
+
+func (br *baseReader) Name() string {
+	if br != nil && br.f != nil {
+		return br.f.Name()
+	}
+	return ``
 }
 
 func (br *baseReader) SeekFile(offset int64) error {

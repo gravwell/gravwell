@@ -61,6 +61,13 @@ func (sms *ModuleStatsUpdate) AddOut(count, bts uint64) {
 	sms.OutputBytes += bts
 }
 
+func (sms *ModuleStatsUpdate) Add(v ModuleStatsUpdate) {
+	sms.InputCount += v.InputCount
+	sms.InputBytes += v.InputBytes
+	sms.OutputCount += v.OutputCount
+	sms.OutputBytes += v.OutputBytes
+}
+
 func (sms ModuleStatsUpdate) Equal(t ModuleStatsUpdate) bool {
 	return (sms.InputCount == t.InputCount) && (sms.OutputCount == t.OutputCount) &&
 		(sms.InputBytes == t.InputBytes) && (sms.OutputBytes == t.OutputBytes) &&

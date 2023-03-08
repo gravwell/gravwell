@@ -138,7 +138,7 @@ func (stb *EntryBuffer) AddBlock(stes []entry.Entry) {
 	return
 }
 
-//re-usable circular buffer index
+// re-usable circular buffer index
 type CircularIndex struct {
 	max   uint
 	count uint

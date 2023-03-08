@@ -56,8 +56,8 @@ type KeyComponents struct {
 	Keys []string
 }
 
-//ChartableValueSet is what is returned when we have a request for data
-//the length of Names MUST BE the same length as each set of Values in each Set
+// ChartableValueSet is what is returned when we have a request for data
+// the length of Names MUST BE the same length as each set of Values in each Set
 type ChartableValueSet struct {
 	Names      []string
 	KeyComps   []KeyComponents `json:",omitempty"`
@@ -142,6 +142,23 @@ func (n nst) translate(c Chartable) error {
 	return nil
 }
 
+// Sort is a little helper that picks the right sort based on the data types exposed
+// if there is only one set (one time slice for things like non time-series charts) it sorts by value
+// if there is more than one time slice, it sortsby name
+func (cvs *ChartableValueSet) Sort() error {
+	if cvs == nil {
+		return errors.New("nil ChartableValueSet")
+	} else if len(cvs.Values) == 1 {
+		//return cvs.SortByValue()
+		if err := cvs.SortByValue(); err != nil {
+			fmt.Println("failed to sort by value:", err)
+			return err
+		}
+	}
+	return cvs.SortByNames()
+}
+
+// SortByNames will sort the chartable data by name, keeping values coordinated
 func (cvs *ChartableValueSet) SortByNames() error {
 	if len(cvs.Names) == 0 {
 		return nil
@@ -154,6 +171,36 @@ func (cvs *ChartableValueSet) SortByNames() error {
 	}
 	cvs.Names = nst.names()
 	return nil
+}
+
+// SortByValues will sort the series by the the first value in the chartable data set
+// this will return an error if there is more than one time slice of data
+func (cvs *ChartableValueSet) SortByValue() error {
+	if len(cvs.Values) > 1 {
+		return errors.New("ChartableValueSet.SortByValue does not support multiple time slices")
+	} else if len(cvs.Values[0].Data) != len(cvs.Names) {
+		return errors.New("ChartableValueSet series names do not match data value names")
+	}
+
+	sort.Sort(swapper{cvs: cvs})
+	return nil
+}
+
+type swapper struct {
+	cvs *ChartableValueSet
+}
+
+func (s swapper) Len() int {
+	return len(s.cvs.Values[0].Data)
+}
+
+func (s swapper) Less(i, j int) bool {
+	return s.cvs.Values[0].Data[i] < s.cvs.Values[0].Data[j]
+}
+
+func (s swapper) Swap(i, j int) {
+	s.cvs.Values[0].Data[i], s.cvs.Values[0].Data[j] = s.cvs.Values[0].Data[j], s.cvs.Values[0].Data[i]
+	s.cvs.Names[i], s.cvs.Names[j] = s.cvs.Names[j], s.cvs.Names[i]
 }
 
 func (cdp ChartableDataPoint) MarshalJSON() ([]byte, error) {

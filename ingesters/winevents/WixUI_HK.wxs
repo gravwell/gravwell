@@ -7,6 +7,8 @@
       <TextStyle Id="WixUI_Font_Title" FaceName="Tahoma" Size="9" Bold="yes" />
       <Property Id="DefaultUIFont" Value="WixUI_Font_Normal" />
       <Property Id="WixUI_Mode" Value="InstallDir" />
+      <Property Id="ARPNOREPAIR" Value="yes" Secure="yes" /> 
+      <Property Id="ARPNOMODIFY" Value="yes" Secure="yes" />
       <DialogRef Id="BrowseDlg" />
       <DialogRef Id="DiskCostDlg" />
       <DialogRef Id="ErrorDlg" />

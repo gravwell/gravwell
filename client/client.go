@@ -182,9 +182,9 @@ func (c *Client) ServerIP() net.IP {
 	return net.IPv4(0, 0, 0, 0)
 }
 
-//we allow a single redirect to allow for the muxer to clean up requests
-//basically the gorilla muxer we are using will force a 301 redirect on a path
-//such as '//' to '/'  We allow for one of those
+// we allow a single redirect to allow for the muxer to clean up requests
+// basically the gorilla muxer we are using will force a 301 redirect on a path
+// such as '//' to '/'  We allow for one of those
 func redirectPolicy(req *http.Request, via []*http.Request) error {
 	if len(via) >= 2 {
 		return errors.New("Disallowed multiple redirects")
@@ -282,7 +282,11 @@ func (c *Client) Login(user, pass string) error {
 	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
 		return err
 	}
-	return c.processLoginResponse(loginResp)
+	if err := c.processLoginResponse(loginResp); err != nil {
+		return err
+	}
+
+	return c.syncNoLock()
 }
 
 // RefreshLoginToken will ask the webserver to refresh the login state
@@ -458,7 +462,9 @@ func (c *Client) TestGet(path string) error {
 }
 
 // Sync fetches some useful information for local reference, such as user details.
-// In general, you should call Sync immediately after authenticating.
+// It is typically not necessary to call this function; in the past, you had to
+// call Sync immediately after authenticating, but the
+// Login function now fetches the same information automatically.
 func (c *Client) Sync() (err error) {
 	c.mtx.Lock()
 	err = c.syncNoLock()
@@ -566,7 +572,7 @@ func (c *Client) DialWebsocket(pth string) (conn *websocket.Conn, resp *http.Res
 	return
 }
 
-// SetUserAgent changes the User-Agent field the client sends with requests (default: ``GravwellCLI'').
+// SetUserAgent changes the User-Agent field the client sends with requests (default: “GravwellCLI”).
 func (c *Client) SetUserAgent(v string) error {
 	if v == `` {
 		return ErrEmptyUserAgent

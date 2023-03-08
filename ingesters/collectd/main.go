@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
-	"runtime/pprof"
 	"sync"
 	"syscall"
 	"time"
@@ -17,6 +16,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/utils/caps"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
@@ -28,7 +28,6 @@ const (
 )
 
 var (
-	cpuprofile     = flag.String("cpuprofile", "", "write cpu profile to file")
 	confLoc        = flag.String("config-file", defaultConfigLoc, "Override location for configuration file")
 	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
@@ -68,7 +67,7 @@ func init() {
 			ingest.PrintVersion(fout)
 			log.PrintOSInfo(fout)
 			//file created, dup it
-			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
+			if err := syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
 				fout.Close()
 				lg.Fatal("Failed to dup2 stderr", log.KVErr(err))
 			}
@@ -80,16 +79,6 @@ func init() {
 
 func main() {
 	debug.SetTraceback("all")
-	if *cpuprofile != "" {
-		f, err := os.Create(*cpuprofile)
-		if err != nil {
-			lg.FatalCode(0, "failed to open profile file", log.KV("path", *cpuprofile), log.KVErr(err))
-		}
-		defer f.Close()
-		pprof.StartCPUProfile(f)
-		defer pprof.StopCPUProfile()
-	}
-
 	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
@@ -171,6 +160,12 @@ func main() {
 		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
 	}
 	debugout("Successfully connected to ingesters\n")
+
+	//check capabilities so we can scream and throw a potential warning upstream
+	if !caps.Has(caps.NET_BIND_SERVICE) {
+		lg.Warn("missing capability", log.KV("capability", "NET_BIND_SERVICE"), log.KV("warning", "may not be able to bind to service ports"))
+		debugout("missing capability NET_BIND_SERVICE, may not be able to bind to service ports")
+	}
 
 	// prepare the configuration we're going to send upstream
 	err = igst.SetRawConfiguration(cfg)

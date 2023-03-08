@@ -381,6 +381,7 @@ func (c *ChanCacher) Drain() {
 // to be saved. Commit will block until the In channel is closed. The
 // ChanCacher will not close the output channel until it's empty, so a typical
 // production would look like:
+//
 //	close(c.In)
 //	drainSomeDataFrom(c.Out)
 //

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -110,6 +111,36 @@ type LicenseIndexerInfo struct {
 	Indexer string      `json:"indexer"`
 	Error   error       `json:"error,omitempty"`
 	Info    LicenseInfo `json:"info,omitempty"`
+}
+
+// LicenseUsageBucket is a time bucket of license quota activity
+// A typical license tracks a 24 hour rolling window with 1 hour buckets
+// Unlimited licenses do not track ingest at all
+type LicenseUsageBucket struct {
+	Start time.Time //start of this bucket
+	End   time.Time //end of this bucket
+	Size  uint64    //ingest bucket size
+	Count uint64    //ingest bucket count
+}
+
+// LicenseUsage is the data structure that is handed back to indicate how much of a license quota is used
+// and what the usage looks like over the rolling windows.
+// Unlimited licenses will return Unlimited = true with everything else empty
+type LicenseUsage struct {
+	Unlimited bool                 // license is unlimited, nothing else will be here
+	Quota     uint64               // license ingest limitation
+	Used      uint64               // license ingest usage
+	Entries   uint64               // total count of entries (does not impact license)
+	History   []LicenseUsageBucket `json:",omitempty"`
+	Error     error                `json:",omitempty"`
+}
+
+// LicenseUsageReport is the meta structure that contains all the license tracking data for potentially many indexers
+// The typical use cases are a single cluster with unlimited ingest, a single indexer with unlimited ingest, or a single indexer with limited ingest
+// however, overwatch topologies may have mixed licensing across the indexers
+type LicenseUsageReport struct {
+	Unlimited bool                    //every single reporting indexer has unlimited ingest OR an error, nothing to report
+	Indexers  map[string]LicenseUsage `json:",omitempty"` // if all indexers are unlimited this won't bbe included at all
 }
 
 // Validate ensures the license info is valid.

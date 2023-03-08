@@ -29,9 +29,10 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/ingesters/utils/caps"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 
-	"github.com/k-sone/ipmigo"
+	"github.com/gravwell/ipmigo"
 )
 
 const (
@@ -96,7 +97,7 @@ func init() {
 			ingest.PrintVersion(fout)
 			log.PrintOSInfo(fout)
 			//file created, dup it
-			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
+			if err := syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
 				fout.Close()
 				lg.FatalCode(0, "failed to dup2 stderr", log.KVErr(err))
 			}
@@ -191,6 +192,11 @@ func main() {
 	err = igst.SetRawConfiguration(cfg)
 	if err != nil {
 		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KVErr(err))
+	}
+
+	//check capabilities so we can scream and throw a potential warning upstream
+	if !caps.Has(caps.NET_BIND_SERVICE) {
+		lg.Warn("missing capability", log.KV("capability", "NET_BIND_SERVICE"), log.KV("warning", "may not be able to bind to service ports"))
 	}
 
 	// fire up IPMI handlers

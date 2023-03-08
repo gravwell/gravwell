@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -18,127 +18,162 @@ import (
 	"math"
 	"net"
 	"net/http"
-	"net/url"
-	"path"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
 const (
-	defaultHECUrl    string = `/services/collector/event`
-	defaultHECRawUrl string = `/services/collector/raw`
+	defaultMaxHECEventSize uint = 512 * 1024 //splunk defaults to 10k characters, but thats weak
 )
-
-type hecCompatible struct {
-	URL               string //override the URL, defaults to "/services/collector/event"
-	TokenValue        string `json:"-"` //DO NOT SEND THIS when marshalling
-	Tag_Name          string //the tag to assign to the request
-	Ignore_Timestamps bool
-	Ack               bool
-	Preprocessor      []string
-}
 
 type hecHandler struct {
 	hecHealth
-	acking bool
-	id     uint64
-}
-
-func (v *hecCompatible) validate(name string) (string, error) {
-	if len(v.URL) == 0 {
-		v.URL = defaultHECUrl
-	}
-	p, err := url.Parse(v.URL)
-	if err != nil {
-		return ``, fmt.Errorf("URL structure is invalid: %v", err)
-	}
-	if p.Scheme != `` {
-		return ``, errors.New("May not specify scheme in listening URL")
-	} else if p.Host != `` {
-		return ``, errors.New("May not specify host in listening URL")
-	}
-	pth := p.Path
-	if len(v.Tag_Name) == 0 {
-		v.Tag_Name = entry.DefaultTagName
-	}
-	if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
-		return ``, errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + name)
-	}
-	//normalize the path
-	v.URL = pth
-	return pth, nil
+	name           string
+	id             uint64
+	tagRouter      map[string]entry.EntryTag
+	rawLineBreaker string
+	maxSize        uint
 }
 
 type hecEvent struct {
-	Event json.RawMessage `json:"event"`
-	TS    custTime        `json:"time"`
+	Event      json.RawMessage        `json:"event"`
+	Fields     map[string]interface{} `json:"fields,omitempty"`
+	TS         custTime               `json:"time"`
+	Host       string                 `json:"host,omitempty"`
+	Source     string                 `json:"source,omitempty"`
+	Sourcetype string                 `json:"sourcetype,omitempty"`
+	Index      string                 `json:"index,omitempty"`
 }
 
 type custTime time.Time
 
 func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 	var f float64
-	v = bytes.Trim(v, `"`) //trim quotes if they are there
-	if f, err = strconv.ParseFloat(string(v), 64); err != nil {
-		return
-	} else if f < 0 || f > float64(0xffffffffff) {
-		err = errors.New("invalid timestamp value")
+	raw := bytes.Trim(v, `" `)
+	//trim quotes if they are there
+	if len(raw) == 0 {
+		return //missing, so just bail
 	}
-	sec, dec := math.Modf(f)
-	*c = custTime(time.Unix(int64(sec), int64(dec*(1e9))))
+	//attempt to parse as a float for the default type
+	if f, err = strconv.ParseFloat(string(raw), 64); err == nil {
+		//got a good parse on a float, sanity check it
+		if f < 0 || f > float64(0xffffffffff) {
+			err = errors.New("invalid timestamp value")
+			return
+		}
+		//all good, create our timestamp
+		sec, dec := math.Modf(f)
+		*c = custTime(time.Unix(int64(sec), int64(dec*(1e9))))
+		return
+	}
+
+	//couldn't parse as a float, try the standard JSON timestamp format
+	var ts time.Time
+	if err = ts.UnmarshalJSON(v); err == nil {
+		*c = custTime(ts)
+	}
 	return
 }
 
-func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
-	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+256))) //give some slack for the extra splunk garbage
-	if err != nil && err != io.EOF {
-		h.lgr.Info("bad request", log.KV("address", ip), log.KVErr(err))
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	} else if len(b) > maxBody {
-		h.lgr.Error("request too large", log.KV("requestsize", len(b)), log.KV("maxsize", maxBody))
-		w.WriteHeader(http.StatusBadRequest)
+func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	// get a local logger up that will always add some more info
+	ll := log.NewLoggerWithKV(h.lgr, log.KV("HEC-Listener", hh.name), log.KV("remoteaddress", ip.String()))
+	dec, err := utils.NewJsonLimitedDecoder(rdr, int64(maxBody+256)) //give some slack for the extra splunk garbage
+	if err != nil {
+		ll.Error("failed to create limited decoder", log.KVErr(err))
+		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
-	if len(b) == 0 {
-		h.lgr.Info("got an empty post", log.KV("address", ip))
-		w.WriteHeader(http.StatusBadRequest)
-	}
-	var x hecEvent
-	if err = json.Unmarshal(b, &x); err == nil {
-		b = []byte(x.Event)
-	} //else means we just keep the entire raw thing
+loop:
+	for {
+		var ts entry.Timestamp
+		var hev hecEvent
+		tag := cfg.tag
 
-	//if we couldn't get the timestmap, use now
-	if time.Time(x.TS).IsZero() {
-		x.TS = custTime(time.Now().UTC())
+		//try to decode the damn thing
+		if err = dec.Decode(&hev); err != nil {
+			// check if limited reader is exhausted so that we can throw a better error
+			if errors.Is(err, utils.ErrOversizedObject) {
+				ll.Error("oversized json object", log.KV("max-size", hh.maxSize))
+			} else if errors.Is(err, io.EOF) {
+				//no error
+				break loop
+			} else {
+				//just a plain old error
+				ll.Error("invalid json object", log.KV("max-size", hh.maxSize), log.KVErr(err))
+			}
+			w.WriteHeader(http.StatusBadRequest)
+			return // we pretty much have to just hang up
+		}
+		//handle timestamps
+		if cfg.ignoreTs {
+			ts = entry.Now()
+		} else {
+			//try to deal with missing timestamps and other garbage
+			if time.Time(hev.TS).IsZero() {
+				//attempt to derive out of the payload if there is one
+				if extracted, ok, err := cfg.tg.Extract([]byte(hev.Event)); err != nil || !ok {
+					ts = entry.Now()
+				} else {
+					ts = entry.FromStandard(extracted)
+				}
+			} else {
+				ts = entry.FromStandard(time.Time(hev.TS))
+			}
+		}
+
+		if len(hev.Sourcetype) > 0 && len(hh.tagRouter) > 0 {
+			if lt, ok := hh.tagRouter[hev.Sourcetype]; ok {
+				tag = lt
+			}
+		}
+
+		e := entry.Entry{
+			TS:   ts,
+			SRC:  ip,
+			Tag:  tag,
+			Data: []byte(hev.Event),
+		}
+		if hev.Host != `` {
+			e.AddEnumeratedValueEx(`host`, hev.Host)
+		}
+		if hev.Source != `` {
+			e.AddEnumeratedValueEx(`source`, hev.Source)
+		}
+		if hev.Fields != nil {
+			//add Evs
+			for k, v := range hev.Fields {
+				if ed, err := entry.InferEnumeratedData(v); err == nil {
+					e.AddEnumeratedValue(entry.EnumeratedValue{Name: k, Value: ed})
+				} else if err == entry.ErrUnknownType {
+					//try again making it a string
+					if ed, err = entry.InferEnumeratedData(fmt.Sprintf("%v", v)); err == nil {
+						e.AddEnumeratedValue(entry.EnumeratedValue{Name: k, Value: ed})
+					}
+				}
+			}
+		}
+		debugout("Sending entry %+v", e)
+		if err = cfg.pproc.Process(&e); err != nil {
+			ll.Error("failed to send entry", log.KVErr(err))
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
 	}
-	e := entry.Entry{
-		TS:   entry.FromStandard(time.Time(x.TS)),
-		SRC:  ip,
-		Tag:  cfg.tag,
-		Data: b,
-	}
-	if err = cfg.pproc.Process(&e); err != nil {
-		h.lgr.Error("failed to send entry", log.KVErr(err))
-		return
-	}
-	debugout("Sending entry %+v", e)
-	if hh.acking {
+	if ackRequested(r) {
 		json.NewEncoder(w).Encode(ack{
 			ID: strconv.FormatUint(atomic.AddUint64(&hh.id, 1), 10),
 		})
 	}
 }
 
-func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
+func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	debugout("HEC RAW\n")
 	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+1)))
 	if err != nil && err != io.EOF {
@@ -153,12 +188,16 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	if len(b) == 0 {
 		h.lgr.Info("got an empty post", log.KV("address", ip))
 		return
-	} else if err = h.handleEntry(cfg, b, ip); err != nil {
-		h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	} else {
+		for _, b := range bytes.Split(b, []byte(hh.rawLineBreaker)) {
+			if err = h.handleEntry(cfg, b, ip); err != nil {
+				h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
 	}
-	if hh.acking {
+	if ackRequested(r) {
 		json.NewEncoder(w).Encode(ack{
 			ID: strconv.FormatUint(atomic.AddUint64(&hh.id, 1), 10),
 		})
@@ -179,67 +218,6 @@ func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		resp.IDs[strconv.FormatUint(id, 10)] = id <= curr
 	}
 	json.NewEncoder(w).Encode(resp)
-}
-
-func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
-	for _, v := range cfg.HECListener {
-		hh := &hecHandler{
-			hecHealth: hecHealth{
-				igst:  hnd.igst,
-				token: v.TokenValue,
-			},
-		}
-		hcfg := routeHandler{
-			handler: hh.handle,
-		}
-		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
-			lg.Error("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
-			return
-		}
-		if v.Ignore_Timestamps {
-			hcfg.ignoreTs = true
-		} else {
-			if hcfg.tg, err = timegrinder.New(timegrinder.Config{}); err != nil {
-				lg.Error("Failed to create timegrinder", log.KVErr(err))
-				return
-			}
-		}
-
-		if hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
-			lg.Error("preprocessor construction error", log.KVErr(err))
-			return
-		}
-		if hcfg.auth, err = newPresharedTokenHandler(`Splunk`, v.TokenValue, lgr); err != nil {
-			lg.Error("failed to generate HEC-Compatible-Listener auth", log.KVErr(err))
-			return
-		}
-		//had the main handler for events
-		if err = hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
-			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
-			return
-		}
-		// add the other handlers for health, ack, and raw mode
-		bp := path.Dir(v.URL)
-		if v.Ack {
-			if err = hnd.addCustomHandler(http.MethodPost, path.Join(bp, `ack`), hh); err != nil {
-				lg.Error("failed to add HEC-Compatible-Listener ACK handler", log.KVErr(err))
-				return
-			}
-		}
-		if err = hnd.addCustomHandler(http.MethodGet, path.Join(bp, `health`), &hh.hecHealth); err != nil {
-			lg.Error("failed to add HEC-Compatible-Listener ACK health handler", log.KVErr(err))
-			return
-		}
-		// add in the raw handler
-		hcfg.handler = hh.handleRaw
-		if err = hnd.addHandler(http.MethodPost, path.Join(bp, `raw`), hcfg); err != nil {
-			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
-			return
-		}
-
-		debugout("HEC Handler URL %s handling %s\n", v.URL, v.Tag_Name)
-	}
-	return
 }
 
 type hecHealth struct {
@@ -269,4 +247,30 @@ type ackReq struct {
 
 type ackResp struct {
 	IDs map[string]bool `json:"acks"`
+}
+
+func fixupMaxSize(v int) uint {
+	if v > 0 {
+		return uint(v)
+	}
+	return defaultMaxHECEventSize
+}
+
+// ackRequested returns true if we need to send an ackID for this request.
+// It is true if they set a Channel ID in either a header named
+// `X-Splunk-Request-Channel` or in a URL query parameter named `channel`.
+func ackRequested(r *http.Request) bool {
+	if r == nil {
+		// safeguard
+		return false
+	}
+	if q := r.URL.Query(); q != nil {
+		if _, ok := q["channel"]; ok {
+			return true
+		}
+	}
+	if r.Header != nil && r.Header.Get("X-Splunk-Request-Channel") != "" {
+		return true
+	}
+	return false
 }

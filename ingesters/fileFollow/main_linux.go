@@ -74,7 +74,7 @@ func init() {
 			ingest.PrintVersion(fout)
 			log.PrintOSInfo(fout)
 			//file created, dup it
-			if err := syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
+			if err := syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
 				fout.Close()
 				lg.Fatal("Failed to dup2 stderr", log.KVErr(err))
 			}
@@ -230,6 +230,7 @@ func main() {
 			TimezoneOverride:        val.Timezone_Override,
 			Ctx:                     wtcher.Context(),
 			TimeFormat:              cfg.TimeFormat,
+			AttachFilename:          val.Attach_Filename,
 		}
 		if v {
 			cfg.Debugger = debugout

@@ -14,9 +14,12 @@ import (
 	"fmt"
 	"io"
 	"mime/multipart"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/gravwell/gravwell/v3/client/types"
 
@@ -87,7 +90,7 @@ func (c *Client) GetUserInfo(id int32) (types.UserDetails, error) {
 	return udet, nil
 }
 
-//SetAdmin (admin-only) changes the admin status for the user with the given ID.
+// SetAdmin (admin-only) changes the admin status for the user with the given ID.
 func (c *Client) SetAdmin(id int32, admin bool) error {
 	var method string
 	resp := types.AdminActionResp{}
@@ -105,7 +108,7 @@ func (c *Client) SetAdmin(id int32, admin bool) error {
 	return nil
 }
 
-//changePass will change a users password
+// changePass will change a users password
 func (c *Client) changePass(id int32, req types.ChangePassword) error {
 	if err := c.putStaticURL(usersChangePassUrl(id), req, nil); err != nil {
 		return err
@@ -635,23 +638,64 @@ func (c *Client) UploadExtraction(b []byte) (wrs []types.WarnResp, err error) {
 // it out to the io.Writer provided. By default, scheduled searches / scheduled scripts are
 // not included; set the 'includeSS' option to include them.
 func (c *Client) Backup(wtr io.Writer, includeSS bool) (err error) {
+	cfg := types.BackupConfig{IncludeSS: includeSS}
+	return c.BackupWithConfig(wtr, cfg)
+}
+
+func (c *Client) BackupWithConfig(wtr io.Writer, cfg types.BackupConfig) (err error) {
 	var resp *http.Response
-	mp := map[string]string{}
-	if includeSS {
-		mp[`savedsearch`] = `true`
+	dlr := net.Dialer{
+		Timeout:   10 * time.Second,
+		KeepAlive: time.Second,
 	}
-	if resp, err = c.methodParamRequestURL(http.MethodGet, backupUrl(), mp, nil); err != nil {
+	//backups can take a long time to make, so we have to tweak the client a bit
+	tr := http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dlr.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          1,
+		IdleConnTimeout:       time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       c.tlsConfig, //grab tls config from client
+	}
+	clnt := http.Client{
+		Transport:     &tr,
+		CheckRedirect: redirectPolicy,  //use default redirect policy
+		Timeout:       5 * time.Minute, // these requests might take a REALLY long time, so jack the timeout way up
+		Jar:           c.clnt.Jar,
+	}
+	uri := backupUrl()
+	var req *http.Request
+	if req, err = http.NewRequest(http.MethodGet, fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, uri), nil); err != nil {
+		return
+	}
+	c.hm.populateRequest(req.Header) // add in the headers
+
+	var vals url.Values
+	if vals, err = url.ParseQuery(c.qm.encode()); err != nil {
+		return
+	}
+	// add in any queries like ?admin=true
+	if cfg.IncludeSS {
+		vals.Add(`savedsearch`, `true`)
+	}
+	if cfg.OmitSensitive {
+		vals.Add(`omit_sensitive`, `true`)
+	}
+	req.URL.RawQuery = vals.Encode()
+	req.Header.Add("Password", cfg.Password)
+	if resp, err = clnt.Do(req); err == nil {
+		c.objLog.Log(http.MethodGet+" "+resp.Status, uri, nil)
+	} else {
+		c.objLog.Log(http.MethodGet+" "+err.Error(), uri, nil)
 		return
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 {
 		err = fmt.Errorf("Invalid response %s(%d)", resp.Status, resp.StatusCode)
-		return
-	}
-
-	if _, err = io.Copy(wtr, resp.Body); err != nil {
+	} else if _, err = io.Copy(wtr, resp.Body); err != nil {
 		err = fmt.Errorf("Failed to download complete backup package: %w", err)
-		return
 	}
 
 	return
@@ -674,24 +718,35 @@ func (c *Client) Restore(rdr io.Reader) (err error) {
 	return
 }
 
-// DistributedWebservers queries to determine if the webserver is in distributed mode
-// and therefore using the datastore.  This means that certain resource changes may take some
-// time to fully distribute.
-func (c *Client) DeploymentInfo() (di types.DeploymentInfo, err error) {
-	if !c.userDetails.Admin {
-		err = ErrNotAdmin
-	} else {
-		err = c.getStaticURL(deploymentUrl(), &di)
+// RestoreEncrypted reads a backup archive from rdr and unpacks it on the Gravwell server.
+func (c *Client) RestoreEncrypted(rdr io.Reader, password string) (err error) {
+	var resp *http.Response
+	if resp, err = c.uploadMultipartFile(backupUrl(), backupFormFile, `file`, rdr, map[string]string{"password": password}); err != nil {
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		if err = decodeBodyError(resp.Body); err != nil {
+			err = fmt.Errorf("response error status %d %v", resp.StatusCode, err)
+		} else {
+			err = fmt.Errorf("Invalid response %s(%d)", resp.Status, resp.StatusCode)
+		}
 	}
 	return
 }
 
+// DistributedWebservers queries to determine if the webserver is in distributed mode
+// and therefore using the datastore.  This means that certain resource changes may take some
+// time to fully distribute. This is an admin-only function.
+func (c *Client) DeploymentInfo() (di types.DeploymentInfo, err error) {
+	err = c.getStaticURL(deploymentUrl(), &di)
+
+	return
+}
+
 // PurgeUser will first enumerate every asset that is owned by the user and delete them
-// then it will delete the user
+// then it will delete the user. This is an admin-only function.
 func (c *Client) PurgeUser(id int32) error {
-	if !c.userDetails.Admin {
-		return ErrNotAdmin
-	}
 	//impersonate the user
 	nc, err := c.Impersonate(id)
 	if err != nil {

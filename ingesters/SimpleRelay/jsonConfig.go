@@ -21,6 +21,8 @@ import (
 
 const (
 	elemSep string = `:`
+
+	defaultMaxObjectSize uint = 1024 * 1024 //1MB is huge
 )
 
 var (
@@ -31,15 +33,14 @@ var (
 
 type jsonListener struct {
 	base
-	Extractor    string
-	Default_Tag  string
-	Tag_Match    []string
-	Cert_File    string
-	Key_File     string
-	Preprocessor []string
+	Max_Object_Size uint
+	Disable_Compact bool
+	Extractor       string
+	Default_Tag     string
+	Tag_Match       []string
 }
 
-func (jl jsonListener) Validate() error {
+func (jl *jsonListener) Validate() error {
 	if err := jl.base.Validate(); err != nil {
 		return err
 	}
@@ -48,14 +49,22 @@ func (jl jsonListener) Validate() error {
 		return err
 	}
 
-	//check the match translators
-	if _, err := jl.TagMatchers(); err != nil {
-		return err
+	//check if the listener is doing some extractions and tag routing
+	if len(jl.Tag_Match) > 0 || len(jl.Extractor) > 0 {
+		//check the match translators
+		if _, err := jl.TagMatchers(); err != nil {
+			return err
+		}
+
+		//check the extraction element
+		if _, err := jl.GetJsonFields(); err != nil {
+			return err
+		}
 	}
 
-	//check the extraction element
-	if _, err := jl.GetJsonFields(); err != nil {
-		return err
+	//check the max object size
+	if jl.Max_Object_Size == 0 {
+		jl.Max_Object_Size = defaultMaxObjectSize
 	}
 	return nil
 }
@@ -76,9 +85,14 @@ type TagMatcher struct {
 }
 
 func (jl jsonListener) TagMatchers() (tags []TagMatcher, err error) {
+	if len(jl.Tag_Match) == 0 && len(jl.Extractor) == 0 {
+		return
+	}
 	var tm TagMatcher
 	if len(jl.Tag_Match) == 0 {
 		err = ErrMissingJSONTagMatches
+	} else if len(jl.Extractor) == 0 {
+		err = ErrEmptyJSONFields
 	} else {
 		//process each of the tag matches
 		for i := range jl.Tag_Match {
@@ -92,22 +106,17 @@ func (jl jsonListener) TagMatchers() (tags []TagMatcher, err error) {
 }
 
 func (jl jsonListener) Tags() (tags []string, err error) {
-	mp := map[string]bool{}
-	mp[jl.Default_Tag] = true
-	var tag string
-	if len(jl.Tag_Match) == 0 {
-		err = ErrMissingJSONTagMatches
+	var tms []TagMatcher
+	tags = []string{jl.Default_Tag}
+	if tms, err = jl.TagMatchers(); err != nil || len(tms) == 0 {
 		return
 	}
-	//process each of the tag matches
-	for i := range jl.Tag_Match {
-		if _, tag, err = extractElementTag(jl.Tag_Match[i]); err != nil {
-			break
-		}
-		mp[tag] = true
+	mp := map[string]bool{
+		jl.Default_Tag: true,
 	}
-	for k, _ := range mp {
-		tags = append(tags, k)
+	for _, tm := range tms {
+		mp[tm.Tag] = true
+		return
 	}
 
 	return
@@ -138,6 +147,9 @@ func extractElementTag(v string) (match, tag string, err error) {
 }
 
 func (jl jsonListener) GetJsonFields() (flds []string, err error) {
+	if len(jl.Tag_Match) == 0 && len(jl.Extractor) == 0 {
+		return // no error, no fields
+	}
 	return getJsonFields(jl.Extractor)
 }
 
@@ -159,15 +171,10 @@ func getJsonFields(v string) (flds []string, err error) {
 }
 
 func checkJsonConfigs(lsts map[string]*jsonListener) error {
-	extractors := map[string]string{}
 	for k, v := range lsts {
 		if err := v.Validate(); err != nil {
-			return err
+			return fmt.Errorf("JSONListener %q configuration is invalid: %w", k, err)
 		}
-		if x, ok := extractors[v.Extractor]; ok {
-			return fmt.Errorf("Duplicate extractor \"%s\" in %s.  Originally in %s", v.Extractor, k, x)
-		}
-		extractors[v.Extractor] = k
 	}
 	return nil
 }

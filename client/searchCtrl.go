@@ -86,6 +86,15 @@ func (c *Client) ListAllSearchStatuses() ([]types.SearchCtrlStatus, error) {
 	return scs, nil
 }
 
+// ListSearchDetails returns details for all searches the current user has access to
+// and their current status. If the admin flag is set (by calling SetAdminMode())
+// this will return info for all searches on the system.
+func (c *Client) ListSearchDetails() ([]types.SearchInfo, error) {
+	var details []types.SearchInfo
+	err := c.getStaticURL(searchCtrlListDetailsUrl(), &details)
+	return details, err
+}
+
 // GetSearchHistory retrieves the current search history for the currently logged
 // in user.  It only pulls back searches invoked by the individual user.
 func (c *Client) GetSearchHistory() ([]types.SearchLog, error) {
@@ -160,6 +169,25 @@ func (s *Search) Exchange(req, resp interface{}) (err error) {
 		err = s.searchOutput.ReadJSON(resp)
 	}
 	return
+}
+
+// Ping sends a message via the search's websockets (if present)
+// to keep the sockets open. If you intend to run a search and then
+// wait a long time before interacting with it further, you
+// should periodically call Ping() to keep the connection alive.
+func (s *Search) Ping() error {
+	if s.searchSockets != nil && s.searchSockets.Pong != nil {
+		var preq types.PingReq
+		if err := s.searchSockets.Pong.WriteJSON(preq); err != nil {
+			return err
+		}
+		if err := s.searchSockets.Pong.ReadJSON(&preq); err != nil {
+			return err
+		}
+	} else {
+		return ErrSearchNotAttached
+	}
+	return nil
 }
 
 // ParseSearch validates a search query. Gravwell will return an error if the query
@@ -1118,6 +1146,13 @@ func closeSockets(s *SearchSockets) (err error) {
 		}
 		if s.Attach != nil {
 			if lerr := s.Attach.Close(); lerr != nil {
+				if err == nil {
+					err = lerr
+				}
+			}
+		}
+		if s.Pong != nil {
+			if lerr := s.Pong.Close(); lerr != nil {
 				if err == nil {
 					err = lerr
 				}

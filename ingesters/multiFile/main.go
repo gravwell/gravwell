@@ -41,14 +41,14 @@ var (
 	inFile    = flag.String("i", "", "Input file list to process")
 	ver       = flag.Bool("version", false, "Print version and exit")
 	utc       = flag.Bool("utc", false, "Assume UTC time")
-	ignoreTS  = flag.Bool("ignore-ts", false, "Ignore timetamp")
+	ignoreTS  = flag.Bool("ignore-ts", false, "Ignore timestamp")
 	ignorePfx = flag.String("ignore-prefix", "", "Ignore lines that start with the prefix")
 	verbose   = flag.Bool("verbose", false, "Print every log")
 	fileinfo  = flag.Bool("fileinfo", false, "Print file name as we process them")
 	quotable  = flag.Bool("quotable-lines", false, "Allow lines to contain quoted newlines")
 	blockSize = flag.Int("block-size", 0, "Optimized ingest using blocks, 0 disables")
 	status    = flag.Bool("status", false, "Output ingest rate stats as we go")
-	srcOvr    = flag.String("source-override", "", "Override source with address, hash, or integeter")
+	srcOvr    = flag.String("source-override", "", "Override source with address, hash, or integer")
 
 	nlBytes          = []byte("\n")
 	count            uint64

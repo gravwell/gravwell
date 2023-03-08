@@ -119,6 +119,81 @@ func TestGlobalMatcher(t *testing.T) {
 	}
 }
 
+// TestYearGuess validates timegrinder's year-guessing logic for
+// timestamps which don't include a year (e.g. SyslogFormat)
+func TestYearGuess(t *testing.T) {
+	tg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Set to local time
+	tg.SetLocalTime()
+
+	// Define a custom format and add it
+	custom := CustomFormat{
+		Name:   `customfoo`,
+		Regex:  `\d{1,2}\.\d{1,2}_\d{1,2}\.\d{1,2}\.\d{1,2}(.\d+)?`, //example 2021.2.14_13:54:22.9
+		Format: `01.02_15.04.05.999999999`,
+	}
+	if err := custom.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if proc, err := NewCustomProcessor(custom); err != nil {
+		t.Fatal(err)
+	} else {
+		tg.AddProcessor(proc)
+	}
+
+	tester := func(name, format string, tg *TimeGrinder) {
+		// Grab the current time ("now")
+		now := time.Now()
+		// Subtract 24 hours from now, format it as syslog
+		// Attempt to extract with timegrinder
+		x := []byte(now.Add(-24 * time.Hour).Format(format))
+		out, ok, err := tg.Extract(x)
+		if !ok {
+			t.Fatalf("%v could not extract from %s", name, x)
+		} else if err != nil {
+			t.Fatalf("%v could not extract from %s: %v", name, x, err)
+		}
+		// The result should be in the past
+		if !out.Before(now) {
+			t.Fatalf("%v timestamp from 24 hours ago is not in the past", name)
+		}
+
+		// Add 24 hours to now, format it as syslog
+		// Attempt to extract with timegrinder
+		x = []byte(now.Add(24 * time.Hour).Format(format))
+		out, ok, err = tg.Extract(x)
+		if !ok {
+			t.Fatalf("%v could not extract from %s", name, x)
+		} else if err != nil {
+			t.Fatalf("%v could not extract from %s: %v", name, x, err)
+		}
+		// The result should be in the future
+		if !out.After(now) {
+			t.Fatalf("%v timestamp from 24 hours ahead is not in the future", name)
+		}
+
+		// Add 26 hours to now, format it as syslog
+		// Attempt to extract with timegrinder
+		x = []byte(now.Add(26 * time.Hour).Format(format))
+		out, ok, err = tg.Extract(x)
+		if !ok {
+			t.Fatalf("%v could not extract from %s", name, x)
+		} else if err != nil {
+			t.Fatalf("%v could not extract from %s: %v", name, x, err)
+		}
+		// The result should be in the past (threshold is 25 hours)
+		if !out.Before(now) {
+			t.Fatalf("%v timestamp from 26 hours ahead is not in the past", name)
+		}
+	}
+
+	tester("syslog", SyslogFormat, tg)
+	tester(custom.Name, custom.Format, tg)
+}
+
 func TestTooManyDigitsUnix(t *testing.T) {
 	tg, err := New(cfg)
 	if err != nil {
@@ -725,6 +800,7 @@ var testSetList = []testSet{
 	testSet{name: `UnixMs`, data: `1641818658123 unix`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123000000, time.UTC)},
 	testSet{name: `UnixNano`, data: `1641818658123456000 unix`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123456000, time.UTC)},
 	testSet{name: `UnixMilli`, data: `1641818658.0 unix`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `DirectAdmin`, data: `2022:12:16-15:14:23: 'xxx.xx.xx.xx' failed login attempt. Account 'admin'`, ts: time.Date(2022, time.December, 16, 15, 14, 23, 0, time.UTC)},
 }
 
 func TestExtractions(t *testing.T) {
