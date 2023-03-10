@@ -273,11 +273,12 @@ func (h *handlerConfig) run() {
 
 	for {
 		h.client, err = ipmigo.NewClient(ipmigo.Arguments{
-			Version:       ipmigo.V2_0,
-			Address:       h.target,
-			Username:      h.username,
-			Password:      h.password,
-			CipherSuiteID: 3,
+			Version:        ipmigo.V2_0,
+			Address:        h.target,
+			Username:       h.username,
+			Password:       h.password,
+			PrivilegeLevel: ipmigo.PrivilegeUser,
+			CipherSuiteID:  3,
 		})
 		if err != nil {
 			lg.Error("failed to connect", log.KV("address", h.target), log.KVErr(err))
