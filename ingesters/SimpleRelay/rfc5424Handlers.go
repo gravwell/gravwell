@@ -257,6 +257,10 @@ var sepStart = []byte{'\n', '<'}
 
 const sepEnd = byte('>')
 
+// rfc5424StartIndex is just a high speed version of the regular expression "\n<\d{1,3}>"
+// its job is to find that sequence in the byte stream and return and index and the size of what it found.
+// Implementing this by hand gave us a nice memory reduction and speed bump in very high throughput scenarios
+// If the sequence is NOT found we return -1, 0.  Largest sz possible should be 6
 func rfc5424StartIndex(buf []byte) (idx, sz int) {
 	var sidx int
 	var digits int
