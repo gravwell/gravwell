@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime/debug"
+	"runtime/pprof"
 	"sync"
 	"syscall"
 	"time"
@@ -88,6 +89,14 @@ func mainInit() {
 }
 
 func main() {
+	f, err := os.Create("/tmp/cpu.prof")
+	if err != nil {
+		fmt.Println("error", err)
+		return
+	}
+	defer f.Close()
+	pprof.StartCPUProfile(f)
+	defer pprof.StopCPUProfile()
 	debug.SetTraceback("all")
 	mainInit()
 	cfg, err := GetConfig(*confLoc, *confdLoc)
