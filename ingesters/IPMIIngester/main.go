@@ -29,7 +29,6 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/utils/caps"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 
 	"github.com/gravwell/ipmigo"
@@ -194,13 +193,7 @@ func main() {
 		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KVErr(err))
 	}
 
-	//check capabilities so we can scream and throw a potential warning upstream
-	if !caps.Has(caps.NET_BIND_SERVICE) {
-		lg.Warn("missing capability", log.KV("capability", "NET_BIND_SERVICE"), log.KV("warning", "may not be able to bind to service ports"))
-	}
-
 	// fire up IPMI handlers
-
 	var wg sync.WaitGroup
 	ipmiConns = make(map[string]*handlerConfig)
 	ctx, cancel := context.WithCancel(context.Background())
