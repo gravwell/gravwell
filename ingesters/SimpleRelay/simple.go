@@ -228,7 +228,6 @@ func handleLog(b []byte, ip net.IP, ignoreTS bool, tag entry.EntryTag, tg *timeg
 	if !ok {
 		ts = entry.Now()
 	}
-	//debugout("GOT (%v) %s\n", ts, string(b))
 	ent = &entry.Entry{
 		SRC:  ip,
 		TS:   ts,

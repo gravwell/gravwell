@@ -111,7 +111,6 @@ func rfc6587ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 	s := bufio.NewScanner(c)
 	s.Buffer(make([]byte, initDataSize), maxDataSize)
 	splitter := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		debugout("data = %v\n", string(data))
 		byteCount, start, end := findGoodRFC6587Header(data)
 		if start == -1 || end == -1 {
 			//did not find it, ask for more data
@@ -167,7 +166,6 @@ func rfc6587ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 		if cfg.dropPriority {
 			data = dropPriority(data)
 		}
-		debugout("Scanning TCP input %s\n", string(data))
 		if len(data) == 0 {
 			continue
 		}

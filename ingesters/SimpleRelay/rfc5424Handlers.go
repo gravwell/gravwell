@@ -79,7 +79,6 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 	s := bufio.NewScanner(c)
 	s.Buffer(make([]byte, initDataSize), maxDataSize)
 	splitter := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		debugout("data = %v\n", string(data))
 		idx := re.FindIndex(data)
 		if idx == nil || len(idx) != 2 {
 			if atEOF {
@@ -118,7 +117,6 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 		if cfg.dropPriority {
 			data = dropPriority(data)
 		}
-		debugout("Scanning TCP input %s\n", string(data))
 		if len(data) == 0 {
 			continue
 		}
@@ -199,7 +197,6 @@ func handleRFC5424Packet(buff []byte, ip net.IP, ignoreTS, dropPrio bool, tag en
 	var idx2 []int
 	var token []byte
 	re := regexp.MustCompile(`<\d{1,3}>`)
-	debugout("Scanning UDP packet %s\n", string(buff))
 	for len(buff) > 0 {
 		if idx = re.FindIndex(buff); idx == nil || len(idx) != 2 {
 			//did not find our header at all, just throw the buff up stream
