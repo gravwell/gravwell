@@ -111,8 +111,14 @@ func (jl jsonListener) Tags() (tags []string, err error) {
 	if tms, err = jl.TagMatchers(); err != nil || len(tms) == 0 {
 		return
 	}
+	mp := map[string]bool{
+		jl.Default_Tag: true,
+	}
 	for _, tm := range tms {
-		tags = append(tags, tm.Tag)
+		mp[tm.Tag] = true
+	}
+	for k, _ := range mp {
+		tags = append(tags, k)
 	}
 
 	return
