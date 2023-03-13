@@ -116,7 +116,9 @@ func (jl jsonListener) Tags() (tags []string, err error) {
 	}
 	for _, tm := range tms {
 		mp[tm.Tag] = true
-		return
+	}
+	for k, _ := range mp {
+		tags = append(tags, k)
 	}
 
 	return
