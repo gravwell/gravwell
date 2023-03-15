@@ -135,11 +135,14 @@ loop:
 		}
 
 		e := entry.Entry{
-			TS:   ts,
-			SRC:  ip,
-			Tag:  tag,
-			Data: []byte(hev.Event),
+			TS:  ts,
+			SRC: ip,
+			Tag: tag,
+			// If Event is just a string, we need to trim quotes. If it's not,
+			// there are no quotes to trim so the Trim calls are ignored.
+			Data: bytes.TrimSuffix(bytes.TrimPrefix([]byte(hev.Event), []byte(`"`)), []byte(`"`)),
 		}
+
 		if hev.Host != `` {
 			e.AddEnumeratedValueEx(`host`, hev.Host)
 		}
