@@ -18,6 +18,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/generators/base"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 var (
@@ -38,7 +39,17 @@ var (
 		"evs":      genDataEnumeratedValue,
 	}
 	finalizers = map[string]base.Finalizer{
-		"evs": finEnumeratedValue,
+		"evs":      finEnumeratedValue,
+		"binary":   fin("binary"),
+		"bind":     fin("bind"),
+		"csv":      fin("csv"),
+		"dnsmasq":  fin("dnsmasq"),
+		"fields":   fin("fields"),
+		"json":     fin("JSON"),
+		"xml":      fin("XML"),
+		"regex":    fin("regex"),
+		"syslog":   fin("syslog"),
+		"zeekconn": fin("zeek conn"),
 	}
 
 	// for fields
@@ -105,5 +116,13 @@ func main() {
 		fmt.Printf("Total Count: %s\n", ingest.HumanCount(totalCount))
 		fmt.Printf("Entry Rate: %s\n", ingest.HumanEntryRate(totalCount, durr))
 		fmt.Printf("Ingest Rate: %s\n", ingest.HumanRate(totalBytes, durr))
+	}
+}
+
+func fin(val string) base.Finalizer {
+	return func(ent *entry.Entry) {
+		if val != `` {
+			ent.AddEnumeratedValueEx("_type", val)
+		}
 	}
 }

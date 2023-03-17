@@ -22,6 +22,7 @@ func genDataEnumeratedValue(ts time.Time) []byte {
 
 // this roughly matches the json structure
 func finEnumeratedValue(ent *entry.Entry) {
+	ent.AddEnumeratedValueEx(`_type`, "intrinsic evs")
 	ent.AddEnumeratedValueEx(`ts`, ent.TS)
 	//fill in the User/Account
 	u := getUser()
@@ -45,4 +46,5 @@ func finEnumeratedValue(ent *entry.Entry) {
 	// a few extras for testing
 	ent.AddEnumeratedValueEx(`delay`, time.Since(ent.TS.StandardTime()))
 	ent.AddEnumeratedValueEx(`now`, time.Now())
+	ent.AddEnumeratedValueEx(`wild*card`, v6gen.IP())
 }
