@@ -19,7 +19,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"sync/atomic"
+	"sync"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -35,7 +35,8 @@ const (
 type hecHandler struct {
 	hecHealth
 	name           string
-	id             uint64
+	ackLock        sync.Mutex
+	ackIds         map[string]uint64
 	tagRouter      map[string]entry.EntryTag
 	rawLineBreaker string
 	maxSize        uint
@@ -169,11 +170,21 @@ loop:
 			return
 		}
 	}
-	if ackRequested(r) {
-		json.NewEncoder(w).Encode(ack{
-			ID: strconv.FormatUint(atomic.AddUint64(&hh.id, 1), 10),
-		})
+	if doAck, ch := ackRequested(r); doAck {
+		hh.writeAck(ch, w)
 	}
+}
+
+func (hh *hecHandler) writeAck(channel string, w http.ResponseWriter) {
+	hh.ackLock.Lock()
+	defer hh.ackLock.Unlock()
+	if _, ok := hh.ackIds[channel]; !ok {
+		hh.ackIds[channel] = 0
+	}
+	hh.ackIds[channel] = hh.ackIds[channel] + 1
+	json.NewEncoder(w).Encode(ack{
+		ID: strconv.FormatUint(hh.ackIds[channel], 10),
+	})
 }
 
 func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
@@ -200,10 +211,8 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 			}
 		}
 	}
-	if ackRequested(r) {
-		json.NewEncoder(w).Encode(ack{
-			ID: strconv.FormatUint(atomic.AddUint64(&hh.id, 1), 10),
-		})
+	if doAck, ch := ackRequested(r); doAck {
+		hh.writeAck(ch, w)
 	}
 }
 
@@ -213,7 +222,11 @@ func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	curr := atomic.LoadUint64(&hh.id)
+	// Figure out which channel
+	_, ch := ackRequested(r)
+	hh.ackLock.Lock()
+	curr := hh.ackIds[ch]
+	hh.ackLock.Unlock()
 	resp := ackResp{
 		IDs: make(map[string]bool, len(arq.IDs)),
 	}
@@ -262,18 +275,19 @@ func fixupMaxSize(v int) uint {
 // ackRequested returns true if we need to send an ackID for this request.
 // It is true if they set a Channel ID in either a header named
 // `X-Splunk-Request-Channel` or in a URL query parameter named `channel`.
-func ackRequested(r *http.Request) bool {
+// If true, it returns the channel ID as the second return value.
+func ackRequested(r *http.Request) (bool, string) {
 	if r == nil {
 		// safeguard
-		return false
+		return false, ""
 	}
 	if q := r.URL.Query(); q != nil {
-		if _, ok := q["channel"]; ok {
-			return true
+		if ch, ok := q["channel"]; ok && len(ch) > 0 {
+			return true, ch[0]
 		}
 	}
 	if r.Header != nil && r.Header.Get("X-Splunk-Request-Channel") != "" {
-		return true
+		return true, r.Header.Get("X-Splunk-Request-Channel")
 	}
-	return false
+	return false, ""
 }
