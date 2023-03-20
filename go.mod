@@ -36,6 +36,7 @@ require (
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66
 	github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018
 	github.com/gravwell/ipfix v1.4.3
+	github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e
 	github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4
 	github.com/h2non/filetype v1.0.10
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
@@ -58,9 +59,9 @@ require (
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	github.com/xdg-go/scram v1.1.1
-	golang.org/x/net v0.0.0-20220722155237-a158d28d115b
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7a55f
-	golang.org/x/text v0.3.8
+	golang.org/x/net v0.8.0
+	golang.org/x/sys v0.6.0
+	golang.org/x/text v0.8.0
 	golang.org/x/time v0.0.0-20200416051211-89c76fbcd5d1
 	google.golang.org/protobuf v1.22.0 // indirect
 	gopkg.in/jcmturner/gokrb5.v7 v7.3.0 // indirect

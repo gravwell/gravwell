@@ -411,6 +411,7 @@ headerLoop:
 
 			// store it for later retrieval
 			er.igStateMtx.Lock()
+			state.LastSeen = time.Now()
 			er.igState = state
 			er.igStateMtx.Unlock()
 

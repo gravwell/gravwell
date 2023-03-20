@@ -29,10 +29,9 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/utils/caps"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 
-	"github.com/k-sone/ipmigo"
+	"github.com/gravwell/ipmigo"
 )
 
 const (
@@ -194,13 +193,7 @@ func main() {
 		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KVErr(err))
 	}
 
-	//check capabilities so we can scream and throw a potential warning upstream
-	if !caps.Has(caps.NET_BIND_SERVICE) {
-		lg.Warn("missing capability", log.KV("capability", "NET_BIND_SERVICE"), log.KV("warning", "may not be able to bind to service ports"))
-	}
-
 	// fire up IPMI handlers
-
 	var wg sync.WaitGroup
 	ipmiConns = make(map[string]*handlerConfig)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -273,11 +266,12 @@ func (h *handlerConfig) run() {
 
 	for {
 		h.client, err = ipmigo.NewClient(ipmigo.Arguments{
-			Version:       ipmigo.V2_0,
-			Address:       h.target,
-			Username:      h.username,
-			Password:      h.password,
-			CipherSuiteID: 3,
+			Version:        ipmigo.V2_0,
+			Address:        h.target,
+			Username:       h.username,
+			Password:       h.password,
+			PrivilegeLevel: ipmigo.PrivilegeUser,
+			CipherSuiteID:  3,
 		})
 		if err != nil {
 			lg.Error("failed to connect", log.KV("address", h.target), log.KVErr(err))

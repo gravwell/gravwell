@@ -74,13 +74,11 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 			return
 		}
 	}
-	re := regexp.MustCompile(`\n<\d{1,3}>`)
-
 	s := bufio.NewScanner(c)
 	s.Buffer(make([]byte, initDataSize), maxDataSize)
 	splitter := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
-		idx := re.FindIndex(data)
-		if idx == nil || len(idx) != 2 {
+		idx, sz := rfc5424StartIndex(data)
+		if idx == -1 {
 			if atEOF {
 				token = data
 				err = bufio.ErrFinalToken
@@ -91,24 +89,22 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 			}
 			return //ask for more data
 		}
-		//check if the first index is zero, if so, then we rerun
-		if idx[0] > 0 {
-			advance = idx[0] //advance to start the match
+		if idx > 0 {
+			advance = idx //advance to start the match
 			token = data[:advance]
 			return
 		}
 		//at the start, so scan again
-		idx2 := re.FindIndex(data[idx[1]:])
-		if idx2 == nil || len(idx2) != 2 {
+		idx2, _ := rfc5424StartIndex(data[idx+sz:]) //advance past the min size
+		if idx2 == -1 {
 			if atEOF {
 				token = data
 				err = bufio.ErrFinalToken
 			}
 			return //ask for more data
 		}
-		advance = idx[1] + idx2[0]
+		advance = sz + idx2
 		token = data[:advance]
-
 		return
 	}
 	s.Split(splitter)
@@ -255,4 +251,46 @@ func handleRFC5424Packet(buff []byte, ip net.IP, ignoreTS, dropPrio bool, tag en
 			}
 		}
 	}
+}
+
+var sepStart = []byte{'\n', '<'}
+
+const sepEnd = byte('>')
+
+// rfc5424StartIndex is just a high speed version of the regular expression "\n<\d{1,3}>"
+// its job is to find that sequence in the byte stream and return and index and the size of what it found.
+// Implementing this by hand gave us a nice memory reduction and speed bump in very high throughput scenarios
+// If the sequence is NOT found we return -1, 0.  Largest sz possible should be 6
+func rfc5424StartIndex(buf []byte) (idx, sz int) {
+	var sidx int
+	var digits int
+	for len(buf) > 0 {
+		if sidx = bytes.Index(buf, sepStart); sidx == -1 {
+			idx = -1
+			return
+		}
+		off := sidx + 2
+		left := len(buf) - off
+		if left == 0 {
+			idx = -1
+			return
+		}
+		for digits = 0; digits < 4 && digits < left; digits++ {
+			if bt := buf[off+digits]; bt < 0x30 || bt > 0x39 {
+				break
+			}
+		}
+		if digits > 0 && digits < 4 && digits < left && buf[off+digits] == sepEnd {
+			//got it
+			idx += sidx
+			sz = 3 + digits
+			return
+		}
+		//wong count of digits or missing end seperator, update buff and move on
+		off += digits
+		buf = buf[off:]
+		idx += off
+	}
+	//if we hit here, its bad
+	return -1, 0
 }

@@ -34,11 +34,11 @@ const (
 
 type hecHandler struct {
 	hecHealth
-	name      string
-	acking    bool
-	id        uint64
-	tagRouter map[string]entry.EntryTag
-	maxSize   uint
+	name           string
+	id             uint64
+	tagRouter      map[string]entry.EntryTag
+	rawLineBreaker string
+	maxSize        uint
 }
 
 type hecEvent struct {
@@ -81,8 +81,7 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 	return
 }
 
-func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
-	var id uint64
+func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	// get a local logger up that will always add some more info
 	ll := log.NewLoggerWithKV(h.lgr, log.KV("HEC-Listener", hh.name), log.KV("remoteaddress", ip.String()))
 	dec, err := utils.NewJsonLimitedDecoder(rdr, int64(maxBody+256)) //give some slack for the extra splunk garbage
@@ -136,11 +135,14 @@ loop:
 		}
 
 		e := entry.Entry{
-			TS:   ts,
-			SRC:  ip,
-			Tag:  tag,
-			Data: []byte(hev.Event),
+			TS:  ts,
+			SRC: ip,
+			Tag: tag,
+			// If Event is just a string, we need to trim quotes. If it's not,
+			// there are no quotes to trim so the Trim calls are ignored.
+			Data: bytes.TrimSuffix(bytes.TrimPrefix([]byte(hev.Event), []byte(`"`)), []byte(`"`)),
 		}
+
 		if hev.Host != `` {
 			e.AddEnumeratedValueEx(`host`, hev.Host)
 		}
@@ -166,18 +168,15 @@ loop:
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		if hh.acking {
-			id = atomic.AddUint64(&hh.id, 1)
-		}
 	}
-	if hh.acking {
+	if ackRequested(r) {
 		json.NewEncoder(w).Encode(ack{
-			ID: strconv.FormatUint(id, 10),
+			ID: strconv.FormatUint(atomic.AddUint64(&hh.id, 1), 10),
 		})
 	}
 }
 
-func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, rdr io.Reader, ip net.IP) {
+func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	debugout("HEC RAW\n")
 	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+1)))
 	if err != nil && err != io.EOF {
@@ -192,12 +191,16 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	if len(b) == 0 {
 		h.lgr.Info("got an empty post", log.KV("address", ip))
 		return
-	} else if err = h.handleEntry(cfg, b, ip); err != nil {
-		h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
-		w.WriteHeader(http.StatusInternalServerError)
-		return
+	} else {
+		for _, b := range bytes.Split(b, []byte(hh.rawLineBreaker)) {
+			if err = h.handleEntry(cfg, b, ip); err != nil {
+				h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+		}
 	}
-	if hh.acking {
+	if ackRequested(r) {
 		json.NewEncoder(w).Encode(ack{
 			ID: strconv.FormatUint(atomic.AddUint64(&hh.id, 1), 10),
 		})
@@ -254,4 +257,23 @@ func fixupMaxSize(v int) uint {
 		return uint(v)
 	}
 	return defaultMaxHECEventSize
+}
+
+// ackRequested returns true if we need to send an ackID for this request.
+// It is true if they set a Channel ID in either a header named
+// `X-Splunk-Request-Channel` or in a URL query parameter named `channel`.
+func ackRequested(r *http.Request) bool {
+	if r == nil {
+		// safeguard
+		return false
+	}
+	if q := r.URL.Query(); q != nil {
+		if _, ok := q["channel"]; ok {
+			return true
+		}
+	}
+	if r.Header != nil && r.Header.Get("X-Splunk-Request-Channel") != "" {
+		return true
+	}
+	return false
 }

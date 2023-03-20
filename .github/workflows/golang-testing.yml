@@ -22,7 +22,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v3
       with:
-        go-version: 1.19.5
+        go-version: 1.19.6
         cache: true
 
     - name: Install libpcap
@@ -33,9 +33,12 @@ jobs:
         go test -v ./generators/ipgen
         go test -v ./chancacher
         go test -v ./ingest
+        go test -v ./ingest/entry
+        go test -v ./ingest/processors
+        go test -v ./ingest/config
+        go test -v ./ingest/log
         go test -v ./timegrinder
         go test -v ./filewatch
-        go test -v ./ingesters/utils
         go test -v ./ingesters/utils
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
