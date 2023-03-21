@@ -177,13 +177,14 @@ loop:
 
 func (hh *hecHandler) writeAck(channel string, w http.ResponseWriter) {
 	hh.ackLock.Lock()
-	defer hh.ackLock.Unlock()
 	if _, ok := hh.ackIds[channel]; !ok {
 		hh.ackIds[channel] = 0
 	}
-	hh.ackIds[channel] = hh.ackIds[channel] + 1
+	val := hh.ackIds[channel] + 1
+	hh.ackIds[channel] = val
+	hh.ackLock.Unlock()
 	json.NewEncoder(w).Encode(ack{
-		ID: strconv.FormatUint(hh.ackIds[channel], 10),
+		ID: strconv.FormatUint(val, 10),
 	})
 }
 
