@@ -25,6 +25,15 @@ jobs:
         go-version: 1.19.6
         cache: true
 
+    - name: Go Tidy
+      run: go mod tidy && git diff --exit-code
+
+    - name: Go Mod
+      run: go mod download
+
+    - name: Go Mod Verify
+      run: go mod verify
+
     - name: Install libpcap
       run: sudo apt-get install -y libpcap-dev
 
