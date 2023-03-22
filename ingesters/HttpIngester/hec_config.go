@@ -154,6 +154,7 @@ func extractElementTag(v string) (match, tag string, err error) {
 func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
 	for k, v := range cfg.HECListener {
 		hh := &hecHandler{
+			ackIds: map[string]uint64{},
 			hecHealth: hecHealth{
 				igst:  hnd.igst,
 				token: v.TokenValue,
