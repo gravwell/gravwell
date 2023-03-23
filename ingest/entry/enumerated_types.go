@@ -111,7 +111,21 @@ func InferEnumeratedData(val interface{}) (EnumeratedData, error) {
 	return EnumeratedData{}, ErrUnknownType
 }
 
-// BoolEnumData creates an EnumeratedData from a native boolean.
+// RawEnumeratedData allows for creating a new EnumeratedData directly using a byte buffer and type
+// this is useful when converting between types.StringTagEntry and an ingest.Entry
+func RawEnumeratedData(id uint8, data []byte) (ed EnumeratedData, err error) {
+	ned := EnumeratedData{
+		data:   data,
+		evtype: id,
+	}
+	if ned.Valid() {
+		ed = ned
+	} else {
+		err = ErrInvalid
+	}
+	return
+}
+
 func BoolEnumData(v bool) EnumeratedData {
 	val := []byte{0}
 	if v {
