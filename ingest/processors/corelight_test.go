@@ -105,6 +105,7 @@ func TestCorelightTransitions(t *testing.T) {
 	var ent entry.Entry
 	for i, v := range corelightTestData {
 		ent.Data = []byte(v.input)
+		ent.AddEnumeratedValueEx(`testing`, "foobar")
 		if ents, err := c.Process([]*entry.Entry{&ent}); err != nil {
 			t.Fatalf("failed to process %d: %v\n", i, err)
 		} else if len(ents) != 1 {
@@ -115,6 +116,12 @@ func TestCorelightTransitions(t *testing.T) {
 			t.Fatal("failed to lookup tag")
 		} else if tn != v.tag {
 			t.Fatalf("invalid tag: %v != %v", tn, v.tag)
+		} else {
+			for _, ent := range ents {
+				if x, ok := ent.GetEnumeratedValue(`testing`); !ok || x == nil {
+					t.Fatal("missing testing enumerated value")
+				}
+			}
 		}
 	}
 }

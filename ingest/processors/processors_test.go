@@ -13,6 +13,7 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"sync"
@@ -458,12 +459,23 @@ func (dw *discardWriter) WriteBatchContext(ctx context.Context, ents []*entry.En
 }
 
 func makeEntry(v []byte, tag entry.EntryTag) []*entry.Entry {
-	return []*entry.Entry{
-		&entry.Entry{
-			Tag:  tag,
-			SRC:  testSrc,
-			TS:   entry.Now(),
-			Data: v,
-		},
+	ent := &entry.Entry{
+		Tag:  tag,
+		SRC:  testSrc,
+		TS:   entry.Now(),
+		Data: v,
 	}
+	ent.AddEnumeratedValueEx("testing", "testvalue")
+	return []*entry.Entry{ent}
+}
+
+func checkEntryEVs(ents []*entry.Entry) error {
+	for i, v := range ents {
+		if val, ok := v.GetEnumeratedValue(`testing`); !ok || val == nil {
+			return fmt.Errorf("entry %d is missing enumerated value testing", i)
+		} else if _, ok = val.(string); !ok {
+			return fmt.Errorf("entry %d enumerated value testing is not a string %T", i, val)
+		}
+	}
+	return nil
 }

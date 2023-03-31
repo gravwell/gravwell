@@ -167,6 +167,9 @@ func TestJsonArraySplit(t *testing.T) {
 				string(rset[i].Data), testJSONArrayValues[i])
 		}
 	}
+	if err := checkEntryEVs(rset); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestJsonArraySplitData(t *testing.T) {

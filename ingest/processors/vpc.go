@@ -166,6 +166,7 @@ func (p *Vpc) processItem(ent *entry.Entry) (rset []*entry.Entry, err error) {
 			Data: v,
 			TS:   entry.UnixTime(ts, 0),
 		}
+		r.CopyEnumeratedBlock(ent)
 		rset = append(rset, r)
 	}
 	return
