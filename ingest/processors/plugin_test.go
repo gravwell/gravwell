@@ -182,6 +182,9 @@ func TestPluginProcess(t *testing.T) {
 				string(rset[i].Data), string(v))
 		}
 	}
+	if err = checkAttachedValues(rset); err != nil {
+		t.Fatal(err)
+	}
 	if ret := p.Flush(); len(ret) != 0 {
 		t.Fatalf("got invalid entry count from flush")
 	} else if err = p.Close(); err != nil {
@@ -202,6 +205,19 @@ func makeEntrySet(base []byte, tag entry.EntryTag, count int) (r []*entry.Entry)
 			TS:   entry.Now(),
 			Data: append(base, []byte(fmt.Sprintf(" %d/%d", i, count))...),
 		}
+		r[i].AddEnumeratedValueEx("testing", uint64(i))
 	}
 	return
+}
+
+func checkAttachedValues(set []*entry.Entry) (err error) {
+	for i, v := range set {
+		if val, ok := v.GetEnumeratedValue(`testing`); !ok {
+			err = fmt.Errorf("entry %d did not have enumerated value testing", i)
+			return
+		} else if uv, ok := val.(uint64); !ok {
+			err = fmt.Errorf("entry %d testing enumerated value is not a uint64: %T", i, val)
+			return
+		}
+	}
 }

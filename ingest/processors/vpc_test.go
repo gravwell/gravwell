@@ -62,12 +62,20 @@ func TestVPCLoadConfig(t *testing.T) {
 		t.Fatal(err)
 	} else if len(set) != 4 {
 		t.Fatalf("Invalid cloud watch log count: %d != 4", len(set))
+	} else {
+		if err := checkEntryEVs(set); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	if set, err := p.Process(makeEntry(makeCloudWatchLog(4, true), 0)); err != nil {
 		t.Fatal(err)
 	} else if len(set) != 4 {
 		t.Fatalf("Invalid cloud watch log count: %d != 4", len(set))
+	} else {
+		if err := checkEntryEVs(set); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 }
