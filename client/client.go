@@ -44,14 +44,13 @@ const (
 )
 
 var (
-	errNoRedirect error = nil
-
 	ErrInvalidTestStatus error = errors.New("Invalid status on webserver test")
 	ErrAccountLocked     error = errors.New(`Account is Locked`)
 	ErrLoginFail         error = errors.New(`Username and Password are incorrect`)
 	ErrNotSynced         error = errors.New(`Client has not been synced`)
 	ErrNoLogin           error = errors.New("Not logged in")
 	ErrEmptyUserAgent    error = errors.New("UserAgent cannot be empty")
+	errNoRedirect              = errors.New(`Refused to follow redirect`)
 )
 
 // Client handles interaction with the server's REST APIs and websockets.
@@ -77,6 +76,13 @@ type Client struct {
 	guiSettings types.GUISettings
 }
 
+type Opts struct {
+	Server                 string
+	UseHttps               bool
+	InsecureNoEnforceCerts bool
+	ObjLogger              objlog.ObjLog
+}
+
 // The ActiveSession structure represents a login session on the server. The
 // JWT field contains a negotiated authentication token (with expiration).
 type ActiveSession struct {
@@ -84,30 +90,52 @@ type ActiveSession struct {
 	LastNotificationTime time.Time
 }
 
-func init() {
-	errNoRedirect = errors.New(`Refused to follow redirect`)
+// New connects to the specified server and returns a new Client object.
+// The useHttps parameter enables or disables SSL.
+// Setting enforceCertificate to false will disable SSL certificate validation,
+// allowing self-signed certs.
+func New(server string, enforceCertificate, useHttps bool) (*Client, error) {
+	opts := Opts{
+		Server:                 server,
+		InsecureNoEnforceCerts: !enforceCertificate,
+		UseHttps:               useHttps,
+	}
+	opts.ObjLogger, _ = objlog.NewNilLogger()
+	return NewOpts(opts)
 }
 
 // NewClient connects to the specified server and returns a new Client object.
 // The useHttps parameter enables or disables SSL.
 // Setting enforceCertificate to false will disable SSL certificate validation,
 // allowing self-signed certs.
+//
+// Deprecated: Use New() or NewOpts() instead
 func NewClient(server string, enforceCertificate, useHttps bool, objLogger objlog.ObjLog) (*Client, error) {
+	opts := Opts{
+		Server:                 server,
+		InsecureNoEnforceCerts: !enforceCertificate,
+		UseHttps:               useHttps,
+		ObjLogger:              objLogger,
+	}
+	return NewOpts(opts)
+}
+
+func NewOpts(opts Opts) (*Client, error) {
 	var wsScheme string
 	var httpScheme string
 	var tlsConfig *tls.Config
-	if server == "" {
+	if opts.Server == "" {
 		return nil, errors.New("invalid base URL")
 	}
-	if useHttps {
+	if opts.UseHttps {
 		wsScheme = `wss`
 		httpScheme = `https`
-		tlsConfig = &tls.Config{InsecureSkipVerify: !enforceCertificate}
+		tlsConfig = &tls.Config{InsecureSkipVerify: opts.InsecureNoEnforceCerts}
 	} else {
 		wsScheme = `ws`
 		httpScheme = `http`
 	}
-	serverURL, err := url.Parse(fmt.Sprintf("%s://%s", httpScheme, server))
+	serverURL, err := url.Parse(fmt.Sprintf("%s://%s", httpScheme, opts.Server))
 	if err != nil {
 		return nil, err
 	}
@@ -134,22 +162,22 @@ func NewClient(server string, enforceCertificate, useHttps bool, objLogger objlo
 	hdrMap.add(`User-Agent`, clientUserAgent)
 
 	//if no object logger is passed in, just get a nil one
-	if objLogger == nil {
-		objLogger, _ = objlog.NewNilLogger()
+	if opts.ObjLogger == nil {
+		opts.ObjLogger, _ = objlog.NewNilLogger()
 	}
 
 	//actually build and return the client
 	return &Client{
-		server:      server,
+		server:      opts.Server,
 		serverURL:   serverURL,
 		clnt:        &clnt,
 		timeout:     defaultRequestTimeout,
 		mtx:         &sync.Mutex{},
 		state:       STATE_NEW,
-		enforceCert: enforceCertificate,
+		enforceCert: !opts.InsecureNoEnforceCerts,
 		hm:          hdrMap,
 		qm:          newQueryMap(),
-		objLog:      objLogger,
+		objLog:      opts.ObjLogger,
 		wsScheme:    wsScheme,
 		httpScheme:  httpScheme,
 		tlsConfig:   tlsConfig,
