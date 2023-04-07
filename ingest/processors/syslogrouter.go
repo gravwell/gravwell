@@ -191,7 +191,7 @@ func (sr *SyslogRouter) processEntry(ent *entry.Entry, parts syslogparser.LogPar
 		//check tag
 		if err = ingest.CheckTag(tagname); err != nil {
 			//tag has invalid stuff, remap it
-			if tagname, err = remapTagCharacters(tagname); err != nil {
+			if tagname, err = ingest.RemapTag(tagname, subChar); err != nil {
 				return
 			}
 		}

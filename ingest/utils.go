@@ -13,11 +13,14 @@ import (
 	"encoding/binary"
 	"errors"
 	"math/rand"
+	"strings"
 	"sync"
+	"unicode"
 )
 
 var (
-	ErrUnderFill = errors.New("short cryptographic buffer read")
+	ErrUnderFill       = errors.New("short cryptographic buffer read")
+	ErrBadTagCharacter = errors.New("Bad tag remap character")
 )
 
 // The implementation of this is actually in the Go stdlib, it's just not exported
@@ -76,4 +79,60 @@ func cfill(v []byte) error {
 		return ErrUnderFill
 	}
 	return nil
+}
+
+func isBadTagChar(r rune) bool {
+	if !unicode.IsPrint(r) || unicode.IsControl(r) || unicode.IsSpace(r) {
+		return true
+	}
+
+	//check specific restricted characters
+	switch r {
+	case '"', '\'', '`', 0xb4, 0x2018, 0x2019, 0x201c, 0x201d: //all the quote characters
+		return true
+	case '!', '*', ',', '^', '|', '$', '@', '\\', '/', '.', '<', '>', '{', '}', '[', ']':
+		return true
+	}
+	return false
+}
+
+// CheckTag takes a tag name and returns an error if it contains any
+// characters which are not allowed in tags.
+func CheckTag(tag string) error {
+	if tag = strings.TrimSpace(tag); len(tag) == 0 {
+		return ErrEmptyTag
+	} else if len(tag) > MAX_TAG_LENGTH {
+		return ErrOversizedTag
+	}
+	for _, rn := range tag {
+		if isBadTagChar(rn) {
+			return ErrForbiddenTag
+		}
+	}
+	return nil
+}
+
+// RemapTag takes a proposed tag string and remaps any forbidden characters to the provided character.
+// err is set if the rchar is forbidden or the resulting tag is not valid.
+func RemapTag(tag string, rchar rune) (rtag string, err error) {
+	if isBadTagChar(rchar) {
+		err = ErrBadTagCharacter
+		return
+	}
+	if tag = strings.TrimSpace(tag); len(tag) == 0 {
+		err = ErrEmptyTag
+		return
+	} else if len(tag) > MAX_TAG_LENGTH {
+		err = ErrOversizedTag
+		return
+	}
+	f := func(r rune) rune {
+		if isBadTagChar(r) {
+			return rchar
+		}
+		return r
+	}
+	rtag = strings.Map(f, tag)
+
+	return
 }
