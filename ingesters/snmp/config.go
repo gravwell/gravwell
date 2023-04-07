@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net"
 	"sort"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gosnmp/gosnmp"

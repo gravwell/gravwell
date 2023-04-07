@@ -16,7 +16,6 @@ import (
 	"net/url"
 	"path"
 	"sort"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"

@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"net"
 	"sort"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
