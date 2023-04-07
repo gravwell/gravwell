@@ -66,8 +66,8 @@ func init() {
 	if *tagName == `` {
 		log.Fatal("tag-name required")
 	} else {
-		if strings.ContainsAny(*tagName, ingest.FORBIDDEN_TAG_SET) {
-			log.Fatal("Invalid tag")
+		if err := ingest.CheckTag(*tagName); err != nil {
+			log.Fatal("Invalid tag", err)
 		}
 		tags = append(tags, *tagName)
 	}
