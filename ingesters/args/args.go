@@ -55,8 +55,7 @@ func Parse() (a Args, err error) {
 	} else {
 		//verify that the tag name is valid
 		*tagName = strings.TrimSpace(*tagName)
-		if strings.ContainsAny(*tagName, ingest.FORBIDDEN_TAG_SET) {
-			err = errors.New("Forbidden characters in tag")
+		if err = ingest.CheckTag(*tagName); err != nil {
 			return
 		}
 	}

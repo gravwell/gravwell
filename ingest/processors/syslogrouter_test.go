@@ -110,7 +110,7 @@ func TestSyslogRouterRoute(t *testing.T) {
 		testTagSet{tag: `box-`, data: `<6>1 2023-04-03T16:24:41.390796-06:00 box - - - - [849085.223282] restoring control 00000000-0000-0000-0000-000000000101/10/5`},
 		//some rfc3164 entries
 		testTagSet{tag: `box-very_large_syslog_message_tag`, data: `<34>Oct 11 22:14:15 box very.large.syslog.message.tag: 'su root' failed for lonvick on /dev/pts/8`},
-		testTagSet{tag: `box-foo_bar_baz`, data: `<34>Oct 11 22:14:15 box foo!bar#baz: 'su root' failed for lonvick on /dev/pts/8`},
+		testTagSet{tag: `box-foo_bar#baz`, data: `<34>Oct 11 22:14:15 box foo!bar#baz: 'su root' failed for lonvick on /dev/pts/8`},
 		testTagSet{tag: ``, data: `not syslog`},
 	}
 

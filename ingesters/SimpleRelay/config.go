@@ -132,7 +132,7 @@ func verifyConfig(c *cfgType) error {
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = entry.DefaultTagName
 		}
-		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
+		if ingest.CheckTag(v.Tag_Name) != nil {
 			return errors.New("Invalid characters in the Tag-Name for " + k)
 		}
 		if v.Timezone_Override != "" {
@@ -162,7 +162,7 @@ func verifyConfig(c *cfgType) error {
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = entry.DefaultTagName
 		}
-		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
+		if ingest.CheckTag(v.Tag_Name) != nil {
 			return errors.New("Invalid characters in the Tag-Name for " + k)
 		}
 		if v.Timezone_Override != "" {
@@ -189,7 +189,7 @@ func verifyConfig(c *cfgType) error {
 		if len(v.Default_Tag) == 0 {
 			v.Default_Tag = entry.DefaultTagName
 		}
-		if strings.ContainsAny(v.Default_Tag, ingest.FORBIDDEN_TAG_SET) {
+		if ingest.CheckTag(v.Default_Tag) != nil {
 			return errors.New("Invalid characters in the Default-Tag for " + k)
 		}
 		tms, err := v.TagMatchers()
@@ -200,7 +200,7 @@ func verifyConfig(c *cfgType) error {
 			if len(t.Tag) == 0 || len(t.Value) == 0 {
 				return errors.New("Empty tag-match pair " + k + " not allowed in JSON listener " + k)
 			}
-			if strings.ContainsAny(t.Tag, ingest.FORBIDDEN_TAG_SET) {
+			if ingest.CheckTag(t.Tag) != nil {
 				return errors.New("Invalid characters in Tag-Match tag " + t.Tag + " for " + k)
 			}
 		}
