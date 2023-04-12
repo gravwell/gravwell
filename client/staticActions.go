@@ -413,6 +413,24 @@ func (c *Client) GetUserList() ([]types.UserDetails, error) {
 	return det, nil
 }
 
+// LookupUser looks up a UserDetails object given a username
+// if the username is not found, ErrNotFound is returned
+func (c *Client) LookupUser(username string) (ud types.UserDetails, err error) {
+	var lst []types.UserDetails
+	if lst, err = c.GetUserList(); err != nil {
+		return
+	}
+	for _, l := range lst {
+		if l.User == username {
+			ud = l
+			return
+		}
+	}
+
+	err = ErrNotFound
+	return
+}
+
 // GetGroupList gets a listing of groups with basic info like GID, name, desc.
 func (c *Client) GetGroupList() ([]types.GroupDetails, error) {
 	det := []types.GroupDetails{}
@@ -420,6 +438,24 @@ func (c *Client) GetGroupList() ([]types.GroupDetails, error) {
 		return nil, err
 	}
 	return det, nil
+}
+
+// LookupGroup looks up a GroupDetails object given a group name
+// if the group name is not found, ErrNotFound is returned
+func (c *Client) LookupGroup(groupname string) (gd types.GroupDetails, err error) {
+	var lst []types.GroupDetails
+	if lst, err = c.GetGroupList(); err != nil {
+		return
+	}
+	for _, l := range lst {
+		if l.Name == groupname {
+			gd = l
+			return
+		}
+	}
+
+	err = ErrNotFound
+	return
 }
 
 // a test get without locking. For internal calls
