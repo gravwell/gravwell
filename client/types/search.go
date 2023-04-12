@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
@@ -184,6 +185,11 @@ type StartSearchResponse struct {
 	CollapsingIndex      int             // index of the first collapsed module
 	Metadata             json.RawMessage `json:",omitempty"`
 	Addendum             json.RawMessage `json:",omitempty"`
+	SID                  uuid.UUID       `json:",omitempty"`
+	// RefreshInterval is used to convey and optionally update the minimum interval
+	// required in between touching a search session.  This value defines how often a client
+	// must refresh thier search session before a search may be expired due to inactivity
+	RefreshInterval uint //refresh interval in seconds
 	SearchHints
 }
 
@@ -207,6 +213,11 @@ type AttachSearchResponse struct {
 	RendererMod string      `json:",omitempty"` //the renderer in use
 	RendererCmd string      `json:",omitempty"` //the renderer commands
 	Info        *SearchInfo `json:",omitempty"` //info if available
+	SID         uuid.UUID   `json:",omitempty"`
+	// RefreshInterval is used to convey and optionally update the minimum interval
+	// required in between touching a search session.  This value defines how often a client
+	// must refresh thier search session before a search may be expired due to inactivity
+	RefreshInterval uint //refresh interval in seconds
 }
 
 // SearchInfo contains information about a search, including the search
