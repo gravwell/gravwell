@@ -185,7 +185,7 @@ type StartSearchResponse struct {
 	CollapsingIndex      int             // index of the first collapsed module
 	Metadata             json.RawMessage `json:",omitempty"`
 	Addendum             json.RawMessage `json:",omitempty"`
-	SID                  uuid.UUID       `json:",omitempty"`
+	SearchSessionID      uuid.UUID       `json:",omitempty"`
 	// RefreshInterval is used to convey and optionally update the minimum interval
 	// required in between touching a search session.  This value defines how often a client
 	// must refresh thier search session before a search may be expired due to inactivity
@@ -208,12 +208,12 @@ type AttachSearchRequest struct {
 // AttachSearchResponse contains the subproto and SearchInfo object when
 // attaching to a search.
 type AttachSearchResponse struct {
-	Error       string      `json:",omitempty"` //error if not
-	Subproto    string      `json:",omitempty"` //the new subprotocol
-	RendererMod string      `json:",omitempty"` //the renderer in use
-	RendererCmd string      `json:",omitempty"` //the renderer commands
-	Info        *SearchInfo `json:",omitempty"` //info if available
-	SID         uuid.UUID   `json:",omitempty"`
+	Error           string      `json:",omitempty"` //error if not
+	Subproto        string      `json:",omitempty"` //the new subprotocol
+	RendererMod     string      `json:",omitempty"` //the renderer in use
+	RendererCmd     string      `json:",omitempty"` //the renderer commands
+	Info            *SearchInfo `json:",omitempty"` //info if available
+	SearchSessionID uuid.UUID   `json:",omitempty"`
 	// RefreshInterval is used to convey and optionally update the minimum interval
 	// required in between touching a search session.  This value defines how often a client
 	// must refresh thier search session before a search may be expired due to inactivity
