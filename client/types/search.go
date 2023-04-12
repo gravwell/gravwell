@@ -193,6 +193,10 @@ type StartSearchResponse struct {
 	SearchHints
 }
 
+type SearchSessionIntervalUpdate struct {
+	Interval uint
+}
+
 // Once a search has begin, an ACK is sent.
 type StartSearchAck struct {
 	Ok                   bool
