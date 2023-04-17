@@ -768,8 +768,8 @@ func (c Capability) Description() string {
 // CapError is an enhanced error that will return why an API told you know
 // Typically its an error message and the capability you would need in order to use the API
 type CapError struct {
-	Cap   Capability
-	Error error
+	Cap   string
+	Error string
 }
 
 // TagAccess is the structure that holds a default access to tags and a set of optional explicit overrides
