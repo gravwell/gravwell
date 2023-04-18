@@ -154,27 +154,6 @@ type AttachRequest struct {
 	ID string
 }
 
-// SearchResponse contains metadata about a search that has either just been fired or attached to
-type SearchResponse struct {
-	// what the user typed
-	RawQuery string `json:",omitempty"`
-	//what the actual search being processed is after attaching render module
-	SearchString string `json:",omitempty"`
-
-	RenderModule         string          `json:",omitempty"`
-	RenderCmd            string          `json:",omitempty"`
-	OutputSearchSubproto string          `json:",omitempty"`
-	SearchID             string          `json:",omitempty"`
-	SearchStartRange     time.Time       `json:",omitempty"`
-	SearchEndRange       time.Time       `json:",omitempty"`
-	Background           bool            `json:",omitempty"`
-	NonTemporal          bool            `json:",omitempty"`
-	CollapsingIndex      int             // index of the first collapsed module
-	Metadata             json.RawMessage `json:",omitempty"`
-	Addendum             json.RawMessage `json:",omitempty"`
-	SearchHints
-}
-
 // LaunchResponse is used to respond to both Launch and Attach requests
 // the type returns metadata about the search as well as
 // this contains all the embedded
@@ -186,10 +165,10 @@ type LaunchResponse struct {
 	RefreshInterval uint //refresh interval in seconds
 
 	// unified info that is always needed
-	SearchID     string      `json:",omitempty"`
-	RenderModule string      `json:",omitempty"`
-	RenderCmd    string      `json:",omitempty"`
-	Info         *SearchInfo `json:",omitempty"` //info if available
+	SearchID     string     `json:",omitempty"`
+	RenderModule string     `json:",omitempty"`
+	RenderCmd    string     `json:",omitempty"`
+	Info         SearchInfo `json:",omitempty"`
 }
 
 // StartSearchRequest represents a search that is sent to the search controller
