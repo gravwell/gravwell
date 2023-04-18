@@ -88,6 +88,27 @@ func (ent *Entry) AddEnumeratedValueEx(name string, val interface{}) error {
 	return nil
 }
 
+// GetEnumeratedValue looks up an enumerated value by name and returns it as a native type
+// if the value is not present the function returns nil and false
+func (ent *Entry) GetEnumeratedValue(name string) (val interface{}, ok bool) {
+	var ev EnumeratedValue
+	if ent == nil {
+		return
+	}
+	if ev, ok = ent.evb.Get(name); ok {
+		val = ev.Value.Interface()
+		ok = (val != nil)
+	}
+	return
+}
+
+func (ent *Entry) CopyEnumeratedBlock(sent *Entry) {
+	if ent == nil || sent == nil || !sent.evb.Populated() {
+		return
+	}
+	ent.evb.Append(sent.evb)
+}
+
 // Size returns the size of an entry as if it were encoded.
 func (ent *Entry) Size() uint64 {
 	return uint64(len(ent.Data)) + uint64(ENTRY_HEADER_SIZE) + ent.evb.Size()

@@ -140,7 +140,7 @@ func verifyConfig(c *cfgType) error {
 				return fmt.Errorf("Failed to parse Timestamp-Regex and Timestamp-Format-String defs: %v", err)
 			}
 		}
-		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
+		if ingest.CheckTag(v.Tag_Name) != nil {
 			return errors.New("Invalid characters in the Tag-Name for " + k)
 		}
 		v.Base_Directory = filepath.Clean(v.Base_Directory)

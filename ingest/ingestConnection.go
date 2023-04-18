@@ -12,7 +12,6 @@ import (
 	"errors"
 	"io"
 	"net"
-	"strings"
 	"sync"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -287,20 +286,6 @@ func checkTags(tags []string) error {
 		if err := CheckTag(tags[i]); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-// CheckTag takes a tag name and returns an error if it contains any
-// characters which are not allowed in tags.
-func CheckTag(tag string) error {
-	if tag = strings.TrimSpace(tag); len(tag) == 0 {
-		return ErrEmptyTag
-	} else if len(tag) > MAX_TAG_LENGTH {
-		return ErrOversizedTag
-	}
-	if strings.ContainsAny(tag, FORBIDDEN_TAG_SET) {
-		return ErrForbiddenTag
 	}
 	return nil
 }
