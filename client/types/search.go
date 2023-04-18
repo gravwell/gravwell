@@ -149,11 +149,6 @@ type LaunchRequest struct {
 	StartSearchRequest
 }
 
-// AttachRequest is used by clients to attach to an existing query using the search ID
-type AttachRequest struct {
-	ID string
-}
-
 // LaunchResponse is used to respond to both Launch and Attach requests
 // the type returns metadata about the search as well as
 // this contains all the embedded
