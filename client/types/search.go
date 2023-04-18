@@ -184,7 +184,12 @@ type LaunchResponse struct {
 	// required in between touching a search session.  This value defines how often a client
 	// must refresh thier search session before a search may be expired due to inactivity
 	RefreshInterval uint //refresh interval in seconds
-	Search          SearchResponse
+
+	// unified info that is always needed
+	SearchID     string      `json:",omitempty"`
+	RenderModule string      `json:",omitempty"`
+	RenderCmd    string      `json:",omitempty"`
+	Info         *SearchInfo `json:",omitempty"` //info if available
 }
 
 // StartSearchRequest represents a search that is sent to the search controller
