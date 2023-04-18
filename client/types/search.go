@@ -144,6 +144,49 @@ type ParseSearchResponse struct {
 	SearchHints
 }
 
+// LaunchRequest is a new named type so that we can abstract away the websocket launch requests from the REST requests
+type LaunchRequest struct {
+	StartSearchRequest
+}
+
+// AttachRequest is used by clients to attach to an existing query using the search ID
+type AttachRequest struct {
+	ID string
+}
+
+// SearchResponse contains metadata about a search that has either just been fired or attached to
+type SearchResponse struct {
+	// what the user typed
+	RawQuery string `json:",omitempty"`
+	//what the actual search being processed is after attaching render module
+	SearchString string `json:",omitempty"`
+
+	RenderModule         string          `json:",omitempty"`
+	RenderCmd            string          `json:",omitempty"`
+	OutputSearchSubproto string          `json:",omitempty"`
+	SearchID             string          `json:",omitempty"`
+	SearchStartRange     time.Time       `json:",omitempty"`
+	SearchEndRange       time.Time       `json:",omitempty"`
+	Background           bool            `json:",omitempty"`
+	NonTemporal          bool            `json:",omitempty"`
+	CollapsingIndex      int             // index of the first collapsed module
+	Metadata             json.RawMessage `json:",omitempty"`
+	Addendum             json.RawMessage `json:",omitempty"`
+	SearchHints
+}
+
+// LaunchResponse is used to respond to both Launch and Attach requests
+// the type returns metadata about the search as well as
+// this contains all the embedded
+type LaunchResponse struct {
+	SearchSessionID uuid.UUID `json:",omitempty"`
+	// RefreshInterval is used to convey and optionally update the minimum interval
+	// required in between touching a search session.  This value defines how often a client
+	// must refresh thier search session before a search may be expired due to inactivity
+	RefreshInterval uint //refresh interval in seconds
+	Search          SearchResponse
+}
+
 // StartSearchRequest represents a search that is sent to the search controller
 // in the webserver.
 type StartSearchRequest struct {
@@ -185,11 +228,6 @@ type StartSearchResponse struct {
 	CollapsingIndex      int             // index of the first collapsed module
 	Metadata             json.RawMessage `json:",omitempty"`
 	Addendum             json.RawMessage `json:",omitempty"`
-	SearchSessionID      uuid.UUID       `json:",omitempty"`
-	// RefreshInterval is used to convey and optionally update the minimum interval
-	// required in between touching a search session.  This value defines how often a client
-	// must refresh thier search session before a search may be expired due to inactivity
-	RefreshInterval uint //refresh interval in seconds
 	SearchHints
 }
 
@@ -212,16 +250,11 @@ type AttachSearchRequest struct {
 // AttachSearchResponse contains the subproto and SearchInfo object when
 // attaching to a search.
 type AttachSearchResponse struct {
-	Error           string      `json:",omitempty"` //error if not
-	Subproto        string      `json:",omitempty"` //the new subprotocol
-	RendererMod     string      `json:",omitempty"` //the renderer in use
-	RendererCmd     string      `json:",omitempty"` //the renderer commands
-	Info            *SearchInfo `json:",omitempty"` //info if available
-	SearchSessionID uuid.UUID   `json:",omitempty"`
-	// RefreshInterval is used to convey and optionally update the minimum interval
-	// required in between touching a search session.  This value defines how often a client
-	// must refresh thier search session before a search may be expired due to inactivity
-	RefreshInterval uint //refresh interval in seconds
+	Error       string      `json:",omitempty"` //error if not
+	Subproto    string      `json:",omitempty"` //the new subprotocol
+	RendererMod string      `json:",omitempty"` //the renderer in use
+	RendererCmd string      `json:",omitempty"` //the renderer commands
+	Info        *SearchInfo `json:",omitempty"` //info if available
 }
 
 // SearchInfo contains information about a search, including the search
