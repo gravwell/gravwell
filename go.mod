@@ -38,6 +38,7 @@ require (
 	github.com/gravwell/ipfix v1.4.3
 	github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e
 	github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4
+	github.com/gravwell/syslogparser v0.0.0-20230331221307-ab77654a9657
 	github.com/h2non/filetype v1.0.10
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/jcmturner/gofork v1.0.0 // indirect

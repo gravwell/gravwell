@@ -100,6 +100,30 @@ func (eb evblock) Valid() error {
 	return nil
 }
 
+// Get retrieves an enumerated value from the set using a name
+// if the name does not exist an empty  EnumeratedValue and ok = false will be returned
+func (eb evblock) Get(name string) (ev EnumeratedValue, ok bool) {
+	for i := range eb.evs {
+		if eb.evs[i].Name == name {
+			ev = eb.evs[i]
+			ok = true
+			break
+		}
+	}
+	return
+}
+
+// Append appends one evblock to another.  This function DOES NOT de-duplicate enumerated values
+// if the src block already has foobar and so does the destination it will be duplicated
+func (eb *evblock) Append(seb evblock) {
+	for _, v := range seb.evs {
+		if v.Valid() {
+			eb.Add(v)
+		}
+	}
+	return
+}
+
 // Encode encodes an evblock into a byte buffer.
 func (eb evblock) Encode() (bts []byte, err error) {
 	// check if its valid

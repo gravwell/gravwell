@@ -166,14 +166,17 @@ func (je *JsonArraySplitter) processItem(ent *entry.Entry) (rset []*entry.Entry,
 				return
 			}
 			if data, cnt := je.bldr.render(); cnt > 0 {
-				rset = append(rset, &entry.Entry{
+				tent := &entry.Entry{
 					Tag:  ent.Tag,
 					SRC:  ent.SRC,
 					TS:   ent.TS,
 					Data: data,
-				})
+				}
+				tent.CopyEnumeratedBlock(ent)
+				rset = append(rset, tent)
 			}
 		} else if r, ok := je.genEntry(dt, ent, v); ok {
+			r.CopyEnumeratedBlock(ent)
 			rset = append(rset, r)
 		}
 		return

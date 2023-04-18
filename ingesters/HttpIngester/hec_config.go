@@ -60,7 +60,7 @@ func (v *hecCompatible) validate(name string) (string, error) {
 	if len(v.Raw_Line_Breaker) == 0 {
 		v.Raw_Line_Breaker = defaultLineBreaker
 	}
-	if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
+	if ingest.CheckTag(v.Tag_Name) != nil {
 		return ``, errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + name)
 	}
 
@@ -154,6 +154,7 @@ func extractElementTag(v string) (match, tag string, err error) {
 func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
 	for k, v := range cfg.HECListener {
 		hh := &hecHandler{
+			ackIds: map[string]uint64{},
 			hecHealth: hecHealth{
 				igst:  hnd.igst,
 				token: v.TokenValue,

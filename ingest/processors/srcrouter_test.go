@@ -146,6 +146,12 @@ func TestSrcRouterProcess(t *testing.T) {
 			t.Fatalf("tagger didn't create tag %v", v.tag)
 		} else if tg != ent.Tag && !v.drop {
 			t.Fatalf("Invalid tag results for src %v: %v != %v", v.src, tg, ent.Tag)
+		} else {
+			for _, ent := range set {
+				if x, ok := ent.GetEnumeratedValue(`testing`); !ok || x == nil {
+					t.Fatal("failed to preserve testing EV")
+				}
+			}
 		}
 	}
 
@@ -164,10 +170,12 @@ func TestSrcRouterProcess(t *testing.T) {
 }
 
 func makeSrcTestEntry(ip string) *entry.Entry {
-	return &entry.Entry{
+	ent := &entry.Entry{
 		Tag:  0, //doesn't matter
 		SRC:  net.ParseIP(ip),
 		TS:   testTime,
 		Data: []byte(fmt.Sprintf(`foo bar and some other things`)),
 	}
+	ent.AddEnumeratedValueEx(`testing`, uint64(42))
+	return ent
 }

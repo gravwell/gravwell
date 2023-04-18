@@ -232,7 +232,7 @@ func (ec *EventStreamConfig) Validate() error {
 	if len(ec.Level) == 0 {
 		ec.Level = defaultLevels
 	}
-	if strings.ContainsAny(ec.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
+	if ingest.CheckTag(ec.Tag_Name) != nil {
 		return errors.New("Invalid characters in the Tag-Name for " + ec.Tag_Name)
 	}
 	for i := range ec.Level {

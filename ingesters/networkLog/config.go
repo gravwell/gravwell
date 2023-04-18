@@ -12,7 +12,6 @@ import (
 	"errors"
 	"net"
 	"sort"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -103,7 +102,7 @@ func verifyConfig(c *cfgType) error {
 		if len(v.Tag_Name) == 0 {
 			v.Tag_Name = entry.DefaultTagName
 		}
-		if strings.ContainsAny(v.Tag_Name, ingest.FORBIDDEN_TAG_SET) {
+		if ingest.CheckTag(v.Tag_Name) != nil {
 			return errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + k)
 		}
 		if err := getEnvInt(&v.Snap_Len, defaultSnapLen, envSnapLen); err != nil {

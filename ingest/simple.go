@@ -27,8 +27,9 @@ const (
 	DEFAULT_TLS_PORT   int           = 4024
 	DEFAULT_CLEAR_PORT int           = 4023
 	DEFAULT_PIPE_PATH  string        = "/opt/gravwell/comms/pipe"
-	FORBIDDEN_TAG_SET  string        = "!@#$%^&*()=+<>,.:;`\"'{[}]|\\ 	" // includes space and tab characters at the end
-	MAX_TAG_LENGTH     int           = 4096                              //a 4KB tagname is a short story...
+	MAX_TAG_LENGTH     int           = 4096 //a 4KB tagname is a short story...
+
+	FORBIDDEN_TAG_SET string = "!@#$%^&*()=+<>,.:;`\"'{[}]|\\ 	" // DEPRECATED - includes space and tab characters at the end
 )
 
 var (

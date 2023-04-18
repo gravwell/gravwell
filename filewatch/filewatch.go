@@ -351,7 +351,10 @@ watchRoutine:
 					// ignore the error but let us know please
 					d = []byte(fmt.Sprintf("could not read from %v", MAX_QUEUED_EVENTS_PATH))
 				}
-				wm.logger.Error("Filesystem notification error. Events are being dropped. Increase the queued events kernel parameter or decrease the number of tracked files.", log.KVErr(err), log.KV("max_queued_events", string(d)), log.KV("help", "https://docs.gravwell.io/#!ingesters/file_follow.md"))
+				wm.logger.Error("Filesystem notification error. Events are being dropped. Increase the queued events kernel parameter or decrease the number of tracked files.",
+					log.KVErr(err),
+					log.KV("max_queued_events", string(d)),
+					log.KV("help", "https://docs.gravwell.io/ingesters/file_follow.html#kernel-parameter-tuning"))
 			}
 			err = nil
 		case evt, ok := <-wm.watcher.Events:

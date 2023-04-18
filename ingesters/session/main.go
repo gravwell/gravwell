@@ -93,7 +93,7 @@ func init() {
 	} else {
 		//verify that the tag name is valid
 		*tagName = strings.TrimSpace(*tagName)
-		if strings.ContainsAny(*tagName, ingest.FORBIDDEN_TAG_SET) {
+		if ingest.CheckTag(*tagName) != nil {
 			fmt.Printf("Forbidden characters in tag\n")
 			os.Exit(-1)
 		}

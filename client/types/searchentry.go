@@ -110,6 +110,10 @@ func enumeratedEqual(a, b []EnumeratedPair) bool {
 			return false
 		} else if a[i].Value != b[i].Value {
 			return false
+		} else if a[i].RawValue.Type != b[i].RawValue.Type {
+			return false
+		} else if !bytes.Equal(a[i].RawValue.Data, b[i].RawValue.Data) {
+			return false
 		}
 	}
 	return true
