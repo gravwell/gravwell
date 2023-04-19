@@ -73,7 +73,9 @@
     <Property Id="EXISTING_CONFIGCFG_PATH" Secure="yes">
       <DirectorySearch Id="CheckConfigFile" Path="[CommonAppDataFolder]">
         <DirectorySearch Id="CheckConfigFile2" Path="gravwell">
-          <FileSearch Name="file_follow.cfg" />
+          <DirectorySearch Id="CheckConfigFile3" Path="filefollow">
+            <FileSearch Name="file_follow.cfg" />
+          </DirectorySearch>
         </DirectorySearch>
       </DirectorySearch>
     </Property>
