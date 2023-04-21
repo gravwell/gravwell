@@ -9,6 +9,7 @@
 package types
 
 import (
+	"encoding/json"
 	"errors"
 	"strings"
 	"time"
@@ -131,6 +132,16 @@ type CapabilitySet struct {
 type CapabilityState struct {
 	Default   DefaultAccessRule
 	Overrides []string
+}
+
+func (cs CapabilityState) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Default   DefaultAccessRule
+		Overrides emptyStrings
+	}{
+		cs.Default,
+		cs.Overrides,
+	})
 }
 
 // CapabilityDesc is an enhanced structure containing a capability value, its name, and a brief description
@@ -778,6 +789,16 @@ type CapError struct {
 type TagAccess struct {
 	Default   DefaultAccessRule
 	Overrides []string //override sets an explicit allow or deny depending on Default state
+}
+
+func (ta TagAccess) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		Default   DefaultAccessRule
+		Overrides emptyStrings
+	}{
+		ta.Default,
+		ta.Overrides,
+	})
 }
 
 // check returns two values:
