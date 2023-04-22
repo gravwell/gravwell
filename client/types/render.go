@@ -278,6 +278,12 @@ type OverviewStatSet struct {
 	TS    entry.Timestamp
 }
 
+type OverviewStats struct {
+	SearchPosition entry.Timestamp
+	Finished       bool
+	Stats          []OverviewStatSet `json:",omitempty"`
+}
+
 type SearchMetadataNumber struct {
 	Count uint
 	Min   float64

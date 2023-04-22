@@ -70,6 +70,8 @@ const (
 	SEARCH_CTRL_DOWNLOAD_URL         = `/api/searchctrl/%s/download/%s`
 	SEARCH_CTRL_PING_URL             = `/api/searchctrl/%s/ping`
 	SEARCH_CTRL_DETACH_URL           = `/api/searchctrl/%s/detach`
+	SEARCH_CTRL_STATS_URL            = `/api/searchctrl/%s/stats`
+	SEARCH_CTRL_STATS_OVERVIEW_URL   = `/api/searchctrl/%s/stats/overview`
 	SEARCH_CTRL_IMPORT_URL           = `/api/searchctrl/import`
 	SEARCH_CTRL_LAUNCH_URL           = `/api/searchctrl/launch`
 	SEARCH_HISTORY_URL               = `/api/searchhistory/%s/%d`
