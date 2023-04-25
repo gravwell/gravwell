@@ -61,6 +61,7 @@ jobs:
         go test -v ./ingest
         go test -v ./ingest/entry
         go test -v ./ingest/processors
+        go test -v ./ingest/processors/plugin
         go test -v ./ingest/config
         go test -v ./ingest/log
         go test -v ./timegrinder
