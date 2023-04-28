@@ -20,6 +20,17 @@ import (
 
 const (
 	defaultMaxLine int = 16 * 1024 * 1024
+
+	// maxIdleCloseTime is the amount of time that data can be sitting in the file
+	// where upon a close event we will force a read, basically if you write data to the file
+	// and DO NOT terminate with a newline (or whatever the delimiter of choice is) and
+	// we are closing the file watcher, if more than this time has passed, we eat the remaining data
+	maxIdleCloseTime = time.Second
+
+	// maxIdleDataTime is the same as above, but with out the close event
+	// so if data is sitting in the file without a delimiter and we have
+	// just been sitting here for that amount of time, then we will consume it
+	maxIdleDataTime = 3 * time.Second
 )
 
 var (
@@ -235,7 +246,7 @@ func (f *follower) IdleDuration() time.Duration {
 // receiving an fsnotify for a write event
 // If we got a writeEvent and ReadLine returns an EOF, we need to check
 // and make sure the file wasn't truncated
-func (f *follower) processLines(writeEvent bool) error {
+func (f *follower) processLines(writeEvent, closing bool) error {
 	var hit bool
 	for {
 		ln, ok, sawEOF, err := f.lnr.ReadEntry()
@@ -256,7 +267,26 @@ func (f *follower) processLines(writeEvent bool) error {
 				}
 			}
 		}
-		if !ok {
+		if !ok && sawEOF {
+			// e.g. no trailing newline or delimiter, but what IS there has been sitting for XYZ seconds
+			// go ahead and consume it
+			var force bool
+			if idleTime := time.Since(f.lastAct); idleTime > maxIdleDataTime {
+				force = true
+			} else if closing && idleTime > maxIdleCloseTime {
+				force = true
+			}
+			if force {
+				if ln, err = f.lnr.ReadRemaining(); err != nil {
+					return err
+				} else if len(ln) > 0 {
+					if err = f.lh.HandleLog(ln, time.Now(), f.FilePath); err == nil {
+						hit = true
+						*f.state = f.lnr.Index()
+					}
+				}
+				return err
+			}
 			break
 		}
 		//actually handle the line
@@ -282,7 +312,7 @@ func (f *follower) routine() {
 
 routineLoop:
 	for {
-		if err := f.processLines(false); err != nil {
+		if err := f.processLines(false, false); err != nil {
 			f.lnr.Close()
 			if !os.IsNotExist(err) {
 				f.err = err
@@ -302,7 +332,7 @@ routineLoop:
 			}
 			if evt.Op == fsnotify.Remove {
 				//if the file was removed, we read what we can and bail
-				if err := f.processLines(false); err != nil {
+				if err := f.processLines(false, true); err != nil {
 					if !os.IsNotExist(err) {
 						f.err = err
 					}
@@ -311,7 +341,7 @@ routineLoop:
 				f.err = f.lnr.Close()
 				return
 			} else if evt.Op == fsnotify.Write {
-				if err := f.processLines(true); err != nil {
+				if err := f.processLines(true, false); err != nil {
 					f.lnr.Close()
 					if !os.IsNotExist(err) {
 						f.err = err
@@ -329,7 +359,7 @@ routineLoop:
 		}
 	}
 	//this whole process is kind of racy, so every iteration we attempt to process lines
-	if err := f.processLines(false); err != nil {
+	if err := f.processLines(false, true); err != nil {
 		//check if its just a notexists erro, which Windows version of the liner will throw
 		if !os.IsNotExist(err) {
 			f.err = err

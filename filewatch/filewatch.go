@@ -39,6 +39,7 @@ var (
 	ErrInvalidStateFile = errors.New("State file exists and is not a regular file")
 	ErrAlreadyStarted   = errors.New("WatchManager already started")
 	ErrFailedSeek       = errors.New("Failed to seek to the start of the states file")
+	ErrFsNotifyOverflow = errors.New("FSNotify kernel event buffer overflow")
 )
 
 type WatchManager struct {
@@ -355,6 +356,8 @@ watchRoutine:
 					log.KVErr(err),
 					log.KV("max_queued_events", string(d)),
 					log.KV("help", "https://docs.gravwell.io/ingesters/file_follow.html#kernel-parameter-tuning"))
+			} else {
+				wm.logger.Error("fsnotify event queue error", log.KVErr(err)) //log it and continue
 			}
 			err = nil
 		case evt, ok := <-wm.watcher.Events:
