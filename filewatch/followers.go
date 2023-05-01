@@ -141,6 +141,24 @@ func (f *follower) FileId() FileId {
 	return f.id
 }
 
+// lastFileModTime is a helper that pulls back the file modification time
+// this suppresses all errors and returns the zero time if anything goes wrong
+func (f *follower) lastFileModTime() (r time.Time) {
+	if f == nil || f.FilePath == `` {
+		return
+	}
+	if fi, err := os.Stat(f.FilePath); err == nil {
+		r = fi.ModTime()
+	}
+
+	return
+}
+
+// Sync is a linear operation where we consume all the data out of a file
+// it is typically used during the initialization and Catchup phase of a restart.
+// When existing we will check if there is floating data, if so, then we check the
+// the last Mod time of the file and consume the trailing data if it is over our
+// idle timeout
 func (f *follower) Sync(qc chan os.Signal) (bool, error) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
@@ -151,11 +169,22 @@ func (f *follower) Sync(qc chan os.Signal) (bool, error) {
 		return false, ErrAlreadyStarted
 	}
 	for {
-		ln, ok, _, err := f.lnr.ReadEntry()
+		ln, ok, sawEOF, err := f.lnr.ReadEntry()
 		if err != nil {
 			return false, err
 		} else if !ok {
-			break
+			if sawEOF && time.Since(f.lastFileModTime()) > maxIdleCloseTime {
+				//partial write and file hasn't been written to in a while
+				//go ahead and force a write update
+				if ln, err = f.lnr.ReadRemaining(); err != nil {
+					return false, err
+				} else if len(ln) > 0 {
+					if err = f.lh.HandleLog(ln, time.Now(), f.FilePath); err == nil {
+						*f.state = f.lnr.Index()
+					}
+				}
+			}
+			return false, err
 		}
 		//actually handle the line
 		now := time.Now()
