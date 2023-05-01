@@ -30,6 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/version"
 
 	"github.com/google/renameio"
 )
@@ -1400,15 +1401,29 @@ func (im *IngestMuxer) getConnection(tgt Target) (ig *IngestConnection, tt tagTr
 loop:
 	for {
 		//attempt a connection, timeouts are built in to the IngestConnection
-		im.Info("initializing connection", log.KV("indexer", tgt.Address), log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
+		im.Info("initializing connection",
+			log.KV("indexer", tgt.Address),
+			log.KV("ingester", im.name),
+			log.KV("version", version.GetVersion()),
+			log.KV("ingesteruuid", im.uuid))
 		im.mtx.RLock()
 		if ig, err = initConnection(tgt, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
 			im.mtx.RUnlock()
 			if isFatalConnError(err) {
-				im.Error("fatal connection error", log.KV("indexer", tgt.Address), log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid), log.KV("error", err))
+				im.Error("fatal connection error",
+					log.KV("indexer", tgt.Address),
+					log.KV("ingester", im.name),
+					log.KV("version", version.GetVersion()),
+					log.KV("ingesteruuid", im.uuid),
+					log.KVErr(err))
 				break loop
 			}
-			im.Warn("connection error", log.KV("indexer", tgt.Address), log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid), log.KV("error", err))
+			im.Warn("connection error",
+				log.KV("indexer", tgt.Address),
+				log.KV("ingester", im.name),
+				log.KV("version", version.GetVersion()),
+				log.KV("ingesteruuid", im.uuid),
+				log.KVErr(err))
 			//non-fatal, sleep and continue
 			select {
 			case _ = <-time.After(defaultRetryTime):
@@ -1418,7 +1433,11 @@ loop:
 			}
 			continue
 		}
-		im.Info("connection established, completing negotiation and requesting approval to ingest", log.KV("indexer", tgt.Address), log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
+		im.Info("connection established, completing negotiation and requesting approval to ingest",
+			log.KV("indexer", tgt.Address),
+			log.KV("ingester", im.name),
+			log.KV("version", version.GetVersion()),
+			log.KV("ingesteruuid", im.uuid))
 		if im.rateParent != nil {
 			ig.ew.setConn(im.rateParent.newThrottleConn(ig.ew.conn))
 		}
@@ -1430,14 +1449,24 @@ loop:
 			ig = nil
 			tt = nil
 			im.mtx.RUnlock()
-			im.Error("fatal connection error, failed to get get tag translation map", log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid), log.KV("error", err))
+			im.Error("fatal connection error, failed to get get tag translation map",
+				log.KV("indexer", tgt.Address),
+				log.KV("ingester", im.name),
+				log.KV("version", version.GetVersion()),
+				log.KV("ingesteruuid", im.uuid),
+				log.KVErr(err))
 			continue
 		}
 		im.mtx.RUnlock()
 
 		// set the info
 		if err := ig.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
-			im.Error("Failed to identify ingester", log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid), log.KV("indexer", tgt.Address), log.KV("error", err))
+			im.Error("Failed to identify ingester",
+				log.KV("indexer", tgt.Address),
+				log.KV("ingester", im.name),
+				log.KV("version", version.GetVersion()),
+				log.KV("ingesteruuid", im.uuid),
+				log.KVErr(err))
 			continue
 		}
 
@@ -1449,24 +1478,42 @@ loop:
 			}
 			ok, err := ig.IngestOK()
 			if err != nil {
-				im.Error("IngestOK query failed", log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid), log.KV("indexer", tgt.Address), log.KV("error", err))
+				im.Error("IngestOK query failed",
+					log.KV("indexer", tgt.Address),
+					log.KV("ingester", im.name),
+					log.KV("version", version.GetVersion()),
+					log.KV("ingesteruuid", im.uuid),
+					log.KVErr(err))
 				ig.Close()
 				continue loop
 			}
 			if ok {
 				break
 			}
-			im.Warn("indexer does not yet allow ingest, sleeping", log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid), log.KV("indexer", tgt.Address))
+			im.Warn("indexer does not yet allow ingest, sleeping",
+				log.KV("indexer", tgt.Address),
+				log.KV("ingester", im.name),
+				log.KV("version", version.GetVersion()),
+				log.KV("ingesteruuid", im.uuid))
 			time.Sleep(5 * time.Second)
 		}
 
 		if err := ig.ew.ConfigureStream(im.cfg); err != nil {
-			im.Warn("failed to configure stream", log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid), log.KV("indexer", tgt.Address), log.KV("error", err))
+			im.Warn("failed to configure stream",
+				log.KV("indexer", tgt.Address),
+				log.KV("ingester", im.name),
+				log.KV("version", version.GetVersion()),
+				log.KV("ingesteruuid", im.uuid),
+				log.KVErr(err))
 			ig.Close()
 			continue
 		}
 
-		im.Info("successfully connected with ingest OK", log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid), log.KV("indexer", tgt.Address))
+		im.Info("successfully connected with ingest OK",
+			log.KV("indexer", tgt.Address),
+			log.KV("ingester", im.name),
+			log.KV("version", version.GetVersion()),
+			log.KV("ingesteruuid", im.uuid))
 		break
 	}
 	return
