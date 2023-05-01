@@ -96,6 +96,18 @@ func (rr *RegexReader) ReadEntry() (ln []byte, ok bool, wasEOF bool, err error) 
 	return
 }
 
+func (rr *RegexReader) ReadRemaining() (ln []byte, err error) {
+	var ok bool
+	if ln, ok, _, err = rr.ReadEntry(); err != nil || ok == true {
+		// error or complete success
+		return
+	} else if len(rr.currLine) != 0 {
+		ln = rr.currLine
+		rr.currLine = nil
+	}
+	return
+}
+
 func (rr *RegexReader) splitter(data []byte) (int, []byte, error) {
 	if len(data) == 0 {
 		return 0, nil, nil
