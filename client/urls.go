@@ -165,6 +165,7 @@ const (
 	SECRETS_ID_DETAILS_URL           = `/api/secrets/%s/details`
 	SECRETS_ID_FULL_URL              = `/api/secrets/%s/full`
 	SETTINGS_URL                     = `/api/settings`
+	INGESTERS_FORGET_URL             = `/api/ingesters/%s/forget`
 
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
