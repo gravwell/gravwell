@@ -892,7 +892,7 @@ func FilterTags(tags []string, prime TagAccess, set []TagAccess) (r []string) {
 	return
 }
 
-func (ud *UserDetails) HasTagAccess(tg string) (allowed bool) {
+func (ud *UserDetails) HasTagAccess(tg string, global TagAccess) (allowed bool) {
 	var explicit bool
 	//any rules applied to a user that explicitely call out a tag override all other group rules
 	if explicit, allowed = ud.ABAC.Tags.check(tg); explicit {
@@ -915,15 +915,21 @@ func (ud *UserDetails) HasTagAccess(tg string) (allowed bool) {
 			allowed = localAllow
 		}
 	}
+
+	if !explicit && allowed {
+		// allowed but not explicit still, use the global default
+		_, allowed = global.check(tg)
+	}
+
 	return
 }
 
-func (ud *UserDetails) FilterTags(all []string) (r []string) {
+func (ud *UserDetails) FilterTags(all []string, global TagAccess) (r []string) {
 	if ud.Admin {
 		return all
 	}
 	for _, t := range all {
-		if ud.HasTagAccess(t) {
+		if ud.HasTagAccess(t, global) {
 			r = append(r, t)
 		}
 	}
@@ -938,7 +944,7 @@ func (dtr DefaultAccessRule) String() string {
 }
 
 // CheckUserCapabilityAccess checks if a user has access to a given capability based on their direct and group assignments
-func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
+func CheckUserCapabilityAccess(ud *UserDetails, c Capability, global CapabilitySet) (allowed bool) {
 	var explicit bool
 	//check if the user has an explicit deny or allow assigned directly to them
 	//if so, THAT is our answer
@@ -963,14 +969,20 @@ func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
 			allowed = localAllow
 		}
 	}
+
+	if !explicit && allowed {
+		// allowed but not explicit still, use the global default
+		_, allowed = global.check(c)
+	}
+
 	return
 }
 
 // CreateUserCapabilityList creates a comprehensive list of capabilities the user has access to based on their direct and group assignments
-func CreateUserCapabilityList(ud *UserDetails) (r []CapabilityDesc) {
+func CreateUserCapabilityList(ud *UserDetails, global CapabilitySet) (r []CapabilityDesc) {
 	r = []CapabilityDesc{}
 	for _, c := range fullCapList {
-		if CheckUserCapabilityAccess(ud, c) {
+		if CheckUserCapabilityAccess(ud, c, global) {
 			r = append(r, c.CapabilityDesc())
 		}
 	}
@@ -978,13 +990,13 @@ func CreateUserCapabilityList(ud *UserDetails) (r []CapabilityDesc) {
 }
 
 // HasCapability returns whether the user has access to a given capability
-func (ud *UserDetails) HasCapability(c Capability) bool {
-	return CheckUserCapabilityAccess(ud, c)
+func (ud *UserDetails) HasCapability(c Capability, global CapabilitySet) bool {
+	return CheckUserCapabilityAccess(ud, c, global)
 }
 
 // CapabilityList creates a comprehensive list of capabilities the user has access to based on their direct and group assignments
-func (ud *UserDetails) CapabilityList() []CapabilityDesc {
-	return CreateUserCapabilityList(ud)
+func (ud *UserDetails) CapabilityList(global CapabilitySet) []CapabilityDesc {
+	return CreateUserCapabilityList(ud, global)
 }
 
 // Token is a complete API compatible token, it contains ownership information and all capabilities associated with the token
