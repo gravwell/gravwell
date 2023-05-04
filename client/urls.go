@@ -166,6 +166,9 @@ const (
 	SECRETS_ID_FULL_URL              = `/api/secrets/%s/full`
 	SETTINGS_URL                     = `/api/settings`
 	INGESTERS_FORGET_URL             = `/api/ingesters/%s/forget`
+	ABAC_DEFAULT_URL                 = `/api/abac/default`
+	ABAC_DEFAULT_CAPABILITIES_URL    = `/api/abac/default/capabilities`
+	ABAC_DEFAULT_TAGS_URL            = `/api/abac/default/tags`
 
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
