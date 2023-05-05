@@ -66,7 +66,7 @@ func TestIntersection(t *testing.T) {
 			Grants: []string{`foo`, `foobar`},
 		},
 		TagAccess{
-			Grants: []string{`foobar`, `barbaz`},
+			Grants: []string{`foobar`, `barbaz`, `fizz*buzz`},
 		},
 	}
 	//check foo - denied by prime and set[0]
@@ -84,6 +84,22 @@ func TestIntersection(t *testing.T) {
 	//check ChuckTesta - not disallowed by anyone, but not explicitely allowed by set[1]
 	if CheckTagAccess(`ChuckTesta`, prime, set) {
 		t.Fatal(`invalid allowance for "ChuckTesta"`)
+	}
+
+	//check things that would miss the glob
+	if CheckTagAccess(`fizzbuzzer`, prime, set) {
+		t.Fatal(`invalid allowance for "fizzbuzzer"`)
+	}
+	//check things that would hit the glob
+	vals := []string{
+		`fizzbuzz`,
+		`fizz-buzz`,
+		`fizz-to-the-buzz`,
+	}
+	for _, v := range vals {
+		if !CheckTagAccess(v, prime, set) {
+			t.Fatalf(`invalid allowance for "%s"`, v)
+		}
 	}
 }
 
@@ -114,6 +130,22 @@ func TestValidate(t *testing.T) {
 		t.Fatal("failed to disallow tag")
 	} else if len(ta.Grants) != 4 {
 		t.Fatal("Did not remove duplicate tag")
+	}
+
+	//check with an invalid tag
+	ta.Grants = []string{
+		`i love bad tags`,
+	}
+	if err := ta.Validate(); err == nil {
+		t.Fatalf("Failed to catch bad tag")
+	}
+
+	//check with a bad glob pattern
+	ta.Grants = []string{
+		`foo[a-f`, //missing training range bracket
+	}
+	if err := ta.Validate(); err == nil {
+		t.Fatalf("Failed to catch glob")
 	}
 }
 
