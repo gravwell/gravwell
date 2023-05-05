@@ -207,7 +207,7 @@ func TestAddRemove(t *testing.T) {
 		t.Fatal("DashboardRead on clean")
 	}
 
-	//change to default allow and recheck
+	//set a few grants and recheck
 	cs.Set(Search)
 	cs.Set(SOAREmail)
 	cs.Set(DashboardRead)
@@ -219,17 +219,17 @@ func TestAddRemove(t *testing.T) {
 		t.Fatal("DashboardRead not set on default allow")
 	}
 
-	//set a few overrides (they should NOT be set)
+	//set a few grants (they should NOT be set)
 	if !cs.Set(DashboardWrite) {
-		t.Fatal("Failed to set search override")
+		t.Fatal("Failed to set search grant")
 	} else if !cs.Has(DashboardWrite) {
-		t.Fatal("capability is not denied after override")
+		t.Fatal("capability is not denied after grant")
 	}
-	//remove override
+	//remove grant
 	if !cs.Clear(Search) {
-		t.Fatal("failed to clear override")
+		t.Fatal("failed to clear grant")
 	} else if cs.Has(Search) {
-		t.Fatal("capability is not allowed afer clearing override")
+		t.Fatal("capability is not allowed afer clearing grant")
 	}
 }
 
@@ -275,11 +275,12 @@ func TestOverlapWithUserExplicit(t *testing.T) {
 		t.Fatal("User has Search capability after group set")
 	}
 
-	//now swap the user assigned default and explicitely allow
+	//check that the SOAREmail grant isn't there, as a sanity check
 	if ud.HasCapability(SOAREmail) {
 		t.Fatal("User has SOAREmail after setting search")
 	}
 
+	//remove Search grant
 	ud.Groups[1].ABAC.Capabilities.Clear(Search)
 	if ud.HasCapability(Search) {
 		t.Fatal("User has Search capability after clear")
@@ -409,7 +410,7 @@ func TestGlobalTagDenyExplicitAllowUser(t *testing.T) {
 	ud.ABAC.Tags.Grants = []string{"foo"}
 
 	if !ud.HasTagAccess("foo") {
-		t.Fatal("user does not have capability with global deny and explicit override")
+		t.Fatal("user does not have tag access after grant")
 	}
 }
 
@@ -426,7 +427,7 @@ func TestGlobalTagDenyExplicitAllowGroup(t *testing.T) {
 	ud.Groups[0].ABAC.Tags.Grants = []string{"foo"}
 
 	if !ud.HasTagAccess("foo") {
-		t.Fatal("user does not have capability with global deny and explicit override")
+		t.Fatal("user does not have capability with global deny and explicit grant")
 	}
 }
 
