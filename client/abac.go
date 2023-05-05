@@ -81,33 +81,3 @@ func (c *Client) SetGroupTagAccess(gid int32, ta types.TagAccess) (err error) {
 	err = c.putStaticURL(fmt.Sprintf(GROUP_TAG_ACCESS_URL, gid), ta)
 	return
 }
-
-// ResetDefaultABAC (admin-only) clear the default ABAC rule
-func (c *Client) ResetDefaultABAC() (err error) {
-	err = c.deleteStaticURL(ABAC_DEFAULT_URL, nil)
-	return
-}
-
-// DefaultABACTagAccess (admin-only) pulls the tag access state for the default ABAC rule
-func (c *Client) DefaultABACTagAccess() (ta types.TagAccess, err error) {
-	err = c.getStaticURL(ABAC_DEFAULT_TAGS_URL, &ta)
-	return
-}
-
-// DefaultABACCapabilities (admin-only) pulls the capability state for the default ABAC rule
-func (c *Client) DefaultABACCapabilities() (cs types.CapabilityState, err error) {
-	err = c.getStaticURL(ABAC_DEFAULT_CAPABILITIES_URL, &cs)
-	return
-}
-
-// SetDefaultABACTagAccess (admin-only) sets the tag access state for the default ABAC rule
-func (c *Client) SetDefaultABACTagAccess(ta types.TagAccess) (err error) {
-	err = c.postStaticURL(ABAC_DEFAULT_TAGS_URL, ta, nil)
-	return
-}
-
-// SetDefaultABACCapabilities (admin-only) sets the capability state for the default ABAC rule
-func (c *Client) SetDefaultABACCapabilities(cs types.CapabilityState) (err error) {
-	err = c.postStaticURL(ABAC_DEFAULT_CAPABILITIES_URL, cs, nil)
-	return
-}
