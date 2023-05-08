@@ -938,5 +938,5 @@ func (c *Client) PurgeUser(id int32) error {
 }
 
 func (c *Client) ForgetIngester(id uuid.UUID) (err error) {
-	return c.deleteStaticURL(fmt.Sprintf(INGESTERS_FORGET_URL, id), nil)
+	return c.deleteStaticURL(fmt.Sprintf(INGESTERS_TRACKING_URL, id), nil)
 }
