@@ -1,0 +1,3 @@
+[[IgnoredVulns]]
+id = "GO-2022-0646"
+reason = "The Gravwell S3 ingester is a read only system and does not perform any KMS operations, nor should it be given write access to S3 buckets"

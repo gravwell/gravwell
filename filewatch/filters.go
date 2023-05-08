@@ -592,6 +592,8 @@ func (f *FilterManager) matchFile(mtchs []string, fname string) (matched bool) {
 // data from files one at a time before turning on all our file followers.  It is a pre-optimization
 // to deal with scenarios where the file follower has been offline for an extended period of time
 // or a user is attempting import a large amount of data during a migration.
+// Catchup will also check the last mod time of a file and use that as the indicator to consume the
+// final bytes if there is not terminating delimiter
 //
 // the returned boolean indicates that the quitchan (qc) has fired, this allows us to pass up
 // that the process has been asked to quit.
@@ -647,7 +649,7 @@ func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, er
 
 }
 
-// catchup file is a linear operation to get outstanding files up to date
+// catchupFollower is a linear operation to get outstanding files up to date.
 func (f *FilterManager) catchupFollower(fcfg FollowerConfig, qc chan os.Signal) (bool, error) {
 	if fl, err := NewFollower(fcfg); err != nil {
 		return false, err
