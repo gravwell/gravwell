@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gobwas/glob"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 )
@@ -105,42 +106,30 @@ var (
 	ErrUnknownCapability = errors.New("Unknown capability")
 )
 
-// The default access rule to apply to tags (false = allow).
-type DefaultAccessRule bool
-
-const (
-	DefaultAllow = false
-	DefaultDeny  = true
-)
-
-// ABACRules is the main structure that holds default stats and overrides for for API and tag access
+// ABACRules is the main structure that holds default stats and grants for for API and tag access
 // the Capabilities and Tags sub structures handle access independently
 type ABACRules struct {
 	Capabilities CapabilitySet
 	Tags         TagAccess
 }
 
-// CapabilitySet is the compacted set of default values and overrides
+// CapabilitySet is the compacted set of default values and grants
 // The CapabilitySet is translated from the CapabilityState and held internally for faster operations
 type CapabilitySet struct {
-	Default   DefaultAccessRule
-	Overrides []byte
+	Grants []byte
 }
 
 // CapabilityState is the expanded set of capabilities that is exchanged between clients the the API
-// The overrides specified using the full name of a capability to make the API more explicit
+// The grants specified using the full name of a capability to make the API more explicit
 type CapabilityState struct {
-	Default   DefaultAccessRule
-	Overrides []string
+	Grants []string
 }
 
 func (cs CapabilityState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		Default   DefaultAccessRule
-		Overrides emptyStrings
+		Grants emptyStrings
 	}{
-		cs.Default,
-		cs.Overrides,
+		cs.Grants,
 	})
 }
 
@@ -164,44 +153,41 @@ type CapabilityTemplate struct {
 //
 //	explicit: Whether or not the capability is in the CapabilitySet object.
 //	grant: Whether or not the capability is allowed to be accessed.
-func (cs CapabilitySet) check(c Capability) (explicit bool, grant bool) {
-	explicit = cs.IsSet(c)
-	grant = explicit == bool(cs.Default)
-	return
+func (cs CapabilitySet) check(c Capability) (grant bool) {
+	return cs.IsSet(c)
 }
 
-// Has checks if a capability is allowed given the default value and overrides
+// Has checks if a capability is allowed given the default value and grants
 func (cs CapabilitySet) Has(c Capability) bool {
-	_, allow := cs.check(c)
-	return allow
+	return cs.check(c)
 }
 
-// IsSet checks if a capability override is set
+// IsSet checks if a capability grant is set
 func (cs CapabilitySet) IsSet(c Capability) bool {
-	return CheckCapability(cs.Overrides, c)
+	return CheckCapability(cs.Grants, c)
 }
 
-// SetOverride sets an override on the capability set
-func (cs *CapabilitySet) SetOverride(c Capability) (r bool) {
+// Set sets an grant on the capability set
+func (cs *CapabilitySet) Set(c Capability) (r bool) {
 	if !c.Valid() {
 		return
 	}
 	if cs.IsSet(c) {
 		r = true
-	} else if buff, err := AddCapability(cs.Overrides, c); err == nil {
+	} else if buff, err := AddCapability(cs.Grants, c); err == nil {
 		r = true
-		cs.Overrides = buff
+		cs.Grants = buff
 	}
 	return
 }
 
-// ClearOverride removes a capability override from the CapabilitySet
-func (cs *CapabilitySet) ClearOverride(c Capability) (r bool) {
+// Clear removes a capability grant from the CapabilitySet
+func (cs *CapabilitySet) Clear(c Capability) (r bool) {
 	if !c.Valid() {
 		return
 	}
 	if cs.IsSet(c) {
-		RemoveCapability(cs.Overrides, c)
+		RemoveCapability(cs.Grants, c)
 	}
 	return true // it's cleared
 }
@@ -783,37 +769,52 @@ type CapError struct {
 	Error string
 }
 
-// TagAccess is the structure that holds a default access to tags and a set of optional explicit overrides
-// if the default rule is allow, any tag set in Overrides is disallowed
-// if the default rule is deny, any tag set in the overrides is allowed
+// TagAccess is the structure that holds a set of grants to tags.
+// a Grant can be a specific tag name or a globbing patttern
 type TagAccess struct {
-	Default   DefaultAccessRule
-	Overrides []string //override sets an explicit allow or deny depending on Default state
+	Grants []string //Grants specify tag names and/or globbing patterns which represent allowed tags
 }
 
 func (ta TagAccess) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		Default   DefaultAccessRule
-		Overrides emptyStrings
+		Grants emptyStrings
 	}{
-		ta.Default,
-		ta.Overrides,
+		ta.Grants,
 	})
 }
 
-// check returns two values:
-//
-//	explicit: Whether or not the tag is in the TagAccess object.
-//	grant: Whether or not the tag is allowed to be accessed.
-func (ta TagAccess) check(tg string) (explicit bool, grant bool) {
-	explicit = ta.tagInSet(tg)
-	grant = explicit == bool(ta.Default)
+const globChars = `*?[]{}!`
+
+func isGlob(pattern string) bool {
+	return strings.ContainsAny(pattern, globChars)
+}
+
+func matchGlob(pattern, val string) (r bool) {
+	if g, err := glob.Compile(pattern); err == nil && g != nil {
+		r = g.Match(val)
+	}
 	return
 }
 
-func (ta TagAccess) tagInSet(tg string) bool {
-	for _, v := range ta.Overrides {
-		if v == tg {
+func checkGlob(pattern string) (err error) {
+	if isGlob(pattern) {
+		_, err = glob.Compile(pattern)
+	}
+	return
+}
+
+func matchTag(pattern, tag string) bool {
+	if pattern == tag {
+		return true
+	} else if isGlob(pattern) && matchGlob(pattern, tag) {
+		return true
+	}
+	return false
+}
+
+func (ta TagAccess) check(tg string) bool {
+	for _, v := range ta.Grants {
+		if matchTag(v, tg) {
 			return true
 		}
 	}
@@ -827,55 +828,36 @@ func (ta TagAccess) tagInSet(tg string) bool {
 //     !@#$%^&*()=+<>,.:;`\"'{[}]|
 //  3. You cannot specify more than 65536 tags.
 func (ta *TagAccess) Validate() (err error) {
-	otags := ta.Overrides[0:0]
-	tm := make(map[string]es, len(ta.Overrides))
-	for _, tg := range ta.Overrides {
-		if err = ingest.CheckTag(tg); err != nil {
+	otags := ta.Grants[0:0]
+	tm := make(map[string]es, len(ta.Grants))
+	for _, grant := range ta.Grants {
+		if isGlob(grant) {
+			if err = checkGlob(grant); err != nil {
+				return
+			}
+		} else if err = ingest.CheckTag(grant); err != nil {
 			return
 		}
-		if _, ok := tm[tg]; !ok {
-			otags = append(otags, tg)
-			tm[tg] = empty
+		if _, ok := tm[grant]; !ok {
+			otags = append(otags, grant)
+			tm[grant] = empty
 		}
 	}
 	if len(otags) > 0xffff {
 		err = errors.New("Too many tags")
 	} else {
-		ta.Overrides = otags
-	}
-	return
-}
-
-// CheckTagConflict compares two TagAccess objects for conflicting rules. It
-// will return on the first conflict found and return the name of the tag.
-func CheckTagConflict(a, b TagAccess) (conflict bool, tag string) {
-	if a.Default == b.Default {
-		//no way to conflict
-		return
-	}
-
-	//they do not match, so there better not be any overlaps
-	for _, at := range a.Overrides {
-		for _, bt := range b.Overrides {
-			if at == bt {
-				conflict = true
-				tag = at
-				return
-			}
-		}
+		ta.Grants = otags
 	}
 	return
 }
 
 // CheckTagAccess returns true if the tag tg is allowed in the given TagAccess object.
 func CheckTagAccess(tg string, prime TagAccess, set []TagAccess) (allowed bool) {
-	var explicit bool
-	//any rules applied to a user that explicitely call out a tag override all other group rules
-	if explicit, allowed = prime.check(tg); explicit {
+	if allowed = prime.check(tg); allowed {
 		return
 	}
 	for _, g := range set {
-		if explicit, allowed = g.check(tg); explicit || !allowed {
+		if allowed = g.check(tg); allowed {
 			return
 		}
 	}
@@ -893,28 +875,17 @@ func FilterTags(tags []string, prime TagAccess, set []TagAccess) (r []string) {
 }
 
 func (ud *UserDetails) HasTagAccess(tg string) (allowed bool) {
-	var explicit bool
-	//any rules applied to a user that explicitely call out a tag override all other group rules
-	if explicit, allowed = ud.ABAC.Tags.check(tg); explicit {
+	//any rules applied to a user that explicitely call out a tag grant all other group rules
+	if allowed = ud.ABAC.Tags.check(tg); allowed {
 		return
 	}
 	//there is no explicit setting on the user, check groups
 	for _, g := range ud.Groups {
-		localExplicit, localAllow := g.ABAC.Tags.check(tg)
-		if localExplicit {
-			if !localAllow {
-				//explicit deny
-				allowed = false
-				return
-			}
-			//explicit allow, toggle explicit
-			explicit = true
-			allowed = true
-		} else if !explicit && !localAllow {
-			//if we are NOT explicit AND the new rule says deny, go ahead and set to deny
-			allowed = localAllow
+		if allowed = g.ABAC.Tags.check(tg); allowed {
+			return
 		}
 	}
+
 	return
 }
 
@@ -930,39 +901,19 @@ func (ud *UserDetails) FilterTags(all []string) (r []string) {
 	return
 }
 
-func (dtr DefaultAccessRule) String() string {
-	if dtr == DefaultAllow {
-		return `Default Allow`
-	}
-	return `Default Deny`
-}
-
 // CheckUserCapabilityAccess checks if a user has access to a given capability based on their direct and group assignments
 func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
-	var explicit bool
-	//check if the user has an explicit deny or allow assigned directly to them
-	//if so, THAT is our answer
-	if explicit, allowed = ud.ABAC.Capabilities.check(c); explicit {
+	if allowed = ud.ABAC.Capabilities.check(c); allowed {
 		return
 	}
 
 	//there is no explicit setting on the user, check groups
 	for _, g := range ud.Groups {
-		localExplicit, localAllow := g.ABAC.Capabilities.check(c)
-		if localExplicit {
-			if !localAllow {
-				//explicit deny
-				allowed = false
-				return
-			}
-			//explicit allow, toggle explicit
-			explicit = true
-			allowed = true
-		} else if !explicit && !localAllow {
-			//if we are NOT explicit AND the new rule says deny, go ahead and set to deny
-			allowed = localAllow
+		if allowed = g.ABAC.Capabilities.check(c); allowed {
+			return
 		}
 	}
+
 	return
 }
 
@@ -1109,12 +1060,7 @@ func bitmask(c Capability) (offset int, mask byte) {
 
 // HasCapability checks if a given ABACRules set has a capability
 func (abr *ABACRules) HasCapability(c Capability) (allowed bool) {
-	allowed = abr.Capabilities.Default == DefaultAllow
-	if abr.Capabilities.IsSet(c) {
-		//explicit override, thats the answer
-		allowed = !allowed
-	}
-	return
+	return abr.Capabilities.IsSet(c)
 }
 
 // CapabilityList returns a comprehensive set of capability descriptions that the given ruleset has access to
@@ -1129,11 +1075,10 @@ func (abr *ABACRules) CapabilityList() (r []CapabilityDesc) {
 
 // export a CapabilityState from the underlying capability rules
 func (abr *ABACRules) CapabilityState() (r CapabilityState) {
-	r.Default = abr.Capabilities.Default
-	r.Overrides = []string{}
+	r.Grants = []string{}
 	for _, c := range fullCapList {
 		if abr.Capabilities.IsSet(c) {
-			r.Overrides = append(r.Overrides, c.Name())
+			r.Grants = append(r.Grants, c.Name())
 		}
 	}
 	return
@@ -1142,12 +1087,11 @@ func (abr *ABACRules) CapabilityState() (r CapabilityState) {
 // CapabilitySet converts the human friendly CapabilityState into an optimized and encoded CapabilitySet for internal use
 func (st CapabilityState) CapabilitySet() (cs CapabilitySet, err error) {
 	var c Capability
-	cs.Default = st.Default
-	for _, s := range st.Overrides {
+	for _, s := range st.Grants {
 		if err = c.Parse(s); err != nil {
 			return
 		}
-		cs.SetOverride(c)
+		cs.Set(c)
 	}
 	return
 }
@@ -1164,10 +1108,9 @@ func (st CapabilityState) CapabilityList() (lst []CapabilityDesc, err error) {
 // CapabilityState takes a capability template and converts it into a capability set that can be sent to the API
 // This defaults to a state with default deny and explicit allow
 func (ct CapabilityTemplate) CapabilityState() (s CapabilityState) {
-	s.Default = DefaultDeny
-	s.Overrides = make([]string, 0, len(ct.Caps))
+	s.Grants = make([]string, 0, len(ct.Caps))
 	for _, c := range ct.Caps {
-		s.Overrides = append(s.Overrides, c.Name())
+		s.Grants = append(s.Grants, c.Name())
 	}
 	return
 }

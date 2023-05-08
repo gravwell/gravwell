@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	maxLine       int = 8 * 1024 * 1024 //8MB
-	buffBlockSize int = 4096
+	maxLine          int = 8 * 1024 * 1024 //8MB
+	buffBlockSize    int = 4096
+	maxRemainingRead int = 1024 * 1024
 )
 
 const (
@@ -26,6 +27,7 @@ const (
 type Reader interface {
 	SeekFile(int64) error
 	ReadEntry() ([]byte, bool, bool, error)
+	ReadRemaining() ([]byte, error)
 	Index() int64
 	Close() error
 }
