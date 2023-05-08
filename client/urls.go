@@ -165,7 +165,7 @@ const (
 	SECRETS_ID_DETAILS_URL           = `/api/secrets/%s/details`
 	SECRETS_ID_FULL_URL              = `/api/secrets/%s/full`
 	SETTINGS_URL                     = `/api/settings`
-	INGESTERS_FORGET_URL             = `/api/ingesters/%s/forget`
+	INGESTERS_TRACKING_URL           = `/api/ingesters/%s/tracking`
 	ABAC_DEFAULT_URL                 = `/api/abac/default`
 	ABAC_DEFAULT_CAPABILITIES_URL    = `/api/abac/default/capabilities`
 	ABAC_DEFAULT_TAGS_URL            = `/api/abac/default/tags`
