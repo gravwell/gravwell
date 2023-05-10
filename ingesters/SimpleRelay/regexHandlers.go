@@ -66,6 +66,7 @@ func startRegexListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGr
 			setLocalTime:     v.Assume_Local_Timezone,
 			timezoneOverride: v.Timezone_Override,
 			ctx:              ctx,
+			formatOverride:   v.Timestamp_Format_Override,
 			timeFormats:      cfg.TimeFormat,
 			regex:            v.Regex,
 			trimWhitespace:   v.Trim_Whitespace,
@@ -93,14 +94,6 @@ func startRegexListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGr
 		//resolve default tag
 		if rhc.defTag, err = igst.GetTag(v.Tag_Name); err != nil {
 			return err
-		}
-
-		//check format override
-		if v.Timestamp_Format_Override != `` {
-			if err = timegrinder.ValidateFormatOverride(v.Timestamp_Format_Override); err != nil {
-				return fmt.Errorf("%s Invalid timestamp override \"%s\": %v\n", k, v.Timestamp_Format_Override, err)
-			}
-			rhc.formatOverride = v.Timestamp_Format_Override
 		}
 
 		tp, str, err := translateBindType(v.Bind_String)
