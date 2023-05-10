@@ -45,7 +45,7 @@ const (
 	OverwatchName       string = `overwatch`
 	NoStatsName         string = `nostats`
 	UnlimitedCPUName    string = `unlimitedcpu`
-	CBACName            string = `cbac`
+	CBACName            string = `abac`
 	UnlimitedIngestName string = `unlimitedingest`
 
 	// ingest rate constants
