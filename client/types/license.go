@@ -37,7 +37,7 @@ const (
 	Overwatch       FeatureOverride = 1 << 2
 	NoStats         FeatureOverride = 1 << 3
 	UnlimitedCPU    FeatureOverride = 1 << 4
-	ABAC            FeatureOverride = 1 << 5
+	CBAC            FeatureOverride = 1 << 5
 	UnlimitedIngest FeatureOverride = 1 << 6
 
 	ReplicationName     string = `replication`
@@ -45,7 +45,7 @@ const (
 	OverwatchName       string = `overwatch`
 	NoStatsName         string = `nostats`
 	UnlimitedCPUName    string = `unlimitedcpu`
-	ABACName            string = `abac`
+	CBACName            string = `abac`
 	UnlimitedIngestName string = `unlimitedingest`
 
 	// ingest rate constants
@@ -404,8 +404,8 @@ func NewFeatureOverride(name string) (fo FeatureOverride, err error) {
 		fo = UnlimitedCPU
 	case UnlimitedIngestName:
 		fo = UnlimitedIngest
-	case ABACName:
-		fo = ABAC
+	case CBACName:
+		fo = CBAC
 	default:
 		err = fmt.Errorf("Unknown feature override name %q", name)
 	}
@@ -451,8 +451,8 @@ func (fo FeatureOverride) String() (r string) {
 	if fo.Set(UnlimitedIngest) {
 		r += `Unlimited Ingest `
 	}
-	if fo.Set(ABAC) {
-		r += `ABAC `
+	if fo.Set(CBAC) {
+		r += `CBAC `
 	}
 	return
 }
