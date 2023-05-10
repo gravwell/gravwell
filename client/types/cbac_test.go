@@ -12,7 +12,7 @@ import (
 	"testing"
 )
 
-var globalDefaultAllow = ABACRules{
+var globalDefaultAllow = CBACRules{
 	Capabilities: testGetAllCaps(),
 	Tags: TagAccess{
 		Grants: []string{`*`},
@@ -236,10 +236,10 @@ func TestAddRemove(t *testing.T) {
 func TestOverlap(t *testing.T) {
 	//setup user with default allow and two groups, all allow
 	ud := UserDetails{
-		ABAC: ABACRules{Capabilities: CapabilitySet{}},
+		CBAC: CBACRules{Capabilities: CapabilitySet{}},
 		Groups: []GroupDetails{
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
 		},
 	}
 
@@ -251,7 +251,7 @@ func TestOverlap(t *testing.T) {
 	}
 
 	//swap the last group to deny and recheck
-	ud.Groups[1].ABAC.Capabilities = testGetAllCaps()
+	ud.Groups[1].CBAC.Capabilities = testGetAllCaps()
 	for _, c := range fullCapList {
 		if !ud.HasCapability(c) {
 			t.Fatal("user has capability with group deny")
@@ -262,15 +262,15 @@ func TestOverlap(t *testing.T) {
 func TestOverlapWithUserExplicit(t *testing.T) {
 	//setup user with default allow and two groups, all allow
 	ud := UserDetails{
-		ABAC: ABACRules{Capabilities: CapabilitySet{}},
+		CBAC: CBACRules{Capabilities: CapabilitySet{}},
 		Groups: []GroupDetails{
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
 		},
 	}
 
 	//allow search
-	ud.Groups[1].ABAC.Capabilities.Set(Search)
+	ud.Groups[1].CBAC.Capabilities.Set(Search)
 	if !ud.HasCapability(Search) {
 		t.Fatal("User has Search capability after group set")
 	}
@@ -281,13 +281,13 @@ func TestOverlapWithUserExplicit(t *testing.T) {
 	}
 
 	//remove Search grant
-	ud.Groups[1].ABAC.Capabilities.Clear(Search)
+	ud.Groups[1].CBAC.Capabilities.Clear(Search)
 	if ud.HasCapability(Search) {
 		t.Fatal("User has Search capability after clear")
 	}
 
 	//setup an explicit allow and explicit deny, ensure it is denied
-	ud.Groups[0].ABAC.Capabilities.Set(Search)
+	ud.Groups[0].CBAC.Capabilities.Set(Search)
 	if !ud.HasCapability(Search) {
 		t.Fatal("User has Search capability after conflicting explicit group clear")
 	}
@@ -296,19 +296,19 @@ func TestOverlapWithUserExplicit(t *testing.T) {
 func TestCapabilityList(t *testing.T) {
 	//setup user with default allow and two groups, all allow
 	ud := UserDetails{
-		ABAC: ABACRules{Capabilities: CapabilitySet{}},
+		CBAC: CBACRules{Capabilities: CapabilitySet{}},
 		Groups: []GroupDetails{
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
-			GroupDetails{ABAC: ABACRules{Capabilities: testGetAllCaps()}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: testGetAllCaps()}},
 		},
 	}
 	if lst := ud.CapabilityList(); len(lst) != int(_maxCap) {
 		t.Fatalf("wide open user does not have all capabilities: %d != %d", len(lst), _maxCap)
 	}
 
-	ud.Groups[1].ABAC.Capabilities = CapabilitySet{}
+	ud.Groups[1].CBAC.Capabilities = CapabilitySet{}
 	//allow a few explicite in the group
-	ud.Groups[1].ABAC.Capabilities.Set(GetTags)
+	ud.Groups[1].CBAC.Capabilities.Set(GetTags)
 	if lst := ud.CapabilityList(); len(lst) != 1 {
 		t.Fatalf("shut out user has capabilities: %d != 1", len(lst))
 	} else if lst[0].Name != GetTags.Name() {
@@ -319,10 +319,10 @@ func TestCapabilityList(t *testing.T) {
 func TestGlobalDeny(t *testing.T) {
 	//setup user with default allow and two groups, all allow
 	ud := UserDetails{
-		ABAC: ABACRules{Capabilities: CapabilitySet{}},
+		CBAC: CBACRules{Capabilities: CapabilitySet{}},
 		Groups: []GroupDetails{
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
 		},
 	}
 
@@ -337,14 +337,14 @@ func TestGlobalDeny(t *testing.T) {
 func TestGlobalDenyExplicitAllowUser(t *testing.T) {
 	//setup user with default allow and two groups, all allow
 	ud := UserDetails{
-		ABAC: ABACRules{Capabilities: CapabilitySet{}},
+		CBAC: CBACRules{Capabilities: CapabilitySet{}},
 		Groups: []GroupDetails{
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
 		},
 	}
 
-	ud.ABAC.Capabilities.Set(Search)
+	ud.CBAC.Capabilities.Set(Search)
 
 	//check that the user can search but not do anything else
 	for _, c := range fullCapList {
@@ -361,14 +361,14 @@ func TestGlobalDenyExplicitAllowUser(t *testing.T) {
 func TestGlobalDenyExplicitAllowGroup(t *testing.T) {
 	//setup user with default allow and two groups, all allow
 	ud := UserDetails{
-		ABAC: ABACRules{Capabilities: CapabilitySet{}},
+		CBAC: CBACRules{Capabilities: CapabilitySet{}},
 		Groups: []GroupDetails{
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
 		},
 	}
 
-	ud.Groups[0].ABAC.Capabilities.Set(Search)
+	ud.Groups[0].CBAC.Capabilities.Set(Search)
 
 	//check that the user can search but not do anything else
 	for _, c := range fullCapList {
@@ -385,10 +385,10 @@ func TestGlobalDenyExplicitAllowGroup(t *testing.T) {
 func TestGlobalTagDeny(t *testing.T) {
 	//setup user with default allow and two groups, all allow
 	ud := UserDetails{
-		ABAC: ABACRules{Capabilities: CapabilitySet{}},
+		CBAC: CBACRules{Capabilities: CapabilitySet{}},
 		Groups: []GroupDetails{
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
 		},
 	}
 
@@ -400,14 +400,14 @@ func TestGlobalTagDeny(t *testing.T) {
 func TestGlobalTagDenyExplicitAllowUser(t *testing.T) {
 	//setup user with default allow and two groups, all allow
 	ud := UserDetails{
-		ABAC: ABACRules{Capabilities: CapabilitySet{}, Tags: TagAccess{}},
+		CBAC: CBACRules{Capabilities: CapabilitySet{}, Tags: TagAccess{}},
 		Groups: []GroupDetails{
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
 		},
 	}
 
-	ud.ABAC.Tags.Grants = []string{"foo"}
+	ud.CBAC.Tags.Grants = []string{"foo"}
 
 	if !ud.HasTagAccess("foo") {
 		t.Fatal("user does not have tag access after grant")
@@ -417,14 +417,14 @@ func TestGlobalTagDenyExplicitAllowUser(t *testing.T) {
 func TestGlobalTagDenyExplicitAllowGroup(t *testing.T) {
 	//setup user with default allow and two groups, all allow
 	ud := UserDetails{
-		ABAC: ABACRules{Capabilities: CapabilitySet{}},
+		CBAC: CBACRules{Capabilities: CapabilitySet{}},
 		Groups: []GroupDetails{
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}, Tags: TagAccess{}}},
-			GroupDetails{ABAC: ABACRules{Capabilities: CapabilitySet{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}, Tags: TagAccess{}}},
+			GroupDetails{CBAC: CBACRules{Capabilities: CapabilitySet{}}},
 		},
 	}
 
-	ud.Groups[0].ABAC.Tags.Grants = []string{"foo"}
+	ud.Groups[0].CBAC.Tags.Grants = []string{"foo"}
 
 	if !ud.HasTagAccess("foo") {
 		t.Fatal("user does not have capability with global deny and explicit grant")
