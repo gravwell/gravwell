@@ -75,7 +75,7 @@ type HostSysStats struct {
 
 type DeploymentInfo struct {
 	Distributed     bool //distributed webservers, meaning more than one
-	ABACEnabled     bool //whether ABAC is enabled on the system
+	CBACEnabled     bool //whether CBAC is enabled on the system
 	DefaultLanguage string
 }
 

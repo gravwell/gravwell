@@ -20,7 +20,7 @@ func (c *Client) CapabilityList() (cl []types.CapabilityDesc, err error) {
 	return
 }
 
-// CapabilityTemplateList returns a list of ABAC templates defined on the system.
+// CapabilityTemplateList returns a list of CBAC templates defined on the system.
 func (c *Client) CapabilityTemplateList() (cl []types.CapabilityTemplate, err error) {
 	err = c.getStaticURL(CAPABILITY_TEMPLATE_LIST_URL, &cl)
 	return

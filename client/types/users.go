@@ -109,7 +109,7 @@ type UserDetails struct {
 	Groups     []GroupDetails
 	Hash       []byte `json:"-"` //do not include in API responses
 	Synced     bool
-	ABAC       ABACRules `json:"-"` //do not include in API responses
+	CBAC       CBACRules `json:"-"` //do not include in API responses
 }
 
 type GroupDetails struct {
@@ -117,7 +117,7 @@ type GroupDetails struct {
 	Name   string
 	Desc   string
 	Synced bool
-	ABAC   ABACRules `json:"-"` //do not include in API responses
+	CBAC   CBACRules `json:"-"` //do not include in API responses
 }
 
 type AddUser struct {
@@ -289,7 +289,7 @@ func (ud *UserDetails) GroupNames() (gps []string) {
 
 func (ud *UserDetails) GroupTagAccess() (r []TagAccess) {
 	for i := range ud.Groups {
-		r = append(r, ud.Groups[i].ABAC.Tags)
+		r = append(r, ud.Groups[i].CBAC.Tags)
 	}
 	return
 }

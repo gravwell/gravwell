@@ -106,9 +106,9 @@ var (
 	ErrUnknownCapability = errors.New("Unknown capability")
 )
 
-// ABACRules is the main structure that holds default stats and grants for for API and tag access
+// CBACRules is the main structure that holds default stats and grants for for API and tag access
 // the Capabilities and Tags sub structures handle access independently
-type ABACRules struct {
+type CBACRules struct {
 	Capabilities CapabilitySet
 	Tags         TagAccess
 }
@@ -876,12 +876,12 @@ func FilterTags(tags []string, prime TagAccess, set []TagAccess) (r []string) {
 
 func (ud *UserDetails) HasTagAccess(tg string) (allowed bool) {
 	//any rules applied to a user that explicitely call out a tag grant all other group rules
-	if allowed = ud.ABAC.Tags.check(tg); allowed {
+	if allowed = ud.CBAC.Tags.check(tg); allowed {
 		return
 	}
 	//there is no explicit setting on the user, check groups
 	for _, g := range ud.Groups {
-		if allowed = g.ABAC.Tags.check(tg); allowed {
+		if allowed = g.CBAC.Tags.check(tg); allowed {
 			return
 		}
 	}
@@ -903,13 +903,13 @@ func (ud *UserDetails) FilterTags(all []string) (r []string) {
 
 // CheckUserCapabilityAccess checks if a user has access to a given capability based on their direct and group assignments
 func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
-	if allowed = ud.ABAC.Capabilities.check(c); allowed {
+	if allowed = ud.CBAC.Capabilities.check(c); allowed {
 		return
 	}
 
 	//there is no explicit setting on the user, check groups
 	for _, g := range ud.Groups {
-		if allowed = g.ABAC.Capabilities.check(c); allowed {
+		if allowed = g.CBAC.Capabilities.check(c); allowed {
 			return
 		}
 	}
@@ -1058,13 +1058,13 @@ func bitmask(c Capability) (offset int, mask byte) {
 	return
 }
 
-// HasCapability checks if a given ABACRules set has a capability
-func (abr *ABACRules) HasCapability(c Capability) (allowed bool) {
+// HasCapability checks if a given CBACRules set has a capability
+func (abr *CBACRules) HasCapability(c Capability) (allowed bool) {
 	return abr.Capabilities.IsSet(c)
 }
 
 // CapabilityList returns a comprehensive set of capability descriptions that the given ruleset has access to
-func (abr *ABACRules) CapabilityList() (r []CapabilityDesc) {
+func (abr *CBACRules) CapabilityList() (r []CapabilityDesc) {
 	for _, c := range fullCapList {
 		if abr.HasCapability(c) {
 			r = append(r, c.CapabilityDesc())
@@ -1074,7 +1074,7 @@ func (abr *ABACRules) CapabilityList() (r []CapabilityDesc) {
 }
 
 // export a CapabilityState from the underlying capability rules
-func (abr *ABACRules) CapabilityState() (r CapabilityState) {
+func (abr *CBACRules) CapabilityState() (r CapabilityState) {
 	r.Grants = []string{}
 	for _, c := range fullCapList {
 		if abr.Capabilities.IsSet(c) {
