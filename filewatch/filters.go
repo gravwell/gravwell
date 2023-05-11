@@ -559,7 +559,6 @@ func (f *FilterManager) checkRename(fpath string, id FileId) (isRename bool, err
 			//check the filter glob against the new name
 			if f.filters[filterId].loc == fdir && f.matchFile(f.filters[filterId].mtchs, fname) {
 				if fpath != k.FilePath {
-					fmt.Println("RENAME", fpath, "->", k.FilePath)
 					//this is just a rename, update the fpath in the follower
 					delete(f.states, k)
 					delete(f.followers, k)
@@ -568,8 +567,6 @@ func (f *FilterManager) checkRename(fpath string, id FileId) (isRename bool, err
 					f.states[k] = v.state
 					f.followers[k] = v
 					isRename = true
-				} else {
-					fmt.Println("NOT RENAME", fpath, "->", k.FilePath)
 				}
 			} else {
 				removeFollower = true
