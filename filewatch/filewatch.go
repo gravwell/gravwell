@@ -224,7 +224,7 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 			} else if file.Mode().IsRegular() {
 				// go ahead and try to watch this, see if it matches
 				fpath := filepath.Join(c.BaseDir, file.Name())
-				if _, err := wm.fman.NewFollower(fpath); err != nil {
+				if _, err := wm.fman.LoadFile(fpath); err != nil {
 					return err
 				}
 			}

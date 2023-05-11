@@ -123,7 +123,7 @@ func (fm *FilterManager) expungeOldFiles() error {
 			return errors.New("Could not find any suitable file to stop watching to add new file.")
 		}
 
-		fm.logger.Info("expunging old log file", log.KV("path", oldest.FilePath))
+		fm.logger.Info("expunging old log file", log.KV("path", oldest.FilePath), log.KV("state", *oldest.state))
 		_, err := fm.nolockRemoveFollower(oldest.FilePath, false)
 		if err != nil {
 			return err
@@ -405,7 +405,8 @@ func (f *FilterManager) addFollower(fcfg FollowerConfig) error {
 				return err
 			}
 		} else {
-			return errors.New("duplicate follower")
+			//already watching this file, don't re-add
+			return nil
 		}
 	}
 	fl, err := NewFollower(fcfg)
@@ -416,10 +417,15 @@ func (f *FilterManager) addFollower(fcfg FollowerConfig) error {
 	if fcfg.Handler != nil {
 		tag = fcfg.Handler.Tag()
 	}
+	var state int64
+	if fcfg.State != nil {
+		state = *fcfg.State
+	}
 	f.logger.Info("following new file",
 		log.KV("path", fcfg.FilePath),
 		log.KV("follower", fcfg.BaseName),
-		log.KV("tag", tag))
+		log.KV("tag", tag),
+		log.KV("state", state))
 	if err := fl.Start(); err != nil {
 		fl.Close()
 		return err
@@ -552,14 +558,19 @@ func (f *FilterManager) checkRename(fpath string, id FileId) (isRename bool, err
 			}
 			//check the filter glob against the new name
 			if f.filters[filterId].loc == fdir && f.matchFile(f.filters[filterId].mtchs, fname) {
-				//this is just a rename, update the fpath in the follower
-				delete(f.states, k)
-				delete(f.followers, k)
-				k.FilePath = fpath
-				v.FilePath = fpath
-				f.states[k] = v.state
-				f.followers[k] = v
-				isRename = true
+				if fpath != k.FilePath {
+					fmt.Println("RENAME", fpath, "->", k.FilePath)
+					//this is just a rename, update the fpath in the follower
+					delete(f.states, k)
+					delete(f.followers, k)
+					k.FilePath = fpath
+					v.FilePath = fpath
+					f.states[k] = v.state
+					f.followers[k] = v
+					isRename = true
+				} else {
+					fmt.Println("NOT RENAME", fpath, "->", k.FilePath)
+				}
 			} else {
 				removeFollower = true
 			}
@@ -611,7 +622,7 @@ func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, er
 	if err != nil {
 		return false, err
 	} else if isRename {
-		return true, nil //just a file renaming, continue
+		return false, nil //just a file renaming do not attempt to re-add
 	}
 
 	//get base dir
