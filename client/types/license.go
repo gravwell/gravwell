@@ -202,6 +202,18 @@ func (li LicenseInfo) ReplicationEnabled() bool {
 	return li.Overrides.Set(Replication)
 }
 
+func (li LicenseInfo) CBACEnabled() bool {
+	switch li.Type {
+	case Unlimited:
+		return true
+	case Enterprise:
+		return true
+	case Cluster:
+		return true
+	}
+	return li.Overrides.Set(CBAC)
+}
+
 func EncodeMetadata(md map[string]interface{}) ([]byte, error) {
 	bb := bytes.NewBuffer(nil)
 	if err := gob.NewEncoder(bb).Encode(md); err != nil {
