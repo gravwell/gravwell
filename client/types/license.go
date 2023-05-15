@@ -65,6 +65,7 @@ var (
 		NoStats,
 		UnlimitedCPU,
 		UnlimitedIngest,
+		CBAC,
 	}
 
 	OverrideNames = []string{
@@ -74,6 +75,7 @@ var (
 		NoStatsName,
 		UnlimitedCPUName,
 		UnlimitedIngestName,
+		CBACName,
 	}
 )
 
