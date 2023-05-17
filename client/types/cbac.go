@@ -79,7 +79,8 @@ const (
 type CapabilityCategory string
 
 const (
-	SearchAndDataCat  = `Search and Data`
+	IngestCat         = `Data Ingest`
+	SearchCat         = `Search`
 	ActionablesCat    = `Actionables`
 	DashboardsCat     = `Dashboards`
 	ExtractorsCat     = `Extractors`
@@ -326,27 +327,28 @@ func (c Capability) Name() string {
 func (c Capability) Category() CapabilityCategory {
 	switch c {
 	case Search:
-		return SearchAndDataCat
+		return SearchCat
 	case Download:
-		return SearchAndDataCat
+		return SearchCat
 	case SaveSearch:
-		return SearchAndDataCat
+		return SearchCat
 	case AttachSearch:
-		return SearchAndDataCat
+		return SearchCat
 	case BackgroundSearch:
-		return SearchAndDataCat
+		return SearchCat
 	case GetTags:
-		return SearchAndDataCat
+		return SearchCat
 	case SetSearchGroup:
-		return SearchAndDataCat
+		return SearchCat
 	case SearchHistory:
-		return SearchAndDataCat
+		return SearchCat
 	case SearchGroupHistory:
-		return SearchAndDataCat
+		return SearchCat
 	case SearchAllHistory:
-		return SearchAndDataCat
+		return SearchCat
+
 	case Ingest:
-		return SearchAndDataCat
+		return IngestCat
 
 	case PivotRead:
 		return ActionablesCat
