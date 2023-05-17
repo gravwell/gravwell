@@ -32,6 +32,22 @@ func (c *Client) CurrentUserCapabilities() (set []types.CapabilityDesc, err erro
 	return
 }
 
+// HasCapability checks if the client contains a given capability, if the capability list is not yet populated
+func (c *Client) HasCapability(cp types.Capability) bool {
+	if c.capabilities == nil {
+		var err error
+		if c.capabilities, err = c.CurrentUserCapabilities(); err != nil {
+			return false
+		}
+	}
+	for _, v := range c.capabilities {
+		if v.Cap == cp {
+			return true
+		}
+	}
+	return false
+}
+
 // GetUserCapabilities (admin-only) returns the list of capabilities enabled
 // for the specified user.
 func (c *Client) GetUserCapabilities(uid int32) (cs types.CapabilityState, err error) {
