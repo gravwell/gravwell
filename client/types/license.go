@@ -98,6 +98,19 @@ type LicenseInfo struct {
 	Hash      []byte
 }
 
+// Features is a list of features present on this license. It's used in the
+// /api/license path to report what features are available (but not necessarily
+// in use).
+type Features struct {
+	Replication     bool
+	SingleSignon    bool
+	Overwatch       bool
+	NoStats         bool
+	UnlimitedCPU    bool
+	CBAC            bool
+	UnlimitedIngest bool
+}
+
 type LicenseIndexerStatus struct {
 	Indexer  string `json:"indexer"`
 	Serviced bool   `json:"ready"`
@@ -185,6 +198,32 @@ func (li LicenseInfo) SKU() string {
 	return fmt.Sprintf("%d%s%s%s", li.Version, li.Type.Abbr(), maxnodes, overrides)
 }
 
+func (li LicenseInfo) OverwatchEnabled() bool {
+	return li.Overrides.Set(Overwatch)
+}
+
+func (li LicenseInfo) NoStatsEnabled() bool {
+	if li.Type.AllFeatures() {
+		return true
+	}
+	return li.Overrides.Set(NoStats)
+}
+
+func (li LicenseInfo) UnlimitedCPUEnabled() bool {
+	if li.Type.AllFeatures() {
+		return true
+	}
+	return li.Overrides.Set(UnlimitedCPU)
+}
+
+func (li LicenseInfo) UnlimitedIngestEnabled() bool {
+	if li.Overrides.Set(UnlimitedIngest) {
+		return true
+	}
+
+	return li.Type != Fractional && li.Type != Community
+}
+
 func (li LicenseInfo) SSOEnabled() bool {
 	if li.Type.AllFeatures() {
 		return true
@@ -242,6 +281,18 @@ func (li LicenseInfo) Get(key string) (val interface{}, err error) {
 		err = ErrNoMetadata
 	}
 	return
+}
+
+func (li LicenseInfo) Features() Features {
+	return Features{
+		Replication:     li.ReplicationEnabled(),
+		SingleSignon:    li.SSOEnabled(),
+		Overwatch:       li.OverwatchEnabled(),
+		NoStats:         li.NoStatsEnabled(),
+		UnlimitedCPU:    li.UnlimitedCPUEnabled(),
+		CBAC:            li.CBACEnabled(),
+		UnlimitedIngest: li.UnlimitedIngestEnabled(),
+	}
 }
 
 func (lt LicenseType) Valid() bool {
