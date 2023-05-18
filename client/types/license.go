@@ -96,7 +96,6 @@ type LicenseInfo struct {
 	Metadata  []byte
 	NFR       bool //non-commercial license override
 	Hash      []byte
-	CBAC      bool
 }
 
 type LicenseIndexerStatus struct {
