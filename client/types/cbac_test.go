@@ -302,16 +302,16 @@ func TestCapabilityList(t *testing.T) {
 			GroupDetails{CBAC: CBACRules{Capabilities: testGetAllCaps()}},
 		},
 	}
-	if lst := ud.CapabilityList(); len(lst) != int(_maxCap) {
+	if lst := ud.CapabilityList(); len(lst) != len(fullCapList) {
 		t.Fatalf("wide open user does not have all capabilities: %d != %d", len(lst), _maxCap)
 	}
 
 	ud.Groups[1].CBAC.Capabilities = CapabilitySet{}
 	//allow a few explicite in the group
-	ud.Groups[1].CBAC.Capabilities.Set(GetTags)
+	ud.Groups[1].CBAC.Capabilities.Set(Download)
 	if lst := ud.CapabilityList(); len(lst) != 1 {
 		t.Fatalf("shut out user has capabilities: %d != 1", len(lst))
-	} else if lst[0].Name != GetTags.Name() {
+	} else if lst[0].Name != Download.Name() {
 		t.Fatalf("invalid allowed list: %v", lst)
 	}
 }

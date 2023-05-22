@@ -27,7 +27,7 @@ const (
 	SaveSearch         Capability = 2
 	AttachSearch       Capability = 3
 	BackgroundSearch   Capability = 4
-	GetTags            Capability = 5
+	_                  Capability = 5
 	SetSearchGroup     Capability = 6
 	SearchHistory      Capability = 7
 	SearchGroupHistory Capability = 8
@@ -231,8 +231,6 @@ func (c Capability) Name() string {
 		return `AttachSearch`
 	case BackgroundSearch:
 		return `BackgroundSearch`
-	case GetTags:
-		return `GetTags`
 	case SetSearchGroup:
 		return `SetSearchGroup`
 	case SearchHistory:
@@ -335,8 +333,6 @@ func (c Capability) Category() CapabilityCategory {
 	case AttachSearch:
 		return SearchCat
 	case BackgroundSearch:
-		return SearchCat
-	case GetTags:
 		return SearchCat
 	case SetSearchGroup:
 		return SearchCat
@@ -460,8 +456,6 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = AttachSearch
 	case `backgroundsearch`:
 		*c = BackgroundSearch
-	case `gettags`:
-		*c = GetTags
 	case `setsearchgroup`:
 		*c = SetSearchGroup
 	case `searchhistory`:
@@ -567,8 +561,6 @@ func (c Capability) String() string {
 		return `Save Search`
 	case BackgroundSearch:
 		return `Background Search`
-	case GetTags:
-		return `Get Tags`
 	case SetSearchGroup:
 		return `Set Search Group`
 	case SearchHistory:
@@ -672,8 +664,6 @@ func (c Capability) Description() string {
 		return `User can save search results for later viewing`
 	case BackgroundSearch:
 		return `User can launch queries in the background`
-	case GetTags:
-		return `User can get a complete list of tags available`
 	case SetSearchGroup:
 		return `User can set the default search group`
 	case SearchHistory:
