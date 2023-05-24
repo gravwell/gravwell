@@ -221,6 +221,12 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 				newConfig := c
 				newConfig.BaseDir = filepath.Join(c.BaseDir, file.Name())
 				wm.addNoLock(newConfig)
+			} else if file.Mode().IsRegular() {
+				// go ahead and try to watch this, see if it matches
+				fpath := filepath.Join(c.BaseDir, file.Name())
+				if _, err := wm.fman.LoadFile(fpath); err != nil {
+					return err
+				}
 			}
 		}
 	}

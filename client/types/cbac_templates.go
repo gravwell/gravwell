@@ -29,7 +29,6 @@ var (
 		AttachSearch.CapabilityDesc(),
 		SaveSearch.CapabilityDesc(),
 		BackgroundSearch.CapabilityDesc(),
-		GetTags.CapabilityDesc(),
 		SetSearchGroup.CapabilityDesc(),
 		SearchHistory.CapabilityDesc(),
 		SearchGroupHistory.CapabilityDesc(),
@@ -79,7 +78,6 @@ var (
 		Search,
 		Download,
 		AttachSearch,
-		GetTags,
 		SetSearchGroup, //required to be able to search if default group is set
 		SearchHistory,
 		SearchGroupHistory,
