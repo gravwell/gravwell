@@ -18,16 +18,17 @@ const (
 )
 
 var (
-	fullCapStringList []string
-	fullCapList       []Capability
-	templateSet       []CapabilityTemplate
-	capabilitySet     = [...]CapabilityDesc{
+	fullTagAccess       = TagAccess{Grants: []string{`*`}}
+	fullCapabilityState CapabilityState
+	fullCapStringList   []string
+	fullCapList         []Capability
+	templateSet         []CapabilityTemplate
+	capabilitySet       = [...]CapabilityDesc{
 		Search.CapabilityDesc(),
 		Download.CapabilityDesc(),
 		AttachSearch.CapabilityDesc(),
 		SaveSearch.CapabilityDesc(),
 		BackgroundSearch.CapabilityDesc(),
-		GetTags.CapabilityDesc(),
 		SetSearchGroup.CapabilityDesc(),
 		SearchHistory.CapabilityDesc(),
 		SearchGroupHistory.CapabilityDesc(),
@@ -77,7 +78,6 @@ var (
 		Search,
 		Download,
 		AttachSearch,
-		GetTags,
 		SetSearchGroup, //required to be able to search if default group is set
 		SearchHistory,
 		SearchGroupHistory,
@@ -120,6 +120,20 @@ func init() {
 			Caps: readOnlyCapList,
 		},
 	}
+	fullCapabilityState = CapabilityState{
+		Grants: make([]string, 0, len(fullCapList)),
+	}
+	for _, c := range fullCapList {
+		fullCapabilityState.Grants = append(fullCapabilityState.Grants, c.Name())
+	}
+}
+
+func AllTagAccess() TagAccess {
+	return fullTagAccess
+}
+
+func AllCapabilityAccess() CapabilityState {
+	return fullCapabilityState
 }
 
 func CapabilityDescriptions() (r []CapabilityDesc) {

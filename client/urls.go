@@ -165,6 +165,10 @@ const (
 	SECRETS_ID_DETAILS_URL           = `/api/secrets/%s/details`
 	SECRETS_ID_FULL_URL              = `/api/secrets/%s/full`
 	SETTINGS_URL                     = `/api/settings`
+	INGESTERS_TRACKING_URL           = `/api/ingesters/%s/tracking`
+	CBAC_DEFAULT_URL                 = `/api/cbac/default`
+	CBAC_DEFAULT_CAPABILITIES_URL    = `/api/cbac/default/capabilities`
+	CBAC_DEFAULT_TAGS_URL            = `/api/cbac/default/tags`
 
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`

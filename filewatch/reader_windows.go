@@ -125,6 +125,12 @@ func (evr *EvtxReader) Close() error {
 	return evr.Fin.Close()
 }
 
+// ReadRemaining is special on the EvtxReader, we won't ever have "dangling" stuff
+// so ReadRemaining makes no sense at all, just return A-OK!
+func (evr *EvtxReader) ReadRemaining() (ln []byte, err error) {
+	return
+}
+
 func (evr *EvtxReader) ReadEntry() (ln []byte, ok bool, wasEOF bool, err error) {
 	var evtHnds []wineventlog.EvtHandle
 	var id uint64

@@ -14,6 +14,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 )
@@ -740,6 +741,7 @@ func TestMultiWatcherWithMoveWithMatchNewFilter(t *testing.T) {
 
 type safeTrackingLH struct {
 	testTagger
+	sync.Mutex
 	mp  map[string]time.Time
 	cnt int
 }
@@ -754,6 +756,8 @@ func (h *safeTrackingLH) HandleLog(b []byte, ts time.Time, fname string) error {
 	if h.mp == nil {
 		return errors.New("not ready")
 	}
+	h.Lock()
+	defer h.Unlock()
 	if len(b) > 0 {
 		h.mp[string(b)] = ts
 		h.cnt++
@@ -762,5 +766,7 @@ func (h *safeTrackingLH) HandleLog(b []byte, ts time.Time, fname string) error {
 }
 
 func (h *safeTrackingLH) Len() int {
+	h.Lock()
+	defer h.Unlock()
 	return len(h.mp)
 }

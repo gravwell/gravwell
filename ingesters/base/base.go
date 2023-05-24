@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"runtime/debug"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -97,6 +98,10 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 		return
 	}
 	cfg := ch.IngestBaseConfig()
+	if cfg.Disable_Multithreading {
+		//go into single threaded mode
+		runtime.GOMAXPROCS(1)
+	}
 
 	if len(cfg.Log_File) > 0 {
 		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)

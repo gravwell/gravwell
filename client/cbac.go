@@ -20,7 +20,7 @@ func (c *Client) CapabilityList() (cl []types.CapabilityDesc, err error) {
 	return
 }
 
-// CapabilityTemplateList returns a list of ABAC templates defined on the system.
+// CapabilityTemplateList returns a list of CBAC templates defined on the system.
 func (c *Client) CapabilityTemplateList() (cl []types.CapabilityTemplate, err error) {
 	err = c.getStaticURL(CAPABILITY_TEMPLATE_LIST_URL, &cl)
 	return
@@ -30,6 +30,22 @@ func (c *Client) CapabilityTemplateList() (cl []types.CapabilityTemplate, err er
 func (c *Client) CurrentUserCapabilities() (set []types.CapabilityDesc, err error) {
 	err = c.getStaticURL(CAPABILITY_CURRENT_USER_LIST_URL, &set)
 	return
+}
+
+// HasCapability checks if the client contains a given capability, if the capability list is not yet populated
+func (c *Client) HasCapability(cp types.Capability) bool {
+	if c.capabilities == nil {
+		var err error
+		if c.capabilities, err = c.CurrentUserCapabilities(); err != nil {
+			return false
+		}
+	}
+	for _, v := range c.capabilities {
+		if v.Cap == cp {
+			return true
+		}
+	}
+	return false
 }
 
 // GetUserCapabilities (admin-only) returns the list of capabilities enabled
