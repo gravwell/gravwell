@@ -27,7 +27,7 @@ const (
 	SaveSearch         Capability = 2
 	AttachSearch       Capability = 3
 	BackgroundSearch   Capability = 4
-	GetTags            Capability = 5
+	_                  Capability = 5
 	SetSearchGroup     Capability = 6
 	SearchHistory      Capability = 7
 	SearchGroupHistory Capability = 8
@@ -79,7 +79,8 @@ const (
 type CapabilityCategory string
 
 const (
-	SearchAndDataCat  = `Search and Data`
+	IngestCat         = `Data Ingest`
+	SearchCat         = `Search`
 	ActionablesCat    = `Actionables`
 	DashboardsCat     = `Dashboards`
 	ExtractorsCat     = `Extractors`
@@ -106,9 +107,9 @@ var (
 	ErrUnknownCapability = errors.New("Unknown capability")
 )
 
-// ABACRules is the main structure that holds default stats and grants for for API and tag access
+// CBACRules is the main structure that holds default stats and grants for for API and tag access
 // the Capabilities and Tags sub structures handle access independently
-type ABACRules struct {
+type CBACRules struct {
 	Capabilities CapabilitySet
 	Tags         TagAccess
 }
@@ -230,8 +231,6 @@ func (c Capability) Name() string {
 		return `AttachSearch`
 	case BackgroundSearch:
 		return `BackgroundSearch`
-	case GetTags:
-		return `GetTags`
 	case SetSearchGroup:
 		return `SetSearchGroup`
 	case SearchHistory:
@@ -326,27 +325,26 @@ func (c Capability) Name() string {
 func (c Capability) Category() CapabilityCategory {
 	switch c {
 	case Search:
-		return SearchAndDataCat
+		return SearchCat
 	case Download:
-		return SearchAndDataCat
+		return SearchCat
 	case SaveSearch:
-		return SearchAndDataCat
+		return SearchCat
 	case AttachSearch:
-		return SearchAndDataCat
+		return SearchCat
 	case BackgroundSearch:
-		return SearchAndDataCat
-	case GetTags:
-		return SearchAndDataCat
+		return SearchCat
 	case SetSearchGroup:
-		return SearchAndDataCat
+		return SearchCat
 	case SearchHistory:
-		return SearchAndDataCat
+		return SearchCat
 	case SearchGroupHistory:
-		return SearchAndDataCat
+		return SearchCat
 	case SearchAllHistory:
-		return SearchAndDataCat
+		return SearchCat
+
 	case Ingest:
-		return SearchAndDataCat
+		return IngestCat
 
 	case PivotRead:
 		return ActionablesCat
@@ -458,8 +456,6 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = AttachSearch
 	case `backgroundsearch`:
 		*c = BackgroundSearch
-	case `gettags`:
-		*c = GetTags
 	case `setsearchgroup`:
 		*c = SetSearchGroup
 	case `searchhistory`:
@@ -565,8 +561,6 @@ func (c Capability) String() string {
 		return `Save Search`
 	case BackgroundSearch:
 		return `Background Search`
-	case GetTags:
-		return `Get Tags`
 	case SetSearchGroup:
 		return `Set Search Group`
 	case SearchHistory:
@@ -670,8 +664,6 @@ func (c Capability) Description() string {
 		return `User can save search results for later viewing`
 	case BackgroundSearch:
 		return `User can launch queries in the background`
-	case GetTags:
-		return `User can get a complete list of tags available`
 	case SetSearchGroup:
 		return `User can set the default search group`
 	case SearchHistory:
@@ -876,12 +868,12 @@ func FilterTags(tags []string, prime TagAccess, set []TagAccess) (r []string) {
 
 func (ud *UserDetails) HasTagAccess(tg string) (allowed bool) {
 	//any rules applied to a user that explicitely call out a tag grant all other group rules
-	if allowed = ud.ABAC.Tags.check(tg); allowed {
+	if allowed = ud.CBAC.Tags.check(tg); allowed {
 		return
 	}
 	//there is no explicit setting on the user, check groups
 	for _, g := range ud.Groups {
-		if allowed = g.ABAC.Tags.check(tg); allowed {
+		if allowed = g.CBAC.Tags.check(tg); allowed {
 			return
 		}
 	}
@@ -903,13 +895,13 @@ func (ud *UserDetails) FilterTags(all []string) (r []string) {
 
 // CheckUserCapabilityAccess checks if a user has access to a given capability based on their direct and group assignments
 func CheckUserCapabilityAccess(ud *UserDetails, c Capability) (allowed bool) {
-	if allowed = ud.ABAC.Capabilities.check(c); allowed {
+	if allowed = ud.CBAC.Capabilities.check(c); allowed {
 		return
 	}
 
 	//there is no explicit setting on the user, check groups
 	for _, g := range ud.Groups {
-		if allowed = g.ABAC.Capabilities.check(c); allowed {
+		if allowed = g.CBAC.Capabilities.check(c); allowed {
 			return
 		}
 	}
@@ -1058,13 +1050,13 @@ func bitmask(c Capability) (offset int, mask byte) {
 	return
 }
 
-// HasCapability checks if a given ABACRules set has a capability
-func (abr *ABACRules) HasCapability(c Capability) (allowed bool) {
+// HasCapability checks if a given CBACRules set has a capability
+func (abr *CBACRules) HasCapability(c Capability) (allowed bool) {
 	return abr.Capabilities.IsSet(c)
 }
 
 // CapabilityList returns a comprehensive set of capability descriptions that the given ruleset has access to
-func (abr *ABACRules) CapabilityList() (r []CapabilityDesc) {
+func (abr *CBACRules) CapabilityList() (r []CapabilityDesc) {
 	for _, c := range fullCapList {
 		if abr.HasCapability(c) {
 			r = append(r, c.CapabilityDesc())
@@ -1074,7 +1066,7 @@ func (abr *ABACRules) CapabilityList() (r []CapabilityDesc) {
 }
 
 // export a CapabilityState from the underlying capability rules
-func (abr *ABACRules) CapabilityState() (r CapabilityState) {
+func (abr *CBACRules) CapabilityState() (r CapabilityState) {
 	r.Grants = []string{}
 	for _, c := range fullCapList {
 		if abr.Capabilities.IsSet(c) {

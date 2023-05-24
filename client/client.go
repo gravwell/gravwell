@@ -55,25 +55,26 @@ var (
 
 // Client handles interaction with the server's REST APIs and websockets.
 type Client struct {
-	hm          *headerMap //additional header values to add to requests
-	qm          *queryMap  // stuff to append to the URL e.g. ?admin=true
-	server      string
-	serverURL   *url.URL
-	clnt        *http.Client
-	timeout     time.Duration
-	mtx         *sync.Mutex
-	state       clientState
-	lastNotifId uint64
-	enforceCert bool
-	sessionData ActiveSession
-	userDetails types.UserDetails
-	objLog      objlog.ObjLog
-	wsScheme    string
-	httpScheme  string
-	userAgent   string
-	tlsConfig   *tls.Config
-	transport   *http.Transport
-	guiSettings types.GUISettings
+	hm           *headerMap //additional header values to add to requests
+	qm           *queryMap  // stuff to append to the URL e.g. ?admin=true
+	server       string
+	serverURL    *url.URL
+	clnt         *http.Client
+	timeout      time.Duration
+	mtx          *sync.Mutex
+	state        clientState
+	lastNotifId  uint64
+	enforceCert  bool
+	sessionData  ActiveSession
+	userDetails  types.UserDetails
+	objLog       objlog.ObjLog
+	wsScheme     string
+	httpScheme   string
+	userAgent    string
+	tlsConfig    *tls.Config
+	transport    *http.Transport
+	guiSettings  types.GUISettings
+	capabilities []types.CapabilityDesc
 }
 
 type Opts struct {

@@ -69,6 +69,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 			setLocalTime:     v.Assume_Local_Timezone,
 			timezoneOverride: v.Timezone_Override,
 			ctx:              ctx,
+			formatOverride:   v.Timestamp_Format_Override,
 			timeFormats:      cfg.TimeFormat,
 			maxObjectSize:    int64(v.Max_Object_Size),
 			disableCompact:   v.Disable_Compact,
@@ -108,13 +109,6 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 				return err
 			}
 			jhc.tags[tm.Value] = tg
-		}
-		//check format override
-		if v.Timestamp_Format_Override != `` {
-			if err = timegrinder.ValidateFormatOverride(v.Timestamp_Format_Override); err != nil {
-				return fmt.Errorf("%s Invalid timestamp override \"%s\": %v\n", k, v.Timestamp_Format_Override, err)
-			}
-			jhc.formatOverride = v.Timestamp_Format_Override
 		}
 
 		tp, str, err := translateBindType(v.Bind_String)

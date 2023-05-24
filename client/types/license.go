@@ -37,7 +37,7 @@ const (
 	Overwatch       FeatureOverride = 1 << 2
 	NoStats         FeatureOverride = 1 << 3
 	UnlimitedCPU    FeatureOverride = 1 << 4
-	ABAC            FeatureOverride = 1 << 5
+	CBAC            FeatureOverride = 1 << 5
 	UnlimitedIngest FeatureOverride = 1 << 6
 
 	ReplicationName     string = `replication`
@@ -45,7 +45,7 @@ const (
 	OverwatchName       string = `overwatch`
 	NoStatsName         string = `nostats`
 	UnlimitedCPUName    string = `unlimitedcpu`
-	ABACName            string = `abac`
+	CBACName            string = `abac`
 	UnlimitedIngestName string = `unlimitedingest`
 
 	// ingest rate constants
@@ -65,6 +65,7 @@ var (
 		NoStats,
 		UnlimitedCPU,
 		UnlimitedIngest,
+		CBAC,
 	}
 
 	OverrideNames = []string{
@@ -74,6 +75,7 @@ var (
 		NoStatsName,
 		UnlimitedCPUName,
 		UnlimitedIngestName,
+		CBACName,
 	}
 )
 
@@ -94,6 +96,19 @@ type LicenseInfo struct {
 	Metadata  []byte
 	NFR       bool //non-commercial license override
 	Hash      []byte
+}
+
+// Features is a list of features present on this license. It's used in the
+// /api/license path to report what features are available (but not necessarily
+// in use).
+type Features struct {
+	Replication     bool
+	SingleSignon    bool
+	Overwatch       bool
+	NoStats         bool
+	UnlimitedCPU    bool
+	CBAC            bool
+	UnlimitedIngest bool
 }
 
 type LicenseIndexerStatus struct {
@@ -183,6 +198,32 @@ func (li LicenseInfo) SKU() string {
 	return fmt.Sprintf("%d%s%s%s", li.Version, li.Type.Abbr(), maxnodes, overrides)
 }
 
+func (li LicenseInfo) OverwatchEnabled() bool {
+	return li.Overrides.Set(Overwatch)
+}
+
+func (li LicenseInfo) NoStatsEnabled() bool {
+	if li.Type.AllFeatures() {
+		return true
+	}
+	return li.Overrides.Set(NoStats)
+}
+
+func (li LicenseInfo) UnlimitedCPUEnabled() bool {
+	if li.Type.AllFeatures() {
+		return true
+	}
+	return li.Overrides.Set(UnlimitedCPU)
+}
+
+func (li LicenseInfo) UnlimitedIngestEnabled() bool {
+	if li.Overrides.Set(UnlimitedIngest) {
+		return true
+	}
+
+	return li.Type != Fractional && li.Type != Community
+}
+
 func (li LicenseInfo) SSOEnabled() bool {
 	if li.Type.AllFeatures() {
 		return true
@@ -200,6 +241,18 @@ func (li LicenseInfo) ReplicationEnabled() bool {
 		return true
 	}
 	return li.Overrides.Set(Replication)
+}
+
+func (li LicenseInfo) CBACEnabled() bool {
+	switch li.Type {
+	case Unlimited:
+		return true
+	case Enterprise:
+		return true
+	case Cluster:
+		return true
+	}
+	return li.Overrides.Set(CBAC)
 }
 
 func EncodeMetadata(md map[string]interface{}) ([]byte, error) {
@@ -228,6 +281,18 @@ func (li LicenseInfo) Get(key string) (val interface{}, err error) {
 		err = ErrNoMetadata
 	}
 	return
+}
+
+func (li LicenseInfo) Features() Features {
+	return Features{
+		Replication:     li.ReplicationEnabled(),
+		SingleSignon:    li.SSOEnabled(),
+		Overwatch:       li.OverwatchEnabled(),
+		NoStats:         li.NoStatsEnabled(),
+		UnlimitedCPU:    li.UnlimitedCPUEnabled(),
+		CBAC:            li.CBACEnabled(),
+		UnlimitedIngest: li.UnlimitedIngestEnabled(),
+	}
 }
 
 func (lt LicenseType) Valid() bool {
@@ -404,8 +469,8 @@ func NewFeatureOverride(name string) (fo FeatureOverride, err error) {
 		fo = UnlimitedCPU
 	case UnlimitedIngestName:
 		fo = UnlimitedIngest
-	case ABACName:
-		fo = ABAC
+	case CBACName:
+		fo = CBAC
 	default:
 		err = fmt.Errorf("Unknown feature override name %q", name)
 	}
@@ -451,8 +516,8 @@ func (fo FeatureOverride) String() (r string) {
 	if fo.Set(UnlimitedIngest) {
 		r += `Unlimited Ingest `
 	}
-	if fo.Set(ABAC) {
-		r += `ABAC `
+	if fo.Set(CBAC) {
+		r += `CBAC `
 	}
 	return
 }

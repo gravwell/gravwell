@@ -117,6 +117,7 @@ type IngestConfig struct {
 	Max_Ingest_Cache           int      `json:",omitempty"`
 	Log_Source_Override        string   `json:",omitempty"` // override log messages only
 	Label                      string   `json:",omitempty"` //arbitrary label that can be attached to an ingester
+	Disable_Multithreading     bool     //basically set GOMAXPROCS(1)
 }
 
 type IngestStreamConfig struct {

@@ -32,6 +32,10 @@ const (
 	defaultMaxHECEventSize uint = 512 * 1024 //splunk defaults to 10k characters, but thats weak
 )
 
+var (
+	respSuccess = ack{Text: "Success"}
+)
+
 type hecHandler struct {
 	hecHealth
 	name           string
@@ -83,16 +87,18 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 }
 
 func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	resp := respSuccess
 	// get a local logger up that will always add some more info
 	ll := log.NewLoggerWithKV(h.lgr, log.KV("HEC-Listener", hh.name), log.KV("remoteaddress", ip.String()))
 	dec, err := utils.NewJsonLimitedDecoder(rdr, int64(maxBody+256)) //give some slack for the extra splunk garbage
 	if err != nil {
 		ll.Error("failed to create limited decoder", log.KVErr(err))
-		w.WriteHeader(http.StatusInternalServerError)
+		hh.respInternalServerError(w)
 		return
 	}
+	var counter int
 loop:
-	for {
+	for ; ; counter++ {
 		var ts entry.Timestamp
 		var hev hecEvent
 		tag := cfg.tag
@@ -109,7 +115,7 @@ loop:
 				//just a plain old error
 				ll.Error("invalid json object", log.KV("max-size", hh.maxSize), log.KVErr(err))
 			}
-			w.WriteHeader(http.StatusBadRequest)
+			hh.respInvalidDataFormat(w, counter)
 			return // we pretty much have to just hang up
 		}
 		//handle timestamps
@@ -166,16 +172,24 @@ loop:
 		debugout("Sending entry %+v", e)
 		if err = cfg.pproc.Process(&e); err != nil {
 			ll.Error("failed to send entry", log.KVErr(err))
-			w.WriteHeader(http.StatusInternalServerError)
+			hh.respInternalServerError(w)
 			return
 		}
 	}
-	if doAck, ch := ackRequested(r); doAck {
-		hh.writeAck(ch, w)
+
+	if counter == 0 {
+		// no entries? Send a 400 / "No data"
+		hh.respNoData(w)
+		return
 	}
+	if doAck, ch := ackRequested(r); doAck {
+		hh.setAck(ch, resp)
+	}
+
+	hh.writeResponse(w, resp)
 }
 
-func (hh *hecHandler) writeAck(channel string, w http.ResponseWriter) {
+func (hh *hecHandler) setAck(channel string, resp ack) {
 	hh.ackLock.Lock()
 	if _, ok := hh.ackIds[channel]; !ok {
 		hh.ackIds[channel] = 0
@@ -183,38 +197,61 @@ func (hh *hecHandler) writeAck(channel string, w http.ResponseWriter) {
 	val := hh.ackIds[channel] + 1
 	hh.ackIds[channel] = val
 	hh.ackLock.Unlock()
-	json.NewEncoder(w).Encode(ack{
-		ID: strconv.FormatUint(val, 10),
-	})
+}
+
+func (hh *hecHandler) writeResponse(w http.ResponseWriter, resp ack) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+func (hh *hecHandler) respNoData(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(ack{Code: 5, Text: "No data"})
+}
+
+func (hh *hecHandler) respInternalServerError(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusInternalServerError)
+	json.NewEncoder(w).Encode(ack{Code: 8, Text: "Internal server error"})
+}
+
+func (hh *hecHandler) respInvalidDataFormat(w http.ResponseWriter, index int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(ack{Code: 6, Text: "Invalid data format", InvalidEventNumber: index})
 }
 
 func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	debugout("HEC RAW\n")
+	resp := ack{Text: "Success"}
 	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+1)))
 	if err != nil && err != io.EOF {
 		h.lgr.Info("got bad request", log.KV("address", ip), log.KVErr(err))
-		w.WriteHeader(http.StatusBadRequest)
+		hh.respInvalidDataFormat(w, 0)
 		return
 	} else if len(b) > maxBody {
 		h.lgr.Error("request too large, 4MB max")
-		w.WriteHeader(http.StatusBadRequest)
+		hh.respInvalidDataFormat(w, 0)
 		return
 	}
 	if len(b) == 0 {
 		h.lgr.Info("got an empty post", log.KV("address", ip))
+		hh.respNoData(w)
 		return
 	} else {
-		for _, b := range bytes.Split(b, []byte(hh.rawLineBreaker)) {
+		for i, b := range bytes.Split(b, []byte(hh.rawLineBreaker)) {
 			if err = h.handleEntry(cfg, b, ip); err != nil {
 				h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
-				w.WriteHeader(http.StatusInternalServerError)
+				hh.respInvalidDataFormat(w, i)
 				return
 			}
 		}
 	}
 	if doAck, ch := ackRequested(r); doAck {
-		hh.writeAck(ch, w)
+		hh.setAck(ch, resp)
 	}
+	hh.writeResponse(w, resp)
 }
 
 func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -255,7 +292,10 @@ func (hh *hecHealth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 type ack struct {
-	ID string `json:"ackID"`
+	Text               string `json:"text"`
+	Code               int    `json:"code"`
+	InvalidEventNumber int    `json:"invalid-event-number"`
+	ID                 string `json:"ackID"`
 }
 
 type ackReq struct {
