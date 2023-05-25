@@ -183,11 +183,8 @@ func verifyConfig(c *cfgType) error {
 		}
 	}
 	for k, v := range c.JSONListener {
-		if err := v.base.Validate(); err != nil {
+		if err := v.Validate(); err != nil {
 			return fmt.Errorf("Listener %s configuration error: %v", k, err)
-		}
-		if len(v.Default_Tag) == 0 {
-			v.Default_Tag = entry.DefaultTagName
 		}
 		if ingest.CheckTag(v.Default_Tag) != nil {
 			return errors.New("Invalid characters in the Default-Tag for " + k)

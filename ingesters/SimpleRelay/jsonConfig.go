@@ -17,6 +17,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 const (
@@ -44,6 +45,7 @@ func (jl *jsonListener) Validate() error {
 	if err := jl.base.Validate(); err != nil {
 		return err
 	}
+	jl.initDefaultTag() //make sure we resolve the Tag-Name and Default-Tag configs to do the right thing
 	//process the default tag
 	if _, err := jl.defaultTag(); err != nil {
 		return err
@@ -67,6 +69,16 @@ func (jl *jsonListener) Validate() error {
 		jl.Max_Object_Size = defaultMaxObjectSize
 	}
 	return nil
+}
+
+func (jl *jsonListener) initDefaultTag() {
+	if strings.TrimSpace(jl.Default_Tag) == `` {
+		if v := strings.TrimSpace(jl.Tag_Name); v != `` {
+			jl.Default_Tag = v
+		} else {
+			jl.Default_Tag = entry.DefaultTagName
+		}
+	}
 }
 
 func (jl jsonListener) defaultTag() (tag string, err error) {
