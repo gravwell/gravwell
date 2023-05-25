@@ -31,8 +31,6 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
-
-	"github.com/google/renameio"
 )
 
 const (
@@ -438,8 +436,7 @@ func writeTagCache(t map[string]entry.EntryTag, p string) error {
 	if err != nil {
 		return err
 	}
-
-	return renameio.WriteFile(path, b.Bytes(), 0660)
+	return atomicFileWrite(path, b.Bytes(), 0660)
 }
 
 // Start starts the connection process. This will return immediately, and does
