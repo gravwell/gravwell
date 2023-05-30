@@ -43,6 +43,7 @@ type processReadCfg struct {
 type ProcessConfig struct {
 	Exec           string
 	WorkingDir     string
+	StartDelay     int
 	MaxRestarts    int
 	RestartPeriod  time.Duration
 	CooldownPeriod time.Duration

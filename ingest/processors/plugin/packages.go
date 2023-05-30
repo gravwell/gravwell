@@ -138,7 +138,6 @@ import (
 	glob "github.com/gobwas/glob"
 	flock "github.com/gofrs/flock"
 	gopacket "github.com/google/gopacket"
-	renameio "github.com/google/renameio"
 	uuid "github.com/google/uuid"
 	ingest "github.com/gravwell/gravwell/v3/ingest"
 	config "github.com/gravwell/gravwell/v3/ingest/config"
@@ -1452,17 +1451,6 @@ func init() {
 	decs["ZeroCopyPacketDataSource"] = reflect.TypeOf((*gopacket.ZeroCopyPacketDataSource)(nil)).Elem()
 	packages["github.com/google/gopacket"] = native.Package{
 		Name:         "gopacket",
-		Declarations: decs,
-	}
-	// "github.com/google/renameio"
-	decs = make(native.Declarations, 5)
-	decs["PendingFile"] = reflect.TypeOf((*renameio.PendingFile)(nil)).Elem()
-	decs["Symlink"] = renameio.Symlink
-	decs["TempDir"] = renameio.TempDir
-	decs["TempFile"] = renameio.TempFile
-	decs["WriteFile"] = renameio.WriteFile
-	packages["github.com/google/renameio"] = native.Package{
-		Name:         "renameio",
 		Declarations: decs,
 	}
 	// "github.com/google/uuid"
