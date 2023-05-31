@@ -142,6 +142,15 @@ type CapabilityDesc struct {
 	Category CapabilityCategory
 }
 
+// CapabilityExplanation wraps a CapabilityDesc with information about if and
+// how the user *obtained* that capability.
+type CapabilityExplanation struct {
+	CapabilityDesc
+	Granted     bool           // True if the user has this capability
+	UserGrant   bool           // True if the capability was explicitly granted to the user
+	GroupGrants []GroupDetails // An array of groups to which the user belongs that grant the capability.
+}
+
 // CapabilityTemplate is group of capabilities with a name and description, this is used to build up a simplified set of
 // macro capabilities like "can run all searches" or "can read results but not write them"
 type CapabilityTemplate struct {
