@@ -149,7 +149,9 @@ const (
 	CAPABILITY_LIST_URL              = `/api/info/capabilities`
 	CAPABILITY_TEMPLATE_LIST_URL     = `/api/info/capabilities/templates`
 	CAPABILITY_CURRENT_USER_LIST_URL = `/api/info/capabilities/my`
+	CAPABILITY_CURRENT_USER_WHY_URL  = `/api/info/capabilities/whyy`
 	CAPABILITY_USER_URL              = `/api/users/%d/capabilities`
+	CAPABILITY_USER_WHY_URL          = `/api/users/%d/capabilities`
 	CAPABILITY_GROUP_URL             = `/api/groups/%d/capabilities`
 	GROUP_TAG_ACCESS_URL             = `/api/groups/%d/tags`
 	USER_TAG_ACCESS_URL              = `/api/users/%d/tags`
