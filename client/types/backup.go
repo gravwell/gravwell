@@ -8,6 +8,8 @@
 
 package types
 
+import "time"
+
 type BackupConfig struct {
 	IncludeSS     bool   // Include scheduled searches
 	OmitSensitive bool   // Omit sensitive items
@@ -16,4 +18,5 @@ type BackupConfig struct {
 
 type BackupResponse struct {
 	DownloadID string
+	Expiration time.Time
 }
