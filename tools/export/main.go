@@ -24,6 +24,7 @@ import (
 var (
 	outputDir   = flag.String("output", "", "Output directory")
 	server      = flag.String("s", "", "Address and port of Gravwell webserver")
+	wellFilter  = flag.String("well", "", "limit export to a specific well")
 	noCertsEnf  = flag.Bool("insecure", false, "Do NOT enforce webserver certificates, TLS operates in insecure mode")
 	noHttps     = flag.Bool("insecure-no-https", false, "Use insecure HTTP connection, passwords are shipped plaintext")
 	maxDuration = flag.String("max-duration", "", "maximum duration in the past to export data")

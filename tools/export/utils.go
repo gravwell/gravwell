@@ -34,6 +34,9 @@ func resolveWellSets(cli *client.Client, mp map[string]types.IndexerWellData) (w
 	wells := make(map[string][]string)
 	for _, v := range mp {
 		for _, well := range v.Wells {
+			if *wellFilter != `` && *wellFilter != well.Name {
+				continue //skip the well entirely
+			}
 			w, ok := wells[well.Name]
 			if !ok {
 				w = well.Tags
@@ -57,6 +60,9 @@ func resolveWellSets(cli *client.Client, mp map[string]types.IndexerWellData) (w
 	// now iterate over the shards and add them in
 	for _, v := range mp {
 		for _, well := range v.Wells {
+			if *wellFilter != `` && *wellFilter != well.Name {
+				continue //skip the well entirely
+			}
 			if wm, ok := wellMap[well.Name]; ok {
 				for _, si := range well.Shards {
 					wm.shards = append(wm.shards, shardRange{
@@ -98,7 +104,9 @@ func consolidateShards(shards []shardRange) (r []shardRange) {
 		} else {
 			sz += v.size
 		}
-		existing[v.start.Unix()] = sz
+		if sz > 0 {
+			existing[v.start.Unix()] = sz
+		}
 	}
 	//get things sorted
 	sort.SliceStable(r, func(i, j int) bool {

@@ -65,7 +65,13 @@ func processChunk(cli *client.Client, s, e time.Time, pth, query string) (sz int
 	var rdr io.ReadCloser
 	fpath := filepath.Join(pth, s.Format("2006-01-02-15:04:05.json.gz"))
 
-	//TODO FIXME - check if the path already exists
+	//check if we have already exported this chunk
+	if _, err = os.Stat(fpath); err == nil {
+		return
+	} else if !os.IsNotExist(err) {
+		return
+	}
+	err = nil
 	ssr := types.StartSearchRequest{
 		NoHistory:    true,
 		NonTemporal:  true,
@@ -93,7 +99,13 @@ func processChunk(cli *client.Client, s, e time.Time, pth, query string) (sz int
 	}
 	sz, _ = io.Copy(wtr, rdr)
 	rdr.Close()
-	err = wtr.Close()
+	if err = wtr.Close(); err != nil {
+		return
+	}
+	if sz == 0 {
+		//empty shard, delete the output file
+		err = os.Remove(fpath)
+	}
 	return
 }
 
