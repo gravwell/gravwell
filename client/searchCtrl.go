@@ -14,7 +14,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"net/url"
 	"strconv"
 	"time"
 
@@ -317,21 +316,6 @@ func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error
 	s.RenderMod = ssresp.RenderModule
 	s.StartSearchRequest = sr
 	return
-}
-
-// SearchURL returns a URL string that points at an existing search.
-func (c *Client) SearchURL(id string) string {
-	u := url.URL{Scheme: c.serverURL.Scheme, Host: c.serverURL.Host, User: c.serverURL.User}
-	// Try to get the ExternalAddr from the webserver, consider that authoritative
-	// from a user's point of view, since the client may be talking via 127.0.0.1
-	// or something (e.g. the searchagent)
-	if gs, err := c.GetGuiSettings(); err == nil {
-		if gs.ExternalAddr != "" {
-			u.Host = gs.ExternalAddr
-		}
-	}
-	u.Path = fmt.Sprintf("search/%s", id)
-	return u.String()
 }
 
 // StopSearch asks the search to stop progressing through the underlying data.
