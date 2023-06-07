@@ -7,6 +7,7 @@ require (
 	collectd.org v0.5.0
 	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
+	github.com/Bowery/prompt v0.0.0-20190916142128-fa8279994f75
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/Shopify/sarama v1.24.1
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56

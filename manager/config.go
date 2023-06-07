@@ -36,6 +36,7 @@ type processReadCfg struct {
 	Exec            string //command to start
 	Working_Dir     string //working directory
 	Max_Restarts    int    //max restarts before cooldown engages
+	Start_Delay     int    //max restarts before cooldown engages
 	Restart_Period  int    //period in which the restarts can occur
 	Cooldown_Period int    //in seconds
 }
@@ -112,6 +113,9 @@ func (c cfgType) Validate() error {
 		}
 		if p.Max_Restarts < 0 {
 			return errors.New("Invalid max restarts, must be > 0")
+		}
+		if p.Start_Delay < 0 {
+			return errors.New("Invalid start delay, must be >= 0")
 		}
 		if p.Cooldown_Period < 0 {
 			return errors.New("Invalid cooldown period, must be > 0")
@@ -201,6 +205,9 @@ func (c cfgType) ProcessConfigs(lg *log.Logger) (pc []ProcessConfig) {
 			p.MaxRestarts = defaultMaxRestarts
 		} else {
 			p.MaxRestarts = v.Max_Restarts
+		}
+		if v.Start_Delay > 0 {
+			p.StartDelay = v.Start_Delay
 		}
 		if v.Restart_Period <= 0 {
 			p.RestartPeriod = time.Minute * defaultRestartPeriod

@@ -263,11 +263,6 @@ type GUISettings struct {
 
 	IngestAllowed bool // set to true if the user is allowed to use the ingest APIs
 	NonCommercial bool // set to true if the license is a non-commercial license
-
-	// The address the webserver considers "external". This can be explicitly set via
-	// the External-Addr field in the webserver's gravwell.conf, otherwise the server
-	// will pick one of its IP addresses.
-	ExternalAddr string
 }
 
 type SearchAgentConfig struct {
