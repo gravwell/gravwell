@@ -7,6 +7,7 @@ require (
 	collectd.org v0.5.0
 	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
+	github.com/Bowery/prompt v0.0.0-20190916142128-fa8279994f75
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/Shopify/sarama v1.24.1
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56
@@ -67,7 +68,6 @@ require (
 	github.com/Azure/go-autorest/autorest/validation v0.3.1 // indirect
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
-	github.com/Bowery/prompt v0.0.0-20190916142128-fa8279994f75 // indirect
 	github.com/BurntSushi/toml v1.2.1 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
