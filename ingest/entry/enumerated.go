@@ -45,7 +45,7 @@ type EnumeratedValue struct {
 	Value EnumeratedData
 }
 
-// NewEnumeratedvalue will take the data interface and make a best effort to figure out
+// NewEnumeratedValue will take the data interface and make a best effort to figure out
 // what type it is being given and shove it into this encoding.
 // This is the slowest method for creating an enumerated value, use the native types.
 func NewEnumeratedValue(name string, data interface{}) (ev EnumeratedValue, err error) {

@@ -6,6 +6,8 @@ package config
 import (
 	"errors"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/google/uuid"
@@ -44,4 +46,24 @@ func (ic *IngestConfig) SetIngesterUUID(id uuid.UUID, loc string) (err error) {
 	content = strings.Join(lines, "\n")
 	err = updateConfigFile(loc, content)
 	return
+}
+
+// THIS RACY, there is no good atomic file operations on windows, so... good luck
+func updateConfigFile(loc string, content string) error {
+	if loc == `` {
+		return errors.New("Configuration was loaded with bytes, cannot update")
+	}
+	fout, err := os.CreateTemp(filepath.Dir(loc), loc)
+	if err != nil {
+		return err
+	}
+	tname := fout.Name()
+	if err := writeFull(fout, []byte(content)); err != nil {
+		fout.Close()
+		os.Remove(tname)
+		return err
+	} else if err = fout.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tname, loc)
 }

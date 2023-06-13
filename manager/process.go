@@ -73,6 +73,12 @@ func (pm *processManager) routine(die chan bool) {
 	exitCh := make(chan exitstatus, 1)
 	defer close(exitCh)
 
+	if pm.StartDelay > 0 {
+		if died := interruptSleep(die, time.Duration(pm.StartDelay)*time.Second); died {
+			return
+		}
+	}
+
 	for {
 		if died := rstr.RequestStart(die); died {
 			break
@@ -186,13 +192,7 @@ func (r restarter) sleepit(die chan bool, d time.Duration) (died bool) {
 		return
 	}
 	r.lgr.Info("restarted too many times, sleeping", log.KV("name", r.Name), log.KV("duration", d))
-	tmr := time.NewTimer(r.CooldownPeriod)
-	defer tmr.Stop()
-	select {
-	case <-tmr.C:
-	case <-die:
-		died = true
-	}
+	died = interruptSleep(die, d)
 	return
 }
 
@@ -217,6 +217,20 @@ func (r restarter) shouldSleep() (d time.Duration) {
 		d = r.CooldownPeriod
 		r.lgr.Info("restart cooldown", log.KV("elapsed", time.Since(oldestRestart)), log.KV("restartperiod", r.RestartPeriod))
 	}
+	return
+}
+
+func interruptSleep(dc chan bool, d time.Duration) (interrupted bool) {
+	if d <= 0 {
+		return
+	}
+	tmr := time.NewTimer(d)
+	select {
+	case <-tmr.C:
+	case <-dc:
+		interrupted = true
+	}
+	tmr.Stop()
 	return
 }
 
