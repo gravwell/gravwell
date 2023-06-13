@@ -8,8 +8,15 @@
 
 package types
 
+import "time"
+
 type BackupConfig struct {
 	IncludeSS     bool   // Include scheduled searches
 	OmitSensitive bool   // Omit sensitive items
 	Password      string // password to use when encrypting backup file
+}
+
+type BackupResponse struct {
+	DownloadID string
+	Expiration time.Time
 }

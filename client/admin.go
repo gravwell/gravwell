@@ -554,6 +554,12 @@ func (c *Client) GetExtractions() (dfs []types.AXDefinition, err error) {
 	return
 }
 
+// GetExtraction returns a particular extraction by UUID
+func (c *Client) GetExtraction(uuid string) (d types.AXDefinition, err error) {
+	err = c.getStaticURL(extractionIdUrl(uuid), &d)
+	return
+}
+
 // DeleteExtraction deletes the specified autoextraction.
 func (c *Client) DeleteExtraction(uuid string) (wrs []types.WarnResp, err error) {
 	if err = c.deleteStaticURL(extractionIdUrl(uuid), nil); err == io.EOF {

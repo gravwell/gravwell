@@ -40,7 +40,16 @@ func (c *Client) DeleteSearch(sid string) error {
 	return c.deleteStaticURL(searchCtrlIdUrl(sid), nil)
 }
 
-// SearchInfo requests the status for a given search ID
+// SearchStatus requests the status of a given search ID
+func (c *Client) SearchStatus(sid string) (types.SearchCtrlStatus, error) {
+	var si types.SearchCtrlStatus
+	if err := c.getStaticURL(searchCtrlIdUrl(sid), &si); err != nil {
+		return si, err
+	}
+	return si, nil
+}
+
+// SearchInfo requests the search info for a given search ID
 func (c *Client) SearchInfo(sid string) (types.SearchInfo, error) {
 	var si types.SearchInfo
 	if err := c.getStaticURL(searchCtrlDetailsUrl(sid), &si); err != nil {

@@ -6,8 +6,10 @@ package config
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 
+	"github.com/google/renameio"
 	"github.com/google/uuid"
 )
 
@@ -44,4 +46,18 @@ func (ic *IngestConfig) SetIngesterUUID(id uuid.UUID, loc string) (err error) {
 	content = strings.Join(lines, "\n")
 	err = updateConfigFile(loc, content)
 	return
+}
+
+func updateConfigFile(loc string, content string) error {
+	if loc == `` {
+		return errors.New("Configuration was loaded with bytes, cannot update")
+	}
+	fout, err := renameio.TempFile(filepath.Dir(loc), loc)
+	if err != nil {
+		return err
+	}
+	if err := writeFull(fout, []byte(content)); err != nil {
+		return err
+	}
+	return fout.CloseAtomicallyReplace()
 }
