@@ -93,7 +93,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 				return fmt.Errorf("global source override \"%s\" is invalid", cfg.Source_Override)
 			}
 		}
-		//resolve default tag
+		//resolve the default tag
 		if jhc.defTag, err = igst.GetTag(v.Default_Tag); err != nil {
 			return err
 		}

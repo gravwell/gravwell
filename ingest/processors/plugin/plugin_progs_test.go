@@ -200,7 +200,6 @@ import (
 	_ "github.com/gobwas/glob"
 	_ "github.com/gofrs/flock"
 	_ "github.com/google/gopacket"
-	_ "github.com/google/renameio"
 	_ "github.com/google/uuid"
 	_ "github.com/gravwell/ipfix"
 	_ "github.com/h2non/filetype"

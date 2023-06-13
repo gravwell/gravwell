@@ -22,6 +22,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/gravwell/gravwell/v3/client/types"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -143,10 +144,13 @@ func (c *CSVReader) ReadEntry() (*entry.Entry, error) {
 
 }
 
+func (c *CSVReader) DisableEVs() {} //does nothing, CSV doesn't support EVs
+
 type JSONReader struct {
 	TagHandler
-	rdr *json.Decoder
-	cnt int
+	rdr        *json.Decoder
+	cnt        int
+	disableEVs bool
 }
 
 func NewJSONReader(rdr io.Reader, th TagHandler) (*JSONReader, error) {
@@ -159,14 +163,19 @@ func NewJSONReader(rdr io.Reader, th TagHandler) (*JSONReader, error) {
 	}, nil
 }
 
+func (jr *JSONReader) DisableEVs() {
+	jr.disableEVs = true
+}
+
 // we have some duplicates here so that the decoder can handle both formats
 type jsonEntry struct {
-	TS        time.Time `json:",omitempty"`
-	Timestamp time.Time `json:",omitempty"` //old way
-	SRC       net.IP    `json:",omitempty"`
-	Src       net.IP    `json:",omitempty"` //old way
-	Tag       string
-	Data      []byte
+	TS         time.Time `json:",omitempty"`
+	Timestamp  time.Time `json:",omitempty"` //old way
+	SRC        net.IP    `json:",omitempty"`
+	Src        net.IP    `json:",omitempty"` //old way
+	Tag        string
+	Data       []byte
+	Enumerated []types.EnumeratedPair
 }
 
 func (je jsonEntry) ts() (ts entry.Timestamp) {
@@ -202,17 +211,41 @@ func (j *JSONReader) ReadEntry() (ent *entry.Entry, err error) {
 		err = fmt.Errorf("%v on row %d", err, j.cnt)
 		return
 	}
-	return &entry.Entry{
+	ent = &entry.Entry{
 		TS:   jent.ts(),
 		SRC:  jent.src(),
 		Tag:  tag,
 		Data: jent.Data,
-	}, nil
+	}
+	if j.disableEVs == false {
+		for _, v := range jent.Enumerated {
+			if v.RawValue.Type <= 0xff {
+				//some weird type, just cast to a string and roll
+				ev := entry.EnumeratedValue{
+					Name:  v.Name,
+					Value: entry.StringEnumData(v.Value),
+				}
+				ent.AddEnumeratedValue(ev)
+			} else {
+				var lerr error
+				ev := entry.EnumeratedValue{
+					Name: v.Name,
+				}
+				if ev.Value, lerr = entry.NewEnumeratedData(uint8(v.RawValue.Type), v.RawValue.Data); lerr != nil {
+					ev.Value = entry.StringEnumData(v.Value)
+				}
+				ent.AddEnumeratedValue(ev)
+			}
+		}
+	}
+
+	return
 }
 
 type ReimportReader interface {
 	ReadEntry() (*entry.Entry, error)
 	OverrideTags(tg entry.EntryTag)
+	DisableEVs()
 }
 
 func GetImportReader(format string, fin io.ReadCloser, th TagHandler) (ir ReimportReader, err error) {

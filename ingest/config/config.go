@@ -49,7 +49,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/go-write"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/timegrinder"
@@ -400,20 +399,6 @@ func (ic *IngestConfig) GetLogger() (l *log.Logger, err error) {
 		err = l.SetLevel(ll)
 	}
 	return
-}
-
-func updateConfigFile(loc string, content string) error {
-	if loc == `` {
-		return errors.New("Configuration was loaded with bytes, cannot update")
-	}
-	fout, err := write.TempFile(filepath.Dir(loc), loc)
-	if err != nil {
-		return err
-	}
-	if err := writeFull(fout, []byte(content)); err != nil {
-		return err
-	}
-	return fout.CloseAtomicallyReplace()
 }
 
 func writeFull(w io.Writer, b []byte) error {

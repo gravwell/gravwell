@@ -32,6 +32,13 @@ func (c *Client) CurrentUserCapabilities() (set []types.CapabilityDesc, err erro
 	return
 }
 
+// CurrentUserCapabilityExplanations returns the list of capabilities, marked up to explain
+// whether or not a user has the capability and why.
+func (c *Client) CurrentUserCapabilityExplanations() (set []types.CapabilityExplanation, err error) {
+	err = c.getStaticURL(CAPABILITY_CURRENT_USER_WHY_URL, &set)
+	return
+}
+
 // HasCapability checks if the client contains a given capability, if the capability list is not yet populated
 func (c *Client) HasCapability(cp types.Capability) bool {
 	if c.capabilities == nil {
@@ -52,6 +59,13 @@ func (c *Client) HasCapability(cp types.Capability) bool {
 // for the specified user.
 func (c *Client) GetUserCapabilities(uid int32) (cs types.CapabilityState, err error) {
 	err = c.getStaticURL(fmt.Sprintf(CAPABILITY_USER_URL, uid), &cs)
+	return
+}
+
+// GetUserCapabilityExplanations (admin-only) returns the list of capabilities enabled
+// for the specified user & why
+func (c *Client) GetUserCapabilityExplanations(uid int32) (cs []types.CapabilityExplanation, err error) {
+	err = c.getStaticURL(fmt.Sprintf(CAPABILITY_USER_WHY_URL, uid), &cs)
 	return
 }
 

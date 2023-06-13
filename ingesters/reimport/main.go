@@ -41,6 +41,7 @@ var (
 	fmtF       = flag.String("import-format", "", "Set the import file format manually")
 	tagOvr     = flag.String("tag-override", "", "Override the import file tags")
 	rebaseTime = flag.Bool("rebase-timestamp", false, "Rewrite timestamps so the most recent entry is at the current time. (Warning: may be slow with large files!)")
+	noEvs      = flag.Bool("no-evs", false, "Do not include enumerated values in imported data")
 
 	nlBytes     = []byte("\n")
 	count       uint64
@@ -123,6 +124,9 @@ func main() {
 	if err != nil {
 		igst.Close()
 		log.Fatal(err)
+	}
+	if *noEvs {
+		ir.DisableEVs()
 	}
 
 	if *rebaseTime {
