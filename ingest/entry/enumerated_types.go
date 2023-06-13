@@ -41,12 +41,29 @@ const (
 )
 
 var (
-	ErrUnknownType = errors.New("unknown native type")
+	ErrUnknownType           = errors.New("unknown native type")
+	ErrInvalidEnumeratedData = errors.New("invalid enumerated data type or data package")
 )
 
 type EnumeratedData struct {
 	data   []byte
 	evtype uint8 //you don't get access to this, sorry
+}
+
+// NewEnumeratedValueRaw takes an EV type ID and byte slice, validates it, and then creates a new ingest EV.
+// This is primarily used when reimporting data from a query that has a github.com/gravwell/gravwell/client/types.EnumeratedPair.
+// This should not be called by hand.
+func NewEnumeratedData(evtype uint8, data []byte) (ed EnumeratedData, err error) {
+	led := EnumeratedData{
+		data:   data,
+		evtype: evtype,
+	}
+	if led.Valid() {
+		ed = led
+	} else {
+		err = ErrInvalidEnumeratedData
+	}
+	return
 }
 
 // InverEnumeratedData takes a native type and creates a properly annotated enumerated value data section.
