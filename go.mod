@@ -39,7 +39,7 @@ require (
 	github.com/h2non/filetype v1.0.10
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
-	github.com/klauspost/compress v1.15.9
+	github.com/klauspost/compress v1.16.6
 	github.com/miekg/dns v1.1.43
 	github.com/minio/highwayhash v1.0.0
 	github.com/open-networks/go-msgraph v0.3.1
