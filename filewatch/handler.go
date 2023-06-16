@@ -9,17 +9,16 @@
 package filewatch
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"net"
 	"time"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/gobwas/glob"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -47,7 +46,7 @@ type LogHandler struct {
 	LogHandlerConfig
 	tg *timegrinder.TimeGrinder
 	w  logWriter
-	li *lineIgnorer
+	li *utils.LineIgnorer
 }
 
 type LogHandlerConfig struct {
@@ -67,45 +66,6 @@ type LogHandlerConfig struct {
 	Ctx                     context.Context
 	TimeFormat              config.CustomTimeFormat
 	AttachFilename          bool
-}
-
-type lineIgnorer struct {
-	prefixes [][]byte
-	globs    []glob.Glob
-}
-
-func NewIgnorer(prefixes, globs []string) (*lineIgnorer, error) {
-	li := &lineIgnorer{}
-	for _, v := range prefixes {
-		li.prefixes = append(li.prefixes, []byte(v))
-	}
-	for _, v := range globs {
-		c, err := glob.Compile(v)
-		if err != nil {
-			return nil, err
-		}
-		li.globs = append(li.globs, c)
-	}
-	return li, nil
-}
-
-// Ignore returns true if the given byte slice matches any of the prefixes or
-// globs in the ignorer.
-func (l *lineIgnorer) Ignore(b []byte) bool {
-	for _, prefix := range l.prefixes {
-		if bytes.HasPrefix(b, prefix) {
-			return true
-		}
-	}
-
-	bString := string(b)
-	for _, glob := range l.globs {
-		if glob.Match(bString) {
-			return true
-		}
-	}
-
-	return false
 }
 
 type logWriter interface {
@@ -164,7 +124,7 @@ func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
 		return nil, errors.New("no timegrinder but not ignoring timestamps")
 	}
 
-	li, err := NewIgnorer(cfg.IgnorePrefixes, cfg.IgnoreGlobs)
+	li, err := utils.NewIgnorer(cfg.IgnorePrefixes, cfg.IgnoreGlobs)
 	if err != nil {
 		return nil, err
 	}
