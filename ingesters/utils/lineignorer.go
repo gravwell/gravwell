@@ -10,6 +10,7 @@ package utils
 
 import (
 	"bytes"
+	"unsafe"
 
 	"github.com/gobwas/glob"
 )
@@ -22,7 +23,9 @@ type LineIgnorer struct {
 func NewIgnorer(prefixes, globs []string) (*LineIgnorer, error) {
 	li := &LineIgnorer{}
 	for _, v := range prefixes {
-		li.prefixes = append(li.prefixes, []byte(v))
+		if len(v) > 0 {
+			li.prefixes = append(li.prefixes, []byte(v))
+		}
 	}
 	for _, v := range globs {
 		c, err := glob.Compile(v)
@@ -37,13 +40,16 @@ func NewIgnorer(prefixes, globs []string) (*LineIgnorer, error) {
 // Ignore returns true if the given byte slice matches any of the prefixes or
 // globs in the ignorer.
 func (l *LineIgnorer) Ignore(b []byte) bool {
+	if len(b) == 0 {
+		return false
+	}
 	for _, prefix := range l.prefixes {
 		if bytes.HasPrefix(b, prefix) {
 			return true
 		}
 	}
 
-	bString := string(b)
+	bString := unsafe.String(&b[0], len(b))
 	for _, glob := range l.globs {
 		if glob.Match(bString) {
 			return true
