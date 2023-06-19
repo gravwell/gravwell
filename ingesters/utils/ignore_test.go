@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package filewatch
+package utils
 
 import (
 	"testing"
@@ -52,6 +52,24 @@ var ignoreTests = []ignoreTestConfig{
 			},
 		},
 	},
+	{
+		prefixes: []string{},
+		globs:    []string{"*foo*bar*"},
+		inputs: []ignoreInput{
+			{
+				input:      "foo blah",
+				shouldDrop: false,
+			},
+			{
+				input:      "some foo and some bar!",
+				shouldDrop: true,
+			},
+			{
+				input:      "foo and bar",
+				shouldDrop: true,
+			},
+		},
+	},
 }
 
 func TestIgnore(t *testing.T) {
@@ -62,7 +80,7 @@ func TestIgnore(t *testing.T) {
 		}
 		for _, input := range test.inputs {
 			if li.Ignore([]byte(input.input)) != input.shouldDrop {
-				t.Fatal("incorrect drop")
+				t.Fatalf("incorrect drop on: %+v", input)
 			}
 		}
 	}
