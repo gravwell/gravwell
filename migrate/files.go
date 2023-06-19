@@ -31,6 +31,7 @@ import (
 
 const (
 	filesStateType string = `files`
+	evFilenameName        = `file`
 )
 
 type files struct {
@@ -42,7 +43,9 @@ type files struct {
 	Timestamp_Format_Override string //override the timestamp format
 	Timezone_Override         string
 	Recursive                 bool // Should we descend into child directories?
+	Attach_Filename           bool // attach the full path of the file to each entry
 	Ignore_Line_Prefix        []string
+	Ignore_Glob               []string
 	Preprocessor              []string
 }
 
@@ -119,6 +122,7 @@ func fileJob(cfgName string, ctx context.Context, uc chan string) (err error) {
 		SRC:            src,
 		TG:             tg,
 		IgnorePrefixes: ignore,
+		IgnoreGlobs:    val.Ignore_Glob,
 		BatchSize:      128,
 		Verbose:        *verbose,
 	}
@@ -137,6 +141,14 @@ func fileJob(cfgName string, ctx context.Context, uc chan string) (err error) {
 			return err
 		}
 		rdrCfg.Rdr = rc
+		if val.Attach_Filename {
+			rdrCfg.AttachEnumeratedValues = []entry.EnumeratedValue{
+				{
+					Name:  evFilenameName,
+					Value: entry.StringEnumDataTail(f),
+				},
+			}
+		}
 		if c, s, err = utils.IngestLineDelimitedStream(rdrCfg); err != nil {
 			rc.Close()
 			lg.Error("failed to ingest file", log.KV("path", f), log.KVErr(err))
