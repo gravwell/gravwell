@@ -72,6 +72,7 @@ const (
 	SEARCH_CTRL_DETACH_URL           = `/api/searchctrl/%s/detach`
 	SEARCH_CTRL_STATS_URL            = `/api/searchctrl/%s/stats`
 	SEARCH_CTRL_STATS_OVERVIEW_URL   = `/api/searchctrl/%s/stats/overview`
+	SEARCH_CTRL_EXPLORE_URL          = `/api/searchctrl/%s/renderer/%s/explore`
 	SEARCH_CTRL_IMPORT_URL           = `/api/searchctrl/import`
 	SEARCH_CTRL_LAUNCH_URL           = `/api/searchctrl/launch`
 	SEARCH_HISTORY_URL               = `/api/searchhistory/%s/%d`
