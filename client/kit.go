@@ -141,6 +141,15 @@ func (c *Client) InstallKit(id string, cfg types.KitConfig) (err error) {
 	return
 }
 
+// ModifyKit tells the webserver to change parameters on an installed kit.
+// The id parameter is the UUID of the installed kit. The cfg parameter provides
+// the desired changes, with the following fields being respected: Global, InstallationGroup,
+// and Labels.
+func (c *Client) ModifyKit(id string, cfg types.KitConfig) (report types.KitModifyReport, err error) {
+	err = c.methodStaticPushURL(http.MethodPatch, kitIdUrl(id), cfg, &report)
+	return
+}
+
 // DeleteKit uninstalls a kit (specified by UUID). Note that if kit items
 // have been modified, DeleteKit will return an error; use ForceDeleteKit to
 // remove the kit regardless.
