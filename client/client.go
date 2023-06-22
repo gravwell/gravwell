@@ -243,7 +243,7 @@ func (c *Client) Test() error {
 	if err != nil {
 		return err
 	}
-	resp.Body.Close()
+	drainResponse(resp)
 	if resp.StatusCode != 200 {
 		return ErrInvalidTestStatus
 	}
@@ -294,7 +294,7 @@ func (c *Client) Login(user, pass string) error {
 		//this really should never happen
 		return errors.New("Invalid response")
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 
 	//look for the redirect response
 	switch resp.StatusCode {
@@ -344,7 +344,7 @@ func (c *Client) RefreshLoginToken() (err error) {
 		//this really should never happen
 		return errors.New("Invalid response")
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 
 	//look for the redirect response
 	switch resp.StatusCode {
