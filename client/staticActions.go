@@ -118,7 +118,7 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 	if resp == nil {
 		return errors.New("Invalid response")
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 	if resp.StatusCode == http.StatusUnauthorized {
 		c.state = STATE_LOGGED_OFF
 		return ErrNotAuthed
@@ -167,7 +167,7 @@ func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj
 	if resp == nil {
 		return errors.New("Invalid response")
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 	if resp.StatusCode == http.StatusUnauthorized {
 		c.state = STATE_LOGGED_OFF
 		return ErrNotAuthed
@@ -219,7 +219,7 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 	if resp == nil {
 		return errors.New("Invalid response")
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 	if resp.StatusCode == http.StatusUnauthorized {
 		c.state = STATE_LOGGED_OFF
 		return ErrNotAuthed
@@ -479,7 +479,7 @@ func (c *Client) nolockTestGet(path string) error {
 	if resp == nil {
 		return errors.New("Invalid response")
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 	if resp.StatusCode == http.StatusUnauthorized {
 		c.state = STATE_LOGGED_OFF
 		return errors.New("Test GET returned StatusUnauthorized")

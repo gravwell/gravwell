@@ -458,3 +458,13 @@ func (i *InstallStatus) SetError(err error) {
 	i.Error = err.Error()
 	i.Done = true
 }
+
+type KitItemStatus struct {
+	Item  KitItem
+	Error string
+}
+
+type KitModifyReport struct {
+	Statuses []KitItemStatus
+	WasError bool
+}
