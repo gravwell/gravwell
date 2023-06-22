@@ -169,6 +169,7 @@ func (c *Client) DeleteKitEx(id string) ([]types.SourcedKitItem, error) {
 		// this means we weren't able to get a request to the server, return the error
 		return []types.SourcedKitItem{}, err
 	}
+	defer drainResponse(resp)
 	if resp.StatusCode != http.StatusOK {
 		// There are basically two kinds of errors:
 		// 1. Kit items have been modified; body contains a list of modified items
