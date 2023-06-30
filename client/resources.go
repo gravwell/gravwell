@@ -85,7 +85,7 @@ func (c *Client) PopulateResourceFromReader(guid string, data io.Reader) (err er
 	if err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		c.state = STATE_LOGGED_OFF

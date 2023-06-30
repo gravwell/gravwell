@@ -623,11 +623,11 @@ func (c *Client) UploadExtraction(b []byte) (wrs []types.WarnResp, err error) {
 	if err != nil {
 		return
 	}
+	defer drainResponse(resp)
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("Bad Status %s(%d): %v", resp.Status, resp.StatusCode, getBodyErr(resp.Body))
 		return
 	}
-	err = resp.Body.Close()
 	return
 }
 
@@ -688,7 +688,7 @@ func (c *Client) BackupWithConfig(wtr io.Writer, cfg types.BackupConfig) (err er
 		c.objLog.Log(http.MethodGet+" "+err.Error(), uri, nil)
 		return
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 	if resp.StatusCode != 200 {
 		err = fmt.Errorf("Invalid response %s(%d)", resp.Status, resp.StatusCode)
 	} else if _, err = io.Copy(wtr, resp.Body); err != nil {
@@ -704,7 +704,7 @@ func (c *Client) Restore(rdr io.Reader) (err error) {
 	if resp, err = c.uploadMultipartFile(backupUrl(), backupFormFile, `file`, rdr, nil); err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 	if resp.StatusCode != 200 {
 		if err = decodeBodyError(resp.Body); err != nil {
 			err = fmt.Errorf("response error status %d %v", resp.StatusCode, err)
@@ -721,7 +721,7 @@ func (c *Client) RestoreEncrypted(rdr io.Reader, password string) (err error) {
 	if resp, err = c.uploadMultipartFile(backupUrl(), backupFormFile, `file`, rdr, map[string]string{"password": password}); err != nil {
 		return
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 	if resp.StatusCode != 200 {
 		if err = decodeBodyError(resp.Body); err != nil {
 			err = fmt.Errorf("response error status %d %v", resp.StatusCode, err)

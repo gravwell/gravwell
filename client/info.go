@@ -192,7 +192,7 @@ func (c *Client) GetLicenseDistributionState() (ds types.LicenseDistributionStat
 		err = errors.New("Invalid response")
 		return
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 	if resp.StatusCode != http.StatusOK {
 		err = fmt.Errorf("Invalid response %s", resp.Status)
 		return
@@ -245,7 +245,7 @@ func (c *Client) InitLicense(b []byte) error {
 	if resp == nil {
 		return errors.New("Invalid response")
 	}
-	defer resp.Body.Close()
+	defer drainResponse(resp)
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Invalid response %s", resp.Status)
 	}
@@ -342,7 +342,7 @@ func (c *Client) GetLibFile(repo, commit, fn string) (bts []byte, err error) {
 			io.Copy(bb, resp.Body)
 			bts = bb.Bytes()
 		}
-		resp.Body.Close()
+		drainResponse(resp)
 	}
 	return
 }
