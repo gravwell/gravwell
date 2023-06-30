@@ -278,6 +278,23 @@ type OverviewStatSet struct {
 	TS    entry.Timestamp
 }
 
+type OverviewStats struct {
+	//indicates where in the search span the query currently is, can be used for progress
+	SearchPosition entry.Timestamp
+	//indicates if the search is finished
+	Finished bool
+	// Indicates that the query results exceeded the on-disk storage limits.
+	OverLimit bool
+	// Indicates the range of entries that were dropped due to storage limits.
+	LimitDroppedRange TimeRange
+	// For some renderers, the EntryCount accurately represents the total
+	// number of results available. This field is set to 'true' in that case,
+	// meaning the EntryCount number can be displayed alongside the results
+	// without confusion.
+	EntryCountValid bool
+	Stats           []OverviewStatSet `json:",omitempty"`
+}
+
 type SearchMetadataNumber struct {
 	Count uint
 	Min   float64
