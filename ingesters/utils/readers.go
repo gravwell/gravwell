@@ -285,16 +285,18 @@ func GetImportFormat(override, fp string) (format string, err error) {
 }
 
 type LineDelimitedStream struct {
-	Rdr            io.Reader
-	Proc           *processors.ProcessorSet
-	Tag            entry.EntryTag
-	TG             *timegrinder.TimeGrinder
-	SRC            net.IP
-	IgnorePrefixes [][]byte
-	CleanQuotes    bool
-	Verbose        bool
-	Quotable       bool
-	BatchSize      int
+	Rdr                    io.Reader
+	Proc                   *processors.ProcessorSet
+	Tag                    entry.EntryTag
+	TG                     *timegrinder.TimeGrinder
+	SRC                    net.IP
+	IgnorePrefixes         [][]byte
+	IgnoreGlobs            []string
+	CleanQuotes            bool
+	Verbose                bool
+	Quotable               bool
+	BatchSize              int
+	AttachEnumeratedValues []entry.EnumeratedValue // These will be attached to every entry
 }
 
 func IngestLineDelimitedStream(cfg LineDelimitedStream) (uint64, uint64, error) {
@@ -307,7 +309,15 @@ func IngestLineDelimitedStream(cfg LineDelimitedStream) (uint64, uint64, error) 
 	if cfg.BatchSize > 0 {
 		blk = make([]*entry.Entry, 0, cfg.BatchSize)
 	}
-	ignorePrefixFlag := len(cfg.IgnorePrefixes) > 0
+	ignoreCheck := len(cfg.IgnorePrefixes) > 0 || len(cfg.IgnoreGlobs) > 0
+	var prefixes []string
+	for _, p := range cfg.IgnorePrefixes {
+		prefixes = append(prefixes, string(p))
+	}
+	ignorer, err := NewIgnorer(prefixes, cfg.IgnoreGlobs)
+	if err != nil {
+		return 0, 0, err
+	}
 
 	scn := bufio.NewScanner(cfg.Rdr)
 	if cfg.Quotable {
@@ -325,11 +335,9 @@ scannerLoop:
 				continue
 			}
 		}
-		if ignorePrefixFlag {
-			for _, pfx := range cfg.IgnorePrefixes {
-				if bytes.HasPrefix(bts, pfx) {
-					continue scannerLoop
-				}
+		if ignoreCheck {
+			if ignorer.Ignore(bts) {
+				continue scannerLoop
 			}
 		}
 		if cfg.TG == nil {
@@ -343,6 +351,9 @@ scannerLoop:
 			TS:  entry.FromStandard(ts),
 			Tag: cfg.Tag,
 			SRC: cfg.SRC,
+		}
+		for i := range cfg.AttachEnumeratedValues {
+			ent.AddEnumeratedValue(cfg.AttachEnumeratedValues[i])
 		}
 		ent.Data = append(ent.Data, bts...) //force reallocation due to the scanner
 		if cfg.BatchSize == 0 {

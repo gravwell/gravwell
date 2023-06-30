@@ -162,14 +162,14 @@ func (c *Client) uploadUserFile(method, url string, fin *os.File, meta types.Use
 	var ufr types.UserFileDetails
 	if resp, err = c.uploadMultipartFileMethod(method, url, userFileField, `file`, fin, fields); err != nil {
 		return
-	} else if resp.StatusCode != 200 {
+	}
+	defer drainResponse(resp)
+	if resp.StatusCode != 200 {
 		err = fmt.Errorf("Invalid response code %d", resp.StatusCode)
 	} else if err = json.NewDecoder(resp.Body).Decode(&ufr); err != nil {
 		return
 	} else if ufr.GUID == uuid.Nil {
 		err = fmt.Errorf("Invalid response GUID")
-	} else {
-		err = resp.Body.Close()
 	}
 	guid = ufr.GUID
 	return
