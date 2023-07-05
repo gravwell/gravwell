@@ -39,11 +39,12 @@ type KitConfigMacro struct {
 // KitConfig represents rules, labels, and other configuration options used
 // during kit installation.
 type KitConfig struct {
-	OverwriteExisting     bool     `json:",omitempty"`
-	Global                bool     `json:",omitempty"`
-	AllowExternalResource bool     `json:",omitempty"`
-	AllowUnsigned         bool     `json:",omitempty"`
-	InstallationGroup     int32    `json:",omitempty"`
+	OverwriteExisting     bool  `json:",omitempty"`
+	Global                bool  `json:",omitempty"`
+	AllowExternalResource bool  `json:",omitempty"`
+	AllowUnsigned         bool  `json:",omitempty"`
+	InstallationGroup     int32 `json:",omitempty"` // deprecated, use InstallationGroups instead
+	InstallationGroups    []int32
 	Labels                []string `json:",omitempty"` // labels applied to each *item*
 	KitLabels             []string `json:",omitempty"` // labels applied to the *kit* itself
 	ConfigMacros          []KitConfigMacro
@@ -99,7 +100,7 @@ type KitState struct {
 // the type that handles the datastore system
 type KitManifest struct {
 	UID         int32
-	GID         int32
+	GIDs        []int32
 	Global      bool
 	UUID        uuid.UUID
 	Data        []byte
@@ -111,7 +112,7 @@ type KitManifest struct {
 type IdKitState struct {
 	UUID uuid.UUID
 	UID  int32
-	GID  int32
+	GIDs []int32
 	KitState
 }
 
