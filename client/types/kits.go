@@ -110,9 +110,10 @@ type KitManifest struct {
 
 // type that is used when sending back lists via a ADMIN request (show uid and gid)
 type IdKitState struct {
-	UUID uuid.UUID
-	UID  int32
-	GIDs []int32
+	UUID   uuid.UUID
+	UID    int32
+	GIDs   []int32
+	Global bool
 	KitState
 }
 
