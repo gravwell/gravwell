@@ -153,6 +153,13 @@ type BaseResponse struct {
 	OverLimit bool
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
+
+	//SessionID is the search Session ID, used for tracking "handles" on a search using REST interface
+	SessionID uuid.UUID
+
+	//Interval is the number of seconds between hits on the search control REST API for a given second
+	//that can transpire before we consider the search session abandoned
+	Interval uint
 }
 
 func (br BaseResponse) Err() error {
