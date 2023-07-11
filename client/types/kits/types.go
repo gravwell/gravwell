@@ -192,11 +192,9 @@ func (pss *PackedScheduledSearch) Validate() error {
 }
 
 // Unpackage expands a PackedScheduledSearch into a ScheduledSearch.
-func (pss *PackedScheduledSearch) Unpackage(uid, gid int32) (ss types.ScheduledSearch) {
+func (pss *PackedScheduledSearch) Unpackage(uid int32, gids []int32) (ss types.ScheduledSearch) {
 	ss.Owner = uid
-	if gid != 0 {
-		ss.Groups = []int32{gid}
-	}
+	ss.Groups = gids
 	ss.Name = pss.Name
 	ss.Description = pss.Description
 	ss.Schedule = pss.Schedule
