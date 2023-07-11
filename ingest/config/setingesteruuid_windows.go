@@ -53,7 +53,12 @@ func updateConfigFile(loc string, content string) error {
 	if loc == `` {
 		return errors.New("Configuration was loaded with bytes, cannot update")
 	}
-	fout, err := os.CreateTemp(filepath.Dir(loc), loc)
+	dirname := filepath.Dir(loc)
+	filename := filepath.Base(loc)
+	if filename == `.` {
+		return errors.New("config filepath is a directory or empty")
+	}
+	fout, err := os.CreateTemp(dirname, filename)
 	if err != nil {
 		return err
 	}

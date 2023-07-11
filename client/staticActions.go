@@ -33,6 +33,16 @@ var (
 	ErrNotFound  = errors.New("Not Found")
 )
 
+type ClientError struct {
+	Status     string
+	StatusCode int
+	ErrorBody  string
+}
+
+func (e *ClientError) Error() string {
+	return fmt.Sprintf("Bad Status %s(%d): %s", e.Status, e.StatusCode, e.ErrorBody)
+}
+
 func (c *Client) getStaticURL(url string, obj interface{}) error {
 	return c.methodStaticURL(http.MethodGet, url, obj)
 }
@@ -130,7 +140,7 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 	//either its in the list, or the list is empty and StatusOK is implied
 	if !(statOk || (resp.StatusCode == http.StatusOK && len(okResponses) == 0)) {
 		c.objLog.Log("WEB "+req.Method, req.URL.String()+" "+resp.Status, nil)
-		return fmt.Errorf("Bad Status %s(%d): %s", resp.Status, resp.StatusCode, getBodyErr(resp.Body))
+		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
 	}
 
 	if obj != nil {
@@ -174,7 +184,7 @@ func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj
 	}
 	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResps...) {
 		c.objLog.Log("WEB "+method, url+" "+resp.Status, nil)
-		return fmt.Errorf("Bad Status %s(%d): %s", resp.Status, resp.StatusCode, getBodyErr(resp.Body))
+		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
 	}
 
 	if recvObj != nil {
@@ -226,7 +236,7 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 	}
 	if resp.StatusCode != http.StatusOK && !respOk(resp.StatusCode, okResps...) {
 		c.objLog.Log("WEB "+method, url+" "+resp.Status, nil)
-		return fmt.Errorf("Bad Status %s(%d): %s", resp.Status, resp.StatusCode, getBodyErr(resp.Body))
+		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
 	}
 
 	if recvObj != nil {
@@ -485,7 +495,7 @@ func (c *Client) nolockTestGet(path string) error {
 		return errors.New("Test GET returned StatusUnauthorized")
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Bad Status %s(%d)\n", resp.Status, resp.StatusCode)
+		return &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
 	}
 
 	return nil
