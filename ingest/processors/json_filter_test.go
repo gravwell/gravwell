@@ -54,6 +54,26 @@ func TestJsonFilterConfig(t *testing.T) {
 	}
 }
 
+func TestFilterQuoted(t *testing.T) {
+	qe := "`\"foo.bar\".f3,test_data/filter2`"
+	cfg := []byte(`
+	[global]
+	[preprocessor "jf"]
+		type = jsonfilter
+		Match-Action=pass
+		Match-Logic=and
+		Field-Filter=f1,test_data/filter1
+		Field-Filter=` + qe + `
+	`)
+	entries := []testEntry{
+		testEntry{`{"f1":"foo", "foo.bar":{"f3":"X"}}`, true}, // both fields match, pass
+		testEntry{`{"f1":"foo", "foo.bar":"zappa"}`, false},   // only one field will match, drop
+	}
+	if err := runFilterTest(cfg, "jf", entries); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // Test when we say PASS if *all* fields match something
 func TestFilterPassAND(t *testing.T) {
 	cfg := []byte(`

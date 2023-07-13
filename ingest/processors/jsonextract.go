@@ -13,7 +13,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 
 	"github.com/buger/jsonparser"
 	"github.com/gravwell/gravwell/v3/ingest/config"
@@ -142,15 +141,16 @@ func (jec JsonExtractConfig) getKeyData() (keys [][]string, keynames []string, e
 		return
 	}
 	var flds []string
-	if flds, err = splitField(jec.Extractions); err != nil {
-		return
-	}
+	flds = splitRespectQuotes(jec.Extractions, commaSplitter)
+	fmt.Println(flds)
 	for _, key := range flds {
 		var keyname string
 		if len(key) == 0 {
 			continue
 		}
-		bits := strings.Split(key, `.`)
+
+		bits := unquoteFields(splitRespectQuotes(key, dotSplitter))
+
 		if keyname = bits[len(bits)-1]; len(keyname) == 0 {
 			err = ErrInvalidKeyname
 			return
