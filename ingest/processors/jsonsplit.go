@@ -10,8 +10,8 @@ package processors
 
 import (
 	"bytes"
-	"encoding/csv"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/buger/jsonparser"
@@ -64,10 +64,8 @@ func (jasc *JsonArraySplitConfig) getKeyData() (key []string, keyname string, er
 			return
 		}
 	}
-	var flds []string
-	if flds, err = splitField(jasc.Extraction); err != nil {
-		return
-	}
+
+	flds := splitRespectQuotes(jasc.Extraction, commaSplitter)
 	if len(flds) != 1 {
 		err = ErrSingleArraySplitOnly
 		return
@@ -93,28 +91,25 @@ func NewJsonArraySplitter(cfg JsonArraySplitConfig) (*JsonArraySplitter, error) 
 	var bldr builder
 	var useBuilder bool
 	if cfg.Additional_Fields != `` {
-		if flds, err := splitField(cfg.Additional_Fields); err != nil {
-			return nil, err
-		} else {
-			var additional [][]string
-			var additionalNames []string
-			for _, fld := range flds {
-				var keys []string
-				var name string
-				if keys, name, err = getKeys(fld); err != nil {
-					return nil, err
-				}
-				additional = append(additional, keys)
-				additionalNames = append(additionalNames, name)
+		flds := splitRespectQuotes(cfg.Additional_Fields, commaSplitter)
+		var additional [][]string
+		var additionalNames []string
+		for _, fld := range flds {
+			var keys []string
+			var name string
+			if keys, name, err = getKeys(fld); err != nil {
+				return nil, err
 			}
-			bldr = builder{
-				forceJson: cfg.Force_JSON_Object,
-				bb:        bytes.NewBuffer(nil),
-				keys:      additional,
-				keynames:  additionalNames,
-			}
-			useBuilder = true
+			additional = append(additional, keys)
+			additionalNames = append(additionalNames, name)
 		}
+		bldr = builder{
+			forceJson: cfg.Force_JSON_Object,
+			bb:        bytes.NewBuffer(nil),
+			keys:      additional,
+			keynames:  additionalNames,
+		}
+		useBuilder = true
 	}
 	return &JsonArraySplitter{
 		JsonArraySplitConfig: cfg,
@@ -217,19 +212,103 @@ func (je *JsonArraySplitter) genEntry(dt jsonparser.ValueType, ent *entry.Entry,
 	return
 }
 
-func splitField(s string) (flds []string, err error) {
-	r := csv.NewReader(strings.NewReader(s))
-	r.Comma = ',' //
-	r.TrimLeadingSpace = true
-	flds, err = r.Read()
-	return
-}
-
 func getKeys(s string) (keys []string, name string, err error) {
-	if keys = strings.Split(s, `.`); len(keys) == 0 {
+	keys = unquoteFields(splitRespectQuotes(s, dotSplitter))
+	if len(keys) == 0 {
 		err = ErrMissingExtractions
 	} else {
 		name = keys[len(keys)-1]
 	}
 	return
+}
+
+type isSplitFunc func(v rune) bool
+
+func commaSplitter(v rune) bool {
+	if v == ',' {
+		return true
+	}
+	return false
+}
+
+func dotSplitter(v rune) bool {
+	if v == '.' {
+		return true
+	}
+	return false
+}
+
+func splitRespectQuotes(src string, isSplit isSplitFunc) []string {
+	var ret []string
+
+	for len(src) > 0 {
+		var arg string
+		var quoteState bool
+		var quote rune
+		var escape bool
+		var haveData bool
+		for i, v := range src {
+			// we don't actually do escape/unescape stuff here -- we just
+			// ignore escaped quotes by tracking escaping
+			if escape {
+				escape = false
+				continue
+			} else if !escape && v == '\\' {
+				escape = true
+				continue
+			}
+
+			// we're guaranteed not to be in an escaped state now
+
+			// check quotes
+			if quoteState && v == quote {
+				// found an unescaped close quote that matches the open quote
+				quoteState = false
+			} else if quoteState {
+				continue
+			} else if v == '"' {
+				quoteState = true
+				quote = v
+				continue
+			}
+
+			// we're guaranteed not to be in a quoted state now
+
+			if !isSplit(v) {
+				haveData = true
+				continue
+			}
+
+			// it's a split
+			if haveData {
+				arg = src[:i]
+				src = src[i+1:]
+				break
+			}
+		}
+
+		if arg == "" {
+			arg = src
+			src = ""
+		}
+		ret = append(ret, strings.TrimFunc(arg, isSplit))
+	}
+
+	return ret
+}
+
+// unquoteFields removes quotes from all strings in the given slice. Unquoted strings remain intact.
+func unquoteFields(s []string) []string {
+	var ret []string
+
+	for _, v := range s {
+		unquoted, err := strconv.Unquote(v)
+		if err == nil {
+			ret = append(ret, unquoted)
+		} else {
+			ret = append(ret, v)
+		}
+	}
+
+	return ret
 }
