@@ -108,5 +108,5 @@ func (jtc JsonTimestampConfig) validate() (err error) {
 }
 
 func (jtc JsonTimestampConfig) keys() []string {
-	return strings.Split(strings.TrimSpace(jtc.Path), ".")
+	return unquoteFields(splitRespectQuotes(jtc.Path, dotSplitter))
 }

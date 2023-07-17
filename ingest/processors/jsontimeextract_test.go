@@ -120,3 +120,47 @@ func TestJsonTimestamp(t *testing.T) {
 		t.Fatalf("invalid processed timestamp on miss: %q != %q", ret[0].TS, og)
 	}
 }
+
+func TestJsonTimestampQuoted(t *testing.T) {
+	quotedFields := "`\"foo.bar\".bar`"
+	b := `
+	[preprocessor "jse"]
+		type = jsontimeextract
+		Path=` + quotedFields + `
+		Timestamp-Override="RFC3339"
+		Assume-Local-Timezone=true
+	`
+	p, err := testLoadPreprocessor(b, `jse`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	og := time.Date(2020, 12, 15, 12, 1, 2, 3, time.UTC)
+	internal := time.Date(2022, 7, 2, 13, 14, 15, 0, time.UTC)
+	data := fmt.Sprintf(`{"foo.bar": {"bar": "%s"}}`, internal.Format(time.RFC3339))
+	ent := entry.Entry{
+		TS:   entry.FromStandard(og),
+		Data: []byte(data),
+	}
+	ret, err := p.Process([]*entry.Entry{&ent})
+	if err != nil {
+		t.Fatal(err)
+	} else if len(ret) != 1 {
+		t.Fatalf("wrong return count")
+	}
+	if !ret[0].TS.StandardTime().Equal(internal) {
+		t.Fatalf("invalid processed timestamp: %q != %q", ret[0].TS, internal)
+	}
+
+	//now test that its left alone on a miss
+	ent.Data = []byte(fmt.Sprintf(`{"bar": {"baz": "%s"}}`, internal.Format(time.RFC3339)))
+	ent.TS = entry.FromStandard(og)
+	ret, err = p.Process([]*entry.Entry{&ent})
+	if err != nil {
+		t.Fatal(err)
+	} else if len(ret) != 1 {
+		t.Fatalf("wrong return count")
+	}
+	if !ret[0].TS.StandardTime().Equal(og) {
+		t.Fatalf("invalid processed timestamp on miss: %q != %q", ret[0].TS, og)
+	}
+}
