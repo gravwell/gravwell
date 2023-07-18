@@ -103,20 +103,7 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 		runtime.GOMAXPROCS(1)
 	}
 
-	if len(cfg.Log_File) > 0 {
-		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
-		if err != nil {
-			ib.Logger.FatalCode(0, "failed to open log file", log.KV("path", cfg.Log_File), log.KVErr(err))
-		}
-		if err = ib.Logger.AddWriter(fout); err != nil {
-			ib.Logger.Fatal("failed to add a writer", log.KVErr(err))
-		}
-		if len(cfg.Log_Level) > 0 {
-			if err = ib.Logger.SetLevelString(cfg.Log_Level); err != nil {
-				ib.Logger.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Log_Level), log.KVErr(err))
-			}
-		}
-	}
+	cfg.AddLocalLogging(ib.Logger)
 	return
 }
 
