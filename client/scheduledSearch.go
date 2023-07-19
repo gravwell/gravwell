@@ -158,7 +158,7 @@ func (c *Client) ParseScheduledScript(data string, lang types.ScriptLang) (line,
 		Version: int(lang),
 		Script:  data,
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, scheduledSearchParseUrl(), req, &resp); err != nil {
+	if err = c.methodStaticPushURL(http.MethodPut, scheduledSearchParseUrl(), req, &resp, nil, nil); err != nil {
 		return
 	}
 	if resp.OK {

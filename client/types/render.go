@@ -299,6 +299,7 @@ type OverviewStats struct {
 	// meaning the EntryCount number can be displayed alongside the results
 	// without confusion.
 	EntryCountValid bool
+	EntryCount      uint64
 	Stats           []OverviewStatSet `json:",omitempty"`
 }
 

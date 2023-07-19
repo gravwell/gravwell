@@ -18,7 +18,7 @@ import (
 
 // NewSearchLibrary creates a new search library entry for the current user.
 func (c *Client) NewSearchLibrary(sl types.WireSearchLibrary) (wsl types.WireSearchLibrary, err error) {
-	err = c.methodStaticPushURL(http.MethodPost, searchLibUrl(), sl, &wsl)
+	err = c.methodStaticPushURL(http.MethodPost, searchLibUrl(), sl, &wsl, nil, nil)
 	return
 }
 
@@ -56,6 +56,6 @@ func (c *Client) DeleteSearchLibrary(id uuid.UUID) (err error) {
 
 // UpdateSearchLibrary updates a specific search library entry.
 func (c *Client) UpdateSearchLibrary(sl types.WireSearchLibrary) (nsl types.WireSearchLibrary, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, searchLibIdUrl(sl.ThingUUID), sl, &nsl)
+	err = c.methodStaticPushURL(http.MethodPut, searchLibIdUrl(sl.ThingUUID), sl, &nsl, nil, nil)
 	return
 }
