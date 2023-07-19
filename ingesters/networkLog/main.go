@@ -117,20 +117,8 @@ func main() {
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
 	}
-	if len(cfg.Log_File) > 0 {
-		fout, err := os.OpenFile(cfg.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
-		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Log_File), log.KVErr(err))
-		}
-		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("failed to add a writer", log.KVErr(err))
-		}
-		if len(cfg.Log_Level) > 0 {
-			if err = lg.SetLevelString(cfg.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Log_Level), log.KVErr(err))
-			}
-		}
-	}
+
+	cfg.AddLocalLogging(lg)
 
 	tags, err := cfg.Tags()
 	if err != nil {
