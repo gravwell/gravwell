@@ -36,6 +36,7 @@ var (
 	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
 	verboseF       = flag.Bool("v", false, "Verbose mode, do not run as a service and output status to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
+	dumpState      = flag.Bool("dump-state", false, "Dump the file follower state file in a human format and exit")
 
 	confLoc string
 	verbose bool
@@ -99,6 +100,10 @@ func main() {
 	}
 
 	if inter {
+		if *dumpState {
+			dumpStateFile(cfg.State_Store_Location)
+			os.Exit(0)
+		}
 		runInteractive(s)
 	} else {
 		runService(s)

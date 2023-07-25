@@ -11,6 +11,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -18,6 +19,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/filewatch"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -251,4 +253,16 @@ func (g *global) Verify() (err error) {
 
 func (g *global) StatePath() string {
 	return g.State_Store_Location
+}
+
+func dumpStateFile(pth string) {
+	states, err := filewatch.DecodeStateFile(pth)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load state file: %v\n", err)
+		return
+	}
+	fmt.Printf("%-24s %-16s %s\n", "Listener Name", "File Offset", "File Path")
+	for _, state := range states {
+		fmt.Printf("%-24s %-16d %s\n", state.BaseName, state.State, state.FilePath)
+	}
 }
