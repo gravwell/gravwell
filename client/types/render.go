@@ -114,6 +114,7 @@ type EntryRange struct {
 }
 
 // BaseRequest contains elements common to all renderer requests.
+// DEPRECATED - use REST API
 type BaseRequest struct {
 	ID         uint32
 	Stats      *SearchStatsRequest `json:",omitempty"`
@@ -123,7 +124,7 @@ type BaseRequest struct {
 
 // BaseResponse contains elements common to all renderer request responses.
 type BaseResponse struct {
-	ID         uint32
+	ID         uint32                    // DEPRECATED - REST API no longer returns this value
 	Stats      *SearchStatsResponse      `json:",omitempty"`
 	Addendum   json.RawMessage           `json:",omitempty"`
 	SearchInfo *SearchInfo               `json:",omitempty"`

@@ -653,6 +653,10 @@ func searchExploreUrl(id, rndr string) string {
 	return fmt.Sprintf(SEARCH_CTRL_EXPLORE_URL, id, rndr)
 }
 
+func searchEntriesUrl(id, rndr string) string {
+	return fmt.Sprintf(SEARCH_CTRL_ENTRIES_URL, id, rndr)
+}
+
 func searchParseUrl() string {
 	return SEARCH_PARSE_URL
 }
