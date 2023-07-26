@@ -43,6 +43,7 @@ var (
 	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
+	dumpState      = flag.Bool("dump-state", false, "Dump the file follower state file in a human format and exit")
 
 	v  bool
 	lg *log.Logger
@@ -90,6 +91,11 @@ func main() {
 	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {
 		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
+	}
+
+	if *dumpState {
+		dumpStateFile(cfg.State_Store_Location)
+		os.Exit(0)
 	}
 
 	cfg.AddLocalLogging(lg)
