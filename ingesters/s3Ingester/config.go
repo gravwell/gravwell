@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -48,6 +49,7 @@ type global struct {
 
 type cfgReadType struct {
 	Global       global
+	Attach       attach.AttachConfig
 	Bucket       map[string]*bucket
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -55,6 +57,7 @@ type cfgReadType struct {
 
 type cfgType struct {
 	config.IngestConfig
+	Attach               attach.AttachConfig
 	State_Store_Location string
 	Bucket               map[string]*bucket
 	Preprocessor         processors.ProcessorConfig
@@ -71,6 +74,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	}
 	c := &cfgType{
 		IngestConfig:         cr.Global.IngestConfig,
+		Attach:               cr.Attach,
 		State_Store_Location: cr.Global.State_Store_Location,
 		Bucket:               cr.Bucket,
 		Preprocessor:         cr.Preprocessor,
@@ -100,6 +104,8 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 func verifyConfig(c *cfgType) error {
 	//verify the global parameters
 	if err := c.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	}
 
@@ -175,6 +181,10 @@ func (c *cfgType) Tags() ([]string, error) {
 
 func (c *cfgType) IngestBaseConfig() config.IngestConfig {
 	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
 
 func (c *cfgType) newTimeGrinder(tc TimeConfig) (tg *timegrinder.TimeGrinder, err error) {

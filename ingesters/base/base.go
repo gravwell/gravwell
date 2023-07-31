@@ -21,6 +21,7 @@ import (
 	"runtime/debug"
 
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -39,6 +40,7 @@ type getConfigFunc func(cfg, overlay string) (interface{}, error)
 type cfgHelper interface {
 	Tags() ([]string, error)
 	IngestBaseConfig() config.IngestConfig
+	AttachConfig() attach.AttachConfig
 }
 
 type IngesterBaseConfig struct {
@@ -194,6 +196,7 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 		CacheSize:          cfg.Max_Ingest_Cache,
 		CacheMode:          cfg.Cache_Mode,
 		LogSourceOverride:  net.ParseIP(cfg.Log_Source_Override),
+		Attach:             ch.AttachConfig(),
 	}
 	if igst, err = ingest.NewUniformMuxer(igCfg); err != nil {
 		ib.Logger.Fatal("failed build our ingest system", log.KVErr(err))

@@ -26,7 +26,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/chancacher"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -126,6 +128,8 @@ type IngestMuxer struct {
 	ingesterState     IngesterState
 	logbuff           *EntryBuffer // for holding logs until we can push them
 	start             time.Time    // when the muxer was started
+	attacher          *attach.Attacher
+	attachActive      bool
 }
 
 type UniformMuxerConfig struct {
@@ -149,6 +153,7 @@ type UniformMuxerConfig struct {
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
+	Attach            attach.AttachConfig
 }
 
 type MuxerConfig struct {
@@ -170,6 +175,7 @@ type MuxerConfig struct {
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
+	Attach            attach.AttachConfig
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
@@ -229,6 +235,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		RateLimitBps:       c.RateLimitBps,
 		Logger:             c.Logger,
 		LogSourceOverride:  c.LogSourceOverride,
+		Attach:             c.Attach,
 	}
 	return newIngestMuxer(cfg)
 }
@@ -290,6 +297,15 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	if c.CacheMode == CacheModeFail {
 		cache.CacheStop()
 		bcache.CacheStop()
+	}
+
+	id, err := uuid.Parse(c.IngesterUUID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse ingester UUID %w", err)
+	}
+	atch, err := attach.NewAttacher(c.Attach, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate attacher %w", err)
 	}
 
 	// It's possible that the configuration, and therefore tag names and
@@ -401,6 +417,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		logSourceOverride: c.LogSourceOverride,
 		ingesterState:     state,
 		logbuff:           logbuff,
+		attacher:          atch,
+		attachActive:      atch.Active(),
 	}, nil
 }
 
@@ -847,6 +865,9 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	if im.state != running {
 		return ErrNotRunning
 	}
+	if im.attachActive {
+		im.attacher.Attach(e)
+	}
 	im.eChan <- e
 	im.ingesterState.Entries++
 	im.ingesterState.Size += uint64(len(e.Data))
@@ -865,6 +886,9 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	}
 	if im.state != running {
 		return ErrNotRunning
+	}
+	if im.attachActive {
+		im.attacher.Attach(e)
 	}
 	select {
 	case im.eChan <- e:
@@ -888,6 +912,9 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	}
 	if im.state != running {
 		return ErrNotRunning
+	}
+	if im.attachActive {
+		im.attacher.Attach(e)
 	}
 	tmr := time.NewTimer(d)
 	select {
@@ -921,6 +948,11 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	if !runok {
 		return ErrNotRunning
 	}
+	if im.attachActive {
+		for _, e := range b {
+			im.attacher.Attach(e)
+		}
+	}
 	im.bChan <- b
 	im.ingesterState.Entries += uint64(len(b))
 	for i := range b {
@@ -953,6 +985,11 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 		return ErrNotRunning
 	}
 
+	if im.attachActive {
+		for _, e := range b {
+			im.attacher.Attach(e)
+		}
+	}
 	select {
 	case im.bChan <- b:
 		im.ingesterState.Entries += uint64(len(b))
