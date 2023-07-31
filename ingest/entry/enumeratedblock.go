@@ -55,6 +55,18 @@ func (eb *evblock) Add(ev EnumeratedValue) {
 	eb.evs = append(eb.evs, ev)
 }
 
+// AddSet adds a slice of enumerated value to an evbloc, this function keeps a running tally of size for fast query.
+func (eb *evblock) AddSet(evs []EnumeratedValue) {
+	if eb.size == 0 {
+		eb.size = EVBlockHeaderLen
+		eb.evs = make([]EnumeratedValue, 0, len(evs))
+	}
+	for _, ev := range evs {
+		eb.size += uint64(ev.Size())
+		eb.evs = append(eb.evs, ev)
+	}
+}
+
 // Size is just a helper accessor to help with encoding efficiency.
 func (eb evblock) Size() uint64 {
 	return eb.size

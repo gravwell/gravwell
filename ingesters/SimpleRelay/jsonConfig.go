@@ -33,7 +33,7 @@ var (
 )
 
 type jsonListener struct {
-	base
+	baseConfig
 	Max_Object_Size uint
 	Disable_Compact bool
 	Extractor       string
@@ -42,7 +42,7 @@ type jsonListener struct {
 }
 
 func (jl *jsonListener) Validate() error {
-	if err := jl.base.Validate(); err != nil {
+	if err := jl.baseConfig.Validate(); err != nil {
 		return err
 	}
 	jl.initDefaultTag() //make sure we resolve the Tag-Name and Default-Tag configs to do the right thing
