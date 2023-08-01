@@ -98,7 +98,7 @@ func init() {
 			}
 		}
 	}
-	v = *verbose
+	debugOn = *verbose
 }
 
 func main() {
