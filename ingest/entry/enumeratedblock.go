@@ -49,8 +49,29 @@ type evblock struct {
 // Add adds an enumerated value to an evbloc, this function keeps a running tally of size for fast query.
 func (eb *evblock) Add(ev EnumeratedValue) {
 	if eb.size == 0 {
-		eb.size = EVBlockHeaderLen
+		eb.fastAdd(ev)
+	} else {
+		eb.updateEv(ev)
 	}
+}
+
+// fastAdd is a fast path adder where there are no evs attached and we can just add this quickly
+func (eb *evblock) fastAdd(ev EnumeratedValue) {
+	eb.size = EVBlockHeaderLen + uint64(ev.Size())
+	eb.evs = []EnumeratedValue{ev}
+}
+
+func (eb *evblock) updateEv(ev EnumeratedValue) {
+	for i, x := range eb.evs {
+		if x.Name == ev.Name {
+			//update existing
+			eb.size -= uint64(x.Size())
+			eb.evs[i] = ev
+			eb.size += uint64(ev.Size())
+			return
+		}
+	}
+	//if we hit here it wasn't found
 	eb.size += uint64(ev.Size())
 	eb.evs = append(eb.evs, ev)
 }
@@ -58,9 +79,19 @@ func (eb *evblock) Add(ev EnumeratedValue) {
 // AddSet adds a slice of enumerated value to an evbloc, this function keeps a running tally of size for fast query.
 func (eb *evblock) AddSet(evs []EnumeratedValue) {
 	if eb.size == 0 {
-		eb.size = EVBlockHeaderLen
-		eb.evs = make([]EnumeratedValue, 0, len(evs))
+		eb.fastAddSet(evs)
+	} else {
+		//do the slow crappy way where we are updating evs
+		for _, ev := range evs {
+			eb.updateEv(ev)
+		}
 	}
+}
+
+// fastAddSet is a fast path operation when there are no EVs and we basically just get to set them
+func (eb *evblock) fastAddSet(evs []EnumeratedValue) {
+	eb.size = EVBlockHeaderLen
+	eb.evs = make([]EnumeratedValue, 0, len(evs))
 	for _, ev := range evs {
 		eb.size += uint64(ev.Size())
 		eb.evs = append(eb.evs, ev)

@@ -139,6 +139,67 @@ func TestAttach(t *testing.T) {
 	}
 }
 
+func TestAttachDuplicate(t *testing.T) {
+	var cfg testConfigStruct
+	var cfg2 testConfigStruct
+	guid := uuid.New()
+	hostname, err := os.Hostname()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := config.LoadConfigBytes(&cfg, []byte(simpleConfig)); err != nil {
+		t.Fatal(err)
+	} else if err = config.LoadConfigBytes(&cfg2, []byte(wonkConfig)); err != nil {
+		t.Fatal(err)
+	}
+
+	a, err := NewAttacher(cfg.Attach, guid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	a2, err := NewAttacher(cfg2.Attach, guid)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ents := make([]entry.Entry, 16)
+	for i := range ents {
+		a2.Attach(&ents[i])
+		a.Attach(&ents[i])
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	// remember the order is going to match wonk config, not the regular one
+	items := []attachItem{
+		attachItem{key: `hostname`, value: hostname},
+		attachItem{key: `foo`, value: `bar`},
+		attachItem{key: `uuid`, value: guid.String()},
+		attachItem{key: `bar`, value: `baz`},
+		attachItem{key: `foo-to-the-bar`, value: `this is my foobar, there are many like it, but this one is mine`},
+		attachItem{key: `bar`, value: `baz`},
+	}
+
+	for _, ent := range ents {
+		if err := testEntConsts(ent, items); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	//now go swing through the timestamp items and make sure they are all native time types and unique
+	times := make(map[entry.Timestamp]bool, len(ents))
+	for _, ent := range ents {
+		if x, ok := ent.GetEnumeratedValue(`now`); !ok {
+			t.Fatal("could not find now value")
+		} else if ts, ok := x.(entry.Timestamp); !ok {
+			t.Fatalf("now is not a timestamp: %T", x)
+		} else if _, ok = times[ts]; ok {
+			t.Fatalf("NOW timestamp already exists: %v", ts)
+		} else {
+			times[ts] = true
+		}
+	}
+}
+
 func testEntConsts(ent entry.Entry, items []attachItem) (err error) {
 	for _, v := range items {
 		if ev, ok := ent.GetEnumeratedValue(v.key); !ok {
@@ -188,6 +249,17 @@ const simpleConfig = `
 	baz="foo"
 	hostname=$HOSTNAME
 	uuid=$UUID
+	now=$NOW
+`
+
+const wonkConfig = `
+[Attach]
+	hostname=$HOSTNAME
+	foo="foo to you too"
+	uuid=$UUID
+	bar="baz round the house"
+	foo-to-the-bar="this is my foobar, there are many like it, but this one is mine"
+	baz="foo to the bar"
 	now=$NOW
 `
 
