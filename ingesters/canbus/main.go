@@ -68,7 +68,7 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
-	v = *verbose
+	debugOn = *verbose
 	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc) // this will exit if the flags are set, also no overlays
 }
 
@@ -288,10 +288,9 @@ mainLoop:
 }
 
 func debugout(format string, args ...interface{}) {
-	if !v {
-		return
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 func addResults(dst *results, src results) {
