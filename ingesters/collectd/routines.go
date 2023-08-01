@@ -236,8 +236,7 @@ func marshalJSON(vl *api.ValueList) (dts [][]byte, err error) {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !v {
-		return
+	if v {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }

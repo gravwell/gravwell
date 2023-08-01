@@ -48,6 +48,7 @@ var (
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	lg             *log.Logger
+	v              bool
 )
 
 func init() {
@@ -82,6 +83,7 @@ func init() {
 		}
 	}
 	validate.ValidateConfig(GetConfig, *configLoc, *confdLoc)
+	v = *verbose
 }
 
 func main() {
@@ -438,10 +440,9 @@ func main() {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !*verbose {
-		return
+	if v {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 type metricsReport struct {

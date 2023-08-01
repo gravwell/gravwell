@@ -142,10 +142,9 @@ func main() {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !v {
-		return
+	if v {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 type flusher struct {

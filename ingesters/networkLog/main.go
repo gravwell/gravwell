@@ -390,10 +390,9 @@ func getSourceIP(dev string) (net.IP, error) {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !v {
-		return
+	if v {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 // Add the bytes & packet count from src into dst.

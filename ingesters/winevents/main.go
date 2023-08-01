@@ -40,7 +40,7 @@ var (
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 
 	confLoc string
-	verbose bool
+	v       bool
 	lg      *log.Logger
 )
 
@@ -61,7 +61,7 @@ func init() {
 	} else {
 		confLoc = *configOverride
 	}
-	verbose = *verboseF
+	v = *verboseF
 	validate.ValidateConfig(winevent.GetConfig, confLoc, ``)
 }
 
@@ -168,10 +168,9 @@ func serviceWriteTimeout(ch chan svc.ChangeRequest, r svc.ChangeRequest, to time
 }
 
 func debugout(format string, args ...interface{}) {
-	if !verbose {
-		return
+	if v {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 type levelLogger struct {
@@ -182,7 +181,7 @@ type levelLogger struct {
 func (l levelLogger) WriteLog(lvl log.Level, ts time.Time, msg []byte) error {
 	switch lvl {
 	case log.DEBUG:
-		if verbose {
+		if v {
 			fmt.Fprintln(os.Stdout, string(msg))
 		}
 	case log.INFO:
