@@ -19,7 +19,6 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
@@ -135,18 +134,6 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	} else if err = config.LoadConfigOverlays(&cr, overlayPath); err != nil {
 		return nil, err
 	}
-	//validate the global params
-	if err := cr.Global.Verify(); err != nil {
-		return nil, err
-	} else if err = cr.Attach.Verify(); err != nil {
-		return nil, err
-	} else if len(cr.Consumer) == 0 {
-		return nil, errors.New("no consumers defined")
-	} else if err := cr.Preprocessor.Validate(); err != nil {
-		return nil, err
-	} else if err = cr.TimeFormat.Validate(); err != nil {
-		return nil, err
-	}
 
 	//create our actual config
 	c := &cfgType{
@@ -155,17 +142,6 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		Consumers:    make(map[string]*consumerCfg, len(cr.Consumer)),
 		Preprocessor: cr.Preprocessor,
 		TimeFormat:   cr.TimeFormat,
-	}
-
-	// Verify and set UUID
-	if _, ok := c.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
-		}
 	}
 
 	for k, v := range cr.Consumer {
@@ -188,7 +164,27 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 			c.Consumers[k] = &cnsmr
 		}
 	}
+	if err := c.Verify(); err != nil {
+		return nil, err
+	}
 	return c, nil
+}
+
+func (c *cfgType) Verify() error {
+	//validate the global params
+	if err := c.IngestConfig.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
+		return err
+	} else if len(c.Consumers) == 0 {
+		return errors.New("no consumers defined")
+	} else if err = c.Preprocessor.Validate(); err != nil {
+		return err
+	} else if err = c.TimeFormat.Validate(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *cfgType) Tags() (tags []string, err error) {

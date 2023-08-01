@@ -9,10 +9,13 @@
 package validate
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"reflect"
+
+	"github.com/gravwell/gravwell/v3/ingest/config"
 )
 
 const (
@@ -72,6 +75,7 @@ func ValidateConfig(fnc interface{}, pth, confdPath string) {
 			os.Exit(exitCode)
 		}
 	}
+	var ok bool
 	obj := res[0].Interface()
 	if err != nil {
 		fmt.Printf("Config file %q returned error %v\n", pth, err)
@@ -79,6 +83,11 @@ func ValidateConfig(fnc interface{}, pth, confdPath string) {
 	} else if obj == nil {
 		fmt.Printf("Config file %q returned a nil object\n", pth)
 		os.Exit(exitCode)
+	} else if ok, err = callVerifyFunc(obj); err != nil {
+		fmt.Printf("Config Verify function returned error: %v\n", err)
+		os.Exit(exitCode)
+	} else if !ok {
+		fmt.Println("WARNING: ingester config does not contain Verify function")
 	}
 	if confdPath != `` {
 		fmt.Println(pth, "with overlay", confdPath, "is valid")
@@ -86,4 +95,26 @@ func ValidateConfig(fnc interface{}, pth, confdPath string) {
 		fmt.Println(pth, "is valid")
 	}
 	os.Exit(0) //all good
+}
+
+type validator interface {
+	Verify() error
+}
+
+type igstConfig interface {
+	IngestBaseConfig() config.IngestConfig
+}
+
+func callVerifyFunc(obj interface{}) (ok bool, err error) {
+	var vv validator
+	if obj == nil {
+		err = errors.New("config is nil")
+	} else if vv, ok = obj.(validator); !ok {
+		err = errors.New("config object does not implement Verify interface")
+	} else if _, ok = obj.(igstConfig); !ok {
+		err = errors.New("config object does not implement IngestBaseConfig interface")
+	} else {
+		err = vv.Verify()
+	}
+	return
 }

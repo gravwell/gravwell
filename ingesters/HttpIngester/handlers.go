@@ -139,7 +139,7 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		ResponseWriter: rw,
 	}
 	defer func(trw *trackingRW, req *http.Request) {
-		if !v {
+		if debugOn == false {
 			return
 		}
 		debugout("REQUEST %s %v %d %d\n", req.Method, req.URL, trw.code, trw.bytes)

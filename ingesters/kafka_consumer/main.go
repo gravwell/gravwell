@@ -9,7 +9,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"time"
@@ -32,12 +31,6 @@ const (
 )
 
 var (
-	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
-	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
-	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
-	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
-	ver            = flag.Bool("version", false, "Print the version information and exit")
-
 	debugOn bool
 	lg      *log.Logger
 )

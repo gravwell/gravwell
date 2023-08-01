@@ -126,40 +126,41 @@ jobs:
         go build -o /dev/null ./timegrinder/cmd
         go build -o /dev/null ./ipexist/textinput
         go build -o /dev/null ./kitctl
-        go build -o /dev/null ./ingesters/GooglePubSubIngester
-        go build -o /dev/null ./ingesters/massFile
-        go build -o /dev/null ./ingesters/diskmonitor
-        go build -o /dev/null ./ingesters/HttpIngester
-        go build -o /dev/null ./ingesters/collectd
-        go build -o /dev/null ./ingesters/xlsxIngester
-        go build -o /dev/null ./ingesters/netflow
-        go build -o /dev/null ./ingesters/version
-        go build -o /dev/null ./ingesters/KinesisIngester
-        go build -o /dev/null ./ingesters/reimport
-        go build -o /dev/null ./ingesters/kafka_consumer
-        go build -o /dev/null ./ingesters/MSGraphIngester
-        go build -o /dev/null ./ingesters/IPMIIngester
-        go build -o /dev/null ./ingesters/fileFollow
-        go build -o /dev/null ./ingesters/canbus
-        go build -o /dev/null ./ingesters/reddit_ingester
-        go build -o /dev/null ./ingesters/s3Ingester
-        go build -o /dev/null ./ingesters/snmp
-        go build -o /dev/null ./ingesters/AzureEventHubs
-        go build -o /dev/null ./ingesters/hackernews_ingester
-        go build -o /dev/null ./ingesters/Shodan
-        go build -o /dev/null ./ingesters/singleFile
-        go build -o /dev/null ./ingesters/sqsIngester
-        go build -o /dev/null ./ingesters/multiFile
-        go build -o /dev/null ./ingesters/networkLog
-        go build -o /dev/null ./ingesters/session
-        go build -o /dev/null ./ingesters/regexFile
-        go build -o /dev/null ./ingesters/pcapFileIngester
-        go build -o /dev/null ./ingesters/SimpleRelay
-        go build -o /dev/null ./ingesters/O365Ingester
-        go build -o /dev/null ./ingesters/PacketFleet
         GOOS=windows go build -o /dev/null ./ingesters/fileFollow
         GOOS=windows go build -o /dev/null ./ingesters/winevents
         GOOS=windows go build ./generators/windowsEventGenerator
+        go build -o /dev/null ./ingesters/massFile
+        go build -o /dev/null ./ingesters/diskmonitor
+        go build -o /dev/null ./ingesters/xlsxIngester
+        go build -o /dev/null ./ingesters/reimport
+        go build -o /dev/null ./ingesters/version
+        go build -o /dev/null ./ingesters/canbus
+        go build -o /dev/null ./ingesters/reddit_ingester
+        go build -o /dev/null ./ingesters/hackernews_ingester
+        go build -o /dev/null ./ingesters/multiFile
+        go build -o /dev/null ./ingesters/session
+        go build -o /dev/null ./ingesters/regexFile
+        go build -o /dev/null ./ingesters/Shodan
+        go build -o /dev/null ./ingesters/singleFile
+        go build -o /dev/null ./ingesters/pcapFileIngester
+
+        /bin/bash ./ingesters/test/build.sh ./ingesters/GooglePubSubIngester ./ingesters/test/configs/pubsub_ingest.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/AzureEventHubs ingesters/test/configs/azure_event_hubs.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/HttpIngester ingesters/test/configs/gravwell_http_ingester.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/collectd ingesters/test/configs/collectd.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/netflow ingesters/test/configs/netflow_capture.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/KinesisIngester ingesters/test/configs/kinesis_ingest.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/kafka_consumer ingesters/test/configs/kafka.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/MSGraphIngester ingesters/test/configs/msgraph_ingest.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/IPMIIngester ingesters/test/configs/ipmi.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/fileFollow ingesters/test/configs/file_follow.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/s3Ingester ingesters/test/configs/s3.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/snmp ingesters/test/configs/snmp.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/sqsIngester ingesters/test/configs/sqs.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/networkLog ingesters/test/configs/network_capture.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/SimpleRelay ingesters/test/configs/simple_relay.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/O365Ingester ingesters/test/configs/o365_ingest.conf
+        /bin/bash ./ingesters/test/build.sh ./ingesters/PacketFleet ingesters/test/configs/packet_fleet.conf
 
     - name: Final status
       run: echo "Status is ${{ job.status }} 🚀"

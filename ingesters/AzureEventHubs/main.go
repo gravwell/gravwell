@@ -10,7 +10,6 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net"
 	"os"
@@ -34,13 +33,8 @@ const (
 )
 
 var (
-	configLoc      = flag.String("config-file", defaultConfigLoc, "Location of configuration file")
-	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
-	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
-	ver            = flag.Bool("version", false, "Print the version information and exit")
-	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
-	lg             *log.Logger
-	debugOn        bool
+	lg      *log.Logger
+	debugOn bool
 )
 
 func main() {
@@ -181,7 +175,7 @@ func main() {
 			// stats stuff
 			var count, size uint64
 			var oldcount, oldsize uint64
-			if *verbose {
+			if debugOn {
 				go func() {
 					for {
 						time.Sleep(1 * time.Second)
