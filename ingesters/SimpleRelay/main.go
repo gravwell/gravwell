@@ -33,8 +33,8 @@ const (
 )
 
 var (
-	v  bool
-	lg *log.Logger
+	debugOn bool
+	lg      *log.Logger
 )
 
 func main() {
@@ -54,7 +54,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	v = ib.Verbose
+	debugOn = ib.Verbose
 	lg = ib.Logger
 	id, ok := cfg.IngesterUUID()
 	if !ok {
@@ -142,7 +142,7 @@ func main() {
 }
 
 func debugout(format string, args ...interface{}) {
-	if v {
+	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }

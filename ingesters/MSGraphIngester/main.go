@@ -36,7 +36,7 @@ const (
 
 var (
 	lg      *log.Logger
-	v       bool
+	debugOn bool
 	tracker *stateTracker
 	running bool
 	src     net.IP
@@ -66,7 +66,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	v = ib.Verbose
+	debugOn = ib.Verbose
 	lg = ib.Logger
 
 	igst, err := ib.GetMuxer()
@@ -372,7 +372,7 @@ func secureScoreProfileRoutine(c routineCfg) {
 }
 
 func debugout(format string, args ...interface{}) {
-	if v {
+	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }

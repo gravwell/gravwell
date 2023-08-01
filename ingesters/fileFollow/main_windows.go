@@ -39,7 +39,7 @@ var (
 	dumpState      = flag.Bool("dump-state", false, "Dump the file follower state file in a human format and exit")
 
 	confLoc string
-	v       bool
+	debugOn bool
 	errW    errWriter = interactiveErrorWriter
 	infW    errWriter = interactiveInfoWriter
 	elog    debug.Log
@@ -156,7 +156,7 @@ func runService(s *mainService) {
 }
 
 func debugout(format string, args ...interface{}) {
-	if v {
+	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }

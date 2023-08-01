@@ -47,8 +47,8 @@ const (
 )
 
 var (
-	v  bool
-	lg *log.Logger
+	debugOn bool
+	lg      *log.Logger
 )
 
 type handlerConfig struct {
@@ -110,7 +110,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	v = ib.Verbose
+	debugOn = ib.Verbose
 	lg = ib.Logger
 
 	igst, err := ib.GetMuxer()
@@ -223,7 +223,7 @@ func main() {
 }
 
 func debugout(format string, args ...interface{}) {
-	if v {
+	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }

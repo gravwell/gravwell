@@ -39,7 +39,7 @@ const (
 var (
 	totalPackets uint64
 	totalBytes   uint64
-	v            bool
+	debugOn      bool
 	lg           *log.Logger
 )
 
@@ -81,7 +81,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	v = ib.Verbose
+	debugOn = ib.Verbose
 	lg = ib.Logger
 
 	igst, err := ib.GetMuxer()
@@ -390,7 +390,7 @@ func getSourceIP(dev string) (net.IP, error) {
 }
 
 func debugout(format string, args ...interface{}) {
-	if v {
+	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }

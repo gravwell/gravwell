@@ -16,6 +16,7 @@ import (
 
 	eventhubs "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
@@ -51,6 +52,7 @@ type eventHubConf struct {
 
 type cfgType struct {
 	Global       global
+	Attach       attach.AttachConfig
 	EventHub     map[string]*eventHubConf
 	Preprocessor processors.ProcessorConfig
 }
@@ -86,6 +88,11 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 }
 
 func verifyConfig(c cfgType) error {
+	if err := c.Global.IngestConfig.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
+		return err
+	}
 	if to, err := c.parseTimeout(); err != nil || to < 0 {
 		if err != nil {
 			return err
@@ -163,6 +170,14 @@ func (c *cfgType) Tags() ([]string, error) {
 		return nil, errors.New("No tags specified")
 	}
 	return tags, nil
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.Global.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
 
 func (c *cfgType) VerifyRemote() bool {

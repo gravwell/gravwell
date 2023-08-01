@@ -40,7 +40,7 @@ var (
 
 	totalPackets uint64
 	totalBytes   uint64
-	v            bool
+	debugOn      bool
 )
 
 type results struct {
@@ -269,7 +269,7 @@ mainLoop:
 			}
 			totalBytes += uint64(len(e.Data))
 			count++
-			if v {
+			if debugOn {
 				pkt, err := ExtractPacket(pkt)
 				if err != nil {
 					debugout("Failed to extract: %v\n", err)

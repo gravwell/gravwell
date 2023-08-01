@@ -35,7 +35,7 @@ const (
 
 var (
 	lg      *log.Logger
-	v       bool
+	debugOn bool
 	tracker *stateTracker
 
 	ErrInvalidStateFile = errors.New("State file exists and is not a regular file")
@@ -63,7 +63,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	v = ib.Verbose
+	debugOn = ib.Verbose
 	lg = ib.Logger
 
 	// get the src we'll attach to entries
@@ -260,7 +260,7 @@ func main() {
 }
 
 func debugout(format string, args ...interface{}) {
-	if v {
+	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }

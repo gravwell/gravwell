@@ -32,8 +32,8 @@ const (
 )
 
 var (
-	lg *log.Logger
-	v  bool
+	lg      *log.Logger
+	debugOn bool
 )
 
 func main() {
@@ -53,7 +53,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	v = ib.Verbose
+	debugOn = ib.Verbose
 	lg = ib.Logger
 
 	igst, err := ib.GetMuxer()
@@ -126,7 +126,7 @@ func main() {
 		var oldcount, oldsize uint64
 
 		//fire of a verbose ticker for debugging and stats output
-		if v {
+		if debugOn {
 			go func() {
 				for {
 					time.Sleep(1 * time.Second)
@@ -218,7 +218,7 @@ func main() {
 }
 
 func debugout(format string, args ...interface{}) {
-	if v {
+	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }

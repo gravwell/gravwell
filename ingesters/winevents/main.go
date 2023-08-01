@@ -40,7 +40,7 @@ var (
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 
 	confLoc string
-	v       bool
+	debugOn bool
 	lg      *log.Logger
 )
 
@@ -168,7 +168,7 @@ func serviceWriteTimeout(ch chan svc.ChangeRequest, r svc.ChangeRequest, to time
 }
 
 func debugout(format string, args ...interface{}) {
-	if v {
+	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }
@@ -181,7 +181,7 @@ type levelLogger struct {
 func (l levelLogger) WriteLog(lvl log.Level, ts time.Time, msg []byte) error {
 	switch lvl {
 	case log.DEBUG:
-		if v {
+		if debugOn {
 			fmt.Fprintln(os.Stdout, string(msg))
 		}
 	case log.INFO:

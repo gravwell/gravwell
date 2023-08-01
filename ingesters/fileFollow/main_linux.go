@@ -35,8 +35,8 @@ const (
 var (
 	dumpState = flag.Bool("dump-state", false, "Dump the file follower state file in a human format and exit")
 
-	v  bool
-	lg *log.Logger
+	debugOn bool
+	lg      *log.Logger
 )
 
 func main() {
@@ -58,7 +58,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	v = ib.Verbose
+	debugOn = ib.Verbose
 	lg = ib.Logger
 
 	//check if we are just dumping state, if so, do it and exit cleanly
@@ -139,7 +139,7 @@ func main() {
 			TimeFormat:              cfg.TimeFormat,
 			AttachFilename:          val.Attach_Filename,
 		}
-		if v {
+		if debugOn {
 			cfg.Debugger = debugout
 		}
 		lh, err := filewatch.NewLogHandler(cfg, pproc)
@@ -219,7 +219,7 @@ func main() {
 }
 
 func debugout(format string, args ...interface{}) {
-	if v {
+	if debugOn {
 		fmt.Printf(format, args...)
 	}
 }
