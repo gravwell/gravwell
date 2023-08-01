@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -26,7 +27,7 @@ const (
 )
 
 type queue struct {
-	base
+	baseConfig
 	Tag_Name     string
 	Queue_URL    string
 	Region       string
@@ -35,7 +36,7 @@ type queue struct {
 	Preprocessor []string
 }
 
-type base struct {
+type baseConfig struct {
 	Ignore_Timestamps         bool //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
@@ -45,12 +46,14 @@ type base struct {
 
 type cfgReadType struct {
 	Global       config.IngestConfig
+	Attach       attach.AttachConfig
 	Queue        map[string]*queue
 	Preprocessor processors.ProcessorConfig
 }
 
 type cfgType struct {
 	config.IngestConfig
+	Attach       attach.AttachConfig
 	Queue        map[string]*queue
 	Preprocessor processors.ProcessorConfig
 }
@@ -65,6 +68,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	}
 	c := &cfgType{
 		IngestConfig: cr.Global,
+		Attach:       cr.Attach,
 		Queue:        cr.Queue,
 		Preprocessor: cr.Preprocessor,
 	}
@@ -89,6 +93,8 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 func verifyConfig(c *cfgType) error {
 	//verify the global parameters
 	if err := c.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	}
 
@@ -157,4 +163,12 @@ func (c *cfgType) Tags() ([]string, error) {
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
