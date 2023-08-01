@@ -21,6 +21,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingest/processors/tags"
@@ -112,6 +113,7 @@ type consumerCfg struct {
 
 type cfgReadType struct {
 	Global       config.IngestConfig
+	Attach       attach.AttachConfig
 	Consumer     map[string]*ConfigConsumer
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -119,6 +121,7 @@ type cfgReadType struct {
 
 type cfgType struct {
 	config.IngestConfig
+	Attach       attach.AttachConfig
 	Consumers    map[string]*consumerCfg
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -135,6 +138,8 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	//validate the global params
 	if err := cr.Global.Verify(); err != nil {
 		return nil, err
+	} else if err = cr.Attach.Verify(); err != nil {
+		return nil, err
 	} else if len(cr.Consumer) == 0 {
 		return nil, errors.New("no consumers defined")
 	} else if err := cr.Preprocessor.Validate(); err != nil {
@@ -146,6 +151,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	//create our actual config
 	c := &cfgType{
 		IngestConfig: cr.Global,
+		Attach:       cr.Attach,
 		Consumers:    make(map[string]*consumerCfg, len(cr.Consumer)),
 		Preprocessor: cr.Preprocessor,
 		TimeFormat:   cr.TimeFormat,
@@ -221,6 +227,14 @@ func (c *cfgType) Tags() (tags []string, err error) {
 		sort.Strings(tags)
 	}
 	return
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
 
 func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
