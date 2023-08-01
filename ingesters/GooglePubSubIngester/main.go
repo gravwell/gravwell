@@ -10,21 +10,15 @@ package main
 
 import (
 	"context"
-	"flag"
 	"fmt"
 	"net"
 	"os"
-	"path"
-	"runtime/debug"
-	"syscall"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 
 	"cloud.google.com/go/pubsub"
@@ -34,125 +28,42 @@ const (
 	defaultConfigLoc  = `/opt/gravwell/etc/pubsub_ingest.conf`
 	defaultConfigDLoc = `/opt/gravwell/etc/pubsub_ingest.conf.d`
 	appName           = `pubsub`
+	ingesterName      = "GooglePubSub"
 )
 
 var (
-	configLoc      = flag.String("config-file", defaultConfigLoc, "Location of configuration file")
-	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
-	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
-	ver            = flag.Bool("version", false, "Print the version information and exit")
-	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
-	lg             *log.Logger
-	v              bool
+	lg *log.Logger
+	v  bool
 )
 
-func init() {
-	flag.Parse()
-	if *ver {
-		version.PrintVersion(os.Stdout)
-		ingest.PrintVersion(os.Stdout)
-		os.Exit(0)
-	}
-	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
-	lg.SetAppname(appName)
-	if *stderrOverride != `` {
-		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("failed to dup stderr", log.KVErr(err))
-		} else {
-			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
-		}
-
-		fp := path.Join(`/dev/shm/`, *stderrOverride)
-		fout, err := os.Create(fp)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create %s: %v\n", fp, err)
-		} else {
-			version.PrintVersion(fout)
-			ingest.PrintVersion(fout)
-			log.PrintOSInfo(fout)
-			//file created, dup it
-			if err := syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
-				fout.Close()
-			}
-		}
-	}
-	validate.ValidateConfig(GetConfig, *configLoc, *confdLoc)
-	v = *verbose
-}
-
 func main() {
-	debug.SetTraceback("all")
-	cfg, err := GetConfig(*configLoc, *confdLoc)
-	if err != nil {
-		lg.Fatal("failed to get configuration", log.KV("path", *configLoc), log.KVErr(err))
+	var cfg *cfgType
+	ibc := base.IngesterBaseConfig{
+		IngesterName:                 ingesterName,
+		AppName:                      appName,
+		DefaultConfigLocation:        defaultConfigLoc,
+		DefaultConfigOverlayLocation: defaultConfigDLoc,
+		GetConfigFunc:                GetConfig,
 	}
-
-	cfg.Global.AddLocalLogging(lg)
-
-	tags, err := cfg.Tags()
+	ib, err := base.Init(ibc)
 	if err != nil {
-		lg.Fatal("failed to get tags from configuration", log.KVErr(err))
-	}
-	conns, err := cfg.Targets()
-	if err != nil {
-		lg.Fatal("failed to get backend targets from configuration", log.KVErr(err))
-	}
-	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
-
-	lmt, err := cfg.Global.RateLimit()
-	if err != nil {
-		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
+		fmt.Fprintf(os.Stderr, "failed to get configuration %v\n", err)
+		return
+	} else if err = ib.AssignConfig(&cfg); err != nil || cfg == nil {
+		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	debugout("Rate limiting connection to %d bps\n", lmt)
+	v = ib.Verbose
+	lg = ib.Logger
 
-	//fire up the ingesters
-	id, ok := cfg.Global.IngesterUUID()
-	if !ok {
-		lg.FatalCode(0, "could not read ingester UUID")
-	}
-	ingestConfig := ingest.UniformMuxerConfig{
-		IngestStreamConfig: cfg.Global.IngestStreamConfig,
-		Destinations:       conns,
-		Tags:               tags,
-		Auth:               cfg.Secret(),
-		Logger:             lg,
-		IngesterName:       "GooglePubSub",
-		IngesterVersion:    version.GetVersion(),
-		IngesterUUID:       id.String(),
-		IngesterLabel:      cfg.Global.Label,
-		RateLimitBps:       lmt,
-		CacheDepth:         cfg.Global.Cache_Depth,
-		CachePath:          cfg.Global.Ingest_Cache_Path,
-		CacheSize:          cfg.Global.Max_Ingest_Cache,
-		CacheMode:          cfg.Global.Cache_Mode,
-		LogSourceOverride:  net.ParseIP(cfg.Global.Log_Source_Override),
-	}
-	igst, err := ingest.NewUniformMuxer(ingestConfig)
+	igst, err := ib.GetMuxer()
 	if err != nil {
-		lg.Fatal("failed build our ingest system", log.KVErr(err))
+		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
+		return
 	}
 	defer igst.Close()
-	debugout("Starting ingester muxer\n")
-	if cfg.Global.SelfIngest() {
-		lg.AddRelay(igst)
-	}
-	if err := igst.Start(); err != nil {
-		lg.Fatal("failed start our ingest system", log.KVErr(err))
-	}
 
-	debugout("Waiting for connections to indexers ... ")
-	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "timed out waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
-	}
-	debugout("Successfully connected to ingesters\n")
-
-	// prepare the configuration we're going to send upstream
-	err = igst.SetRawConfiguration(cfg)
-	if err != nil {
-		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KVErr(err))
-	}
+	debugout("Started ingester muxer\n")
 
 	// Set up environment variables for AWS auth, if extant
 	if cfg.Global.Google_Credentials_Path != "" {
@@ -167,6 +78,7 @@ func main() {
 		return
 	}
 
+	var ok bool
 	for _, psv := range cfg.PubSub {
 		tagid, err := igst.GetTag(psv.Tag_Name)
 		if err != nil {
@@ -184,11 +96,9 @@ func main() {
 			subname = fmt.Sprintf("ingest_%s", psv.Topic_Name)
 		}
 		sub := client.Subscription(subname)
-		ok, err = sub.Exists(ctx)
-		if err != nil {
+		if ok, err = sub.Exists(ctx); err != nil {
 			lg.Fatal("error checking subscription", log.KVErr(err))
-		}
-		if !ok {
+		} else if !ok {
 			//Subscription does not exist, attempt to create it
 			// this may fail due to permissions
 
@@ -215,7 +125,8 @@ func main() {
 		var count, size uint64
 		var oldcount, oldsize uint64
 
-		if *verbose {
+		//fire of a verbose ticker for debugging and stats output
+		if v {
 			go func() {
 				for {
 					time.Sleep(1 * time.Second)
