@@ -17,6 +17,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -58,12 +59,14 @@ type collector struct {
 
 type cfgReadType struct {
 	Global       config.IngestConfig
+	Attach       attach.AttachConfig
 	Collector    map[string]*collector
 	Preprocessor processors.ProcessorConfig
 }
 
 type cfgType struct {
 	config.IngestConfig
+	Attach       attach.AttachConfig
 	Collector    map[string]*collector
 	Preprocessor processors.ProcessorConfig
 }
@@ -78,6 +81,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 
 	c := &cfgType{
 		IngestConfig: cr.Global,
+		Attach:       cr.Attach,
 		Collector:    cr.Collector,
 		Preprocessor: cr.Preprocessor,
 	}
@@ -100,6 +104,8 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 func verifyConfig(c *cfgType) error {
 	//verify the global parameters
 	if err := c.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	}
 	if len(c.Collector) == 0 {
@@ -176,6 +182,14 @@ func (c *cfgType) Tags() ([]string, error) {
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
 
 func (c collector) getOverrides() (map[string]string, error) {
