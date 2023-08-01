@@ -61,7 +61,7 @@ func init() {
 	} else {
 		confLoc = *configOverride
 	}
-	v = *verboseF
+	debugOn = *verboseF
 	validate.ValidateConfig(winevent.GetConfig, confLoc, ``)
 }
 
