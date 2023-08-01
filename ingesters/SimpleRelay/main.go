@@ -54,7 +54,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	connClosers = make(map[int]closer, 1)
 	v = ib.Verbose
 	lg = ib.Logger
 	id, ok := cfg.IngesterUUID()
@@ -71,6 +70,7 @@ func main() {
 
 	debugout("Started ingester muxer\n")
 
+	connClosers = make(map[int]closer, 1)
 	//check capabilities so we can scream and throw a potential warning upstream
 	if !caps.Has(caps.NET_BIND_SERVICE) {
 		lg.Warn("missing capability", log.KV("capability", "NET_BIND_SERVICE"), log.KV("warning", "may not be able to bind to service ports"))

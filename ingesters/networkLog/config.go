@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
@@ -33,6 +34,7 @@ const (
 
 type cfgReadType struct {
 	Global  config.IngestConfig
+	Attach  attach.AttachConfig
 	Sniffer map[string]*snif
 }
 
@@ -47,6 +49,7 @@ type snif struct {
 
 type cfgType struct {
 	config.IngestConfig
+	Attach  attach.AttachConfig
 	Sniffer map[string]*snif
 }
 
@@ -60,6 +63,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	}
 	c := &cfgType{
 		IngestConfig: cr.Global,
+		Attach:       cr.Attach,
 		Sniffer:      cr.Sniffer,
 	}
 	if err := verifyConfig(c); err != nil {
@@ -80,6 +84,8 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 
 func verifyConfig(c *cfgType) error {
 	if err := c.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	}
 	if len(c.Sniffer) == 0 {
@@ -187,4 +193,12 @@ func getNonLoopbackInterface() (name string, err error) {
 	}
 	err = errors.New("No non-loopback interface found")
 	return
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }

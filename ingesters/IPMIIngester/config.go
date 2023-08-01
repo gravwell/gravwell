@@ -15,6 +15,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -33,6 +34,7 @@ type ipmi struct {
 
 type cfgType struct {
 	Global       config.IngestConfig
+	Attach       attach.AttachConfig
 	IPMI         map[string]*ipmi
 	Preprocessor processors.ProcessorConfig
 }
@@ -65,6 +67,8 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 func verifyConfig(c *cfgType) error {
 	//verify the global parameters
 	if err := c.Global.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	}
 
@@ -115,4 +119,12 @@ func (c *cfgType) Tags() ([]string, error) {
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.Global
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
