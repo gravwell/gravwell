@@ -299,9 +299,11 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		bcache.CacheStop()
 	}
 
-	id, err := uuid.Parse(c.IngesterUUID)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse ingester UUID %w", err)
+	id := uuid.Nil
+	if c.IngesterUUID != `` {
+		if id, err = uuid.Parse(c.IngesterUUID); err != nil {
+			return nil, fmt.Errorf("failed to parse ingester UUID %w", err)
+		}
 	}
 	atch, err := attach.NewAttacher(c.Attach, id)
 	if err != nil {
