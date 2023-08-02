@@ -19,8 +19,8 @@ const (
 )
 
 var (
-	v  bool
-	lg *log.Logger
+	debugOn bool
+	lg      *log.Logger
 )
 
 type instance struct {
@@ -45,7 +45,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	v = ib.Verbose
+	debugOn = ib.Verbose
 	lg = ib.Logger
 	id, ok := cfg.IngesterUUID()
 	if !ok {
@@ -133,5 +133,11 @@ func main() {
 	}
 	if err := igst.Close(); err != nil {
 		lg.Error("failed to close", log.KVErr(err))
+	}
+}
+
+func debugout(format string, args ...interface{}) {
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
 }

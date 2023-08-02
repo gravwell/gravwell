@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
@@ -49,6 +49,7 @@ type streamDef struct {
 
 type cfgType struct {
 	Global        global
+	Attach        attach.AttachConfig
 	KinesisStream map[string]*streamDef
 	Preprocessor  processors.ProcessorConfig
 	TimeFormat    config.CustomTimeFormat
@@ -68,25 +69,18 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	if c.Global.Log_File == `` {
 		c.Global.Log_File = defaultLogFile
 	}
-	if err := verifyConfig(c); err != nil {
+	if err := c.Verify(); err != nil {
 		return nil, err
-	} else if err = c.Global.Verify(); err != nil {
-		return nil, err
-	}
-	// Verify and set UUID
-	if _, ok := c.Global.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.Global.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.Global.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
-		}
 	}
 	return &c, nil
 }
 
-func verifyConfig(c cfgType) error {
+func (c cfgType) Verify() error {
+	if err := c.Global.IngestConfig.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
+		return err
+	}
 	if to, err := c.parseTimeout(); err != nil || to < 0 {
 		if err != nil {
 			return err
@@ -146,6 +140,14 @@ func (c *cfgType) Tags() ([]string, error) {
 		return nil, errors.New("No tags specified")
 	}
 	return tags, nil
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.Global.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
 
 func (c *cfgType) VerifyRemote() bool {

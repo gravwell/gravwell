@@ -39,7 +39,7 @@ var (
 	dumpState      = flag.Bool("dump-state", false, "Dump the file follower state file in a human format and exit")
 
 	confLoc string
-	verbose bool
+	debugOn bool
 	errW    errWriter = interactiveErrorWriter
 	infW    errWriter = interactiveInfoWriter
 	elog    debug.Log
@@ -63,7 +63,7 @@ func init() {
 	} else {
 		confLoc = *configOverride
 	}
-	verbose = *verboseF
+	debugOn = *verboseF
 	validate.ValidateConfig(GetConfig, confLoc, ``) //windows doesn't support conf.d style overlays for now
 }
 
@@ -156,10 +156,9 @@ func runService(s *mainService) {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !verbose {
-		return
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 type errWriter func(format string, args ...interface{})

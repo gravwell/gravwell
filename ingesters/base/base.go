@@ -20,6 +20,7 @@ import (
 	"runtime"
 	"runtime/debug"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
@@ -40,6 +41,7 @@ type getConfigFunc func(cfg, overlay string) (interface{}, error)
 type cfgHelper interface {
 	Tags() ([]string, error)
 	IngestBaseConfig() config.IngestConfig
+	SetIngesterUUID(string)
 	AttachConfig() attach.AttachConfig
 }
 
@@ -75,8 +77,8 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	if err = ibc.validate(); err != nil {
 		return
 	}
+	validate.ValidateConfig(ib.GetConfigFunc, *confLoc, *confdLoc)
 
-	validate.ValidateConfig(ibc.GetConfigFunc, *confLoc, *confdLoc)
 	var fp string
 	if pth := filepath.Clean(*stderrOverride); pth != `` && pth != `.` {
 		fp = filepath.Join(`/dev/shm/`, pth)
@@ -98,7 +100,10 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	var ch cfgHelper
 	if ib.Cfg, ch, err = ibc.getConfig(*confLoc, *confdLoc); err != nil {
 		return
+	} else if err = verifyConfig(ib.Cfg); err != nil {
+		return
 	}
+
 	cfg := ch.IngestBaseConfig()
 	if cfg.Disable_Multithreading {
 		//go into single threaded mode
@@ -106,6 +111,7 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	}
 
 	cfg.AddLocalLogging(ib.Logger)
+
 	return
 }
 
@@ -177,7 +183,16 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 	ib.Debug("INSECURE skip TLS certificate verification: %v\n", cfg.InsecureSkipTLSVerification())
 	id, ok := cfg.IngesterUUID()
 	if !ok {
-		ib.Logger.FatalCode(0, "could not read ingester UUID")
+		id = uuid.Nil //set to the zero UUID
+		//try to write it back if we can
+		if ib.DefaultConfigLocation != `` {
+			nid := uuid.New()
+			if lerr := cfg.SetIngesterUUID(nid, ib.DefaultConfigLocation); lerr == nil {
+				//we were able to write it back, go ahead an update away from nil UUID
+				id = nid
+			}
+		}
+		// so either we wrote back a random UUID or we are a nil UUID
 	}
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.IngestStreamConfig,
@@ -236,6 +251,10 @@ func (ibc IngesterBaseConfig) validate() error {
 		return errors.New("missing ingester name")
 	} else if ibc.AppName == `` {
 		return errors.New("missing app name")
+	} else if ibc.GetConfigFunc == nil {
+		return errors.New("GetConfigFunc is not a function")
+	} else if reflect.TypeOf(ibc.GetConfigFunc).Kind() != reflect.Func {
+		return errors.New("GetConfigFunc is not a function")
 	}
 
 	return nil
@@ -284,6 +303,21 @@ func (ibc IngesterBaseConfig) getConfig(confLoc, confDLoc string) (obj interface
 	} else if ch, ok = obj.(cfgHelper); !ok {
 		obj = nil
 		err = fmt.Errorf("Config type %T does not implement the helper interface", obj)
+	}
+	return
+}
+
+type verifier interface {
+	Verify() error
+}
+
+func verifyConfig(obj interface{}) (err error) {
+	if obj == nil {
+		err = errors.New("config object is nil")
+	} else if ff, ok := obj.(verifier); !ok {
+		err = errors.New("config object has not Verify function")
+	} else {
+		err = ff.Verify()
 	}
 	return
 }

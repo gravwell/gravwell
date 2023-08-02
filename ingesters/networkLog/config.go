@@ -13,7 +13,6 @@ import (
 	"net"
 	"sort"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
@@ -66,24 +65,14 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		Attach:       cr.Attach,
 		Sniffer:      cr.Sniffer,
 	}
-	if err := verifyConfig(c); err != nil {
+	if err := c.Verify(); err != nil {
 		return nil, err
-	}
-	// Verify and set UUID
-	if _, ok := c.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
-		}
 	}
 	return c, nil
 }
 
-func verifyConfig(c *cfgType) error {
-	if err := c.Verify(); err != nil {
+func (c *cfgType) Verify() error {
+	if err := c.IngestConfig.Verify(); err != nil {
 		return err
 	} else if err = c.Attach.Verify(); err != nil {
 		return err

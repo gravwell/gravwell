@@ -19,8 +19,8 @@ import (
 	"time"
 
 	"github.com/Shopify/sarama"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingest/processors/tags"
@@ -112,6 +112,7 @@ type consumerCfg struct {
 
 type cfgReadType struct {
 	Global       config.IngestConfig
+	Attach       attach.AttachConfig
 	Consumer     map[string]*ConfigConsumer
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -119,6 +120,7 @@ type cfgReadType struct {
 
 type cfgType struct {
 	config.IngestConfig
+	Attach       attach.AttachConfig
 	Consumers    map[string]*consumerCfg
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -132,34 +134,14 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	} else if err = config.LoadConfigOverlays(&cr, overlayPath); err != nil {
 		return nil, err
 	}
-	//validate the global params
-	if err := cr.Global.Verify(); err != nil {
-		return nil, err
-	} else if len(cr.Consumer) == 0 {
-		return nil, errors.New("no consumers defined")
-	} else if err := cr.Preprocessor.Validate(); err != nil {
-		return nil, err
-	} else if err = cr.TimeFormat.Validate(); err != nil {
-		return nil, err
-	}
 
 	//create our actual config
 	c := &cfgType{
 		IngestConfig: cr.Global,
+		Attach:       cr.Attach,
 		Consumers:    make(map[string]*consumerCfg, len(cr.Consumer)),
 		Preprocessor: cr.Preprocessor,
 		TimeFormat:   cr.TimeFormat,
-	}
-
-	// Verify and set UUID
-	if _, ok := c.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
-		}
 	}
 
 	for k, v := range cr.Consumer {
@@ -182,7 +164,27 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 			c.Consumers[k] = &cnsmr
 		}
 	}
+	if err := c.Verify(); err != nil {
+		return nil, err
+	}
 	return c, nil
+}
+
+func (c *cfgType) Verify() error {
+	//validate the global params
+	if err := c.IngestConfig.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
+		return err
+	} else if len(c.Consumers) == 0 {
+		return errors.New("no consumers defined")
+	} else if err = c.Preprocessor.Validate(); err != nil {
+		return err
+	} else if err = c.TimeFormat.Validate(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (c *cfgType) Tags() (tags []string, err error) {
@@ -221,6 +223,14 @@ func (c *cfgType) Tags() (tags []string, err error) {
 		sort.Strings(tags)
 	}
 	return
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
 
 func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
