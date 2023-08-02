@@ -76,7 +76,7 @@ func NewService(cfg *cfgType) (*mainService, error) {
 	//fire up the watch manager
 	wtchr, err := filewatch.NewWatcher(cfg.StatePath())
 	if err != nil {
-		fmt.Println("Failed to open", cfg.StatePath(), err)
+		errorout("failed to open config path %s %v", cfg.StatePath(), err)
 		return nil, err
 	}
 	//pass in the ingest muxer to the file watcher so it can throw info and errors down the muxer chan
