@@ -41,7 +41,6 @@ type getConfigFunc func(cfg, overlay string) (interface{}, error)
 type cfgHelper interface {
 	Tags() ([]string, error)
 	IngestBaseConfig() config.IngestConfig
-	SetIngesterUUID(string)
 	AttachConfig() attach.AttachConfig
 }
 
