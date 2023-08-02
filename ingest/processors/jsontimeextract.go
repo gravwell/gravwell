@@ -89,7 +89,7 @@ func (j *JsonTimestamp) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 		if ents[i] == nil {
 			continue
 		}
-		if v, err := jsonparser.GetString(ents[i].Data, j.keys...); err == nil {
+		if v, err := jsonparser.GetUnsafeString(ents[i].Data, j.keys...); err == nil {
 			if ts, ok, err := j.tg.Extract([]byte(v)); err == nil && ok {
 				ents[i].TS = entry.FromStandard(ts)
 			}
