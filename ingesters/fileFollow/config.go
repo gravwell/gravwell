@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -28,7 +28,8 @@ import (
 )
 
 const (
-	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
+	MAX_CONFIG_SIZE        int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
+	defaultMaxWatchedFiles       = 1024
 )
 
 var (
@@ -109,6 +110,10 @@ func (c *cfgType) Verify() error {
 		return err
 	} else if err = c.Attach.Verify(); err != nil {
 		return err
+	} else if err = c.global.verifyStateStore(); err != nil {
+		return err
+	} else if c.global.Max_Files_Watched <= 0 {
+		c.global.Max_Files_Watched = defaultMaxWatchedFiles
 	}
 	if len(c.Follower) == 0 {
 		return errors.New("No Followers specified")

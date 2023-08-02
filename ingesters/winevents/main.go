@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -31,6 +31,7 @@ import (
 const (
 	serviceName       = `GravwellEvents`
 	appName           = `winevent`
+	ingesterName      = `Windows Events`
 	defaultConfigPath = `gravwell\eventlog\config.cfg`
 )
 
@@ -62,7 +63,7 @@ func init() {
 		confLoc = *configOverride
 	}
 	debugOn = *verboseF
-	validate.ValidateConfig(winevent.GetConfig, confLoc, ``)
+	validate.ValidateConfig(GetConfig, confLoc, ``)
 }
 
 func main() {
@@ -85,7 +86,7 @@ func main() {
 	}
 	lg.SetAppname(appName)
 
-	cfg, err := winevent.GetConfig(confLoc)
+	cfg, err := GetConfig(confLoc)
 	if err != nil {
 		lg.Error("failed to get configuration", log.KVErr(err))
 		return

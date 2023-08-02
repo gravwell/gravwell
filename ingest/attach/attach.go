@@ -9,6 +9,7 @@
 package attach
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -63,6 +64,26 @@ func (ac AttachConfig) Verify() (err error) {
 		return
 	}
 	_, err = ac.Attachments()
+	return
+}
+
+var (
+	empty = []byte(`{}`)
+)
+
+func (ac AttachConfig) MarshalJSON() (r []byte, err error) {
+	var items []attachItem
+	if items, err = ac.Attachments(); err != nil {
+		return
+	} else if len(items) == 0 {
+		r = empty
+		return
+	}
+	v := make(map[string]string, len(items))
+	for _, item := range items {
+		v[item.key] = item.value
+	}
+	r, err = json.Marshal(v)
 	return
 }
 
