@@ -2,7 +2,7 @@
 // +build windows
 
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -27,7 +27,28 @@ const (
 	//if we don't get any events for this long of time, we will poll the
 	//event handle to see if something has gone fucky
 	eventHandleCheckupInterval time.Duration = 10 * time.Second
+
+	//this CANNOT be less than 2
+	//or you will fall into an infinite loop HAMMERING the kernel
+	MinHandleRequest = 2
 )
+
+type EventStreamParams struct {
+	Name         string
+	TagName      string
+	Channel      string
+	Levels       string
+	EventIDs     string
+	Providers    []string
+	ReachBack    time.Duration
+	Preprocessor []string
+	BuffSize     int
+	ReqSize      int
+}
+
+func (esp *EventStreamParams) IsFiltering() bool {
+	return esp.Levels != `` || esp.EventIDs != `` || len(esp.Providers) > 0
+}
 
 type EventStreamHandle struct {
 	params       EventStreamParams
@@ -156,7 +177,7 @@ func (e *EventStreamHandle) resetNoLock() (err error) {
 // getHandles will iterate on the call to EventHandles, we do this because on big event log entries the kernel throws
 // RPC_S_INVALID_BOUND which is basically a really atrocious way to say "i can't give you all the handles due to size"
 func (e *EventStreamHandle) getHandles(start int) (evtHnds []wineventlog.EvtHandle, fullRead bool, err error) {
-	for cnt := start; cnt >= minHandleRequest; cnt = cnt / 2 {
+	for cnt := start; cnt >= MinHandleRequest; cnt = cnt / 2 {
 		evtHnds, err = wineventlog.EventHandles(e.subHandle, cnt)
 		switch err {
 		case nil:

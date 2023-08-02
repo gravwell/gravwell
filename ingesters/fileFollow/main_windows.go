@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -93,9 +93,10 @@ func main() {
 		return
 	}
 
+	//create a service, this is used even if we are running in interactive mode
 	s, err := NewService(cfg)
 	if err != nil {
-		errorout("Failed to create gravwell servicer: %v", err)
+		errorout("Failed to create gravwell service: %v", err)
 		return
 	}
 

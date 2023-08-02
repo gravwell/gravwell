@@ -2,30 +2,30 @@
 // +build windows
 
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package winevent
+package main
 
 import (
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/winevent"
 )
 
 const (
@@ -43,10 +43,7 @@ const (
 	maxBuffSize     = 32 * mb //a 32MB message is stupid
 
 	defaultHandleRequest = 128
-	//this CANNOT be less than 2
-	//or you will fall into an infinite loop HAMMERING the kernel
-	minHandleRequest = 2
-	maxHandleRequest = 1024
+	maxHandleRequest     = 1024
 )
 
 var (
@@ -78,6 +75,7 @@ type CfgType struct {
 		Bookmark_Location string
 		Ignore_Timestamps bool
 	}
+	Attach       attach.AttachConfig
 	EventChannel map[string]*EventStreamConfig
 	Preprocessor processors.ProcessorConfig
 }
@@ -87,32 +85,24 @@ func GetConfig(path string) (*CfgType, error) {
 	if err := config.LoadConfigFile(&c, path); err != nil {
 		return nil, err
 	}
-	if err := c.verify(); err != nil {
+	if err := c.Verify(); err != nil {
 		return nil, err
-	}
-	// Verify and set UUID
-	if _, ok := c.Global.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.Global.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.Global.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("failed to set a new ingester UUID")
-		}
 	}
 	return &c, nil
 }
 
-func (c *CfgType) verify() error {
+func (c *CfgType) Verify() error {
 	//verify the global parameters
 	if err := c.Global.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	} else if err := c.Preprocessor.Validate(); err != nil {
 		return err
 	}
 
 	if c.Global.Bookmark_Location == "" {
-		b, err := ProgramDataFilename(filepath.Join(`gravwell\eventlog\`, defaultBookmarkName))
+		b, err := winevent.ProgramDataFilename(filepath.Join(`gravwell\eventlog\`, defaultBookmarkName))
 		if err != nil {
 			return err
 		}
@@ -152,6 +142,14 @@ func (c *CfgType) Tags() ([]string, error) {
 		return nil, errors.New("No tags specified")
 	}
 	return tags, nil
+}
+
+func (c *CfgType) IngestBaseConfig() config.IngestConfig {
+	return c.Global.IngestConfig
+}
+
+func (c *CfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
 
 func (c *CfgType) VerifyRemote() bool {
@@ -202,8 +200,8 @@ func (ec *EventStreamConfig) normalize() {
 		ec.Request_Size = defaultHandleRequest
 	} else if ec.Request_Size > maxHandleRequest {
 		ec.Request_Size = maxHandleRequest
-	} else if ec.Request_Size < minHandleRequest {
-		ec.Request_Size = minHandleRequest
+	} else if ec.Request_Size < winevent.MinHandleRequest {
+		ec.Request_Size = winevent.MinHandleRequest
 	}
 
 	ec.Request_Buffer *= mb
@@ -311,21 +309,8 @@ func parseCSVInts(val string) error {
 	return nil
 }
 
-type EventStreamParams struct {
-	Name         string
-	TagName      string
-	Channel      string
-	Levels       string
-	EventIDs     string
-	Providers    []string
-	ReachBack    time.Duration
-	Preprocessor []string
-	BuffSize     int
-	ReqSize      int
-}
-
 // Validate SHOULD have already been called, we aren't going to check anything here
-func (ec *EventStreamConfig) params(name string) (EventStreamParams, error) {
+func (ec *EventStreamConfig) params(name string) (winevent.EventStreamParams, error) {
 	var dur time.Duration
 	if len(ec.Max_Reachback) == 0 {
 		dur = defaultReachback
@@ -333,14 +318,14 @@ func (ec *EventStreamConfig) params(name string) (EventStreamParams, error) {
 		var err error
 		dur, err = time.ParseDuration(ec.Max_Reachback)
 		if err != nil {
-			return EventStreamParams{}, err
+			return winevent.EventStreamParams{}, err
 		}
 	}
 	tag := ec.Tag_Name
 	if len(tag) == 0 {
 		tag = entry.DefaultTagName
 	}
-	return EventStreamParams{
+	return winevent.EventStreamParams{
 		Name:         name,
 		TagName:      tag,
 		Channel:      ec.Channel,
@@ -354,8 +339,8 @@ func (ec *EventStreamConfig) params(name string) (EventStreamParams, error) {
 	}, nil
 }
 
-func (c *CfgType) Streams() ([]EventStreamParams, error) {
-	var params []EventStreamParams
+func (c *CfgType) Streams() ([]winevent.EventStreamParams, error) {
+	var params []winevent.EventStreamParams
 	for k, v := range c.EventChannel {
 		esp, err := v.params(k)
 		if err != nil {
@@ -380,30 +365,4 @@ func (c *CfgType) CacheSize() int {
 
 func (c *CfgType) LogLevel() string {
 	return c.Global.Log_Level
-}
-
-func ServiceFilename(name string) (string, error) {
-	exePath, err := os.Executable()
-	if err != nil {
-		return ``, fmt.Errorf("Failed to get executable path: %v", err)
-	}
-	exeDir, err := filepath.Abs(filepath.Dir(exePath))
-	if err != nil {
-		return ``, fmt.Errorf("Failed to get location of executable: %v", err)
-	}
-	return filepath.Join(exeDir, name), nil
-}
-
-func ProgramDataFilename(name string) (r string, err error) {
-	if r = os.Getenv(`PROGRAMDATA`); r == `` {
-		//return the ServiceFilename path
-		r, err = ServiceFilename(name)
-	} else {
-		r = filepath.Join(r, name)
-	}
-	return
-}
-
-func (esp *EventStreamParams) IsFiltering() bool {
-	return esp.Levels != `` || esp.EventIDs != `` || len(esp.Providers) > 0
 }
