@@ -63,6 +63,7 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	ib.IngesterBaseConfig = ibc
 	confLoc := flag.String("config-file", ibc.DefaultConfigLocation, "Location for configuration file")
 	confdLoc := flag.String("config-overlays", ibc.DefaultConfigOverlayLocation, "Location for configuration overlay files")
+	populateUUID := flag.Bool("validate-uuid-config", false, "Validate configurations and ensure an ingester UUID is in place")
 	verbose := flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride := flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	ver := flag.Bool("version", false, "Print the version information and exit")
@@ -104,6 +105,14 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	}
 
 	cfg := ch.IngestBaseConfig()
+	if *populateUUID {
+		if err = ib.validateUUID(cfg, *confLoc); err != nil {
+			ib.Logger.FatalCode(5, "failed to validate and write back UUID", log.KVErr(err))
+		}
+		fmt.Println("configuration is valid and Ingester-UUID is populated")
+		os.Exit(0)
+	}
+
 	if cfg.Disable_Multithreading {
 		//go into single threaded mode
 		runtime.GOMAXPROCS(1)
@@ -111,6 +120,7 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 
 	cfg.AddLocalLogging(ib.Logger)
 
+	err = ib.validateUUID(cfg, *confLoc)
 	return
 }
 
@@ -182,16 +192,7 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 	ib.Debug("INSECURE skip TLS certificate verification: %v\n", cfg.InsecureSkipTLSVerification())
 	id, ok := cfg.IngesterUUID()
 	if !ok {
-		id = uuid.Nil //set to the zero UUID
-		//try to write it back if we can
-		if ib.DefaultConfigLocation != `` {
-			nid := uuid.New()
-			if lerr := cfg.SetIngesterUUID(nid, ib.DefaultConfigLocation); lerr == nil {
-				//we were able to write it back, go ahead an update away from nil UUID
-				id = nid
-			}
-		}
-		// so either we wrote back a random UUID or we are a nil UUID
+		id = uuid.Nil //set to the zero UUID, we attempt to write one back during init, but if that fails... just use zero
 	}
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.IngestStreamConfig,
@@ -238,11 +239,94 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 	return
 }
 
-func (ib IngesterBase) Debug(format string, args ...interface{}) {
-	if !ib.Verbose {
+func (ib *IngesterBase) Debug(format string, args ...interface{}) {
+	if ib.Verbose {
+		fmt.Printf(format, args...)
 		return
 	}
-	fmt.Printf(format, args...)
+}
+
+func (ib *IngesterBase) validateUUID(cfg config.IngestConfig, loc string) (err error) {
+	if ib == nil || ib.Cfg == nil {
+		return //nothing to do here
+	}
+	id, ok := cfg.IngesterUUID()
+	if ok {
+		//all good
+		return
+	}
+	//generate a UUID
+	id = uuid.New()
+
+	if loc != `` {
+		if err = cfg.SetIngesterUUID(id, loc); err != nil {
+			err = fmt.Errorf("failed to update the ingester UUID in %s - %w", loc, err)
+			return
+		}
+	}
+
+	//attempt to find and populate the Cfg item
+	if err = ib.writebackUUID(id); err != nil {
+		err = fmt.Errorf("failed to populate UUID in %T %w", ib.Cfg, err)
+	}
+
+	return
+}
+
+func (ib *IngesterBase) writebackUUID(id uuid.UUID) (err error) {
+	//first check that we have good pointers
+	if ib == nil || ib.Cfg == nil {
+		err = errors.New("ingester base pointers are bad")
+		return
+	}
+
+	//now make sure the Cfg we were handed is actually something we can write to
+	v := reflect.ValueOf(ib.Cfg)
+	if v.Type().Kind() != reflect.Ptr {
+		err = fmt.Errorf("Config value %T is not a pointer", ib.Cfg)
+		return
+	}
+
+	//ok, make sure whatever it is pointing to is a struct
+	rv := v.Elem()
+	if rv.Type().Kind() != reflect.Struct {
+		err = fmt.Errorf("type %T does not point to a struct (%T)", ib.Cfg, rv.Interface())
+		return
+	}
+
+	//ok, lets start diving into this thing and try to set a value inside of it
+	sv := rv.FieldByName(`Ingester_UUID`)
+	if sv.IsValid() == false {
+		//try to look for a field named "Global"
+		sv = rv.FieldByName(`Global`)
+		if sv.IsValid() == false {
+			err = fmt.Errorf("Failed to find Ingester_UUID in config type %T", rv.Interface())
+			return
+		}
+		//sv is pointing at Global, try to grab the Ingester_UUID in there
+		ssv := sv.FieldByName(`Ingester_UUID`)
+		if ssv.IsValid() == false {
+			err = fmt.Errorf("Failed to find Ingester_UUID in nested Global type %T", sv.Interface())
+			return
+		}
+		if ssv.CanSet() == false {
+			err = fmt.Errorf("Cannot set Ingester_UUID inside nested global type %T", sv.Interface())
+			return
+		}
+		//all good
+		sv = ssv
+	}
+	if sv.CanSet() == false {
+		err = fmt.Errorf("Cannot set Ingester_UUID field in type %T", ib.Cfg)
+		return
+	} else if sv.Kind() != reflect.String {
+		err = fmt.Errorf("Cannot set Ingester_UUID, type %T is not a string", sv.Interface())
+		return
+	}
+
+	//ok, here we gooooo
+	sv.SetString(id.String())
+	return nil
 }
 
 func (ibc IngesterBaseConfig) validate() error {
