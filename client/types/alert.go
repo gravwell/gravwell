@@ -63,6 +63,9 @@ type AlertDefinition struct {
 
 	// The owner of the Alert
 	UID int32 `json:"UID"`
+
+	// Arbitrary user-defined metadata which will be injected into the events
+	UserMetadata map[string]interface{} `json:"UserMetadata"`
 }
 
 // AlertConsumer - Something which consumes alerts.
