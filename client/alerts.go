@@ -9,6 +9,7 @@
 package client
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -49,4 +50,26 @@ func (c *Client) UpdateAlert(def types.AlertDefinition) (result types.AlertDefin
 func (c *Client) DeleteAlert(id uuid.UUID) (err error) {
 	err = c.deleteStaticURL(alertsIdUrl(id), nil)
 	return
+}
+
+// GetAlertSampleEvent asks the webserver to generate a sample event for the given alert.
+func (c *Client) GetAlertSampleEvent(id uuid.UUID) (result types.Event, err error) {
+	err = c.getStaticURL(alertsIdSampleEventUrl(id), &result)
+	return
+}
+
+// ValidateAlertScheduledSearchDispatcher validates an existing scheduled search against
+// a given schema.
+func (c *Client) ValidateAlertScheduledSearchDispatcher(ssearchID int32, schema types.AlertSchemas) (resp types.AlertDispatcherValidateResponse, err error) {
+	// build the request
+	req := types.AlertDispatcherValidateRequest{
+		Dispatcher: types.AlertDispatcher{
+			Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH,
+			ID:   fmt.Sprintf("%d", ssearchID),
+		},
+		Schema: schema,
+	}
+	err = c.methodStaticPushURL(http.MethodPost, alertsValidateDispatcherUrl(), req, &resp)
+	return
+
 }

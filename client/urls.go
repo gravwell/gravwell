@@ -180,7 +180,8 @@ const (
 	CBAC_DEFAULT_TAGS_URL            = `/api/cbac/default/tags`
 	ALERTS_URL                       = `/api/alerts`
 	ALERTS_ID_URL                    = `/api/alerts/%s`
-
+	ALERTS_ID_SAMPLE_URL             = `/api/alerts/%s/sample`
+	ALERTS_VALIDATE_DISPATCHER_URL   = `/api/alerts/validate/dispatcher`
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
 	LICENSE_INIT_STATUS = `/license/status`
@@ -629,4 +630,12 @@ func alertsUrl() string {
 
 func alertsIdUrl(id uuid.UUID) string {
 	return fmt.Sprintf(ALERTS_ID_URL, id.String())
+}
+
+func alertsIdSampleEventUrl(id uuid.UUID) string {
+	return fmt.Sprintf(ALERTS_ID_SAMPLE_URL, id.String())
+}
+
+func alertsValidateDispatcherUrl() string {
+	return ALERTS_VALIDATE_DISPATCHER_URL
 }
