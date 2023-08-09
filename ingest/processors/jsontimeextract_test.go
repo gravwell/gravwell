@@ -226,6 +226,14 @@ func TestJsonTimestampFormats(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	//test as unix milli with higher precision
+	ts = internal.Add(120 * time.Millisecond)
+	data = fmt.Sprintf(`{"foo": {"bar": %d.120000}}`, ts.Unix())
+	config = fmt.Sprintf(b, `UnixMilli`)
+	if err := testJsonCycle(config, data, og, ts); err != nil {
+		t.Fatal(err)
+	}
+
 	//test as unix milli quoted
 	ts = internal.Add(120 * time.Millisecond)
 	data = fmt.Sprintf(`{"foo": {"bar": "%d.12"}}`, ts.Unix())
