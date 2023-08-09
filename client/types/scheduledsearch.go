@@ -43,6 +43,7 @@ var (
 // ScheduledSearch represents a scheduled search, including rules, description,
 // etc.
 type ScheduledSearch struct {
+	Synced      bool
 	ID          int32
 	GUID        uuid.UUID
 	Groups      []int32
@@ -55,9 +56,11 @@ type ScheduledSearch struct {
 	Timezone    string // a location to use for the timezone, e.g. "America/New_York"
 	Updated     time.Time
 	Disabled    bool
-	OneShot     bool // Set this flag to 'true' to make the search fire ONCE
-	DebugMode   bool // set this to true to enable debug mode
-	Synced      bool
+
+	// These values are used for debug/testing runs
+	OneShot    bool                   // Set this flag to 'true' to make the search fire ONCE
+	DebugMode  bool                   // set this to true to enable debug mode
+	DebugEvent map[string]interface{} // If provided, this will be inserted as `event` into the flow payload.
 
 	// if true, search agent will attempt to "backfill" missed runs since
 	// the more recent of Updated or LastRun.
@@ -120,7 +123,8 @@ type ScheduledSearchParseResponse struct {
 }
 
 type FlowParseRequest struct {
-	Flow string
+	Flow       string
+	DebugEvent map[string]interface{} // If provided, this will be set as `event` in the flow payload for parsing.
 }
 
 type FlowParseResponse struct {

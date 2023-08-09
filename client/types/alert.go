@@ -54,7 +54,7 @@ type AlertDefinition struct {
 	Name string `json:"Name"`
 
 	// A JSON schema describing the expected fields in the alerts.
-	Schema map[string]interface{} `json:"Schema"`
+	Schemas AlertSchemas `json:"Schemas"`
 
 	// The tag into which alerts will be ingested
 	TargetTag string `json:"TargetTag"`
@@ -63,6 +63,9 @@ type AlertDefinition struct {
 
 	// The owner of the Alert
 	UID int32 `json:"UID"`
+
+	// Arbitrary user-defined metadata which will be injected into the events
+	UserMetadata map[string]interface{} `json:"UserMetadata"`
 }
 
 // AlertConsumer - Something which consumes alerts.
@@ -77,4 +80,27 @@ type AlertDispatcher struct {
 	ID string `json:"ID"`
 
 	Type AlertDispatcherType `json:"Type"`
+}
+
+// AlertSchema - Contains schema definitions for an alert and selects which one is to be used.
+type AlertSchemas struct {
+
+	// The "simple" schema, if any is defined.
+	Simple map[string]interface{} `json:"Simple,omitempty"`
+
+	// A schema derived from an OCSF spec.
+	OCSF AlertSchemasOcsf `json:"OCSF,omitempty"`
+
+	// A user-provided JSON schema.
+	JSON map[string]interface{} `json:"JSON,omitempty"`
+
+	ActiveSchema string `json:"ActiveSchema"`
+}
+
+type AlertSchemasOcsf struct {
+	EventClass string `json:"EventClass"`
+
+	Extensions []string `json:"Extensions"`
+
+	Profiles []string `json:"Profiles"`
 }
