@@ -182,6 +182,7 @@ const (
 	ALERTS_ID_URL                    = `/api/alerts/%s`
 	ALERTS_ID_SAMPLE_URL             = `/api/alerts/%s/sample`
 	ALERTS_VALIDATE_DISPATCHER_URL   = `/api/alerts/validate/dispatcher`
+	ALERTS_VALIDATE_CONSUMER_URL     = `/api/alerts/validate/consumer`
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
 	LICENSE_INIT_STATUS = `/license/status`
@@ -638,4 +639,8 @@ func alertsIdSampleEventUrl(id uuid.UUID) string {
 
 func alertsValidateDispatcherUrl() string {
 	return ALERTS_VALIDATE_DISPATCHER_URL
+}
+
+func alertsValidateConsumerUrl() string {
+	return ALERTS_VALIDATE_CONSUMER_URL
 }

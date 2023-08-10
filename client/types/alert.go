@@ -144,6 +144,20 @@ type AlertDispatcherValidateResponse struct {
 	ValidationErrors []AlertDispatcherValidateError `json:"ValidationErrors,omitempty"`
 }
 
+// AlertConsumerValidateRequest - Request to validate the given consumer for use with an alert
+type AlertConsumerValidateRequest struct {
+	Consumer AlertConsumer `json:"Consumer"`
+
+	Alert AlertDefinition `json:"Alert"`
+}
+
+// AlertConsumerValidateResponse - Indicates whether a consumer is valid for a given alert or not.
+type AlertConsumerValidateResponse struct {
+	Valid bool `json:"Valid,omitempty"`
+
+	Error string `json:"Error,omitempty"`
+}
+
 // Event is the type that actually gets ingested
 type Event struct {
 	Metadata EventMetadata

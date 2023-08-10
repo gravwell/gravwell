@@ -73,3 +73,20 @@ func (c *Client) ValidateAlertScheduledSearchDispatcher(ssearchID int32, schema 
 	return
 
 }
+
+// ValidateAlertFlowConsumer validates an existing flow against
+// a given alert, making sure it does not consume any fields not
+// provided by the schema.
+func (c *Client) ValidateAlertFlowConsumer(flowID int32, alert types.AlertDefinition) (resp types.AlertConsumerValidateResponse, err error) {
+	// build the request
+	req := types.AlertConsumerValidateRequest{
+		Consumer: types.AlertConsumer{
+			Type: types.ALERTCONSUMERTYPE_FLOW,
+			ID:   fmt.Sprintf("%d", flowID),
+		},
+		Alert: alert,
+	}
+	err = c.methodStaticPushURL(http.MethodPost, alertsValidateConsumerUrl(), req, &resp)
+	return
+
+}

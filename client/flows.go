@@ -112,7 +112,7 @@ func (c *Client) ParseFlow(flow string) (outputPayloads map[int]map[string]inter
 // The event parameter will be injected into the initial payload under the name `event`.
 // If there is no error, outputPayloads will be a map containing the outputs
 // of each node, keyed by the node ID.
-func (c *Client) ParseReactiveFlow(flow string, event map[string]interface{}) (outputPayloads map[int]map[string]interface{}, err error) {
+func (c *Client) ParseReactiveFlow(flow string, event types.Event) (outputPayloads map[int]map[string]interface{}, err error) {
 	var resp types.FlowParseResponse
 	req := types.FlowParseRequest{
 		DebugEvent: event,
