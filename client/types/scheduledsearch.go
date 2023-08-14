@@ -58,9 +58,9 @@ type ScheduledSearch struct {
 	Disabled    bool
 
 	// These values are used for debug/testing runs
-	OneShot    bool  // Set this flag to 'true' to make the search fire ONCE
-	DebugMode  bool  // set this to true to enable debug mode
-	DebugEvent Event // If provided, this will be inserted as `event` into the flow payload.
+	OneShot    bool   // Set this flag to 'true' to make the search fire ONCE
+	DebugMode  bool   // set this to true to enable debug mode
+	DebugEvent *Event // If provided, this will be inserted as `event` into the flow payload.
 
 	// if true, search agent will attempt to "backfill" missed runs since
 	// the more recent of Updated or LastRun.
@@ -124,7 +124,7 @@ type ScheduledSearchParseResponse struct {
 
 type FlowParseRequest struct {
 	Flow       string
-	DebugEvent Event // If provided, this will be set as `event` in the flow payload for parsing.
+	DebugEvent *Event // If provided, this will be set as `event` in the flow payload for parsing.
 }
 
 type FlowParseResponse struct {
