@@ -115,7 +115,7 @@ func (c *Client) ParseFlow(flow string) (outputPayloads map[int]map[string]inter
 func (c *Client) ParseReactiveFlow(flow string, event types.Event) (outputPayloads map[int]map[string]interface{}, err error) {
 	var resp types.FlowParseResponse
 	req := types.FlowParseRequest{
-		DebugEvent: event,
+		DebugEvent: &event,
 		Flow:       flow,
 	}
 	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp); err != nil {
