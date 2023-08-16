@@ -86,7 +86,7 @@ type AlertDispatcher struct {
 type AlertSchemas struct {
 
 	// The "simple" schema, if any is defined.
-	Simple map[string]interface{} `json:"Simple,omitempty"`
+	Simple []AlertSchemasSimpleItem `json:"Simple,omitempty"`
 
 	// A schema derived from an OCSF spec.
 	OCSF AlertSchemasOcsf `json:"OCSF,omitempty"`
@@ -97,10 +97,63 @@ type AlertSchemas struct {
 	ActiveSchema string `json:"ActiveSchema"`
 }
 
+// AlertSchemasSimpleItem defines a single item in a Simple schema
+type AlertSchemasSimpleItem struct {
+	Name string `json:"name,omitempty"`
+
+	Type string `json:"type,omitempty"`
+}
+
+// AlertSchemasOcsf defines an OCSF schema to use.
 type AlertSchemasOcsf struct {
 	EventClass string `json:"EventClass"`
 
 	Extensions []string `json:"Extensions"`
 
 	Profiles []string `json:"Profiles"`
+}
+
+// AlertDispatcherValidateRequest - Request to validate the given dispatcher against a schema. Populate the Dispatcher field to refer to an existing scheduled search, or set QueryString to test a query string
+type AlertDispatcherValidateRequest struct {
+	Dispatcher AlertDispatcher `json:"Dispatcher,omitempty"`
+
+	QueryString string `json:"QueryString,omitempty"`
+
+	Schema AlertSchemas `json:"Schema"`
+}
+
+// AlertDispatcherValidateError - Describes a failed validation item for a dispatcher
+type AlertDispatcherValidateError struct {
+
+	// The path that led to the error
+	Path string `json:"Path,omitempty"`
+
+	InvalidValue *interface{} `json:"InvalidValue,omitempty"`
+
+	// Human-friendly information as to why the item failed
+	Message string `json:"Message,omitempty"`
+}
+
+// AlertDispatcherValidateResponse - Indicates which, if any, fields the given dispatcher failed to provide.
+type AlertDispatcherValidateResponse struct {
+
+	// If true, the dispatcher generates all required fields in the schema.
+	Valid bool `json:"Valid,omitempty"`
+
+	// Names of fields which were missing.
+	ValidationErrors []AlertDispatcherValidateError `json:"ValidationErrors,omitempty"`
+}
+
+// AlertConsumerValidateRequest - Request to validate the given consumer for use with an alert
+type AlertConsumerValidateRequest struct {
+	Consumer AlertConsumer `json:"Consumer"`
+
+	Alert AlertDefinition `json:"Alert"`
+}
+
+// AlertConsumerValidateResponse - Indicates whether a consumer is valid for a given alert or not.
+type AlertConsumerValidateResponse struct {
+	Valid bool `json:"Valid,omitempty"`
+
+	Error string `json:"Error,omitempty"`
 }
