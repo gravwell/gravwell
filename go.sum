@@ -210,8 +210,6 @@ github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 h1:WY4eTW+ErqI0rbV
 github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66/go.mod h1:RUZts//u8V+P37LqSghbTYaMGDdTOJooQGHzbjfSIZA=
 github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018 h1:yOl1BFerz+cq4FeeDVIHy11kOZAozTMKzbFd0PoJErA=
 github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018/go.mod h1:N+S2rmWz+IHo5zTQaDshQr+qEVGldBRzAnlRkf1yO8c=
-github.com/gravwell/ipfix v1.4.3 h1:OwEqbafjR2brezAnGHUHU9JbHKAeO1EL6BjIwqJvqGs=
-github.com/gravwell/ipfix v1.4.3/go.mod h1:/Ogrd3FQi+GGD+BXzX8/kBQKdOrgrf6c8u8LSEA3WI8=
 github.com/gravwell/ipfix v1.4.6-0.20230824134022-6c25de98707d h1:IoTUiFz/jhYIy/Dx3pJ7ET/YHdBLlXbfOPrt4ptECok=
 github.com/gravwell/ipfix v1.4.6-0.20230824134022-6c25de98707d/go.mod h1:/Ogrd3FQi+GGD+BXzX8/kBQKdOrgrf6c8u8LSEA3WI8=
 github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e h1:VehL0WBsjIFCQZ8k9Cp0YwLqzlfJsPjOYiGOdt5/lMs=
