@@ -147,6 +147,7 @@ type PackedScheduledSearch struct {
 	DefaultDeploymentRules types.ScriptDeployConfig
 	Flow                   string `json:",omitempty"`
 	ScheduledType          string
+	GUID                   uuid.UUID // A unique ID for this scheduled search. Useful for detecting and handling upgrades.
 }
 
 // PackScheduledSearch converts a ScheduledSearch into a PackedScheduledSearch for inclusion in a kit.
@@ -161,6 +162,7 @@ func PackScheduledSearch(ss *types.ScheduledSearch) (p PackedScheduledSearch) {
 		Labels:        ss.Labels,
 		Flow:          ss.Flow,
 		ScheduledType: ss.ScheduledType,
+		GUID:          ss.GUID,
 	}
 	return
 }
@@ -204,6 +206,7 @@ func (pss *PackedScheduledSearch) Unpackage(uid int32, gids []int32) (ss types.S
 	ss.Labels = pss.Labels
 	ss.Flow = pss.Flow
 	ss.ScheduledType = pss.ScheduledType
+	ss.GUID = pss.GUID
 	return
 }
 
@@ -219,6 +222,7 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 		Flow                   string `json:",omitempty"`
 		ScheduledType          string `json:",omitempty"`
 		DefaultDeploymentRules types.ScriptDeployConfig
+		GUID                   uuid.UUID
 	}{
 		Name:                   pss.Name,
 		Description:            pss.Description,
@@ -229,6 +233,7 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 		Flow:                   pss.Flow,
 		ScheduledType:          pss.TypeName(),
 		DefaultDeploymentRules: pss.DefaultDeploymentRules,
+		GUID:                   pss.GUID,
 	})
 	return json.RawMessage(b), err
 }
