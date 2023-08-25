@@ -47,7 +47,7 @@ type hecHandler struct {
 }
 
 type hecEvent struct {
-	Event      json.RawMessage        `json:"event"`
+	Event      piaObj                 `json:"event"`
 	Fields     map[string]interface{} `json:"fields,omitempty"`
 	TS         custTime               `json:"time"`
 	Host       string                 `json:"host,omitempty"`
@@ -125,7 +125,7 @@ loop:
 			//try to deal with missing timestamps and other garbage
 			if time.Time(hev.TS).IsZero() {
 				//attempt to derive out of the payload if there is one
-				if extracted, ok, err := cfg.tg.Extract([]byte(hev.Event)); err != nil || !ok {
+				if extracted, ok, err := cfg.tg.Extract(hev.Event.Bytes()); err != nil || !ok {
 					ts = entry.Now()
 				} else {
 					ts = entry.FromStandard(extracted)
@@ -142,12 +142,10 @@ loop:
 		}
 
 		e := entry.Entry{
-			TS:  ts,
-			SRC: ip,
-			Tag: tag,
-			// If Event is just a string, we need to trim quotes. If it's not,
-			// there are no quotes to trim so the Trim calls are ignored.
-			Data: bytes.TrimSuffix(bytes.TrimPrefix([]byte(hev.Event), []byte(`"`)), []byte(`"`)),
+			TS:   ts,
+			SRC:  ip,
+			Tag:  tag,
+			Data: hev.Event.Bytes(),
 		}
 
 		if hev.Host != `` {
@@ -331,4 +329,36 @@ func ackRequested(r *http.Request) (bool, string) {
 		return true, r.Header.Get("X-Splunk-Request-Channel")
 	}
 	return false, ""
+}
+
+// piaObj is a generic object designed to try and deal with all the "types" of data that can be thrown at this interface
+// we have seen strings, integers, floats, json objects, json arrays, a damn "null" even the occaisional "undefined"
+// this will deal with decoding all of those and unescape when needed.  Splunk can't support truly binary data, so we
+// don't need to infer dealing with base64 encoded byte arrays, but that can happen here too some day.
+type piaObj struct {
+	payload []byte
+}
+
+func (p *piaObj) UnmarshalJSON(b []byte) (err error) {
+	//check if its a string
+	if len(b) >= 2 {
+		if b[0] == '"' && b[len(b)-1] == '"' {
+			var str string
+			if err = json.Unmarshal(b, &str); err != nil {
+				return
+			}
+			p.payload = []byte(str)
+			return
+		}
+	}
+	p.payload = b
+	return
+}
+
+func (p piaObj) String() string {
+	return string(p.payload)
+}
+
+func (p piaObj) Bytes() []byte {
+	return p.payload
 }
