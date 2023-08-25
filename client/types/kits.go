@@ -91,8 +91,9 @@ type KitState struct {
 	ModifiedItems        []SourcedKitItem // Items which were installed by a previous version of the kit and have been modified by the user
 	ConflictingItems     []KitItem        // items which will overwrite a user-created object
 	RequiredDependencies []KitMetadata
-	Installed            bool      //true means everything was pushed in, false means it is JUST staged
-	InstallationTime     time.Time // the time at which this kit was installed
+	Installed            bool             //true means everything was pushed in, false means it is JUST staged
+	InstallationTime     time.Time        // the time at which this kit was installed
+	InstallationVersion  CanonicalVersion // the Gravwell version in use when this kit was installed
 	ConfigMacros         []KitConfigMacro
 	Metadata             json.RawMessage `json:",omitempty"`
 }
