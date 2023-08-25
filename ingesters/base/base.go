@@ -27,6 +27,9 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
+
+	"github.com/crewjam/rfc5424"
+	"github.com/shirou/gopsutil/host"
 )
 
 var (
@@ -57,6 +60,7 @@ type IngesterBase struct {
 	Verbose bool
 	Logger  *log.Logger
 	Cfg     interface{}
+	id      uuid.UUID
 }
 
 func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
@@ -194,6 +198,7 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 	if !ok {
 		id = uuid.Nil //set to the zero UUID, we attempt to write one back during init, but if that fails... just use zero
 	}
+	ib.id = id
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.IngestStreamConfig,
 		Destinations:       conns,
@@ -327,6 +332,41 @@ func (ib *IngesterBase) writebackUUID(id uuid.UUID) (err error) {
 	//ok, here we gooooo
 	sv.SetString(id.String())
 	return nil
+}
+
+func (ib IngesterBase) AnnounceStartup() {
+	params := []rfc5424.SDParam{
+		log.KV(`version`, version.GetVersion()),
+		log.KV(`runtime`, runtime.Version()),
+		log.KV(`os`, runtime.GOOS),
+		log.KV(`arch`, runtime.GOARCH),
+	}
+	if _, family, version, err := host.PlatformInformation(); err == nil {
+		if family != `` {
+			params = append(params, log.KV("family", family))
+		}
+		if version != `` {
+			params = append(params, log.KV("family-version", version))
+		}
+	}
+	if version, err := host.KernelVersion(); err == nil {
+		params = append(params, log.KV("kernel-version", version))
+	}
+	if ib.id != uuid.Nil {
+		params = append(params, log.KV(`ingesteruuid`, ib.id))
+	}
+
+	ib.Logger.Warn("starting", params...)
+}
+
+func (ib IngesterBase) AnnounceShutdown() {
+	params := []rfc5424.SDParam{
+		log.KV(`version`, version.GetVersion()),
+	}
+	if ib.id != uuid.Nil {
+		params = append(params, log.KV(`ingesteruuid`, ib.id))
+	}
+	ib.Logger.Warn("exiting", params...)
 }
 
 func (ibc IngesterBaseConfig) validate() error {

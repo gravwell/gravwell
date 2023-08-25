@@ -65,6 +65,7 @@ func main() {
 		return
 	}
 	defer igst.Close()
+	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
 
@@ -107,6 +108,7 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 
 	//close down our consumers
 	if err := clsrs.Close(); err != nil {

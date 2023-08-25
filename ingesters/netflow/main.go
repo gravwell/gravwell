@@ -65,6 +65,7 @@ func main() {
 		return
 	}
 	defer igst.Close()
+	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
 
@@ -136,6 +137,7 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 	debugout("Closing %d connections\n", connCount())
 	mtx.Lock()
 	for _, v := range connClosers {

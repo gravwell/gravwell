@@ -63,6 +63,7 @@ func main() {
 		return
 	}
 	defer igst.Close()
+	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
 
@@ -294,8 +295,8 @@ func main() {
 
 	//register quit signals so we can die gracefully
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 
-	lg.Info("exiting")
 	// Tell every event handler to close
 	for _, h := range listeners {
 		cctx, cf := context.WithTimeout(ctx, 2*time.Second)

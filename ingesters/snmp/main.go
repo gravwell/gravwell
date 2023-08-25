@@ -79,6 +79,7 @@ func main() {
 		return
 	}
 	defer igst.Close()
+	ib.AnnounceStartup()
 
 	var traps []*gosnmp.TrapListener
 	for name, lcfg := range cfg.Listener {
@@ -177,6 +178,7 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 
 	// Close all the traps so goroutines exit
 	for i := range traps {

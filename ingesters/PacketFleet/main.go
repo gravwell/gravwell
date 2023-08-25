@@ -119,6 +119,7 @@ func main() {
 		return
 	}
 	defer igst.Close()
+	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
 	//check capabilities so we can scream and throw a potential warning upstream
@@ -211,6 +212,7 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 
 	cancel()
 

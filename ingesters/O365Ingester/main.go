@@ -82,6 +82,7 @@ func main() {
 		return
 	}
 	defer igst.Close()
+	ib.AnnounceStartup()
 	debugout("Successfully connected to ingesters\n")
 
 	tracker, err = NewTracker(cfg.Global.State_Store_Location, 48*time.Hour, igst)
@@ -246,6 +247,7 @@ func main() {
 
 	//register quit signals so we can die gracefully
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 
 	go func() {
 		time.Sleep(time.Second)

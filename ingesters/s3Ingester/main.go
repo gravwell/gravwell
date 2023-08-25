@@ -90,6 +90,7 @@ func main() {
 		return
 	}
 	defer igst.Close()
+	ib.AnnounceStartup()
 
 	//build up our list of bucket readers
 	var brs []*BucketReader
@@ -151,6 +152,7 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 	cancel()
 
 	// wait for graceful shutdown

@@ -61,6 +61,7 @@ func main() {
 		return
 	}
 	defer igst.Close()
+	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
 	maxBody = cfg.MaxBody()
@@ -166,6 +167,7 @@ func main() {
 		if err := srv.ListenAndServe(); err != nil {
 			lg.Error("failed to serve HTTP server", log.KVErr(err))
 		}
+		ib.AnnounceShutdown()
 	}
 	for k, v := range hnd.mp {
 		if v.pproc != nil {
