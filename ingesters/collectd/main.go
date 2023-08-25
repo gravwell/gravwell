@@ -58,6 +58,7 @@ func main() {
 		return
 	}
 	defer igst.Close()
+	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
 
@@ -119,6 +120,7 @@ func main() {
 
 	//listen for the stop signal so we can die gracefully
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 
 	//ask that everything close
 	for i := range instances {

@@ -86,6 +86,7 @@ func main() {
 		return
 	}
 	defer igst.Close()
+	ib.AnnounceStartup()
 
 	// fire up IPMI handlers
 	var wg sync.WaitGroup
@@ -143,6 +144,7 @@ func main() {
 	// listen for signals so we can close gracefully
 
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 
 	cancel()
 

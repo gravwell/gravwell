@@ -67,6 +67,7 @@ func main() {
 		return
 	}
 	defer igst.Close()
+	ib.AnnounceStartup()
 
 	debugout("Started ingester muxer\n")
 
@@ -103,6 +104,7 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 	debugout("Closing %d connections\n", connCount())
 	lg.Info("Closing active connections", log.KV("ingesteruuid", id), log.KV("active", connCount()))
 
@@ -132,7 +134,6 @@ func main() {
 	if err := flshr.Close(); err != nil {
 		lg.Error("failed to close preprocessors", log.KVErr(err))
 	}
-	lg.Info("Ingester exiting", log.KV("ingesteruuid", id))
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}
