@@ -222,7 +222,7 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 		Flow                   string `json:",omitempty"`
 		ScheduledType          string `json:",omitempty"`
 		DefaultDeploymentRules types.ScriptDeployConfig
-		GUID                   uuid.UUID
+		UUID                   uuid.UUID
 	}{
 		Name:                   pss.Name,
 		Description:            pss.Description,
@@ -233,7 +233,7 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 		Flow:                   pss.Flow,
 		ScheduledType:          pss.TypeName(),
 		DefaultDeploymentRules: pss.DefaultDeploymentRules,
-		GUID:                   pss.GUID,
+		UUID:                   pss.GUID,
 	})
 	return json.RawMessage(b), err
 }
