@@ -100,7 +100,7 @@ const (
 	RESOURCES_LOOKUP_URL             = "/api/resources/lookup/%s"
 	SCHEDULED_SEARCH_URL             = "/api/scheduledsearches"
 	SCHEDULED_SEARCH_ALL_URL         = "/api/scheduledsearches/all"
-	SCHEDULED_SEARCH_ID_URL          = "/api/scheduledsearches/%d"
+	SCHEDULED_SEARCH_ID_URL          = "/api/scheduledsearches/%v"
 	SCHEDULED_SEARCH_RESULTS_ID_URL  = "/api/scheduledsearches/%d/results"
 	SCHEDULED_SEARCH_ERROR_ID_URL    = "/api/scheduledsearches/%d/error"
 	SCHEDULED_SEARCH_STATE_ID_URL    = "/api/scheduledsearches/%d/state"
@@ -109,7 +109,7 @@ const (
 	SCHEDULED_SEARCH_CHECKIN_URL     = "/api/scheduledsearches/checkin"
 	SCHEDULED_SEARCH_PARSE           = "/api/scheduledsearches/parse"
 	FLOW_URL                         = "/api/flows"
-	FLOW_ID_URL                      = "/api/flows/%d"
+	FLOW_ID_URL                      = "/api/flows/%v"
 	FLOW_RESULTS_ID_URL              = "/api/flows/%d/results"
 	FLOW_ERROR_ID_URL                = "/api/flows/%d/error"
 	FLOW_STATE_ID_URL                = "/api/flows/%d/state"
@@ -384,7 +384,7 @@ func scheduledSearchAllUrl() string {
 	return SCHEDULED_SEARCH_ALL_URL
 }
 
-func scheduledSearchIdUrl(id int32) string {
+func scheduledSearchIdUrl(id interface{}) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_ID_URL, id)
 }
 
@@ -419,7 +419,7 @@ func flowParseUrl() string {
 	return FLOW_PARSE_URL
 }
 
-func flowIdUrl(id int32) string {
+func flowIdUrl(id interface{}) string {
 	return fmt.Sprintf(FLOW_ID_URL, id)
 }
 

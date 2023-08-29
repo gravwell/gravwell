@@ -68,8 +68,10 @@ func (c *Client) DeleteFlow(id int32) error {
 	return c.deleteStaticURL(flowIdUrl(id), nil)
 }
 
-// GetFlow returns the flow with the given ID.
-func (c *Client) GetFlow(id int32) (types.ScheduledSearch, error) {
+// GetFlow returns the flow with the given ID. The ID is an interface{}
+// to allow the user to specify either the flow's int32 "ID" or its
+// UUID "GUID" field.
+func (c *Client) GetFlow(id interface{}) (types.ScheduledSearch, error) {
 	var search types.ScheduledSearch
 	err := c.getStaticURL(flowIdUrl(id), &search)
 	return search, err
