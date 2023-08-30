@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -56,6 +57,12 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 		}
 
 		lg.Info("sqs received messages", log.KV("count", len(out)))
+
+		if s.Verbose {
+			for _, v := range out {
+				fmt.Println(*v.Body)
+			}
+		}
 
 		// we may have multiple packed messages
 		for _, v := range out {

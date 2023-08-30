@@ -69,5 +69,23 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 		return nil, err
 	}
 
+	if len(out.Messages) != 0 {
+		deleter := &sqs.DeleteMessageBatchInput{
+			QueueUrl: aws.String(s.conf.Queue),
+		}
+
+		for _, v := range out.Messages {
+			deleter.Entries = append(deleter.Entries, &sqs.DeleteMessageBatchRequestEntry{
+				Id:            v.MessageId,
+				ReceiptHandle: v.ReceiptHandle,
+			})
+		}
+
+		_, err = s.svc.DeleteMessageBatch(deleter)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return out.Messages, nil
 }
