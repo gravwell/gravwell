@@ -22,21 +22,16 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/sqs_common"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
-	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
 const (
-	defaultConfigLoc      = `/opt/gravwell/etc/sqs.conf`
-	defaultConfigDLoc     = `/opt/gravwell/etc/sqs.conf.d`
-	ingesterName          = `sqsIngester`
-	appName               = `amazonsqs`
-	batchSize             = 512
-	maxDataSize       int = 8 * 1024 * 1024
-	initDataSize      int = 512 * 1024
+	defaultConfigLoc  = `/opt/gravwell/etc/sqs.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/sqs.conf.d`
+	ingesterName      = `sqsIngester`
+	appName           = `amazonsqs`
 )
 
 var (
@@ -45,10 +40,7 @@ var (
 )
 
 type handlerConfig struct {
-	queue            string
-	region           string
-	akid             string
-	secret           string
+	SQS              *sqs_common.SQS
 	tag              entry.EntryTag
 	ignoreTimestamps bool
 	setLocalTime     bool
@@ -120,10 +112,6 @@ func main() {
 		}
 
 		hcfg := &handlerConfig{
-			queue:            v.Queue_URL,
-			region:           v.Region,
-			akid:             v.AKID,
-			secret:           v.Secret,
 			tag:              tag,
 			ignoreTimestamps: v.Ignore_Timestamps,
 			setLocalTime:     v.Assume_Local_Timezone,
@@ -134,6 +122,19 @@ func main() {
 			done:             done,
 			ctx:              ctx,
 		}
+
+		s, err := sqs_common.SQSListener(&sqs_common.Config{
+			Queue:  v.Queue_URL,
+			Region: v.Region,
+			AKID:   v.AKID,
+			Secret: v.Secret,
+		})
+
+		if err != nil {
+			lg.Fatal("connecting to SQS queue", log.KVErr(err))
+		}
+
+		hcfg.SQS = s
 
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Fatal("preprocessor failure", log.KVErr(err))
@@ -176,32 +177,11 @@ func debugout(format string, args ...interface{}) {
 func queueRunner(hcfg *handlerConfig) {
 	defer hcfg.wg.Done()
 
-	sess := session.Must(session.NewSession(&aws.Config{
-		Region:      aws.String(hcfg.region),
-		Credentials: credentials.NewStaticCredentials(hcfg.akid, hcfg.secret, ""),
-	}))
-
-	svc := sqs.New(sess)
-
-	c := make(chan *sqs.ReceiveMessageOutput)
+	c := make(chan []*sqs.Message)
 	for {
-		// aws uses string pointers, so we have to decalre it on the
-		// stack in order to take it's reference... why aws, why......
-		an := "SentTimestamp"
-		req := &sqs.ReceiveMessageInput{
-			AttributeNames: []*string{&an},
-		}
-
-		req = req.SetQueueUrl(hcfg.queue)
-		err := req.Validate()
-		if err != nil {
-			lg.Error("sqs request validation failed", log.KVErr(err))
-			return
-		}
-
-		var out *sqs.ReceiveMessageOutput
+		var out []*sqs.Message
 		go func() {
-			o, err := svc.ReceiveMessage(req)
+			o, err := hcfg.SQS.GetMessages()
 			if err != nil {
 				lg.Error("sqs receive message error", log.KVErr(err))
 				c <- nil
@@ -219,7 +199,7 @@ func queueRunner(hcfg *handlerConfig) {
 		}
 
 		// we may have multiple packed messages
-		for _, v := range out.Messages {
+		for _, v := range out {
 			msg := []byte(*v.Body)
 
 			var ts entry.Timestamp
@@ -247,7 +227,7 @@ func queueRunner(hcfg *handlerConfig) {
 				Data: msg,
 			}
 
-			if err = hcfg.proc.ProcessContext(ent, hcfg.ctx); err != nil {
+			if err := hcfg.proc.ProcessContext(ent, hcfg.ctx); err != nil {
 				lg.Error("failed to ingest entry", log.KVErr(err))
 				return
 			}
