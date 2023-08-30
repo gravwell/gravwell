@@ -13,14 +13,11 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net"
 	"os"
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
@@ -41,23 +38,6 @@ const (
 var (
 	fTestConfig = flag.Bool("test-config", false, "Test the S3 config without ingesting, will validate credentials and permissions")
 )
-
-type handlerConfig struct {
-	queue            string
-	region           string
-	akid             string
-	secret           string
-	tag              entry.EntryTag
-	ignoreTimestamps bool
-	setLocalTime     bool
-	timezoneOverride string
-	src              net.IP
-	formatOverride   string
-	wg               *sync.WaitGroup
-	done             chan bool
-	proc             *processors.ProcessorSet
-	ctx              context.Context
-}
 
 func main() {
 	var cfg *cfgType
@@ -129,7 +109,46 @@ func main() {
 		}
 	}
 
-	if *fTestConfig {
+	//build up our list of sqsS3 listeners
+	var sqsS3 []*SQSS3Listener
+	for k, v := range cfg.SQS_S3_Listener {
+		scfg := SQSS3Config{
+			TimeConfig:     v.TimeConfig,
+			Verbose:        ib.Verbose,
+			Name:           k,
+			Reader:         v.Reader,
+			TagName:        v.Tag_Name,
+			SourceOverride: v.Source_Override,
+			Logger:         ib.Logger,
+			MaxLineSize:    v.Max_Line_Size,
+			Region:         v.Region,
+			Queue:          v.Queue_URL,
+			AKID:           v.AKID,
+			Secret:         v.Secret,
+		}
+		if scfg.Tag, err = igst.GetTag(v.Tag_Name); err != nil {
+			ib.Logger.FatalCode(0, "failed to get established tag",
+				log.KV("tag", v.Tag_Name),
+				log.KV("bucket", k), log.KVErr(err))
+		} else if scfg.Proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
+			ib.Logger.FatalCode(0, "preprocessor failure",
+				log.KV("bucket", k), log.KVErr(err))
+		}
+		if !scfg.Ignore_Timestamps {
+			if scfg.TG, err = cfg.newTimeGrinder(v.TimeConfig); err != nil {
+				ib.Logger.FatalCode(0, "failed to create timegrinder",
+					log.KV("bucket", k), log.KVErr(err))
+			}
+		}
+
+		if b, err := NewSQSS3Listener(scfg); err != nil {
+			ib.Logger.FatalCode(0, "failed to create SQS S3 Listener", log.KVErr(err))
+		} else {
+			sqsS3 = append(sqsS3, b)
+		}
+	}
+
+	if *fTestConfig && len(brs) != 0 {
 		igst.Close()
 		err = testConfig(brs, ib.Verbose)
 		if err != nil {
@@ -145,8 +164,8 @@ func main() {
 	var wg sync.WaitGroup
 	ib.Debug("Running\n")
 
-	//kick off our actually consumer routine
-	if err = start(&wg, ctx, brs, ot, ib.Logger); err != nil {
+	//kick off our consumer routines
+	if err = start(&wg, ctx, brs, sqsS3, ot, ib.Logger); err != nil {
 		ib.Logger.Error("failed to run bucket consumers", log.KVErr(err))
 	}
 

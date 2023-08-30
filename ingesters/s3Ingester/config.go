@@ -41,17 +41,31 @@ type bucket struct {
 	Max_Line_Size   int
 }
 
+type sqsS3 struct {
+	TimeConfig
+	Reader          string //defaults to line
+	Tag_Name        string
+	Queue_URL       string
+	Region          string
+	AKID            string
+	Secret          string `json:"-"` // DO NOT send this when marshalling
+	Preprocessor    []string
+	Max_Line_Size   int
+	Source_Override string
+}
+
 type global struct {
 	config.IngestConfig
 	State_Store_Location string
 }
 
 type cfgReadType struct {
-	Global       global
-	Attach       attach.AttachConfig
-	Bucket       map[string]*bucket
-	Preprocessor processors.ProcessorConfig
-	TimeFormat   config.CustomTimeFormat
+	Global          global
+	Attach          attach.AttachConfig
+	Bucket          map[string]*bucket
+	SQS_S3_Listener map[string]*sqsS3
+	Preprocessor    processors.ProcessorConfig
+	TimeFormat      config.CustomTimeFormat
 }
 
 type cfgType struct {
@@ -59,6 +73,7 @@ type cfgType struct {
 	Attach               attach.AttachConfig
 	State_Store_Location string
 	Bucket               map[string]*bucket
+	SQS_S3_Listener      map[string]*sqsS3
 	Preprocessor         processors.ProcessorConfig
 	TimeFormat           config.CustomTimeFormat
 }
@@ -76,6 +91,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		Attach:               cr.Attach,
 		State_Store_Location: cr.Global.State_Store_Location,
 		Bucket:               cr.Bucket,
+		SQS_S3_Listener:      cr.SQS_S3_Listener,
 		Preprocessor:         cr.Preprocessor,
 		TimeFormat:           cr.TimeFormat,
 	}
@@ -99,8 +115,8 @@ func (c *cfgType) Verify() error {
 		return errors.New("Missing State-Store-Location")
 	}
 
-	if len(c.Bucket) == 0 {
-		return errors.New("No buckets specified")
+	if len(c.Bucket) == 0 && len(c.SQS_S3_Listener) == 0 {
+		return errors.New("No listeners specified")
 	}
 	if c.State_Store_Location == `` {
 		c.State_Store_Location = defaultStateLoc
@@ -145,6 +161,36 @@ func (c *cfgType) Verify() error {
 		}
 	}
 
+	for k, v := range c.SQS_S3_Listener {
+		if len(v.Tag_Name) == 0 {
+			v.Tag_Name = entry.DefaultTagName
+		}
+		if ingest.CheckTag(v.Tag_Name) != nil {
+			return errors.New("Invalid characters in the Tag-Name for " + k)
+		}
+		if v.Timezone_Override != "" {
+			if v.Assume_Local_Timezone {
+				// cannot do both
+				return fmt.Errorf("Cannot specify Assume-Local-Timezone and Timezone-Override in the same listener %v", k)
+			}
+			if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
+				return fmt.Errorf("Invalid timezone override %v in listener %v: %v", v.Timezone_Override, k, err)
+			}
+		}
+		if v.Source_Override != `` {
+			if net.ParseIP(v.Source_Override) == nil {
+				return fmt.Errorf("Source-Override %s is not a valid IP address", v.Source_Override)
+			}
+		}
+
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("Listener %s preprocessor invalid: %v", k, err)
+		}
+		if _, err := parseReader(v.Reader); err != nil {
+			return fmt.Errorf("Invalid Reader %q - %v", v.Reader, err)
+		}
+	}
+
 	return nil
 }
 
@@ -153,6 +199,16 @@ func (c *cfgType) Tags() ([]string, error) {
 	tagMp := make(map[string]bool, 1)
 
 	for _, v := range c.Bucket {
+		if len(v.Tag_Name) == 0 {
+			continue
+		}
+		if _, ok := tagMp[v.Tag_Name]; !ok {
+			tags = append(tags, v.Tag_Name)
+			tagMp[v.Tag_Name] = true
+		}
+	}
+
+	for _, v := range c.SQS_S3_Listener {
 		if len(v.Tag_Name) == 0 {
 			continue
 		}
