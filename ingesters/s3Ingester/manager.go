@@ -51,8 +51,11 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 				return
 			}
 		case <-ctx.Done():
+			lg.Info("sqs-s3 routine exiting", log.KV("name", s.Name))
 			return
 		}
+
+		lg.Info("sqs received messages", log.KV("count", len(out)))
 
 		// we may have multiple packed messages
 		for _, v := range out {
@@ -80,6 +83,8 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 							lg.Error("processing message", log.KVErr(err))
 						}
 					}
+				} else {
+					lg.Warn("error decoding message", log.KVErr(err))
 				}
 			}
 		}
