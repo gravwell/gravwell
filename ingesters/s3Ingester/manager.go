@@ -51,7 +51,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 				return
 			}
 		case <-ctx.Done():
-			lg.Info("sqsS3 routine exiting", log.KV("name", s.Name))
+			lg.Info("sqs-s3 routine exiting", log.KV("name", s.Name))
 			return
 		}
 
