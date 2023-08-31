@@ -131,8 +131,10 @@ func s3Decode(input []byte) ([]string, []string, error) {
 	var buckets []string
 	var keys []string
 	for _, v := range d.Records {
-		buckets = append(buckets, v.S3.Bucket.Name)
-		keys = append(keys, v.S3.Object.Key)
+		if strings.Contains(v.EventName, "ObjectCreated") {
+			buckets = append(buckets, v.S3.Bucket.Name)
+			keys = append(keys, v.S3.Object.Key)
+		}
 	}
 
 	return buckets, keys, nil
@@ -161,7 +163,8 @@ type s3Records struct {
 }
 
 type s3InnerRecord struct {
-	S3 s3RecordObject `json:"s3"`
+	EventName string         `json:"eventName"`
+	S3        s3RecordObject `json:"s3"`
 }
 
 type s3RecordObject struct {
