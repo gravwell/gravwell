@@ -51,6 +51,11 @@ type AlertDefinition struct {
 
 	LastUpdated time.Time `json:"LastUpdated"`
 
+	// Maximum number of events allowed per firing of the alert. This is
+	// intended as a safety valve to avoid thousands of emails. If zero,
+	// a (low) default value will be used.
+	MaxEvents int `json:"MaxEvents"`
+
 	Name string `json:"Name"`
 
 	// A JSON schema describing the expected fields in the alerts.
@@ -86,74 +91,74 @@ type AlertDispatcher struct {
 type AlertSchemas struct {
 
 	// The "simple" schema, if any is defined.
-	Simple []AlertSchemasSimpleItem `json:"Simple,omitempty"`
+	Simple []AlertSchemasSimpleItem
 
 	// A schema derived from an OCSF spec.
-	OCSF AlertSchemasOcsf `json:"OCSF,omitempty"`
+	OCSF AlertSchemasOcsf
 
 	// A user-provided JSON schema.
-	JSON map[string]interface{} `json:"JSON,omitempty"`
+	JSON map[string]interface{}
 
-	ActiveSchema string `json:"ActiveSchema"`
+	ActiveSchema string
 }
 
 // AlertSchemasSimpleItem defines a single item in a Simple schema
 type AlertSchemasSimpleItem struct {
-	Name string `json:"name,omitempty"`
+	Name string
 
-	Type string `json:"type,omitempty"`
+	Type string
 }
 
 // AlertSchemasOcsf defines an OCSF schema to use.
 type AlertSchemasOcsf struct {
-	EventClass string `json:"EventClass"`
+	EventClass string
 
-	Extensions []string `json:"Extensions"`
+	Extensions []string
 
-	Profiles []string `json:"Profiles"`
+	Profiles []string
 }
 
 // AlertDispatcherValidateRequest - Request to validate the given dispatcher against a schema. Populate the Dispatcher field to refer to an existing scheduled search, or set QueryString to test a query string
 type AlertDispatcherValidateRequest struct {
-	Dispatcher AlertDispatcher `json:"Dispatcher,omitempty"`
+	Dispatcher AlertDispatcher
 
-	QueryString string `json:"QueryString,omitempty"`
+	QueryString string
 
-	Schema AlertSchemas `json:"Schema"`
+	Schema AlertSchemas
 }
 
 // AlertDispatcherValidateError - Describes a failed validation item for a dispatcher
 type AlertDispatcherValidateError struct {
 
 	// The path that led to the error
-	Path string `json:"Path,omitempty"`
+	Path string
 
-	InvalidValue *interface{} `json:"InvalidValue,omitempty"`
+	InvalidValue *interface{}
 
 	// Human-friendly information as to why the item failed
-	Message string `json:"Message,omitempty"`
+	Message string
 }
 
 // AlertDispatcherValidateResponse - Indicates which, if any, fields the given dispatcher failed to provide.
 type AlertDispatcherValidateResponse struct {
 
 	// If true, the dispatcher generates all required fields in the schema.
-	Valid bool `json:"Valid,omitempty"`
+	Valid bool
 
 	// Names of fields which were missing.
-	ValidationErrors []AlertDispatcherValidateError `json:"ValidationErrors,omitempty"`
+	ValidationErrors []AlertDispatcherValidateError
 }
 
 // AlertConsumerValidateRequest - Request to validate the given consumer for use with an alert
 type AlertConsumerValidateRequest struct {
-	Consumer AlertConsumer `json:"Consumer"`
+	Consumer AlertConsumer
 
-	Alert AlertDefinition `json:"Alert"`
+	Alert AlertDefinition
 }
 
 // AlertConsumerValidateResponse - Indicates whether a consumer is valid for a given alert or not.
 type AlertConsumerValidateResponse struct {
-	Valid bool `json:"Valid,omitempty"`
+	Valid bool
 
-	Error string `json:"Error,omitempty"`
+	Error string
 }
