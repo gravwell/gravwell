@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -17,6 +18,11 @@ import (
 
 const (
 	manualTickerInterval = time.Minute
+)
+
+var (
+	errEmptyBucket = errors.New("empty bucket name")
+	errEmptyKey    = errors.New("empty key name")
 )
 
 func start(wg *sync.WaitGroup, ctx context.Context, buckets []*BucketReader, sqsS3 []*SQSS3Listener, ot *objectTracker, lg *log.Logger) (err error) {
@@ -109,10 +115,17 @@ func snsDecode(input []byte) ([]string, []string, error) {
 		return nil, nil, err
 	}
 
+	if subMessage.S3Bucket == "" {
+		return nil, nil, errEmptyBucket
+	}
+
 	var buckets []string
 
 	// all the buckets are the same in this message type
-	for range subMessage.S3ObjectKey {
+	for _, v := range subMessage.S3ObjectKey {
+		if v == "" {
+			return nil, nil, errEmptyKey
+		}
 		buckets = append(buckets, subMessage.S3Bucket)
 	}
 
@@ -132,6 +145,11 @@ func s3Decode(input []byte) ([]string, []string, error) {
 	var keys []string
 	for _, v := range d.Records {
 		if strings.Contains(v.EventName, "ObjectCreated") {
+			if v.S3.Bucket.Name == "" {
+				return nil, nil, errEmptyBucket
+			} else if v.S3.Object.Key == "" {
+				return nil, nil, errEmptyKey
+			}
 			buckets = append(buckets, v.S3.Bucket.Name)
 			keys = append(keys, v.S3.Object.Key)
 		}
