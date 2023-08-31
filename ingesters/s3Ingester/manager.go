@@ -68,34 +68,74 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 		for _, v := range out {
 			msg := []byte(*v.Body)
 
-			// we're looking for an S3 data message, which contains
-			// yet another json blob, which contains an S3
-			// bucket and key.
-			b := bytes.NewBuffer(msg)
-			jdec := json.NewDecoder(b)
-			var d s3Data
-			err := jdec.Decode(&d)
-			if err == nil {
-				sb := strings.NewReader(d.Message)
-				jdec = json.NewDecoder(sb)
-				var subMessage s3SubMessage
-				err := jdec.Decode(&subMessage)
-				if err == nil {
-					for _, x := range subMessage.S3ObjectKey {
-						obj := &s3.Object{
-							Key: aws.String(x),
-						}
-						err = ProcessContext(obj, ctx, s.svc, subMessage.S3Bucket, s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
-						if err != nil {
-							lg.Error("processing message", log.KVErr(err))
-						}
-					}
-				} else {
+			// Messages that we care about are either SNS wrapped
+			// or s3 put/post/create/whatever messages. Try for
+			// both, error if it's neither.
+			buckets, keys, err := snsDecode(msg)
+			if err != nil {
+				buckets, keys, err = s3Decode(msg)
+				if err != nil {
 					lg.Warn("error decoding message", log.KVErr(err))
+					continue
+				}
+			}
+
+			for i, x := range keys {
+				obj := &s3.Object{
+					Key: aws.String(x),
+				}
+				err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
+				if err != nil {
+					lg.Error("processing message", log.KVErr(err))
 				}
 			}
 		}
 	}
+}
+
+func snsDecode(input []byte) ([]string, []string, error) {
+	b := bytes.NewBuffer(input)
+	jdec := json.NewDecoder(b)
+	var d s3Data
+	err := jdec.Decode(&d)
+	if err != nil {
+		return nil, nil, err
+	}
+	sb := strings.NewReader(d.Message)
+	jdec = json.NewDecoder(sb)
+	var subMessage s3SubMessage
+	err = jdec.Decode(&subMessage)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var buckets []string
+
+	// all the buckets are the same in this message type
+	for range subMessage.S3ObjectKey {
+		buckets = append(buckets, subMessage.S3Bucket)
+	}
+
+	return buckets, subMessage.S3ObjectKey, nil
+}
+
+func s3Decode(input []byte) ([]string, []string, error) {
+	b := bytes.NewBuffer(input)
+	jdec := json.NewDecoder(b)
+	var d *s3Records
+	err := jdec.Decode(&d)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var buckets []string
+	var keys []string
+	for _, v := range d.Records {
+		buckets = append(buckets, v.S3.Bucket.Name)
+		keys = append(keys, v.S3.Object.Key)
+	}
+
+	return buckets, keys, nil
 }
 
 type s3Data struct {
@@ -114,6 +154,27 @@ type s3Data struct {
 type s3SubMessage struct {
 	S3Bucket    string   `json:"s3Bucket"`
 	S3ObjectKey []string `json:"s3ObjectKey"`
+}
+
+type s3Records struct {
+	Records []s3InnerRecord
+}
+
+type s3InnerRecord struct {
+	S3 s3RecordObject `json:"s3"`
+}
+
+type s3RecordObject struct {
+	Bucket s3BucketObject `json:"bucket"`
+	Object s3ObjectObject `json:"object"`
+}
+
+type s3BucketObject struct {
+	Name string `json:"name"`
+}
+
+type s3ObjectObject struct {
+	Key string `json:"key"`
 }
 
 func manualScanner(wg *sync.WaitGroup, ctx context.Context, buckets []*BucketReader, ot *objectTracker, lg *log.Logger) {
