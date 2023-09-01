@@ -30,7 +30,7 @@ func genStructData() string {
 
 func message() string {
 	if v := rand.Int31n(0xffff); v == 0x1337 {
-		return fmt.Sprintf("\xef\xbb\xbf%d \xf0\x9f\x92\xA9's require an \xE2\x98\x82", rand.Int31)
+		return fmt.Sprintf("\xef\xbb\xbf%d \xf0\x9f\x92\xA9's require an \xE2\x98\x82", rand.Int31())
 	}
 	return rd.Paragraph() //no BOM
 }
