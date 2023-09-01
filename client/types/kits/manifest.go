@@ -43,6 +43,7 @@ const (
 	SearchLibrary   ItemType = 9
 	License         ItemType = 10
 	Playbook        ItemType = 11
+	Alert           ItemType = 12
 	External        ItemType = 0xffff
 )
 
@@ -80,6 +81,7 @@ var (
 		item{tp: SearchLibrary, nm: `searchlibrary`, ext: `searchlibrary`},
 		item{tp: License, nm: `license`, ext: `license`},
 		item{tp: Playbook, nm: `playbook`, ext: `playbook`},
+		item{tp: Alert, nm: `alert`, ext: `alert`},
 	}
 )
 
