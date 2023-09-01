@@ -20,7 +20,7 @@ func genDataSyslog(ts time.Time) []byte {
 	sev := rand.Intn(24)
 	fac := rand.Intn(7)
 	prio := (sev << 3) | fac
-	return []byte(fmt.Sprintf("<%d>1 %s %s %s %d - %s %s%s",
+	return []byte(fmt.Sprintf("<%d>1 %s %s %s %d - %s %s",
 		prio, ts.Format(tsFormat), getHost(), getApp(), rand.Intn(0xffff), genStructData(), message()))
 }
 
