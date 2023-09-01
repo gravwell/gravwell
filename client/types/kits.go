@@ -143,6 +143,7 @@ type KitBuildRequest struct {
 	Files             []uuid.UUID       `json:",omitempty"`
 	SearchLibraries   []uuid.UUID       `json:",omitempty"`
 	Playbooks         []uuid.UUID       `json:",omitempty"`
+	Alerts            []uuid.UUID       `json:",omitempty"`
 	EmbeddedItems     []KitEmbeddedItem `json:",omitempty"`
 	Icon              string            `json:",omitempty"`
 	Banner            string            `json:",omitempty"`
@@ -293,6 +294,11 @@ func (pbr *KitBuildRequest) Validate() error {
 			return errors.New("Zero UUID in playbook list")
 		}
 	}
+	for i := range pbr.Alerts {
+		if pbr.Alerts[i] == uuid.Nil {
+			return errors.New("Zero UUID in alert list")
+		}
+	}
 
 	if pbr.Icon != `` {
 		if err := pbr.validateReferencedFile(pbr.Icon, `Icon`); err != nil {
@@ -327,7 +333,7 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 
-	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks)
+	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
 	if kitItemCount == 0 {
 		return errors.New("Build request does not contain any items")
 	}

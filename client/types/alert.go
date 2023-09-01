@@ -9,6 +9,7 @@
 package types
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -161,4 +162,18 @@ type AlertConsumerValidateResponse struct {
 	Valid bool
 
 	Error string
+}
+
+func (alert *AlertDefinition) JSONMetadata() (json.RawMessage, error) {
+	st := &struct {
+		UUID        string
+		Name        string
+		Description string
+	}{
+		UUID:        alert.GUID.String(),
+		Name:        alert.Name,
+		Description: alert.Description,
+	}
+	b, err := json.Marshal(st)
+	return json.RawMessage(b), err
 }
