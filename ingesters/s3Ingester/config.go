@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/sqs_common"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -33,25 +34,29 @@ type TimeConfig struct {
 type bucket struct {
 	TimeConfig
 	AuthConfig
-	Reader          string //defaults to line
-	Tag_Name        string
-	Source_Override string
-	File_Filters    []string
-	Preprocessor    []string
-	Max_Line_Size   int
+	Reader           string //defaults to line
+	Tag_Name         string
+	Source_Override  string
+	File_Filters     []string
+	Preprocessor     []string
+	Max_Line_Size    int
+	Credentials_Type string
+	ID               string `json:"-"` // DO NOT send this when marshalling
+	Secret           string `json:"-"` // DO NOT send this when marshalling
 }
 
 type sqsS3 struct {
 	TimeConfig
-	Reader          string //defaults to line
-	Tag_Name        string
-	Queue_URL       string
-	Region          string
-	AKID            string
-	Secret          string `json:"-"` // DO NOT send this when marshalling
-	Preprocessor    []string
-	Max_Line_Size   int
-	Source_Override string
+	Reader           string //defaults to line
+	Tag_Name         string
+	Queue_URL        string
+	Region           string
+	Credentials_Type string
+	ID               string `json:"-"` // DO NOT send this when marshalling
+	Secret           string `json:"-"` // DO NOT send this when marshalling
+	Preprocessor     []string
+	Max_Line_Size    int
+	Source_Override  string
 }
 
 type global struct {
@@ -159,6 +164,9 @@ func (c *cfgType) Verify() error {
 		if _, err := parseReader(v.Reader); err != nil {
 			return fmt.Errorf("Invalid Reader %q - %v", v.Reader, err)
 		}
+		if _, err := sqs_common.GetCredentials(v.Credentials_Type, v.ID, v.Secret); err != nil {
+			return err
+		}
 	}
 
 	for k, v := range c.SQS_S3_Listener {
@@ -188,6 +196,9 @@ func (c *cfgType) Verify() error {
 		}
 		if _, err := parseReader(v.Reader); err != nil {
 			return fmt.Errorf("Invalid Reader %q - %v", v.Reader, err)
+		}
+		if _, err := sqs_common.GetCredentials(v.Credentials_Type, v.ID, v.Secret); err != nil {
+			return err
 		}
 	}
 

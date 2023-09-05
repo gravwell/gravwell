@@ -9,17 +9,20 @@
 package sqs_common
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
 type Config struct {
-	Queue  string
-	Region string
-	AKID   string
-	Secret string
+	Queue       string
+	Region      string
+	Credentials *credentials.Credentials
 }
 
 type SQS struct {
@@ -38,7 +41,7 @@ func SQSListener(c *Config) (*SQS, error) {
 
 	s.sess, err = session.NewSession(&aws.Config{
 		Region:      aws.String(c.Region),
-		Credentials: credentials.NewStaticCredentials(c.AKID, c.Secret, ""),
+		Credentials: c.Credentials,
 	})
 	if err != nil {
 		return nil, err
@@ -88,4 +91,33 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 	}
 
 	return out.Messages, nil
+}
+
+func GetCredentials(t, akid, secret string) (*credentials.Credentials, error) {
+	var c *credentials.Credentials
+
+	if t == `` {
+		//empty implies static
+		t = `static`
+	}
+	switch t {
+	case "static":
+		if akid == `` {
+			return nil, errors.New("missing ID")
+		} else if secret == `` {
+			return nil, errors.New("missing secret")
+		}
+		c = credentials.NewStaticCredentials(akid, secret, ``)
+	case "environment":
+		if c = credentials.NewEnvCredentials(); c == nil {
+			//make sure we can get credentials, this won't check if they are valid
+			return nil, errors.New("no environment credentials available")
+		}
+	case "ec2role":
+		c = ec2rolecreds.NewCredentials(session.New())
+	default:
+		return nil, fmt.Errorf("invalid Credentials-Type %q", t)
+	}
+
+	return c, nil
 }

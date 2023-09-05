@@ -123,11 +123,15 @@ func main() {
 			ctx:              ctx,
 		}
 
+		c, err := sqs_common.GetCredentials(v.Credentials_Type, v.AKID, v.Secret)
+		if err != nil {
+			lg.Fatal("obtaining credentials", log.KVErr(err))
+		}
+
 		s, err := sqs_common.SQSListener(&sqs_common.Config{
-			Queue:  v.Queue_URL,
-			Region: v.Region,
-			AKID:   v.AKID,
-			Secret: v.Secret,
+			Queue:       v.Queue_URL,
+			Region:      v.Region,
+			Credentials: c,
 		})
 
 		if err != nil {

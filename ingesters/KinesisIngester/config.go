@@ -30,6 +30,7 @@ type readerType int
 type global struct {
 	config.IngestConfig
 	State_Store_Location  string
+	Credentials_Type      string
 	AWS_Access_Key_ID     string `json:"-"` // DO NOT send this when marshalling
 	AWS_Secret_Access_Key string `json:"-"` // DO NOT send this when marshalling
 }
