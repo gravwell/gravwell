@@ -10,6 +10,7 @@ package sqs_common
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -95,6 +96,10 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 func GetCredentials(t, akid, secret string) (*credentials.Credentials, error) {
 	var c *credentials.Credentials
 
+	if t == `` {
+		//empty implies static
+		t = `static`
+	}
 	switch t {
 	case "static":
 		if akid == `` {
@@ -111,7 +116,7 @@ func GetCredentials(t, akid, secret string) (*credentials.Credentials, error) {
 	case "ec2role":
 		c = ec2rolecreds.NewCredentials(session.New())
 	default:
-		return nil, errors.New("invalid Credentials-Type")
+		return nil, fmt.Errorf("invalid Credentials-Type %q", t)
 	}
 
 	return c, nil
