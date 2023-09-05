@@ -113,18 +113,19 @@ func main() {
 	var sqsS3 []*SQSS3Listener
 	for k, v := range cfg.SQS_S3_Listener {
 		scfg := SQSS3Config{
-			TimeConfig:     v.TimeConfig,
-			Verbose:        ib.Verbose,
-			Name:           k,
-			Reader:         v.Reader,
-			TagName:        v.Tag_Name,
-			SourceOverride: v.Source_Override,
-			Logger:         ib.Logger,
-			MaxLineSize:    v.Max_Line_Size,
-			Region:         v.Region,
-			Queue:          v.Queue_URL,
-			AKID:           v.AKID,
-			Secret:         v.Secret,
+			TimeConfig:         v.TimeConfig,
+			Verbose:            ib.Verbose,
+			Name:               k,
+			Reader:             v.Reader,
+			TagName:            v.Tag_Name,
+			SourceOverride:     v.Source_Override,
+			Logger:             ib.Logger,
+			MaxLineSize:        v.Max_Line_Size,
+			Region:             v.Region,
+			Queue:              v.Queue_URL,
+			InheritCredentials: v.Inherit_Credentials,
+			AKID:               v.AKID,
+			Secret:             v.Secret,
 		}
 		if scfg.Tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			ib.Logger.FatalCode(0, "failed to get established tag",

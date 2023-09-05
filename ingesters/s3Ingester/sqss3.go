@@ -17,20 +17,21 @@ import (
 
 type SQSS3Config struct {
 	TimeConfig
-	Verbose        bool
-	MaxLineSize    int
-	Name           string
-	Tag            entry.EntryTag
-	TagName        string
-	SourceOverride string
-	Proc           *processors.ProcessorSet
-	TG             *timegrinder.TimeGrinder
-	Logger         *log.Logger
-	Region         string
-	AKID           string
-	Secret         string
-	Queue          string
-	Reader         string
+	Verbose            bool
+	MaxLineSize        int
+	Name               string
+	Tag                entry.EntryTag
+	TagName            string
+	SourceOverride     string
+	Proc               *processors.ProcessorSet
+	TG                 *timegrinder.TimeGrinder
+	Logger             *log.Logger
+	Region             string
+	InheritCredentials bool
+	AKID               string
+	Secret             string
+	Queue              string
+	Reader             string
 }
 
 type SQSS3Listener struct {
@@ -56,17 +57,16 @@ func NewSQSS3Listener(cfg SQSS3Config) (s *SQSS3Listener, err error) {
 
 	sess, err = session.NewSession(&aws.Config{
 		Region:      aws.String(cfg.Region),
-		Credentials: credentials.NewStaticCredentials(cfg.AKID, cfg.Secret, ""),
+		Credentials: cfg.getCredentials(),
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	sqs, err := sqs_common.SQSListener(&sqs_common.Config{
-		Queue:  cfg.Queue,
-		Region: cfg.Region,
-		AKID:   cfg.AKID,
-		Secret: cfg.Secret,
+		Queue:       cfg.Queue,
+		Region:      cfg.Region,
+		Credentials: cfg.getCredentials(),
 	})
 	if err != nil {
 		return nil, err
@@ -101,4 +101,11 @@ func (s SQSS3Config) Log(vals ...interface{}) {
 		return
 	}
 	s.Logger.Info(fmt.Sprint(vals...))
+}
+
+func (s SQSS3Config) getCredentials() (c *credentials.Credentials) {
+	if s.InheritCredentials {
+		return credentials.NewEnvCredentials()
+	}
+	return credentials.NewStaticCredentials(s.AKID, s.Secret, "")
 }

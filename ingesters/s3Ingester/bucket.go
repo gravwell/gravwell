@@ -26,6 +26,7 @@ const (
 type AuthConfig struct {
 	ID                  string `json:"-"` //do not ship this as part of a config report
 	Secret              string `json:"-"` //do not ship this as part of a config report
+	Inherit_Credentials bool
 	Region              string
 	Bucket_ARN          string // Amazon ARN (should be JUST the bucket ARN)
 	Endpoint            string // arbitrary endpoint
@@ -208,14 +209,22 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err 
 }
 
 func (ac *AuthConfig) validate() (err error) {
-	// ID and secret are required
-	if ac.ID == `` {
-		err = errors.New("missing ID")
+	// ID and secret are required if we are not attempting to inherit credentials
+	if ac.Inherit_Credentials == false {
+		if ac.ID == `` {
+			err = errors.New("missing ID")
+			return
+		} else if ac.Secret == `` {
+			err = errors.New("missing secret")
+			return
+		}
+	} else if c := credentials.NewEnvCredentials(); c == nil {
+		//make sure we can get credentials, this won't check if they are valid
+		err = errors.New("no environment credentials available")
 		return
-	} else if ac.Secret == `` {
-		err = errors.New("missing secret")
-		return
-	} else if ac.Region == `` {
+	}
+
+	if ac.Region == `` {
 		err = errors.New("missing region")
 		return
 	}
@@ -272,9 +281,15 @@ func (ac *AuthConfig) getSession(lgr aws.Logger) (sess *session.Session, err err
 	if err = ac.validate(); err != nil {
 		return
 	}
+	var c *credentials.Credentials
+	if ac.Inherit_Credentials {
+		c = credentials.NewEnvCredentials()
+	} else {
+		c = credentials.NewStaticCredentials(ac.ID, ac.Secret, ``)
+	}
 	cfg := aws.Config{
 		MaxRetries:  aws.Int(ac.MaxRetries),
-		Credentials: credentials.NewStaticCredentials(ac.ID, ac.Secret, ``),
+		Credentials: c,
 		DisableSSL:  aws.Bool(ac.Disable_TLS),
 		Region:      aws.String(ac.Region),
 		Logger:      lgr,

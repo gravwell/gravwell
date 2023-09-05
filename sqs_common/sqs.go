@@ -16,10 +16,9 @@ import (
 )
 
 type Config struct {
-	Queue  string
-	Region string
-	AKID   string
-	Secret string
+	Queue       string
+	Region      string
+	Credentials *credentials.Credentials
 }
 
 type SQS struct {
@@ -38,7 +37,7 @@ func SQSListener(c *Config) (*SQS, error) {
 
 	s.sess, err = session.NewSession(&aws.Config{
 		Region:      aws.String(c.Region),
-		Credentials: credentials.NewStaticCredentials(c.AKID, c.Secret, ""),
+		Credentials: c.Credentials,
 	})
 	if err != nil {
 		return nil, err
