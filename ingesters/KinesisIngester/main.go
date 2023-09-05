@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v3/sqs_common"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -82,16 +83,10 @@ func main() {
 	stateMan.Start()
 	defer stateMan.Close()
 
-	// Set up environment variables for AWS auth, if extant
-	if cfg.Global.AWS_Access_Key_ID != "" {
-		os.Setenv("AWS_ACCESS_KEY_ID", cfg.Global.AWS_Access_Key_ID)
+	c, err := sqs_common.GetCredentials(cfg.Global.Credentials_Type, cfg.Global.AWS_Access_Key_ID, cfg.Global.AWS_Secret_Access_Key)
+	if err != nil {
+		lg.Fatal("obtaining credentials", log.KVErr(err))
 	}
-	if cfg.Global.AWS_Secret_Access_Key != "" {
-		os.Setenv("AWS_SECRET_ACCESS_KEY", cfg.Global.AWS_Secret_Access_Key)
-	}
-
-	// make an aws session
-	sess := session.Must(session.NewSession())
 
 	dieChan := make(chan bool)
 
@@ -101,6 +96,15 @@ func main() {
 		tagid, err := igst.GetTag(stream.Tag_Name)
 		if err != nil {
 			lg.Fatal("failed to resolve tag", log.KV("tag", stream.Tag_Name), log.KV("stream", stream.Stream_Name), log.KVErr(err))
+		}
+
+		// make an aws session
+		sess, err := session.NewSession(&aws.Config{
+			Credentials: c,
+			Region:      aws.String(stream.Region),
+		})
+		if err != nil {
+			lg.Fatal("creating session", log.KVErr(err))
 		}
 
 		// get a handle on kinesis

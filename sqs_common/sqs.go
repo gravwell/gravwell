@@ -9,8 +9,11 @@
 package sqs_common
 
 import (
+	"errors"
+
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
 )
@@ -87,4 +90,29 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 	}
 
 	return out.Messages, nil
+}
+
+func GetCredentials(t, akid, secret string) (*credentials.Credentials, error) {
+	var c *credentials.Credentials
+
+	switch t {
+	case "static":
+		if akid == `` {
+			return nil, errors.New("missing ID")
+		} else if secret == `` {
+			return nil, errors.New("missing secret")
+		}
+		c = credentials.NewStaticCredentials(akid, secret, ``)
+	case "environment":
+		if c = credentials.NewEnvCredentials(); c == nil {
+			//make sure we can get credentials, this won't check if they are valid
+			return nil, errors.New("no environment credentials available")
+		}
+	case "ec2role":
+		c = ec2rolecreds.NewCredentials(session.New())
+	default:
+		return nil, errors.New("invalid Credentials-Type")
+	}
+
+	return c, nil
 }

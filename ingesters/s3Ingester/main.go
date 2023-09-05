@@ -76,16 +76,19 @@ func main() {
 	var brs []*BucketReader
 	for k, v := range cfg.Bucket {
 		bcfg := BucketConfig{
-			AuthConfig:     v.AuthConfig,
-			TimeConfig:     v.TimeConfig,
-			Verbose:        ib.Verbose,
-			Name:           k,
-			Reader:         v.Reader,
-			FileFilters:    v.File_Filters,
-			TagName:        v.Tag_Name,
-			SourceOverride: v.Source_Override,
-			Logger:         ib.Logger,
-			MaxLineSize:    v.Max_Line_Size,
+			AuthConfig:       v.AuthConfig,
+			TimeConfig:       v.TimeConfig,
+			Verbose:          ib.Verbose,
+			Name:             k,
+			Reader:           v.Reader,
+			FileFilters:      v.File_Filters,
+			TagName:          v.Tag_Name,
+			SourceOverride:   v.Source_Override,
+			Logger:           ib.Logger,
+			MaxLineSize:      v.Max_Line_Size,
+			Credentials_Type: v.Credentials_Type,
+			ID:               v.ID,
+			Secret:           v.Secret,
 		}
 		if bcfg.Tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			ib.Logger.FatalCode(0, "failed to get established tag",
@@ -113,19 +116,19 @@ func main() {
 	var sqsS3 []*SQSS3Listener
 	for k, v := range cfg.SQS_S3_Listener {
 		scfg := SQSS3Config{
-			TimeConfig:         v.TimeConfig,
-			Verbose:            ib.Verbose,
-			Name:               k,
-			Reader:             v.Reader,
-			TagName:            v.Tag_Name,
-			SourceOverride:     v.Source_Override,
-			Logger:             ib.Logger,
-			MaxLineSize:        v.Max_Line_Size,
-			Region:             v.Region,
-			Queue:              v.Queue_URL,
-			InheritCredentials: v.Inherit_Credentials,
-			AKID:               v.AKID,
-			Secret:             v.Secret,
+			TimeConfig:       v.TimeConfig,
+			Verbose:          ib.Verbose,
+			Name:             k,
+			Reader:           v.Reader,
+			TagName:          v.Tag_Name,
+			SourceOverride:   v.Source_Override,
+			Logger:           ib.Logger,
+			MaxLineSize:      v.Max_Line_Size,
+			Region:           v.Region,
+			Queue:            v.Queue_URL,
+			Credentials_Type: v.Credentials_Type,
+			ID:               v.ID,
+			Secret:           v.Secret,
 		}
 		if scfg.Tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			ib.Logger.FatalCode(0, "failed to get established tag",
