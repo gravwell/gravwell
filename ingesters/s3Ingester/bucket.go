@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/sqs_common"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -24,9 +25,6 @@ const (
 )
 
 type AuthConfig struct {
-	ID                  string `json:"-"` //do not ship this as part of a config report
-	Secret              string `json:"-"` //do not ship this as part of a config report
-	Inherit_Credentials bool
 	Region              string
 	Bucket_ARN          string // Amazon ARN (should be JUST the bucket ARN)
 	Endpoint            string // arbitrary endpoint
@@ -40,17 +38,20 @@ type AuthConfig struct {
 type BucketConfig struct {
 	AuthConfig
 	TimeConfig
-	Verbose        bool
-	MaxLineSize    int
-	Reader         string //defaults to line
-	Name           string
-	FileFilters    []string
-	Tag            entry.EntryTag
-	TagName        string
-	SourceOverride string
-	Proc           *processors.ProcessorSet
-	TG             *timegrinder.TimeGrinder
-	Logger         *log.Logger
+	Verbose          bool
+	MaxLineSize      int
+	Reader           string //defaults to line
+	Name             string
+	FileFilters      []string
+	Tag              entry.EntryTag
+	TagName          string
+	SourceOverride   string
+	Proc             *processors.ProcessorSet
+	TG               *timegrinder.TimeGrinder
+	Logger           *log.Logger
+	ID               string `json:"-"` //do not ship this as part of a config report
+	Secret           string `json:"-"` //do not ship this as part of a config report
+	Credentials_Type string
 }
 
 type BucketReader struct {
@@ -77,7 +78,11 @@ func NewBucketReader(cfg BucketConfig) (br *BucketReader, err error) {
 	if rdr, err = parseReader(cfg.Reader); err != nil {
 		return
 	}
-	if sess, err = cfg.AuthConfig.getSession(cfg); err != nil {
+	c, err := sqs_common.GetCredentials(cfg.Credentials_Type, cfg.ID, cfg.Secret)
+	if err != nil {
+		return nil, err
+	}
+	if sess, err = cfg.AuthConfig.getSession(cfg, c); err != nil {
 		err = fmt.Errorf("Failed to create S3 session %w", err)
 		return
 	}
@@ -209,21 +214,6 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err 
 }
 
 func (ac *AuthConfig) validate() (err error) {
-	// ID and secret are required if we are not attempting to inherit credentials
-	if ac.Inherit_Credentials == false {
-		if ac.ID == `` {
-			err = errors.New("missing ID")
-			return
-		} else if ac.Secret == `` {
-			err = errors.New("missing secret")
-			return
-		}
-	} else if c := credentials.NewEnvCredentials(); c == nil {
-		//make sure we can get credentials, this won't check if they are valid
-		err = errors.New("no environment credentials available")
-		return
-	}
-
 	if ac.Region == `` {
 		err = errors.New("missing region")
 		return
@@ -276,17 +266,12 @@ func (bc BucketConfig) Log(vals ...interface{}) {
 	bc.Logger.Info(fmt.Sprint(vals...))
 }
 
-func (ac *AuthConfig) getSession(lgr aws.Logger) (sess *session.Session, err error) {
+func (ac *AuthConfig) getSession(lgr aws.Logger, c *credentials.Credentials) (sess *session.Session, err error) {
 	//prevalidate first
 	if err = ac.validate(); err != nil {
 		return
 	}
-	var c *credentials.Credentials
-	if ac.Inherit_Credentials {
-		c = credentials.NewEnvCredentials()
-	} else {
-		c = credentials.NewStaticCredentials(ac.ID, ac.Secret, ``)
-	}
+
 	cfg := aws.Config{
 		MaxRetries:  aws.Int(ac.MaxRetries),
 		Credentials: c,

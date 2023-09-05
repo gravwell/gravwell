@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/sqs_common"
 )
 
 const (
@@ -27,12 +28,13 @@ const (
 
 type queue struct {
 	baseConfig
-	Tag_Name     string
-	Queue_URL    string
-	Region       string
-	AKID         string
-	Secret       string `json:"-"` // DO NOT send this when marshalling
-	Preprocessor []string
+	Tag_Name         string
+	Queue_URL        string
+	Region           string
+	Credentials_Type string
+	AKID             string
+	Secret           string `json:"-"` // DO NOT send this when marshalling
+	Preprocessor     []string
 }
 
 type baseConfig struct {
@@ -121,11 +123,8 @@ func (c *cfgType) Verify() error {
 		if v.Region == "" {
 			return fmt.Errorf("Queue %s must provide Region", k)
 		}
-		if v.AKID == "" {
-			return fmt.Errorf("Queue %s must provide AKID", k)
-		}
-		if v.Secret == "" {
-			return fmt.Errorf("Queue %s must provide Secret", k)
+		if _, err := sqs_common.GetCredentials(v.Credentials_Type, v.AKID, v.Secret); err != nil {
+			return err
 		}
 	}
 
