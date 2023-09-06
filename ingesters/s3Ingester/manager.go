@@ -18,6 +18,7 @@ import (
 
 const (
 	manualTickerInterval = time.Minute
+	ERROR_BACKOFF        = 5 * time.Second
 )
 
 var (
@@ -55,7 +56,9 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 		select {
 		case out = <-c:
 			if out == nil {
-				return
+				lg.Error("received empty SQS response")
+				time.Sleep(ERROR_BACKOFF)
+				continue
 			}
 		case <-ctx.Done():
 			lg.Info("sqs-s3 routine exiting", log.KV("name", s.Name))
