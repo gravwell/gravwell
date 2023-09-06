@@ -73,6 +73,8 @@ var (
 		TokenWrite.CapabilityDesc(),
 		SecretRead.CapabilityDesc(),
 		SecretWrite.CapabilityDesc(),
+		AlertRead.CapabilityDesc(),
+		AlertWrite.CapabilityDesc(),
 	}
 	readOnlyCapList = []Capability{
 		Search,
@@ -98,6 +100,7 @@ var (
 		SystemInfoRead,
 		TokenRead,
 		SecretRead,
+		AlertRead,
 	}
 )
 
