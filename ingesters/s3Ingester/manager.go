@@ -57,7 +57,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 		case out = <-c:
 			if out == nil {
 				lg.Error("received empty SQS response")
-				time.Sleep(ERROR_BACKOFF)
+				sleepContext(ctx, ERROR_BACKOFF)
 				continue
 			}
 		case <-ctx.Done():
@@ -237,5 +237,14 @@ func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, l
 	}
 	if err := ot.Flush(); err != nil {
 		lg.Error("failed to flush S3 state file", log.KVErr(err))
+	}
+}
+
+func sleepContext(ctx context.Context, d time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(d):
+		return nil
 	}
 }

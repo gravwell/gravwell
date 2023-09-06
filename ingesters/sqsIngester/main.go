@@ -198,7 +198,7 @@ func queueRunner(hcfg *handlerConfig) {
 		case out = <-c:
 			if out == nil {
 				lg.Error("received empty SQS response")
-				time.Sleep(ERROR_BACKOFF)
+				sleepContext(cts, ERROR_BACKOFF)
 				continue
 			}
 		case <-hcfg.done:
@@ -239,5 +239,14 @@ func queueRunner(hcfg *handlerConfig) {
 				return
 			}
 		}
+	}
+}
+
+func sleepContext(ctx context.Context, d time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(d):
+		return nil
 	}
 }
