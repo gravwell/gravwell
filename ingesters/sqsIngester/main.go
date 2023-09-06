@@ -32,6 +32,7 @@ const (
 	defaultConfigDLoc = `/opt/gravwell/etc/sqs.conf.d`
 	ingesterName      = `sqsIngester`
 	appName           = `amazonsqs`
+	ERROR_BACKOFF     = 5 * time.Second
 )
 
 var (
@@ -196,7 +197,9 @@ func queueRunner(hcfg *handlerConfig) {
 		select {
 		case out = <-c:
 			if out == nil {
-				return
+				lg.Error("received empty SQS response")
+				sleepContext(hcfg.ctx, ERROR_BACKOFF)
+				continue
 			}
 		case <-hcfg.done:
 			return
@@ -236,5 +239,14 @@ func queueRunner(hcfg *handlerConfig) {
 				return
 			}
 		}
+	}
+}
+
+func sleepContext(ctx context.Context, d time.Duration) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(d):
+		return nil
 	}
 }

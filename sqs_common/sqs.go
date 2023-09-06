@@ -11,6 +11,7 @@ package sqs_common
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -67,9 +68,15 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 		return nil, err
 	}
 
-	out, err := s.svc.ReceiveMessage(req)
-	if err != nil {
-		return nil, err
+	var out *sqs.ReceiveMessageOutput
+	for out == nil || len(out.Messages) == 0 {
+		out, err = s.svc.ReceiveMessage(req)
+		if err != nil {
+			return nil, err
+		}
+		if len(out.Messages) == 0 {
+			time.Sleep(time.Second)
+		}
 	}
 
 	if len(out.Messages) != 0 {
