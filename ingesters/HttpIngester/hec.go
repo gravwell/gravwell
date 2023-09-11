@@ -118,6 +118,9 @@ loop:
 			hh.respInvalidDataFormat(w, counter)
 			return // we pretty much have to just hang up
 		}
+		if hev.empty() {
+			continue
+		}
 		//handle timestamps
 		if cfg.ignoreTs {
 			ts = entry.Now()
@@ -221,6 +224,7 @@ func (hh *hecHandler) respInvalidDataFormat(w http.ResponseWriter, index int) {
 }
 
 func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	var count uint
 	debugout("HEC RAW\n")
 	resp := ack{Text: "Success"}
 	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+1)))
@@ -239,12 +243,21 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		return
 	} else {
 		for i, b := range bytes.Split(b, []byte(hh.rawLineBreaker)) {
+			if len(b) == 0 {
+				continue
+			}
 			if err = h.handleEntry(cfg, b, ip); err != nil {
 				h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 				hh.respInvalidDataFormat(w, i)
 				return
 			}
+			count++
 		}
+	}
+	if count == 0 {
+		// no entries? Send a 400 / "No data"
+		hh.respNoData(w)
+		return
 	}
 	if doAck, ch := ackRequested(r); doAck {
 		hh.setAck(ch, resp)
@@ -361,4 +374,19 @@ func (p piaObj) String() string {
 
 func (p piaObj) Bytes() []byte {
 	return p.payload
+}
+
+func (p piaObj) length() int {
+	return len(p.payload)
+}
+
+func (hev hecEvent) empty() bool {
+	if hev.Event.length() > 0 || len(hev.Fields) > 0 {
+		return false
+	} else if len(hev.Host) > 0 || len(hev.Source) > 0 || len(hev.Sourcetype) > 0 || len(hev.Index) > 0 {
+		return false
+	} else if time.Time(hev.TS).IsZero() != true {
+		return false
+	}
+	return true
 }
