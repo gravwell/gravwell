@@ -92,5 +92,8 @@ func BuildEventMetadata(created time.Time, ud UserDetails, alertDef AlertDefinit
 		Dispatcher:   dispatcher,
 		UserMetadata: alertDef.UserMetadata,
 	}
+	if meta.AlertLabels == nil {
+		meta.AlertLabels = []string{}
+	}
 	return meta
 }
