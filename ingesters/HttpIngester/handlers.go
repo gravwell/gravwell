@@ -239,7 +239,6 @@ func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP) (err error)
 		h.lgr.Error("failed to send entry", log.KVErr(err))
 		return
 	}
-	debugout("Sending entry %+v", e)
 	return
 }
 
