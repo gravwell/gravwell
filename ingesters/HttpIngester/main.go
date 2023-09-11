@@ -176,11 +176,15 @@ func main() {
 			}
 		}(done)
 	}
-	utils.WaitForQuit()
-	if err := srv.Close(); err != nil {
-		lg.Error("failed to serve HTTP server", log.KVErr(err))
+	qc := utils.GetQuitChannel()
+	defer close(qc)
+	select {
+	case <-done:
+	case <-qc:
+		if err := srv.Close(); err != nil {
+			lg.Error("failed to serve HTTP server", log.KVErr(err))
+		}
 	}
-	<-done
 	debugout("Server is exiting\n")
 	ib.AnnounceShutdown()
 	for k, v := range hnd.mp {
