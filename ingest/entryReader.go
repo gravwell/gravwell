@@ -20,8 +20,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/golang/snappy"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/klauspost/compress/snappy"
 )
 
 const (
