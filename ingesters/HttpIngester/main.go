@@ -20,6 +20,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/utils/caps"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
@@ -155,20 +156,37 @@ func main() {
 		WriteTimeout: 5 * time.Second,
 		ErrorLog:     dlog.New(lg, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags),
 	}
+	done := make(chan error, 1)
 	if cfg.TLSEnabled() {
 		c := cfg.TLS_Certificate_File
 		k := cfg.TLS_Key_File
 		debugout("Binding to %v with TLS enabled using %s %s\n", cfg.Bind, cfg.TLS_Certificate_File, cfg.TLS_Key_File)
-		if err := srv.ListenAndServeTLS(c, k); err != nil {
-			lg.Error("failed to serve HTTPS server", log.KVErr(err))
-		}
+		go func(dc chan error) {
+			defer close(dc)
+			if err := srv.ListenAndServeTLS(c, k); err != nil {
+				lg.Error("failed to serve HTTPS server", log.KVErr(err))
+			}
+		}(done)
 	} else {
 		debugout("Binding to %v in cleartext mode\n", cfg.Bind)
-		if err := srv.ListenAndServe(); err != nil {
+		go func(dc chan error) {
+			defer close(dc)
+			if err := srv.ListenAndServe(); err != nil {
+				lg.Error("failed to serve HTTP server", log.KVErr(err))
+			}
+		}(done)
+	}
+	qc := utils.GetQuitChannel()
+	defer close(qc)
+	select {
+	case <-done:
+	case <-qc:
+		if err := srv.Close(); err != nil {
 			lg.Error("failed to serve HTTP server", log.KVErr(err))
 		}
-		ib.AnnounceShutdown()
 	}
+	debugout("Server is exiting\n")
+	ib.AnnounceShutdown()
 	for k, v := range hnd.mp {
 		if v.pproc != nil {
 			if err := v.pproc.Close(); err != nil {
