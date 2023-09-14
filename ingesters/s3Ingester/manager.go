@@ -98,6 +98,15 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 					lg.Error("processing message", log.KVErr(err))
 				}
 			}
+
+			// delete messages we successfully processed
+			if err == nil {
+				err = s.sqs.DeleteMessages([]*sqs.Message{v})
+				if err != nil {
+					lg.Error("deleting message", log.KVErr(err))
+				}
+			}
+
 		}
 	}
 }

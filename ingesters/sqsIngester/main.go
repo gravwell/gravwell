@@ -234,9 +234,14 @@ func queueRunner(hcfg *handlerConfig) {
 				Data: msg,
 			}
 
-			if err := hcfg.proc.ProcessContext(ent, hcfg.ctx); err != nil {
+			err := hcfg.proc.ProcessContext(ent, hcfg.ctx)
+			if err != nil {
 				lg.Error("failed to ingest entry", log.KVErr(err))
-				return
+			} else {
+				err = hcfg.SQS.DeleteMessages([]*sqs.Message{v})
+				if err != nil {
+					lg.Error("failed to delete message", log.KVErr(err))
+				}
 			}
 		}
 	}
