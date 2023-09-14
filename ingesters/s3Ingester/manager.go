@@ -86,7 +86,11 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 				if err != nil {
 					lg.Warn("error decoding message", log.KVErr(err))
 					continue
+				} else {
+					lg.Info("successfully decoded s3 message", log.KV("keys", keys))
 				}
+			} else {
+				lg.Info("successfully decoded SNS message", log.KV("keys", keys))
 			}
 
 			for i, x := range keys {
@@ -96,8 +100,19 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 				err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
 				if err != nil {
 					lg.Error("processing message", log.KVErr(err))
+				} else {
+					lg.Info("successfully processed message", log.KV("bucket", buckets[i]), log.KV("key", x))
 				}
 			}
+
+			// delete messages we successfully processed
+			if err == nil {
+				err = s.sqs.DeleteMessages([]*sqs.Message{v})
+				if err != nil {
+					lg.Error("deleting message", log.KVErr(err))
+				}
+			}
+
 		}
 	}
 }
