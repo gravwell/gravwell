@@ -23,6 +23,7 @@ import (
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/buger/jsonparser"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
@@ -385,6 +386,17 @@ func processCloudtrailContext(ctx context.Context, rdr io.Reader, tg *timegrinde
 		} else if cberr != nil {
 			err = cberr
 			break
+		}
+	}
+	return
+}
+
+func logSnsKeyDecode(lg *log.Logger, keytype string, buckets, keys []string) {
+	if len(buckets) != len(keys) {
+		lg.Info("successfully decoded messages", log.KV("type", keytype), log.KV("buckets", buckets), log.KV("keys", keys))
+	} else {
+		for i := 0; i < len(buckets); i++ {
+			lg.Info("successfully decoded message", log.KV("type", keytype), log.KV("bucket", buckets[i]), log.KV("key", keys[i]))
 		}
 	}
 	return
