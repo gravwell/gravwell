@@ -93,12 +93,14 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 				lg.Info("successfully decoded SNS message", log.KV("keys", keys))
 			}
 
+			shouldDelete := true
 			for i, x := range keys {
 				obj := &s3.Object{
 					Key: aws.String(x),
 				}
 				err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
 				if err != nil {
+					shouldDelete = false
 					lg.Error("processing message", log.KVErr(err))
 				} else {
 					lg.Info("successfully processed message", log.KV("bucket", buckets[i]), log.KV("key", x))
@@ -106,7 +108,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 			}
 
 			// delete messages we successfully processed
-			if err == nil {
+			if shouldDelete {
 				err = s.sqs.DeleteMessages([]*sqs.Message{v})
 				if err != nil {
 					lg.Error("deleting message", log.KVErr(err))
