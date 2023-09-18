@@ -73,6 +73,7 @@ type ScheduledSearch struct {
 	SearchString       string // The actual search to run
 	Duration           int64  // How many seconds back to search, MUST BE NEGATIVE
 	SearchSinceLastRun bool   // If set, ignore Duration and run from last run time to now.
+	TimeframeOffset    int64  // How many seconds to offset the search timeframe, MUST BE NEGATIVE.
 
 	// For scheduled scripts
 	Script         string     // If set, execute the contents rather than running SearchString
