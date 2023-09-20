@@ -20,6 +20,7 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 
 	"github.com/crewjam/rfc5424"
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
@@ -91,6 +92,14 @@ func main() {
 	if err != nil {
 		errorout("Failed to get configuration: %v", err)
 		return
+	}
+	//check if we have a UUID, if not try to write one back
+	if id, ok := cfg.global.IngestConfig.IngesterUUID(); !ok {
+		id = uuid.New()
+		if err := cfg.global.IngestConfig.SetIngesterUUID(id, confLoc); err != nil {
+			errorout("failed to set ingester UUID at startup: %v", err)
+			return
+		}
 	}
 
 	//create a service, this is used even if we are running in interactive mode
