@@ -85,6 +85,7 @@ func GetConfig(path string) (*CfgType, error) {
 	if err := config.LoadConfigFile(&c, path); err != nil {
 		return nil, err
 	}
+
 	if err := c.Verify(); err != nil {
 		return nil, err
 	}

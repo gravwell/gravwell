@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -91,6 +92,15 @@ func main() {
 		lg.Error("failed to get configuration", log.KVErr(err))
 		return
 	}
+	//check if we have a UUID, if not try to write one back
+	if id, ok := cfg.Global.IngestConfig.IngesterUUID(); !ok {
+		id = uuid.New()
+		if err := cfg.Global.IngestConfig.SetIngesterUUID(id, confLoc); err != nil {
+			lg.Error("failed to set ingester UUID at startup", log.KVErr(err))
+			return
+		}
+	}
+
 	if len(cfg.Global.Log_Level) > 0 {
 		if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
 			lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
