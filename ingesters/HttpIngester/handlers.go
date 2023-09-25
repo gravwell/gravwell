@@ -235,7 +235,7 @@ func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP) (err error)
 		Data: b,
 	}
 	debugout("Handling: %+v\n", e)
-	if err = cfg.pproc.Process(&e); err != nil {
+	if err = cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
 		h.lgr.Error("failed to send entry", log.KVErr(err))
 		return
 	}

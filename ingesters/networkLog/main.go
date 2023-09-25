@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -41,6 +42,8 @@ var (
 	totalBytes   uint64
 	debugOn      bool
 	lg           *log.Logger
+
+	exitCtx, exitFn = context.WithCancel(context.Background())
 )
 
 type results struct {
@@ -185,6 +188,8 @@ func main() {
 	res := gatherResponse(sniffs)
 	closeHandles(sniffs)
 	durr := time.Since(start)
+
+	exitFn()
 
 	if err = igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
@@ -345,7 +350,7 @@ mainLoop:
 				totalBytes += uint64(len(pkts[i].data))
 				count++
 			}
-			if err := igst.WriteBatch(set); err != nil {
+			if err := igst.WriteBatchContext(exitCtx, set); err != nil {
 				s.handle.Close()
 				lg.Error("failed to handle entry", log.KVErr(err))
 				s.res <- results{
