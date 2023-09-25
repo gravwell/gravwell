@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -80,6 +81,8 @@ func main() {
 	}
 	defer igst.Close()
 	ib.AnnounceStartup()
+
+	exitCtx, exitFn := context.WithCancel(context.Background())
 
 	var traps []*gosnmp.TrapListener
 	for name, lcfg := range cfg.Listener {
@@ -163,7 +166,7 @@ func main() {
 				// Skip it, I guess
 				return
 			}
-			proc.Process(&ent)
+			proc.ProcessContext(&ent, exitCtx)
 		}
 		l.OnNewTrap = cb
 
@@ -179,6 +182,8 @@ func main() {
 	//listen for signals so we can close gracefully
 	utils.WaitForQuit()
 	ib.AnnounceShutdown()
+
+	exitFn()
 
 	// Close all the traps so goroutines exit
 	for i := range traps {

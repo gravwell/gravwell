@@ -64,6 +64,8 @@ func main() {
 	defer igst.Close()
 	ib.AnnounceStartup()
 
+	exitCtx, exitFn := context.WithCancel(context.Background())
+
 	debugout("Started ingester muxer\n")
 
 	// Set up environment variables for AWS auth, if extant
@@ -146,7 +148,7 @@ func main() {
 			eChan := make(chan *entry.Entry, 2048)
 			go func(c chan *entry.Entry) {
 				for e := range c {
-					if err := procset.Process(e); err != nil {
+					if err := procset.ProcessContext(e, exitCtx); err != nil {
 						lg.Error("failed to process entry", log.KVErr(err))
 					}
 					count++
@@ -217,6 +219,8 @@ func main() {
 	//register quit signals so we can die gracefully
 	utils.WaitForQuit()
 	ib.AnnounceShutdown()
+
+	exitFn()
 }
 
 func debugout(format string, args ...interface{}) {

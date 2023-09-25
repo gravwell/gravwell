@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io"
 	dlog "log"
@@ -35,6 +36,8 @@ var (
 	lg      *log.Logger
 	debugOn bool
 	maxBody int
+
+	exitCtx, exitFn = context.WithCancel(context.Background())
 )
 
 func main() {
@@ -187,6 +190,9 @@ func main() {
 	}
 	debugout("Server is exiting\n")
 	ib.AnnounceShutdown()
+
+	exitFn()
+
 	for k, v := range hnd.mp {
 		if v.pproc != nil {
 			if err := v.pproc.Close(); err != nil {
