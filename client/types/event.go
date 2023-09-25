@@ -17,6 +17,11 @@ type EventType string
 const (
 	EVENTTYPE_LOG   EventType = "log"
 	EVENTTYPE_EVENT EventType = "event"
+
+	EVENTLOG_LEVEL_DEBUG = "debug"
+	EVENTLOG_LEVEL_INFO  = "info"
+	EVENTLOG_LEVEL_WARN  = "warn"
+	EVENTLOG_LEVEL_ERROR = "error"
 )
 
 // Event is the type produced by an Alert Dispatcher which gets ingested.
@@ -32,6 +37,7 @@ type Event struct {
 // The Type field should always be EVENTTYPE_LOG.
 type EventLog struct {
 	Type    EventType
+	Level   string
 	Message string            `json:",omitempty"`
 	KV      map[string]string `json:",omitempty"`
 	Trigger Event             `json:",omitempty"`
