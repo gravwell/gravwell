@@ -314,7 +314,10 @@ func (ic *IngestConfig) AddLocalLogging(lg *log.Logger) {
 		}
 	}
 	if len(ic.Log_File) > 0 {
-		if ext := filepath.Ext(ic.Log_File); ext == `` {
+		// attach a .log extension for everything but /dev/null, this is a special case
+		// for when you want a file follower to recursively watch something like /opt/gravwell/log but you don't
+		// want to go through the hassle of setting up exclusions.  So point the log file at dev null and just act like it didn't happen
+		if ext := filepath.Ext(ic.Log_File); ext == `` && ic.Log_File != `/dev/null` {
 			ic.Log_File = ic.Log_File + `.log`
 		}
 		if fout, err := rotate.Open(ic.Log_File, 0640); err != nil {
