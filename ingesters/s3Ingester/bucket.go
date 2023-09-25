@@ -152,8 +152,8 @@ func (br *BucketReader) ShouldTrack(obj string) (ok bool) {
 }
 
 // Process reads the object in and processes its contents
-func (br *BucketReader) Process(obj *s3.Object) (err error) {
-	return ProcessContext(obj, nil, br.svc, br.Bucket_Name, br.rdr, br.TG, br.src, br.Tag, br.Proc, br.MaxLineSize)
+func (br *BucketReader) Process(obj *s3.Object, ctx context.Context) (err error) {
+	return ProcessContext(obj, ctx, br.svc, br.Bucket_Name, br.rdr, br.TG, br.src, br.Tag, br.Proc, br.MaxLineSize)
 }
 
 func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err error) {
@@ -183,7 +183,7 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err 
 			}
 
 			//ok, lets process this thing
-			if lerr = br.Process(item); lerr != nil {
+			if lerr = br.Process(item, ctx); lerr != nil {
 				br.Logger.Error("failed to process object",
 					log.KV("name", br.Name),
 					log.KV("object", key),

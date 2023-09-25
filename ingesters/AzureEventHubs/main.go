@@ -65,6 +65,8 @@ func main() {
 	defer igst.Close()
 	ib.AnnounceStartup()
 
+	exitCtx, exitFn := context.WithCancel(context.Background())
+
 	debugout("Started ingester muxer\n")
 
 	// Here's where we start setting up Event Hubs stuff.
@@ -249,7 +251,7 @@ func main() {
 						ent.TS = entry.FromStandard(ts)
 					}
 				}
-				if err := procset.Process(ent); err != nil {
+				if err := procset.ProcessContext(ent, exitCtx); err != nil {
 					lg.Error("failed to process entry", log.KVErr(err))
 				}
 				count++
@@ -296,6 +298,8 @@ func main() {
 	//register quit signals so we can die gracefully
 	utils.WaitForQuit()
 	ib.AnnounceShutdown()
+
+	exitFn()
 
 	// Tell every event handler to close
 	for _, h := range listeners {

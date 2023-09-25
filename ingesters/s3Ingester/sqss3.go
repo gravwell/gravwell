@@ -94,12 +94,6 @@ func (s *SQSS3Config) srcOverride() net.IP {
 	return net.ParseIP(s.SourceOverride)
 }
 
-// Process reads the object in and processes its contents
-func (s *SQSS3Listener) Process(obj *s3.Object) (err error) {
-	//return s.ProcessContext(obj, nil)
-	return nil
-}
-
 func (s SQSS3Config) Log(vals ...interface{}) {
 	if s.Logger == nil || len(vals) == 0 {
 		return

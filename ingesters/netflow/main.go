@@ -9,6 +9,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
@@ -33,6 +34,8 @@ const (
 var (
 	debugOn bool
 	lg      *log.Logger
+
+	exitCtx, exitFn = context.WithCancel(context.Background())
 )
 
 func main() {
@@ -161,6 +164,9 @@ func main() {
 	case <-time.After(1 * time.Second):
 		lg.Error("failed to wait for all connections to close", log.KV("active", connCount()))
 	}
+
+	exitFn()
+
 	lg.Info("netflow ingester exiting", log.KV("ingesteruuid", id))
 	if err := igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
@@ -181,7 +187,7 @@ mainLoop:
 		case e, ok := <-ch:
 			if !ok {
 				if len(ents) > 0 {
-					if err := igst.WriteBatch(ents); err != nil {
+					if err := igst.WriteBatchContext(exitCtx, ents); err != nil {
 						if err != ingest.ErrNotRunning {
 							lg.Error("failed to WriteBatch", log.KVErr(err))
 						}
@@ -197,7 +203,7 @@ mainLoop:
 				ents = append(ents, e)
 			}
 			if len(ents) >= batchSize {
-				if err := igst.WriteBatch(ents); err != nil {
+				if err := igst.WriteBatchContext(exitCtx, ents); err != nil {
 					if err != ingest.ErrNotRunning {
 						lg.Error("failed to WriteBatch", log.KVErr(err))
 					} else {
@@ -208,7 +214,7 @@ mainLoop:
 			}
 		case _ = <-tckr.C:
 			if len(ents) > 0 {
-				if err := igst.WriteBatch(ents); err != nil {
+				if err := igst.WriteBatchContext(exitCtx, ents); err != nil {
 					if err != ingest.ErrNotRunning {
 						lg.Error("failed to WriteBatch", log.KVErr(err))
 					} else {
