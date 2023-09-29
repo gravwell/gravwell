@@ -68,8 +68,10 @@ func (c *Client) DeleteFlow(id int32) error {
 	return c.deleteStaticURL(flowIdUrl(id), nil)
 }
 
-// GetFlow returns the flow with the given ID.
-func (c *Client) GetFlow(id int32) (types.ScheduledSearch, error) {
+// GetFlow returns the flow with the given ID. The ID is an interface{}
+// to allow the user to specify either the flow's int32 "ID" or its
+// UUID "GUID" field.
+func (c *Client) GetFlow(id interface{}) (types.ScheduledSearch, error) {
 	var search types.ScheduledSearch
 	err := c.getStaticURL(flowIdUrl(id), &search)
 	return search, err
@@ -92,6 +94,31 @@ func (c *Client) ParseFlow(flow string) (outputPayloads map[int]map[string]inter
 	var resp types.FlowParseResponse
 	req := types.FlowParseRequest{
 		Flow: flow,
+	}
+	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp); err != nil {
+		return
+	}
+
+	//if the parse failed but we don't have an error, set something
+	if !resp.OK {
+		if len(resp.Error) == 0 {
+			resp.Error = `Unknown parse error`
+		}
+		err = errors.New(resp.Error)
+	}
+	outputPayloads = resp.OutputPayloads
+	return
+}
+
+// ParseReactiveFlow asks the API to check a flow as if triggered by an alert.
+// The event parameter will be injected into the initial payload under the name `event`.
+// If there is no error, outputPayloads will be a map containing the outputs
+// of each node, keyed by the node ID.
+func (c *Client) ParseReactiveFlow(flow string, event types.Event) (outputPayloads map[int]map[string]interface{}, err error) {
+	var resp types.FlowParseResponse
+	req := types.FlowParseRequest{
+		DebugEvent: &event,
+		Flow:       flow,
 	}
 	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp); err != nil {
 		return

@@ -17,14 +17,14 @@ import (
 )
 
 type regexListener struct {
-	base
+	baseConfig
 	Regex           string
 	Trim_Whitespace bool
 	Max_Buffer      int // maximum number of bytes to buffer without finding a regular expression
 }
 
 func (rl regexListener) Validate() error {
-	if err := rl.base.Validate(); err != nil {
+	if err := rl.baseConfig.Validate(); err != nil {
 		return err
 	}
 	//process the default tag

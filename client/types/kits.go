@@ -39,11 +39,12 @@ type KitConfigMacro struct {
 // KitConfig represents rules, labels, and other configuration options used
 // during kit installation.
 type KitConfig struct {
-	OverwriteExisting     bool     `json:",omitempty"`
-	Global                bool     `json:",omitempty"`
-	AllowExternalResource bool     `json:",omitempty"`
-	AllowUnsigned         bool     `json:",omitempty"`
-	InstallationGroup     int32    `json:",omitempty"`
+	OverwriteExisting     bool  `json:",omitempty"`
+	Global                bool  `json:",omitempty"`
+	AllowExternalResource bool  `json:",omitempty"`
+	AllowUnsigned         bool  `json:",omitempty"`
+	InstallationGroup     int32 `json:",omitempty"` // deprecated, use InstallationGroups instead
+	InstallationGroups    []int32
 	Labels                []string `json:",omitempty"` // labels applied to each *item*
 	KitLabels             []string `json:",omitempty"` // labels applied to the *kit* itself
 	ConfigMacros          []KitConfigMacro
@@ -90,8 +91,9 @@ type KitState struct {
 	ModifiedItems        []SourcedKitItem // Items which were installed by a previous version of the kit and have been modified by the user
 	ConflictingItems     []KitItem        // items which will overwrite a user-created object
 	RequiredDependencies []KitMetadata
-	Installed            bool      //true means everything was pushed in, false means it is JUST staged
-	InstallationTime     time.Time // the time at which this kit was installed
+	Installed            bool             //true means everything was pushed in, false means it is JUST staged
+	InstallationTime     time.Time        // the time at which this kit was installed
+	InstallationVersion  CanonicalVersion // the Gravwell version in use when this kit was installed
 	ConfigMacros         []KitConfigMacro
 	Metadata             json.RawMessage `json:",omitempty"`
 }
@@ -99,7 +101,7 @@ type KitState struct {
 // the type that handles the datastore system
 type KitManifest struct {
 	UID         int32
-	GID         int32
+	GIDs        []int32
 	Global      bool
 	UUID        uuid.UUID
 	Data        []byte
@@ -109,9 +111,10 @@ type KitManifest struct {
 
 // type that is used when sending back lists via a ADMIN request (show uid and gid)
 type IdKitState struct {
-	UUID uuid.UUID
-	UID  int32
-	GID  int32
+	UUID   uuid.UUID
+	UID    int32
+	GIDs   []int32
+	Global bool
 	KitState
 }
 
@@ -140,6 +143,7 @@ type KitBuildRequest struct {
 	Files             []uuid.UUID       `json:",omitempty"`
 	SearchLibraries   []uuid.UUID       `json:",omitempty"`
 	Playbooks         []uuid.UUID       `json:",omitempty"`
+	Alerts            []uuid.UUID       `json:",omitempty"`
 	EmbeddedItems     []KitEmbeddedItem `json:",omitempty"`
 	Icon              string            `json:",omitempty"`
 	Banner            string            `json:",omitempty"`
@@ -290,6 +294,11 @@ func (pbr *KitBuildRequest) Validate() error {
 			return errors.New("Zero UUID in playbook list")
 		}
 	}
+	for i := range pbr.Alerts {
+		if pbr.Alerts[i] == uuid.Nil {
+			return errors.New("Zero UUID in alert list")
+		}
+	}
 
 	if pbr.Icon != `` {
 		if err := pbr.validateReferencedFile(pbr.Icon, `Icon`); err != nil {
@@ -324,7 +333,7 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 
-	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks)
+	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
 	if kitItemCount == 0 {
 		return errors.New("Build request does not contain any items")
 	}

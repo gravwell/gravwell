@@ -15,8 +15,10 @@ import (
 )
 
 var (
-	testArrayInputJson  = []byte(`{"foo":{"bar":["a", "b", 1.4, {"stuff":"things"}]}, "foobar": "barbaz", "barbaz": 99}`)
-	testArrayExtraction = `foo.bar`
+	testArrayInputJson        = []byte(`{"foo":{"bar":["a", "b", 1.4, {"stuff":"things"}]}, "foobar": "barbaz", "barbaz": 99}`)
+	testArrayInputJsonQuoted  = []byte(`{"foo.bar":{"bar":["a", "b", 1.4, {"stuff":"things"}]}, "foo.bar": "barbaz", "barbaz": 99}`)
+	testArrayExtraction       = `foo.bar`
+	testArrayExtractionQuoted = "`\"foo.bar\".bar`"
 
 	testJSONArrayValues = []string{
 		`{"bar":"a"}`,
@@ -291,5 +293,171 @@ func TestJsonArraySplitAdditional(t *testing.T) {
 			t.Fatalf("%d invalid return value: %s != %s", i,
 				string(rset[i].Data), testJSONArrayValuesExtra[i])
 		}
+	}
+}
+
+func TestJsonSplitQuotedCSV(t *testing.T) {
+	in := `foo,bar.baz,"foo.bar","foo,bar"`
+	expected := []string{`foo`, `bar.baz`, `"foo.bar"`, `"foo,bar"`}
+
+	f := func(v rune) bool {
+		if v == ',' {
+			return true
+		}
+		return false
+	}
+
+	fields := splitRespectQuotes(in, f)
+	for i, v := range expected {
+		if fields[i] != v {
+			t.Fatal("mismatched extraction", v, fields[i])
+		}
+	}
+
+}
+
+func TestJsonSplitQuotedCSV2(t *testing.T) {
+	in := `"foo",bar.baz,foo.bar`
+	expected := []string{`"foo"`, `bar.baz`, `foo.bar`}
+
+	f := func(v rune) bool {
+		if v == ',' {
+			return true
+		}
+		return false
+	}
+
+	fields := splitRespectQuotes(in, f)
+	for i, v := range expected {
+		if fields[i] != v {
+			t.Fatal("mismatched extraction", v, fields[i])
+		}
+	}
+
+}
+
+func TestJsonSplitQuotedCSV3(t *testing.T) {
+	in := `"foo",bar.baz,"foo.bar".baz`
+	expected := []string{`"foo"`, `bar.baz`, `"foo.bar".baz`}
+
+	f := func(v rune) bool {
+		if v == ',' {
+			return true
+		}
+		return false
+	}
+
+	fields := splitRespectQuotes(in, f)
+	for i, v := range expected {
+		if fields[i] != v {
+			t.Fatal("mismatched extraction", v, fields[i])
+		}
+	}
+
+}
+
+func TestJsonSplitQuotedDot(t *testing.T) {
+	in := `"foo.bar"`
+	expected := []string{`"foo.bar"`}
+
+	f := func(v rune) bool {
+		if v == '.' {
+			return true
+		}
+		return false
+	}
+
+	fields := splitRespectQuotes(in, f)
+	for i, v := range expected {
+		if fields[i] != v {
+			t.Fatal("mismatched extraction", v, fields[i])
+		}
+	}
+
+}
+
+func TestJsonSplitQuotedDot2(t *testing.T) {
+	in := `foo."bar"`
+	expected := []string{`foo`, `"bar"`}
+
+	f := func(v rune) bool {
+		if v == '.' {
+			return true
+		}
+		return false
+	}
+
+	fields := splitRespectQuotes(in, f)
+	for i, v := range expected {
+		if fields[i] != v {
+			t.Fatal("mismatched extraction", v, fields[i])
+		}
+	}
+
+}
+
+func TestJsonArraySplitQuoted(t *testing.T) {
+	b := []byte(`
+	[global]
+	foo = "bar"
+	bar = 1337
+	baz = 1.337
+	foo-bar-baz="foo bar baz"
+
+	[item "A"]
+	name = "test A"
+	value = 0xA
+
+	[preprocessor "j2"]
+		type = jsonarraysplit
+		Drop-Misses=true
+		Extraction=` + testArrayExtractionQuoted + `
+		Force-JSON-Object=true
+	`)
+	tc := struct {
+		Global struct {
+			Foo         string
+			Bar         uint16
+			Baz         float32
+			Foo_Bar_Baz string
+		}
+		Item map[string]*struct {
+			Name  string
+			Value int
+		}
+		Preprocessor ProcessorConfig
+	}{}
+	if err := config.LoadConfigBytes(&tc, b); err != nil {
+		t.Fatal(err)
+	}
+	var tt testTagger
+	if _, err := tc.Preprocessor.getProcessor(`j1`, &tt); err == nil {
+		t.Fatal("Failed to pickup missing processor")
+	}
+	p, err := tc.Preprocessor.getProcessor(`j2`, &tt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p == nil {
+		t.Fatal("no processor back")
+	}
+	rset, err := p.Process(makeEntry(testArrayInputJsonQuoted, 123))
+	if err != nil {
+		t.Fatal(err)
+	} else if len(rset) != len(testJSONArrayValues) {
+		t.Fatalf("return count mismatch: %d != %d", len(rset), len(testJSONArrayValues))
+	}
+
+	for i := range rset {
+		if rset[i].Tag != 123 {
+			t.Fatalf("%d invalid return tag", rset[i].Tag)
+		}
+		if string(rset[i].Data) != testJSONArrayValues[i] {
+			t.Fatalf("%d invalid return value: %s != %s", i,
+				string(rset[i].Data), testJSONArrayValues[i])
+		}
+	}
+	if err := checkEntryEVs(rset); err != nil {
+		t.Fatal(err)
 	}
 }

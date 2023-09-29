@@ -238,3 +238,90 @@ func TestEnumeratedStringTail(t *testing.T) {
 		t.Fatalf("bad return size: %d != %d", len(tgt), len(ed.String()))
 	}
 }
+
+func FuzzEVEncodeDecode(f *testing.F) {
+	if err := addFuzzSample(f, true); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, byte(0)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, int8(42)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, int16(0xbcd)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, uint16(0xdead)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, int32(0x99beef)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, uint32(0xfeedbeef)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, int64(0xdeadfeedbeef)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, uint64(0xfeeddeadfeedbeef)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, float32(3.0)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, float64(3.14159)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, `this is a string`); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, []byte(`these are bytes`)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, net.ParseIP("192.168.1.1")); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, net.ParseIP("fe80::208c:9aff:fe6b:3904")); err != nil {
+		f.Fatal(err)
+	}
+	if mac, err := net.ParseMAC("22:8c:9a:6b:39:04"); err != nil {
+		f.Fatal(err)
+	} else if err = addFuzzSample(f, mac); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, time.Date(2022, 12, 25, 12, 13, 14, 12345, time.UTC)); err != nil {
+		f.Fatal(err)
+	}
+	if err := addFuzzSample(f, FromStandard(time.Date(2022, 12, 25, 2, 34, 24, 98765, time.UTC))); err != nil {
+		f.Fatal(err)
+	}
+	f.Fuzz(func(t *testing.T, buff []byte) {
+		var ev EnumeratedValue
+		if _, err := ev.Decode(buff); err != nil {
+			t.Log(err)
+		}
+	})
+}
+
+func addFuzzSample(f *testing.F, val interface{}) error {
+	if buff, err := encodeEv(val); err != nil {
+		return err
+	} else {
+		f.Add(buff)
+	}
+	return nil
+}
+
+func encodeEv(a interface{}) (buff []byte, err error) {
+	var ev EnumeratedValue
+	name := fmt.Sprintf("test %T %v", a, a)
+	if ev, err = NewEnumeratedValue(name, a); err == nil {
+		if !ev.Valid() {
+			err = fmt.Errorf("EV not valid: %T %v", a, a)
+		} else {
+			buff = ev.Encode()
+		}
+	}
+	return
+}

@@ -10,13 +10,10 @@ package processors
 
 import (
 	"bufio"
-	"bytes"
 	"crypto/rand"
-	"encoding/csv"
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/buger/jsonparser"
 	"github.com/gravwell/gravwell/v3/ingest/config"
@@ -75,12 +72,8 @@ func NewJsonFilter(cfg JsonFilterConfig) (*JsonFilter, error) {
 
 	// Load the filter files
 	for _, ff := range cfg.Field_Filter {
-		rdr := csv.NewReader(bytes.NewBuffer([]byte(ff)))
-		// only one "record"
-		r, err := rdr.Read()
-		if err != nil {
-			return nil, err
-		}
+		r := splitRespectQuotes(ff, commaSplitter)
+
 		if len(r) != 2 {
 			return nil, errors.New("Field-Filter must consist of fieldname,filepath")
 		}
@@ -88,7 +81,7 @@ func NewJsonFilter(cfg JsonFilterConfig) (*JsonFilter, error) {
 		pth := r[1]
 
 		// split the keys
-		fields[fieldname] = strings.Split(fieldname, `.`)
+		fields[fieldname] = unquoteFields(splitRespectQuotes(fieldname, dotSplitter))
 
 		// now populate the map with the contents of the field
 		filters[fieldname] = make(map[hsh]struct{})

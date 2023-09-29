@@ -24,6 +24,20 @@ func NewLoggerWithKV(l *Logger, sds ...rfc5424.SDParam) *KVLogger {
 	}
 }
 
+// GetKV returns the structured data elements
+func (kvl *KVLogger) GetKV() []rfc5424.SDParam {
+	return kvl.sds
+}
+
+// GetKVMap returns the structured data elements as a map[string]string
+func (kvl *KVLogger) GetKVMap() map[string]string {
+	m := make(map[string]string)
+	for _, sd := range kvl.sds {
+		m[sd.Name] = sd.Value
+	}
+	return m
+}
+
 // Debug writes a DEBUG level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (kvl *KVLogger) Debug(msg string, sds ...rfc5424.SDParam) error {

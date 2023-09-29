@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
@@ -143,6 +144,28 @@ type ParseSearchResponse struct {
 	SearchHints
 }
 
+// LaunchRequest is a new named type so that we can abstract away the websocket launch requests from the REST requests
+type LaunchRequest struct {
+	StartSearchRequest
+}
+
+// LaunchResponse is used to respond to both Launch and Attach requests
+// the type returns metadata about the search as well as
+// this contains all the embedded
+type LaunchResponse struct {
+	SearchSessionID uuid.UUID `json:",omitempty"`
+	// RefreshInterval is used to convey and optionally update the minimum interval
+	// required in between touching a search session.  This value defines how often a client
+	// must refresh thier search session before a search may be expired due to inactivity
+	RefreshInterval uint //refresh interval in seconds
+
+	// unified info that is always needed
+	SearchID     string     `json:",omitempty"`
+	RenderModule string     `json:",omitempty"`
+	RenderCmd    string     `json:",omitempty"`
+	Info         SearchInfo `json:",omitempty"`
+}
+
 // StartSearchRequest represents a search that is sent to the search controller
 // in the webserver.
 type StartSearchRequest struct {
@@ -185,6 +208,10 @@ type StartSearchResponse struct {
 	Metadata             json.RawMessage `json:",omitempty"`
 	Addendum             json.RawMessage `json:",omitempty"`
 	SearchHints
+}
+
+type SearchSessionIntervalUpdate struct {
+	Interval uint
 }
 
 // Once a search has begin, an ACK is sent.

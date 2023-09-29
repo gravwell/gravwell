@@ -17,8 +17,8 @@ import (
 	"path"
 	"sort"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -43,6 +43,7 @@ type gbl struct {
 
 type cfgReadType struct {
 	Global                           gbl
+	Attach                           attach.AttachConfig
 	Listener                         map[string]*lst
 	HEC_Compatible_Listener          map[string]*hecCompatible
 	Kinesis_Delivery_Stream_Listener map[string]*kds
@@ -65,6 +66,7 @@ type lst struct {
 
 type cfgType struct {
 	gbl
+	Attach       attach.AttachConfig
 	Listener     map[string]*lst
 	HECListener  map[string]*hecCompatible
 	KDSListener  map[string]*kds
@@ -81,30 +83,23 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	}
 	c := &cfgType{
 		gbl:          cr.Global,
+		Attach:       cr.Attach,
 		Listener:     cr.Listener,
 		HECListener:  cr.HEC_Compatible_Listener,
 		KDSListener:  cr.Kinesis_Delivery_Stream_Listener,
 		Preprocessor: cr.Preprocessor,
 		TimeFormat:   cr.TimeFormat,
 	}
-	if err := verifyConfig(c); err != nil {
+	if err := c.Verify(); err != nil {
 		return nil, err
-	}
-	// Verify and set UUID
-	if _, ok := c.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
-		}
 	}
 	return c, nil
 }
 
-func verifyConfig(c *cfgType) error {
+func (c *cfgType) Verify() error {
 	if err := c.IngestConfig.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	}
 	if c.Bind == `` {
@@ -230,6 +225,14 @@ func (c *cfgType) Tags() (tags []string, err error) {
 		sort.Strings(tags)
 	}
 	return
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
 
 func (c *cfgType) MaxBody() int {

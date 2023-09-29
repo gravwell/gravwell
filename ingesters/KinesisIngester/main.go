@@ -11,22 +11,17 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"flag"
 	"fmt"
 	"net"
 	"os"
-	"path"
-	"runtime/debug"
 	"sync"
-	"syscall"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/gravwell/v3/sqs_common"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -42,158 +37,56 @@ const (
 )
 
 var (
-	configLoc      = flag.String("config-file", defaultConfigLoc, "Location of configuration file")
-	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
-	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
-	ver            = flag.Bool("version", false, "Print the version information and exit")
-	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
-	lg             *log.Logger
+	lg      *log.Logger
+	debugOn bool
 )
 
-func init() {
-	flag.Parse()
-	if *ver {
-		version.PrintVersion(os.Stdout)
-		ingest.PrintVersion(os.Stdout)
-		os.Exit(0)
-	}
-	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
-	lg.SetAppname(appName)
-	if *stderrOverride != `` {
-		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr", log.KVErr(err))
-		} else {
-			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
-		}
-
-		fp := path.Join(`/dev/shm/`, *stderrOverride)
-		fout, err := os.Create(fp)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create %s: %v\n", fp, err)
-		} else {
-			version.PrintVersion(fout)
-			ingest.PrintVersion(fout)
-			log.PrintOSInfo(fout)
-			//file created, dup it
-			if err := syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
-				fout.Close()
-				lg.Fatal("failed to dup2 stderr", log.KVErr(err))
-			}
-		}
-	}
-	validate.ValidateConfig(GetConfig, *configLoc, *confdLoc)
-}
-
 func main() {
-	debug.SetTraceback("all")
 	var wg sync.WaitGroup
+	var cfg *cfgType
 	running := true
 
-	cfg, err := GetConfig(*configLoc, *confdLoc)
+	ibc := base.IngesterBaseConfig{
+		IngesterName:                 appName,
+		AppName:                      appName,
+		DefaultConfigLocation:        defaultConfigLoc,
+		DefaultConfigOverlayLocation: defaultConfigDLoc,
+		GetConfigFunc:                GetConfig,
+	}
+	ib, err := base.Init(ibc)
 	if err != nil {
-		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
+		fmt.Fprintf(os.Stderr, "failed to get configuration %v\n", err)
+		return
+	} else if err = ib.AssignConfig(&cfg); err != nil || cfg == nil {
+		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
+		return
 	}
-	if len(cfg.Global.Log_File) > 0 {
-		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
-		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Global.Log_File), log.KVErr(err))
-		}
-		defer fout.Close()
-		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("failed to add a writer", log.KVErr(err))
-		}
-		if len(cfg.Global.Log_Level) > 0 {
-			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
-			}
-		}
+	debugOn = ib.Verbose
+	lg = ib.Logger
+	igst, err := ib.GetMuxer()
+	if err != nil {
+		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
+		return
 	}
+	defer igst.Close()
+	ib.AnnounceStartup()
+
+	debugout("Started ingester muxer\n")
 
 	// Get the state file
 	stateFile, err := utils.NewState(cfg.Global.State_Store_Location, 0600)
 	if err != nil {
 		lg.Fatal("failed to open state file", log.KV("path", cfg.Global.State_Store_Location), log.KVErr(err))
 	}
+
 	stateMan := NewStateman(stateFile)
 	stateMan.Start()
 	defer stateMan.Close()
 
-	tags, err := cfg.Tags()
+	c, err := sqs_common.GetCredentials(cfg.Global.Credentials_Type, cfg.Global.AWS_Access_Key_ID, cfg.Global.AWS_Secret_Access_Key)
 	if err != nil {
-		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
+		lg.Fatal("obtaining credentials", log.KVErr(err))
 	}
-	conns, err := cfg.Targets()
-	if err != nil {
-		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
-	}
-	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
-
-	lmt, err := cfg.Global.RateLimit()
-	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration", log.KVErr(err))
-		return
-	}
-	debugout("Rate limiting connection to %d bps\n", lmt)
-
-	//fire up the ingesters
-	id, ok := cfg.Global.IngesterUUID()
-	if !ok {
-		lg.FatalCode(0, "could not read ingester UUID")
-	}
-	ingestConfig := ingest.UniformMuxerConfig{
-		IngestStreamConfig: cfg.Global.IngestStreamConfig,
-		Destinations:       conns,
-		Tags:               tags,
-		Auth:               cfg.Secret(),
-		Logger:             lg,
-		IngesterName:       appName,
-		IngesterVersion:    version.GetVersion(),
-		IngesterUUID:       id.String(),
-		IngesterLabel:      cfg.Global.Label,
-		RateLimitBps:       lmt,
-		CacheDepth:         cfg.Global.Cache_Depth,
-		CachePath:          cfg.Global.Ingest_Cache_Path,
-		CacheSize:          cfg.Global.Max_Ingest_Cache,
-		CacheMode:          cfg.Global.Cache_Mode,
-		LogSourceOverride:  net.ParseIP(cfg.Global.Log_Source_Override),
-	}
-	igst, err := ingest.NewUniformMuxer(ingestConfig)
-	if err != nil {
-		lg.Fatal("failed build our ingest system", log.KVErr(err))
-	}
-	defer igst.Close()
-	debugout("Starting ingester muxer\n")
-	// Henceforth, logs will also go out via the muxer to the gravwell tag
-	if cfg.Global.SelfIngest() {
-		lg.AddRelay(igst)
-	}
-	if err := igst.Start(); err != nil {
-		lg.Fatal("failed start our ingest system", log.KVErr(err))
-		return
-	}
-
-	debugout("Waiting for connections to indexers ... ")
-	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
-	}
-	debugout("Successfully connected to ingesters\n")
-
-	// prepare the configuration we're going to send upstream
-	err = igst.SetRawConfiguration(cfg)
-	if err != nil {
-		lg.FatalCode(0, "failed to set configuration for ingester state message", log.KVErr(err))
-	}
-
-	// Set up environment variables for AWS auth, if extant
-	if cfg.Global.AWS_Access_Key_ID != "" {
-		os.Setenv("AWS_ACCESS_KEY_ID", cfg.Global.AWS_Access_Key_ID)
-	}
-	if cfg.Global.AWS_Secret_Access_Key != "" {
-		os.Setenv("AWS_SECRET_ACCESS_KEY", cfg.Global.AWS_Secret_Access_Key)
-	}
-
-	// make an aws session
-	sess := session.Must(session.NewSession())
 
 	dieChan := make(chan bool)
 
@@ -203,6 +96,15 @@ func main() {
 		tagid, err := igst.GetTag(stream.Tag_Name)
 		if err != nil {
 			lg.Fatal("failed to resolve tag", log.KV("tag", stream.Tag_Name), log.KV("stream", stream.Stream_Name), log.KVErr(err))
+		}
+
+		// make an aws session
+		sess, err := session.NewSession(&aws.Config{
+			Credentials: c,
+			Region:      aws.String(stream.Region),
+		})
+		if err != nil {
+			lg.Fatal("creating session", log.KVErr(err))
 		}
 
 		// get a handle on kinesis
@@ -438,6 +340,7 @@ func main() {
 	}
 
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 
 	running = false
 	close(dieChan)
@@ -451,10 +354,9 @@ func main() {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !*verbose {
-		return
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 type metricsReport struct {

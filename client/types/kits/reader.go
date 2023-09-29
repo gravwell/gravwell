@@ -332,6 +332,11 @@ func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err
 				itm.AdditionalInfo, err = json.Marshal(string(b))
 			}
 		}
+	case Alert:
+		var def types.AlertDefinition
+		if err = json.NewDecoder(rdr).Decode(&def); err == nil {
+			itm.AdditionalInfo, err = def.JSONMetadata()
+		}
 	default:
 		err = fmt.Errorf("kit item %s has unknown type %s", name, tp)
 	}

@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
 	"net/url"
 	"os"
@@ -15,7 +18,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/bmatcuk/doublestar/v4"
+	"github.com/buger/jsonparser"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (
@@ -261,3 +271,133 @@ func basePath(orig string) (s string) {
 var (
 	awsUrlRegex = regexp.MustCompile(`s3[-\.]?([a-zA-Z\-0-9]+)?\.amazonaws\.com`)
 )
+
+func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket string, rdr reader, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, proc *processors.ProcessorSet, maxLineSize int) (err error) {
+	var r *s3.GetObjectOutput
+	r, err = svc.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    obj.Key,
+	})
+	if err != nil {
+		return
+	}
+	defer r.Body.Close()
+
+	switch rdr {
+	case lineReader:
+		err = processLinesContext(ctx, r.Body, maxLineSize, tg, src, tag, proc)
+	case cloudtrailReader:
+		err = processCloudtrailContext(ctx, r.Body, tg, src, tag, proc)
+	default:
+		err = errors.New("no reader set")
+	}
+	return
+}
+
+func processLinesContext(ctx context.Context, rdr io.Reader, maxLineSize int, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, proc *processors.ProcessorSet) (err error) {
+	sc := bufio.NewScanner(rdr)
+	sc.Buffer(nil, maxLineSize)
+	for sc.Scan() {
+		bts := sc.Bytes()
+		if len(bts) == 0 {
+			continue
+		}
+		ts, ok, _ := tg.Extract(bts)
+		if !ok {
+			ts = time.Now()
+		}
+		ent := entry.Entry{
+			TS:   entry.FromStandard(ts),
+			SRC:  src,                         //may be nil, ingest muxer will handle if it is
+			Data: append([]byte(nil), bts...), //scanner re-uses the buffer
+			Tag:  tag,
+		}
+		if ctx != nil {
+			err = proc.ProcessContext(&ent, ctx)
+		} else {
+			err = proc.Process(&ent)
+		}
+		if err != nil {
+			return //just leave
+		}
+	}
+
+	return
+}
+
+func processCloudtrailContext(ctx context.Context, rdr io.Reader, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, proc *processors.ProcessorSet) (err error) {
+	var obj json.RawMessage
+	dec := json.NewDecoder(rdr)
+
+	var cberr error
+	cb := func(val []byte, vt jsonparser.ValueType, off int, lerr error) {
+		if lerr != nil {
+			cberr = lerr
+			return
+		}
+		var bts []byte
+		// if our record is an object try to grab a handle on the eventTime member
+		// if not, just take the whole thing, this is an optimization to process timestamps
+		if vt == jsonparser.Object {
+			if eventTime, err := jsonparser.GetString(val, `eventTime`); err == nil {
+				bts = []byte(eventTime)
+			} else {
+				bts = val // could not match, just set to whole thing and let TG do its thing
+			}
+		} else {
+			bts = val
+		}
+		ts, ok, _ := tg.Extract(bts)
+		if !ok {
+			ts = time.Now()
+		}
+		ent := entry.Entry{
+			TS:   entry.FromStandard(ts),
+			SRC:  src,                         //may be nil, ingest muxer will handle if it is
+			Data: append([]byte(nil), val...), //scanner re-uses the buffer
+			Tag:  tag,
+		}
+		if ctx != nil {
+			cberr = proc.ProcessContext(&ent, ctx)
+		} else {
+			cberr = proc.Process(&ent)
+		}
+		return
+	}
+
+	for {
+		var recordarray []byte
+		var dt jsonparser.ValueType
+		if err = dec.Decode(&obj); err != nil {
+			if err == io.EOF {
+				err = nil
+			}
+			break
+		}
+		if recordarray, dt, _, err = jsonparser.Get([]byte(obj), `Records`); err != nil {
+			err = fmt.Errorf("failed to find Records array in cloudtrail log: %v", err)
+			break
+		} else if dt != jsonparser.Array {
+			err = fmt.Errorf("Records member is an invalid type: %v", dt)
+			break
+		}
+		if _, err = jsonparser.ArrayEach(recordarray, cb); err != nil {
+			break
+		} else if cberr != nil {
+			err = cberr
+			break
+		}
+	}
+	return
+}
+
+func logSnsKeyDecode(lg *log.Logger, keytype string, buckets, keys []string) {
+	if len(buckets) != len(keys) {
+		lg.Info("successfully decoded messages", log.KV("type", keytype), log.KV("buckets", buckets), log.KV("keys", keys))
+	} else {
+		for i := 0; i < len(buckets); i++ {
+			lg.Info("successfully decoded message", log.KV("type", keytype), log.KV("bucket", buckets[i]), log.KV("key", keys[i]))
+		}
+	}
+	return
+}
