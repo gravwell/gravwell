@@ -259,6 +259,7 @@ type SearchInfo struct {
 	Name                  string          `json:",omitempty"`
 	CollapsingIndex       int
 	NoHistory             bool // set to true if this search was launched with the "no history" flag, typically means it is an automated search.
+	Background            bool // set to true if this search has been marked as backgrounded.
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
 	Import                ImportInfo `json:",omitempty"` //information attached if there this search is saved and from an external import
