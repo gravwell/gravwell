@@ -39,6 +39,8 @@ type AlertDefinition struct {
 
 	Description string `json:"Description"`
 
+	Disabled bool `json:"Disabled"`
+
 	// A list of things which create alerts (currently only scheduled searches).
 	Dispatchers []AlertDispatcher `json:"Dispatchers"`
 
