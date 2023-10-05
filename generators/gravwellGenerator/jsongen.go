@@ -17,13 +17,13 @@ import (
 )
 
 type datum struct {
-	TS        string   `json:"time"`
-	Account   Account  `json:"account"`
-	Class     int      `json:"class"`
-	Groups    []string `json:"groups,omitempty"`
-	UserAgent string   `json:"user_agent"`
-	IP        string   `json:"ip"`
-	Data      string   `json:"data,escape"`
+	TS        string         `json:"time"`
+	Account   Account        `json:"account"`
+	Class     int            `json:"class"`
+	Groups    []ComplexGroup `json:"groups,omitempty"`
+	UserAgent string         `json:"user_agent"`
+	IP        string         `json:"ip"`
+	Data      string         `json:"data,escape"`
 }
 
 // genDataJSON creates a marshalled JSON buffer
@@ -35,7 +35,7 @@ func genDataJSON(ts time.Time) (r []byte) {
 	d.TS = ts.UTC().Format(time.RFC3339)
 	d.Class = rand.Int() % 0xffff
 	d.Data = rd.Paragraph()
-	d.Groups = getGroups()
+	d.Groups = getComplexGroups()
 	d.Account = getUser()
 	d.UserAgent = rd.UserAgentString()
 	d.IP = v4gen.IP().String()
