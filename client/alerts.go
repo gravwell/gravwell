@@ -9,7 +9,6 @@
 package client
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -60,12 +59,12 @@ func (c *Client) GetAlertSampleEvent(id uuid.UUID) (result types.Event, err erro
 
 // ValidateAlertScheduledSearchDispatcher validates an existing scheduled search against
 // a given schema.
-func (c *Client) ValidateAlertScheduledSearchDispatcher(ssearchID int32, schema types.AlertSchemas) (resp types.AlertDispatcherValidateResponse, err error) {
+func (c *Client) ValidateAlertScheduledSearchDispatcher(ssearchID uuid.UUID, schema types.AlertSchemas) (resp types.AlertDispatcherValidateResponse, err error) {
 	// build the request
 	req := types.AlertDispatcherValidateRequest{
 		Dispatcher: types.AlertDispatcher{
 			Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH,
-			ID:   fmt.Sprintf("%d", ssearchID),
+			ID:   ssearchID.String(),
 		},
 		Schema: schema,
 	}
@@ -77,12 +76,12 @@ func (c *Client) ValidateAlertScheduledSearchDispatcher(ssearchID int32, schema 
 // ValidateAlertFlowConsumer validates an existing flow against
 // a given alert, making sure it does not consume any fields not
 // provided by the schema.
-func (c *Client) ValidateAlertFlowConsumer(flowID int32, alert types.AlertDefinition) (resp types.AlertConsumerValidateResponse, err error) {
+func (c *Client) ValidateAlertFlowConsumer(flowID uuid.UUID, alert types.AlertDefinition) (resp types.AlertConsumerValidateResponse, err error) {
 	// build the request
 	req := types.AlertConsumerValidateRequest{
 		Consumer: types.AlertConsumer{
 			Type: types.ALERTCONSUMERTYPE_FLOW,
-			ID:   fmt.Sprintf("%d", flowID),
+			ID:   flowID.String(),
 		},
 		Alert: alert,
 	}
