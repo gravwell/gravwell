@@ -237,7 +237,7 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 	ib.Debug("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
-	if err = igst.SetRawConfiguration(cfg); err != nil {
+	if err = igst.SetRawConfiguration(ib.Cfg); err != nil {
 		ib.Logger.FatalCode(0, "failed to set configuration for ingester state messages")
 	}
 
