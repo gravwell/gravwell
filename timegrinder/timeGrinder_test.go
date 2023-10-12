@@ -325,6 +325,16 @@ func TestUnixMilli(t *testing.T) {
 	if ok {
 		t.Fatalf("Improperly extracted unix milli from line with prefixed text")
 	}
+
+	candidate = `1511802599.453396`
+	ts, ok, err = tg.Extract([]byte(candidate))
+	if err != nil {
+		t.Fatal(err)
+	} else if !ok {
+		t.Fatal("Failed to extract timestamp " + candidate)
+	} else if ctime != ts {
+		t.Fatal("Timestamp extraction is wrong")
+	}
 }
 
 func TestUnixNano(t *testing.T) {

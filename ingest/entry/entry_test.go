@@ -11,9 +11,14 @@ package entry
 import (
 	"bytes"
 	"fmt"
+	"math/rand"
 	"net"
 	"testing"
 	"time"
+)
+
+const (
+	fuzzCorpusSize = 16
 )
 
 func TestEncodeDecodeHeader(t *testing.T) {
@@ -249,6 +254,144 @@ func BenchmarkDataAppend(b *testing.B) {
 			b.Fatal("uuuh, yeah")
 		}
 	}
+}
+
+func FuzzDecodeHeaderNoEvs(f *testing.F) {
+	ips := []net.IP{
+		net.ParseIP("DEAD::BEEF"),
+		net.ParseIP("192.168.1.1"),
+	}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < fuzzCorpusSize; i++ {
+		e := &Entry{
+			TS:   Now(),
+			Tag:  EntryTag((i*10 + i) % 0x10000),
+			SRC:  ips[i%2],
+			Data: make([]byte, i*1000+i),
+		}
+		r.Read(e.Data)
+		//encode the header
+		b := make([]byte, ENTRY_HEADER_SIZE)
+		if _, err := e.EncodeHeader(b); err != nil {
+			f.Fatal(err)
+		}
+		f.Add(b)
+	}
+	f.Fuzz(func(t *testing.T, orig []byte) {
+		var e2 Entry
+		n, hasEvs, err := e2.DecodeHeader(orig)
+		if err != nil {
+			t.Log(err)
+		} else if hasEvs {
+			t.Log("has EVs, it should not")
+		} else if n != len(orig) {
+			t.Logf("length is bad: %d != %d", n, len(orig))
+		}
+
+	})
+}
+
+func FuzzDecodeHeaderWithEvs(f *testing.F) {
+	ips := []net.IP{
+		net.ParseIP("FEED:FEBE:DEAD:BEEF:"),
+		net.ParseIP("255.255.255.254"),
+	}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < fuzzCorpusSize; i++ {
+		e := &Entry{
+			TS:   Now(),
+			Tag:  EntryTag((i*11 + i) % 0x10000),
+			SRC:  ips[i%2],
+			Data: make([]byte, i*1234+i),
+		}
+		e.AddEnumeratedValueEx(`n1`, true)
+		r.Read(e.Data)
+		//encode the header
+		b := make([]byte, ENTRY_HEADER_SIZE)
+		if _, err := e.EncodeHeader(b); err != nil {
+			f.Fatal(err)
+		}
+		f.Add(b)
+	}
+	f.Fuzz(func(t *testing.T, orig []byte) {
+		var e2 Entry
+		n, hasEvs, err := e2.DecodeHeader(orig)
+		if err != nil {
+			t.Log(err)
+		} else if !hasEvs {
+			t.Log("has EVs, it should not")
+		} else if n != len(orig) {
+			t.Logf("length is bad: %d != %d", n, len(orig))
+		}
+	})
+}
+
+func FuzzDecodeEntryNoEvs(f *testing.F) {
+	ips := []net.IP{
+		net.ParseIP("DEAD::BEEF"),
+		net.ParseIP("192.168.1.1"),
+	}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < fuzzCorpusSize; i++ {
+		e := &Entry{
+			TS:   Now(),
+			Tag:  EntryTag((i*10 + i) % 0x10000),
+			SRC:  ips[i%2],
+			Data: make([]byte, i*1000+i),
+		}
+		r.Read(e.Data)
+		buff, err := encodeEntry(e)
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(buff)
+	}
+	f.Fuzz(func(t *testing.T, orig []byte) {
+		var e2 Entry
+		if _, err := e2.Decode(orig); err != nil {
+			t.Log(err)
+		}
+	})
+}
+
+func FuzzDecodeEntryWithEvs(f *testing.F) {
+	ips := []net.IP{
+		net.ParseIP("FEED:FEBE:DEAD:BEEF:"),
+		net.ParseIP("255.255.255.254"),
+	}
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	for i := 0; i < fuzzCorpusSize; i++ {
+		e := &Entry{
+			TS:   Now(),
+			Tag:  EntryTag((i*11 + i) % 0x10000),
+			SRC:  ips[i%2],
+			Data: make([]byte, i*1234+i),
+		}
+		r.Read(e.Data)
+
+		if err := addAllEvs(e); err != nil {
+			f.Fatal(err)
+		}
+		buff, err := encodeEntry(e)
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(buff)
+	}
+	f.Fuzz(func(t *testing.T, orig []byte) {
+		var e2 Entry
+		if _, err := e2.Decode(orig); err != nil {
+			t.Log(err)
+		}
+	})
+}
+
+func encodeEntry(e *Entry) ([]byte, error) {
+	bb := bytes.NewBuffer(nil)
+	if _, err := e.EncodeWriter(bb); err != nil {
+		return nil, err
+	}
+	return bb.Bytes(), nil
 }
 
 // adds an EV of every type

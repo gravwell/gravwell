@@ -75,6 +75,23 @@ func (ent *Entry) AddEnumeratedValue(ev EnumeratedValue) (err error) {
 	return
 }
 
+// AddEnumeratedValues will attach a slice of natively typed enumerated value to an entry.
+// An error is returned if the set of enumerated values contain an invalid enumerated value
+// or adding the set would would cause the entry to exceed the maximum entry size.
+func (ent *Entry) AddEnumeratedValues(evs []EnumeratedValue) (err error) {
+	if len(evs) == 0 {
+		return
+	}
+	for i := range evs {
+		if evs[i].Valid() == false {
+			err = ErrInvalid
+			return
+		}
+	}
+	ent.evb.AddSet(evs)
+	return
+}
+
 // AddEnumeratedValueEx will attach a natively typed enumerated value to an entry.
 // An error is returned if the enumerated value is invalid or adding it would cause
 // the entry to exceed the maximum entry size.  An error is also returned if the

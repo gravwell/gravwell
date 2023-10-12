@@ -164,3 +164,107 @@ func TestJsonTimestampQuoted(t *testing.T) {
 		t.Fatalf("invalid processed timestamp on miss: %q != %q", ret[0].TS, og)
 	}
 }
+
+func TestJsonTimestampFormats(t *testing.T) {
+	b := `
+	[preprocessor "jse"]
+		type = jsontimeextract
+		Path=foo.bar
+		Timestamp-Override="%s"
+		Assume-Local-Timezone=true
+	`
+	og := time.Date(2020, 12, 15, 12, 1, 2, 3, time.UTC)
+	internal := time.Date(2022, 7, 2, 13, 14, 15, 0, time.UTC)
+	config := fmt.Sprintf(b, `RFC3339`)
+	//test with RFC3339
+	data := fmt.Sprintf(`{"foo": {"bar": "%s"}}`, internal.Format(time.RFC3339))
+	if err := testJsonCycle(config, data, og, internal); err != nil {
+		t.Fatal(err)
+	}
+
+	// test with unix timestamp that is quoted
+	data = fmt.Sprintf(`{"foo": {"bar": "%d"}}`, internal.Unix())
+	config = fmt.Sprintf(b, `Unix`)
+	if err := testJsonCycle(config, data, og, internal); err != nil {
+		t.Fatal(err)
+	}
+
+	// test with unix timestamp that is NOT quoted
+	data = fmt.Sprintf(`{"foo": {"bar": %d}}`, internal.Unix())
+	config = fmt.Sprintf(b, `Unix`)
+	if err := testJsonCycle(config, data, og, internal); err != nil {
+		t.Fatal(err)
+	}
+
+	//test as unix ms
+	data = fmt.Sprintf(`{"foo": {"bar": %d}}`, internal.Unix()*1000)
+	config = fmt.Sprintf(b, `UnixMs`)
+	if err := testJsonCycle(config, data, og, internal); err != nil {
+		t.Fatal(err)
+	}
+
+	//test as unix nano
+	data = fmt.Sprintf(`{"foo": {"bar": %d}}`, internal.Unix()*1000000000)
+	config = fmt.Sprintf(b, `UnixNano`)
+	if err := testJsonCycle(config, data, og, internal); err != nil {
+		t.Fatal(err)
+	}
+
+	//test as Gravwell format
+	ts := internal.UTC()
+	data = fmt.Sprintf(`{"foo": {"bar": "%s"}}`, ts.Local().Format(`Jan 02 2006 15:04:05`))
+	config = fmt.Sprintf(b, `SyslogVariant`)
+	if err := testJsonCycle(config, data, og, ts); err != nil {
+		t.Fatal(err)
+	}
+
+	//test as unix milli
+	ts = internal.Add(120 * time.Millisecond)
+	data = fmt.Sprintf(`{"foo": {"bar": %d.12}}`, ts.Unix())
+	config = fmt.Sprintf(b, `UnixMilli`)
+	if err := testJsonCycle(config, data, og, ts); err != nil {
+		t.Fatal(err)
+	}
+
+	//test as unix milli with higher precision
+	ts = internal.Add(120 * time.Millisecond)
+	data = fmt.Sprintf(`{"foo": {"bar": %d.120000}}`, ts.Unix())
+	config = fmt.Sprintf(b, `UnixMilli`)
+	if err := testJsonCycle(config, data, og, ts); err != nil {
+		t.Fatal(err)
+	}
+
+	//test as unix milli quoted
+	ts = internal.Add(120 * time.Millisecond)
+	data = fmt.Sprintf(`{"foo": {"bar": "%d.12"}}`, ts.Unix())
+	config = fmt.Sprintf(b, `UnixMilli`)
+	if err := testJsonCycle(config, data, og, ts); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func testJsonCycle(config, data string, og, internal time.Time) error {
+	p, err := testLoadPreprocessor(config, `jse`)
+	if err != nil {
+		return err
+	}
+	ent := entry.Entry{
+		TS:   entry.FromStandard(og),
+		Data: []byte(data),
+	}
+	ret, err := p.Process([]*entry.Entry{&ent})
+	if err != nil {
+		return err
+	} else if len(ret) != 1 {
+		return fmt.Errorf("wrong return count: %d !+ 1", len(ret))
+	}
+	if ts := ret[0].TS.StandardTime().UTC(); !ts.Equal(internal) {
+		//because go likes to incorporate clock skew into timestamps... we have to have some fuzzy logic to handle this
+		min := internal.Add(-10 * time.Millisecond)
+		max := internal.Add(10 * time.Millisecond)
+		if ts.Before(min) || ts.After(max) {
+			return fmt.Errorf("invalid processed timestamp: %q != %q\n\t%v != %v", ts.Format(time.RFC3339), internal.Format(time.RFC3339), ts, internal)
+		}
+	}
+	return nil
+}

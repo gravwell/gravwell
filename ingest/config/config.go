@@ -51,6 +51,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingest/log/rotate"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -300,6 +301,31 @@ func (ic *IngestConfig) Secret() string {
 // Return the specified log level
 func (ic *IngestConfig) LogLevel() string {
 	return ic.Log_Level
+}
+
+func (ic *IngestConfig) AddLocalLogging(lg *log.Logger) {
+	if lg == nil {
+		return
+	}
+	//set the log level
+	if ll := ic.LogLevel(); len(ll) > 0 {
+		if err := lg.SetLevelString(ll); err != nil {
+			lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", ic.Log_Level), log.KVErr(err))
+		}
+	}
+	if len(ic.Log_File) > 0 {
+		// attach a .log extension for everything but /dev/null, this is a special case
+		// for when you want a file follower to recursively watch something like /opt/gravwell/log but you don't
+		// want to go through the hassle of setting up exclusions.  So point the log file at dev null and just act like it didn't happen
+		if ext := filepath.Ext(ic.Log_File); ext == `` && ic.Log_File != `/dev/null` {
+			ic.Log_File = ic.Log_File + `.log`
+		}
+		if fout, err := rotate.Open(ic.Log_File, 0640); err != nil {
+			lg.FatalCode(0, "failed to open log file", log.KV("path", ic.Log_File), log.KVErr(err))
+		} else if err = lg.AddWriter(fout); err != nil {
+			lg.Fatal("failed to add a writer", log.KVErr(err))
+		}
+	}
 }
 
 func (ic *IngestConfig) SelfIngest() bool {

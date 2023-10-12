@@ -15,8 +15,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -41,13 +41,13 @@ type bindType int
 type readerType int
 
 type listener struct {
-	base
+	baseConfig
 	Reader_Type   string
 	Drop_Priority bool // remove the <nnn> priority value at the start of the log message, useful for things like fortinet
 	Keep_Priority bool `json:"-"` //NOTE DEPRECATED AND UNUSED.  Left so that config parsing doesn't break
 }
 
-type base struct {
+type baseConfig struct {
 	Tag_Name                  string
 	Bind_String               string //IP port pair 127.0.0.1:1234
 	Ignore_Timestamps         bool   //Just apply the current timestamp to lines as we get them
@@ -62,6 +62,7 @@ type base struct {
 
 type cfgReadType struct {
 	Global        config.IngestConfig
+	Attach        attach.AttachConfig
 	Listener      map[string]*listener
 	JSONListener  map[string]*jsonListener
 	RegexListener map[string]*regexListener
@@ -71,6 +72,7 @@ type cfgReadType struct {
 
 type cfgType struct {
 	config.IngestConfig
+	Attach        attach.AttachConfig
 	Listener      map[string]*listener
 	JSONListener  map[string]*jsonListener
 	RegexListener map[string]*regexListener
@@ -88,6 +90,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	}
 	c := &cfgType{
 		IngestConfig:  cr.Global,
+		Attach:        cr.Attach,
 		Listener:      cr.Listener,
 		RegexListener: cr.RegexListener,
 		JSONListener:  cr.JSONListener,
@@ -95,25 +98,17 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		TimeFormat:    cr.TimeFormat,
 	}
 
-	if err := verifyConfig(c); err != nil {
+	if err := c.Verify(); err != nil {
 		return nil, err
-	}
-	// Verify and set UUID
-	if _, ok := c.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
-		}
 	}
 	return c, nil
 }
 
-func verifyConfig(c *cfgType) error {
+func (c *cfgType) Verify() error {
 	//verify the global parameters
-	if err := c.Verify(); err != nil {
+	if err := c.IngestConfig.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	}
 	if len(c.Listener) == 0 && len(c.RegexListener) == 0 && len(c.JSONListener) == 0 {
@@ -126,7 +121,7 @@ func verifyConfig(c *cfgType) error {
 	}
 	bindMp := make(map[string]string, 1)
 	for k, v := range c.Listener {
-		if err := v.base.Validate(); err != nil {
+		if err := v.baseConfig.Validate(); err != nil {
 			return fmt.Errorf("Listener %s configuration error: %v", k, err)
 		}
 		if len(v.Tag_Name) == 0 {
@@ -269,6 +264,14 @@ func (c *cfgType) Tags() ([]string, error) {
 	return tags, nil
 }
 
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
+}
+
 func checkListenerSettings(l *listener) (err error) {
 	var lt readerType
 	var bt bindType
@@ -292,7 +295,7 @@ func checkListenerSettings(l *listener) (err error) {
 	return
 }
 
-func (l base) Validate() error {
+func (l baseConfig) Validate() error {
 	if len(l.Bind_String) == 0 {
 		return errors.New("No Bind-String provided")
 	}
