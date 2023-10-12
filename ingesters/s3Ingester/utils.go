@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/bmatcuk/doublestar/v4"
 	"github.com/buger/jsonparser"
@@ -199,7 +200,14 @@ func parseReader(v string) (reader, error) {
 func getBucketName(v string) (bucketName string, err error) {
 	//properly formed ARN
 	if strings.HasPrefix(v, `arn:aws:s3`) {
-		bucketName = v
+		var vv arn.ARN
+		if vv, err = arn.Parse(v); err != nil {
+			return
+		} else if vv.Service != `s3` {
+			err = fmt.Errorf("invalid ARN service %s", vv.Service)
+			return
+		}
+		bucketName = vv.Resource
 		return
 	}
 	//check for a URL scheme
