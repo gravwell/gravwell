@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -21,6 +21,7 @@ import (
 	"golang.org/x/sys/windows/svc/debug"
 	"golang.org/x/sys/windows/svc/eventlog"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -31,6 +32,7 @@ import (
 const (
 	serviceName       = `GravwellEvents`
 	appName           = `winevent`
+	ingesterName      = `Windows Events`
 	defaultConfigPath = `gravwell\eventlog\config.cfg`
 )
 
@@ -40,7 +42,7 @@ var (
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 
 	confLoc string
-	verbose bool
+	debugOn bool
 	lg      *log.Logger
 )
 
@@ -61,8 +63,8 @@ func init() {
 	} else {
 		confLoc = *configOverride
 	}
-	verbose = *verboseF
-	validate.ValidateConfig(winevent.GetConfig, confLoc, ``)
+	debugOn = *verboseF
+	validate.ValidateConfig(GetConfig, confLoc, ``)
 }
 
 func main() {
@@ -85,11 +87,20 @@ func main() {
 	}
 	lg.SetAppname(appName)
 
-	cfg, err := winevent.GetConfig(confLoc)
+	cfg, err := GetConfig(confLoc)
 	if err != nil {
 		lg.Error("failed to get configuration", log.KVErr(err))
 		return
 	}
+	//check if we have a UUID, if not try to write one back
+	if id, ok := cfg.Global.IngestConfig.IngesterUUID(); !ok {
+		id = uuid.New()
+		if err := cfg.Global.IngestConfig.SetIngesterUUID(id, confLoc); err != nil {
+			lg.Error("failed to set ingester UUID at startup", log.KVErr(err))
+			return
+		}
+	}
+
 	if len(cfg.Global.Log_Level) > 0 {
 		if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
 			lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
@@ -168,10 +179,9 @@ func serviceWriteTimeout(ch chan svc.ChangeRequest, r svc.ChangeRequest, to time
 }
 
 func debugout(format string, args ...interface{}) {
-	if !verbose {
-		return
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 type levelLogger struct {
@@ -182,7 +192,7 @@ type levelLogger struct {
 func (l levelLogger) WriteLog(lvl log.Level, ts time.Time, msg []byte) error {
 	switch lvl {
 	case log.DEBUG:
-		if verbose {
+		if debugOn {
 			fmt.Fprintln(os.Stdout, string(msg))
 		}
 	case log.INFO:

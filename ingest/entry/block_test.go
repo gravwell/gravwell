@@ -157,6 +157,46 @@ func TestCreateEBlock(t *testing.T) {
 	}
 }
 
+func TestCreateEBlockWithEvs(t *testing.T) {
+	var eb EntryBlock
+	var sz uint64
+
+	for i := 0; i < testSize; i++ {
+		e, err := genRandomEntryWithEvs()
+		if err != nil {
+			t.Fatal(err)
+		}
+		e.TS.Sec = key
+		eb.Add(&e)
+		sz += e.Size()
+	}
+
+	buff, err := eb.Encode()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if uint64(len(buff)) != (sz + EntryBlockHeaderSize) {
+		t.Fatal("Bad resulting buff size")
+	}
+
+	var eb2 EntryBlock
+	if err := eb2.Decode(buff); err != nil {
+		t.Fatal(err)
+	}
+	if eb.size != eb2.size || eb.size == 0 {
+		t.Fatal(fmt.Sprintf("encode/decode sizes don't match %d != %d", eb.size, eb2.size))
+	}
+	if len(eb.entries) != len(eb2.entries) || len(eb.entries) == 0 {
+		t.Fatal(fmt.Sprintf("encode/decode counts don't match %d != %d",
+			len(eb.entries), len(eb2.entries)))
+	}
+	for i := range eb.entries {
+		if err := compareEntry(eb.entries[i], eb2.entries[i]); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
 func TestCreateBlockSizeInfer(t *testing.T) {
 	var sz uint64
 	var ents []Entry
@@ -416,6 +456,58 @@ func TestEBlockAppend(t *testing.T) {
 	}
 }
 
+func FuzzEntryBlockNoEvs(f *testing.F) {
+	for x := 0; x < fuzzCorpusSize; x++ {
+		var eb EntryBlock
+		for i := 0; i < (x + 1); i++ {
+			e, err := genRandomEntry()
+			if err != nil {
+				f.Fatal(err)
+			}
+			e.TS.Sec = key
+			eb.Add(&e)
+		}
+
+		buff, err := eb.Encode()
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(buff)
+	}
+	f.Fuzz(func(t *testing.T, orig []byte) {
+		var e2 EntryBlock
+		if err := e2.Decode(orig); err != nil {
+			t.Log(err)
+		}
+	})
+}
+
+func FuzzEntryBlockWithEvs(f *testing.F) {
+	for x := 0; x < fuzzCorpusSize; x++ {
+		var eb EntryBlock
+		for i := 0; i < (x + 1); i++ {
+			e, err := genRandomEntryWithEvs()
+			if err != nil {
+				f.Fatal(err)
+			}
+			e.TS.Sec = key
+			eb.Add(&e)
+		}
+
+		buff, err := eb.Encode()
+		if err != nil {
+			f.Fatal(err)
+		}
+		f.Add(buff)
+	}
+	f.Fuzz(func(t *testing.T, orig []byte) {
+		var e2 EntryBlock
+		if err := e2.Decode(orig); err != nil {
+			t.Log(err)
+		}
+	})
+}
+
 func genRandomEntry() (Entry, error) {
 	size := rand.Intn(1024) + 1024
 	offset := rand.Intn(RANDOM_BUFF_SIZE_MB*MB - size)
@@ -429,6 +521,14 @@ func genRandomEntry() (Entry, error) {
 		Tag:  DEFAULT_SEARCH_TAG,
 		Data: randBuff[offset : offset+size],
 	}, nil
+}
+
+func genRandomEntryWithEvs() (Entry, error) {
+	ent, err := genRandomEntry()
+	if err == nil {
+		err = addAllEvs(&ent)
+	}
+	return ent, err
 }
 
 func compareEntry(a, b *Entry) error {

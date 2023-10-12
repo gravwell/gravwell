@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -20,6 +20,7 @@ import (
 	"golang.org/x/sys/windows/svc/eventlog"
 
 	"github.com/crewjam/rfc5424"
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
@@ -36,9 +37,10 @@ var (
 	configOverride = flag.String("config-file-override", "", "Override location for configuration file")
 	verboseF       = flag.Bool("v", false, "Verbose mode, do not run as a service and output status to stdout")
 	ver            = flag.Bool("version", false, "Print the version information and exit")
+	dumpState      = flag.Bool("dump-state", false, "Dump the file follower state file in a human format and exit")
 
 	confLoc string
-	verbose bool
+	debugOn bool
 	errW    errWriter = interactiveErrorWriter
 	infW    errWriter = interactiveInfoWriter
 	elog    debug.Log
@@ -62,7 +64,7 @@ func init() {
 	} else {
 		confLoc = *configOverride
 	}
-	verbose = *verboseF
+	debugOn = *verboseF
 	validate.ValidateConfig(GetConfig, confLoc, ``) //windows doesn't support conf.d style overlays for now
 }
 
@@ -91,14 +93,27 @@ func main() {
 		errorout("Failed to get configuration: %v", err)
 		return
 	}
+	//check if we have a UUID, if not try to write one back
+	if id, ok := cfg.global.IngestConfig.IngesterUUID(); !ok {
+		id = uuid.New()
+		if err := cfg.global.IngestConfig.SetIngesterUUID(id, confLoc); err != nil {
+			errorout("failed to set ingester UUID at startup: %v", err)
+			return
+		}
+	}
 
+	//create a service, this is used even if we are running in interactive mode
 	s, err := NewService(cfg)
 	if err != nil {
-		errorout("Failed to create gravwell servicer: %v", err)
+		errorout("Failed to create gravwell service: %v", err)
 		return
 	}
 
 	if inter {
+		if *dumpState {
+			dumpStateFile(cfg.State_Store_Location)
+			os.Exit(0)
+		}
 		runInteractive(s)
 	} else {
 		runService(s)
@@ -151,10 +166,9 @@ func runService(s *mainService) {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !verbose {
-		return
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 type errWriter func(format string, args ...interface{})

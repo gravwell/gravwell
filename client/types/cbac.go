@@ -73,7 +73,9 @@ const (
 	TokenWrite        Capability = 46
 	SecretRead        Capability = 47
 	SecretWrite       Capability = 48
-	_maxCap           Capability = 49 //REMINDER - when adding capabilities, make sure to expand this number
+	AlertRead         Capability = 49
+	AlertWrite        Capability = 50
+	_maxCap           Capability = 51 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
 type CapabilityCategory string
@@ -326,6 +328,10 @@ func (c Capability) Name() string {
 		return `SecretRead`
 	case SecretWrite:
 		return `SecretWrite`
+	case AlertRead:
+		return `AlertRead`
+	case AlertWrite:
+		return `AlertWrite`
 	}
 	return `UNKNOWN`
 }
@@ -416,6 +422,10 @@ func (c Capability) Category() CapabilityCategory {
 	case SOARLibs:
 		return AutomationsCat
 	case SOAREmail:
+		return AutomationsCat
+	case AlertRead:
+		return AutomationsCat
+	case AlertWrite:
 		return AutomationsCat
 
 	case TemplateRead:
@@ -551,6 +561,10 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = SecretRead
 	case `secretwrite`:
 		*c = SecretWrite
+	case `alertread`:
+		*c = AlertRead
+	case `alertwrite`:
+		*c = AlertWrite
 	default:
 		err = ErrUnknownCapability
 	}
@@ -656,6 +670,10 @@ func (c Capability) String() string {
 		return `Read Secrets`
 	case SecretWrite:
 		return `Write and Delete Secrets`
+	case AlertRead:
+		return `Read Alerts`
+	case AlertWrite:
+		return `Write and Delete Alerts`
 	}
 	return `UNKNOWN`
 }
@@ -759,6 +777,10 @@ func (c Capability) Description() string {
 		return `User can read and access secrets`
 	case SecretWrite:
 		return `User can create, update, and delete secrets`
+	case AlertRead:
+		return `User can read and access alerts`
+	case AlertWrite:
+		return `User can create, update, and delete alerts`
 	}
 	return `UNKNOWN`
 }

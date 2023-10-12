@@ -12,23 +12,18 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"net"
 	"os"
-	"path"
-	"runtime/debug"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 	"github.com/open-networks/go-msgraph"
 )
@@ -40,141 +35,49 @@ const (
 )
 
 var (
-	configLoc      = flag.String("config-file", defaultConfigLoc, "Location of configuration file")
-	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
-	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
-	ver            = flag.Bool("version", false, "Print the version information and exit")
-	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
-	lg             *log.Logger
-	tracker        *stateTracker
-	running        bool
-	src            net.IP
+	lg      *log.Logger
+	debugOn bool
+	tracker *stateTracker
+	running bool
+	src     net.IP
 
 	ErrInvalidStateFile = errors.New("State file exists and is not a regular file")
 	ErrFailedSeek       = errors.New("Failed to seek to the start of the states file")
 )
-
-func init() {
-	flag.Parse()
-	if *ver {
-		version.PrintVersion(os.Stdout)
-		ingest.PrintVersion(os.Stdout)
-		os.Exit(0)
-	}
-	validate.ValidateConfig(GetConfig, *configLoc, *confdLoc)
-	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
-	lg.SetAppname(appName)
-	if *stderrOverride != `` {
-		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr", log.KVErr(err))
-		} else {
-			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
-		}
-
-		fp := path.Join(`/dev/shm/`, *stderrOverride)
-		fout, err := os.Create(fp)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create %s: %v\n", fp, err)
-		} else {
-			version.PrintVersion(fout)
-			ingest.PrintVersion(fout)
-			log.PrintOSInfo(fout)
-			//file created, dup it
-			if err := syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
-				fout.Close()
-				lg.Fatal("failed to dup2 stderr", log.KVErr(err))
-			}
-		}
-	}
-}
 
 type event struct {
 	Id string
 }
 
 func main() {
-	debug.SetTraceback("all")
-	cfg, err := GetConfig(*configLoc, *confdLoc)
+	var cfg *cfgType
+	ibc := base.IngesterBaseConfig{
+		IngesterName:                 appName,
+		AppName:                      appName,
+		DefaultConfigLocation:        defaultConfigLoc,
+		DefaultConfigOverlayLocation: defaultConfigDLoc,
+		GetConfigFunc:                GetConfig,
+	}
+	ib, err := base.Init(ibc)
 	if err != nil {
-		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
-	}
-	if len(cfg.Global.Log_File) > 0 {
-		fout, err := os.OpenFile(cfg.Global.Log_File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640)
-		if err != nil {
-			lg.FatalCode(0, "failed to open log file", log.KV("path", cfg.Global.Log_File), log.KVErr(err))
-		}
-		if err = lg.AddWriter(fout); err != nil {
-			lg.Fatal("failed to add a writer", log.KVErr(err))
-		}
-		if len(cfg.Global.Log_Level) > 0 {
-			if err = lg.SetLevelString(cfg.Global.Log_Level); err != nil {
-				lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", cfg.Global.Log_Level), log.KVErr(err))
-			}
-		}
-	}
-
-	tags, err := cfg.Tags()
-	if err != nil {
-		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
-	}
-	conns, err := cfg.Targets()
-	if err != nil {
-		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
-	}
-	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
-
-	//fire up the ingesters
-	id, ok := cfg.Global.IngesterUUID()
-	if !ok {
-		lg.FatalCode(0, "could not read ingester UUID")
-	}
-	lmt, err := cfg.Global.RateLimit()
-	if err != nil {
-		lg.FatalCode(0, "Failed to get rate limit from configuration", log.KVErr(err))
+		fmt.Fprintf(os.Stderr, "failed to get configuration %v\n", err)
+		return
+	} else if err = ib.AssignConfig(&cfg); err != nil || cfg == nil {
+		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	ingestConfig := ingest.UniformMuxerConfig{
-		IngestStreamConfig: cfg.Global.IngestStreamConfig,
-		Destinations:       conns,
-		Tags:               tags,
-		Auth:               cfg.Secret(),
-		Logger:             lg,
-		IngesterName:       "Microsoft Graph",
-		IngesterVersion:    version.GetVersion(),
-		IngesterUUID:       id.String(),
-		IngesterLabel:      cfg.Global.Label,
-		RateLimitBps:       lmt,
-		CacheDepth:         cfg.Global.Cache_Depth,
-		CachePath:          cfg.Global.Ingest_Cache_Path,
-		CacheSize:          cfg.Global.Max_Ingest_Cache,
-		CacheMode:          cfg.Global.Cache_Mode,
-		LogSourceOverride:  net.ParseIP(cfg.Global.Log_Source_Override),
-	}
-	igst, err := ingest.NewUniformMuxer(ingestConfig)
+	debugOn = ib.Verbose
+	lg = ib.Logger
+
+	igst, err := ib.GetMuxer()
 	if err != nil {
-		lg.Fatal("failed build our ingest system", log.KVErr(err))
+		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
+		return
 	}
 	defer igst.Close()
-	debugout("Starting ingester muxer\n")
-	if cfg.Global.SelfIngest() {
-		lg.AddRelay(igst)
-	}
-	if err := igst.Start(); err != nil {
-		lg.Fatal("failed start our ingest system", log.KVErr(err))
-		return
-	}
+	ib.AnnounceStartup()
 
-	debugout("Waiting for connections to indexers ... ")
-	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
-	}
-	debugout("Successfully connected to ingesters\n")
-
-	// prepare the configuration we're going to send upstream
-	err = igst.SetRawConfiguration(cfg)
-	if err != nil {
-		lg.FatalCode(0, "failed to set configuration for ingester state message", log.KVErr(err))
-	}
+	debugout("Started ingester muxer\n")
 
 	tracker, err = NewTracker(cfg.Global.State_Store_Location, 48*time.Hour, igst)
 	if err != nil {
@@ -260,6 +163,7 @@ func main() {
 
 	//register quit signals so we can die gracefully
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 
 	go func() {
 		time.Sleep(2 * time.Second)
@@ -470,8 +374,7 @@ func secureScoreProfileRoutine(c routineCfg) {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !*verbose {
-		return
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }

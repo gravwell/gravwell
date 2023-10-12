@@ -38,7 +38,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestBasicConfig(t *testing.T) {
-	cfgPath, err := dropConfig(baseConfig)
+	cfgPath, err := dropConfig(testConfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func dropConfig(cfg string) (pth string, err error) {
 }
 
 const (
-	baseConfig string = `
+	testConfig string = `
 [Global]
 Ingest-Secret = IngestSecrets
 Connection-Timeout = 0

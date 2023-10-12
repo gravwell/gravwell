@@ -10,6 +10,7 @@ package main
 
 import (
 	"log"
+	"math"
 	"math/rand"
 	"net"
 	"strings"
@@ -125,8 +126,9 @@ var (
 )
 
 var (
-	groups []string
-	users  []Account
+	groups        []string
+	users         []Account
+	complexGroups []ComplexGroup
 
 	hosts []string
 	apps  []string
@@ -172,6 +174,21 @@ type Account struct {
 	Country string `json:"country"`
 }
 
+type ComplexGroup struct {
+	ID         int               `json:"gid" xml:"gid,attr"`
+	Name       string            `json:"name" xml:"name,attr"`
+	Division   string            `json:"division" xml:"division,attr"`
+	Attributes []string          `json:"attributes,omitempty" xml:"attributes,attr"`
+	Locations  []ComplexLocation `json:"location" xml:"location,attr"`
+}
+
+type ComplexLocation struct {
+	Lat     float64 `json:"lat" xml:"lat,attr"`
+	Long    float64 `json:"long" xml:"long,attr"`
+	Country string  `json:"country" xml:"country,attr"`
+	State   string  `json:"state" xml:"state,attr"`
+}
+
 func seedUsers(usercount, gcount int) {
 	if usercount > maxUsers {
 		usercount = maxUsers
@@ -180,8 +197,17 @@ func seedUsers(usercount, gcount int) {
 		gcount = maxGroups
 	}
 	for i := 0; i < gcount; i++ {
-		groups = append(groups, rd.Noun())
+		name := rd.Noun()
+		groups = append(groups, name)
+		complexGroups = append(complexGroups, ComplexGroup{
+			ID:         i,
+			Name:       name,
+			Division:   rd.FirstName(rd.RandomGender),
+			Attributes: randAttributes(4),
+			Locations:  randLocations(2),
+		})
 	}
+
 	for i := 0; i < usercount; i++ {
 		email := rd.Email()
 		user := strings.Split(email, "@")[0]
@@ -206,11 +232,25 @@ func getGroup() string {
 	return groups[rand.Intn(len(groups))]
 }
 
+func getComplexGroup() ComplexGroup {
+	return complexGroups[rand.Intn(len(complexGroups))]
+}
+
 func getGroups() (r []string) {
 	if cnt := rand.Intn(3); cnt > 0 {
 		r = make([]string, cnt)
 		for i := range r {
 			r[i] = getGroup()
+		}
+	}
+	return
+}
+
+func getComplexGroups() (r []ComplexGroup) {
+	if cnt := rand.Intn(3); cnt > 0 {
+		r = make([]ComplexGroup, cnt)
+		for i := range r {
+			r[i] = getComplexGroup()
 		}
 	}
 	return
@@ -250,4 +290,47 @@ func randomBase62(l int) string {
 		r[i] = alphabet[rand.Intn(len(alphabet))]
 	}
 	return string(r)
+}
+
+func randAttributes(max int) (r []string) {
+	n := rand.Intn(max) + 1
+	p := strings.Fields(rd.Paragraph())
+	if len(p) < n {
+		r = p
+	} else {
+		r = p[0:n]
+	}
+	return
+}
+
+func randLocations(max int) (r []ComplexLocation) {
+	n := rand.Intn(max) + 1
+	r = make([]ComplexLocation, 0, n)
+	for i := 0; i < n; i++ {
+		r = append(r, ComplexLocation{
+			Country: rd.Country(rd.FullCountry),
+			State:   rd.Locale(),
+			Lat:     randLatLong(),
+			Long:    randLatLong(),
+		})
+	}
+	return
+}
+
+func randLatLong() float64 {
+	v := rand.Float64()
+	negative := v < 0
+	if negative {
+		v = v * -1
+	}
+	v = math.Mod(v, 180.0)
+	if negative {
+		v = v * -1
+	}
+	return roundFloat(v, 4)
+}
+
+func roundFloat(val float64, precision uint) float64 {
+	ratio := math.Pow(10, float64(precision))
+	return float64(math.Round(val*ratio) / ratio)
 }

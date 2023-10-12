@@ -9,7 +9,7 @@
 package main
 
 import (
-	"flag"
+	"context"
 	"fmt"
 	"io"
 	dlog "log"
@@ -17,15 +17,12 @@ import (
 	"net/http"
 	"os"
 	"path"
-	"runtime/debug"
-	"syscall"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/base"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/utils/caps"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -36,131 +33,43 @@ const (
 )
 
 var (
-	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
-	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
-	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
-	ver            = flag.Bool("version", false, "Print the version information and exit")
-	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
-	lg             *log.Logger
-	v              bool
-	maxBody        int
+	lg      *log.Logger
+	debugOn bool
+	maxBody int
+
+	exitCtx, exitFn = context.WithCancel(context.Background())
 )
 
-func init() {
-	flag.Parse()
-	if *ver {
-		version.PrintVersion(os.Stdout)
-		ingest.PrintVersion(os.Stdout)
-		os.Exit(0)
-	}
-	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
-	if *verbose {
-		v = true
-	}
-	if *confLoc == `` {
-		dlog.Fatal("Invalid log location")
-	}
-	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
-	lg.SetAppname(appName)
-	if *stderrOverride != `` {
-		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr", log.KVErr(err))
-		} else {
-			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
-		}
-
-		fp := path.Join(`/dev/shm/`, *stderrOverride)
-		fout, err := os.Create(fp)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create %s: %v\n", fp, err)
-		} else {
-			version.PrintVersion(fout)
-			ingest.PrintVersion(fout)
-			log.PrintOSInfo(fout)
-			//file created, dup it
-			if err := syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
-				fmt.Fprintf(os.Stderr, "Failed to dup2 stderr: %v\n", err)
-				fout.Close()
-			}
-		}
-	}
-}
-
 func main() {
-	debug.SetTraceback("all")
-	var lgr *log.Logger
-	cfg, err := GetConfig(*confLoc, *confdLoc)
-	if err != nil {
-		lg.Fatal("failed to load config file", log.KV("file", *confLoc), log.KVErr(err))
+	var cfg *cfgType
+	ibc := base.IngesterBaseConfig{
+		IngesterName:                 appName,
+		AppName:                      appName,
+		DefaultConfigLocation:        defaultConfigLoc,
+		DefaultConfigOverlayLocation: defaultConfigDLoc,
+		GetConfigFunc:                GetConfig,
 	}
-
-	// lgr points only to the log file defined in the config.
-	// We add it as a writer to lg, then just use lg everywhere.
-	if lgr, err = cfg.GetLogger(); err != nil {
-		lg.Fatal("failed to get logger", log.KVErr(err))
-	} else if err = lg.AddWriter(lgr); err != nil {
-		lg.Fatal("failed to add log file writer to standard logger")
-	}
-	defer lgr.Close()
-	maxBody = cfg.MaxBody()
-
-	debugout("Handling %d listeners\n", len(cfg.Listener))
-	tags, err := cfg.Tags()
+	ib, err := base.Init(ibc)
 	if err != nil {
-		lg.Fatal("failed to load tags", log.KVErr(err))
-	}
-	conns, err := cfg.Targets()
-	if err != nil {
-		lg.Fatal("failed to get backend targets from configuration", log.KVErr(err))
-	}
-	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
-
-	lmt, err := cfg.RateLimit()
-	if err != nil {
-		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
+		fmt.Fprintf(os.Stderr, "failed to get configuration %v\n", err)
+		return
+	} else if err = ib.AssignConfig(&cfg); err != nil || cfg == nil {
+		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	debugout("Rate limiting connection to %d bps\n", lmt)
-
-	debugout("Loaded %d tags\n", len(tags))
-	id, ok := cfg.IngesterUUID()
-	if !ok {
-		lg.FatalCode(0, "could not read ingester UUID")
-	}
-	igCfg := ingest.UniformMuxerConfig{
-		IngestStreamConfig: cfg.IngestStreamConfig,
-		Destinations:       conns,
-		Tags:               tags,
-		Auth:               cfg.Secret(),
-		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
-		Logger:             lg,
-		IngesterName:       appName,
-		IngesterVersion:    version.GetVersion(),
-		IngesterUUID:       id.String(),
-		IngesterLabel:      cfg.Label,
-		RateLimitBps:       lmt,
-		CacheDepth:         cfg.Cache_Depth,
-		CachePath:          cfg.Ingest_Cache_Path,
-		CacheSize:          cfg.Max_Ingest_Cache,
-		CacheMode:          cfg.Cache_Mode,
-		LogSourceOverride:  net.ParseIP(cfg.Log_Source_Override),
-	}
-	igst, err := ingest.NewUniformMuxer(igCfg)
+	debugOn = ib.Verbose
+	lg = ib.Logger
+	igst, err := ib.GetMuxer()
 	if err != nil {
-		lg.Fatal("failed to create new uniform muxer", log.KVErr(err))
+		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
+		return
 	}
+	defer igst.Close()
+	ib.AnnounceStartup()
+
 	debugout("Started ingester muxer\n")
-	if cfg.SelfIngest() {
-		lg.AddRelay(igst)
-	}
-	if err := igst.Start(); err != nil {
-		lg.Fatal("failed start our ingest system", log.KVErr(err))
-	}
-	debugout("Waiting for connections to indexers\n")
-	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.Fatal("Timedout waiting for backend connections", log.KVErr(err))
-	}
-	debugout("Successfully connected to ingesters\n")
+	maxBody = cfg.MaxBody()
+	debugout("Handling %d listeners\n", len(cfg.Listener))
 
 	//check capabilities so we can scream and throw a potential warning upstream
 	if !caps.Has(caps.NET_BIND_SERVICE) {
@@ -168,11 +77,6 @@ func main() {
 		debugout("missing capability NET_BIND_SERVICE, may not be able to bind to service ports")
 	}
 
-	// prepare the configuration we're going to send upstream
-	err = igst.SetRawConfiguration(cfg)
-	if err != nil {
-		lg.FatalCode(0, "Failed to set configuration for ingester state messages")
-	}
 	hnd, err := newHandler(igst, lg)
 	if err != nil {
 		lg.FatalCode(0, "Failed to create new handler")
@@ -255,19 +159,40 @@ func main() {
 		WriteTimeout: 5 * time.Second,
 		ErrorLog:     dlog.New(lg, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags),
 	}
+	done := make(chan error, 1)
 	if cfg.TLSEnabled() {
 		c := cfg.TLS_Certificate_File
 		k := cfg.TLS_Key_File
 		debugout("Binding to %v with TLS enabled using %s %s\n", cfg.Bind, cfg.TLS_Certificate_File, cfg.TLS_Key_File)
-		if err := srv.ListenAndServeTLS(c, k); err != nil {
-			lg.Error("failed to serve HTTPS server", log.KVErr(err))
-		}
+		go func(dc chan error) {
+			defer close(dc)
+			if err := srv.ListenAndServeTLS(c, k); err != nil {
+				lg.Error("failed to serve HTTPS server", log.KVErr(err))
+			}
+		}(done)
 	} else {
 		debugout("Binding to %v in cleartext mode\n", cfg.Bind)
-		if err := srv.ListenAndServe(); err != nil {
+		go func(dc chan error) {
+			defer close(dc)
+			if err := srv.ListenAndServe(); err != nil {
+				lg.Error("failed to serve HTTP server", log.KVErr(err))
+			}
+		}(done)
+	}
+	qc := utils.GetQuitChannel()
+	defer close(qc)
+	select {
+	case <-done:
+	case <-qc:
+		if err := srv.Close(); err != nil {
 			lg.Error("failed to serve HTTP server", log.KVErr(err))
 		}
 	}
+	debugout("Server is exiting\n")
+	ib.AnnounceShutdown()
+
+	exitFn()
+
 	for k, v := range hnd.mp {
 		if v.pproc != nil {
 			if err := v.pproc.Close(); err != nil {
@@ -284,10 +209,9 @@ func main() {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !v {
-		return
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 func getRemoteAddr(r *http.Request) (host string) {
