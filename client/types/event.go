@@ -10,6 +10,8 @@ package types
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type EventType string
@@ -48,8 +50,10 @@ type EventMetadata struct {
 	UID                int32
 	Username           string
 	Created            time.Time
-	AlertID            string // ThingUUID
+	AlertID            string // ThingUUID of the Alert
 	AlertName          string
+	AlertActivation    string // uniquely identify the particular activation of the alert
+	EventIndex         int    // this event's index within the dispatcher results for the alert activation
 	TargetTag          string // the tag this got sent to
 	AlertLabels        []string
 	Dispatcher         EventDispatcherInfo
@@ -86,17 +90,20 @@ type ValidationProblem struct {
 	Error string // A descriptive message as to what went wrong
 }
 
+// BuildEventMetadata builds up a generic EventMetadata to be used with
+// events for a specific firing of the given Alert via the given Dispatcher.
 func BuildEventMetadata(created time.Time, ud UserDetails, alertDef AlertDefinition, dispatcher EventDispatcherInfo) EventMetadata {
 	meta := EventMetadata{
-		UID:          ud.UID,
-		Username:     ud.User,
-		Created:      created,
-		AlertID:      alertDef.ThingUUID.String(),
-		AlertLabels:  alertDef.Labels,
-		AlertName:    alertDef.Name,
-		TargetTag:    alertDef.TargetTag,
-		Dispatcher:   dispatcher,
-		UserMetadata: alertDef.UserMetadata,
+		UID:             ud.UID,
+		Username:        ud.User,
+		Created:         created,
+		AlertID:         alertDef.ThingUUID.String(),
+		AlertLabels:     alertDef.Labels,
+		AlertName:       alertDef.Name,
+		AlertActivation: uuid.New().String(),
+		TargetTag:       alertDef.TargetTag,
+		Dispatcher:      dispatcher,
+		UserMetadata:    alertDef.UserMetadata,
 	}
 	if meta.AlertLabels == nil {
 		meta.AlertLabels = []string{}
