@@ -21,6 +21,8 @@ IMPORT github.com/tealeg/xlsx
 IMPORT github.com/miekg/dns
 IMPORT github.com/buger/jsonparser
 
+IMPORT golang.org/x/text/encoding/japanese
+
 # standard library
 IMPORT archive/tar
 IMPORT archive/zip

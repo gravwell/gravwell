@@ -355,3 +355,41 @@ func pf([]*entry.Entry) ([]*entry.Entry, error) {
 func nop() error {
 	return nil
 }`
+
+// a basic valid plugin that does shiftJIS language conversions
+const shiftJISPlugin = `
+package main
+
+import (
+	"gravwell"
+
+	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"golang.org/x/text/encoding/japanese"
+)
+
+func main() {
+	gravwell.Execute("test", cf, nop, nop, pf, ff)
+}
+
+func cf(cm gravwell.ConfigMap, tg gravwell.Tagger) error {
+	return nil
+}
+
+func ff() []*entry.Entry {
+	return nil
+}
+
+func pf(ents []*entry.Entry) ([]*entry.Entry, error) {
+	dec := japanese.ShiftJIS.NewDecoder()
+	for i := range ents {
+		if nv, err := dec.Bytes(ents[i].Data); err == nil {
+			ents[i].Data = nv
+		}
+	}
+	return ents, nil
+}
+
+func nop() error {
+	return nil
+}
+`
