@@ -49,7 +49,7 @@ require (
 	github.com/tealeg/xlsx v1.0.5
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119
 	github.com/xdg-go/scram v1.1.2
-	golang.org/x/net v0.15.0
+	golang.org/x/net v0.17.0
 	golang.org/x/sys v0.13.0
 	golang.org/x/text v0.13.0
 	golang.org/x/time v0.3.0
