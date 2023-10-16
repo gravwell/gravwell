@@ -478,6 +478,14 @@ func packKit(args []string) {
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
+		case kits.Alert:
+			var x types.AlertDefinition
+			if err = genericRead(wd, itm, &x); err != nil {
+				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
+			}
+			if err := marshallAdd(itm, x); err != nil {
+				log.Fatal(err)
+			}
 		case kits.License:
 			x, err := readLicense(wd, itm.Name)
 			if err != nil {
@@ -749,6 +757,14 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
 			if err := writePlaybook(wd, name, p); err != nil {
+				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
+			}
+		case kits.Alert:
+			var p types.AlertDefinition
+			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
+			}
+			if err := genericWrite(wd, tp, name, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.License:
