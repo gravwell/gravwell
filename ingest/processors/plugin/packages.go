@@ -5,25 +5,6 @@
 package plugin
 
 import (
-	ingest "github.com/gravwell/gravwell/v3/ingest"
-	config "github.com/gravwell/gravwell/v3/ingest/config"
-	entry "github.com/gravwell/gravwell/v3/ingest/entry"
-	rfc5424 "github.com/crewjam/rfc5424"
-	safefile "github.com/dchest/safefile"
-	glob "github.com/gobwas/glob"
-	flock "github.com/gofrs/flock"
-	gopacket "github.com/google/gopacket"
-	renameio "github.com/google/renameio"
-	uuid "github.com/google/uuid"
-	ipfix "github.com/gravwell/ipfix"
-	filetype "github.com/h2non/filetype"
-	ipmigo "github.com/k-sone/ipmigo"
-	compress "github.com/klauspost/compress"
-	msgraph "github.com/open-networks/go-msgraph"
-	xlsx "github.com/tealeg/xlsx"
-	dns "github.com/miekg/dns"
-	jsonparser "github.com/buger/jsonparser"
-	japanese "golang.org/x/text/encoding/japanese"
 	tar "archive/tar"
 	zip "archive/zip"
 	bufio "bufio"
@@ -150,9 +131,28 @@ import (
 	unicode "unicode"
 	utf16 "unicode/utf16"
 	utf8 "unicode/utf8"
-)
 
-import "github.com/open2b/scriggo/native"
+	jsonparser "github.com/buger/jsonparser"
+	rfc5424 "github.com/crewjam/rfc5424"
+	safefile "github.com/dchest/safefile"
+	glob "github.com/gobwas/glob"
+	flock "github.com/gofrs/flock"
+	gopacket "github.com/google/gopacket"
+	renameio "github.com/google/renameio"
+	uuid "github.com/google/uuid"
+	ingest "github.com/gravwell/gravwell/v3/ingest"
+	config "github.com/gravwell/gravwell/v3/ingest/config"
+	entry "github.com/gravwell/gravwell/v3/ingest/entry"
+	ipfix "github.com/gravwell/ipfix"
+	filetype "github.com/h2non/filetype"
+	ipmigo "github.com/k-sone/ipmigo"
+	compress "github.com/klauspost/compress"
+	dns "github.com/miekg/dns"
+	msgraph "github.com/open-networks/go-msgraph"
+	"github.com/open2b/scriggo/native"
+	xlsx "github.com/tealeg/xlsx"
+	japanese "golang.org/x/text/encoding/japanese"
+)
 
 func init() {
 	packages = make(native.Packages, 144)
@@ -5225,8 +5225,6 @@ func init() {
 	decs["NewCond"] = sync.NewCond
 	decs["Once"] = reflect.TypeOf((*sync.Once)(nil)).Elem()
 	decs["OnceFunc"] = sync.OnceFunc
-	decs["OnceValue"] = sync.OnceValue
-	decs["OnceValues"] = sync.OnceValues
 	decs["Pool"] = reflect.TypeOf((*sync.Pool)(nil)).Elem()
 	decs["RWMutex"] = reflect.TypeOf((*sync.RWMutex)(nil)).Elem()
 	decs["WaitGroup"] = reflect.TypeOf((*sync.WaitGroup)(nil)).Elem()
@@ -5256,7 +5254,6 @@ func init() {
 	decs["LoadUint32"] = atomic.LoadUint32
 	decs["LoadUint64"] = atomic.LoadUint64
 	decs["LoadUintptr"] = atomic.LoadUintptr
-	decs["Pointer"] = reflect.TypeOf((*atomic.Pointer)(nil)).Elem()
 	decs["StoreInt32"] = atomic.StoreInt32
 	decs["StoreInt64"] = atomic.StoreInt64
 	decs["StorePointer"] = atomic.StorePointer
