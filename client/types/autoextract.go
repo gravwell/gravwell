@@ -149,11 +149,13 @@ func (dc AXDefinition) JSONMetadata() (ro json.RawMessage, err error) {
 		Name   string   `json:"name,omitempty"`
 		Desc   string   `json:"desc,omitempty"`
 		Module string   `json:"module"`
+		Tag    string   `json:"tag"`
 		Tags   []string `json:"tags"`
 	}{
 		Name:   dc.Name,
 		Desc:   dc.Desc,
 		Module: dc.Module,
+		Tag:    dc.Tag,
 		Tags:   dc.GetTags(),
 	}
 	if x.Desc == `` {
