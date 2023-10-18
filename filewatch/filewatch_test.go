@@ -192,6 +192,87 @@ func TestSingleWatcher(t *testing.T) {
 	}
 }
 
+func TestSingleWatcherBaseDirDelete(t *testing.T) {
+	lh := newSafeTrackingLH()
+	var err error
+	var res map[string]bool
+	fireWatcher(func(workingDir string, w *WatchManager) error {
+		watchCfg := WatchConfig{
+			ConfigName: bName,
+			BaseDir:    workingDir,
+			FileFilter: `paco*`,
+			Hnd:        lh,
+		}
+		//add in one filter
+		if err := w.Add(watchCfg); err != nil {
+			t.Fatal(err)
+		}
+		if w.Filters() != 1 {
+			t.Fatal(errors.New("Filter not installed"))
+		}
+		return nil
+	},
+		nil,
+		func(workingDir string) error {
+			// Delete the working dir and recreate it
+			if err := os.RemoveAll(workingDir); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.MkdirAll(workingDir, 0755); err != nil {
+				t.Fatal(err)
+			}
+			// Hang on just a second to make sure we caught the re-creation
+			//			time.Sleep(2 * time.Second)
+
+			_, res, err = writeLines(filepath.Join(workingDir, `paco123`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := 0; i < 100; i++ {
+				if lh.Len() == len(res) {
+					break
+				}
+				time.Sleep(time.Millisecond * 10)
+			}
+
+			time.Sleep(2 * time.Second)
+			return nil
+		}, func(wm *WatchManager) error {
+			if err := wm.fman.FlushStates(); err != nil {
+				return err
+			}
+			sts, err := ReadStateFile(stateFilePath)
+			if err != nil {
+				return err
+			}
+			if len(sts) != len(wm.fman.followers) {
+				return fmt.Errorf("state file doesn't match %d != %d", len(sts), len(wm.fman.followers))
+			}
+			if len(sts) != len(wm.fman.states) {
+				return errors.New("states doesn't match statefile")
+			}
+			for k, v := range wm.fman.states {
+				if v == nil {
+					return errors.New("invalid state value")
+				}
+				if sts[filepath.Join(k.FilePath, k.BaseName)] != *v {
+					return fmt.Errorf("Invalid value for %v", k)
+				}
+			}
+			return nil
+		}, t)
+
+	//check the results
+	if len(res) != lh.Len() {
+		t.Fatal("line handler failed to get all the lines", len(res), lh.Len())
+	}
+	for k := range res {
+		if _, ok := lh.mp[k]; !ok {
+			t.Fatal("missing line", k)
+		}
+	}
+}
+
 func TestMultiWatcherNoDelete(t *testing.T) {
 	var res []map[string]bool
 	var lhs []*safeTrackingLH
@@ -278,6 +359,7 @@ func TestOverflow(t *testing.T) {
 		if w.Filters() != 1 {
 			t.Fatal(errors.New("Filter not installed"))
 		}
+		w.SetMaxFilesWatched(512)
 		return nil
 	}, func(workingDir string) error {
 		// just touch enough files to overload the watcher
