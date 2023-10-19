@@ -66,6 +66,7 @@ func (si ShardInfo) MarshalJSON() ([]byte, error) {
 }
 
 type WellInfo struct {
+	UUID        uuid.UUID // unique identifier constructed from the indexer UUID and the well ID
 	Name        string
 	Tags        []string
 	Shards      []ShardInfo
