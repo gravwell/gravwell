@@ -1,0 +1,151 @@
+SET PACKAGE plugin
+SET VARIABLE packages
+
+IMPORT github.com/gravwell/gravwell/v3/ingest
+IMPORT github.com/gravwell/gravwell/v3/ingest/config
+IMPORT github.com/gravwell/gravwell/v3/ingest/entry
+IMPORT golang.org/x/text/encoding/japanese
+IMPORT github.com/crewjam/rfc5424
+IMPORT github.com/gobwas/glob
+IMPORT github.com/google/uuid
+IMPORT github.com/gravwell/ipfix
+IMPORT github.com/h2non/filetype
+IMPORT github.com/klauspost/compress
+IMPORT github.com/miekg/dns
+IMPORT github.com/buger/jsonparser
+
+# standard library
+IMPORT archive/tar
+IMPORT archive/zip
+IMPORT bufio
+IMPORT bytes
+IMPORT compress/bzip2
+IMPORT compress/flate
+IMPORT compress/gzip
+IMPORT compress/lzw
+IMPORT compress/zlib
+IMPORT container/heap
+IMPORT container/list
+IMPORT container/ring
+IMPORT context
+IMPORT crypto
+IMPORT crypto/aes
+IMPORT crypto/cipher
+IMPORT crypto/des
+IMPORT crypto/dsa
+IMPORT crypto/ecdsa
+IMPORT crypto/elliptic
+IMPORT crypto/hmac
+IMPORT crypto/md5
+IMPORT crypto/rand
+IMPORT crypto/rc4
+IMPORT crypto/rsa
+IMPORT crypto/sha1
+IMPORT crypto/sha256
+IMPORT crypto/sha512
+IMPORT crypto/subtle
+IMPORT crypto/tls
+IMPORT crypto/x509
+IMPORT crypto/x509/pkix
+IMPORT encoding
+IMPORT encoding/ascii85
+IMPORT encoding/asn1
+IMPORT encoding/base32
+IMPORT encoding/base64
+IMPORT encoding/binary
+IMPORT encoding/csv
+IMPORT encoding/gob
+IMPORT encoding/hex
+IMPORT encoding/json
+IMPORT encoding/pem
+IMPORT encoding/xml
+IMPORT errors
+IMPORT expvar
+IMPORT flag
+IMPORT fmt
+IMPORT go/ast
+IMPORT go/build
+IMPORT go/constant
+IMPORT go/doc
+IMPORT go/format
+IMPORT go/importer
+IMPORT go/parser
+IMPORT go/printer
+IMPORT go/scanner
+IMPORT go/token
+IMPORT go/types
+IMPORT hash
+IMPORT hash/adler32
+IMPORT hash/crc32
+IMPORT hash/crc64
+IMPORT hash/fnv
+IMPORT hash/maphash
+IMPORT html
+IMPORT html/template
+IMPORT image
+IMPORT image/color
+IMPORT image/color/palette
+IMPORT image/draw
+IMPORT image/gif
+IMPORT image/jpeg
+IMPORT image/png
+IMPORT index/suffixarray
+IMPORT io
+IMPORT io/fs
+IMPORT io/ioutil
+IMPORT log
+IMPORT math
+IMPORT math/big
+IMPORT math/bits
+IMPORT math/cmplx
+IMPORT math/rand
+IMPORT mime
+IMPORT mime/multipart
+IMPORT mime/quotedprintable
+IMPORT net
+IMPORT net/http
+IMPORT net/http/cgi
+IMPORT net/http/cookiejar
+IMPORT net/http/fcgi
+IMPORT net/http/httptest
+IMPORT net/http/httptrace
+IMPORT net/http/httputil
+IMPORT net/http/pprof
+IMPORT net/mail
+IMPORT net/rpc
+IMPORT net/rpc/jsonrpc
+IMPORT net/smtp
+IMPORT net/textproto
+IMPORT net/url
+IMPORT os
+IMPORT os/exec
+IMPORT os/user
+IMPORT path
+IMPORT path/filepath
+IMPORT reflect
+IMPORT regexp
+IMPORT regexp/syntax
+IMPORT runtime/debug
+IMPORT sort
+IMPORT strconv
+IMPORT strings
+IMPORT sync
+IMPORT sync/atomic
+IMPORT text/scanner
+IMPORT text/tabwriter
+IMPORT text/template
+IMPORT text/template/parse
+IMPORT time
+IMPORT time/tzdata
+IMPORT unicode
+IMPORT unicode/utf16
+IMPORT unicode/utf8
+
+### set of potentially useful packages that are already linked in but need some scriggo work
+#github.com/Pallinder/go-randomdata
+#github.com/aws/aws-sdk-go
+#github.com/rcrowley/go-metrics 
+#github.com/inhies/go-bytesize
+#github.com/google/go-write
+#github.com/go-ole/go-ole
+

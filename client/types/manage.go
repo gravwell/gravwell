@@ -66,6 +66,7 @@ func (si ShardInfo) MarshalJSON() ([]byte, error) {
 }
 
 type WellInfo struct {
+	UUID        uuid.UUID // unique identifier constructed from the indexer UUID and the well ID
 	Name        string
 	Tags        []string
 	Shards      []ShardInfo
@@ -86,6 +87,28 @@ func (wi *WellInfo) Empty() bool {
 		return true
 	}
 	return wi.Name == `` && len(wi.Tags) == 0 && len(wi.Shards) == 0 && wi.Accelerator == `` && wi.Engine == ``
+}
+
+type StorageStats struct {
+	CoverageStart     time.Time `json:"coverageStart"`
+	CoverageEnd       time.Time `json:"coverageEnd"`
+	DataIngested      uint64    `json:"dataIngested"`
+	DataStoredHot     uint64    `json:"dataStoredHot"`
+	DataStoredCold    uint64    `json:"dataStoredCold"`
+	EntryCount        uint64    `json:"entryCount"`
+	TotalStorageSpace uint64    `json:"totalStorageSpace"`
+}
+
+type PerWellStorageStats struct {
+	StorageStats
+	Accelerator    string   `json:"accelerator"`
+	Engine         string   `json:"engine"`
+	PathCold       string   `json:"pathCold"`
+	PathHot        string   `json:"pathHot"`
+	ShardCountCold uint64   `json:"shardCountCold"`
+	ShardCountHot  uint64   `json:"shardCountHot"`
+	Tags           []string `json:"tags"`
+	WellName       string   `json:"wellName"`
 }
 
 type IndexerWellData struct {
