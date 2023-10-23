@@ -18,7 +18,7 @@ require (
 	github.com/bxcodec/faker/v3 v3.3.1
 	github.com/crewjam/rfc5424 v0.1.0
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
-	github.com/fsnotify/fsnotify v1.5.4
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gdamore/tcell/v2 v2.5.1
 	github.com/gobwas/glob v0.2.3
 	github.com/goccy/go-json v0.8.1
@@ -130,6 +130,6 @@ require (
 // Leave this until https://github.com/buger/jsonparser/pull/180 is merged
 replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb
 
-replace github.com/fsnotify/fsnotify => github.com/traetox/fsnotify v1.5.2-0.20220310052716-a0d82fe7e596
+// replace github.com/fsnotify/fsnotify => github.com/traetox/fsnotify v1.5.2-0.20220310052716-a0d82fe7e596
 
 // replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
