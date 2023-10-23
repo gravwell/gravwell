@@ -18,7 +18,7 @@ require (
 	github.com/bxcodec/faker/v3 v3.3.1
 	github.com/crewjam/rfc5424 v0.1.0
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
-	github.com/fsnotify/fsnotify v1.5.4
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gdamore/tcell/v2 v2.5.1
 	github.com/gobwas/glob v0.2.3
 	github.com/goccy/go-json v0.8.1
@@ -38,7 +38,7 @@ require (
 	github.com/h2non/filetype v1.0.10
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
-	github.com/klauspost/compress v1.17.1
+	github.com/klauspost/compress v1.17.2
 	github.com/miekg/dns v1.1.56
 	github.com/minio/highwayhash v1.0.0
 	github.com/open-networks/go-msgraph v0.3.1
@@ -130,6 +130,6 @@ require (
 // Leave this until https://github.com/buger/jsonparser/pull/180 is merged
 replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb
 
-replace github.com/fsnotify/fsnotify => github.com/traetox/fsnotify v1.5.2-0.20220310052716-a0d82fe7e596
+// replace github.com/fsnotify/fsnotify => github.com/traetox/fsnotify v1.5.2-0.20220310052716-a0d82fe7e596
 
 // replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
