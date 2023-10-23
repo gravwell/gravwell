@@ -32,6 +32,10 @@ const (
 	IDX_URL                          = `/api/stats/idxStats`
 	INGESTER_URL                     = `/api/stats/igstStats`
 	WELLS_URL                        = `/api/stats/wellStats`
+	STORAGE_URL                      = `/api/stats/storage/indexers`
+	STORAGE_INDEXER_URL              = `/api/stats/storage/indexer/%s/wells`
+	CALENDAR_URL                     = `/api/stats/storage/calendar`
+	CALENDAR_INDEXER_URL             = `/api/stats/storage/indexer/%s/calendar`
 	ADD_USER_URL                     = `/api/users`
 	USERS_LIST_URL                   = `/api/users`
 	USERS_INFO_URL                   = `/api/users/%d`
