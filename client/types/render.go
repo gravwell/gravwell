@@ -197,7 +197,7 @@ type SysStatResponse struct {
 }
 
 type IndexerStats struct {
-	UUID        uuid.UUID // unique well ID based on the indexer UUID and the well ID assigned at indexer startup
+	ID          string // unique well ID based on the indexer UUID and the well ID assigned at indexer startup
 	Data        uint64
 	Entries     uint64
 	Path        string

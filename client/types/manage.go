@@ -66,7 +66,7 @@ func (si ShardInfo) MarshalJSON() ([]byte, error) {
 }
 
 type WellInfo struct {
-	UUID        uuid.UUID // unique identifier constructed from the indexer UUID and the well ID
+	ID          string // unique identifier constructed from the indexer UUID and the well name
 	Name        string
 	Tags        []string
 	Shards      []ShardInfo
@@ -109,6 +109,22 @@ type PerWellStorageStats struct {
 	ShardCountHot  uint64   `json:"shardCountHot"`
 	Tags           []string `json:"tags"`
 	WellName       string   `json:"wellName"`
+}
+
+type CalendarRequest struct {
+	Start time.Time `json:"start"`
+	End   time.Time `json:"end"`
+	Wells []string  `json:"wells"`
+}
+
+type CalendarResponse struct {
+	Items []*CalendarEntry `json:"items"`
+}
+
+type CalendarEntry struct {
+	Date         string `json:"date"`
+	DataIngested uint64 `json:"dataIngested"`
+	EntryCount   uint64 `json:"entryCount"`
 }
 
 type IndexerWellData struct {
