@@ -90,13 +90,14 @@ func (wi *WellInfo) Empty() bool {
 }
 
 type StorageStats struct {
-	CoverageStart  time.Time `json:"coverageStart"`
-	CoverageEnd    time.Time `json:"coverageEnd"`
-	DataIngested   uint64    `json:"dataIngested"`
-	DataStoredHot  uint64    `json:"dataStoredHot"`
-	DataStoredCold uint64    `json:"dataStoredCold"`
-	EntryCountHot  uint64    `json:"entryCountHot"`
-	EntryCountCold uint64    `json:"entryCountCold"`
+	CoverageStart    time.Time `json:"coverageStart"`
+	CoverageEnd      time.Time `json:"coverageEnd"`
+	DataIngestedHot  uint64    `json:"dataIngestedHot"`
+	DataIngestedCold uint64    `json:"dataIngestedCold"`
+	DataStoredHot    uint64    `json:"dataStoredHot"`
+	DataStoredCold   uint64    `json:"dataStoredCold"`
+	EntryCountHot    uint64    `json:"entryCountHot"`
+	EntryCountCold   uint64    `json:"entryCountCold"`
 }
 
 type PerWellStorageStats struct {
