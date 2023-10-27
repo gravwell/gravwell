@@ -117,10 +117,6 @@ type CalendarRequest struct {
 	Wells []string  `json:"wells"`
 }
 
-type CalendarResponse struct {
-	Items []*CalendarEntry `json:"items"`
-}
-
 type CalendarEntry struct {
 	Date         string `json:"date"`
 	DataIngested uint64 `json:"dataIngested"`
