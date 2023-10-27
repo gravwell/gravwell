@@ -425,8 +425,8 @@ func (c *Client) GetStorageStats() (map[string]types.StorageStats, error) {
 }
 
 // GetIndexerStorageStats gets storage statistics for the given indexer..
-func (c *Client) GetIndexerStorageStats(indexer uuid.UUID) ([]types.PerWellStorageStats, error) {
-	stats := []types.PerWellStorageStats{}
+func (c *Client) GetIndexerStorageStats(indexer uuid.UUID) (map[string]types.PerWellStorageStats, error) {
+	stats := map[string]types.PerWellStorageStats{}
 	url := fmt.Sprintf(STORAGE_INDEXER_URL, indexer.String())
 	if err := c.getStaticURL(url, &stats); err != nil {
 		return nil, err
@@ -435,8 +435,8 @@ func (c *Client) GetIndexerStorageStats(indexer uuid.UUID) ([]types.PerWellStora
 }
 
 // GetCalendarStats gets day-by-day calendar statistics for the given wells.
-func (c *Client) GetCalendarStats(start, end time.Time, wells []string) (types.CalendarResponse, error) {
-	var stats types.CalendarResponse
+func (c *Client) GetCalendarStats(start, end time.Time, wells []string) ([]types.CalendarEntry, error) {
+	var stats []types.CalendarEntry
 
 	obj := types.CalendarRequest{
 		Start: start,
@@ -449,8 +449,8 @@ func (c *Client) GetCalendarStats(start, end time.Time, wells []string) (types.C
 }
 
 // GetIndexerCalendarStats gets day-by-day calendar statistics for a given indexer and given wells.
-func (c *Client) GetIndexerCalendarStats(indexer uuid.UUID, start, end time.Time, wells []string) (types.CalendarResponse, error) {
-	var stats types.CalendarResponse
+func (c *Client) GetIndexerCalendarStats(indexer uuid.UUID, start, end time.Time, wells []string) ([]types.CalendarEntry, error) {
+	var stats []types.CalendarEntry
 	obj := types.CalendarRequest{
 		Start: start,
 		End:   end,
