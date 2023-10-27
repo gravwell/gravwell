@@ -732,7 +732,7 @@ func (f *FilterManager) LoadFile(fpath string) (bool, error) {
 func (f *FilterManager) LoadFileList(lst []watchedFile) error {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
-	if f.maxFilesWatched > 0 && len(lst) > f.maxFilesWatched {
+	if len(lst) > f.maxFilesWatched {
 		lst = lst[0:f.maxFilesWatched]
 	}
 	for _, wf := range lst {

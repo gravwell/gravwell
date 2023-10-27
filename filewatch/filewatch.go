@@ -251,7 +251,6 @@ func (wm *WatchManager) scanRemoved() error {
 		}
 		if fi.IsDir() {
 			if err := wm.checkNewDirectoryNoLock(k); err != nil {
-				fmt.Printf("checkNewDirectory returned %v\n", err)
 				continue
 			}
 		}
@@ -283,7 +282,12 @@ func (wm *WatchManager) checkNewDirectoryNoLock(dir string) error {
 	if err != nil {
 		return err
 	}
-	return wm.fman.LoadFileList(toProcess)
+	for _, f := range toProcess {
+		if _, err := wm.fman.LoadFile(f.pth); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (wm *WatchManager) Remove(dir string) error {
@@ -465,7 +469,6 @@ watchRoutine:
 			if !ok {
 				break watchRoutine
 			}
-			//			fmt.Println(evt)
 			if evt.Op == fsnotify.Create {
 				fi, err := os.Stat(evt.Name)
 				if err != nil {

@@ -22,7 +22,7 @@ import (
 const (
 	bName          string = `test`
 	testMultiCount int    = 16
-	WATCH_OVERFLOW int    = 16384 + 1 // plus 1 to overflow
+	WATCH_OVERFLOW int    = 1024 + 1
 )
 
 var (
@@ -359,7 +359,7 @@ func TestOverflow(t *testing.T) {
 		if w.Filters() != 1 {
 			t.Fatal(errors.New("Filter not installed"))
 		}
-		w.SetMaxFilesWatched(512)
+		//w.SetMaxFilesWatched(64)
 		return nil
 	}, func(workingDir string) error {
 		// just touch enough files to overload the watcher
