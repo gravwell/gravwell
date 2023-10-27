@@ -95,8 +95,10 @@ type StorageStats struct {
 	DataIngested      uint64    `json:"dataIngested"`
 	DataStoredHot     uint64    `json:"dataStoredHot"`
 	DataStoredCold    uint64    `json:"dataStoredCold"`
-	EntryCount        uint64    `json:"entryCount"`
+	EntryCountHot     uint64    `json:"entryCountHot"`
+	EntryCountCold    uint64    `json:"entryCountCold"`
 	TotalStorageSpace uint64    `json:"totalStorageSpace"`
+	UsedStorageSpace  uint64    `json:"usedStorageSpace"`
 }
 
 type PerWellStorageStats struct {
