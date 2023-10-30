@@ -359,7 +359,6 @@ func TestOverflow(t *testing.T) {
 		if w.Filters() != 1 {
 			t.Fatal(errors.New("Filter not installed"))
 		}
-		//w.SetMaxFilesWatched(64)
 		return nil
 	}, func(workingDir string) error {
 		// just touch enough files to overload the watcher
