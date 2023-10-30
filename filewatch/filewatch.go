@@ -475,9 +475,6 @@ watchRoutine:
 					continue
 				}
 				if fi.IsDir() {
-					if err := wm.CheckNewDirectory(evt.Name); err != nil {
-						wm.logger.Error("failed to check newly created directory", log.KV("path", evt.Name), log.KVErr(err))
-					}
 					parents, ok := wm.watched[filepath.Dir(evt.Name)]
 					if !ok {
 						wm.logger.Error("failed to find parent directory", log.KV("path", evt.Name))
