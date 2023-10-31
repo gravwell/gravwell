@@ -135,6 +135,7 @@ func (h *handler) addCustomHandler(method, pth string, ah http.Handler) (err err
 }
 
 func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	w := &trackingRW{
 		ResponseWriter: rw,
 	}
@@ -210,7 +211,6 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	rh.handle(h, w, r, rdr, ip)
-	r.Body.Close()
 }
 func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP) (err error) {
 	var ts entry.Timestamp
