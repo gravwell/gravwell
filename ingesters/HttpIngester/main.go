@@ -153,11 +153,10 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:         cfg.Bind,
-		Handler:      hnd,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 5 * time.Second,
-		ErrorLog:     dlog.New(lg, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags),
+		Addr:              cfg.Bind,
+		Handler:           hnd,
+		ReadHeaderTimeout: 5 * time.Second,
+		ErrorLog:          dlog.New(lg, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags),
 	}
 	done := make(chan error, 1)
 	if cfg.TLSEnabled() {

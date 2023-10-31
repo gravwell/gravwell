@@ -135,6 +135,7 @@ func (h *handler) addCustomHandler(method, pth string, ah http.Handler) (err err
 }
 
 func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
 	w := &trackingRW{
 		ResponseWriter: rw,
 	}
@@ -210,7 +211,6 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	rh.handle(h, w, r, rdr, ip)
-	r.Body.Close()
 }
 func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP) (err error) {
 	var ts entry.Timestamp
@@ -317,13 +317,15 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 }
 
 func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
-	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+1)))
+	//using a limited Reader here makes sense because we are going to be eathing the entire HTTP request body as a single entry
+	lr := io.LimitedReader{R: rdr, N: int64(maxBody + 1)}
+	b, err := ioutil.ReadAll(&lr)
 	if err != nil && err != io.EOF {
 		h.lgr.Info("got bad request", log.KV("address", ip), log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
-	} else if len(b) > maxBody {
-		h.lgr.Error("request too large, 4MB max")
+	} else if len(b) > maxBody || lr.N == 0 {
+		h.lgr.Error("request too large", log.KV("max", maxBody))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
