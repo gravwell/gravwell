@@ -178,6 +178,12 @@ type MuxerConfig struct {
 	Attach            attach.AttachConfig
 }
 
+func init() {
+	// register cache types
+	gob.Register(&entry.Entry{})
+	gob.Register([]*entry.Entry{})
+}
+
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
 	return newUniformIngestMuxerEx(c)
 }
@@ -269,8 +275,6 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	}
 
 	// connect up the chancacher
-	gob.Register(&entry.Entry{})
-	gob.Register([]*entry.Entry{})
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
 
