@@ -155,7 +155,7 @@ func main() {
 	srv := &http.Server{
 		Addr:              cfg.Bind,
 		Handler:           hnd,
-		ReadHeaderTimeout: time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
 		ErrorLog:          dlog.New(lg, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags),
 	}
 	done := make(chan error, 1)
