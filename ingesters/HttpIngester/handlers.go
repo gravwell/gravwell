@@ -317,6 +317,7 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 }
 
 func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	//using a limited Reader here makes sense because we are going to be eathing the entire HTTP request body as a single entry
 	lr := io.LimitedReader{R: rdr, N: int64(maxBody + 1)}
 	b, err := ioutil.ReadAll(&lr)
 	if err != nil && err != io.EOF {
