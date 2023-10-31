@@ -263,6 +263,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 
 	// connect up the chancacher
 	gob.Register(&entry.Entry{})
+	gob.Register([]*entry.Entry{})
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
 
