@@ -169,7 +169,7 @@ func main() {
 	ib.Debug("Running\n")
 
 	//kick off our consumer routines
-	if err = start(&wg, ctx, brs, sqsS3, ot, ib.Logger); err != nil {
+	if err = start(&wg, ctx, brs, sqsS3, ot, ib.Logger, cfg.Worker_Pool_Size); err != nil {
 		ib.Logger.Error("failed to run bucket consumers", log.KVErr(err))
 	}
 
