@@ -51,6 +51,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 	}
 
 	c := make(chan []*sqs.Message)
+OUTER:
 	for {
 		var out []*sqs.Message
 		go func() {
@@ -71,7 +72,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 			}
 		case <-ctx.Done():
 			lg.Info("sqs-s3 routine exiting", log.KV("name", s.Name))
-			return
+			break OUTER
 		}
 
 		lg.Info("sqs received messages", log.KV("count", len(out)))
@@ -87,6 +88,8 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 			queue <- v
 		}
 	}
+	close(queue)
+	workerWg.Wait()
 }
 
 func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg sync.WaitGroup, queue <-chan *sqs.Message) {
