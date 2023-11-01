@@ -123,7 +123,7 @@ func (c *cfgType) Verify() error {
 		return errors.New("Missing State-Store-Location")
 	}
 	if c.Worker_Pool_Size < 1 {
-		return fmt.Errorf("Invalid or missing Worker-Pool-Size")
+		c.Worker_Pool_Size = 1
 	}
 
 	if len(c.Bucket) == 0 && len(c.SQS_S3_Listener) == 0 {
@@ -284,7 +284,7 @@ func (g *global) Verify() (err error) {
 	}
 	err = g.verifyStateStore()
 	if g.Worker_Pool_Size < 1 {
-		return fmt.Errorf("Invalid Worker-Pool-Size %v. Must be >= 1", g.Worker_Pool_Size)
+		g.Worker_Pool_Size = 1
 	}
 	return
 }
