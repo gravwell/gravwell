@@ -19,6 +19,7 @@ import (
 const (
 	manualTickerInterval = time.Minute
 	ERROR_BACKOFF        = 5 * time.Second
+	QUEUE_DEPTH          = 1000
 )
 
 var (
@@ -26,22 +27,31 @@ var (
 	errEmptyKey    = errors.New("empty key name")
 )
 
-func start(wg *sync.WaitGroup, ctx context.Context, buckets []*BucketReader, sqsS3 []*SQSS3Listener, ot *objectTracker, lg *log.Logger) (err error) {
+func start(wg *sync.WaitGroup, ctx context.Context, buckets []*BucketReader, sqsS3 []*SQSS3Listener, ot *objectTracker, lg *log.Logger, numWorkers int) (err error) {
 	if len(buckets) != 0 {
 		wg.Add(1)
-		go manualScanner(wg, ctx, buckets, ot, lg)
+		go manualScanner(wg, ctx, buckets, ot, lg, numWorkers)
 	}
 	for _, v := range sqsS3 {
 		wg.Add(1)
-		go sqsS3Routine(v, wg, ctx, lg)
+		go sqsS3Routine(v, wg, ctx, lg, numWorkers)
 	}
 	return
 }
 
-func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg *log.Logger) {
+func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg *log.Logger, numWorkers int) {
 	defer wg.Done()
 
+	// create workers
+	var workerWg sync.WaitGroup
+	queue := make(chan *sqs.Message, QUEUE_DEPTH)
+	for i := 0; i < numWorkers; i++ {
+		workerWg.Add(1)
+		go s.worker(ctx, lg, workerWg, queue)
+	}
+
 	c := make(chan []*sqs.Message)
+OUTER:
 	for {
 		var out []*sqs.Message
 		go func() {
@@ -62,7 +72,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 			}
 		case <-ctx.Done():
 			lg.Info("sqs-s3 routine exiting", log.KV("name", s.Name))
-			return
+			break OUTER
 		}
 
 		lg.Info("sqs received messages", log.KV("count", len(out)))
@@ -75,45 +85,63 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 
 		// we may have multiple packed messages
 		for _, v := range out {
-			msg := []byte(*v.Body)
+			queue <- v
+		}
+	}
+	close(queue)
+	workerWg.Wait()
+}
 
-			// Messages that we care about are either SNS wrapped
-			// or s3 put/post/create/whatever messages. Try for
-			// both, error if it's neither.
-			buckets, keys, err := snsDecode(msg)
+func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg sync.WaitGroup, queue <-chan *sqs.Message) {
+	defer wg.Done()
+
+	for m := range queue {
+		if m == nil {
+			return
+		}
+
+		msg := []byte(*m.Body)
+
+		// Messages that we care about are either SNS wrapped
+		// or s3 put/post/create/whatever messages. Try for
+		// both, error if it's neither.
+		buckets, keys, err := snsDecode(msg)
+		if err != nil {
+			buckets, keys, err = s3Decode(msg)
 			if err != nil {
-				buckets, keys, err = s3Decode(msg)
-				if err != nil {
-					lg.Warn("error decoding message", log.KVErr(err))
-					continue
-				} else {
-					logSnsKeyDecode(lg, "S3", buckets, keys)
-				}
+				lg.Warn("error decoding message", log.KVErr(err))
+				continue
 			} else {
-				logSnsKeyDecode(lg, "SNS", buckets, keys)
+				logSnsKeyDecode(lg, "S3", buckets, keys)
 			}
+		} else {
+			logSnsKeyDecode(lg, "SNS", buckets, keys)
+		}
 
-			shouldDelete := true
-			for i, x := range keys {
-				obj := &s3.Object{
-					Key: aws.String(x),
-				}
-				err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
-				if err != nil {
-					shouldDelete = false
-					lg.Error("processing message", log.KV("bucket", buckets[i]), log.KV("key", x), log.KVErr(err))
-				} else {
-					lg.Info("successfully processed message", log.KV("bucket", buckets[i]), log.KV("key", x))
-				}
+		shouldDelete := true
+		for i, x := range keys {
+			obj := &s3.Object{
+				Key: aws.String(x),
 			}
+			err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
+			if err != nil {
+				shouldDelete = false
+				lg.Error("processing message", log.KV("bucket", buckets[i]), log.KV("key", x), log.KVErr(err))
+			} else {
+				lg.Info("successfully processed message", log.KV("bucket", buckets[i]), log.KV("key", x))
+			}
+		}
 
-			// delete messages we successfully processed
-			if shouldDelete {
-				err = s.sqs.DeleteMessages([]*sqs.Message{v})
-				if err != nil {
-					lg.Error("deleting message", log.KVErr(err))
-				}
+		// delete messages we successfully processed
+		if shouldDelete {
+			err = s.sqs.DeleteMessages([]*sqs.Message{m})
+			if err != nil {
+				lg.Error("deleting message", log.KVErr(err))
 			}
+		}
+
+		if ctx.Err() != nil {
+			return
 		}
 	}
 }
@@ -217,9 +245,9 @@ type s3ObjectObject struct {
 	Key string `json:"key"`
 }
 
-func manualScanner(wg *sync.WaitGroup, ctx context.Context, buckets []*BucketReader, ot *objectTracker, lg *log.Logger) {
+func manualScanner(wg *sync.WaitGroup, ctx context.Context, buckets []*BucketReader, ot *objectTracker, lg *log.Logger, numWorkers int) {
 	defer wg.Done()
-	fullScan(ctx, buckets, ot, lg)
+	fullScan(ctx, buckets, ot, lg, numWorkers)
 	if ctx.Err() != nil {
 		return
 	}
@@ -233,24 +261,33 @@ loop:
 	for {
 		select {
 		case <-ticker.C:
-			fullScan(ctx, buckets, ot, lg)
+			fullScan(ctx, buckets, ot, lg, numWorkers)
 		case <-ctx.Done():
 			break loop
 		}
 	}
 }
 
-func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, lg *log.Logger) {
+func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, lg *log.Logger, numWorkers int) {
+	var wg sync.WaitGroup
 	for _, b := range buckets {
-		if err := b.ManualScan(ctx, ot); err != nil {
+		// start workers
+		queue := make(chan *s3.Object, QUEUE_DEPTH)
+		for i := 0; i < numWorkers; i++ {
+			wg.Add(1)
+			go b.worker(ctx, ot, queue, wg)
+		}
+		if err := b.ManualScan(ctx, ot, queue); err != nil {
 			lg.Error("failed to scan S3 bucket objects",
 				log.KV("bucket", b.Name),
 				log.KVErr(err))
 		}
+		close(queue)
 		if ctx.Err() != nil {
 			break
 		}
 	}
+	wg.Wait()
 	if err := ot.Flush(); err != nil {
 		lg.Error("failed to flush S3 state file", log.KVErr(err))
 	}
