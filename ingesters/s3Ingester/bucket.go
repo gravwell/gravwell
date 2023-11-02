@@ -187,7 +187,7 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker, queue
 	return
 }
 
-func (br *BucketReader) worker(ctx context.Context, ot *objectTracker, queue <-chan *s3.Object, wg sync.WaitGroup) {
+func (br *BucketReader) worker(ctx context.Context, ot *objectTracker, queue <-chan *s3.Object, wg *sync.WaitGroup) {
 	defer wg.Done()
 
 	for item := range queue {

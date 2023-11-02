@@ -47,7 +47,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 	queue := make(chan *sqs.Message, QUEUE_DEPTH)
 	for i := 0; i < numWorkers; i++ {
 		workerWg.Add(1)
-		go s.worker(ctx, lg, workerWg, queue)
+		go s.worker(ctx, lg, &workerWg, queue, i)
 	}
 
 	c := make(chan []*sqs.Message)
@@ -92,8 +92,10 @@ OUTER:
 	workerWg.Wait()
 }
 
-func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg sync.WaitGroup, queue <-chan *sqs.Message) {
+func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.WaitGroup, queue <-chan *sqs.Message, workerID int) {
 	defer wg.Done()
+
+	lg.Infof("worker %v started", workerID)
 
 	for m := range queue {
 		if m == nil {
@@ -144,6 +146,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg sync.Wait
 			return
 		}
 	}
+	lg.Infof("worker %v exiting", workerID)
 }
 
 func snsDecode(input []byte) ([]string, []string, error) {
@@ -275,7 +278,8 @@ func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, l
 		queue := make(chan *s3.Object, QUEUE_DEPTH)
 		for i := 0; i < numWorkers; i++ {
 			wg.Add(1)
-			go b.worker(ctx, ot, queue, wg)
+			go b.worker(ctx, ot, queue, &wg)
+
 		}
 		if err := b.ManualScan(ctx, ot, queue); err != nil {
 			lg.Error("failed to scan S3 bucket objects",
