@@ -30,6 +30,9 @@ import (
 
 const (
 	defaultMaxHECEventSize uint = 512 * 1024 //splunk defaults to 10k characters, but thats weak
+
+	parameterTag        = `tag`
+	parameterSourcetype = `sourcetype`
 )
 
 var (
@@ -87,10 +90,47 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 	return
 }
 
+func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogger) (tg entry.EntryTag, ok bool, err error) {
+	if v := r.URL.Query(); len(v) > 0 {
+		if val := v.Get(parameterTag); val != `` {
+			//check if the tag is allowed
+			if err = ingest.CheckTag(val); err != nil {
+				ll.Error("invalid tag in parameter",
+					log.KV("tag", val),
+					log.KVErr(err))
+				return
+			} else if tg, err = h.igst.NegotiateTag(val); err != nil {
+				ll.Error("failed to negotiate tag",
+					log.KV("tag", val), log.KVErr(err))
+				return
+			} else {
+				ok = true
+			}
+		} else if val = v.Get(parameterSourcetype); val != `` && len(hh.tagRouter) > 0 {
+			tg, ok = hh.tagRouter[val]
+		}
+	}
+	return
+}
+
 func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	defaultTag := cfg.tag
 	resp := respSuccess
+
 	// get a local logger up that will always add some more info
-	ll := log.NewLoggerWithKV(h.lgr, log.KV("HEC-Listener", hh.name), log.KV("remoteaddress", ip.String()))
+	ll := log.NewLoggerWithKV(h.lgr,
+		log.KV("HEC-Listener", hh.name),
+		log.KV("remoteaddress", ip.String()),
+		log.KV("url", r.URL.String()),
+	)
+	//check if the query url has a tag or sourcetype parameter
+	if tg, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
+		hh.respInvalidDataFormat(w, 0)
+		return
+	} else if ok {
+		defaultTag = tg
+	}
+
 	dec, err := utils.NewJsonLimitedDecoder(rdr, int64(maxBody+256)) //give some slack for the extra splunk garbage
 	if err != nil {
 		ll.Error("failed to create limited decoder", log.KVErr(err))
@@ -102,7 +142,7 @@ loop:
 	for ; ; counter++ {
 		var ts entry.Timestamp
 		var hev hecEvent
-		tag := cfg.tag
+		tag := defaultTag
 
 		//try to decode the damn thing
 		if err = dec.Decode(&hev); err != nil {
@@ -234,8 +274,24 @@ func (hh *hecHandler) respInvalidDataFormat(w http.ResponseWriter, index int) {
 func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	var count int
 	var data int
+	defaultTag := cfg.tag
 	debugout("HEC RAW\n")
 	resp := ack{Text: "Success"}
+
+	// get a local logger up that will always add some more info
+	ll := log.NewLoggerWithKV(h.lgr,
+		log.KV("HEC-Listener", hh.name),
+		log.KV("remoteaddress", ip.String()),
+		log.KV("url", r.URL.String()),
+	)
+
+	//check if the query url has a tag or sourcetype parameter
+	if tg, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
+		hh.respInvalidDataFormat(w, 0)
+		return
+	} else if ok {
+		defaultTag = tg
+	}
 
 	brdr := bufio.NewReader(rdr)
 	var done bool
@@ -256,7 +312,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		if ln = bytes.TrimRight(ln, "\n"); len(ln) == 0 {
 			continue //skip empty newlines
 		}
-		if err = h.handleEntry(cfg, ln, ip); err != nil {
+		if err = h.handleEntry(cfg, ln, ip, defaultTag); err != nil {
 			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 			hh.respInvalidDataFormat(w, count)
 			return

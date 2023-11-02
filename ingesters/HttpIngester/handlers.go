@@ -212,7 +212,7 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	}
 	rh.handle(h, w, r, rdr, ip)
 }
-func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP) (err error) {
+func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP, tag entry.EntryTag) (err error) {
 	var ts entry.Timestamp
 	if cfg.ignoreTs || cfg.tg == nil {
 		ts = entry.Now()
@@ -231,7 +231,7 @@ func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP) (err error)
 	e := entry.Entry{
 		TS:   ts,
 		SRC:  ip,
-		Tag:  cfg.tag,
+		Tag:  tag,
 		Data: b,
 	}
 	debugout("Handling: %+v\n", e)
@@ -303,7 +303,7 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 	debugout("multhandler\n")
 	scanner := bufio.NewScanner(rdr)
 	for scanner.Scan() {
-		if err := h.handleEntry(cfg, scanner.Bytes(), ip); err != nil {
+		if err := h.handleEntry(cfg, scanner.Bytes(), ip, cfg.tag); err != nil {
 			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -332,7 +332,7 @@ func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.R
 	if len(b) == 0 {
 		h.lgr.Info("got an empty post", log.KV("address", ip))
 		w.WriteHeader(http.StatusBadRequest)
-	} else if err = h.handleEntry(cfg, b, ip); err != nil {
+	} else if err = h.handleEntry(cfg, b, ip, cfg.tag); err != nil {
 		h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 		w.WriteHeader(http.StatusInternalServerError)
 	}
