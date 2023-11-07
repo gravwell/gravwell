@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -156,7 +157,7 @@ func (br *BucketReader) Process(obj *s3.Object, ctx context.Context) (err error)
 	return ProcessContext(obj, ctx, br.svc, br.Bucket_Name, br.rdr, br.TG, br.src, br.Tag, br.Proc, br.MaxLineSize)
 }
 
-func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err error) {
+func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker, queue chan<- *s3.Object) (err error) {
 	//list the objects in the bucket
 	req := s3.ListObjectsV2Input{
 		Bucket: aws.String(br.Bucket_Name),
@@ -168,49 +169,74 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker) (err 
 	var lerr error
 	objListHandler := func(resp *s3.ListObjectsV2Output, lastPage bool) bool {
 		for _, item := range resp.Contents {
-			//do a quick check for stupidity
-			if item.Size == nil || item.LastModified == nil || item.Key == nil {
-				continue
+			select {
+			case queue <- item:
+			case <-ctx.Done():
+				return false
 			}
-			sz, lm, key := *item.Size, *item.LastModified, *item.Key
-			if sz == 0 || !br.ShouldTrack(key) {
-				continue //skip empty objects or things we should not track
-			}
-			//lookup the object in the objectTracker
-			state, ok := ot.Get(br.Bucket_Name, key)
-			if ok && state.Updated.Equal(lm) {
-				continue //already handled this
-			}
-
-			//ok, lets process this thing
-			if lerr = br.Process(item, ctx); lerr != nil {
-				br.Logger.Error("failed to process object",
-					log.KV("name", br.Name),
-					log.KV("object", key),
-					log.KVErr(err))
-				return false //quit the scan
-			} else {
-				br.Logger.Info("consumed object",
-					log.KV("name", br.Name),
-					log.KV("object", key),
-					log.KV("size", sz))
-			}
-			state = trackedObjectState{
-				Updated: lm,
-				Size:    sz,
-			}
-			lerr = ot.Set(br.Bucket_Name, key, state, false)
 			if ctx.Err() != nil {
-				return false //context says stop, bail
+				return false
 			}
 		}
-		return true //continue the scan
+		return true
 	}
 
 	if err = br.svc.ListObjectsV2Pages(&req, objListHandler); err == nil {
 		err = lerr
 	}
 	return
+}
+
+func (br *BucketReader) worker(ctx context.Context, ot *objectTracker, queue <-chan *s3.Object, wg *sync.WaitGroup) {
+	defer wg.Done()
+
+	for item := range queue {
+		if item == nil {
+			return
+		}
+
+		//do a quick check for stupidity
+		if item.Size == nil || item.LastModified == nil || item.Key == nil {
+			continue
+		}
+		sz, lm, key := *item.Size, *item.LastModified, *item.Key
+		if sz == 0 || !br.ShouldTrack(key) {
+			continue //skip empty objects or things we should not track
+		}
+		//lookup the object in the objectTracker
+		state, ok := ot.Get(br.Bucket_Name, key)
+		if ok && state.Updated.Equal(lm) {
+			continue //already handled this
+		}
+
+		//ok, lets process this thing
+		if err := br.Process(item, ctx); err != nil {
+			br.Logger.Error("failed to process object",
+				log.KV("name", br.Name),
+				log.KV("object", key),
+				log.KVErr(err))
+			continue
+		} else {
+			br.Logger.Info("consumed object",
+				log.KV("name", br.Name),
+				log.KV("object", key),
+				log.KV("size", sz))
+		}
+		state = trackedObjectState{
+			Updated: lm,
+			Size:    sz,
+		}
+		err := ot.Set(br.Bucket_Name, key, state, false)
+		if err != nil {
+			br.Logger.Error("failed to update state",
+				log.KV("name", br.Name),
+				log.KV("object", key),
+				log.KVErr(err))
+		}
+		if ctx.Err() != nil {
+			break
+		}
+	}
 }
 
 func (ac *AuthConfig) validate() (err error) {

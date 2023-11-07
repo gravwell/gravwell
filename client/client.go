@@ -425,6 +425,7 @@ func (c *Client) Logout() error {
 	if err := c.methodStaticURL(methodLogout, LOGOUT_URL, nil); err != nil {
 		return err
 	}
+	c.state = STATE_LOGGED_OFF
 	return nil
 }
 

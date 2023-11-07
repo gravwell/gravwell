@@ -52,6 +52,7 @@ var (
 	ErrUnauthorized       = errors.New("Unauthorized")
 	ErrMissingTokenName   = errors.New("Token name is invalid")
 	ErrMissingTokenValue  = errors.New("Token value cannot be empty")
+	ErrBadTokenValue      = errors.New("Bad token value")
 	ErrMissingHeaderValue = errors.New("Token header value cannot be empty")
 	ErrHeaderNotFound     = errors.New("Token header value not found")
 )
@@ -275,7 +276,7 @@ func (pth *preParamHandler) AuthRequest(r *http.Request) error {
 	if err != nil {
 		return err
 	} else if tok != pth.tokValue {
-		return ErrUnauthorized
+		return ErrBadTokenValue
 	}
 	return nil
 }

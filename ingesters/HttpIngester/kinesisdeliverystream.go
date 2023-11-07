@@ -81,8 +81,14 @@ type record struct {
 
 func handleKDS(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	var kr kinesisRequest
-	if err := json.NewDecoder(io.LimitReader(rdr, int64(maxBody+256))).Decode(&kr); err != nil {
-		h.lgr.Info("bad request", log.KV("address", ip), log.KVErr(err))
+	lr := io.LimitedReader{R: rdr, N: int64(maxBody + 256)}
+	if err := json.NewDecoder(&lr).Decode(&kr); err != nil {
+		//check if the request was just too large
+		if lr.N == 0 {
+			h.lgr.Info("bad request", log.KV("address", ip), log.KV("max-body", maxBody), log.KVErr(errors.New("request body too large")))
+		} else {
+			h.lgr.Info("bad request", log.KV("address", ip), log.KVErr(err))
+		}
 		sendKDSError(w, http.StatusBadRequest, ``, nil)
 		return
 	} else if len(kr.Records) == 0 {
