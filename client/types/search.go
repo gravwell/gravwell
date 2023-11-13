@@ -34,6 +34,16 @@ const (
 	RESP_SEARCH_TAGS    uint32 = 0x5
 )
 
+// Search Launch Methods
+const (
+	LaunchMethodManual          = `manual`
+	LaunchMethodDirectQuery     = `directquery`
+	LaunchMethodFlow            = `flow`
+	LaunchMethodScript          = `script`
+	LaunchMethodScheduledSearch = `scheduledSearch`
+	LaunchMethodDashboard       = `dashboard`
+)
+
 var (
 	ErrIllegalMacroCharacter error = errors.New("Illegal character in macro name")
 )
@@ -186,6 +196,7 @@ type StartSearchRequest struct {
 	Addendum    json.RawMessage `json:",omitempty"`
 	Name        string          `json:",omitempty"`
 	Filters     []FilterRequest
+	LaunchInfo  SearchLaunchInfo // information about how a search was launched
 }
 
 // The webserver responds yay/nay plus new subprotocols if the search is valid.
@@ -195,18 +206,19 @@ type StartSearchResponse struct {
 	// what the user typed
 	RawQuery string `json:",omitempty"`
 	//what the actual search being processed is after attaching render module
-	SearchString         string          `json:",omitempty"`
-	RenderModule         string          `json:",omitempty"`
-	RenderCmd            string          `json:",omitempty"`
-	OutputSearchSubproto string          `json:",omitempty"`
-	SearchID             string          `json:",omitempty"`
-	SearchStartRange     time.Time       `json:",omitempty"`
-	SearchEndRange       time.Time       `json:",omitempty"`
-	Background           bool            `json:",omitempty"`
-	NonTemporal          bool            `json:",omitempty"`
-	CollapsingIndex      int             // index of the first collapsed module
-	Metadata             json.RawMessage `json:",omitempty"`
-	Addendum             json.RawMessage `json:",omitempty"`
+	SearchString         string           `json:",omitempty"`
+	RenderModule         string           `json:",omitempty"`
+	RenderCmd            string           `json:",omitempty"`
+	OutputSearchSubproto string           `json:",omitempty"`
+	SearchID             string           `json:",omitempty"`
+	SearchStartRange     time.Time        `json:",omitempty"`
+	SearchEndRange       time.Time        `json:",omitempty"`
+	Background           bool             `json:",omitempty"`
+	NonTemporal          bool             `json:",omitempty"`
+	CollapsingIndex      int              // index of the first collapsed module
+	Metadata             json.RawMessage  `json:",omitempty"`
+	Addendum             json.RawMessage  `json:",omitempty"`
+	LaunchInfo           SearchLaunchInfo // information about how a search was launched
 	SearchHints
 }
 
@@ -267,6 +279,21 @@ type SearchInfo struct {
 	// this means that the query most likely did not cover the entire time range that was originally requested
 	// A preview search is used when a user is trying to understand what they have or establish AX relationships
 	Preview bool
+
+	LaunchInfo SearchLaunchInfo // information about how a search was launched
+}
+
+type SearchLaunchInfo struct {
+	//what launched the search, manual, directquery, scheduledsearch, etc...
+	Method string `json:"method,omitempty"`
+
+	// Reference is the UUID, ID, etc. of the thing that launched the search
+	// this is blank for manual queries
+	Reference string `json:"reference,omitempty"`
+
+	// Expires marks when when the search should expire/be deleted,
+	// it may be the zero value which means never
+	Expires time.Time `json:"expires,omitempty"`
 }
 
 type ImportInfo struct {
