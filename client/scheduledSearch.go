@@ -50,7 +50,7 @@ func (c *Client) GetAllScheduledSearches() ([]types.ScheduledSearch, error) {
 //
 // - duration: the amount of time over which the query should be run.
 func (c *Client) CreateScheduledSearch(name, description, schedule string, searchreference uuid.UUID, searchquery string, duration time.Duration, groups []int32) (int32, error) {
-	if searchquery != "" && searchreference.String() != "" {
+	if searchquery != "" && searchreference != uuid.Nil {
 		return 0, fmt.Errorf("cannot use both searchreference and searchquery in CreateScheduledSearch")
 	}
 	ss := types.ScheduledSearch{
