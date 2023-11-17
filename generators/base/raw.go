@@ -24,13 +24,26 @@ type RawConn struct {
 }
 
 func newRawConn(gc GeneratorConfig, to time.Duration) (gConn GeneratorConn, err error) {
-	if !gc.ok || !gc.modeRaw {
+	if !gc.ok || !gc.modeRawTCP {
 		return nil, errors.New("config is invalid")
 	} else if gc.Raw == `` {
 		return nil, errors.New("no connection endpoint specified")
 	}
+	return newRawConnType(gc, to, `tcp`)
+}
+
+func newRawUDPConn(gc GeneratorConfig, to time.Duration) (gConn GeneratorConn, err error) {
+	if !gc.ok || !gc.modeRawUDP {
+		return nil, errors.New("config is invalid")
+	} else if gc.Raw == `` {
+		return nil, errors.New("no connection endpoint specified")
+	}
+	return newRawConnType(gc, to, `udp`)
+}
+
+func newRawConnType(gc GeneratorConfig, to time.Duration, tp string) (gConn GeneratorConn, err error) {
 	var conn net.Conn
-	if conn, err = net.DialTimeout("tcp", gc.Raw, to); err != nil {
+	if conn, err = net.DialTimeout(tp, gc.Raw, to); err != nil {
 		return
 	}
 	gConn = &RawConn{
