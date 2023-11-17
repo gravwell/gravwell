@@ -12,6 +12,7 @@
 package log
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"syscall"
@@ -21,6 +22,7 @@ import (
 func newStderrLogger(fileOverride string, cb StderrCallback) (lgr *Logger, err error) {
 	var clr critLevelRelay
 	if len(fileOverride) > 0 {
+		clr.rfc = os.Stderr //this is getting redirected to a file
 		var oldstderr int
 		var fout *os.File
 		//get a handle on the output file
@@ -36,33 +38,36 @@ func newStderrLogger(fileOverride string, cb StderrCallback) (lgr *Logger, err e
 			fout.Close()
 			return
 		} else {
-			clr.wc = []io.WriteCloser{os.NewFile(uintptr(oldstderr), "oldstderr")}
+			clr.raw = os.NewFile(uintptr(oldstderr), "oldstderr") // this is going to the actual stderr
 		}
 
 		//dupe the output file onto stderr so that output goes there
 		if err = syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
 			fout.Close()
 		}
+
+	} else {
+		//just an rfc output
+		clr.rfc = os.Stderr
 	}
 	lgr = NewLevelRelay(clr)
 	return
 }
 
 type critLevelRelay struct {
-	wc []io.WriteCloser
+	raw io.WriteCloser
+	rfc io.WriteCloser
 }
 
 func (c critLevelRelay) WriteLog(l Level, ts time.Time, rfcline, rawline string) (err error) {
 	if l >= ERROR {
-		if _, err = io.WriteString(os.Stderr, rawline); err != nil {
-			return
-		} else if _, err = os.Stderr.Write([]byte{'\n'}); err != nil {
-			return
-		}
-		for _, w := range c.wc {
-			if _, err = io.WriteString(w, rawline); err != nil {
+		if c.raw != nil {
+			if _, err = fmt.Fprintf(c.raw, "%s\n", rawline); err != nil {
 				return
-			} else if _, err = w.Write([]byte{'\n'}); err != nil {
+			}
+		}
+		if c.rfc != nil {
+			if _, err = fmt.Fprintf(c.rfc, "%s\n", rfcline); err != nil {
 				return
 			}
 		}
@@ -71,8 +76,13 @@ func (c critLevelRelay) WriteLog(l Level, ts time.Time, rfcline, rawline string)
 }
 
 func (c critLevelRelay) Close() (err error) {
-	for _, wc := range c.wc {
-		if lerr := wc.Close(); err != nil {
+	if c.raw != nil {
+		if lerr := c.raw.Close(); err != nil {
+			err = lerr
+		}
+	}
+	if c.rfc != nil {
+		if lerr := c.rfc.Close(); err != nil {
 			err = lerr
 		}
 	}
