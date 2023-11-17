@@ -364,7 +364,7 @@ func (m *mainService) init() error {
 	}
 	// prepare the configuration we're going to send upstream
 	if m.cfg != nil {
-		if err = igst.SetRawConfiguration(*m.cfg); err != nil {
+		if err = igst.SetRawConfiguration(m.cfg.RawConfig()); err != nil {
 			lg.Error("failed to set configuration for ingester state messages", log.KVErr(err))
 			return err
 		}
