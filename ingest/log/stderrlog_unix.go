@@ -56,9 +56,13 @@ func (c critLevelRelay) WriteLog(l Level, ts time.Time, rfcline, rawline string)
 	if l >= ERROR {
 		if _, err = io.WriteString(os.Stderr, rawline); err != nil {
 			return
+		} else if _, err = os.Stderr.Write([]byte{'\n'}); err != nil {
+			return
 		}
 		for _, w := range c.wc {
 			if _, err = io.WriteString(w, rawline); err != nil {
+				return
+			} else if _, err = w.Write([]byte{'\n'}); err != nil {
 				return
 			}
 		}
