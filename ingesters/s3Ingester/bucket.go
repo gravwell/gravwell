@@ -214,12 +214,14 @@ func (br *BucketReader) worker(ctx context.Context, ot *objectTracker, queue <-c
 			br.Logger.Error("failed to process object",
 				log.KV("name", br.Name),
 				log.KV("object", key),
+				log.KV("tag", br.TagName),
 				log.KVErr(err))
 			continue
 		} else {
 			br.Logger.Info("consumed object",
 				log.KV("name", br.Name),
 				log.KV("object", key),
+				log.KV("tag", br.TagName),
 				log.KV("size", sz))
 		}
 		state = trackedObjectState{

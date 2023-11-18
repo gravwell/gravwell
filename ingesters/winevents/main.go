@@ -77,13 +77,12 @@ func main() {
 	if inter {
 		lg = log.New(os.Stdout)
 	} else {
-		lg = log.NewDiscardLogger()
 		e, err := eventlog.Open(serviceName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to get event log handle: %v\n", err)
 			return
 		}
-		lg.AddLevelRelay(levelLogger{elog: e})
+		lg = log.NewLevelRelay(levelLogger{elog: e})
 	}
 	lg.SetAppname(appName)
 
@@ -189,22 +188,26 @@ type levelLogger struct {
 }
 
 // levelLogger implements the log.LevelRelay interface
-func (l levelLogger) WriteLog(lvl log.Level, ts time.Time, msg []byte) error {
+func (l levelLogger) WriteLog(lvl log.Level, ts time.Time, msg, rawMsg string) error {
 	switch lvl {
 	case log.DEBUG:
 		if debugOn {
-			fmt.Fprintln(os.Stdout, string(msg))
+			fmt.Fprintln(os.Stdout, rawMsg)
 		}
 	case log.INFO:
-		return l.elog.Info(1, string(msg))
+		return l.elog.Info(1, rawMsg)
 	case log.WARN:
-		return l.elog.Warning(1, string(msg))
+		return l.elog.Warning(1, rawMsg)
 	case log.ERROR:
 		fallthrough
 	case log.CRITICAL:
 		fallthrough
 	case log.FATAL:
-		return l.elog.Error(1, string(msg))
+		return l.elog.Error(1, rawMsg)
 	}
 	return nil
+}
+
+func (l levelLogger) Close() error {
+	return l.elog.Close()
 }
