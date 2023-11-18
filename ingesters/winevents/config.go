@@ -153,6 +153,28 @@ func (c *CfgType) AttachConfig() attach.AttachConfig {
 	return c.Attach
 }
 
+// RawConfig gets an object that is suitable for the ingestmuxer.SetRawConfiguration
+func (c *CfgType) RawConfig() interface{} {
+	if c == nil {
+		return nil
+	}
+	return struct {
+		config.IngestConfig
+		Bookmark_Location string
+		Ignore_Timestamps bool
+		Attach            attach.AttachConfig
+		EventChannel      map[string]*EventStreamConfig
+		Preprocessor      processors.ProcessorConfig
+	}{
+		IngestConfig:      c.Global.IngestConfig,
+		Bookmark_Location: c.Global.Bookmark_Location,
+		Ignore_Timestamps: c.Global.Ignore_Timestamps,
+		Attach:            c.Attach,
+		EventChannel:      c.EventChannel,
+		Preprocessor:      c.Preprocessor,
+	}
+}
+
 func (c *CfgType) VerifyRemote() bool {
 	return c.Global.Verify_Remote_Certificates
 }
