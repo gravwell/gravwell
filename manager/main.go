@@ -49,6 +49,15 @@ func main() {
 		log.Fatal("No processes specified")
 	}
 
+	//check if there is an init command, if so, run it
+	if cmd, err := c.GetInitCommand(); err != nil {
+		log.Fatalf("Invalid Init-Command %v\n", err)
+	} else if cmd != nil {
+		if err = cmd.Run(); err != nil {
+			log.Fatalf("Init-Command returned error %v\n", err)
+		}
+	}
+
 	var pms []*processManager
 	for i := range pcs {
 		pm, err := NewProcessManager(pcs[i])
