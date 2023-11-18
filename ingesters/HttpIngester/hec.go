@@ -435,7 +435,7 @@ func (p *piaObj) UnmarshalJSON(b []byte) (err error) {
 			return
 		}
 	}
-	p.payload = b
+	p.payload = append([]byte{}, b...)
 	return
 }
 
@@ -447,8 +447,7 @@ func (p piaObj) String() string {
 // we MUST MUST MUST copy the byte slice because we are decoding off of an HTTP request body
 // which does a bunch of internal buffering, making the bytes not stable across reads
 func (p piaObj) Bytes() (r []byte) {
-	r = make([]byte, len(p.payload))
-	copy(r, p.payload)
+	r = p.payload
 	return
 }
 
