@@ -242,16 +242,36 @@ func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP, tag entry.E
 	return
 }
 
+type copyReadCloser struct {
+	r io.ReadCloser
+}
+
+func (cr copyReadCloser) Read(p []byte) (n int, err error) {
+	b := make([]byte, len(p))
+	n, err = cr.r.Read(b)
+	if err != nil {
+		return
+	}
+	copy(p, b)
+	return
+}
+
+func (cr copyReadCloser) Close() error {
+	return cr.r.Close()
+}
+
 // getReadableBody checks the encoding header and if this request is gzip compressed
 // then we transparently wrap it in a gzip reader
 func getReadableBody(r *http.Request) (rc io.ReadCloser, err error) {
+	cr := copyReadCloser{r.Body}
+
 	switch r.Header.Get("Content-Encoding") {
 	case "GZIP": //because AWS...
 		fallthrough
 	case "gzip":
-		rc, err = gzip.NewReader(r.Body)
+		rc, err = gzip.NewReader(cr)
 	default:
-		rc = r.Body
+		rc = cr
 	}
 	return
 }
