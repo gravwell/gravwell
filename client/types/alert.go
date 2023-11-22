@@ -56,7 +56,7 @@ type AlertDefinition struct {
 
 	LastUpdated time.Time `json:"LastUpdated"`
 
-	SaveSearchDuraton time.Duaration `json:"SaveSearchDuration"`
+	SaveSearchDuration time.Duaration `json:"SaveSearchDuration"`
 
 	// Maximum number of events allowed per firing of the alert. This is
 	// intended as a safety valve to avoid thousands of emails. If zero,
