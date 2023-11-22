@@ -64,6 +64,9 @@ type AlertDefinition struct {
 	// How long, in seconds, we should save searches which trigger this alert.
 	SaveSearchDuration int32 `json:"SaveSearchDuration"`
 
+	// Whether or not searches which trigger the alert should be saved
+	SaveSearchEnabled bool `json:"SaveSearchEnabled"`
+
 	// A JSON schema describing the expected fields in the alerts.
 	Schemas AlertSchemas `json:"Schemas"`
 
