@@ -404,3 +404,50 @@ func (ssr SearchStatsResponse) MarshalJSON() ([]byte, error) {
 		Current:    tsPointer(ssr.Current),
 	})
 }
+
+type SaveSearchPatch struct {
+	SearchLaunchInfo
+	// these are the supported fields in the free form search metadata; these are used by the GUI
+	Name  string `json:"name,omitempty"`
+	Notes string `json:"notes,omitempty"`
+}
+
+func (p SaveSearchPatch) GetMetadata() json.RawMessage {
+	if p.Name == `` && p.Notes == `` {
+		return nil
+	}
+	md := struct {
+		Name  string `json:"name,omitempty"`
+		Notes string `json:"notes,omitempty"`
+	}{
+		Name:  p.Name,
+		Notes: p.Notes,
+	}
+	if v, err := json.Marshal(md); err == nil && len(v) > 0 {
+		return json.RawMessage(v)
+	}
+	return nil
+}
+
+func (p SaveSearchPatch) MergeLaunchInfo(li *SearchLaunchInfo) (changed bool) {
+	if li == nil {
+		return
+	}
+	if p.Method != `` {
+		li.Method = p.Method
+		changed = true
+	}
+	if p.Reference != `` {
+		li.Reference = p.Reference
+		changed = true
+	}
+	// the expiration is special, we ALWAYS take the experation, even if its the zero value.
+	// We do this so that a human clicking save on the GUI ALWAYS blows the search expiration.
+	// The use case is that a scheduled search gets results and fires an alert, the alert logic
+	// this marks the search as saved and sets an expiration.  A user gets the alert, clicks the search,
+	// sees that the results should be kept and clicks save; this action means the user wants to kill
+	// the timer, so we wipe the expiration.
+	changed = !li.Expires.Equal(p.Expires)
+	li.Expires = p.Expires
+	return
+}
