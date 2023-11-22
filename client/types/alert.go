@@ -61,6 +61,9 @@ type AlertDefinition struct {
 
 	Name string `json:"Name"`
 
+	// How long, in seconds, we should save searches which trigger this alert.
+	SaveSearchDuration int32 `json:"SaveSearchDuration"`
+
 	// A JSON schema describing the expected fields in the alerts.
 	Schemas AlertSchemas `json:"Schemas"`
 
