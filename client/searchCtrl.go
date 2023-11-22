@@ -58,9 +58,14 @@ func (c *Client) SearchInfo(sid string) (types.SearchInfo, error) {
 	return si, nil
 }
 
-// SaveSearch will request that a search is saved by ID
-func (c *Client) SaveSearch(sid string) error {
-	return c.patchStaticURL(searchCtrlSaveUrl(sid), nil)
+// SaveSearch will request that a search is saved by ID, an optional SaveSearchPatch can be sent
+// to modify the expiration or search name and notes
+func (c *Client) SaveSearch(sid string, ssp ...types.SaveSearchPatch) error {
+	var arg interface{}
+	if len(ssp) == 1 {
+		arg = ssp[0]
+	}
+	return c.patchStaticURL(searchCtrlSaveUrl(sid), arg)
 }
 
 // BackgroundSearch will request that a search is backgrounded by ID
