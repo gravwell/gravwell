@@ -21,8 +21,6 @@ type AlertConsumerType string
 // List of AlertConsumerType
 const (
 	ALERTCONSUMERTYPE_FLOW AlertConsumerType = "flow"
-
-	DefaultAlertSaveSearchDuration = time.Hour * 24 * 7 // alerts save search results for 7 days by default
 )
 
 // AlertDispatcherType : Possible types for an Alert Dispatcher
@@ -55,8 +53,6 @@ type AlertDefinition struct {
 	Labels []string `json:"Labels"`
 
 	LastUpdated time.Time `json:"LastUpdated"`
-
-	SaveSearchDuration time.Duaration `json:"SaveSearchDuration"`
 
 	// Maximum number of events allowed per firing of the alert. This is
 	// intended as a safety valve to avoid thousands of emails. If zero,
