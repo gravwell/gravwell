@@ -83,13 +83,20 @@ func (pm *processManager) routine(die chan bool) {
 		if died := rstr.RequestStart(die); died {
 			break
 		}
+		attr := syscall.SysProcAttr{
+			Setpgid: true,
+		}
+		if pm.UID > 0 || pm.GID > 0 {
+			attr.Credential = &syscall.Credential{
+				Uid: uint32(pm.UID),
+				Gid: uint32(pm.GID),
+			}
+		}
 		cmd := &exec.Cmd{
-			Path: args[0],
-			Args: args,
-			Dir:  pm.WorkingDir,
-			SysProcAttr: &syscall.SysProcAttr{
-				Setpgid: true,
-			},
+			Path:        args[0],
+			Args:        args,
+			Dir:         pm.WorkingDir,
+			SysProcAttr: &attr,
 		}
 		pm.lg.Info("starting process", log.KV("name", pm.Name), log.KV("binary", args[0]), log.KV("args", args[1:]))
 		go func(c *exec.Cmd, ec chan exitstatus) {

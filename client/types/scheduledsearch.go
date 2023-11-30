@@ -70,10 +70,11 @@ type ScheduledSearch struct {
 	ScheduledType string
 
 	// Fields for scheduled searches
-	SearchString       string // The actual search to run
-	Duration           int64  // How many seconds back to search, MUST BE NEGATIVE
-	SearchSinceLastRun bool   // If set, ignore Duration and run from last run time to now.
-	TimeframeOffset    int64  // How many seconds to offset the search timeframe, MUST BE NEGATIVE.
+	SearchReference    uuid.UUID // A reference to a saved query item by UUID. If SearchString is populated on a GET, it represents the query referenced by SearchReference.
+	SearchString       string    // The actual search to run. If SearchReference is populated on a GET, SearchString represents the query referenced by SearchReference.
+	Duration           int64     // How many seconds back to search, MUST BE NEGATIVE
+	SearchSinceLastRun bool      // If set, ignore Duration and run from last run time to now.
+	TimeframeOffset    int64     // How many seconds to offset the search timeframe, MUST BE NEGATIVE.
 
 	// For scheduled scripts
 	Script         string     // If set, execute the contents rather than running SearchString

@@ -402,7 +402,7 @@ func parseUint(txt string) (uint64, error) {
 }
 
 func (lt *LicenseType) UnmarshalJSON(v []byte) error {
-	vs := strings.Trim(string(v), `"`)
+	vs := strings.Trim(string(v), `"`) // this is safe becuase the cast to string on v will copy it
 	temp, err := ParseType(vs)
 	if err != nil {
 		//try to parse it as an integer

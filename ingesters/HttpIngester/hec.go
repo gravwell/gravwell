@@ -121,7 +121,7 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 	ll := log.NewLoggerWithKV(h.lgr,
 		log.KV("HEC-Listener", hh.name),
 		log.KV("remoteaddress", ip.String()),
-		log.KV("url", r.URL.String()),
+		log.KV("url", r.URL.RequestURI()),
 	)
 	//check if the query url has a tag or sourcetype parameter
 	if tg, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
@@ -232,7 +232,7 @@ loop:
 	if hh.debugPosts {
 		//Log how many bytes and entries were on this config
 		h.igst.Info("HEC request", log.KV("host", ip),
-			log.KV("method", r.Method), log.KV("url", r.URL.String()),
+			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
 			log.KV("bytes", dec.TotalRead()), log.KV("entries", counter))
 	}
 
@@ -282,7 +282,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	ll := log.NewLoggerWithKV(h.lgr,
 		log.KV("HEC-Listener", hh.name),
 		log.KV("remoteaddress", ip.String()),
-		log.KV("url", r.URL.String()),
+		log.KV("url", r.URL.RequestURI()),
 	)
 
 	//check if the query url has a tag or sourcetype parameter
@@ -331,7 +331,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	if hh.debugPosts {
 		//Log how many bytes and entries were on this config
 		h.igst.Info("raw HEC request", log.KV("host", ip),
-			log.KV("method", r.Method), log.KV("url", r.URL.String()),
+			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
 			log.KV("bytes", data), log.KV("entries", count))
 	}
 }
@@ -435,7 +435,7 @@ func (p *piaObj) UnmarshalJSON(b []byte) (err error) {
 			return
 		}
 	}
-	p.payload = b
+	p.payload = append([]byte{}, b...)
 	return
 }
 
@@ -443,8 +443,12 @@ func (p piaObj) String() string {
 	return string(p.payload)
 }
 
-func (p piaObj) Bytes() []byte {
-	return p.payload
+// Bytes returns a stable byte slice that can be passed into an ingest muxer
+// we MUST MUST MUST copy the byte slice because we are decoding off of an HTTP request body
+// which does a bunch of internal buffering, making the bytes not stable across reads
+func (p piaObj) Bytes() (r []byte) {
+	r = p.payload
+	return
 }
 
 func (p piaObj) length() int {

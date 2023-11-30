@@ -125,8 +125,9 @@ type IngestStreamConfig struct {
 }
 
 type TimeFormat struct {
-	Format string
-	Regex  string
+	Format           string
+	Regex            string
+	Extraction_Regex string
 }
 
 type CustomTimeFormat map[string]*TimeFormat
@@ -450,9 +451,10 @@ func (ctf CustomTimeFormat) Validate() (err error) {
 			continue
 		}
 		cf := timegrinder.CustomFormat{
-			Name:   k,
-			Format: v.Format,
-			Regex:  v.Regex,
+			Name:             k,
+			Format:           v.Format,
+			Regex:            v.Regex,
+			Extraction_Regex: v.Extraction_Regex,
 		}
 		if err = cf.Validate(); err != nil {
 			return
@@ -473,9 +475,10 @@ func (ctf CustomTimeFormat) LoadFormats(tg *timegrinder.TimeGrinder) (err error)
 			continue
 		}
 		cf := timegrinder.CustomFormat{
-			Name:   k,
-			Format: v.Format,
-			Regex:  v.Regex,
+			Name:             k,
+			Format:           v.Format,
+			Regex:            v.Regex,
+			Extraction_Regex: v.Extraction_Regex,
 		}
 		if p, err = timegrinder.NewCustomProcessor(cf); err != nil {
 			return

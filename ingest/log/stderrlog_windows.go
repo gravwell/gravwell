@@ -16,6 +16,6 @@ import (
 )
 
 func newStderrLogger(fileOverride string, cb StderrCallback) (lgr *Logger, err error) {
-	err = errors.New("stderr logger not avialable on windows or ARM")
+	err = errors.New("stderr logger not avialable on windows")
 	return
 }

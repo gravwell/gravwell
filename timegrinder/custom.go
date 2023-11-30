@@ -28,12 +28,18 @@ var (
 )
 
 type CustomFormat struct {
+	//Normal Custom Format Extractions
 	Name   string
 	Regex  string
 	Format string
 
+	// optional pre-extraction system that can go get the meat of a timestamp before actually trying to handle the timestamp
+	Extraction_Regex string
+
 	dateMissing bool // indicates that the extraction only gets time, so add date
 	yearMissing bool // indicates that the extraction doesn't set the year
+
+	pre preExtractor
 }
 
 // Validate will check that the custom format is well formed and usable
@@ -45,31 +51,50 @@ func (cf *CustomFormat) Validate() (err error) {
 	//check that everything is specified
 	if cf.Name == `` {
 		return ErrMissingName
-	} else if cf.Regex == `` {
-		return ErrMissingRegex
 	} else if cf.Format == `` {
 		return ErrMissingFormat
 	}
 
-	//check that the regex compiles
-	if _, err = regexp.Compile(cf.Regex); err != nil {
+	if cf.Regex != `` {
+		//check that the regex compiles
+		if _, err = regexp.Compile(cf.Regex); err != nil {
+			return
+		}
+
+		//check that we can produce and consume a timestamp using the format
+		var t time.Time
+		if t, err = time.Parse(cf.Format, time.Now().Format(cf.Format)); err != nil {
+			err = fmt.Errorf("Invalid time format: %w", err)
+			return
+		} else if t.IsZero() || t.Equal(zeroTime) {
+			err = ErrInvalidFormat
+			return
+		} else if t.Year() == 0 && t.Month() == 1 && t.Day() == 1 {
+			//this is ok, but we need to add the date
+			cf.dateMissing = true
+		}
+		if t.Year() == 0 {
+			cf.yearMissing = true
+		}
+	} else if cf.Extraction_Regex == `` {
+		// if we don't have a regex, then we MUST have a pre-extraction regex
+		err = errors.New("Extraction-Regex is required when using a named format")
 		return
+	} else {
+		//ok, they have a pre-extraction regex and no regular regex, make sure the name exists
+		//make sure that the format is one defined in our default set
+		if _, ok := tg.GetProcessor(cf.Format); !ok {
+			err = fmt.Errorf("Timegrinder format %q does not exist", cf.Format)
+			return
+		}
 	}
 
-	//check that we can produce and consume a timestamp using the format
-	var t time.Time
-	if t, err = time.Parse(cf.Format, time.Now().Format(cf.Format)); err != nil {
-		err = fmt.Errorf("Invalid time format: %w", err)
-		return
-	} else if t.IsZero() || t.Equal(zeroTime) {
-		err = ErrInvalidFormat
-		return
-	} else if t.Year() == 0 && t.Month() == 1 && t.Day() == 1 {
-		//this is ok, but we need to add the date
-		cf.dateMissing = true
-	}
-	if t.Year() == 0 {
-		cf.yearMissing = true
+	if cf.Extraction_Regex != `` {
+		//if there is a extraction regex, make sure it works
+		if cf.pre, err = newPreExtractor(cf.Extraction_Regex); err != nil {
+			err = fmt.Errorf("Extraction-Regex is invalid %w", err)
+			return
+		}
 	}
 	return
 }
@@ -87,13 +112,29 @@ func NewCustomProcessor(cf CustomFormat) (p Processor, err error) {
 	if err = cf.Validate(); err != nil {
 		return
 	}
-	cp := &customProcessor{
-		CustomFormat: cf,
+	if cf.Regex != `` {
+		cp := &customProcessor{
+			CustomFormat: cf,
+		}
+		if cp.rx, err = regexp.Compile(cf.Regex); err != nil {
+			return
+		}
+		p = cp
+	} else {
+		var ok bool
+		if p, ok = tg.GetProcessor(cf.Format); !ok {
+			err = fmt.Errorf("Failed to find %s", cf.Format)
+			return
+		}
 	}
-	if cp.rx, err = regexp.Compile(cf.Regex); err != nil {
-		return
+	if cf.pre.rx != nil {
+		cp := preExtractProcessor{
+			Processor: p,
+			px:        cf.pre,
+			name:      cf.Name,
+		}
+		p = cp
 	}
-	p = cp
 	return
 }
 
@@ -127,4 +168,77 @@ func (cp *customProcessor) Format() string {
 func addDate(t time.Time) time.Time {
 	now := time.Now().UTC().Truncate(24 * time.Hour)
 	return now.Add(t.Sub(zeroTime))
+}
+
+// preExtractor is a regex extraction system used to pick timestamps out of potentially difficult to process structures.
+// A common use case is to grab an integer that represents Unix Seconds or Unix Milli out of some data structure before
+// passing the extracted data into another processor
+type preExtractor struct {
+	rx     *regexp.Regexp
+	idx    int //extraction subindex pulled from capture group
+	setidx int // the offset into our match index (always idx * 2)
+}
+
+// newPreExtractor will take a regular expression definition and a named capture group and create a pre-extractor
+func newPreExtractor(rxstr string) (pe preExtractor, err error) {
+	//compile the regex
+	if pe.rx, err = regexp.Compile(rxstr); err != nil {
+		return
+	}
+
+	// go find the first name
+	names := pe.rx.SubexpNames()
+	for i := range names {
+		if len(names[i]) > 0 {
+			if pe.idx > 0 {
+				err = fmt.Errorf("Multiple named capture groups defined")
+				return
+			}
+			pe.idx = i
+		}
+	}
+	if pe.idx == 0 {
+		err = errors.New("missing named capture group for pre-extractor")
+	} else {
+		pe.setidx = pe.idx * 2
+	}
+	return
+}
+
+func (pe preExtractor) extract(d []byte) (val []byte, offset int) {
+	// try to do the pre-extraction
+	matches := pe.rx.FindSubmatchIndex(d)
+	if r := len(matches); r == 0 || (r&1) != 0 {
+		//complete miss
+		offset = -1
+	} else if (r + 1) < pe.setidx {
+		//named extractor was not pulled out
+		offset = -1
+	} else if start, end := matches[pe.setidx], matches[pe.setidx+1]; start < 0 || end < 0 || start >= len(d) || start >= end {
+		offset = -1
+	} else {
+		offset = start
+		val = d[start:end]
+	}
+	return
+}
+
+type preExtractProcessor struct {
+	Processor
+	px   preExtractor
+	name string
+}
+
+func (pep preExtractProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
+	pval, poff := pep.px.extract(d)
+	if poff < 0 || len(pval) == 0 {
+		return // we missed
+	} else if t, ok, offset = pep.Processor.Extract(pval, loc); ok {
+		offset += poff
+	}
+	return
+}
+
+func (pep preExtractProcessor) Name() string {
+	return pep.name
 }

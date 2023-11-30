@@ -9,6 +9,7 @@
 package log
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -108,7 +109,8 @@ type Relay interface {
 }
 
 type LevelRelay interface {
-	WriteLog(Level, time.Time, []byte) error
+	WriteLog(Level, time.Time, string, string) error
+	Close() error
 }
 
 type Logger struct {
@@ -145,6 +147,18 @@ func New(wtr io.WriteCloser) (l *Logger) {
 	return
 }
 
+// NewLevelRelay creates a new logger with just a level relay
+func NewLevelRelay(lr LevelRelay) (l *Logger) {
+	l = &Logger{
+		lrls: []LevelRelay{lr},
+		mtx:  sync.Mutex{},
+		lvl:  INFO,
+		hot:  true,
+	}
+	l.guessHostnameAppname()
+	return
+}
+
 func NewDiscardLogger() *Logger {
 	var dc discardCloser
 	return New(dc)
@@ -164,6 +178,12 @@ func (l *Logger) Close() (err error) {
 			err = lerr
 		}
 	}
+	for i := range l.lrls {
+		if lerr := l.lrls[i].Close(); lerr != nil {
+			err = lerr
+		}
+	}
+
 	return
 }
 
@@ -447,8 +467,8 @@ func (l *Logger) outputf(depth int, lvl Level, f string, args ...interface{}) (e
 		return
 	}
 	ts := time.Now()
-	ln := strings.TrimRight(l.genOutputf(ts, CallLoc(depth), lvl, f, args...), "\n\t\r")
-	return l.writeOutput(lvl, ts, ln)
+	ln, msg := l.genOutputf(ts, CallLoc(depth), lvl, f, args...)
+	return l.writeOutput(lvl, ts, ln, msg)
 }
 
 func (l *Logger) outputStructured(depth int, lvl Level, msg string, sds ...rfc5424.SDParam) (err error) {
@@ -456,11 +476,17 @@ func (l *Logger) outputStructured(depth int, lvl Level, msg string, sds ...rfc54
 		return
 	}
 	ts := time.Now()
-	ln := strings.TrimRight(l.genRfcOutput(ts, CallLoc(depth), lvl, msg, sds...), "\n\t\r")
-	return l.writeOutput(lvl, ts, ln)
+	var ln string
+	if l.raw {
+		msg = renderMsgRaw(msg, sds...)
+		ln = l.genRawOutput(ts, CallLoc(depth), lvl, msg)
+	} else {
+		ln, msg = l.genRfcOutput(ts, CallLoc(depth), lvl, msg, sds...)
+	}
+	return l.writeOutput(lvl, ts, ln, msg)
 }
 
-func (l *Logger) writeOutput(lvl Level, ts time.Time, ln string) (err error) {
+func (l *Logger) writeOutput(lvl Level, ts time.Time, ln, msg string) (err error) {
 	l.mtx.Lock()
 	if err = l.ready(); err == nil {
 		for _, w := range l.wtrs {
@@ -476,7 +502,7 @@ func (l *Logger) writeOutput(lvl Level, ts time.Time, ln string) (err error) {
 			}
 		}
 		for _, r := range l.lrls {
-			if lerr := r.WriteLog(lvl, ts, []byte(ln)); lerr != nil {
+			if lerr := r.WriteLog(lvl, ts, ln, msg); lerr != nil {
 				err = lerr
 			}
 		}
@@ -485,16 +511,37 @@ func (l *Logger) writeOutput(lvl Level, ts time.Time, ln string) (err error) {
 	return
 }
 
-func (l *Logger) genOutputf(ts time.Time, pfx string, lvl Level, f string, args ...interface{}) string {
+func (l *Logger) genOutputf(ts time.Time, pfx string, lvl Level, f string, args ...interface{}) (full, msg string) {
+	msg = strings.TrimSpace(fmt.Sprintf(f, args...))
 	if l.raw {
-		return l.genRawOutput(ts, pfx, lvl, f, args...)
+		full = l.genRawOutput(ts, pfx, lvl, msg)
+	} else {
+		full, _ = l.genRfcOutput(ts, pfx, lvl, msg)
 	}
-	return l.genRfcOutput(ts, pfx, lvl, fmt.Sprintf(f, args...))
+	return
 }
 
-func (l *Logger) genRfcOutput(ts time.Time, pfx string, lvl Level, msg string, sds ...rfc5424.SDParam) (ln string) {
+func renderMsgRaw(msg string, sds ...rfc5424.SDParam) string {
+	if len(sds) == 0 {
+		return msg
+	}
+	var sb strings.Builder
+	sb.WriteString(msg)
+	//render it
+	for i, p := range sds {
+		if i == 0 && len(msg) == 0 {
+			fmt.Fprintf(&sb, "%s=%q", p.Name, p.Value)
+		} else {
+			fmt.Fprintf(&sb, " %s=%q", p.Name, p.Value)
+		}
+	}
+	return sb.String()
+}
+
+func (l *Logger) genRfcOutput(ts time.Time, pfx string, lvl Level, msg string, sds ...rfc5424.SDParam) (ln, rawmsg string) {
+	rawmsg = renderMsgRaw(msg, sds...)
 	if b, err := GenRFCMessage(ts, lvl.priority(), l.hostname, l.appname, pfx, msg, sds...); err == nil && len(b) > 0 {
-		ln = string(b)
+		ln = string(bytes.Trim(b, "\n\r\t"))
 	}
 	return
 }
@@ -527,8 +574,8 @@ func GenRFCMessage(ts time.Time, prio rfc5424.Priority, hostname, appname, msgid
 	return m.MarshalBinary()
 }
 
-func (l *Logger) genRawOutput(ts time.Time, pfx string, lvl Level, f string, args ...interface{}) (ln string) {
-	ln = ts.UTC().Format(time.RFC3339) + " " + pfx + " " + lvl.String() + " " + fmt.Sprintf(f, args...)
+func (l *Logger) genRawOutput(ts time.Time, pfx string, lvl Level, msg string) (ln string) {
+	ln = ts.UTC().Format(time.RFC3339) + " " + pfx + " " + lvl.String() + " " + msg
 	return
 }
 
