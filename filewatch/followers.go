@@ -30,12 +30,12 @@ const (
 	// maxIdleDataTime is the same as above, but with out the close event
 	// so if data is sitting in the file without a delimiter and we have
 	// just been sitting here for that amount of time, then we will consume it
-	maxIdleDataTime = 3 * time.Second
+	maxIdleDataTime = 5 * time.Second
 )
 
 var (
 	ErrNotRunning = errors.New("Not running")
-	tickInterval  = time.Second
+	tickInterval  = 5 * time.Second
 )
 
 type handler interface {
@@ -275,7 +275,7 @@ func (f *follower) IdleDuration() time.Duration {
 // receiving an fsnotify for a write event
 // If we got a writeEvent and ReadLine returns an EOF, we need to check
 // and make sure the file wasn't truncated
-func (f *follower) processLines(writeEvent, closing bool) error {
+func (f *follower) processLines(writeEvent, closing, allowPartial bool) error {
 	var hit bool
 	for {
 		ln, ok, sawEOF, err := f.lnr.ReadEntry()
@@ -300,9 +300,7 @@ func (f *follower) processLines(writeEvent, closing bool) error {
 			// e.g. no trailing newline or delimiter, but what IS there has been sitting for XYZ seconds
 			// go ahead and consume it
 			var force bool
-			if idleTime := time.Since(f.lastAct); idleTime > maxIdleDataTime {
-				force = true
-			} else if closing && idleTime > maxIdleCloseTime {
+			if idleTime := time.Since(f.lastAct); idleTime > maxIdleDataTime && (allowPartial || closing) {
 				force = true
 			}
 			if force {
@@ -339,15 +337,15 @@ func (f *follower) routine() {
 	tckr := time.NewTicker(tickInterval)
 	defer tckr.Stop()
 
+	if err := f.processLines(false, false, false); err != nil {
+		f.lnr.Close()
+		if !os.IsNotExist(err) {
+			f.err = err
+		}
+		return
+	}
 routineLoop:
 	for {
-		if err := f.processLines(false, false); err != nil {
-			f.lnr.Close()
-			if !os.IsNotExist(err) {
-				f.err = err
-			}
-			return
-		}
 		select {
 		case err, ok := <-f.fsn.Errors:
 			if !ok {
@@ -361,7 +359,7 @@ routineLoop:
 			}
 			if evt.Op == fsnotify.Remove {
 				//if the file was removed, we read what we can and bail
-				if err := f.processLines(false, true); err != nil {
+				if err := f.processLines(false, true, false); err != nil {
 					if !os.IsNotExist(err) {
 						f.err = err
 					}
@@ -370,28 +368,29 @@ routineLoop:
 				f.err = f.lnr.Close()
 				return
 			} else if evt.Op == fsnotify.Write {
-				if err := f.processLines(true, false); err != nil {
+				if err := f.processLines(true, false, false); err != nil {
 					f.lnr.Close()
 					if !os.IsNotExist(err) {
 						f.err = err
 					}
 					return
 				}
+				tckr.Reset(tickInterval)
 			}
 		case _ = <-tckr.C:
 			//just loop and attempt to get some lines
 			//this is purely to deal with race conditions where lines come in when we are starting up
 			//causing us to miss the event
 			//this whole process is kind of racy, so every iteration we attempt to process lines
+			if err := f.processLines(false, false, true); err != nil {
+				f.lnr.Close()
+				if !os.IsNotExist(err) {
+					f.err = err
+				}
+				return
+			}
 		case <-f.abortCh:
 			break routineLoop
-		}
-	}
-	//this whole process is kind of racy, so every iteration we attempt to process lines
-	if err := f.processLines(false, true); err != nil {
-		//check if its just a notexists erro, which Windows version of the liner will throw
-		if !os.IsNotExist(err) {
-			f.err = err
 		}
 	}
 }
