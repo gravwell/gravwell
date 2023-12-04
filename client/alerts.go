@@ -17,7 +17,7 @@ import (
 
 // NewAlert creates a new alert.
 func (c *Client) NewAlert(def types.AlertDefinition) (result types.AlertDefinition, err error) {
-	err = c.methodStaticPushURL(http.MethodPost, alertsUrl(), def, &result)
+	err = c.methodStaticPushURL(http.MethodPost, alertsUrl(), def, &result, nil, nil)
 	return
 }
 
@@ -41,7 +41,7 @@ func (c *Client) GetAlert(id uuid.UUID) (result types.AlertDefinition, err error
 // UpdateAlert modifies an alert. Make sure to have ThingUUID set, as this is used to resolve
 // the appropriate alert to modify.
 func (c *Client) UpdateAlert(def types.AlertDefinition) (result types.AlertDefinition, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, alertsIdUrl(def.ThingUUID), def, &result)
+	err = c.methodStaticPushURL(http.MethodPut, alertsIdUrl(def.ThingUUID), def, &result, nil, nil)
 	return
 }
 
@@ -68,7 +68,7 @@ func (c *Client) ValidateAlertScheduledSearchDispatcher(ssearchID uuid.UUID, sch
 		},
 		Schema: schema,
 	}
-	err = c.methodStaticPushURL(http.MethodPost, alertsValidateDispatcherUrl(), req, &resp)
+	err = c.methodStaticPushURL(http.MethodPost, alertsValidateDispatcherUrl(), req, &resp, nil, nil)
 	return
 
 }
@@ -85,7 +85,7 @@ func (c *Client) ValidateAlertFlowConsumer(flowID uuid.UUID, alert types.AlertDe
 		},
 		Alert: alert,
 	}
-	err = c.methodStaticPushURL(http.MethodPost, alertsValidateConsumerUrl(), req, &resp)
+	err = c.methodStaticPushURL(http.MethodPost, alertsValidateConsumerUrl(), req, &resp, nil, nil)
 	return
 
 }
