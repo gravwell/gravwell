@@ -1,8 +1,8 @@
-//go:build linux
-// +build linux
+//go:build darwin
+// +build darwin
 
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -42,7 +42,7 @@ func newStderrLogger(fileOverride string, cb StderrCallback) (lgr *Logger, err e
 		}
 
 		//dupe the output file onto stderr so that output goes there
-		if err = syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
+		if err = syscall.Dup2(int(fout.Fd()), int(os.Stderr.Fd())); err != nil {
 			fout.Close()
 		}
 
