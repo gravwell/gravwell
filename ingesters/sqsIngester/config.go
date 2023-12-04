@@ -14,11 +14,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/sqs_common"
 )
 
 const (
@@ -26,16 +27,17 @@ const (
 )
 
 type queue struct {
-	base
-	Tag_Name     string
-	Queue_URL    string
-	Region       string
-	AKID         string
-	Secret       string `json:"-"` // DO NOT send this when marshalling
-	Preprocessor []string
+	baseConfig
+	Tag_Name         string
+	Queue_URL        string
+	Region           string
+	Credentials_Type string
+	AKID             string
+	Secret           string `json:"-"` // DO NOT send this when marshalling
+	Preprocessor     []string
 }
 
-type base struct {
+type baseConfig struct {
 	Ignore_Timestamps         bool //Just apply the current timestamp to lines as we get them
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
@@ -45,12 +47,14 @@ type base struct {
 
 type cfgReadType struct {
 	Global       config.IngestConfig
+	Attach       attach.AttachConfig
 	Queue        map[string]*queue
 	Preprocessor processors.ProcessorConfig
 }
 
 type cfgType struct {
 	config.IngestConfig
+	Attach       attach.AttachConfig
 	Queue        map[string]*queue
 	Preprocessor processors.ProcessorConfig
 }
@@ -65,30 +69,22 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	}
 	c := &cfgType{
 		IngestConfig: cr.Global,
+		Attach:       cr.Attach,
 		Queue:        cr.Queue,
 		Preprocessor: cr.Preprocessor,
 	}
 
-	if err := verifyConfig(c); err != nil {
+	if err := c.Verify(); err != nil {
 		return nil, err
-	}
-
-	// Verify and set UUID
-	if _, ok := c.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
-		}
 	}
 	return c, nil
 }
 
-func verifyConfig(c *cfgType) error {
+func (c *cfgType) Verify() error {
 	//verify the global parameters
-	if err := c.Verify(); err != nil {
+	if err := c.IngestConfig.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	}
 
@@ -127,11 +123,8 @@ func verifyConfig(c *cfgType) error {
 		if v.Region == "" {
 			return fmt.Errorf("Queue %s must provide Region", k)
 		}
-		if v.AKID == "" {
-			return fmt.Errorf("Queue %s must provide AKID", k)
-		}
-		if v.Secret == "" {
-			return fmt.Errorf("Queue %s must provide Secret", k)
+		if _, err := sqs_common.GetCredentials(v.Credentials_Type, v.AKID, v.Secret); err != nil {
+			return err
 		}
 	}
 
@@ -157,4 +150,12 @@ func (c *cfgType) Tags() ([]string, error) {
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }

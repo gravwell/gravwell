@@ -55,7 +55,8 @@ var (
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 
-	lg *log.Logger
+	lg      *log.Logger
+	debugOn bool
 )
 
 type shodanStream struct {
@@ -97,6 +98,7 @@ func init() {
 			}
 		}
 	}
+	debugOn = *verbose
 }
 
 func main() {
@@ -360,8 +362,7 @@ func (shodan *shodanStream) shodanIngester(igst *ingest.IngestMuxer) {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !*verbose {
-		return
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }

@@ -259,3 +259,33 @@ func TestAuthTenantEnabledBadVersionChallengeResponse(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func FuzzAuthChallengeResponse(f *testing.F) {
+	var chal Challenge
+	var hsh AuthHash
+	for i := 0; i < 16; i++ {
+		var err error
+		pwd := fmt.Sprintf("password test with %d %x %b", i, i, i)
+		bb := bytes.NewBuffer(nil)
+		if hsh, err = GenAuthHash(pwd); err != nil {
+			f.Fatal(err)
+		} else if chal, err = NewChallenge(hsh); err != nil {
+			f.Fatal(err)
+		} else if resp, err := GenerateResponse(hsh, chal); err != nil {
+			f.Fatal(err)
+		} else if err = resp.Write(bb); err != nil {
+			f.Fatal(err)
+		} else {
+			f.Add(bb.Bytes())
+		}
+	}
+	f.Fuzz(func(t *testing.T, resp []byte) {
+		var cr ChallengeResponse
+		bb := bytes.NewBuffer(resp)
+		if err := cr.Read(bb); err != nil {
+			t.Log(err)
+		} else if err = VerifyResponse(hsh, chal, cr); err != nil {
+			t.Log(err)
+		}
+	})
+}

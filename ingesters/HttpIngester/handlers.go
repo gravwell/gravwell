@@ -139,7 +139,7 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		ResponseWriter: rw,
 	}
 	defer func(trw *trackingRW, req *http.Request) {
-		if !v {
+		if debugOn == false {
 			return
 		}
 		debugout("REQUEST %s %v %d %d\n", req.Method, req.URL, trw.code, trw.bytes)
@@ -235,11 +235,10 @@ func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP) (err error)
 		Data: b,
 	}
 	debugout("Handling: %+v\n", e)
-	if err = cfg.pproc.Process(&e); err != nil {
+	if err = cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
 		h.lgr.Error("failed to send entry", log.KVErr(err))
 		return
 	}
-	debugout("Sending entry %+v", e)
 	return
 }
 

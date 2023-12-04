@@ -111,7 +111,9 @@ func (c *Client) DeleteScheduledSearch(id int32) error {
 }
 
 // GetScheduledSearch returns the scheduled search with the given ID.
-func (c *Client) GetScheduledSearch(id int32) (types.ScheduledSearch, error) {
+// The ID is an interface{} to allow the user to specify either the
+// int32 "ID" or the UUID "GUID" field.
+func (c *Client) GetScheduledSearch(id interface{}) (types.ScheduledSearch, error) {
 	var search types.ScheduledSearch
 	err := c.getStaticURL(scheduledSearchIdUrl(id), &search)
 	return search, err

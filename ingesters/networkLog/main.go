@@ -9,50 +9,41 @@
 package main
 
 import (
+	"context"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"net"
 	"os"
-	"path"
-	"runtime/debug"
-	"syscall"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/utils/caps"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
 
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
 )
 
 const (
-	defaultConfigLoc      = `/opt/gravwell/etc/network_capture.conf`
-	defaultConfigDLoc     = `/opt/gravwell/etc/network_capture.conf.d`
-	packetsThrowSize  int = 1024 * 1024 * 2
-	ingesterName          = "networkLog"
-	appName               = `networklog`
+	defaultConfigLoc                = `/opt/gravwell/etc/network_capture.conf`
+	defaultConfigDLoc               = `/opt/gravwell/etc/network_capture.conf.d`
+	packetsThrowSize  int           = 1024 * 1024 * 2
+	ingesterName                    = "networkLog"
+	appName                         = `networklog`
+	pktTimeout        time.Duration = 500 * time.Millisecond
 )
 
 var (
-	confLoc        = flag.String("config-file", defaultConfigLoc, "Location for configuration file")
-	confdLoc       = flag.String("config-overlays", defaultConfigDLoc, "Location for configuration overlay files")
-	verbose        = flag.Bool("v", false, "Display verbose status updates to stdout")
-	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
-	ver            = flag.Bool("version", false, "Print the version information and exit")
-
-	pktTimeout time.Duration = 500 * time.Millisecond
-
 	totalPackets uint64
 	totalBytes   uint64
-	v            bool
+	debugOn      bool
 	lg           *log.Logger
+
+	exitCtx, exitFn = context.WithCancel(context.Background())
 )
 
 type results struct {
@@ -76,115 +67,35 @@ type sniffer struct {
 	active    bool
 }
 
-func init() {
-	flag.Parse()
-	if *ver {
-		version.PrintVersion(os.Stdout)
-		ingest.PrintVersion(os.Stdout)
-		os.Exit(0)
-	}
-	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
-	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
-	lg.SetAppname(appName)
-	if *stderrOverride != `` {
-		if oldstderr, err := syscall.Dup(int(os.Stderr.Fd())); err != nil {
-			lg.Fatal("Failed to dup stderr", log.KVErr(err))
-		} else {
-			lg.AddWriter(os.NewFile(uintptr(oldstderr), "oldstderr"))
-		}
-
-		fp := path.Join(`/dev/shm/`, *stderrOverride)
-		fout, err := os.Create(fp)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to create %s: %v\n", fp, err)
-		} else {
-			version.PrintVersion(fout)
-			ingest.PrintVersion(fout)
-			log.PrintOSInfo(fout)
-			//file created, dup it
-			if err := syscall.Dup3(int(fout.Fd()), int(os.Stderr.Fd()), 0); err != nil {
-				fout.Close()
-				lg.Fatal("failed to dup2 stderr", log.KVErr(err))
-			}
-		}
-	}
-	v = *verbose
-}
-
 func main() {
-	debug.SetTraceback("all")
-	cfg, err := GetConfig(*confLoc, *confdLoc)
-	if err != nil {
-		lg.FatalCode(0, "failed to get configuration", log.KVErr(err))
+	var cfg *cfgType
+	ibc := base.IngesterBaseConfig{
+		IngesterName:                 ingesterName,
+		AppName:                      appName,
+		DefaultConfigLocation:        defaultConfigLoc,
+		DefaultConfigOverlayLocation: defaultConfigDLoc,
+		GetConfigFunc:                GetConfig,
 	}
-
-	cfg.AddLocalLogging(lg)
-
-	tags, err := cfg.Tags()
+	ib, err := base.Init(ibc)
 	if err != nil {
-		lg.FatalCode(0, "failed to get tags from configuration", log.KVErr(err))
-	}
-	conns, err := cfg.Targets()
-	if err != nil {
-		lg.FatalCode(0, "failed to get backend targets from configuration", log.KVErr(err))
-	}
-	debugout("Handling %d tags over %d targets\n", len(tags), len(conns))
-
-	lmt, err := cfg.RateLimit()
-	if err != nil {
-		lg.FatalCode(0, "failed to get rate limit from configuration", log.KVErr(err))
+		fmt.Fprintf(os.Stderr, "failed to get configuration %v\n", err)
+		return
+	} else if err = ib.AssignConfig(&cfg); err != nil || cfg == nil {
+		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
 		return
 	}
-	debugout("Rate limiting connection to %d bps\n", lmt)
+	debugOn = ib.Verbose
+	lg = ib.Logger
 
-	//fire up the ingesters
-	debugout("INSECURE skipping TLS verification: %v\n", cfg.InsecureSkipTLSVerification())
-	id, ok := cfg.IngesterUUID()
-	if !ok {
-		lg.FatalCode(0, "could not read ingester UUID")
-	}
-	igCfg := ingest.UniformMuxerConfig{
-		IngestStreamConfig: cfg.IngestStreamConfig,
-		Destinations:       conns,
-		Tags:               tags,
-		Auth:               cfg.Secret(),
-		IngesterName:       ingesterName,
-		IngesterVersion:    version.GetVersion(),
-		IngesterUUID:       id.String(),
-		IngesterLabel:      cfg.Label,
-		RateLimitBps:       lmt,
-		VerifyCert:         !cfg.InsecureSkipTLSVerification(),
-		CacheDepth:         cfg.Cache_Depth,
-		CachePath:          cfg.Ingest_Cache_Path,
-		CacheSize:          cfg.Max_Ingest_Cache,
-		CacheMode:          cfg.Cache_Mode,
-		Logger:             lg,
-		LogSourceOverride:  net.ParseIP(cfg.Log_Source_Override),
-	}
-	igst, err := ingest.NewUniformMuxer(igCfg)
+	igst, err := ib.GetMuxer()
 	if err != nil {
-		lg.Fatal("failed build our ingest system", log.KVErr(err))
+		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
+		return
 	}
+	defer igst.Close()
+	ib.AnnounceStartup()
+
 	debugout("Started ingester muxer\n")
-	// Henceforth, logs will also go out via the muxer to the gravwell tag
-	if cfg.SelfIngest() {
-		lg.AddRelay(igst)
-	}
-	if err := igst.Start(); err != nil {
-		lg.Fatal("failed start our ingest system", log.KVErr(err))
-	}
-
-	debugout("Waiting for connections to indexers\n")
-	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
-		lg.FatalCode(0, "timeout waiting for backend connections", log.KV("timeout", cfg.Timeout()), log.KVErr(err))
-	}
-	debugout("Successfully connected to ingesters\n")
-
-	// prepare the configuration we're going to send upstream
-	err = igst.SetRawConfiguration(cfg)
-	if err != nil {
-		lg.FatalCode(0, "failed to set configuration for ingester state message", log.KVErr(err))
-	}
 
 	//check capabilities so we can scream and throw a potential warning upstream
 	if !caps.Has(caps.NET_RAW) {
@@ -271,11 +182,14 @@ func main() {
 	}
 
 	utils.WaitForQuit()
+	ib.AnnounceShutdown()
 
 	requestClose(sniffs)
 	res := gatherResponse(sniffs)
 	closeHandles(sniffs)
 	durr := time.Since(start)
+
+	exitFn()
 
 	if err = igst.Sync(time.Second); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
@@ -436,7 +350,7 @@ mainLoop:
 				totalBytes += uint64(len(pkts[i].data))
 				count++
 			}
-			if err := igst.WriteBatch(set); err != nil {
+			if err := igst.WriteBatchContext(exitCtx, set); err != nil {
 				s.handle.Close()
 				lg.Error("failed to handle entry", log.KVErr(err))
 				s.res <- results{
@@ -483,10 +397,9 @@ func getSourceIP(dev string) (net.IP, error) {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !v {
-		return
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 // Add the bytes & packet count from src into dst.

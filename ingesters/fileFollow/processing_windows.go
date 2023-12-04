@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -34,6 +34,7 @@ var (
 )
 
 type mainService struct {
+	cfg         *cfgType
 	secret      string
 	timeout     time.Duration
 	tags        []string
@@ -75,6 +76,7 @@ func NewService(cfg *cfgType) (*mainService, error) {
 	//fire up the watch manager
 	wtchr, err := filewatch.NewWatcher(cfg.StatePath())
 	if err != nil {
+		errorout("failed to open config path %s %v", cfg.StatePath(), err)
 		return nil, err
 	}
 	//pass in the ingest muxer to the file watcher so it can throw info and errors down the muxer chan
@@ -87,6 +89,7 @@ func NewService(cfg *cfgType) (*mainService, error) {
 
 	debugout("Watching %d Directories\n", len(cfg.Follower))
 	return &mainService{
+		cfg:         cfg,
 		timeout:     cfg.Timeout(),
 		secret:      cfg.Secret(),
 		tags:        tags,
@@ -249,6 +252,9 @@ func (m *mainService) init(ctx context.Context) error {
 		CacheSize:       m.cacheSize,
 		CacheMode:       m.cacheMode,
 	}
+	if m.cfg != nil {
+		ingestConfig.Attach = m.cfg.Attach
+	}
 
 	debugout("Starting ingester connections ")
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
@@ -266,7 +272,15 @@ func (m *mainService) init(ctx context.Context) error {
 	m.igst = igst
 	hot, err := igst.Hot()
 	if err != nil {
+		errorout("failed to get hot connection count: %v", err)
 		return err
+	}
+	//add our selves as self ingesting
+	if m.cfg != nil {
+		if err = igst.SetRawConfiguration(*m.cfg); err != nil {
+			errorout("failed to set configuration for ingester state messages: %v", err)
+			return err
+		}
 	}
 	infoout("Ingester established %d connections\n", hot)
 	m.wtchr.SetLogger(igst)
