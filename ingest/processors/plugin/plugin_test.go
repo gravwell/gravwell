@@ -114,6 +114,42 @@ func TestCalls(t *testing.T) {
 	}
 }
 
+func TestShiftJIS(t *testing.T) {
+	tgr := newTestTagger()
+	b := []byte(`
+	[Config]
+	`)
+	tc := struct {
+		Config config.VariableConfig
+	}{}
+	if err := config.LoadConfigBytes(&tc, b); err != nil {
+		t.Fatalf("Failed to build config: %v", err)
+	}
+	ents := makeEnts(2)
+	ents[0].Data = []byte("\x48\x65\x6c\x6c\x6f\x2c\x20\x90\xa2\x8a\x45")
+	if pp, err := NewPluginProgram([]byte(shiftJISPlugin), false); err != nil {
+		t.Fatal(err)
+	} else if err := pp.Run(time.Second); err != nil {
+		t.Fatal(err)
+	} else if err = pp.Config(&tc.Config, tgr); err != nil {
+		t.Fatalf("Failed config: %v", err)
+	} else if err = pp.Start(); err != nil {
+		t.Fatalf("Failed start: %v", err)
+	} else if pp.Flush() != nil {
+		t.Fatalf("should not have gotten entries back on a flush")
+	} else if rents, err := pp.Process(ents); err != nil {
+		t.Fatalf("failed to process: %v", err)
+	} else if len(rents) != len(ents) {
+		t.Fatalf("invalid count: %d != %d", len(rents), len(ents))
+	} else if v := string(rents[0].Data); v != `Hello, 世界` {
+		t.Fatalf("JIS encoded string did not convert: %s != Hello, 世界", v)
+	} else if string(rents[1].Data) != string(ents[1].Data) {
+		t.Fatalf("JIS Decode corrupted ascii string: %s != %s",
+			string(rents[1].Data), string(ents[1].Data))
+	}
+
+}
+
 type testTagger struct {
 	mp map[string]entry.EntryTag
 }

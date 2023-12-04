@@ -43,10 +43,17 @@ var (
 )
 
 type WatchManager struct {
-	mtx        *sync.Mutex
-	fman       *FilterManager
-	watcher    *fsnotify.Watcher
-	watched    map[string][]WatchConfig
+	mtx *sync.Mutex
+
+	// These have to do with watching files
+	fman    *FilterManager
+	watcher *fsnotify.Watcher
+
+	// This tracks directories we are watching
+	watched map[string][]WatchConfig
+	// This tracks directories which have been deleted and we hope will come back
+	removed map[string][]WatchConfig
+
 	routineRet chan error
 	logger     ingest.IngestLogger
 	ctx        context.Context
@@ -78,6 +85,7 @@ func NewWatcher(stateFilePath string) (*WatchManager, error) {
 		fman:    fman,
 		watcher: w,
 		watched: map[string][]WatchConfig{},
+		removed: map[string][]WatchConfig{},
 		logger:  ingest.NoLogger(),
 		ctx:     ctx,
 		cancel:  cancel,
@@ -163,7 +171,7 @@ func (wm *WatchManager) Add(c WatchConfig) error {
 }
 
 func (wm *WatchManager) addNoLock(c WatchConfig) error {
-	if wm.watcher == nil || wm.watched == nil {
+	if wm.watcher == nil || wm.watched == nil || wm.removed == nil {
 		return ErrNotReady
 	}
 	//check that we have been handed a directory
@@ -230,6 +238,95 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 			}
 		}
 	}
+	return nil
+}
+
+func (wm *WatchManager) scanRemoved() error {
+	wm.mtx.Lock()
+	defer wm.mtx.Unlock()
+	for k, _ := range wm.removed {
+		fi, err := os.Stat(k)
+		if err != nil {
+			continue
+		}
+		if fi.IsDir() {
+			if err := wm.checkNewDirectoryNoLock(k); err != nil {
+				continue
+			}
+		}
+	}
+	return nil
+}
+
+func (wm *WatchManager) CheckNewDirectory(dir string) error {
+	wm.mtx.Lock()
+	defer wm.mtx.Unlock()
+	return wm.checkNewDirectoryNoLock(dir)
+}
+
+func (wm *WatchManager) checkNewDirectoryNoLock(dir string) error {
+	if wm.watcher == nil || wm.watched == nil || wm.removed == nil {
+		return ErrNotReady
+	}
+
+	configs, ok := wm.removed[dir]
+	if !ok {
+		return nil
+	}
+	for _, c := range configs {
+		wm.addNoLock(c)
+	}
+	delete(wm.removed, dir)
+
+	toProcess, err := wm.getWatchedFilesInDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, f := range toProcess {
+		if _, err := wm.fman.LoadFile(f.pth); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (wm *WatchManager) Remove(dir string) error {
+	wm.mtx.Lock()
+	defer wm.mtx.Unlock()
+	return wm.removeNoLock(dir)
+}
+
+// Take a directory out of the watched list and stick it into the removed list
+func (wm *WatchManager) removeNoLock(path string) error {
+	if wm.watcher == nil || wm.watched == nil || wm.removed == nil {
+		return ErrNotReady
+	}
+	// See if it's already in the watched list
+	configs, ok := wm.watched[path]
+	if !ok {
+		// not watched, that's fine
+		return nil
+	}
+
+	if existing, ok := wm.removed[path]; ok {
+		// deduplicate configs
+	dedupLoop:
+		for _, a := range configs {
+			for _, b := range existing {
+				if a == b {
+					continue dedupLoop
+				}
+			}
+			existing = append(existing, a)
+		}
+		wm.removed[path] = existing
+	} else {
+		wm.removed[path] = configs
+	}
+
+	delete(wm.watched, path)
+	wm.fman.RemoveDirectory(path)
+	wm.watcher.Remove(path)
 	return nil
 }
 
@@ -342,6 +439,8 @@ func (wm *WatchManager) routine(errch chan error) {
 	var err error
 	tckr := time.NewTicker(time.Minute)
 	defer tckr.Stop()
+	mkdirTicker := time.NewTicker(1 * time.Second)
+	defer mkdirTicker.Stop()
 
 watchRoutine:
 	for {
@@ -401,6 +500,10 @@ watchRoutine:
 					}
 				}
 			} else if evt.Op == fsnotify.Remove {
+				// Try to remove it in case this was a directory we're watching
+				if err := wm.Remove(evt.Name); err != nil {
+					wm.logger.Error("error when trying to unwatch potential removed directory", log.KV("path", evt.Name), log.KVErr(err))
+				}
 				if ok, err := wm.deleteWatchedFile(evt.Name); err != nil {
 					wm.logger.Error("failed to stop watching file", log.KV("path", evt.Name), log.KVErr(err))
 				} else if ok {
@@ -423,6 +526,11 @@ watchRoutine:
 		case _ = <-tckr.C:
 			if err := wm.fman.FlushStates(); err != nil {
 				wm.logger.Error("failed to flush states", log.KVErr(err))
+			}
+		case _ = <-mkdirTicker.C:
+			// Scan all the removed directories and see if they got recreated
+			if err := wm.scanRemoved(); err != nil {
+				wm.logger.Error("failed to check removed directories", log.KVErr(err))
 			}
 		}
 	}
@@ -452,27 +560,37 @@ type watchedFile struct {
 }
 
 func (wm *WatchManager) getWatchedFileList() (wfs []watchedFile, err error) {
-	var fis []os.FileInfo
 	for k := range wm.watched {
-		if fis, err = ioutil.ReadDir(k); err != nil {
-			err = fmt.Errorf("Failed to initialize %v: %w", k, err)
+		var tmp []watchedFile
+		tmp, err = wm.getWatchedFilesInDir(k)
+		if err != nil {
 			return
 		}
-		for i := range fis {
-			if !fis[i].Mode().IsRegular() {
-				continue
-			}
-			wfs = append(wfs, watchedFile{
-				pth:     filepath.Join(k, fis[i].Name()),
-				size:    fis[i].Size(),
-				modTime: fis[i].ModTime(),
-			})
-		}
+		wfs = append(wfs, tmp...)
 	}
 	//now sort by last modified date as a minor optimization
 	if len(wfs) > 0 {
 		sort.SliceStable(wfs, func(i, j int) bool {
 			return wfs[i].modTime.Before(wfs[i].modTime)
+		})
+	}
+	return
+}
+
+func (wm *WatchManager) getWatchedFilesInDir(dir string) (wfs []watchedFile, err error) {
+	var fis []os.FileInfo
+	if fis, err = ioutil.ReadDir(dir); err != nil {
+		err = fmt.Errorf("Failed to initialize %v: %w", dir, err)
+		return
+	}
+	for i := range fis {
+		if !fis[i].Mode().IsRegular() {
+			continue
+		}
+		wfs = append(wfs, watchedFile{
+			pth:     filepath.Join(dir, fis[i].Name()),
+			size:    fis[i].Size(),
+			modTime: fis[i].ModTime(),
 		})
 	}
 	return

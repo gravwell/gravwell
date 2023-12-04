@@ -9,12 +9,12 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net"
 	"net/http"
@@ -30,6 +30,9 @@ import (
 
 const (
 	defaultMaxHECEventSize uint = 512 * 1024 //splunk defaults to 10k characters, but thats weak
+
+	parameterTag        = `tag`
+	parameterSourcetype = `sourcetype`
 )
 
 var (
@@ -44,6 +47,7 @@ type hecHandler struct {
 	tagRouter      map[string]entry.EntryTag
 	rawLineBreaker string
 	maxSize        uint
+	debugPosts     bool
 }
 
 type hecEvent struct {
@@ -86,10 +90,47 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 	return
 }
 
+func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogger) (tg entry.EntryTag, ok bool, err error) {
+	if v := r.URL.Query(); len(v) > 0 {
+		if val := v.Get(parameterTag); val != `` {
+			//check if the tag is allowed
+			if err = ingest.CheckTag(val); err != nil {
+				ll.Error("invalid tag in parameter",
+					log.KV("tag", val),
+					log.KVErr(err))
+				return
+			} else if tg, err = h.igst.NegotiateTag(val); err != nil {
+				ll.Error("failed to negotiate tag",
+					log.KV("tag", val), log.KVErr(err))
+				return
+			} else {
+				ok = true
+			}
+		} else if val = v.Get(parameterSourcetype); val != `` && len(hh.tagRouter) > 0 {
+			tg, ok = hh.tagRouter[val]
+		}
+	}
+	return
+}
+
 func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	defaultTag := cfg.tag
 	resp := respSuccess
+
 	// get a local logger up that will always add some more info
-	ll := log.NewLoggerWithKV(h.lgr, log.KV("HEC-Listener", hh.name), log.KV("remoteaddress", ip.String()))
+	ll := log.NewLoggerWithKV(h.lgr,
+		log.KV("HEC-Listener", hh.name),
+		log.KV("remoteaddress", ip.String()),
+		log.KV("url", r.URL.RequestURI()),
+	)
+	//check if the query url has a tag or sourcetype parameter
+	if tg, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
+		hh.respInvalidDataFormat(w, 0)
+		return
+	} else if ok {
+		defaultTag = tg
+	}
+
 	dec, err := utils.NewJsonLimitedDecoder(rdr, int64(maxBody+256)) //give some slack for the extra splunk garbage
 	if err != nil {
 		ll.Error("failed to create limited decoder", log.KVErr(err))
@@ -101,7 +142,7 @@ loop:
 	for ; ; counter++ {
 		var ts entry.Timestamp
 		var hev hecEvent
-		tag := cfg.tag
+		tag := defaultTag
 
 		//try to decode the damn thing
 		if err = dec.Decode(&hev); err != nil {
@@ -188,6 +229,13 @@ loop:
 	}
 
 	hh.writeResponse(w, resp)
+	if hh.debugPosts {
+		//Log how many bytes and entries were on this config
+		h.igst.Info("HEC request", log.KV("host", ip),
+			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
+			log.KV("bytes", dec.TotalRead()), log.KV("entries", counter))
+	}
+
 }
 
 func (hh *hecHandler) setAck(channel string, resp ack) {
@@ -224,35 +272,52 @@ func (hh *hecHandler) respInvalidDataFormat(w http.ResponseWriter, index int) {
 }
 
 func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
-	var count uint
+	var count int
+	var data int
+	defaultTag := cfg.tag
 	debugout("HEC RAW\n")
 	resp := ack{Text: "Success"}
-	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+1)))
-	if err != nil && err != io.EOF {
-		h.lgr.Info("got bad request", log.KV("address", ip), log.KVErr(err))
+
+	// get a local logger up that will always add some more info
+	ll := log.NewLoggerWithKV(h.lgr,
+		log.KV("HEC-Listener", hh.name),
+		log.KV("remoteaddress", ip.String()),
+		log.KV("url", r.URL.RequestURI()),
+	)
+
+	//check if the query url has a tag or sourcetype parameter
+	if tg, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
 		hh.respInvalidDataFormat(w, 0)
 		return
-	} else if len(b) > maxBody {
-		h.lgr.Error("request too large, 4MB max")
-		hh.respInvalidDataFormat(w, 0)
-		return
+	} else if ok {
+		defaultTag = tg
 	}
-	if len(b) == 0 {
-		h.lgr.Info("got an empty post", log.KV("address", ip))
-		hh.respNoData(w)
-		return
-	} else {
-		for i, b := range bytes.Split(b, []byte(hh.rawLineBreaker)) {
-			if len(b) == 0 {
-				continue
-			}
-			if err = h.handleEntry(cfg, b, ip); err != nil {
-				h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
-				hh.respInvalidDataFormat(w, i)
+
+	brdr := bufio.NewReader(rdr)
+	var done bool
+	for done == false {
+		ln, err := brdr.ReadBytes('\n')
+		if len(ln) > 0 {
+			data += len(ln)
+		}
+		if err != nil {
+			if err != io.EOF {
+				h.lgr.Error("failed to read complete post", log.KV("address", ip), log.KVErr(err))
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			count++
+			done = true
 		}
+		//clean up the line, removing any trailing newlines
+		if ln = bytes.TrimRight(ln, "\n"); len(ln) == 0 {
+			continue //skip empty newlines
+		}
+		if err = h.handleEntry(cfg, ln, ip, defaultTag); err != nil {
+			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+			hh.respInvalidDataFormat(w, count)
+			return
+		}
+		count++
 	}
 	if count == 0 {
 		// no entries? Send a 400 / "No data"
@@ -263,6 +328,12 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		hh.setAck(ch, resp)
 	}
 	hh.writeResponse(w, resp)
+	if hh.debugPosts {
+		//Log how many bytes and entries were on this config
+		h.igst.Info("raw HEC request", log.KV("host", ip),
+			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
+			log.KV("bytes", data), log.KV("entries", count))
+	}
 }
 
 func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -364,7 +435,7 @@ func (p *piaObj) UnmarshalJSON(b []byte) (err error) {
 			return
 		}
 	}
-	p.payload = b
+	p.payload = append([]byte{}, b...)
 	return
 }
 
@@ -372,8 +443,12 @@ func (p piaObj) String() string {
 	return string(p.payload)
 }
 
-func (p piaObj) Bytes() []byte {
-	return p.payload
+// Bytes returns a stable byte slice that can be passed into an ingest muxer
+// we MUST MUST MUST copy the byte slice because we are decoding off of an HTTP request body
+// which does a bunch of internal buffering, making the bytes not stable across reads
+func (p piaObj) Bytes() (r []byte) {
+	r = p.payload
+	return
 }
 
 func (p piaObj) length() int {

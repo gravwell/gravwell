@@ -11,8 +11,10 @@ package main
 import (
 	"encoding/csv"
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -39,6 +41,8 @@ type processReadCfg struct {
 	Start_Delay     int    //max restarts before cooldown engages
 	Restart_Period  int    //period in which the restarts can occur
 	Cooldown_Period int    //in seconds
+	UID             int    //optional user
+	GID             int    //optional group
 }
 
 type ProcessConfig struct {
@@ -50,6 +54,8 @@ type ProcessConfig struct {
 	CooldownPeriod time.Duration
 	Name           string
 	ErrHandler     string
+	UID            int //optional user
+	GID            int //optional group
 	lg             *log.Logger
 }
 
@@ -58,8 +64,9 @@ type errHandler struct {
 }
 
 type global struct {
-	Log_File  string
-	Log_Level string
+	Log_File     string
+	Log_Level    string
+	Init_Command string
 }
 
 type cfgType struct {
@@ -122,6 +129,9 @@ func (c cfgType) Validate() error {
 		}
 		if p.Restart_Period < 0 {
 			return errors.New("Invalid cooldown period, must be > 0")
+		}
+		if p.UID < 0 || p.GID < 0 || p.UID > 0xffffffff || p.GID > 0xffffffff {
+			return fmt.Errorf("invalid UID/GID %d/%d.  Must be >= 0 and <= 0xffffffff", p.UID, p.GID)
 		}
 	}
 	if err := c.checkBinaries(); err != nil {
@@ -196,6 +206,8 @@ func (c cfgType) ProcessConfigs(lg *log.Logger) (pc []ProcessConfig) {
 			Name:       k,
 			Exec:       v.Exec,
 			WorkingDir: filepath.Clean(v.Working_Dir),
+			UID:        v.UID,
+			GID:        v.GID,
 			lg:         lg,
 		}
 		if errExecActive {
@@ -242,6 +254,30 @@ func (c cfgType) GetLogger() (l *log.Logger, err error) {
 		return
 	}
 	err = l.SetLevel(ll)
+	return
+}
+
+func (c cfgType) GetInitCommand() (cmd *exec.Cmd, err error) {
+	var fields []string
+	v := strings.TrimSpace(c.Global.Init_Command)
+	if v == `` {
+		return
+	}
+	//use the CSV reader so we can handle quotes
+	rdr := csv.NewReader(strings.NewReader(v))
+	rdr.Comma = ' '
+	rdr.TrimLeadingSpace = true
+	if fields, err = rdr.Read(); err != nil {
+		err = fmt.Errorf("malformed Init-Command: %w", err)
+		return
+	}
+	if len(fields) == 0 {
+		return
+	}
+	cmd = exec.Command(fields[0], fields[1:]...)
+	cmd.Env = os.Environ()
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
 	return
 }
 

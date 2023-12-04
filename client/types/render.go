@@ -204,6 +204,7 @@ type SysStatResponse struct {
 }
 
 type IndexerStats struct {
+	ID          string // unique well ID based on the indexer UUID and the well ID assigned at indexer startup
 	Data        uint64
 	Entries     uint64
 	Path        string
@@ -218,7 +219,7 @@ type IndexManagerStats struct {
 }
 
 type IdxStats struct {
-	UUID       uuid.UUID           `json:",omitempty"`
+	UUID       uuid.UUID
 	Error      string              `json:",omitempty"`
 	IndexStats []IndexManagerStats `json:",omitempty"`
 }
