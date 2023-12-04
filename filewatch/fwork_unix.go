@@ -1,5 +1,5 @@
-//go:build linux
-// +build linux
+//go:build linux || darwin
+// +build linux darwin
 
 /*************************************************************************
  * Copyright 2017 Gravwell, Inc. All rights reserved.
@@ -21,7 +21,7 @@ func getFileId(f *os.File) (id FileId, err error) {
 	if err = syscall.Fstat(int(f.Fd()), &sc); err != nil {
 		return
 	}
-	id.Major = sc.Dev
+	id.Major = uint64(sc.Dev)
 	id.Minor = sc.Ino
 	return
 }
@@ -31,7 +31,7 @@ func getFileIdFromName(name string) (id FileId, err error) {
 	if err = syscall.Stat(name, &sc); err != nil {
 		return
 	}
-	id.Major = sc.Dev
+	id.Major = uint64(sc.Dev)
 	id.Minor = sc.Ino
 	return
 }
