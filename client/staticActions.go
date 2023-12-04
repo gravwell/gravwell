@@ -21,17 +21,28 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/client/types"
 )
 
 const (
 	defaultDownloadCookieDuration time.Duration = 3 * time.Second
+	urlSidParamKey                              = `sid`
 )
 
 var (
 	ErrNotAuthed = errors.New("Not Authed")
 	ErrNotFound  = errors.New("Not Found")
 )
+
+type urlParam struct {
+	key   string
+	value string
+}
+
+func ezParam(name string, val interface{}) urlParam {
+	return urlParam{key: name, value: fmt.Sprintf("%v", val)}
+}
 
 type ClientError struct {
 	Status     string
@@ -43,30 +54,30 @@ func (e *ClientError) Error() string {
 	return fmt.Sprintf("Bad Status %s(%d): %s", e.Status, e.StatusCode, e.ErrorBody)
 }
 
-func (c *Client) getStaticURL(url string, obj interface{}) error {
-	return c.methodStaticURL(http.MethodGet, url, obj)
+func (c *Client) getStaticURL(url string, obj interface{}, params ...urlParam) error {
+	return c.methodStaticURL(http.MethodGet, url, obj, params...)
 }
 
-func (c *Client) putStaticURL(url string, obj interface{}) error {
-	return c.methodStaticPushURL(http.MethodPut, url, obj, nil)
+func (c *Client) putStaticURL(url string, obj interface{}, params ...urlParam) error {
+	return c.methodStaticPushURL(http.MethodPut, url, obj, nil, nil, params)
 }
 
-func (c *Client) putStaticRawURL(url string, data []byte) error {
-	return c.methodStaticPushRawURL(http.MethodPut, url, data, nil)
+func (c *Client) putStaticRawURL(url string, data []byte, params ...urlParam) error {
+	return c.methodStaticPushRawURL(http.MethodPut, url, data, nil, nil, params)
 }
-func (c *Client) patchStaticURL(url string, obj interface{}) error {
-	return c.methodStaticPushURL(http.MethodPatch, url, obj, nil)
-}
-
-func (c *Client) postStaticURL(url string, sendObj, recvObj interface{}) error {
-	return c.methodStaticPushURL(http.MethodPost, url, sendObj, recvObj)
+func (c *Client) patchStaticURL(url string, obj interface{}, params ...urlParam) error {
+	return c.methodStaticPushURL(http.MethodPatch, url, obj, nil, nil, params)
 }
 
-func (c *Client) deleteStaticURL(url string, sendObj interface{}) error {
-	return c.methodStaticPushURL(http.MethodDelete, url, sendObj, nil)
+func (c *Client) postStaticURL(url string, sendObj, recvObj interface{}, params ...urlParam) error {
+	return c.methodStaticPushURL(http.MethodPost, url, sendObj, recvObj, nil, params)
 }
 
-func (c *Client) methodStaticURL(method, url string, obj interface{}) error {
+func (c *Client) deleteStaticURL(url string, sendObj interface{}, params ...urlParam) error {
+	return c.methodStaticPushURL(http.MethodDelete, url, sendObj, nil, nil, params)
+}
+
+func (c *Client) methodStaticURL(method, url string, obj interface{}, params ...urlParam) error {
 	if c.state != STATE_AUTHED {
 		return ErrNoLogin
 	}
@@ -75,10 +86,20 @@ func (c *Client) methodStaticURL(method, url string, obj interface{}) error {
 	if err != nil {
 		return err
 	}
-	return c.staticRequest(req, obj, nil)
+	return c.staticRequest(req, obj, nil, params)
 }
 
-func (c *Client) methodStaticParamURL(method, pth string, params map[string]string, obj interface{}) error {
+func addParams(req *http.Request, params []urlParam) {
+	if len(params) > 0 {
+		q := req.URL.Query()
+		for _, p := range params {
+			q.Add(p.key, p.value)
+		}
+		req.URL.RawQuery = q.Encode()
+	}
+}
+
+func (c *Client) methodStaticParamURL(method, pth string, params []urlParam, obj interface{}) error {
 	if c.state != STATE_AUTHED {
 		return ErrNoLogin
 	}
@@ -87,16 +108,9 @@ func (c *Client) methodStaticParamURL(method, pth string, params map[string]stri
 	if err != nil {
 		return err
 	}
-	var vals url.Values
-	if vals, err = url.ParseQuery(req.URL.RawQuery); err != nil {
-		return err
-	}
-	for k, v := range params {
-		vals.Add(k, v)
-	}
-	req.URL.RawQuery = vals.Encode()
+	addParams(req, params)
 
-	return c.staticRequest(req, obj, nil)
+	return c.staticRequest(req, obj, nil, params)
 }
 
 func respOk(rcode int, okCodes ...int) bool {
@@ -108,7 +122,7 @@ func respOk(rcode int, okCodes ...int) bool {
 	return false
 }
 
-func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses []int) error {
+func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses []int, params []urlParam) error {
 	if c.state != STATE_AUTHED {
 		return ErrNoLogin
 	}
@@ -118,6 +132,14 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 	var err error
 	if req.URL.RawQuery, err = c.qm.appendEncode(req.URL.RawQuery); err != nil {
 		return err
+	}
+
+	if len(params) > 0 {
+		q := req.URL.Query()
+		for _, v := range params {
+			q.Add(v.key, v.value)
+		}
+		req.URL.RawQuery = q.Encode()
 	}
 
 	resp, err := c.clnt.Do(req)
@@ -153,7 +175,7 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 	return nil
 }
 
-func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj interface{}, okResps ...int) error {
+func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj interface{}, okResps []int, params []urlParam) error {
 	var err error
 
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, url)
@@ -167,6 +189,7 @@ func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj
 	if req.URL.RawQuery, err = c.qm.appendEncode(req.URL.RawQuery); err != nil {
 		return err
 	}
+	addParams(req, params)
 
 	c.objLog.Log("WEB REQ RAW"+method, url, nil)
 	resp, err := c.clnt.Do(req)
@@ -196,7 +219,7 @@ func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj
 	return nil
 }
 
-func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interface{}, okResps ...int) error {
+func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interface{}, okResps []int, params []urlParam) error {
 	var jsonBytes []byte
 	var err error
 
@@ -219,6 +242,7 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 	if req.URL.RawQuery, err = c.qm.appendEncode(req.URL.RawQuery); err != nil {
 		return err
 	}
+	addParams(req, params)
 
 	c.objLog.Log("WEB REQ "+method, url, sendObj)
 	resp, err := c.clnt.Do(req)
@@ -412,6 +436,52 @@ func (c *Client) GetIngesterStats() (map[string]types.IngestStats, error) {
 		return nil, err
 	}
 	return stats, nil
+}
+
+// GetStorageStats gets storage statistics for all indexers.
+func (c *Client) GetStorageStats() (map[string]types.StorageStats, error) {
+	stats := map[string]types.StorageStats{}
+	if err := c.getStaticURL(STORAGE_URL, &stats); err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+// GetIndexerStorageStats gets storage statistics for the given indexer..
+func (c *Client) GetIndexerStorageStats(indexer uuid.UUID) (map[string]types.PerWellStorageStats, error) {
+	stats := map[string]types.PerWellStorageStats{}
+	url := fmt.Sprintf(STORAGE_INDEXER_URL, indexer.String())
+	if err := c.getStaticURL(url, &stats); err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+// GetCalendarStats gets day-by-day calendar statistics for the given wells.
+func (c *Client) GetCalendarStats(start, end time.Time, wells []string) ([]types.CalendarEntry, error) {
+	var stats []types.CalendarEntry
+
+	obj := types.CalendarRequest{
+		Start: start,
+		End:   end,
+		Wells: wells,
+	}
+
+	err := c.postStaticURL(CALENDAR_URL, obj, &stats)
+	return stats, err
+}
+
+// GetIndexerCalendarStats gets day-by-day calendar statistics for a given indexer and given wells.
+func (c *Client) GetIndexerCalendarStats(indexer uuid.UUID, start, end time.Time, wells []string) ([]types.CalendarEntry, error) {
+	var stats []types.CalendarEntry
+	obj := types.CalendarRequest{
+		Start: start,
+		End:   end,
+		Wells: wells,
+	}
+	url := fmt.Sprintf(CALENDAR_INDEXER_URL, indexer.String())
+	err := c.postStaticURL(url, obj, &stats)
+	return stats, err
 }
 
 // GetUserList gets a listing of users with basic info like UID, name, email, etc.

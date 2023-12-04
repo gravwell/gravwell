@@ -63,7 +63,7 @@ func (c *Client) getNotifications(after time.Time, update bool) (n types.Notific
 // will instead set a default expiration.
 func (c *Client) AddSelfTargetedNotification(notifType uint32, msg, link string, expiration time.Time) error {
 	n := types.Notification{Type: notifType, Msg: msg, Link: link, Expires: expiration}
-	return c.methodStaticPushURL(http.MethodPost, notificationsSelfTargetedUrl(), n, nil)
+	return c.methodStaticPushURL(http.MethodPost, notificationsSelfTargetedUrl(), n, nil, nil, nil)
 }
 
 // DeleteNotification will delete a notification using a notification ID

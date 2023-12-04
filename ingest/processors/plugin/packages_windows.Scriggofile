@@ -1,26 +1,18 @@
 SET PACKAGE plugin
 SET VARIABLE packages
-GOOS linux
 
 IMPORT github.com/gravwell/gravwell/v3/ingest
 IMPORT github.com/gravwell/gravwell/v3/ingest/config
 IMPORT github.com/gravwell/gravwell/v3/ingest/entry
+IMPORT golang.org/x/text/encoding/japanese
 IMPORT github.com/crewjam/rfc5424
-IMPORT github.com/dchest/safefile
 IMPORT github.com/gobwas/glob
-IMPORT github.com/gofrs/flock
-IMPORT github.com/google/gopacket
-IMPORT github.com/google/renameio
 IMPORT github.com/google/uuid
 IMPORT github.com/gravwell/ipfix
 IMPORT github.com/h2non/filetype
-IMPORT github.com/k-sone/ipmigo
 IMPORT github.com/klauspost/compress
-IMPORT github.com/tealeg/xlsx
 IMPORT github.com/miekg/dns
 IMPORT github.com/buger/jsonparser
-
-IMPORT golang.org/x/text/encoding/japanese
 
 # standard library
 IMPORT archive/tar
@@ -102,7 +94,6 @@ IMPORT io
 IMPORT io/fs
 IMPORT io/ioutil
 IMPORT log
-IMPORT log/syslog
 IMPORT math
 IMPORT math/big
 IMPORT math/bits

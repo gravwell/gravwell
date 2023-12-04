@@ -36,6 +36,7 @@ type hecCompatible struct {
 	Ignore_Timestamps bool
 	Ack               bool
 	Max_Size          int
+	Debug_Posts       bool // whether we are going to log on the gravwell tag about posts
 	Tag_Match         []string
 	Preprocessor      []string
 }
@@ -162,6 +163,7 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			rawLineBreaker: v.Raw_Line_Breaker,
 			name:           k,
 			maxSize:        fixupMaxSize(v.Max_Size),
+			debugPosts:     v.Debug_Posts,
 			tagRouter:      v.loadTagRouter(igst),
 		}
 		hcfg := routeHandler{

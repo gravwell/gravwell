@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"time"
 
@@ -35,6 +36,7 @@ type AXDefinition struct {
 	Params      string    `toml:"params" json:",omitempty"`
 	Args        string    `toml:"args,omitempty" json:",omitempty"`
 	Tag         string    `toml:"tag"`
+	Tags        []string  `toml:"tags"` // AXs can support multiple tags. For backwards compatibility, we leave Tag and add Tags
 	Labels      []string  `toml:"-"`
 	UID         int32     `toml:"-"`
 	GIDs        []int32   `toml:"-"`
@@ -49,18 +51,42 @@ func (dc *AXDefinition) Validate() error {
 	if dc.Module == `` {
 		return ErrMissingModule
 	}
-	if dc.Tag == `` {
+	if len(dc.GetTags()) == 0 {
 		return ErrMissingTag
-	} else if err := ingest.CheckTag(dc.Tag); err != nil {
-		return err
 	}
+	for _, t := range dc.GetTags() {
+		if err := ingest.CheckTag(t); err != nil {
+			return err
+		}
+	}
+
 	dc.Name = sanitizeValue(dc.Name)
 	dc.Desc = sanitizeValue(dc.Desc)
 	dc.Module = sanitizeValue(dc.Module)
 	dc.Params = sanitizeValue(dc.Params)
 	dc.Tag = sanitizeValue(dc.Tag)
+	for i, t := range dc.Tags {
+		dc.Tags[i] = sanitizeValue(t)
+	}
 	dc.Args = sanitizeValue(dc.Args)
+
+	collisions := make(map[string]bool)
+
+	for _, t := range dc.GetTags() {
+		if _, ok := collisions[t]; ok {
+			return fmt.Errorf("Tag %v already defined", t)
+		}
+		collisions[t] = true
+	}
+
 	return nil
+}
+
+func (dc *AXDefinition) GetTags() []string {
+	if dc.Tag == "" {
+		return dc.Tags
+	}
+	return append(dc.Tags, dc.Tag)
 }
 
 func sanitizeValue(v string) string {
@@ -93,9 +119,12 @@ func (dc AXDefinition) Encode(fout io.Writer, hdr string) (err error) {
 		return
 	}
 	//write required parameters
-	if err = GenLine(fout, `tag`, dc.Tag); err != nil {
-		return
+	for _, t := range dc.GetTags() {
+		if err = GenLine(fout, `tag`, t); err != nil {
+			return
+		}
 	}
+
 	if err = GenLine(fout, `module`, dc.Module); err != nil {
 		return
 	}
@@ -117,18 +146,20 @@ func (dc AXDefinition) Encode(fout io.Writer, hdr string) (err error) {
 
 func (dc AXDefinition) JSONMetadata() (ro json.RawMessage, err error) {
 	x := &struct {
-		Name   string `json:"name,omitempty"`
-		Desc   string `json:"desc,omitempty"`
-		Module string `json:"module"`
-		Tag    string `json:"tag"`
+		Name   string   `json:"name,omitempty"`
+		Desc   string   `json:"desc,omitempty"`
+		Module string   `json:"module"`
+		Tag    string   `json:"tag"`
+		Tags   []string `json:"tags"`
 	}{
 		Name:   dc.Name,
 		Desc:   dc.Desc,
 		Module: dc.Module,
 		Tag:    dc.Tag,
+		Tags:   dc.GetTags(),
 	}
 	if x.Desc == `` {
-		x.Desc = fmt.Sprintf("%s extractor for tag %s", x.Module, x.Tag)
+		x.Desc = fmt.Sprintf("%s extractor for tags %v", x.Module, dc.GetTags())
 	}
 	b, err := json.Marshal(x)
 	return json.RawMessage(b), err
@@ -146,9 +177,23 @@ func (axd AXDefinition) Equal(v AXDefinition) bool {
 	if axd.Name != v.Name || axd.Desc != v.Desc || axd.Module != v.Module || axd.UUID != v.UUID {
 		return false
 	}
-	if axd.Params != v.Params || axd.Args != v.Args || axd.Tag != v.Tag {
+	if axd.Params != v.Params || axd.Args != v.Args {
 		return false
 	}
+
+	t1 := axd.GetTags()
+	t2 := v.GetTags()
+	sort.Strings(t1)
+	sort.Strings(t2)
+	if len(t1) != len(t2) {
+		return false
+	}
+	for i, t := range t1 {
+		if t != t2[i] {
+			return false
+		}
+	}
+
 	if axd.UID != v.UID || axd.Global != v.Global {
 		return false
 	}

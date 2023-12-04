@@ -28,6 +28,27 @@ type filter struct {
 	lh    handler
 }
 
+func (f *filter) Equal(x filter) bool {
+	if f.FollowerEngineConfig != x.FollowerEngineConfig {
+		return false
+	} else if f.bname != x.bname {
+		return false
+	} else if f.loc != x.loc {
+		return false
+	} else if f.lh != x.lh {
+		return false
+	} else if len(f.mtchs) != len(x.mtchs) {
+		return false
+	}
+	for i := range f.mtchs {
+		if f.mtchs[i] != x.mtchs[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
 // a unique name that allows multiple IDs pointing at the same file
 type FileName struct {
 	BaseName string
@@ -214,8 +235,34 @@ func (f *FilterManager) AddFilter(bname, loc string, mtchs []string, lh handler,
 		mtchs:                mtchs,
 		lh:                   lh,
 	}
+	for i := range f.filters {
+		if fltr.Equal(f.filters[i]) {
+			return nil
+		}
+	}
 	f.filters = append(f.filters, fltr)
 	return nil
+}
+
+func (f *FilterManager) RemoveDirectory(path string) error {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	return f.nolockRemoveDirectory(path, true)
+}
+
+func (f *FilterManager) nolockRemoveDirectory(path string, purgeState bool) (err error) {
+	for k, v := range f.followers {
+		if k.BaseName == path {
+			delete(f.followers, k)
+			if purgeState {
+				delete(f.states, k)
+			}
+			if err = v.Close(); err != nil {
+				return
+			}
+		}
+	}
+	return
 }
 
 func (f *FilterManager) RemoveFollower(fpath string) (bool, error) {

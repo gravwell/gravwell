@@ -95,7 +95,7 @@ func (c *Client) ParseFlow(flow string) (outputPayloads map[int]map[string]inter
 	req := types.FlowParseRequest{
 		Flow: flow,
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp); err != nil {
+	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp, nil, nil); err != nil {
 		return
 	}
 

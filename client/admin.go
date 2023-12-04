@@ -141,7 +141,7 @@ func (c *Client) SetDefaultSearchGroup(uid int32, gid int32) error {
 	req := types.UserDefaultSearchGroup{
 		GID: gid,
 	}
-	return c.methodStaticPushURL(http.MethodPut, usersSearchGroupUrl(uid), req, nil)
+	return c.methodStaticPushURL(http.MethodPut, usersSearchGroupUrl(uid), req, nil, nil, nil)
 }
 
 // GetDefaultSearchGroup returns the specified users default search group
@@ -165,7 +165,7 @@ func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
 		Name:  name,
 		Email: email,
 	}
-	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(id), req, nil)
+	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(id), req, nil, nil, nil)
 }
 
 // AddGroup (admin-only) creates a new group with the given name and description.
@@ -471,7 +471,7 @@ func (c *Client) UploadLicenseFile(f string) ([]types.LicenseUpdateError, error)
 	req.Header.Set(`Content-Type`, wtr.FormDataContentType())
 	var warnings []types.LicenseUpdateError
 	okResps := []int{http.StatusOK, http.StatusMultiStatus}
-	if err := c.staticRequest(req, &warnings, okResps); err != nil {
+	if err := c.staticRequest(req, &warnings, okResps, nil); err != nil {
 		if err != io.EOF {
 			return nil, err
 		}
@@ -597,7 +597,7 @@ func (c *Client) UpdateExtraction(d types.AXDefinition) (wrs []types.WarnResp, e
 	if err = d.Validate(); err != nil {
 		return
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, extractionsUrl(), d, nil); err == io.EOF {
+	if err = c.methodStaticPushURL(http.MethodPut, extractionsUrl(), d, nil, nil, nil); err == io.EOF {
 		err = nil
 	}
 	return

@@ -62,8 +62,8 @@ type HostSysStats struct {
 	MemoryUsedPercent     float64 `json:",omitempty"`
 	Disks                 []DiskStats
 	CPUUsage              float64
-	CPUCount              int          `json:",omitempty"`
-	HostHash              string       `json:",omitempty"`
+	CPUCount              int `json:",omitempty"`
+	HostHash              string
 	Net                   NetworkUsage `json:",omitempty"`
 	IO                    []DiskIO
 	VirtSystem            string       `json:",omitempty"` // e.g. "kvm" or "xen"

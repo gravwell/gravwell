@@ -21,7 +21,8 @@ import (
 const DEFAULT_TIMEOUT = 2 * time.Second
 
 type ChanCacheTester struct {
-	V int
+	V    int
+	Data string
 }
 
 func (t *ChanCacheTester) Size() uint64 {
@@ -386,7 +387,7 @@ func TestCacheStartStop(t *testing.T) {
 	c.In <- &ChanCacheTester{V: 99}
 
 	select {
-	case c.In <- &ChanCacheTester{100}:
+	case c.In <- &ChanCacheTester{V: 100}:
 		t.Error("channel should block!")
 	case <-time.After(DEFAULT_TIMEOUT):
 		// success
@@ -694,6 +695,31 @@ func TestCacheMaxSize(t *testing.T) {
 		t.Errorf("Size mismatch %v != 0", c.Size())
 		t.FailNow()
 	}
+}
+
+func TestSpam(t *testing.T) {
+	gob.Register(&ChanCacheTester{})
+	dir, err := ioutil.TempDir("", "chancachertest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+
+	c, _ := NewChanCacher(100, dir, 1024*1024*1000)
+
+	go func() {
+		for i := 0; i < 5000000; i++ {
+			c.In <- &ChanCacheTester{V: 1, Data: "adsfasdfjas;ldfkja;lkefjwl;kfjawlekfja;lwkefj;alwkefj;lawkefj;alkefj;akwfj;akwfje;aklefj;akef;aklwfe;alkwfje;lakwfj;akfej;akfe;akefj;awejfa;effefa;edflkj"}
+		}
+	}()
+
+	for i := 0; i < 5000000; i++ {
+		v := <-c.Out
+		if v.(*ChanCacheTester).V != 1 {
+			t.Fatal("what")
+		}
+	}
+
 }
 
 func BenchmarkReference(b *testing.B) {
