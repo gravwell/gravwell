@@ -147,6 +147,9 @@ jobs:
         go build -o /dev/null ./ingesters/Shodan
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
+        GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
+        GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
+        GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
 
         /bin/bash ./ingesters/test/build.sh ./ingesters/GooglePubSubIngester ./ingesters/test/configs/pubsub_ingest.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/AzureEventHubs ingesters/test/configs/azure_event_hubs.conf
