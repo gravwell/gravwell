@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
 
@@ -29,7 +30,7 @@ const (
 	splunkTsFmt     string = "2006-01-02T15:04:05-0700"
 	splunkStateType string = `splunk`
 
-	MAXCHUNK int = 500000
+	defaultMaxChunk int = 500000
 )
 
 var (
@@ -41,6 +42,7 @@ var (
 type splunk struct {
 	Server                  string   // the Splunk server, e.g. splunk.example.com
 	Token                   string   // a Splunk auth token
+	Max_Chunk               int      // maximum number of entries to try and grab at once. Defaults to a conservative 500,000
 	Ingest_From_Unix_Time   int      // a timestamp to use as the default start time for this Splunk server (default 1)
 	Ingest_To_Unix_Time     int      // a timestamp to use as the end time for this Splunk server (default 0, meaning "now")
 	Index_Sourcetype_To_Tag []string // a mapping of index+sourcetype to Gravwell tag
@@ -57,6 +59,13 @@ func (s *splunk) Validate(procs processors.ProcessorConfig) (err error) {
 		return fmt.Errorf("Files preprocessor invalid: %v", err)
 	}
 	return
+}
+
+func (s *splunk) maxChunk() int {
+	if s.Max_Chunk <= 0 {
+		return defaultMaxChunk
+	}
+	return s.Max_Chunk
 }
 
 func (s *splunk) startTime() time.Time {
@@ -384,14 +393,17 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 			chunk = chunk * 2
 		}
 		resizing := true
+		var expectedCount uint64
 		for resizing {
 			cb := func(s map[string]string) {
 				resizing = false
 				if cstr, ok := s["count"]; ok {
 					if count, err := strconv.Atoi(cstr); err == nil {
-						if count >= MAXCHUNK && time.Duration(chunk/2) > time.Second {
+						if count >= splunkConfig.maxChunk() && time.Duration(chunk/2) > time.Second {
 							resizing = true // keep trying
 							chunk = chunk / 2
+						} else {
+							expectedCount = uint64(count)
 						}
 					}
 				}
@@ -415,13 +427,18 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		}
 
 		// run query with current earliest=ConsumedUpTo, latest=ConsumedUpTo+60m
+		oldCount := count
 		query := fmt.Sprintf("search index=\"%s\" sourcetype=\"%s\" | rename _time AS epoch_time | table epoch_time _raw", progress.Index, progress.Sourcetype)
 		if err := sc.RunExportSearch(query, progress.ConsumedUpTo, end, cb); err != nil {
 			return fmt.Errorf("entry retrieval query returned an error: %w", err)
 		}
+		if count-oldCount < expectedCount {
+			lg.Error("Got fewer entries than expected", log.KV("start", progress.ConsumedUpTo), log.KV("end", end), log.KV("expected", expectedCount), log.KV("actual", count-oldCount))
+		}
 		progress.ConsumedUpTo = end
 		splunkTracker.Update(cfgName, progress)
 		elapsed := time.Now().Sub(startTime)
+
 		updateChan <- fmt.Sprintf("Migrated %d entries [%v EPS/%v] up to %v", count, count/uint64(elapsed.Seconds()), ingest.HumanRate(byteTotal, elapsed), progress.ConsumedUpTo)
 	}
 	return nil
