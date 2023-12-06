@@ -176,7 +176,6 @@ func (c *splunkConn) GetIndexSourcetypes(start, end int) (m []sourcetypeIndex, e
 	if end != 0 {
 		form.Add("latest_time", fmt.Sprintf("%d", end))
 	} else {
-		lg.Infof("latest = now\n")
 		form.Add("latest_time", "now")
 	}
 	form.Add("time_format", "%s")
