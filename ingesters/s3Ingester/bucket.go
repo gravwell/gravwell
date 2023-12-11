@@ -157,7 +157,9 @@ func (br *BucketReader) Process(obj *s3.Object, ctx context.Context) (err error)
 	return ProcessContext(obj, ctx, br.svc, br.Bucket_Name, br.rdr, br.TG, br.src, br.Tag, br.Proc, br.MaxLineSize)
 }
 
-func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker, queue chan<- *s3.Object) (err error) {
+func (br *BucketReader) ManualScan(lg *log.Logger, ctx context.Context, ot *objectTracker, queue chan<- *s3.Object) (err error) {
+	lg.Info("manual scan started", log.KV("bucket", br.Name))
+
 	//list the objects in the bucket
 	req := s3.ListObjectsV2Input{
 		Bucket: aws.String(br.Bucket_Name),
@@ -166,11 +168,14 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker, queue
 		req.Prefix = aws.String(br.prefixFilter)
 	}
 
+	var count uint64
+
 	var lerr error
 	objListHandler := func(resp *s3.ListObjectsV2Output, lastPage bool) bool {
 		for _, item := range resp.Contents {
 			select {
 			case queue <- item:
+				count++
 			case <-ctx.Done():
 				return false
 			}
@@ -184,11 +189,16 @@ func (br *BucketReader) ManualScan(ctx context.Context, ot *objectTracker, queue
 	if err = br.svc.ListObjectsV2Pages(&req, objListHandler); err == nil {
 		err = lerr
 	}
+
+	lg.Info("manual scan completed", log.KV("bucket", br.Name), log.KV("object_count", count))
 	return
 }
 
-func (br *BucketReader) worker(ctx context.Context, ot *objectTracker, queue <-chan *s3.Object, wg *sync.WaitGroup) {
+func (br *BucketReader) worker(lg *log.Logger, ctx context.Context, ot *objectTracker, queue <-chan *s3.Object, wg *sync.WaitGroup) {
+	lg.Info("manual scan worker started", log.KV("bucket", br.Name))
 	defer wg.Done()
+
+	var processed, alreadyProcessed, skipped, errored uint64
 
 	for item := range queue {
 		if item == nil {
@@ -197,15 +207,18 @@ func (br *BucketReader) worker(ctx context.Context, ot *objectTracker, queue <-c
 
 		//do a quick check for stupidity
 		if item.Size == nil || item.LastModified == nil || item.Key == nil {
+			skipped++
 			continue
 		}
 		sz, lm, key := *item.Size, *item.LastModified, *item.Key
 		if sz == 0 || !br.ShouldTrack(key) {
+			skipped++
 			continue //skip empty objects or things we should not track
 		}
 		//lookup the object in the objectTracker
 		state, ok := ot.Get(br.Bucket_Name, key)
 		if ok && state.Updated.Equal(lm) {
+			alreadyProcessed++
 			continue //already handled this
 		}
 
@@ -217,12 +230,14 @@ func (br *BucketReader) worker(ctx context.Context, ot *objectTracker, queue <-c
 				log.KV("tag", br.TagName),
 				log.KVErr(err))
 			continue
+			errored++
 		} else {
 			br.Logger.Info("consumed object",
 				log.KV("name", br.Name),
 				log.KV("object", key),
 				log.KV("tag", br.TagName),
 				log.KV("size", sz))
+			processed++
 		}
 		state = trackedObjectState{
 			Updated: lm,
@@ -239,6 +254,12 @@ func (br *BucketReader) worker(ctx context.Context, ot *objectTracker, queue <-c
 			break
 		}
 	}
+	lg.Info("manual scan worker completed",
+		log.KV("bucket", br.Name),
+		log.KV("num_processed", processed),
+		log.KV("num_already_processed", alreadyProcessed),
+		log.KV("num_skipped", skipped),
+		log.KV("num_errored", errored))
 }
 
 func (ac *AuthConfig) validate() (err error) {
