@@ -273,15 +273,16 @@ loop:
 
 func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, lg *log.Logger, numWorkers int) {
 	var wg sync.WaitGroup
+	lg.Info("starting full manual scan")
 	for _, b := range buckets {
 		// start workers
 		queue := make(chan *s3.Object, QUEUE_DEPTH)
 		for i := 0; i < numWorkers; i++ {
 			wg.Add(1)
-			go b.worker(ctx, ot, queue, &wg)
+			go b.worker(lg, ctx, ot, queue, &wg)
 
 		}
-		if err := b.ManualScan(ctx, ot, queue); err != nil {
+		if err := b.ManualScan(lg, ctx, ot, queue); err != nil {
 			lg.Error("failed to scan S3 bucket objects",
 				log.KV("bucket", b.Name),
 				log.KVErr(err))
@@ -291,6 +292,7 @@ func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, l
 			break
 		}
 	}
+	lg.Info("completed full manual scan")
 	wg.Wait()
 	if err := ot.Flush(); err != nil {
 		lg.Error("failed to flush S3 state file", log.KVErr(err))
