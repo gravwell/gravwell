@@ -190,7 +190,7 @@ func (br *BucketReader) ManualScan(lg *log.Logger, ctx context.Context, ot *obje
 		err = lerr
 	}
 
-	lg.Info("manual scan completed", log.KV("bucket", br.Name), log.KV("count", count))
+	lg.Info("manual scan completed", log.KV("bucket", br.Name), log.KV("object_count", count))
 	return
 }
 
