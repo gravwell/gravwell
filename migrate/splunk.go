@@ -31,6 +31,8 @@ const (
 	splunkStateType string = `splunk`
 
 	defaultMaxChunk int = 500000
+
+	maxChunkMegabytes uint64 = 800 // For sanity's sake... we've seen systems where a user can't have more than 1GB of query results at a time, so let's try to make sure we never hit that
 )
 
 var (
@@ -334,7 +336,13 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 	var count uint64
 	var byteTotal uint64
 
+	// we also maintain a moving average of the entry size
+	// we'll just initialize the average to something moderate
+	avgSize := float64(128)
+	alpha := 0.1
+
 	cb := func(s map[string]string) {
+		var entSize int
 		// Grab the timestamp and the raw data
 		var ts time.Time
 		var data string
@@ -358,8 +366,9 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 			Data: []byte(data),
 		}
 		// Now add in everything else, provided they've enabled it
-		if !splunkConfig.Disable_Intrinsics {
-			for k, v := range s {
+		for k, v := range s {
+			entSize += len(v)
+			if !splunkConfig.Disable_Intrinsics {
 				if k == "_raw" {
 					continue
 				}
@@ -377,9 +386,10 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		pproc.ProcessContext(ent, ctx)
 		count++
 		byteTotal += ent.Size()
+		avgSize = (alpha * float64(entSize)) + (1.0-alpha)*avgSize
 	}
 
-	chunk := 60 * time.Minute
+	chunk := 1 * time.Minute
 	var done bool
 	startTime := time.Now()
 	for i := 0; !done; i++ {
@@ -392,6 +402,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 			// increase chunk size every 5 iterations in case things are bursty
 			chunk = chunk * 2
 		}
+
 		resizing := true
 		var expectedCount uint64
 		for resizing {
@@ -399,7 +410,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 				resizing = false
 				if cstr, ok := s["count"]; ok {
 					if count, err := strconv.Atoi(cstr); err == nil {
-						if count >= splunkConfig.maxChunk() && time.Duration(chunk/2) > time.Second {
+						if (count >= splunkConfig.maxChunk() || uint64(count)*uint64(avgSize) > maxChunkMegabytes*ingest.MB) && time.Duration(chunk/2) > time.Second {
 							resizing = true // keep trying
 							chunk = chunk / 2
 						} else {
@@ -424,6 +435,11 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		// It's possible we ended up with start == end, in which case we're good!
 		if progress.ConsumedUpTo == end {
 			break
+		}
+
+		// Periodically output some logs
+		if i%20 == 1 {
+			lg.Infof("Pulling %v/%v from %v to %v. Current avgSize is %v\n", progress.Index, progress.Sourcetype, progress.ConsumedUpTo, end, avgSize)
 		}
 
 		// run query with current earliest=ConsumedUpTo, latest=ConsumedUpTo+60m

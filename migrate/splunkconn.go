@@ -15,8 +15,10 @@ import (
 	"errors"
 	"fmt"
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
@@ -237,7 +239,9 @@ func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, c
 	var req *http.Request
 	var resp *http.Response
 	form := url.Values{}
+	id := rand.Int31()
 	form.Add("output_mode", "csv")
+	form.Add("id", fmt.Sprintf("%d", id))
 	form.Add("earliest_time", fmt.Sprintf("%d", earliest.Unix()))
 	form.Add("latest_time", fmt.Sprintf("%d", latest.Unix()))
 	form.Add("search", query)
@@ -251,9 +255,21 @@ func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, c
 		return
 	}
 	defer resp.Body.Close()
+	// Clean up on the way out
+	defer func() {
+		u := fmt.Sprintf("%s/services/search/jobs/%d", c.BaseURL, id)
+		if req, err = http.NewRequest(http.MethodDelete, u, nil); err != nil {
+			return
+		}
+		if _, err := c.Client.Do(req); err != nil {
+			lg.Warn("failed to delete Splunk search job after reading results", log.KV("id", id))
+		}
+	}()
 	// wrap the body in a CSV reader
 	rdr := csv.NewReader(resp.Body)
 	rdr.LazyQuotes = true
+	// we'll test the record length ourselves
+	rdr.FieldsPerRecord = -1
 
 	// get the header
 	header, err := rdr.Read()
@@ -271,7 +287,7 @@ func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, c
 			return err
 		}
 		if len(record) != len(header) {
-			return errors.New("record length did not match header length")
+			return fmt.Errorf("record length mismatch, record = %v, header = %v\n", record, header)
 		}
 		for i := range header {
 			ent[header[i]] = record[i]
