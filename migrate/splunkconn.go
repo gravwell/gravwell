@@ -14,6 +14,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/gravwell/gravwell/v3/ingest/config"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -75,7 +76,7 @@ func newSplunkConn(server, token string) splunkConn {
 	client := &http.Client{Transport: tr}
 	return splunkConn{
 		Token:   token,
-		BaseURL: fmt.Sprintf("https://%s:8089/", server),
+		BaseURL: fmt.Sprintf("https://%s/", config.AppendDefaultPort(server, 8089)),
 		Client:  client,
 	}
 }
@@ -163,7 +164,7 @@ type sourcetypeIndex struct {
 }
 
 // GetIndexSourcetypes returns a list of all index+sourcetype combinations found on the server.
-func (c *splunkConn) GetIndexSourcetypes() (m []sourcetypeIndex, err error) {
+func (c *splunkConn) GetIndexSourcetypes(start, end int) (m []sourcetypeIndex, err error) {
 	lg.Infof("Assembling full list of indexes & sourcetypes, this may take a moment\n")
 	var b []byte
 	var req *http.Request
@@ -171,8 +172,13 @@ func (c *splunkConn) GetIndexSourcetypes() (m []sourcetypeIndex, err error) {
 	form := url.Values{}
 	form.Add("output_mode", "json")
 	form.Add("exec_mode", "blocking")
-	form.Add("earliest_time", "1")
-	form.Add("latest_time", "now")
+	form.Add("earliest_time", fmt.Sprintf("%d", start))
+	if end != 0 {
+		form.Add("latest_time", fmt.Sprintf("%d", end))
+	} else {
+		form.Add("latest_time", "now")
+	}
+	form.Add("time_format", "%s")
 	form.Add("search", `| tstats count WHERE index=* OR sourcetype=* by index,sourcetype | stats values(sourcetype) AS sourcetypes by index`)
 	u := fmt.Sprintf("%s/services/search/jobs", c.BaseURL)
 	if req, err = http.NewRequest(http.MethodPost, u, strings.NewReader(form.Encode())); err != nil {
@@ -194,6 +200,7 @@ func (c *splunkConn) GetIndexSourcetypes() (m []sourcetypeIndex, err error) {
 	if err = sr.WasError(); err != nil {
 		return
 	}
+
 	// Now fetch and parse the results
 	u = fmt.Sprintf("%s/services/search/jobs/%s/results?output_mode=json", c.BaseURL, sr.SID)
 	if req, err = http.NewRequest(http.MethodGet, u, nil); err != nil {
