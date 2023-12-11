@@ -401,6 +401,9 @@ func (wm *WatchManager) Catchup(qc chan os.Signal) (bool, error) {
 		return false, ErrAlreadyStarted
 	}
 
+	wm.logger.Info("beginning initial file catch-up")
+	defer wm.logger.Info("completed initial file catch-up")
+
 	//generate list of files that could be processed
 	//this could be MANNY files if people are doing some mass ingest
 	toProcess, err := wm.getWatchedFileList()
