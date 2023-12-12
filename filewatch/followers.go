@@ -154,6 +154,18 @@ func (f *follower) lastFileModTime() (r time.Time) {
 	return
 }
 
+// fileSize just returns the current file size
+func (f *follower) fileSize() (s int64) {
+	if f == nil || f.FilePath == `` {
+		return
+	}
+	if fi, err := os.Stat(f.FilePath); err == nil {
+		s = fi.Size()
+	}
+
+	return
+}
+
 // Sync is a linear operation where we consume all the data out of a file
 // it is typically used during the initialization and Catchup phase of a restart.
 // When existing we will check if there is floating data, if so, then we check the
@@ -162,6 +174,7 @@ func (f *follower) lastFileModTime() (r time.Time) {
 func (f *follower) Sync(qc chan os.Signal) (bool, error) {
 	f.mtx.Lock()
 	defer f.mtx.Unlock()
+	size := f.fileSize()
 	if f.lnr == nil {
 		return false, ErrNotReady
 	}
@@ -193,6 +206,11 @@ func (f *follower) Sync(qc chan os.Signal) (bool, error) {
 		}
 		*f.state = f.lnr.Index()
 		f.lastAct = now
+		// This makes sure we don't read forever, in case the writer is really fast
+		// and the connection to the indexer isn't.
+		if f.lnr.Index() >= size {
+			return false, nil
+		}
 		select {
 		case _ = <-qc:
 			f.lastAct = now
