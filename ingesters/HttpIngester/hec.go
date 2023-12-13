@@ -216,6 +216,7 @@ loop:
 			Tag:  tag,
 			Data: hev.Event.Bytes(),
 		}
+		cfg.paramAttacher.attach(&e)
 
 		if hev.Host != `` {
 			e.AddEnumeratedValueEx(`host`, hev.Host)
