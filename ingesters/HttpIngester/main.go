@@ -87,7 +87,8 @@ func main() {
 	}
 	for _, v := range cfg.Listener {
 		hcfg := routeHandler{
-			handler: handleSingle,
+			handler:       handleSingle,
+			paramAttacher: getAttacher(v.Attach_URL_Parameter),
 		}
 		if v.Multiline {
 			hcfg.handler = handleMulti

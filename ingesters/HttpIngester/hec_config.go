@@ -29,16 +29,17 @@ const (
 )
 
 type hecCompatible struct {
-	URL               string //override the base URL, defaults to "/services/collector/event"
-	Raw_Line_Breaker  string // character(s) to use as line breakers on the raw endpoint. Default "\n"
-	TokenValue        string `json:"-"` //DO NOT SEND THIS when marshalling
-	Tag_Name          string //the tag to assign to the request
-	Ignore_Timestamps bool
-	Ack               bool
-	Max_Size          int
-	Debug_Posts       bool // whether we are going to log on the gravwell tag about posts
-	Tag_Match         []string
-	Preprocessor      []string
+	URL                  string //override the base URL, defaults to "/services/collector/event"
+	Raw_Line_Breaker     string // character(s) to use as line breakers on the raw endpoint. Default "\n"
+	TokenValue           string `json:"-"` //DO NOT SEND THIS when marshalling
+	Tag_Name             string //the tag to assign to the request
+	Ignore_Timestamps    bool
+	Ack                  bool
+	Max_Size             int
+	Debug_Posts          bool // whether we are going to log on the gravwell tag about posts
+	Attach_URL_Parameter []string
+	Tag_Match            []string
+	Preprocessor         []string
 }
 
 func (v *hecCompatible) validate(name string) (string, error) {
@@ -167,7 +168,8 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			tagRouter:      v.loadTagRouter(igst),
 		}
 		hcfg := routeHandler{
-			handler: hh.handle,
+			handler:       hh.handle,
+			paramAttacher: getAttacher(v.Attach_URL_Parameter),
 		}
 		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			lg.Error("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
