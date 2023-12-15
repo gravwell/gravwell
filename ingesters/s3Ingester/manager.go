@@ -99,7 +99,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 
 	for m := range queue {
 		if m == nil {
-			return
+			continue
 		}
 
 		msg := []byte(*m.Body)
@@ -143,7 +143,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 		}
 
 		if ctx.Err() != nil {
-			return
+			break
 		}
 	}
 	lg.Infof("worker %v exiting", workerID)
