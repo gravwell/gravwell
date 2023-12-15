@@ -98,7 +98,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 	lg.Infof("worker %v started", workerID)
 
 	for m := range queue {
-		if m == nil {
+		if m == nil || m.Body == nil {
 			continue
 		}
 
