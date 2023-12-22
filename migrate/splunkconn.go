@@ -13,9 +13,8 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/log"
 	"io"
 	"io/ioutil"
 	"math/rand"
@@ -23,6 +22,13 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/log"
+)
+
+var (
+	fInsecureSkipTlsVerify = flag.Bool("insecure-skip-tls-verify", false, "Skip TLS validation for HTTPS connections")
 )
 
 type splunkEntry struct {
@@ -73,7 +79,9 @@ type splunkConn struct {
 
 func newSplunkConn(server, token string) splunkConn {
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // ignore expired SSL certificates
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: *fInsecureSkipTlsVerify,
+		}, // ignore expired SSL certificates
 	}
 	client := &http.Client{Transport: tr}
 	return splunkConn{
