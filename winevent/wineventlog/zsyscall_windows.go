@@ -74,6 +74,7 @@ var (
 	procEvtGetLogInfo               = modwevtapi.NewProc("EvtGetLogInfo")
 	procEvtOpenChannelConfig        = modwevtapi.NewProc("EvtOpenChannelConfig")
 	procEvtGetChannelConfigProperty = modwevtapi.NewProc("EvtGetChannelConfigProperty")
+	procEvtExportLog                = modwevtapi.NewProc("EvtExportLog")
 	procStringFromGUID2             = modole32.NewProc("StringFromGUID2")
 )
 
@@ -281,6 +282,18 @@ func _EvtOpenPublisherMetadata(session EvtHandle, publisherIdentity *uint16, log
 	r0, _, e1 := syscall.Syscall6(procEvtOpenPublisherMetadata.Addr(), 5, uintptr(session), uintptr(unsafe.Pointer(publisherIdentity)), uintptr(unsafe.Pointer(logFilePath)), uintptr(locale), uintptr(flags), 0)
 	handle = EvtHandle(r0)
 	if handle == 0 {
+		if e1 != 0 {
+			err = errnoErr(e1)
+		} else {
+			err = syscall.EINVAL
+		}
+	}
+	return
+}
+
+func _EvtExportLog(session EvtHandle, path *uint16, query *uint16, targetFilePath *uint16, flags uint32) (err error) {
+	r1, _, e1 := syscall.Syscall6(procEvtExportLog.Addr(), 5, uintptr(session), uintptr(unsafe.Pointer(path)), uintptr(unsafe.Pointer(query)), uintptr(unsafe.Pointer(targetFilePath)), uintptr(flags), 0)
+	if r1 == 0 {
 		if e1 != 0 {
 			err = errnoErr(e1)
 		} else {

@@ -491,6 +491,36 @@ func OpenPublisherMetadata(
 	return h, nil
 }
 
+// EvtExportLog copies events from the specified channel or log file and writes them to the target log file.
+func EvtExportLog(path string, query string, targetFilePath string, flags EvtExportLogFlag) error {
+	var err error
+	var pathPtr *uint16
+	if path != "" {
+		pathPtr, err = syscall.UTF16PtrFromString(path)
+		if err != nil {
+			return err
+		}
+	}
+
+	var queryPtr *uint16
+	if query != "" {
+		queryPtr, err = syscall.UTF16PtrFromString(query)
+		if err != nil {
+			return err
+		}
+	}
+
+	var targetFilePathPtr *uint16
+	if targetFilePath != "" {
+		targetFilePathPtr, err = syscall.UTF16PtrFromString(targetFilePath)
+		if err != nil {
+			return err
+		}
+	}
+
+	return _EvtExportLog(0, pathPtr, queryPtr, targetFilePathPtr, uint32(flags))
+}
+
 // Close closes an EvtHandle.
 func Close(h EvtHandle) error {
 	return _EvtClose(h)

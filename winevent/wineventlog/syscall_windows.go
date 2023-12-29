@@ -387,3 +387,21 @@ const (
 	// EvtBackwardsRead indicates we want to read backwards
 	EvtBackwardsRead EvtReadFlag = 8
 )
+
+// EvtExportLogFlag defines values that indicate whether the events come from a
+// channel or log file.
+type EvtExportLogFlag uint32
+
+const (
+	// EvtExportLogChannelPath is the source of the events is a channel.
+	EvtExportLogChannelPath EvtExportLogFlag = 0x1
+	// EvtExportLogFilePath is the source of the events is a previously exported
+	// log file.
+	EvtExportLogFilePath EvtExportLogFlag = 0x2
+	// EvtExportLogTolerateQueryErrors export events even if part of the query
+	// generates an error (is not well formed).
+	EvtExportLogTolerateQueryErrors EvtExportLogFlag = 0x1000
+	// EvtExportLogOverwrite specifies that if the target log file already exists,
+	// it should be overwritten.
+	EvtExportLogOverwrite EvtExportLogFlag = 0x2000
+)
