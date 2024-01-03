@@ -12,6 +12,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gcfg"
@@ -22,6 +24,8 @@ const (
 	nowId  = `$NOW`
 	uuidId = `$UUID`
 	hostId = `$HOSTNAME`
+
+	envUpdateInterval = time.Minute * 5 //update environment variables every 10minutes
 )
 
 type AttachConfig struct {
@@ -125,7 +129,13 @@ func NewAttacher(ac AttachConfig, id uuid.UUID) (a *Attacher, err error) {
 			nts := newTimeDynamic(&a.evs[i].Value)
 			a.dynamics = append(a.dynamics, nts)
 		default:
-			a.evs[i].Value = entry.StringEnumData(at.value)
+			if strings.HasPrefix(at.value, `$`) {
+				a.haveDynamic = true
+				evd := newEnvDynamic(&a.evs[i].Value, at.value, envUpdateInterval)
+				a.dynamics = append(a.dynamics, evd)
+			} else {
+				a.evs[i].Value = entry.StringEnumData(at.value)
+			}
 		}
 	}
 	a.active = len(a.evs) > 0
@@ -162,4 +172,32 @@ func newTimeDynamic(ed *entry.EnumeratedData) dynamic {
 
 func (t timeDynamic) run() {
 	*t.ed = entry.TSEnumData(entry.Now())
+}
+
+type envDynamic struct {
+	key          string
+	updateTicker *time.Ticker
+	ed           *entry.EnumeratedData
+}
+
+func newEnvDynamic(ed *entry.EnumeratedData, envKey string, tckInt time.Duration) dynamic {
+	envKey = strings.TrimPrefix(envKey, `$`)
+	*ed = entry.StringEnumData(os.Getenv(envKey))
+	return &envDynamic{
+		key:          envKey,
+		updateTicker: time.NewTicker(tckInt), //check updates to the environment variable at most once every 10 min
+		ed:           ed,
+	}
+}
+
+func (e *envDynamic) run() {
+	//check if we should update
+	select {
+	case _ = <-e.updateTicker.C:
+		// try to update on our ticker
+		if value, ok := os.LookupEnv(e.key); ok {
+			*e.ed = entry.StringEnumData(value)
+		}
+	default: //do nothing
+	}
 }

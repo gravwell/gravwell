@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -90,7 +91,20 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 	return
 }
 
-func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogger) (tg entry.EntryTag, ok bool, err error) {
+type tagOverride struct {
+	param string
+	value string
+}
+
+func (to tagOverride) hot() bool {
+	return to.param != ``
+}
+
+func (to tagOverride) LogKV() rfc5424.SDParam {
+	return log.KV(to.param, to.value)
+}
+
+func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogger) (tg entry.EntryTag, override tagOverride, ok bool, err error) {
 	if v := r.URL.Query(); len(v) > 0 {
 		if val := v.Get(parameterTag); val != `` {
 			//check if the tag is allowed
@@ -105,9 +119,18 @@ func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogge
 				return
 			} else {
 				ok = true
+				override = tagOverride{
+					param: parameterTag,
+					value: val,
+				}
 			}
 		} else if val = v.Get(parameterSourcetype); val != `` && len(hh.tagRouter) > 0 {
-			tg, ok = hh.tagRouter[val]
+			if tg, ok = hh.tagRouter[val]; ok {
+				override = tagOverride{
+					param: parameterSourcetype,
+					value: val,
+				}
+			}
 		}
 	}
 	return
@@ -115,6 +138,7 @@ func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogge
 
 func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	defaultTag := cfg.tag
+	var tgo tagOverride
 	resp := respSuccess
 
 	// get a local logger up that will always add some more info
@@ -124,10 +148,11 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 		log.KV("url", r.URL.RequestURI()),
 	)
 	//check if the query url has a tag or sourcetype parameter
-	if tg, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
+	if tg, override, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
 		hh.respInvalidDataFormat(w, 0)
 		return
 	} else if ok {
+		tgo = override
 		defaultTag = tg
 	}
 
@@ -191,6 +216,7 @@ loop:
 			Tag:  tag,
 			Data: hev.Event.Bytes(),
 		}
+		cfg.paramAttacher.attach(&e)
 
 		if hev.Host != `` {
 			e.AddEnumeratedValueEx(`host`, hev.Host)
@@ -231,9 +257,13 @@ loop:
 	hh.writeResponse(w, resp)
 	if hh.debugPosts {
 		//Log how many bytes and entries were on this config
-		h.igst.Info("HEC request", log.KV("host", ip),
+		kvs := []rfc5424.SDParam{log.KV("host", ip),
 			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-			log.KV("bytes", dec.TotalRead()), log.KV("entries", counter))
+			log.KV("bytes", dec.TotalRead()), log.KV("entries", counter)}
+		if tgo.hot() {
+			kvs = append(kvs, tgo.LogKV())
+		}
+		h.igst.Info("HEC request", kvs...)
 	}
 
 }
@@ -275,7 +305,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	var count int
 	var data int
 	defaultTag := cfg.tag
-	debugout("HEC RAW\n")
+	var tgo tagOverride
 	resp := ack{Text: "Success"}
 
 	// get a local logger up that will always add some more info
@@ -286,10 +316,11 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	)
 
 	//check if the query url has a tag or sourcetype parameter
-	if tg, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
+	if tg, override, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
 		hh.respInvalidDataFormat(w, 0)
 		return
 	} else if ok {
+		tgo = override
 		defaultTag = tg
 	}
 
@@ -329,10 +360,14 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	}
 	hh.writeResponse(w, resp)
 	if hh.debugPosts {
-		//Log how many bytes and entries were on this config
-		h.igst.Info("raw HEC request", log.KV("host", ip),
+		kvs := []rfc5424.SDParam{log.KV("host", ip),
 			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-			log.KV("bytes", data), log.KV("entries", count))
+			log.KV("bytes", data), log.KV("entries", count)}
+		if tgo.hot() {
+			kvs = append(kvs, tgo.LogKV())
+		}
+		//Log how many bytes and entries were on this config
+		h.igst.Info("raw HEC request", kvs...)
 	}
 }
 

@@ -61,6 +61,7 @@ type lst struct {
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
 	Timestamp_Format_Override string //override the timestamp format
+	Attach_URL_Parameter      []string
 	Preprocessor              []string
 }
 
@@ -295,4 +296,57 @@ func (v *lst) validate(name string) (string, error) {
 		v.Method = defaultMethod
 	}
 	return pth, nil
+}
+
+type paramAttacher struct {
+	active bool
+	params []string
+	exts   []entry.EnumeratedValue
+}
+
+func getAttacher(ap []string) paramAttacher {
+	if len(ap) == 0 {
+		return paramAttacher{} //return a disabled attacher
+	}
+	r := make([]string, 0, len(ap))
+	mp := map[string]bool{}
+	for _, p := range ap {
+		if len(p) > 0 {
+			mp[p] = true
+			r = append(r, p)
+		}
+	}
+	pa := paramAttacher{
+		active: true,
+		params: r,
+	}
+	return pa
+}
+
+func (pa *paramAttacher) process(req *http.Request) {
+	if req == nil {
+		pa.exts = nil
+		return
+	} else if pa.active == false || len(pa.params) == 0 {
+		return
+	} else if len(pa.exts) > 0 {
+		pa.exts = pa.exts[0:0] //keep the slice but truncate it
+	}
+
+	if v := req.URL.Query(); len(v) > 0 {
+		for _, p := range pa.params {
+			if val := v.Get(p); val != `` {
+				pa.exts = append(pa.exts, entry.EnumeratedValue{
+					Name:  p,
+					Value: entry.StringEnumData(val),
+				})
+			}
+		}
+	}
+}
+
+func (pa *paramAttacher) attach(ent *entry.Entry) {
+	if pa.active && len(pa.exts) > 0 {
+		ent.AddEnumeratedValues(pa.exts)
+	}
 }

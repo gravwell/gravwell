@@ -1,5 +1,5 @@
-//go:build linux
-// +build linux
+//go:build linux || darwin
+// +build linux darwin
 
 /*************************************************************************
  * Copyright 2017 Gravwell, Inc. All rights reserved.
