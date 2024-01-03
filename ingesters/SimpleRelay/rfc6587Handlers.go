@@ -169,6 +169,7 @@ func rfc6587ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 		if len(data) == 0 {
 			continue
 		}
+		data = bytes.Clone(data) // we have to copy due to the scanner reusing its underlying buffer
 		if ent, err := handleLog(data, rip, cfg.ignoreTimestamps, cfg.tag, tg); err != nil {
 			return
 		} else if err = cfg.proc.ProcessContext(ent, cfg.ctx); err != nil {

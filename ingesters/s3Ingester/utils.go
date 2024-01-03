@@ -316,9 +316,9 @@ func processLinesContext(ctx context.Context, rdr io.Reader, maxLineSize int, tg
 		}
 		ent := entry.Entry{
 			TS:   entry.FromStandard(ts),
-			SRC:  src,                         //may be nil, ingest muxer will handle if it is
-			Data: append([]byte(nil), bts...), //scanner re-uses the buffer
+			SRC:  src, //may be nil, ingest muxer will handle if it is
 			Tag:  tag,
+			Data: bytes.Clone(bts), //scanner re-uses the buffer
 		}
 		if ctx != nil {
 			err = proc.ProcessContext(&ent, ctx)
