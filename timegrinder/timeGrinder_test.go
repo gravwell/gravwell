@@ -795,7 +795,7 @@ var testSetList = []testSet{
 	testSet{name: `Apache`, data: `apache 10/Jan/2022:12:44:18 +0000`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
 	testSet{name: `ApacheNoTz`, data: `apache 10/Jan/2022:12:44:18`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
 	testSet{name: `NGINX`, data: `nginx 2022/01/10 12:44:18`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
-	testSet{name: `Syslog`, data: `xyz Jan 10 12:44:18`, ts: time.Date(year(), time.January, 10, 12, 44, 18, 0, time.UTC)},
+	testSet{name: `Syslog`, data: fmt.Sprintf(`xyz %s %d 12:44:18`, monthAbrev(), today()), ts: time.Date(year(), month(), today(), 12, 44, 18, 0, time.UTC)},
 	testSet{name: `SyslogFile`, data: `sf 2022-01-10T12:44:18.123456000+00:00`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123456000, time.UTC)},
 	testSet{name: `SyslogFileTZ`, data: `sf 2022-01-10T12:44:18.123456000+0000`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123456000, time.UTC)},
 	testSet{name: `SyslogVariant`, data: `sf Jan 10 2022 12:44:18`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
@@ -995,4 +995,42 @@ func BenchmarkAnsiCNoCheck(b *testing.B) {
 
 func year() int {
 	return time.Now().UTC().Year()
+}
+
+func today() int {
+	return time.Now().UTC().Day()
+}
+
+func month() time.Month {
+	return time.Now().UTC().Month()
+}
+
+func monthAbrev() string {
+	switch month() {
+	case time.January:
+		return `Jan`
+	case time.February:
+		return `Feb`
+	case time.March:
+		return `Mar`
+	case time.April:
+		return `Apr`
+	case time.May:
+		return `May`
+	case time.June:
+		return `June`
+	case time.July:
+		return `July`
+	case time.August:
+		return `Aug`
+	case time.September:
+		return `Sept`
+	case time.October:
+		return `Oct`
+	case time.November:
+		return `Nov`
+	case time.December:
+		return `Dec`
+	}
+	return ``
 }

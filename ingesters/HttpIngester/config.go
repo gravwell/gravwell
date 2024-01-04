@@ -61,6 +61,7 @@ type lst struct {
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
 	Timestamp_Format_Override string //override the timestamp format
+	Attach_URL_Parameter      []string
 	Preprocessor              []string
 }
 
@@ -295,4 +296,100 @@ func (v *lst) validate(name string) (string, error) {
 		v.Method = defaultMethod
 	}
 	return pth, nil
+}
+
+type paramAttacher struct {
+	active bool
+	all    bool
+	params []string
+	exts   []entry.EnumeratedValue
+}
+
+func getAttacher(ap []string) paramAttacher {
+	if len(ap) == 0 {
+		return paramAttacher{} //return a disabled attacher
+	} else if len(ap) == 1 && ap[0] == `*` {
+		return paramAttacher{
+			active: true,
+			all:    true,
+		}
+	}
+	r := make([]string, 0, len(ap))
+	mp := map[string]bool{}
+	for _, p := range ap {
+		if len(p) > 0 {
+			if _, ok := mp[p]; !ok {
+				mp[p] = true
+				r = append(r, p)
+			}
+		}
+	}
+	pa := paramAttacher{
+		active: true,
+		params: r,
+	}
+	return pa
+}
+
+func (pa *paramAttacher) process(req *http.Request) {
+	if req == nil {
+		pa.exts = nil
+		return
+	} else if pa.active == false {
+		return
+	}
+
+	if len(pa.exts) > 0 {
+		pa.exts = pa.exts[0:0] //keep the slice but truncate it
+	}
+
+	if v := req.URL.Query(); len(v) > 0 {
+		if pa.all {
+			// we are processing everything
+			pa.processAll(v)
+		} else {
+			pa.processSet(v)
+		}
+	}
+	return
+}
+
+func (pa *paramAttacher) processSet(vals url.Values) {
+	for _, p := range pa.params {
+		if val := vals.Get(p); val != `` {
+			pa.exts = append(pa.exts, entry.EnumeratedValue{
+				Name:  p,
+				Value: entry.StringEnumData(val),
+			})
+		}
+	}
+}
+
+func (pa *paramAttacher) processAll(vals url.Values) {
+	// loop through URL paramters
+	for k, v := range vals {
+		// only process parameters with a valid key and at least something on the value
+		if len(k) > 0 && len(v) > 0 {
+			// ignore tag override parameter
+			if k != parameterTag {
+				// loop over values and find one that has something
+				for _, vv := range v {
+					if len(vv) > 0 {
+						// got one, add it and break
+						pa.exts = append(pa.exts, entry.EnumeratedValue{
+							Name:  k,
+							Value: entry.StringEnumData(vv),
+						})
+						break
+					}
+				}
+			}
+		}
+	}
+}
+
+func (pa *paramAttacher) attach(ent *entry.Entry) {
+	if pa.active && len(pa.exts) > 0 {
+		ent.AddEnumeratedValues(pa.exts)
+	}
 }

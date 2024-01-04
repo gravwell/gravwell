@@ -10,6 +10,7 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io"
 	dlog "log"
@@ -87,7 +88,8 @@ func main() {
 	}
 	for _, v := range cfg.Listener {
 		hcfg := routeHandler{
-			handler: handleSingle,
+			handler:       handleSingle,
+			paramAttacher: getAttacher(v.Attach_URL_Parameter),
 		}
 		if v.Multiline {
 			hcfg.handler = handleMulti
@@ -165,6 +167,9 @@ func main() {
 		debugout("Binding to %v with TLS enabled using %s %s\n", cfg.Bind, cfg.TLS_Certificate_File, cfg.TLS_Key_File)
 		go func(dc chan error) {
 			defer close(dc)
+			srv.TLSConfig = &tls.Config{
+				MinVersion: tls.VersionTLS12,
+			}
 			if err := srv.ListenAndServeTLS(c, k); err != nil {
 				lg.Error("failed to serve HTTPS server", log.KVErr(err))
 			}

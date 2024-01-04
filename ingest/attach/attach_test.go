@@ -11,6 +11,7 @@ package attach
 import (
 	"fmt"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -152,6 +153,8 @@ func TestAttachDuplicate(t *testing.T) {
 	} else if err = config.LoadConfigBytes(&cfg2, []byte(wonkConfig)); err != nil {
 		t.Fatal(err)
 	}
+	os.Setenv(`TEST1`, `TEST ONE`)
+	os.Setenv(`TEST2`, `TEST TWO`)
 
 	a, err := NewAttacher(cfg.Attach, guid)
 	if err != nil {
@@ -160,6 +163,18 @@ func TestAttachDuplicate(t *testing.T) {
 	a2, err := NewAttacher(cfg2.Attach, guid)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	//go manually find the envUpdateTickers and force their tick interval to be crazy
+	for i := range a.dynamics {
+		if e, ok := a.dynamics[i].(*envDynamic); ok {
+			e.updateTicker.Reset(time.Millisecond)
+		}
+	}
+	for i := range a2.dynamics {
+		if e, ok := a2.dynamics[i].(*envDynamic); ok {
+			e.updateTicker.Reset(time.Millisecond)
+		}
 	}
 
 	ents := make([]entry.Entry, 16)
@@ -177,6 +192,8 @@ func TestAttachDuplicate(t *testing.T) {
 		attachItem{key: `bar`, value: `baz`},
 		attachItem{key: `foo-to-the-bar`, value: `this is my foobar, there are many like it, but this one is mine`},
 		attachItem{key: `bar`, value: `baz`},
+		attachItem{key: `test1`, value: `TEST ONE`},
+		attachItem{key: `test2`, value: `TEST TWO`},
 	}
 
 	for _, ent := range ents {
@@ -197,6 +214,22 @@ func TestAttachDuplicate(t *testing.T) {
 		} else {
 			times[ts] = true
 		}
+	}
+
+	//update the environment variables
+	os.Setenv(`TEST1`, `TEST ONE + 1`)
+	os.Setenv(`TEST2`, `TEST TWO + 1`)
+	for i := range items {
+		if strings.HasPrefix(items[i].value, `TEST `) {
+			items[i].value += ` + 1`
+		}
+	}
+	time.Sleep(5 * time.Millisecond) //to make sure the ticker fires
+	var ent entry.Entry
+	a2.Attach(&ent)
+	a.Attach(&ent)
+	if err := testEntConsts(ent, items); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -261,6 +294,8 @@ const wonkConfig = `
 	foo-to-the-bar="this is my foobar, there are many like it, but this one is mine"
 	baz="foo to the bar"
 	now=$NOW
+	test1=$TEST1
+	test2=$TEST2
 `
 
 const badConfig = `
