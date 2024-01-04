@@ -147,7 +147,7 @@ func (w WireUserTemplate) Thing() (t Thing, err error) {
 	t.UID = w.UID
 	t.GIDs = w.GIDs
 	t.Global = w.Global
-	t.Updated = time.Now()
+	t.Updated = w.Updated
 	//do not set the synced value
 	err = t.EncodeContents(w.UserTemplate())
 	return
@@ -279,8 +279,7 @@ func (wp WirePivot) Thing() (t Thing, err error) {
 	t.UID = wp.UID
 	t.GIDs = wp.GIDs
 	t.Global = wp.Global
-
-	t.Updated = time.Now()
+	t.Updated = wp.Updated
 	//do not set the synced value
 
 	err = t.EncodeContents(wp.Pivot())
@@ -344,6 +343,7 @@ type UserFile struct {
 type WireUserFile struct {
 	ThingHeader
 	UserFile
+	Updated time.Time
 }
 
 func (w WireUserFile) Thing() (t Thing, err error) {
@@ -351,7 +351,7 @@ func (w WireUserFile) Thing() (t Thing, err error) {
 	t.UID = w.UID
 	t.GIDs = w.GIDs
 	t.Global = w.Global
-	t.Updated = time.Now()
+	t.Updated = w.Updated
 	//do not set the synced value
 	err = t.EncodeContents(w.UserFile)
 	return
@@ -410,6 +410,7 @@ func (uf *UserFile) JSONMetadata() (json.RawMessage, error) {
 type WireSearchLibrary struct {
 	ThingHeader
 	SearchLibrary
+	Updated time.Time
 }
 
 func (wsl WireSearchLibrary) Thing() (t Thing, err error) {
@@ -417,7 +418,7 @@ func (wsl WireSearchLibrary) Thing() (t Thing, err error) {
 	t.UID = wsl.UID
 	t.GIDs = wsl.GIDs
 	t.Global = wsl.Global
-	t.Updated = time.Now()
+	t.Updated = wsl.Updated
 
 	err = t.EncodeContents(wsl.SearchLibrary)
 	return

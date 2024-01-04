@@ -98,8 +98,8 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 	lg.Infof("worker %v started", workerID)
 
 	for m := range queue {
-		if m == nil {
-			return
+		if m == nil || m.Body == nil {
+			continue
 		}
 
 		msg := []byte(*m.Body)
@@ -143,7 +143,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 		}
 
 		if ctx.Err() != nil {
-			return
+			break
 		}
 	}
 	lg.Infof("worker %v exiting", workerID)
@@ -156,39 +156,62 @@ func snsDecode(input []byte) ([]string, []string, error) {
 	err := jdec.Decode(&d)
 	if err != nil {
 		return nil, nil, err
-	}
-	sb := strings.NewReader(d.Message)
-	jdec = json.NewDecoder(sb)
-	var subMessage s3SubMessage
-	err = jdec.Decode(&subMessage)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if subMessage.S3Bucket == "" {
-		return nil, nil, errEmptyBucket
+	} else if d.Message == "" {
+		return nil, nil, fmt.Errorf("empty message")
 	}
 
 	var buckets []string
+	var keys []string
 
-	// all the buckets are the same in this message type
-	for _, v := range subMessage.S3ObjectKey {
-		if v == "" {
-			return nil, nil, errEmptyKey
+	sb := strings.NewReader(d.Message)
+	jdec = json.NewDecoder(sb)
+
+	var subMessage s3SubMessage
+	err = jdec.Decode(&subMessage)
+	if err != nil || subMessage.S3Bucket == "" || len(subMessage.S3ObjectKey) == 0 {
+		// try again with the records format instead
+		var records s3Records
+		sb.Reset(d.Message)
+		err = jdec.Decode(&records)
+		if err != nil {
+			return nil, nil, err
+		} else if len(records.Records) == 0 {
+			return nil, nil, fmt.Errorf("empty records")
 		}
-		buckets = append(buckets, subMessage.S3Bucket)
-	}
 
-	return buckets, subMessage.S3ObjectKey, nil
+		for _, v := range records.Records {
+			if strings.Contains(v.EventName, "ObjectCreated") {
+				if v.S3.Bucket.Name == "" {
+					return nil, nil, errEmptyBucket
+				} else if v.S3.Object.Key == "" {
+					return nil, nil, errEmptyKey
+				}
+				buckets = append(buckets, v.S3.Bucket.Name)
+				keys = append(keys, v.S3.Object.Key)
+			}
+		}
+	} else {
+		// all the buckets are the same in this message type
+		for _, v := range subMessage.S3ObjectKey {
+			if v == "" {
+				return nil, nil, errEmptyKey
+			}
+			buckets = append(buckets, subMessage.S3Bucket)
+			keys = append(keys, v)
+		}
+	}
+	return buckets, keys, nil
 }
 
 func s3Decode(input []byte) ([]string, []string, error) {
 	b := bytes.NewBuffer(input)
 	jdec := json.NewDecoder(b)
-	var d *s3Records
+	var d s3Records
 	err := jdec.Decode(&d)
 	if err != nil {
 		return nil, nil, err
+	} else if len(d.Records) == 0 {
+		return nil, nil, fmt.Errorf("empty records")
 	}
 
 	var buckets []string
@@ -273,15 +296,16 @@ loop:
 
 func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, lg *log.Logger, numWorkers int) {
 	var wg sync.WaitGroup
+	lg.Info("starting full manual scan")
 	for _, b := range buckets {
 		// start workers
 		queue := make(chan *s3.Object, QUEUE_DEPTH)
 		for i := 0; i < numWorkers; i++ {
 			wg.Add(1)
-			go b.worker(ctx, ot, queue, &wg)
+			go b.worker(lg, ctx, ot, queue, &wg)
 
 		}
-		if err := b.ManualScan(ctx, ot, queue); err != nil {
+		if err := b.ManualScan(lg, ctx, ot, queue); err != nil {
 			lg.Error("failed to scan S3 bucket objects",
 				log.KV("bucket", b.Name),
 				log.KVErr(err))
@@ -291,6 +315,7 @@ func fullScan(ctx context.Context, buckets []*BucketReader, ot *objectTracker, l
 			break
 		}
 	}
+	lg.Info("completed full manual scan")
 	wg.Wait()
 	if err := ot.Flush(); err != nil {
 		lg.Error("failed to flush S3 state file", log.KVErr(err))

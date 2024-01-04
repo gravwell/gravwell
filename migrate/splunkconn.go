@@ -13,13 +13,22 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"math/rand"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingest/log"
+)
+
+var (
+	fInsecureSkipTlsVerify = flag.Bool("insecure-skip-tls-verify", false, "Skip TLS validation for HTTPS connections")
 )
 
 type splunkEntry struct {
@@ -70,12 +79,14 @@ type splunkConn struct {
 
 func newSplunkConn(server, token string) splunkConn {
 	tr := &http.Transport{
-		TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // ignore expired SSL certificates
+		TLSClientConfig: &tls.Config{
+			InsecureSkipVerify: *fInsecureSkipTlsVerify,
+		}, // ignore expired SSL certificates
 	}
 	client := &http.Client{Transport: tr}
 	return splunkConn{
 		Token:   token,
-		BaseURL: fmt.Sprintf("https://%s:8089/", server),
+		BaseURL: fmt.Sprintf("https://%s/", config.AppendDefaultPort(server, 8089)),
 		Client:  client,
 	}
 }
@@ -163,7 +174,7 @@ type sourcetypeIndex struct {
 }
 
 // GetIndexSourcetypes returns a list of all index+sourcetype combinations found on the server.
-func (c *splunkConn) GetIndexSourcetypes() (m []sourcetypeIndex, err error) {
+func (c *splunkConn) GetIndexSourcetypes(start, end int) (m []sourcetypeIndex, err error) {
 	lg.Infof("Assembling full list of indexes & sourcetypes, this may take a moment\n")
 	var b []byte
 	var req *http.Request
@@ -171,8 +182,13 @@ func (c *splunkConn) GetIndexSourcetypes() (m []sourcetypeIndex, err error) {
 	form := url.Values{}
 	form.Add("output_mode", "json")
 	form.Add("exec_mode", "blocking")
-	form.Add("earliest_time", "1")
-	form.Add("latest_time", "now")
+	form.Add("earliest_time", fmt.Sprintf("%d", start))
+	if end != 0 {
+		form.Add("latest_time", fmt.Sprintf("%d", end))
+	} else {
+		form.Add("latest_time", "now")
+	}
+	form.Add("time_format", "%s")
 	form.Add("search", `| tstats count WHERE index=* OR sourcetype=* by index,sourcetype | stats values(sourcetype) AS sourcetypes by index`)
 	u := fmt.Sprintf("%s/services/search/jobs", c.BaseURL)
 	if req, err = http.NewRequest(http.MethodPost, u, strings.NewReader(form.Encode())); err != nil {
@@ -194,6 +210,7 @@ func (c *splunkConn) GetIndexSourcetypes() (m []sourcetypeIndex, err error) {
 	if err = sr.WasError(); err != nil {
 		return
 	}
+
 	// Now fetch and parse the results
 	u = fmt.Sprintf("%s/services/search/jobs/%s/results?output_mode=json", c.BaseURL, sr.SID)
 	if req, err = http.NewRequest(http.MethodGet, u, nil); err != nil {
@@ -230,7 +247,9 @@ func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, c
 	var req *http.Request
 	var resp *http.Response
 	form := url.Values{}
+	id := rand.Int31()
 	form.Add("output_mode", "csv")
+	form.Add("id", fmt.Sprintf("%d", id))
 	form.Add("earliest_time", fmt.Sprintf("%d", earliest.Unix()))
 	form.Add("latest_time", fmt.Sprintf("%d", latest.Unix()))
 	form.Add("search", query)
@@ -244,9 +263,21 @@ func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, c
 		return
 	}
 	defer resp.Body.Close()
+	// Clean up on the way out
+	defer func() {
+		u := fmt.Sprintf("%s/services/search/jobs/%d", c.BaseURL, id)
+		if req, err = http.NewRequest(http.MethodDelete, u, nil); err != nil {
+			return
+		}
+		if _, err := c.Client.Do(req); err != nil {
+			lg.Warn("failed to delete Splunk search job after reading results", log.KV("id", id))
+		}
+	}()
 	// wrap the body in a CSV reader
 	rdr := csv.NewReader(resp.Body)
 	rdr.LazyQuotes = true
+	// we'll test the record length ourselves
+	rdr.FieldsPerRecord = -1
 
 	// get the header
 	header, err := rdr.Read()
@@ -264,7 +295,7 @@ func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, c
 			return err
 		}
 		if len(record) != len(header) {
-			return errors.New("record length did not match header length")
+			return fmt.Errorf("record length mismatch, record = %v, header = %v\n", record, header)
 		}
 		for i := range header {
 			ent[header[i]] = record[i]

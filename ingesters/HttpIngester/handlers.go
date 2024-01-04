@@ -10,6 +10,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"io"
@@ -31,12 +32,13 @@ import (
 type handleFunc func(*handler, routeHandler, http.ResponseWriter, *http.Request, io.Reader, net.IP)
 
 type routeHandler struct {
-	ignoreTs bool
-	tag      entry.EntryTag
-	tg       *timegrinder.TimeGrinder
-	handler  handleFunc
-	auth     authHandler
-	pproc    *processors.ProcessorSet
+	ignoreTs      bool
+	tag           entry.EntryTag
+	tg            *timegrinder.TimeGrinder
+	handler       handleFunc
+	auth          authHandler
+	pproc         *processors.ProcessorSet
+	paramAttacher paramAttacher
 }
 
 type handler struct {
@@ -57,6 +59,7 @@ func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Reque
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	rh.paramAttacher.process(req)
 	rh.handler(h, rh, w, req, rdr, ip)
 }
 
@@ -234,6 +237,7 @@ func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP, tag entry.E
 		Tag:  tag,
 		Data: b,
 	}
+	cfg.paramAttacher.attach(&e)
 	debugout("Handling: %+v\n", e)
 	if err = cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
 		h.lgr.Error("failed to send entry", log.KVErr(err))
@@ -303,7 +307,12 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 	debugout("multhandler\n")
 	scanner := bufio.NewScanner(rdr)
 	for scanner.Scan() {
-		if err := h.handleEntry(cfg, scanner.Bytes(), ip, cfg.tag); err != nil {
+		bts := scanner.Bytes()
+		if bts = bytes.TrimSpace(bts); len(bts) == 0 {
+			continue
+		}
+		// we have to do a bytes.Clone on the output because the bufio.Scanner does internal buffer reuse
+		if err := h.handleEntry(cfg, bytes.Clone(bts), ip, cfg.tag); err != nil {
 			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return

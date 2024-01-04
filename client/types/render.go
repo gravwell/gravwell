@@ -230,14 +230,16 @@ type IdxStatResponse struct {
 }
 
 type IngestStats struct {
-	QuotaUsed    uint64 // Quota used so far
-	QuotaMax     uint64 // Total quota
-	TotalCount   uint64 //Total Entries since the ingest server started
-	TotalSize    uint64 //Total Data since the ingest server started
-	LastDayCount uint64 //total entries in last 24 hours
-	LastDaySize  uint64 //total ingested in last 24 hours
-	Ingesters    []IngesterStats
-	Missing      []ingest.IngesterState //ingesters that have been seen before but not actively connected now
+	QuotaUsed        uint64  // Quota used so far
+	QuotaMax         uint64  // Total quota
+	EntriesPerSecond float64 // Entries per second over the last few seconds
+	BytesPerSecond   float64 // Bytes per second over the last few seconds
+	TotalCount       uint64  //Total Entries since the ingest server started
+	TotalSize        uint64  //Total Data since the ingest server started
+	LastDayCount     uint64  //total entries in last 24 hours
+	LastDaySize      uint64  //total ingested in last 24 hours
+	Ingesters        []IngesterStats
+	Missing          []ingest.IngesterState //ingesters that have been seen before but not actively connected now
 }
 
 type IngesterStats struct {
@@ -475,19 +477,23 @@ func (eis emptyIngesterStates) MarshalJSON() ([]byte, error) {
 
 func (is IngestStats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		QuotaUsed  uint64
-		QuotaMax   uint64
-		TotalCount uint64
-		TotalSize  uint64
-		Ingesters  emptyIngesterStats
-		Missing    emptyIngesterStates
+		QuotaUsed        uint64
+		QuotaMax         uint64
+		EntriesPerSecond float64
+		BytesPerSecond   float64
+		TotalCount       uint64
+		TotalSize        uint64
+		Ingesters        emptyIngesterStats
+		Missing          emptyIngesterStates
 	}{
-		QuotaUsed:  is.QuotaUsed,
-		QuotaMax:   is.QuotaMax,
-		TotalCount: is.TotalCount,
-		TotalSize:  is.TotalSize,
-		Ingesters:  emptyIngesterStats(is.Ingesters),
-		Missing:    emptyIngesterStates(is.Missing),
+		QuotaUsed:        is.QuotaUsed,
+		QuotaMax:         is.QuotaMax,
+		EntriesPerSecond: is.EntriesPerSecond,
+		BytesPerSecond:   is.BytesPerSecond,
+		TotalCount:       is.TotalCount,
+		TotalSize:        is.TotalSize,
+		Ingesters:        emptyIngesterStats(is.Ingesters),
+		Missing:          emptyIngesterStates(is.Missing),
 	})
 }
 

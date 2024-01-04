@@ -616,6 +616,17 @@ func (c *Client) SetUserAgent(v string) error {
 	return nil
 }
 
+// SetNoCache enables or disables Cache-Control headers on requests
+func (c *Client) SetNoCache(v bool) {
+	c.mtx.Lock()
+	if v {
+		c.hm.add(`Cache-Control`, `no-cache`)
+	} else {
+		c.hm.remove(`Cache-Control`)
+	}
+	c.mtx.Unlock()
+}
+
 // SetAdminMode sets the ?admin=true parameter on future API requests. Note that setting this
 // parameter has no effect for non-admin users.
 // Admin users should use this parameter carefully, as it gives access to objects belonging
