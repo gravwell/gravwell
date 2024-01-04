@@ -28,12 +28,12 @@ type datum struct {
 }
 
 type megaDatum struct {
-	TS        string         `json:"time"`
 	Account   Account        `json:"account"`
 	Class     int            `json:"class"`
 	Groups    []ComplexGroup `json:"groups,omitempty"`
 	UserAgent string         `json:"user_agent"`
 	IP        string         `json:"ip"`
+	TS        int64          `json:"time"` //bury the timestamp somewhere dumb, its also encoded unix timestamp
 	Records   []megaRecord   `json:"records"`
 	Data      string         `json:"data,escape"`
 }
@@ -76,7 +76,7 @@ func genDataJSON(ts time.Time) (r []byte) {
 // these will vary from 32KB to 128KB
 func genDataMegaJSON(ts time.Time) (r []byte) {
 	var d megaDatum
-	d.TS = ts.UTC().Format(time.RFC3339)
+	d.TS = ts.UTC().Unix()
 	d.Class = rand.Int() % 0xffff
 	d.Groups = getComplexGroups()
 	d.Account = getUser()
