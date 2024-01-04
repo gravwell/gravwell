@@ -24,8 +24,9 @@ type TextResponse struct {
 
 type RawResponse struct {
 	BaseResponse
-	Entries []SearchEntry   `json:",omitempty"`
-	Explore []ExploreResult `json:",omitempty"`
+	ContainsBinaryEntries bool            //just a flag to tell the GUI that we might have data that needs some help
+	Entries               []SearchEntry   `json:",omitempty"`
+	Explore               []ExploreResult `json:",omitempty"`
 }
 
 type RawRequest struct {

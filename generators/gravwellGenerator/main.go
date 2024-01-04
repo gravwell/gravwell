@@ -37,6 +37,7 @@ var (
 		"syslog":   genDataSyslog,
 		"zeekconn": genDataZeekConn,
 		"evs":      genDataEnumeratedValue,
+		"megajson": genDataMegaJSON,
 	}
 	finalizers = map[string]base.Finalizer{
 		"evs":      finEnumeratedValue,
@@ -50,6 +51,7 @@ var (
 		"regex":    fin("regex"),
 		"syslog":   fin("syslog"),
 		"zeekconn": fin("zeek conn"),
+		"megajson": fin("mega JSON"),
 	}
 
 	// for fields
