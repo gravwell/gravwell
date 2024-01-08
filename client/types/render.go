@@ -223,16 +223,20 @@ type IdxStatResponse struct {
 }
 
 type IngestStats struct {
-	QuotaUsed        uint64  // Quota used so far
-	QuotaMax         uint64  // Total quota
-	EntriesPerSecond float64 // Entries per second over the last few seconds
-	BytesPerSecond   float64 // Bytes per second over the last few seconds
-	TotalCount       uint64  //Total Entries since the ingest server started
-	TotalSize        uint64  //Total Data since the ingest server started
-	LastDayCount     uint64  //total entries in last 24 hours
-	LastDaySize      uint64  //total ingested in last 24 hours
-	Ingesters        []IngesterStats
-	Missing          []ingest.IngesterState //ingesters that have been seen before but not actively connected now
+	QuotaUsed         uint64     // Quota used so far
+	QuotaMax          uint64     // Total quota
+	EntriesPerSecond  float64    // Entries per second over the last few seconds
+	BytesPerSecond    float64    // Bytes per second over the last few seconds
+	TotalCount        uint64     //Total Entries since the ingest server started
+	TotalSize         uint64     //Total Data since the ingest server started
+	LastDayCount      uint64     //total entries in last 24 hours
+	LastDaySize       uint64     //total ingested in last 24 hours
+	EntriesHourTail   [24]uint64 //entries per 1 hour bucket with 24 hours of tail
+	EntriesMinuteTail [60]uint64 //entries per 1 second bucket with 60s of tail
+	BytesHourTail     [24]uint64 //bytes per 1 hour bucket with 24 hours of tail
+	BytesMinuteTail   [60]uint64 //bytes per 1 second bucket with 60s of tail
+	Ingesters         []IngesterStats
+	Missing           []ingest.IngesterState //ingesters that have been seen before but not actively connected now
 }
 
 type IngesterStats struct {
