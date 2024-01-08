@@ -29,17 +29,18 @@ const (
 )
 
 type hecCompatible struct {
-	URL                  string //override the base URL, defaults to "/services/collector/event"
-	Raw_Line_Breaker     string // character(s) to use as line breakers on the raw endpoint. Default "\n"
-	TokenValue           string `json:"-"` //DO NOT SEND THIS when marshalling
-	Tag_Name             string //the tag to assign to the request
-	Ignore_Timestamps    bool
-	Ack                  bool
-	Max_Size             int
-	Debug_Posts          bool // whether we are going to log on the gravwell tag about posts
-	Attach_URL_Parameter []string
-	Tag_Match            []string
-	Preprocessor         []string
+	URL                       string //override the base URL, defaults to "/services/collector/event"
+	Raw_Line_Breaker          string // character(s) to use as line breakers on the raw endpoint. Default "\n"
+	TokenValue                string `json:"-"` //DO NOT SEND THIS when marshalling
+	Tag_Name                  string //the tag to assign to the request
+	Ignore_Timestamps         bool
+	Timestamp_Format_Override string //override the timestamp format (only used for raw)
+	Ack                       bool
+	Max_Size                  int
+	Debug_Posts               bool // whether we are going to log on the gravwell tag about posts
+	Attach_URL_Parameter      []string
+	Tag_Match                 []string
+	Preprocessor              []string
 }
 
 func (v *hecCompatible) validate(name string) (string, error) {
@@ -181,6 +182,14 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			if hcfg.tg, err = timegrinder.New(timegrinder.Config{}); err != nil {
 				lg.Error("Failed to create timegrinder", log.KVErr(err))
 				return
+			} else if err = cfg.TimeFormat.LoadFormats(hcfg.tg); err != nil {
+				lg.Error("failed to load custom time formats", log.KVErr(err))
+				return
+			}
+			if v.Timestamp_Format_Override != `` {
+				if err = hcfg.tg.SetFormatOverride(v.Timestamp_Format_Override); err != nil {
+					lg.Fatal("Failed to set override timestamp", log.KVErr(err))
+				}
 			}
 		}
 

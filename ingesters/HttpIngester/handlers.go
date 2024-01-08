@@ -10,6 +10,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"io"
@@ -306,7 +307,12 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 	debugout("multhandler\n")
 	scanner := bufio.NewScanner(rdr)
 	for scanner.Scan() {
-		if err := h.handleEntry(cfg, scanner.Bytes(), ip, cfg.tag); err != nil {
+		bts := scanner.Bytes()
+		if bts = bytes.TrimSpace(bts); len(bts) == 0 {
+			continue
+		}
+		// we have to do a bytes.Clone on the output because the bufio.Scanner does internal buffer reuse
+		if err := h.handleEntry(cfg, bytes.Clone(bts), ip, cfg.tag); err != nil {
 			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return

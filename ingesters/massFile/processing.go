@@ -10,6 +10,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -101,7 +102,7 @@ func groupLargeLogs(src, wrk string, totalSize int64) error {
 			if !ok {
 				ts = lastTS
 			}
-			if err := fm.writeLine(int64(ts.Second()), v); err != nil {
+			if err := fm.writeLine(int64(ts.Second()), bytes.Clone(v)); err != nil {
 				return err
 			}
 			ud.update(fm.total)
@@ -319,7 +320,7 @@ func walkAndReadFiles(dir string, totalSize int64, iv *ingestVars, f entsFunc) e
 			}
 			ents = append(ents, ent{
 				ts:   entry.FromStandard(ts),
-				data: append(nilbs, v...),
+				data: bytes.Clone(v),
 			})
 		}
 		if err := fin.Close(); err != nil {
