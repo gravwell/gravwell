@@ -473,23 +473,31 @@ func (eis emptyIngesterStates) MarshalJSON() ([]byte, error) {
 
 func (is IngestStats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		QuotaUsed        uint64
-		QuotaMax         uint64
-		EntriesPerSecond float64
-		BytesPerSecond   float64
-		TotalCount       uint64
-		TotalSize        uint64
-		Ingesters        emptyIngesterStats
-		Missing          emptyIngesterStates
+		QuotaUsed         uint64
+		QuotaMax          uint64
+		EntriesPerSecond  float64
+		BytesPerSecond    float64
+		TotalCount        uint64
+		TotalSize         uint64
+		EntriesHourTail   [24]uint64
+		EntriesMinuteTail [60]uint64
+		BytesHourTail     [24]uint64
+		BytesMinuteTail   [60]uint64
+		Ingesters         emptyIngesterStats
+		Missing           emptyIngesterStates
 	}{
-		QuotaUsed:        is.QuotaUsed,
-		QuotaMax:         is.QuotaMax,
-		EntriesPerSecond: is.EntriesPerSecond,
-		BytesPerSecond:   is.BytesPerSecond,
-		TotalCount:       is.TotalCount,
-		TotalSize:        is.TotalSize,
-		Ingesters:        emptyIngesterStats(is.Ingesters),
-		Missing:          emptyIngesterStates(is.Missing),
+		QuotaUsed:         is.QuotaUsed,
+		QuotaMax:          is.QuotaMax,
+		EntriesPerSecond:  is.EntriesPerSecond,
+		BytesPerSecond:    is.BytesPerSecond,
+		TotalCount:        is.TotalCount,
+		TotalSize:         is.TotalSize,
+		EntriesHourTail:   is.EntriesHourTail,
+		EntriesMinuteTail: is.EntriesMinuteTail,
+		BytesHourTail:     is.BytesHourTail,
+		BytesMinuteTail:   is.BytesMinuteTail,
+		Ingesters:         emptyIngesterStats(is.Ingesters),
+		Missing:           emptyIngesterStates(is.Missing),
 	})
 }
 
