@@ -306,6 +306,7 @@ func (r route) String() string {
 func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	debugout("multhandler\n")
 	scanner := bufio.NewScanner(rdr)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*124)
 	for scanner.Scan() {
 		bts := scanner.Bytes()
 		if bts = bytes.TrimSpace(bts); len(bts) == 0 {
