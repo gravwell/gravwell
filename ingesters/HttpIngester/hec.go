@@ -137,6 +137,7 @@ func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogge
 }
 
 func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	var now time.Time
 	defaultTag := cfg.tag
 	var tgo tagOverride
 	resp := respSuccess
@@ -147,6 +148,10 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 		log.KV("remoteaddress", ip.String()),
 		log.KV("url", r.URL.RequestURI()),
 	)
+
+	if hh.debugPosts {
+		now = time.Now()
+	}
 	//check if the query url has a tag or sourcetype parameter
 	if tg, override, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
 		hh.respInvalidDataFormat(w, 0)
@@ -259,7 +264,9 @@ loop:
 		//Log how many bytes and entries were on this config
 		kvs := []rfc5424.SDParam{log.KV("host", ip),
 			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-			log.KV("bytes", dec.TotalRead()), log.KV("entries", counter)}
+			log.KV("bytes", dec.TotalRead()), log.KV("entries", counter),
+			log.KV("ms", time.Since(now).Milliseconds()),
+		}
 		if tgo.hot() {
 			kvs = append(kvs, tgo.LogKV())
 		}
@@ -304,6 +311,7 @@ func (hh *hecHandler) respInvalidDataFormat(w http.ResponseWriter, index int) {
 func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	var count int
 	var data int
+	var now time.Time
 	defaultTag := cfg.tag
 	var tgo tagOverride
 	resp := ack{Text: "Success"}
@@ -315,6 +323,9 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		log.KV("url", r.URL.RequestURI()),
 	)
 
+	if hh.debugPosts {
+		now = time.Now()
+	}
 	//check if the query url has a tag or sourcetype parameter
 	if tg, override, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
 		hh.respInvalidDataFormat(w, 0)
@@ -362,7 +373,9 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	if hh.debugPosts {
 		kvs := []rfc5424.SDParam{log.KV("host", ip),
 			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-			log.KV("bytes", data), log.KV("entries", count)}
+			log.KV("bytes", data), log.KV("entries", count),
+			log.KV("ms", time.Since(now).Milliseconds()),
+		}
 		if tgo.hot() {
 			kvs = append(kvs, tgo.LogKV())
 		}
