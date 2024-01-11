@@ -164,6 +164,7 @@ func main() {
 		ReadHeaderTimeout: 5 * time.Second,
 		ErrorLog:          dlog.New(lg, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags),
 	}
+	srv.SetKeepAlivesEnabled(true)
 	done := make(chan error, 1)
 	if cfg.TLSEnabled() {
 		c := cfg.TLS_Certificate_File
@@ -192,9 +193,11 @@ func main() {
 	select {
 	case <-done:
 	case <-qc:
-		if err := srv.Close(); err != nil {
+		ctx, cf := context.WithTimeout(context.Background(), 10*time.Second)
+		if err := srv.Shutdown(ctx); err != nil {
 			lg.Error("failed to serve HTTP server", log.KVErr(err))
 		}
+		cf()
 	}
 	debugout("Server is exiting\n")
 	ib.AnnounceShutdown()

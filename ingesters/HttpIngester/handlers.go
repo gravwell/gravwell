@@ -137,22 +137,33 @@ func (h *handler) addCustomHandler(method, pth string, ah http.Handler) (err err
 	return
 }
 
+type ew struct {
+}
+
+func (x *ew) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
+func drainAndClose(rc io.ReadCloser) {
+	io.Copy(&ew{}, rc)
+	rc.Close()
+}
+
 func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	defer drainAndClose(r.Body)
 	w := &trackingRW{
 		ResponseWriter: rw,
 	}
-	defer func(trw *trackingRW, req *http.Request) {
-		if debugOn == false {
-			return
-		}
-		debugout("REQUEST %s %v %d %d\n", req.Method, req.URL, trw.code, trw.bytes)
-		debugout("\tHEADERS\n")
-		for k, v := range req.Header {
-			debugout("\t\t%v: %v\n", k, v)
-		}
-		debugout("\n")
-	}(w, r)
+	if debugOn {
+		defer func(trw *trackingRW, req *http.Request) {
+			debugout("REQUEST %s %v %d %d\n", req.Method, req.URL, trw.code, trw.bytes)
+			debugout("\tHEADERS\n")
+			for k, v := range req.Header {
+				debugout("\t\t%v: %v\n", k, v)
+			}
+			debugout("\n")
+		}(w, r)
+	}
 	ip := getRemoteIP(r)
 	rdr, err := getReadableBody(r)
 	if err != nil {
