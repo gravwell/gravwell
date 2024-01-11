@@ -44,6 +44,7 @@ var (
 	srcOverride     = flag.String("source-override", "", "Source override value")
 	status          = flag.Bool("status", false, "show ingest rates as we run")
 	startTime       = flag.String("start-time", "", "optional starting timestamp for entries, must be RFC3339 format")
+	chaos           = flag.Bool("chaos-mode", false, "Chaos mode causes the generator to not do multiline HTTP uploads and sometimes send crazy timestamps")
 )
 
 var (
@@ -57,6 +58,7 @@ type GeneratorConfig struct {
 	modeRawUDP  bool
 	modeHEC     bool
 	modeHECRaw  bool
+	ChaosMode   bool
 	Raw         string
 	HEC         string
 	Streaming   bool
@@ -96,6 +98,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		err = fmt.Errorf("invalid start-time %s %w", *startTime, err)
 		return
 	}
+	gc.ChaosMode = *chaos
 
 	if *rawTCPConn != `` {
 		if _, _, err = net.SplitHostPort(*rawTCPConn); err != nil {

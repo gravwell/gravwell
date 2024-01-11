@@ -9,6 +9,8 @@
 package base
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -79,6 +81,14 @@ func (hec *hecIgst) test() (ip net.IP, err error) {
 }
 
 func (hec *hecIgst) httpRoutine(rdr io.Reader) {
+	if hec.GeneratorConfig.ChaosMode == false {
+		hec.multiLineRequest(rdr)
+	} else {
+		hec.singleEntryRequest(rdr)
+	}
+}
+
+func (hec *hecIgst) multiLineRequest(rdr io.Reader) {
 	var err error
 	var req *http.Request
 	var resp *http.Response
@@ -111,13 +121,84 @@ func (hec *hecIgst) httpRoutine(rdr io.Reader) {
 		if body, err := ioutil.ReadAll(lr); err == nil || err == io.EOF {
 			msg = string(body)
 		} else {
-			fmt.Println("bad read", err)
+			msg = err.Error()
 		}
 		hec.errch <- fmt.Errorf("invalid status %d (%v)\n%s", resp.StatusCode, resp.Status, msg)
 	} else {
 		hec.errch <- nil
 	}
 	return
+}
+
+func (hec *hecIgst) singleEntryRequest(rdr io.Reader) {
+	var err error
+	var req *http.Request
+	var resp *http.Response
+	var cli http.Client
+
+	defer close(hec.errch)
+	if req, err = http.NewRequest(http.MethodPost, hec.uri.String(), nil); err != nil {
+		hec.errch <- err
+		return
+	}
+	req.Header.Add(`Authorization`, hec.auth)
+	req.Header.Set(`User-Agent`, hec.name)
+
+	if hec.modeHECRaw {
+		//attach URL parameters
+		uri := req.URL
+		values := uri.Query()
+		values.Add(`sourcetype`, hec.Tag)
+		values.Add(`source`, hec.SRC.String())
+		req.URL.RawQuery = values.Encode()
+	}
+
+	lr := bufio.NewReaderSize(rdr, 1024*1024)
+	body := readCloser{
+		Reader: bytes.NewReader(nil),
+	}
+	for {
+		ln, err := lr.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				hec.errch <- nil
+			} else {
+				hec.errch <- nil
+			}
+			break
+		} else if len(ln) == 0 {
+			continue
+		}
+		body.Reset(ln)
+		req.Body = body
+		if resp, err = cli.Do(req); err != nil {
+			hec.errch <- err
+			return
+		} else if resp.StatusCode != http.StatusOK {
+			var msg string
+			lr := &io.LimitedReader{R: resp.Body, N: 512}
+			if body, err := ioutil.ReadAll(lr); err == nil || err == io.EOF {
+				msg = string(body)
+			} else {
+				msg = err.Error()
+			}
+			resp.Body.Close()
+			hec.errch <- fmt.Errorf("invalid status %d (%v)\n%s", resp.StatusCode, resp.Status, msg)
+			break
+		} else {
+			resp.Body.Close()
+		}
+	}
+	return
+
+}
+
+type readCloser struct {
+	*bytes.Reader
+}
+
+func (rc readCloser) Close() error {
+	return nil
 }
 
 func (hec *hecIgst) WaitForHot(time.Duration) (err error) {
