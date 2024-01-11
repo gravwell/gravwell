@@ -60,6 +60,10 @@ func main() {
 	}
 	debugOn = ib.Verbose
 	lg = ib.Logger
+
+	utils.StartProfile()
+	defer utils.StopProfile()
+
 	igst, err := ib.GetMuxer()
 	if err != nil {
 		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
