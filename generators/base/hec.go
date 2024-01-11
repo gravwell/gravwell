@@ -130,13 +130,26 @@ func (hec *hecIgst) multiLineRequest(rdr io.Reader) {
 	return
 }
 
-func (hec *hecIgst) singleEntryRequest(rdr io.Reader) {
+func (hec *hecIgst) requester(ch chan []byte, wg *sync.WaitGroup) {
+	defer wg.Done()
 	var err error
 	var req *http.Request
 	var resp *http.Response
-	var cli http.Client
-
-	defer close(hec.errch)
+	d := &net.Dialer{
+		Timeout:   30 * time.Second,
+		KeepAlive: 30 * time.Second,
+	}
+	cli := http.Client{
+		Transport: &http.Transport{
+			Proxy:                 http.ProxyFromEnvironment,
+			DialContext:           d.DialContext,
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          10,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		},
+	}
 	if req, err = http.NewRequest(http.MethodPost, hec.uri.String(), nil); err != nil {
 		hec.errch <- err
 		return
@@ -152,11 +165,43 @@ func (hec *hecIgst) singleEntryRequest(rdr io.Reader) {
 		values.Add(`source`, hec.SRC.String())
 		req.URL.RawQuery = values.Encode()
 	}
-
-	lr := bufio.NewReaderSize(rdr, 1024*1024)
 	body := readCloser{
 		Reader: bytes.NewReader(nil),
 	}
+	for ln := range ch {
+		body.Reset(ln)
+		req.Body = body
+		if resp, err = cli.Do(req); err != nil {
+			hec.errch <- err
+			return
+		} else if resp.StatusCode != http.StatusOK {
+			var msg string
+			lr := &io.LimitedReader{R: resp.Body, N: 1024 * 1024}
+			if body, err := ioutil.ReadAll(lr); err == nil || err == io.EOF {
+				msg = string(body)
+			} else {
+				msg = err.Error()
+			}
+			io.Copy(&nilWriter{}, resp.Body)
+			resp.Body.Close()
+			fmt.Println("POST failed", msg)
+			break
+		} else {
+			io.Copy(&nilWriter{}, resp.Body)
+			resp.Body.Close()
+		}
+	}
+}
+
+func (hec *hecIgst) singleEntryRequest(rdr io.Reader) {
+	defer close(hec.errch)
+	ch := make(chan []byte, hec.ChaosWorkers)
+	wg := &sync.WaitGroup{}
+	for i := 0; i < hec.ChaosWorkers; i++ {
+		wg.Add(1)
+		go hec.requester(ch, wg)
+	}
+	lr := bufio.NewReaderSize(rdr, 1024*1024)
 	for {
 		ln, err := lr.ReadBytes('\n')
 		if err != nil {
@@ -169,28 +214,19 @@ func (hec *hecIgst) singleEntryRequest(rdr io.Reader) {
 		} else if len(ln) == 0 {
 			continue
 		}
-		body.Reset(ln)
-		req.Body = body
-		if resp, err = cli.Do(req); err != nil {
-			hec.errch <- err
-			return
-		} else if resp.StatusCode != http.StatusOK {
-			var msg string
-			lr := &io.LimitedReader{R: resp.Body, N: 512}
-			if body, err := ioutil.ReadAll(lr); err == nil || err == io.EOF {
-				msg = string(body)
-			} else {
-				msg = err.Error()
-			}
-			resp.Body.Close()
-			hec.errch <- fmt.Errorf("invalid status %d (%v)\n%s", resp.StatusCode, resp.Status, msg)
-			break
-		} else {
-			resp.Body.Close()
-		}
+		ch <- bytes.Clone(ln)
 	}
+	close(ch)
+	wg.Wait()
 	return
 
+}
+
+type nilWriter struct {
+}
+
+func (nw *nilWriter) Write(b []byte) (int, error) {
+	return len(b), nil
 }
 
 type readCloser struct {
