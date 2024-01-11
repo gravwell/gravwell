@@ -479,6 +479,8 @@ func (is IngestStats) MarshalJSON() ([]byte, error) {
 		BytesPerSecond    float64
 		TotalCount        uint64
 		TotalSize         uint64
+		LastDayCount      uint64 //total entries in last 24 hours
+		LastDaySize       uint64 //total ingested in last 24 hours
 		EntriesHourTail   [24]uint64
 		EntriesMinuteTail [60]uint64
 		BytesHourTail     [24]uint64
@@ -492,6 +494,8 @@ func (is IngestStats) MarshalJSON() ([]byte, error) {
 		BytesPerSecond:    is.BytesPerSecond,
 		TotalCount:        is.TotalCount,
 		TotalSize:         is.TotalSize,
+		LastDayCount:      is.LastDayCount,
+		LastDaySize:       is.LastDaySize,
 		EntriesHourTail:   is.EntriesHourTail,
 		EntriesMinuteTail: is.EntriesMinuteTail,
 		BytesHourTail:     is.BytesHourTail,
