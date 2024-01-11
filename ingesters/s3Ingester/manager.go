@@ -122,6 +122,12 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 
 		shouldDelete := true
 		for i, x := range keys {
+			// should we bother with this key?
+			if !s.filter.match(x) {
+				lg.Info("skipping key based on filter", log.KV("key", x))
+				continue
+			}
+
 			obj := &s3.Object{
 				Key: aws.String(x),
 			}
