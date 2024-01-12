@@ -101,6 +101,9 @@ func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
 		BufferSize:            WRITE_BUFFER_SIZE,
 		Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,
 	}
+	if err := ewc.validate(); err != nil {
+		return nil, err
+	}
 	return NewEntryWriterEx(ewc)
 }
 
@@ -1075,4 +1078,23 @@ func getCommand(b []byte) IngestCommand {
 		return INVALID_MAGIC
 	}
 	return IngestCommand(binary.LittleEndian.Uint32(b))
+}
+
+func (erwc *EntryReaderWriterConfig) validate() error {
+	if erwc.Conn == nil {
+		return errors.New("nil connection")
+	}
+	if erwc.Timeout <= 0 {
+		erwc.Timeout = defaultReaderTimeout
+	}
+	if erwc.BufferSize <= 0 {
+		erwc.BufferSize = READ_BUFFER_SIZE
+	} else if erwc.BufferSize < minBufferSize {
+		erwc.BufferSize = minBufferSize
+	}
+
+	if erwc.OutstandingEntryCount <= 0 {
+		erwc.OutstandingEntryCount = MAX_UNCONFIRMED_COUNT
+	}
+	return nil
 }

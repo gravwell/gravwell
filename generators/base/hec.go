@@ -130,7 +130,7 @@ func (hec *hecIgst) multiLineRequest(rdr io.Reader) {
 	return
 }
 
-func (hec *hecIgst) requester(ch chan []byte, wg *sync.WaitGroup) {
+func (hec *hecIgst) requester(ch chan []byte, wg *sync.WaitGroup, id int) {
 	defer wg.Done()
 	var err error
 	var req *http.Request
@@ -141,10 +141,13 @@ func (hec *hecIgst) requester(ch chan []byte, wg *sync.WaitGroup) {
 	}
 	cli := http.Client{
 		Transport: &http.Transport{
+			ForceAttemptHTTP2:     (id & 0x1) == 1,
+			DisableKeepAlives:     (id & 0x2) == 0x2,
+			DisableCompression:    (id & 0x1) == 0x1,
 			Proxy:                 http.ProxyFromEnvironment,
 			DialContext:           d.DialContext,
-			ForceAttemptHTTP2:     true,
-			MaxIdleConns:          10,
+			MaxIdleConns:          3,
+			MaxIdleConnsPerHost:   2,
 			IdleConnTimeout:       90 * time.Second,
 			TLSHandshakeTimeout:   10 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
@@ -199,7 +202,7 @@ func (hec *hecIgst) singleEntryRequest(rdr io.Reader) {
 	wg := &sync.WaitGroup{}
 	for i := 0; i < hec.ChaosWorkers; i++ {
 		wg.Add(1)
-		go hec.requester(ch, wg)
+		go hec.requester(ch, wg, i)
 	}
 	lr := bufio.NewReaderSize(rdr, 1024*1024)
 	for {
