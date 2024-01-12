@@ -129,6 +129,7 @@ func main() {
 			Credentials_Type: v.Credentials_Type,
 			ID:               v.ID,
 			Secret:           v.Secret,
+			FileFilters:      v.File_Filters,
 		}
 		if scfg.Tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			ib.Logger.FatalCode(0, "failed to get established tag",

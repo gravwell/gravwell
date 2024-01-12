@@ -25,6 +25,7 @@ type SQSS3Config struct {
 	Proc             *processors.ProcessorSet
 	TG               *timegrinder.TimeGrinder
 	Logger           *log.Logger
+	FileFilters      []string
 	Region           string
 	Queue            string
 	Reader           string
@@ -41,12 +42,18 @@ type SQSS3Listener struct {
 	tg      timegrinder.TimeGrinder
 	src     net.IP
 	rdr     reader
+	filter  *matcher
 }
 
 func NewSQSS3Listener(cfg SQSS3Config) (s *SQSS3Listener, err error) {
 	var rdr reader
 	var sess *session.Session
 	if err = cfg.validate(); err != nil {
+		return
+	}
+
+	var filter *matcher
+	if filter, err = newMatcher(cfg.FileFilters); err != nil {
 		return
 	}
 
@@ -83,6 +90,7 @@ func NewSQSS3Listener(cfg SQSS3Config) (s *SQSS3Listener, err error) {
 		svc:         s3.New(sess),
 		src:         cfg.srcOverride(),
 		rdr:         rdr,
+		filter:      filter,
 	}
 	return
 }
