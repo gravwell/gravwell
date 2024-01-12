@@ -58,8 +58,10 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 	// aws uses string pointers, so we have to declare it on the
 	// stack in order to take it's reference... why aws, why......
 	an := "SentTimestamp"
+	maxMsgCount := int64(10)
 	req := &sqs.ReceiveMessageInput{
-		AttributeNames: []*string{&an},
+		AttributeNames:      []*string{&an},
+		MaxNumberOfMessages: &maxMsgCount,
 	}
 
 	req = req.SetQueueUrl(s.conf.Queue)
