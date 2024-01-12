@@ -37,6 +37,7 @@ const (
 	throttleEncodeSize   int = 4 + 8 //cmd plus uint64 duration value
 	confirmTagSize       int = 4 + 8
 	pongEncodeSize       int = 4 //cmd
+	minBufferSize        int = 1024
 )
 
 var (
@@ -101,10 +102,16 @@ func NewEntryReader(conn net.Conn) (*EntryReader, error) {
 		BufferSize:            READ_BUFFER_SIZE,
 		Timeout:               defaultReaderTimeout,
 	}
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
 	return NewEntryReaderEx(cfg)
 }
 
 func NewEntryReaderEx(cfg EntryReaderWriterConfig) (*EntryReader, error) {
+	if err := cfg.validate(); err != nil {
+		return nil, err
+	}
 	//buffer big enough store entire entry header + EntryID
 	return &EntryReader{
 		conn:       cfg.Conn,
