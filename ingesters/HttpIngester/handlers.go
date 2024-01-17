@@ -28,6 +28,11 @@ import (
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
+const (
+	//default is 120 seconds
+	keepAliveTimeoutHeader = `timeout=120`
+)
+
 // note that handleFuncs should read from the reader, not from the Request.Body.
 type handleFunc func(*handler, routeHandler, http.ResponseWriter, *http.Request, io.Reader, net.IP)
 
@@ -175,6 +180,12 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	rt := route{
 		method: r.Method,
 		uri:    path.Clean(r.URL.Path),
+	}
+
+	if r.ProtoMajor == 1 {
+		//we are in HTTP 1.X, we may need to set keep alives for stupid clients
+		w.Header().Add(`Connection`, `keep-alive`)
+		w.Header().Add(`Keep-Alive`, keepAliveTimeoutHeader)
 	}
 
 	//check if its just a health check
