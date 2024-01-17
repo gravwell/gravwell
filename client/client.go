@@ -655,7 +655,7 @@ func (c *Client) DebugDeleteHeaderValue(key string) {
 // this function is primarily used for testing and forcing interactions with
 // web application firewalls, security devices, and general testing.
 // Key values must not be empty, empted values are allowed.
-func (c *Client) DebugAddHQueryValue(key, value string) {
+func (c *Client) DebugAddQueryValue(key, value string) {
 	if key == `` {
 		return
 	}
