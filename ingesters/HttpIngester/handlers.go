@@ -184,7 +184,7 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	if r.ProtoMajor == 1 {
 		//we are in HTTP 1.X, we may need to set keep alives for stupid clients
-		w.Header().Add(`Connection`, `keep-alive`)
+		w.Header().Add(`Connection`, `Keep-Alive`)
 		w.Header().Add(`Keep-Alive`, keepAliveTimeoutHeader)
 	}
 
