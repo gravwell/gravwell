@@ -243,7 +243,8 @@ loop:
 			}
 		}
 		debugout("Sending entry %+v", e)
-		if err = cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
+		if err = h.handleEntryEx(cfg, &e); err != nil {
+			//cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
 			ll.Error("failed to send entry", log.KVErr(err))
 			hh.respInternalServerError(w)
 			return
