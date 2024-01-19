@@ -44,7 +44,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 
 	// create workers
 	var workerWg sync.WaitGroup
-	queue := make(chan *sqs.Message, QUEUE_DEPTH)
+	queue := make(chan []*sqs.Message, QUEUE_DEPTH)
 	for i := 0; i < numWorkers; i++ {
 		workerWg.Add(1)
 		go s.worker(ctx, lg, &workerWg, queue, i)
@@ -83,68 +83,72 @@ OUTER:
 			}
 		}
 
-		// we may have multiple packed messages
-		for _, v := range out {
-			queue <- v
-		}
+		queue <- out
 	}
 	close(queue)
 	workerWg.Wait()
 }
 
-func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.WaitGroup, queue <-chan *sqs.Message, workerID int) {
+func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.WaitGroup, queue <-chan []*sqs.Message, workerID int) {
 	defer wg.Done()
 
 	lg.Infof("worker %v started", workerID)
 
-	for m := range queue {
-		if m == nil || m.Body == nil {
-			continue
-		}
-
-		msg := []byte(*m.Body)
-
-		// Messages that we care about are either SNS wrapped
-		// or s3 put/post/create/whatever messages. Try for
-		// both, error if it's neither.
-		buckets, keys, err := snsDecode(msg)
-		if err != nil {
-			buckets, keys, err = s3Decode(msg)
-			if err != nil {
-				lg.Warn("error decoding message", log.KVErr(err))
-				continue
-			} else {
-				logSnsKeyDecode(lg, "S3", buckets, keys)
-			}
-		} else {
-			logSnsKeyDecode(lg, "SNS", buckets, keys)
-		}
-
-		shouldDelete := true
-		for i, x := range keys {
-			// should we bother with this key?
-			if !s.filter.match(x) {
-				lg.Info("skipping key based on filter", log.KV("key", x))
+	for sm := range queue {
+		var deleteQueue []*sqs.Message
+		for _, m := range sm {
+			if m == nil || m.Body == nil {
 				continue
 			}
 
-			obj := &s3.Object{
-				Key: aws.String(x),
-			}
-			err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
+			msg := []byte(*m.Body)
+
+			// Messages that we care about are either SNS wrapped
+			// or s3 put/post/create/whatever messages. Try for
+			// both, error if it's neither.
+			buckets, keys, err := snsDecode(msg)
 			if err != nil {
-				shouldDelete = false
-				lg.Error("processing message", log.KV("bucket", buckets[i]), log.KV("key", x), log.KVErr(err))
+				buckets, keys, err = s3Decode(msg)
+				if err != nil {
+					lg.Warn("error decoding message", log.KVErr(err))
+					continue
+				} else {
+					logSnsKeyDecode(lg, "S3", buckets, keys)
+				}
 			} else {
-				lg.Info("successfully processed message", log.KV("bucket", buckets[i]), log.KV("key", x))
+				logSnsKeyDecode(lg, "SNS", buckets, keys)
+			}
+
+			shouldDelete := true
+			for i, x := range keys {
+				// should we bother with this key?
+				if !s.filter.match(x) {
+					lg.Info("skipping key based on filter", log.KV("key", x))
+					continue
+				}
+
+				obj := &s3.Object{
+					Key: aws.String(x),
+				}
+				err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
+				if err != nil {
+					shouldDelete = false
+					lg.Error("processing message", log.KV("bucket", buckets[i]), log.KV("key", x), log.KVErr(err))
+				} else {
+					lg.Info("successfully processed message", log.KV("bucket", buckets[i]), log.KV("key", x))
+				}
+			}
+
+			if shouldDelete {
+				deleteQueue = append(deleteQueue, m)
 			}
 		}
 
 		// delete messages we successfully processed
-		if shouldDelete {
-			err = s.sqs.DeleteMessages([]*sqs.Message{m})
+		if len(deleteQueue) != 0 {
+			err := s.sqs.DeleteMessages(deleteQueue)
 			if err != nil {
-				lg.Error("deleting message", log.KVErr(err))
+				lg.Error("deleting messages", log.KVErr(err))
 			}
 		}
 
