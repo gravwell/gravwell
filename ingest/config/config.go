@@ -118,6 +118,7 @@ type IngestConfig struct {
 	Log_Source_Override        string   `json:",omitempty"` // override log messages only
 	Label                      string   `json:",omitempty"` //arbitrary label that can be attached to an ingester
 	Disable_Multithreading     bool     //basically set GOMAXPROCS(1)
+	Stats_Sample_Interval      string   `json:",omitempty"` // if set to > 0 duration then we periodically throw stats
 }
 
 type IngestStreamConfig struct {
@@ -254,6 +255,13 @@ func (ic *IngestConfig) Verify() error {
 		ic.Cache_Depth = CACHE_DEPTH_DEFAULT
 	}
 	// there are no defaults for the cache_size.
+
+	//if Stats_Sample_Interval is populated, check that we can parse as a duration
+	if ic.Stats_Sample_Interval != `` {
+		if _, err := time.ParseDuration(ic.Stats_Sample_Interval); err != nil {
+			return fmt.Errorf("invalid Stats-Sample-Interval %s %w", ic.Stats_Sample_Interval, err)
+		}
+	}
 
 	return nil
 }
@@ -424,6 +432,18 @@ func (ic *IngestConfig) GetLogger() (l *log.Logger, err error) {
 	}
 	if err == nil {
 		err = l.SetLevel(ll)
+	}
+	return
+}
+
+func (ic *IngestConfig) StatsSampleInterval() (dur time.Duration) {
+	if ic == nil || ic.Stats_Sample_Interval == `` {
+		return // disabled, no duration
+	}
+	var err error
+	if dur, err = time.ParseDuration(ic.Stats_Sample_Interval); err != nil {
+		// bad parses are just zero, validate should prevent this though
+		dur = 0
 	}
 	return
 }

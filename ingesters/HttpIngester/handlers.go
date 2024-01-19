@@ -25,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -50,6 +51,9 @@ type handler struct {
 	sync.RWMutex
 	igst           *ingest.IngestMuxer
 	lgr            *log.Logger
+	reqSI          *utils.StatsItem // per request SI
+	entSI          *utils.StatsItem // per entry SI
+	bytesSI        *utils.StatsItem // bytes SI
 	mp             map[route]routeHandler
 	auth           map[route]authHandler
 	custom         map[route]http.Handler
@@ -68,7 +72,7 @@ func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Reque
 	rh.handler(h, rh, w, req, rdr, ip)
 }
 
-func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger) (h *handler, err error) {
+func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger, reqSI, entSI, bytesSI *utils.StatsItem) (h *handler, err error) {
 	if igst == nil {
 		err = errors.New("nil muxer")
 	} else if lgr == nil {
@@ -81,6 +85,9 @@ func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger) (h *handler, err erro
 			custom:  map[route]http.Handler{},
 			igst:    igst,
 			lgr:     lgr,
+			reqSI:   reqSI,
+			entSI:   entSI,
+			bytesSI: bytesSI,
 		}
 	}
 	return
@@ -155,6 +162,7 @@ func drainAndClose(rc io.ReadCloser) {
 }
 
 func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	h.reqSI.Add(1)
 	defer drainAndClose(r.Body)
 	w := &trackingRW{
 		ResponseWriter: rw,
@@ -264,6 +272,18 @@ func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP, tag entry.E
 	if err = cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
 		h.lgr.Error("failed to send entry", log.KVErr(err))
 		return
+	}
+	h.entSI.Add(1)
+	h.bytesSI.Add(uint64(len(b)))
+	return
+}
+
+func (h *handler) handleEntryEx(rh routeHandler, ent *entry.Entry) (err error) {
+	if ent != nil {
+		if err = rh.pproc.ProcessContext(ent, exitCtx); err == nil {
+			h.entSI.Add(1)
+			h.bytesSI.Add(ent.Size())
+		}
 	}
 	return
 }

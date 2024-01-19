@@ -24,6 +24,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/klauspost/compress/gzip"
 )
 
 type hecIgst struct {
@@ -37,6 +38,7 @@ type hecIgst struct {
 	wg    *sync.WaitGroup
 	errch chan error
 	wtr   io.WriteCloser
+	rdr   io.ReadCloser
 }
 
 func newHecConn(name string, gc GeneratorConfig, to time.Duration) (hec *hecIgst, err error) {
@@ -56,9 +58,11 @@ func newHecConn(name string, gc GeneratorConfig, to time.Duration) (hec *hecIgst
 	if hec.src, err = hec.test(); err != nil {
 		return
 	}
-	rdr, wtr := io.Pipe()
-	go hec.httpRoutine(rdr)
-	hec.wtr = wtr
+	hec.rdr, hec.wtr = io.Pipe()
+	if gc.Compression {
+		hec.wtr = gzip.NewWriter(hec.wtr)
+	}
+	go hec.httpRoutine(hec.rdr)
 	return
 }
 
@@ -80,12 +84,13 @@ func (hec *hecIgst) test() (ip net.IP, err error) {
 	return
 }
 
-func (hec *hecIgst) httpRoutine(rdr io.Reader) {
+func (hec *hecIgst) httpRoutine(rdr io.ReadCloser) {
 	if hec.GeneratorConfig.ChaosMode == false {
 		hec.multiLineRequest(rdr)
 	} else {
 		hec.singleEntryRequest(rdr)
 	}
+	rdr.Close()
 }
 
 func (hec *hecIgst) multiLineRequest(rdr io.Reader) {
@@ -101,6 +106,9 @@ func (hec *hecIgst) multiLineRequest(rdr io.Reader) {
 	}
 	req.Header.Add(`Authorization`, hec.auth)
 	req.Header.Set(`User-Agent`, hec.name)
+	if hec.Compression {
+		req.Header.Add(`Content-Encoding`, `gzip`)
+	}
 
 	if hec.modeHECRaw {
 		//attach URL parameters
@@ -358,7 +366,7 @@ func (hec *hecIgst) sendEvent(ent *entry.Entry) (err error) {
 	if ent != nil {
 		v := hecent{
 			Time:  timeFloat(ent.TS),
-			Event: json.RawMessage(ent.Data),
+			Event: setData(ent.Data),
 			ST:    hec.Tag,
 		}
 		err = json.NewEncoder(hec.wtr).Encode(v)
