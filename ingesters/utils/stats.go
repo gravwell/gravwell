@@ -126,19 +126,26 @@ loop:
 
 func (sm *StatsManager) doTick(dur time.Duration) {
 	var params []rfc5424.SDParam
+	// flag indicating that there were some stats that were not zero
+	// we do this so that idle ingesters don't just keep barking empty stats
+	var ok bool
 	sm.Lock()
 	if len(sm.items) > 0 {
 		params = make([]rfc5424.SDParam, 0, len(sm.items)+1)
 		params = append(params, log.KV(statsIntervalName, dur.Milliseconds()))
 		//gather values
 		for _, v := range sm.items {
-			params = append(params, log.KV(v.name, v.reset()))
+			val := v.reset()
+			if val != 0 {
+				ok = true
+			}
+			params = append(params, log.KV(v.name, val))
 		}
 	}
 	sm.Unlock()
 
 	//emit entry
-	if len(params) > 0 {
+	if len(params) > 0 && ok == true {
 		sm.lgr.Info(statsMsg, params...)
 	}
 }
