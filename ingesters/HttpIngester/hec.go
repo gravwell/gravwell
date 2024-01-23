@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,10 +43,12 @@ var (
 
 type hecHandler struct {
 	hecHealth
+	auth           *hecAuthHandler
 	name           string
 	ackLock        sync.Mutex
 	ackIds         map[string]uint64
 	tagRouter      map[string]entry.EntryTag
+	tokenRouter    map[string]entry.EntryTag
 	rawLineBreaker string
 	maxSize        uint
 	debugPosts     bool
@@ -105,6 +108,7 @@ func (to tagOverride) LogKV() rfc5424.SDParam {
 }
 
 func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogger) (tg entry.EntryTag, override tagOverride, ok bool, err error) {
+	tg, override, ok = hh.auth.checkRoutedTag(r) // this just initializes it
 	if v := r.URL.Query(); len(v) > 0 {
 		if val := v.Get(parameterTag); val != `` {
 			//check if the tag is allowed
@@ -513,4 +517,95 @@ func (hev hecEvent) empty() bool {
 		return false
 	}
 	return true
+}
+
+type tagPair struct {
+	name string
+	tag  entry.EntryTag
+}
+
+type hecAuthHandler struct {
+	noLogin
+	defToken    string
+	tokenRoutes map[string]tagPair
+}
+
+func newHecAuth(cfg *hecCompatible, igst *ingest.IngestMuxer) (ha *hecAuthHandler, err error) {
+	if cfg == nil {
+		return nil, errors.New("nil configuration")
+	}
+	if cfg.TokenValue == `` && len(cfg.Routed_Token_Value) == 0 {
+		return nil, errors.New("no tokens specified")
+	}
+	ha = &hecAuthHandler{
+		defToken: cfg.TokenValue,
+	}
+	if tm, err := cfg.tokenTagMatchers(); err == nil && len(tm) > 0 {
+		ha.tokenRoutes = make(map[string]tagPair, len(tm))
+		for _, v := range tm {
+			if tag, err := igst.NegotiateTag(v.Tag); err == nil {
+				ha.tokenRoutes[v.Value] = tagPair{
+					name: v.Tag,
+					tag:  tag,
+				}
+			}
+		}
+	}
+	return
+}
+
+func getHECToken(r *http.Request) (v string, err error) {
+	//get the actual header
+	var temp string
+	if temp, err = getHeaderToken(r, `Authorization`); err != nil {
+		return
+	}
+	//if it does not contain a prefix of "Splunk"
+	if strings.HasPrefix(temp, `Splunk `) == false {
+		err = ErrUnauthorized
+		return
+	}
+	v = strings.TrimPrefix(temp, `Splunk `)
+	return
+}
+
+func (hah hecAuthHandler) AuthRequest(r *http.Request) error {
+	actualToken, err := getHECToken(r)
+	if err != nil {
+		return err
+	}
+	if hah.defToken != `` && hah.defToken == actualToken {
+		//GTG
+		return nil
+	}
+
+	//look it up
+	if len(hah.tokenRoutes) > 0 {
+		if _, ok := hah.tokenRoutes[actualToken]; ok {
+			//we have a route, use it
+			return nil
+		}
+	}
+	return ErrUnauthorized
+}
+
+func (hah hecAuthHandler) checkRoutedTag(r *http.Request) (tg entry.EntryTag, ovr tagOverride, ok bool) {
+	actualToken, err := getHECToken(r)
+	if err != nil {
+		return // this should REALLY not happen
+	}
+	if actualToken == hah.defToken {
+		return // just the default, no overrides
+	} else if len(hah.tokenRoutes) > 0 {
+		var tp tagPair
+		if tp, ok = hah.tokenRoutes[actualToken]; ok {
+			// got a hit, populate things
+			tg = tp.tag
+			ovr = tagOverride{
+				param: `token`, //a constant token
+				value: tp.name,
+			}
+		}
+	}
+	return
 }
