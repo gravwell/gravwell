@@ -108,6 +108,7 @@ func (to tagOverride) LogKV() rfc5424.SDParam {
 }
 
 func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogger) (tg entry.EntryTag, override tagOverride, ok bool, err error) {
+	var ntg entry.EntryTag
 	tg, override, ok = hh.auth.checkRoutedTag(r) // this just initializes it
 	if v := r.URL.Query(); len(v) > 0 {
 		if val := v.Get(parameterTag); val != `` {
@@ -117,19 +118,23 @@ func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogge
 					log.KV("tag", val),
 					log.KVErr(err))
 				return
-			} else if tg, err = h.igst.NegotiateTag(val); err != nil {
+			} else if ntg, err = h.igst.NegotiateTag(val); err != nil {
 				ll.Error("failed to negotiate tag",
 					log.KV("tag", val), log.KVErr(err))
 				return
 			} else {
 				ok = true
+				tg = ntg
 				override = tagOverride{
 					param: parameterTag,
 					value: val,
 				}
 			}
 		} else if val = v.Get(parameterSourcetype); val != `` && len(hh.tagRouter) > 0 {
-			if tg, ok = hh.tagRouter[val]; ok {
+			var pok bool // get a new ok going so that we don't blow up a token based route
+			if ntg, pok = hh.tagRouter[val]; pok {
+				ok = pok
+				tg = ntg
 				override = tagOverride{
 					param: parameterSourcetype,
 					value: val,
