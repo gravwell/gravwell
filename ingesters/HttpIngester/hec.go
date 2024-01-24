@@ -595,6 +595,9 @@ func (hah hecAuthHandler) AuthRequest(r *http.Request) error {
 }
 
 func (hah hecAuthHandler) checkRoutedTag(r *http.Request) (tg entry.EntryTag, ovr tagOverride, ok bool) {
+	if len(hah.tokenRoutes) == 0 {
+		return //the quick default path
+	}
 	actualToken, err := getHECToken(r)
 	if err != nil {
 		return // this should REALLY not happen
