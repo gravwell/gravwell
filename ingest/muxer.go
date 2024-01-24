@@ -1441,7 +1441,7 @@ func isFatalConnError(err error) bool {
 
 func (im *IngestMuxer) quitableSleep(dur time.Duration) (quit bool) {
 	select {
-	case _ = <-time.After(defaultRetryTime):
+	case _ = <-time.After(dur):
 	case _ = <-im.dieChan:
 		quit = true
 	}
@@ -1588,7 +1588,7 @@ loop:
 			ig.Close()
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
-			if im.quitableSleep(defaultRetryTime) {
+			if im.quitableSleep(retryDuration) {
 				//told to exit, just bail
 				return nil, nil, errors.New("Muxer closing")
 			}
