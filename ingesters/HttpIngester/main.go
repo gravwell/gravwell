@@ -11,6 +11,7 @@ package main
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	dlog "log"
@@ -82,7 +83,16 @@ func main() {
 		debugout("missing capability NET_BIND_SERVICE, may not be able to bind to service ports")
 	}
 
-	hnd, err := newHandler(igst, lg)
+	var reqSI, entSI, bytesSI *utils.StatsItem
+	if reqSI, err = ib.RegisterStat(`requests`); err != nil {
+		ib.Logger.FatalCode(0, "failed to get stats item", log.KVErr(err))
+	} else if entSI, err = ib.RegisterStat(`entries`); err != nil {
+		ib.Logger.FatalCode(0, "failed to get stats item", log.KVErr(err))
+	} else if bytesSI, err = ib.RegisterStat(`bytes`); err != nil {
+		ib.Logger.FatalCode(0, "failed to get stats item", log.KVErr(err))
+	}
+
+	hnd, err := newHandler(igst, lg, reqSI, entSI, bytesSI)
 	if err != nil {
 		lg.FatalCode(0, "Failed to create new handler")
 	}
@@ -165,29 +175,34 @@ func main() {
 		ErrorLog:          dlog.New(lg, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags),
 	}
 	srv.SetKeepAlivesEnabled(true)
+	var lst net.Listener
+	if lst, err = newListener(cfg.Bind, ib); err != nil {
+		lg.Fatalf("failed to bind to %v %v", cfg.Bind, err)
+	}
+	defer lst.Close()
+
 	done := make(chan error, 1)
 	if cfg.TLSEnabled() {
-		c := cfg.TLS_Certificate_File
-		k := cfg.TLS_Key_File
-		debugout("Binding to %v with TLS enabled using %s %s\n", cfg.Bind, cfg.TLS_Certificate_File, cfg.TLS_Key_File)
+		srv.TLSConfig = &tls.Config{
+			MinVersion: tls.VersionTLS12,
+		}
 		go func(dc chan error) {
 			defer close(dc)
-			srv.TLSConfig = &tls.Config{
-				MinVersion: tls.VersionTLS12,
-			}
-			if err := srv.ListenAndServeTLS(c, k); err != nil {
-				lg.Error("failed to serve HTTPS server", log.KVErr(err))
+			if err := srv.ServeTLS(lst, cfg.TLS_Certificate_File, cfg.TLS_Key_File); err != nil {
+				lg.Error(`failed to serve HTTPS`, log.KVErr(err))
 			}
 		}(done)
+		debugout("Binding to %v HTTPS mode\n", cfg.Bind)
 	} else {
-		debugout("Binding to %v in cleartext mode\n", cfg.Bind)
 		go func(dc chan error) {
 			defer close(dc)
-			if err := srv.ListenAndServe(); err != nil {
-				lg.Error("failed to serve HTTP server", log.KVErr(err))
+			if err := srv.Serve(lst); err != nil {
+				lg.Error(`failed to serve HTTP`, log.KVErr(err))
 			}
 		}(done)
+		debugout("Binding to %v HTTP mode\n", cfg.Bind)
 	}
+
 	qc := utils.GetQuitChannel()
 	defer close(qc)
 	select {
@@ -261,4 +276,49 @@ func readAll(r io.Reader, buff []byte) (offset int, err error) {
 		offset += n
 	}
 	return
+}
+
+type instrumentListener struct {
+	s   *utils.StatsItem
+	lst net.Listener
+}
+
+func newListener(bind string, ib base.IngesterBase) (lst net.Listener, err error) {
+	var si *utils.StatsItem
+	var tlst net.Listener
+	if si, err = ib.RegisterStat(`connections`); err != nil {
+		return
+	} else if tlst, err = net.Listen(`tcp`, bind); err != nil {
+		return
+	}
+	lst = &instrumentListener{
+		s:   si,
+		lst: tlst,
+	}
+	return
+}
+
+func (is *instrumentListener) Addr() net.Addr {
+	if is != nil && is.lst != nil {
+		return is.lst.Addr()
+	}
+	return nil
+}
+
+func (is *instrumentListener) Close() error {
+	if is == nil || is.lst == nil {
+		return errors.New("nil listener")
+	}
+	return is.lst.Close()
+}
+
+func (is *instrumentListener) Accept() (net.Conn, error) {
+	if is == nil || is.lst == nil {
+		return nil, errors.New("nil listener")
+	}
+	c, err := is.lst.Accept()
+	if err == nil {
+		is.s.Add(1)
+	}
+	return c, err
 }

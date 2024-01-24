@@ -322,7 +322,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		for i := range indexes {
 			if indexes[i].Name == progress.Index {
 				if t, err := time.Parse(splunkTsFmt, indexes[i].Content.MinTime); err != nil {
-					return err
+					lg.Warn("could not determine actual start time of data from splunk-derived mintime, beginning at user-configured start time", log.KV("mintime", indexes[i].Content.MinTime), log.KVErr(err))
 				} else if t.After(progress.ConsumedUpTo) {
 					lg.Infof("Fast-forwarding ingest job for index %v sourcetype %v to actual beginning of data (%v)\n", progress.Index, progress.Sourcetype, t)
 					progress.ConsumedUpTo = t
