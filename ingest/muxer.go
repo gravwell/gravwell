@@ -64,7 +64,8 @@ const (
 	running muxState = 1
 	closed  muxState = 2
 
-	defaultRetryTime     time.Duration = 10 * time.Second
+	defaultRetryTime     time.Duration = 10 * time.Second //how quickly we attempt to reconnect
+	maxRetryTime         time.Duration = 5 * time.Minute  // maximum interval on reconnects after repeated failures
 	recycleTimeout       time.Duration = time.Second
 	maxEmergencyListSize int           = 64
 	unknownAddr          string        = `unknown`
@@ -1438,7 +1439,28 @@ func isFatalConnError(err error) bool {
 	return false
 }
 
+func (im *IngestMuxer) quitableSleep(dur time.Duration) (quit bool) {
+	select {
+	case _ = <-time.After(defaultRetryTime):
+	case _ = <-im.dieChan:
+		quit = true
+	}
+	return
+}
+
+func backoff(curr, max time.Duration) time.Duration {
+	if curr <= 0 {
+		return defaultRetryTime
+	}
+	if curr = curr * 2; curr > max {
+		curr = max
+	}
+	return curr
+}
+
 func (im *IngestMuxer) getConnection(tgt Target) (ig *IngestConnection, tt tagTrans, err error) {
+	//initialize our retryDuration to zero, first call will set it to the default and then start backing off
+	var retryDuration time.Duration
 loop:
 	for {
 		//attempt a connection, timeouts are built in to the IngestConnection
@@ -1466,9 +1488,8 @@ loop:
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(err))
 			//non-fatal, sleep and continue
-			select {
-			case _ = <-time.After(defaultRetryTime):
-			case _ = <-im.dieChan:
+			retryDuration = backoff(retryDuration, maxRetryTime)
+			if im.quitableSleep(defaultRetryTime) {
 				//told to exit, just bail
 				return nil, nil, errors.New("Muxer closing")
 			}
@@ -1496,18 +1517,30 @@ loop:
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(err))
+			//non-fatal, sleep and continue
+			retryDuration = backoff(retryDuration, maxRetryTime)
+			if im.quitableSleep(defaultRetryTime) {
+				//told to exit, just bail
+				return nil, nil, errors.New("Muxer closing")
+			}
 			continue
 		}
 		im.mtx.RUnlock()
 
 		// set the info
-		if err := ig.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
+		if lerr := ig.IdentifyIngester(im.name, im.version, im.uuid); lerr != nil {
 			im.Error("Failed to identify ingester",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
-				log.KVErr(err))
+				log.KVErr(lerr))
+			//non-fatal, sleep and continue
+			retryDuration = backoff(retryDuration, maxRetryTime)
+			if im.quitableSleep(defaultRetryTime) {
+				//told to exit, just bail
+				return nil, nil, errors.New("Muxer closing")
+			}
 			continue
 		}
 
@@ -1517,15 +1550,21 @@ loop:
 				return
 			default:
 			}
-			ok, err := ig.IngestOK()
-			if err != nil {
+			ok, lerr := ig.IngestOK()
+			if lerr != nil {
 				im.Error("IngestOK query failed",
 					log.KV("indexer", tgt.Address),
 					log.KV("ingester", im.name),
 					log.KV("version", version.GetVersion()),
 					log.KV("ingesteruuid", im.uuid),
-					log.KVErr(err))
+					log.KVErr(lerr))
 				ig.Close()
+				//non-fatal, sleep and continue
+				retryDuration = backoff(retryDuration, maxRetryTime)
+				if im.quitableSleep(defaultRetryTime) {
+					//told to exit, just bail
+					return nil, nil, errors.New("Muxer closing")
+				}
 				continue loop
 			}
 			if ok {
@@ -1536,17 +1575,23 @@ loop:
 				log.KV("ingester", im.name),
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid))
-			time.Sleep(5 * time.Second)
+			im.quitableSleep(10 * time.Second)
 		}
 
-		if err := ig.ew.ConfigureStream(im.cfg); err != nil {
+		if lerr := ig.ew.ConfigureStream(im.cfg); lerr != nil {
 			im.Warn("failed to configure stream",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
-				log.KVErr(err))
+				log.KVErr(lerr))
 			ig.Close()
+			//non-fatal, sleep and continue
+			retryDuration = backoff(retryDuration, maxRetryTime)
+			if im.quitableSleep(defaultRetryTime) {
+				//told to exit, just bail
+				return nil, nil, errors.New("Muxer closing")
+			}
 			continue
 		}
 
