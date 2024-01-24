@@ -1489,7 +1489,7 @@ loop:
 				log.KVErr(err))
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
-			if im.quitableSleep(defaultRetryTime) {
+			if im.quitableSleep(retryDuration) {
 				//told to exit, just bail
 				return nil, nil, errors.New("Muxer closing")
 			}
@@ -1519,7 +1519,7 @@ loop:
 				log.KVErr(err))
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
-			if im.quitableSleep(defaultRetryTime) {
+			if im.quitableSleep(retryDuration) {
 				//told to exit, just bail
 				return nil, nil, errors.New("Muxer closing")
 			}
@@ -1537,7 +1537,7 @@ loop:
 				log.KVErr(lerr))
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
-			if im.quitableSleep(defaultRetryTime) {
+			if im.quitableSleep(retryDuration) {
 				//told to exit, just bail
 				return nil, nil, errors.New("Muxer closing")
 			}
@@ -1561,7 +1561,7 @@ loop:
 				ig.Close()
 				//non-fatal, sleep and continue
 				retryDuration = backoff(retryDuration, maxRetryTime)
-				if im.quitableSleep(defaultRetryTime) {
+				if im.quitableSleep(retryDuration) {
 					//told to exit, just bail
 					return nil, nil, errors.New("Muxer closing")
 				}
