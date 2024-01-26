@@ -286,11 +286,11 @@ func ingestFile(fin io.Reader, igst *ingest.IngestMuxer, tag entry.EntryTag, tg 
 			ts = time.Now()
 		}
 		ent := &entry.Entry{
-			TS:  entry.FromStandard(ts),
-			Tag: tag,
-			SRC: src,
+			TS:   entry.FromStandard(ts),
+			Tag:  tag,
+			SRC:  src,
+			Data: bytes.Clone(bts), // force a copy due to scanner
 		}
-		ent.Data = append(ent.Data, bts...) //force reallocation due to the scanner
 		if bsize == 0 {
 			if err = igst.WriteEntry(ent); err != nil {
 				return err

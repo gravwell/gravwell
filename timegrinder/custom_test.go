@@ -76,7 +76,17 @@ func TestBadCustomWithPreExtactor(t *testing.T) {
 		Format: string(RFC3339),
 	}
 	if err := cf.Validate(); err == nil {
-		t.Fatal("failed to catch missing pre-extract")
+		t.Fatal("failed to catch regex/format mismatch")
+	}
+
+	// test with custom that doesn't match regex
+	cf = CustomFormat{
+		Name:   `bad`,
+		Regex:  AnsiCRegex,
+		Format: RFC3339Format,
+	}
+	if err := cf.Validate(); err == nil {
+		t.Fatal("failed to catch regex/format mismatch")
 	}
 
 	// test with custom that doesn't have a valid pre-extract

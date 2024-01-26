@@ -16,10 +16,11 @@ import (
 )
 
 var (
-	ErrMissingName   = errors.New("Missing time extraction name")
-	ErrMissingRegex  = errors.New("Missing extraction regular expression")
-	ErrMissingFormat = errors.New("Missing extraction time format")
-	ErrInvalidFormat = errors.New("Invalid time format, could not format and extract current time")
+	ErrMissingName         = errors.New("Missing time extraction name")
+	ErrMissingRegex        = errors.New("Missing extraction regular expression")
+	ErrMissingFormat       = errors.New("Missing extraction time format")
+	ErrInvalidFormat       = errors.New("Invalid time format, could not format and extract current time")
+	ErrRegexFormatMismatch = errors.New("Could not match regex against provided format")
 )
 
 var (
@@ -56,8 +57,13 @@ func (cf *CustomFormat) Validate() (err error) {
 	}
 
 	if cf.Regex != `` {
+		if _, ok := tg.GetProcessor(cf.Format); ok {
+			err = fmt.Errorf("Cannot specify a format name (%v) and a regex", cf.Format)
+			return
+		}
 		//check that the regex compiles
-		if _, err = regexp.Compile(cf.Regex); err != nil {
+		var rx *regexp.Regexp
+		if rx, err = regexp.Compile(cf.Regex); err != nil {
 			return
 		}
 
@@ -75,6 +81,11 @@ func (cf *CustomFormat) Validate() (err error) {
 		}
 		if t.Year() == 0 {
 			cf.yearMissing = true
+		}
+		// Try to match it
+		if _, _, ok := match(rx, nil, []byte(time.Now().Format(cf.Format))); !ok {
+			err = ErrRegexFormatMismatch
+			return
 		}
 	} else if cf.Extraction_Regex == `` {
 		// if we don't have a regex, then we MUST have a pre-extraction regex

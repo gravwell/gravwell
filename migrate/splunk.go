@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 )
 
@@ -29,7 +30,9 @@ const (
 	splunkTsFmt     string = "2006-01-02T15:04:05-0700"
 	splunkStateType string = `splunk`
 
-	MAXCHUNK int = 500000
+	defaultMaxChunk int = 500000
+
+	maxChunkMegabytes uint64 = 800 // For sanity's sake... we've seen systems where a user can't have more than 1GB of query results at a time, so let's try to make sure we never hit that
 )
 
 var (
@@ -41,8 +44,11 @@ var (
 type splunk struct {
 	Server                  string   // the Splunk server, e.g. splunk.example.com
 	Token                   string   // a Splunk auth token
+	Max_Chunk               int      // maximum number of entries to try and grab at once. Defaults to a conservative 500,000
 	Ingest_From_Unix_Time   int      // a timestamp to use as the default start time for this Splunk server (default 1)
+	Ingest_To_Unix_Time     int      // a timestamp to use as the end time for this Splunk server (default 0, meaning "now")
 	Index_Sourcetype_To_Tag []string // a mapping of index+sourcetype to Gravwell tag
+	Disable_Intrinsics      bool     // If set, no additional fields will be attached as intrinsic EVs on the ingested data
 	Preprocessor            []string
 }
 
@@ -57,11 +63,25 @@ func (s *splunk) Validate(procs processors.ProcessorConfig) (err error) {
 	return
 }
 
+func (s *splunk) maxChunk() int {
+	if s.Max_Chunk <= 0 {
+		return defaultMaxChunk
+	}
+	return s.Max_Chunk
+}
+
 func (s *splunk) startTime() time.Time {
 	if s.Ingest_From_Unix_Time <= 0 {
 		return time.Unix(1, 0)
 	}
 	return time.Unix(int64(s.Ingest_From_Unix_Time), 0)
+}
+
+func (s *splunk) endTime() time.Time {
+	if s.Ingest_To_Unix_Time <= 0 {
+		return time.Unix(0, 0)
+	}
+	return time.Unix(int64(s.Ingest_To_Unix_Time), 0)
 }
 
 func (s *splunk) ParseMappings() ([]SplunkToGravwell, error) {
@@ -219,10 +239,11 @@ func (s *splunkStatus) Update(progress SplunkToGravwell) {
 
 // SplunkToGravwell represents migration progress for a single index+sourcetype pair on a Splunk server.
 type SplunkToGravwell struct {
-	Tag          string    // the gravwell tag
-	Index        string    // the Splunk index
-	Sourcetype   string    // the Splunk source type
-	ConsumedUpTo time.Time // all Splunk data up until this time stamp (exclusive) has been migrated
+	Tag            string    // the gravwell tag
+	Index          string    // the Splunk index
+	Sourcetype     string    // the Splunk source type
+	ConsumedUpTo   time.Time // all Splunk data up until this time stamp (exclusive) has been migrated
+	ConsumeEndTime time.Time // read up to this time stamp. if zero, it'll read until now
 }
 
 func (s SplunkToGravwell) key() string {
@@ -262,6 +283,7 @@ func initializeSplunk(cfg *cfgType, st *StateTracker, ctx context.Context) (stop
 				// Set "ConsumedUpTo" to whatever the user may have set for Ingest-From-Unix-Time, then
 				// if we've already done some ingestion before, it'll get overwritten by the cache lookup
 				x.ConsumedUpTo = v.startTime()
+				x.ConsumeEndTime = v.endTime()
 				if c, err := cached.Lookup(x.Index, x.Sourcetype); err == nil {
 					x = c
 				}
@@ -300,7 +322,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		for i := range indexes {
 			if indexes[i].Name == progress.Index {
 				if t, err := time.Parse(splunkTsFmt, indexes[i].Content.MinTime); err != nil {
-					return err
+					lg.Warn("could not determine actual start time of data from splunk-derived mintime, beginning at user-configured start time", log.KV("mintime", indexes[i].Content.MinTime), log.KVErr(err))
 				} else if t.After(progress.ConsumedUpTo) {
 					lg.Infof("Fast-forwarding ingest job for index %v sourcetype %v to actual beginning of data (%v)\n", progress.Index, progress.Sourcetype, t)
 					progress.ConsumedUpTo = t
@@ -312,8 +334,15 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 	updateChan <- fmt.Sprintf("Job started, beginning at %v", progress.ConsumedUpTo)
 
 	var count uint64
+	var byteTotal uint64
+
+	// we also maintain a moving average of the entry size
+	// we'll just initialize the average to something moderate
+	avgSize := float64(128)
+	alpha := 0.1
 
 	cb := func(s map[string]string) {
+		var entSize int
 		// Grab the timestamp and the raw data
 		var ts time.Time
 		var data string
@@ -327,7 +356,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 			}
 		}
 		if data, ok = s["_raw"]; !ok {
-			lg.Infof("could not get data!\n")
+			lg.Infof("could not get data! incoming Splunk entry was: %v\n", s)
 			return
 		}
 		ent := &entry.Entry{
@@ -336,12 +365,33 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 			Tag:  tag,
 			Data: []byte(data),
 		}
+		// Now add in everything else, provided they've enabled it
+		for k, v := range s {
+			entSize += len(v)
+			if !splunkConfig.Disable_Intrinsics {
+				if k == "_raw" {
+					continue
+				}
+				ev, err := entry.NewEnumeratedValue(k, v)
+				if err != nil {
+					lg.Infof("failed to make enumerated value %v: %v\n", k, err)
+					continue
+				}
+				if err := ent.AddEnumeratedValue(ev); err != nil {
+					lg.Infof("failed to attach enumerated value %v: %v\n", k, err)
+					continue
+				}
+			}
+		}
 		pproc.ProcessContext(ent, ctx)
 		count++
+		byteTotal += ent.Size()
+		avgSize = (alpha * float64(entSize)) + (1.0-alpha)*avgSize
 	}
 
-	chunk := 60 * time.Minute
+	chunk := 1 * time.Minute
 	var done bool
+	startTime := time.Now()
 	for i := 0; !done; i++ {
 		if checkSig(ctx) {
 			return nil
@@ -352,38 +402,60 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 			// increase chunk size every 5 iterations in case things are bursty
 			chunk = chunk * 2
 		}
+
 		resizing := true
+		var expectedCount uint64
 		for resizing {
 			cb := func(s map[string]string) {
 				resizing = false
 				if cstr, ok := s["count"]; ok {
 					if count, err := strconv.Atoi(cstr); err == nil {
-						if count >= MAXCHUNK && time.Duration(chunk/2) > time.Second {
+						if (count >= splunkConfig.maxChunk() || uint64(count)*uint64(avgSize) > maxChunkMegabytes*ingest.MB) && time.Duration(chunk/2) > time.Second {
 							resizing = true // keep trying
 							chunk = chunk / 2
+						} else {
+							expectedCount = uint64(count)
 						}
 					}
 				}
 			}
 			query := fmt.Sprintf("| tstats count WHERE index=\"%s\" AND sourcetype=\"%s\"", progress.Index, progress.Sourcetype)
 			if err := sc.RunExportSearch(query, progress.ConsumedUpTo, progress.ConsumedUpTo.Add(chunk), cb); err != nil {
-				return err
+				return fmt.Errorf("window size estimation query returned an error: %w", err)
 			}
 		}
 		end := progress.ConsumedUpTo.Add(chunk)
-		if end.After(time.Now()) {
+		if !progress.ConsumeEndTime.IsZero() && progress.ConsumeEndTime.Unix() != 0 && end.After(progress.ConsumeEndTime) {
+			end = progress.ConsumeEndTime
+			done = true
+		} else if end.After(time.Now()) {
 			end = time.Now()
 			done = true
 		}
+		// It's possible we ended up with start == end, in which case we're good!
+		if progress.ConsumedUpTo == end {
+			break
+		}
+
+		// Periodically output some logs
+		if i%20 == 1 {
+			lg.Infof("Pulling %v/%v from %v to %v. Current avgSize is %v\n", progress.Index, progress.Sourcetype, progress.ConsumedUpTo, end, avgSize)
+		}
 
 		// run query with current earliest=ConsumedUpTo, latest=ConsumedUpTo+60m
+		oldCount := count
 		query := fmt.Sprintf("search index=\"%s\" sourcetype=\"%s\" | rename _time AS epoch_time | table epoch_time _raw", progress.Index, progress.Sourcetype)
 		if err := sc.RunExportSearch(query, progress.ConsumedUpTo, end, cb); err != nil {
-			return err
+			return fmt.Errorf("entry retrieval query returned an error: %w", err)
+		}
+		if count-oldCount < expectedCount {
+			lg.Error("Got fewer entries than expected", log.KV("start", progress.ConsumedUpTo), log.KV("end", end), log.KV("expected", expectedCount), log.KV("actual", count-oldCount))
 		}
 		progress.ConsumedUpTo = end
 		splunkTracker.Update(cfgName, progress)
-		updateChan <- fmt.Sprintf("Migrated %d entries, up to %v", count, progress.ConsumedUpTo)
+		elapsed := time.Now().Sub(startTime)
+
+		updateChan <- fmt.Sprintf("Migrated %d entries [%v EPS/%v] up to %v", count, count/uint64(elapsed.Seconds()), ingest.HumanRate(byteTotal, elapsed), progress.ConsumedUpTo)
 	}
 	return nil
 }
@@ -409,7 +481,7 @@ func checkMappings(cfgName string, ctx context.Context, updateChan chan string) 
 	sc := newSplunkConn(c.Server, c.Token)
 
 	var st []sourcetypeIndex
-	st, err = sc.GetIndexSourcetypes()
+	st, err = sc.GetIndexSourcetypes(c.Ingest_From_Unix_Time, c.Ingest_To_Unix_Time)
 	if err != nil {
 		return err
 	}
@@ -420,7 +492,7 @@ func checkMappings(cfgName string, ctx context.Context, updateChan chan string) 
 			_, err := status.Lookup(x.Index, x.Sourcetypes[i])
 			if err == ErrNotFound {
 				// Doesn't exist, create a new one
-				tmp := SplunkToGravwell{Index: x.Index, Sourcetype: x.Sourcetypes[i], ConsumedUpTo: c.startTime()}
+				tmp := SplunkToGravwell{Index: x.Index, Sourcetype: x.Sourcetypes[i], ConsumedUpTo: c.startTime(), ConsumeEndTime: c.endTime()}
 				count++
 				status.Update(tmp)
 			}

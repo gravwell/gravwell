@@ -695,7 +695,6 @@ func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, er
 			FilterID:             i,
 			Handler:              v.lh,
 		}
-		//this file needs to be caugh up
 		if quit, err := f.catchupFollower(fcfg, qc); err != nil || quit {
 			return quit, err
 		}
@@ -706,6 +705,7 @@ func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, er
 
 // catchupFollower is a linear operation to get outstanding files up to date.
 func (f *FilterManager) catchupFollower(fcfg FollowerConfig, qc chan os.Signal) (bool, error) {
+	f.logger.Info("performing initial catch-up preprocessing for file", log.KV("file", fcfg.FilePath))
 	if fl, err := NewFollower(fcfg); err != nil {
 		return false, err
 	} else if quit, err := fl.Sync(qc); err != nil || quit {

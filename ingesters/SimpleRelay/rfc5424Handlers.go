@@ -109,13 +109,14 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 	}
 	s.Split(splitter)
 	for s.Scan() {
-		data := bytes.Trim(s.Bytes(), "\n\r\t ")
+		data := bytes.TrimSpace(s.Bytes())
 		if cfg.dropPriority {
 			data = dropPriority(data)
 		}
 		if len(data) == 0 {
 			continue
 		}
+		data = bytes.Clone(data) // the scanner re-uses bytes, so we have to clone
 		if ent, err := handleLog(data, rip, cfg.ignoreTimestamps, cfg.tag, tg); err != nil {
 			return
 		} else if err = cfg.proc.ProcessContext(ent, cfg.ctx); err != nil {
