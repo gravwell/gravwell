@@ -22,14 +22,15 @@ import (
 )
 
 var (
-	confLoc  = flag.String("config-file", `/opt/gravwell/etc/migrate.conf`, "Location for configuration file")
-	confdLoc = flag.String("config-overlays", `/opt/gravwell/etc/migrate.conf.d`, "Location for configuration overlay files")
-	verbose  = flag.Bool("v", false, "Display verbose status updates to stdout")
-	ver      = flag.Bool("version", false, "Print the version information and exit")
-	status   = flag.Bool("status", false, "Print status updates and ingest rate")
-	v        bool
-	lg       *log.Logger
-	src      net.IP
+	confLoc   = flag.String("config-file", `/opt/gravwell/etc/migrate.conf`, "Location for configuration file")
+	confdLoc  = flag.String("config-overlays", `/opt/gravwell/etc/migrate.conf.d`, "Location for configuration overlay files")
+	verbose   = flag.Bool("v", false, "Display verbose status updates to stdout")
+	ver       = flag.Bool("version", false, "Print the version information and exit")
+	status    = flag.Bool("status", false, "Print status updates and ingest rate")
+	fParanoid = flag.Bool("paranoid", false, "Update the state file every time Splunk grabs a chunk (this can lead to really big state files!)")
+	v         bool
+	lg        *log.Logger
+	src       net.IP
 
 	st *StateTracker
 
