@@ -38,7 +38,7 @@ func ValidateConfig(fnc interface{}, pth, confdPath string) {
 
 // ValidateIngesterConfig behaves same as ValidateConfig but also asserts that the provided config
 // can return an IngestBaseConfig object.
-func ValidateIngesterConfigBase(fnc interface{}, pth, confdPath string) {
+func ValidateIngesterConfig(fnc interface{}, pth, confdPath string) {
 	validateConfig(fnc, pth, confdPath, true) // this is used by ingesters
 }
 
