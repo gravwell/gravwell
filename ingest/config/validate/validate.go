@@ -32,15 +32,14 @@ var (
 // The first value is an opaque object (hence the reflect voodoo).  The second value is an error object
 // the point of this function is to make it easy for ingester writers to just hand in their GetConfig function
 // and the two paths and get a "go/no go" on the configurations.
-// ValidateConfig also asserts that the provided config object can return an IngestBaseConfig object.
 func ValidateConfig(fnc interface{}, pth, confdPath string) {
-	validateConfig(fnc, pth, confdPath, true) // this is used by ingesters
+	validateConfig(fnc, pth, confdPath, false) // this is used by NOT ingesters
 }
 
-// ValidateConfigBase behaves the same as ValidateConfig but does not assert that the provided config
+// ValidateIngesterConfig behaves same as ValidateConfig but also asserts that the provided config
 // can return an IngestBaseConfig object.
-func ValidateConfigBase(fnc interface{}, pth, confdPath string) {
-	validateConfig(fnc, pth, confdPath, false) // this is used by ingesters
+func ValidateIngesterConfigBase(fnc interface{}, pth, confdPath string) {
+	validateConfig(fnc, pth, confdPath, true) // this is used by ingesters
 }
 
 func validateConfig(fnc interface{}, pth, confdPath string, assertIngester bool) {

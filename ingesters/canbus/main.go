@@ -69,7 +69,7 @@ func init() {
 		os.Exit(0)
 	}
 	debugOn = *verbose
-	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc) // this will exit if the flags are set, also no overlays
+	validate.ValidateIngesterConfig(GetConfig, *confLoc, *confdLoc) // this will exit if the flags are set, also no overlays
 }
 
 func main() {
