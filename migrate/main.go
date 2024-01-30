@@ -49,7 +49,7 @@ func init() {
 	lg = log.New(&discard{})
 	//lg.AddWriter(os.Stderr)
 	lg.SetAppname(appName)
-	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
+	validate.ValidateIngesterConfig(GetConfig, *confLoc, *confdLoc)
 }
 
 func main() {
