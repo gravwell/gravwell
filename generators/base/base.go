@@ -183,7 +183,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		return
 	}
 	gc.ConnSet = connSet
-	if *entryCount <= 0 {
+	if *entryCount < 0 {
 		err = errors.New("invalid entry count")
 		return
 	}
