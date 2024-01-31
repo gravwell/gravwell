@@ -10,13 +10,18 @@ package config
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"strings"
 )
 
-const ()
+const (
+	maxFileValueSize int64 = 1024 * 16 // secrets and the like cannot be bigger than 16k when loaded from a file
+)
 
 var (
 	errNoEnvArg     = errors.New("no env arg")
@@ -490,4 +495,43 @@ func loadEnvVarList(lst *[]string, envName string) error {
 		}
 	}
 	return nil
+}
+
+func loadStringFromFile(pth string, val *string) (err error) {
+	if pth == `` {
+		return errors.New("invalid path")
+	} else if val == nil {
+		return errors.New("invalid string pointer")
+	}
+	// make sure to open and then stat so we don't have some sort of stupid race
+	var fin *os.File
+	var fi os.FileInfo
+	var sz int64
+	if fin, err = os.Open(pth); err != nil {
+		return
+	} else if fi, err = fin.Stat(); err != nil {
+		fin.Close()
+		return
+	} else if fi.Mode().IsRegular() == false {
+		fin.Close()
+		return fmt.Errorf("%q is not a regular file", pth)
+	}
+
+	//check the size of the file
+	if sz = fi.Size(); sz > maxFileValueSize {
+		fin.Close()
+		return fmt.Errorf("%q is too large %d", pth, sz)
+	}
+
+	//if we hit here, it means we have a size that is ok, load a buffer and read it
+	buff := make([]byte, sz)
+	_, err = io.ReadFull(fin, buff) //attempt the read
+	fin.Close()                     //close the file, because we don't need it anymore
+	if err != nil {
+		return fmt.Errorf("failed to read complete string from %q %w", pth, err)
+	}
+	//trim nulls, newlines, and carriage returns from the file because it will be a nightmare to debug
+	*val = string(bytes.Trim(buff, "\n\t\r\x00"))
+
+	return
 }

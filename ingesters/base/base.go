@@ -83,7 +83,7 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	if err = ibc.validate(); err != nil {
 		return
 	}
-	validate.ValidateConfig(ib.GetConfigFunc, *confLoc, *confdLoc)
+	validate.ValidateIngesterConfig(ib.GetConfigFunc, *confLoc, *confdLoc)
 
 	var fp string
 	if pth := filepath.Clean(*stderrOverride); pth != `` && pth != `.` {

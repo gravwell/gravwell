@@ -99,6 +99,7 @@ type IngestConfig struct {
 	IngestStreamConfig
 	Ingester_Name              string   `json:",omitempty"`
 	Ingest_Secret              string   `json:"-"` // DO NOT send this when marshalling
+	Ingest_Secret_File         string   `json:"-"` // DO NOT send this when marshalling
 	Connection_Timeout         string   `json:",omitempty"`
 	Verify_Remote_Certificates bool     `json:"-"` //legacy, will be removed
 	Insecure_Skip_TLS_Verify   bool     `json:",omitempty"`
@@ -202,8 +203,16 @@ func (ic *IngestConfig) Verify() error {
 		}
 		return ErrInvalidConnectionTimeout
 	}
+	// we always use Ingest-Secret over Ingest-Secret-File.  If both are populated the direct reference is used
 	if len(ic.Ingest_Secret) == 0 {
-		return ErrMissingIngestSecret
+		//check if ic.Ingest_Secret_File is not empty
+		if len(ic.Ingest_Secret_File) == 0 {
+			return ErrMissingIngestSecret
+		} else {
+			if err := loadStringFromFile(ic.Ingest_Secret_File, &ic.Ingest_Secret); err != nil {
+				return fmt.Errorf("Failed to load Ingest-Secret from Ingest-Secret-File %q %w", ic.Ingest_Secret_File, err)
+			}
+		}
 	}
 	//ensure there is at least one target
 	if (len(ic.Cleartext_Backend_Target) + len(ic.Encrypted_Backend_Target) + len(ic.Pipe_Backend_Target)) == 0 {
