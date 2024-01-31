@@ -31,8 +31,18 @@ var (
 // The config handling function will take those two paths and process a config and return two values.
 // The first value is an opaque object (hence the reflect voodoo).  The second value is an error object
 // the point of this function is to make it easy for ingester writers to just hand in their GetConfig function
-// and the two paths and get a "go/no go" on the configurations
+// and the two paths and get a "go/no go" on the configurations.
 func ValidateConfig(fnc interface{}, pth, confdPath string) {
+	validateConfig(fnc, pth, confdPath, false) // this is used by NOT ingesters
+}
+
+// ValidateIngesterConfig behaves same as ValidateConfig but also asserts that the provided config
+// can return an IngestBaseConfig object.
+func ValidateIngesterConfig(fnc interface{}, pth, confdPath string) {
+	validateConfig(fnc, pth, confdPath, true) // this is used by ingesters
+}
+
+func validateConfig(fnc interface{}, pth, confdPath string, assertIngester bool) {
 	if !*vflag {
 		return
 	}
@@ -83,11 +93,12 @@ func ValidateConfig(fnc interface{}, pth, confdPath string) {
 	} else if obj == nil {
 		fmt.Printf("Config file %q returned a nil object\n", pth)
 		os.Exit(exitCode)
-	} else if ok, err = callVerifyFunc(obj); err != nil {
-		fmt.Printf("Config Verify function returned error: %v\n", err)
+	} else if err = callVerifyFunc(obj); err != nil {
+		fmt.Printf("Config Verify function returned error (%T): %v\n", obj, err)
 		os.Exit(exitCode)
-	} else if !ok {
-		fmt.Println("WARNING: ingester config does not contain Verify function")
+	} else if _, ok = obj.(igstConfig); !ok && assertIngester {
+		fmt.Printf("config object does not implement IngestBaseConfig interface\n")
+		os.Exit(exitCode)
 	}
 	if confdPath != `` {
 		fmt.Println(pth, "with overlay", confdPath, "is valid")
@@ -105,14 +116,13 @@ type igstConfig interface {
 	IngestBaseConfig() config.IngestConfig
 }
 
-func callVerifyFunc(obj interface{}) (ok bool, err error) {
+func callVerifyFunc(obj interface{}) (err error) {
+	var ok bool
 	var vv validator
 	if obj == nil {
 		err = errors.New("config is nil")
 	} else if vv, ok = obj.(validator); !ok {
 		err = errors.New("config object does not implement Verify interface")
-	} else if _, ok = obj.(igstConfig); !ok {
-		err = errors.New("config object does not implement IngestBaseConfig interface")
 	} else {
 		err = vv.Verify()
 	}
