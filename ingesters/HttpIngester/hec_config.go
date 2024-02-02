@@ -126,9 +126,12 @@ func (h *hecCompatible) tokenTagMatchers() (tags []tagMatcher, err error) {
 
 func (h *hecCompatible) tags() (tags []string, err error) {
 	var stms, ttms []tagMatcher
-	if stms, err = h.sourcetypeTagMatchers(); err != nil || len(stms) == 0 {
+	if stms, err = h.sourcetypeTagMatchers(); err != nil {
 		return
-	} else if ttms, err = h.tokenTagMatchers(); err != nil || len(ttms) == 0 {
+	} else if ttms, err = h.tokenTagMatchers(); err != nil {
+		return
+	} else if len(stms) == 0 && len(ttms) == 0 && h.Tag_Name == `` {
+		//no tags anywhere, just bail
 		return
 	}
 	mp := map[string]bool{}
