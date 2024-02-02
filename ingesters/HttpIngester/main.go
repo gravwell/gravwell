@@ -196,7 +196,7 @@ func main() {
 	} else {
 		go func(dc chan error) {
 			defer close(dc)
-			if err := srv.Serve(lst); err != nil {
+			if err := srv.Serve(lst); err != nil && err != http.ErrServerClosed {
 				lg.Error(`failed to serve HTTP`, log.KVErr(err))
 			}
 		}(done)
@@ -208,7 +208,7 @@ func main() {
 	select {
 	case <-done:
 	case <-qc:
-		ctx, cf := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cf := context.WithTimeout(context.Background(), 60*time.Second)
 		if err := srv.Shutdown(ctx); err != nil {
 			lg.Error("failed to serve HTTP server", log.KVErr(err))
 		}
