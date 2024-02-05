@@ -243,7 +243,7 @@ type exportCallback func(map[string]string)
 // RunExportSearch runs a query on the Splunk server between the specified times.
 // The callback function is called once per result.
 // Note that this uses the `export` REST API.
-func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, cb exportCallback) (err error) {
+func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, preview bool, maxcount uint64, cb exportCallback) (err error) {
 	var req *http.Request
 	var resp *http.Response
 	form := url.Values{}
@@ -252,8 +252,10 @@ func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, c
 	form.Add("id", fmt.Sprintf("%d", id))
 	form.Add("earliest_time", fmt.Sprintf("%d", earliest.Unix()))
 	form.Add("latest_time", fmt.Sprintf("%d", latest.Unix()))
+	form.Add("preview", fmt.Sprintf("%v", preview))
+	form.Add("max_count", fmt.Sprintf("%d", maxcount))
 	form.Add("search", query)
-	u := fmt.Sprintf("%s/services/search/jobs/export", c.BaseURL)
+	u := fmt.Sprintf("%s/services/search/v2/jobs/export", c.BaseURL)
 	if req, err = http.NewRequest(http.MethodPost, u, strings.NewReader(form.Encode())); err != nil {
 		return
 	}
@@ -285,6 +287,20 @@ func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, c
 		return nil
 	} else if err != nil {
 		return err
+	}
+	if len(header) == 0 {
+		// weird, nothing?
+		return nil
+	}
+	// For some stupid reason, sometimes they send leading
+	// whitespace. This also messes with CSV's ability to trim out
+	// the double-quotes.
+	for i := range header {
+		header[i] = strings.Trim(strings.TrimSpace(header[i]), `"`)
+	}
+	// If Splunk gets upset at us, we'll get xml back. Bail
+	if header[0] == `<?xml version="1.0" encoding="UTF-8"?>` {
+		return errors.New("Splunk returned an error message, giving up")
 	}
 	ent := map[string]string{}
 	for {
