@@ -172,9 +172,11 @@ func jobUpdater() {
 			if err != nil {
 				continue
 			}
-			app.QueueUpdateDraw(func() { jobs.SetItemText(i, job.IdString(), job.LatestUpdate()) })
+			//			app.QueueUpdateDraw(func() { jobs.SetItemText(i, job.IdString(), job.LatestUpdate()) })
+			jobs.SetItemText(i, job.IdString(), job.LatestUpdate())
 		}
 		jobLock.Unlock()
+		app.Draw()
 		time.Sleep(500 * time.Millisecond)
 	}
 }

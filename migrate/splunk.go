@@ -331,16 +331,20 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 			}
 		}
 	}
+	progress.ConsumedUpTo = progress.ConsumedUpTo.Truncate(1 * time.Second)
 	updateChan <- fmt.Sprintf("Job started, beginning at %v", progress.ConsumedUpTo)
 
 	var count uint64
 	var byteTotal uint64
 
 	// we also maintain a moving average of the entry size
-	// we'll just initialize the average to something moderate
-	avgSize := float64(128)
+	// we'll just initialize the average to something big so we don't get surprised
+	avgSize := float64(4096)
 	alpha := 0.1
 
+	evWarnings := map[string]int{} // map EV names to failure counts
+
+	lastTS := progress.ConsumedUpTo
 	cb := func(s map[string]string) {
 		var entSize int
 		// Grab the timestamp and the raw data
@@ -348,15 +352,22 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		var data string
 		var ok bool
 		if x, ok := s["epoch_time"]; ok {
+			x = strings.Trim(strings.TrimSpace(x), `"`)
 			if f, err := strconv.ParseFloat(x, 64); err == nil {
 				sec, dec := math.Modf(f)
 				ts = time.Unix(int64(sec), int64(dec*(1e9)))
+				lastTS = ts
 			} else {
-				lg.Warnf("Failed to parse timestamp %v: %v\n", x, err)
+				lg.Warn("Failed to parse timestamp", log.KV("epoch_time", x), log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag), log.KVErr(err))
+				// just use whatever we saw last, so it's *close*
+				ts = lastTS
 			}
+		} else {
+			lg.Warn("No epoch_time field, using the most recently seen timestamp", log.KV("timestamp", x), log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag))
+			ts = lastTS
 		}
 		if data, ok = s["_raw"]; !ok {
-			lg.Infof("could not get data! incoming Splunk entry was: %v\n", s)
+			lg.Info("could not get data", log.KV("incoming", s), log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag), log.KV("timestamp", ts))
 			return
 		}
 		ent := &entry.Entry{
@@ -372,13 +383,20 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 				if k == "_raw" {
 					continue
 				}
+				// Trim space and quotes on the name, just to be sure
+				k = strings.TrimSpace(k)
+				k = strings.Trim(k, `"`)
 				ev, err := entry.NewEnumeratedValue(k, v)
 				if err != nil {
-					lg.Infof("failed to make enumerated value %v: %v\n", k, err)
+					// we'll only warn once
+					warnCount, _ := evWarnings[k]
+					warnCount++
+					evWarnings[k] = warnCount
 					continue
 				}
 				if err := ent.AddEnumeratedValue(ev); err != nil {
-					lg.Infof("failed to attach enumerated value %v: %v\n", k, err)
+					// If we were able to make the EV, it should pretty much always be possible to attach it.
+					lg.Info("failed to attach enumerated value", log.KV("name", k), log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag), log.KV("timestamp", ts), log.KVErr(err))
 					continue
 				}
 			}
@@ -389,7 +407,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		avgSize = (alpha * float64(entSize)) + (1.0-alpha)*avgSize
 	}
 
-	chunk := 1 * time.Minute
+	chunk := 20 * time.Second
 	var done bool
 	startTime := time.Now()
 	for i := 0; !done; i++ {
@@ -407,20 +425,21 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 		var expectedCount uint64
 		for resizing {
 			cb := func(s map[string]string) {
-				resizing = false
 				if cstr, ok := s["count"]; ok {
 					if count, err := strconv.Atoi(cstr); err == nil {
-						if (count >= splunkConfig.maxChunk() || uint64(count)*uint64(avgSize) > maxChunkMegabytes*ingest.MB) && time.Duration(chunk/2) > time.Second {
-							resizing = true // keep trying
+						if (count >= splunkConfig.maxChunk() || uint64(count)*uint64(avgSize) > maxChunkMegabytes*ingest.MB) && time.Duration(chunk/2) > 2*time.Second {
 							chunk = chunk / 2
 						} else {
+							resizing = false
 							expectedCount = uint64(count)
 						}
 					}
 				}
 			}
 			query := fmt.Sprintf("| tstats count WHERE index=\"%s\" AND sourcetype=\"%s\"", progress.Index, progress.Sourcetype)
-			if err := sc.RunExportSearch(query, progress.ConsumedUpTo, progress.ConsumedUpTo.Add(chunk), cb); err != nil {
+			chunk = chunk.Truncate(time.Second)
+			if err := sc.RunExportSearch(query, progress.ConsumedUpTo, progress.ConsumedUpTo.Add(chunk), false, 100, cb); err != nil {
+				lg.Error("Window size estimation returned an error, cancelling job", log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag), log.KV("start", progress.ConsumedUpTo), log.KV("end", progress.ConsumedUpTo.Add(chunk)), log.KVErr(err))
 				return fmt.Errorf("window size estimation query returned an error: %w", err)
 			}
 		}
@@ -444,19 +463,38 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 
 		// run query with current earliest=ConsumedUpTo, latest=ConsumedUpTo+60m
 		oldCount := count
-		query := fmt.Sprintf("search index=\"%s\" sourcetype=\"%s\" | rename _time AS epoch_time | table epoch_time _raw", progress.Index, progress.Sourcetype)
-		if err := sc.RunExportSearch(query, progress.ConsumedUpTo, end, cb); err != nil {
+		query := fmt.Sprintf("search index=\"%s\" sourcetype=\"%s\" | rename _time AS epoch_time | table *", progress.Index, progress.Sourcetype)
+		if splunkConfig.Disable_Intrinsics {
+			query = fmt.Sprintf("search index=\"%s\" sourcetype=\"%s\" | rename _time AS epoch_time | table epoch_time _raw", progress.Index, progress.Sourcetype)
+		}
+		if err := sc.RunExportSearch(query, progress.ConsumedUpTo, end, true, expectedCount+100, cb); err != nil {
+			lg.Error("Error while exporting entries, cancelling job", log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag), log.KV("start", progress.ConsumedUpTo), log.KV("end", end), log.KVErr(err))
 			return fmt.Errorf("entry retrieval query returned an error: %w", err)
 		}
-		if count-oldCount < expectedCount {
-			lg.Error("Got fewer entries than expected", log.KV("start", progress.ConsumedUpTo), log.KV("end", end), log.KV("expected", expectedCount), log.KV("actual", count-oldCount))
+		// If we had problems creating EVs from the data Splunk sent, warn us.
+		for k, v := range evWarnings {
+			lg.Info("failed to create enumerated value at least once while processing chunk", log.KV("name", k), log.KV("failurecount", v), log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag), log.KV("start", progress.ConsumedUpTo), log.KV("end", end), log.KVErr(err))
 		}
+		// reset the map
+		evWarnings = map[string]int{}
+
+		if count-oldCount < expectedCount {
+			lg.Error("Got fewer entries than expected", log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag), log.KV("start", progress.ConsumedUpTo), log.KV("end", end), log.KV("expected", expectedCount), log.KV("actual", count-oldCount))
+		} else if count-oldCount > expectedCount {
+			lg.Error("Got more entries than expected", log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag), log.KV("start", progress.ConsumedUpTo), log.KV("end", end), log.KV("expected", expectedCount), log.KV("actual", count-oldCount))
+		}
+
 		progress.ConsumedUpTo = end
 		splunkTracker.Update(cfgName, progress)
 		elapsed := time.Now().Sub(startTime)
+		if *fParanoid {
+			status := splunkTracker.GetStatus(cfgName)
+			st.Add(splunkStateType, status)
+		}
 
 		updateChan <- fmt.Sprintf("Migrated %d entries [%v EPS/%v] up to %v", count, count/uint64(elapsed.Seconds()), ingest.HumanRate(byteTotal, elapsed), progress.ConsumedUpTo)
 	}
+	lg.Info("job completed", log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag), log.KV("start", progress.ConsumedUpTo))
 	return nil
 }
 
