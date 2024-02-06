@@ -75,8 +75,13 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 	}
 	//attempt to parse as a float for the default type
 	if f, err = strconv.ParseFloat(string(raw), 64); err == nil {
-		//got a good parse on a float, sanity check it
-		if f < 0 || f > float64(0xffffffffff) {
+		if f > 1e13 { //microseconds
+			//did some asshole ship microseconds?
+			f = f / float64(1000000)
+		} else if f > 1e10 { //milliseconds
+			//assume its in milliseconds
+			f = f / float64(1000)
+		} else if f < 0 {
 			err = errors.New("invalid timestamp value")
 			return
 		}
