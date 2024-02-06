@@ -27,6 +27,7 @@ import (
 
 const (
 	defaultEntryChannelSize int = 1024
+	minServiceLiveTime          = 2 * time.Second
 )
 
 var (
@@ -188,11 +189,29 @@ loop:
 	return
 }
 
+func sleepContext(ctx context.Context, d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	select {
+	case <-time.After(d):
+	case <-ctx.Done():
+	}
+	return
+}
+
 func (m *mainService) initWithCancel(ctx context.Context, cf context.CancelFunc, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (quit bool, err error) {
 	ret := make(chan error, 1)
 
 	go func(ctx context.Context, rc chan error) {
-		rc <- m.init(ctx)
+		now := time.Now()
+		err := m.init(ctx)
+		if d := time.Since(now); d < minServiceLiveTime && ctx.Err() == nil {
+			errorout("Service failed instantly, waiting %v to exit", minServiceLiveTime-d)
+			sleepContext(ctx, minServiceLiveTime-d)
+		}
+
+		rc <- err
 		close(rc)
 	}(ctx, ret)
 

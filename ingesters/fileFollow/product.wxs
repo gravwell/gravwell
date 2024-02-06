@@ -60,7 +60,7 @@
     <Property Id="CONFIGFILE" Secure="yes" Value="0" />
     <Property Id="PURGE" Secure="yes" Value="0" />
     <Property Id="CONFIG_INGEST_SECRET" Secure="yes" Value="IngestSecrets" />
-	<Property Id="CONFIG_WATCHED_DIRECTORY" Secure="yes" />
+	<Property Id="CONFIG_WATCHED_DIRECTORY" Secure="yes" Value="C:\\a dir with logs\\" />
 	<Property Id="CONFIG_FILE_FILTER" Secure="yes" Value="*.log" />
 	<Property Id="CONFIG_TAG_NAME" Secure="yes" Value="windows_logs" />
     <Property Id="CONFIG_CLEARTEXT_BACKEND_TARGET" Secure="yes" Value="127.0.1.1:4023" />
