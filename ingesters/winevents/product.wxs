@@ -19,7 +19,7 @@
     <Property Id="ARPPRODUCTICON" Value="gravwellel.ico" />
     <Media Id="1" Cabinet="product.cab" EmbedCab="yes" />
     <!-- We will remove existing product AFTER we install new version so we can copy legacy configuration files -->
-    <MajorUpgrade Schedule="afterInstallFinalize" DowngradeErrorMessage="!(loc.Package_NewerVersionDetected)" />
+    <MajorUpgrade Schedule="afterInstallFinalize" DowngradeErrorMessage="!(loc.Package_NewerVersionDetected)" AllowSameVersionUpgrades="yes" />
     <Directory Id="TARGETDIR" Name="SourceDir">
       <Directory Id="$(var.Program_Files)">
         <Directory Id="BASEDIR" Name="gravwell">
