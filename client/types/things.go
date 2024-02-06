@@ -22,31 +22,39 @@ const (
 	emptyContentType = `empty`
 )
 
+type Access struct {
+	Global bool
+	GIDs   []int32
+}
+
 // Things are stored in the datastore, a common class of blobs.
 type Thing struct {
-	UUID     uuid.UUID
-	UID      int32
-	GIDs     []int32
-	Global   bool
-	Contents []byte
+	UUID        uuid.UUID
+	UID         int32
+	GIDs        []int32
+	Global      bool
+	WriteAccess Access
+	Contents    []byte
 
 	Updated time.Time
 	Synced  bool
 }
 
 type ThingHeader struct {
-	ThingUUID uuid.UUID `json:",omitempty"`
-	UID       int32
-	GIDs      []int32 `json:",omitempty"`
-	Global    bool
+	ThingUUID   uuid.UUID `json:",omitempty"`
+	UID         int32
+	GIDs        []int32 `json:",omitempty"`
+	Global      bool
+	WriteAccess Access
 }
 
 func (t *Thing) Header() ThingHeader {
 	return ThingHeader{
-		ThingUUID: t.UUID,
-		UID:       t.UID,
-		GIDs:      t.GIDs,
-		Global:    t.Global,
+		ThingUUID:   t.UUID,
+		UID:         t.UID,
+		GIDs:        t.GIDs,
+		Global:      t.Global,
+		WriteAccess: t.WriteAccess,
 	}
 }
 
@@ -147,6 +155,7 @@ func (w WireUserTemplate) Thing() (t Thing, err error) {
 	t.UID = w.UID
 	t.GIDs = w.GIDs
 	t.Global = w.Global
+	t.WriteAccess = w.WriteAccess
 	t.Updated = w.Updated
 	//do not set the synced value
 	err = t.EncodeContents(w.UserTemplate())
@@ -279,6 +288,7 @@ func (wp WirePivot) Thing() (t Thing, err error) {
 	t.UID = wp.UID
 	t.GIDs = wp.GIDs
 	t.Global = wp.Global
+	t.WriteAccess = wp.WriteAccess
 	t.Updated = wp.Updated
 	//do not set the synced value
 
@@ -351,6 +361,7 @@ func (w WireUserFile) Thing() (t Thing, err error) {
 	t.UID = w.UID
 	t.GIDs = w.GIDs
 	t.Global = w.Global
+	t.WriteAccess = w.WriteAccess
 	t.Updated = w.Updated
 	//do not set the synced value
 	err = t.EncodeContents(w.UserFile)
@@ -360,17 +371,18 @@ func (w WireUserFile) Thing() (t Thing, err error) {
 // UserFileDetails is a structure that is used to relay additional ownership information about a UserFile object
 // This structure is populated via the things metadata, and does not contain any of the contents
 type UserFileDetails struct {
-	GUID      uuid.UUID
-	ThingUUID uuid.UUID
-	UID       int32
-	GIDs      []int32
-	Global    bool
-	Size      int64  //size of the file
-	Type      string //content type as determined by the http content type detector
-	Name      string
-	Desc      string
-	Updated   time.Time
-	Labels    []string
+	GUID        uuid.UUID
+	ThingUUID   uuid.UUID
+	UID         int32
+	GIDs        []int32
+	Global      bool
+	WriteAccess Access
+	Size        int64  //size of the file
+	Type        string //content type as determined by the http content type detector
+	Name        string
+	Desc        string
+	Updated     time.Time
+	Labels      []string
 }
 
 func (ufd *UserFileDetails) String() string {
@@ -410,7 +422,14 @@ func (uf *UserFile) JSONMetadata() (json.RawMessage, error) {
 type WireSearchLibrary struct {
 	ThingHeader
 	SearchLibrary
+	Can     Actions
 	Updated time.Time
+}
+
+type Actions struct {
+	Delete bool
+	Modify bool
+	Share  bool
 }
 
 func (wsl WireSearchLibrary) Thing() (t Thing, err error) {
@@ -418,6 +437,7 @@ func (wsl WireSearchLibrary) Thing() (t Thing, err error) {
 	t.UID = wsl.UID
 	t.GIDs = wsl.GIDs
 	t.Global = wsl.Global
+	t.WriteAccess = wsl.WriteAccess
 	t.Updated = wsl.Updated
 
 	err = t.EncodeContents(wsl.SearchLibrary)
