@@ -422,13 +422,14 @@ func (uf *UserFile) JSONMetadata() (json.RawMessage, error) {
 type WireSearchLibrary struct {
 	ThingHeader
 	SearchLibrary
-	WritableFields EnabledFields
-	Updated        time.Time
+	Can     Actions
+	Updated time.Time
 }
 
-type EnabledFields struct {
-	Details bool
-	Sharing bool
+type Actions struct {
+	Delete bool
+	Modify bool
+	Share  bool
 }
 
 func (wsl WireSearchLibrary) Thing() (t Thing, err error) {
