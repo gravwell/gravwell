@@ -9,6 +9,7 @@
 package filewatch
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"net"
@@ -66,6 +67,7 @@ type LogHandlerConfig struct {
 	Ctx                     context.Context
 	TimeFormat              config.CustomTimeFormat
 	AttachFilename          bool
+	Trim                    bool // run trim space on entries
 }
 
 type logWriter interface {
@@ -148,6 +150,15 @@ func (lh *LogHandler) HandleLog(b []byte, catchts time.Time, fname string) error
 	var ok bool
 	var ts time.Time
 	var err error
+
+	if lh.Trim {
+		if b = bytes.TrimSpace(b); len(b) == 0 {
+			if lh.Debugger != nil {
+				lh.Debugger("Ignoring empty line after trim\n")
+			}
+			return nil
+		}
+	}
 
 	if lh.li.Ignore(b) {
 		return nil
