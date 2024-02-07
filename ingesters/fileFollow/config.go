@@ -58,6 +58,7 @@ type follower struct {
 	Attach_Filename           bool // attach the full path of the file to each entry
 	Ignore_Line_Prefix        []string
 	Ignore_Glob               []string
+	Trim                      bool
 	Timestamp_Format_Override string //override the timestamp format
 	Timestamp_Delimited       bool
 	Timezone_Override         string

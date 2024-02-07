@@ -353,6 +353,7 @@ func (m *mainService) init(ctx context.Context) error {
 			Ctx:                     ctx,
 			TimeFormat:              m.timeFormats,
 			AttachFilename:          val.Attach_Filename,
+			Trim:                    val.Trim,
 		}
 
 		lh, err := filewatch.NewLogHandler(cfg, pproc)
@@ -372,6 +373,9 @@ func (m *mainService) init(ctx context.Context) error {
 		} else if ok {
 			c.Engine = filewatch.RegexEngine
 			c.EngineArgs = rex
+		} else if val.Regex_Delimiter != `` {
+			c.Engine = filewatch.RegexEngine
+			c.EngineArgs = val.Regex_Delimiter
 		} else {
 			c.Engine = filewatch.LineEngine
 		}
