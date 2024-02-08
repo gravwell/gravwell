@@ -238,7 +238,7 @@ func queueRunner(hcfg *handlerConfig) {
 			if err != nil {
 				lg.Error("failed to ingest entry", log.KVErr(err))
 			} else {
-				err = hcfg.SQS.DeleteMessages([]*sqs.Message{v})
+				err = hcfg.SQS.DeleteMessages([]*sqs.Message{v}, lg)
 				if err != nil {
 					lg.Error("failed to delete message", log.KVErr(err))
 				}
