@@ -18,6 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
 type Config struct {
@@ -84,7 +85,7 @@ func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 	return out.Messages, nil
 }
 
-func (s *SQS) DeleteMessages(m []*sqs.Message) error {
+func (s *SQS) DeleteMessages(m []*sqs.Message, lg *log.Logger) error {
 	deleter := &sqs.DeleteMessageBatchInput{
 		QueueUrl: aws.String(s.conf.Queue),
 	}
@@ -97,6 +98,11 @@ func (s *SQS) DeleteMessages(m []*sqs.Message) error {
 	}
 
 	_, err := s.svc.DeleteMessageBatch(deleter)
+	if err != nil {
+		lg.Error("deleting messages failed, retrying", log.KVErr(err))
+		//try again, this is important
+		_, err = s.svc.DeleteMessageBatch(deleter)
+	}
 	return err
 }
 

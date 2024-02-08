@@ -19,7 +19,7 @@ import (
 const (
 	manualTickerInterval = time.Minute
 	ERROR_BACKOFF        = 5 * time.Second
-	QUEUE_DEPTH          = 1000
+	QUEUE_DEPTH          = 2 // this MUST be small, other wise we outrun the workers and then amazon jsut piles it back onto the queue
 )
 
 var (
@@ -44,7 +44,11 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 
 	// create workers
 	var workerWg sync.WaitGroup
-	queue := make(chan []*sqs.Message, QUEUE_DEPTH)
+	qd := QUEUE_DEPTH
+	if numWorkers > qd {
+		qd = numWorkers
+	}
+	queue := make(chan []*sqs.Message, qd)
 	for i := 0; i < numWorkers; i++ {
 		workerWg.Add(1)
 		go s.worker(ctx, lg, &workerWg, queue, i)
@@ -146,7 +150,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 
 		// delete messages we successfully processed
 		if len(deleteQueue) != 0 {
-			err := s.sqs.DeleteMessages(deleteQueue)
+			err := s.sqs.DeleteMessages(deleteQueue, lg)
 			if err != nil {
 				lg.Error("deleting messages", log.KVErr(err))
 			}
