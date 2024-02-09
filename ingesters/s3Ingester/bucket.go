@@ -229,8 +229,8 @@ func (br *BucketReader) worker(lg *log.Logger, ctx context.Context, ot *objectTr
 				log.KV("object", key),
 				log.KV("tag", br.TagName),
 				log.KVErr(err))
-			continue
 			errored++
+			continue
 		} else {
 			br.Logger.Info("consumed object",
 				log.KV("name", br.Name),
