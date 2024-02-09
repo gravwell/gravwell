@@ -44,11 +44,7 @@ func sqsS3Routine(s *SQSS3Listener, wg *sync.WaitGroup, ctx context.Context, lg 
 
 	// create workers
 	var workerWg sync.WaitGroup
-	qd := QUEUE_DEPTH
-	if numWorkers > qd {
-		qd = numWorkers
-	}
-	queue := make(chan []*sqs.Message, qd)
+	queue := make(chan []*sqs.Message, QUEUE_DEPTH)
 	for i := 0; i < numWorkers; i++ {
 		workerWg.Add(1)
 		go s.worker(ctx, lg, &workerWg, queue, i)
