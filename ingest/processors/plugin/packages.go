@@ -1637,7 +1637,6 @@ func init() {
 	decs["ErrInvalidAuthVersion"] = &ingest.ErrInvalidAuthVersion
 	decs["ErrInvalidBuffer"] = &ingest.ErrInvalidBuffer
 	decs["ErrInvalidCerts"] = &ingest.ErrInvalidCerts
-	decs["ErrInvalidConfigBlock"] = &ingest.ErrInvalidConfigBlock
 	decs["ErrInvalidConnectionType"] = &ingest.ErrInvalidConnectionType
 	decs["ErrInvalidCount"] = &ingest.ErrInvalidCount
 	decs["ErrInvalidDest"] = &ingest.ErrInvalidDest

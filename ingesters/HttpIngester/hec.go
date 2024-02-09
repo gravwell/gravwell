@@ -75,8 +75,13 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 	}
 	//attempt to parse as a float for the default type
 	if f, err = strconv.ParseFloat(string(raw), 64); err == nil {
-		//got a good parse on a float, sanity check it
-		if f < 0 || f > float64(0xffffffffff) {
+		if f > 1e13 { //microseconds
+			//did some asshole ship microseconds?
+			f = f / float64(1000000)
+		} else if f > 1e10 { //milliseconds
+			//assume its in milliseconds
+			f = f / float64(1000)
+		} else if f < 0 {
 			err = errors.New("invalid timestamp value")
 			return
 		}
@@ -531,8 +536,9 @@ type tagPair struct {
 
 type hecAuthHandler struct {
 	noLogin
-	defToken    string
-	tokenRoutes map[string]tagPair
+	tokenNameOverride string // if the auth token prefix is different than "Splunk"
+	defToken          string
+	tokenRoutes       map[string]tagPair
 }
 
 func newHecAuth(cfg *hecCompatible, igst *ingest.IngestMuxer) (ha *hecAuthHandler, err error) {
@@ -542,8 +548,13 @@ func newHecAuth(cfg *hecCompatible, igst *ingest.IngestMuxer) (ha *hecAuthHandle
 	if cfg.TokenValue == `` && len(cfg.Routed_Token_Value) == 0 {
 		return nil, errors.New("no tokens specified")
 	}
+	name := cfg.Token_Name
+	if name == `` {
+		name = defaultHECTokenName
+	}
 	ha = &hecAuthHandler{
-		defToken: cfg.TokenValue,
+		defToken:          cfg.TokenValue,
+		tokenNameOverride: name,
 	}
 	if tm, err := cfg.tokenTagMatchers(); err == nil && len(tm) > 0 {
 		ha.tokenRoutes = make(map[string]tagPair, len(tm))
@@ -559,23 +570,26 @@ func newHecAuth(cfg *hecCompatible, igst *ingest.IngestMuxer) (ha *hecAuthHandle
 	return
 }
 
-func getHECToken(r *http.Request) (v string, err error) {
+func getHECToken(r *http.Request, tokenName string) (value string, err error) {
 	//get the actual header
 	var temp string
 	if temp, err = getHeaderToken(r, `Authorization`); err != nil {
 		return
 	}
-	//if it does not contain a prefix of "Splunk"
-	if strings.HasPrefix(temp, `Splunk `) == false {
+	if flds := strings.Fields(temp); len(flds) != 2 {
+		//no idea what happened, kick it
 		err = ErrUnauthorized
-		return
+	} else if flds[0] != tokenName && flds[0] != defaultHECTokenName {
+		//make sure the name of the auth token is either whatever the override was set as, or the default
+		err = ErrUnauthorized
+	} else {
+		value = flds[1]
 	}
-	v = strings.TrimPrefix(temp, `Splunk `)
 	return
 }
 
 func (hah hecAuthHandler) AuthRequest(r *http.Request) error {
-	actualToken, err := getHECToken(r)
+	actualToken, err := getHECToken(r, hah.tokenNameOverride)
 	if err != nil {
 		return err
 	}
@@ -598,7 +612,7 @@ func (hah hecAuthHandler) checkRoutedTag(r *http.Request) (tg entry.EntryTag, ov
 	if len(hah.tokenRoutes) == 0 {
 		return //the quick default path
 	}
-	actualToken, err := getHECToken(r)
+	actualToken, err := getHECToken(r, hah.tokenNameOverride)
 	if err != nil {
 		return // this should REALLY not happen
 	}

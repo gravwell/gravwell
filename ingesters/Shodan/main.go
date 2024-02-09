@@ -79,7 +79,7 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
-	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
+	validate.ValidateIngesterConfig(GetConfig, *confLoc, *confdLoc)
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {

@@ -24,14 +24,17 @@ import (
 )
 
 const (
-	defaultHECUrl      string = `/services/collector`
-	defaultLineBreaker string = "\n"
+	defaultHECUrl       string = `/services/collector`
+	defaultLineBreaker  string = "\n"
+	defaultHECTokenName string = `Splunk`
 )
 
 type hecCompatible struct {
 	URL                       string   //override the base URL, defaults to "/services/collector/event"
 	Raw_Line_Breaker          string   // character(s) to use as line breakers on the raw endpoint. Default "\n"
 	TokenValue                string   `json:"-"` //DO NOT SEND THIS when marshalling
+	Token_Value               string   `json:"-"` //DO NOT SEND THIS when marshalling
+	Token_Name                string   `json:"-"` // DO NOT SEND THIS, used when overriding the auth token prefix away from "Splunk"
 	Routed_Token_Value        []string `json:"-"` // DO NOT SEND THIS when marshalling, used for tag routing based on token
 	Tag_Name                  string   //the tag to assign to the request
 	Ignore_Timestamps         bool
@@ -66,6 +69,10 @@ func (v *hecCompatible) validate(name string) (string, error) {
 	}
 	if ingest.CheckTag(v.Tag_Name) != nil {
 		return ``, errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + name)
+	}
+	// deal with the bad format of TokenValue vs Token-Value
+	if len(v.TokenValue) == 0 && len(v.Token_Value) != 0 {
+		v.TokenValue = v.Token_Value
 	}
 	if len(v.TokenValue) == 0 && len(v.Routed_Token_Value) == 0 {
 		return ``, errors.New("No tokens specified, missing TokenValue and Routed-Token-Value")
