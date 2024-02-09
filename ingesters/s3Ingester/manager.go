@@ -94,6 +94,8 @@ OUTER:
 }
 
 func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.WaitGroup, queue <-chan []*sqs.Message, workerID int) {
+	var s3rtt, rtt time.Duration
+	var sz int64
 	defer wg.Done()
 
 	lg.Infof("worker %v started", workerID)
@@ -134,12 +136,18 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 				obj := &s3.Object{
 					Key: aws.String(x),
 				}
-				err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
+				sz, s3rtt, rtt, err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
 				if err != nil {
 					shouldDelete = false
-					lg.Error("processing message", log.KV("bucket", buckets[i]), log.KV("key", x), log.KVErr(err))
+					lg.Error("error processing message", log.KV("bucket", buckets[i]), log.KV("key", x), log.KVErr(err))
 				} else {
-					lg.Info("successfully processed message", log.KV("bucket", buckets[i]), log.KV("key", x))
+					lg.Info("successfully processed message",
+						log.KV("worker", workerID),
+						log.KV("bucket", buckets[i]),
+						log.KV("key", x),
+						log.KV("s3-rtt", s3rtt),
+						log.KV("rtt", rtt),
+						log.KV("size", sz))
 				}
 			}
 

@@ -280,8 +280,9 @@ var (
 	awsUrlRegex = regexp.MustCompile(`s3[-\.]?([a-zA-Z\-0-9]+)?\.amazonaws\.com`)
 )
 
-func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket string, rdr reader, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, proc *processors.ProcessorSet, maxLineSize int) (err error) {
+func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket string, rdr reader, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, proc *processors.ProcessorSet, maxLineSize int) (sz int64, s3rtt, rtt time.Duration, err error) {
 	var r *s3.GetObjectOutput
+	now := time.Now()
 	r, err = svc.GetObject(&s3.GetObjectInput{
 		Bucket: aws.String(bucket),
 		Key:    obj.Key,
@@ -290,6 +291,7 @@ func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket stri
 		return
 	}
 	defer r.Body.Close()
+	s3rtt = time.Since(now)
 
 	switch rdr {
 	case lineReader:
@@ -298,6 +300,10 @@ func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket stri
 		err = processCloudtrailContext(ctx, r.Body, tg, src, tag, proc)
 	default:
 		err = errors.New("no reader set")
+	}
+	rtt = time.Since(now)
+	if r != nil && r.ContentLength != nil {
+		sz = *r.ContentLength
 	}
 	return
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -153,7 +154,7 @@ func (br *BucketReader) ShouldTrack(obj string) (ok bool) {
 }
 
 // Process reads the object in and processes its contents
-func (br *BucketReader) Process(obj *s3.Object, ctx context.Context) (err error) {
+func (br *BucketReader) Process(obj *s3.Object, ctx context.Context) (sz int64, s3rtt, rtt time.Duration, err error) {
 	return ProcessContext(obj, ctx, br.svc, br.Bucket_Name, br.rdr, br.TG, br.src, br.Tag, br.Proc, br.MaxLineSize)
 }
 
@@ -223,7 +224,7 @@ func (br *BucketReader) worker(lg *log.Logger, ctx context.Context, ot *objectTr
 		}
 
 		//ok, lets process this thing
-		if err := br.Process(item, ctx); err != nil {
+		if objsz, s3rtt, rtt, err := br.Process(item, ctx); err != nil {
 			br.Logger.Error("failed to process object",
 				log.KV("name", br.Name),
 				log.KV("object", key),
@@ -236,7 +237,9 @@ func (br *BucketReader) worker(lg *log.Logger, ctx context.Context, ot *objectTr
 				log.KV("name", br.Name),
 				log.KV("object", key),
 				log.KV("tag", br.TagName),
-				log.KV("size", sz))
+				log.KV("s3-rtt", s3rtt),
+				log.KV("rtt", rtt),
+				log.KV("size", objsz))
 			processed++
 		}
 		state = trackedObjectState{
