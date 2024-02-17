@@ -22,6 +22,7 @@ var (
 	custFormatPath = flag.String("custom", "", "Path to custom time format configuration file")
 	lms            = flag.Bool("enable-left-most-seed", false, "Activate EnableLeftMostSeed config option")
 	fo             = flag.String("format-override", "", "Enable FormatOverride config option")
+	lt             = flag.Bool("assume-local-timezone", true, "Assume local timezone on timegrinder")
 )
 
 type customFormats struct {
@@ -37,6 +38,11 @@ func main() {
 	tg, err := timegrinder.New(cfg)
 	if err != nil {
 		log.Fatalf("Failed to build timegrinder: %v\n", err)
+	}
+	if *lt {
+		tg.SetLocalTime()
+	} else {
+		tg.SetUTC()
 	}
 	if *custFormatPath != `` {
 		var cf customFormats
