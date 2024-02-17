@@ -17,8 +17,8 @@ import (
 	"path"
 	"sort"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -43,6 +43,7 @@ type gbl struct {
 
 type cfgReadType struct {
 	Global                           gbl
+	Attach                           attach.AttachConfig
 	Listener                         map[string]*lst
 	HEC_Compatible_Listener          map[string]*hecCompatible
 	Kinesis_Delivery_Stream_Listener map[string]*kds
@@ -60,11 +61,13 @@ type lst struct {
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
 	Timestamp_Format_Override string //override the timestamp format
+	Attach_URL_Parameter      []string
 	Preprocessor              []string
 }
 
 type cfgType struct {
 	gbl
+	Attach       attach.AttachConfig
 	Listener     map[string]*lst
 	HECListener  map[string]*hecCompatible
 	KDSListener  map[string]*kds
@@ -81,30 +84,23 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	}
 	c := &cfgType{
 		gbl:          cr.Global,
+		Attach:       cr.Attach,
 		Listener:     cr.Listener,
 		HECListener:  cr.HEC_Compatible_Listener,
 		KDSListener:  cr.Kinesis_Delivery_Stream_Listener,
 		Preprocessor: cr.Preprocessor,
 		TimeFormat:   cr.TimeFormat,
 	}
-	if err := verifyConfig(c); err != nil {
+	if err := c.Verify(); err != nil {
 		return nil, err
-	}
-	// Verify and set UUID
-	if _, ok := c.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
-		}
 	}
 	return c, nil
 }
 
-func verifyConfig(c *cfgType) error {
+func (c *cfgType) Verify() error {
 	if err := c.IngestConfig.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	}
 	if c.Bind == `` {
@@ -232,6 +228,14 @@ func (c *cfgType) Tags() (tags []string, err error) {
 	return
 }
 
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
+}
+
 func (c *cfgType) MaxBody() int {
 	if c.Max_Body <= 0 {
 		return defaultMaxBody
@@ -292,4 +296,105 @@ func (v *lst) validate(name string) (string, error) {
 		v.Method = defaultMethod
 	}
 	return pth, nil
+}
+
+type paramAttacher struct {
+	active bool
+	all    bool
+	params []string
+	exts   []entry.EnumeratedValue
+}
+
+func getAttacher(ap []string) paramAttacher {
+	if len(ap) == 0 {
+		return paramAttacher{} //return a disabled attacher
+	} else if len(ap) == 1 && ap[0] == `*` {
+		return paramAttacher{
+			active: true,
+			all:    true,
+		}
+	}
+	r := make([]string, 0, len(ap))
+	mp := map[string]bool{}
+	for _, p := range ap {
+		if len(p) > 0 {
+			if _, ok := mp[p]; !ok {
+				mp[p] = true
+				r = append(r, p)
+			}
+		}
+	}
+	pa := paramAttacher{
+		active: true,
+		params: r,
+	}
+	return pa
+}
+
+func (pa *paramAttacher) process(req *http.Request) {
+	if req == nil {
+		pa.exts = nil
+		return
+	} else if pa.active == false {
+		return
+	}
+
+	if len(pa.exts) > 0 {
+		pa.exts = pa.exts[0:0] //keep the slice but truncate it
+	}
+
+	if v := req.URL.Query(); len(v) > 0 {
+		if pa.all {
+			// we are processing everything
+			pa.processAll(v)
+		} else {
+			pa.processSet(v)
+		}
+	}
+	return
+}
+
+func (pa *paramAttacher) processSet(vals url.Values) {
+	for _, p := range pa.params {
+		if val := vals.Get(p); val != `` {
+			pa.exts = append(pa.exts, entry.EnumeratedValue{
+				Name:  p,
+				Value: entry.StringEnumData(val),
+			})
+		}
+	}
+}
+
+func (pa *paramAttacher) processAll(vals url.Values) {
+	// loop through URL paramters
+	for k, v := range vals {
+		// only process parameters with a valid key and at least something on the value
+		if len(k) > 0 && len(v) > 0 {
+			// ignore tag override parameter
+			if k != parameterTag {
+				// initialize our string value, it will be empty by default
+				// then scan the values looking for something that is NOT empty
+				// if we find something, set the string value and break
+				// if not, then it's an empty string and we use the initialized zero value
+				var sval string
+				// loop over values and find one that has something, potentially overriding the zero value
+				for _, vv := range v {
+					if len(vv) > 0 {
+						sval = vv
+						break
+					}
+				}
+				pa.exts = append(pa.exts, entry.EnumeratedValue{
+					Name:  k,
+					Value: entry.StringEnumData(sval),
+				})
+			}
+		}
+	}
+}
+
+func (pa *paramAttacher) attach(ent *entry.Entry) {
+	if pa.active && len(pa.exts) > 0 {
+		ent.AddEnumeratedValues(pa.exts)
+	}
 }

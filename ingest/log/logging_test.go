@@ -84,6 +84,30 @@ func TestValue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	testOutputs(t, lgr)
+}
+
+func TestRawValue(t *testing.T) {
+	pth := filepath.Join(t.TempDir(), `testraw.log`)
+	lgr, err := NewFile(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lgr.raw = true
+	testOutputs(t, lgr)
+	bts, err := ioutil.ReadFile(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(bts)
+	if strings.Contains(s, "<") {
+		t.Fatal("raw contains RFC header", s)
+	}
+
+}
+
+func testOutputs(t *testing.T, lgr *Logger) {
+	var err error
 	if err = lgr.Warnf("ERROR test: %d", 99); err != nil {
 		t.Fatal(err)
 	}

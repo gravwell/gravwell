@@ -26,7 +26,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/chancacher"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -62,7 +64,8 @@ const (
 	running muxState = 1
 	closed  muxState = 2
 
-	defaultRetryTime     time.Duration = 10 * time.Second
+	defaultRetryTime     time.Duration = 10 * time.Second //how quickly we attempt to reconnect
+	maxRetryTime         time.Duration = 5 * time.Minute  // maximum interval on reconnects after repeated failures
 	recycleTimeout       time.Duration = time.Second
 	maxEmergencyListSize int           = 64
 	unknownAddr          string        = `unknown`
@@ -126,6 +129,8 @@ type IngestMuxer struct {
 	ingesterState     IngesterState
 	logbuff           *EntryBuffer // for holding logs until we can push them
 	start             time.Time    // when the muxer was started
+	attacher          *attach.Attacher
+	attachActive      bool
 }
 
 type UniformMuxerConfig struct {
@@ -149,6 +154,7 @@ type UniformMuxerConfig struct {
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
+	Attach            attach.AttachConfig
 }
 
 type MuxerConfig struct {
@@ -170,6 +176,13 @@ type MuxerConfig struct {
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
+	Attach            attach.AttachConfig
+}
+
+func init() {
+	// register cache types
+	gob.Register(&entry.Entry{})
+	gob.Register([]*entry.Entry{})
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
@@ -229,6 +242,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		RateLimitBps:       c.RateLimitBps,
 		Logger:             c.Logger,
 		LogSourceOverride:  c.LogSourceOverride,
+		Attach:             c.Attach,
 	}
 	return newIngestMuxer(cfg)
 }
@@ -262,7 +276,6 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	}
 
 	// connect up the chancacher
-	gob.Register(&entry.Entry{})
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
 
@@ -290,6 +303,17 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	if c.CacheMode == CacheModeFail {
 		cache.CacheStop()
 		bcache.CacheStop()
+	}
+
+	id := uuid.Nil
+	if c.IngesterUUID != `` {
+		if id, err = uuid.Parse(c.IngesterUUID); err != nil {
+			return nil, fmt.Errorf("failed to parse ingester UUID %w", err)
+		}
+	}
+	atch, err := attach.NewAttacher(c.Attach, id)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate attacher %w", err)
 	}
 
 	// It's possible that the configuration, and therefore tag names and
@@ -401,6 +425,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		logSourceOverride: c.LogSourceOverride,
 		ingesterState:     state,
 		logbuff:           logbuff,
+		attacher:          atch,
+		attachActive:      atch.Active(),
 	}, nil
 }
 
@@ -847,6 +873,9 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	if im.state != running {
 		return ErrNotRunning
 	}
+	if im.attachActive {
+		im.attacher.Attach(e)
+	}
 	im.eChan <- e
 	im.ingesterState.Entries++
 	im.ingesterState.Size += uint64(len(e.Data))
@@ -865,6 +894,9 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 	}
 	if im.state != running {
 		return ErrNotRunning
+	}
+	if im.attachActive {
+		im.attacher.Attach(e)
 	}
 	select {
 	case im.eChan <- e:
@@ -888,6 +920,9 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	}
 	if im.state != running {
 		return ErrNotRunning
+	}
+	if im.attachActive {
+		im.attacher.Attach(e)
 	}
 	tmr := time.NewTimer(d)
 	select {
@@ -921,6 +956,11 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	if !runok {
 		return ErrNotRunning
 	}
+	if im.attachActive {
+		for _, e := range b {
+			im.attacher.Attach(e)
+		}
+	}
 	im.bChan <- b
 	im.ingesterState.Entries += uint64(len(b))
 	for i := range b {
@@ -953,6 +993,11 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 		return ErrNotRunning
 	}
 
+	if im.attachActive {
+		for _, e := range b {
+			im.attacher.Attach(e)
+		}
+	}
 	select {
 	case im.bChan <- b:
 		im.ingesterState.Entries += uint64(len(b))
@@ -1394,7 +1439,28 @@ func isFatalConnError(err error) bool {
 	return false
 }
 
+func (im *IngestMuxer) quitableSleep(dur time.Duration) (quit bool) {
+	select {
+	case _ = <-time.After(dur):
+	case _ = <-im.dieChan:
+		quit = true
+	}
+	return
+}
+
+func backoff(curr, max time.Duration) time.Duration {
+	if curr <= 0 {
+		return defaultRetryTime
+	}
+	if curr = curr * 2; curr > max {
+		curr = max
+	}
+	return curr
+}
+
 func (im *IngestMuxer) getConnection(tgt Target) (ig *IngestConnection, tt tagTrans, err error) {
+	//initialize our retryDuration to zero, first call will set it to the default and then start backing off
+	var retryDuration time.Duration
 loop:
 	for {
 		//attempt a connection, timeouts are built in to the IngestConnection
@@ -1422,9 +1488,8 @@ loop:
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(err))
 			//non-fatal, sleep and continue
-			select {
-			case _ = <-time.After(defaultRetryTime):
-			case _ = <-im.dieChan:
+			retryDuration = backoff(retryDuration, maxRetryTime)
+			if im.quitableSleep(retryDuration) {
 				//told to exit, just bail
 				return nil, nil, errors.New("Muxer closing")
 			}
@@ -1452,18 +1517,30 @@ loop:
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(err))
+			//non-fatal, sleep and continue
+			retryDuration = backoff(retryDuration, maxRetryTime)
+			if im.quitableSleep(retryDuration) {
+				//told to exit, just bail
+				return nil, nil, errors.New("Muxer closing")
+			}
 			continue
 		}
 		im.mtx.RUnlock()
 
 		// set the info
-		if err := ig.IdentifyIngester(im.name, im.version, im.uuid); err != nil {
+		if lerr := ig.IdentifyIngester(im.name, im.version, im.uuid); lerr != nil {
 			im.Error("Failed to identify ingester",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
-				log.KVErr(err))
+				log.KVErr(lerr))
+			//non-fatal, sleep and continue
+			retryDuration = backoff(retryDuration, maxRetryTime)
+			if im.quitableSleep(retryDuration) {
+				//told to exit, just bail
+				return nil, nil, errors.New("Muxer closing")
+			}
 			continue
 		}
 
@@ -1473,15 +1550,21 @@ loop:
 				return
 			default:
 			}
-			ok, err := ig.IngestOK()
-			if err != nil {
+			ok, lerr := ig.IngestOK()
+			if lerr != nil {
 				im.Error("IngestOK query failed",
 					log.KV("indexer", tgt.Address),
 					log.KV("ingester", im.name),
 					log.KV("version", version.GetVersion()),
 					log.KV("ingesteruuid", im.uuid),
-					log.KVErr(err))
+					log.KVErr(lerr))
 				ig.Close()
+				//non-fatal, sleep and continue
+				retryDuration = backoff(retryDuration, maxRetryTime)
+				if im.quitableSleep(retryDuration) {
+					//told to exit, just bail
+					return nil, nil, errors.New("Muxer closing")
+				}
 				continue loop
 			}
 			if ok {
@@ -1492,17 +1575,23 @@ loop:
 				log.KV("ingester", im.name),
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid))
-			time.Sleep(5 * time.Second)
+			im.quitableSleep(10 * time.Second)
 		}
 
-		if err := ig.ew.ConfigureStream(im.cfg); err != nil {
+		if lerr := ig.ew.ConfigureStream(im.cfg); lerr != nil {
 			im.Warn("failed to configure stream",
 				log.KV("indexer", tgt.Address),
 				log.KV("ingester", im.name),
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
-				log.KVErr(err))
+				log.KVErr(lerr))
 			ig.Close()
+			//non-fatal, sleep and continue
+			retryDuration = backoff(retryDuration, maxRetryTime)
+			if im.quitableSleep(retryDuration) {
+				//told to exit, just bail
+				return nil, nil, errors.New("Muxer closing")
+			}
 			continue
 		}
 

@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/client/types"
 )
 
@@ -32,6 +33,9 @@ const (
 var (
 	ErrNotAuthed = errors.New("Not Authed")
 	ErrNotFound  = errors.New("Not Found")
+
+	//helper that calls out ok responses as just 200
+	stdOk = []int{http.StatusOK}
 )
 
 type urlParam struct {
@@ -435,6 +439,52 @@ func (c *Client) GetIngesterStats() (map[string]types.IngestStats, error) {
 		return nil, err
 	}
 	return stats, nil
+}
+
+// GetStorageStats gets storage statistics for all indexers.
+func (c *Client) GetStorageStats() (map[string]types.StorageStats, error) {
+	stats := map[string]types.StorageStats{}
+	if err := c.getStaticURL(STORAGE_URL, &stats); err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+// GetIndexerStorageStats gets storage statistics for the given indexer..
+func (c *Client) GetIndexerStorageStats(indexer uuid.UUID) (map[string]types.PerWellStorageStats, error) {
+	stats := map[string]types.PerWellStorageStats{}
+	url := fmt.Sprintf(STORAGE_INDEXER_URL, indexer.String())
+	if err := c.getStaticURL(url, &stats); err != nil {
+		return nil, err
+	}
+	return stats, nil
+}
+
+// GetCalendarStats gets day-by-day calendar statistics for the given wells.
+func (c *Client) GetCalendarStats(start, end time.Time, wells []string) ([]types.CalendarEntry, error) {
+	var stats []types.CalendarEntry
+
+	obj := types.CalendarRequest{
+		Start: start,
+		End:   end,
+		Wells: wells,
+	}
+
+	err := c.postStaticURL(CALENDAR_URL, obj, &stats)
+	return stats, err
+}
+
+// GetIndexerCalendarStats gets day-by-day calendar statistics for a given indexer and given wells.
+func (c *Client) GetIndexerCalendarStats(indexer uuid.UUID, start, end time.Time, wells []string) ([]types.CalendarEntry, error) {
+	var stats []types.CalendarEntry
+	obj := types.CalendarRequest{
+		Start: start,
+		End:   end,
+		Wells: wells,
+	}
+	url := fmt.Sprintf(CALENDAR_INDEXER_URL, indexer.String())
+	err := c.postStaticURL(url, obj, &stats)
+	return stats, err
 }
 
 // GetUserList gets a listing of users with basic info like UID, name, email, etc.

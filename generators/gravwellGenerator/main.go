@@ -37,6 +37,7 @@ var (
 		"syslog":   genDataSyslog,
 		"zeekconn": genDataZeekConn,
 		"evs":      genDataEnumeratedValue,
+		"megajson": genDataMegaJSON,
 	}
 	finalizers = map[string]base.Finalizer{
 		"evs":      finEnumeratedValue,
@@ -50,6 +51,7 @@ var (
 		"regex":    fin("regex"),
 		"syslog":   fin("syslog"),
 		"zeekconn": fin("zeek conn"),
+		"megajson": fin("mega JSON"),
 	}
 
 	// for fields
@@ -82,7 +84,6 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	seedUsers(int(cfg.Count), 256)
 
 	var tag entry.EntryTag
 	if igst, src, err = base.NewIngestMuxer(`unifiedgenerator`, `00000000-0000-0000-0000-000000000001`, cfg, time.Second); err != nil {
@@ -90,16 +91,22 @@ func main() {
 	} else if tag, err = igst.GetTag(cfg.Tag); err != nil {
 		log.Fatalf("Failed to lookup tag %s: %v\n", cfg.Tag, err)
 	}
-	start := time.Now()
+	var start time.Time
+	if cfg.Count > 0 {
+		start = time.Now()
+		seedUsers(int(cfg.Count), 256)
 
-	if !cfg.Streaming {
-		if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg, gen, fin); err != nil {
-			log.Fatal("Failed to throw entries ", err)
+		if !cfg.Streaming {
+			if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg, gen, fin); err != nil {
+				log.Fatal("Failed to throw entries ", err)
+			}
+		} else {
+			if totalCount, totalBytes, err = base.Stream(igst, tag, src, cfg, gen, fin); err != nil {
+				log.Fatal("Failed to stream entries ", err)
+			}
 		}
 	} else {
-		if totalCount, totalBytes, err = base.Stream(igst, tag, src, cfg, gen, fin); err != nil {
-			log.Fatal("Failed to stream entries ", err)
-		}
+		log.Println("Connection successful")
 	}
 
 	if err = igst.Sync(time.Second); err != nil {
@@ -110,8 +117,8 @@ func main() {
 		log.Fatal("Failed to close ingest muxer ", err)
 	}
 
-	durr := time.Since(start)
-	if err == nil {
+	if err == nil && cfg.Count > 0 {
+		durr := time.Since(start)
 		fmt.Printf("Completed in %v (%s)\n", durr, ingest.HumanSize(totalBytes))
 		fmt.Printf("Total Count: %s\n", ingest.HumanCount(totalCount))
 		fmt.Printf("Entry Rate: %s\n", ingest.HumanEntryRate(totalCount, durr))

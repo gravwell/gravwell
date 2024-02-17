@@ -99,6 +99,7 @@ type IngestConfig struct {
 	IngestStreamConfig
 	Ingester_Name              string   `json:",omitempty"`
 	Ingest_Secret              string   `json:"-"` // DO NOT send this when marshalling
+	Ingest_Secret_File         string   `json:"-"` // DO NOT send this when marshalling
 	Connection_Timeout         string   `json:",omitempty"`
 	Verify_Remote_Certificates bool     `json:"-"` //legacy, will be removed
 	Insecure_Skip_TLS_Verify   bool     `json:",omitempty"`
@@ -118,6 +119,7 @@ type IngestConfig struct {
 	Log_Source_Override        string   `json:",omitempty"` // override log messages only
 	Label                      string   `json:",omitempty"` //arbitrary label that can be attached to an ingester
 	Disable_Multithreading     bool     //basically set GOMAXPROCS(1)
+	Stats_Sample_Interval      string   `json:",omitempty"` // if set to > 0 duration then we periodically throw stats
 }
 
 type IngestStreamConfig struct {
@@ -125,8 +127,9 @@ type IngestStreamConfig struct {
 }
 
 type TimeFormat struct {
-	Format string
-	Regex  string
+	Format           string
+	Regex            string
+	Extraction_Regex string
 }
 
 type CustomTimeFormat map[string]*TimeFormat
@@ -200,8 +203,16 @@ func (ic *IngestConfig) Verify() error {
 		}
 		return ErrInvalidConnectionTimeout
 	}
+	// we always use Ingest-Secret over Ingest-Secret-File.  If both are populated the direct reference is used
 	if len(ic.Ingest_Secret) == 0 {
-		return ErrMissingIngestSecret
+		//check if ic.Ingest_Secret_File is not empty
+		if len(ic.Ingest_Secret_File) == 0 {
+			return ErrMissingIngestSecret
+		} else {
+			if err := loadStringFromFile(ic.Ingest_Secret_File, &ic.Ingest_Secret); err != nil {
+				return fmt.Errorf("Failed to load Ingest-Secret from Ingest-Secret-File %q %w", ic.Ingest_Secret_File, err)
+			}
+		}
 	}
 	//ensure there is at least one target
 	if (len(ic.Cleartext_Backend_Target) + len(ic.Encrypted_Backend_Target) + len(ic.Pipe_Backend_Target)) == 0 {
@@ -253,6 +264,13 @@ func (ic *IngestConfig) Verify() error {
 		ic.Cache_Depth = CACHE_DEPTH_DEFAULT
 	}
 	// there are no defaults for the cache_size.
+
+	//if Stats_Sample_Interval is populated, check that we can parse as a duration
+	if ic.Stats_Sample_Interval != `` {
+		if _, err := time.ParseDuration(ic.Stats_Sample_Interval); err != nil {
+			return fmt.Errorf("invalid Stats-Sample-Interval %s %w", ic.Stats_Sample_Interval, err)
+		}
+	}
 
 	return nil
 }
@@ -314,7 +332,10 @@ func (ic *IngestConfig) AddLocalLogging(lg *log.Logger) {
 		}
 	}
 	if len(ic.Log_File) > 0 {
-		if ext := filepath.Ext(ic.Log_File); ext == `` {
+		// attach a .log extension for everything but /dev/null, this is a special case
+		// for when you want a file follower to recursively watch something like /opt/gravwell/log but you don't
+		// want to go through the hassle of setting up exclusions.  So point the log file at dev null and just act like it didn't happen
+		if ext := filepath.Ext(ic.Log_File); ext == `` && ic.Log_File != `/dev/null` {
 			ic.Log_File = ic.Log_File + `.log`
 		}
 		if fout, err := rotate.Open(ic.Log_File, 0640); err != nil {
@@ -424,6 +445,18 @@ func (ic *IngestConfig) GetLogger() (l *log.Logger, err error) {
 	return
 }
 
+func (ic *IngestConfig) StatsSampleInterval() (dur time.Duration) {
+	if ic == nil || ic.Stats_Sample_Interval == `` {
+		return // disabled, no duration
+	}
+	var err error
+	if dur, err = time.ParseDuration(ic.Stats_Sample_Interval); err != nil {
+		// bad parses are just zero, validate should prevent this though
+		dur = 0
+	}
+	return
+}
+
 func writeFull(w io.Writer, b []byte) error {
 	var written int
 	for written < len(b) {
@@ -447,9 +480,10 @@ func (ctf CustomTimeFormat) Validate() (err error) {
 			continue
 		}
 		cf := timegrinder.CustomFormat{
-			Name:   k,
-			Format: v.Format,
-			Regex:  v.Regex,
+			Name:             k,
+			Format:           v.Format,
+			Regex:            v.Regex,
+			Extraction_Regex: v.Extraction_Regex,
 		}
 		if err = cf.Validate(); err != nil {
 			return
@@ -470,9 +504,10 @@ func (ctf CustomTimeFormat) LoadFormats(tg *timegrinder.TimeGrinder) (err error)
 			continue
 		}
 		cf := timegrinder.CustomFormat{
-			Name:   k,
-			Format: v.Format,
-			Regex:  v.Regex,
+			Name:             k,
+			Format:           v.Format,
+			Regex:            v.Regex,
+			Extraction_Regex: v.Extraction_Regex,
 		}
 		if p, err = timegrinder.NewCustomProcessor(cf); err != nil {
 			return

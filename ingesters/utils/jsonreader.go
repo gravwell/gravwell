@@ -23,6 +23,7 @@ var (
 
 type JsonLimitedDecoder struct {
 	*json.Decoder
+	total   int64
 	lr      *io.LimitedReader
 	maxSize int64
 }
@@ -53,7 +54,9 @@ func NewJsonLimitedDecoder(rdr io.Reader, max int64) (jld *JsonLimitedDecoder, e
 // Decode an object using a JSON decoder
 func (j *JsonLimitedDecoder) Decode(v interface{}) (err error) {
 	j.lr.N = j.maxSize
-	if err = j.Decoder.Decode(v); err == nil {
+	err = j.Decoder.Decode(v)
+	j.total += j.maxSize - j.lr.N //keep a tally
+	if err == nil {
 		return // all good
 	}
 	//figure out why
@@ -62,4 +65,8 @@ func (j *JsonLimitedDecoder) Decode(v interface{}) (err error) {
 		err = fmt.Errorf("%w exceeded %d bytes - %v", ErrOversizedObject, j.maxSize, err)
 	}
 	return
+}
+
+func (j *JsonLimitedDecoder) TotalRead() int64 {
+	return j.total
 }

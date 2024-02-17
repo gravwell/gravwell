@@ -425,6 +425,7 @@ func (c *Client) Logout() error {
 	if err := c.methodStaticURL(methodLogout, LOGOUT_URL, nil); err != nil {
 		return err
 	}
+	c.state = STATE_LOGGED_OFF
 	return nil
 }
 
@@ -613,6 +614,65 @@ func (c *Client) SetUserAgent(v string) error {
 	c.userAgent = v
 	c.mtx.Unlock()
 	return nil
+}
+
+// SetNoCache enables or disables Cache-Control headers on requests
+func (c *Client) SetNoCache(v bool) {
+	c.mtx.Lock()
+	if v {
+		c.hm.add(`Cache-Control`, `no-cache`)
+	} else {
+		c.hm.remove(`Cache-Control`)
+	}
+	c.mtx.Unlock()
+}
+
+// DebugAddHeaderValue can be used to inject header values into all requests;
+// this function is primarily used for testing and forcing interactions with
+// web application firewalls, security devices, and general testing.
+// Key values must not be empty, empted values are allowed.
+func (c *Client) DebugAddHeaderValue(key, value string) {
+	if key == `` {
+		return
+	}
+	c.mtx.Lock()
+	c.hm.add(key, value)
+	c.mtx.Unlock()
+}
+
+// DebugDeleteHeaderValue can be used to remove a previously injected header value.
+// See DebugAddHeaderValue for more information
+func (c *Client) DebugDeleteHeaderValue(key string) {
+	if key == `` {
+		return
+	}
+	c.mtx.Lock()
+	c.hm.remove(key)
+	c.mtx.Unlock()
+}
+
+// DebugAddQueryValue can be used to URL parameters into all requests;
+// this function is primarily used for testing and forcing interactions with
+// web application firewalls, security devices, and general testing.
+// Key values must not be empty, empted values are allowed.
+func (c *Client) DebugAddQueryValue(key, value string) {
+	if key == `` {
+		return
+	}
+	c.mtx.Lock()
+	c.qm.add(key, value)
+	c.mtx.Unlock()
+}
+
+// DebugDeleteQueryValue can be used to remove a previously injected query value.
+// See DebugAddQueryValue for more information
+func (c *Client) DebugDeleteQueryValue(key string) {
+	if key == `` {
+		return
+	}
+	c.mtx.Lock()
+	c.qm.remove(key)
+	c.mtx.Unlock()
 }
 
 // SetAdminMode sets the ?admin=true parameter on future API requests. Note that setting this

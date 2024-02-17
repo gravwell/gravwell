@@ -9,19 +9,21 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math"
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -30,6 +32,9 @@ import (
 
 const (
 	defaultMaxHECEventSize uint = 512 * 1024 //splunk defaults to 10k characters, but thats weak
+
+	parameterTag        = `tag`
+	parameterSourcetype = `sourcetype`
 )
 
 var (
@@ -38,16 +43,19 @@ var (
 
 type hecHandler struct {
 	hecHealth
+	auth           *hecAuthHandler
 	name           string
 	ackLock        sync.Mutex
 	ackIds         map[string]uint64
 	tagRouter      map[string]entry.EntryTag
+	tokenRouter    map[string]entry.EntryTag
 	rawLineBreaker string
 	maxSize        uint
+	debugPosts     bool
 }
 
 type hecEvent struct {
-	Event      json.RawMessage        `json:"event"`
+	Event      piaObj                 `json:"event"`
 	Fields     map[string]interface{} `json:"fields,omitempty"`
 	TS         custTime               `json:"time"`
 	Host       string                 `json:"host,omitempty"`
@@ -67,8 +75,13 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 	}
 	//attempt to parse as a float for the default type
 	if f, err = strconv.ParseFloat(string(raw), 64); err == nil {
-		//got a good parse on a float, sanity check it
-		if f < 0 || f > float64(0xffffffffff) {
+		if f > 1e13 { //microseconds
+			//did some asshole ship microseconds?
+			f = f / float64(1000000)
+		} else if f > 1e10 { //milliseconds
+			//assume its in milliseconds
+			f = f / float64(1000)
+		} else if f < 0 {
 			err = errors.New("invalid timestamp value")
 			return
 		}
@@ -86,10 +99,82 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 	return
 }
 
+type tagOverride struct {
+	param string
+	value string
+}
+
+func (to tagOverride) hot() bool {
+	return to.param != ``
+}
+
+func (to tagOverride) LogKV() rfc5424.SDParam {
+	return log.KV(to.param, to.value)
+}
+
+func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogger) (tg entry.EntryTag, override tagOverride, ok bool, err error) {
+	var ntg entry.EntryTag
+	tg, override, ok = hh.auth.checkRoutedTag(r) // this just initializes it
+	if v := r.URL.Query(); len(v) > 0 {
+		if val := v.Get(parameterTag); val != `` {
+			//check if the tag is allowed
+			if err = ingest.CheckTag(val); err != nil {
+				ll.Error("invalid tag in parameter",
+					log.KV("tag", val),
+					log.KVErr(err))
+				return
+			} else if ntg, err = h.igst.NegotiateTag(val); err != nil {
+				ll.Error("failed to negotiate tag",
+					log.KV("tag", val), log.KVErr(err))
+				return
+			} else {
+				ok = true
+				tg = ntg
+				override = tagOverride{
+					param: parameterTag,
+					value: val,
+				}
+			}
+		} else if val = v.Get(parameterSourcetype); val != `` && len(hh.tagRouter) > 0 {
+			var pok bool // get a new ok going so that we don't blow up a token based route
+			if ntg, pok = hh.tagRouter[val]; pok {
+				ok = pok
+				tg = ntg
+				override = tagOverride{
+					param: parameterSourcetype,
+					value: val,
+				}
+			}
+		}
+	}
+	return
+}
+
 func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	var now time.Time
+	defaultTag := cfg.tag
+	var tgo tagOverride
 	resp := respSuccess
+
 	// get a local logger up that will always add some more info
-	ll := log.NewLoggerWithKV(h.lgr, log.KV("HEC-Listener", hh.name), log.KV("remoteaddress", ip.String()))
+	ll := log.NewLoggerWithKV(h.lgr,
+		log.KV("HEC-Listener", hh.name),
+		log.KV("remoteaddress", ip.String()),
+		log.KV("url", r.URL.RequestURI()),
+	)
+
+	if hh.debugPosts {
+		now = time.Now()
+	}
+	//check if the query url has a tag or sourcetype parameter
+	if tg, override, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
+		hh.respInvalidDataFormat(w, 0)
+		return
+	} else if ok {
+		tgo = override
+		defaultTag = tg
+	}
+
 	dec, err := utils.NewJsonLimitedDecoder(rdr, int64(maxBody+256)) //give some slack for the extra splunk garbage
 	if err != nil {
 		ll.Error("failed to create limited decoder", log.KVErr(err))
@@ -101,7 +186,7 @@ loop:
 	for ; ; counter++ {
 		var ts entry.Timestamp
 		var hev hecEvent
-		tag := cfg.tag
+		tag := defaultTag
 
 		//try to decode the damn thing
 		if err = dec.Decode(&hev); err != nil {
@@ -118,6 +203,9 @@ loop:
 			hh.respInvalidDataFormat(w, counter)
 			return // we pretty much have to just hang up
 		}
+		if hev.empty() {
+			continue
+		}
 		//handle timestamps
 		if cfg.ignoreTs {
 			ts = entry.Now()
@@ -125,7 +213,7 @@ loop:
 			//try to deal with missing timestamps and other garbage
 			if time.Time(hev.TS).IsZero() {
 				//attempt to derive out of the payload if there is one
-				if extracted, ok, err := cfg.tg.Extract([]byte(hev.Event)); err != nil || !ok {
+				if extracted, ok, err := cfg.tg.Extract(hev.Event.Bytes()); err != nil || !ok {
 					ts = entry.Now()
 				} else {
 					ts = entry.FromStandard(extracted)
@@ -142,13 +230,12 @@ loop:
 		}
 
 		e := entry.Entry{
-			TS:  ts,
-			SRC: ip,
-			Tag: tag,
-			// If Event is just a string, we need to trim quotes. If it's not,
-			// there are no quotes to trim so the Trim calls are ignored.
-			Data: bytes.TrimSuffix(bytes.TrimPrefix([]byte(hev.Event), []byte(`"`)), []byte(`"`)),
+			TS:   ts,
+			SRC:  ip,
+			Tag:  tag,
+			Data: hev.Event.Bytes(),
 		}
+		cfg.paramAttacher.attach(&e)
 
 		if hev.Host != `` {
 			e.AddEnumeratedValueEx(`host`, hev.Host)
@@ -170,7 +257,8 @@ loop:
 			}
 		}
 		debugout("Sending entry %+v", e)
-		if err = cfg.pproc.Process(&e); err != nil {
+		if err = h.handleEntryEx(cfg, &e); err != nil {
+			//cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
 			ll.Error("failed to send entry", log.KVErr(err))
 			hh.respInternalServerError(w)
 			return
@@ -187,6 +275,19 @@ loop:
 	}
 
 	hh.writeResponse(w, resp)
+	if hh.debugPosts {
+		//Log how many bytes and entries were on this config
+		kvs := []rfc5424.SDParam{log.KV("host", ip),
+			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
+			log.KV("bytes", dec.TotalRead()), log.KV("entries", counter),
+			log.KV("ms", time.Since(now).Milliseconds()),
+		}
+		if tgo.hot() {
+			kvs = append(kvs, tgo.LogKV())
+		}
+		h.igst.Info("HEC request", kvs...)
+	}
+
 }
 
 func (hh *hecHandler) setAck(channel string, resp ack) {
@@ -223,35 +324,79 @@ func (hh *hecHandler) respInvalidDataFormat(w http.ResponseWriter, index int) {
 }
 
 func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
-	debugout("HEC RAW\n")
+	var count int
+	var data int
+	var now time.Time
+	defaultTag := cfg.tag
+	var tgo tagOverride
 	resp := ack{Text: "Success"}
-	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+1)))
-	if err != nil && err != io.EOF {
-		h.lgr.Info("got bad request", log.KV("address", ip), log.KVErr(err))
-		hh.respInvalidDataFormat(w, 0)
-		return
-	} else if len(b) > maxBody {
-		h.lgr.Error("request too large, 4MB max")
-		hh.respInvalidDataFormat(w, 0)
-		return
+
+	// get a local logger up that will always add some more info
+	ll := log.NewLoggerWithKV(h.lgr,
+		log.KV("HEC-Listener", hh.name),
+		log.KV("remoteaddress", ip.String()),
+		log.KV("url", r.URL.RequestURI()),
+	)
+
+	if hh.debugPosts {
+		now = time.Now()
 	}
-	if len(b) == 0 {
-		h.lgr.Info("got an empty post", log.KV("address", ip))
-		hh.respNoData(w)
+	//check if the query url has a tag or sourcetype parameter
+	if tg, override, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
+		hh.respInvalidDataFormat(w, 0)
 		return
-	} else {
-		for i, b := range bytes.Split(b, []byte(hh.rawLineBreaker)) {
-			if err = h.handleEntry(cfg, b, ip); err != nil {
-				h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
-				hh.respInvalidDataFormat(w, i)
+	} else if ok {
+		tgo = override
+		defaultTag = tg
+	}
+
+	brdr := bufio.NewReader(rdr)
+	var done bool
+	for done == false {
+		ln, err := brdr.ReadBytes('\n')
+		if len(ln) > 0 {
+			data += len(ln)
+		}
+		if err != nil {
+			if err != io.EOF {
+				h.lgr.Error("failed to read complete post", log.KV("address", ip), log.KVErr(err))
+				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
+			done = true
 		}
+		//clean up the line, removing any trailing newlines
+		if ln = bytes.TrimRight(ln, "\n"); len(ln) == 0 {
+			continue //skip empty newlines
+		}
+		if err = h.handleEntry(cfg, ln, ip, defaultTag); err != nil {
+			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
+			hh.respInvalidDataFormat(w, count)
+			return
+		}
+		count++
+	}
+	if count == 0 {
+		// no entries? Send a 400 / "No data"
+		hh.respNoData(w)
+		return
 	}
 	if doAck, ch := ackRequested(r); doAck {
 		hh.setAck(ch, resp)
 	}
 	hh.writeResponse(w, resp)
+	if hh.debugPosts {
+		kvs := []rfc5424.SDParam{log.KV("host", ip),
+			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
+			log.KV("bytes", data), log.KV("entries", count),
+			log.KV("ms", time.Since(now).Milliseconds()),
+		}
+		if tgo.hot() {
+			kvs = append(kvs, tgo.LogKV())
+		}
+		//Log how many bytes and entries were on this config
+		h.igst.Info("raw HEC request", kvs...)
+	}
 }
 
 func (hh *hecHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -331,4 +476,158 @@ func ackRequested(r *http.Request) (bool, string) {
 		return true, r.Header.Get("X-Splunk-Request-Channel")
 	}
 	return false, ""
+}
+
+// piaObj is a generic object designed to try and deal with all the "types" of data that can be thrown at this interface
+// we have seen strings, integers, floats, json objects, json arrays, a damn "null" even the occaisional "undefined"
+// this will deal with decoding all of those and unescape when needed.  Splunk can't support truly binary data, so we
+// don't need to infer dealing with base64 encoded byte arrays, but that can happen here too some day.
+type piaObj struct {
+	payload []byte
+}
+
+func (p *piaObj) UnmarshalJSON(b []byte) (err error) {
+	//check if its a string
+	if len(b) >= 2 {
+		if b[0] == '"' && b[len(b)-1] == '"' {
+			var str string
+			if err = json.Unmarshal(b, &str); err != nil {
+				return
+			}
+			p.payload = []byte(str)
+			return
+		}
+	}
+	p.payload = append([]byte{}, b...)
+	return
+}
+
+func (p piaObj) String() string {
+	return string(p.payload)
+}
+
+// Bytes returns a stable byte slice that can be passed into an ingest muxer
+// we MUST MUST MUST copy the byte slice because we are decoding off of an HTTP request body
+// which does a bunch of internal buffering, making the bytes not stable across reads
+func (p piaObj) Bytes() (r []byte) {
+	r = p.payload
+	return
+}
+
+func (p piaObj) length() int {
+	return len(p.payload)
+}
+
+func (hev hecEvent) empty() bool {
+	if hev.Event.length() > 0 || len(hev.Fields) > 0 {
+		return false
+	} else if len(hev.Host) > 0 || len(hev.Source) > 0 || len(hev.Sourcetype) > 0 || len(hev.Index) > 0 {
+		return false
+	} else if time.Time(hev.TS).IsZero() != true {
+		return false
+	}
+	return true
+}
+
+type tagPair struct {
+	name string
+	tag  entry.EntryTag
+}
+
+type hecAuthHandler struct {
+	noLogin
+	tokenNameOverride string // if the auth token prefix is different than "Splunk"
+	defToken          string
+	tokenRoutes       map[string]tagPair
+}
+
+func newHecAuth(cfg *hecCompatible, igst *ingest.IngestMuxer) (ha *hecAuthHandler, err error) {
+	if cfg == nil {
+		return nil, errors.New("nil configuration")
+	}
+	if cfg.TokenValue == `` && len(cfg.Routed_Token_Value) == 0 {
+		return nil, errors.New("no tokens specified")
+	}
+	name := cfg.Token_Name
+	if name == `` {
+		name = defaultHECTokenName
+	}
+	ha = &hecAuthHandler{
+		defToken:          cfg.TokenValue,
+		tokenNameOverride: name,
+	}
+	if tm, err := cfg.tokenTagMatchers(); err == nil && len(tm) > 0 {
+		ha.tokenRoutes = make(map[string]tagPair, len(tm))
+		for _, v := range tm {
+			if tag, err := igst.NegotiateTag(v.Tag); err == nil {
+				ha.tokenRoutes[v.Value] = tagPair{
+					name: v.Tag,
+					tag:  tag,
+				}
+			}
+		}
+	}
+	return
+}
+
+func getHECToken(r *http.Request, tokenName string) (value string, err error) {
+	//get the actual header
+	var temp string
+	if temp, err = getHeaderToken(r, `Authorization`); err != nil {
+		return
+	}
+	if flds := strings.Fields(temp); len(flds) != 2 {
+		//no idea what happened, kick it
+		err = ErrUnauthorized
+	} else if flds[0] != tokenName && flds[0] != defaultHECTokenName {
+		//make sure the name of the auth token is either whatever the override was set as, or the default
+		err = ErrUnauthorized
+	} else {
+		value = flds[1]
+	}
+	return
+}
+
+func (hah hecAuthHandler) AuthRequest(r *http.Request) error {
+	actualToken, err := getHECToken(r, hah.tokenNameOverride)
+	if err != nil {
+		return err
+	}
+	if hah.defToken != `` && hah.defToken == actualToken {
+		//GTG
+		return nil
+	}
+
+	//look it up
+	if len(hah.tokenRoutes) > 0 {
+		if _, ok := hah.tokenRoutes[actualToken]; ok {
+			//we have a route, use it
+			return nil
+		}
+	}
+	return ErrUnauthorized
+}
+
+func (hah hecAuthHandler) checkRoutedTag(r *http.Request) (tg entry.EntryTag, ovr tagOverride, ok bool) {
+	if len(hah.tokenRoutes) == 0 {
+		return //the quick default path
+	}
+	actualToken, err := getHECToken(r, hah.tokenNameOverride)
+	if err != nil {
+		return // this should REALLY not happen
+	}
+	if actualToken == hah.defToken {
+		return // just the default, no overrides
+	} else if len(hah.tokenRoutes) > 0 {
+		var tp tagPair
+		if tp, ok = hah.tokenRoutes[actualToken]; ok {
+			// got a hit, populate things
+			tg = tp.tag
+			ovr = tagOverride{
+				param: `token`, //a constant token
+				value: tp.name,
+			}
+		}
+	}
+	return
 }

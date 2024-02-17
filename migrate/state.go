@@ -97,6 +97,11 @@ func (st *StateTracker) Add(tp string, value interface{}) (err error) {
 		Type: tp,
 		Obj:  json.RawMessage(rob),
 	}
+	err = st.writeEntry(ent)
+	return
+}
+
+func (st *StateTracker) writeEntry(ent StateEntry) (err error) {
 	if err = st.enc.Encode(ent); err == nil {
 		st.entries = append(st.entries, ent)
 	}

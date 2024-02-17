@@ -20,11 +20,17 @@ import (
 	"runtime"
 	"runtime/debug"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
+
+	"github.com/crewjam/rfc5424"
+	"github.com/shirou/gopsutil/host"
 )
 
 var (
@@ -39,6 +45,7 @@ type getConfigFunc func(cfg, overlay string) (interface{}, error)
 type cfgHelper interface {
 	Tags() ([]string, error)
 	IngestBaseConfig() config.IngestConfig
+	AttachConfig() attach.AttachConfig
 }
 
 type IngesterBaseConfig struct {
@@ -54,12 +61,15 @@ type IngesterBase struct {
 	Verbose bool
 	Logger  *log.Logger
 	Cfg     interface{}
+	id      uuid.UUID
+	sm      *utils.StatsManager
 }
 
 func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	ib.IngesterBaseConfig = ibc
 	confLoc := flag.String("config-file", ibc.DefaultConfigLocation, "Location for configuration file")
 	confdLoc := flag.String("config-overlays", ibc.DefaultConfigOverlayLocation, "Location for configuration overlay files")
+	populateUUID := flag.Bool("validate-uuid-config", false, "Validate configurations and ensure an ingester UUID is in place")
 	verbose := flag.Bool("v", false, "Display verbose status updates to stdout")
 	stderrOverride := flag.String("stderr", "", "Redirect stderr to a shared memory file")
 	ver := flag.Bool("version", false, "Print the version information and exit")
@@ -73,8 +83,8 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	if err = ibc.validate(); err != nil {
 		return
 	}
+	validate.ValidateIngesterConfig(ib.GetConfigFunc, *confLoc, *confdLoc)
 
-	validate.ValidateConfig(ibc.GetConfigFunc, *confLoc, *confdLoc)
 	var fp string
 	if pth := filepath.Clean(*stderrOverride); pth != `` && pth != `.` {
 		fp = filepath.Join(`/dev/shm/`, pth)
@@ -96,14 +106,34 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	var ch cfgHelper
 	if ib.Cfg, ch, err = ibc.getConfig(*confLoc, *confdLoc); err != nil {
 		return
+	} else if err = verifyConfig(ib.Cfg); err != nil {
+		return
 	}
+
 	cfg := ch.IngestBaseConfig()
+	if *populateUUID {
+		if err = ib.validateUUID(cfg, *confLoc); err != nil {
+			ib.Logger.FatalCode(5, "failed to validate and write back UUID", log.KVErr(err))
+		}
+		fmt.Println("configuration is valid and Ingester-UUID is populated")
+		os.Exit(0)
+	}
+
 	if cfg.Disable_Multithreading {
 		//go into single threaded mode
 		runtime.GOMAXPROCS(1)
 	}
 
 	cfg.AddLocalLogging(ib.Logger)
+
+	if err = ib.validateUUID(cfg, *confLoc); err != nil {
+		return
+	}
+	if ib.sm, err = utils.NewStatsManager(cfg.StatsSampleInterval(), ib.Logger); err != nil {
+		err = fmt.Errorf("failed to get Stats Manager with interval %v - %v", cfg.StatsSampleInterval(), err)
+		return
+	}
+
 	return
 }
 
@@ -175,8 +205,9 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 	ib.Debug("INSECURE skip TLS certificate verification: %v\n", cfg.InsecureSkipTLSVerification())
 	id, ok := cfg.IngesterUUID()
 	if !ok {
-		ib.Logger.FatalCode(0, "could not read ingester UUID")
+		id = uuid.Nil //set to the zero UUID, we attempt to write one back during init, but if that fails... just use zero
 	}
+	ib.id = id
 	igCfg := ingest.UniformMuxerConfig{
 		IngestStreamConfig: cfg.IngestStreamConfig,
 		Destinations:       conns,
@@ -194,6 +225,7 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 		CacheSize:          cfg.Max_Ingest_Cache,
 		CacheMode:          cfg.Cache_Mode,
 		LogSourceOverride:  net.ParseIP(cfg.Log_Source_Override),
+		Attach:             ch.AttachConfig(),
 	}
 	if igst, err = ingest.NewUniformMuxer(igCfg); err != nil {
 		ib.Logger.Fatal("failed build our ingest system", log.KVErr(err))
@@ -214,18 +246,149 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 	ib.Debug("Successfully connected to ingesters\n")
 
 	// prepare the configuration we're going to send upstream
-	if err = igst.SetRawConfiguration(cfg); err != nil {
+	if err = igst.SetRawConfiguration(ib.Cfg); err != nil {
 		ib.Logger.FatalCode(0, "failed to set configuration for ingester state messages")
 	}
 
 	return
 }
 
-func (ib IngesterBase) Debug(format string, args ...interface{}) {
-	if !ib.Verbose {
+func (ib *IngesterBase) Debug(format string, args ...interface{}) {
+	if ib.Verbose {
+		fmt.Printf(format, args...)
 		return
 	}
-	fmt.Printf(format, args...)
+}
+
+func (ib *IngesterBase) validateUUID(cfg config.IngestConfig, loc string) (err error) {
+	if ib == nil || ib.Cfg == nil {
+		return //nothing to do here
+	}
+	id, ok := cfg.IngesterUUID()
+	if ok {
+		//all good
+		return
+	}
+	//generate a UUID
+	id = uuid.New()
+
+	if loc != `` {
+		if err = cfg.SetIngesterUUID(id, loc); err != nil {
+			err = fmt.Errorf("failed to update the ingester UUID in %s - %w", loc, err)
+			return
+		}
+	}
+
+	//attempt to find and populate the Cfg item
+	if err = ib.writebackUUID(id); err != nil {
+		err = fmt.Errorf("failed to populate UUID in %T %w", ib.Cfg, err)
+	}
+
+	return
+}
+
+func (ib *IngesterBase) writebackUUID(id uuid.UUID) (err error) {
+	//first check that we have good pointers
+	if ib == nil || ib.Cfg == nil {
+		err = errors.New("ingester base pointers are bad")
+		return
+	}
+
+	//now make sure the Cfg we were handed is actually something we can write to
+	v := reflect.ValueOf(ib.Cfg)
+	if v.Type().Kind() != reflect.Ptr {
+		err = fmt.Errorf("Config value %T is not a pointer", ib.Cfg)
+		return
+	}
+
+	//ok, make sure whatever it is pointing to is a struct
+	rv := v.Elem()
+	if rv.Type().Kind() != reflect.Struct {
+		err = fmt.Errorf("type %T does not point to a struct (%T)", ib.Cfg, rv.Interface())
+		return
+	}
+
+	//ok, lets start diving into this thing and try to set a value inside of it
+	sv := rv.FieldByName(`Ingester_UUID`)
+	if sv.IsValid() == false {
+		//try to look for a field named "Global"
+		sv = rv.FieldByName(`Global`)
+		if sv.IsValid() == false {
+			err = fmt.Errorf("Failed to find Ingester_UUID in config type %T", rv.Interface())
+			return
+		}
+		//sv is pointing at Global, try to grab the Ingester_UUID in there
+		ssv := sv.FieldByName(`Ingester_UUID`)
+		if ssv.IsValid() == false {
+			err = fmt.Errorf("Failed to find Ingester_UUID in nested Global type %T", sv.Interface())
+			return
+		}
+		if ssv.CanSet() == false {
+			err = fmt.Errorf("Cannot set Ingester_UUID inside nested global type %T", sv.Interface())
+			return
+		}
+		//all good
+		sv = ssv
+	}
+	if sv.CanSet() == false {
+		err = fmt.Errorf("Cannot set Ingester_UUID field in type %T", ib.Cfg)
+		return
+	} else if sv.Kind() != reflect.String {
+		err = fmt.Errorf("Cannot set Ingester_UUID, type %T is not a string", sv.Interface())
+		return
+	}
+
+	//ok, here we gooooo
+	sv.SetString(id.String())
+	return nil
+}
+
+func (ib IngesterBase) AnnounceStartup() {
+	params := []rfc5424.SDParam{
+		log.KV(`version`, version.GetVersion()),
+		log.KV(`runtime`, runtime.Version()),
+		log.KV(`os`, runtime.GOOS),
+		log.KV(`arch`, runtime.GOARCH),
+	}
+	if _, family, version, err := host.PlatformInformation(); err == nil {
+		if family != `` {
+			params = append(params, log.KV("family", family))
+		}
+		if version != `` {
+			params = append(params, log.KV("family-version", version))
+		}
+	}
+	if version, err := host.KernelVersion(); err == nil {
+		params = append(params, log.KV("kernel-version", version))
+	}
+	if ib.id != uuid.Nil {
+		params = append(params, log.KV(`ingesteruuid`, ib.id))
+	}
+	if ib.sm != nil {
+		ib.sm.Start()
+	}
+
+	ib.Logger.Warn("starting", params...)
+}
+
+func (ib IngesterBase) AnnounceShutdown() {
+	params := []rfc5424.SDParam{
+		log.KV(`version`, version.GetVersion()),
+	}
+	if ib.id != uuid.Nil {
+		params = append(params, log.KV(`ingesteruuid`, ib.id))
+	}
+	ib.Logger.Warn("exiting", params...)
+	if ib.sm != nil {
+		ib.sm.Stop()
+	}
+}
+
+func (ib *IngesterBase) RegisterStat(name string) (*utils.StatsItem, error) {
+	if ib == nil || ib.sm == nil {
+		return nil, errors.New("not ready")
+	}
+	return ib.sm.RegisterItem(name)
 }
 
 func (ibc IngesterBaseConfig) validate() error {
@@ -233,6 +396,10 @@ func (ibc IngesterBaseConfig) validate() error {
 		return errors.New("missing ingester name")
 	} else if ibc.AppName == `` {
 		return errors.New("missing app name")
+	} else if ibc.GetConfigFunc == nil {
+		return errors.New("GetConfigFunc is not a function")
+	} else if reflect.TypeOf(ibc.GetConfigFunc).Kind() != reflect.Func {
+		return errors.New("GetConfigFunc is not a function")
 	}
 
 	return nil
@@ -281,6 +448,21 @@ func (ibc IngesterBaseConfig) getConfig(confLoc, confDLoc string) (obj interface
 	} else if ch, ok = obj.(cfgHelper); !ok {
 		obj = nil
 		err = fmt.Errorf("Config type %T does not implement the helper interface", obj)
+	}
+	return
+}
+
+type verifier interface {
+	Verify() error
+}
+
+func verifyConfig(obj interface{}) (err error) {
+	if obj == nil {
+		err = errors.New("config object is nil")
+	} else if ff, ok := obj.(verifier); !ok {
+		err = errors.New("config object has not Verify function")
+	} else {
+		err = ff.Verify()
 	}
 	return
 }

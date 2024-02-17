@@ -10,6 +10,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"compress/gzip"
 	"errors"
 	"io"
@@ -24,25 +25,35 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+)
+
+const (
+	//default is 120 seconds
+	keepAliveTimeoutHeader = `timeout=120`
 )
 
 // note that handleFuncs should read from the reader, not from the Request.Body.
 type handleFunc func(*handler, routeHandler, http.ResponseWriter, *http.Request, io.Reader, net.IP)
 
 type routeHandler struct {
-	ignoreTs bool
-	tag      entry.EntryTag
-	tg       *timegrinder.TimeGrinder
-	handler  handleFunc
-	auth     authHandler
-	pproc    *processors.ProcessorSet
+	ignoreTs      bool
+	tag           entry.EntryTag
+	tg            *timegrinder.TimeGrinder
+	handler       handleFunc
+	auth          authHandler
+	pproc         *processors.ProcessorSet
+	paramAttacher paramAttacher
 }
 
 type handler struct {
 	sync.RWMutex
 	igst           *ingest.IngestMuxer
 	lgr            *log.Logger
+	reqSI          *utils.StatsItem // per request SI
+	entSI          *utils.StatsItem // per entry SI
+	bytesSI        *utils.StatsItem // bytes SI
 	mp             map[route]routeHandler
 	auth           map[route]authHandler
 	custom         map[route]http.Handler
@@ -57,10 +68,11 @@ func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Reque
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
+	rh.paramAttacher.process(req)
 	rh.handler(h, rh, w, req, rdr, ip)
 }
 
-func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger) (h *handler, err error) {
+func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger, reqSI, entSI, bytesSI *utils.StatsItem) (h *handler, err error) {
 	if igst == nil {
 		err = errors.New("nil muxer")
 	} else if lgr == nil {
@@ -73,6 +85,9 @@ func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger) (h *handler, err erro
 			custom:  map[route]http.Handler{},
 			igst:    igst,
 			lgr:     lgr,
+			reqSI:   reqSI,
+			entSI:   entSI,
+			bytesSI: bytesSI,
 		}
 	}
 	return
@@ -134,21 +149,34 @@ func (h *handler) addCustomHandler(method, pth string, ah http.Handler) (err err
 	return
 }
 
+type ew struct {
+}
+
+func (x *ew) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
+func drainAndClose(rc io.ReadCloser) {
+	io.Copy(&ew{}, rc)
+	rc.Close()
+}
+
 func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
+	h.reqSI.Add(1)
+	defer drainAndClose(r.Body)
 	w := &trackingRW{
 		ResponseWriter: rw,
 	}
-	defer func(trw *trackingRW, req *http.Request) {
-		if !v {
-			return
-		}
-		debugout("REQUEST %s %v %d %d\n", req.Method, req.URL, trw.code, trw.bytes)
-		debugout("\tHEADERS\n")
-		for k, v := range req.Header {
-			debugout("\t\t%v: %v\n", k, v)
-		}
-		debugout("\n")
-	}(w, r)
+	if debugOn {
+		defer func(trw *trackingRW, req *http.Request) {
+			debugout("REQUEST %s %v %d %d\n", req.Method, req.URL, trw.code, trw.bytes)
+			debugout("\tHEADERS\n")
+			for k, v := range req.Header {
+				debugout("\t\t%v: %v\n", k, v)
+			}
+			debugout("\n")
+		}(w, r)
+	}
 	ip := getRemoteIP(r)
 	rdr, err := getReadableBody(r)
 	if err != nil {
@@ -160,6 +188,12 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	rt := route{
 		method: r.Method,
 		uri:    path.Clean(r.URL.Path),
+	}
+
+	if r.ProtoMajor == 1 {
+		//we are in HTTP 1.X, we may need to set keep alives for stupid clients
+		w.Header().Add(`Connection`, `Keep-Alive`)
+		w.Header().Add(`Keep-Alive`, keepAliveTimeoutHeader)
 	}
 
 	//check if its just a health check
@@ -210,9 +244,8 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 	rh.handle(h, w, r, rdr, ip)
-	r.Body.Close()
 }
-func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP) (err error) {
+func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP, tag entry.EntryTag) (err error) {
 	var ts entry.Timestamp
 	if cfg.ignoreTs || cfg.tg == nil {
 		ts = entry.Now()
@@ -231,15 +264,27 @@ func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP) (err error)
 	e := entry.Entry{
 		TS:   ts,
 		SRC:  ip,
-		Tag:  cfg.tag,
+		Tag:  tag,
 		Data: b,
 	}
+	cfg.paramAttacher.attach(&e)
 	debugout("Handling: %+v\n", e)
-	if err = cfg.pproc.Process(&e); err != nil {
+	if err = cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
 		h.lgr.Error("failed to send entry", log.KVErr(err))
 		return
 	}
-	debugout("Sending entry %+v", e)
+	h.entSI.Add(1)
+	h.bytesSI.Add(uint64(len(b)))
+	return
+}
+
+func (h *handler) handleEntryEx(rh routeHandler, ent *entry.Entry) (err error) {
+	if ent != nil {
+		if err = rh.pproc.ProcessContext(ent, exitCtx); err == nil {
+			h.entSI.Add(1)
+			h.bytesSI.Add(ent.Size())
+		}
+	}
 	return
 }
 
@@ -303,8 +348,14 @@ func (r route) String() string {
 func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	debugout("multhandler\n")
 	scanner := bufio.NewScanner(rdr)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	for scanner.Scan() {
-		if err := h.handleEntry(cfg, scanner.Bytes(), ip); err != nil {
+		bts := scanner.Bytes()
+		if bts = bytes.TrimSpace(bts); len(bts) == 0 {
+			continue
+		}
+		// we have to do a bytes.Clone on the output because the bufio.Scanner does internal buffer reuse
+		if err := h.handleEntry(cfg, bytes.Clone(bts), ip, cfg.tag); err != nil {
 			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -318,20 +369,22 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 }
 
 func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
-	b, err := ioutil.ReadAll(io.LimitReader(rdr, int64(maxBody+1)))
+	//using a limited Reader here makes sense because we are going to be eathing the entire HTTP request body as a single entry
+	lr := io.LimitedReader{R: rdr, N: int64(maxBody + 1)}
+	b, err := ioutil.ReadAll(&lr)
 	if err != nil && err != io.EOF {
 		h.lgr.Info("got bad request", log.KV("address", ip), log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 		return
-	} else if len(b) > maxBody {
-		h.lgr.Error("request too large, 4MB max")
+	} else if len(b) > maxBody || lr.N == 0 {
+		h.lgr.Error("request too large", log.KV("max", maxBody))
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 	if len(b) == 0 {
 		h.lgr.Info("got an empty post", log.KV("address", ip))
 		w.WriteHeader(http.StatusBadRequest)
-	} else if err = h.handleEntry(cfg, b, ip); err != nil {
+	} else if err = h.handleEntry(cfg, b, ip, cfg.tag); err != nil {
 		h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 		w.WriteHeader(http.StatusInternalServerError)
 	}

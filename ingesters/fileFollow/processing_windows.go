@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -27,6 +27,7 @@ import (
 
 const (
 	defaultEntryChannelSize int = 1024
+	minServiceLiveTime          = 2 * time.Second
 )
 
 var (
@@ -34,6 +35,7 @@ var (
 )
 
 type mainService struct {
+	cfg         *cfgType
 	secret      string
 	timeout     time.Duration
 	tags        []string
@@ -75,6 +77,7 @@ func NewService(cfg *cfgType) (*mainService, error) {
 	//fire up the watch manager
 	wtchr, err := filewatch.NewWatcher(cfg.StatePath())
 	if err != nil {
+		errorout("failed to open config path %s %v", cfg.StatePath(), err)
 		return nil, err
 	}
 	//pass in the ingest muxer to the file watcher so it can throw info and errors down the muxer chan
@@ -87,6 +90,7 @@ func NewService(cfg *cfgType) (*mainService, error) {
 
 	debugout("Watching %d Directories\n", len(cfg.Follower))
 	return &mainService{
+		cfg:         cfg,
 		timeout:     cfg.Timeout(),
 		secret:      cfg.Secret(),
 		tags:        tags,
@@ -185,11 +189,29 @@ loop:
 	return
 }
 
+func sleepContext(ctx context.Context, d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	select {
+	case <-time.After(d):
+	case <-ctx.Done():
+	}
+	return
+}
+
 func (m *mainService) initWithCancel(ctx context.Context, cf context.CancelFunc, r <-chan svc.ChangeRequest, changes chan<- svc.Status) (quit bool, err error) {
 	ret := make(chan error, 1)
 
 	go func(ctx context.Context, rc chan error) {
-		rc <- m.init(ctx)
+		now := time.Now()
+		err := m.init(ctx)
+		if d := time.Since(now); d < minServiceLiveTime && ctx.Err() == nil {
+			errorout("Service failed instantly, waiting %v to exit", minServiceLiveTime-d)
+			sleepContext(ctx, minServiceLiveTime-d)
+		}
+
+		rc <- err
 		close(rc)
 	}(ctx, ret)
 
@@ -249,6 +271,9 @@ func (m *mainService) init(ctx context.Context) error {
 		CacheSize:       m.cacheSize,
 		CacheMode:       m.cacheMode,
 	}
+	if m.cfg != nil {
+		ingestConfig.Attach = m.cfg.Attach
+	}
 
 	debugout("Starting ingester connections ")
 	igst, err := ingest.NewUniformMuxer(ingestConfig)
@@ -266,7 +291,15 @@ func (m *mainService) init(ctx context.Context) error {
 	m.igst = igst
 	hot, err := igst.Hot()
 	if err != nil {
+		errorout("failed to get hot connection count: %v", err)
 		return err
+	}
+	//add our selves as self ingesting
+	if m.cfg != nil {
+		if err = igst.SetRawConfiguration(*m.cfg); err != nil {
+			errorout("failed to set configuration for ingester state messages: %v", err)
+			return err
+		}
 	}
 	infoout("Ingester established %d connections\n", hot)
 	m.wtchr.SetLogger(igst)
@@ -320,6 +353,7 @@ func (m *mainService) init(ctx context.Context) error {
 			Ctx:                     ctx,
 			TimeFormat:              m.timeFormats,
 			AttachFilename:          val.Attach_Filename,
+			Trim:                    val.Trim,
 		}
 
 		lh, err := filewatch.NewLogHandler(cfg, pproc)
@@ -339,6 +373,9 @@ func (m *mainService) init(ctx context.Context) error {
 		} else if ok {
 			c.Engine = filewatch.RegexEngine
 			c.EngineArgs = rex
+		} else if val.Regex_Delimiter != `` {
+			c.Engine = filewatch.RegexEngine
+			c.EngineArgs = val.Regex_Delimiter
 		} else {
 			c.Engine = filewatch.LineEngine
 		}

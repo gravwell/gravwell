@@ -10,9 +10,11 @@ package client
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/client/types"
 )
 
@@ -42,17 +44,23 @@ func (c *Client) GetAllScheduledSearches() ([]types.ScheduledSearch, error) {
 //
 // - schedule: a cron-format schedule on which to execute the search.
 //
-// - searchquery: a valid search query string.
+// - searchreference: a reference to a query library item. Cannot be combined with searchquery.
+//
+// - searchquery: a valid search query string. Cannot be combined with searchreference.
 //
 // - duration: the amount of time over which the query should be run.
-func (c *Client) CreateScheduledSearch(name, description, schedule, searchquery string, duration time.Duration, groups []int32) (int32, error) {
+func (c *Client) CreateScheduledSearch(name, description, schedule string, searchreference uuid.UUID, searchquery string, duration time.Duration, groups []int32) (int32, error) {
+	if searchquery != "" && searchreference != uuid.Nil {
+		return 0, fmt.Errorf("cannot use both searchreference and searchquery in CreateScheduledSearch")
+	}
 	ss := types.ScheduledSearch{
-		Groups:       groups,
-		Name:         name,
-		Description:  description,
-		Schedule:     schedule,
-		SearchString: searchquery,
-		Duration:     int64(duration.Seconds()),
+		Groups:          groups,
+		Name:            name,
+		Description:     description,
+		Schedule:        schedule,
+		SearchReference: searchreference,
+		SearchString:    searchquery,
+		Duration:        int64(duration.Seconds()),
 	}
 	var resp int32
 	if err := c.postStaticURL(scheduledSearchUrl(), ss, &resp); err != nil {
@@ -111,7 +119,9 @@ func (c *Client) DeleteScheduledSearch(id int32) error {
 }
 
 // GetScheduledSearch returns the scheduled search with the given ID.
-func (c *Client) GetScheduledSearch(id int32) (types.ScheduledSearch, error) {
+// The ID is an interface{} to allow the user to specify either the
+// int32 "ID" or the UUID "GUID" field.
+func (c *Client) GetScheduledSearch(id interface{}) (types.ScheduledSearch, error) {
 	var search types.ScheduledSearch
 	err := c.getStaticURL(scheduledSearchIdUrl(id), &search)
 	return search, err

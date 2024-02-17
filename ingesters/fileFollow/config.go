@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -11,14 +11,16 @@ package main
 import (
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/filewatch"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
@@ -26,7 +28,8 @@ import (
 )
 
 const (
-	MAX_CONFIG_SIZE int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
+	MAX_CONFIG_SIZE        int64 = (1024 * 1024 * 2) //2MB, even this is crazy large
+	defaultMaxWatchedFiles       = 1024
 )
 
 var (
@@ -39,6 +42,7 @@ type readerType int
 
 type cfgReadType struct {
 	Global       global
+	Attach       attach.AttachConfig
 	Follower     map[string]*follower
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -54,6 +58,7 @@ type follower struct {
 	Attach_Filename           bool // attach the full path of the file to each entry
 	Ignore_Line_Prefix        []string
 	Ignore_Glob               []string
+	Trim                      bool
 	Timestamp_Format_Override string //override the timestamp format
 	Timestamp_Delimited       bool
 	Timezone_Override         string
@@ -74,6 +79,7 @@ type global struct {
 
 type cfgType struct {
 	global
+	Attach       attach.AttachConfig
 	Follower     map[string]*follower
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -88,30 +94,27 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	}
 	c := &cfgType{
 		global:       cr.Global,
+		Attach:       cr.Attach,
 		Follower:     cr.Follower,
 		Preprocessor: cr.Preprocessor,
 		TimeFormat:   cr.TimeFormat,
 	}
-	if err := verifyConfig(c); err != nil {
+	if err := c.Verify(); err != nil {
 		return nil, err
-	}
-	// Verify and set UUID
-	if _, ok := c.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
-		}
 	}
 	return c, nil
 }
 
-func verifyConfig(c *cfgType) error {
+func (c *cfgType) Verify() error {
 	//verify the global parameters
-	if err := c.Verify(); err != nil {
+	if err := c.IngestConfig.Verify(); err != nil {
 		return err
+	} else if err = c.Attach.Verify(); err != nil {
+		return err
+	} else if err = c.global.verifyStateStore(); err != nil {
+		return err
+	} else if c.global.Max_Files_Watched <= 0 {
+		c.global.Max_Files_Watched = defaultMaxWatchedFiles
 	}
 	if len(c.Follower) == 0 {
 		return errors.New("No Followers specified")
@@ -177,6 +180,14 @@ func (c *cfgType) Tags() ([]string, error) {
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
 
 func (cfg *cfgType) Followers() map[string]follower {
@@ -251,4 +262,16 @@ func (g *global) Verify() (err error) {
 
 func (g *global) StatePath() string {
 	return g.State_Store_Location
+}
+
+func dumpStateFile(pth string) {
+	states, err := filewatch.DecodeStateFile(pth)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load state file: %v\n", err)
+		return
+	}
+	fmt.Printf("%-24s %-16s %s\n", "Listener Name", "File Offset", "File Path")
+	for _, state := range states {
+		fmt.Printf("%-24s %-16d %s\n", state.BaseName, state.State, state.FilePath)
+	}
 }

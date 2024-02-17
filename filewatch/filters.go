@@ -28,6 +28,27 @@ type filter struct {
 	lh    handler
 }
 
+func (f *filter) Equal(x filter) bool {
+	if f.FollowerEngineConfig != x.FollowerEngineConfig {
+		return false
+	} else if f.bname != x.bname {
+		return false
+	} else if f.loc != x.loc {
+		return false
+	} else if f.lh != x.lh {
+		return false
+	} else if len(f.mtchs) != len(x.mtchs) {
+		return false
+	}
+	for i := range f.mtchs {
+		if f.mtchs[i] != x.mtchs[i] {
+			return false
+		}
+	}
+
+	return true
+}
+
 // a unique name that allows multiple IDs pointing at the same file
 type FileName struct {
 	BaseName string
@@ -214,8 +235,34 @@ func (f *FilterManager) AddFilter(bname, loc string, mtchs []string, lh handler,
 		mtchs:                mtchs,
 		lh:                   lh,
 	}
+	for i := range f.filters {
+		if fltr.Equal(f.filters[i]) {
+			return nil
+		}
+	}
 	f.filters = append(f.filters, fltr)
 	return nil
+}
+
+func (f *FilterManager) RemoveDirectory(path string) error {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	return f.nolockRemoveDirectory(path, true)
+}
+
+func (f *FilterManager) nolockRemoveDirectory(path string, purgeState bool) (err error) {
+	for k, v := range f.followers {
+		if k.BaseName == path {
+			delete(f.followers, k)
+			if purgeState {
+				delete(f.states, k)
+			}
+			if err = v.Close(); err != nil {
+				return
+			}
+		}
+	}
+	return
 }
 
 func (f *FilterManager) RemoveFollower(fpath string) (bool, error) {
@@ -648,7 +695,6 @@ func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, er
 			FilterID:             i,
 			Handler:              v.lh,
 		}
-		//this file needs to be caugh up
 		if quit, err := f.catchupFollower(fcfg, qc); err != nil || quit {
 			return quit, err
 		}
@@ -659,6 +705,7 @@ func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, er
 
 // catchupFollower is a linear operation to get outstanding files up to date.
 func (f *FilterManager) catchupFollower(fcfg FollowerConfig, qc chan os.Signal) (bool, error) {
+	f.logger.Info("performing initial catch-up preprocessing for file", log.KV("file", fcfg.FilePath))
 	if fl, err := NewFollower(fcfg); err != nil {
 		return false, err
 	} else if quit, err := fl.Sync(qc); err != nil || quit {

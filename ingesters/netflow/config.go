@@ -13,8 +13,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
@@ -43,11 +43,13 @@ type collector struct {
 
 type cfgReadType struct {
 	Global    config.IngestConfig
+	Attach    attach.AttachConfig
 	Collector map[string]*collector
 }
 
 type cfgType struct {
 	config.IngestConfig
+	Attach    attach.AttachConfig
 	Collector map[string]*collector
 }
 
@@ -61,28 +63,21 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	}
 	c := &cfgType{
 		IngestConfig: cr.Global,
+		Attach:       cr.Attach,
 		Collector:    cr.Collector,
 	}
 
-	if err := verifyConfig(c); err != nil {
+	if err := c.Verify(); err != nil {
 		return nil, err
-	}
-	// Verify and set UUID
-	if _, ok := c.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
-		}
 	}
 	return c, nil
 }
 
-func verifyConfig(c *cfgType) error {
+func (c *cfgType) Verify() error {
 	//verify the global parameters
-	if err := c.Verify(); err != nil {
+	if err := c.IngestConfig.Verify(); err != nil {
+		return err
+	} else if c.Attach.Verify(); err != nil {
 		return err
 	}
 	if len(c.Collector) == 0 {
@@ -124,6 +119,14 @@ func (c *cfgType) Tags() ([]string, error) {
 	}
 	sort.Strings(tags)
 	return tags, nil
+}
+
+func (c *cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
 
 func (ft flowType) String() string {

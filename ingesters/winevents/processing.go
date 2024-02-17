@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2023 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -51,7 +51,7 @@ type eventSrc struct {
 }
 
 type mainService struct {
-	cfg          *winevent.CfgType
+	cfg          *CfgType
 	secret       string
 	timeout      time.Duration
 	ignoreTS     bool
@@ -78,7 +78,7 @@ type mainService struct {
 	shutdownCalled bool
 }
 
-func NewService(cfg *winevent.CfgType) (*mainService, error) {
+func NewService(cfg *CfgType) (*mainService, error) {
 	//populate items from our config
 	tags, err := cfg.Tags()
 	if err != nil {
@@ -325,10 +325,13 @@ func (m *mainService) init() error {
 		Tags:            m.tags,
 		Auth:            m.secret,
 		LogLevel:        m.igstLogLevel,
-		IngesterName:    "winevent",
+		IngesterName:    ingesterName,
 		IngesterVersion: version.GetVersion(),
 		IngesterUUID:    m.uuid,
 		RateLimitBps:    m.lmt,
+	}
+	if m.cfg != nil {
+		igCfg.Attach = m.cfg.Attach
 	}
 	//igCfg.IngesterVersion = versionOverride
 	if m.enableCache {
@@ -340,9 +343,6 @@ func (m *mainService) init() error {
 	igst, err := ingest.NewUniformMuxer(igCfg)
 	if err != nil {
 		return fmt.Errorf("Failed build our ingest system: %v", err)
-	}
-	if m.cfg.Global.SelfIngest() {
-		lg.AddRelay(igst)
 	}
 	if err := igst.Start(); err != nil {
 		return fmt.Errorf("Failed start our ingest system: %v", err)
@@ -358,9 +358,13 @@ func (m *mainService) init() error {
 		lg.Error("failed to get hot connection count", log.KVErr(err))
 		return err
 	}
+	//add ourselves as self ingesting
+	if m.cfg.Global.SelfIngest() {
+		lg.AddRelay(igst)
+	}
 	// prepare the configuration we're going to send upstream
 	if m.cfg != nil {
-		if err = igst.SetRawConfiguration(*m.cfg); err != nil {
+		if err = igst.SetRawConfiguration(m.cfg.RawConfig()); err != nil {
 			lg.Error("failed to set configuration for ingester state messages", log.KVErr(err))
 			return err
 		}

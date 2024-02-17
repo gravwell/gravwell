@@ -15,11 +15,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/sqs_common"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -33,30 +34,54 @@ type TimeConfig struct {
 type bucket struct {
 	TimeConfig
 	AuthConfig
-	Reader          string //defaults to line
-	Tag_Name        string
-	Source_Override string
-	File_Filters    []string
-	Preprocessor    []string
-	Max_Line_Size   int
+	Reader           string //defaults to line
+	Tag_Name         string
+	Source_Override  string
+	File_Filters     []string
+	Preprocessor     []string
+	Max_Line_Size    int
+	Credentials_Type string
+	ID               string `json:"-"` // DO NOT send this when marshalling
+	Secret           string `json:"-"` // DO NOT send this when marshalling
+}
+
+type sqsS3 struct {
+	TimeConfig
+	Reader           string //defaults to line
+	Tag_Name         string
+	Queue_URL        string
+	Region           string
+	Credentials_Type string
+	ID               string `json:"-"` // DO NOT send this when marshalling
+	Secret           string `json:"-"` // DO NOT send this when marshalling
+	File_Filters     []string
+	Preprocessor     []string
+	Max_Line_Size    int
+	Source_Override  string
 }
 
 type global struct {
 	config.IngestConfig
 	State_Store_Location string
+	Worker_Pool_Size     int
 }
 
 type cfgReadType struct {
-	Global       global
-	Bucket       map[string]*bucket
-	Preprocessor processors.ProcessorConfig
-	TimeFormat   config.CustomTimeFormat
+	Global          global
+	Attach          attach.AttachConfig
+	Bucket          map[string]*bucket
+	SQS_S3_Listener map[string]*sqsS3
+	Preprocessor    processors.ProcessorConfig
+	TimeFormat      config.CustomTimeFormat
 }
 
 type cfgType struct {
 	config.IngestConfig
+	Attach               attach.AttachConfig
 	State_Store_Location string
+	Worker_Pool_Size     int
 	Bucket               map[string]*bucket
+	SQS_S3_Listener      map[string]*sqsS3
 	Preprocessor         processors.ProcessorConfig
 	TimeFormat           config.CustomTimeFormat
 }
@@ -71,40 +96,39 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 	}
 	c := &cfgType{
 		IngestConfig:         cr.Global.IngestConfig,
+		Attach:               cr.Attach,
 		State_Store_Location: cr.Global.State_Store_Location,
+		Worker_Pool_Size:     cr.Global.Worker_Pool_Size,
 		Bucket:               cr.Bucket,
+		SQS_S3_Listener:      cr.SQS_S3_Listener,
 		Preprocessor:         cr.Preprocessor,
 		TimeFormat:           cr.TimeFormat,
 	}
 
-	if err := verifyConfig(c); err != nil {
-		return nil, err
-	}
-	if c.State_Store_Location == `` {
-		return nil, errors.New("Missing State-Store-Location")
-	}
-
 	// Verify and set UUID
-	if _, ok := c.IngesterUUID(); !ok {
-		id := uuid.New()
-		if err := c.SetIngesterUUID(id, path); err != nil {
-			return nil, err
-		}
-		if id2, ok := c.IngesterUUID(); !ok || id != id2 {
-			return nil, errors.New("Failed to set a new ingester UUID")
-		}
+	if err := c.Verify(); err != nil {
+		return nil, err
 	}
 	return c, nil
 }
 
-func verifyConfig(c *cfgType) error {
+func (c *cfgType) Verify() error {
 	//verify the global parameters
-	if err := c.Verify(); err != nil {
+	if err := c.IngestConfig.Verify(); err != nil {
+		return err
+	} else if err = c.Attach.Verify(); err != nil {
 		return err
 	}
 
-	if len(c.Bucket) == 0 {
-		return errors.New("No buckets specified")
+	if c.State_Store_Location == `` {
+		return errors.New("Missing State-Store-Location")
+	}
+	if c.Worker_Pool_Size < 1 {
+		c.Worker_Pool_Size = 1
+	}
+
+	if len(c.Bucket) == 0 && len(c.SQS_S3_Listener) == 0 {
+		return errors.New("No listeners specified")
 	}
 	if c.State_Store_Location == `` {
 		c.State_Store_Location = defaultStateLoc
@@ -147,6 +171,42 @@ func verifyConfig(c *cfgType) error {
 		if _, err := parseReader(v.Reader); err != nil {
 			return fmt.Errorf("Invalid Reader %q - %v", v.Reader, err)
 		}
+		if _, err := sqs_common.GetCredentials(v.Credentials_Type, v.ID, v.Secret); err != nil {
+			return err
+		}
+	}
+
+	for k, v := range c.SQS_S3_Listener {
+		if len(v.Tag_Name) == 0 {
+			v.Tag_Name = entry.DefaultTagName
+		}
+		if ingest.CheckTag(v.Tag_Name) != nil {
+			return errors.New("Invalid characters in the Tag-Name for " + k)
+		}
+		if v.Timezone_Override != "" {
+			if v.Assume_Local_Timezone {
+				// cannot do both
+				return fmt.Errorf("Cannot specify Assume-Local-Timezone and Timezone-Override in the same listener %v", k)
+			}
+			if _, err := time.LoadLocation(v.Timezone_Override); err != nil {
+				return fmt.Errorf("Invalid timezone override %v in listener %v: %v", v.Timezone_Override, k, err)
+			}
+		}
+		if v.Source_Override != `` {
+			if net.ParseIP(v.Source_Override) == nil {
+				return fmt.Errorf("Source-Override %s is not a valid IP address", v.Source_Override)
+			}
+		}
+
+		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
+			return fmt.Errorf("Listener %s preprocessor invalid: %v", k, err)
+		}
+		if _, err := parseReader(v.Reader); err != nil {
+			return fmt.Errorf("Invalid Reader %q - %v", v.Reader, err)
+		}
+		if _, err := sqs_common.GetCredentials(v.Credentials_Type, v.ID, v.Secret); err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -166,6 +226,16 @@ func (c *cfgType) Tags() ([]string, error) {
 		}
 	}
 
+	for _, v := range c.SQS_S3_Listener {
+		if len(v.Tag_Name) == 0 {
+			continue
+		}
+		if _, ok := tagMp[v.Tag_Name]; !ok {
+			tags = append(tags, v.Tag_Name)
+			tagMp[v.Tag_Name] = true
+		}
+	}
+
 	if len(tags) == 0 {
 		return nil, errors.New("No tags specified")
 	}
@@ -175,6 +245,10 @@ func (c *cfgType) Tags() ([]string, error) {
 
 func (c *cfgType) IngestBaseConfig() config.IngestConfig {
 	return c.IngestConfig
+}
+
+func (c *cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
 }
 
 func (c *cfgType) newTimeGrinder(tc TimeConfig) (tg *timegrinder.TimeGrinder, err error) {
@@ -210,11 +284,18 @@ func (g *global) Verify() (err error) {
 		return
 	}
 	err = g.verifyStateStore()
+	if g.Worker_Pool_Size < 1 {
+		g.Worker_Pool_Size = 1
+	}
 	return
 }
 
 func (g *global) StatePath() string {
 	return g.State_Store_Location
+}
+
+func (g *global) WorkerPoolSize() int {
+	return g.Worker_Pool_Size
 }
 
 func (g *global) verifyStateStore() (err error) {

@@ -348,14 +348,14 @@ scannerLoop:
 			ts = time.Now()
 		}
 		ent := &entry.Entry{
-			TS:  entry.FromStandard(ts),
-			Tag: cfg.Tag,
-			SRC: cfg.SRC,
+			TS:   entry.FromStandard(ts),
+			Tag:  cfg.Tag,
+			SRC:  cfg.SRC,
+			Data: bytes.Clone(bts), // copy due to the scanner
 		}
 		for i := range cfg.AttachEnumeratedValues {
 			ent.AddEnumeratedValue(cfg.AttachEnumeratedValues[i])
 		}
-		ent.Data = append(ent.Data, bts...) //force reallocation due to the scanner
 		if cfg.BatchSize == 0 {
 			if err = cfg.Proc.Process(ent); err != nil {
 				return count, totalBytes, err

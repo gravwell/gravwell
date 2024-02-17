@@ -32,6 +32,10 @@ const (
 	IDX_URL                          = `/api/stats/idxStats`
 	INGESTER_URL                     = `/api/stats/igstStats`
 	WELLS_URL                        = `/api/stats/wellStats`
+	STORAGE_URL                      = `/api/stats/storage/indexers`
+	STORAGE_INDEXER_URL              = `/api/stats/storage/indexer/%s/wells`
+	CALENDAR_URL                     = `/api/stats/storage/calendar`
+	CALENDAR_INDEXER_URL             = `/api/stats/storage/indexer/%s/calendar`
 	ADD_USER_URL                     = `/api/users`
 	USERS_LIST_URL                   = `/api/users`
 	USERS_INFO_URL                   = `/api/users/%d`
@@ -104,7 +108,7 @@ const (
 	RESOURCES_LOOKUP_URL             = "/api/resources/lookup/%s"
 	SCHEDULED_SEARCH_URL             = "/api/scheduledsearches"
 	SCHEDULED_SEARCH_ALL_URL         = "/api/scheduledsearches/all"
-	SCHEDULED_SEARCH_ID_URL          = "/api/scheduledsearches/%d"
+	SCHEDULED_SEARCH_ID_URL          = "/api/scheduledsearches/%v"
 	SCHEDULED_SEARCH_RESULTS_ID_URL  = "/api/scheduledsearches/%d/results"
 	SCHEDULED_SEARCH_ERROR_ID_URL    = "/api/scheduledsearches/%d/error"
 	SCHEDULED_SEARCH_STATE_ID_URL    = "/api/scheduledsearches/%d/state"
@@ -113,7 +117,7 @@ const (
 	SCHEDULED_SEARCH_CHECKIN_URL     = "/api/scheduledsearches/checkin"
 	SCHEDULED_SEARCH_PARSE           = "/api/scheduledsearches/parse"
 	FLOW_URL                         = "/api/flows"
-	FLOW_ID_URL                      = "/api/flows/%d"
+	FLOW_ID_URL                      = "/api/flows/%v"
 	FLOW_RESULTS_ID_URL              = "/api/flows/%d/results"
 	FLOW_ERROR_ID_URL                = "/api/flows/%d/error"
 	FLOW_STATE_ID_URL                = "/api/flows/%d/state"
@@ -182,7 +186,11 @@ const (
 	CBAC_DEFAULT_URL                 = `/api/cbac/default`
 	CBAC_DEFAULT_CAPABILITIES_URL    = `/api/cbac/default/capabilities`
 	CBAC_DEFAULT_TAGS_URL            = `/api/cbac/default/tags`
-
+	ALERTS_URL                       = `/api/alerts`
+	ALERTS_ID_URL                    = `/api/alerts/%s`
+	ALERTS_ID_SAMPLE_URL             = `/api/alerts/%s/sample`
+	ALERTS_VALIDATE_DISPATCHER_URL   = `/api/alerts/validate/dispatcher`
+	ALERTS_VALIDATE_CONSUMER_URL     = `/api/alerts/validate/consumer`
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
 	LICENSE_INIT_STATUS = `/license/status`
@@ -384,7 +392,7 @@ func scheduledSearchAllUrl() string {
 	return SCHEDULED_SEARCH_ALL_URL
 }
 
-func scheduledSearchIdUrl(id int32) string {
+func scheduledSearchIdUrl(id interface{}) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_ID_URL, id)
 }
 
@@ -419,7 +427,7 @@ func flowParseUrl() string {
 	return FLOW_PARSE_URL
 }
 
-func flowIdUrl(id int32) string {
+func flowIdUrl(id interface{}) string {
 	return fmt.Sprintf(FLOW_ID_URL, id)
 }
 
@@ -663,4 +671,24 @@ func searchParseUrl() string {
 
 func searchAttachUrl(id string) string {
 	return fmt.Sprintf(SEARCH_CTRL_ATTACH_URL, id)
+}
+
+func alertsUrl() string {
+	return ALERTS_URL
+}
+
+func alertsIdUrl(id uuid.UUID) string {
+	return fmt.Sprintf(ALERTS_ID_URL, id.String())
+}
+
+func alertsIdSampleEventUrl(id uuid.UUID) string {
+	return fmt.Sprintf(ALERTS_ID_SAMPLE_URL, id.String())
+}
+
+func alertsValidateDispatcherUrl() string {
+	return ALERTS_VALIDATE_DISPATCHER_URL
+}
+
+func alertsValidateConsumerUrl() string {
+	return ALERTS_VALIDATE_CONSUMER_URL
 }

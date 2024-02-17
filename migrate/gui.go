@@ -172,9 +172,11 @@ func jobUpdater() {
 			if err != nil {
 				continue
 			}
-			app.QueueUpdateDraw(func() { jobs.SetItemText(i, job.IdString(), job.LatestUpdate()) })
+			//			app.QueueUpdateDraw(func() { jobs.SetItemText(i, job.IdString(), job.LatestUpdate()) })
+			jobs.SetItemText(i, job.IdString(), job.LatestUpdate())
 		}
 		jobLock.Unlock()
+		app.Draw()
 		time.Sleep(500 * time.Millisecond)
 	}
 }
@@ -342,15 +344,16 @@ func setTagMapping(cfgName string, x SplunkToGravwell, tag string) {
 		}
 		return true
 	}
-	timestampChanged := func(ts string) {
+	startTimestampChanged := func(ts string) {
 		if i, err := strconv.Atoi(ts); err == nil {
 			startFrom = time.Unix(int64(i), 0)
 		}
 	}
+
 	// Pop up the form
 	form := tview.NewForm().
 		AddInputField("Tag", tag, 50, tagCheck, tagChanged).
-		AddInputField("(Optional) Unix timestamp to start from", fmt.Sprintf("%d", x.ConsumedUpTo.Unix()), 50, timestampCheck, timestampChanged).
+		AddInputField("(Optional) Unix timestamp to start from", fmt.Sprintf("%d", x.ConsumedUpTo.Unix()), 50, timestampCheck, startTimestampChanged).
 		AddButton("Save", save).
 		AddButton("Cancel", cancel)
 
@@ -379,7 +382,11 @@ func splunkMigrateMenu(cfgName string) {
 		f := func() {
 			startMigrate(cfgName, x)
 		}
-		menu.AddItem(fmt.Sprintf("%s, %s -> %s", x.Index, x.Sourcetype, x.Tag), fmt.Sprintf("Starting from %v", x.ConsumedUpTo), 0, f)
+		timeMsg := fmt.Sprintf("Starting from %v", x.ConsumedUpTo)
+		if !x.ConsumeEndTime.IsZero() && x.ConsumeEndTime.Unix() != 0 {
+			timeMsg = fmt.Sprintf("From %v to %v", x.ConsumedUpTo, x.ConsumeEndTime)
+		}
+		menu.AddItem(fmt.Sprintf("%s, %s -> %s", x.Index, x.Sourcetype, x.Tag), timeMsg, 0, f)
 	}
 }
 

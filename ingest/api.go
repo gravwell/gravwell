@@ -38,7 +38,8 @@ const (
 var (
 	ErrInvalidBuffer            = errors.New("invalid buffer")
 	ErrInvalidIngestStateHeader = errors.New("Invalid ingest state header")
-	ErrInvalidConfigBlock       = errors.New("Invalid configuration block size")
+	ErrOversizedConfigBlock     = errors.New("configuration block too large")
+	ErrEmptyConfigBlock         = errors.New("configuration block empty")
 )
 
 type CompressionType uint8
@@ -91,8 +92,11 @@ func (c *StreamConfiguration) Read(rdr io.Reader) (err error) {
 	if err = binary.Read(rdr, binary.LittleEndian, &bsz); err != nil {
 		return
 	}
-	if bsz > maxStreamConfigurationBlockSize || bsz == 0 {
-		err = ErrInvalidConfigBlock
+	if bsz > maxStreamConfigurationBlockSize {
+		err = ErrOversizedConfigBlock
+		return
+	} else if bsz == 0 {
+		err = ErrEmptyConfigBlock
 		return
 	}
 	buff := make([]byte, bsz)

@@ -43,6 +43,7 @@ var (
 // ScheduledSearch represents a scheduled search, including rules, description,
 // etc.
 type ScheduledSearch struct {
+	Synced      bool
 	ID          int32
 	GUID        uuid.UUID
 	Groups      []int32
@@ -55,9 +56,11 @@ type ScheduledSearch struct {
 	Timezone    string // a location to use for the timezone, e.g. "America/New_York"
 	Updated     time.Time
 	Disabled    bool
-	OneShot     bool // Set this flag to 'true' to make the search fire ONCE
-	DebugMode   bool // set this to true to enable debug mode
-	Synced      bool
+
+	// These values are used for debug/testing runs
+	OneShot    bool   // Set this flag to 'true' to make the search fire ONCE
+	DebugMode  bool   // set this to true to enable debug mode
+	DebugEvent *Event // If provided, this will be inserted as `event` into the flow payload.
 
 	// if true, search agent will attempt to "backfill" missed runs since
 	// the more recent of Updated or LastRun.
@@ -67,9 +70,11 @@ type ScheduledSearch struct {
 	ScheduledType string
 
 	// Fields for scheduled searches
-	SearchString       string // The actual search to run
-	Duration           int64  // How many seconds back to search, MUST BE NEGATIVE
-	SearchSinceLastRun bool   // If set, ignore Duration and run from last run time to now.
+	SearchReference    uuid.UUID // A reference to a saved query item by UUID. If SearchString is populated on a GET, it represents the query referenced by SearchReference.
+	SearchString       string    // The actual search to run. If SearchReference is populated on a GET, SearchString represents the query referenced by SearchReference.
+	Duration           int64     // How many seconds back to search, MUST BE NEGATIVE
+	SearchSinceLastRun bool      // If set, ignore Duration and run from last run time to now.
+	TimeframeOffset    int64     // How many seconds to offset the search timeframe, MUST BE NEGATIVE.
 
 	// For scheduled scripts
 	Script         string     // If set, execute the contents rather than running SearchString
@@ -120,7 +125,8 @@ type ScheduledSearchParseResponse struct {
 }
 
 type FlowParseRequest struct {
-	Flow string
+	Flow       string
+	DebugEvent *Event // If provided, this will be set as `event` in the flow payload for parsing.
 }
 
 type FlowParseResponse struct {

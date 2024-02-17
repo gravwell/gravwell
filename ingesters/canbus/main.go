@@ -40,7 +40,7 @@ var (
 
 	totalPackets uint64
 	totalBytes   uint64
-	v            bool
+	debugOn      bool
 )
 
 type results struct {
@@ -68,8 +68,8 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
-	v = *verbose
-	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc) // this will exit if the flags are set, also no overlays
+	debugOn = *verbose
+	validate.ValidateIngesterConfig(GetConfig, *confLoc, *confdLoc) // this will exit if the flags are set, also no overlays
 }
 
 func main() {
@@ -269,7 +269,7 @@ mainLoop:
 			}
 			totalBytes += uint64(len(e.Data))
 			count++
-			if v {
+			if debugOn {
 				pkt, err := ExtractPacket(pkt)
 				if err != nil {
 					debugout("Failed to extract: %v\n", err)
@@ -288,10 +288,9 @@ mainLoop:
 }
 
 func debugout(format string, args ...interface{}) {
-	if !v {
-		return
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }
 
 func addResults(dst *results, src results) {

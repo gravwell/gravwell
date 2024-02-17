@@ -55,7 +55,8 @@ var (
 	ver            = flag.Bool("version", false, "Print the version information and exit")
 	stderrOverride = flag.String("stderr", "", "Redirect stderr to a shared memory file")
 
-	lg *log.Logger
+	lg      *log.Logger
+	debugOn bool
 )
 
 type shodanStream struct {
@@ -78,7 +79,7 @@ func init() {
 		ingest.PrintVersion(os.Stdout)
 		os.Exit(0)
 	}
-	validate.ValidateConfig(GetConfig, *confLoc, *confdLoc)
+	validate.ValidateIngesterConfig(GetConfig, *confLoc, *confdLoc)
 	lg = log.New(os.Stderr) // DO NOT close this, it will prevent backtraces from firing
 	lg.SetAppname(appName)
 	if *stderrOverride != `` {
@@ -97,6 +98,7 @@ func init() {
 			}
 		}
 	}
+	debugOn = *verbose
 }
 
 func main() {
@@ -360,8 +362,7 @@ func (shodan *shodanStream) shodanIngester(igst *ingest.IngestMuxer) {
 }
 
 func debugout(format string, args ...interface{}) {
-	if !*verbose {
-		return
+	if debugOn {
+		fmt.Printf(format, args...)
 	}
-	fmt.Printf(format, args...)
 }

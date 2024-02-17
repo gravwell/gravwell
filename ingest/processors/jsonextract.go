@@ -142,7 +142,6 @@ func (jec JsonExtractConfig) getKeyData() (keys [][]string, keynames []string, e
 	}
 	var flds []string
 	flds = splitRespectQuotes(jec.Extractions, commaSplitter)
-	fmt.Println(flds)
 	for _, key := range flds {
 		var keyname string
 		if len(key) == 0 {

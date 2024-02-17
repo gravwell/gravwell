@@ -36,13 +36,16 @@ var (
 	compression     = flag.Bool("compression", false, "Enable ingest compression")
 	entryCount      = flag.Int("entry-count", 100, "Number of entries to generate")
 	streaming       = flag.Bool("stream", false, "Stream entries in")
-	rawConn         = flag.String("raw-connection", "", "Deliver line broken entries over a TCP connection instead of gravwell protocol")
+	rawTCPConn      = flag.String("raw-tcp-connection", "", "Deliver line broken entries over a TCP connection instead of gravwell protocol")
+	rawUDPConn      = flag.String("raw-udp-connection", "", "Deliver line broken entries over a UDP connection instead of gravwell protocol")
 	hecTarget       = flag.String("hec-target", "", "Target a HEC endpoint")
 	hecModeRaw      = flag.Bool("hec-mode-raw", false, "Send events to the raw HEC endpoint")
 	span            = flag.String("duration", "1h", "Total Duration")
 	srcOverride     = flag.String("source-override", "", "Source override value")
 	status          = flag.Bool("status", false, "show ingest rates as we run")
 	startTime       = flag.String("start-time", "", "optional starting timestamp for entries, must be RFC3339 format")
+	chaos           = flag.Bool("chaos-mode", false, "Chaos mode causes the generator to not do multiline HTTP uploads and sometimes send crazy timestamps")
+	chaosWorkers    = flag.Int("chaos-mode-workers", 8, "Maximum number of workers when in chaos mode")
 )
 
 var (
@@ -51,24 +54,27 @@ var (
 )
 
 type GeneratorConfig struct {
-	ok          bool
-	modeRaw     bool
-	modeHEC     bool
-	modeHECRaw  bool
-	Raw         string
-	HEC         string
-	Streaming   bool
-	Compression bool
-	Tag         string
-	ConnSet     []string
-	Auth        string
-	Tenant      string
-	Count       uint64
-	Duration    time.Duration
-	Start       time.Time
-	SRC         net.IP
-	Logger      *log.Logger
-	LogLevel    log.Level
+	ok           bool
+	modeRawTCP   bool
+	modeRawUDP   bool
+	modeHEC      bool
+	modeHECRaw   bool
+	ChaosMode    bool
+	ChaosWorkers int
+	Raw          string
+	HEC          string
+	Streaming    bool
+	Compression  bool
+	Tag          string
+	ConnSet      []string
+	Auth         string
+	Tenant       string
+	Count        uint64
+	Duration     time.Duration
+	Start        time.Time
+	SRC          net.IP
+	Logger       *log.Logger
+	LogLevel     log.Level
 }
 
 func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
@@ -94,14 +100,28 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		err = fmt.Errorf("invalid start-time %s %w", *startTime, err)
 		return
 	}
+	gc.ChaosMode = *chaos
+	if gc.ChaosWorkers = *chaosWorkers; gc.ChaosWorkers <= 0 {
+		gc.ChaosWorkers = 1
+	}
 
-	if *rawConn != `` {
-		if _, _, err = net.SplitHostPort(*rawConn); err != nil {
-			err = fmt.Errorf("invalid raw connection string %q - %v", *rawConn, err)
+	if *rawTCPConn != `` {
+		if _, _, err = net.SplitHostPort(*rawTCPConn); err != nil {
+			err = fmt.Errorf("invalid raw-tcp-connection string %q - %v", *rawTCPConn, err)
 			return
 		}
-		gc.modeRaw = true
-		gc.Raw = *rawConn
+		gc.modeRawTCP = true
+		gc.Raw = *rawTCPConn
+		gc.ok = true
+		gc.Tag = entry.DefaultTagName
+		return
+	} else if *rawUDPConn != `` {
+		if _, _, err = net.SplitHostPort(*rawUDPConn); err != nil {
+			err = fmt.Errorf("invalid raw-udp-connection string %q - %v", *rawUDPConn, err)
+			return
+		}
+		gc.modeRawUDP = true
+		gc.Raw = *rawUDPConn
 		gc.ok = true
 		gc.Tag = entry.DefaultTagName
 		return
@@ -163,7 +183,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		return
 	}
 	gc.ConnSet = connSet
-	if *entryCount <= 0 {
+	if *entryCount < 0 {
 		err = errors.New("invalid entry count")
 		return
 	}
@@ -194,8 +214,13 @@ func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (co
 	if !gc.ok {
 		err = errors.New("config is invalid")
 		return
-	} else if gc.modeRaw {
+	} else if gc.modeRawTCP {
 		if conn, err = newRawConn(gc, to); err == nil {
+			src, err = conn.SourceIP()
+		}
+		return
+	} else if gc.modeRawUDP {
+		if conn, err = newRawUDPConn(gc, to); err == nil {
 			src, err = conn.SourceIP()
 		}
 		return
