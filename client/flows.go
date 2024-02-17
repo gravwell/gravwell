@@ -120,7 +120,7 @@ func (c *Client) ParseReactiveFlow(flow string, event types.Event) (outputPayloa
 		DebugEvent: &event,
 		Flow:       flow,
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp, stdOk, nil); err != nil {
+	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp, nil, nil); err != nil {
 		return
 	}
 
