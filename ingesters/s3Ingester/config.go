@@ -54,6 +54,7 @@ type sqsS3 struct {
 	Credentials_Type string
 	ID               string `json:"-"` // DO NOT send this when marshalling
 	Secret           string `json:"-"` // DO NOT send this when marshalling
+	File_Filters     []string
 	Preprocessor     []string
 	Max_Line_Size    int
 	Source_Override  string

@@ -25,7 +25,13 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+)
+
+const (
+	//default is 120 seconds
+	keepAliveTimeoutHeader = `timeout=120`
 )
 
 // note that handleFuncs should read from the reader, not from the Request.Body.
@@ -45,6 +51,9 @@ type handler struct {
 	sync.RWMutex
 	igst           *ingest.IngestMuxer
 	lgr            *log.Logger
+	reqSI          *utils.StatsItem // per request SI
+	entSI          *utils.StatsItem // per entry SI
+	bytesSI        *utils.StatsItem // bytes SI
 	mp             map[route]routeHandler
 	auth           map[route]authHandler
 	custom         map[route]http.Handler
@@ -63,7 +72,7 @@ func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Reque
 	rh.handler(h, rh, w, req, rdr, ip)
 }
 
-func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger) (h *handler, err error) {
+func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger, reqSI, entSI, bytesSI *utils.StatsItem) (h *handler, err error) {
 	if igst == nil {
 		err = errors.New("nil muxer")
 	} else if lgr == nil {
@@ -76,6 +85,9 @@ func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger) (h *handler, err erro
 			custom:  map[route]http.Handler{},
 			igst:    igst,
 			lgr:     lgr,
+			reqSI:   reqSI,
+			entSI:   entSI,
+			bytesSI: bytesSI,
 		}
 	}
 	return
@@ -137,22 +149,34 @@ func (h *handler) addCustomHandler(method, pth string, ah http.Handler) (err err
 	return
 }
 
+type ew struct {
+}
+
+func (x *ew) Write(b []byte) (int, error) {
+	return len(b), nil
+}
+
+func drainAndClose(rc io.ReadCloser) {
+	io.Copy(&ew{}, rc)
+	rc.Close()
+}
+
 func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	defer r.Body.Close()
+	h.reqSI.Add(1)
+	defer drainAndClose(r.Body)
 	w := &trackingRW{
 		ResponseWriter: rw,
 	}
-	defer func(trw *trackingRW, req *http.Request) {
-		if debugOn == false {
-			return
-		}
-		debugout("REQUEST %s %v %d %d\n", req.Method, req.URL, trw.code, trw.bytes)
-		debugout("\tHEADERS\n")
-		for k, v := range req.Header {
-			debugout("\t\t%v: %v\n", k, v)
-		}
-		debugout("\n")
-	}(w, r)
+	if debugOn {
+		defer func(trw *trackingRW, req *http.Request) {
+			debugout("REQUEST %s %v %d %d\n", req.Method, req.URL, trw.code, trw.bytes)
+			debugout("\tHEADERS\n")
+			for k, v := range req.Header {
+				debugout("\t\t%v: %v\n", k, v)
+			}
+			debugout("\n")
+		}(w, r)
+	}
 	ip := getRemoteIP(r)
 	rdr, err := getReadableBody(r)
 	if err != nil {
@@ -164,6 +188,12 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	rt := route{
 		method: r.Method,
 		uri:    path.Clean(r.URL.Path),
+	}
+
+	if r.ProtoMajor == 1 {
+		//we are in HTTP 1.X, we may need to set keep alives for stupid clients
+		w.Header().Add(`Connection`, `Keep-Alive`)
+		w.Header().Add(`Keep-Alive`, keepAliveTimeoutHeader)
 	}
 
 	//check if its just a health check
@@ -243,6 +273,18 @@ func (h *handler) handleEntry(cfg routeHandler, b []byte, ip net.IP, tag entry.E
 		h.lgr.Error("failed to send entry", log.KVErr(err))
 		return
 	}
+	h.entSI.Add(1)
+	h.bytesSI.Add(uint64(len(b)))
+	return
+}
+
+func (h *handler) handleEntryEx(rh routeHandler, ent *entry.Entry) (err error) {
+	if ent != nil {
+		if err = rh.pproc.ProcessContext(ent, exitCtx); err == nil {
+			h.entSI.Add(1)
+			h.bytesSI.Add(ent.Size())
+		}
+	}
 	return
 }
 
@@ -306,6 +348,7 @@ func (r route) String() string {
 func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	debugout("multhandler\n")
 	scanner := bufio.NewScanner(rdr)
+	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	for scanner.Scan() {
 		bts := scanner.Bytes()
 		if bts = bytes.TrimSpace(bts); len(bts) == 0 {

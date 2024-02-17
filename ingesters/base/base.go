@@ -26,6 +26,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 
 	"github.com/crewjam/rfc5424"
@@ -61,6 +62,7 @@ type IngesterBase struct {
 	Logger  *log.Logger
 	Cfg     interface{}
 	id      uuid.UUID
+	sm      *utils.StatsManager
 }
 
 func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
@@ -81,7 +83,7 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	if err = ibc.validate(); err != nil {
 		return
 	}
-	validate.ValidateConfig(ib.GetConfigFunc, *confLoc, *confdLoc)
+	validate.ValidateIngesterConfig(ib.GetConfigFunc, *confLoc, *confdLoc)
 
 	var fp string
 	if pth := filepath.Clean(*stderrOverride); pth != `` && pth != `.` {
@@ -124,7 +126,14 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 
 	cfg.AddLocalLogging(ib.Logger)
 
-	err = ib.validateUUID(cfg, *confLoc)
+	if err = ib.validateUUID(cfg, *confLoc); err != nil {
+		return
+	}
+	if ib.sm, err = utils.NewStatsManager(cfg.StatsSampleInterval(), ib.Logger); err != nil {
+		err = fmt.Errorf("failed to get Stats Manager with interval %v - %v", cfg.StatsSampleInterval(), err)
+		return
+	}
+
 	return
 }
 
@@ -355,6 +364,9 @@ func (ib IngesterBase) AnnounceStartup() {
 	if ib.id != uuid.Nil {
 		params = append(params, log.KV(`ingesteruuid`, ib.id))
 	}
+	if ib.sm != nil {
+		ib.sm.Start()
+	}
 
 	ib.Logger.Warn("starting", params...)
 }
@@ -367,6 +379,16 @@ func (ib IngesterBase) AnnounceShutdown() {
 		params = append(params, log.KV(`ingesteruuid`, ib.id))
 	}
 	ib.Logger.Warn("exiting", params...)
+	if ib.sm != nil {
+		ib.sm.Stop()
+	}
+}
+
+func (ib *IngesterBase) RegisterStat(name string) (*utils.StatsItem, error) {
+	if ib == nil || ib.sm == nil {
+		return nil, errors.New("not ready")
+	}
+	return ib.sm.RegisterItem(name)
 }
 
 func (ibc IngesterBaseConfig) validate() error {

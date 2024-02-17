@@ -33,6 +33,9 @@ const (
 var (
 	ErrNotAuthed = errors.New("Not Authed")
 	ErrNotFound  = errors.New("Not Found")
+
+	//helper that calls out ok responses as just 200
+	stdOk = []int{http.StatusOK}
 )
 
 type urlParam struct {

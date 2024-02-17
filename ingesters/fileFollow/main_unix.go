@@ -138,6 +138,7 @@ func main() {
 			Ctx:                     wtcher.Context(),
 			TimeFormat:              cfg.TimeFormat,
 			AttachFilename:          val.Attach_Filename,
+			Trim:                    val.Trim,
 		}
 		if debugOn {
 			cfg.Debugger = debugout

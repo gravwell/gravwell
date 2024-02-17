@@ -114,6 +114,7 @@ type EntryRange struct {
 }
 
 // BaseRequest contains elements common to all renderer requests.
+// DEPRECATED - use REST API
 type BaseRequest struct {
 	ID         uint32
 	Stats      *SearchStatsRequest `json:",omitempty"`
@@ -123,7 +124,7 @@ type BaseRequest struct {
 
 // BaseResponse contains elements common to all renderer request responses.
 type BaseResponse struct {
-	ID         uint32
+	ID         uint32                    // DEPRECATED - REST API no longer returns this value
 	Stats      *SearchStatsResponse      `json:",omitempty"`
 	Addendum   json.RawMessage           `json:",omitempty"`
 	SearchInfo *SearchInfo               `json:",omitempty"`
@@ -230,16 +231,20 @@ type IdxStatResponse struct {
 }
 
 type IngestStats struct {
-	QuotaUsed        uint64  // Quota used so far
-	QuotaMax         uint64  // Total quota
-	EntriesPerSecond float64 // Entries per second over the last few seconds
-	BytesPerSecond   float64 // Bytes per second over the last few seconds
-	TotalCount       uint64  //Total Entries since the ingest server started
-	TotalSize        uint64  //Total Data since the ingest server started
-	LastDayCount     uint64  //total entries in last 24 hours
-	LastDaySize      uint64  //total ingested in last 24 hours
-	Ingesters        []IngesterStats
-	Missing          []ingest.IngesterState //ingesters that have been seen before but not actively connected now
+	QuotaUsed         uint64     // Quota used so far
+	QuotaMax          uint64     // Total quota
+	EntriesPerSecond  float64    // Entries per second over the last few seconds
+	BytesPerSecond    float64    // Bytes per second over the last few seconds
+	TotalCount        uint64     //Total Entries since the ingest server started
+	TotalSize         uint64     //Total Data since the ingest server started
+	LastDayCount      uint64     //total entries in last 24 hours
+	LastDaySize       uint64     //total ingested in last 24 hours
+	EntriesHourTail   [24]uint64 //entries per 1 hour bucket with 24 hours of tail
+	EntriesMinuteTail [60]uint64 //entries per 1 second bucket with 60s of tail
+	BytesHourTail     [24]uint64 //bytes per 1 hour bucket with 24 hours of tail
+	BytesMinuteTail   [60]uint64 //bytes per 1 second bucket with 60s of tail
+	Ingesters         []IngesterStats
+	Missing           []ingest.IngesterState //ingesters that have been seen before but not actively connected now
 }
 
 type IngesterStats struct {
@@ -477,23 +482,35 @@ func (eis emptyIngesterStates) MarshalJSON() ([]byte, error) {
 
 func (is IngestStats) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		QuotaUsed        uint64
-		QuotaMax         uint64
-		EntriesPerSecond float64
-		BytesPerSecond   float64
-		TotalCount       uint64
-		TotalSize        uint64
-		Ingesters        emptyIngesterStats
-		Missing          emptyIngesterStates
+		QuotaUsed         uint64
+		QuotaMax          uint64
+		EntriesPerSecond  float64
+		BytesPerSecond    float64
+		TotalCount        uint64
+		TotalSize         uint64
+		LastDayCount      uint64 //total entries in last 24 hours
+		LastDaySize       uint64 //total ingested in last 24 hours
+		EntriesHourTail   [24]uint64
+		EntriesMinuteTail [60]uint64
+		BytesHourTail     [24]uint64
+		BytesMinuteTail   [60]uint64
+		Ingesters         emptyIngesterStats
+		Missing           emptyIngesterStates
 	}{
-		QuotaUsed:        is.QuotaUsed,
-		QuotaMax:         is.QuotaMax,
-		EntriesPerSecond: is.EntriesPerSecond,
-		BytesPerSecond:   is.BytesPerSecond,
-		TotalCount:       is.TotalCount,
-		TotalSize:        is.TotalSize,
-		Ingesters:        emptyIngesterStats(is.Ingesters),
-		Missing:          emptyIngesterStates(is.Missing),
+		QuotaUsed:         is.QuotaUsed,
+		QuotaMax:          is.QuotaMax,
+		EntriesPerSecond:  is.EntriesPerSecond,
+		BytesPerSecond:    is.BytesPerSecond,
+		TotalCount:        is.TotalCount,
+		TotalSize:         is.TotalSize,
+		LastDayCount:      is.LastDayCount,
+		LastDaySize:       is.LastDaySize,
+		EntriesHourTail:   is.EntriesHourTail,
+		EntriesMinuteTail: is.EntriesMinuteTail,
+		BytesHourTail:     is.BytesHourTail,
+		BytesMinuteTail:   is.BytesMinuteTail,
+		Ingesters:         emptyIngesterStats(is.Ingesters),
+		Missing:           emptyIngesterStates(is.Missing),
 	})
 }
 

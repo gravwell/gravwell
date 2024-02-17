@@ -372,17 +372,22 @@ func (pa *paramAttacher) processAll(vals url.Values) {
 		if len(k) > 0 && len(v) > 0 {
 			// ignore tag override parameter
 			if k != parameterTag {
-				// loop over values and find one that has something
+				// initialize our string value, it will be empty by default
+				// then scan the values looking for something that is NOT empty
+				// if we find something, set the string value and break
+				// if not, then it's an empty string and we use the initialized zero value
+				var sval string
+				// loop over values and find one that has something, potentially overriding the zero value
 				for _, vv := range v {
 					if len(vv) > 0 {
-						// got one, add it and break
-						pa.exts = append(pa.exts, entry.EnumeratedValue{
-							Name:  k,
-							Value: entry.StringEnumData(vv),
-						})
+						sval = vv
 						break
 					}
 				}
+				pa.exts = append(pa.exts, entry.EnumeratedValue{
+					Name:  k,
+					Value: entry.StringEnumData(sval),
+				})
 			}
 		}
 	}

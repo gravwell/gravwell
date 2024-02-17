@@ -99,6 +99,7 @@ type IngestConfig struct {
 	IngestStreamConfig
 	Ingester_Name              string   `json:",omitempty"`
 	Ingest_Secret              string   `json:"-"` // DO NOT send this when marshalling
+	Ingest_Secret_File         string   `json:"-"` // DO NOT send this when marshalling
 	Connection_Timeout         string   `json:",omitempty"`
 	Verify_Remote_Certificates bool     `json:"-"` //legacy, will be removed
 	Insecure_Skip_TLS_Verify   bool     `json:",omitempty"`
@@ -118,6 +119,7 @@ type IngestConfig struct {
 	Log_Source_Override        string   `json:",omitempty"` // override log messages only
 	Label                      string   `json:",omitempty"` //arbitrary label that can be attached to an ingester
 	Disable_Multithreading     bool     //basically set GOMAXPROCS(1)
+	Stats_Sample_Interval      string   `json:",omitempty"` // if set to > 0 duration then we periodically throw stats
 }
 
 type IngestStreamConfig struct {
@@ -201,8 +203,16 @@ func (ic *IngestConfig) Verify() error {
 		}
 		return ErrInvalidConnectionTimeout
 	}
+	// we always use Ingest-Secret over Ingest-Secret-File.  If both are populated the direct reference is used
 	if len(ic.Ingest_Secret) == 0 {
-		return ErrMissingIngestSecret
+		//check if ic.Ingest_Secret_File is not empty
+		if len(ic.Ingest_Secret_File) == 0 {
+			return ErrMissingIngestSecret
+		} else {
+			if err := loadStringFromFile(ic.Ingest_Secret_File, &ic.Ingest_Secret); err != nil {
+				return fmt.Errorf("Failed to load Ingest-Secret from Ingest-Secret-File %q %w", ic.Ingest_Secret_File, err)
+			}
+		}
 	}
 	//ensure there is at least one target
 	if (len(ic.Cleartext_Backend_Target) + len(ic.Encrypted_Backend_Target) + len(ic.Pipe_Backend_Target)) == 0 {
@@ -254,6 +264,13 @@ func (ic *IngestConfig) Verify() error {
 		ic.Cache_Depth = CACHE_DEPTH_DEFAULT
 	}
 	// there are no defaults for the cache_size.
+
+	//if Stats_Sample_Interval is populated, check that we can parse as a duration
+	if ic.Stats_Sample_Interval != `` {
+		if _, err := time.ParseDuration(ic.Stats_Sample_Interval); err != nil {
+			return fmt.Errorf("invalid Stats-Sample-Interval %s %w", ic.Stats_Sample_Interval, err)
+		}
+	}
 
 	return nil
 }
@@ -424,6 +441,18 @@ func (ic *IngestConfig) GetLogger() (l *log.Logger, err error) {
 	}
 	if err == nil {
 		err = l.SetLevel(ll)
+	}
+	return
+}
+
+func (ic *IngestConfig) StatsSampleInterval() (dur time.Duration) {
+	if ic == nil || ic.Stats_Sample_Interval == `` {
+		return // disabled, no duration
+	}
+	var err error
+	if dur, err = time.ParseDuration(ic.Stats_Sample_Interval); err != nil {
+		// bad parses are just zero, validate should prevent this though
+		dur = 0
 	}
 	return
 }

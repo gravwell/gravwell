@@ -24,15 +24,19 @@ import (
 )
 
 const (
-	defaultHECUrl      string = `/services/collector`
-	defaultLineBreaker string = "\n"
+	defaultHECUrl       string = `/services/collector`
+	defaultLineBreaker  string = "\n"
+	defaultHECTokenName string = `Splunk`
 )
 
 type hecCompatible struct {
-	URL                       string //override the base URL, defaults to "/services/collector/event"
-	Raw_Line_Breaker          string // character(s) to use as line breakers on the raw endpoint. Default "\n"
-	TokenValue                string `json:"-"` //DO NOT SEND THIS when marshalling
-	Tag_Name                  string //the tag to assign to the request
+	URL                       string   //override the base URL, defaults to "/services/collector/event"
+	Raw_Line_Breaker          string   // character(s) to use as line breakers on the raw endpoint. Default "\n"
+	TokenValue                string   `json:"-"` //DO NOT SEND THIS when marshalling
+	Token_Value               string   `json:"-"` //DO NOT SEND THIS when marshalling
+	Token_Name                string   `json:"-"` // DO NOT SEND THIS, used when overriding the auth token prefix away from "Splunk"
+	Routed_Token_Value        []string `json:"-"` // DO NOT SEND THIS when marshalling, used for tag routing based on token
+	Tag_Name                  string   //the tag to assign to the request
 	Ignore_Timestamps         bool
 	Timestamp_Format_Override string //override the timestamp format (only used for raw)
 	Ack                       bool
@@ -66,10 +70,21 @@ func (v *hecCompatible) validate(name string) (string, error) {
 	if ingest.CheckTag(v.Tag_Name) != nil {
 		return ``, errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + name)
 	}
+	// deal with the bad format of TokenValue vs Token-Value
+	if len(v.TokenValue) == 0 && len(v.Token_Value) != 0 {
+		v.TokenValue = v.Token_Value
+	}
+	if len(v.TokenValue) == 0 && len(v.Routed_Token_Value) == 0 {
+		return ``, errors.New("No tokens specified, missing TokenValue and Routed-Token-Value")
+	}
 
 	//check the Tag_Match member
-	if _, err = v.tagMatchers(); err != nil {
+	if _, err = v.sourcetypeTagMatchers(); err != nil {
 		return ``, fmt.Errorf("HEC-Compatible-Listener %s has invalid Tag-Match %w", name, err)
+	}
+
+	if _, err = v.tokenTagMatchers(); err != nil {
+		return ``, fmt.Errorf("HEC-Compatible-Listener %s has an invalid tag in Routed-Token-Value: %w", name, err)
 	}
 
 	//normalize the path
@@ -82,7 +97,7 @@ type tagMatcher struct {
 	Tag   string
 }
 
-func (h *hecCompatible) tagMatchers() (tags []tagMatcher, err error) {
+func (h *hecCompatible) sourcetypeTagMatchers() (tags []tagMatcher, err error) {
 	if len(h.Tag_Match) == 0 {
 		return
 	}
@@ -91,6 +106,25 @@ func (h *hecCompatible) tagMatchers() (tags []tagMatcher, err error) {
 	for i := range h.Tag_Match {
 		if tm.Value, tm.Tag, err = extractElementTag(h.Tag_Match[i]); err != nil {
 			break
+		} else if err = ingest.CheckTag(tm.Tag); err != nil {
+			break
+		}
+		tags = append(tags, tm)
+	}
+	return
+}
+
+func (h *hecCompatible) tokenTagMatchers() (tags []tagMatcher, err error) {
+	if len(h.Routed_Token_Value) == 0 {
+		return
+	}
+	var tm tagMatcher
+	//process each of the tag matches
+	for _, v := range h.Routed_Token_Value {
+		if tm.Value, tm.Tag, err = extractElementTag(v); err != nil {
+			break
+		} else if err = ingest.CheckTag(tm.Tag); err != nil {
+			break
 		}
 		tags = append(tags, tm)
 	}
@@ -98,15 +132,31 @@ func (h *hecCompatible) tagMatchers() (tags []tagMatcher, err error) {
 }
 
 func (h *hecCompatible) tags() (tags []string, err error) {
-	var tms []tagMatcher
-	tags = []string{h.Tag_Name}
-	if tms, err = h.tagMatchers(); err != nil || len(tms) == 0 {
+	var stms, ttms []tagMatcher
+	if stms, err = h.sourcetypeTagMatchers(); err != nil {
+		return
+	} else if ttms, err = h.tokenTagMatchers(); err != nil {
+		return
+	} else if len(stms) == 0 && len(ttms) == 0 && h.Tag_Name == `` {
+		//no tags anywhere, just bail
 		return
 	}
-	mp := map[string]bool{
-		h.Tag_Name: true,
+	mp := map[string]bool{}
+	//if there is a default tag name, add it, there does not HAVE to be
+	if h.Tag_Name != `` {
+		tags = []string{h.Tag_Name}
+		mp[h.Tag_Name] = true
 	}
-	for _, tm := range tms {
+	//load up the sourcetype overrides
+	for _, tm := range stms {
+		if _, ok := mp[tm.Tag]; !ok {
+			mp[tm.Tag] = true
+			tags = append(tags, tm.Tag)
+		}
+	}
+
+	//load up the token type overrides
+	for _, tm := range ttms {
 		if _, ok := mp[tm.Tag]; !ok {
 			mp[tm.Tag] = true
 			tags = append(tags, tm.Tag)
@@ -116,11 +166,26 @@ func (h *hecCompatible) tags() (tags []string, err error) {
 	return
 }
 
-func (h *hecCompatible) loadTagRouter(igst *ingest.IngestMuxer) (mp map[string]entry.EntryTag) {
+func (h *hecCompatible) loadSourcetypeTagRouter(igst *ingest.IngestMuxer) (mp map[string]entry.EntryTag) {
 	if igst == nil || len(h.Tag_Match) == 0 {
 		return
 	}
-	if tm, err := h.tagMatchers(); err == nil && len(tm) > 0 {
+	if tm, err := h.sourcetypeTagMatchers(); err == nil && len(tm) > 0 {
+		mp = make(map[string]entry.EntryTag, len(tm))
+		for _, v := range tm {
+			if tag, err := igst.NegotiateTag(v.Tag); err == nil {
+				mp[v.Value] = tag
+			}
+		}
+	}
+	return
+}
+
+func (h *hecCompatible) loadTokenTagRouter(igst *ingest.IngestMuxer) (mp map[string]entry.EntryTag) {
+	if igst == nil || len(h.Routed_Token_Value) == 0 {
+		return
+	}
+	if tm, err := h.tokenTagMatchers(); err == nil && len(tm) > 0 {
 		mp = make(map[string]entry.EntryTag, len(tm))
 		for _, v := range tm {
 			if tag, err := igst.NegotiateTag(v.Tag); err == nil {
@@ -166,13 +231,19 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			name:           k,
 			maxSize:        fixupMaxSize(v.Max_Size),
 			debugPosts:     v.Debug_Posts,
-			tagRouter:      v.loadTagRouter(igst),
+			tagRouter:      v.loadSourcetypeTagRouter(igst),
+			tokenRouter:    v.loadTokenTagRouter(igst),
+		}
+		if hh.auth, err = newHecAuth(v, igst); err != nil {
+			lg.Error("HEC authentication error", log.KVErr(err))
 		}
 		hcfg := routeHandler{
 			handler:       hh.handle,
 			paramAttacher: getAttacher(v.Attach_URL_Parameter),
+			auth:          hh.auth,
 		}
-		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
+
+		if hcfg.tag, err = igst.NegotiateTag(v.Tag_Name); err != nil {
 			lg.Error("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
 			return
 		}
@@ -195,10 +266,6 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 
 		if hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Error("preprocessor construction error", log.KVErr(err))
-			return
-		}
-		if hcfg.auth, err = newPresharedTokenHandler(`Splunk`, v.TokenValue, lgr); err != nil {
-			lg.Error("failed to generate HEC-Compatible-Listener auth", log.KVErr(err))
 			return
 		}
 		bp := v.URL

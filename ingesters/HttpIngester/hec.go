@@ -19,6 +19,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -42,10 +43,12 @@ var (
 
 type hecHandler struct {
 	hecHealth
+	auth           *hecAuthHandler
 	name           string
 	ackLock        sync.Mutex
 	ackIds         map[string]uint64
 	tagRouter      map[string]entry.EntryTag
+	tokenRouter    map[string]entry.EntryTag
 	rawLineBreaker string
 	maxSize        uint
 	debugPosts     bool
@@ -72,8 +75,13 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 	}
 	//attempt to parse as a float for the default type
 	if f, err = strconv.ParseFloat(string(raw), 64); err == nil {
-		//got a good parse on a float, sanity check it
-		if f < 0 || f > float64(0xffffffffff) {
+		if f > 1e13 { //microseconds
+			//did some asshole ship microseconds?
+			f = f / float64(1000000)
+		} else if f > 1e10 { //milliseconds
+			//assume its in milliseconds
+			f = f / float64(1000)
+		} else if f < 0 {
 			err = errors.New("invalid timestamp value")
 			return
 		}
@@ -105,6 +113,8 @@ func (to tagOverride) LogKV() rfc5424.SDParam {
 }
 
 func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogger) (tg entry.EntryTag, override tagOverride, ok bool, err error) {
+	var ntg entry.EntryTag
+	tg, override, ok = hh.auth.checkRoutedTag(r) // this just initializes it
 	if v := r.URL.Query(); len(v) > 0 {
 		if val := v.Get(parameterTag); val != `` {
 			//check if the tag is allowed
@@ -113,19 +123,23 @@ func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogge
 					log.KV("tag", val),
 					log.KVErr(err))
 				return
-			} else if tg, err = h.igst.NegotiateTag(val); err != nil {
+			} else if ntg, err = h.igst.NegotiateTag(val); err != nil {
 				ll.Error("failed to negotiate tag",
 					log.KV("tag", val), log.KVErr(err))
 				return
 			} else {
 				ok = true
+				tg = ntg
 				override = tagOverride{
 					param: parameterTag,
 					value: val,
 				}
 			}
 		} else if val = v.Get(parameterSourcetype); val != `` && len(hh.tagRouter) > 0 {
-			if tg, ok = hh.tagRouter[val]; ok {
+			var pok bool // get a new ok going so that we don't blow up a token based route
+			if ntg, pok = hh.tagRouter[val]; pok {
+				ok = pok
+				tg = ntg
 				override = tagOverride{
 					param: parameterSourcetype,
 					value: val,
@@ -137,6 +151,7 @@ func (hh *hecHandler) getDefaultTag(h *handler, r *http.Request, ll *log.KVLogge
 }
 
 func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	var now time.Time
 	defaultTag := cfg.tag
 	var tgo tagOverride
 	resp := respSuccess
@@ -147,6 +162,10 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 		log.KV("remoteaddress", ip.String()),
 		log.KV("url", r.URL.RequestURI()),
 	)
+
+	if hh.debugPosts {
+		now = time.Now()
+	}
 	//check if the query url has a tag or sourcetype parameter
 	if tg, override, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
 		hh.respInvalidDataFormat(w, 0)
@@ -238,7 +257,8 @@ loop:
 			}
 		}
 		debugout("Sending entry %+v", e)
-		if err = cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
+		if err = h.handleEntryEx(cfg, &e); err != nil {
+			//cfg.pproc.ProcessContext(&e, exitCtx); err != nil {
 			ll.Error("failed to send entry", log.KVErr(err))
 			hh.respInternalServerError(w)
 			return
@@ -259,7 +279,9 @@ loop:
 		//Log how many bytes and entries were on this config
 		kvs := []rfc5424.SDParam{log.KV("host", ip),
 			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-			log.KV("bytes", dec.TotalRead()), log.KV("entries", counter)}
+			log.KV("bytes", dec.TotalRead()), log.KV("entries", counter),
+			log.KV("ms", time.Since(now).Milliseconds()),
+		}
 		if tgo.hot() {
 			kvs = append(kvs, tgo.LogKV())
 		}
@@ -304,6 +326,7 @@ func (hh *hecHandler) respInvalidDataFormat(w http.ResponseWriter, index int) {
 func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	var count int
 	var data int
+	var now time.Time
 	defaultTag := cfg.tag
 	var tgo tagOverride
 	resp := ack{Text: "Success"}
@@ -315,6 +338,9 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		log.KV("url", r.URL.RequestURI()),
 	)
 
+	if hh.debugPosts {
+		now = time.Now()
+	}
 	//check if the query url has a tag or sourcetype parameter
 	if tg, override, ok, err := hh.getDefaultTag(h, r, ll); err != nil {
 		hh.respInvalidDataFormat(w, 0)
@@ -362,7 +388,9 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 	if hh.debugPosts {
 		kvs := []rfc5424.SDParam{log.KV("host", ip),
 			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
-			log.KV("bytes", data), log.KV("entries", count)}
+			log.KV("bytes", data), log.KV("entries", count),
+			log.KV("ms", time.Since(now).Milliseconds()),
+		}
 		if tgo.hot() {
 			kvs = append(kvs, tgo.LogKV())
 		}
@@ -499,4 +527,107 @@ func (hev hecEvent) empty() bool {
 		return false
 	}
 	return true
+}
+
+type tagPair struct {
+	name string
+	tag  entry.EntryTag
+}
+
+type hecAuthHandler struct {
+	noLogin
+	tokenNameOverride string // if the auth token prefix is different than "Splunk"
+	defToken          string
+	tokenRoutes       map[string]tagPair
+}
+
+func newHecAuth(cfg *hecCompatible, igst *ingest.IngestMuxer) (ha *hecAuthHandler, err error) {
+	if cfg == nil {
+		return nil, errors.New("nil configuration")
+	}
+	if cfg.TokenValue == `` && len(cfg.Routed_Token_Value) == 0 {
+		return nil, errors.New("no tokens specified")
+	}
+	name := cfg.Token_Name
+	if name == `` {
+		name = defaultHECTokenName
+	}
+	ha = &hecAuthHandler{
+		defToken:          cfg.TokenValue,
+		tokenNameOverride: name,
+	}
+	if tm, err := cfg.tokenTagMatchers(); err == nil && len(tm) > 0 {
+		ha.tokenRoutes = make(map[string]tagPair, len(tm))
+		for _, v := range tm {
+			if tag, err := igst.NegotiateTag(v.Tag); err == nil {
+				ha.tokenRoutes[v.Value] = tagPair{
+					name: v.Tag,
+					tag:  tag,
+				}
+			}
+		}
+	}
+	return
+}
+
+func getHECToken(r *http.Request, tokenName string) (value string, err error) {
+	//get the actual header
+	var temp string
+	if temp, err = getHeaderToken(r, `Authorization`); err != nil {
+		return
+	}
+	if flds := strings.Fields(temp); len(flds) != 2 {
+		//no idea what happened, kick it
+		err = ErrUnauthorized
+	} else if flds[0] != tokenName && flds[0] != defaultHECTokenName {
+		//make sure the name of the auth token is either whatever the override was set as, or the default
+		err = ErrUnauthorized
+	} else {
+		value = flds[1]
+	}
+	return
+}
+
+func (hah hecAuthHandler) AuthRequest(r *http.Request) error {
+	actualToken, err := getHECToken(r, hah.tokenNameOverride)
+	if err != nil {
+		return err
+	}
+	if hah.defToken != `` && hah.defToken == actualToken {
+		//GTG
+		return nil
+	}
+
+	//look it up
+	if len(hah.tokenRoutes) > 0 {
+		if _, ok := hah.tokenRoutes[actualToken]; ok {
+			//we have a route, use it
+			return nil
+		}
+	}
+	return ErrUnauthorized
+}
+
+func (hah hecAuthHandler) checkRoutedTag(r *http.Request) (tg entry.EntryTag, ovr tagOverride, ok bool) {
+	if len(hah.tokenRoutes) == 0 {
+		return //the quick default path
+	}
+	actualToken, err := getHECToken(r, hah.tokenNameOverride)
+	if err != nil {
+		return // this should REALLY not happen
+	}
+	if actualToken == hah.defToken {
+		return // just the default, no overrides
+	} else if len(hah.tokenRoutes) > 0 {
+		var tp tagPair
+		if tp, ok = hah.tokenRoutes[actualToken]; ok {
+			// got a hit, populate things
+			tg = tp.tag
+			ovr = tagOverride{
+				param: `token`, //a constant token
+				value: tp.name,
+			}
+		}
+	}
+	return
 }
