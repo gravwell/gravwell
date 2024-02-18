@@ -16,8 +16,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 type filter struct {

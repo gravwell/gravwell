@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // MyNotificationCount returns the number of notifications for the current user.

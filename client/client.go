@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client/objlog"
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/objlog"
+	"github.com/gravwell/gravwell/v4/client/types"
 
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/publicsuffix"

@@ -17,7 +17,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // TestIngest returns whether or not this client is allowed to ingest data
