@@ -49,6 +49,9 @@ type ThingHeader struct {
 }
 
 func (t *Thing) Header() ThingHeader {
+	if t.WriteAccess.GIDs == nil {
+		t.WriteAccess.GIDs = []int32{}
+	}
 	return ThingHeader{
 		ThingUUID:   t.UUID,
 		UID:         t.UID,
@@ -156,6 +159,9 @@ func (w WireUserTemplate) Thing() (t Thing, err error) {
 	t.GIDs = w.GIDs
 	t.Global = w.Global
 	t.WriteAccess = w.WriteAccess
+	if t.WriteAccess.GIDs == nil {
+		t.WriteAccess.GIDs = []int32{}
+	}
 	t.Updated = w.Updated
 	//do not set the synced value
 	err = t.EncodeContents(w.UserTemplate())
@@ -289,6 +295,9 @@ func (wp WirePivot) Thing() (t Thing, err error) {
 	t.GIDs = wp.GIDs
 	t.Global = wp.Global
 	t.WriteAccess = wp.WriteAccess
+	if t.WriteAccess.GIDs == nil {
+		t.WriteAccess.GIDs = []int32{}
+	}
 	t.Updated = wp.Updated
 	//do not set the synced value
 
@@ -362,6 +371,9 @@ func (w WireUserFile) Thing() (t Thing, err error) {
 	t.GIDs = w.GIDs
 	t.Global = w.Global
 	t.WriteAccess = w.WriteAccess
+	if t.WriteAccess.GIDs == nil {
+		t.WriteAccess.GIDs = []int32{}
+	}
 	t.Updated = w.Updated
 	//do not set the synced value
 	err = t.EncodeContents(w.UserFile)
@@ -438,6 +450,9 @@ func (wsl WireSearchLibrary) Thing() (t Thing, err error) {
 	t.GIDs = wsl.GIDs
 	t.Global = wsl.Global
 	t.WriteAccess = wsl.WriteAccess
+	if t.WriteAccess.GIDs == nil {
+		t.WriteAccess.GIDs = []int32{}
+	}
 	t.Updated = wsl.Updated
 
 	err = t.EncodeContents(wsl.SearchLibrary)
