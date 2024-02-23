@@ -316,6 +316,12 @@ type SearchCtrlStatus struct {
 	State           string
 	AttachedClients int
 	StoredData      int64
+	UserQuery       string
+	EffectiveQuery  string
+	StartRange      time.Time
+	EndRange        time.Time
+	NoHistory       bool
+	Import          ImportInfo
 }
 
 func (si SearchInfo) StorageSize() int64 {
