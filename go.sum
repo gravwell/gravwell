@@ -194,8 +194,6 @@ github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 h1:WY4eTW+ErqI0rbV
 github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66/go.mod h1:RUZts//u8V+P37LqSghbTYaMGDdTOJooQGHzbjfSIZA=
 github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018 h1:yOl1BFerz+cq4FeeDVIHy11kOZAozTMKzbFd0PoJErA=
 github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018/go.mod h1:N+S2rmWz+IHo5zTQaDshQr+qEVGldBRzAnlRkf1yO8c=
-github.com/gravwell/ipfix v1.4.6-0.20230824134022-6c25de98707d h1:IoTUiFz/jhYIy/Dx3pJ7ET/YHdBLlXbfOPrt4ptECok=
-github.com/gravwell/ipfix v1.4.6-0.20230824134022-6c25de98707d/go.mod h1:/Ogrd3FQi+GGD+BXzX8/kBQKdOrgrf6c8u8LSEA3WI8=
 github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37 h1:e4PALq0O9WtWnnVReBr9DR8aMeyk/+EtszqaxX9sm5c=
 github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37/go.mod h1:/Ogrd3FQi+GGD+BXzX8/kBQKdOrgrf6c8u8LSEA3WI8=
 github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e h1:VehL0WBsjIFCQZ8k9Cp0YwLqzlfJsPjOYiGOdt5/lMs=
@@ -240,8 +238,6 @@ github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7 h1:K//n/AqR5HjG3q
 github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7/go.mod h1:2iMrUgbbvHEiQClaW2NsSzMyGHqN+rDFqY705q49KG0=
 github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949 h1:Rb2KtyUbQRsoqGzuIReP55VBhTyrDXgbi2YIStuJHM8=
 github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949/go.mod h1:CixWBSPtPv3WFceEvubOBc8RhADaZr7t7Xk6j+hKOXU=
-github.com/klauspost/compress v1.17.6 h1:60eq2E/jlfwQXtvZEeBUYADs+BwKBWURIY+Gj2eRGjI=
-github.com/klauspost/compress v1.17.6/go.mod h1:/dCuZOvVtNoHsyb+cuJD3itjs3NbnF6KH9zAO4BDxPM=
 github.com/klauspost/compress v1.17.7 h1:ehO88t2UGzQK66LMdE8tibEd1ErmzZjNEqWkjLAKQQg=
 github.com/klauspost/compress v1.17.7/go.mod h1:Di0epgTjJY877eYKx5yC51cX2A2Vl2ibi7bDH9ttBbw=
 github.com/konsorten/go-windows-terminal-sequences v1.0.1 h1:mweAR1A6xJ3oS2pRaGiHgQ4OO8tzTaLawm8vnODuwDk=
