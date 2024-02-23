@@ -31,14 +31,14 @@ require (
 	github.com/gosnmp/gosnmp v1.35.0
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66
 	github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018
-	github.com/gravwell/ipfix v1.4.6-0.20230824134022-6c25de98707d
+	github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37
 	github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e
 	github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4
 	github.com/gravwell/syslogparser v0.0.0-20230331221307-ab77654a9657
 	github.com/h2non/filetype v1.0.10
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
-	github.com/klauspost/compress v1.17.6
+	github.com/klauspost/compress v1.17.7
 	github.com/miekg/dns v1.1.56
 	github.com/minio/highwayhash v1.0.0
 	github.com/open-networks/go-msgraph v0.3.1
