@@ -33,6 +33,9 @@ const (
 
 // AlertDefinition - A Gravwell Alert specification
 type AlertDefinition struct {
+	// The actions the user is allowed to take on this definition.
+	// Derived by the backend when requested by the user; any
+	// value sent in a request will be ignored.
 	Can Actions `json:"Can"`
 
 	// A list of flows which will be run when alerts are generated.
@@ -82,6 +85,7 @@ type AlertDefinition struct {
 	// Arbitrary user-defined metadata which will be injected into the events
 	UserMetadata map[string]interface{} `json:"UserMetadata"`
 
+	// Sharing rules for this alert.
 	WriteAccess Access `json:"WriteAccess"`
 }
 
