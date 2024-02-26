@@ -33,6 +33,7 @@ const (
 
 // AlertDefinition - A Gravwell Alert specification
 type AlertDefinition struct {
+	Can Actions `json:"Can"`
 
 	// A list of flows which will be run when alerts are generated.
 	Consumers []AlertConsumer `json:"Consumers"`
@@ -80,6 +81,8 @@ type AlertDefinition struct {
 
 	// Arbitrary user-defined metadata which will be injected into the events
 	UserMetadata map[string]interface{} `json:"UserMetadata"`
+
+	WriteAccess Access `json:"WriteAccess"`
 }
 
 // AlertConsumer - Something which consumes alerts.
