@@ -1178,15 +1178,6 @@ inputLoop:
 			}
 			//hack to get better distribution across connections in an muxer
 			if im.shouldSched() {
-				if !tmr.Stop() {
-					<-tmr.C
-				}
-				if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
-					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
-						break inputLoop
-					}
-				}
-				tmr.Reset(tickerInterval())
 				runtime.Gosched()
 			}
 		case bb, ok := <-bC:
@@ -1248,15 +1239,6 @@ inputLoop:
 			}
 			//hack to get better distribution across connections in an muxer
 			if im.shouldSched() {
-				if !tmr.Stop() {
-					<-tmr.C
-				}
-				if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
-					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
-						break inputLoop
-					}
-				}
-				tmr.Reset(tickerInterval())
 				runtime.Gosched()
 			}
 		case tnc, ok = <-csc: //in case we get an unexpected new connection
