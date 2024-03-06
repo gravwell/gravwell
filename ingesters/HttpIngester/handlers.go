@@ -217,6 +217,10 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			//ummm, ok?
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
+			if h.igst.WillBlock() {
+				w.WriteHeader(http.StatusInsufficientStorage)
+				return
+			}
 			ch.ServeHTTP(w, r)
 		}
 		return
@@ -242,6 +246,10 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
+	}
+	if h.igst.WillBlock() {
+		w.WriteHeader(http.StatusInsufficientStorage)
+		return
 	}
 	rh.handle(h, w, r, rdr, ip)
 }
