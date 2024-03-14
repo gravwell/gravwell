@@ -293,7 +293,7 @@ type SearchLaunchInfo struct {
 
 	// Started is the timestamp of when the search was started.  This is used to inform
 	// the GUI and/or clients on when the query was actually started.
-	Started time.TIme `json:"started,omitempty"`
+	Started time.Time `json:"started,omitempty"`
 
 	// Expires marks when when the search should expire/be deleted,
 	// it may be the zero value which means never
