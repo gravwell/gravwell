@@ -164,8 +164,8 @@ func main() {
 	if err = includeHecListeners(hnd, igst, cfg, lg); err != nil {
 		lg.Fatal("failed to include HEC Listeners", log.KVErr(err))
 	}
-	if err = includeKDSListeners(hnd, igst, cfg, lg); err != nil {
-		lg.Fatal("failed to include KDS Listeners", log.KVErr(err))
+	if err = includeAFHListeners(hnd, igst, cfg, lg); err != nil {
+		lg.Fatal("failed to include Amazon Firehose Listeners", log.KVErr(err))
 	}
 
 	srv := &http.Server{

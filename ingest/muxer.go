@@ -118,6 +118,7 @@ type IngestMuxer struct {
 	lgr               Logger
 	cacheEnabled      bool
 	cachePath         string
+	cacheSize         int
 	cache             *chancacher.ChanCacher
 	bcache            *chancacher.ChanCacher
 	cacheAlways       bool
@@ -416,6 +417,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		cache:             cache,
 		bcache:            bcache,
 		cacheEnabled:      c.CachePath != "",
+		cacheSize:         mb * c.CacheSize,
 		cachePath:         c.CachePath,
 		cacheAlways:       strings.ToLower(c.CacheMode) == CacheModeAlways,
 		name:              c.IngesterName,
@@ -556,6 +558,26 @@ func (im *IngestMuxer) stateReportRoutine() {
 		im.mtx.Unlock()
 		time.Sleep(5 * time.Second)
 	}
+}
+
+// returns true if a write to the muxer will block
+func (im *IngestMuxer) WillBlock() bool {
+	nHot, err := im.Hot()
+	if err == ErrNotRunning {
+		return true
+	} else if nHot > 0 {
+		return false
+	}
+
+	if !im.cacheEnabled {
+		return true
+	} else if im.cache.Size() >= im.cacheSize {
+		return true
+	} else if im.bcache.Size() >= im.cacheSize {
+		return true
+	}
+
+	return false
 }
 
 func (im *IngestMuxer) SetRawConfiguration(obj interface{}) (err error) {
@@ -1178,15 +1200,6 @@ inputLoop:
 			}
 			//hack to get better distribution across connections in an muxer
 			if im.shouldSched() {
-				if !tmr.Stop() {
-					<-tmr.C
-				}
-				if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
-					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
-						break inputLoop
-					}
-				}
-				tmr.Reset(tickerInterval())
 				runtime.Gosched()
 			}
 		case bb, ok := <-bC:
@@ -1248,15 +1261,6 @@ inputLoop:
 			}
 			//hack to get better distribution across connections in an muxer
 			if im.shouldSched() {
-				if !tmr.Stop() {
-					<-tmr.C
-				}
-				if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
-					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
-						break inputLoop
-					}
-				}
-				tmr.Reset(tickerInterval())
 				runtime.Gosched()
 			}
 		case tnc, ok = <-csc: //in case we get an unexpected new connection
