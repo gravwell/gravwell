@@ -103,6 +103,7 @@ func (c *Client) ingest(cb ingestCallback, tag, src, tp string, ignoreTimestamp,
 
 	wtr := multipart.NewWriter(w)
 
+	errChan := make(chan error, 1)
 	go func() {
 		defer w.Close()
 		// set the tag
@@ -120,21 +121,26 @@ func (c *Client) ingest(cb ingestCallback, tag, src, tp string, ignoreTimestamp,
 		mp, err := wtr.CreateFormFile(`file`, `line-delimited-file`)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to create multipart form file: %v\n", err)
+			errChan <- err
 			return
 		}
 		if err = cb(mp); err != nil {
+			errChan <- err
 			return
 		}
 		// now finalize
 		if err := wtr.Close(); err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to finalize multipart request: %v\n", err)
+			errChan <- err
 			return
 		}
+		errChan <- nil
 	}()
 
 	// and ship
 	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, LINES_INGEST_URL)
-	req, err := http.NewRequest(http.MethodPost, uri, r)
+	var req *http.Request
+	req, err = http.NewRequest(http.MethodPost, uri, r)
 	if err != nil {
 		return
 	}
@@ -147,5 +153,7 @@ func (c *Client) ingest(cb ingestCallback, tag, src, tp string, ignoreTimestamp,
 		//if the error is EOF, it means that there was no response
 		//which means total success!
 	}
+	// Wait to make sure the goroutine was ok too
+	err = <-errChan
 	return
 }
