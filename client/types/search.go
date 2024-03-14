@@ -291,6 +291,10 @@ type SearchLaunchInfo struct {
 	// this is blank for manual queries
 	Reference string `json:"reference,omitempty"`
 
+	// Started is the timestamp of when the search was started.  This is used to inform
+	// the GUI and/or clients on when the query was actually started.
+	Started time.Time `json:"started,omitempty"`
+
 	// Expires marks when when the search should expire/be deleted,
 	// it may be the zero value which means never
 	Expires time.Time `json:"expires,omitempty"`
@@ -322,6 +326,7 @@ type SearchCtrlStatus struct {
 	EndRange        time.Time
 	NoHistory       bool
 	Import          ImportInfo
+	LaunchInfo      SearchLaunchInfo
 }
 
 func (si SearchInfo) StorageSize() int64 {
@@ -455,5 +460,10 @@ func (p SaveSearchPatch) MergeLaunchInfo(li *SearchLaunchInfo) (changed bool) {
 	// the timer, so we wipe the expiration.
 	changed = !li.Expires.Equal(p.Expires)
 	li.Expires = p.Expires
+
+	//Started is best effort, take whatever isn't zero if there is one
+	if li.Started.IsZero() {
+		li.Started = p.Started
+	}
 	return
 }
