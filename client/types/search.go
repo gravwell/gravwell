@@ -460,5 +460,10 @@ func (p SaveSearchPatch) MergeLaunchInfo(li *SearchLaunchInfo) (changed bool) {
 	// the timer, so we wipe the expiration.
 	changed = !li.Expires.Equal(p.Expires)
 	li.Expires = p.Expires
+
+	//Started is best effort, take whatever isn't zero if there is one
+	if li.Started.IsZero() {
+		li.Started = p.Started
+	}
 	return
 }
