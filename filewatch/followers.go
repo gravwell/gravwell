@@ -293,7 +293,7 @@ func (f *follower) IdleDuration() time.Duration {
 // receiving an fsnotify for a write event
 // If we got a writeEvent and ReadLine returns an EOF, we need to check
 // and make sure the file wasn't truncated
-func (f *follower) processLines(writeEvent, closing, allowPartial bool) error {
+func (f *follower) processLines(writeEvent, removing, allowPartial bool) error {
 	var hit bool
 	for {
 		ln, ok, sawEOF, err := f.lnr.ReadEntry()
@@ -318,7 +318,7 @@ func (f *follower) processLines(writeEvent, closing, allowPartial bool) error {
 			// e.g. no trailing newline or delimiter, but what IS there has been sitting for XYZ seconds
 			// go ahead and consume it
 			var force bool
-			if idleTime := time.Since(f.lastAct); idleTime > maxIdleDataTime && (allowPartial || closing) {
+			if idleTime := time.Since(f.lastAct); (idleTime > maxIdleDataTime && allowPartial) || removing {
 				force = true
 			}
 			if force {

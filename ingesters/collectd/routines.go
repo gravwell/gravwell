@@ -113,7 +113,11 @@ func (ci *collectdInstance) routine(ch chan error) {
 	ci.Lock()
 	ci.cancel = &cancel
 	ci.Unlock()
-	ch <- ci.srv.ListenAndWrite(ctx)
+	err := ci.srv.ListenAndWrite(ctx)
+	if err == context.Canceled {
+		err = nil //just closing
+	}
+	ch <- err
 	ci.Lock()
 	ci.state = done
 	ci.Unlock()
