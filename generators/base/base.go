@@ -409,10 +409,11 @@ func streamRunner(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64
 			return
 		}
 	}
+	//count is implied to be per second in stream mode, so set the duration as per second
 	if cfg.ChaosTimestamps {
-		tsg = newChaosTSGenerator(cfg.Count, cfg.Duration, cfg.Start)
+		tsg = newChaosTSGenerator(cfg.Count, time.Second, cfg.Start)
 	} else {
-		tsg = newSequentialTSGenerator(cfg.Count, cfg.Duration, cfg.Start)
+		tsg = newSequentialTSGenerator(cfg.Count, time.Second, cfg.Start)
 	}
 
 	var ent *entry.Entry
@@ -454,6 +455,9 @@ type sequentialTSGenerator struct {
 }
 
 func newSequentialTSGenerator(count uint64, duration time.Duration, start time.Time) tsGenerator {
+	if count == 0 {
+		count = 1
+	}
 	sp := duration / time.Duration(count)
 	var ts time.Time
 	if ts = start; ts.IsZero() {
