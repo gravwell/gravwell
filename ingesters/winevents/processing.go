@@ -207,7 +207,6 @@ loop:
 				//its in the example from official golang libs
 				changes <- c.CurrentStatus
 				changes <- c.CurrentStatus
-				lg.Info("service interrogate returning", log.KV("status", c.CurrentStatus))
 			case svc.Stop, svc.Shutdown:
 				consumerClose <- true
 				lg.Info("service stopping")
