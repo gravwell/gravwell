@@ -10,17 +10,24 @@ package ingest
 
 import (
 	crand "crypto/rand"
+	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"math/rand"
+	"net"
 	"strings"
 	"sync"
+	"time"
 	"unicode"
 )
 
 var (
 	ErrUnderFill       = errors.New("short cryptographic buffer read")
 	ErrBadTagCharacter = errors.New("Bad tag remap character")
+)
+
+const (
+	defaultKeepAliveInterval = 2 * time.Second
 )
 
 // The implementation of this is actually in the Go stdlib, it's just not exported
@@ -135,4 +142,27 @@ func RemapTag(tag string, rchar rune) (rtag string, err error) {
 	rtag = strings.Map(f, tag)
 
 	return
+}
+
+// EnableTCPKeepAlive enables TCP KeepAlive on the given connection,
+// if it's a compatible connection type. If it is not, no action is
+// taken.
+func EnableKeepAlive(c net.Conn, period time.Duration) {
+	if c == nil {
+		return //ok...
+	}
+	if period <= 0 {
+		period = defaultKeepAliveInterval
+	}
+	switch v := c.(type) {
+	case *net.TCPConn:
+		v.SetKeepAlive(true)
+		v.SetKeepAlivePeriod(period)
+	case *tls.Conn:
+		nc := v.NetConn()
+		if tc, ok := nc.(*net.TCPConn); ok {
+			tc.SetKeepAlive(true)
+			tc.SetKeepAlivePeriod(period)
+		}
+	}
 }
