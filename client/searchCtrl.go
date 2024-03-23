@@ -219,23 +219,13 @@ func (c *Client) ParseSearchWithResponse(query string, filters []types.FilterReq
 		Sequence:     0x1337,
 		Filters:      filters,
 	}
-	var s *SearchSockets
-	if s, err = c.GetSearchSockets(); err != nil {
-		return
-	} else if err = s.Parse.WriteJSON(ssr); err != nil {
-		return
-	} else if err = s.Parse.ReadJSON(&psr); err != nil {
-		return
-	} else if err = closeSockets(s); err != nil {
+	if err = c.postStaticURL(PARSE_URL, ssr, &psr); err != nil {
 		return
 	}
 
 	//check that what we got back was good
 	if psr.ParseError != `` {
 		err = fmt.Errorf("Parse error: %s", psr.ParseError)
-	} else if ssr.Sequence != psr.Sequence {
-		err = fmt.Errorf("Parse search response sequence is invalid: %d != %d",
-			ssr.Sequence, psr.Sequence)
 	} else if psr.RawQuery != query {
 		err = fmt.Errorf("RawQuery response is invalid: %q != %q", psr.RawQuery, query)
 	}
