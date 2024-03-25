@@ -46,7 +46,7 @@ type Entry struct {
 	SRC  net.IP
 	Tag  EntryTag
 	Data []byte
-	evb  evblock
+	EVB  EVBlock
 }
 
 func (ent *Entry) Key() EntryKey {
@@ -55,12 +55,12 @@ func (ent *Entry) Key() EntryKey {
 
 // EnumeratedValues returns the slice of enumerated values, this is an accessor to prevent direct assignment
 func (ent Entry) EnumeratedValues() []EnumeratedValue {
-	return ent.evb.Values()
+	return ent.EVB.Values()
 }
 
 // ClearEnumeratedValues is a convenience function to remove all enumerated values
 func (ent *Entry) ClearEnumeratedValues() {
-	ent.evb.Reset()
+	ent.EVB.Reset()
 }
 
 // AddEnumeratedValue will attach a natively typed enumerated value to an entry.
@@ -68,7 +68,7 @@ func (ent *Entry) ClearEnumeratedValues() {
 // the entry to exceed the maximum entry size.
 func (ent *Entry) AddEnumeratedValue(ev EnumeratedValue) (err error) {
 	if ev.Valid() {
-		ent.evb.Add(ev)
+		ent.EVB.Add(ev)
 	} else {
 		err = ErrInvalid
 	}
@@ -88,7 +88,7 @@ func (ent *Entry) AddEnumeratedValues(evs []EnumeratedValue) (err error) {
 			return
 		}
 	}
-	ent.evb.AddSet(evs)
+	ent.EVB.AddSet(evs)
 	return
 }
 
@@ -101,7 +101,7 @@ func (ent *Entry) AddEnumeratedValueEx(name string, val interface{}) error {
 	if err != nil {
 		return err
 	}
-	ent.evb.Add(ev)
+	ent.EVB.Add(ev)
 	return nil
 }
 
@@ -112,7 +112,7 @@ func (ent *Entry) GetEnumeratedValue(name string) (val interface{}, ok bool) {
 	if ent == nil {
 		return
 	}
-	if ev, ok = ent.evb.Get(name); ok {
+	if ev, ok = ent.EVB.Get(name); ok {
 		val = ev.Value.Interface()
 		ok = (val != nil)
 	}
@@ -120,15 +120,15 @@ func (ent *Entry) GetEnumeratedValue(name string) (val interface{}, ok bool) {
 }
 
 func (ent *Entry) CopyEnumeratedBlock(sent *Entry) {
-	if ent == nil || sent == nil || !sent.evb.Populated() {
+	if ent == nil || sent == nil || !sent.EVB.Populated() {
 		return
 	}
-	ent.evb.Append(sent.evb)
+	ent.EVB.Append(sent.EVB)
 }
 
 // Size returns the size of an entry as if it were encoded.
 func (ent *Entry) Size() uint64 {
-	return uint64(len(ent.Data)) + uint64(ENTRY_HEADER_SIZE) + ent.evb.Size()
+	return uint64(len(ent.Data)) + uint64(ENTRY_HEADER_SIZE) + ent.EVB.Size()
 }
 
 // DecodeHeader hands back a completely decoded header with direct references to the underlying data.
@@ -252,7 +252,7 @@ func (ent *Entry) DecodeEntry(buff []byte) (err error) {
 	dataSize, hasEvs := ent.decodeHeader(buff)
 	ent.Data = append([]byte(nil), buff[ENTRY_HEADER_SIZE:ENTRY_HEADER_SIZE+int(dataSize)]...)
 	if hasEvs {
-		_, err = ent.evb.Decode(append([]byte(nil), buff[:ENTRY_HEADER_SIZE+int(dataSize)]...))
+		_, err = ent.EVB.Decode(append([]byte(nil), buff[:ENTRY_HEADER_SIZE+int(dataSize)]...))
 	}
 	return
 }
@@ -265,7 +265,7 @@ func (ent *Entry) DecodeEntryAlt(buff []byte) (err error) {
 	ent.Data = buff[ENTRY_HEADER_SIZE : ENTRY_HEADER_SIZE+int(dataSize)]
 	if hasEvs {
 		buff = buff[:ENTRY_HEADER_SIZE+int(dataSize)]
-		_, err = ent.evb.Decode(buff)
+		_, err = ent.EVB.Decode(buff)
 	}
 	return
 }
@@ -290,7 +290,7 @@ func (ent *Entry) Decode(buff []byte) (int, error) {
 	off += int(dataSize)
 	if hasEvs {
 		var n int
-		if n, err = ent.evb.Decode(buff); err == nil {
+		if n, err = ent.EVB.Decode(buff); err == nil {
 			off += n
 		}
 	}
@@ -316,7 +316,7 @@ func (ent *Entry) DecodeAlt(buff []byte) (int, error) {
 	buff = buff[dataSize:]
 	off += int(dataSize)
 	if hasEvs {
-		n, err := ent.evb.DecodeAlt(buff)
+		n, err := ent.EVB.DecodeAlt(buff)
 		if err != nil {
 			return 0, err
 		}
@@ -345,7 +345,7 @@ func (ent *Entry) EncodeHeader(buff []byte) (bool, error) {
 	if len(ent.SRC) == IPV4_SRC_SIZE {
 		flags |= flagIPv4
 	}
-	if ent.evb.Populated() {
+	if ent.EVB.Populated() {
 		flags |= flagEVs
 		hasEvs = true
 	}
@@ -370,7 +370,7 @@ func (ent *Entry) Encode(buff []byte) (int, error) {
 	copy(buff[ENTRY_HEADER_SIZE:], ent.Data)
 	r := len(ent.Data) + ENTRY_HEADER_SIZE
 	if hasEvs {
-		n, err := ent.evb.EncodeBuffer(buff[r:])
+		n, err := ent.EVB.EncodeBuffer(buff[r:])
 		if err != nil {
 			return -1, err
 		}
@@ -430,7 +430,7 @@ func (ent *Entry) EncodeWriter(wtr io.Writer) (int, error) {
 		n += len(ent.Data)
 	}
 	if hasEvs {
-		nn, err := ent.evb.EncodeWriter(wtr)
+		nn, err := ent.EVB.EncodeWriter(wtr)
 		if err != nil {
 			return -1, err
 		}
@@ -441,18 +441,18 @@ func (ent *Entry) EncodeWriter(wtr io.Writer) (int, error) {
 
 // EVCount is a helper function that ruturns the number of EVs attached to the entry.
 func (ent *Entry) EVCount() int {
-	return ent.evb.Count()
+	return ent.EVB.Count()
 }
 
 // EVSize is a helper function that ruturns the number of bytes consumed by the EVs on an entry.
 func (ent *Entry) EVSize() int {
-	return int(ent.evb.Size())
+	return int(ent.EVB.Size())
 }
 
 // EVEncodeWriter is a helper function for writing just the EVs to a provided io.writer,
 // the function also returns the number of bytes written and a potential error.
 func (ent *Entry) EVEncodeWriter(wtr io.Writer) (int, error) {
-	return ent.evb.EncodeWriter(wtr)
+	return ent.EVB.EncodeWriter(wtr)
 }
 
 type EntrySlice []Entry
@@ -532,17 +532,17 @@ func (ent *Entry) DecodeReader(rdr io.Reader) error {
 		return err
 	}
 	if hasEvs {
-		_, err := ent.evb.DecodeReader(rdr)
+		_, err := ent.EVB.DecodeReader(rdr)
 		return err
 	} else {
-		ent.evb.Reset()
+		ent.EVB.Reset()
 	}
 	return nil
 }
 
 // ReadEVs is a deprecated function, use DecodeReader instead.
 func (ent *Entry) ReadEVs(rdr io.Reader) error {
-	_, err := ent.evb.DecodeReader(rdr)
+	_, err := ent.EVB.DecodeReader(rdr)
 	return err
 }
 
@@ -565,7 +565,7 @@ func (ent *Entry) DeepCopy() (c Entry) {
 	if len(ent.Data) > 0 {
 		c.Data = append([]byte(nil), ent.Data...)
 	}
-	c.evb = ent.evb.DeepCopy()
+	c.EVB = ent.EVB.DeepCopy()
 	return
 }
 
@@ -589,5 +589,5 @@ func (ent *Entry) Compare(v *Entry) error {
 	} else if bytes.Compare(ent.Data, v.Data) != 0 {
 		return errors.New("differing data")
 	}
-	return ent.evb.Compare(v.evb)
+	return ent.EVB.Compare(v.EVB)
 }

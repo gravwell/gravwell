@@ -35,10 +35,10 @@ type EVBlockHeader struct {
 	pad   uint16 //used as a bit of an encoding sanity check and to get word alignment
 }
 
-// evblock is a block of enumerated values, this is used to help with transporting enumerated values
+// EVBlock is a block of enumerated values, this is used to help with transporting enumerated values
 // over the wire and to guard against users of the API doing wonky things that become expensive
 // to encode/decode.
-type evblock struct {
+type EVBlock struct {
 	// keep the size running as we go so encoding is less expensive to ask for it
 	// size is the encoded size, it includes the header, we keep this so its easy
 	// to pre-allocate buffers when needed
@@ -47,7 +47,7 @@ type evblock struct {
 }
 
 // Add adds an enumerated value to an evbloc, this function keeps a running tally of size for fast query.
-func (eb *evblock) Add(ev EnumeratedValue) {
+func (eb *EVBlock) Add(ev EnumeratedValue) {
 	if eb.size == 0 {
 		eb.fastAdd(ev)
 	} else {
@@ -56,12 +56,12 @@ func (eb *evblock) Add(ev EnumeratedValue) {
 }
 
 // fastAdd is a fast path adder where there are no evs attached and we can just add this quickly
-func (eb *evblock) fastAdd(ev EnumeratedValue) {
+func (eb *EVBlock) fastAdd(ev EnumeratedValue) {
 	eb.size = EVBlockHeaderLen + uint64(ev.Size())
 	eb.evs = []EnumeratedValue{ev}
 }
 
-func (eb *evblock) updateEv(ev EnumeratedValue) {
+func (eb *EVBlock) updateEv(ev EnumeratedValue) {
 	for i, x := range eb.evs {
 		if x.Name == ev.Name {
 			//update existing
@@ -77,7 +77,7 @@ func (eb *evblock) updateEv(ev EnumeratedValue) {
 }
 
 // AddSet adds a slice of enumerated value to an evbloc, this function keeps a running tally of size for fast query.
-func (eb *evblock) AddSet(evs []EnumeratedValue) {
+func (eb *EVBlock) AddSet(evs []EnumeratedValue) {
 	if eb.size == 0 {
 		eb.fastAddSet(evs)
 	} else {
@@ -89,7 +89,7 @@ func (eb *evblock) AddSet(evs []EnumeratedValue) {
 }
 
 // fastAddSet is a fast path operation when there are no EVs and we basically just get to set them
-func (eb *evblock) fastAddSet(evs []EnumeratedValue) {
+func (eb *EVBlock) fastAddSet(evs []EnumeratedValue) {
 	eb.size = EVBlockHeaderLen
 	eb.evs = make([]EnumeratedValue, 0, len(evs))
 	for _, ev := range evs {
@@ -99,22 +99,22 @@ func (eb *evblock) fastAddSet(evs []EnumeratedValue) {
 }
 
 // Size is just a helper accessor to help with encoding efficiency.
-func (eb evblock) Size() uint64 {
+func (eb EVBlock) Size() uint64 {
 	return eb.size
 }
 
 // Count is just a helper accessor to spit out the number of EVs in the block.
-func (eb evblock) Count() int {
+func (eb EVBlock) Count() int {
 	return len(eb.evs)
 }
 
 // Populated is a helper to check if there are any EVs.
-func (eb evblock) Populated() bool {
+func (eb EVBlock) Populated() bool {
 	return eb.size > 0
 }
 
 // Reset resets the entry block, the underlying slice is not freed.
-func (eb *evblock) Reset() {
+func (eb *EVBlock) Reset() {
 	eb.size = 0
 	eb.evs = eb.evs[0:0]
 }
@@ -123,7 +123,7 @@ func (eb *evblock) Reset() {
 // this returns the slice directly, so callers COULD mess with the slice and break the size
 // tracker.  Basically don't re-use or assign to this slice, if you do the evblock you pulled it from
 // is no longer valid.
-func (eb evblock) Values() []EnumeratedValue {
+func (eb EVBlock) Values() []EnumeratedValue {
 	if len(eb.evs) > 0 {
 		return eb.evs
 	}
@@ -134,7 +134,7 @@ func (eb evblock) Values() []EnumeratedValue {
 // this means that the max ev count hasn't been exceeded nor has the max size.
 // If an evblock is empty, it IS valid.  So transports should check Populated
 // in addition to valid, when deciding which Entry encoder to use.
-func (eb evblock) Valid() error {
+func (eb EVBlock) Valid() error {
 	if len(eb.evs) > MaxEvBlockCount {
 		return ErrEnumeratedValueBlockInvalidCount
 	} else if eb.size > MaxEvBlockSize {
@@ -145,7 +145,7 @@ func (eb evblock) Valid() error {
 
 // Get retrieves an enumerated value from the set using a name
 // if the name does not exist an empty  EnumeratedValue and ok = false will be returned
-func (eb evblock) Get(name string) (ev EnumeratedValue, ok bool) {
+func (eb EVBlock) Get(name string) (ev EnumeratedValue, ok bool) {
 	for i := range eb.evs {
 		if eb.evs[i].Name == name {
 			ev = eb.evs[i]
@@ -158,7 +158,7 @@ func (eb evblock) Get(name string) (ev EnumeratedValue, ok bool) {
 
 // Append appends one evblock to another.  This function DOES NOT de-duplicate enumerated values
 // if the src block already has foobar and so does the destination it will be duplicated
-func (eb *evblock) Append(seb evblock) {
+func (eb *EVBlock) Append(seb EVBlock) {
 	for _, v := range seb.evs {
 		if v.Valid() {
 			eb.Add(v)
@@ -167,8 +167,12 @@ func (eb *evblock) Append(seb evblock) {
 	return
 }
 
+func (eb *EVBlock) GobEncode() ([]byte, error) {
+	return eb.Encode()
+}
+
 // Encode encodes an evblock into a byte buffer.
-func (eb evblock) Encode() (bts []byte, err error) {
+func (eb EVBlock) Encode() (bts []byte, err error) {
 	// check if its valid
 	if err = eb.Valid(); err != nil {
 		return
@@ -200,7 +204,7 @@ func (eb evblock) Encode() (bts []byte, err error) {
 
 // EncodeBuffer encodes an evblock into a caller provided byte buffer
 // and returns the number of bytes consumed and a potential error.
-func (eb evblock) EncodeBuffer(bts []byte) (r int, err error) {
+func (eb EVBlock) EncodeBuffer(bts []byte) (r int, err error) {
 	// check if its valid
 	if err = eb.Valid(); err != nil {
 		return
@@ -237,7 +241,7 @@ func (eb evblock) EncodeBuffer(bts []byte) (r int, err error) {
 
 // EncodeWriter encodes an evblock directly into a writer
 // and returns the number of bytes consumed and a potential error.
-func (eb evblock) EncodeWriter(w io.Writer) (r int, err error) {
+func (eb EVBlock) EncodeWriter(w io.Writer) (r int, err error) {
 	// check if its valid
 	if err = eb.Valid(); err != nil {
 		return
@@ -267,9 +271,14 @@ func (eb evblock) EncodeWriter(w io.Writer) (r int, err error) {
 	return
 }
 
+func (eb *EVBlock) GobDecode(b []byte) error {
+	_, err := eb.Decode(b)
+	return err
+}
+
 // Decode decodes an evblock directly from a buffer and returns the number of bytes consumed.
 // This function will copy all referenced memory so the underlying buffer can be re-used.
-func (eb *evblock) Decode(b []byte) (int, error) {
+func (eb *EVBlock) Decode(b []byte) (int, error) {
 	eb.size = 0
 	if eb.evs != nil {
 		eb.evs = eb.evs[0:0]
@@ -313,7 +322,7 @@ func (eb *evblock) Decode(b []byte) (int, error) {
 // DecodeAlt decodes an evblock directly from a buffer and returns the number of bytes consumed.
 // All data is directly referenced to the provided buffer, the buffer cannot be re-used while any numerated
 // value is still in use.
-func (eb *evblock) DecodeAlt(b []byte) (int, error) {
+func (eb *EVBlock) DecodeAlt(b []byte) (int, error) {
 	eb.size = 0
 	if eb.evs != nil {
 		eb.evs = eb.evs[0:0]
@@ -355,7 +364,7 @@ func (eb *evblock) DecodeAlt(b []byte) (int, error) {
 }
 
 // DecodeReader decodes an evblock directly from a buffer and returns the number of bytes read and a potential error.
-func (eb *evblock) DecodeReader(r io.Reader) (int, error) {
+func (eb *EVBlock) DecodeReader(r io.Reader) (int, error) {
 	var h EVBlockHeader
 	var err error
 	eb.size = 0
@@ -408,7 +417,7 @@ func DecodeEVBlockHeader(buff []byte) (h EVBlockHeader, err error) {
 }
 
 // Compare compares two evblocks and returns an error describing the differences if there are any.
-func (eb evblock) Compare(eb2 evblock) error {
+func (eb EVBlock) Compare(eb2 EVBlock) error {
 	if eb.size != eb2.size {
 		return fmt.Errorf("mismatch size: %d != %d", eb.size, eb2.size)
 	} else if len(eb.evs) != len(eb.evs) {
@@ -424,11 +433,11 @@ func (eb evblock) Compare(eb2 evblock) error {
 
 // DeepCopy performs a deep copy of an evblock so that any handles on underlying bytes are discarded.
 // This function is expensive, use sparingly.
-func (eb evblock) DeepCopy() (r evblock) {
+func (eb EVBlock) DeepCopy() (r EVBlock) {
 	if eb.size == 0 || len(eb.evs) == 0 {
 		return
 	}
-	r = evblock{
+	r = EVBlock{
 		size: eb.size,
 		evs:  make([]EnumeratedValue, 0, len(eb.evs)),
 	}
