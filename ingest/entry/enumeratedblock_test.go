@@ -15,7 +15,7 @@ import (
 )
 
 func TestEnumeratedValueBlockEncodeDecode(t *testing.T) {
-	var evb evblock
+	var evb EVBlock
 
 	for i := 0; i < 32; i++ {
 		if ev, err := NewEnumeratedValue(fmt.Sprintf("ev%d", i), int64(i)); err != nil {
@@ -49,7 +49,7 @@ func TestEnumeratedValueBlockEncodeDecode(t *testing.T) {
 	}
 
 	//decode using each method
-	var teb evblock
+	var teb EVBlock
 	if _, err = teb.Decode(buff); err != nil {
 		t.Fatal(err)
 	} else if err = teb.Compare(evb); err != nil {
@@ -65,7 +65,7 @@ func TestEnumeratedValueBlockEncodeDecode(t *testing.T) {
 
 func TestEnumeratedValueBlockDuplicateAdd(t *testing.T) {
 	var evs []EnumeratedValue
-	var evb evblock
+	var evb EVBlock
 	for i := 0; i < 32; i++ {
 		if ev, err := NewEnumeratedValue(fmt.Sprintf("ev%d", i), int64(i)); err != nil {
 			t.Error(err)
