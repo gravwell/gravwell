@@ -182,6 +182,7 @@ type MuxerConfig struct {
 
 func init() {
 	// register cache types
+	gob.Register(&entry.EVBlock{})
 	gob.Register(&entry.Entry{})
 	gob.Register([]*entry.Entry{})
 }

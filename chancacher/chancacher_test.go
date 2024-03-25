@@ -10,18 +10,17 @@ package chancacher
 
 import (
 	"encoding/gob"
+	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
-	"fmt"
-	"net"
-
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"strconv"
 )
 
 const DEFAULT_TIMEOUT = 2 * time.Second
