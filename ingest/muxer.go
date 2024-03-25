@@ -683,9 +683,29 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 		if v != nil {
 			remoteTag, err := v.NegotiateTag(name)
 			if err != nil {
-				// something went wrong, kill it and let it re-initialize
-				im.Error("NegotiateTag error", log.KV("indexer", v.conn.RemoteAddr()),
-					log.KV("tag", name), log.KV("error", err), log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
+				if err == ErrNotRunning {
+					// This is basically a
+					// non-issue, we'll just make
+					// sure the connection is
+					// closed and when it comes
+					// back automatically, the new
+					// tag will be included in the
+					// initialization.
+					im.Info("NegotiateTag called on non-running ingest connection, skipping",
+						log.KV("indexer", v.conn.RemoteAddr()),
+						log.KV("tag", name), log.KV("error", err),
+						log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
+				} else {
+					// Some other error... we'll
+					// log at a higher level, then
+					// again just close the conna
+					// nd move on.
+					im.Warn("NegotiateTag was unsuccessful, reconnecting",
+						log.KV("indexer", v.conn.RemoteAddr()),
+						log.KV("tag", name), log.KV("error", err),
+						log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
+
+				}
 				v.Close()
 				continue
 			}
