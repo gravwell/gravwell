@@ -173,6 +173,10 @@ func (eb *EVBlock) GobEncode() ([]byte, error) {
 
 // Encode encodes an evblock into a byte buffer.
 func (eb EVBlock) Encode() (bts []byte, err error) {
+	// We need to do this check so the function can serve double-duty as a gob encoder
+	if !eb.Populated() {
+		return
+	}
 	// check if its valid
 	if err = eb.Valid(); err != nil {
 		return
@@ -282,6 +286,13 @@ func (eb *EVBlock) Decode(b []byte) (int, error) {
 	eb.size = 0
 	if eb.evs != nil {
 		eb.evs = eb.evs[0:0]
+	}
+
+	// If they have passed us a zero-byte buffer, there just weren't any EVs attached to the entry
+	// We have to do this check because this function may be called during a gob decode, which
+	// doesn't check if the entry has EVs or not.
+	if len(b) == 0 {
+		return 0, nil
 	}
 
 	//check if the buffer is big enough for the header
