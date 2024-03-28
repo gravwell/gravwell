@@ -29,6 +29,26 @@ func (c *Client) GetAlerts() (result []types.AlertDefinition, err error) {
 	return
 }
 
+// GetAlertsByDispatcher returns a list of alerts who refer to the specified dispatcher.
+// dispatcherID should be the *ID* of the a scheduled search, not the *GUID*.
+// Basically, this lets you ask: which alerts will be invoked by *this specific scheduled search*.
+func (c *Client) GetAlertsByDispatcher(dispatcherID string) (result []types.AlertDefinition, err error) {
+	c.qm.set("dispatcher", dispatcherID)
+	err = c.getStaticURL(alertsUrl(), &result)
+	c.qm.remove("dispatcher")
+	return
+}
+
+// GetAlertsByConsumer returns a list of alerts who refer to the specified consumer.
+// consumerID should be the *ID* of the a flow, not the *GUID*.
+// Basically, this lets you ask: which alerts will launch *this specific flow*.
+func (c *Client) GetAlertsByConsumer(consumerID string) (result []types.AlertDefinition, err error) {
+	c.qm.set("consumer", consumerID)
+	err = c.getStaticURL(alertsUrl(), &result)
+	c.qm.remove("consumer")
+	return
+}
+
 // GetAlert returns the definition for a specific alert. The id passed can be
 // either a ThingUUID, which will always return a specific alert, or a GUID, in
 // which case the webserver will attempt to resolve the "most appropriate" alert
