@@ -32,9 +32,11 @@ func (c *Client) GetAlerts() (result []types.AlertDefinition, err error) {
 // GetAlertsByDispatcher returns a list of alerts who refer to the specified dispatcher.
 // dispatcherID should be the *ID* of the a scheduled search, not the *GUID*.
 // Basically, this lets you ask: which alerts will be invoked by *this specific scheduled search*.
-func (c *Client) GetAlertsByDispatcher(dispatcherID string) (result []types.AlertDefinition, err error) {
+func (c *Client) GetAlertsByDispatcher(dispatcherID string, dispatcherType types.AlertDispatcherType) (result []types.AlertDefinition, err error) {
 	c.qm.set("dispatcher", dispatcherID)
+	c.qm.set("type", string(dispatcherType))
 	err = c.getStaticURL(alertsUrl(), &result)
+	c.qm.remove("type")
 	c.qm.remove("dispatcher")
 	return
 }
@@ -42,9 +44,11 @@ func (c *Client) GetAlertsByDispatcher(dispatcherID string) (result []types.Aler
 // GetAlertsByConsumer returns a list of alerts who refer to the specified consumer.
 // consumerID should be the *ID* of the a flow, not the *GUID*.
 // Basically, this lets you ask: which alerts will launch *this specific flow*.
-func (c *Client) GetAlertsByConsumer(consumerID string) (result []types.AlertDefinition, err error) {
+func (c *Client) GetAlertsByConsumer(consumerID string, consumerType types.AlertConsumerType) (result []types.AlertDefinition, err error) {
 	c.qm.set("consumer", consumerID)
+	c.qm.set("type", string(consumerType))
 	err = c.getStaticURL(alertsUrl(), &result)
+	c.qm.remove("type")
 	c.qm.remove("consumer")
 	return
 }
