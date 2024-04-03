@@ -192,3 +192,60 @@ func (alert *AlertDefinition) JSONMetadata() (json.RawMessage, error) {
 	b, err := json.Marshal(st)
 	return json.RawMessage(b), err
 }
+
+// FindMostRelevantAutomation resolves the appropriate ScheduledSearch
+// automation (scheduled search, script, or flow) for the given user
+// based on the specified GUID.
+func FindMostRelevantAutomation(ud UserDetails, guid uuid.UUID, automations []ScheduledSearch) (result ScheduledSearch, ok bool) {
+	var adminHit bool
+	var adminHitSearch ScheduledSearch
+	for _, ss := range automations {
+		if ss.GUID != guid {
+			continue
+		}
+		//allow if the ownership of both match, OR the user is an admin
+		if ss.Owner == ud.UID {
+			ok = true
+			result = ss
+			return
+		}
+		//check if any of the gids match
+		for i := range ss.Groups {
+			if ud.InGroup(ss.Groups[i]) {
+				// Found one shared with a group the user is in, but we don't
+				// want to return it in case there's another one *owned* by the user.
+				ok = true
+				result = ss
+			}
+		}
+		for i := range ss.WriteAccess.GIDs {
+			if ud.InGroup(ss.WriteAccess.GIDs[i]) {
+				// Found one shared with a group the user is in, but we don't
+				// want to return it in case there's another one *owned* by the user.
+				ok = true
+				result = ss
+			}
+		}
+
+		if !ok && (ss.Global || ss.WriteAccess.Global) {
+			// If it's a global search, and we haven't found a match for the
+			// group or the owner yet, it's a candidate.
+			ok = true
+			result = ss
+		} else if !ok && ud.Admin == true {
+			//no global
+			// If it's a global search, and we haven't found a match for the
+			// group or the owner yet, it's a candidate, but we don't want to override a global hit, so do some more dancing
+			adminHit = true
+			adminHitSearch = ss
+		}
+	}
+
+	if !ok && adminHit {
+		//nothing else hit but we got an admin hit, so say everything is OK
+		ok = true
+		result = adminHitSearch
+	}
+	return
+
+}
