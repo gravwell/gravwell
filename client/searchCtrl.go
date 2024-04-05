@@ -327,6 +327,7 @@ func (c *Client) GetEntries(s Search, start, end uint64) ([]types.StringTagEntry
 	if (end - start) < 0 {
 		return nil, fmt.Errorf("invalid entry span: start = %v, end = %v", start, end)
 	} else if (end - start) == 0 {
+		fmt.Println("NULL", end-start)
 		return []types.StringTagEntry{}, nil
 	}
 	switch s.RenderMod {
@@ -381,6 +382,9 @@ func (c *Client) getStringTagTextEntries(s Search, first, last uint64) (ste []ty
 
 func (c *Client) getStringTagTableEntries(s Search, start, end uint64) (ste []types.StringTagEntry, err error) {
 	var resp types.TableResponse
+	if err = c.getRenderResults(s, start, end, s.start, s.end, &resp); err != nil {
+		return
+	}
 	//TODO FIXME
 	if err = resp.Err(); err != nil {
 		return
