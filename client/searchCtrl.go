@@ -1097,6 +1097,12 @@ func (s *Search) Ping() error {
 	return s.ping(0)
 }
 
+// Close will close our handle on the search, effectively releasing our lock.
+// The search will be cleaned up if there are no other clients and it is not a backgrounded/saved search.
+func (s *Search) Close() error {
+	return s.cli.putStaticURL(searchDetachUrl(s.ID), nil, s.sidParam())
+}
+
 func (s *Search) sidParam() (p urlParam) {
 	p.key = urlSidParamKey
 	p.value = s.session.String()
