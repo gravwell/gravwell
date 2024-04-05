@@ -327,7 +327,6 @@ func (c *Client) GetEntries(s Search, start, end uint64) ([]types.StringTagEntry
 	if (end - start) < 0 {
 		return nil, fmt.Errorf("invalid entry span: start = %v, end = %v", start, end)
 	} else if (end - start) == 0 {
-		fmt.Println("NULL", end-start)
 		return []types.StringTagEntry{}, nil
 	}
 	switch s.RenderMod {
