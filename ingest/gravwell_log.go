@@ -9,6 +9,7 @@
 package ingest
 
 import (
+	"bytes"
 	"sync/atomic"
 	"time"
 
@@ -98,7 +99,7 @@ func NoLogger() Logger {
 // with the log.Relay interface.
 func (im *IngestMuxer) WriteLog(ts time.Time, b []byte) error {
 	e := entry.Entry{
-		Data: b,
+		Data: bytes.TrimSpace(b), //we trim leading and trailing newlines and spaces here, they don't belong on actual ingested entries
 		TS:   entry.FromStandard(ts),
 		Tag:  entry.GravwellTagId,
 		SRC:  im.logSourceOverride,

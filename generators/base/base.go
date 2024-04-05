@@ -11,6 +11,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"math/rand"
 	"net"
 	"os"
 	"os/signal"
@@ -46,6 +47,7 @@ var (
 	startTime       = flag.String("start-time", "", "optional starting timestamp for entries, must be RFC3339 format")
 	chaos           = flag.Bool("chaos-mode", false, "Chaos mode causes the generator to not do multiline HTTP uploads and sometimes send crazy timestamps")
 	chaosWorkers    = flag.Int("chaos-mode-workers", 8, "Maximum number of workers when in chaos mode")
+	tsPsychoMode    = flag.Bool("time-is-an-illusion", false, "Ingest with worst-case timestamp ordering (this is a chaos-mode flag)")
 )
 
 var (
@@ -54,27 +56,28 @@ var (
 )
 
 type GeneratorConfig struct {
-	ok           bool
-	modeRawTCP   bool
-	modeRawUDP   bool
-	modeHEC      bool
-	modeHECRaw   bool
-	ChaosMode    bool
-	ChaosWorkers int
-	Raw          string
-	HEC          string
-	Streaming    bool
-	Compression  bool
-	Tag          string
-	ConnSet      []string
-	Auth         string
-	Tenant       string
-	Count        uint64
-	Duration     time.Duration
-	Start        time.Time
-	SRC          net.IP
-	Logger       *log.Logger
-	LogLevel     log.Level
+	ok              bool
+	modeRawTCP      bool
+	modeRawUDP      bool
+	modeHEC         bool
+	modeHECRaw      bool
+	ChaosTimestamps bool
+	ChaosMode       bool
+	ChaosWorkers    int
+	Raw             string
+	HEC             string
+	Streaming       bool
+	Compression     bool
+	Tag             string
+	ConnSet         []string
+	Auth            string
+	Tenant          string
+	Count           uint64
+	Duration        time.Duration
+	Start           time.Time
+	SRC             net.IP
+	Logger          *log.Logger
+	LogLevel        log.Level
 }
 
 func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
@@ -100,6 +103,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		err = fmt.Errorf("invalid start-time %s %w", *startTime, err)
 		return
 	}
+	gc.ChaosTimestamps = *tsPsychoMode
 	gc.ChaosMode = *chaos
 	if gc.ChaosWorkers = *chaosWorkers; gc.ChaosWorkers <= 0 {
 		gc.ChaosWorkers = 1
@@ -327,6 +331,7 @@ type DataGen func(time.Time) []byte
 type Finalizer func(*entry.Entry)
 
 func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorConfig, dg DataGen, f Finalizer) (totalCount, totalBytes uint64, err error) {
+	var tsg tsGenerator
 	if dg == nil || cfg.Count == 0 || cfg.Duration < 0 {
 		err = errors.New("invalid parameters")
 		return
@@ -342,12 +347,13 @@ func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorCo
 		su.Start()
 		defer su.Stop()
 	}
-	sp := cfg.Duration / time.Duration(cfg.Count)
-	var ts time.Time
-	if ts = cfg.Start; ts.IsZero() {
-		ts = time.Now().Add(-1 * cfg.Duration)
+	if cfg.ChaosTimestamps {
+		tsg = newChaosTSGenerator(cfg.Count, cfg.Duration, cfg.Start)
+	} else {
+		tsg = newSequentialTSGenerator(cfg.Count, cfg.Duration, cfg.Start)
 	}
 	for i := uint64(0); i < cfg.Count; i++ {
+		ts := tsg.Get()
 		ent := &entry.Entry{
 			TS:  entry.FromStandard(ts),
 			Tag: tag,
@@ -362,7 +368,6 @@ func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorCo
 		if err = conn.WriteEntry(ent); err != nil {
 			break
 		}
-		ts = ts.Add(sp)
 		totalBytes += uint64(ent.Size())
 		totalCount++
 	}
@@ -393,6 +398,7 @@ func Stream(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorCon
 }
 
 func streamRunner(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64, stop *bool, dg DataGen, f Finalizer) (totalCount, totalBytes uint64, err error) {
+	var tsg tsGenerator
 	if dg == nil || conn == nil || stop == nil {
 		err = errors.New("invalid parameters")
 		return
@@ -403,13 +409,20 @@ func streamRunner(conn GeneratorConn, tag entry.EntryTag, src net.IP, cnt uint64
 			return
 		}
 	}
-	sp := time.Second / time.Duration(cnt)
+	//count is implied to be per second in stream mode, so set the duration as per second
+	if cfg.ChaosTimestamps {
+		tsg = newChaosTSGenerator(cfg.Count, time.Second, cfg.Start)
+	} else {
+		tsg = newSequentialTSGenerator(cfg.Count, time.Second, cfg.Start)
+	}
+
 	var ent *entry.Entry
 loop:
 	for !*stop {
 		ts := time.Now()
 		start := ts
 		for i := uint64(0); i < cnt; i++ {
+			ts := tsg.Get()
 			ent = &entry.Entry{
 				TS:  entry.FromStandard(ts),
 				Tag: tag,
@@ -426,9 +439,62 @@ loop:
 			}
 			totalBytes += uint64(ent.Size())
 			totalCount++
-			ts = ts.Add(sp)
 		}
 		time.Sleep(time.Second - time.Since(start))
 	}
+	return
+}
+
+type tsGenerator interface {
+	Get() time.Time
+}
+
+type sequentialTSGenerator struct {
+	span time.Duration
+	ts   time.Time
+}
+
+func newSequentialTSGenerator(count uint64, duration time.Duration, start time.Time) tsGenerator {
+	if count == 0 {
+		count = 1
+	}
+	sp := duration / time.Duration(count)
+	var ts time.Time
+	if ts = start; ts.IsZero() {
+		ts = time.Now().Add(-1 * duration)
+	}
+	return &sequentialTSGenerator{
+		span: sp,
+		ts:   ts,
+	}
+}
+
+func (s *sequentialTSGenerator) Get() (ts time.Time) {
+	ts = s.ts
+	s.ts = s.ts.Add(s.span)
+	return
+}
+
+type chaosTSGenerator struct {
+	tsbase  time.Time
+	tsrange time.Duration
+}
+
+func newChaosTSGenerator(count uint64, duration time.Duration, start time.Time) tsGenerator {
+	var ts time.Time
+	if duration <= 0 {
+		duration = 30 * time.Minute // no span just flail all over a 30 minute window
+	}
+	if ts = start; ts.IsZero() {
+		ts = time.Now()
+	}
+	return &chaosTSGenerator{
+		tsbase:  ts,
+		tsrange: duration,
+	}
+}
+
+func (c *chaosTSGenerator) Get() (ts time.Time) {
+	ts = c.tsbase.Add(time.Duration(rand.Int63n(int64(c.tsrange))))
 	return
 }

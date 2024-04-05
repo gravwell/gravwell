@@ -84,6 +84,13 @@ func (c *custTime) UnmarshalJSON(v []byte) (err error) {
 		} else if f < 0 {
 			err = errors.New("invalid timestamp value")
 			return
+		} else if f < 1000.0 {
+			// if we get a zero or other equally dumb low value just use NOW
+			// we have seen some sources freak out and throw zero or something close to it which is almost never what people want
+			// when we see this, just use NOW
+			*c = custTime(time.Now())
+			return
+
 		}
 		//all good, create our timestamp
 		sec, dec := math.Modf(f)

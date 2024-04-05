@@ -10,12 +10,17 @@ package chancacher
 
 import (
 	"encoding/gob"
+	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 const DEFAULT_TIMEOUT = 2 * time.Second
@@ -694,6 +699,136 @@ func TestCacheMaxSize(t *testing.T) {
 	if c.Size() != 0 {
 		t.Errorf("Size mismatch %v != 0", c.Size())
 		t.FailNow()
+	}
+}
+
+// TestCacheEntries verifies that we can write entries, with EVs
+// attached, and read them back out.
+func TestCacheEntries(t *testing.T) {
+	gob.Register(&entry.Entry{})
+	gob.Register(&entry.EVBlock{})
+	dir, err := os.MkdirTemp("", "chancachertest")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	c, _ := NewChanCacher(2, dir, 0)
+
+	for i := 0; i < 100; i++ {
+		e := &entry.Entry{
+			Data: []byte(fmt.Sprintf("%d", i)),
+			SRC:  net.IP([]byte{'a', 'b', 'c', 'd'}),
+			TS:   entry.Now(),
+		}
+		e.AddEnumeratedValueEx("index", i)
+		select {
+		case c.In <- e:
+		case <-time.After(DEFAULT_TIMEOUT):
+			t.Error("channel write should not block")
+			t.FailNow()
+		}
+	}
+	close(c.In)
+	c.Commit()
+	<-c.Out
+
+	defer os.RemoveAll(dir)
+
+	c, _ = NewChanCacher(2, dir, 0)
+
+	// reads on the cache are not guaranteed to be in-order, so instead we
+	// count the number of times we've seen each value, and expect to see a
+	// count of 1 for 0-99.
+	results := make(map[int]int)
+
+	// now we should read everything back in order
+	for i := 0; i < 100; i++ {
+		select {
+		case v := <-c.Out:
+			if v == nil {
+				t.Error("nil result!")
+			} else {
+				ent := v.(*entry.Entry)
+				idx, ok := ent.GetEnumeratedValue("index")
+				if !ok {
+					t.Fatalf("Didn't get enumerated value index: %+v", ent)
+				}
+				results[int(idx.(int64))]++
+			}
+		case <-time.After(5 * DEFAULT_TIMEOUT):
+			t.Errorf("channel blocked after %d reads!", i)
+			t.FailNow()
+		}
+	}
+
+	// verify counts
+	for i := 0; i < 100; i++ {
+		count, ok := results[i]
+		if !ok {
+			t.Error("didn't get result:", i)
+		} else if count != 1 {
+			t.Errorf("mismatched count: %v: %v", i, count)
+		}
+	}
+}
+
+// TestCacheOldEntries ensures that we can still read old entries
+// cached before the enumerated value fields were exported.
+func TestCacheOldEntries(t *testing.T) {
+	gob.Register(&entry.Entry{})
+	dir, err := os.MkdirTemp("", "chancachertest")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(dir)
+	// Now copy in the existing stuff
+	cpF := func(name string) {
+		if bts, err := os.ReadFile(filepath.Join("old-entries-cache", name)); err != nil {
+			t.Fatal(err)
+		} else {
+			if err := os.WriteFile(filepath.Join(dir, name), bts, 0666); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	cpF("cache_a")
+	cpF("cache_b")
+	cpF("lock")
+	c, _ := NewChanCacher(2, dir, 0)
+
+	// reads on the cache are not guaranteed to be in-order, so instead we
+	// count the number of times we've seen each value, and expect to see a
+	// count of 1 for 0-99.
+	results := make(map[int]int)
+
+	// now we should read everything back in order
+	for i := 0; i < 100; i++ {
+		select {
+		case v := <-c.Out:
+			if v == nil {
+				t.Error("nil result!")
+			} else {
+				ent := v.(*entry.Entry)
+				if idx, err := strconv.ParseInt(string(ent.Data), 10, 64); err != nil {
+					t.Fatalf("failed to parse entry's data as int: %v, %+v", err, ent)
+				} else {
+					results[int(idx)]++
+				}
+			}
+		case <-time.After(5 * DEFAULT_TIMEOUT):
+			t.Error("channel should not block!")
+			t.FailNow()
+		}
+	}
+
+	// verify counts
+	for i := 0; i < 100; i++ {
+		count, ok := results[i]
+		if !ok {
+			t.Error("didn't get result:", i)
+		} else if count != 1 {
+			t.Errorf("mismatched count: %v: %v", i, count)
+		}
 	}
 }
 

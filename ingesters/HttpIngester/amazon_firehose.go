@@ -25,11 +25,10 @@ import (
 )
 
 const (
-	kdsAuthTokenHeader = `X-Amz-Firehose-Access-Key`
+	afhAuthTokenHeader = `X-Amz-Firehose-Access-Key`
 )
 
-// KinesisDeliveryStream
-type kds struct {
+type afh struct {
 	URL               string //override the URL, defaults to "/services/collector/event"
 	TokenValue        string `json:"-"` //DO NOT SEND THIS when marshalling
 	Tag_Name          string //the tag to assign to the request
@@ -37,7 +36,7 @@ type kds struct {
 	Preprocessor      []string
 }
 
-func (v *kds) validate(name string) (string, error) {
+func (v *afh) validate(name string) (string, error) {
 	if len(v.URL) == 0 {
 		return ``, errors.New("Missing URL")
 	}
@@ -62,13 +61,13 @@ func (v *kds) validate(name string) (string, error) {
 	return pth, nil
 }
 
-type kinesisRequest struct {
+type AFHRequest struct {
 	RequestId string   `json:"requestId"`
 	Timestamp int64    `json:"timestamp"`
 	Records   []record `json:"records"`
 }
 
-func (kr kinesisRequest) TS() time.Time {
+func (kr AFHRequest) TS() time.Time {
 	if kr.Timestamp == 0 {
 		return time.Now().UTC()
 	}
@@ -79,8 +78,8 @@ type record struct {
 	Data []byte `json:"data"`
 }
 
-func handleKDS(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
-	var kr kinesisRequest
+func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	var kr AFHRequest
 	lr := io.LimitedReader{R: rdr, N: int64(maxBody + 256)}
 	if err := json.NewDecoder(&lr).Decode(&kr); err != nil {
 		//check if the request was just too large
@@ -89,11 +88,11 @@ func handleKDS(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Requ
 		} else {
 			h.lgr.Info("bad request", log.KV("address", ip), log.KVErr(err))
 		}
-		sendKDSError(w, http.StatusBadRequest, ``, nil)
+		sendAFHError(w, http.StatusBadRequest, ``, nil)
 		return
 	} else if len(kr.Records) == 0 {
 		h.lgr.Info("bad request", log.KV("address", ip), log.KVErr(errors.New("empty records")))
-		sendKDSError(w, http.StatusBadRequest, kr.RequestId, errors.New("empty records"))
+		sendAFHError(w, http.StatusBadRequest, kr.RequestId, errors.New("empty records"))
 		return
 	}
 	reqTS := entry.FromStandard(kr.TS())
@@ -114,26 +113,26 @@ func handleKDS(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Requ
 	}
 	if err := cfg.pproc.ProcessBatch(batch); err != nil {
 		h.lgr.Error("failed to send entries", log.KVErr(err))
-		sendKDSError(w, http.StatusInternalServerError, kr.RequestId, err)
+		sendAFHError(w, http.StatusInternalServerError, kr.RequestId, err)
 	} else {
-		sendKDSOk(w, kr.RequestId)
+		sendAFHOk(w, kr.RequestId)
 	}
 }
 
-type kdsresp struct {
+type afhresp struct {
 	RequestId string `json:"requestId"`
 	Timestamp int64  `json:"timestamp"`
 	Message   string `json:"errorMessage,omitempty"`
 }
 
-func (k kdsresp) send(w http.ResponseWriter, code int) {
+func (k afhresp) send(w http.ResponseWriter, code int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(code)
 	json.NewEncoder(w).Encode(k)
 }
 
-func sendKDSError(w http.ResponseWriter, code int, id string, err error) {
-	r := kdsresp{
+func sendAFHError(w http.ResponseWriter, code int, id string, err error) {
+	r := afhresp{
 		RequestId: id,
 		Timestamp: time.Now().UTC().UnixMilli(),
 	}
@@ -143,18 +142,18 @@ func sendKDSError(w http.ResponseWriter, code int, id string, err error) {
 	r.send(w, code)
 }
 
-func sendKDSOk(w http.ResponseWriter, id string) {
-	r := kdsresp{
+func sendAFHOk(w http.ResponseWriter, id string) {
+	r := afhresp{
 		RequestId: id,
 		Timestamp: time.Now().UTC().UnixMilli(),
 	}
 	r.send(w, http.StatusOK)
 }
 
-func includeKDSListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
-	for _, v := range cfg.KDSListener {
+func includeAFHListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
+	for _, v := range cfg.AFHListener {
 		hcfg := routeHandler{
-			handler: handleKDS,
+			handler: handleAFH,
 		}
 		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
 			lg.Error("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
@@ -173,14 +172,14 @@ func includeKDSListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			lg.Error("preprocessor construction error", log.KVErr(err))
 			return
 		}
-		if hcfg.auth, err = newPresharedHeaderTokenHandler(kdsAuthTokenHeader, v.TokenValue, lgr); err != nil {
-			lg.Error("failed to generate Kinesis-Delivery-Stream auth", log.KVErr(err))
+		if hcfg.auth, err = newPresharedHeaderTokenHandler(afhAuthTokenHeader, v.TokenValue, lgr); err != nil {
+			lg.Error("failed to generate Amazon Firehose auth", log.KVErr(err))
 			return
 		}
 		if hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
 			return
 		}
-		debugout("KDS Handler URL %s handling %s\n", v.URL, v.Tag_Name)
+		debugout("AFH Handler URL %s handling %s\n", v.URL, v.Tag_Name)
 	}
 	return
 }

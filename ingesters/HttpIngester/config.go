@@ -42,13 +42,13 @@ type gbl struct {
 }
 
 type cfgReadType struct {
-	Global                           gbl
-	Attach                           attach.AttachConfig
-	Listener                         map[string]*lst
-	HEC_Compatible_Listener          map[string]*hecCompatible
-	Kinesis_Delivery_Stream_Listener map[string]*kds
-	Preprocessor                     processors.ProcessorConfig
-	TimeFormat                       config.CustomTimeFormat
+	Global                   gbl
+	Attach                   attach.AttachConfig
+	Listener                 map[string]*lst
+	HEC_Compatible_Listener  map[string]*hecCompatible
+	Amazon_Firehose_Listener map[string]*afh
+	Preprocessor             processors.ProcessorConfig
+	TimeFormat               config.CustomTimeFormat
 }
 
 type lst struct {
@@ -70,7 +70,7 @@ type cfgType struct {
 	Attach       attach.AttachConfig
 	Listener     map[string]*lst
 	HECListener  map[string]*hecCompatible
-	KDSListener  map[string]*kds
+	AFHListener  map[string]*afh
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
 }
@@ -87,7 +87,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		Attach:       cr.Attach,
 		Listener:     cr.Listener,
 		HECListener:  cr.HEC_Compatible_Listener,
-		KDSListener:  cr.Kinesis_Delivery_Stream_Listener,
+		AFHListener:  cr.Amazon_Firehose_Listener,
 		Preprocessor: cr.Preprocessor,
 		TimeFormat:   cr.TimeFormat,
 	}
@@ -110,7 +110,7 @@ func (c *cfgType) Verify() error {
 		return err
 	}
 	urls := map[route]string{}
-	if len(c.Listener) == 0 && len(c.HECListener) == 0 && len(c.KDSListener) == 0 {
+	if len(c.Listener) == 0 && len(c.HECListener) == 0 && len(c.AFHListener) == 0 {
 		return errors.New("No Listeners specified")
 	}
 	if err := c.Preprocessor.Validate(); err != nil {
@@ -163,7 +163,7 @@ func (c *cfgType) Verify() error {
 		c.HECListener[k] = v
 	}
 
-	for k, v := range c.KDSListener {
+	for k, v := range c.AFHListener {
 		pth, err := v.validate(k)
 		if err != nil {
 			return err
@@ -173,10 +173,10 @@ func (c *cfgType) Verify() error {
 			return fmt.Errorf("URL %s duplicated in %s (was in %s)", v.URL, k, orig)
 		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
-			return fmt.Errorf("HTTP Kinesis-Delivery-Stream %s preprocessor invalid: %v", k, err)
+			return fmt.Errorf("HTTP Amazon Firehose %s preprocessor invalid: %v", k, err)
 		}
 		urls[rt] = k
-		c.KDSListener[k] = v
+		c.AFHListener[k] = v
 	}
 
 	if len(urls) == 0 {
@@ -210,7 +210,7 @@ func (c *cfgType) Tags() (tags []string, err error) {
 			}
 		}
 	}
-	for _, v := range c.KDSListener {
+	for _, v := range c.AFHListener {
 		if len(v.Tag_Name) == 0 {
 			continue
 		}
