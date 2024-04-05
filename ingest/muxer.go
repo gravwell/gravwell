@@ -118,6 +118,7 @@ type IngestMuxer struct {
 	lgr               Logger
 	cacheEnabled      bool
 	cachePath         string
+	cacheSize         int
 	cache             *chancacher.ChanCacher
 	bcache            *chancacher.ChanCacher
 	cacheAlways       bool
@@ -181,6 +182,7 @@ type MuxerConfig struct {
 
 func init() {
 	// register cache types
+	gob.Register(&entry.EVBlock{})
 	gob.Register(&entry.Entry{})
 	gob.Register([]*entry.Entry{})
 }
@@ -416,6 +418,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		cache:             cache,
 		bcache:            bcache,
 		cacheEnabled:      c.CachePath != "",
+		cacheSize:         mb * c.CacheSize,
 		cachePath:         c.CachePath,
 		cacheAlways:       strings.ToLower(c.CacheMode) == CacheModeAlways,
 		name:              c.IngesterName,
@@ -558,6 +561,26 @@ func (im *IngestMuxer) stateReportRoutine() {
 	}
 }
 
+// returns true if a write to the muxer will block
+func (im *IngestMuxer) WillBlock() bool {
+	nHot, err := im.Hot()
+	if err == ErrNotRunning {
+		return true
+	} else if nHot > 0 {
+		return false
+	}
+
+	if !im.cacheEnabled {
+		return true
+	} else if im.cache.Size() >= im.cacheSize {
+		return true
+	} else if im.bcache.Size() >= im.cacheSize {
+		return true
+	}
+
+	return false
+}
+
 func (im *IngestMuxer) SetRawConfiguration(obj interface{}) (err error) {
 	if obj == nil {
 		return
@@ -661,9 +684,29 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 		if v != nil {
 			remoteTag, err := v.NegotiateTag(name)
 			if err != nil {
-				// something went wrong, kill it and let it re-initialize
-				im.Error("NegotiateTag error", log.KV("indexer", v.conn.RemoteAddr()),
-					log.KV("tag", name), log.KV("error", err), log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
+				if err == ErrNotRunning {
+					// This is basically a
+					// non-issue, we'll just make
+					// sure the connection is
+					// closed and when it comes
+					// back automatically, the new
+					// tag will be included in the
+					// initialization.
+					im.Info("NegotiateTag called on non-running ingest connection, skipping",
+						log.KV("indexer", v.conn.RemoteAddr()),
+						log.KV("tag", name), log.KV("error", err),
+						log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
+				} else {
+					// Some other error... we'll
+					// log at a higher level, then
+					// again just close the conna
+					// nd move on.
+					im.Warn("NegotiateTag was unsuccessful, reconnecting",
+						log.KV("indexer", v.conn.RemoteAddr()),
+						log.KV("tag", name), log.KV("error", err),
+						log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
+
+				}
 				v.Close()
 				continue
 			}
@@ -1178,15 +1221,6 @@ inputLoop:
 			}
 			//hack to get better distribution across connections in an muxer
 			if im.shouldSched() {
-				if !tmr.Stop() {
-					<-tmr.C
-				}
-				if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
-					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
-						break inputLoop
-					}
-				}
-				tmr.Reset(tickerInterval())
 				runtime.Gosched()
 			}
 		case bb, ok := <-bC:
@@ -1248,15 +1282,6 @@ inputLoop:
 			}
 			//hack to get better distribution across connections in an muxer
 			if im.shouldSched() {
-				if !tmr.Stop() {
-					<-tmr.C
-				}
-				if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
-					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
-						break inputLoop
-					}
-				}
-				tmr.Reset(tickerInterval())
 				runtime.Gosched()
 			}
 		case tnc, ok = <-csc: //in case we get an unexpected new connection

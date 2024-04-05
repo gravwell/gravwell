@@ -48,6 +48,7 @@ type ScheduledSearch struct {
 	GUID        uuid.UUID
 	Groups      []int32
 	Global      bool
+	WriteAccess Access
 	Name        string // the name of this scheduled search
 	Description string // freeform description
 	Labels      []string

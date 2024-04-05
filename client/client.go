@@ -41,6 +41,7 @@ const (
 	defaultRequestTimeout = time.Hour * 24
 	clientUserAgent       = `GravwellCLI`
 	authHeaderName        = `Authorization`
+	apiTokenHeader        = `Gravwell-Token`
 )
 
 var (
@@ -55,6 +56,7 @@ var (
 
 // Client handles interaction with the server's REST APIs and websockets.
 type Client struct {
+	token        string     // API token if we were authenticated that way
 	hm           *headerMap //additional header values to add to requests
 	qm           *queryMap  // stuff to append to the URL e.g. ?admin=true
 	server       string
@@ -316,6 +318,16 @@ func (c *Client) Login(user, pass string) error {
 	}
 
 	return c.syncNoLock()
+}
+
+func (c *Client) LoginWithAPIToken(token string) (err error) {
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	c.token = token
+	c.hm.add(apiTokenHeader, token)
+	//assume we are logged in and test
+	c.state = STATE_AUTHED
+	return c.getStaticURL(TEST_AUTH_URL, nil)
 }
 
 // RefreshLoginToken will ask the webserver to refresh the login state

@@ -68,8 +68,8 @@ func (igst *IngestConnection) Close() error {
 }
 
 func (igst *IngestConnection) IdentifyIngester(name, version, id string) (err error) {
-	igst.mtx.Lock()
-	defer igst.mtx.Unlock()
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
 	if err = igst.ew.SendIngesterAPIVersion(); err != nil {
 		return
 	}
@@ -81,8 +81,8 @@ func (igst *IngestConnection) IdentifyIngester(name, version, id string) (err er
 
 // IngestOK asks the indexer if it is ok to start sending entries yet.
 func (igst *IngestConnection) IngestOK() (ok bool, err error) {
-	igst.mtx.Lock()
-	defer igst.mtx.Unlock()
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
 	return igst.ew.IngestOK()
 }
 
@@ -177,8 +177,8 @@ func (igst *IngestConnection) NegotiateTag(name string) (tg entry.EntryTag, err 
 }
 
 func (igst *IngestConnection) SendIngesterState(state IngesterState) error {
-	igst.mtx.Lock()
-	defer igst.mtx.Unlock()
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
 
 	if !igst.running {
 		return ErrNotRunning
@@ -190,8 +190,8 @@ func (igst *IngestConnection) SendIngesterState(state IngesterState) error {
 /* Sync causes the entry writer to force an ack from the server.  This ensures that all
 *  entries that have been written are flushed and fully acked by the server. */
 func (igst *IngestConnection) Sync() error {
-	igst.mtx.Lock()
-	defer igst.mtx.Unlock()
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
 	if !igst.running {
 		return ErrNotRunning
 	}
@@ -199,14 +199,14 @@ func (igst *IngestConnection) Sync() error {
 }
 
 func (igst *IngestConnection) Running() bool {
-	igst.mtx.Lock()
-	defer igst.mtx.Unlock()
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
 	return igst.running
 }
 
 func (igst *IngestConnection) Source() (net.IP, error) {
-	igst.mtx.Lock()
-	defer igst.mtx.Unlock()
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
 	if !igst.running {
 		return nil, errors.New("not running")
 	}

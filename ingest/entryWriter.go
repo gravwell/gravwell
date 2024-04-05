@@ -210,7 +210,7 @@ func (ew *EntryWriter) Ping() (err error) {
 		return
 	}
 	//start servicing responses until we get an ACK
-	err = ew.readCommandsUntil(PONG_MAGIC)
+	_, err = ew.readCommandsUntil(PONG_MAGIC)
 	return
 }
 
@@ -521,32 +521,9 @@ func (ew *EntryWriter) SendIngesterState(state IngesterState) (err error) {
 		return
 	}
 
-	// Read back an ackCommand
-	var ac ackCommand
-	var ok bool
-stateCmdLoop:
-	for {
-		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
-			break
-		}
-		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
-			break
-		}
-		if !ok {
-			err = errors.New("couldn't figure out ackCommand")
-			break
-		}
-		switch ac.cmd {
-		case CONFIRM_INGESTER_STATE_MAGIC:
-			// yay.
-			break stateCmdLoop
-		case PONG_MAGIC:
-			// unsolicited, can come whenever
-		default:
-			err = fmt.Errorf("Unexpected response to ingester state request: %#v", ac)
-			break stateCmdLoop
-		}
-	}
+	// Wait for the confirmation
+	_, err = ew.readCommandsUntil(CONFIRM_INGESTER_STATE_MAGIC)
+
 	if err == nil {
 		err = ew.conn.ClearReadTimeout()
 	} else {
@@ -596,36 +573,9 @@ func (ew *EntryWriter) IngestOK() (ok bool, err error) {
 
 	// read back the ack
 	var ac ackCommand
-	var lok bool
-igstOkCmdLoop:
-	for {
-		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
-			break
-		}
-		if lok, err = ac.decode(ew.bAckReader, true); err != nil {
-			break
-		}
-		if !lok {
-			err = errors.New("couldn't figure out ackCommand")
-			break
-		}
-
-		switch ac.cmd {
-		case CONFIRM_INGEST_OK_MAGIC:
-			// success... if value != 0, ingest is ok
-			ok = ac.val != 0
-			break igstOkCmdLoop
-		case PONG_MAGIC:
-			// unsolicited, can come whenever
-		default:
-			err = fmt.Errorf("Unexpected response to ingest ok query: %#v", ac)
-			break igstOkCmdLoop
-		}
-	}
+	ac, err = ew.readCommandsUntil(CONFIRM_INGEST_OK_MAGIC)
 	if err == nil {
-		err = ew.conn.ClearReadTimeout()
-	} else {
-		ew.conn.ClearReadTimeout()
+		ok = ac.val != 0
 	}
 	return
 }
@@ -750,32 +700,7 @@ func (ew *EntryWriter) IdentifyIngester(name string, version string, id string) 
 	}
 
 	// read back the ack
-	var ac ackCommand
-	var ok bool
-idCmdLoop:
-	for {
-		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
-			break
-		}
-		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
-			break
-		}
-		if !ok {
-			err = errors.New("couldn't figure out ackCommand")
-			break
-		}
-
-		switch ac.cmd {
-		case CONFIRM_ID_MAGIC:
-			// success
-			break idCmdLoop
-		case PONG_MAGIC:
-			// unsolicited, can come whenever
-		default:
-			err = fmt.Errorf("Unexpected response to identification message: %#v", ac)
-			break idCmdLoop
-		}
-	}
+	_, err = ew.readCommandsUntil(CONFIRM_ID_MAGIC)
 	if err == nil {
 		err = ew.conn.ClearReadTimeout()
 	} else {
@@ -821,7 +746,8 @@ func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 		return
 	}
 
-	// Read back an ackCommand
+	// There are actually two possible responses here so we're gonna have to do this
+	// ourselves rather than call readCommandsUntil
 	var ac ackCommand
 	var ok bool
 tagCmdLoop:
@@ -838,6 +764,15 @@ tagCmdLoop:
 		}
 
 		switch ac.cmd {
+		case CONFIRM_ENTRY_MAGIC:
+			//check if the ID is the head, if not pop the head and resend
+			//TODO: if we get an ID we don't know about we just ignore it
+			//      is this the best course of action?
+			if err = ew.ecb.Confirm(entrySendID(ac.val)); err != nil {
+				if err != errEntryNotFound {
+					return
+				}
+			}
 		case CONFIRM_TAG_MAGIC:
 			tg = entry.EntryTag(ac.val)
 			break tagCmdLoop
@@ -960,12 +895,15 @@ loop:
 
 // readCommandsUntil pulls out all of the responses and services them,
 // we block until we hit the command we want
-func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (err error) {
-	var ac ackCommand
+func (ew *EntryWriter) readCommandsUntil(cmd IngestCommand) (ac ackCommand, err error) {
 	var ok bool
 	var dur time.Duration
+	defer ew.conn.ClearReadTimeout()
+	for {
+		if err = ew.conn.SetReadTimeout(2 * time.Second); err != nil {
+			return
+		}
 
-	for ew.ecb.Count() > 0 {
 		if ok, err = ac.decode(ew.bAckReader, true); err != nil {
 			return
 		} else if !ok {

@@ -55,6 +55,7 @@ const (
 	WS_STAT_URL                      = `/api/ws/stats`
 	WS_SEARCH_URL                    = `/api/ws/search`
 	WS_ATTACH_URL                    = `/api/ws/attach/%s`
+	PARSE_URL                        = `/api/parse`
 	API_VERSION_URL                  = `/api/version`
 	GROUP_ID_URL                     = `/api/groups/%d`
 	GROUP_MEMBERS_URL                = `/api/groups/%d/members`

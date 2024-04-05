@@ -324,6 +324,7 @@ func negotiateEntryWriter(conn net.Conn, tenant string, auth AuthHash, tags []st
 
 // completeIngestConnection performs the authentication and tag negotiation
 func completeIngestConnection(conn net.Conn, src net.IP, tenant string, auth AuthHash, tags []string) (*IngestConnection, error) {
+	EnableKeepAlive(conn, defaultKeepAliveInterval)
 	ew, tagIDs, err := negotiateEntryWriter(conn, tenant, auth, tags)
 	if err != nil {
 		return nil, err
