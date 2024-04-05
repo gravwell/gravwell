@@ -34,7 +34,8 @@ const (
 )
 
 var (
-	ErrSearchNotAttached = errors.New("search not attached")
+	ErrSearchNotAttached   = errors.New("search not attached")
+	ErrInvalidTableRequest = errors.New("Table request range is invalid")
 )
 
 // DeleteSearch will request that a search is deleted by search ID
@@ -349,7 +350,6 @@ func (c *Client) getStringTagTextEntries(s Search, first, last uint64) (ste []ty
 	if err = c.getRenderResults(s, first, last, s.start, s.end, &resp); err != nil {
 		return
 	}
-	//TODO FIXME
 	if err = resp.Err(); err != nil {
 		return
 	}
@@ -384,7 +384,6 @@ func (c *Client) getStringTagTableEntries(s Search, start, end uint64) (ste []ty
 	if err = c.getRenderResults(s, start, end, s.start, s.end, &resp); err != nil {
 		return
 	}
-	//TODO FIXME
 	if err = resp.Err(); err != nil {
 		return
 	}
@@ -538,9 +537,15 @@ func (c *Client) GetHexTsRange(s Search, start, end time.Time, first, last uint6
 func (c *Client) getTableResults(s Search, req types.TableRequest) (resp types.TableResponse, err error) {
 	if err = checkRender(s, types.RenderNameTable); err != nil {
 		return
+	} else if req.EntryRange == nil {
+		err = ErrInvalidTableRequest
+		return
 	}
 
-	//TODO FIXME
+	start, end := req.EntryRange.StartTS.StandardTime(), req.EntryRange.EndTS.StandardTime()
+	if err = c.getRenderResults(s, req.EntryRange.First, req.EntryRange.Last, start, end, &resp); err != nil {
+		return
+	}
 	if err = resp.Err(); err != nil {
 		return
 	}
