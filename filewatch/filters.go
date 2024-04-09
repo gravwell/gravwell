@@ -20,6 +20,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
+const backupSuffix = ".backup"
+
 type filter struct {
 	FollowerEngineConfig
 	bname string //name given to the config file
@@ -824,8 +826,31 @@ func initStateFile(p string) (fout *os.File, states map[FileName]*int64, err err
 	}
 	if fi.Size() > 0 {
 		if err = gob.NewDecoder(fout).Decode(&states); err != nil {
-			err = fmt.Errorf("Failed to load existing states: %v", err)
-			return
+			// hold onto the decode error in case we can't get to a backup
+			serr := err
+			fout.Close()
+
+			// find a suitable backup filename
+			fname := p + backupSuffix
+			if _, err := os.Stat(fname); err != nil {
+				// we have to start counting
+				var count int
+				for {
+					fname = fmt.Sprintf("%v%v%d", p, backupSuffix, count)
+					if _, err := os.Stat(fname); os.IsNotExist(err) {
+						break
+					}
+					count++
+				}
+			}
+
+			if err = os.Rename(p, fname); err != nil {
+				err = fmt.Errorf("Failed to load existing states: %w, %w", err, serr)
+				return
+			}
+
+			// success!
+			return initStateFile(p)
 		}
 	}
 	return
