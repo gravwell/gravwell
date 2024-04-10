@@ -144,7 +144,6 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 		}
 		req.URL.RawQuery = q.Encode()
 	}
-
 	resp, err := c.clnt.Do(req)
 	if err != nil {
 		c.objLog.Log("WEB "+req.Method+" Error "+err.Error(), req.URL.String(), nil)
