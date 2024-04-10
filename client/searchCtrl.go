@@ -224,15 +224,12 @@ func (c *Client) StartSearch(query string, start, end time.Time, nohistory bool)
 // This function grants the maximum amount of control over the search starting process
 func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error) {
 	var resp types.LaunchResponse
-	if s.start, err = time.Parse(time.RFC3339, sr.SearchStart); err != nil {
-		return
-	} else if s.end, err = time.Parse(time.RFC3339, sr.SearchEnd); err != nil {
-		return
-	}
 
 	if err = c.postStaticURL(searchLaunchUrl(), sr, &resp); err != nil {
 		return
 	}
+	//populate the time range in the search object from the search, we use what the server says, not what we handed in
+	s.start, s.end = resp.Info.StartRange, resp.Info.EndRange
 
 	s.ID = resp.SearchID
 	s.RenderMod = resp.RenderModule
@@ -559,8 +556,10 @@ func (c *Client) GetTableResults(s Search, start, end uint64) (types.TableRespon
 		BaseRequest: types.BaseRequest{
 			ID: types.REQ_GET_ENTRIES,
 			EntryRange: &types.EntryRange{
-				First: start,
-				Last:  end,
+				First:   start,
+				Last:    end,
+				StartTS: entry.FromStandard(s.start),
+				EndTS:   entry.FromStandard(s.end),
 			},
 		},
 	}
