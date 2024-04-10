@@ -39,16 +39,17 @@ type KitConfigMacro struct {
 // KitConfig represents rules, labels, and other configuration options used
 // during kit installation.
 type KitConfig struct {
-	OverwriteExisting     bool  `json:",omitempty"`
-	Global                bool  `json:",omitempty"`
-	AllowExternalResource bool  `json:",omitempty"`
-	AllowUnsigned         bool  `json:",omitempty"`
-	InstallationGroup     int32 `json:",omitempty"` // deprecated, use InstallationGroups instead
-	InstallationGroups    []int32
-	Labels                []string `json:",omitempty"` // labels applied to each *item*
-	KitLabels             []string `json:",omitempty"` // labels applied to the *kit* itself
-	ConfigMacros          []KitConfigMacro
-	ScriptDeployRules     map[string]ScriptDeployConfig // overrides for defaults
+	OverwriteExisting       bool  `json:",omitempty"`
+	Global                  bool  `json:",omitempty"`
+	AllowExternalResource   bool  `json:",omitempty"`
+	AllowUnsigned           bool  `json:",omitempty"`
+	InstallationGroup       int32 `json:",omitempty"` // deprecated, use InstallationGroups instead
+	InstallationGroups      []int32
+	InstallationWriteAccess Access
+	Labels                  []string `json:",omitempty"` // labels applied to each *item*
+	KitLabels               []string `json:",omitempty"` // labels applied to the *kit* itself
+	ConfigMacros            []KitConfigMacro
+	ScriptDeployRules       map[string]ScriptDeployConfig // overrides for defaults
 }
 
 // Each item in a kit (dashboard, query, etc) is represented by a KitItem
@@ -103,6 +104,7 @@ type KitManifest struct {
 	UID         int32
 	GIDs        []int32
 	Global      bool
+	WriteAccess Access
 	UUID        uuid.UUID
 	Data        []byte
 	WebserverID uuid.UUID // which webserver created this manifest: needed to manage staged manifests & on-disk kit files
@@ -111,10 +113,11 @@ type KitManifest struct {
 
 // type that is used when sending back lists via a ADMIN request (show uid and gid)
 type IdKitState struct {
-	UUID   uuid.UUID
-	UID    int32
-	GIDs   []int32
-	Global bool
+	UUID        uuid.UUID
+	UID         int32
+	GIDs        []int32
+	Global      bool
+	WriteAccess Access
 	KitState
 }
 
