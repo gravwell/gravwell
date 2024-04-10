@@ -224,7 +224,6 @@ func (c *Client) StartSearch(query string, start, end time.Time, nohistory bool)
 // This function grants the maximum amount of control over the search starting process
 func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error) {
 	var resp types.LaunchResponse
-
 	if err = c.postStaticURL(searchLaunchUrl(), sr, &resp); err != nil {
 		return
 	}
@@ -279,6 +278,8 @@ func (c *Client) AttachSearch(id string) (s Search, err error) {
 	if err = c.getStaticURL(searchAttachUrl(id), &resp); err != nil {
 		return
 	}
+	//populate the time range in the search object from the search, we use what the server says, not what we handed in
+	s.start, s.end = resp.Info.StartRange, resp.Info.EndRange
 
 	s.ID = resp.SearchID
 	s.RenderMod = resp.RenderModule
@@ -288,6 +289,7 @@ func (c *Client) AttachSearch(id string) (s Search, err error) {
 	s.session = resp.SearchSessionID
 	s.cli = c
 	s.SearchInfo = resp.Info
+
 	return s, nil
 }
 
