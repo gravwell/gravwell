@@ -23,6 +23,7 @@ type Playbook struct {
 	UID         int32
 	GIDs        []int32
 	Global      bool
+	WriteAccess Access
 	Name        string
 	Desc        string
 	Body        []byte `json:",omitempty"`
