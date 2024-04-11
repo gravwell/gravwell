@@ -34,8 +34,8 @@ const (
 )
 
 var (
-	ErrSearchNotAttached   = errors.New("search not attached")
-	ErrInvalidTableRequest = errors.New("Table request range is invalid")
+	ErrSearchNotAttached       = errors.New("search not attached")
+	ErrInvalidDateRequestRange = errors.New("Table request range is invalid")
 )
 
 // DeleteSearch will request that a search is deleted by search ID
@@ -346,7 +346,13 @@ func (c *Client) GetEntries(s Search, start, end uint64) ([]types.StringTagEntry
 
 func (c *Client) getStringTagTextEntries(s Search, first, last uint64) (ste []types.StringTagEntry, err error) {
 	var resp types.RawResponse
-	if err = c.getRenderResults(s, first, last, s.start, s.end, &resp); err != nil {
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
+	}
+	if err = c.getRenderResults(s, er, &resp); err != nil {
 		return
 	}
 	if err = resp.Err(); err != nil {
@@ -378,9 +384,15 @@ func (c *Client) getStringTagTextEntries(s Search, first, last uint64) (ste []ty
 	return ret, nil
 }
 
-func (c *Client) getStringTagTableEntries(s Search, start, end uint64) (ste []types.StringTagEntry, err error) {
+func (c *Client) getStringTagTableEntries(s Search, first, last uint64) (ste []types.StringTagEntry, err error) {
 	var resp types.TableResponse
-	if err = c.getRenderResults(s, start, end, s.start, s.end, &resp); err != nil {
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
+	}
+	if err = c.getRenderResults(s, er, &resp); err != nil {
 		return
 	}
 	if err = resp.Err(); err != nil {
@@ -419,13 +431,34 @@ func (c *Client) getStringTagTableEntries(s Search, start, end uint64) (ste []ty
 	return
 }
 
-func (c *Client) getRenderResults(s Search, first, last uint64, start, end time.Time, obj interface{}) (err error) {
+func (c *Client) getRenderResults(s Search, er types.EntryRange, obj interface{}) (err error) {
 	params := []urlParam{
 		s.sidParam(),
-		ezParam(`first`, first),
-		ezParam(`last`, last),
-		ezParam(`start`, start.Format(time.RFC3339)),
-		ezParam(`end`, end.Format(time.RFC3339)),
+		ezParam(`first`, er.First),
+		ezParam(`last`, er.Last),
+		ezParam(`start`, er.StartTS.Format(time.RFC3339)),
+		ezParam(`end`, er.EndTS.Format(time.RFC3339)),
+	}
+	err = c.getStaticURL(searchEntriesUrl(s.ID, s.RenderMod), obj, params...)
+	return
+}
+
+func (c *Client) getFencedRenderResults(s Search, er types.EntryRange, fence types.Geofence, obj interface{}) (err error) {
+	if fence.Enabled() == false {
+		err = c.getRenderResults(s, er, obj)
+		return
+	}
+
+	params := []urlParam{
+		s.sidParam(),
+		ezParam(`first`, er.First),
+		ezParam(`last`, er.Last),
+		ezParam(`start`, er.StartTS.Format(time.RFC3339)),
+		ezParam(`end`, er.EndTS.Format(time.RFC3339)),
+		ezParam(`swlat`, fence.SouthWest.Lat),
+		ezParam(`swlong`, fence.SouthWest.Long),
+		ezParam(`nelat`, fence.NorthEast.Lat),
+		ezParam(`nelong`, fence.NorthEast.Long),
 	}
 	err = c.getStaticURL(searchEntriesUrl(s.ID, s.RenderMod), obj, params...)
 	return
@@ -433,15 +466,42 @@ func (c *Client) getRenderResults(s Search, first, last uint64, start, end time.
 
 func checkRender(s Search, v string) (err error) {
 	if s.RenderMod != v {
-		err = fmt.Errorf("Search %v has invalid renderer type %v", s.ID, s.RenderMod)
+		//add in special case for guage, numbercard, text, hex, and raw
+		switch v {
+		case types.RenderNameGauge:
+			if s.RenderMod == types.RenderNameNumbercard {
+				return //this is ok
+			}
+		case types.RenderNameNumbercard:
+			if s.RenderMod == types.RenderNameGauge {
+				return //this is ok
+			}
+		case types.RenderNameHex:
+			if s.RenderMod == types.RenderNameText {
+				return //this is ok
+			}
+		case types.RenderNameText:
+			fallthrough
+		case types.RenderNamePcap:
+			if s.RenderMod == types.RenderNameRaw {
+				return //this is ok
+			}
+		}
+		err = fmt.Errorf("Search %v has invalid renderer type %v not %v", s.ID, s.RenderMod, v)
 	}
 	return
 }
 
 func (c *Client) getTextResults(s Search, first, last uint64, start, end time.Time) (resp types.TextResponse, err error) {
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
+	}
 	if err = checkRender(s, types.RenderNameText); err != nil {
 		return
-	} else if err = c.getRenderResults(s, first, last, start, end, &resp); err != nil {
+	} else if err = c.getRenderResults(s, er, &resp); err != nil {
 		return
 	} else if err = resp.Err(); err != nil {
 		return
@@ -463,10 +523,10 @@ func (c *Client) GetTextTsRange(s Search, start, end time.Time, first, last uint
 	return c.getTextResults(s, first, last, start, end)
 }
 
-func (c *Client) getPcapResults(s Search, first, last uint64, start, end time.Time) (resp types.RawResponse, err error) {
+func (c *Client) getPcapResults(s Search, er types.EntryRange) (resp types.RawResponse, err error) {
 	if err = checkRender(s, types.RenderNamePcap); err != nil {
 		return
-	} else if err = c.getRenderResults(s, first, last, start, end, &resp); err != nil {
+	} else if err = c.getRenderResults(s, er, &resp); err != nil {
 		return
 	} else if err = resp.Err(); err != nil {
 		return
@@ -477,7 +537,13 @@ func (c *Client) getPcapResults(s Search, first, last uint64, start, end time.Ti
 // GetPcapResults queries a range of search results from the pcap renderer. It returns
 // a types.TextResponse structure containing the results (see the Entries field).
 func (c *Client) GetPcapResults(s Search, first, last uint64) (types.RawResponse, error) {
-	return c.getPcapResults(s, first, last, s.start, s.end)
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
+	}
+	return c.getPcapResults(s, er)
 }
 
 // GetPcapTsRange queries search results for a time range from the pcap renderer. It returns
@@ -485,13 +551,25 @@ func (c *Client) GetPcapResults(s Search, first, last uint64) (types.RawResponse
 // The 'first' and 'last' parameters specify indexes of entries to fetch within the timespan
 // specified.
 func (c *Client) GetPcapTsRange(s Search, start, end time.Time, first, last uint64) (types.RawResponse, error) {
-	return c.getPcapResults(s, first, last, start, end)
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
+	}
+	return c.getPcapResults(s, er)
 }
 
 func (c *Client) getRawResults(s Search, first, last uint64, start, end time.Time) (resp types.RawResponse, err error) {
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
+	}
 	if err = checkRender(s, types.RenderNameRaw); err != nil {
 		return
-	} else if err = c.getRenderResults(s, first, last, start, end, &resp); err != nil {
+	} else if err = c.getRenderResults(s, er, &resp); err != nil {
 		return
 	} else if err = resp.Err(); err != nil {
 		return
@@ -517,8 +595,23 @@ func (c *Client) GetRawTsRange(s Search, start, end time.Time, first, last uint6
 // GetHexResults queries a range of search results from the hex renderer. It returns
 // a types.TextResponse structure containing the results (see the Entries field)
 func (c *Client) GetHexResults(s Search, first, last uint64) (resp types.TextResponse, err error) {
-	if err = checkRender(s, types.RenderNameHex); err == nil {
-		err = c.getRenderResults(s, first, last, s.start, s.end, &resp)
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
+	}
+	resp, err = c.getHexResults(s, er)
+	return
+}
+
+func (c *Client) getHexResults(s Search, er types.EntryRange) (resp types.TextResponse, err error) {
+	if err = checkRender(s, types.RenderNameHex); err != nil {
+		return
+	} else if err = c.getRenderResults(s, er, &resp); err != nil {
+		return
+	} else if err = resp.Err(); err != nil {
+		return
 	}
 	return
 }
@@ -527,26 +620,21 @@ func (c *Client) GetHexResults(s Search, first, last uint64) (resp types.TextRes
 // a types.TextResponse structure containing the results (see the Entries field).
 // The 'first' and 'last' parameters specify indexes of entries to fetch within the timespan specified.
 func (c *Client) GetHexTsRange(s Search, start, end time.Time, first, last uint64) (resp types.TextResponse, err error) {
-	if err = checkRender(s, types.RenderNameHex); err == nil {
-		err = c.getRenderResults(s, first, last, start, end, &resp)
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
 	}
+	resp, err = c.getHexResults(s, er)
 	return
 }
 
-func (c *Client) getTableResults(s Search, req types.TableRequest) (resp types.TableResponse, err error) {
-	if err = checkRender(s, types.RenderNameTable); err != nil {
-		return
-	} else if req.EntryRange == nil {
-		err = ErrInvalidTableRequest
-		return
-	}
-
-	start, end := req.EntryRange.StartTS.StandardTime(), req.EntryRange.EndTS.StandardTime()
-	if err = c.getRenderResults(s, req.EntryRange.First, req.EntryRange.Last, start, end, &resp); err != nil {
-		return
-	}
-	if err = resp.Err(); err != nil {
-		return
+func (c *Client) getTableResults(s Search, er types.EntryRange) (resp types.TableResponse, err error) {
+	if err = checkRender(s, types.RenderNameTable); err == nil {
+		if err = c.getRenderResults(s, er, &resp); err == nil {
+			err = resp.Err()
+		}
 	}
 	return
 }
@@ -554,18 +642,13 @@ func (c *Client) getTableResults(s Search, req types.TableRequest) (resp types.T
 // GetTableResults queries a range of search results from the table renderer. It returns
 // a types.TableResponse structure containing the results (see the Entries field)
 func (c *Client) GetTableResults(s Search, start, end uint64) (types.TableResponse, error) {
-	req := types.TableRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_GET_ENTRIES,
-			EntryRange: &types.EntryRange{
-				First:   start,
-				Last:    end,
-				StartTS: entry.FromStandard(s.start),
-				EndTS:   entry.FromStandard(s.end),
-			},
-		},
+	er := types.EntryRange{
+		First:   start,
+		Last:    end,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
 	}
-	return c.getTableResults(s, req)
+	return c.getTableResults(s, er)
 }
 
 // GetTableTsRange queries search results for a time range from the table
@@ -573,28 +656,20 @@ func (c *Client) GetTableResults(s Search, start, end uint64) (types.TableRespon
 // The 'first' and 'last' parameters specify indexes of entries to fetch within the timespan
 // specified.
 func (c *Client) GetTableTsRange(s Search, start, end time.Time, first, last uint64) (types.TableResponse, error) {
-	req := types.TableRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_TS_RANGE,
-			EntryRange: &types.EntryRange{
-				StartTS: entry.FromStandard(start),
-				EndTS:   entry.FromStandard(end),
-				First:   first,
-				Last:    last,
-			},
-		},
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
 	}
-	return c.getTableResults(s, req)
+	return c.getTableResults(s, er)
 }
 
-func (c *Client) getGaugeResults(s Search, req types.TableRequest) (resp types.GaugeResponse, err error) {
-	if s.RenderMod != types.RenderNameGauge && s.RenderMod != types.RenderNameNumbercard {
-		err = fmt.Errorf("Search %v has invalid renderer type: expected gauge, saw %v", s.ID, s.RenderMod)
-		return
-	}
-	//TODO FIXME
-	if err = resp.Err(); err != nil {
-		return
+func (c *Client) getGaugeResults(s Search, er types.EntryRange) (resp types.GaugeResponse, err error) {
+	if err = checkRender(s, types.RenderNameGauge); err == nil {
+		if err = c.getRenderResults(s, er, &resp); err == nil {
+			err = resp.Err()
+		}
 	}
 	return
 }
@@ -602,16 +677,13 @@ func (c *Client) getGaugeResults(s Search, req types.TableRequest) (resp types.G
 // GetGaugeResults queries a range of search results from the gauge or numbercard renderers.
 // It returns a types.GaugeResponse structure containing the results (see the Entries field).
 func (c *Client) GetGaugeResults(s Search, start, end uint64) (types.GaugeResponse, error) {
-	req := types.TableRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_GET_ENTRIES,
-			EntryRange: &types.EntryRange{
-				First: start,
-				Last:  end,
-			},
-		},
+	er := types.EntryRange{
+		First:   start,
+		Last:    end,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
 	}
-	return c.getGaugeResults(s, req)
+	return c.getGaugeResults(s, er)
 }
 
 // GetGaugeTsRange queries search results for a time range from the gauge
@@ -619,18 +691,13 @@ func (c *Client) GetGaugeResults(s Search, start, end uint64) (types.GaugeRespon
 // The 'first' and 'last' parameters specify indexes of entries to fetch within the timespan
 // specified.
 func (c *Client) GetGaugeTsRange(s Search, start, end time.Time, first, last uint64) (types.GaugeResponse, error) {
-	req := types.TableRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_TS_RANGE,
-			EntryRange: &types.EntryRange{
-				StartTS: entry.FromStandard(start),
-				EndTS:   entry.FromStandard(end),
-				First:   first,
-				Last:    last,
-			},
-		},
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
 	}
-	return c.getGaugeResults(s, req)
+	return c.getGaugeResults(s, er)
 }
 
 // GetNumbercardResults queries a range of search results from the gauge or numbercard renderers.
@@ -647,14 +714,11 @@ func (c *Client) GetNumbercardTsRange(s Search, start, end time.Time, first, las
 	return c.GetGaugeTsRange(s, start, end, first, last)
 }
 
-func (c *Client) getChartResults(s Search, req types.ChartRequest) (resp types.ChartResponse, err error) {
-	if s.RenderMod != types.RenderNameChart {
-		err = fmt.Errorf("Search %v has invalid renderer type: expected chart, saw %v", s.ID, s.RenderMod)
-		return
-	}
-	//TODO FIXME
-	if err = resp.Err(); err != nil {
-		return
+func (c *Client) getChartResults(s Search, er types.EntryRange) (resp types.ChartResponse, err error) {
+	if err = checkRender(s, types.RenderNameChart); err == nil {
+		if err = c.getRenderResults(s, er, &resp); err == nil {
+			err = resp.Err()
+		}
 	}
 	return
 }
@@ -662,16 +726,13 @@ func (c *Client) getChartResults(s Search, req types.ChartRequest) (resp types.C
 // GetChartResults queries a range of search results from the chart renderer.
 // It returns a types.ChartResponse structure containing the results (see the Entries field).
 func (c *Client) GetChartResults(s Search, start, end uint64) (resp types.ChartResponse, err error) {
-	req := types.ChartRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_GET_ENTRIES,
-			EntryRange: &types.EntryRange{
-				First: start,
-				Last:  end,
-			},
-		},
+	er := types.EntryRange{
+		First:   start,
+		Last:    end,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
 	}
-	return c.getChartResults(s, req)
+	return c.getChartResults(s, er)
 }
 
 // GetChartTsRange queries search results for a time range from the chart
@@ -679,29 +740,20 @@ func (c *Client) GetChartResults(s Search, start, end uint64) (resp types.ChartR
 // The 'first' and 'last' parameters specify indexes of entries to fetch within the timespan
 // specified.
 func (c *Client) GetChartTsRange(s Search, start, end time.Time, first, last uint64) (types.ChartResponse, error) {
-	req := types.ChartRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_TS_RANGE,
-			EntryRange: &types.EntryRange{
-				StartTS: entry.FromStandard(start),
-				EndTS:   entry.FromStandard(end),
-				First:   first,
-				Last:    last,
-			},
-		},
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
 	}
-	return c.getChartResults(s, req)
+	return c.getChartResults(s, er)
 }
 
-func (c *Client) getFdgResults(s Search, req types.FdgRequest) (resp types.FdgResponse, err error) {
-	if s.RenderMod != types.RenderNameFdg {
-		err = fmt.Errorf("Search %v has invalid renderer type: expected fdg, saw %v", s.ID, s.RenderMod)
-		return
-	}
-
-	//TODO FIXME
-	if err = resp.Err(); err != nil {
-		return
+func (c *Client) getFdgResults(s Search, er types.EntryRange) (resp types.FdgResponse, err error) {
+	if err = checkRender(s, types.RenderNameFdg); err == nil {
+		if err = c.getRenderResults(s, er, &resp); err == nil {
+			err = resp.Err()
+		}
 	}
 	return
 }
@@ -709,16 +761,13 @@ func (c *Client) getFdgResults(s Search, req types.FdgRequest) (resp types.FdgRe
 // GetFdgResults queries a range of search results from the FDG renderer.
 // It returns a types.FdgResponse structure containing the results (see the Entries field).
 func (c *Client) GetFdgResults(s Search, start, end uint64) (types.FdgResponse, error) {
-	req := types.FdgRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_GET_ENTRIES,
-			EntryRange: &types.EntryRange{
-				First: start,
-				Last:  end,
-			},
-		},
+	er := types.EntryRange{
+		First:   start,
+		Last:    end,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
 	}
-	return c.getFdgResults(s, req)
+	return c.getFdgResults(s, er)
 }
 
 // GetFdgTsRange queries search results for a time range from the fdg
@@ -726,29 +775,20 @@ func (c *Client) GetFdgResults(s Search, start, end uint64) (types.FdgResponse, 
 // The 'first' and 'last' parameters specify indexes of entries to fetch within the timespan
 // specified.
 func (c *Client) GetFdgTsRange(s Search, start, end time.Time, first, last uint64) (types.FdgResponse, error) {
-	req := types.FdgRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_TS_RANGE,
-			EntryRange: &types.EntryRange{
-				StartTS: entry.FromStandard(start),
-				EndTS:   entry.FromStandard(end),
-				First:   first,
-				Last:    last,
-			},
-		},
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
 	}
-	return c.getFdgResults(s, req)
+	return c.getFdgResults(s, er)
 }
 
-func (c *Client) getStackGraphResults(s Search, req types.StackGraphRequest) (resp types.StackGraphResponse, err error) {
-	if s.RenderMod != types.RenderNameStackGraph {
-		err = fmt.Errorf("Search %v has invalid renderer type: expected stackgraph, saw %v", s.ID, s.RenderMod)
-		return
-	}
-
-	//TODO FIXME
-	if err = resp.Err(); err != nil {
-		return
+func (c *Client) getStackGraphResults(s Search, er types.EntryRange) (resp types.StackGraphResponse, err error) {
+	if err = checkRender(s, types.RenderNameStackGraph); err == nil {
+		if err = c.getRenderResults(s, er, &resp); err == nil {
+			err = resp.Err()
+		}
 	}
 	return
 }
@@ -756,16 +796,13 @@ func (c *Client) getStackGraphResults(s Search, req types.StackGraphRequest) (re
 // GetStackGraphResults queries a range of search results from the stackgraph renderer.
 // It returns a types.StackGraphResponse structure containing the results (see the Entries field).
 func (c *Client) GetStackGraphResults(s Search, start, end uint64) (types.StackGraphResponse, error) {
-	req := types.StackGraphRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_GET_ENTRIES,
-			EntryRange: &types.EntryRange{
-				First: start,
-				Last:  end,
-			},
-		},
+	er := types.EntryRange{
+		First:   start,
+		Last:    end,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
 	}
-	return c.getStackGraphResults(s, req)
+	return c.getStackGraphResults(s, er)
 }
 
 // GetStackGraphTsRange queries search results for a time range from the stackgraph
@@ -773,29 +810,20 @@ func (c *Client) GetStackGraphResults(s Search, start, end uint64) (types.StackG
 // The 'first' and 'last' parameters specify indexes of entries to fetch within the timespan
 // specified.
 func (c *Client) GetStackGraphTsRange(s Search, start, end time.Time, first, last uint64) (types.StackGraphResponse, error) {
-	req := types.StackGraphRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_TS_RANGE,
-			EntryRange: &types.EntryRange{
-				StartTS: entry.FromStandard(start),
-				EndTS:   entry.FromStandard(end),
-				First:   first,
-				Last:    last,
-			},
-		},
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
 	}
-	return c.getStackGraphResults(s, req)
+	return c.getStackGraphResults(s, er)
 }
 
-func (c *Client) getPointmapResults(s Search, req types.PointmapRequest) (resp types.PointmapResponse, err error) {
-	if s.RenderMod != types.RenderNamePointmap {
-		err = fmt.Errorf("Search %v has invalid renderer type: expected pointmap, saw %v", s.ID, s.RenderMod)
-		return
-	}
-
-	//TODO FIXME
-	if err = resp.Err(); err != nil {
-		return
+func (c *Client) getPointmapResults(s Search, er types.EntryRange, fence types.Geofence) (resp types.PointmapResponse, err error) {
+	if err = checkRender(s, types.RenderNamePointmap); err == nil {
+		if err = c.getFencedRenderResults(s, er, fence, &resp); err == nil {
+			err = resp.Err()
+		}
 	}
 	return
 }
@@ -804,17 +832,13 @@ func (c *Client) getPointmapResults(s Search, req types.PointmapRequest) (resp t
 // It returns a types.PointmapResponse structure containing the results (see the Entries field).
 // The fence parameter is an option geofence to apply to the results.
 func (c *Client) GetPointmapResults(s Search, start, end uint64, fence types.Geofence) (types.PointmapResponse, error) {
-	req := types.PointmapRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_GET_ENTRIES,
-			EntryRange: &types.EntryRange{
-				First: start,
-				Last:  end,
-			},
-		},
-		Fence: fence,
+	er := types.EntryRange{
+		First:   start,
+		Last:    end,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
 	}
-	return c.getPointmapResults(s, req)
+	return c.getPointmapResults(s, er, fence)
 }
 
 // GetPointmapTsRange queries search results for a time range from the pointmap
@@ -823,29 +847,20 @@ func (c *Client) GetPointmapResults(s Search, start, end uint64, fence types.Geo
 // specified.
 // The fence parameter is an option geofence to apply to the results.
 func (c *Client) GetPointmapTsRange(s Search, start, end time.Time, first, last uint64, fence types.Geofence) (types.PointmapResponse, error) {
-	req := types.PointmapRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_TS_RANGE,
-			EntryRange: &types.EntryRange{
-				StartTS: entry.FromStandard(start),
-				EndTS:   entry.FromStandard(end),
-				First:   first,
-				Last:    last,
-			},
-		},
-		Fence: fence,
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
 	}
-	return c.getPointmapResults(s, req)
+	return c.getPointmapResults(s, er, fence)
 }
 
-func (c *Client) getHeatmapResults(s Search, req types.HeatmapRequest) (resp types.HeatmapResponse, err error) {
-	if s.RenderMod != types.RenderNameHeatmap {
-		err = fmt.Errorf("Search %v has invalid renderer type: expected heatmap, saw %v", s.ID, s.RenderMod)
-		return
-	}
-	//TODO FIXME
-	if err = resp.Err(); err != nil {
-		return
+func (c *Client) getHeatmapResults(s Search, er types.EntryRange, fence types.Geofence) (resp types.HeatmapResponse, err error) {
+	if err = checkRender(s, types.RenderNameHeatmap); err == nil {
+		if err = c.getFencedRenderResults(s, er, fence, &resp); err == nil {
+			err = resp.Err()
+		}
 	}
 	return
 }
@@ -853,18 +868,14 @@ func (c *Client) getHeatmapResults(s Search, req types.HeatmapRequest) (resp typ
 // GetHeatmapResults queries a range of search results from the heatmap renderer.
 // It returns a types.HeatmapResponse structure containing the results (see the Entries field).
 // The fence parameter is an option geofence to apply to the results.
-func (c *Client) GetHeatmapResults(s Search, start, end uint64, fence types.Geofence) (types.HeatmapResponse, error) {
-	req := types.HeatmapRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_GET_ENTRIES,
-			EntryRange: &types.EntryRange{
-				First: start,
-				Last:  end,
-			},
-		},
-		Fence: fence,
+func (c *Client) GetHeatmapResults(s Search, first, last uint64, fence types.Geofence) (types.HeatmapResponse, error) {
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
 	}
-	return c.getHeatmapResults(s, req)
+	return c.getHeatmapResults(s, er, fence)
 }
 
 // GetHeatmapTsRange queries search results for a time range from the heatmap
@@ -873,30 +884,20 @@ func (c *Client) GetHeatmapResults(s Search, start, end uint64, fence types.Geof
 // specified.
 // The fence parameter is an option geofence to apply to the results.
 func (c *Client) GetHeatmapTsRange(s Search, start, end time.Time, first, last uint64, fence types.Geofence) (types.HeatmapResponse, error) {
-	req := types.HeatmapRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_TS_RANGE,
-			EntryRange: &types.EntryRange{
-				StartTS: entry.FromStandard(start),
-				EndTS:   entry.FromStandard(end),
-				First:   first,
-				Last:    last,
-			},
-		},
-		Fence: fence,
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
 	}
-	return c.getHeatmapResults(s, req)
+	return c.getHeatmapResults(s, er, fence)
 }
 
-func (c *Client) getP2PResults(s Search, req types.P2PRequest) (resp types.P2PResponse, err error) {
-	if s.RenderMod != types.RenderNameP2P {
-		err = fmt.Errorf("Search %v has invalid renderer type: expected point2point, saw %v", s.ID, s.RenderMod)
-		return
-	}
-
-	//TODO FIXME
-	if err = resp.Err(); err != nil {
-		return
+func (c *Client) getP2PResults(s Search, er types.EntryRange, fence types.Geofence) (resp types.P2PResponse, err error) {
+	if err = checkRender(s, types.RenderNameP2P); err == nil {
+		if err = c.getFencedRenderResults(s, er, fence, &resp); err == nil {
+			err = resp.Err()
+		}
 	}
 	return
 }
@@ -905,17 +906,13 @@ func (c *Client) getP2PResults(s Search, req types.P2PRequest) (resp types.P2PRe
 // It returns a types.P2PResponse structure containing the results (see the Entries field).
 // The fence parameter is an option geofence to apply to the results.
 func (c *Client) GetP2PResults(s Search, start, end uint64, fence types.Geofence) (types.P2PResponse, error) {
-	req := types.P2PRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_GET_ENTRIES,
-			EntryRange: &types.EntryRange{
-				First: start,
-				Last:  end,
-			},
-		},
-		Fence: fence,
+	er := types.EntryRange{
+		First:   start,
+		Last:    end,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
 	}
-	return c.getP2PResults(s, req)
+	return c.getP2PResults(s, er, fence)
 }
 
 // GetP2PTsRange queries search results for a time range from the point2point
@@ -924,19 +921,13 @@ func (c *Client) GetP2PResults(s Search, start, end uint64, fence types.Geofence
 // specified.
 // The fence parameter is an option geofence to apply to the results.
 func (c *Client) GetP2PTsRange(s Search, start, end time.Time, first, last uint64, fence types.Geofence) (types.P2PResponse, error) {
-	req := types.P2PRequest{
-		BaseRequest: types.BaseRequest{
-			ID: types.REQ_TS_RANGE,
-			EntryRange: &types.EntryRange{
-				StartTS: entry.FromStandard(start),
-				EndTS:   entry.FromStandard(end),
-				First:   first,
-				Last:    last,
-			},
-		},
-		Fence: fence,
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
 	}
-	return c.getP2PResults(s, req)
+	return c.getP2PResults(s, er, fence)
 }
 
 // GetExploreEntries takes the same arguments as GetEntries (a search + start and
