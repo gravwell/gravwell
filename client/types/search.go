@@ -340,6 +340,7 @@ type SearchMacro struct {
 	UID         int32
 	GIDs        []int32
 	Global      bool
+	WriteAccess Access
 	Name        string
 	Description string
 	Expansion   string
