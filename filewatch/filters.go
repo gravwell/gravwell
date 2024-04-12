@@ -20,7 +20,10 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
-const backupSuffix = ".backup"
+const (
+	backupSuffix     = ".backup"
+	RENAME_COUNT_MAX = 128
+)
 
 type filter struct {
 	FollowerEngineConfig
@@ -835,13 +838,16 @@ func initStateFile(p string) (fout *os.File, states map[FileName]*int64, err err
 			if _, err := os.Stat(fname); err != nil {
 				// we have to start counting
 				var count int
-				for {
+				for count < RENAME_COUNT_MAX {
 					fname = fmt.Sprintf("%v%v%d", p, backupSuffix, count)
 					if _, err := os.Stat(fname); os.IsNotExist(err) {
 						break
 					}
 					count++
 				}
+
+				// if we got here then we ran out of attempts
+				return nil, nil, fmt.Errorf("Failed to rename old state file")
 			}
 
 			if err = os.Rename(p, fname); err != nil {
