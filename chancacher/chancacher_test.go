@@ -10,6 +10,7 @@ package chancacher
 
 import (
 	"encoding/gob"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -32,6 +33,11 @@ type ChanCacheTester struct {
 
 func (t *ChanCacheTester) Size() uint64 {
 	return 1
+}
+
+func TestMain(m *testing.M) {
+	gob.Register(&ChanCacheTester{})
+	os.Exit(m.Run())
 }
 
 func TestFlock(t *testing.T) {
@@ -102,8 +108,6 @@ func TestBlockDepth(t *testing.T) {
 }
 
 func TestTearDownCache(t *testing.T) {
-	gob.Register(&ChanCacheTester{})
-
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
@@ -209,8 +213,6 @@ func TestTearDownNoCache(t *testing.T) {
 }
 
 func TestRecover(t *testing.T) {
-	gob.Register(&ChanCacheTester{})
-
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
@@ -270,8 +272,6 @@ func TestRecover(t *testing.T) {
 }
 
 func TestCommit(t *testing.T) {
-	gob.Register(&ChanCacheTester{})
-
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
@@ -307,7 +307,6 @@ func TestCommit(t *testing.T) {
 }
 
 func TestDrain(t *testing.T) {
-	gob.Register(&ChanCacheTester{})
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
@@ -330,29 +329,34 @@ func TestDrain(t *testing.T) {
 	// count the number of times we've seen each value, and expect to see a
 	// count of 1 for 0-99.
 	results := make(map[int]int)
-
-	go func() {
+	errch := make(chan error, 1)
+	go func(ec chan error) {
+		defer close(ec)
 		// now we should read everything back in order
 		for i := 0; i < 100; i++ {
 			select {
 			case v := <-c.Out:
 				if v == nil {
-					t.Error("nil result!")
+					ec <- errors.New("nil result!")
+					return
 				} else {
 					results[v.(*ChanCacheTester).V]++
 				}
 			case <-time.After(DEFAULT_TIMEOUT):
-				t.Error("channel should not block!")
-				t.FailNow()
+				ec <- errors.New("channel should not block!")
+				return
 			}
 		}
-	}()
+	}(errch)
 
 	for c.CacheHasData() {
 		time.Sleep(100 * time.Millisecond)
 	}
 	c.Drain()
 
+	if err := <-errch; err != nil {
+		t.Fatal(err)
+	}
 	// verify counts
 	for i := 0; i < 100; i++ {
 		count, ok := results[i]
@@ -365,7 +369,6 @@ func TestDrain(t *testing.T) {
 }
 
 func TestCacheStartStop(t *testing.T) {
-	gob.Register(&ChanCacheTester{})
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
@@ -432,7 +435,6 @@ func TestCacheStartStop(t *testing.T) {
 }
 
 func TestCache(t *testing.T) {
-	gob.Register(&ChanCacheTester{})
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
@@ -483,8 +485,6 @@ func TestCache(t *testing.T) {
 }
 
 func TestDetritus(t *testing.T) {
-	gob.Register(&ChanCacheTester{})
-
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
@@ -508,8 +508,6 @@ func TestDetritus(t *testing.T) {
 }
 
 func TestMerge(t *testing.T) {
-	gob.Register(&ChanCacheTester{})
-
 	staging, err := ioutil.TempDir("", "chancachertest_staging")
 	if err != nil {
 		t.Fatal(err)
@@ -641,7 +639,6 @@ func TestMerge(t *testing.T) {
 }
 
 func TestCacheHasData(t *testing.T) {
-	gob.Register(&ChanCacheTester{})
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
@@ -670,7 +667,6 @@ func TestCacheHasData(t *testing.T) {
 }
 
 func TestCacheMaxSize(t *testing.T) {
-	gob.Register(&ChanCacheTester{})
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
@@ -746,7 +742,10 @@ func TestCacheEntries(t *testing.T) {
 			if v == nil {
 				t.Error("nil result!")
 			} else {
-				ent := v.(*entry.Entry)
+				ent, ok := v.(*entry.Entry)
+				if !ok {
+					t.Fatalf("Failed to cast %T to *entry.Entry", v)
+				}
 				idx, ok := ent.GetEnumeratedValue("index")
 				if !ok {
 					t.Fatalf("Didn't get enumerated value index: %+v", ent)
@@ -830,7 +829,6 @@ func TestCacheOldEntries(t *testing.T) {
 }
 
 func TestSpam(t *testing.T) {
-	gob.Register(&ChanCacheTester{})
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
@@ -930,7 +928,6 @@ func BenchmarkBufferedLarge(b *testing.B) {
 }
 
 func BenchmarkCacheBlocked(b *testing.B) {
-	gob.Register(&ChanCacheTester{})
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		b.Fatal(err)
@@ -951,7 +948,6 @@ func BenchmarkCacheBlocked(b *testing.B) {
 }
 
 func BenchmarkCacheStreaming(b *testing.B) {
-	gob.Register(&ChanCacheTester{})
 	dir, err := ioutil.TempDir("", "chancachertest")
 	if err != nil {
 		b.Fatal(err)
