@@ -180,13 +180,6 @@ type MuxerConfig struct {
 	Attach            attach.AttachConfig
 }
 
-func init() {
-	// register cache types
-	gob.Register(&entry.EVBlock{})
-	gob.Register(&entry.Entry{})
-	gob.Register([]*entry.Entry{})
-}
-
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
 	return newUniformIngestMuxerEx(c)
 }

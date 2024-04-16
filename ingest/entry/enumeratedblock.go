@@ -167,7 +167,7 @@ func (eb *EVBlock) Append(seb EVBlock) {
 	return
 }
 
-func (eb *EVBlock) GobEncode() ([]byte, error) {
+func (eb EVBlock) GobEncode() ([]byte, error) {
 	return eb.Encode()
 }
 
