@@ -10,7 +10,6 @@ package entry
 
 import (
 	"encoding/binary"
-	"encoding/gob"
 	"errors"
 	"fmt"
 	"io"
@@ -28,10 +27,6 @@ var (
 	ErrEnumeratedValueBlockInvalidSize  = errors.New("enumerated value block is too large")
 	ErrEnumeratedValueBlockCorrupt      = errors.New("enumerated value block buffer is corrupted")
 )
-
-func init() {
-	gob.Register(EVBlock{})
-}
 
 // EVBlockHeader type expressed for documentation, defines transport header for evlocks.
 type EVBlockHeader struct {

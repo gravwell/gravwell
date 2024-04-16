@@ -11,6 +11,7 @@ package entry
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/gob"
 	"errors"
 	"io"
 	"net"
@@ -47,6 +48,12 @@ type Entry struct {
 	Tag  EntryTag
 	Data []byte
 	EVB  EVBlock
+}
+
+func init() {
+	gob.Register(EVBlock{})
+	gob.Register(Entry{})
+	gob.Register([]Entry{})
 }
 
 func (ent *Entry) Key() EntryKey {
