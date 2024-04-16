@@ -705,8 +705,6 @@ func TestCacheMaxSize(t *testing.T) {
 // TestCacheEntries verifies that we can write entries, with EVs
 // attached, and read them back out.
 func TestCacheEntries(t *testing.T) {
-	gob.Register(&entry.Entry{})
-	gob.Register(&entry.EVBlock{})
 	dir, err := os.MkdirTemp("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
@@ -775,7 +773,6 @@ func TestCacheEntries(t *testing.T) {
 // TestCacheOldEntries ensures that we can still read old entries
 // cached before the enumerated value fields were exported.
 func TestCacheOldEntries(t *testing.T) {
-	gob.Register(&entry.Entry{})
 	dir, err := os.MkdirTemp("", "chancachertest")
 	if err != nil {
 		t.Fatal(err)
