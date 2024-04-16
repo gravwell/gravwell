@@ -51,8 +51,8 @@ type Entry struct {
 }
 
 func init() {
-	gob.Register(EVBlock{})
-	gob.Register(Entry{})
+	gob.Register(&EVBlock{})
+	gob.Register(&Entry{})
 	gob.Register([]Entry{})
 	gob.Register([]*Entry{})
 }
