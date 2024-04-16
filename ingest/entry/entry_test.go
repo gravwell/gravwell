@@ -10,6 +10,7 @@ package entry
 
 import (
 	"bytes"
+	"encoding/gob"
 	"fmt"
 	"math/rand"
 	"net"
@@ -172,6 +173,43 @@ func TestEncodeDecodeEnumeratedValues(t *testing.T) {
 		t.Fatal(err)
 	} else if err = e3.Compare(e); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestGOBEncodeDecodeEnumeratedValues(t *testing.T) {
+	ts := Now()
+	e := &Entry{
+		TS:   ts,
+		Tag:  EntryTag(0x1234),
+		SRC:  net.ParseIP("DEAD::BEEF"),
+		Data: make([]byte, 0x99),
+	}
+	addAllEvs(e)
+
+	bb := bytes.NewBuffer(nil)
+	genc := gob.NewEncoder(bb)
+	//encode single entry using pointer
+	if err := genc.Encode(e); err != nil {
+		t.Fatalf("failed to gob encode single entry as pointer: %v", err)
+	} else if err = genc.Encode(*e); err != nil {
+		t.Fatalf("failed to gob encode single entry: %v", err)
+	}
+
+	var out1, out2 Entry
+	gdec := gob.NewDecoder(bb)
+	if err := gdec.Decode(&out1); err != nil {
+		t.Fatalf("failed to gob decode entry that went in as a pointer: %v", err)
+	} else if err = gdec.Decode(&out2); err != nil {
+		t.Fatalf("failed to gob decode entry: %v", err)
+	}
+
+	//check that we got things back out cleanly
+	if err := e.Compare(&out1); err != nil {
+		t.Fatalf("decoded gob entry did not come out the same: %v", err)
+	} else if e.Compare(&out2); err != nil {
+		t.Fatalf("decoded gob entry did not come out the same: %v", err)
+	} else if out1.Compare(&out2); err != nil {
+		t.Fatalf("decoded entries did not come out the same: %v", err)
 	}
 }
 
