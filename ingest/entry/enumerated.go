@@ -174,7 +174,7 @@ func (ev *EnumeratedValue) Decode(r []byte) (n int, err error) {
 	return
 }
 
-// DcodeAlt is a helper function that returns how much of the buffer we consumed
+// DecodeAlt is a helper function that returns how much of the buffer we consumed
 // this is used for decoding evblocks.
 // This function will will directly reference the underlying buffer.
 // Callers cannot re-use the buffer if the enumerated values are enumerated values are in use.
