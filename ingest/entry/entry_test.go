@@ -213,6 +213,44 @@ func TestGOBEncodeDecodeEnumeratedValues(t *testing.T) {
 	}
 }
 
+func TestGOBEncodeDecodeEnumeratedValueSlices(t *testing.T) {
+	ts := Now()
+	ents := make([]Entry, 128)
+	for i := range ents {
+		e := Entry{
+			TS:   ts,
+			Tag:  EntryTag(0x1234),
+			SRC:  net.ParseIP("DEAD::BEEF"),
+			Data: make([]byte, 0x99),
+		}
+		addAllEvs(&e)
+		ents[i] = e
+	}
+
+	bb := bytes.NewBuffer(nil)
+	genc := gob.NewEncoder(bb)
+	//encode single entry using pointer
+	if err := genc.Encode(ents); err != nil {
+		t.Fatalf("failed to gob encode slice of entries: %v", err)
+	}
+
+	var out []Entry
+	gdec := gob.NewDecoder(bb)
+	if err := gdec.Decode(&out); err != nil {
+		t.Fatalf("failed to gob decode slice of entries: %v", err)
+	}
+
+	if len(ents) != len(out) {
+		t.Fatalf("decoded len is wrong: %d != %d", len(ents), len(out))
+	}
+	for i := range ents {
+		//check that we got things back out cleanly
+		if err := ents[i].Compare(&out[i]); err != nil {
+			t.Fatalf("decoded gob entry #%d did not come out the same: %v", i, err)
+		}
+	}
+}
+
 func BenchmarkDecode(b *testing.B) {
 	b.StopTimer()
 	bts := make([]byte, ENTRY_HEADER_SIZE+1024)
