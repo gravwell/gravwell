@@ -54,6 +54,7 @@ func init() {
 	gob.Register(EVBlock{})
 	gob.Register(Entry{})
 	gob.Register([]Entry{})
+	gob.Register([]*Entry{})
 }
 
 func (ent *Entry) Key() EntryKey {
