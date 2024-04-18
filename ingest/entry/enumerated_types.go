@@ -425,11 +425,11 @@ func (ev EnumeratedData) String() string {
 		return ``
 	case typeInt8:
 		if len(ev.data) == 1 {
-			return strconv.FormatInt(int64(ev.data[0]), 10)
+			return strconv.FormatInt(int64(int8(ev.data[0])), 10)
 		}
 	case typeInt16:
 		if len(ev.data) == 2 {
-			return strconv.FormatInt(int64(binary.LittleEndian.Uint16(ev.data)), 10)
+			return strconv.FormatInt(int64(int16(binary.LittleEndian.Uint16(ev.data))), 10)
 		}
 	case typeUint16:
 		if len(ev.data) == 2 {
@@ -437,7 +437,7 @@ func (ev EnumeratedData) String() string {
 		}
 	case typeInt32:
 		if len(ev.data) == 4 {
-			return strconv.FormatInt(int64(binary.LittleEndian.Uint32(ev.data)), 10)
+			return strconv.FormatInt(int64(int32(binary.LittleEndian.Uint32(ev.data))), 10)
 		}
 	case typeUint32:
 		if len(ev.data) == 4 {
