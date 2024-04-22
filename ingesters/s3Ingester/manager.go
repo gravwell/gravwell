@@ -133,14 +133,12 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 					Key: aws.String(x),
 				}
 
-				if obj.Size == 0 {
+				if obj != nil && obj.Size != nil && *obj.Size == int64(0) {
 					// don't even bother fetching it, just delete and move on
 					lg.Info("skipping zero-byte object",
 						log.KV("worker", workerID),
 						log.KV("bucket", buckets[i]),
-						log.KV("key", x),
-						log.KV("s3-rtt", s3rtt),
-						log.KV("rtt", rtt))
+						log.KV("key", x))
 					continue
 				}
 
