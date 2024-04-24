@@ -146,6 +146,12 @@ func (c *Client) ScheduledSearchCheckin(cfg types.SearchAgentConfig) error {
 	return c.putStaticURL(scheduledSearchCheckinUrl(), cfg)
 }
 
+// GetSearchAgentCheckin finds out when the most recent searchagent checkin was.
+func (c *Client) GetSearchAgentCheckin() (ci types.SearchAgentCheckin, err error) {
+	err = c.getStaticURL(scheduledSearchCheckinUrl(), &ci)
+	return
+}
+
 // ClearScheduledSearchError clears the error field on the specified scheduled search.
 func (c *Client) ClearScheduledSearchError(id int32) error {
 	return c.deleteStaticURL(scheduledSearchErrorIdUrl(id), nil)
