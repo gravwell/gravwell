@@ -9,6 +9,7 @@
 package client
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
@@ -63,41 +64,81 @@ func (c *Client) PopulateResource(guid string, data []byte) error {
 	return c.PopulateResourceFromReader(guid, bytes.NewReader(data))
 }
 
+type mpWriter struct {
+	*multipart.Writer
+	bio *bufio.Writer
+	pw  *io.PipeWriter
+}
+
+func newMpWriter(w *io.PipeWriter) *mpWriter {
+	bio := bufio.NewWriter(w)
+	mp := multipart.NewWriter(bio)
+	return &mpWriter{
+		Writer: mp,
+		bio:    bio,
+		pw:     w,
+	}
+}
+
+func (mpw *mpWriter) Close() (err error) {
+	if err = mpw.Writer.Close(); err == nil {
+		if err = mpw.bio.Flush(); err == nil {
+			err = mpw.pw.Close()
+		} else {
+			mpw.pw.CloseWithError(err)
+		}
+	} else {
+		mpw.pw.CloseWithError(err)
+	}
+	return
+}
+
 // PopulateResourceFromReader updates the contents of the specified resource using
 // data read from an io.Reader rather than a slice of bytes.
 func (c *Client) PopulateResourceFromReader(guid string, data io.Reader) (err error) {
 	var part io.Writer
 	var resp *http.Response
 
-	bb := new(bytes.Buffer)
-	wtr := multipart.NewWriter(bb)
+	//get a pipe rolling with something that always closes it
+	rdr, wtr := io.Pipe()
+	defer wtr.Close()
+	defer rdr.Close()
 
+	mpw := newMpWriter(wtr)
 	//write the file portion (the name is ignored)
-	if part, err = wtr.CreateFormFile(userFileField, `file`); err != nil {
-		return
-	} else if _, err = io.Copy(part, data); err != nil {
+	if part, err = mpw.CreateFormFile(userFileField, `file`); err != nil {
 		return
 	}
-	if err = wtr.Close(); err != nil {
-		return
-	}
-	resp, err = c.methodRequestURL(http.MethodPut, resourcesGuidRawUrl(guid), wtr.FormDataContentType(), bb)
+	contentType := mpw.FormDataContentType()
+
+	go func() {
+		//perform the copy, any read errors are shoved into the writer so the reader gets them too
+		if _, lerr := io.Copy(part, data); lerr != nil {
+			wtr.CloseWithError(lerr)
+		}
+
+		if lerr := mpw.Close(); lerr != nil {
+			wtr.CloseWithError(lerr)
+		}
+	}()
+
+	resp, err = c.methodRequestURL(http.MethodPut, resourcesGuidRawUrl(guid), contentType, rdr)
 	if err != nil {
-		return
+		return err
 	}
 	defer drainResponse(resp)
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		c.state = STATE_LOGGED_OFF
-		return ErrNotAuthed
-	}
-	if resp.StatusCode != http.StatusOK {
+		err = ErrNotAuthed
+	} else if resp.StatusCode != http.StatusOK {
 		if s := getBodyErr(resp.Body); len(s) > 0 {
 			err = errors.New(s)
 		} else {
 			err = fmt.Errorf("Bad Status %s(%d)", resp.Status, resp.StatusCode)
 		}
 	}
+
 	return
 }
 
