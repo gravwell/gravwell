@@ -835,7 +835,7 @@ func initStateFile(p string) (fout *os.File, states map[FileName]*int64, err err
 
 			// find a suitable backup filename
 			fname := p + backupSuffix
-			if _, err := os.Stat(fname); err != nil {
+			if _, err := os.Stat(fname); !os.IsNotExist(err) {
 				// we have to start counting
 				var count int
 				for count < RENAME_COUNT_MAX {
@@ -846,8 +846,10 @@ func initStateFile(p string) (fout *os.File, states map[FileName]*int64, err err
 					count++
 				}
 
-				// if we got here then we ran out of attempts
-				return nil, nil, fmt.Errorf("Failed to rename old state file")
+				if count == RENAME_COUNT_MAX {
+					// if we got here then we ran out of attempts
+					return nil, nil, fmt.Errorf("Failed to rename old state file")
+				}
 			}
 
 			if err = os.Rename(p, fname); err != nil {
