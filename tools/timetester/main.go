@@ -23,6 +23,7 @@ var (
 	lms            = flag.Bool("enable-left-most-seed", false, "Activate EnableLeftMostSeed config option")
 	fo             = flag.String("format-override", "", "Enable FormatOverride config option")
 	lt             = flag.Bool("assume-local-timezone", true, "Assume local timezone on timegrinder")
+	metrics        = flag.Bool("metrics", false, "Output metrics about captures")
 )
 
 type customFormats struct {
@@ -75,8 +76,10 @@ func main() {
 			outputNoMatch(arg)
 		} else {
 			outputMatch(arg, name, ts, start, end)
+			if *metrics {
+				checkPerformance(tg, []byte(arg))
+			}
 		}
-
 	}
 }
 
@@ -104,3 +107,28 @@ const (
 	Yellow = "\033[33m"
 	Blue   = "\033[34m"
 )
+
+func checkPerformance(tg *timegrinder.TimeGrinder, v []byte) {
+	tg.Reset()
+	ts := time.Now()
+	_, ok, err := tg.Extract(v)
+	dur := time.Since(ts)
+	if err != nil || !ok {
+		fmt.Println("failed match on metrics")
+		return
+	}
+
+	ts = time.Now()
+	for i := 0; i < 1000; i++ {
+		if _, ok, err = tg.Extract(v); err != nil || !ok {
+			break
+		}
+	}
+	dur2 := time.Since(ts)
+	if err != nil || !ok {
+		fmt.Println("failed match on metrics")
+		return
+	}
+	fmt.Printf("Initial Match: %s%v%s\n", Green, dur, Reset)       //print the log with the highlight
+	fmt.Printf("Average Match: %s%v%s\n", Green, dur2/1000, Reset) //print the log with the highlight
+}
