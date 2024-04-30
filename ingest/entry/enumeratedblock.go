@@ -167,7 +167,7 @@ func (eb *EVBlock) Append(seb EVBlock) {
 	return
 }
 
-func (eb *EVBlock) GobEncode() ([]byte, error) {
+func (eb EVBlock) GobEncode() ([]byte, error) {
 	return eb.Encode()
 }
 
@@ -285,7 +285,7 @@ func (eb *EVBlock) GobDecode(b []byte) error {
 func (eb *EVBlock) Decode(b []byte) (int, error) {
 	eb.size = 0
 	if eb.evs != nil {
-		eb.evs = eb.evs[0:0]
+		eb.evs = nil
 	}
 
 	// If they have passed us a zero-byte buffer, there just weren't any EVs attached to the entry
@@ -309,6 +309,7 @@ func (eb *EVBlock) Decode(b []byte) (int, error) {
 	//advance past the header on the buffer so we can iterate
 	total := int(EVBlockHeaderLen)
 	b = b[EVBlockHeaderLen:]
+	eb.evs = make([]EnumeratedValue, 0, h.Count)
 	for i := uint16(0); i < h.Count; i++ {
 		var ev EnumeratedValue
 		if n, err := ev.Decode(b); err != nil {
@@ -336,7 +337,7 @@ func (eb *EVBlock) Decode(b []byte) (int, error) {
 func (eb *EVBlock) DecodeAlt(b []byte) (int, error) {
 	eb.size = 0
 	if eb.evs != nil {
-		eb.evs = eb.evs[0:0]
+		eb.evs = nil
 	}
 
 	//check if the buffer is big enough for the header
@@ -353,6 +354,7 @@ func (eb *EVBlock) DecodeAlt(b []byte) (int, error) {
 	//advance past the header on the buffer so we can iterate
 	total := int(EVBlockHeaderLen)
 	b = b[EVBlockHeaderLen:]
+	eb.evs = make([]EnumeratedValue, 0, h.Count)
 	for i := uint16(0); i < h.Count; i++ {
 		var ev EnumeratedValue
 		if n, err := ev.DecodeAlt(b); err != nil {
@@ -380,7 +382,7 @@ func (eb *EVBlock) DecodeReader(r io.Reader) (int, error) {
 	var err error
 	eb.size = 0
 	if eb.evs != nil {
-		eb.evs = eb.evs[0:0]
+		eb.evs = nil
 	}
 
 	//get the header and check it
@@ -392,8 +394,8 @@ func (eb *EVBlock) DecodeReader(r io.Reader) (int, error) {
 	if h, err = DecodeEVBlockHeader(buff); err != nil {
 		return -1, err
 	}
-
 	total := int(EVBlockHeaderLen)
+	eb.evs = make([]EnumeratedValue, 0, h.Count)
 	for i := uint16(0); i < h.Count; i++ {
 		var ev EnumeratedValue
 		var n int

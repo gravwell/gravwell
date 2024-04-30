@@ -132,6 +132,16 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 				obj := &s3.Object{
 					Key: aws.String(x),
 				}
+
+				if obj != nil && obj.Size != nil && *obj.Size == int64(0) {
+					// don't even bother fetching it, just delete and move on
+					lg.Info("skipping zero-byte object",
+						log.KV("worker", workerID),
+						log.KV("bucket", buckets[i]),
+						log.KV("key", x))
+					continue
+				}
+
 				sz, s3rtt, rtt, err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
 				if err != nil {
 					shouldDelete = false

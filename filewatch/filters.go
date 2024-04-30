@@ -20,6 +20,11 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
+const (
+	backupSuffix     = ".backup"
+	RENAME_COUNT_MAX = 128
+)
+
 type filter struct {
 	FollowerEngineConfig
 	bname string //name given to the config file
@@ -824,8 +829,36 @@ func initStateFile(p string) (fout *os.File, states map[FileName]*int64, err err
 	}
 	if fi.Size() > 0 {
 		if err = gob.NewDecoder(fout).Decode(&states); err != nil {
-			err = fmt.Errorf("Failed to load existing states: %v", err)
-			return
+			// hold onto the decode error in case we can't get to a backup
+			serr := err
+			fout.Close()
+
+			// find a suitable backup filename
+			fname := p + backupSuffix
+			if _, err := os.Stat(fname); !os.IsNotExist(err) {
+				// we have to start counting
+				var count int
+				for count < RENAME_COUNT_MAX {
+					fname = fmt.Sprintf("%v%v%d", p, backupSuffix, count)
+					if _, err := os.Stat(fname); os.IsNotExist(err) {
+						break
+					}
+					count++
+				}
+
+				if count == RENAME_COUNT_MAX {
+					// if we got here then we ran out of attempts
+					return nil, nil, fmt.Errorf("Failed to rename old state file")
+				}
+			}
+
+			if err = os.Rename(p, fname); err != nil {
+				err = fmt.Errorf("Failed to load existing states: %w, %w", err, serr)
+				return
+			}
+
+			// success!
+			return initStateFile(p)
 		}
 	}
 	return

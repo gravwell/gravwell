@@ -280,6 +280,13 @@ type SearchAgentConfig struct {
 	HTTP_Proxy                       string
 }
 
+type SearchAgentCheckin struct {
+	LastCheckin     string
+	Warning         bool
+	SearchAgentUUID string
+	SearchAgentIP   string
+}
+
 type emptyInts []int32
 
 func (ei emptyInts) MarshalJSON() ([]byte, error) {
