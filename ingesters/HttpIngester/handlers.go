@@ -198,7 +198,10 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 
 	//check if its just a health check
 	if h.healthCheckURL == rt.uri && rt.method == http.MethodGet {
-		//just return, this is an implied 200
+		if h.igst.WillBlock() {
+			w.WriteHeader(http.StatusInsufficientStorage)
+		}
+		//just return, this is an implied 200 or we already wrote the insufficient storage response
 		return
 	}
 
