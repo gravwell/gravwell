@@ -23,6 +23,8 @@ const (
 	// API paths
 	LOGIN_URL                        = `/api/login`
 	LOGOUT_URL                       = `/api/logout`
+	MFA_LOGIN_URL                    = `/api/mfa/login`
+	MFA_TOTP_SETUP_URL               = `/api/mfa/totp/setup`
 	TEMP_TOKEN_URL                   = `/api/login/tmptoken`
 	REFRESH_TOKEN_URL                = `/api/login/refreshtoken`
 	USER_INFO_URL                    = `/api/info/whoami`
@@ -648,4 +650,12 @@ func alertsValidateDispatcherUrl() string {
 
 func alertsValidateConsumerUrl() string {
 	return ALERTS_VALIDATE_CONSUMER_URL
+}
+
+func totpSetupUrl() string {
+	return MFA_TOTP_SETUP_URL
+}
+
+func mfaLoginUrl() string {
+	return MFA_LOGIN_URL
 }

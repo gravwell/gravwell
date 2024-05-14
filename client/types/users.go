@@ -15,6 +15,8 @@ import (
 	"net"
 	"time"
 
+	"crypto/rand"
+	"fmt"
 	"github.com/google/uuid"
 )
 
@@ -107,9 +109,55 @@ type UserDetails struct {
 	TS         time.Time `json:",omitempty"`
 	DefaultGID int32     `json:",omitempty"`
 	Groups     []GroupDetails
-	Hash       []byte `json:"-"` //do not include in API responses
+	MFA        MFAUserConfig `json:"-"` // do not include in API responses
+	Hash       []byte        `json:"-"` //do not include in API responses
 	Synced     bool
 	CBAC       CBACRules `json:"-"` //do not include in API responses
+}
+
+type MFAUserConfig struct {
+	TOTP          TOTPUserConfig
+	RecoveryCodes RecoveryCodes
+}
+
+// MFAEnabled returns true if *any* MFA option is configured
+func (c *MFAUserConfig) MFAEnabled() bool {
+	return c.TOTP.Enabled || len(c.RecoveryCodes.Codes) > 0
+}
+
+// MFATypesEnabled gives a list of the types of MFA the user has set up.
+func (c *MFAUserConfig) MFATypesEnabled() (r []AuthType) {
+	if c.TOTP.Enabled {
+		r = append(r, AUTH_TYPE_TOTP)
+	}
+	if len(c.RecoveryCodes.Codes) > 0 {
+		r = append(r, AUTH_TYPE_RECOVERY)
+	}
+	return
+}
+
+type TOTPUserConfig struct {
+	Enabled bool
+	URL     string // A TOTP URL contains all details in one place
+	Seed    string // The secret key
+}
+
+type RecoveryCodes struct {
+	Codes     []string
+	Generated time.Time
+}
+
+func GenerateRecoveryCodes(count int) (RecoveryCodes, error) {
+	var r RecoveryCodes
+	for i := 0; i < count; i++ {
+		b := make([]byte, 6)
+		if _, err := rand.Read(b); err != nil {
+			return r, err
+		}
+		r.Codes = append(r.Codes, fmt.Sprintf("%x", b))
+	}
+	r.Generated = time.Now()
+	return r, nil
 }
 
 type GroupDetails struct {
