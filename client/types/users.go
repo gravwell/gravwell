@@ -136,6 +136,14 @@ func (c *MFAUserConfig) MFATypesEnabled() (r []AuthType) {
 	return
 }
 
+// ClearSecrets blanks out any sensitive stuff within the config.
+// Call this if there's any concern over where the object will end up.
+func (c *MFAUserConfig) ClearSecrets() {
+	c.TOTP.URL = ""
+	c.TOTP.Seed = ""
+	c.RecoveryCodes.Codes = []string{}
+}
+
 type TOTPUserConfig struct {
 	Enabled bool
 	URL     string `json:"-"` // A TOTP URL contains all details in one place
@@ -345,6 +353,13 @@ func (ud *UserDetails) GroupTagAccess() (r []TagAccess) {
 		r = append(r, ud.Groups[i].CBAC.Tags)
 	}
 	return
+}
+
+// ClearSecrets blanks out any sensitive stuff within the struct.
+// Call this if there's any concern over where the object will end up.
+func (ud *UserDetails) ClearSecrets() {
+	ud.Hash = []byte{}
+	ud.MFA.ClearSecrets()
 }
 
 func (ups UserPreferences) MarshalJSON() ([]byte, error) {
