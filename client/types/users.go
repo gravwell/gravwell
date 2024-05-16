@@ -122,7 +122,7 @@ type MFAUserConfig struct {
 
 // MFAEnabled returns true if *any* MFA option is configured
 func (c *MFAUserConfig) MFAEnabled() bool {
-	return c.TOTP.Enabled || len(c.RecoveryCodes.Codes) > 0
+	return len(c.MFATypesEnabled()) > 0
 }
 
 // MFATypesEnabled gives a list of the types of MFA the user has set up.
@@ -130,7 +130,7 @@ func (c *MFAUserConfig) MFATypesEnabled() (r []AuthType) {
 	if c.TOTP.Enabled {
 		r = append(r, AUTH_TYPE_TOTP)
 	}
-	if len(c.RecoveryCodes.Codes) > 0 {
+	if c.RecoveryCodes.Enabled {
 		r = append(r, AUTH_TYPE_RECOVERY)
 	}
 	return
@@ -155,6 +155,13 @@ type RecoveryCodes struct {
 	Codes     []string `json:"-"`
 	Remaining int      // how many codes are left
 	Generated time.Time
+}
+
+// MFAInfo describes system-wide MFA policies as well as the user's
+// own MFA configuration.
+type MFAInfo struct {
+	UserConfig  MFAUserConfig
+	MFARequired bool // If true, system requires MFA
 }
 
 func GenerateRecoveryCodes(count int) (RecoveryCodes, error) {
