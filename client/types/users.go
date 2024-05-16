@@ -109,8 +109,8 @@ type UserDetails struct {
 	TS         time.Time `json:",omitempty"`
 	DefaultGID int32     `json:",omitempty"`
 	Groups     []GroupDetails
-	MFA        MFAUserConfig `json:"-"` // do not include in API responses
-	Hash       []byte        `json:"-"` //do not include in API responses
+	MFA        MFAUserConfig
+	Hash       []byte `json:"-"` //do not include in API responses
 	Synced     bool
 	CBAC       CBACRules `json:"-"` //do not include in API responses
 }
@@ -136,19 +136,33 @@ func (c *MFAUserConfig) MFATypesEnabled() (r []AuthType) {
 	return
 }
 
+// ClearSecrets blanks out any sensitive stuff within the config.
+// Call this if there's any concern over where the object will end up.
+func (c *MFAUserConfig) ClearSecrets() {
+	c.TOTP.URL = ""
+	c.TOTP.Seed = ""
+	c.RecoveryCodes.Codes = []string{}
+}
+
 type TOTPUserConfig struct {
 	Enabled bool
-	URL     string // A TOTP URL contains all details in one place
-	Seed    string // The secret key
+	URL     string `json:"-"` // A TOTP URL contains all details in one place
+	Seed    string `json:"-"` // The secret key
 }
 
 type RecoveryCodes struct {
-	Codes     []string
+	Enabled   bool
+	Codes     []string `json:"-"`
+	Remaining int      // how many codes are left
 	Generated time.Time
 }
 
 func GenerateRecoveryCodes(count int) (RecoveryCodes, error) {
-	var r RecoveryCodes
+	r := RecoveryCodes{
+		Enabled:   true,
+		Remaining: count,
+		Generated: time.Now(),
+	}
 	for i := 0; i < count; i++ {
 		b := make([]byte, 6)
 		if _, err := rand.Read(b); err != nil {
@@ -156,7 +170,6 @@ func GenerateRecoveryCodes(count int) (RecoveryCodes, error) {
 		}
 		r.Codes = append(r.Codes, fmt.Sprintf("%x", b))
 	}
-	r.Generated = time.Now()
 	return r, nil
 }
 
@@ -340,6 +353,13 @@ func (ud *UserDetails) GroupTagAccess() (r []TagAccess) {
 		r = append(r, ud.Groups[i].CBAC.Tags)
 	}
 	return
+}
+
+// ClearSecrets blanks out any sensitive stuff within the struct.
+// Call this if there's any concern over where the object will end up.
+func (ud *UserDetails) ClearSecrets() {
+	ud.Hash = []byte{}
+	ud.MFA.ClearSecrets()
 }
 
 func (ups UserPreferences) MarshalJSON() ([]byte, error) {
