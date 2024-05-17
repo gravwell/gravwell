@@ -12,7 +12,6 @@ User=gravwell
 Group=gravwell
 LimitNPROC=infinity
 LimitNOFILE=infinity
-PIDFile=/var/run/gravwell_network_capture.pid
 TimeoutStopSec=5
 KillMode=process
 KillSignal=SIGINT
