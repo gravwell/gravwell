@@ -24,7 +24,7 @@ const (
 	LOGIN_URL                        = `/api/login`
 	LOGOUT_URL                       = `/api/logout`
 	MFA_URL                          = `/api/mfa`
-	MFA_LOGIN_URL                    = `/api/mfa/login`
+	MFA_LOGIN_URL                    = `/api/login/mfa`
 	MFA_TOTP_SETUP_URL               = `/api/mfa/totp/setup`
 	MFA_TOTP_CLEAR_URL               = `/api/mfa/totp/clear`
 	TEMP_TOKEN_URL                   = `/api/login/tmptoken`
