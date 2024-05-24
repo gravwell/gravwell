@@ -492,7 +492,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 			st.Add(splunkStateType, status)
 		}
 
-		updateChan <- fmt.Sprintf("Migrated %d entries [%v EPS/%v] up to %v", count, count/uint64(elapsed.Seconds()), ingest.HumanRate(byteTotal, elapsed), progress.ConsumedUpTo)
+		updateChan <- fmt.Sprintf("Migrated %d entries [%v/%v] up to %v", count, ingest.HumanEntryRate(count, elapsed), ingest.HumanRate(byteTotal, elapsed), progress.ConsumedUpTo)
 	}
 	lg.Info("job completed", log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag), log.KV("start", progress.ConsumedUpTo))
 	return nil
