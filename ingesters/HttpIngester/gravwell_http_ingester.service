@@ -17,7 +17,6 @@ StandardOutput=null
 StandardError=journal
 LimitNPROC=infinity
 LimitNOFILE=infinity
-PIDFile=/var/run/gravwell_http_ingester.pid
 TimeoutStopSec=60
 KillMode=process
 KillSignal=SIGINT
