@@ -1,7 +1,10 @@
 package client
 
-import "github.com/gravwell/gravwell/v3/client/types"
-import "net/http"
+import (
+	"github.com/gravwell/gravwell/v3/client/types"
+	"net/http"
+	"time"
+)
 
 // GetTOTPSetup requests the parameters necessary for configuring TOTP on an
 // account which does not yet have any MFA configured.
@@ -60,4 +63,26 @@ func (c *Client) GetMFAInfo() (resp types.MFAInfo, err error) {
 // login.
 func (c *Client) AdminClearUserMFA(uid int32) error {
 	return c.methodStaticParamURL(http.MethodDelete, clearUserMFAUrl(uid), nil, nil)
+}
+
+// GenerateRecoveryCodes regenerates the user's recovery codes.
+func (c *Client) GenerateRecoveryCodes(user, pass string, authtype types.AuthType, code string) (codes types.RecoveryCodes, err error) {
+	rq := types.MFAAuthRequest{
+		User:     user,
+		Pass:     pass,
+		AuthType: authtype,
+		AuthCode: code,
+	}
+	// We have to do a little dance here because to be extra safe,
+	// we've specified that types.RecoveryCodes should ignore the
+	// Codes field when doing JSON encoding/decoding.
+	var resp struct {
+		Enabled   bool
+		Codes     []string
+		Remaining int
+		Generated time.Time
+	}
+	err = c.methodStaticPushURL(http.MethodPost, mfaGenerateRecoveryCodesUrl(), rq, &resp)
+	codes = types.RecoveryCodes{resp.Enabled, resp.Codes, resp.Remaining, resp.Generated}
+	return
 }

@@ -27,6 +27,7 @@ const (
 	MFA_LOGIN_URL                    = `/api/login/mfa`
 	MFA_TOTP_SETUP_URL               = `/api/mfa/totp/setup`
 	MFA_TOTP_CLEAR_URL               = `/api/mfa/totp/clear`
+	MFA_RECOVERY_GENERATE_PATH       = "/api/mfa/recoverycodes/generate"
 	TEMP_TOKEN_URL                   = `/api/login/tmptoken`
 	REFRESH_TOKEN_URL                = `/api/login/refreshtoken`
 	USER_INFO_URL                    = `/api/info/whoami`
@@ -673,4 +674,8 @@ func mfaUrl() string {
 
 func clearUserMFAUrl(uid int32) string {
 	return fmt.Sprintf(USERS_MFA_CLEAR_URL, uid)
+}
+
+func mfaGenerateRecoveryCodesUrl() string {
+	return MFA_RECOVERY_GENERATE_PATH
 }

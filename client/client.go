@@ -67,7 +67,7 @@ type Client struct {
 	clnt         *http.Client
 	timeout      time.Duration
 	mtx          *sync.Mutex
-	state        clientState
+	state        ClientState
 	lastNotifId  uint64
 	enforceCert  bool
 	sessionData  ActiveSession
@@ -506,6 +506,11 @@ func (c *Client) processLoginResponse(loginResp types.LoginResponse) error {
 		return errors.New("Failed to retrieve JWT")
 	}
 	return c.importLoginToken(loginResp.JWT)
+}
+
+// State returns the current, enumerated status of the client
+func (c *Client) State() ClientState {
+	return c.state
 }
 
 // Logout terminates the current session on the server.
