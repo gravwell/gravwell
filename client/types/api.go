@@ -23,6 +23,7 @@ const (
 	API_VERSION_MAJOR uint32 = 0
 	API_VERSION_MINOR uint32 = 2
 
+	AUTH_TYPE_NONE     AuthType = `None` // for when you don't have MFA set up at all yet.
 	AUTH_TYPE_TOTP     AuthType = `TOTP`
 	AUTH_TYPE_RECOVERY AuthType = `RecoveryCodes`
 )

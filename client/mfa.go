@@ -6,12 +6,23 @@ import (
 	"time"
 )
 
-// GetTOTPSetup requests the parameters necessary for configuring TOTP on an
-// account which does not yet have any MFA configured.
+// GetTOTPSetup requests the parameters necessary for configuring
+// TOTP when the user does not have any MFA set up at all.
 func (c *Client) GetTOTPSetup(user, pass string) (types.MFATOTPSetupResponse, error) {
+	return c.GetTOTPSetupEx(user, pass, types.AUTH_TYPE_NONE, "")
+}
+
+// GetTOTPSetupEx requests the parameters necessary for configuring
+// TOTP. If any form of MFA is already configured for that account, a
+// valid authtype and MFA code must be specified in addition to
+// username and password. If MFA is not set up, "AUTH_TYPE_NONE" may
+// be passed along with an empty code.
+func (c *Client) GetTOTPSetupEx(user, pass string, authtype types.AuthType, code string) (types.MFATOTPSetupResponse, error) {
 	rq := types.MFAAuthRequest{
-		User: user,
-		Pass: pass,
+		User:     user,
+		Pass:     pass,
+		AuthType: authtype,
+		AuthCode: code,
 	}
 	var resp types.MFATOTPSetupResponse
 	err := c.postStaticURL(totpSetupUrl(), rq, &resp)
@@ -40,11 +51,11 @@ func (c *Client) TOTPLogin(user, pass, code string) (types.LoginResponse, error)
 
 // TOTPClear deletes the user's TOTP setup.
 // Note that this may return an error if another MFA method is not configured.
-func (c *Client) TOTPClear(user, pass, code string) error {
+func (c *Client) TOTPClear(user, pass string, authtype types.AuthType, code string) error {
 	rq := types.MFAAuthRequest{
 		User:     user,
 		Pass:     pass,
-		AuthType: types.AUTH_TYPE_TOTP,
+		AuthType: authtype,
 		AuthCode: code,
 	}
 	err := c.methodStaticPushURL(http.MethodPost, totpClearUrl(), rq, nil)
