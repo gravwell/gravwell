@@ -10,9 +10,12 @@ package log
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
+	stdliblog "log"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -486,6 +489,21 @@ func (l *Logger) outputStructured(depth int, lvl Level, msg string, sds ...rfc54
 	return l.writeOutput(lvl, ts, ln, msg)
 }
 
+func (l *Logger) outputStructuredManualPtr(ptr uintptr, lvl Level, msg string, sds ...rfc5424.SDParam) (err error) {
+	if l.lvl == OFF || lvl < l.lvl {
+		return
+	}
+	ts := time.Now()
+	var ln string
+	if l.raw {
+		msg = renderMsgRaw(msg, sds...)
+		ln = l.genRawOutput(ts, CallLocFromPointer(ptr), lvl, msg)
+	} else {
+		ln, msg = l.genRfcOutput(ts, CallLocFromPointer(ptr), lvl, msg, sds...)
+	}
+	return l.writeOutput(lvl, ts, ln, msg)
+}
+
 func (l *Logger) writeOutput(lvl Level, ts time.Time, ln, msg string) (err error) {
 	l.mtx.Lock()
 	if err = l.ready(); err == nil {
@@ -544,6 +562,95 @@ func (l *Logger) genRfcOutput(ts time.Time, pfx string, lvl Level, msg string, s
 		ln = string(bytes.Trim(b, "\n\r\t"))
 	}
 	return
+}
+
+func (l *Logger) StandardLogger() *stdliblog.Logger {
+	var lvl slog.Level
+	switch l.lvl {
+	case OFF:
+		lvl = -10 //basically off
+	case DEBUG:
+		lvl = slog.LevelDebug
+	case INFO:
+		lvl = slog.LevelInfo
+	case WARN:
+		lvl = slog.LevelWarn
+	case ERROR:
+		lvl = slog.LevelError
+	case CRITICAL:
+		lvl = slog.LevelError + 1
+	case FATAL:
+		lvl = slog.LevelError + 2
+	}
+	return slog.NewLogLogger(l, lvl)
+}
+
+// slog.Handler functions so that we can pass our Logger directly into a slog.NewLogLogger
+func (l *Logger) Enabled(ctx context.Context, lvl slog.Level) bool {
+	switch lvl {
+	case slog.LevelDebug:
+		return l.lvl == DEBUG
+	case slog.LevelInfo:
+		return (l.lvl > OFF && l.lvl <= INFO)
+	case slog.LevelWarn:
+		return (l.lvl > OFF && l.lvl <= WARN)
+	case slog.LevelError:
+		return (l.lvl > OFF && l.lvl <= ERROR)
+	}
+	return false
+}
+
+// this function doesn't really apply to our RFC5424 logger, so just return ourselves
+func (l *Logger) WithGroup(name string) slog.Handler {
+	return l
+}
+
+func convertAttr(attrs []slog.Attr) (sds []rfc5424.SDParam) {
+	if len(attrs) > 0 {
+		sds = make([]rfc5424.SDParam, len(attrs))
+		for i, v := range attrs {
+			sds[i] = rfc5424.SDParam{
+				Name:  v.Key,
+				Value: v.Value.String(),
+			}
+		}
+	}
+	return
+}
+
+func buildAttr(r slog.Record) (sds []rfc5424.SDParam) {
+	if n := r.NumAttrs(); n > 0 {
+		sds = make([]rfc5424.SDParam, 0, n)
+		r.Attrs(func(a slog.Attr) bool {
+			sds = append(sds, rfc5424.SDParam{Name: a.Key, Value: a.Value.String()})
+			return true
+		})
+	}
+	return
+}
+
+func (l *Logger) WithAttrs(attrs []slog.Attr) slog.Handler {
+	if len(attrs) > 0 {
+		return NewLoggerWithKV(l, convertAttr(attrs)...)
+	}
+	return l
+}
+
+func (l *Logger) Handle(ctx context.Context, r slog.Record) error {
+	if l.Enabled(ctx, r.Level) == false {
+		return nil
+	}
+	switch r.Level {
+	case slog.LevelDebug:
+		return l.outputStructuredManualPtr(r.PC, DEBUG, r.Message, buildAttr(r)...)
+	case slog.LevelInfo:
+		return l.outputStructuredManualPtr(r.PC, INFO, r.Message, buildAttr(r)...)
+	case slog.LevelWarn:
+		return l.outputStructuredManualPtr(r.PC, WARN, r.Message, buildAttr(r)...)
+	case slog.LevelError:
+		return l.outputStructuredManualPtr(r.PC, ERROR, r.Message, buildAttr(r)...)
+	}
+	return nil
 }
 
 // Per RFC5424 https://www.rfc-editor.org/rfc/rfc5424.html#section-6.2.7
@@ -708,6 +815,18 @@ func CallLoc(callDepth int) (s string) {
 		dir, file := filepath.Split(file)
 		file = filepath.Join(filepath.Base(dir), file)
 		s = fmt.Sprintf("%s:%d", file, line)
+	}
+	return
+}
+
+func CallLocFromPointer(ptr uintptr) (s string) {
+	if ptr == 0 {
+		return
+	}
+	if frames := runtime.CallersFrames([]uintptr{ptr}); frames != nil {
+		if frame, ok := frames.Next(); ok {
+			s = fmt.Sprintf("%s:%d", frame.File, frame.Line)
+		}
 	}
 	return
 }
