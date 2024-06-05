@@ -167,12 +167,18 @@ func main() {
 	if err = includeAFHListeners(hnd, igst, cfg, lg); err != nil {
 		lg.Fatal("failed to include Amazon Firehose Listeners", log.KVErr(err))
 	}
+	var httpLogger *dlog.Logger
+	if debugOn || cfg.LogLevel() == `INFO` {
+		httpLogger = dlog.New(lg, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags)
+	} else {
+		httpLogger = dlog.New(io.Discard, ``, 0)
+	}
 
 	srv := &http.Server{
 		Addr:              cfg.Bind,
 		Handler:           hnd,
 		ReadHeaderTimeout: 5 * time.Second,
-		ErrorLog:          dlog.New(lg, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags),
+		ErrorLog:          httpLogger,
 	}
 	srv.SetKeepAlivesEnabled(true)
 	var lst net.Listener
