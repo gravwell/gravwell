@@ -169,7 +169,7 @@ func main() {
 	}
 	var httpLogger *dlog.Logger
 	if debugOn || cfg.LogLevel() == `INFO` {
-		httpLogger = dlog.New(lg, ``, dlog.Lshortfile|dlog.LUTC|dlog.LstdFlags)
+		httpLogger = lg.StandardLogger()
 	} else {
 		httpLogger = dlog.New(io.Discard, ``, 0)
 	}

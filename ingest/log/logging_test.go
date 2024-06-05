@@ -9,9 +9,11 @@
 package log
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -289,4 +291,37 @@ func TestTrimPathLengthBaseTooLong(t *testing.T) {
 	if output != "sInThisFilenameWhoDidThis.go:355" {
 		t.Fatal("trimPathLength", output)
 	}
+}
+
+func TestStdLibLogger(t *testing.T) {
+	pth := filepath.Join(t.TempDir(), `test_stdlib.log`)
+	lgr, err := NewFile(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	//manually create a logger and log something
+	slogger := slog.New(lgr)
+	slogger.LogAttrs(context.Background(), slog.LevelError, "testing", slog.Attr{Key: `testkey`, Value: slog.AnyValue(99)})
+
+	//now grab a standard logger
+	stdlg := lgr.StandardLogger()
+	stdlg.Println("testing2")
+
+	//close it out and test the results
+	if err := lgr.Close(); err != nil {
+		t.Fatal(err)
+	}
+	bts, err := ioutil.ReadFile(pth)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(bts)
+	if !strings.Contains(s, "testing\n") {
+		t.Fatal("Missing error value: ", s)
+	} else if !strings.Contains(s, "testkey=\"99\"") {
+		t.Fatal("Missing error value: ", s)
+	} else if !strings.Contains(s, "testing2\n") {
+		t.Fatal("Missing error value: ", s)
+	}
+
 }
