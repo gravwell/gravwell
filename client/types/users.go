@@ -113,6 +113,7 @@ type UserDetails struct {
 	Hash       []byte `json:"-"` //do not include in API responses
 	Synced     bool
 	CBAC       CBACRules `json:"-"` //do not include in API responses
+	SSOUser    bool      // set true if user is managed via SSO
 }
 
 type MFAUserConfig struct {
