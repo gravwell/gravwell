@@ -102,6 +102,7 @@ func main() {
 		sess, err := session.NewSession(&aws.Config{
 			Credentials: c,
 			Region:      aws.String(stream.Region),
+			Endpoint:    aws.String(stream.Endpoint),
 		})
 		if err != nil {
 			lg.Fatal("creating session", log.KVErr(err))
