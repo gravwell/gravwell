@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/utils"
 )
 
 const (
@@ -25,6 +26,16 @@ const (
 type Access struct {
 	Global bool
 	GIDs   []int32
+}
+
+func (a Access) Equal(b Access) bool {
+	if a.Global != b.Global {
+		return false
+	}
+	if !utils.Int32SlicesEqual(a.GIDs, b.GIDs) {
+		return false
+	}
+	return true
 }
 
 // Things are stored in the datastore, a common class of blobs.
