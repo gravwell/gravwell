@@ -13,7 +13,6 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -25,10 +24,6 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/log"
-)
-
-var (
-	fInsecureSkipTlsVerify = flag.Bool("insecure-skip-tls-verify", false, "Skip TLS validation for HTTPS connections")
 )
 
 type splunkEntry struct {
@@ -77,10 +72,10 @@ type splunkConn struct {
 	Client  *http.Client
 }
 
-func newSplunkConn(server, token string) splunkConn {
+func newSplunkConn(server, token string, skipTlsVerify bool) splunkConn {
 	tr := &http.Transport{
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: *fInsecureSkipTlsVerify,
+			InsecureSkipVerify: skipTlsVerify,
 		}, // ignore expired SSL certificates
 	}
 	client := &http.Client{Transport: tr}
@@ -100,7 +95,9 @@ func (c *splunkConn) GetEventIndexes() (indexes []splunkEntry, err error) {
 	if req, err = http.NewRequest(http.MethodGet, idxURL, nil); err != nil {
 		return
 	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	if c.Token != "" {
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	}
 	if resp, err = c.Client.Do(req); err != nil {
 		return
 	}
@@ -135,7 +132,9 @@ func (c *splunkConn) GetSourceTypes() (sourcetypes []string, err error) {
 	if req, err = http.NewRequest(http.MethodGet, u, nil); err != nil {
 		return
 	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	if c.Token != "" {
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	}
 	if resp, err = c.Client.Do(req); err != nil {
 		return
 	}
@@ -195,7 +194,9 @@ func (c *splunkConn) GetIndexSourcetypes(start, end int) (m []sourcetypeIndex, e
 		return
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	if c.Token != "" {
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	}
 	if resp, err = c.Client.Do(req); err != nil {
 		return
 	}
@@ -216,7 +217,9 @@ func (c *splunkConn) GetIndexSourcetypes(start, end int) (m []sourcetypeIndex, e
 	if req, err = http.NewRequest(http.MethodGet, u, nil); err != nil {
 		return
 	}
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	if c.Token != "" {
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	}
 	if resp, err = c.Client.Do(req); err != nil {
 		return
 	}
@@ -260,7 +263,9 @@ func (c *splunkConn) RunExportSearch(query string, earliest, latest time.Time, p
 		return
 	}
 	req.Header.Add("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	if c.Token != "" {
+		req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", c.Token))
+	}
 	if resp, err = c.Client.Do(req); err != nil {
 		return
 	}
