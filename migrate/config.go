@@ -154,7 +154,7 @@ func (c *cfgType) getSplunkConn(splunkName string) (sc splunkConn, err error) {
 	for k, vv := range c.Splunk {
 		if k == splunkName {
 			// Connect to Splunk server
-			sc = newSplunkConn(vv.Server, vv.Token)
+			sc = newSplunkConn(vv.Server, vv.Token, vv.Insecure_Skip_TLS_Verify)
 			return
 		}
 	}
