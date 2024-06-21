@@ -24,6 +24,7 @@ const (
 	LOGIN_URL                        = `/api/login`
 	LOGOUT_URL                       = `/api/logout`
 	MFA_URL                          = `/api/mfa`
+	MFA_CLEAR_ALL_URL                = `/api/mfa/clear`
 	MFA_LOGIN_URL                    = `/api/login/mfa`
 	MFA_TOTP_SETUP_URL               = `/api/mfa/totp/setup`
 	MFA_TOTP_CLEAR_URL               = `/api/mfa/totp/clear`
@@ -674,6 +675,10 @@ func mfaUrl() string {
 
 func clearUserMFAUrl(uid int32) string {
 	return fmt.Sprintf(USERS_MFA_CLEAR_URL, uid)
+}
+
+func mfaClearAllUrl() string {
+	return MFA_CLEAR_ALL_URL
 }
 
 func mfaGenerateRecoveryCodesUrl() string {
