@@ -69,6 +69,17 @@ func (c *Client) GetMFAInfo() (resp types.MFAInfo, err error) {
 	return
 }
 
+// ClearAllMFA completely clears the current user's MFA configuration, if allowed by site policy.
+func (c *Client) ClearAllMFA(user, pass string, authtype types.AuthType, code string) error {
+	rq := types.MFAAuthRequest{
+		User:     user,
+		Pass:     pass,
+		AuthType: authtype,
+		AuthCode: code,
+	}
+	return c.methodStaticPushURL(http.MethodPost, mfaClearAllUrl(), rq, nil)
+}
+
 // AdminClearUserMFA completely clears the specified user's MFA
 // configuration. They will have to re-configure MFA on their next
 // login.
