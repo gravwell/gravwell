@@ -69,6 +69,20 @@ func (c *Client) CreateScheduledSearch(name, description, schedule string, searc
 	return resp, nil
 }
 
+// CreateScheduledSearchFromObject makes a new scheduled search and returns the ID. The parameters are:
+//
+// - s: A scheduled search object.
+func (c *Client) CreateScheduledSearchFromObject(s types.ScheduledSearch) (int32, error) {
+	if s.SearchString != "" && s.SearchReference != uuid.Nil {
+		return 0, fmt.Errorf("cannot use both SearchReference and SearchString in CreateScheduledSearchByReference")
+	}
+	var resp int32
+	if err := c.postStaticURL(scheduledSearchUrl(), s, &resp); err != nil {
+		return 0, err
+	}
+	return resp, nil
+}
+
 // Create a scheduled search that executes a script instead of a search. The parameters are:
 //
 // - name: the search name.
