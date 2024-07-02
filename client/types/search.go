@@ -219,6 +219,7 @@ type StartSearchResponse struct {
 	Metadata             json.RawMessage  `json:",omitempty"`
 	Addendum             json.RawMessage  `json:",omitempty"`
 	LaunchInfo           SearchLaunchInfo // information about how a search was launched
+	QueryTimeSpecified   bool             `json:",omitempty"` // True if the query itself specifies the time spec
 	SearchHints
 }
 
