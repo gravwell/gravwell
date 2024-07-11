@@ -134,6 +134,13 @@ func (c *cfgType) Tags() ([]string, error) {
 	return tags, nil
 }
 
+func (c *cfgType) IngestBaseConfig() (ic config.IngestConfig) {
+	if c != nil {
+		ic = c.global.IngestConfig
+	}
+	return
+}
+
 func (c *cfgType) getSplunkConfig(splunkName string) (s splunk, err error) {
 	if sp, ok := c.Splunk[splunkName]; !ok || sp == nil {
 		err = errors.New("Not found")
@@ -147,7 +154,7 @@ func (c *cfgType) getSplunkConn(splunkName string) (sc splunkConn, err error) {
 	for k, vv := range c.Splunk {
 		if k == splunkName {
 			// Connect to Splunk server
-			sc = newSplunkConn(vv.Server, vv.Token)
+			sc = newSplunkConn(vv.Server, vv.Token, vv.Insecure_Skip_TLS_Verify)
 			return
 		}
 	}

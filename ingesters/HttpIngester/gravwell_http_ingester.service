@@ -4,12 +4,12 @@ WantedBy=multi-user.target
 [Unit]
 Description=Gravwell HTTP Post Ingester Service
 After=network-online.target
-OnFailure=gravwell_crash_report@%n.service
+OnFailure=gravwell_crash_reporter@%n.service
 
 [Service]
 Type=simple
 ExecStart=/opt/gravwell/bin/gravwell_http_ingester -stderr %n
-WorkingDirectory=/opt/gravwell/bin
+WorkingDirectory=/opt/gravwell
 Restart=always
 User=gravwell
 Group=adm
@@ -17,7 +17,7 @@ StandardOutput=null
 StandardError=journal
 LimitNPROC=infinity
 LimitNOFILE=infinity
-PIDFile=/var/run/gravwell_http_ingester.pid
 TimeoutStopSec=60
 KillMode=process
 KillSignal=SIGINT
+FinalKillSignal=SIGABRT

@@ -23,6 +23,12 @@ const (
 	// API paths
 	LOGIN_URL                        = `/api/login`
 	LOGOUT_URL                       = `/api/logout`
+	MFA_URL                          = `/api/mfa`
+	MFA_CLEAR_ALL_URL                = `/api/mfa/clear`
+	MFA_LOGIN_URL                    = `/api/login/mfa`
+	MFA_TOTP_SETUP_URL               = `/api/mfa/totp/setup`
+	MFA_TOTP_CLEAR_URL               = `/api/mfa/totp/clear`
+	MFA_RECOVERY_GENERATE_PATH       = "/api/mfa/recoverycodes/generate"
 	TEMP_TOKEN_URL                   = `/api/login/tmptoken`
 	REFRESH_TOKEN_URL                = `/api/login/refreshtoken`
 	USER_INFO_URL                    = `/api/info/whoami`
@@ -52,6 +58,7 @@ const (
 	USERS_GROUP_URL                  = `/api/users/%d/group`
 	USERS_GROUP_ID_URL               = `/api/users/%d/group/%d`
 	USERS_SEARCH_GROUP_URL           = `/api/users/%d/searchgroup`
+	USERS_MFA_CLEAR_URL              = `/api/users/%d/mfa/clear`
 	WS_STAT_URL                      = `/api/ws/stats`
 	WS_SEARCH_URL                    = `/api/ws/search`
 	WS_ATTACH_URL                    = `/api/ws/attach/%s`
@@ -692,4 +699,32 @@ func alertsValidateDispatcherUrl() string {
 
 func alertsValidateConsumerUrl() string {
 	return ALERTS_VALIDATE_CONSUMER_URL
+}
+
+func totpSetupUrl() string {
+	return MFA_TOTP_SETUP_URL
+}
+
+func totpClearUrl() string {
+	return MFA_TOTP_CLEAR_URL
+}
+
+func mfaLoginUrl() string {
+	return MFA_LOGIN_URL
+}
+
+func mfaUrl() string {
+	return MFA_URL
+}
+
+func clearUserMFAUrl(uid int32) string {
+	return fmt.Sprintf(USERS_MFA_CLEAR_URL, uid)
+}
+
+func mfaClearAllUrl() string {
+	return MFA_CLEAR_ALL_URL
+}
+
+func mfaGenerateRecoveryCodesUrl() string {
+	return MFA_RECOVERY_GENERATE_PATH
 }

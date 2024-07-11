@@ -11,7 +11,6 @@ package filewatch
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -27,7 +26,6 @@ const (
 
 var (
 	stateFilePath string
-	tempPath      = os.TempDir()
 )
 
 func TestNewWatcher(t *testing.T) {
@@ -53,13 +51,11 @@ type tailFunction func(*WatchManager) error
 
 func fireWatcher(af addFunction, pf, rf runFunction, tf tailFunction, t *testing.T) {
 	//get a working dir and temp state file
-	workingDir, err := ioutil.TempDir(tempPath, `watched`)
-	if err != nil {
-		t.Fatal(err)
-	}
+	workingDir := t.TempDir()
 	defer os.RemoveAll(workingDir)
-	stateFilePath, err = newFileName()
-	if err != nil {
+
+	var err error
+	if stateFilePath, err = newFileName(); err != nil {
 		os.RemoveAll(workingDir)
 		t.Fatal(err)
 	}
@@ -191,7 +187,6 @@ func TestSingleWatcher(t *testing.T) {
 		}
 	}
 }
-
 func TestSingleWatcherBaseDirDelete(t *testing.T) {
 	lh := newSafeTrackingLH()
 	var err error
@@ -235,7 +230,7 @@ func TestSingleWatcherBaseDirDelete(t *testing.T) {
 				time.Sleep(time.Millisecond * 10)
 			}
 
-			time.Sleep(2 * time.Second)
+			time.Sleep(newDirTickInterval + time.Second)
 			return nil
 		}, func(wm *WatchManager) error {
 			if err := wm.fman.FlushStates(); err != nil {
@@ -816,6 +811,79 @@ func TestMultiWatcherWithMoveWithMatchNewFilter(t *testing.T) {
 			if _, ok := lhs[i].mp[k]; !ok {
 				t.Fatal("missing line", i, k)
 			}
+		}
+	}
+}
+
+func TestSingleWatcherNonExist(t *testing.T) {
+	lh := newSafeTrackingLH()
+	var err error
+	var res map[string]bool
+	fireWatcher(func(workingDir string, w *WatchManager) error {
+		wd := filepath.Join(workingDir, `noexist`)
+		watchCfg := WatchConfig{
+			ConfigName: bName,
+			BaseDir:    wd,
+			FileFilter: `paco*`,
+			Hnd:        lh,
+		}
+		//add in one filter
+		if err := w.Add(watchCfg); err != nil {
+			t.Fatal(err)
+		}
+		return nil
+	},
+		nil,
+		func(workingDir string) error {
+			wd := filepath.Join(workingDir, `noexist`)
+			if err := os.Mkdir(wd, 0770); err != nil {
+				t.Fatal(err)
+			}
+			//sleep for 11 seconds so the file follower can pick it up
+			time.Sleep(newDirTickInterval + time.Second)
+			_, res, err = writeLines(filepath.Join(wd, `paco123`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := 0; i < 100; i++ {
+				if lh.Len() == len(res) {
+					break
+				}
+				time.Sleep(time.Millisecond * 10)
+			}
+			return nil
+		}, func(wm *WatchManager) error {
+			if err := wm.fman.FlushStates(); err != nil {
+				return err
+			}
+			sts, err := ReadStateFile(stateFilePath)
+			if err != nil {
+				return err
+			}
+			if len(sts) != len(wm.fman.followers) {
+				return fmt.Errorf("state file doesn't match %d != %d", len(sts), len(wm.fman.followers))
+			}
+			if len(sts) != len(wm.fman.states) {
+				return errors.New("states doesn't match statefile")
+			}
+			for k, v := range wm.fman.states {
+				if v == nil {
+					return errors.New("invalid state value")
+				}
+				if sts[filepath.Join(k.FilePath, k.BaseName)] != *v {
+					return fmt.Errorf("Invalid value for %v", k)
+				}
+			}
+			return nil
+		}, t)
+
+	//check the results
+	if len(res) != lh.Len() {
+		t.Fatal("line handler failed to get all the lines", len(res), lh.Len())
+	}
+	for k := range res {
+		if _, ok := lh.mp[k]; !ok {
+			t.Fatal("missing line", k)
 		}
 	}
 }

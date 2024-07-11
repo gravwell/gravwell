@@ -22,6 +22,10 @@ const (
 	//additional features
 	API_VERSION_MAJOR uint32 = 0
 	API_VERSION_MINOR uint32 = 2
+
+	AUTH_TYPE_NONE     AuthType = `None` // for when you don't have MFA set up at all yet.
+	AUTH_TYPE_TOTP     AuthType = `TOTP`
+	AUTH_TYPE_RECOVERY AuthType = `RecoveryCodes`
 )
 
 // Helpers for the marshaling functions
@@ -32,6 +36,8 @@ var (
 	emptyString = []byte(`""`)
 	jsonNull    = []byte(`null`)
 )
+
+type AuthType string
 
 type RawObject json.RawMessage
 
@@ -191,10 +197,35 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	LoginStatus bool
-	Reason      string `json:",omitempty"`
-	Admin       bool   `json:",omitempty"`
-	JWT         string `json:",omitempty"`
+	LoginStatus       bool
+	Reason            string     `json:",omitempty"`
+	AcceptedAuthTypes []AuthType `json:",omitempty"`
+	Admin             bool       `json:",omitempty"`
+	JWT               string     `json:",omitempty"`
+	MFARequired       bool
+	MFASetupRequired  bool
+}
+
+type MFAAuthRequest struct {
+	AuthCode string
+	AuthType AuthType
+	Pass     string
+	User     string
+}
+
+// MFATOTPSetupResponse is returned by the webserver when the
+// user requests parameters to configure TOTP.
+type MFATOTPSetupResponse struct {
+	QRCode []byte // PNG-encoded image
+	Seed   string // The secret key/seed
+	URL    string // OTP URL
+}
+
+// MFATOTPInstallResponse is returned when the user has
+// successfully configured TOTP on the webserver.
+type MFATOTPInstallResponse struct {
+	LoginResponse
+	RecoveryCodes []string
 }
 
 type SSOStatus struct {
