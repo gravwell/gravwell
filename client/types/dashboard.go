@@ -11,6 +11,8 @@ package types
 import (
 	"encoding/json"
 	"time"
+
+	"github.com/gravwell/gravwell/v3/utils"
 )
 
 // Dashboard type used for relaying data back and forth to frontend.
@@ -20,6 +22,7 @@ type Dashboard struct {
 	UID         int32
 	GIDs        []int32
 	Global      bool
+	WriteAccess Access
 	Description string
 	Created     time.Time
 	Updated     time.Time
@@ -39,6 +42,7 @@ type DashboardAdd struct {
 	UID         int32
 	GIDs        []int32
 	Global      bool
+	WriteAccess Access
 }
 
 // DashboardPost is used in sending a new dashboard to the marketplace.
@@ -97,15 +101,19 @@ func (d Dashboard) Equal(v Dashboard) bool {
 	if len(d.GIDs) != len(v.GIDs) || len(d.Labels) != len(v.Labels) {
 		return false
 	}
+	if d.Global != v.Global {
+		return false
+	}
+	if !d.WriteAccess.Equal(v.WriteAccess) {
+		return false
+	}
 	for i, l := range d.Labels {
 		if l != v.Labels[i] {
 			return false
 		}
 	}
-	for i, g := range d.GIDs {
-		if g != v.GIDs[i] {
-			return false
-		}
+	if !utils.Int32SlicesEqual(d.GIDs, v.GIDs) {
+		return false
 	}
 	return true
 }
@@ -118,6 +126,7 @@ type dbaddMarshaler struct {
 	UID         int32
 	GIDs        []int32
 	Global      bool
+	WriteAccess Access
 }
 
 func (d DashboardAdd) MarshalJSON() ([]byte, error) {
@@ -134,6 +143,7 @@ func (d DashboardAdd) MarshalJSON() ([]byte, error) {
 		UID:         d.UID,
 		GIDs:        d.GIDs,
 		Global:      d.Global,
+		WriteAccess: d.WriteAccess,
 	}
 	return json.Marshal(dba)
 }

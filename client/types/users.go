@@ -15,6 +15,8 @@ import (
 	"net"
 	"time"
 
+	"crypto/rand"
+	"fmt"
 	"github.com/google/uuid"
 )
 
@@ -107,9 +109,76 @@ type UserDetails struct {
 	TS         time.Time `json:",omitempty"`
 	DefaultGID int32     `json:",omitempty"`
 	Groups     []GroupDetails
+	MFA        MFAUserConfig
 	Hash       []byte `json:"-"` //do not include in API responses
 	Synced     bool
 	CBAC       CBACRules `json:"-"` //do not include in API responses
+	SSOUser    bool      // set true if user is managed via SSO
+}
+
+type MFAUserConfig struct {
+	TOTP          TOTPUserConfig
+	RecoveryCodes RecoveryCodes
+}
+
+// MFAEnabled returns true if *any* MFA option is configured
+func (c *MFAUserConfig) MFAEnabled() bool {
+	return len(c.MFATypesEnabled()) > 0
+}
+
+// MFATypesEnabled gives a list of the types of MFA the user has set up.
+func (c *MFAUserConfig) MFATypesEnabled() (r []AuthType) {
+	if c.TOTP.Enabled {
+		r = append(r, AUTH_TYPE_TOTP)
+	}
+	if c.RecoveryCodes.Enabled {
+		r = append(r, AUTH_TYPE_RECOVERY)
+	}
+	return
+}
+
+// ClearSecrets blanks out any sensitive stuff within the config.
+// Call this if there's any concern over where the object will end up.
+func (c *MFAUserConfig) ClearSecrets() {
+	c.TOTP.URL = ""
+	c.TOTP.Seed = ""
+	c.RecoveryCodes.Codes = []string{}
+}
+
+type TOTPUserConfig struct {
+	Enabled bool
+	URL     string `json:"-"` // A TOTP URL contains all details in one place
+	Seed    string `json:"-"` // The secret key
+}
+
+type RecoveryCodes struct {
+	Enabled   bool
+	Codes     []string `json:"-"`
+	Remaining int      // how many codes are left
+	Generated time.Time
+}
+
+// MFAInfo describes system-wide MFA policies as well as the user's
+// own MFA configuration.
+type MFAInfo struct {
+	UserConfig  MFAUserConfig
+	MFARequired bool // If true, system requires MFA
+}
+
+func GenerateRecoveryCodes(count int) (RecoveryCodes, error) {
+	r := RecoveryCodes{
+		Enabled:   true,
+		Remaining: count,
+		Generated: time.Now(),
+	}
+	for i := 0; i < count; i++ {
+		b := make([]byte, 6)
+		if _, err := rand.Read(b); err != nil {
+			return r, err
+		}
+		r.Codes = append(r.Codes, fmt.Sprintf("%x", b))
+	}
+	return r, nil
 }
 
 type GroupDetails struct {
@@ -292,6 +361,13 @@ func (ud *UserDetails) GroupTagAccess() (r []TagAccess) {
 		r = append(r, ud.Groups[i].CBAC.Tags)
 	}
 	return
+}
+
+// ClearSecrets blanks out any sensitive stuff within the struct.
+// Call this if there's any concern over where the object will end up.
+func (ud *UserDetails) ClearSecrets() {
+	ud.Hash = []byte{}
+	ud.MFA.ClearSecrets()
 }
 
 func (ups UserPreferences) MarshalJSON() ([]byte, error) {

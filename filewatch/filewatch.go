@@ -30,6 +30,8 @@ import (
 const (
 	MAX_QUEUED_EVENTS_PATH = "/proc/sys/fs/inotify/max_queued_events"
 	EVENT_QUEUE_BUFFER     = 100000
+
+	newDirTickInterval = 10 * time.Second //how often we check for new directories that may be been removed
 )
 
 var (
@@ -177,7 +179,14 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 	//check that we have been handed a directory
 	fi, err := os.Stat(c.BaseDir)
 	if err != nil {
-		return err
+		if os.IsNotExist(err) {
+			//we are tracking something that doesn't exist yet
+			//add it to the watched map and then call remove so that we can re-use
+			//all the tested logic
+			wm.watched[c.BaseDir] = []WatchConfig{c}
+			return wm.removeNoLock(c.BaseDir)
+		}
+		return err //some other error
 	}
 	if !fi.IsDir() {
 		return ErrLocationNotDir
@@ -349,7 +358,7 @@ func (wm *WatchManager) Start() error {
 	if wm.fman == nil || wm.watcher == nil {
 		return ErrNotReady
 	}
-	if len(wm.watched) == 0 {
+	if len(wm.watched) == 0 && len(wm.removed) == 0 {
 		return ErrNoDirsWatched
 	}
 	if wm.routineRet != nil {
@@ -394,11 +403,13 @@ func (wm *WatchManager) Catchup(qc chan os.Signal) (bool, error) {
 	if wm.fman == nil || wm.watcher == nil {
 		return false, ErrNotReady
 	}
-	if len(wm.watched) == 0 {
-		return false, ErrNoDirsWatched
-	}
 	if wm.routineRet != nil {
 		return false, ErrAlreadyStarted
+	}
+
+	if len(wm.watched) == 0 {
+		//nothing to catch up on, just leave
+		return false, nil
 	}
 
 	wm.logger.Info("beginning initial file catch-up")
@@ -442,7 +453,7 @@ func (wm *WatchManager) routine(errch chan error) {
 	var err error
 	tckr := time.NewTicker(time.Minute)
 	defer tckr.Stop()
-	mkdirTicker := time.NewTicker(1 * time.Second)
+	mkdirTicker := time.NewTicker(newDirTickInterval)
 	defer mkdirTicker.Stop()
 
 watchRoutine:

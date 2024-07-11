@@ -219,6 +219,7 @@ type StartSearchResponse struct {
 	Metadata             json.RawMessage  `json:",omitempty"`
 	Addendum             json.RawMessage  `json:",omitempty"`
 	LaunchInfo           SearchLaunchInfo // information about how a search was launched
+	QueryTimeSpecified   bool             `json:",omitempty"` // True if the query itself specifies the time spec
 	SearchHints
 }
 
@@ -266,6 +267,7 @@ type SearchInfo struct {
 	IndexSize             int64           //size of an extra index file
 	ItemCount             int64           //How many items have been stored
 	TimeZoomDisabled      bool            //Renderer does not support zooming around data based on time
+	QueryTimeSpecified    bool            // True if the query contains start/end constraints
 	RenderDownloadFormats []string        `json:",omitempty"`
 	Metadata              json.RawMessage `json:",omitempty"` //additional metadata associated with a search
 	Name                  string          `json:",omitempty"`

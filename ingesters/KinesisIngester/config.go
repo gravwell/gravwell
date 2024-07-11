@@ -39,6 +39,7 @@ type streamDef struct {
 	Stream_Name           string
 	Tag_Name              string
 	Iterator_Type         string
+	Endpoint              string
 	Region                string
 	Assume_Local_Timezone bool
 	Timezone_Override     string

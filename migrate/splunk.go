@@ -42,14 +42,15 @@ var (
 )
 
 type splunk struct {
-	Server                  string   // the Splunk server, e.g. splunk.example.com
-	Token                   string   // a Splunk auth token
-	Max_Chunk               int      // maximum number of entries to try and grab at once. Defaults to a conservative 500,000
-	Ingest_From_Unix_Time   int      // a timestamp to use as the default start time for this Splunk server (default 1)
-	Ingest_To_Unix_Time     int      // a timestamp to use as the end time for this Splunk server (default 0, meaning "now")
-	Index_Sourcetype_To_Tag []string // a mapping of index+sourcetype to Gravwell tag
-	Disable_Intrinsics      bool     // If set, no additional fields will be attached as intrinsic EVs on the ingested data
-	Preprocessor            []string
+	Server                   string   // the Splunk server, e.g. splunk.example.com
+	Insecure_Skip_TLS_Verify bool     // don't verify the *splunk* certs
+	Token                    string   // a Splunk auth token
+	Max_Chunk                int      // maximum number of entries to try and grab at once. Defaults to a conservative 500,000
+	Ingest_From_Unix_Time    int      // a timestamp to use as the default start time for this Splunk server (default 1)
+	Ingest_To_Unix_Time      int      // a timestamp to use as the end time for this Splunk server (default 0, meaning "now")
+	Index_Sourcetype_To_Tag  []string // a mapping of index+sourcetype to Gravwell tag
+	Disable_Intrinsics       bool     // If set, no additional fields will be attached as intrinsic EVs on the ingested data
+	Preprocessor             []string
 }
 
 func (s *splunk) Validate(procs processors.ProcessorConfig) (err error) {
@@ -492,7 +493,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 			st.Add(splunkStateType, status)
 		}
 
-		updateChan <- fmt.Sprintf("Migrated %d entries [%v EPS/%v] up to %v", count, count/uint64(elapsed.Seconds()), ingest.HumanRate(byteTotal, elapsed), progress.ConsumedUpTo)
+		updateChan <- fmt.Sprintf("Migrated %d entries [%v/%v] up to %v", count, ingest.HumanEntryRate(count, elapsed), ingest.HumanRate(byteTotal, elapsed), progress.ConsumedUpTo)
 	}
 	lg.Info("job completed", log.KV("index", progress.Index), log.KV("sourcetype", progress.Sourcetype), log.KV("tag", progress.Tag), log.KV("start", progress.ConsumedUpTo))
 	return nil
@@ -516,7 +517,7 @@ func checkMappings(cfgName string, ctx context.Context, updateChan chan string) 
 	status := splunkTracker.GetStatus(cfgName)
 
 	// Connect to Splunk server and get a list of all sourcetypes & indexes
-	sc := newSplunkConn(c.Server, c.Token)
+	sc := newSplunkConn(c.Server, c.Token, c.Insecure_Skip_TLS_Verify)
 
 	var st []sourcetypeIndex
 	st, err = sc.GetIndexSourcetypes(c.Ingest_From_Unix_Time, c.Ingest_To_Unix_Time)

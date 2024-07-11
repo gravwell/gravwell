@@ -54,6 +54,8 @@ type AlertDefinition struct {
 
 	Global bool `json:"Global"`
 
+	IngestBlocked bool `json:"IngestBlocked"`
+
 	Labels []string `json:"Labels"`
 
 	LastUpdated time.Time `json:"LastUpdated"`
