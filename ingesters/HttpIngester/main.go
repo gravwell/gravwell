@@ -21,6 +21,7 @@ import (
 	"path"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/debug"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
@@ -43,6 +44,8 @@ var (
 )
 
 func main() {
+	go debug.HandleDebugSignals(appName)
+
 	var cfg *cfgType
 	ibc := base.IngesterBaseConfig{
 		IngesterName:                 appName,
