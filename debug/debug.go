@@ -43,6 +43,7 @@ func generateStackTrace(dir string) {
 	if err != nil {
 		return
 	}
+	defer st.Close()
 
 	// return a trace, growing the buffer until it's big enough
 	size := 1024 * 1024
@@ -60,7 +61,6 @@ func generateStackTrace(dir string) {
 		}
 	}
 	st.Write(buf[:n])
-	st.Close()
 }
 
 func generateMemoryProfile(dir string) {
@@ -69,12 +69,12 @@ func generateMemoryProfile(dir string) {
 	if err != nil {
 		return
 	}
+	defer mem.Close()
 
 	membuf := &bytes.Buffer{}
 	runtime.GC()
 	if err := pprof.WriteHeapProfile(membuf); err == nil {
 		mem.Write(membuf.Bytes())
-		mem.Close()
 	}
 }
 
@@ -84,12 +84,12 @@ func generateCPUProfile(dir string) {
 	if err != nil {
 		return
 	}
+	defer cpu.Close()
 
 	cpubuf := &bytes.Buffer{}
 	if err := pprof.StartCPUProfile(cpubuf); err == nil {
 		time.Sleep(CPU_SLEEP)
 		pprof.StopCPUProfile()
 		cpu.Write(cpubuf.Bytes())
-		cpu.Close()
 	}
 }
