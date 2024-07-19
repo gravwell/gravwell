@@ -28,6 +28,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+
+	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
 )
 
 const (
@@ -81,6 +83,7 @@ func init() {
 }
 
 func main() {
+	go gravwelldebug.HandleDebugSignals("multifile")
 	debug.SetTraceback("all")
 	if *inFile == "" {
 		log.Fatal("Input file path required")
