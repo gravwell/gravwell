@@ -73,6 +73,7 @@ type shodanStream struct {
 }
 
 func init() {
+	go debug.HandleDebugSignals(appName)
 	flag.Parse()
 	if *ver {
 		version.PrintVersion(os.Stdout)

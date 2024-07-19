@@ -27,6 +27,8 @@ import (
 	"github.com/gravwell/gravwell/v3/timegrinder"
 
 	"github.com/tealeg/xlsx"
+
+	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
 )
 
 const (
@@ -81,6 +83,7 @@ func init() {
 }
 
 func main() {
+	go gravwelldebug.HandleDebugSignals("xlsx")
 	debug.SetTraceback("all")
 	if *inFile == "" {
 		log.Fatal("Input file path required")

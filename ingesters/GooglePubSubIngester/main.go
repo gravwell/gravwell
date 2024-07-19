@@ -15,6 +15,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/debug"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
@@ -37,6 +38,8 @@ var (
 )
 
 func main() {
+	go debug.HandleDebugSignals(ingesterName)
+
 	var cfg *cfgType
 	ibc := base.IngesterBaseConfig{
 		IngesterName:                 ingesterName,

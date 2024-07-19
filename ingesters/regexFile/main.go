@@ -25,6 +25,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/args"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+
+	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
 )
 
 const (
@@ -54,6 +56,7 @@ var (
 )
 
 func init() {
+	go gravwelldebug.HandleDebugSignals("regexfile")
 	flag.Parse()
 	if *ver {
 		version.PrintVersion(os.Stdout)
