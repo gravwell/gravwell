@@ -27,6 +27,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
+
+	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
 )
 
 const (
@@ -114,6 +116,7 @@ type Reading struct {
 }
 
 func main() {
+	go gravwelldebug.HandleDebugSignals("diskmonitor")
 	debug.SetTraceback("all")
 	//test that the disk stats path exists
 	if st, err := os.Stat(dpath); err != nil {

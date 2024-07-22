@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/debug"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -50,6 +51,8 @@ type event struct {
 }
 
 func main() {
+	go debug.HandleDebugSignals(appName)
+
 	var cfg *cfgType
 	ibc := base.IngesterBaseConfig{
 		IngesterName:                 appName,
