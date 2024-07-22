@@ -24,6 +24,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
+
+	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
 )
 
 var (
@@ -134,6 +136,7 @@ func init() {
 }
 
 func main() {
+	go gravwelldebug.HandleDebugSignals("session")
 	debug.SetTraceback("all")
 	cfg := ingest.UniformMuxerConfig{
 		Destinations:    connSet,

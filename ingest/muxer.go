@@ -543,13 +543,17 @@ func (im *IngestMuxer) stateReportRoutine() {
 		im.ingesterState.CacheSize = uint64(im.cache.Size())
 		im.ingesterState.Uptime = time.Since(im.start)
 		im.ingesterState.Tags = im.tags
+
+		s := im.ingesterState.Copy()
+
+		im.mtx.Unlock()
+
 		for _, v := range im.igst {
 			if v != nil {
 				// we don't fuss over the return value
-				v.SendIngesterState(im.ingesterState)
+				v.SendIngesterState(s)
 			}
 		}
-		im.mtx.Unlock()
 		time.Sleep(5 * time.Second)
 	}
 }
