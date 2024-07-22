@@ -71,7 +71,7 @@ const (
 	unknownAddr          string        = `unknown`
 	waitTickerDur        time.Duration = 50 * time.Millisecond
 
-	ingesterStateUpdateInterval    = 30 * time.Second
+	ingesterStateUpdateInterval    = 10 * time.Second
 	maxIngesterStateUpdateInterval = 5 * time.Minute
 )
 
