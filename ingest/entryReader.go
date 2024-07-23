@@ -79,13 +79,10 @@ type EntryReader struct {
 	hot        bool
 	started    bool
 	buff       []byte
-	//entCache is used to allocate entries in blocks to relieve some pressure on the allocator and GC
-	entCache    []entry.Entry
-	entCacheIdx int
-	opCount     uint64
-	lastCount   uint64
-	timeout     time.Duration
-	tagMan      TagManager
+	opCount    uint64
+	lastCount  uint64
+	timeout    time.Duration
+	tagMan     TagManager
 	// the reader stores some info about the other side
 	igName         string
 	igVersion      string
@@ -298,11 +295,7 @@ func (er *EntryReader) read() (*entry.Entry, error) {
 		id     entrySendID
 		hasEvs bool
 	)
-	if er.entCacheIdx >= len(er.entCache) {
-		er.entCache = make([]entry.Entry, entCacheRechargeSize)
-		er.entCacheIdx = 0
-	}
-	ent := &er.entCache[er.entCacheIdx]
+	ent := &entry.Entry{}
 
 	if err = er.fillHeader(ent, &id, &sz, &hasEvs); err != nil {
 		return nil, err
@@ -318,7 +311,6 @@ func (er *EntryReader) read() (*entry.Entry, error) {
 	if err = er.throwAck(id); err != nil {
 		return nil, err
 	}
-	er.entCacheIdx++
 	return ent, nil
 }
 
