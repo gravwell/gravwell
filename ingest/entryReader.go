@@ -52,6 +52,7 @@ var (
 	ackBatchReadTimerDuration = 10 * time.Millisecond
 	defaultReaderTimeout      = 10 * time.Minute
 	keepAliveInterval         = 1000 * time.Millisecond
+	closeTimeout              = 10 * time.Second
 
 	nilTime time.Time
 )
@@ -241,6 +242,10 @@ func (er *EntryReader) Close() error {
 	if !er.hot {
 		return errors.New("Close on closed EntryTransport")
 	}
+	//try to set a deadline on the connection, we are exiting so everything BETTER wrap up within our closeTimeout
+	er.conn.SetDeadline(time.Now().Add(closeTimeout))
+	defer er.conn.SetDeadline(nilTime)
+
 	if er.started {
 		//close the ack channel and wait for the routine to return
 		close(er.ackChan)
