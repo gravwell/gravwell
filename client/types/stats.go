@@ -32,6 +32,7 @@ type ModuleStatsUpdate struct {
 	InputCount, OutputCount uint64
 	InputBytes, OutputBytes uint64
 	Duration                time.Duration
+	ScratchWritten          uint64 // Bytes of scratch written
 }
 
 func (m *ModuleStatsUpdate) Size() (sz int64) {
