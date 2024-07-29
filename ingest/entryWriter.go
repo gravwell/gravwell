@@ -160,6 +160,10 @@ func (ew *EntryWriter) Close() (err error) {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
 
+	//try to set a deadline on the connection, we are exiting so everything BETTER wrap up within our closeTimeout
+	ew.conn.SetDeadline(time.Now().Add(closeTimeout))
+	defer ew.conn.SetDeadline(nilTime)
+
 	if err = ew.forceAckNoLock(); err == nil {
 		if err = ew.conn.SetReadTimeout(ew.ackTimeout); err != nil {
 			err = ew.conn.Close()

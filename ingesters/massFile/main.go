@@ -22,6 +22,8 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
 	"github.com/shirou/gopsutil/mem"
+
+	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
 )
 
 var (
@@ -54,6 +56,7 @@ type ingestVars struct {
 }
 
 func init() {
+	go gravwelldebug.HandleDebugSignals("massfile")
 	flag.Parse()
 	if *ver {
 		version.PrintVersion(os.Stdout)

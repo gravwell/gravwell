@@ -37,6 +37,8 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
+
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 const (
@@ -73,6 +75,7 @@ type shodanStream struct {
 }
 
 func init() {
+	go gravwelldebug.HandleDebugSignals("shodan")
 	flag.Parse()
 	if *ver {
 		version.PrintVersion(os.Stdout)

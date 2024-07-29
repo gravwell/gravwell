@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
@@ -55,6 +56,7 @@ type handlerConfig struct {
 }
 
 func main() {
+	go debug.HandleDebugSignals(ingesterName)
 	var cfg *cfgType
 	ibc := base.IngesterBaseConfig{
 		IngesterName:                 ingesterName,

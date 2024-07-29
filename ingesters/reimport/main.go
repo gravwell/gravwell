@@ -25,6 +25,8 @@ import (
 	"github.com/gravwell/gravwell/v4/ingesters/args"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
+
+	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
 )
 
 const (
@@ -64,6 +66,7 @@ func init() {
 }
 
 func main() {
+	go gravwelldebug.HandleDebugSignals("reimport")
 	debug.SetTraceback("all")
 	if *inFile == "" {
 		log.Fatal("Input file path required")

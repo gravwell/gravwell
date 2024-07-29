@@ -23,6 +23,8 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
+
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 const (
@@ -73,6 +75,7 @@ func init() {
 }
 
 func main() {
+	go gravwelldebug.HandleDebugSignals("canbus")
 	debug.SetTraceback("all")
 	cfg, err := GetConfig(*confLoc, *confdLoc)
 	if err != nil {

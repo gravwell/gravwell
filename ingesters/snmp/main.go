@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/gosnmp/gosnmp"
+	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
@@ -56,6 +57,7 @@ type SnmpVariable struct {
 }
 
 func main() {
+	go debug.HandleDebugSignals(ingesterName)
 	var wg sync.WaitGroup
 	var cfg *cfgType
 	ibc := base.IngesterBaseConfig{
