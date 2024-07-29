@@ -18,6 +18,8 @@ import (
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/turnage/graw/reddit"
 	"github.com/turnage/graw/streams"
+
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 const ()
@@ -39,6 +41,7 @@ type commentToAuthor struct {
 }
 
 func main() {
+	go gravwelldebug.HandleDebugSignals("reddit")
 	debug.SetTraceback("all")
 	iw, err := NewIngestWriter()
 	if err != nil {

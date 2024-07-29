@@ -26,6 +26,8 @@ import (
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 var (
@@ -73,6 +75,7 @@ func init() {
 }
 
 func main() {
+	go gravwelldebug.HandleDebugSignals("singlefile")
 	debug.SetTraceback("all")
 	if *inFile == "" {
 		log.Fatal("Input file path required")

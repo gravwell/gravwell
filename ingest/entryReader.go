@@ -52,6 +52,7 @@ var (
 	ackBatchReadTimerDuration = 10 * time.Millisecond
 	defaultReaderTimeout      = 10 * time.Minute
 	keepAliveInterval         = 1000 * time.Millisecond
+	closeTimeout              = 10 * time.Second
 
 	nilTime time.Time
 )
@@ -78,13 +79,10 @@ type EntryReader struct {
 	hot        bool
 	started    bool
 	buff       []byte
-	//entCache is used to allocate entries in blocks to relieve some pressure on the allocator and GC
-	entCache    []entry.Entry
-	entCacheIdx int
-	opCount     uint64
-	lastCount   uint64
-	timeout     time.Duration
-	tagMan      TagManager
+	opCount    uint64
+	lastCount  uint64
+	timeout    time.Duration
+	tagMan     TagManager
 	// the reader stores some info about the other side
 	igName         string
 	igVersion      string
@@ -241,6 +239,10 @@ func (er *EntryReader) Close() error {
 	if !er.hot {
 		return errors.New("Close on closed EntryTransport")
 	}
+	//try to set a deadline on the connection, we are exiting so everything BETTER wrap up within our closeTimeout
+	er.conn.SetDeadline(time.Now().Add(closeTimeout))
+	defer er.conn.SetDeadline(nilTime)
+
 	if er.started {
 		//close the ack channel and wait for the routine to return
 		close(er.ackChan)
@@ -293,11 +295,7 @@ func (er *EntryReader) read() (*entry.Entry, error) {
 		id     entrySendID
 		hasEvs bool
 	)
-	if er.entCacheIdx >= len(er.entCache) {
-		er.entCache = make([]entry.Entry, entCacheRechargeSize)
-		er.entCacheIdx = 0
-	}
-	ent := &er.entCache[er.entCacheIdx]
+	ent := &entry.Entry{}
 
 	if err = er.fillHeader(ent, &id, &sz, &hasEvs); err != nil {
 		return nil, err
@@ -313,7 +311,6 @@ func (er *EntryReader) read() (*entry.Entry, error) {
 	if err = er.throwAck(id); err != nil {
 		return nil, err
 	}
-	er.entCacheIdx++
 	return ent, nil
 }
 

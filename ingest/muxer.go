@@ -70,6 +70,9 @@ const (
 	maxEmergencyListSize int           = 64
 	unknownAddr          string        = `unknown`
 	waitTickerDur        time.Duration = 50 * time.Millisecond
+
+	ingesterStateUpdateInterval    = 10 * time.Second
+	maxIngesterStateUpdateInterval = 5 * time.Minute
 )
 
 type muxState int
@@ -90,48 +93,49 @@ type IngestMuxer struct {
 	//connHot, and connDead have atomic operations
 	//its important that these are aligned on 8 byte boundaries
 	//or it will panic on 32bit architectures
-	connHot           int32 //how many connections are functioning
-	connDead          int32 //how many connections are dead
-	mtx               *sync.RWMutex
-	sig               *sync.Cond
-	igst              []*IngestConnection
-	tagTranslators    []*tagTrans
-	dests             []Target
-	errDest           []TargetError
-	tags              []string
-	tagMap            map[string]entry.EntryTag
-	pubKey            string
-	privKey           string
-	verifyCert        bool
-	eChan             chan interface{}
-	eChanOut          chan interface{}
-	bChan             chan interface{}
-	bChanOut          chan interface{}
-	eq                *emergencyQueue
-	dieChan           chan bool
-	upChan            chan bool
-	errChan           chan error
-	wg                *sync.WaitGroup
-	state             muxState
-	hostname          string
-	appname           string
-	lgr               Logger
-	cacheEnabled      bool
-	cachePath         string
-	cacheSize         int
-	cache             *chancacher.ChanCacher
-	bcache            *chancacher.ChanCacher
-	cacheAlways       bool
-	name              string
-	version           string
-	uuid              string
-	rateParent        *parent
-	logSourceOverride net.IP
-	ingesterState     IngesterState
-	logbuff           *EntryBuffer // for holding logs until we can push them
-	start             time.Time    // when the muxer was started
-	attacher          *attach.Attacher
-	attachActive      bool
+	connHot              int32 //how many connections are functioning
+	connDead             int32 //how many connections are dead
+	mtx                  *sync.RWMutex
+	sig                  *sync.Cond
+	igst                 []*IngestConnection
+	tagTranslators       []*tagTrans
+	dests                []Target
+	errDest              []TargetError
+	tags                 []string
+	tagMap               map[string]entry.EntryTag
+	pubKey               string
+	privKey              string
+	verifyCert           bool
+	eChan                chan interface{}
+	eChanOut             chan interface{}
+	bChan                chan interface{}
+	bChanOut             chan interface{}
+	eq                   *emergencyQueue
+	dieChan              chan bool
+	upChan               chan bool
+	errChan              chan error
+	wg                   *sync.WaitGroup
+	state                muxState
+	hostname             string
+	appname              string
+	lgr                  Logger
+	cacheEnabled         bool
+	cachePath            string
+	cacheSize            int
+	cache                *chancacher.ChanCacher
+	bcache               *chancacher.ChanCacher
+	cacheAlways          bool
+	name                 string
+	version              string
+	uuid                 string
+	rateParent           *parent
+	logSourceOverride    net.IP
+	ingesterState        IngesterState
+	ingesterStateUpdated bool         //ingesterState has been updated (usually a child member)
+	logbuff              *EntryBuffer // for holding logs until we can push them
+	start                time.Time    // when the muxer was started
+	attacher             *attach.Attacher
+	attachActive         bool
 }
 
 type UniformMuxerConfig struct {
@@ -536,21 +540,65 @@ func (im *IngestMuxer) Close() error {
 	return nil
 }
 
+func (im *IngestMuxer) ingesterStateDirty() (dirty bool) {
+	im.mtx.RLock()
+	if im.ingesterState.CacheSize != uint64(im.cache.Size()) {
+		dirty = true
+	} else if len(im.ingesterState.Tags) != len(im.tags) {
+		dirty = true
+	} else if im.ingesterStateUpdated {
+		dirty = true
+	}
+	im.mtx.RUnlock()
+	return
+}
+
+func (im *IngestMuxer) getIngesterState(lastPush time.Time, lastEntryCount uint64) (s IngesterState, shouldPush bool) {
+	//check if it has been long enough that we push no matter what or the state is dirty and we need push
+	if time.Since(lastPush) > maxIngesterStateUpdateInterval || im.ingesterStateDirty() || im.ingesterState.Entries != lastEntryCount {
+		shouldPush = true
+	} else {
+		return //nothing new in the ingester state, just return
+	}
+	im.mtx.Lock()
+
+	// update the cache stats real quick
+	im.ingesterState.CacheSize = uint64(im.cache.Size())
+	im.ingesterState.Uptime = time.Since(im.start)
+	im.ingesterState.Tags = im.tags
+
+	// The ingesterState object is of type ingest.IngesterState which contains a map of children.
+	// You must make a deep copy (which is what Copy does) if you are going to concurrently read and write it.
+	// When pushing the ingester state we want to make a complete copy with the lock held and then do the potentially
+	// long write operation WITHOUT the lock held.
+	s = im.ingesterState.Copy()
+
+	im.mtx.Unlock()
+
+	return
+}
+
 func (im *IngestMuxer) stateReportRoutine() {
+	var lastPush time.Time
+	var lastEntryCount uint64
 	for im.state == running {
-		im.mtx.Lock()
-		// update the cache stats real quick
-		im.ingesterState.CacheSize = uint64(im.cache.Size())
-		im.ingesterState.Uptime = time.Since(im.start)
-		im.ingesterState.Tags = im.tags
-		for _, v := range im.igst {
-			if v != nil {
-				// we don't fuss over the return value
-				v.SendIngesterState(im.ingesterState)
+		//check if we should push an ingester state out either due to max time duration or because it was updated
+		if s, shouldPush := im.getIngesterState(lastPush, lastEntryCount); shouldPush {
+			//SendIngesterState throws a full sync and then pushes a potentially very large
+			//configuration block. DO NOT HOLD THE LOCK on the entire muxer when this is happening
+			//or you will most likely starve the ingest muxer.
+
+			for _, v := range im.igst {
+				if v != nil {
+					// we don't fuss over the return value
+					v.SendIngesterState(s)
+				}
 			}
+			//update our last push time and the number of entries at the time of our last push
+			lastPush = time.Now()
+			lastEntryCount = im.ingesterState.Entries
 		}
-		im.mtx.Unlock()
-		time.Sleep(5 * time.Second)
+		time.Sleep(ingesterStateUpdateInterval)
 	}
 }
 
@@ -582,7 +630,10 @@ func (im *IngestMuxer) SetRawConfiguration(obj interface{}) (err error) {
 	if msg, err = json.Marshal(obj); err != nil {
 		return
 	}
+	im.mtx.Lock()
 	im.ingesterState.Configuration = json.RawMessage(msg)
+	im.ingesterStateUpdated = true
+	im.mtx.Unlock()
 	return
 }
 
@@ -594,7 +645,10 @@ func (im *IngestMuxer) SetMetadata(obj interface{}) (err error) {
 	if msg, err = json.Marshal(obj); err != nil {
 		return
 	}
+	im.mtx.Lock()
 	im.ingesterState.Metadata = json.RawMessage(msg)
+	im.ingesterStateUpdated = true
+	im.mtx.Unlock()
 	return
 }
 
@@ -602,12 +656,14 @@ func (im *IngestMuxer) RegisterChild(k string, v IngesterState) {
 	im.mtx.Lock()
 	v.LastSeen = time.Now() // if its being registered, we want to update its state
 	im.ingesterState.Children[k] = v
+	im.ingesterStateUpdated = true
 	im.mtx.Unlock()
 }
 
 func (im *IngestMuxer) UnregisterChild(k string) {
 	im.mtx.Lock()
 	delete(im.ingesterState.Children, k)
+	im.ingesterStateUpdated = true
 	im.mtx.Unlock()
 }
 
@@ -657,6 +713,7 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 	// update the tag list and map
 	im.tags = append(im.tags, name)
 	im.ingesterState.Tags = im.tags
+	im.ingesterStateUpdated = true
 
 	var tagNext entry.EntryTag
 	for _, v := range im.tagMap {

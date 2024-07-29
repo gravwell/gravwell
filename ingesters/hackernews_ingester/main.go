@@ -24,6 +24,8 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
+
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 var (
@@ -52,6 +54,7 @@ func init() {
 }
 
 func main() {
+	go gravwelldebug.HandleDebugSignals("hackernews")
 	debug.SetTraceback("all")
 	tags := []string{*tagName}
 

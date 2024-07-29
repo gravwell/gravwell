@@ -25,6 +25,8 @@ import (
 
 	"github.com/google/gopacket"
 	pcap "github.com/google/gopacket/pcapgo"
+
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 const (
@@ -45,6 +47,7 @@ var (
 )
 
 func init() {
+	go gravwelldebug.HandleDebugSignals("pcapfile")
 	flag.Parse()
 	if *ver {
 		version.PrintVersion(os.Stdout)

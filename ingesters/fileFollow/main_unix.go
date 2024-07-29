@@ -18,6 +18,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/filewatch"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
@@ -40,6 +41,7 @@ var (
 )
 
 func main() {
+	go debug.HandleDebugSignals(appName)
 	utils.MaxProcTune(1) // this thing hits the filesystem, parallelism will almost always be bad
 
 	var cfg *cfgType

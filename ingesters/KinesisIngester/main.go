@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
@@ -42,6 +43,8 @@ var (
 )
 
 func main() {
+	go debug.HandleDebugSignals(appName)
+
 	var wg sync.WaitGroup
 	var cfg *cfgType
 	running := true

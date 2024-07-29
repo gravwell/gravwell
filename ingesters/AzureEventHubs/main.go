@@ -19,6 +19,8 @@ import (
 	"github.com/Azure/azure-amqp-common-go/v3/sas"
 	eventhubs "github.com/Azure/azure-event-hubs-go/v3"
 	"github.com/Azure/azure-event-hubs-go/v3/persist"
+
+	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
@@ -38,6 +40,8 @@ var (
 )
 
 func main() {
+	go debug.HandleDebugSignals(appName)
+
 	var cfg *cfgType
 	ibc := base.IngesterBaseConfig{
 		IngesterName:                 appName,
