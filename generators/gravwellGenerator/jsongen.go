@@ -23,7 +23,7 @@ type datum struct {
 	Class     int            `json:"class"`
 	Groups    []ComplexGroup `json:"groups,omitempty"`
 	UserAgent string         `json:"user_agent"`
-	IP        string         `json:"ip"`
+	IP        net.IP         `json:"ip"`
 	Data      string         `json:"data,escape"`
 }
 
@@ -32,7 +32,7 @@ type megaDatum struct {
 	Class     int            `json:"class"`
 	Groups    []ComplexGroup `json:"groups,omitempty"`
 	UserAgent string         `json:"user_agent"`
-	IP        string         `json:"ip"`
+	IP        net.IP         `json:"ip"`
 	TS        int64          `json:"time"` //bury the timestamp somewhere dumb, its also encoded unix timestamp
 	Records   []megaRecord   `json:"records"`
 	Data      string         `json:"data,escape"`
@@ -66,7 +66,7 @@ func genDataJSON(ts time.Time) (r []byte) {
 	d.Groups = getComplexGroups()
 	d.Account = getUser()
 	d.UserAgent = rd.UserAgentString()
-	d.IP = v4gen.IP().String()
+	d.IP = getIP()
 	r, _ = json.Marshal(&d)
 	return
 }
@@ -81,7 +81,7 @@ func genDataMegaJSON(ts time.Time) (r []byte) {
 	d.Groups = getComplexGroups()
 	d.Account = getUser()
 	d.UserAgent = rd.UserAgentString()
-	d.IP = v4gen.IP().String()
+	d.IP = getIP()
 	d.Data = rd.Paragraph()
 	d.Records = genMegaRecords(ts)
 	r, _ = json.Marshal(&d)
