@@ -26,7 +26,7 @@ import (
 	"github.com/google/gopacket"
 	pcap "github.com/google/gopacket/pcapgo"
 
-	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 const (

@@ -28,7 +28,7 @@ import (
 
 	"github.com/tealeg/xlsx"
 
-	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 const (

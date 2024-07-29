@@ -25,7 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
 
-	gravwelldebug "github.com/gravwell/gravwell/v43/debug"
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 var (
