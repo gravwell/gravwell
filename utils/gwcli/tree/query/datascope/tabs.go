@@ -62,7 +62,8 @@ func NewViewport() viewport.Model {
 		// width/height are set later
 		// when received in a windowSize message
 	}
-	vp.MouseWheelDelta = 1
+	//vp.MouseWheelDelta = 1
+	vp.MouseWheelEnabled = false
 	vp.HighPerformanceRendering = false
 	// set up keybinds directly supported by viewport
 	// other keybinds are managed by the results tab()
