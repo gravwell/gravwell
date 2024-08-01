@@ -51,13 +51,17 @@ import (
 	"gwcli/action"
 	"gwcli/clilog"
 	"gwcli/mother"
+	"gwcli/stylesheet"
 	ft "gwcli/stylesheet/flagtext"
 	"gwcli/utilities/listsupport"
 	"gwcli/utilities/scaffold"
 	"gwcli/utilities/treeutils"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v3/client"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -76,6 +80,10 @@ const (
 	errorNoDeleteText = "An error occured: %v.\nAbstained from deletion."
 	dryrunSuccessText = "DRYRUN: %v (ID %v) would have been deleted"
 	deleteSuccessText = "%v (ID %v) deleted"
+)
+
+const (
+	confirmPhrase = "yes"
 )
 
 // NewDeleteAction creates and returns a cobra.Command suitable for use as a delete action.
@@ -184,23 +192,33 @@ type mode uint
 const (
 	selecting mode = iota
 	quitting
+	confirming
 )
 
 type deleteModel[I scaffold.Id_t] struct {
-	itemSingular string // "macro", "kit", "query"
-	itemPlural   string // "macros", "kits", "queries"
-	mode         mode   // current mode
-	list         list.Model
+	width, height int
 
-	flagset pflag.FlagSet // parsed flag values (set in SetArgs)
-	dryrun  bool
+	itemSingular string        // "macro", "kit", "query"
+	itemPlural   string        // "macros", "kits", "queries"
+	mode         mode          // current mode
+	flagset      pflag.FlagSet // parsed flag values (set in SetArgs)
+	dryrun       bool
+	df           deleteFunc[I] // function to delete an item
+	ff           fetchFunc[I]  // function to get all delete-able items
 
-	df deleteFunc[I] // function to delete an item
-	ff fetchFunc[I]  // function to get all delete-able items
+	// selecting mode
+	list list.Model
+
+	// confirming mode
+	selectedItem Item[I]
+	confTI       textinput.Model
 }
 
 func newDeleteModel[I scaffold.Id_t](del deleteFunc[I], fch fetchFunc[I]) *deleteModel[I] {
-	d := &deleteModel[I]{mode: selecting}
+	d := &deleteModel[I]{
+		mode:   selecting,
+		confTI: stylesheet.NewTI("", false),
+	}
 	d.flagset = flags()
 
 	d.df = del
@@ -213,46 +231,59 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 	if d.Done() {
 		return nil
 	}
-	if len(d.list.Items()) == 0 {
-		d.mode = quitting
-		return tea.Printf("You have no %v that can be deleted", d.itemPlural)
-	}
 
-	switch msg := msg.(type) {
-	case tea.WindowSizeMsg:
-		d.list.SetSize(msg.Width, msg.Height)
+	// always handle window size messages, lest they be lost due to being in the wrong mode
+	if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		d.width, d.height = wsMsg.Width, wsMsg.Height
+		d.list.SetSize(d.width, d.height)
 		return nil
-	case tea.KeyMsg:
-		if msg.Type == tea.KeyEnter {
-			var (
-				baseitm list.Item // item stored in the list
-				itm     Item[I]   // baseitm cast to our expanded item type
-				ok      bool      // type assertion result
-			)
-			baseitm = d.list.Items()[d.list.Index()]
-			if itm, ok = baseitm.(Item[I]); !ok {
+	}
+	keyMsg, isKeyMsg := msg.(tea.KeyMsg)
+	var cmd tea.Cmd
+	// branch on current mode
+	switch d.mode {
+	case selecting:
+		if isKeyMsg && keyMsg.Type == tea.KeyEnter { // special handling for Enter key
+			baseitm := d.list.Items()[d.list.Index()]
+			if itm, ok := baseitm.(Item[I]); !ok {
 				clilog.Writer.Warnf("failed to type assert %#v as an item", baseitm)
 				return tea.Printf(errorNoDeleteText+"\n", "failed type assertion")
+			} else {
+				d.selectedItem = itm
 			}
-			d.mode = quitting
 
 			// attempt to delete the item
-			if err := d.df(d.dryrun, itm.id); err != nil {
+			if err := d.df(d.dryrun, d.selectedItem.id); err != nil {
+				d.mode = quitting
 				return tea.Printf(errorNoDeleteText+"\n", err)
 			}
 			if d.dryrun {
-				return tea.Printf(dryrunSuccessText,
-					d.itemSingular, itm.id)
-			} else {
+				d.mode = quitting
+				return tea.Printf(dryrunSuccessText, d.itemSingular, d.selectedItem.id)
+			}
+
+			// shift into confirmation mode
+			d.mode = selecting
+			return textinput.Blink
+		}
+
+		d.list, cmd = d.list.Update(msg)
+	case confirming:
+		if isKeyMsg && keyMsg.Type == tea.KeyEnter {
+			// check for confirmation (after cleaning up the input)
+			if strings.TrimSpace(strings.ToLower(d.confTI.Value())) == confirmPhrase {
 				go d.list.RemoveItem(d.list.Index())
 				return tea.Printf(deleteSuccessText,
-					d.itemSingular, itm.id)
+					d.itemSingular, d.selectedItem.id)
 			}
+			// any other input, go back to selecting
+			d.mode = selecting
+			d.confTI.Reset()
+			return nil
 		}
-	}
 
-	var cmd tea.Cmd
-	d.list, cmd = d.list.Update(msg)
+		d.confTI, cmd = d.confTI.Update(msg)
+	}
 
 	return cmd
 
@@ -274,6 +305,28 @@ func (d *deleteModel[I]) View() string {
 		}
 	case selecting:
 		return "\n" + d.list.View()
+	case confirming:
+		var sb strings.Builder
+
+		// display the full item that will be deleted
+		sb.WriteString(fmt.Sprintf("Deleting %s (ID: %v):\n"+
+			"%v\n"+
+			"%v\n",
+			d.itemSingular, d.selectedItem.id,
+			d.selectedItem.title,
+			d.selectedItem.description))
+		// request confirmation
+		confirmTitle := "Type '" + confirmPhrase + "' to confirm deletion: "
+		sb.WriteString(confirmTitle)
+		tiView := d.confTI.View()
+
+		// if the line would be too long, bump the ti to a newline
+		if lipgloss.Width(confirmTitle)+lipgloss.Width(tiView) > d.width+1 { // 1 cell pad
+			sb.WriteString("\n")
+		}
+		sb.WriteString(tiView)
+
+		return sb.String()
 	default:
 		clilog.Writer.Warnf("Unknown mode %v", d.mode)
 		return "An error has occurred. Exitting..."
@@ -298,6 +351,13 @@ func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid str
 	if err != nil {
 		return "", nil, err
 	}
+
+	// if there are no items to delete, die
+	if len(itms) < 1 {
+		d.mode = quitting
+		return "", tea.Printf("You have no %v that can be deleted", d.itemPlural), nil
+	}
+
 	// while Item[I] satisfies the list.Item interface, Go will not implicitly
 	// convert []Item[I] -> []list.Item
 	// remember to assert these items as Item[I] on use
