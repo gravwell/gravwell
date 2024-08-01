@@ -59,6 +59,7 @@ type Mother struct {
 	}
 
 	processOnStartup bool // mother should immediately consume and process her prompt on spawn
+	dieOnChildDone   bool // sister to processOnStartup; causes Mother to quit when child completes
 
 	history *history
 }
@@ -165,6 +166,7 @@ func (m Mother) Init() tea.Cmd {
 func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.processOnStartup {
 		m.processOnStartup = false
+		m.dieOnChildDone = true
 		return m, processInput(&m)
 	}
 	switch killer.CheckKillKeys(msg) { // handle kill keys above all else
@@ -198,6 +200,12 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.unsetAction()
 			return m, textinput.Blink
 		}
+	}
+
+	// if we booted directly into an action, die now that it is done
+	if m.dieOnChildDone {
+		connection.End()
+		return m, tea.Batch(tea.Println("Bye"), tea.Quit)
 	}
 
 	// normal handling
