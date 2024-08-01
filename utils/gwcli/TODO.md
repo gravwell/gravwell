@@ -61,3 +61,5 @@
     - The default list delegate truncates (with an ellipsis) list item titles and descriptions beyond the width of the list. There is no way to view the full text of the item.
     - Option 1: wrap the text of the selected item (ex: `delegate.Styles.SelectedTitle = delegate.Styles.SelectedTitle.Width(m.Width)`) so it can be fully displayed when highlighted. The issue here is that it will displace the list and may require dynamically altering its height as to not write over other, lower items.
     - Option 2: provide a keybind to display the full item description in a popup.
+
+- Built in commands (quit, history) are not displayed with context help
