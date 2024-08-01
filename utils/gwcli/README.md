@@ -39,13 +39,13 @@ The CLI can be used interactively or as a script tool.
 
 Calling an action directly (ex: `./gwcli query tag=gravwell`) will invoke the action and return the results.
 
-Calling gwcli bare or from a menu (ex: `./gwcli tools macros`) will start an interactive prompt at that directory (unless `--script` is given, in which case it will display help).
+Calling gwcli bare or from a menu (ex: `./gwcli macros`) will start an interactive prompt at that directory (unless `--script` is given, in which case it will display help).
 
 Attach `-h` to any command for full details on flags and commands.
 
 ## Login
 
-gwcli automatically logs in via token once one has been created. Use `-u USER -p PASS` the first call to generate the token automatically, then `./gwcli` can be invoked without.
+gwcli automatically logs in via token once one has been created. Use `-u USER -p path/to/file/containing/password` the first call to generate the token automatically, then `./gwcli` can be invoked without.
 
 # Troubleshooting
 
