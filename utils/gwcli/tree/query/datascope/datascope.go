@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 // Datascope is tabbed, scrolling viewport with a paginator built into the results view.
 // It displays and manages results from a search.
 // As the user pages through, the viewport automatically updates with the contents of the new page.

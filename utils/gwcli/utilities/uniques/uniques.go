@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 // uniques contains global constants and functions that must be referenced across multiple packages
 // but cannot belong to any.
 // ! Uniques does not import any local packages as to prevent import cycles.

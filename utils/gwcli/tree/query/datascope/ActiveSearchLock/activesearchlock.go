@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 // activesearchlock is a simple package for controlling the singleton locks DS's keepalive
 // uses to check for its own viability.
 package activesearchlock

@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 /*
 A create action creates a shallow list of inputs for the user to fill via flags or interactive
 TIs before being passed back to the progenitor to transform into usable data for their create

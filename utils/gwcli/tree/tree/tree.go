@@ -1,7 +1,15 @@
-/**
- * A basic action that simply displays the command structure of gwcli using the lipgloss tree
- * functionality.
- */
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+/*
+A basic action that simply displays the command structure of gwcli using the lipgloss tree
+functionality.
+*/
 package tree
 
 import (

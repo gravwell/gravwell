@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package scaffolddelete
 
 import (
@@ -45,13 +53,7 @@ func (i Item[I]) Description() string {
 
 }
 
-//#endregion
-
-const (
-	defaultItemHeight  = 2
-	defaultItemSpacing = 1
-)
-
+// #endregion
 // the item delegate defines display format of an item in the list
 type defaultDelegate[I scaffold.Id_t] struct {
 	height     int

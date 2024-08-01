@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 /*
 An edit action allows the user to select an entity from a list of all avaialble entities, modify its
 fields (as interfaced by the implementor), and reflect the changes to the server.

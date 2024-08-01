@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 // colorizer provides common utilities that rely on the stylesheet.
 // These functions are some degree of a mish-mash, but all are in the vein of supporting a
 // consistent UI. Any UI elements that look similar across actions should go here as well as

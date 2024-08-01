@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 /*
 Mother is the heart and brain of the interactive functionality of gwcli.
 It is the top-level implementation of tea.Model and drives interactive tree navigation as well as

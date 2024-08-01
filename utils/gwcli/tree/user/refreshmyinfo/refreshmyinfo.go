@@ -1,6 +1,14 @@
-/**
- * Re-fetches the cached user info (MyInfo) associated to the connection
- */
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+/*
+Re-fetches the cached user info (MyInfo) associated to the connection
+*/
 package refreshmyinfo
 
 import (

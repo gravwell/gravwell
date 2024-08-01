@@ -1,5 +1,14 @@
-// Colors provides constants used to provide uniform, readable colors to the styles
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package stylesheet
+
+// Colors provides constants used to provide uniform, readable colors to the styles
 
 import "github.com/charmbracelet/lipgloss"
 

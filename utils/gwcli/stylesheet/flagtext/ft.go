@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 /*
 ft (flagtext) provides a repository of strings shared by flags across gwcli.
 While all are constant and *should not be modified at runtime*, it is organized as a struct for
