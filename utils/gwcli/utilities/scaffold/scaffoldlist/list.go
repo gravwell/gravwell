@@ -394,7 +394,7 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 	// output the results to a file, if given
 	if la.outFile != nil {
 		fmt.Fprint(la.outFile, s)
-		return textinput.Blink
+		return tea.Println("Successfully output results to " + la.outFile.Name())
 	}
 
 	return tea.Println(s)
