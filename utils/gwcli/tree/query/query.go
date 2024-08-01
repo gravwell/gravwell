@@ -158,16 +158,16 @@ func runNonInteractive(cmd *cobra.Command, flags queryflags, qry string) {
 		// warn about ignored flags
 		if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
 			if flags.outfn != "" {
-				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore("output", ft.Name.Frequency)+"\n")
+				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.Output, ft.Name.Frequency)+"\n")
 			}
 			if flags.append {
-				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore("append", ft.Name.Frequency)+"\n")
+				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.Append, ft.Name.Frequency)+"\n")
 			}
 			if flags.json {
-				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore("json", ft.Name.Frequency)+"\n")
+				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.JSON, ft.Name.Frequency)+"\n")
 			}
 			if flags.csv {
-				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore("csv", ft.Name.Frequency)+"\n")
+				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.CSV, ft.Name.Frequency)+"\n")
 			}
 		}
 
