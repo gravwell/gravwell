@@ -18,6 +18,8 @@ Tree nodes (commands that require further input/are submenus), such as `user`, a
 
 # Quick Tips
 
+- By default, gwcli logs to `$CONFIGDIR/gwcli/dev.log`. On Linux, this is likely `~/.config/gwcli/dev.log`. Strongly recommend `tail -f ~/.config/gwcli/dev.log` to see what the program is doing under the hood while you are working on it.
+
 - Actions' Update subroutines should **always** return a tea.Cmd when handing control back to Mother.
 
     - If you do not have anything to `tea.Println()` on completion, use a `.Blink` method
