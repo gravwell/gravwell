@@ -793,7 +793,8 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 			im.mtx.Unlock()
 			return ErrAllConnsDown
 		}
-		if time.Since(ts) > to {
+		//only check for a timeout if to is greater than zero.  A zero value or negative value means no timeout
+		if to > 0 && time.Since(ts) > to {
 			im.mtx.Unlock()
 			return ErrTimeout
 		}
