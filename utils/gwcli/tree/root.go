@@ -19,6 +19,7 @@ import (
 	"gwcli/clilog"
 	"gwcli/connection"
 	"gwcli/group"
+	"gwcli/stylesheet"
 	"gwcli/tree/dashboards"
 	"gwcli/tree/extractors"
 	"gwcli/tree/kits"
@@ -142,13 +143,16 @@ func GenerateFlags(root *cobra.Command) {
 const ( // usage
 	use   string = "gwcli"
 	short string = "Gravwell CLI Client"
-	long  string = "gwcli is a CLI client for interacting with your Gravwell instance directly" +
-		"from your terminal.\n" +
-		"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
-		"To invoke the TUI, simply call `gwcli`.\n" +
-		"You can view help for any submenu or action by providing help a path.\n" +
-		"For instance, try: `gwcli help tools macros create` or `gwcli query -h`"
 )
+
+// must be variable to allow lipgloss formatting
+var long string = "gwcli is a CLI client for interacting with your Gravwell instance directly" +
+	"from your terminal.\n" +
+	"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
+	"To invoke the TUI, simply call " + stylesheet.ExampleStyle.Render("gwcli") + ".\n" +
+	"You can view help for any submenu or action by providing help a path.\n" +
+	"For instance, try: " + stylesheet.ExampleStyle.Render("gwcli help macros create") +
+	" or " + stylesheet.ExampleStyle.Render("gwcli query -h")
 
 const ( // mousetrap
 	mousetrapText string = "This is a command line tool.\n" +
