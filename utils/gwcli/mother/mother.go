@@ -30,6 +30,7 @@ import (
 	ft "gwcli/stylesheet/flagtext"
 	"gwcli/utilities/killer"
 	"gwcli/utilities/uniques"
+	"slices"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -274,12 +275,43 @@ func activeChildSanityCheck(m Mother) {
 }
 
 func (m Mother) View() string {
-	// allow child command to retain control if it exists
-	if m.active.model != nil {
+	if m.active.model != nil { // allow child command to retain control, if it exists
 		return m.active.model.View()
 	}
-	return fmt.Sprintf("%s%v\n",
-		CommandPath(&m), m.ti.View())
+
+	var (
+		filtered []string
+		allSgt   []string = m.ti.AvailableSuggestions()
+		curInput string   = m.ti.Value()
+		lastRune rune
+	)
+
+	// filter suggestions that match current input to be displayed below the prompt
+	runes := []rune(curInput)
+	if len(runes) > 0 {
+		lastRune = runes[len(runes)-1]
+
+		for _, sgt := range allSgt {
+			// cut on current input
+			after, found := strings.CutPrefix(sgt, curInput)
+			if !found {
+				continue
+			}
+			before, _, _ := strings.Cut(after, " ")
+			if before != "" {
+				if lastRune == ' ' {
+					filtered = append(filtered, before)
+				} else {
+					filtered = append(filtered, stylesheet.ExampleStyle.Render(curInput)+before)
+				}
+			}
+		}
+
+		filtered = slices.Compact(filtered)
+	}
+
+	return fmt.Sprintf("%s%v\n%v",
+		CommandPath(&m), m.ti.View(), strings.Join(filtered, " "))
 }
 
 //#endregion
