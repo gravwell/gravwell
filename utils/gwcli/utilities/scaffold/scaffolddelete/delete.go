@@ -219,6 +219,7 @@ func newDeleteModel[I scaffold.Id_t](del deleteFunc[I], fch fetchFunc[I]) *delet
 		mode:   selecting,
 		confTI: stylesheet.NewTI("", false),
 	}
+	d.confTI.Focus()
 	d.flagset = flags()
 
 	d.df = del
@@ -253,17 +254,13 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 			}
 
 			// attempt to delete the item
-			if err := d.df(d.dryrun, d.selectedItem.id); err != nil {
-				d.mode = quitting
-				return tea.Printf(errorNoDeleteText+"\n", err)
-			}
 			if d.dryrun {
 				d.mode = quitting
 				return tea.Printf(dryrunSuccessText, d.itemSingular, d.selectedItem.id)
 			}
 
 			// shift into confirmation mode
-			d.mode = selecting
+			d.mode = confirming
 			return textinput.Blink
 		}
 
@@ -272,7 +269,10 @@ func (d *deleteModel[I]) Update(msg tea.Msg) tea.Cmd {
 		if isKeyMsg && keyMsg.Type == tea.KeyEnter {
 			// check for confirmation (after cleaning up the input)
 			if strings.TrimSpace(strings.ToLower(d.confTI.Value())) == confirmPhrase {
-				go d.list.RemoveItem(d.list.Index())
+				d.mode = quitting
+				if err := d.df(d.dryrun, d.selectedItem.id); err != nil {
+					return tea.Printf(errorNoDeleteText+"\n", err)
+				}
 				return tea.Printf(deleteSuccessText,
 					d.itemSingular, d.selectedItem.id)
 			}
@@ -325,7 +325,6 @@ func (d *deleteModel[I]) View() string {
 			sb.WriteString("\n")
 		}
 		sb.WriteString(tiView)
-
 		return sb.String()
 	default:
 		clilog.Writer.Warnf("Unknown mode %v", d.mode)
