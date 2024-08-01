@@ -9,6 +9,8 @@
 - store help strings within mother somewhere so we can lazy-compile them rather than regenerating each call
     - negligible difference; there are more important performance tweaks elsewhere
 
+- the `--all` flag in various list commands is not really respected as admin mode is not implemented
+
 - implement no-color flag
     - I have it stuck in my brain that lipgloss has native support for the [NoColor environment variable](https://no-color.org/), but it does not seem to currently be effectual.
     - This can probably be rememdied by providing lipgloss with the NoColor or 1bit renderer, but you would need to ensure all lipgloss styles use this renderer, likely as a new singleton tightly coupled with stylesheet.
