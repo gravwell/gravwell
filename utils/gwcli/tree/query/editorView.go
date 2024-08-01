@@ -38,6 +38,8 @@ func initialEdiorView(height, width uint) editorView {
 	ev.ta.Prompt = stylesheet.TAPromptPrefix
 	ev.ta.SetWidth(int(width))
 	ev.ta.SetHeight(int(height))
+	ev.ta.KeyMap.WordForward.SetKeys("ctrl+right", "alt+right", "alt+f")
+	ev.ta.KeyMap.WordBackward.SetKeys("ctrl+left", "alt+left", "alt+b")
 	ev.ta.Focus()
 	// set up the help keys
 	ev.keys = []key.Binding{ // 0: submit
