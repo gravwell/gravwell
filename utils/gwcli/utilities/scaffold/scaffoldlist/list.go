@@ -152,11 +152,20 @@ func NewListAction[Any any](short, long string, defaultColumns []string,
 			return
 		}
 
-		// fetch columns
 		var (
+			script  bool
+			noColor bool
 			columns []string
 			err     error
 		)
+
+		// check for script mode
+		script, err = cmd.Flags().GetBool(ft.Name.Script)
+		if err != nil {
+			clilog.LogFlagFailedGet(ft.Name.Script, err)
+		}
+
+		// fetch columns
 		if columns, err = cmd.Flags().GetStringSlice("columns"); err != nil {
 			clilog.LogFlagFailedGet("columns", err)
 			// will fall back to default columns
@@ -165,9 +174,13 @@ func NewListAction[Any any](short, long string, defaultColumns []string,
 		}
 
 		// check for --no-color
-		noColor, err := cmd.Flags().GetBool("no-color")
-		if err != nil {
-			clilog.LogFlagFailedGet("no-color", err)
+		if script { // script mode implies noColor
+			noColor = true
+		} else {
+			noColor, err = cmd.Flags().GetBool("no-color")
+			if err != nil {
+				clilog.LogFlagFailedGet("no-color", err)
+			}
 		}
 
 		// check for output file
