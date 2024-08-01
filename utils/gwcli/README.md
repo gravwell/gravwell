@@ -45,7 +45,11 @@ Attach `-h` to any command for full details on flags and commands.
 
 ## Login
 
-gwcli automatically logs in via token once one has been created. Use `-u USER -p path/to/file/containing/password` the first call to generate the token automatically, then `./gwcli` can be invoked without.
+gwcli automatically logs in via token once one has been created.
+
+If you are not in script mode and have no token, gwcli will prompt you for a username and password.
+
+If you are in script mode and have no token, use `-u USER -p path/to/file/containing/password` the first call to generate the token and login.
 
 # Troubleshooting
 
