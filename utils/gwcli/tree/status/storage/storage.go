@@ -71,8 +71,8 @@ func NewStatusStorageAction() action.Pair {
 				tbl.Row(
 					"cold",
 					strconv.FormatUint(v.EntryCountCold, 10),
-					fmt.Sprintf("%.2fGB", ingestedColdMB/1024),
-					fmt.Sprintf("%.2fGB", storedColdMB/1024),
+					fmt.Sprintf(precisionF+"GB", ingestedColdMB/1024),
+					fmt.Sprintf(precisionF+"GB", storedColdMB/1024),
 				)
 				sb.WriteString(tbl.Render() + "\n")
 			}
