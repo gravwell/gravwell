@@ -30,6 +30,6 @@ func NewIndexersNav() *cobra.Command {
 		[]*cobra.Command{},
 		[]action.Pair{
 			storage.NewIndexerStorageAction(),
-			stats.NewIndexerStatsBasicAction(),
+			stats.NewStatsListAction(),
 		})
 }
