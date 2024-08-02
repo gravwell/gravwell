@@ -98,5 +98,6 @@ var Usage = struct {
 	Append: "append to the given output file instead of truncating it.",
 	CSV:    "display results as CSV.\nMutually exclusive with --json, --table.",
 	JSON:   "display results as JSON.\nMutually exclusive with --csv, --table.",
-	Table:  "display results in a fancy table.\nMutually exclusive with --json, --csv.",
+	Table: "display results in a fancy table.\nMutually exclusive with --json, --csv.\n" +
+		"Default if no format flags are given.",
 }
