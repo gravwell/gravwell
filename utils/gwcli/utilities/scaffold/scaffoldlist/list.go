@@ -227,7 +227,7 @@ func NewListAction[Any any](short, long string, defaultColumns []string,
 	}
 
 	cmd.Flags().SortFlags = false // does not seem to be respected
-	cmd.MarkFlagsMutuallyExclusive("csv", "json", "table")
+	cmd.MarkFlagsMutuallyExclusive(ft.Name.CSV, ft.Name.JSON, ft.Name.Table)
 
 	// spin up a list action for interactive use
 	la := newListAction(defaultColumns, dataStruct, dataFn, addtlFlagsFunc)
@@ -240,7 +240,7 @@ func listStarterFlags() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 	fs.Bool(ft.Name.CSV, false, ft.Usage.CSV)
 	fs.Bool(ft.Name.JSON, false, ft.Usage.JSON)
-	fs.Bool("table", true, "display results in a human-readable table") // default
+	fs.Bool(ft.Name.Table, true, ft.Usage.Table) // default
 	fs.StringSlice("columns", []string{},
 		"comma-seperated list of columns to include in the results."+
 			"Use --show-columns to see the full list of columns.")
