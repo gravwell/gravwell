@@ -36,6 +36,7 @@ var Name = struct {
 	Append string // append to file output
 	CSV    string
 	JSON   string
+	Table  string
 }{
 	Dryrun:    "dryrun",
 	Name:      "name",
@@ -53,6 +54,7 @@ var Name = struct {
 	Append: "append",
 	CSV:    "csv",
 	JSON:   "json",
+	Table:  "table",
 }
 
 // Common flag usage description used across a variety of actions
@@ -73,6 +75,7 @@ var Usage = struct {
 	Append string // append to file output
 	CSV    string
 	JSON   string
+	Table  string
 }{
 	Dryrun: "feigns, describing actions that " +
 		lipgloss.NewStyle().Italic(true).Render("would") +
@@ -95,4 +98,5 @@ var Usage = struct {
 	Append: "append to the given output file instead of truncating it.",
 	CSV:    "display results as CSV.\nMutually exclusive with --json.",
 	JSON:   "display results as JSON.\nMutually exclusive with --csv.",
+	Table:  "",
 }
