@@ -11,6 +11,7 @@ package storage
 import (
 	"fmt"
 	"gwcli/action"
+	"gwcli/clilog"
 	"gwcli/connection"
 	"gwcli/stylesheet"
 	"gwcli/utilities/scaffold"
@@ -28,12 +29,24 @@ const (
 	long  string = "Review storage information for each indexer"
 )
 
+const (
+	defaultPrecision = 2
+)
+
 func NewStatusStorageAction() action.Pair {
 	return scaffold.NewBasicAction(use, short, long, []string{},
-		func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd) {
+		func(_ *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
 			ss, err := connection.Client.GetStorageStats()
 			if err != nil {
 				return err.Error(), nil
+			}
+
+			// pull precision from flag
+			var precisionF string
+			if precision, err := fs.GetUint8("precision"); err != nil {
+				clilog.LogFlagFailedGet("precision", err)
+			} else {
+				precisionF = "%." + strconv.FormatUint(uint64(precision), 10) + "f"
 			}
 
 			var sb strings.Builder
@@ -52,8 +65,8 @@ func NewStatusStorageAction() action.Pair {
 				tbl.Row(
 					"hot",
 					strconv.FormatUint(v.EntryCountHot, 10),
-					fmt.Sprintf("%.2fGB", ingestedHotMB/1024),
-					fmt.Sprintf("%.2fGB", storedHotMB/1024),
+					fmt.Sprintf(precisionF+"GB", ingestedHotMB/1024),
+					fmt.Sprintf(precisionF+"GB", storedHotMB/1024),
 				)
 				tbl.Row(
 					"cold",
@@ -66,5 +79,13 @@ func NewStatusStorageAction() action.Pair {
 
 			return sb.String(), nil
 		},
-		nil)
+		flags)
+}
+
+// Add additional flags for data representation, a la scaffoldlist.
+func flags() pflag.FlagSet {
+	fs := pflag.FlagSet{}
+	fs.Uint8("precision", defaultPrecision,
+		"decimal precision when displaying floating point numbers")
+	return fs
 }
