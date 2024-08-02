@@ -30,7 +30,7 @@ import (
 
 const (
 	use   string = "storage"
-	short string = ""
+	short string = "review storage information for each indexer"
 	long  string = "Review storage information for each indexer"
 )
 
@@ -38,7 +38,7 @@ const (
 	defaultPrecision = 2
 )
 
-func NewStatusStorageAction() action.Pair {
+func NewIndexerStorageAction() action.Pair {
 	return scaffold.NewBasicAction(use, short, long, []string{},
 		func(_ *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
 			// check for mutually exclusive flags
@@ -125,7 +125,10 @@ func toJSON(ss map[string]types.StorageStats, precF string) string {
 			},
 		}
 
-		b, _ := json.Marshal(m)
+		b, err := json.Marshal(m)
+		if err != nil {
+			clilog.Writer.Errorf("Failed to marshal storage stats: %v", err)
+		}
 		res = append(res, (string(b)))
 	}
 

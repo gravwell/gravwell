@@ -6,28 +6,30 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package status
+package indexers
 
 import (
 	"gwcli/action"
-	"gwcli/tree/status/indexers"
+	"gwcli/tree/status/indexers/stats"
+	"gwcli/tree/status/indexers/storage"
 	"gwcli/utilities/treeutils"
 
 	"github.com/spf13/cobra"
 )
 
 const (
-	use   string = "status"
-	short string = "view system statuses"
-	long  string = "Review the status and indicators of your system."
+	use   string = "indexers"
+	short string = "view indexer status"
+	long  string = "Review the status, storage, and state of indexers associated to your instance."
 )
 
-var aliases []string = []string{}
+var aliases []string = []string{"index", "idx", "indexer"}
 
-func NewStatusNav() *cobra.Command {
+func NewIndexersNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases,
-		[]*cobra.Command{
-			indexers.NewIndexersNav(),
-		},
-		[]action.Pair{})
+		[]*cobra.Command{},
+		[]action.Pair{
+			storage.NewIndexerStorageAction(),
+			stats.NewIndexerStatsAction(),
+		})
 }
