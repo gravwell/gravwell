@@ -23,12 +23,11 @@ Example implementation:
 	)
 
 	var (
-		aliases        []string = []string{}
 		defaultColumns []string = []string{"ID", "UID", "Name", "Description"}
 	)
 
 	func New[parentpkg]ListAction() action.Pair {
-		return scaffoldlist.NewListAction(short, long, aliases, defaultColumns,
+		return scaffoldlist.NewListAction(short, long, defaultColumns,
 			types.[X]{}, list, flags)
 	}
 
