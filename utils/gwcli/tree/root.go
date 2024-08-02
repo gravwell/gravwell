@@ -27,6 +27,7 @@ import (
 	"gwcli/tree/queries"
 	"gwcli/tree/query"
 	"gwcli/tree/resources"
+	"gwcli/tree/status"
 	"gwcli/tree/tree"
 	"gwcli/tree/user"
 	"gwcli/utilities/cfgdir"
@@ -174,6 +175,7 @@ func Execute(args []string) int {
 			extractors.NewExtractorsNav(),
 			dashboards.NewDashboardNav(),
 			resources.NewResourcesNav(),
+			status.NewStatusNav(),
 		},
 		[]action.Pair{
 			query.NewQueryAction(),
