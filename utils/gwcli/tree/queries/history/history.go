@@ -21,6 +21,7 @@ import (
 )
 
 const (
+	use   string = "history"
 	short string = "display search history"
 	long  string = "display past searches made by your user"
 )
@@ -32,7 +33,7 @@ var (
 const defaultCount = 30
 
 func NewQueriesHistoryListAction() action.Pair {
-	return scaffoldlist.NewListAction(short, long, defaultColumns,
+	return scaffoldlist.NewListAction(use, short, long, defaultColumns,
 		types.SearchLog{}, list, flags)
 }
 

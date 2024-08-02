@@ -30,7 +30,7 @@ var (
 )
 
 func NewScheduledQueriesListAction() action.Pair {
-	return scaffoldlist.NewListAction(short, long, defaultColumns,
+	return scaffoldlist.NewListAction("", short, long, defaultColumns,
 		types.ScheduledSearch{}, listScheduledSearch, flags)
 }
 

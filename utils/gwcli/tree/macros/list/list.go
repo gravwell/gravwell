@@ -29,7 +29,7 @@ var (
 )
 
 func NewMacroListAction() action.Pair {
-	return scaffoldlist.NewListAction(short, long, defaultColumns,
+	return scaffoldlist.NewListAction("", short, long, defaultColumns,
 		types.SearchMacro{}, listMacros, flags)
 }
 

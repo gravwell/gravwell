@@ -17,6 +17,7 @@ List actions have the --output, --append, --json, --table, --CSV, and --show-col
 Example implementation:
 
 	const (
+		use   string = "" // defaults to 'list'
 		short string = ""
 		long  string = ""
 	)
@@ -127,7 +128,7 @@ type addtlFlagFunction func() pflag.FlagSet
 // See tree/kits/list's ListKits() as an example.
 //
 // Go's Generics are a godsend.
-func NewListAction[Any any](short, long string, defaultColumns []string,
+func NewListAction[Any any](use, short, long string, defaultColumns []string,
 	dataStruct Any, dataFn dataFunction[Any], addtlFlagsFunc addtlFlagFunction) action.Pair {
 	// assert developer provided a usable data struct
 	if reflect.TypeOf(dataStruct).Kind() != reflect.Struct {
@@ -214,8 +215,12 @@ func NewListAction[Any any](short, long string, defaultColumns []string,
 
 	}
 
+	if strings.TrimSpace(use) == "" {
+		use = "list"
+	}
+
 	// generate the command
-	cmd := treeutils.NewActionCommand("list", short, long, []string{}, runFunc)
+	cmd := treeutils.NewActionCommand(use, short, long, []string{}, runFunc)
 
 	// attach normal list flags and, if applicable, additional flags
 	startFS := listStarterFlags()

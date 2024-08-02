@@ -27,7 +27,7 @@ var (
 )
 
 func NewKitsListAction() action.Pair {
-	return scaffoldlist.NewListAction(short, long, defaultColumns,
+	return scaffoldlist.NewListAction("", short, long, defaultColumns,
 		types.IdKitState{}, ListKits, flags)
 }
 
