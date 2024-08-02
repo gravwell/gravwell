@@ -3,11 +3,10 @@
     - currently blocked by an issue in the [Gabs library](https://github.com/Jeffail/gabs). I have a PR open to fix it, but Gabs may be unmaintained, which would suck because it is cool as hell.
 - create Table exclude variant
 
+^ all three of these are pretty low priority, especially given you can just call StructFields and feed the resulting []string to the normal To* subroutines.
+
 - query editor syntax highlighting
     - need to PR the client library, as it does not currently hit the fold, diag endpoints the web gui uses for syntax highlighting/validation
-
-- store help strings within mother somewhere so we can lazy-compile them rather than regenerating each call
-    - negligible difference; there are more important performance tweaks elsewhere
 
 - the `--all` flag in various list commands is not really respected as admin mode is not implemented
 
@@ -63,3 +62,6 @@
     - Option 2: provide a keybind to display the full item description in a popup.
 
 - Built in commands (quit, history) are not displayed with context help
+
+- BUG: race condition displaying history line (pushToHistory) sometimes causes the history line to be printed after the result of a basic (/other very fast) action
+    - Bubble Tea messages do not guarentee order unless you use `.Sequence()` and this only guarentees that the `.Sequence()`ed Cmds will be ordered. Currently, pushToHistory is sent immediately in order to display the previous command before any output from it (so it looks like a normal shell). However, this is technically a race condition. Actions that are *very* fast (ex: some basics) can sometimes tea.Print their results immediately after pushToHistory is sent. Because order is not guarenteed, Bubble Tea then has a chance to process the later tea.Println first, causing results to be displayed on top of the history display that invoked them.
