@@ -35,6 +35,7 @@ require (
 	github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018
 	github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37
 	github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e
+	github.com/gravwell/jsonparser v0.0.0-20240802164212-e3c50dc78005
 	github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4
 	github.com/gravwell/syslogparser v0.0.0-20230331221307-ab77654a9657
 	github.com/h2non/filetype v1.0.10
@@ -93,7 +94,6 @@ require (
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.4 // indirect
-	github.com/gravwell/jsonparser v0.0.0-20240802164212-e3c50dc78005 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
