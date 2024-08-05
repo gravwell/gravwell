@@ -5,19 +5,6 @@
 package plugin
 
 import (
-	ingest "github.com/gravwell/gravwell/v3/ingest"
-	config "github.com/gravwell/gravwell/v3/ingest/config"
-	entry "github.com/gravwell/gravwell/v3/ingest/entry"
-	japanese "golang.org/x/text/encoding/japanese"
-	rfc5424 "github.com/crewjam/rfc5424"
-	glob "github.com/gobwas/glob"
-	uuid "github.com/google/uuid"
-	ipfix "github.com/gravwell/ipfix"
-	filetype "github.com/h2non/filetype"
-	compress "github.com/klauspost/compress"
-	dns "github.com/miekg/dns"
-	jsonparser "github.com/buger/jsonparser"
-	jsonparser_2 "github.com/gravwell/jsonparser"
 	tar "archive/tar"
 	zip "archive/zip"
 	bufio "bufio"
@@ -66,6 +53,18 @@ import (
 	expvar "expvar"
 	flag "flag"
 	fmt "fmt"
+	jsonparser "github.com/buger/jsonparser"
+	rfc5424 "github.com/crewjam/rfc5424"
+	glob "github.com/gobwas/glob"
+	uuid "github.com/google/uuid"
+	ingest "github.com/gravwell/gravwell/v3/ingest"
+	config "github.com/gravwell/gravwell/v3/ingest/config"
+	entry "github.com/gravwell/gravwell/v3/ingest/entry"
+	ipfix "github.com/gravwell/ipfix"
+	jsonparser_2 "github.com/gravwell/jsonparser"
+	filetype "github.com/h2non/filetype"
+	compress "github.com/klauspost/compress"
+	dns "github.com/miekg/dns"
 	ast "go/ast"
 	build "go/build"
 	constant "go/constant"
@@ -77,6 +76,7 @@ import (
 	scanner "go/scanner"
 	token "go/token"
 	types "go/types"
+	japanese "golang.org/x/text/encoding/japanese"
 	hash "hash"
 	adler32 "hash/adler32"
 	crc32 "hash/crc32"
@@ -4755,8 +4755,6 @@ func init() {
 	decs["NewCond"] = sync.NewCond
 	decs["Once"] = reflect.TypeOf((*sync.Once)(nil)).Elem()
 	decs["OnceFunc"] = sync.OnceFunc
-	decs["OnceValue"] = sync.OnceValue
-	decs["OnceValues"] = sync.OnceValues
 	decs["Pool"] = reflect.TypeOf((*sync.Pool)(nil)).Elem()
 	decs["RWMutex"] = reflect.TypeOf((*sync.RWMutex)(nil)).Elem()
 	decs["WaitGroup"] = reflect.TypeOf((*sync.WaitGroup)(nil)).Elem()
@@ -4786,7 +4784,6 @@ func init() {
 	decs["LoadUint32"] = atomic.LoadUint32
 	decs["LoadUint64"] = atomic.LoadUint64
 	decs["LoadUintptr"] = atomic.LoadUintptr
-	decs["Pointer"] = reflect.TypeOf((*atomic.Pointer)(nil)).Elem()
 	decs["StoreInt32"] = atomic.StoreInt32
 	decs["StoreInt64"] = atomic.StoreInt64
 	decs["StorePointer"] = atomic.StorePointer
