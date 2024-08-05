@@ -15,7 +15,7 @@ require (
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/bmatcuk/doublestar/v4 v4.4.0
 	github.com/brianvoe/gofakeit v3.18.0+incompatible
-	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
+	github.com/buger/jsonparser v1.1.1
 	github.com/bxcodec/faker/v3 v3.3.1
 	github.com/charmbracelet/lipgloss v0.11.0
 	github.com/crewjam/rfc5424 v0.1.0
@@ -35,6 +35,7 @@ require (
 	github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018
 	github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37
 	github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e
+	github.com/gravwell/jsonparser v0.0.0-20240802164212-e3c50dc78005
 	github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4
 	github.com/gravwell/syslogparser v0.0.0-20230331221307-ab77654a9657
 	github.com/h2non/filetype v1.0.10
@@ -141,8 +142,3 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-// Leave this until https://github.com/buger/jsonparser/pull/180 is merged
-replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb
-
-// replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
