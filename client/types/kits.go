@@ -18,8 +18,8 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/buger/jsonparser"
 	"github.com/google/uuid"
+	"github.com/gravwell/jsonparser"
 )
 
 const (

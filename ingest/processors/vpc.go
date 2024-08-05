@@ -15,9 +15,9 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/buger/jsonparser"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/jsonparser"
 	"github.com/klauspost/compress/gzip"
 )
 

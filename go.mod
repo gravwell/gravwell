@@ -15,7 +15,7 @@ require (
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/bmatcuk/doublestar/v4 v4.4.0
 	github.com/brianvoe/gofakeit v3.18.0+incompatible
-	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
+	github.com/buger/jsonparser v1.1.1
 	github.com/bxcodec/faker/v3 v3.3.1
 	github.com/charmbracelet/lipgloss v0.11.0
 	github.com/crewjam/rfc5424 v0.1.0
@@ -93,6 +93,7 @@ require (
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.4 // indirect
+	github.com/gravwell/jsonparser v0.0.0-20240802164212-e3c50dc78005 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-multierror v1.1.1 // indirect
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
@@ -141,8 +142,3 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-// Leave this until https://github.com/buger/jsonparser/pull/180 is merged
-replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb
-
-// replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell
