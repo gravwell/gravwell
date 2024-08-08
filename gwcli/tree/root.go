@@ -152,7 +152,7 @@ var long string = "github.com/gravwell/gravwell/v3/gwcli is a CLI client for int
 	"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
 	"To invoke the TUI, simply call " + stylesheet.ExampleStyle.Render("gwcli") + ".\n" +
 	"You can view help for any submenu or action by providing help a path.\n" +
-	"For instance, try: " + stylesheet.ExampleStyle.Render("github.com/gravwell/gravwell/v3/gwcli help macros create") +
+	"For instance, try: " + stylesheet.ExampleStyle.Render("gwcli help macros create") +
 	" or " + stylesheet.ExampleStyle.Render("github.com/gravwell/gravwell/v3/gwcli query -h")
 
 const ( // mousetrap
