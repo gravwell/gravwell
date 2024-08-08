@@ -10,12 +10,12 @@ package myinfo
 
 import (
 	"fmt"
-	"gwcli/action"
-	"gwcli/clilog"
-	"gwcli/connection"
-	"gwcli/stylesheet"
-	ft "gwcli/stylesheet/flagtext"
-	"gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v3/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v3/client/types"

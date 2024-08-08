@@ -9,9 +9,9 @@
 package history
 
 import (
-	"gwcli/action"
-	"gwcli/clilog"
-	"gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold/scaffoldlist"
 	"strings"
 
 	grav "github.com/gravwell/gravwell/v3/client"

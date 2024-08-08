@@ -14,8 +14,8 @@ package datascope
 
 import (
 	"fmt"
-	"gwcli/stylesheet"
-	"gwcli/stylesheet/colorizer"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet/colorizer"
 	"strconv"
 	"strings"
 

@@ -14,7 +14,7 @@ action or scaffold is invoking it.
 package listsupport
 
 import (
-	"gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
