@@ -142,7 +142,7 @@ func GenerateFlags(root *cobra.Command) {
 }
 
 const ( // usage
-	use   string = "github.com/gravwell/gravwell/v3/gwcli"
+	use   string = "gwcli"
 	short string = "Gravwell CLI Client"
 )
 
