@@ -153,7 +153,7 @@ var long string = "github.com/gravwell/gravwell/v3/gwcli is a CLI client for int
 	"To invoke the TUI, simply call " + stylesheet.ExampleStyle.Render("gwcli") + ".\n" +
 	"You can view help for any submenu or action by providing help a path.\n" +
 	"For instance, try: " + stylesheet.ExampleStyle.Render("gwcli help macros create") +
-	" or " + stylesheet.ExampleStyle.Render("github.com/gravwell/gravwell/v3/gwcli query -h")
+	" or " + stylesheet.ExampleStyle.Render("gwcli query -h")
 
 const ( // mousetrap
 	mousetrapText string = "This is a command line tool.\n" +
