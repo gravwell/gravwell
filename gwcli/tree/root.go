@@ -147,7 +147,7 @@ const ( // usage
 )
 
 // must be variable to allow lipgloss formatting
-var long string = "github.com/gravwell/gravwell/v3/gwcli is a CLI client for interacting with your Gravwell instance directly" +
+var long string = "gwcli is a CLI client for interacting with your Gravwell instance directly" +
 	"from your terminal.\n" +
 	"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
 	"To invoke the TUI, simply call " + stylesheet.ExampleStyle.Render("gwcli") + ".\n" +
