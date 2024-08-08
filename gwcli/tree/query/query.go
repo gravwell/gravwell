@@ -64,7 +64,7 @@ const (
 		"If --json or --csv is not given when outputting to a file (`-o`), the results will be " +
 		"text (if able) or an archive binary blob (if unable), depending on the query's render " +
 		"module.\n" +
-		"github.com/gravwell/gravwell/v3/gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
+		"gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
 		"blob (aka: your query uses a chart-style renderer)."
 )
 
