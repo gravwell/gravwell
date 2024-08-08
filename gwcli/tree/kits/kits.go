@@ -9,9 +9,9 @@
 package kits
 
 import (
-	"gwcli/action"
-	"gwcli/tree/kits/list"
-	"gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/kits/list"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
 
 	"github.com/spf13/cobra"
 )

@@ -15,24 +15,24 @@ package tree
 
 import (
 	"errors"
-	"gwcli/action"
-	"gwcli/clilog"
-	"gwcli/connection"
-	"gwcli/group"
-	"gwcli/stylesheet"
-	"gwcli/tree/dashboards"
-	"gwcli/tree/extractors"
-	"gwcli/tree/kits"
-	"gwcli/tree/macros"
-	"gwcli/tree/queries"
-	"gwcli/tree/query"
-	"gwcli/tree/resources"
-	"gwcli/tree/status"
-	"gwcli/tree/tree"
-	"gwcli/tree/user"
-	"gwcli/utilities/cfgdir"
-	"gwcli/utilities/treeutils"
-	"gwcli/utilities/usage"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	"github.com/gravwell/gravwell/v3/gwcli/group"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/dashboards"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/extractors"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/kits"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/macros"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/queries"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/query"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/resources"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/status"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/tree"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/user"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/usage"
 	"strings"
 	"time"
 
@@ -142,18 +142,18 @@ func GenerateFlags(root *cobra.Command) {
 }
 
 const ( // usage
-	use   string = "gwcli"
+	use   string = "github.com/gravwell/gravwell/v3/gwcli"
 	short string = "Gravwell CLI Client"
 )
 
 // must be variable to allow lipgloss formatting
-var long string = "gwcli is a CLI client for interacting with your Gravwell instance directly" +
+var long string = "github.com/gravwell/gravwell/v3/gwcli is a CLI client for interacting with your Gravwell instance directly" +
 	"from your terminal.\n" +
 	"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
-	"To invoke the TUI, simply call " + stylesheet.ExampleStyle.Render("gwcli") + ".\n" +
+	"To invoke the TUI, simply call " + stylesheet.ExampleStyle.Render("github.com/gravwell/gravwell/v3/gwcli") + ".\n" +
 	"You can view help for any submenu or action by providing help a path.\n" +
-	"For instance, try: " + stylesheet.ExampleStyle.Render("gwcli help macros create") +
-	" or " + stylesheet.ExampleStyle.Render("gwcli query -h")
+	"For instance, try: " + stylesheet.ExampleStyle.Render("github.com/gravwell/gravwell/v3/gwcli help macros create") +
+	" or " + stylesheet.ExampleStyle.Render("github.com/gravwell/gravwell/v3/gwcli query -h")
 
 const ( // mousetrap
 	mousetrapText string = "This is a command line tool.\n" +

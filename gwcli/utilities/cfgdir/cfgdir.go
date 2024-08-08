@@ -32,7 +32,7 @@ var ( // set by init
 
 // on startup, identify and cache the config directory
 func init() {
-	const cfgSubFolder = "gwcli"
+	const cfgSubFolder = "github.com/gravwell/gravwell/v3/gwcli"
 	cd, err := os.UserConfigDir()
 	if err != nil {
 		cd = "."

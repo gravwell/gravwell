@@ -9,11 +9,11 @@
 package list
 
 import (
-	"gwcli/action"
-	"gwcli/clilog"
-	"gwcli/connection"
-	ft "gwcli/stylesheet/flagtext"
-	"gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v3/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold/scaffoldlist"
 
 	grav "github.com/gravwell/gravwell/v3/client"
 	"github.com/gravwell/gravwell/v3/client/types"

@@ -1,9 +1,9 @@
 package stats
 
 import (
-	"gwcli/action"
-	"gwcli/connection"
-	"gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold/scaffoldlist"
 
 	grav "github.com/gravwell/gravwell/v3/client"
 	"github.com/gravwell/gravwell/v3/client/types"

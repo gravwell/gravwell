@@ -26,15 +26,15 @@ package query
 
 import (
 	"fmt"
-	"gwcli/action"
-	"gwcli/busywait"
-	"gwcli/clilog"
-	"gwcli/connection"
-	"gwcli/mother"
-	ft "gwcli/stylesheet/flagtext"
-	"gwcli/tree/query/datascope"
-	"gwcli/utilities/treeutils"
-	"gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/busywait"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	"github.com/gravwell/gravwell/v3/gwcli/mother"
+	ft "github.com/gravwell/gravwell/v3/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/query/datascope"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/uniques"
 	"io"
 	"os"
 	"strings"
@@ -64,7 +64,7 @@ const (
 		"If --json or --csv is not given when outputting to a file (`-o`), the results will be " +
 		"text (if able) or an archive binary blob (if unable), depending on the query's render " +
 		"module.\n" +
-		"gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
+		"github.com/gravwell/gravwell/v3/gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
 		"blob (aka: your query uses a chart-style renderer)."
 )
 

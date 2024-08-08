@@ -17,8 +17,8 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"gwcli/connection"
-	"gwcli/tree"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	"github.com/gravwell/gravwell/v3/gwcli/tree"
 	"io"
 	"math/rand"
 	"os"
@@ -459,7 +459,7 @@ func TestNonInteractiveQueryFileOut(t *testing.T) {
 	}
 
 	dir := t.TempDir()
-	tempFilePrefix := "gwcliTestNonInteractiveQueryOut"
+	tempFilePrefix := "github.com/gravwell/gravwell/v3/gwcliTestNonInteractiveQueryOut"
 
 	t.Run("raw", func(t *testing.T) {
 		var outfn string = path.Join(dir, fmt.Sprintf("%v%d", tempFilePrefix, rand.Uint32()))
