@@ -10,13 +10,14 @@
 package query
 
 import (
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
 	"os"
 	"path"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
 
 	"github.com/spf13/cobra"
 )
@@ -33,12 +34,12 @@ const (
 
 	func TestGenerateQueryString(t *testing.T) {
 		// initialize clilogger
-		var logFile = path.Join(os.TempDir(), "github.com/gravwell/gravwell/v3/gwcli.Test_GenerateQueryString.log")
+		var logFile = path.Join(os.TempDir(), "gwcli.Test_GenerateQueryString.log")
 		clilog.Init(logFile, "DEBUG")
 
 		const uuid1str = "" // ex: 52985695-ae81-4e82-ba1d-bce54f96def7
 
-		var restLogFile = path.Join(os.TempDir(), "github.com/gravwell/gravwell/v3/gwcli.Test_GenerateQueryString.rest.log")
+		var restLogFile = path.Join(os.TempDir(), "gwcli.Test_GenerateQueryString.rest.log")
 
 		if err := connection.Initialize(server, false, true, restLogFile); err != nil {
 			panic(err)
@@ -104,8 +105,8 @@ const (
 */
 func Test_tryQuery(t *testing.T) {
 	var (
-		logFile     = path.Join(os.TempDir(), "github.com/gravwell/gravwell/v3/gwcli.Test_tryQuery.log")
-		restLogFile = path.Join(os.TempDir(), "github.com/gravwell/gravwell/v3/gwcli.Test_tryQuery.rest.log")
+		logFile     = path.Join(os.TempDir(), "gwcli.Test_tryQuery.log")
+		restLogFile = path.Join(os.TempDir(), "gwcli.Test_tryQuery.rest.log")
 	)
 
 	// establish cli writer
@@ -174,8 +175,8 @@ func Test_tryQuery(t *testing.T) {
 // Primarily checking that data was successfully put to a file or the terminal.
 func Test_run(t *testing.T) {
 	var (
-		logFile     = path.Join(os.TempDir(), "github.com/gravwell/gravwell/v3/gwcli.Test_run.log")
-		restLogFile = path.Join(os.TempDir(), "github.com/gravwell/gravwell/v3/gwcli.Test_run.rest.log")
+		logFile     = path.Join(os.TempDir(), "gwcli.Test_run.log")
+		restLogFile = path.Join(os.TempDir(), "gwcli.Test_run.rest.log")
 	)
 
 	// establish connection
