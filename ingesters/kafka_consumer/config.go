@@ -52,7 +52,7 @@ type KafkaAuthConfig struct {
 }
 
 type ConfigConsumer struct {
-	Leader             string
+	Leader             []string
 	Topic              string
 	Consumer_Group     string
 	Source_Override    string
@@ -86,7 +86,7 @@ type ConfigConsumer struct {
 type consumerCfg struct {
 	tags.TaggerConfig
 	defTag      string
-	leader      string
+	leader      []string
 	topic       string
 	group       string
 	strat       sarama.BalanceStrategy
@@ -260,12 +260,18 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 
 	//check leader
 	if len(cc.Leader) == 0 {
-		err = errors.New("Missing leader type")
+		err = errors.New("Missing Kafka Leader(s)")
 		return
 	}
-	c.leader = config.AppendDefaultPort(cc.Leader, defaultPort)
-	if _, _, err = net.SplitHostPort(c.leader); err != nil {
-		return
+
+	for _, l := range cc.Leader {
+		leader := config.AppendDefaultPort(l, defaultPort)
+		if _, _, err = net.SplitHostPort(leader); err != nil {
+			//wrap the error to show what we are mad about
+			err = fmt.Errorf("invalid Leader %q - %w", l, err)
+			return
+		}
+		c.leader = append(c.leader, leader)
 	}
 
 	//check the topic
