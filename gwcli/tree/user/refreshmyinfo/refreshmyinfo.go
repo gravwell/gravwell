@@ -12,9 +12,9 @@ Re-fetches the cached user info (MyInfo) associated to the connection
 package refreshmyinfo
 
 import (
-	"gwcli/action"
-	"gwcli/connection"
-	"gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"

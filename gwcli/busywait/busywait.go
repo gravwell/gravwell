@@ -34,7 +34,7 @@ Use NewSpinner if Mother is active.
 package busywait
 
 import (
-	"gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"

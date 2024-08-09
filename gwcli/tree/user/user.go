@@ -9,12 +9,12 @@
 package user
 
 import (
-	"gwcli/action"
-	"gwcli/tree/user/admin"
-	"gwcli/tree/user/logout"
-	"gwcli/tree/user/myinfo"
-	"gwcli/tree/user/refreshmyinfo"
-	"gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/user/admin"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/user/logout"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/user/myinfo"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/user/refreshmyinfo"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
 
 	"github.com/spf13/cobra"
 )

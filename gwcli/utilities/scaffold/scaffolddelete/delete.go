@@ -48,14 +48,14 @@ package scaffolddelete
 
 import (
 	"fmt"
-	"gwcli/action"
-	"gwcli/clilog"
-	"gwcli/mother"
-	"gwcli/stylesheet"
-	ft "gwcli/stylesheet/flagtext"
-	"gwcli/utilities/listsupport"
-	"gwcli/utilities/scaffold"
-	"gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/mother"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v3/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/listsupport"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/list"

@@ -9,9 +9,9 @@
 package list
 
 import (
-	"gwcli/action"
-	"gwcli/clilog"
-	"gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold/scaffoldlist"
 
 	grav "github.com/gravwell/gravwell/v3/client"
 	"github.com/spf13/pflag"
