@@ -18,8 +18,8 @@ validity of a proposed path.
 
 import (
 	"fmt"
-	"gwcli/action"
-	"gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"

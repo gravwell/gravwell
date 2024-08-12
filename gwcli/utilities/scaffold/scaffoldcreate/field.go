@@ -10,7 +10,7 @@ package scaffoldcreate
 
 import (
 	"errors"
-	"gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/spf13/pflag"
