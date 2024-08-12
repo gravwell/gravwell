@@ -9,10 +9,10 @@
 package dashboards
 
 import (
-	"gwcli/action"
-	"gwcli/tree/dashboards/delete"
-	"gwcli/tree/dashboards/list"
-	"gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/dashboards/delete"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/dashboards/list"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
 
 	"github.com/spf13/cobra"
 )

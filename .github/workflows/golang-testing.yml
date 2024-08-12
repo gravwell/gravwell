@@ -98,6 +98,7 @@ jobs:
         govulncheck -test ./ingesters/GooglePubSubIngester
         govulncheck -test ./ingesters/fileFollow
         govulncheck -test ./ingesters/singleFile
+        govulncheck -test ./gwcli
         GOOS=windows govulncheck -test ./ingesters/winevents
         GOOS=windows govulncheck -test ./winevent/...
 
@@ -132,6 +133,7 @@ jobs:
         go build -o /dev/null ./timegrinder/cmd
         go build -o /dev/null ./ipexist/textinput
         go build -o /dev/null ./kitctl
+        go build -o /dev/null ./gwcli
         GOOS=windows go build -o /dev/null ./ingesters/fileFollow
         GOOS=windows go build -o /dev/null ./ingesters/winevents
         GOOS=windows go build ./generators/windowsEventGenerator
