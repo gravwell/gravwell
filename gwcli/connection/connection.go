@@ -19,9 +19,9 @@ package connection
 import (
 	"errors"
 	"fmt"
-	"gwcli/clilog"
-	"gwcli/utilities/cfgdir"
-	"gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/uniques"
 	"io"
 	"os"
 	"strconv"

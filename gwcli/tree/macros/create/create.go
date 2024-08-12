@@ -9,10 +9,10 @@
 package create
 
 import (
-	"gwcli/action"
-	"gwcli/connection"
-	ft "gwcli/stylesheet/flagtext"
-	"gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v3/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold/scaffoldcreate"
 	"strings"
 
 	"github.com/gravwell/gravwell/v3/client/types"
