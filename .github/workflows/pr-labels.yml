@@ -1,0 +1,16 @@
+jobs:
+  update-pr-labels:
+    name: Update PR Labels
+    runs-on: ubuntu-latest
+    steps:
+      - name: Update PR Labels
+        uses: "gravwell/pr-labels@v1"
+        with:
+          GITHUB_TOKEN: "${{ github.token }}"
+name: Update PR Labels
+on:
+  pull_request_target: {}
+  push: {}
+permissions:
+  contents: read
+  pull-requests: write

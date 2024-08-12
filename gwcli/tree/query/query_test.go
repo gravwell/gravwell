@@ -10,13 +10,14 @@
 package query
 
 import (
-	"gwcli/clilog"
-	"gwcli/connection"
 	"os"
 	"path"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
 
 	"github.com/spf13/cobra"
 )

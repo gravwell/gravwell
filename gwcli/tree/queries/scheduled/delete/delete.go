@@ -10,9 +10,9 @@ package delete
 
 import (
 	"fmt"
-	"gwcli/action"
-	"gwcli/connection"
-	"gwcli/utilities/scaffold/scaffolddelete"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold/scaffolddelete"
 	"math"
 	"slices"
 	"strings"
