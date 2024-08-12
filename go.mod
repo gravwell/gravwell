@@ -15,7 +15,6 @@ require (
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/bmatcuk/doublestar/v4 v4.4.0
 	github.com/brianvoe/gofakeit v3.18.0+incompatible
-	github.com/buger/jsonparser v1.1.1
 	github.com/bxcodec/faker/v3 v3.3.1
 	github.com/charmbracelet/bubbles v0.18.0
 	github.com/charmbracelet/bubbletea v0.26.6
