@@ -382,6 +382,11 @@ func (c *Client) AttachSearch(id string) (s Search, err error) {
 	}
 	s.searchOutput = rconn
 	s.RenderMod = resp.RendererMod
+	if resp.Info != nil {
+		s.SearchStart = resp.Info.StartRange.Format(time.RFC3339Nano)
+		s.SearchEnd = resp.Info.EndRange.Format(time.RFC3339Nano)
+		s.SearchString = resp.Info.UserQuery
+	}
 	return s, nil
 }
 
