@@ -17,6 +17,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravwell/gravwell/v3/debug"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
@@ -42,6 +43,8 @@ var (
 )
 
 func main() {
+	go debug.HandleDebugSignals(appName)
+
 	var wg sync.WaitGroup
 	var cfg *cfgType
 	running := true
@@ -102,6 +105,7 @@ func main() {
 		sess, err := session.NewSession(&aws.Config{
 			Credentials: c,
 			Region:      aws.String(stream.Region),
+			Endpoint:    aws.String(stream.Endpoint),
 		})
 		if err != nil {
 			lg.Fatal("creating session", log.KVErr(err))

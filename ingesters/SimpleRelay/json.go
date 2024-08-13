@@ -29,7 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 
-	"github.com/buger/jsonparser"
+	"github.com/gravwell/jsonparser"
 )
 
 type jsonHandlerConfig struct {

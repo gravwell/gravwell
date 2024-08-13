@@ -31,12 +31,14 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/buger/jsonparser"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/jsonparser"
+
+	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
 )
 
 const (
@@ -73,6 +75,7 @@ type shodanStream struct {
 }
 
 func init() {
+	go gravwelldebug.HandleDebugSignals("shodan")
 	flag.Parse()
 	if *ver {
 		version.PrintVersion(os.Stdout)

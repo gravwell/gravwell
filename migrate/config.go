@@ -134,6 +134,13 @@ func (c *cfgType) Tags() ([]string, error) {
 	return tags, nil
 }
 
+func (c *cfgType) IngestBaseConfig() (ic config.IngestConfig) {
+	if c != nil {
+		ic = c.global.IngestConfig
+	}
+	return
+}
+
 func (c *cfgType) getSplunkConfig(splunkName string) (s splunk, err error) {
 	if sp, ok := c.Splunk[splunkName]; !ok || sp == nil {
 		err = errors.New("Not found")

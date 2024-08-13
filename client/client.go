@@ -27,6 +27,7 @@ import (
 	"github.com/gravwell/gravwell/v3/client/objlog"
 	"github.com/gravwell/gravwell/v3/client/types"
 
+	"bytes"
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/publicsuffix"
 )
@@ -48,6 +49,8 @@ var (
 	ErrInvalidTestStatus error = errors.New("Invalid status on webserver test")
 	ErrAccountLocked     error = errors.New(`Account is Locked`)
 	ErrLoginFail         error = errors.New(`Username and Password are incorrect`)
+	ErrMFARequired       error = errors.New(`MFA required`)
+	ErrMFASetupRequired  error = errors.New(`MFA configuration required`)
 	ErrNotSynced         error = errors.New(`Client has not been synced`)
 	ErrNoLogin           error = errors.New("Not logged in")
 	ErrEmptyUserAgent    error = errors.New("UserAgent cannot be empty")
@@ -64,7 +67,7 @@ type Client struct {
 	clnt         *http.Client
 	timeout      time.Duration
 	mtx          *sync.Mutex
-	state        clientState
+	state        ClientState
 	lastNotifId  uint64
 	enforceCert  bool
 	sessionData  ActiveSession
@@ -262,14 +265,22 @@ func (c *Client) TestLogin() error {
 
 // Login authenticates the client to the webserver using the specified username and password.
 func (c *Client) Login(user, pass string) error {
+	_, err := c.LoginEx(user, pass)
+	return err
+}
+
+// LoginEx acts like Login but returns the LoginResponse received from the server.
+// If login was successful, the client's JWT *will* be updated.
+func (c *Client) LoginEx(user, pass string) (types.LoginResponse, error) {
+	var loginResp types.LoginResponse
 	c.mtx.Lock()
 	defer c.mtx.Unlock()
 
 	if c.state != STATE_NEW && c.state != STATE_LOGGED_OFF {
-		return errors.New("Client not ready for login")
+		return loginResp, errors.New("Client not ready for login")
 	}
 	if user == "" {
-		return errors.New("Invalid username")
+		return loginResp, errors.New("Invalid username")
 	}
 
 	//build up URL we are going to throw at
@@ -283,7 +294,7 @@ func (c *Client) Login(user, pass string) error {
 	//build up the request
 	req, err := http.NewRequest(http.MethodPost, uri, strings.NewReader(loginCreds.Encode()))
 	if err != nil {
-		return err
+		return loginResp, err
 	}
 	c.hm.populateRequest(req.Header)
 	req.Header.Set(`Content-Type`, `application/x-www-form-urlencoded`)
@@ -291,33 +302,94 @@ func (c *Client) Login(user, pass string) error {
 	//post the form to the base login url
 	resp, err := c.clnt.Do(req)
 	if err != nil {
-		return err
+		return loginResp, err
 	} else if resp == nil {
 		//this really should never happen
-		return errors.New("Invalid response")
+		return loginResp, errors.New("Invalid response")
 	}
 	defer drainResponse(resp)
 
 	//look for the redirect response
 	switch resp.StatusCode {
 	case http.StatusLocked:
-		return ErrAccountLocked
+		return loginResp, ErrAccountLocked
 	case http.StatusUnprocessableEntity:
-		return ErrLoginFail
+		return loginResp, ErrLoginFail
 	case http.StatusOK:
 	default:
-		return fmt.Errorf("Invalid response: %d", resp.StatusCode)
+		return loginResp, fmt.Errorf("Invalid response: %d", resp.StatusCode)
 	}
 
-	var loginResp types.LoginResponse
 	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
-		return err
+		return loginResp, err
 	}
 	if err := c.processLoginResponse(loginResp); err != nil {
-		return err
+		return loginResp, err
 	}
 
-	return c.syncNoLock()
+	return loginResp, c.syncNoLock()
+}
+
+func (c *Client) MFALogin(user, pass string, authtype types.AuthType, code string) (types.LoginResponse, error) {
+	var loginResp types.LoginResponse
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+
+	if c.state != STATE_NEW && c.state != STATE_LOGGED_OFF {
+		return loginResp, errors.New("Client not ready for login")
+	}
+	if user == "" {
+		return loginResp, errors.New("Invalid username")
+	}
+
+	//build up URL we are going to throw at
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, MFA_LOGIN_URL)
+
+	//build up the form that we are going to throw at login url
+	loginCreds := types.MFAAuthRequest{
+		User:     user,
+		Pass:     pass,
+		AuthType: authtype,
+		AuthCode: code,
+	}
+	b, err := json.Marshal(loginCreds)
+	if err != nil {
+		return loginResp, err
+	}
+
+	//build up the request
+	req, err := http.NewRequest(http.MethodPost, uri, bytes.NewBuffer(b))
+	if err != nil {
+		return loginResp, err
+	}
+
+	resp, err := c.clnt.Do(req)
+	if err != nil {
+		return loginResp, err
+	} else if resp == nil {
+		//this really should never happen
+		return loginResp, errors.New("Invalid response")
+	}
+	defer drainResponse(resp)
+
+	//look for the redirect response
+	switch resp.StatusCode {
+	case http.StatusLocked:
+		return loginResp, ErrAccountLocked
+	case http.StatusUnprocessableEntity:
+		return loginResp, ErrLoginFail
+	case http.StatusOK:
+	default:
+		return loginResp, fmt.Errorf("Invalid response: %d", resp.StatusCode)
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&loginResp); err != nil {
+		return loginResp, err
+	}
+	if err := c.processLoginResponse(loginResp); err != nil {
+		return loginResp, err
+	}
+	return loginResp, c.syncNoLock()
 }
 
 func (c *Client) LoginWithAPIToken(token string) (err error) {
@@ -419,6 +491,13 @@ func (c *Client) ExportLoginToken() (token string, err error) {
 func (c *Client) processLoginResponse(loginResp types.LoginResponse) error {
 	//check that we had a good login
 	if !loginResp.LoginStatus {
+		// We'll inform the user if MFA is required, or MFA *config* is required
+		if loginResp.MFARequired {
+			if loginResp.MFASetupRequired {
+				return ErrMFASetupRequired
+			}
+			return ErrMFARequired
+		}
 		return errors.New(loginResp.Reason)
 	}
 
@@ -427,6 +506,11 @@ func (c *Client) processLoginResponse(loginResp types.LoginResponse) error {
 		return errors.New("Failed to retrieve JWT")
 	}
 	return c.importLoginToken(loginResp.JWT)
+}
+
+// State returns the current, enumerated status of the client
+func (c *Client) State() ClientState {
+	return c.state
 }
 
 // Logout terminates the current session on the server.

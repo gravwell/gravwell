@@ -8,14 +8,16 @@ require (
 	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
 	github.com/Bowery/prompt v0.0.0-20190916142128-fa8279994f75
+	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/Shopify/sarama v1.38.1
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56
 	github.com/aws/aws-sdk-go v1.34.0
 	github.com/bmatcuk/doublestar/v4 v4.4.0
 	github.com/brianvoe/gofakeit v3.18.0+incompatible
-	github.com/buger/jsonparser v0.0.0-20191004114745-ee4c978eae7e
+	github.com/buger/jsonparser v1.1.1
 	github.com/bxcodec/faker/v3 v3.3.1
+	github.com/charmbracelet/lipgloss v0.11.0
 	github.com/crewjam/rfc5424 v0.1.0
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
 	github.com/fsnotify/fsnotify v1.7.0
@@ -33,6 +35,7 @@ require (
 	github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018
 	github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37
 	github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e
+	github.com/gravwell/jsonparser v0.0.0-20240802164212-e3c50dc78005
 	github.com/gravwell/o365 v0.0.0-20221102220049-82dbf0fa81b4
 	github.com/gravwell/syslogparser v0.0.0-20230331221307-ab77654a9657
 	github.com/h2non/filetype v1.0.10
@@ -72,6 +75,8 @@ require (
 	github.com/Azure/go-autorest/logger v0.2.1 // indirect
 	github.com/Azure/go-autorest/tracing v0.6.0 // indirect
 	github.com/StackExchange/wmi v0.0.0-20190523213315-cbe66965904d // indirect
+	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
+	github.com/charmbracelet/x/ansi v0.1.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/devigned/tab v0.1.1 // indirect
 	github.com/eapache/go-resiliency v1.4.0 // indirect
@@ -102,12 +107,14 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
-	github.com/mattn/go-runewidth v0.0.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-runewidth v0.0.15 // indirect
 	github.com/mitchellh/mapstructure v1.1.2 // indirect
+	github.com/muesli/termenv v0.15.2 // indirect
 	github.com/pierrec/lz4/v4 v4.1.18 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
-	github.com/rivo/uniseg v0.4.3 // indirect
+	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/rogpeppe/go-internal v1.6.1 // indirect
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
@@ -135,10 +142,3 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-// Leave this until https://github.com/buger/jsonparser/pull/180 is merged
-replace github.com/buger/jsonparser => github.com/floren/jsonparser v0.0.0-20210727191945-e5063027fceb
-
-// replace github.com/fsnotify/fsnotify => github.com/traetox/fsnotify v1.5.2-0.20220310052716-a0d82fe7e596
-
-// replace github.com/gravwell/gravwell/v3 => /home/kris/githubwork/gravwell

@@ -13,6 +13,7 @@ IMPORT github.com/h2non/filetype
 IMPORT github.com/klauspost/compress
 IMPORT github.com/miekg/dns
 IMPORT github.com/buger/jsonparser
+IMPORT github.com/gravwell/jsonparser
 
 # standard library
 IMPORT archive/tar

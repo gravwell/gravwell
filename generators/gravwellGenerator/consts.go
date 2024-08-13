@@ -264,6 +264,16 @@ func getApp() string {
 	return apps[rand.Intn(len(apps))]
 }
 
+func getIP() net.IP {
+	if r := rand.Int(); r&0x3ff == 0x3ff {
+		return nil // 1/1024 IPs is not populated
+	} else if r&0x3 == 0x3 {
+		//25% are IPv6
+		return v6gen.IP()
+	}
+	return v4gen.IP() //everything else is IPv4
+}
+
 func ips() (string, string) {
 	if (rand.Int() & 3) == 0 {
 		//more IPv4 than 6

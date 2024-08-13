@@ -8,17 +8,17 @@
 
 package client
 
-type clientState uint16
+type ClientState uint16
 
 const (
 	// Client states
-	STATE_NEW        clientState = iota
-	STATE_AUTHED     clientState = iota
-	STATE_CLOSED     clientState = iota
-	STATE_LOGGED_OFF clientState = iota
+	STATE_NEW        ClientState = iota
+	STATE_AUTHED     ClientState = iota
+	STATE_CLOSED     ClientState = iota
+	STATE_LOGGED_OFF ClientState = iota
 )
 
-func (cs clientState) String() string {
+func (cs ClientState) String() string {
 	switch cs {
 	case STATE_NEW:
 		return "NEW"
