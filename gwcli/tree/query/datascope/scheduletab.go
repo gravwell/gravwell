@@ -15,11 +15,11 @@ package datascope
 
 import (
 	"fmt"
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet/colorizer"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"strings"
 	"sync"
 	"time"
