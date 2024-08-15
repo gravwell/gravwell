@@ -290,6 +290,9 @@ func (c *Client) AttachSearch(id string) (s Search, err error) {
 	s.cli = c
 	s.SearchInfo = resp.Info
 
+	//kick off our renderer
+	s.RenderMod = resp.RenderModule
+	s.start, s.end = resp.Info.StartRange, resp.Info.EndRange
 	return s, nil
 }
 
