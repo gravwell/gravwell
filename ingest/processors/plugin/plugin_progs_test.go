@@ -207,7 +207,7 @@ import (
 	_ "github.com/klauspost/compress"
 	_ "github.com/tealeg/xlsx"
 	_ "github.com/miekg/dns"
-	_ "github.com/buger/jsonparser"
+	_ "github.com/gravwell/jsonparser"
 	_ "archive/tar"
 	_ "archive/zip"
 	_ "bufio"

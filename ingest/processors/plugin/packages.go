@@ -132,7 +132,6 @@ import (
 	utf16 "unicode/utf16"
 	utf8 "unicode/utf8"
 
-	jsonparser "github.com/buger/jsonparser"
 	rfc5424 "github.com/crewjam/rfc5424"
 	safefile "github.com/dchest/safefile"
 	glob "github.com/gobwas/glob"
@@ -144,6 +143,7 @@ import (
 	config "github.com/gravwell/gravwell/v4/ingest/config"
 	entry "github.com/gravwell/gravwell/v4/ingest/entry"
 	ipfix "github.com/gravwell/ipfix"
+	jsonparser_2 "github.com/gravwell/jsonparser"
 	filetype "github.com/h2non/filetype"
 	ipmigo "github.com/k-sone/ipmigo"
 	compress "github.com/klauspost/compress"
@@ -1301,47 +1301,7 @@ func init() {
 		Name:         "fmt",
 		Declarations: decs,
 	}
-	// "github.com/buger/jsonparser"
-	decs = make(native.Declarations, 51)
-	decs["Array"] = jsonparser.Array
-	decs["ArrayEach"] = jsonparser.ArrayEach
-	decs["Boolean"] = jsonparser.Boolean
-	decs["Delete"] = jsonparser.Delete
-	decs["EachKey"] = jsonparser.EachKey
-	decs["Get"] = jsonparser.Get
-	decs["GetBoolean"] = jsonparser.GetBoolean
-	decs["GetFloat"] = jsonparser.GetFloat
-	decs["GetInt"] = jsonparser.GetInt
-	decs["GetString"] = jsonparser.GetString
-	decs["GetUnsafeString"] = jsonparser.GetUnsafeString
-	decs["KeyPathNotFoundError"] = &jsonparser.KeyPathNotFoundError
-	decs["MalformedArrayError"] = &jsonparser.MalformedArrayError
-	decs["MalformedJsonError"] = &jsonparser.MalformedJsonError
-	decs["MalformedObjectError"] = &jsonparser.MalformedObjectError
-	decs["MalformedStringError"] = &jsonparser.MalformedStringError
-	decs["MalformedStringEscapeError"] = &jsonparser.MalformedStringEscapeError
-	decs["MalformedValueError"] = &jsonparser.MalformedValueError
-	decs["NotExist"] = jsonparser.NotExist
-	decs["Null"] = jsonparser.Null
-	decs["Number"] = jsonparser.Number
-	decs["Object"] = jsonparser.Object
-	decs["ObjectEach"] = jsonparser.ObjectEach
-	decs["OverflowIntegerError"] = &jsonparser.OverflowIntegerError
-	decs["ParseBoolean"] = jsonparser.ParseBoolean
-	decs["ParseFloat"] = jsonparser.ParseFloat
-	decs["ParseInt"] = jsonparser.ParseInt
-	decs["ParseString"] = jsonparser.ParseString
-	decs["Set"] = jsonparser.Set
-	decs["String"] = jsonparser.String
-	decs["StringToBytes"] = jsonparser.StringToBytes
-	decs["Unescape"] = jsonparser.Unescape
-	decs["Unknown"] = jsonparser.Unknown
-	decs["UnknownValueTypeError"] = &jsonparser.UnknownValueTypeError
-	decs["ValueType"] = reflect.TypeOf((*jsonparser.ValueType)(nil)).Elem()
-	packages["github.com/buger/jsonparser"] = native.Package{
-		Name:         "jsonparser",
-		Declarations: decs,
-	}
+
 	// "github.com/crewjam/rfc5424"
 	decs = make(native.Declarations, 34)
 	decs["Alert"] = rfc5424.Alert
@@ -1518,7 +1478,7 @@ func init() {
 		Declarations: decs,
 	}
 	// "github.com/google/uuid"
-	decs = make(native.Declarations, 46)
+	decs = make(native.Declarations, 52)
 	decs["ClockSequence"] = uuid.ClockSequence
 	decs["DisableRandPool"] = uuid.DisableRandPool
 	decs["Domain"] = reflect.TypeOf((*uuid.Domain)(nil)).Elem()
@@ -1529,6 +1489,7 @@ func init() {
 	decs["Group"] = uuid.Group
 	decs["Invalid"] = uuid.Invalid
 	decs["IsInvalidLengthError"] = uuid.IsInvalidLengthError
+	decs["Max"] = &uuid.Max
 	decs["Microsoft"] = uuid.Microsoft
 	decs["Must"] = uuid.Must
 	decs["MustParse"] = uuid.MustParse
@@ -1547,6 +1508,9 @@ func init() {
 	decs["NewSHA1"] = uuid.NewSHA1
 	decs["NewString"] = uuid.NewString
 	decs["NewUUID"] = uuid.NewUUID
+	decs["NewV6"] = uuid.NewV6
+	decs["NewV7"] = uuid.NewV7
+	decs["NewV7FromReader"] = uuid.NewV7FromReader
 	decs["Nil"] = &uuid.Nil
 	decs["NodeID"] = uuid.NodeID
 	decs["NodeInterface"] = uuid.NodeInterface
@@ -1563,6 +1527,8 @@ func init() {
 	decs["SetRand"] = uuid.SetRand
 	decs["Time"] = reflect.TypeOf((*uuid.Time)(nil)).Elem()
 	decs["UUID"] = reflect.TypeOf((*uuid.UUID)(nil)).Elem()
+	decs["UUIDs"] = reflect.TypeOf((*uuid.UUIDs)(nil)).Elem()
+	decs["Validate"] = uuid.Validate
 	decs["Variant"] = reflect.TypeOf((*uuid.Variant)(nil)).Elem()
 	decs["Version"] = reflect.TypeOf((*uuid.Version)(nil)).Elem()
 	packages["github.com/google/uuid"] = native.Package{
@@ -1603,6 +1569,7 @@ func init() {
 	decs["DEFAULT_TLS_PORT"] = ingest.DEFAULT_TLS_PORT
 	decs["DIAL_TIMEOUT"] = ingest.DIAL_TIMEOUT
 	decs["ERROR_TAG_MAGIC"] = ingest.ERROR_TAG_MAGIC
+	decs["EnableKeepAlive"] = ingest.EnableKeepAlive
 	decs["EntryBuffer"] = reflect.TypeOf((*ingest.EntryBuffer)(nil)).Elem()
 	decs["EntryReader"] = reflect.TypeOf((*ingest.EntryReader)(nil)).Elem()
 	decs["EntryReaderWriterConfig"] = reflect.TypeOf((*ingest.EntryReaderWriterConfig)(nil)).Elem()
@@ -1612,6 +1579,7 @@ func init() {
 	decs["ErrConnectionTimeout"] = &ingest.ErrConnectionTimeout
 	decs["ErrEmergencyListOverflow"] = &ingest.ErrEmergencyListOverflow
 	decs["ErrEmptyAuth"] = &ingest.ErrEmptyAuth
+	decs["ErrEmptyConfigBlock"] = &ingest.ErrEmptyConfigBlock
 	decs["ErrEmptyTag"] = &ingest.ErrEmptyTag
 	decs["ErrFailedAuth"] = &ingest.ErrFailedAuth
 	decs["ErrFailedAuthHashGen"] = &ingest.ErrFailedAuthHashGen
@@ -1637,6 +1605,7 @@ func init() {
 	decs["ErrNoTargets"] = &ingest.ErrNoTargets
 	decs["ErrNotReady"] = &ingest.ErrNotReady
 	decs["ErrNotRunning"] = &ingest.ErrNotRunning
+	decs["ErrOversizedConfigBlock"] = &ingest.ErrOversizedConfigBlock
 	decs["ErrOversizedEntry"] = &ingest.ErrOversizedEntry
 	decs["ErrOversizedTag"] = &ingest.ErrOversizedTag
 	decs["ErrShortRead"] = &ingest.ErrShortRead
@@ -1808,6 +1777,7 @@ func init() {
 	decs["DefaultTagName"] = &entry.DefaultTagName
 	decs["DurationEnumData"] = entry.DurationEnumData
 	decs["ENTRY_HEADER_SIZE"] = entry.ENTRY_HEADER_SIZE
+	decs["EVBlock"] = reflect.TypeOf((*entry.EVBlock)(nil)).Elem()
 	decs["EVBlockHeader"] = reflect.TypeOf((*entry.EVBlockHeader)(nil)).Elem()
 	decs["EVBlockHeaderLen"] = native.UntypedNumericConst("8")
 	decs["Entry"] = reflect.TypeOf((*entry.Entry)(nil)).Elem()
@@ -1892,7 +1862,7 @@ func init() {
 		Declarations: decs,
 	}
 	// "github.com/gravwell/ipfix"
-	decs = make(native.Declarations, 60)
+	decs = make(native.Declarations, 61)
 	decs["Boolean"] = ipfix.Boolean
 	decs["DataRecord"] = reflect.TypeOf((*ipfix.DataRecord)(nil)).Elem()
 	decs["DateTimeMicroseconds"] = ipfix.DateTimeMicroseconds
@@ -1900,6 +1870,7 @@ func init() {
 	decs["DateTimeNanoseconds"] = ipfix.DateTimeNanoseconds
 	decs["DateTimeSeconds"] = ipfix.DateTimeSeconds
 	decs["DictionaryEntry"] = reflect.TypeOf((*ipfix.DictionaryEntry)(nil)).Elem()
+	decs["ErrFieldOverflow"] = &ipfix.ErrFieldOverflow
 	decs["ErrNilCallback"] = &ipfix.ErrNilCallback
 	decs["ErrProtocol"] = &ipfix.ErrProtocol
 	decs["ErrRead"] = &ipfix.ErrRead
@@ -1957,6 +1928,67 @@ func init() {
 		Name:         "ipfix",
 		Declarations: decs,
 	}
+	// "github.com/gravwell/jsonparser"
+	decs = make(native.Declarations, 51)
+	decs["Array"] = jsonparser_2.Array
+	decs["ArrayEach"] = jsonparser_2.ArrayEach
+	decs["Boolean"] = jsonparser_2.Boolean
+	decs["Delete"] = jsonparser_2.Delete
+	decs["EachKey"] = jsonparser_2.EachKey
+	decs["FuzzDelete"] = jsonparser_2.FuzzDelete
+	decs["FuzzEachKey"] = jsonparser_2.FuzzEachKey
+	decs["FuzzGetBoolean"] = jsonparser_2.FuzzGetBoolean
+	decs["FuzzGetFloat"] = jsonparser_2.FuzzGetFloat
+	decs["FuzzGetInt"] = jsonparser_2.FuzzGetInt
+	decs["FuzzGetString"] = jsonparser_2.FuzzGetString
+	decs["FuzzGetUnsafeString"] = jsonparser_2.FuzzGetUnsafeString
+	decs["FuzzObjectEach"] = jsonparser_2.FuzzObjectEach
+	decs["FuzzParseBool"] = jsonparser_2.FuzzParseBool
+	decs["FuzzParseFloat"] = jsonparser_2.FuzzParseFloat
+	decs["FuzzParseInt"] = jsonparser_2.FuzzParseInt
+	decs["FuzzParseString"] = jsonparser_2.FuzzParseString
+	decs["FuzzSet"] = jsonparser_2.FuzzSet
+	decs["FuzzTokenStart"] = jsonparser_2.FuzzTokenStart
+	decs["Get"] = jsonparser_2.Get
+	decs["GetBoolean"] = jsonparser_2.GetBoolean
+	decs["GetFloat"] = jsonparser_2.GetFloat
+	decs["GetInt"] = jsonparser_2.GetInt
+	decs["GetString"] = jsonparser_2.GetString
+	decs["GetUnsafeString"] = jsonparser_2.GetUnsafeString
+	decs["KeyPathNotFoundError"] = &jsonparser_2.KeyPathNotFoundError
+	decs["MalformedArrayError"] = &jsonparser_2.MalformedArrayError
+	decs["MalformedJsonError"] = &jsonparser_2.MalformedJsonError
+	decs["MalformedObjectError"] = &jsonparser_2.MalformedObjectError
+	decs["MalformedStringError"] = &jsonparser_2.MalformedStringError
+	decs["MalformedStringEscapeError"] = &jsonparser_2.MalformedStringEscapeError
+	decs["MalformedValueError"] = &jsonparser_2.MalformedValueError
+	decs["NotExist"] = jsonparser_2.NotExist
+	decs["Null"] = jsonparser_2.Null
+	decs["NullValueError"] = &jsonparser_2.NullValueError
+	decs["Number"] = jsonparser_2.Number
+	decs["Object"] = jsonparser_2.Object
+	decs["ObjectEach"] = jsonparser_2.ObjectEach
+	decs["OverflowIntegerError"] = &jsonparser_2.OverflowIntegerError
+	decs["ParseBoolean"] = jsonparser_2.ParseBoolean
+	decs["ParseFloat"] = jsonparser_2.ParseFloat
+	decs["ParseInt"] = jsonparser_2.ParseInt
+	decs["ParseString"] = jsonparser_2.ParseString
+	decs["Set"] = jsonparser_2.Set
+	decs["String"] = jsonparser_2.String
+	decs["StringToBytes"] = jsonparser_2.StringToBytes
+	decs["Unescape"] = jsonparser_2.Unescape
+	decs["Unknown"] = jsonparser_2.Unknown
+	decs["UnknownValueTypeError"] = &jsonparser_2.UnknownValueTypeError
+	decs["ValueType"] = reflect.TypeOf((*jsonparser_2.ValueType)(nil)).Elem()
+	decs["WriteToBuffer"] = jsonparser_2.WriteToBuffer
+	packages["github.com/gravwell/jsonparser"] = native.Package{
+		Name:         "jsonparser",
+		Declarations: decs,
+	}
+
+	// "github.com/buger/jsonparser" just aliases to our internal one
+	packages["github.com/buger/jsonparser"] = packages["github.com/gravwell/jsonparser"]
+
 	// "github.com/h2non/filetype"
 	decs = make(native.Declarations, 37)
 	decs["AddMatcher"] = filetype.AddMatcher
@@ -5717,4 +5749,5 @@ func init() {
 		Name:         "utf8",
 		Declarations: decs,
 	}
+	//initLegacy(packages) TODO FIXME Issue #1165
 }
