@@ -1148,3 +1148,9 @@ func (s *Search) UpdateInterval(d time.Duration) error {
 	iu := uint(d / time.Second)
 	return s.ping(iu)
 }
+
+// SearchRange is an accessor to get the start and end timeframes for the search
+func (s *Search) SearchRange() (start, end time.Time) {
+	start, end = s.start, s.end
+	return
+}
