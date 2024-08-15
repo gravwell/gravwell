@@ -14,7 +14,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/buger/jsonparser"
+	"github.com/gravwell/jsonparser"
+
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
