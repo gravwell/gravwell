@@ -61,6 +61,7 @@ func (c *Client) CreateScheduledSearch(name, description, schedule string, searc
 		SearchReference: searchreference,
 		SearchString:    searchquery,
 		Duration:        int64(duration.Seconds()),
+		ScheduledType:   types.ScheduledTypeSearch,
 	}
 	var resp int32
 	if err := c.postStaticURL(scheduledSearchUrl(), ss, &resp); err != nil {
@@ -107,6 +108,7 @@ func (c *Client) CreateScheduledScript(name, description, schedule, script strin
 		Schedule:       schedule,
 		Script:         script,
 		ScriptLanguage: lang,
+		ScheduledType:  types.ScheduledTypeScript,
 	}
 	var resp int32
 	if err := c.postStaticURL(scheduledSearchUrl(), ss, &resp); err != nil {
