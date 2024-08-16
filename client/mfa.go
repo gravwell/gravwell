@@ -1,9 +1,18 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package client
 
 import (
-	"github.com/gravwell/gravwell/v3/client/types"
 	"net/http"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // GetTOTPSetup requests the parameters necessary for configuring
@@ -40,7 +49,7 @@ func (c *Client) InstallTOTPSetup(user, pass, code string) (types.MFATOTPInstall
 		AuthCode: code,
 	}
 	var resp types.MFATOTPInstallResponse
-	err := c.methodStaticPushURL(http.MethodPut, totpSetupUrl(), rq, &resp)
+	err := c.methodStaticPushURL(http.MethodPut, totpSetupUrl(), rq, &resp, nil, nil)
 	return resp, err
 }
 
@@ -58,7 +67,7 @@ func (c *Client) TOTPClear(user, pass string, authtype types.AuthType, code stri
 		AuthType: authtype,
 		AuthCode: code,
 	}
-	err := c.methodStaticPushURL(http.MethodPost, totpClearUrl(), rq, nil)
+	err := c.methodStaticPushURL(http.MethodPost, totpClearUrl(), rq, nil, nil, nil)
 	return err
 }
 
@@ -77,7 +86,7 @@ func (c *Client) ClearAllMFA(user, pass string, authtype types.AuthType, code st
 		AuthType: authtype,
 		AuthCode: code,
 	}
-	return c.methodStaticPushURL(http.MethodPost, mfaClearAllUrl(), rq, nil)
+	return c.methodStaticPushURL(http.MethodPost, mfaClearAllUrl(), rq, nil, nil, nil)
 }
 
 // AdminClearUserMFA completely clears the specified user's MFA
@@ -104,7 +113,7 @@ func (c *Client) GenerateRecoveryCodes(user, pass string, authtype types.AuthTyp
 		Remaining int
 		Generated time.Time
 	}
-	err = c.methodStaticPushURL(http.MethodPost, mfaGenerateRecoveryCodesUrl(), rq, &resp)
+	err = c.methodStaticPushURL(http.MethodPost, mfaGenerateRecoveryCodesUrl(), rq, &resp, nil, nil)
 	codes = types.RecoveryCodes{resp.Enabled, resp.Codes, resp.Remaining, resp.Generated}
 	return
 }

@@ -17,7 +17,7 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v4/ingest"
 	"golang.org/x/sys/windows/svc/eventlog"
 )
 
