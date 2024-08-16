@@ -17,8 +17,6 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
-	"gwcli/connection"
-	"gwcli/tree"
 	"io"
 	"math/rand"
 	"os"
@@ -26,6 +24,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	"github.com/gravwell/gravwell/v3/gwcli/tree"
 
 	grav "github.com/gravwell/gravwell/v3/client"
 	"github.com/gravwell/gravwell/v3/utils/weave"

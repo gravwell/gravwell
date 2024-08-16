@@ -9,13 +9,13 @@
 package scheduled
 
 import (
-	"gwcli/action"
-	"gwcli/tree/queries/scheduled/create"
-	"gwcli/tree/queries/scheduled/delete"
-	"gwcli/tree/queries/scheduled/edit"
-	"gwcli/tree/queries/scheduled/list"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/queries/scheduled/create"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/queries/scheduled/delete"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/queries/scheduled/edit"
+	"github.com/gravwell/gravwell/v3/gwcli/tree/queries/scheduled/list"
 
-	"gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
 
 	"github.com/spf13/cobra"
 )

@@ -11,9 +11,9 @@ package admin
 
 import (
 	"fmt"
-	"gwcli/action"
-	"gwcli/connection"
-	"gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"

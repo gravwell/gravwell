@@ -58,12 +58,12 @@ package scaffoldlist
 
 import (
 	"fmt"
-	"gwcli/action"
-	"gwcli/clilog"
-	"gwcli/connection"
-	"gwcli/stylesheet"
-	ft "gwcli/stylesheet/flagtext"
-	"gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v3/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
 	"os"
 	"reflect"
 	"strings"

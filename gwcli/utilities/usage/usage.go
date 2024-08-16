@@ -11,9 +11,9 @@ package usage
 
 import (
 	"fmt"
-	"gwcli/clilog"
-	"gwcli/group"
-	"gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/group"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
 	"strings"
 
 	"github.com/spf13/cobra"

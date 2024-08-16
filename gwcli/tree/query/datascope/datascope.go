@@ -22,9 +22,9 @@ package datascope
 
 import (
 	"errors"
-	"gwcli/clilog"
-	activesearchlock "gwcli/tree/query/datascope/ActiveSearchLock"
-	"gwcli/utilities/killer"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	activesearchlock "github.com/gravwell/gravwell/v3/gwcli/tree/query/datascope/ActiveSearchLock"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/killer"
 	"os"
 	"time"
 

@@ -13,7 +13,7 @@
 package main
 
 import (
-	"gwcli/tree"
+	"github.com/gravwell/gravwell/v3/gwcli/tree"
 	"os"
 )
 
