@@ -8,88 +8,48 @@ jobs:
           echo ${{ github.repository }}
           echo ${{ github.ref }}
           echo ${{ github.ref_name }}
-  next-major:
+
+  sync:
     if: "${{ github.repository == 'gravwell/gravwell' }}"
-    name: "next-minor => next-major"
+    strategy:
+      fail-fast: false
+      matrix:
+        branches:
+          - source_pattern: main
+            target_pattern: next-patch
+
+          - source_pattern: next-patch
+            target_pattern: next-minor
+
+          - source_pattern: next-minor
+            target_pattern: next-major
+
+          - source_pattern: next-patch
+            target_pattern: preview/patch/*
+
+          - source_pattern: next-minor
+            target_pattern: preview/minor/*
+
+          - source_pattern: next-major
+            target_pattern: preview/major/*
+
+    name: "${{ matrix.branches.source_pattern }} => ${{ matrix.branches.target_pattern }}"
     runs-on: ubuntu-latest
     steps:
-      - name: PR next-minor back to next-major
+      - name: Open/Update PR
+        id: sync-branches
         uses: "gravwell/sync-branches@v1"
         with:
           GITHUB_TOKEN: "${{ github.token }}"
           PR_CREATE_TOKEN: "${{ secrets.PR_CREATE_TOKEN }}"
-          source_pattern: next-minor
-          target_pattern: next-major
+          source_pattern: ${{ matrix.branches.source_pattern }}
+          target_pattern: ${{ matrix.branches.target_pattern }}
           use_intermediate_branch: "True"
-  next-minor:
-    if: "${{ github.repository == 'gravwell/gravwell' }}"
-    name: "next-patch => next-minor"
-    runs-on: ubuntu-latest
-    steps:
-      - name: PR next-patch back to next-minor
-        uses: "gravwell/sync-branches@v1"
-        with:
-          GITHUB_TOKEN: "${{ github.token }}"
-          PR_CREATE_TOKEN: "${{ secrets.PR_CREATE_TOKEN }}"
-          source_pattern: next-patch
-          target_pattern: next-minor
-          use_intermediate_branch: "True"
-  next-patch:
-    if: "${{ github.repository == 'gravwell/gravwell' }}"
-    name: "main => next-patch"
-    runs-on: ubuntu-latest
-    steps:
-      - name: PR main back to next-patch
-        uses: "gravwell/sync-branches@v1"
-        with:
-          GITHUB_TOKEN: "${{ github.token }}"
-          PR_CREATE_TOKEN: "${{ secrets.PR_CREATE_TOKEN }}"
-          source_pattern: main
-          target_pattern: next-patch
-          use_intermediate_branch: "True"
-  preview-major:
-    if: "${{ github.repository == 'gravwell/gravwell' }}"
-    name: "next-major => preview/major/*"
-    runs-on: ubuntu-latest
-    steps:
-      - name: "PR next-major back to preview/major/*"
-        uses: "gravwell/sync-branches@v1"
-        with:
-          GITHUB_TOKEN: "${{ github.token }}"
-          PR_CREATE_TOKEN: "${{ secrets.PR_CREATE_TOKEN }}"
-          source_pattern: next-major
-          target_pattern: "preview/major/*"
-          use_intermediate_branch: "True"
-  preview-minor:
-    if: "${{ github.repository == 'gravwell/gravwell' }}"
-    name: "next-minor => preview/minor/*"
-    runs-on: ubuntu-latest
-    steps:
-      - name: "PR next-minor back to preview/minor/*"
-        uses: "gravwell/sync-branches@v1"
-        with:
-          GITHUB_TOKEN: "${{ github.token }}"
-          PR_CREATE_TOKEN: "${{ secrets.PR_CREATE_TOKEN }}"
-          source_pattern: next-minor
-          target_pattern: "preview/minor/*"
-          use_intermediate_branch: "True"
-  preview-patch:
-    if: "${{ github.repository == 'gravwell/gravwell' }}"
-    name: "next-patch => preview/patch/*"
-    runs-on: ubuntu-latest
-    steps:
-      - name: "PR next-patch back to preview/patch/*"
-        uses: "gravwell/sync-branches@v1"
-        with:
-          GITHUB_TOKEN: "${{ github.token }}"
-          PR_CREATE_TOKEN: "${{ secrets.PR_CREATE_TOKEN }}"
-          source_pattern: next-patch
-          target_pattern: "preview/patch/*"
-          use_intermediate_branch: "True"
+
 name: Sync branches
 on:
   push:
-    branches: '**'
+    branches: "**"
 permissions:
   contents: write
   pull-requests: write
