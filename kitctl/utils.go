@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/gravwell/gravwell/v3/client/types/kits"
+	"github.com/gravwell/gravwell/v4/client/types/kits"
 )
 
 func readManifest() (kits.Manifest, error) {

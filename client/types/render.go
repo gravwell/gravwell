@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -114,6 +114,7 @@ type EntryRange struct {
 }
 
 // BaseRequest contains elements common to all renderer requests.
+// DEPRECATED - use REST API
 type BaseRequest struct {
 	ID         uint32
 	Stats      *SearchStatsRequest `json:",omitempty"`
@@ -123,7 +124,7 @@ type BaseRequest struct {
 
 // BaseResponse contains elements common to all renderer request responses.
 type BaseResponse struct {
-	ID         uint32
+	ID         uint32                    // DEPRECATED - REST API no longer returns this value
 	Stats      *SearchStatsResponse      `json:",omitempty"`
 	Addendum   json.RawMessage           `json:",omitempty"`
 	SearchInfo *SearchInfo               `json:",omitempty"`
@@ -154,6 +155,13 @@ type BaseResponse struct {
 
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
+
+	//SessionID is the search Session ID, used for tracking "handles" on a search using REST interface
+	SessionID uuid.UUID
+
+	//Interval is the number of seconds between hits on the search control REST API for a given second
+	//that can transpire before we consider the search session abandoned
+	Interval uint
 
 	// Indicates that there is some warning about the query results the user should be aware of.
 	// Will be empty if no warning is present.
@@ -312,6 +320,7 @@ type OverviewStats struct {
 	// meaning the EntryCount number can be displayed alongside the results
 	// without confusion.
 	EntryCountValid bool
+	EntryCount      uint64
 	Stats           []OverviewStatSet `json:",omitempty"`
 }
 
