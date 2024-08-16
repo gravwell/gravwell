@@ -45,6 +45,8 @@ jobs:
           source_pattern: ${{ matrix.branches.source_pattern }}
           target_pattern: ${{ matrix.branches.target_pattern }}
           use_intermediate_branch: "True"
+          source_conflict_label: "src conflict"
+          target_conflict_label: "conflict"
 
 name: Sync branches
 on:
