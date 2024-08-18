@@ -703,6 +703,41 @@ func (c *Client) GetGaugeTsRange(s Search, start, end time.Time, first, last uin
 	return c.getGaugeResults(s, er)
 }
 
+func (c *Client) getWordcloudResults(s Search, er types.EntryRange) (resp types.WordcloudResponse, err error) {
+	if err = checkRender(s, types.RenderNameWordcloud); err == nil {
+		if err = c.getRenderResults(s, er, &resp); err == nil {
+			err = resp.Err()
+		}
+	}
+	return
+}
+
+// GetWordcloudResults queries a range of search results from the gauge or numbercard renderers.
+// It returns a types.WordcloudResponse structure containing the results (see the Entries field).
+func (c *Client) GetWordcloudResults(s Search, start, end uint64) (types.WordcloudResponse, error) {
+	er := types.EntryRange{
+		First:   start,
+		Last:    end,
+		StartTS: entry.FromStandard(s.start),
+		EndTS:   entry.FromStandard(s.end),
+	}
+	return c.getWordcloudResults(s, er)
+}
+
+// GetWordcloudTsRange queries search results for a time range from the gauge
+// renderer. It returns a types.WordcloudResponse structure containing the results (see the Entries field)
+// The 'first' and 'last' parameters specify indexes of entries to fetch within the timespan
+// specified.
+func (c *Client) GetWordcloudTsRange(s Search, start, end time.Time, first, last uint64) (types.WordcloudResponse, error) {
+	er := types.EntryRange{
+		First:   first,
+		Last:    last,
+		StartTS: entry.FromStandard(start),
+		EndTS:   entry.FromStandard(end),
+	}
+	return c.getWordcloudResults(s, er)
+}
+
 // GetNumbercardResults queries a range of search results from the gauge or numbercard renderers.
 // It returns a types.GaugeResponse structure containing the results (see the Entries field).
 func (c *Client) GetNumbercardResults(s Search, start, end uint64) (types.GaugeResponse, error) {

@@ -51,6 +51,17 @@ type GaugeResponse struct {
 	Entries []GaugeValue
 }
 
+type WordcloudValue GaugeValue
+
+type WordcloudResponse struct {
+	BaseResponse
+	Entries []WordcloudValue
+}
+
+type WordcloudRequest struct {
+	BaseRequest
+}
+
 // Compare a table to this one. Return false on cols/rows if they do not match.
 // If rows do not match, idx will have the index of the first offending row.
 func (t *TableValueSet) Compare(u *TableValueSet) (cols bool, rows bool, idx int) {
