@@ -96,6 +96,7 @@ const (
 	RenderNamePointmap   string = `pointmap`
 	RenderNameHeatmap    string = `heatmap`
 	RenderNameP2P        string = `point2point`
+	RenderNameWordcloud  string = `wordcloud`
 
 	MetadataTypeRaw    string = `raw`
 	MetadataTypeNumber string = `number`
