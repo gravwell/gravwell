@@ -69,9 +69,11 @@ const (
 	GROUP_DASHBOARD_URL              = `/api/groups/%d/dashboards`
 	GROUP_MACROS_URL                 = `/api/groups/%d/macros`
 	GROUP_URL                        = `/api/groups`
+	SEARCH_PARS_URL                  = `/api/parse`
 	SEARCH_CTRL_LIST_URL             = `/api/searchctrl`
 	SEARCH_CTRL_LIST_DETAILS_URL     = `/api/searchctrl/details`
 	SEARCH_CTRL_LIST_ALL_URL         = `/api/searchctrl/all`
+	SEARCH_PARSE_URL                 = `/api/parse`
 	SEARCH_CTRL_URL                  = `/api/searchctrl/%s`
 	SEARCH_CTRL_ATTACH_URL           = `/api/searchctrl/%s/attach`
 	SEARCH_CTRL_DETAILS              = `/api/searchctrl/%s/details`
@@ -84,7 +86,9 @@ const (
 	SEARCH_CTRL_DETACH_URL           = `/api/searchctrl/%s/detach`
 	SEARCH_CTRL_STATS_URL            = `/api/searchctrl/%s/stats`
 	SEARCH_CTRL_STATS_OVERVIEW_URL   = `/api/searchctrl/%s/stats/overview`
+	SEARCH_CTRL_STATS_METADATA_URL   = `/api/searchctrl/%s/stats/metadata`
 	SEARCH_CTRL_EXPLORE_URL          = `/api/searchctrl/%s/renderer/%s/explore`
+	SEARCH_CTRL_ENTRIES_URL          = `/api/searchctrl/%s/renderer/%s`
 	SEARCH_CTRL_IMPORT_URL           = `/api/searchctrl/import`
 	SEARCH_CTRL_LAUNCH_URL           = `/api/searchctrl/launch`
 	SEARCH_HISTORY_URL               = `/api/searchhistory/%s/%d`
@@ -635,6 +639,46 @@ func secretIdDetailsUrl(id uuid.UUID) string {
 }
 func secretIdFullUrl(id uuid.UUID) string {
 	return fmt.Sprintf(SECRETS_ID_FULL_URL, id.String())
+}
+
+func searchLaunchUrl() string {
+	return SEARCH_CTRL_LAUNCH_URL
+}
+
+func searchPingUrl(id string) string {
+	return fmt.Sprintf(SEARCH_CTRL_PING_URL, id)
+}
+
+func searchDetachUrl(id string) string {
+	return fmt.Sprintf(SEARCH_CTRL_DETACH_URL, id)
+}
+
+func searchStatsMetadataUrl(id string) string {
+	return fmt.Sprintf(SEARCH_CTRL_STATS_METADATA_URL, id)
+}
+
+func searchStatsOverviewUrl(id string) string {
+	return fmt.Sprintf(SEARCH_CTRL_STATS_OVERVIEW_URL, id)
+}
+
+func searchStatsUrl(id string) string {
+	return fmt.Sprintf(SEARCH_CTRL_STATS_URL, id)
+}
+
+func searchExploreUrl(id, rndr string) string {
+	return fmt.Sprintf(SEARCH_CTRL_EXPLORE_URL, id, rndr)
+}
+
+func searchEntriesUrl(id, rndr string) string {
+	return fmt.Sprintf(SEARCH_CTRL_ENTRIES_URL, id, rndr)
+}
+
+func searchParseUrl() string {
+	return SEARCH_PARSE_URL
+}
+
+func searchAttachUrl(id string) string {
+	return fmt.Sprintf(SEARCH_CTRL_ATTACH_URL, id)
 }
 
 func alertsUrl() string {

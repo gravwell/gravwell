@@ -15,7 +15,7 @@ package query
 
 import (
 	"fmt"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"

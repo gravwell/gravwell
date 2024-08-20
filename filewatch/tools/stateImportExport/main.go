@@ -14,7 +14,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/gravwell/gravwell/v3/filewatch"
+	"github.com/gravwell/gravwell/v4/filewatch"
 )
 
 func main() {
