@@ -13,10 +13,10 @@ functionality.
 package tree
 
 import (
-	"gwcli/action"
-	"gwcli/group"
-	"gwcli/stylesheet"
-	"gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/group"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"

@@ -9,9 +9,9 @@
 package datascope
 
 import (
-	"gwcli/clilog"
-	activesearchlock "gwcli/tree/query/datascope/ActiveSearchLock"
-	"gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	activesearchlock "github.com/gravwell/gravwell/v3/gwcli/tree/query/datascope/ActiveSearchLock"
+	"github.com/gravwell/gravwell/v3/gwcli/utilities/uniques"
 	"os"
 	"testing"
 	"time"

@@ -16,7 +16,7 @@ package datascope
 
 import (
 	"fmt"
-	"gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/key"
