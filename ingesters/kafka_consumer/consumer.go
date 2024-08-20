@@ -140,7 +140,7 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 		}
 
 		var clnt sarama.ConsumerGroup
-		if clnt, err = sarama.NewConsumerGroup([]string{kc.leader}, kc.group, cfg); err != nil {
+		if clnt, err = sarama.NewConsumerGroup(kc.leader, kc.group, cfg); err != nil {
 			return
 		}
 		wg.Add(1)

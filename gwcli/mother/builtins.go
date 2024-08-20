@@ -13,8 +13,8 @@ Builtins are special, meta actions users can invoke from Mother's prompt, no mat
 */
 
 import (
-	"gwcli/clilog"
-	"gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"

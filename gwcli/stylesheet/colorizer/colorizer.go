@@ -14,8 +14,8 @@ package colorizer
 
 import (
 	"fmt"
-	"gwcli/action"
-	"gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v3/gwcli/action"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
 	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"

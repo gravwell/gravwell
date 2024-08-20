@@ -25,7 +25,7 @@ package action
 
 import (
 	"errors"
-	"gwcli/group"
+	"github.com/gravwell/gravwell/v3/gwcli/group"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
