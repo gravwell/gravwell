@@ -2,61 +2,62 @@
 
 set -e
 
-govulncheck -test ./netflow/...
-govulncheck -test ./manager/...
-govulncheck -test ./ipexist/...
-govulncheck -test ./generators/ipgen/...
-govulncheck -test ./generators/base/...
-govulncheck -test ./generators/gravwellGenerator/...
-govulncheck -test ./filewatch/...
-govulncheck -test ./client/...
-govulncheck -test ./chancacher/...
-govulncheck -test ./timegrinder/...
-govulncheck -test ./ingest
-govulncheck -test ./ingest/entry/...
-govulncheck -test ./ingest/config/...
-govulncheck -test ./ingest/log
-govulncheck -test ./ingest/processors
-govulncheck -test ./ingest/processors/tags
-govulncheck -test ./ingest/processors/plugin
-govulncheck -test ./tools/...
-govulncheck -test ./kitctl/...
-govulncheck -test ./migrate/...
-govulncheck -test ./ingesters/s3Ingester
-govulncheck -test ./ingesters/HttpIngester
-govulncheck -test ./ingesters/pcapFileIngester
-govulncheck -test ./ingesters/collectd
-govulncheck -test ./ingesters/hackernews_ingester
-govulncheck -test ./ingesters/base
-govulncheck -test ./ingesters/massFile
-govulncheck -test ./ingesters/MSGraphIngester
-govulncheck -test ./ingesters/kafka_consumer
-govulncheck -test ./ingesters/reddit_ingester
-govulncheck -test ./ingesters/O365Ingester
-govulncheck -test ./ingesters/args
-govulncheck -test ./ingesters/version
-govulncheck -test ./ingesters/sqsIngester
-govulncheck -test ./ingesters/diskmonitor
-govulncheck -test ./ingesters/session
-govulncheck -test ./ingesters/snmp
-govulncheck -test ./ingesters/xlsxIngester
-govulncheck -test ./ingesters/multiFile
-govulncheck -test ./ingesters/Shodan
-govulncheck -test ./ingesters/reimport
-govulncheck -test ./ingesters/SimpleRelay
-govulncheck -test ./ingesters/KinesisIngester
-govulncheck -test ./ingesters/netflow
-govulncheck -test ./ingesters/AzureEventHubs
-govulncheck -test ./ingesters/utils
-govulncheck -test ./ingesters/IPMIIngester
-govulncheck -test ./ingesters/regexFile
-govulncheck -test ./ingesters/PacketFleet
-govulncheck -test ./ingesters/canbus
-govulncheck -test ./ingesters/GooglePubSubIngester
-govulncheck -test ./ingesters/fileFollow
-govulncheck -test ./ingesters/singleFile
-GOOS=windows govulncheck -test ./ingesters/winevents
-GOOS=windows govulncheck -test ./winevent/...
+go install golang.org/x/vuln/cmd/govulncheck@latest
+govulncheck -test -show verbose ./netflow/...
+govulncheck -test -show verbose ./manager/...
+govulncheck -test -show verbose ./ipexist/...
+govulncheck -test -show verbose ./generators/ipgen/...
+govulncheck -test -show verbose ./generators/base/...
+govulncheck -test -show verbose ./generators/gravwellGenerator/...
+govulncheck -test -show verbose ./filewatch/...
+govulncheck -test -show verbose ./client/...
+govulncheck -test -show verbose ./chancacher/...
+govulncheck -test -show verbose ./timegrinder/...
+govulncheck -test -show verbose ./ingest
+govulncheck -test -show verbose ./ingest/entry/...
+govulncheck -test -show verbose ./ingest/config/...
+govulncheck -test -show verbose ./ingest/log
+govulncheck -test -show verbose ./ingest/processors
+govulncheck -test -show verbose ./ingest/processors/tags
+govulncheck -test -show verbose ./ingest/processors/plugin
+govulncheck -test -show verbose ./tools/...
+govulncheck -test -show verbose ./kitctl/...
+govulncheck -test -show verbose ./migrate/...
+govulncheck -test -show verbose ./ingesters/s3Ingester
+govulncheck -test -show verbose ./ingesters/HttpIngester
+govulncheck -test -show verbose ./ingesters/pcapFileIngester
+govulncheck -test -show verbose ./ingesters/collectd
+govulncheck -test -show verbose ./ingesters/hackernews_ingester
+govulncheck -test -show verbose ./ingesters/base
+govulncheck -test -show verbose ./ingesters/massFile
+govulncheck -test -show verbose ./ingesters/MSGraphIngester
+govulncheck -test -show verbose ./ingesters/kafka_consumer
+govulncheck -test -show verbose ./ingesters/reddit_ingester
+govulncheck -test -show verbose ./ingesters/O365Ingester
+govulncheck -test -show verbose ./ingesters/args
+govulncheck -test -show verbose ./ingesters/version
+govulncheck -test -show verbose ./ingesters/sqsIngester
+govulncheck -test -show verbose ./ingesters/diskmonitor
+govulncheck -test -show verbose ./ingesters/session
+govulncheck -test -show verbose ./ingesters/snmp
+govulncheck -test -show verbose ./ingesters/xlsxIngester
+govulncheck -test -show verbose ./ingesters/multiFile
+govulncheck -test -show verbose ./ingesters/Shodan
+govulncheck -test -show verbose ./ingesters/reimport
+govulncheck -test -show verbose ./ingesters/SimpleRelay
+govulncheck -test -show verbose ./ingesters/KinesisIngester
+govulncheck -test -show verbose ./ingesters/netflow
+govulncheck -test -show verbose ./ingesters/AzureEventHubs
+govulncheck -test -show verbose ./ingesters/utils
+govulncheck -test -show verbose ./ingesters/IPMIIngester
+govulncheck -test -show verbose ./ingesters/regexFile
+govulncheck -test -show verbose ./ingesters/PacketFleet
+govulncheck -test -show verbose ./ingesters/canbus
+govulncheck -test -show verbose ./ingesters/GooglePubSubIngester
+govulncheck -test -show verbose ./ingesters/fileFollow
+govulncheck -test -show verbose ./ingesters/singleFile
+GOOS=windows govulncheck -test -show verbose ./ingesters/winevents
+GOOS=windows govulncheck -test -show verbose ./winevent/...
 
 go test -v ./generators/ipgen
 go test -v ./chancacher
