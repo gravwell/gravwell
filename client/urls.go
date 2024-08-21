@@ -77,6 +77,8 @@ const (
 	SEARCH_CTRL_DETAILS              = `/api/searchctrl/%s/details`
 	SEARCH_CTRL_BACKGROUND_URL       = `/api/searchctrl/%s/background`
 	SEARCH_CTRL_GROUP_URL            = `/api/searchctrl/%s/group`
+	SEARCH_CTRL_GROUPS_URL           = `/api/searchctrl/%s/groups`
+	SEARCH_CTRL_GLOBAL_URL           = `/api/searchctrl/%s/global`
 	SEARCH_CTRL_SAVE_URL             = `/api/searchctrl/%s/save`
 	SEARCH_CTRL_STOP_URL             = `/api/searchctrl/%s/stop`
 	SEARCH_CTRL_DOWNLOAD_URL         = `/api/searchctrl/%s/download/%s`
@@ -294,6 +296,14 @@ func searchCtrlBackgroundUrl(id string) string {
 
 func searchCtrlGroupUrl(id string) string {
 	return fmt.Sprintf(SEARCH_CTRL_GROUP_URL, id)
+}
+
+func searchCtrlGroupsUrl(id string) string {
+	return fmt.Sprintf(SEARCH_CTRL_GROUPS_URL, id)
+}
+
+func searchCtrlGlobalUrl(id string) string {
+	return fmt.Sprintf(SEARCH_CTRL_GLOBAL_URL, id)
 }
 
 func searchCtrlSaveUrl(id string) string {
