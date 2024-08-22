@@ -210,6 +210,7 @@ func (pp *PluginProgram) Run(to time.Duration) (err error) {
 
 func (pp *PluginProgram) Start() (err error) {
 	if st := pp.getState(); st == registered {
+		defer execCatcher(pp.dc) //catch the nasties
 		//if we are registered, fire up the Start function
 		if err = pp.startf(); err == nil {
 			pp.setState(running)
@@ -291,7 +292,7 @@ func (pp *PluginProgram) execute() {
 	if pp.debug {
 		pf = stdoutPrint
 	}
-	//defer execCatcher(pp.dc) //catch the nasties
+	defer execCatcher(pp.dc) //catch the nasties
 	opts := scriggo.RunOptions{
 		Context: pp.ctx,
 		Print:   pf,
