@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -229,12 +230,24 @@ func marshalJSON(vl *api.ValueList) (dts [][]byte, err error) {
 	}
 	for i := range vl.Values {
 		var dt []byte
-		v.Value = vl.Values[i]
+		v.Value = checkEncodableValue(vl.Values[i])
 		v.DS = vl.DSName(i)
 		if dt, err = json.Marshal(v); err != nil {
-			return
+			//just continue on a failure to encode, nothing to do here
+			continue
 		}
 		dts = append(dts, dt)
 	}
 	return
+}
+
+func checkEncodableValue(val api.Value) api.Value {
+	switch v := val.(type) {
+	case api.Counter: //just a uint64, do nothing
+	case api.Gauge:
+		if math.IsNaN(float64(v)) || math.IsInf(float64(v), 0) {
+			val = nil //json can't encode these
+		}
+	}
+	return val
 }
