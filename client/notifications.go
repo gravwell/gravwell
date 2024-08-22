@@ -46,15 +46,28 @@ func (c *Client) MyNewNotifications() (types.NotificationSet, error) {
 }
 
 func (c *Client) getNotifications(after time.Time, update bool) (n types.NotificationSet, err error) {
-	c.qm.set("after", after.Format("2006-01-02T15:04:05.999999999Z07"))
-	if err = c.getStaticURL(notificationsUrl(0), &n); err == nil && update {
+	params := []urlParam{
+		urlParam{key: "after", value: after.Format("2006-01-02T15:04:05.999999999Z07")},
+	}
+	if err = c.methodStaticParamURL(http.MethodGet, NOTIFICATIONS_URL, params, &n); err == nil && update {
 		for _, v := range n {
 			if v.Sent.After(c.sessionData.LastNotificationTime) {
 				c.sessionData.LastNotificationTime = v.Sent
 			}
 		}
 	}
-	c.qm.remove("after")
+	return
+}
+
+// AllNotifications is an admin only API that retrieves all notifications for all users regardless of
+// ownership and or ignored until status.
+func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
+	//check locally just so we don't hit the API needlessly, it will be rejected anyway
+	if c.userDetails.Admin == false {
+		err = ErrNotAdmin
+	} else {
+		err = c.methodStaticParamURL(http.MethodGet, NOTIFICATIONS_URL, adminParams, &n)
+	}
 	return
 }
 
