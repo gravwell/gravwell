@@ -210,7 +210,11 @@ func (pp *PluginProgram) Run(to time.Duration) (err error) {
 
 func (pp *PluginProgram) Start() (err error) {
 	if st := pp.getState(); st == registered {
-		defer execCatcher(pp.dc) //catch the nasties
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("Critical Error, failed to start program - %v", r)
+			}
+		}()
 		//if we are registered, fire up the Start function
 		if err = pp.startf(); err == nil {
 			pp.setState(running)
@@ -328,7 +332,6 @@ func buildCatcher(err *error) {
 
 func execCatcher(dc chan error) {
 	if r := recover(); r != nil {
-		fmt.Println("RECOVER", r)
 		if dc != nil {
 			dc <- fmt.Errorf("Critical Error, failed to execute program - %v", r)
 		}
