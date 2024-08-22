@@ -210,6 +210,11 @@ func (pp *PluginProgram) Run(to time.Duration) (err error) {
 
 func (pp *PluginProgram) Start() (err error) {
 	if st := pp.getState(); st == registered {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("Critical Error, failed to start program - %v", r)
+			}
+		}()
 		//if we are registered, fire up the Start function
 		if err = pp.startf(); err == nil {
 			pp.setState(running)
@@ -291,7 +296,7 @@ func (pp *PluginProgram) execute() {
 	if pp.debug {
 		pf = stdoutPrint
 	}
-	//defer execCatcher(pp.dc) //catch the nasties
+	defer execCatcher(pp.dc) //catch the nasties
 	opts := scriggo.RunOptions{
 		Context: pp.ctx,
 		Print:   pf,
@@ -327,7 +332,6 @@ func buildCatcher(err *error) {
 
 func execCatcher(dc chan error) {
 	if r := recover(); r != nil {
-		fmt.Println("RECOVER", r)
 		if dc != nil {
 			dc <- fmt.Errorf("Critical Error, failed to execute program - %v", r)
 		}
