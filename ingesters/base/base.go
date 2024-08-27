@@ -228,7 +228,7 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 		Attach:             ch.AttachConfig(),
 	}
 	if igst, err = ingest.NewUniformMuxer(igCfg); err != nil {
-		ib.Logger.Fatal("failed build our ingest system", log.KVErr(err))
+		ib.Logger.Fatal("failed to build our ingest system", log.KVErr(err))
 		return
 	}
 
@@ -237,7 +237,7 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 		ib.Logger.AddRelay(igst)
 	}
 	if err := igst.Start(); err != nil {
-		ib.Logger.FatalCode(0, "failed start our ingest system", log.KVErr(err))
+		ib.Logger.FatalCode(0, "failed to start our ingest system", log.KVErr(err))
 	}
 	ib.Debug("Waiting for connections to indexers ... ")
 	if err := igst.WaitForHot(cfg.Timeout()); err != nil {
