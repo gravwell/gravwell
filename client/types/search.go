@@ -197,6 +197,9 @@ type StartSearchRequest struct {
 	Name        string          `json:",omitempty"`
 	Filters     []FilterRequest
 	LaunchInfo  SearchLaunchInfo // information about how a search was launched
+	// Sharing parameters
+	GIDs   []int32
+	Global bool
 }
 
 // The webserver responds yay/nay plus new subprotocols if the search is valid.
@@ -221,6 +224,9 @@ type StartSearchResponse struct {
 	LaunchInfo           SearchLaunchInfo // information about how a search was launched
 	QueryTimeSpecified   bool             `json:",omitempty"` // True if the query itself specifies the time spec
 	SearchHints
+	// Sharing parameters
+	GIDs   []int32
+	Global bool
 }
 
 type SearchSessionIntervalUpdate struct {
@@ -252,9 +258,11 @@ type AttachSearchResponse struct {
 // SearchInfo contains information about a search, including the search
 // parameters, status, and metadata.
 type SearchInfo struct {
-	ID                    string          //ID of the search
-	UID                   int32           //UID of the user that actually kicked off the search
-	GID                   int32           `json:",omitempty"` //Group ID the search was assigned to
+	ID                    string //ID of the search
+	UID                   int32  //UID of the user that actually kicked off the search
+	GID                   int32  `json:",omitempty"` //Group ID the search was assigned to, deprecated, use GIDs instead
+	GIDs                  []int32
+	Global                bool
 	UserQuery             string          //query provided by the user on search
 	EffectiveQuery        string          //the effective query that was actually used
 	StartRange            time.Time       //start time range
@@ -318,7 +326,9 @@ type StatsUpdate struct {
 type SearchCtrlStatus struct {
 	ID              string
 	UID             int32
-	GID             int32
+	GID             int32 // deprecated, use GIDs instead
+	GIDs            []int32
+	Global          bool
 	State           string
 	AttachedClients int
 	StoredData      int64
