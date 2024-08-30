@@ -20,12 +20,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 
-	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 var (
