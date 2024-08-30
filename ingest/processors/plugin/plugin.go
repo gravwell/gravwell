@@ -233,10 +233,17 @@ func (pp *PluginProgram) Close() (err error) {
 		return
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Critical Error, failed to close program - %v", r)
+		}
+	}()
+
 	var perr error
 	if cf := pp.closef; cf != nil {
 		perr = cf()
 	}
+
 	pp.Done()
 	time.Sleep(250 * time.Millisecond) //let the program close out
 	pp.cancel()                        //go down hard
@@ -255,7 +262,14 @@ func (pp *PluginProgram) Config(vc *config.VariableConfig, tg Tagger) error {
 	} else if st := pp.getState(); st != registered {
 		return fmt.Errorf("bad state, %s != %s", st, registered)
 	}
-	return pp.cf(vc, tg)
+	var err error
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Critical Error, failed to call Config - %v", r)
+		}
+	}()
+	err = pp.cf(vc, tg)
+	return err
 }
 
 func (pp *PluginProgram) Flush() []*entry.Entry {
@@ -265,17 +279,29 @@ func (pp *PluginProgram) Flush() []*entry.Entry {
 		return nil
 	}
 
+	defer func() {
+		// we can't propagate the error up here and we don't have a logger... :(
+		recover()
+	}()
+
 	return pp.ff()
 }
 
-func (pp *PluginProgram) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
+func (pp *PluginProgram) Process(ents []*entry.Entry) (pents []*entry.Entry, err error) {
 	if pp == nil || pp.cf == nil {
 		return nil, ErrNotReady
 	} else if st := pp.getState(); st != running {
 		return nil, fmt.Errorf("bad state, %s != %s", st, running)
 	}
 
-	return pp.pf(ents)
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("Critical Error, failed to call Process - %v", r)
+		}
+	}()
+
+	pents, err = pp.pf(ents)
+	return
 }
 
 // Ready indicates if the program is running and has registered all the things we need
