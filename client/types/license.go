@@ -23,7 +23,7 @@ import (
 
 const (
 	// license type magic numbers
-	Free       LicenseType = 0x0                // minimal ingest, single instance, limited features, completely free
+	Free       LicenseType = 0x2518766a3f4f7bca // minimal ingest, single instance, limited features, completely free
 	Eval       LicenseType = 0xb7c489d229961f64 // single instance (backend and frontend must be on the same machine) but we throw a bunch of stuff up in the GUI
 	Community  LicenseType = 0xa332f9b1f64789d2 // single instance, limited ingest per day
 	Fractional LicenseType = 0xe5354cae719162c3 // single instance, full features, limited ingest per day
@@ -376,6 +376,8 @@ func (lt LicenseType) AllFeatures() (r bool) {
 
 func (lt LicenseType) SingleNode() (r bool) {
 	switch lt {
+	case Free:
+		r = true
 	case Community:
 		r = true
 	case Eval:
