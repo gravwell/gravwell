@@ -23,7 +23,8 @@ import (
 
 const (
 	// license type magic numbers
-	Eval       LicenseType = 0xb7c489d229961f64 //single instance (backend and frontend must be on the same machine) but we throw a bunch of stuff up in the GUI
+	Free       LicenseType = 0x2518766a3f4f7bca // minimal ingest, single instance, limited features, completely free
+	Eval       LicenseType = 0xb7c489d229961f64 // single instance (backend and frontend must be on the same machine) but we throw a bunch of stuff up in the GUI
 	Community  LicenseType = 0xa332f9b1f64789d2 // single instance, limited ingest per day
 	Fractional LicenseType = 0xe5354cae719162c3 // single instance, full features, limited ingest per day
 	Single     LicenseType = 0x6f848b5ce61db26a //single instance (backend and frontend must be on the same machine)
@@ -297,6 +298,8 @@ func (li LicenseInfo) Features() Features {
 
 func (lt LicenseType) Valid() bool {
 	switch lt {
+	case Free:
+		return true
 	case Cluster:
 		return true
 	case Unlimited:
@@ -317,6 +320,8 @@ func (lt LicenseType) Valid() bool {
 
 func (lt LicenseType) String() string {
 	switch lt {
+	case Free:
+		return `free`
 	case Cluster:
 		return `cluster`
 	case Unlimited:
@@ -338,6 +343,8 @@ func (lt LicenseType) String() string {
 
 func (lt LicenseType) Abbr() string {
 	switch lt {
+	case Free:
+		return `O`
 	case Cluster:
 		return `C`
 	case Unlimited:
@@ -369,6 +376,8 @@ func (lt LicenseType) AllFeatures() (r bool) {
 
 func (lt LicenseType) SingleNode() (r bool) {
 	switch lt {
+	case Free:
+		r = true
 	case Community:
 		r = true
 	case Eval:
@@ -419,6 +428,8 @@ func (lt *LicenseType) UnmarshalJSON(v []byte) error {
 func ParseType(c string) (LicenseType, error) {
 	c = strings.ToLower(c)
 	switch c {
+	case `free`:
+		return Free, nil
 	case `cluster`:
 		return Cluster, nil
 	case `unlimited`:
