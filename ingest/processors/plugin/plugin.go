@@ -57,6 +57,46 @@ const (
 	done       pluginState = 4
 )
 
+type FaultError struct {
+	err       error
+	backtrace string
+}
+
+func newFaultError(err error, bt any) *FaultError {
+	if err == nil {
+		return nil
+	}
+	var bts string
+	if bt != nil {
+		bts = fmt.Sprintf("%v", bt)
+	}
+	return &FaultError{
+		err:       err,
+		backtrace: bts,
+	}
+}
+
+func (fe *FaultError) Error() string {
+	if fe == nil || fe.err == nil {
+		return `<nil>`
+	}
+	return fmt.Sprintf("%v - %s", fe.err.Error(), fe.backtrace)
+}
+
+func (fe *FaultError) RawError() error {
+	if fe == nil || fe.err == nil {
+		return nil
+	}
+	return fe.err
+}
+
+func (fe *FaultError) Backtrace() string {
+	if fe == nil || fe.err == nil {
+		return ``
+	}
+	return fe.backtrace
+}
+
 func NewPluginProgram(content []byte, debug bool) (pp *PluginProgram, err error) {
 	if len(content) == 0 {
 		err = ErrInvalidScript
@@ -212,7 +252,7 @@ func (pp *PluginProgram) Start() (err error) {
 	if st := pp.getState(); st == registered {
 		defer func() {
 			if r := recover(); r != nil {
-				err = fmt.Errorf("Critical Error, failed to start program - %v", r)
+				err = newFaultError(errors.New("failed to start program"), r)
 			}
 		}()
 		//if we are registered, fire up the Start function
@@ -235,7 +275,7 @@ func (pp *PluginProgram) Close() (err error) {
 
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("Critical Error, failed to close program - %v", r)
+			err = newFaultError(errors.New("failed to close program"), r)
 		}
 	}()
 
@@ -265,7 +305,7 @@ func (pp *PluginProgram) Config(vc *config.VariableConfig, tg Tagger) error {
 	var err error
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("Critical Error, failed to call Config - %v", r)
+			err = newFaultError(errors.New("failed to call Config"), r)
 		}
 	}()
 	err = pp.cf(vc, tg)
@@ -296,7 +336,7 @@ func (pp *PluginProgram) Process(ents []*entry.Entry) (pents []*entry.Entry, err
 
 	defer func() {
 		if r := recover(); r != nil {
-			err = fmt.Errorf("Critical Error, failed to call Process - %v", r)
+			err = newFaultError(errors.New("failed to call Process"), r)
 		}
 	}()
 
@@ -352,14 +392,14 @@ func builtinItems(pp *PluginProgram) native.Declarations {
 
 func buildCatcher(err *error) {
 	if r := recover(); r != nil {
-		*err = fmt.Errorf("Critical Error, failed to build program - %v", r)
+		*err = newFaultError(errors.New("failed to build program"), r)
 	}
 }
 
 func execCatcher(dc chan error) {
 	if r := recover(); r != nil {
 		if dc != nil {
-			dc <- fmt.Errorf("Critical Error, failed to execute program - %v", r)
+			dc <- newFaultError(errors.New("failed to execute program"), r)
 		}
 	}
 }

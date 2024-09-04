@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+  "github.com/gravwell/gravwell/v4/ingest/processors/plugin"
 )
 
 const (
@@ -422,8 +423,17 @@ func (pr *ProcessorSet) processItems(ents []*entry.Entry) (set []*entry.Entry, e
 		return
 	}
 	for i := 0; i < len(pr.set) && len(set) > 0; i++ {
-		if set, err = pr.set[i].Process(set); err != nil {
-			break
+		orig := set
+		if set, err = pr.set[i].Process(orig); err != nil {
+			//TODO FIXME Issue #1225 - https://github.com/gravwell/gravwell/issues/1225
+			if _, ok := err.(*plugin.FaultError); ok {
+				// LOG THIS for issue #1225 and put in some logic
+				// to throttle the frequency of the logs in case the plugin is completely broken
+				set = orig //ignore what the plugin tried to do
+				err = nil  // clear the error
+				continue
+			}
+			break // something intentionally returned an error, break out
 		}
 	}
 	return

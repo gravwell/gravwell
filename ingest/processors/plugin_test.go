@@ -1,5 +1,5 @@
-//go:build !386 && !arm && !mips && !mipsle && !s390x && !go1.18
-// +build !386,!arm,!mips,!mipsle,!s390x,!go1.18
+//go:build linux
+// +build linux
 
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
@@ -192,6 +192,76 @@ func TestPluginProcess(t *testing.T) {
 	}
 }
 
+func TestPluginProcessPanic(t *testing.T) {
+	b := []byte(`
+	[global]
+	foo-bar-baz="foo bar baz"
+
+	[item "A"]
+	name = "test A"
+	value = 0xA
+
+	[preprocessor "p2"]
+		type = plugin
+		Plugin-Path = "test_data/plugins/crash.go"
+	`)
+	tc := struct {
+		Global struct {
+			Foo_Bar_Baz string
+		}
+		Item map[string]*struct {
+			Name  string
+			Value int
+		}
+		Preprocessor ProcessorConfig
+	}{}
+	//LoadConfig DOES NOT actually let the plugin test its config
+	if err := config.LoadConfigBytes(&tc, b); err != nil {
+		t.Fatalf("Failed to catch bad config")
+	}
+	var tt testTagger
+	p, err := tc.Preprocessor.getProcessor(`p2`, &tt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	set := makeEntrySet(testPluginCase, 123, 1024)
+
+	//first make sure that a crash gracefully returns an error
+	if _, err := p.Process(set); err == nil {
+		t.Fatalf("Process did not return an error on crash plugin")
+	}
+
+	//next wrap the thing in processor Set
+	tw := testWriter{}
+	ps := NewProcessorSet(&tw)
+	ps.AddProcessor(p)
+	if err := ps.ProcessBatch(set); err != nil {
+		t.Fatal(err)
+	}
+	rset := tw.ents
+	if len(rset) != len(set) {
+		t.Fatalf("return count mismatch: %d != %d", len(rset), len(set))
+	}
+
+	for i := range rset {
+		if rset[i].Tag != 123 {
+			t.Fatalf("%d invalid return tag", rset[i].Tag)
+		}
+		if !bytes.Equal(set[i].Data, rset[i].Data) {
+			t.Fatalf("%d invalid return value: %s != %s", i,
+				string(rset[i].Data), string(set[i].Data))
+		}
+	}
+	if err = checkAttachedValues(rset); err != nil {
+		t.Fatal(err)
+	}
+	if ret := p.Flush(); len(ret) != 0 {
+		t.Fatalf("got invalid entry count from flush")
+	} else if err = p.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 var (
 	testPluginCase = []byte(`This Is A Test Case`)
 )
@@ -215,9 +285,10 @@ func checkAttachedValues(set []*entry.Entry) (err error) {
 		if val, ok := v.GetEnumeratedValue(`testing`); !ok {
 			err = fmt.Errorf("entry %d did not have enumerated value testing", i)
 			return
-		} else if uv, ok := val.(uint64); !ok {
+		} else if _, ok := val.(uint64); !ok {
 			err = fmt.Errorf("entry %d testing enumerated value is not a uint64: %T", i, val)
 			return
 		}
 	}
+	return
 }
