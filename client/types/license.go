@@ -222,7 +222,7 @@ func (li LicenseInfo) UnlimitedIngestEnabled() bool {
 		return true
 	}
 
-	return li.Type != Fractional && li.Type != Community
+	return li.Type != Fractional && li.Type != Community && li.Type != Free
 }
 
 func (li LicenseInfo) SSOEnabled() bool {
