@@ -1028,7 +1028,7 @@ func monthAbrev() string {
 	case time.August:
 		return `Aug`
 	case time.September:
-		return `Sept`
+		return `Sep`
 	case time.October:
 		return `Oct`
 	case time.November:
