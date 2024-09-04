@@ -9,12 +9,12 @@
 package create
 
 import (
-	"github.com/gravwell/gravwell/v3/gwcli/action"
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
-	ft "github.com/gravwell/gravwell/v3/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold/scaffoldcreate"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
