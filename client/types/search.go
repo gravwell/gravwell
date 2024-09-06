@@ -289,6 +289,8 @@ type SearchInfo struct {
 	// this means that the query most likely did not cover the entire time range that was originally requested
 	// A preview search is used when a user is trying to understand what they have or establish AX relationships
 	Preview bool
+	// Error is set if the search ended in the ERROR state.
+	Error string `json:",omitempty"`
 
 	LaunchInfo SearchLaunchInfo // information about how a search was launched
 }
@@ -339,6 +341,7 @@ type SearchCtrlStatus struct {
 	NoHistory       bool
 	Import          ImportInfo
 	LaunchInfo      SearchLaunchInfo
+	Error           string `json:",omitempty"`
 }
 
 func (si SearchInfo) StorageSize() int64 {
