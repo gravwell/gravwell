@@ -25,11 +25,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
-	"github.com/gravwell/gravwell/v3/gwcli/tree"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/tree"
 
-	grav "github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/utils/weave"
+	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/utils/weave"
 )
 
 const ( // mock credentials

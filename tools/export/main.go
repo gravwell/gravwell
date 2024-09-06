@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/Bowery/prompt"
-	"github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/client/objlog"
+	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/objlog"
 )
 
 var (
