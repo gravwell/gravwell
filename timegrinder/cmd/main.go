@@ -14,7 +14,7 @@ import (
 	"os"
 	"regexp"
 
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 var (
