@@ -43,7 +43,7 @@ func getFileIdFromName(name string) (id FileId, err error) {
 	//GetFileINformationByHandle syscall can take time... It looks like a stat...
 	//it smells like a stat... it ain't a stat....
 	shared := uint32(syscall.FILE_SHARE_READ | syscall.FILE_SHARE_WRITE | syscall.FILE_SHARE_DELETE)
-	h, lerr := syscall.CreateFile(p, syscall.GENERIC_READ, shared, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_BACKUP_SEMANTICS, 0)
+	h, lerr := syscall.CreateFile(p, syscall.GENERIC_READ, shared, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_BACKUP_SEMANTICS|syscall.FILE_ATTRIBUTE_READONLY, 0)
 	if lerr != nil {
 		err = fmt.Errorf("Failed to open %s to check FileID: %w", name, lerr)
 		return
@@ -78,7 +78,7 @@ func openDeletableFile(fpath string) (*os.File, error) {
 	}
 
 	shared := uint32(syscall.FILE_SHARE_READ | syscall.FILE_SHARE_WRITE | syscall.FILE_SHARE_DELETE)
-	h, err := syscall.CreateFile(p, syscall.GENERIC_READ, shared, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_BACKUP_SEMANTICS, 0)
+	h, err := syscall.CreateFile(p, syscall.GENERIC_READ, shared, nil, syscall.OPEN_EXISTING, syscall.FILE_FLAG_BACKUP_SEMANTICS|syscall.FILE_ATTRIBUTE_READONLY, 0)
 	if err != nil {
 		if os.IsNotExist(err) {
 			err = os.ErrNotExist
