@@ -209,7 +209,7 @@ func (f *follower) Sync(qc chan os.Signal) (bool, error) {
 		// This makes sure we don't read forever, in case the writer is really fast
 		// and the connection to the indexer isn't.
 		if f.lnr.Index() >= size {
-			return false, nil
+			break // this essentially returns false, nil
 		}
 		select {
 		case _ = <-qc:
