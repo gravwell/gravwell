@@ -663,6 +663,10 @@ func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, er
 	//get ID
 	id, err := getFileIdFromName(wf.pth)
 	if err != nil {
+		//if we catch a file that does not exist during Catchup, just leave, there is nothing to do here
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		return false, err
 	}
 
