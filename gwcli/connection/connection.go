@@ -19,9 +19,9 @@ package connection
 import (
 	"errors"
 	"fmt"
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/cfgdir"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/uniques"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"io"
 	"os"
 	"strconv"
@@ -29,10 +29,10 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	grav "github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/client/objlog"
-	"github.com/gravwell/gravwell/v3/client/types"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/objlog"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 //const refreshInterval time.Duration = 10 * time.Minute // how often we refresh the user token
