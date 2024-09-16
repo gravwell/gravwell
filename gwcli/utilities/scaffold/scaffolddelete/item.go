@@ -10,10 +10,10 @@ package scaffolddelete
 
 import (
 	"fmt"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet/colorizer"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/listsupport"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"io"
 
 	"github.com/charmbracelet/bubbles/list"

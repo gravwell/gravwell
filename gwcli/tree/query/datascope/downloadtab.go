@@ -16,10 +16,10 @@ package datascope
 import (
 	"errors"
 	"fmt"
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet/colorizer"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"io"
 	"os"
 	"strconv"
@@ -29,7 +29,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 type downloadCursor = uint // current active item
