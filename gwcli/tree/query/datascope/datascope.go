@@ -22,9 +22,9 @@ package datascope
 
 import (
 	"errors"
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	activesearchlock "github.com/gravwell/gravwell/v3/gwcli/tree/query/datascope/ActiveSearchLock"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/killer"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	activesearchlock "github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope/ActiveSearchLock"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 	"os"
 	"time"
 
@@ -33,7 +33,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/term"
-	grav "github.com/gravwell/gravwell/v3/client"
+	grav "github.com/gravwell/gravwell/v4/client"
 )
 
 //#region keepAlive syncronization
