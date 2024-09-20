@@ -9,12 +9,12 @@
 package macros
 
 import (
-	"github.com/gravwell/gravwell/v3/gwcli/action"
-	"github.com/gravwell/gravwell/v3/gwcli/tree/macros/create"
-	"github.com/gravwell/gravwell/v3/gwcli/tree/macros/delete"
-	"github.com/gravwell/gravwell/v3/gwcli/tree/macros/edit"
-	"github.com/gravwell/gravwell/v3/gwcli/tree/macros/list"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/macros/create"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/macros/delete"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/macros/edit"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/macros/list"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	"github.com/spf13/cobra"
 )
