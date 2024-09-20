@@ -4,10 +4,6 @@ name: golang-testing
 
 on:
   pull_request:
-    branches:
-      - dev
-      - '*'
-      - 'release/*'
 
 jobs:
 
@@ -118,7 +114,7 @@ jobs:
         go test -v ./ipexist
         go test -v ./netflow
         go test -v ./client/...
-    
+
     - name: Build
       run: |
         go build -o /dev/null ./generators/gravwellGenerator
