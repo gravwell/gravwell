@@ -119,7 +119,7 @@ jobs:
         go test -v ./ipexist
         go test -v ./netflow
         go test -v ./client/...
-    
+
     - name: Build
       run: |
         go build -o /dev/null ./generators/gravwellGenerator
