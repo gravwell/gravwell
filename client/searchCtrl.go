@@ -75,9 +75,23 @@ func (c *Client) BackgroundSearch(sid string) error {
 
 // SetGroup will set the GID of the group which can read the search.
 // Setting it to 0 will disable group access.
+// Deprecated: use SetGroups instead
 func (c *Client) SetGroup(sid string, gid int32) error {
 	request := struct{ GID int32 }{gid}
 	return c.putStaticURL(searchCtrlGroupUrl(sid), request)
+}
+
+// SetGroups sets the list of groups that can read the search
+func (c *Client) SetGroups(sid string, gids []int32) error {
+	request := struct{ GIDs []int32 }{gids}
+	return c.putStaticURL(searchCtrlGroupsUrl(sid), request)
+}
+
+// SetGlobal is an admin-only function to toggle sharing of results
+// with the entire system.
+func (c *Client) SetGlobal(sid string, global bool) error {
+	request := struct{ Global bool }{global}
+	return c.putStaticURL(searchCtrlGlobalUrl(sid), request)
 }
 
 // ListSearchStatuses returns a list of all searches the current user has access to
@@ -382,6 +396,11 @@ func (c *Client) AttachSearch(id string) (s Search, err error) {
 	}
 	s.searchOutput = rconn
 	s.RenderMod = resp.RendererMod
+	if resp.Info != nil {
+		s.SearchStart = resp.Info.StartRange.Format(time.RFC3339Nano)
+		s.SearchEnd = resp.Info.EndRange.Format(time.RFC3339Nano)
+		s.SearchString = resp.Info.UserQuery
+	}
 	return s, nil
 }
 
