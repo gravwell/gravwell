@@ -17,6 +17,7 @@ import (
 
 	"crypto/rand"
 	"fmt"
+
 	"github.com/google/uuid"
 )
 
@@ -263,10 +264,11 @@ type Notification struct {
 }
 
 func (n *Notification) Expired() bool {
-	if n.Expires.Before(time.Now()) {
-		return true
-	}
-	return false
+	return n.Expires.IsZero() == false && n.Expires.Before(time.Now())
+}
+
+func (n *Notification) Ignored() bool {
+	return n.IgnoreUntil.IsZero() == false && n.IgnoreUntil.After(time.Now())
 }
 
 type BackendNotification struct {
