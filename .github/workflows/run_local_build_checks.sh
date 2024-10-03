@@ -1,41 +1,14 @@
-# This workflow is designed to setup a golang workspace and execute the unit tests
+#!/bin/bash
 
-name: golang-testing
+set -e
 
-on:
-  pull_request:
+# get things all staged up
+go mod tidy
+go mod download
+go mod verify
+go install golang.org/x/vuln/cmd/govulncheck@latest
 
-jobs:
-
-  build:
-    runs-on: ubuntu-latest
-    steps:
-    - run: echo "Executing on  ${{ runner.os }} due to ${{ github.event_name }}"
-    - run: echo "Branch is ${{ github.ref }} executing on  ${{ runner.os }} due to ${{ github.event_name }}"
-
-    - name: Checkout repo
-      uses: actions/checkout@v4
-
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: 1.23.1
-        cache: false
-
-    - name: Go Tidy
-      run: go mod tidy && git diff --exit-code
-
-    - name: Go Mod
-      run: go mod download
-
-    - name: Go Mod Verify
-      run: go mod verify
-
-    - name: Install govulncheck
-      run: go install golang.org/x/vuln/cmd/govulncheck@latest
-
-    - name: Run govulncheck
-      run: |
+echo "running govluncheck on everything"
         govulncheck -test ./netflow/...
         govulncheck -test ./manager/...
         govulncheck -test ./ipexist/...
@@ -93,12 +66,9 @@ jobs:
         GOOS=windows govulncheck -test ./ingesters/winevents
         GOOS=windows govulncheck -test ./winevent/...
 
-    - name: Install libpcap
-      run: sudo apt-get install -y libpcap-dev
 
-    - name: Test
-      run: |
-        go test -v ./generators/ipgen
+echo "Running go test -v"
+	go test -v ./generators/ipgen
         go test -v ./chancacher
         go test -v ./ingest
         go test -v ./ingest/entry
@@ -115,8 +85,7 @@ jobs:
         go test -v ./netflow
         go test -v ./client/...
 
-    - name: Build
-      run: |
+
         go build -o /dev/null ./generators/gravwellGenerator
         go build -o /dev/null ./manager
         go build -o /dev/null ./migrate
@@ -145,24 +114,3 @@ jobs:
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
-
-        /bin/bash ./ingesters/test/build.sh ./ingesters/GooglePubSubIngester ./ingesters/test/configs/pubsub_ingest.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/AzureEventHubs ingesters/test/configs/azure_event_hubs.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/HttpIngester ingesters/test/configs/gravwell_http_ingester.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/collectd ingesters/test/configs/collectd.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/netflow ingesters/test/configs/netflow_capture.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/KinesisIngester ingesters/test/configs/kinesis_ingest.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/kafka_consumer ingesters/test/configs/kafka.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/MSGraphIngester ingesters/test/configs/msgraph_ingest.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/IPMIIngester ingesters/test/configs/ipmi.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/fileFollow ingesters/test/configs/file_follow.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/s3Ingester ingesters/test/configs/s3.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/snmp ingesters/test/configs/snmp.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/sqsIngester ingesters/test/configs/sqs.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/networkLog ingesters/test/configs/network_capture.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/SimpleRelay ingesters/test/configs/simple_relay.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/O365Ingester ingesters/test/configs/o365_ingest.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/PacketFleet ingesters/test/configs/packet_fleet.conf
-
-    - name: Final status
-      run: echo "Status is ${{ job.status }} 🚀"
