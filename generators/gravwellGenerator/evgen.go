@@ -47,4 +47,7 @@ func finEnumeratedValue(ent *entry.Entry) {
 	ent.AddEnumeratedValueEx(`delay`, time.Since(ent.TS.StandardTime()))
 	ent.AddEnumeratedValueEx(`now`, time.Now())
 	ent.AddEnumeratedValueEx(`wild*card`, v6gen.IP())
+	if *randomSrc {
+		ent.SRC = getIP()
+	}
 }
