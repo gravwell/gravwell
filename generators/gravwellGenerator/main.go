@@ -24,6 +24,7 @@ import (
 var (
 	dataType      = flag.String("type", "", "Data type to generate (json, csv, etc.), call `-type ?` for usage")
 	delimOverride = flag.String("fields-delim-override", "", "Override the delimiter (for fields data type)")
+	randomSrc     = flag.Bool("random-source", false, "Generate random source values")
 
 	dataTypes = map[string]base.DataGen{
 		"binary":   genDataBinary,
@@ -130,6 +131,9 @@ func fin(val string) base.Finalizer {
 	return func(ent *entry.Entry) {
 		if val != `` {
 			ent.AddEnumeratedValueEx("_type", val)
+		}
+		if *randomSrc {
+			ent.SRC = getIP()
 		}
 	}
 }
