@@ -302,11 +302,8 @@ func (f *follower) processLines(writeEvent, removing, allowPartial bool) error {
 		}
 		if sawEOF && writeEvent {
 			// We got an EOF on the file after a write
-			fi, err := os.Stat(f.FilePath)
-			if err != nil {
-				return err
-			}
-			if fi.Size() < *f.state {
+			sz, err := f.lnr.FileSize()
+			if sz < *f.state {
 				// the file must have been truncated
 				*f.state = 0
 				if err = f.lnr.SeekFile(0); err != nil {
