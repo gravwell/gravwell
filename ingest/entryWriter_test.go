@@ -88,6 +88,108 @@ func TestInit(t *testing.T) {
 	lst.Close()
 }
 
+func dittoreader(et *EntryReader, expected int, errChan chan error) {
+	var count int
+feederLoop:
+	for count < expected {
+		_, err := et.Read()
+		if err != nil {
+			if err == io.EOF {
+				break feederLoop
+			} else if err == ErrPendingDittoBlock {
+				// Handle the ditto block
+				ents, err := et.GetPendingDittoBlock()
+				if err != nil {
+					fmt.Println(err)
+					errChan <- err
+					return
+				}
+				count += len(ents)
+				//				fmt.Printf("Got %v, total is %v\n", len(ents), count)
+				if err := et.AckDittoBlock(); err != nil {
+					errChan <- err
+					return
+				}
+			} else {
+				errChan <- err
+				return
+			}
+		}
+	}
+	if count < expected {
+		// we got an eof before we were done
+		errChan <- fmt.Errorf("expected %v entries, got %v", expected, count)
+		return
+	}
+	errChan <- nil
+}
+
+func TestDittoWrite(t *testing.T) {
+	var totalBytes uint64
+	var ents [](entry.Entry)
+	var entsIndex int
+
+	errChan := make(chan error)
+	lst, cli, srv, err := getConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	etSrv, err := NewEntryReader(srv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	etSrv.Start()
+
+	etCli, err := NewEntryWriter(cli)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ents = make([](entry.Entry), etCli.OptimalBatchWriteSize())
+	entsIndex = 0
+	count := 100000
+	go dittoreader(etSrv, count, errChan)
+
+	for i := 0; i < count; i++ {
+		ent := makeEntry()
+		if ent == nil {
+			t.Fatal("got a nil entry")
+		}
+		totalBytes += ent.Size()
+		//check if we need to throw a batch
+		if entsIndex >= cap(ents) {
+			if err := etCli.WriteDittoBlock(ents[0:entsIndex]); err != nil {
+				t.Fatal(err)
+			}
+			entsIndex = 0
+		}
+		ents[entsIndex] = *ent
+		entsIndex++
+	}
+	if entsIndex > 0 {
+		if err := etCli.WriteDittoBlock(ents[0:entsIndex]); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err = etCli.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = <-errChan; err != nil {
+		t.Fatal(err)
+	}
+
+	if err = etSrv.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	err = closeConnections(cli, srv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lst.Close()
+}
+
 func TestSingleRead(t *testing.T) {
 	if err := cleanup(); err != nil {
 		t.Fatal(err)

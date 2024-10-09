@@ -48,6 +48,7 @@ var (
 	errFailBufferTooSmall  = errors.New("Buffer too small for encoded command")
 	errFailedToReadCommand = errors.New("Failed to read command")
 	ErrOversizedEntry      = errors.New("Entry data exceeds maximum size")
+	ErrPendingDittoBlock   = errors.New("Received ditto block")
 
 	ackBatchReadTimerDuration = 10 * time.Millisecond
 	defaultReaderTimeout      = 10 * time.Minute
@@ -84,13 +85,14 @@ type EntryReader struct {
 	timeout    time.Duration
 	tagMan     TagManager
 	// the reader stores some info about the other side
-	igName         string
-	igVersion      string
-	igUUID         string
-	igAPIVersion   uint16
-	igStateMtx     *sync.Mutex
-	igState        IngesterState           // the most recent state message received
-	stateCallbacks []IngesterStateCallback // functions to be called when an IngesterState message is received
+	igName            string
+	igVersion         string
+	igUUID            string
+	igAPIVersion      uint16
+	igStateMtx        *sync.Mutex
+	igState           IngesterState           // the most recent state message received
+	stateCallbacks    []IngesterStateCallback // functions to be called when an IngesterState message is received
+	pendingDittoBlock []*entry.Entry
 }
 
 func NewEntryReader(conn net.Conn) (*EntryReader, error) {
@@ -159,6 +161,26 @@ type IngesterStateCallback func(IngesterState)
 // Warning: If a callback hangs, the entire entry reader will hang.
 func (er *EntryReader) AddIngesterStateCallback(f IngesterStateCallback) {
 	er.stateCallbacks = append(er.stateCallbacks, f)
+}
+
+func (er *EntryReader) GetPendingDittoBlock() ([]*entry.Entry, error) {
+	er.mtx.Lock()
+	defer er.mtx.Unlock()
+	if er.pendingDittoBlock == nil {
+		return nil, errors.New("No pending block")
+	}
+	return er.pendingDittoBlock, nil
+}
+
+func (er *EntryReader) AckDittoBlock() error {
+	er.mtx.Lock()
+	if er.pendingDittoBlock == nil {
+		return errors.New("No pending block")
+	}
+	er.pendingDittoBlock = nil
+	er.mtx.Unlock()
+	er.ackChan <- ackCommand{cmd: CONFIRM_DITTO_BLOCK_MAGIC, val: uint64(0)}
+	return nil
 }
 
 // configureStream will
@@ -314,6 +336,29 @@ func (er *EntryReader) read() (*entry.Entry, error) {
 	return ent, nil
 }
 
+func (er *EntryReader) readNoAck() (*entry.Entry, error) {
+	var (
+		err    error
+		sz     uint32
+		id     entrySendID
+		hasEvs bool
+	)
+	ent := &entry.Entry{}
+
+	if err = er.fillHeader(ent, &id, &sz, &hasEvs); err != nil {
+		return nil, err
+	}
+	ent.Data = make([]byte, sz)
+	if _, err = io.ReadFull(er.bIO, ent.Data); err != nil {
+		return nil, err
+	} else if hasEvs {
+		if err = ent.ReadEVs(er.bIO); err != nil {
+			return nil, err
+		}
+	}
+	return ent, nil
+}
+
 // we just eat bytes until we hit the magic number,  this is a rudimentary
 // error recovery where a bad read can skip the entry
 func (er *EntryReader) fillHeader(ent *entry.Entry, id *entrySendID, sz *uint32, evs *bool) error {
@@ -425,6 +470,34 @@ headerLoop:
 			}
 
 			continue
+		case DITTO_BLOCK_MAGIC:
+			// Read out how many entries there are coming
+			n, err = io.ReadFull(er.bIO, er.buff[0:8])
+			if err != nil {
+				return err
+			}
+			if n < 8 {
+				return errFailedFullRead
+			}
+			length := binary.LittleEndian.Uint64(er.buff[0:8])
+			var block []*entry.Entry
+			// Now read entries... yes this will sorta
+			// recurse, but only one level. We should
+			// never get a second DITTO_BLOCK_MAGIC on the
+			// same connection while we're processing the
+			// first.
+			for i := uint64(0); i < length; i++ {
+				ent, err := er.readNoAck()
+				if err != nil {
+					// We're just going to bail out entirely
+					return err
+				}
+				block = append(block, ent)
+			}
+
+			er.pendingDittoBlock = block
+			// We're going to signal that there was a ditto block, by sending an error
+			return ErrPendingDittoBlock
 		default: //we should probably bail out if we get desynced
 			continue
 		}
@@ -799,7 +872,7 @@ func (ac ackCommand) size() int {
 	case ERROR_TAG_MAGIC:
 		return 4
 	case CONFIRM_TAG_MAGIC:
-		return 6
+		return confirmTagSize
 	case THROTTLE_MAGIC:
 		return throttleEncodeSize
 	case CONFIRM_ID_MAGIC:
@@ -807,8 +880,10 @@ func (ac ackCommand) size() int {
 	case CONFIRM_API_VER_MAGIC:
 		return 4
 	case CONFIRM_INGEST_OK_MAGIC:
-		return 4
+		return 12
 	case CONFIRM_INGESTER_STATE_MAGIC:
+		return 4
+	case CONFIRM_DITTO_BLOCK_MAGIC:
 		return 4
 	}
 	return 0
@@ -858,6 +933,10 @@ func (ac ackCommand) encode(b []byte) (n int, flush bool, err error) {
 		n += 12
 		flush = true
 	case CONFIRM_INGESTER_STATE_MAGIC:
+		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
+		n += 4
+		flush = true
+	case CONFIRM_DITTO_BLOCK_MAGIC:
 		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
 		n += 4
 		flush = true
@@ -911,6 +990,8 @@ func (ac *ackCommand) decode(rdr *bufio.Reader, blocking bool) (ok bool, err err
 		ac.val = binary.LittleEndian.Uint64(val)
 		ok = true
 	case CONFIRM_INGESTER_STATE_MAGIC:
+		ok = true
+	case CONFIRM_DITTO_BLOCK_MAGIC:
 		ok = true
 	default:
 		err = errUnknownCommand
