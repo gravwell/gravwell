@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package main
 
 import (
@@ -5,6 +13,9 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
+	_ "time/tzdata"
 
 	"github.com/gravwell/gravwell/v3/debug"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
