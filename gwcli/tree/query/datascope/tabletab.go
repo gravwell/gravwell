@@ -14,9 +14,9 @@ package datascope
  */
 
 import (
-	"gwcli/clilog"
-	"gwcli/stylesheet"
-	"gwcli/stylesheet/colorizer"
+	"github.com/gravwell/gravwell/v3/gwcli/clilog"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v3/gwcli/stylesheet/colorizer"
 	"strconv"
 	"strings"
 
