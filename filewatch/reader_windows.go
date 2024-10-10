@@ -90,6 +90,20 @@ func NewEvtxReader(cfg ReaderConfig) (evr *EvtxReader, err error) {
 	return
 }
 
+func (evr *EvtxReader) ID() (FileId, error) {
+	return getFileId(evr.ReaderConfig.Fin)
+}
+
+func (evr *EvtxReader) FileSize() (sz int64, err error) {
+	var fi os.FileInfo
+	if fi, err = evr.ReaderConfig.Fin.Stat(); err != nil {
+		sz = -1
+	} else {
+		sz = fi.Size()
+	}
+	return
+}
+
 func (evr *EvtxReader) SeekFile(offset int64) (err error) {
 	if evr.bookmark != 0 {
 		wineventlog.Close(evr.bookmark)
