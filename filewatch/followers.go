@@ -209,7 +209,7 @@ func (f *follower) Sync(qc chan os.Signal) (bool, error) {
 		// This makes sure we don't read forever, in case the writer is really fast
 		// and the connection to the indexer isn't.
 		if f.lnr.Index() >= size {
-			return false, nil
+			break // this essentially returns false, nil
 		}
 		select {
 		case _ = <-qc:
@@ -302,11 +302,8 @@ func (f *follower) processLines(writeEvent, removing, allowPartial bool) error {
 		}
 		if sawEOF && writeEvent {
 			// We got an EOF on the file after a write
-			fi, err := os.Stat(f.FilePath)
-			if err != nil {
-				return err
-			}
-			if fi.Size() < *f.state {
+			sz, err := f.lnr.FileSize()
+			if sz < *f.state {
 				// the file must have been truncated
 				*f.state = 0
 				if err = f.lnr.SeekFile(0); err != nil {

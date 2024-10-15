@@ -1,6 +1,3 @@
-//go:build !windows
-// +build !windows
-
 /*************************************************************************
  * Copyright 2017 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>

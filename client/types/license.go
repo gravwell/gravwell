@@ -23,13 +23,15 @@ import (
 
 const (
 	// license type magic numbers
-	Eval       LicenseType = 0xb7c489d229961f64 //single instance (backend and frontend must be on the same machine) but we throw a bunch of stuff up in the GUI
+	Free       LicenseType = 0x2518766a3f4f7bca // minimal ingest, single instance, limited features, completely free
+	Eval       LicenseType = 0xb7c489d229961f64 // single instance (backend and frontend must be on the same machine) but we throw a bunch of stuff up in the GUI
 	Community  LicenseType = 0xa332f9b1f64789d2 // single instance, limited ingest per day
 	Fractional LicenseType = 0xe5354cae719162c3 // single instance, full features, limited ingest per day
 	Single     LicenseType = 0x6f848b5ce61db26a //single instance (backend and frontend must be on the same machine)
 	Enterprise LicenseType = 0x6e67a154aa1d503e //single instance, but all features allowed
 	Cluster    LicenseType = 0x16e6aac870ea32ee //MxN configuration (many headends, restricted backends)
 	Unlimited  LicenseType = 0x387dd2c0faa6e1e3 //MxN configuration (many headends, many backends)
+	Cloud      LicenseType = 0xa51975a973c6340f //Hosted cloud systems where number of nodes doesn't matter and ingest is tracked
 
 	// feature override bitmasks
 	Replication     FeatureOverride = 1
@@ -39,6 +41,7 @@ const (
 	UnlimitedCPU    FeatureOverride = 1 << 4
 	CBAC            FeatureOverride = 1 << 5
 	UnlimitedIngest FeatureOverride = 1 << 6
+	RemoteAI        FeatureOverride = 1 << 7
 
 	ReplicationName     string = `replication`
 	SingleSignonName    string = `sso`
@@ -47,6 +50,7 @@ const (
 	UnlimitedCPUName    string = `unlimitedcpu`
 	CBACName            string = `abac`
 	UnlimitedIngestName string = `unlimitedingest`
+	RemoteAIName        string = `remoteai`
 
 	// ingest rate constants
 	gb = 1024 * 1024 * 1024
@@ -66,6 +70,7 @@ var (
 		UnlimitedCPU,
 		UnlimitedIngest,
 		CBAC,
+		RemoteAI,
 	}
 
 	OverrideNames = []string{
@@ -76,6 +81,7 @@ var (
 		UnlimitedCPUName,
 		UnlimitedIngestName,
 		CBACName,
+		RemoteAIName,
 	}
 )
 
@@ -109,6 +115,7 @@ type Features struct {
 	UnlimitedCPU    bool
 	CBAC            bool
 	UnlimitedIngest bool
+	RemoteAI        bool
 }
 
 type LicenseIndexerStatus struct {
@@ -120,6 +127,13 @@ type LicenseIndexerStatus struct {
 type LicenseDistributionStatus struct {
 	Status string                 `json:"status"`
 	States []LicenseIndexerStatus `json:"states,omitempty"`
+
+	// information about whether the system is allowed to run in unlicensed/free mode
+	UnlicensedAllowed bool `json:"unlicensed_allowed"`
+
+	// if system cannot run in unlicensed mode, a list of reasons will be provided
+	// they may be things like "system is configured as a cluster" or "CBAC is enabled"
+	DisallowUnlicensedReasons []string `json:"disallow_unlicensed_reasons,omitempty"`
 }
 
 type LicenseIndexerInfo struct {
@@ -221,7 +235,7 @@ func (li LicenseInfo) UnlimitedIngestEnabled() bool {
 		return true
 	}
 
-	return li.Type != Fractional && li.Type != Community
+	return li.Type != Fractional && li.Type != Community && li.Type != Free
 }
 
 func (li LicenseInfo) SSOEnabled() bool {
@@ -231,6 +245,13 @@ func (li LicenseInfo) SSOEnabled() bool {
 	return li.Overrides.Set(SingleSignon)
 }
 
+func (li LicenseInfo) RemoteAIEnabled() bool {
+	if li.Type != Free && li.Type.AllFeatures() {
+		return true
+	}
+	return li.Overrides.Set(RemoteAI)
+}
+
 func (li LicenseInfo) ReplicationEnabled() bool {
 	switch li.Type {
 	case Unlimited:
@@ -238,6 +259,8 @@ func (li LicenseInfo) ReplicationEnabled() bool {
 	case Enterprise:
 		return true
 	case Cluster:
+		return true
+	case Cloud:
 		return true
 	}
 	return li.Overrides.Set(Replication)
@@ -250,6 +273,8 @@ func (li LicenseInfo) CBACEnabled() bool {
 	case Enterprise:
 		return true
 	case Cluster:
+		return true
+	case Cloud:
 		return true
 	}
 	return li.Overrides.Set(CBAC)
@@ -292,11 +317,14 @@ func (li LicenseInfo) Features() Features {
 		UnlimitedCPU:    li.UnlimitedCPUEnabled(),
 		CBAC:            li.CBACEnabled(),
 		UnlimitedIngest: li.UnlimitedIngestEnabled(),
+		RemoteAI:        li.RemoteAIEnabled(),
 	}
 }
 
 func (lt LicenseType) Valid() bool {
 	switch lt {
+	case Free:
+		return true
 	case Cluster:
 		return true
 	case Unlimited:
@@ -311,12 +339,16 @@ func (lt LicenseType) Valid() bool {
 		return true
 	case Enterprise:
 		return true
+	case Cloud:
+		return true
 	}
 	return false
 }
 
 func (lt LicenseType) String() string {
 	switch lt {
+	case Free:
+		return `free`
 	case Cluster:
 		return `cluster`
 	case Unlimited:
@@ -331,6 +363,8 @@ func (lt LicenseType) String() string {
 		return `fractional`
 	case Enterprise:
 		return `enterprise`
+	case Cloud:
+		return `cloud`
 	default:
 	}
 	return "Unknown"
@@ -338,6 +372,8 @@ func (lt LicenseType) String() string {
 
 func (lt LicenseType) Abbr() string {
 	switch lt {
+	case Free:
+		return `O`
 	case Cluster:
 		return `C`
 	case Unlimited:
@@ -352,6 +388,8 @@ func (lt LicenseType) Abbr() string {
 		return `F`
 	case Enterprise:
 		return `N`
+	case Cloud:
+		return `H`
 	default:
 	}
 	return "X"
@@ -363,12 +401,16 @@ func (lt LicenseType) AllFeatures() (r bool) {
 		r = true
 	case Enterprise:
 		r = true
+	case Cloud:
+		r = true
 	}
 	return
 }
 
 func (lt LicenseType) SingleNode() (r bool) {
 	switch lt {
+	case Free:
+		r = true
 	case Community:
 		r = true
 	case Eval:
@@ -419,6 +461,8 @@ func (lt *LicenseType) UnmarshalJSON(v []byte) error {
 func ParseType(c string) (LicenseType, error) {
 	c = strings.ToLower(c)
 	switch c {
+	case `free`:
+		return Free, nil
 	case `cluster`:
 		return Cluster, nil
 	case `unlimited`:
@@ -433,6 +477,8 @@ func ParseType(c string) (LicenseType, error) {
 		return Fractional, nil
 	case `enterprise`:
 		return Enterprise, nil
+	case `cloud`:
+		return Cloud, nil
 	}
 	return 0, errors.New("unknown license type")
 }
@@ -471,6 +517,8 @@ func NewFeatureOverride(name string) (fo FeatureOverride, err error) {
 		fo = UnlimitedIngest
 	case CBACName:
 		fo = CBAC
+	case RemoteAIName:
+		fo = RemoteAI
 	default:
 		err = fmt.Errorf("Unknown feature override name %q", name)
 	}
@@ -518,6 +566,9 @@ func (fo FeatureOverride) String() (r string) {
 	}
 	if fo.Set(CBAC) {
 		r += `CBAC `
+	}
+	if fo.Set(RemoteAI) {
+		r += `RemoteAI `
 	}
 	return
 }
