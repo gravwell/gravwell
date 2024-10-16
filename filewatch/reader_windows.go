@@ -17,6 +17,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/gravwell/gravwell/v4/winevent"
 	"github.com/gravwell/gravwell/v4/winevent/wineventlog"
@@ -100,6 +101,14 @@ func (evr *EvtxReader) FileSize() (sz int64, err error) {
 		sz = -1
 	} else {
 		sz = fi.Size()
+	}
+	return
+}
+
+func (evr *EvtxReader) LastModTime() (t time.Time, err error) {
+	var fi os.FileInfo
+	if fi, err = evr.ReaderConfig.Fin.Stat(); err == nil {
+		t = fi.ModTime()
 	}
 	return
 }
