@@ -144,25 +144,23 @@ func (f *follower) FileId() FileId {
 // lastFileModTime is a helper that pulls back the file modification time
 // this suppresses all errors and returns the zero time if anything goes wrong
 func (f *follower) lastFileModTime() (r time.Time) {
-	if f == nil || f.lnr == nil {
+	if f == nil || f.FilePath == `` {
 		return
 	}
-	var err error
-	if r, err = f.lnr.LastModTime(); err != nil {
-		r = time.Time{}
+	if fi, err := os.Stat(f.FilePath); err == nil {
+		r = fi.ModTime()
 	}
 
 	return
 }
 
 // fileSize just returns the current file size
-func (f *follower) fileSize() (sz int64) {
-	if f == nil || f.lnr == nil {
+func (f *follower) fileSize() (s int64) {
+	if f == nil || f.FilePath == `` {
 		return
 	}
-	var err error
-	if sz, err = f.lnr.FileSize(); err != nil {
-		sz = 0
+	if fi, err := os.Stat(f.FilePath); err == nil {
+		s = fi.Size()
 	}
 
 	return
