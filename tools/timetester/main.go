@@ -14,14 +14,15 @@ import (
 	"log"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 var (
 	custFormatPath = flag.String("custom", "", "Path to custom time format configuration file")
 	lms            = flag.Bool("enable-left-most-seed", false, "Activate EnableLeftMostSeed config option")
 	fo             = flag.String("format-override", "", "Enable FormatOverride config option")
+	lt             = flag.Bool("assume-local-timezone", true, "Assume local timezone on timegrinder")
 	metrics        = flag.Bool("metrics", false, "Output metrics about captures")
 )
 
@@ -38,6 +39,11 @@ func main() {
 	tg, err := timegrinder.New(cfg)
 	if err != nil {
 		log.Fatalf("Failed to build timegrinder: %v\n", err)
+	}
+	if *lt {
+		tg.SetLocalTime()
+	} else {
+		tg.SetUTC()
 	}
 	if *custFormatPath != `` {
 		var cf customFormats
