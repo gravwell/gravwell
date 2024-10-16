@@ -11,6 +11,7 @@ package filewatch
 import (
 	"errors"
 	"os"
+	"time"
 )
 
 const (
@@ -32,6 +33,7 @@ type Reader interface {
 	Close() error
 	ID() (FileId, error)
 	FileSize() (int64, error)
+	LastModTime() (time.Time, error)
 }
 
 type ReaderConfig struct {
@@ -58,6 +60,14 @@ func (br baseReader) FileSize() (sz int64, err error) {
 		sz = -1
 	} else {
 		sz = fi.Size()
+	}
+	return
+}
+
+func (br baseReader) LastModTime() (t time.Time, err error) {
+	var fi os.FileInfo
+	if fi, err = br.f.Stat(); err == nil {
+		t = fi.ModTime()
 	}
 	return
 }
