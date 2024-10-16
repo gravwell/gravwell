@@ -372,13 +372,13 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 			flw.Close()
 			delete(f.states, stid)
 			delete(f.followers, stid)
-			return err
+			continue
 		}
 		if ok {
 			found = true
 			//we found it, make sure its not the same damn file name
 			if p == fpath {
-				return nil
+				continue // keep checking other followers
 			}
 			//different filter but we must keep tracking
 			if flw.FilterId() != i {
@@ -407,7 +407,6 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 				//return nil
 			} else if v.loc == p {
 				//just update the names
-				delete(f.followers, stid)
 				flw.FileName = stid
 				st, ok := f.states[stid]
 				if !ok {
@@ -607,6 +606,7 @@ func (f *FilterManager) checkRename(fpath string, id FileId) (isRename bool, err
 			if filterId >= len(f.filters) || filterId < 0 {
 				//filter outside of range, delete the follower
 				removeFollower = true
+				continue // so we don't try to use this index
 			}
 			//check the filter glob against the new name
 			if f.filters[filterId].loc == fdir && f.matchFile(f.filters[filterId].mtchs, fname) {
