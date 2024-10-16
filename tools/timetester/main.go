@@ -55,9 +55,10 @@ func main() {
 				continue
 			}
 			cf := timegrinder.CustomFormat{
-				Name:   k,
-				Regex:  v.Regex,
-				Format: v.Format,
+				Name:             k,
+				Regex:            v.Regex,
+				Format:           v.Format,
+				Extraction_Regex: v.Extraction_Regex,
 			}
 			if cp, err := timegrinder.NewCustomProcessor(cf); err != nil {
 				log.Fatalf("Invalid custom format %q: %v\n", k, err)
