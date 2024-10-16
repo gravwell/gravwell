@@ -414,7 +414,7 @@ func (tg *TimeGrinder) DebugMatch(data []byte) (ts time.Time, name string, start
 
 	if tg.override != nil {
 		if start, end, ok = tg.override.Match(data); ok {
-			if ts, ok, _ = tg.override.Extract(data, tg.loc); ok {
+			if ts, ok, _ = tg.override.Extract(data[start:end], tg.loc); ok {
 				name = tg.override.Name()
 			}
 		}
@@ -430,7 +430,7 @@ func (tg *TimeGrinder) DebugMatch(data []byte) (ts time.Time, name string, start
 	i = tg.curr
 	for c = 0; c < tg.count; c++ {
 		if start, end, ok = tg.procs[i].Match(data); ok {
-			if ts, ok, _ = tg.procs[i].Extract(data, tg.loc); ok {
+			if ts, ok, _ = tg.procs[i].Extract(data[start:end], tg.loc); ok {
 				name = tg.procs[i].Name()
 				tg.curr = i
 				return //hit
