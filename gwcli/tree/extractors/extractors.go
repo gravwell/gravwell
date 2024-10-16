@@ -9,11 +9,11 @@
 package extractors
 
 import (
-	"github.com/gravwell/gravwell/v3/gwcli/action"
-	"github.com/gravwell/gravwell/v3/gwcli/tree/extractors/create"
-	"github.com/gravwell/gravwell/v3/gwcli/tree/extractors/delete"
-	"github.com/gravwell/gravwell/v3/gwcli/tree/extractors/list"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors/create"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors/delete"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors/list"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	"github.com/spf13/cobra"
 )
