@@ -17,7 +17,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/ipexist"
+	"github.com/gravwell/gravwell/v4/ipexist"
 )
 
 var (
