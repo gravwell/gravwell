@@ -408,10 +408,10 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 			} else if v.loc == filepath.Dir(p) {
 				//just update the names
 				delete(f.followers, stid)
-				delete(f.states, stid)
 
 				flw.FileName = stid
 				st, ok := f.states[stid]
+				delete(f.states, stid)
 				if !ok {
 					flw.Close()
 					return errors.New("failed to find state on rename")
@@ -541,12 +541,11 @@ FILTER_LOOP:
 		for fid, follower := range f.followers {
 			if filepath.Dir(fid.FilePath) == v.loc {
 				// we have a follower inside this filter loc
-				if follower.FileId() == id {
+				if follower.FileId() == id && follower.FileName.BaseName == v.bname && follower.FileName.FilePath == fpath {
 					// this is already being tracked, just move on
 					continue FILTER_LOOP
 				}
 			}
-
 		}
 
 		si = nil
