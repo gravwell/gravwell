@@ -4,7 +4,7 @@
  *
  * ________________________________________________________________________
  *
- * Copyright 2019 - All Rights Reserved
+ * Copyright 2024 - All Rights Reserved
  * Gravwell Inc <legal@gravwell.io>
  * ________________________________________________________________________
  *
@@ -30,6 +30,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
+	_ "time/tzdata"
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config/validate"
