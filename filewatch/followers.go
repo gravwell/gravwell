@@ -407,6 +407,13 @@ routineLoop:
 				return
 			}
 		case <-f.abortCh:
+			if err := f.processLines(false, true, false); err != nil {
+				f.lnr.Close()
+				if !os.IsNotExist(err) {
+					f.err = err
+				}
+				return
+			}
 			break routineLoop
 		}
 	}
