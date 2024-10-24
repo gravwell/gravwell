@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -18,9 +18,6 @@ import (
 	"fmt"
 	"sync"
 	"time"
-
-	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
-	_ "time/tzdata"
 )
 
 const (
@@ -414,7 +411,7 @@ func (tg *TimeGrinder) DebugMatch(data []byte) (ts time.Time, name string, start
 
 	if tg.override != nil {
 		if start, end, ok = tg.override.Match(data); ok {
-			if ts, ok, _ = tg.override.Extract(data, tg.loc); ok {
+			if ts, ok, _ = tg.override.Extract(data[start:end], tg.loc); ok {
 				name = tg.override.Name()
 			}
 		}
@@ -430,7 +427,7 @@ func (tg *TimeGrinder) DebugMatch(data []byte) (ts time.Time, name string, start
 	i = tg.curr
 	for c = 0; c < tg.count; c++ {
 		if start, end, ok = tg.procs[i].Match(data); ok {
-			if ts, ok, _ = tg.procs[i].Extract(data, tg.loc); ok {
+			if ts, ok, _ = tg.procs[i].Extract(data[start:end], tg.loc); ok {
 				name = tg.procs[i].Name()
 				tg.curr = i
 				return //hit

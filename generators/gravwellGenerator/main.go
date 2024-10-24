@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -16,6 +16,9 @@ import (
 	"os"
 	"time"
 
+	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
+	_ "time/tzdata"
+
 	"github.com/gravwell/gravwell/v3/generators/base"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -24,6 +27,7 @@ import (
 var (
 	dataType      = flag.String("type", "", "Data type to generate (json, csv, etc.), call `-type ?` for usage")
 	delimOverride = flag.String("fields-delim-override", "", "Override the delimiter (for fields data type)")
+	randomSrc     = flag.Bool("random-source", false, "Generate random source values")
 
 	dataTypes = map[string]base.DataGen{
 		"binary":   genDataBinary,
@@ -130,6 +134,9 @@ func fin(val string) base.Finalizer {
 	return func(ent *entry.Entry) {
 		if val != `` {
 			ent.AddEnumeratedValueEx("_type", val)
+		}
+		if *randomSrc {
+			ent.SRC = getIP()
 		}
 	}
 }
