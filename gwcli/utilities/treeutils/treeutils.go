@@ -11,10 +11,10 @@
 package treeutils
 
 import (
-	"github.com/gravwell/gravwell/v3/gwcli/action"
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	"github.com/gravwell/gravwell/v3/gwcli/group"
-	"github.com/gravwell/gravwell/v3/gwcli/mother"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"strings"
 
 	"github.com/spf13/cobra"
