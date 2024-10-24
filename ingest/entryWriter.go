@@ -468,9 +468,14 @@ func (ew *EntryWriter) WriteDittoBlock(ents []entry.Entry) error {
 	ew.flush()
 
 	// And wait for the confirmation
-	_, err = ew.readCommandsUntil(CONFIRM_DITTO_BLOCK_MAGIC)
-
-	return err
+	ac, err := ew.readCommandsUntil(CONFIRM_DITTO_BLOCK_MAGIC)
+	if err != nil {
+		return err
+	}
+	if ac.val != 0 {
+		return errors.New("Indexer returned error for ditto block")
+	}
+	return nil
 }
 
 // flush attempts to push our buffer to the wire with a timeout

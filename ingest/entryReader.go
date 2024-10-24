@@ -163,6 +163,11 @@ func (er *EntryReader) AddIngesterStateCallback(f IngesterStateCallback) {
 	er.stateCallbacks = append(er.stateCallbacks, f)
 }
 
+// GetPendingDittoBlock returns a block of entries received through
+// the 'ditto' mechanism. Call this method if a call to
+// EntryReader.Read has returned ErrPendingDittoBlock. Make sure to
+// call either AckDittoBlock or NackDittoBlock when you have processed
+// the entries!
 func (er *EntryReader) GetPendingDittoBlock() ([]*entry.Entry, error) {
 	er.mtx.Lock()
 	defer er.mtx.Unlock()
@@ -172,9 +177,12 @@ func (er *EntryReader) GetPendingDittoBlock() ([]*entry.Entry, error) {
 	return er.pendingDittoBlock, nil
 }
 
+// AckDittoBlock sends a message to the client indicating that the
+// ditto block it sent has been processed.
 func (er *EntryReader) AckDittoBlock() error {
 	er.mtx.Lock()
 	if er.pendingDittoBlock == nil {
+		er.mtx.Unlock()
 		return errors.New("No pending block")
 	}
 	er.pendingDittoBlock = nil
@@ -183,7 +191,24 @@ func (er *EntryReader) AckDittoBlock() error {
 	return nil
 }
 
-// configureStream will
+// NackDittoBlock sends a message to the client indicating that
+// something went wrong during the processing ofthe ditto block. This
+// generally means that the client should close the connection and
+// retry.
+func (er *EntryReader) NackDittoBlock() error {
+	er.mtx.Lock()
+	if er.pendingDittoBlock == nil {
+		er.mtx.Unlock()
+		return errors.New("No pending block")
+	}
+	er.pendingDittoBlock = nil
+	er.mtx.Unlock()
+	er.ackChan <- ackCommand{cmd: CONFIRM_DITTO_BLOCK_MAGIC, val: uint64(1)}
+	return nil
+}
+
+// ConfigureStream configures compression on the connection if the
+// client requests it.
 func (er *EntryReader) ConfigureStream() (err error) {
 	var req StreamConfiguration
 	er.mtx.Lock()
@@ -884,7 +909,7 @@ func (ac ackCommand) size() int {
 	case CONFIRM_INGESTER_STATE_MAGIC:
 		return 4
 	case CONFIRM_DITTO_BLOCK_MAGIC:
-		return 4
+		return 12
 	}
 	return 0
 }
@@ -938,7 +963,8 @@ func (ac ackCommand) encode(b []byte) (n int, flush bool, err error) {
 		flush = true
 	case CONFIRM_DITTO_BLOCK_MAGIC:
 		binary.LittleEndian.PutUint32(b, uint32(ac.cmd))
-		n += 4
+		binary.LittleEndian.PutUint64(b[4:], ac.val)
+		n += 12
 		flush = true
 	default:
 		err = errUnknownCommand
@@ -992,6 +1018,10 @@ func (ac *ackCommand) decode(rdr *bufio.Reader, blocking bool) (ok bool, err err
 	case CONFIRM_INGESTER_STATE_MAGIC:
 		ok = true
 	case CONFIRM_DITTO_BLOCK_MAGIC:
+		if _, err = io.ReadFull(rdr, val); err != nil {
+			return
+		}
+		ac.val = binary.LittleEndian.Uint64(val)
 		ok = true
 	default:
 		err = errUnknownCommand
