@@ -405,10 +405,13 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 					return err
 				}
 				//return nil
-			} else if v.loc == p {
+			} else if v.loc == filepath.Dir(p) {
 				//just update the names
+				delete(f.followers, stid)
+
 				flw.FileName = stid
 				st, ok := f.states[stid]
+				delete(f.states, stid)
 				if !ok {
 					flw.Close()
 					return errors.New("failed to find state on rename")
@@ -527,11 +530,24 @@ func (f *FilterManager) launchFollowers(fpath string, deleteState bool) (ok bool
 	var si *int64
 
 	//swing through all filters and launch a follower for each one that matches
+FILTER_LOOP:
 	for i, v := range f.filters {
 		//check base directory and pattern match
 		if v.loc != fdir || !f.matchFile(v.mtchs, fname) {
 			continue
 		}
+
+		// if the fpath and inode is the same, just move on, a rename event already got this
+		for fid, follower := range f.followers {
+			if filepath.Dir(fid.FilePath) == v.loc {
+				// we have a follower inside this filter loc
+				if follower.FileId() == id && follower.FileName.BaseName == v.bname && follower.FileName.FilePath == fpath {
+					// this is already being tracked, just move on
+					continue FILTER_LOOP
+				}
+			}
+		}
+
 		si = nil
 		if !deleteState {
 			//see if we have state information for this file
