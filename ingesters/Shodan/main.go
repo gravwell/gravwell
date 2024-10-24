@@ -4,7 +4,7 @@
  *
  * ________________________________________________________________________
  *
- * Copyright 2019 - All Rights Reserved
+ * Copyright 2024 - All Rights Reserved
  * Gravwell Inc <legal@gravwell.io>
  * ________________________________________________________________________
  *
@@ -31,13 +31,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gravwell/jsonparser"
+	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
+	_ "time/tzdata"
 
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/config/validate"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
+	"github.com/gravwell/jsonparser"
 
 	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
