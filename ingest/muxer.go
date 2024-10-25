@@ -75,6 +75,10 @@ const (
 	maxIngesterStateUpdateInterval = 5 * time.Minute
 )
 
+var (
+	ConstraintSpecials = []rune{'|', '{', '}', '(', ')', ';', '=', '<', '!', '>', '~', '%', '^', '&', '"', '.', ':', ',', '/'}
+)
+
 type muxState int
 
 type Target struct {
