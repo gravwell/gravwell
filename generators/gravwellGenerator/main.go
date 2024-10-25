@@ -44,7 +44,7 @@ func main() {
 	gen, fin, ok := getGenerator(*dataType)
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Invalid -type %v. Valid choices:\n", *dataType)
-		for k, _ := range getList() {
+		for _, k := range getList() {
 			fmt.Fprintf(os.Stderr, "	%v\n", k)
 		}
 		log.Fatal("Must provide valid type argument")

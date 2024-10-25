@@ -20,19 +20,18 @@ import (
 var (
 	//prepopulate with our supported ones
 	dataTypes = map[string]base.DataGen{
-		"binary":                  genDataBinary,
-		"bind":                    genDataBind,
-		"csv":                     genDataCSV,
-		"dnsmasq":                 genDataDnsmasq,
-		"fields":                  genDataFields,
-		"json":                    genDataJSON,
-		"xml":                     genDataXML,
-		"regex":                   genDataRegex,
-		"syslog":                  genDataSyslog,
-		"zeekconn":                genDataZeekConn,
-		"evs":                     genDataEnumeratedValue,
-		"megajson":                genDataMegaJSON,
-		"sentinalone_wineventlog": genSentinelOneWinEventLog,
+		"binary":   genDataBinary,
+		"bind":     genDataBind,
+		"csv":      genDataCSV,
+		"dnsmasq":  genDataDnsmasq,
+		"fields":   genDataFields,
+		"json":     genDataJSON,
+		"xml":      genDataXML,
+		"regex":    genDataRegex,
+		"syslog":   genDataSyslog,
+		"zeekconn": genDataZeekConn,
+		"evs":      genDataEnumeratedValue,
+		"megajson": genDataMegaJSON,
 	}
 	finalizers = map[string]base.Finalizer{
 		"evs":      finEnumeratedValue,
