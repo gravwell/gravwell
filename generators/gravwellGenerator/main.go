@@ -29,57 +29,26 @@ var (
 	delimOverride = flag.String("fields-delim-override", "", "Override the delimiter (for fields data type)")
 	randomSrc     = flag.Bool("random-source", false, "Generate random source values")
 
-	dataTypes = map[string]base.DataGen{
-		"binary":   genDataBinary,
-		"bind":     genDataBind,
-		"csv":      genDataCSV,
-		"dnsmasq":  genDataDnsmasq,
-		"fields":   genDataFields,
-		"json":     genDataJSON,
-		"xml":      genDataXML,
-		"regex":    genDataRegex,
-		"syslog":   genDataSyslog,
-		"zeekconn": genDataZeekConn,
-		"evs":      genDataEnumeratedValue,
-		"megajson": genDataMegaJSON,
-	}
-	finalizers = map[string]base.Finalizer{
-		"evs":      finEnumeratedValue,
-		"binary":   fin("binary"),
-		"bind":     fin("bind"),
-		"csv":      fin("csv"),
-		"dnsmasq":  fin("dnsmasq"),
-		"fields":   fin("fields"),
-		"json":     fin("JSON"),
-		"xml":      fin("XML"),
-		"regex":    fin("regex"),
-		"syslog":   fin("syslog"),
-		"zeekconn": fin("zeek conn"),
-		"megajson": fin("mega JSON"),
-	}
-
 	// for fields
 	delim string = "\t"
 )
 
 func main() {
+	flag.Usage = usage
 	flag.Parse()
 	if *delimOverride != `` {
 		delim = *delimOverride
 	}
 
 	// validate the type they asked for, a generator MUST be configured
-	gen, ok := dataTypes[*dataType]
+	gen, fin, ok := getGenerator(*dataType)
 	if !ok {
 		fmt.Fprintf(os.Stderr, "Invalid -type %v. Valid choices:\n", *dataType)
-		for k, _ := range dataTypes {
+		for k, _ := range getList() {
 			fmt.Fprintf(os.Stderr, "	%v\n", k)
 		}
 		log.Fatal("Must provide valid type argument")
 	}
-	//its ok if there is no finalizer
-	fin := finalizers[*dataType]
-
 	var igst base.GeneratorConn
 	var totalBytes uint64
 	var totalCount uint64
@@ -98,7 +67,7 @@ func main() {
 	var start time.Time
 	if cfg.Count > 0 {
 		start = time.Now()
-		seedUsers(int(cfg.Count), 256)
+		seedVars(int(cfg.Count))
 
 		if !cfg.Streaming {
 			if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg, gen, fin); err != nil {
@@ -130,13 +99,13 @@ func main() {
 	}
 }
 
-func fin(val string) base.Finalizer {
-	return func(ent *entry.Entry) {
-		if val != `` {
-			ent.AddEnumeratedValueEx("_type", val)
-		}
-		if *randomSrc {
-			ent.SRC = getIP()
-		}
-	}
+func usage() {
+	out := flag.CommandLine.Output()
+	fmt.Fprintf(out, "Usage of %s:\n", os.Args[0])
+	flag.PrintDefaults()
+	fmt.Fprintf(out, "\nRandom Data Pool Overrides via environment variables:\n")
+	fmt.Fprintf(out, "\tUSER_COUNT\n")
+	fmt.Fprintf(out, "\tGROUP_COUNT\n")
+	fmt.Fprintf(out, "\tHOST_COUNT\n")
+	fmt.Fprintf(out, "\tAPP_COUNT\n")
 }
