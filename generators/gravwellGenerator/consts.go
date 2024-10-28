@@ -40,6 +40,14 @@ var (
 		"tcp":  []string{"-", "http", "ssl", "ssh"},
 		"udp":  []string{"-", "dns", "dhcp", "krb", "dtls"},
 	}
+	operating_systems = []string{
+		`windows`,
+		`linux`,
+		`macos`,
+		`sun solaris`,
+		`beos`,
+		`android`,
+	}
 	states = []string{
 		"OTH",
 		"SF",
@@ -251,6 +259,10 @@ func getRandString(v []string) (r string) {
 		r = v[rand.Intn(len(v))]
 	}
 	return
+}
+
+func getOS() string {
+	return getRandString(operating_systems)
 }
 
 func getUser() Account {
