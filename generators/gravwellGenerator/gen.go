@@ -10,6 +10,8 @@ package main
 
 import (
 	"errors"
+	"fmt"
+	"math/rand"
 	"sort"
 	"sync"
 
@@ -68,6 +70,10 @@ func registerDataType(name string, dg base.DataGen, f base.Finalizer) (err error
 	return
 }
 
+func getBool() bool {
+	return rand.Intn(10)&0x1 == 0x1
+}
+
 func getGenerator(name string) (dg base.DataGen, f base.Finalizer, ok bool) {
 	mtx.Lock()
 	defer mtx.Unlock()
@@ -105,4 +111,30 @@ func fin(val string) base.Finalizer {
 			ent.SRC = getIP()
 		}
 	}
+}
+
+func getDomain(min, max int) string {
+	if min <= 0 || max <= 0 {
+		return fake.Internet().Domain()
+	}
+	x := max - min
+	if x > 0 {
+		x = rand.Intn(x)
+	}
+	cnt := min + x
+	if cnt == 0 {
+		return fake.Internet().Domain()
+	}
+
+	var ret string
+	for i := 0; i < cnt; i++ {
+		if i == 0 {
+			ret = fake.Lorem().Word()
+		} else {
+			ret = ret + "." + fake.Lorem().Word()
+		}
+	}
+	fmt.Println(cnt, ret)
+	return ret + "." + fake.Internet().Domain()
+
 }
