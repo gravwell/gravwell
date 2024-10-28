@@ -44,6 +44,7 @@ require (
 	github.com/gravwell/syslogparser v0.0.0-20240916141748-b06ba0f94749
 	github.com/h2non/filetype v1.0.10
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
+	github.com/jaswdr/faker/v2 v2.3.2
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
 	github.com/klauspost/compress v1.17.8
 	github.com/miekg/dns v1.1.56
