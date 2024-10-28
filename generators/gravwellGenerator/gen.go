@@ -10,7 +10,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 	"math/rand"
 	"sort"
 	"sync"
@@ -134,7 +133,5 @@ func getDomain(min, max int) string {
 			ret = ret + "." + fake.Lorem().Word()
 		}
 	}
-	fmt.Println(cnt, ret)
 	return ret + "." + fake.Internet().Domain()
-
 }
