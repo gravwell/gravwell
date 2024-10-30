@@ -69,13 +69,15 @@ const (
 	NotificationRead  Capability = 42
 	NotificationWrite Capability = 43
 	SystemInfoRead    Capability = 44
-	TokenRead         Capability = 45
-	TokenWrite        Capability = 46
-	SecretRead        Capability = 47
-	SecretWrite       Capability = 48
-	AlertRead         Capability = 49
-	AlertWrite        Capability = 50
-	_maxCap           Capability = 51 //REMINDER - when adding capabilities, make sure to expand this number
+
+	TokenRead   Capability = 45
+	TokenWrite  Capability = 46
+	SecretRead  Capability = 47
+	SecretWrite Capability = 48
+	AlertRead   Capability = 49
+	AlertWrite  Capability = 50
+	RemoteAI    Capability = 51
+	_maxCap     Capability = 52 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
 type CapabilityCategory string
@@ -99,6 +101,8 @@ const (
 	UsersAndGroupsCat = `Users and Groups`
 	SystemAndStatsCat = `System and Stats`
 	SecretsCat        = `Secrets`
+	AlertsCat         = `Alerts`
+	AICat             = `AI`
 )
 
 const (
@@ -456,6 +460,12 @@ func (c Capability) Category() CapabilityCategory {
 		return SecretsCat
 	case SecretWrite:
 		return SecretsCat
+	case AlertRead:
+		return AlertsCat
+	case AlertWrite:
+		return AlertsCat
+	case RemoteAI:
+		return AICat
 	}
 	return `UNKNOWN`
 }
@@ -565,6 +575,8 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = AlertRead
 	case `alertwrite`:
 		*c = AlertWrite
+	case `remoteai`:
+		*c = RemoteAI
 	default:
 		err = ErrUnknownCapability
 	}
@@ -674,6 +686,8 @@ func (c Capability) String() string {
 		return `Read Alerts`
 	case AlertWrite:
 		return `Write and Delete Alerts`
+	case RemoteAI:
+		return `Remote AI API`
 	}
 	return `UNKNOWN`
 }
@@ -781,6 +795,8 @@ func (c Capability) Description() string {
 		return `User can read and access alerts`
 	case AlertWrite:
 		return `User can create, update, and delete alerts`
+	case RemoteAI:
+		return `User can submit request to the remote AI APIs`
 	}
 	return `UNKNOWN`
 }
