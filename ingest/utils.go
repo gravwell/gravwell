@@ -97,8 +97,13 @@ func isBadTagChar(r rune) bool {
 	switch r {
 	case '"', '\'', '`', 0xb4, 0x2018, 0x2019, 0x201c, 0x201d: //all the quote characters
 		return true
-	case '!', '*', ',', '^', '|', '$', '@', '\\', '/', '.', '<', '>', '{', '}', '[', ']':
+	case '*', '$', '\\', '[', ']': // Characters allowed in the query syntax, but not in negotiation.
 		return true
+	}
+	for _, v := range ConstraintSpecials {
+		if r == v {
+			return true
+		}
 	}
 	return false
 }
