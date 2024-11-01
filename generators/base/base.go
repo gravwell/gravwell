@@ -50,6 +50,7 @@ var (
 	chaos        = flag.Bool("chaos-mode", false, "Chaos mode causes the generator to not do multiline HTTP uploads and sometimes send crazy timestamps")
 	chaosWorkers = flag.Int("chaos-mode-workers", 8, "Maximum number of workers when in chaos mode")
 	tsPsychoMode = flag.Bool("time-is-an-illusion", false, "Ingest with worst-case timestamp ordering (this is a chaos-mode flag)")
+	randSrc      = flag.Bool("randomize-source", false, "randomize source IP")
 )
 
 var (
