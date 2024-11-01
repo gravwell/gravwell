@@ -28,28 +28,29 @@ import (
 )
 
 var (
-	tagName         = flag.String("tag-name", "", "Tag name for ingested data")
-	clearConns      = flag.String("clear-conns", "", "Comma-separated server:port list of cleartext targets")
-	tlsConns        = flag.String("tls-conns", "", "Comma-separated server:port list of TLS connections")
-	pipeConns       = flag.String("pipe-conns", "", "Comma-separated list of paths for named pipe connection")
-	tlsRemoteVerify = flag.String("tls-remote-verify", "", "Path to remote public key to verify against")
-	ingestSecret    = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
-	ingestTenant    = flag.String("ingest-tenant", "", "Ingest tenant ID, blank for system tenant")
-	compression     = flag.Bool("compression", false, "Enable ingest compression")
-	entryCount      = flag.Int("entry-count", 100, "Number of entries to generate")
-	streaming       = flag.Bool("stream", false, "Stream entries in")
-	rawTCPConn      = flag.String("raw-tcp-connection", "", "Deliver line broken entries over a TCP connection instead of gravwell protocol")
-	rawUDPConn      = flag.String("raw-udp-connection", "", "Deliver line broken entries over a UDP connection instead of gravwell protocol")
-	hecTarget       = flag.String("hec-target", "", "Target a HEC endpoint")
-	hecModeRaw      = flag.Bool("hec-mode-raw", false, "Send events to the raw HEC endpoint")
-	span            = flag.String("duration", "1h", "Total Duration")
-	srcOverride     = flag.String("source-override", "", "Source override value")
-	status          = flag.Bool("status", false, "show ingest rates as we run")
-	startTime       = flag.String("start-time", "", "optional starting timestamp for entries, must be RFC3339 format")
-	randSrc         = flag.Bool("randomize-source", false, "randomize source IP")
-	chaos           = flag.Bool("chaos-mode", false, "Chaos mode causes the generator to not do multiline HTTP uploads and sometimes send crazy timestamps")
-	chaosWorkers    = flag.Int("chaos-mode-workers", 8, "Maximum number of workers when in chaos mode")
-	tsPsychoMode    = flag.Bool("time-is-an-illusion", false, "Ingest with worst-case timestamp ordering (this is a chaos-mode flag)")
+
+	tagName      = flag.String("tag-name", "", "Tag name for ingested data")
+	clearConns   = flag.String("clear-conns", "", "Comma-separated server:port list of cleartext targets")
+	tlsConns     = flag.String("tls-conns", "", "Comma-separated server:port list of TLS connections")
+	pipeConns    = flag.String("pipe-conns", "", "Comma-separated list of paths for named pipe connection")
+	tlsNoVerify  = flag.Bool("insecure-no-tls-validate", false, "optionally disable remote TLS validation on ciphertext connections")
+	ingestSecret = flag.String("ingest-secret", "IngestSecrets", "Ingest key")
+	ingestTenant = flag.String("ingest-tenant", "", "Ingest tenant ID, blank for system tenant")
+	compression  = flag.Bool("compression", false, "Enable ingest compression")
+	entryCount   = flag.Int("entry-count", 100, "Number of entries to generate")
+	streaming    = flag.Bool("stream", false, "Stream entries in")
+	rawTCPConn   = flag.String("raw-tcp-connection", "", "Deliver line broken entries over a TCP connection instead of gravwell protocol")
+	rawUDPConn   = flag.String("raw-udp-connection", "", "Deliver line broken entries over a UDP connection instead of gravwell protocol")
+	hecTarget    = flag.String("hec-target", "", "Target a HEC endpoint")
+	hecModeRaw   = flag.Bool("hec-mode-raw", false, "Send events to the raw HEC endpoint")
+	span         = flag.String("duration", "1h", "Total Duration")
+	srcOverride  = flag.String("source-override", "", "Source override value")
+	status       = flag.Bool("status", false, "show ingest rates as we run")
+	startTime    = flag.String("start-time", "", "optional starting timestamp for entries, must be RFC3339 format")
+	chaos        = flag.Bool("chaos-mode", false, "Chaos mode causes the generator to not do multiline HTTP uploads and sometimes send crazy timestamps")
+	chaosWorkers = flag.Int("chaos-mode-workers", 8, "Maximum number of workers when in chaos mode")
+	tsPsychoMode = flag.Bool("time-is-an-illusion", false, "Ingest with worst-case timestamp ordering (this is a chaos-mode flag)")
+	randSrc      = flag.Bool("randomize-source", false, "randomize source IP")
 )
 
 var (
@@ -58,28 +59,29 @@ var (
 )
 
 type GeneratorConfig struct {
-	ok              bool
-	modeRawTCP      bool
-	modeRawUDP      bool
-	modeHEC         bool
-	modeHECRaw      bool
-	ChaosTimestamps bool
-	ChaosMode       bool
-	ChaosWorkers    int
-	Raw             string
-	HEC             string
-	Streaming       bool
-	Compression     bool
-	Tag             string
-	ConnSet         []string
-	Auth            string
-	Tenant          string
-	Count           uint64
-	Duration        time.Duration
-	Start           time.Time
-	SRC             net.IP
-	Logger          *log.Logger
-	LogLevel        log.Level
+	ok                    bool
+	modeRawTCP            bool
+	modeRawUDP            bool
+	modeHEC               bool
+	modeHECRaw            bool
+	ChaosTimestamps       bool
+	ChaosMode             bool
+	ChaosWorkers          int
+	Raw                   string
+	HEC                   string
+	Streaming             bool
+	Compression           bool
+	Tag                   string
+	ConnSet               []string
+	Auth                  string
+	Tenant                string
+	Count                 uint64
+	Duration              time.Duration
+	Start                 time.Time
+	SRC                   net.IP
+	Logger                *log.Logger
+	LogLevel              log.Level
+	InsecureNoTLSValidate bool
 }
 
 func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
@@ -105,6 +107,7 @@ func GetGeneratorConfig(defaultTag string) (gc GeneratorConfig, err error) {
 		err = fmt.Errorf("invalid start-time %s %w", *startTime, err)
 		return
 	}
+	gc.InsecureNoTLSValidate = *tlsNoVerify
 	gc.ChaosTimestamps = *tsPsychoMode
 	gc.ChaosMode = *chaos
 	if gc.ChaosWorkers = *chaosWorkers; gc.ChaosWorkers <= 0 {
@@ -254,6 +257,7 @@ func NewIngestMuxer(name, guid string, gc GeneratorConfig, to time.Duration) (co
 
 	umc := ingest.UniformMuxerConfig{
 		Destinations:  gc.ConnSet,
+		VerifyCert:    !gc.InsecureNoTLSValidate,
 		Tags:          []string{gc.Tag},
 		Auth:          gc.Auth,
 		Tenant:        gc.Tenant,
