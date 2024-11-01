@@ -92,6 +92,11 @@ type TargetError struct {
 	Error   error
 }
 
+type dittoBlock struct {
+	ents []entry.Entry
+	cb   func(error)
+}
+
 type IngestMuxer struct {
 	cfg StreamConfiguration //stream configuration
 	//connHot, and connDead have atomic operations
@@ -114,6 +119,7 @@ type IngestMuxer struct {
 	eChanOut             chan interface{}
 	bChan                chan interface{}
 	bChanOut             chan interface{}
+	dittoChan            chan dittoBlock
 	eq                   *emergencyQueue
 	dieChan              chan bool
 	upChan               chan bool
@@ -412,6 +418,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		eChanOut:          cache.Out,
 		bChan:             bcache.In,
 		bChanOut:          bcache.Out,
+		dittoChan:         make(chan dittoBlock), // synchronous as hell
 		eq:                newEmergencyQueue(),
 		dieChan:           make(chan bool, len(c.Destinations)),
 		upChan:            make(chan bool, 1),
@@ -1141,6 +1148,29 @@ func (im *IngestMuxer) WriteContext(ctx context.Context, tm entry.Timestamp, tag
 	return im.WriteEntryContext(ctx, e)
 }
 
+// DittoWriteContext does a Ditto write, which is specifically
+// intended to duplicate blocks of entries from one indexer to one or
+// more destination indexers. This function will not return until the
+// recipient has indicated that the entries are written to disk.
+func (im *IngestMuxer) DittoWriteContext(ctx context.Context, b []entry.Entry) error {
+	var err error
+	var wg sync.WaitGroup
+	cb := func(e error) {
+		err = e
+		wg.Done()
+	}
+	wg.Add(1)
+	db := dittoBlock{
+		ents: b,
+		cb:   cb,
+	}
+	im.dittoChan <- db
+	// Now wait for the callback to be called
+	wg.Wait()
+	// The callback will have set err
+	return err
+}
+
 // connFailed will put the destination in a failed state and inform the muxer
 func (im *IngestMuxer) connFailed(dst string, err error) {
 	im.mtx.Lock()
@@ -1220,6 +1250,7 @@ func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool
 
 	eC := im.eChanOut
 	bC := im.bChanOut
+	dC := im.dittoChan // not cached
 
 inputLoop:
 	for {
@@ -1228,10 +1259,49 @@ inputLoop:
 			nc.ig.Sync()
 			nc.ig.Close()
 			return
+		case db, ok := <-dC:
+			if !ok {
+				dC = nil
+				if eC == nil && bC == nil {
+					return
+				}
+				continue
+			}
+
+			// translate tags
+			for i := range db.ents {
+				ttag, ok = nc.tt.Translate(db.ents[i].Tag)
+				if !ok {
+					// We're going to consider this a fatal error. This
+					// is a ditto session, you need to know what tags are
+					// in the block before you send it, and you better have those
+					// negotiated and ready to rock.
+					db.cb(fmt.Errorf("Block contained entry with unexpected tag, aborting"))
+					continue inputLoop
+				}
+				db.ents[i].Tag = ttag
+
+				if len(db.ents[i].SRC) == 0 {
+					db.ents[i].SRC = nc.src
+				}
+			}
+
+			// If there is any error at all, we will kick it back up the chain for the original
+			// caller to deal with. We aren't going to recycle & retry, because the whole point
+			// is to be very deliberate about making sure things get to disk.
+			if err = nc.ig.WriteDittoBlock(db.ents); err != nil {
+				db.cb(err)
+				continue inputLoop
+			}
+			// and fire the callback so it knows we're done
+			db.cb(nil)
+
+			// let somebody else have a turn
+			runtime.Gosched()
 		case ee, ok := <-eC:
 			if !ok {
 				eC = nil
-				if bC == nil {
+				if bC == nil && dC == nil {
 					return
 				}
 				continue
@@ -1281,7 +1351,7 @@ inputLoop:
 		case bb, ok := <-bC:
 			if !ok {
 				bC = nil
-				if eC == nil {
+				if eC == nil && dC == nil {
 					return
 				}
 				continue
@@ -1359,7 +1429,11 @@ inputLoop:
 	}
 }
 
-// the routine that manages
+// connRoutine starts up the entry relay routine, then sits waiting to
+// be notified about connection issues. Connection issues are handled
+// by reconnecting to the indexers and recycling any outstanding
+// entries back into the emergency queue, then sending the connection
+// info to the entry relay routine for use.
 func (im *IngestMuxer) connRoutine(igIdx int) {
 	var src net.IP
 	defer im.wg.Done()
