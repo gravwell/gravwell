@@ -335,6 +335,8 @@ func (c Capability) Name() string {
 		return `AlertRead`
 	case AlertWrite:
 		return `AlertWrite`
+	case RemoteAIService:
+		return `RemoteAIService`
 	}
 	return `UNKNOWN`
 }
