@@ -572,7 +572,7 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = AlertRead
 	case `alertwrite`:
 		*c = AlertWrite
-	case `remoteai`:
+	case `remoteaiservice`:
 		*c = RemoteAIService
 	default:
 		err = ErrUnknownCapability
@@ -684,7 +684,7 @@ func (c Capability) String() string {
 	case AlertWrite:
 		return `Write and Delete Alerts`
 	case RemoteAIService:
-		return `Remote AI API`
+		return `Remote AI Service`
 	}
 	return `UNKNOWN`
 }
@@ -793,7 +793,7 @@ func (c Capability) Description() string {
 	case AlertWrite:
 		return `User can create, update, and delete alerts`
 	case RemoteAIService:
-		return `User can submit request to the remote AI APIs`
+		return `User can submit request to the remote AI service APIs`
 	}
 	return `UNKNOWN`
 }
