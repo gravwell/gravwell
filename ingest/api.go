@@ -181,6 +181,55 @@ type IngesterState struct {
 	Metadata      json.RawMessage `json:",omitempty"`
 }
 
+type writeCounter struct {
+	bts int
+}
+
+func (wc *writeCounter) Write(b []byte) (n int, err error) {
+	n = len(b)
+	wc.bts += n
+	return
+}
+
+func (s *IngesterState) EncodedSize() (uint32, error) {
+	var wc writeCounter
+	if err := json.NewEncoder(&wc).Encode(s); err != nil {
+		return 0, err
+	}
+	return uint32(wc.bts), nil
+}
+
+func trimChildConfigs(children map[string]IngesterState, depth int) {
+	for k, v := range children {
+		if depth <= 0 {
+			// just zap all children
+			v.Children = nil
+		}
+		v.Configuration = nil
+		v.Metadata = nil
+		if len(v.Children) > 0 {
+			trimChildConfigs(v.Children, depth-1)
+		}
+		children[k] = v
+	}
+}
+
+func (s *IngesterState) trimChildConfigs() {
+	trimChildConfigs(s.Children, 8) //anything deeper than 8, just nuke em
+}
+
+func (s *IngesterState) trimChildren(maxCount int) {
+	if len(s.Children) > maxCount {
+		var x int
+		for k := range s.Children {
+			x++
+			if x >= maxCount {
+				delete(s.Children, k)
+			}
+		}
+	}
+}
+
 func (s *IngesterState) Write(wtr io.Writer) (err error) {
 	// First, encode to JSON
 	var data []byte
