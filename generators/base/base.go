@@ -20,13 +20,15 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/generators/ipgen"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 var (
+
 	tagName      = flag.String("tag-name", "", "Tag name for ingested data")
 	clearConns   = flag.String("clear-conns", "", "Comma-separated server:port list of cleartext targets")
 	tlsConns     = flag.String("tls-conns", "", "Comma-separated server:port list of TLS connections")
@@ -48,6 +50,7 @@ var (
 	chaos        = flag.Bool("chaos-mode", false, "Chaos mode causes the generator to not do multiline HTTP uploads and sometimes send crazy timestamps")
 	chaosWorkers = flag.Int("chaos-mode-workers", 8, "Maximum number of workers when in chaos mode")
 	tsPsychoMode = flag.Bool("time-is-an-illusion", false, "Ingest with worst-case timestamp ordering (this is a chaos-mode flag)")
+	randSrc      = flag.Bool("randomize-source", false, "randomize source IP")
 )
 
 var (
@@ -361,6 +364,9 @@ func OneShot(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorCo
 			TS:  entry.FromStandard(ts),
 			Tag: tag,
 			SRC: src,
+		}
+		if *randSrc {
+			ent.SRC = ipgen.IPv4()
 		}
 		if dg != nil {
 			ent.Data = dg(ts)
