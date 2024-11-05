@@ -591,6 +591,27 @@ func (im *IngestMuxer) stateReportRoutine() {
 			//SendIngesterState throws a full sync and then pushes a potentially very large
 			//configuration block. DO NOT HOLD THE LOCK on the entire muxer when this is happening
 			//or you will most likely starve the ingest muxer.
+			var sz uint32
+			var err error
+			if sz, err = s.EncodedSize(); err != nil {
+				continue
+			} else if sz > maxIngestStateSize {
+				ogSize := sz
+				s.trimChildConfigs()
+				if sz, err = s.EncodedSize(); err != nil {
+					continue
+				} else if sz > maxIngestStateSize {
+					s.trimChildren(64)
+					if sz, err = s.EncodedSize(); err != nil {
+						continue
+					} else if sz > maxIngestStateSize {
+						//log an error stating that we could not make it work
+						im.Error("Failed to send ingester state, too large",
+							log.KV("original-size", ogSize), log.KV("post-trim-size", sz))
+						continue
+					}
+				}
+			}
 
 			for _, v := range im.igst {
 				if v != nil {
