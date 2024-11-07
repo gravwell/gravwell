@@ -18,7 +18,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials/ec2rolecreds"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 type Config struct {

@@ -19,4 +19,4 @@ test.conf
 
 #vim files
 *.swp
-manager
+manager/manager

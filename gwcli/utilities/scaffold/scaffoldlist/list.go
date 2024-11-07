@@ -58,20 +58,20 @@ package scaffoldlist
 
 import (
 	"fmt"
-	"github.com/gravwell/gravwell/v3/gwcli/action"
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
-	ft "github.com/gravwell/gravwell/v3/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"os"
 	"reflect"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
-	grav "github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/utils/weave"
+	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
