@@ -32,10 +32,8 @@ func (c *Client) TestIngest() (err error) {
 func (c *Client) IngestEntries(entries []types.StringTagEntry) error {
 	// IngestEntries now just wraps ingest, because that's a more advanced API
 	// and doesn't have memory restrictions
-	var empty []types.EnumeratedPair
 	cb := func(wtr io.Writer) error {
 		for _, e := range entries {
-			e.Enumerated = empty
 			if b, err := json.Marshal(e); err != nil {
 				return err
 			} else {
