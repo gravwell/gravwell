@@ -1185,9 +1185,13 @@ func (im *IngestMuxer) DittoWriteContext(ctx context.Context, b []entry.Entry) e
 		ents: b,
 		cb:   cb,
 	}
-	im.dittoChan <- db
-	// Now wait for the callback to be called
-	wg.Wait()
+	select {
+	case im.dittoChan <- db:
+		// Now wait for the callback to be called
+		wg.Wait()
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	// The callback will have set err
 	return err
 }
