@@ -290,9 +290,10 @@ func TestParallel(t *testing.T) {
 	ps := NewProcessorSet(&tw)
 
 	ent := entry.Entry{
-		TS:  entry.Now(),
-		SRC: net.ParseIP("192.168.1.1"),
-		Tag: 0,
+		TS:   entry.Now(),
+		SRC:  net.ParseIP("192.168.1.1"),
+		Tag:  0,
+		Data: []byte(`{"foo.bar": "baz"}`),
 	}
 
 	b := []byte(`
