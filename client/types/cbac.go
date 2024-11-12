@@ -793,7 +793,7 @@ func (c Capability) Description() string {
 	case AlertWrite:
 		return `User can create, update, and delete alerts`
 	case RemoteAIService:
-		return `User can submit request to the remote AI service APIs`
+		return `User can submit requests to the remote AI service APIs`
 	}
 	return `UNKNOWN`
 }
