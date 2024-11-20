@@ -212,7 +212,7 @@ func (eb EVBlock) Encode() (bts []byte, err error) {
 // EncodeBuffer encodes an evblock into a caller provided byte buffer
 // and returns the number of bytes consumed and a potential error.
 func (eb EVBlock) EncodeBuffer(bts []byte) (r int, err error) {
-	// We need to do this check so the function can serve double-duty as a gob encoder
+	// do nothing if there is nothing to be done
 	if !eb.Populated() {
 		return
 	}
