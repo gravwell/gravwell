@@ -1,7 +1,7 @@
 ---
 name: Customer Feature Request
 about: Use this template for documenting a new feature requested by a customer.
-labels: feature, customer request, Low
+labels: 05 - feature, 14 - customer request, 03 - Low
 title: "[FEATURE SCOPE]: [TITLE]"
 ---
 <!--
@@ -20,6 +20,8 @@ please set the priority to High.
 If this request does not meet the above criteria but is more important,
 please set the priority to Medium. 
 -->
+
+# Customer Request
 
 ## What is the feature to be added?
 

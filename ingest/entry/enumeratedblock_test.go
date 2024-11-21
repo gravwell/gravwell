@@ -124,3 +124,27 @@ func TestEnumeratedValueBlockDuplicateAdd(t *testing.T) {
 		}
 	}
 }
+
+func TestEnumeratedValueBlockEmptyAdd(t *testing.T) {
+	var evs []EnumeratedValue
+	var evb EVBlock
+	evb.AddSet(evs)
+	if evb.Populated() {
+		t.Fatal("evb reported as populated")
+	} else if err := evb.Valid(); err != nil {
+		t.Fatal("evb reported not valid", err)
+	} else if evb.Count() != 0 {
+		t.Fatalf("evb has wrong count: %d != 0", evb.Count())
+	}
+	if buff, err := evb.Encode(); err != nil {
+		t.Fatal(err)
+	} else if len(buff) != 0 {
+		t.Fatal("encoded an empty evb to non-empty buff")
+	}
+	buff := make([]byte, 1024)
+	if n, err := evb.EncodeBuffer(buff); err != nil {
+		t.Fatal(err)
+	} else if n != 0 {
+		t.Fatalf("EncodeBuffer returned something on empty evb: %d != 0", n)
+	}
+}
