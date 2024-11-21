@@ -1,9 +1,10 @@
 ---
 name: Task
 about: Use this template for a task. A task should be used for refactoring, automated testing, configuration changes, or other supporting tasks that are not directly related to product development.
-labels: task, Low
+labels: 08 - task, 03 - Low
 title: "[FEATURE SCOPE]: [TITLE]"
 ---
+
 <!--
 ## Instructions
 Labels for change type and priority are automatically assigned at the time of creation. 
@@ -19,6 +20,7 @@ please set the priority to High.
 If this task does not meet the above criteria but is more important,
 please set the priority to Medium. 
 -->
+# Task
 
 ## What needs to be done?
 
