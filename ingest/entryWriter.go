@@ -41,6 +41,7 @@ const (
 	MINIMUM_DYN_CONFIG_VERSION      uint16 = 0x5 // minimum server version to send dynamic config block
 	MINIMUM_INGEST_STATE_VERSION    uint16 = 0x6 // minimum server version to send detailed ingester state messages
 	MINIMUM_INGEST_EV_VERSION       uint16 = 0x8 // minimum server version to send enumerated values attached to entries
+	MINIMUM_DITTO_VERSION           uint16 = 0x9 // minimum server version to send ditto blocks
 
 	maxThrottleDur time.Duration = 5 * time.Second
 
@@ -449,6 +450,12 @@ func (ew *EntryWriter) WriteDittoBlock(ents []entry.Entry) error {
 
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
+
+	if ew.serverVersion < MINIMUM_DITTO_VERSION {
+		// Too old
+		err = fmt.Errorf("server version %d is too old to handle ditto (version %v required)", ew.serverVersion, MINIMUM_DITTO_VERSION)
+		return err
+	}
 
 	// First tell them a block is coming, and how many entries it will contain
 	buf := make([]byte, 12)

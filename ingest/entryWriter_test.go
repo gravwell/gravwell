@@ -148,6 +148,8 @@ func TestDittoWrite(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	etCli.serverVersion = VERSION
+
 	ents = make([](entry.Entry), etCli.OptimalBatchWriteSize())
 	entsIndex = 0
 	count := 100000
@@ -214,6 +216,8 @@ func TestDittoWriteFail(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	etCli.serverVersion = VERSION
+
 	ents = make([](entry.Entry), etCli.OptimalBatchWriteSize())
 	entsIndex = 0
 	count := 100000
@@ -576,6 +580,8 @@ func BenchmarkSingle(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	etCli.serverVersion = VERSION
+
 	go reader(etSrv, b.N, 0xffffffff, errChan)
 	b.StartTimer() //done with initialization
 
