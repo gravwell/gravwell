@@ -15,14 +15,14 @@ package datascope
 
 import (
 	"fmt"
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet/colorizer"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/uniques"
 	"strings"
 	"sync"
-	"time"
+
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -130,7 +130,7 @@ func viewSchedule(s *DataScope) string {
 	)
 
 	tabDesc := tabDescStyle(s.usableWidth()).Render("Schedule this search to be rerun at" +
-		" consistent intervals." + "\nQuery: " + stylesheet.Header2Style.Render(s.search.SearchString))
+		" consistent intervals." + "\nQuery: " + stylesheet.Header2Style.Render(s.search.UserQuery))
 
 	// build the field names column
 	fields := lipgloss.JoinVertical(lipgloss.Right,
@@ -172,19 +172,10 @@ func (s *DataScope) sch() {
 		n   = strings.TrimSpace(s.schedule.nameTI.Value())
 		d   = strings.TrimSpace(s.schedule.descTI.Value())
 		cf  = strings.TrimSpace(s.schedule.cronfreqTI.Value())
-		qry = s.search.SearchString
+		qry = s.search.UserQuery
 	)
 	// fetch the duration from the search struct
-	start, err := time.Parse(uniques.SearchTimeFormat, s.search.SearchStart)
-	if err != nil {
-		s.schedule.resultString = "failed to read duration start time: " + err.Error()
-		clilog.Writer.Error(s.schedule.resultString)
-	}
-	end, err := time.Parse(uniques.SearchTimeFormat, s.search.SearchEnd)
-	if err != nil {
-		s.schedule.resultString = "failed to read duration end time: " + err.Error()
-		clilog.Writer.Error(s.schedule.resultString)
-	}
+	start, end := s.search.SearchRange()
 
 	id, invalid, err := connection.CreateScheduledSearch(n, d, cf, qry, end.Sub(start))
 	if invalid != "" { // bad parameters
