@@ -12,6 +12,8 @@ import "time"
 
 // AIHealthcheck - Describes the status of AI features for the current user
 type AIHealthcheck struct {
+	// Bool indicating if this license/endpoint has unlimited access to remote AI workers
+	UnlimitedActions bool `json:"unlimited"`
 
 	// Count of AI actions remaining for the current user
 	RemainingActions int `json:"remaining_actions"`
