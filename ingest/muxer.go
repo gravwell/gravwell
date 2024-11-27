@@ -54,6 +54,7 @@ var (
 	ErrTimeout               = errors.New("Timed out waiting for ingesters")
 	ErrWriteTimeout          = errors.New("Timed out waiting to write entry")
 	ErrInvalidEntry          = errors.New("Invalid entry value")
+	ErrTooManyTags           = errors.New("All tag IDs exhausted, too many tags")
 
 	errNotImp = errors.New("Not implemented yet")
 )
@@ -226,6 +227,9 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 	if len(destinations) == 0 {
 		return nil, ErrNoTargets
 	}
+	if len(c.Tags) > int(entry.MaxTagId) {
+		return nil, ErrTooManyTags
+	}
 	cfg := MuxerConfig{
 		IngestStreamConfig: c.IngestStreamConfig,
 		Destinations:       destinations,
@@ -267,6 +271,9 @@ func NewIngestMuxerExt(dests []Target, tags []string, pubKey, privKey string, ca
 }
 
 func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
+	if len(c.Tags) > int(entry.MaxTagId) {
+		return nil, ErrTooManyTags
+	}
 	localTags := make([]string, 0, len(c.Tags))
 	for i := range c.Tags {
 		if err := CheckTag(c.Tags[i]); err != nil {
@@ -728,6 +735,10 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 
 	im.mtx.Lock()
 	defer im.mtx.Unlock()
+	if len(im.tagMap) >= int(entry.MaxTagId) {
+		err = ErrTooManyTags
+		return
+	}
 
 	if tag, ok := im.tagMap[name]; ok {
 		// tag already exists, just return it
@@ -1918,6 +1929,13 @@ func (tt *tagTrans) RegisterTag(local entry.EntryTag, remote entry.EntryTag) err
 		// this means the local tag numbers got out of sync and something is bad
 		return errors.New("Cannot register tag, local tag out of sync with tag translator")
 	}
+
+	//check if we have exhausted the number of tags
+	if len(*tt) >= int(entry.MaxTagId) {
+		return ErrTooManyTags
+	}
+
+	//registering a new tag
 	*tt = append(*tt, remote)
 	return nil
 }

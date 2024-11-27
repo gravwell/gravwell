@@ -162,6 +162,10 @@ func (igst *IngestConnection) NegotiateTag(name string) (tg entry.EntryTag, err 
 	if ok {
 		return tg, nil
 	}
+	if len(igst.tags) >= int(entry.MaxTagId) {
+		err = ErrTooManyTags
+		return
+	}
 
 	if !igst.running {
 		err = ErrNotRunning
