@@ -140,6 +140,15 @@ func (igst *IngestConnection) WriteEntrySync(ent *entry.Entry) error {
 	return igst.ew.WriteSync(ent)
 }
 
+func (igst *IngestConnection) WriteDittoBlock(ents []entry.Entry) error {
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
+	if igst.running == false {
+		return errors.New("Not running")
+	}
+	return igst.ew.WriteDittoBlock(ents)
+}
+
 func (igst *IngestConnection) GetTag(name string) (entry.EntryTag, bool) {
 	igst.mtx.RLock()
 	defer igst.mtx.RUnlock()
