@@ -83,6 +83,9 @@ func InitializeConnection(dst, authString string, tags []string, pubKey, privKey
 }
 
 func initConnection(tgt Target, tags []string, pubKey, privKey string, verifyRemoteKey bool) (*IngestConnection, error) {
+	if len(tags) > int(entry.MaxTagId) {
+		return nil, ErrTooManyTags
+	}
 	auth, err := GenAuthHash(tgt.Secret)
 	if err != nil {
 		return nil, err
