@@ -9,10 +9,10 @@
 package indexers
 
 import (
-	"github.com/gravwell/gravwell/v3/gwcli/action"
-	"github.com/gravwell/gravwell/v3/gwcli/tree/status/indexers/stats"
-	"github.com/gravwell/gravwell/v3/gwcli/tree/status/indexers/storage"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/status/indexers/stats"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/status/indexers/storage"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	"github.com/spf13/cobra"
 )

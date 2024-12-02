@@ -9,14 +9,14 @@
 package list
 
 import (
-	"github.com/gravwell/gravwell/v3/gwcli/action"
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
-	ft "github.com/gravwell/gravwell/v3/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 
-	grav "github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/client/types"
+	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/pflag"
 )
 

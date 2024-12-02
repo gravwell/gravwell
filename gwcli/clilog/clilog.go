@@ -18,7 +18,7 @@ package clilog
 import (
 	"io"
 
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 // recreate log.Level so other packages do not have to import the ingest logger
