@@ -49,6 +49,7 @@ func main() {
 		}
 		log.Fatal("Must provide valid type argument")
 	}
+
 	var igst base.GeneratorConn
 	var totalBytes uint64
 	var totalCount uint64
@@ -56,6 +57,14 @@ func main() {
 	cfg, err := base.GetGeneratorConfig(*dataType)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	if cfg.Count > 0 {
+		seedCount := int(cfg.Count)
+		if cfg.Streaming {
+			seedCount = seedCount * 3600 // to make orthogonality reasonable
+		}
+		seedVars(seedCount)
 	}
 
 	var tag entry.EntryTag
@@ -67,7 +76,6 @@ func main() {
 	var start time.Time
 	if cfg.Count > 0 {
 		start = time.Now()
-		seedVars(int(cfg.Count))
 
 		if !cfg.Streaming {
 			if totalCount, totalBytes, err = base.OneShot(igst, tag, src, cfg, gen, fin); err != nil {
