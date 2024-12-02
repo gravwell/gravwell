@@ -253,6 +253,10 @@ func (eb EVBlock) EncodeBuffer(bts []byte) (r int, err error) {
 // EncodeWriter encodes an evblock directly into a writer
 // and returns the number of bytes consumed and a potential error.
 func (eb EVBlock) EncodeWriter(w io.Writer) (r int, err error) {
+	// do nothing if there is nothing to be done
+	if !eb.Populated() {
+		return
+	}
 	// check if its valid
 	if err = eb.Valid(); err != nil {
 		return
