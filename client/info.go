@@ -19,7 +19,7 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 var (
@@ -164,7 +164,7 @@ func (c *Client) SetLogLevel(level string) error {
 	l := types.LogLevel{
 		Level: level,
 	}
-	return c.methodStaticPushURL(http.MethodPut, LOGGING_PATH_URL, l, nil)
+	return c.methodStaticPushURL(http.MethodPut, LOGGING_PATH_URL, l, nil, nil, nil)
 }
 
 // GetTags returns an array of strings representing the tags on the Gravwell system.
@@ -291,7 +291,7 @@ func (c *Client) ConfigureMail(user, pass, server string, port uint16, useTLS, n
 // DeleteMailConfig removes a users mail configuration fom preferences
 // this completely uninstalls any mail configs
 func (c *Client) DeleteMailConfig() error {
-	return c.methodStaticPushURL(http.MethodDelete, MAIL_CONFIGURE_URL, nil, nil, http.StatusOK, http.StatusNotFound)
+	return c.methodStaticPushURL(http.MethodDelete, MAIL_CONFIGURE_URL, nil, nil, []int{http.StatusOK, http.StatusNotFound}, nil)
 }
 
 // MailConfig retrieves the current mail config
