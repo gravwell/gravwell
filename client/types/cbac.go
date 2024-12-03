@@ -1081,7 +1081,7 @@ func RemoveCapability(b []byte, c Capability) (r bool) {
 // CheckCapability checks if the capability c is set in the bitmask b
 func CheckCapability(b []byte, c Capability) (r bool) {
 	if off, mask := bitmask(c); off < len(b) {
-		//remove the bit
+		//check the bit
 		r = (b[off] & mask) != 0
 	}
 	return
