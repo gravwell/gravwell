@@ -66,15 +66,16 @@ const (
 	running muxState = 1
 	closed  muxState = 2
 
-	defaultRetryTime     time.Duration = 10 * time.Second //how quickly we attempt to reconnect
-	maxRetryTime         time.Duration = 5 * time.Minute  // maximum interval on reconnects after repeated failures
-	recycleTimeout       time.Duration = time.Second
-	maxEmergencyListSize int           = 32 * 1024 // this should be big enough to handle a large block of entries
-	unknownAddr          string        = `unknown`
-	waitTickerDur        time.Duration = 50 * time.Millisecond
+	defaultRetryTime time.Duration = 10 * time.Second //how quickly we attempt to reconnect
+	maxRetryTime     time.Duration = 5 * time.Minute  // maximum interval on reconnects after repeated failures
+	recycleTimeout   time.Duration = time.Second
+	unknownAddr      string        = `unknown`
+	waitTickerDur    time.Duration = 50 * time.Millisecond
 
 	ingesterStateUpdateInterval    = 10 * time.Second
 	maxIngesterStateUpdateInterval = 5 * time.Minute
+
+	maxEmergencyListSize int = 32 * 1024 // this should be big enough to handle a large block of entries
 )
 
 var (
@@ -548,6 +549,27 @@ func (im *IngestMuxer) Close() error {
 	im.mtx.Lock()
 	defer im.mtx.Unlock()
 
+	//drain the emergency queue into the channels IF the cache is enabled
+	if im.cacheEnabled {
+		//tell the cache that it needs to start pushing to disk
+		//this is safe to call multiple times (in case ingestConnections already died)
+		im.cache.CacheStart()
+		im.bcache.CacheStart()
+
+		//drain the emergency queue into the cache
+		for im.eq.len() > 0 {
+			if ent, block, ok := im.eq.pop(); ok {
+				if ent != nil {
+					im.eChan <- ent
+				}
+				if len(block) > 0 {
+					im.bChan <- block
+				}
+			}
+		}
+	}
+
+	//close inputs, signalling that we want everything to really really shutdown
 	close(im.eChan)
 	close(im.bChan)
 
@@ -999,7 +1021,11 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	if im.attachActive {
 		im.attacher.Attach(e)
 	}
-	im.eChan <- e
+	select {
+	case im.eChan <- e:
+	case <-im.dieChan:
+		return ErrNotRunning
+	}
 	im.ingesterState.Entries++
 	im.ingesterState.Size += uint64(len(e.Data))
 	return nil
@@ -1029,6 +1055,8 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 		im.ingesterState.Size += uint64(len(e.Data))
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-im.dieChan:
+		return ErrNotRunning
 	}
 	return nil
 }
@@ -1058,6 +1086,8 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 		im.ingesterState.Size += uint64(len(e.Data))
 	case _ = <-tmr.C:
 		err = ErrWriteTimeout
+	case <-im.dieChan:
+		err = ErrNotRunning
 	}
 	return
 }
@@ -1090,7 +1120,11 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 			im.attacher.Attach(e)
 		}
 	}
-	im.bChan <- b
+	select {
+	case im.bChan <- b:
+	case <-im.dieChan:
+		return ErrNotRunning
+	}
 	im.ingesterState.Entries += uint64(len(b))
 	for i := range b {
 		im.ingesterState.Size += uint64(len(b[i].Data))
@@ -1137,6 +1171,8 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 		}
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-im.dieChan:
+		return ErrNotRunning
 	}
 	return nil
 }
@@ -1205,6 +1241,8 @@ func (im *IngestMuxer) DittoWriteContext(ctx context.Context, b []entry.Entry) e
 		wg.Wait()
 	case <-ctx.Done():
 		return ctx.Err()
+	case <-im.dieChan:
+		return ErrNotRunning
 	}
 	// The callback will have set err
 	return err
@@ -1288,6 +1326,8 @@ inputLoop:
 	for {
 		select {
 		case _ = <-im.dieChan:
+			//the caller will detect that we exited and will take care of getting outstanding entries
+			//flushed back into the cache
 			nc.ig.Sync()
 			nc.ig.Close()
 			return
@@ -1433,9 +1473,9 @@ inputLoop:
 								b[j].Tag = nc.tt.reverse(b[j].Tag)
 							}
 							im.recycleEntryBatch(b)
-							if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
-								break inputLoop
-							}
+						}
+						if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+							break inputLoop
 						}
 						continue inputLoop
 					}
@@ -1462,9 +1502,19 @@ inputLoop:
 			}
 		case tnc, ok = <-csc: //in case we get an unexpected new connection
 			if !ok {
+				//because this is unexpected
+				//we need to take care of the outstanding entry extraction and cycling back into
+				//the emergency queue ourselves
 				nc.ig.Sync()
 				nc.ig.Close()
-				//attempt to sync with current ngst and then bail
+				ents := nc.ig.outstandingEntries()
+				for i := range ents {
+					if ents[i] != nil {
+						ents[i].Tag = nc.tt.reverse(ents[i].Tag)
+					}
+				}
+				im.recycleEntryBatch(ents)
+
 				break inputLoop
 			}
 			nc = tnc //just an update
@@ -1515,21 +1565,10 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 	for {
 		select {
 		case _, ok := <-connErrNotif:
-			if !ok {
-				//this means that the relay function bailed
-				if igst != nil {
-					igst.Close()
-				}
-				im.goDead()
-				im.connFailed(dst.Address, errors.New("Closed"))
-				return
-			}
-
+			//whether this is a bounce or a straight shutdown, close the ingest connection
+			//grab all outstanding entries and shove to the emergency queue
+			//if there is a cache enabled we will drop it into there when the muxer shuts down
 			if igst != nil {
-				im.Warn("reconnecting",
-					log.KV("indexer", dst.Address),
-					log.KV("ingester", im.name),
-					log.KV("ingesteruuid", im.uuid))
 				igst.Close()
 				im.goDead() //let the world know of our failures
 				im.igst[igIdx] = nil
@@ -1545,13 +1584,25 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 				im.recycleEntryBatch(ents)
 			}
 
+			if !ok {
+				//relay routine exited, just leave
+				im.connFailed(dst.Address, errors.New("Closed"))
+				return
+			}
+
 			//attempt to get the connection rolling again
+			im.Warn("reconnecting",
+				log.KV("indexer", dst.Address),
+				log.KV("ingester", im.name),
+				log.KV("ingesteruuid", im.uuid))
+
 			igst, tt, err = im.getConnection(dst)
 			if err != nil {
 				im.connFailed(dst.Address, err)
 				return //we are done
 			}
 			if igst == nil {
+				//nil connection is catastrophic, just leave
 				im.connFailed(dst.Address, errors.New("Nil connection"))
 				return
 			}
@@ -1594,7 +1645,7 @@ func (im *IngestMuxer) recycleEntryBatch(ents []*entry.Entry) {
 	select {
 	case _ = <-tmr.C:
 		if err := im.eq.push(nil, ents); err != nil {
-			//FIXME - throw a fit about this
+			//throw a fit about this?  It really should not be possible
 		}
 	case im.bChan <- ents:
 	}
@@ -1615,7 +1666,7 @@ func (im *IngestMuxer) recycleEntry(ent *entry.Entry) {
 	select {
 	case _ = <-tmr.C:
 		if err := im.eq.push(ent, nil); err != nil {
-			//FIXME - throw a fit about this
+			//throw a fit about this?  It really should not be possible
 		}
 	case im.eChan <- ent:
 	}
@@ -1912,6 +1963,29 @@ func (eq *emergencyQueue) push(e *entry.Entry, ents []*entry.Entry) error {
 	return nil
 }
 
+// pushForce is a push that ignores the max queue size, this is typically done on shutdown on bouncing
+// connections where it is critical that data make it into the cache
+func (eq *emergencyQueue) pushForce(e *entry.Entry, ents []*entry.Entry) error {
+	if e == nil && len(ents) == 0 {
+		return nil
+	}
+	ems := emStruct{
+		e:    e,
+		ents: ents,
+	}
+	eq.mtx.Lock()
+	eq.lst.PushBack(ems)
+	eq.mtx.Unlock()
+	return nil
+}
+
+func (eq *emergencyQueue) len() (r int) {
+	eq.mtx.Lock()
+	r = eq.lst.Len()
+	eq.mtx.Unlock()
+	return
+}
+
 // emergencyPop checks to see if there are any values on the emergency list
 // waiting to be ingested.  New routines should go to this list FIRST
 func (eq *emergencyQueue) pop() (e *entry.Entry, ents []*entry.Entry, ok bool) {
@@ -1929,7 +2003,7 @@ func (eq *emergencyQueue) pop() (e *entry.Entry, ents []*entry.Entry, ok bool) {
 	eq.lst.Remove(el) //its valid, remove it
 	elm, ok = el.Value.(emStruct)
 	if !ok {
-		//shit?  FIXME - THROW A FIT
+		//THROW A FIT!  This should not be possible
 		return
 	}
 	e = elm.e
@@ -1960,7 +2034,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 
 				//push the entries back into the queue
 				if err := eq.push(e, blk); err != nil {
-					//FIXME - log this?  This should not really be possible
+					//log this?  This should not really be possible
 				}
 
 				//return our failure
@@ -1996,7 +2070,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 					}
 				}
 				if err := eq.push(e, blk); err != nil {
-					//FIXME - log this?  This should not really be possible
+					//log this?  This should not really be possible
 				}
 				ok = false
 				break
