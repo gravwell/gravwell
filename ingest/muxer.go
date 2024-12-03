@@ -112,6 +112,7 @@ type IngestMuxer struct {
 	tagTranslators       []*tagTrans
 	dests                []Target
 	errDest              []TargetError
+	tc                   tagMaskTracker
 	tags                 []string
 	tagMap               map[string]entry.EntryTag
 	pubKey               string
@@ -340,7 +341,6 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// add our tags to them. If the old tag map doesn't exist, then it's
 	// anyone's guess where those entries might end up. Those are the
 	// breaks.
-	var taglist []string
 	tagMap := make(map[string]entry.EntryTag)
 	if c.CachePath != "" {
 		tagMap, err = readTagCache(c.CachePath)
@@ -348,6 +348,8 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 			return nil, err
 		}
 	}
+
+	var taglist []string
 
 	// tag IDs can be all over the place, so we start from the largest tag
 	// ID in the returned map + 1
@@ -408,9 +410,15 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		buff: make([]entry.Entry, 4096),
 	}
 
+	var tc tagMaskTracker
+	for _, v := range tagMap {
+		tc.add(v)
+	}
+
 	return &IngestMuxer{
 		cfg:               getStreamConfig(c.IngestStreamConfig),
 		dests:             c.Destinations,
+		tc:                tc,
 		tags:              taglist,
 		tagMap:            tagMap,
 		pubKey:            c.PublicKey,
@@ -764,9 +772,9 @@ func (im *IngestMuxer) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 			tagNext = v
 		}
 	}
-	im.tagMap[name] = entry.EntryTag(tagNext + 1)
-
-	tg = im.tagMap[name]
+	tg = entry.EntryTag(tagNext + 1)
+	im.tagMap[name] = tg
+	im.tc.add(tg)
 
 	// update the tag cache
 	if im.cachePath != "" {
@@ -982,6 +990,8 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 		return nil
 	} else if len(e.Data) > MAX_ENTRY_SIZE {
 		return ErrOversizedEntry
+	} else if e.Tag != entry.GravwellTagId && !im.tc.has(e.Tag) {
+		return ErrUnknownTag
 	}
 	if im.state != running {
 		return ErrNotRunning
@@ -1004,6 +1014,8 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 		return nil
 	} else if len(e.Data) > MAX_ENTRY_SIZE {
 		return ErrOversizedEntry
+	} else if e.Tag != entry.GravwellTagId && !im.tc.has(e.Tag) {
+		return ErrUnknownTag
 	}
 	if im.state != running {
 		return ErrNotRunning
@@ -1030,6 +1042,8 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 		return
 	} else if len(e.Data) > MAX_ENTRY_SIZE {
 		return ErrOversizedEntry
+	} else if e.Tag != entry.GravwellTagId && !im.tc.has(e.Tag) {
+		return ErrUnknownTag
 	}
 	if im.state != running {
 		return ErrNotRunning
@@ -1061,6 +1075,8 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 			return ErrInvalidEntry
 		} else if len(b[i].Data) > MAX_ENTRY_SIZE {
 			return ErrOversizedEntry
+		} else if b[i].Tag != entry.GravwellTagId && !im.tc.has(b[i].Tag) {
+			return ErrUnknownTag
 		}
 	}
 	im.mtx.RLock()
@@ -1096,6 +1112,8 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 			return ErrInvalidEntry
 		} else if len(b[i].Data) > MAX_ENTRY_SIZE {
 			return ErrOversizedEntry
+		} else if b[i].Tag != entry.GravwellTagId && !im.tc.has(b[i].Tag) {
+			return ErrUnknownTag
 		}
 	}
 
@@ -1130,6 +1148,8 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 func (im *IngestMuxer) Write(tm entry.Timestamp, tag entry.EntryTag, data []byte) error {
 	if len(data) > MAX_ENTRY_SIZE {
 		return ErrOversizedEntry
+	} else if tag != entry.GravwellTagId && !im.tc.has(tag) {
+		return ErrUnknownTag
 	}
 	e := &entry.Entry{
 		Data: data,
@@ -1147,6 +1167,8 @@ func (im *IngestMuxer) Write(tm entry.Timestamp, tag entry.EntryTag, data []byte
 func (im *IngestMuxer) WriteContext(ctx context.Context, tm entry.Timestamp, tag entry.EntryTag, data []byte) error {
 	if len(data) > MAX_ENTRY_SIZE {
 		return ErrOversizedEntry
+	} else if tag != entry.GravwellTagId && !im.tc.has(tag) {
+		return ErrUnknownTag
 	}
 	e := &entry.Entry{
 		Data: data,
@@ -1163,6 +1185,11 @@ func (im *IngestMuxer) WriteContext(ctx context.Context, tm entry.Timestamp, tag
 func (im *IngestMuxer) DittoWriteContext(ctx context.Context, b []entry.Entry) error {
 	var err error
 	var wg sync.WaitGroup
+	for i := range b {
+		if b[i].Tag != entry.GravwellTagId && !im.tc.has(b[i].Tag) {
+			return ErrUnknownTag
+		}
+	}
 	cb := func(e error) {
 		err = e
 		wg.Done()
