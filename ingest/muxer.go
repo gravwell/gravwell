@@ -832,12 +832,21 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 	}
 	ts := time.Now()
 	im.mtx.Lock()
-	for len(im.eChanOut) > 0 || len(im.bChanOut) > 0 {
+	// always sleep for 10ms so that we give the chancacher a chance to pull from one and put it on the other
+	// a SyncContext is ALWAYS going to sleep for at least 10ms, this is NOT a free operation
+	// this sleep is crucial because we need the runtime to basically break out and schedule the chancacher
+	// otherwise its super easy to be in a situation where that routine has pulled an entry off the input channel
+	// and is holding while it waits to put it on the output channel while in passthrough mode
+	for {
 		if err := ctx.Err(); err != nil {
 			im.mtx.Unlock()
 			return err
 		}
 		time.Sleep(10 * time.Millisecond)
+		if len(im.eChanOut) == 0 && len(im.bChanOut) == 0 && len(im.eChan) == 0 && len(im.bChan) == 0 {
+			// all pipelines are empty
+			break
+		}
 		if im.connHot == 0 {
 			im.mtx.Unlock()
 			return ErrAllConnsDown
