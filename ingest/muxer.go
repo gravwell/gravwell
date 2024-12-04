@@ -74,8 +74,6 @@ const (
 
 	ingesterStateUpdateInterval    = 10 * time.Second
 	maxIngesterStateUpdateInterval = 5 * time.Minute
-
-	maxEmergencyListSize int = 32 * 1024 // this should be big enough to handle a large block of entries
 )
 
 var (
@@ -297,6 +295,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	// connect up the chancacher
 	var cache *chancacher.ChanCacher
 	var bcache *chancacher.ChanCacher
+	var eIn, eOut, bIn, bOut chan interface{}
 
 	var err error
 	if c.CachePath != "" {
@@ -308,20 +307,20 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		if err != nil {
 			return nil, err
 		}
+		if c.CacheMode == CacheModeFail {
+			cache.CacheStop()
+			bcache.CacheStop()
+		}
+		eIn, eOut = cache.In, cache.Out
+		bIn, bOut = bcache.In, bcache.Out
 	} else {
-		cache, err = chancacher.NewChanCacher(c.CacheDepth, "", 0)
-		if err != nil {
-			return nil, err
-		}
-		bcache, err = chancacher.NewChanCacher(c.CacheDepth, "", 0)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if c.CacheMode == CacheModeFail {
-		cache.CacheStop()
-		bcache.CacheStop()
+		// no cache active, just plumb a channel all the way through
+		eChan := make(chan interface{}, c.CacheDepth)
+		bChan := make(chan interface{}, c.CacheDepth)
+		eIn = eChan
+		eOut = eChan
+		bIn = bChan
+		bOut = bChan
 	}
 
 	id := uuid.Nil
@@ -431,10 +430,10 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		lgr:               c.Logger,
 		hostname:          c.Logger.Hostname(),
 		appname:           c.Logger.Appname(),
-		eChan:             cache.In,
-		eChanOut:          cache.Out,
-		bChan:             bcache.In,
-		bChanOut:          bcache.Out,
+		eChan:             eIn,
+		eChanOut:          eOut,
+		bChan:             bIn,
+		bChanOut:          bOut,
 		dittoChan:         make(chan dittoBlock), // synchronous as hell
 		eq:                newEmergencyQueue(),
 		dieChan:           make(chan bool, len(c.Destinations)),
@@ -574,13 +573,14 @@ func (im *IngestMuxer) Close() error {
 	close(im.bChan)
 
 	// commit any outstanding data to disk, if the backing path is enabled.
-	im.cache.Commit()
-	im.bcache.Commit()
-
-	// If BOTH caches are empty, we can delete the stored tag map
-	if im.cacheEnabled && im.cache.Size() == 0 && im.bcache.Size() == 0 {
-		path := filepath.Join(im.cachePath, "tagcache")
-		os.Remove(path)
+	if im.cacheEnabled {
+		im.cache.Commit()
+		im.bcache.Commit()
+		// If BOTH caches are empty, we can delete the stored tag map
+		if im.cache.Size() == 0 && im.bcache.Size() == 0 {
+			path := filepath.Join(im.cachePath, "tagcache")
+			os.Remove(path)
+		}
 	}
 
 	//everyone is dead, clean up
@@ -590,12 +590,15 @@ func (im *IngestMuxer) Close() error {
 
 func (im *IngestMuxer) ingesterStateDirty() (dirty bool) {
 	im.mtx.RLock()
-	if im.ingesterState.CacheSize != uint64(im.cache.Size()) {
-		dirty = true
-	} else if len(im.ingesterState.Tags) != len(im.tags) {
+	if len(im.ingesterState.Tags) != len(im.tags) {
 		dirty = true
 	} else if im.ingesterStateUpdated {
 		dirty = true
+	} else if im.cacheEnabled {
+		sz := uint64(im.cache.Size()) + uint64(im.bcache.Size())
+		if im.ingesterState.CacheSize != sz {
+			dirty = true
+		}
 	}
 	im.mtx.RUnlock()
 	return
@@ -611,7 +614,10 @@ func (im *IngestMuxer) getIngesterState(lastPush time.Time, lastEntryCount uint6
 	im.mtx.Lock()
 
 	// update the cache stats real quick
-	im.ingesterState.CacheSize = uint64(im.cache.Size())
+	if im.cacheEnabled {
+		im.ingesterState.CacheSize = uint64(im.cache.Size())
+		im.ingesterState.CacheSize += uint64(im.bcache.Size())
+	}
 	im.ingesterState.Uptime = time.Since(im.start)
 	im.ingesterState.Tags = im.tags
 
@@ -675,14 +681,15 @@ func (im *IngestMuxer) stateReportRoutine() {
 func (im *IngestMuxer) WillBlock() bool {
 	nHot, err := im.Hot()
 	if err == ErrNotRunning {
-		return true
+		return true // we dead jim
 	} else if nHot > 0 {
-		return false
+		return false //writer is alive
+	} else if !im.cacheEnabled {
+		return true // no writers alive and cache is not enabled
 	}
 
-	if !im.cacheEnabled {
-		return true
-	} else if im.cache.Size() >= im.cacheSize {
+	// cache is enabled here
+	if im.cache.Size() >= im.cacheSize {
 		return true
 	} else if im.bcache.Size() >= im.cacheSize {
 		return true
@@ -957,7 +964,8 @@ func (im *IngestMuxer) goHot() {
 	//attempt a single on going hot, but don't block
 	//increment the hot counter
 	if atomic.AddInt32(&im.connHot, 1) == 1 {
-		if !im.cacheAlways {
+		// if the cache is enabled AND we are not in always cache mode stop things
+		if im.cacheEnabled && !im.cacheAlways {
 			im.cache.CacheStop()
 			im.bcache.CacheStop()
 		}
@@ -972,7 +980,8 @@ func (im *IngestMuxer) goHot() {
 func (im *IngestMuxer) goDead() {
 	//decrement the hot counter
 	if atomic.AddInt32(&im.connHot, -1) == 0 {
-		if !im.cacheAlways {
+		// if the cache is enabled AND we are not in always cache mode start things
+		if im.cacheEnabled && !im.cacheAlways {
 			im.cache.CacheStart()
 			im.bcache.CacheStart()
 		}
@@ -1307,9 +1316,15 @@ func tickerInterval() time.Duration {
 	return time.Duration(750+rand.Int63n(500)) * time.Millisecond
 }
 
-func (im *IngestMuxer) shouldSched() bool {
+func (im *IngestMuxer) shouldSched() (ok bool) {
 	//if pipelines are empty, schedule ourselves so that we can get a better distribution of entries
-	return len(im.igst) > 1 && im.cache.BufferSize() == 0 && im.bcache.BufferSize() == 0
+	if ok = len(im.igst) > 1; ok {
+		return
+	}
+	if im.cacheEnabled {
+		ok = im.cache.BufferSize() == 0 && im.bcache.BufferSize() == 0
+	}
+	return
 }
 
 func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool) {
@@ -1955,26 +1970,6 @@ func newEmergencyQueue() *emergencyQueue {
 // when new ingest connections become active, they will always attempt to feed from
 // this queue before going to the channels.  This is essentially a deadlock fix.
 func (eq *emergencyQueue) push(e *entry.Entry, ents []*entry.Entry) error {
-	if e == nil && len(ents) == 0 {
-		return nil
-	}
-	ems := emStruct{
-		e:    e,
-		ents: ents,
-	}
-	eq.mtx.Lock()
-	if eq.lst.Len() > maxEmergencyListSize {
-		eq.mtx.Unlock()
-		return ErrEmergencyListOverflow
-	}
-	eq.lst.PushBack(ems)
-	eq.mtx.Unlock()
-	return nil
-}
-
-// pushForce is a push that ignores the max queue size, this is typically done on shutdown on bouncing
-// connections where it is critical that data make it into the cache
-func (eq *emergencyQueue) pushForce(e *entry.Entry, ents []*entry.Entry) error {
 	if e == nil && len(ents) == 0 {
 		return nil
 	}
