@@ -546,6 +546,7 @@ func (im *IngestMuxer) Start() error {
 func (im *IngestMuxer) Close() error {
 	// Inform the world that we're done.
 	im.Info("Ingester exiting", log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
+	im.Sync(time.Second) // attempt to sync with a fast timeout, we don't really care about errors here
 
 	im.mtx.Lock()
 	if im.state == closed {
