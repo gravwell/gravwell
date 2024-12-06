@@ -1340,11 +1340,17 @@ func tickerInterval() time.Duration {
 
 func (im *IngestMuxer) shouldSched() (ok bool) {
 	//if pipelines are empty, schedule ourselves so that we can get a better distribution of entries
-	if ok = len(im.igst) > 1; ok {
+	if x := len(im.igst); x == 1 {
+		//only one connection, do not schedule ever
 		return
 	}
+	//there is more than one connection
 	if im.cacheEnabled {
+		//check what the cache says
 		ok = im.cache.BufferSize() == 0 && im.bcache.BufferSize() == 0
+	} else {
+		//no cache, so just check the channels
+		ok = len(im.eChanOut) == 0 && len(im.bChanOut) == 0
 	}
 	return
 }
