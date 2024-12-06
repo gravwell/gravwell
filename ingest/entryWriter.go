@@ -363,8 +363,6 @@ func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) (int, error) {
 }
 
 func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
-	var flushed bool
-	var err error
 	//if our conf buffer is full force an ack service
 	if ew.ecb.Full() {
 		if err := ew.flush(); err != nil {
@@ -376,8 +374,11 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 	}
 
 	flushed, ackId, err := ew.encodeAndSendEntry(ent, flush)
+	if err != nil {
+		return false, err
+	}
 
-	if err = ew.ecb.Add(&entryConfirmation{ackId, ent}); err != nil {
+	if err := ew.ecb.Add(&entryConfirmation{ackId, ent}); err != nil {
 		return false, err
 	}
 	return flushed, nil
