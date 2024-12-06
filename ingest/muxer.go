@@ -66,6 +66,10 @@ const (
 	running muxState = 1
 	closed  muxState = 2
 
+	// these are only used when there isn't a cache enabled
+	defaultIngestChanDepth = 128
+	maxIngestChanDepth     = 4096
+
 	defaultRetryTime time.Duration = 10 * time.Second //how quickly we attempt to reconnect
 	maxRetryTime     time.Duration = 5 * time.Minute  // maximum interval on reconnects after repeated failures
 	recycleTimeout   time.Duration = time.Second
@@ -74,6 +78,9 @@ const (
 
 	ingesterStateUpdateInterval    = 10 * time.Second
 	maxIngesterStateUpdateInterval = 5 * time.Minute
+
+	connectionShutdownSyncTimeout = 10 * time.Second
+	connectionTimerSyncTimeout    = 15 * time.Second
 )
 
 var (
@@ -100,6 +107,8 @@ type dittoBlock struct {
 
 type IngestMuxer struct {
 	cfg StreamConfiguration //stream configuration
+	ctx context.Context
+	cf  context.CancelFunc
 	//connHot, and connDead have atomic operations
 	//its important that these are aligned on 8 byte boundaries
 	//or it will panic on 32bit architectures
@@ -123,7 +132,7 @@ type IngestMuxer struct {
 	bChanOut             chan interface{}
 	dittoChan            chan dittoBlock
 	eq                   *emergencyQueue
-	dieChan              chan bool
+	writeBarrier         chan bool
 	upChan               chan bool
 	errChan              chan error
 	wg                   *sync.WaitGroup
@@ -315,8 +324,14 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		bIn, bOut = bcache.In, bcache.Out
 	} else {
 		// no cache active, just plumb a channel all the way through
-		eChan := make(chan interface{}, c.CacheDepth)
-		bChan := make(chan interface{}, c.CacheDepth)
+		depth := c.CacheDepth
+		if depth <= 0 {
+			depth = defaultIngestChanDepth
+		} else if depth > maxIngestChanDepth {
+			depth = maxIngestChanDepth
+		}
+		eChan := make(chan interface{}, depth)
+		bChan := make(chan interface{}, depth)
 		eIn = eChan
 		eOut = eChan
 		bIn = bChan
@@ -415,8 +430,12 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		tc.add(v)
 	}
 
+	ctx, cf := context.WithCancel(context.Background())
+
 	return &IngestMuxer{
 		cfg:               getStreamConfig(c.IngestStreamConfig),
+		ctx:               ctx,
+		cf:                cf,
 		dests:             c.Destinations,
 		tc:                tc,
 		tags:              taglist,
@@ -436,7 +455,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		bChanOut:          bOut,
 		dittoChan:         make(chan dittoBlock), // synchronous as hell
 		eq:                newEmergencyQueue(),
-		dieChan:           make(chan bool, len(c.Destinations)),
+		writeBarrier:      make(chan bool),
 		upChan:            make(chan bool, 1),
 		errChan:           make(chan error, len(c.Destinations)),
 		cache:             cache,
@@ -527,6 +546,7 @@ func (im *IngestMuxer) Start() error {
 func (im *IngestMuxer) Close() error {
 	// Inform the world that we're done.
 	im.Info("Ingester exiting", log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
+	im.Sync(time.Second) // attempt to sync with a fast timeout, we don't really care about errors here
 
 	im.mtx.Lock()
 	if im.state == closed {
@@ -535,8 +555,10 @@ func (im *IngestMuxer) Close() error {
 	}
 	im.state = closed
 
-	//just close the channel, that will be a permanent signal for everything to close
-	close(im.dieChan)
+	//just close the channel, this will immediately abort all pending writes and serve to block new ones
+	close(im.writeBarrier)
+
+	im.cf() // call our cancel function that will kick the main context and get writeRelay routines started shutting down
 
 	//we MUST unlock the mutex while we wait so that if a connection
 	//goes into an errors state it can lock the mutex to adjust the errDest
@@ -1041,7 +1063,7 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	}
 	select {
 	case im.eChan <- e:
-	case <-im.dieChan:
+	case <-im.writeBarrier:
 		return ErrNotRunning
 	}
 	im.ingesterState.Entries++
@@ -1073,7 +1095,7 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 		im.ingesterState.Size += uint64(len(e.Data))
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-im.dieChan:
+	case <-im.writeBarrier:
 		return ErrNotRunning
 	}
 	return nil
@@ -1104,7 +1126,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 		im.ingesterState.Size += uint64(len(e.Data))
 	case _ = <-tmr.C:
 		err = ErrWriteTimeout
-	case <-im.dieChan:
+	case <-im.writeBarrier:
 		err = ErrNotRunning
 	}
 	return
@@ -1140,7 +1162,7 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	}
 	select {
 	case im.bChan <- b:
-	case <-im.dieChan:
+	case <-im.writeBarrier:
 		return ErrNotRunning
 	}
 	im.ingesterState.Entries += uint64(len(b))
@@ -1189,7 +1211,7 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 		}
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-im.dieChan:
+	case <-im.writeBarrier:
 		return ErrNotRunning
 	}
 	return nil
@@ -1259,7 +1281,7 @@ func (im *IngestMuxer) DittoWriteContext(ctx context.Context, b []entry.Entry) e
 		wg.Wait()
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-im.dieChan:
+	case <-im.writeBarrier:
 		return ErrNotRunning
 	}
 	// The callback will have set err
@@ -1318,11 +1340,17 @@ func tickerInterval() time.Duration {
 
 func (im *IngestMuxer) shouldSched() (ok bool) {
 	//if pipelines are empty, schedule ourselves so that we can get a better distribution of entries
-	if ok = len(im.igst) > 1; ok {
+	if x := len(im.igst); x == 1 {
+		//only one connection, do not schedule ever
 		return
 	}
+	//there is more than one connection
 	if im.cacheEnabled {
+		//check what the cache says
 		ok = im.cache.BufferSize() == 0 && im.bcache.BufferSize() == 0
+	} else {
+		//no cache, so just check the channels
+		ok = len(im.eChanOut) == 0 && len(im.bChanOut) == 0
 	}
 	return
 }
@@ -1349,11 +1377,14 @@ func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool
 inputLoop:
 	for {
 		select {
-		case _ = <-im.dieChan:
+		case _ = <-im.ctx.Done():
 			//the caller will detect that we exited and will take care of getting outstanding entries
-			//flushed back into the cache
-			nc.ig.Sync()
-			nc.ig.Close()
+			/*
+				if !im.cacheEnabled {
+					//attempt to drain input channels
+				}
+			*/
+			im.syncAndCloseConnection(nc)
 			return
 		case db, ok := <-dC:
 			if !ok {
@@ -1386,6 +1417,10 @@ inputLoop:
 			// is to be very deliberate about making sure things get to disk.
 			if err = nc.ig.WriteDittoBlock(db.ents); err != nil {
 				db.cb(err)
+				im.syncAndCloseConnection(nc)
+				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+					break inputLoop
+				}
 				continue inputLoop
 			}
 			// and fire the callback so it knows we're done
@@ -1410,13 +1445,13 @@ inputLoop:
 			if ttag, err = nc.translateTag(e.Tag); err != nil {
 				// If the ingest muxer has no idea what this tag is, drop it and notify
 				if name, ok := im.LookupTag(e.Tag); !ok {
+					//we have controls in the muxer to prevent this, this shouldn't actually be possible
 					im.Error("Got entry tagged with completely unknown intermediate tag, dropping it",
 						log.KV("tagvalue", e.Tag),
 						log.KV("ingester", im.name),
 						log.KV("ingesteruuid", im.uuid),
 						log.KVErr(err),
 					)
-					continue inputLoop
 				} else {
 					im.Info("Got entry with new tag, need to renegotiate connection",
 						log.KV("tag", name),
@@ -1430,11 +1465,12 @@ inputLoop:
 					// so we get the correct tag set.
 					// DO NOT reverse translate, muxer knows about the tag
 					im.recycleEntry(e)
-					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
-						break inputLoop
-					}
-					continue inputLoop
 				}
+				im.syncAndCloseConnection(nc)
+				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+					break inputLoop
+				}
+				continue inputLoop
 			}
 			e.Tag = ttag
 
@@ -1444,6 +1480,7 @@ inputLoop:
 			if err = nc.ig.WriteEntry(e); err != nil {
 				e.Tag = nc.tt.reverse(e.Tag)
 				im.recycleEntry(e)
+				im.syncAndCloseConnection(nc)
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
 				}
@@ -1470,12 +1507,15 @@ inputLoop:
 				if b[i] != nil {
 					if ttag, err = nc.translateTag(b[i].Tag); err != nil {
 						if name, ok := im.LookupTag(b[i].Tag); !ok {
+							//we have controls in the muxer to prevent this, this shouldn't actually be possible
 							im.Error("Got entry tagged with completely unknown intermediate tag, dropping it",
 								log.KV("tagvalue", b[i].Tag),
 								log.KV("ingester", im.name),
 								log.KV("ingesteruuid", im.uuid),
 								log.KVErr(err),
 							)
+							//discard this entry, this isn't real and there is no way to get here
+							b[i] = nil //this is safe, we check for this everywhere
 							// first, reverse anything we've translated already
 							for j := 0; j < i; j++ {
 								b[j].Tag = nc.tt.reverse(b[j].Tag)
@@ -1498,6 +1538,7 @@ inputLoop:
 							}
 							im.recycleEntryBatch(b)
 						}
+						im.syncAndCloseConnection(nc)
 						if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 							break inputLoop
 						}
@@ -1516,6 +1557,7 @@ inputLoop:
 					b[i].Tag = nc.tt.reverse(b[i].Tag)
 				}
 				im.recycleEntryBatch(b[n:])
+				im.syncAndCloseConnection(nc)
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
 				}
@@ -1525,26 +1567,26 @@ inputLoop:
 				runtime.Gosched()
 			}
 		case tnc, ok = <-csc: //in case we get an unexpected new connection
+			//because this is unexpected
+			//we need to take care of the outstanding entry extraction and cycling back into
+			//the emergency queue ourselves
+			im.syncAndCloseConnection(nc)
 			if !ok {
-				//because this is unexpected
-				//we need to take care of the outstanding entry extraction and cycling back into
-				//the emergency queue ourselves
-				nc.ig.Sync()
-				nc.ig.Close()
-				ents := nc.ig.outstandingEntries()
-				for i := range ents {
-					if ents[i] != nil {
-						ents[i].Tag = nc.tt.reverse(ents[i].Tag)
-					}
-				}
-				im.recycleEntryBatch(ents)
-
+				//this is basically a shutdown signal
 				break inputLoop
 			}
 			nc = tnc //just an update
 		case <-tmr.C:
 			//periodically check the emergency queue and sync
-			if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
+			if !im.eq.clear(nc.ig, nc.tt) {
+				//treat this as failure, sync and close the connection
+				im.syncAndCloseConnection(nc)
+				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+					break inputLoop
+				}
+			} else if err := nc.ig.syncTimeout(connectionTimerSyncTimeout); err != nil {
+				//treat this as failure, sync and close the connection
+				im.syncAndCloseConnection(nc)
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
 					break inputLoop
 				}
@@ -1552,6 +1594,19 @@ inputLoop:
 			tmr.Reset(tickerInterval())
 		}
 	}
+}
+
+func (im *IngestMuxer) syncAndCloseConnection(nc connSet) (err error) {
+	nc.ig.syncTimeout(connectionShutdownSyncTimeout)
+	nc.ig.Close()
+	ents := nc.ig.outstandingEntries()
+	for i := range ents {
+		if ents[i] != nil {
+			ents[i].Tag = nc.tt.reverse(ents[i].Tag)
+		}
+	}
+	im.recycleEntryBatch(ents)
+	return
 }
 
 // connRoutine starts up the entry relay routine, then sits waiting to
@@ -1587,70 +1642,68 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 
 	//loop, trying to grab entries, or dying
 	for {
-		select {
-		case _, ok := <-connErrNotif:
-			//whether this is a bounce or a straight shutdown, close the ingest connection
-			//grab all outstanding entries and shove to the emergency queue
-			//if there is a cache enabled we will drop it into there when the muxer shuts down
-			if igst != nil {
-				igst.Close()
-				im.goDead() //let the world know of our failures
-				im.igst[igIdx] = nil
-				im.tagTranslators[igIdx] = nil
+		_, ok := <-connErrNotif
+		//whether this is a bounce or a straight shutdown, close the ingest connection
+		//grab all outstanding entries and shove to the emergency queue
+		//if there is a cache enabled we will drop it into there when the muxer shuts down
+		if igst != nil {
+			igst.Close()
+			im.goDead() //let the world know of our failures
+			im.igst[igIdx] = nil
+			im.tagTranslators[igIdx] = nil
 
-				//pull any entries out of the ingest connection and put them into the emergency queue
-				ents := igst.outstandingEntries()
-				for i := range ents {
-					if ents[i] != nil {
-						ents[i].Tag = tt.reverse(ents[i].Tag)
-					}
+			//pull any entries out of the ingest connection and put them into the emergency queue
+			ents := igst.outstandingEntries()
+			for i := range ents {
+				if ents[i] != nil {
+					ents[i].Tag = tt.reverse(ents[i].Tag)
 				}
-				im.recycleEntryBatch(ents)
 			}
+			im.recycleEntryBatch(ents)
+		}
 
-			if !ok {
-				//relay routine exited, just leave
-				im.connFailed(dst.Address, errors.New("Closed"))
-				return
-			}
+		if !ok {
+			//relay routine exited, just leave
+			im.connFailed(dst.Address, errors.New("Closed"))
+			return
+		}
 
-			//attempt to get the connection rolling again
-			im.Warn("reconnecting",
-				log.KV("indexer", dst.Address),
-				log.KV("ingester", im.name),
-				log.KV("ingesteruuid", im.uuid))
+		//attempt to get the connection rolling again
+		im.Warn("reconnecting",
+			log.KV("indexer", dst.Address),
+			log.KV("ingester", im.name),
+			log.KV("ingesteruuid", im.uuid))
 
-			igst, tt, err = im.getConnection(dst)
-			if err != nil {
-				im.connFailed(dst.Address, err)
-				return //we are done
-			}
-			if igst == nil {
-				//nil connection is catastrophic, just leave
-				im.connFailed(dst.Address, errors.New("Nil connection"))
-				return
-			}
+		igst, tt, err = im.getConnection(dst)
+		if err != nil {
+			im.connFailed(dst.Address, err)
+			return //we are done
+		}
+		if igst == nil {
+			//nil connection is catastrophic, just leave
+			im.connFailed(dst.Address, errors.New("Nil connection"))
+			return
+		}
 
-			//get the source fired back up
-			src, err = igst.Source()
-			if err != nil {
-				igst.Close()
-				im.connFailed(dst.Address, err)
-				return
-			}
+		//get the source fired back up
+		src, err = igst.Source()
+		if err != nil {
+			igst.Close()
+			im.connFailed(dst.Address, err)
+			return
+		}
 
-			im.mtx.Lock()
-			im.igst[igIdx] = igst
-			im.tagTranslators[igIdx] = tt
-			im.mtx.Unlock()
+		im.mtx.Lock()
+		im.igst[igIdx] = igst
+		im.tagTranslators[igIdx] = tt
+		im.mtx.Unlock()
 
-			im.goHot()
-			ncc <- connSet{
-				dst: dst.Address,
-				src: src,
-				ig:  igst,
-				tt:  tt,
-			}
+		im.goHot()
+		ncc <- connSet{
+			dst: dst.Address,
+			src: src,
+			ig:  igst,
+			tt:  tt,
 		}
 	}
 }
@@ -1668,9 +1721,7 @@ func (im *IngestMuxer) recycleEntryBatch(ents []*entry.Entry) {
 
 	select {
 	case _ = <-tmr.C:
-		if err := im.eq.push(nil, ents); err != nil {
-			//throw a fit about this?  It really should not be possible
-		}
+		im.eq.push(nil, ents)
 	case im.bChan <- ents:
 	}
 	return
@@ -1678,6 +1729,10 @@ func (im *IngestMuxer) recycleEntryBatch(ents []*entry.Entry) {
 
 func (im *IngestMuxer) recycleEntry(ent *entry.Entry) {
 	if ent == nil {
+		return
+	} else if len(im.dests) == 1 || atomic.LoadInt32(&im.connHot) == 0 {
+		// no one can help us, just shove it in
+		im.eq.push(ent, nil)
 		return
 	}
 
@@ -1689,9 +1744,7 @@ func (im *IngestMuxer) recycleEntry(ent *entry.Entry) {
 
 	select {
 	case _ = <-tmr.C:
-		if err := im.eq.push(ent, nil); err != nil {
-			//throw a fit about this?  It really should not be possible
-		}
+		im.eq.push(ent, nil)
 	case im.eChan <- ent:
 	}
 	return
@@ -1725,7 +1778,7 @@ func isFatalConnError(err error) bool {
 func (im *IngestMuxer) quitableSleep(dur time.Duration) (quit bool) {
 	select {
 	case _ = <-time.After(dur):
-	case _ = <-im.dieChan:
+	case _ = <-im.ctx.Done():
 		quit = true
 	}
 	return
@@ -1829,7 +1882,7 @@ loop:
 
 		for {
 			select {
-			case _ = <-im.dieChan:
+			case _ = <-im.ctx.Done():
 				return
 			default:
 			}
@@ -1969,9 +2022,9 @@ func newEmergencyQueue() *emergencyQueue {
 // we this ingest connection disconnects.  Instead we push into this queue
 // when new ingest connections become active, they will always attempt to feed from
 // this queue before going to the channels.  This is essentially a deadlock fix.
-func (eq *emergencyQueue) push(e *entry.Entry, ents []*entry.Entry) error {
+func (eq *emergencyQueue) push(e *entry.Entry, ents []*entry.Entry) {
 	if e == nil && len(ents) == 0 {
-		return nil
+		return
 	}
 	ems := emStruct{
 		e:    e,
@@ -1980,7 +2033,6 @@ func (eq *emergencyQueue) push(e *entry.Entry, ents []*entry.Entry) error {
 	eq.mtx.Lock()
 	eq.lst.PushBack(ems)
 	eq.mtx.Unlock()
-	return nil
 }
 
 func (eq *emergencyQueue) len() (r int) {
@@ -2037,9 +2089,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 				e.Tag = tt.reverse(e.Tag)
 
 				//push the entries back into the queue
-				if err := eq.push(e, blk); err != nil {
-					//log this?  This should not really be possible
-				}
+				eq.push(e, blk)
 
 				//return our failure
 				ok = false
@@ -2073,9 +2123,7 @@ func (eq *emergencyQueue) clear(igst *IngestConnection, tt *tagTrans) (ok bool) 
 						blk[i].Tag = tt.reverse(blk[i].Tag)
 					}
 				}
-				if err := eq.push(e, blk); err != nil {
-					//log this?  This should not really be possible
-				}
+				eq.push(e, blk)
 				ok = false
 				break
 			}
@@ -2095,7 +2143,9 @@ func (nc connSet) translateTag(t entry.EntryTag) (rt entry.EntryTag, err error) 
 	var ok bool
 	if rt, ok = nc.tt.translate(t); ok {
 		return
-	} else if len(nc.tt.toNegotiate) == 0 {
+	}
+
+	if len(nc.tt.toNegotiate) == 0 {
 		err = ErrUnknownTag
 		return
 	}
@@ -2108,8 +2158,8 @@ func (nc connSet) translateTag(t entry.EntryTag) (rt entry.EntryTag, err error) 
 		} else if err = nc.tt.registerTag(v.local, rt); err != nil {
 			return
 		}
+		nc.tt.clearToNegotiate(1)
 	}
-	nc.tt.clearToNegotiate(len(toNeg))
 	// all tags negotiated, try to translate again
 	if rt, ok = nc.tt.translate(t); !ok {
 		err = ErrUnknownTag
@@ -2172,6 +2222,9 @@ func (tt *tagTrans) registerTag(local entry.EntryTag, remote entry.EntryTag) err
 }
 
 func (tt *tagTrans) clearToNegotiate(cnt int) {
+	if cnt <= 0 {
+		return
+	}
 	tt.Lock()
 	if cnt < len(tt.toNegotiate) {
 		// someone registered something while we were negotiating, so just chop off what we know about
