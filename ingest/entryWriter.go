@@ -191,6 +191,40 @@ func (ew *EntryWriter) ForceAck() error {
 	return ew.forceAckNoLock()
 }
 
+func (ew *EntryWriter) forceAckTimeout(to time.Duration) error {
+	if to <= 0 {
+		//no timeout, just use the regular one
+		return ew.ForceAck()
+	}
+	now := time.Now()
+
+	//setup some timeouts
+	if err := ew.conn.SetWriteTimeout(to); err != nil {
+		return err
+	} else if err := ew.throwAckSync(); err != nil {
+		return err
+	} else if err := ew.conn.ClearWriteTimeout(); err != nil {
+		return err
+	}
+
+	//begin servicing acks with blocking and a read deadline
+	for ew.ecb.Count() > 0 {
+		if time.Since(now) > to {
+			ew.conn.ClearReadTimeout()
+			return ErrTimeout
+		}
+		if err := ew.serviceAcks(true); err != nil {
+			ew.conn.ClearReadTimeout()
+			return err
+		}
+	}
+	if ew.ecb.Count() > 0 {
+		return fmt.Errorf("Failed to confirm %d entries", ew.ecb.Count())
+	}
+	return nil
+
+}
+
 func (ew *EntryWriter) outstandingEntries() []*entry.Entry {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
@@ -329,8 +363,6 @@ func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) (int, error) {
 }
 
 func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
-	var flushed bool
-	var err error
 	//if our conf buffer is full force an ack service
 	if ew.ecb.Full() {
 		if err := ew.flush(); err != nil {
@@ -342,8 +374,11 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 	}
 
 	flushed, ackId, err := ew.encodeAndSendEntry(ent, flush)
+	if err != nil {
+		return false, err
+	}
 
-	if err = ew.ecb.Add(&entryConfirmation{ackId, ent}); err != nil {
+	if err := ew.ecb.Add(&entryConfirmation{ackId, ent}); err != nil {
 		return false, err
 	}
 	return flushed, nil
