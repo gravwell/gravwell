@@ -35,13 +35,15 @@ const (
 
 	MAX_UNCONFIRMED_COUNT int = 1024 * 4
 
-	MINIMUM_TAG_RENEGOTIATE_VERSION uint16        = 0x2 // minimum server version to renegotiate tags
-	MINIMUM_ID_VERSION              uint16        = 0x3 // minimum server version to send ID info
-	MINIMUM_INGEST_OK_VERSION       uint16        = 0x4 // minimum server version to ask
-	MINIMUM_DYN_CONFIG_VERSION      uint16        = 0x5 // minimum server version to send dynamic config block
-	MINIMUM_INGEST_STATE_VERSION    uint16        = 0x6 // minimum server version to send detailed ingester state messages
-	MINIMUM_INGEST_EV_VERSION       uint16        = 0x8 // minimum server version to send enumerated values attached to entries
-	maxThrottleDur                  time.Duration = 5 * time.Second
+	MINIMUM_TAG_RENEGOTIATE_VERSION uint16 = 0x2 // minimum server version to renegotiate tags
+	MINIMUM_ID_VERSION              uint16 = 0x3 // minimum server version to send ID info
+	MINIMUM_INGEST_OK_VERSION       uint16 = 0x4 // minimum server version to ask
+	MINIMUM_DYN_CONFIG_VERSION      uint16 = 0x5 // minimum server version to send dynamic config block
+	MINIMUM_INGEST_STATE_VERSION    uint16 = 0x6 // minimum server version to send detailed ingester state messages
+	MINIMUM_INGEST_EV_VERSION       uint16 = 0x8 // minimum server version to send enumerated values attached to entries
+	MINIMUM_DITTO_VERSION           uint16 = 0x9 // minimum server version to send ditto blocks
+
+	maxThrottleDur time.Duration = 5 * time.Second
 
 	flushTimeout time.Duration = 10 * time.Second
 )
@@ -50,6 +52,7 @@ const (
 	//ingester commands
 	INVALID_MAGIC                IngestCommand = 0x00000000
 	NEW_ENTRY_MAGIC              IngestCommand = 0xC7C95ACB
+	DITTO_BLOCK_MAGIC            IngestCommand = 0xDDCCBBAA
 	FORCE_ACK_MAGIC              IngestCommand = 0x1ADF7350
 	CONFIRM_ENTRY_MAGIC          IngestCommand = 0xF6E0307E
 	THROTTLE_MAGIC               IngestCommand = 0xBDEACC1E
@@ -66,6 +69,7 @@ const (
 	CONFIRM_INGEST_OK_MAGIC      IngestCommand = 0x33445501
 	INGESTER_STATE_MAGIC         IngestCommand = 0x44556600
 	CONFIRM_INGESTER_STATE_MAGIC IngestCommand = 0x44556601
+	CONFIRM_DITTO_BLOCK_MAGIC    IngestCommand = 0x55667788
 )
 
 type IngestCommand uint32
@@ -185,6 +189,40 @@ func (ew *EntryWriter) ForceAck() error {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
 	return ew.forceAckNoLock()
+}
+
+func (ew *EntryWriter) forceAckTimeout(to time.Duration) error {
+	if to <= 0 {
+		//no timeout, just use the regular one
+		return ew.ForceAck()
+	}
+	now := time.Now()
+
+	//setup some timeouts
+	if err := ew.conn.SetWriteTimeout(to); err != nil {
+		return err
+	} else if err := ew.throwAckSync(); err != nil {
+		return err
+	} else if err := ew.conn.ClearWriteTimeout(); err != nil {
+		return err
+	}
+
+	//begin servicing acks with blocking and a read deadline
+	for ew.ecb.Count() > 0 {
+		if time.Since(now) > to {
+			ew.conn.ClearReadTimeout()
+			return ErrTimeout
+		}
+		if err := ew.serviceAcks(true); err != nil {
+			ew.conn.ClearReadTimeout()
+			return err
+		}
+	}
+	if ew.ecb.Count() > 0 {
+		return fmt.Errorf("Failed to confirm %d entries", ew.ecb.Count())
+	}
+	return nil
+
 }
 
 func (ew *EntryWriter) outstandingEntries() []*entry.Entry {
@@ -325,8 +363,6 @@ func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) (int, error) {
 }
 
 func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
-	var flushed, hasEvs bool
-	var err error
 	//if our conf buffer is full force an ack service
 	if ew.ecb.Full() {
 		if err := ew.flush(); err != nil {
@@ -337,9 +373,23 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 		}
 	}
 
+	flushed, ackId, err := ew.encodeAndSendEntry(ent, flush)
+	if err != nil {
+		return false, err
+	}
+
+	if err := ew.ecb.Add(&entryConfirmation{ackId, ent}); err != nil {
+		return false, err
+	}
+	return flushed, nil
+}
+
+func (ew *EntryWriter) encodeAndSendEntry(ent *entry.Entry, flush bool) (flushed bool, ackid entrySendID, err error) {
+	var hasEvs bool
 	//check that we aren't attempting to write an entry that is too large
 	if len(ent.Data) > MAX_ENTRY_SIZE {
-		return false, ErrOversizedEntry
+		err = ErrOversizedEntry
+		return
 	}
 
 	// if the server is too old stip Evs from theentry
@@ -358,23 +408,24 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 
 	//build out the header with size
 	if hasEvs, err = ent.EncodeHeader(ew.buff[4 : entry.ENTRY_HEADER_SIZE+4]); err != nil {
-		return false, err
+		return
 	}
-	binary.LittleEndian.PutUint64(ew.buff[entry.ENTRY_HEADER_SIZE+4:], uint64(ew.id))
+	ackid = ew.id
+	binary.LittleEndian.PutUint64(ew.buff[entry.ENTRY_HEADER_SIZE+4:], uint64(ackid))
 	//throw it and flush it
 	if err = ew.writeAll(ew.buff); err != nil {
-		return false, err
+		return
 	}
 	//only flush if we need to
 	if len(ent.Data) > ew.bIO.Available() {
 		flushed = true
 		if err = ew.flush(); err != nil {
-			return false, err
+			return
 		}
 	}
 	//throw the actual data portion and flush it
 	if err = ew.writeAll(ent.Data); err != nil {
-		return false, err
+		return
 	}
 
 	//check if we need to send enumerated values too
@@ -383,25 +434,22 @@ func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
 		if evsz := ent.EVSize(); evsz > ew.bIO.Available() {
 			flushed = true
 			if err = ew.flush(); err != nil {
-				return false, err
+				return
 			}
 		}
 		if _, err = ent.EVEncodeWriter(ew.bIO); err != nil {
-			return false, err
+			return
 		}
 	}
 
 	if flush {
 		flushed = flush
 		if err = ew.flush(); err != nil {
-			return false, err
+			return
 		}
 	}
-	if err = ew.ecb.Add(&entryConfirmation{ew.id, ent}); err != nil {
-		return false, err
-	}
 	ew.id++
-	return flushed, nil
+	return
 }
 
 func (ew *EntryWriter) writeAll(b []byte) error {
@@ -428,6 +476,46 @@ func (ew *EntryWriter) writeAll(b []byte) error {
 		if err = ew.flush(); err != nil {
 			return err
 		}
+	}
+	return nil
+}
+
+func (ew *EntryWriter) WriteDittoBlock(ents []entry.Entry) error {
+	var err error
+
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+
+	if ew.serverVersion < MINIMUM_DITTO_VERSION {
+		// Too old
+		err = fmt.Errorf("server version %d is too old to handle ditto (version %v required)", ew.serverVersion, MINIMUM_DITTO_VERSION)
+		return err
+	}
+
+	// First tell them a block is coming, and how many entries it will contain
+	buf := make([]byte, 12)
+	binary.LittleEndian.PutUint32(buf, uint32(DITTO_BLOCK_MAGIC))
+	binary.LittleEndian.PutUint64(buf[4:], uint64(len(ents)))
+	if err = ew.writeAll(buf); err != nil {
+		return err
+	}
+
+	// Now just throw every entry
+	for i := range ents {
+		if _, _, err = ew.encodeAndSendEntry(&ents[i], false); err != nil {
+			return err
+		}
+	}
+
+	ew.flush()
+
+	// And wait for the confirmation
+	ac, err := ew.readCommandsUntil(CONFIRM_DITTO_BLOCK_MAGIC)
+	if err != nil {
+		return err
+	}
+	if ac.val != 0 {
+		return errors.New("Indexer returned error for ditto block")
 	}
 	return nil
 }
@@ -971,6 +1059,8 @@ func (ic IngestCommand) String() string {
 	switch ic {
 	case NEW_ENTRY_MAGIC:
 		return `NEW`
+	case DITTO_BLOCK_MAGIC:
+		return `DITTO_BLOCK`
 	case FORCE_ACK_MAGIC:
 		return `FORCE ACK`
 	case CONFIRM_ENTRY_MAGIC:
@@ -1005,6 +1095,8 @@ func (ic IngestCommand) String() string {
 		return `INGESTER_STATE`
 	case CONFIRM_INGESTER_STATE_MAGIC:
 		return `INGESTER_STATE_CONFIRM`
+	case CONFIRM_DITTO_BLOCK_MAGIC:
+		return `DITTO_BLOCK_CONFIRM`
 	}
 	return `UNKNOWN`
 }
