@@ -157,6 +157,7 @@ type IngestMuxer struct {
 	start                time.Time    // when the muxer was started
 	attacher             *attach.Attacher
 	attachActive         bool
+	minVersion           uint16
 }
 
 type UniformMuxerConfig struct {
@@ -181,6 +182,7 @@ type UniformMuxerConfig struct {
 	RateLimitBps      int64
 	LogSourceOverride net.IP
 	Attach            attach.AttachConfig
+	MinVersion        uint16 // minimum API version of indexers
 }
 
 type MuxerConfig struct {
@@ -203,6 +205,7 @@ type MuxerConfig struct {
 	RateLimitBps      int64
 	LogSourceOverride net.IP
 	Attach            attach.AttachConfig
+	MinVersion        uint16 // minimum API version of indexers
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
@@ -266,6 +269,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		Logger:             c.Logger,
 		LogSourceOverride:  c.LogSourceOverride,
 		Attach:             c.Attach,
+		MinVersion:         c.MinVersion,
 	}
 	return newIngestMuxer(cfg)
 }
@@ -473,6 +477,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		logbuff:           logbuff,
 		attacher:          atch,
 		attachActive:      atch.Active(),
+		minVersion:        c.MinVersion,
 	}, nil
 }
 
@@ -1823,6 +1828,24 @@ loop:
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(err))
+			//non-fatal, sleep and continue
+			retryDuration = backoff(retryDuration, maxRetryTime)
+			if im.quitableSleep(retryDuration) {
+				//told to exit, just bail
+				return nil, nil, errors.New("Muxer closing")
+			}
+			continue
+		}
+		// Make sure the version is new enough
+		if ig.ew.serverVersion < im.minVersion {
+			im.mtx.RUnlock()
+			im.Warn("indexer server version is less than specified minimum API level, refusing to connect",
+				log.KV("indexer", tgt.Address),
+				log.KV("ingester", im.name),
+				log.KV("version", version.GetVersion()),
+				log.KV("ingesteruuid", im.uuid),
+				log.KV("server-version", ig.ew.serverVersion),
+				log.KV("min-version", im.minVersion))
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
 			if im.quitableSleep(retryDuration) {
