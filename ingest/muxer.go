@@ -157,6 +157,7 @@ type IngestMuxer struct {
 	start                time.Time    // when the muxer was started
 	attacher             *attach.Attacher
 	attachActive         bool
+	minVersion           uint16
 }
 
 type UniformMuxerConfig struct {
@@ -181,6 +182,7 @@ type UniformMuxerConfig struct {
 	RateLimitBps      int64
 	LogSourceOverride net.IP
 	Attach            attach.AttachConfig
+	MinVersion        uint16 // minimum API version of indexers
 }
 
 type MuxerConfig struct {
@@ -203,6 +205,7 @@ type MuxerConfig struct {
 	RateLimitBps      int64
 	LogSourceOverride net.IP
 	Attach            attach.AttachConfig
+	MinVersion        uint16 // minimum API version of indexers
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
@@ -266,6 +269,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		Logger:             c.Logger,
 		LogSourceOverride:  c.LogSourceOverride,
 		Attach:             c.Attach,
+		MinVersion:         c.MinVersion,
 	}
 	return newIngestMuxer(cfg)
 }
@@ -473,6 +477,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		logbuff:           logbuff,
 		attacher:          atch,
 		attachActive:      atch.Active(),
+		minVersion:        c.MinVersion,
 	}, nil
 }
 
@@ -546,6 +551,7 @@ func (im *IngestMuxer) Start() error {
 func (im *IngestMuxer) Close() error {
 	// Inform the world that we're done.
 	im.Info("Ingester exiting", log.KV("ingester", im.name), log.KV("ingesteruuid", im.uuid))
+	im.Sync(time.Second) // attempt to sync with a fast timeout, we don't really care about errors here
 
 	im.mtx.Lock()
 	if im.state == closed {
@@ -1391,11 +1397,17 @@ func tickerInterval() time.Duration {
 
 func (im *IngestMuxer) shouldSched() (ok bool) {
 	//if pipelines are empty, schedule ourselves so that we can get a better distribution of entries
-	if ok = len(im.igst) > 1; ok {
+	if x := len(im.igst); x == 1 {
+		//only one connection, do not schedule ever
 		return
 	}
+	//there is more than one connection
 	if im.cacheEnabled {
+		//check what the cache says
 		ok = im.cache.BufferSize() == 0 && im.bcache.BufferSize() == 0
+	} else {
+		//no cache, so just check the channels
+		ok = len(im.eChanOut) == 0 && len(im.bChanOut) == 0
 	}
 	return
 }
@@ -1901,6 +1913,24 @@ loop:
 				log.KV("version", version.GetVersion()),
 				log.KV("ingesteruuid", im.uuid),
 				log.KVErr(err))
+			//non-fatal, sleep and continue
+			retryDuration = backoff(retryDuration, maxRetryTime)
+			if im.quitableSleep(retryDuration) {
+				//told to exit, just bail
+				return nil, nil, errors.New("Muxer closing")
+			}
+			continue
+		}
+		// Make sure the version is new enough
+		if ig.ew.serverVersion < im.minVersion {
+			im.mtx.RUnlock()
+			im.Warn("indexer server version is less than specified minimum API level, refusing to connect",
+				log.KV("indexer", tgt.Address),
+				log.KV("ingester", im.name),
+				log.KV("version", version.GetVersion()),
+				log.KV("ingesteruuid", im.uuid),
+				log.KV("server-version", ig.ew.serverVersion),
+				log.KV("min-version", im.minVersion))
 			//non-fatal, sleep and continue
 			retryDuration = backoff(retryDuration, maxRetryTime)
 			if im.quitableSleep(retryDuration) {

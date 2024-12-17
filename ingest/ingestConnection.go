@@ -204,11 +204,9 @@ func (igst *IngestConnection) SendIngesterState(state IngesterState) error {
 	return igst.ew.SendIngesterState(state)
 }
 
-/*
-		Sync causes the entry writer to force an ack from the server.  This ensures that all
-	  - entries that have been written are flushed and fully acked by the server.
-	    Warning, this can block forever if the remote side is servicing ping/pong but not acking.
-*/
+// Sync causes the entry writer to force an ack from the server.  This ensures that all
+// entries that have been written are flushed and fully acked by the server.
+// Warning, this can block forever if the remote side is servicing ping/pong but not acking.
 func (igst *IngestConnection) Sync() (err error) {
 	igst.mtx.RLock()
 	if !igst.running {
