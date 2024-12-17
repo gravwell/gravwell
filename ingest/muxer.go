@@ -562,8 +562,6 @@ func (im *IngestMuxer) Close() error {
 	//we MUST unlock the mutex while we wait so that if a connection
 	//goes into an errors state it can lock the mutex to adjust the errDest
 	im.mtx.Unlock()
-
-	//wait for everyone to quit
 	im.wg.Wait()
 
 	im.mtx.Lock()
@@ -860,6 +858,7 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 	}
 	ts := time.Now()
 	im.mtx.Lock()
+	defer im.mtx.Unlock()
 	// always sleep for 10ms so that we give the chancacher a chance to pull from one and put it on the other
 	// a SyncContext is ALWAYS going to sleep for at least 10ms, this is NOT a free operation
 	// this sleep is crucial because we need the runtime to basically break out and schedule the chancacher
@@ -867,7 +866,6 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 	// and is holding while it waits to put it on the output channel while in passthrough mode
 	for {
 		if err := ctx.Err(); err != nil {
-			im.mtx.Unlock()
 			return err
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -876,31 +874,85 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 			break
 		}
 		if im.connHot == 0 {
-			im.mtx.Unlock()
 			return ErrAllConnsDown
 		}
 		//only check for a timeout if to is greater than zero.  A zero value or negative value means no timeout
 		if to > 0 && time.Since(ts) > to {
-			im.mtx.Unlock()
 			return ErrTimeout
 		}
 	}
 
+	timeLeft := to - time.Since(ts)
+	if timeLeft <= 0 {
+		return ErrTimeout
+	}
+
+	//check for the simple case of a single indexer
+	if len(im.igst) == 1 {
+		var err error
+		if ig := im.igst[0]; ig != nil {
+			err = ig.syncTimeout(timeLeft)
+		} else {
+			err = ErrAllConnsDown
+		}
+		return err
+	}
+
+	//DO NOT CLOSE the channel unless we get all of them back
+	total := len(im.igst)
+	ch := make(chan error, total)
+	tmr := time.NewTimer(timeLeft + time.Second) //there will be some slop here
+	defer tmr.Stop()
+
+	// do a parallel sync
 	var count int
 	for _, v := range im.igst {
-		if v != nil {
-			if err := v.Sync(); err != nil {
-				if err == ErrNotRunning {
-					count++
-				}
+		go func(ig *IngestConnection, ech chan error) {
+			if ig == nil {
+				ech <- nil
+			} else {
+				ech <- ig.syncTimeout(timeLeft)
 			}
+		}(v, ch)
+		count++
+	}
+
+	//now go read them all
+	var good int
+	var down int
+	var timeout bool
+	var lastErr error
+loop:
+	for count > 0 {
+		select {
+		case err := <-ch:
+			count--
+			if err == nil {
+				good++
+			} else {
+				if lastErr == nil {
+					lastErr = err
+				}
+				down++
+			}
+		case <-tmr.C:
+			timeout = true
+			break loop
 		}
 	}
-	im.mtx.Unlock()
-	if count == len(im.igst) {
-		return ErrAllConnsDown
+	if (good + down) == total {
+		//every single routine responded, its safe to close the channel
+		close(ch)
 	}
-	return nil
+	if good == total {
+		return nil //all good
+	} else if down == total {
+		return ErrAllConnsDown
+	} else if timeout {
+		// in this case and the lastError case,
+		return ErrTimeout
+	}
+	return lastErr
 }
 
 // WaitForHot waits until at least one connection goes into the hot state
@@ -1366,6 +1418,7 @@ func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool
 	eC := im.eChanOut
 	bC := im.bChanOut
 	dC := im.dittoChan // not cached
+	defer fmt.Println("writeRelayRoutine exited", nc.dst)
 
 inputLoop:
 	for {
@@ -1374,6 +1427,7 @@ inputLoop:
 			//the caller will detect that we exited and will take care of getting outstanding entries
 			/*
 				if !im.cacheEnabled {
+					//attempt to sync, if that completes without error then try to drain the channels
 					//attempt to drain input channels
 				}
 			*/
@@ -1571,19 +1625,50 @@ inputLoop:
 			nc = tnc //just an update
 		case <-tmr.C:
 			//periodically check the emergency queue and sync
+			fmt.Println("Timer fired", nc.dst)
 			if !im.eq.clear(nc.ig, nc.tt) {
 				//treat this as failure, sync and close the connection
 				im.syncAndCloseConnection(nc)
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+					fmt.Println("Timer tripped connection to bad after clear")
 					break inputLoop
 				}
-			} else if err := nc.ig.syncTimeout(connectionTimerSyncTimeout); err != nil {
+				fmt.Println("Timer recovered connection", nc.dst)
+			} else {
+				fmt.Println("Clear done", nc.dst, len(nc.ig.outstandingEntries()))
+			}
+			if err := nc.ig.syncTimeout(connectionTimerSyncTimeout); err != nil {
 				//treat this as failure, sync and close the connection
 				im.syncAndCloseConnection(nc)
 				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+					fmt.Println("Timer tripped connection to bad", nc.dst)
 					break inputLoop
 				}
+				fmt.Println("Timer recovered connection", nc.dst)
+			} else {
+				fmt.Println("syncTimeout Done", nc.dst)
 			}
+
+			/*
+				if !im.eq.clear(nc.ig, nc.tt) {
+					//treat this as failure, sync and close the connection
+					im.syncAndCloseConnection(nc)
+					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+						fmt.Println("Timer tripped connection to bad after clear")
+						break inputLoop
+					}
+					fmt.Println("Timer recovered connection", nc.dst)
+				} else if err := nc.ig.syncTimeout(connectionTimerSyncTimeout); err != nil {
+					//treat this as failure, sync and close the connection
+					im.syncAndCloseConnection(nc)
+					if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+						fmt.Println("Timer tripped connection to bad", nc.dst)
+						break inputLoop
+					}
+					fmt.Println("Timer recovered connection", nc.dst)
+				}
+			*/
+			fmt.Println("Timer is GTG outstanding", nc.dst, len(nc.ig.outstandingEntries()))
 			tmr.Reset(tickerInterval())
 		}
 	}
@@ -1799,7 +1884,7 @@ loop:
 			log.KV("version", version.GetVersion()),
 			log.KV("ingesteruuid", im.uuid))
 		im.mtx.RLock()
-		if ig, err = initConnection(tgt, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
+		if ig, err = initConnection(tgt, im.tags, im.pubKey, im.privKey, im.verifyCert, im.ctx); err != nil {
 			im.mtx.RUnlock()
 			if isFatalConnError(err) {
 				im.Error("fatal connection error",

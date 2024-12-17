@@ -9,6 +9,7 @@
 package ingest
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
@@ -44,6 +45,7 @@ type IngestConnection struct {
 	running    bool
 	errorState error
 	mtx        sync.RWMutex
+	ctx        context.Context // this is the parent context from the main muxer
 }
 
 func (igst *IngestConnection) String() (s string) {
@@ -223,13 +225,17 @@ func (igst *IngestConnection) Sync() (err error) {
 // this is just a "please and thank you" assuming that we are able to actually read from the other end
 // if a connection completely stalls there might be other internal timeouts that have to hit before it is checked
 func (igst *IngestConnection) syncTimeout(to time.Duration) (err error) {
+	ctx := igst.ctx
+	if to > 0 {
+		var cf context.CancelFunc
+		ctx, cf = context.WithTimeout(igst.ctx, to)
+		defer cf()
+	}
 	igst.mtx.RLock()
 	if !igst.running {
 		err = ErrNotRunning
-	} else if to <= 0 {
-		err = igst.ew.ForceAck()
 	} else {
-		err = igst.ew.forceAckTimeout(to)
+		err = igst.ew.forceAckCtx(ctx)
 	}
 	igst.mtx.RUnlock()
 	return
