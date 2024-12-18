@@ -945,9 +945,8 @@ loop:
 			if err == nil {
 				good++
 			} else {
-				if lastErr == nil {
-					lastErr = err
-				}
+				//this will merge errors and even return nil if we need to
+				lastErr = mergeError(lastErr, err)
 				down++
 			}
 		case <-tmr.C:
@@ -964,7 +963,7 @@ loop:
 	} else if down == total {
 		return ErrAllConnsDown
 	} else if timeout {
-		// in this case and the lastError case,
+		// if its a timeout, throw the constant timeout error so that the caller can detect it and do the right thing
 		return ErrTimeout
 	}
 	return lastErr
