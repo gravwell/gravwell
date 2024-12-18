@@ -13,6 +13,7 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
 	"strings"
@@ -198,4 +199,19 @@ func tagbitmask(tg entry.EntryTag) (offset int, mask byte) {
 	offset = (int(tg) / 8)
 	mask = byte(1 << (int(tg) % 8))
 	return
+}
+
+func mergeError(ogErr, newErr error) error {
+	if ogErr == newErr {
+		return ogErr //if they are the same error, do not stack
+	} else if ogErr != nil && newErr != nil {
+		//stack the errors in a way that can be unwrapped if needed
+		return fmt.Errorf("%w %w", ogErr, newErr)
+	}
+	//check if one side is nil and if so, just return the other
+	if ogErr != nil && newErr == nil {
+		return ogErr
+	}
+	//incoming error is the first error or og is still nil
+	return newErr
 }
