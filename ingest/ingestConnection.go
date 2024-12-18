@@ -71,6 +71,20 @@ func (igst *IngestConnection) Close() error {
 	return igst.ew.Close()
 }
 
+func (igst *IngestConnection) closeTimeout(to time.Duration) error {
+	if to <= 0 {
+		//if someone alls this without a valid timeout, just use the exported one
+		return igst.Close()
+	}
+	igst.mtx.Lock()
+	defer igst.mtx.Unlock()
+	if !igst.running {
+		return errors.New("Already closed")
+	}
+	igst.running = false
+	return igst.ew.closeTimeout(to)
+}
+
 func (igst *IngestConnection) IdentifyIngester(name, version, id string) (err error) {
 	igst.mtx.RLock()
 	defer igst.mtx.RUnlock()

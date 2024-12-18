@@ -175,13 +175,19 @@ func (ew *EntryWriter) setConn(c conn) {
 }
 
 func (ew *EntryWriter) Close() (err error) {
+	return ew.closeTimeout(closeTimeout)
+}
+
+func (ew *EntryWriter) closeTimeout(to time.Duration) (err error) {
+	if to <= 0 {
+		to = closeTimeout
+	}
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
-
 	//try to set a deadline on the connection, we are exiting so everything BETTER wrap up within our closeTimeout
-	ew.conn.SetDeadline(time.Now().Add(closeTimeout))
+	ew.conn.SetDeadline(time.Now().Add(to))
 	defer ew.conn.SetDeadline(nilTime)
-	ctx, cf := context.WithTimeout(ew.ctx, closeTimeout)
+	ctx, cf := context.WithTimeout(ew.ctx, to)
 	defer cf()
 	if err = ew.forceAckNoLock(ctx); err == nil {
 		if err = ew.conn.SetReadTimeout(ew.ackTimeout); err != nil {
@@ -968,7 +974,6 @@ loop:
 			blocking = origBlock
 			//check on our context, always let at least one cycle go through
 			if err = ctx.Err(); err != nil {
-				fmt.Println("CTX CLOSED", err)
 				break loop
 			}
 		case PONG_MAGIC:
@@ -976,7 +981,6 @@ loop:
 			blocking = origBlock
 			//check on our context, always let at least one cycle go through
 			if err = ctx.Err(); err != nil {
-				fmt.Println("CTX CLOSED", err)
 				break loop
 			}
 		}
