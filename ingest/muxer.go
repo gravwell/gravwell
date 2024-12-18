@@ -76,11 +76,12 @@ const (
 	unknownAddr      string        = `unknown`
 	waitTickerDur    time.Duration = 50 * time.Millisecond
 
-	ingesterStateUpdateInterval    = 10 * time.Second
-	maxIngesterStateUpdateInterval = 5 * time.Minute
+	ingesterStateUpdateInterval    = 30 * time.Second //if the only thing changing is general ingest we will update this often
+	maxIngesterStateUpdateInterval = 5 * time.Minute  //throw an update this often no matter what
 
-	connectionShutdownSyncTimeout = 10 * time.Second
-	connectionTimerSyncTimeout    = 15 * time.Second
+	connectionShutdownSyncTimeout     = 10 * time.Second
+	connectionTimerSyncTimeout        = 60 * time.Second //sometimes disks are stupid, give indexers a long time
+	connectionTimerSyncTimeoutBackoff = 60 * time.Second // if we couldn't flush within 60s give the indexer 60s to collect itself
 )
 
 var (
@@ -541,8 +542,6 @@ func (im *IngestMuxer) Start() error {
 	}
 	im.start = time.Now()
 	im.state = running
-	// start the state report goroutine
-	go im.stateReportRoutine()
 
 	return nil
 }
@@ -568,8 +567,6 @@ func (im *IngestMuxer) Close() error {
 	//we MUST unlock the mutex while we wait so that if a connection
 	//goes into an errors state it can lock the mutex to adjust the errDest
 	im.mtx.Unlock()
-
-	//wait for everyone to quit
 	im.wg.Wait()
 
 	im.mtx.Lock()
@@ -632,8 +629,9 @@ func (im *IngestMuxer) ingesterStateDirty() (dirty bool) {
 }
 
 func (im *IngestMuxer) getIngesterState(lastPush time.Time, lastEntryCount uint64) (s IngesterState, shouldPush bool) {
+	gap := time.Since(lastPush)
 	//check if it has been long enough that we push no matter what or the state is dirty and we need push
-	if time.Since(lastPush) > maxIngesterStateUpdateInterval || im.ingesterStateDirty() || im.ingesterState.Entries != lastEntryCount {
+	if gap > maxIngesterStateUpdateInterval || im.ingesterStateDirty() || (im.ingesterState.Entries != lastEntryCount && gap > ingesterStateUpdateInterval) {
 		shouldPush = true
 	} else {
 		return //nothing new in the ingester state, just return
@@ -659,37 +657,15 @@ func (im *IngestMuxer) getIngesterState(lastPush time.Time, lastEntryCount uint6
 	return
 }
 
+// deprecated, no longer used, each ingest connection routine will throw its own state at its own pace
+/*
 func (im *IngestMuxer) stateReportRoutine() {
 	var lastPush time.Time
 	var lastEntryCount uint64
 	for im.state == running {
-		//check if we should push an ingester state out either due to max time duration or because it was updated
-		if s, shouldPush := im.getIngesterState(lastPush, lastEntryCount); shouldPush {
-			//SendIngesterState throws a full sync and then pushes a potentially very large
-			//configuration block. DO NOT HOLD THE LOCK on the entire muxer when this is happening
-			//or you will most likely starve the ingest muxer.
-			var sz uint32
-			var err error
-			if sz, err = s.EncodedSize(); err != nil {
-				continue
-			} else if sz > maxIngestStateSize {
-				ogSize := sz
-				s.trimChildConfigs()
-				if sz, err = s.EncodedSize(); err != nil {
-					continue
-				} else if sz > maxIngestStateSize {
-					s.trimChildren(64)
-					if sz, err = s.EncodedSize(); err != nil {
-						continue
-					} else if sz > maxIngestStateSize {
-						//log an error stating that we could not make it work
-						im.Error("Failed to send ingester state, too large",
-							log.KV("original-size", ogSize), log.KV("post-trim-size", sz))
-						continue
-					}
-				}
-			}
-
+		if s, shouldPush, err := im.getTrimmedState(lastPush, lastEntryCount); err != nil || !shouldPush {
+			continue
+		} else {
 			for _, v := range im.igst {
 				if v != nil {
 					// we don't fuss over the return value
@@ -702,6 +678,37 @@ func (im *IngestMuxer) stateReportRoutine() {
 		}
 		time.Sleep(ingesterStateUpdateInterval)
 	}
+}
+*/
+
+func (im *IngestMuxer) getTrimmedState(lastPush time.Time, lastEntryCount uint64) (s IngesterState, shouldPush bool, err error) {
+	//check if we should push an ingester state out either due to max time duration or because it was updated
+	if s, shouldPush = im.getIngesterState(lastPush, lastEntryCount); shouldPush {
+		//SendIngesterState throws a full sync and then pushes a potentially very large
+		//configuration block. DO NOT HOLD THE LOCK on the entire muxer when this is happening
+		//or you will most likely starve the ingest muxer.
+		var sz uint32
+		if sz, err = s.EncodedSize(); err != nil {
+			return
+		} else if sz > maxIngestStateSize {
+			ogSize := sz
+			s.trimChildConfigs()
+			if sz, err = s.EncodedSize(); err != nil {
+				return
+			} else if sz > maxIngestStateSize {
+				s.trimChildren(64)
+				if sz, err = s.EncodedSize(); err != nil {
+					return
+				} else if sz > maxIngestStateSize {
+					//log an error stating that we could not make it work
+					im.Error("Failed to send ingester state, too large",
+						log.KV("original-size", ogSize), log.KV("post-trim-size", sz))
+					err = fmt.Errorf("failed to send ingester state, too large: post trim %d > %d", sz, maxIngestStateSize)
+				}
+			}
+		}
+	}
+	return
 }
 
 // returns true if a write to the muxer will block
@@ -866,6 +873,7 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 	}
 	ts := time.Now()
 	im.mtx.Lock()
+	defer im.mtx.Unlock()
 	// always sleep for 10ms so that we give the chancacher a chance to pull from one and put it on the other
 	// a SyncContext is ALWAYS going to sleep for at least 10ms, this is NOT a free operation
 	// this sleep is crucial because we need the runtime to basically break out and schedule the chancacher
@@ -873,7 +881,6 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 	// and is holding while it waits to put it on the output channel while in passthrough mode
 	for {
 		if err := ctx.Err(); err != nil {
-			im.mtx.Unlock()
 			return err
 		}
 		time.Sleep(10 * time.Millisecond)
@@ -882,31 +889,84 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 			break
 		}
 		if im.connHot == 0 {
-			im.mtx.Unlock()
 			return ErrAllConnsDown
 		}
 		//only check for a timeout if to is greater than zero.  A zero value or negative value means no timeout
 		if to > 0 && time.Since(ts) > to {
-			im.mtx.Unlock()
 			return ErrTimeout
 		}
 	}
 
+	timeLeft := to - time.Since(ts)
+	if timeLeft <= 0 {
+		return ErrTimeout
+	}
+
+	//check for the simple case of a single indexer
+	if len(im.igst) == 1 {
+		var err error
+		if ig := im.igst[0]; ig != nil {
+			err = ig.syncTimeout(timeLeft)
+		} else {
+			err = ErrAllConnsDown
+		}
+		return err
+	}
+
+	//DO NOT CLOSE the channel unless we get all of them back
+	total := len(im.igst)
+	ch := make(chan error, total)
+	tmr := time.NewTimer(timeLeft + time.Second) //there will be some slop here
+	defer tmr.Stop()
+
+	// do a parallel sync
 	var count int
 	for _, v := range im.igst {
-		if v != nil {
-			if err := v.Sync(); err != nil {
-				if err == ErrNotRunning {
-					count++
-				}
+		go func(ig *IngestConnection, ech chan error) {
+			if ig == nil {
+				ech <- nil
+			} else {
+				ech <- ig.syncTimeout(timeLeft)
 			}
+		}(v, ch)
+		count++
+	}
+
+	//now go read them all
+	var good int
+	var down int
+	var timeout bool
+	var lastErr error
+loop:
+	for count > 0 {
+		select {
+		case err := <-ch:
+			count--
+			if err == nil {
+				good++
+			} else {
+				//this will merge errors and even return nil if we need to
+				lastErr = mergeError(lastErr, err)
+				down++
+			}
+		case <-tmr.C:
+			timeout = true
+			break loop
 		}
 	}
-	im.mtx.Unlock()
-	if count == len(im.igst) {
-		return ErrAllConnsDown
+	if (good + down) == total {
+		//every single routine responded, its safe to close the channel
+		close(ch)
 	}
-	return nil
+	if good == total {
+		return nil //all good
+	} else if down == total {
+		return ErrAllConnsDown
+	} else if timeout {
+		// if its a timeout, throw the constant timeout error so that the caller can detect it and do the right thing
+		return ErrTimeout
+	}
+	return lastErr
 }
 
 // WaitForHot waits until at least one connection goes into the hot state
@@ -1305,11 +1365,11 @@ func (im *IngestMuxer) connFailed(dst string, err error) {
 }
 
 // keep attempting to get a new connection set that we can actually write to
-func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, orig bool) (nc connSet, ok bool) {
+func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, orig, shouldSleep bool) (nc connSet, ok bool) {
 	if !orig {
 		//try to send, if we can't just roll on
 		select {
-		case connFailure <- true:
+		case connFailure <- shouldSleep:
 		default:
 		}
 	}
@@ -1321,7 +1381,7 @@ func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, or
 		if !im.eq.clear(nc.ig, nc.tt) || nc.ig.Sync() != nil {
 			//try to send, if we can't just roll on
 			select {
-			case connFailure <- true:
+			case connFailure <- shouldSleep:
 			default:
 			}
 			ok = false
@@ -1339,8 +1399,8 @@ func (im *IngestMuxer) getNewConnSet(csc chan connSet, connFailure chan bool, or
 }
 
 func tickerInterval() time.Duration {
-	//return a time between 750 and 1250 milliseconds
-	return time.Duration(750+rand.Int63n(500)) * time.Millisecond
+	//return a time between 1500 and 3000 milliseconds
+	return time.Duration(1500+rand.Int63n(1500)) * time.Millisecond
 }
 
 func (im *IngestMuxer) shouldSched() (ok bool) {
@@ -1371,13 +1431,16 @@ func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool
 	var ok bool
 	var err error
 	var ttag entry.EntryTag
-	if nc, ok = im.getNewConnSet(csc, connFailure, true); !ok {
+	if nc, ok = im.getNewConnSet(csc, connFailure, true, false); !ok {
 		return
 	}
 
 	eC := im.eChanOut
 	bC := im.bChanOut
 	dC := im.dittoChan // not cached
+
+	var lastStatePushEntryCount uint64
+	var lastStatePush time.Time
 
 inputLoop:
 	for {
@@ -1386,6 +1449,7 @@ inputLoop:
 			//the caller will detect that we exited and will take care of getting outstanding entries
 			/*
 				if !im.cacheEnabled {
+					//attempt to sync, if that completes without error then try to drain the channels
 					//attempt to drain input channels
 				}
 			*/
@@ -1423,7 +1487,7 @@ inputLoop:
 			if err = nc.ig.WriteDittoBlock(db.ents); err != nil {
 				db.cb(err)
 				im.syncAndCloseConnection(nc)
-				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+				if nc, ok = im.getNewConnSet(csc, connFailure, false, false); !ok {
 					break inputLoop
 				}
 				continue inputLoop
@@ -1472,7 +1536,7 @@ inputLoop:
 					im.recycleEntry(e)
 				}
 				im.syncAndCloseConnection(nc)
-				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+				if nc, ok = im.getNewConnSet(csc, connFailure, false, false); !ok {
 					break inputLoop
 				}
 				continue inputLoop
@@ -1486,7 +1550,7 @@ inputLoop:
 				e.Tag = nc.tt.reverse(e.Tag)
 				im.recycleEntry(e)
 				im.syncAndCloseConnection(nc)
-				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+				if nc, ok = im.getNewConnSet(csc, connFailure, false, false); !ok {
 					break inputLoop
 				}
 				continue inputLoop
@@ -1544,7 +1608,7 @@ inputLoop:
 							im.recycleEntryBatch(b)
 						}
 						im.syncAndCloseConnection(nc)
-						if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+						if nc, ok = im.getNewConnSet(csc, connFailure, false, false); !ok {
 							break inputLoop
 						}
 						continue inputLoop
@@ -1563,7 +1627,7 @@ inputLoop:
 				}
 				im.recycleEntryBatch(b[n:])
 				im.syncAndCloseConnection(nc)
-				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+				if nc, ok = im.getNewConnSet(csc, connFailure, false, false); !ok {
 					break inputLoop
 				}
 			}
@@ -1582,28 +1646,56 @@ inputLoop:
 			}
 			nc = tnc //just an update
 		case <-tmr.C:
-			//periodically check the emergency queue and sync
-			if !im.eq.clear(nc.ig, nc.tt) {
-				//treat this as failure, sync and close the connection
-				im.syncAndCloseConnection(nc)
-				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
-					break inputLoop
-				}
-			} else if err := nc.ig.syncTimeout(connectionTimerSyncTimeout); err != nil {
-				//treat this as failure, sync and close the connection
-				im.syncAndCloseConnection(nc)
-				if nc, ok = im.getNewConnSet(csc, connFailure, false); !ok {
+			//first we sync to make sure that this connection is even alive
+			if err := nc.ig.syncTimeout(connectionTimerSyncTimeout); err != nil {
+				nc.ig.closeTimeout(closeTimeout)
+				im.recycleConnection(nc)
+
+				//if we bombed because a sync timed out, we need to sleep a bit and let the indexer collect itself
+				//this could be because the indexer is getting smashed, or it could be because a disk failed and writes
+				//are stalling.  Lots of reasons this could happen, absolutely none of them good.
+				shouldSleep := err == context.DeadlineExceeded
+
+				if nc, ok = im.getNewConnSet(csc, connFailure, false, shouldSleep); !ok {
 					break inputLoop
 				}
 			}
+
+			//then we potentially throw the state block
+			if s, shouldPush, err := im.getTrimmedState(lastStatePush, lastStatePushEntryCount); err == nil && shouldPush {
+				if err := nc.ig.SendIngesterState(s); err != nil {
+					//this is failure, recycle entries and reset the connection
+					im.syncAndCloseConnection(nc)
+					if nc, ok = im.getNewConnSet(csc, connFailure, false, false); !ok {
+						break inputLoop
+					}
+				} else {
+					lastStatePush = time.Now()
+					lastStatePushEntryCount = s.Entries
+				}
+			}
+
+			//then we try to clear the emergency queue
+			if !im.eq.clear(nc.ig, nc.tt) {
+				//treat this as failure, sync and close the connection
+				im.syncAndCloseConnection(nc)
+				if nc, ok = im.getNewConnSet(csc, connFailure, false, false); !ok {
+					break inputLoop
+				}
+			}
+
 			tmr.Reset(tickerInterval())
 		}
 	}
 }
 
-func (im *IngestMuxer) syncAndCloseConnection(nc connSet) (err error) {
+func (im *IngestMuxer) syncAndCloseConnection(nc connSet) {
 	nc.ig.syncTimeout(connectionShutdownSyncTimeout)
 	nc.ig.Close()
+	im.recycleConnection(nc)
+}
+
+func (im *IngestMuxer) recycleConnection(nc connSet) {
 	ents := nc.ig.outstandingEntries()
 	for i := range ents {
 		if ents[i] != nil {
@@ -1643,11 +1735,11 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 
 	go im.writeRelayRoutine(ncc, connErrNotif)
 
-	connErrNotif <- true
+	connErrNotif <- false // no sleep, get on it
 
 	//loop, trying to grab entries, or dying
 	for {
-		_, ok := <-connErrNotif
+		shouldSleep, ok := <-connErrNotif
 		//whether this is a bounce or a straight shutdown, close the ingest connection
 		//grab all outstanding entries and shove to the emergency queue
 		//if there is a cache enabled we will drop it into there when the muxer shuts down
@@ -1668,9 +1760,12 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 		}
 
 		if !ok {
-			//relay routine exited, just leave
+			// relay routine exited, just leave
 			im.connFailed(dst.Address, errors.New("Closed"))
 			return
+		}
+		if shouldSleep {
+			im.quitableSleep(connectionTimerSyncTimeoutBackoff)
 		}
 
 		//attempt to get the connection rolling again
@@ -1811,7 +1906,7 @@ loop:
 			log.KV("version", version.GetVersion()),
 			log.KV("ingesteruuid", im.uuid))
 		im.mtx.RLock()
-		if ig, err = initConnection(tgt, im.tags, im.pubKey, im.privKey, im.verifyCert); err != nil {
+		if ig, err = initConnection(tgt, im.tags, im.pubKey, im.privKey, im.verifyCert, im.ctx); err != nil {
 			im.mtx.RUnlock()
 			if isFatalConnError(err) {
 				im.Error("fatal connection error",
