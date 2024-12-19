@@ -220,10 +220,19 @@ func (ew *EntryWriter) forceAckCtx(ctx context.Context) error {
 	return ew.forceAckNoLock(ctx)
 }
 
+// outstandingEntries gives you a list of entries that have not been confirmed yet
+// the list IS NOT CLEARED, if you call it over and over you will get them all over and over
 func (ew *EntryWriter) outstandingEntries() []*entry.Entry {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
 	return ew.ecb.outstandingEntries()
+}
+
+// ejectOutstandingEntries is almost identical to outstandingEntries, but it also resets the confirmation buffer
+func (ew *EntryWriter) ejectOutstandingEntries() []*entry.Entry {
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+	return ew.ecb.ejectAll()
 }
 
 func (ew *EntryWriter) throwAckSync() error {
