@@ -113,6 +113,15 @@ func (igst *IngestConnection) outstandingEntries() []*entry.Entry {
 	return igst.ew.outstandingEntries()
 }
 
+func (igst *IngestConnection) ejectOutstandingEntries() []*entry.Entry {
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
+	if igst.ew == nil {
+		return nil
+	}
+	return igst.ew.ejectOutstandingEntries()
+}
+
 func (igst *IngestConnection) Write(ts entry.Timestamp, tag entry.EntryTag, data []byte) error {
 	return igst.WriteEntry(&entry.Entry{TS: ts, SRC: igst.src, Tag: tag, Data: data})
 }
