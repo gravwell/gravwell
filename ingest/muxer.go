@@ -1696,7 +1696,7 @@ func (im *IngestMuxer) syncAndCloseConnection(nc connSet) {
 }
 
 func (im *IngestMuxer) recycleConnection(nc connSet) {
-	ents := nc.ig.outstandingEntries()
+	ents := nc.ig.ejectOutstandingEntries()
 	for i := range ents {
 		if ents[i] != nil {
 			ents[i].Tag = nc.tt.reverse(ents[i].Tag)
@@ -1746,17 +1746,19 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 		if igst != nil {
 			igst.Close()
 			im.goDead() //let the world know of our failures
-			im.igst[igIdx] = nil
-			im.tagTranslators[igIdx] = nil
 
 			//pull any entries out of the ingest connection and put them into the emergency queue
-			ents := igst.outstandingEntries()
+			ents := igst.ejectOutstandingEntries()
 			for i := range ents {
 				if ents[i] != nil {
 					ents[i].Tag = tt.reverse(ents[i].Tag)
 				}
 			}
 			im.recycleEntryBatch(ents)
+			im.mtx.Lock()
+			im.igst[igIdx] = nil
+			im.tagTranslators[igIdx] = nil
+			im.mtx.Unlock()
 		}
 
 		if !ok {
@@ -1782,6 +1784,10 @@ func (im *IngestMuxer) connRoutine(igIdx int) {
 		if igst == nil {
 			//nil connection is catastrophic, just leave
 			im.connFailed(dst.Address, errors.New("Nil connection"))
+			return
+		} else if tt == nil {
+			//nil tag translator, just leave
+			im.connFailed(dst.Address, errors.New("Nil tag translator"))
 			return
 		}
 
