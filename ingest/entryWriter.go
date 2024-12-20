@@ -269,7 +269,10 @@ func (ew *EntryWriter) forceAckNoLock(ctx context.Context) error {
 		return err
 	}
 	//begin servicing acks with blocking and a read deadline
-	for ew.ecb.Count() > 0 && ctx.Err() == nil {
+	for ew.ecb.Count() > 0 {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if err := ew.serviceAcks(true, ctx); err != nil {
 			ew.conn.ClearReadTimeout()
 			return err
