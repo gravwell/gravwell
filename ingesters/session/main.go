@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 
 	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
@@ -222,7 +223,7 @@ mainLoop:
 	}
 	//wait for our ingest relay to exit
 	<-doneChan
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to sync: %v\n", err)
 	}
 	igst.Close()

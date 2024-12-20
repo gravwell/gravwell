@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 
 	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
@@ -187,7 +188,7 @@ func main() {
 		}
 
 	}
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		fmt.Println("Failed to sync", err)
 	}
 
