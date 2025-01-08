@@ -91,9 +91,8 @@ func main() {
 	}
 
 	if err = igst.Sync(10 * time.Second); err != nil {
-		log.Fatal("Failed to sync ingest muxer ", err)
+		log.Println("Failed to sync ingest muxer ", err)
 	}
-
 	if err = igst.Close(); err != nil {
 		log.Fatal("Failed to close ingest muxer ", err)
 	}
