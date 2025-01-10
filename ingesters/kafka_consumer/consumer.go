@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -123,7 +123,7 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 		if cfg.Version, err = sarama.ParseKafkaVersion(currKafkaVersion); err != nil {
 			return
 		}
-		cfg.Consumer.Group.Rebalance.Strategy = kc.strat
+		cfg.Consumer.Group.Rebalance.GroupStrategies = kc.strats
 		cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
 
 		if kc.useTLS {

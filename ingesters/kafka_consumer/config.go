@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
@@ -56,7 +56,7 @@ type ConfigConsumer struct {
 	Topic              string
 	Consumer_Group     string
 	Source_Override    string
-	Rebalance_Strategy string
+	Rebalance_Strategy []string
 	Source_Header      string
 	Tag_Header         string
 	Source_As_Binary   bool
@@ -89,7 +89,7 @@ type consumerCfg struct {
 	leader      []string
 	topic       string
 	group       string
-	strat       sarama.BalanceStrategy
+	strats      []sarama.BalanceStrategy
 	sync        bool
 	batchSize   int
 	srcKey      string
@@ -344,22 +344,27 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 
 	c.preprocessor = cc.Preprocessor
 
-	c.strat, err = cc.balanceStrat()
+	c.strats, err = cc.balanceStrats()
 	return
 }
 
-func (cc ConfigConsumer) balanceStrat() (st sarama.BalanceStrategy, err error) {
-	switch strings.ToLower(strings.TrimSpace(cc.Rebalance_Strategy)) {
-	case `sticky`:
-		st = sarama.BalanceStrategySticky
-	case `range`:
-		st = sarama.BalanceStrategyRange
-	case `roundrobin`:
-		st = sarama.BalanceStrategyRoundRobin
-	case ``:
-		st = sarama.BalanceStrategyRoundRobin
-	default:
-		err = errors.New("Unknown balance strategy")
+func (cc ConfigConsumer) balanceStrats() (st []sarama.BalanceStrategy, err error) {
+	//if non specified just use a default of round robin
+	if len(cc.Rebalance_Strategy) == 0 {
+		st = []sarama.BalanceStrategy{sarama.BalanceStrategyRoundRobin}
+		return
+	}
+	for _, v := range cc.Rebalance_Strategy {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case `sticky`:
+			st = append(st, sarama.NewBalanceStrategySticky())
+		case `range`:
+			st = append(st, sarama.NewBalanceStrategyRange())
+		case `roundrobin`:
+			st = append(st, sarama.NewBalanceStrategyRoundRobin())
+		default:
+			err = fmt.Errorf("Unknown balance strategy %q", v)
+		}
 	}
 	return
 }
