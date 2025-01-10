@@ -15,6 +15,9 @@ type AIHealthcheck struct {
 	// Bool indicating if this license/endpoint has unlimited access to remote AI workers
 	UnlimitedActions bool `json:"unlimited"`
 
+	// The total number of actions allowed for the account in the given time frame
+	InitialActions int `json:"initial_actions"`
+
 	// Count of AI actions remaining for the current user
 	RemainingActions int `json:"remaining_actions"`
 
