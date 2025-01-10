@@ -349,9 +349,13 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 }
 
 func (cc ConfigConsumer) balanceStrats() (st []sarama.BalanceStrategy, err error) {
-	//if non specified just use a default of round robin
+	//if non specified just use a default of all of them
 	if len(cc.Rebalance_Strategy) == 0 {
-		st = []sarama.BalanceStrategy{sarama.BalanceStrategyRoundRobin}
+		st = []sarama.BalanceStrategy{
+			sarama.NewBalanceStrategyRoundRobin(),
+			sarama.NewBalanceStrategyRange(),
+			sarama.NewBalanceStrategySticky(),
+		}
 		return
 	}
 	for _, v := range cc.Rebalance_Strategy {
