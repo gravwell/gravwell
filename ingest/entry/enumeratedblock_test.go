@@ -142,9 +142,15 @@ func TestEnumeratedValueBlockEmptyAdd(t *testing.T) {
 		t.Fatal("encoded an empty evb to non-empty buff")
 	}
 	buff := make([]byte, 1024)
+	bb := bytes.NewBuffer(nil)
 	if n, err := evb.EncodeBuffer(buff); err != nil {
 		t.Fatal(err)
 	} else if n != 0 {
 		t.Fatalf("EncodeBuffer returned something on empty evb: %d != 0", n)
+	} else if n, err = evb.EncodeWriter(bb); err != nil {
+		t.Fatal(err)
+	} else if n != 0 || bb.Len() > 0 {
+		t.Fatalf("EncodeBuffer returned something on empty evb: %d/%d != 0", n, bb.Len())
 	}
+
 }
