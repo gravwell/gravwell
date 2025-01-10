@@ -246,10 +246,10 @@ func (li LicenseInfo) SSOEnabled() bool {
 }
 
 func (li LicenseInfo) RemoteAIEnabled() bool {
-	if li.Type != Free && li.Type.AllFeatures() {
+	if li.Type.AllFeatures() || li.Overrides.Set(RemoteAI) {
 		return true
 	}
-	return li.Overrides.Set(RemoteAI)
+	return false
 }
 
 func (li LicenseInfo) ReplicationEnabled() bool {
