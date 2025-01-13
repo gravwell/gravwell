@@ -188,6 +188,16 @@ func addMaxRequestHeadRoom(max, cur int64, hdr http.Header) {
 func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	h.reqSI.Add(1)
 
+	//check if its just a health check, if so bypass everything and get this done ASAP
+	if len(h.healthCheckURL) > 0 && r.Method == http.MethodGet && path.Clean(r.URL.Path) == h.healthCheckURL {
+		if h.igst.WillBlock() {
+			rw.WriteHeader(http.StatusInsufficientStorage)
+		}
+		//just return, this is an implied 200 or we already wrote the insufficient storage response
+		r.Body.Close() // close, we aren't reading this
+		return
+	}
+
 	if h.maxConcurrentRequests > 0 {
 		//increment active requests
 		curr := atomic.AddInt64(&h.activeRequests, 1)
@@ -227,10 +237,6 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rdr.Close()
-	rt := route{
-		method: r.Method,
-		uri:    path.Clean(r.URL.Path),
-	}
 
 	if r.ProtoMajor == 1 {
 		//we are in HTTP 1.X, we may need to set keep alives for stupid clients
@@ -238,15 +244,10 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		w.Header().Add(`Keep-Alive`, keepAliveTimeoutHeader)
 	}
 
-	//check if its just a health check
-	if h.healthCheckURL == rt.uri && rt.method == http.MethodGet {
-		if h.igst.WillBlock() {
-			w.WriteHeader(http.StatusInsufficientStorage)
-		}
-		//just return, this is an implied 200 or we already wrote the insufficient storage response
-		return
+	rt := route{
+		method: r.Method,
+		uri:    path.Clean(r.URL.Path),
 	}
-
 	h.RLock()
 	//check if the request is an authentication request
 	if ah, ok := h.auth[rt]; ok && ah != nil {
