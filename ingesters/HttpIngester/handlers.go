@@ -18,7 +18,9 @@ import (
 	"net"
 	"net/http"
 	"path"
+	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -32,6 +34,8 @@ import (
 const (
 	//default is 120 seconds
 	keepAliveTimeoutHeader = `timeout=120`
+
+	maxRequestHeadroom = `Max-Concurrent-Request-Headroom`
 )
 
 // note that handleFuncs should read from the reader, not from the Request.Body.
@@ -49,16 +53,18 @@ type routeHandler struct {
 
 type handler struct {
 	sync.RWMutex
-	igst           *ingest.IngestMuxer
-	lgr            *log.Logger
-	reqSI          *utils.StatsItem // per request SI
-	entSI          *utils.StatsItem // per entry SI
-	bytesSI        *utils.StatsItem // bytes SI
-	mp             map[route]routeHandler
-	auth           map[route]authHandler
-	custom         map[route]http.Handler
-	rawLineBreaker string
-	healthCheckURL string
+	igst                  *ingest.IngestMuxer
+	lgr                   *log.Logger
+	reqSI                 *utils.StatsItem // per request SI
+	entSI                 *utils.StatsItem // per entry SI
+	bytesSI               *utils.StatsItem // bytes SI
+	mp                    map[route]routeHandler
+	auth                  map[route]authHandler
+	custom                map[route]http.Handler
+	rawLineBreaker        string
+	healthCheckURL        string
+	maxConcurrentRequests int64
+	activeRequests        int64
 }
 
 func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Request, rdr io.Reader, ip net.IP) {
@@ -72,22 +78,23 @@ func (rh routeHandler) handle(h *handler, w http.ResponseWriter, req *http.Reque
 	rh.handler(h, rh, w, req, rdr, ip)
 }
 
-func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger, reqSI, entSI, bytesSI *utils.StatsItem) (h *handler, err error) {
+func newHandler(igst *ingest.IngestMuxer, lgr *log.Logger, reqSI, entSI, bytesSI *utils.StatsItem, maxConcurrent int) (h *handler, err error) {
 	if igst == nil {
 		err = errors.New("nil muxer")
 	} else if lgr == nil {
 		err = errors.New("nil logger")
 	} else {
 		h = &handler{
-			RWMutex: sync.RWMutex{},
-			mp:      map[route]routeHandler{},
-			auth:    map[route]authHandler{},
-			custom:  map[route]http.Handler{},
-			igst:    igst,
-			lgr:     lgr,
-			reqSI:   reqSI,
-			entSI:   entSI,
-			bytesSI: bytesSI,
+			RWMutex:               sync.RWMutex{},
+			mp:                    map[route]routeHandler{},
+			auth:                  map[route]authHandler{},
+			custom:                map[route]http.Handler{},
+			igst:                  igst,
+			lgr:                   lgr,
+			reqSI:                 reqSI,
+			entSI:                 entSI,
+			bytesSI:               bytesSI,
+			maxConcurrentRequests: int64(maxConcurrent),
 		}
 	}
 	return
@@ -161,8 +168,53 @@ func drainAndClose(rc io.ReadCloser) {
 	rc.Close()
 }
 
+// optionally add a header telling the client that they are putting a bunch of pressure on the webserver handlers
+// basically if we get close to 50% of maximum we will tack on the header letting them know what they have left
+// if there isn't enough to care about or if the header object isn't populated, we just leave
+// we don't ALWAYS throw the header because under normal circumstances its not with the bandwidth
+func addMaxRequestHeadRoom(max, cur int64, hdr http.Header) {
+	if hdr == nil || cur < (max/2) {
+		// if the header is bad OR we are using less than 50% of the max
+		// don't even waste the bandwidth to send the header value
+		return
+	}
+	avail := max - cur
+	if avail < 0 {
+		avail = 0
+	}
+	hdr.Add(maxRequestHeadroom, strconv.FormatInt(avail, 10))
+}
+
 func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	h.reqSI.Add(1)
+
+	//check if its just a health check, if so bypass everything and get this done ASAP
+	if len(h.healthCheckURL) > 0 && r.Method == http.MethodGet && path.Clean(r.URL.Path) == h.healthCheckURL {
+		if h.igst.WillBlock() {
+			rw.WriteHeader(http.StatusInsufficientStorage)
+		}
+		//just return, this is an implied 200 or we already wrote the insufficient storage response
+		r.Body.Close() // close, we aren't reading this
+		return
+	}
+
+	if h.maxConcurrentRequests > 0 {
+		//increment active requests
+		curr := atomic.AddInt64(&h.activeRequests, 1)
+		defer atomic.AddInt64(&h.activeRequests, -1)
+
+		// add header value letting the client know how many outstanding requests are available
+		addMaxRequestHeadRoom(h.maxConcurrentRequests, curr, rw.Header())
+
+		//check if we are throttling this request because too many are outstanding
+		if curr > h.maxConcurrentRequests {
+			//too many, shut this down now with minimal processing
+			r.Body.Close() // close, we aren't reading this
+			rw.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+	}
+	// we might actually do something with this defer the cleanup
 	defer drainAndClose(r.Body)
 	w := &trackingRW{
 		ResponseWriter: rw,
@@ -185,10 +237,6 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer rdr.Close()
-	rt := route{
-		method: r.Method,
-		uri:    path.Clean(r.URL.Path),
-	}
 
 	if r.ProtoMajor == 1 {
 		//we are in HTTP 1.X, we may need to set keep alives for stupid clients
@@ -196,15 +244,10 @@ func (h *handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		w.Header().Add(`Keep-Alive`, keepAliveTimeoutHeader)
 	}
 
-	//check if its just a health check
-	if h.healthCheckURL == rt.uri && rt.method == http.MethodGet {
-		if h.igst.WillBlock() {
-			w.WriteHeader(http.StatusInsufficientStorage)
-		}
-		//just return, this is an implied 200 or we already wrote the insufficient storage response
-		return
+	rt := route{
+		method: r.Method,
+		uri:    path.Clean(r.URL.Path),
 	}
-
 	h.RLock()
 	//check if the request is an authentication request
 	if ah, ok := h.auth[rt]; ok && ah != nil {
