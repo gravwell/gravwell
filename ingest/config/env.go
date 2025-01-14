@@ -226,8 +226,10 @@ func loadEnvVarBool(cnd *bool, envName string, defVal bool) (err error) {
 		err = ErrInvalidArg
 		return
 	} else if *cnd {
+		//boolean is already set, exit
 		return
 	} else if len(envName) == 0 {
+		//no environment variable, exit
 		return
 	}
 
