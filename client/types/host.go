@@ -80,6 +80,7 @@ type DeploymentInfo struct {
 	AIEnabled         bool   // is the AI system available at all
 	AIIsRemote        bool   // AI requests will be serviced by a remote system
 	AIRemoteProcessor string // URL of system that services AI requests
+	AIDisabledReason  string `json:",omitempty"` // if AI is disabled, explain why
 }
 
 func (si SysInfo) Empty() bool {
