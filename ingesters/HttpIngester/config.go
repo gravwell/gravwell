@@ -31,8 +31,8 @@ const (
 
 	defaultMethod = http.MethodPost
 
-	defaultMaxConnections        = 10000
-	defaultMaxConcurrentRequests = 4096
+	defaultMaxConnections        = 1024 * 10 // about 10k connections, any modern OS should be able to handle this
+	defaultMaxConcurrentRequests = 1024 * 16 // HTTP2 means concurrent requests on a connection, 16k concurrent request is A LOT
 )
 
 type gbl struct {
