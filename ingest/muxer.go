@@ -1344,6 +1344,12 @@ func (im *IngestMuxer) DittoWriteContext(ctx context.Context, b []entry.Entry) e
 	case im.dittoChan <- db:
 		// Now wait for the callback to be called
 		wg.Wait()
+		// Success, update stats
+		im.ingesterState.Entries += uint64(len(b))
+		for i := range b {
+			im.ingesterState.Size += uint64(len(b[i].Data))
+		}
+
 	case <-ctx.Done():
 		return ctx.Err()
 	case <-im.writeBarrier:
