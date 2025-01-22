@@ -75,7 +75,7 @@ var (
 		SecretWrite.CapabilityDesc(),
 		AlertRead.CapabilityDesc(),
 		AlertWrite.CapabilityDesc(),
-		RemoteAIService.CapabilityDesc(),
+		LogbotAIService.CapabilityDesc(),
 	}
 	readOnlyCapList = []Capability{
 		Search,
@@ -102,7 +102,7 @@ var (
 		TokenRead,
 		SecretRead,
 		AlertRead,
-		RemoteAIService,
+		LogbotAIService,
 	}
 )
 

@@ -41,7 +41,7 @@ const (
 	UnlimitedCPU    FeatureOverride = 1 << 4
 	CBAC            FeatureOverride = 1 << 5
 	UnlimitedIngest FeatureOverride = 1 << 6
-	RemoteAI        FeatureOverride = 1 << 7
+	LogbotAI        FeatureOverride = 1 << 7
 
 	ReplicationName     string = `replication`
 	SingleSignonName    string = `sso`
@@ -50,7 +50,7 @@ const (
 	UnlimitedCPUName    string = `unlimitedcpu`
 	CBACName            string = `abac`
 	UnlimitedIngestName string = `unlimitedingest`
-	RemoteAIName        string = `remoteai`
+	LogbotAIName        string = `logbotai`
 
 	// ingest rate constants
 	gb = 1024 * 1024 * 1024
@@ -70,7 +70,7 @@ var (
 		UnlimitedCPU,
 		UnlimitedIngest,
 		CBAC,
-		RemoteAI,
+		LogbotAI,
 	}
 
 	OverrideNames = []string{
@@ -81,7 +81,7 @@ var (
 		UnlimitedCPUName,
 		UnlimitedIngestName,
 		CBACName,
-		RemoteAIName,
+		LogbotAIName,
 	}
 )
 
@@ -115,7 +115,7 @@ type Features struct {
 	UnlimitedCPU    bool
 	CBAC            bool
 	UnlimitedIngest bool
-	RemoteAI        bool
+	LogbotAI        bool
 }
 
 type LicenseIndexerStatus struct {
@@ -245,8 +245,8 @@ func (li LicenseInfo) SSOEnabled() bool {
 	return li.Overrides.Set(SingleSignon)
 }
 
-func (li LicenseInfo) RemoteAIEnabled() bool {
-	if li.Type.AllFeatures() || li.Overrides.Set(RemoteAI) {
+func (li LicenseInfo) LogbotAIEnabled() bool {
+	if li.Type.AllFeatures() || li.Overrides.Set(LogbotAI) {
 		return true
 	}
 	return false
@@ -317,7 +317,7 @@ func (li LicenseInfo) Features() Features {
 		UnlimitedCPU:    li.UnlimitedCPUEnabled(),
 		CBAC:            li.CBACEnabled(),
 		UnlimitedIngest: li.UnlimitedIngestEnabled(),
-		RemoteAI:        li.RemoteAIEnabled(),
+		LogbotAI:        li.LogbotAIEnabled(),
 	}
 }
 
@@ -517,8 +517,8 @@ func NewFeatureOverride(name string) (fo FeatureOverride, err error) {
 		fo = UnlimitedIngest
 	case CBACName:
 		fo = CBAC
-	case RemoteAIName:
-		fo = RemoteAI
+	case LogbotAIName:
+		fo = LogbotAI
 	default:
 		err = fmt.Errorf("Unknown feature override name %q", name)
 	}
@@ -567,8 +567,8 @@ func (fo FeatureOverride) String() (r string) {
 	if fo.Set(CBAC) {
 		r += `CBAC `
 	}
-	if fo.Set(RemoteAI) {
-		r += `RemoteAI `
+	if fo.Set(LogbotAI) {
+		r += `LogbotAI `
 	}
 	return
 }

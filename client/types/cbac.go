@@ -76,7 +76,7 @@ const (
 	SecretWrite     Capability = 48
 	AlertRead       Capability = 49
 	AlertWrite      Capability = 50
-	RemoteAIService Capability = 51
+	LogbotAIService Capability = 51
 	_maxCap         Capability = 52 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
@@ -101,7 +101,7 @@ const (
 	UsersAndGroupsCat  = `Users and Groups`
 	SystemAndStatsCat  = `System and Stats`
 	SecretsCat         = `Secrets`
-	RemoteAIServiceCat = `Remote AI Service APIs`
+	LogbotAIServiceCat = `Logbot AI Service APIs`
 )
 
 const (
@@ -335,8 +335,8 @@ func (c Capability) Name() string {
 		return `AlertRead`
 	case AlertWrite:
 		return `AlertWrite`
-	case RemoteAIService:
-		return `RemoteAIService`
+	case LogbotAIService:
+		return `LogbotAIService`
 	}
 	return `UNKNOWN`
 }
@@ -461,8 +461,8 @@ func (c Capability) Category() CapabilityCategory {
 		return SecretsCat
 	case SecretWrite:
 		return SecretsCat
-	case RemoteAIService:
-		return RemoteAIServiceCat
+	case LogbotAIService:
+		return LogbotAIServiceCat
 	}
 	return `UNKNOWN`
 }
@@ -572,8 +572,8 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = AlertRead
 	case `alertwrite`:
 		*c = AlertWrite
-	case `remoteaiservice`:
-		*c = RemoteAIService
+	case `logbotaiservice`:
+		*c = LogbotAIService
 	default:
 		err = ErrUnknownCapability
 	}
@@ -683,8 +683,8 @@ func (c Capability) String() string {
 		return `Read Alerts`
 	case AlertWrite:
 		return `Write and Delete Alerts`
-	case RemoteAIService:
-		return `Remote AI Service`
+	case LogbotAIService:
+		return `Logbot AI Service`
 	}
 	return `UNKNOWN`
 }
@@ -792,8 +792,8 @@ func (c Capability) Description() string {
 		return `User can read and access alerts`
 	case AlertWrite:
 		return `User can create, update, and delete alerts`
-	case RemoteAIService:
-		return `User can submit requests to the remote AI service APIs`
+	case LogbotAIService:
+		return `User can submit requests to the Logbot AI service APIs`
 	}
 	return `UNKNOWN`
 }
