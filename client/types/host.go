@@ -78,7 +78,7 @@ type DeploymentInfo struct {
 	CBACEnabled      bool //whether CBAC is enabled on the system
 	DefaultLanguage  string
 	AIEnabled        bool   // is the AI system available at all
-	AIProcessor      string // URL of system that services logbot AI requests
+	AIProcessor      string // URL of system that services Logbot AI requests
 	AIDisabledReason string `json:",omitempty"` // if AI is disabled, explain why
 }
 
