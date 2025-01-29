@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
@@ -132,7 +133,7 @@ func (m *mainService) shutdown() error {
 				}
 			}
 		}
-		if err := m.igst.Sync(time.Second); err != nil {
+		if err := m.igst.Sync(utils.ExitSyncTimeout); err != nil {
 			rerr = fmt.Errorf("Failed to sync the ingest muxer: %v", err)
 			errorout("%s", rerr)
 		} else {

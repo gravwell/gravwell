@@ -1,9 +1,10 @@
 package client
 
 import (
-	"github.com/gravwell/gravwell/v3/client/types"
 	"net/http"
 	"time"
+
+	"github.com/gravwell/gravwell/v3/client/types"
 )
 
 // GetTOTPSetup requests the parameters necessary for configuring
@@ -105,6 +106,11 @@ func (c *Client) GenerateRecoveryCodes(user, pass string, authtype types.AuthTyp
 		Generated time.Time
 	}
 	err = c.methodStaticPushURL(http.MethodPost, mfaGenerateRecoveryCodesUrl(), rq, &resp)
-	codes = types.RecoveryCodes{resp.Enabled, resp.Codes, resp.Remaining, resp.Generated}
+	codes = types.RecoveryCodes{
+		Enabled:   resp.Enabled,
+		Codes:     resp.Codes,
+		Remaining: resp.Remaining,
+		Generated: resp.Generated,
+	}
 	return
 }

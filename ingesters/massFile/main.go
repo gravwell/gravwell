@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/shirou/gopsutil/mem"
 
@@ -230,7 +231,7 @@ func main() {
 		}
 	}
 	if iv != nil {
-		if err := iv.m.Sync(time.Second); err != nil {
+		if err := iv.m.Sync(utils.ExitSyncTimeout); err != nil {
 			fmt.Printf("ERROR: Failed to sync ingester: %v\n", err)
 			os.Exit(-1)
 		}
