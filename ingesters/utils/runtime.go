@@ -11,6 +11,11 @@ package utils
 import (
 	"os"
 	"runtime"
+	"time"
+)
+
+const (
+	ExitSyncTimeout = 10 * time.Second
 )
 
 // this will set the GOMAXPROC value ONLY if the environment variable hasn't been set to a valid integer

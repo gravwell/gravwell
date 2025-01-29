@@ -418,6 +418,9 @@ func (c *ChanCacher) Commit() {
 	c.cacheW.Sync()
 	c.cacheR.Close()
 	c.cacheW.Close()
+	if c.fileLock != nil {
+		c.fileLock.Unlock()
+	}
 
 	c.cacheCommitted = true
 }

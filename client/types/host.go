@@ -74,9 +74,12 @@ type HostSysStats struct {
 }
 
 type DeploymentInfo struct {
-	Distributed     bool //distributed webservers, meaning more than one
-	CBACEnabled     bool //whether CBAC is enabled on the system
-	DefaultLanguage string
+	Distributed      bool //distributed webservers, meaning more than one
+	CBACEnabled      bool //whether CBAC is enabled on the system
+	DefaultLanguage  string
+	AIEnabled        bool   // is the AI system available at all
+	AIProcessor      string // URL of system that services Logbot AI requests
+	AIDisabledReason string `json:",omitempty"` // if AI is disabled, explain why
 }
 
 func (si SysInfo) Empty() bool {
