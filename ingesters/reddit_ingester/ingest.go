@@ -20,6 +20,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
@@ -114,7 +115,7 @@ func NewIngestWriter() (iw *ingestWriter, err error) {
 }
 
 func (iw *ingestWriter) Close() error {
-	if err := iw.igst.Sync(time.Second); err != nil {
+	if err := iw.igst.Sync(utils.ExitSyncTimeout); err != nil {
 		return err
 	}
 	if err := iw.igst.Close(); err != nil {
