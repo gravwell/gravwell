@@ -419,6 +419,7 @@ func NewDeepCopyEntryBlock(set []*Entry, sz uint64) (neb EntryBlock) {
 			Tag:  e.Tag,
 			SRC:  net.IP(buff[off : off+len(e.SRC)]),
 			Data: net.IP(buff[off+len(e.SRC) : off+len(e.SRC)+len(e.Data)]),
+			EVB:  e.EVB.DeepCopy(),
 		}
 		neb.size += ne.Size()
 		off += len(e.SRC) + len(e.Data)

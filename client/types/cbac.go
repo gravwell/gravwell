@@ -76,7 +76,7 @@ const (
 	SecretWrite Capability = 48
 	AlertRead   Capability = 49
 	AlertWrite  Capability = 50
-	RemoteAI    Capability = 51
+	LogbotAI    Capability = 51
 	_maxCap     Capability = 52 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
@@ -101,8 +101,7 @@ const (
 	UsersAndGroupsCat = `Users and Groups`
 	SystemAndStatsCat = `System and Stats`
 	SecretsCat        = `Secrets`
-	AlertsCat         = `Alerts`
-	AICat             = `AI`
+	LogbotAICat       = `Logbot AI`
 )
 
 const (
@@ -336,6 +335,8 @@ func (c Capability) Name() string {
 		return `AlertRead`
 	case AlertWrite:
 		return `AlertWrite`
+	case LogbotAI:
+		return `LogbotAI`
 	}
 	return `UNKNOWN`
 }
@@ -460,12 +461,8 @@ func (c Capability) Category() CapabilityCategory {
 		return SecretsCat
 	case SecretWrite:
 		return SecretsCat
-	case AlertRead:
-		return AlertsCat
-	case AlertWrite:
-		return AlertsCat
-	case RemoteAI:
-		return AICat
+	case LogbotAI:
+		return LogbotAICat
 	}
 	return `UNKNOWN`
 }
@@ -575,8 +572,8 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = AlertRead
 	case `alertwrite`:
 		*c = AlertWrite
-	case `remoteai`:
-		*c = RemoteAI
+	case `logbotai`:
+		*c = LogbotAI
 	default:
 		err = ErrUnknownCapability
 	}
@@ -686,8 +683,8 @@ func (c Capability) String() string {
 		return `Read Alerts`
 	case AlertWrite:
 		return `Write and Delete Alerts`
-	case RemoteAI:
-		return `Remote AI API`
+	case LogbotAI:
+		return `Logbot AI`
 	}
 	return `UNKNOWN`
 }
@@ -795,8 +792,8 @@ func (c Capability) Description() string {
 		return `User can read and access alerts`
 	case AlertWrite:
 		return `User can create, update, and delete alerts`
-	case RemoteAI:
-		return `User can submit request to the remote AI APIs`
+	case LogbotAI:
+		return `User can submit requests to Logbot AI`
 	}
 	return `UNKNOWN`
 }
@@ -1084,7 +1081,7 @@ func RemoveCapability(b []byte, c Capability) (r bool) {
 // CheckCapability checks if the capability c is set in the bitmask b
 func CheckCapability(b []byte, c Capability) (r bool) {
 	if off, mask := bitmask(c); off < len(b) {
-		//remove the bit
+		//check the bit
 		r = (b[off] & mask) != 0
 	}
 	return

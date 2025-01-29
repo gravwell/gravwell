@@ -78,6 +78,9 @@ func (eb *EVBlock) updateEv(ev EnumeratedValue) {
 
 // AddSet adds a slice of enumerated value to an evbloc, this function keeps a running tally of size for fast query.
 func (eb *EVBlock) AddSet(evs []EnumeratedValue) {
+	if len(evs) == 0 {
+		return //skip adding if there is nothing to add
+	}
 	if eb.size == 0 {
 		eb.fastAddSet(evs)
 	} else {
@@ -110,7 +113,7 @@ func (eb EVBlock) Count() int {
 
 // Populated is a helper to check if there are any EVs.
 func (eb EVBlock) Populated() bool {
-	return eb.size > 0
+	return len(eb.evs) > 0
 }
 
 // Reset resets the entry block, the underlying slice is not freed.
@@ -209,6 +212,10 @@ func (eb EVBlock) Encode() (bts []byte, err error) {
 // EncodeBuffer encodes an evblock into a caller provided byte buffer
 // and returns the number of bytes consumed and a potential error.
 func (eb EVBlock) EncodeBuffer(bts []byte) (r int, err error) {
+	// do nothing if there is nothing to be done
+	if !eb.Populated() {
+		return
+	}
 	// check if its valid
 	if err = eb.Valid(); err != nil {
 		return
@@ -246,6 +253,10 @@ func (eb EVBlock) EncodeBuffer(bts []byte) (r int, err error) {
 // EncodeWriter encodes an evblock directly into a writer
 // and returns the number of bytes consumed and a potential error.
 func (eb EVBlock) EncodeWriter(w io.Writer) (r int, err error) {
+	// do nothing if there is nothing to be done
+	if !eb.Populated() {
+		return
+	}
 	// check if its valid
 	if err = eb.Valid(); err != nil {
 		return

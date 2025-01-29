@@ -24,9 +24,9 @@ import (
 
 const (
 	maxGroups int = 64
-	maxUsers  int = 1024 * 1024
-	maxHosts  int = 1024 * 1024
-	maxApps   int = 250000
+	maxUsers  int = 256 * 1024
+	maxHosts  int = 512 * 1024
+	maxApps   int = 25000
 
 	tsFormat string = `2006-01-02T15:04:05.999999Z07:00`
 )
@@ -197,9 +197,9 @@ type ComplexLocation struct {
 }
 
 func seedVars(cnt int) {
-	seedUsers(overrideCount(cnt, `USER_COUNT`), overrideCount(cnt, `GROUP_COUNT`))
-	seedHosts(overrideCount(int(float64(cnt)*1.25), `HOST_COUNT`))
-	seedApps(overrideCount(int(float64(cnt)*1.25), `APP_COUNT`))
+	seedUsers(overrideCount(cnt, maxUsers, `USER_COUNT`), overrideCount(cnt, maxGroups, `GROUP_COUNT`))
+	seedHosts(overrideCount(int(float64(cnt)/50.0), maxHosts, `HOST_COUNT`))
+	seedApps(overrideCount(int(float64(cnt)*50.0), maxApps, `APP_COUNT`))
 }
 
 func seedUsers(usercount, gcount int) {
@@ -239,6 +239,7 @@ func seedUsers(usercount, gcount int) {
 
 func seedHosts(cnt int) {
 	fint := fake.Internet()
+	hosts = make([]string, 0, cnt)
 	for i := 0; i < cnt; i++ {
 		if (i & 1) == 0 {
 			hosts = append(hosts, rd.Noun())
@@ -386,7 +387,10 @@ func roundFloat(val float64, precision uint) float64 {
 	return float64(math.Round(val*ratio) / ratio)
 }
 
-func overrideCount(cnt int, envName string) int {
+func overrideCount(cnt, max int, envName string) int {
+	if cnt > max {
+		cnt = max
+	}
 	val := os.Getenv(envName)
 	if envName == `` || val == `` {
 		return cnt
