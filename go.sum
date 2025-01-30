@@ -107,6 +107,7 @@ github.com/charmbracelet/x/windows v0.1.0/go.mod h1:GLEO/l+lizvFDBPLIOk+49gdX49L
 github.com/client9/misspell v0.3.4/go.mod h1:qj6jICC3Q7zFZvVWo7KLAzC3yx5G7kyvSDkc90ppPyw=
 github.com/cncf/udpa/go v0.0.0-20191209042840-269d4d468f6f/go.mod h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=
 github.com/cpuguy83/go-md2man/v2 v2.0.4/go.mod h1:tgQtvFlXSQOSOSIRvRPT7W67SCa46tRHOmNcaadrF8o=
+github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=
 github.com/crewjam/rfc5424 v0.1.0 h1:MSeXJm22oKovLzWj44AHwaItjIMUMugYGkEzfa831H8=
 github.com/crewjam/rfc5424 v0.1.0/go.mod h1:RCi9M3xHVOeerf6ULZzqv2xOGRO/zYaVUeRyPnBW3gQ=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
@@ -213,8 +214,6 @@ github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66 h1:WY4eTW+ErqI0rbV
 github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66/go.mod h1:RUZts//u8V+P37LqSghbTYaMGDdTOJooQGHzbjfSIZA=
 github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018 h1:yOl1BFerz+cq4FeeDVIHy11kOZAozTMKzbFd0PoJErA=
 github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018/go.mod h1:N+S2rmWz+IHo5zTQaDshQr+qEVGldBRzAnlRkf1yO8c=
-github.com/gravwell/gravwell/v3 v3.8.54 h1:N0bi5ENpNiTvQaQlgUNcQ5KWsVfWlaOhDpm30DgvrkI=
-github.com/gravwell/gravwell/v3 v3.8.54/go.mod h1:Y9L00sNQvp+0NOcxQ3flp3Hak5ESKAMEc/sydy2xQXY=
 github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37 h1:e4PALq0O9WtWnnVReBr9DR8aMeyk/+EtszqaxX9sm5c=
 github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37/go.mod h1:/Ogrd3FQi+GGD+BXzX8/kBQKdOrgrf6c8u8LSEA3WI8=
 github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e h1:VehL0WBsjIFCQZ8k9Cp0YwLqzlfJsPjOYiGOdt5/lMs=
@@ -511,10 +510,12 @@ google.golang.org/protobuf v1.34.1 h1:9ddQBjfCyZPOHPUiPxpYESBLc+T8P3E+Vo4IbKZgFW
 google.golang.org/protobuf v1.34.1/go.mod h1:c6P6GXX6sHbq/GpV6MGZEdwhWPcYBgnhAHhKbcUYpos=
 gopkg.in/check.v1 v0.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20161208181325-20d25e280405/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
+gopkg.in/check.v1 v1.0.0-20180628173108-788fd7840127/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20200227125254-8fa46927fb4f/go.mod h1:Co6ibVJAznAaIkqp8huTwlJQCZ016jof/cbN4VW5Yz0=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c h1:Hei/4ADfdWqJk1ZMxUNpqntNwaWcugrBjAiHlqqRiVk=
 gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c/go.mod h1:JHkPIbrfpd72SG/EVd6muEfDQjcINNoR0C8j2r3qZ4Q=
+gopkg.in/errgo.v2 v2.1.0/go.mod h1:hNsd1EY+bozCKY1Ytp96fpM3vjJbqLJn88ws8XvfDNI=
 gopkg.in/gcfg.v1 v1.2.3 h1:m8OOJ4ccYHnx2f4gQwpno8nAX5OGOh7RLaaz0pj3Ogs=
 gopkg.in/gcfg.v1 v1.2.3/go.mod h1:yesOnuUOFQAhST5vPY4nbZsb/huCgGGXlipJsBn0b3o=
 gopkg.in/warnings.v0 v0.1.2 h1:wFXVbFY8DY5/xOe1ECiWdKCzZlxgshcYVNkBHstARME=

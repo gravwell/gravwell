@@ -12,8 +12,8 @@ package connection
 
 import (
 	"fmt"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/killer"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"

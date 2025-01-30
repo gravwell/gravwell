@@ -47,7 +47,7 @@ func (c *Client) MyNewNotifications() (types.NotificationSet, error) {
 
 func (c *Client) getNotifications(after time.Time, update bool) (n types.NotificationSet, err error) {
 	params := []urlParam{
-		urlParam{"after", after.Format("2006-01-02T15:04:05.999999999Z07")},
+		urlParam{key: "after", value: after.Format("2006-01-02T15:04:05.999999999Z07")},
 	}
 	if err = c.methodStaticParamURL(http.MethodGet, NOTIFICATIONS_URL, params, &n); err == nil && update {
 		for _, v := range n {

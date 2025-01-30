@@ -96,6 +96,7 @@ const (
 	RenderNamePointmap   string = `pointmap`
 	RenderNameHeatmap    string = `heatmap`
 	RenderNameP2P        string = `point2point`
+	RenderNameWordcloud  string = `wordcloud`
 
 	MetadataTypeRaw    string = `raw`
 	MetadataTypeNumber string = `number`
@@ -475,6 +476,20 @@ func (ee emptyEntries) MarshalJSON() ([]byte, error) {
 	return json.Marshal(([]SearchEntry)(ee))
 }
 
+type emptyPrintableEntries []SearchEntry
+
+func (ee emptyPrintableEntries) MarshalJSON() ([]byte, error) {
+	if len(ee) == 0 {
+		return emptyList, nil
+	}
+
+	var pse []PrintableSearchEntry
+	for _, v := range ([]SearchEntry)(ee) {
+		pse = append(pse, PrintableSearchEntry(v))
+	}
+	return json.Marshal(pse)
+}
+
 type emptyIngesterStats []IngesterStats
 
 func (eis emptyIngesterStats) MarshalJSON() ([]byte, error) {
@@ -529,6 +544,15 @@ func (is IngestStats) MarshalJSON() ([]byte, error) {
 
 func (rr RawResponse) MarshalJSON() ([]byte, error) {
 	type alias RawResponse
+	if rr.printableData {
+		return json.Marshal(&struct {
+			alias
+			Entries emptyPrintableEntries
+		}{
+			alias:   alias(rr),
+			Entries: emptyPrintableEntries(rr.Entries),
+		})
+	}
 	return json.Marshal(&struct {
 		alias
 		Entries emptyEntries

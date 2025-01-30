@@ -24,7 +24,7 @@ var (
 
 var (
 	adminParams = []urlParam{
-		urlParam{`admin`, `true`},
+		urlParam{key: `admin`, value: `true`},
 	}
 )
 
