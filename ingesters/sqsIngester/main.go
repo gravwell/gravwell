@@ -20,6 +20,7 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
+	"github.com/aws/aws-sdk-go/service/sqs"
 	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -27,8 +28,6 @@ import (
 	"github.com/gravwell/gravwell/v4/ingesters/base"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/sqs_common"
-
-	"github.com/aws/aws-sdk-go/service/sqs"
 )
 
 const (
@@ -170,7 +169,7 @@ func main() {
 	close(done)
 	wg.Wait()
 
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {

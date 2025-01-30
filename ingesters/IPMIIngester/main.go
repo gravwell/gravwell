@@ -28,7 +28,6 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
-
 	"github.com/gravwell/ipmigo"
 )
 
@@ -155,7 +154,7 @@ func main() {
 	cancel()
 
 	lg.Info("IPMI ingester exiting", log.KV("ingesteruuid", id))
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {

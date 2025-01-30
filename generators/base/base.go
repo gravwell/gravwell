@@ -28,7 +28,6 @@ import (
 )
 
 var (
-
 	tagName      = flag.String("tag-name", "", "Tag name for ingested data")
 	clearConns   = flag.String("clear-conns", "", "Comma-separated server:port list of cleartext targets")
 	tlsConns     = flag.String("tls-conns", "", "Comma-separated server:port list of TLS connections")

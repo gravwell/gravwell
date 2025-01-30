@@ -9,6 +9,7 @@
 package ingest
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"net"
@@ -21,13 +22,15 @@ import (
 )
 
 const (
-	MIN_REMOTE_KEYSIZE int           = 16
-	DIAL_TIMEOUT       time.Duration = (1 * time.Second)
-	CHANNEL_BUFFER     int           = 4096
-	DEFAULT_TLS_PORT   int           = 4024
-	DEFAULT_CLEAR_PORT int           = 4023
-	DEFAULT_PIPE_PATH  string        = "/opt/gravwell/comms/pipe"
-	MAX_TAG_LENGTH     int           = 4096 //a 4KB tagname is a short story...
+	MIN_REMOTE_KEYSIZE    int           = 16
+	DIAL_TIMEOUT          time.Duration = (1 * time.Second)
+	authenticationTimeout time.Duration = 5 * time.Second // this is a REALLY LONG TIME, but there is some crypto in play so let it ride
+
+	CHANNEL_BUFFER     int    = 4096
+	DEFAULT_TLS_PORT   int    = 4024
+	DEFAULT_CLEAR_PORT int    = 4023
+	DEFAULT_PIPE_PATH  string = "/opt/gravwell/comms/pipe"
+	MAX_TAG_LENGTH     int    = 4096 //a 4KB tagname is a short story...
 
 	FORBIDDEN_TAG_SET string = "!@#$%^&*()=+<>,.:;`\"'{[}]|\\ 	" // DEPRECATED - includes space and tab characters at the end
 )
@@ -79,10 +82,10 @@ func InitializeConnection(dst, authString string, tags []string, pubKey, privKey
 		Address: dst,
 		Secret:  authString,
 	}
-	return initConnection(tgt, tags, pubKey, privKey, verifyRemoteKey)
+	return initConnection(tgt, tags, pubKey, privKey, verifyRemoteKey, context.Background())
 }
 
-func initConnection(tgt Target, tags []string, pubKey, privKey string, verifyRemoteKey bool) (*IngestConnection, error) {
+func initConnection(tgt Target, tags []string, pubKey, privKey string, verifyRemoteKey bool, parentCtx context.Context) (*IngestConnection, error) {
 	if len(tags) > int(entry.MaxTagId) {
 		return nil, ErrTooManyTags
 	}
@@ -107,11 +110,11 @@ func initConnection(tgt Target, tags []string, pubKey, privKey string, verifyRem
 		} else if certs == nil {
 			return nil, ErrInvalidCerts
 		}
-		return newTLSConnection(dest, tgt.Tenant, auth, certs, verifyRemoteKey, tags)
+		return newTLSConnection(dest, tgt.Tenant, auth, certs, verifyRemoteKey, tags, parentCtx)
 	case "tcp":
-		return newTCPConnection(dest, tgt.Tenant, auth, tags)
+		return newTCPConnection(dest, tgt.Tenant, auth, tags, parentCtx)
 	case "pipe":
-		return newPipeConnection(dest, tgt.Tenant, auth, tags)
+		return newPipeConnection(dest, tgt.Tenant, auth, tags, parentCtx)
 	default:
 		break
 	}
@@ -193,10 +196,10 @@ func checkTLSPublicKey(local, remote []byte) bool {
 //
 // Deprecated: Use the IngestMuxer instead.
 func NewTLSConnection(dst string, auth AuthHash, certs *TLSCerts, verify bool, tags []string) (*IngestConnection, error) {
-	return newTLSConnection(dst, SystemTenant, auth, certs, verify, tags)
+	return newTLSConnection(dst, SystemTenant, auth, certs, verify, tags, context.Background())
 }
 
-func newTLSConnection(dst, tenant string, auth AuthHash, certs *TLSCerts, verify bool, tags []string) (*IngestConnection, error) {
+func newTLSConnection(dst, tenant string, auth AuthHash, certs *TLSCerts, verify bool, tags []string, ctx context.Context) (*IngestConnection, error) {
 	if err := checkTags(tags); err != nil {
 		return nil, err
 	}
@@ -205,7 +208,7 @@ func newTLSConnection(dst, tenant string, auth AuthHash, certs *TLSCerts, verify
 		return nil, err
 	}
 
-	return completeIngestConnection(conn, src, tenant, auth, tags)
+	return completeIngestConnection(conn, src, tenant, auth, tags, ctx)
 }
 
 // negotiate a TLS connection and check the public cert if requested
@@ -245,10 +248,10 @@ func newTlsConn(dst string, certs *TLSCerts, verify bool) (net.Conn, net.IP, err
 //
 // Deprecated: Use the IngestMuxer instead.
 func NewTCPConnection(dst string, auth AuthHash, tags []string) (*IngestConnection, error) {
-	return newTCPConnection(dst, SystemTenant, auth, tags)
+	return newTCPConnection(dst, SystemTenant, auth, tags, context.Background())
 }
 
-func newTCPConnection(dst, tenant string, auth AuthHash, tags []string) (*IngestConnection, error) {
+func newTCPConnection(dst, tenant string, auth AuthHash, tags []string, ctx context.Context) (*IngestConnection, error) {
 	err := checkTags(tags)
 	if err != nil {
 		return nil, err
@@ -257,7 +260,7 @@ func newTCPConnection(dst, tenant string, auth AuthHash, tags []string) (*Ingest
 	if err != nil {
 		return nil, err
 	}
-	return completeIngestConnection(conn, src, tenant, auth, tags)
+	return completeIngestConnection(conn, src, tenant, auth, tags, ctx)
 }
 
 func newTcpConn(dst string) (net.Conn, net.IP, error) {
@@ -286,10 +289,10 @@ func newTcpConn(dst string) (net.Conn, net.IP, error) {
 //
 // Deprecated: Use the IngestMuxer instead.
 func NewPipeConnection(dst string, auth AuthHash, tags []string) (*IngestConnection, error) {
-	return newPipeConnection(dst, SystemTenant, auth, tags)
+	return newPipeConnection(dst, SystemTenant, auth, tags, context.Background())
 }
 
-func newPipeConnection(dst, tenant string, auth AuthHash, tags []string) (*IngestConnection, error) {
+func newPipeConnection(dst, tenant string, auth AuthHash, tags []string, ctx context.Context) (*IngestConnection, error) {
 	err := checkTags(tags)
 	if err != nil {
 		return nil, err
@@ -298,7 +301,7 @@ func newPipeConnection(dst, tenant string, auth AuthHash, tags []string) (*Inges
 	if err != nil {
 		return nil, err
 	}
-	return completeIngestConnection(conn, src, tenant, auth, tags)
+	return completeIngestConnection(conn, src, tenant, auth, tags, ctx)
 }
 
 func newPipeConn(dst string) (net.Conn, net.IP, error) {
@@ -310,14 +313,25 @@ func newPipeConn(dst string) (net.Conn, net.IP, error) {
 	return conn, localhostAddr, nil
 }
 
-func negotiateEntryWriter(conn net.Conn, tenant string, auth AuthHash, tags []string) (*EntryWriter, map[string]entry.EntryTag, error) {
+// negotiateEntryWriter will perform authentication, grab server versions, and a set of prenegotiated tags
+// this must ALL happen withen the authenticationTimeout, which is 5s.  If for some reason you can't authenticate and pull back all the tags
+// within 5s then we really need to consider this link as down and just bounce.
+func negotiateEntryWriter(conn net.Conn, tenant string, auth AuthHash, tags []string, ctx context.Context) (*EntryWriter, map[string]entry.EntryTag, error) {
+	// set a timeout that all authentication and dancing must be completed in
+	if err := conn.SetDeadline(time.Now().Add(authenticationTimeout)); err != nil {
+		return nil, nil, err
+	}
 	tagIDs, serverVersion, err := authenticate(conn, tenant, auth, tags)
 	if err != nil {
 		conn.Close()
 		return nil, nil, err
 	}
-
-	ew, err := NewEntryWriter(conn)
+	// clear the deadline
+	if err = conn.SetDeadline(time.Time{}); err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
+	ew, err := newEntryWriterCtx(conn, ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -326,9 +340,9 @@ func negotiateEntryWriter(conn net.Conn, tenant string, auth AuthHash, tags []st
 }
 
 // completeIngestConnection performs the authentication and tag negotiation
-func completeIngestConnection(conn net.Conn, src net.IP, tenant string, auth AuthHash, tags []string) (*IngestConnection, error) {
+func completeIngestConnection(conn net.Conn, src net.IP, tenant string, auth AuthHash, tags []string, ctx context.Context) (*IngestConnection, error) {
 	EnableKeepAlive(conn, defaultKeepAliveInterval)
-	ew, tagIDs, err := negotiateEntryWriter(conn, tenant, auth, tags)
+	ew, tagIDs, err := negotiateEntryWriter(conn, tenant, auth, tags, ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -340,6 +354,7 @@ func completeIngestConnection(conn net.Conn, src net.IP, tenant string, auth Aut
 		tags:    tagIDs,
 		running: true,
 		mtx:     sync.RWMutex{},
+		ctx:     ctx,
 	}
 	return &igst, nil
 }

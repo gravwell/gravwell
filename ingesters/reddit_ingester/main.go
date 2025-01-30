@@ -18,11 +18,10 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/turnage/graw/reddit"
 	"github.com/turnage/graw/streams"
-
-	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 const ()

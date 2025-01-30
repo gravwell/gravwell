@@ -10,6 +10,7 @@ package ingest
 
 import (
 	"bufio"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -45,7 +46,8 @@ const (
 
 	maxThrottleDur time.Duration = 5 * time.Second
 
-	flushTimeout time.Duration = 10 * time.Second
+	flushTimeout        time.Duration = 10 * time.Second
+	negotiateTagTimeout time.Duration = 10 * time.Second
 )
 
 const (
@@ -92,9 +94,15 @@ type EntryWriter struct {
 	id            entrySendID
 	ackTimeout    time.Duration
 	serverVersion uint16
+	ctx           context.Context
 }
 
 func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
+	//NewEntryWriterEx allows for passing in a good context
+	return newEntryWriterCtx(conn, context.Background())
+}
+
+func newEntryWriterCtx(conn net.Conn, ctx context.Context) (*EntryWriter, error) {
 	if err := setReadBuffer(conn, ACK_WRITER_BUFFER_SIZE); err != nil {
 		return nil, err
 	}
@@ -104,6 +112,7 @@ func NewEntryWriter(conn net.Conn) (*EntryWriter, error) {
 		OutstandingEntryCount: MAX_UNCONFIRMED_COUNT,
 		BufferSize:            WRITE_BUFFER_SIZE,
 		Timeout:               CLOSING_SERVICE_ACK_TIMEOUT,
+		CTX:                   ctx,
 	}
 	if err := ewc.validate(); err != nil {
 		return nil, err
@@ -117,6 +126,7 @@ type EntryReaderWriterConfig struct {
 	BufferSize            int
 	Timeout               time.Duration
 	TagMan                TagManager
+	CTX                   context.Context
 }
 
 func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
@@ -125,6 +135,9 @@ func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
 		return nil, err
 	}
 	utc := newUnthrottledConn(cfg.Conn)
+	if cfg.CTX == nil {
+		cfg.CTX = context.Background()
+	}
 
 	return &EntryWriter{
 		conn:       utc,
@@ -136,6 +149,7 @@ func NewEntryWriterEx(cfg EntryReaderWriterConfig) (*EntryWriter, error) {
 		buff:       make([]byte, READ_ENTRY_HEADER_SIZE),
 		id:         1,
 		ackTimeout: cfg.Timeout,
+		ctx:        cfg.CTX,
 	}, nil
 }
 
@@ -161,14 +175,21 @@ func (ew *EntryWriter) setConn(c conn) {
 }
 
 func (ew *EntryWriter) Close() (err error) {
+	return ew.closeTimeout(closeTimeout)
+}
+
+func (ew *EntryWriter) closeTimeout(to time.Duration) (err error) {
+	if to <= 0 {
+		to = closeTimeout
+	}
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
-
 	//try to set a deadline on the connection, we are exiting so everything BETTER wrap up within our closeTimeout
-	ew.conn.SetDeadline(time.Now().Add(closeTimeout))
+	ew.conn.SetDeadline(time.Now().Add(to))
 	defer ew.conn.SetDeadline(nilTime)
-
-	if err = ew.forceAckNoLock(); err == nil {
+	ctx, cf := context.WithTimeout(ew.ctx, to)
+	defer cf()
+	if err = ew.forceAckNoLock(ctx); err == nil {
 		if err = ew.conn.SetReadTimeout(ew.ackTimeout); err != nil {
 			err = ew.conn.Close()
 			ew.hot = false
@@ -177,7 +198,7 @@ func (ew *EntryWriter) Close() (err error) {
 		//read acks is a liberal implementation which will pull any available
 		//acks from the read buffer. We don't care if we get an error here
 		//because this is largely used when trying to refire a connection
-		err = ew.readAcks(true)
+		err = ew.readAcks(true, ctx)
 	}
 
 	ew.hot = false
@@ -188,13 +209,30 @@ func (ew *EntryWriter) Close() (err error) {
 func (ew *EntryWriter) ForceAck() error {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
-	return ew.forceAckNoLock()
+	return ew.forceAckNoLock(ew.ctx)
 }
 
+// forceAckCtx is just like ForceAck but lets us provide a different context
+// this is almost always for managing timeouts and shutdowns
+func (ew *EntryWriter) forceAckCtx(ctx context.Context) error {
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+	return ew.forceAckNoLock(ctx)
+}
+
+// outstandingEntries gives you a list of entries that have not been confirmed yet
+// the list IS NOT CLEARED, if you call it over and over you will get them all over and over
 func (ew *EntryWriter) outstandingEntries() []*entry.Entry {
 	ew.mtx.Lock()
 	defer ew.mtx.Unlock()
 	return ew.ecb.outstandingEntries()
+}
+
+// ejectOutstandingEntries is almost identical to outstandingEntries, but it also resets the confirmation buffer
+func (ew *EntryWriter) ejectOutstandingEntries() []*entry.Entry {
+	ew.mtx.Lock()
+	defer ew.mtx.Unlock()
+	return ew.ecb.ejectAll()
 }
 
 func (ew *EntryWriter) throwAckSync() error {
@@ -226,13 +264,16 @@ func (ew *EntryWriter) Ping() (err error) {
 // and ACK of all outstanding entries.  This is primarily used when
 // closing the connection to ensure that all the entries actually
 // made it to the ingester. The caller MUST hold the lock
-func (ew *EntryWriter) forceAckNoLock() error {
+func (ew *EntryWriter) forceAckNoLock(ctx context.Context) error {
 	if err := ew.throwAckSync(); err != nil {
 		return err
 	}
 	//begin servicing acks with blocking and a read deadline
 	for ew.ecb.Count() > 0 {
-		if err := ew.serviceAcks(true); err != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		if err := ew.serviceAcks(true, ctx); err != nil {
 			ew.conn.ClearReadTimeout()
 			return err
 		}
@@ -240,7 +281,7 @@ func (ew *EntryWriter) forceAckNoLock() error {
 	if ew.ecb.Count() > 0 {
 		return fmt.Errorf("Failed to confirm %d entries", ew.ecb.Count())
 	}
-	return nil
+	return ctx.Err() //if everything is fine this will return nil
 }
 
 // Write expects to have exclusive control over the entry and all
@@ -268,7 +309,7 @@ func (ew *EntryWriter) writeFlush(ent *entry.Entry, flush bool) (err error) {
 	}
 
 	//check if any acks can be serviced
-	if err = ew.serviceAcks(blocking); err == nil {
+	if err = ew.serviceAcks(blocking, ew.ctx); err == nil {
 		_, err = ew.writeEntry(ent, flush)
 	}
 
@@ -304,7 +345,7 @@ func (ew *EntryWriter) WriteWithHint(ent *entry.Entry) (bool, error) {
 	}
 
 	//check if any acks can be serviced
-	if err = ew.serviceAcks(blocking); err != nil {
+	if err = ew.serviceAcks(blocking, ew.ctx); err != nil {
 		return false, err
 	}
 	return ew.writeEntry(ent, true)
@@ -329,21 +370,22 @@ func (ew *EntryWriter) WriteBatch(ents [](*entry.Entry)) (int, error) {
 }
 
 func (ew *EntryWriter) writeEntry(ent *entry.Entry, flush bool) (bool, error) {
-	var flushed bool
-	var err error
 	//if our conf buffer is full force an ack service
 	if ew.ecb.Full() {
 		if err := ew.flush(); err != nil {
 			return false, err
 		}
-		if err := ew.serviceAcks(true); err != nil {
+		if err := ew.serviceAcks(true, ew.ctx); err != nil {
 			return false, err
 		}
 	}
 
 	flushed, ackId, err := ew.encodeAndSendEntry(ent, flush)
+	if err != nil {
+		return false, err
+	}
 
-	if err = ew.ecb.Add(&entryConfirmation{ackId, ent}); err != nil {
+	if err := ew.ecb.Add(&entryConfirmation{ackId, ent}); err != nil {
 		return false, err
 	}
 	return flushed, nil
@@ -557,7 +599,7 @@ func (ew *EntryWriter) SendIngesterState(state IngesterState) (err error) {
 	}
 
 	// First attempt to sync
-	err = ew.forceAckNoLock()
+	err = ew.forceAckNoLock(ew.ctx)
 	if err != nil {
 		return
 	}
@@ -647,7 +689,7 @@ func (ew *EntryWriter) SendIngesterAPIVersion() (err error) {
 	}
 
 	// First attempt to sync
-	err = ew.forceAckNoLock()
+	err = ew.forceAckNoLock(ew.ctx)
 	if err != nil {
 		return
 	}
@@ -716,7 +758,7 @@ func (ew *EntryWriter) IdentifyIngester(name string, version string, id string) 
 	}
 
 	// First attempt to sync
-	err = ew.forceAckNoLock()
+	err = ew.forceAckNoLock(ew.ctx)
 	if err != nil {
 		return
 	}
@@ -768,6 +810,7 @@ func (ew *EntryWriter) IdentifyIngester(name string, version string, id string) 
 }
 
 func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) {
+	ts := time.Now()
 	if err = CheckTag(name); err != nil {
 		return
 	}
@@ -780,7 +823,7 @@ func (ew *EntryWriter) NegotiateTag(name string) (tg entry.EntryTag, err error) 
 	}
 
 	// First attempt to sync
-	err = ew.forceAckNoLock()
+	err = ew.forceAckNoLock(ew.ctx)
 	if err != nil {
 		return
 	}
@@ -838,6 +881,10 @@ tagCmdLoop:
 			break tagCmdLoop
 		case PONG_MAGIC:
 			// unsolicited, can come whenever
+			if time.Since(ts) > negotiateTagTimeout {
+				err = ErrTimeout
+				break tagCmdLoop
+			}
 		default:
 			err = fmt.Errorf("Unexpected response to tag negotiation request: %#v", ac)
 			break tagCmdLoop
@@ -860,13 +907,13 @@ func (ew *EntryWriter) Ack() error {
 		ew.mtx.Unlock()
 		return nil
 	}
-	err := ew.serviceAcks(true)
+	err := ew.serviceAcks(true, ew.ctx)
 	ew.mtx.Unlock()
 	return err
 }
 
 // serviceAcks MUST be called with the parent holding the mutex
-func (ew *EntryWriter) serviceAcks(blocking bool) error {
+func (ew *EntryWriter) serviceAcks(blocking bool, ctx context.Context) error {
 	//only flush if we are blocking
 	if blocking && ew.bIO.Buffered() > 0 {
 		if err := ew.flush(); err != nil {
@@ -874,13 +921,13 @@ func (ew *EntryWriter) serviceAcks(blocking bool) error {
 		}
 	}
 	//attempt to read acks
-	if err := ew.readAcks(blocking); err != nil {
+	if err := ew.readAcks(blocking, ctx); err != nil {
 		if blocking && isTimeout(err) {
 			//if we attempted to read and we are full, force a sync, something is wrong
 			if err := ew.throwAckSync(); err != nil {
 				return err
 			}
-			return ew.readAcks(true)
+			return ew.readAcks(true, ctx)
 		}
 		return err
 	}
@@ -889,13 +936,13 @@ func (ew *EntryWriter) serviceAcks(blocking bool) error {
 		if err := ew.throwAckSync(); err != nil {
 			return err
 		}
-		return ew.readAcks(true)
+		return ew.readAcks(true, ctx)
 	}
 	return nil
 }
 
 // readAcks pulls out all of the acks in the ackBuffer and services them
-func (ew *EntryWriter) readAcks(blocking bool) (err error) {
+func (ew *EntryWriter) readAcks(blocking bool, ctx context.Context) (err error) {
 	var ac ackCommand
 	var ok bool
 	var dur time.Duration
@@ -937,9 +984,17 @@ loop:
 				break loop
 			}
 			blocking = origBlock
+			//check on our context, always let at least one cycle go through
+			if err = ctx.Err(); err != nil {
+				break loop
+			}
 		case PONG_MAGIC:
 			// try again
 			blocking = origBlock
+			//check on our context, always let at least one cycle go through
+			if err = ctx.Err(); err != nil {
+				break loop
+			}
 		}
 	}
 	if err == nil {

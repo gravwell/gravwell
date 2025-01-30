@@ -21,13 +21,12 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
-
 	"github.com/shirou/gopsutil/mem"
-
-	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 var (
@@ -231,7 +230,7 @@ func main() {
 		}
 	}
 	if iv != nil {
-		if err := iv.m.Sync(time.Second); err != nil {
+		if err := iv.m.Sync(utils.ExitSyncTimeout); err != nil {
 			fmt.Printf("ERROR: Failed to sync ingester: %v\n", err)
 			os.Exit(-1)
 		}

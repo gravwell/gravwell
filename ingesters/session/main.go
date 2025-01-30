@@ -24,11 +24,11 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
-
-	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 var (
@@ -222,7 +222,7 @@ mainLoop:
 	}
 	//wait for our ingest relay to exit
 	<-doneChan
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to sync: %v\n", err)
 	}
 	igst.Close()

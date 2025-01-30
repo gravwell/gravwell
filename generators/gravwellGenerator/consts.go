@@ -18,9 +18,8 @@ import (
 	"strings"
 
 	rd "github.com/Pallinder/go-randomdata"
-	"github.com/jaswdr/faker/v2"
-
 	"github.com/gravwell/gravwell/v4/generators/ipgen"
+	"github.com/jaswdr/faker/v2"
 )
 
 const (

@@ -20,6 +20,8 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
+	"github.com/google/gopacket/layers"
+	"github.com/google/gopacket/pcap"
 	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
@@ -27,9 +29,6 @@ import (
 	"github.com/gravwell/gravwell/v4/ingesters/base"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/utils/caps"
-
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 )
 
 const (
@@ -196,7 +195,7 @@ func main() {
 
 	exitFn()
 
-	if err = igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err = igst.Close(); err != nil {

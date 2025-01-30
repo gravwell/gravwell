@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2022 Gravwell, Inc. All rights reserved.
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -13,12 +13,15 @@ import (
 	"crypto/tls"
 	"encoding/binary"
 	"errors"
+	"fmt"
 	"math/rand"
 	"net"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
+
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 var (
@@ -170,4 +173,45 @@ func EnableKeepAlive(c net.Conn, period time.Duration) {
 			tc.SetKeepAlivePeriod(period)
 		}
 	}
+}
+
+type tagMaskTracker [0x2000]byte
+
+func (tmt *tagMaskTracker) add(tg entry.EntryTag) {
+	offset, mask := tagbitmask(tg)
+	tmt[offset] |= mask
+}
+
+func (tmt *tagMaskTracker) clear(tg entry.EntryTag) {
+	off, mask := tagbitmask(tg)
+	//remove the bit
+	if r := (tmt[off] & mask) != 0; r {
+		tmt[off] ^= mask
+	}
+}
+
+func (tmt *tagMaskTracker) has(tg entry.EntryTag) bool {
+	offset, mask := tagbitmask(tg)
+	return (tmt[offset] & mask) != 0
+}
+
+func tagbitmask(tg entry.EntryTag) (offset int, mask byte) {
+	offset = (int(tg) / 8)
+	mask = byte(1 << (int(tg) % 8))
+	return
+}
+
+func mergeError(ogErr, newErr error) error {
+	if ogErr == newErr {
+		return ogErr //if they are the same error, do not stack
+	} else if ogErr != nil && newErr != nil {
+		//stack the errors in a way that can be unwrapped if needed
+		return fmt.Errorf("%w %w", ogErr, newErr)
+	}
+	//check if one side is nil and if so, just return the other
+	if ogErr != nil && newErr == nil {
+		return ogErr
+	}
+	//incoming error is the first error or og is still nil
+	return newErr
 }
