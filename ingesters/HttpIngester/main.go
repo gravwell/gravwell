@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -21,18 +21,25 @@ import (
 	"path"
 	"time"
 
+	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
+	_ "time/tzdata"
+
 	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/utils/caps"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"golang.org/x/net/netutil"
 )
 
 const (
 	defaultConfigLoc  = `/opt/gravwell/etc/gravwell_http_ingester.conf`
 	defaultConfigDLoc = `/opt/gravwell/etc/gravwell_http_ingester.conf.d`
 	appName           = `httpingester`
+
+	httpServerReadHeaderTimeout = 5 * time.Second
+	httpServerIdleConnTimeout   = 10 * time.Second
 )
 
 var (
@@ -95,7 +102,7 @@ func main() {
 		ib.Logger.FatalCode(0, "failed to get stats item", log.KVErr(err))
 	}
 
-	hnd, err := newHandler(igst, lg, reqSI, entSI, bytesSI)
+	hnd, err := newHandler(igst, lg, reqSI, entSI, bytesSI, cfg.Max_Concurrent_Requests)
 	if err != nil {
 		lg.FatalCode(0, "Failed to create new handler")
 	}
@@ -180,12 +187,13 @@ func main() {
 	srv := &http.Server{
 		Addr:              cfg.Bind,
 		Handler:           hnd,
-		ReadHeaderTimeout: 5 * time.Second,
+		ReadHeaderTimeout: httpServerReadHeaderTimeout,
+		IdleTimeout:       httpServerIdleConnTimeout,
 		ErrorLog:          httpLogger,
 	}
 	srv.SetKeepAlivesEnabled(true)
 	var lst net.Listener
-	if lst, err = newListener(cfg.Bind, ib); err != nil {
+	if lst, err = newListener(cfg.Bind, ib, cfg.Max_Connections); err != nil {
 		lg.Fatalf("failed to bind to %v %v", cfg.Bind, err)
 	}
 	defer lst.Close()
@@ -235,7 +243,7 @@ func main() {
 			}
 		}
 	}
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		lg.Error("failed to sync muxer on close", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
@@ -292,13 +300,19 @@ type instrumentListener struct {
 	lst net.Listener
 }
 
-func newListener(bind string, ib base.IngesterBase) (lst net.Listener, err error) {
+func newListener(bind string, ib base.IngesterBase, maxConn int) (lst net.Listener, err error) {
 	var si *utils.StatsItem
 	var tlst net.Listener
 	if si, err = ib.RegisterStat(`connections`); err != nil {
 		return
 	} else if tlst, err = net.Listen(`tcp`, bind); err != nil {
 		return
+	}
+	if maxConn > 0 {
+		//if maxConn is set, then we wrap our listener in a LimitListener
+		//This will effectively control how many active connections we will service
+		//by throttling Accepts
+		tlst = netutil.LimitListener(tlst, maxConn)
 	}
 	lst = &instrumentListener{
 		s:   si,

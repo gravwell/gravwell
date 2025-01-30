@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
 )
 
@@ -132,7 +133,7 @@ func (m *mainService) shutdown() error {
 				}
 			}
 		}
-		if err := m.igst.Sync(time.Second); err != nil {
+		if err := m.igst.Sync(utils.ExitSyncTimeout); err != nil {
 			rerr = fmt.Errorf("Failed to sync the ingest muxer: %v", err)
 			errorout("%s", rerr)
 		} else {
@@ -206,9 +207,17 @@ func (m *mainService) initWithCancel(ctx context.Context, cf context.CancelFunc,
 	go func(ctx context.Context, rc chan error) {
 		now := time.Now()
 		err := m.init(ctx)
+		// if init comes back too fast
+		// just chill for a bit so other service signals can complete.
+		// we have to do this because the windows service manager expects a bunch of signals
+		// to happen in some specific order.  Some of which have to be signals fired as a result
+		// of other signals, so basically, just chill until all that can happen, then we can
+		// die a horrible death.  If we don't, the service manager loses its mind.
 		if d := time.Since(now); d < minServiceLiveTime && ctx.Err() == nil {
-			errorout("Service failed instantly, waiting %v to exit", minServiceLiveTime-d)
 			sleepContext(ctx, minServiceLiveTime-d)
+		}
+		if err != nil {
+			errorout("Service exiting with error %v", err)
 		}
 
 		rc <- err
@@ -370,6 +379,7 @@ func (m *mainService) init(ctx context.Context) error {
 		}
 		if rex, ok, err := val.TimestampDelimited(); err != nil {
 			errorout("Invalid timestamp delimiter: %v\n", err)
+			return err
 		} else if ok {
 			c.Engine = filewatch.RegexEngine
 			c.EngineArgs = rex
@@ -397,7 +407,7 @@ func (m *mainService) init(ctx context.Context) error {
 	var quit bool
 	debugout("Performing catchup scan\n")
 	if quit, err = m.wtchr.Catchup(relayContextChannel(ctx2)); err != nil {
-		debugout("Failed to perform catchup: %v\n", err)
+		errorout("Failed to perform catchup: %v", err)
 		return err
 	}
 	cf() //to get the routine to shutdown

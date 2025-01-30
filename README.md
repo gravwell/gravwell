@@ -1,4 +1,4 @@
-[![Go Reference](https://pkg.go.dev/badge/github.com/gravwell/gravwell/v3.svg)](https://pkg.go.dev/github.com/gravwell/gravwell/v3)
+[![Go Reference](https://pkg.go.dev/badge/github.com/gravwell/gravwell/v4.svg)](https://pkg.go.dev/github.com/gravwell/gravwell/v4)
 
 # Gravwell Open-Source Code
 

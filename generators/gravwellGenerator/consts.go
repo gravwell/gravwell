@@ -13,18 +13,21 @@ import (
 	"math"
 	"math/rand"
 	"net"
+	"os"
+	"strconv"
 	"strings"
 
 	rd "github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/generators/ipgen"
+	"github.com/jaswdr/faker/v2"
 )
 
 const (
 	maxGroups int = 64
-	maxUsers  int = 1024 * 1024
+	maxUsers  int = 256 * 1024
+	maxHosts  int = 512 * 1024
+	maxApps   int = 25000
 
-	hcount   int    = 32
-	appcount int    = 2048
 	tsFormat string = `2006-01-02T15:04:05.999999Z07:00`
 )
 
@@ -36,6 +39,14 @@ var (
 		"icmp": []string{"-"},
 		"tcp":  []string{"-", "http", "ssl", "ssh"},
 		"udp":  []string{"-", "dns", "dhcp", "krb", "dtls"},
+	}
+	operating_systems = []string{
+		`windows`,
+		`linux`,
+		`macos`,
+		`sun solaris`,
+		`beos`,
+		`android`,
 	}
 	states = []string{
 		"OTH",
@@ -137,10 +148,13 @@ var (
 	v6gen      *ipgen.V6Gen
 	serverIPs  []net.IP
 	serverIP6s []net.IP
+
+	fake = faker.New()
 )
 
 func init() {
 	var err error
+
 	v4gen, err = ipgen.RandomWeightedV4Generator(40)
 	if err != nil {
 		log.Fatalf("Failed to instantiate v4 generator: %v", err)
@@ -154,13 +168,6 @@ func init() {
 	}
 	for i := 0; i < 4; i++ {
 		serverIP6s = append(serverIP6s, v6gen.IP())
-	}
-
-	for i := 0; i < hcount; i++ {
-		hosts = append(hosts, rd.Noun())
-	}
-	for i := 0; i < appcount; i++ {
-		apps = append(apps, rd.Adjective())
 	}
 }
 
@@ -187,6 +194,12 @@ type ComplexLocation struct {
 	Long    float64 `json:"long" xml:"long,attr"`
 	Country string  `json:"country" xml:"country,attr"`
 	State   string  `json:"state" xml:"state,attr"`
+}
+
+func seedVars(cnt int) {
+	seedUsers(overrideCount(cnt, maxUsers, `USER_COUNT`), overrideCount(cnt, maxGroups, `GROUP_COUNT`))
+	seedHosts(overrideCount(int(float64(cnt)/50.0), maxHosts, `HOST_COUNT`))
+	seedApps(overrideCount(int(float64(cnt)*50.0), maxApps, `APP_COUNT`))
 }
 
 func seedUsers(usercount, gcount int) {
@@ -222,6 +235,35 @@ func seedUsers(usercount, gcount int) {
 		}
 		users = append(users, a)
 	}
+}
+
+func seedHosts(cnt int) {
+	fint := fake.Internet()
+	hosts = make([]string, 0, cnt)
+	for i := 0; i < cnt; i++ {
+		if (i & 1) == 0 {
+			hosts = append(hosts, rd.Noun())
+		} else {
+			hosts = append(hosts, fint.Domain())
+		}
+	}
+}
+
+func seedApps(cnt int) {
+	for i := 0; i < cnt; i++ {
+		apps = append(apps, fake.App().Name())
+	}
+}
+
+func getRandString(v []string) (r string) {
+	if len(v) > 0 {
+		r = v[rand.Intn(len(v))]
+	}
+	return
+}
+
+func getOS() string {
+	return getRandString(operating_systems)
 }
 
 func getUser() Account {
@@ -343,4 +385,18 @@ func randLatLong() float64 {
 func roundFloat(val float64, precision uint) float64 {
 	ratio := math.Pow(10, float64(precision))
 	return float64(math.Round(val*ratio) / ratio)
+}
+
+func overrideCount(cnt, max int, envName string) int {
+	if cnt > max {
+		cnt = max
+	}
+	val := os.Getenv(envName)
+	if envName == `` || val == `` {
+		return cnt
+	}
+	if v, err := strconv.ParseInt(val, 10, 64); err == nil || v > 0 {
+		cnt = int(v)
+	}
+	return cnt
 }

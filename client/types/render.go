@@ -152,6 +152,7 @@ type BaseResponse struct {
 
 	// Indicates that the query results exceeded the on-disk storage limits.
 	OverLimit bool
+
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
 
@@ -161,6 +162,10 @@ type BaseResponse struct {
 	//Interval is the number of seconds between hits on the search control REST API for a given second
 	//that can transpire before we consider the search session abandoned
 	Interval uint
+
+	// Indicates that there is some warning about the query results the user should be aware of.
+	// Will be empty if no warning is present.
+	Warning string
 }
 
 func (br BaseResponse) Err() error {
@@ -296,12 +301,20 @@ type OverviewStatSet struct {
 type OverviewStats struct {
 	//indicates where in the search span the query currently is, can be used for progress
 	SearchPosition entry.Timestamp
+
 	//indicates if the search is finished
 	Finished bool
+
 	// Indicates that the query results exceeded the on-disk storage limits.
 	OverLimit bool
+
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
+
+	// Indicates that there is some warning about the query results the user should be aware of.
+	// Will be empty if no warning is present.
+	Warning string
+
 	// For some renderers, the EntryCount accurately represents the total
 	// number of results available. This field is set to 'true' in that case,
 	// meaning the EntryCount number can be displayed alongside the results

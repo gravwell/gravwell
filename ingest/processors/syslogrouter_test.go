@@ -111,7 +111,11 @@ func TestSyslogRouterRoute(t *testing.T) {
 		//some rfc3164 entries
 		testTagSet{tag: `box-very_large_syslog_message_tag`, data: `<34>Oct 11 22:14:15 box very.large.syslog.message.tag: 'su root' failed for lonvick on /dev/pts/8`},
 		testTagSet{tag: `box-foo_bar#baz`, data: `<34>Oct 11 22:14:15 box foo!bar#baz: 'su root' failed for lonvick on /dev/pts/8`},
+		//some bad entries
 		testTagSet{tag: ``, data: `not syslog`},
+		testTagSet{tag: ``, data: `not syslog that is long`},
+		testTagSet{tag: ``, data: `x`},
+		testTagSet{tag: ``, data: ``},
 	}
 
 	for _, v := range testSet {

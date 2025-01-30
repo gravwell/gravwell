@@ -16,7 +16,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"time"
 
 	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/filewatch"
@@ -213,7 +212,7 @@ func main() {
 
 	//wait for our ingest relay to exit
 	lg.Info("filefollower ingester exiting", log.KV("ingesteruuid", id))
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {

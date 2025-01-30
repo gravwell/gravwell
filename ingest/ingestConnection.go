@@ -9,10 +9,12 @@
 package ingest
 
 import (
+	"context"
 	"errors"
 	"io"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
@@ -23,10 +25,11 @@ const (
 )
 
 var (
-	localSrc        = net.ParseIP("127.0.0.1")
-	ErrEmptyTag     = errors.New("Tag name is empty")
-	ErrOversizedTag = errors.New("Tag name is too long")
-	ErrForbiddenTag = errors.New("Forbidden character in tag")
+	localSrc          = net.ParseIP("127.0.0.1")
+	ErrEmptyTag       = errors.New("Tag name is empty")
+	ErrOversizedTag   = errors.New("Tag name is too long")
+	ErrForbiddenTag   = errors.New("Forbidden character in tag")
+	ErrInvalidTimeout = errors.New("invalid timeout value")
 )
 
 // IngestConnection is a lower-level interface for connecting to and
@@ -42,6 +45,7 @@ type IngestConnection struct {
 	running    bool
 	errorState error
 	mtx        sync.RWMutex
+	ctx        context.Context // this is the parent context from the main muxer
 }
 
 func (igst *IngestConnection) String() (s string) {
@@ -65,6 +69,20 @@ func (igst *IngestConnection) Close() error {
 	}
 	igst.running = false
 	return igst.ew.Close()
+}
+
+func (igst *IngestConnection) closeTimeout(to time.Duration) error {
+	if to <= 0 {
+		//if someone alls this without a valid timeout, just use the exported one
+		return igst.Close()
+	}
+	igst.mtx.Lock()
+	defer igst.mtx.Unlock()
+	if !igst.running {
+		return errors.New("Already closed")
+	}
+	igst.running = false
+	return igst.ew.closeTimeout(to)
 }
 
 func (igst *IngestConnection) IdentifyIngester(name, version, id string) (err error) {
@@ -93,6 +111,15 @@ func (igst *IngestConnection) outstandingEntries() []*entry.Entry {
 		return nil
 	}
 	return igst.ew.outstandingEntries()
+}
+
+func (igst *IngestConnection) ejectOutstandingEntries() []*entry.Entry {
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
+	if igst.ew == nil {
+		return nil
+	}
+	return igst.ew.ejectOutstandingEntries()
 }
 
 func (igst *IngestConnection) Write(ts entry.Timestamp, tag entry.EntryTag, data []byte) error {
@@ -140,6 +167,15 @@ func (igst *IngestConnection) WriteEntrySync(ent *entry.Entry) error {
 	return igst.ew.WriteSync(ent)
 }
 
+func (igst *IngestConnection) WriteDittoBlock(ents []entry.Entry) error {
+	igst.mtx.RLock()
+	defer igst.mtx.RUnlock()
+	if igst.running == false {
+		return errors.New("Not running")
+	}
+	return igst.ew.WriteDittoBlock(ents)
+}
+
 func (igst *IngestConnection) GetTag(name string) (entry.EntryTag, bool) {
 	igst.mtx.RLock()
 	defer igst.mtx.RUnlock()
@@ -161,6 +197,10 @@ func (igst *IngestConnection) NegotiateTag(name string) (tg entry.EntryTag, err 
 	tg, ok := igst.tags[name]
 	if ok {
 		return tg, nil
+	}
+	if len(igst.tags) >= int(entry.MaxTagId) {
+		err = ErrTooManyTags
+		return
 	}
 
 	if !igst.running {
@@ -187,15 +227,39 @@ func (igst *IngestConnection) SendIngesterState(state IngesterState) error {
 	return igst.ew.SendIngesterState(state)
 }
 
-/* Sync causes the entry writer to force an ack from the server.  This ensures that all
-*  entries that have been written are flushed and fully acked by the server. */
-func (igst *IngestConnection) Sync() error {
+// Sync causes the entry writer to force an ack from the server.  This ensures that all
+// entries that have been written are flushed and fully acked by the server.
+// Warning, this can block forever if the remote side is servicing ping/pong but not acking.
+func (igst *IngestConnection) Sync() (err error) {
 	igst.mtx.RLock()
-	defer igst.mtx.RUnlock()
 	if !igst.running {
-		return ErrNotRunning
+		err = ErrNotRunning
+	} else {
+		err = igst.ew.ForceAck()
 	}
-	return igst.ew.ForceAck()
+	igst.mtx.RUnlock()
+	return
+}
+
+// syncTimeout is like sync, but we force the ack reader to receive all acks within the given time frame
+// there are a bunch of internal read timeouts, so the passed timeout is NOT a hard timeout, it can go much longer
+// this is just a "please and thank you" assuming that we are able to actually read from the other end
+// if a connection completely stalls there might be other internal timeouts that have to hit before it is checked
+func (igst *IngestConnection) syncTimeout(to time.Duration) (err error) {
+	ctx := igst.ctx
+	if to > 0 {
+		var cf context.CancelFunc
+		ctx, cf = context.WithTimeout(igst.ctx, to)
+		defer cf()
+	}
+	igst.mtx.RLock()
+	if !igst.running {
+		err = ErrNotRunning
+	} else {
+		err = igst.ew.forceAckCtx(ctx)
+	}
+	igst.mtx.RUnlock()
+	return
 }
 
 func (igst *IngestConnection) Running() bool {

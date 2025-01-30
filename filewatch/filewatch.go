@@ -423,7 +423,11 @@ func (wm *WatchManager) Catchup(qc chan os.Signal) (bool, error) {
 	}
 
 	for _, wf := range toProcess {
-		if quit, err := wm.fman.CatchupFile(wf, qc); err != nil || quit {
+		quit, err := wm.fman.CatchupFile(wf, qc)
+		if err != nil {
+			wm.logger.Warn("failed to catch up file", log.KV("file", wf.pth), log.KV("error", err))
+		}
+		if quit {
 			return quit, err
 		}
 	}

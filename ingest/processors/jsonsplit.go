@@ -14,9 +14,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/buger/jsonparser"
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/jsonparser"
 )
 
 const (

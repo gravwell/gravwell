@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/attach"
 	"github.com/gravwell/gravwell/v4/ingest/config"
@@ -52,11 +52,11 @@ type KafkaAuthConfig struct {
 }
 
 type ConfigConsumer struct {
-	Leader             string
+	Leader             []string
 	Topic              string
 	Consumer_Group     string
 	Source_Override    string
-	Rebalance_Strategy string
+	Rebalance_Strategy []string
 	Source_Header      string
 	Tag_Header         string
 	Source_As_Binary   bool
@@ -86,10 +86,10 @@ type ConfigConsumer struct {
 type consumerCfg struct {
 	tags.TaggerConfig
 	defTag      string
-	leader      string
+	leader      []string
 	topic       string
 	group       string
-	strat       sarama.BalanceStrategy
+	strats      []sarama.BalanceStrategy
 	sync        bool
 	batchSize   int
 	srcKey      string
@@ -260,12 +260,18 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 
 	//check leader
 	if len(cc.Leader) == 0 {
-		err = errors.New("Missing leader type")
+		err = errors.New("Missing Kafka Leader(s)")
 		return
 	}
-	c.leader = config.AppendDefaultPort(cc.Leader, defaultPort)
-	if _, _, err = net.SplitHostPort(c.leader); err != nil {
-		return
+
+	for _, l := range cc.Leader {
+		leader := config.AppendDefaultPort(l, defaultPort)
+		if _, _, err = net.SplitHostPort(leader); err != nil {
+			//wrap the error to show what we are mad about
+			err = fmt.Errorf("invalid Leader %q - %w", l, err)
+			return
+		}
+		c.leader = append(c.leader, leader)
 	}
 
 	//check the topic
@@ -338,22 +344,31 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 
 	c.preprocessor = cc.Preprocessor
 
-	c.strat, err = cc.balanceStrat()
+	c.strats, err = cc.balanceStrats()
 	return
 }
 
-func (cc ConfigConsumer) balanceStrat() (st sarama.BalanceStrategy, err error) {
-	switch strings.ToLower(strings.TrimSpace(cc.Rebalance_Strategy)) {
-	case `sticky`:
-		st = sarama.BalanceStrategySticky
-	case `range`:
-		st = sarama.BalanceStrategyRange
-	case `roundrobin`:
-		st = sarama.BalanceStrategyRoundRobin
-	case ``:
-		st = sarama.BalanceStrategyRoundRobin
-	default:
-		err = errors.New("Unknown balance strategy")
+func (cc ConfigConsumer) balanceStrats() (st []sarama.BalanceStrategy, err error) {
+	//if non specified just use a default of all of them
+	if len(cc.Rebalance_Strategy) == 0 {
+		st = []sarama.BalanceStrategy{
+			sarama.NewBalanceStrategyRoundRobin(),
+			sarama.NewBalanceStrategyRange(),
+			sarama.NewBalanceStrategySticky(),
+		}
+		return
+	}
+	for _, v := range cc.Rebalance_Strategy {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case `sticky`:
+			st = append(st, sarama.NewBalanceStrategySticky())
+		case `range`:
+			st = append(st, sarama.NewBalanceStrategyRange())
+		case `roundrobin`:
+			st = append(st, sarama.NewBalanceStrategyRoundRobin())
+		default:
+			err = fmt.Errorf("Unknown balance strategy %q", v)
+		}
 	}
 	return
 }

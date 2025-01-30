@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -123,7 +123,7 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 		if cfg.Version, err = sarama.ParseKafkaVersion(currKafkaVersion); err != nil {
 			return
 		}
-		cfg.Consumer.Group.Rebalance.Strategy = kc.strat
+		cfg.Consumer.Group.Rebalance.GroupStrategies = kc.strats
 		cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
 
 		if kc.useTLS {
@@ -140,7 +140,7 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 		}
 
 		var clnt sarama.ConsumerGroup
-		if clnt, err = sarama.NewConsumerGroup([]string{kc.leader}, kc.group, cfg); err != nil {
+		if clnt, err = sarama.NewConsumerGroup(kc.leader, kc.group, cfg); err != nil {
 			return
 		}
 		wg.Add(1)

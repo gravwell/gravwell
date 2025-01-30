@@ -113,7 +113,13 @@ func (c *Client) GenerateRecoveryCodes(user, pass string, authtype types.AuthTyp
 		Remaining int
 		Generated time.Time
 	}
-	err = c.methodStaticPushURL(http.MethodPost, mfaGenerateRecoveryCodesUrl(), rq, &resp, nil, nil)
-	codes = types.RecoveryCodes{resp.Enabled, resp.Codes, resp.Remaining, resp.Generated}
+	if err = c.methodStaticPushURL(http.MethodPost, mfaGenerateRecoveryCodesUrl(), rq, &resp, nil, nil); err == nil {
+		codes = types.RecoveryCodes{
+			Enabled:   resp.Enabled,
+			Codes:     resp.Codes,
+			Remaining: resp.Remaining,
+			Generated: resp.Generated,
+		}
+	}
 	return
 }

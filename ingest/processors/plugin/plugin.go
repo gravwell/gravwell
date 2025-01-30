@@ -57,6 +57,46 @@ const (
 	done       pluginState = 4
 )
 
+type FaultError struct {
+	err       error
+	backtrace string
+}
+
+func newFaultError(err error, bt any) *FaultError {
+	if err == nil {
+		return nil
+	}
+	var bts string
+	if bt != nil {
+		bts = fmt.Sprintf("%v", bt)
+	}
+	return &FaultError{
+		err:       err,
+		backtrace: bts,
+	}
+}
+
+func (fe *FaultError) Error() string {
+	if fe == nil || fe.err == nil {
+		return `<nil>`
+	}
+	return fmt.Sprintf("%v - %s", fe.err.Error(), fe.backtrace)
+}
+
+func (fe *FaultError) RawError() error {
+	if fe == nil || fe.err == nil {
+		return nil
+	}
+	return fe.err
+}
+
+func (fe *FaultError) Backtrace() string {
+	if fe == nil || fe.err == nil {
+		return ``
+	}
+	return fe.backtrace
+}
+
 func NewPluginProgram(content []byte, debug bool) (pp *PluginProgram, err error) {
 	if len(content) == 0 {
 		err = ErrInvalidScript
@@ -210,6 +250,11 @@ func (pp *PluginProgram) Run(to time.Duration) (err error) {
 
 func (pp *PluginProgram) Start() (err error) {
 	if st := pp.getState(); st == registered {
+		defer func() {
+			if r := recover(); r != nil {
+				err = newFaultError(errors.New("failed to start program"), r)
+			}
+		}()
 		//if we are registered, fire up the Start function
 		if err = pp.startf(); err == nil {
 			pp.setState(running)
@@ -228,10 +273,17 @@ func (pp *PluginProgram) Close() (err error) {
 		return
 	}
 
+	defer func() {
+		if r := recover(); r != nil {
+			err = newFaultError(errors.New("failed to close program"), r)
+		}
+	}()
+
 	var perr error
 	if cf := pp.closef; cf != nil {
 		perr = cf()
 	}
+
 	pp.Done()
 	time.Sleep(250 * time.Millisecond) //let the program close out
 	pp.cancel()                        //go down hard
@@ -250,7 +302,14 @@ func (pp *PluginProgram) Config(vc *config.VariableConfig, tg Tagger) error {
 	} else if st := pp.getState(); st != registered {
 		return fmt.Errorf("bad state, %s != %s", st, registered)
 	}
-	return pp.cf(vc, tg)
+	var err error
+	defer func() {
+		if r := recover(); r != nil {
+			err = newFaultError(errors.New("failed to call Config"), r)
+		}
+	}()
+	err = pp.cf(vc, tg)
+	return err
 }
 
 func (pp *PluginProgram) Flush() []*entry.Entry {
@@ -260,17 +319,29 @@ func (pp *PluginProgram) Flush() []*entry.Entry {
 		return nil
 	}
 
+	defer func() {
+		// we can't propagate the error up here and we don't have a logger... :(
+		recover()
+	}()
+
 	return pp.ff()
 }
 
-func (pp *PluginProgram) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
+func (pp *PluginProgram) Process(ents []*entry.Entry) (pents []*entry.Entry, err error) {
 	if pp == nil || pp.cf == nil {
 		return nil, ErrNotReady
 	} else if st := pp.getState(); st != running {
 		return nil, fmt.Errorf("bad state, %s != %s", st, running)
 	}
 
-	return pp.pf(ents)
+	defer func() {
+		if r := recover(); r != nil {
+			err = newFaultError(errors.New("failed to call Process"), r)
+		}
+	}()
+
+	pents, err = pp.pf(ents)
+	return
 }
 
 // Ready indicates if the program is running and has registered all the things we need
@@ -291,7 +362,7 @@ func (pp *PluginProgram) execute() {
 	if pp.debug {
 		pf = stdoutPrint
 	}
-	//defer execCatcher(pp.dc) //catch the nasties
+	defer execCatcher(pp.dc) //catch the nasties
 	opts := scriggo.RunOptions{
 		Context: pp.ctx,
 		Print:   pf,
@@ -321,15 +392,14 @@ func builtinItems(pp *PluginProgram) native.Declarations {
 
 func buildCatcher(err *error) {
 	if r := recover(); r != nil {
-		*err = fmt.Errorf("Critical Error, failed to build program - %v", r)
+		*err = newFaultError(errors.New("failed to build program"), r)
 	}
 }
 
 func execCatcher(dc chan error) {
 	if r := recover(); r != nil {
-		fmt.Println("RECOVER", r)
 		if dc != nil {
-			dc <- fmt.Errorf("Critical Error, failed to execute program - %v", r)
+			dc <- newFaultError(errors.New("failed to execute program"), r)
 		}
 	}
 }

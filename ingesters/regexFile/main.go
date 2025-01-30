@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -20,13 +20,15 @@ import (
 	"runtime/debug"
 	"time"
 
+	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
+	_ "time/tzdata"
+
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingesters/args"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
 	"github.com/gravwell/gravwell/v4/timegrinder"
-
-	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
 )
 
 const (

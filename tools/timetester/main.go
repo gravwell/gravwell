@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -13,6 +13,9 @@ import (
 	"fmt"
 	"log"
 	"time"
+
+	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
+	_ "time/tzdata"
 
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/timegrinder"
@@ -55,9 +58,10 @@ func main() {
 				continue
 			}
 			cf := timegrinder.CustomFormat{
-				Name:   k,
-				Regex:  v.Regex,
-				Format: v.Format,
+				Name:             k,
+				Regex:            v.Regex,
+				Format:           v.Format,
+				Extraction_Regex: v.Extraction_Regex,
 			}
 			if cp, err := timegrinder.NewCustomProcessor(cf); err != nil {
 				log.Fatalf("Invalid custom format %q: %v\n", k, err)
