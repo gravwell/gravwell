@@ -328,18 +328,18 @@ func rfc5424StartIndex(buf []byte) (idx, sz int) {
 }
 
 type readTimeoutPumper struct {
-	conn     net.Conn
-	interval time.Duration
-	last     time.Time
+	conn    net.Conn
+	timeout time.Duration
+	last    time.Time
 }
 
-func newReadTimeoutPumper(conn net.Conn, interval time.Duration) *readTimeoutPumper {
-	if interval <= 0 {
-		interval = defaultReaderPumpInterval
+func newReadTimeoutPumper(conn net.Conn, timeout time.Duration) *readTimeoutPumper {
+	if timeout <= 0 {
+		timeout = defaultReaderPumpInterval
 	}
 	return &readTimeoutPumper{
-		conn:     conn,
-		interval: interval,
+		conn:    conn,
+		timeout: timeout,
 	}
 }
 
@@ -352,7 +352,7 @@ func (rtp *readTimeoutPumper) lastRead() time.Duration {
 
 func (rtp *readTimeoutPumper) Read(buff []byte) (n int, err error) {
 	//set timeout
-	if err = rtp.conn.SetReadDeadline(time.Now().Add(rtp.interval)); err != nil {
+	if err = rtp.conn.SetReadDeadline(time.Now().Add(rtp.timeout)); err != nil {
 		return
 	}
 	n, err = rtp.conn.Read(buff)
