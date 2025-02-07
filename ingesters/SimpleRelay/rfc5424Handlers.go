@@ -16,11 +16,20 @@ import (
 	"net"
 	"os"
 	"regexp"
+	"time"
 
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+)
+
+const (
+	// the default amount of time we will pump the RFC5424 TCP reader
+	// we have to do this because the last entry read is held until the connection drops
+	// or we get a new entry, so we will periodically pump the reader
+	defaultReaderPumpInterval time.Duration = 5 * time.Second
+	maxDataStaleTime          time.Duration = 10 * time.Second
 )
 
 func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
@@ -74,7 +83,11 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 			return
 		}
 	}
-	s := bufio.NewScanner(c)
+	//wrap our connection in a read pumper so that we can force the scanner to wake up periodcally
+	//this lets us detect a message that doesn't have a terminator and has been sitting in the buffer
+	//for a while.  Overall this is a way to enable the SimpleRelay ingster to detect the "last log message" and push it once its been sitting for a while
+	pumper := newReadTimeoutPumper(c, defaultReaderPumpInterval)
+	s := bufio.NewScanner(pumper)
 	s.Buffer(make([]byte, initDataSize), maxDataSize)
 	splitter := func(data []byte, atEOF bool) (advance int, token []byte, err error) {
 		idx, sz := rfc5424StartIndex(data)
@@ -86,8 +99,17 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 				//we are oversized, just throw what we have
 				advance = maxRFCSize
 				token = data[0:advance]
+			} else {
+				//ask for more data
+				if len(data) > 0 && pumper.lastRead() > maxDataStaleTime {
+					//throw what we have, its been sitting for a while
+					advance = len(data)
+					token = data
+					return
+				}
+				//asking for more data
 			}
-			return //ask for more data
+			return
 		}
 		if idx > 0 {
 			advance = idx //advance to start the match
@@ -100,8 +122,17 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 			if atEOF {
 				token = data
 				err = bufio.ErrFinalToken
+			} else {
+				//ask for more data
+				if len(data) > 0 && pumper.lastRead() > maxDataStaleTime {
+					//throw what we have, its been sitting for a while
+					advance = len(data)
+					token = data
+					return
+				}
+				//asking for more data
 			}
-			return //ask for more data
+			return
 		}
 		advance = sz + idx2
 		token = data[:advance]
@@ -294,4 +325,62 @@ func rfc5424StartIndex(buf []byte) (idx, sz int) {
 	}
 	//if we hit here, its bad
 	return -1, 0
+}
+
+type readTimeoutPumper struct {
+	conn    net.Conn
+	timeout time.Duration
+	last    time.Time
+}
+
+func newReadTimeoutPumper(conn net.Conn, timeout time.Duration) *readTimeoutPumper {
+	if timeout <= 0 {
+		timeout = defaultReaderPumpInterval
+	}
+	return &readTimeoutPumper{
+		conn:    conn,
+		timeout: timeout,
+	}
+}
+
+func (rtp *readTimeoutPumper) lastRead() time.Duration {
+	if rtp.last.IsZero() {
+		return 0
+	}
+	return time.Since(rtp.last)
+}
+
+func (rtp *readTimeoutPumper) Read(buff []byte) (n int, err error) {
+	//set timeout
+	if err = rtp.conn.SetReadDeadline(time.Now().Add(rtp.timeout)); err != nil {
+		return
+	}
+	n, err = rtp.conn.Read(buff)
+	if err != nil {
+		// clear timeout not matter what
+		rtp.conn.SetReadDeadline(time.Time{})
+		if isTimeout(err) {
+			//only pump the artificial newline if we read nothing and there is a buffer
+			if n <= 0 && len(buff) > 0 {
+				n = 1
+				buff[0] = 0xA // this will get trimmed off
+			}
+			err = nil // if its just a timeout, clear the error
+		}
+	} else {
+		//clear timeout but set error
+		err = rtp.conn.SetReadDeadline(time.Time{})
+		// got an actual read, so update last timestamp
+		rtp.last = time.Now()
+	}
+	return
+}
+
+func isTimeout(err error) bool {
+	if err == nil {
+		return false
+	} else if nerr, ok := err.(net.Error); ok {
+		return nerr.Timeout()
+	}
+	return false
 }
