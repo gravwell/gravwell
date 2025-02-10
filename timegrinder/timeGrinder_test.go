@@ -231,6 +231,51 @@ func TestExactUnix(t *testing.T) {
 	}
 }
 
+func TestTimestampCutoff(t *testing.T) {
+	baseTg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cutoff, _ := time.Parse(time.RFC3339Nano, `2000-01-01T00:00:00Z`)
+	cfg := Config{
+		TimestampCutoff: cutoff,
+	}
+	tg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctime, err := time.Parse(time.RFC3339Nano, `1980-01-01T12:00:00Z`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidates := []string{
+		"315576000",
+		"01 Jan 80 12:00 UTC",
+		"1980-01-01T12:00:00Z",
+		"315576000000",
+	}
+	for _, candidate := range candidates {
+		// Make sure we can extract it with the base configuration
+		ts, ok, err := baseTg.Extract([]byte(candidate))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !ok {
+			t.Fatal("Failed to extract timestamp " + candidate)
+		} else if ctime != ts {
+			t.Fatalf("Timestamp extraction is wrong: candidate = %v, %v != %v", candidate, ctime, ts)
+		}
+		// Make sure we *can't* extract it with the cutoff enabled
+		ts, ok, err = tg.Extract([]byte(candidate))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ok {
+			t.Fatalf("Extracted timestamp when we shouldn't: candidate = %v, extraction = %v", candidate, ts)
+		}
+	}
+}
+
 func TestNonDigitUnix(t *testing.T) {
 	tg, err := New(cfg)
 	if err != nil {

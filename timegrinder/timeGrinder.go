@@ -54,6 +54,9 @@ type Config struct {
 	EnableLeftMostSeed bool
 	// FormatOverride sets a format (e.g. "AnsiC") which should be tried first during parsing.
 	FormatOverride string
+	// TimestampCutoff sets the earliest possible time we'll accept from an extracted timestamp.
+	// Anything older gets ignored.
+	TimestampCutoff time.Time
 }
 
 func Extract(b []byte) (t time.Time, ok bool, err error) {
@@ -183,10 +186,11 @@ func New(c Config) (tg *TimeGrinder, err error) {
 	procs = append(procs, NewDirectAdmin())
 
 	tg = &TimeGrinder{
-		procs: procs,
-		count: len(procs),
-		loc:   time.UTC,
-		seed:  c.EnableLeftMostSeed,
+		Config: c,
+		procs:  procs,
+		count:  len(procs),
+		loc:    time.UTC,
+		seed:   c.EnableLeftMostSeed,
 	}
 	if c.FormatOverride != `` {
 		err = tg.SetFormatOverride(c.FormatOverride)
@@ -317,7 +321,7 @@ func (tg *TimeGrinder) Extract(data []byte) (t time.Time, ok bool, err error) {
 	i = tg.curr
 	for c = 0; c < tg.count; c++ {
 		t, ok, _ = tg.procs[i].Extract(data, tg.loc)
-		if ok {
+		if ok && t.After(tg.TimestampCutoff) {
 			tg.curr = i
 			return
 		}
