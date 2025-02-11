@@ -116,7 +116,8 @@ func (cf CustomFormat) ExtractionRegex() string {
 
 type customProcessor struct {
 	CustomFormat
-	rx *regexp.Regexp
+	rx     *regexp.Regexp
+	cutoff time.Time
 }
 
 func NewCustomProcessor(cf CustomFormat) (p Processor, err error) {
@@ -158,7 +159,7 @@ func (cp *customProcessor) Match(d []byte) (int, int, bool) {
 }
 
 func (cp *customProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
-	if t, ok, offset = extract(cp.rx, nil, d, cp.CustomFormat.Format, loc); ok && cp.dateMissing {
+	if t, ok, offset = extract(cp.rx, nil, d, cp.CustomFormat.Format, loc, cp.cutoff); ok && cp.dateMissing {
 		t = addDate(t)
 	}
 	//check if we need to set the year
@@ -174,6 +175,10 @@ func (cp *customProcessor) Name() string {
 
 func (cp *customProcessor) Format() string {
 	return cp.CustomFormat.Format
+}
+
+func (p *customProcessor) SetCutoff(t time.Time) {
+	p.cutoff = t
 }
 
 func addDate(t time.Time) time.Time {

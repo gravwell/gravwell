@@ -185,6 +185,10 @@ func New(c Config) (tg *TimeGrinder, err error) {
 	// DirectAdmin format
 	procs = append(procs, NewDirectAdmin())
 
+	for i := range procs {
+		procs[i].SetCutoff(c.TimestampCutoff)
+	}
+
 	tg = &TimeGrinder{
 		Config: c,
 		procs:  procs,
@@ -250,6 +254,8 @@ func (tg *TimeGrinder) AddProcessor(p Processor) (idx int, err error) {
 			return
 		}
 	}
+	// make sure the cutoff is set
+	p.SetCutoff(tg.TimestampCutoff)
 	tg.procs = append([]Processor{p}, tg.procs...)
 	tg.count++
 	idx = 0
@@ -321,7 +327,7 @@ func (tg *TimeGrinder) Extract(data []byte) (t time.Time, ok bool, err error) {
 	i = tg.curr
 	for c = 0; c < tg.count; c++ {
 		t, ok, _ = tg.procs[i].Extract(data, tg.loc)
-		if ok && t.After(tg.TimestampCutoff) {
+		if ok {
 			tg.curr = i
 			return
 		}
