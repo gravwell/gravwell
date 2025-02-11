@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+	"time"
 )
 
 const (
@@ -39,6 +40,7 @@ type hecCompatible struct {
 	Tag_Name                  string   //the tag to assign to the request
 	Ignore_Timestamps         bool
 	Timestamp_Format_Override string //override the timestamp format (only used for raw)
+	Timestamp_Cutoff          string
 	Ack                       bool
 	Max_Size                  int
 	Debug_Posts               bool // whether we are going to log on the gravwell tag about posts
@@ -85,6 +87,14 @@ func (v *hecCompatible) validate(name string) (string, error) {
 
 	if _, err = v.tokenTagMatchers(); err != nil {
 		return ``, fmt.Errorf("HEC-Compatible-Listener %s has an invalid tag in Routed-Token-Value: %w", name, err)
+	}
+
+	if len(v.Timestamp_Cutoff) > 0 {
+		if _, ok, err := timegrinder.Extract([]byte(v.Timestamp_Cutoff)); err != nil {
+			return "", err
+		} else if !ok {
+			return "", fmt.Errorf("Could not parse Timestamp-Cutoff for HEC-compatible listener %v", name)
+		}
 	}
 
 	//normalize the path
@@ -250,7 +260,17 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 		if v.Ignore_Timestamps {
 			hcfg.ignoreTs = true
 		} else {
-			if hcfg.tg, err = timegrinder.New(timegrinder.Config{}); err != nil {
+			// parse the cutoff, if any
+			var cutoff time.Time
+			if len(v.Timestamp_Cutoff) > 0 {
+				var ok bool
+				if cutoff, ok, err = timegrinder.Extract([]byte(v.Timestamp_Cutoff)); err != nil {
+					return err
+				} else if !ok {
+					return fmt.Errorf("Could not parse Timestamp-Cutoff for HEC-compatible listener %v", k)
+				}
+			}
+			if hcfg.tg, err = timegrinder.New(timegrinder.Config{TimestampCutoff: cutoff}); err != nil {
 				lg.Error("Failed to create timegrinder", log.KVErr(err))
 				return
 			} else if err = cfg.TimeFormat.LoadFormats(hcfg.tg); err != nil {
