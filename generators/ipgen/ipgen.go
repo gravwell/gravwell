@@ -25,6 +25,24 @@ type V4Gen struct {
 	masks   []uint32
 }
 
+var (
+	v4g *V4Gen
+	v6g *V6Gen
+)
+
+func init() {
+	v4g, _ = RandomWeightedV4Generator(3)
+	v6g, _ = RandomWeightedV6Generator(3)
+}
+
+func IPv4() net.IP {
+	return v4g.IP()
+}
+
+func IPv6() net.IP {
+	return v6g.IP()
+}
+
 // NewV4Generator will return an IPv4 address generator which uses
 // the specified subnets to generate traffic. A subnet may be included
 // in the argument slice multiple times in order to generate proportionally

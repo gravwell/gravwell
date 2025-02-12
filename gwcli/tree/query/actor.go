@@ -16,12 +16,12 @@ package query
 import (
 	"errors"
 	"fmt"
-	"github.com/gravwell/gravwell/v3/gwcli/action"
-	"github.com/gravwell/gravwell/v3/gwcli/busywait"
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v3/gwcli/tree/query/datascope"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/busywait"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -32,7 +32,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	grav "github.com/gravwell/gravwell/v3/client"
+	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/spf13/pflag"
 )
 
