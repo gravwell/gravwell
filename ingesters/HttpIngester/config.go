@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (
@@ -66,6 +67,7 @@ type lst struct {
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
 	Timestamp_Format_Override string //override the timestamp format
+	Timestamp_Cutoff          string
 	Attach_URL_Parameter      []string
 	Preprocessor              []string
 }
@@ -305,6 +307,14 @@ func (v *lst) validate(name string) (string, error) {
 	v.URL = pth
 	if v.Method == `` {
 		v.Method = defaultMethod
+	}
+
+	if len(v.Timestamp_Cutoff) > 0 {
+		if _, ok, err := timegrinder.Extract([]byte(v.Timestamp_Cutoff)); err != nil {
+			return "", err
+		} else if !ok {
+			return "", fmt.Errorf("Could not parse Timestamp-Cutoff for listener %v", name)
+		}
 	}
 	return pth, nil
 }

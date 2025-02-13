@@ -112,7 +112,7 @@ func TestBadCustomWithPreExtactor(t *testing.T) {
 	}
 }
 
-func TestWithPreExtactor(t *testing.T) {
+func TestWithPreExtractor(t *testing.T) {
 	cf := CustomFormat{
 		Name:             `embedded unix`,
 		Regex:            ``,
