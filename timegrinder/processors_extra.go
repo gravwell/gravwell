@@ -134,26 +134,20 @@ func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 		return time.Time{}, false, -1
 	}
 	offset = -1
-	for len(d) > 0 {
-		idx := up.re.FindSubmatchIndex(d)
-		if len(idx) != 4 {
-			return
-		}
-		s, err := strconv.ParseFloat(string(d[idx[2]:idx[3]]), 64)
-		if err != nil {
-			return
-		}
-		sec := int64(s)
-		nsec := int64((s - float64(sec)) * 1000000000.0)
-		t = time.Unix(sec, nsec).In(loc)
-		if t.After(up.cutoff) {
-			offset = idx[2]
-			ok = true
-			return
-		} else {
-			d = d[idx[3]:]
-			continue
-		}
+	idx := up.re.FindSubmatchIndex(d)
+	if len(idx) != 4 {
+		return
+	}
+	s, err := strconv.ParseFloat(string(d[idx[2]:idx[3]]), 64)
+	if err != nil {
+		return
+	}
+	offset = idx[2]
+	sec := int64(s)
+	nsec := int64((s - float64(sec)) * 1000000000.0)
+	t = time.Unix(sec, nsec).In(loc)
+	if t.After(up.cutoff) {
+		ok = true
 	}
 	return
 }
@@ -212,24 +206,18 @@ func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, o
 		return
 	}
 	offset = -1
-	for len(d) >= unp.min {
-		idx := unp.re.FindSubmatchIndex(d)
-		if len(idx) != 4 {
-			return
-		}
-		ms, err := strconv.ParseInt(string(d[idx[2]:idx[3]]), 10, 64)
-		if err != nil {
-			return
-		}
-		t = time.Unix(0, ms*1000000).In(loc)
-		if t.After(unp.cutoff) {
-			offset = idx[2]
-			ok = true
-			return
-		} else {
-			d = d[idx[3]:]
-			continue
-		}
+	idx := unp.re.FindSubmatchIndex(d)
+	if len(idx) != 4 {
+		return
+	}
+	ms, err := strconv.ParseInt(string(d[idx[2]:idx[3]]), 10, 64)
+	if err != nil {
+		return
+	}
+	t = time.Unix(0, ms*1000000).In(loc)
+	if t.After(unp.cutoff) {
+		offset = idx[2]
+		ok = true
 	}
 	return
 }
@@ -291,24 +279,18 @@ func (unp unixNanoProcessor) Extract(d []byte, loc *time.Location) (t time.Time,
 		return
 	}
 	offset = -1
-	for len(d) > 0 {
-		idx := unp.re.FindSubmatchIndex(d)
-		if len(idx) != 4 {
-			return
-		}
-		nsec, err := strconv.ParseInt(string(d[idx[2]:idx[3]]), 10, 64)
-		if err != nil {
-			return
-		}
-		t = time.Unix(0, nsec).In(loc)
-		if t.After(unp.cutoff) {
-			offset = idx[2]
-			ok = true
-			return
-		} else {
-			d = d[idx[3]:]
-			continue
-		}
+	idx := unp.re.FindSubmatchIndex(d)
+	if len(idx) != 4 {
+		return
+	}
+	nsec, err := strconv.ParseInt(string(d[idx[2]:idx[3]]), 10, 64)
+	if err != nil {
+		return
+	}
+	t = time.Unix(0, nsec).In(loc)
+	if t.After(unp.cutoff) {
+		offset = idx[2]
+		ok = true
 	}
 	return
 }
@@ -457,27 +439,21 @@ func (lp ldapProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 		return
 	}
 	offset = -1
-	for len(d) > 0 {
-		idx := lp.re.FindSubmatchIndex(d)
-		if len(idx) != 4 {
-			return
-		}
+	idx := lp.re.FindSubmatchIndex(d)
+	if len(idx) != 4 {
+		return
+	}
 
-		ldap, err := strconv.ParseInt(string(d[idx[2]:idx[3]]), 10, 64)
-		if err != nil {
-			return
-		}
+	ldap, err := strconv.ParseInt(string(d[idx[2]:idx[3]]), 10, 64)
+	if err != nil {
+		return
+	}
 
-		s := (ldap / 10000000) - 11644473600
-		t = time.Unix(s, 0).In(loc)
-		if t.After(lp.cutoff) {
-			offset = idx[2]
-			ok = true
-			return
-		} else {
-			d = d[idx[3]:]
-			continue
-		}
+	s := (ldap / 10000000) - 11644473600
+	t = time.Unix(s, 0).In(loc)
+	if t.After(lp.cutoff) {
+		offset = idx[2]
+		ok = true
 	}
 	return
 }
@@ -539,24 +515,18 @@ func (up unixSecondsProcessor) Extract(d []byte, loc *time.Location) (t time.Tim
 		return
 	}
 	offset = -1
-	for len(d) > 0 {
-		idx := up.re.FindSubmatchIndex(d)
-		if len(idx) != 4 {
-			return
-		}
-		s, err := strconv.ParseInt(string(d[idx[2]:idx[3]]), 10, 64)
-		if err != nil {
-			return
-		}
-		t = time.Unix(s, 0).In(loc)
-		if t.After(up.cutoff) {
-			offset = idx[2]
-			ok = true
-			return
-		} else {
-			d = d[idx[3]:]
-			continue
-		}
+	idx := up.re.FindSubmatchIndex(d)
+	if len(idx) != 4 {
+		return
+	}
+	s, err := strconv.ParseInt(string(d[idx[2]:idx[3]]), 10, 64)
+	if err != nil {
+		return
+	}
+	t = time.Unix(s, 0).In(loc)
+	if t.After(up.cutoff) {
+		offset = idx[2]
+		ok = true
 	}
 	return
 }

@@ -387,34 +387,6 @@ func TestTimestampCutoffSkip(t *testing.T) {
 			t.Fatalf("Extracted pre-cutoff timestamp: format = %v, candidate = %v, timestamp = %v", candidates[i], candidate, ts)
 		}
 	}
-	// We have to get special for unix timestamps because we can't use the formatting library
-	test := func(s, name string) {
-		ts, ok, err := baseTg.Extract([]byte(s))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !ok {
-			t.Fatalf("Failed to extract %s timestamp %s", name, s)
-		}
-		// Make sure we *can't* extract it with the cutoff enabled
-		ts, ok, err = tg.Extract([]byte(s))
-		if err != nil {
-			t.Fatal(err)
-		}
-		if !ok {
-			t.Fatalf("Failed to extract post-cutoff %s timestamp %s", name, s)
-		} else if ts.Before(cutoff) {
-			t.Fatalf("Extracted pre-cutoff timestamp: format = %v, candidate = %v, timestamp = %v", name, s, ts)
-		}
-	}
-	unix := fmt.Sprintf("%d %d", ctime.Unix(), gtime.Unix())
-	test(unix, "Unix")
-	unixMilli := fmt.Sprintf("%d.%2d %d.%2d", ctime.Unix(), ctime.UnixMilli(), gtime.Unix(), gtime.UnixMilli())
-	test(unixMilli, "UnixMilli")
-	unixMs := fmt.Sprintf("%d %d", ctime.UnixMilli(), gtime.UnixMilli())
-	test(unixMs, "UnixMsFormat")
-	unixNano := fmt.Sprintf("%d %d", ctime.UnixNano(), gtime.UnixNano())
-	test(unixNano, "UnixNanoFormat")
 }
 
 func TestNonDigitUnix(t *testing.T) {
