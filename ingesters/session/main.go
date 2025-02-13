@@ -24,12 +24,11 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
-
-	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 )
 
 var (

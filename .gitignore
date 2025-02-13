@@ -19,4 +19,6 @@ test.conf
 
 #vim files
 *.swp
-manager
+
+# binaries
+manager/manager
