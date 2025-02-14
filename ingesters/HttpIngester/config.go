@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/timegrinder"
+	"time"
 )
 
 const (
@@ -38,13 +39,15 @@ const (
 
 type gbl struct {
 	config.IngestConfig
-	Bind                    string
-	Max_Body                int
-	TLS_Certificate_File    string
-	TLS_Key_File            string
-	Health_Check_URL        string
-	Max_Connections         int
-	Max_Concurrent_Requests int
+	Bind                       string
+	Max_Body                   int
+	TLS_Certificate_File       string
+	TLS_Key_File               string
+	Health_Check_URL           string
+	Max_Connections            int
+	Max_Concurrent_Requests    int
+	Timestamp_Max_Past_Delta   string
+	Timestamp_Max_Future_Delta string
 }
 
 type cfgReadType struct {
@@ -67,7 +70,6 @@ type lst struct {
 	Assume_Local_Timezone     bool
 	Timezone_Override         string
 	Timestamp_Format_Override string //override the timestamp format
-	Timestamp_Cutoff          string
 	Attach_URL_Parameter      []string
 	Preprocessor              []string
 }
@@ -134,6 +136,18 @@ func (c *cfgType) Verify() error {
 	if hc, ok := c.HealthCheck(); ok {
 		urls[newRoute(http.MethodGet, hc)] = `health check`
 	}
+
+	if len(c.Timestamp_Max_Past_Delta) > 0 {
+		if _, err := time.ParseDuration(c.Timestamp_Max_Past_Delta); err != nil {
+			return fmt.Errorf("Could not parse Timestamp-Max-Past-Delta: %v", err)
+		}
+	}
+	if len(c.Timestamp_Max_Future_Delta) > 0 {
+		if _, err := time.ParseDuration(c.Timestamp_Max_Future_Delta); err != nil {
+			return fmt.Errorf("Could not parse Timestamp-Max-Future-Delta: %v", err)
+		}
+	}
+
 	for k, v := range c.Listener {
 		pth, err := v.validate(k)
 		if err != nil {
@@ -256,6 +270,20 @@ func (c *cfgType) MaxBody() int {
 	return c.Max_Body
 }
 
+func (c *cfgType) GlobalTimestampWindow() (w timegrinder.TimestampWindow, err error) {
+	if len(c.Timestamp_Max_Past_Delta) > 0 {
+		if w.MaxPastDelta, err = time.ParseDuration(c.Timestamp_Max_Past_Delta); err != nil {
+			return
+		}
+	}
+	if len(c.Timestamp_Max_Future_Delta) > 0 {
+		if w.MaxFutureDelta, err = time.ParseDuration(c.Timestamp_Max_Future_Delta); err != nil {
+			return
+		}
+	}
+	return
+}
+
 func (g gbl) ValidateTLS() (err error) {
 	if !g.TLSEnabled() {
 		//not enabled
@@ -309,13 +337,6 @@ func (v *lst) validate(name string) (string, error) {
 		v.Method = defaultMethod
 	}
 
-	if len(v.Timestamp_Cutoff) > 0 {
-		if _, ok, err := timegrinder.Extract([]byte(v.Timestamp_Cutoff)); err != nil {
-			return "", err
-		} else if !ok {
-			return "", fmt.Errorf("Could not parse Timestamp-Cutoff for listener %v", name)
-		}
-	}
 	return pth, nil
 }
 

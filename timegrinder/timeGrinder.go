@@ -54,9 +54,8 @@ type Config struct {
 	EnableLeftMostSeed bool
 	// FormatOverride sets a format (e.g. "AnsiC") which should be tried first during parsing.
 	FormatOverride string
-	// TimestampCutoff sets the earliest possible time we'll accept from an extracted timestamp.
-	// Anything older gets ignored.
-	TimestampCutoff time.Time
+	// TSWindow sets maximum deltas into the past & future for timestamp parsing. Any timestamp extracted which falls outside those deltas from the current time will be considered invalid and skipped.
+	TSWindow TimestampWindow
 }
 
 func Extract(b []byte) (t time.Time, ok bool, err error) {
@@ -186,7 +185,7 @@ func New(c Config) (tg *TimeGrinder, err error) {
 	procs = append(procs, NewDirectAdmin())
 
 	for i := range procs {
-		procs[i].SetCutoff(c.TimestampCutoff)
+		procs[i].SetWindow(c.TSWindow)
 	}
 
 	tg = &TimeGrinder{
@@ -255,7 +254,7 @@ func (tg *TimeGrinder) AddProcessor(p Processor) (idx int, err error) {
 		}
 	}
 	// make sure the cutoff is set
-	p.SetCutoff(tg.TimestampCutoff)
+	p.SetWindow(tg.TSWindow)
 	tg.procs = append([]Processor{p}, tg.procs...)
 	tg.count++
 	idx = 0

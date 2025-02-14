@@ -180,7 +180,7 @@ type Processor interface {
 	ToString(time.Time) string
 	ExtractionRegex() string
 	Name() string
-	SetCutoff(time.Time)
+	SetWindow(TimestampWindow)
 }
 
 type processor struct {
@@ -190,7 +190,7 @@ type processor struct {
 	format string
 	name   string
 	min    int
-	cutoff time.Time
+	window TimestampWindow
 }
 
 func (p *processor) Format() string {
@@ -213,11 +213,11 @@ func (p *processor) Name() string {
 	return p.name
 }
 
-func (p *processor) SetCutoff(t time.Time) {
-	p.cutoff = t
+func (p *processor) SetWindow(t TimestampWindow) {
+	p.window = t
 }
 
-func extract(rx, rxt *regexp.Regexp, d []byte, format string, loc *time.Location, cutoff time.Time) (t time.Time, ok bool, off int) {
+func extract(rx, rxt *regexp.Regexp, d []byte, format string, loc *time.Location, window TimestampWindow) (t time.Time, ok bool, off int) {
 	var err error
 	off = -1
 	for len(d) > 0 {
@@ -237,7 +237,7 @@ func extract(rx, rxt *regexp.Regexp, d []byte, format string, loc *time.Location
 		if t, err = time.ParseInLocation(format, string(d[idxs[0]:idxs[1]]), loc); err != nil {
 			return
 		}
-		if !t.IsZero() && (t.After(cutoff) || (t.Year() == 0 && tweakYear(t).After(cutoff))) {
+		if !t.IsZero() && (window.Valid(t) || (t.Year() == 0 && window.Valid(tweakYear(t)))) {
 			// if the year comes out as zero, we assume it's because the format doesn't include
 			// the year, and we'll fix it upstream
 			ok = true
@@ -254,7 +254,7 @@ func (a *processor) Extract(d []byte, loc *time.Location) (time.Time, bool, int)
 	if len(d) < a.min {
 		return time.Time{}, false, -1 //cannot possibly hit
 	}
-	return extract(a.rxp, a.trxpEx, d, a.format, loc, a.cutoff)
+	return extract(a.rxp, a.trxpEx, d, a.format, loc, a.window)
 }
 
 func match(rx, rxt *regexp.Regexp, d []byte) (start, end int, ok bool) {

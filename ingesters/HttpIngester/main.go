@@ -110,7 +110,7 @@ func main() {
 	if hcurl, ok := cfg.HealthCheck(); ok {
 		hnd.healthCheckURL = path.Clean(hcurl)
 	}
-	for k, v := range cfg.Listener {
+	for _, v := range cfg.Listener {
 		hcfg := routeHandler{
 			handler:       handleSingle,
 			paramAttacher: getAttacher(v.Attach_URL_Parameter),
@@ -124,19 +124,14 @@ func main() {
 		if v.Ignore_Timestamps {
 			hcfg.ignoreTs = true
 		} else {
-			// parse the cutoff, if any
-			var cutoff time.Time
-			if len(v.Timestamp_Cutoff) > 0 {
-				var ok bool
-				if cutoff, ok, err = timegrinder.Extract([]byte(v.Timestamp_Cutoff)); err != nil {
-					lg.Fatalf("Error parsing Timestamp-Cutoff for listener %v: %v", k, err)
-				} else if !ok {
-					lg.Fatalf("Could not parse Timestamp-Cutoff for listener %v", k)
-				}
+			var window timegrinder.TimestampWindow
+			window, err = cfg.GlobalTimestampWindow()
+			if err != nil {
+				lg.Fatal("Failed to get global timestamp window", log.KVErr(err))
 			}
 			tcfg := timegrinder.Config{
 				EnableLeftMostSeed: true,
-				TimestampCutoff:    cutoff,
+				TSWindow:           window,
 			}
 			if hcfg.tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
 				lg.Fatal("failed to generate new timegrinder", log.KVErr(err))
