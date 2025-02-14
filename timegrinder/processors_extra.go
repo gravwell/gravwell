@@ -36,12 +36,31 @@ func NewSyslogProcessor() *syslogProcessor {
 	}
 }
 
+func (sp syslogProcessor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
+	if len(d) < sp.min {
+		return time.Time{}, false, -1
+	}
+	t, ok, offset := sp.processor.Extract(d, loc)
+	if !ok {
+		return time.Time{}, false, -1
+	}
+	//check if we need to set the year
+	if t.Year() == 0 {
+		t = tweakYear(t)
+	}
+	if sp.window.Valid(t) {
+		return t, true, offset
+	}
+	return time.Time{}, false, -1
+}
+
 type unixProcessor struct {
 	re     *regexp.Regexp
 	rxstr  string
 	format string
 	name   string
 	min    int
+	window TimestampWindow
 }
 
 func NewUnixMilliTimeProcessor() *unixProcessor {
@@ -69,6 +88,10 @@ func (up *unixProcessor) ToString(t time.Time) string {
 
 func (up *unixProcessor) ExtractionRegex() string {
 	return _unixCoreRegex
+}
+
+func (p *unixProcessor) SetWindow(t TimestampWindow) {
+	p.window = t
 }
 
 func NewUserProcessor(name, rxps, fmts string) (*processor, error) {
@@ -106,21 +129,6 @@ func NewUserProcessor(name, rxps, fmts string) (*processor, error) {
 	}, nil
 }
 
-func (sp syslogProcessor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
-	if len(d) < sp.min {
-		return time.Time{}, false, -1
-	}
-	t, ok, offset := sp.processor.Extract(d, loc)
-	if !ok {
-		return time.Time{}, false, -1
-	}
-	//check if we need to set the year
-	if t.Year() == 0 {
-		return tweakYear(t), true, offset
-	}
-	return t, true, offset
-}
-
 func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
 	if len(d) < up.min {
 		return time.Time{}, false, -1
@@ -138,7 +146,9 @@ func (up unixProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 	sec := int64(s)
 	nsec := int64((s - float64(sec)) * 1000000000.0)
 	t = time.Unix(sec, nsec).In(loc)
-	ok = true
+	if up.window.Valid(t) {
+		ok = true
+	}
 	return
 }
 
@@ -157,6 +167,7 @@ type unixMsProcessor struct {
 	format string
 	name   string
 	min    int
+	window TimestampWindow
 }
 
 // We assume you're not ingesting data from 1970, so we look for at least 13 digits of nanoseconds
@@ -186,6 +197,10 @@ func (unp unixMsProcessor) ExtractionRegex() string {
 	return _unixMsCoreRegex
 }
 
+func (unp *unixMsProcessor) SetWindow(t TimestampWindow) {
+	unp.window = t
+}
+
 func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
 	if len(d) < unp.min {
 		return
@@ -199,9 +214,11 @@ func (unp unixMsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, o
 	if err != nil {
 		return
 	}
-	offset = idx[2]
 	t = time.Unix(0, ms*1000000).In(loc)
-	ok = true
+	if unp.window.Valid(t) {
+		offset = idx[2]
+		ok = true
+	}
 	return
 }
 
@@ -223,6 +240,7 @@ type unixNanoProcessor struct {
 	format string
 	name   string
 	min    int
+	window TimestampWindow
 }
 
 // We assume you're not ingesting data from 1970, so we look for at least 16 digits of nanoseconds
@@ -252,6 +270,10 @@ func (unp unixNanoProcessor) ToString(t time.Time) string {
 	return fmt.Sprintf("%d", t.UnixNano())
 }
 
+func (unp *unixNanoProcessor) SetWindow(t TimestampWindow) {
+	unp.window = t
+}
+
 func (unp unixNanoProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
 	if len(d) < unp.min {
 		return
@@ -265,9 +287,11 @@ func (unp unixNanoProcessor) Extract(d []byte, loc *time.Location) (t time.Time,
 	if err != nil {
 		return
 	}
-	offset = idx[2]
 	t = time.Unix(0, nsec).In(loc)
-	ok = true
+	if unp.window.Valid(t) {
+		offset = idx[2]
+		ok = true
+	}
 	return
 }
 
@@ -299,6 +323,7 @@ type ukProc struct {
 	format string
 	name   string
 	min    int
+	window TimestampWindow
 }
 
 func (p *ukProc) Format() string {
@@ -317,21 +342,33 @@ func (p *ukProc) Name() string {
 	return p.name
 }
 
+func (p *ukProc) SetWindow(t TimestampWindow) {
+	p.window = t
+}
+
 func (p *ukProc) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
 	if len(d) < p.min {
 		return time.Time{}, false, -1
 	}
-	idxs := p.rx.FindIndex(d)
-	if len(idxs) != 2 {
-		return time.Time{}, false, -1
-	}
+	for len(d) > 0 {
+		idxs := p.rx.FindIndex(d)
+		if len(idxs) != 2 {
+			return time.Time{}, false, -1
+		}
 
-	t, err := p.parse(string(d[idxs[0]:idxs[1]]), loc)
-	if err != nil {
-		return time.Time{}, false, -1
-	}
+		t, err := p.parse(string(d[idxs[0]:idxs[1]]), loc)
+		if err != nil {
+			return time.Time{}, false, -1
+		}
 
-	return t, true, idxs[0]
+		if p.window.Valid(t) {
+			return t, true, idxs[0]
+		} else {
+			d = d[idxs[1]:]
+			continue
+		}
+	}
+	return time.Time{}, false, -1
 }
 
 func (p *ukProc) Match(d []byte) (start, end int, ok bool) {
@@ -362,6 +399,7 @@ type ldapProcessor struct {
 	format string
 	name   string
 	min    int
+	window TimestampWindow
 }
 
 // We assume you're not ingesting data from 1970, so we look for at least 16 digits of nanoseconds
@@ -392,6 +430,10 @@ func (lp ldapProcessor) ToString(t time.Time) string {
 	return fmt.Sprintf("%d", l)
 }
 
+func (lp *ldapProcessor) SetWindow(t TimestampWindow) {
+	lp.window = t
+}
+
 func (lp ldapProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
 	if len(d) < lp.min {
 		return
@@ -406,11 +448,13 @@ func (lp ldapProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok b
 	if err != nil {
 		return
 	}
-	offset = idx[2]
 
 	s := (ldap / 10000000) - 11644473600
 	t = time.Unix(s, 0).In(loc)
-	ok = true
+	if lp.window.Valid(t) {
+		offset = idx[2]
+		ok = true
+	}
 	return
 }
 
@@ -432,6 +476,7 @@ type unixSecondsProcessor struct {
 	format string
 	name   string
 	min    int
+	window TimestampWindow
 }
 
 func NewUnixSecondsProcessor() *unixSecondsProcessor {
@@ -461,6 +506,10 @@ func (up *unixSecondsProcessor) ExtractionRegex() string {
 	return _unixSecondsRegex
 }
 
+func (up *unixSecondsProcessor) SetWindow(t TimestampWindow) {
+	up.window = t
+}
+
 func (up unixSecondsProcessor) Extract(d []byte, loc *time.Location) (t time.Time, ok bool, offset int) {
 	if len(d) < up.min {
 		return
@@ -474,9 +523,11 @@ func (up unixSecondsProcessor) Extract(d []byte, loc *time.Location) (t time.Tim
 	if err != nil {
 		return
 	}
-	offset = idx[2]
 	t = time.Unix(s, 0).In(loc)
-	ok = true
+	if up.window.Valid(t) {
+		offset = idx[2]
+		ok = true
+	}
 	return
 }
 

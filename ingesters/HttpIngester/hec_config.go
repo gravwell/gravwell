@@ -250,7 +250,13 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 		if v.Ignore_Timestamps {
 			hcfg.ignoreTs = true
 		} else {
-			if hcfg.tg, err = timegrinder.New(timegrinder.Config{}); err != nil {
+			var window timegrinder.TimestampWindow
+			window, err = cfg.GlobalTimestampWindow()
+			if err != nil {
+				lg.Error("Failed to get global timestamp window", log.KVErr(err))
+				return
+			}
+			if hcfg.tg, err = timegrinder.New(timegrinder.Config{TSWindow: window}); err != nil {
 				lg.Error("Failed to create timegrinder", log.KVErr(err))
 				return
 			} else if err = cfg.TimeFormat.LoadFormats(hcfg.tg); err != nil {
