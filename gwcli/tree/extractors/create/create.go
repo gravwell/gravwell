@@ -10,17 +10,17 @@ package create
 
 import (
 	"fmt"
-	"github.com/gravwell/gravwell/v3/gwcli/action"
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
-	"github.com/gravwell/gravwell/v3/gwcli/stylesheet"
-	ft "github.com/gravwell/gravwell/v3/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/pflag"
 )
 
