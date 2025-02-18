@@ -120,6 +120,8 @@ type IngestConfig struct {
 	Label                      string   `json:",omitempty"` //arbitrary label that can be attached to an ingester
 	Disable_Multithreading     bool     //basically set GOMAXPROCS(1)
 	Stats_Sample_Interval      string   `json:",omitempty"` // if set to > 0 duration then we periodically throw stats
+	Timestamp_Max_Past_Delta   string   // if set to > 0 (e.g. "1h"), set TS of entries further than this in the past to now
+	Timestamp_Max_Future_Delta string   // if set to > 0, set TS of entries further that this in the future to now.
 }
 
 type IngestStreamConfig struct {
@@ -269,6 +271,17 @@ func (ic *IngestConfig) Verify() error {
 	if ic.Stats_Sample_Interval != `` {
 		if _, err := time.ParseDuration(ic.Stats_Sample_Interval); err != nil {
 			return fmt.Errorf("invalid Stats-Sample-Interval %s %w", ic.Stats_Sample_Interval, err)
+		}
+	}
+
+	if len(ic.Timestamp_Max_Past_Delta) > 0 {
+		if _, err := time.ParseDuration(ic.Timestamp_Max_Past_Delta); err != nil {
+			return fmt.Errorf("Could not parse Timestamp-Max-Past-Delta: %v", err)
+		}
+	}
+	if len(ic.Timestamp_Max_Future_Delta) > 0 {
+		if _, err := time.ParseDuration(ic.Timestamp_Max_Future_Delta); err != nil {
+			return fmt.Errorf("Could not parse Timestamp-Max-Future-Delta: %v", err)
 		}
 	}
 
@@ -453,6 +466,30 @@ func (ic *IngestConfig) StatsSampleInterval() (dur time.Duration) {
 	if dur, err = time.ParseDuration(ic.Stats_Sample_Interval); err != nil {
 		// bad parses are just zero, validate should prevent this though
 		dur = 0
+	}
+	return
+}
+
+// GlobalTimestampWindow returns timegrinder.TimestampWindow derived
+// from the values of the `Timestamp-Max-Past-Delta` and
+// `Timestamp-Max-Future-Delta` values. It normalizes to positive
+// durations if necessary.
+func (ic *IngestConfig) GlobalTimestampWindow() (w timegrinder.TimestampWindow, err error) {
+	if len(ic.Timestamp_Max_Past_Delta) > 0 {
+		if w.MaxPastDelta, err = time.ParseDuration(ic.Timestamp_Max_Past_Delta); err != nil {
+			return
+		}
+	}
+	if len(ic.Timestamp_Max_Future_Delta) > 0 {
+		if w.MaxFutureDelta, err = time.ParseDuration(ic.Timestamp_Max_Future_Delta); err != nil {
+			return
+		}
+	}
+	if w.MaxPastDelta < 0 {
+		w.MaxPastDelta = w.MaxPastDelta * -1
+	}
+	if w.MaxFutureDelta < 0 {
+		w.MaxFutureDelta = w.MaxFutureDelta * -1
 	}
 	return
 }
