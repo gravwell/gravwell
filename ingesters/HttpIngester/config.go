@@ -22,8 +22,6 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/timegrinder"
-	"time"
 )
 
 const (
@@ -39,15 +37,13 @@ const (
 
 type gbl struct {
 	config.IngestConfig
-	Bind                       string
-	Max_Body                   int
-	TLS_Certificate_File       string
-	TLS_Key_File               string
-	Health_Check_URL           string
-	Max_Connections            int
-	Max_Concurrent_Requests    int
-	Timestamp_Max_Past_Delta   string
-	Timestamp_Max_Future_Delta string
+	Bind                    string
+	Max_Body                int
+	TLS_Certificate_File    string
+	TLS_Key_File            string
+	Health_Check_URL        string
+	Max_Connections         int
+	Max_Concurrent_Requests int
 }
 
 type cfgReadType struct {
@@ -135,17 +131,6 @@ func (c *cfgType) Verify() error {
 	}
 	if hc, ok := c.HealthCheck(); ok {
 		urls[newRoute(http.MethodGet, hc)] = `health check`
-	}
-
-	if len(c.Timestamp_Max_Past_Delta) > 0 {
-		if _, err := time.ParseDuration(c.Timestamp_Max_Past_Delta); err != nil {
-			return fmt.Errorf("Could not parse Timestamp-Max-Past-Delta: %v", err)
-		}
-	}
-	if len(c.Timestamp_Max_Future_Delta) > 0 {
-		if _, err := time.ParseDuration(c.Timestamp_Max_Future_Delta); err != nil {
-			return fmt.Errorf("Could not parse Timestamp-Max-Future-Delta: %v", err)
-		}
 	}
 
 	for k, v := range c.Listener {
@@ -268,20 +253,6 @@ func (c *cfgType) MaxBody() int {
 		return defaultMaxBody
 	}
 	return c.Max_Body
-}
-
-func (c *cfgType) GlobalTimestampWindow() (w timegrinder.TimestampWindow, err error) {
-	if len(c.Timestamp_Max_Past_Delta) > 0 {
-		if w.MaxPastDelta, err = time.ParseDuration(c.Timestamp_Max_Past_Delta); err != nil {
-			return
-		}
-	}
-	if len(c.Timestamp_Max_Future_Delta) > 0 {
-		if w.MaxFutureDelta, err = time.ParseDuration(c.Timestamp_Max_Future_Delta); err != nil {
-			return
-		}
-	}
-	return
 }
 
 func (g gbl) ValidateTLS() (err error) {
