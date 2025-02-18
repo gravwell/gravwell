@@ -1,13 +1,13 @@
 package stats
 
 import (
-	"github.com/gravwell/gravwell/v3/gwcli/action"
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
-	"github.com/gravwell/gravwell/v3/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 
-	grav "github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/client/types"
-	"github.com/gravwell/gravwell/v3/utils/weave"
+	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/pflag"
 )
 
