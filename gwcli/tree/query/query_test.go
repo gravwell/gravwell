@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/gwcli/clilog"
-	"github.com/gravwell/gravwell/v3/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
 
 	"github.com/spf13/cobra"
 )
