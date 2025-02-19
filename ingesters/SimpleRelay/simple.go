@@ -59,7 +59,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 	}
 	window, err := cfg.GlobalTimestampWindow()
 	if err != nil {
-		err = fmt.Errorf("Failed to get global timestamp window", err)
+		err = fmt.Errorf("Failed to get global timestamp window: %v", err)
 		return err
 	}
 	//fire up our simple backends

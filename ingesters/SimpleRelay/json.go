@@ -60,7 +60,7 @@ func startJSONListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGro
 	var window timegrinder.TimestampWindow
 	window, err = cfg.GlobalTimestampWindow()
 	if err != nil {
-		err = fmt.Errorf("Failed to get global timestamp window", err)
+		err = fmt.Errorf("Failed to get global timestamp window: %v", err)
 		return err
 	}
 	for k, v := range cfg.JSONListener {
