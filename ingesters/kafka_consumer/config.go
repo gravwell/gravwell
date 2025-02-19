@@ -310,7 +310,7 @@ func (cc ConfigConsumer) validateAndProcess(cr cfgReadType) (c consumerCfg, err 
 		var window timegrinder.TimestampWindow
 		window, err = cr.Global.GlobalTimestampWindow()
 		if err != nil {
-			err = fmt.Errorf("Failed to get global timestamp window", err)
+			err = fmt.Errorf("Failed to get global timestamp window: %v", err)
 			return
 		}
 		tcfg := timegrinder.Config{
