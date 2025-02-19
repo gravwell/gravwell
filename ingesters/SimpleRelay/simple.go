@@ -49,6 +49,7 @@ type handlerConfig struct {
 	proc             *processors.ProcessorSet
 	ctx              context.Context
 	timeFormats      config.CustomTimeFormat
+	tsWindow         timegrinder.TimestampWindow
 }
 
 func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher, ctx context.Context) error {
@@ -56,7 +57,11 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 	if len(cfg.Listener) == 0 {
 		return nil
 	}
-
+	window, err := cfg.GlobalTimestampWindow()
+	if err != nil {
+		err = fmt.Errorf("Failed to get global timestamp window", err)
+		return err
+	}
 	//fire up our simple backends
 	for k, v := range cfg.Listener {
 		var src net.IP
@@ -85,6 +90,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 		if err != nil {
 			lg.FatalCode(0, "invalid reader type", log.KV("readertype", v.Reader_Type), log.KVErr(err))
 		}
+
 		hcfg := handlerConfig{
 			name:             k,
 			tag:              tag,
@@ -98,6 +104,7 @@ func startSimpleListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitG
 			formatOverride:   v.Timestamp_Format_Override,
 			ctx:              ctx,
 			timeFormats:      cfg.TimeFormat,
+			tsWindow:         window,
 		}
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Fatal("preprocessor error", log.KVErr(err))
