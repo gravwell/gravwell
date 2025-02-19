@@ -125,7 +125,14 @@ func main() {
 	running := true
 	for k, v := range cfg.ContentType {
 		//get timegrinder stood up
+		var window timegrinder.TimestampWindow
+		window, err = cfg.Global.GlobalTimestampWindow()
+		if err != nil {
+			lg.Error("Failed to get global timestamp window", log.KVErr(err))
+			return
+		}
 		tcfg := timegrinder.Config{
+			TSWindow:           window,
 			EnableLeftMostSeed: true,
 		}
 		tgr, err := timegrinder.NewTimeGrinder(tcfg)

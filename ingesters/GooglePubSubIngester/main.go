@@ -162,7 +162,13 @@ func main() {
 					lg.Error("failed to close processor", log.KVErr(err))
 				}
 			}(eChan)
+			var window timegrinder.TimestampWindow
+			window, err = cfg.Global.GlobalTimestampWindow()
+			if err != nil {
+				return
+			}
 			tcfg := timegrinder.Config{
+				TSWindow:           window,
 				EnableLeftMostSeed: true,
 			}
 			tg, err := timegrinder.NewTimeGrinder(tcfg)
