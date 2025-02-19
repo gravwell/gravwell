@@ -151,7 +151,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return nil, fmt.Errorf("Consumer %s preprocessor invalid: %v", k, err)
 		}
-		if cnsmr, err := v.validateAndProcess(); err != nil {
+		if cnsmr, err := v.validateAndProcess(cr); err != nil {
 			return nil, err
 		} else if err := c.TimeFormat.LoadFormats(cnsmr.tg); err != nil {
 			return nil, err
@@ -233,7 +233,7 @@ func (c *cfgType) AttachConfig() attach.AttachConfig {
 	return c.Attach
 }
 
-func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
+func (cc ConfigConsumer) validateAndProcess(cr cfgReadType) (c consumerCfg, err error) {
 	//check tag
 	if len(cc.Default_Tag) == 0 {
 		err = errors.New("missing Default-Tag")
@@ -307,9 +307,16 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 		c.ignoreTS = true
 	} else if cc.Extract_Timestamps {
 		c.extractTS = true
+		var window timegrinder.TimestampWindow
+		window, err = cr.Global.GlobalTimestampWindow()
+		if err != nil {
+			err = fmt.Errorf("Failed to get global timestamp window: %v", err)
+			return
+		}
 		tcfg := timegrinder.Config{
 			EnableLeftMostSeed: true,
 			FormatOverride:     cc.Timestamp_Format_Override,
+			TSWindow:           window,
 		}
 		if c.tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
 			err = fmt.Errorf("Failed to generate new timegrinder: %v", err)
