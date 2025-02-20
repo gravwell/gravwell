@@ -27,6 +27,11 @@ type RawResponse struct {
 	ContainsBinaryEntries bool            //just a flag to tell the GUI that we might have data that needs some help
 	Entries               []SearchEntry   `json:",omitempty"`
 	Explore               []ExploreResult `json:",omitempty"`
+	printableData         bool            // true if the search entries have printable DATA fields.
+}
+
+func (r *RawResponse) SetPrintableData(b bool) {
+	r.printableData = b
 }
 
 type RawRequest struct {

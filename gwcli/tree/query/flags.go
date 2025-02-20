@@ -9,7 +9,7 @@
 package query
 
 import (
-	ft "github.com/gravwell/gravwell/v3/gwcli/stylesheet/flagtext"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"strings"
 	"time"
 

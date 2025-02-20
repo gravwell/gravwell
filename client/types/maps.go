@@ -89,6 +89,10 @@ func (pkv PointmapKV) IsEmpty() bool {
 	return len(pkv.Key) == 0 || len(pkv.Value) == 0
 }
 
+func (gf *Geofence) Enabled() bool {
+	return gf != nil && gf.enabled == true
+}
+
 func (gf *Geofence) CrossesAntimeridian() bool {
 	return gf.SouthWest.Long > gf.NorthEast.Long
 }
