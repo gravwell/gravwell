@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/processors"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -104,6 +105,12 @@ func main() {
 
 	var procs []*processors.ProcessorSet
 
+	var window timegrinder.TimestampWindow
+	window, err = cfg.GlobalTimestampWindow()
+	if err != nil {
+		lg.Fatal("Failed to get global timestamp window", log.KVErr(err))
+	}
+
 	//build a list of base directories and globs
 	for k, val := range cfg.Follower {
 		pproc, err := cfg.Preprocessor.ProcessorSet(igst, val.Preprocessor)
@@ -140,6 +147,7 @@ func main() {
 			TimeFormat:              cfg.TimeFormat,
 			AttachFilename:          val.Attach_Filename,
 			Trim:                    val.Trim,
+			TimestampWindow:         window,
 		}
 		if debugOn {
 			cfg.Debugger = debugout

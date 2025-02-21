@@ -68,6 +68,7 @@ type LogHandlerConfig struct {
 	TimeFormat              config.CustomTimeFormat
 	AttachFilename          bool
 	Trim                    bool // run trim space on entries
+	TimestampWindow         timegrinder.TimestampWindow
 }
 
 type logWriter interface {
@@ -86,6 +87,7 @@ func NewLogHandler(cfg LogHandlerConfig, w logWriter) (*LogHandler, error) {
 	if !cfg.IgnoreTS {
 		tcfg := timegrinder.Config{
 			EnableLeftMostSeed: true,
+			TSWindow:           cfg.TimestampWindow,
 		}
 		if tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
 			return nil, err
