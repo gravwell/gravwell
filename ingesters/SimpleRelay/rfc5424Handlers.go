@@ -56,6 +56,7 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 	}
 
 	tcfg := timegrinder.Config{
+		TSWindow:           cfg.tsWindow,
 		EnableLeftMostSeed: true,
 	}
 	tg, err := timegrinder.NewTimeGrinder(tcfg)
@@ -167,6 +168,7 @@ func dropPriority(buff []byte) []byte {
 func rfc5424ConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 	buff := make([]byte, 16*1024) //local buffer that should be big enough for even the largest UDP packets
 	tcfg := timegrinder.Config{
+		TSWindow:           cfg.tsWindow,
 		EnableLeftMostSeed: true,
 	}
 	tg, err := timegrinder.NewTimeGrinder(tcfg)

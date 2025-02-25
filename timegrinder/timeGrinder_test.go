@@ -231,6 +231,174 @@ func TestExactUnix(t *testing.T) {
 	}
 }
 
+func TestTimestampCutoff(t *testing.T) {
+	baseTg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseTg.SetTimezone("UTC")
+	window := TimestampWindow{
+		1 * time.Hour,
+		1 * time.Hour,
+	}
+	cfg := Config{
+		TSWindow: window,
+	}
+	tg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tg.SetTimezone("UTC")
+	ctimes := []time.Time{time.Now().Add(-2 * time.Hour).UTC(), time.Now().Add(2 * time.Hour).UTC()}
+	for _, ctime := range ctimes {
+		candidates := []string{
+			AnsiCFormat,
+			UnixFormat,
+			RubyFormat,
+			RFC822Format,
+			RFC822ZFormat,
+			RFC850Format,
+			RFC1123Format,
+			RFC1123ZFormat,
+			RFC3339Format,
+			RFC3339NanoFormat,
+			ZonelessRFC3339Format,
+			ApacheFormat,
+			ApacheNoTzFormat,
+			NGINXFormat,
+			SyslogFormat,
+			SyslogFileFormat,
+			SyslogFileTZFormat,
+			DPKGFormat,
+			SyslogVariantFormat,
+			UnpaddedDateTimeFormat,
+			UnpaddedMilliDateTimeFormat,
+			UKFormat,
+			GravwellFormat,
+			BindFormat,
+			DirectAdminFormat,
+		}
+		for i := range candidates {
+			candidate := ctime.Format(candidates[i])
+			// Make sure we can extract it with the base configuration
+			ts, ok, err := baseTg.Extract([]byte(candidate))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !ok {
+				t.Fatal("Failed to extract timestamp " + candidate + " format =" + candidates[i])
+			}
+			// Make sure we *can't* extract it with the cutoff enabled
+			ts, ok, err = tg.Extract([]byte(candidate))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ok {
+				t.Fatalf("Extracted timestamp when we shouldn't: format = %v, candidate = %v, extraction = %v", candidates[i], candidate, ts)
+			}
+		}
+		// We have to get special for unix timestamps because we can't use the formatting library
+		test := func(s, name string) {
+			ts, ok, err := baseTg.Extract([]byte(s))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !ok {
+				t.Fatalf("Failed to extract %s timestamp %s", name, s)
+			}
+			// Make sure we *can't* extract it with the cutoff enabled
+			ts, ok, err = tg.Extract([]byte(s))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ok {
+				t.Fatalf("Extracted %s timestamp when we shouldn't, extraction = %v", name, ts)
+			}
+		}
+		unix := fmt.Sprintf("%d", ctime.Unix())
+		test(unix, "Unix")
+		unixMilli := fmt.Sprintf("%d.%2d", ctime.Unix(), ctime.UnixMilli())
+		test(unixMilli, "UnixMilli")
+		unixMs := fmt.Sprintf("%d", ctime.UnixMilli())
+		test(unixMs, "UnixMsFormat")
+		unixNano := fmt.Sprintf("%d", ctime.UnixNano())
+		test(unixNano, "UnixNanoFormat")
+	}
+}
+
+// Make sure we can skip pre-cutoff dates to find the valid one
+func TestTimestampCutoffSkip(t *testing.T) {
+	baseTg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseTg.SetTimezone("UTC")
+	window := TimestampWindow{
+		1 * time.Hour,
+		1 * time.Hour,
+	}
+	cfg := Config{
+		TSWindow: window,
+	}
+	tg, err := New(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tg.SetTimezone("UTC")
+	gtime := time.Now().UTC() // a time post-dating the cutoff
+	ctimes := []time.Time{time.Now().Add(-2 * time.Hour).UTC(), time.Now().Add(2 * time.Hour).UTC()}
+	for _, ctime := range ctimes {
+		candidates := []string{
+			AnsiCFormat,
+			UnixFormat,
+			RubyFormat,
+			RFC822Format,
+			RFC822ZFormat,
+			RFC850Format,
+			RFC1123Format,
+			RFC1123ZFormat,
+			RFC3339Format,
+			RFC3339NanoFormat,
+			ZonelessRFC3339Format,
+			ApacheFormat,
+			ApacheNoTzFormat,
+			NGINXFormat,
+			SyslogFormat,
+			SyslogFileFormat,
+			SyslogFileTZFormat,
+			DPKGFormat,
+			SyslogVariantFormat,
+			UnpaddedDateTimeFormat,
+			UnpaddedMilliDateTimeFormat,
+			UKFormat,
+			GravwellFormat,
+			BindFormat,
+			DirectAdminFormat,
+		}
+		for i := range candidates {
+			candidate := fmt.Sprintf("%s %s", ctime.Format(candidates[i]), gtime.Format(candidates[i]))
+			// Make sure we can extract it with the base configuration
+			ts, ok, err := baseTg.Extract([]byte(candidate))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !ok {
+				t.Fatal("Failed to extract timestamp " + candidate + " format =" + candidates[i])
+			}
+			// Make sure we extract the *second* timestamp with the window enabled
+			ts, ok, err = tg.Extract([]byte(candidate))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !ok {
+				t.Fatalf("Failed to extract second timestamp %v, format %d = %v", candidate, i, candidates[i])
+			} else if !window.Valid(ts) {
+				t.Fatalf("Extracted timestamp from outside window: format = %v, candidate = %v, timestamp = %v", candidates[i], candidate, ts)
+			}
+		}
+	}
+}
+
 func TestNonDigitUnix(t *testing.T) {
 	tg, err := New(cfg)
 	if err != nil {
@@ -850,7 +1018,7 @@ func runFullSecTestsCustomCurr(tg *TimeGrinder, format string) error {
 			return err
 		}
 		if !ok {
-			return fmt.Errorf("Failed to extract timestamp [%s]", ts)
+			return fmt.Errorf("Failed to extract timestamp on iteration %d [%s]", i, ts)
 		}
 		if !t.UTC().Equal(tgt) {
 			//check if its just missing some precision, some formats don't have it
