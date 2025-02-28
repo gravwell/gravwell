@@ -9,8 +9,10 @@
 package log
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"net"
 	"runtime"
 
 	"github.com/crewjam/rfc5424"
@@ -38,4 +40,48 @@ func PrintOSInfo(wtr io.Writer) {
 	} else {
 		fmt.Fprintf(wtr, "OS:\t\tERROR %v\n", err)
 	}
+}
+
+type udpRelay struct {
+	conn net.PacketConn
+	addr *net.UDPAddr
+}
+
+func (r *udpRelay) Write(b []byte) (n int, err error) {
+	if len(b) == 1 && b[0] == '\n' {
+		return 1, nil // don't send single newlines
+	}
+	n, err = r.conn.WriteTo(b, r.addr)
+	return
+}
+
+func (r *udpRelay) Close() (err error) {
+	if r == nil || r.conn == nil {
+		return errors.New("not open")
+	}
+	return r.conn.Close()
+}
+
+func newUdpRelay(tgt string) (*udpRelay, error) {
+	var conn net.PacketConn
+	var addr *net.UDPAddr
+	var err error
+	// Resolve the address and get the socket established
+	if addr, err = net.ResolveUDPAddr("udp", tgt); err != nil {
+		return nil, err
+	} else if conn, err = net.ListenPacket("udp", ":0"); err != nil {
+		return nil, err
+	}
+	return &udpRelay{
+		conn: conn,
+		addr: addr,
+	}, nil
+}
+
+func NewUDPLogger(tgt string) (*Logger, error) {
+	relay, err := newUdpRelay(tgt)
+	if err != nil {
+		return nil, err
+	}
+	return New(relay), nil
 }
