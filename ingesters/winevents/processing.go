@@ -305,7 +305,14 @@ consumerLoop:
 
 func (m *mainService) init() error {
 	if !m.ignoreTS {
-		tg, err := timegrinder.NewTimeGrinder(timegrinder.Config{})
+		window, err := m.cfg.Global.GlobalTimestampWindow()
+		if err != nil {
+			return err
+		}
+		tcfg := timegrinder.Config{
+			TSWindow: window,
+		}
+		tg, err := timegrinder.NewTimeGrinder(tcfg)
 		if err != nil {
 			return fmt.Errorf("Failed to create new timegrinder: %v", err)
 		}
