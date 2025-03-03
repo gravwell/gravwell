@@ -62,7 +62,7 @@ func (r *udpRelay) Close() (err error) {
 	return r.conn.Close()
 }
 
-func newUdpRelay(tgt string) (*udpRelay, error) {
+func NewUdpRelay(tgt string) (*udpRelay, error) {
 	var conn net.PacketConn
 	var addr *net.UDPAddr
 	var err error
@@ -79,7 +79,7 @@ func newUdpRelay(tgt string) (*udpRelay, error) {
 }
 
 func NewUDPLogger(tgt string) (*Logger, error) {
-	relay, err := newUdpRelay(tgt)
+	relay, err := NewUdpRelay(tgt)
 	if err != nil {
 		return nil, err
 	}
