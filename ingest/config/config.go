@@ -228,6 +228,10 @@ func (ic *IngestConfig) Verify() error {
 		return err
 	}
 
+	if ic.Log_UDP_Target != `` && ic.Log_File != `` {
+		return errors.New("Log-File and Log-UDP-Target are mutually exclusive")
+	}
+
 	if ic.Log_UDP_Target != `` {
 		//make sure we can do a valid host/port split and the port is > 0 and <= 0ffff
 		if host, port, err := net.SplitHostPort(ic.Log_UDP_Target); err != nil {
