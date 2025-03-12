@@ -10,6 +10,7 @@ package entry
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -475,4 +476,20 @@ func (eb EVBlock) DeepCopy() (r EVBlock) {
 		})
 	}
 	return
+}
+
+func (eb EVBlock) MarshalJSON() ([]byte, error) {
+	if len(eb.evs) == 0 {
+		return []byte("[]"), nil
+	}
+	return json.Marshal(eb.evs)
+}
+
+func (eb *EVBlock) UnmarshalJSON(bts []byte) error {
+	if len(bts) == 0 {
+		eb.size = 0
+		eb.evs = nil
+		return nil
+	}
+	return json.Unmarshal(bts, &eb.evs)
 }
