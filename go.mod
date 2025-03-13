@@ -1,6 +1,8 @@
 module github.com/gravwell/gravwell/v3
 
-go 1.23
+go 1.23.0
+
+toolchain go1.23.7
 
 require (
 	cloud.google.com/go/pubsub v1.38.0
@@ -8,7 +10,7 @@ require (
 	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
 	github.com/Bowery/prompt v0.0.0-20190916142128-fa8279994f75
-	github.com/IBM/sarama v1.45.0
+	github.com/IBM/sarama v1.45.1
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56
@@ -22,6 +24,7 @@ require (
 	github.com/charmbracelet/x/term v0.1.1
 	github.com/crewjam/rfc5424 v0.1.0
 	github.com/dchest/safefile v0.0.0-20151022103144-855e8d98f185
+	github.com/duosecurity/duo_api_golang v0.0.0-20250128191753-8aff7fde9979
 	github.com/evertras/bubble-table v0.16.1
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gdamore/tcell/v2 v2.6.1-0.20231203215052-2917c3801e73
@@ -46,7 +49,7 @@ require (
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/jaswdr/faker/v2 v2.3.2
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
-	github.com/klauspost/compress v1.17.11
+	github.com/klauspost/compress v1.18.0
 	github.com/miekg/dns v1.1.56
 	github.com/minio/highwayhash v1.0.0
 	github.com/open-networks/go-msgraph v0.3.1
@@ -59,11 +62,11 @@ require (
 	github.com/tealeg/xlsx v1.0.5
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119
 	github.com/xdg-go/scram v1.1.2
-	golang.org/x/exp v0.0.0-20250106191152-7588d65b2ba8
-	golang.org/x/net v0.34.0
-	golang.org/x/sys v0.29.0
-	golang.org/x/text v0.21.0
-	golang.org/x/time v0.9.0
+	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394
+	golang.org/x/net v0.37.0
+	golang.org/x/sys v0.31.0
+	golang.org/x/text v0.23.0
+	golang.org/x/time v0.11.0
 )
 
 require (
@@ -102,7 +105,7 @@ require (
 	github.com/go-ole/go-ole v1.2.4 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
-	github.com/golang/snappy v0.0.4 // indirect
+	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/s2a-go v0.1.7 // indirect
 	github.com/googleapis/enterprise-certificate-proxy v0.3.2 // indirect
 	github.com/googleapis/gax-go/v2 v2.12.4 // indirect
@@ -144,12 +147,12 @@ require (
 	go.opentelemetry.io/otel/metric v1.24.0 // indirect
 	go.opentelemetry.io/otel/trace v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
-	golang.org/x/crypto v0.32.0 // indirect
-	golang.org/x/mod v0.22.0 // indirect
-	golang.org/x/oauth2 v0.25.0 // indirect
-	golang.org/x/sync v0.10.0 // indirect
-	golang.org/x/term v0.28.0 // indirect
-	golang.org/x/tools v0.29.0 // indirect
+	golang.org/x/crypto v0.36.0 // indirect
+	golang.org/x/mod v0.24.0 // indirect
+	golang.org/x/oauth2 v0.28.0 // indirect
+	golang.org/x/sync v0.12.0 // indirect
+	golang.org/x/term v0.30.0 // indirect
+	golang.org/x/tools v0.31.0 // indirect
 	google.golang.org/api v0.183.0 // indirect
 	google.golang.org/genproto v0.0.0-20240604185151-ef581f913117 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240604185151-ef581f913117 // indirect
