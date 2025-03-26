@@ -51,6 +51,24 @@ func (c *Client) CreateFlow(name, description, schedule, flow string, groups []i
 	return resp, nil
 }
 
+// CreateFlowFromObject just implements the same API as CreateFlow but expects the complete ScheduledSearch object
+// as an input, this allows users to have direct access to the full object.  The ScheduleType is overridden to
+// ScheduledTypeFlow to prevent errors.
+func (c *Client) CreateFlowFromObject(obj types.ScheduledSearch) (int32, error) {
+	// just override the type
+	obj.ScheduledType = types.ScheduledTypeFlow
+
+	//only field we absolutely require is teh Name
+	if obj.Name == `` {
+		return -1, errors.New("missing name")
+	}
+	var resp int32
+	if err := c.postStaticURL(flowUrl(), obj, &resp); err != nil {
+		return 0, err
+	}
+	return resp, nil
+}
+
 // UpdateFlowResults is used to update the flow after it has been
 // run. It only updates the LastRun, LastRunDuration, LastSearchIDs,
 // and LastError fields.
