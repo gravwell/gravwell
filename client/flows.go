@@ -58,7 +58,7 @@ func (c *Client) CreateFlowFromObject(obj types.ScheduledSearch) (int32, error) 
 	// just override the type
 	obj.ScheduledType = types.ScheduledTypeFlow
 
-	//only field we absolutely require is teh Name
+	// only field we absolutely require is the Name
 	if obj.Name == `` {
 		return -1, errors.New("missing name")
 	}
