@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -119,6 +120,15 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 				}
 			} else {
 				logSnsKeyDecode(lg, "SNS", buckets, keys)
+			}
+
+			// URL decode keys as we've seen some URL encoded strings here
+			for i, v := range keys {
+				if decoded, err := url.PathUnescape(v); err == nil {
+					keys[i] = decoded
+				} else {
+					lg.Warn("failed to URL decode key", log.KVErr(err), log.KV("key", v))
+				}
 			}
 
 			shouldDelete := true

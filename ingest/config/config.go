@@ -46,6 +46,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -108,6 +109,7 @@ type IngestConfig struct {
 	Pipe_Backend_Target        []string `json:",omitempty"`
 	Log_Level                  string   `json:",omitempty"`
 	Log_File                   string   `json:",omitempty"`
+	Log_UDP_Target             string   `json:",omitempty"`
 	Disable_Self_Ingest        bool     //do not ship logs via the gravwell tag
 	Source_Override            string   `json:",omitempty"` // override normal source if desired
 	Rate_Limit                 string   `json:",omitempty"`
@@ -226,21 +228,40 @@ func (ic *IngestConfig) Verify() error {
 		return err
 	}
 
-	// Make sure the log directory exists.
-	logdir := filepath.Dir(ic.Log_File)
-	fi, err := os.Stat(logdir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			//try to make the directory
-			err = os.MkdirAll(logdir, 0700)
-			if err != nil {
+	if ic.Log_UDP_Target != `` && ic.Log_File != `` {
+		return errors.New("Log-File and Log-UDP-Target are mutually exclusive")
+	}
+
+	if ic.Log_UDP_Target != `` {
+		//make sure we can do a valid host/port split and the port is > 0 and <= 0ffff
+		if host, port, err := net.SplitHostPort(ic.Log_UDP_Target); err != nil {
+			return fmt.Errorf("Invalid Log-UDP-Target %q %w", ic.Log_UDP_Target, err)
+		} else if host == `` {
+			return fmt.Errorf("Invalid Log-UDP-Target %q missing host", ic.Log_UDP_Target)
+		} else if port == `` {
+			return fmt.Errorf("Invalid Log-UDP-Target %q missing port", ic.Log_UDP_Target)
+		} else if p, err := strconv.ParseUint(port, 10, 16); err != nil {
+			return fmt.Errorf("Invalid Log-UDP-Target %q port %s is invalid %w", ic.Log_UDP_Target, port, err)
+		} else if p <= 0 || p > 0xffff {
+			return fmt.Errorf("Invalid Log-UDP-Target %q port %s is invalid", ic.Log_UDP_Target, port)
+		}
+	} else {
+		// Make sure the log directory exists.
+		logdir := filepath.Dir(ic.Log_File)
+		fi, err := os.Stat(logdir)
+		if err != nil {
+			if os.IsNotExist(err) {
+				//try to make the directory
+				err = os.MkdirAll(logdir, 0700)
+				if err != nil {
+					return err
+				}
+			} else {
 				return err
 			}
-		} else {
-			return err
+		} else if !fi.IsDir() {
+			return errors.New("Log Location is not a directory")
 		}
-	} else if !fi.IsDir() {
-		return errors.New("Log Location is not a directory")
 	}
 
 	if ic.Source_Override != `` {
@@ -344,7 +365,14 @@ func (ic *IngestConfig) AddLocalLogging(lg *log.Logger) {
 			lg.FatalCode(0, "invalid Log Level", log.KV("loglevel", ic.Log_Level), log.KVErr(err))
 		}
 	}
-	if len(ic.Log_File) > 0 {
+	if len(ic.Log_UDP_Target) > 0 {
+		// get a UDP relay spun up and add it
+		if r, err := log.NewUdpRelay(ic.Log_UDP_Target); err != nil {
+			lg.FatalCode(0, "failed to open UDP writer", log.KV("target", ic.Log_UDP_Target), log.KVErr(err))
+		} else if err = lg.AddWriter(r); err != nil {
+			lg.Fatal("failed to add a writer", log.KVErr(err))
+		}
+	} else if len(ic.Log_File) > 0 {
 		// attach a .log extension for everything but /dev/null, this is a special case
 		// for when you want a file follower to recursively watch something like /opt/gravwell/log but you don't
 		// want to go through the hassle of setting up exclusions.  So point the log file at dev null and just act like it didn't happen
@@ -446,11 +474,12 @@ func (ic *IngestConfig) GetLogger() (l *log.Logger, err error) {
 	if ll, err = log.LevelFromString(ic.Log_Level); err != nil {
 		return
 	}
-
-	if ic.Log_File == `` {
-		l = log.NewDiscardLogger()
-	} else {
+	if ic.Log_UDP_Target != `` {
+		l, err = log.NewUDPLogger(ic.Log_UDP_Target)
+	} else if ic.Log_File != `` {
 		l, err = log.NewFile(ic.Log_File)
+	} else {
+		l = log.NewDiscardLogger()
 	}
 	if err == nil {
 		err = l.SetLevel(ll)

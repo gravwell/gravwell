@@ -897,9 +897,11 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 		}
 	}
 
-	timeLeft := to - time.Since(ts)
-	if timeLeft <= 0 {
-		return ErrTimeout
+	var timeLeft time.Duration
+	if to > 0 {
+		if timeLeft = to - time.Since(ts); timeLeft <= 0 {
+			return ErrTimeout
+		}
 	}
 
 	//check for the simple case of a single indexer
@@ -916,8 +918,13 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 	//DO NOT CLOSE the channel unless we get all of them back
 	total := len(im.igst)
 	ch := make(chan error, total)
-	tmr := time.NewTimer(timeLeft + time.Second) //there will be some slop here
-	defer tmr.Stop()
+	var tch <-chan time.Time
+	if timeLeft > 0 {
+		//only arm a timer and set the tch channel if there was a timeout set
+		tmr := time.NewTimer(timeLeft + time.Second) //there will be some slop here
+		defer tmr.Stop()
+		tch = tmr.C
+	}
 
 	// do a parallel sync
 	var count int
@@ -926,7 +933,12 @@ func (im *IngestMuxer) SyncContext(ctx context.Context, to time.Duration) error 
 			if ig == nil {
 				ech <- nil
 			} else {
-				ech <- ig.syncTimeout(timeLeft)
+				select {
+				case ech <- ig.syncTimeout(timeLeft):
+				case <-ctx.Done():
+					//context cancelled, return that error
+					ech <- ctx.Err()
+				}
 			}
 		}(v, ch)
 		count++
@@ -949,8 +961,10 @@ loop:
 				lastErr = mergeError(lastErr, err)
 				down++
 			}
-		case <-tmr.C:
+		case <-tch:
 			timeout = true
+			break loop
+		case <-ctx.Done():
 			break loop
 		}
 	}
