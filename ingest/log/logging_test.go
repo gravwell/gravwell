@@ -14,10 +14,13 @@ import (
 	"io"
 	"io/ioutil"
 	"log/slog"
+	"net"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 const (
@@ -323,5 +326,66 @@ func TestStdLibLogger(t *testing.T) {
 	} else if !strings.Contains(s, "testing2\n") {
 		t.Fatal("Missing error value: ", s)
 	}
+
+}
+
+func TestUdpLogger(t *testing.T) {
+	conn, err := net.ListenPacket("udp", ":0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+
+	lgr, err := NewUDPLogger(conn.LocalAddr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err = conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		t.Error(err)
+	}
+
+	wg := &sync.WaitGroup{}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for i := 0; i < 500; i += 4 {
+			if err = lgr.Criticalf("log line %d - CRITICAL", i); err != nil {
+				t.Error(err)
+				break
+			} else if lgr.Errorf("log line %d - ERROR", i+1); err != nil {
+				t.Error(err)
+				break
+			} else if lgr.Warnf("log line %d - WARN", i+2); err != nil {
+				t.Error(err)
+				break
+			} else if lgr.Infof("log line %d - INFO", i+3); err != nil {
+				t.Error(err)
+				break
+			}
+		}
+
+		if err = lgr.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
+
+	// read 100 packets, we don't care about the other 9900, UDP should keep trucking
+	buff := make([]byte, 4096)
+	for i := 0; i < 100; i++ {
+		n, _, err := conn.ReadFrom(buff)
+		if err != nil {
+			t.Fatal(err)
+		} else if n <= 0 || n > 4096 {
+			t.Fatalf("got an invalid packet from our logger %d", n)
+		} else {
+			b := buff[0:n]
+			want := fmt.Sprintf("log line %d - ", i)
+			if !strings.Contains(string(b), want) {
+				t.Fatalf("Got a bad log line: (%d) (%s) %s\n", n, want, string(b))
+			}
+		}
+	}
+	wg.Wait()
 
 }
