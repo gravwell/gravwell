@@ -1,8 +1,6 @@
 module github.com/gravwell/gravwell/v3
 
-go 1.23.0
-
-toolchain go1.23.7
+go 1.23.8
 
 require (
 	cloud.google.com/go/pubsub v1.38.0
@@ -31,7 +29,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/goccy/go-json v0.8.1
 	github.com/gofrs/flock v0.8.0
-	github.com/golang-jwt/jwt v3.2.1+incompatible
+	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/google/gopacket v1.1.19
 	github.com/google/renameio v1.0.1
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
@@ -63,7 +61,7 @@ require (
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119
 	github.com/xdg-go/scram v1.1.2
 	golang.org/x/exp v0.0.0-20250305212735-054e65f0b394
-	golang.org/x/net v0.37.0
+	golang.org/x/net v0.38.0
 	golang.org/x/sys v0.31.0
 	golang.org/x/text v0.23.0
 	golang.org/x/time v0.11.0
