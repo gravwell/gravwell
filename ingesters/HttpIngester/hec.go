@@ -438,8 +438,8 @@ func (hh *hecHealth) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 	} else if hh.igst == nil {
 		w.WriteHeader(http.StatusServiceUnavailable)
-	} else if cnt, err := hh.igst.Hot(); err != nil || cnt == 0 {
-		w.WriteHeader(http.StatusServiceUnavailable)
+	} else if hh.igst.WillBlock() {
+		w.WriteHeader(http.StatusInsufficientStorage)
 	}
 }
 
