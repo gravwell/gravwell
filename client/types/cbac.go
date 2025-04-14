@@ -70,38 +70,38 @@ const (
 	NotificationWrite Capability = 43
 	SystemInfoRead    Capability = 44
 
-	TokenRead       Capability = 45
-	TokenWrite      Capability = 46
-	SecretRead      Capability = 47
-	SecretWrite     Capability = 48
-	AlertRead       Capability = 49
-	AlertWrite      Capability = 50
-	RemoteAIService Capability = 51
-	_maxCap         Capability = 52 //REMINDER - when adding capabilities, make sure to expand this number
+	TokenRead   Capability = 45
+	TokenWrite  Capability = 46
+	SecretRead  Capability = 47
+	SecretWrite Capability = 48
+	AlertRead   Capability = 49
+	AlertWrite  Capability = 50
+	LogbotAI    Capability = 51
+	_maxCap     Capability = 52 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
 type CapabilityCategory string
 
 const (
-	IngestCat          = `Data Ingest`
-	SearchCat          = `Search`
-	ActionablesCat     = `Actionables`
-	DashboardsCat      = `Dashboards`
-	ExtractorsCat      = `Extractors`
-	FilesCat           = `Files`
-	KitsCat            = `Kits`
-	MacrosCat          = `Macros`
-	NotificationsCat   = `Notifications`
-	PlaybooksCat       = `Playbooks`
-	QueryLibraryCat    = `Query Library`
-	ResourcesCat       = `Resources`
-	AutomationsCat     = `Automations`
-	TemplatesCat       = `Templates`
-	TokensCat          = `Tokens`
-	UsersAndGroupsCat  = `Users and Groups`
-	SystemAndStatsCat  = `System and Stats`
-	SecretsCat         = `Secrets`
-	RemoteAIServiceCat = `Remote AI Service APIs`
+	IngestCat         = `Data Ingest`
+	SearchCat         = `Search`
+	ActionablesCat    = `Actionables`
+	DashboardsCat     = `Dashboards`
+	ExtractorsCat     = `Extractors`
+	FilesCat          = `Files`
+	KitsCat           = `Kits`
+	MacrosCat         = `Macros`
+	NotificationsCat  = `Notifications`
+	PlaybooksCat      = `Playbooks`
+	QueryLibraryCat   = `Query Library`
+	ResourcesCat      = `Resources`
+	AutomationsCat    = `Automations`
+	TemplatesCat      = `Templates`
+	TokensCat         = `Tokens`
+	UsersAndGroupsCat = `Users and Groups`
+	SystemAndStatsCat = `System and Stats`
+	SecretsCat        = `Secrets`
+	LogbotAICat       = `Logbot AI`
 )
 
 const (
@@ -335,6 +335,8 @@ func (c Capability) Name() string {
 		return `AlertRead`
 	case AlertWrite:
 		return `AlertWrite`
+	case LogbotAI:
+		return `LogbotAI`
 	}
 	return `UNKNOWN`
 }
@@ -459,8 +461,8 @@ func (c Capability) Category() CapabilityCategory {
 		return SecretsCat
 	case SecretWrite:
 		return SecretsCat
-	case RemoteAIService:
-		return RemoteAIServiceCat
+	case LogbotAI:
+		return LogbotAICat
 	}
 	return `UNKNOWN`
 }
@@ -570,8 +572,8 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = AlertRead
 	case `alertwrite`:
 		*c = AlertWrite
-	case `remoteai`:
-		*c = RemoteAIService
+	case `logbotai`:
+		*c = LogbotAI
 	default:
 		err = ErrUnknownCapability
 	}
@@ -681,8 +683,8 @@ func (c Capability) String() string {
 		return `Read Alerts`
 	case AlertWrite:
 		return `Write and Delete Alerts`
-	case RemoteAIService:
-		return `Remote AI API`
+	case LogbotAI:
+		return `Logbot AI`
 	}
 	return `UNKNOWN`
 }
@@ -790,8 +792,8 @@ func (c Capability) Description() string {
 		return `User can read and access alerts`
 	case AlertWrite:
 		return `User can create, update, and delete alerts`
-	case RemoteAIService:
-		return `User can submit request to the remote AI APIs`
+	case LogbotAI:
+		return `User can submit requests to Logbot AI`
 	}
 	return `UNKNOWN`
 }

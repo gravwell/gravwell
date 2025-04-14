@@ -22,13 +22,15 @@ import (
 )
 
 const (
-	MIN_REMOTE_KEYSIZE int           = 16
-	DIAL_TIMEOUT       time.Duration = (1 * time.Second)
-	CHANNEL_BUFFER     int           = 4096
-	DEFAULT_TLS_PORT   int           = 4024
-	DEFAULT_CLEAR_PORT int           = 4023
-	DEFAULT_PIPE_PATH  string        = "/opt/gravwell/comms/pipe"
-	MAX_TAG_LENGTH     int           = 4096 //a 4KB tagname is a short story...
+	MIN_REMOTE_KEYSIZE    int           = 16
+	DIAL_TIMEOUT          time.Duration = (1 * time.Second)
+	authenticationTimeout time.Duration = 5 * time.Second // this is a REALLY LONG TIME, but there is some crypto in play so let it ride
+
+	CHANNEL_BUFFER     int    = 4096
+	DEFAULT_TLS_PORT   int    = 4024
+	DEFAULT_CLEAR_PORT int    = 4023
+	DEFAULT_PIPE_PATH  string = "/opt/gravwell/comms/pipe"
+	MAX_TAG_LENGTH     int    = 4096 //a 4KB tagname is a short story...
 
 	FORBIDDEN_TAG_SET string = "!@#$%^&*()=+<>,.:;`\"'{[}]|\\ 	" // DEPRECATED - includes space and tab characters at the end
 )
@@ -311,13 +313,24 @@ func newPipeConn(dst string) (net.Conn, net.IP, error) {
 	return conn, localhostAddr, nil
 }
 
+// negotiateEntryWriter will perform authentication, grab server versions, and a set of prenegotiated tags
+// this must ALL happen withen the authenticationTimeout, which is 5s.  If for some reason you can't authenticate and pull back all the tags
+// within 5s then we really need to consider this link as down and just bounce.
 func negotiateEntryWriter(conn net.Conn, tenant string, auth AuthHash, tags []string, ctx context.Context) (*EntryWriter, map[string]entry.EntryTag, error) {
+	// set a timeout that all authentication and dancing must be completed in
+	if err := conn.SetDeadline(time.Now().Add(authenticationTimeout)); err != nil {
+		return nil, nil, err
+	}
 	tagIDs, serverVersion, err := authenticate(conn, tenant, auth, tags)
 	if err != nil {
 		conn.Close()
 		return nil, nil, err
 	}
-
+	// clear the deadline
+	if err = conn.SetDeadline(time.Time{}); err != nil {
+		conn.Close()
+		return nil, nil, err
+	}
 	ew, err := newEntryWriterCtx(conn, ctx)
 	if err != nil {
 		return nil, nil, err
