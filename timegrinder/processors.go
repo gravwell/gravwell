@@ -180,6 +180,7 @@ type Processor interface {
 	ToString(time.Time) string
 	ExtractionRegex() string
 	Name() string
+	SetWindow(TimestampWindow)
 }
 
 type processor struct {
@@ -189,6 +190,7 @@ type processor struct {
 	format string
 	name   string
 	min    int
+	window TimestampWindow
 }
 
 func (p *processor) Format() string {
@@ -211,27 +213,40 @@ func (p *processor) Name() string {
 	return p.name
 }
 
-func extract(rx, rxt *regexp.Regexp, d []byte, format string, loc *time.Location) (t time.Time, ok bool, off int) {
+func (p *processor) SetWindow(t TimestampWindow) {
+	p.window = t
+}
+
+func extract(rx, rxt *regexp.Regexp, d []byte, format string, loc *time.Location, window TimestampWindow) (t time.Time, ok bool, off int) {
 	var err error
 	off = -1
-	idxs := rx.FindIndex(d)
-	if len(idxs) != 2 {
-		return
-	}
-	if rxt != nil {
-		if x := d[idxs[1]:]; len(x) > 0 {
-			if rxt.Match(x) {
-				//exclusion match hit, bail
-				return
+	for len(d) > 0 {
+		idxs := rx.FindIndex(d)
+		if len(idxs) != 2 {
+			return
+		}
+		if rxt != nil {
+			if x := d[idxs[1]:]; len(x) > 0 {
+				if rxt.Match(x) {
+					//exclusion match hit, bail
+					return
+				}
 			}
 		}
-	}
 
-	if t, err = time.ParseInLocation(format, string(d[idxs[0]:idxs[1]]), loc); err != nil {
-		return
+		if t, err = time.ParseInLocation(format, string(d[idxs[0]:idxs[1]]), loc); err != nil {
+			return
+		}
+		if !t.IsZero() && (window.Valid(t) || (t.Year() == 0 && window.Valid(tweakYear(t)))) {
+			// if the year comes out as zero, we assume it's because the format doesn't include
+			// the year, and we'll fix it upstream
+			ok = true
+			off = idxs[0]
+			return
+		} else {
+			d = d[idxs[1]:]
+		}
 	}
-	ok = true
-	off = idxs[0]
 	return
 }
 
@@ -239,7 +254,7 @@ func (a *processor) Extract(d []byte, loc *time.Location) (time.Time, bool, int)
 	if len(d) < a.min {
 		return time.Time{}, false, -1 //cannot possibly hit
 	}
-	return extract(a.rxp, a.trxpEx, d, a.format, loc)
+	return extract(a.rxp, a.trxpEx, d, a.format, loc, a.window)
 }
 
 func match(rx, rxt *regexp.Regexp, d []byte) (start, end int, ok bool) {
