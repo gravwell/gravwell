@@ -1,0 +1,101 @@
+[Global]
+Ingester-UUID="00000000-0000-0000-0000-0000000000"
+Connection-Timeout = 0
+Insecure-Skip-TLS-Verify=false
+#Cleartext-Backend-Target=127.0.0.1:4023 #example of adding a cleartext connection
+#Cleartext-Backend-Target=127.1.0.1:4023 #example of adding another cleartext connection
+#Encrypted-Backend-Target=127.1.1.1:4024 #example of adding an encrypted connection
+#Pipe-Backend-Target=/opt/gravwell/comms/pipe #a named pipe connection
+#Ingest-Cache-Path=/opt/gravwell/cache/netflow.cache
+#Max-Ingest-Cache=1024 #Number of MB to store, localcache will only store 1GB before stopping.  This is a safety net
+Log-Level=INFO
+Log-File=/opt/gravwell/log/gravwell_fetcher.log
+
+# [AsanaConf "default"]
+# 	RateLimit = 6
+#     	StartTime = "2025-01-01T00:00:01.000Z"
+#     	Token = ""
+#     	Workspace = ""
+#     	Tag-Name = "asana"
+
+[DuoConf "duo-admin"]
+    StartTime="2025-01-01T00:00:01.000Z"
+	Domain=""
+	Key=""
+	Secret=""
+	DuoAPI="admin"
+	Tag-Name="duo-admin"
+
+[DuoConf "duo-auth"]
+    StartTime="2025-01-01T00:00:01.000Z"
+	Domain=""
+	Key=""
+	Secret=""
+	DuoAPI="authentication"
+	Tag-Name="duo-auth"
+
+[DuoConf "duo-activity"]
+    StartTime="2025-01-01T00:00:01.000Z"
+	Domain=""
+    Key=""
+    Secret=""
+	DuoAPI="activity"
+	Tag-Name="duo-activity"
+
+[DuoConf "duo-account"]
+    StartTime="2025-01-01T00:00:01.000Z"
+	Domain=""
+	Key=""
+	Secret=""
+	DuoAPI="activity"
+	Tag-Name="duo-account"
+
+[ThinkstConf "thinkst-audit"]
+    ThinkstAPI="audit"
+    Token=""
+    Domain="XXXXXXXX.canary.tools"
+    StartTime="2025-01-01T00:00:01.000Z"
+    Tag-Name="thinkst"
+
+[ThinkstConf "thinkst-incident"]
+    ThinkstAPI="incident"
+     Token=""
+     Domain="XXXXXXXX.canary.tools"
+     StartTime="2025-01-01T00:00:01.000Z"
+     Tag-Name="thinkst"
+
+[OktaConf "okta1"]
+    StartTime="2025-01-01T00:00:01.000Z"
+    OktaDomain=""
+    OktaToken=""
+    UserTag=""
+    BatchSize=1000
+    MaxBurstSize=100
+    SeedUsers=true
+    SeedUserStart"2025-01-01T00:00:01.000Z"
+    Tag_Name=okta
+
+# Shodan Configuration
+[ShodanConf "shodan-host"]
+	Shodan-API=host
+	Domain="https://api.shodan.io"
+	Token=""
+	Tag-Name=shodan-host
+	Rate-Limit=6
+	Query='8.8.8.8'
+
+[ShodanConf "shodan-search"]
+	Shodan-API=search
+	Domain="https://api.shodan.io"
+	Token=""
+	Tag-Name=shodan-search
+	Rate-Limit=6
+	Query='org:"Gravwell"'
+
+[ShodanConf "shodan-count"]
+	ShodanAPI=count
+	Domain="https://api.shodan.io"
+	Token=""
+	Tag-Name=shodan-count
+	RateLimit=6
+	Query='org:"Gravwell"'
