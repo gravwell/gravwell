@@ -25,36 +25,34 @@ import (
 )
 
 var (
-	//TODO: update these to prefix with okta
 	oktaConns             map[string]*oktaHandlerConfig
 	errNoLinks            = errors.New("no links provided")
 	errSignalExit         = errors.New("program signaled to exit")
 	errNoNextLink         = errors.New("next link not found")
-	systemLogsNext        *url.URL
-	seedStartTs           time.Time
-	timeFormat            = `2006-01-02T15:04:05.000Z`
-	latestTS              time.Time
+	oktaTimeFormat        = `2006-01-02T15:04:05.000Z`
 	oktaDefaultRetryCodes = []int{425, 429}
 )
 
 type oktaHandlerConfig struct {
-	token         string
-	domain        string
-	userTag       string
-	batchSize     int
-	maxBurstSize  int
-	seedUsers     bool
-	seedUserStart string
-	startTime     string
-	thinkstAPI    string
-	tag           entry.EntryTag
-	src           net.IP
-	name          string
-	wg            *sync.WaitGroup
-	proc          *processors.ProcessorSet
-	ctx           context.Context
-	rate          int
-	ot            *objectTracker
+	token          string
+	domain         string
+	userTag        string
+	batchSize      int
+	maxBurstSize   int
+	seedUsers      bool
+	seedUserStart  string
+	startTime      string
+	systemLogsNext *url.URL
+	seedStartTs    time.Time
+	latestTS       time.Time
+	tag            entry.EntryTag
+	src            net.IP
+	name           string
+	wg             *sync.WaitGroup
+	proc           *processors.ProcessorSet
+	ctx            context.Context
+	rate           int
+	ot             *objectTracker
 }
 
 type retryClient struct {
@@ -208,15 +206,15 @@ func buildOktaHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *log
 		//TODO: Make sure this is handled well
 		if v.seedUserStart != `` {
 			var err error
-			if seedStartTs, err = time.Parse(timeFormat, v.seedUserStart); err != nil {
+			if v.seedStartTs, err = time.Parse(oktaTimeFormat, v.seedUserStart); err != nil {
 				lg.Fatal("Invalid seed-start value", log.KV("value", v.seedUserStart), log.KVErr(err))
 			}
 		}
 
-		latestTS = time.Now().Add(-7 * 24 * time.Hour)
+		v.latestTS = time.Now().Add(-7 * 24 * time.Hour)
 		if v.startTime != `` {
 			var err error
-			if latestTS, err = time.Parse(timeFormat, v.startTime); err != nil {
+			if v.latestTS, err = time.Parse(oktaTimeFormat, v.startTime); err != nil {
 				lg.Fatal("Invalid timestamp format", log.KV("format", "RFC3339Nano"), log.KV("value", v.startTime))
 			}
 		}
@@ -252,7 +250,7 @@ func systemLogRoutine(h *oktaHandlerConfig, rl *rate.Limiter) error {
 	defer h.wg.Done()
 	var quit bool
 	for quit == false {
-		lg.Info("Starting requests", log.KV("latestTS", latestTS.Format(time.RFC3339)), log.KV("systemLogsNext", systemLogsNext))
+		lg.Info("Starting requests", log.KV("latestTS", h.latestTS.Format(time.RFC3339)), log.KV("systemLogsNext", h.systemLogsNext))
 		if err := getSystemLogs(h, rc, rl); err != nil {
 			lg.Error("Error getting logs", log.KVErr(err))
 		}
@@ -278,13 +276,13 @@ func getSystemLogs(h *oktaHandlerConfig, rc *retryClient, rl *rate.Limiter) erro
 		return err
 	}
 
-	if systemLogsNext != nil {
-		req.URL = systemLogsNext
+	if h.systemLogsNext != nil {
+		req.URL = h.systemLogsNext
 	} else {
 		req.URL.Path = oktaSystemLogsPath
 		values := req.URL.Query()
 		values.Add(`sortOrder`, `ASCENDING`)
-		values.Add(`since`, latestTS.Format(timeFormat))
+		values.Add(`since`, h.latestTS.Format(oktaTimeFormat))
 		values.Add(`limit`, strconv.Itoa(h.batchSize))
 		req.URL.RawQuery = values.Encode()
 	}
@@ -313,8 +311,8 @@ func getSystemLogs(h *oktaHandlerConfig, rc *retryClient, rl *rate.Limiter) erro
 		}
 		if cnt > 0 {
 			lg.Info("Got entries", log.KV("count", cnt))
-			if ts.After(latestTS) {
-				latestTS = ts
+			if ts.After(h.latestTS) {
+				h.latestTS = ts
 				lg.Info("Updating latest timestamp", log.KV("timestamp", ts))
 			}
 		}
@@ -326,10 +324,10 @@ func getSystemLogs(h *oktaHandlerConfig, rc *retryClient, rl *rate.Limiter) erro
 		next, err := getNext(links)
 		if err != nil {
 			return err
-		} else if systemLogsNext, err = url.Parse(next); err != nil {
+		} else if h.systemLogsNext, err = url.Parse(next); err != nil {
 			return fmt.Errorf("Bad next URL %w", err)
 		}
-		req.URL = systemLogsNext
+		req.URL = h.systemLogsNext
 		lg.Info("System logs next", log.KV("next", next))
 
 		if cnt == 0 {
@@ -410,13 +408,13 @@ func userLogRoutine(h *oktaHandlerConfig, tag entry.EntryTag, rl *rate.Limiter) 
 	//check if we are supposed to seed users
 	if h.seedUsers {
 		var start, end time.Time
-		lg.Info("Seeding users", log.KV("start", start.Format(timeFormat)), log.KV("end", end.Format(timeFormat)))
+		lg.Info("Seeding users", log.KV("start", start.Format(oktaTimeFormat)), log.KV("end", end.Format(oktaTimeFormat)))
 		if err := getUserLogs(h, start, end, tag, rl); err != nil {
 			lg.Error("Error getting user logs on seed", log.KVErr(err))
 		}
 	} else {
 		//NOT doing a full seed, so check the seedStartTs
-		if startTs = seedStartTs; startTs.IsZero() {
+		if startTs = h.seedStartTs; startTs.IsZero() {
 			startTs = time.Now()
 		}
 	}
@@ -434,7 +432,7 @@ loop:
 				continue //skip this, not sure how this could happen, but skip it
 			}
 			//just look for changes over the last boundary
-			lg.Info("Requesting users", log.KV("start", start.Format(timeFormat)), log.KV("end", end.Format(timeFormat)))
+			lg.Info("Requesting users", log.KV("start", start.Format(oktaTimeFormat)), log.KV("end", end.Format(oktaTimeFormat)))
 			if err := getUserLogs(h, start, end, tag, rl); err != nil {
 				lg.Error("Error getting user logs", log.KVErr(err))
 			} else {
@@ -452,7 +450,7 @@ func lastUpdatedFilter(start, end time.Time) (r string) {
 	}
 	if start.IsZero() == false && end.IsZero() == false {
 		//both
-		r = fmt.Sprintf(`lastUpdated gt %q and lastUpdated lt %q`, start.Format(timeFormat), end.Format(timeFormat))
+		r = fmt.Sprintf(`lastUpdated gt %q and lastUpdated lt %q`, start.Format(oktaTimeFormat), end.Format(oktaTimeFormat))
 	}
 	return
 }
