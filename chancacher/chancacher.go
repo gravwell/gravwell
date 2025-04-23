@@ -330,7 +330,7 @@ func (c *ChanCacher) BufferSize() int {
 	return len(c.Out)
 }
 
-// CacheStart enable a stopped cache.
+// CacheStart enables a stopped cache.
 func (c *ChanCacher) CacheStart() {
 	if !c.cache {
 		return
