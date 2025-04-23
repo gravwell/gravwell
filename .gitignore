@@ -22,3 +22,9 @@ test.conf
 
 # binaries
 manager/manager
+manager
+
+
+#idea files
+.idea/
+.idea
