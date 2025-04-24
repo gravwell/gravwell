@@ -20,10 +20,13 @@ test.conf
 #vim files
 *.swp
 
+#idea files
+.idea/
+.idea
+
 # binaries
 manager/manager
 manager
-
 
 #idea files
 .idea/

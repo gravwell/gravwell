@@ -4,23 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	duoapi "github.com/duosecurity/duo_api_golang"
-	"github.com/gravwell/gravwell/v4/ingest"
-
-	"github.com/gravwell/gravwell/v4/ingest/entry"
-	"github.com/gravwell/gravwell/v4/ingest/log"
-	"github.com/gravwell/gravwell/v4/ingest/processors"
-	"github.com/gravwell/gravwell/v4/ingesters/base"
-	"golang.org/x/time/rate"
-
 	"net"
-
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	duoapi "github.com/duosecurity/duo_api_golang"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/base"
+
+	"golang.org/x/time/rate"
 )
 
 /*

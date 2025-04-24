@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"errors"
-
 	"strings"
 	"time"
+
 
 	"github.com/gravwell/gravwell/v4/ingest/attach"
 	"github.com/gravwell/gravwell/v4/ingest/config"
