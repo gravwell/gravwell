@@ -113,7 +113,7 @@ jobs:
         go vet ./filewatch
         go vet ./ingesters/utils
         go vet ./ingesters/kafka_consumer
-        go vet ./ingesters/simplerelay
+        go vet ./ingesters/SimpleRelay
         go vet ./ipexist
         go vet ./netflow
         go vet ./client/...
