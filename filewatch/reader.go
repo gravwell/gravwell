@@ -11,6 +11,7 @@ package filewatch
 import (
 	"errors"
 	"os"
+	"time"
 )
 
 const (
@@ -30,6 +31,9 @@ type Reader interface {
 	ReadRemaining() ([]byte, error)
 	Index() int64
 	Close() error
+	ID() (FileId, error)
+	FileSize() (int64, error)
+	LastModTime() (time.Time, error)
 }
 
 type ReaderConfig struct {
@@ -44,6 +48,28 @@ type baseReader struct {
 	f       *os.File
 	idx     int64
 	maxLine int
+}
+
+func (br baseReader) ID() (FileId, error) {
+	return getFileId(br.f)
+}
+
+func (br baseReader) FileSize() (sz int64, err error) {
+	var fi os.FileInfo
+	if fi, err = br.f.Stat(); err != nil {
+		sz = -1
+	} else {
+		sz = fi.Size()
+	}
+	return
+}
+
+func (br baseReader) LastModTime() (t time.Time, err error) {
+	var fi os.FileInfo
+	if fi, err = br.f.Stat(); err == nil {
+		t = fi.ModTime()
+	}
+	return
 }
 
 func newBaseReader(f *os.File, maxLine int, startIdx int64) (br baseReader, err error) {

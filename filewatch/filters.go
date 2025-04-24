@@ -372,13 +372,13 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 			flw.Close()
 			delete(f.states, stid)
 			delete(f.followers, stid)
-			return err
+			continue
 		}
 		if ok {
 			found = true
 			//we found it, make sure its not the same damn file name
 			if p == fpath {
-				return nil
+				continue // keep checking other followers
 			}
 			//different filter but we must keep tracking
 			if flw.FilterId() != i {
@@ -405,11 +405,13 @@ func (f *FilterManager) RenameFollower(fpath string) error {
 					return err
 				}
 				//return nil
-			} else if v.loc == p {
+			} else if v.loc == filepath.Dir(p) {
 				//just update the names
 				delete(f.followers, stid)
+
 				flw.FileName = stid
 				st, ok := f.states[stid]
+				delete(f.states, stid)
 				if !ok {
 					flw.Close()
 					return errors.New("failed to find state on rename")
@@ -528,11 +530,24 @@ func (f *FilterManager) launchFollowers(fpath string, deleteState bool) (ok bool
 	var si *int64
 
 	//swing through all filters and launch a follower for each one that matches
+FILTER_LOOP:
 	for i, v := range f.filters {
 		//check base directory and pattern match
 		if v.loc != fdir || !f.matchFile(v.mtchs, fname) {
 			continue
 		}
+
+		// if the fpath and inode is the same, just move on, a rename event already got this
+		for fid, follower := range f.followers {
+			if filepath.Dir(fid.FilePath) == v.loc {
+				// we have a follower inside this filter loc
+				if follower.FileId() == id && follower.FileName.BaseName == v.bname && follower.FileName.FilePath == fpath {
+					// this is already being tracked, just move on
+					continue FILTER_LOOP
+				}
+			}
+		}
+
 		si = nil
 		if !deleteState {
 			//see if we have state information for this file
@@ -607,6 +622,7 @@ func (f *FilterManager) checkRename(fpath string, id FileId) (isRename bool, err
 			if filterId >= len(f.filters) || filterId < 0 {
 				//filter outside of range, delete the follower
 				removeFollower = true
+				continue // so we don't try to use this index
 			}
 			//check the filter glob against the new name
 			if f.filters[filterId].loc == fdir && f.matchFile(f.filters[filterId].mtchs, fname) {
@@ -663,6 +679,10 @@ func (f *FilterManager) CatchupFile(wf watchedFile, qc chan os.Signal) (bool, er
 	//get ID
 	id, err := getFileIdFromName(wf.pth)
 	if err != nil {
+		//if we catch a file that does not exist during Catchup, just leave, there is nothing to do here
+		if os.IsNotExist(err) {
+			return false, nil
+		}
 		return false, err
 	}
 

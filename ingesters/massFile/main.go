@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -18,8 +18,12 @@ import (
 	"strings"
 	"time"
 
+	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
+	_ "time/tzdata"
+
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/shirou/gopsutil/mem"
 
@@ -227,7 +231,7 @@ func main() {
 		}
 	}
 	if iv != nil {
-		if err := iv.m.Sync(time.Second); err != nil {
+		if err := iv.m.Sync(utils.ExitSyncTimeout); err != nil {
 			fmt.Printf("ERROR: Failed to sync ingester: %v\n", err)
 			os.Exit(-1)
 		}

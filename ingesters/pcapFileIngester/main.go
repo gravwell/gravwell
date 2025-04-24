@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -16,6 +16,9 @@ import (
 	"runtime"
 	"runtime/debug"
 	"time"
+
+	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
+	_ "time/tzdata"
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -144,7 +147,7 @@ func main() {
 			fmt.Println("failed to Simulate packet read", err)
 		}
 	}
-	if err := igst.Sync(10 * time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to sync: %v\n", err)
 	}
 	if err := igst.Close(); err != nil {

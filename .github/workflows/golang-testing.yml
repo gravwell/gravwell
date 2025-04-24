@@ -19,7 +19,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        go-version: 1.21.13
+        go-version: 1.23.8
         cache: false
 
     - name: Go Tidy
