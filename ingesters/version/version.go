@@ -21,7 +21,7 @@ const (
 )
 
 var (
-	BuildDate time.Time = time.Date(2025, 5, 1, 12, 0, 0, 0, time.UTC)
+	BuildDate time.Time = time.Date(2025, 4, 30, 12, 0, 0, 0, time.UTC)
 )
 
 func PrintVersion(wtr io.Writer) {
