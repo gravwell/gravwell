@@ -103,6 +103,7 @@ jobs:
       run: |
         go vet ./generators/ipgen
         go vet ./chancacher
+        go vet ./debug
         go vet ./ingest
         go vet ./ingest/entry
         go vet ./ingest/processors
@@ -140,7 +141,10 @@ jobs:
 
     - name: staticcheck
       run: |
+	staticcheck ./chancacher/...
+	staticcheck ./debug/...
 	staticcheck ./generators/base/... ./generators/gravwellGenerator/... ./generators/ipgen/...
+	staticcheck ./manager/...
 	GOOS=windows staticcheck ./generators/windowsEventGenerator/...
 
     - name: Build
