@@ -12,7 +12,6 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -41,10 +40,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestFlock(t *testing.T) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
+	dir := t.TempDir()
 	defer os.RemoveAll(dir)
 
 	c, err := NewChanCacher(2, dir, 0)
@@ -108,12 +104,7 @@ func TestBlockDepth(t *testing.T) {
 }
 
 func TestTearDownCache(t *testing.T) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
+	dir := t.TempDir()
 	c, _ := NewChanCacher(2, dir, 0)
 
 	for i := 0; i < 100; i++ {
@@ -213,11 +204,7 @@ func TestTearDownNoCache(t *testing.T) {
 }
 
 func TestRecover(t *testing.T) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	dir := t.TempDir()
 	c, _ := NewChanCacher(2, dir, 0)
 
 	for i := 0; i < 100; i++ {
@@ -272,11 +259,7 @@ func TestRecover(t *testing.T) {
 }
 
 func TestCommit(t *testing.T) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	c, _ := NewChanCacher(2, dir, 0)
 
@@ -307,11 +290,7 @@ func TestCommit(t *testing.T) {
 }
 
 func TestDrain(t *testing.T) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	c, _ := NewChanCacher(2, dir, 0)
 
@@ -369,11 +348,7 @@ func TestDrain(t *testing.T) {
 }
 
 func TestCacheStartStop(t *testing.T) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	c, _ := NewChanCacher(2, dir, 0)
 
@@ -435,11 +410,7 @@ func TestCacheStartStop(t *testing.T) {
 }
 
 func TestCache(t *testing.T) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	c, _ := NewChanCacher(2, dir, 0)
 
@@ -485,13 +456,11 @@ func TestCache(t *testing.T) {
 }
 
 func TestDetritus(t *testing.T) {
-	dir, err := ioutil.TempDir("", "chancachertest")
+	dir := t.TempDir()
+	f, err := os.CreateTemp(dir, "merge")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(dir)
-
-	f, err := ioutil.TempFile(dir, "merge")
 	f.Close()
 	if err != nil {
 		t.Error(err)
@@ -500,7 +469,9 @@ func TestDetritus(t *testing.T) {
 
 	NewChanCacher(2, dir, 0)
 
-	_, err = os.Stat(f.Name())
+	if _, err = os.Stat(f.Name()); err == nil {
+		t.Fatal("failed to get an error on statting merge file")
+	}
 	if !strings.Contains(err.Error(), "no such file") {
 		t.Error("file still exists!", err)
 		t.FailNow()
@@ -508,17 +479,8 @@ func TestDetritus(t *testing.T) {
 }
 
 func TestMerge(t *testing.T) {
-	staging, err := ioutil.TempDir("", "chancachertest_staging")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(staging)
-
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	staging := t.TempDir()
+	dir := t.TempDir()
 
 	c, _ := NewChanCacher(2, dir, 0)
 
@@ -639,11 +601,7 @@ func TestMerge(t *testing.T) {
 }
 
 func TestCacheHasData(t *testing.T) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	c, _ := NewChanCacher(2, dir, 0)
 
@@ -667,11 +625,7 @@ func TestCacheHasData(t *testing.T) {
 }
 
 func TestCacheMaxSize(t *testing.T) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
+	dir := t.TempDir()
 
 	c, _ := NewChanCacher(0, dir, 10)
 
@@ -701,11 +655,7 @@ func TestCacheMaxSize(t *testing.T) {
 // TestCacheEntries verifies that we can write entries, with EVs
 // attached, and read them back out.
 func TestCacheEntries(t *testing.T) {
-	dir, err := os.MkdirTemp("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
-
+	dir := t.TempDir()
 	c, _ := NewChanCacher(2, dir, 0)
 
 	for i := 0; i < 100; i++ {
@@ -725,8 +675,6 @@ func TestCacheEntries(t *testing.T) {
 	close(c.In)
 	c.Commit()
 	<-c.Out
-
-	defer os.RemoveAll(dir)
 
 	c, _ = NewChanCacher(2, dir, 0)
 
@@ -829,12 +777,7 @@ func TestCacheOldEntries(t *testing.T) {
 }
 
 func TestSpam(t *testing.T) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
+	dir := t.TempDir()
 	c, _ := NewChanCacher(100, dir, 1024*1024*1000)
 
 	go func() {
@@ -857,7 +800,7 @@ func BenchmarkReference(b *testing.B) {
 	in := make(chan int)
 
 	go func() {
-		for _ = range out {
+		for range out {
 		}
 	}()
 
@@ -880,7 +823,7 @@ func BenchmarkUnbufferedSmall(b *testing.B) {
 
 	// something to consume
 	go func() {
-		for _ = range c.Out {
+		for range c.Out {
 		}
 	}()
 
@@ -898,7 +841,7 @@ func BenchmarkBufferedSmall(b *testing.B) {
 
 	// something to consume
 	go func() {
-		for _ = range c.Out {
+		for range c.Out {
 		}
 	}()
 
@@ -916,7 +859,7 @@ func BenchmarkBufferedLarge(b *testing.B) {
 
 	// something to consume
 	go func() {
-		for _ = range c.Out {
+		for range c.Out {
 		}
 	}()
 
@@ -928,12 +871,7 @@ func BenchmarkBufferedLarge(b *testing.B) {
 }
 
 func BenchmarkCacheBlocked(b *testing.B) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
+	dir := b.TempDir()
 	c, _ := NewChanCacher(2, dir, 0)
 
 	COUNT := 10000000
@@ -948,19 +886,14 @@ func BenchmarkCacheBlocked(b *testing.B) {
 }
 
 func BenchmarkCacheStreaming(b *testing.B) {
-	dir, err := ioutil.TempDir("", "chancachertest")
-	if err != nil {
-		b.Fatal(err)
-	}
-	defer os.RemoveAll(dir)
-
+	dir := b.TempDir()
 	c, _ := NewChanCacher(2, dir, 0)
 
 	COUNT := 10000000
 
 	// something to consume
 	go func() {
-		for _ = range c.Out {
+		for range c.Out {
 		}
 	}()
 
