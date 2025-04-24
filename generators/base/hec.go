@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -85,7 +84,7 @@ func (hec *hecIgst) test() (ip net.IP, err error) {
 }
 
 func (hec *hecIgst) httpRoutine(rdr io.ReadCloser) {
-	if hec.GeneratorConfig.ChaosMode == false {
+	if !hec.GeneratorConfig.ChaosMode {
 		hec.multiLineRequest(rdr)
 	} else {
 		hec.singleEntryRequest(rdr)
@@ -126,7 +125,7 @@ func (hec *hecIgst) multiLineRequest(rdr io.Reader) {
 	if resp.StatusCode != http.StatusOK {
 		var msg string
 		lr := &io.LimitedReader{R: resp.Body, N: 512}
-		if body, err := ioutil.ReadAll(lr); err == nil || err == io.EOF {
+		if body, err := io.ReadAll(lr); err == nil || err == io.EOF {
 			msg = string(body)
 		} else {
 			msg = err.Error()
@@ -135,7 +134,6 @@ func (hec *hecIgst) multiLineRequest(rdr io.Reader) {
 	} else {
 		hec.errch <- nil
 	}
-	return
 }
 
 func (hec *hecIgst) requester(ch chan []byte, wg *sync.WaitGroup, id int) {
@@ -188,7 +186,7 @@ func (hec *hecIgst) requester(ch chan []byte, wg *sync.WaitGroup, id int) {
 		} else if resp.StatusCode != http.StatusOK {
 			var msg string
 			lr := &io.LimitedReader{R: resp.Body, N: 1024 * 1024}
-			if body, err := ioutil.ReadAll(lr); err == nil || err == io.EOF {
+			if body, err := io.ReadAll(lr); err == nil || err == io.EOF {
 				msg = string(body)
 			} else {
 				msg = err.Error()
@@ -229,8 +227,6 @@ func (hec *hecIgst) singleEntryRequest(rdr io.Reader) {
 	}
 	close(ch)
 	wg.Wait()
-	return
-
 }
 
 type nilWriter struct {
