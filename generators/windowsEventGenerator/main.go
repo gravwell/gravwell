@@ -67,11 +67,11 @@ func main() {
 		c := make(chan os.Signal, 1)
 		signal.Notify(c, os.Interrupt)
 		select {
-		case _ = <-c:
+		case <-c:
 			stop = true
 			select {
 			case err = <-r:
-			case _ = <-time.After(3 * time.Second):
+			case <-time.After(3 * time.Second):
 				err = errors.New("Timed out waiting for exit")
 			}
 		case err = <-r:
