@@ -334,8 +334,10 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 	var sz uint
 	var cnt uint
 	for _, m := range msgs {
+		// optionally override the timestamp, if no window is set, this does nothing
+		ts := kc.timeWindow.Override(m.Timestamp)
 		ent := &entry.Entry{
-			TS:   entry.FromStandard(m.Timestamp),
+			TS:   entry.FromStandard(ts),
 			Data: m.Value,
 		}
 		if kc.ignoreTS {
@@ -343,6 +345,7 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 		} else if kc.extractTS && kc.tg != nil {
 			var hts time.Time
 			var ok bool
+			// no need to do any override with the window, that is already all plugged into the time grinder
 			if hts, ok, err = kc.tg.Extract(ent.Data); err != nil {
 				kc.lg.Warn("catastrophic timegrinder error", log.KVErr(err))
 			} else if ok {

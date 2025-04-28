@@ -47,11 +47,11 @@ type hecCompatible struct {
 	Preprocessor              []string
 }
 
-func (v *hecCompatible) validate(name string) (string, error) {
-	if len(v.URL) == 0 {
-		v.URL = defaultHECUrl
+func (h *hecCompatible) validate(name string) (string, error) {
+	if len(h.URL) == 0 {
+		h.URL = defaultHECUrl
 	}
-	p, err := url.Parse(v.URL)
+	p, err := url.Parse(h.URL)
 	if err != nil {
 		return ``, fmt.Errorf("URL structure is invalid: %v", err)
 	}
@@ -61,34 +61,34 @@ func (v *hecCompatible) validate(name string) (string, error) {
 		return ``, errors.New("May not specify host in listening URL")
 	}
 	pth := p.Path
-	if len(v.Tag_Name) == 0 {
-		v.Tag_Name = entry.DefaultTagName
+	if len(h.Tag_Name) == 0 {
+		h.Tag_Name = entry.DefaultTagName
 	}
-	if len(v.Raw_Line_Breaker) == 0 {
-		v.Raw_Line_Breaker = defaultLineBreaker
+	if len(h.Raw_Line_Breaker) == 0 {
+		h.Raw_Line_Breaker = defaultLineBreaker
 	}
-	if ingest.CheckTag(v.Tag_Name) != nil {
-		return ``, errors.New("Invalid characters in the \"" + v.Tag_Name + "\"Tag-Name for " + name)
+	if ingest.CheckTag(h.Tag_Name) != nil {
+		return ``, errors.New("Invalid characters in the \"" + h.Tag_Name + "\"Tag-Name for " + name)
 	}
 	// deal with the bad format of TokenValue vs Token-Value
-	if len(v.TokenValue) == 0 && len(v.Token_Value) != 0 {
-		v.TokenValue = v.Token_Value
+	if len(h.TokenValue) == 0 && len(h.Token_Value) != 0 {
+		h.TokenValue = h.Token_Value
 	}
-	if len(v.TokenValue) == 0 && len(v.Routed_Token_Value) == 0 {
+	if len(h.TokenValue) == 0 && len(h.Routed_Token_Value) == 0 {
 		return ``, errors.New("No tokens specified, missing TokenValue and Routed-Token-Value")
 	}
 
 	//check the Tag_Match member
-	if _, err = v.sourcetypeTagMatchers(); err != nil {
+	if _, err = h.sourcetypeTagMatchers(); err != nil {
 		return ``, fmt.Errorf("HEC-Compatible-Listener %s has invalid Tag-Match %w", name, err)
 	}
 
-	if _, err = v.tokenTagMatchers(); err != nil {
+	if _, err = h.tokenTagMatchers(); err != nil {
 		return ``, fmt.Errorf("HEC-Compatible-Listener %s has an invalid tag in Routed-Token-Value: %w", name, err)
 	}
 
 	//normalize the path
-	v.URL = pth
+	h.URL = pth
 	return pth, nil
 }
 
@@ -233,6 +233,9 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			debugPosts:     v.Debug_Posts,
 			tagRouter:      v.loadSourcetypeTagRouter(igst),
 			tokenRouter:    v.loadTokenTagRouter(igst),
+		}
+		if hh.timeWindow, err = cfg.GlobalTimestampWindow(); err != nil {
+			lg.Error("TimestampWindow is invalid", log.KVErr(err))
 		}
 		if hh.auth, err = newHecAuth(v, igst); err != nil {
 			lg.Error("HEC authentication error", log.KVErr(err))
