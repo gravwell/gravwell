@@ -40,7 +40,7 @@ func (w *TimestampWindow) Valid(t time.Time) bool {
 	return true
 }
 
-// Override takes a timesatmp and returns a potentially overriden timestamp
+// Override takes a timestamp and returns a potentially overriden timestamp
 // this is a shorthand for if !w.Valid(ts) {return entry.Now()}
 func (w *TimestampWindow) Override(t time.Time) time.Time {
 	if w.Enabled() {
