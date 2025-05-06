@@ -8,13 +8,17 @@ Good issues should contain a detailed description of your problem and either ste
 
 Good pull requests should address problems which may be applicable to others, not just your specific use-case.
 
-Please don't submit PRs which only make small modifications to comments or documentation; we are not a resume-padding service.
+Please don't submit PRs which only make small tweaks to comments or documentation; stick to substantive changes, either modifications to code or repository-wide comment/documentation fixes.
+
+Small changes should target the `next-patch` branch; more extensive modifications should probably target `next-minor`.
 
 ## Style
 
 Please follow standard [Go style](https://go.dev/doc/effective_go), and always run `go fmt` before comitting your code.
 
 ## Dependencies
+
+Never vendor dependencies; reference them via `go.mod` only. Never copy in portions of code wholesale from another package.
 
 Any dependency must be [permissively licensed](https://en.wikipedia.org/wiki/Permissive_software_license), which is luckily the most common type of license in the Go world. The following licenses are known to be acceptable:
 
