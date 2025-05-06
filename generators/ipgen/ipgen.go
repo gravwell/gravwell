@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package ipgen implements some high speed pre-populated IP address generator functions
 package ipgen
 
 import (

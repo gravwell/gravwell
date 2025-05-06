@@ -12,7 +12,7 @@ import (
 	"encoding/csv"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -93,7 +93,7 @@ func GetConfig(path string) (c cfgType, err error) {
 		err = errors.New("Config File Far too large")
 		return
 	}
-	if data, err = ioutil.ReadAll(fin); err != nil {
+	if data, err = io.ReadAll(fin); err != nil {
 		return
 	}
 

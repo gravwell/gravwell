@@ -348,7 +348,7 @@ func (pa *paramAttacher) process(req *http.Request) {
 	if req == nil {
 		pa.exts = nil
 		return
-	} else if pa.active == false {
+	} else if !pa.active {
 		return
 	}
 
@@ -364,7 +364,6 @@ func (pa *paramAttacher) process(req *http.Request) {
 			pa.processSet(v)
 		}
 	}
-	return
 }
 
 func (pa *paramAttacher) processSet(vals url.Values) {
