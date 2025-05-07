@@ -98,7 +98,6 @@ func getList() (r []string) {
 }
 
 func emptyFinalizer(ent *entry.Entry) {
-	return
 }
 
 func fin(val string) base.Finalizer {
