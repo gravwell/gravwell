@@ -107,6 +107,7 @@ type consumerCfg struct {
 	ignoreTS     bool
 	extractTS    bool
 	tg           *timegrinder.TimeGrinder
+	timeWindow   timegrinder.TimestampWindow
 	preprocessor []string
 }
 
@@ -303,20 +304,19 @@ func (cc ConfigConsumer) validateAndProcess(cr cfgReadType) (c consumerCfg, err 
 			return
 		}
 	}
+	if c.timeWindow, err = cr.Global.GlobalTimestampWindow(); err != nil {
+		err = fmt.Errorf("Failed to get global timestamp window: %v", err)
+		return
+	}
+
 	if cc.Ignore_Timestamps {
 		c.ignoreTS = true
 	} else if cc.Extract_Timestamps {
 		c.extractTS = true
-		var window timegrinder.TimestampWindow
-		window, err = cr.Global.GlobalTimestampWindow()
-		if err != nil {
-			err = fmt.Errorf("Failed to get global timestamp window: %v", err)
-			return
-		}
 		tcfg := timegrinder.Config{
 			EnableLeftMostSeed: true,
 			FormatOverride:     cc.Timestamp_Format_Override,
-			TSWindow:           window,
+			TSWindow:           c.timeWindow,
 		}
 		if c.tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
 			err = fmt.Errorf("Failed to generate new timegrinder: %v", err)
@@ -381,8 +381,6 @@ func (cc ConfigConsumer) balanceStrats() (st []sarama.BalanceStrategy, err error
 }
 
 func (kac KafkaAuthConfig) Validate() (err error) {
-	if kac.Auth_Type == `` {
-	}
 	switch strings.ToLower(kac.Auth_Type) {
 	case ``:
 		return //no auth
