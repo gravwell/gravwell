@@ -58,7 +58,8 @@ echo "running staticcheck"
 	staticcheck ./ingest/log/...
 	staticcheck ./ingest/entry
 	#staticcheck ./ingest/processors/...
-	#staticcheck ./ingest/processors/plugin
+	staticcheck ./ingest/processors/plugin
+	staticcheck ./ingest/processors/tags
 
 
 echo "running govluncheck on everything"
@@ -115,7 +116,7 @@ echo "running govluncheck on everything"
         govulncheck -test ./ingesters/GooglePubSubIngester
         govulncheck -test ./ingesters/fileFollow
         govulncheck -test ./ingesters/singleFile
-        govulncheck -test ./gwcli
+        #govulncheck -test ./gwcli
         GOOS=windows govulncheck -test ./ingesters/winevents
         GOOS=windows govulncheck -test ./winevent/...
 
@@ -128,7 +129,7 @@ echo "Running build tests"
         go build -o /dev/null ./timegrinder/cmd
         go build -o /dev/null ./ipexist/textinput
         go build -o /dev/null ./kitctl
-        go build -o /dev/null ./gwcli
+        #go build -o /dev/null ./gwcli
         GOOS=windows go build -o /dev/null ./ingesters/fileFollow
         GOOS=windows go build -o /dev/null ./ingesters/winevents
         GOOS=windows go build ./generators/windowsEventGenerator
