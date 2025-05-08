@@ -553,7 +553,7 @@ func (ew *EntryWriter) flush() (err error) {
 }
 
 // ConfigureStream takes a StreamConfiguration structure and prepares the entrywriter connection
-// This is often used for configurating transport compression, and I/O rate limiting.
+// This is often used for configuring transport compression, and I/O rate limiting.
 func (ew *EntryWriter) ConfigureStream(c StreamConfiguration) (err error) {
 	var resp StreamConfiguration
 	if err = c.validate(); err != nil {
