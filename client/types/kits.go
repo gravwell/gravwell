@@ -408,7 +408,7 @@ type KitMetadata struct {
 	ConfigMacros  []KitConfigMacro
 }
 
-// KitMetadataAsset are items that might be associated with kits when hosting them
+// KitMetadataAsset stores items that might be associated with kits when hosting them
 // we use these to enable pinning additional stuff to a kit.
 type KitMetadataAsset struct {
 	Type     string
