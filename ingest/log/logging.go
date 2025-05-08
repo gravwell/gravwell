@@ -331,60 +331,60 @@ func (l *Logger) Infof(f string, args ...interface{}) error {
 	return l.outputf(DEFAULT_DEPTH, INFO, f, args...)
 }
 
-// Warnf writes an WARN level log to the underlying writer,
+// Warnf writes an WARN level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Warnf(f string, args ...interface{}) error {
 	return l.outputf(DEFAULT_DEPTH, WARN, f, args...)
 }
 
-// Errorf writes an ERROR level log to the underlying writer,
+// Errorf writes an ERROR level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Errorf(f string, args ...interface{}) error {
 	return l.outputf(DEFAULT_DEPTH, ERROR, f, args...)
 }
 
-// Criticalf writes a CRITICALinfo level log to the underlying writer,
+// Criticalf writes a CRITICALinfo level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Criticalf(f string, args ...interface{}) error {
 	return l.outputf(DEFAULT_DEPTH, CRITICAL, f, args...)
 }
 
-// DebugfWithDepth writes a DEBUG level log to the underlying writer,
+// DebugfWithDepth writes a DEBUG level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) DebugfWithDepth(d int, f string, args ...interface{}) error {
 	return l.outputf(d, DEBUG, f, args...)
 }
 
-// InfofWithDepth writes an INFO level log to the underlying writer,
+// InfofWithDepth writes an INFO level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) InfofWithDepth(d int, f string, args ...interface{}) error {
 	return l.outputf(d, INFO, f, args...)
 }
 
-// WarnfWithDepth writes an WARN level log to the underlying writer,
+// WarnfWithDepth writes an WARN level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) WarnfWithDepth(d int, f string, args ...interface{}) error {
 	return l.outputf(d, WARN, f, args...)
 }
 
-// ErrorfWithDepth writes an ERROR level log to the underlying writer,
+// ErrorfWithDepth writes an ERROR level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) ErrorfWithDepth(d int, f string, args ...interface{}) error {
 	return l.outputf(d, ERROR, f, args...)
 }
 
-// CriticalfWithDepthf writes a CRITICALinfo level log to the underlying writer,
+// CriticalfWithDepthf writes a CRITICALinfo level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) CriticalfWithDepthf(d int, f string, args ...interface{}) error {
 	return l.outputf(d, CRITICAL, f, args...)
 }
 
-// Fatalf writes a log, closes the logger, and issues an os.Exit(-1)
+// Fatalf writes a log using a format string, closes the logger, and issues an os.Exit(-1)
 func (l *Logger) Fatalf(f string, args ...interface{}) {
 	l.fatalfCode(DEFAULT_DEPTH, -1, f, args...)
 }
 
-// FatalfCode is identical to a log.Fatal, except it allows for controlling the exit code
+// FatalfCode is identical to a log.Fatal, except it allows for controlling the exit code and uses a format string
 func (l *Logger) FatalfCode(code int, f string, args ...interface{}) {
 	l.fatalfCode(DEFAULT_DEPTH, code, f, args...)
 }
