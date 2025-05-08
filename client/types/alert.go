@@ -105,7 +105,7 @@ type AlertDispatcher struct {
 	Type AlertDispatcherType `json:"Type"`
 }
 
-// AlertSchemas Contains schema definitions for an alert and selects which one is to be used.
+// AlertSchemas contains schema definitions for an alert and selects which one is to be used.
 type AlertSchemas struct {
 
 	// The "simple" schema, if any is defined.
