@@ -6,6 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+//lint:file-ignore SA1019 suggestion isn't the same and we can't actually use it, ignore.
+
 package ipexist
 
 import (

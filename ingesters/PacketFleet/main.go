@@ -199,9 +199,8 @@ func main() {
 
 		// Setup HTTPS client
 		tlsConfig := &tls.Config{
-			InsecureSkipVerify: true,
-			Certificates:       []tls.Certificate{cert},
-			RootCAs:            caCertPool,
+			Certificates: []tls.Certificate{cert},
+			RootCAs:      caCertPool,
 		}
 		tlsConfig.BuildNameToCertificate()
 		transport := &http.Transport{TLSClientConfig: tlsConfig}

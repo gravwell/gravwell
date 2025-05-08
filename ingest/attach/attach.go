@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package attach implements the helper functions that allow configuring arbitrary attach directives on ingesters
 package attach
 
 import (
@@ -143,7 +144,7 @@ func NewAttacher(ac AttachConfig, id uuid.UUID) (a *Attacher, err error) {
 }
 
 func (a *Attacher) Attach(ent *entry.Entry) {
-	if a == nil || a.active == false {
+	if a == nil || !a.active {
 		return
 	} else if a.haveDynamic {
 		for _, d := range a.dynamics {
@@ -193,7 +194,7 @@ func newEnvDynamic(ed *entry.EnumeratedData, envKey string, tckInt time.Duration
 func (e *envDynamic) run() {
 	//check if we should update
 	select {
-	case _ = <-e.updateTicker.C:
+	case <-e.updateTicker.C:
 		// try to update on our ticker
 		if value, ok := os.LookupEnv(e.key); ok {
 			*e.ed = entry.StringEnumData(value)

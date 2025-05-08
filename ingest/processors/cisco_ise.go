@@ -110,8 +110,8 @@ func (c *CiscoISEConfig) validate() (err error) {
 
 	//handle the legacy config items and potential overrides
 	// if Drop-Misses is set, that overrides everything
-	if c.Drop_Misses == false {
-		if c.Passthrough_Misses == false {
+	if !c.Drop_Misses {
+		if !c.Passthrough_Misses {
 			c.Drop_Misses = true
 		}
 	}
@@ -619,7 +619,6 @@ func (kv *iseKV) stripHeaders() {
 	}
 	kv.key = key
 	kv.value = string(val)
-	return
 }
 
 func indexOfNonEscaped(data []byte, delim byte) (r int) {

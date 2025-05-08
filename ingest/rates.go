@@ -45,7 +45,7 @@ func HumanSize(b uint64) string {
 	} else if b <= YB {
 		return fmt.Sprintf("%.02f PB", float64(b)/float64(PB))
 	}
-	return fmt.Sprintf("1.21 jiggawatts...")
+	return fmt.Sprintf("%.02f YB", float64(b)/float64(YB))
 
 }
 
@@ -67,8 +67,7 @@ func HumanRate(b uint64, dur time.Duration) string {
 	} else if uint64(v) <= YB {
 		return fmt.Sprintf("%.02f PB/s", (v / float64(PB)))
 	}
-	return fmt.Sprintf("77 MPH...")
-
+	return fmt.Sprintf("%.02f YB/s", (v / float64(YB)))
 }
 
 // HumanLineRate will take a byte count and duration and produce a human
@@ -90,7 +89,7 @@ func HumanLineRate(b uint64, dur time.Duration) string {
 	} else if uint64(v) <= YB {
 		return fmt.Sprintf("%.02f Pb/s", (v / float64(PB)))
 	}
-	return fmt.Sprintf("77 MPH...")
+	return fmt.Sprintf("%.02f Yb/s", (v / float64(YB)))
 }
 
 // HumanEntryRate will take an entry count and duration and produce a human

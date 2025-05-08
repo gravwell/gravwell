@@ -240,16 +240,16 @@ func (er *EntryReader) ConfigureStream() (err error) {
 
 // startCompression gets the entryReader/Writer ready to work with a compressed connection
 // caller MUST HOLD THE LOCK
-func (ew *EntryReader) startCompression(ct CompressionType) (err error) {
+func (er *EntryReader) startCompression(ct CompressionType) (err error) {
 	switch ct {
 	case CompressNone: //do nothing
 	case CompressSnappy:
 		//get a writer rolling
-		wtr := snappy.NewWriter(ew.conn)
-		ew.flshr = wtr
-		ew.bAckWriter.Reset(wtr)
+		wtr := snappy.NewBufferedWriter(er.conn)
+		er.flshr = wtr
+		er.bAckWriter.Reset(wtr)
 		//get a reader rolling
-		ew.bIO.Reset(snappy.NewReader(ew.conn))
+		er.bIO.Reset(snappy.NewReader(er.conn))
 	default:
 		err = fmt.Errorf("Unknown compression id %x", ct)
 	}
@@ -299,6 +299,9 @@ func (er *EntryReader) Close() error {
 	}
 	if err := er.bAckWriter.Flush(); err != nil {
 		return err
+	}
+	if er.flshr != nil {
+		er.flshr.Close()
 	}
 
 	er.hot = false
@@ -531,6 +534,8 @@ headerLoop:
 	n, err = io.ReadFull(er.bIO, er.buff[:entry.ENTRY_HEADER_SIZE+8])
 	if err != nil {
 		return err
+	} else if n != (entry.ENTRY_HEADER_SIZE + 8) {
+		return errFailedFullRead
 	}
 	dataSize, hasEvs, err := ent.DecodeHeader(er.buff)
 	if err != nil {
@@ -607,6 +612,8 @@ func (er *EntryReader) SetupConnection() (err error) {
 			if err != nil {
 				// very, very weird
 				return err
+			} else if n != 4 {
+				return errFailedFullRead
 			}
 			if err := er.forceAck(); err != nil {
 				return err
@@ -617,14 +624,15 @@ func (er *EntryReader) SetupConnection() (err error) {
 			if err != nil {
 				// very, very weird
 				return err
+			} else if n != 4 {
+				return errFailedFullRead
 			}
 
 			// read name
 			n, err = io.ReadFull(er.bIO, er.buff[0:4])
 			if err != nil {
 				return err
-			}
-			if n < 4 {
+			} else if n != 4 {
 				return errFailedFullRead
 			}
 			length := binary.LittleEndian.Uint32(er.buff[0:4])
@@ -641,8 +649,7 @@ func (er *EntryReader) SetupConnection() (err error) {
 			n, err = io.ReadFull(er.bIO, er.buff[0:4])
 			if err != nil {
 				return err
-			}
-			if n < 4 {
+			} else if n != 4 {
 				return errFailedFullRead
 			}
 			length = binary.LittleEndian.Uint32(er.buff[0:4])
@@ -686,6 +693,8 @@ func (er *EntryReader) SetupConnection() (err error) {
 			if err != nil {
 				// very, very weird
 				return err
+			} else if n != 4 {
+				return errFailedFullRead
 			}
 
 			// read the version
@@ -706,7 +715,7 @@ func (er *EntryReader) SetupConnection() (err error) {
 }
 
 func discard(c chan ackCommand) {
-	for _ = range c {
+	for range c {
 		//do nothing
 	}
 }
@@ -749,7 +758,7 @@ func (er *EntryReader) ackRoutine() {
 				er.routineCleanFail(err)
 				return
 			}
-		case _ = <-tmr.C:
+		case <-tmr.C:
 			to = true
 		}
 		//check if we had a timeout and need to send a keepalive
@@ -821,7 +830,7 @@ feedLoop:
 			} else if len(er.ackChan) == 0 {
 				break feedLoop
 			}
-		case _ = <-toch:
+		case <-toch:
 			to = true
 			break feedLoop
 		}
