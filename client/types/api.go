@@ -117,7 +117,7 @@ func parseUint32(v string) (r uint32, err error) {
 }
 
 // ParseCanonicalVersion validates and parses a version string
-// it return a CanonicalVersion object containing the given version string.
+// it returns a CanonicalVersion object containing the given version string.
 // Must be in the form of "X.Y.Z".
 func ParseCanonicalVersion(s string) (r CanonicalVersion, err error) {
 	var bits []string
