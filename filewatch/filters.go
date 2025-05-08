@@ -54,7 +54,7 @@ func (f *filter) Equal(x filter) bool {
 	return true
 }
 
-// a unique name that allows multiple IDs pointing at the same file
+// FileName provides a unique name that allows multiple IDs pointing at the same file
 type FileName struct {
 	BaseName string
 	FilePath string
@@ -108,38 +108,38 @@ func (f *FilterManager) IsWatched(fpath string) bool {
 	return false
 }
 
-func (fm *FilterManager) SetMaxFilesWatched(max int) {
-	fm.mtx.Lock()
-	defer fm.mtx.Unlock()
-	fm.maxFilesWatched = max
+func (f *FilterManager) SetMaxFilesWatched(max int) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	f.maxFilesWatched = max
 }
 
-func (fm *FilterManager) SetLogger(lgr ingest.IngestLogger) {
-	fm.mtx.Lock()
-	defer fm.mtx.Unlock()
+func (f *FilterManager) SetLogger(lgr ingest.IngestLogger) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
 
 	if lgr == nil {
-		fm.logger = ingest.NoLogger()
+		f.logger = ingest.NoLogger()
 	} else {
-		fm.logger = lgr
+		f.logger = lgr
 	}
 }
 
-// ExpungeOldFiles stops following files until the number of
+// expungeOldFiles stops following files until the number of
 // currently watched files is 1 less than the maxFilesWatched
 // value.
 // The caller MUST hold the lock
-func (fm *FilterManager) expungeOldFiles() error {
-	if fm.maxFilesWatched <= 0 {
+func (f *FilterManager) expungeOldFiles() error {
+	if f.maxFilesWatched <= 0 {
 		return nil
 	}
-	if len(fm.followers) < fm.maxFilesWatched {
+	if len(f.followers) < f.maxFilesWatched {
 		return nil
 	}
 
-	for len(fm.followers) >= fm.maxFilesWatched {
+	for len(f.followers) >= f.maxFilesWatched {
 		var oldest *follower
-		for _, f := range fm.followers {
+		for _, f := range f.followers {
 			if oldest == nil || f.IdleDuration() > oldest.IdleDuration() {
 				oldest = f
 			}
@@ -149,8 +149,8 @@ func (fm *FilterManager) expungeOldFiles() error {
 			return errors.New("Could not find any suitable file to stop watching to add new file.")
 		}
 
-		fm.logger.Info("expunging old log file", log.KV("path", oldest.FilePath), log.KV("state", *oldest.state))
-		_, err := fm.nolockRemoveFollower(oldest.FilePath, false)
+		f.logger.Info("expunging old log file", log.KV("path", oldest.FilePath), log.KV("state", *oldest.state))
+		_, err := f.nolockRemoveFollower(oldest.FilePath, false)
 		if err != nil {
 			return err
 		}
@@ -158,72 +158,72 @@ func (fm *FilterManager) expungeOldFiles() error {
 	return nil
 }
 
-func (fm *FilterManager) Close() (err error) {
-	fm.mtx.Lock()
-	defer fm.mtx.Unlock()
+func (f *FilterManager) Close() (err error) {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
 
 	//we have to actually close followers
-	for _, v := range fm.followers {
+	for _, v := range f.followers {
 		if lerr := v.Close(); lerr != nil {
 			err = appendErr(err, lerr)
 		}
 	}
-	fm.followers = nil
+	f.followers = nil
 
 	//just shitcan filters, no need to close anything
-	fm.filters = nil
+	f.filters = nil
 
-	if err := fm.nolockDumpStates(); err != nil {
+	if err := f.nolockDumpStates(); err != nil {
 		return err
 	}
-	if err := fm.stateFout.Close(); err != nil {
+	if err := f.stateFout.Close(); err != nil {
 		return err
 	}
-	fm.stateFout = nil
+	f.stateFout = nil
 	return
 }
 
 // Followed returns the current number of following handles
 // if a file matches multiple filters, it will be followed multiple
 // times.  So this is NOT the number of files, but the number of follows
-func (fm *FilterManager) Followed() int {
-	fm.mtx.Lock()
-	defer fm.mtx.Unlock()
-	return len(fm.followers)
+func (f *FilterManager) Followed() int {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	return len(f.followers)
 }
 
 // Filters returns the current number of installed filters
-func (fm *FilterManager) Filters() int {
-	fm.mtx.Lock()
-	defer fm.mtx.Unlock()
-	return len(fm.filters)
+func (f *FilterManager) Filters() int {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	return len(f.filters)
 }
 
 // FlushStates flushes the current state of followed files to the disk
 // periodically flushing states is a good idea, incase the device crashes, or the process is abruptly killed
-func (fm *FilterManager) FlushStates() error {
-	fm.mtx.Lock()
-	defer fm.mtx.Unlock()
-	return fm.nolockDumpStates()
+func (f *FilterManager) FlushStates() error {
+	f.mtx.Lock()
+	defer f.mtx.Unlock()
+	return f.nolockDumpStates()
 }
 
 // nolockDumpStates pushes the current set of states out to a file
 // caller MUST HOLD THE LOCK
-func (fm *FilterManager) nolockDumpStates() error {
-	if fm.stateFout == nil {
+func (f *FilterManager) nolockDumpStates() error {
+	if f.stateFout == nil {
 		return nil
 	}
-	n, err := fm.stateFout.Seek(0, 0)
+	n, err := f.stateFout.Seek(0, 0)
 	if err != nil {
 		return err
 	}
 	if n != 0 {
 		return ErrFailedSeek
 	}
-	if err := fm.stateFout.Truncate(0); err != nil {
+	if err := f.stateFout.Truncate(0); err != nil {
 		return err
 	}
-	if err := gob.NewEncoder(fm.stateFout).Encode(fm.states); err != nil {
+	if err := gob.NewEncoder(f.stateFout).Encode(f.states); err != nil {
 		return err
 	}
 	return nil
@@ -891,9 +891,6 @@ func cleanStates(states map[FileName]*int64) error {
 			if os.IsNotExist(err) {
 				//file is gone, delete it
 				delete(states, k)
-			} else {
-				// TODO: decide if we need to specifically check for other errors here
-				//return err
 			}
 		} else {
 			if v == nil {
