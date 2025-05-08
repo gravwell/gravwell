@@ -2,6 +2,7 @@ package ingest
 
 import (
 	"context"
+	"math"
 	"net"
 	"time"
 
@@ -38,10 +39,13 @@ func newParent(bps int64, burstMult int) *parent {
 	if burstMult <= 0 {
 		burstMult = defaultBurstMultiplier
 	}
-	burst := int(bps) * burstMult
+	burst := bps * int64(burstMult)
+	if burst > math.MaxInt || burst < 0 {
+		burst = math.MaxInt
+	}
 	return &parent{
-		burst: burst,
-		lm:    rate.NewLimiter(rate.Limit(bps), burst),
+		burst: int(burst),
+		lm:    rate.NewLimiter(rate.Limit(bps), int(burst)),
 	}
 }
 
