@@ -38,7 +38,7 @@ func (a Access) Equal(b Access) bool {
 	return true
 }
 
-// Thing are an object wreapper to store items in the datastore, a common class of blobs.
+// Thing is an object wrapper to store items in the datastore, a common class of blobs.
 type Thing struct {
 	UUID        uuid.UUID
 	UID         int32
