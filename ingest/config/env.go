@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"reflect"
 	"strings"
@@ -257,7 +258,11 @@ func loadEnvVarInt(cnd *int, envName string, defVal int) (err error) {
 	}
 	var v int64
 	if v, err = loadEnvInt(envName); err == nil {
-		*cnd = int(v)
+		if v > math.MaxInt || v < math.MinInt {
+			err = ErrBadValue
+		} else {
+			*cnd = int(v)
+		}
 	} else if err == errNoEnvArg {
 		err = nil
 		*cnd = defVal
@@ -276,7 +281,11 @@ func loadEnvVarUint(cnd *uint, envName string, defVal uint) (err error) {
 	}
 	var v uint64
 	if v, err = loadEnvUint(envName); err == nil {
-		*cnd = uint(v)
+		if v > math.MaxUint {
+			err = ErrBadValue
+		} else {
+			*cnd = uint(v)
+		}
 	} else if err == errNoEnvArg {
 		*cnd = defVal
 		err = nil

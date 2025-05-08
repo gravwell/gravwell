@@ -1,6 +1,8 @@
 # This workflow is designed to setup a golang workspace and execute the unit tests
 
 name: golang-testing
+permissions:
+  contents: read
 
 on:
   pull_request:
