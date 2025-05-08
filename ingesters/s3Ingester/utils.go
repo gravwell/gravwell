@@ -249,9 +249,7 @@ func getBucketName(v string) (bucketName string, err error) {
 		}
 	} else {
 		//good luck
-		if strings.HasSuffix(v, `.s3.amazonaws.com`) {
-			v = strings.TrimSuffix(v, `.s3.amazonaws.com`)
-		}
+		v = strings.TrimSuffix(v, `.s3.amazonaws.com`)
 		bucketName = v
 	}
 
@@ -376,7 +374,6 @@ func processCloudtrailContext(ctx context.Context, rdr io.Reader, tg *timegrinde
 		} else {
 			cberr = proc.Process(&ent)
 		}
-		return
 	}
 
 	for {
@@ -413,5 +410,4 @@ func logSnsKeyDecode(lg *log.Logger, keytype string, buckets, keys []string) {
 			lg.Info("successfully decoded message", log.KV("type", keytype), log.KV("bucket", buckets[i]), log.KV("key", keys[i]))
 		}
 	}
-	return
 }
