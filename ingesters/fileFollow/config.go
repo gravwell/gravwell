@@ -190,12 +190,12 @@ func (c *cfgType) AttachConfig() attach.AttachConfig {
 	return c.Attach
 }
 
-func (cfg *cfgType) Followers() map[string]follower {
-	mp := make(map[string]follower, len(cfg.Follower))
-	for k, v := range cfg.Follower {
+func (c *cfgType) Followers() map[string]follower {
+	mp := make(map[string]follower, len(c.Follower))
+	for k, v := range c.Follower {
 		if v != nil {
 			f := *v
-			f.timeFormats = cfg.TimeFormat
+			f.timeFormats = c.TimeFormat
 			mp[k] = f
 		}
 	}
