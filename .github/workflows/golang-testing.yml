@@ -149,6 +149,10 @@ jobs:
 	staticcheck ./ingest
 	staticcheck ./ingest/attach
 	staticcheck ./ingest/config/...
+	staticcheck ./ingest/log/...
+	#staticcheck ./ingest/entry
+	#staticcheck ./ingest/processors/...
+	#staticcheck ./ingest/processors/plugin
 
 
     - name: Build

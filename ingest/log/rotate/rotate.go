@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package rotate implements log file rotation for the embedded Gravwell loging system
 package rotate
 
 import (
@@ -104,7 +105,7 @@ func OpenEx(pth string, perm os.FileMode, maxSize int64, maxHistory uint, compre
 func (fr *FileRotator) Close() (err error) {
 	fr.Lock()
 	defer fr.Unlock()
-	if fr == nil || fr.fout == nil {
+	if fr.fout == nil {
 		return ErrAlreadyClosed
 	}
 	if err = fr.fout.Close(); err != nil {
@@ -298,7 +299,7 @@ func (fr *FileRotator) rollCurrentNoLock() (err error) {
 		err = fmt.Errorf("failed to close %v %w", fr.pth, err)
 		return
 	}
-	if fr.compress == false {
+	if !fr.compress {
 		if err = os.Rename(of, nf); err != nil {
 			err = fmt.Errorf("failed to rename %v -> %v %w", of, nf, err)
 			return
@@ -326,7 +327,7 @@ func openFile(pth string, perm os.FileMode) (fout *os.File, sz int64, err error)
 	}
 
 	//seek to the end and get the size
-	if sz, err = fout.Seek(0, os.SEEK_END); err != nil {
+	if sz, err = fout.Seek(0, io.SeekEnd); err != nil {
 		fout.Close()
 		err = fmt.Errorf("Failed to detect filesize %w", err)
 	}

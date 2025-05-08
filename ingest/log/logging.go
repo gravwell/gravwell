@@ -1,11 +1,12 @@
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package log implements the Gravwell ingest and ingester logging systems
 package log
 
 import (
@@ -318,7 +319,7 @@ func (l *Logger) GetLevel() Level {
 	return l.lvl
 }
 
-// Debug writes a DEBUG level log to the underlying writer,
+// Debugf writes a DEBUG level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Debugf(f string, args ...interface{}) error {
 	return l.outputf(DEFAULT_DEPTH, DEBUG, f, args...)
@@ -330,19 +331,19 @@ func (l *Logger) Infof(f string, args ...interface{}) error {
 	return l.outputf(DEFAULT_DEPTH, INFO, f, args...)
 }
 
-// Warn writes an WARN level log to the underlying writer,
+// Warnf writes an WARN level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Warnf(f string, args ...interface{}) error {
 	return l.outputf(DEFAULT_DEPTH, WARN, f, args...)
 }
 
-// Error writes an ERROR level log to the underlying writer,
+// Errorf writes an ERROR level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Errorf(f string, args ...interface{}) error {
 	return l.outputf(DEFAULT_DEPTH, ERROR, f, args...)
 }
 
-// Critical writes a CRITICALinfo level log to the underlying writer,
+// Criticalf writes a CRITICALinfo level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Criticalf(f string, args ...interface{}) error {
 	return l.outputf(DEFAULT_DEPTH, CRITICAL, f, args...)
@@ -372,18 +373,18 @@ func (l *Logger) ErrorfWithDepth(d int, f string, args ...interface{}) error {
 	return l.outputf(d, ERROR, f, args...)
 }
 
-// CriticalfWithDepth writes a CRITICALinfo level log to the underlying writer,
+// CriticalfWithDepthf writes a CRITICALinfo level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) CriticalfWithDepthf(d int, f string, args ...interface{}) error {
 	return l.outputf(d, CRITICAL, f, args...)
 }
 
-// Fatal writes a log, closes the logger, and issues an os.Exit(-1)
+// Fatalf writes a log, closes the logger, and issues an os.Exit(-1)
 func (l *Logger) Fatalf(f string, args ...interface{}) {
 	l.fatalfCode(DEFAULT_DEPTH, -1, f, args...)
 }
 
-// FatalCode is identical to a log.Fatal, except it allows for controlling the exit code
+// FatalfCode is identical to a log.Fatal, except it allows for controlling the exit code
 func (l *Logger) FatalfCode(code int, f string, args ...interface{}) {
 	l.fatalfCode(DEFAULT_DEPTH, code, f, args...)
 }
@@ -394,7 +395,7 @@ func (l *Logger) Debug(msg string, sds ...rfc5424.SDParam) error {
 	return l.outputStructured(DEFAULT_DEPTH, DEBUG, msg, sds...)
 }
 
-// Infof writes an INFO level log to the underlying writer using a format string,
+// Info writes an INFO level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Info(msg string, sds ...rfc5424.SDParam) error {
 	return l.outputStructured(DEFAULT_DEPTH, INFO, msg, sds...)
@@ -424,25 +425,25 @@ func (l *Logger) DebugWithDepth(d int, msg string, sds ...rfc5424.SDParam) error
 	return l.outputStructured(d, DEBUG, msg, sds...)
 }
 
-// InfofWithDepth writes an INFO level log to the underlying writer,
+// InfoWithDepth writes an INFO level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) InfoWithDepth(d int, msg string, sds ...rfc5424.SDParam) error {
 	return l.outputStructured(d, INFO, msg, sds...)
 }
 
-// WarnfWithDepth writes an WARN level log to the underlying writer,
+// WarnWithDepth writes an WARN level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) WarnWithDepth(d int, msg string, sds ...rfc5424.SDParam) error {
 	return l.outputStructured(d, WARN, msg, sds...)
 }
 
-// ErrorfWithDepth writes an ERROR level log to the underlying writer,
+// ErrorWithDepth writes an ERROR level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) ErrorWithDepth(d int, msg string, sds ...rfc5424.SDParam) error {
 	return l.outputStructured(d, ERROR, msg, sds...)
 }
 
-// CriticalfWithDepth writes a CRITICALinfo level log to the underlying writer,
+// CriticalWithDepth writes a CRITICALinfo level log to the underlying writer,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) CriticalWithDepth(d int, msg string, sds ...rfc5424.SDParam) error {
 	return l.outputStructured(d, CRITICAL, msg, sds...)
@@ -585,7 +586,7 @@ func (l *Logger) StandardLogger() *stdliblog.Logger {
 	return slog.NewLogLogger(l, lvl)
 }
 
-// slog.Handler functions so that we can pass our Logger directly into a slog.NewLogLogger
+// Enabled is a slog.Handler functions so that we can pass our Logger directly into a slog.NewLogLogger
 func (l *Logger) Enabled(ctx context.Context, lvl slog.Level) bool {
 	switch lvl {
 	case slog.LevelDebug:
@@ -600,7 +601,7 @@ func (l *Logger) Enabled(ctx context.Context, lvl slog.Level) bool {
 	return false
 }
 
-// this function doesn't really apply to our RFC5424 logger, so just return ourselves
+// WithGroup is a slog.Handler function doesn't really apply to our RFC5424 logger, so just return ourselves
 func (l *Logger) WithGroup(name string) slog.Handler {
 	return l
 }
@@ -637,7 +638,7 @@ func (l *Logger) WithAttrs(attrs []slog.Attr) slog.Handler {
 }
 
 func (l *Logger) Handle(ctx context.Context, r slog.Record) error {
-	if l.Enabled(ctx, r.Level) == false {
+	if !l.Enabled(ctx, r.Level) {
 		return nil
 	}
 	switch r.Level {
@@ -653,6 +654,7 @@ func (l *Logger) Handle(ctx context.Context, r slog.Record) error {
 	return nil
 }
 
+// GenRFCMessage formats the arguments into a proper RFC5424 message
 // Per RFC5424 https://www.rfc-editor.org/rfc/rfc5424.html#section-6.2.7
 //
 // There are maximum lengths for some of the fields below:
@@ -686,7 +688,7 @@ func (l *Logger) genRawOutput(ts time.Time, pfx string, lvl Level, msg string) (
 	return
 }
 
-// implement writer interface so it can be handed to a standard loger
+// Write implement writer interface so it can be handed to a standard loger
 func (l *Logger) Write(b []byte) (n int, err error) {
 	l.mtx.Lock()
 	if err = l.ready(); err == nil {
