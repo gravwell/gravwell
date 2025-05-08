@@ -38,7 +38,7 @@ func (a Access) Equal(b Access) bool {
 	return true
 }
 
-// Things are stored in the datastore, a common class of blobs.
+// Thing are an object wreapper to store items in the datastore, a common class of blobs.
 type Thing struct {
 	UUID        uuid.UUID
 	UID         int32
@@ -179,7 +179,7 @@ func (w WireUserTemplate) Thing() (t Thing, err error) {
 	return
 }
 
-// type used for templates in packages
+// PackedUserTemplate type used for templates in packages
 type PackedUserTemplate struct {
 	UUID        string
 	Name        string
@@ -197,7 +197,6 @@ type oldTemplateContents struct {
 	TestValue           string `json:"testValue"`
 }
 
-// A compatibility solution.
 type newPackedUserTemplate PackedUserTemplate
 type oldPackedUserTemplate struct {
 	UUID        string
@@ -218,7 +217,7 @@ func (t UserTemplate) Pack() (put PackedUserTemplate) {
 	return
 }
 
-func (t *PackedUserTemplate) UnmarshalJSON(data []byte) error {
+func (put *PackedUserTemplate) UnmarshalJSON(data []byte) error {
 	// First try the current type
 	var nt newPackedUserTemplate
 	if err := json.Unmarshal(data, &nt); err != nil {
@@ -226,7 +225,7 @@ func (t *PackedUserTemplate) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if len(nt.Data.Variables) > 0 {
-		*t = PackedUserTemplate(nt)
+		*put = PackedUserTemplate(nt)
 		return nil
 	}
 	// If there are no variables in the result, try the old way.
@@ -235,12 +234,12 @@ func (t *PackedUserTemplate) UnmarshalJSON(data []byte) error {
 		// something is majorly wrong.
 		return err
 	}
-	t.UUID = ot.UUID
-	t.Name = ot.Name
-	t.Description = ot.Description
-	t.Labels = ot.Labels
-	t.Data.Query = ot.Data.Query
-	t.Data.Variables = []TemplateVariable{{
+	put.UUID = ot.UUID
+	put.Name = ot.Name
+	put.Description = ot.Description
+	put.Labels = ot.Labels
+	put.Data.Query = ot.Data.Query
+	put.Data.Variables = []TemplateVariable{{
 		Name:         ot.Data.Variable,
 		Label:        ot.Data.VariableLabel,
 		Description:  ot.Data.VariableDescription,
@@ -273,16 +272,16 @@ type Pivot struct {
 	Disabled    bool
 }
 
-func (pivot Pivot) WirePivot(thing Thing) WirePivot {
+func (t Pivot) WirePivot(thing Thing) WirePivot {
 	return WirePivot{
-		GUID:        pivot.GUID,
+		GUID:        t.GUID,
 		ThingHeader: thing.Header(),
 		Updated:     thing.Updated,
-		Name:        pivot.Name,
-		Description: pivot.Description,
-		Contents:    pivot.Contents,
-		Labels:      pivot.Labels,
-		Disabled:    pivot.Disabled,
+		Name:        t.Name,
+		Description: t.Description,
+		Contents:    t.Contents,
+		Labels:      t.Labels,
+		Disabled:    t.Disabled,
 	}
 }
 
@@ -328,7 +327,6 @@ func (wp WirePivot) Pivot() Pivot {
 	}
 }
 
-// type used for pivots in packages
 type PackedPivot struct {
 	UUID        string
 	Name        string
@@ -481,19 +479,19 @@ type SearchLibrary struct {
 	Metadata    RawObject `json:",omitempty"`
 }
 
-func (psl SearchLibrary) Equal(other SearchLibrary) (ok bool) {
-	ok = psl.Name == other.Name && psl.Description == other.Description && psl.Query == other.Query && psl.GUID == other.GUID
+func (sl SearchLibrary) Equal(other SearchLibrary) (ok bool) {
+	ok = sl.Name == other.Name && sl.Description == other.Description && sl.Query == other.Query && sl.GUID == other.GUID
 	if !ok {
 		return
 	}
-	if ok = bytes.Equal(psl.Metadata, other.Metadata); !ok {
+	if ok = bytes.Equal(sl.Metadata, other.Metadata); !ok {
 		return
 	}
-	if ok = len(psl.Labels) == len(other.Labels); !ok {
+	if ok = len(sl.Labels) == len(other.Labels); !ok {
 		return
 	}
-	for i := range psl.Labels {
-		if ok = (psl.Labels[i] == other.Labels[i]); !ok {
+	for i := range sl.Labels {
+		if ok = (sl.Labels[i] == other.Labels[i]); !ok {
 			return
 		}
 	}

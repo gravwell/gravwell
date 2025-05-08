@@ -52,8 +52,7 @@ type KitConfig struct {
 	ScriptDeployRules       map[string]ScriptDeployConfig // overrides for defaults
 }
 
-// Each item in a kit (dashboard, query, etc) is represented by a KitItem
-// object.
+// KitItem implements the generic container for ach item in a kit (dashboard, query, etc)
 type KitItem struct {
 	Name           string
 	Type           string
@@ -71,7 +70,7 @@ type SourcedKitItem struct {
 	KitName    string
 }
 
-// The kit data type that is actually stored in the datastore
+// KitState is the data type that is actually stored in the datastore
 type KitState struct {
 	ID                   string
 	Name                 string
@@ -99,7 +98,7 @@ type KitState struct {
 	Metadata             json.RawMessage `json:",omitempty"`
 }
 
-// the type that handles the datastore system
+// KitManifest is the data store native type for the Kit
 type KitManifest struct {
 	UID         int32
 	GIDs        []int32
@@ -111,7 +110,7 @@ type KitManifest struct {
 	Synced      bool
 }
 
-// type that is used when sending back lists via a ADMIN request (show uid and gid)
+// IdKitState is used when sending back lists via a ADMIN request (show uid and gid)
 type IdKitState struct {
 	UUID        uuid.UUID
 	UID         int32
@@ -126,7 +125,7 @@ type KitEmbeddedItem struct {
 	Content []byte `json:",omitempty"` //the actual contents of the kit
 }
 
-// the type that is used to request a kit be built
+// KitBuildRequest is used to request a kit be built
 type KitBuildRequest struct {
 	ID                string
 	Name              string
@@ -156,7 +155,6 @@ type KitBuildRequest struct {
 	ScriptDeployRules map[int32]ScriptDeployConfig
 }
 
-// this is what we store in the datastore
 type StoredBuildRequest struct {
 	UID int32
 	KitBuildRequest
@@ -410,7 +408,7 @@ type KitMetadata struct {
 	ConfigMacros  []KitConfigMacro
 }
 
-// KitMetadataAssets are items that might be associated with kits when hosting them
+// KitMetadataAsset are items that might be associated with kits when hosting them
 // we use these to enable pinning additional stuff to a kit.
 type KitMetadataAsset struct {
 	Type     string

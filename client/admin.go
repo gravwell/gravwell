@@ -51,7 +51,7 @@ func (c *Client) LockUserAccount(id int32) error {
 	return c.putStaticURL(lockUrl(id), nil)
 }
 
-// LockUserAccount (admin-only) unlocks a user account.
+// UnlockUserAccount (admin-only) unlocks a user account.
 func (c *Client) UnlockUserAccount(id int32) error {
 	return c.deleteStaticURL(lockUrl(id), nil)
 }
@@ -157,7 +157,7 @@ func (c *Client) DeleteDefaultSearchGroup(uid int32) error {
 	return c.deleteStaticURL(usersSearchGroupUrl(uid), nil)
 }
 
-// AdminUpdateInfo changes basic information about the specified user.
+// UpdateUserInfo changes basic information about the specified user.
 // Admins can set any user's info, but regular users can only set their own.
 func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
 	req := types.UpdateUser{
@@ -209,7 +209,7 @@ func (c *Client) DeleteUserFromGroup(uid, gid int32) error {
 	return c.deleteStaticURL(usersGroupIdUrl(uid, gid), nil)
 }
 
-// ListGroups returns information about groups to which the user belongs.
+// GetUserGroups returns information about groups to which the user belongs.
 func (c *Client) GetUserGroups(uid int32) ([]types.GroupDetails, error) {
 	var udet types.UserDetails
 	if err := c.getStaticURL(usersInfoUrl(uid), &udet); err != nil {
@@ -262,7 +262,7 @@ func (c *Client) GetGroup(id int32) (types.GroupDetails, error) {
 	return gp, nil
 }
 
-// ListGroupUsers will return user details for all members of a group.
+// GetGroupUsers will return user details for all members of a group.
 // Only administrators or members of the group may call this function.
 func (c *Client) GetGroupUsers(gid int32) ([]types.UserDetails, error) {
 	var udets []types.UserDetails
@@ -732,7 +732,7 @@ func (c *Client) RestoreEncrypted(rdr io.Reader, password string) (err error) {
 	return
 }
 
-// DistributedWebservers queries to determine if the webserver is in distributed mode
+// DeploymentInfo queries to determine if the webserver is in distributed mode
 // and therefore using the datastore.  This means that certain resource changes may take some
 // time to fully distribute. This is an admin-only function.
 func (c *Client) DeploymentInfo() (di types.DeploymentInfo, err error) {
