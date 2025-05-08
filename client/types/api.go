@@ -83,7 +83,7 @@ func ApiVersion() ApiInfo {
 	}
 }
 
-// Version return the full build version of Gravwell eg "4.1.2"
+// Version returns the full build version of Gravwell eg "4.1.2"
 func (bi BuildInfo) Version() string {
 	return bi.CanonicalVersion.String()
 }
