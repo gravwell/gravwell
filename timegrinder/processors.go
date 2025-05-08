@@ -15,7 +15,6 @@ import (
 	"time"
 )
 
-// Timestamp Override Names
 type Format string
 
 const (
@@ -250,11 +249,11 @@ func extract(rx, rxt *regexp.Regexp, d []byte, format string, loc *time.Location
 	return
 }
 
-func (a *processor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
-	if len(d) < a.min {
+func (p *processor) Extract(d []byte, loc *time.Location) (time.Time, bool, int) {
+	if len(d) < p.min {
 		return time.Time{}, false, -1 //cannot possibly hit
 	}
-	return extract(a.rxp, a.trxpEx, d, a.format, loc, a.window)
+	return extract(p.rxp, p.trxpEx, d, p.format, loc, p.window)
 }
 
 func match(rx, rxt *regexp.Regexp, d []byte) (start, end int, ok bool) {
@@ -275,11 +274,11 @@ func match(rx, rxt *regexp.Regexp, d []byte) (start, end int, ok bool) {
 	return
 }
 
-func (a *processor) Match(d []byte) (int, int, bool) {
-	if len(d) < a.min {
+func (p *processor) Match(d []byte) (int, int, bool) {
+	if len(d) < p.min {
 		return -1, -1, false //cannot possibly hit
 	}
-	return match(a.rxp, a.trxpEx, d)
+	return match(p.rxp, p.trxpEx, d)
 }
 
 func NewAnsiCProcessor() *processor {
