@@ -319,7 +319,7 @@ func (l *Logger) GetLevel() Level {
 	return l.lvl
 }
 
-// Debugf writes a DEBUG level log to the underlying writer,
+// Debugf writes a DEBUG level log to the underlying writer using a format string,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Debugf(f string, args ...interface{}) error {
 	return l.outputf(DEFAULT_DEPTH, DEBUG, f, args...)
