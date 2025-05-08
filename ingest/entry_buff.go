@@ -121,7 +121,6 @@ func (stb *EntryBuffer) Add(ste entry.Entry) {
 	}
 	stb.buff[stb.ci.Add()] = ste
 	stb.Unlock()
-	return
 }
 
 func (stb *EntryBuffer) AddBlock(stes []entry.Entry) {
@@ -135,10 +134,9 @@ func (stb *EntryBuffer) AddBlock(stes []entry.Entry) {
 		stb.buff[stb.ci.Add()] = ste
 	}
 	stb.Unlock()
-	return
 }
 
-// re-usable circular buffer index
+// CircularIndex is a re-usable circular buffer index
 type CircularIndex struct {
 	max   uint
 	count uint

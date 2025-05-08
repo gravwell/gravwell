@@ -33,7 +33,7 @@ const (
 	defaultKeepAliveInterval = 2 * time.Second
 )
 
-// The implementation of this is actually in the Go stdlib, it's just not exported
+// LockedSource is actually in the Go stdlib, it's just not exported
 // See math/rand/rand.go in the Go source tree.
 type LockedSource struct {
 	lk  sync.Mutex
@@ -152,7 +152,7 @@ func RemapTag(tag string, rchar rune) (rtag string, err error) {
 	return
 }
 
-// EnableTCPKeepAlive enables TCP KeepAlive on the given connection,
+// EnableKeepAlive enables TCP KeepAlive on the given connection,
 // if it's a compatible connection type. If it is not, no action is
 // taken.
 func EnableKeepAlive(c net.Conn, period time.Duration) {

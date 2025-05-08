@@ -79,6 +79,7 @@ type entrySendID uint64
 
 type flusher interface {
 	Flush() error
+	Close() error
 }
 
 type EntryWriter struct {
@@ -202,6 +203,9 @@ func (ew *EntryWriter) closeTimeout(to time.Duration) (err error) {
 	}
 
 	ew.hot = false
+	if ew.flshr != nil {
+		ew.flshr.Close() // close our flusher if we need to
+	}
 	ew.conn.Close()
 	return
 }
@@ -548,7 +552,8 @@ func (ew *EntryWriter) flush() (err error) {
 	return
 }
 
-// configureStream will
+// ConfigureStream takes a StreamConfiguration structure and prepares the entrywriter connection
+// This is often used for configurating transport compression, and I/O rate limiting.
 func (ew *EntryWriter) ConfigureStream(c StreamConfiguration) (err error) {
 	var resp StreamConfiguration
 	if err = c.validate(); err != nil {
@@ -641,7 +646,7 @@ func (ew *EntryWriter) startCompression(ct CompressionType) (err error) {
 		//get a reader rolling
 		ew.bAckReader.Reset(snappy.NewReader(ew.conn))
 		//get a writer rolling
-		wtr := snappy.NewWriter(ew.conn)
+		wtr := snappy.NewBufferedWriter(ew.conn)
 		ew.flshr = wtr
 		ew.bIO.Reset(wtr)
 	default:
