@@ -91,7 +91,7 @@ func loadEnvUint(nm string) (v uint64, err error) {
 	return
 }
 
-// Attempts to read a value from environment variable named envName
+// LoadEnvVar attempts to read a value from environment variable named envName
 // If there's nothing there, it attempt to append _FILE to the variable
 // name and see if it contains a filename; if so, it reads the
 // contents of the file into cnd.
@@ -514,7 +514,7 @@ func loadStringFromFile(pth string, val *string) (err error) {
 	} else if fi, err = fin.Stat(); err != nil {
 		fin.Close()
 		return
-	} else if fi.Mode().IsRegular() == false {
+	} else if !fi.Mode().IsRegular() {
 		fin.Close()
 		return fmt.Errorf("%q is not a regular file", pth)
 	}

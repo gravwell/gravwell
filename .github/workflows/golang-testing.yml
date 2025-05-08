@@ -148,6 +148,7 @@ jobs:
         GOOS=windows staticcheck ./generators/windowsEventGenerator/...
 	staticcheck ./ingest
 	staticcheck ./ingest/attach
+	staticcheck ./ingest/config/...
 
 
     - name: Build
