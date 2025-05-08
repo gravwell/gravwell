@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Package rotate implements log file rotation for the embedded Gravwell loging system
+// Package rotate implements log file rotation for the embedded Gravwell logging system
 package rotate
 
 import (
