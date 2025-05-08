@@ -52,7 +52,7 @@ type KitConfig struct {
 	ScriptDeployRules       map[string]ScriptDeployConfig // overrides for defaults
 }
 
-// KitItem implements the generic container for ach item in a kit (dashboard, query, etc)
+// KitItem implements the generic container for each item in a kit (dashboard, query, etc)
 type KitItem struct {
 	Name           string
 	Type           string
