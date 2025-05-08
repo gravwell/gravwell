@@ -688,7 +688,7 @@ func (l *Logger) genRawOutput(ts time.Time, pfx string, lvl Level, msg string) (
 	return
 }
 
-// Write implement writer interface so it can be handed to a standard loger
+// Write implements a writer interface so it can be handed to a standard logger
 func (l *Logger) Write(b []byte) (n int, err error) {
 	l.mtx.Lock()
 	if err = l.ready(); err == nil {
