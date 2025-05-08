@@ -191,7 +191,7 @@ func resolveHistory(basePath, filename string) (h historyFile, ok bool) {
 	//check if we can strip the an ID extension
 	if ext := filepath.Ext(tempFilename); ext != `` {
 		lext := strings.TrimPrefix(ext, ".")
-		if id, err := strconv.ParseUint(lext, 10, 64); err == nil && id < math.MaxUint {
+		if id, err := strconv.ParseUint(lext, 10, 64); err == nil && id <= math.MaxUint {
 			h.historyID = uint(id)
 			tempFilename = strings.TrimSuffix(tempFilename, ext)
 		}

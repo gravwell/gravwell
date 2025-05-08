@@ -398,7 +398,7 @@ func overrideCount(cnt, min, max int, envName string) int {
 	if envName == `` || val == `` {
 		return cnt
 	}
-	if v, err := strconv.ParseInt(val, 10, 64); err == nil || v > 0 && v < math.MaxInt {
+	if v, err := strconv.ParseInt(val, 10, 64); err == nil || v > 0 && v <= math.MaxInt {
 		cnt = int(v)
 	}
 	return cnt
