@@ -395,7 +395,7 @@ func (l *Logger) Debug(msg string, sds ...rfc5424.SDParam) error {
 	return l.outputStructured(DEFAULT_DEPTH, DEBUG, msg, sds...)
 }
 
-// Info writes an INFO level log to the underlying writer using a format string,
+// Info writes an INFO level log to the underlying writer using a static string,
 // if the logging level is higher than DEBUG no action is taken
 func (l *Logger) Info(msg string, sds ...rfc5424.SDParam) error {
 	return l.outputStructured(DEFAULT_DEPTH, INFO, msg, sds...)
