@@ -384,7 +384,7 @@ func (l *Logger) Fatalf(f string, args ...interface{}) {
 	l.fatalfCode(DEFAULT_DEPTH, -1, f, args...)
 }
 
-// FatalfCode is identical to a log.Fatal, except it allows for controlling the exit code and uses a format string
+// FatalfCode is identical to a log.Fatal, except it allows for controlling the exit code
 func (l *Logger) FatalfCode(code int, f string, args ...interface{}) {
 	l.fatalfCode(DEFAULT_DEPTH, code, f, args...)
 }
