@@ -201,20 +201,20 @@ func (f NodeParseError) String() string {
 	return f.Err
 }
 
-func (ss *ScheduledSearch) TypeName() string {
+func (s *ScheduledSearch) TypeName() string {
 	// if the type is set, use that
-	if ss.ScheduledType != "" {
-		return ss.ScheduledType
+	if s.ScheduledType != "" {
+		return s.ScheduledType
 	}
-	if len(ss.Script) > 0 {
+	if len(s.Script) > 0 {
 		return "script"
 	}
 	return "search"
 }
 
-func (ss *ScheduledSearch) Dedup() {
+func (s *ScheduledSearch) Dedup() {
 	gidmap := make(map[int32]bool)
-	for _, gid := range ss.Groups {
+	for _, gid := range s.Groups {
 		gidmap[gid] = true
 	}
 	var newgids []int32
@@ -223,7 +223,7 @@ func (ss *ScheduledSearch) Dedup() {
 			newgids = append(newgids, gid)
 		}
 	}
-	ss.Groups = newgids
+	s.Groups = newgids
 }
 
 type UserMailConfig struct {

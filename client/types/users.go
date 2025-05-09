@@ -56,7 +56,7 @@ func (ub *UserBackup) ClearSynced() {
 	}
 }
 
-// AuthSession contains all the information needed to authenticate.
+// Session contains all the information needed to authenticate.
 type Session struct {
 	ID          uint64 `json:",omitempty"`
 	JWT         string `json:",omitempty"`
@@ -264,11 +264,11 @@ type Notification struct {
 }
 
 func (n *Notification) Expired() bool {
-	return n.Expires.IsZero() == false && n.Expires.Before(time.Now())
+	return !n.Expires.IsZero() && n.Expires.Before(time.Now())
 }
 
 func (n *Notification) Ignored() bool {
-	return n.IgnoreUntil.IsZero() == false && n.IgnoreUntil.After(time.Now())
+	return !n.IgnoreUntil.IsZero() && n.IgnoreUntil.After(time.Now())
 }
 
 type BackendNotification struct {
@@ -284,7 +284,6 @@ var (
 	ClearBackendNotification NotificationAction = 1
 )
 
-// structure for license updates and warnings
 type LicenseUpdateError struct {
 	Name string
 	Err  string
@@ -319,10 +318,7 @@ func (ud *UserDetails) UserCanRead(uid int32, gids []int32) bool {
 // CanModify returns true if the user is allowed to modify
 // or delete something with the specified UID ownership
 func (ud *UserDetails) CanModify(uid int32) bool {
-	if ud.Admin || ud.UID == uid {
-		return true
-	}
-	return false
+	return ud.Admin || ud.UID == uid
 }
 
 func (ud *UserDetails) GIDs() []int32 {
@@ -379,15 +375,15 @@ func (ups UserPreferences) MarshalJSON() ([]byte, error) {
 	return json.Marshal([]UserPreference(ups))
 }
 
-// marshaller hacks to get it to return [] on empty lists
-func (u UserDetails) MarshalJSON() ([]byte, error) {
+// MarshalJSON marshaller hacks to get it to return [] on empty lists
+func (ud UserDetails) MarshalJSON() ([]byte, error) {
 	type alias UserDetails
 	return json.Marshal(&struct {
 		alias
 		Groups groupsAlias
 	}{
-		alias:  alias(u),
-		Groups: groupsAlias(u.Groups),
+		alias:  alias(ud),
+		Groups: groupsAlias(ud.Groups),
 	})
 }
 

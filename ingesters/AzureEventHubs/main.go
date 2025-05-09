@@ -243,7 +243,7 @@ func main() {
 					SRC:  src,
 				}
 				size += uint64(len(msg.Data))
-				if hubDef.Parse_Time == false {
+				if !hubDef.Parse_Time {
 					if msg.SystemProperties != nil && msg.SystemProperties.EnqueuedTime != nil {
 						ent.TS = entry.FromStandard(*msg.SystemProperties.EnqueuedTime)
 					} else {
