@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
@@ -174,7 +173,7 @@ func (c *Client) DeleteKitEx(id string) ([]types.SourcedKitItem, error) {
 		// There are basically two kinds of errors:
 		// 1. Kit items have been modified; body contains a list of modified items
 		// 2. Other errors (kit doesn't exist, malformed ID, etc.)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return []types.SourcedKitItem{}, err
 		}

@@ -21,7 +21,7 @@ import (
 func WaitForQuit() (r os.Signal) {
 	quitSig := make(chan os.Signal, 1)
 	defer close(quitSig)
-	signal.Notify(quitSig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
+	signal.Notify(quitSig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 	r = <-quitSig
 	signal.Stop(quitSig)
 	return
@@ -31,6 +31,6 @@ func WaitForQuit() (r os.Signal) {
 // SIGHUP, SIGINT, SIGQUIT, SIGTERM
 func GetQuitChannel() chan os.Signal {
 	quitSig := make(chan os.Signal, 1)
-	signal.Notify(quitSig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGKILL, syscall.SIGTERM)
+	signal.Notify(quitSig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 	return quitSig
 }

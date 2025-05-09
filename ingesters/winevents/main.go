@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/signal"
 	dbg "runtime/debug"
+	"syscall"
 	"time"
 
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
@@ -72,12 +73,12 @@ func init() {
 
 func main() {
 	dbg.SetTraceback("all")
-	inter, err := svc.IsAnInteractiveSession()
+	isService, err := svc.IsWindowsService()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get interactive session status: %v\n", err)
 		return
 	}
-	if inter {
+	if !isService {
 		lg = log.New(os.Stdout)
 	} else {
 		e, err := eventlog.Open(serviceName)
@@ -95,8 +96,8 @@ func main() {
 		return
 	}
 	//check if we have a UUID, if not try to write one back
-	if id, ok := cfg.Global.IngestConfig.IngesterUUID(); !ok {
-		id = uuid.New()
+	if _, ok := cfg.Global.IngestConfig.IngesterUUID(); !ok {
+		id := uuid.New()
 		if err := cfg.Global.IngestConfig.SetIngesterUUID(id, confLoc); err != nil {
 			lg.Error("failed to set ingester UUID at startup", log.KVErr(err))
 			return
@@ -116,7 +117,7 @@ func main() {
 		return
 	}
 
-	if inter {
+	if !isService {
 		runInteractive(s)
 	} else {
 		runService(s)
@@ -135,7 +136,7 @@ func runInteractive(s *mainService) {
 	sigChan := make(chan os.Signal, 1)
 	defer close(sigChan)
 
-	signal.Notify(sigChan, os.Interrupt, os.Kill)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 	go s.Execute(nil, closer, status)
 loop:
 	for {
