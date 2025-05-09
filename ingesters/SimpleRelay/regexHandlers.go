@@ -189,7 +189,6 @@ func regexAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg regex
 		failCount = 0
 		go regexConnHandler(conn, cfg, igst)
 	}
-	return
 }
 
 func regexAcceptorUDP(conn *net.UDPConn, id int, cfg regexHandlerConfig, igst *ingest.IngestMuxer) {

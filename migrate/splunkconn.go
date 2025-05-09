@@ -15,7 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -101,7 +100,7 @@ func (c *splunkConn) GetEventIndexes() (indexes []splunkEntry, err error) {
 	if resp, err = c.Client.Do(req); err != nil {
 		return
 	}
-	if b, err = ioutil.ReadAll(resp.Body); err != nil {
+	if b, err = io.ReadAll(resp.Body); err != nil {
 		return
 	}
 
@@ -138,7 +137,7 @@ func (c *splunkConn) GetSourceTypes() (sourcetypes []string, err error) {
 	if resp, err = c.Client.Do(req); err != nil {
 		return
 	}
-	if b, err = ioutil.ReadAll(resp.Body); err != nil {
+	if b, err = io.ReadAll(resp.Body); err != nil {
 		return
 	}
 	var x splunkResponse
@@ -200,7 +199,7 @@ func (c *splunkConn) GetIndexSourcetypes(start, end int) (m []sourcetypeIndex, e
 	if resp, err = c.Client.Do(req); err != nil {
 		return
 	}
-	if b, err = ioutil.ReadAll(resp.Body); err != nil {
+	if b, err = io.ReadAll(resp.Body); err != nil {
 		return
 	}
 
@@ -223,7 +222,7 @@ func (c *splunkConn) GetIndexSourcetypes(start, end int) (m []sourcetypeIndex, e
 	if resp, err = c.Client.Do(req); err != nil {
 		return
 	}
-	if b, err = ioutil.ReadAll(resp.Body); err != nil {
+	if b, err = io.ReadAll(resp.Body); err != nil {
 		return
 	}
 

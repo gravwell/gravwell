@@ -10,7 +10,6 @@ package config
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,7 +36,7 @@ var (
 
 func TestMain(m *testing.M) {
 	var err error
-	if tempDir, err = ioutil.TempDir(os.TempDir(), `config`); err != nil {
+	if tempDir, err = os.MkdirTemp(os.TempDir(), `config`); err != nil {
 		fmt.Println("Failed to make tempdir", err)
 		os.Exit(-1)
 	}
@@ -237,7 +236,7 @@ Secret-Access-Key=REPLACEMEWITHYOURKEY
 
 func TestFileLoad(t *testing.T) {
 	testFile := filepath.Join(tempDir, `test.cfg`)
-	if err := ioutil.WriteFile(testFile, testConfig, 0660); err != nil {
+	if err := os.WriteFile(testFile, testConfig, 0660); err != nil {
 		t.Fatal(err)
 	}
 	var tc testIngesterConfig
@@ -261,7 +260,7 @@ func TestFileLoad(t *testing.T) {
 func TestLoadBadKey(t *testing.T) {
 	testFile := filepath.Join(tempDir, `bad_test.cfg`)
 	tcfg := append(testConfig, []byte("\tFoobar=stuff\n")...)
-	if err := ioutil.WriteFile(testFile, tcfg, 0660); err != nil {
+	if err := os.WriteFile(testFile, tcfg, 0660); err != nil {
 		t.Fatal(err)
 	}
 	var tc testIngesterConfig

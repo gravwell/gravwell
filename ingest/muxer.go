@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package ingest implements the Gravwell ingest library and supporting utilities
 package ingest
 
 import (
@@ -217,7 +218,7 @@ func NewMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	return newIngestMuxer(c)
 }
 
-// NewIngestMuxer creates a new muxer that will automatically distribute entries amongst the clients
+// NewUniformIngestMuxer creates a new muxer that will automatically distribute entries amongst the clients
 func NewUniformIngestMuxer(dests, tags []string, authString, pubKey, privKey, remoteKey string) (*IngestMuxer, error) {
 	return NewUniformIngestMuxerExt(dests, tags, authString, pubKey, privKey, remoteKey, config.CACHE_DEPTH_DEFAULT)
 }
@@ -711,7 +712,7 @@ func (im *IngestMuxer) getTrimmedState(lastPush time.Time, lastEntryCount uint64
 	return
 }
 
-// returns true if a write to the muxer will block
+// WillBlock returns true if a write to the muxer will block due to a full cache, down ingest connections, etc...
 func (im *IngestMuxer) WillBlock() bool {
 	nHot, err := im.Hot()
 	if err == ErrNotRunning {
@@ -1203,7 +1204,7 @@ func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err e
 	case im.eChan <- e:
 		im.ingesterState.Entries++
 		im.ingesterState.Size += uint64(len(e.Data))
-	case _ = <-tmr.C:
+	case <-tmr.C:
 		err = ErrWriteTimeout
 	case <-im.writeBarrier:
 		err = ErrNotRunning
@@ -1465,7 +1466,7 @@ func (im *IngestMuxer) writeRelayRoutine(csc chan connSet, connFailure chan bool
 inputLoop:
 	for {
 		select {
-		case _ = <-im.ctx.Done():
+		case <-im.ctx.Done():
 			//the caller will detect that we exited and will take care of getting outstanding entries
 			/*
 				if !im.cacheEnabled {
@@ -1723,7 +1724,6 @@ func (im *IngestMuxer) recycleConnection(nc connSet) {
 		}
 	}
 	im.recycleEntryBatch(ents)
-	return
 }
 
 // connRoutine starts up the entry relay routine, then sits waiting to
@@ -1846,11 +1846,10 @@ func (im *IngestMuxer) recycleEntryBatch(ents []*entry.Entry) {
 	defer tmr.Stop()
 
 	select {
-	case _ = <-tmr.C:
+	case <-tmr.C:
 		im.eq.push(nil, ents)
 	case im.bChan <- ents:
 	}
-	return
 }
 
 func (im *IngestMuxer) recycleEntry(ent *entry.Entry) {
@@ -1869,11 +1868,10 @@ func (im *IngestMuxer) recycleEntry(ent *entry.Entry) {
 	defer tmr.Stop()
 
 	select {
-	case _ = <-tmr.C:
+	case <-tmr.C:
 		im.eq.push(ent, nil)
 	case im.eChan <- ent:
 	}
-	return
 }
 
 // fatal connection errors is looking for errors which are non-recoverable
@@ -1903,8 +1901,8 @@ func isFatalConnError(err error) bool {
 
 func (im *IngestMuxer) quitableSleep(dur time.Duration) (quit bool) {
 	select {
-	case _ = <-time.After(dur):
-	case _ = <-im.ctx.Done():
+	case <-time.After(dur):
+	case <-im.ctx.Done():
 		quit = true
 	}
 	return
@@ -2026,7 +2024,7 @@ loop:
 
 		for {
 			select {
-			case _ = <-im.ctx.Done():
+			case <-im.ctx.Done():
 				return
 			default:
 			}
@@ -2124,7 +2122,7 @@ func (im *IngestMuxer) SourceIP() (net.IP, error) {
 			wasErr = true
 			continue
 		}
-		if bytes.Compare(lip, localSrc) == 0 {
+		if lip.Equal(localSrc) {
 			continue
 		}
 		ip = lip

@@ -90,8 +90,8 @@ func (up *unixProcessor) ExtractionRegex() string {
 	return _unixCoreRegex
 }
 
-func (p *unixProcessor) SetWindow(t TimestampWindow) {
-	p.window = t
+func (up *unixProcessor) SetWindow(t TimestampWindow) {
+	up.window = t
 }
 
 func NewUserProcessor(name, rxps, fmts string) (*processor, error) {
@@ -170,7 +170,9 @@ type unixMsProcessor struct {
 	window TimestampWindow
 }
 
-// We assume you're not ingesting data from 1970, so we look for at least 13 digits of nanoseconds
+// NewUnixMsTimeProcessor creates a UnixMSProcessor
+// this processor assumes you are not ingesting data from 1970,
+// so we look for at least 13 digits of nanoseconds
 func NewUnixMsTimeProcessor() *unixMsProcessor {
 	return &unixMsProcessor{
 		re:     regexp.MustCompile(UnixMsRegex),
@@ -243,7 +245,9 @@ type unixNanoProcessor struct {
 	window TimestampWindow
 }
 
-// We assume you're not ingesting data from 1970, so we look for at least 16 digits of nanoseconds
+// NewUnixNanoTimeProcessor creates a new unix nano time processor
+// We assume you are not ingesting data from 1970
+// so we look for at least 16 digits of nanoseconds
 func NewUnixNanoTimeProcessor() *unixNanoProcessor {
 	return &unixNanoProcessor{
 		re:     regexp.MustCompile(UnixNanoRegex),
@@ -402,7 +406,9 @@ type ldapProcessor struct {
 	window TimestampWindow
 }
 
-// We assume you're not ingesting data from 1970, so we look for at least 16 digits of nanoseconds
+// NewLDAPProcessor creates a new LDAP timeformat processor
+// We assume you are not ingesting data from 1970
+// so we look for at least 16 digits of nanoseconds
 func NewLDAPProcessor() *ldapProcessor {
 	return &ldapProcessor{
 		re:     regexp.MustCompile(LDAPRegex),

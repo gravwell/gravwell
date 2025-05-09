@@ -19,6 +19,7 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
@@ -185,7 +186,7 @@ func main() {
 
 	//listen for signals so we can close gracefully
 	sch := make(chan os.Signal, 1)
-	signal.Notify(sch, os.Interrupt, os.Kill)
+	signal.Notify(sch, os.Interrupt, syscall.SIGTERM)
 
 mainLoop:
 	for {

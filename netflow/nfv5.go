@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package netflow implements a low level high speed netflowV5 encoder/decoder
 package netflow
 
 import (
@@ -431,7 +432,7 @@ func (nr *NFv5Record) decodeAlt(b []byte) error {
 	return nil
 }
 
-// TODO - fill this out
+// String implements the String interface on an NetflowV5 packet
 func (nf *NFv5) String() (s string) {
 	s = fmt.Sprintf("Netflow V%d %v %v %d\n", nf.Version,
 		time.Duration(nf.Uptime)*time.Millisecond,

@@ -63,7 +63,7 @@ func (c *Client) getNotifications(after time.Time, update bool) (n types.Notific
 // ownership and or ignored until status.
 func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
 	//check locally just so we don't hit the API needlessly, it will be rejected anyway
-	if c.userDetails.Admin == false {
+	if !c.userDetails.Admin {
 		err = ErrNotAdmin
 	} else {
 		err = c.methodStaticParamURL(http.MethodGet, NOTIFICATIONS_URL, adminParams, &n)

@@ -6,6 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package websocketRouter provides a routing system for the Gravwell websocket protocols
+// it is designed to route messages to the appropriate "connection" over a single websocket.
 package websocketRouter
 
 import (
@@ -180,7 +182,7 @@ func (spc *SubProtoClient) SubProtocols() ([]string, error) {
 	}
 
 	subs := make([]string, 0, len(spc.subs))
-	for k, _ := range spc.subs {
+	for k := range spc.subs {
 		subs = append(subs, k)
 	}
 	return subs, nil
@@ -221,7 +223,7 @@ func (spc *SubProtoClient) CloseSubProtoConn(subProto string) error {
 	return nil
 }
 
-// WriteErrorMessage sends an error down the default subproto connection.
+// WriteErrorMsg sends an error down the default subproto connection.
 func (spc *SubProtoClient) WriteErrorMsg(err error) error {
 	return spc.writeProtoJSON("error", err)
 }
@@ -324,7 +326,7 @@ loopExit:
 			//check if we can write to the default
 			if spc.defaultHandlerChan != nil {
 				select {
-				case spc.defaultHandlerChan <- UnkProtoMsg{spm.Type, spm.Data}:
+				case spc.defaultHandlerChan <- UnkProtoMsg(spm):
 				default:
 					s = nil
 				}

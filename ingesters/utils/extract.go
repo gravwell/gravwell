@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package utils implements various helpers for Gravwell ingesters
 package utils
 
 import (

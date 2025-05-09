@@ -331,7 +331,6 @@ outerLoop:
 			}
 		}
 	}
-	return
 }
 
 // shodanIngester pulls individual JSON records from a Shodan reader and ingests them.

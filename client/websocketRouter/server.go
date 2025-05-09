@@ -311,13 +311,13 @@ func (ss *SubProtoServer) SubProtocols() ([]string, error) {
 	}
 
 	subs := make([]string, 0, len(ss.subs))
-	for k, _ := range ss.subs {
+	for k := range ss.subs {
 		subs = append(subs, k)
 	}
 	return subs, nil
 }
 
-// GetSubProtoconn gets a subprotocol talker using the named subProto.
+// GetSubProtoConn gets a subprotocol talker using the named subProto.
 // If the named subProto is not found, ErrSubProtoNotFound is returned
 func (ss *SubProtoServer) GetSubProtoConn(subProto string) (*SubProtoConn, error) {
 	ss.mtx.Lock()
@@ -424,7 +424,7 @@ loopExit:
 			//check if we can write to the default
 			if ss.defaultHandlerChan != nil {
 				select {
-				case ss.defaultHandlerChan <- UnkProtoMsg{spm.Type, spm.Data}:
+				case ss.defaultHandlerChan <- UnkProtoMsg(spm):
 				default:
 					spc = nil
 				}

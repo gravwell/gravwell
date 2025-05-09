@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package rotate implements log file rotation for the embedded Gravwell logging system
 package rotate
 
 import (
@@ -14,6 +15,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"sort"
@@ -104,7 +106,7 @@ func OpenEx(pth string, perm os.FileMode, maxSize int64, maxHistory uint, compre
 func (fr *FileRotator) Close() (err error) {
 	fr.Lock()
 	defer fr.Unlock()
-	if fr == nil || fr.fout == nil {
+	if fr.fout == nil {
 		return ErrAlreadyClosed
 	}
 	if err = fr.fout.Close(); err != nil {
@@ -189,8 +191,7 @@ func resolveHistory(basePath, filename string) (h historyFile, ok bool) {
 	//check if we can strip the an ID extension
 	if ext := filepath.Ext(tempFilename); ext != `` {
 		lext := strings.TrimPrefix(ext, ".")
-		id, err := strconv.ParseUint(lext, 10, 64)
-		if err == nil {
+		if id, err := strconv.ParseUint(lext, 10, 64); err == nil && id <= math.MaxUint {
 			h.historyID = uint(id)
 			tempFilename = strings.TrimSuffix(tempFilename, ext)
 		}
@@ -298,7 +299,7 @@ func (fr *FileRotator) rollCurrentNoLock() (err error) {
 		err = fmt.Errorf("failed to close %v %w", fr.pth, err)
 		return
 	}
-	if fr.compress == false {
+	if !fr.compress {
 		if err = os.Rename(of, nf); err != nil {
 			err = fmt.Errorf("failed to rename %v -> %v %w", of, nf, err)
 			return
@@ -326,7 +327,7 @@ func openFile(pth string, perm os.FileMode) (fout *os.File, sz int64, err error)
 	}
 
 	//seek to the end and get the size
-	if sz, err = fout.Seek(0, os.SEEK_END); err != nil {
+	if sz, err = fout.Seek(0, io.SeekEnd); err != nil {
 		fout.Close()
 		err = fmt.Errorf("Failed to detect filesize %w", err)
 	}

@@ -238,7 +238,7 @@ func newTlsConn(dst string, certs *TLSCerts, verify bool) (net.Conn, net.IP, err
 	return conn, src, nil
 }
 
-// This function will create a new cleartext TCP connection to a remote system.
+// NewTCPConnection will create a new cleartext TCP connection to a remote system.
 // No verification of the server is performed AT ALL.  All traffic is snoopable
 // and modifiable.  If someone has control of the network, they will be able to
 // inject and monitor this traffic.
@@ -281,7 +281,7 @@ func newTcpConn(dst string) (net.Conn, net.IP, error) {
 	return conn, src, nil
 }
 
-// This function will create a new NamedPipe connection to a local system.
+// NewPipeConnection will create a new NamedPipe connection to a local system.
 // We have NO WAY of knowing which process is REALLY on the other end of the
 // pipe.  But it is assumed that gravwell will be running with highly limited
 // privileges, so if the integrity of the local system is compromised,

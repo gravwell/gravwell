@@ -11,7 +11,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"testing"
 )
@@ -22,7 +21,7 @@ var (
 
 func TestMain(m *testing.M) {
 	var err error
-	if tmpDir, err = ioutil.TempDir(os.TempDir(), `sr`); err != nil {
+	if tmpDir, err = os.MkdirTemp(os.TempDir(), `sr`); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create tempdir %v\n", err)
 		os.Exit(-1)
 	}
@@ -61,7 +60,7 @@ func TestBasicConfig(t *testing.T) {
 		t.Fatal("invalid cache path")
 	}
 	if len(cfg.Listener) != 9 {
-		t.Fatal(fmt.Sprintf("invalid listener counts: %d != 9", len(cfg.Listener)))
+		t.Fatalf("invalid listener counts: %d != 9", len(cfg.Listener))
 	}
 }
 
@@ -87,7 +86,7 @@ func TestBadConfig(t *testing.T) {
 func dropConfig(cfg string) (pth string, err error) {
 	var fout *os.File
 	var n int
-	if fout, err = ioutil.TempFile(tmpDir, `cfg`); err != nil {
+	if fout, err = os.CreateTemp(tmpDir, `cfg`); err != nil {
 		return
 	}
 	defer fout.Close()

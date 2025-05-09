@@ -50,7 +50,7 @@ func init() {
 	for i := 0; i < ENTRY_PAD_SIZE; i++ {
 		entryPad[i] = byte(rand.Intn(0xff))
 	}
-	rand.Seed(0xBEEF3)
+	//rand.Seed(0xBEEF3)
 	entIp = net.ParseIP("127.0.0.1")
 
 	runtime.GOMAXPROCS(2)

@@ -65,11 +65,10 @@ func TestCreateBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	if eb.size != eb2.size || eb.size == 0 {
-		t.Fatal(fmt.Sprintf("encode/decode sizes don't match %d != %d", eb.size, eb2.size))
+		t.Fatalf("encode/decode sizes don't match %d != %d", eb.size, eb2.size)
 	}
 	if len(eb.entries) != len(eb2.entries) || len(eb.entries) == 0 {
-		t.Fatal(fmt.Sprintf("encode/decode counts don't match %d != %d",
-			len(eb.entries), len(eb2.entries)))
+		t.Fatalf("encode/decode counts don't match %d != %d", len(eb.entries), len(eb2.entries))
 	}
 	for i := range eb.entries {
 		if err := compareEntry(eb.entries[i], eb2.entries[i]); err != nil {
@@ -144,11 +143,10 @@ func TestCreateEBlock(t *testing.T) {
 		t.Fatal(err)
 	}
 	if eb.size != eb2.size || eb.size == 0 {
-		t.Fatal(fmt.Sprintf("encode/decode sizes don't match %d != %d", eb.size, eb2.size))
+		t.Fatalf("encode/decode sizes don't match %d != %d", eb.size, eb2.size)
 	}
 	if len(eb.entries) != len(eb2.entries) || len(eb.entries) == 0 {
-		t.Fatal(fmt.Sprintf("encode/decode counts don't match %d != %d",
-			len(eb.entries), len(eb2.entries)))
+		t.Fatalf("encode/decode counts don't match %d != %d", len(eb.entries), len(eb2.entries))
 	}
 	for i := range eb.entries {
 		if err := compareEntry(eb.entries[i], eb2.entries[i]); err != nil {
@@ -184,11 +182,10 @@ func TestCreateEBlockWithEvs(t *testing.T) {
 		t.Fatal(err)
 	}
 	if eb.size != eb2.size || eb.size == 0 {
-		t.Fatal(fmt.Sprintf("encode/decode sizes don't match %d != %d", eb.size, eb2.size))
+		t.Fatalf("encode/decode sizes don't match %d != %d", eb.size, eb2.size)
 	}
 	if len(eb.entries) != len(eb2.entries) || len(eb.entries) == 0 {
-		t.Fatal(fmt.Sprintf("encode/decode counts don't match %d != %d",
-			len(eb.entries), len(eb2.entries)))
+		t.Fatalf("encode/decode counts don't match %d != %d", len(eb.entries), len(eb2.entries))
 	}
 	for i := range eb.entries {
 		if err := compareEntry(eb.entries[i], eb2.entries[i]); err != nil {
@@ -237,13 +234,13 @@ func TestDeepCopyBlock(t *testing.T) {
 
 	eb2 := eb.DeepCopy()
 	if eb.Len() != eb2.Len() {
-		t.Fatal(fmt.Sprintf("len mismatch: %d != %d", eb.Len(), eb2.Len()))
+		t.Fatalf("len mismatch: %d != %d", eb.Len(), eb2.Len())
 	}
 	if eb.Size() != eb2.Size() {
-		t.Fatal(fmt.Sprintf("Size mismatch: %d != %d", eb.Size(), eb2.Size()))
+		t.Fatalf("Size mismatch: %d != %d", eb.Size(), eb2.Size())
 	}
 	if eb.key != eb2.key {
-		t.Fatal(fmt.Sprintf("Key mismatch: %d != %d", eb.key, eb2.key))
+		t.Fatalf("Key mismatch: %d != %d", eb.key, eb2.key)
 	}
 
 	for i := range eb.entries {
@@ -272,13 +269,13 @@ func TestNewDeepBlock(t *testing.T) {
 	eb2 := NewDeepCopyEntryBlock(set, sz)
 
 	if eb.Len() != eb2.Len() {
-		t.Fatal(fmt.Sprintf("len mismatch: %d != %d", eb.Len(), eb2.Len()))
+		t.Fatalf("len mismatch: %d != %d", eb.Len(), eb2.Len())
 	}
 	if eb.Size() != eb2.Size() {
-		t.Fatal(fmt.Sprintf("Size mismatch: %d != %d", eb.Size(), eb2.Size()))
+		t.Fatalf("Size mismatch: %d != %d", eb.Size(), eb2.Size())
 	}
 	if eb.key != eb2.key {
-		t.Fatal(fmt.Sprintf("Key mismatch: %d != %d", eb.key, eb2.key))
+		t.Fatalf("Key mismatch: %d != %d", eb.key, eb2.key)
 	}
 
 	for i := range eb.entries {
@@ -288,7 +285,7 @@ func TestNewDeepBlock(t *testing.T) {
 	}
 
 	if eb2.Size() != sz {
-		t.Fatal(fmt.Sprintf("invalid size: %d != %d", eb2.Size(), sz))
+		t.Fatalf("invalid size: %d != %d", eb2.Size(), sz)
 	}
 }
 
@@ -311,13 +308,13 @@ func TestNewDeepBlockNoSize(t *testing.T) {
 	eb2 := NewDeepCopyEntryBlock(set, 0)
 
 	if eb.Len() != eb2.Len() {
-		t.Fatal(fmt.Sprintf("len mismatch: %d != %d", eb.Len(), eb2.Len()))
+		t.Fatalf("len mismatch: %d != %d", eb.Len(), eb2.Len())
 	}
 	if eb.Size() != eb2.Size() {
-		t.Fatal(fmt.Sprintf("Size mismatch: %d != %d", eb.Size(), eb2.Size()))
+		t.Fatalf("Size mismatch: %d != %d", eb.Size(), eb2.Size())
 	}
 	if eb.key != eb2.key {
-		t.Fatal(fmt.Sprintf("Key mismatch: %d != %d", eb.key, eb2.key))
+		t.Fatalf("Key mismatch: %d != %d", eb.key, eb2.key)
 	}
 
 	for i := range eb.entries {
@@ -327,7 +324,7 @@ func TestNewDeepBlockNoSize(t *testing.T) {
 	}
 
 	if eb2.Size() != sz {
-		t.Fatal(fmt.Sprintf("invalid size: %d != %d", eb2.Size(), sz))
+		t.Fatalf("invalid size: %d != %d", eb2.Size(), sz)
 	}
 }
 
@@ -351,13 +348,13 @@ func TestDeepBroken(t *testing.T) {
 
 	eb2 := eb.DeepCopy()
 	if eb.Len() != eb2.Len() {
-		t.Fatal(fmt.Sprintf("len mismatch: %d != %d", eb.Len(), eb2.Len()))
+		t.Fatalf("len mismatch: %d != %d", eb.Len(), eb2.Len())
 	}
 	if eb.Size() == eb2.Size() {
-		t.Fatal(fmt.Sprintf("Size not corrected: %d == %d", eb.Size(), eb2.Size()))
+		t.Fatalf("Size not corrected: %d == %d", eb.Size(), eb2.Size())
 	}
 	if eb.key == eb2.key {
-		t.Fatal(fmt.Sprintf("Key not corrected: %d == %d", eb.key, eb2.key))
+		t.Fatalf("Key not corrected: %d == %d", eb.key, eb2.key)
 	}
 
 	for i := range eb.entries {
@@ -375,13 +372,13 @@ func TestDeepEmpty(t *testing.T) {
 
 	eb2 := eb.DeepCopy()
 	if eb.Len() != eb2.Len() {
-		t.Fatal(fmt.Sprintf("len mismatch: %d != %d", eb.Len(), eb2.Len()))
+		t.Fatalf("len mismatch: %d != %d", eb.Len(), eb2.Len())
 	}
 	if eb.Size() == eb2.Size() {
-		t.Fatal(fmt.Sprintf("Size not corrected: %d == %d", eb.Size(), eb2.Size()))
+		t.Fatalf("Size not corrected: %d == %d", eb.Size(), eb2.Size())
 	}
 	if eb2.Key() != 0 {
-		t.Fatal(fmt.Sprintf("Key not corrected: %d != 0", eb2.key))
+		t.Fatalf("Key not corrected: %d != 0", eb2.key)
 	}
 
 	for i := range eb.entries {
@@ -438,11 +435,10 @@ func TestEBlockAppend(t *testing.T) {
 		t.Fatal(err)
 	}
 	if (eb.size+eb2.size) != ebf.size || ebf.size == 0 {
-		t.Fatal(fmt.Sprintf("encode/decode sizes don't match %d != %d", (eb.size + eb2.size), ebf.size))
+		t.Fatalf("encode/decode sizes don't match %d != %d", (eb.size + eb2.size), ebf.size)
 	}
 	if (len(eb.entries)+len(eb2.entries)) != len(ebf.entries) || len(ebf.entries) == 0 {
-		t.Fatal(fmt.Sprintf("encode/decode counts don't match %d != %d",
-			len(eb.entries)+len(eb2.entries), len(ebf.entries)))
+		t.Fatalf("encode/decode counts don't match %d != %d", len(eb.entries)+len(eb2.entries), len(ebf.entries))
 	}
 	eb.Merge(&eb2)
 	if eb.size != ebf.size {
@@ -536,20 +532,20 @@ func compareEntry(a, b *Entry) error {
 		return errors.New("nil entry")
 	}
 	if a.TS != b.TS {
-		return errors.New(fmt.Sprintf("TS mismatch %v != %v", a.TS, b.TS))
+		return fmt.Errorf("TS mismatch %v != %v", a.TS, b.TS)
 	}
 	if a.Tag != b.Tag {
-		return errors.New(fmt.Sprintf("Tag mismatch %d != %d", a.Tag, b.Tag))
+		return fmt.Errorf("Tag mismatch %d != %d", a.Tag, b.Tag)
 	}
 	if !a.SRC.Equal(b.SRC) {
-		return errors.New(fmt.Sprintf("Src mismatch %s != %s", a.SRC, b.SRC))
+		return fmt.Errorf("Src mismatch %s != %s", a.SRC, b.SRC)
 	}
 	if len(a.Data) != len(b.Data) {
-		return errors.New(fmt.Sprintf("Data len mismatch %d != %d", len(a.Data), len(b.Data)))
+		return fmt.Errorf("Data len mismatch %d != %d", len(a.Data), len(b.Data))
 	}
 	for i := range a.Data {
 		if a.Data[i] != b.Data[i] {
-			return errors.New(fmt.Sprintf("Data mismatch [%d] %x != %x", i, a.Data[i], b.Data[i]))
+			return fmt.Errorf("Data mismatch [%d] %x != %x", i, a.Data[i], b.Data[i])
 		}
 	}
 	return nil

@@ -10,7 +10,6 @@ package filewatch
 
 import (
 	"fmt"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"testing"
@@ -170,7 +169,7 @@ func TestLinerContinuousInput(t *testing.T) {
 }
 
 func newFile() (f *os.File, name string, err error) {
-	f, err = ioutil.TempFile(testingBase, `liner`)
+	f, err = os.CreateTemp(testingBase, `liner`)
 	if err != nil {
 		return
 	}

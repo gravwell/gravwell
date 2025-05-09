@@ -34,7 +34,7 @@ type TableResponse struct {
 	Entries TableValueSet
 }
 
-// Gauge renderer
+// GaugeValue renderer object type
 type GaugeValue struct {
 	Name      string
 	Magnitude float64

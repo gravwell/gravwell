@@ -85,7 +85,7 @@ func (lr *LineReader) ReadEntry() (ln []byte, ok bool, wasEOF bool, err error) {
 
 func (lr *LineReader) ReadRemaining() (ln []byte, err error) {
 	var ok bool
-	if ln, ok, _, err = lr.ReadEntry(); err != nil || ok == true {
+	if ln, ok, _, err = lr.ReadEntry(); err != nil || ok {
 		// error or complete success
 		return
 	} else if len(lr.currLine) != 0 {

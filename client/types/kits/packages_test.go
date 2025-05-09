@@ -10,11 +10,10 @@ package kits
 
 import (
 	"compress/gzip"
+	"crypto/rand"
 	"crypto/sha256"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"math/rand"
 	"os"
 	"testing"
 
@@ -31,7 +30,7 @@ var (
 )
 
 func TestKitNewBuilder(t *testing.T) {
-	tf, err := ioutil.TempFile(baseDir, `kit`)
+	tf, err := os.CreateTemp(baseDir, `kit`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +48,7 @@ func TestKitNewBuilder(t *testing.T) {
 }
 
 func TestBuilderAbort(t *testing.T) {
-	tf, err := ioutil.TempFile(baseDir, `kit`)
+	tf, err := os.CreateTemp(baseDir, `kit`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +65,7 @@ func TestBuilderAbort(t *testing.T) {
 }
 
 func TestBuilderAdd(t *testing.T) {
-	tf, err := ioutil.TempFile(baseDir, `kit`)
+	tf, err := os.CreateTemp(baseDir, `kit`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,7 +116,7 @@ func TestBuilderAdd(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !testing.Short() {
-		if pr, err = NewReader(fin, nil); err != nil {
+		if _, err = NewReader(fin, nil); err != nil {
 			t.Fatal(err)
 		}
 
@@ -135,7 +134,7 @@ func TestBuilderAddSigned(t *testing.T) {
 	if testing.Short() {
 		return
 	}
-	tf, err := ioutil.TempFile(baseDir, `kit`)
+	tf, err := os.CreateTemp(baseDir, `kit`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -212,7 +211,7 @@ type tstruct struct {
 }
 
 func TestProcess(t *testing.T) {
-	tf, err := ioutil.TempFile(baseDir, `kit`)
+	tf, err := os.CreateTemp(baseDir, `kit`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -317,11 +316,7 @@ func genRandomFile() (fout *os.File, err error) {
 	if b, err = genRandomBuff(); err != nil {
 		return
 	}
-	if fout, err = ioutil.TempFile(baseDir, "t"); err != nil {
-		return
-	}
-	if _, err = rand.Read(b); err != nil {
-		fout.Close()
+	if fout, err = os.CreateTemp(baseDir, "t"); err != nil {
 		return
 	}
 	if err = writeAll(fout, b); err != nil {
@@ -333,9 +328,7 @@ func genRandomFile() (fout *os.File, err error) {
 
 func genRandomBuff() (b []byte, err error) {
 	b = make([]byte, 32*1024)
-	if _, err = rand.Read(b); err != nil {
-		return
-	}
+	_, err = rand.Read(b)
 	return
 }
 

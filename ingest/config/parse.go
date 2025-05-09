@@ -74,24 +74,23 @@ var (
 // If no suffix is present, ParseRate assumes the string specifies
 // bits per second.
 func ParseRate(s string) (bps int64, err error) {
-	var r uint64
 	if len(s) == 0 {
 		return
 	}
 	for _, v := range rateSuffix {
 		if strings.HasSuffix(s, v.suffix) {
+			var r int64
 			s = strings.TrimSuffix(s, v.suffix)
-			if r, err = strconv.ParseUint(s, 10, 64); err != nil {
+			if r, err = strconv.ParseInt(s, 10, 64); err != nil {
 				return
 			}
 			bps = int64(r) * v.mult
 			return
 		}
 	}
-	if r, err = strconv.ParseUint(s, 10, 64); err != nil {
+	if bps, err = strconv.ParseInt(s, 10, 64); err != nil {
 		return
 	}
-	bps = int64(r)
 	return
 }
 

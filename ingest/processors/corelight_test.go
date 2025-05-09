@@ -48,8 +48,7 @@ func TestCorelightConfig(t *testing.T) {
 		type = corelight
 		Prefix="foobar:this-that'TheOther"
 	`
-	p, err = testLoadPreprocessor(b, `corelight`)
-	if err == nil {
+	if _, err = testLoadPreprocessor(b, `corelight`); err == nil {
 		t.Fatal("failed to catch bad prefix")
 	}
 

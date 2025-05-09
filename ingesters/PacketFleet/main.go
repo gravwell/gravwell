@@ -16,7 +16,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
@@ -189,7 +188,7 @@ func main() {
 		}
 
 		// Load CA cert
-		caCert, err := ioutil.ReadFile(hcfg.caCert)
+		caCert, err := os.ReadFile(hcfg.caCert)
 		if err != nil {
 			lg.FatalCode(0, "failed to load CA certificate", log.KV("cacert", hcfg.caCert), log.KVErr(err))
 			return
@@ -199,11 +198,9 @@ func main() {
 
 		// Setup HTTPS client
 		tlsConfig := &tls.Config{
-			InsecureSkipVerify: true,
-			Certificates:       []tls.Certificate{cert},
-			RootCAs:            caCertPool,
+			Certificates: []tls.Certificate{cert},
+			RootCAs:      caCertPool,
 		}
-		tlsConfig.BuildNameToCertificate()
 		transport := &http.Transport{TLSClientConfig: tlsConfig}
 		hcfg.client = &http.Client{Transport: transport}
 
@@ -425,7 +422,7 @@ func status() []byte {
 
 func conns() []byte {
 	var sc []string
-	for k, _ := range stenos {
+	for k := range stenos {
 		sc = append(sc, k)
 	}
 	ret, err := json.Marshal(sc)

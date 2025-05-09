@@ -42,7 +42,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
@@ -350,7 +349,7 @@ func (ic *IngestConfig) Secret() string {
 	return ic.Ingest_Secret
 }
 
-// Return the specified log level
+// LogLevel returns the specified log level for a given IngestConfig
 func (ic *IngestConfig) LogLevel() string {
 	return ic.Log_Level
 }
@@ -388,7 +387,7 @@ func (ic *IngestConfig) AddLocalLogging(lg *log.Logger) {
 }
 
 func (ic *IngestConfig) SelfIngest() bool {
-	return ic.Disable_Self_Ingest == false
+	return !ic.Disable_Self_Ingest
 }
 
 func (ic *IngestConfig) checkLogLevel() error {
@@ -464,7 +463,7 @@ func reloadContent(loc string) (content string, err error) {
 		return
 	}
 	var bts []byte
-	bts, err = ioutil.ReadFile(loc)
+	bts, err = os.ReadFile(loc)
 	content = string(bts)
 	return
 }

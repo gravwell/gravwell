@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package entry implements the encoder/decoder functionality for Gravwell ingest
 package entry
 
 import (
@@ -91,7 +92,7 @@ func (ent *Entry) AddEnumeratedValues(evs []EnumeratedValue) (err error) {
 		return
 	}
 	for i := range evs {
-		if evs[i].Valid() == false {
+		if !evs[i].Valid() {
 			err = ErrInvalid
 			return
 		}
@@ -592,9 +593,9 @@ func (ent *Entry) Compare(v *Entry) error {
 		return errors.New("differing timestamp")
 	} else if ent.Tag != v.Tag {
 		return errors.New("differing tags")
-	} else if bytes.Compare(ent.SRC, v.SRC) != 0 {
+	} else if !ent.SRC.Equal(v.SRC) {
 		return errors.New("differeing source values")
-	} else if bytes.Compare(ent.Data, v.Data) != 0 {
+	} else if !bytes.Equal(ent.Data, v.Data) {
 		return errors.New("differing data")
 	}
 	return ent.EVB.Compare(v.EVB)

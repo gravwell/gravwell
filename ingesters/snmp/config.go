@@ -60,10 +60,10 @@ type cfgType struct {
 
 func (a *v3auth) validate() error {
 	if a.Auth_Protocol != "" && a.Auth_Protocol != "MD5" && a.Auth_Protocol != "SHA" {
-		return fmt.Errorf("Invalid Auth-Protocol %v. Supported protocols: MD5, SHA")
+		return fmt.Errorf("Invalid Auth-Protocol %v. Supported protocols: MD5, SHA", a.Auth_Protocol)
 	}
 	if a.Privacy_Protocol != "" && a.Privacy_Protocol != "DES" {
-		return fmt.Errorf("Invalid Privacy-Protocol %v. Supported protocols: DES")
+		return fmt.Errorf("Invalid Privacy-Protocol %v. Supported protocols: DES", a.Auth_Protocol)
 	}
 	return nil
 }

@@ -31,7 +31,7 @@ var (
 	ErrPartialDecode     error = errors.New("Buffer is short/invalid for EntryBlock decode")
 )
 
-// standard entry block, primarily used in ingesters
+// EntryBlock is the standard entry block, primarily used in ingesters
 type EntryBlock struct {
 	size    uint64
 	key     int64
@@ -64,7 +64,7 @@ func NewEntryBlock(set []*Entry, size uint64) EntryBlock {
 	}
 }
 
-// NewEntryBlock creates a new entry block from the set and size parameters
+// NewEntryBlockNP creates a new entry block from the set and size parameters
 // the size is taken at face value and should represent the storage size needed to
 // encode the given set.  The slice of Entry handed in is NOT copied, caller should not modify the slice until the block is done
 func NewEntryBlockNP(set []Entry, size uint64) (eb EntryBlock) {
@@ -377,7 +377,7 @@ func (eb EntryBlock) EntryKey(i int) (int64, error) {
 	return 0, errors.New("Invalid entry")
 }
 
-// Deep copy performs an agressive deep copy of the entire block, all entries, and any underlying buffers
+// DeepCopy performs an agressive deep copy of the entire block, all entries, and any underlying buffers
 // this is useful when you are pulling entries out of a RO memory reagion and want to ensure your block
 // is entirely orthogonal to the backing memory region.
 // WARNING: this will hammer the memory allocator, only use when you know what you are doing

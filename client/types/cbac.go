@@ -131,11 +131,11 @@ type CapabilityState struct {
 	Grants []string
 }
 
-func (cs CapabilityState) MarshalJSON() ([]byte, error) {
+func (st CapabilityState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		Grants emptyStrings
 	}{
-		cs.Grants,
+		st.Grants,
 	})
 }
 
@@ -227,7 +227,7 @@ func (c Capability) CapabilityDesc() CapabilityDesc {
 	}
 }
 
-// Check if the capability value is valid/known
+// Valid checks if the capability value is valid/known
 func (c Capability) Valid() bool {
 	return c < _maxCap
 }
@@ -341,7 +341,7 @@ func (c Capability) Name() string {
 	return `UNKNOWN`
 }
 
-// Name returns the ASCII name of a capability
+// Category returns the ASCII catagory of a capability
 func (c Capability) Category() CapabilityCategory {
 	switch c {
 	case Search:
@@ -900,7 +900,7 @@ func CheckTagAccess(tg string, prime TagAccess, set []TagAccess) (allowed bool) 
 	return
 }
 
-// Return the set of tags permitted within a given slice of tags.
+// FilterTags returns the set of tags permitted within a given slice of tags.
 func FilterTags(tags []string, prime TagAccess, set []TagAccess) (r []string) {
 	for _, t := range tags {
 		if CheckTagAccess(t, prime, set) {
@@ -1027,7 +1027,7 @@ func (t Token) CapabilitiesString() string {
 	return strings.Join(t.Capabilities, " ")
 }
 
-// Encode encodes a list of capabilities into a buffer
+// EncodeCapabilities encodes a list of capabilities into a buffer
 func EncodeCapabilities(caps []Capability) (b []byte, err error) {
 	if len(caps) == 0 {
 		return
@@ -1109,7 +1109,7 @@ func (abr *CBACRules) CapabilityList() (r []CapabilityDesc) {
 	return
 }
 
-// export a CapabilityState from the underlying capability rules
+// CapabilityState exports the capabilities state from the underlying capability rules
 func (abr *CBACRules) CapabilityState() (r CapabilityState) {
 	r.Grants = []string{}
 	for _, c := range fullCapList {

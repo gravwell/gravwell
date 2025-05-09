@@ -36,7 +36,7 @@ func NewStateTracker(pth string) (st *StateTracker, err error) {
 	}
 	if fout, err = os.OpenFile(pth, os.O_RDWR|os.O_CREATE, 0750); err != nil {
 		return
-	} else if _, err = fout.Seek(0, os.SEEK_END); err != nil {
+	} else if _, err = fout.Seek(0, io.SeekEnd); err != nil {
 		fout.Close()
 		return
 	}

@@ -167,7 +167,7 @@ func (br BaseResponse) Err() error {
 	return nil
 }
 
-// We have a generic StatsRequest type that ONLY implements the BaseRequest.
+// StatsRequest is a generic StatsRequest type that ONLY implements the BaseRequest.
 // This is so that clients can ask about stats without knowing about specific
 // renderers.
 type StatsRequest struct {

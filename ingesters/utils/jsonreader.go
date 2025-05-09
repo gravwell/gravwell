@@ -28,7 +28,7 @@ type JsonLimitedDecoder struct {
 	maxSize int64
 }
 
-// NewJsonLImitedDecoder will return a new JsonLimitedDecoder ready for use.
+// NewJsonLimitedDecoder will return a new JsonLimitedDecoder ready for use.
 // The json.Decoder object is directly exposed so that buffer methods can be used.
 // This is a drop in replacement for the json.Decoder but we can return additional errors about oversized objects.
 func NewJsonLimitedDecoder(rdr io.Reader, max int64) (jld *JsonLimitedDecoder, err error) {

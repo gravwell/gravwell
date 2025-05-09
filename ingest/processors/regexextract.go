@@ -89,8 +89,8 @@ func (c *RegexExtractConfig) validate() (rx *regexp.Regexp, tmp *formatter, af [
 	}
 	//handle the legacy config items and potential overrides
 	// if Drop-Misses is set, that overrides everything
-	if c.Drop_Misses == false {
-		if c.Passthrough_Misses == false {
+	if !c.Drop_Misses {
+		if !c.Passthrough_Misses {
 			c.Drop_Misses = true
 		}
 	}
@@ -188,5 +188,4 @@ func (re *RegexExtractor) performAttaches(ent *entry.Entry, matches [][]byte) {
 			}
 		}
 	}
-	return
 }

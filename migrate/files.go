@@ -31,7 +31,7 @@ import (
 
 const (
 	filesStateType string = `files`
-	evFilenameName        = `file`
+	evFilenameName string = `file`
 )
 
 type files struct {

@@ -339,10 +339,7 @@ func setTagMapping(cfgName string, x SplunkToGravwell, tag string) {
 		newTag = text
 	}
 	timestampCheck := func(ts string, lastChar rune) bool {
-		if !unicode.IsNumber(lastChar) {
-			return false
-		}
-		return true
+		return unicode.IsNumber(lastChar)
 	}
 	startTimestampChanged := func(ts string) {
 		if i, err := strconv.Atoi(ts); err == nil {

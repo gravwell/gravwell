@@ -12,7 +12,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"strings"
@@ -46,7 +45,7 @@ func main() {
 		fmt.Println("missing config-path")
 		os.Exit(1)
 	}
-	if config_data, err := ioutil.ReadFile(*configPath); err != nil {
+	if config_data, err := os.ReadFile(*configPath); err != nil {
 		fmt.Printf("Failed to load plugin config file %q: %v\n", *configPath, err)
 		os.Exit(1)
 	} else if vc, err = loadPluginConfig(config_data); err != nil {

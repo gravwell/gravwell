@@ -215,8 +215,8 @@ func main() {
 				}
 			}
 
+			wg.Add(1)
 			go func(stream streamDef, shard kinesis.Shard, tagid entry.EntryTag, shardid int, tg *timegrinder.TimeGrinder) {
-				wg.Add(1)
 				defer wg.Done()
 				// set up timegrinder and other long-lived stuff
 				var src net.IP
@@ -319,7 +319,7 @@ func main() {
 								SRC:  src,
 								Data: r.Data,
 							}
-							if stream.Parse_Time == false {
+							if !stream.Parse_Time {
 								ent.TS = entry.FromStandard(*r.ApproximateArrivalTimestamp)
 							} else {
 								ts, ok, err := tg.Extract(ent.Data)
@@ -436,11 +436,10 @@ func NewStateman(stateFile *utils.State) *stateman {
 
 func (s *stateman) Start() {
 	go func() {
-		for {
-			select {
-			case <-time.After(15 * time.Second):
-				s.Flush()
-			}
+		tckr := time.NewTicker(15 * time.Second)
+		defer tckr.Stop()
+		for range tckr.C {
+			s.Flush()
 		}
 	}()
 }

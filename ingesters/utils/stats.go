@@ -145,7 +145,7 @@ func (sm *StatsManager) doTick(dur time.Duration) {
 	sm.Unlock()
 
 	//emit entry
-	if len(params) > 0 && ok == true {
+	if len(params) > 0 && ok {
 		sm.lgr.Info(statsMsg, params...)
 	}
 }

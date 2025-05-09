@@ -10,7 +10,6 @@ package kits
 
 import (
 	"flag"
-	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
@@ -31,7 +30,7 @@ var (
 func TestMain(m *testing.M) {
 	var err error
 	flag.Parse() // so we can get the flags
-	baseDir, err = ioutil.TempDir(os.TempDir(), "gravmanifest")
+	baseDir, err = os.MkdirTemp(os.TempDir(), "gravmanifest")
 	if !testing.Short() {
 		if err != nil {
 			log.Fatal(err)

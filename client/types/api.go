@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package types implements the concrete data types for the Gravwell API
 package types
 
 import (
@@ -69,7 +70,6 @@ type BuildInfo struct {
 	GUIBuildID string    `json:",omitempty"`
 }
 
-// The full version of Gravwell in this build - eg 4.1.2
 type CanonicalVersion struct {
 	Major uint32
 	Minor uint32
@@ -83,7 +83,7 @@ func ApiVersion() ApiInfo {
 	}
 }
 
-// Return the full build version of Gravwell eg "4.1.2"
+// Version returns the full build version of Gravwell eg "4.1.2"
 func (bi BuildInfo) Version() string {
 	return bi.CanonicalVersion.String()
 }
@@ -116,8 +116,9 @@ func parseUint32(v string) (r uint32, err error) {
 	return
 }
 
-// Return a CanonicalVersion object containing the given version string. Must
-// be in the form of "X.Y.Z".
+// ParseCanonicalVersion validates and parses a version string
+// it returns a CanonicalVersion object containing the given version string.
+// Must be in the form of "X.Y.Z".
 func ParseCanonicalVersion(s string) (r CanonicalVersion, err error) {
 	var bits []string
 	if s = strings.TrimSpace(s); len(s) == 0 {
@@ -364,7 +365,6 @@ func (ei emptyFloat64s) MarshalJSON() ([]byte, error) {
 	return json.Marshal([]float64(ei))
 }
 
-// marshalling and handlers for our raw object type
 func (o RawObject) MarshalJSON() ([]byte, error) {
 	if len(o) == 0 || o == nil {
 		return emptyObj, nil

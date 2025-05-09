@@ -6,6 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package base implements an abstracted base ingester to simplify the process of writing
+// new ingesters
 package base
 
 import (
@@ -264,13 +266,13 @@ func (ib *IngesterBase) validateUUID(cfg config.IngestConfig, loc string) (err e
 	if ib == nil || ib.Cfg == nil {
 		return //nothing to do here
 	}
-	id, ok := cfg.IngesterUUID()
+	_, ok := cfg.IngesterUUID()
 	if ok {
 		//all good
 		return
 	}
 	//generate a UUID
-	id = uuid.New()
+	id := uuid.New()
 
 	if loc != `` {
 		if err = cfg.SetIngesterUUID(id, loc); err != nil {
@@ -310,27 +312,27 @@ func (ib *IngesterBase) writebackUUID(id uuid.UUID) (err error) {
 
 	//ok, lets start diving into this thing and try to set a value inside of it
 	sv := rv.FieldByName(`Ingester_UUID`)
-	if sv.IsValid() == false {
+	if !sv.IsValid() {
 		//try to look for a field named "Global"
 		sv = rv.FieldByName(`Global`)
-		if sv.IsValid() == false {
+		if !sv.IsValid() {
 			err = fmt.Errorf("Failed to find Ingester_UUID in config type %T", rv.Interface())
 			return
 		}
 		//sv is pointing at Global, try to grab the Ingester_UUID in there
 		ssv := sv.FieldByName(`Ingester_UUID`)
-		if ssv.IsValid() == false {
+		if !ssv.IsValid() {
 			err = fmt.Errorf("Failed to find Ingester_UUID in nested Global type %T", sv.Interface())
 			return
 		}
-		if ssv.CanSet() == false {
+		if !ssv.CanSet() {
 			err = fmt.Errorf("Cannot set Ingester_UUID inside nested global type %T", sv.Interface())
 			return
 		}
 		//all good
 		sv = ssv
 	}
-	if sv.CanSet() == false {
+	if !sv.CanSet() {
 		err = fmt.Errorf("Cannot set Ingester_UUID field in type %T", ib.Cfg)
 		return
 	} else if sv.Kind() != reflect.String {

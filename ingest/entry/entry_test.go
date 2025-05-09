@@ -93,7 +93,7 @@ func TestEncodeDecodeBasic(t *testing.T) {
 	}
 
 	//check that the encoded output was the same
-	if bytes.Compare(bb.Bytes(), buff) != 0 {
+	if !bytes.Equal(bb.Bytes(), buff) {
 		t.Fatalf("encoded output types do not match")
 	}
 
@@ -156,7 +156,7 @@ func TestEncodeDecodeEnumeratedValues(t *testing.T) {
 	}
 
 	//check that the encoded output was the same
-	if bytes.Compare(bb.Bytes(), buff) != 0 {
+	if !bytes.Equal(bb.Bytes(), buff) {
 		t.Fatalf("encoded output types do not match")
 	}
 

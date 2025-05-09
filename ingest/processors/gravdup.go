@@ -138,7 +138,7 @@ func (gf *GravwellForwarder) Process(ents []*entry.Entry) (r []*entry.Entry, err
 				//figure out what the tag name is an try to negotiate it
 				var tagname string
 				if ent.Tag == entry.GravwellTagId {
-					tagname = entry.GravwellTagName
+					// totally fine, this is a constant, pass it through
 				} else if tagname, ok = gf.tgr.LookupTag(ent.Tag); !ok {
 					err = ErrFailedTagLookup
 				} else if lent.Tag, err = gf.mxr.NegotiateTag(tagname); err == nil {
@@ -154,6 +154,7 @@ func (gf *GravwellForwarder) Process(ents []*entry.Entry) (r []*entry.Entry, err
 	return
 }
 
+// MarshalJSON just makes sure we don't ship the secret when marshaling the struct
 // we DO NOT want to ship the ingest secret here, so we mask it off
 func (gfc GravwellForwarderConfig) MarshalJSON() ([]byte, error) {
 	x := struct {

@@ -14,7 +14,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 
 	"github.com/gravwell/gravwell/v3/client/types"
@@ -152,7 +151,7 @@ func (pb *Builder) WriteManifest(sig []byte) (err error) {
 	if bts, err = pb.manifest.Marshal(); err != nil {
 		return
 	}
-	if sig != nil && len(sig) > 0 {
+	if len(sig) > 0 {
 		hdr.Name = ManifestSigName
 		hdr.Size = int64(len(sig))
 		if err = pb.tw.WriteHeader(&hdr); err != nil {
@@ -309,7 +308,7 @@ func (pb *Builder) SetBanner(id string) error {
 }
 
 func getTempFile() (f *os.File, err error) {
-	f, err = ioutil.TempFile(os.TempDir(), `gravpack`)
+	f, err = os.CreateTemp(os.TempDir(), `gravpack`)
 	return
 }
 

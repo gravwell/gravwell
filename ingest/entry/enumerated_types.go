@@ -51,7 +51,7 @@ type EnumeratedData struct {
 	evtype uint8 //you don't get access to this, sorry
 }
 
-// NewEnumeratedValueRaw takes an EV type ID and byte slice, validates it, and then creates a new ingest EV.
+// NewEnumeratedData takes an EV type ID and byte slice, validates it, and then creates a new ingest EV.
 // This is primarily used when reimporting data from a query that has a github.com/gravwell/gravwell/client/types.EnumeratedPair.
 // This should not be called by hand.
 func NewEnumeratedData(evtype uint8, data []byte) (ed EnumeratedData, err error) {
@@ -67,7 +67,7 @@ func NewEnumeratedData(evtype uint8, data []byte) (ed EnumeratedData, err error)
 	return
 }
 
-// InverEnumeratedData takes a native type and creates a properly annotated enumerated value data section.
+// InferEnumeratedData takes a native type and creates a properly annotated enumerated value data section.
 // The function returns an empty EnumeratedData if the type provided type is invalid.
 func InferEnumeratedData(val interface{}) (EnumeratedData, error) {
 	switch v := val.(type) {
@@ -256,7 +256,7 @@ func StringEnumData(v string) EnumeratedData {
 	}
 }
 
-// StringEnumDataTrimmed will create a Unicode enumerated value with leading characters trimmed off
+// StringEnumDataTail will create a Unicode enumerated value with leading characters trimmed off
 // if and only if the provided string is too long.  This function is commonly used in the file follower.
 // This function is UTF-8 aware and will respect entire unicode characters.
 func StringEnumDataTail(v string) EnumeratedData {

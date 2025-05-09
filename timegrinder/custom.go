@@ -177,8 +177,8 @@ func (cp *customProcessor) Format() string {
 	return cp.CustomFormat.Format
 }
 
-func (p *customProcessor) SetWindow(t TimestampWindow) {
-	p.window = t
+func (cp *customProcessor) SetWindow(t TimestampWindow) {
+	cp.window = t
 }
 
 func addDate(t time.Time) time.Time {

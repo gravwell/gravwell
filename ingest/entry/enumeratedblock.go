@@ -168,7 +168,6 @@ func (eb *EVBlock) Append(seb EVBlock) {
 			eb.Add(v)
 		}
 	}
-	return
 }
 
 func (eb EVBlock) GobEncode() ([]byte, error) {
@@ -445,8 +444,8 @@ func DecodeEVBlockHeader(buff []byte) (h EVBlockHeader, err error) {
 func (eb EVBlock) Compare(eb2 EVBlock) error {
 	if eb.size != eb2.size {
 		return fmt.Errorf("mismatch size: %d != %d", eb.size, eb2.size)
-	} else if len(eb.evs) != len(eb.evs) {
-		return fmt.Errorf("mismatch count: %d != %d", len(eb.evs), len(eb.evs))
+	} else if len(eb.evs) != len(eb2.evs) {
+		return fmt.Errorf("mismatch count: %d != %d", len(eb.evs), len(eb2.evs))
 	}
 	for i := range eb.evs {
 		if err := eb.evs[i].Compare(eb2.evs[i]); err != nil {

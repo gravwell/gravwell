@@ -9,6 +9,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"net"
 	"time"
@@ -24,6 +25,7 @@ type datum struct {
 	Groups    []ComplexGroup `json:"groups,omitempty"`
 	UserAgent string         `json:"user_agent"`
 	IP        net.IP         `json:"ip"`
+	Host      string         `json:"remote_host"`
 	Data      string         `json:"data"`
 }
 
@@ -67,6 +69,7 @@ func genDataJSON(ts time.Time) (r []byte) {
 	d.Account = getUser()
 	d.UserAgent = rd.UserAgentString()
 	d.IP = getIP()
+	d.Host = net.JoinHostPort(d.IP.String(), fmt.Sprintf("%d", rand.Intn(0xf000)+0x400))
 	r, _ = json.Marshal(&d)
 	return
 }

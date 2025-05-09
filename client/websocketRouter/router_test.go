@@ -126,7 +126,7 @@ func TestBadClient(t *testing.T) {
 		t.Fatal(err)
 	}
 	if resp.StatusCode != http.StatusForbidden {
-		t.Fatal(fmt.Sprintf("A bad client failed to get BadRequestCode: %s", resp.Status))
+		t.Fatalf("A bad client failed to get BadRequestCode: %s", resp.Status)
 	}
 }
 
@@ -169,10 +169,6 @@ func TestAuthedGoodClientTalking(t *testing.T) {
 
 // test an authenticated client
 func TestBadAuthGoodClientTalking(t *testing.T) {
-	var subIDs []string
-	for i := 0; i < 4; i++ {
-		subIDs = append(subIDs, fmt.Sprintf("sub_%d", i))
-	}
 	ts, err := startWebserver()
 	if err != nil {
 		t.Fatal(err)
@@ -490,12 +486,10 @@ type msg struct {
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if headers != nil {
-		for k, v := range headers {
-			if r.Header.Get(k) != v {
-				w.WriteHeader(http.StatusForbidden)
-				return
-			}
+	for k, v := range headers {
+		if r.Header.Get(k) != v {
+			w.WriteHeader(http.StatusForbidden)
+			return
 		}
 	}
 	spr, err := NewSubProtoServer(w, r, buffSize, buffSize, "")

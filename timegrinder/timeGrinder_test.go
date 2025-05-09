@@ -17,10 +17,9 @@ import (
 )
 
 const (
-	SEED             int64 = 0x7777BEEFDEADBEEF
-	TEST_COUNT       int   = 16
-	BENCH_LOOP_COUNT int   = 1024
-	RAND_BUFF_SIZE   int   = 2048
+	TEST_COUNT       int = 16
+	BENCH_LOOP_COUNT int = 1024
+	RAND_BUFF_SIZE   int = 2048
 )
 
 var (
@@ -32,7 +31,6 @@ var (
 )
 
 func init() {
-	rand.Seed(SEED)
 	baseTime, baseTimeError = time.Parse("01-02-2006 15:04:05", "07-04-2014 16:30:45")
 	benchTimeGrinder, _ = New(cfg)
 	randStringBuff = make([]byte, RAND_BUFF_SIZE)
@@ -74,7 +72,6 @@ func TestGlobalExtractor(t *testing.T) {
 					*errp = fmt.Errorf("missed extract on %q", val)
 				}
 			}
-			return
 		}(&tests[i], &wg, formats[i])
 	}
 	wg.Wait()
@@ -108,7 +105,6 @@ func TestGlobalMatcher(t *testing.T) {
 					t.Errorf("did not match %s", val)
 				}
 			}
-			return
 		}(&tests[i], &wg, formats[i])
 	}
 	wg.Wait()
@@ -281,7 +277,7 @@ func TestTimestampCutoff(t *testing.T) {
 		for i := range candidates {
 			candidate := ctime.Format(candidates[i])
 			// Make sure we can extract it with the base configuration
-			ts, ok, err := baseTg.Extract([]byte(candidate))
+			_, ok, err := baseTg.Extract([]byte(candidate))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -289,7 +285,7 @@ func TestTimestampCutoff(t *testing.T) {
 				t.Fatal("Failed to extract timestamp " + candidate + " format =" + candidates[i])
 			}
 			// Make sure we *can't* extract it with the cutoff enabled
-			ts, ok, err = tg.Extract([]byte(candidate))
+			ts, ok, err := tg.Extract([]byte(candidate))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -299,7 +295,7 @@ func TestTimestampCutoff(t *testing.T) {
 		}
 		// We have to get special for unix timestamps because we can't use the formatting library
 		test := func(s, name string) {
-			ts, ok, err := baseTg.Extract([]byte(s))
+			_, ok, err := baseTg.Extract([]byte(s))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -307,7 +303,7 @@ func TestTimestampCutoff(t *testing.T) {
 				t.Fatalf("Failed to extract %s timestamp %s", name, s)
 			}
 			// Make sure we *can't* extract it with the cutoff enabled
-			ts, ok, err = tg.Extract([]byte(s))
+			ts, ok, err := tg.Extract([]byte(s))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -378,7 +374,7 @@ func TestTimestampCutoffSkip(t *testing.T) {
 		for i := range candidates {
 			candidate := fmt.Sprintf("%s %s", ctime.Format(candidates[i]), gtime.Format(candidates[i]))
 			// Make sure we can extract it with the base configuration
-			ts, ok, err := baseTg.Extract([]byte(candidate))
+			_, ok, err := baseTg.Extract([]byte(candidate))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -386,7 +382,7 @@ func TestTimestampCutoffSkip(t *testing.T) {
 				t.Fatal("Failed to extract timestamp " + candidate + " format =" + candidates[i])
 			}
 			// Make sure we extract the *second* timestamp with the window enabled
-			ts, ok, err = tg.Extract([]byte(candidate))
+			ts, ok, err := tg.Extract([]byte(candidate))
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -489,13 +485,14 @@ func TestUnixMilli(t *testing.T) {
 	}
 
 	candidate = `foobar	   1511802599.453396 CQsz7E4Wiy30uCtBR3 199.58.81.140 37358 198.46.205.70 9998 data_before_established	- F bro`
-	ts, ok, err = tg.Extract([]byte(candidate))
-	if ok {
+	if _, ok, err = tg.Extract([]byte(candidate)); err != nil {
+		t.Fatal(err)
+	} else if ok {
 		t.Fatalf("Improperly extracted unix milli from line with prefixed text")
 	}
 
 	candidate = `1511802599.453396`
-	ts, ok, err = tg.Extract([]byte(candidate))
+	_, ok, err = tg.Extract([]byte(candidate))
 	if err != nil {
 		t.Fatal(err)
 	} else if !ok {
