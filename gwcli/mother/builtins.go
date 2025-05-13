@@ -31,7 +31,9 @@ var builtinHelp map[string]string
 func initBuiltins() {
 	builtins = map[string](func(*Mother, []string) tea.Cmd){
 		"help":    contextHelp,
+		"ls":      contextHelp,
 		"history": listHistory,
+		"pwd":     pwd,
 		"quit":    quit,
 		"exit":    quit}
 
@@ -44,6 +46,7 @@ func initBuiltins() {
 			", " +
 			stylesheet.ExampleStyle.Render("help query"),
 		"history": "List previous commands. Navigate history via " + stylesheet.UpDown,
+		"pwd":     "Current working directory (path)",
 		"quit":    "Kill the application",
 		"exit":    "Kill the application",
 	}
@@ -95,6 +98,12 @@ func listHistory(m *Mother, _ []string) tea.Cmd {
 
 	// chomp last newline
 	return tea.Println(strings.TrimSpace(toPrint.String()))
+}
+
+// Returns the current working directory.
+// Basically redundant in the current prompt style, but facilitates alternative prompt formats or prompt path truncation.
+func pwd(m *Mother, _ []string) tea.Cmd {
+	return tea.Println(m.pwd.UseLine())
 }
 
 func quit(*Mother, []string) tea.Cmd {
