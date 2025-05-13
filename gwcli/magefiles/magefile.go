@@ -102,7 +102,7 @@ func TestAll() error {
 	mg.Deps(TestScaffold)
 
 	verboseln("Testing Mother...")
-	mg.Deps(TestMotherHistory)
+	mg.Deps(TestMotherHistory, TestMotherMode, TestMotherMisc)
 
 	verboseln("Testing direct usage via --script...")
 	mg.Deps(TestMain)
