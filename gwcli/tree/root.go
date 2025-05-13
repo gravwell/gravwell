@@ -169,17 +169,34 @@ const ( // mousetrap
 // program according to the given parameters
 // (via cobra.Command.Execute()).
 func Execute(args []string) int {
+	// spawn the cobra commands in parallel
+	var cmdFn []func() *cobra.Command = []func() *cobra.Command{
+		macros.NewMacrosNav,
+		queries.NewQueriesNav,
+		kits.NewKitsNav,
+		user.NewUserNav,
+		extractors.NewExtractorsNav,
+		dashboards.NewDashboardNav,
+		resources.NewResourcesNav,
+		status.NewStatusNav,
+	}
+
+	var (
+		cmds  []*cobra.Command
+		resCh chan *cobra.Command = make(chan *cobra.Command)
+	)
+	for _, fn := range cmdFn {
+		go func(f func() *cobra.Command) {
+			// execute the builder and send the command pointer to the dispatcher
+			resCh <- f()
+		}(fn)
+	}
+	for range cmdFn { // wait for an equal number of results
+		cmds = append(cmds, <-resCh)
+	}
+
 	rootCmd := treeutils.GenerateNav(use, short, long, []string{},
-		[]*cobra.Command{
-			macros.NewMacrosNav(),
-			queries.NewQueriesNav(),
-			kits.NewKitsNav(),
-			user.NewUserNav(),
-			extractors.NewExtractorsNav(),
-			dashboards.NewDashboardNav(),
-			resources.NewResourcesNav(),
-			status.NewStatusNav(),
-		},
+		cmds,
 		[]action.Pair{
 			query.NewQueryAction(),
 			tree.NewTreeAction(),
