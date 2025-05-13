@@ -11,10 +11,11 @@ package usage
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -22,7 +23,7 @@ import (
 func Usage(c *cobra.Command) error {
 
 	var bldr strings.Builder
-	// pull off first string, recombinate the rest to retrieve a usable path sans root
+	// pull off first string, recombine the rest to retrieve a usable path sans root
 	root, path := func() (string, string) {
 		// could do all of this in a one-liner in the fmt.Sprintf, but this is clearer
 		p := strings.Split(c.CommandPath(), " ")

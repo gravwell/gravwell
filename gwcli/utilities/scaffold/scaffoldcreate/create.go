@@ -11,7 +11,7 @@ A create action creates a shallow list of inputs for the user to fill via flags 
 TIs before being passed back to the progenitor to transform into usable data for their create
 function.
 
-The available fields are fairly configurable, the progentior provides their own map of Field
+The available fields are fairly configurable, the progenitor provides their own map of Field
 structs, and easily extensible, the struct can have more options or formats bolted on without too
 much trouble.
 
@@ -63,6 +63,10 @@ package scaffoldcreate
 
 import (
 	"fmt"
+	"slices"
+	"strings"
+	"sync"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
@@ -70,9 +74,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"slices"
-	"strings"
-	"sync"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"

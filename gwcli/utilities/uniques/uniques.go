@@ -28,7 +28,7 @@ const (
 	SearchTimeFormat = "2006-01-02T15:04:05.999999999Z07:00"
 )
 
-// Returns a string about ignoring a flag due to causeFlag's existance
+// Returns a string about ignoring a flag due to causeFlag's existence
 func WarnFlagIgnore(ignoredFlag, causeFlag string) string {
 	return fmt.Sprintf("WARN: ignoring flag --%v due to --%v", ignoredFlag, causeFlag)
 }
@@ -68,7 +68,7 @@ func CronRuneValidator(s string) error {
 	return nil
 }
 
-// Queries for avaialble window size.
+// Queries for available window size.
 // Generally useful as an onStart command as Mother does not maintain a set of dimensions.
 func FetchWindowSize() tea.Msg {
 	w, h, _ := term.GetSize(os.Stdin.Fd())

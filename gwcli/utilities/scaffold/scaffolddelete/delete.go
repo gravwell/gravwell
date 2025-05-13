@@ -48,6 +48,8 @@ package scaffolddelete
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
@@ -56,7 +58,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -77,7 +78,7 @@ type fetchFunc[I scaffold.Id_t] func() ([]Item[I], error)
 
 // text to display when deletion is skipped due to error
 const (
-	errorNoDeleteText = "An error occured: %v.\nAbstained from deletion."
+	errorNoDeleteText = "An error occurred: %v.\nAbstained from deletion."
 	dryrunSuccessText = "DRYRUN: %v (ID %v) would have been deleted"
 	deleteSuccessText = "%v (ID %v) deleted"
 )
@@ -381,7 +382,7 @@ func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid str
 		if err := d.df(dryrun, id); err != nil {
 			// check for sentinel errors
 			// NOTE: this relies on the client log consistently returning 404s as ClientErrors,
-			// which I cannot guarentee
+			// which I cannot guarantee
 			if err, ok := err.(*client.ClientError); ok && err.StatusCode == 404 {
 				return "", tea.Printf("Did not find a valid %v with ID %v", d.itemSingular, id), nil
 			}

@@ -7,7 +7,7 @@
  **************************************************************************/
 
 /*
-An edit action allows the user to select an entity from a list of all avaialble entities, modify its
+An edit action allows the user to select an entity from a list of all available entities, modify its
 fields (as interfaced by the implementor), and reflect the changes to the server.
 
 Implementors provide a struct of subroutines and a map of manipulate-able Fields to be displayed
@@ -34,7 +34,7 @@ package scaffoldedit
  * (arbitrary TIs) and Delete (list possible structs/items).
  * By virtue of passing around structs and ids, it was always going to require multiple generics.
  * As implemented, it uses I to represent a singular, generally-numeric ID and S to represent a
- * single instance of the struct we are/will be editting.
+ * single instance of the struct we are/will be editing.
  * The use of reflection to reduce the complexity of the SubroutineSet, thereby reducing implementor
  * load, was considered, but ditched fairly early.
  * I figured that reflection is
@@ -52,6 +52,9 @@ package scaffoldedit
 import (
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
@@ -62,8 +65,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"slices"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -128,7 +129,7 @@ func NewEditAction[I id_t, S any](singular, plural string, cfg Config, funcs Sub
 				return
 			}
 			if script {
-				runNonInteractive[I, S](cmd, cfg, funcs, singular)
+				runNonInteractive(cmd, cfg, funcs, singular)
 			} else {
 				runInteractive(cmd, args)
 			}
@@ -167,7 +168,7 @@ func generateFlagSet(cfg Config, singular string) pflag.FlagSet {
 // run helper function.
 // runNonInteractive is the --script portion of edit's runFunc.
 // It requires --id be set and is ineffectual if no other flags were given.
-// Prints and error handles on its own; the program is expected to exit on its compeltion.
+// Prints and error handles on its own; the program is expected to exit on its completion.
 func runNonInteractive[I id_t, S any](cmd *cobra.Command, cfg Config, funcs SubroutineSet[I, S], singular string) {
 	var err error
 	var (
@@ -217,7 +218,7 @@ func runNonInteractive[I id_t, S any](cmd *cobra.Command, cfg Config, funcs Subr
 		}
 
 		if newVal != curVal { // update the struct
-			fieldUpdated = true // note if a change occured
+			fieldUpdated = true // note if a change occurred
 			if inv, err := funcs.SetFieldSub(&itm, k, newVal); err != nil {
 				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 				return
@@ -262,7 +263,7 @@ type mode = uint8
 const (
 	quitting  mode = iota // mother should reassert
 	selecting             // picking from a list of edit-able items
-	editting              // item selected; currently altering
+	editing               // item selected; currently altering
 	idle                  // inactive
 )
 
@@ -291,10 +292,10 @@ type editModel[I id_t, S any] struct {
 	tiCount      int       // len(ttis)
 	selectedData S         // item chosen from the list
 	inputErr     string    // input is erroneous
-	updateErr    string    // error occured performing the update
+	updateErr    string    // error occurred performing the update
 }
 
-// Creates and returns a new edit model, ready for intreactive use.
+// Creates and returns a new edit model, ready for interactive use.
 func newEditModel[I id_t, S any](cfg Config, singular, plural string,
 	funcs SubroutineSet[I, S], initialFS pflag.FlagSet) *editModel[I, S] {
 	em := &editModel[I, S]{
@@ -334,7 +335,7 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 			// treat this as an invalid argument
 			return fmt.Sprintf("failed to fetch %s by id (%v): %v", em.singular, id, err), nil, nil
 		}
-		// we can jump directly to editting phase on start
+		// we can jump directly to editing phase on start
 		if err := em.enterEditMode(); err != nil {
 			em.mode = quitting
 			clilog.Writer.Errorf("%v", err)
@@ -355,7 +356,7 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 	// check for a lack of data
 	if dataCount < 1 { // die
 		em.mode = quitting
-		return "", tea.Printf("You have no %v that can be editted", em.plural), nil
+		return "", tea.Printf("You have no %v that can be edited", em.plural), nil
 	}
 
 	// transmute data into list items
@@ -388,7 +389,7 @@ func (em *editModel[I, S]) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	case selecting:
 		return em.updateSelecting(msg)
-	case editting:
+	case editing:
 		return em.updateEditting(msg)
 	default:
 		clilog.Writer.Criticalf("unknown edit mode %v.", em.mode)
@@ -400,7 +401,7 @@ func (em *editModel[I, S]) Update(msg tea.Msg) tea.Cmd {
 }
 
 // Update() handling for selecting mode.
-// Updates the list and transitions to editting mode if an item is selected.
+// Updates the list and transitions to editing mode if an item is selected.
 func (em *editModel[I, S]) updateSelecting(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -419,8 +420,8 @@ func (em *editModel[I, S]) updateSelecting(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-// Update() handling for editting mode.
-// Updates the TIs and performs data transumtation and submission if user confirms changes.
+// Update() handling for editing mode.
+// Updates the TIs and performs data transmutation and submission if user confirms changes.
 func (em *editModel[I, S]) updateEditting(msg tea.Msg) tea.Cmd {
 	if keymsg, ok := msg.(tea.KeyMsg); ok {
 		em.inputErr = "" // clear input errors on new key input
@@ -518,7 +519,7 @@ func (em *editModel[I, S]) View() string {
 				Width(em.width).
 				Foreground(stylesheet.TertiaryColor).
 				Render("Press space or enter to select")
-	case editting:
+	case editing:
 		var sb strings.Builder
 		for _, kti := range em.orderedKTIs {
 			// color the title appropriately
@@ -550,7 +551,7 @@ func (em *editModel[I, S]) Reset() error {
 	em.list = list.Model{}
 	em.listInitialized = false
 
-	// editting mode
+	// editing mode
 	em.orderedKTIs = nil
 	em.tiIndex = 0
 	em.tiCount = 0
@@ -561,7 +562,7 @@ func (em *editModel[I, S]) Reset() error {
 	return nil
 }
 
-// Triggers the edit model to enter editting mode, establishing and displaying a TI for each field
+// Triggers the edit model to enter editing mode, establishing and displaying a TI for each field
 // and sorting them into an ordered array.
 func (em *editModel[I, S]) enterEditMode() error {
 	// prepare list
@@ -612,7 +613,7 @@ func (em *editModel[I, S]) enterEditMode() error {
 
 	em.orderedKTIs[0].ti.Focus() // focus the first TI
 
-	em.mode = editting
+	em.mode = editing
 	return nil
 }
 

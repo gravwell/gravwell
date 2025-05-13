@@ -10,6 +10,7 @@ package scaffoldcreate
 
 import (
 	"errors"
+
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -28,7 +29,7 @@ const (
 // A field defines a single data point that will be passed to the create function.
 type Field struct {
 	Required      bool      // this field must be populated prior to calling createFunc
-	Title         string    // field name displayed next to prompt and as flage name
+	Title         string    // field name displayed next to prompt and as flag name
 	Usage         string    // OPTIONAL. Flag usage displayed via -h
 	Type          FieldType // type of field, dictating how it is presented to the user
 	FlagName      string    // OPTIONAL. Defaults to DeriveFlagName() result.
