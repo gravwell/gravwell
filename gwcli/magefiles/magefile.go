@@ -40,16 +40,21 @@ func ok() {
 }
 
 // Runs the given test and outputs (verbose-dependent) its error log (or "ok").
+// If testPattern is empty, runs all tests found in testPath (omitting "-run").
 // Returns the error that occurred (if applicable).
 func runTest(timeout time.Duration, testPattern, testPath string) error {
-	cmd := exec.Command("go", "test", "-v", "-timeout", timeout.String(), "-run", testPattern, testPath)
+	var cmd *exec.Cmd
+	if testPattern == "" {
+		cmd = exec.Command("go", "test", "-v", "-timeout", timeout.String(), testPath)
+	} else {
+		cmd = exec.Command("go", "test", "-v", "-timeout", timeout.String(), "-run", testPattern, testPath)
+	}
 	verboseln(cmd.String())
 	if out, err := cmd.CombinedOutput(); err != nil {
 		fmt.Printf("%s", out)
 		return err
 	}
 	ok()
-
 	return nil
 }
 
@@ -85,11 +90,18 @@ func Build() error {
 	return cmd.Run()
 }
 
-// Runs all gwcli tests.
+// Runs all gwcli tests, according to their subsystem.
 func TestAll() error {
 	verboseln("Testing query components...")
 	mg.Deps(TestQuery, TestDatascope)
 
+	verboseln("Testing utilities...")
+	mg.Deps(TestScaffold)
+
+	verboseln("Testing Mother...")
+	mg.Deps(TestMotherHistory)
+
+	verboseln("Testing direct usage via --script...")
 	mg.Deps(TestMain)
 	return nil
 }
@@ -124,6 +136,48 @@ func TestQuery() error {
 func TestDatascope() error {
 	const _TIMEOUT time.Duration = 4 * time.Minute
 	if err := runTest(_TIMEOUT, "^TestKeepAlive$", "github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Tests the scaffold builder functions.
+func TestScaffold() error {
+	const _TIMEOUT time.Duration = 30 * time.Second
+	if err := runTest(_TIMEOUT, "^Test_format_String$", "github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Tests Mother's history system.
+func TestMotherHistory() error {
+	const _TIMEOUT time.Duration = 30 * time.Second
+	if err := runTest(_TIMEOUT, "",
+		"github.com/gravwell/gravwell/v4/gwcli/mother"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func TestMotherMode() error {
+	const _TIMEOUT time.Duration = 30 * time.Second
+	if err := runTest(_TIMEOUT, "",
+		"github.com/gravwell/gravwell/v4/gwcli/mother"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Runs tests for Mother that are not otherwise sub-divided.
+func TestMotherMisc() error {
+	const _TIMEOUT time.Duration = 30 * time.Second
+	if err := runTest(_TIMEOUT, "",
+		"github.com/gravwell/gravwell/v4/gwcli/mother"); err != nil {
 		return err
 	}
 
