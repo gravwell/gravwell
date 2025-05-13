@@ -22,11 +22,12 @@ package datascope
 
 import (
 	"errors"
+	"os"
+	"time"
+
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	activesearchlock "github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope/ActiveSearchLock"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
-	"os"
-	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -85,6 +86,7 @@ func keepAlive(search *grav.Search) {
 	 *
 	 */
 	var mysid = search.ID
+	var pingFreq time.Duration = search.Interval() / 2 // ping twice per pre-set interval
 	for {
 		if cursid := activesearchlock.GetSearchID(); cursid != mysid { // search ID changed
 			clilog.Writer.Debugf("keepAlive: sid changed from %v to %v. Dying...", mysid, cursid)
@@ -103,7 +105,7 @@ func keepAlive(search *grav.Search) {
 			break
 		}
 		clilog.Writer.Debugf("pinged search %v", mysid)
-		time.Sleep(pingFrequency)
+		time.Sleep(pingFreq)
 	}
 }
 
