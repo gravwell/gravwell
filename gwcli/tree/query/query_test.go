@@ -163,7 +163,7 @@ func Test_tryQuery(t *testing.T) {
 
 			// unable to really compare search structs returned,
 			// just check they were created as expected
-			if got.ID == "" || got.SearchString != tt.args.qry {
+			if got.ID == "" || got.UserQuery != tt.args.qry {
 				t.Errorf("tryQuery() invalid search struct: got struct %v", got)
 				return
 			}
