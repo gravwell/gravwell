@@ -9,13 +9,14 @@
 package mother
 
 /*
-Builtins are special, meta actions users can invoke from Mother's prompt, no matter their pwd.
+ Builtins are special, meta actions users can invoke from Mother's prompt, no matter their pwd.
 */
 
 import (
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -72,7 +73,7 @@ func contextHelp(m *Mother, args []string) tea.Cmd {
 				str = "no help defined for '" + args[0] + "'"
 			}
 
-			return tea.Printf(str)
+			return tea.Println(str)
 		}
 
 	}
