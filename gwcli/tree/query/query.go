@@ -26,6 +26,11 @@ package query
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -35,10 +40,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"io"
-	"os"
-	"strings"
-	"time"
 
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -301,18 +302,18 @@ func runInteractive(cmd *cobra.Command, flags queryflags, qry string) {
 
 	// pass results into datascope
 	// spin up a scrolling pager to display
-	if p, err := datascope.CobraNew(
+	p, err := datascope.CobraNew(
 		results, &search, tableMode,
 		datascope.WithAutoDownload(flags.outfn, flags.append, flags.json, flags.csv),
-		datascope.WithSchedule(flags.schedule.cronfreq, flags.schedule.name, flags.schedule.desc),
-	); err != nil {
+		datascope.WithSchedule(flags.schedule.cronfreq, flags.schedule.name, flags.schedule.desc))
+	if err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
 		return
-	} else {
-		if _, err := p.Run(); err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-			return
-		}
+	}
+
+	if _, err := p.Run(); err != nil {
+		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+		return
 	}
 
 }
