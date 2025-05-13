@@ -7,7 +7,8 @@
  **************************************************************************/
 
 // Tests from a complete-program perspective, confirming consistent input begets
-// reliable output
+// reliable output.
+// Expects that the constant server string points to a development server with default credentials.
 
 package main
 
@@ -72,7 +73,10 @@ func TestNonInteractive(t *testing.T) {
 			panic(err)
 		}
 		columns := []string{"UID", "Global", "Name"}
-		want := weave.ToCSV(macros, columns)
+		want := strings.TrimSpace(weave.ToCSV(macros, columns))
+		if want == "" { // empty list command results output "no data found"
+			want = "no data found"
+		}
 
 		// prepare IO
 		stdoutData, stderrData, err := mockIO()
@@ -81,7 +85,7 @@ func TestNonInteractive(t *testing.T) {
 			panic(err)
 		}
 
-		args := strings.Split("-u admin -p changeme --insecure --script tools macros list --csv --columns=UID,Global,Name", " ")
+		args := strings.Split("-u admin -p changeme --insecure --script macros list --csv --columns=UID,Global,Name", " ")
 
 		// run the test body
 		errCode := tree.Execute(args)
@@ -97,7 +101,7 @@ func TestNonInteractive(t *testing.T) {
 
 		// compare against expected
 		if strings.TrimSpace(results) != strings.TrimSpace(want) {
-			t.Errorf("output mismatch\nwant:\n(%v)\ngot:\n(%v)\n", want, results)
+			t.Fatalf("output mismatch\nwant:\n(%v)\ngot:\n(%v)\n", want, results)
 		}
 	})
 
@@ -117,7 +121,7 @@ func TestNonInteractive(t *testing.T) {
 		}
 
 		// create a new macro from the cli, in script mode
-		args := strings.Split("-u admin --password changeme --insecure --script tools macros create -n testname -d testdesc -e testexpand", " ")
+		args := strings.Split("-u admin --password changeme --insecure --script macros create -n testname -d testdesc -e testexpand", " ")
 		errCode := tree.Execute(args)
 		if errCode != 0 {
 			t.Errorf("expected 0 exit code, got: %v", errCode)
@@ -129,7 +133,7 @@ func TestNonInteractive(t *testing.T) {
 			panic(err)
 		}
 		if len(postMacros) != len(priorMacros)+1 {
-			t.Fatalf("expected post-create macros len (%v) == pre-create macros len+1 (%v)", len(postMacros), len(priorMacros))
+			t.Fatalf("expected post-create macros len(%v) == pre-create macros len(%v)+1 ", len(postMacros), len(priorMacros))
 		}
 	})
 
@@ -155,7 +159,7 @@ func TestNonInteractive(t *testing.T) {
 
 		// create a new macro from the cli, in script mode
 		args := strings.Split(
-			fmt.Sprintf("-u admin --password changeme --insecure --script tools macros delete --dryrun --id %v",
+			fmt.Sprintf("-u admin --password changeme --insecure --script macros delete --dryrun --id %v",
 				toDeleteID),
 			" ")
 		errCode := tree.Execute(args)
@@ -214,7 +218,7 @@ func TestNonInteractive(t *testing.T) {
 
 		// create a new macro from the cli, in script mode
 		args := strings.Split(
-			"-u admin --password changeme --insecure --script tools macros delete",
+			"-u admin --password changeme --insecure --script macros delete",
 			" ")
 		errCode := tree.Execute(args)
 		restoreIO()
@@ -275,7 +279,7 @@ func TestNonInteractive(t *testing.T) {
 		t.Logf("Selecting macro %v (ID: %v) for deletion", priorMacros[0].Name, priorMacros[0].ID)
 
 		// create a new macro from the cli, in script mode
-		args := strings.Split(fmt.Sprintf("-u admin --password changeme --insecure --script tools macros delete --id %v", toDeleteID), " ")
+		args := strings.Split(fmt.Sprintf("-u admin --password changeme --insecure --script macros delete --id %v", toDeleteID), " ")
 		errCode := tree.Execute(args)
 		if errCode != 0 {
 			t.Errorf("expected 0 exit code, got: %v", errCode)
@@ -593,6 +597,9 @@ func TestNonInteractiveQueryFileOut(t *testing.T) {
 
 //#endregion
 
+// Mocks STDOUT and STDERR with new pipes so the tests can intercept data from them.
+// Returns the channels from which to get their data.
+// sister function to restoreIO()
 func mockIO() (stdoutData chan string, stderrData chan string, err error) {
 	// capture stdout
 	var readMockStdout *os.File
@@ -625,6 +632,8 @@ func mockIO() (stdoutData chan string, stderrData chan string, err error) {
 	return stdoutData, stderrData, nil
 }
 
+// Closes the mocked STDOUT and STDERR pipes and returns them to the "real" variants (the default state of os.Stdout and os.Stderr) when the test began.
+// Sister function to mockIO().
 func restoreIO() {
 	// stdout
 	if mockStdout != nil {
@@ -656,6 +665,7 @@ func nonZeroExit(t *testing.T, code int) {
 
 }
 
+// Dies if the file associated to the given path DNE or is empty.
 func invalidSize(t *testing.T, fn string) {
 	t.Helper()
 	fi, err := os.Stat(fn)
