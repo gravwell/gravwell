@@ -179,6 +179,9 @@ func Test_run(t *testing.T) {
 		restLogFile = path.Join(os.TempDir(), "gwcli.Test_run.rest.log")
 	)
 
+	// establish cli writer
+	clilog.Init(logFile, "DEBUG")
+
 	// establish connection
 	if err := connection.Initialize(server, false, true, restLogFile); err != nil {
 		panic(err)
@@ -186,8 +189,6 @@ func Test_run(t *testing.T) {
 	if err := connection.Login(connection.Credentials{Username: user, Password: pass}, true); err != nil {
 		panic(err)
 	}
-	// establish cli writer
-	clilog.Init(logFile, "DEBUG")
 
 	prepCmd := func(flagArgs []string) *cobra.Command {
 		// setup the command instance
