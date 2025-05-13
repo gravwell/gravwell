@@ -57,8 +57,7 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 		if err != nil {
 			return err
 		}
-	} else if clilog.Writer != nil && clilog.Writer.GetLevel() >= log.Level(clilog.INFO) {
-		// spin up the rest logger if in INFO+
+	} else if clilog.Writer != nil && (clilog.Writer.GetLevel() == log.Level(clilog.DEBUG) || clilog.Writer.GetLevel() == log.Level(clilog.INFO)) { // spin up the rest logger if in INFO+
 		l, err = objlog.NewJSONLogger(cfgdir.DefaultRestLogPath)
 		if err != nil {
 			return err
