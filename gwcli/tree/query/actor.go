@@ -9,22 +9,25 @@
 package query
 
 /**
- * This file contains the action.Model implemenation of the query action and coordinates the
- * interoperation of the composed editor and modifier views.
- */
+This file contains the action.Model implementation of the query action and coordinates the inter-operation of the composed editor and modifier views.
+It controls the operation of the query prompt while the user is composing their search.
+
+When a search has been submitted, this model is still invoked by Mother, but it immediately hands off control to the datascope displaying results.
+*/
 
 import (
 	"errors"
 	"fmt"
+	"strings"
+	"sync/atomic"
+	"time"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
-	"strings"
-	"sync/atomic"
-	"time"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -269,7 +272,13 @@ func (q *query) Reset() error {
 	// clear query fields
 	q.curSearch = nil
 	q.searchDone.Store(false)
-	q.scope = nil
+	// if there was an existing datascope, close its channel to signal the KeepAlive goro to die
+	if q.scope != nil {
+		if ds, ok := q.scope.(datascope.DataScope); ok {
+			close(ds.Done)
+		}
+		q.scope = nil
+	}
 
 	localFS = initialLocalFlagSet()
 
@@ -391,7 +400,7 @@ func BurnFirstView(ta textarea.Model) {
 	 * The errant view call above was wrapped in a goroutine
 	 * (`go func() { q.editor.ta.View() }()`)
 	 * and it paid the startup cost in a way invisible to the user so the UX was seamless.
-	 * Some optimizations and reworks later, and I figued out that the hang/redraw issue was likely
+	 * Some optimizations and reworks later, and I figured out that the hang/redraw issue was likely
 	 * due to missing tea.Cmds (the latter of the possibilities above).
 	 *
 	 * However, I also discovered that the go .view instruction was causing garbage (rgb control
