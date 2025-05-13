@@ -21,6 +21,9 @@ package mother
 
 import (
 	"fmt"
+	"slices"
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -30,8 +33,6 @@ import (
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"slices"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/shlex"
@@ -52,7 +53,7 @@ func init() {
 
 // Mother, a struct satisfying the tea.Model interface and containing information required for
 // cobra.Command tree traversal.
-// Facillitates interactive use of gwcli.
+// Facilitates interactive use of gwcli.
 type Mother struct {
 	mode mode
 

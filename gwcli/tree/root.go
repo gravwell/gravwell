@@ -15,6 +15,9 @@ package tree
 
 import (
 	"errors"
+	"strings"
+	"time"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -33,16 +36,14 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/usage"
-	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 )
 
-// global PersistenPreRunE.
+// global PersistentPreRunE.
 //
 // Ensures the logger is set up and the user has logged into the gravwell instance,
-// completeing these actions if either is false.
+// completing these actions if either is false.
 func ppre(cmd *cobra.Command, args []string) error {
 	// set up the logger, if it is not already initialized
 	if clilog.Writer == nil {
@@ -120,6 +121,8 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 
 }
 
+// global PersistentPostRunE.
+// Ensure the client connection to the Gravwell backend is dead.
 func ppost(cmd *cobra.Command, args []string) error {
 	return connection.End()
 }
@@ -157,7 +160,7 @@ var long string = "gwcli is a CLI client for interacting with your Gravwell inst
 
 const ( // mousetrap
 	mousetrapText string = "This is a command line tool.\n" +
-		"You need to open cmd.exe and run it from there.\n" +
+		"You need to open gwcli.exe and run it from there.\n" +
 		"Press Return to close.\n"
 	mousetrapDuration time.Duration = (0 * time.Second)
 )
