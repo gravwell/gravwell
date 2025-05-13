@@ -19,14 +19,15 @@ package connection
 import (
 	"errors"
 	"fmt"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/google/uuid"
 	grav "github.com/gravwell/gravwell/v4/client"
@@ -106,7 +107,7 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 		clilog.Writer.Infof("Logged in via credentials")
 
 		if err := CreateToken(); err != nil {
-			clilog.Writer.Warnf(err.Error())
+			clilog.Writer.Warnf("%v", err.Error())
 			// failing to create the token is not fatal
 		} /*else {
 			// spin up a goroutine to refresh the login token automatically
@@ -155,7 +156,7 @@ func LoginViaToken() (err error) {
 }
 
 // Attempts to login via the given credentials struct.
-// A given password takes presidence over a passfile.
+// A given password takes precedence over a passfile.
 func loginViaCredentials(cred Credentials, scriptMode bool) error {
 	// check for password in file
 	if strings.TrimSpace(cred.Password) == "" {
