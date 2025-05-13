@@ -58,15 +58,16 @@ package scaffoldlist
 
 import (
 	"fmt"
+	"os"
+	"reflect"
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"os"
-	"reflect"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -326,7 +327,7 @@ func listOutput[Any any](fs *pflag.FlagSet, columns []string, color bool,
 		}
 	default:
 		toRet = ""
-		err = fmt.Errorf(fmt.Sprintf("unknown output format (%d)", format))
+		err = fmt.Errorf("unknown output format (%d)", format)
 	}
 	return toRet, err
 }
