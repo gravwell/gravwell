@@ -21,7 +21,7 @@ const (
 )
 
 // keys kill the program in Update no matter its other states
-var globalKillKeys = [...]tea.KeyType{tea.KeyCtrlC}
+var globalKillKeys = [...]tea.KeyType{tea.KeyCtrlC, tea.KeyCtrlD}
 
 // keys that kill the child if it exists, otherwise do nothing
 var childOnlykillKeys = [...]tea.KeyType{tea.KeyEscape}
