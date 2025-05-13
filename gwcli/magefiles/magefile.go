@@ -7,12 +7,15 @@ The Magefile serves mostly to corral the testing into a single location.
 package main
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/magefile/mage/mg"
 )
 
@@ -192,9 +195,57 @@ func TestMotherMisc() error {
 	return os.Rename("./gwcli", "/bin/gwcli")
 } */
 
-// Clean up the binary and any and all logs
-func Clean() {
-	verboseln("Cleaning...")
-	os.RemoveAll(path.Join(".", _BINARY_TARGET))
-	// TODO remove log files
+// Clean up the binary and any and all logs.
+// Does not destroy login token.
+//
+// Running with dryrun prints out what files would be deleted, but does not actually delete them.
+// You probably want to run it with -v.
+//
+// If an error occurs, it will immediately stop processing if !dryrun.
+func Clean(dryrun bool) (err error) {
+	// Destroy the binary
+	binPath := path.Join(".", _BINARY_TARGET)
+	if err := dryRM(binPath, dryrun); err != nil {
+		return err
+	}
+
+	// Destroy log files in the config directory
+	if err := dryRM(cfgdir.DefaultStdLogPath, dryrun); err != nil {
+		return err
+	}
+	if err := dryRM(cfgdir.DefaultRestLogPath, dryrun); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Deletes or faux-deletes the given path according to dry run, verbose-printing the result.
+// Returns errors if they occur while !dryrun
+func dryRM(path string, dryrun bool) error {
+	const _DRYRUN_PREFIX string = "DRYRUN: "
+	var result string
+	if dryrun {
+		if _, err := os.Stat(path); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			result = _DRYRUN_PREFIX + "failed to remove file: " + err.Error()
+		} else if errors.Is(err, fs.ErrNotExist) {
+			// do nothing
+		} else {
+			result = _DRYRUN_PREFIX + path + " would have been deleted"
+		}
+	} else {
+		if err := os.Remove(path); err == nil {
+			result = "Deleted " + path
+
+		} else if errors.Is(err, fs.ErrNotExist) {
+			// do nothing, file doesn't exist
+		} else {
+			return fmt.Errorf("failed to remove file: %v", err)
+		}
+	}
+
+	if result != "" {
+		verboseln(result)
+	}
+	return nil
 }
