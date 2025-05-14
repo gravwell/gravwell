@@ -19,7 +19,7 @@ package query
  * All efforts have been made to consolidate the code for these entry points and provide a
  * consistent flow. That being said, you have to make sure that changes get reflected across each.
  * Entry points 2 and 3 will boot DataScope, meaning they must fetch results via
- * grav.Get*Results menthods, implemented locally by the fetch*Results.
+ * grav.Get*Results methods, implemented locally by the fetch*Results.
  * Entry point 1 only uses grav.DownloadSearch, but keep in mind that DataScope's Download tab also
  * relies on grav.DownloadSearch() and these outcomes should be identical.
  */
@@ -130,7 +130,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	if qry == "" { // superfluous query
 		if flags.script { // fail out
-			clilog.Tee(clilog.INFO, cmd.OutOrStdout(), "query is empty. Exitting...\n")
+			clilog.Tee(clilog.INFO, cmd.OutOrStdout(), "query is empty. Exiting...\n")
 			return
 		}
 
@@ -244,7 +244,7 @@ func runNonInteractive(cmd *cobra.Command, flags queryflags, qry string) {
 		} else {
 			clilog.Writer.Infof("Streamed %d bytes (format %v) into %s", b, format, of.Name())
 		}
-		// stdout output is acceptible as the user is redirecting actual results to a file.
+		// stdout output is acceptable as the user is redirecting actual results to a file.
 		fmt.Fprintln(cmd.OutOrStdout(),
 			connection.DownloadQuerySuccessfulString(of.Name(), flags.append, format))
 		return
@@ -321,7 +321,7 @@ func runInteractive(cmd *cobra.Command, flags queryflags, qry string) {
 // Stops execution and waits for the given search to complete.
 // Adds a spinner if not in script mode.
 func waitForSearch(s grav.Search, scriptMode bool) error {
-	// in script mode, wait syncronously
+	// in script mode, wait synchronously
 	if scriptMode {
 		if err := connection.Client.WaitForSearch(s); err != nil {
 			return err
