@@ -325,13 +325,17 @@ func StartQuery(qry string, durFromNow time.Duration, background bool) (grav.Sea
 	sreq := types.StartSearchRequest{
 		SearchStart:  end.Add(durFromNow).Format(uniques.SearchTimeFormat),
 		SearchEnd:    end.Format(uniques.SearchTimeFormat),
-		Background:   false,
+		Background:   background,
 		SearchString: qry, // pull query from the commandline
 		NoHistory:    false,
 		Preview:      false,
 	}
-	clilog.Writer.Infof("Executing foreground search '%v' from %v -> %v",
-		sreq.SearchString, sreq.SearchStart, sreq.SearchEnd)
+	var fgbg string = "foreground"
+	if background {
+		fgbg = "background"
+	}
+	clilog.Writer.Infof("Executing %v search '%v' from %v -> %v",
+		fgbg, sreq.SearchString, sreq.SearchStart, sreq.SearchEnd)
 	s, err := Client.StartSearchEx(sreq)
 	return s, err
 
