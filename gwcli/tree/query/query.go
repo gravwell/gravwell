@@ -6,9 +6,32 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Core query module
-// Query is important and complex enough to be broken into multiple files; this is the shared and
-// central module entrypoint
+/*
+Core query module
+
+Query is important and complex enough to be broken into multiple files; this is the shared and central module entrypoint.
+
+User Interaction Model:
+
+```mermaid
+
+flowchart
+
+	start["user submit query<br>via terminal"] --> validate{"valid query?"} --"yes"--> sched{"scheduled<br>search?"}
+	validate{"valid query?"} --"no"--> scriptMode{"script mode"} --"yes"--> failed(("fail out"))
+	scriptMode{"script mode"} --"no"--> populateMother["pass flag<br>to Mother"] --> spawnMother(("pass control<br>to Mother"))
+	sched --"yes"--> validSched["validate scheduling parameters"]
+	  --> createSched["create scheduled query"] --> done(("job's done"))
+
+	sched --"no"--> background{"background?"}
+	  --"yes"--> submitQry["submit query"] --> done
+
+	background{"background?"} --"no"--> interactive{"interactive?"}
+	  --"yes"--> datascope(("pass control to datascope"))
+	interactive --"no"--> printResults["print results to screen"] -->done
+
+```
+*/
 package query
 
 /**
@@ -136,7 +159,7 @@ func run(cmd *cobra.Command, args []string) {
 			return
 		}
 
-		// spawn mother
+		// spawn mother on the query prompt
 		if err := mother.Spawn(cmd.Root(), cmd, args); err != nil {
 			clilog.Tee(clilog.CRITICAL, cmd.ErrOrStderr(),
 				"failed to spawn a mother instance: "+err.Error()+"\n")
