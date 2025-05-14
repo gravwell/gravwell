@@ -272,7 +272,7 @@ func run(cmd *cobra.Command, args []string) {
 
 	// if we made it this far, we can fetch the results and pass them to datascope
 	// NOTE(rlandau): this function does not share the result-fetching methodology of script mode (connection.DownloadSearch) because datascope requires additional formatting.
-	runInteractive(cmd, flags, &search)
+	invokeDatascope(cmd, flags, &search)
 }
 
 // Returns whether or not the given query if valid (or if an non-parse error occurred while asking the backend to eval the query).
@@ -343,7 +343,7 @@ func scheduleQuery(flags *queryflags, cmd *cobra.Command, validatedQry string) {
 
 // run function without --script given, making it acceptable to rely on user input
 // NOTE: download and schedule flags are handled inside of datascope
-func runInteractive(cmd *cobra.Command, flags queryflags, search *grav.Search) {
+func invokeDatascope(cmd *cobra.Command, flags queryflags, search *grav.Search) {
 	// get results to pass to data scope
 	var (
 		results   []string
