@@ -25,6 +25,8 @@ package action
 
 import (
 	"errors"
+	"sync"
+
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -54,21 +56,26 @@ type Pair struct {
 
 //#region action map
 
-// Our singleton variable, accessed via Public subrotines below.
+// Our singleton variable, accessed via Public subroutines below.
 // Maps key(command) -> Model.
 var actions = map[string]Model{}
+var actionsRWMu sync.RWMutex // R/W mutex to prevent concurrent writes when building the tree
 
 // GetModel returns the Model subroutines associated to the given Action.
 func GetModel(c *cobra.Command) (m Model, err error) {
 	if !Is(c) {
 		return nil, ErrNotAnAction
 	}
+	actionsRWMu.RLock()
+	defer actionsRWMu.RUnlock()
 	return actions[key(c)], nil
 }
 
 // AddModel adds a new action and its subroutines to the action map
 func AddModel(c *cobra.Command, m Model) {
+	actionsRWMu.Lock()
 	actions[key(c)] = m
+	actionsRWMu.Unlock()
 }
 
 // The internal "hashing' logic to reliably generate a string key associated
