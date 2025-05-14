@@ -194,6 +194,22 @@ func run(cmd *cobra.Command, args []string) {
 
 	// if this is a background query, we are done
 	if flags.background {
+		// warn about ignored flags
+		if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
+			if flags.outfn != "" {
+				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.Output, "background")+"\n")
+			}
+			if flags.append {
+				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.Append, "background")+"\n")
+			}
+			if flags.json {
+				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.JSON, "background")+"\n")
+			}
+			if flags.csv {
+				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.CSV, "background")+"\n")
+			}
+		}
+
 		clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
 			fmt.Sprintf("Successfully backgrounded query (ID: %v)\n", search.ID))
 		clilog.Tee(clilog.DEBUG, cmd.OutOrStdout(),
