@@ -259,19 +259,19 @@ func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 	if len(exploded) != 5 {
 		return id, "frequency must have 5 elements, in the format '* * * * *'", nil
 	}
-	if inv := invalidCronWord(exploded[0], "first", 0, 59); inv != "" {
+	if inv := invalidCronWord(exploded[0], "minute", 0, 59); inv != "" {
 		return id, inv, nil
 	}
-	if inv := invalidCronWord(exploded[1], "second", 0, 23); inv != "" {
+	if inv := invalidCronWord(exploded[1], "hour", 0, 23); inv != "" {
 		return id, inv, nil
 	}
-	if inv := invalidCronWord(exploded[2], "third", 1, 31); inv != "" {
+	if inv := invalidCronWord(exploded[2], "day of the month", 1, 31); inv != "" {
 		return id, inv, nil
 	}
-	if inv := invalidCronWord(exploded[3], "fourth", 1, 12); inv != "" {
+	if inv := invalidCronWord(exploded[3], "month", 1, 12); inv != "" {
 		return id, inv, nil
 	}
-	if inv := invalidCronWord(exploded[4], "fifth", 0, 6); inv != "" {
+	if inv := invalidCronWord(exploded[4], "day of the week", 0, 6); inv != "" {
 		return id, inv, nil
 	}
 
@@ -288,7 +288,7 @@ func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 
 // Validates the given cron word, ensuring it parses and is between the two bounds (inclusively).
 // entryNumber is the order of this word ("first", "second", "third", ...).
-func invalidCronWord(word, entryNumber string, lowBound, highBound int) (invalid string) {
+func invalidCronWord(word, idxDescriptor string, lowBound, highBound int) (invalid string) {
 	if i, err := strconv.Atoi(word); err != nil {
 		// check for astrisk
 		if runes := []rune(word); len(runes) == 1 && runes[0] == '*' {
@@ -296,8 +296,8 @@ func invalidCronWord(word, entryNumber string, lowBound, highBound int) (invalid
 		}
 		return "failed to parse " + word
 	} else if i < lowBound || i > highBound {
-		return fmt.Sprintf("%s value must be between %d and %d, inclusively",
-			entryNumber, lowBound, highBound)
+		return fmt.Sprintf("%s must be between %d and %d, inclusively",
+			idxDescriptor, lowBound, highBound)
 	}
 	return ""
 }
