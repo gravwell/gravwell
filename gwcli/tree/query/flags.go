@@ -9,21 +9,23 @@
 package query
 
 import (
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"strings"
 	"time"
+
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 
 	"github.com/spf13/pflag"
 )
 
 type queryflags struct {
-	duration time.Duration
-	script   bool
-	json     bool
-	csv      bool
-	outfn    string
-	append   bool
-	schedule schedule
+	duration   time.Duration
+	script     bool
+	json       bool
+	csv        bool
+	outfn      string
+	append     bool
+	schedule   schedule
+	background bool
 	//referenceID string
 }
 
@@ -75,6 +77,10 @@ func transmogrifyFlags(fs *pflag.FlagSet) (queryflags, error) {
 		return qf, err
 	} else {
 		qf.schedule.desc = strings.TrimSpace(qf.schedule.desc)
+	}
+
+	if qf.background, err = fs.GetBool("background"); err != nil {
+		return qf, err
 	}
 
 	return qf, nil
