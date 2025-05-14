@@ -48,9 +48,9 @@ func ok() {
 func runTest(timeout time.Duration, testPattern, testPath string) error {
 	var cmd *exec.Cmd
 	if testPattern == "" {
-		cmd = exec.Command("go", "test", "-v", "-timeout", timeout.String(), testPath)
+		cmd = exec.Command("go", "test", "-race", "-v", "-timeout", timeout.String(), testPath)
 	} else {
-		cmd = exec.Command("go", "test", "-v", "-timeout", timeout.String(), "-run", testPattern, testPath)
+		cmd = exec.Command("go", "test", "-race", "-v", "-timeout", timeout.String(), "-run", testPattern, testPath)
 	}
 	verboseln(cmd.String())
 	if out, err := cmd.CombinedOutput(); err != nil {
