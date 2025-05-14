@@ -102,6 +102,8 @@ func initialLocalFlagSet() pflag.FlagSet {
 	fs.Bool(ft.Name.JSON, false, ft.Usage.JSON)
 	fs.Bool(ft.Name.CSV, false, ft.Usage.CSV)
 
+	fs.BoolP("background", "b", false, "run this search in the background, rather than awaiting and loading the results as soon as they are ready")
+
 	// scheduled searches
 	fs.StringP(ft.Name.Name, "n", "", "SCHEDULED."+ft.Usage.Name("scheduled search"))
 	fs.StringP(ft.Name.Desc, "d", "", "SCHEDULED."+ft.Usage.Desc("scheduled search"))
