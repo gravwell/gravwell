@@ -307,13 +307,14 @@ func invalidCronWord(word, idxDescriptor string, lowBound, highBound int) (inval
 // A positive duration will result in an error.
 //
 // Returns a handle to executing searching.
-func StartQuery(qry string, durFromNow time.Duration) (grav.Search, error) {
+func StartQuery(qry string, durFromNow time.Duration, background bool) (grav.Search, error) {
 	var err error
 	if durFromNow > 0 {
 		return grav.Search{}, fmt.Errorf("duration must be negative or zero (given %v)", durFromNow)
 	}
 
 	// validate search query
+	// TODO do not re-validate the query
 	if err = Client.ParseSearch(qry); err != nil {
 		return grav.Search{}, fmt.Errorf("'%s' is not a valid query: %s", qry, err.Error())
 	}
