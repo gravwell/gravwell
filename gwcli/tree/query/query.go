@@ -152,19 +152,38 @@ func run(cmd *cobra.Command, args []string) {
 	// TODO pull qry from referenceID, if given
 
 	qry := strings.TrimSpace(strings.Join(args, " "))
+	valid, err := testQryValidity(qry)
 
-	if qry == "" { // superfluous query
+	if !valid {
 		if flags.script { // fail out
-			clilog.Tee(clilog.INFO, cmd.OutOrStdout(), "query is empty. Exiting...\n")
+			var errMsg string
+			if err != nil {
+				errMsg = err.Error()
+			} else if qry == "" {
+				errMsg = "query cannot be empty"
+			}
+			clilog.Tee(clilog.INFO, cmd.OutOrStdout(), "invalid query: "+errMsg+"\n")
 			return
 		}
 
 		// spawn mother on the query prompt
+		// NOTE(rlandau): we hit the backend to validate the query twice (once now, once by Mother). This is unavoidable without complicating Mother further.
 		if err := mother.Spawn(cmd.Root(), cmd, args); err != nil {
 			clilog.Tee(clilog.CRITICAL, cmd.ErrOrStderr(),
 				"failed to spawn a mother instance: "+err.Error()+"\n")
 		}
 		return
+	}
+
+	// check if this is a scheduled query
+	if flags.schedule.cronfreq != "" {
+		scheduleQuery(&flags, cmd, qry)
+		return
+	}
+
+	// check if this is a background query
+	if flags.background {
+		backgroundQuery()
 	}
 
 	// branch on script mode
@@ -173,6 +192,78 @@ func run(cmd *cobra.Command, args []string) {
 		return
 	}
 	runInteractive(cmd, flags, qry)
+}
+
+// Returns whether or not the given query if valid (or if an non-parse error occurred while asking the backend to eval the query).
+func testQryValidity(qry string) (valid bool, err error) {
+	if qry == "" {
+		return false, nil
+	}
+
+	err = connection.Client.ParseSearch(qry)
+	// check if this is a parse error or something else
+	if err != nil {
+		clilog.Writer.Infof("failed to parse search %v: %v", qry, err)
+		if !strings.Contains(err.Error(), "Parse error") {
+			return false, err
+		}
+	}
+	return true, nil
+}
+
+// Generates a scheduling request from the given flags, cmd, and query and attempts to schedule it.
+// Internally handles (logs and prints) errors if they occur.
+// Assumes the query has already been validated.
+// On return, the caller can assume the query has been scheduled or the client has been notified of the error.
+func scheduleQuery(flags *queryflags, cmd *cobra.Command, validatedQry string) {
+	// warn about ignored flags
+	if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
+		if flags.outfn != "" {
+			fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.Output, ft.Name.Frequency)+"\n")
+		}
+		if flags.background {
+			fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore("background", ft.Name.Frequency)+"\n")
+		}
+		if flags.append {
+			fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.Append, ft.Name.Frequency)+"\n")
+		}
+		if flags.json {
+			fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.JSON, ft.Name.Frequency)+"\n")
+		}
+		if flags.csv {
+			fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.CSV, ft.Name.Frequency)+"\n")
+		}
+	}
+
+	// if a name was not given, populate a default name
+	if flags.schedule.name == "" {
+		flags.schedule.name = "cli_" + time.Now().Format(uniques.SearchTimeFormat)
+	}
+	// if a description was not given, populate a default description
+	if flags.schedule.desc == "" {
+		flags.schedule.desc = "generated in gwcli @" + time.Now().Format(uniques.SearchTimeFormat)
+	}
+
+	id, invalid, err := connection.CreateScheduledSearch(
+		flags.schedule.name, flags.schedule.desc,
+		flags.schedule.cronfreq, validatedQry,
+		flags.duration,
+	)
+	if invalid != "" { // bad parameters
+		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), invalid)
+		return
+	} else if err != nil {
+		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
+	}
+	clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
+		fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)\n", flags.schedule.name, id))
+	return
+}
+
+// Submits the query as a background query.
+// Assumes the query has already been validated.
+func backgroundQuery() {
+	// TODO
 }
 
 // run function with --script given, making it entirely independent of user input.
