@@ -20,6 +20,8 @@ used to clear the done status and any other no-longer-relevant data so the actio
 again cleanly. This is required because actions are only ever instantiated once, each, at start up.
 
 Utilize the boilerplate actions in utilities/scaffold where possible.
+
+The action map is thread-safe and can be built, read, and modified concurrently.
 */
 package action
 
