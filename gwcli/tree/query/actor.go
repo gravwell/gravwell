@@ -285,7 +285,8 @@ func (q *query) Reset() error {
 	return nil
 }
 
-// Consume flags and associated them to the local flagset
+// Consume flags and associated them to the local flagset.
+// Operates very similarly to query.go's run() call, but, as Mother is already running, decides whether or not to boot datascope. // TODO
 func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, error) {
 	// parse the tokens agains the local flagset
 	if err := localFS.Parse(tokens); err != nil {
@@ -296,11 +297,30 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 	if err != nil {
 		return "", nil, err
 	}
+	qry := strings.TrimSpace(strings.Join(localFS.Args(), " "))
 
 	// check for script mode (invalid, as Mother is already running)
 	if flags.script {
 		return "", nil, errors.New("cannot invoke script mode while in interactive mode")
 	}
+
+	// check if this is a scheduled query
+	if flags.schedule.cronfreq != "" {
+		ssid, warnings, invalid, err := scheduleQuery(&flags, qry)
+		var cmds []tea.Cmd
+		for _, warn := range warnings {
+			cmds = append(cmds, tea.Println(warn))
+		}
+		// check for errors
+		if invalid != "" || err != nil {
+			return invalid, tea.Sequence(cmds...), err
+		}
+		// success
+		cmds = append(cmds, tea.Println(fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)\n", flags.schedule.name, ssid)))
+		tea.Sequence(cmds...)
+		return "", tea.Sequence(cmds...), nil
+	}
+	// TODO
 
 	// set fields by flags
 	q.modifiers.durationTI.SetValue(flags.duration.String())
@@ -309,10 +329,11 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 	q.flagModifiers.outfn = flags.outfn
 	q.flagModifiers.append = flags.append
 	q.flagModifiers.schedule = flags.schedule
+	q.modifiers.background = flags.background
 
 	// TODO pull qry from referenceID, if given
 
-	if qry := strings.TrimSpace(strings.Join(localFS.Args(), " ")); qry != "" {
+	if qry := strings.TrimSpace(); qry != "" {
 		q.editor.ta.SetValue(qry)
 		// if we are given a query, submitQuery will place us directly into waiting mode
 		return "", q.submitQuery(), nil

@@ -181,7 +181,16 @@ func run(cmd *cobra.Command, args []string) {
 
 	// check if this is a scheduled query
 	if flags.schedule.cronfreq != "" {
-		scheduleQuery(&flags, cmd, qry)
+		ssid, warnings, err := scheduleQuery(&flags, qry)
+		for _, warn := range warnings {
+			fmt.Fprint(cmd.ErrOrStderr(), warn+"\n")
+		}
+		if err != nil {
+			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
+		} else {
+			clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
+				fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)\n", flags.schedule.name, ssid))
+		}
 		return
 	}
 
@@ -312,23 +321,24 @@ func testQryValidity(qry string) (valid bool, err error) {
 // Internally handles (logs and prints) errors if they occur.
 // Assumes the query has already been validated.
 // On return, the caller can assume the query has been scheduled or the client has been notified of the error.
-func scheduleQuery(flags *queryflags, cmd *cobra.Command, validatedQry string) {
+func scheduleQuery(flags *queryflags, validatedQry string) (ssid int32, warnings []string, invalid string, err error) {
+	warnings = make([]string, 0)
 	// warn about ignored flags
 	if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
 		if flags.outfn != "" {
-			fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.Output, ft.Name.Frequency)+"\n")
+			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.Output, ft.Name.Frequency))
 		}
 		if flags.background {
-			fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore("background", ft.Name.Frequency)+"\n")
+			warnings = append(warnings, uniques.WarnFlagIgnore("background", ft.Name.Frequency))
 		}
 		if flags.append {
-			fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.Append, ft.Name.Frequency)+"\n")
+			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.Append, ft.Name.Frequency))
 		}
 		if flags.json {
-			fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.JSON, ft.Name.Frequency)+"\n")
+			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.JSON, ft.Name.Frequency))
 		}
 		if flags.csv {
-			fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.CSV, ft.Name.Frequency)+"\n")
+			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.CSV, ft.Name.Frequency))
 		}
 	}
 
@@ -341,20 +351,17 @@ func scheduleQuery(flags *queryflags, cmd *cobra.Command, validatedQry string) {
 		flags.schedule.desc = "generated in gwcli @" + time.Now().Format(uniques.SearchTimeFormat)
 	}
 
-	id, invalid, err := connection.CreateScheduledSearch(
+	ssid, invalid, err = connection.CreateScheduledSearch(
 		flags.schedule.name, flags.schedule.desc,
 		flags.schedule.cronfreq, validatedQry,
 		flags.duration,
 	)
 	if invalid != "" { // bad parameters
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), invalid)
-		return
+		return -1, warnings, invalid, err
 	} else if err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
+		return -1, warnings, "", err
 	}
-	clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
-		fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)\n", flags.schedule.name, id))
-	return
+	return ssid, warnings, "", nil
 }
 
 // run function without --script given, making it acceptable to rely on user input
