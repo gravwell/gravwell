@@ -152,7 +152,7 @@ func Test_tryQuery(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := connection.StartQuery(tt.args.qry, tt.args.duration)
+			got, err := connection.StartQuery(tt.args.qry, tt.args.duration, false) // TODO backgrounding
 			if err != nil {
 				if tt.wantErr {
 					return

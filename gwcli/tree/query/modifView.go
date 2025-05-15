@@ -18,10 +18,11 @@ package query
 import (
 	"errors"
 	"fmt"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"strings"
 	"unicode"
+
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -29,14 +30,15 @@ import (
 )
 
 // modifSelection provides the skeleton for cursoring through options within this view.
-// All other options have been relocated so it is rather overengineered currently.
+// Most options have been relocated so it is rather overengineered currently.
 // However, its skeleton has been left in place so adding new options in the future is easy.
-// See datascope's download and schedule tabs for examples
+// See datascope's download and schedule tabs for examples.
 type modifSelection = uint
 
 const (
 	lowBound modifSelection = iota
 	duration
+	background
 	highBound
 )
 
@@ -47,6 +49,7 @@ type modifView struct {
 	selected uint // tracks which modifier is currently active w/in this view
 	// knobs available to user
 	durationTI textinput.Model
+	background bool
 
 	keys []key.Binding
 }
@@ -89,7 +92,8 @@ func initialModifView(height, width uint) modifView {
 	return mv
 }
 
-func (mv *modifView) update(msg tea.Msg) []tea.Cmd {
+// Walks through the options in modifSelection and passes keys to the currently selected one.
+func (mv *modifView) update(msg tea.Msg) []tea.Cmd { // TODO switch away from an array of Cmds.
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -98,10 +102,28 @@ func (mv *modifView) update(msg tea.Msg) []tea.Cmd {
 			if mv.selected <= lowBound {
 				mv.selected = highBound - 1
 			}
+			if mv.selected == duration {
+				mv.durationTI.Focus()
+			} else {
+				mv.durationTI.Blur()
+			}
+			return []tea.Cmd{textinput.Blink}
 		case tea.KeyDown:
 			mv.selected += 1
 			if mv.selected >= highBound {
 				mv.selected = lowBound + 1
+			}
+			if mv.selected == duration {
+				mv.durationTI.Focus()
+			} else {
+				mv.durationTI.Blur()
+			}
+			return []tea.Cmd{textinput.Blink}
+		case tea.KeySpace, tea.KeyEnter:
+			// handle booleans
+			switch mv.selected {
+			case background:
+				mv.background = !mv.background
 			}
 		}
 	}
@@ -117,6 +139,9 @@ func (mv *modifView) view() string {
 	bldr.WriteString(" " + stylesheet.Header1Style.Render("Duration:") + "\n")
 	bldr.WriteString(
 		fmt.Sprintf("%s%s\n", colorizer.Pip(mv.selected, duration), mv.durationTI.View()),
+	)
+	bldr.WriteString(
+		fmt.Sprintf("%s%s %s\n", colorizer.Pip(mv.selected, background), colorizer.Checkbox(mv.background), stylesheet.Header1Style.Render("Background?")),
 	)
 
 	return bldr.String()

@@ -279,6 +279,9 @@ func (m Mother) View() string {
 	if m.active.model != nil { // allow child command to retain control, if it exists
 		return m.active.model.View()
 	}
+	if m.dieOnChildDone { // don't bother to draw
+		return ""
+	}
 
 	var (
 		filtered []string
