@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	activesearchlock "github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope/ActiveSearchLock"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -128,10 +127,6 @@ func NewDataScope(data []string, motherRunning bool,
 	} else {
 		s.results = initResultsTab(data)
 	}
-
-	// store data for keepAlive
-	activesearchlock.SetSearchID(search.ID)
-	activesearchlock.UpdateTS()
 	// launch heartbeat gorotuine
 	go keepAlive(search, s.Done)
 
@@ -206,9 +201,6 @@ func (s DataScope) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return s, tea.Batch(tea.Quit, tea.ExitAltScreen)
 		}
 	}
-
-	// update the timestamp to keep the heartbeat going
-	activesearchlock.UpdateTS()
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg: // tab-agnostic keys

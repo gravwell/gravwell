@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	activesearchlock "github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope/ActiveSearchLock"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	grav "github.com/gravwell/gravwell/v4/client"
@@ -84,9 +83,6 @@ func TestKeepAlive(t *testing.T) {
 			t.Fatalf("failed to download search after %v minutes: %v", i, err)
 		}
 	}
-
-	// change the sid
-	activesearchlock.SetSearchID("different string")
 
 	// confirm that keepalive is dead by repulling results and expecting a 404
 	time.Sleep(30 * time.Second)
