@@ -211,7 +211,7 @@ func run(cmd *cobra.Command, args []string) {
 		}
 
 		clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
-			fmt.Sprintf("Successfully backgrounded query (ID: %v)\n", search.ID))
+			BackgroundedQuerySuccess(search.ID))
 		clilog.Tee(clilog.DEBUG, cmd.OutOrStdout(),
 			fmt.Sprintf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", search.ID, search.UID, search.GID, search.EffectiveQuery))
 
