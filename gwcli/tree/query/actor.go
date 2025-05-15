@@ -324,9 +324,9 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 //#region helper subroutines
 
 // Gathers information across both views and initiates the search, placing the model into a waiting
-// state. A seperate goroutine, initialized here, waits on the search, allowing this thread to
+// state. A separate goroutine, initialized here, waits on the search, allowing this thread to
 // display a spinner.
-// Corrollary to `outputSearchResults` (connected via `case waiting` in Update()).
+// Corollary to `outputSearchResults` (connected via `case waiting` in Update()).
 func (q *query) submitQuery() tea.Cmd {
 	qry := q.editor.ta.Value() // clarity
 
@@ -347,10 +347,16 @@ func (q *query) submitQuery() tea.Cmd {
 		duration = defaultDuration
 	}
 
-	s, err := connection.StartQuery(qry, -duration, false) // TODO
+	s, err := connection.StartQuery(qry, -duration, q.modifiers.background)
 	if err != nil {
 		q.editor.err = err.Error()
 		return nil
+	}
+
+	// if this is a background query, we can just exit
+	if q.modifiers.background {
+		q.mode = quitting
+		return tea.Println(BackgroundedQuerySuccess(s.ID))
 	}
 
 	// spin up a goroutine to wait on the search while we show a spinner
