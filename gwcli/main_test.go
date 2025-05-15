@@ -62,11 +62,7 @@ func TestNonInteractive(t *testing.T) {
 		panic(err)
 	}
 
-	// need to reset the client used by gwcli between runs
-	connection.End()
-	connection.Client = nil
-
-	t.Run("tools macros list --csv", func(t *testing.T) {
+	t.Run("macros list --csv", func(t *testing.T) {
 		// generate results manually, for comparison
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -93,6 +89,9 @@ func TestNonInteractive(t *testing.T) {
 
 		// run the test body
 		errCode := tree.Execute(args)
+		// need to reset the client used by gwcli between runs
+		connection.End()
+		connection.Client = nil
 		restoreIO()
 		if errCode != 0 {
 			t.Errorf("non-zero error code: %v", errCode)
@@ -109,10 +108,6 @@ func TestNonInteractive(t *testing.T) {
 		}
 	})
 
-	// need to reset the client used by gwcli between runs
-	connection.End()
-	connection.Client = nil
-
 	t.Run("tools macros create", func(t *testing.T) {
 		// fetch the number of macros prior to creation
 		myInfo, err := testclient.MyInfo()
@@ -127,6 +122,10 @@ func TestNonInteractive(t *testing.T) {
 		// create a new macro from the cli, in script mode
 		args := strings.Split("-u admin --password changeme --insecure --script macros create -n testname -d testdesc -e testexpand", " ")
 		errCode := tree.Execute(args)
+		t.Cleanup(func() {
+			connection.End()
+			connection.Client = nil
+		})
 		if errCode != 0 {
 			t.Errorf("expected 0 exit code, got: %v", errCode)
 		}
@@ -140,9 +139,6 @@ func TestNonInteractive(t *testing.T) {
 			t.Fatalf("expected post-create macros len(%v) == pre-create macros len(%v)+1 ", len(postMacros), len(priorMacros))
 		}
 	})
-
-	connection.End()
-	connection.Client = nil
 
 	t.Run("tools macros delete (dryrun)", func(t *testing.T) {
 		// fetch the macros prior to deletion
@@ -167,6 +163,10 @@ func TestNonInteractive(t *testing.T) {
 				toDeleteID),
 			" ")
 		errCode := tree.Execute(args)
+		t.Cleanup(func() {
+			connection.End()
+			connection.Client = nil
+		})
 		if errCode != 0 {
 			t.Errorf("expected 0 exit code, got: %v", errCode)
 		}
@@ -192,9 +192,6 @@ func TestNonInteractive(t *testing.T) {
 			t.Fatalf("Did not find ID %v in the post-faux-deletion list", toDeleteID)
 		}
 	})
-
-	connection.End()
-	connection.Client = nil
 
 	t.Run("tools macros delete [failure: missing id]", func(t *testing.T) {
 		//prepare IO
@@ -225,6 +222,10 @@ func TestNonInteractive(t *testing.T) {
 			"-u admin --password changeme --insecure --script macros delete",
 			" ")
 		errCode := tree.Execute(args)
+		t.Cleanup(func() {
+			connection.End()
+			connection.Client = nil
+		})
 		restoreIO()
 		if errCode != 0 {
 			t.Errorf("expected 0 exit code, got: %v", errCode)
@@ -262,9 +263,6 @@ func TestNonInteractive(t *testing.T) {
 		}
 	})
 
-	connection.End()
-	connection.Client = nil
-
 	t.Run("tools macros delete", func(t *testing.T) {
 		// fetch the macros prior to deletion
 		myInfo, err := testclient.MyInfo()
@@ -285,6 +283,10 @@ func TestNonInteractive(t *testing.T) {
 		// create a new macro from the cli, in script mode
 		args := strings.Split(fmt.Sprintf("-u admin --password changeme --insecure --script macros delete --id %v", toDeleteID), " ")
 		errCode := tree.Execute(args)
+		t.Cleanup(func() {
+			connection.End()
+			connection.Client = nil
+		})
 		if errCode != 0 {
 			t.Errorf("expected 0 exit code, got: %v", errCode)
 		}
@@ -314,9 +316,6 @@ func TestNonInteractive(t *testing.T) {
 		}
 	})
 
-	connection.End()
-	connection.Client = nil
-
 	t.Run("query 'tags=gravwell'", func(t *testing.T) {
 		//prepare IO
 		stdoutData, stderrData, err := mockIO()
@@ -332,6 +331,10 @@ func TestNonInteractive(t *testing.T) {
 			" -o "+outfn+" --json", " ")
 
 		errCode := tree.Execute(args)
+		t.Cleanup(func() {
+			connection.End()
+			connection.Client = nil
+		})
 		restoreIO()
 		if errCode != 0 {
 			t.Errorf("non-zero error code: %v", errCode)
@@ -379,9 +382,6 @@ func TestNonInteractive(t *testing.T) {
 			os.Remove(outfn)
 		}
 	})
-
-	connection.End()
-	connection.Client = nil
 
 	t.Run("background query 'tags=gravwell limit 3'", func(t *testing.T) {
 		//prepare IO
