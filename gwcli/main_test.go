@@ -17,8 +17,10 @@ import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"math/rand"
 	"os"
 	"path"
@@ -43,6 +45,8 @@ var realStderr, mockStderr, realStdout, mockStdout *os.File
 
 //#region non-interactive
 
+// Runs a variety of tests as a user of gwcli, from the scriptable interface.
+// All tests have their STDERR and STDOUT captured for evaluation.
 func TestNonInteractive(t *testing.T) {
 	defer restoreIO() // each test should result before checking results, but ensure a deferred restore
 
@@ -378,6 +382,73 @@ func TestNonInteractive(t *testing.T) {
 
 	connection.End()
 	connection.Client = nil
+
+	t.Run("background query 'tags=gravwell limit 3'", func(t *testing.T) {
+		//prepare IO
+		stdoutData, stderrData, err := mockIO()
+		if err != nil {
+			restoreIO()
+			panic(err)
+		}
+
+		// run the test body
+		outfn := "IShouldNotBeCreated.txt"
+		t.Cleanup(func() { os.Remove(outfn) }) // this should be ineffectual
+		qry := "tag=gravwell"
+		args := strings.Split("--insecure --script query "+qry+
+			" -o "+outfn+" --background", " ")
+
+		errCode := tree.Execute(args)
+		t.Cleanup(func() {
+			connection.End()
+			connection.Client = nil
+		})
+		restoreIO()
+		if errCode != 0 {
+			t.Errorf("non-zero error code: %v", errCode)
+		}
+
+		// ensure the file was *not* created
+		if _, err := os.Stat(outfn); err == nil || !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("an output file (%v) was created, but should not have been", outfn)
+		}
+
+		resultsOutRaw := strings.TrimSpace(<-stdoutData)
+		resultsErr := strings.TrimSpace(<-stderrData)
+
+		// ensure that we were warned about using -o
+		expectedWarning := "WARN: ignoring flag --output due to --background"
+		if !strings.EqualFold(resultsErr, expectedWarning) {
+			t.Errorf("stderr is not as expected.\nExpected:%v\nGot:%v", expectedWarning, resultsErr)
+		}
+
+		// parse out the sid
+		if resultsOutRaw == "" {
+			t.Fatalf("stdout has no output.\nExpected %s", "Successfully backgrounded query (ID: #)")
+		}
+		resultsOut := strings.Split(resultsOutRaw, "\n")
+		var sid uint64
+		if n, err := fmt.Sscanf(resultsOut[0], "Successfully backgrounded query (ID: %d)", &sid); err != nil {
+			if n != 1 {
+				t.Fatalf("failed to scan searchID out of first log message (msg: %v): %v", resultsOut[0], err)
+			}
+		}
+
+		// fetch the search
+		si, err := testclient.SearchInfo(fmt.Sprintf("%d", sid))
+		if err != nil {
+			t.Fatalf("failed to get information on search %d", sid)
+		}
+		if !si.Background {
+			t.Errorf("search was not backgrounded")
+		}
+		if si.UserQuery != qry {
+			t.Errorf("searchID %d turned back a different query.\nExpected:%v\nGot:%v", sid, qry, si.UserQuery)
+		}
+		if si.Error != "" {
+			t.Errorf("searchID %d turned back an error: %v", sid, si.Error)
+		}
+	})
 
 	/*t.Run("query reference ID", func(t *testing.T) {
 		// fetch a scheduled query to run
