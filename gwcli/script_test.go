@@ -19,7 +19,6 @@ do not account for parallelism at a test level
 */
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
@@ -31,9 +30,9 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/tree"
@@ -370,7 +369,7 @@ func TestQueries(t *testing.T) {
 	})
 
 	t.Run("background query 'tags=gravwell limit 3'", func(t *testing.T) {
-		verboseln("\tqueries: submitting a background query")
+		verboseln("\tqueries: submitting a background query with ignored --output flag")
 		outPath := path.Join(t.TempDir(), "IShouldNotBeCreated.txt")
 		qry := "tag=gravwell"
 
@@ -407,145 +406,80 @@ func TestQueries(t *testing.T) {
 			t.Errorf("searchID %s turned back an error: %v", sid, si.Error)
 		}
 	})
-}
 
-func TestNonInteractiveQueryFileOut(t *testing.T) {
-	// create results to ensure data is returned
-	testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true})
-	if err != nil {
-		panic(err)
-	}
-	if err = testclient.Login(user, password); err != nil {
-		panic(err)
-	}
+	t.Run("query output append to file", func(t *testing.T) {
+		verboseln("\tqueries: submitting a query and appending results to an existing file")
 
-	if s, err := testclient.StartSearch("tag=gravwell",
-		time.Now().Add(-1*time.Second), time.Now(), false); err != nil {
-		t.Skip("Failed to create search as base data: ", err)
-	} else {
-		if err := testclient.WaitForSearch(s); err != nil {
-			t.Skip("Failed to wait for base data search: ", err)
-		}
-	}
-
-	dir := t.TempDir()
-	tempFilePrefix := "gwcliTestNonInteractiveQueryOut"
-
-	t.Run("raw", func(t *testing.T) {
-		var outfn string = path.Join(dir, fmt.Sprintf("%v%d", tempFilePrefix, rand.Uint32()))
-
-		qry := "query tag=gravwell"
-		args := strings.Split("--insecure --script "+qry+" -o "+outfn, " ")
-		t.Log("Args: ", args)
-
-		exitCode := tree.Execute(args)
-		nonZeroExit(t, exitCode)
-
-		// check the file has data
-		invalidSize(t, outfn)
-	})
-
-	t.Run("raw append", func(t *testing.T) {
-		var outfn string = path.Join(dir, fmt.Sprintf("%v%d", tempFilePrefix, rand.Uint32()))
-
-		baseData := "Hello World"
-
-		// prepopulate the file with data to check for append
-		if err := os.WriteFile(outfn, []byte(baseData+"\n"), 0644); err != nil {
-			t.Fatalf("Failed to prepopulate %v: %v", outfn, err)
-		}
-
-		priorFI, err := os.Stat(outfn)
-		if err != nil {
+		var outPath string = path.Join(t.TempDir(), "append.out")
+		// populate the file with some garbage data
+		var baseData strings.Builder
+		if _, err := baseData.WriteString("Hello World"); err != nil {
 			t.Fatal(err)
 		}
-		priorSize := priorFI.Size()
-		if priorSize <= 0 {
-			t.Fatalf("test file to append to has invalid size: %v", priorSize)
+		for range 10 {
+			if _, err := baseData.WriteString(strconv.FormatInt(rand.Int63(), 10)); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if err := os.WriteFile(outPath, []byte(baseData.String()+"\n"), 0644); err != nil {
+			t.Fatal(err)
+		}
+
+		// get information about the prior state of the file
+		priorFI, err := os.Stat(outPath)
+		if err != nil {
+			t.Fatal(err)
+		} else if priorFI.Size() <= 0 {
+			t.Fatalf("test file to append to has invalid size: %v", priorFI.Size())
 		}
 
 		// execute the query in append mode
-		qry := "query tag=gravwell"
-		args := strings.Split("--insecure --script "+qry+" -o "+outfn+" --append", " ")
-		t.Log("Args: ", args)
-		exitCode := tree.Execute(args)
-		nonZeroExit(t, exitCode)
+		qry := "tag=gravwell limit 1"
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --append", user, password, qry, outPath)
+		statusCode, _, stderr := executeCmd(t, cmd)
+		nonZeroExit(t, statusCode)
+		checkResult(t, false, "stderr", "", stderr)
 
 		// check the file has more data than before
-		postFI, err := os.Stat(outfn)
+		postFI, err := os.Stat(outPath)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if postFI.Size() <= priorSize {
-			t.Fatalf("expected post size (%v) to be greater than prior size (%v)", postFI.Size(), priorSize)
+		if postFI.Size() <= priorFI.Size() {
+			t.Fatalf("expected post size (%v) to be greater than prior size (%v)", postFI.Size(), priorFI.Size())
 		}
 
-		// check that the first line still exists
-		f, err := os.Open(outfn)
+		// check that the initial data still exists
+		f, err := os.Open(outPath)
 		if err != nil {
-			t.Fatalf("failed to read from file %v: %v", outfn, err)
+			t.Fatalf("failed to read from file %v: %v", outPath, err)
 		}
 		defer f.Close()
-		scan := bufio.NewScanner(f)
-		if !scan.Scan() {
-			t.Fatal("failed to scan first line. Error? ", scan.Err())
+		fileDataB, err := io.ReadAll(f)
+		if err != nil {
+			t.Fatal(err)
 		}
-		firstLine := scan.Text()
-		if firstLine != baseData {
-			t.Fatalf("expected first line of file to be %v, got %v", baseData, firstLine)
+		fileData := string(fileDataB)
+		if !strings.HasPrefix(fileData, baseData.String()) {
+			t.Fatalf("base data is absent from appended file. Expected to find the following file prefix:\n%v\nFinal file: %v\n", baseData.String(), fileData)
 		}
 	})
 
-	t.Run("json", func(t *testing.T) {
-		var outfn string = path.Join(dir, fmt.Sprintf("%v%d", tempFilePrefix, rand.Uint32()))
-		// execute the query in append mode
-		qry := "query tag=gravwell"
-		args := strings.Split("--insecure --script "+qry+" -o "+outfn+" --json", " ")
-		t.Log("Args: ", args)
-		exitCode := tree.Execute(args)
-		nonZeroExit(t, exitCode)
+	t.Run("query csv", func(t *testing.T) {
+		verboseln("\tqueries: query output csv to stdout")
 
-		// check the file has data
-		invalidSize(t, outfn)
+		qry := "tag=gravwell limit 1"
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s --csv", user, password, qry)
+		statusCode, stdout, stderr := executeCmd(t, cmd)
+		nonZeroExit(t, statusCode)
+		checkResult(t, false, "stderr", "", stderr)
 
-		// check each record is valid JSON
-		f, err := os.Open(outfn)
-		if err != nil {
-			t.Fatalf(openFileFailF, f.Name())
-		}
-		scan := bufio.NewScanner(f)
-		for scan.Scan() {
-			line := strings.TrimSpace(scan.Text())
-			if line == "" {
-				continue
-			}
-			if !json.Valid([]byte(line)) {
-				t.Fatalf("record %v is not valid JSON", line)
-			}
-		}
-	})
-
-	t.Run("csv", func(t *testing.T) {
-		var outfn string = path.Join(dir, fmt.Sprintf("%v%d", tempFilePrefix, rand.Uint32()))
-		// execute the query in append mode
-		qry := "query tag=gravwell"
-		args := strings.Split("--insecure --script "+qry+" -o "+outfn+" --csv", " ")
-		t.Log("Args: ", args)
-		exitCode := tree.Execute(args)
-		nonZeroExit(t, exitCode)
-
-		// check the file has data
-		invalidSize(t, outfn)
-
-		// check each record is valid JSON
-		f, err := os.Open(outfn)
-		if err != nil {
-			t.Fatalf(openFileFailF, f.Name())
-		}
 		// csv package does not have a .Valid() like JSON
 		// instead, just check that we are able to read the data
 
-		s := csv.NewReader(f)
+		rdr := strings.NewReader(stdout)
+
+		s := csv.NewReader(rdr)
 		s.ReuseRecord = true // don't care about actual data; reduce allocations
 		for {
 			if r, err := s.Read(); err != nil {
