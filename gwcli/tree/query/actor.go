@@ -209,7 +209,7 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 	if q.focusedEditor { // editor view active
 		c, submit := q.editor.update(msg)
 		if submit {
-			return q.submitQuery()
+			return q.submitForegroundQuery()
 		}
 		cmds = []tea.Cmd{c}
 	} else { // modifiers view active
@@ -338,8 +338,7 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 		cmds = append(cmds, tea.Println(BackgroundedQuerySuccess(search.ID)))
 		clilog.Writer.Debugf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", search.ID, search.UID, search.GID, search.EffectiveQuery)
 
-		// set the query child to immediately return when Mother boots the query interface
-		// TODO validate this is all that needs to be (relative to submitQuery)
+		// set the query action to immediately return when Mother boots the query interface
 		q.mode = quitting
 
 		return "", tea.Sequence(cmds...), err
@@ -359,7 +358,7 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 	if qry := strings.TrimSpace(""); qry != "" { // TODO
 		q.editor.ta.SetValue(qry)
 		// if we are given a query, submitQuery will place us directly into waiting mode
-		return "", q.submitQuery(), nil
+		return "", q.submitForegroundQuery(), nil
 	}
 
 	return "", nil, nil
@@ -371,10 +370,8 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 // state. A separate goroutine, initialized here, waits on the search, allowing this thread to
 // display a spinner.
 // Corollary to `outputSearchResults` (connected via `case waiting` in Update()).
-func (q *query) submitQuery() tea.Cmd {
+func (q *query) submitForegroundQuery() tea.Cmd {
 	qry := q.editor.ta.Value() // clarity
-
-	clilog.Writer.Infof("Submitting query '%v'...", qry)
 
 	// fetch modifiers from alternative view
 	var (
@@ -395,12 +392,6 @@ func (q *query) submitQuery() tea.Cmd {
 	if err != nil {
 		q.editor.err = err.Error()
 		return nil
-	}
-
-	// if this is a background query, we can just exit
-	if q.modifiers.background {
-		q.mode = quitting
-		return tea.Println(BackgroundedQuerySuccess(s.ID))
 	}
 
 	// spin up a goroutine to wait on the search while we show a spinner
