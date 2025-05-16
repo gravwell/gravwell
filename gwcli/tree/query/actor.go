@@ -304,7 +304,7 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 		return "", nil, errors.New("cannot invoke script mode while in interactive mode")
 	}
 
-	// check if this is a scheduled query
+	// check if this is a scheduled query and if it can be handled here
 	if flags.schedule.cronfreq != "" {
 		ssid, warnings, invalid, err := scheduleQuery(&flags, qry)
 		var cmds []tea.Cmd
@@ -320,6 +320,8 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 		tea.Sequence(cmds...)
 		return "", tea.Sequence(cmds...), nil
 	}
+
+	// check if this is a background query
 	// TODO
 
 	// set fields by flags
@@ -333,7 +335,7 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 
 	// TODO pull qry from referenceID, if given
 
-	if qry := strings.TrimSpace(); qry != "" {
+	if qry := strings.TrimSpace(""); qry != "" { // TODO
 		q.editor.ta.SetValue(qry)
 		// if we are given a query, submitQuery will place us directly into waiting mode
 		return "", q.submitQuery(), nil

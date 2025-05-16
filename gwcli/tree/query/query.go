@@ -62,7 +62,6 @@ import (
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -181,11 +180,13 @@ func run(cmd *cobra.Command, args []string) {
 
 	// check if this is a scheduled query
 	if flags.schedule.cronfreq != "" {
-		ssid, warnings, err := scheduleQuery(&flags, qry)
+		ssid, warnings, invalid, err := scheduleQuery(&flags, qry)
 		for _, warn := range warnings {
 			fmt.Fprint(cmd.ErrOrStderr(), warn+"\n")
 		}
-		if err != nil {
+		if invalid != "" {
+			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), invalid+"\n")
+		} else if err != nil {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		} else {
 			clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
@@ -203,20 +204,9 @@ func run(cmd *cobra.Command, args []string) {
 
 	// if this is a background query, we are done
 	if flags.background {
-		// warn about ignored flags
-		if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
-			if flags.outfn != "" {
-				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.Output, "background")+"\n")
-			}
-			if flags.append {
-				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.Append, "background")+"\n")
-			}
-			if flags.json {
-				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.JSON, "background")+"\n")
-			}
-			if flags.csv {
-				fmt.Fprint(cmd.ErrOrStderr(), uniques.WarnFlagIgnore(ft.Name.CSV, "background")+"\n")
-			}
+		warnings := warnBackgroundFlagConflicts(flags)
+		for _, warn := range warnings {
+			fmt.Fprint(cmd.ErrOrStderr(), warn+"\n")
 		}
 
 		clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
@@ -298,70 +288,6 @@ func run(cmd *cobra.Command, args []string) {
 	// if we made it this far, we can fetch the results and pass them to datascope
 	// NOTE(rlandau): this function does not share the result-fetching methodology of script mode (connection.DownloadSearch) because datascope requires additional formatting.
 	invokeDatascope(cmd, flags, &search)
-}
-
-// Returns whether or not the given query if valid (or if an non-parse error occurred while asking the backend to eval the query).
-func testQryValidity(qry string) (valid bool, err error) {
-	if qry == "" {
-		return false, nil
-	}
-
-	err = connection.Client.ParseSearch(qry)
-	// check if this is a parse error or something else
-	if err != nil {
-		clilog.Writer.Infof("failed to parse search %v: %v", qry, err)
-		if !strings.Contains(err.Error(), "Parse error") {
-			return false, err
-		}
-	}
-	return true, nil
-}
-
-// Generates a scheduling request from the given flags, cmd, and query and attempts to schedule it.
-// Internally handles (logs and prints) errors if they occur.
-// Assumes the query has already been validated.
-// On return, the caller can assume the query has been scheduled or the client has been notified of the error.
-func scheduleQuery(flags *queryflags, validatedQry string) (ssid int32, warnings []string, invalid string, err error) {
-	warnings = make([]string, 0)
-	// warn about ignored flags
-	if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
-		if flags.outfn != "" {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.Output, ft.Name.Frequency))
-		}
-		if flags.background {
-			warnings = append(warnings, uniques.WarnFlagIgnore("background", ft.Name.Frequency))
-		}
-		if flags.append {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.Append, ft.Name.Frequency))
-		}
-		if flags.json {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.JSON, ft.Name.Frequency))
-		}
-		if flags.csv {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.CSV, ft.Name.Frequency))
-		}
-	}
-
-	// if a name was not given, populate a default name
-	if flags.schedule.name == "" {
-		flags.schedule.name = "cli_" + time.Now().Format(uniques.SearchTimeFormat)
-	}
-	// if a description was not given, populate a default description
-	if flags.schedule.desc == "" {
-		flags.schedule.desc = "generated in gwcli @" + time.Now().Format(uniques.SearchTimeFormat)
-	}
-
-	ssid, invalid, err = connection.CreateScheduledSearch(
-		flags.schedule.name, flags.schedule.desc,
-		flags.schedule.cronfreq, validatedQry,
-		flags.duration,
-	)
-	if invalid != "" { // bad parameters
-		return -1, warnings, invalid, err
-	} else if err != nil {
-		return -1, warnings, "", err
-	}
-	return ssid, warnings, "", nil
 }
 
 // run function without --script given, making it acceptable to rely on user input
