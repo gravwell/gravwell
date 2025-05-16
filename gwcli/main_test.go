@@ -24,6 +24,7 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -108,7 +109,7 @@ func TestNonInteractive(t *testing.T) {
 		}
 	})
 
-	t.Run("tools macros create", func(t *testing.T) {
+	t.Run("macros create", func(t *testing.T) {
 		// fetch the number of macros prior to creation
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -140,7 +141,7 @@ func TestNonInteractive(t *testing.T) {
 		}
 	})
 
-	t.Run("tools macros delete (dryrun)", func(t *testing.T) {
+	t.Run("macros delete (dryrun)", func(t *testing.T) {
 		// fetch the macros prior to deletion
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -193,7 +194,7 @@ func TestNonInteractive(t *testing.T) {
 		}
 	})
 
-	t.Run("tools macros delete [failure: missing id]", func(t *testing.T) {
+	t.Run("macros delete [failure: missing id]", func(t *testing.T) {
 		//prepare IO
 		stdoutData, stderrData, err := mockIO()
 		if err != nil {
@@ -263,7 +264,7 @@ func TestNonInteractive(t *testing.T) {
 		}
 	})
 
-	t.Run("tools macros delete", func(t *testing.T) {
+	t.Run("macros delete", func(t *testing.T) {
 		// fetch the macros prior to deletion
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -326,8 +327,8 @@ func TestNonInteractive(t *testing.T) {
 
 		// run the test body
 		outfn := "testnoninteractive.query.json"
-		qry := "query tag=gravwell"
-		args := strings.Split("--insecure --script "+qry+
+		qry := "tag=gravwell"
+		args := strings.Split("--insecure --script query "+qry+
 			" -o "+outfn+" --json", " ")
 
 		errCode := tree.Execute(args)
@@ -340,7 +341,7 @@ func TestNonInteractive(t *testing.T) {
 			t.Errorf("non-zero error code: %v", errCode)
 		}
 
-		<-stdoutData
+		resultOut := <-stdoutData
 		resultsErr := <-stderrData
 		if resultsErr != "" {
 			t.Errorf("non-empty stderr:\n(%v)", resultsErr)
@@ -359,22 +360,25 @@ func TestNonInteractive(t *testing.T) {
 		/*if !json.Valid(output) {
 			t.Errorf("json is not valid")
 		}*/
-		// fetch the search and check that record counts line up
-		searches, err := testclient.GetSearchHistoryRange(0, 5)
-		if err != nil {
-			t.Fatal(err)
-		} else if len(searches) < 1 {
-			t.Fatalf("found no previous searches")
+
+		sid := skimSID(t, resultOut)
+		if sid == "" {
+			t.Fatal("failed to scan search ID out of stdout")
 		}
-		//var search types.SearchLog
-		for _, s := range searches {
-			if s.UserQuery == qry {
-				//search = s
-				// get SearchHistory* does not pull back the searchID, meaning I
-				// cannnot pull more details about the search
-				// TODO
-				break
-			}
+		t.Log("scanned out sid ", sid)
+		// fetch the search
+		si, err := testclient.SearchInfo(fmt.Sprintf("%s", sid))
+		if err != nil {
+			t.Fatalf("failed to get information on search %s", sid)
+		}
+		if si.Background {
+			t.Errorf("search was backgrounded")
+		}
+		if si.UserQuery != qry {
+			t.Errorf("searchID %s turned back a different query.\nExpected:%v\nGot:%v", sid, qry, si.UserQuery)
+		}
+		if si.Error != "" {
+			t.Errorf("searchID %s turned back an error: %v", sid, si.Error)
 		}
 
 		// clean up
@@ -413,7 +417,7 @@ func TestNonInteractive(t *testing.T) {
 			t.Errorf("an output file (%v) was created, but should not have been", outfn)
 		}
 
-		resultsOutRaw := strings.TrimSpace(<-stdoutData)
+		resultsOut := strings.TrimSpace(<-stdoutData)
 		resultsErr := strings.TrimSpace(<-stderrData)
 
 		// ensure that we were warned about using -o
@@ -423,30 +427,24 @@ func TestNonInteractive(t *testing.T) {
 		}
 
 		// parse out the sid
-		if resultsOutRaw == "" {
-			t.Fatalf("stdout has no output.\nExpected %s", "Successfully backgrounded query (ID: #)")
+		sid := skimSID(t, resultsOut)
+		if sid == "" {
+			t.Fatal("failed to scan search ID out of stdout")
 		}
-		resultsOut := strings.Split(resultsOutRaw, "\n")
-		var sid uint64
-		if n, err := fmt.Sscanf(resultsOut[0], "Successfully backgrounded query (ID: %d)", &sid); err != nil {
-			if n != 1 {
-				t.Fatalf("failed to scan searchID out of first log message (msg: %v): %v", resultsOut[0], err)
-			}
-		}
-
+		t.Log("scanned out sid ", sid)
 		// fetch the search
-		si, err := testclient.SearchInfo(fmt.Sprintf("%d", sid))
+		si, err := testclient.SearchInfo(fmt.Sprintf("%s", sid))
 		if err != nil {
-			t.Fatalf("failed to get information on search %d", sid)
+			t.Fatalf("failed to get information on search %s", sid)
 		}
 		if !si.Background {
 			t.Errorf("search was not backgrounded")
 		}
 		if si.UserQuery != qry {
-			t.Errorf("searchID %d turned back a different query.\nExpected:%v\nGot:%v", sid, qry, si.UserQuery)
+			t.Errorf("searchID %s turned back a different query.\nExpected:%v\nGot:%v", sid, qry, si.UserQuery)
 		}
 		if si.Error != "" {
-			t.Errorf("searchID %d turned back an error: %v", sid, si.Error)
+			t.Errorf("searchID %s turned back an error: %v", sid, si.Error)
 		}
 	})
 
@@ -723,6 +721,50 @@ func restoreIO() {
 		panic("failed to restore stderr; no saved handle")
 	}
 	os.Stderr = realStderr
+}
+
+var sidRGX = regexp.MustCompile(`query \(ID: (\d+)\)`)
+
+// Given the standard output, it scans out the search ID from the 'query successful' strings.
+// Returns the first matching instance.
+// If no matching messages are found, returns the empty string.
+func skimSID(t *testing.T, stdout string) (sid string) {
+	t.Helper()
+	if stdout == "" {
+		t.Log("cannot search for SID in empty data")
+		return ""
+	}
+	resultsOut := strings.SplitSeq(stdout, "\n")
+	// check each entry in resultsOut until we find the correct string or run out of entries
+	/*var (
+		fgbg    string // unused
+		numeric uint64
+	)*/
+	for res := range resultsOut {
+		t.Logf("scanning line '%s'", res)
+
+		match := sidRGX.FindStringSubmatch(res)
+		if match != nil {
+			return match[1] // want the first capture group
+		}
+
+		/*
+			matches := sidRGX.FindStringSubmatch(res)
+			sidRGX.SubexpNames()
+			t.Log(matches)
+			if len(matches) == 1 {
+				return matches[0]
+			}*/
+
+		/*if n, err := fmt.Sscanf(res, "Successfully %s query (ID: %d)", &fgbg, &numeric); err != nil {
+			if n == 2 && sid != "" {
+				// chomp the ')'
+				return strconv.FormatUint(numeric, 10)
+			}
+		}*/
+	}
+
+	return ""
 }
 
 // #region strings and failure checks
