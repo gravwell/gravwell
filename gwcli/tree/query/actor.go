@@ -323,8 +323,9 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 				return invalid, tea.Sequence(cmds...), err
 			}
 			// success
-			cmds = append(cmds, tea.Println(fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)\n", flags.schedule.name, ssid)))
-			tea.Sequence(cmds...)
+			cmds = append(cmds, tea.Println(fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)", flags.schedule.name, ssid)))
+			// set the query action to immediately return when Mother boots the query interface
+			q.mode = quitting
 			return "", tea.Sequence(cmds...), nil
 		}
 
@@ -347,7 +348,6 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 
 			// set the query action to immediately return when Mother boots the query interface
 			q.mode = quitting
-
 			return "", tea.Sequence(cmds...), err
 		}
 
