@@ -10,7 +10,6 @@ package query
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -93,9 +92,7 @@ func testQryValidity(qry string) (valid bool, err error) {
 	// check if this is a parse error or something else
 	if err != nil {
 		clilog.Writer.Infof("failed to parse search %v: %v", qry, err)
-		if !strings.Contains(err.Error(), "Parse error") {
-			return false, err
-		}
+		return false, err
 	}
 	return true, nil
 }
