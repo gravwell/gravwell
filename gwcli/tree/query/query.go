@@ -202,6 +202,9 @@ func run(cmd *cobra.Command, args []string) {
 		return
 	}
 
+	clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
+		querySubmissionSuccess(search.ID, flags.background))
+
 	// if this is a background query, we are done
 	if flags.background {
 		warnings := warnBackgroundFlagConflicts(flags)
@@ -209,8 +212,6 @@ func run(cmd *cobra.Command, args []string) {
 			fmt.Fprint(cmd.ErrOrStderr(), warn+"\n")
 		}
 
-		clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
-			BackgroundedQuerySuccess(search.ID))
 		clilog.Tee(clilog.DEBUG, cmd.OutOrStdout(),
 			fmt.Sprintf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", search.ID, search.UID, search.GID, search.EffectiveQuery))
 
