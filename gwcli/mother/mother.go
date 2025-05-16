@@ -30,7 +30,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -141,23 +140,6 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 
 	clilog.Writer.Debugf("Spawning mother rooted @ %v, located @ %v, with trailing tokens %v",
 		m.root.Name(), m.pwd.Name(), trailingTokens)
-
-	// query scheduling flags are not availble in interactive mode
-	if c, _, err := root.Find([]string{"query"}); err != nil {
-		clilog.Writer.Warnf("failed to disable query scheduling flags: %v", err)
-	} else {
-		if err := c.Flags().MarkHidden(ft.Name.Frequency); err != nil {
-			clilog.Writer.Warnf("failed to hide query --%v: %v", ft.Name.Frequency, err)
-		}
-		if err := c.Flags().MarkHidden(ft.Name.Name); err != nil {
-			clilog.Writer.Warnf("failed to hide query --%v: %v", ft.Name.Name, err)
-
-		}
-		if err := c.Flags().MarkHidden(ft.Name.Desc); err != nil {
-			clilog.Writer.Warnf("failed to hide query --%v: %v", ft.Name.Desc, err)
-
-		}
-	}
 
 	return m
 }
