@@ -306,6 +306,10 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 	qry := strings.TrimSpace(strings.Join(localFS.Args(), " "))
 	valid, err := testQryValidity(qry)
 	if err != nil {
+		// if it is a parse error, return it as a an invalid string
+		if strings.Contains(err.Error(), "Parse error") {
+			return err.Error(), nil, nil
+		}
 		return "", nil, err
 	}
 
