@@ -6,11 +6,17 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Tests from a complete-program perspective, confirming consistent input begets
-// reliable output.
-// Expects that the constant server string points to a development server with default credentials.
-
 package main
+
+/*
+This file covers tests for using gwcli in --script mode (from a user's shell or via an external script).
+
+These tests make destructive changes to the gravwell server; make sure you are targeting a safe, clean server!
+
+Each test is intended to be self-contained but, due to gwcli's usage of singletons,
+do not account for parallelism at a test level
+(testing in multiple processes, not goroutines, is acceptable).
+*/
 
 import (
 	"bufio"
@@ -36,7 +42,7 @@ import (
 	"github.com/gravwell/gravwell/v4/utils/weave"
 )
 
-const ( // mock credentials
+const ( // testing server credentials
 	user     = "admin"
 	password = "changeme"
 	server   = "localhost:80"
@@ -44,34 +50,42 @@ const ( // mock credentials
 
 var realStderr, mockStderr, realStdout, mockStdout *os.File
 
-//#region non-interactive
+// Only prints the given string if verbose mode is enabled.
+func verboseln(s string) {
+	if testing.Verbose() {
+		fmt.Println(s)
+	}
+}
 
-// Runs a variety of tests as a user of gwcli, from the scriptable interface.
-// All tests have their STDERR and STDOUT captured for evaluation.
-func TestNonInteractive(t *testing.T) {
-	defer restoreIO() // each test should result before checking results, but ensure a deferred restore
-
-	realStdout = os.Stdout
+func init() {
+	// ensure we capture the normal STDOUT and STDERR so we can restore to them
 	realStderr = os.Stderr
+	realStdout = os.Stdout
+}
 
+// Tests the 'macro' action of gwcli
+func TestMacros(t *testing.T) {
+	verboseln("testing macros...")
 	// connect to the server for manual calls
 	testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true})
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	if err = testclient.Login(user, password); err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
 	t.Run("macros list --csv", func(t *testing.T) {
+		verboseln("\tmacros: list in CSV form")
 		// generate results manually, for comparison
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
+		// get the current list of macros so we can validate that gwcli turned back the same ones
 		macros, err := testclient.GetUserMacros(myInfo.UID)
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 		columns := []string{"UID", "Global", "Name"}
 		want := strings.TrimSpace(weave.ToCSV(macros, columns))
@@ -79,37 +93,27 @@ func TestNonInteractive(t *testing.T) {
 			want = "no data found"
 		}
 
-		// prepare IO
-		stdoutData, stderrData, err := mockIO()
-		if err != nil {
-			restoreIO()
-			panic(err)
-		}
-
-		args := strings.Split("-u admin -p changeme --insecure --script macros list --csv --columns=UID,Global,Name", " ")
-
 		// run the test body
-		errCode := tree.Execute(args)
-		// need to reset the client used by gwcli between runs
-		connection.End()
-		connection.Client = nil
-		restoreIO()
-		if errCode != 0 {
-			t.Errorf("non-zero error code: %v", errCode)
-		}
-		results := <-stdoutData
-		resultsErr := <-stderrData
-		if resultsErr != "" {
-			t.Errorf("non-empty stderr:\n(%v)", resultsErr)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros list --csv --columns=%s", user, password, strings.Join(columns, ","))
+		statusCode, stdout, stderr := executeCmd(t, cmd)
+		nonZeroExit(t, statusCode)
+		if stderr != "" {
+			t.Error("bad stderr:", expectedActual("", stderr))
 		}
 
 		// compare against expected
-		if strings.TrimSpace(results) != strings.TrimSpace(want) {
-			t.Fatalf("output mismatch\nwant:\n(%v)\ngot:\n(%v)\n", want, results)
+		if strings.TrimSpace(stdout) != want {
+			t.Fatal("bad stdout:", expectedActual(want, strings.TrimSpace(stdout)))
 		}
 	})
 
 	t.Run("macros create", func(t *testing.T) {
+		var (
+			macroName string = "testname"
+			macroDesc string = "testdesc"
+			macroExp  string = "testexpand"
+		)
+		verboseln("\tmacros: create new ")
 		// fetch the number of macros prior to creation
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -121,15 +125,9 @@ func TestNonInteractive(t *testing.T) {
 		}
 
 		// create a new macro from the cli, in script mode
-		args := strings.Split("-u admin --password changeme --insecure --script macros create -n testname -d testdesc -e testexpand", " ")
-		errCode := tree.Execute(args)
-		t.Cleanup(func() {
-			connection.End()
-			connection.Client = nil
-		})
-		if errCode != 0 {
-			t.Errorf("expected 0 exit code, got: %v", errCode)
-		}
+		cmd := fmt.Sprintf("-u %s --password %s --insecure --script macros create -n %s -d %s -e %s", user, password, macroName, macroDesc, macroExp)
+		statusCode, stdout, stderr := executeCmd(t, cmd)
+		nonZeroExit(t, statusCode)
 
 		// refetch macros to check the count has increased by one
 		postMacros, err := testclient.GetUserMacros(myInfo.UID)
@@ -228,9 +226,7 @@ func TestNonInteractive(t *testing.T) {
 			connection.Client = nil
 		})
 		restoreIO()
-		if errCode != 0 {
-			t.Errorf("expected 0 exit code, got: %v", errCode)
-		}
+		nonZeroExit(t, errCode)
 
 		results := <-stdoutData
 		resultsErr := <-stderrData
@@ -316,6 +312,25 @@ func TestNonInteractive(t *testing.T) {
 			}
 		}
 	})
+
+}
+
+// Runs a variety of tests as a user of gwcli, from the scriptable interface.
+// All tests have their STDERR and STDOUT captured for evaluation.
+func TestNonInteractive(t *testing.T) {
+	defer restoreIO() // each test should result before checking results, but ensure a deferred restore
+
+	realStdout = os.Stdout
+	realStderr = os.Stderr
+
+	// connect to the server for manual calls
+	testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true})
+	if err != nil {
+		panic(err)
+	}
+	if err = testclient.Login(user, password); err != nil {
+		panic(err)
+	}
 
 	t.Run("query 'tags=gravwell'", func(t *testing.T) {
 		//prepare IO
@@ -666,15 +681,24 @@ func TestNonInteractiveQueryFileOut(t *testing.T) {
 
 //#endregion
 
+//#region helper functions
+
 // Mocks STDOUT and STDERR with new pipes so the tests can intercept data from them.
 // Returns the channels from which to get their data.
-// sister function to restoreIO()
-func mockIO() (stdoutData chan string, stderrData chan string, err error) {
+// Dies and reverts changes if any of the pipes fail.
+func mockIO(t *testing.T) (stdoutData chan string, stderrData chan string) {
+	defer func() {
+		// if an error occurred, restore standard IO
+		if t.Failed() {
+			restoreIO()
+		}
+	}()
+	var err error
 	// capture stdout
 	var readMockStdout *os.File
 	readMockStdout, mockStdout, err = os.Pipe()
 	if err != nil {
-		return nil, nil, err
+		t.Fatal(err)
 	}
 	stdoutData = make(chan string) // pass data from read to write
 	go func() {
@@ -688,7 +712,7 @@ func mockIO() (stdoutData chan string, stderrData chan string, err error) {
 	var readMockStderr *os.File
 	readMockStderr, mockStderr, err = os.Pipe()
 	if err != nil {
-		return nil, nil, err
+		t.Fatal(err)
 	}
 	stderrData = make(chan string)
 	go func() {
@@ -698,7 +722,7 @@ func mockIO() (stdoutData chan string, stderrData chan string, err error) {
 	}()
 	os.Stderr = mockStderr
 
-	return stdoutData, stderrData, nil
+	return stdoutData, stderrData
 }
 
 // Closes the mocked STDOUT and STDERR pipes and returns them to the "real" variants (the default state of os.Stdout and os.Stderr) when the test began.
@@ -707,6 +731,7 @@ func restoreIO() {
 	// stdout
 	if mockStdout != nil {
 		_ = mockStdout.Close()
+		mockStdout = nil
 	}
 	if realStdout == nil {
 		panic("failed to restore stdout; no saved handle")
@@ -716,12 +741,46 @@ func restoreIO() {
 	// stderr
 	if mockStderr != nil {
 		_ = mockStderr.Close()
+		mockStderr = nil
 	}
 	if realStderr == nil {
 		panic("failed to restore stderr; no saved handle")
 	}
 	os.Stderr = realStderr
 }
+
+// Runs the given command, returning the final status code and the values the command spit into STDERR and STDOUT.
+// The command is run against the command tree, which implies client creation and authentication.
+// Registers a t.Cleanup to close and nil the client.
+//
+// Logs the command run in case the test fails.
+//
+// Roughly similar to exec.Command(<cmd>).Output()
+//
+// Returns the status code of the command and the data contained in stdout and stderr.
+func executeCmd(t *testing.T, cmd string) (statusCode int, stdoutData, stderrData string) {
+	t.Helper()
+
+	// prepare IO
+	outch, errch := mockIO(t)
+
+	t.Log(cmd)
+	errCode := tree.Execute(strings.Split(cmd, " "))
+	t.Cleanup(func() { // when we are done testing, destroy the client
+		connection.End()
+		connection.Client = nil
+	})
+	restoreIO()
+
+	// fetch output
+	results := <-outch
+	resultsErr := <-errch
+
+	return errCode, results, resultsErr
+
+}
+
+//#endregion helper functions
 
 var sidRGX = regexp.MustCompile(`query \(ID: (\d+)\)`)
 
@@ -775,7 +834,6 @@ func nonZeroExit(t *testing.T, code int) {
 	if code != 0 {
 		t.Fatalf("non-zero exit code %v", code)
 	}
-
 }
 
 // Dies if the file associated to the given path DNE or is empty.
@@ -788,6 +846,12 @@ func invalidSize(t *testing.T, fn string) {
 	if fi.Size() <= 0 {
 		t.Fatal(fi.Name(), " has invalid size: %v", fi.Size())
 	}
+}
+
+// Returns a string declaring what was expected and what we got instead.
+// NOTE(rlandau): Prefixes the string with a newline.
+func expectedActual(expected, actual string) string {
+	return "incorrect data in stderr.\n\tExpected:'" + expected + "'\n\tGot:'" + actual + "'"
 }
 
 const (
