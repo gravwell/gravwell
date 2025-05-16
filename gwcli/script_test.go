@@ -96,24 +96,20 @@ func TestMacros(t *testing.T) {
 		// run the test body
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros list --csv --columns=%s", user, password, strings.Join(columns, ","))
 		statusCode, stdout, stderr := executeCmd(t, cmd)
-		nonZeroExit(t, statusCode)
-		if stderr != "" {
-			t.Error("bad stderr:", expectedActual("", stderr))
-		}
 
-		// compare against expected
-		if strings.TrimSpace(stdout) != want {
-			t.Fatal("bad stdout:", expectedActual(want, strings.TrimSpace(stdout)))
-		}
+		// check the outcome
+		nonZeroExit(t, statusCode)
+		checkResult(t, false, "stderr", "", stderr)
+		checkResult(t, true, "stdout", want, strings.TrimSpace(stdout))
 	})
 
 	t.Run("macros create", func(t *testing.T) {
 		var (
 			macroName string = "testname"
-			macroDesc string = "testdesc"
+			macroDesc string = "macro created for automated testing"
 			macroExp  string = "testexpand"
 		)
-		verboseln("\tmacros: create new ")
+		verboseln("\tmacros: create  $" + macroName + " --> %" + macroExp)
 		// fetch the number of macros prior to creation
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -126,9 +122,9 @@ func TestMacros(t *testing.T) {
 
 		// create a new macro from the cli, in script mode
 		cmd := fmt.Sprintf("-u %s --password %s --insecure --script macros create -n %s -d %s -e %s", user, password, macroName, macroDesc, macroExp)
-		statusCode, stdout, stderr := executeCmd(t, cmd)
+		statusCode, _, stderr := executeCmd(t, cmd)
 		nonZeroExit(t, statusCode)
-
+		checkResult(t, false, "stderr", "", stderr)
 		// refetch macros to check the count has increased by one
 		postMacros, err := testclient.GetUserMacros(myInfo.UID)
 		if err != nil {
@@ -137,9 +133,43 @@ func TestMacros(t *testing.T) {
 		if len(postMacros) != len(priorMacros)+1 {
 			t.Fatalf("expected post-create macros len(%v) == pre-create macros len(%v)+1 ", len(postMacros), len(priorMacros))
 		}
+		// TODO parse out macro ID from stdout and ensure it exists in the postMacros list
+	})
+
+	t.Run("macros list --json", func(t *testing.T) {
+		verboseln("\tmacros: list in JSON form after creating a macro")
+		// generate results manually, for comparison
+		myInfo, err := testclient.MyInfo()
+		if err != nil {
+			t.Fatal(err)
+		}
+		// get the current list of macros so we can validate that gwcli turned back the same ones
+		macros, err := testclient.GetUserMacros(myInfo.UID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		columns := []string{"UID", "Global", "Name", "WriteAccess.GIDs", "Description", "Expansion", "Labels"}
+		var want string
+		if json, err := weave.ToJSON(macros, columns); err != nil {
+			t.Fatal(err)
+		} else {
+			want = strings.TrimSpace(json)
+			if want == "" { // empty list command outputs "no data found"
+				want = "no data found"
+			}
+		}
+
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros list --json --columns=%s", user, password, strings.Join(columns, ","))
+		statusCode, stdout, stderr := executeCmd(t, cmd)
+
+		// check the outcome
+		nonZeroExit(t, statusCode)
+		checkResult(t, false, "stderr", "", stderr)
+		checkResult(t, true, "stdout", want, strings.TrimSpace(stdout))
 	})
 
 	t.Run("macros delete (dryrun)", func(t *testing.T) {
+		verboseln("\tmacros: dryrun delete a random macro to confirm it isn't actually deleted")
 		// fetch the macros prior to deletion
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -152,30 +182,22 @@ func TestMacros(t *testing.T) {
 		if len(priorMacros) < 1 {
 			t.Skip("no macros to delete")
 		}
-		// pick a macro for deletion
+		// pick a macro for faux-deletion
 		toDeleteID := priorMacros[0].ID
 		t.Logf("Selecting macro %v (ID: %v) for faux-deletion", priorMacros[0].Name, priorMacros[0].ID)
 
-		// create a new macro from the cli, in script mode
-		args := strings.Split(
-			fmt.Sprintf("-u admin --password changeme --insecure --script macros delete --dryrun --id %v",
-				toDeleteID),
-			" ")
-		errCode := tree.Execute(args)
-		t.Cleanup(func() {
-			connection.End()
-			connection.Client = nil
-		})
-		if errCode != 0 {
-			t.Errorf("expected 0 exit code, got: %v", errCode)
-		}
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros delete --dryrun --id=%d", user, password, toDeleteID)
+		statusCode, _, stderr := executeCmd(t, cmd)
+
+		// check the outcome
+		nonZeroExit(t, statusCode)
+		checkResult(t, false, "stderr", "", stderr)
 
 		// refetch macros to check that count hasn't changed
 		postMacros, err := testclient.GetUserMacros(myInfo.UID)
 		if err != nil {
-			panic(err)
-		}
-		if len(postMacros) != len(priorMacros) {
+			t.Fatal(err)
+		} else if len(postMacros) != len(priorMacros) {
 			t.Fatalf("expected macro count to not change. post count: %v, pre count: %v",
 				len(postMacros), len(priorMacros))
 		}
@@ -193,12 +215,7 @@ func TestMacros(t *testing.T) {
 	})
 
 	t.Run("macros delete [failure: missing id]", func(t *testing.T) {
-		//prepare IO
-		stdoutData, stderrData, err := mockIO()
-		if err != nil {
-			restoreIO()
-			panic(err)
-		}
+		verboseln("\tmacros: submit invalid delete command (missing id)")
 
 		// fetch the macros prior to deletion
 		myInfo, err := testclient.MyInfo()
@@ -206,61 +223,30 @@ func TestMacros(t *testing.T) {
 			panic(err)
 		}
 		priorMacros, err := testclient.GetUserMacros(myInfo.UID)
-		if err != nil {
-			panic(err)
-		}
 		if len(priorMacros) < 1 {
 			t.Skip("no macros to delete")
 		}
-		// pick a macro for deletion
-		toDeleteID := priorMacros[0].ID
-		t.Logf("Selecting macro %v (ID: %v) for faux-deletion", priorMacros[0].Name, priorMacros[0].ID)
 
-		// create a new macro from the cli, in script mode
-		args := strings.Split(
-			"-u admin --password changeme --insecure --script macros delete",
-			" ")
-		errCode := tree.Execute(args)
-		t.Cleanup(func() {
-			connection.End()
-			connection.Client = nil
-		})
-		restoreIO()
-		nonZeroExit(t, errCode)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros delete", user, password)
+		statusCode, stdout, _ := executeCmd(t, cmd)
 
-		results := <-stdoutData
-		resultsErr := <-stderrData
-		if resultsErr == "" {
-			t.Error("empty stderr. Expected error message")
-		}
-		// check that no data was output to stdout in script and -o mode
-		if results != "" {
-			t.Errorf("non-empty stdout. Expected none. Got:\n(%v)\n", results)
-		}
+		// check the outcome
+		nonZeroExit(t, statusCode)
+		checkResult(t, false, "stdout", "", stdout)
 
 		// refetch macros to check that count hasn't changed
 		postMacros, err := testclient.GetUserMacros(myInfo.UID)
 		if err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 		if len(postMacros) != len(priorMacros) {
 			t.Fatalf("expected macro count to not change. post count: %v, pre count: %v",
 				len(postMacros), len(priorMacros))
 		}
-		// ensure the selected macro still exists
-		var found bool = false
-		for _, m := range postMacros {
-			if m.ID == toDeleteID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Fatalf("Did not find ID %v in the post-faux-deletion list", toDeleteID)
-		}
 	})
 
 	t.Run("macros delete", func(t *testing.T) {
+		verboseln("\tmacros: submit valid delete command")
 		// fetch the macros prior to deletion
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -277,23 +263,17 @@ func TestMacros(t *testing.T) {
 		toDeleteID := priorMacros[0].ID
 		t.Logf("Selecting macro %v (ID: %v) for deletion", priorMacros[0].Name, priorMacros[0].ID)
 
-		// create a new macro from the cli, in script mode
-		args := strings.Split(fmt.Sprintf("-u admin --password changeme --insecure --script macros delete --id %v", toDeleteID), " ")
-		errCode := tree.Execute(args)
-		t.Cleanup(func() {
-			connection.End()
-			connection.Client = nil
-		})
-		if errCode != 0 {
-			t.Errorf("expected 0 exit code, got: %v", errCode)
-		}
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros delete --id %v", user, password, toDeleteID)
+		statusCode, _, _ := executeCmd(t, cmd)
 
-		// refetch macros to check the count has increased by one
+		// check the outcome
+		nonZeroExit(t, statusCode)
+
+		// refetch macros to check the count has decreased by one
 		postMacros, err := testclient.GetUserMacros(myInfo.UID)
 		if err != nil {
-			panic(err)
-		}
-		if len(postMacros) != len(priorMacros)-1 {
+			t.Fatal(err)
+		} else if len(postMacros) != len(priorMacros)-1 {
 			t.Fatalf("expected post-delete macros len (%v) == pre-delete macros len-1 (%v)", len(postMacros), len(priorMacros))
 		}
 		// ensure the correct macro was deleted
@@ -315,72 +295,35 @@ func TestMacros(t *testing.T) {
 
 }
 
-// Runs a variety of tests as a user of gwcli, from the scriptable interface.
-// All tests have their STDERR and STDOUT captured for evaluation.
-func TestNonInteractive(t *testing.T) {
-	defer restoreIO() // each test should result before checking results, but ensure a deferred restore
-
-	realStdout = os.Stdout
-	realStderr = os.Stderr
+func TestQueries(t *testing.T) {
+	verboseln("testing queries...")
 
 	// connect to the server for manual calls
 	testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true})
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 	if err = testclient.Login(user, password); err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
 
-	t.Run("query 'tags=gravwell'", func(t *testing.T) {
-		//prepare IO
-		stdoutData, stderrData, err := mockIO()
-		if err != nil {
-			restoreIO()
-			panic(err)
-		}
-
-		// run the test body
-		outfn := "testnoninteractive.query.json"
+	t.Run("query output json to file", func(t *testing.T) {
+		verboseln("\tqueries: querying for data as json and outputting it to a file in foreground")
+		outPath := path.Join(t.TempDir(), "out.json")
 		qry := "tag=gravwell"
-		args := strings.Split("--insecure --script query "+qry+
-			" -o "+outfn+" --json", " ")
 
-		errCode := tree.Execute(args)
-		t.Cleanup(func() {
-			connection.End()
-			connection.Client = nil
-		})
-		restoreIO()
-		if errCode != 0 {
-			t.Errorf("non-zero error code: %v", errCode)
-		}
+		// TODO need to make sure -o is valid before submitting the query
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --json", user, password, qry, outPath)
+		statusCode, stdout, stderr := executeCmd(t, cmd)
+		nonZeroExit(t, statusCode)
+		checkResult(t, false, "stderr", "", stderr)
 
-		resultOut := <-stdoutData
-		resultsErr := <-stderrData
-		if resultsErr != "" {
-			t.Errorf("non-empty stderr:\n(%v)", resultsErr)
-		}
-
-		// slurp the file, check for valid JSON
-		output, err := os.ReadFile(outfn)
-		t.Logf("slurping %v...", outfn)
-		if err != nil {
-			t.Fatal(err)
-		} else if strings.TrimSpace(string(output)) == "" {
-			t.Fatal("empty output file")
-		}
-		// we cannot check json validity because the grav client lib outputs individual JSON
-		// records, not a single blob
-		/*if !json.Valid(output) {
-			t.Errorf("json is not valid")
-		}*/
-
-		sid := skimSID(t, resultOut)
+		// check that the search was as we expected
+		sid := skimSID(t, stdout)
 		if sid == "" {
 			t.Fatal("failed to scan search ID out of stdout")
 		}
-		t.Log("scanned out sid ", sid)
+		t.Logf("scanned out sid %s", sid)
 		// fetch the search
 		si, err := testclient.SearchInfo(fmt.Sprintf("%s", sid))
 		if err != nil {
@@ -396,57 +339,59 @@ func TestNonInteractive(t *testing.T) {
 			t.Errorf("searchID %s turned back an error: %v", sid, si.Error)
 		}
 
-		// clean up
-		if !t.Failed() {
-			os.Remove(outfn)
+		// match item count against actual output
+		if si.ItemCount == 0 {
+			// the file should not exist
+			_, err := os.Stat(outPath)
+			if err == nil || !errors.Is(err, fs.ErrNotExist) {
+				t.Fatalf("no results returned, but %s exists (or an error occurred). Error: %v", outPath, err)
+			}
+		} else {
+			// slurp the file
+			output, err := os.ReadFile(outPath)
+			if err != nil {
+				t.Fatalf("failed to slurp file %s: %v", outPath, err)
+			} else if strings.TrimSpace(string(output)) == "" {
+				t.Fatalf("%s is empty, but the search turned back %d records", outPath, si.ItemCount)
+			}
+			// check that each record is valid JSON
+			var count uint
+			for record := range bytes.SplitSeq(output, []byte{'\n'}) {
+				count += 1
+				if !json.Valid(record) {
+					t.Errorf("'%v' is not valid JSON", record)
+				}
+			}
+			// check the record count matches the search's item count
+			if count != uint(si.ItemCount) {
+				t.Fatalf("incorrect item count in file: %s", expectedActual(si.ItemCount, count))
+			}
 		}
 	})
 
 	t.Run("background query 'tags=gravwell limit 3'", func(t *testing.T) {
-		//prepare IO
-		stdoutData, stderrData, err := mockIO()
-		if err != nil {
-			restoreIO()
-			panic(err)
-		}
-
-		// run the test body
-		outfn := "IShouldNotBeCreated.txt"
-		t.Cleanup(func() { os.Remove(outfn) }) // this should be ineffectual
+		verboseln("\tqueries: submitting a background query")
+		outPath := path.Join(t.TempDir(), "IShouldNotBeCreated.txt")
 		qry := "tag=gravwell"
-		args := strings.Split("--insecure --script query "+qry+
-			" -o "+outfn+" --background", " ")
 
-		errCode := tree.Execute(args)
-		t.Cleanup(func() {
-			connection.End()
-			connection.Client = nil
-		})
-		restoreIO()
-		if errCode != 0 {
-			t.Errorf("non-zero error code: %v", errCode)
-		}
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --background", user, password, qry, outPath)
+		statusCode, stdout, stderr := executeCmd(t, cmd)
+		nonZeroExit(t, statusCode)
+		checkResult(t, false, "stderr", "WARN: ignoring flag --output due to --background", strings.TrimSpace(stderr))
 
 		// ensure the file was *not* created
-		if _, err := os.Stat(outfn); err == nil || !errors.Is(err, fs.ErrNotExist) {
-			t.Errorf("an output file (%v) was created, but should not have been", outfn)
+		if _, err := os.Stat(outPath); err == nil || !errors.Is(err, fs.ErrNotExist) {
+			t.Errorf("an output file (%v) was created, but should not have been", outPath)
 		}
-
-		resultsOut := strings.TrimSpace(<-stdoutData)
-		resultsErr := strings.TrimSpace(<-stderrData)
 
 		// ensure that we were warned about using -o
-		expectedWarning := "WARN: ignoring flag --output due to --background"
-		if !strings.EqualFold(resultsErr, expectedWarning) {
-			t.Errorf("stderr is not as expected.\nExpected:%v\nGot:%v", expectedWarning, resultsErr)
-		}
 
 		// parse out the sid
-		sid := skimSID(t, resultsOut)
+		sid := skimSID(t, stdout)
 		if sid == "" {
 			t.Fatal("failed to scan search ID out of stdout")
 		}
-		t.Log("scanned out sid ", sid)
+		t.Logf("scanned out sid %s", sid)
 		// fetch the search
 		si, err := testclient.SearchInfo(fmt.Sprintf("%s", sid))
 		if err != nil {
@@ -462,70 +407,6 @@ func TestNonInteractive(t *testing.T) {
 			t.Errorf("searchID %s turned back an error: %v", sid, si.Error)
 		}
 	})
-
-	/*t.Run("query reference ID", func(t *testing.T) {
-		// fetch a scheduled query to run
-		ssl, err := testclient.GetSearchHistory()
-		if err != nil {
-			panic(err)
-		} else if len(ssl) < 1 {
-			t.Skip("no existing scheduled searches to test against")
-		}
-		ssguid := ssl[rand.Intn(len(ssl))].UID
-		ssqry := ssl[rand.Intn(len(ssl))].UserQuery
-
-		// prepare IO
-		stdoutData, stderrData, err := mockIO()
-		if err != nil {
-			restoreIO()
-			panic(err)
-		}
-
-		// run the test body
-		outfn := "testnoninteractive.query_reference_ID.csv"
-		args := strings.Split(
-			fmt.Sprintf("--insecure --script query -r %v -o %v --csv", ssguid, outfn),
-			" ")
-
-		errCode := tree.Execute(args)
-		restoreIO()
-		if errCode != 0 {
-			t.Errorf("non-zero error code: %v", errCode)
-		}
-
-		// fetch outputs
-		<-stdoutData
-		resultsErr := <-stderrData
-		if resultsErr != "" {
-			t.Errorf("non-empty stderr:\n(%v)", resultsErr)
-		}
-
-		// check in search history for our expected search
-		prevSearchNumToCheck := 7
-		searches, err := testclient.GetSearchHistoryRange(0, prevSearchNumToCheck)
-		if err != nil {
-			panic(err)
-		} else if len(searches) < 1 {
-			t.Fatalf("found no previous searches")
-		}
-		var found bool
-		for _, s := range searches {
-			if s.UserQuery == ssqry {
-				found = true
-				break
-			}
-		}
-		if !found {
-			t.Fatalf("Failed to find executed query (%v) in past %v searches",
-				ssqry, prevSearchNumToCheck)
-		}
-
-		// clean up
-		if !t.Failed() {
-			os.Remove(outfn)
-		}
-	})*/
-
 }
 
 func TestNonInteractiveQueryFileOut(t *testing.T) {
@@ -848,10 +729,25 @@ func invalidSize(t *testing.T, fn string) {
 	}
 }
 
+// Fails if expected != actual.
+// source is probably "stderr" or "stdout".
+// If fatal, test execution will stop.
+func checkResult(t *testing.T, fatal bool, source, expected, actual string) {
+	t.Helper()
+
+	if expected != actual {
+		if fatal {
+			t.Fatalf("bad %s: %s", source, expectedActual(expected, actual))
+		} else {
+			t.Errorf("bad %s: %s", source, expectedActual(expected, actual))
+		}
+	}
+}
+
 // Returns a string declaring what was expected and what we got instead.
 // NOTE(rlandau): Prefixes the string with a newline.
-func expectedActual(expected, actual string) string {
-	return "incorrect data in stderr.\n\tExpected:'" + expected + "'\n\tGot:'" + actual + "'"
+func expectedActual(expected, actual any) string {
+	return fmt.Sprintf("\n\tExpected:'%v'\n\tGot:'%v'", expected, actual)
 }
 
 const (
