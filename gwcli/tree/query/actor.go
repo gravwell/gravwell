@@ -321,8 +321,29 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 		return "", tea.Sequence(cmds...), nil
 	}
 
-	// check if this is a background query
-	// TODO
+	// handle a background query request rather than entering the query pane
+	if flags.background {
+		warnings := warnBackgroundFlagConflicts(flags)
+		var cmds []tea.Cmd
+		for _, warn := range warnings {
+			cmds = append(cmds, tea.Println(warn))
+		}
+
+		// submit it and instruct mother to return to the prompt on success
+		search, err := connection.StartQuery(qry, -flags.duration, flags.background)
+		if err != nil {
+			return "", tea.Sequence(cmds...), err
+		}
+
+		cmds = append(cmds, tea.Println(BackgroundedQuerySuccess(search.ID)))
+		clilog.Writer.Debugf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", search.ID, search.UID, search.GID, search.EffectiveQuery)
+
+		// set the query child to immediately return when Mother boots the query interface
+		// TODO validate this is all that needs to be (relative to submitQuery)
+		q.mode = quitting
+
+		return "", tea.Sequence(cmds...), err
+	}
 
 	// set fields by flags
 	q.modifiers.durationTI.SetValue(flags.duration.String())
