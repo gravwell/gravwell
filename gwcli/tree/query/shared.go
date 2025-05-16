@@ -9,6 +9,7 @@
 package query
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -25,8 +26,12 @@ Collection of subroutines and pre-formatted strings used by multiple of the thre
 //#region strings
 
 // The given search associated to SID was submitted in the background and our job is done.
-func BackgroundedQuerySuccess(sid string) string {
-	return ("Successfully backgrounded query (ID: " + sid + ")")
+func querySubmissionSuccess(sid string, background bool) string {
+	var fgbg string = "foreground"
+	if background {
+		fgbg = "background"
+	}
+	return fmt.Sprintf("Successfully submitted %s query (ID: %s)", fgbg, sid)
 }
 
 //#endregion strings
