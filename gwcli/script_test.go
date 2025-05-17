@@ -356,8 +356,11 @@ func TestQueries(t *testing.T) {
 			// check that each record is valid JSON
 			var count uint
 			for record := range bytes.SplitSeq(output, []byte{'\n'}) {
+				if strings.TrimSpace(string(record)) == "" {
+					continue
+				}
 				count += 1
-				if !json.Valid(record) {
+				if !json.Valid(record) && string(record) != "[]" { // Go does not consider '[]' valid JSON, but we do
 					t.Errorf("'%v' is not valid JSON", record)
 				}
 			}
