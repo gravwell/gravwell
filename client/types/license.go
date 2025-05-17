@@ -239,10 +239,7 @@ func (li LicenseInfo) UnlimitedIngestEnabled() bool {
 }
 
 func (li LicenseInfo) SSOEnabled() bool {
-	if li.Type.AllFeatures() {
-		return true
-	}
-	return li.Overrides.Set(SingleSignon)
+	return true // everyone gets this now
 }
 
 func (li LicenseInfo) LogbotLLMEnabled() bool {

@@ -5,6 +5,7 @@
  * This software may be modified and distributed under the terms of the
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
+
 package base
 
 import (
@@ -38,14 +39,14 @@ func newStatusUpdater(count, bytes *uint64) (su *statusUpdater, err error) {
 	return
 }
 
-func (su *statusUpdater) Start() (err error) {
+func (su *statusUpdater) Start() error {
 	if su.started {
 		return errors.New("already started")
 	}
 	su.started = true
 	su.wg.Add(1)
 	go su.routine()
-	return
+	return nil
 }
 
 func (su *statusUpdater) Stop() (err error) {
@@ -67,7 +68,7 @@ func (su *statusUpdater) routine() {
 	ts := time.Now()
 	for {
 		select {
-		case _ = <-tmr.C:
+		case <-tmr.C:
 			fmt.Printf("\r")
 			currCount := *su.count
 			currBytes := *su.bytes
@@ -89,5 +90,4 @@ func (su *statusUpdater) printStats(totalBytes, segmentBytes, totalCount, segmen
 		ingest.HumanSize(totalBytes), ingest.HumanCount(totalCount),
 		ingest.HumanRate(segmentBytes, dur),
 		ingest.HumanEntryRate(segmentCount, dur))
-	return
 }

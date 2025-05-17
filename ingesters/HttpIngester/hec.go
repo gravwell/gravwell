@@ -28,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -52,6 +53,7 @@ type hecHandler struct {
 	rawLineBreaker string
 	maxSize        uint
 	debugPosts     bool
+	timeWindow     timegrinder.TimestampWindow
 }
 
 type hecEvent struct {
@@ -226,7 +228,7 @@ loop:
 					ts = entry.FromStandard(extracted)
 				}
 			} else {
-				ts = entry.FromStandard(time.Time(hev.TS))
+				ts = entry.FromStandard(hh.timeWindow.Override(time.Time(hev.TS)))
 			}
 		}
 
@@ -359,7 +361,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 
 	brdr := bufio.NewReader(rdr)
 	var done bool
-	for done == false {
+	for !done {
 		ln, err := brdr.ReadBytes('\n')
 		if len(ln) > 0 {
 			data += len(ln)
@@ -530,7 +532,7 @@ func (hev hecEvent) empty() bool {
 		return false
 	} else if len(hev.Host) > 0 || len(hev.Source) > 0 || len(hev.Sourcetype) > 0 || len(hev.Index) > 0 {
 		return false
-	} else if time.Time(hev.TS).IsZero() != true {
+	} else if !time.Time(hev.TS).IsZero() {
 		return false
 	}
 	return true
