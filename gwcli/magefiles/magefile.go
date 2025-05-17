@@ -11,6 +11,8 @@ The build system for gwcli, built on Mage.
 Because it is self-contained, you can also just use go build inside of the gwcli directory
 (or go build -C gwcli from the top-level gravwell directory.)
 The Magefile serves mostly to corral the testing into a single location.
+
+You can use the envvar MAGEFILE_ENABLE_COLOR if you want pretty colors.
 */
 package main
 
@@ -113,19 +115,18 @@ func TestAll() error {
 	mg.Deps(TestMotherHistory, TestMotherMode, TestMotherMisc)
 
 	verboseln("Testing direct usage via --script...")
-	mg.Deps(TestMain)
-	return nil
+	return TestScript()
 }
 
-// Runs the top-level tests that mimic scripted user input.
-func TestMain() error {
-	const _TIMEOUT time.Duration = 25 * time.Second
-	if err := runTest(_TIMEOUT, "^TestNonInteractive$", "github.com/gravwell/gravwell/v4/gwcli"); err != nil {
+// Calls the tests in script_test for targeting external, automated usage (via --script).
+func TestScript() error {
+	if err := runTest(10*time.Second, "^TestMacros$", "github.com/gravwell/gravwell/v4/gwcli"); err != nil {
 		return err
 	}
-	if err := runTest(_TIMEOUT, "^TestNonInteractiveQueryFileOut$", "github.com/gravwell/gravwell/v4/gwcli"); err != nil {
+	if err := runTest(30*time.Second, "^TestQueries$", "github.com/gravwell/gravwell/v4/gwcli"); err != nil {
 		return err
 	}
+
 	return nil
 }
 
