@@ -48,6 +48,7 @@ require (
 	github.com/jaswdr/faker/v2 v2.3.2
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
 	github.com/klauspost/compress v1.18.0
+	github.com/magefile/mage v1.15.0
 	github.com/miekg/dns v1.1.56
 	github.com/minio/highwayhash v1.0.0
 	github.com/open-networks/go-msgraph v0.3.1
@@ -120,7 +121,6 @@ require (
 	github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
-	github.com/magefile/mage v1.15.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.16 // indirect
