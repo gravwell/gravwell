@@ -15,6 +15,7 @@ package query
 
 import (
 	"fmt"
+
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 
 	"github.com/charmbracelet/bubbles/key"
@@ -71,9 +72,9 @@ func (ev *editorView) update(msg tea.Msg) (cmd tea.Cmd, submit bool) {
 	return t, false
 }
 
-func (va *editorView) view() string {
+func (ev *editorView) view() string {
 	return fmt.Sprintf("%s\n%s\n%s",
 		stylesheet.Header1Style.Render("Query:"),
-		va.ta.View(),
-		stylesheet.ErrStyle.Width(stylesheet.TIWidth).Render(va.err)) // add a width style for wrapping
+		ev.ta.View(),
+		stylesheet.ErrStyle.Width(stylesheet.TIWidth).Render(ev.err)) // add a width style for wrapping
 }

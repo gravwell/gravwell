@@ -26,7 +26,7 @@ Collection of subroutines and pre-formatted strings used by multiple of the thre
 
 // The given search associated to SID was submitted in the background and our job is done.
 func querySubmissionSuccess(sid string, background bool) string {
-	var fgbg string = "foreground"
+	var fgbg = "foreground"
 	if background {
 		fgbg = "background"
 	}

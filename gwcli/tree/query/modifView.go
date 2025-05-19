@@ -127,7 +127,7 @@ func (mv *modifView) update(msg tea.Msg) []tea.Cmd { // TODO switch away from an
 			}
 		}
 	}
-	var cmds []tea.Cmd = make([]tea.Cmd, 1)
+	var cmds = make([]tea.Cmd, 1)
 	mv.durationTI, cmds[0] = mv.durationTI.Update(msg)
 
 	return cmds

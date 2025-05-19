@@ -7,7 +7,7 @@
  **************************************************************************/
 
 /*
-Core query module
+Package query represents the tools used to compose and submit queries to a Gravwell backend.
 
 Query is important and complex enough to be broken into multiple files; this is the shared and central module entrypoint.
 
@@ -364,7 +364,7 @@ type schedule struct {
 //
 // Errors are logged to clilogger internally
 func openFile(path string, append bool) (*os.File, error) {
-	var flags int = os.O_WRONLY | os.O_CREATE
+	var flags = os.O_WRONLY | os.O_CREATE
 	if append { // check append
 		flags |= os.O_APPEND
 	} else {
@@ -432,9 +432,9 @@ func fetchTextResults(s *grav.Search) ([]types.SearchEntry, error) {
 	// return results for output to terminal
 	// batch results until we have the last of them
 	var (
-		results []types.SearchEntry = make([]types.SearchEntry, 0, pageSize)
-		low     uint64              = 0
-		high    uint64              = pageSize
+		results        = make([]types.SearchEntry, 0, pageSize)
+		low     uint64 = 0
+		high    uint64 = pageSize
 	)
 	for { // accumulate the results
 		r, err := connection.Client.GetTextResults(*s, low, high)
