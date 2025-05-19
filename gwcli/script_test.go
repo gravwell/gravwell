@@ -104,9 +104,9 @@ func TestMacros(t *testing.T) {
 
 	t.Run("macros create", func(t *testing.T) {
 		var (
-			macroName string = "testname"
-			macroDesc string = "macro created for automated testing"
-			macroExp  string = "testexpand"
+			macroName = "testname"
+			macroDesc = "macro created for automated testing"
+			macroExp  = "testexpand"
 		)
 		verboseln("\tmacros: create  $" + macroName + " --> %" + macroExp)
 		// fetch the number of macros prior to creation
@@ -201,7 +201,7 @@ func TestMacros(t *testing.T) {
 				len(postMacros), len(priorMacros))
 		}
 		// ensure the selected macro still exists
-		var found bool = false
+		var found = false
 		for _, m := range postMacros {
 			if m.ID == toDeleteID {
 				found = true
@@ -222,6 +222,9 @@ func TestMacros(t *testing.T) {
 			panic(err)
 		}
 		priorMacros, err := testclient.GetUserMacros(myInfo.UID)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if len(priorMacros) < 1 {
 			t.Skip("no macros to delete")
 		}
@@ -324,7 +327,7 @@ func TestQueries(t *testing.T) {
 		}
 		t.Logf("scanned out sid %s", sid)
 		// fetch the search
-		si, err := testclient.SearchInfo(fmt.Sprintf("%s", sid))
+		si, err := testclient.SearchInfo(sid)
 		if err != nil {
 			t.Fatalf("failed to get information on search %s", sid)
 		}
@@ -395,7 +398,7 @@ func TestQueries(t *testing.T) {
 		}
 		t.Logf("scanned out sid %s", sid)
 		// fetch the search
-		si, err := testclient.SearchInfo(fmt.Sprintf("%s", sid))
+		si, err := testclient.SearchInfo("%s")
 		if err != nil {
 			t.Fatalf("failed to get information on search %s", sid)
 		}
@@ -413,7 +416,7 @@ func TestQueries(t *testing.T) {
 	t.Run("query output append to file", func(t *testing.T) {
 		verboseln("\tqueries: submitting a query and appending results to an existing file")
 
-		var outPath string = path.Join(t.TempDir(), "append.out")
+		var outPath = path.Join(t.TempDir(), "append.out")
 		// populate the file with some garbage data
 		var baseData strings.Builder
 		if _, err := baseData.WriteString("Hello World"); err != nil {
