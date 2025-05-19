@@ -14,9 +14,10 @@ package colorizer
 
 import (
 	"fmt"
+	"strconv"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -25,7 +26,7 @@ import (
 
 // tea.Printf wrapper that colors the output as an error
 func ErrPrintf(format string, a ...interface{}) tea.Cmd {
-	return tea.Printf(stylesheet.ErrStyle.Render(fmt.Sprintf(format, a...)))
+	return tea.Printf("%s", stylesheet.ErrStyle.Render(fmt.Sprintf(format, a...)))
 }
 
 // Given a command, returns its name appropriately colored by its group (action or nav).

@@ -11,11 +11,12 @@ package list
 import (
 	"errors"
 	"fmt"
+	"strconv"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-	"strconv"
 
 	"github.com/google/uuid"
 	grav "github.com/gravwell/gravwell/v4/client"
@@ -66,7 +67,7 @@ func listScheduledSearch(c *grav.Client, fs *pflag.FlagSet) ([]types.ScheduledSe
 
 		// both have failed, error out
 		errString := fmt.Sprintf("failed to parse %v as a uuid or int32 id", untypedID)
-		clilog.Writer.Infof(errString)
+		clilog.Writer.Infof("%s", errString)
 
 		return nil, errors.New(errString)
 	}
