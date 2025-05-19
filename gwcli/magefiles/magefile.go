@@ -1,3 +1,5 @@
+//go:build mage
+
 /*************************************************************************
  * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
