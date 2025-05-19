@@ -398,7 +398,7 @@ func TestQueries(t *testing.T) {
 		}
 		t.Logf("scanned out sid %s", sid)
 		// fetch the search
-		si, err := testclient.SearchInfo("%s")
+		si, err := testclient.SearchInfo(sid)
 		if err != nil {
 			t.Fatalf("failed to get information on search %s", sid)
 		}
