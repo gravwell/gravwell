@@ -96,7 +96,7 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 	// login is attempted via JWT token first
 	// If any stage in the process fails
 	// the error is logged and we fall back to flags and prompting
-	if err := LoginViaToken(); err != nil {
+	if err := loginViaToken(); err != nil {
 		// jwt token failure; log and move on
 		clilog.Writer.Warnf("Failed to login via JWT token: %v", err)
 
@@ -139,10 +139,10 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 	return nil
 }
 
-// Attempts to login via JWT token in the user's config directory.
+// loginViaToken attempts to login via JWT token in the user's config directory.
 // Returns an error on failures. This error should be considered nonfatal and the user logged in via
 // an alternative method instead.
-func LoginViaToken() (err error) {
+func loginViaToken() (err error) {
 	var tknbytes []byte
 	// NOTE the reversal of standard error checking (`err == nil`)
 	if tknbytes, err = os.ReadFile(cfgdir.DefaultTokenPath); err == nil {

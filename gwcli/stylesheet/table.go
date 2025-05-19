@@ -42,7 +42,7 @@ var (
 	}
 )
 
-// Generate a styled table skeleton
+// Table generates the skeleton of a properly styled table
 func Table() *table.Table {
 	tbl := table.New().
 		Border(Tbl.BorderType).

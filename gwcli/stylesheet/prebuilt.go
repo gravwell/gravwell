@@ -8,13 +8,13 @@
 
 package stylesheet
 
-import "github.com/charmbracelet/bubbles/textinput"
-
 /**
  * Prebuilt, commonly-used models for stylistic consistency.
  */
 
-// Creates a textinput with common attributes.
+import "github.com/charmbracelet/bubbles/textinput"
+
+// NewTI creates a textinput with common attributes.
 func NewTI(defVal string, optional bool) textinput.Model {
 	ti := textinput.New()
 	ti.Prompt = ""

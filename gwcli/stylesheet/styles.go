@@ -6,6 +6,10 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package stylesheet managing the visual effects of gwcli.
+// Most styling is via lipgloss and encompasses colors, alignment, borders, etc.
+//
+// The stylesheet package should also be used for maintaining consistent visuals via stylized skeletons and pre-built elements.
 package stylesheet
 
 // miscellaneous styles

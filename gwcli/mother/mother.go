@@ -7,7 +7,7 @@
  **************************************************************************/
 
 /*
-Mother is the heart and brain of the interactive functionality of gwcli.
+Package mother is the heart and brain of the interactive functionality of gwcli.
 It is the top-level implementation of tea.Model and drives interactive tree navigation as well as
 managing of child processing (Actions).
 
@@ -50,9 +50,11 @@ func init() {
 	initBuiltins() // need init to avoid an initialization cycle
 }
 
-// Mother, a struct satisfying the tea.Model interface and containing information required for
-// cobra.Command tree traversal.
-// Facilitates interactive use of gwcli.
+// Mother is a struct satisfying the tea.Model interface and containing information required for cobra.Command tree traversal.
+//
+// Serves as the beating heart of interactive gwcli.
+//
+// Mother is considered a singleton (specifically, the app itself) and should not be passed around except by BubbleTea.
 type Mother struct {
 	mode mode
 
@@ -152,7 +154,7 @@ func (m Mother) Init() tea.Cmd {
 	return uniques.FetchWindowSize
 }
 
-// Mother's Update is always the entrypoint for BubbleTea to drive.
+// Update (specifically Mother's Update()) is always the entrypoint for BubbleTea to drive.
 // It checks for kill keys (to disallow a runaway/ill-designed child), then either passes off
 // control (if in handoff mode) or handles the input itself (if in prompt mode).
 func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -267,8 +269,8 @@ func (m Mother) View() string {
 
 	var (
 		filtered []string
-		allSgt   []string = m.ti.AvailableSuggestions()
-		curInput string   = m.ti.Value()
+		allSgt   = m.ti.AvailableSuggestions()
+		curInput = m.ti.Value()
 		lastRune rune
 	)
 
@@ -297,7 +299,7 @@ func (m Mother) View() string {
 	}
 
 	return fmt.Sprintf("%s%v\n%v",
-		CommandPath(&m), m.ti.View(), strings.Join(filtered, " "))
+		commandPath(&m), m.ti.View(), strings.Join(filtered, " "))
 }
 
 //#endregion
@@ -378,7 +380,7 @@ func (m *Mother) pushToHistory() (println tea.Cmd, userIn string, err error) {
 
 // Returns a composition resembling the full prompt.
 func (m *Mother) promptString() string {
-	return fmt.Sprintf("%s> %s", CommandPath(m), m.ti.Value())
+	return fmt.Sprintf("%s> %s", commandPath(m), m.ti.Value())
 }
 
 // helper subroutine for processInput
@@ -491,9 +493,9 @@ func quoteSplitTokens(oldTokens []string) (strippedTokens []string) {
 
 // Call *after* moving to update the current command suggestions
 func (m *Mother) updateSuggestions() {
-	var suggest []string = make([]string, len(builtins))
+	var suggest = make([]string, len(builtins))
 	// add builtins
-	var i int = 0
+	var i = 0
 	for k := range builtins {
 		suggest[i] = k
 		i++
@@ -522,7 +524,7 @@ func (m *Mother) updateSuggestions() {
 // Very similar to the tree action at root.
 func plumbCommand(nav *navCmd) []string {
 	self := nav.Name()
-	var suggests []string = []string{self}
+	var suggests = []string{self}
 	for _, child := range nav.Commands() {
 		switch child.GroupID {
 		case group.NavID:
@@ -561,7 +563,7 @@ func up(dir *cobra.Command) *cobra.Command {
 	return dir.Parent()
 }
 
-// Returns a tea.Println Cmd containing the context help for the given command.
+// TeaCmdContextHelp returns a tea.Println Cmd containing the context help for the given command.
 //
 // Structure:
 //
@@ -626,8 +628,8 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 	return tea.Println(strings.TrimSuffix(s.String(), "\n"))
 }
 
-// Returns the present working directory, set to the primary color
-func CommandPath(m *Mother) string {
+// commandPath returns the present working directory, set to the primary color.
+func commandPath(m *Mother) string {
 	return stylesheet.PromptStyle.Render(m.pwd.CommandPath())
 }
 

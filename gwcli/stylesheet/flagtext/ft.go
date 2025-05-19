@@ -7,7 +7,7 @@
  **************************************************************************/
 
 /*
-Package flagtext (typically abbreviated to just ft) provides a repository of strings shared by flags across gwcli to enforce output consistency.
+Package ft (flagtext) provides a repository of strings shared by flags across gwcli to enforce output consistency.
 While all are constant and *should not be modified at runtime*, it is organized as a struct for clearer access.
 
 Struct parity between Name and Usage is not guaranteed; some usages may vary too much to warrant
@@ -22,7 +22,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// Common flag names used across a variety of actions
+// Name struct contains common flag names used across a variety of actions.
 var Name = struct {
 	Dryrun    string
 	Name      string
@@ -61,7 +61,7 @@ var Name = struct {
 	Table:  "table",
 }
 
-// Common flag usage description used across a variety of actions
+// Usage contains shared, common flag usage description used across a variety of actions.
 // The compiler should inline all of these functions so they are overhead-less.
 var Usage = struct {
 	Dryrun    string

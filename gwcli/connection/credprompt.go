@@ -27,8 +27,9 @@ const (
 	mfa mode = iota
 )*/
 
-// Run a tiny tea.Model that collects username and password.
-// Not intended to be run while Mother is running.
+// CredPrompt runs a tiny tea.Model that collects username and password.
+//
+// ! Not intended to be run while Mother is running.
 func CredPrompt(user, pass string) (tea.Model, error) {
 	c := credModel{
 		//mode:         u_p,

@@ -89,7 +89,7 @@ func init() {
 // If not set, running mage will list available targets
 //var Default = Build
 
-// Compiles gwcli for your local architecture and outputs it to pwd.
+// Build compiles gwcli for your local architecture and outputs it to pwd.
 func Build() error {
 	pwd, err := os.Getwd()
 	if err != nil {
@@ -103,7 +103,7 @@ func Build() error {
 	return cmd.Run()
 }
 
-// Runs all gwcli tests, according to their subsystem.
+// TestAll runs all gwcli tests, according to their subsystem.
 func TestAll() error {
 	verboseln("Testing query components...")
 	mg.Deps(TestQuery, TestDatascope)
@@ -118,7 +118,7 @@ func TestAll() error {
 	return TestScript()
 }
 
-// Calls the tests in script_test for targeting external, automated usage (via --script).
+// TestScript calls the tests in script_test for targeting external, automated usage (via --script).
 func TestScript() error {
 	if err := runTest(10*time.Second, "^TestMacros$", "github.com/gravwell/gravwell/v4/gwcli"); err != nil {
 		return err
@@ -130,7 +130,7 @@ func TestScript() error {
 	return nil
 }
 
-// Tests the Query system.
+// TestQuery tests executing queries via gwcli.
 func TestQuery() error {
 	const _TIMEOUT time.Duration = 20 * time.Second
 	if err := runTest(_TIMEOUT, "^Test_tryQuery$", "github.com/gravwell/gravwell/v4/gwcli/tree/query"); err != nil {
@@ -144,7 +144,7 @@ func TestQuery() error {
 	return nil
 }
 
-// Tests the Datascope query subsystem.
+// TestDatascope tests the Datascope query subsystem.
 func TestDatascope() error {
 	const _TIMEOUT time.Duration = 4 * time.Minute
 	if err := runTest(_TIMEOUT, "^TestKeepAlive$", "github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"); err != nil {
@@ -154,7 +154,7 @@ func TestDatascope() error {
 	return nil
 }
 
-// Tests the scaffold builder functions.
+// TestScaffold tests the scaffold builder functions.
 func TestScaffold() error {
 	const _TIMEOUT time.Duration = 30 * time.Second
 	if err := runTest(_TIMEOUT, "^Test_format_String$", "github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"); err != nil {
@@ -164,7 +164,7 @@ func TestScaffold() error {
 	return nil
 }
 
-// Tests Mother's history system.
+// TestMotherHistory tests Mother's history system.
 func TestMotherHistory() error {
 	const _TIMEOUT time.Duration = 30 * time.Second
 	if err := runTest(_TIMEOUT, "",
@@ -175,6 +175,7 @@ func TestMotherHistory() error {
 	return nil
 }
 
+// TestMotherMode runs tests for mother's mode handling.
 func TestMotherMode() error {
 	const _TIMEOUT time.Duration = 30 * time.Second
 	if err := runTest(_TIMEOUT, "",
@@ -185,7 +186,7 @@ func TestMotherMode() error {
 	return nil
 }
 
-// Runs tests for Mother that are not otherwise sub-divided.
+// TestMotherMisc runs tests for Mother that are not otherwise sub-divided.
 func TestMotherMisc() error {
 	const _TIMEOUT time.Duration = 30 * time.Second
 	if err := runTest(_TIMEOUT, "",
