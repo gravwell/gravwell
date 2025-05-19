@@ -11,9 +11,9 @@ package scaffoldcreate
 import (
 	"errors"
 
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-
 	"github.com/charmbracelet/bubbles/textinput"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+
 	"github.com/spf13/pflag"
 )
 
@@ -55,7 +55,7 @@ func NewField(req bool, title string, order int) Field {
 		Required: req,
 		Title:    title,
 		Type:     Text,
-		FlagName: uniques.DeriveFlagName(title),
+		FlagName: ft.DeriveFlagName(title),
 		Order:    order}
 	return f
 }
@@ -77,7 +77,7 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 	var flags pflag.FlagSet
 	for _, f := range fields {
 		if f.FlagName == "" {
-			f.FlagName = uniques.DeriveFlagName(f.Title)
+			f.FlagName = ft.DeriveFlagName(f.Title)
 		}
 
 		// map fields to their flags

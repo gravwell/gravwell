@@ -44,19 +44,19 @@ func scheduleQuery(flags *queryflags, validatedQry string) (ssid int32, warnings
 	if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
 		warnings = make([]string, 0)
 		if flags.outfn != "" {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.Output, ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Output, ft.Name.Frequency))
 		}
 		if flags.background {
-			warnings = append(warnings, uniques.WarnFlagIgnore("background", ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore("background", ft.Name.Frequency))
 		}
 		if flags.append {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.Append, ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Append, ft.Name.Frequency))
 		}
 		if flags.json {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.JSON, ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.JSON, ft.Name.Frequency))
 		}
 		if flags.csv {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.CSV, ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.CSV, ft.Name.Frequency))
 		}
 	}
 
@@ -104,16 +104,16 @@ func warnBackgroundFlagConflicts(flags queryflags) (warnings []string) {
 	if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
 		warnings = make([]string, 0)
 		if flags.outfn != "" {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.Output, "background")+"\n")
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Output, "background")+"\n")
 		}
 		if flags.append {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.Append, "background")+"\n")
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Append, "background")+"\n")
 		}
 		if flags.json {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.JSON, "background")+"\n")
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.JSON, "background")+"\n")
 		}
 		if flags.csv {
-			warnings = append(warnings, uniques.WarnFlagIgnore(ft.Name.CSV, "background")+"\n")
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.CSV, "background")+"\n")
 		}
 	}
 

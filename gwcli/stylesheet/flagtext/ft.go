@@ -15,7 +15,12 @@ sharing a base string.
 */
 package ft
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Common flag names used across a variety of actions
 var Name = struct {
@@ -99,4 +104,24 @@ var Usage = struct {
 	JSON:   "display results as JSON.\nMutually exclusive with --csv, --table.",
 	Table: "display results in a fancy table.\nMutually exclusive with --json, --csv.\n" +
 		"Default if no format flags are given.",
+}
+
+// WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.
+func WarnFlagIgnore(ignoredFlag, causeFlag string) string {
+	return fmt.Sprintf("WARN: ignoring flag --%v due to --%v", ignoredFlag, causeFlag)
+}
+
+// DeriveFlagName returns a consistent, sanitized string, usable as a flag name.
+// Lower-cases the name and maps special characters to '-'.
+// Used to ensure consistency.
+func DeriveFlagName(title string) string {
+	title = strings.ToLower(title)
+	title = strings.Map(func(r rune) rune {
+		switch r {
+		case '/', '\'', '"', '|', ' ':
+			return '-'
+		}
+		return r
+	}, title)
+	return title
 }

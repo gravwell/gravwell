@@ -148,7 +148,7 @@ func generateFlagSet(cfg Config, singular string) pflag.FlagSet {
 	var fs pflag.FlagSet
 	for _, field := range cfg {
 		if field.FlagName == "" {
-			field.FlagName = uniques.DeriveFlagName(field.Title)
+			field.FlagName = ft.DeriveFlagName(field.Title)
 		}
 
 		// map fields to their flags

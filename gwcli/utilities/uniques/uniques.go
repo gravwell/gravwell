@@ -13,7 +13,6 @@ package uniques
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"unicode"
@@ -27,11 +26,6 @@ const (
 	// the string format the Gravwell client requires
 	SearchTimeFormat = "2006-01-02T15:04:05.999999999Z07:00"
 )
-
-// Returns a string about ignoring a flag due to causeFlag's existence
-func WarnFlagIgnore(ignoredFlag, causeFlag string) string {
-	return fmt.Sprintf("WARN: ignoring flag --%v due to --%v", ignoredFlag, causeFlag)
-}
 
 // CronRuneValidator provides a validator function for a TI intended to consume cron-like input.
 // For efficiencies sake, it only evaluates the end rune.
@@ -73,18 +67,4 @@ func CronRuneValidator(s string) error {
 func FetchWindowSize() tea.Msg {
 	w, h, _ := term.GetSize(os.Stdin.Fd())
 	return tea.WindowSizeMsg{Width: w, Height: h}
-}
-
-// DeriveFlagName returns a consistent, sanitized string, usable as a flag name.
-// Used to ensure consistency.
-func DeriveFlagName(title string) string {
-	title = strings.ToLower(title)
-	title = strings.Map(func(r rune) rune {
-		switch r {
-		case '/', '\'', '"', '|', ' ':
-			return '-'
-		}
-		return r
-	}, title)
-	return title
 }
