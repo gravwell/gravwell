@@ -6,18 +6,17 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Datascope is tabbed, scrolling viewport with a paginator built into the results view.
-// It displays and manages results from a search.
-// As the user pages through, the viewport automatically updates with the contents of the new page.
-// The first tab contains the actual results, while the following tabs provide controls for
-// downloading the results and scheduling the query
-//
-// Like busywait, this can be invoked by Cobra as a standalone tea.Model or as a child of an action
-// spawned by Mother.
-//
-// ! There can only be one instance of Datascope running within a giving program; you should not
-// compose datascopes from multiple searches. This is a caveat of the self-destructive goroutine
-// used to keep the search object from aging out on the Gravwell backend.
+/*
+Package datascope implements a tabbed, scrolling viewport with a paginator built into the results view.
+
+It displays and manages results from a search.
+As the user pages through, the viewport automatically updates with the contents of the new page.
+The first tab contains the actual results, while the following tabs provide controls for
+downloading the results and scheduling the query
+
+Like busywait, this can be invoked by Cobra as a standalone tea.Model or as a child of an action
+spawned by Mother.
+*/
 package datascope
 
 import (
@@ -41,7 +40,7 @@ import (
 // If the given done channel is closed (or any value is received on it), the goroutine will return and pings will stop.
 func keepAlive(search *grav.Search, done chan bool) {
 	var mysid = search.ID
-	var pingFreq time.Duration = search.Interval() / 2 // ping twice per pre-set interval
+	var pingFreq = search.Interval() / 2 // ping twice per pre-set interval
 	for {
 		// check if we are being signalled to be done
 		select {
@@ -83,7 +82,7 @@ type DataScope struct {
 
 type DataScopeOption func(*DataScope) error
 
-// Returns a new DataScope instance based on the given data array.
+// NewDataScope returns a new DataScope instance based on the given data array.
 // If mother is running, this subroutine will launch her into the alt screen buffer and query the
 // terminal for its size.
 // Table mode indicates if the results should be displayed in a tabular method, replacing the normal
@@ -153,7 +152,7 @@ func NewDataScope(data []string, motherRunning bool,
 
 //#region constructor options
 
-// Prep-populate the download tab's values and, if able, automatically download the results in the
+// WithAutoDownload prep-populates the download tab's values and, if able, automatically download the results in the
 // given format.
 func WithAutoDownload(outfn string, append, json, csv bool) DataScopeOption {
 	return func(ds *DataScope) error {
@@ -175,7 +174,7 @@ func WithAutoDownload(outfn string, append, json, csv bool) DataScopeOption {
 	}
 }
 
-// Pre-populate the schedule tab's values and, if able, automatically schedule the query.
+// WithSchedule pre-populates the schedule tab's values and, if able, automatically schedule the query.
 func WithSchedule(cronfreq, name, desc string) DataScopeOption {
 	return func(ds *DataScope) error {
 		ds.schedule = initScheduleTab(cronfreq, name, desc)
@@ -189,10 +188,12 @@ func WithSchedule(cronfreq, name, desc string) DataScopeOption {
 
 //#endregion
 
+// Init is unused in Datascope.
 func (s DataScope) Init() tea.Cmd {
 	return nil
 }
 
+// Update handles incoming keys, typically passing them to the update function for the current tab.
 func (s DataScope) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// mother takes care of kill keys if she is running
 	if !s.motherRunning {
@@ -237,6 +238,7 @@ func (s DataScope) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return s, s.tabs[s.activeTab].updateFunc(&s, msg)
 }
 
+// View displays the view function of the current tab.
 func (s DataScope) View() string {
 	if s.showTabs {
 		return s.renderTabs(s.rawWidth) + "\n" + s.tabs[s.activeTab].viewFunc(&s)
@@ -244,7 +246,7 @@ func (s DataScope) View() string {
 	return s.tabs[s.activeTab].viewFunc(&s)
 }
 
-// Creates a new bubble tea program, in alt buffer mode, running only the DataScope.
+// CobraNew creates a new bubble tea program, in alt buffer mode, running only the DataScope.
 // For use from Cobra.Run() subroutines.
 // Start the returned program via .Run().
 func CobraNew(data []string, search *grav.Search, table bool, opts ...DataScopeOption,
@@ -274,7 +276,7 @@ func (s *DataScope) recalculateWindowMargins(rawWidth, rawHeight int) {
 	// save the heights
 	s.rawWidth, s.rawHeight = rawWidth, rawHeight
 
-	var clippedHeight int = rawHeight
+	var clippedHeight = rawHeight
 	if s.showTabs {
 		clippedHeight -= lipgloss.Height(s.renderTabs(s.rawWidth))
 	}

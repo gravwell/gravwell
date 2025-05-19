@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+/* Package storage defines a basic action for fetching indexer storage info. */
 package storage
 
 import (

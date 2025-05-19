@@ -6,24 +6,24 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package delete
+package extractors
 
 import (
 	"errors"
 	"fmt"
-	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"slices"
 	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 )
 
-func NewExtractorDeleteAction() action.Pair {
+func newExtractorDeleteAction() action.Pair {
 	return scaffolddelete.NewDeleteAction("extractor", "extractors",
 		del, fetch)
 }

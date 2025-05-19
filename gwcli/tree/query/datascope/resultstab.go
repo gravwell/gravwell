@@ -14,10 +14,11 @@ package datascope
 
 import (
 	"fmt"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"strconv"
 	"strings"
+
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/paginator"
@@ -97,9 +98,9 @@ func (s *DataScope) setResultsDisplayed() {
 	start, end := s.results.pager.GetSliceBounds(len(s.results.data))
 	data := s.results.data[start:end]
 
-	// apply alterating color scheme
+	// apply alternating color scheme
 	var bldr strings.Builder
-	var trueIndex int = start // index of full results, between start and end
+	var trueIndex = start // index of full results, between start and end
 	for _, d := range data {
 		bldr.WriteString(colorizer.Index(trueIndex+1) + ":")
 		if trueIndex%2 == 0 {

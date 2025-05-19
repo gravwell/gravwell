@@ -6,17 +6,18 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package create
+package extractors
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/google/uuid"
@@ -25,18 +26,18 @@ import (
 )
 
 const (
-	kname   = "name"
-	kdesc   = "desc"
-	kmodule = "module"
-	ktags   = "tags"
-	kparams = "params"
-	kargs   = "args"
-	klabels = "labels"
+	createNameKey   = "name"
+	createDescKey   = "desc"
+	createModuleKey = "module"
+	createTagsKey   = "tags"
+	createParamsKey = "params"
+	createArgsKey   = "args"
+	createLabelsKey = "labels"
 )
 
-func NewExtractorsCreateAction() action.Pair {
+func newExtractorsCreateAction() action.Pair {
 	fields := scaffoldcreate.Config{
-		kname: scaffoldcreate.Field{
+		createNameKey: scaffoldcreate.Field{
 			Required:      true,
 			Title:         "name",
 			Usage:         "name of the new extractor",
@@ -45,7 +46,7 @@ func NewExtractorsCreateAction() action.Pair {
 			FlagShorthand: 'n',
 			Order:         100,
 		},
-		kdesc: scaffoldcreate.Field{
+		createDescKey: scaffoldcreate.Field{
 			Required:      true,
 			Title:         "description",
 			Usage:         "description of the new extractor",
@@ -54,7 +55,7 @@ func NewExtractorsCreateAction() action.Pair {
 			FlagShorthand: 'd',
 			Order:         90,
 		},
-		kmodule: scaffoldcreate.Field{
+		createModuleKey: scaffoldcreate.Field{
 			Required: true,
 			Title:    "module",
 			Usage: "extraction module to use. Available modules:\n" +
@@ -99,7 +100,7 @@ func NewExtractorsCreateAction() action.Pair {
 			}, */
 
 		},
-		ktags: scaffoldcreate.Field{
+		createTagsKey: scaffoldcreate.Field{
 			Required:      true,
 			Title:         "tags",
 			Usage:         "tags this ax will extract from. There can only be one extractor per tag.",
@@ -125,7 +126,7 @@ func NewExtractorsCreateAction() action.Pair {
 				return *ti
 			},
 		},
-		kparams: scaffoldcreate.Field{
+		createParamsKey: scaffoldcreate.Field{
 			Required:     false,
 			Title:        "params/regex",
 			Usage:        "",
@@ -135,7 +136,7 @@ func NewExtractorsCreateAction() action.Pair {
 
 			Order: 60,
 		},
-		kargs: scaffoldcreate.Field{
+		createArgsKey: scaffoldcreate.Field{
 			Required:     false,
 			Title:        "arguments/options",
 			Usage:        "arguments/options on this ax",
@@ -145,7 +146,7 @@ func NewExtractorsCreateAction() action.Pair {
 
 			Order: 50,
 		},
-		klabels: scaffoldcreate.Field{
+		createLabelsKey: scaffoldcreate.Field{
 			Required:     false,
 			Title:        "labels/categories",
 			Usage:        "arguments/options on this ax",
@@ -164,13 +165,13 @@ func NewExtractorsCreateAction() action.Pair {
 func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values, fs *pflag.FlagSet) (any, string, error) {
 	// no need to nil check; Required boolean enforces that for us
 	axd := types.AXDefinition{
-		Name:   vals[kname],
-		Desc:   vals[kdesc],
-		Module: vals[kmodule],
-		Tags:   strings.Split(strings.Replace(vals[ktags], " ", "", -1), ","),
-		Params: vals[kparams],
-		Args:   vals[kargs],
-		Labels: strings.Split(strings.Replace(vals[klabels], " ", "", -1), ","),
+		Name:   vals[createNameKey],
+		Desc:   vals[createDescKey],
+		Module: vals[createModuleKey],
+		Tags:   strings.Split(strings.Replace(vals[createTagsKey], " ", "", -1), ","),
+		Params: vals[createParamsKey],
+		Args:   vals[createArgsKey],
+		Labels: strings.Split(strings.Replace(vals[createLabelsKey], " ", "", -1), ","),
 	}
 
 	// check for dryrun

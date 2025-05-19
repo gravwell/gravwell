@@ -1,3 +1,12 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+/* Package stats defines a basic action for fetching indexer statistics. */
 package stats
 
 import (
@@ -44,7 +53,7 @@ func list(c *grav.Client, fs *pflag.FlagSet) ([]namedStats, error) {
 	ns = make([]namedStats, len(stats))
 
 	// wrap the results in namedStats
-	var i int = 0
+	var i = 0
 	for k, v := range stats {
 		ns[i] = namedStats{Indexer: k, Stats: *v.Stats}
 		i += 1

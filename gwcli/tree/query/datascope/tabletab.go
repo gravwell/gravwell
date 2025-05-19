@@ -57,7 +57,7 @@ func initTableTab(data []string) tableTab {
 		clilog.Writer.Debugf("Added column %v (key: %v)", columns[i].Title(), columns[i].Key())
 	}
 	// build rows list
-	var rows []table.Row = make([]table.Row, len(data)-1)
+	var rows = make([]table.Row, len(data)-1)
 	for i, r := range data[1:] {
 		cells := strings.Split(r, sep)
 		// map each row cell to its column

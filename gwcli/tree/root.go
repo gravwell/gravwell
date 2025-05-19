@@ -7,9 +7,10 @@
  **************************************************************************/
 
 /*
-Root node of the command tree and the true "main".
+Package tree supplies the root node of the command tree and the true "main" function.
 Initializes itself and `Executes()`, triggering Cobra to assemble itself.
 All invocations of the program operate via root, whether or not it hands off control to Mother.
+All singletons are instantiated here or via the cobra pre-run.
 */
 package tree
 
@@ -71,7 +72,7 @@ func ppre(cmd *cobra.Command, args []string) error {
 	return EnforceLogin(cmd, args)
 }
 
-// Logs the client into the Gravwell instance dictated by the --server flag.
+// EnforceLogin initializes the connection singleton, which logs the client into the Gravwell instance dictated by the --server flag.
 // Safe (ineffectual) to call if already logged in.
 func EnforceLogin(cmd *cobra.Command, args []string) error {
 	if connection.Client == nil { // if we just started, initialize connection
@@ -127,7 +128,7 @@ func ppost(cmd *cobra.Command, args []string) error {
 	return connection.End()
 }
 
-// Generate Flags populates all root-relevant flags (ergo global and root-local flags)
+// GenerateFlags populates all root-relevant flags (ergo global and root-local flags)
 func GenerateFlags(root *cobra.Command) {
 	// global flags
 	root.PersistentFlags().Bool("script", false,

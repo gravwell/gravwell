@@ -161,7 +161,7 @@ func updateDownload(s *DataScope, msg tea.Msg) tea.Cmd {
 	}
 
 	// pass onto the TIs
-	var cmds []tea.Cmd = make([]tea.Cmd, 2)
+	var cmds = make([]tea.Cmd, 2)
 	s.download.outfileTI, cmds[0] = s.download.outfileTI.Update(msg)
 	s.download.recordsTI, cmds[1] = s.download.recordsTI.Update(msg)
 
@@ -234,7 +234,7 @@ func (s *DataScope) dl(fn string) (result string, success bool) {
 	baseErrorResultString := "Failed to save results to file '" + fn + "': "
 
 	// check append
-	var flags int = os.O_CREATE | os.O_WRONLY
+	var flags = os.O_CREATE | os.O_WRONLY
 	if s.download.append {
 		flags |= os.O_APPEND
 	} else {
@@ -263,7 +263,7 @@ func (s *DataScope) dl(fn string) (result string, success bool) {
 		} else if len(records) == 0 {
 			return baseErrorResultString + "no entries selected", false
 		}
-		var word string = "Wrote"
+		var word = "Wrote"
 		if s.download.append {
 			word = "Appended"
 		}

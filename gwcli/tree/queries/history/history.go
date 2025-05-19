@@ -6,13 +6,15 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package history provides an action to list search history.
 package history
 
 import (
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-	"strings"
 
 	grav "github.com/gravwell/gravwell/v4/client"
 
