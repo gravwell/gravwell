@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Killer provides a consistent interface for checking a uniform set of kill keys.
+// Package killer provides a consistent interface for checking a uniform set of kill keys.
 // Used by Mother and interactive models Cobra spins up outside of Mother.
 package killer
 
@@ -26,7 +26,7 @@ var globalKillKeys = [...]tea.KeyType{tea.KeyCtrlC, tea.KeyCtrlD}
 // keys that kill the child if it exists, otherwise do nothing
 var childOnlykillKeys = [...]tea.KeyType{tea.KeyEscape}
 
-// given a message, returns if it is a global kill, a child kill, or not a kill
+// CheckKillKeys returns if the given message is a global kill key, a child kill key, or not a kill key (or even key message at all).
 func CheckKillKeys(msg tea.Msg) Kill {
 	keyMsg, isKeyMsg := msg.(tea.KeyMsg)
 	if !isKeyMsg {

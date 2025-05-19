@@ -12,6 +12,7 @@ package connection
 
 import (
 	"fmt"
+
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 

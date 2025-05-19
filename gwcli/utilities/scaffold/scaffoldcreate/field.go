@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// FieldType, though currently unutilized, is intended as an expandable way to add new data inputs,
+// FieldType (though currently not utilized) is intended as an expandable way to add new data inputs,
 // such as checkboxes or radio buttons. It alters the draw in .View and how data is parsed from the
 // Field's flag.
 type FieldType = string
@@ -26,7 +26,7 @@ const (
 	Text FieldType = "text" // string inputs, consumed via flag.String & textinput.Model
 )
 
-// A field defines a single data point that will be passed to the create function.
+// A Field defines a single data point that will be passed to the create function.
 type Field struct {
 	Required      bool      // this field must be populated prior to calling createFunc
 	Title         string    // field name displayed next to prompt and as flag name
@@ -46,7 +46,7 @@ type Field struct {
 	CustomTIFuncSetArg func(*textinput.Model) textinput.Model
 }
 
-// Returns a new field with only the required fields. Defaults to a Text type.
+// NewField returns a new field with only the required fields. Defaults to a Text type.
 //
 // You can build a Field manually, w/o NewField, but make sure you call
 // .DeriveFlagName() if you do not supply one.
@@ -60,7 +60,7 @@ func NewField(req bool, title string, order int) Field {
 	return f
 }
 
-// Returns an error if the Field is invalid, generally due to missing required fields.
+// Valid returns why the field is currently invalid (or nil), generally due to missing required fields.
 func (f *Field) Valid() error {
 	switch {
 	case f.Title == "":

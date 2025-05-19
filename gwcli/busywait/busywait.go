@@ -7,7 +7,7 @@
  **************************************************************************/
 
 /*
-Package Busywait provides a unified spinner to display while waiting for async operations.
+Package busywait provides a unified spinner to display while waiting for async operations.
 Do not use in a script context.
 
 # When Mother is not running (invocation via a Cobra.Run func):

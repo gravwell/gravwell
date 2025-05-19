@@ -97,7 +97,7 @@ func updateSchedule(s *DataScope, msg tea.Msg) tea.Cmd {
 	}
 
 	// pass onto the TIs
-	var cmds []tea.Cmd = make([]tea.Cmd, 3)
+	var cmds = make([]tea.Cmd, 3)
 	var wg sync.WaitGroup
 	wg.Add(3)
 	go func() {
@@ -122,8 +122,8 @@ func viewSchedule(s *DataScope) string {
 	sel := s.schedule.selected // brevity
 
 	var (
-		titleSty       lipgloss.Style = stylesheet.Header1Style
-		leftAlignerSty lipgloss.Style = lipgloss.NewStyle().
+		titleSty       = stylesheet.Header1Style
+		leftAlignerSty = lipgloss.NewStyle().
 				Width(20).
 				AlignHorizontal(lipgloss.Right).
 				PaddingRight(1)

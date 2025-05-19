@@ -170,7 +170,7 @@ const ( // mousetrap
 // (via cobra.Command.Execute()).
 func Execute(args []string) int {
 	// spawn the cobra commands in parallel
-	var cmdFn []func() *cobra.Command = []func() *cobra.Command{
+	var cmdFn = []func() *cobra.Command{
 		macros.NewMacrosNav,
 		queries.NewQueriesNav,
 		kits.NewKitsNav,
@@ -183,7 +183,7 @@ func Execute(args []string) int {
 
 	var (
 		cmds  []*cobra.Command
-		resCh chan *cobra.Command = make(chan *cobra.Command)
+		resCh = make(chan *cobra.Command)
 	)
 	for _, fn := range cmdFn {
 		go func(f func() *cobra.Command) {

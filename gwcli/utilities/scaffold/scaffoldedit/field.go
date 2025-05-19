@@ -10,10 +10,11 @@ package scaffoldedit
 
 import "github.com/charmbracelet/bubbles/textinput"
 
-// The full set of configuration available to and required from the implementor
+// Config is the full set of configuration available to and required from the implementor.
+// It maps each field struct to a unique key.
 type Config = map[string]*Field
 
-// Represents a single field within the struct that is available to edit.
+// Field represents a single field that is available to edit.
 // Field structs contain all data required for the field to be user-editable as well as optional parameters for
 // tweaking its appearance or usability.
 type Field struct {

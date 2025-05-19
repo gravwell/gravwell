@@ -16,15 +16,16 @@ package datascope
 import (
 	"errors"
 	"fmt"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -336,10 +337,10 @@ func viewDownload(s *DataScope) string {
 	width := s.download.outfileTI.Width + 5
 
 	var ( // shared styles
-		titleSty    lipgloss.Style = stylesheet.Header1Style
-		subtitleSty                = stylesheet.Header2Style
-		lcolAligner lipgloss.Style = lipgloss.NewStyle().Width(width).AlignHorizontal(lipgloss.Right).PaddingRight(1)
-		rcolAligner lipgloss.Style = lipgloss.NewStyle().Width(width).AlignHorizontal(lipgloss.Left)
+		titleSty    = stylesheet.Header1Style
+		subtitleSty = stylesheet.Header2Style
+		lcolAligner = lipgloss.NewStyle().Width(width).AlignHorizontal(lipgloss.Right).PaddingRight(1)
+		rcolAligner = lipgloss.NewStyle().Width(width).AlignHorizontal(lipgloss.Left)
 	)
 
 	tabDesc := tabDescStyle(s.usableWidth()).Render("Download all data in your preferred format or" +

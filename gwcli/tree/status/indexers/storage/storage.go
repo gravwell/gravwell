@@ -13,14 +13,15 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
-	"strconv"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -108,7 +109,7 @@ func toJSON(ss map[string]types.StorageStats, precF string) string {
 	var res []string
 	for k, v := range ss {
 		// encode the records as a map
-		var m map[string]any = map[string]any{
+		var m = map[string]any{
 			k: []indexer{
 				{
 					Kind:         "hot",

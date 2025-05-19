@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// cfgdir determines and holds paths for files in the config directory
+// Package cfgdir determines and holds paths for files in the config directory
 package cfgdir
 
 import (

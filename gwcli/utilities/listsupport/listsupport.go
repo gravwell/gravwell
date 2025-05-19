@@ -7,7 +7,7 @@
  **************************************************************************/
 
 /*
-This package supplies a standadized format for use with implementations of the list bubble.
+Package listsupport supplies a standardized format for use with implementations of the list bubble.
 By sharing a single definition, we can ensure lists look and function similarly no matter what
 action or scaffold is invoking it.
 */
@@ -21,7 +21,7 @@ import (
 	"github.com/charmbracelet/bubbles/spinner"
 )
 
-// Creates and returns a new list.Model with customized defaults.
+// NewList creates and returns a new list.Model with customized defaults.
 // items must fit the listsupport.Item interface in order to be used with the delegate. However,
 // because Go cannot interface arrays, you must pass in your items as []list.Item.
 func NewList(items []list.Item, width, height int, singular, plural string) list.Model {
@@ -94,7 +94,8 @@ func NewList(items []list.Item, width, height int, singular, plural string) list
 	return l
 }
 
-// Interface that items must fit prior to casting to list.Item for NewList()
+// The Item interface defines the basic values an item must be able to provide prior to casting to list.Item for NewList().
+// list will cast the item to this interface when interacting with it.
 type Item interface {
 	Title() string
 	Description() string

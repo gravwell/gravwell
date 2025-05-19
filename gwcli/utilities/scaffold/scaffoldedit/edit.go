@@ -7,6 +7,8 @@
  **************************************************************************/
 
 /*
+Package scaffoldedit provides a template for building actions that modify existing data.
+
 An edit action allows the user to select an entity from a list of all available entities, modify its
 fields (as interfaced by the implementor), and reflect the changes to the server.
 
@@ -99,8 +101,9 @@ var (
 
 // #endregion
 
-// Create a new edit action, returning its cobra.Command and action model pair.
-// This is the function implementations should call as their action implementation.
+// NewEditAction composes a usable edit action, returning its cobra.Command and action model pair.
+// The parameters, specifically funcs, do most of the heavy lifting; this just bolts on necessities to make the new action work in Mother and via a script.
+// This is the function that implementations/implementors should call as their action implementation.
 // This function panics if any parameters are missing.
 func NewEditAction[I id_t, S any](singular, plural string, cfg Config, funcs SubroutineSet[I, S]) action.Pair {
 	funcs.guarantee() // check that all functions are given
@@ -113,7 +116,7 @@ func NewEditAction[I id_t, S any](singular, plural string, cfg Config, funcs Sub
 		panic("plural form of the noun cannot be empty")
 	}
 
-	var fs pflag.FlagSet = generateFlagSet(cfg, singular)
+	var fs = generateFlagSet(cfg, singular)
 
 	cmd := treeutils.NewActionCommand(
 		"edit",                             // use
@@ -207,7 +210,7 @@ func runNonInteractive[I id_t, S any](cmd *cobra.Command, cfg Config, funcs Subr
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 			return
 		}
-		var newVal string = curVal
+		var newVal = curVal
 		if cmd.Flags().Changed(v.FlagName) { // flag *presumably* updates the field
 			if x, err := cmd.Flags().GetString(v.FlagName); err != nil {
 				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
@@ -360,7 +363,7 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 	}
 
 	// transmute data into list items
-	var itms []list.Item = make([]list.Item, dataCount)
+	var itms = make([]list.Item, dataCount)
 	for i, s := range em.data {
 		itms[i] = item{em.funcs.GetTitleSub(s), em.funcs.GetDescriptionSub(s)}
 	}

@@ -7,8 +7,7 @@
  **************************************************************************/
 
 /*
-A basic action that simply displays the command structure of gwcli using the lipgloss tree
-functionality.
+Package tree defines a basic action that simply displays the command structure of gwcli using the lipgloss tree functionality.
 */
 package tree
 

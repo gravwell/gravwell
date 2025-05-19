@@ -34,9 +34,10 @@ const (
 	FATAL    Level = 6
 )
 
+// Writer is the logging singleton.
 var Writer *log.Logger
 
-// Initializes Writer, the logging singleton.
+// Init initializes Writer, the logging singleton.
 // Safe (ineffectual) if the writer has already been initialized.
 func Init(path string, lvl string) error {
 	var err error

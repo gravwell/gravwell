@@ -20,8 +20,8 @@ type Id_t interface {
 	constraints.Integer | uuid.UUID
 }
 
-// Returns str converted to an id of type I.
-// All hail the modern Library of Alexandira (https://stackoverflow.com/a/71048872).
+// FromString returns str converted to an id of type I.
+// All hail the modern Library of Alexandria (https://stackoverflow.com/a/71048872).
 func FromString[I Id_t](str string) (I, error) {
 	var (
 		err error

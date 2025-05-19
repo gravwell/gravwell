@@ -16,8 +16,9 @@ package datascope
 
 import (
 	"fmt"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"strings"
+
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/viewport"
@@ -56,7 +57,7 @@ func scrollPercentLine(width int, rawPercent float64) string {
 	return fmt.Sprintf("%s%s", line, scrollPercent)
 }
 
-// Returns a modified viewport, for consistency between text and table results
+// NewViewport returns a modified viewport, for consistency between text and table results
 func NewViewport() viewport.Model {
 	vp := viewport.Model{
 		// width/height are set later
@@ -64,7 +65,6 @@ func NewViewport() viewport.Model {
 	}
 	//vp.MouseWheelDelta = 1
 	vp.MouseWheelEnabled = false
-	vp.HighPerformanceRendering = false
 	// set up keybinds directly supported by viewport
 	// other keybinds are managed by the results tab()
 	vp.KeyMap = viewport.KeyMap{
@@ -224,7 +224,7 @@ var (
 
 func (s *DataScope) renderTabs(width int) string {
 
-	var rendered []string = make([]string, len(s.tabs))
+	var rendered = make([]string, len(s.tabs))
 
 	margin, tabCount := 2, len(s.tabs)
 

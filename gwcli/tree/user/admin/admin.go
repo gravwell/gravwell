@@ -6,11 +6,12 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// A simple action to tell the user whether or not they are logged in as an admin.
+// Package admin defines a simple action to tell the user whether or not they are logged in as an admin.
 package admin
 
 import (
 	"fmt"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"

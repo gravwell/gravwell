@@ -6,6 +6,9 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+/*
+Package resources defines the resources nav, which holds data related to persistent data.
+*/
 package resources
 
 import (

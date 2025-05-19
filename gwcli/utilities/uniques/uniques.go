@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// uniques contains global constants and functions that must be referenced across multiple packages
+// Package uniques contains global constants and functions that must be referenced across multiple packages
 // but cannot belong to any.
 // ! Uniques does not import any local packages as to prevent import cycles.
 package uniques

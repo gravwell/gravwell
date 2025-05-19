@@ -7,13 +7,11 @@
  **************************************************************************/
 
 /*
-Singleton instantiation of the gravwell client library. All calls to the Gravwell instances should
-be called via this singleton.
+Package connection implements and controls a Singleton instantiation of the gravwell client library.
+All calls to the Gravwell instances should be called via this package and the client it controls.
 
-This package also contains some wrapper functions for grav.Client calls where we want to ensure
-consistent access and parameters.
+This package also contains some wrapper functions for grav.Client calls where we want to ensure consistent access and parameters.
 */
-
 package connection
 
 import (
@@ -38,11 +36,13 @@ import (
 
 //const refreshInterval time.Duration = 10 * time.Minute // how often we refresh the user token
 
+// Client is the primary connection point from GWCLI to the gravwell backend.
 var Client *grav.Client
 
+// MyInfo holds cached data about the current user.
 var MyInfo types.UserDetails
 
-// Initializes Client using the given connection string of the form <host>:<port>.
+// Initialize creates and starts a Client using the given connection string of the form <host>:<port>.
 // Destroys a pre-existing connection (but does not log out), if there was one.
 // restLogPath should be left empty outside of test packages
 func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath string) (err error) {
@@ -77,7 +77,7 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 	return nil
 }
 
-// struct for passing credentials into Login
+// Credentials is the temporary struct for passing credentials into Login.
 type Credentials struct {
 	Username     string
 	Password     string
@@ -195,7 +195,7 @@ func loginViaCredentials(cred Credentials, scriptMode bool) error {
 	return Client.Login(cred.Username, cred.Password)
 }
 
-// Creates a login token for future use.
+// CreateToken creates a login token for future use.
 // The token's path is saved to an environment variable to be looked up on future runs
 func CreateToken() error {
 	var (
@@ -223,7 +223,7 @@ func CreateToken() error {
 	return nil
 }
 
-// Closes the connection to the server.
+// End closes the connection to the server.
 // Does not logout the user as to not invalidate existing JWTs.
 func End() error {
 	if Client == nil {
@@ -234,7 +234,7 @@ func End() error {
 	return nil
 }
 
-// A validation wrapper around Client.CreateScheduledSearch to provide consistent
+// CreateScheduledSearch is a validation wrapper around Client.CreateScheduledSearch to provide consistent
 // validation, logging, and errors.
 //
 // Returns:
@@ -302,7 +302,7 @@ func invalidCronWord(word, idxDescriptor string, lowBound, highBound int) (inval
 	return ""
 }
 
-// Validates and submits the given query to the connected server instance.
+// StartQuery validates and submits the given query to the connected server instance.
 // Duration must be negative or zero (X time units back in time from now()).
 // A positive duration will result in an error.
 //
@@ -330,7 +330,7 @@ func StartQuery(qry string, durFromNow time.Duration, background bool) (grav.Sea
 		NoHistory:    false,
 		Preview:      false,
 	}
-	var fgbg string = "foreground"
+	var fgbg = "foreground"
 	if background {
 		fgbg = "background"
 	}
@@ -361,7 +361,7 @@ func renderToDownload(rndr string, csv, json bool) string {
 	}
 }
 
-// Downloads the given search according to its renderer (or CSV/JSON, if given).
+// DownloadSearch fetches the given search's results according to its renderer (or CSV/JSON, if given).
 func DownloadSearch(search *grav.Search, tr types.TimeRange, csv, json bool) (
 	rc io.ReadCloser, format string, err error,
 ) {
@@ -371,9 +371,9 @@ func DownloadSearch(search *grav.Search, tr types.TimeRange, csv, json bool) (
 	return
 }
 
-// Returns a consistent sting for a successful query result download
+// DownloadQuerySuccessfulString returns a consistent sting for a successful query result download
 func DownloadQuerySuccessfulString(filename string, append bool, format string) string {
-	var word string = "wrote"
+	var word = "wrote"
 	if append {
 		word = "appended"
 	}

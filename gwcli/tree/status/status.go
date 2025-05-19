@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+/* Package status defines a nav for actions related to the status of the backend. */
 package status
 
 import (

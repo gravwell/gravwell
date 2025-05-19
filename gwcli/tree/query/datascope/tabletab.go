@@ -14,11 +14,12 @@ package datascope
  */
 
 import (
+	"strconv"
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
-	"strconv"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -47,7 +48,7 @@ func initTableTab(data []string) tableTab {
 	// build columns list, with the index column prefixed
 	strcols := strings.Split(data[0], sep)
 	colCount := len(strcols) + 1
-	var columns []table.Column = make([]table.Column, colCount)
+	var columns = make([]table.Column, colCount)
 	// set index column
 	columns[0] = table.NewFlexColumn("index", "#", 1)
 	for i, c := range strcols {
@@ -162,8 +163,8 @@ func updateTable(s *DataScope, msg tea.Msg) tea.Cmd {
 // alters the flex factor of the columns corresponding to the given number key.
 // Treats a 0 as a ten.
 func (tt *tableTab) alterColumnSize(numKey uint, increase bool) {
-	var colCount uint = uint(len(tt.columns))
-	var col uint = numKey - 1 // actual column index
+	var colCount = uint(len(tt.columns))
+	var col = numKey - 1 // actual column index
 	// treat 0 as 10
 	if numKey == 0 {
 		numKey = 10
@@ -171,7 +172,7 @@ func (tt *tableTab) alterColumnSize(numKey uint, increase bool) {
 
 	// only increase the size of a column that exists
 	if colCount > col {
-		var newFF int = tt.columns[col].FlexFactor()
+		var newFF = tt.columns[col].FlexFactor()
 		if increase {
 			newFF += 1
 		} else {

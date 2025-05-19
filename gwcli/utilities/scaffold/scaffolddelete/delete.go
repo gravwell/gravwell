@@ -7,6 +7,8 @@
  **************************************************************************/
 
 /*
+Package scaffolddelete provides a template for building actions that delete data.
+
 A delete action consumes a list of delete-able items, allowing the user to select them
 interactively or by passing a (numeric or UUID) ID.
 
