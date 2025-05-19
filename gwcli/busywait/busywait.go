@@ -7,7 +7,7 @@
  **************************************************************************/
 
 /*
-Busywait provides a unified spinner to display while waiting for async operations.
+Package Busywait provides a unified spinner to display while waiting for async operations.
 Do not use in a script context.
 
 # When Mother is not running (invocation via a Cobra.Run func):
@@ -61,8 +61,8 @@ func (s spnr) View() string {
 	return s.spnr.View()
 }
 
-// Create a new BubbleTea program with just a spinner.
-// Intended for use in non-script mode Cobra to show processes are occuring
+// CobraNew creates a new BubbleTea program with just a spinner.
+// Intended for use in non-script mode Cobra to show processes are occurring.
 //
 // When you are done waiting, call p.Quit() from another goroutine.
 func CobraNew() (p *tea.Program) {

@@ -33,7 +33,7 @@ func WarnFlagIgnore(ignoredFlag, causeFlag string) string {
 	return fmt.Sprintf("WARN: ignoring flag --%v due to --%v", ignoredFlag, causeFlag)
 }
 
-// Validator function for a TI intended to consume cron-like input.
+// CronRuneValidator provides a validator function for a TI intended to consume cron-like input.
 // For efficiencies sake, it only evaluates the end rune.
 // Checking the values of each complete word is delayed until connection.CreateScheduledSearch to
 // save on cycles.
@@ -68,14 +68,15 @@ func CronRuneValidator(s string) error {
 	return nil
 }
 
-// Queries for available window size.
+// FetchWindowSize queries for available terminal window size.
 // Generally useful as an onStart command as Mother does not maintain a set of dimensions.
 func FetchWindowSize() tea.Msg {
 	w, h, _ := term.GetSize(os.Stdin.Fd())
 	return tea.WindowSizeMsg{Width: w, Height: h}
 }
 
-// Returns a consistent, sanitized string, usable as a flag name.
+// DeriveFlagName returns a consistent, sanitized string, usable as a flag name.
+// Used to ensure consistency.
 func DeriveFlagName(title string) string {
 	title = strings.ToLower(title)
 	title = strings.Map(func(r rune) rune {

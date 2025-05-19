@@ -7,7 +7,7 @@
  **************************************************************************/
 
 /*
-clilog provides the logger for gwcli in the form of a logging singleton: Writer.
+Package clilog provides the logger for gwcli in the form of a logging singleton: Writer.
 
 It is basically a singleton wrapper of the gravwell ingest logger.
 While the underlying ingest logger appears to be thread-safe, clilog's helper functions are not
@@ -21,7 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
-// recreate log.Level so other packages do not have to import the ingest logger
+// Level recreates log.Level so other packages do not have to import the ingest logger
 type Level int
 
 const (
@@ -63,7 +63,7 @@ func Init(path string, lvl string) error {
 	return nil
 }
 
-// Writes the error to clilog.Writer and a secondary output, usually stderr
+// Tee writes the error to clilog.Writer and a secondary output, usually stderr
 func Tee(lvl Level, alt io.Writer, str string) {
 	alt.Write([]byte(str))
 	switch lvl {
@@ -83,12 +83,13 @@ func Tee(lvl Level, alt io.Writer, str string) {
 	}
 }
 
-// Returns whether or not the given level is currently enabled (<= log.Level)
+// Active returns whether or not the given level is currently enabled (<= log.Level)
 func Active(lvl Level) bool {
 	return Writer.GetLevel() <= log.Level(lvl)
 }
 
-// Logs the non-fatal failure to fetch named flag from flagset
+// LogFlagFailedGet logs the non-fatal failure to fetch named flag from flagset.
+// Used to keep flag handling errors uniform.
 func LogFlagFailedGet(flagname string, err error) {
 	Writer.Warnf("failed to fetch '--%v':%v\nignoring", flagname, err)
 }

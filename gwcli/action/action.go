@@ -7,7 +7,7 @@
  **************************************************************************/
 
 /*
-The action package tests and maintains the action map, which bolts subroutines onto Actions (leaves)
+Package action tests and maintains the action map singleton, which bolts subroutines onto Actions (leaves)
 in the cobra command tree so Mother can call them interactively. The action map is not utilized when
 gwcli is run from a Cobra context/non-interactively.
 
@@ -40,6 +40,7 @@ var (
 	ErrNotAnAction = errors.New("given command is not an action")
 )
 
+// Model defines the set of subroutines every action implement to be added to the action map singleton (and thus call-able by Mother).
 // See CONTRIBUTING.md for more information on each of these subroutines.
 type Model interface {
 	Update(msg tea.Msg) tea.Cmd // action processing
@@ -49,8 +50,8 @@ type Model interface {
 	SetArgs(*pflag.FlagSet, []string) (invalid string, onStart tea.Cmd, err error)
 }
 
-// Duple used to construct the Action Map.
-// Associates the Action command with its bolted-on Model subroutines to facillitate interactivity.
+// Pair is a duple used to construct the Action Map.
+// Associates the Action command with its bolted-on Model subroutines to facilitate interactivity.
 type Pair struct {
 	Action *cobra.Command // the base model
 	Model  Model          // our bolted-on interactivity
@@ -83,7 +84,7 @@ func AddModel(c *cobra.Command, m Model) {
 // The internal "hashing' logic to reliably generate a string key associated
 // to a command.
 func key(c *cobra.Command) string {
-	var parentName string = "~"
+	var parentName = "~"
 	if c.Parent() != nil {
 		parentName = c.Parent().Name()
 	}
@@ -92,8 +93,7 @@ func key(c *cobra.Command) string {
 
 //#endregion
 
-// Given a cobra.Command, returns whether it is an Action (and thus can supplant
-// Mother's Elm cycle) or a Nav.
+// Is returns whether the given cobra.Command is an Action (and thus can supplant Mother's Elm cycle) or a Nav.
 func Is(cmd *cobra.Command) bool {
 	if cmd == nil { // sanity check
 		panic("cmd cannot be nil!")

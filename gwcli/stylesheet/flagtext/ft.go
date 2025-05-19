@@ -7,11 +7,10 @@
  **************************************************************************/
 
 /*
-ft (flagtext) provides a repository of strings shared by flags across gwcli.
-While all are constant and *should not be modified at runtime*, it is organized as a struct for
-clearer access.
+Package flagtext (typically abbreviated to just ft) provides a repository of strings shared by flags across gwcli to enforce output consistency.
+While all are constant and *should not be modified at runtime*, it is organized as a struct for clearer access.
 
-Struct parity between Name and Usage is not guarenteed; some usages may vary too much to warrant
+Struct parity between Name and Usage is not guaranteed; some usages may vary too much to warrant
 sharing a base string.
 */
 package ft

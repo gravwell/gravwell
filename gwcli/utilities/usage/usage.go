@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Help and usage generation subroutines for use by Mother and root (the Cobra tree)
+// Package usage provides help and usage generation subroutines for use by Mother and root (the Cobra tree).
 package usage
 
 import (
