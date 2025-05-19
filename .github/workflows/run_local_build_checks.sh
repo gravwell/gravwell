@@ -26,6 +26,7 @@ echo "Running go vet"
         go vet ./ipexist
         go vet ./netflow
         go vet ./client/...
+        go vet ./gwcli/...
 
 
 echo "Running go test -v"
@@ -45,9 +46,10 @@ echo "Running go test -v"
         go test -v ./ipexist
         go test -v ./netflow
         go test -v ./client/...
+        go test -v ./gwcli/...
 
 echo "running staticcheck"
-	staticcheck ./generators/base/... ./generators/gravwellGenerator/... ./generators/ipgen/...
+	staticcheck ./generators/base/... ./generators/gravwellGenerator/... ./generators/ipgen/... ./gwcli/...
 	GOOS=windows staticcheck ./generators/windowsEventGenerator/...
 
 
@@ -136,6 +138,7 @@ echo "Running build tests"
         go build -o /dev/null ./ingesters/Shodan
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
+        go build -o /dev/null ./gwcli
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
