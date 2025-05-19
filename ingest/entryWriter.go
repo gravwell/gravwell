@@ -648,7 +648,7 @@ func (ew *EntryWriter) startCompression(ct CompressionType) (err error) {
 		//get a writer rolling
 		wtr := snappy.NewBufferedWriter(ew.conn)
 		ew.flshr = wtr
-		ew.bIO.Reset(wtr)
+		ew.bIO.Reset(newSnappyFlushWriter(wtr))
 	default:
 		err = fmt.Errorf("Unknown compression id %x", ct)
 	}
