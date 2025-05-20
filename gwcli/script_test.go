@@ -33,10 +33,13 @@ import (
 	"os"
 	"path"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
+	"github.com/Pallinder/go-randomdata"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/tree"
 
@@ -107,7 +110,7 @@ func TestMacros(t *testing.T) {
 
 	t.Run("macros create", func(t *testing.T) {
 		var (
-			macroName = "testname"
+			macroName = randomdata.SillyName()
 			macroDesc = "macro created for automated testing"
 			macroExp  = "testexpand"
 		)
@@ -120,6 +123,18 @@ func TestMacros(t *testing.T) {
 		priorMacros, err := testclient.GetUserMacros(myInfo.UID)
 		if err != nil {
 			panic(err)
+		}
+
+		// ensure the macro DNE, reroll it if it does
+		for {
+			if slices.ContainsFunc(priorMacros, func(sm types.SearchMacro) bool {
+				return macroName == sm.Name
+			}) {
+				//reroll name
+				macroName = randomdata.SillyName()
+				continue
+			}
+			break
 		}
 
 		// create a new macro from the cli, in script mode
