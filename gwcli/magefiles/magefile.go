@@ -108,7 +108,7 @@ func Build() error {
 // TestAll runs all gwcli tests, according to their subsystem.
 func TestAll() error {
 	verboseln("Testing query components...")
-	mg.Deps(TestQuery, TestDatascope)
+	mg.Deps(TestQuery, TestDatascope, TestQueryAux)
 
 	verboseln("Testing utilities...")
 	mg.Deps(TestScaffold)
@@ -153,6 +153,15 @@ func TestDatascope() error {
 		return err
 	}
 
+	return nil
+}
+
+// TestQueryAux tests the query-supporting functions.
+func TestQueryAux() error {
+	const _TIMEOUT time.Duration = 30 * time.Second
+	if err := runTest(_TIMEOUT, "Test_toFile$", "github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"); err != nil {
+		return err
+	}
 	return nil
 }
 
