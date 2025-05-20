@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sync"
@@ -29,9 +28,9 @@ var (
 	ErrInvalidCachePath = errors.New("Invalid cache path")
 )
 
-// The maximum channel depth, which is also used when the channel depth is set
-// to 0. We could set this to MaxInt but we'd likely just run out of memory
-// without a clean way to triage. It's best to just enforce a sensible maximum.
+// MaxDepth specifies the maximum channel depth, which is also used when the channel
+// depth is set to 0. We could set this to MaxInt but we'd likely just run out of
+// memory without a clean way to triage. It's best to just enforce a sensible maximum.
 const MaxDepth = 1000000
 
 // A ChanCacher is a pipeline of channels with a variable-sized internal
@@ -60,8 +59,8 @@ type ChanCacher struct {
 	fileLock *flock.Flock
 }
 
-// Create a new ChanCacher with maximum depth, and optional backing file.  If
-// maxDepth == 0, the ChanCacher will be unbuffered. If maxDepth == -1, the
+// NewChanCacher creates a new ChanCacher with maximum depth, and optional backing file.
+// If maxDepth == 0, the ChanCacher will be unbuffered. If maxDepth == -1, the
 // ChanCacher depth will be set to MaxDepth. To enable a backing store,
 // provide a path to backingPath. chancachers create two files using this
 // prefix named cache_a and cache_b.
@@ -270,9 +269,7 @@ func (c *ChanCacher) cacheHandler() {
 
 			c.Out <- v
 		}
-		if err != io.EOF {
-			// TODO: log
-		}
+		// TODO log if err != io.EOF
 
 		c.cacheReading = false
 		c.cacheR.Seek(0, 0)
@@ -318,24 +315,22 @@ func (c *ChanCacher) cacheValue(v interface{}) {
 
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
-	err := c.cacheEnc.Encode(&v)
-	if err != nil {
-		// TODO: log
-	}
+	c.cacheEnc.Encode(&v)
+	// TODO log if err := c.cacheEnc.Encode(&v); err != nil
 	c.cacheModified = true
 }
 
-// Return if the cache has outstanding data not written to the output channel.
+// CacheHasData returns if the cache has outstanding data not written to the output channel.
 func (c *ChanCacher) CacheHasData() bool {
 	return c.cacheModified || c.cacheReading
 }
 
-// Returns the number of elements on the internal buffer.
+// BufferSize returns the number of elements on the internal buffer.
 func (c *ChanCacher) BufferSize() int {
 	return len(c.Out)
 }
 
-// Enable a stopped cache.
+// CacheStart enables a stopped cache.
 func (c *ChanCacher) CacheStart() {
 	if !c.cache {
 		return
@@ -349,7 +344,7 @@ func (c *ChanCacher) CacheStart() {
 	}
 }
 
-// Stop a running cache. Calling Stop() will prevent the ChanCacher from
+// CacheStop stops a running cache. Calling Stop() will prevent the ChanCacher from
 // writing any new data to the backing file, but will not stop it from reading
 // (draining) the cache to the output channel.
 func (c *ChanCacher) CacheStop() {
@@ -435,7 +430,7 @@ func (c *ChanCacher) finishCache() {
 	}
 }
 
-// Returns the number of bytes committed to disk. This does not include data in
+// Size returns the number of bytes committed to disk. This does not include data in
 // the in-memory buffer.
 func (c *ChanCacher) Size() int {
 	return c.cacheR.Count() + c.cacheW.Count()
@@ -456,7 +451,7 @@ func merge(a, b string) error {
 	}
 	defer fb.Close()
 
-	t, err := ioutil.TempFile(filepath.Dir(a), "merge")
+	t, err := os.CreateTemp(filepath.Dir(a), "merge")
 	if err != nil {
 		return err
 	}

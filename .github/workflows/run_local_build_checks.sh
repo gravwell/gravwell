@@ -7,6 +7,49 @@ go mod tidy
 go mod download
 go mod verify
 go install golang.org/x/vuln/cmd/govulncheck@latest
+go install honnef.co/go/tools/cmd/staticcheck@latest
+
+echo "Running go vet"
+	go vet ./generators/ipgen
+        go vet ./chancacher
+        go vet ./ingest
+        go vet ./ingest/entry
+        go vet ./ingest/processors
+        go vet ./ingest/processors/plugin
+        go vet ./ingest/config
+        go vet ./ingest/log
+        go vet ./timegrinder
+        go vet ./filewatch
+        go vet ./ingesters/utils
+        go vet ./ingesters/kafka_consumer
+        go vet ./ingesters/SimpleRelay
+        go vet ./ipexist
+        go vet ./netflow
+        go vet ./client/...
+
+
+echo "Running go test -v"
+	go test -v ./generators/ipgen
+        go test -v ./chancacher
+        go test -v ./ingest
+        go test -v ./ingest/entry
+        go test -v ./ingest/processors
+        go test -v ./ingest/processors/plugin
+        go test -v ./ingest/config
+        go test -v ./ingest/log
+        go test -v ./timegrinder
+        go test -v ./filewatch
+        go test -v ./ingesters/utils
+        go test -v ./ingesters/kafka_consumer
+        go test -v ./ingesters/SimpleRelay
+        go test -v ./ipexist
+        go test -v ./netflow
+        go test -v ./client/...
+
+echo "running staticcheck"
+	staticcheck ./generators/base/... ./generators/gravwellGenerator/... ./generators/ipgen/...
+	GOOS=windows staticcheck ./generators/windowsEventGenerator/...
+
 
 echo "running govluncheck on everything"
         govulncheck -test ./netflow/...
@@ -67,25 +110,7 @@ echo "running govluncheck on everything"
         GOOS=windows govulncheck -test ./winevent/...
 
 
-echo "Running go test -v"
-	go test -v ./generators/ipgen
-        go test -v ./chancacher
-        go test -v ./ingest
-        go test -v ./ingest/entry
-        go test -v ./ingest/processors
-        go test -v ./ingest/processors/plugin
-        go test -v ./ingest/config
-        go test -v ./ingest/log
-        go test -v ./timegrinder
-        go test -v ./filewatch
-        go test -v ./ingesters/utils
-        go test -v ./ingesters/kafka_consumer
-        go test -v ./ingesters/SimpleRelay
-        go test -v ./ipexist
-        go test -v ./netflow
-        go test -v ./client/...
-
-
+echo "Running build tests"
         go build -o /dev/null ./generators/gravwellGenerator
         go build -o /dev/null ./manager
         go build -o /dev/null ./migrate

@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt"
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
@@ -349,17 +349,16 @@ func (jah *jwtAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		io.WriteString(w, ss)
 		jah.lgr.Info("successful login", log.KV("address", getRemoteIP(r)))
 	}
-	return
 }
 
-func (bah *jwtAuthHandler) AuthRequest(r *http.Request) error {
+func (jah *jwtAuthHandler) AuthRequest(r *http.Request) error {
 	ss, err := getJWTToken(r)
 	if err != nil {
 		return err
 	}
 	var claims jwt.StandardClaims
 	//attempt to validate the signed string
-	tok, err := jwt.ParseWithClaims(ss, &claims, bah.secretParser)
+	tok, err := jwt.ParseWithClaims(ss, &claims, jah.secretParser)
 	if err != nil {
 		return err
 	}
@@ -379,12 +378,12 @@ func (bah *jwtAuthHandler) AuthRequest(r *http.Request) error {
 	return nil
 }
 
-func (bah *jwtAuthHandler) secretParser(token *jwt.Token) (interface{}, error) {
+func (jah *jwtAuthHandler) secretParser(token *jwt.Token) (interface{}, error) {
 	// Don't forget to validate the alg is what you expect:
 	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 		return nil, errors.New("Unexpected signing method")
 	}
-	return []byte(bah.secret), nil
+	return []byte(jah.secret), nil
 }
 
 type cookieAuthHandler struct {
@@ -455,7 +454,6 @@ func (cah *cookieAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 		Path:    `/`,
 	}
 	http.SetCookie(w, &c)
-	return
 }
 
 func (cah *cookieAuthHandler) AuthRequest(r *http.Request) (err error) {

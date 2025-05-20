@@ -124,8 +124,14 @@ func main() {
 		if v.Ignore_Timestamps {
 			hcfg.ignoreTs = true
 		} else {
+			var window timegrinder.TimestampWindow
+			window, err = cfg.GlobalTimestampWindow()
+			if err != nil {
+				lg.Fatal("Failed to get global timestamp window", log.KVErr(err))
+			}
 			tcfg := timegrinder.Config{
 				EnableLeftMostSeed: true,
+				TSWindow:           window,
 			}
 			if hcfg.tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
 				lg.Fatal("failed to generate new timegrinder", log.KVErr(err))
