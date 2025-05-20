@@ -1,6 +1,11 @@
 package attach
 
-import "github.com/spf13/cobra"
+import (
+	"fmt"
+
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/spf13/cobra"
+)
 
 /*
 This file contains subroutines and data used by both interactive and non-interactive usage, typically to enforce consistency.
@@ -13,10 +18,10 @@ func syntax(cmd *cobra.Command, scriptMode bool) string {
 
 	var sid string
 	if scriptMode {
-		sid = "searchID"
+		sid = ft.Mandatory("searchID")
 	} else {
-		sid = "[searchID]"
+		sid = ft.Optional("searchID")
 	}
 
-	return "Syntax: " + path + " [flags] " + sid // TODO add brackets for mandatory
+	return fmt.Sprintf("Syntax: %s %s %s", path, ft.Optional("flags"), sid)
 }
