@@ -120,7 +120,7 @@ func NewCreateAction(singular string,
 		flags.AddFlagSet(&afs)
 	}
 
-	cmd := treeutils.NewActionCommand(
+	cmd := treeutils.GenerateAction(
 		"create",                 // use
 		"create a "+singular,     // short
 		"create a new "+singular, // long
@@ -166,7 +166,7 @@ func NewCreateAction(singular string,
 	// attach mined flags to cmd
 	cmd.Flags().AddFlagSet(&flags)
 
-	return treeutils.GenerateAction(cmd, newCreateModel(fields, singular, create, addtlFlags))
+	return action.NewPair(cmd, newCreateModel(fields, singular, create, addtlFlags))
 }
 
 // Given a parsed flagset and the field configuration, builds a corollary map of field values.

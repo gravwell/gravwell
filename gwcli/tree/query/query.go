@@ -100,7 +100,7 @@ var localFS pflag.FlagSet
 //#region command/action set up
 
 func NewQueryAction() action.Pair {
-	cmd := treeutils.NewActionCommand("query", "submit a query",
+	cmd := treeutils.GenerateAction("query", "submit a query",
 		helpDesc,
 		[]string{"q", "search"}, run)
 
@@ -110,7 +110,7 @@ func NewQueryAction() action.Pair {
 
 	cmd.Flags().AddFlagSet(&localFS)
 
-	return treeutils.GenerateAction(cmd, Query)
+	return action.NewPair(cmd, Query)
 }
 
 func initialLocalFlagSet() pflag.FlagSet {
