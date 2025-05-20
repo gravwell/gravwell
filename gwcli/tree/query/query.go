@@ -296,7 +296,7 @@ func invokeDatascope(cmd *cobra.Command, flags querysupport.QueryFlags, search *
 		results   []string
 		tableMode bool
 	)
-	results, tableMode, err := fetchResults(search)
+	results, tableMode, err := querysupport.FetchSearchResults(search)
 	if err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
@@ -350,13 +350,6 @@ func waitForSearch(s grav.Search, scriptMode bool) error {
 
 //#endregion
 
-// just enough information to schedule a given query
-type schedule struct {
-	Name     string
-	Desc     string
-	Cronfreq string // run frequency in cron format
-}
-
 // Opens and returns a file handle, configured by the state of append.
 //
 // Errors are logged to clilogger internally
@@ -381,107 +374,4 @@ func openFile(path string, append bool) (*os.File, error) {
 	}
 
 	return f, nil
-}
-
-// Given an active search handle associated to a completed search,
-// fetchResults pulls back all available results, using the appropriate Get function based on the
-// search's renderer
-func fetchResults(search *grav.Search) (results []string, tableMode bool, err error) {
-	clilog.Writer.Infof("fetching results of type %v", search.RenderMod)
-	switch search.RenderMod {
-	case types.RenderNameTable:
-		if columns, rows, err := fetchTableResults(search); err != nil {
-			return nil, false, err
-		} else if len(rows) != 0 {
-			// format the table for datascope
-			// basically a csv
-			results = make([]string, len(rows)+1)
-			results[0] = strings.Join(columns, ",") // first entry is the header
-			for i, row := range rows {
-				results[i+1] = strings.Join(row.Row, ",")
-			}
-			return results, true, nil
-		}
-		// no results
-		return nil, true, nil
-	case types.RenderNameRaw, types.RenderNameText, types.RenderNameHex:
-		if rawResults, err := fetchTextResults(search); err != nil {
-			return nil, false, err
-		} else if len(rawResults) != 0 {
-			// format the data for datascope
-			results = make([]string, len(rawResults))
-			for i, r := range rawResults {
-				results[i] = string(r.Data)
-			}
-			return results, false, nil
-		}
-		// no results
-		return nil, false, nil
-	}
-
-	// did not manage to complete results earlier; fail out
-	return nil, false, fmt.Errorf("unable to display results of type %v", search.RenderMod)
-}
-
-// Fetches all text results related to the given search by continually re-fetching until no more
-// results remain
-func fetchTextResults(s *grav.Search) ([]types.SearchEntry, error) {
-	// return results for output to terminal
-	// batch results until we have the last of them
-	var (
-		results        = make([]types.SearchEntry, 0, pageSize)
-		low     uint64 = 0
-		high    uint64 = pageSize
-	)
-	for { // accumulate the results
-		r, err := connection.Client.GetTextResults(*s, low, high)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, r.Entries...)
-		if !r.AdditionalEntries { // all records obtained
-			break
-		}
-		// ! Get*Results is half-open [)
-		low = high
-		high = high + pageSize
-	}
-
-	clilog.Writer.Infof("%d results obtained", len(results))
-
-	return results, nil
-}
-
-// Sister subroutine to fetchTextResults()
-func fetchTableResults(s *grav.Search) (
-	columns []string, rows []types.TableRow, err error,
-) {
-	// return results for output to terminal
-	// batch results until we have the last of them
-	var (
-		low  uint64 = 0
-		high uint64 = pageSize
-		r    types.TableResponse
-	)
-	rows = make([]types.TableRow, 0, pageSize)
-	for { // accumulate the row results
-		r, err = connection.Client.GetTableResults(*s, low, high)
-		if err != nil {
-			return nil, nil, err
-		}
-		rows = append(rows, r.Entries.Rows...)
-		if !r.AdditionalEntries { // all records obtained
-			break
-		}
-		// ! Get*Results is half-open [)
-		low = high
-		high = high + pageSize
-	}
-
-	// save off columns
-	columns = r.Entries.Columns
-
-	clilog.Writer.Infof("%d results obtained", len(rows))
-
-	return
 }

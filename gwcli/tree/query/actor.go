@@ -153,7 +153,7 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 				return cmd
 			}
 
-			results, tableMode, err := fetchResults(q.curSearch)
+			results, tableMode, err := querysupport.FetchSearchResults(q.curSearch)
 			if err != nil {
 				q.editor.err = err.Error()
 				q.mode = prompting
