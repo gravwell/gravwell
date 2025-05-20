@@ -62,6 +62,7 @@ func NewAttachAction() action.Pair {
 
 // Generates the flagset used by attach.
 // In interactive mode, most flags are passed directly into datascope.
+// This must be a subset of querysupport.QueryFlags to take advantage of the existing code.
 func initialLocalFlagSet() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 
