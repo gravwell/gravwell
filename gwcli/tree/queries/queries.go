@@ -14,6 +14,7 @@ package queries
 
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/attach"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/history"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/scheduled"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -33,5 +34,5 @@ var aliases []string = []string{"searches"}
 func NewQueriesNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases,
 		[]*cobra.Command{scheduled.NewScheduledNav()},
-		[]action.Pair{history.NewQueriesHistoryListAction()})
+		[]action.Pair{history.NewQueriesHistoryListAction(), attach.NewAttachAction()})
 }

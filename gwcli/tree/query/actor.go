@@ -28,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
@@ -71,7 +72,7 @@ type query struct {
 		csv      bool
 		outfn    string
 		append   bool
-		schedule schedule
+		schedule querysupport.Schedule
 	}
 
 	focusedEditor bool
@@ -174,9 +175,9 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 					q.flagModifiers.json,
 					q.flagModifiers.csv),
 				datascope.WithSchedule(
-					q.flagModifiers.schedule.cronfreq,
-					q.flagModifiers.schedule.name,
-					q.flagModifiers.schedule.desc))
+					q.flagModifiers.schedule.CronFreq,
+					q.flagModifiers.schedule.Name,
+					q.flagModifiers.schedule.Desc))
 			if err != nil {
 				clilog.Writer.Errorf("failed to create DataScope: %v", err)
 				q.mode = quitting
@@ -293,13 +294,10 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 		return err.Error(), nil, nil
 	}
 
-	flags, err := transmogrifyFlags(&localFS)
-	if err != nil {
-		return "", nil, err
-	}
+	flags := querysupport.TransmogrifyFlags(&localFS)
 
 	// check for script mode (invalid, as Mother is already running)
-	if flags.script {
+	if flags.Script {
 		return "", nil, errors.New("cannot invoke script mode while in interactive mode")
 	}
 
@@ -316,7 +314,7 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 	// if the query is empty or invalid, skip down to invoking the editor view
 	if valid {
 		// check if this is a scheduled query and if it can be handled here
-		if flags.schedule.cronfreq != "" {
+		if flags.Schedule.CronFreq != "" {
 			ssid, warnings, invalid, err := scheduleQuery(&flags, qry)
 			var cmds []tea.Cmd
 			for _, warn := range warnings {
@@ -327,14 +325,14 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 				return invalid, tea.Sequence(cmds...), err
 			}
 			// success
-			cmds = append(cmds, tea.Println(fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)", flags.schedule.name, ssid)))
+			cmds = append(cmds, tea.Println(fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)", flags.Schedule.Name, ssid)))
 			// set the query action to immediately return when Mother boots the query interface
 			q.mode = quitting
 			return "", tea.Sequence(cmds...), nil
 		}
 
 		// handle a background query request rather than entering the query pane
-		if flags.background {
+		if flags.Background {
 			warnings := warnBackgroundFlagConflicts(flags)
 			var cmds []tea.Cmd
 			for _, warn := range warnings {
@@ -342,7 +340,7 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 			}
 
 			// submit it and instruct mother to return to the prompt on success
-			search, err := connection.StartQuery(qry, -flags.duration, flags.background)
+			search, err := connection.StartQuery(qry, -flags.Duration, flags.Background)
 			if err != nil {
 				return "", tea.Sequence(cmds...), err
 			}
@@ -363,13 +361,13 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 	// boot into the editor view
 
 	// set fields by flags
-	q.modifiers.durationTI.SetValue(flags.duration.String())
-	q.flagModifiers.json = flags.json
-	q.flagModifiers.csv = flags.csv
-	q.flagModifiers.outfn = flags.outfn
-	q.flagModifiers.append = flags.append
-	q.flagModifiers.schedule = flags.schedule
-	q.modifiers.background = flags.background
+	q.modifiers.durationTI.SetValue(flags.Duration.String())
+	q.flagModifiers.json = flags.JSON
+	q.flagModifiers.csv = flags.CSV
+	q.flagModifiers.outfn = flags.OutPath
+	q.flagModifiers.append = flags.Append
+	q.flagModifiers.schedule = flags.Schedule
+	q.modifiers.background = flags.Background
 
 	return "", nil, nil
 }

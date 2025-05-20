@@ -61,6 +61,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	grav "github.com/gravwell/gravwell/v4/client"
@@ -146,7 +147,7 @@ func run(cmd *cobra.Command, args []string) {
 	var err error
 
 	// fetch flags
-	flags, err := transmogrifyFlags(cmd.Flags())
+	flags := querysupport.TransmogrifyFlags(cmd.Flags())
 	if err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
@@ -158,7 +159,7 @@ func run(cmd *cobra.Command, args []string) {
 	valid, err := testQryValidity(qry)
 
 	if !valid {
-		if flags.script { // fail out
+		if flags.Script { // fail out
 			var errMsg string
 			if err != nil {
 				errMsg = err.Error()
@@ -179,7 +180,7 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	// check if this is a scheduled query
-	if flags.schedule.cronfreq != "" {
+	if flags.Schedule.CronFreq != "" {
 		ssid, warnings, invalid, err := scheduleQuery(&flags, qry)
 		for _, warn := range warnings {
 			fmt.Fprint(cmd.ErrOrStderr(), warn+"\n")
@@ -190,23 +191,23 @@ func run(cmd *cobra.Command, args []string) {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		} else {
 			clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
-				fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)\n", flags.schedule.name, ssid))
+				fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)\n", flags.Schedule.Name, ssid))
 		}
 		return
 	}
 
 	// submit the query
 	var search grav.Search
-	if search, err = connection.StartQuery(qry, -flags.duration, flags.background); err != nil {
+	if search, err = connection.StartQuery(qry, -flags.Duration, flags.Background); err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
 	}
 
 	clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
-		querySubmissionSuccess(search.ID, flags.background))
+		querySubmissionSuccess(search.ID, flags.Background))
 
 	// if this is a background query, we are done
-	if flags.background {
+	if flags.Background {
 		warnings := warnBackgroundFlagConflicts(flags)
 		for _, warn := range warnings {
 			fmt.Fprint(cmd.ErrOrStderr(), warn+"\n")
@@ -222,20 +223,20 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	// wait for results
-	if err := waitForSearch(search, flags.script); err != nil {
+	if err := waitForSearch(search, flags.Script); err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
 	}
 
 	// if we are in script mode, spit the result into a file or stdout
-	if flags.script {
+	if flags.Script {
 		// fetch the data from the search
 		var (
 			results io.ReadCloser
 			format  string
 		)
 		if results, format, err = connection.DownloadSearch(
-			&search, types.TimeRange{}, flags.csv, flags.json,
+			&search, types.TimeRange{}, flags.CSV, flags.JSON,
 		); err != nil {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(),
 				fmt.Sprintf("failed to retrieve results from search %s (format %v): %v\n",
@@ -245,10 +246,10 @@ func run(cmd *cobra.Command, args []string) {
 		defer results.Close()
 
 		// if an output file was given, write results into it
-		if flags.outfn != "" {
+		if flags.OutPath != "" {
 			// open the file
 			var of *os.File
-			if of, err = openFile(flags.outfn, flags.append); err != nil {
+			if of, err = openFile(flags.OutPath, flags.Append); err != nil {
 				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 				return
 			}
@@ -263,7 +264,7 @@ func run(cmd *cobra.Command, args []string) {
 			}
 			// stdout output is acceptable as the user is redirecting actual results to a file.
 			fmt.Fprintln(cmd.OutOrStdout(),
-				connection.DownloadQuerySuccessfulString(of.Name(), flags.append, format))
+				connection.DownloadQuerySuccessfulString(of.Name(), flags.Append, format))
 			return
 		} else if format == types.DownloadArchive { // check for binary output
 			fmt.Fprintf(cmd.OutOrStdout(), "refusing to dump binary blob (format %v) to stdout.\n"+
@@ -293,7 +294,7 @@ func run(cmd *cobra.Command, args []string) {
 
 // run function without --script given, making it acceptable to rely on user input
 // NOTE: download and schedule flags are handled inside of datascope
-func invokeDatascope(cmd *cobra.Command, flags queryflags, search *grav.Search) {
+func invokeDatascope(cmd *cobra.Command, flags querysupport.QueryFlags, search *grav.Search) {
 	// get results to pass to data scope
 	var (
 		results   []string
@@ -312,8 +313,8 @@ func invokeDatascope(cmd *cobra.Command, flags queryflags, search *grav.Search) 
 	// spin up a scrolling pager to display
 	p, err := datascope.CobraNew(
 		results, search, tableMode,
-		datascope.WithAutoDownload(flags.outfn, flags.append, flags.json, flags.csv),
-		datascope.WithSchedule(flags.schedule.cronfreq, flags.schedule.name, flags.schedule.desc))
+		datascope.WithAutoDownload(flags.OutPath, flags.Append, flags.JSON, flags.CSV),
+		datascope.WithSchedule(flags.Schedule.CronFreq, flags.Schedule.Name, flags.Schedule.Desc))
 	if err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
 		return
@@ -355,9 +356,9 @@ func waitForSearch(s grav.Search, scriptMode bool) error {
 
 // just enough information to schedule a given query
 type schedule struct {
-	name     string
-	desc     string
-	cronfreq string // run frequency in cron format
+	Name     string
+	Desc     string
+	Cronfreq string // run frequency in cron format
 }
 
 // Opens and returns a file handle, configured by the state of append.
