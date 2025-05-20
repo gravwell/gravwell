@@ -100,7 +100,7 @@ func TestMacros(t *testing.T) {
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
-		nonZeroExit(t, statusCode)
+		nonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 		checkResult(t, true, "stdout", want, strings.TrimSpace(stdout))
 	})
@@ -125,7 +125,7 @@ func TestMacros(t *testing.T) {
 		// create a new macro from the cli, in script mode
 		cmd := fmt.Sprintf("-u %s --password %s --insecure --script macros create -n %s -d %s -e %s", user, password, macroName, macroDesc, macroExp)
 		statusCode, _, stderr := executeCmd(t, cmd)
-		nonZeroExit(t, statusCode)
+		nonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 		// refetch macros to check the count has increased by one
 		postMacros, err := testclient.GetUserMacros(myInfo.UID)
@@ -165,7 +165,7 @@ func TestMacros(t *testing.T) {
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
-		nonZeroExit(t, statusCode)
+		nonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 		checkResult(t, true, "stdout", want, strings.TrimSpace(stdout))
 	})
@@ -192,7 +192,7 @@ func TestMacros(t *testing.T) {
 		statusCode, _, stderr := executeCmd(t, cmd)
 
 		// check the outcome
-		nonZeroExit(t, statusCode)
+		nonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		// refetch macros to check that count hasn't changed
@@ -233,10 +233,10 @@ func TestMacros(t *testing.T) {
 		}
 
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros delete", user, password)
-		statusCode, stdout, _ := executeCmd(t, cmd)
+		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
-		nonZeroExit(t, statusCode)
+		nonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stdout", "", stdout)
 
 		// refetch macros to check that count hasn't changed
@@ -269,10 +269,10 @@ func TestMacros(t *testing.T) {
 		t.Logf("Selecting macro %v (ID: %v) for deletion", priorMacros[0].Name, priorMacros[0].ID)
 
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros delete --id %v", user, password, toDeleteID)
-		statusCode, _, _ := executeCmd(t, cmd)
+		statusCode, _, stderr := executeCmd(t, cmd)
 
 		// check the outcome
-		nonZeroExit(t, statusCode)
+		nonZeroExit(t, statusCode, stderr)
 
 		// refetch macros to check the count has decreased by one
 		postMacros, err := testclient.GetUserMacros(myInfo.UID)
@@ -320,7 +320,7 @@ func TestQueries(t *testing.T) {
 		// TODO need to make sure -o is valid before submitting the query
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --json", user, password, qry, outPath)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
-		nonZeroExit(t, statusCode)
+		nonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		// check that the search was as we expected
@@ -384,7 +384,7 @@ func TestQueries(t *testing.T) {
 
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --background", user, password, qry, outPath)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
-		nonZeroExit(t, statusCode)
+		nonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "WARN: ignoring flag --output due to --background", strings.TrimSpace(stderr))
 
 		// ensure the file was *not* created
@@ -446,7 +446,7 @@ func TestQueries(t *testing.T) {
 		qry := "tag=gravwell limit 1"
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --append", user, password, qry, outPath)
 		statusCode, _, stderr := executeCmd(t, cmd)
-		nonZeroExit(t, statusCode)
+		nonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		// check the file has more data than before
@@ -480,7 +480,7 @@ func TestQueries(t *testing.T) {
 		qry := "tag=gravwell limit 1"
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s --csv", user, password, qry)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
-		nonZeroExit(t, statusCode)
+		nonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		// csv package does not have a .Valid() like JSON
@@ -653,10 +653,10 @@ func skimSID(t *testing.T, stdout string) (sid string) {
 // #region strings and failure checks
 
 // Dies if code is <> 0
-func nonZeroExit(t *testing.T, code int) {
+func nonZeroExit(t *testing.T, code int, stderr string) {
 	t.Helper()
 	if code != 0 {
-		t.Fatalf("non-zero exit code %v", code)
+		t.Fatalf("non-zero exit code %v.\nstderr: '%v'", code, stderr)
 	}
 }
 
