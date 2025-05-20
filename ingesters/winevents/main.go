@@ -78,15 +78,15 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to get interactive session status: %v\n", err)
 		return
 	}
-	if !isService {
-		lg = log.New(os.Stdout)
-	} else {
+	if isService {
 		e, err := eventlog.Open(serviceName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "failed to get event log handle: %v\n", err)
 			return
 		}
 		lg = log.NewLevelRelay(levelLogger{elog: e})
+	} else {
+		lg = log.New(os.Stdout)
 	}
 	lg.SetAppname(appName)
 
@@ -117,10 +117,12 @@ func main() {
 		return
 	}
 
-	if !isService {
-		runInteractive(s)
-	} else {
+	if isService {
+		lg.Info("starting as service")
 		runService(s)
+	} else {
+		lg.Info("starting in interactive mode")
+		runInteractive(s)
 	}
 	if err := s.Close(); err != nil {
 		lg.Error("failed to create gravwell service", log.KVErr(err))
