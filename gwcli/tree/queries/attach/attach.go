@@ -76,14 +76,8 @@ func initialLocalFlagSet() pflag.FlagSet {
 // invoked from the commandline.
 // Invokes Mother if !script.
 func run(cmd *cobra.Command, args []string) {
-	var err error
-
 	// fetch flags
-	flags, err := transmogrifyFlags(cmd.Flags())
-	if err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-		return
-	}
+	flags := querysupport.TransmogrifyFlags(cmd.Flags())
 
 	// attempt to fetch the search id
 	var sid string
@@ -92,7 +86,7 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	// split on --script
-	if flags.script {
+	if flags.Script {
 		// arg validator should ensure sid is populated by this point
 
 		// attaching to a search non-interactively just downloads the results and spits them out
@@ -103,15 +97,15 @@ func run(cmd *cobra.Command, args []string) {
 		}
 		defer s.Close()
 
-		rc, format, err := connection.DownloadSearch(&s, types.TimeRange{}, flags.csv, flags.json)
+		rc, format, err := connection.DownloadSearch(&s, types.TimeRange{}, flags.CSV, flags.JSON)
 		if err != nil {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
 			return
 		}
-		if err := querysupport.WriteDownloadResults(rc, cmd.OutOrStdout(), flags.outfn, flags.append, format); err != nil {
+		if err := querysupport.WriteDownloadResults(rc, cmd.OutOrStdout(), flags.OutPath, flags.Append, format); err != nil {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
 		} else {
-			fmt.Fprintln(cmd.OutOrStdout(), connection.DownloadQuerySuccessfulString(flags.outfn, flags.append, format))
+			fmt.Fprintln(cmd.OutOrStdout(), connection.DownloadQuerySuccessfulString(flags.OutPath, flags.Append, format))
 		}
 
 		return
@@ -122,50 +116,5 @@ func run(cmd *cobra.Command, args []string) {
 
 	// if a sid was not given, launch Mother into bare `attach` call
 	// TODO
-
-}
-
-// logical struct to store flag data after verifying flag construction
-// TODO should this be consolidated with query's into utilities?
-type queryflags struct {
-	script bool
-	json   bool
-	csv    bool
-	outfn  string
-	append bool
-}
-
-// transmogrifyFlags takes a *parsed* flagset and returns a structured, typed, and (in the case of
-// strings) trimmed representation of the flags therein.
-// If an error occurs, the current state of the flags will be returned, but may be incomplete.
-// While it will coerce data to an appropriate type, transmogrify will *not* check for the state of
-// required or dependent flags.
-func transmogrifyFlags(fs *pflag.FlagSet) (queryflags, error) {
-	var (
-		err error
-		qf  queryflags
-	)
-
-	if qf.script, err = fs.GetBool(ft.Name.Script); err != nil {
-		// this will fail if mother is running, it is okay to swallow
-		qf.script = false
-	}
-	if qf.json, err = fs.GetBool(ft.Name.JSON); err != nil {
-		return qf, err
-	}
-	if qf.csv, err = fs.GetBool(ft.Name.CSV); err != nil {
-		return qf, err
-	}
-
-	if qf.outfn, err = fs.GetString(ft.Name.Output); err != nil {
-		return qf, err
-	} else {
-		qf.outfn = strings.TrimSpace(qf.outfn)
-	}
-	if qf.append, err = fs.GetBool(ft.Name.Append); err != nil {
-		return qf, err
-	}
-
-	return qf, nil
 
 }
