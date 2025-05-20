@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+/* Package user defines a nav for actions related to interacting with the local user information. */
 package user
 
 import (

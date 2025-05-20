@@ -6,8 +6,9 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// This pkg enforces consistent IDs and Titles by centralizing them.
-// It was born out of avoiding import cycles
+// Package group enforces consistent IDs and Titles by centralizing them.
+//
+// It was born out of avoiding import cycles.
 package group
 
 import "github.com/spf13/cobra"

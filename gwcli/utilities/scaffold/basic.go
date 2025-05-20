@@ -7,6 +7,9 @@
  **************************************************************************/
 
 /*
+Package scaffold contains packages for generating new actions from skeletons. See scaffoldlist, scaffolddelete, etc for more information.
+The bare scaffold package comes with a skeleton for basic actions.
+
 A basic action is the simplest action: it does its thing and returns a string to be printed to the
 terminal. Give it the function you want performed when the action is invoked and have it return
 whatever string value you want printed to the screen, if at all.
@@ -32,6 +35,7 @@ package scaffold
 
 import (
 	"fmt"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -40,7 +44,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// Creates a new Basic action fully featured for Cobra and Mother usage.
+// NewBasicAction creates a new Basic action fully featured for Cobra and Mother usage.
 // The given act func will be executed when the action is triggered and its result printed to the
 // screen.
 //

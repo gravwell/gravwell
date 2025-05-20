@@ -7,7 +7,7 @@
  **************************************************************************/
 
 /*
-Contains utilities related to interacting with existing or former queries.
+Package queries provides a nav that contains utilities related to interacting with existing or former queries.
 All query creation is done at the top-level query action.
 */
 package queries

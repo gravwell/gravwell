@@ -10,7 +10,7 @@ package mother
 
 /*
 Walk is the beefy boy that enables dynamic path-finding through the tree.
-It recusively walks a series of tokens, determining what to do at each step until an acceptable
+It recursively walks a series of tokens, determining what to do at each step until an acceptable
 endpoint is reached (e.g. an executable action, a nav, an error).
 It is both used directly for Mother traversal of the command tree as well as determining the
 validity of a proposed path.
@@ -18,9 +18,10 @@ validity of a proposed path.
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
@@ -37,7 +38,7 @@ const (
 )
 
 type walkResult struct {
-	endCommand *cobra.Command // the relevent command walk completed on
+	endCommand *cobra.Command // the relevant command walk completed on
 	status     walkStatus     // ending state
 	errString  string
 

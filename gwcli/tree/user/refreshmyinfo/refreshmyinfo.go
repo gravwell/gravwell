@@ -7,7 +7,7 @@
  **************************************************************************/
 
 /*
-Re-fetches the cached user info (MyInfo) associated to the connection
+Package refreshmyinfo defines a basic action to re-fetch the user info (MyInfo) associated to the connection, updating the local state.
 */
 package refreshmyinfo
 

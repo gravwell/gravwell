@@ -7,26 +7,25 @@
  **************************************************************************/
 
 /*
-Singleton instantiation of the gravwell client library. All calls to the Gravwell instances should
-be called via this singleton.
+Package connection implements and controls a Singleton instantiation of the gravwell client library.
+All calls to the Gravwell instances should be called via this package and the client it controls.
 
-This package also contains some wrapper functions for grav.Client calls where we want to ensure
-consistent access and parameters.
+This package also contains some wrapper functions for grav.Client calls where we want to ensure consistent access and parameters.
 */
-
 package connection
 
 import (
 	"errors"
 	"fmt"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"io"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/google/uuid"
 	grav "github.com/gravwell/gravwell/v4/client"
@@ -37,11 +36,13 @@ import (
 
 //const refreshInterval time.Duration = 10 * time.Minute // how often we refresh the user token
 
+// Client is the primary connection point from GWCLI to the gravwell backend.
 var Client *grav.Client
 
+// MyInfo holds cached data about the current user.
 var MyInfo types.UserDetails
 
-// Initializes Client using the given connection string of the form <host>:<port>.
+// Initialize creates and starts a Client using the given connection string of the form <host>:<port>.
 // Destroys a pre-existing connection (but does not log out), if there was one.
 // restLogPath should be left empty outside of test packages
 func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath string) (err error) {
@@ -57,8 +58,7 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 		if err != nil {
 			return err
 		}
-	} else if clilog.Writer != nil && clilog.Writer.GetLevel() >= log.Level(clilog.INFO) {
-		// spin up the rest logger if in INFO+
+	} else if clilog.Writer != nil && (clilog.Writer.GetLevel() == log.Level(clilog.DEBUG) || clilog.Writer.GetLevel() == log.Level(clilog.INFO)) { // spin up the rest logger if in INFO+
 		l, err = objlog.NewJSONLogger(cfgdir.DefaultRestLogPath)
 		if err != nil {
 			return err
@@ -77,7 +77,7 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 	return nil
 }
 
-// struct for passing credentials into Login
+// Credentials is the temporary struct for passing credentials into Login.
 type Credentials struct {
 	Username     string
 	Password     string
@@ -96,7 +96,7 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 	// login is attempted via JWT token first
 	// If any stage in the process fails
 	// the error is logged and we fall back to flags and prompting
-	if err := LoginViaToken(); err != nil {
+	if err := loginViaToken(); err != nil {
 		// jwt token failure; log and move on
 		clilog.Writer.Warnf("Failed to login via JWT token: %v", err)
 
@@ -107,7 +107,7 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 		clilog.Writer.Infof("Logged in via credentials")
 
 		if err := CreateToken(); err != nil {
-			clilog.Writer.Warnf(err.Error())
+			clilog.Writer.Warnf("%v", err.Error())
 			// failing to create the token is not fatal
 		} /*else {
 			// spin up a goroutine to refresh the login token automatically
@@ -139,10 +139,10 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 	return nil
 }
 
-// Attempts to login via JWT token in the user's config directory.
+// loginViaToken attempts to login via JWT token in the user's config directory.
 // Returns an error on failures. This error should be considered nonfatal and the user logged in via
 // an alternative method instead.
-func LoginViaToken() (err error) {
+func loginViaToken() (err error) {
 	var tknbytes []byte
 	// NOTE the reversal of standard error checking (`err == nil`)
 	if tknbytes, err = os.ReadFile(cfgdir.DefaultTokenPath); err == nil {
@@ -156,7 +156,7 @@ func LoginViaToken() (err error) {
 }
 
 // Attempts to login via the given credentials struct.
-// A given password takes presidence over a passfile.
+// A given password takes precedence over a passfile.
 func loginViaCredentials(cred Credentials, scriptMode bool) error {
 	// check for password in file
 	if strings.TrimSpace(cred.Password) == "" {
@@ -195,7 +195,7 @@ func loginViaCredentials(cred Credentials, scriptMode bool) error {
 	return Client.Login(cred.Username, cred.Password)
 }
 
-// Creates a login token for future use.
+// CreateToken creates a login token for future use.
 // The token's path is saved to an environment variable to be looked up on future runs
 func CreateToken() error {
 	var (
@@ -223,7 +223,7 @@ func CreateToken() error {
 	return nil
 }
 
-// Closes the connection to the server.
+// End closes the connection to the server.
 // Does not logout the user as to not invalidate existing JWTs.
 func End() error {
 	if Client == nil {
@@ -234,7 +234,7 @@ func End() error {
 	return nil
 }
 
-// A validation wrapper around Client.CreateScheduledSearch to provide consistent
+// CreateScheduledSearch is a validation wrapper around Client.CreateScheduledSearch to provide consistent
 // validation, logging, and errors.
 //
 // Returns:
@@ -259,19 +259,19 @@ func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 	if len(exploded) != 5 {
 		return id, "frequency must have 5 elements, in the format '* * * * *'", nil
 	}
-	if inv := invalidCronWord(exploded[0], "first", 0, 59); inv != "" {
+	if inv := invalidCronWord(exploded[0], "minute", 0, 59); inv != "" {
 		return id, inv, nil
 	}
-	if inv := invalidCronWord(exploded[1], "second", 0, 23); inv != "" {
+	if inv := invalidCronWord(exploded[1], "hour", 0, 23); inv != "" {
 		return id, inv, nil
 	}
-	if inv := invalidCronWord(exploded[2], "third", 1, 31); inv != "" {
+	if inv := invalidCronWord(exploded[2], "day of the month", 1, 31); inv != "" {
 		return id, inv, nil
 	}
-	if inv := invalidCronWord(exploded[3], "fourth", 1, 12); inv != "" {
+	if inv := invalidCronWord(exploded[3], "month", 1, 12); inv != "" {
 		return id, inv, nil
 	}
-	if inv := invalidCronWord(exploded[4], "fifth", 0, 6); inv != "" {
+	if inv := invalidCronWord(exploded[4], "day of the week", 0, 6); inv != "" {
 		return id, inv, nil
 	}
 
@@ -288,7 +288,7 @@ func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 
 // Validates the given cron word, ensuring it parses and is between the two bounds (inclusively).
 // entryNumber is the order of this word ("first", "second", "third", ...).
-func invalidCronWord(word, entryNumber string, lowBound, highBound int) (invalid string) {
+func invalidCronWord(word, idxDescriptor string, lowBound, highBound int) (invalid string) {
 	if i, err := strconv.Atoi(word); err != nil {
 		// check for astrisk
 		if runes := []rune(word); len(runes) == 1 && runes[0] == '*' {
@@ -296,24 +296,25 @@ func invalidCronWord(word, entryNumber string, lowBound, highBound int) (invalid
 		}
 		return "failed to parse " + word
 	} else if i < lowBound || i > highBound {
-		return fmt.Sprintf("%s value must be between %d and %d, inclusively",
-			entryNumber, lowBound, highBound)
+		return fmt.Sprintf("%s must be between %d and %d, inclusively",
+			idxDescriptor, lowBound, highBound)
 	}
 	return ""
 }
 
-// Validates and submits the given query to the connected server instance.
+// StartQuery validates and submits the given query to the connected server instance.
 // Duration must be negative or zero (X time units back in time from now()).
 // A positive duration will result in an error.
 //
 // Returns a handle to executing searching.
-func StartQuery(qry string, durFromNow time.Duration) (grav.Search, error) {
+func StartQuery(qry string, durFromNow time.Duration, background bool) (grav.Search, error) {
 	var err error
 	if durFromNow > 0 {
 		return grav.Search{}, fmt.Errorf("duration must be negative or zero (given %v)", durFromNow)
 	}
 
 	// validate search query
+	// TODO do not re-validate the query
 	if err = Client.ParseSearch(qry); err != nil {
 		return grav.Search{}, fmt.Errorf("'%s' is not a valid query: %s", qry, err.Error())
 	}
@@ -324,13 +325,17 @@ func StartQuery(qry string, durFromNow time.Duration) (grav.Search, error) {
 	sreq := types.StartSearchRequest{
 		SearchStart:  end.Add(durFromNow).Format(uniques.SearchTimeFormat),
 		SearchEnd:    end.Format(uniques.SearchTimeFormat),
-		Background:   false,
+		Background:   background,
 		SearchString: qry, // pull query from the commandline
 		NoHistory:    false,
 		Preview:      false,
 	}
-	clilog.Writer.Infof("Executing foreground search '%v' from %v -> %v",
-		sreq.SearchString, sreq.SearchStart, sreq.SearchEnd)
+	var fgbg = "foreground"
+	if background {
+		fgbg = "background"
+	}
+	clilog.Writer.Infof("Executing %v search '%v' from %v -> %v",
+		fgbg, sreq.SearchString, sreq.SearchStart, sreq.SearchEnd)
 	s, err := Client.StartSearchEx(sreq)
 	return s, err
 
@@ -356,7 +361,7 @@ func renderToDownload(rndr string, csv, json bool) string {
 	}
 }
 
-// Downloads the given search according to its renderer (or CSV/JSON, if given).
+// DownloadSearch fetches the given search's results according to its renderer (or CSV/JSON, if given).
 func DownloadSearch(search *grav.Search, tr types.TimeRange, csv, json bool) (
 	rc io.ReadCloser, format string, err error,
 ) {
@@ -366,9 +371,9 @@ func DownloadSearch(search *grav.Search, tr types.TimeRange, csv, json bool) (
 	return
 }
 
-// Returns a consistent sting for a successful query result download
+// DownloadQuerySuccessfulString returns a consistent sting for a successful query result download
 func DownloadQuerySuccessfulString(filename string, append bool, format string) string {
-	var word string = "wrote"
+	var word = "wrote"
 	if append {
 		word = "appended"
 	}

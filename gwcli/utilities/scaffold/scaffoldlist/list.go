@@ -7,6 +7,8 @@
  **************************************************************************/
 
 /*
+Package scaffoldlist provides a template for building list actions.
+
 A list action runs a given function that outputs an arbitrary data structure.
 The results are sent to weave and packaged in a way that can be listed for the user.
 
@@ -58,15 +60,16 @@ package scaffoldlist
 
 import (
 	"fmt"
+	"os"
+	"reflect"
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"os"
-	"reflect"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -263,7 +266,7 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 	} else if strings.TrimSpace(outPath) == "" {
 		return nil, nil
 	}
-	var flags int = os.O_CREATE | os.O_WRONLY
+	var flags = os.O_CREATE | os.O_WRONLY
 	if append, err := fs.GetBool(ft.Name.Append); err != nil {
 		return nil, err
 	} else if append {
@@ -309,7 +312,7 @@ func listOutput[Any any](fs *pflag.FlagSet, columns []string, color bool,
 
 	// NOTE format flags are marked mutually exclusive on creation
 	//		we do not need to check for exclusivity here
-	var format outputFormat = determineFormat(fs)
+	var format = determineFormat(fs)
 	clilog.Writer.Debugf("List: format %s | row count: %d", format, len(data))
 	toRet, err := "", nil
 	switch format {
@@ -326,7 +329,7 @@ func listOutput[Any any](fs *pflag.FlagSet, columns []string, color bool,
 		}
 	default:
 		toRet = ""
-		err = fmt.Errorf(fmt.Sprintf("unknown output format (%d)", format))
+		err = fmt.Errorf("unknown output format (%d)", format)
 	}
 	return toRet, err
 }
@@ -374,6 +377,8 @@ func newListAction[Any any](defaultColumns []string, dataStruct Any, dFn dataFun
 	return la
 }
 
+// Update takes in a msg (some event that occurred, like a window redraw or a key press) and acts on it.
+// List only ever needs to update once; it figured out what data is to be displayed, fetches it, and spits it out above the prompt.
 func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 	if la.done {
 		return nil
@@ -417,16 +422,18 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 	return tea.Println(s)
 }
 
+// View is called after each update cycle to redraw dynamic content,
+// but is not used by list actions as they output all of their data rather than dynamically viewing it.
 func (la *ListAction[T]) View() string {
 	return ""
 }
 
-// Called once per cycle to test if Mother should reassert control
+// Done is called once per cycle to test if Mother should reassert control
 func (la *ListAction[T]) Done() bool {
 	return la.done
 }
 
-// Called when the action is unseated by Mother on exiting handoff mode
+// Reset is called when the action is unseated by Mother on exiting handoff mode
 func (la *ListAction[T]) Reset() error {
 	la.done = false
 	la.columns = la.DefaultColumns
@@ -448,8 +455,8 @@ func (la *ListAction[T]) Reset() error {
 
 var _ action.Model = &ListAction[any]{}
 
-// Called when the action is invoked by the user and Mother *enters* handoff mode
-// Mother parses flags and provides us a handle to check against
+// SetArgs is called when the action is invoked by the user and Mother *enters* handoff mode.
+// Mother parses flags and provides us a handle to check against.
 func (la *ListAction[T]) SetArgs(
 	inherited *pflag.FlagSet, tokens []string) (invalid string, onStart tea.Cmd, err error) {
 

@@ -7,14 +7,18 @@
  **************************************************************************/
 
 /*
-Root node of the command tree and the true "main".
+Package tree supplies the root node of the command tree and the true "main" function.
 Initializes itself and `Executes()`, triggering Cobra to assemble itself.
 All invocations of the program operate via root, whether or not it hands off control to Mother.
+All singletons are instantiated here or via the cobra pre-run.
 */
 package tree
 
 import (
 	"errors"
+	"strings"
+	"time"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -33,16 +37,14 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/usage"
-	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 )
 
-// global PersistenPreRunE.
+// global PersistentPreRunE.
 //
 // Ensures the logger is set up and the user has logged into the gravwell instance,
-// completeing these actions if either is false.
+// completing these actions if either is false.
 func ppre(cmd *cobra.Command, args []string) error {
 	// set up the logger, if it is not already initialized
 	if clilog.Writer == nil {
@@ -70,7 +72,7 @@ func ppre(cmd *cobra.Command, args []string) error {
 	return EnforceLogin(cmd, args)
 }
 
-// Logs the client into the Gravwell instance dictated by the --server flag.
+// EnforceLogin initializes the connection singleton, which logs the client into the Gravwell instance dictated by the --server flag.
 // Safe (ineffectual) to call if already logged in.
 func EnforceLogin(cmd *cobra.Command, args []string) error {
 	if connection.Client == nil { // if we just started, initialize connection
@@ -120,11 +122,13 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 
 }
 
+// global PersistentPostRunE.
+// Ensure the client connection to the Gravwell backend is dead.
 func ppost(cmd *cobra.Command, args []string) error {
 	return connection.End()
 }
 
-// Generate Flags populates all root-relevant flags (ergo global and root-local flags)
+// GenerateFlags populates all root-relevant flags (ergo global and root-local flags)
 func GenerateFlags(root *cobra.Command) {
 	// global flags
 	root.PersistentFlags().Bool("script", false,
@@ -157,7 +161,7 @@ var long string = "gwcli is a CLI client for interacting with your Gravwell inst
 
 const ( // mousetrap
 	mousetrapText string = "This is a command line tool.\n" +
-		"You need to open cmd.exe and run it from there.\n" +
+		"You need to open gwcli.exe and run it from there.\n" +
 		"Press Return to close.\n"
 	mousetrapDuration time.Duration = (0 * time.Second)
 )
@@ -166,17 +170,34 @@ const ( // mousetrap
 // program according to the given parameters
 // (via cobra.Command.Execute()).
 func Execute(args []string) int {
+	// spawn the cobra commands in parallel
+	var cmdFn = []func() *cobra.Command{
+		macros.NewMacrosNav,
+		queries.NewQueriesNav,
+		kits.NewKitsNav,
+		user.NewUserNav,
+		extractors.NewExtractorsNav,
+		dashboards.NewDashboardNav,
+		resources.NewResourcesNav,
+		status.NewStatusNav,
+	}
+
+	var (
+		cmds  []*cobra.Command
+		resCh = make(chan *cobra.Command)
+	)
+	for _, fn := range cmdFn {
+		go func(f func() *cobra.Command) {
+			// execute the builder and send the command pointer to the dispatcher
+			resCh <- f()
+		}(fn)
+	}
+	for range cmdFn { // wait for an equal number of results
+		cmds = append(cmds, <-resCh)
+	}
+
 	rootCmd := treeutils.GenerateNav(use, short, long, []string{},
-		[]*cobra.Command{
-			macros.NewMacrosNav(),
-			queries.NewQueriesNav(),
-			kits.NewKitsNav(),
-			user.NewUserNav(),
-			extractors.NewExtractorsNav(),
-			dashboards.NewDashboardNav(),
-			resources.NewResourcesNav(),
-			status.NewStatusNav(),
-		},
+		cmds,
 		[]action.Pair{
 			query.NewQueryAction(),
 			tree.NewTreeAction(),

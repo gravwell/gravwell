@@ -6,10 +6,12 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package myinfo defines a simple action to fetch information about the current user.
 package myinfo
 
 import (
 	"fmt"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"

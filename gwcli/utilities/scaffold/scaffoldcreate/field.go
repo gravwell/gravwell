@@ -10,13 +10,14 @@ package scaffoldcreate
 
 import (
 	"errors"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+
 	"github.com/spf13/pflag"
 )
 
-// FieldType, though currently unutilized, is intended as an expandable way to add new data inputs,
+// FieldType (though currently not utilized) is intended as an expandable way to add new data inputs,
 // such as checkboxes or radio buttons. It alters the draw in .View and how data is parsed from the
 // Field's flag.
 type FieldType = string
@@ -25,10 +26,10 @@ const (
 	Text FieldType = "text" // string inputs, consumed via flag.String & textinput.Model
 )
 
-// A field defines a single data point that will be passed to the create function.
+// A Field defines a single data point that will be passed to the create function.
 type Field struct {
 	Required      bool      // this field must be populated prior to calling createFunc
-	Title         string    // field name displayed next to prompt and as flage name
+	Title         string    // field name displayed next to prompt and as flag name
 	Usage         string    // OPTIONAL. Flag usage displayed via -h
 	Type          FieldType // type of field, dictating how it is presented to the user
 	FlagName      string    // OPTIONAL. Defaults to DeriveFlagName() result.
@@ -45,7 +46,7 @@ type Field struct {
 	CustomTIFuncSetArg func(*textinput.Model) textinput.Model
 }
 
-// Returns a new field with only the required fields. Defaults to a Text type.
+// NewField returns a new field with only the required fields. Defaults to a Text type.
 //
 // You can build a Field manually, w/o NewField, but make sure you call
 // .DeriveFlagName() if you do not supply one.
@@ -54,12 +55,12 @@ func NewField(req bool, title string, order int) Field {
 		Required: req,
 		Title:    title,
 		Type:     Text,
-		FlagName: uniques.DeriveFlagName(title),
+		FlagName: ft.DeriveFlagName(title),
 		Order:    order}
 	return f
 }
 
-// Returns an error if the Field is invalid, generally due to missing required fields.
+// Valid returns why the field is currently invalid (or nil), generally due to missing required fields.
 func (f *Field) Valid() error {
 	switch {
 	case f.Title == "":
@@ -76,7 +77,7 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 	var flags pflag.FlagSet
 	for _, f := range fields {
 		if f.FlagName == "" {
-			f.FlagName = uniques.DeriveFlagName(f.Title)
+			f.FlagName = ft.DeriveFlagName(f.Title)
 		}
 
 		// map fields to their flags

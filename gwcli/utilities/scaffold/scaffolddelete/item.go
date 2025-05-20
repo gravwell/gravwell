@@ -10,11 +10,12 @@ package scaffolddelete
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
-	"io"
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
@@ -22,7 +23,7 @@ import (
 
 //#region Item implementation
 
-// the base functions a delete action must provide on the type it wants deleted
+// Item is the base functions a delete action must provide on the type it wants deleted
 type Item[I scaffold.Id_t] struct {
 	title       string
 	description string
@@ -32,22 +33,23 @@ type Item[I scaffold.Id_t] struct {
 
 var _ listsupport.Item = Item[uint64]{}
 
+// NewItem returns a new item instance with the given basic information and unique identifier.
 func NewItem[I scaffold.Id_t](title, description string, ID I) Item[I] {
 	return Item[I]{title: title, description: description, id: ID}
 }
 
-// value to compare against for filtration
+// FilterValue returns the element of data that is compare against for filtration.
 func (i Item[I]) FilterValue() string {
 	return i.title
 }
 
-// one-line representation of the item
+// Title gets the one-line representation of the item.
 func (i Item[I]) Title() string {
 	return i.title
 
 }
 
-// displayed beneath item # and title for additional details
+// Description fetches the extra text to be displayed beneath item # and title for additional details.
 func (i Item[I]) Description() string {
 	return i.description
 
@@ -83,10 +85,10 @@ func defaultRender[I scaffold.Id_t](w io.Writer, m list.Model, index int, listIt
 	fmt.Fprint(w, str)
 }
 
-// modifiers on the item delegate, usable by implementations of scaffolddelete
+// A DelegateOption is a modifier on the item delegate, typically to change how it is displayed.
 type DelegateOption[I scaffold.Id_t] func(*defaultDelegate[I])
 
-// Alter the number of lines allocated to each item.
+// WithHeight alters the number of lines allocated to each item.
 // Height should be set equal to 1 + the lipgloss.Height of your Item.Details (1+ for Title) if
 // using the default render function.
 // Values above or below that can have... unpredictable... results.
@@ -94,12 +96,12 @@ func WithHeight[I scaffold.Id_t](h int) DelegateOption[I] {
 	return func(dd *defaultDelegate[I]) { dd.height = h }
 }
 
-// Alter the number of lines between each item
+// WithSpacing alters the number of lines between each item.
 func WithSpacing[I scaffold.Id_t](s int) DelegateOption[I] {
 	return func(dd *defaultDelegate[I]) { dd.spacing = s }
 }
 
-// Alter how each item is displayed in the list of delete-able items
+// WithRender alters how each item is displayed in the list of delete-able items, using the given function into of the default item renderer.
 func WithRender[I scaffold.Id_t](f func(w io.Writer, m list.Model, index int, listItem list.Item)) DelegateOption[I] {
 	return func(dd *defaultDelegate[I]) { dd.renderFunc = f }
 }

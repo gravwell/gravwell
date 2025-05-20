@@ -9,14 +9,14 @@
 package mother
 
 /*
-The history struct is used for managing the historical record of user input and facillitating their
-retrieval.
-It stores a list of commands and handles efficiently retreiving them for quick reuse.
+ The history struct is used for managing the historical record of user input and facilitating their
+ retrieval.
+ It stores a list of commands and handles efficiently retrieving them for quick reuse.
 
-NOTE: The array is self-destructive; once the cap is reached, the array will begin to overwrite its
-oldest commands.
+ NOTE: The array is self-destructive; once the cap is reached, the array will begin to overwrite its
+ oldest commands.
 
-Newer commands have higher indices.
+ Newer commands have higher indices.
 */
 
 import (
@@ -25,9 +25,9 @@ import (
 )
 
 const ( // readability "macros"
-	unset            = math.MaxUint16
-	arrayEnd  uint16 = 999          // last valid index
-	arraySize uint16 = arrayEnd + 1 // actual array size
+	unset              = math.MaxUint16 // arbitrary number outside of array for "not set"
+	_ARRAY_END  uint16 = 999            // last valid index
+	_ARRAY_SIZE uint16 = _ARRAY_END + 1 // actual array size
 )
 
 type history struct {
@@ -38,7 +38,7 @@ type history struct {
 
 func newHistory() *history {
 	h := history{}
-	h.commands = make([]string, arraySize)
+	h.commands = make([]string, _ARRAY_SIZE)
 	h.fetchedIndex = unset
 	h.insertionIndex = 0
 
@@ -102,10 +102,10 @@ func (h *history) unsetFetch() {
 // Returns all history records, ordered from [0]newest to [len-1]oldest.
 // NOTE: this is a destructive call: it will reset unset the fetch index.
 func (h *history) getAllRecords() (records []string) {
-	records = make([]string, arraySize)
+	records = make([]string, _ARRAY_SIZE)
 	var i uint16
 	h.fetchedIndex = unset
-	for i = 0; i < arraySize; i++ {
+	for i = 0; i < _ARRAY_SIZE; i++ {
 		r := h.getOlderRecord()
 		if r == "" { // all records given
 			break
@@ -121,7 +121,7 @@ func (h *history) getAllRecords() (records []string) {
 // Decrements the given number, underflows around arraysize
 func decrement(i uint16) uint16 {
 	if i == 0 {
-		i = arrayEnd
+		i = _ARRAY_END
 	} else {
 		i -= 1
 	}
@@ -130,7 +130,7 @@ func decrement(i uint16) uint16 {
 
 // Sister function to decrement; overflows around arraysize
 func increment(i uint16) uint16 {
-	if i == arrayEnd {
+	if i == _ARRAY_END {
 		i = 0
 	} else {
 		i += 1

@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// A simple logout action that logs out the current user and ends the program
+// Package logout defines a simple logout action that logs out the current user and ends the program
 package logout
 
 import (

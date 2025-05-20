@@ -1,3 +1,6 @@
+//go:build !ci
+// +build !ci
+
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -152,7 +155,7 @@ func Test_tryQuery(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := connection.StartQuery(tt.args.qry, tt.args.duration)
+			got, err := connection.StartQuery(tt.args.qry, tt.args.duration, false) // TODO backgrounding
 			if err != nil {
 				if tt.wantErr {
 					return
@@ -163,7 +166,7 @@ func Test_tryQuery(t *testing.T) {
 
 			// unable to really compare search structs returned,
 			// just check they were created as expected
-			if got.ID == "" || got.SearchString != tt.args.qry {
+			if got.ID == "" || got.UserQuery != tt.args.qry {
 				t.Errorf("tryQuery() invalid search struct: got struct %v", got)
 				return
 			}
@@ -179,6 +182,9 @@ func Test_run(t *testing.T) {
 		restLogFile = path.Join(os.TempDir(), "gwcli.Test_run.rest.log")
 	)
 
+	// establish cli writer
+	clilog.Init(logFile, "DEBUG")
+
 	// establish connection
 	if err := connection.Initialize(server, false, true, restLogFile); err != nil {
 		panic(err)
@@ -186,8 +192,6 @@ func Test_run(t *testing.T) {
 	if err := connection.Login(connection.Credentials{Username: user, Password: pass}, true); err != nil {
 		panic(err)
 	}
-	// establish cli writer
-	clilog.Init(logFile, "DEBUG")
 
 	prepCmd := func(flagArgs []string) *cobra.Command {
 		// setup the command instance

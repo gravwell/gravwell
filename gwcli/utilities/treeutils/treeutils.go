@@ -6,21 +6,22 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Treeutils provides functions for creating the cobra command tree.
+// Package treeutils provides functions for creating the cobra command tree.
 // It has been extracted into its own package to avoid import cycles.
 package treeutils
 
 import (
+	"strings"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
 
-// Creates and returns a Nav (tree node) that can now be assigned subcommands
+// GenerateNav creates and returns a Nav (tree node) that can now be assigned subcommands (child navs and actions).
 func GenerateNav(use, short, long string, aliases []string,
 	navCmds []*cobra.Command, actionCmds []action.Pair) *cobra.Command {
 	cmd := &cobra.Command{
@@ -49,13 +50,14 @@ func GenerateNav(use, short, long string, aliases []string,
 	return cmd
 }
 
-// Creates and returns an Action (tree leaf) that can be called directly non-interactively or via
-// associated methods (actions.Pair) interactively
+// GenerateAction is a constructor for action.Pair.
+// It creates and returns an Action (tree leaf) that can be called directly non-interactively or via associated methods (actions.Pair) interactively
 func GenerateAction(cmd *cobra.Command, act action.Model) action.Pair {
 	return action.Pair{Action: cmd, Model: act}
 }
 
-// Returns a boilerplate action command that can be fed into GenerateAction.
+// NewActionCommand returns a boilerplate action command with all required information for it to be fed into NewActionPair.
+// Basically just a form of cobra.Command constructor.
 func NewActionCommand(use, short, long string, aliases []string,
 	runFunc func(*cobra.Command, []string)) *cobra.Command {
 	cmd := &cobra.Command{

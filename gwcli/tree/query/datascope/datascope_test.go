@@ -1,3 +1,6 @@
+//go:build !ci
+// +build !ci
+
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -9,12 +12,12 @@
 package datascope
 
 import (
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	activesearchlock "github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope/ActiveSearchLock"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"os"
 	"testing"
 	"time"
+
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -26,7 +29,12 @@ const ( // mock credentials
 	server   = "localhost:80"
 )
 
+// Tests that the KeepAlive function is actually able to... well... keep a query alive.
+// Wakes every so often to check that we can still re-download our search (aka: that it has not expired yet).
+// If any of these downloads fail, the test fails.
 func TestKeepAlive(t *testing.T) {
+	const testIntervals uint = 6
+
 	// connect and login
 	// connect to the server for manual calls
 	testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true})
@@ -41,7 +49,12 @@ func TestKeepAlive(t *testing.T) {
 	if err := clilog.Init("test_log.txt", "DEBUG"); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { os.Remove("test_log.txt") })
+	// if the test passed, clean up the log file
+	t.Cleanup(func() {
+		if !t.Failed() {
+			os.Remove("test_log.txt")
+		}
+	})
 
 	const minDuration = 4 * time.Minute
 	// skip this test if we do not have a long enough timeout
@@ -54,31 +67,25 @@ func TestKeepAlive(t *testing.T) {
 	if err != nil {
 		t.Fatal("failed to start query:", err)
 	}
+	t.Cleanup(func() { s.Close() })
+
+	done := make(chan bool)
+	t.Cleanup(func() { close(done) })
 
 	// spawn keepalive on it
-	go keepAlive(&s)
+	go keepAlive(&s, done)
 
-	// update the timestamp every 30 seconds, endlessly
-	go func() {
-		for {
-			time.Sleep(30 * time.Second)
-			activesearchlock.UpdateTS()
-		}
-	}()
-
-	// pull results from the query every so often
-	for i := 0; i < 3; i++ { // run for 3 minutes
-		time.Sleep(time.Minute)
+	// pull results from the query after each interval has expired
+	testFreq := s.Interval() + time.Second
+	for i := range testIntervals {
+		time.Sleep(testFreq)
 
 		if _, err := testclient.DownloadSearch(s.ID,
 			types.TimeRange{},
-			uniques.SearchTimeFormat); err != nil {
+			types.DownloadText); err != nil {
 			t.Fatalf("failed to download search after %v minutes: %v", i, err)
 		}
 	}
-
-	// change the sid
-	activesearchlock.SetSearchID("different string")
 
 	// confirm that keepalive is dead by repulling results and expecting a 404
 	time.Sleep(30 * time.Second)

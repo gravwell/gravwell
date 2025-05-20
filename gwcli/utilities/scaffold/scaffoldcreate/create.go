@@ -7,11 +7,13 @@
  **************************************************************************/
 
 /*
+Package scaffoldcreate provides a template for building actions that create new data or configuration.
+
 A create action creates a shallow list of inputs for the user to fill via flags or interactive
 TIs before being passed back to the progenitor to transform into usable data for their create
 function.
 
-The available fields are fairly configurable, the progentior provides their own map of Field
+The available fields are fairly configurable, the progenitor provides their own map of Field
 structs, and easily extensible, the struct can have more options or formats bolted on without too
 much trouble.
 
@@ -63,6 +65,10 @@ package scaffoldcreate
 
 import (
 	"fmt"
+	"slices"
+	"strings"
+	"sync"
+
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
@@ -70,9 +76,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"slices"
-	"strings"
-	"sync"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -86,12 +89,19 @@ const (
 	createdSuccessfully     = "Successfully created %v (ID: %v)."
 )
 
-// keys -> Field; used as (ReadOnly) configuration for this creation instance
+// A Config maps keys -> Field; used as (ReadOnly) configuration for this creation instance
 type Config = map[string]Field
 
 type Values = map[string]string
 
-// signature the supplied creation function must match
+// CreateFunc defines the format of the subroutine that must be passed for creating data.
+// The function's return values must be:
+//
+// the id of the newly created value (likely as returned by the Gravwell backend)
+//
+// a reason the create attempt was invalid (or the empty string)
+//
+// and an error that occurred (or nil). This is different than an invalid reason and is likely a bubbling up of an error from the client library.
 type CreateFunc func(cfg Config, values Values, fs *pflag.FlagSet) (id any, invalid string, err error)
 
 func NewCreateAction(singular string,
@@ -104,7 +114,7 @@ func NewCreateAction(singular string,
 	}
 
 	// pull flags from provided fields
-	var flags pflag.FlagSet = installFlagsFromFields(fields)
+	var flags = installFlagsFromFields(fields)
 	if addtlFlags != nil {
 		afs := addtlFlags()
 		flags.AddFlagSet(&afs)
@@ -375,9 +385,9 @@ func (c *createModel) View() string {
 	fieldWidth := c.longestFieldLength + 3 // 1 spaces for ":", 1 for pip, 1 for padding
 
 	var ( // styles
-		tiFieldRequiredSty                = stylesheet.Header1Style
-		tiFieldOptionalSty                = stylesheet.Header2Style
-		leftAlignerSty     lipgloss.Style = lipgloss.NewStyle().
+		tiFieldRequiredSty = stylesheet.Header1Style
+		tiFieldOptionalSty = stylesheet.Header2Style
+		leftAlignerSty     = lipgloss.NewStyle().
 					Width(fieldWidth).
 					AlignHorizontal(lipgloss.Right).
 					PaddingRight(1)

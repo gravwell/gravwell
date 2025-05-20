@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+/* Package indexers defines a nav for status actions related to the indexers. */
 package indexers
 
 import (

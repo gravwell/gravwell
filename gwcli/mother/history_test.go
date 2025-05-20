@@ -8,7 +8,7 @@
 
 package mother
 
-// Figured history requires its own test suite because it has a lot of edge cases
+// Figured history requires its own test suite because it has a lot of edge cases.
 
 import (
 	"fmt"
@@ -19,13 +19,13 @@ import (
 func TestHistoryLimits(t *testing.T) {
 	t.Run("unset clash", func(t *testing.T) {
 		// overlap between unset macro will cause indexing issues
-		if arrayEnd >= unset {
-			t.Errorf("unset macro (%d) is in the set of array indices (%v)", unset, arrayEnd)
+		if _ARRAY_END >= unset {
+			t.Errorf("unset macro (%d) is in the set of array indices (%v)", unset, _ARRAY_END)
 		}
 	})
 }
 
-// A somewhat redudant test to ensure new sets all parameters correctly
+// A somewhat redundant test to ensure new sets all parameters correctly
 func TestNewHistory(t *testing.T) {
 	t.Run("New", func(t *testing.T) {
 		h := newHistory()
@@ -110,7 +110,7 @@ func Test_history_GetRecord(t *testing.T) {
 
 			// fetching immediately on creation should wrap fetchIndex to arrayEnd,
 			//	as history does not know if we just started or overflowed
-			if h.fetchedIndex != arrayEnd {
+			if h.fetchedIndex != _ARRAY_END {
 				t.Errorf("empty history did not unflow on decrement (fetchIndex: %d)", h.fetchedIndex)
 			}
 		})
@@ -120,8 +120,8 @@ func Test_history_GetRecord(t *testing.T) {
 			if r != "" {
 				t.Errorf("empty history did not fetch empty string (got: %s)", r)
 			}
-			if h.fetchedIndex != arrayEnd {
-				t.Errorf("second decrement occured despite empty history (fetchIndex: %d, expected: %d)", h.fetchedIndex, arrayEnd)
+			if h.fetchedIndex != _ARRAY_END {
+				t.Errorf("second decrement occured despite empty history (fetchIndex: %d, expected: %d)", h.fetchedIndex, _ARRAY_END)
 			}
 		})
 		t.Run("unset, repeat first fetch sets fetchedIndex", func(t *testing.T) {
@@ -133,7 +133,7 @@ func Test_history_GetRecord(t *testing.T) {
 
 			// fetching immediately on creation should wrap fetchIndex to arrayEnd,
 			//	as history does not know if we just started or overflowed
-			if h.fetchedIndex != arrayEnd {
+			if h.fetchedIndex != _ARRAY_END {
 				t.Errorf("empty history did not unflow on decrement (fetchIndex: %d)", h.fetchedIndex)
 			}
 		})
@@ -156,7 +156,7 @@ func Test_history_GetRecord(t *testing.T) {
 		})
 
 		randOlderRecordFunc := func(t *testing.T) {
-			roll := rand.Intn(int(arraySize) * 2)
+			roll := rand.Intn(int(_ARRAY_SIZE) * 2)
 			t.Logf("Rolled %d", roll)
 			for i := 0; i < roll; i++ {
 				if r := h.getOlderRecord(); r != "" {
@@ -188,7 +188,7 @@ func Test_history_GetRecord(t *testing.T) {
 		h.getNewerRecord() // C
 
 		randNewerRecordFunc := func(t *testing.T) {
-			roll := rand.Intn(int(arraySize) * 2)
+			roll := rand.Intn(int(_ARRAY_SIZE) * 2)
 			t.Logf("Rolled %d", roll)
 			for i := 0; i < roll; i++ {
 				if r := h.getNewerRecord(); r != "" {
@@ -216,26 +216,26 @@ func Test_history_GetRecord(t *testing.T) {
 	t.Run("at limit", func(t *testing.T) {
 		h := newHistory()
 		var i uint16
-		for i = 0; i < arraySize; i++ {
+		for i = 0; i < _ARRAY_SIZE; i++ {
 			h.insert(fmt.Sprintf("%v", i))
 		}
 		t.Run("first GetRecord", func(t *testing.T) {
-			if r := h.getOlderRecord(); r != fmt.Sprintf("%v", arrayEnd) ||
-				r != h.commands[arrayEnd] {
+			if r := h.getOlderRecord(); r != fmt.Sprintf("%v", _ARRAY_END) ||
+				r != h.commands[_ARRAY_END] {
 				t.Errorf("GetRecord did not return last record. Expected %s, got %s. Commands: %v",
-					fmt.Sprintf("%v", arrayEnd), r, h.commands)
+					fmt.Sprintf("%v", _ARRAY_END), r, h.commands)
 			}
 		})
 		t.Run("second GetRecord", func(t *testing.T) {
-			want := fmt.Sprintf("%v", arrayEnd-1)
-			if r := h.getOlderRecord(); r != want || r != h.commands[arrayEnd-1] {
+			want := fmt.Sprintf("%v", _ARRAY_END-1)
+			if r := h.getOlderRecord(); r != want || r != h.commands[_ARRAY_END-1] {
 				t.Errorf("GetRecord did not return second-to-last record. Expected %s, got %s. Commands: %v",
 					want, r, h.commands)
 			}
 		})
 		t.Run("edge of underflow", func(t *testing.T) {
 			want := fmt.Sprintf("%v", 0)
-			for i := arrayEnd - 1; i > 1; i-- {
+			for i := _ARRAY_END - 1; i > 1; i-- {
 				_ = h.getOlderRecord()
 			}
 			r := h.getOlderRecord()
@@ -279,11 +279,11 @@ func Test_history_GetAllRecords(t *testing.T) {
 
 	h := newHistory()
 	t.Run("no overflow", func(t *testing.T) {
-		for i := int(arrayEnd); i >= 0; i-- {
+		for i := int(_ARRAY_END); i >= 0; i-- {
 			h.insert(fmt.Sprintf("%d", -i))
 		}
 		rs := h.getAllRecords()
-		for i := 0; i < int(arrayEnd); i++ {
+		for i := 0; i < int(_ARRAY_END); i++ {
 			if rs[i] != fmt.Sprintf("%d", -i) {
 				t.Fatalf("value mismatch: (index: %d) (want: %s, got (rs[i]): %s)", i, fmt.Sprintf("%d", -i), rs[i])
 			}
@@ -296,7 +296,7 @@ func Test_history_GetAllRecords(t *testing.T) {
 			t.Errorf("GetAllRecords did not sort newest first."+
 				"Expected first record 'A' (got: %v), second record '0' (got: %v)", rs[0], 0)
 		}
-		if h.commands[0] != "A" || h.commands[1] != fmt.Sprintf("-%d", arrayEnd-1) {
+		if h.commands[0] != "A" || h.commands[1] != fmt.Sprintf("-%d", _ARRAY_END-1) {
 			t.Errorf("Command list corrupt on overflow."+
 				"Expected [A, -998, -997, ...]. Got: [%s, %s, %s, ...]",
 				h.commands[0], h.commands[1], h.commands[2])

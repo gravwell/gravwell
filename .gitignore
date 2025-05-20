@@ -31,3 +31,6 @@ manager
 #idea files
 .idea/
 .idea
+
+# VSCode files
+.vscode/*

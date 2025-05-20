@@ -8,17 +8,17 @@
 
 package scaffoldedit
 
-// Pulls the specific, edit-able struct when skipping list/selecting mode.
+// SelectSubroutine defines the subrotuine used to pull a specific (selected), edit-able struct when skipping list/selecting mode.
 type SelectSubroutine[I id_t, S any] func(id I) (
 	item S, err error,
 )
 
-// Fetches all edit-able structs. Not used in script mode.
+// FetchAllSubroutine defines a subroutine that returns all edit-able data (in the form of their structs). Not used in script mode.
 type FetchAllSubroutine[S any] func() (
 	items []S, err error,
 )
 
-// Function to retrieve the struct value associated to the field key without reflection.
+// GetFieldSubroutine defines the function to retrieve the struct value associated to the field key without reflection.
 // This is probably a switch statement that maps (key -> item.X).
 //
 // Sister to setFieldFunction.
@@ -26,15 +26,15 @@ type GetFieldSubroutine[S any] func(item S, fieldKey string) (
 	value string, err error,
 )
 
-// Subroutine to fetch a title to be displayed for this item in the list.
+// GetTitleSubroutine defines the subroutine to fetch a title to be displayed for this item in the list.
 // This will be called in a loop when building the list.
 type GetTitleSubroutine[S any] func(item S) string
 
-// Subroutine to fetch a description to be displayed under this item in the list.
+// GetDescriptionSubroutine defines the subroutine to fetch a description to be displayed under this item in the list.
 // This will be called in a loop when building the list.
 type GetDescriptionSubroutine[S any] func(item S) string
 
-// Function to set the struct value associated to the field key without reflection.
+// SetFieldSubroutine defines the function to set the struct value associated to the field key without reflection.
 // This is probably a switch statement that maps (key -> item.X).
 // Returns invalid if the value is invalid for the keyed field and err on an unrecoverable error.
 //
@@ -43,12 +43,12 @@ type SetFieldSubroutine[S any] func(item *S, fieldKey, val string) (
 	invalid string, err error,
 )
 
-// Performs the actual update of the data on the GW instance
+// UpdateStructSubroutine defines the function that performs the actual update of the data on the GW instance.
 type UpdateStructSubroutine[S any] func(data *S) (
 	identifier string, err error,
 )
 
-// Set of all subroutines required by an edit implementation.
+// SubroutineSet defines the set of all subroutines required by an implementation of an edit action.
 //
 // ! AddEditAction will panic if any subroutine is nil
 type SubroutineSet[I id_t, S any] struct {

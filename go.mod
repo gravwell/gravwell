@@ -48,6 +48,7 @@ require (
 	github.com/jaswdr/faker/v2 v2.3.2
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
 	github.com/klauspost/compress v1.18.0
+	github.com/magefile/mage v1.15.0
 	github.com/miekg/dns v1.1.56
 	github.com/minio/highwayhash v1.0.0
 	github.com/open-networks/go-msgraph v0.3.1
