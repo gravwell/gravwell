@@ -148,10 +148,6 @@ func run(cmd *cobra.Command, args []string) {
 
 	// fetch flags
 	flags := querysupport.TransmogrifyFlags(cmd.Flags())
-	if err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-		return
-	}
 
 	// TODO pull qry from referenceID, if given
 
