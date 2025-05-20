@@ -125,3 +125,18 @@ func DeriveFlagName(title string) string {
 	}, title)
 	return title
 }
+
+// Mandatory wraps and returns the given text in angle brackets to indicate that it is a required flag or argument.
+func Mandatory(text string) string {
+	return "<" + text + ">"
+}
+
+// Optional wraps and returns the given text in square brackets to indicate that it is an optional flag or argument.
+func Optional(text string) string {
+	return "[" + text + "]"
+}
+
+// Optional wraps and returns the given elements in curly braces to indicate that they are mutually exclusive with one another.
+func MutuallyExclusive(texts []string) string {
+	return "{" + strings.Join(texts, "|") + "}"
+}
