@@ -113,7 +113,23 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	// if a sid was given, attempt to go directly to datascope
-	// TODO
+	if sid != "" {
+		// slurp the results
+		search, err := connection.Client.AttachSearch(sid)
+		if err != nil {
+			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+			return
+		}
+		results, tblMode, err := querysupport.FetchSearchResults(&search)
+		if err != nil {
+			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+			return
+		} else if results == nil {
+			fmt.Fprintln(cmd.OutOrStdout(), querysupport.NoResultsText)
+			return
+		}
+
+	}
 
 	// if a sid was not given, launch Mother into bare `attach` call
 	// TODO

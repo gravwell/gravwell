@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gravwell/gravwell/v4/client"
+	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/spf13/pflag"
@@ -30,10 +30,13 @@ const (
 //#endregion modes
 
 type attach struct {
-	mode   mode
-	search client.Search
+	mode mode
 
 	initialFS pflag.FlagSet
+
+	search *grav.Search
+
+	scope tea.Model // datascope for displaying data
 }
 
 var Attach action.Model = Initial()
@@ -110,7 +113,7 @@ func (a *attach) SetArgs(p *pflag.FlagSet, _ []string) (invalid string, _ tea.Cm
 		// TODO if this is an unknown search error, return it as invalid
 		return "", nil, err
 	}
-	a.search = s
+	a.search = &s
 
 	// spin up the datascope
 
