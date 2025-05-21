@@ -331,7 +331,7 @@ type SearchCtrlStatus struct {
 	GID             int32 // deprecated, use GIDs instead
 	GIDs            []int32
 	Global          bool
-	State           string
+	State           SearchState
 	AttachedClients int
 	StoredData      int64
 	UserQuery       string
@@ -343,6 +343,23 @@ type SearchCtrlStatus struct {
 	LaunchInfo      SearchLaunchInfo
 	Error           string `json:",omitempty"`
 }
+
+type SearchState struct {
+	Attached     bool         `json:"attached"`
+	Backgrounded bool         `json:"backgrounded"`
+	Saved        bool         `json:"saved"`
+	Streaming    bool         `json:"streaming"`
+	Status       SearchStatus `json:"status"`
+}
+
+type SearchStatus string
+
+const (
+	SearchStatusError     SearchStatus = `error`
+	SearchStatusCompleted SearchStatus = `completed`
+	SearchStatusRunning   SearchStatus = `running`
+	SearchStatusPending   SearchStatus = `pending`
+)
 
 func (si SearchInfo) StorageSize() int64 {
 	return si.StoreSize + si.IndexSize
