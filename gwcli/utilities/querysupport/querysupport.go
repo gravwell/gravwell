@@ -16,8 +16,9 @@ import (
 
 // permissions to use for the file handle
 const (
-	perm     os.FileMode = 0644
-	pageSize uint64      = 500 // fetch results page by page
+	perm          os.FileMode = 0644
+	pageSize      uint64      = 500 // fetch results page by page
+	NoResultsText             = "no results found for given query"
 )
 
 // toFile slurps the given reader and spits its data into the given file.
@@ -84,7 +85,7 @@ func WriteDownloadResults(results io.ReadCloser, altWriter io.Writer, filePath s
 		return err
 	} else {
 		if len(r) == 0 {
-			_, err := fmt.Fprintln(altWriter, "no results to display")
+			_, err := fmt.Fprintln(altWriter, NoResultsText)
 			return err
 		}
 		_, err := fmt.Fprint(altWriter, string(r))

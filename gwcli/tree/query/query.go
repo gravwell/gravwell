@@ -75,8 +75,6 @@ const (
 
 	pageSize = 500 // fetch results page by page
 
-	NoResultsText = "No results found for given query"
-
 	helpDesc = "Generate and send a query to the remote server either by arguments or " +
 		"the interactive query builder.\n" +
 		"All bare arguments after `query` will be passed to the instance as the query string.\n" +
@@ -301,7 +299,7 @@ func invokeDatascope(cmd *cobra.Command, flags querysupport.QueryFlags, search *
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
 	} else if results == nil {
-		fmt.Fprintln(cmd.OutOrStdout(), NoResultsText)
+		fmt.Fprintln(cmd.OutOrStdout(), querysupport.NoResultsText)
 		return
 	}
 

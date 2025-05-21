@@ -162,7 +162,7 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 				return cmd
 			} else if len(results) == 0 {
 				q.mode = quitting
-				return tea.Println(NoResultsText)
+				return tea.Println(querysupport.NoResultsText)
 			}
 
 			var cmd tea.Cmd
