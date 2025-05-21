@@ -29,7 +29,16 @@ import (
 )
 
 const (
-	helpDesc string = "" // TODO
+	helpDesc string = "Attach to an existing query by search ID and display its results.\n" +
+		"If the query is still running, attaching to it will block until it is complete.\n" +
+		"\n" +
+		"In interactive mode, a list of available, attach-able queries will be displayed.\n" +
+		"\n" +
+		"If --json or --csv is not given when outputting to a file (`-o`), the results will be " +
+		"text (if able) or an archive binary blob (if unable), depending on the query's render " +
+		"module.\n" +
+		"gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
+		"blob (aka: your query uses a chart-style renderer)."
 )
 
 // NewAttachAction creates an attach action of the form `./gwcli ... attach 123456789`
