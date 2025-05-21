@@ -93,7 +93,8 @@ func WriteDownloadResults(results io.ReadCloser, altWriter io.Writer, filePath s
 	}
 }
 
-// FetchSearchResults takes an attached search and pulls back available results if the search has completed
+// FetchSearchResults takes an attached search and pulls back available results if the search has completed.
+// If the search turned by no results, results will be nil and the caller should print the NoResultsText.
 func FetchSearchResults(search *grav.Search) (results []string, tableMode bool, err error) {
 	// TODO need to ensure the search is done, but no search.Done or search.Ended exists
 	clilog.Writer.Infof("fetching results of type %v", search.RenderMod)

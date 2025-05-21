@@ -19,7 +19,9 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -128,10 +130,22 @@ func run(cmd *cobra.Command, args []string) {
 			fmt.Fprintln(cmd.OutOrStdout(), querysupport.NoResultsText)
 			return
 		}
+		p, err := datascope.CobraNew(results, &search, tblMode)
+		if err != nil {
+			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+			return
+		}
 
+		if _, err := p.Run(); err != nil {
+			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+			return
+		}
+		return
 	}
 
 	// if a sid was not given, launch Mother into bare `attach` call
-	// TODO
-
+	if err := mother.Spawn(cmd.Root(), cmd, args); err != nil {
+		clilog.Tee(clilog.CRITICAL, cmd.ErrOrStderr(),
+			"failed to spawn a mother instance: "+err.Error()+"\n")
+	}
 }
