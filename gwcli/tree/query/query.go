@@ -229,7 +229,7 @@ func run(cmd *cobra.Command, args []string) {
 			results io.ReadCloser
 			format  string
 		)
-		if results, format, err = connection.DownloadSearch(
+		if results, format, err = querysupport.StreamSearchResults(
 			&search, types.TimeRange{}, flags.CSV, flags.JSON,
 		); err != nil {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(),

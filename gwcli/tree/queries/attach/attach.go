@@ -50,10 +50,10 @@ func NewAttachAction() action.Pair {
 			panic(err)
 		}
 		if script && len(args) != 1 {
-			return errors.New("attach requires exactly 1 argument in script mode.\n" + syntax(cmd, true))
+			return errors.New("attach requires exactly 1 argument in script mode.\n" + syntax(true))
 		}
 		if len(args) > 1 {
-			return errors.New("attach takes 0 or 1 argument in interactive mode.\n" + syntax(cmd, false))
+			return errors.New(errWrongInteractiveArgCount())
 		}
 		return nil
 	}
@@ -100,7 +100,7 @@ func run(cmd *cobra.Command, args []string) {
 		}
 		defer s.Close()
 
-		rc, format, err := connection.DownloadSearch(&s, types.TimeRange{}, flags.CSV, flags.JSON)
+		rc, format, err := querysupport.StreamSearchResults(&s, types.TimeRange{}, flags.CSV, flags.JSON)
 		if err != nil {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
 			return

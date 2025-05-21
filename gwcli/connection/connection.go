@@ -17,7 +17,6 @@ package connection
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -339,36 +338,6 @@ func StartQuery(qry string, durFromNow time.Duration, background bool) (grav.Sea
 	s, err := Client.StartSearchEx(sreq)
 	return s, err
 
-}
-
-// Maps Render module and csv/json flag state to a string usable with DownloadSearch().
-// JSON, then CSV, take precidence over a direct render -> format map.
-// If a better renderer type cannot be determined, Archive will be selected.
-func renderToDownload(rndr string, csv, json bool) string {
-	if json {
-		return types.DownloadJSON
-	}
-	if csv {
-		return types.DownloadCSV
-	}
-	switch rndr {
-	case types.RenderNameHex, types.RenderNameRaw, types.RenderNameText:
-		return types.DownloadText
-	case types.RenderNamePcap:
-		return types.DownloadPCAP
-	default:
-		return types.DownloadArchive
-	}
-}
-
-// DownloadSearch fetches the given search's results according to its renderer (or CSV/JSON, if given).
-func DownloadSearch(search *grav.Search, tr types.TimeRange, csv, json bool) (
-	rc io.ReadCloser, format string, err error,
-) {
-	format = renderToDownload(search.RenderMod, csv, json)
-	clilog.Writer.Infof("renderer '%s' -> '%s'", search.RenderMod, format)
-	rc, err = Client.DownloadSearch(search.ID, tr, format)
-	return
 }
 
 // DownloadQuerySuccessfulString returns a consistent sting for a successful query result download

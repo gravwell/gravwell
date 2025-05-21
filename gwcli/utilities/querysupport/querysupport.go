@@ -1,5 +1,7 @@
 // Package querysupport is intended to provide functionality for querying/searching.
 // Allows multiple actions that touch the search backend to operate comparably and with minimal duplicate code.
+//
+// Much of the functionality of querysupport is wrapping the connection package; this package should be preferred over using connection direction when querying.
 package querysupport
 
 import (
@@ -57,6 +59,35 @@ func toFile(results io.ReadCloser, path string, append bool) error {
 	/*fmt.Fprintln(cmd.OutOrStdout(),
 	connection.DownloadQuerySuccessfulString(of.Name(), flags.append, format))*/
 	return nil
+}
+
+// Maps Render module and csv/json flag state to a string usable with DownloadSearch().
+// JSON, then CSV, take precedence over a direct render -> format map.
+// If a better renderer type cannot be determined, Archive will be selected.
+func renderToDownload(rndr string, csv, json bool) string {
+	if json {
+		return types.DownloadJSON
+	}
+	if csv {
+		return types.DownloadCSV
+	}
+	switch rndr {
+	case types.RenderNameHex, types.RenderNameRaw, types.RenderNameText:
+		return types.DownloadText
+	case types.RenderNamePcap:
+		return types.DownloadPCAP
+	default:
+		return types.DownloadArchive
+	}
+}
+
+// StreamSearchResults fetches the given search's results according to its renderer (or CSV/JSON, if given), returning an io.ReadCloser.
+// If a TimeRange is given, only results in that timeframe will be included.
+func StreamSearchResults(search *grav.Search, tr types.TimeRange, csv, json bool) (rc io.ReadCloser, format string, err error) {
+	format = renderToDownload(search.RenderMod, csv, json)
+	clilog.Writer.Infof("renderer '%s' -> '%s'", search.RenderMod, format)
+	rc, err = connection.Client.DownloadSearch(search.ID, tr, format)
+	return
 }
 
 // WriteDownloadResults slurps the given results and decides what to do with them.
