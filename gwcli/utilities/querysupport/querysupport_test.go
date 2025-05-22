@@ -82,7 +82,7 @@ func Test_PutResultsToWriter(t *testing.T) {
 					priorSize = prepopulateFile(t, tt.args.path)
 				}
 
-				if err := PutResultsToWriter(r, nil, tt.args.path, tt.args.append, ""); (err != nil) != tt.wantErr {
+				if err := putResultsToWriter(r, nil, tt.args.path, tt.args.append, ""); (err != nil) != tt.wantErr {
 					t.Errorf("toFile() error = %v, wantErr %v", err, tt.wantErr)
 				}
 				if !tt.wantErr {
@@ -130,7 +130,7 @@ func Test_PutResultsToWriter(t *testing.T) {
 				// wrap the mock results
 				r := io.NopCloser(strings.NewReader(tt.args.resultsStr))
 
-				if err := PutResultsToWriter(r, &sb, "", false, tt.args.format); (err != nil) != tt.wantErr {
+				if err := putResultsToWriter(r, &sb, "", false, tt.args.format); (err != nil) != tt.wantErr {
 					t.Errorf("toFile() error = %v, wantErr %v", err, tt.wantErr)
 				}
 				if !tt.wantErr {

@@ -64,7 +64,7 @@ func toFile(rd io.Reader, path string, append bool) error {
 	return nil
 }
 
-// PutResultsToWriter streams results into a file at the given path or into the given writer (probably stdout).
+// putResultsToWriter streams results into a file at the given path or into the given writer (probably stdout).
 // If an output file path is found, it will spit the result into the file.
 // Otherwise, it will print them to the given Writer (probably stdout).
 //
@@ -73,7 +73,7 @@ func toFile(rd io.Reader, path string, append bool) error {
 // ! Will not print to wr if the type is a binary. A BinaryBlobCoward error will be returned instead.
 //
 // ! Does not log errors; leaves that to the caller.
-func PutResultsToWriter(results io.Reader, wr io.Writer, filePath string, append bool, format string) error {
+func putResultsToWriter(results io.Reader, wr io.Writer, filePath string, append bool, format string) error {
 	if filePath != "" {
 		return toFile(results, filePath, append)
 	}
@@ -251,7 +251,7 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 		defer rc.Close()
 
 		// put results to file or stdout
-		if err := PutResultsToWriter(rc, stdout, flags.OutPath, flags.Append, format); err != nil {
+		if err := putResultsToWriter(rc, stdout, flags.OutPath, flags.Append, format); err != nil {
 			clilog.Tee(clilog.ERROR, stderr, err.Error())
 			return
 		}
