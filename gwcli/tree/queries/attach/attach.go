@@ -15,7 +15,6 @@ package attach
 import (
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -65,10 +64,10 @@ func NewAttachAction() action.Pair {
 			panic(err)
 		}
 		if script && len(args) != 1 {
-			return errors.New("attach requires exactly 1 argument in script mode.\n" + syntax(true))
+			return errors.New(errWrongArgCount(true))
 		}
 		if len(args) > 1 {
-			return errors.New(errWrongInteractiveArgCount())
+			return errors.New(errWrongArgCount(false))
 		}
 		return nil
 	}
@@ -127,90 +126,64 @@ func run(cmd *cobra.Command, args []string) {
 				}
 			}
 		}()
-		// if we are not in script mode, spawn a spinner to show that we didn't just hang
+		// if we are not in script mode, spawn a spinner to show that we didn't just hang during processing
 		var spnr *tea.Program
 		if !flags.Script {
 			spnr = busywait.CobraNew()
 			spnr.Run()
 		}
 
-		err = connection.Client.WaitForSearch(s)
-		// stop our other goroutines
-		close(done)
-		if spnr != nil {
-			spnr.Quit()
-		}
+		// if we are in script mode or were given an output file, the results will be streamed
+		if flags.Script || flags.OutPath != "" {
+			// ensure we stop our other goroutines when the job is done
+			defer func() {
+				close(done)
+				if spnr != nil {
+					spnr.Quit()
+				}
+			}()
 
-		if err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-			return
-		}
-
-		// pull results
-		rc, _, err := querysupport.StreamSearchResults(&s, types.TimeRange{}, flags.CSV, flags.JSON)
-		if err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-			return
-		}
-		defer rc.Close()
-
-		if flags.OutPath != "" { // spit the results into a file
-			if err := querysupport.WriteResultsToFile(rc, flags.OutPath, flags.Append); err != nil {
+			// pull results
+			rc, format, err := querysupport.GetResultsForWriter(&s, types.TimeRange{}, flags.CSV, flags.JSON)
+			if err != nil {
 				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+				return
 			}
-		} else if flags.Script { // spit the results to stdout
-			if _, err := io.Copy(cmd.OutOrStdout(), rc); err != nil {
+			defer rc.Close()
+
+			// put results to file or stdout
+			if err := querysupport.PutResultsToWriter(rc, cmd.OutOrStdout(), flags.OutPath, flags.Append, format); err != nil {
 				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+				return
 			}
-		} else { // give the results to datascope
+		} else { // otherwise, the results will be slurped for datascope
+			results, tbl, err := querysupport.GetResultsForDataScope(&s)
+			// once results are ready, kill our other goroutines and allow datascope to take over
+			close(done)
+			if spnr != nil {
+				spnr.Quit()
+			}
+			if err != nil {
+				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+				return
+			}
 
-			// this will block until the user exists datascope
-			datascope.CobraNew()
+			// pass control off to datascope
+			p, err := datascope.CobraNew(results, &s, tbl)
+			if err != nil {
+				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+				return
+			}
+			if _, err := p.Run(); err != nil {
+				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+				return
+			}
 		}
 
 		return
-
 	}
 
-	// split on --script
-	if flags.Script {
-		// arg validator should ensure sid is populated by this point
-
-		// attaching to a search non-interactively just downloads the results and spits them out
-
-		return
-	}
-
-	// if a sid was given, attempt to go directly to datascope
-	if sid != "" {
-		// slurp the results
-		search, err := connection.Client.AttachSearch(sid)
-		if err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-			return
-		}
-		results, tblMode, err := querysupport.FetchSearchResults(&search)
-		if err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-			return
-		} else if results == nil {
-			fmt.Fprintln(cmd.OutOrStdout(), querysupport.NoResultsText)
-			return
-		}
-		p, err := datascope.CobraNew(results, &search, tblMode)
-		if err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-			return
-		}
-
-		if _, err := p.Run(); err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-			return
-		}
-		return
-	}
-
-	// if a sid was not given, launch Mother into bare `attach` call
+	// sid was not given, launch Mother into bare `attach` call
 	if err := mother.Spawn(cmd.Root(), cmd, args); err != nil {
 		clilog.Tee(clilog.CRITICAL, cmd.ErrOrStderr(),
 			"failed to spawn a mother instance: "+err.Error()+"\n")

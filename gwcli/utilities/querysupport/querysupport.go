@@ -18,15 +18,15 @@ import (
 
 // permissions to use for the file handle
 const (
-	perm          os.FileMode = 0644
-	pageSize      uint64      = 500 // fetch results page by page
-	NoResultsText             = "no results found for given query"
+	perm      os.FileMode = 0644
+	pageSize  uint64      = 500 // fetch results page by page
+	NoResults             = "no results found for given query"
 )
 
-// WriteResultsToFile streams the data in rd into the file at path.
+// toFile streams the data in rd into the file at path.
 //
 // Assumes path != "".
-func WriteResultsToFile(rd io.Reader, path string, append bool) error {
+func toFile(rd io.Reader, path string, append bool) error {
 	// open the file for writing
 	var f *os.File
 	var flags = os.O_WRONLY | os.O_CREATE
@@ -58,143 +58,118 @@ func WriteResultsToFile(rd io.Reader, path string, append bool) error {
 	return nil
 }
 
-// Maps Render module and csv/json flag state to a string usable with DownloadSearch().
-// JSON, then CSV, take precedence over a direct render -> format map.
-// If a better renderer type cannot be determined, Archive will be selected.
-func renderToDownload(rndr string, csv, json bool) string {
-	if json {
-		return types.DownloadJSON
-	}
-	if csv {
-		return types.DownloadCSV
-	}
-	switch rndr {
-	case types.RenderNameHex, types.RenderNameRaw, types.RenderNameText:
-		return types.DownloadText
-	case types.RenderNamePcap:
-		return types.DownloadPCAP
-	default:
-		return types.DownloadArchive
-	}
-}
-
-// StreamSearchResults fetches the given search's results according to its renderer (or CSV/JSON, if given), returning an io.ReadCloser.
+// GetResultsForWriter waits on and downloads the given results according to their associated render type
+// (JSON, CSV, if given, otherwise the normal form of the results),
+// returning an io.ReadCloser to stream the results and the format they are in.
 // If a TimeRange is given, only results in that timeframe will be included.
-func StreamSearchResults(search *grav.Search, tr types.TimeRange, csv, json bool) (rc io.ReadCloser, format string, err error) {
-	format = renderToDownload(search.RenderMod, csv, json)
-	clilog.Writer.Infof("renderer '%s' -> '%s'", search.RenderMod, format)
-	rc, err = connection.Client.DownloadSearch(search.ID, tr, format)
-	return
+//
+// This should be used to get results when they will be written ton io.Writer (a file or stdout).
+//
+// This call blocks until the search is completed.
+//
+// Typically called prior to PutResultsToWriter.
+func GetResultsForWriter(s *grav.Search, tr types.TimeRange, csv, json bool) (rc io.ReadCloser, format string, err error) {
+	if err := connection.Client.WaitForSearch(*s); err != nil {
+		return nil, "", err
+	}
+
+	// determine the format to request results in
+	if json {
+		format = types.DownloadJSON
+	} else if csv {
+		format = types.DownloadCSV
+	} else {
+		switch s.RenderMod {
+		case types.RenderNameHex, types.RenderNameRaw, types.RenderNameText:
+			format = types.DownloadText
+		case types.RenderNamePcap:
+			format = types.DownloadPCAP
+		default:
+			format = types.DownloadArchive
+		}
+	}
+	clilog.Writer.Infof("renderer '%s' -> '%s'", s.RenderMod, format)
+
+	// fetch and return results
+	rc, err = connection.Client.DownloadSearch(s.ID, tr, format)
+	return rc, format, err
 }
 
-// WriteDownloadResults slurps the given results and decides what to do with them.
+// PutResultsToWriter streams results into a file at the given path or into the given writer (probably stdout).
 // If an output file path is found, it will spit the result into the file.
 // Otherwise, it will print them to the given Writer (probably stdout).
 //
-// ! Does not close results.
+// Typically called after GetResultsForWriter.
 //
-// ! Will not print to the altWriter if the type is a binary. A warning will be printed to altWriter instead
+// ! Will not print to wr if the type is a binary. A BinaryBlobCoward error will be returned instead.
 //
 // ! Does not log errors; leaves that to the caller.
-func WriteDownloadResults(results io.ReadCloser, altWriter io.Writer, filePath string, append bool, format string) error {
+func PutResultsToWriter(results io.Reader, wr io.Writer, filePath string, append bool, format string) error {
 	if filePath != "" {
-		return WriteResultsToFile(results, filePath, append)
+		return toFile(results, filePath, append)
 	}
-	// do not print binary to alt writer
 	if format == types.DownloadArchive {
-		fmt.Fprintf(altWriter, "refusing to dump binary blob (format %v) to stdout.\n"+
-			"If this is intentional, re-run with -o <FILENAME>.\n"+
-			"If it was not, re-run with --csv or --json to download in a more appropriate format.",
-			format)
-		return ErrBinaryBlobCoward{}
+		return ErrBinaryBlobCoward(format)
 	}
 	// print the results to alt writer
-	if r, err := io.ReadAll(results); err != nil {
-		return err
-	} else {
-		if len(r) == 0 {
-			_, err := fmt.Fprintln(altWriter, NoResultsText)
-			return err
-		}
-		_, err := fmt.Fprint(altWriter, string(r))
+	written, err := io.Copy(wr, results)
+	if err != nil {
 		return err
 	}
+	if written == 0 {
+		_, err := fmt.Fprintln(wr, NoResults)
+		return err
+	}
+	return nil
 }
 
-// FetchSearchResults takes an attached search and pulls back available results if the search has completed.
-// If the search turned by no results, results will be nil and the caller should print the NoResultsText.
-func FetchSearchResults(search *grav.Search) (results []string, tableMode bool, err error) {
-	// TODO need to ensure the search is done, but no search.Done or search.Ended exists
-	clilog.Writer.Infof("fetching results of type %v", search.RenderMod)
-	switch search.RenderMod {
+// GetResultsForDataScope takes an attached search and pulls back available results if the search has completed.
+// If the search turned by no results, results will be nil and the caller should print the NoResults text.
+//
+// This call blocks until the search is completed.
+func GetResultsForDataScope(s *grav.Search) (results []string, tableMode bool, err error) {
+	if err := connection.Client.WaitForSearch(*s); err != nil {
+		return nil, false, err
+	}
+	clilog.Writer.Infof("fetching results of type %v", s.RenderMod)
+	switch s.RenderMod {
 	case types.RenderNameTable:
-		if columns, rows, err := fetchTableResults(search); err != nil {
-			return nil, false, err
-		} else if len(rows) != 0 {
-			// format the table for datascope
-			// basically a csv
-			results = make([]string, len(rows)+1)
-			results[0] = strings.Join(columns, ",") // first entry is the header
-			for i, row := range rows {
-				results[i+1] = strings.Join(row.Row, ",")
-			}
-			return results, true, nil
-		}
-		// no results
-		return nil, true, nil
-	case types.RenderNameRaw, types.RenderNameText, types.RenderNameHex:
-		if rawResults, err := fetchTextResults(search); err != nil {
-			return nil, false, err
-		} else if len(rawResults) != 0 {
-			// format the data for datascope
-			results = make([]string, len(rawResults))
-			for i, r := range rawResults {
-				results[i] = string(r.Data)
-			}
-			return results, false, nil
-		}
-		// no results
-		return nil, false, nil
-	}
-
-	// default: did not manage to complete results earlier; fail out
-	return nil, false, fmt.Errorf("unable to display results of type %v", search.RenderMod)
-
-}
-
-// Fetches all text results related to the given search by continually re-fetching until no more results remain.
-func fetchTextResults(s *grav.Search) ([]types.SearchEntry, error) {
-	// return results for output to terminal
-	// batch results until we have the last of them
-	var (
-		results        = make([]types.SearchEntry, 0, pageSize)
-		low     uint64 = 0
-		high           = pageSize
-	)
-	for { // accumulate the results
-		r, err := connection.Client.GetTextResults(*s, low, high)
+		columns, rows, err := fetchTableResults(s)
 		if err != nil {
-			return nil, err
+			return nil, true, err
+		} else if len(rows) == 0 {
+			return nil, true, nil
 		}
-		results = append(results, r.Entries...)
-		if !r.AdditionalEntries { // all records obtained
-			break
+		// format the table for datascope (basically as csv)
+		results = make([]string, len(rows)+1)
+		results[0] = strings.Join(columns, ",") // first entry is the header
+		for i, row := range rows {
+			results[i+1] = strings.Join(row.Row, ",")
 		}
-		// ! Get*Results is half-open [)
-		low = high
-		high = high + pageSize
+		return results, true, nil
+	case types.RenderNameRaw, types.RenderNameText, types.RenderNameHex:
+		rawResults, err := fetchTextResults(s)
+		if err != nil {
+			return nil, false, err
+		} else if len(rawResults) == 0 {
+			return nil, false, nil
+		}
+		// format the data for datascope
+		results = make([]string, len(rawResults))
+		for i, r := range rawResults {
+			results[i] = string(r.Data)
+		}
+		return results, false, nil
 	}
 
-	clilog.Writer.Infof("%d results obtained", len(results))
+	// default
+	return nil, false, fmt.Errorf("unable to display results of type %v", s.RenderMod)
 
-	return results, nil
 }
 
-// Sister subroutine to fetchTextResults()
-func fetchTableResults(s *grav.Search) (
-	columns []string, rows []types.TableRow, err error,
-) {
-	// return results for output to terminal
+// Helper subroutine for GetResultsForDataScope.
+// Sister subroutine to fetchTextResults().
+func fetchTableResults(s *grav.Search) (columns []string, rows []types.TableRow, err error) {
 	// batch results until we have the last of them
 	var (
 		low  uint64 = 0
@@ -222,4 +197,33 @@ func fetchTableResults(s *grav.Search) (
 	clilog.Writer.Infof("%d results obtained", len(rows))
 
 	return
+}
+
+// Helper subroutine for GetResultsForDataScope.
+// Slurps text results related to the given search by continually re-fetching until no more results remain.
+func fetchTextResults(s *grav.Search) ([]types.SearchEntry, error) {
+	// return results for output to terminal
+	// batch results until we have the last of them
+	var (
+		low     uint64 = 0
+		high           = pageSize
+		results        = make([]types.SearchEntry, 0, pageSize)
+	)
+	for { // accumulate the results
+		r, err := connection.Client.GetTextResults(*s, low, high)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, r.Entries...)
+		if !r.AdditionalEntries { // all records obtained
+			break
+		}
+		// ! Get*Results is half-open [)
+		low = high
+		high = high + pageSize
+	}
+
+	clilog.Writer.Infof("%d results obtained", len(results))
+
+	return results, nil
 }

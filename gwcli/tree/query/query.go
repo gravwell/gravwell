@@ -229,7 +229,7 @@ func run(cmd *cobra.Command, args []string) {
 			results io.ReadCloser
 			format  string
 		)
-		if results, format, err = querysupport.StreamSearchResults(
+		if results, format, err = querysupport.GetResultsForWriter(
 			&search, types.TimeRange{}, flags.CSV, flags.JSON,
 		); err != nil {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(),
@@ -294,12 +294,12 @@ func invokeDatascope(cmd *cobra.Command, flags querysupport.QueryFlags, search *
 		results   []string
 		tableMode bool
 	)
-	results, tableMode, err := querysupport.FetchSearchResults(search)
+	results, tableMode, err := querysupport.GetResultsForDataScope(search)
 	if err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
 	} else if results == nil {
-		fmt.Fprintln(cmd.OutOrStdout(), querysupport.NoResultsText)
+		fmt.Fprintln(cmd.OutOrStdout(), querysupport.NoResults)
 		return
 	}
 

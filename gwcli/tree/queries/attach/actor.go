@@ -127,7 +127,7 @@ func (a *attach) SetArgs(p *pflag.FlagSet, tokens []string) (invalid string, _ t
 		}
 		a.search = &s
 
-		results, tblMode, err := querysupport.FetchSearchResults(a.search)
+		results, tblMode, err := querysupport.GetResultsForDataScope(a.search)
 		if err != nil {
 			return "", nil, err
 		}
@@ -146,7 +146,7 @@ func (a *attach) SetArgs(p *pflag.FlagSet, tokens []string) (invalid string, _ t
 		a.mode = displaying
 		return "", cmd, nil
 	} else if argCount > 1 {
-		return errWrongInteractiveArgCount(), nil, nil
+		return errWrongArgCount(false), nil, nil
 	}
 
 	a.mode = selecting

@@ -153,7 +153,7 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 				return cmd
 			}
 
-			results, tableMode, err := querysupport.FetchSearchResults(q.curSearch)
+			results, tableMode, err := querysupport.GetResultsForDataScope(q.curSearch)
 			if err != nil {
 				q.editor.err = err.Error()
 				q.mode = prompting
@@ -162,7 +162,7 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 				return cmd
 			} else if len(results) == 0 {
 				q.mode = quitting
-				return tea.Println(querysupport.NoResultsText)
+				return tea.Println(querysupport.NoResults)
 			}
 
 			var cmd tea.Cmd

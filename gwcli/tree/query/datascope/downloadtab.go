@@ -275,7 +275,7 @@ func (s *DataScope) dl(fn string) (result string, success bool) {
 		format string
 		rc     io.ReadCloser
 	)
-	if rc, format, err = querysupport.StreamSearchResults(
+	if rc, format, err = querysupport.GetResultsForWriter(
 		s.search,
 		types.TimeRange{},
 		s.download.format.csv,
