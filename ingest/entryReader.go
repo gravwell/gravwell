@@ -247,7 +247,7 @@ func (er *EntryReader) startCompression(ct CompressionType) (err error) {
 		//get a writer rolling
 		wtr := snappy.NewBufferedWriter(er.conn)
 		er.flshr = wtr
-		er.bAckWriter.Reset(wtr)
+		er.bAckWriter.Reset(newSnappyFlushWriter(wtr))
 		//get a reader rolling
 		er.bIO.Reset(snappy.NewReader(er.conn))
 	default:
