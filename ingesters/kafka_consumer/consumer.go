@@ -393,10 +393,6 @@ func (kc *kafkaConsumer) resolveSourceAndTag(m *sarama.ConsumerMessage) (tag ent
 			if tag, tagHit, err = kc.resolveTag(string(rh.Value)); err != nil {
 				return
 			}
-			fmt.Printf("%s -  %q %q %q %v %v %v %v\n", kc.name,
-				string(rh.Key), string(rh.Value), kc.tagKey, tagHit, err,
-				tag, kc.defaultTag,
-			)
 		}
 	}
 	//if if we still missed, just use the src
