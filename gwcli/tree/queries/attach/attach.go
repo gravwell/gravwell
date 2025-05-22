@@ -15,10 +15,14 @@ package attach
 import (
 	"errors"
 	"fmt"
+	"io"
 	"strings"
+	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
@@ -93,17 +97,14 @@ func run(cmd *cobra.Command, args []string) {
 	// fetch flags
 	flags := querysupport.TransmogrifyFlags(cmd.Flags())
 
-	// attempt to fetch the search id
-	var sid string
-	if len(args) == 1 {
-		sid = strings.TrimSpace(args[0])
+	// check arg count
+	if len(args) > 1 || (flags.Script && len(args) == 0) {
+		fmt.Fprint(cmd.ErrOrStderr(), errWrongArgCount(flags.Script)+"\n")
+		return
 	}
-
-	// split on --script
-	if flags.Script {
-		// arg validator should ensure sid is populated by this point
-
-		// attaching to a search non-interactively just downloads the results and spits them out
+	// if a sid was given, attempt to fetch results
+	if len(args) == 1 {
+		sid := strings.TrimSpace(args[0])
 		s, err := connection.Client.AttachSearch(sid)
 		if err != nil {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
@@ -111,16 +112,71 @@ func run(cmd *cobra.Command, args []string) {
 		}
 		defer s.Close()
 
-		rc, format, err := querysupport.StreamSearchResults(&s, types.TimeRange{}, flags.CSV, flags.JSON)
+		// spawn a goroutine to ping the query while we wait for it to complete
+		done := make(chan bool)
+		go func() {
+			// check in at each expected interval, until we are signaled to be done
+			sleepTime := s.Interval()
+			for {
+				select {
+				case <-done:
+					return
+				default:
+					s.Ping()
+					time.Sleep(sleepTime)
+				}
+			}
+		}()
+		// if we are not in script mode, spawn a spinner to show that we didn't just hang
+		var spnr *tea.Program
+		if !flags.Script {
+			spnr = busywait.CobraNew()
+			spnr.Run()
+		}
+
+		err = connection.Client.WaitForSearch(s)
+		// stop our other goroutines
+		close(done)
+		if spnr != nil {
+			spnr.Quit()
+		}
+
 		if err != nil {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
 			return
 		}
-		if err := querysupport.WriteDownloadResults(rc, cmd.OutOrStdout(), flags.OutPath, flags.Append, format); err != nil {
+
+		// pull results
+		rc, _, err := querysupport.StreamSearchResults(&s, types.TimeRange{}, flags.CSV, flags.JSON)
+		if err != nil {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-		} else {
-			fmt.Fprintln(cmd.OutOrStdout(), connection.DownloadQuerySuccessfulString(flags.OutPath, flags.Append, format))
+			return
 		}
+		defer rc.Close()
+
+		if flags.OutPath != "" { // spit the results into a file
+			if err := querysupport.WriteResultsToFile(rc, flags.OutPath, flags.Append); err != nil {
+				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+			}
+		} else if flags.Script { // spit the results to stdout
+			if _, err := io.Copy(cmd.OutOrStdout(), rc); err != nil {
+				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
+			}
+		} else { // give the results to datascope
+
+			// this will block until the user exists datascope
+			datascope.CobraNew()
+		}
+
+		return
+
+	}
+
+	// split on --script
+	if flags.Script {
+		// arg validator should ensure sid is populated by this point
+
+		// attaching to a search non-interactively just downloads the results and spits them out
 
 		return
 	}

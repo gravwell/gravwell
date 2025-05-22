@@ -23,12 +23,12 @@ const (
 	NoResultsText             = "no results found for given query"
 )
 
-// toFile slurps the given reader and spits its data into the given file.
-// Assumes outPath != "".
-func toFile(results io.ReadCloser, path string, append bool) error {
+// WriteResultsToFile streams the data in rd into the file at path.
+//
+// Assumes path != "".
+func WriteResultsToFile(rd io.Reader, path string, append bool) error {
+	// open the file for writing
 	var f *os.File
-
-	// open the file
 	var flags = os.O_WRONLY | os.O_CREATE
 	if append { // check append
 		flags |= os.O_APPEND
@@ -43,21 +43,18 @@ func toFile(results io.ReadCloser, path string, append bool) error {
 	}
 	defer f.Close()
 
-	if s, err := f.Stat(); err != nil {
-		clilog.Writer.Warnf("Failed to stat file %s: %v", f.Name(), err)
-	} else {
-		clilog.Writer.Debugf("Opened file %s of size %v", f.Name(), s.Size())
-	}
-
-	// consumes the results and spits them into the open file
-	if b, err := f.ReadFrom(results); err != nil {
+	// stream the reader into the file
+	if b, err := io.Copy(f, rd); err != nil {
 		return err
 	} else {
 		clilog.Writer.Infof("Streamed %d bytes into %s", b, f.Name())
 	}
-	// stdout output is acceptable as the user is redirecting actual results to a file.
-	/*fmt.Fprintln(cmd.OutOrStdout(),
-	connection.DownloadQuerySuccessfulString(of.Name(), flags.append, format))*/
+
+	// Close() swallows its error, so catch sync's error instead
+	if err := f.Sync(); err != nil {
+		clilog.Writer.Errorf("failed to flush file %v", err)
+		return err
+	}
 	return nil
 }
 
@@ -101,7 +98,7 @@ func StreamSearchResults(search *grav.Search, tr types.TimeRange, csv, json bool
 // ! Does not log errors; leaves that to the caller.
 func WriteDownloadResults(results io.ReadCloser, altWriter io.Writer, filePath string, append bool, format string) error {
 	if filePath != "" {
-		return toFile(results, filePath, append)
+		return WriteResultsToFile(results, filePath, append)
 	}
 	// do not print binary to alt writer
 	if format == types.DownloadArchive {
