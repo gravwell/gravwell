@@ -16,17 +16,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -109,75 +104,12 @@ func run(cmd *cobra.Command, args []string) {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 			return
 		}
-		defer s.Close()
 
-		// spawn a goroutine to ping the query while we wait for it to complete
-		done := make(chan bool)
-		go func() {
-			// check in at each expected interval, until we are signaled to be done
-			sleepTime := s.Interval()
-			for {
-				select {
-				case <-done:
-					return
-				default:
-					s.Ping()
-					time.Sleep(sleepTime)
-				}
-			}
-		}()
-		// if we are not in script mode, spawn a spinner to show that we didn't just hang during processing
-		var spnr *tea.Program
-		if !flags.Script {
-			spnr = busywait.CobraNew()
-			spnr.Run()
-		}
+		querysupport.HandleFGCobraSearch(&s, flags, cmd.OutOrStdout(), cmd.ErrOrStderr())
 
-		// if we are in script mode or were given an output file, the results will be streamed
-		if flags.Script || flags.OutPath != "" {
-			// ensure we stop our other goroutines when the job is done
-			defer func() {
-				close(done)
-				if spnr != nil {
-					spnr.Quit()
-				}
-			}()
-
-			// pull results
-			rc, format, err := querysupport.GetResultsForWriter(&s, types.TimeRange{}, flags.CSV, flags.JSON)
-			if err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-				return
-			}
-			defer rc.Close()
-
-			// put results to file or stdout
-			if err := querysupport.PutResultsToWriter(rc, cmd.OutOrStdout(), flags.OutPath, flags.Append, format); err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-				return
-			}
-		} else { // otherwise, the results will be slurped for datascope
-			results, tbl, err := querysupport.GetResultsForDataScope(&s)
-			// once results are ready, kill our other goroutines and allow datascope to take over
-			close(done)
-			if spnr != nil {
-				spnr.Quit()
-			}
-			if err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-				return
-			}
-
-			// pass control off to datascope
-			p, err := datascope.CobraNew(results, &s, tbl)
-			if err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-				return
-			}
-			if _, err := p.Run(); err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-				return
-			}
+		if err := s.Close(); err != nil {
+			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
+			return
 		}
 
 		return

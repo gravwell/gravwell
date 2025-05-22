@@ -26,7 +26,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -275,7 +274,7 @@ func (s *DataScope) dl(fn string) (result string, success bool) {
 		format string
 		rc     io.ReadCloser
 	)
-	if rc, format, err = querysupport.GetResultsForWriter(
+	if rc, format, err = connection.GetResultsForWriter(
 		s.search,
 		types.TimeRange{},
 		s.download.format.csv,

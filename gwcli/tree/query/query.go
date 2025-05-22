@@ -49,23 +49,19 @@ package query
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	grav "github.com/gravwell/gravwell/v4/client"
-	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -191,14 +187,14 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	// submit the query
-	var search grav.Search
-	if search, err = connection.StartQuery(qry, -flags.Duration, flags.Background); err != nil {
+	var s grav.Search
+	if s, err = connection.StartQuery(qry, -flags.Duration, flags.Background); err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
 	}
 
 	clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
-		querySubmissionSuccess(search.ID, flags.Background))
+		querySubmissionSuccess(s.ID, flags.Background))
 
 	// if this is a background query, we are done
 	if flags.Background {
@@ -208,142 +204,20 @@ func run(cmd *cobra.Command, args []string) {
 		}
 
 		clilog.Tee(clilog.DEBUG, cmd.OutOrStdout(),
-			fmt.Sprintf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", search.ID, search.UID, search.GID, search.EffectiveQuery))
+			fmt.Sprintf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", s.ID, s.UID, s.GID, s.EffectiveQuery))
 
 		// close our handle to the search
 		// it will survive, as it is backgrounded
-		search.Close()
+		s.Close()
 		return
 	}
 
-	// wait for results
-	if err := waitForSearch(search, flags.Script); err != nil {
+	querysupport.HandleFGCobraSearch(&s, flags, cmd.OutOrStdout(), cmd.ErrOrStderr())
+
+	if err := s.Close(); err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
 	}
-
-	// if we are in script mode, spit the result into a file or stdout
-	if flags.Script {
-		// fetch the data from the search
-		var (
-			results io.ReadCloser
-			format  string
-		)
-		if results, format, err = querysupport.GetResultsForWriter(
-			&search, types.TimeRange{}, flags.CSV, flags.JSON,
-		); err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(),
-				fmt.Sprintf("failed to retrieve results from search %s (format %v): %v\n",
-					search.ID, format, err.Error()))
-			return
-		}
-		defer results.Close()
-
-		// if an output file was given, write results into it
-		if flags.OutPath != "" {
-			// open the file
-			var of *os.File
-			if of, err = openFile(flags.OutPath, flags.Append); err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-				return
-			}
-			defer of.Close()
-
-			// consumes the results and spit them into the open file
-			if b, err := of.ReadFrom(results); err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-				return
-			} else {
-				clilog.Writer.Infof("Streamed %d bytes (format %v) into %s", b, format, of.Name())
-			}
-			// stdout output is acceptable as the user is redirecting actual results to a file.
-			fmt.Fprintln(cmd.OutOrStdout(),
-				connection.DownloadQuerySuccessfulString(of.Name(), flags.Append, format))
-			return
-		} else if format == types.DownloadArchive { // check for binary output
-			fmt.Fprintf(cmd.OutOrStdout(), "refusing to dump binary blob (format %v) to stdout.\n"+
-				"If this is intentional, re-run with -o <FILENAME>.\n"+
-				"If it was not, re-run with --csv or --json to download in a more appropriate format.",
-				format)
-		} else { // text results, stdout
-			if r, err := io.ReadAll(results); err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-				return
-			} else {
-				if len(r) == 0 {
-					fmt.Fprintln(cmd.OutOrStdout(), "no results to display")
-				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s", r)
-				}
-			}
-		}
-
-		return
-	}
-
-	// if we made it this far, we can fetch the results and pass them to datascope
-	// NOTE(rlandau): this function does not share the result-fetching methodology of script mode (connection.DownloadSearch) because datascope requires additional formatting.
-	invokeDatascope(cmd, flags, &search)
-}
-
-// run function without --script given, making it acceptable to rely on user input
-// NOTE: download and schedule flags are handled inside of datascope
-func invokeDatascope(cmd *cobra.Command, flags querysupport.QueryFlags, search *grav.Search) {
-	// get results to pass to data scope
-	var (
-		results   []string
-		tableMode bool
-	)
-	results, tableMode, err := querysupport.GetResultsForDataScope(search)
-	if err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-		return
-	} else if results == nil {
-		fmt.Fprintln(cmd.OutOrStdout(), querysupport.NoResults)
-		return
-	}
-
-	// pass results into datascope
-	// spin up a scrolling pager to display
-	p, err := datascope.CobraNew(
-		results, search, tableMode,
-		datascope.WithAutoDownload(flags.OutPath, flags.Append, flags.JSON, flags.CSV),
-		datascope.WithSchedule(flags.Schedule.CronFreq, flags.Schedule.Name, flags.Schedule.Desc))
-	if err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-		return
-	}
-
-	if _, err := p.Run(); err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-		return
-	}
-
-}
-
-// Stops execution and waits for the given search to complete.
-// Adds a spinner if not in script mode.
-func waitForSearch(s grav.Search, scriptMode bool) error {
-	// in script mode, wait synchronously
-	if scriptMode {
-		if err := connection.Client.WaitForSearch(s); err != nil {
-			return err
-		}
-	} else {
-		// outside of script mode wait via goroutine so we can display a spinner
-		spnrP := busywait.CobraNew()
-		go func() {
-			if err := connection.Client.WaitForSearch(s); err != nil {
-				clilog.Writer.Error(err.Error())
-			}
-			spnrP.Quit()
-		}()
-
-		if _, err := spnrP.Run(); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 //#endregion

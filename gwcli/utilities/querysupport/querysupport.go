@@ -1,7 +1,9 @@
 // Package querysupport is intended to provide functionality for querying/searching.
 // Allows multiple actions that touch the search backend to operate comparably and with minimal duplicate code.
 //
-// Much of the functionality of querysupport is wrapping the connection package; this package should be preferred over using connection direction when querying.
+// There is some logical overlap between the querysupport and connection packages and which query-related functions belong to each can seem somewhat arbitrary.
+// The differentiation is specifically: "does it touch the backend?" If yes, it goes in the connection package.
+// Subroutines are also split across both to prevent import cycles (which are typically a sign of poor package differentiation anyways).
 package querysupport
 
 import (
@@ -9,11 +11,15 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 )
 
 // permissions to use for the file handle
@@ -56,43 +62,6 @@ func toFile(rd io.Reader, path string, append bool) error {
 		return err
 	}
 	return nil
-}
-
-// GetResultsForWriter waits on and downloads the given results according to their associated render type
-// (JSON, CSV, if given, otherwise the normal form of the results),
-// returning an io.ReadCloser to stream the results and the format they are in.
-// If a TimeRange is given, only results in that timeframe will be included.
-//
-// This should be used to get results when they will be written ton io.Writer (a file or stdout).
-//
-// This call blocks until the search is completed.
-//
-// Typically called prior to PutResultsToWriter.
-func GetResultsForWriter(s *grav.Search, tr types.TimeRange, csv, json bool) (rc io.ReadCloser, format string, err error) {
-	if err := connection.Client.WaitForSearch(*s); err != nil {
-		return nil, "", err
-	}
-
-	// determine the format to request results in
-	if json {
-		format = types.DownloadJSON
-	} else if csv {
-		format = types.DownloadCSV
-	} else {
-		switch s.RenderMod {
-		case types.RenderNameHex, types.RenderNameRaw, types.RenderNameText:
-			format = types.DownloadText
-		case types.RenderNamePcap:
-			format = types.DownloadPCAP
-		default:
-			format = types.DownloadArchive
-		}
-	}
-	clilog.Writer.Infof("renderer '%s' -> '%s'", s.RenderMod, format)
-
-	// fetch and return results
-	rc, err = connection.Client.DownloadSearch(s.ID, tr, format)
-	return rc, format, err
 }
 
 // PutResultsToWriter streams results into a file at the given path or into the given writer (probably stdout).
@@ -226,4 +195,96 @@ func fetchTextResults(s *grav.Search) ([]types.SearchEntry, error) {
 	clilog.Writer.Infof("%d results obtained", len(results))
 
 	return results, nil
+}
+
+// HandleFGCobraSearch is intended to be called from a search-related action's run function once it acquires a handle to a foreground search.
+// Waits on the search,
+// pings the search according to its interval,
+// displays a spinner if !script,
+// and fetches the results according to whether they are intended for a writer (file/stdout) or datascope.
+// If the results a
+//
+// If placed in datascope, this subroutine will block until datascope returns.
+//
+// When this subroutine returns, you can safely exit (after closing the search and printing the error, if applicable).
+//
+// ! Does not close the search
+func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Writer) {
+	// spawn a goroutine to ping the query while we wait for it to complete
+	done := make(chan bool)
+	go func() {
+		// check in at each expected interval, until we are signaled to be done
+		sleepTime := s.Interval()
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				s.Ping()
+				time.Sleep(sleepTime)
+			}
+		}
+	}()
+	// if we are not in script mode, spawn a spinner to show that we didn't just hang during processing
+	var spnr *tea.Program
+	if !flags.Script {
+		spnr = busywait.CobraNew()
+		spnr.Run()
+	}
+
+	// if we are in script mode or were given an output file, the results will be streamed
+	if flags.Script || flags.OutPath != "" {
+		// ensure we stop our other goroutines when the job is done
+		defer func() {
+			close(done)
+			if spnr != nil {
+				spnr.Quit()
+			}
+		}()
+
+		// pull results
+		rc, format, err := connection.GetResultsForWriter(s, types.TimeRange{}, flags.CSV, flags.JSON)
+		if err != nil {
+			clilog.Tee(clilog.ERROR, stderr, err.Error())
+			return
+		}
+		defer rc.Close()
+
+		// put results to file or stdout
+		if err := PutResultsToWriter(rc, stdout, flags.OutPath, flags.Append, format); err != nil {
+			clilog.Tee(clilog.ERROR, stderr, err.Error())
+			return
+		}
+	} else { // otherwise, the results will be slurped for datascope
+		results, tbl, err := GetResultsForDataScope(s)
+		// once results are ready, kill our other goroutines and allow datascope to take over
+		close(done)
+		if spnr != nil {
+			spnr.Quit()
+		}
+		if err != nil {
+			clilog.Tee(clilog.ERROR, stderr, err.Error())
+			return
+		}
+
+		// build datascope options, if applicable
+		opts := make([]datascope.DataScopeOption, 0)
+		if flags.Schedule.CronFreq != "" {
+			opts = append(opts, datascope.WithSchedule(flags.Schedule.CronFreq, flags.Schedule.Name, flags.Schedule.Desc))
+		}
+		if flags.Schedule.CronFreq != "" {
+			opts = append(opts, datascope.WithAutoDownload(flags.OutPath, flags.Append, flags.JSON, flags.CSV))
+		}
+
+		// pass control off to datascope
+		p, err := datascope.CobraNew(results, s, tbl, opts...)
+		if err != nil {
+			clilog.Tee(clilog.ERROR, stderr, err.Error())
+			return
+		}
+		if _, err := p.Run(); err != nil {
+			clilog.Tee(clilog.ERROR, stderr, err.Error())
+			return
+		}
+	}
 }
