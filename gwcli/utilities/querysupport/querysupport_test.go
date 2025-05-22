@@ -78,7 +78,7 @@ func Test_PutResultsToWriter(t *testing.T) {
 
 				// if append, create some garbage data to populate the file with first
 				var priorSize int64
-				if tt.args.append {
+				if !tt.wantErr && tt.args.append {
 					priorSize = prepopulateFile(t, tt.args.path)
 				}
 
@@ -134,9 +134,14 @@ func Test_PutResultsToWriter(t *testing.T) {
 					t.Errorf("toFile() error = %v, wantErr %v", err, tt.wantErr)
 				}
 				if !tt.wantErr {
-					// check that the buffer contains our results
-					if sb.String() != tt.args.resultsStr {
-						t.Fatal("data in writer does not match input data" + expectedActual(tt.args.resultsStr, sb.String()))
+					var expectedOut string
+					if tt.args.resultsStr == "" {
+						expectedOut = NoResults
+					} else {
+						expectedOut = tt.args.resultsStr
+					}
+					if expectedOut != strings.TrimSpace(sb.String()) { // check that the buffer contains our results
+						t.Fatal("data in writer does not match input data" + expectedActual(expectedOut, sb.String()))
 					}
 
 				}
