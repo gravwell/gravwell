@@ -161,9 +161,7 @@ func (vc VariableConfig) MapTo(v interface{}) (err error) {
 func (vc VariableConfig) get(name string) (v string, ok bool) {
 	var temp *[]string
 	if temp = vc.Vals[vc.Idx(name)]; temp != nil {
-		var x []string
-		x = *temp
-		if len(x) > 0 {
+		if x := *temp; len(x) > 0 {
 			v = x[0]
 			ok = true
 		}

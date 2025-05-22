@@ -115,7 +115,7 @@ mainLoop:
 			}
 			ParentAuthorFunc(&lc)
 			iw.AddComment(lc)
-		case _ = <-tck.C:
+		case <-tck.C:
 			if err := iw.Flush(); err != nil {
 				log.Println("Failed to flush comments", err)
 			}
@@ -127,7 +127,7 @@ mainLoop:
 				}
 				break mainLoop
 			}
-		case _ = <-dieChan:
+		case <-dieChan:
 			if err := iw.Flush(); err != nil {
 				log.Println("Failed to flush comments", err)
 			}

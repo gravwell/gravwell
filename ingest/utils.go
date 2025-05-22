@@ -22,6 +22,7 @@ import (
 	"unicode"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/klauspost/compress/snappy"
 )
 
 var (
@@ -33,7 +34,7 @@ const (
 	defaultKeepAliveInterval = 2 * time.Second
 )
 
-// The implementation of this is actually in the Go stdlib, it's just not exported
+// LockedSource is actually in the Go stdlib, it's just not exported
 // See math/rand/rand.go in the Go source tree.
 type LockedSource struct {
 	lk  sync.Mutex
@@ -152,7 +153,7 @@ func RemapTag(tag string, rchar rune) (rtag string, err error) {
 	return
 }
 
-// EnableTCPKeepAlive enables TCP KeepAlive on the given connection,
+// EnableKeepAlive enables TCP KeepAlive on the given connection,
 // if it's a compatible connection type. If it is not, no action is
 // taken.
 func EnableKeepAlive(c net.Conn, period time.Duration) {
@@ -214,4 +215,27 @@ func mergeError(ogErr, newErr error) error {
 	}
 	//incoming error is the first error or og is still nil
 	return newErr
+}
+
+// the klauspost snappy writer deprecated the writer that does simple writes and is now forcing a buffered writer
+// this is a little wrapper that forces a flush after every write because we need things to go to the wire when a write
+// happens. It's a hack to get around someone trying to help.
+type autoFlushSnappyWriter struct {
+	wtr *snappy.Writer
+}
+
+func newSnappyFlushWriter(wtr *snappy.Writer) *autoFlushSnappyWriter {
+	return &autoFlushSnappyWriter{
+		wtr: wtr,
+	}
+}
+
+func (afsw *autoFlushSnappyWriter) Write(b []byte) (n int, err error) {
+	if afsw == nil || afsw.wtr == nil {
+		return -1, errors.New("bad writer")
+	}
+	if n, err = afsw.wtr.Write(b); err == nil {
+		err = afsw.wtr.Flush()
+	}
+	return
 }

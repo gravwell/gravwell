@@ -11,7 +11,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 
 	"github.com/gravwell/gravwell/v3/client/types/kits"
 )
@@ -19,7 +19,7 @@ import (
 func readManifest() (kits.Manifest, error) {
 	// Get the manifest file
 	var mf kits.Manifest
-	mb, err := ioutil.ReadFile("MANIFEST")
+	mb, err := os.ReadFile("MANIFEST")
 	if err != nil {
 		return mf, fmt.Errorf("Couldn't read MANIFEST: %v", err)
 	}
@@ -35,7 +35,7 @@ func writeManifest(mf kits.Manifest) error {
 	if err != nil {
 		return fmt.Errorf("Failed to re-marshal MANIFEST: %v", err)
 	}
-	if err := ioutil.WriteFile("MANIFEST", mb, 0644); err != nil {
+	if err := os.WriteFile("MANIFEST", mb, 0644); err != nil {
 		return fmt.Errorf("Failed to write-out MANIFEST file: %v", err)
 	}
 	return nil

@@ -11,7 +11,7 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -56,9 +56,9 @@ func TestExtractElement(t *testing.T) {
 		if m, tag, err := extractElementTag(v.v); err != nil {
 			t.Fatal(err)
 		} else if m != v.m {
-			t.Fatal(fmt.Errorf(`Bad match extraction(%s): "%v" != "%v"`, v.v, m, v.m))
+			t.Fatalf(`Bad match extraction(%s): "%v" != "%v"`, v.v, m, v.m)
 		} else if tag != v.tag {
-			t.Fatal(fmt.Errorf(`Bad tag extraction(%s): "%v" != "%v"`, v, tag, v.tag))
+			t.Fatalf(`Bad tag extraction(%s): "%v" != "%v"`, v, tag, v.tag)
 		}
 	}
 
@@ -95,7 +95,7 @@ func TestExtractFields(t *testing.T) {
 }
 
 func TestLoadConfig(t *testing.T) {
-	fout, err := ioutil.TempFile(tmpDir, `cfg`)
+	fout, err := os.CreateTemp(tmpDir, `cfg`)
 	if err != nil {
 		t.Fatal()
 	}
@@ -103,7 +103,7 @@ func TestLoadConfig(t *testing.T) {
 	if n, err := io.WriteString(fout, jsonbaseConfig); err != nil {
 		t.Fatal(err)
 	} else if n != len(jsonbaseConfig) {
-		t.Fatal(fmt.Sprintf("Failed to write full file: %d != %d", n, len(jsonbaseConfig)))
+		t.Fatalf("Failed to write full file: %d != %d", n, len(jsonbaseConfig))
 	}
 	cfg, err := GetConfig(fout.Name(), ``)
 	if err != nil {
