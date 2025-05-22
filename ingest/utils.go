@@ -22,6 +22,7 @@ import (
 	"unicode"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/klauspost/compress/snappy"
 )
 
 var (
@@ -214,4 +215,27 @@ func mergeError(ogErr, newErr error) error {
 	}
 	//incoming error is the first error or og is still nil
 	return newErr
+}
+
+// the klauspost snappy writer deprecated the writer that does simple writes and is now forcing a buffered writer
+// this is a little wrapper that forces a flush after every write because we need things to go to the wire when a write
+// happens. It's a hack to get around someone trying to help.
+type autoFlushSnappyWriter struct {
+	wtr *snappy.Writer
+}
+
+func newSnappyFlushWriter(wtr *snappy.Writer) *autoFlushSnappyWriter {
+	return &autoFlushSnappyWriter{
+		wtr: wtr,
+	}
+}
+
+func (afsw *autoFlushSnappyWriter) Write(b []byte) (n int, err error) {
+	if afsw == nil || afsw.wtr == nil {
+		return -1, errors.New("bad writer")
+	}
+	if n, err = afsw.wtr.Write(b); err == nil {
+		err = afsw.wtr.Flush()
+	}
+	return
 }
