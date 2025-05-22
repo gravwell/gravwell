@@ -8,6 +8,8 @@
 
 // Package attach implements search re-attachment, for fetching backgrounded queries.
 // It bears significant similarities to the load-bearing query action, but is different enough to not be folded in.
+//
+// See gwcli/assets/attach_flow.drawio.svg for a flowchart of user interaction.
 package attach
 
 import (
