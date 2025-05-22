@@ -352,6 +352,24 @@ type SearchState struct {
 	Status       SearchStatus `json:"status"`
 }
 
+// String just implements a basic stringer on this type for some of the more simple CLI tooling
+func (ss SearchState) String() (r string) {
+	r = string(ss.Status)
+	if ss.Streaming {
+		r = r + "/streaming"
+	}
+	if ss.Saved {
+		r = r + "/saved"
+	}
+	if ss.Backgrounded {
+		r = r + "/backgrounded"
+	}
+	if ss.Attached {
+		r = r + "/attached"
+	}
+	return
+}
+
 type SearchStatus string
 
 const (
