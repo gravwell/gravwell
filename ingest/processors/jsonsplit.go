@@ -44,8 +44,8 @@ func JsonArraySplitLoadConfig(vc *config.VariableConfig) (c JsonArraySplitConfig
 func (jasc *JsonArraySplitConfig) validate() (err error) {
 	//handle the legacy config items and potential overrides
 	// if Drop-Misses is set, that overrides everything
-	if jasc.Drop_Misses == false {
-		if jasc.Passthrough_Misses == false {
+	if !jasc.Drop_Misses {
+		if !jasc.Passthrough_Misses {
 			jasc.Drop_Misses = true
 		}
 	}
@@ -120,11 +120,11 @@ func NewJsonArraySplitter(cfg JsonArraySplitConfig) (*JsonArraySplitter, error) 
 	}, nil
 }
 
-func (j *JsonArraySplitter) Config(v interface{}) (err error) {
+func (je *JsonArraySplitter) Config(v interface{}) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonArraySplitConfig); ok {
-		j.JsonArraySplitConfig = cfg
+		je.JsonArraySplitConfig = cfg
 	} else {
 		err = fmt.Errorf("Invalid configuration, unknown type type %T", v)
 	}
@@ -174,14 +174,13 @@ func (je *JsonArraySplitter) processItem(ent *entry.Entry) (rset []*entry.Entry,
 			r.CopyEnumeratedBlock(ent)
 			rset = append(rset, r)
 		}
-		return
 	}
 	if ent == nil {
 		return
 	}
 	if _, err = jsonparser.ArrayEach(ent.Data, cb, je.key...); err != nil {
 		if err == jsonparser.KeyPathNotFoundError {
-			if je.Drop_Misses == false && rset == nil {
+			if !je.Drop_Misses && rset == nil {
 				rset = []*entry.Entry{ent}
 			}
 			err = nil
@@ -225,17 +224,11 @@ func getKeys(s string) (keys []string, name string, err error) {
 type isSplitFunc func(v rune) bool
 
 func commaSplitter(v rune) bool {
-	if v == ',' {
-		return true
-	}
-	return false
+	return v == ','
 }
 
 func dotSplitter(v rune) bool {
-	if v == '.' {
-		return true
-	}
-	return false
+	return v == '.'
 }
 
 func splitRespectQuotes(src string, isSplit isSplitFunc) []string {

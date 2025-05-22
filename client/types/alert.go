@@ -105,7 +105,7 @@ type AlertDispatcher struct {
 	Type AlertDispatcherType `json:"Type"`
 }
 
-// AlertSchema - Contains schema definitions for an alert and selects which one is to be used.
+// AlertSchemas contains schema definitions for an alert and selects which one is to be used.
 type AlertSchemas struct {
 
 	// The "simple" schema, if any is defined.
@@ -234,7 +234,7 @@ func FindMostRelevantAutomation(ud UserDetails, guid uuid.UUID, automations []Sc
 			// group or the owner yet, it's a candidate.
 			ok = true
 			result = ss
-		} else if !ok && ud.Admin == true {
+		} else if !ok && ud.Admin {
 			//no global
 			// If it's a global search, and we haven't found a match for the
 			// group or the owner yet, it's a candidate, but we don't want to override a global hit, so do some more dancing

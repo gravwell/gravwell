@@ -112,10 +112,7 @@ func (d Dashboard) Equal(v Dashboard) bool {
 			return false
 		}
 	}
-	if !utils.Int32SlicesEqual(d.GIDs, v.GIDs) {
-		return false
-	}
-	return true
+	return utils.Int32SlicesEqual(d.GIDs, v.GIDs)
 }
 
 // JSON custom marshallers
@@ -131,7 +128,7 @@ type dbaddMarshaler struct {
 
 func (d DashboardAdd) MarshalJSON() ([]byte, error) {
 	var data RawObject
-	if d.Data == nil || len(d.Data) == 0 {
+	if len(d.Data) == 0 {
 		data = emptyRawObj
 	} else {
 		data = RawObject(d.Data)

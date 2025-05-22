@@ -215,8 +215,6 @@ func TestBzipJson(t *testing.T) {
 	if !entryEqual(tw.ents[0], &ent) {
 		t.Fatal("resulting ent is bad", string(ent.Data))
 	}
-
-	return
 }
 
 func TestBzipJsonExtractArraySplit(t *testing.T) {
