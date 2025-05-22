@@ -20,7 +20,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 )
 
@@ -28,6 +28,7 @@ const (
 	cookieName       string = `_gravauth`
 	jwtName          string = `_gravjwt`
 	defaultTokenName string = `Bearer`
+	jwtSubject       string = `Gravwell HTTP Ingest`
 
 	_none    authType = ``
 	none     authType = `none`
@@ -334,11 +335,13 @@ func (jah *jwtAuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	//user is good, generate the JWT
-	now := time.Now().Unix()
-	claims := &jwt.StandardClaims{
-		NotBefore: now,
-		ExpiresAt: now + int64(jwtDuration.Seconds()),
+	now := time.Now().Truncate(time.Second)
+	claims := &jwt.RegisteredClaims{
+		NotBefore: jwt.NewNumericDate(now),
+		ExpiresAt: jwt.NewNumericDate(now.Add(jwtDuration)),
+		IssuedAt:  jwt.NewNumericDate(now),
 		Issuer:    issuer,
+		Subject:   jwtSubject,
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	if ss, err := token.SignedString([]byte(jah.secret)); err != nil {
@@ -356,24 +359,22 @@ func (jah *jwtAuthHandler) AuthRequest(r *http.Request) error {
 	if err != nil {
 		return err
 	}
-	var claims jwt.StandardClaims
+	var claims jwt.RegisteredClaims
 	//attempt to validate the signed string
 	tok, err := jwt.ParseWithClaims(ss, &claims, jah.secretParser)
 	if err != nil {
 		return err
 	}
-	t := time.Now().Unix()
 	if !tok.Valid {
 		return errors.New("invalid token")
-	} else if err := tok.Claims.Valid(); err != nil {
+	} else if claimedIssuer, err := tok.Claims.GetIssuer(); err != nil {
 		return err
-	} else if err := claims.Valid(); err != nil {
+	} else if claimedIssuer != issuer {
+		return errors.New("invalid issuer")
+	} else if claimedSubject, err := tok.Claims.GetSubject(); err != nil {
 		return err
-	} else {
-		//claims were able to be cast, check expirations and issuer
-		if claims.Issuer != issuer || t < claims.NotBefore || t > claims.ExpiresAt {
-			return errors.New("token expired")
-		}
+	} else if claimedSubject != jwtSubject {
+		return errors.New("invalid subject")
 	}
 	return nil
 }

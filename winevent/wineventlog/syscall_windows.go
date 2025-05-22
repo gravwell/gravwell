@@ -300,7 +300,7 @@ const (
 	EVENTLOG_VERBOSE_LEVEL
 )
 
-// Mapping of event levels to their string representations.
+// EventLevelToString maps event levels to their string representations.
 var EventLevelToString = map[EventLevel]string{
 	EVENTLOG_LOGALWAYS_LEVEL:   "Information",
 	EVENTLOG_INFORMATION_LEVEL: "Information",

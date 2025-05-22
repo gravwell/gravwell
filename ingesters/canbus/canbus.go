@@ -32,7 +32,7 @@ type Cansock struct {
 	buff []byte
 }
 
-// Create a new CAN device bound to device such as can0 or vcan0
+// New creates a new CAN device bound to device such as can0 or vcan0
 func New(dev string) (*Cansock, error) {
 	//create the socket
 	fd, err := unix.Socket(unix.AF_CAN, unix.SOCK_RAW, unix.CAN_RAW)

@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"strconv"
 	"time"
@@ -276,7 +275,7 @@ func (c *Client) StartSearch(query string, start, end time.Time, nohistory bool)
 	return
 }
 
-// StartSearchExtended launches a search using a StartSearchRequest object
+// StartSearchEx launches a search using a StartSearchRequest object
 // This function grants the maximum amount of control over the search starting process
 func (c *Client) StartSearchEx(sr types.StartSearchRequest) (s Search, err error) {
 	//grab subprotocol connection and subproto parent
@@ -454,9 +453,9 @@ func (c *Client) WaitForSearch(s Search) (err error) {
 // renderers. Results from the table renderer will also be restructured as entries, but
 // other renderers are not supported.
 func (c *Client) GetEntries(s Search, start, end uint64) ([]types.StringTagEntry, error) {
-	if (end - start) < 0 {
+	if start > end {
 		return nil, fmt.Errorf("invalid entry span: start = %v, end = %v", start, end)
-	} else if (end - start) == 0 {
+	} else if start == end {
 		return []types.StringTagEntry{}, nil
 	}
 	switch s.RenderMod {
@@ -1095,9 +1094,9 @@ func (c *Client) GetP2PTsRange(s Search, start, end time.Time, first, last uint6
 // array of ExploreResult objects. Each ExploreResult corresponds to the SearchEntry
 // at the same index.
 func (c *Client) GetExploreEntries(s Search, start, end uint64) ([]types.SearchEntry, []types.ExploreResult, error) {
-	if (end - start) < 0 {
+	if start > end {
 		return nil, nil, fmt.Errorf("invalid entry span: start = %v, end = %v", start, end)
-	} else if (end - start) == 0 {
+	} else if end == start {
 		return []types.SearchEntry{}, []types.ExploreResult{}, nil
 	}
 	//send request
@@ -1219,7 +1218,7 @@ func (c *Client) DownloadSearch(sid string, tr types.TimeRange, format string) (
 	if resp, err = c.SearchDownloadRequest(sid, format, tr); err != nil {
 		return
 	} else if resp.StatusCode != 200 {
-		io.Copy(ioutil.Discard, resp.Body)
+		io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 		err = fmt.Errorf("Bad response %d", resp.StatusCode)
 	} else {

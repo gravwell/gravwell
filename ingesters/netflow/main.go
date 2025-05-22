@@ -217,7 +217,7 @@ mainLoop:
 				}
 				ents = nil
 			}
-		case _ = <-tckr.C:
+		case <-tckr.C:
 			if len(ents) > 0 {
 				if err := igst.WriteBatchContext(exitCtx, ents); err != nil {
 					if err != ingest.ErrNotRunning {

@@ -129,7 +129,7 @@ func (igst *IngestConnection) Write(ts entry.Timestamp, tag entry.EntryTag, data
 func (igst *IngestConnection) WriteEntry(ent *entry.Entry) error {
 	igst.mtx.RLock()
 	defer igst.mtx.RUnlock()
-	if igst.running == false {
+	if !igst.running {
 		return errors.New("Not running")
 	}
 	//if no source set, put the resolved one
@@ -148,7 +148,7 @@ func (igst *IngestConnection) WriteBatchEntry(ents []*entry.Entry) (err error) {
 func (igst *IngestConnection) writeBatchEntry(ents []*entry.Entry) (int, error) {
 	igst.mtx.RLock()
 	defer igst.mtx.RUnlock()
-	if igst.running == false {
+	if !igst.running {
 		return 0, errors.New("Not running")
 	}
 	return igst.ew.WriteBatch(ents)
@@ -157,7 +157,7 @@ func (igst *IngestConnection) writeBatchEntry(ents []*entry.Entry) (int, error) 
 func (igst *IngestConnection) WriteEntrySync(ent *entry.Entry) error {
 	igst.mtx.RLock()
 	defer igst.mtx.RUnlock()
-	if igst.running == false {
+	if !igst.running {
 		return errors.New("Not running")
 	}
 	//if no source set, put the resolved one
@@ -170,7 +170,7 @@ func (igst *IngestConnection) WriteEntrySync(ent *entry.Entry) error {
 func (igst *IngestConnection) WriteDittoBlock(ents []entry.Entry) error {
 	igst.mtx.RLock()
 	defer igst.mtx.RUnlock()
-	if igst.running == false {
+	if !igst.running {
 		return errors.New("Not running")
 	}
 	return igst.ew.WriteDittoBlock(ents)

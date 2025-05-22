@@ -81,20 +81,29 @@ func main() {
 	for k, v := range cfg.Consumers {
 		kcfg := kafkaConsumerConfig{
 			consumerCfg: *v,
+			name:        k,
 			igst:        igst,
 			lg:          lg,
 		}
 		v.TaggerConfig.Tags = append(v.TaggerConfig.Tags, v.defTag)
 		if kcfg.tgr, err = tags.NewTagger(v.TaggerConfig, igst); err != nil {
-			lg.Fatal("failed to establish a new tagger", log.KVErr(err))
+			lg.Fatal("failed to establish a new tagger",
+				log.KV("consumer", k), log.KVErr(err))
 		}
+		if kcfg.defaultTag, err = kcfg.tgr.Negotiate(v.defTag); err != nil {
+			lg.Fatal("failed to negotiate default tag",
+				log.KV("consumer", k), log.KV("tag", v.defTag), log.KVErr(err))
+		}
+
 		if kcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.preprocessor); err != nil {
-			lg.Fatal("preprocessor construction error", log.KVErr(err))
+			lg.Fatal("preprocessor construction error",
+				log.KV("consumer", k), log.KVErr(err))
 		}
 		procs = append(procs, kcfg.pproc)
 		kc, err := newKafkaConsumer(kcfg)
 		if err != nil {
-			lg.Error("failed to build kafka consumer", log.KV("consumer", k), log.KVErr(err))
+			lg.Error("failed to build kafka consumer",
+				log.KV("consumer", k), log.KVErr(err))
 			if err = clsrs.Close(); err != nil {
 				lg.Error("failed to close all consumers", log.KVErr(err))
 			}
@@ -102,7 +111,8 @@ func main() {
 		}
 		wg := clsrs.add(kc)
 		if err = kc.Start(wg); err != nil {
-			lg.Error("failed to start kafka consumer", log.KV("consumer", k), log.KVErr(err))
+			lg.Error("failed to start kafka consumer",
+				log.KV("consumer", k), log.KVErr(err))
 			if err = clsrs.Close(); err != nil {
 				lg.Error("failed to close all consumers", log.KVErr(err))
 			}
