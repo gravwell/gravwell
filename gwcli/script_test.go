@@ -516,6 +516,68 @@ func TestQueries(t *testing.T) {
 
 		}
 	})
+
+	t.Run("attach to backgrounded, stdout", func(t *testing.T) {
+		verboseln("\tqueries: submit background query with long delay, reattach and wait for it")
+
+		// ensure they are running against a debug build (so we can use the sleep module)
+		// TODO
+
+		var sid string
+		{ // submit a background query
+			bgQry := "tag=gravwell | sleep 5s"
+			// parse the query, as this will tell us early if sleep is not available (aka we are not in a debug build)
+			if err := testclient.ParseSearch(bgQry); err != nil {
+				t.Skip("background query could be not parsed: ", err)
+			}
+
+			cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s", user, password, bgQry)
+			statusCode, stdout, stderr := executeCmd(t, cmd)
+			nonZeroExit(t, statusCode, stderr)
+			checkResult(t, false, "stderr", "", stderr)
+
+			// save off background query sid
+			sid = skimSID(t, stdout)
+			if sid == "" {
+				t.Fatal("failed to scan search ID out of stdout")
+			}
+			t.Logf("scanned out sid %s", sid)
+		}
+
+		// attach to background query
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --script attach %s --csv", user, password, sid)
+		statusCode, attachSTDOUT, stderr := executeCmd(t, cmd)
+		nonZeroExit(t, statusCode, stderr)
+		checkResult(t, false, "stderr", "", stderr)
+
+		// fetch the background query's results manually
+		var actualOut string
+		{
+			var sb strings.Builder
+			rc, err := testclient.DownloadSearch(sid, types.TimeRange{}, "text")
+			if err != nil {
+				t.Fatal("failed to manually fetch query results: ", err)
+			}
+			if _, err := io.Copy(&sb, rc); err != nil {
+				// TODO may need to know written to know if it should be empty
+				t.Fatal(err)
+			}
+			actualOut = sb.String()
+		}
+		// check stdout
+		// don't really care about the data, just that it matches what it should
+		if attachSTDOUT != actualOut {
+			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, expectedActual(actualOut, attachSTDOUT))
+		}
+	})
+
+	// TODO attach to backgrounded, output to file
+
+	// TODO attach to backgrounded after its completion
+
+	// TODO attach to foreground after its completion
+
+	// TODO attach to foreground before its completion
 }
 
 //#endregion
