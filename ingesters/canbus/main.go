@@ -193,12 +193,13 @@ func main() {
 func rebuildPacketSource(s sniffer) (c *Cansock, ok bool) {
 	var threwErr bool
 	var err error
+loop:
 	for {
 		//we sleep when we first come in
 		select {
 		case <-time.After(time.Second):
 		case <-s.die:
-			break
+			break loop
 		}
 		//sleep over, try to reopen our pcap device
 		if c, err = New(s.Interface); err == nil {
@@ -242,7 +243,7 @@ mainLoop:
 	for {
 		//check if we are supposed to die
 		select {
-		case _ = <-s.die:
+		case <-s.die:
 			s.c.Close()
 			break mainLoop
 		case pkt, ok := <-ch: //get a packet

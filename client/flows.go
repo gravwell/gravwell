@@ -15,7 +15,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// GetFlowhList returns flows the user has access to.
+// GetFlowList returns flows the user has access to.
 func (c *Client) GetFlowList() ([]types.ScheduledSearch, error) {
 	var searches []types.ScheduledSearch
 	if err := c.getStaticURL(flowUrl(), &searches); err != nil {

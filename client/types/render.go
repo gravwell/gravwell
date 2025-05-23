@@ -176,7 +176,7 @@ func (br BaseResponse) Err() error {
 	return nil
 }
 
-// We have a generic StatsRequest type that ONLY implements the BaseRequest.
+// StatsRequest is a generic StatsRequest type that ONLY implements the BaseRequest.
 // This is so that clients can ask about stats without knowing about specific
 // renderers.
 type StatsRequest struct {
@@ -542,23 +542,23 @@ func (is IngestStats) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (rr RawResponse) MarshalJSON() ([]byte, error) {
+func (r RawResponse) MarshalJSON() ([]byte, error) {
 	type alias RawResponse
-	if rr.printableData {
+	if r.printableData {
 		return json.Marshal(&struct {
 			alias
 			Entries emptyPrintableEntries
 		}{
-			alias:   alias(rr),
-			Entries: emptyPrintableEntries(rr.Entries),
+			alias:   alias(r),
+			Entries: emptyPrintableEntries(r.Entries),
 		})
 	}
 	return json.Marshal(&struct {
 		alias
 		Entries emptyEntries
 	}{
-		alias:   alias(rr),
-		Entries: emptyEntries(rr.Entries),
+		alias:   alias(r),
+		Entries: emptyEntries(r.Entries),
 	})
 }
 

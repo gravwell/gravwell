@@ -287,7 +287,7 @@ func packetExtractor(hnd *pcap.Handle, c chan []capPacket) {
 		packetsSize += len(capPkt.data)
 
 		select {
-		case _ = <-tckr.C:
+		case <-tckr.C:
 			if len(packets) > 0 {
 				c <- packets
 				packets = nil
@@ -322,7 +322,7 @@ mainLoop:
 	for {
 		//check if we are supposed to die
 		select {
-		case _ = <-s.die:
+		case <-s.die:
 			s.handle.Close()
 			break mainLoop
 		case pkts, ok := <-ch: //get a packet

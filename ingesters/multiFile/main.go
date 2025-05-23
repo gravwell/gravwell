@@ -175,7 +175,7 @@ loop:
 		case err = <-errCh:
 			fmt.Println("\nDONE")
 			break loop
-		case _ = <-tckr.C:
+		case <-tckr.C:
 			tdur := time.Since(lastts)
 			cnt := count - lastcnt
 			bts := totalBytes - lastsz

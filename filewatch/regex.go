@@ -98,7 +98,7 @@ func (rr *RegexReader) ReadEntry() (ln []byte, ok bool, wasEOF bool, err error) 
 
 func (rr *RegexReader) ReadRemaining() (ln []byte, err error) {
 	var ok bool
-	if ln, ok, _, err = rr.ReadEntry(); err != nil || ok == true {
+	if ln, ok, _, err = rr.ReadEntry(); err != nil || ok {
 		// error or complete success
 		return
 	} else if len(rr.currLine) != 0 {
@@ -134,7 +134,7 @@ func (rr *RegexReader) getREIdx(data []byte) (r int) {
 		if idxs2 := rr.rx.FindIndex(data[idxs[1]:]); len(idxs2) != 2 {
 			// did not find one
 			// If it's been a while, just take what we have
-			if time.Now().Sub(rr.lastRead) > 5*time.Second {
+			if time.Since(rr.lastRead) > 5*time.Second {
 				r = len(data)
 			}
 			return

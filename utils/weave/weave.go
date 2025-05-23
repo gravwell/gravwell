@@ -6,11 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-/**
- * The output module.
- * Weave consumes arbitrary structs, orchestrating them into a specified format
- * and returning the formatted string.
- */
+// Package weave consumes arbitrary structs, orchestrating them into a specified format and returning the formatted string.
 package weave
 
 import (
@@ -33,7 +29,7 @@ const (
 
 //#endregion
 
-// Takes an array of arbitrary struct `st` and the *ordered* columns to
+// ToCSV takes an array of arbitrary struct `st` and the *ordered* columns to
 // include/exclude and returns a string containing the csv representation of the
 // data contained therein.
 //
@@ -58,7 +54,7 @@ func ToCSV[Any any](st []Any, columns []string) string {
 
 	columnMap := buildColumnMap(st[0], columns)
 
-	var hdr string = strings.Join(columns, ",")
+	var hdr = strings.Join(columns, ",")
 
 	var csv strings.Builder // stores the actual data
 
@@ -97,7 +93,7 @@ func stringifyStructCSV(s interface{}, columns []string, columnMap map[string][]
 	return strings.TrimSuffix(row.String(), ",")
 }
 
-// Given an array of an arbitrary struct and the list of *fully-qualified* fields,
+// ToTable when given an array of an arbitrary struct and the list of *fully-qualified* fields,
 // outputs a table containing the data in the array of the struct.
 //
 // Can optionally be given a table style func. Uses DefaultTblStyle() if not given.
@@ -108,7 +104,7 @@ func ToTable[Any any](st []Any, columns []string, styleFunc ...func() *table.Tab
 
 	columnMap := buildColumnMap(st[0], columns)
 
-	var rows [][]string = make([][]string, len(st))
+	var rows = make([][]string, len(st))
 
 	for i := range st { // operate on each struct
 		rows[i] = make([]string, len(columns))
@@ -142,7 +138,7 @@ func ToTable[Any any](st []Any, columns []string, styleFunc ...func() *table.Tab
 	return tbl.Render()
 }
 
-// Style function used internally by ToTable if a styleFunc is not provided.
+// DefaultTblStyle function used internally by ToTable if a styleFunc is not provided.
 // Use as an example for supplying your own.
 func DefaultTblStyle() *table.Table {
 	return table.New().StyleFunc(func(row, col int) lipgloss.Style {
@@ -157,7 +153,7 @@ type gComplex[t float32 | float64] struct {
 	Imaginary t
 }
 
-// Given an array of an arbitrary struct and the list of *fully-qualified* fields,
+// ToJSON when given an array of an arbitrary struct and the list of *fully-qualified* fields,
 // outputs a JSON array containing the data in the array of the struct.
 // Output is sorted alphabetically
 func ToJSON[Any any](st []Any, columns []string) (string, error) {
@@ -254,12 +250,12 @@ func ToJSON[Any any](st []Any, columns []string) (string, error) {
 	return toRet + "]", nil // close JSON array
 }
 
-// BROKEN UNTIL Gabs ISSUE#141 IS RESOLVED
+// ToJSONExclude is BROKEN UNTIL Gabs ISSUE#141 IS RESOLVED
 // Given an array of an arbitrary struct, outputs a JSON array containing the
 // data in the array of the struct, minus the blacklisted columns
 // Output is sorted alphabetically
 func ToJSONExclude[Any any](st []Any, blacklist []string) (string, error) {
-	if st == nil || len(st) < 1 { // superfluous request
+	if len(st) < 1 { // superfluous request
 		return "[]", errors.New(ErrStructIsNil)
 	}
 
@@ -288,7 +284,7 @@ func ToJSONExclude[Any any](st []Any, blacklist []string) (string, error) {
 	return strings.TrimSuffix(writer.String(), ",") + "]", nil
 }
 
-// Given a fully qualified column name (ex: "outerstruct.innerstruct.field"),
+// FindQualifiedField when given a fully qualified column name (ex: "outerstruct.innerstruct.field"),
 // finds the associated field, if it exists.
 //
 // Qualifications follow Go's rules for nested structs, including embedded
@@ -343,7 +339,7 @@ func FindQualifiedField[Any any](qualCol string, st any) (field reflect.StructFi
 
 }
 
-// Returns the fully qualified name of every (exported) field in the struct
+// StructFields returns the fully qualified name of every (exported) field in the struct
 // *definition*, as they are ordered internally
 // These qualified names are the expected format for the output modules in this
 // package
@@ -378,7 +374,7 @@ func StructFields(st any, exportedOnly bool) (columns []string, err error) {
 // Operates recursively on the given field if it is a struct.
 // Operates down the struct, in field-order.
 func innerStructFields(qualification string, field reflect.StructField, exportedOnly bool) []string {
-	var columns []string = []string{}
+	var columns = []string{}
 
 	// do not operate on unexported fields if exportedOnly
 	if exportedOnly && !field.IsExported() {

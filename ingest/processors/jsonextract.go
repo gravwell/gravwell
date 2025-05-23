@@ -56,8 +56,8 @@ func JsonExtractLoadConfig(vc *config.VariableConfig) (c JsonExtractConfig, err 
 func (c *JsonExtractConfig) validate() (err error) {
 	//handle the legacy config items and potential overrides
 	// if Drop-Misses is set, that overrides everything
-	if c.Drop_Misses == false {
-		if c.Passthrough_Misses == false {
+	if !c.Drop_Misses {
+		if !c.Passthrough_Misses {
 			c.Drop_Misses = true
 		}
 	}
@@ -65,7 +65,6 @@ func (c *JsonExtractConfig) validate() (err error) {
 	return
 }
 
-// JsonExtractor
 type JsonExtractor struct {
 	nocloser
 	JsonExtractConfig
@@ -73,7 +72,7 @@ type JsonExtractor struct {
 }
 
 func NewJsonExtractor(cfg JsonExtractConfig) (*JsonExtractor, error) {
-	if cfg.Drop_Misses == false && cfg.Strict_Extraction {
+	if !cfg.Drop_Misses && cfg.Strict_Extraction {
 		return nil, ErrMissStrictConflict
 	}
 	keys, keynames, err := cfg.getKeyData()
@@ -91,11 +90,11 @@ func NewJsonExtractor(cfg JsonExtractConfig) (*JsonExtractor, error) {
 	}, nil
 }
 
-func (j *JsonExtractor) Config(v interface{}) (err error) {
+func (je *JsonExtractor) Config(v interface{}) (err error) {
 	if v == nil {
 		err = ErrNilConfig
 	} else if cfg, ok := v.(JsonExtractConfig); ok {
-		j.JsonExtractConfig = cfg
+		je.JsonExtractConfig = cfg
 	} else {
 		err = fmt.Errorf("Invalid configuration, unknown type type %T", v)
 	}
@@ -119,12 +118,12 @@ func (je *JsonExtractor) Process(ents []*entry.Entry) (rset []*entry.Entry, err 
 
 func (je *JsonExtractor) processItem(ent *entry.Entry) *entry.Entry {
 	// if we have drop misses or strict extraction, validate the JSON first
-	if (je.Drop_Misses || je.Strict_Extraction) && json.Valid(ent.Data) == false {
+	if (je.Drop_Misses || je.Strict_Extraction) && !json.Valid(ent.Data) {
 		return nil
 	}
 	if err := je.bldr.extract(ent.Data); err != nil {
 		je.bldr.reset()
-		if je.Drop_Misses == false {
+		if !je.Drop_Misses {
 			return ent
 		}
 		return nil
@@ -132,7 +131,7 @@ func (je *JsonExtractor) processItem(ent *entry.Entry) *entry.Entry {
 	data, cnt := je.bldr.render()
 	if je.Strict_Extraction && cnt != len(je.bldr.keynames) {
 		return nil //just dropping the entry
-	} else if cnt == 0 && je.Drop_Misses == false {
+	} else if cnt == 0 && !je.Drop_Misses {
 		return ent
 	} else if len(data) > 0 {
 		ent.Data = data
@@ -140,13 +139,12 @@ func (je *JsonExtractor) processItem(ent *entry.Entry) *entry.Entry {
 	return ent
 }
 
-func (jec JsonExtractConfig) getKeyData() (keys [][]string, keynames []string, err error) {
-	if len(jec.Extractions) == 0 {
+func (c JsonExtractConfig) getKeyData() (keys [][]string, keynames []string, err error) {
+	if len(c.Extractions) == 0 {
 		err = ErrMissingExtractions
 		return
 	}
-	var flds []string
-	flds = splitRespectQuotes(jec.Extractions, commaSplitter)
+	flds := splitRespectQuotes(c.Extractions, commaSplitter)
 	for _, key := range flds {
 		var keyname string
 		if len(key) == 0 {

@@ -84,7 +84,7 @@ func (c *Client) CreateScheduledSearchFromObject(s types.ScheduledSearch) (int32
 	return resp, nil
 }
 
-// Create a scheduled search that executes a script instead of a search. The parameters are:
+// CreateScheduledScript creates a scheduled search that executes a script instead of a search. The parameters are:
 //
 // - name: the search name.
 //

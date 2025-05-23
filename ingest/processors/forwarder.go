@@ -168,7 +168,6 @@ func (nf *Forwarder) blockingProcess(ent *entry.Entry) {
 	case <-nf.abrt: //aborted on close
 	case nf.ch <- ent:
 	}
-	return
 }
 
 func (nf *Forwarder) nonblockingProcess(ent *entry.Entry) {
@@ -176,7 +175,6 @@ func (nf *Forwarder) nonblockingProcess(ent *entry.Entry) {
 	case nf.ch <- ent:
 	default: //if we can't write, sorry, ROLL ON!
 	}
-	return
 }
 
 // filter applies the optional tag and regex filters against the data
@@ -270,7 +268,6 @@ func (nf *Forwarder) wait(tosec uint) {
 		<-ch
 	case <-ch:
 	}
-	return
 }
 
 func (nf *Forwarder) routine(conn net.Conn) {
@@ -286,7 +283,7 @@ func (nf *Forwarder) routine(conn net.Conn) {
 		return
 	}
 
-	for ent, ok := nf.getEnt(); ok == true; ent, ok = nf.getEnt() {
+	for ent, ok := nf.getEnt(); ok; ent, ok = nf.getEnt() {
 		if conn, nf.err = nf.sendEntry(ent, conn); nf.err != nil {
 			break
 		}
@@ -409,21 +406,21 @@ func (nfc *ForwarderConfig) Validate() (err error) {
 	return
 }
 
-func (nfc *Forwarder) newConnection(retry bool) (conn net.Conn, err error) {
+func (nf *Forwarder) newConnection(retry bool) (conn net.Conn, err error) {
 	var d net.Dialer
 	for retry {
-		switch nfc.Protocol {
+		switch nf.Protocol {
 		case protoTCP:
-			conn, err = d.DialContext(nfc.ctx, `tcp`, nfc.Target)
+			conn, err = d.DialContext(nf.ctx, `tcp`, nf.Target)
 		case protoUDP:
-			conn, err = d.DialContext(nfc.ctx, `udp`, nfc.Target)
+			conn, err = d.DialContext(nf.ctx, `udp`, nf.Target)
 		case protoUnix:
-			conn, err = d.DialContext(nfc.ctx, `unix`, nfc.Target)
+			conn, err = d.DialContext(nf.ctx, `unix`, nf.Target)
 		case protoTLS:
 			cfg := tls.Config{
-				InsecureSkipVerify: nfc.Insecure_Skip_TLS_Verify,
+				InsecureSkipVerify: nf.Insecure_Skip_TLS_Verify,
 			}
-			conn, err = tls.DialWithDialer(&d, `tcp`, nfc.Target, &cfg)
+			conn, err = tls.DialWithDialer(&d, `tcp`, nf.Target, &cfg)
 		}
 		if err == context.Canceled {
 			retry = false
@@ -432,7 +429,7 @@ func (nfc *Forwarder) newConnection(retry bool) (conn net.Conn, err error) {
 			break
 		}
 		//redial interval is 1 second
-		if nfc.sleep(redialInterval) {
+		if nf.sleep(redialInterval) {
 			//sleep was cancelled
 			err = context.Canceled
 			break
@@ -441,35 +438,35 @@ func (nfc *Forwarder) newConnection(retry bool) (conn net.Conn, err error) {
 	return
 }
 
-func (nfc *Forwarder) newEncoder(w io.Writer) (err error) {
-	switch nfc.Format {
+func (nf *Forwarder) newEncoder(w io.Writer) (err error) {
+	switch nf.Format {
 	case encRaw:
 		//we do this so that we can pass in a nil if its empty
 		var b []byte
-		if nfc.Delimiter != `` {
-			b = []byte(nfc.Delimiter)
+		if nf.Delimiter != `` {
+			b = []byte(nf.Delimiter)
 		}
-		nfc.enc, err = newRawEncoder(w, b)
+		nf.enc, err = newRawEncoder(w, b)
 	case encJSON:
-		nfc.enc, err = newJSONEncoder(w, nfc.tgr)
+		nf.enc, err = newJSONEncoder(w, nf.tgr)
 	case encSYSLOG:
-		nfc.enc, err = newSyslogEncoder(w, nfc.tgr)
+		nf.enc, err = newSyslogEncoder(w, nf.tgr)
 	default:
 		err = ErrUnknownFormat
 	}
 	return
 }
 
-func (nfc *Forwarder) dialer() (d *net.Dialer) {
-	if nfc.Timeout > 0 {
-		d.Timeout = time.Duration(nfc.Timeout) * time.Second
+func (nf *Forwarder) dialer() (d *net.Dialer) {
+	if nf.Timeout > 0 {
+		d.Timeout = time.Duration(nf.Timeout) * time.Second
 	}
 	return
 }
 
-func (nfc *Forwarder) sleep(d time.Duration) (cancelled bool) {
+func (nf *Forwarder) sleep(d time.Duration) (cancelled bool) {
 	select {
-	case <-nfc.ctx.Done():
+	case <-nf.ctx.Done():
 		cancelled = true
 	case <-time.After(d):
 	}

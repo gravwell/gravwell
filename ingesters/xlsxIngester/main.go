@@ -171,7 +171,7 @@ loop:
 		case err = <-errCh:
 			fmt.Println("\nDONE")
 			break loop
-		case _ = <-tckr.C:
+		case <-tckr.C:
 			dur := time.Since(lastts)
 			cnt := count - lastcnt
 			bts := totalBytes - lastsz
@@ -291,7 +291,6 @@ func xlsxCsvReader(f *xlsx.File, out chan []byte) {
 			}
 		}
 	}
-	return
 }
 
 func encodeLine(row *xlsx.Row) (b []byte, err error) {
