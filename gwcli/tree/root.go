@@ -74,7 +74,7 @@ func ppre(cmd *cobra.Command, args []string) error {
 	}
 
 	// if a profiler was specified, spin one up targeting the given path
-	if fn, err := cmd.Flags().GetString("cpuprofile"); err != nil {
+	if fn, err := cmd.Flags().GetString("profile"); err != nil {
 		panic(err)
 	} else if fn = strings.TrimSpace(fn); fn != "" {
 		profilerFile, err = os.Create(fn)
