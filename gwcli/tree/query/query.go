@@ -194,7 +194,7 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
-		querySubmissionSuccess(s.ID, flags.Background))
+		querySubmissionSuccess(s.ID, flags.Background)+"\n")
 
 	// if this is a background query, we are done
 	if flags.Background {
