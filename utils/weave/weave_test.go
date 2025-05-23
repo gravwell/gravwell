@@ -280,7 +280,7 @@ func TestToCSV(t *testing.T) {
 			n string
 		}
 
-		var data []nest = make([]nest, longCSVLineCount)
+		var data = make([]nest, longCSVLineCount)
 		for i := 0; i < longCSVLineCount; i++ {
 			data[i] = nest{
 				n: fmt.Sprintf("%dN", i), innerNest: innerNest{
@@ -603,7 +603,7 @@ func TestToJSON(t *testing.T) {
 			panic(err)
 		}
 
-		var want string = "["
+		var want = "["
 		for _, d := range data {
 			w, err := json.Marshal(d)
 			if err != nil {
@@ -635,7 +635,7 @@ func TestToJSON(t *testing.T) {
 			panic(err)
 		}
 
-		var want string = "["
+		var want = "["
 		for _, d := range data {
 			w, err := json.Marshal(d)
 			if err != nil {
@@ -681,7 +681,7 @@ func TestToJSON(t *testing.T) {
 			panic(err)
 		}
 
-		var want string = "["
+		var want = "["
 		for _, d := range data {
 			w, err := json.Marshal(d)
 			if err != nil {
@@ -712,7 +712,7 @@ func TestToJSON(t *testing.T) {
 			panic(err)
 		}
 
-		var want string = "["
+		var want = "["
 		for _, d := range data {
 			w, err := json.Marshal(d)
 			if err != nil {
@@ -747,7 +747,7 @@ func TestToJSON(t *testing.T) {
 			panic(err)
 		}
 
-		/* want string = "["
+		/* want = "["
 		for _, d := range data {
 			w, err := json.Marshal(d)
 			if err != nil {
@@ -785,7 +785,7 @@ func TestToJSON(t *testing.T) {
 			panic(err)
 		}
 
-		var want string = "["
+		var want = "["
 		for _, d := range data {
 			w, err := json.Marshal(d)
 			if err != nil {
@@ -827,10 +827,10 @@ func TestToJSON(t *testing.T) {
 			B0     string
 			Depth1 d1
 		}
-		var A0 string = "Coffee or death"
-		var B0 string = "donate to simply cats"
-		var A1 int = 5
-		var B1 float64 = 3.14
+		var A0 = "Coffee or death"
+		var B0 = "donate to simply cats"
+		var A1 = 5
+		var B1 = 3.14
 		data := []d0{
 			{A0: &A0, B0: B0, Depth1: d1{A1: A1, B1: &B1}},
 		}
@@ -840,7 +840,7 @@ func TestToJSON(t *testing.T) {
 			panic(err)
 		}
 
-		var want string = "["
+		var want = "["
 		for _, d := range data {
 			w, err := json.Marshal(d)
 			if err != nil {
@@ -908,7 +908,7 @@ func TestToJSON(t *testing.T) {
 			panic(err)
 		}
 
-		var want string = "["
+		var want = "["
 		for _, d := range data {
 			w, err := json.Marshal(d)
 			if err != nil {
@@ -938,10 +938,10 @@ func TestToJSON(t *testing.T) {
 			B0 float32
 			d1
 		}
-		var A0 string = "Go drink some water"
+		var A0 = "Go drink some water"
 		var B0 float32 = 12.8
-		var C1 int = 5
-		var D1 float64 = 3.14
+		var C1 = 5
+		var D1 = 3.14
 		data := []d0{
 			{A0: &A0, B0: B0, d1: d1{C1: C1, D1: &D1}},
 		}
@@ -951,7 +951,7 @@ func TestToJSON(t *testing.T) {
 			panic(err)
 		}
 
-		var want string = "["
+		var want = "["
 		for _, d := range data {
 			w, err := json.Marshal(d)
 			if err != nil {
@@ -976,10 +976,10 @@ func TestToJSON(t *testing.T) {
 			B0 float32
 			d1
 		}
-		var A0 string = "Go drink some water"
+		var A0 = "Go drink some water"
 		var B0 float32 = 12.8
-		var C1 int = 5
-		var D1 float64 = 3.14
+		var C1 = 5
+		var D1 = 3.14
 		data := []d0{
 			{A0: &A0, B0: B0, d1: d1{C1: C1, D1: &D1}},
 		}
@@ -989,7 +989,7 @@ func TestToJSON(t *testing.T) {
 			panic(err)
 		}
 
-		var want string = "["
+		var want = "["
 		for _, d := range data {
 			w, err := json.Marshal(d)
 			if err != nil {
@@ -1169,8 +1169,8 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 	t.Run("named struct navigation", func(t *testing.T) {
 
-		var expIndexPath []int = []int{1, 0}
-		var exp reflect.StructField = reflect.TypeOf(lvl1{}).FieldByIndex(expIndexPath)
+		var expIndexPath = []int{1, 0}
+		var exp = reflect.TypeOf(lvl1{}).FieldByIndex(expIndexPath)
 
 		got, _, gotIndexPath, err := FindQualifiedField[lvl1]("l2.b", lvl1{})
 		if err != nil {
@@ -1193,8 +1193,8 @@ func TestFindQualifiedField(t *testing.T) {
 
 	})
 	t.Run("named struct navigation outer -> (embed) -> too -> mu", func(t *testing.T) {
-		var expIndexPath []int = []int{0, 1, 0}
-		var exp reflect.StructField = reflect.TypeOf(outer{}).FieldByIndex(expIndexPath)
+		var expIndexPath = []int{0, 1, 0}
+		var exp = reflect.TypeOf(outer{}).FieldByIndex(expIndexPath)
 
 		got, _, gotIndexPath, err := FindQualifiedField[outer]("too.mu", outer{})
 		if err != nil {
@@ -1220,7 +1220,7 @@ func TestFindQualifiedField(t *testing.T) {
 
 		// access one field too far within too
 
-		var exp reflect.StructField = reflect.TypeOf(outer{}).FieldByIndex([]int{0, 1, 1})
+		var exp = reflect.TypeOf(outer{}).FieldByIndex([]int{0, 1, 1})
 
 		got, _, _, err := FindQualifiedField[lvl1]("too.mu", outer{})
 		if err != nil {
@@ -1234,7 +1234,7 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 	t.Run("named struct navigation ptr", func(t *testing.T) {
 
-		var exp reflect.StructField = reflect.TypeOf(lvl1{}).FieldByIndex([]int{0, 1})
+		var exp = reflect.TypeOf(lvl1{}).FieldByIndex([]int{0, 1})
 
 		got, _, _, err := FindQualifiedField[lvl1]("l2.c", lvl1{})
 		if err != nil {
@@ -1248,7 +1248,7 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 
 	t.Run("embedded + depth 2", func(t *testing.T) {
-		var exp reflect.StructField = reflect.TypeOf(lvl1{}).FieldByIndex([]int{0, 2, 0})
+		var exp = reflect.TypeOf(lvl1{}).FieldByIndex([]int{0, 2, 0})
 
 		got, _, _, err := FindQualifiedField[lvl1]("l3.d", lvl1{})
 		if err != nil {
@@ -1262,7 +1262,7 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 
 	t.Run("depth 3", func(t *testing.T) {
-		var exp reflect.StructField = reflect.TypeOf(lvl1{}).FieldByIndex([]int{0, 2, 0})
+		var exp = reflect.TypeOf(lvl1{}).FieldByIndex([]int{0, 2, 0})
 
 		got, _, _, err := FindQualifiedField[lvl1]("l2.l3.d", lvl1{})
 		if err != nil {
@@ -1277,7 +1277,7 @@ func TestFindQualifiedField(t *testing.T) {
 	// test accessing fields within first-class struct, e, embedded at depth 0,
 	// in struct lvl3
 	t.Run("first-class internal struct @ depth 0", func(t *testing.T) {
-		var exp reflect.StructField = reflect.TypeOf(lvl3{}).FieldByIndex([]int{1, 1})
+		var exp = reflect.TypeOf(lvl3{}).FieldByIndex([]int{1, 1})
 
 		got, _, _, err := FindQualifiedField[lvl3]("e.b", lvl3{})
 		if err != nil {
@@ -1290,7 +1290,7 @@ func TestFindQualifiedField(t *testing.T) {
 	})
 
 	t.Run("deeply nested first-class struct", func(t *testing.T) {
-		var exp reflect.StructField = reflect.TypeOf(lvl1{}).FieldByIndex([]int{1, 2, 1, 1})
+		var exp = reflect.TypeOf(lvl1{}).FieldByIndex([]int{1, 2, 1, 1})
 
 		got, _, _, err := FindQualifiedField[lvl1]("l2.l3.e.b", lvl1{})
 		if err != nil {

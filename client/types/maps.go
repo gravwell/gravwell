@@ -90,7 +90,7 @@ func (pkv PointmapKV) IsEmpty() bool {
 }
 
 func (gf *Geofence) Enabled() bool {
-	return gf != nil && gf.enabled == true
+	return gf != nil && gf.enabled
 }
 
 func (gf *Geofence) CrossesAntimeridian() bool {

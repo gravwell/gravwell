@@ -9,6 +9,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package winevent implements the basic windows event system interface and bookmark system for Gravwell
 package winevent
 
 import (

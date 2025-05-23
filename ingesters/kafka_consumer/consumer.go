@@ -91,11 +91,12 @@ type kafkaConsumer struct {
 
 type kafkaConsumerConfig struct {
 	consumerCfg
-	defTag entry.EntryTag
-	igst   *ingest.IngestMuxer
-	lg     *log.Logger
-	pproc  *processors.ProcessorSet
-	tgr    *tags.Tagger
+	name       string // name of the consumer as defined in the config
+	defaultTag entry.EntryTag
+	igst       *ingest.IngestMuxer
+	lg         *log.Logger
+	pproc      *processors.ProcessorSet
+	tgr        *tags.Tagger
 }
 
 func newKafkaConsumer(cfg kafkaConsumerConfig) (kc *kafkaConsumer, err error) {
@@ -218,13 +219,13 @@ func (kc *kafkaConsumer) Cleanup(cgs sarama.ConsumerGroupSession) (err error) {
 
 	if igst != nil {
 		igst.Info("kafka consumer stats",
-			log.KV("consumer", mid),
+			log.KV("consumer", kc.name),
 			log.KV("group", kc.group),
 			log.KV("member", kc.memberId),
 			log.KV("count", kc.count),
 			log.KV("size", kc.size))
 		if err = igst.SyncContext(kc.ctx, 0); err != nil {
-			kc.lg.Info("consumer cleanup sync failed", log.KV("consumer", mid), log.KVErr(err))
+			kc.lg.Info("consumer cleanup sync failed", log.KV("consumer", kc.name), log.KVErr(err))
 			//failing to sync should not return an error
 			// the sarama library treats an error coming off of Cleanup as fatal and won't restart the worker
 			// as a result any network bump that coincides with Kafka telling us to GTFO will cause an error here
@@ -233,7 +234,7 @@ func (kc *kafkaConsumer) Cleanup(cgs sarama.ConsumerGroupSession) (err error) {
 			// cleanup with no error or the consumer won't reconnect
 			err = nil
 		} else {
-			kc.lg.Info("Consumer cleanup complete", log.KV("consumer", mid))
+			kc.lg.Info("Consumer cleanup complete", log.KV("consumer", kc.name))
 		}
 	}
 	return
@@ -255,7 +256,7 @@ func (kc *kafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim
 	var currTS int64
 	batch := make([]*sarama.ConsumerMessage, 0, kc.batchSize)
 
-	kc.lg.Info("consumer started", log.KV("consumer", kc.memberId), log.KV("group", kc.group))
+	kc.lg.Info("consumer started", log.KV("consumer", kc.name), log.KV("group", kc.group))
 	var reason string
 loop:
 	for {
@@ -271,7 +272,7 @@ loop:
 			if currTS != ts && len(batch) > 0 {
 				//flush the existing batch
 				if err = kc.flush(session, batch); err != nil {
-					kc.lg.Error("failed to write entries", log.KV("count", len(batch)), log.KVErr(err))
+					kc.lg.Error("failed to write entries", log.KV("consumer", kc.name), log.KV("count", len(batch)), log.KVErr(err))
 					reason = `consumer write failed on timestamp transition`
 					break loop
 				}
@@ -283,7 +284,7 @@ loop:
 			if len(batch) == cap(batch) {
 				//flush the existing batch
 				if err = kc.flush(session, batch); err != nil {
-					kc.lg.Error("failed to write entries", log.KV("count", len(batch)), log.KVErr(err))
+					kc.lg.Error("failed to write entries", log.KV("consumer", kc.name), log.KV("count", len(batch)), log.KVErr(err))
 					reason = `consumer write failed on max-capacity write`
 					break loop
 				}
@@ -294,7 +295,7 @@ loop:
 			if len(batch) > 0 {
 				//flush the existing batch
 				if err = kc.flush(session, batch); err != nil {
-					kc.lg.Error("failed to write entries", log.KV("count", len(batch)), log.KVErr(err))
+					kc.lg.Error("failed to write entries", log.KV("consumer", kc.name), log.KV("count", len(batch)), log.KVErr(err))
 					reason = `consumer write failed on ticker`
 					break loop
 				}
@@ -306,14 +307,14 @@ loop:
 	//add the reason for exiting and an error if there is one, typically its just context cancelled but... maybe its something else
 	if err != nil {
 		kc.lg.Info("consumer exited with error",
-			log.KV("consumer", kc.memberId),
+			log.KV("consumer", kc.name),
 			log.KV("group", kc.group),
 			log.KV("exit-reason", reason),
 			log.KVErr(err),
 		)
 	} else {
 		kc.lg.Info("consumer exited",
-			log.KV("consumer", kc.memberId),
+			log.KV("consumer", kc.name),
 			log.KV("group", kc.group),
 			log.KV("exit-reason", reason),
 		)
@@ -380,7 +381,7 @@ func (kc *kafkaConsumer) resolveSourceAndTag(m *sarama.ConsumerMessage) (tag ent
 	//short circuit out
 	if m == nil {
 		ip = kc.src
-		tag = kc.defTag
+		tag = kc.defaultTag
 		return
 	}
 	var tagHit bool
@@ -399,7 +400,7 @@ func (kc *kafkaConsumer) resolveSourceAndTag(m *sarama.ConsumerMessage) (tag ent
 		ip = kc.src
 	}
 	if !tagHit {
-		tag = kc.defTag
+		tag = kc.defaultTag
 	}
 	return
 }

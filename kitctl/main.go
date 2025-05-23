@@ -14,7 +14,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -86,7 +85,7 @@ func main() {
 
 func help(args []string) {
 	fmt.Printf("Usage: kitctl [flags] <cmd> [arguments]\n\n")
-	fmt.Println("kitctl provides tools for working with a Gravwell kit managed inside a git repository. It unpacks a kit archive file into discrete files which can be more easily modified. Once modifications are done, it can re-pack the contents into an archive file again.\n")
+	fmt.Printf("kitctl provides tools for working with a Gravwell kit managed inside a git repository. It unpacks a kit archive file into discrete files which can be more easily modified. Once modifications are done, it can re-pack the contents into an archive file again.\n\n")
 	fmt.Printf("Commands:\n")
 	fmt.Println("	unpack <input file>: unpack a kit into the current directory")
 	fmt.Println("	pack <output file>: pack the current directory into a kit file")
@@ -344,7 +343,7 @@ func initKit(args []string) {
 	if err != nil {
 		log.Fatalf("Failed to re-marshal MANIFEST: %v", err)
 	}
-	if err := ioutil.WriteFile("MANIFEST", mb, 0644); err != nil {
+	if err := os.WriteFile("MANIFEST", mb, 0644); err != nil {
 		log.Fatalf("Failed to write-out MANIFEST file: %v", err)
 	}
 }
@@ -772,7 +771,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		case kits.License:
 			var p []byte
-			if p, err = ioutil.ReadAll(rdr); err != nil {
+			if p, err = io.ReadAll(rdr); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
 			if err := writeLicense(wd, name, p); err != nil {

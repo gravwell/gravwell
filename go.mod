@@ -12,7 +12,7 @@ require (
 	github.com/Jeffail/gabs/v2 v2.7.0
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56
-	github.com/aws/aws-sdk-go v1.55.6
+	github.com/aws/aws-sdk-go v1.55.7
 	github.com/bmatcuk/doublestar/v4 v4.4.0
 	github.com/brianvoe/gofakeit v3.18.0+incompatible
 	github.com/bxcodec/faker/v3 v3.3.1
@@ -29,7 +29,7 @@ require (
 	github.com/gobwas/glob v0.2.3
 	github.com/goccy/go-json v0.8.1
 	github.com/gofrs/flock v0.8.0
-	github.com/golang-jwt/jwt/v4 v4.5.2
+	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/gopacket v1.1.19
 	github.com/google/renameio v1.0.1
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510

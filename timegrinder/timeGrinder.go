@@ -271,7 +271,7 @@ func (tg *TimeGrinder) GetProcessor(name string) (p Processor, ok bool) {
 	return
 }
 
-// reset just resets the current matcher that is used during optimization, typically this function is used in performance testing
+// Reset will reset the current matcher that is used during optimization, typically this function is used in performance testing
 func (tg *TimeGrinder) Reset() {
 	tg.curr = 0
 }

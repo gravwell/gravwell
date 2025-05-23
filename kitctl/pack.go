@@ -12,7 +12,6 @@ import (
 	"crypto/md5"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -34,7 +33,7 @@ func writeResource(dir string, pr kits.PackedResource) error {
 	// Now drop two files: .meta and .contents
 	contentPath := filepath.Join(p, fmt.Sprintf("%v.contents", pr.ResourceName))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", pr.ResourceName))
-	if err := ioutil.WriteFile(contentPath, pr.Data, 0644); err != nil {
+	if err := os.WriteFile(contentPath, pr.Data, 0644); err != nil {
 		return err
 	}
 	pr.Data = []byte{}
@@ -42,7 +41,7 @@ func writeResource(dir string, pr kits.PackedResource) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(metaPath, mb, 0644)
+	return os.WriteFile(metaPath, mb, 0644)
 }
 
 func readResource(dir string, name string) (pr kits.PackedResource, err error) {
@@ -52,7 +51,7 @@ func readResource(dir string, name string) (pr kits.PackedResource, err error) {
 
 	// Read the metadata file first
 	var bts []byte
-	bts, err = ioutil.ReadFile(metaPath)
+	bts, err = os.ReadFile(metaPath)
 	if err != nil {
 		return
 	}
@@ -60,7 +59,7 @@ func readResource(dir string, name string) (pr kits.PackedResource, err error) {
 		return
 	}
 	// Now read the contents into the resource
-	pr.Data, err = ioutil.ReadFile(contentPath)
+	pr.Data, err = os.ReadFile(contentPath)
 	hsh := md5.New()
 	hsh.Write(pr.Data)
 	pr.Hash = hsh.Sum(nil)
@@ -82,7 +81,7 @@ func writeMacro(dir string, pm kits.PackedMacro) error {
 	// Now drop two files: .meta and .expansion
 	expansionPath := filepath.Join(p, fmt.Sprintf("%v.expansion", pm.Name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", pm.Name))
-	if err := ioutil.WriteFile(expansionPath, []byte(pm.Expansion), 0644); err != nil {
+	if err := os.WriteFile(expansionPath, []byte(pm.Expansion), 0644); err != nil {
 		return err
 	}
 	pm.Expansion = ``
@@ -90,7 +89,7 @@ func writeMacro(dir string, pm kits.PackedMacro) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(metaPath, mb, 0644)
+	return os.WriteFile(metaPath, mb, 0644)
 }
 
 func readMacro(dir, name string) (pm kits.PackedMacro, err error) {
@@ -100,7 +99,7 @@ func readMacro(dir, name string) (pm kits.PackedMacro, err error) {
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	// Read the metadata file first
 	var bts []byte
-	bts, err = ioutil.ReadFile(metaPath)
+	bts, err = os.ReadFile(metaPath)
 	if err != nil {
 		return
 	}
@@ -108,7 +107,7 @@ func readMacro(dir, name string) (pm kits.PackedMacro, err error) {
 		return
 	}
 	// Now read the expansion and insert it
-	bts, err = ioutil.ReadFile(expansionPath)
+	bts, err = os.ReadFile(expansionPath)
 	if err == nil {
 		pm.Expansion = string(bts)
 	} else if os.IsNotExist(err) {
@@ -131,7 +130,7 @@ func writeUserFile(dir string, name string, x types.UserFile) error {
 	// Now drop two files: .meta and .contents
 	contentsPath := filepath.Join(p, fmt.Sprintf("%v.contents", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	if err := ioutil.WriteFile(contentsPath, x.Contents, 0644); err != nil {
+	if err := os.WriteFile(contentsPath, x.Contents, 0644); err != nil {
 		return err
 	}
 	x.Contents = []byte{}
@@ -139,7 +138,7 @@ func writeUserFile(dir string, name string, x types.UserFile) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(metaPath, mb, 0644)
+	return os.WriteFile(metaPath, mb, 0644)
 }
 
 func readUserFile(dir, name string) (x types.UserFile, err error) {
@@ -149,7 +148,7 @@ func readUserFile(dir, name string) (x types.UserFile, err error) {
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	// Read the metadata file first
 	var bts []byte
-	bts, err = ioutil.ReadFile(metaPath)
+	bts, err = os.ReadFile(metaPath)
 	if err != nil {
 		return
 	}
@@ -157,7 +156,7 @@ func readUserFile(dir, name string) (x types.UserFile, err error) {
 		return
 	}
 	// Now read the contents and insert it
-	bts, err = ioutil.ReadFile(contentsPath)
+	bts, err = os.ReadFile(contentsPath)
 	if err == nil {
 		x.Contents = bts
 	} else if os.IsNotExist(err) {
@@ -180,7 +179,7 @@ func writeSearchLibrary(dir string, name string, x types.WireSearchLibrary) erro
 	// Now drop two files: .meta and .query
 	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	if err := ioutil.WriteFile(queryPath, []byte(x.Query), 0644); err != nil {
+	if err := os.WriteFile(queryPath, []byte(x.Query), 0644); err != nil {
 		return err
 	}
 	x.Query = ``
@@ -188,7 +187,7 @@ func writeSearchLibrary(dir string, name string, x types.WireSearchLibrary) erro
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(metaPath, mb, 0644)
+	return os.WriteFile(metaPath, mb, 0644)
 }
 
 func readSearchLibrary(dir, name string) (x types.WireSearchLibrary, err error) {
@@ -198,7 +197,7 @@ func readSearchLibrary(dir, name string) (x types.WireSearchLibrary, err error) 
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	// Read the metadata file first
 	var bts []byte
-	bts, err = ioutil.ReadFile(metaPath)
+	bts, err = os.ReadFile(metaPath)
 	if err != nil {
 		return
 	}
@@ -206,7 +205,7 @@ func readSearchLibrary(dir, name string) (x types.WireSearchLibrary, err error) 
 		return
 	}
 	// Now read the contents and insert it
-	bts, err = ioutil.ReadFile(queryPath)
+	bts, err = os.ReadFile(queryPath)
 	if err == nil {
 		x.Query = string(bts)
 	} else if os.IsNotExist(err) {
@@ -230,10 +229,10 @@ func writeExtractor(dir string, name string, x types.AXDefinition) error {
 	paramsPath := filepath.Join(p, fmt.Sprintf("%v.params", name))
 	argsPath := filepath.Join(p, fmt.Sprintf("%v.args", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	if err := ioutil.WriteFile(paramsPath, []byte(x.Params), 0644); err != nil {
+	if err := os.WriteFile(paramsPath, []byte(x.Params), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(argsPath, []byte(x.Args), 0644); err != nil {
+	if err := os.WriteFile(argsPath, []byte(x.Args), 0644); err != nil {
 		return err
 	}
 	x.Params = ``
@@ -242,7 +241,7 @@ func writeExtractor(dir string, name string, x types.AXDefinition) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(metaPath, mb, 0644)
+	return os.WriteFile(metaPath, mb, 0644)
 }
 
 func readExtractor(dir, name string) (x types.AXDefinition, err error) {
@@ -253,7 +252,7 @@ func readExtractor(dir, name string) (x types.AXDefinition, err error) {
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	// Read the metadata file first
 	var bts []byte
-	bts, err = ioutil.ReadFile(metaPath)
+	bts, err = os.ReadFile(metaPath)
 	if err != nil {
 		return
 	}
@@ -261,13 +260,13 @@ func readExtractor(dir, name string) (x types.AXDefinition, err error) {
 		return
 	}
 	// Now read the params and insert it
-	bts, err = ioutil.ReadFile(paramsPath)
+	bts, err = os.ReadFile(paramsPath)
 	if err == nil {
 		x.Params = string(bts)
 	} else if os.IsNotExist(err) {
 		err = nil
 	}
-	bts, err = ioutil.ReadFile(argsPath)
+	bts, err = os.ReadFile(argsPath)
 	if err == nil {
 		x.Args = string(bts)
 	} else if os.IsNotExist(err) {
@@ -290,7 +289,7 @@ func writeTemplate(dir string, name string, x types.PackedUserTemplate) error {
 	// Now drop two files: .meta and .query
 	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	if err := ioutil.WriteFile(queryPath, []byte(x.Data.Query), 0644); err != nil {
+	if err := os.WriteFile(queryPath, []byte(x.Data.Query), 0644); err != nil {
 		return err
 	}
 	x.Data.Query = ``
@@ -298,7 +297,7 @@ func writeTemplate(dir string, name string, x types.PackedUserTemplate) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(metaPath, mb, 0644)
+	return os.WriteFile(metaPath, mb, 0644)
 }
 
 func readTemplate(dir, name string) (x types.PackedUserTemplate, err error) {
@@ -308,7 +307,7 @@ func readTemplate(dir, name string) (x types.PackedUserTemplate, err error) {
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	// Read the metadata file first
 	var bts []byte
-	bts, err = ioutil.ReadFile(metaPath)
+	bts, err = os.ReadFile(metaPath)
 	if err != nil {
 		return
 	}
@@ -316,7 +315,7 @@ func readTemplate(dir, name string) (x types.PackedUserTemplate, err error) {
 		return
 	}
 	// Now read the contents and insert it
-	bts, err = ioutil.ReadFile(queryPath)
+	bts, err = os.ReadFile(queryPath)
 	if err == nil {
 		x.Data.Query = string(bts)
 	} else if os.IsNotExist(err) {
@@ -340,10 +339,10 @@ func writePlaybook(dir string, name string, x types.Playbook) error {
 	bodyPath := filepath.Join(p, fmt.Sprintf("%v.body", name))
 	pbMetaPath := filepath.Join(p, fmt.Sprintf("%v.playbook_metadata", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	if err := ioutil.WriteFile(bodyPath, x.Body, 0644); err != nil {
+	if err := os.WriteFile(bodyPath, x.Body, 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(pbMetaPath, x.Metadata, 0644); err != nil {
+	if err := os.WriteFile(pbMetaPath, x.Metadata, 0644); err != nil {
 		return err
 	}
 	// Now write out the rest to the meta file
@@ -353,7 +352,7 @@ func writePlaybook(dir string, name string, x types.Playbook) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(metaPath, mb, 0644)
+	return os.WriteFile(metaPath, mb, 0644)
 }
 
 func readPlaybook(dir, name string) (x types.Playbook, err error) {
@@ -364,7 +363,7 @@ func readPlaybook(dir, name string) (x types.Playbook, err error) {
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	// Read the metadata file first
 	var bts []byte
-	bts, err = ioutil.ReadFile(metaPath)
+	bts, err = os.ReadFile(metaPath)
 	if err != nil {
 		return
 	}
@@ -372,7 +371,7 @@ func readPlaybook(dir, name string) (x types.Playbook, err error) {
 		return
 	}
 	// Now read the body and insert it
-	bts, err = ioutil.ReadFile(bodyPath)
+	bts, err = os.ReadFile(bodyPath)
 	if err == nil {
 		x.Body = bts
 	} else if os.IsNotExist(err) {
@@ -381,7 +380,7 @@ func readPlaybook(dir, name string) (x types.Playbook, err error) {
 		return
 	}
 	// And read the playbook_metadata file
-	bts, err = ioutil.ReadFile(pbMetaPath)
+	bts, err = os.ReadFile(pbMetaPath)
 	if err == nil {
 		x.Metadata = bts
 	} else if os.IsNotExist(err) {
@@ -407,13 +406,13 @@ func writeScheduledSearch(dir string, name string, x kits.PackedScheduledSearch)
 	searchPath := filepath.Join(p, fmt.Sprintf("%v.search", name))
 	scriptPath := filepath.Join(p, fmt.Sprintf("%v.script", name))
 	flowPath := filepath.Join(p, fmt.Sprintf("%v.flow", name))
-	if err := ioutil.WriteFile(searchPath, []byte(x.SearchString), 0644); err != nil {
+	if err := os.WriteFile(searchPath, []byte(x.SearchString), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(scriptPath, []byte(x.Script), 0644); err != nil {
+	if err := os.WriteFile(scriptPath, []byte(x.Script), 0644); err != nil {
 		return err
 	}
-	if err := ioutil.WriteFile(flowPath, []byte(x.Flow), 0644); err != nil {
+	if err := os.WriteFile(flowPath, []byte(x.Flow), 0644); err != nil {
 		return err
 	}
 	x.SearchString = ``
@@ -423,7 +422,7 @@ func writeScheduledSearch(dir string, name string, x kits.PackedScheduledSearch)
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(metaPath, mb, 0644)
+	return os.WriteFile(metaPath, mb, 0644)
 }
 
 func readScheduledSearch(dir, name string) (x kits.PackedScheduledSearch, err error) {
@@ -434,7 +433,7 @@ func readScheduledSearch(dir, name string) (x kits.PackedScheduledSearch, err er
 	flowPath := filepath.Join(p, fmt.Sprintf("%v.flow", name))
 	// Read the metadata file first
 	var bts []byte
-	bts, err = ioutil.ReadFile(metaPath)
+	bts, err = os.ReadFile(metaPath)
 	if err != nil {
 		return
 	}
@@ -442,17 +441,17 @@ func readScheduledSearch(dir, name string) (x kits.PackedScheduledSearch, err er
 		return
 	}
 	// Now read search, flow, and script files
-	bts, err = ioutil.ReadFile(searchPath)
+	bts, err = os.ReadFile(searchPath)
 	if err != nil {
 		return
 	}
 	x.SearchString = string(bts)
-	bts, err = ioutil.ReadFile(scriptPath)
+	bts, err = os.ReadFile(scriptPath)
 	if err != nil {
 		return
 	}
 	x.Script = string(bts)
-	bts, err = ioutil.ReadFile(flowPath)
+	bts, err = os.ReadFile(flowPath)
 	if err != nil {
 		// Flows are newer, so they might not exist in older stuff.
 		if os.IsNotExist(err) {
@@ -482,7 +481,7 @@ func writeDashboard(dir string, name string, x kits.PackedDashboard) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(metaPath, mb, 0644)
+	return os.WriteFile(metaPath, mb, 0644)
 }
 
 func readDashboard(dir, name string) (x kits.PackedDashboard, err error) {
@@ -490,7 +489,7 @@ func readDashboard(dir, name string) (x kits.PackedDashboard, err error) {
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 	// Read the metadata file
 	var bts []byte
-	bts, err = ioutil.ReadFile(metaPath)
+	bts, err = os.ReadFile(metaPath)
 	if err != nil {
 		return
 	}
@@ -512,14 +511,14 @@ func writeLicense(dir string, name string, x []byte) error {
 	}
 
 	lPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	return ioutil.WriteFile(lPath, x, 0644)
+	return os.WriteFile(lPath, x, 0644)
 }
 
 func readLicense(dir, name string) (x []byte, err error) {
 	p := filepath.Join(dir, "license")
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
 
-	x, err = ioutil.ReadFile(metaPath)
+	x, err = os.ReadFile(metaPath)
 	return
 }
 
@@ -540,7 +539,7 @@ func genericWrite(dir string, tp kits.ItemType, name string, x interface{}) erro
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(metaPath, mb, 0644)
+	return os.WriteFile(metaPath, mb, 0644)
 }
 
 func genericRead(dir string, itm kits.Item, obj interface{}) (err error) {
@@ -548,7 +547,7 @@ func genericRead(dir string, itm kits.Item, obj interface{}) (err error) {
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", itm.Name))
 	// Read the metadata file
 	var bts []byte
-	bts, err = ioutil.ReadFile(metaPath)
+	bts, err = os.ReadFile(metaPath)
 	if err != nil {
 		return
 	}

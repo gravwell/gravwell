@@ -13,7 +13,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -253,7 +253,7 @@ func (wm *WatchManager) addNoLock(c WatchConfig) error {
 func (wm *WatchManager) scanRemoved() error {
 	wm.mtx.Lock()
 	defer wm.mtx.Unlock()
-	for k, _ := range wm.removed {
+	for k := range wm.removed {
 		fi, err := os.Stat(k)
 		if err != nil {
 			continue
@@ -541,11 +541,11 @@ watchRoutine:
 					}
 				}
 			}
-		case _ = <-tckr.C:
+		case <-tckr.C:
 			if err := wm.fman.FlushStates(); err != nil {
 				wm.logger.Error("failed to flush states", log.KVErr(err))
 			}
-		case _ = <-mkdirTicker.C:
+		case <-mkdirTicker.C:
 			// Scan all the removed directories and see if they got recreated
 			if err := wm.scanRemoved(); err != nil {
 				wm.logger.Error("failed to check removed directories", log.KVErr(err))
@@ -555,7 +555,7 @@ watchRoutine:
 	errch <- err
 }
 
-// Returns a string containing information about the WatchManager
+// Dump returns a string containing information about the WatchManager
 func (wm *WatchManager) Dump() string {
 	var b strings.Builder
 
@@ -596,19 +596,23 @@ func (wm *WatchManager) getWatchedFileList() (wfs []watchedFile, err error) {
 }
 
 func (wm *WatchManager) getWatchedFilesInDir(dir string) (wfs []watchedFile, err error) {
-	var fis []os.FileInfo
-	if fis, err = ioutil.ReadDir(dir); err != nil {
+	var fis []os.DirEntry
+	if fis, err = os.ReadDir(dir); err != nil {
 		err = fmt.Errorf("Failed to initialize %v: %w", dir, err)
 		return
 	}
 	for i := range fis {
-		if !fis[i].Mode().IsRegular() {
+		var fi fs.FileInfo
+		if fi, err = fis[i].Info(); err != nil {
+			return
+		}
+		if !fi.Mode().IsRegular() {
 			continue
 		}
 		wfs = append(wfs, watchedFile{
 			pth:     filepath.Join(dir, fis[i].Name()),
-			size:    fis[i].Size(),
-			modTime: fis[i].ModTime(),
+			size:    fi.Size(),
+			modTime: fi.ModTime(),
 		})
 	}
 	return

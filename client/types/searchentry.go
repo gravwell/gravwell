@@ -18,7 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
-// Used for scripting and ingesting entries via the webserver.
+// StringTagEntry is used for scripting and ingesting entries via the webserver.
 type StringTagEntry struct {
 	TS         time.Time
 	Tag        string
@@ -29,7 +29,7 @@ type StringTagEntry struct {
 
 type PrintableSearchEntry SearchEntry
 
-// Search entry is the entry that makes it out of the search pipeline.
+// SearchEntry is the entry that makes it out of the search pipeline.
 type SearchEntry struct {
 	TS         entry.Timestamp
 	SRC        net.IP
@@ -66,7 +66,7 @@ func (p PrintableSearchEntry) MarshalJSON() ([]byte, error) {
 	})
 }
 
-// Return the string representation of an enumerated value in a SearchEntry.
+// GetEnumerated returns the string representation of an enumerated value in a SearchEntry.
 func (se SearchEntry) GetEnumerated(name string) (val string, ok bool) {
 	for _, v := range se.Enumerated {
 		if v.Name == name {
@@ -83,7 +83,7 @@ func (se SearchEntry) String() string {
 	return string(se.Data) //basically a YOLO cast, maybe it prints, maybe it doesn't
 }
 
-// Return the string representation of an enumerated value in a StringTagEntry.
+// GetEnumerated returns the string representation of an enumerated value in a StringTagEntry.
 func (se StringTagEntry) GetEnumerated(name string) (val string, ok bool) {
 	for _, v := range se.Enumerated {
 		if v.Name == name {
@@ -95,7 +95,7 @@ func (se StringTagEntry) GetEnumerated(name string) (val string, ok bool) {
 	return
 }
 
-// Return true if both SearchEntry objects are equal.
+// Equal checks if both SearchEntry objects are deeply equal.
 func (se SearchEntry) Equal(v SearchEntry) bool {
 	if !se.TS.Equal(v.TS) || se.Tag != v.Tag || !se.SRC.Equal(v.SRC) {
 		return false
@@ -110,7 +110,7 @@ func (se StringTagEntry) String() string {
 	return string(se.Data)
 }
 
-// Return true if both StringTagEntry objects are equal.
+// Equal checks if both StringTagEntry objects are deeply equal.
 func (se StringTagEntry) Equal(v StringTagEntry) bool {
 	if !se.TS.Equal(v.TS) || se.Tag != v.Tag || !se.SRC.Equal(v.SRC) {
 		return false

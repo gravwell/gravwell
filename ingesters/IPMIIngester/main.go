@@ -365,7 +365,7 @@ func (h *handlerConfig) getSEL() ([]*tSEL, error) {
 		return nil, fmt.Errorf("Failed to get SEL entries on target %v: %w", h.target, err)
 	}
 
-	selrecords, total, err := ipmigo.SELGetEntries(h.client, 0, total)
+	selrecords, _, err := ipmigo.SELGetEntries(h.client, 0, total)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get SEL entries on target %v: %w", h.target, err)
 	}

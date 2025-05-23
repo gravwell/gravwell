@@ -177,7 +177,7 @@ func main() {
 		}
 	} else {
 		var err error
-		sz, cnt, err = getLogSetSize(working)
+		sz, _, err = getLogSetSize(working)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to get working log set size: %v\n", err)
 			return
