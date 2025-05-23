@@ -200,7 +200,7 @@ func run(cmd *cobra.Command, args []string) {
 	if flags.Background {
 		warnings := warnBackgroundFlagConflicts(flags)
 		for _, warn := range warnings {
-			fmt.Fprint(cmd.ErrOrStderr(), warn+"\n")
+			fmt.Fprint(cmd.ErrOrStderr(), "\n"+warn)
 		}
 
 		clilog.Tee(clilog.DEBUG, cmd.OutOrStdout(),
