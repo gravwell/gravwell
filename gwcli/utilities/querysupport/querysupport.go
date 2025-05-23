@@ -12,7 +12,6 @@ import (
 	"os"
 	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -217,13 +216,13 @@ func fetchTextResults(s *grav.Search) ([]types.SearchEntry, error) {
 // ! Does not close the search
 func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Writer) {
 	// spawn a goroutine to ping the query while we wait for it to complete
-	done := make(chan bool)
+	ping := make(chan bool)
 	go func() {
 		// check in at each expected interval, until we are signaled to be done
 		sleepTime := s.Interval()
 		for {
 			select {
-			case <-done:
+			case <-ping:
 				return
 			default:
 				s.Ping()
@@ -243,7 +242,7 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 	if flags.Script || flags.OutPath != "" {
 		// ensure we stop our other goroutines when the job is done
 		defer func() {
-			close(done)
+			close(ping)
 			if spnr != nil {
 				spnr.Quit()
 			}
@@ -263,49 +262,14 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 		return
 	}
 	// otherwise, the results will be slurped for datascope
-	// catch SIGINTs to cut the wait short
-	kill := make(chan os.Signal, 3)
-	signal.Notify(kill, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
-	res := make(chan struct {
-		results []string
-		tbl     bool
-		err     error
-	}) // hold the result
-	go func() {
-		r, tbl, err := GetResultsForDataScope(s)
-		res <- struct {
-			results []string
-			tbl     bool
-			err     error
-		}{r, tbl, err}
-	}()
-
-	var (
-		results []string
-		tbl     bool
-		err     error
-		killed  bool
-	)
-	for results == nil && err == nil && !killed {
-		select { // wait for GetResultsForDataScope or a sigint
-		case s := <-res:
-			clilog.Writer.Infof("results received")
-			results = s.results
-			tbl = s.tbl
-			err = s.err
-		case sig := <-kill:
-			clilog.Writer.Debugf("%v received", sig)
-			clilog.Writer.Infof("stopping DS result fetch")
-			killed = true
-		}
-	}
-	// once results are ready (or we were killed), kill our other goroutines and allow datascope to take over
-	close(done)
+	results, tbl, err, killed := killableAwaitDSResults(s)
+	// once results are ready (or we were killed), kill our other goroutines
+	close(ping)
 	if spnr != nil {
 		spnr.Quit()
 	}
 	if killed {
-		clilog.Writer.Debugf("killed.")
+		clilog.Writer.Infof("search interrupted by signal")
 		// no need to close s; the caller is expected to do so
 		return
 	} else if err != nil {
@@ -332,4 +296,33 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 		clilog.Tee(clilog.ERROR, stderr, err.Error())
 		return
 	}
+}
+
+// helper subroutine for HandleFGCobraSearch.
+// Calls GetResultsForDataScope and awaits it or a SIGINT from the user to return early.
+// Returns the results of GetResultsForDataScope or killed.
+func killableAwaitDSResults(s *grav.Search) (results []string, tbl bool, err error, killed bool) {
+	// set up the two possible outcome channels
+	kill := make(chan os.Signal, 1)
+	signal.Notify(kill, os.Interrupt)
+	res := make(chan bool) // res returning means values are not available in our named returns; a value is never actually sent over res
+
+	// spin off goro to await results
+	go func() {
+		results, tbl, err = GetResultsForDataScope(s)
+		close(res)
+	}()
+
+	// return on first outcome
+	select {
+	case <-res:
+		// clean up after ourself
+		signal.Stop(kill)
+		return results, tbl, err, false
+	case <-kill:
+		// clean up after ourself
+		signal.Stop(kill)
+		return nil, false, nil, true
+	}
+
 }
