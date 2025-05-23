@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"reflect"
 	"strings"
@@ -91,7 +92,7 @@ func loadEnvUint(nm string) (v uint64, err error) {
 	return
 }
 
-// Attempts to read a value from environment variable named envName
+// LoadEnvVar attempts to read a value from environment variable named envName
 // If there's nothing there, it attempt to append _FILE to the variable
 // name and see if it contains a filename; if so, it reads the
 // contents of the file into cnd.
@@ -257,7 +258,11 @@ func loadEnvVarInt(cnd *int, envName string, defVal int) (err error) {
 	}
 	var v int64
 	if v, err = loadEnvInt(envName); err == nil {
-		*cnd = int(v)
+		if v > math.MaxInt || v < math.MinInt {
+			err = ErrBadValue
+		} else {
+			*cnd = int(v)
+		}
 	} else if err == errNoEnvArg {
 		err = nil
 		*cnd = defVal
@@ -276,7 +281,11 @@ func loadEnvVarUint(cnd *uint, envName string, defVal uint) (err error) {
 	}
 	var v uint64
 	if v, err = loadEnvUint(envName); err == nil {
-		*cnd = uint(v)
+		if v > math.MaxUint {
+			err = ErrBadValue
+		} else {
+			*cnd = uint(v)
+		}
 	} else if err == errNoEnvArg {
 		*cnd = defVal
 		err = nil
@@ -514,7 +523,7 @@ func loadStringFromFile(pth string, val *string) (err error) {
 	} else if fi, err = fin.Stat(); err != nil {
 		fin.Close()
 		return
-	} else if fi.Mode().IsRegular() == false {
+	} else if !fi.Mode().IsRegular() {
 		fin.Close()
 		return fmt.Errorf("%q is not a regular file", pth)
 	}

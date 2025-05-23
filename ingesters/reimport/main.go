@@ -151,7 +151,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Couldn't read full input file: %v", err)
 		}
-		timeDelta = time.Now().Sub(newest.TS.StandardTime())
+		timeDelta = time.Since(newest.TS.StandardTime())
 		fmt.Printf("timeDelta = %v\n", timeDelta)
 		// Now reset the reader
 		fin, err = utils.OpenBufferedFileReader(*inFile, 8192)
@@ -217,7 +217,7 @@ loop:
 		case err = <-errCh:
 			fmt.Println("\nDONE")
 			break loop
-		case _ = <-tckr.C:
+		case <-tckr.C:
 			dur := time.Since(lastts)
 			cnt := count - lastcnt
 			bts := totalBytes - lastsz
