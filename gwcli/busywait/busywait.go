@@ -68,7 +68,8 @@ func (s spnr) View() string {
 func CobraNew() (p *tea.Program) {
 	return tea.NewProgram(spnr{
 		spnr: NewSpinner()},
-		tea.WithoutSignalHandler()) // we do not want the spinner to capture sigints when it is run on its own
+		tea.WithoutSignalHandler(),
+		tea.WithInput(nil)) // we do not want the spinner to capture sigints when it is run on its own
 }
 
 //#endregion For Cobra Usage
