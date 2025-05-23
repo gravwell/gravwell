@@ -1,7 +1,6 @@
 package querysupport
 
 import (
-	"fmt"
 	"io"
 	"math/rand/v2"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	. "github.com/gravwell/gravwell/v4/gwcli/utilities/testingsupport"
 )
 
 // Given a path, pre-populates a file with garbage data, then closes the file.
@@ -141,7 +141,7 @@ func Test_PutResultsToWriter(t *testing.T) {
 						expectedOut = tt.args.resultsStr
 					}
 					if expectedOut != strings.TrimSpace(sb.String()) { // check that the buffer contains our results
-						t.Fatal("data in writer does not match input data" + expectedActual(expectedOut, sb.String()))
+						t.Fatal("data in writer does not match input data" + ExpectedActual(expectedOut, sb.String()))
 					}
 
 				}
@@ -149,10 +149,4 @@ func Test_PutResultsToWriter(t *testing.T) {
 			})
 		}
 	}
-}
-
-// Returns a string declaring what was expected and what we got instead.
-// NOTE(rlandau): Prefixes the string with a newline.
-func expectedActual(expected, actual any) string {
-	return fmt.Sprintf("\n\tExpected:'%v'\n\tGot:'%v'", expected, actual)
 }
