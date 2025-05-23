@@ -597,7 +597,7 @@ func TestQueries(t *testing.T) {
 		}
 
 		// attach to background query
-		outPath := t.TempDir() + "out.txt"
+		outPath := path.Join(t.TempDir(), "out.txt")
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script queries attach %s -o %s", user, password, sid, outPath)
 		statusCode, _, stderr := executeCmd(t, cmd)
 		nonZeroExit(t, statusCode, stderr)
