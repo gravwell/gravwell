@@ -17,6 +17,8 @@ package tree
 import (
 	"errors"
 	"fmt"
+	"os"
+	"runtime/pprof"
 	"strings"
 	"time"
 
@@ -40,6 +42,8 @@ import (
 
 	"github.com/spf13/cobra"
 )
+
+var profilerFile *os.File
 
 // global PersistentPreRunE.
 //
@@ -67,6 +71,23 @@ func ppre(cmd *cobra.Command, args []string) error {
 	// if this is a 'help' action, do not enforce login
 	if cmd.Name() == "help" {
 		return nil
+	}
+
+	// if a profiler was specified, spin one up targeting the given path
+	if fn, err := cmd.Flags().GetString("cpuprofile"); err != nil {
+		panic(err)
+	} else if fn = strings.TrimSpace(fn); fn != "" {
+		profilerFile, err = os.Create(fn)
+		if err != nil {
+			clilog.Writer.Warnf("Failed to create file for profiler: %v", err)
+			profilerFile = nil
+		} else {
+			if err := pprof.StartCPUProfile(profilerFile); err != nil {
+				clilog.Writer.Infof("failed to enable cpu profiler: %v", err)
+			} else {
+				clilog.Writer.Infof("started cpu profiler on %v", profilerFile.Name())
+			}
+		}
 	}
 
 	return EnforceLogin(cmd, args)
@@ -125,7 +146,20 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 // global PersistentPostRunE.
 // Ensure the client connection to the Gravwell backend is dead.
 func ppost(cmd *cobra.Command, args []string) error {
-	return connection.End()
+
+	if err := connection.End(); err != nil {
+		clilog.Writer.Debugf("failed to destroy connection singleton: %v", err)
+		return err
+	}
+
+	pprof.StopCPUProfile() // idempotent if no profiler is running
+	// if a profiler was enabled, make sure we flush it
+	if profilerFile != nil {
+		profilerFile.Sync()
+		profilerFile.Close()
+	}
+
+	return nil
 }
 
 // GenerateFlags populates all root-relevant flags (ergo global and root-local flags)
@@ -143,6 +177,8 @@ func GenerateFlags(root *cobra.Command) {
 	root.PersistentFlags().String("loglevel", "DEBUG", "log level for developer logs (-l).\n"+
 		"Possible values: 'OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'.\n")
 	root.PersistentFlags().Bool("insecure", false, "do not use HTTPS and do not enforce certs.")
+	root.PersistentFlags().String("profile", "", "spins up the native CPU profiler to log samples (in pprof format) into the given path")
+	root.PersistentFlags().MarkHidden("profile")
 }
 
 const ( // usage
