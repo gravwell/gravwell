@@ -494,23 +494,34 @@ func TestQueries(t *testing.T) {
 		NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
-		// csv package does not have a .Valid() like JSON
-		// instead, just check that we are able to read the data
-
-		rdr := strings.NewReader(stdout)
-
-		s := csv.NewReader(rdr)
-		s.ReuseRecord = true // don't care about actual data; reduce allocations
-		for {
-			if r, err := s.Read(); err != nil {
-				if err == io.EOF {
-					break
-				} else {
-					t.Fatalf("bad csv record '%v': %v", r, err)
-				}
+		if stdout != "" { // if results were returned, test them further for csv parse-ability
+			// strip the header off the output
+			_, stdout, found := strings.Cut(stdout, "\n")
+			if !found {
+				t.Fatalf("expected a header line of column; found no newline to break on. output: %v", stdout)
 			}
 
+			// csv package does not have a .Valid() like JSON
+			// instead, just check that we are able to read the data
+
+			rdr := strings.NewReader(stdout)
+
+			s := csv.NewReader(rdr)
+			s.ReuseRecord = true // don't care about actual data; reduce allocations
+			for {
+				if r, err := s.Read(); err != nil {
+					if err == io.EOF {
+						break
+					} else {
+						// if this is the header line, ignore it
+
+						t.Log("all output:", stdout)
+						t.Fatalf("bad csv record '%v': %v", r, err)
+					}
+				}
+			}
 		}
+
 	})
 
 	t.Run("attach to backgrounded, stdout", func(t *testing.T) {
