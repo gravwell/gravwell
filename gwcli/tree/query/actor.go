@@ -400,8 +400,15 @@ func (q *query) submitForegroundQuery(qry string) tea.Cmd {
 		return nil
 	}
 
+	// if this is a background search, exit
+	if q.modifiers.background {
+		q.mode = quitting
+		return tea.Println(querySubmissionSuccess(s.ID, q.modifiers.background))
+	}
+
 	// spin up a goroutine to wait on the search while we show a spinner
 	go func() {
+		clilog.Writer.Debugf("awaiting search %s", s.ID)
 		err := connection.Client.WaitForSearch(s)
 		// notify we are done and buffer the error for retrieval
 		q.searchDone.Store(true)
