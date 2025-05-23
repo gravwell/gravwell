@@ -234,7 +234,7 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 	// if we are not in script mode, spawn a spinner to show that we didn't just hang during processing
 	var spnr *tea.Program
 	if !flags.Script {
-		spnr = busywait.CobraNew()
+		spnr = busywait.CobraNew("(cancel with ctrl+c)")
 		go spnr.Run()
 	}
 
