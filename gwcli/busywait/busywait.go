@@ -67,7 +67,8 @@ func (s spnr) View() string {
 // When you are done waiting, call p.Quit() from another goroutine.
 func CobraNew() (p *tea.Program) {
 	return tea.NewProgram(spnr{
-		spnr: NewSpinner()})
+		spnr: NewSpinner()},
+		tea.WithoutSignalHandler()) // we do not want the spinner to capture sigints when it is run on its own
 }
 
 //#endregion For Cobra Usage

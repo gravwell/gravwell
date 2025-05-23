@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -97,6 +99,10 @@ func putResultsToWriter(results io.Reader, wr io.Writer, filePath string, append
 //
 // This call blocks until the search is completed.
 func GetResultsForDataScope(s *grav.Search) (results []string, tableMode bool, err error) {
+	if s == nil {
+		panic("search obj cannot be nil")
+	}
+	clilog.Writer.Debugf("awaiting %s", s.ID)
 	if err := connection.Client.WaitForSearch(*s); err != nil {
 		return nil, false, err
 	}
@@ -221,6 +227,7 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 				return
 			default:
 				s.Ping()
+				clilog.Writer.Debugf("pinged fg query %s", s.ID)
 				time.Sleep(sleepTime)
 			}
 		}
@@ -229,7 +236,7 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 	var spnr *tea.Program
 	if !flags.Script {
 		spnr = busywait.CobraNew()
-		spnr.Run()
+		go spnr.Run()
 	}
 
 	// if we are in script mode or were given an output file, the results will be streamed
@@ -241,7 +248,6 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 				spnr.Quit()
 			}
 		}()
-
 		// pull results
 		rc, format, err := connection.GetResultsForWriter(s, types.TimeRange{}, flags.CSV, flags.JSON)
 		if err != nil {
@@ -253,38 +259,77 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 		// put results to file or stdout
 		if err := putResultsToWriter(rc, stdout, flags.OutPath, flags.Append, format); err != nil {
 			clilog.Tee(clilog.ERROR, stderr, err.Error())
-			return
 		}
-	} else { // otherwise, the results will be slurped for datascope
-		results, tbl, err := GetResultsForDataScope(s)
-		// once results are ready, kill our other goroutines and allow datascope to take over
-		close(done)
-		if spnr != nil {
-			spnr.Quit()
-		}
-		if err != nil {
-			clilog.Tee(clilog.ERROR, stderr, err.Error())
-			return
-		}
+		return
+	}
+	// otherwise, the results will be slurped for datascope
+	// catch SIGINTs to cut the wait short
+	kill := make(chan os.Signal, 3)
+	signal.Notify(kill, syscall.SIGINT, syscall.SIGTERM, os.Interrupt)
+	res := make(chan struct {
+		results []string
+		tbl     bool
+		err     error
+	}) // hold the result
+	go func() {
+		r, tbl, err := GetResultsForDataScope(s)
+		res <- struct {
+			results []string
+			tbl     bool
+			err     error
+		}{r, tbl, err}
+	}()
 
-		// build datascope options, if applicable
-		opts := make([]datascope.DataScopeOption, 0)
-		if flags.Schedule.CronFreq != "" {
-			opts = append(opts, datascope.WithSchedule(flags.Schedule.CronFreq, flags.Schedule.Name, flags.Schedule.Desc))
+	var (
+		results []string
+		tbl     bool
+		err     error
+		killed  bool
+	)
+	for results == nil && err == nil && !killed {
+		select { // wait for GetResultsForDataScope or a sigint
+		case s := <-res:
+			clilog.Writer.Infof("results received")
+			results = s.results
+			tbl = s.tbl
+			err = s.err
+		case sig := <-kill:
+			clilog.Writer.Debugf("%v received", sig)
+			clilog.Writer.Infof("stopping DS result fetch")
+			killed = true
 		}
-		if flags.Schedule.CronFreq != "" {
-			opts = append(opts, datascope.WithAutoDownload(flags.OutPath, flags.Append, flags.JSON, flags.CSV))
-		}
+	}
+	// once results are ready (or we were killed), kill our other goroutines and allow datascope to take over
+	close(done)
+	if spnr != nil {
+		spnr.Quit()
+	}
+	if killed {
+		clilog.Writer.Debugf("killed.")
+		// no need to close s; the caller is expected to do so
+		return
+	} else if err != nil {
+		clilog.Tee(clilog.ERROR, stderr, err.Error())
+		return
+	}
 
-		// pass control off to datascope
-		p, err := datascope.CobraNew(results, s, tbl, opts...)
-		if err != nil {
-			clilog.Tee(clilog.ERROR, stderr, err.Error())
-			return
-		}
-		if _, err := p.Run(); err != nil {
-			clilog.Tee(clilog.ERROR, stderr, err.Error())
-			return
-		}
+	// build datascope options, if applicable
+	opts := make([]datascope.DataScopeOption, 0)
+	if flags.Schedule.CronFreq != "" {
+		opts = append(opts, datascope.WithSchedule(flags.Schedule.CronFreq, flags.Schedule.Name, flags.Schedule.Desc))
+	}
+	if flags.Schedule.CronFreq != "" {
+		opts = append(opts, datascope.WithAutoDownload(flags.OutPath, flags.Append, flags.JSON, flags.CSV))
+	}
+
+	// pass control off to datascope
+	p, err := datascope.CobraNew(results, s, tbl, opts...)
+	if err != nil {
+		clilog.Tee(clilog.ERROR, stderr, err.Error())
+		return
+	}
+	if _, err := p.Run(); err != nil {
+		clilog.Tee(clilog.ERROR, stderr, err.Error())
+		return
 	}
 }

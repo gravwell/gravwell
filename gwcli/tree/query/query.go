@@ -213,7 +213,6 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	querysupport.HandleFGCobraSearch(&s, flags, cmd.OutOrStdout(), cmd.ErrOrStderr())
-
 	if err := s.Close(); err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
