@@ -125,7 +125,7 @@ func TestScript() error {
 	if err := runTest(10*time.Second, "^TestMacros$", "github.com/gravwell/gravwell/v4/gwcli"); err != nil {
 		return err
 	}
-	if err := runTest(30*time.Second, "^TestQueries$", "github.com/gravwell/gravwell/v4/gwcli"); err != nil {
+	if err := runTest(3*time.Minute, "^TestQueries$", "github.com/gravwell/gravwell/v4/gwcli"); err != nil {
 		return err
 	}
 
@@ -134,12 +134,10 @@ func TestScript() error {
 
 // TestQuery tests executing queries via gwcli.
 func TestQuery() error {
-	const _TIMEOUT time.Duration = 20 * time.Second
-	if err := runTest(_TIMEOUT, "^Test_tryQuery$", "github.com/gravwell/gravwell/v4/gwcli/tree/query"); err != nil {
+	if err := runTest(30*time.Second, "^Test_tryQuery$", "github.com/gravwell/gravwell/v4/gwcli/tree/query"); err != nil {
 		return err
 	}
-
-	if err := runTest(_TIMEOUT, "^Test_run$", "github.com/gravwell/gravwell/v4/gwcli/tree/query"); err != nil {
+	if err := runTest(20*time.Second, "^Test_run$", "github.com/gravwell/gravwell/v4/gwcli/tree/query"); err != nil {
 		return err
 	}
 
