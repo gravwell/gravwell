@@ -334,9 +334,9 @@ func StartQuery(qry string, durFromNow time.Duration, background bool) (grav.Sea
 	if background {
 		fgbg = "background"
 	}
-	clilog.Writer.Infof("Executing %v search '%v' from %v -> %v",
-		fgbg, sreq.SearchString, sreq.SearchStart, sreq.SearchEnd)
 	s, err := Client.StartSearchEx(sreq)
+	clilog.Writer.Infof("Executed %v search '%v' (id: %s) from %v -> %v",
+		fgbg, sreq.SearchString, s.ID, sreq.SearchStart, sreq.SearchEnd)
 	return s, err
 
 }
