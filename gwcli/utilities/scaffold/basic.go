@@ -52,7 +52,7 @@ import (
 func NewBasicAction(use, short, long string, aliases []string,
 	act func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd), flagFunc func() pflag.FlagSet) action.Pair {
 
-	cmd := treeutils.NewActionCommand(
+	cmd := treeutils.GenerateAction(
 		use,
 		short,
 		long,
@@ -73,7 +73,7 @@ func NewBasicAction(use, short, long string, aliases []string,
 		ba.fsFunc = flagFunc
 	}
 
-	return treeutils.GenerateAction(cmd, &ba)
+	return action.NewPair(cmd, &ba)
 }
 
 //#region interactive mode (model) implementation

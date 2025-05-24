@@ -52,6 +52,8 @@ func initialEdiorView(height, width uint) editorView {
 	return ev
 }
 
+// Passes messages into the editor view's text area.
+// Catches "alt+enter", returning submit if caught, alerting the caller to go ahead and submit the query inside of the TA.
 func (ev *editorView) update(msg tea.Msg) (cmd tea.Cmd, submit bool) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:

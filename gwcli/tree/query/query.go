@@ -49,22 +49,19 @@ package query
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	grav "github.com/gravwell/gravwell/v4/client"
-	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -73,8 +70,6 @@ const (
 	defaultDuration = 1 * time.Hour
 
 	pageSize = 500 // fetch results page by page
-
-	NoResultsText = "No results found for given query"
 
 	helpDesc = "Generate and send a query to the remote server either by arguments or " +
 		"the interactive query builder.\n" +
@@ -100,7 +95,7 @@ var localFS pflag.FlagSet
 //#region command/action set up
 
 func NewQueryAction() action.Pair {
-	cmd := treeutils.NewActionCommand("query", "submit a query",
+	cmd := treeutils.GenerateAction("query", "submit a query",
 		helpDesc,
 		[]string{"q", "search"}, run)
 
@@ -110,7 +105,7 @@ func NewQueryAction() action.Pair {
 
 	cmd.Flags().AddFlagSet(&localFS)
 
-	return treeutils.GenerateAction(cmd, Query)
+	return action.NewPair(cmd, Query)
 }
 
 func initialLocalFlagSet() pflag.FlagSet {
@@ -146,11 +141,7 @@ func run(cmd *cobra.Command, args []string) {
 	var err error
 
 	// fetch flags
-	flags, err := transmogrifyFlags(cmd.Flags())
-	if err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-		return
-	}
+	flags := querysupport.TransmogrifyFlags(cmd.Flags())
 
 	// TODO pull qry from referenceID, if given
 
@@ -158,7 +149,7 @@ func run(cmd *cobra.Command, args []string) {
 	valid, err := testQryValidity(qry)
 
 	if !valid {
-		if flags.script { // fail out
+		if flags.Script { // fail out
 			var errMsg string
 			if err != nil {
 				errMsg = err.Error()
@@ -179,7 +170,7 @@ func run(cmd *cobra.Command, args []string) {
 	}
 
 	// check if this is a scheduled query
-	if flags.schedule.cronfreq != "" {
+	if flags.Schedule.CronFreq != "" {
 		ssid, warnings, invalid, err := scheduleQuery(&flags, qry)
 		for _, warn := range warnings {
 			fmt.Fprint(cmd.ErrOrStderr(), warn+"\n")
@@ -190,175 +181,45 @@ func run(cmd *cobra.Command, args []string) {
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		} else {
 			clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
-				fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)\n", flags.schedule.name, ssid))
+				fmt.Sprintf("Successfully scheduled query '%v' (ID: %v)\n", flags.Schedule.Name, ssid))
 		}
 		return
 	}
 
 	// submit the query
-	var search grav.Search
-	if search, err = connection.StartQuery(qry, -flags.duration, flags.background); err != nil {
+	var s grav.Search
+	if s, err = connection.StartQuery(qry, -flags.Duration, flags.Background); err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
 	}
 
 	clilog.Tee(clilog.INFO, cmd.OutOrStdout(),
-		querySubmissionSuccess(search.ID, flags.background))
+		querySubmissionSuccess(s.ID, flags.Background)+"\n")
 
 	// if this is a background query, we are done
-	if flags.background {
+	if flags.Background {
 		warnings := warnBackgroundFlagConflicts(flags)
 		for _, warn := range warnings {
-			fmt.Fprint(cmd.ErrOrStderr(), warn+"\n")
+			fmt.Fprint(cmd.ErrOrStderr(), "\n"+warn)
 		}
 
 		clilog.Tee(clilog.DEBUG, cmd.OutOrStdout(),
-			fmt.Sprintf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", search.ID, search.UID, search.GID, search.EffectiveQuery))
+			fmt.Sprintf("Backgrounded query: ID: %v|UID: %v|GID: %v|eQuery: %v\n", s.ID, s.UID, s.GID, s.EffectiveQuery))
 
 		// close our handle to the search
 		// it will survive, as it is backgrounded
-		search.Close()
+		s.Close()
 		return
 	}
 
-	// wait for results
-	if err := waitForSearch(search, flags.script); err != nil {
+	querysupport.HandleFGCobraSearch(&s, flags, cmd.OutOrStdout(), cmd.ErrOrStderr())
+	if err := s.Close(); err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
 	}
-
-	// if we are in script mode, spit the result into a file or stdout
-	if flags.script {
-		// fetch the data from the search
-		var (
-			results io.ReadCloser
-			format  string
-		)
-		if results, format, err = connection.DownloadSearch(
-			&search, types.TimeRange{}, flags.csv, flags.json,
-		); err != nil {
-			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(),
-				fmt.Sprintf("failed to retrieve results from search %s (format %v): %v\n",
-					search.ID, format, err.Error()))
-			return
-		}
-		defer results.Close()
-
-		// if an output file was given, write results into it
-		if flags.outfn != "" {
-			// open the file
-			var of *os.File
-			if of, err = openFile(flags.outfn, flags.append); err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-				return
-			}
-			defer of.Close()
-
-			// consumes the results and spit them into the open file
-			if b, err := of.ReadFrom(results); err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-				return
-			} else {
-				clilog.Writer.Infof("Streamed %d bytes (format %v) into %s", b, format, of.Name())
-			}
-			// stdout output is acceptable as the user is redirecting actual results to a file.
-			fmt.Fprintln(cmd.OutOrStdout(),
-				connection.DownloadQuerySuccessfulString(of.Name(), flags.append, format))
-			return
-		} else if format == types.DownloadArchive { // check for binary output
-			fmt.Fprintf(cmd.OutOrStdout(), "refusing to dump binary blob (format %v) to stdout.\n"+
-				"If this is intentional, re-run with -o <FILENAME>.\n"+
-				"If it was not, re-run with --csv or --json to download in a more appropriate format.",
-				format)
-		} else { // text results, stdout
-			if r, err := io.ReadAll(results); err != nil {
-				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-				return
-			} else {
-				if len(r) == 0 {
-					fmt.Fprintln(cmd.OutOrStdout(), "no results to display")
-				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s", r)
-				}
-			}
-		}
-
-		return
-	}
-
-	// if we made it this far, we can fetch the results and pass them to datascope
-	// NOTE(rlandau): this function does not share the result-fetching methodology of script mode (connection.DownloadSearch) because datascope requires additional formatting.
-	invokeDatascope(cmd, flags, &search)
-}
-
-// run function without --script given, making it acceptable to rely on user input
-// NOTE: download and schedule flags are handled inside of datascope
-func invokeDatascope(cmd *cobra.Command, flags queryflags, search *grav.Search) {
-	// get results to pass to data scope
-	var (
-		results   []string
-		tableMode bool
-	)
-	results, tableMode, err := fetchResults(search)
-	if err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
-		return
-	} else if results == nil {
-		fmt.Fprintln(cmd.OutOrStdout(), NoResultsText)
-		return
-	}
-
-	// pass results into datascope
-	// spin up a scrolling pager to display
-	p, err := datascope.CobraNew(
-		results, search, tableMode,
-		datascope.WithAutoDownload(flags.outfn, flags.append, flags.json, flags.csv),
-		datascope.WithSchedule(flags.schedule.cronfreq, flags.schedule.name, flags.schedule.desc))
-	if err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-		return
-	}
-
-	if _, err := p.Run(); err != nil {
-		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error())
-		return
-	}
-
-}
-
-// Stops execution and waits for the given search to complete.
-// Adds a spinner if not in script mode.
-func waitForSearch(s grav.Search, scriptMode bool) error {
-	// in script mode, wait synchronously
-	if scriptMode {
-		if err := connection.Client.WaitForSearch(s); err != nil {
-			return err
-		}
-	} else {
-		// outside of script mode wait via goroutine so we can display a spinner
-		spnrP := busywait.CobraNew()
-		go func() {
-			if err := connection.Client.WaitForSearch(s); err != nil {
-				clilog.Writer.Error(err.Error())
-			}
-			spnrP.Quit()
-		}()
-
-		if _, err := spnrP.Run(); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 //#endregion
-
-// just enough information to schedule a given query
-type schedule struct {
-	name     string
-	desc     string
-	cronfreq string // run frequency in cron format
-}
 
 // Opens and returns a file handle, configured by the state of append.
 //
@@ -384,107 +245,4 @@ func openFile(path string, append bool) (*os.File, error) {
 	}
 
 	return f, nil
-}
-
-// Given an active search handle associated to a completed search,
-// fetchResults pulls back all available results, using the appropriate Get function based on the
-// search's renderer
-func fetchResults(search *grav.Search) (results []string, tableMode bool, err error) {
-	clilog.Writer.Infof("fetching results of type %v", search.RenderMod)
-	switch search.RenderMod {
-	case types.RenderNameTable:
-		if columns, rows, err := fetchTableResults(search); err != nil {
-			return nil, false, err
-		} else if len(rows) != 0 {
-			// format the table for datascope
-			// basically a csv
-			results = make([]string, len(rows)+1)
-			results[0] = strings.Join(columns, ",") // first entry is the header
-			for i, row := range rows {
-				results[i+1] = strings.Join(row.Row, ",")
-			}
-			return results, true, nil
-		}
-		// no results
-		return nil, true, nil
-	case types.RenderNameRaw, types.RenderNameText, types.RenderNameHex:
-		if rawResults, err := fetchTextResults(search); err != nil {
-			return nil, false, err
-		} else if len(rawResults) != 0 {
-			// format the data for datascope
-			results = make([]string, len(rawResults))
-			for i, r := range rawResults {
-				results[i] = string(r.Data)
-			}
-			return results, false, nil
-		}
-		// no results
-		return nil, false, nil
-	}
-
-	// did not manage to complete results earlier; fail out
-	return nil, false, fmt.Errorf("unable to display results of type %v", search.RenderMod)
-}
-
-// Fetches all text results related to the given search by continually re-fetching until no more
-// results remain
-func fetchTextResults(s *grav.Search) ([]types.SearchEntry, error) {
-	// return results for output to terminal
-	// batch results until we have the last of them
-	var (
-		results        = make([]types.SearchEntry, 0, pageSize)
-		low     uint64 = 0
-		high    uint64 = pageSize
-	)
-	for { // accumulate the results
-		r, err := connection.Client.GetTextResults(*s, low, high)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, r.Entries...)
-		if !r.AdditionalEntries { // all records obtained
-			break
-		}
-		// ! Get*Results is half-open [)
-		low = high
-		high = high + pageSize
-	}
-
-	clilog.Writer.Infof("%d results obtained", len(results))
-
-	return results, nil
-}
-
-// Sister subroutine to fetchTextResults()
-func fetchTableResults(s *grav.Search) (
-	columns []string, rows []types.TableRow, err error,
-) {
-	// return results for output to terminal
-	// batch results until we have the last of them
-	var (
-		low  uint64 = 0
-		high uint64 = pageSize
-		r    types.TableResponse
-	)
-	rows = make([]types.TableRow, 0, pageSize)
-	for { // accumulate the row results
-		r, err = connection.Client.GetTableResults(*s, low, high)
-		if err != nil {
-			return nil, nil, err
-		}
-		rows = append(rows, r.Entries.Rows...)
-		if !r.AdditionalEntries { // all records obtained
-			break
-		}
-		// ! Get*Results is half-open [)
-		low = high
-		high = high + pageSize
-	}
-
-	// save off columns
-	columns = r.Entries.Columns
-
-	clilog.Writer.Infof("%d results obtained", len(rows))
-
-	return
 }

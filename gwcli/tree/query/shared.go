@@ -15,6 +15,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
@@ -39,40 +40,40 @@ func querySubmissionSuccess(sid string, background bool) string {
 
 // Generates a scheduling request from the given flags, cmd, and query and attempts to schedule it.
 // Assumes the query has already been validated.
-func scheduleQuery(flags *queryflags, validatedQry string) (ssid int32, warnings []string, invalid string, err error) {
+func scheduleQuery(flags *querysupport.QueryFlags, validatedQry string) (ssid int32, warnings []string, invalid string, err error) {
 	// warn about ignored flags
 	if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
 		warnings = make([]string, 0)
-		if flags.outfn != "" {
+		if flags.OutPath != "" {
 			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Output, ft.Name.Frequency))
 		}
-		if flags.background {
+		if flags.Background {
 			warnings = append(warnings, ft.WarnFlagIgnore("background", ft.Name.Frequency))
 		}
-		if flags.append {
+		if flags.Append {
 			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Append, ft.Name.Frequency))
 		}
-		if flags.json {
+		if flags.JSON {
 			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.JSON, ft.Name.Frequency))
 		}
-		if flags.csv {
+		if flags.CSV {
 			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.CSV, ft.Name.Frequency))
 		}
 	}
 
 	// if a name was not given, populate a default name
-	if flags.schedule.name == "" {
-		flags.schedule.name = "cli_" + time.Now().Format(uniques.SearchTimeFormat)
+	if flags.Schedule.Name == "" {
+		flags.Schedule.Name = "cli_" + time.Now().Format(uniques.SearchTimeFormat)
 	}
 	// if a description was not given, populate a default description
-	if flags.schedule.desc == "" {
-		flags.schedule.desc = "generated in gwcli @" + time.Now().Format(uniques.SearchTimeFormat)
+	if flags.Schedule.Desc == "" {
+		flags.Schedule.Desc = "generated in gwcli @" + time.Now().Format(uniques.SearchTimeFormat)
 	}
 
 	ssid, invalid, err = connection.CreateScheduledSearch(
-		flags.schedule.name, flags.schedule.desc,
-		flags.schedule.cronfreq, validatedQry,
-		flags.duration,
+		flags.Schedule.Name, flags.Schedule.Desc,
+		flags.Schedule.CronFreq, validatedQry,
+		flags.Duration,
 	)
 	if invalid != "" { // bad parameters
 		return -1, warnings, invalid, err
@@ -100,19 +101,19 @@ func testQryValidity(qry string) (valid bool, err error) {
 // Returns any and all warnings related to other flags being ignored due to the existence of --background.
 // Does not check the schedule flags; assumes scheduling was handled first.
 // Only returns data if the clilog is set to print at WARNING level.
-func warnBackgroundFlagConflicts(flags queryflags) (warnings []string) {
+func warnBackgroundFlagConflicts(flags querysupport.QueryFlags) (warnings []string) {
 	if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
 		warnings = make([]string, 0)
-		if flags.outfn != "" {
+		if flags.OutPath != "" {
 			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Output, "background")+"\n")
 		}
-		if flags.append {
+		if flags.Append {
 			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Append, "background")+"\n")
 		}
-		if flags.json {
+		if flags.JSON {
 			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.JSON, "background")+"\n")
 		}
-		if flags.csv {
+		if flags.CSV {
 			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.CSV, "background")+"\n")
 		}
 	}

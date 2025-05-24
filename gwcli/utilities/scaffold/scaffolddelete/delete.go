@@ -112,7 +112,7 @@ func NewDeleteAction[I scaffold.Id_t](
 	singular, plural string,
 	del deleteFunc[I],
 	fch fetchFunc[I]) action.Pair {
-	cmd := treeutils.NewActionCommand(
+	cmd := treeutils.GenerateAction(
 		"delete",
 		"delete a "+singular,
 		"delete a "+singular+" by id or selection",
@@ -158,7 +158,7 @@ func NewDeleteAction[I scaffold.Id_t](
 	d := newDeleteModel(del, fch)
 	d.itemSingular = singular
 	d.itemPlural = plural
-	return treeutils.GenerateAction(cmd, d)
+	return action.NewPair(cmd, d)
 }
 
 // base flagset

@@ -131,6 +131,10 @@ func NewDataScope(data []string, motherRunning bool,
 
 	// apply options
 	for _, o := range opt {
+		if o == nil {
+			continue
+		}
+
 		if err := o(&s); err != nil {
 			return DataScope{}, nil, err
 		}

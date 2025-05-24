@@ -222,7 +222,7 @@ func NewListAction[Any any](use, short, long string, defaultColumns []string,
 	}
 
 	// generate the command
-	cmd := treeutils.NewActionCommand(use, short, long, []string{}, runFunc)
+	cmd := treeutils.GenerateAction(use, short, long, []string{}, runFunc)
 
 	// attach normal list flags and, if applicable, additional flags
 	startFS := listStarterFlags()
@@ -239,7 +239,7 @@ func NewListAction[Any any](use, short, long string, defaultColumns []string,
 	// spin up a list action for interactive use
 	la := newListAction(defaultColumns, dataStruct, dataFn, addtlFlagsFunc)
 
-	return treeutils.GenerateAction(cmd, &la)
+	return action.NewPair(cmd, &la)
 }
 
 // define the basic flags shared by all list actions
