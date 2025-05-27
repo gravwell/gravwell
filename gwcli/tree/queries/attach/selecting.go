@@ -152,7 +152,11 @@ type attachable struct {
 
 // One-line display of the given item
 func (i attachable) Title() string {
-	return stylesheet.IndexStyle.Render(i.State.String()) + " " + i.UserQuery
+	var status = string(i.State.Status)
+	if status != "" {
+		status = stylesheet.IndexStyle.Render("{" + string(i.State.Status) + "} ")
+	}
+	return fmt.Sprintf("%s%s", status, i.UserQuery)
 }
 
 func (i attachable) Description() string {
