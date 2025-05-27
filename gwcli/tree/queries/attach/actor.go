@@ -1,9 +1,11 @@
 package attach
 
 import (
+	"errors"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -147,8 +149,11 @@ func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid string, _ t
 		sid = strings.TrimSpace(a.flagset.Arg(0))
 		s, err := connection.Client.AttachSearch(sid)
 		if err != nil {
-			// TODO if this is an unknown search error, return it as invalid
-			return "", nil, err
+			if errors.Is(err, grav.ErrNotFound) {
+				return querysupport.ErrUnknownSID(sid).Error(), nil, nil
+			} else {
+				return "", nil, err
+			}
 		}
 
 		results, tblMode, err := querysupport.GetResultsForDataScope(&s)

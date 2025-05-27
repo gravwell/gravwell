@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"strings"
 
+	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -101,6 +102,10 @@ func run(cmd *cobra.Command, args []string) {
 		sid := strings.TrimSpace(args[0])
 		s, err := connection.Client.AttachSearch(sid)
 		if err != nil {
+			if errors.Is(err, grav.ErrNotFound) {
+				fmt.Fprintln(cmd.ErrOrStderr(), querysupport.ErrUnknownSID(sid))
+				return
+			}
 			clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 			return
 		}
