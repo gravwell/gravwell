@@ -47,9 +47,9 @@ type attach struct {
 	// mode-specific state structs
 	sv *selectingView
 
-	ds tea.Model
+	search *grav.Search
 
-	scope tea.Model // datascope for displaying data
+	ds tea.Model
 }
 
 // Attach is the struct that provide bolt-on actions via the action map.
@@ -86,6 +86,7 @@ func (a *attach) Update(msg tea.Msg) tea.Cmd {
 			return tea.Println(err)
 		} else if search != nil { // prepare datascope and hand off control
 			a.mode = displaying
+			a.search = search
 
 			results, tbl, err := querysupport.GetResultsForDataScope(search)
 			if err != nil {
@@ -127,8 +128,12 @@ func (a *attach) Done() bool {
 // Resetting attach returns it to the inactive state and clears temporary (pre-run) variables.
 func (a *attach) Reset() error {
 	a.mode = inactive
-	a.scope = nil
+	a.ds = nil
+	a.sv = nil
 	a.flagset = initialLocalFlagSet()
+	if a.search != nil {
+		a.search.Close()
+	}
 
 	return nil
 }
@@ -163,7 +168,7 @@ func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid string, _ t
 
 		// jump directly into displaying
 		var cmd tea.Cmd
-		a.scope, cmd, err = datascope.NewDataScope(results, true, &s, tblMode,
+		a.ds, cmd, err = datascope.NewDataScope(results, true, &s, tblMode,
 			datascope.WithAutoDownload(a.flags.OutPath, a.flags.Append, a.flags.JSON, a.flags.CSV))
 		if err != nil {
 			clilog.Writer.Errorf("failed to create DataScope: %v", err)
