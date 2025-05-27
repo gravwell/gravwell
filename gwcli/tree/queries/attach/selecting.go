@@ -2,7 +2,7 @@ package attach
 
 import (
 	"errors"
-	"time"
+	"fmt"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -55,10 +55,7 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 	itms := make([]list.Item, len(sv.searches))
 	for i, s := range sv.searches {
 		itms[i] = attachable{
-			id:        s.ID,
-			query:     s.UserQuery,
-			state:     s.State.String(),
-			startTime: s.LaunchInfo.Started,
+			s,
 		}
 	}
 
@@ -88,13 +85,14 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 		case err := <-sv.searchErr:
 			return nil, sv.search, err
 		default:
-			return sv.spnr.Tick, nil, nil
+			sv.spnr, cmd = sv.spnr.Update(msg)
+			return cmd, nil, nil
 		}
 	}
 
 	// handle interacting with the list
 	if msg, ok := msg.(tea.KeyMsg); ok {
-		// clear any existing errors
+		// clear any existing error
 		sv.errString = ""
 		switch msg.Type {
 		case tea.KeyRight: // examine the current item
@@ -149,23 +147,21 @@ func (sv *selectingView) refreshSearches() error {
 var _ listsupport.Item = attachable{}
 
 type attachable struct {
-	id        string
-	query     string
-	state     string
-	startTime time.Time
-	endTime   time.Time
+	types.SearchCtrlStatus
 }
 
+// One-line display of the given item
 func (i attachable) Title() string {
-	return i.id // TODO
+	return stylesheet.IndexStyle.Render(i.State.String()) + " " + i.UserQuery
 }
 
 func (i attachable) Description() string {
-	return i.query // TODO
+	return fmt.Sprintf("sID: %s | Global? %v", i.ID, i.Global)
 }
 
+// The string to substring against when a user filters the results.
 func (i attachable) FilterValue() string {
-	return i.query
+	return i.UserQuery
 }
 
 //#endregion item
@@ -180,12 +176,16 @@ func (sv *selectingView) attachToQuery() (fatalErr error) {
 		return errors.New(GenericErrorText)
 	}
 
-	s, err := connection.Client.AttachSearch(itm.id)
+	s, err := connection.Client.AttachSearch(itm.ID)
 	if err != nil { // this error may be recoverable
 		sv.errString = err.Error()
 		return nil
 	}
 	sv.search = &s
+
+	// prepare the error channel
+	sv.searchErr = make(chan error)
+
 	// spin off a goroutine to wait on the search
 	go func() {
 		clilog.Writer.Debugf("awaiting search %s", s.ID)
