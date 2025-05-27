@@ -132,7 +132,7 @@ func (a *attach) Reset() error {
 }
 
 // SetArgs allows interactive mode usage to fetch the pre-existing search by its id.
-func (a *attach) SetArgs(p *pflag.FlagSet, tokens []string) (invalid string, _ tea.Cmd, err error) {
+func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid string, _ tea.Cmd, err error) {
 	// parse the tokens against the local flagset
 	if err := a.flagset.Parse(tokens); err != nil {
 		return err.Error(), nil, nil
@@ -142,9 +142,9 @@ func (a *attach) SetArgs(p *pflag.FlagSet, tokens []string) (invalid string, _ t
 
 	// if we are able to find a valid search, go directly to display mode or download the results and exit
 	var sid string
-	argCount := len(p.Args())
+	argCount := len(a.flagset.Args())
 	if argCount == 1 {
-		sid = strings.TrimSpace(p.Arg(0))
+		sid = strings.TrimSpace(a.flagset.Arg(0))
 		s, err := connection.Client.AttachSearch(sid)
 		if err != nil {
 			// TODO if this is an unknown search error, return it as invalid

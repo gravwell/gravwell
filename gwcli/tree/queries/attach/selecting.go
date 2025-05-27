@@ -112,19 +112,21 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 }
 
 func (sv *selectingView) view() string {
-	var errSpnr string
+	var errSpnrHelp string // displays either the busywait spinner, an error, or help text on how to select
 	if sv.search != nil {
-		errSpnr = sv.spnr.View()
+		errSpnrHelp = sv.spnr.View()
+	} else if sv.errString != "" {
+		errSpnrHelp = sv.errString
 	} else {
-		errSpnr = sv.errString
+		errSpnrHelp = "Press space or enter to attach"
 	}
 
-	return sv.list.View() + "\n" + errSpnr + "\n" +
+	return sv.list.View() + "\n" +
 		lipgloss.NewStyle().
 			AlignHorizontal(lipgloss.Center).
 			Width(sv.width).
 			Foreground(stylesheet.TertiaryColor).
-			Render("Press space or enter to attach")
+			Render(errSpnrHelp)
 }
 
 // Fetches the list of available searches from the backend again,
