@@ -1,11 +1,15 @@
 package attach
 
 import (
+	"errors"
+
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -32,7 +36,8 @@ type selectingView struct {
 	// current list of searches to select from
 	searches []types.SearchCtrlStatus
 
-	searchErr chan error   // closed when done
+	searchErr chan error // closed when done
+	spnr      spinner.Model
 	search    *grav.Search // the current search we are waiting on (or nil)
 }
 
@@ -60,7 +65,7 @@ func (sv *selectingView) init() (cmd tea.Cmd, count int) {
 // transitioning to `details` mode or `attach` mode as required.
 // Returns a search only once a search has been selected, attached to, and has results ready.
 // If an error is returned, it is unrecoverable and control should be given back to Mother.
-func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.Search, err error) {
+func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.Search, fatalErr error) {
 	// handle resizes
 	if msg, ok := msg.(tea.WindowSizeMsg); ok {
 		sv.width = msg.Width
@@ -74,47 +79,40 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 		// test if the search is done
 		select {
 		case err := <-sv.searchErr:
-			if err != nil {
-				return nil, nil, err
-			}
+			return nil, sv.search, err
 		default:
-			// TODO return a tick
-			return nil, nil
+			return sv.spnr.Tick, nil, nil
 		}
 	}
 
 	// handle interacting with the list
 	if msg, ok := msg.(tea.KeyMsg); ok {
+		// clear any existing errors
+		sv.errString = ""
 		switch msg.Type {
 		case tea.KeyRight: // examine the current item
 			// TODO enter details mode
 		case tea.KeySpace, tea.KeyEnter: // attach to the current item
-			itm, ok := sv.list.SelectedItem().(attachable)
-			if !ok {
-				clilog.Writer.Criticalf("failed to assert list item back to attachable. Raw item: %#v", sv.list.SelectedItem())
-				return nil, nil
+			if err := sv.attachToQuery(); err != nil {
+				return nil, nil, err
 			}
-
-			s, err := connection.Client.AttachSearch(itm.id)
-			if err != nil {
-				sv.errString = err.Error()
-				return nil, nil
-			}
-			sv.search = &s
-			// spin off a goroutine to wait on the search
-			// TODO
-
-			return nil, nil
+			return sv.spnr.Tick, nil, nil
 		}
 	}
 	// pass all other messages into the list
 	sv.list, cmd = sv.list.Update(msg)
-	return cmd, nil
+	return cmd, nil, nil
 }
 
 func (sv *selectingView) view() string {
-	// TODO extract this string generation to listsupport for generic use
-	return sv.list.View() + "\n" +
+	var errSpnr string
+	if sv.search != nil {
+		errSpnr = sv.spnr.View()
+	} else {
+		errSpnr = sv.errString
+	}
+
+	return sv.list.View() + "\n" + errSpnr + "\n" +
 		lipgloss.NewStyle().
 			AlignHorizontal(lipgloss.Center).
 			Width(sv.width).
@@ -160,3 +158,37 @@ func (i attachable) FilterValue() string {
 }
 
 //#endregion item
+
+//#region helper subroutines
+
+// helper subroutine for update. Called when
+func (sv *selectingView) attachToQuery() (fatalErr error) {
+	itm, ok := sv.list.SelectedItem().(attachable)
+	if !ok {
+		clilog.Writer.Criticalf("failed to assert list item back to attachable. Raw item: %#v", sv.list.SelectedItem())
+		return errors.New(GenericErrorText)
+	}
+
+	s, err := connection.Client.AttachSearch(itm.id)
+	if err != nil { // this error may be recoverable
+		sv.errString = err.Error()
+		return nil
+	}
+	sv.search = &s
+	// spin off a goroutine to wait on the search
+	go func() {
+		clilog.Writer.Debugf("awaiting search %s", s.ID)
+		err := connection.Client.WaitForSearch(s)
+		clilog.Writer.Debugf("search %s is done (err: %v)", s.ID, err)
+		if err != nil {
+			sv.searchErr <- err
+		}
+		close(sv.searchErr)
+	}()
+	// start a spinner
+	sv.spnr = busywait.NewSpinner()
+
+	return nil
+}
+
+//#endregion helper subroutines
