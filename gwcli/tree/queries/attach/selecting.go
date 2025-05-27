@@ -2,6 +2,7 @@ package attach
 
 import (
 	"errors"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -43,22 +44,28 @@ type selectingView struct {
 
 // (Re-)initializes the view, clobbering existing data.
 // Should be called whenever this view is entered (such as on attach startup).
-func (sv *selectingView) init() (cmd tea.Cmd, count int) {
+func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 	// fetch attachables
 	if err := sv.refreshSearches(); err != nil {
-		sv.errString = err.Error()
-		return nil, -1
+		return nil, err
+	} else if len(sv.searches) <= 0 {
+		return nil, errors.New("you have no attachable searches")
 	}
 
 	itms := make([]list.Item, len(sv.searches))
 	for i, s := range sv.searches {
-		itms[i] = attachable{s.ID, s.UserQuery, s.State.String()}
+		itms[i] = attachable{
+			id:        s.ID,
+			query:     s.UserQuery,
+			state:     s.State.String(),
+			startTime: s.LaunchInfo.Started,
+		}
 	}
 
 	// build the list skeleton
 	sv.list = listsupport.NewList(itms, 80, listHeightMax, "attach", "attach-ables")
 
-	return uniques.FetchWindowSize, len(sv.searches)
+	return uniques.FetchWindowSize, nil
 }
 
 // Handles inputs for navigating the menu,
@@ -140,9 +147,11 @@ func (sv *selectingView) refreshSearches() error {
 var _ listsupport.Item = attachable{}
 
 type attachable struct {
-	id    string
-	query string
-	state string
+	id        string
+	query     string
+	state     string
+	startTime time.Time
+	endTime   time.Time
 }
 
 func (i attachable) Title() string {
