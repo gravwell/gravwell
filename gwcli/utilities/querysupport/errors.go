@@ -10,3 +10,14 @@ func (fmt ErrBinaryBlobCoward) Error() string {
 		"If this is intentional, re-run with -o <FILENAME>.\n" +
 		"If it was not, re-run with --csv or --json to download in a more appropriate format."
 }
+
+// ErrUnknownSID returns a user-facing error stating that the given sid is unknown.
+//
+//	querysupport.ErrUnknownSID(sid)
+type ErrUnknownSID string
+
+var _ error = ErrUnknownSID("")
+
+func (sid ErrUnknownSID) Error() string {
+	return "did not find a search associated to searchID '" + string(sid) + "'"
+}
