@@ -3,6 +3,7 @@ package attach
 import (
 	"errors"
 	"fmt"
+	"sync"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -36,6 +37,8 @@ type selectingView struct {
 
 	// current list of searches to select from
 	searches []types.SearchCtrlStatus
+	allDone  chan bool    // closed when selecting view is being destroyed
+	listMu   sync.RWMutex // held whenever the list is touched
 
 	searchErr chan error // closed when done
 	spnr      spinner.Model
@@ -52,17 +55,62 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 		return nil, errors.New("you have no attachable searches")
 	}
 
+	sv.allDone = make(chan bool)
+
+	// acquire the list lock to prevent goros from starting too early
+	sv.listMu.Lock()
+	defer sv.listMu.Unlock()
+
 	itms := make([]list.Item, len(sv.searches))
 	for i, s := range sv.searches {
-		itms[i] = attachable{
-			s,
-		}
+		a := attachable{s}
+		itms[i] = a
+		// spin off a goroutine to keep this item up to date
+		go func(itmIdx int, a attachable, done <-chan bool) {
+			// update until the search is done or errors
+			for a.State.Status != types.SearchStatusCompleted && a.State.Status != types.SearchStatusError {
+				select {
+				case <-done: // check if we are done
+					clilog.Writer.Debugf("updater %d closing up shop", itmIdx)
+					return
+				default:
+					// get the status of the search
+					newStatus, err := connection.Client.SearchStatus(a.ID)
+					if err != nil {
+						clilog.Writer.Errorf("updater %d failed to get the status of search %v: %v", i, a.ID, err)
+						return
+					}
+					// if the status is different their our current status, replace it in the list
+					if a.State.Status != newStatus.State.Status {
+						clilog.Writer.Debugf("updater %d found new status: %v", i, newStatus.State.Status)
+						sv.listMu.Lock()
+						a = attachable{newStatus}
+						sv.list.SetItem(i, a) // TODO do we need the returned command?
+						sv.listMu.Unlock()
+					}
+				}
+			}
+			clilog.Writer.Debugf("updater %d retiring...", i)
+		}(i, a, sv.allDone)
 	}
 
 	// build the list skeleton
 	sv.list = listsupport.NewList(itms, 80, listHeightMax, "attach", "attach-ables")
 
 	return uniques.FetchWindowSize, nil
+}
+
+// Destroys the state of the selecting view, killing any and all updater goroutines.
+// You must call init() again or forge a new selectingView{}.
+//
+// ! Does not close the search!
+func (sv *selectingView) destroy() {
+	// close the done channel to alert goros to die
+	if sv.allDone != nil {
+		close(sv.allDone)
+		sv.allDone = nil
+	}
+
 }
 
 // Handles inputs for navigating the menu,
@@ -119,27 +167,14 @@ func (sv *selectingView) view() string {
 		errSpnrHelp = "Press space or enter to attach"
 	}
 
+	sv.listMu.RLock()
+	defer sv.listMu.RUnlock()
 	return sv.list.View() + "\n" +
 		lipgloss.NewStyle().
 			AlignHorizontal(lipgloss.Center).
 			Width(sv.width).
 			Foreground(stylesheet.TertiaryColor).
 			Render(errSpnrHelp)
-}
-
-// Fetches the list of available searches from the backend again,
-// refreshing sv.searches.
-func (sv *selectingView) refreshSearches() error {
-	ss, err := connection.Client.ListSearchStatuses()
-	if err != nil {
-		return err
-	}
-
-	// update all searches
-	sv.searches = ss
-
-	return nil
-
 }
 
 //#region item
@@ -172,9 +207,11 @@ func (i attachable) FilterValue() string {
 
 //#region helper subroutines
 
-// helper subroutine for update. Called when
+// helper subroutine for update. Called when // TODO
 func (sv *selectingView) attachToQuery() (fatalErr error) {
+	sv.listMu.RLock()
 	itm, ok := sv.list.SelectedItem().(attachable)
+	sv.listMu.RUnlock()
 	if !ok {
 		clilog.Writer.Criticalf("failed to assert list item back to attachable. Raw item: %#v", sv.list.SelectedItem())
 		return errors.New(GenericErrorText)
@@ -186,6 +223,10 @@ func (sv *selectingView) attachToQuery() (fatalErr error) {
 		return nil
 	}
 	sv.search = &s
+
+	// close the updaters
+	close(sv.allDone)
+	sv.allDone = nil
 
 	// prepare the error channel
 	sv.searchErr = make(chan error)
@@ -204,6 +245,21 @@ func (sv *selectingView) attachToQuery() (fatalErr error) {
 	sv.spnr = busywait.NewSpinner()
 
 	return nil
+}
+
+// Fetches the list of available searches from the backend again,
+// refreshing sv.searches.
+func (sv *selectingView) refreshSearches() error {
+	ss, err := connection.Client.ListSearchStatuses()
+	if err != nil {
+		return err
+	}
+
+	// update all searches
+	sv.searches = ss // TODO do we have to cache searches?
+
+	return nil
+
 }
 
 //#endregion helper subroutines
