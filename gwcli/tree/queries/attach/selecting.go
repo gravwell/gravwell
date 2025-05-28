@@ -15,6 +15,7 @@ When a user attaches to a query, selecting view waits on it, only returning cont
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -178,21 +179,32 @@ func (sv *selectingView) view() string {
 	sv.listMu.RUnlock()
 
 	// build the right-hand side details panel
-	details := fmt.Sprintf("%v\n\n"+
+	var details strings.Builder
+	details.WriteString(fmt.Sprintf("%v\n\n"+
 		stylesheet.Header1Style.Render("Query")+": %v\n"+
-		"\t%v --> %v\n\n"+
-		stylesheet.Header1Style.Render("Clients")+": %d",
+		stylesheet.Header1Style.Render("Range")+": %v --> %v\n\n"+
+		stylesheet.Header1Style.Render("Started")+": %v\n"+
+		stylesheet.Header1Style.Render("Clients")+": %d\n"+
+		stylesheet.Header1Style.Render("Storage")+": %dB",
 		stylesheet.IndexStyle.Render(a.State.String()),
 		a.UserQuery,
 		a.StartRange.String(), a.EndRange.String(),
-		a.AttachedClients)
+		a.LaunchInfo.Started,
+		a.AttachedClients,
+		a.StoredData))
+	if a.NoHistory {
+		details.WriteString("\n" + stylesheet.Header2Style.Render("No History Mode"))
+	}
+	if a.Error != "" {
+		details.WriteString("\nError: " + stylesheet.ErrStyle.Render(a.Error))
+	}
 
 	// the details are always considered "focus" from a view standpoint
-	details = stylesheet.Composable.Focused.
+	detailsStr := stylesheet.Composable.Focused.
 		Width((sv.width / 2) - widthBuffer).
 		Height(coerceHeight(sv.height)).
 		PaddingLeft(widthBuffer).AlignHorizontal(lipgloss.Left).
-		Render(details)
+		Render(details.String())
 
 	var errSpnrHelp string // displays either the busywait spinner, an error, or help text on how to select
 	if sv.search != nil {
@@ -204,7 +216,7 @@ func (sv *selectingView) view() string {
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.JoinHorizontal(lipgloss.Center, list, details),
+		lipgloss.JoinHorizontal(lipgloss.Center, list, detailsStr),
 		lipgloss.NewStyle().
 			AlignHorizontal(lipgloss.Center).
 			Width(sv.width).
