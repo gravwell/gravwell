@@ -1,14 +1,22 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package attach
+
+/*
+This file contains subroutines and data used by both interactive and non-interactive usage, typically to enforce consistency.
+*/
 
 import (
 	"fmt"
 
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 )
-
-/*
-This file contains subroutines and data used by both interactive and non-interactive usage, typically to enforce consistency.
-*/
 
 // Returns an error string stating that the wrong number of arguments were given.
 // Interactive mode expects 0 or 1, script mode expects exactly 1.

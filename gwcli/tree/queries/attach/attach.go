@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -9,8 +9,10 @@
 // Package attach implements search re-attachment, for fetching backgrounded queries.
 // It bears significant similarities to the load-bearing query action, but is different enough to not be folded in.
 //
-// See gwcli/assets/attach_flow.drawio.svg for a flowchart of user interaction.
+// See gwcli/assets/attach_flow.drawio.svg for a rough flowchart of user interaction.
 package attach
+
+/* This file sets up the action and defines non-interactive use of attach. */
 
 import (
 	"errors"

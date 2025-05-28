@@ -1,4 +1,16 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package attach
+
+/* This file implements the "selecting view" of interactive attach.
+Users are shown a list of attach-able searches and their statuses, can inspect each (a "details" view), and attach to one.
+When a user attaches to a query, selecting view waits on it, only returning control to actor.go once the search is done. */
 
 import (
 	"errors"

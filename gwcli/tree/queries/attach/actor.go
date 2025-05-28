@@ -1,4 +1,21 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package attach
+
+/*
+This file contains the action.Model implementation of the attach action, providing interactive usage.
+It passes control down to selecting view, then downloads and passes results to datascope when they are ready.
+
+Attach is some hideous amalgamation of the query actor and edit scaffolding actor.
+
+Fits the tea.Model interface.
+*/
 
 import (
 	"errors"
@@ -13,14 +30,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 	"github.com/spf13/pflag"
 )
-
-/*
-This file contains the action.Model implementation of the attach action, providing interactive usage.
-
-Attach is some hideous amalgamation of the query actor and edit scaffolding actor.
-
-Fits the tea.Model interface.
-*/
 
 const GenericErrorText string = "an error occurred"
 
