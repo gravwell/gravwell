@@ -172,7 +172,10 @@ func (i attachable) FilterValue() string {
 
 //#region helper subroutines
 
-// helper subroutine for update. Called when
+// helper subroutine for update. Called when a user chooses a query to attach to.
+// Attempts to attach to the currently-highlighted item, then spins off a goroutine to wait on it waits on it.
+//
+// When this subroutine returns, the caller should entered a waiting state where it only handles and propagates sv.spnr.Tick()s until the searchErr channel receives a value or is closed.
 func (sv *selectingView) attachToQuery() (fatalErr error) {
 	itm, ok := sv.list.SelectedItem().(attachable)
 	if !ok {
