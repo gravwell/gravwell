@@ -106,7 +106,8 @@ func (a *attach) Update(msg tea.Msg) tea.Cmd {
 				return tea.Println(err)
 			}
 			var dsCmd tea.Cmd
-			a.ds, dsCmd, err = datascope.NewDataScope(results, true, search, tbl)
+			a.ds, dsCmd, err = datascope.NewDataScope(results, true, search, tbl,
+				datascope.WithAutoDownload(a.flags.OutPath, a.flags.Append, a.flags.JSON, a.flags.CSV))
 			if err != nil {
 				a.mode = quitting
 				return tea.Println(err)
