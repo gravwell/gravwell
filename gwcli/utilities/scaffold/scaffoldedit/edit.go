@@ -118,7 +118,7 @@ func NewEditAction[I id_t, S any](singular, plural string, cfg Config, funcs Sub
 
 	var fs = generateFlagSet(cfg, singular)
 
-	cmd := treeutils.NewActionCommand(
+	cmd := treeutils.GenerateAction(
 		"edit",                             // use
 		"edit a "+singular,                 // short
 		"edit/alter an existing "+singular, // long
@@ -141,7 +141,7 @@ func NewEditAction[I id_t, S any](singular, plural string, cfg Config, funcs Sub
 	// attach flags to cmd
 	cmd.Flags().AddFlagSet(&fs)
 
-	return treeutils.GenerateAction(cmd,
+	return action.NewPair(cmd,
 		newEditModel(cfg, singular, plural, funcs, fs),
 	)
 }

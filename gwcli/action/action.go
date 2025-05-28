@@ -57,6 +57,12 @@ type Pair struct {
 	Model  Model          // our bolted-on interactivity
 }
 
+// NewPair is a constructor for action.Pair.
+// It creates and returns an Action (tree leaf) that can be called directly non-interactively or via associated methods (actions.Pair) interactively
+func NewPair(cmd *cobra.Command, act Model) Pair {
+	return Pair{Action: cmd, Model: act}
+}
+
 //#region action map
 
 // Our singleton variable, accessed via Public subroutines below.

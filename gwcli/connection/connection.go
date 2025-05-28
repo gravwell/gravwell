@@ -334,41 +334,11 @@ func StartQuery(qry string, durFromNow time.Duration, background bool) (grav.Sea
 	if background {
 		fgbg = "background"
 	}
-	clilog.Writer.Infof("Executing %v search '%v' from %v -> %v",
-		fgbg, sreq.SearchString, sreq.SearchStart, sreq.SearchEnd)
 	s, err := Client.StartSearchEx(sreq)
+	clilog.Writer.Infof("Executed %v search '%v' (id: %s) from %v -> %v",
+		fgbg, sreq.SearchString, s.ID, sreq.SearchStart, sreq.SearchEnd)
 	return s, err
 
-}
-
-// Maps Render module and csv/json flag state to a string usable with DownloadSearch().
-// JSON, then CSV, take precidence over a direct render -> format map.
-// If a better renderer type cannot be determined, Archive will be selected.
-func renderToDownload(rndr string, csv, json bool) string {
-	if json {
-		return types.DownloadJSON
-	}
-	if csv {
-		return types.DownloadCSV
-	}
-	switch rndr {
-	case types.RenderNameHex, types.RenderNameRaw, types.RenderNameText:
-		return types.DownloadText
-	case types.RenderNamePcap:
-		return types.DownloadPCAP
-	default:
-		return types.DownloadArchive
-	}
-}
-
-// DownloadSearch fetches the given search's results according to its renderer (or CSV/JSON, if given).
-func DownloadSearch(search *grav.Search, tr types.TimeRange, csv, json bool) (
-	rc io.ReadCloser, format string, err error,
-) {
-	format = renderToDownload(search.RenderMod, csv, json)
-	clilog.Writer.Infof("renderer '%s' -> '%s'", search.RenderMod, format)
-	rc, err = Client.DownloadSearch(search.ID, tr, format)
-	return
 }
 
 // DownloadQuerySuccessfulString returns a consistent sting for a successful query result download
@@ -378,4 +348,41 @@ func DownloadQuerySuccessfulString(filename string, append bool, format string) 
 		word = "appended"
 	}
 	return fmt.Sprintf("Successfully %v %v results to %v", word, format, filename)
+}
+
+// GetResultsForWriter waits on and downloads the given results according to their associated render type
+// (JSON, CSV, if given, otherwise the normal form of the results),
+// returning an io.ReadCloser to stream the results and the format they are in.
+// If a TimeRange is given, only results in that timeframe will be included.
+//
+// This should be used to get results when they will be written ton io.Writer (a file or stdout).
+//
+// This call blocks until the search is completed.
+//
+// Typically called prior to PutResultsToWriter.
+func GetResultsForWriter(s *grav.Search, tr types.TimeRange, csv, json bool) (rc io.ReadCloser, format string, err error) {
+	if err := Client.WaitForSearch(*s); err != nil {
+		return nil, "", err
+	}
+
+	// determine the format to request results in
+	if json {
+		format = types.DownloadJSON
+	} else if csv {
+		format = types.DownloadCSV
+	} else {
+		switch s.RenderMod {
+		case types.RenderNameHex, types.RenderNameRaw, types.RenderNameText:
+			format = types.DownloadText
+		case types.RenderNamePcap:
+			format = types.DownloadPCAP
+		default:
+			format = types.DownloadArchive
+		}
+	}
+	clilog.Writer.Infof("renderer '%s' -> '%s'", s.RenderMod, format)
+
+	// fetch and return results
+	rc, err = Client.DownloadSearch(s.ID, tr, format)
+	return rc, format, err
 }

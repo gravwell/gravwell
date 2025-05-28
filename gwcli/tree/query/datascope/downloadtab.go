@@ -274,7 +274,7 @@ func (s *DataScope) dl(fn string) (result string, success bool) {
 		format string
 		rc     io.ReadCloser
 	)
-	if rc, format, err = connection.DownloadSearch(
+	if rc, format, err = connection.GetResultsForWriter(
 		s.search,
 		types.TimeRange{},
 		s.download.format.csv,

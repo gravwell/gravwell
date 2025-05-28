@@ -44,7 +44,8 @@ import (
 //#region For Cobra Usage
 
 type spnr struct {
-	spnr spinner.Model
+	notice string // additional text displayed alongside the spinner
+	spnr   spinner.Model
 }
 
 func (s spnr) Init() tea.Cmd {
@@ -58,16 +59,22 @@ func (s spnr) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (s spnr) View() string {
-	return s.spnr.View()
+	v := s.spnr.View()
+	if s.notice != "" {
+		v += "\t" + stylesheet.PromptStyle.Render(s.notice)
+	}
+	return v
 }
 
 // CobraNew creates a new BubbleTea program with just a spinner.
 // Intended for use in non-script mode Cobra to show processes are occurring.
 //
 // When you are done waiting, call p.Quit() from another goroutine.
-func CobraNew() (p *tea.Program) {
-	return tea.NewProgram(spnr{
-		spnr: NewSpinner()})
+func CobraNew(notice string) (p *tea.Program) {
+	return tea.NewProgram(spnr{notice: notice,
+		spnr: NewSpinner()},
+		tea.WithoutSignalHandler(),
+		tea.WithInput(nil)) // we do not want the spinner to capture sigints when it is run on its own
 }
 
 //#endregion For Cobra Usage

@@ -22,6 +22,7 @@ import (
 )
 
 // GenerateNav creates and returns a Nav (tree node) that can now be assigned subcommands (child navs and actions).
+// It is responsible for adding each of its Actions to the action map.
 func GenerateNav(use, short, long string, aliases []string,
 	navCmds []*cobra.Command, actionCmds []action.Pair) *cobra.Command {
 	cmd := &cobra.Command{
@@ -50,15 +51,11 @@ func GenerateNav(use, short, long string, aliases []string,
 	return cmd
 }
 
-// GenerateAction is a constructor for action.Pair.
-// It creates and returns an Action (tree leaf) that can be called directly non-interactively or via associated methods (actions.Pair) interactively
-func GenerateAction(cmd *cobra.Command, act action.Model) action.Pair {
-	return action.Pair{Action: cmd, Model: act}
-}
-
-// NewActionCommand returns a boilerplate action command with all required information for it to be fed into NewActionPair.
+// GenerateAction returns a boilerplate action command with all required information for it to be fed into action.NewPair().
 // Basically just a form of cobra.Command constructor.
-func NewActionCommand(use, short, long string, aliases []string,
+//
+// ! Does NOT add this action to the action map; you still need to pass the returned command to its Nav.
+func GenerateAction(use, short, long string, aliases []string,
 	runFunc func(*cobra.Command, []string)) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     use,
