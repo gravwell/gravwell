@@ -66,7 +66,7 @@ type attach struct {
 var Attach action.Model = Initial()
 
 func Initial() *attach {
-	a := &attach{mode: inactive}
+	a := &attach{mode: inactive, flagset: initialLocalFlagSet()}
 
 	return a
 }
@@ -141,8 +141,10 @@ func (a *attach) Done() bool {
 func (a *attach) Reset() error {
 	a.mode = inactive
 	a.ds = nil
-	a.sv.destroy()
-	a.sv = nil
+	if a.sv != nil {
+		a.sv.destroy()
+		a.sv = nil
+	}
 	a.flagset = initialLocalFlagSet()
 	if a.search != nil {
 		a.search.Close()
