@@ -15,9 +15,7 @@ When a user attaches to a query, selecting view waits on it, only returning cont
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"sync"
-	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -35,6 +33,8 @@ import (
 
 const (
 	listHeightMax = 40
+	widthBuffer   = 1 // extra space to leave on the left and right of EACH element, AFTER halving (as two elements total)
+	heightBuffer  = 4 // extra space to leave on the top and bottom of the composed elements
 )
 
 // This file covers the `selecting` state,
@@ -46,8 +46,7 @@ type selectingView struct {
 
 	width, height int // tty dimensions, queried by init()
 
-	list    list.Model // interact-able list display attach-able queries; created by transmuting the searches map
-	details bool       // are we currently examining an item?
+	list list.Model // interact-able list display attach-able queries; created by transmuting the searches map
 
 	// current list of searches to select from
 	searches []types.SearchCtrlStatus
@@ -124,7 +123,6 @@ func (sv *selectingView) destroy() {
 		close(sv.allDone)
 		sv.allDone = nil
 	}
-	sv.details = false
 }
 
 // Handles inputs for navigating the menu,
@@ -137,7 +135,8 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 		sv.width = msg.Width
 		sv.height = msg.Height
 
-		sv.list.SetHeight(min(msg.Height-2, listHeightMax))
+		sv.list.SetHeight(min(msg.Height-heightBuffer, listHeightMax))
+		sv.list.SetWidth((msg.Width / 2) - widthBuffer)
 	}
 
 	// are we waiting on a search
@@ -158,12 +157,6 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 		sv.errString = ""
 
 		switch msg.Type {
-		case tea.KeyLeft:
-			sv.details = false // stop examining
-			// TODO add to help
-		case tea.KeyRight: // examine the current item
-			sv.details = true
-			// TODO add to help
 		case tea.KeySpace, tea.KeyEnter: // attach to the current item
 			if err := sv.attachToQuery(); err != nil {
 				return nil, nil, err
@@ -178,19 +171,36 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 }
 
 func (sv *selectingView) view() string {
-	if sv.details {
-		a, ok := sv.list.SelectedItem().(attachable)
-		if !ok {
-			clilog.Writer.Errorf("failed to cast selected item to attachable. Raw: %v", sv.list.SelectedItem()) // TODO
-			sv.details = false
-			sv.errString = GenericErrorText
-			return ""
-		}
+	sv.listMu.RLock()
+	list := sv.list.View()
 
+	a, ok := sv.list.SelectedItem().(attachable)
+	if !ok {
+		clilog.Writer.Errorf("failed to cast selected item to attachable. Raw: %v", sv.list.SelectedItem())
+		sv.errString = GenericErrorText
+		sv.listMu.RUnlock()
+		return ""
+	}
+	sv.listMu.RUnlock()
+
+	// build the right-hand side details panel
+	details := ""
+	details = fmt.Sprintf("Query: %v\n\n"+
+		"%v --> %v\n\n"+
+		"%v\n\n",
+		a.UserQuery,
+		a.StartRange.String(), a.EndRange.String(),
+		stylesheet.IndexStyle.Render(a.State.String()))
+
+	// the details are always considered "focus" from a view standpoint
+	details = stylesheet.Composable.Focused.
+		Width((sv.width / 2) - widthBuffer).
+		Height(sv.height - heightBuffer).
+		Render(details)
+
+	/*
 		var sb strings.Builder
-		sb.WriteString("Query: " + a.UserQuery + "\n")
-		sb.WriteString(a.StartRange.String() + "\n")
-		sb.WriteString(stylesheet.IndexStyle.Render(a.State.String()) + "\n")
+
 		sb.WriteString("Started: " + a.LaunchInfo.Started.String())
 		if !a.LaunchInfo.Expires.Equal(time.Time{}) { // if an expire was set, attach it to Started
 			if a.LaunchInfo.Expires.Compare(time.Now()) < 1 { // earlier than or equal to now
@@ -201,14 +211,7 @@ func (sv *selectingView) view() string {
 			sb.WriteString(a.LaunchInfo.Expires.String())
 		}
 		sb.WriteString("\n\n")
-
-		sb.WriteString(a.StartRange.String() + " -> " + a.EndRange.String() + "\n")
-
-		return lipgloss.NewStyle().
-			AlignHorizontal(lipgloss.Center).Width(sv.width).
-			AlignVertical(lipgloss.Center).Height(sv.height).
-			Render(sb.String())
-	}
+	*/
 
 	var errSpnrHelp string // displays either the busywait spinner, an error, or help text on how to select
 	if sv.search != nil {
@@ -219,14 +222,13 @@ func (sv *selectingView) view() string {
 		errSpnrHelp = "Press space or enter to attach"
 	}
 
-	sv.listMu.RLock()
-	defer sv.listMu.RUnlock()
-	return sv.list.View() + "\n" +
+	return lipgloss.JoinVertical(lipgloss.Center,
+		lipgloss.JoinHorizontal(lipgloss.Center, list, details),
 		lipgloss.NewStyle().
 			AlignHorizontal(lipgloss.Center).
 			Width(sv.width).
 			Foreground(stylesheet.TertiaryColor).
-			Render(errSpnrHelp)
+			Render(errSpnrHelp))
 }
 
 //#region item
