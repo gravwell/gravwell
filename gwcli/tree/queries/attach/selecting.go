@@ -178,19 +178,20 @@ func (sv *selectingView) view() string {
 	sv.listMu.RUnlock()
 
 	// build the right-hand side details panel
-	details := fmt.Sprintf("Query: %v\n\n"+
-		"%v --> %v\n\n"+
-		"%v\n\n"+
-		"Clients: %d",
+	details := fmt.Sprintf("%v\n\n"+
+		stylesheet.Header1Style.Render("Query")+": %v\n"+
+		"\t%v --> %v\n\n"+
+		stylesheet.Header1Style.Render("Clients")+": %d",
+		stylesheet.IndexStyle.Render(a.State.String()),
 		a.UserQuery,
 		a.StartRange.String(), a.EndRange.String(),
-		stylesheet.IndexStyle.Render(a.State.String()),
 		a.AttachedClients)
 
 	// the details are always considered "focus" from a view standpoint
 	details = stylesheet.Composable.Focused.
 		Width((sv.width / 2) - widthBuffer).
 		Height(coerceHeight(sv.height)).
+		PaddingLeft(widthBuffer).AlignHorizontal(lipgloss.Left).
 		Render(details)
 
 	var errSpnrHelp string // displays either the busywait spinner, an error, or help text on how to select
@@ -215,6 +216,7 @@ func (sv *selectingView) view() string {
 
 var _ listsupport.Item = attachable{}
 
+// An attachable is just a wrapper around the SearchCtrlStatus type to allow us to fit it to the Item interface.
 type attachable struct {
 	types.SearchCtrlStatus
 }
