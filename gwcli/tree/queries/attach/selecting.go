@@ -15,7 +15,9 @@ When a user attaches to a query, selecting view waits on it, only returning cont
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -44,8 +46,8 @@ type selectingView struct {
 
 	width, height int // tty dimensions, queried by init()
 
-	list     list.Model // interact-able list display attach-able queries; created by transmuting the searches map
-	selected string     // the sid of the item the user selected to attach to or view details for
+	list    list.Model // interact-able list display attach-able queries; created by transmuting the searches map
+	details bool       // are we currently examining an item?
 
 	// current list of searches to select from
 	searches []types.SearchCtrlStatus
@@ -122,7 +124,7 @@ func (sv *selectingView) destroy() {
 		close(sv.allDone)
 		sv.allDone = nil
 	}
-
+	sv.details = false
 }
 
 // Handles inputs for navigating the menu,
@@ -154,15 +156,21 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		// clear any existing error
 		sv.errString = ""
+
 		switch msg.Type {
+		case tea.KeyLeft:
+			sv.details = false // stop examining
+			// TODO add to help
 		case tea.KeyRight: // examine the current item
-			// TODO enter details mode
+			sv.details = true
+			// TODO add to help
 		case tea.KeySpace, tea.KeyEnter: // attach to the current item
 			if err := sv.attachToQuery(); err != nil {
 				return nil, nil, err
 			}
 			return sv.spnr.Tick, nil, nil
 		}
+
 	}
 	// pass all other messages into the list
 	sv.list, cmd = sv.list.Update(msg)
@@ -170,6 +178,38 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 }
 
 func (sv *selectingView) view() string {
+	if sv.details {
+		a, ok := sv.list.SelectedItem().(attachable)
+		if !ok {
+			clilog.Writer.Errorf("failed to cast selected item to attachable. Raw: %v", sv.list.SelectedItem()) // TODO
+			sv.details = false
+			sv.errString = GenericErrorText
+			return ""
+		}
+
+		var sb strings.Builder
+		sb.WriteString("Query: " + a.UserQuery + "\n")
+		sb.WriteString(a.StartRange.String() + "\n")
+		sb.WriteString(stylesheet.IndexStyle.Render(a.State.String()) + "\n")
+		sb.WriteString("Started: " + a.LaunchInfo.Started.String())
+		if !a.LaunchInfo.Expires.Equal(time.Time{}) { // if an expire was set, attach it to Started
+			if a.LaunchInfo.Expires.Compare(time.Now()) < 1 { // earlier than or equal to now
+				sb.WriteString(" | Expired: ")
+			} else {
+				sb.WriteString(" | Expires: ")
+			}
+			sb.WriteString(a.LaunchInfo.Expires.String())
+		}
+		sb.WriteString("\n\n")
+
+		sb.WriteString(a.StartRange.String() + " -> " + a.EndRange.String() + "\n")
+
+		return lipgloss.NewStyle().
+			AlignHorizontal(lipgloss.Center).Width(sv.width).
+			AlignVertical(lipgloss.Center).Height(sv.height).
+			Render(sb.String())
+	}
+
 	var errSpnrHelp string // displays either the busywait spinner, an error, or help text on how to select
 	if sv.search != nil {
 		errSpnrHelp = sv.spnr.View()
