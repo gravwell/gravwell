@@ -178,34 +178,20 @@ func (sv *selectingView) view() string {
 	sv.listMu.RUnlock()
 
 	// build the right-hand side details panel
-	details := ""
-	details = fmt.Sprintf("Query: %v\n\n"+
+	details := fmt.Sprintf("Query: %v\n\n"+
 		"%v --> %v\n\n"+
-		"%v\n\n",
+		"%v\n\n"+
+		"Clients: %d",
 		a.UserQuery,
 		a.StartRange.String(), a.EndRange.String(),
-		stylesheet.IndexStyle.Render(a.State.String()))
+		stylesheet.IndexStyle.Render(a.State.String()),
+		a.AttachedClients)
 
 	// the details are always considered "focus" from a view standpoint
 	details = stylesheet.Composable.Focused.
 		Width((sv.width / 2) - widthBuffer).
 		Height(coerceHeight(sv.height)).
 		Render(details)
-
-	/*
-		var sb strings.Builder
-
-		sb.WriteString("Started: " + a.LaunchInfo.Started.String())
-		if !a.LaunchInfo.Expires.Equal(time.Time{}) { // if an expire was set, attach it to Started
-			if a.LaunchInfo.Expires.Compare(time.Now()) < 1 { // earlier than or equal to now
-				sb.WriteString(" | Expired: ")
-			} else {
-				sb.WriteString(" | Expires: ")
-			}
-			sb.WriteString(a.LaunchInfo.Expires.String())
-		}
-		sb.WriteString("\n\n")
-	*/
 
 	var errSpnrHelp string // displays either the busywait spinner, an error, or help text on how to select
 	if sv.search != nil {
