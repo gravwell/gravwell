@@ -15,6 +15,8 @@ When a user attaches to a query, selecting view waits on it, only returning cont
 import (
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -34,8 +36,8 @@ import (
 )
 
 const (
-	widthBuffer          = 1 // extra space to leave on the left and right of EACH element, AFTER halving (as two elements total)
-	updaterSleepDuration = time.Second * 2
+	widthBuffer             = 1 // extra space to leave on the left and right of EACH element, AFTER halving (as two elements total)
+	maintainerSleepDuration = time.Second * 2
 )
 
 type selectingView struct {
@@ -43,12 +45,11 @@ type selectingView struct {
 
 	width, height int // tty dimensions, queried by init()
 
-	list list.Model // interact-able list display attach-able queries; created by transmuting the searches map
+	list list.Model // interact-able list displaying attach-able queries
 
-	// current list of searches to select from
-	searches []types.SearchCtrlStatus
-	allDone  chan bool    // closed when selecting view is being destroyed
-	listMu   sync.RWMutex // held whenever the list is touched
+	allDone        chan bool    // closed when selecting view is being destroyed
+	listMu         sync.RWMutex // held whenever the list is touched
+	maintainerCmds chan tea.Cmd
 
 	searchErr chan error // closed when done
 	spnr      spinner.Model
@@ -58,57 +59,125 @@ type selectingView struct {
 // (Re-)initializes the view, clobbering existing data.
 // Should be called whenever this view is entered (such as on attach startup).
 func (sv *selectingView) init() (cmd tea.Cmd, err error) {
-	// fetch attachables
-	if err := sv.refreshSearches(); err != nil {
+	// initialize variables
+	sv.allDone = make(chan bool)
+	sv.maintainerCmds = make(chan tea.Cmd)
+
+	if l, err := spawnListAndMaintainer(&sv.listMu, sv.allDone, sv.maintainerCmds); err != nil {
 		return nil, err
-	} else if len(sv.searches) <= 0 {
+	} else {
+		sv.list = *l
+	}
+
+	return uniques.FetchWindowSize, nil
+}
+
+// spawnListAndMaintainer generates and populates the list.Model of attachables and spins off a goroutine to maintain the list.
+// The maintainer goroutine keeps the statuses of each attachable up to date  and checks for new attachables, appending them as they appear.
+//
+// Caller must supply (but not hold) the RWlock for interacting with the list as well as a channel that will be closed when the maintainer should shut down.
+func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- tea.Cmd) (*list.Model, error) {
+	// build the list
+	mu.Lock() // lock is probably unnecessary, but held in case we get killed during this time
+	ss, err := connection.Client.ListSearchStatuses()
+	if err != nil {
+		return nil, err
+	} else if len(ss) == 0 {
 		return nil, errors.New("you have no attachable searches")
 	}
 
-	sv.allDone = make(chan bool)
+	itmCount := len(ss)
+	indices := make(map[string]int, itmCount) // sid -> index in list
+	itms := make([]list.Item, itmCount)
 
-	// acquire the list lock to prevent goros from starting too early
-	sv.listMu.Lock()
-	defer sv.listMu.Unlock()
+	for i, s := range ss {
+		if _, exists := indices[s.ID]; exists {
+			// ListSearchStatuses sent us duplicate records.
+			// Likely indicates a bigger problem on the backend.
+			clilog.Writer.Warnf("duplicate sID %v received in ListSearchStatuses!\nSearch info: %#v", s.ID, s)
+		}
+		indices[s.ID] = i
+		itms[i] = attachable{s}
+	}
+	list := listsupport.NewList(itms, 80, coerceHeight(80), "attach", "attach-ables")
+	mu.Unlock()
 
-	itms := make([]list.Item, len(sv.searches))
-	for i, s := range sv.searches {
-		a := attachable{s}
-		itms[i] = a
-		// spin off a goroutine to keep this item up to date
-		go func(itmIdx int, a attachable, done <-chan bool) {
-			// update until the search is done or errors
-			for a.State.Status != types.SearchStatusCompleted && a.State.Status != types.SearchStatusError {
-				time.Sleep(updaterSleepDuration)
-				select {
-				case <-done: // check if we are done
-					clilog.Writer.Debugf("updater %d closing up shop", itmIdx)
-					return
-				default:
-					// get the status of the search
-					newStatus, err := connection.Client.SearchStatus(a.ID)
-					if err != nil {
-						clilog.Writer.Errorf("updater %d failed to get the status of search %v: %v", i, a.ID, err)
-						return
-					}
-					// if the status is different their our current status, replace it in the list
-					if a.State.Status != newStatus.State.Status {
-						clilog.Writer.Debugf("updater %d found new status: %v", i, newStatus.State.Status)
-						sv.listMu.Lock()
-						a = attachable{newStatus}
-						sv.list.SetItem(i, a) // TODO do we need the returned command?
-						sv.listMu.Unlock()
+	// spin off the maintainer goro
+	go func() {
+		var cmds = make([]tea.Cmd, 0) // buffer for the commands to forward on updates each run
+
+		for {
+			time.Sleep(maintainerSleepDuration)
+			select {
+			case <-done:
+				clilog.Writer.Debugf("attach maintainer closing up shop")
+				return
+			default:
+				// get the list of persistent searches
+				ss, err := connection.Client.ListSearchStatuses()
+				if err != nil {
+					clilog.Writer.Warnf("attach maintainer failed to get search statuses: %v", err)
+					continue
+				}
+				var unseenIDs = maps.Clone(indices) // track the IDs we have seen during this cycle so we know who to remove
+				// update each search found
+				for _, newStatus := range ss {
+					// get the index of this index
+					i, exists := indices[newStatus.ID]
+
+					if exists {
+						// mark that we have seen this ID
+						delete(unseenIDs, newStatus.ID)
+
+						// check if there is new data
+						knownStatus, ok := itms[i].(attachable)
+						if !ok {
+							clilog.Writer.Criticalf("failed to cast item to attachable. Raw: %#v", itms[i])
+							continue
+						}
+						if knownStatus.State.Status != newStatus.State.Status {
+							clilog.Writer.Debugf("updating existing search (sID: %v) at %d (prior status: %s | new status: %s)",
+								newStatus.ID, i, knownStatus.State.Status, newStatus.State.Status)
+							// update the item and reinstall it
+							itms[i] = attachable{newStatus}
+							mu.Lock()
+							cmds = append(cmds, list.SetItem(i, itms[i])) // ! throws away returned command
+							mu.Unlock()
+						} else {
+							clilog.Writer.Debugf("static existing search (sID: %v) at %d", newStatus.ID, i)
+						}
+					} else { // if it doesn't exist in the list, append it
+						clilog.Writer.Debugf("appending new search (sID: %v) at %d", newStatus.ID, itmCount)
+						itms = append(itms, attachable{newStatus})
+						indices[newStatus.ID] = itmCount
+						mu.Lock()
+						cmds = append(cmds, list.InsertItem(itmCount, itms[itmCount])) // ! throws away returned command
+						mu.Unlock()
+						itmCount += 1
 					}
 				}
+
+				// any keys we had previously seen but did not see this run must be removed
+				for id, listIdx := range unseenIDs {
+					clilog.Writer.Debugf("removing invalidated search (sID: %v) at %d", id, listIdx)
+					mu.Lock()
+					list.RemoveItem(listIdx) // ! throws away returned command
+					mu.Unlock()
+					// drop the item from our local representations
+					itms = slices.Delete(itms, listIdx, listIdx+1)
+					delete(indices, id)
+				}
+
+				clilog.Writer.Debugf("maintainer passing commands to update...")
+				updates <- tea.Sequence(cmds...)
+				clilog.Writer.Debugf("maintainer clearing buffer...")
+				clear(cmds)
 			}
-			clilog.Writer.Debugf("updater %d retiring...", i)
-		}(i, a, sv.allDone)
-	}
+		}
+	}()
 
-	// build the list skeleton
-	sv.list = listsupport.NewList(itms, 80, coerceHeight(80), "attach", "attach-ables")
-
-	return uniques.FetchWindowSize, nil
+	// return control to the caller
+	return &list, nil
 }
 
 // Destroys the state of the selecting view, killing any and all updater goroutines.
@@ -165,7 +234,12 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 	}
 	// pass all other messages into the list
 	sv.list, cmd = sv.list.Update(msg)
-	return cmd, nil, nil
+	select {
+	case mc := <-sv.maintainerCmds:
+		return tea.Batch(cmd, mc), nil, nil
+	default:
+		return cmd, nil, nil
+	}
 }
 
 func (sv *selectingView) view() string {
@@ -301,21 +375,6 @@ func (sv *selectingView) attachToQuery() (fatalErr error) {
 	return nil
 }
 
-// Fetches the list of available searches from the backend again,
-// refreshing sv.searches.
-func (sv *selectingView) refreshSearches() error {
-	ss, err := connection.Client.ListSearchStatuses()
-	if err != nil {
-		return err
-	}
-
-	// update all searches
-	sv.searches = ss // TODO do we have to cache searches?
-
-	return nil
-
-}
-
 // Given a raw height, coerceHeight returns a consistent height for a single pane.
 // This height is limited by the max height and has the buffer factored in.
 func coerceHeight(h int) int {
@@ -327,3 +386,38 @@ func coerceHeight(h int) int {
 }
 
 //#endregion helper subroutines
+
+//#region relic code
+
+// spin off a goroutine to keep this item up to date
+/*
+	go func(itmIdx int, a attachable, done <-chan bool) {
+		// update until the search is done or errors
+		for a.State.Status != types.SearchStatusCompleted && a.State.Status != types.SearchStatusError {
+			time.Sleep(updaterSleepDuration)
+			select {
+			case <-done: // check if we are done
+				clilog.Writer.Debugf("updater %d closing up shop", itmIdx)
+				return
+			default:
+				// get the status of the search
+				newStatus, err := connection.Client.SearchStatus(a.ID)
+				if err != nil {
+					clilog.Writer.Errorf("updater %d failed to get the status of search %v: %v", i, a.ID, err)
+					return
+				}
+				// if the status is different their our current status, replace it in the list
+				if a.State.Status != newStatus.State.Status {
+					clilog.Writer.Debugf("updater %d found new status: %v", i, newStatus.State.Status)
+					sv.listMu.Lock()
+					a = attachable{newStatus}
+					sv.list.SetItem(i, a) // TODO do we need the returned command?
+					sv.listMu.Unlock()
+				}
+			}
+		}
+		clilog.Writer.Debugf("updater %d retiring...", i)
+	}(i, a, sv.allDone)
+*/
+
+//#endregion
