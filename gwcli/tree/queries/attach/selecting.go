@@ -32,17 +32,11 @@ import (
 )
 
 const (
-	listHeightMax = 40
-	widthBuffer   = 1 // extra space to leave on the left and right of EACH element, AFTER halving (as two elements total)
-	heightBuffer  = 4 // extra space to leave on the top and bottom of the composed elements
+	widthBuffer = 1 // extra space to leave on the left and right of EACH element, AFTER halving (as two elements total)
 )
 
-// This file covers the `selecting` state,
-// where a user sees an overview of all attachable searches
-// and can select one to attach to.
-
 type selectingView struct {
-	errString string
+	errString string // an error to be displayed to users at the bottom of the screen. Wiped on KeyMsg.
 
 	width, height int // tty dimensions, queried by init()
 
@@ -108,7 +102,7 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 	}
 
 	// build the list skeleton
-	sv.list = listsupport.NewList(itms, 80, listHeightMax, "attach", "attach-ables")
+	sv.list = listsupport.NewList(itms, 80, coerceHeight(80), "attach", "attach-ables")
 
 	return uniques.FetchWindowSize, nil
 }
@@ -135,7 +129,7 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 		sv.width = msg.Width
 		sv.height = msg.Height
 
-		sv.list.SetHeight(min(msg.Height-heightBuffer, listHeightMax))
+		sv.list.SetHeight(coerceHeight(sv.height))
 		sv.list.SetWidth((msg.Width / 2) - widthBuffer)
 	}
 
@@ -195,7 +189,7 @@ func (sv *selectingView) view() string {
 	// the details are always considered "focus" from a view standpoint
 	details = stylesheet.Composable.Focused.
 		Width((sv.width / 2) - widthBuffer).
-		Height(sv.height - heightBuffer).
+		Height(coerceHeight(sv.height)).
 		Render(details)
 
 	/*
@@ -313,6 +307,16 @@ func (sv *selectingView) refreshSearches() error {
 	sv.searches = ss // TODO do we have to cache searches?
 
 	return nil
+
+}
+
+// Given a raw height, coerceHeight returns a consistent height for a single pane.
+// This height is limited by the max height and has the buffer factored in.
+func coerceHeight(h int) int {
+	const listHeightMax int = 40
+	const heightBuffer int = 4 // extra space to leave on the top and bottom of the composed elements
+
+	return min(h-heightBuffer, listHeightMax)
 
 }
 
