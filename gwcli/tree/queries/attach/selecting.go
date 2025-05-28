@@ -17,6 +17,7 @@ import (
 	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -33,7 +34,8 @@ import (
 )
 
 const (
-	widthBuffer = 1 // extra space to leave on the left and right of EACH element, AFTER halving (as two elements total)
+	widthBuffer          = 1 // extra space to leave on the left and right of EACH element, AFTER halving (as two elements total)
+	updaterSleepDuration = time.Second * 2
 )
 
 type selectingView struct {
@@ -77,6 +79,7 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 		go func(itmIdx int, a attachable, done <-chan bool) {
 			// update until the search is done or errors
 			for a.State.Status != types.SearchStatusCompleted && a.State.Status != types.SearchStatusError {
+				time.Sleep(updaterSleepDuration)
 				select {
 				case <-done: // check if we are done
 					clilog.Writer.Debugf("updater %d closing up shop", itmIdx)
