@@ -87,6 +87,7 @@ func (a *attach) Update(msg tea.Msg) tea.Cmd {
 		} else if search != nil { // prepare datascope and hand off control
 			a.mode = displaying
 			a.search = search
+			a.sv.destroy()
 
 			results, tbl, err := querysupport.GetResultsForDataScope(search)
 			if err != nil {
@@ -129,6 +130,7 @@ func (a *attach) Done() bool {
 func (a *attach) Reset() error {
 	a.mode = inactive
 	a.ds = nil
+	a.sv.destroy()
 	a.sv = nil
 	a.flagset = initialLocalFlagSet()
 	if a.search != nil {
