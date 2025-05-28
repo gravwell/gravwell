@@ -77,8 +77,10 @@ func (a *attach) Update(msg tea.Msg) tea.Cmd {
 	switch a.mode {
 	case quitting:
 		return nil
-	case inactive: // should not be possible, but if we are, bootstrap ourselves into selecting mode
-	// TODO
+	case inactive: // should not be possible, quit out if it occurs
+		clilog.Writer.Warnf("attach triggered update in inactive mode")
+		a.mode = quitting
+		return tea.Println(GenericErrorText)
 	case displaying: // pass control to datascope
 		if a.ds == nil {
 			clilog.Writer.Errorf("attach cannot be in display mode without a valid datascope")
