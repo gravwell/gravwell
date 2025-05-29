@@ -38,7 +38,6 @@ import (
 	"maps"
 	"slices"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -68,7 +67,6 @@ type selectingView struct {
 	list *list.Model // interact-able list displaying attach-able queries
 
 	allDone      chan bool        // closed when selecting view is being destroyed
-	listMu       sync.RWMutex     // held whenever the list is touched
 	updatedItems chan []list.Item // the new state of the items slice to replace the underlying array in the list
 
 	searchErr chan error // closed when done
@@ -83,7 +81,7 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 	sv.allDone = make(chan bool)
 	sv.updatedItems = make(chan []list.Item)
 
-	if l, err := spawnListAndMaintainer(&sv.listMu, sv.allDone, sv.updatedItems); err != nil {
+	if l, err := spawnListAndMaintainer(sv.allDone, sv.updatedItems); err != nil {
 		return nil, err
 	} else {
 		sv.list = l
@@ -96,9 +94,8 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 // The maintainer goroutine keeps the statuses of each attachable up to date  and checks for new attachables, appending them as they appear.
 //
 // Caller must supply (but not hold) the RWlock for interacting with the list as well as a channel that will be closed when the maintainer should shut down.
-func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- []list.Item) (*list.Model, error) {
+func spawnListAndMaintainer(done <-chan bool, updates chan<- []list.Item) (*list.Model, error) {
 	// build the list
-	mu.Lock() // lock is probably unnecessary, but held in case we get killed during this time
 	ss, err := connection.Client.ListSearchStatuses()
 	if err != nil {
 		return nil, err
@@ -120,7 +117,6 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- [
 		itms[i] = attachable{s}
 	}
 	list := listsupport.NewList(itms, 80, coerceHeight(80), "attach", "attach-ables")
-	mu.Unlock()
 
 	// spin off the maintainer goro
 	go func() {
@@ -172,6 +168,13 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- [
 				}
 
 				// any keys we had previously seen but did not see this run must be removed
+				// start from the end of the list, in case we have to remove multiple in quick succession
+
+				// TODO we are probably going to have to drop the map, as keeping its indices up to date as we arbitrarily delete things will be damn near impossible
+				// TODO unless we rebuild a list each time, omitting nils?
+
+				// as long as we maintain order, we do not actually need indices anymore
+				// could we map sid -> attachable, then stablesort on attachable.start?
 				for id, listIdx := range unseenIDs {
 					clilog.Writer.Debugf("removing invalidated search (sID: %v) at %d", id, listIdx)
 					// drop the item from our local representations
@@ -182,6 +185,7 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- [
 					changesMade = true
 				}
 
+				// only bother updating the items if a change was made
 				if changesMade {
 					updates <- itms
 				}
@@ -246,10 +250,8 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 
 	}
 	// pass all other messages into the list
-	sv.listMu.Lock()
 	l, cmd := sv.list.Update(msg)
 	sv.list = &l
-	sv.listMu.Unlock()
 	// check for structual updates
 	select {
 	case itms := <-sv.updatedItems:
@@ -260,17 +262,14 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 }
 
 func (sv *selectingView) view() string {
-	sv.listMu.RLock()
 	list := lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(sv.list.View())
 
 	a, ok := sv.list.SelectedItem().(attachable)
 	if !ok {
 		clilog.Writer.Errorf("failed to cast selected item to attachable. Raw: %v", sv.list.SelectedItem())
 		sv.errString = GenericErrorText
-		sv.listMu.RUnlock()
 		return ""
 	}
-	sv.listMu.RUnlock()
 
 	var errSpnrHelp string // displays either the busywait spinner, an error, or help text on how to select
 	if sv.search != nil {
@@ -326,9 +325,7 @@ func (i attachable) FilterValue() string {
 //
 // When this subroutine returns, the caller should entered a waiting state where it only handles and propagates sv.spnr.Tick()s until the searchErr channel receives a value or is closed.
 func (sv *selectingView) attachToQuery() (fatalErr error) {
-	sv.listMu.RLock()
 	itm, ok := sv.list.SelectedItem().(attachable)
-	sv.listMu.RUnlock()
 	if !ok {
 		clilog.Writer.Criticalf("failed to assert list item back to attachable. Raw item: %#v", sv.list.SelectedItem())
 		return errors.New(GenericErrorText)
