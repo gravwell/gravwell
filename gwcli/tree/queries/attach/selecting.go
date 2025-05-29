@@ -278,34 +278,6 @@ func (sv *selectingView) view() string {
 	}
 	sv.listMu.RUnlock()
 
-	// build the right-hand side details panel
-	var details strings.Builder
-	details.WriteString(fmt.Sprintf("%v\n\n"+
-		stylesheet.Header1Style.Render("Query")+": %v\n"+
-		stylesheet.Header1Style.Render("Range")+": %v --> %v\n\n"+
-		stylesheet.Header1Style.Render("Started")+": %v\n"+
-		stylesheet.Header1Style.Render("Clients")+": %d\n"+
-		stylesheet.Header1Style.Render("Storage")+": %dB",
-		stylesheet.IndexStyle.Render(a.State.String()),
-		a.UserQuery,
-		a.StartRange.String(), a.EndRange.String(),
-		a.LaunchInfo.Started,
-		a.AttachedClients,
-		a.StoredData))
-	if a.NoHistory {
-		details.WriteString("\n" + stylesheet.Header2Style.Render("No History Mode"))
-	}
-	if a.Error != "" {
-		details.WriteString("\nError: " + stylesheet.ErrStyle.Render(a.Error))
-	}
-
-	// the details are always considered "focus" from a view standpoint
-	detailsStr := stylesheet.Composable.Focused.
-		Width((sv.width / 2) - widthBuffer).
-		Height(coerceHeight(sv.height)).
-		PaddingLeft(widthBuffer).AlignHorizontal(lipgloss.Left).
-		Render(details.String())
-
 	var errSpnrHelp string // displays either the busywait spinner, an error, or help text on how to select
 	if sv.search != nil {
 		errSpnrHelp = sv.spnr.View()
@@ -316,7 +288,7 @@ func (sv *selectingView) view() string {
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.JoinHorizontal(lipgloss.Center, list, detailsStr),
+		lipgloss.JoinHorizontal(lipgloss.Center, list, viewDetails(a, sv.height, sv.width)),
 		lipgloss.NewStyle().
 			AlignHorizontal(lipgloss.Center).
 			Width(sv.width).
@@ -405,6 +377,38 @@ func coerceHeight(h int) int {
 	const heightBuffer int = 4 // extra space to leave on the top and bottom of the composed elements
 
 	return min(h-heightBuffer, listHeightMax)
+
+}
+
+// viewDetails generates the right-hand side details pane for the given attachable (which should be the currently selected item).
+func viewDetails(a attachable, svHeight, svWidth int) string {
+	// build the right-hand side details panel
+	var details strings.Builder
+	details.WriteString(fmt.Sprintf("%v\n\n"+
+		stylesheet.Header1Style.Render("Query")+": %v\n"+
+		stylesheet.Header1Style.Render("Range")+": %v --> %v\n\n"+
+		stylesheet.Header1Style.Render("Started")+": %v\n"+
+		stylesheet.Header1Style.Render("Clients")+": %d\n"+
+		stylesheet.Header1Style.Render("Storage")+": %dB",
+		stylesheet.IndexStyle.Render(a.State.String()),
+		a.UserQuery,
+		a.StartRange.String(), a.EndRange.String(),
+		a.LaunchInfo.Started,
+		a.AttachedClients,
+		a.StoredData))
+	if a.NoHistory {
+		details.WriteString("\n" + stylesheet.Header2Style.Render("No History Mode"))
+	}
+	if a.Error != "" {
+		details.WriteString("\nError: " + stylesheet.ErrStyle.Render(a.Error))
+	}
+
+	// the details are always considered "focus" from a view standpoint
+	return stylesheet.Composable.Focused.
+		Width((svWidth / 2) - widthBuffer).
+		Height(coerceHeight(svHeight)).
+		PaddingLeft(widthBuffer).AlignHorizontal(lipgloss.Left).
+		Render(details.String())
 
 }
 
