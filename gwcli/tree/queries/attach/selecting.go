@@ -24,10 +24,7 @@ interacting with the list directly from a different goroutine causes unintended 
 We could interact with the underlying array and change its elements,
 but what subsection (/slice) of the array the current list instance pointed to was difficult to corral.
 
-The current and final implementation is simpler to maintain, if less efficient.
-A single maintainer goroutine keeps a slice of items of to date (relying on a map for efficient indexing).
-This slice of items serves as a goroutine-local representation of the list.Model.
-Whenever changes are made to the local item slice, it is passed to the user goroutine to be picked up after a message is processed.
+The current and final implementation is dead simple, but makes the assumption that ListSearchStatuses will always returned stable-sorted results.
 
 This implementation works ONLY because exactly one goroutine (the maintainer) makes structural changes to the list; the user goroutine only traverses it.
 */
@@ -35,8 +32,6 @@ This implementation works ONLY because exactly one goroutine (the maintainer) ma
 import (
 	"errors"
 	"fmt"
-	"maps"
-	"slices"
 	"strings"
 	"time"
 
@@ -116,7 +111,7 @@ func spawnListAndMaintainer(done <-chan bool, updates chan<- []list.Item) (*list
 		indices[s.ID] = i
 		itms[i] = attachable{s}
 	}
-	list := listsupport.NewList(itms, 80, coerceHeight(80), "attach", "attach-ables")
+	l := listsupport.NewList(itms, 80, coerceHeight(80), "attach", "attach-ables")
 
 	// spin off the maintainer goro
 	go func() {
@@ -134,67 +129,20 @@ func spawnListAndMaintainer(done <-chan bool, updates chan<- []list.Item) (*list
 					clilog.Writer.Warnf("attach maintainer failed to get search statuses: %v", err)
 					continue
 				}
-				var unseenIDs = maps.Clone(indices) // track the IDs we have seen during this cycle so we know who to remove
-				changesMade := false
-				// update each search found
-				for _, newStatus := range ss {
-					// get the index of this index
-					i, exists := indices[newStatus.ID]
 
-					if exists {
-						// mark that we have seen this ID
-						delete(unseenIDs, newStatus.ID)
-
-						// check if there is new data
-						knownStatus, ok := itms[i].(attachable)
-						if !ok {
-							clilog.Writer.Criticalf("failed to cast item to attachable. Raw: %#v", itms[i])
-							continue
-						}
-						if knownStatus.State.Status != newStatus.State.Status {
-							clilog.Writer.Debugf("updating existing search (sID: %v) at %d (prior status: %s | new status: %s)",
-								newStatus.ID, i, knownStatus.State.Status, newStatus.State.Status)
-							// update the item and reinstall it
-							itms[i] = attachable{newStatus}
-							changesMade = true
-						}
-					} else { // if it doesn't exist in the list, append it
-						clilog.Writer.Debugf("appending new search (sID: %v) at %d", newStatus.ID, itmCount)
-						itms = append(itms, attachable{newStatus})
-						indices[newStatus.ID] = itmCount
-						changesMade = true
-						itmCount += 1
-					}
+				// coerce the statuses into attachables
+				var attachables = make([]list.Item, len(ss))
+				for i, status := range ss {
+					attachables[i] = attachable{status}
 				}
 
-				// any keys we had previously seen but did not see this run must be removed
-				// start from the end of the list, in case we have to remove multiple in quick succession
-
-				// TODO we are probably going to have to drop the map, as keeping its indices up to date as we arbitrarily delete things will be damn near impossible
-				// TODO unless we rebuild a list each time, omitting nils?
-
-				// as long as we maintain order, we do not actually need indices anymore
-				// could we map sid -> attachable, then stablesort on attachable.start?
-				for id, listIdx := range unseenIDs {
-					clilog.Writer.Debugf("removing invalidated search (sID: %v) at %d", id, listIdx)
-					// drop the item from our local representations
-					itms = slices.Delete(itms, listIdx, listIdx+1)
-					delete(indices, id)
-					itmCount -= 1
-
-					changesMade = true
-				}
-
-				// only bother updating the items if a change was made
-				if changesMade {
-					updates <- itms
-				}
+				updates <- attachables
 			}
 		}
 	}()
 
 	// return control to the caller
-	return &list, nil
+	return &l, nil
 }
 
 // Destroys the state of the selecting view, killing any and all updater goroutines.
