@@ -14,7 +14,22 @@ When a user attaches to a query, selecting view waits on it, only returning cont
 
 To keep the list of attach-able searches up to date, a maintainer goroutine queries the backend periodically.
 That bubbletea passes models around by value, rather than by reference, adds a significant complication that has shaped the design of the maintainer.
-SV replaces its list with each update // TODO
+
+The original implementation has a goroutine running for each attachable search, pinging them independently.
+This made adding and removing from the list, while maintaining indices, difficult and fell into the trap of the second implementation...
+
+The second implementation had a single maintainer (like we do now) make direct adjustments to the list.
+Due to bubbletea passing around models by value (but using a slice (a reference type (and all the baggage that brings)) under the hood),
+interacting with the list directly from a different goroutine causes unintended behaviors (such as elements getting nil'd, but not actually removed from the list).
+We could interact with the underlying array and change its elements,
+but what subsection (/slice) of the array the current list instance pointed to was difficult to corral.
+
+The current and final implementation is simpler to maintain, if less efficient.
+A single maintainer goroutine keeps a slice of items of to date (relying on a map for efficient indexing).
+This slice of items serves as a goroutine-local representation of the list.Model.
+Whenever changes are made to the local item slice, it is passed to the user goroutine to be picked up after a message is processed.
+
+This implementation works ONLY because exactly one goroutine (the maintainer) makes structural changes to the list; the user goroutine only traverses it.
 */
 
 import (
@@ -52,9 +67,9 @@ type selectingView struct {
 
 	list *list.Model // interact-able list displaying attach-able queries
 
-	allDone        chan bool    // closed when selecting view is being destroyed
-	listMu         sync.RWMutex // held whenever the list is touched
-	maintainerCmds chan tea.Cmd
+	allDone      chan bool        // closed when selecting view is being destroyed
+	listMu       sync.RWMutex     // held whenever the list is touched
+	updatedItems chan []list.Item // the new state of the items slice to replace the underlying array in the list
 
 	searchErr chan error // closed when done
 	spnr      spinner.Model
@@ -66,9 +81,9 @@ type selectingView struct {
 func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 	// initialize variables
 	sv.allDone = make(chan bool)
-	sv.maintainerCmds = make(chan tea.Cmd)
+	sv.updatedItems = make(chan []list.Item)
 
-	if l, err := spawnListAndMaintainer(&sv.listMu, sv.allDone, sv.maintainerCmds); err != nil {
+	if l, err := spawnListAndMaintainer(&sv.listMu, sv.allDone, sv.updatedItems); err != nil {
 		return nil, err
 	} else {
 		sv.list = l
@@ -81,7 +96,7 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 // The maintainer goroutine keeps the statuses of each attachable up to date  and checks for new attachables, appending them as they appear.
 //
 // Caller must supply (but not hold) the RWlock for interacting with the list as well as a channel that will be closed when the maintainer should shut down.
-func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- tea.Cmd) (*list.Model, error) {
+func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- []list.Item) (*list.Model, error) {
 	// build the list
 	mu.Lock() // lock is probably unnecessary, but held in case we get killed during this time
 	ss, err := connection.Client.ListSearchStatuses()
@@ -109,7 +124,6 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- t
 
 	// spin off the maintainer goro
 	go func() {
-		var cmds = make([]tea.Cmd, 0) // buffer for the commands to forward on updates each run
 
 		for {
 			time.Sleep(maintainerSleepDuration)
@@ -125,6 +139,7 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- t
 					continue
 				}
 				var unseenIDs = maps.Clone(indices) // track the IDs we have seen during this cycle so we know who to remove
+				changesMade := false
 				// update each search found
 				for _, newStatus := range ss {
 					// get the index of this index
@@ -145,9 +160,7 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- t
 								newStatus.ID, i, knownStatus.State.Status, newStatus.State.Status)
 							// update the item and reinstall it
 							itms[i] = attachable{newStatus}
-							mu.Lock()
-							cmds = append(cmds, list.SetItem(i, itms[i])) // ! throws away returned command
-							mu.Unlock()
+							changesMade = true
 						} /*else {
 							clilog.Writer.Debugf("static existing search (sID: %v) at %d", newStatus.ID, i)
 						}*/
@@ -155,9 +168,7 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- t
 						clilog.Writer.Debugf("appending new search (sID: %v) at %d", newStatus.ID, itmCount)
 						itms = append(itms, attachable{newStatus})
 						indices[newStatus.ID] = itmCount
-						mu.Lock()
-						cmds = append(cmds, list.InsertItem(itmCount, itms[itmCount])) // ! throws away returned command
-						mu.Unlock()
+						changesMade = true
 						itmCount += 1
 					}
 				}
@@ -165,18 +176,21 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- t
 				// any keys we had previously seen but did not see this run must be removed
 				for id, listIdx := range unseenIDs {
 					clilog.Writer.Debugf("removing invalidated search (sID: %v) at %d", id, listIdx)
-					mu.Lock()
-					list.RemoveItem(listIdx)
-					mu.Unlock()
 					// drop the item from our local representations
 					itms = slices.Delete(itms, listIdx, listIdx+1)
 					delete(indices, id)
+
+					changesMade = true
+				}
+
+				if changesMade {
+					updates <- itms
 				}
 
 				//clilog.Writer.Debugf("maintainer passing commands to update...")
-				updates <- tea.Sequence(cmds...)
+				//updates <- tea.Sequence(cmds...)
 				//clilog.Writer.Debugf("maintainer clearing buffer...")
-				clear(cmds)
+				//clear(cmds)
 			}
 		}
 	}()
@@ -242,12 +256,13 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 	l, cmd := sv.list.Update(msg)
 	sv.list = &l
 	sv.listMu.Unlock()
+	// check for structual updates
 	select {
-	case mc := <-sv.maintainerCmds:
-		return tea.Batch(cmd, mc), nil, nil
+	case itms := <-sv.updatedItems:
+		sv.list.SetItems(itms)
 	default:
-		return cmd, nil, nil
 	}
+	return cmd, nil, nil
 }
 
 func (sv *selectingView) view() string {
