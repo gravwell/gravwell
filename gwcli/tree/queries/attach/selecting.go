@@ -24,7 +24,7 @@ interacting with the list directly from a different goroutine causes unintended 
 We could interact with the underlying array and change its elements,
 but what subsection (/slice) of the array the current list instance pointed to was difficult to corral.
 
-The current and final implementation is dead simple, but makes the assumption that ListSearchStatuses will always returned stable-sorted results.
+The current and final implementation is dead simple, but makes the assumption that ListSearchStatuses will always return stable-sorted results.
 
 This implementation works ONLY because exactly one goroutine (the maintainer) makes structural changes to the list; the user goroutine only traverses it.
 */
@@ -81,66 +81,6 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 	}
 
 	return uniques.FetchWindowSize, nil
-}
-
-// spawnListAndMaintainer generates and populates the list.Model of attachables and spins off a goroutine to maintain the list.
-// The maintainer goroutine keeps the statuses of each attachable up to date  and checks for new attachables, appending them as they appear.
-//
-// Caller must supply (but not hold) the RWlock for interacting with the list as well as a channel that will be closed when the maintainer should shut down.
-func spawnListAndMaintainer(done <-chan bool, updates chan<- []list.Item) (list.Model, error) {
-	// build the list
-	ss, err := connection.Client.ListSearchStatuses()
-	if err != nil {
-		return list.Model{}, err
-	} else if len(ss) == 0 {
-		return list.Model{}, errors.New("you have no attachable searches")
-	}
-
-	itmCount := len(ss)
-	indices := make(map[string]int, itmCount) // sid -> index in list
-	itms := make([]list.Item, itmCount)
-
-	for i, s := range ss {
-		if _, exists := indices[s.ID]; exists {
-			// ListSearchStatuses sent us duplicate records.
-			// Likely indicates a bigger problem on the backend.
-			clilog.Writer.Warnf("duplicate sID %v received in ListSearchStatuses!\nSearch info: %#v", s.ID, s)
-		}
-		indices[s.ID] = i
-		itms[i] = attachable{s}
-	}
-	l := listsupport.NewList(itms, 80, coerceHeight(80), "attach", "attach-ables")
-
-	// spin off the maintainer goro
-	go func() {
-
-		for {
-			time.Sleep(maintainerSleepDuration)
-			select {
-			case <-done:
-				clilog.Writer.Debugf("attach maintainer closing up shop")
-				return
-			default:
-				// get the list of persistent searches
-				ss, err := connection.Client.ListSearchStatuses()
-				if err != nil {
-					clilog.Writer.Warnf("attach maintainer failed to get search statuses: %v", err)
-					continue
-				}
-
-				// coerce the statuses into attachables
-				var attachables = make([]list.Item, len(ss))
-				for i, status := range ss {
-					attachables[i] = attachable{status}
-				}
-
-				updates <- attachables
-			}
-		}
-	}()
-
-	// return control to the caller
-	return l, nil
 }
 
 // Destroys the state of the selecting view, killing any and all updater goroutines.
@@ -348,39 +288,64 @@ func viewDetails(a attachable, svHeight, svWidth int) string {
 
 }
 
-//#endregion helper subroutines
+// spawnListAndMaintainer generates and populates the list.Model of attachables and spins off a goroutine to maintain the list.
+// The maintainer goroutine keeps the statuses of each attachable up to date  and checks for new attachables, appending them as they appear.
+//
+// Caller must supply (but not hold) the RWlock for interacting with the list as well as a channel that will be closed when the maintainer should shut down.
+func spawnListAndMaintainer(done <-chan bool, updates chan<- []list.Item) (list.Model, error) {
+	// build the list
+	ss, err := connection.Client.ListSearchStatuses()
+	if err != nil {
+		return list.Model{}, err
+	} else if len(ss) == 0 {
+		return list.Model{}, errors.New("you have no attachable searches")
+	}
 
-//#region relic code
+	itmCount := len(ss)
+	indices := make(map[string]int, itmCount) // sid -> index in list
+	itms := make([]list.Item, itmCount)
 
-// spin off a goroutine to keep this item up to date
-/*
-	go func(itmIdx int, a attachable, done <-chan bool) {
-		// update until the search is done or errors
-		for a.State.Status != types.SearchStatusCompleted && a.State.Status != types.SearchStatusError {
-			time.Sleep(updaterSleepDuration)
+	for i, s := range ss {
+		if _, exists := indices[s.ID]; exists {
+			// ListSearchStatuses sent us duplicate records.
+			// Likely indicates a bigger problem on the backend.
+			clilog.Writer.Warnf("duplicate sID %v received in ListSearchStatuses!\nSearch info: %#v", s.ID, s)
+		}
+		indices[s.ID] = i
+		itms[i] = attachable{s}
+	}
+	l := listsupport.NewList(itms, 80, coerceHeight(80), "attach", "attach-ables")
+
+	// spin off the maintainer goro
+	go func() {
+
+		for {
+			time.Sleep(maintainerSleepDuration)
 			select {
-			case <-done: // check if we are done
-				clilog.Writer.Debugf("updater %d closing up shop", itmIdx)
+			case <-done:
+				clilog.Writer.Debugf("attach maintainer closing up shop")
 				return
 			default:
-				// get the status of the search
-				newStatus, err := connection.Client.SearchStatus(a.ID)
+				// get the list of persistent searches
+				ss, err := connection.Client.ListSearchStatuses()
 				if err != nil {
-					clilog.Writer.Errorf("updater %d failed to get the status of search %v: %v", i, a.ID, err)
-					return
+					clilog.Writer.Warnf("attach maintainer failed to get search statuses: %v", err)
+					continue
 				}
-				// if the status is different their our current status, replace it in the list
-				if a.State.Status != newStatus.State.Status {
-					clilog.Writer.Debugf("updater %d found new status: %v", i, newStatus.State.Status)
-					sv.listMu.Lock()
-					a = attachable{newStatus}
-					sv.list.SetItem(i, a) // TODO do we need the returned command?
-					sv.listMu.Unlock()
+
+				// coerce the statuses into attachables
+				var attachables = make([]list.Item, len(ss))
+				for i, status := range ss {
+					attachables[i] = attachable{status}
 				}
+
+				updates <- attachables
 			}
 		}
-		clilog.Writer.Debugf("updater %d retiring...", i)
-	}(i, a, sv.allDone)
-*/
+	}()
 
-//#endregion
+	// return control to the caller
+	return l, nil
+}
+
+//#endregion helper subroutines
