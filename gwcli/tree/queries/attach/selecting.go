@@ -161,9 +161,7 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- [
 							// update the item and reinstall it
 							itms[i] = attachable{newStatus}
 							changesMade = true
-						} /*else {
-							clilog.Writer.Debugf("static existing search (sID: %v) at %d", newStatus.ID, i)
-						}*/
+						}
 					} else { // if it doesn't exist in the list, append it
 						clilog.Writer.Debugf("appending new search (sID: %v) at %d", newStatus.ID, itmCount)
 						itms = append(itms, attachable{newStatus})
@@ -179,6 +177,7 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- [
 					// drop the item from our local representations
 					itms = slices.Delete(itms, listIdx, listIdx+1)
 					delete(indices, id)
+					itmCount -= 1
 
 					changesMade = true
 				}
@@ -186,11 +185,6 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- [
 				if changesMade {
 					updates <- itms
 				}
-
-				//clilog.Writer.Debugf("maintainer passing commands to update...")
-				//updates <- tea.Sequence(cmds...)
-				//clilog.Writer.Debugf("maintainer clearing buffer...")
-				//clear(cmds)
 			}
 		}
 	}()
@@ -259,7 +253,7 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 	// check for structual updates
 	select {
 	case itms := <-sv.updatedItems:
-		sv.list.SetItems(itms)
+		return tea.Sequence(cmd, sv.list.SetItems(itms)), nil, nil
 	default:
 	}
 	return cmd, nil, nil
@@ -267,7 +261,7 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 
 func (sv *selectingView) view() string {
 	sv.listMu.RLock()
-	list := sv.list.View()
+	list := lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(sv.list.View())
 
 	a, ok := sv.list.SelectedItem().(attachable)
 	if !ok {
