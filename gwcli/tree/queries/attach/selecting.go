@@ -10,7 +10,12 @@ package attach
 
 /* This file implements the "selecting view" of interactive attach.
 Users are shown a list of attach-able searches and their statuses, can inspect each (a "details" view), and attach to one.
-When a user attaches to a query, selecting view waits on it, only returning control to actor.go once the search is done. */
+When a user attaches to a query, selecting view waits on it, only returning control to actor.go once the search is done.
+
+To keep the list of attach-able searches up to date, a maintainer goroutine queries the backend periodically.
+That bubbletea passes models around by value, rather than by reference, adds a significant complication that has shaped the design of the maintainer.
+SV replaces its list with each update // TODO
+*/
 
 import (
 	"errors"
@@ -45,7 +50,7 @@ type selectingView struct {
 
 	width, height int // tty dimensions, queried by init()
 
-	list list.Model // interact-able list displaying attach-able queries
+	list *list.Model // interact-able list displaying attach-able queries
 
 	allDone        chan bool    // closed when selecting view is being destroyed
 	listMu         sync.RWMutex // held whenever the list is touched
@@ -66,7 +71,7 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 	if l, err := spawnListAndMaintainer(&sv.listMu, sv.allDone, sv.maintainerCmds); err != nil {
 		return nil, err
 	} else {
-		sv.list = *l
+		sv.list = l
 	}
 
 	return uniques.FetchWindowSize, nil
@@ -143,9 +148,9 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- t
 							mu.Lock()
 							cmds = append(cmds, list.SetItem(i, itms[i])) // ! throws away returned command
 							mu.Unlock()
-						} else {
+						} /*else {
 							clilog.Writer.Debugf("static existing search (sID: %v) at %d", newStatus.ID, i)
-						}
+						}*/
 					} else { // if it doesn't exist in the list, append it
 						clilog.Writer.Debugf("appending new search (sID: %v) at %d", newStatus.ID, itmCount)
 						itms = append(itms, attachable{newStatus})
@@ -161,16 +166,16 @@ func spawnListAndMaintainer(mu *sync.RWMutex, done <-chan bool, updates chan<- t
 				for id, listIdx := range unseenIDs {
 					clilog.Writer.Debugf("removing invalidated search (sID: %v) at %d", id, listIdx)
 					mu.Lock()
-					list.RemoveItem(listIdx) // ! throws away returned command
+					list.RemoveItem(listIdx)
 					mu.Unlock()
 					// drop the item from our local representations
 					itms = slices.Delete(itms, listIdx, listIdx+1)
 					delete(indices, id)
 				}
 
-				clilog.Writer.Debugf("maintainer passing commands to update...")
+				//clilog.Writer.Debugf("maintainer passing commands to update...")
 				updates <- tea.Sequence(cmds...)
-				clilog.Writer.Debugf("maintainer clearing buffer...")
+				//clilog.Writer.Debugf("maintainer clearing buffer...")
 				clear(cmds)
 			}
 		}
@@ -233,7 +238,10 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 
 	}
 	// pass all other messages into the list
-	sv.list, cmd = sv.list.Update(msg)
+	sv.listMu.Lock()
+	l, cmd := sv.list.Update(msg)
+	sv.list = &l
+	sv.listMu.Unlock()
 	select {
 	case mc := <-sv.maintainerCmds:
 		return tea.Batch(cmd, mc), nil, nil
