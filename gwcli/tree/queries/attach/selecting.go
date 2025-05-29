@@ -59,7 +59,7 @@ type selectingView struct {
 
 	width, height int // tty dimensions, queried by init()
 
-	list *list.Model // interact-able list displaying attach-able queries
+	list list.Model // interact-able list displaying attach-able queries
 
 	allDone      chan bool        // closed when selecting view is being destroyed
 	updatedItems chan []list.Item // the new state of the items slice to replace the underlying array in the list
@@ -76,10 +76,8 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 	sv.allDone = make(chan bool)
 	sv.updatedItems = make(chan []list.Item)
 
-	if l, err := spawnListAndMaintainer(sv.allDone, sv.updatedItems); err != nil {
+	if sv.list, err = spawnListAndMaintainer(sv.allDone, sv.updatedItems); err != nil {
 		return nil, err
-	} else {
-		sv.list = l
 	}
 
 	return uniques.FetchWindowSize, nil
@@ -89,13 +87,13 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 // The maintainer goroutine keeps the statuses of each attachable up to date  and checks for new attachables, appending them as they appear.
 //
 // Caller must supply (but not hold) the RWlock for interacting with the list as well as a channel that will be closed when the maintainer should shut down.
-func spawnListAndMaintainer(done <-chan bool, updates chan<- []list.Item) (*list.Model, error) {
+func spawnListAndMaintainer(done <-chan bool, updates chan<- []list.Item) (list.Model, error) {
 	// build the list
 	ss, err := connection.Client.ListSearchStatuses()
 	if err != nil {
-		return nil, err
+		return list.Model{}, err
 	} else if len(ss) == 0 {
-		return nil, errors.New("you have no attachable searches")
+		return list.Model{}, errors.New("you have no attachable searches")
 	}
 
 	itmCount := len(ss)
@@ -142,7 +140,7 @@ func spawnListAndMaintainer(done <-chan bool, updates chan<- []list.Item) (*list
 	}()
 
 	// return control to the caller
-	return &l, nil
+	return l, nil
 }
 
 // Destroys the state of the selecting view, killing any and all updater goroutines.
@@ -198,8 +196,7 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 
 	}
 	// pass all other messages into the list
-	l, cmd := sv.list.Update(msg)
-	sv.list = &l
+	sv.list, cmd = sv.list.Update(msg)
 	// check for structual updates
 	select {
 	case itms := <-sv.updatedItems:
