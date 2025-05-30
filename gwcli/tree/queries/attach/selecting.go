@@ -56,8 +56,6 @@ const (
 type selectingView struct {
 	errString string // an error to be displayed to users at the bottom of the screen. Wiped on KeyMsg.
 
-	width, height int // tty dimensions, queried by init()
-
 	list list.Model // interact-able list displaying attach-able queries
 
 	allDone      chan bool        // closed when selecting view is being destroyed
@@ -71,8 +69,6 @@ type selectingView struct {
 // (Re-)initializes the view, clobbering existing data.
 // Should be called whenever this view is entered (such as on attach startup).
 func (sv *selectingView) init() (cmd tea.Cmd, err error) {
-	sv.height = coerceHeight(80)
-	sv.width = 80
 	// initialize variables
 	sv.allDone = make(chan bool)
 	sv.updatedItems = make(chan []list.Item)
@@ -81,7 +77,7 @@ func (sv *selectingView) init() (cmd tea.Cmd, err error) {
 		return nil, err
 	}
 
-	sv.list.Styles.HelpStyle = sv.list.Styles.HelpStyle.Width(sv.width)
+	//sv.list.Styles.HelpStyle = sv.list.Styles.HelpStyle.Width(sv.width)
 
 	return uniques.FetchWindowSize, nil
 }
@@ -103,19 +99,26 @@ func (sv *selectingView) destroy() {
 // Returns a search only once a search has been selected, attached to, and has results ready.
 // If an error is returned, it is unrecoverable and control should be given back to Mother.
 func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.Search, fatalErr error) {
-	// handle resizes
+	// when a resize arrives, update all styles and save of the new value
 	if msg, ok := msg.(tea.WindowSizeMsg); ok {
-		sv.width = msg.Width
-		sv.height = msg.Height
+		availHeight := msg.Height - (1 + int(heightMargin)) // carve out a line for the bottom text and include any desired margin
+		// update heights
+		sv.list.SetHeight(availHeight)
+		sty.listAlign = sty.listAlign.MaxHeight(availHeight)
+		sty.detailAlign = sty.detailAlign.MaxHeight(availHeight)
 
-		lWidth := (sv.width / 2) - listSty.GetMarginRight()
-		sv.list.SetHeight(coerceHeight(sv.height))
-		sv.list.SetWidth(lWidth)
-		sv.list.Styles.HelpStyle = sv.list.Styles.HelpStyle.Width(lWidth)
+		// update widths
+		halfWidth := (msg.Width / 2) - int(halfMargin)*2
+		// fit the query and detail borders to the new half-width
+		sty.qryWrap = sty.qryWrap.Width(halfWidth)
+		sty.detailWrap = sty.detailWrap.Width(halfWidth)
 
-		dWidth := (sv.width / 2) - detailSty.GetMarginLeft()
-		detailSty.Width(dWidth)
-		detailSty.MaxHeight(coerceHeight(sv.height))
+		// set the list width
+		sv.list.SetWidth(halfWidth)
+		sv.list.Styles.HelpStyle = sv.list.Styles.HelpStyle.Width(halfWidth)
+
+		// update the right side panes' styles
+		//detailAlignSty = detailAlignSty.Width(dWidth)
 	}
 
 	// are we waiting on a search
@@ -159,11 +162,7 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 	return cmd, nil, nil
 }
 
-var listSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).MarginRight(1)
-var detailSty = stylesheet.Composable.Focused.AlignHorizontal(lipgloss.Left).MarginLeft(1)
-
 func (sv *selectingView) view() string {
-	list := listSty.Render(sv.list.View())
 
 	// fetch the currently selected item
 	var details string
@@ -172,7 +171,7 @@ func (sv *selectingView) view() string {
 		clilog.Writer.Errorf("failed to cast selected item to attachable. Raw: %v", sv.list.SelectedItem())
 		sv.errString = GenericErrorText
 	} else {
-		details = detailSty.Render(composeDetails(a))
+		details = composeDetails(a)
 	}
 
 	var errSpnrHelp string // displays either the busywait spinner, an error, or help text on how to select
@@ -185,12 +184,10 @@ func (sv *selectingView) view() string {
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.JoinHorizontal(lipgloss.Center, list, details),
-		lipgloss.NewStyle().
-			AlignHorizontal(lipgloss.Center).
-			Width(sv.width).
-			Foreground(stylesheet.TertiaryColor).
-			Render(errSpnrHelp))
+		lipgloss.JoinHorizontal(lipgloss.Center, // compose the left and right panes
+			sty.listAlign.Render(sv.list.View()),
+			sty.detailAlign.Render(details)),
+		sty.bottomText.Render(errSpnrHelp))
 }
 
 //#region item
@@ -265,39 +262,37 @@ func (sv *selectingView) attachToQuery() (fatalErr error) {
 	return nil
 }
 
-// Given a raw height, coerceHeight returns a consistent height for a single pane.
-// This height is limited by the max height and has the buffer factored in.
-func coerceHeight(h int) int {
-	const heightBuffer int = 6 // extra space to leave on the top and bottom of the composed elements
-
-	return h - heightBuffer
-}
-
 // composeDetails generates the right-hand side details pane for the given attachable (which should be the currently selected item).
+// Stylizes each block (query and details) and pairs them, returning a single block of stylized text
 func composeDetails(a attachable) string {
-	// build the right-hand side details panel
-	var details strings.Builder
-	details.WriteString(fmt.Sprintf("%v\n\n"+
-		stylesheet.Header1Style.Render("Query")+": %v\n"+
-		stylesheet.Header1Style.Render("Range")+": %v --> %v\n\n"+
-		stylesheet.Header1Style.Render("Started")+": %v\n"+
-		stylesheet.Header1Style.Render("Clients")+": %d\n"+
-		stylesheet.Header1Style.Render("Storage")+": %dB",
-		stylesheet.IndexStyle.Render(a.State.String()),
-		a.UserQuery,
+	// generate the query and warp it in a border
+	wrappedQry := sty.qryWrap.Render(sty.qryBody.Render(a.UserQuery))
+
+	// generate state text
+	state := sty.state.Render(a.State.String())
+
+	// generate the details body
+	var detailSB strings.Builder
+	detailSB.WriteString(fmt.Sprintf(
+		sty.detailFieldText.Render("Range")+": %v --> %v\n\n"+
+			sty.detailFieldText.Render("Started")+": %v\n"+
+			sty.detailFieldText.Render("Clients")+": %d\n"+
+			sty.detailFieldText.Render("Storage")+": %dB",
 		a.StartRange.String(), a.EndRange.String(),
 		a.LaunchInfo.Started,
 		a.AttachedClients,
 		a.StoredData))
 	if a.NoHistory {
-		details.WriteString("\n" + stylesheet.Header2Style.Render("No History Mode"))
+		detailSB.WriteString("\n" + stylesheet.Header2Style.Render("No History Mode"))
 	}
 	if a.Error != "" {
-		details.WriteString("\nError: " + stylesheet.ErrStyle.Render(a.Error))
+		detailSB.WriteString("\nError: " + stylesheet.ErrStyle.Render(a.Error))
 	}
 
-	// the details are always considered "focus" from a view standpoint
-	return lipgloss.NewStyle().Margin(1, 1, 1, 1).Render(details.String())
+	// wrap detail view in a border
+	wrappedDetails := sty.detailWrap.Render(sty.detailBody.Render(detailSB.String()))
+
+	return lipgloss.JoinVertical(lipgloss.Center, wrappedQry, state, wrappedDetails)
 
 }
 
@@ -360,3 +355,57 @@ func spawnListAndMaintainer(done <-chan bool, updates chan<- []list.Item) (list.
 }
 
 //#endregion helper subroutines
+
+//#region styles
+
+// the margin between the list and composed details view; effectively doubled as it sets the center margin on both elements=
+const (
+	halfMargin   uint = 1
+	heightMargin uint = 1
+)
+
+var sty struct {
+	// Sets the style of the right-side pane query text, prior to wrapping it in a border
+	qryBody lipgloss.Style
+	// Sets the border around the qry body
+	qryWrap lipgloss.Style
+	// Colors and adds margins to the state displayed between the query and detail panes
+	state lipgloss.Style
+	// Colors the field titles in the details pane
+	detailFieldText lipgloss.Style
+	// Sets the style of the right-side pane details text, prior to wrapping it in a border
+	detailBody lipgloss.Style
+	// Sets the border around the detail body
+	detailWrap lipgloss.Style
+
+	// Used in conjunction with the other Aligns to compose the list element relative to other elements
+	listAlign lipgloss.Style
+
+	// Used in conjunction with the other Aligns to compose the completed details pane (qry+detail already bordered) relative to other elements
+	detailAlign lipgloss.Style
+
+	// Place and stylize the bottom text
+	bottomText lipgloss.Style
+} = struct {
+	qryBody         lipgloss.Style
+	qryWrap         lipgloss.Style
+	state           lipgloss.Style
+	detailFieldText lipgloss.Style
+	detailBody      lipgloss.Style
+	detailWrap      lipgloss.Style
+	listAlign       lipgloss.Style
+	detailAlign     lipgloss.Style
+	bottomText      lipgloss.Style
+}{
+	qryBody:         lipgloss.NewStyle().Height(5).Margin(1),
+	qryWrap:         stylesheet.Composable.Primary,
+	state:           lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Margin(1, 0, 1).Foreground(stylesheet.AccentColor1),
+	detailFieldText: stylesheet.Header1Style,
+	detailBody:      lipgloss.NewStyle().Margin(1),
+	detailWrap:      stylesheet.Composable.Secondary,
+	listAlign:       lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).MarginRight(int(halfMargin)),
+	detailAlign:     lipgloss.NewStyle().MarginLeft(int(halfMargin)),
+	bottomText:      lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Foreground(stylesheet.TertiaryColor).MaxHeight(1),
+}
+
+//#endregion styles
