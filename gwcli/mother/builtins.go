@@ -106,6 +106,7 @@ func pwd(m *Mother, _ []string) tea.Cmd {
 	return tea.Println(m.pwd.UseLine())
 }
 
-func quit(*Mother, []string) tea.Cmd {
+func quit(m *Mother, _ []string) tea.Cmd {
+	m.exiting = true
 	return tea.Sequence(tea.Println("Bye"), tea.Quit)
 }
