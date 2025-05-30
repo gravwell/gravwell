@@ -50,7 +50,6 @@ import (
 )
 
 const (
-	widthBuffer             = 1 // extra space to leave on the left and right of EACH element, AFTER halving (as two elements total)
 	maintainerSleepDuration = time.Second * 2
 )
 
@@ -72,6 +71,8 @@ type selectingView struct {
 // (Re-)initializes the view, clobbering existing data.
 // Should be called whenever this view is entered (such as on attach startup).
 func (sv *selectingView) init() (cmd tea.Cmd, err error) {
+	sv.height = coerceHeight(80)
+	sv.width = 80
 	// initialize variables
 	sv.allDone = make(chan bool)
 	sv.updatedItems = make(chan []list.Item)
@@ -106,7 +107,7 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 		sv.height = msg.Height
 
 		sv.list.SetHeight(coerceHeight(sv.height))
-		sv.list.SetWidth((msg.Width / 2) - widthBuffer)
+		sv.list.SetWidth((msg.Width / 2))
 	}
 
 	// are we waiting on a search
@@ -137,23 +138,39 @@ func (sv *selectingView) update(msg tea.Msg) (cmd tea.Cmd, finishedSearch *grav.
 	}
 	// pass all other messages into the list
 	sv.list, cmd = sv.list.Update(msg)
-	// check for structual updates
+	// check for structural updates
 	select {
 	case itms := <-sv.updatedItems:
-		return tea.Sequence(cmd, sv.list.SetItems(itms)), nil, nil
+		clilog.Writer.Debugf("list updates arrived.")
+		setItemsCmd := sv.list.SetItems(itms)
+		if setItemsCmd != nil {
+			cmd = tea.Batch(cmd, setItemsCmd)
+		}
 	default:
 	}
 	return cmd, nil, nil
 }
 
-func (sv *selectingView) view() string {
-	list := lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(sv.list.View())
+var listSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).MarginRight(3)
+var detailSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).MarginLeft(3)
 
+func (sv *selectingView) view() string {
+	// set style widths according to current known width
+	listSty.Width(sv.width / 3)
+	listSty.MaxWidth(sv.width / 2)
+	detailSty.Width(sv.width / 3)
+	detailSty.MaxWidth(sv.width / 2)
+	sv.list.SetWidth((sv.width / 2) - listSty.GetMarginRight())
+	list := listSty.Render(sv.list.View())
+
+	// fetch the currently selected item
+	var details string
 	a, ok := sv.list.SelectedItem().(attachable)
 	if !ok {
 		clilog.Writer.Errorf("failed to cast selected item to attachable. Raw: %v", sv.list.SelectedItem())
 		sv.errString = GenericErrorText
-		return ""
+	} else {
+		details = detailsSty.Render(composeDetails(a))
 	}
 
 	var errSpnrHelp string // displays either the busywait spinner, an error, or help text on how to select
@@ -166,7 +183,7 @@ func (sv *selectingView) view() string {
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Center,
-		lipgloss.JoinHorizontal(lipgloss.Center, list, viewDetails(a, sv.height, sv.width)),
+		lipgloss.JoinHorizontal(lipgloss.Center, list, details),
 		lipgloss.NewStyle().
 			AlignHorizontal(lipgloss.Center).
 			Width(sv.width).
@@ -249,15 +266,15 @@ func (sv *selectingView) attachToQuery() (fatalErr error) {
 // Given a raw height, coerceHeight returns a consistent height for a single pane.
 // This height is limited by the max height and has the buffer factored in.
 func coerceHeight(h int) int {
-	const listHeightMax int = 40
 	const heightBuffer int = 4 // extra space to leave on the top and bottom of the composed elements
 
-	return min(h-heightBuffer, listHeightMax)
-
+	return h - heightBuffer
 }
 
-// viewDetails generates the right-hand side details pane for the given attachable (which should be the currently selected item).
-func viewDetails(a attachable, svHeight, svWidth int) string {
+var detailsSty lipgloss.Style = stylesheet.Composable.Focused.AlignHorizontal(lipgloss.Right)
+
+// composeDetails generates the right-hand side details pane for the given attachable (which should be the currently selected item).
+func composeDetails(a attachable) string {
 	// build the right-hand side details panel
 	var details strings.Builder
 	details.WriteString(fmt.Sprintf("%v\n\n"+
@@ -280,11 +297,7 @@ func viewDetails(a attachable, svHeight, svWidth int) string {
 	}
 
 	// the details are always considered "focus" from a view standpoint
-	return stylesheet.Composable.Focused.
-		Width((svWidth / 2) - widthBuffer).
-		Height(coerceHeight(svHeight)).
-		PaddingLeft(widthBuffer).AlignHorizontal(lipgloss.Left).
-		Render(details.String())
+	return details.String()
 
 }
 
@@ -296,29 +309,26 @@ func spawnListAndMaintainer(done <-chan bool, updates chan<- []list.Item) (list.
 	// build the list
 	ss, err := connection.Client.ListSearchStatuses()
 	if err != nil {
+		clilog.Writer.Warnf("failed to get search status: %v", err)
 		return list.Model{}, err
 	} else if len(ss) == 0 {
 		return list.Model{}, errors.New("you have no attachable searches")
 	}
 
-	itmCount := len(ss)
-	indices := make(map[string]int, itmCount) // sid -> index in list
-	itms := make([]list.Item, itmCount)
-
+	// wrap each item and create a list from the set of them
+	itms := make([]list.Item, len(ss))
 	for i, s := range ss {
-		if _, exists := indices[s.ID]; exists {
-			// ListSearchStatuses sent us duplicate records.
-			// Likely indicates a bigger problem on the backend.
-			clilog.Writer.Warnf("duplicate sID %v received in ListSearchStatuses!\nSearch info: %#v", s.ID, s)
-		}
-		indices[s.ID] = i
 		itms[i] = attachable{s}
 	}
-	l := listsupport.NewList(itms, 80, coerceHeight(80), "attach", "attach-ables")
+	l := listsupport.NewList(itms, 0, 0, "attach", "attach-ables")
+
+	// NOTE(rlandau): we re-set items on creation as there appears to be a discrepancy between how list.New() and list.SetItems() update keybinds.
+	// This can cause the UI to stutter when the first .SetItems occurs as .SetItems changes what keys are visible in the help section.
+	// Instead, we just swallow that stutter immediately on creation so it isn't visible to the user.
+	l.SetItems(itms)
 
 	// spin off the maintainer goro
 	go func() {
-
 		for {
 			time.Sleep(maintainerSleepDuration)
 			select {
