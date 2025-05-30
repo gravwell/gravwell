@@ -297,7 +297,7 @@ func composeDetails(a attachable) string {
 	}
 
 	// the details are always considered "focus" from a view standpoint
-	return details.String()
+	return lipgloss.NewStyle().Margin(1, 1, 1, 1).Render(details.String())
 
 }
 
