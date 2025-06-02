@@ -1,4 +1,21 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package attach
+
+/*
+This file contains the action.Model implementation of the attach action, providing interactive usage.
+It passes control down to selecting view, then downloads and passes results to datascope when they are ready.
+
+Attach is some hideous amalgamation of the query actor and edit scaffolding actor.
+
+Fits the tea.Model interface.
+*/
 
 import (
 	"errors"
@@ -13,14 +30,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 	"github.com/spf13/pflag"
 )
-
-/*
-This file contains the action.Model implementation of the attach action, providing interactive usage.
-
-Attach is some hideous amalgamation of the query actor and edit scaffolding actor.
-
-Fits the tea.Model interface.
-*/
 
 const GenericErrorText string = "an error occurred"
 
@@ -57,7 +66,7 @@ type attach struct {
 var Attach action.Model = Initial()
 
 func Initial() *attach {
-	a := &attach{mode: inactive}
+	a := &attach{mode: inactive, flagset: initialLocalFlagSet()}
 
 	return a
 }
@@ -68,8 +77,10 @@ func (a *attach) Update(msg tea.Msg) tea.Cmd {
 	switch a.mode {
 	case quitting:
 		return nil
-	case inactive: // should not be possible, but if we are, bootstrap ourselves into selecting mode
-	// TODO
+	case inactive: // should not be possible, quit out if it occurs
+		clilog.Writer.Warnf("attach triggered update in inactive mode")
+		a.mode = quitting
+		return tea.Println(GenericErrorText)
 	case displaying: // pass control to datascope
 		if a.ds == nil {
 			clilog.Writer.Errorf("attach cannot be in display mode without a valid datascope")
@@ -87,6 +98,7 @@ func (a *attach) Update(msg tea.Msg) tea.Cmd {
 		} else if search != nil { // prepare datascope and hand off control
 			a.mode = displaying
 			a.search = search
+			a.sv.destroy()
 
 			results, tbl, err := querysupport.GetResultsForDataScope(search)
 			if err != nil {
@@ -94,7 +106,8 @@ func (a *attach) Update(msg tea.Msg) tea.Cmd {
 				return tea.Println(err)
 			}
 			var dsCmd tea.Cmd
-			a.ds, dsCmd, err = datascope.NewDataScope(results, true, search, tbl)
+			a.ds, dsCmd, err = datascope.NewDataScope(results, true, search, tbl,
+				datascope.WithAutoDownload(a.flags.OutPath, a.flags.Append, a.flags.JSON, a.flags.CSV))
 			if err != nil {
 				a.mode = quitting
 				return tea.Println(err)
@@ -129,7 +142,10 @@ func (a *attach) Done() bool {
 func (a *attach) Reset() error {
 	a.mode = inactive
 	a.ds = nil
-	a.sv = nil
+	if a.sv != nil {
+		a.sv.destroy()
+		a.sv = nil
+	}
 	a.flagset = initialLocalFlagSet()
 	if a.search != nil {
 		a.search.Close()
@@ -187,10 +203,12 @@ func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid string, _ t
 	// if a sid was not given, prepare a list of queries for the user to select from
 	a.mode = selecting
 
-	cmd, err := a.sv.init()
+	cmd, noAttachables, err := a.sv.init()
 	if err != nil { // check that we actually have data to manipulate
+		return "", nil, err
+	} else if noAttachables {
 		a.mode = quitting
-		return "", tea.Println(err), nil
+		return "", tea.Println("you have no attachable searches"), nil
 	}
 
 	return "", cmd, nil

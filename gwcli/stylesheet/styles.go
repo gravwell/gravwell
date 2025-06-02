@@ -23,8 +23,10 @@ var (
 
 	// styles useful when displaying multiple, composed models
 	Composable = struct {
-		Unfocused lipgloss.Style
-		Focused   lipgloss.Style
+		Unfocused lipgloss.Style // for a blurred model that could be focused at some point
+		Focused   lipgloss.Style // for a focused model that could be blurred at some point
+		Primary   lipgloss.Style // for a model that does not change focus and is the center of attention
+		Secondary lipgloss.Style // for a model that does not change focus and is related to Primary
 	}{
 		Unfocused: lipgloss.NewStyle().
 			Align(lipgloss.Left, lipgloss.Center).
@@ -33,6 +35,7 @@ var (
 			Align(lipgloss.Left, lipgloss.Center).
 			BorderStyle(lipgloss.NormalBorder()).
 			BorderForeground(AccentColor1),
+		// NOTE(rlandau): the other styles are set in init()
 	}
 	Header1Style   = lipgloss.NewStyle().Foreground(PrimaryColor).Bold(true)
 	Header2Style   = lipgloss.NewStyle().Foreground(SecondaryColor)
@@ -43,3 +46,9 @@ var (
 	IndexStyle   = lipgloss.NewStyle().Foreground(AccentColor1)
 	ExampleStyle = lipgloss.NewStyle().Foreground(AccentColor2)
 )
+
+func init() {
+	Composable.Primary = Composable.Focused.BorderStyle(lipgloss.RoundedBorder())
+	Composable.Secondary = Composable.Focused.BorderStyle(lipgloss.RoundedBorder()).BorderForeground(PrimaryColor)
+
+}
