@@ -84,8 +84,8 @@ type Credentials struct {
 	PassfilePath string
 }
 
-// Login the initialized Client. Attempts to use a JWT token first, then falls back to supplied
-// credentials.
+// Login the initialized Client.
+// Attempts to use a JWT token first, then falls back to supplied credentials.
 //
 // Ineffectual if Client is already logged in.
 func Login(cred Credentials, scriptMode bool) (err error) {
@@ -96,7 +96,7 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 	// login is attempted via JWT token first
 	// If any stage in the process fails
 	// the error is logged and we fall back to flags and prompting
-	if err := loginViaToken(); err != nil {
+	if err := loginViaToken(cred.Username); err != nil {
 		// jwt token failure; log and move on
 		clilog.Writer.Warnf("Failed to login via JWT token: %v", err)
 
@@ -106,7 +106,7 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 		}
 		clilog.Writer.Infof("Logged in via credentials")
 
-		if err := CreateToken(); err != nil {
+		if err := CreateTokenFile(cred.Username); err != nil {
 			clilog.Writer.Warnf("%v", err.Error())
 			// failing to create the token is not fatal
 		} /*else {
@@ -131,9 +131,15 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 		clilog.Writer.Infof("Logged in via JWT")
 	}
 
-	// on successfuly login, fetch and cache MyInfo
+	// on successful login, fetch and cache MyInfo
 	if MyInfo, err = Client.MyInfo(); err != nil {
 		return errors.New("failed to cache user info: " + err.Error())
+	}
+
+	// check that the info of the user we fetched actually matches the given username
+
+	if cred.Username != "" && MyInfo.User != cred.Username {
+		return fmt.Errorf("server returned a different username (%v) than the given credentials (%v)", MyInfo.User, cred.Username)
 	}
 
 	return nil
@@ -142,11 +148,23 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 // loginViaToken attempts to login via JWT token in the user's config directory.
 // Returns an error on failures. This error should be considered nonfatal and the user logged in via
 // an alternative method instead.
-func loginViaToken() (err error) {
+//
+// If a username was given, it will first be matched against the username found in the file.
+// NOTE(rlandau): we still perform a whois against the backend later, but this allows us a sanity check without touching the backend.
+func loginViaToken(username string) (err error) {
 	var tknbytes []byte
 	// NOTE the reversal of standard error checking (`err == nil`)
 	if tknbytes, err = os.ReadFile(cfgdir.DefaultTokenPath); err == nil {
-		if err = Client.ImportLoginToken(string(tknbytes)); err == nil {
+		// split the username and token
+		exploded := strings.Split(string(tknbytes), "\n")
+		if len(exploded) != 2 || exploded[0] == "" || exploded[1] == "" {
+			return errors.New("failed to split token file into <username>\n<token>")
+		}
+		if (username != "") && username != exploded[0] {
+			return fmt.Errorf("tokenfile username (%v) does not match given username (%v)", exploded[0], username)
+		}
+
+		if err = Client.ImportLoginToken(string(exploded[1])); err == nil {
 			if err = Client.TestLogin(); err == nil {
 				return nil
 			}
@@ -156,17 +174,15 @@ func loginViaToken() (err error) {
 }
 
 // Attempts to login via the given credentials struct.
-// A given password takes precedence over a passfile.
+// If insufficient information was given and we are not in script mode, spins up a credentials prompt TUI.
 func loginViaCredentials(cred Credentials, scriptMode bool) error {
-	// check for password in file
-	if strings.TrimSpace(cred.Password) == "" {
-		if cred.PassfilePath != "" {
-			b, err := os.ReadFile(cred.PassfilePath)
-			if err != nil {
-				return fmt.Errorf("failed to read password from %v: %v", cred.PassfilePath, err)
-			}
-			cred.Password = strings.TrimSpace(string(b))
+	// try to skim a password out of the passfile
+	if cred.PassfilePath != "" {
+		b, err := os.ReadFile(cred.PassfilePath)
+		if err != nil {
+			return fmt.Errorf("failed to read password from %v: %v", cred.PassfilePath, err)
 		}
+		cred.Password = strings.TrimSpace(string(b))
 	}
 
 	if cred.Username == "" || cred.Password == "" {
@@ -195,9 +211,15 @@ func loginViaCredentials(cred Credentials, scriptMode bool) error {
 	return Client.Login(cred.Username, cred.Password)
 }
 
-// CreateToken creates a login token for future use.
-// The token's path is saved to an environment variable to be looked up on future runs
-func CreateToken() error {
+// CreateTokenFile creates a login token for future use.
+// The token's path is saved to an environment variable to be looked up on future runs.
+//
+// Token files have the form:
+//
+// <username>
+//
+// <token>
+func CreateTokenFile(username string) error {
 	var (
 		err   error
 		token string
@@ -206,10 +228,14 @@ func CreateToken() error {
 		return fmt.Errorf("failed to export login token: %v", err)
 	}
 
-	// write out the token
+	// write out the username, then the token
 	fd, err := os.OpenFile(cfgdir.DefaultTokenPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to create token: %v", err)
+	}
+
+	if _, err := fd.WriteString(username + "\n"); err != nil {
+		return fmt.Errorf("failed to write token: %v", err)
 	}
 	if _, err := fd.WriteString(token); err != nil {
 		return fmt.Errorf("failed to write token: %v", err)
