@@ -129,6 +129,13 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	// password and passfile are marked mutually exclusive, so we do not have to check here
+
+	// need to check that, if password/passfile are supplied, username is also supplied
+	if (cred.PassfilePath != "" || cred.Password != "") && cred.Username == "" {
+		return errors.New("if password or passkey are specified, you must also specify username (-u)")
+	}
+
 	if err := connection.Login(cred, script); err != nil {
 		// coarsely check for invalid credentials
 		if strings.Contains(err.Error(), "401") {
@@ -171,6 +178,9 @@ func GenerateFlags(root *cobra.Command) {
 	root.PersistentFlags().StringP("username", "u", "", "login credential.")
 	root.PersistentFlags().String("password", "", "login credential.")
 	root.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
+
+	root.MarkFlagsMutuallyExclusive("password", "passfile")
+
 	root.PersistentFlags().Bool("no-color", false, "disables colourized output.")
 	root.PersistentFlags().String("server", "localhost:80", "<host>:<port> of instance to connect to.\n")
 	root.PersistentFlags().StringP("log", "l", cfgdir.DefaultStdLogPath, "log location for developer logs.\n")
