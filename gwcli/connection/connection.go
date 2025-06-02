@@ -287,7 +287,7 @@ func End() error {
 	if err := Client.Close(); err != nil {
 		return err
 	}
-	Client = nil
+	//Client = nil // does not nil out as to reduce the likelihood of nil pointer panics
 
 	return nil
 }
