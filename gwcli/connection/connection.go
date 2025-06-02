@@ -93,43 +93,41 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 		return nil
 	}
 
-	// login is attempted via JWT token first
-	// If any stage in the process fails
-	// the error is logged and we fall back to flags and prompting
-	if err := loginViaToken(cred.Username); err != nil {
-		// jwt token failure; log and move on
-		clilog.Writer.Warnf("Failed to login via JWT token: %v", err)
+	// did we log in via credentials (or via token)?
+	var viaCred bool
 
-		if err = loginViaCredentials(cred, scriptMode); err != nil {
-			clilog.Writer.Errorf("Failed to login via credentials: %v", err)
+	// if a username and password/passfile were both supplied, *only* try to login using those credentials
+	if cred.Username != "" && (cred.Password != "" || cred.PassfilePath != "") {
+		if pass, err := skimPassFile(cred.PassfilePath); err != nil {
+			return err
+		} else if pass != "" {
+			cred.Password = pass
+		}
+
+		if err := Client.Login(cred.Username, cred.Password); err != nil {
 			return err
 		}
-		clilog.Writer.Infof("Logged in via credentials")
 
-		if err := CreateTokenFile(cred.Username); err != nil {
-			clilog.Writer.Warnf("%v", err.Error())
-			// failing to create the token is not fatal
-		} /*else {
-			// spin up a goroutine to refresh the login token automatically
-			go func() {
-				// endlessly sleep, refresh token, then sleep again
-				for {
-					time.Sleep(refreshInterval)
-					if err := Client.RefreshLoginToken(); err != nil {
-						clilog.Writer.Warnf("failed to refresh JWT: %v", err)
-					} else {
-						// re-export the new token
-						if err := CreateToken(); err != nil {
-							clilog.Writer.Warnf("failed to re-create JWT on refresh: %v",
-								err.Error())
-						}
-					}
-				}
-			}()
-		} */
+		viaCred = true
 	} else {
-		clilog.Writer.Infof("Logged in via JWT")
+		// attempt to login via token, falling back to credentials
+		if err := loginViaToken(cred.Username); err != nil {
+			// jwt token failure; log and move on
+			clilog.Writer.Warnf("Failed to login via JWT token: %v", err)
+
+			if err = loginViaCredentials(cred, scriptMode); err != nil {
+				clilog.Writer.Errorf("Failed to login via credentials: %v", err)
+				return err
+			}
+			viaCred = true
+		}
 	}
+
+	var s = "token"
+	if viaCred {
+		s = "credentials"
+	}
+	clilog.Writer.Infof("Logged in via %v", s)
 
 	// on successful login, fetch and cache MyInfo
 	if MyInfo, err = Client.MyInfo(); err != nil {
@@ -137,9 +135,14 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 	}
 
 	// check that the info of the user we fetched actually matches the given username
-
 	if cred.Username != "" && MyInfo.User != cred.Username {
 		return fmt.Errorf("server returned a different username (%v) than the given credentials (%v)", MyInfo.User, cred.Username)
+	}
+
+	// create/refresh the token
+	if err := CreateTokenFile(cred.Username); err != nil {
+		clilog.Writer.Warnf("%v", err.Error())
+		// failing to create the token is not fatal
 	}
 
 	return nil
@@ -176,13 +179,11 @@ func loginViaToken(username string) (err error) {
 // Attempts to login via the given credentials struct.
 // If insufficient information was given and we are not in script mode, spins up a credentials prompt TUI.
 func loginViaCredentials(cred Credentials, scriptMode bool) error {
-	// try to skim a password out of the passfile
-	if cred.PassfilePath != "" {
-		b, err := os.ReadFile(cred.PassfilePath)
-		if err != nil {
-			return fmt.Errorf("failed to read password from %v: %v", cred.PassfilePath, err)
-		}
-		cred.Password = strings.TrimSpace(string(b))
+	// try to pull a password out of the passfile
+	var err error
+	cred.Password, err = skimPassFile(cred.PassfilePath)
+	if err != nil {
+		return err
 	}
 
 	if cred.Username == "" || cred.Password == "" {
@@ -209,6 +210,20 @@ func loginViaCredentials(cred Credentials, scriptMode bool) error {
 	}
 
 	return Client.Login(cred.Username, cred.Password)
+}
+
+// skimPassFile slurps the file at the given path if path != "".
+// Returns the password found, an error opening/slurping the file, or "" (if path is empty).
+func skimPassFile(path string) (password string, err error) {
+	if path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to read password from %v: %v", path, err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	return "", nil
+
 }
 
 // CreateTokenFile creates a login token for future use.
