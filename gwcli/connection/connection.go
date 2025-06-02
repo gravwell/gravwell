@@ -42,14 +42,21 @@ var Client *grav.Client
 // MyInfo holds cached data about the current user.
 var MyInfo types.UserDetails
 
+// #region errors
+var (
+	ErrNotInitialized error = errors.New("client must be initialized")
+)
+
+//#endregion errors
+
 // Initialize creates and starts a Client using the given connection string of the form <host>:<port>.
 // Destroys a pre-existing connection (but does not log out), if there was one.
-// restLogPath should be left empty outside of test packages
+// restLogPath should be left empty outside of test packages.
+//
+// You probably want to call Login after a successful Initialize call.
 func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath string) (err error) {
 	if Client != nil {
-		Client.Close()
-		// TODO should probably close the logger, if possible externally
-		Client = nil
+		End()
 	}
 
 	var l objlog.ObjLog = nil
@@ -89,6 +96,9 @@ type Credentials struct {
 //
 // Ineffectual if Client is already logged in.
 func Login(cred Credentials, scriptMode bool) (err error) {
+	if Client == nil {
+		return ErrNotInitialized
+	}
 	if Client.LoggedIn() {
 		return nil
 	}
@@ -140,7 +150,7 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 	}
 
 	// create/refresh the token
-	if err := CreateTokenFile(cred.Username); err != nil {
+	if err := createTokenFile(cred.Username); err != nil {
 		clilog.Writer.Warnf("%v", err.Error())
 		// failing to create the token is not fatal
 	}
@@ -226,7 +236,7 @@ func skimPassFile(path string) (password string, err error) {
 
 }
 
-// CreateTokenFile creates a login token for future use.
+// createTokenFile creates a login token for future use.
 // The token's path is saved to an environment variable to be looked up on future runs.
 //
 // Token files have the form:
@@ -234,7 +244,7 @@ func skimPassFile(path string) (password string, err error) {
 // <username>
 //
 // <token>
-func CreateTokenFile(username string) error {
+func createTokenFile(username string) error {
 	var (
 		err   error
 		token string
@@ -264,14 +274,21 @@ func CreateTokenFile(username string) error {
 	return nil
 }
 
-// End closes the connection to the server.
+// End closes the connection to the server and destroys the data in the connection singleton.
 // Does not logout the user as to not invalidate existing JWTs.
+//
+// To reconnect, you will need to call Initialize() again.
 func End() error {
-	if Client == nil {
+	MyInfo = types.UserDetails{}
+	if Client == nil { // job's done
 		return nil
 	}
 
-	Client.Close()
+	if err := Client.Close(); err != nil {
+		return err
+	}
+	Client = nil
+
 	return nil
 }
 
