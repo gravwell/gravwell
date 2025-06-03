@@ -23,21 +23,25 @@ import (
 )
 
 const (
-	server          = "localhost:80"
-	username string = "admin"
-	password string = "changeme"
+	server = "localhost:80"
+	// default user
+	defaultUser string = "admin"
+	defaultPass string = "changeme"
+	// second user, created and deleted between tests
+	altUser string = "Milly"
+	altPass string = "LooLooLand"
 )
 
 func TestLogin(t *testing.T) {
 	// create a passfile we can use
 	var passfileSkip = false
-	pfPath := path.Join(t.TempDir(), password)
+	pfPath := path.Join(t.TempDir(), defaultPass)
 	pf, err := os.Create(pfPath)
 	if err != nil {
 		t.Logf("failed to create passfile @ %v: %v", pfPath, err)
 		passfileSkip = true
 	}
-	if _, err := pf.WriteString(password); err != nil {
+	if _, err := pf.WriteString(defaultPass); err != nil {
 		t.Logf("failed to write passfile @ %v: %v", pfPath, err)
 		passfileSkip = true
 	}
@@ -59,11 +63,11 @@ func TestLogin(t *testing.T) {
 		args    args
 		wantErr bool
 	}{
-		{"script mode: valid username and password", args{connection.Credentials{"admin", password, ""}, true}, false},
+		{"script mode: valid username and password", args{connection.Credentials{"admin", defaultPass, ""}, true}, false},
 		{"script mode: valid username and passfile", args{connection.Credentials{"admin", "", pfPath}, true}, false},
 		// cannot use this test, as Cobra tests our flags and Cobra is not being invoked
 		//{"script mode: password and passfile given", args{Credentials{"admin", password, pfPath}, true}, true},
-		{"script mode: only password given", args{connection.Credentials{"", password, ""}, true}, true},
+		{"script mode: only password given", args{connection.Credentials{"", defaultPass, ""}, true}, true},
 		{"script mode: only passfile given", args{connection.Credentials{"", "", pfPath}, true}, true},
 	}
 
@@ -98,18 +102,13 @@ func TestLogin(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err = testclient.Login(username, password); err != nil {
+		if err = testclient.Login(defaultUser, defaultPass); err != nil {
 			t.Fatal(err)
 		}
 
 		// ensure there is a second user for us to test against
-		secondU, secondP := "Milly", "LooLooLand"
-		if _, err := testclient.LookupUser(secondU); err != nil { // check if the user already exists (such as from running this test multiple times)
-			t.Logf("failed to lookup user %v, attempting creation...", secondU)
-			if err := testclient.AddUser(secondU, secondP, "Mildred Knolastname", "milly@imp.com", false); err != nil {
-				t.Fatal(err)
-			}
-		}
+		createAltUser(t, testclient, false)
+		t.Cleanup(func() { deleteAltUser(t, testclient) })
 
 		// destroy the Client singleton between each test
 		if connection.Client != nil {
@@ -127,7 +126,7 @@ func TestLogin(t *testing.T) {
 		}
 
 		// sign into the default account using credentials
-		initLogin(t, username, password)
+		initLogin(t, defaultUser, defaultPass)
 
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
@@ -163,13 +162,13 @@ func TestLogin(t *testing.T) {
 		}
 
 		// sign in as a different user
-		initLogin(t, secondU, secondP)
+		initLogin(t, altUser, altPass)
 
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
-		} else if info.User != secondU { // ensure we got the correct user
-			t.Fatalf("logged in as %v, expected to log in as %v", info.User, secondU)
+		} else if info.User != altUser { // ensure we got the correct user
+			t.Fatalf("logged in as %v, expected to log in as %v", info.User, altUser)
 		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
 		}
@@ -188,13 +187,34 @@ func TestLogin(t *testing.T) {
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in second user via token: ", err)
-		} else if info.User != secondU { // ensure we got the correct user
-			t.Fatalf("logged in as %v, expected to log in as %v", info.User, secondU)
+		} else if info.User != altUser { // ensure we got the correct user
+			t.Fatalf("logged in as %v, expected to log in as %v", info.User, altUser)
 		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
 			t.Fatal("failed to make call after logging in second user via token: ", err)
 		}
 
 	})
+
+}
+
+func TestMFA(t *testing.T) {
+	// spawn a test client
+	// connect to the server for manual calls
+	/*testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	lr, err := testclient.LoginEx(defaultUser, defaultPass)
+
+	lr, err := testclient.MFALogin(defaultUser, defaultPass, types.AUTH_TYPE_NONE, "")
+	t.Log(lr)
+	t.Log(err)
+
+	mfa, err := testclient.GetMFAInfo()
+	t.Log(mfa)
+	t.Log(err)
+	t.Fail() */
 
 }
 
@@ -207,5 +227,36 @@ func initLogin(t *testing.T, u, p string) {
 	if err := connection.Login(connection.Credentials{u, p, ""}, true); err != nil {
 		t.Fatal(err)
 	}
+}
 
+// Creates a second account using via the logged-in test client.
+// If MFA, a TOTP is added to the new user.
+//
+// Fatal on failure.
+func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) {
+	if _, err := testclient.LookupUser(altUser); err != nil { // check if the user already exists (such as from running this test multiple times)
+		t.Logf("failed to lookup user %v, attempting creation...", altUser)
+		if err := testclient.AddUser(altUser, altPass, "Mildred Knolastname", "milly@imp.com", false); err != nil {
+			t.Fatal(err)
+		}
+
+		if mfa {
+			// TODO
+			// initialize TOTP
+			//testclient.GetTOTPSetupEx()
+			//testclient.InstallTOTPSetup()
+		}
+	}
+}
+
+func deleteAltUser(t *testing.T, testclient *grav.Client) {
+	u, err := testclient.LookupUser(altUser)
+	if err != nil { // check if the user already exists (such as from running this test multiple times)
+		t.Logf("failed to lookup user %v, skipping deletion.", altUser)
+		return
+	}
+
+	if err := testclient.DeleteUser(u.UID); err != nil {
+		t.Fatal(err)
+	}
 }
