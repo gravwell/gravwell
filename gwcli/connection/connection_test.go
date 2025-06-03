@@ -15,11 +15,14 @@ import (
 	"os"
 	"path"
 	"testing"
+	"time"
 
 	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/pquerna/otp/totp"
 )
 
 const (
@@ -106,7 +109,7 @@ func TestLogin(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		// ensure there is a second user for us to test against
+		// create a second user
 		createAltUser(t, testclient, false)
 		t.Cleanup(func() { deleteAltUser(t, testclient) })
 
@@ -198,23 +201,21 @@ func TestLogin(t *testing.T) {
 }
 
 func TestMFA(t *testing.T) {
-	// spawn a test client
-	// connect to the server for manual calls
-	/*testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true})
+	// spin up a test client
+	testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true})
 	if err != nil {
 		t.Fatal(err)
 	}
+	if err = testclient.Login(defaultUser, defaultPass); err != nil {
+		t.Fatal(err)
+	}
 
-	lr, err := testclient.LoginEx(defaultUser, defaultPass)
+	// create a second account so we don't screw up admin
+	altUserTOTPSecret := createAltUser(t, testclient, true)
+	t.Cleanup(func() { deleteAltUser(t, testclient) })
+	t.Log(altUserTOTPSecret)
 
-	lr, err := testclient.MFALogin(defaultUser, defaultPass, types.AUTH_TYPE_NONE, "")
-	t.Log(lr)
-	t.Log(err)
-
-	mfa, err := testclient.GetMFAInfo()
-	t.Log(mfa)
-	t.Log(err)
-	t.Fail() */
+	// TODO
 
 }
 
@@ -230,10 +231,10 @@ func initLogin(t *testing.T, u, p string) {
 }
 
 // Creates a second account using via the logged-in test client.
-// If MFA, a TOTP is added to the new user.
+// If MFA, a TOTP is added to the new user and the secret for generating codes is returned.
 //
 // Fatal on failure.
-func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) {
+func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (altUserTOTPSecret string) {
 	if _, err := testclient.LookupUser(altUser); err != nil { // check if the user already exists (such as from running this test multiple times)
 		t.Logf("failed to lookup user %v, attempting creation...", altUser)
 		if err := testclient.AddUser(altUser, altPass, "Mildred Knolastname", "milly@imp.com", false); err != nil {
@@ -241,14 +242,33 @@ func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) {
 		}
 
 		if mfa {
-			// TODO
 			// initialize TOTP
-			//testclient.GetTOTPSetupEx()
-			//testclient.InstallTOTPSetup()
+			sr, err := testclient.GetTOTPSetupEx(altUser, altPass, types.AUTH_TYPE_NONE, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			// generate a code to confirm TOTP installation
+			code, err := totp.GenerateCode(sr.Seed, time.Now())
+			if err != nil {
+				t.Fatal("failed to generate TOTP code from setup seed: ", err)
+			}
+			t.Log("generated ", code)
+
+			ir, err := testclient.InstallTOTPSetup(altUser, altPass, code)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Log(ir)
+
 		}
 	}
+	return ""
 }
 
+// Destroys the secondary user, if it exists.
+//
+// Fatal on failure.
 func deleteAltUser(t *testing.T, testclient *grav.Client) {
 	u, err := testclient.LookupUser(altUser)
 	if err != nil { // check if the user already exists (such as from running this test multiple times)
