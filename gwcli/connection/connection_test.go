@@ -19,6 +19,7 @@ import (
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 )
 
 const (
@@ -100,10 +101,14 @@ func TestLogin(t *testing.T) {
 		if err = testclient.Login(username, password); err != nil {
 			t.Fatal(err)
 		}
-		// create a second user for us to use
+
+		// ensure there is a second user for us to test against
 		secondU, secondP := "Milly", "LooLooLand"
-		if err := testclient.AddUser(secondU, secondP, "Mildred Knolastname", "milly@imp.com", false); err != nil {
-			t.Fatal(err)
+		if _, err := testclient.LookupUser(secondU); err != nil { // check if the user already exists (such as from running this test multiple times)
+			t.Logf("failed to lookup user %v, attempting creation...", secondU)
+			if err := testclient.AddUser(secondU, secondP, "Mildred Knolastname", "milly@imp.com", false); err != nil {
+				t.Fatal(err)
+			}
 		}
 
 		// destroy the Client singleton between each test
@@ -113,14 +118,94 @@ func TestLogin(t *testing.T) {
 
 		// reinitialize the client
 		if err := connection.Initialize(server, false, true, path.Join(t.TempDir(), "rest.log")); err != nil {
-			panic(err)
+			t.Fatal(err)
 		}
 
 		// ensure no token exists
-		//cfgdir.DefaultTokenPath
+		if err := os.Remove(cfgdir.DefaultTokenPath); err != nil {
+			t.Fatal(err)
+		}
 
-		// sign in using credentials
+		// sign into the default account using credentials
+		initLogin(t, username, password)
+
+		// ensure we can make a couple calls
+		if info, err := connection.Client.MyInfo(); err != nil {
+			t.Fatal("failed to make call after logging in via credentials: ", err)
+		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
+			t.Fatal("failed to make call after logging in via credentials: ", err)
+		}
+
+		// shutter the connection
+		connection.End()
+
+		// ensure we are unable to make a call
+		if info, err := connection.Client.MyInfo(); err == nil {
+			t.Fatalf("expected to receive an error after shuttering connection, but call successfully returned info (%v)", info)
+		}
+
+		// sign into the default account without credentials
+		initLogin(t, "", "")
+
+		// ensure we can make a couple calls
+		if info, err := connection.Client.MyInfo(); err != nil {
+			t.Fatal("failed to make call after logging in via token: ", err)
+		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
+			t.Fatal("failed to make call after logging in via token: ", err)
+		}
+
+		// shutter the connection
+		connection.End()
+
+		// ensure we are unable to make a call
+		if info, err := connection.Client.MyInfo(); err == nil {
+			t.Fatalf("expected to receive an error after shuttering connection, but call successfully returned info (%v)", info)
+		}
+
+		// sign in as a different user
+		initLogin(t, secondU, secondP)
+
+		// ensure we can make a couple calls
+		if info, err := connection.Client.MyInfo(); err != nil {
+			t.Fatal("failed to make call after logging in second user via credentials: ", err)
+		} else if info.User != secondU { // ensure we got the correct user
+			t.Fatalf("logged in as %v, expected to log in as %v", info.User, secondU)
+		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
+			t.Fatal("failed to make call after logging in second user via credentials: ", err)
+		}
+
+		// shutter the connection
+		connection.End()
+
+		// ensure we are unable to make a call
+		if info, err := connection.Client.MyInfo(); err == nil {
+			t.Fatalf("expected to receive an error after shuttering connection, but call successfully returned info (%v)", info)
+		}
+
+		// ensure the token has updated to our second user
+		initLogin(t, "", "")
+
+		// ensure we can make a couple calls
+		if info, err := connection.Client.MyInfo(); err != nil {
+			t.Fatal("failed to make call after logging in second user via token: ", err)
+		} else if info.User != secondU { // ensure we got the correct user
+			t.Fatalf("logged in as %v, expected to log in as %v", info.User, secondU)
+		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
+			t.Fatal("failed to make call after logging in second user via token: ", err)
+		}
 
 	})
+
+}
+
+// Initializes and logs, calling fatal on the first error
+func initLogin(t *testing.T, u, p string) {
+	if err := connection.Initialize(server, false, true, path.Join(t.TempDir(), "rest.log")); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := connection.Login(connection.Credentials{u, p, ""}, true); err != nil {
+		t.Fatal(err)
+	}
 
 }
