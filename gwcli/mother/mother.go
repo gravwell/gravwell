@@ -266,6 +266,9 @@ func activeChildSanityCheck(m Mother) {
 }
 
 func (m Mother) View() string {
+	if m.exiting {
+		return ""
+	}
 	if m.active.model != nil { // allow child command to retain control, if it exists
 		return m.active.model.View()
 	}
