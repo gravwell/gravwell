@@ -14,6 +14,7 @@ package connection
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -23,35 +24,41 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// mfaPrompt runs a tiny tea.Model that collects username and password.
+// mfaPrompt runs a tiny tea.Model that collects a code OR recovery key
 //
 // ! Not intended to be run while Mother is running.
-func mfaPrompt(initialUser, initialPass string) (code string, err error) {
-	c := credModel{
-		userSelected: true,
+func mfaPrompt() (code string, recoveryUsed bool, err error) {
+	c := mfaModel{
+		codeSelected: true,
 	}
-	c.UserTI = textinput.New()
-	c.UserTI.Prompt = stylesheet.TIPromptPrefix
-	c.UserTI.SetValue(initialUser)
-	c.UserTI.Focus()
-	c.PassTI = textinput.New()
-	c.PassTI.Prompt = stylesheet.TIPromptPrefix
-	c.PassTI.EchoMode = textinput.EchoNone
-	c.PassTI.SetValue(initialPass)
-	c.PassTI.Blur()
+	c.codeTI = textinput.New()
+	c.codeTI.Prompt = stylesheet.TIPromptPrefix
+	c.codeTI.Focus()
+	c.recoveryTI = textinput.New()
+	c.recoveryTI.Prompt = stylesheet.TIPromptPrefix
+	c.recoveryTI.EchoMode = textinput.EchoNone
+	c.recoveryTI.Blur()
 	m, err := tea.NewProgram(c).Run()
 	if err != nil {
-		return "", err
+		return "", false, err
 	}
 	// pull input results
 	final, ok := m.(mfaModel)
 	if !ok {
 		clilog.Writer.Criticalf("failed to cast credentials model")
-		return "", errors.New("failed to cast mfa model")
+		return "", false, errors.New("failed to cast mfa model")
 	} else if final.killed {
-		return "", errors.New("you must authenticate to use gwcli")
+		return "", false, errors.New("you must authenticate to use gwcli")
 	}
-	return final.codeTI.Value(), nil
+
+	err = nil
+	code = strings.TrimSpace(final.codeTI.Value())
+	if code == "" {
+		code = strings.TrimSpace(final.recoveryTI.Value())
+		recoveryUsed = true
+	}
+
+	return
 }
 
 type mfaModel struct {
