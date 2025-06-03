@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -96,7 +97,7 @@ func ppre(cmd *cobra.Command, args []string) error {
 // EnforceLogin initializes the connection singleton, which logs the client into the Gravwell instance dictated by the --server flag.
 // Safe (ineffectual) to call if already logged in.
 func EnforceLogin(cmd *cobra.Command, args []string) error {
-	if connection.Client == nil { // if we just started, initialize connection
+	if connection.Client == nil || connection.Client.State() == client.STATE_CLOSED { // if we just started, initialize connection
 		server, err := cmd.Flags().GetString("server")
 		if err != nil {
 			return err
