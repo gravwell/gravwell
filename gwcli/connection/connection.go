@@ -10,6 +10,65 @@
 Package connection implements and controls a Singleton instantiation of the gravwell client library.
 All calls to the Gravwell instances should be called via this package and the client it controls.
 
+Login logic is handled here with the following logical flow:
+
+```mermaid
+flowchart TB
+
+	%% entry points
+	APIToken["User provides API token<br>**--api**"]
+	~~~
+	bothCred["User provides username and password/passfile<br> **-u <> {-p <>| --password <>}**"]
+	~~~
+	noCred["User provides no credentials"]
+
+	%% shared
+	generateJWT["Generate local JWT"]
+	success(("successful<br>login"))
+	~~~
+	fail(("fail out"))
+	MFAPrompt["prompt for TOTP or recovery"]
+
+	generateJWT --> success
+
+	%% api token
+	validateAPIToken{"API token is valid"}
+
+	APIToken --> validateAPIToken --"yes"----> success
+	validateAPIToken --"no"--> ErrInvalidAPI
+
+	%% both credentials
+	bcScript{"**--script**"}
+	bcMFA{"MFA required"}
+
+	bothCred --> bcMFA --"yes"--> bcScript --"yes"--> ErrAPITokenReq
+	bcMFA --"no"--> generateJWT
+	bcScript --"no"--> MFAPrompt --> generateJWT
+
+	%% no cred
+	ncMFA{"MFA required"}
+	ncJWT{"does a valid<br>token exist?"}
+	ncScript{"**--script**"}
+	ncPromptCred["prompt for credentials"]
+	ncScriptPostJWT{"**--script**"}
+
+	noCred --> ncMFA
+	ncMFA --"yes"--> ncScript --"yes"--> ErrAPITokenReq
+	                 ncScript --"no"--> MFAPrompt
+	ncMFA --"no"--> ncJWT --"yes"--> success
+	                ncJWT --"no"--> ncScriptPostJWT
+	ncScriptPostJWT --"yes"--> ErrCredOrAPIKeyReq
+	ncScriptPostJWT --"no"--> ncPromptCred --> MFAPrompt
+
+
+
+	%% Errors
+	ErrAPITokenReq(["*stderr*:<br>MFA is enabled, API token is required"]) --> fail
+	ErrInvalidAPI(["*stderr*:<br>API token is invalid"]) --> fail
+	ErrCredOrAPIKeyReq(["*stderr*:<br>Credentials or API token required"]) --> fail
+
+```
+
 This package also contains some wrapper functions for grav.Client calls where we want to ensure consistent access and parameters.
 */
 package connection
