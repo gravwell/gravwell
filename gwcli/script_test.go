@@ -54,6 +54,7 @@ const ( // testing server credentials
 	user     = "admin"
 	password = "changeme"
 	server   = "localhost:80"
+	apiKey   = "" // TODO
 )
 
 var realStderr, mockStderr, realStdout, mockStdout *os.File
@@ -754,6 +755,29 @@ func TestQueries(t *testing.T) {
 
 //#endregion
 
+// Tests focusing on ensuring proper, external login logic.
+func TestLogin(t *testing.T) {
+	t.Run("login via full cred, no MFA", func(t *testing.T) {
+		// issue the my info command to confirm we are logged into the correct user
+		cmd := fmt.Sprintf("-u %s --password %s --insecure --script user myinfo", user, password)
+		statusCode, cmdOut, stderr := executeCmd(t, cmd)
+		NonZeroExit(t, statusCode, stderr)
+		checkResult(t, false, "stderr", "", stderr)
+
+		testUser(t, user, cmdOut)
+	})
+	/*t.Run("login via API token", func(t *testing.T) {
+		// issue the my info command to confirm we are logged into the correct user
+		cmd := fmt.Sprintf("--api %s --insecure --script user myinfo", apiKey)
+		statusCode, cmdOut, stderr := executeCmd(t, cmd)
+		NonZeroExit(t, statusCode, stderr)
+		checkResult(t, false, "stderr", "", stderr)
+
+		testUser(t, user, cmdOut)
+	})*/
+
+}
+
 //#region helper functions
 
 // Mocks STDOUT and STDERR with new pipes so the tests can intercept data from them.
@@ -917,6 +941,24 @@ func checkResult(t *testing.T, fatal bool, source, expected, actual string) {
 		} else {
 			t.Errorf("bad %s: %s", source, ExpectedActual(expected, actual))
 		}
+	}
+}
+
+// Given the expected username and the output of a myinfo command, tests if the expected user was printed.
+func testUser(t *testing.T, expectedUser string, stdout string) {
+	// we only want the first line
+	lines := strings.Split(stdout, "\n")
+	if len(lines) < 1 {
+		t.Fatal("my info has no header line: ", stdout)
+	}
+	exploded := strings.Split(lines[0], ",")
+	if len(exploded) != 3 {
+		t.Fatal("expected exactly 3 fields on the header line, found ", len(exploded), " on ", stdout)
+	}
+
+	got := strings.TrimSpace(exploded[1])
+	if got != user {
+		t.Fatal("mismatching username.", ExpectedActual(expectedUser, got))
 	}
 }
 
