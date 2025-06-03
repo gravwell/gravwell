@@ -179,8 +179,10 @@ func GenerateFlags(root *cobra.Command) {
 	root.PersistentFlags().StringP("username", "u", "", "login credential.")
 	root.PersistentFlags().String("password", "", "login credential.")
 	root.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
+	root.PersistentFlags().String("api", "", "log in via API key instead of credentials")
 
-	root.MarkFlagsMutuallyExclusive("password", "passfile")
+	root.MarkFlagsMutuallyExclusive("password", "passfile", "api")
+	root.MarkFlagsMutuallyExclusive("api", "username")
 
 	root.PersistentFlags().Bool("no-color", false, "disables colourized output.")
 	root.PersistentFlags().String("server", "localhost:80", "<host>:<port> of instance to connect to.\n")
