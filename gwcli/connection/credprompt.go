@@ -8,11 +8,15 @@
 
 package connection
 
-// a tiny tea.Model to prompt for login credentials in interactive mode
+// a tiny tea.Model to prompt for user name and password
+//
+// If MFA is required, this model will likely be followed up by the MFA prompt
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
@@ -20,36 +24,38 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-/*type mode uint8
-
-const (
-	u_p mode = iota
-	mfa mode = iota
-)*/
-
 // CredPrompt runs a tiny tea.Model that collects username and password.
 //
 // ! Not intended to be run while Mother is running.
-func CredPrompt(user, pass string) (tea.Model, error) {
+func CredPrompt(initialUser, initialPass string) (user, pass string, err error) {
 	c := credModel{
-		//mode:         u_p,
 		userSelected: true,
 	}
 	c.UserTI = textinput.New()
 	c.UserTI.Prompt = stylesheet.TIPromptPrefix
-	c.UserTI.SetValue(user)
+	c.UserTI.SetValue(initialUser)
 	c.UserTI.Focus()
 	c.PassTI = textinput.New()
 	c.PassTI.Prompt = stylesheet.TIPromptPrefix
 	c.PassTI.EchoMode = textinput.EchoNone
-	c.PassTI.SetValue(pass)
+	c.PassTI.SetValue(initialPass)
 	c.PassTI.Blur()
-	return tea.NewProgram(c).Run()
+	m, err := tea.NewProgram(c).Run()
+	if err != nil {
+		return "", "", err
+	}
+	// pull input results
+	finalCredM, ok := m.(credModel)
+	if !ok {
+		clilog.Writer.Criticalf("failed to cast credentials model")
+		return "", "", errors.New("failed to cast credentials model")
+	} else if finalCredM.killed {
+		return "", "", errors.New("you must authenticate to use gwcli")
+	}
+	return finalCredM.UserTI.Value(), finalCredM.PassTI.Value(), nil
 }
 
 type credModel struct {
-	//mode mode
-
 	UserTI       textinput.Model
 	PassTI       textinput.Model
 	userSelected bool
@@ -61,8 +67,6 @@ func (c credModel) Init() tea.Cmd {
 }
 
 func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	//switch c.mode {
-	//case u_p:
 	if kill := killer.CheckKillKeys(msg); kill != killer.None {
 		c.killed = true
 		return c, tea.Quit
@@ -76,7 +80,6 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if c.userSelected {
 				return c.swap(), textinput.Blink
 			}
-			//c.mode = mfa
 			return c, tea.Quit
 		}
 
@@ -89,18 +92,12 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	c.PassTI, passcmd = c.PassTI.Update(msg)
 
 	return c, tea.Batch(usercmd, passcmd)
-	// case mfa:
-	// }
 }
 
 func (c credModel) View() string {
-	//switch c.mode {
-	//case u_p:
 	return fmt.Sprintf("%v%v\n%v%v\n\n",
 		stylesheet.PromptStyle.Render("username"), c.UserTI.View(),
 		stylesheet.PromptStyle.Render("password"), c.PassTI.View())
-	// case mfa:
-	// }
 }
 
 // select the next TI
