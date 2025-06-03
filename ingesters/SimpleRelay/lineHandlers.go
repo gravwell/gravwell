@@ -16,8 +16,8 @@ import (
 	"net"
 	"os"
 
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 func lineConnHandlerTCP(c net.Conn, cfg handlerConfig) {
