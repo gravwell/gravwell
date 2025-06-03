@@ -101,13 +101,6 @@ var Client *grav.Client
 // MyInfo holds cached data about the current user.
 var MyInfo types.UserDetails
 
-// #region errors
-var (
-	ErrNotInitialized error = errors.New("client must be initialized")
-)
-
-//#endregion errors
-
 // Initialize creates and starts a Client using the given connection string of the form <host>:<port>.
 // Destroys a pre-existing connection (but does not log out), if there was one.
 // restLogPath should be left empty outside of test packages.
@@ -154,7 +147,7 @@ type Credentials struct {
 // Attempts to use a JWT token first, then falls back to supplied credentials.
 //
 // Ineffectual if Client is already logged in.
-func Login(cred Credentials, scriptMode bool) (err error) {
+func Login(cred Credentials, scriptMode bool, apiToken string) (err error) {
 	if Client == nil {
 		return ErrNotInitialized
 	}
@@ -162,8 +155,20 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 		return nil
 	}
 
-	// did we log in via credentials (or via token)?
-	var viaCred bool
+	var method string // successful login method
+
+	if apiToken != "" { // if an APIKey was given, attempt to login with it
+		if err := Client.LoginWithAPIToken(apiToken); err != nil {
+			return errors.Join(errors.New("API token is invalid"), err)
+		}
+
+		method = "api token"
+	} else if cred.Username == "" { // if a username was not given, act as if no credentials were given
+		loginNoCredentials(scriptMode)
+
+	} else if cred.Username != "" && (cred.Password != "" || cred.PassfilePath != "") { // if all credentials were given, ...
+
+	}
 
 	// if a username and password/passfile were both supplied, *only* try to login using those credentials
 	if cred.Username != "" && (cred.Password != "" || cred.PassfilePath != "") {
@@ -180,7 +185,7 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 		viaCred = true
 	} else {
 		// attempt to login via token, falling back to credentials
-		if err := loginViaToken(cred.Username); err != nil {
+		if err := loginViaJWT(cred.Username); err != nil {
 			// jwt token failure; log and move on
 			clilog.Writer.Warnf("Failed to login via JWT token: %v", err)
 
@@ -192,11 +197,7 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 		}
 	}
 
-	var s = "token"
-	if viaCred {
-		s = "credentials"
-	}
-	clilog.Writer.Infof("Logged in via %v", s)
+	clilog.Writer.Infof("Logged in via %v", method)
 
 	// on successful login, fetch and cache MyInfo
 	if MyInfo, err = Client.MyInfo(); err != nil {
@@ -217,13 +218,54 @@ func Login(cred Credentials, scriptMode bool) (err error) {
 	return nil
 }
 
-// loginViaToken attempts to login via JWT token in the user's config directory.
+// helper function for Login when no credentials were given.
+func loginNoCredentials(scriptMode bool) (err error) {
+	// attempt to login to whichever account was responsible for the pre-existing token
+	if err := loginViaJWT(""); err != nil {
+		clilog.Writer.Warnf("Failed to login via JWT token: %v", err)
+		// if we are in script mode, fail out
+		if scriptMode {
+			return ErrCredentialsOrAPITokenRequired
+		}
+
+		// prompt for user name and password
+		u, p, err := CredPrompt("", "")
+
+		// log in
+		// TODO
+
+		// if MFA required, prompt for TOTP or recovery code
+		// TODO
+
+	}
+
+	// successfully logged in with JWT
+
+	// if we are in script mode, check for MFA
+	if scriptMode {
+		// we managed to login via JWT, but if MFA is required, we should fail out anyways as otherwise the script could become unreliable.
+		mfa, err := Client.GetMFAInfo()
+		if err != nil {
+			err = errors.Join(errors.New("failed to fetch mfa info after token login"), err)
+
+			clilog.Writer.Warnf("%v", err)
+			return err
+		} else if mfa.MFARequired {
+			return ErrAPITokenRequired
+		}
+	}
+
+	return nil
+
+}
+
+// loginViaJWT attempts to login via JWT token in the user's config directory.
 // Returns an error on failures. This error should be considered nonfatal and the user logged in via
 // an alternative method instead.
 //
 // If a username was given, it will first be matched against the username found in the file.
 // NOTE(rlandau): we still perform a whois against the backend later, but this allows us a sanity check without touching the backend.
-func loginViaToken(username string) (err error) {
+func loginViaJWT(username string) (err error) {
 	var tknbytes []byte
 	// NOTE the reversal of standard error checking (`err == nil`)
 	if tknbytes, err = os.ReadFile(cfgdir.DefaultTokenPath); err == nil {
@@ -267,15 +309,7 @@ func loginViaCredentials(cred Credentials, scriptMode bool) error {
 		if err != nil {
 			return err
 		}
-		// pull input results
-		if finalCredM, ok := credM.(credModel); !ok {
-			return err
-		} else if finalCredM.killed {
-			return errors.New("you must authenticate to use gwcli")
-		} else {
-			cred.Username = finalCredM.UserTI.Value()
-			cred.Password = finalCredM.PassTI.Value()
-		}
+
 	}
 
 	return Client.Login(cred.Username, cred.Password)
