@@ -137,7 +137,7 @@ func TestMacros(t *testing.T) {
 		}
 
 		// create a new macro from the cli, in script mode
-		cmd := fmt.Sprintf("-u %s --password %s --insecure --script macros create -n %s -d %s -e %s", user, pf, macroName, macroDesc, macroExp)
+		cmd := fmt.Sprintf("-u %s --password %s --insecure --script macros create -n %s -d %s -e %s", user, password, macroName, macroDesc, macroExp)
 		statusCode, _, stderr := executeCmd(t, cmd)
 		NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
