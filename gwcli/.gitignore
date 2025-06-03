@@ -32,3 +32,6 @@ rest_client.json
 
 # delve files
 __debug_*
+
+# licenses
+*.license
