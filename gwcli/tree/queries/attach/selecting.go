@@ -68,18 +68,27 @@ type selectingView struct {
 
 // (Re-)initializes the view, clobbering existing data.
 // Should be called whenever this view is entered (such as on attach startup).
-func (sv *selectingView) init() (cmd tea.Cmd, err error) {
+func (sv *selectingView) init() (cmd tea.Cmd, noAttachables bool, err error) {
 	// initialize variables
 	sv.allDone = make(chan bool)
 	sv.updatedItems = make(chan []list.Item)
 
-	if sv.list, err = spawnListAndMaintainer(sv.allDone, sv.updatedItems); err != nil {
-		return nil, err
+	// build the list
+	ss, err := connection.Client.ListSearchStatuses()
+	if err != nil {
+		clilog.Writer.Warnf("failed to get search status: %v", err)
+		return nil, false, err
+	} else if len(ss) == 0 {
+		return nil, true, nil
+	}
+
+	if sv.list, err = spawnListAndMaintainer(ss, sv.allDone, sv.updatedItems); err != nil {
+		return nil, false, err
 	}
 
 	//sv.list.Styles.HelpStyle = sv.list.Styles.HelpStyle.Width(sv.width)
 
-	return uniques.FetchWindowSize, nil
+	return uniques.FetchWindowSize, false, nil
 }
 
 // Destroys the state of the selecting view, killing any and all updater goroutines.
@@ -300,16 +309,7 @@ func composeDetails(a attachable) string {
 // The maintainer goroutine keeps the statuses of each attachable up to date  and checks for new attachables, appending them as they appear.
 //
 // Caller must supply (but not hold) the RWlock for interacting with the list as well as a channel that will be closed when the maintainer should shut down.
-func spawnListAndMaintainer(done <-chan bool, updates chan<- []list.Item) (list.Model, error) {
-	// build the list
-	ss, err := connection.Client.ListSearchStatuses()
-	if err != nil {
-		clilog.Writer.Warnf("failed to get search status: %v", err)
-		return list.Model{}, err
-	} else if len(ss) == 0 {
-		return list.Model{}, errors.New("you have no attachable searches")
-	}
-
+func spawnListAndMaintainer(ss []types.SearchCtrlStatus, done <-chan bool, updates chan<- []list.Item) (list.Model, error) {
 	// wrap each item and create a list from the set of them
 	itms := make([]list.Item, len(ss))
 	for i, s := range ss {

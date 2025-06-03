@@ -71,6 +71,7 @@ type Mother struct {
 
 	processOnStartup bool // mother should immediately consume and process her prompt on spawn
 	dieOnChildDone   bool // sister to processOnStartup; causes Mother to quit when child completes
+	exiting          bool // if true, we have already issued a tea.Quit and are just waiting for it to process; take no further action
 
 	history *history
 }
@@ -158,6 +159,9 @@ func (m Mother) Init() tea.Cmd {
 // It checks for kill keys (to disallow a runaway/ill-designed child), then either passes off
 // control (if in handoff mode) or handles the input itself (if in prompt mode).
 func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.exiting {
+		return m, nil
+	}
 	if m.processOnStartup {
 		m.processOnStartup = false
 		m.dieOnChildDone = true
@@ -173,8 +177,9 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			// (harmless if not in use)
 			return m, tea.Batch(tea.ExitAltScreen, textinput.Blink)
 		}
+		m.exiting = true
 		connection.End()
-		return m, tea.Batch(tea.Println("Bye"), tea.Quit)
+		return m, tea.Sequence(tea.Println("Bye"), tea.Quit)
 	case killer.Child: // ineffectual if not in handoff mode
 		if m.mode == handoff { // to prevent segfault, as active is nil
 			clilog.Writer.Infof("Child killing %v. Reasserting...", m.active.command.Name())
@@ -198,8 +203,9 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	// if we booted directly into an action, die now that it is done
 	if m.dieOnChildDone {
+		m.exiting = true
 		connection.End()
-		return m, tea.Batch(tea.Println("Bye"), tea.Quit)
+		return m, tea.Sequence(tea.Println("Bye"), tea.Quit)
 	}
 
 	// normal handling
@@ -428,9 +434,7 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 		invalid string
 		cmd     tea.Cmd
 	)
-	if invalid, cmd, err = m.active.model.SetArgs(
-		m.active.command.InheritedFlags(), args,
-	); err != nil || invalid != "" { // undo and return
+	if invalid, cmd, err = m.active.model.SetArgs(m.active.command.InheritedFlags(), args); err != nil || invalid != "" { // undo and return
 		m.unsetAction()
 
 		if err != nil {

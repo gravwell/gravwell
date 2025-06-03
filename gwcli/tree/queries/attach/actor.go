@@ -203,10 +203,12 @@ func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid string, _ t
 	// if a sid was not given, prepare a list of queries for the user to select from
 	a.mode = selecting
 
-	cmd, err := a.sv.init()
+	cmd, noAttachables, err := a.sv.init()
 	if err != nil { // check that we actually have data to manipulate
+		return "", nil, err
+	} else if noAttachables {
 		a.mode = quitting
-		return "", tea.Println(err), nil
+		return "", tea.Println("you have no attachable searches"), nil
 	}
 
 	return "", cmd, nil

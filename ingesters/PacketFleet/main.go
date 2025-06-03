@@ -19,7 +19,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -90,7 +89,7 @@ type job struct {
 	ID     uint
 	Bytes  uint
 	Query  string
-	Source uint32
+	Source string
 	Conns  []string
 	lock   sync.Mutex
 }
@@ -293,8 +292,6 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	debugout("query received: %v\n", p.Q)
 
-	ss, _ := strconv.Atoi(p.S)
-
 	var wg sync.WaitGroup
 
 	// create a new job
@@ -302,7 +299,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	j := &job{
 		ID:     jcount,
 		Query:  p.Q,
-		Source: uint32(ss),
+		Source: p.S,
 		Conns:  p.C,
 	}
 	jcount++
@@ -389,8 +386,8 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job, wg *sync.WaitGroup
 			Tag:  h.tag,
 			Data: data,
 		}
-		if j.Source != 0 {
-			b, err := config.ParseSource(fmt.Sprintf("%v", j.Source))
+		if j.Source != "" {
+			b, err := config.ParseSource(j.Source)
 			if err == nil {
 				ent.SRC = b
 			}
