@@ -160,7 +160,7 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 		}
 	} else if username != "" && password != "" {
 		// if all credentials were given, try to log in using only those credentials
-		if err := loginWithCredentials(username, password); err != nil {
+		if err := loginWithCredentials(username, password, scriptMode); err != nil {
 			return err
 		}
 	} else { // a username was given, but no password/passfile
@@ -248,9 +248,51 @@ func loginNoCredentials(scriptMode bool) (err error) {
 
 }
 
-// helper function for Login when credentials where explicitly set
-func loginWithCredentials(username, password string) error {
-	// TODO
+// helper function for Login when credentials were explicitly set.
+// If error is nil, caller can assume Client has successfully logged in and state has been logged (if applicable).
+func loginWithCredentials(username, password string, script bool) error {
+	resp, err := Client.LoginEx(username, password)
+	if err != nil {
+		// coarsely check for invalid credentials
+		if strings.Contains(err.Error(), "401") {
+			clilog.Writer.Infof("Failure Reason: %v", resp.Reason)
+			return ErrInvalidCredentials
+		}
+		return err
+	} else if resp.LoginStatus {
+		// successful login, no need to continue to continue to MFA
+		clilog.Writer.Infof("logged in via credentials (without mfa)")
+		return nil
+	}
+
+	// not yet logged in, likely due to required MFA
+	if resp.MFASetupRequired {
+		return ErrMFASetupRequired
+	} else if !resp.MFARequired {
+		// we aren't logged in, but it isn't because MFARequired
+		// unknown state, fail out
+		clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
+		return uniques.ErrGeneric
+	}
+
+	// if we are in script mode, fail out and alert the user to use an API key
+	if script {
+		return ErrAPITokenRequired
+	}
+
+	// send the user into a prompt to enter their TOTP
+	code, authType, err := mfaPrompt()
+	if err != nil {
+		return err
+	}
+	resp, err = Client.MFALogin(username, password, authType, code)
+	if err != nil {
+		return err
+	} else if !resp.LoginStatus {
+		// we logged in via MFA, didn't get an error, but still failed to actually log in
+		clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
+		return uniques.ErrGeneric
+	}
 	return nil
 }
 
