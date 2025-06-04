@@ -12,12 +12,15 @@
 package connection_test
 
 import (
+	"errors"
+	"io/fs"
 	"os"
 	"path"
 	"testing"
 	"time"
 
 	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/objlog"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -28,27 +31,18 @@ import (
 const (
 	server = "localhost:80"
 	// default user
-	defaultUser string = "admin"
-	defaultPass string = "changeme"
+	defaultUser       string        = "admin"
+	defaultPass       string        = "changeme"
+	apiTokenExpiryDur time.Duration = time.Minute
 	// second user, created and deleted between tests
 	altUser string = "Milly"
 	altPass string = "LooLooLand"
+	tempkey string = "zSaCgH-0sh3pd8CNwLCc9k-3N2BnAczAW1x6yedQUgCGd8b4xIbNtZQNx2-PjF8"
 )
 
-func TestLogin(t *testing.T) {
-	// create a passfile we can use
-	var passfileSkip = false
-	pfPath := path.Join(t.TempDir(), defaultPass)
-	pf, err := os.Create(pfPath)
-	if err != nil {
-		t.Logf("failed to create passfile @ %v: %v", pfPath, err)
-		passfileSkip = true
-	}
-	if _, err := pf.WriteString(defaultPass); err != nil {
-		t.Logf("failed to write passfile @ %v: %v", pfPath, err)
-		passfileSkip = true
-	}
-
+// TestLoginNoMFA tests all --script entrypoints to logging in.
+// NOTE: this test suite assumes that the default user does NOT have MFA enabled and can be accessed via u/p.
+func TestLoginNoMFA(t *testing.T) {
 	// setup singletons
 	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "DEBUG"); err != nil {
 		t.Fatalf("%v", err)
@@ -57,42 +51,70 @@ func TestLogin(t *testing.T) {
 		panic(err)
 	}
 
+	// spawn a test client
+	testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})
+	if err != nil {
+		t.Skip("failed to create test client for fetching API token: ", err)
+	}
+	if resp, err := testclient.LoginEx(defaultUser, defaultPass); err != nil {
+		t.Skip(err)
+	} else if !resp.LoginStatus {
+		t.Skip("failed to log test client in: ", resp.Reason)
+	}
+	APITkn, APITknSuccess := generateAPIToken(t, testclient)
+
 	type args struct {
-		cred       connection.Credentials
+		u          string
+		p          string
+		apiToken   string
 		scriptMode bool
 	}
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name        string
+		args        args
+		expectedErr error
 	}{
-		{"script mode: valid username and password", args{connection.Credentials{"admin", defaultPass, ""}, true}, false},
-		{"script mode: valid username and passfile", args{connection.Credentials{"admin", "", pfPath}, true}, false},
-		// cannot use this test, as Cobra tests our flags and Cobra is not being invoked
-		//{"script mode: password and passfile given", args{Credentials{"admin", password, pfPath}, true}, true},
-		{"script mode: only password given", args{connection.Credentials{"", defaultPass, ""}, true}, true},
-		{"script mode: only passfile given", args{connection.Credentials{"", "", pfPath}, true}, true},
+		{"script mode: valid username and password", args{defaultUser, defaultPass, "", true}, nil},
+		{"script mode: valid APIToken", args{"", "", APITkn, true}, nil},
+		{"script mode: no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
+		{"script mode: invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
+		{"script mode: invalid APIToken", args{"", "", APITkn + "1234", true}, connection.ErrAPIKeyInvalid},
+		{"script mode: only username", args{defaultUser, "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
 	}
-
 	for _, tt := range tests {
-		// destroy the Client singleton between each test
-		if connection.Client != nil {
-			connection.Client.Logout()
-		}
-
 		t.Run(tt.name, func(t *testing.T) {
-			// if we failed to create the passfile, but this test relies on it, skip the test
-			if passfileSkip {
-				t.SkipNow()
-			}
-			if err := connection.Login(tt.args.cred, tt.args.scriptMode); (err != nil) != tt.wantErr {
-				t.Fatalf("Login() error = %v, wantErr %v", err, tt.wantErr)
+			if tt.args.apiToken != "" && !APITknSuccess {
+				t.Skip("missing API token; skipping...")
 			}
 
-			if !tt.wantErr {
-				// check that we can actually do something
-				if _, err := connection.Client.MyInfo(); err != nil {
-					t.Fatalf("failed to fetch client info: %v", err)
+			// re-initialize the connection singleton
+			if err := connection.Initialize(server, false, true, ""); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { connection.End() })
+
+			// ensure there is no cached JWT
+			if err := os.Remove(cfgdir.DefaultTokenPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				t.Fatal(err)
+			}
+
+			// attempt to authenticate
+			if err := connection.Login(tt.args.u, tt.args.p, tt.args.apiToken, tt.args.scriptMode); !errors.Is(err, tt.expectedErr) {
+				t.Fatalf("Login() error = '%v', want = '%v'", err, tt.expectedErr)
+			} else if err == nil {
+				// additional checks to perform if we were not expected and did not receive an error
+
+				// check that Client is ready to go
+				if connection.Client == nil {
+					t.Fatal("client is nil")
+				}
+
+				// check that we can query the backend and get the correct user
+				myinfo, err := connection.Client.MyInfo()
+				if err != nil {
+					t.Fatal(err)
+				} else if myinfo.User != connection.MyInfo.User || (tt.args.u != "" && myinfo.User != tt.args.u) {
+					t.Fatalf("username mismatch! query name (%v) != cached name (%v) != argument username (%v)", myinfo.User, connection.MyInfo.User, tt.args.u)
 				}
 			}
 
@@ -124,7 +146,7 @@ func TestLogin(t *testing.T) {
 		}
 
 		// ensure no token exists
-		if err := os.Remove(cfgdir.DefaultTokenPath); err != nil {
+		if err := os.Remove(cfgdir.DefaultTokenPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
 			t.Fatal(err)
 		}
 
@@ -200,23 +222,82 @@ func TestLogin(t *testing.T) {
 
 }
 
+// TestMFA runs subtests similar to TestLoginNoMFA, but includes a user with MFA enabled.
 func TestMFA(t *testing.T) {
-	// spin up a test client
-	testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true})
+	// spin up test client
+	defaultClient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})
 	if err != nil {
-		t.Fatal(err)
+		t.Skip("failed to create test client for fetching API token: ", err)
 	}
-	if err = testclient.Login(defaultUser, defaultPass); err != nil {
-		t.Fatal(err)
+	if resp, err := defaultClient.LoginEx(defaultUser, defaultPass); err != nil {
+		t.Skip(err)
+	} else if !resp.LoginStatus {
+		t.Skip("failed to log test client in: ", resp.Reason)
+	}
+	t.Cleanup(func() { defaultClient.Logout() })
+	// fetch an API token for the default user
+	defaultUAPITkn, defaultUAPITknSuccess := generateAPIToken(t, defaultClient)
+
+	// create a second account with MFA so we don't screw up admin
+	altUserTOTPSecret := createAltUser(t, defaultClient, true)
+	t.Cleanup(func() { deleteAltUser(t, defaultClient) })
+
+	// spin up a client for the alt user
+	altClient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})
+	if err != nil {
+		t.Skip("failed to create test client for fetching API token: ", err)
+	}
+	if resp, err := altClient.LoginEx(altUser, altPass); err != nil {
+		t.Skip(err)
+	} else if !resp.LoginStatus {
+		t.Skip("failed to log alt client in: ", resp.Reason)
+	}
+	t.Cleanup(func() { defaultClient.Logout() })
+
+	// fetch an API token for the second user
+	altUAPITkn, altUAPITknSuccess := generateAPIToken(t, altClient)
+
+	type args struct {
+		u          string
+		p          string
+		apiToken   string
+		scriptMode bool
+	}
+	tests := []struct {
+		name        string
+		args        args
+		expectedErr error
+	}{
+		{"script mode: valid username and password (repeat of NoMFA)", args{defaultUser, defaultPass, "", true}, nil},
+		{"script mode: valid APIToken (repeat of NoMFA)", args{"", "", defaultUAPIToken, true}, nil},
+		{"script mode: no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
+		{"script mode: invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
+		{"script mode: invalid APIToken", args{"", "", apiKey + "1234", true}, connection.ErrAPIKeyInvalid},
+		{"script mode: only username", args{defaultUser, "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
+	}
+	for _, tt := range tests {
 	}
 
-	// create a second account so we don't screw up admin
-	altUserTOTPSecret := createAltUser(t, testclient, true)
-	t.Cleanup(func() { deleteAltUser(t, testclient) })
-	t.Log(altUserTOTPSecret)
+}
 
-	// TODO
+// Creates a token for the logged-in testclient.
+// Returns the token that was generated (to be passed into connection.Login()) and whether the creation was successful.
+// If not successful, tkn will default to "UNSET".
+// If successful, queues a Cleanup function to delete the token.
+func generateAPIToken(t *testing.T, testclient *grav.Client) (tkn string, success bool) {
+	tkn = "UNSET"
+	tf, err := testclient.CreateToken(
+		types.TokenCreate{
+			Name:    "LoginMFAToken",
+			Desc:    "API token for the LoginMFA tests",
+			Expires: time.Now().Add(apiTokenExpiryDur)})
+	if err != nil {
+		t.Log("failed to generate APIKey, skipping tests: ", err)
+		return "", false
+	}
+	t.Cleanup(func() { testclient.DeleteToken(tf.ID) })
 
+	return tkn, true
 }
 
 // Initializes and logs, calling fatal on the first error
@@ -225,7 +306,7 @@ func initLogin(t *testing.T, u, p string) {
 		t.Fatal(err)
 	}
 
-	if err := connection.Login(connection.Credentials{u, p, ""}, true); err != nil {
+	if err := connection.Login(u, p, "", true); err != nil {
 		t.Fatal(err)
 	}
 }
