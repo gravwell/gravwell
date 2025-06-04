@@ -76,6 +76,7 @@ func CheckProcessor(id string) error {
 	case VpcProcessor:
 	case CorelightProcessor:
 	case SyslogRouterProcessor:
+	case TagSrcRouterProcessor:
 	default:
 		return checkProcessorOS(id)
 	}
@@ -141,6 +142,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = CorelightLoadConfig(vc)
 	case SyslogRouterProcessor:
 		cfg, err = SyslogRouterLoadConfig(vc)
+	case TagSrcRouterProcessor:
+		cfg, err = TagSrcRouterLoadConfig(vc)
 	default:
 		cfg, err = processorLoadConfigOS(vc)
 	}
@@ -298,6 +301,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewSyslogRouter(cfg, tgr)
+	case TagSrcRouterProcessor:
+		var cfg TagSrcRouterConfig
+		if cfg, err = TagSrcRouterLoadConfig(vc); err != nil {
+			return
+		}
+		p, err = NewTagSrcRouter(cfg, tgr)
 	default:
 		p, err = newProcessorOS(vc, tgr)
 	}
