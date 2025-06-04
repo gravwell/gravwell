@@ -37,8 +37,11 @@ const (
 	// second user, created and deleted between tests
 	altUser string = "Milly"
 	altPass string = "LooLooLand"
-	tempkey string = "zSaCgH-0sh3pd8CNwLCc9k-3N2BnAczAW1x6yedQUgCGd8b4xIbNtZQNx2-PjF8"
 )
+
+func TestLoginBasic(t *testing.T) {
+
+}
 
 // TestLoginNoMFA tests all --script entrypoints to logging in.
 // NOTE: this test suite assumes that the default user does NOT have MFA enabled and can be accessed via u/p.
