@@ -252,7 +252,7 @@ func loginNoCredentials(scriptMode bool) (err error) {
 // If error is nil, caller can assume Client has successfully logged in and state has been logged (if applicable).
 func loginWithCredentials(username, password string, script bool) error {
 	resp, err := Client.LoginEx(username, password)
-	if err != nil {
+	if err != nil && !errors.Is(err, grav.ErrMFARequired) {
 		// coarsely check for invalid credentials
 		if strings.Contains(err.Error(), "401") {
 			clilog.Writer.Infof("Failure Reason: %v", resp.Reason)
