@@ -236,10 +236,10 @@ func TestMFA(t *testing.T) {
 	}
 	t.Cleanup(func() { defaultClient.Logout() })
 	// fetch an API token for the default user
-	defaultUAPITkn, defaultUAPITknSuccess := generateAPIToken(t, defaultClient)
+	//defaultAPITkn, defaultUAPITknSuccess := generateAPIToken(t, defaultClient)
 
 	// create a second account with MFA so we don't screw up admin
-	altUserTOTPSecret := createAltUser(t, defaultClient, true)
+	altTOTPSecret := createAltUser(t, defaultClient, true)
 	t.Cleanup(func() { deleteAltUser(t, defaultClient) })
 
 	// spin up a client for the alt user
@@ -247,7 +247,12 @@ func TestMFA(t *testing.T) {
 	if err != nil {
 		t.Skip("failed to create test client for fetching API token: ", err)
 	}
-	if resp, err := altClient.LoginEx(altUser, altPass); err != nil {
+	t.Cleanup(func() { altClient.Logout() })
+	code, err := totp.GenerateCode(altTOTPSecret, time.Now())
+	if err != nil {
+		t.Fatal("failed to generate TOTP code: ", err)
+	}
+	if resp, err := altClient.MFALogin(altUser, altPass, types.AUTH_TYPE_TOTP, code); err != nil {
 		t.Skip(err)
 	} else if !resp.LoginStatus {
 		t.Skip("failed to log alt client in: ", resp.Reason)
@@ -255,7 +260,7 @@ func TestMFA(t *testing.T) {
 	t.Cleanup(func() { defaultClient.Logout() })
 
 	// fetch an API token for the second user
-	altUAPITkn, altUAPITknSuccess := generateAPIToken(t, altClient)
+	altAPITkn, altUAPITknSuccess := generateAPIToken(t, altClient)
 
 	type args struct {
 		u          string
@@ -268,14 +273,54 @@ func TestMFA(t *testing.T) {
 		args        args
 		expectedErr error
 	}{
-		{"script mode: valid username and password (repeat of NoMFA)", args{defaultUser, defaultPass, "", true}, nil},
-		{"script mode: valid APIToken (repeat of NoMFA)", args{"", "", defaultUAPIToken, true}, nil},
-		{"script mode: no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
-		{"script mode: invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
-		{"script mode: invalid APIToken", args{"", "", apiKey + "1234", true}, connection.ErrAPIKeyInvalid},
-		{"script mode: only username", args{defaultUser, "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
+		//{"script mode: (default user) valid username and password", args{defaultUser, defaultPass, "", true}, nil},
+		{"script mode: (alt user) valid username and password, MFA enabled", args{altUser, altPass, "", true}, connection.ErrAPITokenRequired},
+		//{"script mode: (default user) valid APIToken", args{"", "", defaultAPITkn, true}, nil},
+		{"script mode: (alt user) valid APIToken", args{"", "", altAPITkn, true}, nil},
+		{"script mode: (alt user) no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
+		{"script mode: (alt user) invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
+		{"script mode: (alt user) invalid APIToken", args{"", "", altAPITkn + "1234", true}, connection.ErrAPIKeyInvalid},
+		//{"script mode: only username", args{defaultUser, "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
 	}
 	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// if we were given an API key, but failed to create one, skip the test
+			if tt.args.apiToken != "" && !altUAPITknSuccess {
+				t.Skip("missing API token; skipping...")
+			}
+
+			// re-initialize the connection singleton
+			if err := connection.Initialize(server, false, true, ""); err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { connection.End() })
+
+			// ensure there is no cached JWT
+			if err := os.Remove(cfgdir.DefaultTokenPath); err != nil && !errors.Is(err, fs.ErrNotExist) {
+				t.Fatal(err)
+			}
+
+			// attempt to authenticate
+			if err := connection.Login(tt.args.u, tt.args.p, tt.args.apiToken, tt.args.scriptMode); !errors.Is(err, tt.expectedErr) {
+				t.Fatalf("Login() error = '%v', want = '%v'", err, tt.expectedErr)
+			} else if err == nil {
+				// additional checks to perform if we were not expected and did not receive an error
+
+				// check that Client is ready to go
+				if connection.Client == nil {
+					t.Fatal("client is nil")
+				}
+
+				// check that we can query the backend and get the correct user
+				myinfo, err := connection.Client.MyInfo()
+				if err != nil {
+					t.Fatal(err)
+				} else if myinfo.User != connection.MyInfo.User || (tt.args.u != "" && myinfo.User != tt.args.u) {
+					t.Fatalf("username mismatch! query name (%v) != cached name (%v) != argument username (%v)", myinfo.User, connection.MyInfo.User, tt.args.u)
+				}
+			}
+
+		})
 	}
 
 }
@@ -334,13 +379,13 @@ func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (altUserTOTP
 			if err != nil {
 				t.Fatal("failed to generate TOTP code from setup seed: ", err)
 			}
-			t.Log("generated ", code)
+			t.Logf("generated totp code '%v'", code)
 
-			ir, err := testclient.InstallTOTPSetup(altUser, altPass, code)
+			_, err = testclient.InstallTOTPSetup(altUser, altPass, code)
 			if err != nil {
 				t.Fatal(err)
 			}
-			t.Log(ir)
+			//t.Log(ir)
 
 		}
 	}
