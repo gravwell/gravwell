@@ -113,41 +113,65 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 
 	// generate credentials
 	var (
-		err    error
-		script bool
-		cred   connection.Credentials
+		err          error
+		script       bool
+		username     string
+		password     string
+		passfilePath string
+		apiKey       string
 	)
 	if script, err = cmd.Flags().GetBool("script"); err != nil {
 		return err
 	}
-	if cred.Username, err = cmd.Flags().GetString("username"); err != nil {
+	if username, err = cmd.Flags().GetString("username"); err != nil {
 		return err
 	}
-	if cred.Password, err = cmd.Flags().GetString("password"); err != nil {
+	if password, err = cmd.Flags().GetString("password"); err != nil {
 		return err
 	}
-	if cred.PassfilePath, err = cmd.Flags().GetString("passfile"); err != nil {
+	if passfilePath, err = cmd.Flags().GetString("passfile"); err != nil {
+		return err
+	}
+	if apiKey, err = cmd.Flags().GetString("api"); err != nil {
 		return err
 	}
 
-	// password and passfile are marked mutually exclusive, so we do not have to check here
+	// password/passfile/apikey are marked mutually exclusive, so we do not have to check here
 
 	// need to check that, if password/passfile are supplied, username is also supplied
-	if (cred.PassfilePath != "" || cred.Password != "") && cred.Username == "" {
+	if (passfilePath != "" || password != "") && username == "" {
 		return errors.New("if password or passkey are specified, you must also specify username (-u)")
 	}
 
-	if err := connection.Login(cred, script); err != nil {
-		// coarsely check for invalid credentials
-		if strings.Contains(err.Error(), "401") {
-			return errors.New("failed to login with given credentials")
-		}
+	// if a passfile was specified, skim it out of the file
+	if p, err := skimPassFile(passfilePath); err != nil {
+		clilog.Writer.Warnf("failed to skim passfile: %v", err)
+	} else if p != "" {
+		password = p
+	}
+
+	// pass all information to Login to decide how to proceed
+	if err := connection.Login(username, password, apiKey, script); err != nil {
 		return err
 	}
 
 	clilog.Writer.Infof("Logged in successfully")
 
 	return nil
+
+}
+
+// skimPassFile slurps the file at the given path if path != "".
+// Returns the password found, an error opening/slurping the file, or "" (if path is empty).
+func skimPassFile(path string) (password string, err error) {
+	if path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to read password from %v: %v", path, err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	return "", nil
 
 }
 
