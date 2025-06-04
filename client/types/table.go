@@ -11,7 +11,7 @@ package types
 import (
 	"encoding/json"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 type TableRow struct {
@@ -49,6 +49,17 @@ type GaugeRequest struct {
 type GaugeResponse struct {
 	BaseResponse
 	Entries []GaugeValue
+}
+
+type WordcloudValue GaugeValue
+
+type WordcloudResponse struct {
+	BaseResponse
+	Entries []WordcloudValue
+}
+
+type WordcloudRequest struct {
+	BaseRequest
 }
 
 // Compare a table to this one. Return false on cols/rows if they do not match.
