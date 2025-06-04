@@ -136,18 +136,11 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 	return nil
 }
 
-// Credentials is the temporary struct for passing credentials into Login.
-type Credentials struct {
-	Username     string
-	Password     string
-	PassfilePath string
-}
-
 // Login the initialized Client.
 // Attempts to use a JWT token first, then falls back to supplied credentials.
 //
 // Ineffectual if Client is already logged in.
-func Login(cred Credentials, scriptMode bool, apiToken string) (err error) {
+func Login(username, password, apiToken string, scriptMode bool) (err error) {
 	if Client == nil {
 		return ErrNotInitialized
 	}
@@ -155,49 +148,33 @@ func Login(cred Credentials, scriptMode bool, apiToken string) (err error) {
 		return nil
 	}
 
-	var method string // successful login method
-
 	if apiToken != "" { // if an APIKey was given, attempt to login with it
 		if err := Client.LoginWithAPIToken(apiToken); err != nil {
-			return errors.Join(errors.New("API token is invalid"), err)
+			return errors.Join(ErrAPIKeyInvalid, err)
 		}
-
-		method = "api token"
-	} else if cred.Username == "" { // if a username was not given, act as if no credentials were given
-		loginNoCredentials(scriptMode)
-
-	} else if cred.Username != "" && (cred.Password != "" || cred.PassfilePath != "") { // if all credentials were given, ...
+		clilog.Writer.Infof("logged in via API token")
+	} else if username == "" { // if a username was not given, act as if no credentials were given
+		err := loginNoCredentials(scriptMode)
+		if err != nil {
+			return err
+		}
+	} else if username != "" && password != "" {
+		// if all credentials were given, try to log in using only those credentials
+		if err := loginWithCredentials(username, password); err != nil {
+			return err
+		}
+	} else { // a username was given, but no password/passfile
+		// in script mode, fail out
+		if scriptMode {
+			return ErrCredentialsOrAPITokenRequired
+		}
+		// in interactive mode, throw up a prompt and pre-populate username
+		promptForInput(username, password)
 
 	}
 
-	// if a username and password/passfile were both supplied, *only* try to login using those credentials
-	if cred.Username != "" && (cred.Password != "" || cred.PassfilePath != "") {
-		if pass, err := skimPassFile(cred.PassfilePath); err != nil {
-			return err
-		} else if pass != "" {
-			cred.Password = pass
-		}
-
-		if err := Client.Login(cred.Username, cred.Password); err != nil {
-			return err
-		}
-
-		viaCred = true
-	} else {
-		// attempt to login via token, falling back to credentials
-		if err := loginViaJWT(cred.Username); err != nil {
-			// jwt token failure; log and move on
-			clilog.Writer.Warnf("Failed to login via JWT token: %v", err)
-
-			if err = loginViaCredentials(cred, scriptMode); err != nil {
-				clilog.Writer.Errorf("Failed to login via credentials: %v", err)
-				return err
-			}
-			viaCred = true
-		}
-	}
-
-	clilog.Writer.Infof("Logged in via %v", method)
+	// if we made it this far, we have successfully logged in via one of the above branches
+	// TODO
 
 	// on successful login, fetch and cache MyInfo
 	if MyInfo, err = Client.MyInfo(); err != nil {
@@ -205,12 +182,12 @@ func Login(cred Credentials, scriptMode bool, apiToken string) (err error) {
 	}
 
 	// check that the info of the user we fetched actually matches the given username
-	if cred.Username != "" && MyInfo.User != cred.Username {
-		return fmt.Errorf("server returned a different username (%v) than the given credentials (%v)", MyInfo.User, cred.Username)
+	if username != "" && MyInfo.User != username {
+		return fmt.Errorf("server returned a different username (%v) than the given credentials (%v)", MyInfo.User, username)
 	}
 
 	// create/refresh the token
-	if err := createTokenFile(cred.Username); err != nil {
+	if err := createTokenFile(username); err != nil {
 		clilog.Writer.Warnf("%v", err.Error())
 		// failing to create the token is not fatal
 	}
@@ -222,41 +199,52 @@ func Login(cred Credentials, scriptMode bool, apiToken string) (err error) {
 func loginNoCredentials(scriptMode bool) (err error) {
 	// attempt to login to whichever account was responsible for the pre-existing token
 	if err := loginViaJWT(""); err != nil {
-		clilog.Writer.Warnf("Failed to login via JWT token: %v", err)
+		clilog.Writer.Warnf("failed to login via JWT token: %v", err)
 		// if we are in script mode, fail out
 		if scriptMode {
 			return ErrCredentialsOrAPITokenRequired
 		}
 
-		// prompt for user name and password
-		u, p, err := CredPrompt("", "")
-
-		// log in
-		// TODO
-
-		// if MFA required, prompt for TOTP or recovery code
-		// TODO
-
-	}
-
-	// successfully logged in with JWT
-
-	// if we are in script mode, check for MFA
-	if scriptMode {
-		// we managed to login via JWT, but if MFA is required, we should fail out anyways as otherwise the script could become unreliable.
-		mfa, err := Client.GetMFAInfo()
+		mfa, err := promptForInput("", "")
 		if err != nil {
-			err = errors.Join(errors.New("failed to fetch mfa info after token login"), err)
-
-			clilog.Writer.Warnf("%v", err)
 			return err
-		} else if mfa.MFARequired {
-			return ErrAPITokenRequired
+		}
+		if mfa {
+			clilog.Writer.Infof("logged in via credentials (with mfa)")
+		} else {
+			clilog.Writer.Infof("logged in via credentials (without mfa)")
+
+		}
+	} else { // successfully logged in with JWT
+		clilog.Writer.Infof("logged in via JWT")
+
+		// if we are in script mode and MFA would have been required, fail out
+		// this is to enforce consistent script usage, lest the token expire mid-script
+		if scriptMode {
+			mfa, err := Client.GetMFAInfo()
+			if err != nil {
+				err = errors.Join(errors.New("failed to fetch mfa info after token login"), err)
+
+				clilog.Writer.Warnf("%v", err)
+				return err
+			} else if mfa.MFARequired {
+				clilog.Writer.Infof("failing out anyways due to JWT+script+MFARequired")
+
+				return ErrAPITokenRequired
+			}
 		}
 	}
 
+	// success
+
 	return nil
 
+}
+
+// helper function for Login when credentials where explicitly set
+func loginWithCredentials(username, password string) error {
+	// TODO
+	return nil
 }
 
 // loginViaJWT attempts to login via JWT token in the user's config directory.
@@ -287,45 +275,51 @@ func loginViaJWT(username string) (err error) {
 	return
 }
 
-// Attempts to login via the given credentials struct.
-// If insufficient information was given and we are not in script mode, spins up a credentials prompt TUI.
-func loginViaCredentials(cred Credentials, scriptMode bool) error {
-	// try to pull a password out of the passfile
-	var err error
-	cred.Password, err = skimPassFile(cred.PassfilePath)
+// Spins up a bubble tea prompt to interactively collect u/p and another to collect MFA (if applicable).
+// Returns if the MFA prompt was displayed and fill out (if !mfa, the Client successfully auth'd without MFA)
+// Only prints to the log on critical failures
+//
+// ! Not to be called in script mode.
+func promptForInput(prepopUsername, prepopPassword string) (mfa bool, err error) {
+	// prompt for user name and password
+	u, p, err := CredPrompt(prepopUsername, prepopPassword)
 	if err != nil {
-		return err
+		return false, err
 	}
 
-	if cred.Username == "" || cred.Password == "" {
-		// if script mode, do not prompt
-		if scriptMode {
-			return fmt.Errorf("no valid token found.\n" +
-				"Please login via --username and {--password | --passfile}")
-		}
-
-		// prompt for credentials
-		credM, err := CredPrompt(cred.Username, cred.Password)
-		if err != nil {
-			return err
-		}
-
+	// log in via u/p
+	resp, err := Client.LoginEx(u, p)
+	if err != nil {
+		return false, err
+	} else if resp.LoginStatus {
+		// successful login, no need to continue to continue to MFA
+		return false, nil
 	}
 
-	return Client.Login(cred.Username, cred.Password)
-}
-
-// skimPassFile slurps the file at the given path if path != "".
-// Returns the password found, an error opening/slurping the file, or "" (if path is empty).
-func skimPassFile(path string) (password string, err error) {
-	if path != "" {
-		b, err := os.ReadFile(path)
-		if err != nil {
-			return "", fmt.Errorf("failed to read password from %v: %v", path, err)
-		}
-		return strings.TrimSpace(string(b)), nil
+	// not yet logged in, likely due to required MFA
+	if resp.MFASetupRequired {
+		return false, ErrMFASetupRequired
+	} else if !resp.MFARequired {
+		// we aren't logged in, but it isn't because MFARequired
+		// unknown state, fail out
+		clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
+		return false, uniques.ErrGeneric
 	}
-	return "", nil
+
+	// prompt for TOTP or recovery code
+	code, authType, err := mfaPrompt()
+	if err != nil {
+		return true, err
+	}
+	resp, err = Client.MFALogin(u, p, authType, code)
+	if err != nil {
+		return true, err
+	} else if !resp.LoginStatus {
+		// we logged in via MFA, didn't get an error, but still failed to actually log in
+		clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
+		return false, uniques.ErrGeneric
+	}
+	return true, nil
 
 }
 
