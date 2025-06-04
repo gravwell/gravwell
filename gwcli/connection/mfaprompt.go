@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
@@ -27,7 +28,7 @@ import (
 // mfaPrompt runs a tiny tea.Model that collects a code OR recovery key
 //
 // ! Not intended to be run while Mother is running.
-func mfaPrompt() (code string, recoveryUsed bool, err error) {
+func mfaPrompt() (code string, at types.AuthType, err error) {
 	c := mfaModel{
 		codeSelected: true,
 	}
@@ -40,22 +41,23 @@ func mfaPrompt() (code string, recoveryUsed bool, err error) {
 	c.recoveryTI.Blur()
 	m, err := tea.NewProgram(c).Run()
 	if err != nil {
-		return "", false, err
+		return "", types.AUTH_TYPE_NONE, err
 	}
 	// pull input results
 	final, ok := m.(mfaModel)
 	if !ok {
 		clilog.Writer.Criticalf("failed to cast credentials model")
-		return "", false, errors.New("failed to cast mfa model")
+		return "", types.AUTH_TYPE_NONE, errors.New("failed to cast mfa model")
 	} else if final.killed {
-		return "", false, errors.New("you must authenticate to use gwcli")
+		return "", types.AUTH_TYPE_NONE, errors.New("you must authenticate to use gwcli")
 	}
 
 	err = nil
 	code = strings.TrimSpace(final.codeTI.Value())
+	at = types.AUTH_TYPE_TOTP
 	if code == "" {
 		code = strings.TrimSpace(final.recoveryTI.Value())
-		recoveryUsed = true
+		at = types.AUTH_TYPE_RECOVERY
 	}
 
 	return
