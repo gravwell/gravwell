@@ -61,7 +61,7 @@ func TestLoginNoMFA(t *testing.T) {
 	} else if !resp.LoginStatus {
 		t.Skip("failed to log test client in: ", resp.Reason)
 	}
-	APITkn, APITknSuccess := generateAPIToken(t, testclient)
+	APITkn := generateAPIToken(t, testclient)
 
 	type args struct {
 		u          string
@@ -83,7 +83,7 @@ func TestLoginNoMFA(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.args.apiToken != "" && !APITknSuccess {
+			if tt.args.apiToken == "UNSET" {
 				t.Skip("missing API token; skipping...")
 			}
 
@@ -123,17 +123,24 @@ func TestLoginNoMFA(t *testing.T) {
 
 	t.Run("u/p login -> token login -> different u/p login", func(t *testing.T) {
 		// spin up a test client
-		testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true})
+		defaultClient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err = testclient.Login(defaultUser, defaultPass); err != nil {
+		if err = defaultClient.Login(defaultUser, defaultPass); err != nil {
 			t.Fatal(err)
 		}
 
 		// create a second user
-		createAltUser(t, testclient, false)
-		t.Cleanup(func() { deleteAltUser(t, testclient) })
+		userExistedPrior, _ := createAltUser(t, defaultClient, false)
+		if userExistedPrior {
+			deleteAltUser(t, defaultClient)
+			if userExistedPrior, _ = createAltUser(t, defaultClient, false); userExistedPrior {
+				t.Fatal("alt user already existed despite explicit deletion")
+			}
+
+		}
+		t.Cleanup(func() { deleteAltUser(t, defaultClient) })
 
 		// destroy the Client singleton between each test
 		if connection.Client != nil {
@@ -222,8 +229,13 @@ func TestLoginNoMFA(t *testing.T) {
 
 }
 
-// TestMFA runs subtests similar to TestLoginNoMFA, but includes a user with MFA enabled.
-func TestMFA(t *testing.T) {
+// TestLoginMFA runs subtests similar to TestLoginNoMFA, but includes a user with MFA enabled.
+func TestLoginMFA(t *testing.T) {
+	// set up logger
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "DEBUG"); err != nil {
+		t.Fatalf("%v", err)
+	}
+
 	// spin up test client
 	defaultClient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})
 	if err != nil {
@@ -239,7 +251,14 @@ func TestMFA(t *testing.T) {
 	//defaultAPITkn, defaultUAPITknSuccess := generateAPIToken(t, defaultClient)
 
 	// create a second account with MFA so we don't screw up admin
-	altTOTPSecret := createAltUser(t, defaultClient, true)
+	userExistedPrior, altTOTPSecret := createAltUser(t, defaultClient, true)
+	if userExistedPrior || altTOTPSecret == "" {
+		deleteAltUser(t, defaultClient)
+		if userExistedPrior, altTOTPSecret = createAltUser(t, defaultClient, true); userExistedPrior {
+			t.Fatal("alt user already existed despite explicit deletion")
+		}
+
+	}
 	t.Cleanup(func() { deleteAltUser(t, defaultClient) })
 
 	// spin up a client for the alt user
@@ -260,7 +279,7 @@ func TestMFA(t *testing.T) {
 	t.Cleanup(func() { defaultClient.Logout() })
 
 	// fetch an API token for the second user
-	altAPITkn, altUAPITknSuccess := generateAPIToken(t, altClient)
+	altAPITkn := generateAPIToken(t, altClient)
 
 	type args struct {
 		u          string
@@ -273,19 +292,16 @@ func TestMFA(t *testing.T) {
 		args        args
 		expectedErr error
 	}{
-		//{"script mode: (default user) valid username and password", args{defaultUser, defaultPass, "", true}, nil},
 		{"script mode: (alt user) valid username and password, MFA enabled", args{altUser, altPass, "", true}, connection.ErrAPITokenRequired},
-		//{"script mode: (default user) valid APIToken", args{"", "", defaultAPITkn, true}, nil},
 		{"script mode: (alt user) valid APIToken", args{"", "", altAPITkn, true}, nil},
 		{"script mode: (alt user) no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
 		{"script mode: (alt user) invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
 		{"script mode: (alt user) invalid APIToken", args{"", "", altAPITkn + "1234", true}, connection.ErrAPIKeyInvalid},
-		//{"script mode: only username", args{defaultUser, "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// if we were given an API key, but failed to create one, skip the test
-			if tt.args.apiToken != "" && !altUAPITknSuccess {
+			if tt.args.apiToken == "UNSET" {
 				t.Skip("missing API token; skipping...")
 			}
 
@@ -325,24 +341,25 @@ func TestMFA(t *testing.T) {
 
 }
 
-// Creates a token for the logged-in testclient.
-// Returns the token that was generated (to be passed into connection.Login()) and whether the creation was successful.
-// If not successful, tkn will default to "UNSET".
+// Creates an API token with "ListUsers", "ListGroups", "ListGroupMembers" capabilities for the logged-in testclient.
+// Returns the token that was generated (to be passed into connection.Login()).
+// On failure, tkn will default to "UNSET".
 // If successful, queues a Cleanup function to delete the token.
-func generateAPIToken(t *testing.T, testclient *grav.Client) (tkn string, success bool) {
-	tkn = "UNSET"
+func generateAPIToken(t *testing.T, testclient *grav.Client) (tkn string) {
+	const tknfailVal string = "UNSET"
 	tf, err := testclient.CreateToken(
 		types.TokenCreate{
-			Name:    "LoginMFAToken",
-			Desc:    "API token for the LoginMFA tests",
-			Expires: time.Now().Add(apiTokenExpiryDur)})
+			Name:         "LoginMFAToken",
+			Desc:         "API token for the LoginMFA tests",
+			Expires:      time.Now().Add(apiTokenExpiryDur),
+			Capabilities: []string{"ListUsers", "ListGroups", "ListGroupMembers"}})
 	if err != nil {
 		t.Log("failed to generate APIKey, skipping tests: ", err)
-		return "", false
+		return "UNSET"
 	}
 	t.Cleanup(func() { testclient.DeleteToken(tf.ID) })
 
-	return tkn, true
+	return tf.Value
 }
 
 // Initializes and logs, calling fatal on the first error
@@ -359,8 +376,9 @@ func initLogin(t *testing.T, u, p string) {
 // Creates a second account using via the logged-in test client.
 // If MFA, a TOTP is added to the new user and the secret for generating codes is returned.
 //
-// Fatal on failure.
-func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (altUserTOTPSecret string) {
+// Fatal on error, but if the user already exists that will be returned as true and no action will be taken.
+// The TOTP secret is only returned returned if mfa and the new user is actually created.
+func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (userExistedPrior bool, altUserTOTPSecret string) {
 	if _, err := testclient.LookupUser(altUser); err != nil { // check if the user already exists (such as from running this test multiple times)
 		t.Logf("failed to lookup user %v, attempting creation...", altUser)
 		if err := testclient.AddUser(altUser, altPass, "Mildred Knolastname", "milly@imp.com", false); err != nil {
@@ -386,10 +404,11 @@ func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (altUserTOTP
 				t.Fatal(err)
 			}
 			//t.Log(ir)
-
+			return false, sr.Seed
 		}
+		return false, ""
 	}
-	return ""
+	return true, ""
 }
 
 // Destroys the secondary user, if it exists.
