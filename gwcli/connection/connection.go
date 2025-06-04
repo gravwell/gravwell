@@ -169,7 +169,15 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 			return ErrCredentialsOrAPITokenRequired
 		}
 		// in interactive mode, throw up a prompt and pre-populate username
-		promptForInput(username, password)
+		mfa, err := promptForInput(username)
+		if err != nil {
+			return err
+		}
+		if mfa {
+			clilog.Writer.Infof("logged in via credentials (with mfa)")
+		} else {
+			clilog.Writer.Infof("logged in via credentials (without mfa)")
+		}
 
 	}
 
@@ -205,7 +213,7 @@ func loginNoCredentials(scriptMode bool) (err error) {
 			return ErrCredentialsOrAPITokenRequired
 		}
 
-		mfa, err := promptForInput("", "")
+		mfa, err := promptForInput("")
 		if err != nil {
 			return err
 		}
@@ -213,7 +221,6 @@ func loginNoCredentials(scriptMode bool) (err error) {
 			clilog.Writer.Infof("logged in via credentials (with mfa)")
 		} else {
 			clilog.Writer.Infof("logged in via credentials (without mfa)")
-
 		}
 	} else { // successfully logged in with JWT
 		clilog.Writer.Infof("logged in via JWT")
@@ -280,9 +287,9 @@ func loginViaJWT(username string) (err error) {
 // Only prints to the log on critical failures
 //
 // ! Not to be called in script mode.
-func promptForInput(prepopUsername, prepopPassword string) (mfa bool, err error) {
+func promptForInput(prepopUsername string) (mfa bool, err error) {
 	// prompt for user name and password
-	u, p, err := CredPrompt(prepopUsername, prepopPassword)
+	u, p, err := CredPrompt(prepopUsername)
 	if err != nil {
 		return false, err
 	}

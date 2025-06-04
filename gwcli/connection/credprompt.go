@@ -27,7 +27,7 @@ import (
 // CredPrompt runs a tiny tea.Model that collects username and password.
 //
 // ! Not intended to be run while Mother is running.
-func CredPrompt(initialUser, initialPass string) (user, pass string, err error) {
+func CredPrompt(initialUser string) (user, pass string, err error) {
 	c := credModel{
 		userSelected: true,
 	}
@@ -38,7 +38,6 @@ func CredPrompt(initialUser, initialPass string) (user, pass string, err error) 
 	c.PassTI = textinput.New()
 	c.PassTI.Prompt = stylesheet.TIPromptPrefix
 	c.PassTI.EchoMode = textinput.EchoNone
-	c.PassTI.SetValue(initialPass)
 	c.PassTI.Blur()
 	m, err := tea.NewProgram(c).Run()
 	if err != nil {
