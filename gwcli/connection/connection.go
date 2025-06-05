@@ -182,7 +182,6 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 	}
 
 	// if we made it this far, we have successfully logged in via one of the above branches
-	// TODO
 
 	// on successful login, fetch and cache MyInfo
 	if MyInfo, err = Client.MyInfo(); err != nil {
@@ -248,51 +247,33 @@ func loginNoCredentials(scriptMode bool) (err error) {
 
 }
 
-// helper function for Login when credentials were explicitly set.
+// helper function for Login when BOTH credentials were explicitly set.
 // If error is nil, caller can assume Client has successfully logged in and state has been logged (if applicable).
 func loginWithCredentials(username, password string, script bool) error {
 	resp, err := Client.LoginEx(username, password)
-	if err != nil && !errors.Is(err, grav.ErrMFARequired) {
-		// coarsely check for invalid credentials
-		if strings.Contains(err.Error(), "401") {
-			clilog.Writer.Infof("Failure Reason: %v", resp.Reason)
-			return ErrInvalidCredentials
+	if mfa, ufErr := testLoginError(resp, err); ufErr != nil {
+		return ufErr
+	} else if mfa {
+		// if we are in script mode, fail out and alert the user to use an API key
+		if script {
+			return ErrAPITokenRequired
 		}
-		return err
-	} else if resp.LoginStatus {
-		// successful login, no need to continue to continue to MFA
-		clilog.Writer.Infof("logged in via credentials (without mfa)")
-		return nil
+
+		// send the user into a prompt to enter their TOTP
+		code, authType, err := mfaPrompt()
+		if err != nil {
+			return err
+		}
+		resp, err = Client.MFALogin(username, password, authType, code)
+		if err != nil {
+			return err
+		} else if !resp.LoginStatus {
+			// we logged in via MFA, didn't get an error, but still failed to actually log in
+			clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
+			return uniques.ErrGeneric
+		}
 	}
 
-	// not yet logged in, likely due to required MFA
-	if resp.MFASetupRequired {
-		return ErrMFASetupRequired
-	} else if !resp.MFARequired {
-		// we aren't logged in, but it isn't because MFARequired
-		// unknown state, fail out
-		clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
-		return uniques.ErrGeneric
-	}
-
-	// if we are in script mode, fail out and alert the user to use an API key
-	if script {
-		return ErrAPITokenRequired
-	}
-
-	// send the user into a prompt to enter their TOTP
-	code, authType, err := mfaPrompt()
-	if err != nil {
-		return err
-	}
-	resp, err = Client.MFALogin(username, password, authType, code)
-	if err != nil {
-		return err
-	} else if !resp.LoginStatus {
-		// we logged in via MFA, didn't get an error, but still failed to actually log in
-		clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
-		return uniques.ErrGeneric
-	}
 	return nil
 }
 
@@ -338,10 +319,53 @@ func promptForInput(prepopUsername string) (mfa bool, err error) {
 
 	// log in via u/p
 	resp, err := Client.LoginEx(u, p)
-	if err != nil {
-		return false, err
-	} else if resp.LoginStatus {
-		// successful login, no need to continue to continue to MFA
+	if mfa, ufErr := testLoginError(resp, err); ufErr != nil {
+		return false, ufErr
+	} else if mfa {
+		// prompt for TOTP or recovery code
+		code, authType, err := mfaPrompt()
+		if err != nil {
+			return true, err
+		}
+		resp, err = Client.MFALogin(u, p, authType, code)
+		if err != nil {
+			return true, err
+		} else if !resp.LoginStatus {
+			// we logged in via MFA, didn't get an error, but still failed to actually log in
+			clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
+			return false, uniques.ErrGeneric
+		}
+	}
+
+	return mfa, nil
+
+}
+
+// helper subroutine that wraps LoginEx.
+// Translates HTTP error codes into user-friendly errors and does not treat MFARequired as an error.
+// Logs the full error to the log and returns an error appropriate to show a user.
+//
+// Really just used to consolidate all of the checks that are made each time we would call LoginEx().
+func testLoginError(resp types.LoginResponse, rawErr error) (mfa bool, userFriendlyErr error) {
+	if rawErr == nil {
+		if !resp.LoginStatus { // sanity check
+			clilog.Writer.Criticalf("login did not turn back an error, but we are not logged in! Response: %v", resp)
+			return false, uniques.ErrGeneric
+		}
+
+		return false, nil
+	}
+
+	// if a non-MFA error occurred, dig into it
+	if !errors.Is(rawErr, grav.ErrMFARequired) {
+		if strings.Contains(rawErr.Error(), "401") {
+			return false, ErrInvalidCredentials
+		}
+		// unknown error, log it
+		clilog.Writer.Warnf("failed to login: %v", rawErr)
+		return false, nil
+	}
+	if resp.LoginStatus { // successful login, no need to continue to continue to MFA
 		return false, nil
 	}
 
@@ -355,21 +379,7 @@ func promptForInput(prepopUsername string) (mfa bool, err error) {
 		return false, uniques.ErrGeneric
 	}
 
-	// prompt for TOTP or recovery code
-	code, authType, err := mfaPrompt()
-	if err != nil {
-		return true, err
-	}
-	resp, err = Client.MFALogin(u, p, authType, code)
-	if err != nil {
-		return true, err
-	} else if !resp.LoginStatus {
-		// we logged in via MFA, didn't get an error, but still failed to actually log in
-		clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
-		return false, uniques.ErrGeneric
-	}
 	return true, nil
-
 }
 
 // createTokenFile creates a login token for future use.
