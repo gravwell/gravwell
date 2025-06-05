@@ -195,7 +195,7 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 	}
 
 	// create/refresh the token
-	if err := createTokenFile(username); err != nil {
+	if err := createTokenFile(MyInfo.User); err != nil {
 		clilog.Writer.Warnf("%v", err.Error())
 		// failing to create the token is not fatal
 	}
