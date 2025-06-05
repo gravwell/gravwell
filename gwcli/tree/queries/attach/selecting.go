@@ -30,7 +30,6 @@ This implementation works ONLY because exactly one goroutine (the maintainer) ma
 */
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -178,7 +177,7 @@ func (sv *selectingView) view() string {
 	a, ok := sv.list.SelectedItem().(attachable)
 	if !ok {
 		clilog.Writer.Errorf("failed to cast selected item to attachable. Raw: %v", sv.list.SelectedItem())
-		sv.errString = GenericErrorText
+		sv.errString = uniques.ErrGeneric.Error()
 	} else {
 		details = composeDetails(a)
 	}
@@ -238,7 +237,7 @@ func (sv *selectingView) attachToQuery() (fatalErr error) {
 	itm, ok := sv.list.SelectedItem().(attachable)
 	if !ok {
 		clilog.Writer.Criticalf("failed to assert list item back to attachable. Raw item: %#v", sv.list.SelectedItem())
-		return errors.New(GenericErrorText)
+		return uniques.ErrGeneric
 	}
 
 	s, err := connection.Client.AttachSearch(itm.ID)
