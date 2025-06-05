@@ -132,14 +132,7 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		}
 
 		// create a second user
-		userExistedPrior, _ := createAltUser(t, defaultClient, false)
-		if userExistedPrior {
-			deleteAltUser(t, defaultClient)
-			if userExistedPrior, _ = createAltUser(t, defaultClient, false); userExistedPrior {
-				t.Fatal("alt user already existed despite explicit deletion")
-			}
-
-		}
+		createAltUser(t, defaultClient, false)
 		t.Cleanup(func() { deleteAltUser(t, defaultClient) })
 
 		// destroy the Client singleton between each test
@@ -251,14 +244,7 @@ func TestLoginMFA_script_mode(t *testing.T) {
 	//defaultAPITkn, defaultUAPITknSuccess := generateAPIToken(t, defaultClient)
 
 	// create a second account with MFA so we don't screw up admin
-	userExistedPrior, altTOTPSecret := createAltUser(t, defaultClient, true)
-	if userExistedPrior || altTOTPSecret == "" {
-		deleteAltUser(t, defaultClient)
-		if userExistedPrior, altTOTPSecret = createAltUser(t, defaultClient, true); userExistedPrior {
-			t.Fatal("alt user already existed despite explicit deletion")
-		}
-
-	}
+	altTOTPSecret := createAltUser(t, defaultClient, true)
 	t.Cleanup(func() { deleteAltUser(t, defaultClient) })
 
 	// spin up a client for the alt user
@@ -341,6 +327,117 @@ func TestLoginMFA_script_mode(t *testing.T) {
 
 }
 
+// TestLogin_interactive_mode runs tests against Login() without specifying script mode.
+// These tests should be run with short timeouts (< 10s each) and a timeout proc'ing likely means Login entered a prompt when it shouldn't have.
+func TestLogin_interactive_mode(t *testing.T) {
+	// set up logger
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "DEBUG"); err != nil {
+		t.Fatalf("%v", err)
+	}
+
+	t.Run("API token", func(t *testing.T) {
+		// spin up test client
+		c, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})
+		if err != nil {
+			t.Skip("failed to create test client:", err)
+		}
+		if resp, err := c.LoginEx(defaultUser, defaultPass); err != nil {
+			t.Skip(err)
+		} else if !resp.LoginStatus {
+			t.Skip("failed to log test client in: ", resp.Reason)
+		}
+		t.Cleanup(func() { c.Logout() })
+		// fetch an API token for the default user
+		apiTkn := generateAPIToken(t, c)
+
+		// re-initialize the connection singleton
+		if err := connection.Initialize(server, false, true, ""); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { connection.End() })
+
+		if err := connection.Login("", "", apiTkn, false); err != nil {
+			t.Fatal(err)
+		}
+		// check that we can query the backend and get the correct user
+		myinfo, err := connection.Client.MyInfo()
+		if err != nil {
+			t.Fatal(err)
+		} else if myinfo.User != connection.MyInfo.User || myinfo.User != defaultUser {
+			t.Fatalf("username mismatch! query name (%v) != cached name (%v) != given username (%v)", myinfo.User, connection.MyInfo.User, defaultUser)
+		}
+	})
+
+	t.Run("valid username and password", func(t *testing.T) {
+		// spin up test client
+		c, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})
+		if err != nil {
+			t.Skip("failed to create test client:", err)
+		}
+		if resp, err := c.LoginEx(defaultUser, defaultPass); err != nil {
+			t.Skip(err)
+		} else if !resp.LoginStatus {
+			t.Skip("failed to log test client in: ", resp.Reason)
+		}
+		t.Cleanup(func() { c.Logout() })
+
+		// re-initialize the connection singleton
+		if err := connection.Initialize(server, false, true, ""); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { connection.End() })
+
+		if err := connection.Login(defaultUser, defaultPass, "", false); err != nil {
+			t.Fatal(err)
+		}
+		// check that we can query the backend and get the correct user
+		myinfo, err := connection.Client.MyInfo()
+		if err != nil {
+			t.Fatal(err)
+		} else if myinfo.User != connection.MyInfo.User || myinfo.User != defaultUser {
+			t.Fatalf("username mismatch! query name (%v) != cached name (%v) != given username (%v)", myinfo.User, connection.MyInfo.User, defaultUser)
+		}
+	})
+
+	/*t.Run("valid username and password + MFA", func(t *testing.T) {
+		// we expect this test cause Login to spawn an MFA prompt
+		// TODO incorporate teattest and pass a GenerateCode result into stdin
+
+		// spin up test client
+		c, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})
+		if err != nil {
+			t.Skip("failed to create test client:", err)
+		}
+		if resp, err := c.LoginEx(defaultUser, defaultPass); err != nil {
+			t.Skip(err)
+		} else if !resp.LoginStatus {
+			t.Skip("failed to log test client in: ", resp.Reason)
+		}
+		t.Cleanup(func() { c.Logout() })
+
+		// spawn a second user with mfa
+		createAltUser(t, c, true)
+
+		// re-initialize the connection singleton
+		if err := connection.Initialize(server, false, true, ""); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { connection.End() })
+
+		if err := connection.Login(defaultUser, defaultPass, "", false); err != nil {
+			t.Fatal(err)
+		}
+		// check that we can query the backend and get the correct user
+		myinfo, err := connection.Client.MyInfo()
+		if err != nil {
+			t.Fatal(err)
+		} else if myinfo.User != connection.MyInfo.User || myinfo.User != defaultUser {
+			t.Fatalf("username mismatch! query name (%v) != cached name (%v) != given username (%v)", myinfo.User, connection.MyInfo.User, defaultUser)
+		}
+	}) */
+
+}
+
 // Creates an API token with "ListUsers", "ListGroups", "ListGroupMembers" capabilities for the logged-in testclient.
 // Returns the token that was generated (to be passed into connection.Login()).
 // On failure, tkn will default to "UNSET".
@@ -374,41 +471,42 @@ func initLogin(t *testing.T, u, p string) {
 }
 
 // Creates a second account using via the logged-in test client.
+// If the second account already exists, it will be deleted and recreated.
 // If MFA, a TOTP is added to the new user and the secret for generating codes is returned.
 //
 // Fatal on error, but if the user already exists that will be returned as true and no action will be taken.
 // The TOTP secret is only returned returned if mfa and the new user is actually created.
-func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (userExistedPrior bool, altUserTOTPSecret string) {
+func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (TOTPSecret string) {
 	if _, err := testclient.LookupUser(altUser); err != nil { // check if the user already exists (such as from running this test multiple times)
-		t.Logf("failed to lookup user %v, attempting creation...", altUser)
-		if err := testclient.AddUser(altUser, altPass, "Mildred Knolastname", "milly@imp.com", false); err != nil {
+		deleteAltUser(t, testclient)
+	}
+
+	t.Logf("failed to lookup user %v, attempting creation...", altUser)
+	if err := testclient.AddUser(altUser, altPass, "Mildred Knolastname", "milly@imp.com", false); err != nil {
+		t.Fatal(err)
+	}
+
+	if mfa {
+		// initialize TOTP
+		sr, err := testclient.GetTOTPSetupEx(altUser, altPass, types.AUTH_TYPE_NONE, "")
+		if err != nil {
 			t.Fatal(err)
 		}
 
-		if mfa {
-			// initialize TOTP
-			sr, err := testclient.GetTOTPSetupEx(altUser, altPass, types.AUTH_TYPE_NONE, "")
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			// generate a code to confirm TOTP installation
-			code, err := totp.GenerateCode(sr.Seed, time.Now())
-			if err != nil {
-				t.Fatal("failed to generate TOTP code from setup seed: ", err)
-			}
-			t.Logf("generated totp code '%v'", code)
-
-			_, err = testclient.InstallTOTPSetup(altUser, altPass, code)
-			if err != nil {
-				t.Fatal(err)
-			}
-			//t.Log(ir)
-			return false, sr.Seed
+		// generate a code to confirm TOTP installation
+		code, err := totp.GenerateCode(sr.Seed, time.Now())
+		if err != nil {
+			t.Fatal("failed to generate TOTP code from setup seed: ", err)
 		}
-		return false, ""
+		t.Logf("generated totp code '%v'", code)
+
+		_, err = testclient.InstallTOTPSetup(altUser, altPass, code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return sr.Seed
 	}
-	return true, ""
+	return ""
 }
 
 // Destroys the secondary user, if it exists.
@@ -416,7 +514,10 @@ func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (userExisted
 // Fatal on failure.
 func deleteAltUser(t *testing.T, testclient *grav.Client) {
 	u, err := testclient.LookupUser(altUser)
-	if err != nil { // check if the user already exists (such as from running this test multiple times)
+	if errors.Is(err, grav.ErrNotFound) {
+		// user already doesn't exist, neat
+		return
+	} else if err != nil { // check if the user already exists (such as from running this test multiple times)
 		t.Logf("failed to lookup user %v, skipping deletion.", altUser)
 		return
 	}
