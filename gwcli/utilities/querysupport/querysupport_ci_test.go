@@ -33,7 +33,7 @@ func Test_GetResultsForDataScope(t *testing.T) {
 	if err := connection.Initialize(server, false, true, ""); err != nil {
 		panic(err)
 	}
-	if err := connection.Login(connection.Credentials{Username: user, Password: password}, true); err != nil {
+	if err := connection.Login(user, password, "", true); err != nil {
 		panic(err)
 	}
 
