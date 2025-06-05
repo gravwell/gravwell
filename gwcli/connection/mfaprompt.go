@@ -104,10 +104,12 @@ func (m mfaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m mfaModel) View() string {
-	// TODO clean up visuals
-	return fmt.Sprintf("%v%v\n%v%v\n\n",
-		stylesheet.PromptStyle.Render("TOTP code"), m.codeTI.View(),
-		stylesheet.PromptStyle.Render("recovery code"), m.recoveryTI.View())
+	return fmt.Sprintf("%v%v\n"+
+		"If you don't have access to your authenticator, you can enter a recovery code below:\n"+
+		"%v%v\n"+
+		"Once a recovery code has been used, it cannot be used again!\n",
+		stylesheet.IndexStyle.Render("TOTP"), m.codeTI.View(),
+		stylesheet.ExampleStyle.Render("recovery"), m.recoveryTI.View())
 }
 
 // select the next TI
