@@ -154,7 +154,7 @@ func TestConnection() error {
 		return err
 	}
 	// run the interactive mode tests with tight timeouts
-	if err := runTest(8*time.Second, "^TestLogin_interactive_mode$", "github.com/gravwell/gravwell/v4/gwcli/tree/connection"); err != nil {
+	if err := runTest(8*time.Second, "^TestLogin_interactive_mode$", "github.com/gravwell/gravwell/v4/gwcli/connection"); err != nil {
 		return err
 	}
 
