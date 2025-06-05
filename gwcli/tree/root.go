@@ -181,7 +181,6 @@ func ppost(cmd *cobra.Command, args []string) error {
 
 	if err := connection.End(); err != nil {
 		clilog.Writer.Debugf("failed to destroy connection singleton: %v", err)
-		return err
 	}
 
 	pprof.StopCPUProfile() // idempotent if no profiler is running

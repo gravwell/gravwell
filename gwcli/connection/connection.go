@@ -414,13 +414,15 @@ func createTokenFile(username string) error {
 // Does not logout the user as to not invalidate existing JWTs.
 //
 // To reconnect, you will need to call Initialize() again.
+//
+// ! swallows Already Closed errors
 func End() error {
 	MyInfo = types.UserDetails{}
 	if Client == nil { // job's done
 		return nil
 	}
 
-	if err := Client.Close(); err != nil {
+	if err := Client.Close(); err != nil && (err.Error() != "Client already closed") {
 		return err
 	}
 	//Client = nil // does not nil out as to reduce the likelihood of nil pointer panics
