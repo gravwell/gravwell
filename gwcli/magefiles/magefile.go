@@ -107,6 +107,9 @@ func Build() error {
 
 // TestAll runs all gwcli tests, according to their subsystem.
 func TestAll() error {
+	verboseln("Testing non-Mother singletons...")
+	mg.Deps(TestConnection)
+
 	verboseln("Testing query components...")
 	mg.Deps(TestQuery, TestDatascope, TestQueryAux)
 
@@ -138,6 +141,20 @@ func TestQuery() error {
 		return err
 	}
 	if err := runTest(20*time.Second, "^Test_run$", "github.com/gravwell/gravwell/v4/gwcli/tree/query"); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// TestConnection tests the connection package, primarily the Login functionality contained therein.
+func TestConnection() error {
+	// run the script mode tests
+	if err := runTest(30*time.Second, "_script_mode$", "github.com/gravwell/gravwell/v4/gwcli/connection"); err != nil {
+		return err
+	}
+	// run the interactive mode tests with tight timeouts
+	if err := runTest(8*time.Second, "^TestLogin_interactive_mode$", "github.com/gravwell/gravwell/v4/gwcli/tree/connection"); err != nil {
 		return err
 	}
 
