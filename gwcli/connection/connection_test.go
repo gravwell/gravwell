@@ -39,13 +39,9 @@ const (
 	altPass string = "LooLooLand"
 )
 
-func TestLoginBasic(t *testing.T) {
-
-}
-
-// TestLoginNoMFA tests all --script entrypoints to logging in.
+// TestLoginNoMFA_script_mode tests all --script entrypoints to logging in.
 // NOTE: this test suite assumes that the default user does NOT have MFA enabled and can be accessed via u/p.
-func TestLoginNoMFA(t *testing.T) {
+func TestLoginNoMFA_script_mode(t *testing.T) {
 	// setup singletons
 	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "DEBUG"); err != nil {
 		t.Fatalf("%v", err)
@@ -77,12 +73,13 @@ func TestLoginNoMFA(t *testing.T) {
 		args        args
 		expectedErr error
 	}{
-		{"script mode: valid username and password", args{defaultUser, defaultPass, "", true}, nil},
-		{"script mode: valid APIToken", args{"", "", APITkn, true}, nil},
-		{"script mode: no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
-		{"script mode: invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
-		{"script mode: invalid APIToken", args{"", "", APITkn + "1234", true}, connection.ErrAPIKeyInvalid},
-		{"script mode: only username", args{defaultUser, "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
+		{"valid username and password", args{defaultUser, defaultPass, "", true}, nil},
+		{"valid APIToken", args{"", "", APITkn, true}, nil},
+		{"valid APIToken", args{"", "", APITkn, true}, nil}, // should be identical to script mode
+		{"no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
+		{"invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
+		{"invalid APIToken", args{"", "", APITkn + "1234", true}, connection.ErrAPIKeyInvalid},
+		{"only username", args{defaultUser, "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -232,8 +229,8 @@ func TestLoginNoMFA(t *testing.T) {
 
 }
 
-// TestLoginMFA runs subtests similar to TestLoginNoMFA, but includes a user with MFA enabled.
-func TestLoginMFA(t *testing.T) {
+// TestLoginMFA_script_mode runs subtests similar to TestLoginNoMFA, but includes a user with MFA enabled.
+func TestLoginMFA_script_mode(t *testing.T) {
 	// set up logger
 	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "DEBUG"); err != nil {
 		t.Fatalf("%v", err)
@@ -295,11 +292,11 @@ func TestLoginMFA(t *testing.T) {
 		args        args
 		expectedErr error
 	}{
-		{"script mode: (alt user) valid username and password, MFA enabled", args{altUser, altPass, "", true}, connection.ErrAPITokenRequired},
-		{"script mode: (alt user) valid APIToken", args{"", "", altAPITkn, true}, nil},
-		{"script mode: (alt user) no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
-		{"script mode: (alt user) invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
-		{"script mode: (alt user) invalid APIToken", args{"", "", altAPITkn + "1234", true}, connection.ErrAPIKeyInvalid},
+		{"(alt user) valid username and password, MFA enabled", args{altUser, altPass, "", true}, connection.ErrAPITokenRequired},
+		{"(alt user) valid APIToken", args{"", "", altAPITkn, true}, nil},
+		{"(alt user) no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
+		{"(alt user) invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
+		{"(alt user) invalid APIToken", args{"", "", altAPITkn + "1234", true}, connection.ErrAPIKeyInvalid},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
