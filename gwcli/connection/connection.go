@@ -83,7 +83,7 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	credpromp "github.com/gravwell/gravwell/v4/gwcli/connection/credprompt"
+	"github.com/gravwell/gravwell/v4/gwcli/connection/credprompt"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -313,7 +313,7 @@ func loginViaJWT(username string) (err error) {
 // ! Not to be called in script mode.
 func promptForInput(prepopUsername string) (mfa bool, err error) {
 	// prompt for user name and password
-	u, p, err := credpromp.Collect(prepopUsername)
+	u, p, err := credprompt.Collect(prepopUsername)
 	if err != nil {
 		return false, err
 	}

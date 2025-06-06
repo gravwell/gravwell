@@ -32,7 +32,19 @@ import (
 //
 // ! Not intended to be run while Mother is running.
 func Collect(initialUser string) (user, pass string, err error) {
-	c := New(initialUser)
+	return collect(initialUser, nil)
+}
+
+// internal implementation of collect.
+// Allows test suites to inject their own models into collect, rather than having to mock stdin.
+func collect(initialUser string, model *tea.Model) (user, pass string, err error) {
+	var c tea.Model
+	if model == nil {
+		c = New(initialUser)
+	} else {
+		c = *model
+	}
+
 	m, err := tea.NewProgram(c).Run()
 	if err != nil {
 		return "", "", err
