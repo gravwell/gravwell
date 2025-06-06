@@ -6,7 +6,9 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package connection
+// Package credprompt is a tiny package for spinning up a mother-independent TUI to collect username and password.
+// Use .Collect().
+package credprompt
 
 // a tiny tea.Model to prompt for user name and password
 //
@@ -24,10 +26,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// CredPrompt runs a tiny tea.Model that collects username and password.
+// Collect runs a tiny tea.Model that collects username and password.
+// This is a blocking call; it only returns when the user enters a username and password or passes a killkey;
+// Collect manages its own killkeys, as it is mother-independent.
 //
 // ! Not intended to be run while Mother is running.
-func CredPrompt(initialUser string) (user, pass string, err error) {
+func Collect(initialUser string) (user, pass string, err error) {
 	c := credModel{
 		userSelected: true,
 	}
