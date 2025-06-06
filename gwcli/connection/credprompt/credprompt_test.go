@@ -92,9 +92,9 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 		inUser, inPass := "Blitzo", "TheOIsSilent"
 		tm, ch := spawnModel(t)
 
-		testsupport.TTSendWord(t, tm, []rune(inUser))
+		tm.Type(inUser)
 		testsupport.TTSendEnter(tm)
-		testsupport.TTSendWord(t, tm, []rune(inPass))
+		tm.Type(inPass)
 		testsupport.TTSendEnter(tm) // submit
 
 		// check results
@@ -108,13 +108,13 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 
 		tm, ch := spawnModel(t)
 
-		testsupport.TTSendWord(t, tm, []rune(inUser))
+		tm.Type(inUser)
 		testsupport.TTSendEnter(tm)
-		testsupport.TTSendWord(t, tm, []rune(inPass))
+		tm.Type(inPass)
 		testsupport.TTSendEnter(tm) // submit
 
 		// this should not be captured by the prompt
-		testsupport.TTSendWord(t, tm, []rune("should not be caught"))
+		tm.Type("should not be caught")
 		tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyCtrlC, Runes: []rune{rune(tea.KeyCtrlC)}}))
 
 		// check results
