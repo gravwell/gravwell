@@ -510,6 +510,52 @@ func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (TOTPSecret 
 	return ""
 }
 
+func TestTODOInstallTOTPBug(t *testing.T) {
+	// spawn a client
+	c, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})
+	if err != nil {
+		t.Skip("failed to create test client for fetching API token: ", err)
+	}
+	if resp, err := c.LoginEx(defaultUser, defaultPass); err != nil {
+		t.Skip(err)
+	} else if !resp.LoginStatus {
+		t.Skip("failed to log test client in: ", resp.Reason)
+	}
+	ping(t, c)
+
+	if err := c.AddUser(altUser, altPass, "Mildred Knolastname", "milly@imp.com", false); err != nil {
+		t.Fatal(err)
+	}
+	ping(t, c)
+
+	// initialize TOTP
+	sr, err := c.GetTOTPSetupEx(altUser, altPass, types.AUTH_TYPE_NONE, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ping(t, c)
+
+	// generate a code to confirm TOTP installation
+	code, err := totp.GenerateCode(sr.Seed, time.Now())
+	if err != nil {
+		t.Fatal("failed to generate TOTP code from setup seed: ", err)
+	}
+	ping(t, c)
+
+	_, err = c.InstallTOTPSetup(altUser, altPass, code)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ping(t, c)
+}
+
+func ping(t *testing.T, c *grav.Client) {
+	t.Helper()
+	if err := c.RefreshLoginToken(); err != nil {
+		t.Fatal("failed to ping for default client")
+	}
+}
+
 // Destroys the secondary user, if it exists.
 //
 // Fatal on failure.
