@@ -27,11 +27,12 @@ func TTTab(tm *teatest.TestModel) {
 	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyTab, Runes: []rune{rune(tea.KeyTab)}})) // move to password input
 }
 
-// TTCtrlC submits a CTRL-C KeyMsg to the test model, proc'ing a sigint.
+// TTSendSpecial submits a KeyMsg containing the special key (CTRL+C, ESC, etc) to the test model.
+// Ensures the KeyMsg is well-formatted, as ill-formatted KeyMsgs are silently dropped (as they are not read as KeyMsgs) or cause panics.
 //
 // For use with TeaTests.
-func TTCtrlC(tm *teatest.TestModel) {
-	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyCtrlC, Runes: []rune{rune(tea.KeyCtrlC)}}))
+func TTSendSpecial(tm *teatest.TestModel, kt tea.KeyType) {
+	tm.Send(tea.KeyMsg(tea.Key{Type: kt, Runes: []rune{rune(kt)}}))
 }
 
 //#endregion TeaTest
