@@ -124,7 +124,30 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 		}
 	})
 
-	t.Run("global kill key", func(t *testing.T) {})
+	t.Run("global kill key", func(t *testing.T) {
+		inUser, inPass := "Blitzo", "TheOIsSilent"
+
+		tm, ch := spawnModel(t)
+
+		tm.Type(inUser)
+		tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyTab, Runes: []rune{rune(tea.KeyTab)}})) // move to password input
+		tm.Type(inPass)
+
+		// kill with a sigint
+		tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyCtrlC, Runes: []rune{rune(tea.KeyCtrlC)}}))
+
+		// this should not be captured by the prompt
+		tm.Type("should not be caught")
+
+		// check results
+		if u, p, killed, userSelected := parseFinal(t, <-ch); userSelected {
+			t.Error("userTI is selected despite an enter being sent")
+		} else if !killed {
+			t.Error("CTRL+C was sent to the prompt, but it did not mark itself as having been killed")
+		} else if u != inUser || p != inPass {
+			t.Fatalf("Unexpected values in TIs: '%v'!='%v' or '%v'!='%v'", u, inUser, p, inPass)
+		}
+	})
 	t.Run("child kill key", func(t *testing.T) {})
 
 }
