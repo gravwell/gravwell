@@ -477,8 +477,10 @@ func initLogin(t *testing.T, u, p string) {
 // Fatal on error, but if the user already exists that will be returned as true and no action will be taken.
 // The TOTP secret is only returned returned if mfa and the new user is actually created.
 func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (TOTPSecret string) {
-	if _, err := testclient.LookupUser(altUser); err != nil { // check if the user already exists (such as from running this test multiple times)
+	if _, err := testclient.LookupUser(altUser); err == nil { // check if the user already exists (such as from running this test multiple times)
 		deleteAltUser(t, testclient)
+	} else if !errors.Is(err, grav.ErrNotFound) {
+		t.Fatalf("error occurred looking up user %v: %v", altUser, err)
 	}
 
 	t.Logf("failed to lookup user %v, attempting creation...", altUser)
@@ -498,7 +500,6 @@ func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (TOTPSecret 
 		if err != nil {
 			t.Fatal("failed to generate TOTP code from setup seed: ", err)
 		}
-		t.Logf("generated totp code '%v'", code)
 
 		_, err = testclient.InstallTOTPSetup(altUser, altPass, code)
 		if err != nil {
@@ -513,12 +514,13 @@ func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (TOTPSecret 
 //
 // Fatal on failure.
 func deleteAltUser(t *testing.T, testclient *grav.Client) {
+	t.Helper()
 	u, err := testclient.LookupUser(altUser)
 	if errors.Is(err, grav.ErrNotFound) {
 		// user already doesn't exist, neat
 		return
-	} else if err != nil { // check if the user already exists (such as from running this test multiple times)
-		t.Logf("failed to lookup user %v, skipping deletion.", altUser)
+	} else if err != nil {
+		t.Fatalf("failed to lookup user %v: %v", altUser, err)
 		return
 	}
 
