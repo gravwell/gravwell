@@ -15,8 +15,8 @@ import (
 // See [this](https://charm.sh/blog/teatest/) blog post for more information.
 
 // NOTE: This test does not work because bubbletea is unable to open a tty on the mocked stdin port.
-// The logic is sound, but bubbletea is not compatible with it, hence why the other tests rely on teatest
-// I am leaving it as relic code to showcase to fact.
+// The logic is sound, but bubbletea is not compatible with it, hence why the other tests rely on teatest.
+// I am leaving it as relic code to showcase that fact.
 /*func TestManualCredPrompt(t *testing.T) {
 	//#region capture stdin so we can send data into it
 
@@ -84,6 +84,7 @@ import (
 
 }*/
 
+// TestCredPrompt_TeaTest runs interactivity tests against the cred prompt model
 func TestCredPrompt_TeaTest(t *testing.T) {
 	// create a channel for us to receive the final model on
 	result := make(chan tea.Model)
@@ -97,14 +98,13 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 		close(result)
 	}()
 
-	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
-	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
-	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'p'}}))
-	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
-	tm.Send(tea.KeyMsg{
-		Type:  tea.KeyRunes,
-		Runes: []rune("q"),
-	})
+	sendWord(t, tm, []rune("u"))
+	sendEnter(tm)
+	sendWord(t, tm, []rune("p"))
+	sendEnter(tm) // submit
+
+	// this should not be captured by the prompt
+	sendWord(t, tm, []rune("should not be caught"))
 
 	// receive the final output
 	f := <-result
@@ -118,4 +118,26 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 		t.Fatalf("Unexpected values in TIs: '%v' & '%v'", user, pass)
 	}
 
+}
+
+// sendWord breaks each character into its own key message and sends each to the given TestModel.
+func sendWord(t *testing.T, tm *teatest.TestModel, characters []rune) {
+	//testing.Coverage()
+	if tm == nil {
+		t.Log("test model is nil. Skipping send.")
+		return
+	} else if len(characters) == 0 {
+		t.Log("no characters given. Skipping send.")
+		return
+	}
+
+	for _, r := range characters {
+		tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{r}}))
+	}
+	t.Logf("sent word '%v' as %v messages", string(characters), len(characters))
+}
+
+// sendEnter submits a single enter KeyMsg to the test model
+func sendEnter(tm *teatest.TestModel) {
+	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
 }
