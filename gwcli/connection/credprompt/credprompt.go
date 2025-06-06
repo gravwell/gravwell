@@ -90,6 +90,9 @@ func (c credModel) Init() tea.Cmd {
 }
 
 func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if c.killed { // do not accept more input once killed
+		return c, nil
+	}
 	if kill := killer.CheckKillKeys(msg); kill != killer.None {
 		c.killed = true
 		return c, tea.Quit
