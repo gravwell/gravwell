@@ -1,3 +1,5 @@
+// Package testsupport provides utility functions useful across disparate testing packages
+// TT* functions are for use with tests that rely on TeaTest.
 package testsupport
 
 import (
