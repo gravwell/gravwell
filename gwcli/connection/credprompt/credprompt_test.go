@@ -1,6 +1,7 @@
 package credprompt
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -129,27 +130,71 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 }
 
 func Test_collect(t *testing.T) {
-	result := make(chan tea.Model)
+	result := make(chan struct {
+		user string
+		pass string
+		err  error
+	})
 
 	// spawn a model
 	m := New("")
-	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(300, 100))
-	go func() {
+	read, _, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	prog := tea.NewProgram(m, tea.WithInput(read))
+	//tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(300, 100))
+	//p := tm.GetProgram()
+
+	/*go func() {
 		final := tm.FinalModel(t, teatest.WithFinalTimeout(10*time.Second))
 		result <- final
 		close(result)
+	}()*/
+
+	go func() {
+		u, p, err := collect("", prog)
+
+		result <- struct {
+			user string
+			pass string
+			err  error
+		}{u, p, err}
 	}()
 
-	collect("", m)
+	// send data into the program
+	/*if _, err := in.Write([]byte("user")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := in.Write([]byte("\n")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := in.Write([]byte("\n")); err != nil {
+		t.Fatal(err)
+	}*/
 
-	testsupport.TTSendWord(t, tm, []rune("user"))
-	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyCtrlC, Runes: []rune{rune(tea.KeyCtrlC)}}))
+	prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
+	prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
+	prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
+
+	//tm.Type("user")
+	//testsupport.TTSendEnter(tm)
+	//testsupport.TTSendEnter(tm)
+	//tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyCtrlC, Runes: []rune{rune(tea.KeyCtrlC)}}))
+
+	r := <-result
+	if r.err != nil {
+		t.Fatal(r.err)
+	}
+	if r.user != "u" {
+		t.Fatalf("incorrect username: %v", r)
+	}
 
 	// TODO
-	_, _, killed, _ := parseFinal(t, <-result)
+	/*_, _, killed, _ := parseFinal(t, <-result)
 	if !killed {
 		t.Fatal("not killed")
-	}
+	}*/
 }
 
 // spawnModel spins off a credprompt returns a channel that can be read from after the model exists to get its final state.

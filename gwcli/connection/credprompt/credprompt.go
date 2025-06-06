@@ -36,16 +36,16 @@ func Collect(initialUser string) (user, pass string, err error) {
 }
 
 // internal implementation of collect.
-// Allows test suites to inject their own models into collect, rather than having to mock stdin.
-func collect(initialUser string, model tea.Model) (user, pass string, err error) {
-	var c tea.Model
-	if model == nil {
-		c = New(initialUser)
-	} else {
-		c = model
+// Allows custom programs (likely programs with mocked input) for testing purposes.
+// ! Outside of test packages, leave prog==nil.
+func collect(initialUser string, prog *tea.Program) (user, pass string, err error) {
+	p := prog
+	if p == nil {
+		var c tea.Model = New(initialUser)
+		p = tea.NewProgram(c)
 	}
 
-	m, err := tea.NewProgram(c).Run()
+	m, err := p.Run()
 	if err != nil {
 		return "", "", err
 	}
