@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 )
 
 // NOTE: this testing package relies on teatest, which is an experimental package at the time of authorship (~June 2025).
@@ -86,58 +87,73 @@ import (
 
 // TestCredPrompt_TeaTest runs interactivity tests against the cred prompt model
 func TestCredPrompt_TeaTest(t *testing.T) {
-	// create a channel for us to receive the final model on
-	result := make(chan tea.Model)
+	t.Run("standard submission", func(t *testing.T) {
+		inUser, inPass := "Blitzo", "TheOIsSilent"
+		// create a channel for us to receive the final model on
+		result := make(chan tea.Model)
 
-	// spawn a model
-	m := New("")
-	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(300, 100))
-	go func() {
-		final := tm.FinalModel(t, teatest.WithFinalTimeout(10*time.Second))
-		result <- final
-		close(result)
-	}()
+		// spawn a model
+		m := New("")
+		tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(300, 100))
+		go func() {
+			final := tm.FinalModel(t, teatest.WithFinalTimeout(10*time.Second))
+			result <- final
+			close(result)
+		}()
 
-	sendWord(t, tm, []rune("u"))
-	sendEnter(tm)
-	sendWord(t, tm, []rune("p"))
-	sendEnter(tm) // submit
+		testsupport.TTSendWord(t, tm, []rune(inUser))
+		testsupport.TTSendEnter(tm)
+		testsupport.TTSendWord(t, tm, []rune(inPass))
+		testsupport.TTSendEnter(tm) // submit
 
-	// this should not be captured by the prompt
-	sendWord(t, tm, []rune("should not be caught"))
+		// receive the final output
+		f := <-result
+		cm, ok := f.(credModel)
+		if !ok {
+			t.Fatal("failed to assert final model to a credModel")
+		}
+		// check the results
+		user, pass := cm.UserTI.Value(), cm.PassTI.Value()
+		if user != inUser && pass != inPass {
+			t.Fatalf("Unexpected values in TIs: '%v' & '%v'", user, pass)
+		}
+	})
+	t.Run("garbage messages after submission", func(t *testing.T) {
+		inUser, inPass := "Blitzo", "TheOIsSilent"
+		// create a channel for us to receive the final model on
+		result := make(chan tea.Model)
 
-	// receive the final output
-	f := <-result
-	cm, ok := f.(credModel)
-	if !ok {
-		t.Fatal("failed to assert final model to a credModel")
-	}
-	// check the results
-	user, pass := cm.UserTI.Value(), cm.UserTI.Value()
-	if user != "u" && pass != "p" {
-		t.Fatalf("Unexpected values in TIs: '%v' & '%v'", user, pass)
-	}
+		// spawn a model
+		m := New("")
+		tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(300, 100))
+		go func() {
+			final := tm.FinalModel(t, teatest.WithFinalTimeout(10*time.Second))
+			result <- final
+			close(result)
+		}()
 
-}
+		testsupport.TTSendWord(t, tm, []rune(inUser))
+		testsupport.TTSendEnter(tm)
+		testsupport.TTSendWord(t, tm, []rune(inPass))
+		testsupport.TTSendEnter(tm) // submit
 
-// sendWord breaks each character into its own key message and sends each to the given TestModel.
-func sendWord(t *testing.T, tm *teatest.TestModel, characters []rune) {
-	//testing.Coverage()
-	if tm == nil {
-		t.Log("test model is nil. Skipping send.")
-		return
-	} else if len(characters) == 0 {
-		t.Log("no characters given. Skipping send.")
-		return
-	}
+		// this should not be captured by the prompt
+		testsupport.TTSendWord(t, tm, []rune("should not be caught"))
 
-	for _, r := range characters {
-		tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{r}}))
-	}
-	t.Logf("sent word '%v' as %v messages", string(characters), len(characters))
-}
+		// receive the final output
+		f := <-result
+		cm, ok := f.(credModel)
+		if !ok {
+			t.Fatal("failed to assert final model to a credModel")
+		}
+		// check the results
+		user, pass := cm.UserTI.Value(), cm.PassTI.Value()
+		if user != inUser && pass != inPass {
+			t.Fatalf("Unexpected values in TIs: '%v' & '%v'", user, pass)
+		}
+	})
 
-// sendEnter submits a single enter KeyMsg to the test model
-func sendEnter(tm *teatest.TestModel) {
-	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
+	t.Run("global kill key", func(t *testing.T) {})
+	t.Run("child kill key", func(t *testing.T) {})
+
 }
