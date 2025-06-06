@@ -10,6 +10,13 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 )
 
+type output struct {
+	user         string
+	pass         string
+	killed       bool
+	userSelected bool
+}
+
 // NOTE: this testing package relies on teatest, which is an experimental package at the time of authorship (~June 2025).
 //
 // NOTE 2: as this relies on teatest, you will need a "golden" file, which can be generated via go test -v ./... -update.
@@ -88,67 +95,62 @@ import (
 
 // TestCredPrompt_TeaTest runs interactivity tests against the cred prompt model
 func TestCredPrompt_TeaTest(t *testing.T) {
-	t.Run("standard submission", func(t *testing.T) {
-		inUser, inPass := "Blitzo", "TheOIsSilent"
-		tm, ch := spawnModel(t)
+	tests := []struct {
+		name             string
+		input            func(tm *teatest.TestModel, expected output) // used to send messages to the model, to mimic user input
+		expected         output                                       // what the final model's values should look like
+		timeoutDur       time.Duration                                // stop waiting on the final model after this much time
+		expectingTimeout bool                                         // are we expecting this test to timeout while awaiting the final model
+	}{
+		{"normal u/p", func(tm *teatest.TestModel, expected output) {
+			tm.Type(expected.user)
+			testsupport.TTEnter(tm)
+			tm.Type(expected.pass)
+			testsupport.TTEnter(tm)
+		}, output{"Blitzo", "TheOIsSilent", false, false}, 2 * time.Second, false},
+		{"garbage after submitting", func(tm *teatest.TestModel, expected output) {
+			tm.Type(expected.user)
+			testsupport.TTEnter(tm)
+			tm.Type(expected.pass)
+			testsupport.TTEnter(tm) // submit
 
-		tm.Type(inUser)
-		testsupport.TTSendEnter(tm)
-		tm.Type(inPass)
-		testsupport.TTSendEnter(tm) // submit
+			// this should not be captured by the prompt
+			tm.Type("should not be caught")
+			tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyCtrlC, Runes: []rune{rune(tea.KeyCtrlC)}}))
+		}, output{"Moxxie", "Milly", false, false}, 2 * time.Second, false},
+		{"global kill key", func(tm *teatest.TestModel, expected output) {
+			tm.Type(expected.user)
+			testsupport.TTTab(tm)
+			tm.Type(expected.pass)
 
-		// check results
-		u, p, _, _ := parseFinal(t, <-ch)
-		if u != inUser && p != inPass {
-			t.Fatalf("Unexpected values in TIs: '%v' & '%v'", u, p)
-		}
-	})
-	t.Run("garbage messages after submission", func(t *testing.T) {
-		inUser, inPass := "Blitzo", "TheOIsSilent"
+			// kill with a sigint
+			testsupport.TTSendSpecial(tm, tea.KeyCtrlC)
+			// this should not be captured by the prompt
+			tm.Type("should not be caught")
+		}, output{"Stolas", "Blitzy", true, false}, 1 * time.Second, false},
+		{"child kill key", func(tm *teatest.TestModel, expected output) {
+			tm.Type(expected.user)
 
-		tm, ch := spawnModel(t)
+			// kill with a sigint
+			testsupport.TTSendSpecial(tm, tea.KeyEsc)
 
-		tm.Type(inUser)
-		testsupport.TTSendEnter(tm)
-		tm.Type(inPass)
-		testsupport.TTSendEnter(tm) // submit
+			// this should not be captured by the prompt
+			tm.Type("should not be caught")
+		}, output{"Loona", "", true, true}, 1 * time.Second, false},
+	}
 
-		// this should not be captured by the prompt
-		tm.Type("should not be caught")
-		tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyCtrlC, Runes: []rune{rune(tea.KeyCtrlC)}}))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tm, ch := spawnModel(t)
 
-		// check results
-		u, p, _, _ := parseFinal(t, <-ch)
-		if u != inUser && p != inPass {
-			t.Fatalf("Unexpected values in TIs: '%v' & '%v'", u, p)
-		}
-	})
+			// execute commands against the test model
+			tt.input(tm, tt.expected)
 
-	t.Run("global kill key", func(t *testing.T) {
-		inUser, inPass := "Blitzo", "TheOIsSilent"
-
-		tm, ch := spawnModel(t)
-
-		tm.Type(inUser)
-		tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyTab, Runes: []rune{rune(tea.KeyTab)}})) // move to password input
-		tm.Type(inPass)
-
-		// kill with a sigint
-		tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyCtrlC, Runes: []rune{rune(tea.KeyCtrlC)}}))
-
-		// this should not be captured by the prompt
-		tm.Type("should not be caught")
-
-		// check results
-		if u, p, killed, userSelected := parseFinal(t, <-ch); userSelected {
-			t.Error("userTI is selected despite an enter being sent")
-		} else if !killed {
-			t.Error("CTRL+C was sent to the prompt, but it did not mark itself as having been killed")
-		} else if u != inUser || p != inPass {
-			t.Fatalf("Unexpected values in TIs: '%v'!='%v' or '%v'!='%v'", u, inUser, p, inPass)
-		}
-	})
-	t.Run("child kill key", func(t *testing.T) {})
+			// check results
+			out, timedout := awaitFinal(t, ch, tt.timeoutDur)
+			compareFinal(t, out, tt.expected, timedout, false)
+		})
+	}
 
 }
 
@@ -165,15 +167,8 @@ func Test_collect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// make the model read out of an open pipe
 	prog := tea.NewProgram(m, tea.WithInput(read))
-	//tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(300, 100))
-	//p := tm.GetProgram()
-
-	/*go func() {
-		final := tm.FinalModel(t, teatest.WithFinalTimeout(10*time.Second))
-		result <- final
-		close(result)
-	}()*/
 
 	go func() {
 		u, p, err := collect("", prog)
@@ -238,13 +233,33 @@ func spawnModel(t *testing.T) (*teatest.TestModel, chan tea.Model) {
 	return tm, result
 }
 
-// parseFinal pulls data from the final struct and returns it for easy evaluation.
-func parseFinal(t *testing.T, final tea.Model) (u, p string, killed, userSelected bool) {
+// awaitFinal pulls data from the final struct and returns it for easy evaluation.
+//
+// Returns the final values contained in the credmodel or that we timed-out waiting for it.
+func awaitFinal(t *testing.T, ch <-chan tea.Model, timeout time.Duration) (output, bool) {
 	t.Helper()
-	cm, ok := final.(credModel)
-	if !ok {
-		t.Fatal("failed to assert final model to a credModel")
+
+	select {
+	case final := <-ch:
+		cm, ok := final.(credModel)
+		if !ok {
+			t.Fatal("failed to assert final model to a credModel")
+		}
+		// check the results
+		return output{cm.UserTI.Value(), cm.PassTI.Value(), cm.killed, cm.userSelected}, false
+
+	case <-time.After(timeout):
+		return output{}, true
 	}
-	// check the results
-	return cm.UserTI.Value(), cm.PassTI.Value(), cm.killed, cm.userSelected
+}
+
+// compareFinal tests the actual output of awaitFinal against the expected output of awaitFinal, erroring on deltas.
+func compareFinal(t *testing.T, actual, expected output, timedOut, expectedTimedOut bool) {
+	t.Helper()
+
+	if timedOut != expectedTimedOut {
+		t.Fatal("timed out waiting for credModel to finish")
+	} else if actual != expected {
+		t.Error("incorrect final state:", testsupport.ExpectedActual(expected, actual))
+	}
 }
