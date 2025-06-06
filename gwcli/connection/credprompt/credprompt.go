@@ -32,17 +32,7 @@ import (
 //
 // ! Not intended to be run while Mother is running.
 func Collect(initialUser string) (user, pass string, err error) {
-	c := credModel{
-		userSelected: true,
-	}
-	c.UserTI = textinput.New()
-	c.UserTI.Prompt = stylesheet.TIPromptPrefix
-	c.UserTI.SetValue(initialUser)
-	c.UserTI.Focus()
-	c.PassTI = textinput.New()
-	c.PassTI.Prompt = stylesheet.TIPromptPrefix
-	c.PassTI.EchoMode = textinput.EchoNone
-	c.PassTI.Blur()
+	c := New(initialUser)
 	m, err := tea.NewProgram(c).Run()
 	if err != nil {
 		return "", "", err
@@ -59,12 +49,30 @@ func Collect(initialUser string) (user, pass string, err error) {
 }
 
 type credModel struct {
-	UserTI       textinput.Model
-	PassTI       textinput.Model
-	userSelected bool
-	killed       bool
+	userStartingValue string
+	UserTI            textinput.Model
+	PassTI            textinput.Model
+	userSelected      bool
+	killed            bool
 }
 
+// New creates a new credprompt, which satisfies the tea.Model interface.
+// You probably want Collect(), instead; this is mostly used internally and for testing.
+func New(initialUser string) credModel {
+	c := credModel{userStartingValue: initialUser, userSelected: true}
+	c.UserTI = textinput.New()
+	c.UserTI.Prompt = stylesheet.TIPromptPrefix
+	c.UserTI.SetValue(c.userStartingValue)
+	c.UserTI.Focus()
+	c.PassTI = textinput.New()
+	c.PassTI.Prompt = stylesheet.TIPromptPrefix
+	c.PassTI.EchoMode = textinput.EchoNone
+	c.PassTI.Blur()
+	return c
+}
+
+// Init prepares the cred model for usage, setting up the text inputs sending initial messages.
+// Once Init returns, Update and View can be safely used via BubbleTea.
 func (c credModel) Init() tea.Cmd {
 	return textinput.Blink
 }
