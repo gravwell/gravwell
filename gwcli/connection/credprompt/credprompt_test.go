@@ -89,48 +89,23 @@ import (
 func TestCredPrompt_TeaTest(t *testing.T) {
 	t.Run("standard submission", func(t *testing.T) {
 		inUser, inPass := "Blitzo", "TheOIsSilent"
-		// create a channel for us to receive the final model on
-		result := make(chan tea.Model)
-
-		// spawn a model
-		m := New("")
-		tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(300, 100))
-		go func() {
-			final := tm.FinalModel(t, teatest.WithFinalTimeout(10*time.Second))
-			result <- final
-			close(result)
-		}()
+		tm, ch := spawnModel(t)
 
 		testsupport.TTSendWord(t, tm, []rune(inUser))
 		testsupport.TTSendEnter(tm)
 		testsupport.TTSendWord(t, tm, []rune(inPass))
 		testsupport.TTSendEnter(tm) // submit
 
-		// receive the final output
-		f := <-result
-		cm, ok := f.(credModel)
-		if !ok {
-			t.Fatal("failed to assert final model to a credModel")
-		}
-		// check the results
-		user, pass := cm.UserTI.Value(), cm.PassTI.Value()
-		if user != inUser && pass != inPass {
-			t.Fatalf("Unexpected values in TIs: '%v' & '%v'", user, pass)
+		// check results
+		u, p, _, _ := parseFinal(t, <-ch)
+		if u != inUser && p != inPass {
+			t.Fatalf("Unexpected values in TIs: '%v' & '%v'", u, p)
 		}
 	})
 	t.Run("garbage messages after submission", func(t *testing.T) {
 		inUser, inPass := "Blitzo", "TheOIsSilent"
-		// create a channel for us to receive the final model on
-		result := make(chan tea.Model)
 
-		// spawn a model
-		m := New("")
-		tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(300, 100))
-		go func() {
-			final := tm.FinalModel(t, teatest.WithFinalTimeout(10*time.Second))
-			result <- final
-			close(result)
-		}()
+		tm, ch := spawnModel(t)
 
 		testsupport.TTSendWord(t, tm, []rune(inUser))
 		testsupport.TTSendEnter(tm)
@@ -139,21 +114,69 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 
 		// this should not be captured by the prompt
 		testsupport.TTSendWord(t, tm, []rune("should not be caught"))
+		tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyCtrlC, Runes: []rune{rune(tea.KeyCtrlC)}}))
 
-		// receive the final output
-		f := <-result
-		cm, ok := f.(credModel)
-		if !ok {
-			t.Fatal("failed to assert final model to a credModel")
-		}
-		// check the results
-		user, pass := cm.UserTI.Value(), cm.PassTI.Value()
-		if user != inUser && pass != inPass {
-			t.Fatalf("Unexpected values in TIs: '%v' & '%v'", user, pass)
+		// check results
+		u, p, _, _ := parseFinal(t, <-ch)
+		if u != inUser && p != inPass {
+			t.Fatalf("Unexpected values in TIs: '%v' & '%v'", u, p)
 		}
 	})
 
 	t.Run("global kill key", func(t *testing.T) {})
 	t.Run("child kill key", func(t *testing.T) {})
 
+}
+
+func Test_collect(t *testing.T) {
+	result := make(chan tea.Model)
+
+	// spawn a model
+	m := New("")
+	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(300, 100))
+	go func() {
+		final := tm.FinalModel(t, teatest.WithFinalTimeout(10*time.Second))
+		result <- final
+		close(result)
+	}()
+
+	collect("", m)
+
+	testsupport.TTSendWord(t, tm, []rune("user"))
+	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyCtrlC, Runes: []rune{rune(tea.KeyCtrlC)}}))
+
+	// TODO
+	_, _, killed, _ := parseFinal(t, <-result)
+	if !killed {
+		t.Fatal("not killed")
+	}
+}
+
+// spawnModel spins off a credprompt returns a channel that can be read from after the model exists to get its final state.
+func spawnModel(t *testing.T) (*teatest.TestModel, chan tea.Model) {
+	t.Helper()
+	// create a channel for us to receive the final model on
+	result := make(chan tea.Model)
+
+	// spawn a model
+	m := New("")
+	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(300, 100))
+	go func() {
+		final := tm.FinalModel(t, teatest.WithFinalTimeout(10*time.Second))
+		result <- final
+		close(result)
+	}()
+
+	return tm, result
+}
+
+// parseFinal pulls data from the final struct and returns it for easy evaluation.
+func parseFinal(t *testing.T, final tea.Model) (u, p string, killed, userSelected bool) {
+	t.Helper()
+	cm, ok := final.(credModel)
+	if !ok {
+		t.Fatal("failed to assert final model to a credModel")
+	}
+	// check the results
+	return cm.UserTI.Value(), cm.PassTI.Value(), cm.killed, cm.userSelected
 }
