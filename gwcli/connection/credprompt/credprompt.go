@@ -66,6 +66,7 @@ type credModel struct {
 	PassTI            textinput.Model
 	userSelected      bool
 	killed            bool
+	done              bool
 }
 
 // New creates a new credprompt, which satisfies the tea.Model interface.
@@ -90,11 +91,12 @@ func (c credModel) Init() tea.Cmd {
 }
 
 func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if c.killed { // do not accept more input once killed
+	if c.done { // do not accept more input once killed
 		return c, nil
 	}
 	if kill := killer.CheckKillKeys(msg); kill != killer.None {
 		c.killed = true
+		c.done = true
 		return c, tea.Quit
 	}
 
@@ -106,6 +108,7 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if c.userSelected {
 				return c.swap(), textinput.Blink
 			}
+			c.done = true
 			return c, tea.Quit
 		}
 
