@@ -1,5 +1,13 @@
 package credprompt
 
+import (
+	"testing"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/exp/teatest"
+)
+
 // NOTE: this testing package relies on teatest, which is an experimental package at the time of authorship (~June 2025).
 //
 // NOTE 2: as this relies on teatest, you will need a "golden" file, which can be generated via go test -v ./... -update.
@@ -75,3 +83,39 @@ package credprompt
 	})
 
 }*/
+
+func TestCredPrompt_TeaTest(t *testing.T) {
+	// create a channel for us to receive the final model on
+	result := make(chan tea.Model)
+
+	// spawn a model
+	m := New("")
+	tm := teatest.NewTestModel(t, m, teatest.WithInitialTermSize(300, 100))
+	go func() {
+		final := tm.FinalModel(t, teatest.WithFinalTimeout(10*time.Second))
+		result <- final
+		close(result)
+	}()
+
+	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
+	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
+	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'p'}}))
+	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
+	tm.Send(tea.KeyMsg{
+		Type:  tea.KeyRunes,
+		Runes: []rune("q"),
+	})
+
+	// receive the final output
+	f := <-result
+	cm, ok := f.(credModel)
+	if !ok {
+		t.Fatal("failed to assert final model to a credModel")
+	}
+	// check the results
+	user, pass := cm.UserTI.Value(), cm.UserTI.Value()
+	if user != "u" && pass != "p" {
+		t.Fatalf("Unexpected values in TIs: '%v' & '%v'", user, pass)
+	}
+
+}
