@@ -8,31 +8,21 @@ import (
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/x/exp/teatest"
 )
 
 //#region TeaTest
 
-// TTEnter submits a single enter KeyMsg to the test model.
-//
-// For use with TeaTests.
-func TTEnter(tm *teatest.TestModel) {
-	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
-}
-
-// TTTab submits a single tab KeyMsg to the test model.
-//
-// For use with TeaTests.
-func TTTab(tm *teatest.TestModel) {
-	tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyTab, Runes: []rune{rune(tea.KeyTab)}})) // move to password input
+// A MessageRcvr is anything that can accept tea.Msgs via a .Send() method.
+type MessageRcvr interface {
+	Send(tea.Msg)
 }
 
 // TTSendSpecial submits a KeyMsg containing the special key (CTRL+C, ESC, etc) to the test model.
 // Ensures the KeyMsg is well-formatted, as ill-formatted KeyMsgs are silently dropped (as they are not read as KeyMsgs) or cause panics.
 //
 // For use with TeaTests.
-func TTSendSpecial(tm *teatest.TestModel, kt tea.KeyType) {
-	tm.Send(tea.KeyMsg(tea.Key{Type: kt, Runes: []rune{rune(kt)}}))
+func TTSendSpecial(r MessageRcvr, kt tea.KeyType) {
+	r.Send(tea.KeyMsg(tea.Key{Type: kt, Runes: []rune{rune(kt)}}))
 }
 
 //#endregion TeaTest

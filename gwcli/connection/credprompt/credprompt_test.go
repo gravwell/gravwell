@@ -30,15 +30,15 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 	}{
 		{"normal u/p", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
-			testsupport.TTEnter(tm)
+			testsupport.TTSendSpecial(tm, tea.KeyEnter)
 			tm.Type(expected.pass)
-			testsupport.TTEnter(tm)
+			testsupport.TTSendSpecial(tm, tea.KeyEnter)
 		}, output{"Blitzo", "TheOIsSilent", false, false}, 2 * time.Second, false},
 		{"garbage after submitting", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
-			testsupport.TTEnter(tm)
+			testsupport.TTSendSpecial(tm, tea.KeyEnter)
 			tm.Type(expected.pass)
-			testsupport.TTEnter(tm) // submit
+			testsupport.TTSendSpecial(tm, tea.KeyEnter)
 
 			// this should not be captured by the prompt
 			tm.Type("should not be caught")
@@ -46,7 +46,7 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 		}, output{"Moxxie", "Milly", false, false}, 2 * time.Second, false},
 		{"global kill key", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
-			testsupport.TTTab(tm)
+			testsupport.TTSendSpecial(tm, tea.KeyTab)
 			tm.Type(expected.pass)
 
 			// kill with a sigint
@@ -93,6 +93,8 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 
 }
 
+// Test_collect tests .Collect() via the internal subroutine that .Collect() calls under the hood.
+// Does not actually rely on teatest; instead, passes a tea program with a mocked input and interacts via external .Send()ing.
 func Test_collect(t *testing.T) {
 	result := make(chan struct {
 		user string
@@ -122,11 +124,6 @@ func Test_collect(t *testing.T) {
 	prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
 	prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
 	prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
-
-	//tm.Type("user")
-	//testsupport.TTSendEnter(tm)
-	//testsupport.TTSendEnter(tm)
-	//tm.Send(tea.KeyMsg(tea.Key{Type: tea.KeyCtrlC, Runes: []rune{rune(tea.KeyCtrlC)}}))
 
 	r := <-result
 	if r.err != nil {
