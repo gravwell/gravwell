@@ -21,10 +21,17 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+//#region errors
+
+var ErrMustAuth error = errors.New("you must authenticate to use gwcli")
+
+//#endregion errors
 
 // Collect runs a tiny tea.Model that collects username and password.
 // This is a blocking call; it only returns when the user enters a username and password or passes a killkey;
@@ -53,9 +60,9 @@ func collect(initialUser string, prog *tea.Program) (user, pass string, err erro
 	finalCredM, ok := m.(credModel)
 	if !ok {
 		clilog.Writer.Criticalf("failed to cast credentials model")
-		return "", "", errors.New("failed to cast credentials model")
+		return "", "", uniques.ErrGeneric
 	} else if finalCredM.killed {
-		return "", "", errors.New("you must authenticate to use gwcli")
+		return "", "", ErrMustAuth
 	}
 	return finalCredM.UserTI.Value(), finalCredM.PassTI.Value(), nil
 }
