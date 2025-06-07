@@ -29,6 +29,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/magefile/mage/mg"
+	"github.com/magefile/mage/sh"
 )
 
 const (
@@ -37,6 +38,7 @@ const (
 
 var (
 	green = "\u001b[32m"
+	red   = "\u001b[31m"
 	reset = "\u001b[0m"
 )
 
@@ -49,9 +51,19 @@ func verboseln(s string) {
 	}
 }
 
-// Prints out "ok" iff verbose mode is enabled.
-func ok() {
-	verboseln(green + "ok" + reset)
+// Colors the text in green.
+func good(txt string) string {
+	return green + txt + reset
+}
+
+// Colors the text in red.
+func bad(txt string) string {
+	return red + txt + reset
+}
+
+// Colors the text in yellow.
+func mid(txt string) string {
+	return red + txt + reset
 }
 
 // Runs the given test and outputs (verbose-dependent) its error log (or "ok").
@@ -69,7 +81,6 @@ func runTest(timeout time.Duration, testPattern, testPath string) error {
 		fmt.Printf("%s", out)
 		return err
 	}
-	ok()
 	return nil
 }
 
@@ -105,131 +116,79 @@ func Build() error {
 	return cmd.Run()
 }
 
-// TestAll runs all gwcli tests, according to their subsystem.
-func TestAll() error {
-	verboseln("Testing non-Mother singletons...")
-	mg.Deps(TestConnection)
+func Vet() error {
+	var display = func(txt string, err error, output string) {
+		if err != nil {
+			fmt.Println(bad(txt), "\n", output)
+		} else if output != "" {
+			fmt.Println(mid(txt), "\n", output)
+		} else {
+			fmt.Println(good(txt), "ok")
+		}
+	}
 
-	verboseln("Testing query components...")
-	mg.Deps(TestQuery, TestDatascope, TestQueryAux)
+	vetOut, vetErr := sh.Output("go", "vet", "./...")
+	display("go vet", vetErr, vetOut)
+	scOut, scErr := sh.Output("staticcheck", "./...")
+	display("staticcheck", scErr, scOut)
+	return errors.Join(vetErr, scErr)
 
-	verboseln("Testing utilities...")
-	mg.Deps(TestScaffold)
-
-	verboseln("Testing Mother...")
-	mg.Deps(TestMotherHistory, TestMotherMode, TestMotherMisc)
-
-	verboseln("Testing direct usage via --script...")
-	return TestScript()
 }
 
-// TestScript calls the tests in script_test for targeting external, automated usage (via --script).
-func TestScript() error {
-	if err := runTest(10*time.Second, "^TestMacros$", "github.com/gravwell/gravwell/v4/gwcli"); err != nil {
+// TestAll runs all gwcli tests via `./...` expansion.
+// If run with -v or an error occurs, prints outcome to stdout.
+func TestAll(cover, noCache bool) error {
+	args := []string{"test", "-race", "-vet=all"}
+	if cover {
+		args = append(args, "-cover")
+	}
+	if noCache {
+		args = append(args, "-count=1")
+	}
+
+	args = append(args, "./...")
+
+	out, err := sh.Output("go", args...)
+	if mg.Verbose() || err != nil {
+		fmt.Println(out)
+	}
+	return err
+}
+
+// TestIntegration calls the tests in script_test for targeting external, automated usage (via --script).
+func TestIntegration() error {
+	coverdirPath := path.Join(os.TempDir(), "coverout")
+	if err := os.Mkdir(coverdirPath, 0660); err != nil {
 		return err
 	}
-	if err := runTest(3*time.Minute, "^TestQueries$", "github.com/gravwell/gravwell/v4/gwcli"); err != nil {
+
+	v := ""
+	if mg.Verbose() {
+		v = "-v"
+	}
+
+	// build a cover-instrumented binary
+	out, err := sh.OutputWith(map[string]string{"GOCOVERDIR": coverdirPath},
+		"go", "build", v, "-cover", "-o=test_gwcli", ".")
+	if mg.Verbose() || err != nil {
+		fmt.Println(out)
+		if err != nil {
+			return err
+		}
+	}
+
+	// run integration tests external to the binary
+	fmt.Println("NYI")
+
+	// spit out coverage data
+	out, err = sh.Output("go", "tool", "covdata", "percent", "-i="+coverdirPath)
+	fmt.Println(out)
+	if err != nil {
 		return err
 	}
 
 	return nil
 }
-
-// TestQuery tests executing queries via gwcli.
-func TestQuery() error {
-	if err := runTest(30*time.Second, "^Test_tryQuery$", "github.com/gravwell/gravwell/v4/gwcli/tree/query"); err != nil {
-		return err
-	}
-	if err := runTest(20*time.Second, "^Test_run$", "github.com/gravwell/gravwell/v4/gwcli/tree/query"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// TestConnection tests the connection package, primarily the Login functionality contained therein.
-func TestConnection() error {
-	// run the script mode tests
-	if err := runTest(30*time.Second, "_script_mode$", "github.com/gravwell/gravwell/v4/gwcli/connection"); err != nil {
-		return err
-	}
-	// run the interactive mode tests with tight timeouts
-	if err := runTest(8*time.Second, "^TestLogin_interactive_mode$", "github.com/gravwell/gravwell/v4/gwcli/connection"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// TestDatascope tests the Datascope query subsystem.
-func TestDatascope() error {
-	const _TIMEOUT time.Duration = 4 * time.Minute
-	if err := runTest(_TIMEOUT, "^TestKeepAlive$", "github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// TestQueryAux tests the query-supporting functions.
-func TestQueryAux() error {
-	const _TIMEOUT time.Duration = 30 * time.Second
-	if err := runTest(_TIMEOUT, "", "github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"); err != nil {
-		return err
-	}
-	return nil
-}
-
-// TestScaffold tests the scaffold builder functions.
-func TestScaffold() error {
-	const _TIMEOUT time.Duration = 30 * time.Second
-	if err := runTest(_TIMEOUT, "^Test_format_String$", "github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// TestMotherHistory tests Mother's history system.
-func TestMotherHistory() error {
-	const _TIMEOUT time.Duration = 30 * time.Second
-	if err := runTest(_TIMEOUT, "",
-		"github.com/gravwell/gravwell/v4/gwcli/mother"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// TestMotherMode runs tests for mother's mode handling.
-func TestMotherMode() error {
-	const _TIMEOUT time.Duration = 30 * time.Second
-	if err := runTest(_TIMEOUT, "",
-		"github.com/gravwell/gravwell/v4/gwcli/mother"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// TestMotherMisc runs tests for Mother that are not otherwise sub-divided.
-func TestMotherMisc() error {
-	const _TIMEOUT time.Duration = 30 * time.Second
-	if err := runTest(_TIMEOUT, "",
-		"github.com/gravwell/gravwell/v4/gwcli/mother"); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// A custom install step if you need your bin someplace other than go/bin
-/*func Install() error {
-	mg.Deps(Build)
-	fmt.Println("Installing...")
-	// check that we are root prior to moving
-	return os.Rename("./gwcli", "/bin/gwcli")
-} */
 
 // Clean up the binary and any and all logs.
 // Does not destroy login token.
