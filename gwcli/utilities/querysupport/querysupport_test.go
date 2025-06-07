@@ -11,7 +11,7 @@ import (
 	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	. "github.com/gravwell/gravwell/v4/gwcli/utilities/testingsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 )
 
 // Given a path, pre-populates a file with garbage data, then closes the file.
@@ -141,7 +141,7 @@ func Test_PutResultsToWriter(t *testing.T) {
 						expectedOut = tt.args.resultsStr
 					}
 					if expectedOut != strings.TrimSpace(sb.String()) { // check that the buffer contains our results
-						t.Fatal("data in writer does not match input data" + ExpectedActual(expectedOut, sb.String()))
+						t.Fatal("data in writer does not match input data" + testsupport.ExpectedActual(expectedOut, sb.String()))
 					}
 
 				}
