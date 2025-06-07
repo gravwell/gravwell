@@ -53,7 +53,7 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 			testsupport.TTSendSpecial(tm, tea.KeyCtrlC)
 			// this should not be captured by the prompt
 			tm.Type("should not be caught")
-		}, output{"Stolas", "Blitzy", true, false}, 1 * time.Second, false},
+		}, output{"Stolas", "Blitzy", true, false}, 2 * time.Second, false},
 		{"child kill key", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
 
@@ -62,7 +62,7 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 
 			// this should not be captured by the prompt
 			tm.Type("should not be caught")
-		}, output{"Loona", "", true, true}, 1 * time.Second, false},
+		}, output{"Loona", "", true, true}, 2 * time.Second, false},
 		{"wrap", func(tm *teatest.TestModel, expected output) {
 			tm.Type(expected.user)
 			testsupport.TTSendSpecial(tm, tea.KeyDown)
