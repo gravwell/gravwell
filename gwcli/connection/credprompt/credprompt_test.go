@@ -96,48 +96,68 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 // Test_collect tests .Collect() via the internal subroutine that .Collect() calls under the hood.
 // Does not actually rely on teatest; instead, passes a tea program with a mocked input and interacts via external .Send()ing.
 func Test_collect(t *testing.T) {
-	result := make(chan struct {
-		user string
-		pass string
-		err  error
-	})
 
-	// spawn a model
-	m := New("")
-	read, _, err := os.Pipe()
-	if err != nil {
-		t.Fatal(err)
-	}
-	// make the model read out of an open pipe
-	prog := tea.NewProgram(m, tea.WithInput(read))
+	tests := []struct {
+		name         string
+		input        func(prog *tea.Program)
+		expectedUser string
+		expectedPass string
+		expectedErr  error
+	}{
+		{"normal u/p", func(prog *tea.Program) {
+			prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
+			testsupport.TTSendSpecial(prog, tea.KeyEnter)
+			testsupport.TTSendSpecial(prog, tea.KeyEnter)
 
-	go func() {
-		u, p, err := collect("", prog)
-
-		result <- struct {
-			user string
-			pass string
-			err  error
-		}{u, p, err}
-	}()
-
-	prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune{'u'}}))
-	prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
-	prog.Send(tea.KeyMsg(tea.Key{Type: tea.KeyEnter, Runes: []rune{rune(tea.KeyEnter)}}))
-
-	r := <-result
-	if r.err != nil {
-		t.Fatal(r.err)
-	}
-	if r.user != "u" {
-		t.Fatalf("incorrect username: %v", r)
+		}, "u", "", nil},
+		{"killed", func(prog *tea.Program) {
+			testsupport.TTSendSpecial(prog, tea.KeyCtrlC)
+		}, "", "", ErrMustAuth},
 	}
 
-	// TODO
-	/*_, _, killed, _ := parseFinal(t, <-result)
-	if !killed {
-		t.Fatal("not killed")
-	}*/
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := make(chan struct {
+				user string
+				pass string
+				err  error
+			})
+
+			// spawn a model
+			m := New("")
+			read, _, err := os.Pipe()
+			if err != nil {
+				t.Fatal(err)
+			}
+			// make the model read out of an open pipe
+			prog := tea.NewProgram(m, tea.WithInput(read))
+
+			// spin off the actual TUI via Collect()
+			go func() {
+				u, p, err := collect("", prog)
+
+				result <- struct {
+					user string
+					pass string
+					err  error
+				}{u, p, err}
+			}()
+
+			// send in mock-user input
+			tt.input(prog)
+
+			// await results
+			r := <-result
+			if r.err != tt.expectedErr {
+				t.Error("Unexpected error:", testsupport.ExpectedActual(tt.expectedErr, r.err))
+			} else if r.user != tt.expectedUser {
+				t.Error("Unexpected user:", testsupport.ExpectedActual(tt.expectedErr, r.err))
+			} else if r.pass != tt.expectedPass {
+				t.Error("Unexpected password:", testsupport.ExpectedActual(tt.expectedErr, r.err))
+			}
+		})
+	}
+
 }
 
 // spawnModel spins off a credprompt returns a channel that can be read from after the model exists to get its final state.
