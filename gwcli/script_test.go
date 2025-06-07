@@ -42,9 +42,9 @@ import (
 	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/tree"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
-	. "github.com/gravwell/gravwell/v4/gwcli/utilities/testingsupport"
 
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/utils/weave"
@@ -67,7 +67,6 @@ func init() {
 
 // Tests the 'macro' action of gwcli
 func TestMacros(t *testing.T) {
-	Verboseln("testing macros...")
 
 	pf := passfile(t, password)
 
@@ -81,7 +80,6 @@ func TestMacros(t *testing.T) {
 	}
 
 	t.Run("macros list --csv", func(t *testing.T) {
-		Verboseln("\tmacros: list in CSV form")
 		// generate results manually, for comparison
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -103,7 +101,7 @@ func TestMacros(t *testing.T) {
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 		checkResult(t, true, "stdout", want, strings.TrimSpace(stdout))
 	})
@@ -114,7 +112,6 @@ func TestMacros(t *testing.T) {
 			macroDesc = "macro created for automated testing"
 			macroExp  = "testexpand"
 		)
-		Verboseln("\tmacros: create  $" + macroName + " --> %" + macroExp)
 		// fetch the number of macros prior to creation
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -140,7 +137,7 @@ func TestMacros(t *testing.T) {
 		// create a new macro from the cli, in script mode
 		cmd := fmt.Sprintf("-u %s --password %s --insecure --script macros create -n %s -d %s -e %s", user, password, macroName, macroDesc, macroExp)
 		statusCode, _, stderr := executeCmd(t, cmd)
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 		// refetch macros to check the count has increased by one
 		postMacros, err := testclient.GetUserMacros(myInfo.UID)
@@ -154,7 +151,6 @@ func TestMacros(t *testing.T) {
 	})
 
 	t.Run("macros list --json", func(t *testing.T) {
-		Verboseln("\tmacros: list in JSON form after creating a macro")
 		// generate results manually, for comparison
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -180,13 +176,12 @@ func TestMacros(t *testing.T) {
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 		checkResult(t, true, "stdout", want, strings.TrimSpace(stdout))
 	})
 
 	t.Run("macros delete (dryrun)", func(t *testing.T) {
-		Verboseln("\tmacros: dryrun delete a random macro to confirm it isn't actually deleted")
 		// fetch the macros prior to deletion
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -207,7 +202,7 @@ func TestMacros(t *testing.T) {
 		statusCode, _, stderr := executeCmd(t, cmd)
 
 		// check the outcome
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		// refetch macros to check that count hasn't changed
@@ -232,7 +227,6 @@ func TestMacros(t *testing.T) {
 	})
 
 	t.Run("macros delete [failure: missing id]", func(t *testing.T) {
-		Verboseln("\tmacros: submit invalid delete command (missing id)")
 
 		// fetch the macros prior to deletion
 		myInfo, err := testclient.MyInfo()
@@ -251,7 +245,7 @@ func TestMacros(t *testing.T) {
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stdout", "", stdout)
 
 		// refetch macros to check that count hasn't changed
@@ -266,7 +260,6 @@ func TestMacros(t *testing.T) {
 	})
 
 	t.Run("macros delete", func(t *testing.T) {
-		Verboseln("\tmacros: submit valid delete command")
 		// fetch the macros prior to deletion
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -287,7 +280,7 @@ func TestMacros(t *testing.T) {
 		statusCode, _, stderr := executeCmd(t, cmd)
 
 		// check the outcome
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 
 		// refetch macros to check the count has decreased by one
 		postMacros, err := testclient.GetUserMacros(myInfo.UID)
@@ -316,7 +309,6 @@ func TestMacros(t *testing.T) {
 }
 
 func TestQueries(t *testing.T) {
-	Verboseln("testing queries...")
 
 	pf := passfile(t, password)
 
@@ -330,14 +322,13 @@ func TestQueries(t *testing.T) {
 	}
 
 	t.Run("query output json to file", func(t *testing.T) {
-		Verboseln("\tqueries: querying for data as json and outputting it to a file in foreground")
 		outPath := path.Join(t.TempDir(), "out.json")
 		qry := "tag=gravwell"
 
 		// TODO need to make sure -o is valid before submitting the query
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --json", user, pf, qry, outPath)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		// check that the search was as we expected
@@ -389,20 +380,18 @@ func TestQueries(t *testing.T) {
 			}
 			// check the record count matches the search's item count
 			if count != uint(si.ItemCount) {
-				t.Fatalf("incorrect item count in file: %s", ExpectedActual(si.ItemCount, count))
+				t.Fatalf("incorrect item count in file: %s", testsupport.ExpectedActual(si.ItemCount, count))
 			}
 		}
 	})
 
 	t.Run("background query 'tags=gravwell limit 3'", func(t *testing.T) {
-		Verboseln("\tqueries: submitting a background query with ignored --output flag")
-
 		outPath := path.Join(t.TempDir(), "IShouldNotBeCreated.txt")
 		qry := "tag=gravwell"
 
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --background", user, pf, qry, outPath)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "WARN: ignoring flag --output due to --background", strings.TrimSpace(stderr))
 
 		// ensure the file was *not* created
@@ -435,8 +424,6 @@ func TestQueries(t *testing.T) {
 	})
 
 	t.Run("query output append to file", func(t *testing.T) {
-		Verboseln("\tqueries: submitting a query and appending results to an existing file")
-
 		var outPath = path.Join(t.TempDir(), "append.out")
 		// populate the file with some garbage data
 		var baseData strings.Builder
@@ -464,7 +451,7 @@ func TestQueries(t *testing.T) {
 		qry := "tag=gravwell limit 1"
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --append", user, pf, qry, outPath)
 		statusCode, _, stderr := executeCmd(t, cmd)
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		// check the file has more data than before
@@ -493,12 +480,10 @@ func TestQueries(t *testing.T) {
 	})
 
 	t.Run("query csv", func(t *testing.T) {
-		Verboseln("\tqueries: query output csv to stdout")
-
 		qry := "tag=gravwell limit 1"
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s --csv", user, pf, qry)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		if stdout != "" { // if results were returned, test them further for csv parse-ability
@@ -532,8 +517,6 @@ func TestQueries(t *testing.T) {
 	})
 
 	t.Run("attach to backgrounded, stdout", func(t *testing.T) {
-		Verboseln("\tqueries: submit background query with long delay, reattach and wait for it")
-
 		var sid string
 		{ // submit a background query
 			bgQry := "tag=gravwell limit 1 | sleep 5s"
@@ -544,7 +527,7 @@ func TestQueries(t *testing.T) {
 
 			cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s --background", user, pf, bgQry)
 			statusCode, stdout, stderr := executeCmd(t, cmd)
-			NonZeroExit(t, statusCode, stderr)
+			testsupport.NonZeroExit(t, statusCode, stderr)
 			checkResult(t, false, "stderr", "", stderr)
 
 			// save off background query sid
@@ -558,7 +541,7 @@ func TestQueries(t *testing.T) {
 		// attach to background query
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script queries attach %s", user, pf, sid)
 		statusCode, attachSTDOUT, stderr := executeCmd(t, cmd)
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		// fetch the background query's results manually
@@ -581,12 +564,11 @@ func TestQueries(t *testing.T) {
 		// check stdout
 		// don't really care about the data, just that it matches what it should
 		if attachSTDOUT != actualOut {
-			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, ExpectedActual(actualOut, attachSTDOUT))
+			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(actualOut, attachSTDOUT))
 		}
 	})
 
 	t.Run("attach to backgrounded, file", func(t *testing.T) {
-		Verboseln("\tqueries: submit background query with long delay, reattach and wait for it, output to file")
 
 		var sid string
 		{ // submit a background query
@@ -598,7 +580,7 @@ func TestQueries(t *testing.T) {
 
 			cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s --background", user, pf, bgQry)
 			statusCode, stdout, stderr := executeCmd(t, cmd)
-			NonZeroExit(t, statusCode, stderr)
+			testsupport.NonZeroExit(t, statusCode, stderr)
 			checkResult(t, false, "stderr", "", stderr)
 
 			// save off background query sid
@@ -613,7 +595,7 @@ func TestQueries(t *testing.T) {
 		outPath := path.Join(t.TempDir(), "out.txt")
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script queries attach %s -o %s", user, pf, sid, outPath)
 		statusCode, _, stderr := executeCmd(t, cmd)
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		// fetch the background query's results manually
@@ -643,13 +625,11 @@ func TestQueries(t *testing.T) {
 		// check stdout
 		// don't really care about the data, just that it matches what it should
 		if string(fileBytes) != correctOut {
-			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, ExpectedActual(correctOut, string(fileBytes)))
+			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(correctOut, string(fileBytes)))
 		}
 	})
 
 	t.Run("attach to backgrounded after completion, stdout", func(t *testing.T) {
-		Verboseln("\tqueries: submit background query with long delay, wait for it prior to reattach")
-
 		var sid string
 		{ // submit a background query
 			bgQry := "tag=gravwell limit 1 | sleep 5s"
@@ -660,7 +640,7 @@ func TestQueries(t *testing.T) {
 
 			cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s --background", user, pf, bgQry)
 			statusCode, stdout, stderr := executeCmd(t, cmd)
-			NonZeroExit(t, statusCode, stderr)
+			testsupport.NonZeroExit(t, statusCode, stderr)
 			checkResult(t, false, "stderr", "", stderr)
 
 			// save off background query sid
@@ -677,7 +657,7 @@ func TestQueries(t *testing.T) {
 		// attach to background query
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script queries attach %s", user, pf, sid)
 		statusCode, cmdOut, stderr := executeCmd(t, cmd)
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		// fetch the background query's results manually
@@ -700,13 +680,11 @@ func TestQueries(t *testing.T) {
 		// check stdout
 		// don't really care about the data, just that it matches what it should
 		if cmdOut != correctOut {
-			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, ExpectedActual(correctOut, cmdOut))
+			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(correctOut, cmdOut))
 		}
 	})
 
 	t.Run("attach to foregrounded after completion, stdout", func(t *testing.T) {
-		Verboseln("\tqueries: submit foreground query with long delay, reattach to it")
-
 		// parse the query, as this will tell us early if sleep is not available (aka we are not in a debug build)
 		fgQry := "tag=gravwell limit 1 | sleep 5s"
 		if err := testclient.ParseSearch(fgQry); err != nil {
@@ -725,7 +703,7 @@ func TestQueries(t *testing.T) {
 		// attach to background query
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script queries attach %s", user, pf, sid)
 		statusCode, cmdOut, stderr := executeCmd(t, cmd)
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		// fetch the background query's results manually
@@ -748,7 +726,7 @@ func TestQueries(t *testing.T) {
 		// check stdout
 		// don't really care about the data, just that it matches what it should
 		if cmdOut != correctOut {
-			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, ExpectedActual(correctOut, cmdOut))
+			t.Fatalf("attach pulled back different results from query (sid=%v).%v", sid, testsupport.ExpectedActual(correctOut, cmdOut))
 		}
 	})
 }
@@ -761,7 +739,7 @@ func TestLogin(t *testing.T) {
 		// issue the my info command to confirm we are logged into the correct user
 		cmd := fmt.Sprintf("-u %s --password %s --insecure --script user myinfo", user, password)
 		statusCode, cmdOut, stderr := executeCmd(t, cmd)
-		NonZeroExit(t, statusCode, stderr)
+		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		testUser(t, user, cmdOut)
@@ -937,9 +915,9 @@ func checkResult(t *testing.T, fatal bool, source, expected, actual string) {
 
 	if expected != actual {
 		if fatal {
-			t.Fatalf("bad %s: %s", source, ExpectedActual(expected, actual))
+			t.Fatalf("bad %s: %s", source, testsupport.ExpectedActual(expected, actual))
 		} else {
-			t.Errorf("bad %s: %s", source, ExpectedActual(expected, actual))
+			t.Errorf("bad %s: %s", source, testsupport.ExpectedActual(expected, actual))
 		}
 	}
 }
@@ -958,7 +936,7 @@ func testUser(t *testing.T, expectedUser string, stdout string) {
 
 	got := strings.TrimSpace(exploded[1])
 	if got != user {
-		t.Fatal("mismatching username.", ExpectedActual(expectedUser, got))
+		t.Fatal("mismatching username.", testsupport.ExpectedActual(expectedUser, got))
 	}
 }
 

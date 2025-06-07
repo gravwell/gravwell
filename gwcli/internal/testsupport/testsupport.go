@@ -6,6 +6,7 @@ package testsupport
 
 import (
 	"fmt"
+	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -31,4 +32,12 @@ func TTSendSpecial(r MessageRcvr, kt tea.KeyType) {
 // ! Prefixes the string with a newline.
 func ExpectedActual(expected, actual any) string {
 	return fmt.Sprintf("\n\tExpected:'%+v'\n\tGot:'%+v'", expected, actual)
+}
+
+// NonZeroExit calls Fatal if code is <> 0.
+func NonZeroExit(t *testing.T, code int, stderr string) {
+	t.Helper()
+	if code != 0 {
+		t.Fatalf("non-zero exit code %v.\nstderr: '%v'", code, stderr)
+	}
 }
