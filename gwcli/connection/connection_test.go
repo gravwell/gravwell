@@ -156,6 +156,8 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in via credentials: ", err)
+		} else if info.User != defaultUser || connection.MyInfo.User != defaultUser {
+			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, defaultUser, connection.MyInfo.User)
 		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
 			t.Fatal("failed to make call after logging in via credentials: ", err)
 		}
@@ -174,6 +176,8 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in via token: ", err)
+		} else if info.User != defaultUser || connection.MyInfo.User != defaultUser {
+			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, defaultUser, connection.MyInfo.User)
 		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
 			t.Fatal("failed to make call after logging in via token: ", err)
 		}
@@ -192,8 +196,8 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
-		} else if info.User != altUser { // ensure we got the correct user
-			t.Fatalf("logged in as %v, expected to log in as %v", info.User, altUser)
+		} else if info.User != altUser || connection.MyInfo.User != altUser {
+			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, altUser, connection.MyInfo.User)
 		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
 		}
@@ -212,8 +216,8 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in second user via token: ", err)
-		} else if info.User != altUser { // ensure we got the correct user
-			t.Fatalf("logged in as %v, expected to log in as %v", info.User, altUser)
+		} else if info.User != altUser || connection.MyInfo.User != altUser {
+			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, altUser, connection.MyInfo.User)
 		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
 			t.Fatal("failed to make call after logging in second user via token: ", err)
 		}
