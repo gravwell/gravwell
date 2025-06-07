@@ -31,7 +31,7 @@ func Test_skimPassfile(t *testing.T) {
 	}{
 		{"valid path", args{path.Join(t.TempDir(), "pf"), true}, false, password},
 		{"invalid path", args{path.Join(t.TempDir(), "pf_invalid"), false}, true, ""},
-		{"nil path", args{"", false}, true, ""},
+		{"nil path", args{"", false}, false, ""},
 	}
 
 	for _, tt := range tests {
