@@ -137,6 +137,19 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 			// this should not be captured by the prompt
 			tm.Type("should not be caught")
 		}, output{"Loona", "", true, true}, 1 * time.Second, false},
+		{"wrap", func(tm *teatest.TestModel, expected output) {
+			tm.Type(expected.user)
+			testsupport.TTSendSpecial(tm, tea.KeyDown)
+			tm.Type(expected.pass)
+			testsupport.TTSendSpecial(tm, tea.KeyDown)
+			testsupport.TTSendSpecial(tm, tea.KeyShiftTab)
+			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+		}, output{"Fizzarolli", "Oops", false, false}, 1 * time.Second, false},
+		{"timeout", func(tm *teatest.TestModel, expected output) {
+			testsupport.TTSendSpecial(tm, tea.KeyEnter)
+			tm.Type("some password that should not get returned")
+			testsupport.TTSendSpecial(tm, tea.KeyUp)
+		}, output{}, 3 * time.Second, true},
 	}
 
 	for _, tt := range tests {
@@ -148,7 +161,7 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 
 			// check results
 			out, timedout := awaitFinal(t, ch, tt.timeoutDur)
-			compareFinal(t, out, tt.expected, timedout, false)
+			compareFinal(t, out, tt.expected, timedout, tt.expectingTimeout)
 		})
 	}
 
