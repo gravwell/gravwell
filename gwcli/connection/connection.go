@@ -84,6 +84,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection/credprompt"
+	"github.com/gravwell/gravwell/v4/gwcli/connection/mfaprompt"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -261,7 +262,7 @@ func loginWithCredentials(username, password string, script bool) error {
 		}
 
 		// send the user into a prompt to enter their TOTP
-		code, authType, err := mfaPrompt()
+		code, authType, err := mfaprompt.Collect()
 		if err != nil {
 			return err
 		}
@@ -324,7 +325,7 @@ func promptForInput(prepopUsername string) (mfa bool, err error) {
 		return false, ufErr
 	} else if mfa {
 		// prompt for TOTP or recovery code
-		code, authType, err := mfaPrompt()
+		code, authType, err := mfaprompt.Collect()
 		if err != nil {
 			return true, err
 		}

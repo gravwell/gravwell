@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package connection
+package mfaprompt
 
 // a tiny tea.Model to prompt for MFA
 //
@@ -29,7 +29,7 @@ import (
 // mfaPrompt runs a tiny tea.Model that collects a code OR recovery key
 //
 // ! Not intended to be run while Mother is running.
-func mfaPrompt() (code string, at types.AuthType, err error) {
+func Collect() (code string, at types.AuthType, err error) {
 	c := mfaModel{
 		codeSelected: true,
 	}
