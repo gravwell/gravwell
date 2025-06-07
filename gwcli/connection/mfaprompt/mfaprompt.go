@@ -6,6 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package mfaprompt provide a tiny, mother-independent TUI to collect a TOTP or recovery code.
+// Use .Collect().
 package mfaprompt
 
 // a tiny tea.Model to prompt for MFA
@@ -26,7 +28,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-// mfaPrompt runs a tiny tea.Model that collects a code OR recovery key
+// Collect runs a tiny tea.Model that returns a code OR recovery key.
 //
 // ! Not intended to be run while Mother is running.
 func Collect() (code string, at types.AuthType, err error) {
