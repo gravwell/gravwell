@@ -18,9 +18,16 @@ package clilog
 import (
 	"errors"
 	"io"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/ingest/log"
 )
+
+//#region errors
+
+var ErrEmptyPath error = errors.New("path cannot be empty")
+
+//#endregion errors
 
 // Level recreates log.Level so other packages do not have to import the ingest logger
 type Level int
@@ -44,6 +51,10 @@ func Init(path string, lvl string) error {
 	var err error
 	if Writer != nil {
 		return nil
+	}
+
+	if path = strings.TrimSpace(path); path == "" {
+		return ErrEmptyPath
 	}
 
 	Writer, err = log.NewFile(path)
