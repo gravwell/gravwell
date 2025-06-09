@@ -106,10 +106,7 @@ func (m mfaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.Type {
 		case tea.KeyTab, tea.KeyShiftTab, tea.KeyUp, tea.KeyDown: // swap
 			return m.swap(), textinput.Blink
-		case tea.KeyEnter: // submit or swap
-			if m.codeSelected {
-				return m.swap(), textinput.Blink
-			}
+		case tea.KeyEnter: // submit
 			m.done = true
 			return m, tea.Quit
 		}
