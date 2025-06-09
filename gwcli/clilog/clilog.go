@@ -16,6 +16,7 @@ necessarily.
 package clilog
 
 import (
+	"errors"
 	"io"
 
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -47,7 +48,9 @@ func Init(path string, lvl string) error {
 
 	Writer, err = log.NewFile(path)
 	if err != nil {
-		Writer.Close()
+		if Writer != nil {
+			errors.Join(err, Writer.Close())
+		}
 		return err
 	}
 
