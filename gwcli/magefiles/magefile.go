@@ -116,6 +116,7 @@ func Build() error {
 	return cmd.Run()
 }
 
+// Vet runs go vet and staticcheck and should be called prior to the CI/CD pipeline.
 func Vet() error {
 	var display = func(txt string, err error, output string) {
 		if err != nil {
