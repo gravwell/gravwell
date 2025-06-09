@@ -37,9 +37,6 @@ func CronRuneValidator(s string) error {
 		return nil
 	}
 	runes := []rune(s)
-	if len(runes) < 1 {
-		return nil
-	}
 
 	// check that the latest input is a digit or space
 	if char := runes[len(runes)-1]; !unicode.IsSpace(char) &&
