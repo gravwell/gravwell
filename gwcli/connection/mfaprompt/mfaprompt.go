@@ -73,6 +73,7 @@ type mfaModel struct {
 	recoveryTI   textinput.Model
 	codeSelected bool // code or recovery TI focused
 	killed       bool
+	done         bool
 }
 
 func New() mfaModel {
@@ -92,8 +93,12 @@ func (m mfaModel) Init() tea.Cmd {
 }
 
 func (m mfaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if m.done { // do not accept more input once killed
+		return m, nil
+	}
 	if kill := killer.CheckKillKeys(msg); kill != killer.None {
 		m.killed = true
+		m.done = true
 		return m, tea.Quit
 	}
 
@@ -105,6 +110,7 @@ func (m mfaModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.codeSelected {
 				return m.swap(), textinput.Blink
 			}
+			m.done = true
 			return m, tea.Quit
 		}
 
