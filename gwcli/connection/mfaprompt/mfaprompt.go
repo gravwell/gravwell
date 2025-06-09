@@ -15,8 +15,10 @@ package mfaprompt
 // typically follows a cred prompt
 
 import (
+	"errors"
 	"fmt"
 	"strings"
+	"unicode"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -80,6 +82,18 @@ func New() mfaModel {
 	c := mfaModel{codeSelected: true}
 	c.codeTI = textinput.New()
 	c.codeTI.Prompt = stylesheet.TIPromptPrefix
+	c.codeTI.Validate = func(s string) error {
+		// limit TOTP to 6 digits
+		if len(s) > 6 {
+			return errors.New("TOTP code must be exactly 6 digits")
+		}
+		for _, r := range s {
+			if !unicode.IsDigit(r) {
+				return errors.New("TOTP code can only be digits")
+			}
+		}
+		return nil
+	}
 	c.codeTI.Focus()
 	c.recoveryTI = textinput.New()
 	c.recoveryTI.Prompt = stylesheet.TIPromptPrefix
