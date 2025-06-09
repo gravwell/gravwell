@@ -26,6 +26,14 @@ func TTSendSpecial(r MessageRcvr, kt tea.KeyType) {
 	r.Send(tea.KeyMsg(tea.Key{Type: kt, Runes: []rune{rune(kt)}}))
 }
 
+// Type adds teatest.TestModel.Type() to a normal tea.Program.
+func Type(prog *tea.Program, text string) {
+	for _, r := range text {
+		prog.Send(tea.KeyMsg(
+			tea.Key{Type: tea.KeyRunes, Runes: []rune{rune(r)}}))
+	}
+}
+
 //#endregion TeaTest
 
 // ExpectedActual returns a string declaring what was expected and what we got instead.
