@@ -15,7 +15,6 @@ package mfaprompt
 // typically follows a cred prompt
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -32,17 +32,19 @@ import (
 //
 // ! Not intended to be run while Mother is running.
 func Collect() (code string, at types.AuthType, err error) {
-	c := mfaModel{
-		codeSelected: true,
+	return collect(nil)
+}
+
+// internal implementation of collect.
+// Allows custom programs (likely programs with mocked input) for testing purposes.
+// ! Outside of test packages, leave prog==nil.
+func collect(prog *tea.Program) (code string, at types.AuthType, err error) {
+	p := prog
+	if p == nil {
+		p = tea.NewProgram(New())
 	}
-	c.codeTI = textinput.New()
-	c.codeTI.Prompt = stylesheet.TIPromptPrefix
-	c.codeTI.Focus()
-	c.recoveryTI = textinput.New()
-	c.recoveryTI.Prompt = stylesheet.TIPromptPrefix
-	c.recoveryTI.EchoMode = textinput.EchoNone
-	c.recoveryTI.Blur()
-	m, err := tea.NewProgram(c).Run()
+
+	m, err := p.Run()
 	if err != nil {
 		return "", types.AUTH_TYPE_NONE, err
 	}
@@ -50,9 +52,9 @@ func Collect() (code string, at types.AuthType, err error) {
 	final, ok := m.(mfaModel)
 	if !ok {
 		clilog.Writer.Criticalf("failed to cast credentials model")
-		return "", types.AUTH_TYPE_NONE, errors.New("failed to cast mfa model")
+		return "", types.AUTH_TYPE_NONE, uniques.ErrGeneric
 	} else if final.killed {
-		return "", types.AUTH_TYPE_NONE, errors.New("you must authenticate to use gwcli")
+		return "", types.AUTH_TYPE_NONE, uniques.ErrMustAuth
 	}
 
 	err = nil
@@ -71,6 +73,18 @@ type mfaModel struct {
 	recoveryTI   textinput.Model
 	codeSelected bool // code or recovery TI focused
 	killed       bool
+}
+
+func New() mfaModel {
+	c := mfaModel{codeSelected: true}
+	c.codeTI = textinput.New()
+	c.codeTI.Prompt = stylesheet.TIPromptPrefix
+	c.codeTI.Focus()
+	c.recoveryTI = textinput.New()
+	c.recoveryTI.Prompt = stylesheet.TIPromptPrefix
+	c.recoveryTI.Blur()
+
+	return c
 }
 
 func (m mfaModel) Init() tea.Cmd {
