@@ -83,10 +83,6 @@ func New() mfaModel {
 	c.codeTI = textinput.New()
 	c.codeTI.Prompt = stylesheet.TIPromptPrefix
 	c.codeTI.Validate = func(s string) error {
-		// limit TOTP to 6 digits
-		if len(s) > 6 {
-			return errors.New("TOTP code must be exactly 6 digits")
-		}
 		for _, r := range s {
 			if !unicode.IsDigit(r) {
 				return errors.New("TOTP code can only be digits")
@@ -94,7 +90,11 @@ func New() mfaModel {
 		}
 		return nil
 	}
+	c.codeTI.Width = 6
+	c.codeTI.CharLimit = 6
+	c.codeTI.Placeholder = "123456"
 	c.codeTI.Focus()
+
 	c.recoveryTI = textinput.New()
 	c.recoveryTI.Prompt = stylesheet.TIPromptPrefix
 	c.recoveryTI.Blur()
