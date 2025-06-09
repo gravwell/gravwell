@@ -47,14 +47,19 @@ var Writer *log.Logger
 
 // Init initializes Writer, the logging singleton.
 // Safe (ineffectual) if the writer has already been initialized.
-func Init(path string, lvl string) error {
+func Init(path string, lvlString string) error {
 	var err error
 	if Writer != nil {
 		return nil
 	}
 
+	// validate parameters
 	if path = strings.TrimSpace(path); path == "" {
 		return ErrEmptyPath
+	}
+	lvl, err := log.LevelFromString(lvlString)
+	if err != nil {
+		return err
 	}
 
 	Writer, err = log.NewFile(path)
@@ -65,7 +70,7 @@ func Init(path string, lvl string) error {
 		return err
 	}
 
-	if err = Writer.SetLevelString(lvl); err != nil {
+	if err = Writer.SetLevel(lvl); err != nil {
 		Writer.Close()
 		return err
 	}
@@ -76,6 +81,16 @@ func Init(path string, lvl string) error {
 	Writer.SetHostname(".") // autopopulates if empty
 
 	return nil
+}
+
+// Destroy closes the writer's file and nils out the Writer.
+func Destroy() error {
+	if Writer == nil {
+		return nil
+	}
+	err := Writer.Close()
+	Writer = nil
+	return err
 }
 
 // Tee writes the error to clilog.Writer and a secondary output, usually stderr
