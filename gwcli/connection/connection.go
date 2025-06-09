@@ -171,7 +171,7 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 			return ErrCredentialsOrAPITokenRequired
 		}
 		// in interactive mode, throw up a prompt and pre-populate username
-		mfa, err := promptForInput(username)
+		mfa, err := promptForMissingCredentials(username)
 		if err != nil {
 			return err
 		}
@@ -214,7 +214,7 @@ func loginNoCredentials(scriptMode bool) (err error) {
 			return ErrCredentialsOrAPITokenRequired
 		}
 
-		mfa, err := promptForInput("")
+		mfa, err := promptForMissingCredentials("")
 		if err != nil {
 			return err
 		}
@@ -312,7 +312,7 @@ func loginViaJWT(username string) (err error) {
 // Only prints to the log on critical failures
 //
 // ! Not to be called in script mode.
-func promptForInput(prepopUsername string) (mfa bool, err error) {
+func promptForMissingCredentials(prepopUsername string) (mfa bool, err error) {
 	// prompt for user name and password
 	u, p, err := credprompt.Collect(prepopUsername)
 	if err != nil {
