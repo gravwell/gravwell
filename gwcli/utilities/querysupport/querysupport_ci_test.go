@@ -11,7 +11,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	. "github.com/gravwell/gravwell/v4/gwcli/utilities/testingsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 )
 
 const ( // testing server credentials
@@ -33,7 +33,7 @@ func Test_GetResultsForDataScope(t *testing.T) {
 	if err := connection.Initialize(server, false, true, ""); err != nil {
 		panic(err)
 	}
-	if err := connection.Login(connection.Credentials{Username: user, Password: password}, true); err != nil {
+	if err := connection.Login(user, password, "", true); err != nil {
 		panic(err)
 	}
 
@@ -67,7 +67,7 @@ func Test_GetResultsForDataScope(t *testing.T) {
 		} else if len(res) == 0 {
 			t.Fatal("found no data in prior minute despite successfully submitting a test query")
 		} else if res[0] != columnsString {
-			t.Fatal("incorrect header row/columns.", ExpectedActual(columnsString, res[0]))
+			t.Fatal("incorrect header row/columns.", testsupport.ExpectedActual(columnsString, res[0]))
 		}
 	})
 }

@@ -69,6 +69,8 @@ func TestKeepAlive(t *testing.T) {
 	}
 	t.Cleanup(func() { s.Close() })
 
+	testFreq := s.Interval() + time.Second
+
 	done := make(chan bool)
 	t.Cleanup(func() { close(done) })
 
@@ -76,7 +78,6 @@ func TestKeepAlive(t *testing.T) {
 	go keepAlive(&s, done)
 
 	// pull results from the query after each interval has expired
-	testFreq := s.Interval() + time.Second
 	for i := range testIntervals {
 		time.Sleep(testFreq)
 

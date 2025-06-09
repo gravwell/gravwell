@@ -28,10 +28,9 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
-
-const GenericErrorText string = "an error occurred"
 
 //#region modes
 
@@ -80,12 +79,12 @@ func (a *attach) Update(msg tea.Msg) tea.Cmd {
 	case inactive: // should not be possible, quit out if it occurs
 		clilog.Writer.Warnf("attach triggered update in inactive mode")
 		a.mode = quitting
-		return tea.Println(GenericErrorText)
+		return tea.Println(uniques.ErrGeneric.Error())
 	case displaying: // pass control to datascope
 		if a.ds == nil {
 			clilog.Writer.Errorf("attach cannot be in display mode without a valid datascope")
 			a.mode = quitting
-			return tea.Println(GenericErrorText)
+			return tea.Println(uniques.ErrGeneric.Error())
 		}
 		var cmd tea.Cmd
 		a.ds, cmd = a.ds.Update(msg)

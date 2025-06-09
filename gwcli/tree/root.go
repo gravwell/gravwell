@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -96,7 +97,7 @@ func ppre(cmd *cobra.Command, args []string) error {
 // EnforceLogin initializes the connection singleton, which logs the client into the Gravwell instance dictated by the --server flag.
 // Safe (ineffectual) to call if already logged in.
 func EnforceLogin(cmd *cobra.Command, args []string) error {
-	if connection.Client == nil { // if we just started, initialize connection
+	if connection.Client == nil || connection.Client.State() == client.STATE_CLOSED { // if we just started, initialize connection
 		server, err := cmd.Flags().GetString("server")
 		if err != nil {
 			return err
@@ -112,28 +113,45 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 
 	// generate credentials
 	var (
-		err    error
-		script bool
-		cred   connection.Credentials
+		err          error
+		script       bool
+		username     string
+		password     string
+		passfilePath string
+		apiKey       string
 	)
 	if script, err = cmd.Flags().GetBool("script"); err != nil {
 		return err
 	}
-	if cred.Username, err = cmd.Flags().GetString("username"); err != nil {
+	if username, err = cmd.Flags().GetString("username"); err != nil {
 		return err
 	}
-	if cred.Password, err = cmd.Flags().GetString("password"); err != nil {
+	if password, err = cmd.Flags().GetString("password"); err != nil {
 		return err
 	}
-	if cred.PassfilePath, err = cmd.Flags().GetString("passfile"); err != nil {
+	if passfilePath, err = cmd.Flags().GetString("passfile"); err != nil {
+		return err
+	}
+	if apiKey, err = cmd.Flags().GetString("api"); err != nil {
 		return err
 	}
 
-	if err := connection.Login(cred, script); err != nil {
-		// coarsely check for invalid credentials
-		if strings.Contains(err.Error(), "401") {
-			return errors.New("failed to login with given credentials")
-		}
+	// password/passfile/apikey are marked mutually exclusive, so we do not have to check here
+
+	// need to check that, if password/passfile are supplied, username is also supplied
+	if (passfilePath != "" || password != "") && username == "" {
+		return errors.New("if password or passkey are specified, you must also specify username (-u)")
+	}
+
+	// if a passfile was specified, skim it out of the file
+	if p, err := skimPassFile(passfilePath); err != nil {
+		clilog.Writer.Warnf("failed to skim passfile: %v", err)
+	} else if p != "" {
+		password = p
+	}
+
+	// pass all information to Login to decide how to proceed
+	if err := connection.Login(username, password, apiKey, script); err != nil {
 		return err
 	}
 
@@ -143,13 +161,26 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 
 }
 
+// skimPassFile slurps the file at the given path if path != "".
+// Returns the password found, an error opening/slurping the file, or "" (if path is empty).
+func skimPassFile(path string) (password string, err error) {
+	if path != "" {
+		b, err := os.ReadFile(path)
+		if err != nil {
+			return "", fmt.Errorf("failed to read password from %v: %v", path, err)
+		}
+		return strings.TrimSpace(string(b)), nil
+	}
+	return "", nil
+
+}
+
 // global PersistentPostRunE.
 // Ensure the client connection to the Gravwell backend is dead.
 func ppost(cmd *cobra.Command, args []string) error {
 
 	if err := connection.End(); err != nil {
 		clilog.Writer.Debugf("failed to destroy connection singleton: %v", err)
-		return err
 	}
 
 	pprof.StopCPUProfile() // idempotent if no profiler is running
@@ -171,6 +202,11 @@ func GenerateFlags(root *cobra.Command) {
 	root.PersistentFlags().StringP("username", "u", "", "login credential.")
 	root.PersistentFlags().String("password", "", "login credential.")
 	root.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
+	root.PersistentFlags().String("api", "", "log in via API key instead of credentials")
+
+	root.MarkFlagsMutuallyExclusive("password", "passfile", "api")
+	root.MarkFlagsMutuallyExclusive("api", "username")
+
 	root.PersistentFlags().Bool("no-color", false, "disables colourized output.")
 	root.PersistentFlags().String("server", "localhost:80", "<host>:<port> of instance to connect to.\n")
 	root.PersistentFlags().StringP("log", "l", cfgdir.DefaultStdLogPath, "log location for developer logs.\n")

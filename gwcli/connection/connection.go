@@ -10,6 +10,65 @@
 Package connection implements and controls a Singleton instantiation of the gravwell client library.
 All calls to the Gravwell instances should be called via this package and the client it controls.
 
+Login logic is handled here with the following logical flow:
+
+```mermaid
+flowchart TB
+
+	%% entry points
+	APIToken["User provides API token<br>**--api**"]
+	~~~
+	bothCred["User provides username and password/passfile<br> **-u <> {-p <>| --password <>}**"]
+	~~~
+	noCred["User provides no credentials"]
+
+	%% shared
+	generateJWT["Generate local JWT"]
+	success(("successful<br>login"))
+	~~~
+	fail(("fail out"))
+	MFAPrompt["prompt for TOTP or recovery"]
+
+	generateJWT --> success
+
+	%% api token
+	validateAPIToken{"API token is valid"}
+
+	APIToken --> validateAPIToken --"yes"----> success
+	validateAPIToken --"no"--> ErrInvalidAPI
+
+	%% both credentials
+	bcScript{"**--script**"}
+	bcMFA{"MFA required"}
+
+	bothCred --> bcMFA --"yes"--> bcScript --"yes"--> ErrAPITokenReq
+	bcMFA --"no"--> generateJWT
+	bcScript --"no"--> MFAPrompt --> generateJWT
+
+	%% no cred
+	ncMFA{"MFA required"}
+	ncJWT{"does a valid<br>token exist?"}
+	ncScript{"**--script**"}
+	ncPromptCred["prompt for credentials"]
+	ncScriptPostJWT{"**--script**"}
+
+	noCred --> ncMFA
+	ncMFA --"yes"--> ncScript --"yes"--> ErrAPITokenReq
+	                 ncScript --"no"--> MFAPrompt
+	ncMFA --"no"--> ncJWT --"yes"--> success
+	                ncJWT --"no"--> ncScriptPostJWT
+	ncScriptPostJWT --"yes"--> ErrCredOrAPIKeyReq
+	ncScriptPostJWT --"no"--> ncPromptCred --> MFAPrompt
+
+
+
+	%% Errors
+	ErrAPITokenReq(["*stderr*:<br>MFA is enabled, API token is required"]) --> fail
+	ErrInvalidAPI(["*stderr*:<br>API token is invalid"]) --> fail
+	ErrCredOrAPIKeyReq(["*stderr*:<br>Credentials or API token required"]) --> fail
+
+```
+
 This package also contains some wrapper functions for grav.Client calls where we want to ensure consistent access and parameters.
 */
 package connection
@@ -24,6 +83,8 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection/credprompt"
+	"github.com/gravwell/gravwell/v4/gwcli/connection/mfaprompt"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -44,12 +105,12 @@ var MyInfo types.UserDetails
 
 // Initialize creates and starts a Client using the given connection string of the form <host>:<port>.
 // Destroys a pre-existing connection (but does not log out), if there was one.
-// restLogPath should be left empty outside of test packages
+// restLogPath should be left empty outside of test packages.
+//
+// You probably want to call Login after a successful Initialize call.
 func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath string) (err error) {
 	if Client != nil {
-		Client.Close()
-		// TODO should probably close the logger, if possible externally
-		Client = nil
+		End()
 	}
 
 	var l objlog.ObjLog = nil
@@ -77,76 +138,167 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 	return nil
 }
 
-// Credentials is the temporary struct for passing credentials into Login.
-type Credentials struct {
-	Username     string
-	Password     string
-	PassfilePath string
-}
-
-// Login the initialized Client. Attempts to use a JWT token first, then falls back to supplied
-// credentials.
+// Login the initialized Client.
+// Attempts to use a JWT token first, then falls back to supplied credentials.
 //
 // Ineffectual if Client is already logged in.
-func Login(cred Credentials, scriptMode bool) (err error) {
+func Login(username, password, apiToken string, scriptMode bool) (err error) {
+	if Client == nil {
+		return ErrNotInitialized
+	}
 	if Client.LoggedIn() {
 		return nil
 	}
 
-	// login is attempted via JWT token first
-	// If any stage in the process fails
-	// the error is logged and we fall back to flags and prompting
-	if err := loginViaToken(); err != nil {
-		// jwt token failure; log and move on
-		clilog.Writer.Warnf("Failed to login via JWT token: %v", err)
-
-		if err = loginViaCredentials(cred, scriptMode); err != nil {
-			clilog.Writer.Errorf("Failed to login via credentials: %v", err)
+	if apiToken != "" { // if an APIKey was given, attempt to login with it
+		if err := Client.LoginWithAPIToken(apiToken); err != nil {
+			return errors.Join(ErrAPIKeyInvalid, err)
+		}
+		clilog.Writer.Infof("logged in via API token")
+	} else if username == "" { // if a username was not given, act as if no credentials were given
+		err := loginNoCredentials(scriptMode)
+		if err != nil {
 			return err
 		}
-		clilog.Writer.Infof("Logged in via credentials")
+	} else if username != "" && password != "" {
+		// if all credentials were given, try to log in using only those credentials
+		if err := loginWithCredentials(username, password, scriptMode); err != nil {
+			return err
+		}
+	} else { // a username was given, but no password/passfile
+		// in script mode, fail out
+		if scriptMode {
+			return ErrCredentialsOrAPITokenRequired
+		}
+		// in interactive mode, throw up a prompt and pre-populate username
+		mfa, err := promptForMissingCredentials(username)
+		if err != nil {
+			return err
+		}
+		if mfa {
+			clilog.Writer.Infof("logged in via credentials (with mfa)")
+		} else {
+			clilog.Writer.Infof("logged in via credentials (without mfa)")
+		}
 
-		if err := CreateToken(); err != nil {
-			clilog.Writer.Warnf("%v", err.Error())
-			// failing to create the token is not fatal
-		} /*else {
-			// spin up a goroutine to refresh the login token automatically
-			go func() {
-				// endlessly sleep, refresh token, then sleep again
-				for {
-					time.Sleep(refreshInterval)
-					if err := Client.RefreshLoginToken(); err != nil {
-						clilog.Writer.Warnf("failed to refresh JWT: %v", err)
-					} else {
-						// re-export the new token
-						if err := CreateToken(); err != nil {
-							clilog.Writer.Warnf("failed to re-create JWT on refresh: %v",
-								err.Error())
-						}
-					}
-				}
-			}()
-		} */
-	} else {
-		clilog.Writer.Infof("Logged in via JWT")
 	}
 
-	// on successfuly login, fetch and cache MyInfo
+	// if we made it this far, we have successfully logged in via one of the above branches
+
+	// on successful login, fetch and cache MyInfo
 	if MyInfo, err = Client.MyInfo(); err != nil {
 		return errors.New("failed to cache user info: " + err.Error())
+	}
+
+	// check that the info of the user we fetched actually matches the given username
+	if username != "" && MyInfo.User != username {
+		return fmt.Errorf("server returned a different username (%v) than the given credentials (%v)", MyInfo.User, username)
+	}
+
+	// create/refresh the token
+	if err := createTokenFile(MyInfo.User); err != nil {
+		clilog.Writer.Warnf("%v", err.Error())
+		// failing to create the token is not fatal
 	}
 
 	return nil
 }
 
-// loginViaToken attempts to login via JWT token in the user's config directory.
+// helper function for Login when no credentials were given.
+func loginNoCredentials(scriptMode bool) (err error) {
+	// attempt to login to whichever account was responsible for the pre-existing token
+	if err := loginViaJWT(""); err != nil {
+		clilog.Writer.Warnf("failed to login via JWT token: %v", err)
+		// if we are in script mode, fail out
+		if scriptMode {
+			return ErrCredentialsOrAPITokenRequired
+		}
+
+		mfa, err := promptForMissingCredentials("")
+		if err != nil {
+			return err
+		}
+		if mfa {
+			clilog.Writer.Infof("logged in via credentials (with mfa)")
+		} else {
+			clilog.Writer.Infof("logged in via credentials (without mfa)")
+		}
+	} else { // successfully logged in with JWT
+		clilog.Writer.Infof("logged in via JWT")
+
+		// if we are in script mode and MFA would have been required, fail out
+		// this is to enforce consistent script usage, lest the token expire mid-script
+		if scriptMode {
+			mfa, err := Client.GetMFAInfo()
+			if err != nil {
+				err = errors.Join(errors.New("failed to fetch mfa info after token login"), err)
+
+				clilog.Writer.Warnf("%v", err)
+				return err
+			} else if mfa.MFARequired {
+				clilog.Writer.Infof("failing out anyways due to JWT+script+MFARequired")
+
+				return ErrAPITokenRequired
+			}
+		}
+	}
+
+	// success
+
+	return nil
+
+}
+
+// helper function for Login when BOTH credentials were explicitly set.
+// If error is nil, caller can assume Client has successfully logged in and state has been logged (if applicable).
+func loginWithCredentials(username, password string, script bool) error {
+	resp, err := Client.LoginEx(username, password)
+	if mfa, ufErr := testLoginError(resp, err); ufErr != nil {
+		return ufErr
+	} else if mfa {
+		// if we are in script mode, fail out and alert the user to use an API key
+		if script {
+			return ErrAPITokenRequired
+		}
+
+		// send the user into a prompt to enter their TOTP
+		code, authType, err := mfaprompt.Collect()
+		if err != nil {
+			return err
+		}
+		resp, err = Client.MFALogin(username, password, authType, code)
+		if err != nil {
+			return err
+		} else if !resp.LoginStatus {
+			// we logged in via MFA, didn't get an error, but still failed to actually log in
+			clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
+			return uniques.ErrGeneric
+		}
+	}
+
+	return nil
+}
+
+// loginViaJWT attempts to login via JWT token in the user's config directory.
 // Returns an error on failures. This error should be considered nonfatal and the user logged in via
 // an alternative method instead.
-func loginViaToken() (err error) {
+//
+// If a username was given, it will first be matched against the username found in the file.
+// NOTE(rlandau): we still perform a whois against the backend later, but this allows us a sanity check without touching the backend.
+func loginViaJWT(username string) (err error) {
 	var tknbytes []byte
 	// NOTE the reversal of standard error checking (`err == nil`)
 	if tknbytes, err = os.ReadFile(cfgdir.DefaultTokenPath); err == nil {
-		if err = Client.ImportLoginToken(string(tknbytes)); err == nil {
+		// split the username and token
+		exploded := strings.Split(string(tknbytes), "\n")
+		if len(exploded) != 2 || exploded[0] == "" || exploded[1] == "" {
+			return errors.New("failed to split token file into <username>\n<token>")
+		}
+		if (username != "") && username != exploded[0] {
+			return fmt.Errorf("tokenfile username (%v) does not match given username (%v)", exploded[0], username)
+		}
+
+		if err = Client.ImportLoginToken(string(exploded[1])); err == nil {
 			if err = Client.TestLogin(); err == nil {
 				return nil
 			}
@@ -155,49 +307,92 @@ func loginViaToken() (err error) {
 	return
 }
 
-// Attempts to login via the given credentials struct.
-// A given password takes precedence over a passfile.
-func loginViaCredentials(cred Credentials, scriptMode bool) error {
-	// check for password in file
-	if strings.TrimSpace(cred.Password) == "" {
-		if cred.PassfilePath != "" {
-			b, err := os.ReadFile(cred.PassfilePath)
-			if err != nil {
-				return fmt.Errorf("failed to read password from %v: %v", cred.PassfilePath, err)
-			}
-			cred.Password = strings.TrimSpace(string(b))
-		}
+// Spins up a bubble tea prompt to interactively collect u/p and another to collect MFA (if applicable).
+// Returns if the MFA prompt was displayed and fill out (if !mfa, the Client successfully auth'd without MFA)
+// Only prints to the log on critical failures
+//
+// ! Not to be called in script mode.
+func promptForMissingCredentials(prepopUsername string) (mfa bool, err error) {
+	// prompt for user name and password
+	u, p, err := credprompt.Collect(prepopUsername)
+	if err != nil {
+		return false, err
 	}
 
-	if cred.Username == "" || cred.Password == "" {
-		// if script mode, do not prompt
-		if scriptMode {
-			return fmt.Errorf("no valid token found.\n" +
-				"Please login via --username and {--password | --passfile}")
-		}
-
-		// prompt for credentials
-		credM, err := CredPrompt(cred.Username, cred.Password)
+	// log in via u/p
+	resp, err := Client.LoginEx(u, p)
+	if mfa, ufErr := testLoginError(resp, err); ufErr != nil {
+		return false, ufErr
+	} else if mfa {
+		// prompt for TOTP or recovery code
+		code, authType, err := mfaprompt.Collect()
 		if err != nil {
-			return err
+			return true, err
 		}
-		// pull input results
-		if finalCredM, ok := credM.(credModel); !ok {
-			return err
-		} else if finalCredM.killed {
-			return errors.New("you must authenticate to use gwcli")
-		} else {
-			cred.Username = finalCredM.UserTI.Value()
-			cred.Password = finalCredM.PassTI.Value()
+		resp, err = Client.MFALogin(u, p, authType, code)
+		if err != nil {
+			return true, err
+		} else if !resp.LoginStatus {
+			// we logged in via MFA, didn't get an error, but still failed to actually log in
+			clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
+			return false, uniques.ErrGeneric
 		}
 	}
 
-	return Client.Login(cred.Username, cred.Password)
+	return mfa, nil
+
 }
 
-// CreateToken creates a login token for future use.
-// The token's path is saved to an environment variable to be looked up on future runs
-func CreateToken() error {
+// helper subroutine that wraps LoginEx.
+// Translates HTTP error codes into user-friendly errors and does not treat MFARequired as an error.
+// Logs the full error to the log and returns an error appropriate to show a user.
+//
+// Really just used to consolidate all of the checks that are made each time we would call LoginEx().
+func testLoginError(resp types.LoginResponse, rawErr error) (mfa bool, userFriendlyErr error) {
+	if rawErr == nil {
+		if !resp.LoginStatus { // sanity check
+			clilog.Writer.Criticalf("login did not turn back an error, but we are not logged in! Response: %v", resp)
+			return false, uniques.ErrGeneric
+		}
+
+		return false, nil
+	}
+
+	// if a non-MFA error occurred, dig into it
+	if !errors.Is(rawErr, grav.ErrMFARequired) {
+		if strings.Contains(rawErr.Error(), "401") {
+			return false, ErrInvalidCredentials
+		}
+		// unknown error, log it
+		clilog.Writer.Warnf("failed to login: %v", rawErr)
+		return false, nil
+	}
+	if resp.LoginStatus { // successful login, no need to continue to continue to MFA
+		return false, nil
+	}
+
+	// not yet logged in, likely due to required MFA
+	if resp.MFASetupRequired {
+		return false, ErrMFASetupRequired
+	} else if !resp.MFARequired {
+		// we aren't logged in, but it isn't because MFARequired
+		// unknown state, fail out
+		clilog.Writer.Criticalf("failed to login, unknown response state: %+v", resp)
+		return false, uniques.ErrGeneric
+	}
+
+	return true, nil
+}
+
+// createTokenFile creates a login token for future use.
+// The token's path is saved to an environment variable to be looked up on future runs.
+//
+// Token files have the form:
+//
+// <username>
+//
+// <token>
+func createTokenFile(username string) error {
 	var (
 		err   error
 		token string
@@ -206,10 +401,14 @@ func CreateToken() error {
 		return fmt.Errorf("failed to export login token: %v", err)
 	}
 
-	// write out the token
+	// write out the username, then the token
 	fd, err := os.OpenFile(cfgdir.DefaultTokenPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
 	if err != nil {
 		return fmt.Errorf("failed to create token: %v", err)
+	}
+
+	if _, err := fd.WriteString(username + "\n"); err != nil {
+		return fmt.Errorf("failed to write token: %v", err)
 	}
 	if _, err := fd.WriteString(token); err != nil {
 		return fmt.Errorf("failed to write token: %v", err)
@@ -223,14 +422,23 @@ func CreateToken() error {
 	return nil
 }
 
-// End closes the connection to the server.
+// End closes the connection to the server and destroys the data in the connection singleton.
 // Does not logout the user as to not invalidate existing JWTs.
+//
+// To reconnect, you will need to call Initialize() again.
+//
+// ! swallows Already Closed errors
 func End() error {
-	if Client == nil {
+	MyInfo = types.UserDetails{}
+	if Client == nil { // job's done
 		return nil
 	}
 
-	Client.Close()
+	if err := Client.Close(); err != nil && (err.Error() != "Client already closed") {
+		return err
+	}
+	//Client = nil // does not nil out as to reduce the likelihood of nil pointer panics
+
 	return nil
 }
 
