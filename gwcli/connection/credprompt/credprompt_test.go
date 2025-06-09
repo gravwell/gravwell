@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/x/exp/teatest"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
 type output struct {
@@ -112,7 +113,7 @@ func Test_collect(t *testing.T) {
 		}, "u", "", nil},
 		{"killed", func(prog *tea.Program) {
 			testsupport.TTSendSpecial(prog, tea.KeyCtrlC)
-		}, "", "", ErrMustAuth},
+		}, "", "", uniques.ErrMustAuth},
 	}
 
 	for _, tt := range tests {
