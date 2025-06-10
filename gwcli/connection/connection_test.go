@@ -442,6 +442,59 @@ func TestLogin_interactive_mode(t *testing.T) {
 
 }
 
+// TestJWTResfreshing confirms that the refresher goroutine that connection spins up on Login actually keeps the session alive
+// (and, therefore, that the login dies if not properly refreshed).
+// NOTE: This test is typically skipped, as it requires manually editing gravwell.conf or having an insane timeout.
+func TestJWTRefreshing(t *testing.T) {
+	// as of 5.8.3, the default session time is 60 minutes, though frequently set to 1 day
+	const (
+		sessionTimeOutBuffer time.Duration = 3 * time.Second
+		sessionTimeOut       time.Duration = 60 * time.Minute // TODO you probably need to update this to whatever value is set in your gravwell.conf
+	)
+
+	if ddl, hasTimer := t.Deadline(); hasTimer {
+		if time.Until(ddl) < sessionTimeOut+sessionTimeOutBuffer { // we do not have enough time for this test
+			t.Skipf("test duration is not long (must be greater than session timeout (%v) + buffer (%v))", sessionTimeOut, sessionTimeOutBuffer)
+		}
+	}
+
+	// initialize and login
+	if err := connection.Initialize(server, false, true, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := connection.Login(defaultUser, defaultPass, "", true); err != nil {
+		t.Fatal(err)
+	}
+
+	// cache the current state of th token
+	tknBody, err := os.ReadFile(cfgdir.DefaultTokenPath)
+	if err != nil {
+		t.Fatal("failed to read token body:", err)
+	}
+
+	// sleep until the session would have expired
+	time.Sleep(sessionTimeOut + sessionTimeOutBuffer)
+
+	// check that the current token does not match our cached token (proving that it was updated, likely by refresher)
+	newTknBody, err := os.ReadFile(cfgdir.DefaultTokenPath)
+	if err != nil {
+		t.Fatal("failed to read token body:", err)
+	}
+	// validate the new token
+	if string(tknBody) == string(newTknBody) {
+		t.Fatal("token file was not updated while we were sleeping")
+	}
+	// TODO check that the values in the new token are different and make sense (specifically expiry)
+
+	// validate that we can still make calls
+	_, err = connection.Client.ListKits()
+	if err != nil {
+		t.Fatal("client failed to fetch kits:", err)
+	}
+
+}
+
 // Creates an API token with "ListUsers", "ListGroups", "ListGroupMembers" capabilities for the logged-in testclient.
 // Returns the token that was generated (to be passed into connection.Login()).
 // On failure, tkn will default to "UNSET".
