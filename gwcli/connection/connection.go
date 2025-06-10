@@ -205,9 +205,8 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 	if err := createTokenFile(MyInfo.User); err != nil {
 		clilog.Writer.Warnf("%v", err.Error())
 		// failing to create the token is not fatal
-	} else {
-		go keepRefreshed()
 	}
+	go keepRefreshed()
 
 	return nil
 }
@@ -434,9 +433,10 @@ func createTokenFile(username string) error {
 // Intended to be called in a goroutine, keepRefreshed parses the token for when it expires, sleeps until a short time before it expires, then refreshes it.
 func keepRefreshed() {
 	for {
-		// check the existing file
 		var wakeAt = getJWTExpiry()
 		var sleepTime = time.Until(wakeAt)
+
+		clilog.Writer.Debugf("waking at @ %v (sleeping for %v)", wakeAt, sleepTime)
 
 		select {
 		case <-refresherDone:
@@ -481,7 +481,7 @@ func getJWTExpiry() (wakeTime time.Time) {
 		return time.Now()
 	}
 
-	return payload.Expires.Add(refreshBuffer)
+	return payload.Expires.Add(-refreshBuffer)
 
 }
 
