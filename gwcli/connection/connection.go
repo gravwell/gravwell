@@ -103,8 +103,8 @@ var Client *grav.Client
 // MyInfo holds cached data about the current user.
 var MyInfo types.UserDetails
 
-const refresherSleep time.Duration = 10 * time.Minute // amount of time the refresher sleeps between refreshes
-var refresherDone chan bool                           // closed when we are closing the connection, thereby alerting the refresher to close up as well
+const refreshBuffer time.Duration = 5 * time.Minute // the refresher will next wake at (expiryTime - buffer)
+var refresherDone chan bool                         // closed when we are closing the connection, thereby alerting the refresher to close up as well
 
 // Initialize creates and starts a Client using the given connection string of the form <host>:<port>.
 // Destroys a pre-existing connection (but does not log out), if there was one.
@@ -430,23 +430,59 @@ func createTokenFile(username string) error {
 	return nil
 }
 
-// keepRefreshed automatically refreshes Client and the login token every so often.
+// keepRefreshed automatically refreshes Client and the login JWT every so often.
+// Intended to be called in a goroutine, keepRefreshed parses the token for when it expires, sleeps until a short time before it expires, then refreshes it.
 func keepRefreshed() {
 	for {
+		// check the existing file
+		var wakeAt = getJWTExpiry()
+		var sleepTime = time.Until(wakeAt)
+
 		select {
 		case <-refresherDone:
 			clilog.Writer.Debug("refresher closing up shop")
 			return
-		default:
+		case <-time.After(sleepTime):
+			clilog.Writer.Debugf("refresher: refreshing JWT...")
+			// token will expire soon, regenerate it
 			if err := Client.RefreshLoginToken(); err != nil {
 				clilog.Writer.Errorf("failed to refresh login: %v", err)
 			}
 			// write the new token to our token file
-			// TODO
-
-			time.Sleep(refresherSleep)
+			if err := createTokenFile(MyInfo.User); err != nil {
+				clilog.Writer.Warnf("%v", err)
+			}
 		}
 	}
+}
+
+// helper function for keepRefreshed.
+// Slurps the token file, returning when the caller should awaken to refresh this token (with a built-in buffer).
+// wakeTime will be time.Now() if an error occurred.
+func getJWTExpiry() (wakeTime time.Time) {
+	tkn, err := os.ReadFile(cfgdir.DefaultTokenPath)
+	if err != nil {
+		// log the error and return
+		clilog.Writer.Warnf("refresher: failed to read existing JWT: %v", err)
+		return time.Now()
+	}
+
+	// skim off username
+	exploded := strings.Split(string(tkn), "\n")
+	if MyInfo.User != exploded[0] {
+		// either the token or the local cache has changed
+		clilog.Writer.Infof("connection username %v does not match token username %v", MyInfo.User, exploded[0])
+		return time.Now()
+	}
+
+	_, payload, _, err := uniques.ParseJWT(exploded[1])
+	if err != nil {
+		clilog.Writer.Warnf("failed to parse JWT: %v", err)
+		return time.Now()
+	}
+
+	return payload.Expires.Add(refreshBuffer)
+
 }
 
 // End closes the connection to the server and destroys the data in the connection singleton.
