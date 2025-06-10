@@ -8,11 +8,11 @@ A redesigned Gravwell client for the terminal, supporting both TUI-served intera
 
 - interactive *and* scriptable
 
-- full query editor (syntax highlighting NYI)
+- query editor
 
-- dynamic viewport for interacting with query results
+- dynamic (paged and scrollable) viewport for interacting with query results
 
-- mutliple query result download formats (CSV, JSON, raw)
+- multiple query result download formats (CSV, JSON, raw)
 
 - shell-style navigation
 
@@ -30,10 +30,13 @@ A redesigned Gravwell client for the terminal, supporting both TUI-served intera
 
 - pluggable framework for easily adding new capabilities (complete with genericized boilerplate and generator functions)
 
+- `--script` flag to indicate that the program should never wait for user input or confirmation
 
 # Usage
 
-`./gwcli`
+`./gwcli` to jump right into interactive mode or `./gwcli -h` to learn more about flags and how to use gwcli in a script.
+
+---
 
 The CLI can be used interactively or as a script tool.
 
@@ -45,11 +48,13 @@ Attach `-h` to any command for full details on flags and commands.
 
 ## Login
 
-gwcli automatically logs in via token once one has been created.
+In interactive mode (when `--script` is not supplied), gwcli will attempt to use an existing token and will prompt you for any missing credentials (username, password, TOTP).
 
-If you are not in script mode and have no token, gwcli will prompt you for a username and password.
+If you are in script mode, you should use an API Token (see [Kris' blog post](https://www.gravwell.io/blog/the-basics-of-gravwell-api-access-tokens)). If your account is *not* MFA-enabled, you can also log on with `-u`/`-p` or `-u`/`--password`.
 
-If you are in script mode and have no token, use `-u USER -p path/to/file/containing/password` the first call to generate the token and login.
+# Building
+
+In the `./gwcli` directory, call `mage build`. If you do not have [mage](magefile.org) installed, call `go build -o gwcli .`
 
 # Troubleshooting
 
