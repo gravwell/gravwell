@@ -495,6 +495,8 @@ func End() error {
 	MyInfo = types.UserDetails{}
 	if Client == nil { // job's done
 		return nil
+	} else if Client.State() == grav.STATE_CLOSED || Client.State() == grav.STATE_LOGGED_OFF {
+		return nil
 	}
 
 	// alert the JWT refresher to shutdown
