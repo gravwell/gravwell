@@ -12,9 +12,12 @@
 package uniques
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"os"
 	"strings"
+	"time"
 	"unicode"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -64,4 +67,55 @@ func CronRuneValidator(s string) error {
 func FetchWindowSize() tea.Msg {
 	w, h, _ := term.GetSize(os.Stdin.Fd())
 	return tea.WindowSizeMsg{Width: w, Height: h}
+}
+
+// A JWTHeader holds the values from the first segment of a parsed JWT.
+type JWTHeader struct {
+	Algo int    `json:"algo"`
+	Typ  string `json:"typ"`
+}
+
+// A JWTPayload holds the values from the second segment of a parsed JWT.
+// Most importantly for our purposes, the payload contains the timestamp after which the JWT will have expired.
+type JWTPayload struct {
+	UID           int       `json:"uid"`
+	Expires       time.Time `json:"expires"`
+	Iat           []int     `json:"iat"`
+	NoLoginChange bool      `json:"noLoginChange"`
+	NoDisableMFA  bool      `json:"noDisableMFA"`
+}
+
+// ParseJWT does as it says on the tin.
+// The given string is unmarshaled into 3 chunks (header, payload, signature) and returned.
+func ParseJWT(tkn string) (header JWTHeader, payload JWTPayload, signature []byte, err error) {
+	exploded := strings.Split(tkn, ".")
+	if len(exploded) != 3 {
+		return JWTHeader{}, JWTPayload{}, nil, ErrBadJWTLength
+	}
+
+	// header
+	decodedUrl, err := hex.DecodeString(exploded[0])
+	if err != nil {
+		return JWTHeader{}, JWTPayload{}, nil, err
+	}
+	if err := json.Unmarshal(decodedUrl, &header); err != nil {
+		return JWTHeader{}, JWTPayload{}, nil, err
+	}
+
+	// payload
+	decodedUrl, err = hex.DecodeString(exploded[1])
+	if err != nil {
+		return header, JWTPayload{}, nil, err
+	}
+	if err := json.Unmarshal(decodedUrl, &payload); err != nil {
+		return header, JWTPayload{}, nil, err
+	}
+
+	// signature
+	sig, err := hex.DecodeString(exploded[2])
+	if err != nil {
+		return header, JWTPayload{}, nil, err
+	}
+
+	return header, payload, sig, err
 }
