@@ -498,7 +498,9 @@ func End() error {
 	}
 
 	// alert the JWT refresher to shutdown
-	close(refresherDone)
+	if refresherDone != nil {
+		close(refresherDone)
+	}
 
 	if err := Client.Close(); err != nil && (err.Error() != "Client already closed") {
 		return err
