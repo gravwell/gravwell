@@ -446,16 +446,20 @@ func TestLogin_interactive_mode(t *testing.T) {
 // (and, therefore, that the login dies if not properly refreshed).
 // NOTE: This test is typically skipped, as it requires manually editing gravwell.conf or having an insane timeout.
 func TestJWTRefreshing(t *testing.T) {
+	const sessionTimeOutBuffer time.Duration = 10 * time.Second
 	// as of 5.8.3, the default session time is 60 minutes, though frequently set to 1 day
-	const (
-		sessionTimeOutBuffer time.Duration = 3 * time.Second
-		sessionTimeOut       time.Duration = 60 * time.Minute // TODO you probably need to update this to whatever value is set in your gravwell.conf
-	)
+	var sessionTimeOut = 10 * time.Minute // You'll probably need to change this
 
+	// validate that we have enough time to execute the test
 	if ddl, hasTimer := t.Deadline(); hasTimer {
 		if time.Until(ddl) < sessionTimeOut+sessionTimeOutBuffer { // we do not have enough time for this test
 			t.Skipf("test duration is not long (must be greater than session timeout (%v) + buffer (%v))", sessionTimeOut, sessionTimeOutBuffer)
 		}
+	}
+
+	// spawn the logger
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+		t.Fatal(err)
 	}
 
 	// initialize and login
@@ -483,14 +487,14 @@ func TestJWTRefreshing(t *testing.T) {
 	}
 	// validate the new token
 	if string(tknBody) == string(newTknBody) {
-		t.Fatal("token file was not updated while we were sleeping")
+		t.Error("token file was not updated while we were sleeping")
 	}
 	// TODO check that the values in the new token are different and make sense (specifically expiry)
 
 	// validate that we can still make calls
 	_, err = connection.Client.ListKits()
 	if err != nil {
-		t.Fatal("client failed to fetch kits:", err)
+		t.Error("client failed to fetch kits:", err)
 	}
 
 }
