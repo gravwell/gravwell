@@ -158,13 +158,13 @@ func (tsr *TagSrcRouter) Process(ents []*entry.Entry) ([]*entry.Entry, error) {
 
 		if !rt.isIPFiltered {
 			ent.Tag = rt.dstTag
-			break
+			continue
 		} else {
 			srcIP := ent.SRC
 			if (!rt.isIPSubnet && rt.addr.Equal(srcIP)) || (rt.isIPSubnet && rt.subnet.Contains(srcIP)) {
 				ent.Tag = rt.dstTag
 			}
-			break
+			continue
 		}
 	}
 	return ents, nil
