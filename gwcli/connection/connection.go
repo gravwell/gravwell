@@ -10,7 +10,7 @@
 Package connection implements and controls a Singleton instantiation of the gravwell client library.
 All calls to the Gravwell instances should be called via this package and the client it controls.
 
-Login logic is handled here with the following logical flow:
+Login logic is handled here and roughly follows this flow:
 
 ```mermaid
 flowchart TB
@@ -103,6 +103,9 @@ var Client *grav.Client
 // MyInfo holds cached data about the current user.
 var MyInfo types.UserDetails
 
+const refresherSleep time.Duration = 10 * time.Minute // amount of time the refresher sleeps between refreshes
+var refresherDone chan bool                           // closed when we are closing the connection, thereby alerting the refresher to close up as well
+
 // Initialize creates and starts a Client using the given connection string of the form <host>:<port>.
 // Destroys a pre-existing connection (but does not log out), if there was one.
 // restLogPath should be left empty outside of test packages.
@@ -135,6 +138,9 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 		}); err != nil {
 		return err
 	}
+
+	refresherDone = make(chan bool)
+
 	return nil
 }
 
@@ -199,6 +205,8 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 	if err := createTokenFile(MyInfo.User); err != nil {
 		clilog.Writer.Warnf("%v", err.Error())
 		// failing to create the token is not fatal
+	} else {
+		go keepRefreshed()
 	}
 
 	return nil
@@ -422,6 +430,25 @@ func createTokenFile(username string) error {
 	return nil
 }
 
+// keepRefreshed automatically refreshes Client and the login token every so often.
+func keepRefreshed() {
+	for {
+		select {
+		case <-refresherDone:
+			clilog.Writer.Debug("refresher closing up shop")
+			return
+		default:
+			if err := Client.RefreshLoginToken(); err != nil {
+				clilog.Writer.Errorf("failed to refresh login: %v", err)
+			}
+			// write the new token to our token file
+			// TODO
+
+			time.Sleep(refresherSleep)
+		}
+	}
+}
+
 // End closes the connection to the server and destroys the data in the connection singleton.
 // Does not logout the user as to not invalidate existing JWTs.
 //
@@ -434,9 +461,13 @@ func End() error {
 		return nil
 	}
 
+	// alert the JWT refresher to shutdown
+	close(refresherDone)
+
 	if err := Client.Close(); err != nil && (err.Error() != "Client already closed") {
 		return err
 	}
+
 	//Client = nil // does not nil out as to reduce the likelihood of nil pointer panics
 
 	return nil
