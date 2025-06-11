@@ -45,7 +45,9 @@ func (c *Client) InstallTOTPSetup(user, pass, code string) (types.MFATOTPInstall
 	}
 	var resp types.MFATOTPInstallResponse
 	err := c.methodStaticPushURL(http.MethodPut, totpSetupUrl(), rq, &resp)
-	c.state = STATE_LOGGED_OFF // the backend boots our session; reflect that locally
+	if err == nil {
+		c.state = STATE_LOGGED_OFF // the backend boots our session; reflect that locally
+	}
 	return resp, err
 }
 
