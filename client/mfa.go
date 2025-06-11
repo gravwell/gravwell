@@ -32,7 +32,10 @@ func (c *Client) GetTOTPSetupEx(user, pass string, authtype types.AuthType, code
 
 // InstallTOTPSetup installs the parameters requested by
 // GetTOTPSetup. The code parameter should be generated from the URL
-// in the reponse.
+// in the response.
+//
+// On success, the client's session is destroyed and they must
+// re-authenticate.
 func (c *Client) InstallTOTPSetup(user, pass, code string) (types.MFATOTPInstallResponse, error) {
 	rq := types.MFAAuthRequest{
 		User:     user,
@@ -42,6 +45,7 @@ func (c *Client) InstallTOTPSetup(user, pass, code string) (types.MFATOTPInstall
 	}
 	var resp types.MFATOTPInstallResponse
 	err := c.methodStaticPushURL(http.MethodPut, totpSetupUrl(), rq, &resp)
+	c.state = STATE_LOGGED_OFF // the backend boots our session; reflect that locally
 	return resp, err
 }
 
