@@ -707,3 +707,17 @@ func GetResultsForWriter(s *grav.Search, tr types.TimeRange, csv, json bool) (rc
 	rc, err = Client.DownloadSearch(s.ID, tr, format)
 	return rc, format, err
 }
+
+// RefreshCurrentUser force-updates the local cache of user information.
+func RefreshCurrentUser() error {
+	clientMu.Lock()
+	defer clientMu.Unlock()
+
+	mi, err := Client.MyInfo()
+	if err != nil {
+		return err
+	}
+	myInfo = mi
+
+	return nil
+}
