@@ -480,8 +480,6 @@ func TestJWTRefreshing(t *testing.T) {
 	if string(tknBody) == string(newTknBody) {
 		t.Error("token file was not updated while we were sleeping")
 	}
-	// TODO check that the values in the new token are different and make sense (specifically expiry)
-
 	// validate that we can still make calls
 	_, err = connection.Client.ListKits()
 	if err != nil {
