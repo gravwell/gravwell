@@ -441,8 +441,10 @@ func createTokenFile(username string) error {
 // Intended to be called in a goroutine, keepRefreshed parses the token for when it expires, sleeps until a short time before it expires, then refreshes it.
 func keepRefreshed(kill chan bool) {
 	for {
+		clientMu.Lock()
 		var wakeAt = getJWTExpiry()
 		var sleepTime = time.Until(wakeAt)
+		clientMu.Unlock()
 
 		clilog.Writer.Debugf("waking at @ %v (sleeping for %v)", wakeAt, sleepTime)
 
