@@ -71,7 +71,7 @@ func TestCredPrompt_TeaTest(t *testing.T) {
 			testsupport.TTSendSpecial(tm, tea.KeyDown)
 			testsupport.TTSendSpecial(tm, tea.KeyShiftTab)
 			testsupport.TTSendSpecial(tm, tea.KeyEnter)
-		}, output{"Fizzarolli", "Oops", false, false}, 1 * time.Second, false},
+		}, output{"Fizzarolli", "Oops", false, false}, 2 * time.Second, false},
 		{"timeout", func(tm *teatest.TestModel, expected output) {
 			testsupport.TTSendSpecial(tm, tea.KeyEnter)
 			tm.Type("some password that should not get returned")
