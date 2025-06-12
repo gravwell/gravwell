@@ -20,9 +20,14 @@ const (
 	NavID    GroupID = "nav"
 )
 
+// AddNavGroup creates a new group (Navigation) and appends it to this command.
+// ! Does NOT set cmd.GroupID
 func AddNavGroup(cmd *cobra.Command) {
 	cmd.AddGroup(&cobra.Group{ID: NavID, Title: "Navigation"})
 }
+
+// AddActionGroup creates a new group (Actions) and appends it to this command.
+// ! Does NOT set cmd.GroupID
 func AddActionGroup(cmd *cobra.Command) {
 	cmd.AddGroup(&cobra.Group{ID: ActionID, Title: "Actions"})
 }

@@ -83,7 +83,7 @@ func listMacros(c *grav.Client, fs *pflag.FlagSet) ([]types.SearchMacro, error) 
 		return c.GetGroupMacros(gid)
 	}
 
-	return c.GetUserMacros(connection.MyInfo.UID)
+	return c.GetUserMacros(connection.CurrentUser().UID)
 }
 
 //#region create
@@ -160,7 +160,7 @@ func newMacroEditAction() action.Pair {
 			return connection.Client.GetMacro(id)
 		},
 		FetchSub: func() ([]types.SearchMacro, error) {
-			return connection.Client.GetUserMacros(connection.MyInfo.UID)
+			return connection.Client.GetUserMacros(connection.CurrentUser().UID)
 		},
 		GetFieldSub: func(item types.SearchMacro, fieldKey string) (string, error) {
 			switch fieldKey {

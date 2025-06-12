@@ -33,11 +33,8 @@ var aliases []string = []string{}
 func NewUserRefreshMyInfoAction() action.Pair {
 	return scaffold.NewBasicAction(use, short, long, aliases,
 		func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd) {
-			mi, err := connection.Client.MyInfo()
-			if err != nil {
+			if err := connection.RefreshCurrentUser(); err != nil {
 				return "Failed to refresh user info: " + err.Error(), nil
-			} else {
-				connection.MyInfo = mi
 			}
 
 			return "User info refreshed.", nil

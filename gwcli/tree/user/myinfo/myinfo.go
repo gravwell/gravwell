@@ -43,7 +43,7 @@ func NewUserMyInfoAction() action.Pair {
 				clilog.Writer.Error(s)
 				return s, nil
 			} else if asCSV {
-				return weave.ToCSV([]types.UserDetails{connection.MyInfo}, []string{
+				return weave.ToCSV([]types.UserDetails{connection.CurrentUser()}, []string{
 					"UID",
 					"User",
 					"Name",
@@ -58,13 +58,15 @@ func NewUserMyInfoAction() action.Pair {
 					"CBAC"}), nil
 			}
 
+			inf := connection.CurrentUser()
+
 			sty := stylesheet.Header1Style.Bold(false)
 			out := fmt.Sprintf("%v, %v, %v\n%s: %v\n%s: %v\n%s: %v",
-				connection.MyInfo.Name,
-				connection.MyInfo.User, connection.MyInfo.Email,
-				sty.Render("Groups"), connection.MyInfo.Groups,
-				sty.Render("Capabilities"), connection.MyInfo.CapabilityList(),
-				sty.Render("Admin"), connection.MyInfo.Admin)
+				inf.Name,
+				inf.User, inf.Email,
+				sty.Render("Groups"), inf.Groups,
+				sty.Render("Capabilities"), inf.CapabilityList(),
+				sty.Render("Admin"), inf.Admin)
 
 			return out, nil
 		}, flags)

@@ -10,7 +10,7 @@
 Package connection implements and controls a Singleton instantiation of the gravwell client library.
 All calls to the Gravwell instances should be called via this package and the client it controls.
 
-Login logic is handled here with the following logical flow:
+Login logic is handled here and roughly follows this flow:
 
 ```mermaid
 flowchart TB
@@ -80,6 +80,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -98,10 +99,15 @@ import (
 //const refreshInterval time.Duration = 10 * time.Minute // how often we refresh the user token
 
 // Client is the primary connection point from GWCLI to the gravwell backend.
-var Client *grav.Client
+var (
+	clientMu sync.Mutex // should be held when making changes to the local Client instance
+	Client   *grav.Client
+	// MyInfo holds cached data about the current user.
+	myInfo types.UserDetails
+)
 
-// MyInfo holds cached data about the current user.
-var MyInfo types.UserDetails
+const refreshBuffer time.Duration = 5 * time.Minute // the refresher will next wake at (expiryTime - buffer)
+var refresherDone chan bool                         // true is sent when the connection is closing, thereby alerting the current refresher to wrap up
 
 // Initialize creates and starts a Client using the given connection string of the form <host>:<port>.
 // Destroys a pre-existing connection (but does not log out), if there was one.
@@ -109,8 +115,12 @@ var MyInfo types.UserDetails
 //
 // You probably want to call Login after a successful Initialize call.
 func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath string) (err error) {
+	clientMu.Lock()
+	defer clientMu.Unlock()
 	if Client != nil {
-		End()
+		if err := end(); err != nil {
+			clilog.Writer.Warnf("failed to end Client: %v", err)
+		}
 	}
 
 	var l objlog.ObjLog = nil
@@ -135,6 +145,7 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 		}); err != nil {
 		return err
 	}
+
 	return nil
 }
 
@@ -143,6 +154,8 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 //
 // Ineffectual if Client is already logged in.
 func Login(username, password, apiToken string, scriptMode bool) (err error) {
+	clientMu.Lock()
+	defer clientMu.Unlock()
 	if Client == nil {
 		return ErrNotInitialized
 	}
@@ -186,20 +199,22 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 	// if we made it this far, we have successfully logged in via one of the above branches
 
 	// on successful login, fetch and cache MyInfo
-	if MyInfo, err = Client.MyInfo(); err != nil {
+	if myInfo, err = Client.MyInfo(); err != nil {
 		return errors.New("failed to cache user info: " + err.Error())
 	}
 
 	// check that the info of the user we fetched actually matches the given username
-	if username != "" && MyInfo.User != username {
-		return fmt.Errorf("server returned a different username (%v) than the given credentials (%v)", MyInfo.User, username)
+	if username != "" && myInfo.User != username {
+		return fmt.Errorf("server returned a different username (%v) than the given credentials (%v)", myInfo.User, username)
 	}
 
 	// create/refresh the token
-	if err := createTokenFile(MyInfo.User); err != nil {
+	if err := createTokenFile(myInfo.User); err != nil {
 		clilog.Writer.Warnf("%v", err.Error())
 		// failing to create the token is not fatal
 	}
+	refresherDone = make(chan bool)
+	go keepRefreshed(refresherDone)
 
 	return nil
 }
@@ -422,6 +437,87 @@ func createTokenFile(username string) error {
 	return nil
 }
 
+// keepRefreshed automatically refreshes Client and the login JWT every so often.
+// Intended to be called in a goroutine, keepRefreshed parses the token for when it expires, sleeps until a short time before it expires, then refreshes it.
+func keepRefreshed(kill chan bool) {
+	for {
+		clientMu.Lock()
+		var wakeAt = getJWTExpiry()
+		var sleepTime = time.Until(wakeAt)
+		clientMu.Unlock()
+
+		clilog.Writer.Debugf("waking at @ %v (sleeping for %v)", wakeAt, sleepTime)
+
+		select {
+		case <-kill:
+			clilog.Writer.Debug("refresher closing up shop")
+			return
+		case <-time.After(sleepTime):
+			clilog.Writer.Debugf("refresher: refreshing JWT...")
+			clientMu.Lock()
+			// ensure the client is still in an acceptable state
+			if Client.State() != grav.STATE_AUTHED {
+				clientMu.Unlock()
+				clilog.Writer.Errorf("failed to refresh login: client not authenticated")
+				// back off for a few minutes
+				time.Sleep(3 * time.Minute)
+				continue
+			}
+			// token will expire soon, regenerate it
+			if err := Client.RefreshLoginToken(); err != nil {
+				clilog.Writer.Errorf("failed to refresh login: %v", err)
+			}
+			// write the new token to our token file
+			if err := createTokenFile(myInfo.User); err != nil {
+				clilog.Writer.Warnf("%v", err)
+			}
+			clientMu.Unlock()
+		}
+	}
+}
+
+// helper function for keepRefreshed.
+// Slurps the token file, returning when the caller should awaken to refresh this token (with a built-in buffer).
+// wakeTime will be time.Now() if an error occurred.
+func getJWTExpiry() (wakeTime time.Time) {
+	tkn, err := os.ReadFile(cfgdir.DefaultTokenPath)
+	if err != nil {
+		// log the error and return
+		clilog.Writer.Warnf("refresher: failed to read existing JWT: %v", err)
+		return time.Now()
+	}
+
+	// skim off username
+	exploded := strings.Split(string(tkn), "\n")
+	if myInfo.User != exploded[0] {
+		// either the token or the local cache has changed
+		clilog.Writer.Infof("connection username %v does not match token username %v", myInfo.User, exploded[0])
+		return time.Now()
+	}
+
+	_, payload, _, err := uniques.ParseJWT(exploded[1])
+	if err != nil {
+		clilog.Writer.Warnf("failed to parse JWT: %v", err)
+		return time.Now()
+	}
+
+	return payload.Expires.Add(-refreshBuffer)
+
+}
+
+// CurrentUser returns the local cache of information about the currently logged-in user.
+// Returns the zero value if the local client is not authenticated.
+func CurrentUser() types.UserDetails {
+	clientMu.Lock()
+	defer clientMu.Unlock()
+
+	if Client.State() != grav.STATE_AUTHED {
+		return types.UserDetails{}
+	}
+
+	return myInfo
+}
+
 // End closes the connection to the server and destroys the data in the connection singleton.
 // Does not logout the user as to not invalidate existing JWTs.
 //
@@ -429,14 +525,31 @@ func createTokenFile(username string) error {
 //
 // ! swallows Already Closed errors
 func End() error {
-	MyInfo = types.UserDetails{}
+	clientMu.Lock()
+	defer clientMu.Unlock()
+	return end()
+}
+
+// internal, lock-less implementation of End.
+func end() error {
+	myInfo = types.UserDetails{}
 	if Client == nil { // job's done
 		return nil
+	} else if Client.State() == grav.STATE_CLOSED || Client.State() == grav.STATE_LOGGED_OFF {
+		return nil
+	}
+
+	// alert the JWT refresher to shutdown
+	// if we are authed, a refresher should be running that must be stopped
+	if refresherDone != nil {
+		close(refresherDone)
+		refresherDone = nil
 	}
 
 	if err := Client.Close(); err != nil && (err.Error() != "Client already closed") {
 		return err
 	}
+
 	//Client = nil // does not nil out as to reduce the likelihood of nil pointer panics
 
 	return nil
@@ -487,7 +600,7 @@ func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 	clilog.Writer.Debugf("Scheduling query %v (%v) for %v", name, qry, freq)
 	// TODO provide a dialogue for selecting groups/permissions
 	id, err = Client.CreateScheduledSearch(name, desc, freq,
-		uuid.UUID{}, qry, dur, []int32{MyInfo.DefaultGID})
+		uuid.UUID{}, qry, dur, []int32{myInfo.DefaultGID})
 	if err != nil {
 		return -1, "", fmt.Errorf("failed to schedule search: %v", err)
 	}
@@ -593,4 +706,18 @@ func GetResultsForWriter(s *grav.Search, tr types.TimeRange, csv, json bool) (rc
 	// fetch and return results
 	rc, err = Client.DownloadSearch(s.ID, tr, format)
 	return rc, format, err
+}
+
+// RefreshCurrentUser force-updates the local cache of user information.
+func RefreshCurrentUser() error {
+	clientMu.Lock()
+	defer clientMu.Unlock()
+
+	mi, err := Client.MyInfo()
+	if err != nil {
+		return err
+	}
+	myInfo = mi
+
+	return nil
 }

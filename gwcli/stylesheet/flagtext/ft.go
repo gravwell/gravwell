@@ -118,7 +118,7 @@ func DeriveFlagName(title string) string {
 	title = strings.ToLower(title)
 	title = strings.Map(func(r rune) rune {
 		switch r {
-		case '/', '\'', '"', '|', ' ':
+		case '.', '\\', '/', '\'', '"', '|', ' ':
 			return '-'
 		}
 		return r

@@ -260,6 +260,9 @@ func listStarterFlags() pflag.FlagSet {
 // Opens a file, per the given --output and --append flags in the flagset, and returns its handle.
 // Returns nil if the flags do not call for a file.
 func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
+	if !fs.Parsed() {
+		return nil, nil
+	}
 	outPath, err := fs.GetString(ft.Name.Output)
 	if err != nil {
 		return nil, err
@@ -282,7 +285,7 @@ func determineFormat(fs *pflag.FlagSet) outputFormat {
 	if !fs.Parsed() {
 		return unknown
 	}
-	var format outputFormat
+	var format = unknown
 	if format_csv, err := fs.GetBool(ft.Name.CSV); err != nil {
 		clilog.LogFlagFailedGet(ft.Name.CSV, err)
 	} else if format_csv {

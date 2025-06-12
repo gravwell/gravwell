@@ -16,10 +16,18 @@ necessarily.
 package clilog
 
 import (
+	"errors"
 	"io"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/ingest/log"
 )
+
+//#region errors
+
+var ErrEmptyPath error = errors.New("path cannot be empty")
+
+//#endregion errors
 
 // Level recreates log.Level so other packages do not have to import the ingest logger
 type Level int
@@ -39,19 +47,30 @@ var Writer *log.Logger
 
 // Init initializes Writer, the logging singleton.
 // Safe (ineffectual) if the writer has already been initialized.
-func Init(path string, lvl string) error {
+func Init(path string, lvlString string) error {
 	var err error
 	if Writer != nil {
 		return nil
 	}
 
-	Writer, err = log.NewFile(path)
+	// validate parameters
+	if path = strings.TrimSpace(path); path == "" {
+		return ErrEmptyPath
+	}
+	lvl, err := log.LevelFromString(lvlString)
 	if err != nil {
-		Writer.Close()
 		return err
 	}
 
-	if err = Writer.SetLevelString(lvl); err != nil {
+	Writer, err = log.NewFile(path)
+	if err != nil {
+		if Writer != nil {
+			errors.Join(err, Writer.Close())
+		}
+		return err
+	}
+
+	if err = Writer.SetLevel(lvl); err != nil {
 		Writer.Close()
 		return err
 	}
@@ -62,6 +81,16 @@ func Init(path string, lvl string) error {
 	Writer.SetHostname(".") // autopopulates if empty
 
 	return nil
+}
+
+// Destroy closes the writer's file and nils out the Writer.
+func Destroy() error {
+	if Writer == nil {
+		return nil
+	}
+	err := Writer.Close()
+	Writer = nil
+	return err
 }
 
 // Tee writes the error to clilog.Writer and a secondary output, usually stderr
