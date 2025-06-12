@@ -18,6 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -48,6 +49,7 @@ func NewIngestAction() action.Pair {
 func initialLocalFlagSet() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 
+	fs.StringP("src", "s", "", "IP address to use as the source of these files")
 	fs.Bool("ignore-timestamp", false, "all entries will be tagged with the current time")
 	fs.Bool("local-time", false, "any timezone information in the data will be ignored and "+
 		"timestamps will be assumed to be in the Gravwell server's local timezone")
@@ -63,14 +65,6 @@ func run(c *cobra.Command, args []string) {
 	script, err := c.Flags().GetBool(ft.Name.Script)
 	if err != nil {
 		clilog.Writer.Fatalf("script flag does not exist: %v", err)
-	}
-	ignoreTS, err := c.Flags().GetBool("ignore-timestamp")
-	if err != nil {
-		clilog.Writer.Fatalf("ignore-timestamp flag does not exist: %v", err)
-	}
-	localTime, err := c.Flags().GetBool("local-time")
-	if err != nil {
-		clilog.Writer.Fatalf("local-time flag does not exist: %v", err)
 	}
 	tags, err := c.Flags().GetStringSlice("tags")
 	if err != nil {
@@ -108,8 +102,24 @@ func run(c *cobra.Command, args []string) {
 			tag = tags[i]
 		}
 
-		// TODO src
-		resp, err := connection.Client.IngestFile(f, tag, "", ignoreTS, localTime)
+		ignoreTS, err := c.Flags().GetBool("ignore-timestamp")
+		if err != nil {
+			clilog.Writer.Fatalf("ignore-timestamp flag does not exist: %v", err)
+			fmt.Println(uniques.ErrGeneric)
+		}
+		localTime, err := c.Flags().GetBool("local-time")
+		if err != nil {
+			clilog.Writer.Fatalf("local-time flag does not exist: %v", err)
+			fmt.Println(uniques.ErrGeneric)
+
+		}
+		src, err := c.Flags().GetString("src")
+		if err != nil {
+			clilog.Writer.Fatalf("src flag does not exist: %v", err)
+			fmt.Println(uniques.ErrGeneric)
+		}
+
+		resp, err := connection.Client.IngestFile(f, tag, src, ignoreTS, localTime)
 		if err != nil {
 			clilog.Tee(clilog.ERROR, c.ErrOrStderr(),
 				"failed to ingest file "+f+":"+err.Error()+"\n")
