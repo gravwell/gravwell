@@ -6,9 +6,12 @@ package testsupport
 
 import (
 	"fmt"
+	"path"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
 )
 
 //#region TeaTest
@@ -47,5 +50,22 @@ func NonZeroExit(t *testing.T, code int, stderr string) {
 	t.Helper()
 	if code != 0 {
 		t.Fatalf("non-zero exit code %v.\nstderr: '%v'", code, stderr)
+	}
+}
+
+// StartSingletons spins up all the required singletons that actions/tests/commands typically expect to be in place.
+// Running tests without the singletons spinning is likely to cause nil panics
+// (for example, due to trying to access connection.Client before it has been .Initialize()'d).
+//
+// Starts the clilog and the connection, logs-in the connection.
+//
+// Fatal on failure.
+func StartSingletons(t *testing.T, server, username, password, apiToken string, scriptMode bool) {
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+		t.Fatal(err)
+	} else if err := connection.Initialize(server, false, true, path.Join(t.TempDir(), "dev.log")); err != nil {
+		t.Fatal(err)
+	} else if err := connection.Login(username, password, apiToken, scriptMode); err != nil {
+		t.Fatal(err)
 	}
 }
