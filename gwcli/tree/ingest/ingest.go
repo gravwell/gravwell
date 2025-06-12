@@ -13,9 +13,10 @@ import (
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -87,47 +88,62 @@ func run(c *cobra.Command, args []string) {
 		return
 	}
 
-	// check that tag len is 1 or == file len
-	if len(tags) != 1 && len(tags) != len(files) {
-		fmt.Fprintf(c.ErrOrStderr(), "tag count must be 1 or equal to the number of files specified (%v)", len(files))
+	ignoreTS, err := c.Flags().GetBool("ignore-timestamp")
+	if err != nil {
+		clilog.Writer.Criticalf("ignore-timestamp flag does not exist: %v", err)
+		fmt.Println(uniques.ErrGeneric)
+		return
+	}
+	localTime, err := c.Flags().GetBool("local-time")
+	if err != nil {
+		clilog.Writer.Criticalf("local-time flag does not exist: %v", err)
+		fmt.Println(uniques.ErrGeneric)
+		return
+	}
+	src, err := c.Flags().GetString("src")
+	if err != nil {
+		clilog.Writer.Criticalf("src flag does not exist: %v", err)
+		fmt.Println(uniques.ErrGeneric)
 		return
 	}
 
-	// try to ingest each file
-	for i, f := range files {
-		var tag string
-		if len(tags) == 1 {
-			tag = tags[0]
-		} else {
-			tag = tags[i]
-		}
+	resultCh := make(chan struct {
+		string
+		error
+	})
 
-		ignoreTS, err := c.Flags().GetBool("ignore-timestamp")
-		if err != nil {
-			clilog.Writer.Fatalf("ignore-timestamp flag does not exist: %v", err)
-			fmt.Println(uniques.ErrGeneric)
-		}
-		localTime, err := c.Flags().GetBool("local-time")
-		if err != nil {
-			clilog.Writer.Fatalf("local-time flag does not exist: %v", err)
-			fmt.Println(uniques.ErrGeneric)
-
-		}
-		src, err := c.Flags().GetString("src")
-		if err != nil {
-			clilog.Writer.Fatalf("src flag does not exist: %v", err)
-			fmt.Println(uniques.ErrGeneric)
-		}
-
-		resp, err := connection.Client.IngestFile(f, tag, src, ignoreTS, localTime)
-		if err != nil {
-			clilog.Tee(clilog.ERROR, c.ErrOrStderr(),
-				"failed to ingest file "+f+":"+err.Error()+"\n")
-			return
-		}
-		// spit out result if not script mode
-		if !script {
-			fmt.Fprintf(c.OutOrStdout(), "ingested file %v (size: %v) with tag %v", f, resp.Size, tag)
-		}
+	if err := autoingest(resultCh, files, tags, ignoreTS, localTime, src); err != nil {
+		fmt.Fprintln(c.ErrOrStderr(), stylesheet.ErrStyle.Render(err.Error()))
+		return
 	}
+
+	done := make(chan bool) // close up shop, all files have been handled when closed
+
+	go func() {
+		// await results
+		for range files {
+			res := <-resultCh
+			if res.error != nil {
+				clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.string, res.error))
+			}
+			fmt.Fprintf(c.ErrOrStderr(), "successfully ingested file '%v'\n", res.string)
+		}
+		// all done
+		close(done)
+	}()
+
+	if script { // wait
+		<-done
+	} else { // wait and display a spinner
+		var s = "ingesting file"
+		if len(files) > 1 {
+			s += "s"
+		}
+		p := busywait.CobraNew(s)
+		go func() { p.Run() }()
+		<-done
+		p.Quit()
+	}
+
+	// all done
 }
