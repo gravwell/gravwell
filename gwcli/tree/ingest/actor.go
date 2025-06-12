@@ -49,7 +49,11 @@ type ingest struct {
 	fp          filepicker.Model
 	mode        mode
 	err         error
-	ingestResCh chan error
+	ingestResCh chan struct {
+		string
+		error
+	}
+	ingestCount uint // the number of files to wait for in ingesting mode
 
 	// modifier pane items
 	modFocused bool            // is the modifier pane in focus?
@@ -63,9 +67,12 @@ type ingest struct {
 
 func Initial() *ingest {
 	i := &ingest{
-		fp:          filepicker.New(),
-		mode:        picking,
-		ingestResCh: make(chan error),
+		fp:   filepicker.New(),
+		mode: picking,
+		ingestResCh: make(chan struct {
+			string
+			error
+		}),
 
 		srcTI: stylesheet.NewTI("", true),
 		tagTI: stylesheet.NewTI("default", true),
@@ -81,18 +88,25 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 	case done: // wait for mother to take over
 		return nil
 	case ingesting: // wait for results
-		// check if we are done
-		select {
-		case err := <-i.ingestResCh:
-			i.mode = done
-			// print the error above the TUI; the other goro logs for us
-			if err != nil {
-				return tea.Println(stylesheet.ErrStyle.Render(err.Error()))
+		var resultCmd tea.Cmd
+		select { // check for a result
+		case res := <-i.ingestResCh:
+			// spit the result above the current TUI
+			if res.error == nil {
+				resultCmd = tea.Printf("successfully ingested file %v", res.string)
+			} else {
+				s := fmt.Sprintf("failed to ingest file %v: %v", res.string, res.error)
+				clilog.Writer.Warn(s)
+				resultCmd = tea.Println(stylesheet.ErrStyle.Render(s))
 			}
-			return nil
-		default:
-			return i.spinner.Tick
+
+			i.ingestCount -= 1
+			if i.ingestCount == 0 { // all done
+				i.mode = done
+			}
+		default: // no results ready, just spin
 		}
+		return tea.Batch(i.spinner.Tick, resultCmd)
 	default: //case picking:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			i.err = nil
@@ -122,12 +136,11 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 				clilog.Writer.Warnf("ingesting file %v with parameters: tag='%v' src='%v' ignore=%v local=%v",
 					file, tag, src, i.ignoreTS, i.localTime)
 				go func() {
-					resp, err := connection.Client.IngestFile(file, tag, src, i.ignoreTS, i.localTime)
-					if err != nil {
-						clilog.Writer.Warnf("failed to ingest file %v: %v", file, err)
-						// spit above TUI and boot the user back out
-					}
-					clilog.Writer.Infof("successfully ingested file %v: %+v", file, resp)
+					_, err := connection.Client.IngestFile(file, tag, src, i.ignoreTS, i.localTime)
+					i.ingestResCh <- struct {
+						string
+						error
+					}{file, err}
 				}()
 
 				// start a spinner and wait
@@ -141,6 +154,9 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 }
 
 func (i *ingest) View() string {
+	// update the spinning view to just declare the file(s) that are being ingested
+	// TODO
+
 	// build modifier view
 	modView := fmt.Sprintf("Ignore Timestamps? %v\t"+
 		"Use Server Local Time? %v\t"+
@@ -201,7 +217,7 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 		return "", nil, err
 	}
 
-	// set default values by flags
+	// fetch flag values
 	if i.ignoreTS, err = rawFlags.GetBool("ignore-timestamp"); err != nil {
 		clilog.Writer.Fatalf("ignore-timestamp flag does not exist: %v", err)
 		fmt.Println(uniques.ErrGeneric)
@@ -212,23 +228,37 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 		fmt.Println(uniques.ErrGeneric)
 		return "", nil, err
 	}
-	if src, err := rawFlags.GetString("src"); err != nil {
+	src, err := rawFlags.GetString("src")
+	if err != nil {
 		clilog.Writer.Fatalf("src flag does not exist: %v", err)
 		return "", nil, err
-	} else {
-		i.srcTI.SetValue(src)
 	}
+	tags, err := rawFlags.GetStringSlice("tags")
+	if err != nil {
+		clilog.Writer.Fatalf("src flag does not exist: %v", err)
+		return "", nil, err
+	}
+
+	// if one+ files were given, try to ingest immediately
+	if files := rawFlags.Args(); len(files) > 0 {
+		ufErr := autoingest(i.ingestResCh, files, tags, i.ignoreTS, i.localTime, src)
+		if ufErr != nil {
+			return ufErr.Error(), nil, nil
+		}
+		i.ingestCount = uint(len(files))
+		i.mode = ingesting
+		return "", nil, nil
+	}
+
+	// prepare the action
+	i.tagTI.SetValue(tags[0])
+	i.srcTI.SetValue(src)
 
 	i.fp.CurrentDirectory, err = os.Getwd()
 	if err != nil {
 		clilog.Writer.Warnf("failed to get pwd: %v", err)
 		i.fp.CurrentDirectory = "." // allow OS to decide where to drop us
 	}
-
-	// if one+ files were given, try to ingest immediately
-	// TODO
-
-	// update the spinning view to just declare the file(s) that are being ingested
 
 	return "", i.fp.Init(), nil
 }
