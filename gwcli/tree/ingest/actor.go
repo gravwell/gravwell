@@ -8,6 +8,13 @@
 
 package ingest
 
+/*
+Interactive usage currently on supports selecting a single file each invokation.
+The module could be upgraded without too much trouble by adding a third pane (file picker, mod view, and selected files),
+and altering `enter` to add the selected file to the list of selected.
+Round it out by allowing users to interactive with the third pane to remove previously-selected files and viola.
+*/
+
 import (
 	"fmt"
 	"net/netip"
