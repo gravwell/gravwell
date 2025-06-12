@@ -143,11 +143,14 @@ func buildThinkstHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *
 		// check if there is a statetracker object for each config
 		_, ok := ot.Get("thinkst", k)
 		if !ok {
-
+			sTime := time.Now()
+			if v.StartTime.Before(sTime) {
+				sTime = v.StartTime
+			}
 			state := trackedObjectState{
 				Updated:    time.Now(),
-				LatestTime: time.Now(),
-				Key:        nil,
+				LatestTime: sTime,
+				Key:        json.RawMessage(`{"key": "none"}`),
 			}
 			err := ot.Set("thinkst", k, state, false)
 			if err != nil {
@@ -493,7 +496,7 @@ func getThinkstAuditLogs(cli *http.Client, latestTS time.Time, src net.IP, rl *r
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: lastTimeEntry,
-				Key:        json.RawMessage(""),
+				Key:        json.RawMessage(`{"key": "none"}`),
 			}
 			err := ot.Set("thinkst", h.name, state, false)
 			if err != nil {
