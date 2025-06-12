@@ -88,6 +88,7 @@ func run(c *cobra.Command, args []string) {
 		return
 	}
 
+	// launch directly into ingesting the named files
 	ignoreTS, err := c.Flags().GetBool("ignore-timestamp")
 	if err != nil {
 		clilog.Writer.Criticalf("ignore-timestamp flag does not exist: %v", err)
@@ -119,8 +120,7 @@ func run(c *cobra.Command, args []string) {
 
 	done := make(chan bool) // close up shop, all files have been handled when closed
 
-	go func() {
-		// await results
+	go func() { // await results, print them, then notify us when all have been consumed
 		for range files {
 			res := <-resultCh
 			if res.error != nil {
