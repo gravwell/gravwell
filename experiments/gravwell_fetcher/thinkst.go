@@ -126,6 +126,10 @@ type thinkstAuditTrailsResponse struct {
 	Result     string `json:"result"`
 }
 
+type thinkstLastEntryKey struct {
+	LastEntryKey string `json:"last_entry_key"`
+}
+
 func buildThinkstHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *log.Logger, igst *ingest.IngestMuxer, ib base.IngesterBase, ctx context.Context, wg *sync.WaitGroup) *thinkstHandlerConfig {
 
 	thinkstConns = make(map[string]*thinkstHandlerConfig)
@@ -143,7 +147,7 @@ func buildThinkstHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: time.Now(),
-				Key:        "",
+				Key:        nil,
 			}
 			err := ot.Set("thinkst", k, state, false)
 			if err != nil {
@@ -208,7 +212,19 @@ func (h *thinkstHandlerConfig) run() {
 			if !ok {
 				lg.Fatal("failed to get state tracker", log.KV("listener", h.name), log.KV("tag", h.tag))
 			}
-			if err = getThinkstIncidentLogs(cli, latestTS.Key, h.src, rl, h, lg, h.ot, ""); err != nil {
+			var lastKey thinkstLastEntryKey
+			if err = json.Unmarshal(latestTS.Key, &lastKey); err != nil {
+				if latestTS.Key != nil {
+					lg.Error("Failed to unmarshal last entry key", log.KVErr(err))
+				}
+				// If we can't unmarshal, start with empty key
+				lastKey.LastEntryKey = ""
+			}
+
+			if !ok {
+				lg.Fatal("failed to get state tracker", log.KV("listener", h.name), log.KV("tag", h.tag))
+			}
+			if err = getThinkstIncidentLogs(cli, lastKey.LastEntryKey, h.src, rl, h, lg, h.ot, ""); err != nil {
 				lg.Error("Error getting logs", log.KVErr(err))
 			}
 		case "audit":
@@ -306,7 +322,8 @@ func getThinkstIncidentLogs(cli *http.Client, latestTS string, src net.IP, rl *r
 					lg.Info("could not find ts")
 				} else {
 					entryTime = r
-					if strconv.Itoa(t.UpdatedID) > lastEntryKey {
+					i, _ := strconv.Atoi(lastEntryKey)
+					if t.UpdatedID > i {
 						lastEntryKey = strconv.Itoa(t.UpdatedID)
 					}
 				}
@@ -336,12 +353,21 @@ func getThinkstIncidentLogs(cli *http.Client, latestTS string, src net.IP, rl *r
 					lg.Error("failed to send entry", log.KVErr(err))
 				}
 			}
+			newKey := thinkstLastEntryKey{
+				LastEntryKey: lastEntryKey,
+			}
+			keyBytes, err := json.Marshal(newKey)
+			if err != nil {
+				lg.Error("Failed to marshal last entry key", log.KVErr(err))
+				// Handle error appropriately
+			}
+
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: time.Now(),
-				Key:        lastEntryKey,
+				Key:        keyBytes,
 			}
-			err := ot.Set("thinkst", h.name, state, false)
+			err = ot.Set("thinkst", h.name, state, false)
 			if err != nil {
 				lg.Fatal("failed to set state tracker", log.KV("thinkst", h.name), log.KV("tag", h.tag), log.KVErr(err))
 
@@ -467,7 +493,7 @@ func getThinkstAuditLogs(cli *http.Client, latestTS time.Time, src net.IP, rl *r
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: lastTimeEntry,
-				Key:        "",
+				Key:        json.RawMessage(""),
 			}
 			err := ot.Set("thinkst", h.name, state, false)
 			if err != nil {
