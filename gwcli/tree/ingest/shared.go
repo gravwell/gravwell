@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package ingest
 
 import (
@@ -15,6 +23,9 @@ func autoingest(res chan<- struct {
 	string
 	error
 }, filepaths, tags []string, ignoreTS, localTime bool, src string) (ufErr error) {
+	if len(filepaths) == 0 {
+		return fmt.Errorf("at least 1 file path must be specified")
+	}
 	// check that tag len is 1 or == file len
 	if len(tags) != 1 && len(tags) != len(filepaths) {
 		return fmt.Errorf("tag count must be 1 or equal to the number of files specified (%v)", len(filepaths))
