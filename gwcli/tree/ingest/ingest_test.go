@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package ingest
 
 import (
@@ -6,13 +14,27 @@ import (
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+)
+
+const (
+	server   string = "localhost:80"
+	username string = "admin"
+	password string = "changeme"
 )
 
 func Test_autoingest(t *testing.T) {
-	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
-		t.Fatal(err)
-	}
+	testsupport.StartSingletons(t, server, username, password, "", true)
+
+	t.Run("zero files, one tag", func(t *testing.T) {
+		fp, tags, src := []string{}, []string{"tag1"}, ""
+
+		wantErr := true
+
+		if err := autoingest(nil, fp, tags, false, false, src); (err != nil) != wantErr {
+			t.Errorf("autoingest() error = %v, wantErr %v", err, wantErr)
+		}
+	})
 	t.Run("single file, zero tags", func(t *testing.T) {
 		fp := []string{"somefile.txt"}
 		tags := []string{}
@@ -39,12 +61,12 @@ func Test_autoingest(t *testing.T) {
 	t.Run("single file, single tag", func(t *testing.T) {
 		fn := path.Join(t.TempDir(), "dummyfile")
 		// create a dummy file for ingestion
-		if err := os.WriteFile(fn, []byte(randomdata.Paragraph()), os.ModeTemporary); err != nil {
+		if err := os.WriteFile(fn, []byte(randomdata.Paragraph()), 0666); err != nil {
 			t.Skip("failed to create a dummy file for ingestion")
 		}
 
 		fp, tags, src := []string{fn}, []string{"tag1"}, ""
-		wantErr := false
+		wantErr, wantOutcomes := false, map[string]bool{fn: false} // filename -> errorExpected?
 		ch := make(chan struct {
 			string
 			error
@@ -54,14 +76,13 @@ func Test_autoingest(t *testing.T) {
 			t.Errorf("autoingest() error = %v, wantErr %v", err, wantErr)
 		}
 		if !wantErr {
-			// check the ingestion results
-			successes, errors := 0, 0
 			for range len(fp) {
 				res := <-ch
-				if res.error != nil {
-					errors += 1
-				} else {
-					successes += 1
+				// figure out what we want from this file
+				file := res.string
+				expectedErr := wantOutcomes[file]
+				if (res.error != nil) != expectedErr {
+					t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", file, expectedErr, res.error)
 				}
 			}
 
