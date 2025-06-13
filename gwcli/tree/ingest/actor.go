@@ -154,40 +154,42 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 }
 
 func (i *ingest) View() string {
-	// update the spinning view to just declare the file(s) that are being ingested
-	// TODO
+	switch i.mode {
+	case done:
+		return ""
+	case ingesting:
+		// if we are in ingesting mode, display JUST a spinner; file statuses will be printed above the TUI for us
+		return i.spinner.View()
+	default:
+		// build modifier view
+		modView := fmt.Sprintf("Ignore Timestamps? %v\t"+
+			"Use Server Local Time? %v\t"+
+			"source: %s\t"+
+			"tag: %s",
+			colorizer.Checkbox(i.ignoreTS),
+			colorizer.Checkbox(i.localTime),
+			i.srcTI.View(),
+			i.tagTI.View())
 
-	// build modifier view
-	modView := fmt.Sprintf("Ignore Timestamps? %v\t"+
-		"Use Server Local Time? %v\t"+
-		"source: %s\t"+
-		"tag: %s",
-		colorizer.Checkbox(i.ignoreTS),
-		colorizer.Checkbox(i.localTime),
-		i.srcTI.View(),
-		i.tagTI.View())
+		var spnrErrHelp string
+		if i.err != nil {
+			spnrErrHelp = stylesheet.ErrStyle.Render(i.err.Error())
+		} else {
+			// TODO
+			spnrErrHelp = "" // display help keys for submission and changing focus
+		}
 
-	// TODO add spinner and second TI
+		// wrap it in a border
+		if i.modFocused {
+			modView = stylesheet.Composable.Focused.Render(modView)
+		} else {
+			modView = stylesheet.Composable.Unfocused.Render(modView)
+		}
 
-	var spnrErrHelp string
-	if i.mode == ingesting {
-		spnrErrHelp = i.spinner.View()
-	} else if i.err != nil {
-		spnrErrHelp = stylesheet.ErrStyle.Render(i.err.Error())
-	} else {
-		// TODO
-		spnrErrHelp = "" // display help keys for submission and changing focus
+		// compose views
+		return lipgloss.JoinVertical(lipgloss.Center, i.fp.View(), modView, spnrErrHelp)
 	}
 
-	// wrap it in a border
-	if i.modFocused {
-		modView = stylesheet.Composable.Focused.Render(modView)
-	} else {
-		modView = stylesheet.Composable.Unfocused.Render(modView)
-	}
-
-	// compose views
-	return lipgloss.JoinVertical(lipgloss.Center, i.fp.View(), modView, spnrErrHelp)
 }
 
 func (i *ingest) Done() bool {
