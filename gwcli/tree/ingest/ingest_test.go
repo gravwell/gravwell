@@ -129,42 +129,93 @@ func Test_autoingest(t *testing.T) {
 }
 
 func TestNewIngestActionRun(t *testing.T) {
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+		t.Fatal(err)
+	} else if err := connection.Initialize(server, false, true, path.Join(t.TempDir(), "dev.log")); err != nil {
+		t.Fatal(err)
+	} else if err := connection.Login(username, password, "", true); err != nil {
+		t.Fatal(err)
+	}
+	dir := t.TempDir()
+
+	tests := []struct {
+		name        string
+		cliArgs     []string
+		setup       func() (success bool)                // optionally used to perform prior set up (such as file creation)
+		checkOutput func(out, err string) (success bool) // used to check stdout and stderr for expected values
+	}{
+		{"script; no files",
+			[]string{"--script"},
+			func() bool { return true },
+			func(out, err string) bool {
+				if out != "" {
+					t.Logf("expected nil output, found %v", out)
+					return false
+				}
+				if err == "" {
+					t.Log("expected error text, found nil")
+					return false
+				}
+				return true
+			},
+		},
+		{"script; 1 file, 1 tag",
+			[]string{"--script", "--tags=Limveld", path.Join(dir, "raider")},
+			func() bool {
+				// create the file to ingest
+				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
+					t.Log(err)
+					return false
+				}
+
+				return true
+			},
+			func(out, err string) bool {
+				if err != "" {
+					t.Logf("expected nil err output, found %v", err)
+					return false
+				}
+				return true
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// create the action
+			ap := NewIngestAction()
+
+			// perform root's actions
+			uniques.AttachPersistentFlags(ap.Action)
+			if err := ap.Action.Flags().Parse(tt.cliArgs); err != nil {
+				t.Fatal(err)
+			}
+
+			// capture output
+			outBuf := &bytes.Buffer{}
+			ap.Action.SetOut(outBuf)
+			errBuf := &bytes.Buffer{}
+			ap.Action.SetErr(errBuf)
+
+			// run set up
+			if !tt.setup() {
+				t.Skip("set up failed")
+			}
+
+			// invoke run
+			ap.Action.Run(ap.Action, tt.cliArgs)
+
+			t.Log("stdout:\n", outBuf)
+			t.Log("stderr:\n", errBuf)
+
+			// check output
+			if success := tt.checkOutput(outBuf.String(), errBuf.String()); !success {
+				t.Fatal("bad output")
+			}
+		})
+	}
+
 	t.Run("script; no files", func(t *testing.T) {
-		if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
-			t.Fatal(err)
-		} else if err := connection.Initialize(server, false, true, path.Join(t.TempDir(), "dev.log")); err != nil {
-			t.Fatal(err)
-		} else if err := connection.Login(username, password, "", true); err != nil {
-			t.Fatal(err)
-		}
-		// create the action
-		ap := NewIngestAction()
-		args := []string{"--script"}
 
-		// perform root's actions
-		uniques.AttachPersistentFlags(ap.Action)
-		if err := ap.Action.Flags().Parse(args); err != nil {
-			t.Fatal(err)
-		}
-
-		// capture output
-		outBuf := &bytes.Buffer{}
-		ap.Action.SetOut(outBuf)
-		errBuf := &bytes.Buffer{}
-		ap.Action.SetErr(errBuf)
-
-		// invoke run
-		ap.Action.Run(ap.Action, args)
-
-		t.Log("stdout:\n", outBuf)
-		t.Log("stderr:\n", errBuf)
-
-		// check output
-		if outBuf.String() != "" {
-			t.Fatalf("expected nil output, found %v", outBuf.String())
-		}
-		if errBuf.String() == "" {
-			t.Fatal("expected error text, found nil")
-		}
 	})
+
 }
