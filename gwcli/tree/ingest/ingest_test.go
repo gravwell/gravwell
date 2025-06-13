@@ -26,92 +26,95 @@ const (
 func Test_autoingest(t *testing.T) {
 	testsupport.StartSingletons(t, server, username, password, "", true)
 
-	t.Run("zero files, one tag", func(t *testing.T) {
-		fp, tags, src := []string{}, []string{"tag1"}, ""
-
-		wantErr := true
-
-		if err := autoingest(nil, fp, tags, false, false, src); (err != nil) != wantErr {
-			t.Errorf("autoingest() error = %v, wantErr %v", err, wantErr)
-		}
-	})
-	t.Run("single file, zero tags", func(t *testing.T) {
-		fp := []string{"somefile.txt"}
-		tags := []string{}
-		src := ""
-
-		wantErr := true
-
-		if err := autoingest(nil, fp, tags, false, false, src); (err != nil) != wantErr {
-			t.Errorf("autoingest() error = %v, wantErr %v", err, wantErr)
-		}
-	})
-	t.Run("single file, many tags", func(t *testing.T) {
-		fp := []string{"somefile.txt"}
-		tags := []string{"tag1", "tag2", "tag3"}
-		src := ""
-
-		wantErr := true
-
-		if err := autoingest(nil, fp, tags, false, false, src); (err != nil) != wantErr {
-			t.Errorf("autoingest() error = %v, wantErr %v", err, wantErr)
-		}
-	})
-
-	t.Run("single file, single tag", func(t *testing.T) {
-		fn := path.Join(t.TempDir(), "dummyfile")
-		// create a dummy file for ingestion
-		if err := os.WriteFile(fn, []byte(randomdata.Paragraph()), 0666); err != nil {
-			t.Skip("failed to create a dummy file for ingestion")
-		}
-
-		fp, tags, src := []string{fn}, []string{"tag1"}, ""
-		wantErr, wantOutcomes := false, map[string]bool{fn: false} // filename -> errorExpected?
-		ch := make(chan struct {
-			string
-			error
-		})
-
-		if err := autoingest(ch, fp, tags, false, false, src); (err != nil) != wantErr {
-			t.Errorf("autoingest() error = %v, wantErr %v", err, wantErr)
-		}
-		if !wantErr {
-			for range len(fp) {
-				res := <-ch
-				// figure out what we want from this file
-				file := res.string
-				expectedErr := wantOutcomes[file]
-				if (res.error != nil) != expectedErr {
-					t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", file, expectedErr, res.error)
-				}
-			}
-
-		}
-	})
-
-	/*type args struct {
-		res chan<- struct {
-			string
-			error
-		}
-		filepaths []string
+	type args struct {
+		filenames []string // all files are created in the temp directory
 		tags      []string
 		ignoreTS  bool
 		localTime bool
 		src       string
 	}
 	tests := []struct {
-		name    string
-		args    args
-		wantErr bool
+		name             string
+		args             args
+		wantInitialErr   bool            // want autoingest to return an error
+		expectedOutcomes map[string]bool // filename -> expectingAnError?
 	}{
-		// TODO: Add test cases.
+		{"0 files, 1 tag", args{nil, []string{randomdata.LastName()}, false, false, ""}, true, nil},
+		{"1 file, 0 tags", args{[]string{randomdata.LastName()}, nil, false, false, ""}, true, nil},
+		{"1 file, 5 tags",
+			args{
+				[]string{"Ironeye"},
+				[]string{randomdata.Day(), randomdata.Day(), randomdata.Day(), randomdata.Day(), randomdata.Day()},
+				false,
+				false,
+				""}, true, map[string]bool{"Ironeye": true}},
+		{"1 file, 1 tag",
+			args{
+				[]string{"Duchess"},
+				[]string{randomdata.Month()},
+				false,
+				false,
+				"",
+			}, false, map[string]bool{"Duchess": false},
+		},
+		{"3 files, 3 tags",
+			args{
+				[]string{"Revenant", "Wylder", "Guardian"},
+				[]string{randomdata.Month(), randomdata.Month(), randomdata.Month()},
+				true,
+				true,
+				randomdata.IpV6Address(),
+			}, false, map[string]bool{"Revenant": false, "Wylder": false, "Guardian": false},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := autoingest(tt.args.res, tt.args.filepaths, tt.args.tags, tt.args.ignoreTS, tt.args.localTime, tt.args.src); (err != nil) != tt.wantErr {
-				t.Errorf("autoingest() error = %v, wantErr %v", err, tt.wantErr)
+			fullPaths := make([]string, 0)
+
+			// create each file we expect to succeed
+			for f, expectingErr := range tt.expectedOutcomes {
+				if f == "" {
+					continue
+				}
+				p := path.Join(t.TempDir(), f)
+				fullPaths = append(fullPaths, p)
+
+				if expectingErr {
+					continue
+				}
+
+				if err := os.WriteFile(p, []byte(randomdata.Paragraph()), 0666); err != nil {
+					t.Skipf("failed to create a file '%v' for ingestion", f)
+				}
+			}
+
+			ch := make(chan struct {
+				string
+				error
+			})
+
+			if err := autoingest(
+				ch,
+				fullPaths,
+				tt.args.tags,
+				tt.args.ignoreTS,
+				tt.args.localTime, tt.args.src); (err != nil) != tt.wantInitialErr {
+				t.Errorf("autoingest() error = %v, wantErr %v", err, tt.wantInitialErr)
+			}
+			if !tt.wantInitialErr {
+				for _, f := range tt.args.filenames {
+					if f == "" {
+						continue
+					}
+					res := <-ch
+					// figure out what we want from this file
+					file := res.string
+					expectingErr := tt.expectedOutcomes[file]
+					if (res.error != nil) != expectingErr {
+						t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", file, expectingErr, res.error)
+					}
+				}
 			}
 		})
-	}*/
+	}
 }
