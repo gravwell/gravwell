@@ -325,7 +325,10 @@ func getThinkstIncidentLogs(cli *http.Client, latestTS string, src net.IP, rl *r
 					lg.Info("could not find ts")
 				} else {
 					entryTime = r
-					i, _ := strconv.Atoi(lastEntryKey)
+					i, err := strconv.Atoi(lastEntryKey)
+					if err != nil {
+						i = 0
+					}
 					if t.UpdatedID > i {
 						lastEntryKey = strconv.Itoa(t.UpdatedID)
 					}
@@ -362,7 +365,7 @@ func getThinkstIncidentLogs(cli *http.Client, latestTS string, src net.IP, rl *r
 			keyBytes, err := json.Marshal(newKey)
 			if err != nil {
 				lg.Error("Failed to marshal last entry key", log.KVErr(err))
-				// Handle error appropriately
+				newKey.LastEntryKey = latestTS
 			}
 
 			state := trackedObjectState{

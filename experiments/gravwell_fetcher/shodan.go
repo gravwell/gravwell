@@ -150,7 +150,6 @@ func buildShodanHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *l
 			keyBytes, err := json.Marshal(query)
 			if err != nil {
 				lg.Error("Failed to marshal last entry key", log.KVErr(err))
-				// Handle error appropriately
 			}
 
 			state := trackedObjectState{
@@ -286,12 +285,12 @@ func getShodanHostData(h *shodanHandlerConfig, latestTS string, src net.IP, rl *
 	// For host API, we need an IP address to query
 	// This is a simplified example - in a real implementation, you would need to
 	// provide a list of IPs to query or a mechanism to discover IPs
-	if latestTS == "" {
+	if h.query == "" {
 		lg.Info("No IP address provided for host query")
 		return nil
 	}
 
-	req, err := http.NewRequest(http.MethodGet, h.domain+shodanHostDomain+latestTS, nil)
+	req, err := http.NewRequest(http.MethodGet, h.domain+shodanHostDomain+h.query, nil)
 	if err != nil {
 		return err
 	}
@@ -338,20 +337,11 @@ func getShodanHostData(h *shodanHandlerConfig, latestTS string, src net.IP, rl *
 		lg.Error("failed to send entry", log.KVErr(err))
 	}
 
-	query := shodanQueryResponse{
-		Query: latestTS,
-	}
-	keyBytes, err := json.Marshal(query)
-	if err != nil {
-		lg.Error("Failed to marshal last entry key", log.KVErr(err))
-		// Handle error appropriately
-	}
-
 	// Update the state tracker with the current time
 	state := trackedObjectState{
 		Updated:    time.Now(),
 		LatestTime: time.Now(),
-		Key:        keyBytes,
+		Key:        json.RawMessage(`{"key": "none"}`),
 	}
 	err = ot.Set("shodan", h.name, state, false)
 	if err != nil {
@@ -417,20 +407,11 @@ func getShodanSearchData(h *shodanHandlerConfig, latestTS string, src net.IP, rl
 	}
 	lg.Info(fmt.Sprintf("ingested %v entries in tag %v", len(searchResp.Matches), h.tag))
 
-	query := shodanQueryResponse{
-		Query: latestTS,
-	}
-	keyBytes, err := json.Marshal(query)
-	if err != nil {
-		lg.Error("Failed to marshal last entry key", log.KVErr(err))
-		// Handle error appropriately
-	}
-
 	// Update the state tracker with the current time
 	state := trackedObjectState{
 		Updated:    time.Now(),
 		LatestTime: time.Now(),
-		Key:        keyBytes,
+		Key:        json.RawMessage(`{"key": "none"}`),
 	}
 	err = ot.Set("shodan", h.name, state, false)
 	if err != nil {
@@ -501,20 +482,11 @@ func getShodanCountData(h *shodanHandlerConfig, latestTS string, src net.IP, rl 
 		lg.Error("failed to send entry", log.KVErr(err))
 	}
 
-	query := shodanQueryResponse{
-		Query: latestTS,
-	}
-
-	keyBytes, err := json.Marshal(query)
-	if err != nil {
-		lg.Error("Failed to marshal last entry key", log.KVErr(err))
-		// Handle error appropriately
-	}
 	// Update the state tracker with the current time
 	state := trackedObjectState{
 		Updated:    time.Now(),
 		LatestTime: time.Now(),
-		Key:        keyBytes,
+		Key:        json.RawMessage(`{"key": "none"}`),
 	}
 	err = ot.Set("shodan", h.name, state, false)
 	if err != nil {
