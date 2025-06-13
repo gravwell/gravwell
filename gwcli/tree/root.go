@@ -253,7 +253,7 @@ func Execute(args []string) int {
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentPreRunE = ppre
 	rootCmd.PersistentPostRunE = ppost
-	rootCmd.Version = "alpha 1"
+	rootCmd.Version = uniques.Version
 
 	// associate flags
 	uniques.AttachPersistentFlags(rootCmd)
