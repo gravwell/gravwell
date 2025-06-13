@@ -122,7 +122,7 @@ func viewSchedule(s *DataScope) string {
 	sel := s.schedule.selected // brevity
 
 	var (
-		titleSty       = stylesheet.Header1Style
+		titleSty       = stylesheet.Sheet.PrimaryText
 		leftAlignerSty = lipgloss.NewStyle().
 				Width(20).
 				AlignHorizontal(lipgloss.Right).
@@ -130,7 +130,7 @@ func viewSchedule(s *DataScope) string {
 	)
 
 	tabDesc := tabDescStyle(s.usableWidth()).Render("Schedule this search to be rerun at" +
-		" consistent intervals." + "\nQuery: " + stylesheet.Header2Style.Render(s.search.UserQuery))
+		" consistent intervals." + "\nQuery: " + stylesheet.Sheet.SecondaryText.Render(s.search.UserQuery))
 
 	// build the field names column
 	fields := lipgloss.JoinVertical(lipgloss.Right,

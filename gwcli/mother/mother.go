@@ -299,7 +299,7 @@ func (m Mother) View() string {
 				if lastRune == ' ' {
 					filtered = append(filtered, before)
 				} else {
-					filtered = append(filtered, stylesheet.ExampleStyle.Render(curInput)+before)
+					filtered = append(filtered, stylesheet.Sheet.ExampleText.Render(curInput)+before)
 				}
 			}
 		}
@@ -340,7 +340,7 @@ func processInput(m *Mother) tea.Cmd {
 	if wr.errString != "" {
 		return tea.Sequence(
 			historyCmd,
-			tea.Println(stylesheet.ErrStyle.Render(wr.errString)),
+			tea.Println(stylesheet.Sheet.ErrText.Render(wr.errString)),
 		)
 	}
 
@@ -447,7 +447,7 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 			return tea.Println(errString)
 		}
 		return tea.Println("invalid arguments: " + invalid + "\n" +
-			"See " + stylesheet.ExampleStyle.Render("help") + " (or append -h) for assistance.")
+			"See " + stylesheet.Sheet.ExampleText.Render("help") + " (or append -h) for assistance.")
 	}
 	clilog.Writer.Debugf("Handing off control to %s", m.active.command.Name())
 	if cmd != nil {
@@ -606,9 +606,9 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 			var name string
 			var subchildren strings.Builder // children of this child
 			if action.Is(child) {
-				name = stylesheet.ActionStyle.Render(child.Name())
+				name = stylesheet.Sheet.Action.Render(child.Name())
 			} else {
-				name = stylesheet.NavStyle.Render(child.Name())
+				name = stylesheet.Sheet.Nav.Render(child.Name())
 				// build and color subchildren
 				for _, sc := range child.Commands() {
 					_, err := subchildren.WriteString(colorizer.ColorCommandName(sc) + " ")
@@ -628,7 +628,7 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 	}
 
 	// write help footer
-	s.WriteString("\nTry " + stylesheet.ExampleStyle.Render("help help") +
+	s.WriteString("\nTry " + stylesheet.Sheet.ExampleText.Render("help help") +
 		" for information on using the help command.")
 
 	// chomp last newline and return
@@ -637,7 +637,7 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 
 // commandPath returns the present working directory, set to the primary color.
 func commandPath(m *Mother) string {
-	return stylesheet.PromptStyle.Render(m.pwd.CommandPath())
+	return stylesheet.Sheet.PromptText.Render(m.pwd.CommandPath())
 }
 
 //#endregion

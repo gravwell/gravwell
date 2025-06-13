@@ -43,8 +43,8 @@ func initResultsTab(data []string) resultsTab {
 	p := paginator.New()
 	p.Type = paginator.Dots
 	p.PerPage = 25
-	p.ActiveDot = lipgloss.NewStyle().Foreground(stylesheet.FocusedColor).Render("•")
-	p.InactiveDot = lipgloss.NewStyle().Foreground(stylesheet.UnfocusedColor).Render("•")
+	p.ActiveDot = stylesheet.Sheet.Composable.FocusedBorder.Render("•")
+	p.InactiveDot = stylesheet.Sheet.Composable.UnfocusedBorder.Render("•")
 	p.SetTotalPages(len(data))
 
 	// set up viewport
@@ -114,7 +114,7 @@ func (s *DataScope) setResultsDisplayed() {
 	s.results.vp.SetContent(wrap(s.results.vp.Width, bldr.String()))
 }
 
-var resultShortHelp = stylesheet.GreyedOutStyle.Render(
+var resultShortHelp = stylesheet.Sheet.DisabledText.Render(
 	fmt.Sprintf("%v page • %v scroll • home: jump top • end: jump bottom\n"+
 		"tab: cycle • esc: quit",
 		stylesheet.LeftRight, stylesheet.UpDown),
@@ -124,8 +124,7 @@ var resultShortHelp = stylesheet.GreyedOutStyle.Render(
 func (rt *resultsTab) renderFooter(width int) string {
 	var alignerSty = lipgloss.NewStyle().Width(rt.vp.Width).AlignHorizontal(lipgloss.Center)
 	// set up each element
-	pageNumber := lipgloss.NewStyle().
-		Foreground(stylesheet.FocusedColor).
+	pageNumber := stylesheet.Sheet.Composable.ComplimentaryBorder.
 		Render(strconv.Itoa(rt.pager.Page+1)) + " "
 	spl := scrollPercentLine(width-lipgloss.Width(pageNumber), rt.vp.ScrollPercent())
 

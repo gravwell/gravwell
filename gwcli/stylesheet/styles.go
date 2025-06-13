@@ -9,46 +9,111 @@
 // Package stylesheet managing the visual effects of gwcli.
 // Most styling is via lipgloss and encompasses colors, alignment, borders, etc.
 //
-// The stylesheet package should also be used for maintaining consistent visuals via stylized skeletons and pre-built elements.
+// The stylesheet package should also be used for maintaining consistent visuals.
+// This is accomplished via the provided pre-built elements and the Sheet variable for pre-set styles.
+//
+// I don't know much about color theory or picking good palettes,
+// so homegrown palettes are based on Gravwell's colors and expanded via https://coolors.co/.
 package stylesheet
 
 // miscellaneous styles
 
 import "github.com/charmbracelet/lipgloss"
 
-var (
-	NavStyle    = lipgloss.NewStyle().Foreground(NavColor)
-	ActionStyle = lipgloss.NewStyle().Foreground(ActionColor)
-	ErrStyle    = lipgloss.NewStyle().Foreground(ErrorColor)
+type sheet struct {
+	Nav    lipgloss.Style // style of nav/directory items while traversing the tree
+	Action lipgloss.Style // style of actions/invokables while traversing the tree
 
-	// styles useful when displaying multiple, composed models
-	Composable = struct {
-		Unfocused lipgloss.Style // for a blurred model that could be focused at some point
-		Focused   lipgloss.Style // for a focused model that could be blurred at some point
-		Primary   lipgloss.Style // for a model that does not change focus and is the center of attention
-		Secondary lipgloss.Style // for a model that does not change focus and is related to Primary
-	}{
-		Unfocused: lipgloss.NewStyle().
-			Align(lipgloss.Left, lipgloss.Center).
-			BorderStyle(lipgloss.HiddenBorder()),
-		Focused: lipgloss.NewStyle().
-			Align(lipgloss.Left, lipgloss.Center).
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(AccentColor1),
-		// NOTE(rlandau): the other styles are set in init()
+	// for building multi-pane views
+	Composable struct {
+		FocusedBorder       lipgloss.Style // stylized border for wrapping elements currently in focus
+		UnfocusedBorder     lipgloss.Style // stylized border for wrapping elements that could be in focus, but are currently blurred
+		ComplimentaryBorder lipgloss.Style // stylized border for wrapping complimentary elements that do not toggle focus
+		ModifierText        lipgloss.Style // modifier field names, typically grouped and wrapped by (Un)FocusedBorder
 	}
-	Header1Style   = lipgloss.NewStyle().Foreground(PrimaryColor).Bold(true)
-	Header2Style   = lipgloss.NewStyle().Foreground(SecondaryColor)
-	GreyedOutStyle = lipgloss.NewStyle().Faint(true)
-	// Mother's prompt (text prefixed to user input)
-	PromptStyle = lipgloss.NewStyle().Foreground(lipgloss.Color(PrimaryColor))
-	// used for displaying indices
-	IndexStyle   = lipgloss.NewStyle().Foreground(AccentColor1)
-	ExampleStyle = lipgloss.NewStyle().Foreground(AccentColor2)
-)
+
+	// for building tables
+	Table struct {
+		HeaderCells lipgloss.Style
+		EvenCells   lipgloss.Style
+		OddCells    lipgloss.Style
+		BorderType  lipgloss.Border
+		BorderStyle lipgloss.Style
+	}
+
+	ErrText      lipgloss.Style // text that displays an error
+	ExampleText  lipgloss.Style // text that display an example
+	DisabledText lipgloss.Style // text that is currently disabled
+
+	// TODO convert prompt into func(string) string
+	PromptText lipgloss.Style // text that prefixes an input box, but is not a modifier (primarily used for Mother's prompt)
+
+	PrimaryText   lipgloss.Style // catchall for important/focal text that does not fit into a different category
+	SecondaryText lipgloss.Style // catchall for text that does not fit into a different category and is not primary
+
+	Spinner lipgloss.Style
+}
+
+// Stylesheet currently in-use by gwcli.
+// This is what other packages should reference when stylizing their elements.
+var Sheet sheet
 
 func init() {
-	Composable.Primary = Composable.Focused.BorderStyle(lipgloss.RoundedBorder())
-	Composable.Secondary = Composable.Focused.BorderStyle(lipgloss.RoundedBorder()).BorderForeground(PrimaryColor)
+	// set the current stylesheet
+	Sheet = softPink()
+}
 
+func softPink() sheet {
+	return sheet{
+		Nav:    lipgloss.NewStyle().Foreground(roseTaupe),
+		Action: lipgloss.NewStyle().Foreground(melon),
+
+		Composable: struct {
+			FocusedBorder       lipgloss.Style
+			UnfocusedBorder     lipgloss.Style
+			ComplimentaryBorder lipgloss.Style
+			ModifierText        lipgloss.Style
+		}{
+			FocusedBorder: lipgloss.NewStyle().
+				Align(lipgloss.Left, lipgloss.Center).
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderForeground(amethyst),
+			UnfocusedBorder: lipgloss.NewStyle().
+				Align(lipgloss.Left, lipgloss.Center).
+				BorderStyle(lipgloss.HiddenBorder()),
+			ComplimentaryBorder: lipgloss.NewStyle().
+				Align(lipgloss.Left, lipgloss.Center).
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderForeground(mistyRose),
+			ModifierText: lipgloss.NewStyle().Foreground(melon),
+		},
+
+		Table: struct {
+			HeaderCells lipgloss.Style
+			EvenCells   lipgloss.Style
+			OddCells    lipgloss.Style
+			BorderType  lipgloss.Border
+			BorderStyle lipgloss.Style
+		}{
+			HeaderCells: lipgloss.NewStyle().
+				Foreground(amethyst).
+				AlignHorizontal(lipgloss.Center).
+				AlignVertical(lipgloss.Center).Bold(true),
+			EvenCells:   lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(melon),
+			OddCells:    lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(mistyRose),
+			BorderType:  lipgloss.NormalBorder(),
+			BorderStyle: lipgloss.NewStyle().Foreground(amethyst),
+		},
+
+		ErrText:      lipgloss.NewStyle().Foreground(bloodRed),
+		ExampleText:  lipgloss.NewStyle().Foreground(satinSheenGold),
+		DisabledText: lipgloss.NewStyle().Faint(true),
+
+		PromptText: lipgloss.NewStyle().Foreground(amethyst),
+
+		PrimaryText:   lipgloss.NewStyle().Foreground(amethyst),
+		SecondaryText: lipgloss.NewStyle().Foreground(melon),
+
+		Spinner: lipgloss.NewStyle().Foreground(amethyst),
+	}
 }

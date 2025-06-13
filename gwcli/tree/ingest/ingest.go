@@ -113,7 +113,7 @@ func run(c *cobra.Command, args []string) {
 	})
 
 	if err := autoingest(resultCh, files, tags, ignoreTS, localTime, src); err != nil {
-		fmt.Fprintln(c.ErrOrStderr(), stylesheet.ErrStyle.Render(err.Error()))
+		fmt.Fprintln(c.ErrOrStderr(), stylesheet.Sheet.ErrText.Render(err.Error()))
 		return
 	}
 

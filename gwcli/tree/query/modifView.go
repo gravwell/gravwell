@@ -136,12 +136,12 @@ func (mv *modifView) update(msg tea.Msg) []tea.Cmd { // TODO switch away from an
 func (mv *modifView) view() string {
 	var bldr strings.Builder
 
-	bldr.WriteString(" " + stylesheet.Header1Style.Render("Duration:") + "\n")
+	bldr.WriteString(" " + stylesheet.Sheet.PrimaryText.Render("Duration:") + "\n")
 	bldr.WriteString(
 		fmt.Sprintf("%s%s\n", colorizer.Pip(mv.selected, duration), mv.durationTI.View()),
 	)
 	bldr.WriteString(
-		fmt.Sprintf("%s%s %s\n", colorizer.Pip(mv.selected, background), colorizer.Checkbox(mv.background), stylesheet.Header1Style.Render("Background?")),
+		fmt.Sprintf("%s%s %s\n", colorizer.Pip(mv.selected, background), colorizer.Checkbox(mv.background), stylesheet.Sheet.PrimaryText.Render("Background?")),
 	)
 
 	return bldr.String()

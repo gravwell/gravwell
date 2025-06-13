@@ -238,12 +238,12 @@ func (q *query) View() string {
 	)
 	if q.focusedEditor {
 		viewKeys = q.editor.keys
-		editorView = stylesheet.Composable.Focused.Render(q.editor.view())
-		modifierView = stylesheet.Composable.Unfocused.Render(q.modifiers.view())
+		editorView = stylesheet.Sheet.Composable.FocusedBorder.Render(q.editor.view())
+		modifierView = stylesheet.Sheet.Composable.UnfocusedBorder.Render(q.modifiers.view())
 	} else {
 		viewKeys = q.modifiers.keys
-		editorView = stylesheet.Composable.Unfocused.Render(q.editor.view())
-		modifierView = stylesheet.Composable.Focused.Render(q.modifiers.view())
+		editorView = stylesheet.Sheet.Composable.UnfocusedBorder.Render(q.editor.view())
+		modifierView = stylesheet.Sheet.Composable.FocusedBorder.Render(q.modifiers.view())
 	}
 	h := q.help.ShortHelpView(append(q.keys, viewKeys...))
 

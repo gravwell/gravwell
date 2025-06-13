@@ -27,7 +27,7 @@ import (
 func NewList(items []list.Item, width, height int, singular, plural string) list.Model {
 	// update the styles on the default delegate to wrap properly
 	dlg := list.NewDefaultDelegate()
-	dlg.Styles.SelectedTitle = dlg.Styles.SelectedTitle.Foreground(stylesheet.PrimaryColor)
+	dlg.Styles.SelectedTitle = dlg.Styles.SelectedTitle.Foreground(stylesheet.Sheet.PrimaryText.GetForeground())
 	dlg.Styles.SelectedDesc = dlg.Styles.SelectedDesc.Foreground(stylesheet.SecondaryColor)
 
 	l := list.New(items, dlg, width, height)

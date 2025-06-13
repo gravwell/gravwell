@@ -26,16 +26,16 @@ import (
 
 // ErrPrintf is a tea.Printf wrapper that colors the output as an error.
 func ErrPrintf(format string, a ...interface{}) tea.Cmd {
-	return tea.Printf("%s", stylesheet.ErrStyle.Render(fmt.Sprintf(format, a...)))
+	return tea.Printf("%s", stylesheet.Sheet.ErrText.Render(fmt.Sprintf(format, a...)))
 }
 
 // ColorCommandName returns the given command's name appropriately colored by its group (action or nav).
 // Defaults to nav color.
 func ColorCommandName(c *cobra.Command) string {
 	if action.Is(c) {
-		return stylesheet.ActionStyle.Render(c.Name())
+		return stylesheet.Sheet.Action.Render(c.Name())
 	} else {
-		return stylesheet.NavStyle.Render(c.Name())
+		return stylesheet.Sheet.Action.Render(c.Name())
 	}
 }
 
@@ -92,5 +92,5 @@ func SubmitString(keybind, inputErr, result string, width int) string {
 
 // Index returns the given number, styled as an index number in a list or table.
 func Index(i int) string {
-	return stylesheet.IndexStyle.Render(strconv.Itoa(i))
+	return stylesheet.Sheet.PrimaryText.Render(strconv.Itoa(i))
 }

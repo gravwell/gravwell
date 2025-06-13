@@ -26,7 +26,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -97,7 +96,7 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			} else {
 				s := fmt.Sprintf("failed to ingest file %v: %v", res.string, res.error)
 				clilog.Writer.Warn(s)
-				resultCmd = tea.Println(stylesheet.ErrStyle.Render(s))
+				resultCmd = tea.Println(stylesheet.Sheet.ErrText.Render(s))
 			}
 
 			i.ingestCount -= 1
@@ -144,7 +143,7 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 				}()
 
 				// start a spinner and wait
-				i.spinner = busywait.NewSpinner()
+				i.spinner = stylesheet.NewSpinner()
 			}
 
 		}
@@ -157,12 +156,21 @@ func (i *ingest) View() string {
 	switch i.mode {
 	case done:
 		return ""
-	case ingesting:
-		// if we are in ingesting mode, display JUST a spinner; file statuses will be printed above the TUI for us
+	case ingesting: // display JUST a spinner; file statuses will be printed above the TUI for us
 		return i.spinner.View()
 	default:
+		// generate the standard view:
+		// breadcrumbs
+		// file picker
+		// modifiers
+
+		var (
+			breadcrumbs string = i.fp.CurrentDirectory
+			pickerView  string
+			modView     string
+		)
 		// build modifier view
-		modView := fmt.Sprintf("Ignore Timestamps? %v\t"+
+		modView = fmt.Sprintf("Ignore Timestamps? %v\t"+
 			"Use Server Local Time? %v\t"+
 			"source: %s\t"+
 			"tag: %s",
@@ -173,7 +181,7 @@ func (i *ingest) View() string {
 
 		var spnrErrHelp string
 		if i.err != nil {
-			spnrErrHelp = stylesheet.ErrStyle.Render(i.err.Error())
+			spnrErrHelp = stylesheet.Sheet.ErrText.Render(i.err.Error())
 		} else {
 			// TODO
 			spnrErrHelp = "" // display help keys for submission and changing focus
@@ -181,13 +189,15 @@ func (i *ingest) View() string {
 
 		// wrap it in a border
 		if i.modFocused {
-			modView = stylesheet.Composable.Focused.Render(modView)
+			modView = stylesheet.Sheet.Composable.FocusedBorder.Render(modView)
+			pickerView = stylesheet.Sheet.Composable.UnfocusedBorder.Render(i.fp.View())
 		} else {
-			modView = stylesheet.Composable.Unfocused.Render(modView)
+			modView = stylesheet.Sheet.Composable.UnfocusedBorder.Render(modView)
+			pickerView = stylesheet.Sheet.Composable.FocusedBorder.Render(i.fp.View())
 		}
 
 		// compose views
-		return lipgloss.JoinVertical(lipgloss.Center, i.fp.View(), modView, spnrErrHelp)
+		return lipgloss.JoinVertical(lipgloss.Center, breadcrumbs, pickerView, modView, spnrErrHelp)
 	}
 
 }
@@ -253,7 +263,9 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 	}
 
 	// prepare the action
-	i.tagTI.SetValue(tags[0])
+	if len(tags) > 0 {
+		i.tagTI.SetValue(tags[0])
+	}
 	i.srcTI.SetValue(src)
 
 	i.fp.CurrentDirectory, err = os.Getwd()

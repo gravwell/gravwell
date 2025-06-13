@@ -17,6 +17,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 )
 
 // NewTI creates a textinput with common attributes.
@@ -54,7 +55,7 @@ func (s spnr) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (s spnr) View() string {
 	v := s.spnr.View()
 	if s.notice != "" {
-		v += "\t" + PromptStyle.Render(s.notice)
+		v += "\t" + Sheet.PromptText.Render(s.notice)
 	}
 	return v
 }
@@ -81,5 +82,24 @@ func CobraSpinner(notice string) (p *tea.Program) {
 func NewSpinner() spinner.Model {
 	return spinner.New(
 		spinner.WithSpinner(spinner.Moon),
-		spinner.WithStyle(lipgloss.NewStyle().Foreground(PrimaryColor)))
+		spinner.WithStyle(Sheet.Spinner))
+}
+
+// Table generates the skeleton of a properly styled table
+func Table() *table.Table {
+	tbl := table.New().
+		Border(Sheet.Table.BorderType).
+		BorderStyle(Sheet.Table.BorderStyle).
+		StyleFunc(func(row, col int) lipgloss.Style {
+			switch {
+			case row == 0:
+				return Sheet.Table.HeaderCells
+			case row%2 == 0:
+				return Sheet.Table.EvenCells
+			default:
+				return Sheet.Table.OddCells
+			}
+		}).BorderRow(true)
+
+	return tbl
 }

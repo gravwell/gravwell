@@ -94,9 +94,9 @@ type id_t interface {
 
 var (
 	// TI field marked as required
-	tiFieldRequiredSty = stylesheet.Header1Style
+	tiFieldRequiredSty = stylesheet.Sheet.PrimaryText
 	// TI field marked as optional
-	tiFieldOptionalSty = stylesheet.Header2Style
+	tiFieldOptionalSty = stylesheet.Sheet.SecondaryText
 )
 
 // #endregion

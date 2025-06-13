@@ -48,7 +48,7 @@ var (
 func scrollPercentLine(width int, rawPercent float64) string {
 	scrollPercent := fmt.Sprintf("%3.f%%", rawPercent*100)
 	line := lipgloss.NewStyle().
-		Foreground(stylesheet.PrimaryColor).
+		Foreground(stylesheet.Sheet.PrimaryText.GetForeground()).
 		Render(
 			strings.Repeat("─",
 				max(0, width-lipgloss.Width(scrollPercent))),

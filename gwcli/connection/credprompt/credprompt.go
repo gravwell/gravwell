@@ -125,8 +125,8 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (c credModel) View() string {
 	return fmt.Sprintf("%v%v\n%v%v\n\n",
-		stylesheet.PromptStyle.Render("username"), c.UserTI.View(),
-		stylesheet.PromptStyle.Render("password"), c.PassTI.View())
+		stylesheet.Sheet.PromptText.Render("username"), c.UserTI.View(),
+		stylesheet.Sheet.PromptText.Render("password"), c.PassTI.View())
 }
 
 // select the next TI

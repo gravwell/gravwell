@@ -80,7 +80,7 @@ func defaultRender[I scaffold.Id_t](w io.Writer, m list.Model, index int, listIt
 	str := fmt.Sprintf("%s%s. %s\n%s",
 		colorizer.Pip(uint(index), uint(m.Index())),
 		colorizer.Index(index+1),
-		stylesheet.Header1Style.Render(i.Title()),
+		stylesheet.Sheet.PrimaryText.Render(i.Title()),
 		i.Description())
 	fmt.Fprint(w, str)
 }

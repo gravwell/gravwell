@@ -46,8 +46,8 @@ func walkBranch(nav *cobra.Command) *tree.Tree {
 	// generate a new tree, stemming from the given nav
 	branchRoot := tree.New()
 
-	navSty := stylesheet.NavStyle //.PaddingLeft(1)
-	actionSty := stylesheet.ActionStyle.PaddingLeft(1)
+	navSty := stylesheet.Sheet.Nav
+	actionSty := stylesheet.Sheet.Action //.PaddingLeft(1)
 
 	branchRoot.Root(navSty.Render(nav.Name()))
 	branchRoot.EnumeratorStyle(lipgloss.NewStyle().Foreground(stylesheet.TertiaryColor).PaddingLeft(1))
