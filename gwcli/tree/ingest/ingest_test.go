@@ -9,14 +9,15 @@
 package ingest
 
 import (
+	"bytes"
 	"os"
 	"path"
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
-	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
 const (
@@ -125,4 +126,45 @@ func Test_autoingest(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewIngestActionRun(t *testing.T) {
+	t.Run("script; no files", func(t *testing.T) {
+		if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+			t.Fatal(err)
+		} else if err := connection.Initialize(server, false, true, path.Join(t.TempDir(), "dev.log")); err != nil {
+			t.Fatal(err)
+		} else if err := connection.Login(username, password, "", true); err != nil {
+			t.Fatal(err)
+		}
+		// create the action
+		ap := NewIngestAction()
+		args := []string{"--script"}
+
+		// perform root's actions
+		uniques.AttachPersistentFlags(ap.Action)
+		if err := ap.Action.Flags().Parse(args); err != nil {
+			t.Fatal(err)
+		}
+
+		// capture output
+		outBuf := &bytes.Buffer{}
+		ap.Action.SetOut(outBuf)
+		errBuf := &bytes.Buffer{}
+		ap.Action.SetErr(errBuf)
+
+		// invoke run
+		ap.Action.Run(ap.Action, args)
+
+		t.Log("stdout:\n", outBuf)
+		t.Log("stderr:\n", errBuf)
+
+		// check output
+		if outBuf.String() != "" {
+			t.Fatalf("expected nil output, found %v", outBuf.String())
+		}
+		if errBuf.String() == "" {
+			t.Fatal("expected error text, found nil")
+		}
+	})
 }
