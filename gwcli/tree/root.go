@@ -30,6 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/macros"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries"
@@ -249,6 +250,7 @@ func Execute(args []string) int {
 		[]action.Pair{
 			query.NewQueryAction(),
 			tree.NewTreeAction(),
+			ingest.NewIngestAction(),
 		})
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentPreRunE = ppre
