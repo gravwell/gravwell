@@ -11,12 +11,14 @@ package stylesheet
 import "github.com/charmbracelet/lipgloss"
 
 const (
-	amethyst       = lipgloss.Color("#A267F5")
-	roseTaupe      = lipgloss.Color("#8A6A69")
+	amethyst = lipgloss.Color("#A267F5")
+	//roseTaupe      = lipgloss.Color("#8A6A69")
 	melon          = lipgloss.Color("#FFC0BE")
 	mistyRose      = lipgloss.Color("#FFEBE7")
 	satinSheenGold = lipgloss.Color("#B9A44C")
 	bloodRed       = lipgloss.Color("#710909")
+	amaranthPurple = lipgloss.Color("#AA1155")
+	murrey         = lipgloss.Color("#880044")
 
 	SecondaryColor = lipgloss.Color("#bb7af7")
 	TertiaryColor  = lipgloss.Color("#f77af4")

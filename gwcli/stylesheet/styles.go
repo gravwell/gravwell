@@ -65,7 +65,7 @@ func init() {
 
 func softPink() sheet {
 	return sheet{
-		Nav:    lipgloss.NewStyle().Foreground(roseTaupe),
+		Nav:    lipgloss.NewStyle().Foreground(amaranthPurple), //.Bold(true),
 		Action: lipgloss.NewStyle().Foreground(melon),
 
 		Composable: struct {
