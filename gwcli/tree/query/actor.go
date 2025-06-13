@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -97,7 +96,7 @@ func Initial() *query {
 		mode:        inactive,
 		searchError: make(chan error),
 		curSearch:   nil,
-		spnr:        busywait.NewSpinner(),
+		spnr:        stylesheet.NewSpinner(),
 	}
 
 	// configure max dimensions

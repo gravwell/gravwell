@@ -13,7 +13,6 @@ import (
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -140,7 +139,7 @@ func run(c *cobra.Command, args []string) {
 		if len(files) > 1 {
 			s += "s"
 		}
-		p := busywait.CobraNew(s)
+		p := stylesheet.CobraSpinner(s)
 		go func() { p.Run() }()
 		<-done
 		p.Quit()

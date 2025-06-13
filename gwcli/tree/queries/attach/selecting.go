@@ -40,7 +40,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
-	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -265,7 +264,7 @@ func (sv *selectingView) attachToQuery() (fatalErr error) {
 		close(sv.searchErr)
 	}()
 	// start a spinner
-	sv.spnr = busywait.NewSpinner()
+	sv.spnr = stylesheet.NewSpinner()
 
 	return nil
 }
