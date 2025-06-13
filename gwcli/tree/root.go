@@ -38,8 +38,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/status"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/tree"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/user"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 )
@@ -193,30 +193,6 @@ func ppost(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// GenerateFlags populates all root-relevant flags (ergo global and root-local flags)
-func GenerateFlags(root *cobra.Command) {
-	// global flags
-	root.PersistentFlags().Bool("script", false,
-		"disallows gwcli from entering interactive mode and prints context help instead.\n"+
-			"Recommended for use in scripts to avoid hanging on a malformed command.")
-	root.PersistentFlags().StringP("username", "u", "", "login credential.")
-	root.PersistentFlags().String("password", "", "login credential.")
-	root.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
-	root.PersistentFlags().String("api", "", "log in via API key instead of credentials")
-
-	root.MarkFlagsMutuallyExclusive("password", "passfile", "api")
-	root.MarkFlagsMutuallyExclusive("api", "username")
-
-	root.PersistentFlags().Bool("no-color", false, "disables colourized output.")
-	root.PersistentFlags().String("server", "localhost:80", "<host>:<port> of instance to connect to.\n")
-	root.PersistentFlags().StringP("log", "l", cfgdir.DefaultStdLogPath, "log location for developer logs.\n")
-	root.PersistentFlags().String("loglevel", "DEBUG", "log level for developer logs (-l).\n"+
-		"Possible values: 'OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'.\n")
-	root.PersistentFlags().Bool("insecure", false, "do not use HTTPS and do not enforce certs.")
-	root.PersistentFlags().String("profile", "", "spins up the native CPU profiler to log samples (in pprof format) into the given path")
-	root.PersistentFlags().MarkHidden("profile")
-}
-
 const ( // usage
 	use   string = "gwcli"
 	short string = "Gravwell CLI Client"
@@ -280,7 +256,7 @@ func Execute(args []string) int {
 	rootCmd.Version = "alpha 1"
 
 	// associate flags
-	GenerateFlags(rootCmd)
+	uniques.AttachPersistentFlags(rootCmd)
 
 	if !rootCmd.AllChildCommandsHaveGroup() {
 		panic("some children missing a group")
