@@ -29,7 +29,8 @@ import (
 
 const (
 	// the string format the Gravwell client requires
-	SearchTimeFormat = "2006-01-02T15:04:05.999999999Z07:00"
+	SearchTimeFormat string = "2006-01-02T15:04:05.999999999Z07:00"
+	Version          string = "v0.8"
 )
 
 // CronRuneValidator provides a validator function for a TI intended to consume cron-like input.
