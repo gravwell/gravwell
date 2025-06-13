@@ -322,12 +322,13 @@ func getThinkstIncidentLogs(cli *http.Client, latestTS string, src net.IP, rl *r
 				r, err := time.Parse("2006-01-02 15:04:05 MST-0700", t.UpdatedStd)
 				if err != nil {
 					entryTime = time.Now()
-					lg.Info("could not find ts")
+					lg.Info("Could not find ts")
 				} else {
 					entryTime = r
 					i, err := strconv.Atoi(lastEntryKey)
 					if err != nil {
 						i = 0
+						lg.Error("Thinkst state file malformed.", log.KV("thinkst", h.name), log.KVErr(err))
 					}
 					if t.UpdatedID > i {
 						lastEntryKey = strconv.Itoa(t.UpdatedID)
