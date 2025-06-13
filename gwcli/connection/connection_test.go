@@ -13,6 +13,7 @@ package connection_test
 
 import (
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
 	"path"
@@ -113,8 +114,8 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 				myinfo, err := connection.Client.MyInfo()
 				if err != nil {
 					t.Fatal(err)
-				} else if myinfo.User != connection.MyInfo.User || (tt.args.u != "" && myinfo.User != tt.args.u) {
-					t.Fatalf("username mismatch! query name (%v) != cached name (%v) != argument username (%v)", myinfo.User, connection.MyInfo.User, tt.args.u)
+				} else if myinfo.User != connection.CurrentUser().User || (tt.args.u != "" && myinfo.User != tt.args.u) {
+					t.Fatalf("username mismatch! query name (%v) != cached name (%v) != argument username (%v)", myinfo.User, connection.CurrentUser().User, tt.args.u)
 				}
 			}
 
@@ -156,8 +157,8 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in via credentials: ", err)
-		} else if info.User != defaultUser || connection.MyInfo.User != defaultUser {
-			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, defaultUser, connection.MyInfo.User)
+		} else if info.User != defaultUser || connection.CurrentUser().User != defaultUser {
+			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, defaultUser, connection.CurrentUser().User)
 		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
 			t.Fatal("failed to make call after logging in via credentials: ", err)
 		}
@@ -176,8 +177,8 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in via token: ", err)
-		} else if info.User != defaultUser || connection.MyInfo.User != defaultUser {
-			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, defaultUser, connection.MyInfo.User)
+		} else if info.User != defaultUser || connection.CurrentUser().User != defaultUser {
+			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, defaultUser, connection.CurrentUser().User)
 		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
 			t.Fatal("failed to make call after logging in via token: ", err)
 		}
@@ -196,8 +197,8 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
-		} else if info.User != altUser || connection.MyInfo.User != altUser {
-			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, altUser, connection.MyInfo.User)
+		} else if info.User != altUser || connection.CurrentUser().User != altUser {
+			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, altUser, connection.CurrentUser().User)
 		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
 		}
@@ -213,13 +214,8 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		// ensure the token has updated to our second user
 		initLogin(t, "", "")
 
-		// ensure we can make a couple calls
-		if info, err := connection.Client.MyInfo(); err != nil {
-			t.Fatal("failed to make call after logging in second user via token: ", err)
-		} else if info.User != altUser || connection.MyInfo.User != altUser {
-			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, altUser, connection.MyInfo.User)
-		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
-			t.Fatal("failed to make call after logging in second user via token: ", err)
+		if err := verifyLoggedInStatus(altUser); err != nil {
+			t.Fatal("second user login with token:", err)
 		}
 
 	})
@@ -249,6 +245,18 @@ func TestLoginMFA_script_mode(t *testing.T) {
 
 	// create a second account with MFA so we don't screw up admin
 	altTOTPSecret := createAltUser(t, defaultClient, true)
+
+	// reauth after TOTP destroyed our session
+	// we need to reauth the client (as default), as InstallTOTPSetup kicks us out.
+	defaultClient, err = grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resp, err := defaultClient.LoginEx(defaultUser, defaultPass); err != nil {
+		t.Skip(err)
+	} else if !resp.LoginStatus {
+		t.Skip("failed to log test client in: ", resp.Reason)
+	}
 	t.Cleanup(func() { deleteAltUser(t, defaultClient) })
 
 	// spin up a client for the alt user
@@ -266,7 +274,7 @@ func TestLoginMFA_script_mode(t *testing.T) {
 	} else if !resp.LoginStatus {
 		t.Skip("failed to log alt client in: ", resp.Reason)
 	}
-	t.Cleanup(func() { defaultClient.Logout() })
+	t.Cleanup(func() { altClient.Logout() })
 
 	// fetch an API token for the second user
 	altAPITkn := generateAPIToken(t, altClient)
@@ -283,7 +291,7 @@ func TestLoginMFA_script_mode(t *testing.T) {
 		expectedErr error
 	}{
 		{"(alt user) valid username and password, MFA enabled", args{altUser, altPass, "", true}, connection.ErrAPITokenRequired},
-		{"(alt user) valid APIToken", args{"", "", altAPITkn, true}, nil},
+		{"(alt user) valid APIToken", args{altUser, "", altAPITkn, true}, nil},
 		{"(alt user) no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
 		{"(alt user) invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
 		{"(alt user) invalid APIToken", args{"", "", altAPITkn + "1234", true}, connection.ErrAPIKeyInvalid},
@@ -310,19 +318,9 @@ func TestLoginMFA_script_mode(t *testing.T) {
 			if err := connection.Login(tt.args.u, tt.args.p, tt.args.apiToken, tt.args.scriptMode); !errors.Is(err, tt.expectedErr) {
 				t.Fatalf("Login() error = '%v', want = '%v'", err, tt.expectedErr)
 			} else if err == nil {
-				// additional checks to perform if we were not expected and did not receive an error
-
-				// check that Client is ready to go
-				if connection.Client == nil {
-					t.Fatal("client is nil")
-				}
-
-				// check that we can query the backend and get the correct user
-				myinfo, err := connection.Client.MyInfo()
-				if err != nil {
+				// additional checks to perform if we were not expecting and did not receive an error
+				if err := verifyLoggedInStatus(tt.args.u); err != nil {
 					t.Fatal(err)
-				} else if myinfo.User != connection.MyInfo.User || (tt.args.u != "" && myinfo.User != tt.args.u) {
-					t.Fatalf("username mismatch! query name (%v) != cached name (%v) != argument username (%v)", myinfo.User, connection.MyInfo.User, tt.args.u)
 				}
 			}
 
@@ -364,11 +362,8 @@ func TestLogin_interactive_mode(t *testing.T) {
 			t.Fatal(err)
 		}
 		// check that we can query the backend and get the correct user
-		myinfo, err := connection.Client.MyInfo()
-		if err != nil {
+		if err := verifyLoggedInStatus(defaultUser); err != nil {
 			t.Fatal(err)
-		} else if myinfo.User != connection.MyInfo.User || myinfo.User != defaultUser {
-			t.Fatalf("username mismatch! query name (%v) != cached name (%v) != given username (%v)", myinfo.User, connection.MyInfo.User, defaultUser)
 		}
 	})
 
@@ -394,12 +389,8 @@ func TestLogin_interactive_mode(t *testing.T) {
 		if err := connection.Login(defaultUser, defaultPass, "", false); err != nil {
 			t.Fatal(err)
 		}
-		// check that we can query the backend and get the correct user
-		myinfo, err := connection.Client.MyInfo()
-		if err != nil {
+		if err := verifyLoggedInStatus(defaultUser); err != nil {
 			t.Fatal(err)
-		} else if myinfo.User != connection.MyInfo.User || myinfo.User != defaultUser {
-			t.Fatalf("username mismatch! query name (%v) != cached name (%v) != given username (%v)", myinfo.User, connection.MyInfo.User, defaultUser)
 		}
 	})
 
@@ -489,8 +480,6 @@ func TestJWTRefreshing(t *testing.T) {
 	if string(tknBody) == string(newTknBody) {
 		t.Error("token file was not updated while we were sleeping")
 	}
-	// TODO check that the values in the new token are different and make sense (specifically expiry)
-
 	// validate that we can still make calls
 	_, err = connection.Client.ListKits()
 	if err != nil {
@@ -510,7 +499,7 @@ func generateAPIToken(t *testing.T, testclient *grav.Client) (tkn string) {
 			Name:         "LoginMFAToken",
 			Desc:         "API token for the LoginMFA tests",
 			Expires:      time.Now().Add(apiTokenExpiryDur),
-			Capabilities: []string{"ListUsers", "ListGroups", "ListGroupMembers"}})
+			Capabilities: []string{"ListUsers", "ListGroups", "ListGroupMembers", "MacroRead", "PivotRead"}})
 	if err != nil {
 		t.Log("failed to generate APIKey, skipping tests: ", err)
 		return "UNSET"
@@ -566,13 +555,6 @@ func createAltUser(t *testing.T, testclient *grav.Client, mfa bool) (TOTPSecret 
 		if err != nil {
 			t.Fatal(err)
 		}
-
-		// we need to reauth the client (as default), as InstallTOTPSetup kicks us out.
-		if resp, err := testclient.LoginEx(defaultUser, defaultPass); err != nil {
-			t.Skip(err)
-		} else if !resp.LoginStatus {
-			t.Skip("failed to log test client in: ", resp.Reason)
-		}
 		return sr.Seed
 	}
 	return ""
@@ -602,4 +584,28 @@ func deleteAltUser(t *testing.T, testclient *grav.Client) {
 	if err := testclient.DeleteUser(u.UID); err != nil {
 		t.Fatal(err)
 	}
+}
+
+// Confirms that the connection singleton is properly initialized and authenticated.
+// Makes a couple of calls to the backend and checks that the cache matches expectations.
+func verifyLoggedInStatus(expectedUsername string) error {
+	// ensure we can make a couple calls
+	if info, err := connection.Client.MyInfo(); err != nil {
+		return fmt.Errorf("failed to manual-fetch user information: %v", err)
+	} else if info.User != expectedUsername || connection.CurrentUser().User != expectedUsername {
+		return fmt.Errorf("incorrect user. %v!=%v!=%v", info.User, expectedUsername, connection.CurrentUser().User)
+	}
+
+	// make a few different calls for better scope
+	if _, err := connection.Client.GetUserMacros(connection.CurrentUser().UID); err != nil {
+		return fmt.Errorf("failed to fetch macros: %v", err)
+	}
+	if _, err := connection.Client.ListAllPivots(); err != nil {
+		return fmt.Errorf("failed to list pivots: %v", err)
+	}
+	if _, err := connection.Client.TokenCapabilities(); err != nil {
+		return fmt.Errorf("failed to list pivots: %v", err)
+	}
+
+	return nil
 }

@@ -34,6 +34,10 @@ Tree nodes (commands that require further input/are submenus), such as `user`, a
 
     - This lesson took a while to sink in; you may see `[]tea.Cmd` signatures floating around, but these should be replaced, primarily with `.Batch()`s. I already incorporated .Sequence() where important.
 
+# Build System
+
+gwcli uses [Mage](magefile.org) as its build system. Because go's tooling so robust, you don't *really* need mage, but it has some extra utilities for testing. You can explore it by installing mage and calling `mage -h`/`mage -h <cmd>`.
+
 # Changing the Command Tree
 
 This section details how to alter and add to the command tree. These are the basic, most common changes. 
