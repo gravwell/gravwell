@@ -125,8 +125,9 @@ func run(c *cobra.Command, args []string) {
 			res := <-resultCh
 			if res.error != nil {
 				clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.string, res.error))
+			} else {
+				fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.string)
 			}
-			fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.string)
 		}
 		// all done
 		close(done)
