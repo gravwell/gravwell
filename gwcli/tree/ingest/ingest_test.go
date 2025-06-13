@@ -286,9 +286,4 @@ func TestNewIngestActionRun(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("script; no files", func(t *testing.T) {
-
-	})
-
 }
