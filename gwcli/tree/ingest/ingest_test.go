@@ -14,7 +14,9 @@ import (
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
 )
 
 const (
@@ -24,7 +26,13 @@ const (
 )
 
 func Test_autoingest(t *testing.T) {
-	testsupport.StartSingletons(t, server, username, password, "", true)
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+		t.Fatal(err)
+	} else if err := connection.Initialize(server, false, true, path.Join(t.TempDir(), "dev.log")); err != nil {
+		t.Fatal(err)
+	} else if err := connection.Login(username, password, "", true); err != nil {
+		t.Fatal(err)
+	}
 
 	type args struct {
 		filenames []string // all files are created in the temp directory
