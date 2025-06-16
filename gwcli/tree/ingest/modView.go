@@ -116,13 +116,14 @@ func (m mod) reset() mod {
 
 // update the focus/blur settings to field corresponding to the current enumeration of m.selected.
 func (m *mod) focusSelected() {
-	if m.selected == src {
+	switch m.selected {
+	case src:
 		m.srcTI.Focus()
 		m.tagTI.Blur()
-	} else if m.selected == tag {
+	case tag:
 		m.srcTI.Blur()
 		m.tagTI.Focus()
-	} else {
+	default:
 		m.srcTI.Blur()
 		m.tagTI.Blur()
 	}
