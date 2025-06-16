@@ -66,7 +66,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -373,7 +372,7 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 	em.listInitialized = true
 	em.mode = selecting
 
-	return "", uniques.FetchWindowSize, nil
+	return "", tea.WindowSize(), nil
 }
 
 func (em *editModel[I, S]) Update(msg tea.Msg) tea.Cmd {

@@ -75,7 +75,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -482,7 +481,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string) (
 		}
 	}
 
-	return "", uniques.FetchWindowSize, nil
+	return "", tea.WindowSize(), nil
 }
 
 //#endregion

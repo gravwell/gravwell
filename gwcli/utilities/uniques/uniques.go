@@ -15,16 +15,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"os"
 	"strings"
 	"time"
 	"unicode"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/spf13/cobra"
-
-	"github.com/charmbracelet/x/term"
 )
 
 const (
@@ -63,13 +59,6 @@ func CronRuneValidator(s string) error {
 	}
 
 	return nil
-}
-
-// FetchWindowSize queries for available terminal window size.
-// Generally useful as an onStart command as Mother does not maintain a set of dimensions.
-func FetchWindowSize() tea.Msg {
-	w, h, _ := term.GetSize(os.Stdin.Fd())
-	return tea.WindowSizeMsg{Width: w, Height: h}
 }
 
 // A JWTHeader holds the values from the first segment of a parsed JWT.

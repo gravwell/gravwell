@@ -86,7 +86,7 @@ func (sv *selectingView) init() (cmd tea.Cmd, noAttachables bool, err error) {
 
 	//sv.list.Styles.HelpStyle = sv.list.Styles.HelpStyle.Width(sv.width)
 
-	return uniques.FetchWindowSize, false, nil
+	return tea.WindowSize(), false, nil
 }
 
 // Destroys the state of the selecting view, killing any and all updater goroutines.

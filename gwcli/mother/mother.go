@@ -31,7 +31,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/shlex"
@@ -152,7 +151,7 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 var _ tea.Model = Mother{}
 
 func (m Mother) Init() tea.Cmd {
-	return uniques.FetchWindowSize
+	return tea.WindowSize()
 }
 
 // Update (specifically Mother's Update()) is always the entrypoint for BubbleTea to drive.
