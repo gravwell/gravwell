@@ -68,7 +68,11 @@ func Initial() *ingest {
 
 		mod: NewMod(),
 	}
-
+	i.fp.AutoHeight = false // need to factor in other vertically-stacked elements
+	i.fp.Cursor = string(stylesheet.SelectionPrefix)
+	i.fp.DirAllowed = false
+	i.fp.FileAllowed = true
+	i.fp.ShowSize = true
 	return i
 }
 
@@ -144,6 +148,21 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 		} else {
 			i.fp, cmd = i.fp.Update(msg)
 		}
+
+		// with all updates made, update sizes (if applicable)
+		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
+			// figure out how much height everything else needs
+			breadcrumbHeight := lipgloss.Height(stylesheet.Sheet.Composable.ComplimentaryBorder.Render(i.fp.CurrentDirectory))
+			modHeight := lipgloss.Height(i.mod.view())
+			errHelpHeight := lipgloss.Height(i.errHelpView())
+			buffer := 5
+
+			newHeight := wsMsg.Height - (breadcrumbHeight + modHeight + errHelpHeight + buffer)
+			i.fp.SetHeight(newHeight)
+			clilog.Writer.Debugf("setting file picker height to %v", newHeight)
+			i.mod.width = uint(wsMsg.Width)
+		}
+
 		return cmd
 	}
 }
