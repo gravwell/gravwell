@@ -65,7 +65,7 @@ func box(val bool, leftBoundary, rightBoundary rune) string {
 	if val {
 		c = '✓'
 	}
-	return fmt.Sprintf("%c%c%c", leftBoundary, c, rightBoundary)
+	return fmt.Sprintf("%c%s%c", leftBoundary, stylesheet.Sheet.SecondaryText.Render(string(c)), rightBoundary)
 }
 
 // SubmitString displays either the key-bind to submit the action on the current tab or the input error,
