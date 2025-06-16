@@ -159,19 +159,20 @@ func (i *ingest) View() string {
 		// breadcrumbs
 		// file picker
 		// modifiers
+		// err-help
 
 		var (
-			breadcrumbs string = i.fp.CurrentDirectory
+			breadcrumbs = stylesheet.Sheet.Composable.ComplimentaryBorder.Render(i.fp.CurrentDirectory)
 			pickerView  string
-			modView     string = i.mod.view()
+			modView     = i.mod.view()
+			errHelp     string
 		)
 
-		var spnrErrHelp string
 		if i.err != nil {
-			spnrErrHelp = stylesheet.Sheet.ErrText.Render(i.err.Error())
+			errHelp = stylesheet.Sheet.ErrText.Render(i.err.Error())
 		} else {
 			// TODO help keys
-			spnrErrHelp = "" // display help keys for submission and changing focus
+			errHelp = "" // display help keys for submission and changing focus
 		}
 
 		// wrap it in a border
@@ -182,7 +183,7 @@ func (i *ingest) View() string {
 		}
 
 		// compose views
-		return lipgloss.JoinVertical(lipgloss.Center, breadcrumbs, pickerView, modView, spnrErrHelp)
+		return lipgloss.JoinVertical(lipgloss.Center, breadcrumbs, pickerView, modView, errHelp)
 	}
 
 }
