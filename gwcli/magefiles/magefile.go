@@ -112,8 +112,11 @@ func Build() error {
 
 	output := path.Join(pwd, _BINARY_TARGET)
 	verboseln("Building " + output + "...")
-	cmd := exec.Command("go", "build", "-o", output, ".")
-	return cmd.Run()
+	out, err := sh.Output("go", "build", "-o", output, ".")
+	if mg.Verbose() || err != nil {
+		fmt.Println(out)
+	}
+	return err
 }
 
 // Vet runs go vet and staticcheck and should be called prior to the CI/CD pipeline.
