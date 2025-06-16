@@ -42,7 +42,7 @@ func ColorCommandName(c *cobra.Command) string {
 // Pip returns the selection rune if field == selected, otherwise it returns a space.
 func Pip(selected, field uint) string {
 	if selected == field {
-		return lipgloss.NewStyle().Foreground(stylesheet.AccentColor2).Render(string(stylesheet.SelectionPrefix))
+		return stylesheet.Sheet.PrimaryText.Render(string(stylesheet.SelectionPrefix))
 	}
 	return " "
 }
@@ -76,17 +76,17 @@ func SubmitString(keybind, inputErr, result string, width int) string {
 		AlignHorizontal(lipgloss.Center).
 		Width(width)
 	var (
-		inputErrOrAltEnterColor = stylesheet.TertiaryColor
+		inputErrOrAltEnterColor = stylesheet.Sheet.ExampleText.GetForeground()
 		inputErrOrAltEnterText  = "Press " + keybind + " to submit"
 	)
 	if inputErr != "" {
-		inputErrOrAltEnterColor = stylesheet.ErrorColor
+		inputErrOrAltEnterColor = stylesheet.Sheet.ErrText.GetForeground()
 		inputErrOrAltEnterText = inputErr
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Center,
 		alignerSty.Foreground(inputErrOrAltEnterColor).Render(inputErrOrAltEnterText),
-		alignerSty.Foreground(stylesheet.SecondaryColor).Render(result),
+		alignerSty.Foreground(stylesheet.Sheet.SecondaryText.GetForeground()).Render(result),
 	)
 }
 

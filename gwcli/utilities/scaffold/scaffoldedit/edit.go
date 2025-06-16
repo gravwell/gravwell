@@ -517,10 +517,9 @@ func (em *editModel[I, S]) View() string {
 		return ""
 	case selecting:
 		str = em.list.View() + "\n" +
-			lipgloss.NewStyle().
+			stylesheet.Sheet.ExampleText.
 				AlignHorizontal(lipgloss.Center).
 				Width(em.width).
-				Foreground(stylesheet.TertiaryColor).
 				Render("Press space or enter to select")
 	case editing:
 		var sb strings.Builder

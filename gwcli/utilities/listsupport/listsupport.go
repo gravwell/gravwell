@@ -28,7 +28,7 @@ func NewList(items []list.Item, width, height int, singular, plural string) list
 	// update the styles on the default delegate to wrap properly
 	dlg := list.NewDefaultDelegate()
 	dlg.Styles.SelectedTitle = dlg.Styles.SelectedTitle.Foreground(stylesheet.Sheet.PrimaryText.GetForeground())
-	dlg.Styles.SelectedDesc = dlg.Styles.SelectedDesc.Foreground(stylesheet.SecondaryColor)
+	dlg.Styles.SelectedDesc = dlg.Styles.SelectedDesc.Foreground(stylesheet.Sheet.SecondaryText.GetForeground())
 
 	l := list.New(items, dlg, width, height)
 	// list.DefaultKeyMap, but has the quits removed and conflicting filter keys reassigned.

@@ -38,7 +38,7 @@ var (
 		return lipgloss.NewStyle().Width(width).PaddingBottom(1).AlignHorizontal(lipgloss.Center)
 	}
 	evenEntryStyle = lipgloss.NewStyle()
-	oddEntryStyle  = lipgloss.NewStyle().Foreground(stylesheet.SecondaryColor)
+	oddEntryStyle  = stylesheet.Sheet.SecondaryText
 )
 
 // Returns a line, right-suffixed with the given percent*100.
@@ -168,7 +168,7 @@ func recompileHelp(s *DataScope) {
 	// Note the usage of width within these styles rather than the table's width.
 	// Doing the reverse would cause long cells to truncate instead of wrap.
 	// This method does *not* prevent truncation if the terminal is too small
-	keyColumnStyle := lipgloss.NewStyle().Foreground(stylesheet.AccentColor1).
+	keyColumnStyle := stylesheet.Sheet.PrimaryText.
 		MaxWidth(s.usableWidth() / 2).Width(cellWidth)
 	valueColumnStyle := lipgloss.NewStyle().MaxWidth(s.usableWidth() / 2).Width(cellWidth)
 
@@ -179,7 +179,7 @@ func recompileHelp(s *DataScope) {
 		BorderRow(true).BorderColumn(false).
 		BorderLeft(false).BorderRight(false).
 		BorderTop(false).BorderBottom(false).
-		BorderStyle(lipgloss.NewStyle().Foreground(stylesheet.TertiaryColor)).
+		BorderStyle(stylesheet.Sheet.Table.BorderStyle).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if col == 0 {
 				return keyColumnStyle
@@ -253,7 +253,7 @@ func (s *DataScope) renderTabs(width int) string {
 		}
 		style = style.Border(border)
 		if i == int(results) {
-			rendered[i] = style.Foreground(stylesheet.AccentColor1).Render(t.name)
+			rendered[i] = stylesheet.Sheet.PrimaryText.Render(t.name)
 		} else {
 			rendered[i] = style.Render(t.name)
 		}

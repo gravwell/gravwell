@@ -590,7 +590,7 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 	if action.Is(c) {
 		s.WriteString(c.UsageString())
 	} else {
-		specialStyle := lipgloss.NewStyle().Foreground(stylesheet.AccentColor1)
+		specialStyle := stylesheet.Sheet.SecondaryText
 		// write .. and /
 		s.WriteString(fmt.Sprintf("%s%s - %s\n",
 			stylesheet.Indent, specialStyle.Render(".."), "step up"))

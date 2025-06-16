@@ -24,10 +24,4 @@ const (
 	yellowGreen    = lipgloss.Color("#8AC926")
 	steelBlue      = lipgloss.Color("#1982C4")
 	bittersweet    = lipgloss.Color("#FF595E")
-
-	SecondaryColor = lipgloss.Color("#bb7af7")
-	TertiaryColor  = lipgloss.Color("#f77af4")
-	AccentColor1   = lipgloss.Color("#f79c7a")
-	AccentColor2   = lipgloss.Color("#7af79c")
-	ErrorColor     = lipgloss.Color("#f77a96")
 )

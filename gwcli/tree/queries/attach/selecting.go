@@ -397,13 +397,13 @@ var sty struct {
 }{
 	qryBody:         lipgloss.NewStyle().Height(5).Margin(1),
 	qryWrap:         stylesheet.Sheet.Composable.ComplimentaryBorder,
-	state:           lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Margin(1, 0, 1).Foreground(stylesheet.AccentColor1),
+	state:           stylesheet.Sheet.PrimaryText.AlignHorizontal(lipgloss.Center).Margin(1, 0, 1),
 	detailFieldText: stylesheet.Sheet.PrimaryText,
 	detailBody:      lipgloss.NewStyle().Margin(1),
 	detailWrap:      stylesheet.Sheet.Composable.ComplimentaryBorder,
 	listAlign:       lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).MarginRight(int(halfMargin)),
 	detailAlign:     lipgloss.NewStyle().MarginLeft(int(halfMargin)),
-	bottomText:      lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Foreground(stylesheet.TertiaryColor).MaxHeight(1),
+	bottomText:      stylesheet.Sheet.SecondaryText.AlignHorizontal(lipgloss.Center).MaxHeight(1),
 }
 
 //#endregion styles
