@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -51,7 +52,7 @@ type ingest struct {
 		string
 		error
 	}
-	ingestCount uint // the number of files to wait for in ingesting mode
+	ingestCount int // the number of files to wait for in ingesting mode
 
 	mod mod
 
@@ -95,7 +96,7 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			}
 
 			i.ingestCount -= 1
-			if i.ingestCount == 0 { // all done
+			if i.ingestCount <= 0 { // all done
 				i.mode = done
 			}
 		default: // no results ready, just spin
@@ -119,11 +120,10 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 		} else {
 			i.fp, cmd = i.fp.Update(msg)
 			// check for file selection (and thus, attempt ingestion)
-			// Did the user select a file?
 			if didSelect, path := i.fp.DidSelectFile(msg); didSelect {
 				if path == "" {
-					i.err = errors.New("you must select a valid file for ingestion")
-					return nil
+					i.err = errEmptyFile
+					return cmd
 				}
 				// check that src is empty or a valid IP
 				src := i.mod.srcTI.Value()
@@ -131,15 +131,21 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 					if _, err := netip.ParseAddr(src); err != nil {
 						// set error and return
 						i.err = err
-						return nil
+						return cmd
 					}
 				}
-				tag := i.mod.tagTI.Value()
+				// check that tag is not empty
+				tag := strings.TrimSpace(i.mod.tagTI.Value())
+				if tag == "" {
+					i.err = errEmptyTag
+					return cmd
+				}
 
+				i.ingestCount = 1
 				i.mode = ingesting
 
 				// spin ingestion off into goroutine
-				clilog.Writer.Warnf("ingesting file %v with parameters: tag='%v' src='%v' ignore=%v local=%v",
+				clilog.Writer.Infof("ingesting file %v with parameters: tag='%v' src='%v' ignore=%v local=%v",
 					path, tag, src, i.mod.ignoreTS, i.mod.localTime)
 				go func() {
 					_, err := connection.Client.IngestFile(path, tag, src, i.mod.ignoreTS, i.mod.localTime)
@@ -151,7 +157,7 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 
 				// start a spinner and wait
 				i.spinner = stylesheet.NewSpinner()
-				return nil
+				return tea.Batch(cmd, i.spinner.Tick)
 			}
 
 			// Did the user select a disabled file?
@@ -173,7 +179,6 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 
 			newHeight := wsMsg.Height - (breadcrumbHeight + modHeight + errHelpHeight + buffer)
 			i.fp.SetHeight(newHeight)
-			clilog.Writer.Debugf("setting file picker height to %v", newHeight)
 			i.mod.width = uint(wsMsg.Width)
 		}
 
@@ -279,9 +284,9 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 		if ufErr != nil {
 			return ufErr.Error(), nil, nil
 		}
-		i.ingestCount = uint(len(files))
+		i.ingestCount = len(files)
 		i.mode = ingesting
-		return "", nil, nil
+		return "", i.spinner.Tick, nil
 	}
 
 	// prepare the action
