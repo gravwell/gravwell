@@ -362,7 +362,7 @@ func processInput(m *Mother) tea.Cmd {
 
 		// reconstitute remaining tokens to re-split them via shlex
 		cmd := processActionHandoff(m, wr.endCommand, wr.remainingString)
-		return tea.Sequence(historyCmd, cmd)
+		return tea.Sequence(historyCmd, tea.WindowSize(), cmd)
 
 	case invalidCommand:
 		clilog.Writer.Errorf("walking input %v returned invalid", given)
