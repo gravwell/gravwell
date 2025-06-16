@@ -180,32 +180,39 @@ func (i *ingest) View() string {
 		// modifiers
 		// err-help
 
-		var (
-			breadcrumbs = stylesheet.Sheet.Composable.ComplimentaryBorder.Render(i.fp.CurrentDirectory)
-			pickerView  string
-			modView     = i.mod.view()
-			errHelp     string
-		)
-
-		if i.err != nil {
-			errHelp = stylesheet.Sheet.ErrText.Render(i.err.Error())
-		} else {
-			// TODO help keys
-			errHelp = "" // display help keys for submission and changing focus
-		}
-
-		// wrap it in a border
-		if i.mod.focused {
-			pickerView = stylesheet.Sheet.Composable.UnfocusedBorder.Render(i.fp.View())
-		} else {
-			pickerView = stylesheet.Sheet.Composable.FocusedBorder.Render(i.fp.View())
-		}
-
 		// compose views
-		return lipgloss.JoinVertical(lipgloss.Center, breadcrumbs, pickerView, modView, errHelp)
+		return lipgloss.JoinVertical(lipgloss.Center,
+			i.breadcrumbsView(),
+			i.pickerView(),
+			i.mod.view(),
+			i.errHelpView())
 	}
-
 }
+
+//#region view helpers
+
+func (i *ingest) breadcrumbsView() string {
+	return stylesheet.Sheet.Composable.ComplimentaryBorder.Render(i.fp.CurrentDirectory)
+}
+
+func (i *ingest) pickerView() string {
+	if i.mod.focused {
+		return stylesheet.Sheet.Composable.UnfocusedBorder.Render(i.fp.View())
+	} else {
+		return stylesheet.Sheet.Composable.FocusedBorder.Render(i.fp.View())
+	}
+}
+
+func (i *ingest) errHelpView() string {
+	if i.err != nil {
+		return stylesheet.Sheet.ErrText.Render(i.err.Error())
+	} else {
+		// TODO help keys
+		return "" // display help keys for submission and changing focus
+	}
+}
+
+//#endregion
 
 func (i *ingest) Done() bool {
 	return i.mode == done
