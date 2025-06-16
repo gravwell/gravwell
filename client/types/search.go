@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -331,7 +331,7 @@ type SearchCtrlStatus struct {
 	GID             int32 // deprecated, use GIDs instead
 	GIDs            []int32
 	Global          bool
-	State           string
+	State           SearchState
 	AttachedClients int
 	StoredData      int64
 	UserQuery       string
@@ -343,6 +343,41 @@ type SearchCtrlStatus struct {
 	LaunchInfo      SearchLaunchInfo
 	Error           string `json:",omitempty"`
 }
+
+type SearchState struct {
+	Attached     bool         `json:"attached"`
+	Backgrounded bool         `json:"backgrounded"`
+	Saved        bool         `json:"saved"`
+	Streaming    bool         `json:"streaming"`
+	Status       SearchStatus `json:"status"`
+}
+
+// String just implements a basic stringer on this type for some of the more simple CLI tooling
+func (ss SearchState) String() (r string) {
+	r = string(ss.Status)
+	if ss.Streaming {
+		r = r + "/streaming"
+	}
+	if ss.Saved {
+		r = r + "/saved"
+	}
+	if ss.Backgrounded {
+		r = r + "/backgrounded"
+	}
+	if ss.Attached {
+		r = r + "/attached"
+	}
+	return
+}
+
+type SearchStatus string
+
+const (
+	SearchStatusError     SearchStatus = `error`
+	SearchStatusCompleted SearchStatus = `completed`
+	SearchStatusRunning   SearchStatus = `running`
+	SearchStatusPending   SearchStatus = `pending`
+)
 
 func (si SearchInfo) StorageSize() int64 {
 	return si.StoreSize + si.IndexSize
