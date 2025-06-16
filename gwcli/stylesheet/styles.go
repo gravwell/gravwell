@@ -60,7 +60,7 @@ var Sheet sheet
 
 func init() {
 	// set the current stylesheet
-	Sheet = softPink()
+	Sheet = tritonePlus()
 }
 
 func softPink() sheet {
@@ -115,5 +115,63 @@ func softPink() sheet {
 		SecondaryText: lipgloss.NewStyle().Foreground(melon),
 
 		Spinner: lipgloss.NewStyle().Foreground(amethyst),
+	}
+}
+
+func tritonePlus() sheet {
+	nav, action := lipgloss.NewStyle().Foreground(steelBlue), lipgloss.NewStyle().Foreground(bittersweet)
+
+	one, two, three := darkViolet, sunglow, yellowGreen
+
+	return sheet{
+		Nav: nav, Action: action,
+
+		Composable: struct {
+			FocusedBorder       lipgloss.Style
+			UnfocusedBorder     lipgloss.Style
+			ComplimentaryBorder lipgloss.Style
+			ModifierText        lipgloss.Style
+		}{
+			FocusedBorder: lipgloss.NewStyle().
+				Align(lipgloss.Left, lipgloss.Center).
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderForeground(one),
+			UnfocusedBorder: lipgloss.NewStyle().
+				Align(lipgloss.Left, lipgloss.Center).
+				BorderStyle(lipgloss.HiddenBorder()),
+			ComplimentaryBorder: lipgloss.NewStyle().
+				Align(lipgloss.Left, lipgloss.Center).
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderForeground(three),
+			ModifierText: lipgloss.NewStyle().Foreground(three),
+		},
+
+		Table: struct {
+			HeaderCells lipgloss.Style
+			EvenCells   lipgloss.Style
+			OddCells    lipgloss.Style
+			BorderType  lipgloss.Border
+			BorderStyle lipgloss.Style
+		}{
+			HeaderCells: lipgloss.NewStyle().
+				Foreground(one).
+				AlignHorizontal(lipgloss.Center).
+				AlignVertical(lipgloss.Center).Bold(true),
+			EvenCells:   lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(two),
+			OddCells:    lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(three),
+			BorderType:  lipgloss.NormalBorder(),
+			BorderStyle: lipgloss.NewStyle().Foreground(one),
+		},
+
+		ErrText:      lipgloss.NewStyle().Foreground(bloodRed),
+		ExampleText:  lipgloss.NewStyle().Foreground(yellowGreen),
+		DisabledText: lipgloss.NewStyle().Faint(true),
+
+		PromptText: lipgloss.NewStyle().Foreground(one),
+
+		PrimaryText:   lipgloss.NewStyle().Foreground(one),
+		SecondaryText: lipgloss.NewStyle().Foreground(two),
+
+		Spinner: lipgloss.NewStyle().Foreground(one),
 	}
 }

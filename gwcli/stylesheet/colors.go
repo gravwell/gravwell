@@ -19,6 +19,11 @@ const (
 	bloodRed       = lipgloss.Color("#710909")
 	amaranthPurple = lipgloss.Color("#AA1155")
 	murrey         = lipgloss.Color("#880044")
+	darkViolet     = lipgloss.Color("#A20EC7")
+	sunglow        = lipgloss.Color("#FFCA3A")
+	yellowGreen    = lipgloss.Color("#8AC926")
+	steelBlue      = lipgloss.Color("#1982C4")
+	bittersweet    = lipgloss.Color("#FF595E")
 
 	SecondaryColor = lipgloss.Color("#bb7af7")
 	TertiaryColor  = lipgloss.Color("#f77af4")
