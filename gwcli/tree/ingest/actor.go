@@ -22,14 +22,12 @@ import (
 
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
@@ -54,12 +52,7 @@ type ingest struct {
 	}
 	ingestCount uint // the number of files to wait for in ingesting mode
 
-	// modifier pane items
-	modFocused bool            // is the modifier pane in focus?
-	tagTI      textinput.Model // tag to ingest file under
-	srcTI      textinput.Model // user-provided IP address source
-	ignoreTS   bool
-	localTime  bool
+	mod mod
 
 	spinner spinner.Model // TODO should busywait be pushed into stylesheet?
 }
@@ -73,11 +66,8 @@ func Initial() *ingest {
 			error
 		}),
 
-		srcTI: stylesheet.NewTI("", true),
-		tagTI: stylesheet.NewTI("default", true),
+		mod: NewMod(),
 	}
-
-	i.srcTI.Placeholder = "127.0.0.1"
 
 	return i
 }
@@ -112,11 +102,11 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			switch keyMsg.Type {
 			case tea.KeyTab:
 				// switch focus
-				i.modFocused = !i.modFocused
+				i.mod.focused = !i.mod.focused
 				return nil
 			case tea.KeyEnter:
 				// check that src is empty or a valid IP
-				src := i.srcTI.Value()
+				src := i.mod.srcTI.Value()
 				if src != "" {
 					if _, err := netip.ParseAddr(src); err != nil {
 						// set error and return
@@ -127,15 +117,15 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 
 				// check that a file has been selected
 				file := i.fp.FileSelected
-				tag := i.tagTI.Value()
+				tag := i.mod.tagTI.Value()
 
 				i.mode = ingesting
 
 				// spin ingestion off into goroutine
 				clilog.Writer.Warnf("ingesting file %v with parameters: tag='%v' src='%v' ignore=%v local=%v",
-					file, tag, src, i.ignoreTS, i.localTime)
+					file, tag, src, i.mod.ignoreTS, i.mod.localTime)
 				go func() {
-					_, err := connection.Client.IngestFile(file, tag, src, i.ignoreTS, i.localTime)
+					_, err := connection.Client.IngestFile(file, tag, src, i.mod.ignoreTS, i.mod.localTime)
 					i.ingestResCh <- struct {
 						string
 						error
@@ -144,11 +134,17 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 
 				// start a spinner and wait
 				i.spinner = stylesheet.NewSpinner()
+				return nil
 			}
-
 		}
-
-		return nil
+		// pass message to mod view or fp, depending on focus
+		var cmd tea.Cmd
+		if i.mod.focused {
+			i.mod, cmd = i.mod.update(msg)
+		} else {
+			i.fp, cmd = i.fp.Update(msg)
+		}
+		return cmd
 	}
 }
 
@@ -167,32 +163,21 @@ func (i *ingest) View() string {
 		var (
 			breadcrumbs string = i.fp.CurrentDirectory
 			pickerView  string
-			modView     string
+			modView     string = i.mod.view()
 		)
-		// build modifier view
-		modView = fmt.Sprintf("Ignore Timestamps? %v\t"+
-			"Use Server Local Time? %v\t"+
-			"source: %s\t"+
-			"tag: %s",
-			colorizer.Checkbox(i.ignoreTS),
-			colorizer.Checkbox(i.localTime),
-			i.srcTI.View(),
-			i.tagTI.View())
 
 		var spnrErrHelp string
 		if i.err != nil {
 			spnrErrHelp = stylesheet.Sheet.ErrText.Render(i.err.Error())
 		} else {
-			// TODO
+			// TODO help keys
 			spnrErrHelp = "" // display help keys for submission and changing focus
 		}
 
 		// wrap it in a border
-		if i.modFocused {
-			modView = stylesheet.Sheet.Composable.FocusedBorder.Render(modView)
+		if i.mod.focused {
 			pickerView = stylesheet.Sheet.Composable.UnfocusedBorder.Render(i.fp.View())
 		} else {
-			modView = stylesheet.Sheet.Composable.UnfocusedBorder.Render(modView)
 			pickerView = stylesheet.Sheet.Composable.FocusedBorder.Render(i.fp.View())
 		}
 
@@ -211,11 +196,7 @@ func (i *ingest) Reset() error {
 	i.mode = picking
 	i.err = nil
 
-	i.modFocused = false
-	i.tagTI.Reset()
-	i.srcTI.Reset()
-	i.ignoreTS = false
-	i.localTime = false
+	i.mod = i.mod.reset()
 
 	return nil
 }
@@ -230,12 +211,12 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 	}
 
 	// fetch flag values
-	if i.ignoreTS, err = rawFlags.GetBool("ignore-timestamp"); err != nil {
+	if i.mod.ignoreTS, err = rawFlags.GetBool("ignore-timestamp"); err != nil {
 		clilog.Writer.Fatalf("ignore-timestamp flag does not exist: %v", err)
 		fmt.Println(uniques.ErrGeneric)
 		return "", nil, err
 	}
-	if i.localTime, err = rawFlags.GetBool("local-time"); err != nil {
+	if i.mod.localTime, err = rawFlags.GetBool("local-time"); err != nil {
 		clilog.Writer.Fatalf("local-time flag does not exist: %v", err)
 		fmt.Println(uniques.ErrGeneric)
 		return "", nil, err
@@ -253,7 +234,7 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 
 	// if one+ files were given, try to ingest immediately
 	if files := rawFlags.Args(); len(files) > 0 {
-		ufErr := autoingest(i.ingestResCh, files, tags, i.ignoreTS, i.localTime, src)
+		ufErr := autoingest(i.ingestResCh, files, tags, i.mod.ignoreTS, i.mod.localTime, src)
 		if ufErr != nil {
 			return ufErr.Error(), nil, nil
 		}
@@ -264,9 +245,9 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 
 	// prepare the action
 	if len(tags) > 0 {
-		i.tagTI.SetValue(tags[0])
+		i.mod.tagTI.SetValue(tags[0])
 	}
-	i.srcTI.SetValue(src)
+	i.mod.srcTI.SetValue(src)
 
 	i.fp.CurrentDirectory, err = os.Getwd()
 	if err != nil {
