@@ -16,6 +16,7 @@ Round it out by allowing users to interactive with the third pane to remove prev
 */
 
 import (
+	"errors"
 	"fmt"
 	"net/netip"
 	"os"
@@ -101,14 +102,29 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 		}
 		return tea.Batch(i.spinner.Tick, resultCmd)
 	default: //case picking:
+		// on tab, switch view
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			i.err = nil
-			switch keyMsg.Type {
-			case tea.KeyTab:
+			if keyMsg.Type == tea.KeyTab {
 				// switch focus
 				i.mod.focused = !i.mod.focused
 				return nil
-			case tea.KeyEnter:
+			}
+		}
+
+		// pass message to mod view or fp, depending on focus
+		var cmd tea.Cmd
+		if i.mod.focused {
+			i.mod, cmd = i.mod.update(msg)
+		} else {
+			i.fp, cmd = i.fp.Update(msg)
+			// check for file selection (and thus, attempt ingestion)
+			// Did the user select a file?
+			if didSelect, path := i.fp.DidSelectFile(msg); didSelect {
+				if path == "" {
+					i.err = errors.New("you must select a valid file for ingestion")
+					return nil
+				}
 				// check that src is empty or a valid IP
 				src := i.mod.srcTI.Value()
 				if src != "" {
@@ -118,35 +134,33 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 						return nil
 					}
 				}
-
-				// check that a file has been selected
-				file := i.fp.FileSelected
 				tag := i.mod.tagTI.Value()
 
 				i.mode = ingesting
 
 				// spin ingestion off into goroutine
 				clilog.Writer.Warnf("ingesting file %v with parameters: tag='%v' src='%v' ignore=%v local=%v",
-					file, tag, src, i.mod.ignoreTS, i.mod.localTime)
+					path, tag, src, i.mod.ignoreTS, i.mod.localTime)
 				go func() {
-					_, err := connection.Client.IngestFile(file, tag, src, i.mod.ignoreTS, i.mod.localTime)
+					_, err := connection.Client.IngestFile(path, tag, src, i.mod.ignoreTS, i.mod.localTime)
 					i.ingestResCh <- struct {
 						string
 						error
-					}{file, err}
+					}{path, err}
 				}()
 
 				// start a spinner and wait
 				i.spinner = stylesheet.NewSpinner()
 				return nil
 			}
-		}
-		// pass message to mod view or fp, depending on focus
-		var cmd tea.Cmd
-		if i.mod.focused {
-			i.mod, cmd = i.mod.update(msg)
-		} else {
-			i.fp, cmd = i.fp.Update(msg)
+
+			// Did the user select a disabled file?
+			// This is only necessary to display an error to the user.
+			if didSelect, path := i.fp.DidSelectDisabledFile(msg); didSelect {
+				// Let's clear the selectedFile and display an error.
+				i.err = errors.New(path + " is not a valid file for ingestion")
+				return nil
+			}
 		}
 
 		// with all updates made, update sizes (if applicable)
