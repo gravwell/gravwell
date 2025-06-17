@@ -46,6 +46,7 @@ var Ingest action.Model = Initial()
 
 type ingest struct {
 	width       int // current known maximum width of the terminal
+	height      int
 	mode        mode
 	err         error
 	ingestResCh chan struct {
@@ -174,15 +175,8 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 
 		// with all updates made, update sizes (if applicable)
 		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
-			// figure out how much height everything else needs
-			breadcrumbHeight := lipgloss.Height(stylesheet.Sheet.Composable.ComplimentaryBorder.Render(i.fp.CurrentDirectory))
-			modHeight := lipgloss.Height(i.mod.view(wsMsg.Width))
-			errHelpHeight := lipgloss.Height(i.errHelpView())
-			buffer := 5
-
-			newHeight := wsMsg.Height - (breadcrumbHeight + modHeight + errHelpHeight + buffer)
-			i.fp.SetHeight(min(newHeight, maxHeight))
 			i.width = wsMsg.Width
+			i.height = wsMsg.Height
 		}
 
 		return cmd
@@ -196,12 +190,6 @@ func (i *ingest) View() string {
 	case ingesting: // display JUST a spinner; file statuses will be printed above the TUI for us
 		return i.spinner.View()
 	default:
-		// generate the standard view:
-		// breadcrumbs
-		// file picker
-		// modifiers
-		// err-help
-
 		// compose views
 		return lipgloss.JoinVertical(lipgloss.Center,
 			i.breadcrumbsView(),
@@ -228,7 +216,16 @@ func (i *ingest) pickerView() string {
 		MarginLeft(leftMargin).
 		MarginRight(rightMargin).Width(centerWidth)
 
-	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fp.View()), i.fp.ViewHelp())
+	// figure out how much height everything else needs
+	breadcrumbHeight := lipgloss.Height(stylesheet.Sheet.Composable.ComplimentaryBorder.Render(i.fp.CurrentDirectory))
+	modHeight := lipgloss.Height(i.mod.view(i.width))
+	errHelpHeight := lipgloss.Height(i.errHelpView())
+	buffer := 5
+
+	newHeight := i.height - (breadcrumbHeight + modHeight + errHelpHeight + buffer)
+	i.fp.SetHeight(min(newHeight, maxHeight))
+
+	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fp.View()), i.errHelpView())
 	if i.mod.focused {
 		return stylesheet.Sheet.Composable.UnfocusedBorder.
 			AlignHorizontal(lipgloss.Center).Render(s)
