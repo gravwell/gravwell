@@ -140,10 +140,10 @@ func (m mod) view(width int) string {
 		MarginRight(rightMargin).Width(centerWidth)
 
 	v := fmt.Sprintf(
-		"%vsource: %s\t"+
-			"%vtag: %s\n"+
-			"%vIgnore Timestamps? %v\t"+
-			"%vUse Server Local Time? %v\t",
+		"%v"+stylesheet.Sheet.Composable.ModifierText.Render("source")+": %s\t"+
+			"%v"+stylesheet.Sheet.Composable.ModifierText.Render("tag")+": %s\n"+
+			"%v"+stylesheet.Sheet.Composable.ModifierText.Render("Ignore Timestamps?")+" %v\t"+
+			"%v"+stylesheet.Sheet.Composable.ModifierText.Render("Use Server Local Time?")+" %v\t",
 		colorizer.Pip(m.selected, src), m.srcTI.View(),
 		colorizer.Pip(m.selected, tag), m.tagTI.View(),
 		colorizer.Pip(m.selected, ignoreTS), colorizer.Checkbox(m.ignoreTS),
