@@ -54,7 +54,7 @@ type sheet struct {
 	Spinner lipgloss.Style
 }
 
-// Stylesheet currently in-use by gwcli.
+// Sheet is the stylesheet currently in-use by gwcli.
 // This is what other packages should reference when stylizing their elements.
 var Sheet sheet
 
