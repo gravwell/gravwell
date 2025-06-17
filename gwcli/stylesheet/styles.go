@@ -109,8 +109,8 @@ type Palette struct {
 }
 
 func (p Palette) GenerateSheet() Sheet {
+	pipRune := '»'
 	pipSty := lipgloss.NewStyle().Foreground(p.AccentColor1)
-
 	primaryColorSty := lipgloss.NewStyle().Foreground(p.PrimaryColor)
 	secondaryColorSty := lipgloss.NewStyle().Foreground(p.SecondaryColor)
 	accentColor1Sty := lipgloss.NewStyle().Foreground(p.AccentColor1)
@@ -120,7 +120,7 @@ func (p Palette) GenerateSheet() Sheet {
 		Action: lipgloss.NewStyle().Foreground(p.AccentColor2),
 
 		FieldText: primaryColorSty,
-		Pip:       func() string { return pipSty.Render(string(SelectionPrefix)) },
+		Pip:       func() string { return pipSty.Render(string(pipRune)) },
 
 		ComposableSty: struct {
 			FocusedBorder       lipgloss.Style

@@ -105,7 +105,7 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 	// text input
 	ti := textinput.New()
 	ti.Placeholder = "help"
-	ti.Prompt = stylesheet.TIPromptPrefix
+	ti.Prompt = "" // replicated externally
 	ti.Focus()
 	ti.Width = stylesheet.TIWidth // replaced on first WindowSizeMsg, proc'd by Init()
 	// add ctrl+left/right to the word traversal keys
@@ -307,7 +307,7 @@ func (m Mother) View() string {
 	}
 
 	return fmt.Sprintf("%s\n%v",
-		m.promptString(), strings.Join(filtered, " "))
+		m.promptString(true), strings.Join(filtered, " "))
 }
 
 //#endregion
@@ -379,16 +379,25 @@ func (m *Mother) pushToHistory() (println tea.Cmd, userIn string, err error) {
 	if m.ti.Err != nil {
 		return nil, userIn, m.ti.Err
 	}
-	p := m.promptString()
+	p := m.promptString(false)
 
 	m.history.insert(userIn)           // add prompt string to history
 	m.ti.Reset()                       // empty out the input
 	return tea.Println(p), userIn, nil // print prompt
 }
 
-// Returns a composition resembling the full prompt.
-func (m *Mother) promptString() string {
-	return fmt.Sprintf("%s %s", stylesheet.Cur.Prompt(m.pwd.CommandPath()), m.ti.Value())
+// Composes the gwcli prompt as a single line.
+// If live, uses m.ti.View() (thus displaying the blinking cursor).
+// If !live, uses m.ti.Value() (for history use)
+func (m *Mother) promptString(live bool) string {
+	var ti string
+	if live {
+		ti = m.ti.View()
+	} else {
+		ti = m.ti.Value()
+	}
+
+	return fmt.Sprintf("%s%s", stylesheet.Cur.Prompt(m.pwd.CommandPath()), ti)
 }
 
 // helper subroutine for processInput

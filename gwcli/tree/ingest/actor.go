@@ -74,7 +74,7 @@ func Initial() *ingest {
 		mod: NewMod(),
 	}
 	i.fp.AutoHeight = false // need to factor in other vertically-stacked elements
-	i.fp.Cursor = string(stylesheet.SelectionPrefix)
+	i.fp.Cursor = stylesheet.Cur.PromptSty.Symbol()
 	i.fp.DirAllowed = false
 	i.fp.FileAllowed = true
 	i.fp.ShowSize = true

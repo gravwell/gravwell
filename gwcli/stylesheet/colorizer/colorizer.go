@@ -42,7 +42,7 @@ func ColorCommandName(c *cobra.Command) string {
 // Pip returns the selection rune if field == selected, otherwise it returns a space.
 func Pip(selected, field uint) string {
 	if selected == field {
-		return stylesheet.Cur.SecondaryText.Render(string(stylesheet.SelectionPrefix))
+		return stylesheet.Cur.Pip()
 	}
 	return " "
 }

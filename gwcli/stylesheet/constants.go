@@ -12,9 +12,7 @@ package stylesheet
 
 const (
 	TIWidth         = 60
-	TIPromptPrefix  = "> " // text *input* prefix
-	TAPromptPrefix  = ""   // text *area* prefix
-	SelectionPrefix = '»'
+	TAPromptPrefix  = "" // text *area* prefix
 	UpSigil         = "↑"
 	DownSigil       = "↓"
 	UpDownSigils    = UpSigil + "/" + DownSigil
