@@ -121,18 +121,18 @@ type FilePickerWH struct {
 
 // ShortHelp returns keybindings to be shown in the mini help view. It's part
 // of the key.Map interface.
-func (fp FilePickerWH) ShortHelp() []key.Binding {
-	return []key.Binding{fp.fullHelp, fp.quit, fp.KeyMap.Select, fp.nextPane}
+func (fph FilePickerWH) ShortHelp() []key.Binding {
+	return []key.Binding{fph.fullHelp, fph.quit, fph.KeyMap.Select, fph.nextPane}
 }
 
 // FullHelp returns keybindings for the expanded help view. It's part of the
 // key.Map interface.
-func (fp FilePickerWH) FullHelp() [][]key.Binding {
+func (fph FilePickerWH) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
-		{fp.KeyMap.Up, fp.KeyMap.Down, fp.KeyMap.Back, fp.KeyMap.Open},
-		{fp.KeyMap.GoToTop, fp.KeyMap.GoToLast, fp.KeyMap.PageUp, fp.KeyMap.PageDown},
-		{fp.nextPane, fp.priorPane},
-		{fp.fullHelp, fp.quit},
+		{fph.KeyMap.Up, fph.KeyMap.Down, fph.KeyMap.Back, fph.KeyMap.Open},
+		{fph.KeyMap.GoToTop, fph.KeyMap.GoToLast, fph.KeyMap.PageUp, fph.KeyMap.PageDown},
+		{fph.nextPane, fph.priorPane},
+		{fph.fullHelp, fph.quit},
 	}
 }
 
