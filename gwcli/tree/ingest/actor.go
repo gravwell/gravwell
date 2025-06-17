@@ -209,9 +209,9 @@ func (i *ingest) pickerView() string {
 	// generate the margins to ensure border stays stable during usage
 	// split the width 3 ways
 	usableWidth := i.width - 4
-	leftMargin := (usableWidth / 3) - 1
-	centerWidth := (usableWidth / 3)
-	rightMargin := (usableWidth / 4)
+	leftMargin := (usableWidth / 4) + 1
+	centerWidth := (usableWidth / 2)
+	rightMargin := (usableWidth / 5)
 	sty := lipgloss.NewStyle().
 		MarginLeft(leftMargin).
 		MarginRight(rightMargin).Width(centerWidth)
