@@ -117,7 +117,7 @@ func (s *DataScope) setResultsDisplayed() {
 var resultShortHelp = stylesheet.Sheet.DisabledText.Render(
 	fmt.Sprintf("%v page • %v scroll • home: jump top • end: jump bottom\n"+
 		"tab: cycle • esc: quit",
-		stylesheet.LeftRight, stylesheet.UpDown),
+		stylesheet.LeftRightSigils, stylesheet.UpDownSigils),
 )
 
 // generates a renderFooter with the box+line and help keys

@@ -190,8 +190,8 @@ func recompileHelp(s *DataScope) {
 		[][]string{
 			{strings.Join(keys.cycleTabs.Keys(), joinChar), "cycle tables"},
 			{strings.Join(keys.reverseCycleTabs.Keys(), joinChar), "reverse cycle tables"},
-			{stylesheet.UpDown, "scroll page"},
-			{stylesheet.LeftRight, "change page"},
+			{stylesheet.UpDownSigils, "scroll page"},
+			{stylesheet.LeftRightSigils, "change page"},
 			{strings.Join(keys.showTabs.Keys(), joinChar), "toggle tab visibility"},
 			{"esc", "quit"},
 		}...)

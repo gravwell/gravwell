@@ -62,7 +62,7 @@ func initialModifView(height, width uint) modifView {
 		selected: duration, // default to duration
 		keys: []key.Binding{
 			key.NewBinding(
-				key.WithKeys(stylesheet.UpDown),
+				key.WithKeys(stylesheet.UpDownSigils),
 				// help is not necessary when there is only one option
 				// key.WithHelp(stylesheet.UpDown, "select input"),
 			)},

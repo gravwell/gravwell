@@ -216,7 +216,7 @@ func (tt *tableTab) renderFooter() string {
 	return lipgloss.JoinVertical(lipgloss.Center,
 		scrollPercentLine(tt.vp.Width, tt.vp.ScrollPercent()),
 		lipgloss.JoinVertical(lipgloss.Center,
-			helpSty.Render(stylesheet.UpDown+" scroll • home: jump top • end: jump bottom"),
+			helpSty.Render(stylesheet.UpDownSigils+" scroll • home: jump top • end: jump bottom"),
 			helpSty.Render("alt+[1-9]: increase column size • shift+alt+[1-9]: decrease column size"),
 			helpSty.Render("tab: cycle • esc: quit"),
 		))

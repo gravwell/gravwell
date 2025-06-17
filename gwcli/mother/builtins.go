@@ -45,7 +45,7 @@ func initBuiltins() {
 			stylesheet.Sheet.ExampleText.Render("help ~ kits list") +
 			", " +
 			stylesheet.Sheet.ExampleText.Render("help query"),
-		"history": "List previous commands. Navigate history via " + stylesheet.UpDown,
+		"history": "List previous commands. Navigate history via " + stylesheet.UpDownSigils,
 		"pwd":     "Current working directory (path)",
 		"quit":    "Kill the application",
 		"exit":    "Kill the application",
