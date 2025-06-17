@@ -142,6 +142,11 @@ func (fph FilePickerWH) FullHelp() [][]key.Binding {
 // If displayTabPaneSwitch, then help will also display "tab" to switch to the next composed views.
 // If displayShiftTabPaneSwitch, then help will also display "shift tab" to switch to the prior composed view.
 func NewFilePickerWH(displayTabPaneSwitch, displayShiftTabPaneSwitch bool) FilePickerWH {
+	const (
+		marginBottom  = 5
+		fileSizeWidth = 7
+		paddingLeft   = 2
+	)
 	fp := filepicker.New()
 	// replace the default keys and help display
 	fp.KeyMap = filepicker.KeyMap{
@@ -154,6 +159,20 @@ func NewFilePickerWH(displayTabPaneSwitch, displayShiftTabPaneSwitch bool) FileP
 		Back:     key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/"+LeftSigil, "back")),
 		Open:     key.NewBinding(key.WithKeys("l", "right", "enter"), key.WithHelp("l/"+RightSigil, "open")),
 		Select:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
+	}
+
+	fp.Styles = filepicker.Styles{
+		DisabledCursor:   Sheet.DisabledText,
+		Cursor:           Sheet.PrimaryText,
+		Symlink:          Sheet.SecondaryText.Italic(true),
+		Directory:        Sheet.SecondaryText,
+		File:             lipgloss.NewStyle(),
+		DisabledFile:     Sheet.DisabledText,
+		DisabledSelected: Sheet.DisabledText,
+		Permission:       Sheet.PrimaryText.Faint(true),
+		Selected:         Sheet.ExampleText.Bold(true),
+		FileSize:         Sheet.PrimaryText.Faint(true).Width(fileSizeWidth).Align(lipgloss.Right),
+		EmptyDirectory:   Sheet.DisabledText.PaddingLeft(paddingLeft).SetString("Bummer. No Files Found."),
 	}
 
 	h := FilePickerWH{fp,
