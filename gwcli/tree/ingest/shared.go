@@ -10,6 +10,8 @@ package ingest
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 )
@@ -31,6 +33,13 @@ func autoingest(res chan<- struct {
 		return fmt.Errorf("tag count must be 1 or equal to the number of files specified (%v)", len(filepaths))
 	}
 
+	// if there is only 1 tag, validate it immediately rather than on repeat
+	if len(tags) == 1 {
+		tags[0] = strings.TrimSpace(tags[0])
+		if err := validateTag(tags[0]); err != nil {
+			return errInvalidTagCharacter
+		}
+	}
 	// try to ingest each file
 	for i, fp := range filepaths {
 		if fp == "" {
@@ -42,7 +51,19 @@ func autoingest(res chan<- struct {
 			if len(tags) == 1 {
 				tag = tags[0]
 			} else {
+				// validate each tag
 				tag = tags[i]
+				tags[0] = strings.TrimSpace(tags[0])
+				if err := validateTag(tags[0]); err != nil {
+					// send this error over the wire, rather than attempting ingestion
+					if res != nil {
+						res <- struct {
+							string
+							error
+						}{fp, err}
+					}
+					return
+				}
 			}
 
 			_, err := connection.Client.IngestFile(fp, tag, src, ignoreTS, localTime)
@@ -53,6 +74,20 @@ func autoingest(res chan<- struct {
 				}{fp, err}
 			}
 		}()
+	}
+	return nil
+}
+
+// Given a tag for the file to be ingested, validates that it is non-nil and does not have illegal characters.
+func validateTag(tag string) error {
+	if tag == "" {
+		return errEmptyTag
+	}
+	// test for illegal characters
+	for _, r := range tag {
+		if slices.Contains(illegalTagCharacters, r) {
+			return errInvalidTagCharacter
+		}
 	}
 	return nil
 }

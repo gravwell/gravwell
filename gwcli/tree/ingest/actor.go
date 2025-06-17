@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -134,10 +133,10 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 						return cmd
 					}
 				}
-				// check that tag is not empty
-				tag := strings.TrimSpace(i.mod.tagTI.Value())
-				if tag == "" {
-					i.err = errEmptyTag
+
+				tag := i.mod.tagTI.Value()
+				if err := validateTag(tag); err != nil {
+					i.err = err
 					return cmd
 				}
 
