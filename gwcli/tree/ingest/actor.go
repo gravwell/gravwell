@@ -21,7 +21,6 @@ import (
 	"net/netip"
 	"os"
 
-	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -46,7 +45,6 @@ const (
 var Ingest action.Model = Initial()
 
 type ingest struct {
-	fp          filepicker.Model
 	width       int // current known maximum width of the terminal
 	mode        mode
 	err         error
@@ -58,12 +56,14 @@ type ingest struct {
 
 	mod mod
 
-	spinner spinner.Model // TODO should busywait be pushed into stylesheet?
+	spinner spinner.Model
+
+	fp stylesheet.FilePickerWH
 }
 
 func Initial() *ingest {
 	i := &ingest{
-		fp:   filepicker.New(),
+		fp:   stylesheet.NewFilePickerWH(true, false),
 		mode: picking,
 		ingestResCh: make(chan struct {
 			string
@@ -77,6 +77,7 @@ func Initial() *ingest {
 	i.fp.DirAllowed = false
 	i.fp.FileAllowed = true
 	i.fp.ShowSize = true
+
 	return i
 }
 
@@ -105,10 +106,10 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 		}
 		return tea.Batch(i.spinner.Tick, resultCmd)
 	default: //case picking:
-		// on tab, switch view
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			i.err = nil
-			if keyMsg.Type == tea.KeyTab {
+			// on tab, switch view
+			if keyMsg.Type == tea.KeyTab || keyMsg.Type == tea.KeyShiftTab {
 				// switch focus
 				i.mod.focused = !i.mod.focused
 				return nil
@@ -206,7 +207,8 @@ func (i *ingest) View() string {
 			i.breadcrumbsView(),
 			i.pickerView(),
 			i.mod.view(i.width),
-			i.errHelpView())
+			i.errHelpView(),
+		)
 	}
 }
 
@@ -240,8 +242,7 @@ func (i *ingest) errHelpView() string {
 	if i.err != nil {
 		return stylesheet.Sheet.ErrText.Render(i.err.Error())
 	} else {
-		// TODO help keys
-		return "" // display help keys for submission and changing focus
+		return i.fp.ViewHelp() // display help keys for submission and changing focus
 	}
 }
 
