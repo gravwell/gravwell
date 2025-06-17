@@ -217,10 +217,22 @@ func (i *ingest) breadcrumbsView() string {
 }
 
 func (i *ingest) pickerView() string {
+	// generate the margins to ensure border stays stable during usage
+	// split the width 3 ways
+	usableWidth := i.width - 4
+	leftMargin := (usableWidth / 3) - 1
+	centerWidth := (usableWidth / 3)
+	rightMargin := (usableWidth / 4)
+	sty := lipgloss.NewStyle().
+		MarginLeft(leftMargin).
+		MarginRight(rightMargin).Width(centerWidth)
+
 	if i.mod.focused {
-		return stylesheet.Sheet.Composable.UnfocusedBorder.Render(i.fp.View())
+		return stylesheet.Sheet.Composable.UnfocusedBorder.
+			AlignHorizontal(lipgloss.Center).Render(sty.Render(i.fp.View()))
 	} else {
-		return stylesheet.Sheet.Composable.FocusedBorder.Render(i.fp.View())
+		return stylesheet.Sheet.Composable.FocusedBorder.
+			AlignHorizontal(lipgloss.Center).Render(sty.Render(i.fp.View()))
 	}
 }
 
@@ -240,7 +252,6 @@ func (i *ingest) Done() bool {
 }
 
 func (i *ingest) Reset() error {
-	//i.fp // TODO does this need to be reset?
 	i.mode = picking
 	i.err = nil
 
