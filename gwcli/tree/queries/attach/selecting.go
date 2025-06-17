@@ -293,7 +293,7 @@ func composeDetails(a attachable) string {
 		detailSB.WriteString("\n" + stylesheet.Cur.SecondaryText.Render("No History Mode"))
 	}
 	if a.Error != "" {
-		detailSB.WriteString("\nError: " + stylesheet.Cur.ErrText.Render(a.Error))
+		detailSB.WriteString("\nError: " + stylesheet.Cur.ErrorText.Render(a.Error))
 	}
 
 	// wrap detail view in a border
@@ -396,11 +396,11 @@ var sty struct {
 	bottomText      lipgloss.Style
 }{
 	qryBody:         lipgloss.NewStyle().Height(5).Margin(1),
-	qryWrap:         stylesheet.Cur.Composable.ComplimentaryBorder,
+	qryWrap:         stylesheet.Cur.ComposableSty.ComplimentaryBorder,
 	state:           stylesheet.Cur.PrimaryText.AlignHorizontal(lipgloss.Center).Margin(1, 0, 1),
 	detailFieldText: stylesheet.Cur.PrimaryText,
 	detailBody:      lipgloss.NewStyle().Margin(1),
-	detailWrap:      stylesheet.Cur.Composable.ComplimentaryBorder,
+	detailWrap:      stylesheet.Cur.ComposableSty.ComplimentaryBorder,
 	listAlign:       lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).MarginRight(int(halfMargin)),
 	detailAlign:     lipgloss.NewStyle().MarginLeft(int(halfMargin)),
 	bottomText:      stylesheet.Cur.SecondaryText.AlignHorizontal(lipgloss.Center).MaxHeight(1),

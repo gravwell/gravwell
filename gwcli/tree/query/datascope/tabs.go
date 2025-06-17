@@ -179,7 +179,7 @@ func recompileHelp(s *DataScope) {
 		BorderRow(true).BorderColumn(false).
 		BorderLeft(false).BorderRight(false).
 		BorderTop(false).BorderBottom(false).
-		BorderStyle(stylesheet.Cur.Table.BorderStyle).
+		BorderStyle(stylesheet.Cur.TableSty.BorderStyle).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if col == 0 {
 				return keyColumnStyle

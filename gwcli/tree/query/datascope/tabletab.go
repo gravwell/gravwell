@@ -82,7 +82,7 @@ func initTableTab(data []string) tableTab {
 			}
 			return oddEntryStyle
 		}).
-		HeaderStyle(stylesheet.Cur.Table.HeaderCells)
+		HeaderStyle(stylesheet.Cur.TableSty.HeaderCells)
 		// NOTE: As of evertras-table v0.16.1,
 		// the borders cannot be styled (only their runes changed.)
 

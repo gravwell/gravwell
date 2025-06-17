@@ -18,22 +18,37 @@ package stylesheet
 
 // miscellaneous styles
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"github.com/charmbracelet/lipgloss"
+)
 
-type sheet struct {
+// Cur is the stylesheet currently in-use by gwcli.
+// This is what other packages should reference when stylizing their elements.
+var Cur Sheet
+
+func init() {
+	// set the current stylesheet
+	Cur = classic() //tritonePlus()
+}
+
+// A Sheet is a set of lipgloss.Style fields sufficient to colorize/theme gwcli.
+// A single sheet is selected at start up (in init()) to provide the styling for all aspects of gwcli.
+type Sheet struct {
 	Nav    lipgloss.Style // style of nav/directory items while traversing the tree
 	Action lipgloss.Style // style of actions/invokables while traversing the tree
 
+	FieldText lipgloss.Style // style applied to fields, some of which will be preceded by a Pip
+	Pip       func() string  // must return a single, stylized character that points to the currently selected field
+
 	// for building multi-pane views
-	Composable struct {
+	ComposableSty struct {
 		FocusedBorder       lipgloss.Style // stylized border for wrapping elements currently in focus
 		UnfocusedBorder     lipgloss.Style // stylized border for wrapping elements that could be in focus, but are currently blurred
 		ComplimentaryBorder lipgloss.Style // stylized border for wrapping complimentary elements that do not toggle focus
-		ModifierText        lipgloss.Style // modifier field names, typically grouped and wrapped by (Un)FocusedBorder
 	}
 
 	// for building tables
-	Table struct {
+	TableSty struct {
 		HeaderCells lipgloss.Style
 		EvenCells   lipgloss.Style
 		OddCells    lipgloss.Style
@@ -41,17 +56,32 @@ type sheet struct {
 		BorderStyle lipgloss.Style
 	}
 
-	ErrText      lipgloss.Style // text that displays an error
+	ErrorText    lipgloss.Style // text that displays an error
 	ExampleText  lipgloss.Style // text that display an example
-	DisabledText lipgloss.Style // text that is currently disabled
+	DisabledText lipgloss.Style // text/item that is currently disabled
 
-	// TODO convert prompt into func(string) string
-	PromptText lipgloss.Style // text that prefixes an input box, but is not a modifier (primarily used for Mother's prompt)
+	// user inputs (NOT including those already covered by FieldText).
+	// This is primarily used for Mother's prompt and the cred/mfa prompts.
+	PromptSty struct {
+		Symbol func() string       // a stylized sigil (expected to be a single character) that suffixes prompt text
+		Text   func(string) string // given the text prefixing the input, returns a stylized version of it
+	}
 
-	PrimaryText   lipgloss.Style // catchall for important/focal text that does not fit into a different category
-	SecondaryText lipgloss.Style // catchall for text that does not fit into a different category and is not primary
+	// catchall for important/focal text that does not fit into a different category.
+	// This text will be used regularly to indicate significance.
+	PrimaryText lipgloss.Style
+	// catchall for text that does not fit into a different category and is not primary.
+	// This text typically sidecars primary text.
+	SecondaryText lipgloss.Style
+	// rarely used style intended to supplement secondary text when yet more differentiation is necessary.
+	TertiaryText lipgloss.Style
 
-	Spinner lipgloss.Style
+	Spinner     lipgloss.Style
+	SpinnerText lipgloss.Style // text that sometimes accompanies a spinner
+}
+
+func (s Sheet) Prompt(text string) string {
+	return s.PromptSty.Text(text) + s.PromptSty.Symbol()
 }
 
 // A Tetrad is a set of 4 colors that can be transmuted into a full sheet via GenerateSheet().
@@ -62,52 +92,55 @@ type sheet struct {
 // A Palette is a set of 5 colors that can be transmuted into a full sheet via GenerateSheet().
 // It allows for quicker color swaps without having to manually populate a whole style sheet.
 type Palette struct {
-	PrimaryColor   lipgloss.Color
+	// The focal/most important/most common color.
+	// The main prompt's text, for example, will be this color.
+	PrimaryColor lipgloss.Color
+	// A color complimentary to the primary.
+	// This also serves as the Nav color.
 	SecondaryColor lipgloss.Color
-	TertiaryColor  lipgloss.Color
-	AccentColor1   lipgloss.Color
-	AccentColor2   lipgloss.Color
+	// A color complimentary to the primary and secondary
+	TertiaryColor lipgloss.Color
+	// accent colors can serve as a pop of color outside of the adjacency of primary/secondary/tertiary.
+	// This also serves as the Action color.
+	AccentColor1 lipgloss.Color
+	// accent colors can serve as a pop of color outside of the adjacency of primary/secondary/tertiary.
+	// Generally speaking, AccentColor2 is rarer than AccentColor1
+	AccentColor2 lipgloss.Color
 }
 
-func (p Palette) GenerateSheet() sheet {
-	return sheet{}
-}
+func (p Palette) GenerateSheet() Sheet {
+	pipSty := lipgloss.NewStyle().Foreground(p.AccentColor1)
 
-// Cur is the stylesheet currently in-use by gwcli.
-// This is what other packages should reference when stylizing their elements.
-var Cur sheet
+	primaryColorSty := lipgloss.NewStyle().Foreground(p.PrimaryColor)
+	secondaryColorSty := lipgloss.NewStyle().Foreground(p.SecondaryColor)
+	accentColor1Sty := lipgloss.NewStyle().Foreground(p.AccentColor1)
 
-func init() {
-	// set the current stylesheet
-	Cur = classic() //tritonePlus()
-}
+	return Sheet{
+		Nav:    secondaryColorSty,
+		Action: lipgloss.NewStyle().Foreground(p.AccentColor2),
 
-func softPink() sheet {
-	return sheet{
-		Nav:    lipgloss.NewStyle().Foreground(amaranthPurple), //.Bold(true),
-		Action: lipgloss.NewStyle().Foreground(melon),
+		FieldText: primaryColorSty,
+		Pip:       func() string { return pipSty.Render(string(SelectionPrefix)) },
 
-		Composable: struct {
+		ComposableSty: struct {
 			FocusedBorder       lipgloss.Style
 			UnfocusedBorder     lipgloss.Style
 			ComplimentaryBorder lipgloss.Style
-			ModifierText        lipgloss.Style
 		}{
 			FocusedBorder: lipgloss.NewStyle().
 				Align(lipgloss.Left, lipgloss.Center).
 				BorderStyle(lipgloss.NormalBorder()).
-				BorderForeground(amethyst),
+				BorderForeground(p.PrimaryColor),
 			UnfocusedBorder: lipgloss.NewStyle().
 				Align(lipgloss.Left, lipgloss.Center).
 				BorderStyle(lipgloss.HiddenBorder()),
 			ComplimentaryBorder: lipgloss.NewStyle().
 				Align(lipgloss.Left, lipgloss.Center).
 				BorderStyle(lipgloss.NormalBorder()).
-				BorderForeground(mistyRose),
-			ModifierText: lipgloss.NewStyle().Foreground(melon),
+				BorderForeground(p.AccentColor1),
 		},
 
-		Table: struct {
+		TableSty: struct {
 			HeaderCells lipgloss.Style
 			EvenCells   lipgloss.Style
 			OddCells    lipgloss.Style
@@ -115,147 +148,32 @@ func softPink() sheet {
 			BorderStyle lipgloss.Style
 		}{
 			HeaderCells: lipgloss.NewStyle().
-				Foreground(amethyst).
+				Foreground(p.PrimaryColor).
 				AlignHorizontal(lipgloss.Center).
 				AlignVertical(lipgloss.Center).Bold(true),
-			EvenCells:   lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(melon),
-			OddCells:    lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(mistyRose),
+			EvenCells:   lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(p.SecondaryColor),
+			OddCells:    lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(p.TertiaryColor),
 			BorderType:  lipgloss.NormalBorder(),
-			BorderStyle: lipgloss.NewStyle().Foreground(amethyst),
+			BorderStyle: primaryColorSty,
 		},
 
-		ErrText:      lipgloss.NewStyle().Foreground(bloodRed),
-		ExampleText:  lipgloss.NewStyle().Foreground(satinSheenGold),
+		ErrorText:    lipgloss.NewStyle().Foreground(bittersweet),
+		ExampleText:  accentColor1Sty.Italic(true),
 		DisabledText: lipgloss.NewStyle().Faint(true),
 
-		PromptText: lipgloss.NewStyle().Foreground(amethyst),
-
-		PrimaryText:   lipgloss.NewStyle().Foreground(amethyst),
-		SecondaryText: lipgloss.NewStyle().Foreground(melon),
-
-		Spinner: lipgloss.NewStyle().Foreground(amethyst),
-	}
-}
-
-func tritonePlus() sheet {
-	nav, action := lipgloss.NewStyle().Foreground(steelBlue), lipgloss.NewStyle().Foreground(bittersweet)
-
-	one, two, three := darkViolet, sunglow, yellowGreen
-
-	return sheet{
-		Nav: nav, Action: action,
-
-		Composable: struct {
-			FocusedBorder       lipgloss.Style
-			UnfocusedBorder     lipgloss.Style
-			ComplimentaryBorder lipgloss.Style
-			ModifierText        lipgloss.Style
+		PromptSty: struct {
+			Symbol func() string
+			Text   func(string) string
 		}{
-			FocusedBorder: lipgloss.NewStyle().
-				Align(lipgloss.Left, lipgloss.Center).
-				BorderStyle(lipgloss.NormalBorder()).
-				BorderForeground(one),
-			UnfocusedBorder: lipgloss.NewStyle().
-				Align(lipgloss.Left, lipgloss.Center).
-				BorderStyle(lipgloss.HiddenBorder()),
-			ComplimentaryBorder: lipgloss.NewStyle().
-				Align(lipgloss.Left, lipgloss.Center).
-				BorderStyle(lipgloss.NormalBorder()).
-				BorderForeground(three),
-			ModifierText: lipgloss.NewStyle().Foreground(three),
+			Symbol: func() string { return primaryColorSty.Render("⦠") },
+			Text:   func(s string) string { return primaryColorSty.Render(s) },
 		},
 
-		Table: struct {
-			HeaderCells lipgloss.Style
-			EvenCells   lipgloss.Style
-			OddCells    lipgloss.Style
-			BorderType  lipgloss.Border
-			BorderStyle lipgloss.Style
-		}{
-			HeaderCells: lipgloss.NewStyle().
-				Foreground(one).
-				AlignHorizontal(lipgloss.Center).
-				AlignVertical(lipgloss.Center).Bold(true),
-			EvenCells:   lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(two),
-			OddCells:    lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(three),
-			BorderType:  lipgloss.NormalBorder(),
-			BorderStyle: lipgloss.NewStyle().Foreground(one),
-		},
+		PrimaryText:   primaryColorSty,
+		SecondaryText: secondaryColorSty,
+		TertiaryText:  lipgloss.NewStyle().Foreground(p.TertiaryColor),
 
-		ErrText:      lipgloss.NewStyle().Foreground(bloodRed),
-		ExampleText:  lipgloss.NewStyle().Foreground(yellowGreen),
-		DisabledText: lipgloss.NewStyle().Faint(true),
-
-		PromptText: lipgloss.NewStyle().Foreground(one),
-
-		PrimaryText:   lipgloss.NewStyle().Foreground(one),
-		SecondaryText: lipgloss.NewStyle().Foreground(two),
-
-		Spinner: lipgloss.NewStyle().Foreground(one),
-	}
-}
-
-func classic() sheet {
-	var (
-		primaryColor   = tropicalIndigo
-		secondaryColor = lavender_floral
-		tertiaryColor  = violet_web
-		//accentColor1   = atomicTangerine
-		accentColor2 = aquamarine
-	)
-
-	nav := lipgloss.NewStyle().Foreground(secondaryColor)
-	action := lipgloss.NewStyle().Foreground(tertiaryColor)
-
-	return sheet{
-		Nav: nav, Action: action,
-
-		Composable: struct {
-			FocusedBorder       lipgloss.Style
-			UnfocusedBorder     lipgloss.Style
-			ComplimentaryBorder lipgloss.Style
-			ModifierText        lipgloss.Style
-		}{
-			FocusedBorder: lipgloss.NewStyle().
-				Align(lipgloss.Left, lipgloss.Center).
-				BorderStyle(lipgloss.NormalBorder()).
-				BorderForeground(primaryColor),
-			UnfocusedBorder: lipgloss.NewStyle().
-				Align(lipgloss.Left, lipgloss.Center).
-				BorderStyle(lipgloss.HiddenBorder()),
-			ComplimentaryBorder: lipgloss.NewStyle().
-				Align(lipgloss.Left, lipgloss.Center).
-				BorderStyle(lipgloss.NormalBorder()).
-				BorderForeground(accentColor2),
-			ModifierText: lipgloss.NewStyle().Foreground(primaryColor),
-		},
-
-		Table: struct {
-			HeaderCells lipgloss.Style
-			EvenCells   lipgloss.Style
-			OddCells    lipgloss.Style
-			BorderType  lipgloss.Border
-			BorderStyle lipgloss.Style
-		}{
-			HeaderCells: lipgloss.NewStyle().
-				Foreground(primaryColor).
-				AlignHorizontal(lipgloss.Center).
-				AlignVertical(lipgloss.Center).Bold(true),
-			EvenCells:   lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(secondaryColor),
-			OddCells:    lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(tertiaryColor),
-			BorderType:  lipgloss.NormalBorder(),
-			BorderStyle: lipgloss.NewStyle().Foreground(primaryColor),
-		},
-
-		ErrText:      lipgloss.NewStyle().Foreground(bloodRed),
-		ExampleText:  lipgloss.NewStyle().Foreground(accentColor2),
-		DisabledText: lipgloss.NewStyle().Faint(true),
-
-		PromptText: lipgloss.NewStyle().Foreground(primaryColor),
-
-		PrimaryText:   lipgloss.NewStyle().Foreground(primaryColor),
-		SecondaryText: lipgloss.NewStyle().Foreground(secondaryColor),
-
-		Spinner: lipgloss.NewStyle().Foreground(primaryColor),
+		Spinner:     primaryColorSty,
+		SpinnerText: secondaryColorSty,
 	}
 }

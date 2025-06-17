@@ -64,7 +64,7 @@ func contextHelp(m *Mother, args []string) tea.Cmd {
 	wr := walk(m.pwd, args)
 
 	if wr.errString != "" { // erroneous input
-		return tea.Println(stylesheet.Cur.ErrText.Render(wr.errString))
+		return tea.Println(stylesheet.Cur.ErrorText.Render(wr.errString))
 	}
 	switch wr.status {
 	case foundNav, foundAction:

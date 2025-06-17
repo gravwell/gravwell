@@ -96,7 +96,7 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			} else {
 				s := fmt.Sprintf("failed to ingest file %v: %v", res.string, res.error)
 				clilog.Writer.Warn(s)
-				resultCmd = tea.Println(stylesheet.Cur.ErrText.Render(s))
+				resultCmd = tea.Println(stylesheet.Cur.ErrorText.Render(s))
 			}
 
 			i.ingestCount -= 1
@@ -202,7 +202,7 @@ func (i *ingest) View() string {
 //#region view helpers
 
 func (i *ingest) breadcrumbsView() string {
-	return stylesheet.Cur.Composable.ComplimentaryBorder.Render(i.fp.CurrentDirectory)
+	return stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(i.fp.CurrentDirectory)
 }
 
 func (i *ingest) pickerView() string {
@@ -217,7 +217,7 @@ func (i *ingest) pickerView() string {
 		MarginRight(rightMargin).Width(centerWidth)
 
 	// figure out how much height everything else needs
-	breadcrumbHeight := lipgloss.Height(stylesheet.Cur.Composable.ComplimentaryBorder.Render(i.fp.CurrentDirectory))
+	breadcrumbHeight := lipgloss.Height(stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(i.fp.CurrentDirectory))
 	modHeight := lipgloss.Height(i.mod.view(i.width))
 	errHelpHeight := lipgloss.Height(i.errHelpView())
 	buffer := 5
@@ -227,17 +227,17 @@ func (i *ingest) pickerView() string {
 
 	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fp.View()), i.errHelpView())
 	if i.mod.focused {
-		return stylesheet.Cur.Composable.UnfocusedBorder.
+		return stylesheet.Cur.ComposableSty.UnfocusedBorder.
 			AlignHorizontal(lipgloss.Center).Render(s)
 	} else {
-		return stylesheet.Cur.Composable.FocusedBorder.
+		return stylesheet.Cur.ComposableSty.FocusedBorder.
 			AlignHorizontal(lipgloss.Center).Render(s)
 	}
 }
 
 func (i *ingest) errHelpView() string {
 	if i.err != nil {
-		return stylesheet.Cur.ErrText.Render(i.err.Error())
+		return stylesheet.Cur.ErrorText.Render(i.err.Error())
 	} else {
 		return i.fp.ViewHelp() // display help keys for submission and changing focus
 	}

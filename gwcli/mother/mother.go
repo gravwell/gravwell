@@ -306,8 +306,8 @@ func (m Mother) View() string {
 		filtered = slices.Compact(filtered)
 	}
 
-	return fmt.Sprintf("%s%v\n%v",
-		commandPath(&m), m.ti.View(), strings.Join(filtered, " "))
+	return fmt.Sprintf("%s\n%v",
+		m.promptString(), strings.Join(filtered, " "))
 }
 
 //#endregion
@@ -339,7 +339,7 @@ func processInput(m *Mother) tea.Cmd {
 	if wr.errString != "" {
 		return tea.Sequence(
 			historyCmd,
-			tea.Println(stylesheet.Cur.ErrText.Render(wr.errString)),
+			tea.Println(stylesheet.Cur.ErrorText.Render(wr.errString)),
 		)
 	}
 
@@ -388,7 +388,7 @@ func (m *Mother) pushToHistory() (println tea.Cmd, userIn string, err error) {
 
 // Returns a composition resembling the full prompt.
 func (m *Mother) promptString() string {
-	return fmt.Sprintf("%s> %s", commandPath(m), m.ti.Value())
+	return fmt.Sprintf("%s %s", stylesheet.Cur.Prompt(m.pwd.CommandPath()), m.ti.Value())
 }
 
 // helper subroutine for processInput
@@ -632,11 +632,6 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 
 	// chomp last newline and return
 	return tea.Println(strings.TrimSuffix(s.String(), "\n"))
-}
-
-// commandPath returns the present working directory, set to the primary color.
-func commandPath(m *Mother) string {
-	return stylesheet.Cur.PromptText.Render(m.pwd.CommandPath())
 }
 
 //#endregion

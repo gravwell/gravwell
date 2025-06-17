@@ -58,7 +58,7 @@ func (s spnr) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (s spnr) View() string {
 	v := s.spnr.View()
 	if s.notice != "" {
-		v += "\t" + Cur.PromptText.Render(s.notice)
+		v += "\t" + Cur.SpinnerText.Render(s.notice)
 	}
 	return v
 }
@@ -91,16 +91,16 @@ func NewSpinner() spinner.Model {
 // Table generates the skeleton of a properly styled table
 func Table() *table.Table {
 	tbl := table.New().
-		Border(Cur.Table.BorderType).
-		BorderStyle(Cur.Table.BorderStyle).
+		Border(Cur.TableSty.BorderType).
+		BorderStyle(Cur.TableSty.BorderStyle).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			switch {
 			case row == 0:
-				return Cur.Table.HeaderCells
+				return Cur.TableSty.HeaderCells
 			case row%2 == 0:
-				return Cur.Table.EvenCells
+				return Cur.TableSty.EvenCells
 			default:
-				return Cur.Table.OddCells
+				return Cur.TableSty.OddCells
 			}
 		}).BorderRow(true)
 
