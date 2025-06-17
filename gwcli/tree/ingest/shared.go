@@ -9,7 +9,6 @@
 package ingest
 
 import (
-	"fmt"
 	"slices"
 	"strings"
 
@@ -26,11 +25,11 @@ func autoingest(res chan<- struct {
 	error
 }, filepaths, tags []string, ignoreTS, localTime bool, src string) (ufErr error) {
 	if len(filepaths) == 0 {
-		return fmt.Errorf("at least 1 file path must be specified")
+		return errNoFilesSpecified
 	}
 	// check that tag len is 1 or == file len
 	if len(tags) != 1 && len(tags) != len(filepaths) {
-		return fmt.Errorf("tag count must be 1 or equal to the number of files specified (%v)", len(filepaths))
+		return errBadTagCount(uint(len(filepaths)))
 	}
 
 	// if there is only 1 tag, validate it immediately rather than on repeat
