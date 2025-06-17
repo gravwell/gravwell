@@ -37,9 +37,10 @@ const (
 )
 
 var (
-	green = "\u001b[32m"
-	red   = "\u001b[31m"
-	reset = "\u001b[0m"
+	green  = "\u001b[32m"
+	red    = "\u001b[31m"
+	yellow = "\u001b[33m"
+	reset  = "\u001b[0m"
 )
 
 //#region helper functions
@@ -63,7 +64,7 @@ func bad(txt string) string {
 
 // Colors the text in yellow.
 func mid(txt string) string {
-	return red + txt + reset
+	return yellow + txt + reset
 }
 
 // Runs the given test and outputs (verbose-dependent) its error log (or "ok").
@@ -92,6 +93,8 @@ func init() {
 	// if color has been disabled, set all of the color prefixes (and reset suffix) to the empty string
 	if !mg.EnableColor() {
 		green = ""
+		red = ""
+		yellow = ""
 		reset = ""
 	}
 }
