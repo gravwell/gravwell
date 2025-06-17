@@ -26,7 +26,6 @@ type mod struct {
 	// meta
 	focused  bool    // is the modifier pane in focus?
 	selected modItem // currently selected item in the mod pane
-	width    uint
 
 	tagTI     textinput.Model // tag to ingest file under
 	srcTI     textinput.Model // user-provided IP address source
@@ -81,7 +80,7 @@ func (m mod) update(msg tea.Msg) (mod, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m mod) view() string {
+func (m mod) view(width int) string {
 	v := fmt.Sprintf(
 		"%vsource: %s\t"+
 			"%vtag: %s\t"+
@@ -94,9 +93,13 @@ func (m mod) view() string {
 	)
 
 	if m.focused {
-		return stylesheet.Sheet.Composable.FocusedBorder.Width(int(m.width) - (stylesheet.Sheet.Composable.FocusedBorder.GetHorizontalMargins() + 2)).Render(v)
+		return stylesheet.Sheet.Composable.FocusedBorder.
+			Width(width - (stylesheet.Sheet.Composable.FocusedBorder.GetHorizontalFrameSize() + 3)).
+			Render(v)
 	} else {
-		return stylesheet.Sheet.Composable.UnfocusedBorder.Width(int(m.width) - (stylesheet.Sheet.Composable.UnfocusedBorder.GetHorizontalMargins() + 2)).Render(v)
+		return stylesheet.Sheet.Composable.UnfocusedBorder.
+			Width(width - (stylesheet.Sheet.Composable.UnfocusedBorder.GetHorizontalFrameSize() + 3)).
+			Render(v)
 	}
 }
 

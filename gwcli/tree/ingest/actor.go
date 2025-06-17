@@ -33,6 +33,8 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const maxHeight int = 50
+
 type mode = string
 
 const (
@@ -45,6 +47,7 @@ var Ingest action.Model = Initial()
 
 type ingest struct {
 	fp          filepicker.Model
+	width       int // current known maximum width of the terminal
 	mode        mode
 	err         error
 	ingestResCh chan struct {
@@ -172,13 +175,13 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
 			// figure out how much height everything else needs
 			breadcrumbHeight := lipgloss.Height(stylesheet.Sheet.Composable.ComplimentaryBorder.Render(i.fp.CurrentDirectory))
-			modHeight := lipgloss.Height(i.mod.view())
+			modHeight := lipgloss.Height(i.mod.view(wsMsg.Width))
 			errHelpHeight := lipgloss.Height(i.errHelpView())
 			buffer := 5
 
 			newHeight := wsMsg.Height - (breadcrumbHeight + modHeight + errHelpHeight + buffer)
-			i.fp.SetHeight(newHeight)
-			i.mod.width = uint(wsMsg.Width)
+			i.fp.SetHeight(min(newHeight, maxHeight))
+			i.width = wsMsg.Width
 		}
 
 		return cmd
@@ -202,7 +205,7 @@ func (i *ingest) View() string {
 		return lipgloss.JoinVertical(lipgloss.Center,
 			i.breadcrumbsView(),
 			i.pickerView(),
-			i.mod.view(),
+			i.mod.view(i.width),
 			i.errHelpView())
 	}
 }
