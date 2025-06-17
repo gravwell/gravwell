@@ -207,7 +207,6 @@ func (i *ingest) View() string {
 			i.breadcrumbsView(),
 			i.pickerView(),
 			i.mod.view(i.width),
-			i.errHelpView(),
 		)
 	}
 }
@@ -229,12 +228,13 @@ func (i *ingest) pickerView() string {
 		MarginLeft(leftMargin).
 		MarginRight(rightMargin).Width(centerWidth)
 
+	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fp.View()), i.fp.ViewHelp())
 	if i.mod.focused {
 		return stylesheet.Sheet.Composable.UnfocusedBorder.
-			AlignHorizontal(lipgloss.Center).Render(sty.Render(i.fp.View()))
+			AlignHorizontal(lipgloss.Center).Render(s)
 	} else {
 		return stylesheet.Sheet.Composable.FocusedBorder.
-			AlignHorizontal(lipgloss.Center).Render(sty.Render(i.fp.View()))
+			AlignHorizontal(lipgloss.Center).Render(s)
 	}
 }
 
