@@ -384,8 +384,8 @@ func (c *createModel) View() string {
 	fieldWidth := c.longestFieldLength + 3 // 1 spaces for ":", 1 for pip, 1 for padding
 
 	var ( // styles
-		tiFieldRequiredSty = stylesheet.Sheet.PrimaryText
-		tiFieldOptionalSty = stylesheet.Sheet.SecondaryText
+		tiFieldRequiredSty = stylesheet.Cur.PrimaryText
+		tiFieldOptionalSty = stylesheet.Cur.SecondaryText
 		leftAlignerSty     = lipgloss.NewStyle().
 					Width(fieldWidth).
 					AlignHorizontal(lipgloss.Right).

@@ -141,8 +141,8 @@ func (m mfaModel) View() string {
 		"If you don't have access to your authenticator, you can enter a recovery code below:\n"+
 		"%v%v\n"+
 		"Once a recovery code has been used, it cannot be used again!\n",
-		stylesheet.Sheet.PromptText.Render("TOTP"), m.codeTI.View(),
-		stylesheet.Sheet.SecondaryText.Render("recovery"), m.recoveryTI.View())
+		stylesheet.Cur.PromptText.Render("TOTP"), m.codeTI.View(),
+		stylesheet.Cur.SecondaryText.Render("recovery"), m.recoveryTI.View())
 }
 
 // select the next TI

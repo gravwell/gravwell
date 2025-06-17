@@ -210,7 +210,7 @@ type attachable struct {
 func (i attachable) Title() string {
 	var status = string(i.State.Status)
 	if status != "" {
-		status = stylesheet.Sheet.SecondaryText.Render("{" + string(i.State.Status) + "} ")
+		status = stylesheet.Cur.SecondaryText.Render("{" + string(i.State.Status) + "} ")
 	}
 	return fmt.Sprintf("%s%s", status, i.UserQuery)
 }
@@ -290,10 +290,10 @@ func composeDetails(a attachable) string {
 		a.AttachedClients,
 		a.StoredData))
 	if a.NoHistory {
-		detailSB.WriteString("\n" + stylesheet.Sheet.SecondaryText.Render("No History Mode"))
+		detailSB.WriteString("\n" + stylesheet.Cur.SecondaryText.Render("No History Mode"))
 	}
 	if a.Error != "" {
-		detailSB.WriteString("\nError: " + stylesheet.Sheet.ErrText.Render(a.Error))
+		detailSB.WriteString("\nError: " + stylesheet.Cur.ErrText.Render(a.Error))
 	}
 
 	// wrap detail view in a border
@@ -396,14 +396,14 @@ var sty struct {
 	bottomText      lipgloss.Style
 }{
 	qryBody:         lipgloss.NewStyle().Height(5).Margin(1),
-	qryWrap:         stylesheet.Sheet.Composable.ComplimentaryBorder,
-	state:           stylesheet.Sheet.PrimaryText.AlignHorizontal(lipgloss.Center).Margin(1, 0, 1),
-	detailFieldText: stylesheet.Sheet.PrimaryText,
+	qryWrap:         stylesheet.Cur.Composable.ComplimentaryBorder,
+	state:           stylesheet.Cur.PrimaryText.AlignHorizontal(lipgloss.Center).Margin(1, 0, 1),
+	detailFieldText: stylesheet.Cur.PrimaryText,
 	detailBody:      lipgloss.NewStyle().Margin(1),
-	detailWrap:      stylesheet.Sheet.Composable.ComplimentaryBorder,
+	detailWrap:      stylesheet.Cur.Composable.ComplimentaryBorder,
 	listAlign:       lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).MarginRight(int(halfMargin)),
 	detailAlign:     lipgloss.NewStyle().MarginLeft(int(halfMargin)),
-	bottomText:      stylesheet.Sheet.SecondaryText.AlignHorizontal(lipgloss.Center).MaxHeight(1),
+	bottomText:      stylesheet.Cur.SecondaryText.AlignHorizontal(lipgloss.Center).MaxHeight(1),
 }
 
 //#endregion styles

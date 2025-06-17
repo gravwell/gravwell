@@ -38,7 +38,7 @@ var (
 		return lipgloss.NewStyle().Width(width).PaddingBottom(1).AlignHorizontal(lipgloss.Center)
 	}
 	evenEntryStyle = lipgloss.NewStyle()
-	oddEntryStyle  = stylesheet.Sheet.SecondaryText
+	oddEntryStyle  = stylesheet.Cur.SecondaryText
 )
 
 // Returns a line, right-suffixed with the given percent*100.
@@ -48,7 +48,7 @@ var (
 func scrollPercentLine(width int, rawPercent float64) string {
 	scrollPercent := fmt.Sprintf("%3.f%%", rawPercent*100)
 	line := lipgloss.NewStyle().
-		Foreground(stylesheet.Sheet.PrimaryText.GetForeground()).
+		Foreground(stylesheet.Cur.PrimaryText.GetForeground()).
 		Render(
 			strings.Repeat("─",
 				max(0, width-lipgloss.Width(scrollPercent))),
@@ -168,7 +168,7 @@ func recompileHelp(s *DataScope) {
 	// Note the usage of width within these styles rather than the table's width.
 	// Doing the reverse would cause long cells to truncate instead of wrap.
 	// This method does *not* prevent truncation if the terminal is too small
-	keyColumnStyle := stylesheet.Sheet.PrimaryText.
+	keyColumnStyle := stylesheet.Cur.PrimaryText.
 		MaxWidth(s.usableWidth() / 2).Width(cellWidth)
 	valueColumnStyle := lipgloss.NewStyle().MaxWidth(s.usableWidth() / 2).Width(cellWidth)
 
@@ -179,7 +179,7 @@ func recompileHelp(s *DataScope) {
 		BorderRow(true).BorderColumn(false).
 		BorderLeft(false).BorderRight(false).
 		BorderTop(false).BorderBottom(false).
-		BorderStyle(stylesheet.Sheet.Table.BorderStyle).
+		BorderStyle(stylesheet.Cur.Table.BorderStyle).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			if col == 0 {
 				return keyColumnStyle
@@ -253,7 +253,7 @@ func (s *DataScope) renderTabs(width int) string {
 		}
 		style = style.Border(border)
 		if i == int(results) {
-			rendered[i] = stylesheet.Sheet.PrimaryText.Render(t.name)
+			rendered[i] = stylesheet.Cur.PrimaryText.Render(t.name)
 		} else {
 			rendered[i] = style.Render(t.name)
 		}

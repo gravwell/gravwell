@@ -337,8 +337,8 @@ func viewDownload(s *DataScope) string {
 	width := s.download.outfileTI.Width + 5
 
 	var ( // shared styles
-		titleSty    = stylesheet.Sheet.PrimaryText
-		subtitleSty = stylesheet.Sheet.SecondaryText
+		titleSty    = stylesheet.Cur.PrimaryText
+		subtitleSty = stylesheet.Cur.SecondaryText
 		lcolAligner = lipgloss.NewStyle().Width(width).AlignHorizontal(lipgloss.Right).PaddingRight(1)
 		rcolAligner = lipgloss.NewStyle().Width(width).AlignHorizontal(lipgloss.Left)
 	)
@@ -440,7 +440,7 @@ func recordSegment(titleSty, lcolAligner, rcolAligner lipgloss.Style,
 	recSty := titleSty
 	tooltipSty := lipgloss.NewStyle()
 	if strings.TrimSpace(dl.recordsTI.Value()) == "" {
-		tooltipSty = stylesheet.Sheet.DisabledText
+		tooltipSty = stylesheet.Cur.DisabledText
 	}
 
 	recs := lipgloss.JoinHorizontal(lipgloss.Center,

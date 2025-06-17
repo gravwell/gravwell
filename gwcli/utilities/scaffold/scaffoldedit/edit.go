@@ -93,9 +93,9 @@ type id_t interface {
 
 var (
 	// TI field marked as required
-	tiFieldRequiredSty = stylesheet.Sheet.PrimaryText
+	tiFieldRequiredSty = stylesheet.Cur.PrimaryText
 	// TI field marked as optional
-	tiFieldOptionalSty = stylesheet.Sheet.SecondaryText
+	tiFieldOptionalSty = stylesheet.Cur.SecondaryText
 )
 
 // #endregion
@@ -516,7 +516,7 @@ func (em *editModel[I, S]) View() string {
 		return ""
 	case selecting:
 		str = em.list.View() + "\n" +
-			stylesheet.Sheet.ExampleText.
+			stylesheet.Cur.ExampleText.
 				AlignHorizontal(lipgloss.Center).
 				Width(em.width).
 				Render("Press space or enter to select")

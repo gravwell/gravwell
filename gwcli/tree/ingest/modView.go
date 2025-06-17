@@ -140,10 +140,10 @@ func (m mod) view(width int) string {
 		MarginRight(rightMargin).Width(centerWidth)
 
 	v := fmt.Sprintf(
-		"%v"+stylesheet.Sheet.Composable.ModifierText.Render("source")+": %s\t"+
-			"%v"+stylesheet.Sheet.Composable.ModifierText.Render("tag")+": %s\n"+
-			"%v"+stylesheet.Sheet.Composable.ModifierText.Render("Ignore Timestamps?")+" %v\t"+
-			"%v"+stylesheet.Sheet.Composable.ModifierText.Render("Use Server Local Time?")+" %v\t",
+		"%v"+stylesheet.Cur.Composable.ModifierText.Render("source")+": %s\t"+
+			"%v"+stylesheet.Cur.Composable.ModifierText.Render("tag")+": %s\n"+
+			"%v"+stylesheet.Cur.Composable.ModifierText.Render("Ignore Timestamps?")+" %v\t"+
+			"%v"+stylesheet.Cur.Composable.ModifierText.Render("Use Server Local Time?")+" %v\t",
 		colorizer.Pip(m.selected, src), m.srcTI.View(),
 		colorizer.Pip(m.selected, tag), m.tagTI.View(),
 		colorizer.Pip(m.selected, ignoreTS), colorizer.Checkbox(m.ignoreTS),
@@ -153,10 +153,10 @@ func (m mod) view(width int) string {
 	sv := sty.Render(v)
 
 	if !m.focused {
-		return stylesheet.Sheet.Composable.UnfocusedBorder.
+		return stylesheet.Cur.Composable.UnfocusedBorder.
 			AlignHorizontal(lipgloss.Center).Render(sv)
 	} else {
-		return stylesheet.Sheet.Composable.FocusedBorder.
+		return stylesheet.Cur.Composable.FocusedBorder.
 			AlignHorizontal(lipgloss.Center).Render(sv)
 	}
 }

@@ -26,23 +26,23 @@ import (
 
 // ErrPrintf is a tea.Printf wrapper that colors the output as an error.
 func ErrPrintf(format string, a ...interface{}) tea.Cmd {
-	return tea.Printf("%s", stylesheet.Sheet.ErrText.Render(fmt.Sprintf(format, a...)))
+	return tea.Printf("%s", stylesheet.Cur.ErrText.Render(fmt.Sprintf(format, a...)))
 }
 
 // ColorCommandName returns the given command's name appropriately colored by its group (action or nav).
 // Defaults to nav color.
 func ColorCommandName(c *cobra.Command) string {
 	if action.Is(c) {
-		return stylesheet.Sheet.Action.Render(c.Name())
+		return stylesheet.Cur.Action.Render(c.Name())
 	} else {
-		return stylesheet.Sheet.Action.Render(c.Name())
+		return stylesheet.Cur.Action.Render(c.Name())
 	}
 }
 
 // Pip returns the selection rune if field == selected, otherwise it returns a space.
 func Pip(selected, field uint) string {
 	if selected == field {
-		return stylesheet.Sheet.PrimaryText.Render(string(stylesheet.SelectionPrefix))
+		return stylesheet.Cur.SecondaryText.Render(string(stylesheet.SelectionPrefix))
 	}
 	return " "
 }
@@ -65,7 +65,7 @@ func box(val bool, leftBoundary, rightBoundary rune) string {
 	if val {
 		c = '✓'
 	}
-	return fmt.Sprintf("%c%s%c", leftBoundary, stylesheet.Sheet.SecondaryText.Render(string(c)), rightBoundary)
+	return fmt.Sprintf("%c%s%c", leftBoundary, stylesheet.Cur.SecondaryText.Render(string(c)), rightBoundary)
 }
 
 // SubmitString displays either the key-bind to submit the action on the current tab or the input error,
@@ -76,21 +76,21 @@ func SubmitString(keybind, inputErr, result string, width int) string {
 		AlignHorizontal(lipgloss.Center).
 		Width(width)
 	var (
-		inputErrOrAltEnterColor = stylesheet.Sheet.ExampleText.GetForeground()
+		inputErrOrAltEnterColor = stylesheet.Cur.ExampleText.GetForeground()
 		inputErrOrAltEnterText  = "Press " + keybind + " to submit"
 	)
 	if inputErr != "" {
-		inputErrOrAltEnterColor = stylesheet.Sheet.ErrText.GetForeground()
+		inputErrOrAltEnterColor = stylesheet.Cur.ErrText.GetForeground()
 		inputErrOrAltEnterText = inputErr
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Center,
 		alignerSty.Foreground(inputErrOrAltEnterColor).Render(inputErrOrAltEnterText),
-		alignerSty.Foreground(stylesheet.Sheet.SecondaryText.GetForeground()).Render(result),
+		alignerSty.Foreground(stylesheet.Cur.SecondaryText.GetForeground()).Render(result),
 	)
 }
 
 // Index returns the given number, styled as an index number in a list or table.
 func Index(i int) string {
-	return stylesheet.Sheet.PrimaryText.Render(strconv.Itoa(i))
+	return stylesheet.Cur.PrimaryText.Render(strconv.Itoa(i))
 }

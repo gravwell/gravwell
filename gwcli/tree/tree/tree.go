@@ -45,11 +45,11 @@ func walkBranch(nav *cobra.Command) *tree.Tree {
 	// generate a new tree, stemming from the given nav
 	branchRoot := tree.New()
 
-	navSty := stylesheet.Sheet.Nav
-	actionSty := stylesheet.Sheet.Action //.PaddingLeft(1)
+	navSty := stylesheet.Cur.Nav
+	actionSty := stylesheet.Cur.Action //.PaddingLeft(1)
 
 	branchRoot.Root(navSty.Render(nav.Name()))
-	branchRoot.EnumeratorStyle(stylesheet.Sheet.PrimaryText.PaddingLeft(1))
+	branchRoot.EnumeratorStyle(stylesheet.Cur.PrimaryText.PaddingLeft(1))
 
 	// add children of this nav to its tree
 	for _, child := range nav.Commands() {

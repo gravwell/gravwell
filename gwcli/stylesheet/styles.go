@@ -56,11 +56,11 @@ type sheet struct {
 
 // Sheet is the stylesheet currently in-use by gwcli.
 // This is what other packages should reference when stylizing their elements.
-var Sheet sheet
+var Cur sheet
 
 func init() {
 	// set the current stylesheet
-	Sheet = classic() //tritonePlus()
+	Cur = classic() //tritonePlus()
 }
 
 func softPink() sheet {

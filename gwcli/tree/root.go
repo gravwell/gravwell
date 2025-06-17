@@ -203,10 +203,10 @@ const ( // usage
 var long string = "gwcli is a CLI client for interacting with your Gravwell instance directly" +
 	"from your terminal.\n" +
 	"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
-	"To invoke the TUI, simply call " + stylesheet.Sheet.ExampleText.Render("gwcli") + ".\n" +
+	"To invoke the TUI, simply call " + stylesheet.Cur.ExampleText.Render("gwcli") + ".\n" +
 	"You can view help for any submenu or action by providing help a path.\n" +
-	"For instance, try: " + stylesheet.Sheet.ExampleText.Render("gwcli help macros create") +
-	" or " + stylesheet.Sheet.ExampleText.Render("gwcli query -h")
+	"For instance, try: " + stylesheet.Cur.ExampleText.Render("gwcli help macros create") +
+	" or " + stylesheet.Cur.ExampleText.Render("gwcli query -h")
 
 const ( // mousetrap
 	mousetrapText string = "This is a command line tool.\n" +
@@ -304,7 +304,7 @@ func Usage(c *cobra.Command) error {
 		return p[0], strings.Join(p[1:], " ")
 	}()
 
-	bldr.WriteString(stylesheet.Sheet.PrimaryText.Render("Usage:") +
+	bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Usage:") +
 		strings.TrimRight(fmt.Sprintf(" %v %s",
 			root, path,
 		), " "))
@@ -313,17 +313,17 @@ func Usage(c *cobra.Command) error {
 		bldr.WriteString(" [subcommand]\n")
 	} else { // action
 		bldr.WriteString(" [flags]\n\n")
-		bldr.WriteString(stylesheet.Sheet.PrimaryText.Render("Local Flags:") + "\n")
+		bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Local Flags:") + "\n")
 		bldr.WriteString(c.LocalNonPersistentFlags().FlagUsages())
 	}
 
 	bldr.WriteRune('\n')
 
 	if c.HasExample() {
-		bldr.WriteString(stylesheet.Sheet.PrimaryText.Render("Example:") + " " + c.Example + "\n\n")
+		bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Example:") + " " + c.Example + "\n\n")
 	}
 
-	bldr.WriteString(stylesheet.Sheet.PrimaryText.Render("Global Flags:") + "\n")
+	bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Global Flags:") + "\n")
 	bldr.WriteString(c.Root().PersistentFlags().FlagUsages())
 
 	bldr.WriteRune('\n')
@@ -331,7 +331,7 @@ func Usage(c *cobra.Command) error {
 	// print aliases
 	if len(c.Aliases) != 0 {
 		var s strings.Builder
-		s.WriteString(stylesheet.Sheet.PrimaryText.Render("Aliases:") + " ")
+		s.WriteString(stylesheet.Cur.PrimaryText.Render("Aliases:") + " ")
 		for _, a := range c.Aliases {
 			s.WriteString(a + ", ")
 		}
@@ -353,9 +353,9 @@ func Usage(c *cobra.Command) error {
 	// output navs as submenus
 	if len(navs) > 0 {
 		var s strings.Builder
-		s.WriteString(stylesheet.Sheet.PrimaryText.Render("Submenus"))
+		s.WriteString(stylesheet.Cur.PrimaryText.Render("Submenus"))
 		for _, n := range navs {
-			s.WriteString("\n  " + stylesheet.Sheet.Nav.Render(n.Name()))
+			s.WriteString("\n  " + stylesheet.Cur.Nav.Render(n.Name()))
 		}
 		bldr.WriteString(s.String() + "\n")
 	}
@@ -363,9 +363,9 @@ func Usage(c *cobra.Command) error {
 	// output actions
 	if len(actions) > 0 {
 		var s strings.Builder
-		s.WriteString("\n" + stylesheet.Sheet.PrimaryText.Render("Actions"))
+		s.WriteString("\n" + stylesheet.Cur.PrimaryText.Render("Actions"))
 		for _, a := range actions {
-			s.WriteString("\n  " + stylesheet.Sheet.Action.Render(a.Name()))
+			s.WriteString("\n  " + stylesheet.Cur.Action.Render(a.Name()))
 		}
 		bldr.WriteString(s.String())
 	}

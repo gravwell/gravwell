@@ -82,7 +82,7 @@ func initTableTab(data []string) tableTab {
 			}
 			return oddEntryStyle
 		}).
-		HeaderStyle(stylesheet.Sheet.Table.HeaderCells)
+		HeaderStyle(stylesheet.Cur.Table.HeaderCells)
 		// NOTE: As of evertras-table v0.16.1,
 		// the borders cannot be styled (only their runes changed.)
 
@@ -212,7 +212,7 @@ func (tt *tableTab) recalculateSize(rawWidth, clippedHeight int) {
 
 // Draw and return a footer for the viewport
 func (tt *tableTab) renderFooter() string {
-	var helpSty = stylesheet.Sheet.DisabledText.Width(tt.vp.Width).AlignHorizontal(lipgloss.Center)
+	var helpSty = stylesheet.Cur.DisabledText.Width(tt.vp.Width).AlignHorizontal(lipgloss.Center)
 	return lipgloss.JoinVertical(lipgloss.Center,
 		scrollPercentLine(tt.vp.Width, tt.vp.ScrollPercent()),
 		lipgloss.JoinVertical(lipgloss.Center,

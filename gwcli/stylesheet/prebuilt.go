@@ -58,7 +58,7 @@ func (s spnr) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (s spnr) View() string {
 	v := s.spnr.View()
 	if s.notice != "" {
-		v += "\t" + Sheet.PromptText.Render(s.notice)
+		v += "\t" + Cur.PromptText.Render(s.notice)
 	}
 	return v
 }
@@ -85,22 +85,22 @@ func CobraSpinner(notice string) (p *tea.Program) {
 func NewSpinner() spinner.Model {
 	return spinner.New(
 		spinner.WithSpinner(spinner.Moon),
-		spinner.WithStyle(Sheet.Spinner))
+		spinner.WithStyle(Cur.Spinner))
 }
 
 // Table generates the skeleton of a properly styled table
 func Table() *table.Table {
 	tbl := table.New().
-		Border(Sheet.Table.BorderType).
-		BorderStyle(Sheet.Table.BorderStyle).
+		Border(Cur.Table.BorderType).
+		BorderStyle(Cur.Table.BorderStyle).
 		StyleFunc(func(row, col int) lipgloss.Style {
 			switch {
 			case row == 0:
-				return Sheet.Table.HeaderCells
+				return Cur.Table.HeaderCells
 			case row%2 == 0:
-				return Sheet.Table.EvenCells
+				return Cur.Table.EvenCells
 			default:
-				return Sheet.Table.OddCells
+				return Cur.Table.OddCells
 			}
 		}).BorderRow(true)
 
@@ -162,17 +162,17 @@ func NewFilePickerWH(displayTabPaneSwitch, displayShiftTabPaneSwitch bool) FileP
 	}
 
 	fp.Styles = filepicker.Styles{
-		DisabledCursor:   Sheet.DisabledText,
-		Cursor:           Sheet.PrimaryText,
-		Symlink:          Sheet.SecondaryText.Italic(true),
-		Directory:        Sheet.SecondaryText,
+		DisabledCursor:   Cur.DisabledText,
+		Cursor:           Cur.PrimaryText,
+		Symlink:          Cur.SecondaryText.Italic(true),
+		Directory:        Cur.SecondaryText,
 		File:             lipgloss.NewStyle(),
-		DisabledFile:     Sheet.DisabledText,
-		DisabledSelected: Sheet.DisabledText,
-		Permission:       Sheet.PrimaryText.Faint(true),
-		Selected:         Sheet.ExampleText.Bold(true),
-		FileSize:         Sheet.PrimaryText.Faint(true).Width(fileSizeWidth).Align(lipgloss.Right),
-		EmptyDirectory:   Sheet.DisabledText.PaddingLeft(paddingLeft).SetString("Bummer. No Files Found."),
+		DisabledFile:     Cur.DisabledText,
+		DisabledSelected: Cur.DisabledText,
+		Permission:       Cur.PrimaryText.Faint(true),
+		Selected:         Cur.ExampleText.Bold(true),
+		FileSize:         Cur.PrimaryText.Faint(true).Width(fileSizeWidth).Align(lipgloss.Right),
+		EmptyDirectory:   Cur.DisabledText.PaddingLeft(paddingLeft).SetString("Bummer. No Files Found."),
 	}
 
 	h := FilePickerWH{fp,
