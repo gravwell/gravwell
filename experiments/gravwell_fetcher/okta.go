@@ -156,7 +156,7 @@ func buildOktaHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *log
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: time.Now(),
-				Key:        "",
+				Key:        json.RawMessage(`{"key": "null"}`),
 			}
 			err := ot.Set("okta", k, state, false)
 			if err != nil {
