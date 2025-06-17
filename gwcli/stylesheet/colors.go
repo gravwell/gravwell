@@ -24,4 +24,10 @@ const (
 	yellowGreen    = lipgloss.Color("#8AC926")
 	steelBlue      = lipgloss.Color("#1982C4")
 	bittersweet    = lipgloss.Color("#FF595E")
+
+	tropicalIndigo  = lipgloss.Color("#9c7af7")
+	lavender_floral = lipgloss.Color("#bb7af7")
+	violet_web      = lipgloss.Color("#f77af4")
+	atomicTangerine = lipgloss.Color("#f79c7a")
+	aquamarine      = lipgloss.Color("#AEFFD8")
 )

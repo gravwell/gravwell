@@ -60,7 +60,7 @@ var Sheet sheet
 
 func init() {
 	// set the current stylesheet
-	Sheet = tritonePlus()
+	Sheet = classic() //tritonePlus()
 }
 
 func softPink() sheet {
@@ -173,5 +173,70 @@ func tritonePlus() sheet {
 		SecondaryText: lipgloss.NewStyle().Foreground(two),
 
 		Spinner: lipgloss.NewStyle().Foreground(one),
+	}
+}
+
+func classic() sheet {
+	var (
+		primaryColor   = tropicalIndigo
+		secondaryColor = lavender_floral
+		tertiaryColor  = violet_web
+		//accentColor1   = atomicTangerine
+		accentColor2 = aquamarine
+	)
+
+	nav := lipgloss.NewStyle().Foreground(secondaryColor)
+	action := lipgloss.NewStyle().Foreground(tertiaryColor)
+
+	return sheet{
+		Nav: nav, Action: action,
+
+		Composable: struct {
+			FocusedBorder       lipgloss.Style
+			UnfocusedBorder     lipgloss.Style
+			ComplimentaryBorder lipgloss.Style
+			ModifierText        lipgloss.Style
+		}{
+			FocusedBorder: lipgloss.NewStyle().
+				Align(lipgloss.Left, lipgloss.Center).
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderForeground(primaryColor),
+			UnfocusedBorder: lipgloss.NewStyle().
+				Align(lipgloss.Left, lipgloss.Center).
+				BorderStyle(lipgloss.HiddenBorder()),
+			ComplimentaryBorder: lipgloss.NewStyle().
+				Align(lipgloss.Left, lipgloss.Center).
+				BorderStyle(lipgloss.NormalBorder()).
+				BorderForeground(accentColor2),
+			ModifierText: lipgloss.NewStyle().Foreground(primaryColor),
+		},
+
+		Table: struct {
+			HeaderCells lipgloss.Style
+			EvenCells   lipgloss.Style
+			OddCells    lipgloss.Style
+			BorderType  lipgloss.Border
+			BorderStyle lipgloss.Style
+		}{
+			HeaderCells: lipgloss.NewStyle().
+				Foreground(primaryColor).
+				AlignHorizontal(lipgloss.Center).
+				AlignVertical(lipgloss.Center).Bold(true),
+			EvenCells:   lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(secondaryColor),
+			OddCells:    lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(tertiaryColor),
+			BorderType:  lipgloss.NormalBorder(),
+			BorderStyle: lipgloss.NewStyle().Foreground(primaryColor),
+		},
+
+		ErrText:      lipgloss.NewStyle().Foreground(bloodRed),
+		ExampleText:  lipgloss.NewStyle().Foreground(accentColor2),
+		DisabledText: lipgloss.NewStyle().Faint(true),
+
+		PromptText: lipgloss.NewStyle().Foreground(primaryColor),
+
+		PrimaryText:   lipgloss.NewStyle().Foreground(primaryColor),
+		SecondaryText: lipgloss.NewStyle().Foreground(secondaryColor),
+
+		Spinner: lipgloss.NewStyle().Foreground(primaryColor),
 	}
 }
