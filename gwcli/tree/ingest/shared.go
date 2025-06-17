@@ -51,8 +51,7 @@ func autoingest(res chan<- struct {
 				tag = tags[0]
 			} else {
 				// validate each tag
-				tag = tags[i]
-				tags[0] = strings.TrimSpace(tags[0])
+				tag = strings.TrimSpace(tags[i])
 				if err := validateTag(tags[0]); err != nil {
 					// send this error over the wire, rather than attempting ingestion
 					if res != nil {
