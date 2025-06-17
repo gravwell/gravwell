@@ -16,6 +16,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 )
@@ -130,6 +131,14 @@ func (m *mod) moveCursor(msg tea.Msg) (done bool) {
 }
 
 func (m mod) view(width int) string {
+	usableWidth := width - 4
+	leftMargin := (usableWidth / 4)
+	centerWidth := (usableWidth / 2)
+	rightMargin := (usableWidth / 5)
+	sty := lipgloss.NewStyle().
+		MarginLeft(leftMargin).
+		MarginRight(rightMargin).Width(centerWidth)
+
 	v := fmt.Sprintf(
 		"%vsource: %s\t"+
 			"%vtag: %s\n"+
@@ -141,14 +150,14 @@ func (m mod) view(width int) string {
 		colorizer.Pip(m.selected, localTime), colorizer.Checkbox(m.localTime),
 	)
 
-	if m.focused {
-		return stylesheet.Sheet.Composable.FocusedBorder.
-			Width(width - (stylesheet.Sheet.Composable.FocusedBorder.GetHorizontalFrameSize() + 3)).
-			Render(v)
-	} else {
+	sv := sty.Render(v)
+
+	if !m.focused {
 		return stylesheet.Sheet.Composable.UnfocusedBorder.
-			Width(width - (stylesheet.Sheet.Composable.UnfocusedBorder.GetHorizontalFrameSize() + 3)).
-			Render(v)
+			AlignHorizontal(lipgloss.Center).Render(sv)
+	} else {
+		return stylesheet.Sheet.Composable.FocusedBorder.
+			AlignHorizontal(lipgloss.Center).Render(sv)
 	}
 }
 
