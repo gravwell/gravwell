@@ -1,4 +1,15 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package ingest
+
+// The modView file contains an implementation of the modifiers pane, which allows users to punch in a tag, source, and play with a couple toggles.
+// It has a 2x2 format.
 
 import (
 	"fmt"
@@ -13,11 +24,11 @@ import (
 type modItem = uint
 
 const (
-	lowBound modItem = iota
-	src
-	tag
-	ignoreTS
-	localTime
+	lowBound  modItem = iota
+	src               // (1,1)
+	tag               // (1,2)
+	ignoreTS          // (2,1)
+	localTime         // (2,2)
 	highBound
 )
 
@@ -49,30 +60,10 @@ func NewMod() mod {
 
 // Does not handle enter or tab; caller is expected to catch and process these before handing off control.
 func (m mod) update(msg tea.Msg) (mod, tea.Cmd) {
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		switch keyMsg.Type {
-		case tea.KeyLeft:
-			m.selected -= 1
-			if m.selected <= lowBound {
-				m.selected = highBound - 1
-			}
-			m.focusSelected()
-		case tea.KeyRight:
-			m.selected += 1
-			if m.selected >= highBound {
-				m.selected = lowBound + 1
-			}
-			m.focusSelected()
-		case tea.KeySpace:
-			// toggle the selected boolean
-			switch m.selected {
-			case ignoreTS:
-				m.ignoreTS = !m.ignoreTS
-			case localTime:
-				m.localTime = !m.localTime
-			}
-		}
+	if m.moveCursor(msg) {
+		return m, nil
 	}
+
 	var cmds = []tea.Cmd{nil, nil}
 	m.srcTI, cmds[0] = m.srcTI.Update(msg)
 	m.tagTI, cmds[1] = m.tagTI.Update(msg)
@@ -80,10 +71,68 @@ func (m mod) update(msg tea.Msg) (mod, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
+// moveCursor checks if the message is an arrow key and changes the selected field accordingly.
+// Returns done if the message has been fully handled; if !done, caller should pass the message to other components (aka: the TIs).
+func (m *mod) moveCursor(msg tea.Msg) (done bool) {
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		switch keyMsg.Type {
+		case tea.KeyLeft:
+			switch m.selected {
+			case tag:
+				m.selected = src
+				done = true
+			case localTime:
+				m.selected = ignoreTS
+				done = true
+			}
+		case tea.KeyRight:
+			switch m.selected {
+			case src:
+				m.selected = tag
+				done = true
+			case ignoreTS:
+				m.selected = localTime
+				done = true
+			}
+		case tea.KeyUp:
+			switch m.selected {
+			case ignoreTS:
+				m.selected = src
+				done = true
+			case localTime:
+				m.selected = tag
+				done = true
+			}
+		case tea.KeyDown:
+			switch m.selected {
+			case src:
+				m.selected = ignoreTS
+				done = true
+			case tag:
+				m.selected = localTime
+				done = true
+			}
+		case tea.KeySpace:
+			// toggle the selected boolean
+			switch m.selected {
+			case ignoreTS:
+				m.ignoreTS = !m.ignoreTS
+				done = true
+			case localTime:
+				m.localTime = !m.localTime
+				done = true
+			}
+		}
+		m.focusSelected()
+	}
+
+	return done
+}
+
 func (m mod) view(width int) string {
 	v := fmt.Sprintf(
 		"%vsource: %s\t"+
-			"%vtag: %s\t"+
+			"%vtag: %s\n"+
 			"%vIgnore Timestamps? %v\t"+
 			"%vUse Server Local Time? %v\t",
 		colorizer.Pip(m.selected, src), m.srcTI.View(),
