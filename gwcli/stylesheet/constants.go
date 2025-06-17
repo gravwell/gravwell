@@ -15,7 +15,11 @@ const (
 	TIPromptPrefix  = "> " // text *input* prefix
 	TAPromptPrefix  = ""   // text *area* prefix
 	SelectionPrefix = '»'
-	UpDown          = "↑/↓"
-	LeftRight       = "←/→"
+	UpSigil         = "↑"
+	DownSigil       = "↓"
+	UpDownSigils    = UpSigil + "/" + DownSigil
+	LeftSigil       = "←"
+	RightSigil      = "→"
+	LeftRightSigils = LeftSigil + "/" + RightSigil
 	Indent          = "  "
 )
