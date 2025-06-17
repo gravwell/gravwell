@@ -54,7 +54,26 @@ type sheet struct {
 	Spinner lipgloss.Style
 }
 
-// Sheet is the stylesheet currently in-use by gwcli.
+// A Tetrad is a set of 4 colors that can be transmuted into a full sheet via GenerateSheet().
+/*type Tetrad struct {
+
+}*/
+
+// A Palette is a set of 5 colors that can be transmuted into a full sheet via GenerateSheet().
+// It allows for quicker color swaps without having to manually populate a whole style sheet.
+type Palette struct {
+	PrimaryColor   lipgloss.Color
+	SecondaryColor lipgloss.Color
+	TertiaryColor  lipgloss.Color
+	AccentColor1   lipgloss.Color
+	AccentColor2   lipgloss.Color
+}
+
+func (p Palette) GenerateSheet() sheet {
+	return sheet{}
+}
+
+// Cur is the stylesheet currently in-use by gwcli.
 // This is what other packages should reference when stylizing their elements.
 var Cur sheet
 
