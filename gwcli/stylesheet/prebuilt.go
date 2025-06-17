@@ -13,6 +13,9 @@ package stylesheet
  */
 
 import (
+	"github.com/charmbracelet/bubbles/filepicker"
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -102,4 +105,83 @@ func Table() *table.Table {
 		}).BorderRow(true)
 
 	return tbl
+}
+
+// FilePickerWH (With Help) is a wrapper around the FilePicker bubble that bolts on help and applies a consistent set of keybinds.
+// If/when the filepicker bubble properly interfaces with the help interface, this can probably be removed (or at least heavily stripped back).
+type FilePickerWH struct {
+	filepicker.Model
+	help help.Model
+	// extra keybinds bolted onto the keymap in filepicker
+	fullHelp key.Binding
+	quit     key.Binding
+}
+
+// ShortHelp returns keybindings to be shown in the mini help view. It's part
+// of the key.Map interface.
+func (fp FilePickerWH) ShortHelp() []key.Binding {
+	return []key.Binding{fp.fullHelp, fp.quit, fp.KeyMap.Select}
+}
+
+// FullHelp returns keybindings for the expanded help view. It's part of the
+// key.Map interface.
+func (fp FilePickerWH) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{fp.KeyMap.Up, fp.KeyMap.Down, fp.KeyMap.Back, fp.KeyMap.Open},
+		{fp.KeyMap.GoToTop, fp.KeyMap.GoToLast, fp.KeyMap.PageUp, fp.KeyMap.PageDown},
+		{fp.fullHelp, fp.quit},
+	}
+}
+
+// NewFilePickerWH returns a new FilePickerWithHelp struct, which wraps the filepicker bubble.
+// This version enforces consistent keys and UI and bolts on the subroutines required for filepicker to take advantage of the help bubble.
+func NewFilePickerWH() FilePickerWH {
+	fp := filepicker.New()
+	// replace the default keys and help display
+	fp.KeyMap = filepicker.KeyMap{
+		GoToTop:  key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "first")),
+		GoToLast: key.NewBinding(key.WithKeys("G"), key.WithHelp("G", "last")),
+		Down:     key.NewBinding(key.WithKeys("j", "down", "ctrl+n"), key.WithHelp("j/"+UpSigil, "down")),
+		Up:       key.NewBinding(key.WithKeys("k", "up", "ctrl+p"), key.WithHelp("k/"+DownSigil, "up")),
+		PageUp:   key.NewBinding(key.WithKeys("K", "pgup"), key.WithHelp("K/pgup", "page up")),
+		PageDown: key.NewBinding(key.WithKeys("J", "pgdown"), key.WithHelp("J/pgdown", "page down")),
+		Back:     key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/"+LeftSigil, "back")),
+		Open:     key.NewBinding(key.WithKeys("l", "right"), key.WithHelp("l/"+RightSigil, "open")),
+		Select:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
+	}
+
+	h := FilePickerWH{fp,
+		help.New(),
+		key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "toggle help"),
+		),
+		key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "quit"),
+		)}
+	return h
+}
+
+// Update handles ShowHelp key ('?') and passes any other messages to the file picker.
+func (fph FilePickerWH) Update(msg tea.Msg) (FilePickerWH, tea.Cmd) {
+	// check for show all key
+	if keyMsg, ok := msg.(tea.KeyMsg); ok && key.Matches(keyMsg, fph.fullHelp) {
+		fph.help.ShowAll = !fph.help.ShowAll
+		return fph, nil
+	}
+	var cmd tea.Cmd
+	fph.Model, cmd = fph.Model.Update(msg)
+
+	return fph, cmd
+}
+
+// View displays the file picker.
+func (fph FilePickerWH) View() string {
+	return fph.Model.View()
+}
+
+// ViewHelp displays the help keys and text associated to the file picker.
+func (fph FilePickerWH) ViewHelp() string {
+	return fph.help.View(fph)
 }
