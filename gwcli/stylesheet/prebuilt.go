@@ -113,14 +113,16 @@ type FilePickerWH struct {
 	filepicker.Model
 	help help.Model
 	// extra keybinds bolted onto the keymap in filepicker
-	fullHelp key.Binding
-	quit     key.Binding
+	fullHelp  key.Binding
+	quit      key.Binding
+	nextPane  key.Binding // tab
+	priorPane key.Binding // shift tab
 }
 
 // ShortHelp returns keybindings to be shown in the mini help view. It's part
 // of the key.Map interface.
 func (fp FilePickerWH) ShortHelp() []key.Binding {
-	return []key.Binding{fp.fullHelp, fp.quit, fp.KeyMap.Select}
+	return []key.Binding{fp.fullHelp, fp.quit, fp.KeyMap.Select, fp.nextPane}
 }
 
 // FullHelp returns keybindings for the expanded help view. It's part of the
@@ -129,13 +131,17 @@ func (fp FilePickerWH) FullHelp() [][]key.Binding {
 	return [][]key.Binding{
 		{fp.KeyMap.Up, fp.KeyMap.Down, fp.KeyMap.Back, fp.KeyMap.Open},
 		{fp.KeyMap.GoToTop, fp.KeyMap.GoToLast, fp.KeyMap.PageUp, fp.KeyMap.PageDown},
+		{fp.nextPane, fp.priorPane},
 		{fp.fullHelp, fp.quit},
 	}
 }
 
 // NewFilePickerWH returns a new FilePickerWithHelp struct, which wraps the filepicker bubble.
 // This version enforces consistent keys and UI and bolts on the subroutines required for filepicker to take advantage of the help bubble.
-func NewFilePickerWH() FilePickerWH {
+//
+// If displayTabPaneSwitch, then help will also display "tab" to switch to the next composed views.
+// If displayShiftTabPaneSwitch, then help will also display "shift tab" to switch to the prior composed view.
+func NewFilePickerWH(displayTabPaneSwitch, displayShiftTabPaneSwitch bool) FilePickerWH {
 	fp := filepicker.New()
 	// replace the default keys and help display
 	fp.KeyMap = filepicker.KeyMap{
@@ -159,7 +165,16 @@ func NewFilePickerWH() FilePickerWH {
 		key.NewBinding(
 			key.WithKeys("esc"),
 			key.WithHelp("esc", "quit"),
-		)}
+		),
+		key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next pane")),
+		key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous pane")),
+	}
+	if !displayTabPaneSwitch {
+		h.nextPane = key.NewBinding(key.WithDisabled())
+	}
+	if !displayShiftTabPaneSwitch {
+		h.priorPane = key.NewBinding(key.WithDisabled())
+	}
 	return h
 }
 
