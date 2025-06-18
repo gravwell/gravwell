@@ -29,7 +29,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -618,7 +617,7 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 				name = stylesheet.Cur.Nav.Render(child.Name())
 				// build and color subchildren
 				for _, sc := range child.Commands() {
-					_, err := subchildren.WriteString(colorizer.ColorCommandName(sc) + " ")
+					_, err := subchildren.WriteString(stylesheet.ColorCommandName(sc) + " ")
 					if err != nil {
 						clilog.Writer.Warnf("Failed to generate list of subchildren: %v", err)
 					}

@@ -18,7 +18,6 @@ import (
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/paginator"
@@ -102,7 +101,7 @@ func (s *DataScope) setResultsDisplayed() {
 	var bldr strings.Builder
 	var trueIndex = start // index of full results, between start and end
 	for _, d := range data {
-		bldr.WriteString(colorizer.Index(trueIndex+1) + ":")
+		bldr.WriteString(stylesheet.Index(trueIndex+1) + ":")
 		if trueIndex%2 == 0 {
 			bldr.WriteString(evenEntryStyle.Render(d))
 		} else {

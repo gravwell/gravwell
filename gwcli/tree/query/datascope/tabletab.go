@@ -19,7 +19,6 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -63,7 +62,7 @@ func initTableTab(data []string) tableTab {
 		// map each row cell to its column
 		rd := table.RowData{}
 		// prepend the index column
-		rd["index"] = colorizer.Index(i + 1)
+		rd["index"] = stylesheet.Index(i + 1)
 		for j, c := range cells {
 			rd[strconv.Itoa(j+1)] = c
 		}

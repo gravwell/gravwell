@@ -18,7 +18,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 )
 
 // currently selected item in the mod view for pips and focus
@@ -144,10 +143,10 @@ func (m mod) view(width int) string {
 			"%v"+stylesheet.Cur.FieldText.Render("tag")+": %s\n"+
 			"%v"+stylesheet.Cur.FieldText.Render("Ignore Timestamps?")+" %v\t"+
 			"%v"+stylesheet.Cur.FieldText.Render("Use Server Local Time?")+" %v\t",
-		colorizer.Pip(m.selected, src), m.srcTI.View(),
-		colorizer.Pip(m.selected, tag), m.tagTI.View(),
-		colorizer.Pip(m.selected, ignoreTS), colorizer.Checkbox(m.ignoreTS),
-		colorizer.Pip(m.selected, localTime), colorizer.Checkbox(m.localTime),
+		stylesheet.Pip(m.selected, src), m.srcTI.View(),
+		stylesheet.Pip(m.selected, tag), m.tagTI.View(),
+		stylesheet.Pip(m.selected, ignoreTS), stylesheet.Checkbox(m.ignoreTS),
+		stylesheet.Pip(m.selected, localTime), stylesheet.Checkbox(m.localTime),
 	)
 
 	sv := sty.Render(v)
