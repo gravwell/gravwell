@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -290,6 +291,15 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 		clilog.Writer.Fatalf("src flag does not exist: %v", err)
 		return "", nil, err
 	}
+	dir, err := rawFlags.GetString("dir")
+	dir = strings.TrimSpace(dir)
+	if err != nil {
+		clilog.Writer.Fatalf("dir flag does not exist: %v", err)
+	} else if info, err := os.Stat(dir); err != nil {
+		return "", nil, err
+	} else if !info.IsDir() {
+		return "--dir must point to a directory", nil, nil
+	}
 
 	// if one+ files were given, try to ingest immediately
 	if files := rawFlags.Args(); len(files) > 0 {
@@ -308,10 +318,14 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 	}
 	i.mod.srcTI.SetValue(src)
 
-	i.fp.CurrentDirectory, err = os.Getwd()
-	if err != nil {
-		clilog.Writer.Warnf("failed to get pwd: %v", err)
-		i.fp.CurrentDirectory = "." // allow OS to decide where to drop us
+	if dir == "" {
+		i.fp.CurrentDirectory, err = os.Getwd()
+		if err != nil {
+			clilog.Writer.Warnf("failed to get pwd: %v", err)
+			i.fp.CurrentDirectory = "." // allow OS to decide where to drop us
+		}
+	} else {
+		i.fp.CurrentDirectory = dir
 	}
 
 	return "", i.fp.Init(), nil

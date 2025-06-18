@@ -11,6 +11,7 @@ package ingest
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -56,6 +57,7 @@ func initialLocalFlagSet() pflag.FlagSet {
 	fs.StringSliceP("tags", "t", nil, "comma-separated tags to apply to a file/file=s.\n"+
 		"If a single tag is specified, it will be applied to all files being ingested.\n"+
 		"If multiple tags are specified, they will be matched index-for-index with the files given.")
+	fs.StringP("dir", "d", "", "directory to start the interactive file picker in. Has no effect in script mode.")
 
 	return fs
 }
@@ -70,6 +72,14 @@ func run(c *cobra.Command, args []string) {
 	if err != nil {
 		clilog.Writer.Fatalf("local-time flag does not exist: %v", err)
 	}
+	// check only for dir/script collision; other dir validation is done in SetArgs
+	dir, err := c.Flags().GetString("dir")
+	if err != nil {
+		clilog.Writer.Fatalf("dir flag does not exist: %v", err)
+	} else if dir = strings.TrimSpace(dir); dir != "" && script {
+		fmt.Fprintln(c.ErrOrStderr(), ft.WarnFlagIgnore("dir", "script"))
+	}
+
 	// fetch list of files from the excess arguments
 	files := c.Flags().Args()
 
