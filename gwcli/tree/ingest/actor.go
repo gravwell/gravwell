@@ -22,6 +22,7 @@ import (
 	"os"
 
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -113,7 +114,7 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			if keyMsg.Type == tea.KeyTab || keyMsg.Type == tea.KeyShiftTab {
 				// switch focus
 				i.mod.focused = !i.mod.focused
-				return nil
+				return textinput.Blink
 			}
 		}
 

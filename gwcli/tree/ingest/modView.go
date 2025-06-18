@@ -62,7 +62,7 @@ func NewMod() mod {
 // Does not handle enter or tab; caller is expected to catch and process these before handing off control.
 func (m mod) update(msg tea.Msg) (mod, tea.Cmd) {
 	if m.moveCursor(msg) {
-		return m, nil
+		return m, textinput.Blink
 	}
 
 	var cmds = []tea.Cmd{nil, nil}
