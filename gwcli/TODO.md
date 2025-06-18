@@ -7,10 +7,6 @@
 
 - the `--all` flag in various list commands is not really respected as admin mode is not implemented
 
-- implement no-color flag
-    - I have it stuck in my brain that lipgloss has native support for the [NoColor environment variable](https://no-color.org/), but it does not seem to currently be effectual.
-    - This can probably be rememdied by providing lipgloss with the NoColor or 1bit renderer, but you would need to ensure all lipgloss styles use this renderer, likely as a new singleton tightly coupled with stylesheet.
-
 - tree/query/actor.go's BurnFirstView...
     - There is a substantial exploration of the issue in BurnFirstView()
 
