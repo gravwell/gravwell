@@ -6,10 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Package filegrabber is an upgraded filepicker bubble that:
-// fits the help interface,
-// enables path jumping,
-// and pre-builds each view separately (help, picker, path).
+// Package filegrabber implements the filegrabber type, an upgraded filepicker bubble.
 package filegrabber
 
 import (
@@ -21,9 +18,12 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 )
 
-// FileGrabber is a wrapper around the FilePicker bubble that bolts on help and applies a consistent set of keybinds.
-// If/when the filepicker bubble properly interfaces with the help interface, this can probably be removed (or at least heavily stripped back).
-// TODO
+// FileGrabber is a wrapper around the FilePicker bubble that bolts on additional functionality.
+//
+// Specifically, filegrabber:
+// 1) fits the help interface,
+// 2) enables path jumping,
+// 3) and pre-builds each view separately (help, picker, path).
 type FileGrabber struct {
 	filepicker.Model
 	help help.Model
@@ -55,8 +55,7 @@ func (fg FileGrabber) FullHelp() [][]key.Binding {
 	}
 }
 
-// New returns a new FilePickerWithHelp struct, which wraps the filepicker bubble.
-// This version enforces consistent keys and UI and bolts on the subroutines required for filepicker to take advantage of the help bubble.
+// New returns a new FileGrabber instance.
 //
 // If displayTabPaneSwitch, then help will also display "tab" to switch to the next composed views.
 // If displayShiftTabPaneSwitch, then help will also display "shift tab" to switch to the prior composed view.
