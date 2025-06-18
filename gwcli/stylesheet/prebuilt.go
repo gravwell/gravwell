@@ -156,8 +156,8 @@ func NewFilePickerWH(displayTabPaneSwitch, displayShiftTabPaneSwitch bool) FileP
 		Up:       key.NewBinding(key.WithKeys("k", "up", "ctrl+p"), key.WithHelp("k/"+DownSigil, "up")),
 		PageUp:   key.NewBinding(key.WithKeys("K", "pgup"), key.WithHelp("K/pgup", "page up")),
 		PageDown: key.NewBinding(key.WithKeys("J", "pgdown"), key.WithHelp("J/pgdown", "page down")),
-		Back:     key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/"+LeftSigil, "back")),
-		Open:     key.NewBinding(key.WithKeys("l", "right", "enter"), key.WithHelp("l/"+RightSigil, "open")),
+		Back:     key.NewBinding(key.WithKeys("h", "left"), key.WithHelp("h/"+LeftSigil, "parent dir")),
+		Open:     key.NewBinding(key.WithKeys("l", "right", "enter"), key.WithHelp("l/"+RightSigil, "open file/dir")),
 		Select:   key.NewBinding(key.WithKeys("enter"), key.WithHelp("enter", "select")),
 	}
 
