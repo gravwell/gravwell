@@ -50,10 +50,10 @@ func NewMod() mod {
 		focused:  false,
 		selected: src,
 
-		tagTI: stylesheet.NewTI("", true),
-		srcTI: stylesheet.NewTI("default", true),
+		tagTI: stylesheet.NewTI("", false),
+		srcTI: stylesheet.NewTI("", true),
 	}
-	m.srcTI.Placeholder = "127.0.0.1"
+	m.srcTI.Placeholder = ""
 	m.srcTI.Focus()
 	m.tagTI.Blur()
 	return m
