@@ -199,3 +199,11 @@ func classic() Sheet {
 		AccentColor2:   aquamarine,
 	}.GenerateSheet()
 }
+
+func noColor() Sheet {
+	return NewSheet(
+		func() string { return ">" },
+		func() string { return "#" },
+		func(s string) string { return s },
+	)
+}
