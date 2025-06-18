@@ -81,7 +81,7 @@ type mfaModel struct {
 func New() mfaModel {
 	c := mfaModel{codeSelected: true}
 	c.codeTI = textinput.New()
-	c.codeTI.Prompt = stylesheet.Cur.PromptSty.Symbol()
+	c.codeTI.Prompt = ""
 	c.codeTI.Validate = func(s string) error {
 		for _, r := range s {
 			if !unicode.IsDigit(r) {
@@ -96,7 +96,7 @@ func New() mfaModel {
 	c.codeTI.Focus()
 
 	c.recoveryTI = textinput.New()
-	c.recoveryTI.Prompt = stylesheet.Cur.PromptSty.Symbol()
+	c.recoveryTI.Prompt = ""
 	c.recoveryTI.Blur()
 
 	return c
