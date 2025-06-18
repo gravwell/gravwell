@@ -7,6 +7,11 @@
 
 - the `--all` flag in various list commands is not really respected as admin mode is not implemented
 
+- Spin off FileGrabber as a standalone bubble to replace FilePicker
+    - the filepicker bubble is fairly barebones. It has no real ability to jump directories/allow a user to directly edit their path (this can be worked around by setting .CurrentDirectory and then calling Init(), but it clearly isn't intentional), does not export the readDir message for forcing a re-scan (hence the need to recall Init()), cannot select multiple items, and does not satisfy the help interface (despite being in the same repo as the help bubble).
+    - Other quality of life features would be nice (ex: adding ".." as a select-able option for navigation).
+    - The current version of FileGrabber has a commented-out skeleton of this kind of bubble at the bottom.
+
 - implement no-color flag
     - I have it stuck in my brain that lipgloss has native support for the [NoColor environment variable](https://no-color.org/), but it does not seem to currently be effectual.
     - This can probably be rememdied by providing lipgloss with the NoColor or 1bit renderer, but you would need to ensure all lipgloss styles use this renderer, likely as a new singleton tightly coupled with stylesheet.
