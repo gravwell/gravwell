@@ -29,6 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/filegrabber"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
@@ -60,12 +61,12 @@ type ingest struct {
 
 	spinner spinner.Model
 
-	fp stylesheet.FilePickerWH
+	fp filegrabber.FileGrabber
 }
 
 func Initial() *ingest {
 	i := &ingest{
-		fp:   stylesheet.NewFilePickerWH(true, false),
+		fp:   filegrabber.New(true, false),
 		mode: picking,
 		ingestResCh: make(chan struct {
 			string
