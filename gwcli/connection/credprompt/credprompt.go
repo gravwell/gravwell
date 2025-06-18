@@ -74,11 +74,11 @@ type credModel struct {
 func New(initialUser string) credModel {
 	c := credModel{userStartingValue: initialUser, userSelected: true}
 	c.UserTI = textinput.New()
-	c.UserTI.Prompt = stylesheet.Cur.PromptSty.Symbol()
+	c.UserTI.Prompt = ""
 	c.UserTI.SetValue(c.userStartingValue)
 	c.UserTI.Focus()
 	c.PassTI = textinput.New()
-	c.PassTI.Prompt = stylesheet.Cur.PromptSty.Symbol()
+	c.PassTI.Prompt = ""
 	c.PassTI.EchoMode = textinput.EchoNone
 	c.PassTI.Blur()
 	return c
