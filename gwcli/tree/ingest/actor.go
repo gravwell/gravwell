@@ -295,10 +295,12 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 	dir = strings.TrimSpace(dir)
 	if err != nil {
 		clilog.Writer.Fatalf("dir flag does not exist: %v", err)
-	} else if info, err := os.Stat(dir); err != nil {
-		return "", nil, err
-	} else if !info.IsDir() {
-		return "--dir must point to a directory", nil, nil
+	} else if dir != "" {
+		if info, err := os.Stat(dir); err != nil {
+			return "", nil, err
+		} else if !info.IsDir() {
+			return "--dir must point to a directory", nil, nil
+		}
 	}
 
 	// if one+ files were given, try to ingest immediately
