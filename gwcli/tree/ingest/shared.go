@@ -9,8 +9,6 @@
 package ingest
 
 import (
-	"errors"
-	"io/fs"
 	"os"
 	"slices"
 	"strings"
@@ -106,12 +104,7 @@ func validateDirFlag(flags *pflag.FlagSet) (dir string, invalid string, err erro
 		// a directory was specified; validate it
 		info, err := os.Stat(dir)
 		if err != nil {
-			// wrap a not exists error
-			if !errors.Is(err, fs.ErrNotExist) {
-				return "", dir + " is not a valid directory", nil
-			} else {
-				return "", "", err
-			}
+			return "", "", err
 		}
 
 		if !info.IsDir() {
