@@ -27,10 +27,12 @@ var (
 	helpDesc = "Ingest files into Gravwell.\n" +
 		"An arbitrary number of arguments can be specified, each of which takes the form: " + ft.Mandatory("path") + ft.Optional(",tag") + "\n" +
 		"If no flag is specified for a path, ingest will attempt to use the flag specified by --default-tag.\n" +
-		"The path can point to a single file or a directory; if it is the latter, ingest will recursively walk the directory to upload every file.\n" +
+		"The path can point to a single file or a directory; if it is the latter, ingest will shallowly walk the directory to upload each immediate file (unless -r is specified, then it will traverse recursively).\n" +
 		"Note, however, that ingest provides special handling for Gravwell JSON files.\n" +
 		"Gravwell JSON files typically have a tag built into them, which will be used instead of --default-tag if a tag is not specified as part of the argument.\n" +
-		"Calling ingest with no arguments will spin up a file picker (unless --script is specified in which case it will fail out)."
+		"\n" +
+		"Calling ingest with no arguments will spin up a file picker (unless --script is specified in which case it will fail out).\n" +
+		"Use --dir to specify a starting directory (otherwise pwd will be used)."
 )
 
 // NewIngestAction does as it says on the tin, enabling the caller to insert the returned pair into the action map.
@@ -54,13 +56,13 @@ func NewIngestAction() action.Pair {
 func initialLocalFlagSet() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 
-	fs.StringP("src", "s", "", "IP address to use as the source of these files")
+	fs.BoolP("hidden", "h", false, "include hidden files when ingesting a directory")
+	fs.BoolP("recursive", "r", false, "recursively traverse directories, ingesting each file at every level")
+
+	fs.IPP("src", "s", nil, "IP address to use as the source of these files")
 	fs.Bool("ignore-timestamp", false, "all entries will be tagged with the current time")
 	fs.Bool("local-time", false, "any timezone information in the data will be ignored and "+
 		"timestamps will be assumed to be in the Gravwell server's local timezone")
-	fs.StringSliceP("tags", "t", nil, "comma-separated tags to apply to a file/file=s.\n"+
-		"If a single tag is specified, it will be applied to all files being ingested.\n"+
-		"If multiple tags are specified, they will be matched index-for-index with the files given.")
 	fs.StringP("dir", "d", "", "directory to start the interactive file picker in. Has no effect in script mode.")
 
 	return fs
