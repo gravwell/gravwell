@@ -9,10 +9,15 @@
 package ingest
 
 import (
+	"errors"
+	"io/fs"
+	"os"
 	"slices"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/spf13/pflag"
 )
 
 // autoingest attempts to ingest the data at each file path, returning errors and successes on the given channel (if non-nil).
@@ -88,4 +93,30 @@ func validateTag(tag string) error {
 		}
 	}
 	return nil
+}
+
+// validateDirFlag is a helper function for checking that, if a path was given, it points to a valid *directory*.
+// Returns the full directory path if it is valid. Otherwise, it returns a user-friendly 'invalid' reason or an error.
+func validateDirFlag(flags *pflag.FlagSet) (dir string, invalid string, err error) {
+	dir, err = flags.GetString("dir")
+	dir = strings.TrimSpace(dir)
+	if err != nil {
+		return "", "", uniques.ErrFlagDNE("dir", "ingest")
+	} else if dir != "" {
+		// a directory was specified; validate it
+		info, err := os.Stat(dir)
+		if err != nil {
+			// wrap a not exists error
+			if !errors.Is(err, fs.ErrNotExist) {
+				return "", dir + " is not a valid directory", nil
+			} else {
+				return "", "", err
+			}
+		}
+
+		if !info.IsDir() {
+			return "", "--dir must point to a directory", nil
+		}
+	}
+	return dir, "", nil
 }
