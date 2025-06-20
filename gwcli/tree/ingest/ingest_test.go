@@ -254,6 +254,11 @@ func TestNewIngestActionRun(t *testing.T) {
 				return true
 			},
 		},
+		{"--dir given non-existent path",
+			[]string{"--dir", "/nonsense_path"},
+			func() (success bool) { return true },
+			func(out, err string) (success bool) { return err != "" },
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
