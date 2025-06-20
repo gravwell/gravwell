@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package uniques
+package uniques_test
 
 import (
 	"testing"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	. "github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
 // NOTE(rlandau): these tests are limited as the validator generally only checks the last rune/word.

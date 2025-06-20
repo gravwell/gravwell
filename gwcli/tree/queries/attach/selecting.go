@@ -40,7 +40,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
-	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -87,7 +86,7 @@ func (sv *selectingView) init() (cmd tea.Cmd, noAttachables bool, err error) {
 
 	//sv.list.Styles.HelpStyle = sv.list.Styles.HelpStyle.Width(sv.width)
 
-	return uniques.FetchWindowSize, false, nil
+	return tea.WindowSize(), false, nil
 }
 
 // Destroys the state of the selecting view, killing any and all updater goroutines.
@@ -211,7 +210,7 @@ type attachable struct {
 func (i attachable) Title() string {
 	var status = string(i.State.Status)
 	if status != "" {
-		status = stylesheet.IndexStyle.Render("{" + string(i.State.Status) + "} ")
+		status = stylesheet.Cur.SecondaryText.Render("{" + string(i.State.Status) + "} ")
 	}
 	return fmt.Sprintf("%s%s", status, i.UserQuery)
 }
@@ -265,7 +264,7 @@ func (sv *selectingView) attachToQuery() (fatalErr error) {
 		close(sv.searchErr)
 	}()
 	// start a spinner
-	sv.spnr = busywait.NewSpinner()
+	sv.spnr = stylesheet.NewSpinner()
 
 	return nil
 }
@@ -291,10 +290,10 @@ func composeDetails(a attachable) string {
 		a.AttachedClients,
 		a.StoredData))
 	if a.NoHistory {
-		detailSB.WriteString("\n" + stylesheet.Header2Style.Render("No History Mode"))
+		detailSB.WriteString("\n" + stylesheet.Cur.SecondaryText.Render("No History Mode"))
 	}
 	if a.Error != "" {
-		detailSB.WriteString("\nError: " + stylesheet.ErrStyle.Render(a.Error))
+		detailSB.WriteString("\nError: " + stylesheet.Cur.ErrorText.Render(a.Error))
 	}
 
 	// wrap detail view in a border
@@ -397,14 +396,14 @@ var sty struct {
 	bottomText      lipgloss.Style
 }{
 	qryBody:         lipgloss.NewStyle().Height(5).Margin(1),
-	qryWrap:         stylesheet.Composable.Primary,
-	state:           lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Margin(1, 0, 1).Foreground(stylesheet.AccentColor1),
-	detailFieldText: stylesheet.Header1Style,
+	qryWrap:         stylesheet.Cur.ComposableSty.ComplimentaryBorder,
+	state:           stylesheet.Cur.PrimaryText.AlignHorizontal(lipgloss.Center).Margin(1, 0, 1),
+	detailFieldText: stylesheet.Cur.PrimaryText,
 	detailBody:      lipgloss.NewStyle().Margin(1),
-	detailWrap:      stylesheet.Composable.Secondary,
+	detailWrap:      stylesheet.Cur.ComposableSty.ComplimentaryBorder,
 	listAlign:       lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).MarginRight(int(halfMargin)),
 	detailAlign:     lipgloss.NewStyle().MarginLeft(int(halfMargin)),
-	bottomText:      lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Foreground(stylesheet.TertiaryColor).MaxHeight(1),
+	bottomText:      stylesheet.Cur.SecondaryText.AlignHorizontal(lipgloss.Center).MaxHeight(1),
 }
 
 //#endregion styles

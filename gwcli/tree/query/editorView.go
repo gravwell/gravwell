@@ -76,7 +76,7 @@ func (ev *editorView) update(msg tea.Msg) (cmd tea.Cmd, submit bool) {
 
 func (ev *editorView) view() string {
 	return fmt.Sprintf("%s\n%s\n%s",
-		stylesheet.Header1Style.Render("Query:"),
+		stylesheet.Cur.PrimaryText.Render("Query:"),
 		ev.ta.View(),
-		stylesheet.ErrStyle.Width(stylesheet.TIWidth).Render(ev.err)) // add a width style for wrapping
+		stylesheet.Cur.ErrorText.Width(stylesheet.TIWidth).Render(ev.err)) // add a width style for wrapping
 }

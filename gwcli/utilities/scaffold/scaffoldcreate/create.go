@@ -75,7 +75,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -385,8 +384,8 @@ func (c *createModel) View() string {
 	fieldWidth := c.longestFieldLength + 3 // 1 spaces for ":", 1 for pip, 1 for padding
 
 	var ( // styles
-		tiFieldRequiredSty = stylesheet.Header1Style
-		tiFieldOptionalSty = stylesheet.Header2Style
+		tiFieldRequiredSty = stylesheet.Cur.PrimaryText
+		tiFieldOptionalSty = stylesheet.Cur.SecondaryText
 		leftAlignerSty     = lipgloss.NewStyle().
 					Width(fieldWidth).
 					AlignHorizontal(lipgloss.Right).
@@ -482,7 +481,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string) (
 		}
 	}
 
-	return "", uniques.FetchWindowSize, nil
+	return "", tea.WindowSize(), nil
 }
 
 //#endregion

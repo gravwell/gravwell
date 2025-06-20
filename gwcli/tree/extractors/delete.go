@@ -59,8 +59,8 @@ func fetch() ([]scaffolddelete.Item[uuid.UUID], error) {
 	for i, ax := range axs {
 		items[i] = scaffolddelete.NewItem[uuid.UUID](ax.Name,
 			fmt.Sprintf("module: %v\ntags: %v\n%v",
-				stylesheet.Header2Style.Render(ax.Module),
-				stylesheet.Header2Style.Render(strings.Join(ax.Tags, " ")),
+				stylesheet.Cur.SecondaryText.Render(ax.Module),
+				stylesheet.Cur.SecondaryText.Render(strings.Join(ax.Tags, " ")),
 				ax.Desc),
 			ax.UUID)
 	}

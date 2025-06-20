@@ -66,7 +66,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -94,9 +93,9 @@ type id_t interface {
 
 var (
 	// TI field marked as required
-	tiFieldRequiredSty = stylesheet.Header1Style
+	tiFieldRequiredSty = stylesheet.Cur.PrimaryText
 	// TI field marked as optional
-	tiFieldOptionalSty = stylesheet.Header2Style
+	tiFieldOptionalSty = stylesheet.Cur.SecondaryText
 )
 
 // #endregion
@@ -373,7 +372,7 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 	em.listInitialized = true
 	em.mode = selecting
 
-	return "", uniques.FetchWindowSize, nil
+	return "", tea.WindowSize(), nil
 }
 
 func (em *editModel[I, S]) Update(msg tea.Msg) tea.Cmd {
@@ -517,10 +516,9 @@ func (em *editModel[I, S]) View() string {
 		return ""
 	case selecting:
 		str = em.list.View() + "\n" +
-			lipgloss.NewStyle().
+			stylesheet.Cur.ExampleText.
 				AlignHorizontal(lipgloss.Center).
 				Width(em.width).
-				Foreground(stylesheet.TertiaryColor).
 				Render("Press space or enter to select")
 	case editing:
 		var sb strings.Builder
