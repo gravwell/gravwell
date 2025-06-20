@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -291,16 +290,11 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 		clilog.Writer.Fatalf("src flag does not exist: %v", err)
 		return "", nil, err
 	}
-	dir, err := rawFlags.GetString("dir")
-	dir = strings.TrimSpace(dir)
+	dir, invalid, err := validateDirFlag(&rawFlags)
 	if err != nil {
-		clilog.Writer.Fatalf("dir flag does not exist: %v", err)
-	} else if dir != "" {
-		if info, err := os.Stat(dir); err != nil {
-			return "", nil, err
-		} else if !info.IsDir() {
-			return "--dir must point to a directory", nil, nil
-		}
+		return "", nil, err
+	} else if invalid != "" {
+		return invalid, nil, nil
 	}
 
 	// if one+ files were given, try to ingest immediately
