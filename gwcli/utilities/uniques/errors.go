@@ -16,7 +16,7 @@ var ErrMustAuth = errors.New("you must authenticate to use gwcli")
 
 var ErrBadJWTLength = errors.New("failed to parse JWT; expected splitting on '.' to turn back 3 segments")
 
-// Returns a user-friendly error (errGeneric), but logs a critical error to clilog.
+// ErrFlagDNE returns a user-friendly error (errGeneric), but logs a critical error to clilog.
 func ErrFlagDNE(flagName string, actionName string) (ufErr error) {
 	clilog.Writer.Criticalf("flag '%v' does not exist on given flagset. Action: %v", flagName, actionName)
 	return ErrGeneric
