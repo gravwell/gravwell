@@ -11,7 +11,6 @@ package ingest
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -66,18 +65,22 @@ func run(c *cobra.Command, args []string) {
 	// fetch flags
 	script, err := c.Flags().GetBool(ft.Name.Script)
 	if err != nil {
-		clilog.Writer.Fatalf("script flag does not exist: %v", err)
+		fmt.Fprintln(c.ErrOrStderr(), uniques.ErrFlagDNE("script", "ingest"))
+		return
 	}
 	tags, err := c.Flags().GetStringSlice("tags")
 	if err != nil {
-		clilog.Writer.Fatalf("local-time flag does not exist: %v", err)
+		fmt.Fprintln(c.ErrOrStderr(), uniques.ErrFlagDNE("tags", "ingest"))
+		return
 	}
-	// check only for dir/script collision; other dir validation is done in SetArgs
-	dir, err := c.Flags().GetString("dir")
-	if err != nil {
-		clilog.Writer.Fatalf("dir flag does not exist: %v", err)
-	} else if dir = strings.TrimSpace(dir); dir != "" && script {
-		fmt.Fprintln(c.ErrOrStderr(), ft.WarnFlagIgnore("dir", "script"))
+
+	// if we spawn mother, this will be redundant, but so be it
+	if _, invalid, err := validateDirFlag(c.Flags()); err != nil {
+		fmt.Fprintln(c.ErrOrStderr(), err)
+		return
+	} else if invalid != "" {
+		fmt.Fprintln(c.ErrOrStderr(), invalid)
+		return
 	}
 
 	// fetch list of files from the excess arguments
@@ -100,20 +103,17 @@ func run(c *cobra.Command, args []string) {
 	// launch directly into ingesting the named files
 	ignoreTS, err := c.Flags().GetBool("ignore-timestamp")
 	if err != nil {
-		clilog.Writer.Criticalf("ignore-timestamp flag does not exist: %v", err)
-		fmt.Println(uniques.ErrGeneric)
+		fmt.Fprintln(c.ErrOrStderr(), uniques.ErrFlagDNE("ignore-timestamp", "ingest"))
 		return
 	}
 	localTime, err := c.Flags().GetBool("local-time")
 	if err != nil {
-		clilog.Writer.Criticalf("local-time flag does not exist: %v", err)
-		fmt.Println(uniques.ErrGeneric)
+		fmt.Fprintln(c.ErrOrStderr(), uniques.ErrFlagDNE("local-time", "ingest"))
 		return
 	}
 	src, err := c.Flags().GetString("src")
 	if err != nil {
-		clilog.Writer.Criticalf("src flag does not exist: %v", err)
-		fmt.Println(uniques.ErrGeneric)
+		fmt.Fprintln(c.ErrOrStderr(), uniques.ErrFlagDNE("src", "ingest"))
 		return
 	}
 
