@@ -9,16 +9,19 @@
 package ingest
 
 import (
+	"errors"
+	"net"
 	"os"
 	"slices"
 	"strings"
 
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
 
-// autoingest attempts to ingest the data at each file path, returning errors and successes on the given channel (if non-nil).
+// autoingest attempts to ingest the data at each path, returning errors and successes on the given channel (if non-nil).
 // Performs ingestions in parallel; once len(filepaths) results have been send (cumulative across both channels), caller can assume this goroutine has returned.
 // No logging is performed internally; caller is expected to log and present results.
 //
@@ -26,13 +29,13 @@ import (
 func autoingest(res chan<- struct {
 	string
 	error
-}, filepaths, tags []string, ignoreTS, localTime bool, src string) (ufErr error) {
-	if len(filepaths) == 0 {
+}, paths, tags []string, ignoreTS, localTime bool, src string) (ufErr error) {
+	if len(paths) == 0 {
 		return errNoFilesSpecified
 	}
 	// check that tag len is 1 or == file len
-	if len(tags) != 1 && len(tags) != len(filepaths) {
-		return errBadTagCount(uint(len(filepaths)))
+	if len(tags) != 1 && len(tags) != len(paths) {
+		return errBadTagCount(uint(len(paths)))
 	}
 
 	// if there is only 1 tag, validate it immediately rather than on repeat
@@ -43,7 +46,7 @@ func autoingest(res chan<- struct {
 		}
 	}
 	// try to ingest each file
-	for i, fp := range filepaths {
+	for i, fp := range paths {
 		if fp == "" {
 			continue
 		}
@@ -95,21 +98,117 @@ func validateTag(tag string) error {
 
 // validateDirFlag is a helper function for checking that, if a path was given, it points to a valid *directory*.
 // Returns the full directory path if it is valid. Otherwise, it returns a user-friendly 'invalid' reason or an error.
-func validateDirFlag(flags *pflag.FlagSet) (dir string, invalid string, err error) {
-	dir, err = flags.GetString("dir")
-	dir = strings.TrimSpace(dir)
-	if err != nil {
-		return "", "", uniques.ErrFlagDNE("dir", "ingest")
-	} else if dir != "" {
+func validateDirFlag(dir string) (invalid string, err error) {
+	if dir != "" {
 		// a directory was specified; validate it
 		info, err := os.Stat(dir)
 		if err != nil {
-			return "", "", err
+			return "", err
 		}
 
 		if !info.IsDir() {
-			return "", "--dir must point to a directory", nil
+			return "--dir must point to a directory", nil
 		}
 	}
-	return dir, "", nil
+	return "", nil
+}
+
+type ingestFlags struct {
+	script    bool
+	hidden    bool   // include hidden files when ingesting directories
+	recursive bool   // recursively descend directories
+	src       net.IP // IP address to use as the source of the files
+	ignoreTS  bool   // all entries will be tagged with the current time rather than any internal timestamping.
+	localTime bool   // use server-local timezone rather than inherent timezones
+	dir       string // starting directory for interactive mode
+}
+
+// transmogrifyFlags takes a *parsed* flagset and returns a structured, types, and (in the case of strings) trimmed representation of the flags therein.
+// Validates each flag, returning either a populated flagset or the first error encountered.
+// Errors are logged automatically; caller can just give the error back to the client and exit.
+// Encountering an invalid argument does *not* return early.
+func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
+	if !fs.Parsed() {
+		return ingestFlags{}, nil, errors.New("flagset must be parsed prior to transmogrification.")
+	}
+
+	var (
+		invalids []string
+	)
+
+	flags := ingestFlags{}
+
+	if script, err := fs.GetBool("script"); err != nil {
+		return flags, invalids, uniques.ErrFlagDNE("script", "ingest")
+	} else {
+		flags.script = script
+	}
+	if includeHidden, err := fs.GetBool("hidden"); err != nil {
+		return flags, invalids, uniques.ErrFlagDNE("hidden", "ingest")
+	} else {
+		flags.hidden = includeHidden
+	}
+	if recursive, err := fs.GetBool("recursive"); err != nil {
+		return flags, invalids, uniques.ErrFlagDNE("recursive", "ingest")
+	} else {
+		flags.recursive = recursive
+	}
+	if srcRaw, err := fs.GetString("source"); err != nil {
+		return flags, invalids, uniques.ErrFlagDNE("source", "ingest")
+	} else if src := net.ParseIP(srcRaw); src == nil {
+		invalids = append(invalids, srcRaw+" is not a valid IP address")
+	} else {
+		flags.src = src
+	}
+	if ignoreTS, err := fs.GetBool("ignore-timestamp"); err != nil {
+		return flags, invalids, uniques.ErrFlagDNE("ignore-timestamp", "ingest")
+	} else {
+		flags.ignoreTS = ignoreTS
+	}
+	if localTime, err := fs.GetBool("local-time"); err != nil {
+		return flags, invalids, uniques.ErrFlagDNE("local-time", "ingest")
+	} else {
+		flags.localTime = localTime
+	}
+	if dir, err := fs.GetString("dir"); err != nil {
+		return flags, invalids, uniques.ErrFlagDNE("dir", "ingest")
+	} else {
+		dir = strings.TrimSpace(dir)
+		if invalid, err := validateDirFlag(dir); err != nil {
+			clilog.Writer.Errorf("%v", err)
+			return flags, invalids, err
+		} else if invalid != "" {
+			invalids = append(invalids, invalid)
+		} else {
+			flags.dir = dir
+		}
+	}
+
+	return flags, invalids, nil
+}
+
+// Given the bare arguments, returns a list of pairs associating each path to its tag (if a tag was supplied).
+// Does not perform any coercion for paths or tag.
+func parsePairs(args []string) []struct {
+	path string
+	tag  string
+} {
+	pairs := []struct {
+		path string
+		tag  string
+	}{}
+
+	for _, a := range args {
+		if a == "" {
+			continue
+		}
+		p := struct {
+			path string
+			tag  string
+		}{}
+		p.path, p.tag, _ = strings.Cut(a, ",")
+		pairs = append(pairs, p)
+	}
+
+	return pairs
 }
