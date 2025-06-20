@@ -87,7 +87,7 @@ func run(c *cobra.Command, args []string) {
 	// if no files were given, launch mother or fail out
 	if len(pairs) == 0 {
 		if flags.script {
-			fmt.Fprintln(c.ErrOrStderr(), "at least one path must be specified in script mode")
+			fmt.Fprintln(c.ErrOrStderr(), errNoFilesSpecified(true))
 			return
 		}
 
@@ -105,7 +105,7 @@ func run(c *cobra.Command, args []string) {
 		error
 	})
 
-	if err := autoingest(resultCh, files, tags, ignoreTS, localTime, src); err != nil {
+	if err := autoingest(resultCh, flags, pairs); err != nil {
 		fmt.Fprintln(c.ErrOrStderr(), stylesheet.Cur.ErrorText.Render(err.Error()))
 		return
 	}

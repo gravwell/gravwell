@@ -22,7 +22,7 @@ import (
 )
 
 // autoingest attempts to ingest the data at each path, returning errors and successes on the given channel (if non-nil).
-// Performs ingestions in parallel; once len(filepaths) results have been send (cumulative across both channels), caller can assume this goroutine has returned.
+// Performs ingestions in parallel; once len(filepaths) results have been sent, caller can assume this goroutine has returned.
 // No logging is performed internally; caller is expected to log and present results.
 //
 // If ufErr (user-friendly error) is returned, do not wait on the channel; no values will be sent.
@@ -33,8 +33,8 @@ func autoingest(res chan<- struct {
 	path string
 	tag  string
 }) (ufErr error) {
-	if len(paths) == 0 {
-		return errNoFilesSpecified
+	if len(pairs) == 0 {
+		return errNoFilesSpecified(flags.script)
 	}
 	// check that tag len is 1 or == file len
 	if len(tags) != 1 && len(tags) != len(paths) {
