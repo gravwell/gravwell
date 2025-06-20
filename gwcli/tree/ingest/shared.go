@@ -29,7 +29,10 @@ import (
 func autoingest(res chan<- struct {
 	string
 	error
-}, paths, tags []string, ignoreTS, localTime bool, src string) (ufErr error) {
+}, flags ingestFlags, pairs []struct {
+	path string
+	tag  string
+}) (ufErr error) {
 	if len(paths) == 0 {
 		return errNoFilesSpecified
 	}

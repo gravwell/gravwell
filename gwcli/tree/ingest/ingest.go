@@ -18,7 +18,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -59,7 +58,7 @@ func initialLocalFlagSet() pflag.FlagSet {
 	fs.BoolP("hidden", "h", false, "include hidden files when ingesting a directory")
 	fs.BoolP("recursive", "r", false, "recursively traverse directories, ingesting each file at every level")
 
-	fs.IPP("src", "s", nil, "IP address to use as the source of these files")
+	fs.StringP("source", "s", "", "IP address to use as the source of these files")
 	fs.Bool("ignore-timestamp", false, "all entries will be tagged with the current time")
 	fs.Bool("local-time", false, "any timezone information in the data will be ignored and "+
 		"timestamps will be assumed to be in the Gravwell server's local timezone")
@@ -71,33 +70,24 @@ func initialLocalFlagSet() pflag.FlagSet {
 // driver subroutine invoked by Cobra when ingest is called from an external shell.
 func run(c *cobra.Command, args []string) {
 	// fetch flags
-	script, err := c.Flags().GetBool(ft.Name.Script)
+	flags, invalids, err := transmogrifyFlags(c.Flags())
 	if err != nil {
-		fmt.Fprintln(c.ErrOrStderr(), uniques.ErrFlagDNE("script", "ingest"))
+		fmt.Fprintf(c.ErrOrStderr(), "%v", err)
 		return
-	}
-	tags, err := c.Flags().GetStringSlice("tags")
-	if err != nil {
-		fmt.Fprintln(c.ErrOrStderr(), uniques.ErrFlagDNE("tags", "ingest"))
-		return
-	}
-
-	// if we spawn mother, this will be redundant, but so be it
-	if _, invalid, err := validateDirFlag(c.Flags()); err != nil {
-		fmt.Fprintln(c.ErrOrStderr(), err)
-		return
-	} else if invalid != "" {
-		fmt.Fprintln(c.ErrOrStderr(), invalid)
+	} else if len(invalids) > 0 { // spit out each invalid and die
+		for _, reason := range invalids {
+			fmt.Fprintln(c.ErrOrStderr(), reason)
+		}
 		return
 	}
 
-	// fetch list of files from the excess arguments
-	files := c.Flags().Args()
+	// fetch pairs from bare arguments
+	pairs := parsePairs(c.Flags().Args())
 
-	// if no file were given, launch mother or fail out
-	if len(files) == 0 {
-		if script {
-			fmt.Fprintln(c.ErrOrStderr(), "at least one file path must be specified in script mode")
+	// if no files were given, launch mother or fail out
+	if len(pairs) == 0 {
+		if flags.script {
+			fmt.Fprintln(c.ErrOrStderr(), "at least one path must be specified in script mode")
 			return
 		}
 
@@ -108,22 +98,7 @@ func run(c *cobra.Command, args []string) {
 		return
 	}
 
-	// launch directly into ingesting the named files
-	ignoreTS, err := c.Flags().GetBool("ignore-timestamp")
-	if err != nil {
-		fmt.Fprintln(c.ErrOrStderr(), uniques.ErrFlagDNE("ignore-timestamp", "ingest"))
-		return
-	}
-	localTime, err := c.Flags().GetBool("local-time")
-	if err != nil {
-		fmt.Fprintln(c.ErrOrStderr(), uniques.ErrFlagDNE("local-time", "ingest"))
-		return
-	}
-	src, err := c.Flags().GetString("src")
-	if err != nil {
-		fmt.Fprintln(c.ErrOrStderr(), uniques.ErrFlagDNE("src", "ingest"))
-		return
-	}
+	// attempt autoingestion
 
 	resultCh := make(chan struct {
 		string
@@ -135,33 +110,35 @@ func run(c *cobra.Command, args []string) {
 		return
 	}
 
-	done := make(chan bool) // close up shop, all files have been handled when closed
+	/*
+		done := make(chan bool) // close up shop, all files have been handled when closed
 
-	go func() { // await results, print them, then notify us when all have been consumed
-		for range files {
-			res := <-resultCh
-			if res.error != nil {
-				clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.string, res.error))
-			} else {
-				fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.string)
+		go func() { // await results, print them, then notify us when all have been consumed
+			for range files {
+				res := <-resultCh
+				if res.error != nil {
+					clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.string, res.error))
+				} else {
+					fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.string)
+				}
 			}
+			// all done
+			close(done)
+		}()
+
+		if script { // wait
+			<-done
+		} else { // wait and display a spinner
+			var s = "ingesting file"
+			if len(files) > 1 {
+				s += "s"
+			}
+			p := stylesheet.CobraSpinner(s)
+			go func() { p.Run() }()
+			<-done
+			p.Quit()
 		}
+
 		// all done
-		close(done)
-	}()
-
-	if script { // wait
-		<-done
-	} else { // wait and display a spinner
-		var s = "ingesting file"
-		if len(files) > 1 {
-			s += "s"
-		}
-		p := stylesheet.CobraSpinner(s)
-		go func() { p.Run() }()
-		<-done
-		p.Quit()
-	}
-
-	// all done
+	*/
 }
