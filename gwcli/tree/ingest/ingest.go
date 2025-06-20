@@ -23,18 +23,23 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const (
-	helpDesc = "Ingest 1+ files into Gravwell.\n" +
-		"All bare arguments after `ingest` will be considered file paths of files to slurp.\n" +
+var (
+	helpDesc = "Ingest files into Gravwell.\n" +
+		"An arbitrary number of arguments can be specified, each of which takes the form: " + ft.Mandatory("path") + ft.Optional(",tag") + "\n" +
+		"If no flag is specified for a path, ingest will attempt to use the flag specified by --default-tag.\n" +
+		"The path can point to a single file or a directory; if it is the latter, ingest will recursively walk the directory to upload every file.\n" +
+		"Note, however, that ingest provides special handling for Gravwell JSON files.\n" +
+		"Gravwell JSON files typically have a tag built into them, which will be used instead of --default-tag if a tag is not specified as part of the argument.\n" +
 		"Calling ingest with no arguments will spin up a file picker (unless --script is specified in which case it will fail out)."
 )
 
+// NewIngestAction does as it says on the tin, enabling the caller to insert the returned pair into the action map.
 func NewIngestAction() action.Pair {
 	cmd := treeutils.GenerateAction(
 		"ingest",
 		"ingest data from a file or STDIN",
 		helpDesc, []string{"in", "sip", "read"}, run)
-	cmd.Example = fmt.Sprintf("./gwcli ingest --tags=[\"pulsar\",\"quasar\",\"...\"] %s %s %s", ft.Mandatory("path1"), ft.Mandatory("path2"), ft.Mandatory("...")) // TODO
+	cmd.Example = fmt.Sprintf("./gwcli ingest picture/of/space.png,pulsar query_results.json cat/pics/,animals ...")
 
 	{ // install flags
 		fs := initialLocalFlagSet()
@@ -61,6 +66,7 @@ func initialLocalFlagSet() pflag.FlagSet {
 	return fs
 }
 
+// driver subroutine invoked by Cobra when ingest is called from an external shell.
 func run(c *cobra.Command, args []string) {
 	// fetch flags
 	script, err := c.Flags().GetBool(ft.Name.Script)
