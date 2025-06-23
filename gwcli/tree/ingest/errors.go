@@ -8,8 +8,12 @@ import (
 var illegalTagCharacters = []rune{' '}
 
 var (
-	errEmptyTag  error = errors.New("tag cannot be empty")
-	errEmptyFile error = errors.New("you must select a valid file for ingestion")
+	//errEmptyTag  error = errors.New("tag cannot be empty")
+
+	// file path cannot be empty
+	errEmptyPath error = errors.New("file path cannot be empty")
+	// refusing to ingest an empty file
+	errEmptyFile error = errors.New("cowardly refusing to ingest an empty file")
 	// a tag contained 1+ of the characters contained in illegalTagCharacters
 	errInvalidTagCharacter error = fmt.Errorf("tags cannot contain any of the following characters: %v", illegalTagCharacters)
 )
@@ -22,7 +26,4 @@ func errNoFilesSpecified(script bool) error {
 		tail = " in script mode"
 	}
 	return fmt.Errorf("at least 1 path must be specified%v", tail)
-}
-func errBadTagCount(count uint) error {
-	return fmt.Errorf("tag count must be 1 or equal to the number of files specified (%v)", count)
 }

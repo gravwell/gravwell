@@ -128,7 +128,7 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			// check for file selection (and thus, attempt ingestion)
 			if didSelect, path := i.fp.DidSelectFile(msg); didSelect {
 				if path == "" {
-					i.err = errEmptyFile
+					i.err = errEmptyPath
 					return cmd
 				}
 				// check that src is empty or a valid IP
