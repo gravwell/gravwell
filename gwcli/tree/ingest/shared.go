@@ -9,6 +9,7 @@
 package ingest
 
 import (
+	"encoding/json"
 	"errors"
 	"net"
 	"os"
@@ -21,11 +22,12 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// autoingest attempts to ingest the data at each path, returning errors and successes on the given channel (if non-nil).
-// Performs ingestions in parallel; once len(filepaths) results have been sent, caller can assume this goroutine has returned.
+// autoingest attempts to ingest the file at each path, returning errors and successes on the given channel (if non-nil).
+// Performs ingestions in parallel; once len(pairs) results have been sent, caller can assume this goroutine has returned.
 // No logging is performed internally; caller is expected to log and present results.
 //
 // If ufErr (user-friendly error) is returned, do not wait on the channel; no values will be sent.
+// if ufErr is nil, you can safely assume exactly len(pairs) will be returned.
 func autoingest(res chan<- struct {
 	string
 	error
@@ -33,9 +35,24 @@ func autoingest(res chan<- struct {
 	path string
 	tag  string
 }) (ufErr error) {
+	// basic validation
 	if len(pairs) == 0 {
 		return errNoFilesSpecified(flags.script)
 	}
+
+	// spin off a goro to test and ingest each pair
+	for _, pair := range pairs {
+		go func() {
+			// invoke ingest path and return its result plus the path it operated on
+			res <- struct {
+				string
+				error
+			}{pair.path, ingestPath(flags, pair)}
+		}()
+	}
+
+	// TODO replace the body with pair handling
+
 	// check that tag len is 1 or == file len
 	if len(tags) != 1 && len(tags) != len(paths) {
 		return errBadTagCount(uint(len(paths)))
@@ -85,20 +102,6 @@ func autoingest(res chan<- struct {
 	return nil
 }
 
-// Given a tag for the file to be ingested, validates that it is non-nil and does not have illegal characters.
-func validateTag(tag string) error {
-	if tag == "" {
-		return errEmptyTag
-	}
-	// test for illegal characters
-	for _, r := range tag {
-		if slices.Contains(illegalTagCharacters, r) {
-			return errInvalidTagCharacter
-		}
-	}
-	return nil
-}
-
 // validateDirFlag is a helper function for checking that, if a path was given, it points to a valid *directory*.
 // Returns the full directory path if it is valid. Otherwise, it returns a user-friendly 'invalid' reason or an error.
 func validateDirFlag(dir string) (invalid string, err error) {
@@ -117,13 +120,14 @@ func validateDirFlag(dir string) (invalid string, err error) {
 }
 
 type ingestFlags struct {
-	script    bool
-	hidden    bool   // include hidden files when ingesting directories
-	recursive bool   // recursively descend directories
-	src       net.IP // IP address to use as the source of the files
-	ignoreTS  bool   // all entries will be tagged with the current time rather than any internal timestamping.
-	localTime bool   // use server-local timezone rather than inherent timezones
-	dir       string // starting directory for interactive mode
+	script     bool
+	hidden     bool   // include hidden files when ingesting directories
+	recursive  bool   // recursively descend directories
+	src        net.IP // IP address to use as the source of the files
+	ignoreTS   bool   // all entries will be tagged with the current time rather than any internal timestamping.
+	localTime  bool   // use server-local timezone rather than inherent timezones
+	dir        string // starting directory for interactive mode
+	defaultTag string // the tag to use if not specified in the argument (or in the file itself, in the case of GW JSON)
 }
 
 // transmogrifyFlags takes a *parsed* flagset and returns a structured, types, and (in the case of strings) trimmed representation of the flags therein.
@@ -186,6 +190,9 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 			flags.dir = dir
 		}
 	}
+	if def, err := fs.GetString("default-tag"); err != nil {
+		return flags, invalids, uniques.ErrFlagDNE("default-tag", "ingest")
+	}
 
 	return flags, invalids, nil
 }
@@ -214,4 +221,81 @@ func parsePairs(args []string) []struct {
 	}
 
 	return pairs
+}
+
+// ingestPath validates and attempts to ingest the given pair.
+// "Return" values are sent over the res channel.
+//
+// ! Intended to be run as a goroutine.
+func ingestPath(flags ingestFlags, pair struct {
+	path string
+	tag  string
+}) error {
+	var err error
+	// clean and validate path
+	pair.path = strings.TrimSpace(pair.path)
+	if pair.path == "" {
+		return errEmptyPath
+	}
+	if info, err := os.Stat(pair.path); err != nil {
+		return err
+	} else if info.Size() <= 0 {
+		return errEmptyFile
+	}
+
+	if pair.tag, err = determineTag(); err != nil {
+		return err
+	}
+
+	// we have all the data we need, we can now attempt ingestion
+	resp, err := connection.Client.IngestFile(pair.path, pair.tag, flags.src.String(), flags.ignoreTS, flags.localTime)
+	if err != nil {
+		return err
+	}
+}
+
+// determineTag figures out which tag to use, following the given priority:
+//
+// 1)
+//
+// 2)
+//
+// 3)
+//
+// ! It is valid for this function to return an empty tag and a nil error.
+// This just means the file is a valid GWJSON file and can be ingested with the empty tag.
+func determineTag(p pair, defaultTag string) (string, error) {
+	if p.tag == "" {
+		var isGWJSON bool = true
+		// check if this is a GWJSON file by attempting to unmarshal it
+		dcdr := json.NewDecoder()             // TODO
+		if err := dcdr.Decode(); err != nil { // TODO
+
+		}
+
+		// TODO
+
+		// if it is, leave the tag blank
+		if !isGWJSON {
+			// try to fall back to the default tag, error otherwise
+			p.tag = defaultTag
+			if p.tag == "" {
+				return "", errEmptyFile
+			}
+		}
+
+	}
+	// validate the argument tag
+	for _, r := range p.tag {
+		if slices.Contains(illegalTagCharacters, r) {
+			return "", errInvalidTagCharacter
+		}
+	}
+	return p.tag, nil
+
+}
+
+type pair struct {
+	path string
+	tag  string
 }
