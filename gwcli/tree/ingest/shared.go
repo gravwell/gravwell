@@ -16,6 +16,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/gravwell/gravwell/v4/client/types"
+
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -48,55 +50,6 @@ func autoingest(res chan<- struct {
 				string
 				error
 			}{pair.path, ingestPath(flags, pair)}
-		}()
-	}
-
-	// TODO replace the body with pair handling
-
-	// check that tag len is 1 or == file len
-	if len(tags) != 1 && len(tags) != len(paths) {
-		return errBadTagCount(uint(len(paths)))
-	}
-
-	// if there is only 1 tag, validate it immediately rather than on repeat
-	if len(tags) == 1 {
-		tags[0] = strings.TrimSpace(tags[0])
-		if err := validateTag(tags[0]); err != nil {
-			return errInvalidTagCharacter
-		}
-	}
-	// try to ingest each file
-	for i, fp := range paths {
-		if fp == "" {
-			continue
-		}
-
-		go func() {
-			var tag string
-			if len(tags) == 1 {
-				tag = tags[0]
-			} else {
-				// validate each tag
-				tag = strings.TrimSpace(tags[i])
-				if err := validateTag(tags[0]); err != nil {
-					// send this error over the wire, rather than attempting ingestion
-					if res != nil {
-						res <- struct {
-							string
-							error
-						}{fp, err}
-					}
-					return
-				}
-			}
-
-			_, err := connection.Client.IngestFile(fp, tag, src, ignoreTS, localTime)
-			if res != nil {
-				res <- struct {
-					string
-					error
-				}{fp, err}
-			}
 		}()
 	}
 	return nil
@@ -237,21 +190,31 @@ func ingestPath(flags ingestFlags, pair struct {
 	if pair.path == "" {
 		return errEmptyPath
 	}
-	if info, err := os.Stat(pair.path); err != nil {
+	info, err := os.Stat(pair.path)
+	if err != nil {
 		return err
 	} else if info.Size() <= 0 {
 		return errEmptyFile
 	}
 
-	if pair.tag, err = determineTag(); err != nil {
+	if pair.tag, err = determineTag(pair, flags.defaultTag); err != nil {
 		return err
+	}
+
+	// if this is a directory, determine if we need to shallowly or recursively slurp its files
+	var fileOrDirStr = "file"
+	if info.IsDir() {
+		fileOrDirStr = "directory"
 	}
 
 	// we have all the data we need, we can now attempt ingestion
 	resp, err := connection.Client.IngestFile(pair.path, pair.tag, flags.src.String(), flags.ignoreTS, flags.localTime)
 	if err != nil {
+		clilog.Writer.Warnf("failed to ingest %v at path %v: %v", fileOrDirStr, pair.path, err)
 		return err
 	}
+	// TODO
+
 }
 
 // determineTag figures out which tag to use, following the given priority:
@@ -266,24 +229,30 @@ func ingestPath(flags ingestFlags, pair struct {
 // This just means the file is a valid GWJSON file and can be ingested with the empty tag.
 func determineTag(p pair, defaultTag string) (string, error) {
 	if p.tag == "" {
-		var isGWJSON bool = true
-		// check if this is a GWJSON file by attempting to unmarshal it
-		dcdr := json.NewDecoder()             // TODO
-		if err := dcdr.Decode(); err != nil { // TODO
+		{
+			// check if this is a GWJSON file by attempting to unmarshal it
+			f, err := os.Open(p.path)
+			if err != nil {
+				return "", err
+			}
+			dcdr := json.NewDecoder(f)
+			var ste types.StringTagEntry
+			if err := dcdr.Decode(&ste); err == nil && ste.Tag != "" {
+				// TODO is there a more efficient way to do this than decoding the entire file, which could be quite large?
+				// TODO Can Gabs walk this file dynamically?
 
-		}
-
-		// TODO
-
-		// if it is, leave the tag blank
-		if !isGWJSON {
-			// try to fall back to the default tag, error otherwise
-			p.tag = defaultTag
-			if p.tag == "" {
-				return "", errEmptyFile
+				// successfully decoded file and read tag; we can leave our tag empty
+				return "", nil
 			}
 		}
+		// this is not a gravwell JSON file (or is one, but with an empty tag), try to use the default tag
 
+		// try to fall back to the default tag, otherwise error out
+		p.tag = defaultTag
+		if p.tag == "" {
+			return "", errNoTagSpecified
+		}
+		return p.tag, nil
 	}
 	// validate the argument tag
 	for _, r := range p.tag {
@@ -292,7 +261,6 @@ func determineTag(p pair, defaultTag string) (string, error) {
 		}
 	}
 	return p.tag, nil
-
 }
 
 type pair struct {
