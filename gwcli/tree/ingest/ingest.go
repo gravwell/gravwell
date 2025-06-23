@@ -7,6 +7,7 @@
  **************************************************************************/
 
 // Package ingest provides an action for streaming data TO Gravwell (as opposed to most other actions that operate in reverse).
+// File paths and tags can be specified as bare arguments and have the form "path,tag", where tag and the splitting comma are optional (in some cases).
 package ingest
 
 import (
@@ -55,19 +56,28 @@ func NewIngestAction() action.Pair {
 func initialLocalFlagSet() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 
-	fs.BoolP("hidden", "h", false, "include hidden files when ingesting a directory")
-	fs.BoolP("recursive", "r", false, "recursively traverse directories, ingesting each file at every level")
+	fs.BoolP("hidden", "h", false,
+		"include hidden files when ingesting a directory")
+	fs.BoolP("recursive", "r", false,
+		"recursively traverse directories, ingesting each file at every level")
 
-	fs.StringP("source", "s", "", "IP address to use as the source of these files")
-	fs.Bool("ignore-timestamp", false, "all entries will be tagged with the current time")
-	fs.Bool("local-time", false, "any timezone information in the data will be ignored and "+
-		"timestamps will be assumed to be in the Gravwell server's local timezone")
-	fs.StringP("dir", "d", "", "directory to start the interactive file picker in. Has no effect in script mode.")
+	fs.StringP("source", "s", "",
+		"IP address to use as the source of these files")
+	fs.Bool("ignore-timestamp", false,
+		"all entries will be tagged with the current time")
+	fs.Bool("local-time", false,
+		"any timezone information in the data will be ignored and "+
+			"timestamps will be assumed to be in the Gravwell server's local timezone")
+	fs.String("dir", "",
+		"directory to start the interactive file picker in. Has no effect in script mode.")
+	fs.StringP("default-tag", "t", "",
+		"tag to use for each file that does not have one specified (either in the argument or embedded in the JSON (in the case of Gravwell JSON files))")
 
 	return fs
 }
 
 // driver subroutine invoked by Cobra when ingest is called from an external shell.
+// run boots Mother if !script && no files were specified; otherwise it attempts to autoingest the files.
 func run(c *cobra.Command, args []string) {
 	// fetch flags
 	flags, invalids, err := transmogrifyFlags(c.Flags())
