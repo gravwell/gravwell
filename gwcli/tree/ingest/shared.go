@@ -72,6 +72,7 @@ func validateDirFlag(dir string) (invalid string, err error) {
 	return "", nil
 }
 
+// ingestFlags holds all flags so we don't have to keep passing around the pflag set.
 type ingestFlags struct {
 	script     bool
 	hidden     bool   // include hidden files when ingesting directories
@@ -145,6 +146,8 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	}
 	if def, err := fs.GetString("default-tag"); err != nil {
 		return flags, invalids, uniques.ErrFlagDNE("default-tag", "ingest")
+	} else {
+		flags.defaultTag = def
 	}
 
 	return flags, invalids, nil
@@ -213,8 +216,9 @@ func ingestPath(flags ingestFlags, pair struct {
 		clilog.Writer.Warnf("failed to ingest %v at path %v: %v", fileOrDirStr, pair.path, err)
 		return err
 	}
-	// TODO
-
+	clilog.Writer.Infof("successfully ingested %v at path %v (specified tag: %v | returned tags: %v)",
+		fileOrDirStr, pair.path, pair.tag, resp.Tags)
+	return nil
 }
 
 // determineTag figures out which tag to use, following the given priority:
