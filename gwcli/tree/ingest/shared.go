@@ -33,10 +33,7 @@ import (
 func autoingest(res chan<- struct {
 	string
 	error
-}, flags ingestFlags, pairs []struct {
-	path string
-	tag  string
-}) (ufErr error) {
+}, flags ingestFlags, pairs []pair) (ufErr error) {
 	// basic validation
 	if len(pairs) == 0 {
 		return errNoFilesSpecified(flags.script)
@@ -154,24 +151,15 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 }
 
 // Given the bare arguments, returns a list of pairs associating each path to its tag (if a tag was supplied).
-// Does not perform any coercion for paths or tag.
-func parsePairs(args []string) []struct {
-	path string
-	tag  string
-} {
-	pairs := []struct {
-		path string
-		tag  string
-	}{}
+// Does not perform any coercion for paths or tag (other than skipping empty elements).
+func parsePairs(args []string) []pair {
+	pairs := []pair{}
 
 	for _, a := range args {
 		if a == "" {
 			continue
 		}
-		p := struct {
-			path string
-			tag  string
-		}{}
+		var p pair
 		p.path, p.tag, _ = strings.Cut(a, ",")
 		pairs = append(pairs, p)
 	}
@@ -183,24 +171,21 @@ func parsePairs(args []string) []struct {
 // "Return" values are sent over the res channel.
 //
 // ! Intended to be run as a goroutine.
-func ingestPath(flags ingestFlags, pair struct {
-	path string
-	tag  string
-}) error {
+func ingestPath(flags ingestFlags, p pair) error {
 	var err error
 	// clean and validate path
-	pair.path = strings.TrimSpace(pair.path)
-	if pair.path == "" {
+	p.path = strings.TrimSpace(p.path)
+	if p.path == "" {
 		return errEmptyPath
 	}
-	info, err := os.Stat(pair.path)
+	info, err := os.Stat(p.path)
 	if err != nil {
 		return err
 	} else if info.Size() <= 0 {
 		return errEmptyFile
 	}
 
-	if pair.tag, err = determineTag(pair, flags.defaultTag); err != nil {
+	if p.tag, err = determineTag(p, flags.defaultTag); err != nil {
 		return err
 	}
 
@@ -211,13 +196,13 @@ func ingestPath(flags ingestFlags, pair struct {
 	}
 
 	// we have all the data we need, we can now attempt ingestion
-	resp, err := connection.Client.IngestFile(pair.path, pair.tag, flags.src.String(), flags.ignoreTS, flags.localTime)
+	resp, err := connection.Client.IngestFile(p.path, p.tag, flags.src.String(), flags.ignoreTS, flags.localTime)
 	if err != nil {
-		clilog.Writer.Warnf("failed to ingest %v at path %v: %v", fileOrDirStr, pair.path, err)
+		clilog.Writer.Warnf("failed to ingest %v at path %v: %v", fileOrDirStr, p.path, err)
 		return err
 	}
 	clilog.Writer.Infof("successfully ingested %v at path %v (specified tag: %v | returned tags: %v)",
-		fileOrDirStr, pair.path, pair.tag, resp.Tags)
+		fileOrDirStr, p.path, p.tag, resp.Tags)
 	return nil
 }
 
