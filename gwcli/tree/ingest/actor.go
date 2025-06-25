@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -30,7 +31,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/filegrabber"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
 
@@ -268,60 +268,41 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 	if err := rawFlags.Parse(tokens); err != nil {
 		return "", nil, err
 	}
+	flags, invalids, err := transmogrifyFlags(&rawFlags)
+	if len(invalids) > 0 {
+		var full strings.Builder
+		// concatenate invalids
+		for _, reason := range invalids {
+			full.WriteString(reason + "\n")
+		}
+		return full.String(), nil, nil
+	}
 
-	// fetch flag values
-	if i.mod.ignoreTS, err = rawFlags.GetBool("ignore-timestamp"); err != nil {
-		clilog.Writer.Fatalf("ignore-timestamp flag does not exist: %v", err)
-		fmt.Println(uniques.ErrGeneric)
-		return "", nil, err
-	}
-	if i.mod.localTime, err = rawFlags.GetBool("local-time"); err != nil {
-		clilog.Writer.Fatalf("local-time flag does not exist: %v", err)
-		fmt.Println(uniques.ErrGeneric)
-		return "", nil, err
-	}
-	src, err := rawFlags.GetString("src")
-	if err != nil {
-		clilog.Writer.Fatalf("src flag does not exist: %v", err)
-		return "", nil, err
-	}
-	tags, err := rawFlags.GetStringSlice("tags")
-	if err != nil {
-		clilog.Writer.Fatalf("src flag does not exist: %v", err)
-		return "", nil, err
-	}
-	dir, invalid, err := validateDirFlag(&rawFlags)
-	if err != nil {
-		return "", nil, err
-	} else if invalid != "" {
-		return invalid, nil, nil
-	}
+	pairs := parsePairs(rawFlags.Args())
 
 	// if one+ files were given, try to ingest immediately
-	if files := rawFlags.Args(); len(files) > 0 {
-		ufErr := autoingest(i.ingestResCh, files, tags, i.mod.ignoreTS, i.mod.localTime, src)
+	if len(pairs) > 0 {
+		ufErr := autoingest(i.ingestResCh, flags, pairs)
 		if ufErr != nil {
 			return ufErr.Error(), nil, nil
 		}
-		i.ingestCount = len(files)
+		i.ingestCount = len(pairs)
 		i.mode = ingesting
 		return "", i.spinner.Tick, nil
 	}
 
-	// prepare the action
-	if len(tags) > 0 {
-		i.mod.tagTI.SetValue(tags[0])
-	}
-	i.mod.srcTI.SetValue(src)
+	// prepare the interactive action
+	i.mod.tagTI.SetValue(flags.defaultTag)
+	i.mod.srcTI.SetValue(flags.src.String())
 
-	if dir == "" {
+	if flags.dir == "" {
 		i.fp.CurrentDirectory, err = os.Getwd()
 		if err != nil {
 			clilog.Writer.Warnf("failed to get pwd: %v", err)
 			i.fp.CurrentDirectory = "." // allow OS to decide where to drop us
 		}
 	} else {
-		i.fp.CurrentDirectory = dir
+		i.fp.CurrentDirectory = flags.dir
 	}
 
 	return "", i.fp.Init(), nil
