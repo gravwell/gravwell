@@ -15,6 +15,7 @@ import (
 	"bytes"
 	"os"
 	"path"
+	"reflect"
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
@@ -38,12 +39,12 @@ func Test_autoingest(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// TODO
+	//dir :=
+
 	type args struct {
-		filenames []string // all files are created in the temp directory
-		tags      []string
-		ignoreTS  bool
-		localTime bool
-		src       string
+		pairs []pair // creates files at the given paths in a temp directory
+		flags ingestFlags
 	}
 	tests := []struct {
 		name             string
@@ -51,8 +52,20 @@ func Test_autoingest(t *testing.T) {
 		wantInitialErr   bool            // want autoingest to return an error
 		expectedOutcomes map[string]bool // filename -> expectingAnError?
 	}{
-		{"0 files, 1 tag", args{nil, []string{randomdata.LastName()}, false, false, ""}, true, nil},
-		{"1 file, 0 tags", args{[]string{randomdata.LastName()}, nil, false, false, ""}, true, nil},
+		{"0 pairs", args{[]pair{}, ingestFlags{script: true}},
+			true, nil},
+		{"1 pair", args{[]pair{{"hello", "test"}}, ingestFlags{script: true}},
+			false, map[string]bool{"hello": false}},
+		{"1 pair, no tag no default", args{[]pair{{"hello", ""}}, ingestFlags{script: true}},
+			false, map[string]bool{"hello": true}},
+		{"2 pairs", args{[]pair{{"file1", "tag1"}, {"dir/file2", "tag2"}}, ingestFlags{script: true}},
+			false, map[string]bool{"file1": false, "dir/file2": false}},
+		/*{"2 pair, default tag"},
+		{"2 pairs,1 default 1 specified"},
+		{"4 pairs,1 specified, no default"},
+		{""},
+		{"Gravwell SJON"},
+
 		{"1 file, 5 tags",
 			args{
 				[]string{"Ironeye"},
@@ -77,7 +90,7 @@ func Test_autoingest(t *testing.T) {
 				true,
 				randomdata.IpV6Address(),
 			}, false, map[string]bool{"Revenant": false, "Wylder": false, "Guardian": false},
-		},
+		},*/
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -85,15 +98,20 @@ func Test_autoingest(t *testing.T) {
 
 			// create each file we expect to succeed
 			for f, expectingErr := range tt.expectedOutcomes {
-				if f == "" {
+				if f == "" || expectingErr {
 					continue
 				}
 				p := path.Join(t.TempDir(), f)
 				fullPaths = append(fullPaths, p)
 
-				if expectingErr {
-					continue
+				// create directories, if necessary
+				dir, _ := path.Split(p)
+				if dir != "" {
+					if err := os.MkdirAll(dir, 0666); err != nil {
+						t.Skipf("failed to mkdir directory path '%v': %v", dir, err)
+					}
 				}
+				t.Logf("created path '%v'", p)
 
 				if err := os.WriteFile(p, []byte(randomdata.Paragraph()), 0666); err != nil {
 					t.Skipf("failed to create a file '%v' for ingestion", f)
@@ -105,17 +123,14 @@ func Test_autoingest(t *testing.T) {
 				error
 			})
 
-			if err := autoingest(
-				ch,
-				fullPaths,
-				tt.args.tags,
-				tt.args.ignoreTS,
-				tt.args.localTime, tt.args.src); (err != nil) != tt.wantInitialErr {
+			// execute autoingest and await results on the channel
+			if err := autoingest(ch, tt.args.flags, tt.args.pairs); (err != nil) != tt.wantInitialErr {
 				t.Errorf("autoingest() error = %v, wantErr %v", err, tt.wantInitialErr)
 			}
 			if !tt.wantInitialErr {
-				for _, f := range tt.args.filenames {
-					if f == "" {
+				// check each file
+				for _, f := range tt.args.pairs {
+					if f.path == "" {
 						continue
 					}
 					res := <-ch
@@ -126,6 +141,54 @@ func Test_autoingest(t *testing.T) {
 						t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", file, expectingErr, res.error)
 					}
 				}
+			}
+		})
+	}
+}
+
+func Test_parsePairs(t *testing.T) {
+	var (
+		p1 = randomdata.LastName()
+		p2 = randomdata.LastName()
+		p3 = randomdata.LastName()
+
+		t1 = randomdata.Month()
+		t2 = randomdata.Month()
+		t3 = randomdata.Month()
+	)
+
+	type args struct {
+		args []string
+	}
+	tests := []struct {
+		name string
+		args args
+		want []struct {
+			path string
+			tag  string
+		}
+	}{
+		{"none", args{[]string{}}, []struct {
+			path string
+			tag  string
+		}{}},
+		{"empty strings", args{[]string{"", "", ""}}, []struct {
+			path string
+			tag  string
+		}{}},
+		{"all w/ tags", args{[]string{p1 + "," + t1, p2 + "," + t2, p3 + "," + t3}}, []struct {
+			path string
+			tag  string
+		}{{p1, t1}, {p2, t2}, {p3, t3}}},
+		{"mixed", args{[]string{p1 + "," + t1, p2}}, []struct {
+			path string
+			tag  string
+		}{{p1, t1}, {path: p2}}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := parsePairs(tt.args.args); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parsePairs() = %v, want %v", got, tt.want)
 			}
 		})
 	}
