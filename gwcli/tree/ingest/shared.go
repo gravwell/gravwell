@@ -243,13 +243,20 @@ func determineTag(p pair, defaultTag string) (string, error) {
 		}
 		return p.tag, nil
 	}
-	// validate the argument tag
-	for _, r := range p.tag {
-		if slices.Contains(illegalTagCharacters, r) {
-			return "", errInvalidTagCharacter
-		}
+	if err := validateTag(p.tag); err != nil {
+		return "", err
 	}
 	return p.tag, nil
+}
+
+func validateTag(tag string) error {
+	// validate the argument tag
+	for _, r := range tag {
+		if slices.Contains(illegalTagCharacters, r) {
+			return errInvalidTagCharacter
+		}
+	}
+	return nil
 }
 
 type pair struct {

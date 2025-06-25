@@ -127,6 +127,7 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			i.fp, cmd = i.fp.Update(msg)
 			// check for file selection (and thus, attempt ingestion)
 			if didSelect, path := i.fp.DidSelectFile(msg); didSelect {
+				// validate selections and modifiers prior to ingestion
 				if path == "" {
 					i.err = errEmptyPath
 					return cmd
