@@ -13,6 +13,7 @@ import (
 	"errors"
 	"net"
 	"os"
+	"path"
 	"slices"
 	"strings"
 
@@ -193,20 +194,51 @@ func ingestPath(flags ingestFlags, p pair) error {
 		return err
 	}
 
-	// if this is a directory, determine if we need to shallowly or recursively slurp its files
-	var fileOrDirStr = "file"
 	if info.IsDir() {
-		fileOrDirStr = "directory"
-	}
+		// this is a directory, walk through it (recursively or shallowly, depending on flags)
+		return walkDir(p.path, p.tag, flags)
 
-	// we have all the data we need, we can now attempt ingestion
-	resp, err := connection.Client.IngestFile(p.path, p.tag, flags.src, flags.ignoreTS, flags.localTime)
+	}
+	// this is a file, ingest it directly
+	return uploadFile(p.path, p.tag, flags)
+}
+
+// given a directory, walkDir ingests each file within and, if recur, recursively ingests each file in each subdirectory.
+// Halts on the first error.
+//
+// Single-threaded.
+func walkDir(dirpath string, tag string, flags ingestFlags) error {
+	// Recursive ingestion is depth-first (entering directories as soon as they are found).
+
+	entries, err := os.ReadDir(dirpath)
 	if err != nil {
-		clilog.Writer.Warnf("failed to ingest %v at path %v: %v", fileOrDirStr, p.path, err)
+		clilog.Writer.Warnf("failed to walk directory rooted at %v: %v", dirpath, err)
 		return err
 	}
-	clilog.Writer.Infof("successfully ingested %v at path %v (specified tag: %v | returned tags: %v)",
-		fileOrDirStr, p.path, p.tag, resp.Tags)
+	for _, entry := range entries {
+		if entry.IsDir() && flags.recursive { // if it is a directory, ignore it or enter it (depending on -r)
+			if err := walkDir(path.Join(dirpath, entry.Name()), tag, flags); err != nil {
+				return err
+			}
+		} else if !entry.IsDir() { // if this is a file, ingest it
+			// recompose full path and ingest
+			if err := uploadFile(path.Join(dirpath, entry.Name()), tag, flags); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// wrapper for Client.IngestFile that logs and returns the outcome.
+func uploadFile(path, tag string, flags ingestFlags) error {
+	resp, err := connection.Client.IngestFile(path, tag, flags.src, flags.ignoreTS, flags.localTime)
+	if err != nil {
+		clilog.Writer.Warnf("failed to ingest file at path %v: %v", path, err)
+		return err
+	}
+	clilog.Writer.Infof("successfully ingested file at path %v (specified tag: %v | returned tags: %v)",
+		path, tag, resp.Tags)
 	return nil
 }
 
