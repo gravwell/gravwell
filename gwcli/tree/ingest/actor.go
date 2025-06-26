@@ -270,9 +270,12 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 		return "", nil, err
 	}
 	flags, invalids, err := transmogrifyFlags(&rawFlags)
+	if err != nil {
+		return "", nil, err
+	}
 	if len(invalids) > 0 {
+		// concatenate invalids and return them
 		var full strings.Builder
-		// concatenate invalids
 		for _, reason := range invalids {
 			full.WriteString(reason + "\n")
 		}
