@@ -18,6 +18,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -216,8 +217,10 @@ func Test_autoingest(t *testing.T) {
 		})
 
 		t.Run("shallow", func(t *testing.T) {
+			tag := "shallow" + randomdata.Alphanumeric(10)
+
 			// execute autoingest and await results on the channel
-			count := autoingest(ch, ingestFlags{script: true}, []pair{{path: dir, tag: "shallow"}})
+			count := autoingest(ch, ingestFlags{script: true}, []pair{{path: dir, tag: tag}})
 			if count != 3 {
 				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(3, count))
 			}
@@ -234,13 +237,18 @@ func Test_autoingest(t *testing.T) {
 				default: // a file that should not have been ingested was.
 					t.Errorf("unexpected ingestion of file %v. Result: %v", res.string, res.error)
 				}
+			}
 
+			if !verifyTagExists(t, tag) {
+				t.Errorf("failed to find tag %v after ingesting files under it", tag)
 			}
 		})
 
 		t.Run("recursive", func(t *testing.T) {
+			tag := "recursive" + randomdata.Alphanumeric(10)
+
 			// execute autoingest and await results on the channel
-			count := autoingest(ch, ingestFlags{script: true, recursive: true}, []pair{{path: dir, tag: "recursive"}})
+			count := autoingest(ch, ingestFlags{script: true, recursive: true}, []pair{{path: dir, tag: tag}})
 			if count != 5 {
 				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(5, count))
 			}
@@ -259,10 +267,32 @@ func Test_autoingest(t *testing.T) {
 				}
 
 			}
+
+			if !verifyTagExists(t, tag) {
+				t.Errorf("failed to find tag %v after ingesting files under it", tag)
+			}
 		})
 
 	})
+}
 
+// checks that the given tag exists on the Gravwell backend.
+// NOTE(rlandau): the lag time may need to be increased, as it appears to take a variable amount of time for ingested files to "commit".
+// The tag will not be returned by GetTags until files under it have been committed.
+func verifyTagExists(t *testing.T, tag string) bool {
+	t.Helper()
+	time.Sleep(5 * time.Second) // tags can take a few moments to show up
+	tags, err := connection.Client.GetTags()
+	if err != nil {
+		t.Error(err)
+		return false
+	}
+	for _, serverTag := range tags {
+		if serverTag == tag {
+			return true
+		}
+	}
+	return false
 }
 
 func Test_parsePairs(t *testing.T) {
