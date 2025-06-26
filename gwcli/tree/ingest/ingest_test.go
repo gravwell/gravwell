@@ -394,81 +394,44 @@ func TestNewIngestActionRun(t *testing.T) {
 			func() (success bool) { return true },
 			func(out, err string) (success bool) { return err != "" },
 		},
-		/*
-			{"2 files, 1 tag",
-				[]string{"--tags=Limveld", path.Join(dir, "raider"), path.Join(dir, "recluse")},
-				func() bool {
-					// create the files to ingest
-					if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
-						t.Log(err)
-						return false
-					}
-					if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
-						t.Log(err)
-						return false
-					}
+		{"invalid source",
+			[]string{"--source", "badsrc", "--script"},
+			func() (success bool) { return true },
+			func(out, err string) (success bool) { return err != "" },
+		},
+		{"invalid default tag",
+			[]string{"--default-tag", "some|tag", "--script"},
+			func() (success bool) { return true },
+			func(out, err string) (success bool) { return err != "" },
+		},
+		{"2 files, 1 invalid tag",
+			[]string{"--ignore-timestamp", path.Join(dir, "raider,Limveld"), path.Join(dir, "recluse,bad|tag")},
+			func() bool {
+				// create the files to ingest
+				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
+					t.Log(err)
+					return false
+				}
+				// this file should *not* be ingested
+				if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
+					t.Log(err)
+					return false
+				}
 
-					return true
-				},
-				func(out, err string) bool {
-					if err != "" {
-						t.Logf("expected nil err output, found %v", err)
-						return false
-					}
-					return true
-				},
+				return true
 			},
-			{"2 files, 2 tags, with bools",
-				[]string{"--tags=Limveld,Night", "--ignore-timestamp", path.Join(dir, "raider"), path.Join(dir, "recluse")},
-				func() bool {
-					// create the files to ingest
-					if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
-						t.Log(err)
-						return false
-					}
-					if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
-						t.Log(err)
-						return false
-					}
-
-					return true
-				},
-				func(out, err string) bool {
-					if err != "" {
-						t.Logf("expected nil err output, found %v", err)
-						return false
-					}
-					return true
-				},
+			func(out, err string) bool {
+				if len(strings.Split(out, "\n")) == 1 {
+					t.Logf("expected expected output to have exactly 1 record, found %v from %v", len(out), out)
+					return false
+				}
+				if err == "" {
+					t.Log("expected error text, found nil")
+					return false
+				}
+				return true
 			},
-			{"2 files, 2 (invalid) tags",
-				[]string{"--tags=|/,[]", "--ignore-timestamp", path.Join(dir, "raider"), path.Join(dir, "recluse")},
-				func() bool {
-					// create the files to ingest
-					if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
-						t.Log(err)
-						return false
-					}
-					if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
-						t.Log(err)
-						return false
-					}
-
-					return true
-				},
-				func(out, err string) bool {
-					if out != "" {
-						t.Logf("expected nil output, found %v", out)
-						return false
-					}
-					if err == "" {
-						t.Log("expected error text, found nil")
-						return false
-					}
-					return true
-				},
-			},
-		*/
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
