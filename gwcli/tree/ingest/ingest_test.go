@@ -16,6 +16,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
@@ -138,38 +139,31 @@ func Test_autoingest(t *testing.T) {
 			// check each file
 			for range count {
 				res := <-ch
+
+				// strip the testing directory off the path
+				if after, found := strings.CutPrefix(res.string, dir+"/"); !found {
+					t.Fatalf("expected all paths to be prefixed by the temp directory. Actual: %v", res.string)
+				} else {
+					res.string = after
+				}
+
 				// find the outcome we are expecting
+				var found bool
 				for i := range tt.args.pairs {
 					// if we find a match, check the outcome
 					if res.string == tt.args.pairs[i].path {
+						found = true
 						expectingErr := tt.expectedOutcomes[tt.args.pairs[i].path]
 						if (res.error != nil) != expectingErr {
 							t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", tt.args.pairs[i].path, expectingErr, res.error)
 						}
-						continue
 					}
 				}
-			}
-
-			for _, pair := range tt.args.pairs {
-				if pair.path == "" {
-					continue
+				// if we made it this far without finding a match, something has gone terribly wrong
+				if !found {
+					t.Errorf("failed to find file %v in argument pairs", res.string)
 				}
-				res := <-ch
-
-				for i := range tt.args.pairs {
-					// if we find a match, check the outcome
-					if res.string == tt.args.pairs[i].path {
-						expectingErr := tt.expectedOutcomes[tt.args.pairs[i].path]
-						if (res.error != nil) != expectingErr {
-							t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", pair.path, expectingErr, res.error)
-						}
-						continue
-					}
-				}
-
 			}
-
 		})
 	}
 
