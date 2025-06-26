@@ -113,15 +113,15 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	}
 	if srcRaw, err := fs.GetString("source"); err != nil {
 		return flags, invalids, uniques.ErrFlagDNE("source", "ingest")
-	} else if src := net.ParseIP(srcRaw); src == nil {
-		invalids = append(invalids, srcRaw+" is not a valid IP address")
-	} else {
-		if src == nil {
-			flags.src = ""
+	} else if srcRaw != "" {
+		if src := net.ParseIP(srcRaw); src == nil {
+			invalids = append(invalids, srcRaw+" is not a valid IP address")
 		} else {
 			flags.src = src.String()
+
 		}
 	}
+
 	if ignoreTS, err := fs.GetBool("ignore-timestamp"); err != nil {
 		return flags, invalids, uniques.ErrFlagDNE("ignore-timestamp", "ingest")
 	} else {
