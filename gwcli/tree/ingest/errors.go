@@ -29,3 +29,8 @@ func errNoFilesSpecified(script bool) error {
 	}
 	return fmt.Errorf("at least 1 path must be specified%v", tail)
 }
+
+// thrown by ingest when it received a directory after supposedly collecting all files were collected
+func errUnwalkedDirectory(pth string) error {
+	return fmt.Errorf("'%v' is a directory, which should have been traversed prior. Please file a bug report.", pth)
+}

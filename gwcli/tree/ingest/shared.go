@@ -26,31 +26,103 @@ import (
 )
 
 // autoingest attempts to ingest the file at each path, returning errors and successes on the given channel (if non-nil).
-// Performs ingestions in parallel; once len(pairs) results have been sent, caller can assume this goroutine has returned.
-// No logging is performed internally; caller is expected to log and present results.
-//
-// If ufErr (user-friendly error) is returned, do not wait on the channel; no values will be sent.
-// if ufErr is nil, you can safely assume exactly len(pairs) will be returned.
+// Returns the number of files to be ingested; caller can safely await exactly count results from the channel (again, if non-nil).
+// Performs ingestions in parallel.
 func autoingest(res chan<- struct {
 	string
 	error
-}, flags ingestFlags, pairs []pair) (ufErr error) {
-	// basic validation
+}, flags ingestFlags, pairs []pair) (count uint) {
 	if len(pairs) == 0 {
-		return errNoFilesSpecified(flags.script)
+		return 0
 	}
 
-	// spin off a goro to test and ingest each pair
+	var (
+		paths     = make(map[string]string) // path -> tag
+		errPaths  = make(map[string]error)  // path -> collection error
+		fileCount uint
+	)
+	// determine the number of files we are going to ingest and build a list of full paths
 	for _, pair := range pairs {
-		go func() {
-			// invoke ingest path and return its result plus the path it operated on
-			res <- struct {
-				string
-				error
-			}{pair.path, ingestPath(flags, pair)}
-		}()
+		toIng, err := collectPathsForIngestions(pair.path, flags.recursive)
+		for path := range toIng {
+			// set aside paths that error so we can immediately return them as an error
+			if err != nil {
+				errPaths[path] = err
+			} else {
+				paths[path] = pair.tag
+			}
+			fileCount += 1
+		}
 	}
-	return nil
+
+	// spin off a goroutine per path to ingest each file
+	for path, tag := range paths {
+		go func(p, t string) {
+			err := ingestPath(flags, p, t)
+			if res != nil {
+				res <- struct {
+					string
+					error
+				}{p, err}
+			}
+		}(path, tag)
+	}
+
+	// spin off a single goroutine to pass errors from collect
+	go func() {
+		if res != nil {
+			for p, err := range errPaths {
+				res <- struct {
+					string
+					error
+				}{p, err}
+			}
+		}
+	}()
+
+	return fileCount
+}
+
+// given a path, collectPathsForIngestion identifies the full paths for each file to be uploaded.
+// collectPathsForIngestions traverses directories, descending iff recur.
+//
+// The returned map is a set; values are not important.
+func collectPathsForIngestions(pathToIngest string, recur bool) (map[string]bool, error) {
+	if pathToIngest == "" {
+		return nil, nil
+	} else if info, err := os.Stat(pathToIngest); err != nil {
+		return nil, err
+	} else if !info.IsDir() {
+		// if this is a file, return just its path
+		return map[string]bool{pathToIngest: true}, nil
+	}
+
+	paths := map[string]bool{}
+
+	// traverse the directory
+	entries, err := os.ReadDir(pathToIngest)
+	if err != nil {
+		clilog.Writer.Warnf("failed to walk directory rooted at %v: %v", pathToIngest, err)
+		return nil, err
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			if recur {
+				subdir, err := collectPathsForIngestions(path.Join(pathToIngest, entry.Name()), true)
+				if err != nil {
+					return nil, err
+				}
+				// add these paths to our known paths
+				for path := range subdir {
+					paths[path] = true
+				}
+			} // if !recur, ignore directory
+		} else {
+			// just add the file to our map
+			paths[path.Join(pathToIngest, entry.Name())] = true
+		}
+	}
+	return paths, nil
 }
 
 // validateDirFlag is a helper function for checking that, if a path was given, it points to a valid *directory*.
@@ -174,35 +246,29 @@ func parsePairs(args []string) []pair {
 	return pairs
 }
 
-// ingestPath validates and attempts to ingest the given pair.
-// "Return" values are sent over the res channel.
-//
-// ! Intended to be run as a goroutine.
-func ingestPath(flags ingestFlags, p pair) error {
+// ingestPath validates and attempts to ingest the file at the given path.
+func ingestPath(flags ingestFlags, pth, tag string) error {
 	var err error
 	// clean and validate path
-	p.path = strings.TrimSpace(p.path)
-	if p.path == "" {
+	pth = strings.TrimSpace(pth)
+	if pth == "" {
 		return errEmptyPath
 	}
-	info, err := os.Stat(p.path)
+	info, err := os.Stat(pth)
 	if err != nil {
 		return err
 	} else if info.Size() <= 0 {
 		return errEmptyFile
+	} else if info.IsDir() {
+		// this likely means there is a bug, as it should be only individual files at this point
+		return errUnwalkedDirectory(pth)
 	}
 
-	if p.tag, err = determineTag(p, flags.defaultTag); err != nil {
+	if tag, err = determineTag(pth, tag, flags.defaultTag); err != nil {
 		return err
 	}
 
-	if info.IsDir() {
-		// this is a directory, walk through it (recursively or shallowly, depending on flags)
-		return walkDir(p.path, p.tag, flags)
-
-	}
-	// this is a file, ingest it directly
-	return uploadFile(p.path, p.tag, flags)
+	return ingestFile(pth, tag, flags)
 }
 
 // given a directory, walkDir ingests each file within and, if recur, recursively ingests each file in each subdirectory.
@@ -224,7 +290,7 @@ func walkDir(dirpath string, tag string, flags ingestFlags) error {
 			}
 		} else if !entry.IsDir() { // if this is a file, ingest it
 			// recompose full path and ingest
-			if err := uploadFile(path.Join(dirpath, entry.Name()), tag, flags); err != nil {
+			if err := ingestFile(path.Join(dirpath, entry.Name()), tag, flags); err != nil {
 				return err
 			}
 		}
@@ -233,7 +299,7 @@ func walkDir(dirpath string, tag string, flags ingestFlags) error {
 }
 
 // wrapper for Client.IngestFile that logs and returns the outcome.
-func uploadFile(path, tag string, flags ingestFlags) error {
+func ingestFile(path, tag string, flags ingestFlags) error {
 	resp, err := connection.Client.IngestFile(path, tag, flags.src, flags.ignoreTS, flags.localTime)
 	if err != nil {
 		clilog.Writer.Warnf("failed to ingest file at path %v: %v", path, err)
@@ -254,11 +320,11 @@ func uploadFile(path, tag string, flags ingestFlags) error {
 //
 // ! It is valid for this function to return an empty tag and a nil error.
 // This just means the file is a valid GWJSON file and can be ingested with the empty tag.
-func determineTag(p pair, defaultTag string) (string, error) {
-	if p.tag == "" {
+func determineTag(pth, tag, defaultTag string) (string, error) {
+	if tag == "" {
 		{
 			// check if this is a GWJSON file by attempting to unmarshal it
-			f, err := os.Open(p.path)
+			f, err := os.Open(pth)
 			if err != nil {
 				return "", err
 			}
@@ -273,16 +339,16 @@ func determineTag(p pair, defaultTag string) (string, error) {
 		// this is not a gravwell JSON file (or is one, but with an empty tag), try to use the default tag
 
 		// try to fall back to the default tag, otherwise error out
-		p.tag = defaultTag
-		if p.tag == "" {
+		tag = defaultTag
+		if tag == "" {
 			return "", errNoTagSpecified
 		}
-		return p.tag, nil
+		return tag, nil
 	}
-	if err := validateTag(p.tag); err != nil {
+	if err := validateTag(tag); err != nil {
 		return "", err
 	}
-	return p.tag, nil
+	return tag, nil
 }
 
 func validateTag(tag string) error {

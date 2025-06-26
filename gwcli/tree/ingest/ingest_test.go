@@ -21,6 +21,7 @@ import (
 	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
@@ -48,24 +49,24 @@ func Test_autoingest(t *testing.T) {
 	tests := []struct {
 		name             string
 		args             args
-		wantInitialErr   bool            // want autoingest to return an error
+		wantCount        uint
 		expectedOutcomes map[string]bool // filename -> expectingAnError?
 	}{
 		{"0 pairs", args{[]pair{}, ingestFlags{script: true}},
-			true, nil},
+			0, nil},
 		{"1 pair", args{
 			[]pair{{path: "hello", tag: "test"}},
 			ingestFlags{script: true}},
-			false, map[string]bool{"hello": false}},
+			1, map[string]bool{"hello": false}},
 		{"1 pair, no tag no default", args{[]pair{{"hello", ""}}, ingestFlags{script: true}},
-			false, map[string]bool{"hello": true}},
+			1, map[string]bool{"hello": true}},
 		{"2 pairs", args{[]pair{{"file1", "tag1"}, {"dir/file2", "tag2"}}, ingestFlags{script: true}},
-			false, map[string]bool{"file1": false, "dir/file2": false}},
+			2, map[string]bool{"file1": false, "dir/file2": false}},
 		/*{"2 pair, default tag"},
 		{"2 pairs,1 default 1 specified"},
 		{"4 pairs,1 specified, no default"},
 		{""},
-		{"Gravwell SJON"},
+		{"Gravwell SJON"}, // TODO break into separate subroutine and create a GWJSON file
 
 		{"1 file, 5 tags",
 			args{
@@ -130,33 +131,136 @@ func Test_autoingest(t *testing.T) {
 			})
 
 			// execute autoingest and await results on the channel
-			if err := autoingest(ch, tt.args.flags, fullPaths); (err != nil) != tt.wantInitialErr {
-				t.Errorf("autoingest() error = %v, wantErr %v", err, tt.wantInitialErr)
+			count := autoingest(ch, tt.args.flags, fullPaths)
+			if count != tt.wantCount {
+				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(count, tt.wantCount))
 			}
-			if !tt.wantInitialErr {
-				// check each file
-				for _, pair := range tt.args.pairs {
-					if pair.path == "" {
+			// check each file
+			for range count {
+				res := <-ch
+				// find the outcome we are expecting
+				for i := range tt.args.pairs {
+					// if we find a match, check the outcome
+					if res.string == tt.args.pairs[i].path {
+						expectingErr := tt.expectedOutcomes[tt.args.pairs[i].path]
+						if (res.error != nil) != expectingErr {
+							t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", tt.args.pairs[i].path, expectingErr, res.error)
+						}
 						continue
 					}
-					res := <-ch
-
-					// the path returned by autoingest will be the full path, including temp, so we need to find the item it is referring to.
-					for i := range tt.args.pairs {
-						// if we find a match, check the outcome
-						if res.string == tt.args.pairs[i].path {
-							expectingErr := tt.expectedOutcomes[tt.args.pairs[i].path]
-							if (res.error != nil) != expectingErr {
-								t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", pair.path, expectingErr, res.error)
-							}
-							continue
-						}
-					}
-
 				}
 			}
+
+			for _, pair := range tt.args.pairs {
+				if pair.path == "" {
+					continue
+				}
+				res := <-ch
+
+				for i := range tt.args.pairs {
+					// if we find a match, check the outcome
+					if res.string == tt.args.pairs[i].path {
+						expectingErr := tt.expectedOutcomes[tt.args.pairs[i].path]
+						if (res.error != nil) != expectingErr {
+							t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", pair.path, expectingErr, res.error)
+						}
+						continue
+					}
+				}
+
+			}
+
 		})
 	}
+
+	// run directory ingestion tests
+	t.Run("directory ingestion", func(t *testing.T) {
+		dir := t.TempDir()
+
+		// build a directory to ingest
+		// |-tempdir
+		// 		|- fileA
+		//		|- fileB
+		//		|- fileC
+		//		|- childDir
+		//			|- fileZ
+		//			|- grandchildDir
+		//				|- fileX
+		if err := os.WriteFile(path.Join(dir, "fileA"), []byte("Hello WorldA"), 0666); err != nil {
+			t.Fatalf("failed to create file: %v", err)
+		}
+		if err := os.WriteFile(path.Join(dir, "fileB"), []byte("Hello WorldB"), 0666); err != nil {
+			t.Fatalf("failed to create file: %v", err)
+		}
+		if err := os.WriteFile(path.Join(dir, "fileC"), []byte("Hello WorldC"), 0666); err != nil {
+			t.Fatalf("failed to create file: %v", err)
+		}
+		if err := os.Mkdir(path.Join(dir, "childDir"), 0777); err != nil {
+			t.Fatalf("failed to create directory: %v", err)
+		}
+		if err := os.WriteFile(path.Join(dir, "childDir", "fileZ"), []byte("Hello WorldZ"), 0666); err != nil {
+			t.Fatalf("failed to create file: %v", err)
+		}
+		if err := os.Mkdir(path.Join(dir, "childDir", "grandchildDir"), 0777); err != nil {
+			t.Fatalf("failed to create directory: %v", err)
+		}
+		if err := os.WriteFile(path.Join(dir, "childDir", "grandchildDir", "fileX"), []byte("Hello WorldX"), 0666); err != nil {
+			t.Fatalf("failed to create file: %v", err)
+		}
+
+		ch := make(chan struct {
+			string
+			error
+		})
+
+		t.Run("shallow", func(t *testing.T) {
+			// execute autoingest and await results on the channel
+			count := autoingest(ch, ingestFlags{script: true}, []pair{{path: dir, tag: "shallow"}})
+			if count != 3 {
+				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(3, count))
+			}
+
+			// collect responses
+			// shallow should ONLY match filesA/B/C
+			for range count {
+				res := <-ch
+				switch path.Base(res.string) {
+				case "fileA", "fileB", "fileC":
+					if res.error != nil {
+						t.Errorf("failed to ingest %v: %v", res.string, res.error)
+					}
+				default: // a file that should not have been ingested was.
+					t.Errorf("unexpected ingestion of file %v. Result: %v", res.string, res.error)
+				}
+
+			}
+		})
+
+		t.Run("recursive", func(t *testing.T) {
+			// execute autoingest and await results on the channel
+			count := autoingest(ch, ingestFlags{script: true, recursive: true}, []pair{{path: dir, tag: "recursive"}})
+			if count != 5 {
+				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(5, count))
+			}
+
+			// collect responses
+			// shallow should match all five files
+			for range count {
+				res := <-ch
+				switch path.Base(res.string) {
+				case "fileA", "fileB", "fileC", "fileZ", "fileX":
+					if res.error != nil {
+						t.Errorf("failed to ingest %v: %v", res.string, res.error)
+					}
+				default: // a file that should not have been ingested was.
+					t.Errorf("unexpected ingestion of file %v. Result: %v", res.string, res.error)
+				}
+
+			}
+		})
+
+	})
+
 }
 
 func Test_parsePairs(t *testing.T) {
@@ -365,6 +469,84 @@ func TestNewIngestActionRun(t *testing.T) {
 			// check output
 			if success := tt.checkOutput(outBuf.String(), errBuf.String()); !success {
 				t.Fatal("bad output")
+			}
+		})
+	}
+}
+
+func Test_collectPathsForIngestions(t *testing.T) {
+	// create a directory structure to test on
+	// |-tempdir
+	// 		|- fileA
+	//		|- fileB
+	//		|- fileC
+	//		|- childDir
+	//			|- fileZ
+	//			|- grandchildDir
+	//				|- fileX
+	dir := t.TempDir()
+	if err := os.MkdirAll(path.Join(dir, "childDir", "grandchildDir"), 0700); err != nil {
+		t.Fatal("failed to create test directories:", err)
+	}
+	if err := os.WriteFile(path.Join(dir, "fileA"), []byte("Hello WorldA"), 0622); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	if err := os.WriteFile(path.Join(dir, "fileB"), []byte("Hello WorldB"), 0622); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	if err := os.WriteFile(path.Join(dir, "fileC"), []byte("Hello WorldC"), 0622); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	if err := os.WriteFile(path.Join(dir, "childDir", "fileZ"), []byte("Hello WorldZ"), 0622); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+	if err := os.WriteFile(path.Join(dir, "childDir", "grandchildDir", "fileX"), []byte("Hello WorldX"), 0622); err != nil {
+		t.Fatalf("failed to create file: %v", err)
+	}
+
+	type args struct {
+		pathToIngest string
+		recur        bool
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    map[string]bool
+		wantErr bool
+	}{
+		{"shallow", args{dir, false}, map[string]bool{
+			path.Join(dir, "fileA"): true,
+			path.Join(dir, "fileB"): true,
+			path.Join(dir, "fileC"): true,
+		}, false},
+		{"shallow subdir", args{path.Join(dir, "childDir"), false}, map[string]bool{
+			path.Join(dir, "childDir", "fileZ"): true,
+		}, false},
+		{"single file", args{path.Join(dir, "fileA"), false}, map[string]bool{
+			path.Join(dir, "fileA"): true,
+		}, false},
+		{"recursive", args{dir, true}, map[string]bool{
+			path.Join(dir, "fileA"):                              true,
+			path.Join(dir, "fileB"):                              true,
+			path.Join(dir, "fileC"):                              true,
+			path.Join(dir, "childDir", "fileZ"):                  true,
+			path.Join(dir, "childDir", "grandchildDir", "fileX"): true,
+		}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := collectPathsForIngestions(tt.args.pathToIngest, tt.args.recur)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("collectPathsForIngestions() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if len(got) != len(tt.want) {
+				t.Errorf("incorrect path counts.%v", testsupport.ExpectedActual(len(tt.want), len(got)))
+			}
+			for path := range got {
+				if _, exists := tt.want[path]; !exists {
+					t.Errorf("extraneous path %v in actual", path)
+				}
 			}
 		})
 	}

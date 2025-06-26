@@ -286,9 +286,10 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 
 	// if one+ files were given, try to ingest immediately
 	if len(pairs) > 0 {
-		ufErr := autoingest(i.ingestResCh, flags, pairs)
-		if ufErr != nil {
-			return ufErr.Error(), nil, nil
+		count := autoingest(i.ingestResCh, flags, pairs)
+		if count == 0 {
+			// should be impossible
+			panic("autoingest returned a count of 0")
 		}
 		i.ingestCount = len(pairs)
 		i.mode = ingesting
