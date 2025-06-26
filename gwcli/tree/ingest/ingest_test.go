@@ -31,16 +31,15 @@ const (
 )
 
 func Test_autoingest(t *testing.T) {
-	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+	dir := t.TempDir()
+
+	if err := clilog.Init(path.Join(dir, "dev.log"), "debug"); err != nil {
 		t.Fatal(err)
-	} else if err := connection.Initialize(server, false, true, path.Join(t.TempDir(), "dev.log")); err != nil {
+	} else if err := connection.Initialize(server, false, true, path.Join(dir, "dev.log")); err != nil {
 		t.Fatal(err)
 	} else if err := connection.Login(username, password, "", true); err != nil {
 		t.Fatal(err)
 	}
-
-	// TODO
-	//dir :=
 
 	type args struct {
 		pairs []pair // creates files at the given paths in a temp directory
@@ -54,7 +53,9 @@ func Test_autoingest(t *testing.T) {
 	}{
 		{"0 pairs", args{[]pair{}, ingestFlags{script: true}},
 			true, nil},
-		{"1 pair", args{[]pair{{"hello", "test"}}, ingestFlags{script: true}},
+		{"1 pair", args{
+			[]pair{{path: "hello", tag: "test"}},
+			ingestFlags{script: true}},
 			false, map[string]bool{"hello": false}},
 		{"1 pair, no tag no default", args{[]pair{{"hello", ""}}, ingestFlags{script: true}},
 			false, map[string]bool{"hello": true}},
@@ -94,28 +95,33 @@ func Test_autoingest(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fullPaths := make([]string, 0)
-
 			// create each file we expect to succeed
 			for f, expectingErr := range tt.expectedOutcomes {
 				if f == "" || expectingErr {
 					continue
 				}
-				p := path.Join(t.TempDir(), f)
-				fullPaths = append(fullPaths, p)
+
+				fullPath := path.Join(dir, f)
 
 				// create directories, if necessary
-				dir, _ := path.Split(p)
-				if dir != "" {
-					if err := os.MkdirAll(dir, 0666); err != nil {
-						t.Skipf("failed to mkdir directory path '%v': %v", dir, err)
+				pathParentDir, _ := path.Split(fullPath)
+				if pathParentDir != "" {
+					if err := os.MkdirAll(pathParentDir, 0666); err != nil {
+						t.Skipf("failed to mkdir directory path '%v': %v", pathParentDir, err)
 					}
 				}
-				t.Logf("created path '%v'", p)
+				t.Logf("created path '%v'", fullPath)
 
-				if err := os.WriteFile(p, []byte(randomdata.Paragraph()), 0666); err != nil {
+				if err := os.WriteFile(fullPath, []byte(randomdata.Paragraph()), 0666); err != nil {
 					t.Skipf("failed to create a file '%v' for ingestion", f)
 				}
+			}
+
+			// prefix each path with the temp directory
+			fullPaths := make([]pair, len(tt.args.pairs))
+			for i := range tt.args.pairs {
+				fullPaths[i].path = path.Join(dir, tt.args.pairs[i].path)
+				fullPaths[i].tag = tt.args.pairs[i].tag
 			}
 
 			ch := make(chan struct {
@@ -124,22 +130,29 @@ func Test_autoingest(t *testing.T) {
 			})
 
 			// execute autoingest and await results on the channel
-			if err := autoingest(ch, tt.args.flags, tt.args.pairs); (err != nil) != tt.wantInitialErr {
+			if err := autoingest(ch, tt.args.flags, fullPaths); (err != nil) != tt.wantInitialErr {
 				t.Errorf("autoingest() error = %v, wantErr %v", err, tt.wantInitialErr)
 			}
 			if !tt.wantInitialErr {
 				// check each file
-				for _, f := range tt.args.pairs {
-					if f.path == "" {
+				for _, pair := range tt.args.pairs {
+					if pair.path == "" {
 						continue
 					}
 					res := <-ch
-					// figure out what we want from this file
-					file := res.string
-					expectingErr := tt.expectedOutcomes[file]
-					if (res.error != nil) != expectingErr {
-						t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", file, expectingErr, res.error)
+
+					// the path returned by autoingest will be the full path, including temp, so we need to find the item it is referring to.
+					for i := range tt.args.pairs {
+						// if we find a match, check the outcome
+						if res.string == tt.args.pairs[i].path {
+							expectingErr := tt.expectedOutcomes[tt.args.pairs[i].path]
+							if (res.error != nil) != expectingErr {
+								t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", pair.path, expectingErr, res.error)
+							}
+							continue
+						}
 					}
+
 				}
 			}
 		})
