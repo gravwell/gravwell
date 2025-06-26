@@ -41,7 +41,7 @@ func NewIngestAction() action.Pair {
 		"ingest",
 		"ingest data from a file or STDIN",
 		helpDesc, []string{"in", "sip", "read"}, run)
-	cmd.Example = fmt.Sprintf("./gwcli ingest picture/of/space.png,pulsar query_results.json cat/pics/,animals ...")
+	cmd.Example = "./gwcli ingest picture/of/space.png,pulsar query_results.json cat/pics/,animals ..."
 
 	{ // install flags
 		fs := initialLocalFlagSet()
