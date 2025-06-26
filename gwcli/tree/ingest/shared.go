@@ -271,33 +271,6 @@ func ingestPath(flags ingestFlags, pth, tag string) error {
 	return ingestFile(pth, tag, flags)
 }
 
-// given a directory, walkDir ingests each file within and, if recur, recursively ingests each file in each subdirectory.
-// Halts on the first error.
-//
-// Single-threaded.
-func walkDir(dirpath string, tag string, flags ingestFlags) error {
-	// Recursive ingestion is depth-first (entering directories as soon as they are found).
-
-	entries, err := os.ReadDir(dirpath)
-	if err != nil {
-		clilog.Writer.Warnf("failed to walk directory rooted at %v: %v", dirpath, err)
-		return err
-	}
-	for _, entry := range entries {
-		if entry.IsDir() && flags.recursive { // if it is a directory, ignore it or enter it (depending on -r)
-			if err := walkDir(path.Join(dirpath, entry.Name()), tag, flags); err != nil {
-				return err
-			}
-		} else if !entry.IsDir() { // if this is a file, ingest it
-			// recompose full path and ingest
-			if err := ingestFile(path.Join(dirpath, entry.Name()), tag, flags); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
-}
-
 // wrapper for Client.IngestFile that logs and returns the outcome.
 func ingestFile(path, tag string, flags ingestFlags) error {
 	resp, err := connection.Client.IngestFile(path, tag, flags.src, flags.ignoreTS, flags.localTime)

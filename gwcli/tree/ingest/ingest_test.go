@@ -73,36 +73,6 @@ func Test_autoingest(t *testing.T) {
 				[]pair{{path: "Ironeye"}, {path: "Duchess"}},
 				ingestFlags{script: true, defaultTag: "Limveld"},
 			}, 2, map[string]bool{"Ironeye": false, "Duchess": false}},
-		/*{"2 pairs,1 default 1 specified"},
-		{"4 pairs,1 specified, no default"},
-		{""},
-		{"Gravwell SJON"}, // TODO break into separate subroutine and create a GWJSON file
-
-		{"1 file, 5 tags",
-			args{
-				[]string{"Ironeye"},
-				[]string{randomdata.Day(), randomdata.Day(), randomdata.Day(), randomdata.Day(), randomdata.Day()},
-				false,
-				false,
-				""}, true, map[string]bool{"Ironeye": true}},
-		{"1 file, 1 tag",
-			args{
-				[]string{"Duchess"},
-				[]string{randomdata.Month()},
-				false,
-				false,
-				"",
-			}, false, map[string]bool{"Duchess": false},
-		},
-		{"3 files, 3 tags",
-			args{
-				[]string{"Revenant", "Wylder", "Guardian"},
-				[]string{randomdata.Month(), randomdata.Month(), randomdata.Month()},
-				true,
-				true,
-				randomdata.IpV6Address(),
-			}, false, map[string]bool{"Revenant": false, "Wylder": false, "Guardian": false},
-		},*/
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
