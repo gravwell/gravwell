@@ -294,7 +294,7 @@ func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, er
 
 	// prepare the interactive action
 	i.mod.tagTI.SetValue(flags.defaultTag)
-	i.mod.srcTI.SetValue(flags.src.String())
+	i.mod.srcTI.SetValue(flags.src)
 
 	if flags.dir == "" {
 		i.fp.CurrentDirectory, err = os.Getwd()

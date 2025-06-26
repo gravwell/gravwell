@@ -74,7 +74,7 @@ type ingestFlags struct {
 	script     bool
 	hidden     bool   // include hidden files when ingesting directories
 	recursive  bool   // recursively descend directories
-	src        net.IP // IP address to use as the source of the files
+	src        string // IP address to use as the source of the files; comes in as a net.IP
 	ignoreTS   bool   // all entries will be tagged with the current time rather than any internal timestamping.
 	localTime  bool   // use server-local timezone rather than inherent timezones
 	dir        string // starting directory for interactive mode
@@ -116,7 +116,11 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	} else if src := net.ParseIP(srcRaw); src == nil {
 		invalids = append(invalids, srcRaw+" is not a valid IP address")
 	} else {
-		flags.src = src
+		if src == nil {
+			flags.src = ""
+		} else {
+			flags.src = src.String()
+		}
 	}
 	if ignoreTS, err := fs.GetBool("ignore-timestamp"); err != nil {
 		return flags, invalids, uniques.ErrFlagDNE("ignore-timestamp", "ingest")
@@ -196,7 +200,7 @@ func ingestPath(flags ingestFlags, p pair) error {
 	}
 
 	// we have all the data we need, we can now attempt ingestion
-	resp, err := connection.Client.IngestFile(p.path, p.tag, flags.src.String(), flags.ignoreTS, flags.localTime)
+	resp, err := connection.Client.IngestFile(p.path, p.tag, flags.src, flags.ignoreTS, flags.localTime)
 	if err != nil {
 		clilog.Writer.Warnf("failed to ingest %v at path %v: %v", fileOrDirStr, p.path, err)
 		return err
@@ -226,10 +230,8 @@ func determineTag(p pair, defaultTag string) (string, error) {
 			}
 			dcdr := json.NewDecoder(f)
 			var ste types.StringTagEntry
+			// try to decode a single entry (\n deliminted)
 			if err := dcdr.Decode(&ste); err == nil && ste.Tag != "" {
-				// TODO is there a more efficient way to do this than decoding the entire file, which could be quite large?
-				// TODO Can Gabs walk this file dynamically?
-
 				// successfully decoded file and read tag; we can leave our tag empty
 				return "", nil
 			}
