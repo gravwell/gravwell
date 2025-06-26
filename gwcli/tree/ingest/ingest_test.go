@@ -243,6 +243,21 @@ func TestNewIngestActionRun(t *testing.T) {
 				return true
 			},
 		},
+		{"--dir given non-existent path",
+			[]string{"--dir", "/nonsense_path"},
+			func() (success bool) { return true },
+			func(out, err string) (success bool) { return err != "" },
+		},
+		{"--dir given file",
+			[]string{"--dir", "/nonsense_path"},
+			func() (success bool) { return true },
+			func(out, err string) (success bool) { return err != "" },
+		},
+		{"--dir given with --script",
+			[]string{"--dir", "/tmp", "--script"},
+			func() (success bool) { return true },
+			func(out, err string) (success bool) { return err != "" },
+		},
 		/*
 			{"2 files, 1 tag",
 				[]string{"--tags=Limveld", path.Join(dir, "raider"), path.Join(dir, "recluse")},
@@ -316,11 +331,6 @@ func TestNewIngestActionRun(t *testing.T) {
 					}
 					return true
 				},
-			},
-			{"--dir given non-existent path",
-				[]string{"--dir", "/nonsense_path"},
-				func() (success bool) { return true },
-				func(out, err string) (success bool) { return err != "" },
 			},
 		*/
 	}
