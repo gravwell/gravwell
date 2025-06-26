@@ -281,7 +281,7 @@ func Test_autoingest(t *testing.T) {
 // The tag will not be returned by GetTags until files under it have been committed.
 func verifyTagExists(t *testing.T, tag string) bool {
 	t.Helper()
-	time.Sleep(5 * time.Second) // tags can take a few moments to show up
+	time.Sleep(10 * time.Second) // tags can take a few moments to show up
 	tags, err := connection.Client.GetTags()
 	if err != nil {
 		t.Error(err)
