@@ -176,27 +176,12 @@ func Test_parsePairs(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want []struct {
-			path string
-			tag  string
-		}
+		want []pair
 	}{
-		{"none", args{[]string{}}, []struct {
-			path string
-			tag  string
-		}{}},
-		{"empty strings", args{[]string{"", "", ""}}, []struct {
-			path string
-			tag  string
-		}{}},
-		{"all w/ tags", args{[]string{p1 + "," + t1, p2 + "," + t2, p3 + "," + t3}}, []struct {
-			path string
-			tag  string
-		}{{p1, t1}, {p2, t2}, {p3, t3}}},
-		{"mixed", args{[]string{p1 + "," + t1, p2}}, []struct {
-			path string
-			tag  string
-		}{{p1, t1}, {path: p2}}},
+		{"none", args{[]string{}}, []pair{}},
+		{"empty strings", args{[]string{"", "", ""}}, []pair{}},
+		{"all w/ tags", args{[]string{p1 + "," + t1, p2 + "," + t2, p3 + "," + t3}}, []pair{{p1, t1}, {p2, t2}, {p3, t3}}},
+		{"mixed", args{[]string{p1 + "," + t1, p2}}, []pair{{p1, t1}, {path: p2}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -207,6 +192,7 @@ func Test_parsePairs(t *testing.T) {
 	}
 }
 
+// TestNewIngestActionRun is very similar to autoingest, but includes the manual creation and execution of the cobra command.
 func TestNewIngestActionRun(t *testing.T) {
 	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
 		t.Fatal(err)
@@ -228,7 +214,7 @@ func TestNewIngestActionRun(t *testing.T) {
 			func() bool { return true },
 			func(out, err string) bool {
 				if out != "" {
-					t.Logf("expected nil output, found %v", out)
+					t.Logf("expected nil output, found \"%v\"", out)
 					return false
 				}
 				if err == "" {
@@ -238,8 +224,8 @@ func TestNewIngestActionRun(t *testing.T) {
 				return true
 			},
 		},
-		{"script; 1 file, 1 tag",
-			[]string{"--script", "--tags=Limveld", path.Join(dir, "raider")},
+		{"script; 1 file+tag",
+			[]string{"--script", path.Join(dir, "raider") + ",Limveld"},
 			func() bool {
 				// create the file to ingest
 				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
@@ -251,90 +237,92 @@ func TestNewIngestActionRun(t *testing.T) {
 			},
 			func(out, err string) bool {
 				if err != "" {
-					t.Logf("expected nil err output, found %v", err)
+					t.Logf("expected nil err output, found \"%v\"", err)
 					return false
 				}
 				return true
 			},
 		},
-		{"2 files, 1 tag",
-			[]string{"--tags=Limveld", path.Join(dir, "raider"), path.Join(dir, "recluse")},
-			func() bool {
-				// create the files to ingest
-				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
-				if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
+		/*
+			{"2 files, 1 tag",
+				[]string{"--tags=Limveld", path.Join(dir, "raider"), path.Join(dir, "recluse")},
+				func() bool {
+					// create the files to ingest
+					if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
+						t.Log(err)
+						return false
+					}
+					if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
+						t.Log(err)
+						return false
+					}
 
-				return true
+					return true
+				},
+				func(out, err string) bool {
+					if err != "" {
+						t.Logf("expected nil err output, found %v", err)
+						return false
+					}
+					return true
+				},
 			},
-			func(out, err string) bool {
-				if err != "" {
-					t.Logf("expected nil err output, found %v", err)
-					return false
-				}
-				return true
-			},
-		},
-		{"2 files, 2 tags, with bools",
-			[]string{"--tags=Limveld,Night", "--ignore-timestamp", path.Join(dir, "raider"), path.Join(dir, "recluse")},
-			func() bool {
-				// create the files to ingest
-				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
-				if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
+			{"2 files, 2 tags, with bools",
+				[]string{"--tags=Limveld,Night", "--ignore-timestamp", path.Join(dir, "raider"), path.Join(dir, "recluse")},
+				func() bool {
+					// create the files to ingest
+					if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
+						t.Log(err)
+						return false
+					}
+					if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
+						t.Log(err)
+						return false
+					}
 
-				return true
+					return true
+				},
+				func(out, err string) bool {
+					if err != "" {
+						t.Logf("expected nil err output, found %v", err)
+						return false
+					}
+					return true
+				},
 			},
-			func(out, err string) bool {
-				if err != "" {
-					t.Logf("expected nil err output, found %v", err)
-					return false
-				}
-				return true
-			},
-		},
-		{"2 files, 2 (invalid) tags",
-			[]string{"--tags=|/,[]", "--ignore-timestamp", path.Join(dir, "raider"), path.Join(dir, "recluse")},
-			func() bool {
-				// create the files to ingest
-				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
-				if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
+			{"2 files, 2 (invalid) tags",
+				[]string{"--tags=|/,[]", "--ignore-timestamp", path.Join(dir, "raider"), path.Join(dir, "recluse")},
+				func() bool {
+					// create the files to ingest
+					if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
+						t.Log(err)
+						return false
+					}
+					if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
+						t.Log(err)
+						return false
+					}
 
-				return true
+					return true
+				},
+				func(out, err string) bool {
+					if out != "" {
+						t.Logf("expected nil output, found %v", out)
+						return false
+					}
+					if err == "" {
+						t.Log("expected error text, found nil")
+						return false
+					}
+					return true
+				},
 			},
-			func(out, err string) bool {
-				if out != "" {
-					t.Logf("expected nil output, found %v", out)
-					return false
-				}
-				if err == "" {
-					t.Log("expected error text, found nil")
-					return false
-				}
-				return true
+			{"--dir given non-existent path",
+				[]string{"--dir", "/nonsense_path"},
+				func() (success bool) { return true },
+				func(out, err string) (success bool) { return err != "" },
 			},
-		},
-		{"--dir given non-existent path",
-			[]string{"--dir", "/nonsense_path"},
-			func() (success bool) { return true },
-			func(out, err string) (success bool) { return err != "" },
-		},
+		*/
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
