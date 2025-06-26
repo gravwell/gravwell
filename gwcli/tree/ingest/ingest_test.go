@@ -61,7 +61,11 @@ func Test_autoingest(t *testing.T) {
 			1, map[string]bool{"hello": false}},
 		{"1 pair, no tag no default", args{[]pair{{"hello", ""}}, ingestFlags{script: true}},
 			1, map[string]bool{"hello": true}},
-		{"2 pairs", args{[]pair{{"file1", "tag1"}, {"dir/file2", "tag2"}}, ingestFlags{script: true}},
+		{"2 pairs",
+			args{
+				[]pair{{"file1", "tag1"}, {"dir/file2", "tag2"}},
+				ingestFlags{script: true},
+			},
 			2, map[string]bool{"file1": false, "dir/file2": false}},
 		/*{"2 pair, default tag"},
 		{"2 pairs,1 default 1 specified"},
