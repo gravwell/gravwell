@@ -116,7 +116,8 @@ func run(c *cobra.Command, args []string) {
 		error
 	})
 
-	if count := autoingest(resultCh, flags, pairs); count == 0 {
+	count := autoingest(resultCh, flags, pairs)
+	if count == 0 {
 		// should be impossible
 		panic("autoingest returned a count of 0")
 	}
@@ -132,7 +133,7 @@ func run(c *cobra.Command, args []string) {
 		go func() { spinner.Run() }()
 	}
 	// print each result to stdout/stderr
-	for range pairs {
+	for range count {
 		res := <-resultCh
 		if res.error != nil {
 			clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.string, res.error))
