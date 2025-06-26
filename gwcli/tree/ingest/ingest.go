@@ -13,6 +13,7 @@ package ingest
 import (
 	"fmt"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
@@ -56,7 +57,7 @@ func NewIngestAction() action.Pair {
 func initialLocalFlagSet() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 
-	fs.BoolP("hidden", "h", false,
+	fs.Bool("hidden", false,
 		"include hidden files when ingesting a directory")
 	fs.BoolP("recursive", "r", false,
 		"recursively traverse directories, ingesting each file at every level")
@@ -118,6 +119,30 @@ func run(c *cobra.Command, args []string) {
 	if err := autoingest(resultCh, flags, pairs); err != nil {
 		fmt.Fprintln(c.ErrOrStderr(), stylesheet.Cur.ErrorText.Render(err.Error()))
 		return
+	}
+
+	// start up a spinner
+	var spinner *tea.Program
+	if !flags.script {
+		var s = "ingesting file"
+		if len(pairs) > 1 {
+			s += "s"
+		}
+		spinner = stylesheet.CobraSpinner(s)
+		go func() { spinner.Run() }()
+	}
+	// print each result to stdout/stderr
+	for range pairs {
+		res := <-resultCh
+		if res.error == nil {
+			clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.string, res.error))
+		} else {
+			fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.string)
+		}
+	}
+	// kill the spinner
+	if spinner != nil {
+		spinner.Kill()
 	}
 
 	/*
