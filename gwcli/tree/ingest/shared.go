@@ -148,6 +148,8 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	}
 	if def, err := fs.GetString("default-tag"); err != nil {
 		return flags, invalids, uniques.ErrFlagDNE("default-tag", "ingest")
+	} else if err := validateTag(def); err != nil {
+		return flags, invalids, err
 	} else {
 		flags.defaultTag = def
 	}
