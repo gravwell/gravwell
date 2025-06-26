@@ -212,11 +212,11 @@ func ingestPath(flags ingestFlags, p pair) error {
 
 // determineTag figures out which tag to use, following the given priority:
 //
-// 1)
+// 1) tag included in the pair (parsed from the bare arguments given)
 //
-// 2)
+// 2) tag embedded into the file (in the case of a GWJSON)
 //
-// 3)
+// 3) default tag given via --default-tag
 //
 // ! It is valid for this function to return an empty tag and a nil error.
 // This just means the file is a valid GWJSON file and can be ingested with the empty tag.
@@ -230,7 +230,7 @@ func determineTag(p pair, defaultTag string) (string, error) {
 			}
 			dcdr := json.NewDecoder(f)
 			var ste types.StringTagEntry
-			// try to decode a single entry (\n deliminted)
+			// try to decode a single entry (\n delimited)
 			if err := dcdr.Decode(&ste); err == nil && ste.Tag != "" {
 				// successfully decoded file and read tag; we can leave our tag empty
 				return "", nil
