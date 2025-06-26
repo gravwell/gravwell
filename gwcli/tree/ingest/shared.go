@@ -170,17 +170,17 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	flags := ingestFlags{}
 
 	if script, err := fs.GetBool("script"); err != nil {
-		return flags, invalids, uniques.ErrFlagDNE("script", "ingest")
+		return flags, nil, uniques.ErrFlagDNE("script", "ingest")
 	} else {
 		flags.script = script
 	}
 	if includeHidden, err := fs.GetBool("hidden"); err != nil {
-		return flags, invalids, uniques.ErrFlagDNE("hidden", "ingest")
+		return flags, nil, uniques.ErrFlagDNE("hidden", "ingest")
 	} else {
 		flags.hidden = includeHidden
 	}
 	if recursive, err := fs.GetBool("recursive"); err != nil {
-		return flags, invalids, uniques.ErrFlagDNE("recursive", "ingest")
+		return flags, nil, uniques.ErrFlagDNE("recursive", "ingest")
 	} else {
 		flags.recursive = recursive
 	}
