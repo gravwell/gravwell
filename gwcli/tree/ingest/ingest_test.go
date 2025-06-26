@@ -67,8 +67,12 @@ func Test_autoingest(t *testing.T) {
 				ingestFlags{script: true},
 			},
 			2, map[string]bool{"file1": false, "dir/file2": false}},
-		/*{"2 pair, default tag"},
-		{"2 pairs,1 default 1 specified"},
+		{"2 pair, default tag",
+			args{
+				[]pair{{path: "Ironeye"}, {path: "Duchess"}},
+				ingestFlags{script: true, defaultTag: "Limveld"},
+			}, 2, map[string]bool{"Ironeye": false, "Duchess": false}},
+		/*{"2 pairs,1 default 1 specified"},
 		{"4 pairs,1 specified, no default"},
 		{""},
 		{"Gravwell SJON"}, // TODO break into separate subroutine and create a GWJSON file
