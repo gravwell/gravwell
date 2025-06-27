@@ -145,36 +145,4 @@ func run(c *cobra.Command, args []string) {
 	if spinner != nil {
 		spinner.Kill()
 	}
-
-	/*
-		done := make(chan bool) // close up shop, all files have been handled when closed
-
-		go func() { // await results, print them, then notify us when all have been consumed
-			for range files {
-				res := <-resultCh
-				if res.error != nil {
-					clilog.Tee(clilog.WARN, c.ErrOrStderr(), fmt.Sprintf("failed to ingest file '%v': %v\n", res.string, res.error))
-				} else {
-					fmt.Fprintf(c.OutOrStdout(), "successfully ingested file '%v'\n", res.string)
-				}
-			}
-			// all done
-			close(done)
-		}()
-
-		if script { // wait
-			<-done
-		} else { // wait and display a spinner
-			var s = "ingesting file"
-			if len(files) > 1 {
-				s += "s"
-			}
-			p := stylesheet.CobraSpinner(s)
-			go func() { p.Run() }()
-			<-done
-			p.Quit()
-		}
-
-		// all done
-	*/
 }
