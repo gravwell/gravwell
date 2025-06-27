@@ -33,7 +33,7 @@ func init() {
 		sb.WriteString("'" + string(r) + "'" + ",")
 	}
 
-	errInvalidTagCharacter = fmt.Errorf("tags cannot contain any of the following characters: %v", sb.String()[:sb.Len()-1]) // chip the last comma
+	errInvalidTagCharacter = fmt.Errorf("tags cannot contain any of the following characters:\n%v", sb.String()[:sb.Len()-1]) // chip the last comma
 }
 
 // returned by autoingest if no file paths were given.
