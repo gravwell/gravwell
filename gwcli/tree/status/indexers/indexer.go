@@ -10,12 +10,17 @@
 package indexers
 
 import (
+	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/status/indexers/stats"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/status/indexers/storage"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/utils/weave"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -31,6 +36,51 @@ func NewIndexersNav() *cobra.Command {
 		[]*cobra.Command{},
 		[]action.Pair{
 			storage.NewIndexerStorageAction(),
-			stats.NewStatsListAction(),
+			newStatsListAction(),
 		})
 }
+
+//#region stats
+
+// wrapper for the SysStats map
+type namedStats struct {
+	Indexer string
+	Stats   types.HostSysStats
+}
+
+func newStatsListAction() action.Pair {
+	const (
+		use   string = "stats"
+		short string = "review the statistics of each indexer"
+		long  string = "Review the statistics of each indexer"
+	)
+	// default to using all columns; dive into the struct to find all columns
+	cols, err := weave.StructFields(namedStats{}, true)
+	if err != nil {
+		panic(err)
+	}
+
+	return scaffoldlist.NewListAction(use, short, long, cols,
+		namedStats{}, listStats, nil)
+}
+
+func listStats(c *grav.Client, fs *pflag.FlagSet) ([]namedStats, error) {
+	var ns []namedStats
+
+	stats, err := connection.Client.GetSystemStats()
+	if err != nil {
+		return []namedStats{}, err
+	}
+	ns = make([]namedStats, len(stats))
+
+	// wrap the results in namedStats
+	var i = 0
+	for k, v := range stats {
+		ns[i] = namedStats{Indexer: k, Stats: *v.Stats}
+		i += 1
+	}
+
+	return ns, nil
+}
+
+//#endregion stats
