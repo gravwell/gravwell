@@ -15,11 +15,14 @@ import (
 	"bytes"
 	"os"
 	"path"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/Pallinder/go-randomdata"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
@@ -30,74 +33,75 @@ const (
 )
 
 func Test_autoingest(t *testing.T) {
-	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+	dir := t.TempDir()
+
+	if err := clilog.Init(path.Join(dir, "dev.log"), "debug"); err != nil {
 		t.Fatal(err)
-	} else if err := connection.Initialize(server, false, true, path.Join(t.TempDir(), "dev.log")); err != nil {
+	} else if err := connection.Initialize(server, false, true, path.Join(dir, "dev.log")); err != nil {
 		t.Fatal(err)
 	} else if err := connection.Login(username, password, "", true); err != nil {
 		t.Fatal(err)
 	}
 
 	type args struct {
-		filenames []string // all files are created in the temp directory
-		tags      []string
-		ignoreTS  bool
-		localTime bool
-		src       string
+		pairs []pair // creates files at the given paths in a temp directory
+		flags ingestFlags
 	}
 	tests := []struct {
 		name             string
 		args             args
-		wantInitialErr   bool            // want autoingest to return an error
+		wantCount        uint
 		expectedOutcomes map[string]bool // filename -> expectingAnError?
 	}{
-		{"0 files, 1 tag", args{nil, []string{randomdata.LastName()}, false, false, ""}, true, nil},
-		{"1 file, 0 tags", args{[]string{randomdata.LastName()}, nil, false, false, ""}, true, nil},
-		{"1 file, 5 tags",
+		{"0 pairs", args{[]pair{}, ingestFlags{script: true}},
+			0, nil},
+		{"1 pair", args{
+			[]pair{{path: "hello", tag: "test"}},
+			ingestFlags{script: true}},
+			1, map[string]bool{"hello": false}},
+		{"1 pair, no tag no default", args{[]pair{{"hello", ""}}, ingestFlags{script: true}},
+			1, map[string]bool{"hello": true}},
+		{"2 pairs",
 			args{
-				[]string{"Ironeye"},
-				[]string{randomdata.Day(), randomdata.Day(), randomdata.Day(), randomdata.Day(), randomdata.Day()},
-				false,
-				false,
-				""}, true, map[string]bool{"Ironeye": true}},
-		{"1 file, 1 tag",
+				[]pair{{"file1", "tag1"}, {"dir/file2", "tag2"}},
+				ingestFlags{script: true},
+			},
+			2, map[string]bool{"file1": false, "dir/file2": false}},
+		{"2 pair, default tag",
 			args{
-				[]string{"Duchess"},
-				[]string{randomdata.Month()},
-				false,
-				false,
-				"",
-			}, false, map[string]bool{"Duchess": false},
-		},
-		{"3 files, 3 tags",
-			args{
-				[]string{"Revenant", "Wylder", "Guardian"},
-				[]string{randomdata.Month(), randomdata.Month(), randomdata.Month()},
-				true,
-				true,
-				randomdata.IpV6Address(),
-			}, false, map[string]bool{"Revenant": false, "Wylder": false, "Guardian": false},
-		},
+				[]pair{{path: "Ironeye"}, {path: "Duchess"}},
+				ingestFlags{script: true, defaultTag: "Limveld"},
+			}, 2, map[string]bool{"Ironeye": false, "Duchess": false}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fullPaths := make([]string, 0)
-
 			// create each file we expect to succeed
 			for f, expectingErr := range tt.expectedOutcomes {
-				if f == "" {
-					continue
-				}
-				p := path.Join(t.TempDir(), f)
-				fullPaths = append(fullPaths, p)
-
-				if expectingErr {
+				if f == "" || expectingErr {
 					continue
 				}
 
-				if err := os.WriteFile(p, []byte(randomdata.Paragraph()), 0666); err != nil {
+				fullPath := path.Join(dir, f)
+
+				// create directories, if necessary
+				pathParentDir, _ := path.Split(fullPath)
+				if pathParentDir != "" {
+					if err := os.MkdirAll(pathParentDir, 0666); err != nil {
+						t.Skipf("failed to mkdir directory path '%v': %v", pathParentDir, err)
+					}
+				}
+				t.Logf("created path '%v'", fullPath)
+
+				if err := os.WriteFile(fullPath, []byte(randomdata.Paragraph()), 0666); err != nil {
 					t.Skipf("failed to create a file '%v' for ingestion", f)
 				}
+			}
+
+			// prefix each path with the temp directory
+			fullPaths := make([]pair, len(tt.args.pairs))
+			for i := range tt.args.pairs {
+				fullPaths[i].path = path.Join(dir, tt.args.pairs[i].path)
+				fullPaths[i].tag = tt.args.pairs[i].tag
 			}
 
 			ch := make(chan struct {
@@ -105,32 +109,162 @@ func Test_autoingest(t *testing.T) {
 				error
 			})
 
-			if err := autoingest(
-				ch,
-				fullPaths,
-				tt.args.tags,
-				tt.args.ignoreTS,
-				tt.args.localTime, tt.args.src); (err != nil) != tt.wantInitialErr {
-				t.Errorf("autoingest() error = %v, wantErr %v", err, tt.wantInitialErr)
+			// execute autoingest and await results on the channel
+			count := autoingest(ch, tt.args.flags, fullPaths)
+			if count != tt.wantCount {
+				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(count, tt.wantCount))
 			}
-			if !tt.wantInitialErr {
-				for _, f := range tt.args.filenames {
-					if f == "" {
-						continue
+			// check each file
+			for range count {
+				res := <-ch
+
+				// strip the testing directory off the path
+				if after, found := strings.CutPrefix(res.string, dir+"/"); !found {
+					t.Fatalf("expected all paths to be prefixed by the temp directory. Actual: %v", res.string)
+				} else {
+					res.string = after
+				}
+
+				// find the outcome we are expecting
+				var found bool
+				for i := range tt.args.pairs {
+					// if we find a match, check the outcome
+					if res.string == tt.args.pairs[i].path {
+						found = true
+						expectingErr := tt.expectedOutcomes[tt.args.pairs[i].path]
+						if (res.error != nil) != expectingErr {
+							t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", tt.args.pairs[i].path, expectingErr, res.error)
+						}
 					}
-					res := <-ch
-					// figure out what we want from this file
-					file := res.string
-					expectingErr := tt.expectedOutcomes[file]
-					if (res.error != nil) != expectingErr {
-						t.Errorf("incorrect result for '%s':\nexpected error? %v\nactual error: %v", file, expectingErr, res.error)
-					}
+				}
+				// if we made it this far without finding a match, something has gone terribly wrong
+				if !found {
+					t.Errorf("failed to find file %v in argument pairs", res.string)
 				}
 			}
 		})
 	}
+
+	// run directory ingestion tests
+	t.Run("directory ingestion", func(t *testing.T) {
+		dir := t.TempDir()
+
+		// build a directory to ingest
+		// |-tempdir
+		// 		|- fileA
+		//		|- fileB
+		//		|- fileC
+		//		|- childDir
+		//			|- fileZ
+		//			|- grandchildDir
+		//				|- fileX
+		if err := os.WriteFile(path.Join(dir, "fileA"), []byte("Hello WorldA"), 0666); err != nil {
+			t.Fatalf("failed to create file: %v", err)
+		}
+		if err := os.WriteFile(path.Join(dir, "fileB"), []byte("Hello WorldB"), 0666); err != nil {
+			t.Fatalf("failed to create file: %v", err)
+		}
+		if err := os.WriteFile(path.Join(dir, "fileC"), []byte("Hello WorldC"), 0666); err != nil {
+			t.Fatalf("failed to create file: %v", err)
+		}
+		if err := os.Mkdir(path.Join(dir, "childDir"), 0777); err != nil {
+			t.Fatalf("failed to create directory: %v", err)
+		}
+		if err := os.WriteFile(path.Join(dir, "childDir", "fileZ"), []byte("Hello WorldZ"), 0666); err != nil {
+			t.Fatalf("failed to create file: %v", err)
+		}
+		if err := os.Mkdir(path.Join(dir, "childDir", "grandchildDir"), 0777); err != nil {
+			t.Fatalf("failed to create directory: %v", err)
+		}
+		if err := os.WriteFile(path.Join(dir, "childDir", "grandchildDir", "fileX"), []byte("Hello WorldX"), 0666); err != nil {
+			t.Fatalf("failed to create file: %v", err)
+		}
+
+		ch := make(chan struct {
+			string
+			error
+		})
+
+		t.Run("shallow", func(t *testing.T) {
+			tag := "shallow" + randomdata.Alphanumeric(10)
+
+			// execute autoingest and await results on the channel
+			count := autoingest(ch, ingestFlags{script: true}, []pair{{path: dir, tag: tag}})
+			if count != 3 {
+				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(3, count))
+			}
+
+			// collect responses
+			// shallow should ONLY match filesA/B/C
+			for range count {
+				res := <-ch
+				switch path.Base(res.string) {
+				case "fileA", "fileB", "fileC":
+					if res.error != nil {
+						t.Errorf("failed to ingest %v: %v", res.string, res.error)
+					}
+				default: // a file that should not have been ingested was.
+					t.Errorf("unexpected ingestion of file %v. Result: %v", res.string, res.error)
+				}
+			}
+
+			if !verifyTagExists(t, tag) {
+				t.Errorf("failed to find tag %v after ingesting files under it", tag)
+			}
+		})
+
+		t.Run("recursive", func(t *testing.T) {
+			tag := "recursive" + randomdata.Alphanumeric(10)
+
+			// execute autoingest and await results on the channel
+			count := autoingest(ch, ingestFlags{script: true, recursive: true}, []pair{{path: dir, tag: tag}})
+			if count != 5 {
+				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(5, count))
+			}
+
+			// collect responses
+			// shallow should match all five files
+			for range count {
+				res := <-ch
+				switch path.Base(res.string) {
+				case "fileA", "fileB", "fileC", "fileZ", "fileX":
+					if res.error != nil {
+						t.Errorf("failed to ingest %v: %v", res.string, res.error)
+					}
+				default: // a file that should not have been ingested was.
+					t.Errorf("unexpected ingestion of file %v. Result: %v", res.string, res.error)
+				}
+
+			}
+
+			if !verifyTagExists(t, tag) {
+				t.Errorf("failed to find tag %v after ingesting files under it", tag)
+			}
+		})
+
+	})
 }
 
+// checks that the given tag exists on the Gravwell backend.
+// NOTE(rlandau): the lag time may need to be increased, as it appears to take a variable amount of time for ingested files to "commit".
+// The tag will not be returned by GetTags until files under it have been committed.
+func verifyTagExists(t *testing.T, tag string) bool {
+	t.Helper()
+	time.Sleep(10 * time.Second) // tags can take a few moments to show up
+	tags, err := connection.Client.GetTags()
+	if err != nil {
+		t.Error(err)
+		return false
+	}
+	for _, serverTag := range tags {
+		if serverTag == tag {
+			return true
+		}
+	}
+	return false
+}
+
+// TestNewIngestActionRun is very similar to autoingest, but includes the manual creation and execution of the cobra command.
 func TestNewIngestActionRun(t *testing.T) {
 	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
 		t.Fatal(err)
@@ -152,7 +286,7 @@ func TestNewIngestActionRun(t *testing.T) {
 			func() bool { return true },
 			func(out, err string) bool {
 				if out != "" {
-					t.Logf("expected nil output, found %v", out)
+					t.Logf("expected nil output, found \"%v\"", out)
 					return false
 				}
 				if err == "" {
@@ -162,8 +296,8 @@ func TestNewIngestActionRun(t *testing.T) {
 				return true
 			},
 		},
-		{"script; 1 file, 1 tag",
-			[]string{"--script", "--tags=Limveld", path.Join(dir, "raider")},
+		{"script; 1 file+tag",
+			[]string{"--script", path.Join(dir, "raider") + ",Limveld"},
 			func() bool {
 				// create the file to ingest
 				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
@@ -175,80 +309,7 @@ func TestNewIngestActionRun(t *testing.T) {
 			},
 			func(out, err string) bool {
 				if err != "" {
-					t.Logf("expected nil err output, found %v", err)
-					return false
-				}
-				return true
-			},
-		},
-		{"2 files, 1 tag",
-			[]string{"--tags=Limveld", path.Join(dir, "raider"), path.Join(dir, "recluse")},
-			func() bool {
-				// create the files to ingest
-				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
-				if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
-
-				return true
-			},
-			func(out, err string) bool {
-				if err != "" {
-					t.Logf("expected nil err output, found %v", err)
-					return false
-				}
-				return true
-			},
-		},
-		{"2 files, 2 tags, with bools",
-			[]string{"--tags=Limveld,Night", "--ignore-timestamp", path.Join(dir, "raider"), path.Join(dir, "recluse")},
-			func() bool {
-				// create the files to ingest
-				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
-				if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
-
-				return true
-			},
-			func(out, err string) bool {
-				if err != "" {
-					t.Logf("expected nil err output, found %v", err)
-					return false
-				}
-				return true
-			},
-		},
-		{"2 files, 2 (invalid) tags",
-			[]string{"--tags=|/,[]", "--ignore-timestamp", path.Join(dir, "raider"), path.Join(dir, "recluse")},
-			func() bool {
-				// create the files to ingest
-				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
-				if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
-					t.Log(err)
-					return false
-				}
-
-				return true
-			},
-			func(out, err string) bool {
-				if out != "" {
-					t.Logf("expected nil output, found %v", out)
-					return false
-				}
-				if err == "" {
-					t.Log("expected error text, found nil")
+					t.Logf("expected nil err output, found \"%v\"", err)
 					return false
 				}
 				return true
@@ -258,6 +319,54 @@ func TestNewIngestActionRun(t *testing.T) {
 			[]string{"--dir", "/nonsense_path"},
 			func() (success bool) { return true },
 			func(out, err string) (success bool) { return err != "" },
+		},
+		{"--dir given file",
+			[]string{"--dir", "/nonsense_path"},
+			func() (success bool) { return true },
+			func(out, err string) (success bool) { return err != "" },
+		},
+		{"--dir given with --script",
+			[]string{"--dir", "/tmp", "--script"},
+			func() (success bool) { return true },
+			func(out, err string) (success bool) { return err != "" },
+		},
+		{"invalid source",
+			[]string{"--source", "badsrc", "--script"},
+			func() (success bool) { return true },
+			func(out, err string) (success bool) { return err != "" },
+		},
+		{"invalid default tag",
+			[]string{"--default-tag", "some|tag", "--script"},
+			func() (success bool) { return true },
+			func(out, err string) (success bool) { return err != "" },
+		},
+		{"2 files, 1 invalid tag",
+			[]string{"--ignore-timestamp", path.Join(dir, "raider,Limveld"), path.Join(dir, "recluse,bad|tag")},
+			func() bool {
+				// create the files to ingest
+				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
+					t.Log(err)
+					return false
+				}
+				// this file should *not* be ingested
+				if err := os.WriteFile(path.Join(dir, "recluse"), []byte(randomdata.StringNumber(40, "\n")), 0644); err != nil {
+					t.Log(err)
+					return false
+				}
+
+				return true
+			},
+			func(out, err string) bool {
+				if len(strings.Split(out, "\n")) == 1 {
+					t.Logf("expected expected output to have exactly 1 record, found %v from %v", len(out), out)
+					return false
+				}
+				if err == "" {
+					t.Log("expected error text, found nil")
+					return false
+				}
+				return true
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -294,4 +403,53 @@ func TestNewIngestActionRun(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Gravwell JSON", func(t *testing.T) {
+		var (
+			tag1, tag2, tag3 = "Millhouse", randomdata.Digits(5), randomdata.LastName()
+			gwjson           = `{"TS":"2025-06-26T23:26:56.100667099Z","Tag":"` + tag1 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRD","Enumerated":null}
+{"TS":"2025-06-26T23:26:56.100640318Z","Tag":"` + tag2 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRB","Enumerated":null}
+{"TS":"2025-06-26T23:26:56.100091382Z","Tag":"` + tag3 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRC","Enumerated":null}`
+			tdir     = t.TempDir()
+			jsonpath = path.Join(tdir, "test.json")
+			args     = []string{jsonpath, "--script"}
+		)
+
+		// put the above JSON into a file
+		if err := os.WriteFile(jsonpath, []byte(gwjson), 0600); err != nil {
+			t.Fatal("failed to write test json to file:", err)
+		}
+
+		t.Log("tags: ", tag1, tag2, tag3)
+
+		// create the action
+		ap := NewIngestAction()
+
+		// perform root's actions
+		uniques.AttachPersistentFlags(ap.Action)
+		if err := ap.Action.Flags().Parse(args); err != nil {
+			t.Fatal(err)
+		}
+
+		// capture output
+		outBuf := &bytes.Buffer{}
+		ap.Action.SetOut(outBuf)
+		errBuf := &bytes.Buffer{}
+		ap.Action.SetErr(errBuf)
+
+		// attempt to ingest the file
+		// invoke run
+		ap.Action.Run(ap.Action, args)
+
+		t.Log("stdout:\n", outBuf.String())
+		t.Log("stderr:\n", errBuf.String())
+
+		// check output
+		if errBuf.String() != "" {
+			t.Errorf("expected no error output; found %v", errBuf.String())
+		}
+		if !strings.Contains(outBuf.String(), jsonpath) {
+			t.Errorf("bad output. Expected to contain the path %v", jsonpath)
+		}
+	})
 }

@@ -9,10 +9,7 @@
 package ingest
 
 /*
-Interactive usage currently on supports selecting a single file each invokation.
-The module could be upgraded without too much trouble by adding a third pane (file picker, mod view, and selected files),
-and altering `enter` to add the selected file to the list of selected.
-Round it out by allowing users to interactive with the third pane to remove previously-selected files and viola.
+Interactive usage currently only supports selecting a single file each invokation due to limitations in the filepicker bubble.
 */
 
 import (
@@ -20,6 +17,7 @@ import (
 	"fmt"
 	"net/netip"
 	"os"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -30,40 +28,42 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/filegrabber"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
 
-const maxHeight int = 50
+const maxPickerHeight int = 50
 
 type mode = string
 
 const (
-	picking   mode = "picking"
-	ingesting mode = "ingesting"
+	picking   mode = "picking"   // user is selecting an item to upload
+	ingesting mode = "ingesting" // a file has been selected and is being uploaded
 	done      mode = "done"
 )
 
-var Ingest action.Model = Initial()
+// ensure we satisfy the action interface
+var _ action.Model = Initial()
 
 type ingest struct {
 	width       int // current known maximum width of the terminal
-	height      int
+	height      int // current known maximum height of the terminal
 	mode        mode
-	err         error
+	err         error // error displayed under file picker; cleared on key entry
 	ingestResCh chan struct {
 		string
 		error
 	}
-	ingestCount int // the number of files to wait for in ingesting mode
+	ingestCount int // the number of files to wait for in ingesting mode (from ingestResCh)
 
-	mod mod
+	mod mod // modifier pane
 
 	spinner spinner.Model
 
-	fp filegrabber.FileGrabber
+	fp filegrabber.FileGrabber // mildly upgraded filepicker
 }
 
+// Initial returns a pointer to a new ingest action.
+// It is ready for use/.SetArgs().
 func Initial() *ingest {
 	i := &ingest{
 		fp:   filegrabber.New(true, false),
@@ -105,9 +105,10 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			if i.ingestCount <= 0 { // all done
 				i.mode = done
 			}
+			return resultCmd
 		default: // no results ready, just spin
+			return i.spinner.Tick
 		}
-		return tea.Batch(i.spinner.Tick, resultCmd)
 	default: //case picking:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			i.err = nil
@@ -127,8 +128,9 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			i.fp, cmd = i.fp.Update(msg)
 			// check for file selection (and thus, attempt ingestion)
 			if didSelect, path := i.fp.DidSelectFile(msg); didSelect {
+				// validate selections and modifiers prior to ingestion
 				if path == "" {
-					i.err = errEmptyFile
+					i.err = errEmptyPath
 					return cmd
 				}
 				// check that src is empty or a valid IP
@@ -141,7 +143,11 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 					}
 				}
 
-				tag := i.mod.tagTI.Value()
+				tag := strings.TrimSpace(i.mod.tagTI.Value())
+				if tag == "" {
+					i.err = errors.New("tag is required")
+					return cmd
+				}
 				if err := validateTag(tag); err != nil {
 					i.err = err
 					return cmd
@@ -225,9 +231,9 @@ func (i *ingest) pickerView() string {
 	buffer := 5
 
 	newHeight := i.height - (breadcrumbHeight + modHeight + errHelpHeight + buffer)
-	i.fp.SetHeight(min(newHeight, maxHeight))
+	i.fp.SetHeight(min(newHeight, maxPickerHeight))
 
-	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fp.View()), i.errHelpView())
+	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fp.View()), sty.Render(i.errHelpView()))
 	if i.mod.focused {
 		return stylesheet.Cur.ComposableSty.UnfocusedBorder.
 			AlignHorizontal(lipgloss.Center).Render(s)
@@ -261,67 +267,53 @@ func (i *ingest) Reset() error {
 }
 
 // SetArgs places the filepicker in the user's pwd and sets defaults based on flag.
-func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, error) {
+func (i *ingest) SetArgs(fs *pflag.FlagSet, tokens []string) (string, tea.Cmd, error) {
 	var err error
 
 	rawFlags := initialLocalFlagSet()
+	rawFlags.AddFlagSet(fs)
 	if err := rawFlags.Parse(tokens); err != nil {
 		return "", nil, err
 	}
+	flags, invalids, err := transmogrifyFlags(&rawFlags)
+	if err != nil {
+		return "", nil, err
+	}
+	if len(invalids) > 0 {
+		// concatenate invalids and return them
+		var full strings.Builder
+		for _, reason := range invalids {
+			full.WriteString(reason + "\n")
+		}
+		return full.String(), nil, nil
+	}
 
-	// fetch flag values
-	if i.mod.ignoreTS, err = rawFlags.GetBool("ignore-timestamp"); err != nil {
-		clilog.Writer.Fatalf("ignore-timestamp flag does not exist: %v", err)
-		fmt.Println(uniques.ErrGeneric)
-		return "", nil, err
-	}
-	if i.mod.localTime, err = rawFlags.GetBool("local-time"); err != nil {
-		clilog.Writer.Fatalf("local-time flag does not exist: %v", err)
-		fmt.Println(uniques.ErrGeneric)
-		return "", nil, err
-	}
-	src, err := rawFlags.GetString("src")
-	if err != nil {
-		clilog.Writer.Fatalf("src flag does not exist: %v", err)
-		return "", nil, err
-	}
-	tags, err := rawFlags.GetStringSlice("tags")
-	if err != nil {
-		clilog.Writer.Fatalf("src flag does not exist: %v", err)
-		return "", nil, err
-	}
-	dir, invalid, err := validateDirFlag(&rawFlags)
-	if err != nil {
-		return "", nil, err
-	} else if invalid != "" {
-		return invalid, nil, nil
-	}
+	pairs := parsePairs(rawFlags.Args())
 
 	// if one+ files were given, try to ingest immediately
-	if files := rawFlags.Args(); len(files) > 0 {
-		ufErr := autoingest(i.ingestResCh, files, tags, i.mod.ignoreTS, i.mod.localTime, src)
-		if ufErr != nil {
-			return ufErr.Error(), nil, nil
+	if len(pairs) > 0 {
+		count := autoingest(i.ingestResCh, flags, pairs)
+		if count == 0 {
+			// should be impossible
+			panic("autoingest returned a count of 0")
 		}
-		i.ingestCount = len(files)
+		i.ingestCount = len(pairs)
 		i.mode = ingesting
 		return "", i.spinner.Tick, nil
 	}
 
-	// prepare the action
-	if len(tags) > 0 {
-		i.mod.tagTI.SetValue(tags[0])
-	}
-	i.mod.srcTI.SetValue(src)
+	// prepare the interactive action
+	i.mod.tagTI.SetValue(flags.defaultTag)
+	i.mod.srcTI.SetValue(flags.src)
 
-	if dir == "" {
+	if flags.dir == "" {
 		i.fp.CurrentDirectory, err = os.Getwd()
 		if err != nil {
 			clilog.Writer.Warnf("failed to get pwd: %v", err)
 			i.fp.CurrentDirectory = "." // allow OS to decide where to drop us
 		}
 	} else {
-		i.fp.CurrentDirectory = dir
+		i.fp.CurrentDirectory = flags.dir
 	}
 
 	return "", i.fp.Init(), nil

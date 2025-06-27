@@ -11,6 +11,7 @@
     - the filepicker bubble is fairly barebones. It has no real ability to jump directories/allow a user to directly edit their path (this can be worked around by setting .CurrentDirectory and then calling Init(), but it clearly isn't intentional), does not export the readDir message for forcing a re-scan (hence the need to recall Init()), cannot select multiple items, and does not satisfy the help interface (despite being in the same repo as the help bubble).
     - Other quality of life features would be nice (ex: adding ".." as a select-able option for navigation).
     - The current version of FileGrabber has a commented-out skeleton of this kind of bubble at the bottom.
+    - See the [associated issue](https://github.com/gravwell/gravwell/issues/1733#issue-3164170133).
 
 - [ ] add flags to gwcli's suggestions list
     - gwcli can suggest/auto-complete navs, actions, and built-ins, but cannot suggest flags, flag values, or arguments. Flags values and arguments would be really tough as they are highly context dependent (flag X takes a directory, flag Y takes an arbitrary number, etc), but just adding completion for flags would be really useful.
