@@ -440,7 +440,7 @@ func TestNewIngestActionRun(t *testing.T) {
 
 	t.Run("Gravwell JSON", func(t *testing.T) {
 		var (
-			tag1, tag2, tag3 = randomdata.City(), randomdata.Digits(5), randomdata.Title(0)
+			tag1, tag2, tag3 = "Millhouse", randomdata.Digits(5), randomdata.LastName()
 			gwjson           = `{"TS":"2025-06-26T23:26:56.100667099Z","Tag":"` + tag1 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRD","Enumerated":null}
 {"TS":"2025-06-26T23:26:56.100640318Z","Tag":"` + tag2 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRB","Enumerated":null}
 {"TS":"2025-06-26T23:26:56.100091382Z","Tag":"` + tag3 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRC","Enumerated":null}`
@@ -453,6 +453,8 @@ func TestNewIngestActionRun(t *testing.T) {
 		if err := os.WriteFile(jsonpath, []byte(gwjson), 0600); err != nil {
 			t.Fatal("failed to write test json to file:", err)
 		}
+
+		t.Log("tags: ", tag1, tag2, tag3)
 
 		// create the action
 		ap := NewIngestAction()
