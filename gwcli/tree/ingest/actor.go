@@ -142,7 +142,11 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 					}
 				}
 
-				tag := i.mod.tagTI.Value()
+				tag := strings.TrimSpace(i.mod.tagTI.Value())
+				if tag == "" {
+					i.err = errors.New("tag is required")
+					return cmd
+				}
 				if err := validateTag(tag); err != nil {
 					i.err = err
 					return cmd
