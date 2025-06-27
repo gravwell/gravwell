@@ -262,10 +262,11 @@ func (i *ingest) Reset() error {
 }
 
 // SetArgs places the filepicker in the user's pwd and sets defaults based on flag.
-func (i *ingest) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, error) {
+func (i *ingest) SetArgs(fs *pflag.FlagSet, tokens []string) (string, tea.Cmd, error) {
 	var err error
 
 	rawFlags := initialLocalFlagSet()
+	rawFlags.AddFlagSet(fs)
 	if err := rawFlags.Parse(tokens); err != nil {
 		return "", nil, err
 	}
