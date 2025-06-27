@@ -57,8 +57,8 @@ func NewIngestAction() action.Pair {
 func initialLocalFlagSet() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 
-	fs.Bool("hidden", false,
-		"include hidden files when ingesting a directory")
+	/*fs.Bool("hidden", false,
+	"include hidden files when ingesting a directory")*/
 	fs.BoolP("recursive", "r", false,
 		"recursively traverse directories, ingesting each file at every level")
 

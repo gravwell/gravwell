@@ -144,8 +144,8 @@ func validateDirFlag(dir string) (invalid string, err error) {
 
 // ingestFlags holds all flags so we don't have to keep passing around the pflag set.
 type ingestFlags struct {
-	script     bool
-	hidden     bool   // include hidden files when ingesting directories
+	script bool
+	//hidden     bool   // include hidden files when ingesting directories
 	recursive  bool   // recursively descend directories
 	src        string // IP address to use as the source of the files; comes in as a net.IP
 	ignoreTS   bool   // all entries will be tagged with the current time rather than any internal timestamping.
@@ -174,11 +174,11 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	} else {
 		flags.script = script
 	}
-	if includeHidden, err := fs.GetBool("hidden"); err != nil {
+	/*if includeHidden, err := fs.GetBool("hidden"); err != nil {
 		return flags, nil, uniques.ErrFlagDNE("hidden", "ingest")
 	} else {
 		flags.hidden = includeHidden
-	}
+	}*/
 	if recursive, err := fs.GetBool("recursive"); err != nil {
 		return flags, nil, uniques.ErrFlagDNE("recursive", "ingest")
 	} else {
