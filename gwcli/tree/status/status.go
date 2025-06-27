@@ -30,5 +30,7 @@ func NewStatusNav() *cobra.Command {
 		[]*cobra.Command{
 			indexers.NewIndexersNav(),
 		},
-		[]action.Pair{})
+		[]action.Pair{
+			newDescAction(),
+		})
 }
