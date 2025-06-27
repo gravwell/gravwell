@@ -52,15 +52,15 @@ func newDescAction() action.Pair {
 				if inf.SystemVersion != "" {
 					sb.WriteString(" | v" + inf.SystemVersion)
 				}
+				// append virtualization info to the header line
+				sb.WriteString(fmt.Sprintf(" | %s (%s)", inf.VirtSystem, inf.VirtRole))
+
 				sb.WriteString("\n")
 
 				// attach error
 				if inf.Error != "" {
 					sb.WriteString(stylesheet.Cur.ErrorText.Render("Error") + ": " + inf.Error + "\n")
 				}
-
-				// attach virtualization info
-				sb.WriteString(fmt.Sprintf("%v: %s %s\n", stylesheet.Cur.SecondaryText.Render("Virtualization"), inf.VirtSystem, inf.VirtRole))
 
 				// attach CPU info
 				cpuM := "unknown"
