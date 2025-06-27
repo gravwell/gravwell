@@ -71,8 +71,8 @@ func Test_determineFormat(t *testing.T) {
 	t.Run("neither", func(t *testing.T) {
 		fs := listStarterFlags()
 		fs.Parse([]string{})
-		if format := determineFormat(&fs); format != table {
-			t.Error("incorrect format:", testsupport.ExpectedActual(table, format))
+		if format := determineFormat(&fs); format != tbl {
+			t.Error("incorrect format:", testsupport.ExpectedActual(tbl, format))
 		}
 	})
 }
@@ -130,7 +130,7 @@ func Test_format_String(t *testing.T) {
 	}{
 		{"JSON", json, "JSON"},
 		{"CSV", csv, "CSV"},
-		{"table", table, "table"},
+		{"table", tbl, "table"},
 		{"unknown", 5, "unknown format (5)"},
 	}
 	for _, tt := range tests {
