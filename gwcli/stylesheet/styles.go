@@ -174,8 +174,8 @@ func (p Palette) GenerateSheet() Sheet {
 				Foreground(p.PrimaryColor).
 				AlignHorizontal(lipgloss.Center).
 				AlignVertical(lipgloss.Center).Bold(true),
-			EvenCells:   lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(p.SecondaryColor),
-			OddCells:    lipgloss.NewStyle().Padding(0, 1).Width(30).Foreground(p.TertiaryColor),
+			EvenCells:   lipgloss.NewStyle().Padding(0, 1).Width(15).Foreground(p.SecondaryColor),
+			OddCells:    lipgloss.NewStyle().Padding(0, 1).Width(15).Foreground(p.TertiaryColor),
 			BorderType:  lipgloss.NormalBorder(),
 			BorderStyle: primaryColorSty,
 		},
