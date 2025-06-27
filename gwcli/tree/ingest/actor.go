@@ -105,9 +105,10 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			if i.ingestCount <= 0 { // all done
 				i.mode = done
 			}
+			return resultCmd
 		default: // no results ready, just spin
+			return i.spinner.Tick
 		}
-		return tea.Batch(i.spinner.Tick, resultCmd)
 	default: //case picking:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			i.err = nil
@@ -232,7 +233,7 @@ func (i *ingest) pickerView() string {
 	newHeight := i.height - (breadcrumbHeight + modHeight + errHelpHeight + buffer)
 	i.fp.SetHeight(min(newHeight, maxHeight))
 
-	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fp.View()), i.errHelpView())
+	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fp.View()), sty.Render(i.errHelpView()))
 	if i.mod.focused {
 		return stylesheet.Cur.ComposableSty.UnfocusedBorder.
 			AlignHorizontal(lipgloss.Center).Render(s)
