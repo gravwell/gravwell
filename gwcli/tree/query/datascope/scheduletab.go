@@ -21,7 +21,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -135,11 +134,11 @@ func viewSchedule(s *DataScope) string {
 	// build the field names column
 	fields := lipgloss.JoinVertical(lipgloss.Right,
 		leftAlignerSty.Render(fmt.Sprintf("%s%s",
-			colorizer.Pip(sel, schcronfreq), titleSty.Render("Frequency:"))),
+			stylesheet.Pip(sel, schcronfreq), titleSty.Render("Frequency:"))),
 		leftAlignerSty.Render(fmt.Sprintf("%s%s",
-			colorizer.Pip(sel, schname), titleSty.Render("Name:"))),
+			stylesheet.Pip(sel, schname), titleSty.Render("Name:"))),
 		leftAlignerSty.Render(fmt.Sprintf("%s%s",
-			colorizer.Pip(sel, schdesc), titleSty.Render("Description:"))),
+			stylesheet.Pip(sel, schdesc), titleSty.Render("Description:"))),
 	)
 
 	// build the TIs column
@@ -159,7 +158,7 @@ func viewSchedule(s *DataScope) string {
 			tabDesc,
 			composed,
 			"",
-			colorizer.SubmitString("alt+enter", s.schedule.inputErrorString, s.schedule.resultString, s.usableWidth()),
+			stylesheet.SubmitString("alt+enter", s.schedule.inputErrorString, s.schedule.resultString, s.usableWidth()),
 		),
 	)
 }

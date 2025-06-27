@@ -73,7 +73,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -404,7 +403,7 @@ func (c *createModel) View() string {
 			title = tiFieldOptionalSty.Render(c.fields[kti.key].Title + ":")
 		}
 
-		fields = append(fields, leftAlignerSty.Render(colorizer.Pip(c.selected, uint(i))+title))
+		fields = append(fields, leftAlignerSty.Render(stylesheet.Pip(c.selected, uint(i))+title))
 
 		TIs = append(TIs, c.orderedTIs[i].ti.View())
 	}
@@ -418,7 +417,7 @@ func (c *createModel) View() string {
 	// conjoin fields and TIs
 	composed := lipgloss.JoinHorizontal(lipgloss.Center, f, t)
 
-	return composed + "\n" + colorizer.SubmitString("alt+enter", c.inputErr, c.createErr, c.width)
+	return composed + "\n" + stylesheet.SubmitString("alt+enter", c.inputErr, c.createErr, c.width)
 }
 
 func (c *createModel) Done() bool {

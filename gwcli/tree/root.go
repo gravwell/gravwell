@@ -52,6 +52,13 @@ var profilerFile *os.File
 // Ensures the logger is set up and the user has logged into the gravwell instance,
 // completing these actions if either is false.
 func ppre(cmd *cobra.Command, args []string) error {
+	// check for no color flag
+	if nc, err := cmd.Flags().GetBool("no-color"); err != nil {
+		panic(err)
+	} else if nc {
+		stylesheet.Cur = stylesheet.NoColor()
+	}
+
 	// set up the logger, if it is not already initialized
 	if clilog.Writer == nil {
 		path, err := cmd.Flags().GetString("log")

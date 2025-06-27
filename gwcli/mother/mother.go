@@ -29,7 +29,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -44,10 +43,6 @@ import (
 
 type navCmd = cobra.Command
 type actionCmd = cobra.Command // actions have associated actors via the action map
-
-func init() {
-	initBuiltins() // need init to avoid an initialization cycle
-}
 
 // Mother is a struct satisfying the tea.Model interface and containing information required for cobra.Command tree traversal.
 //
@@ -91,6 +86,9 @@ func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 // NOTE: trailingTokens is not currently used, but is included for flexibility, in case it needs to
 // be built into the startupCommand
 func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.Renderer) Mother {
+	// spin up builtins
+	initBuiltins()
+
 	// disable completions command when mother is spun up
 	if c, _, err := root.Find([]string{"completion"}); err != nil {
 		clilog.Writer.Warnf("failed to disable 'completion' command: %v", err)
@@ -619,7 +617,7 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 				name = stylesheet.Cur.Nav.Render(child.Name())
 				// build and color subchildren
 				for _, sc := range child.Commands() {
-					_, err := subchildren.WriteString(colorizer.ColorCommandName(sc) + " ")
+					_, err := subchildren.WriteString(stylesheet.ColorCommandName(sc) + " ")
 					if err != nil {
 						clilog.Writer.Warnf("Failed to generate list of subchildren: %v", err)
 					}

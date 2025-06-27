@@ -80,6 +80,29 @@ type Sheet struct {
 	SpinnerText lipgloss.Style // text that sometimes accompanies a spinner
 }
 
+// NewSheet initializes a bare minimum sheet, ensuring required parameters are in place.
+func NewSheet(pip func() string, promptSymbol func() string, promptText func(string) string) Sheet {
+	return Sheet{
+		Pip: pip,
+		ComposableSty: struct {
+			FocusedBorder       lipgloss.Style
+			UnfocusedBorder     lipgloss.Style
+			ComplimentaryBorder lipgloss.Style
+		}{},
+		TableSty: struct {
+			HeaderCells lipgloss.Style
+			EvenCells   lipgloss.Style
+			OddCells    lipgloss.Style
+			BorderType  lipgloss.Border
+			BorderStyle lipgloss.Style
+		}{},
+		PromptSty: struct {
+			Symbol func() string
+			Text   func(string) string
+		}{Symbol: promptSymbol, Text: promptText},
+	}
+}
+
 func (s Sheet) Prompt(text string) string {
 	return s.PromptSty.Text(text) + s.PromptSty.Symbol()
 }

@@ -61,7 +61,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
@@ -531,7 +530,7 @@ func (em *editModel[I, S]) View() string {
 			}
 			sb.WriteString(kti.ti.View() + "\n")
 		}
-		sb.WriteString(colorizer.SubmitString("alt+enter", em.inputErr, em.updateErr, em.width))
+		sb.WriteString(stylesheet.SubmitString("alt+enter", em.inputErr, em.updateErr, em.width))
 		str = sb.String()
 	}
 	return str

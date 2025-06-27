@@ -25,7 +25,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -358,7 +357,7 @@ func viewDownload(s *DataScope) string {
 			"",
 			recs,
 			"",
-			colorizer.SubmitString("alt+enter", s.download.inputErrorString, s.download.resultString, s.usableWidth()),
+			stylesheet.SubmitString("alt+enter", s.download.inputErrorString, s.download.resultString, s.usableWidth()),
 		),
 	)
 }
@@ -371,9 +370,9 @@ func outputFormatSegment(titleSty, subtitleSty, lcolAligner, rcolAligner lipglos
 
 	var ( // left column strings
 		outputStr = fmt.Sprintf("%s%s",
-			colorizer.Pip(selected, dloutfile), titleSty.Render("Output Path:"))
+			stylesheet.Pip(selected, dloutfile), titleSty.Render("Output Path:"))
 		appendStr = fmt.Sprintf("%s%s",
-			colorizer.Pip(selected, dlappend), subtitleSty.Render("Append?"))
+			stylesheet.Pip(selected, dlappend), subtitleSty.Render("Append?"))
 	)
 
 	l := lipgloss.JoinVertical(lipgloss.Right,
@@ -383,7 +382,7 @@ func outputFormatSegment(titleSty, subtitleSty, lcolAligner, rcolAligner lipglos
 
 	var (
 		outputTIStr = dl.outfileTI.View()
-		appendBox   = colorizer.Checkbox(dl.append)
+		appendBox   = stylesheet.Checkbox(dl.append)
 	)
 
 	r := lipgloss.JoinVertical(lipgloss.Left,
@@ -401,17 +400,17 @@ func outputFormatSegment(titleSty, subtitleSty, lcolAligner, rcolAligner lipglos
 	// generate format segment
 	var ( // format segment left column elements
 		jsonStr = fmt.Sprintf("%s%s",
-			colorizer.Pip(selected, dlfmtjson), subtitleSty.Render("JSON"))
+			stylesheet.Pip(selected, dlfmtjson), subtitleSty.Render("JSON"))
 		csvStr = fmt.Sprintf("%s%s",
-			colorizer.Pip(selected, dlfmtcsv), subtitleSty.Render("CSV"))
+			stylesheet.Pip(selected, dlfmtcsv), subtitleSty.Render("CSV"))
 		rawStr = fmt.Sprintf("%s%s",
-			colorizer.Pip(selected, dlfmtraw), subtitleSty.Render("raw"))
+			stylesheet.Pip(selected, dlfmtraw), subtitleSty.Render("raw"))
 	)
 
 	var ( // format segment right column elements
-		jsonBox = colorizer.Radiobox(dl.format.json)
-		csvBox  = colorizer.Radiobox(dl.format.csv)
-		rawBox  = colorizer.Radiobox(dl.format.raw)
+		jsonBox = stylesheet.Radiobox(dl.format.json)
+		csvBox  = stylesheet.Radiobox(dl.format.csv)
+		rawBox  = stylesheet.Radiobox(dl.format.raw)
 	)
 
 	// conjoin format pieces
@@ -445,7 +444,7 @@ func recordSegment(titleSty, lcolAligner, rcolAligner lipgloss.Style,
 
 	recs := lipgloss.JoinHorizontal(lipgloss.Center,
 		lcolAligner.Render(fmt.Sprintf("%s%s",
-			colorizer.Pip(selected, dlrecords), recSty.Render("Record Numbers:"))),
+			stylesheet.Pip(selected, dlrecords), recSty.Render("Record Numbers:"))),
 		rcolAligner.Render(dl.recordsTI.View()),
 	)
 
