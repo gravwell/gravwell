@@ -9,10 +9,7 @@
 package ingest
 
 /*
-Interactive usage currently on supports selecting a single file each invokation.
-The module could be upgraded without too much trouble by adding a third pane (file picker, mod view, and selected files),
-and altering `enter` to add the selected file to the list of selected.
-Round it out by allowing users to interactive with the third pane to remove previously-selected files and viola.
+Interactive usage currently only supports selecting a single file each invokation due to limitations in the filepicker bubble.
 */
 
 import (
@@ -34,36 +31,39 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const maxHeight int = 50
+const maxPickerHeight int = 50
 
 type mode = string
 
 const (
-	picking   mode = "picking"
-	ingesting mode = "ingesting"
+	picking   mode = "picking"   // user is selecting an item to upload
+	ingesting mode = "ingesting" // a file has been selected and is being uploaded
 	done      mode = "done"
 )
 
-var Ingest action.Model = Initial()
+// ensure we satisfy the action interface
+var _ action.Model = Initial()
 
 type ingest struct {
 	width       int // current known maximum width of the terminal
-	height      int
+	height      int // current known maximum height of the terminal
 	mode        mode
-	err         error
+	err         error // error displayed under file picker; cleared on key entry
 	ingestResCh chan struct {
 		string
 		error
 	}
-	ingestCount int // the number of files to wait for in ingesting mode
+	ingestCount int // the number of files to wait for in ingesting mode (from ingestResCh)
 
-	mod mod
+	mod mod // modifier pane
 
 	spinner spinner.Model
 
-	fp filegrabber.FileGrabber
+	fp filegrabber.FileGrabber // mildly upgraded filepicker
 }
 
+// Initial returns a pointer to a new ingest action.
+// It is ready for use/.SetArgs().
 func Initial() *ingest {
 	i := &ingest{
 		fp:   filegrabber.New(true, false),
@@ -231,7 +231,7 @@ func (i *ingest) pickerView() string {
 	buffer := 5
 
 	newHeight := i.height - (breadcrumbHeight + modHeight + errHelpHeight + buffer)
-	i.fp.SetHeight(min(newHeight, maxHeight))
+	i.fp.SetHeight(min(newHeight, maxPickerHeight))
 
 	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fp.View()), sty.Render(i.errHelpView()))
 	if i.mod.focused {

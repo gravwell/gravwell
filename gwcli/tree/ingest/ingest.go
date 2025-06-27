@@ -49,7 +49,7 @@ func NewIngestAction() action.Pair {
 		cmd.Flags().AddFlagSet(&fs)
 	}
 
-	return action.NewPair(cmd, Ingest)
+	return action.NewPair(cmd, Initial())
 
 }
 

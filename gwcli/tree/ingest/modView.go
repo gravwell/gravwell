@@ -169,6 +169,7 @@ func (m mod) reset() mod {
 	m.ignoreTS = false
 	m.localTime = false
 
+	m.selected = src
 	m.srcTI.Focus()
 	m.tagTI.Blur()
 
