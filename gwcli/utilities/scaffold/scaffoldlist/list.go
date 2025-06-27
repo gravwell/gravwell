@@ -73,6 +73,8 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/table"
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/cobra"
@@ -86,7 +88,7 @@ type outputFormat uint
 const (
 	json outputFormat = iota
 	csv
-	table
+	tbl
 	unknown
 )
 
@@ -96,7 +98,7 @@ func (f outputFormat) String() string {
 		return "JSON"
 	case csv:
 		return "CSV"
-	case table:
+	case tbl:
 		return "table"
 	}
 	return fmt.Sprintf("unknown format (%d)", f)
@@ -296,7 +298,7 @@ func determineFormat(fs *pflag.FlagSet) outputFormat {
 		} else if format_json {
 			format = json
 		} else {
-			format = table
+			format = tbl
 		}
 	}
 	return format
@@ -323,12 +325,15 @@ func listOutput[Any any](fs *pflag.FlagSet, columns []string, color bool,
 		toRet = weave.ToCSV(data, columns)
 	case json:
 		toRet, err = weave.ToJSON(data, columns)
-	case table:
+	case tbl:
 		if color {
 			toRet = weave.ToTable(data, columns, stylesheet.Table)
 		} else {
-			toRet = weave.ToTable(data, columns) // omit table styling
-
+			toRet = weave.ToTable(data, columns, func() *table.Table {
+				tbl := table.New()
+				tbl.Border(lipgloss.ASCIIBorder())
+				return tbl
+			}) // omit table styling
 		}
 	default:
 		toRet = ""
@@ -371,7 +376,7 @@ func newListAction[Any any](defaultColumns []string, dataStruct Any, dFn dataFun
 	la := ListAction[Any]{
 		columns:        defaultColumns,
 		fs:             fs,
-		DefaultFormat:  table,
+		DefaultFormat:  tbl,
 		DefaultColumns: defaultColumns,
 		afsFunc:        addtlFlags,
 		dataStruct:     dataStruct,
@@ -463,33 +468,36 @@ var _ action.Model = &ListAction[any]{}
 func (la *ListAction[T]) SetArgs(
 	inherited *pflag.FlagSet, tokens []string) (invalid string, onStart tea.Cmd, err error) {
 
+	// attach inherited flags to the normal flagset
+	la.fs.AddFlagSet(inherited)
+
 	err = la.fs.Parse(tokens)
 	if err != nil {
 		return err.Error(), nil, nil
 	}
-	fs := la.fs
+	//fs := la.fs
 
 	// parse column handling
 	// only need to parse columns if user did not pass in --show-columns
-	if la.showColumns, err = fs.GetBool("show-columns"); err != nil {
+	if la.showColumns, err = la.fs.GetBool("show-columns"); err != nil {
 		return "", nil, err
 	} else if !la.showColumns {
 		// fetch columns if it exists
-		if cols, err := fs.GetStringSlice("columns"); err != nil {
+		if cols, err := la.fs.GetStringSlice("columns"); err != nil {
 			return "", nil, err
 		} else if len(cols) > 0 {
 			la.columns = cols
 		} // else: defaults to DefaultColumns
 	}
 
-	nc, err := inherited.GetBool("no-color")
+	nc, err := la.fs.GetBool("no-color")
 	if err != nil {
 		la.color = false
 		clilog.Writer.Warnf("Failed to fetch no-color from inherited: %v", err)
 	}
 	la.color = !nc
 
-	if f, err := initOutFile(&fs); err != nil {
+	if f, err := initOutFile(&la.fs); err != nil {
 		return "", nil, err
 	} else {
 		la.outFile = f
