@@ -437,6 +437,53 @@ func TestNewIngestActionRun(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Gravwell JSON", func(t *testing.T) {
+		var (
+			tag1, tag2, tag3 = randomdata.City(), randomdata.Digits(5), randomdata.Title(0)
+			gwjson           = `{"TS":"2025-06-26T23:26:56.100667099Z","Tag":"` + tag1 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRD","Enumerated":null}
+{"TS":"2025-06-26T23:26:56.100640318Z","Tag":"` + tag2 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRB","Enumerated":null}
+{"TS":"2025-06-26T23:26:56.100091382Z","Tag":"` + tag3 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRC","Enumerated":null}`
+			tdir     = t.TempDir()
+			jsonpath = path.Join(tdir, "test.json")
+			args     = []string{jsonpath, "--script"}
+		)
+
+		// put the above JSON into a file
+		if err := os.WriteFile(jsonpath, []byte(gwjson), 0600); err != nil {
+			t.Fatal("failed to write test json to file:", err)
+		}
+
+		// create the action
+		ap := NewIngestAction()
+
+		// perform root's actions
+		uniques.AttachPersistentFlags(ap.Action)
+		if err := ap.Action.Flags().Parse(args); err != nil {
+			t.Fatal(err)
+		}
+
+		// capture output
+		outBuf := &bytes.Buffer{}
+		ap.Action.SetOut(outBuf)
+		errBuf := &bytes.Buffer{}
+		ap.Action.SetErr(errBuf)
+
+		// attempt to ingest the file
+		// invoke run
+		ap.Action.Run(ap.Action, args)
+
+		t.Log("stdout:\n", outBuf.String())
+		t.Log("stderr:\n", errBuf.String())
+
+		// check output
+		if errBuf.String() != "" {
+			t.Errorf("expected no error output; found %v", errBuf.String())
+		}
+		if !strings.Contains(outBuf.String(), jsonpath) {
+			t.Errorf("bad output. Expected to contain the path %v", jsonpath)
+		}
+	})
 }
 
 func Test_collectPathsForIngestions(t *testing.T) {
