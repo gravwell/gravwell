@@ -22,7 +22,6 @@ import (
 	"unicode"
 
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -62,7 +61,7 @@ func initialModifView(height, width uint) modifView {
 		selected: duration, // default to duration
 		keys: []key.Binding{
 			key.NewBinding(
-				key.WithKeys(stylesheet.UpDown),
+				key.WithKeys(stylesheet.UpDownSigils),
 				// help is not necessary when there is only one option
 				// key.WithHelp(stylesheet.UpDown, "select input"),
 			)},
@@ -136,12 +135,12 @@ func (mv *modifView) update(msg tea.Msg) []tea.Cmd { // TODO switch away from an
 func (mv *modifView) view() string {
 	var bldr strings.Builder
 
-	bldr.WriteString(" " + stylesheet.Header1Style.Render("Duration:") + "\n")
+	bldr.WriteString(" " + stylesheet.Cur.PrimaryText.Render("Duration:") + "\n")
 	bldr.WriteString(
-		fmt.Sprintf("%s%s\n", colorizer.Pip(mv.selected, duration), mv.durationTI.View()),
+		fmt.Sprintf("%s%s\n", stylesheet.Pip(mv.selected, duration), mv.durationTI.View()),
 	)
 	bldr.WriteString(
-		fmt.Sprintf("%s%s %s\n", colorizer.Pip(mv.selected, background), colorizer.Checkbox(mv.background), stylesheet.Header1Style.Render("Background?")),
+		fmt.Sprintf("%s%s %s\n", stylesheet.Pip(mv.selected, background), stylesheet.Checkbox(mv.background), stylesheet.Cur.PrimaryText.Render("Background?")),
 	)
 
 	return bldr.String()

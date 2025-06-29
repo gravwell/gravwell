@@ -19,7 +19,6 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -63,7 +62,7 @@ func initTableTab(data []string) tableTab {
 		// map each row cell to its column
 		rd := table.RowData{}
 		// prepend the index column
-		rd["index"] = colorizer.Index(i + 1)
+		rd["index"] = stylesheet.Index(i + 1)
 		for j, c := range cells {
 			rd[strconv.Itoa(j+1)] = c
 		}
@@ -82,7 +81,7 @@ func initTableTab(data []string) tableTab {
 			}
 			return oddEntryStyle
 		}).
-		HeaderStyle(stylesheet.Tbl.HeaderCells)
+		HeaderStyle(stylesheet.Cur.TableSty.HeaderCells)
 		// NOTE: As of evertras-table v0.16.1,
 		// the borders cannot be styled (only their runes changed.)
 
@@ -212,11 +211,11 @@ func (tt *tableTab) recalculateSize(rawWidth, clippedHeight int) {
 
 // Draw and return a footer for the viewport
 func (tt *tableTab) renderFooter() string {
-	var helpSty = stylesheet.GreyedOutStyle.Width(tt.vp.Width).AlignHorizontal(lipgloss.Center)
+	var helpSty = stylesheet.Cur.DisabledText.Width(tt.vp.Width).AlignHorizontal(lipgloss.Center)
 	return lipgloss.JoinVertical(lipgloss.Center,
 		scrollPercentLine(tt.vp.Width, tt.vp.ScrollPercent()),
 		lipgloss.JoinVertical(lipgloss.Center,
-			helpSty.Render(stylesheet.UpDown+" scroll • home: jump top • end: jump bottom"),
+			helpSty.Render(stylesheet.UpDownSigils+" scroll • home: jump top • end: jump bottom"),
 			helpSty.Render("alt+[1-9]: increase column size • shift+alt+[1-9]: decrease column size"),
 			helpSty.Render("tab: cycle • esc: quit"),
 		))

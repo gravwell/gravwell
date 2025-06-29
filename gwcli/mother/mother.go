@@ -29,9 +29,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/shlex"
@@ -45,10 +43,6 @@ import (
 
 type navCmd = cobra.Command
 type actionCmd = cobra.Command // actions have associated actors via the action map
-
-func init() {
-	initBuiltins() // need init to avoid an initialization cycle
-}
 
 // Mother is a struct satisfying the tea.Model interface and containing information required for cobra.Command tree traversal.
 //
@@ -92,6 +86,9 @@ func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 // NOTE: trailingTokens is not currently used, but is included for flexibility, in case it needs to
 // be built into the startupCommand
 func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.Renderer) Mother {
+	// spin up builtins
+	initBuiltins()
+
 	// disable completions command when mother is spun up
 	if c, _, err := root.Find([]string{"completion"}); err != nil {
 		clilog.Writer.Warnf("failed to disable 'completion' command: %v", err)
@@ -106,7 +103,7 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 	// text input
 	ti := textinput.New()
 	ti.Placeholder = "help"
-	ti.Prompt = stylesheet.TIPromptPrefix
+	ti.Prompt = "" // replicated externally
 	ti.Focus()
 	ti.Width = stylesheet.TIWidth // replaced on first WindowSizeMsg, proc'd by Init()
 	// add ctrl+left/right to the word traversal keys
@@ -152,7 +149,7 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 var _ tea.Model = Mother{}
 
 func (m Mother) Init() tea.Cmd {
-	return uniques.FetchWindowSize
+	return tea.WindowSize()
 }
 
 // Update (specifically Mother's Update()) is always the entrypoint for BubbleTea to drive.
@@ -299,7 +296,7 @@ func (m Mother) View() string {
 				if lastRune == ' ' {
 					filtered = append(filtered, before)
 				} else {
-					filtered = append(filtered, stylesheet.ExampleStyle.Render(curInput)+before)
+					filtered = append(filtered, stylesheet.Cur.ExampleText.Render(curInput)+before)
 				}
 			}
 		}
@@ -307,8 +304,8 @@ func (m Mother) View() string {
 		filtered = slices.Compact(filtered)
 	}
 
-	return fmt.Sprintf("%s%v\n%v",
-		commandPath(&m), m.ti.View(), strings.Join(filtered, " "))
+	return fmt.Sprintf("%s\n%v",
+		m.promptString(true), strings.Join(filtered, " "))
 }
 
 //#endregion
@@ -340,7 +337,7 @@ func processInput(m *Mother) tea.Cmd {
 	if wr.errString != "" {
 		return tea.Sequence(
 			historyCmd,
-			tea.Println(stylesheet.ErrStyle.Render(wr.errString)),
+			tea.Println(stylesheet.Cur.ErrorText.Render(wr.errString)),
 		)
 	}
 
@@ -363,7 +360,7 @@ func processInput(m *Mother) tea.Cmd {
 
 		// reconstitute remaining tokens to re-split them via shlex
 		cmd := processActionHandoff(m, wr.endCommand, wr.remainingString)
-		return tea.Sequence(historyCmd, cmd)
+		return tea.Sequence(historyCmd, tea.WindowSize(), cmd)
 
 	case invalidCommand:
 		clilog.Writer.Errorf("walking input %v returned invalid", given)
@@ -380,16 +377,25 @@ func (m *Mother) pushToHistory() (println tea.Cmd, userIn string, err error) {
 	if m.ti.Err != nil {
 		return nil, userIn, m.ti.Err
 	}
-	p := m.promptString()
+	p := m.promptString(false)
 
 	m.history.insert(userIn)           // add prompt string to history
 	m.ti.Reset()                       // empty out the input
 	return tea.Println(p), userIn, nil // print prompt
 }
 
-// Returns a composition resembling the full prompt.
-func (m *Mother) promptString() string {
-	return fmt.Sprintf("%s> %s", commandPath(m), m.ti.Value())
+// Composes the gwcli prompt as a single line.
+// If live, uses m.ti.View() (thus displaying the blinking cursor).
+// If !live, uses m.ti.Value() (for history use)
+func (m *Mother) promptString(live bool) string {
+	var ti string
+	if live {
+		ti = m.ti.View()
+	} else {
+		ti = m.ti.Value()
+	}
+
+	return fmt.Sprintf("%s%s", stylesheet.Cur.Prompt(m.pwd.CommandPath()), ti)
 }
 
 // helper subroutine for processInput
@@ -447,7 +453,7 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 			return tea.Println(errString)
 		}
 		return tea.Println("invalid arguments: " + invalid + "\n" +
-			"See " + stylesheet.ExampleStyle.Render("help") + " (or append -h) for assistance.")
+			"See " + stylesheet.Cur.ExampleText.Render("help") + " (or append -h) for assistance.")
 	}
 	clilog.Writer.Debugf("Handing off control to %s", m.active.command.Name())
 	if cmd != nil {
@@ -590,7 +596,7 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 	if action.Is(c) {
 		s.WriteString(c.UsageString())
 	} else {
-		specialStyle := lipgloss.NewStyle().Foreground(stylesheet.AccentColor1)
+		specialStyle := stylesheet.Cur.SecondaryText
 		// write .. and /
 		s.WriteString(fmt.Sprintf("%s%s - %s\n",
 			stylesheet.Indent, specialStyle.Render(".."), "step up"))
@@ -606,12 +612,12 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 			var name string
 			var subchildren strings.Builder // children of this child
 			if action.Is(child) {
-				name = stylesheet.ActionStyle.Render(child.Name())
+				name = stylesheet.Cur.Action.Render(child.Name())
 			} else {
-				name = stylesheet.NavStyle.Render(child.Name())
+				name = stylesheet.Cur.Nav.Render(child.Name())
 				// build and color subchildren
 				for _, sc := range child.Commands() {
-					_, err := subchildren.WriteString(colorizer.ColorCommandName(sc) + " ")
+					_, err := subchildren.WriteString(stylesheet.ColorCommandName(sc) + " ")
 					if err != nil {
 						clilog.Writer.Warnf("Failed to generate list of subchildren: %v", err)
 					}
@@ -628,16 +634,11 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 	}
 
 	// write help footer
-	s.WriteString("\nTry " + stylesheet.ExampleStyle.Render("help help") +
+	s.WriteString("\nTry " + stylesheet.Cur.ExampleText.Render("help help") +
 		" for information on using the help command.")
 
 	// chomp last newline and return
 	return tea.Println(strings.TrimSuffix(s.String(), "\n"))
-}
-
-// commandPath returns the present working directory, set to the primary color.
-func commandPath(m *Mother) string {
-	return stylesheet.PromptStyle.Render(m.pwd.CommandPath())
 }
 
 //#endregion

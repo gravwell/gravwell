@@ -15,19 +15,18 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"os"
 	"strings"
 	"time"
 	"unicode"
 
-	tea "github.com/charmbracelet/bubbletea"
-
-	"github.com/charmbracelet/x/term"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
+	"github.com/spf13/cobra"
 )
 
 const (
 	// the string format the Gravwell client requires
-	SearchTimeFormat = "2006-01-02T15:04:05.999999999Z07:00"
+	SearchTimeFormat string = "2006-01-02T15:04:05.999999999Z07:00"
+	Version          string = "v0.8"
 )
 
 // CronRuneValidator provides a validator function for a TI intended to consume cron-like input.
@@ -60,13 +59,6 @@ func CronRuneValidator(s string) error {
 	}
 
 	return nil
-}
-
-// FetchWindowSize queries for available terminal window size.
-// Generally useful as an onStart command as Mother does not maintain a set of dimensions.
-func FetchWindowSize() tea.Msg {
-	w, h, _ := term.GetSize(os.Stdin.Fd())
-	return tea.WindowSizeMsg{Width: w, Height: h}
 }
 
 // A JWTHeader holds the values from the first segment of a parsed JWT.
@@ -118,4 +110,29 @@ func ParseJWT(tkn string) (header JWTHeader, payload JWTPayload, signature []byt
 	}
 
 	return header, payload, sig, err
+}
+
+// AttachPersistentFlags populates all persistent flags and attaches them to the given command.
+// This subroutine should ONLY be used by Mother when building the root command or by test suites that omit Mother.
+func AttachPersistentFlags(cmd *cobra.Command) {
+	// global flags
+	cmd.PersistentFlags().Bool("script", false,
+		"disallows gwcli from entering interactive mode and prints context help instead.\n"+
+			"Recommended for use in scripts to avoid hanging on a malformed command.")
+	cmd.PersistentFlags().StringP("username", "u", "", "login credential.")
+	cmd.PersistentFlags().String("password", "", "login credential.")
+	cmd.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
+	cmd.PersistentFlags().String("api", "", "log in via API key instead of credentials")
+
+	cmd.MarkFlagsMutuallyExclusive("password", "passfile", "api")
+	cmd.MarkFlagsMutuallyExclusive("api", "username")
+
+	cmd.PersistentFlags().Bool("no-color", false, "disables colourized output.")
+	cmd.PersistentFlags().String("server", "localhost:80", "<host>:<port> of instance to connect to.\n")
+	cmd.PersistentFlags().StringP("log", "l", cfgdir.DefaultStdLogPath, "log location for developer logs.\n")
+	cmd.PersistentFlags().String("loglevel", "DEBUG", "log level for developer logs (-l).\n"+
+		"Possible values: 'OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'.\n")
+	cmd.PersistentFlags().Bool("insecure", false, "do not use HTTPS and do not enforce certs.")
+	cmd.PersistentFlags().String("profile", "", "spins up the native CPU profiler to log samples (in pprof format) into the given path")
+	cmd.PersistentFlags().MarkHidden("profile")
 }
