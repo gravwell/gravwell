@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 
@@ -22,7 +23,6 @@ import (
 )
 
 // wrapper for the map returned by GetStorageStats.
-// Allows us to set
 type namedStorage struct {
 	Disk  string
 	Stats types.StorageStats
@@ -31,9 +31,10 @@ type namedStorage struct {
 func NewIndexerStorageAction() action.Pair {
 	const (
 		use   string = "storage"
-		short string = "review storage information for each indexer"
-		long  string = "Review storage information for each indexer"
+		short string = "review storage statistics for all indexers"
 	)
+	var long = "Fetch storage statistics across all indexers.\n" +
+		"Use the " + stylesheet.Cur.Action.Render("inspect") + " action for more detailed information about a specified indexer."
 	// default to using all columns
 	cols, err := weave.StructFields(namedStorage{}, true)
 	if err != nil { // something has gone horribly wrong
@@ -43,7 +44,6 @@ func NewIndexerStorageAction() action.Pair {
 
 	return scaffoldlist.NewListAction(use, short, long, cols, namedStorage{},
 		func(c *grav.Client, fs *pflag.FlagSet) ([]namedStorage, error) {
-			// TODO enable indexer-specific storage stats viaGetIndexerStorageStats()
 			ss, err := connection.Client.GetStorageStats()
 			if err != nil {
 				return []namedStorage{}, err
@@ -57,5 +57,4 @@ func NewIndexerStorageAction() action.Pair {
 
 			return wrap, nil
 		}, nil)
-
 }
