@@ -91,6 +91,13 @@ func WithExample(ex string) BasicActionOption {
 	}
 }
 
+// WithPositionalArguments specifies bare argument handling function.
+func WithPositionalArguments(a cobra.PositionalArgs) BasicActionOption {
+	return func(ba *basicAction) {
+		ba.cmd.Args = a
+	}
+}
+
 //#endregion options
 
 //#region interactive mode (model) implementation
