@@ -67,7 +67,7 @@ func NewBasicAction(use, short, long string, aliases []string,
 		cmd.Flags().AddFlagSet(&f)
 	}
 
-	ba := BasicAction{cmd: cmd, fn: act}
+	ba := basicAction{cmd: cmd, fn: act}
 	if flagFunc != nil {
 		ba.fs = flagFunc()
 		ba.fsFunc = flagFunc
@@ -78,7 +78,7 @@ func NewBasicAction(use, short, long string, aliases []string,
 
 //#region interactive mode (model) implementation
 
-type BasicAction struct {
+type basicAction struct {
 	done bool
 
 	fs     pflag.FlagSet        // the current state of the flagset; destroyed on .Reset()
@@ -90,23 +90,23 @@ type BasicAction struct {
 	fn func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd)
 }
 
-var _ action.Model = &BasicAction{}
+var _ action.Model = &basicAction{}
 
-func (ba *BasicAction) Update(msg tea.Msg) tea.Cmd {
+func (ba *basicAction) Update(msg tea.Msg) tea.Cmd {
 	ba.done = true
 	s, cmd := ba.fn(ba.cmd, &ba.fs)
 	return tea.Sequence(tea.Println(s), cmd)
 }
 
-func (*BasicAction) View() string {
+func (*basicAction) View() string {
 	return ""
 }
 
-func (ba *BasicAction) Done() bool {
+func (ba *basicAction) Done() bool {
 	return ba.done
 }
 
-func (ba *BasicAction) Reset() error {
+func (ba *basicAction) Reset() error {
 	ba.done = false
 	if ba.fsFunc != nil {
 		ba.fs = ba.fsFunc()
@@ -114,7 +114,7 @@ func (ba *BasicAction) Reset() error {
 	return nil
 }
 
-func (ba *BasicAction) SetArgs(_ *pflag.FlagSet, tokens []string) (_ string, _ tea.Cmd, err error) {
+func (ba *basicAction) SetArgs(_ *pflag.FlagSet, tokens []string) (_ string, _ tea.Cmd, err error) {
 	// if no additional flags could be given, we have nothing more to do
 	// (basic actions have no starter flags)
 	if ba.fsFunc != nil {
