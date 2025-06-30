@@ -83,8 +83,10 @@ func NewBasicAction(use, short, long string, aliases []string,
 
 //#region options
 
+// A BasicActionOption is a function that can be passed to NewBasicAction to modify the created action.
 type BasicActionOption = func(*basicAction)
 
+// WithExample specifies the example to display in the help text.
 func WithExample(ex string) BasicActionOption {
 	return func(ba *basicAction) {
 		ba.cmd.Example = ex
