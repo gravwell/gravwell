@@ -100,6 +100,23 @@ func WithPositionalArguments(a cobra.PositionalArgs) BasicActionOption {
 	}
 }
 
+// WithFlagsRequired instructs the various shell completion implementations to prioritize the named flag when performing completion,
+// and causes the basic action command to report an error if invoked without the flag.
+func WithFlagsRequired(flags ...string) BasicActionOption {
+	return func(ba *basicAction) {
+		for _, f := range flags {
+			ba.cmd.MarkFlagRequired(f)
+		}
+	}
+}
+
+// WithFlagsRequiredTogether makes Cobra error if the action is invoked with a subset (but not all) of the given flags.
+func WithFlagsRequiredTogether(flags ...string) BasicActionOption {
+	return func(ba *basicAction) {
+		ba.cmd.MarkFlagsRequiredTogether(flags...)
+	}
+}
+
 //#endregion options
 
 //#region interactive mode (model) implementation
