@@ -18,7 +18,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 const (
@@ -31,7 +30,7 @@ var aliases []string = []string{}
 
 func NewUserAdminAction() action.Pair {
 	p := scaffold.NewBasicAction(use, short, long, aliases,
-		func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd) {
+		func(*cobra.Command) (string, tea.Cmd) {
 			var not string
 			// todo what is the difference re: MyAdminStatus?
 			if !connection.Client.AdminMode() {

@@ -50,7 +50,7 @@ import (
 //
 // NOTE: The tea.Cmd returned by act will be thrown away if run in a Cobra context.
 func NewBasicAction(use, short, long string, aliases []string,
-	act func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd), flagFunc func() pflag.FlagSet,
+	act func(*cobra.Command) (string, tea.Cmd), flagFunc func() pflag.FlagSet,
 	opts ...BasicActionOption) action.Pair {
 
 	cmd := treeutils.GenerateAction(
@@ -59,7 +59,7 @@ func NewBasicAction(use, short, long string, aliases []string,
 		long,
 		aliases,
 		func(c *cobra.Command, _ []string) {
-			s, _ := act(c, c.Flags())
+			s, _ := act(c)
 			fmt.Fprintf(c.OutOrStdout(), "%v\n", s)
 		})
 
@@ -130,14 +130,14 @@ type basicAction struct {
 	cmd *cobra.Command // the command associated to this basic action
 
 	// the function performing the basic action
-	fn func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd)
+	fn func(*cobra.Command) (string, tea.Cmd)
 }
 
 var _ action.Model = &basicAction{}
 
 func (ba *basicAction) Update(msg tea.Msg) tea.Cmd {
 	ba.done = true
-	s, cmd := ba.fn(ba.cmd, &ba.fs)
+	s, cmd := ba.fn(ba.cmd)
 	return tea.Sequence(tea.Println(s), cmd)
 }
 

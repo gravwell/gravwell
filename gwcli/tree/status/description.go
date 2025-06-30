@@ -33,7 +33,7 @@ func newDescAction() action.Pair {
 	)
 
 	return scaffold.NewBasicAction(use, short, long, []string{"description"},
-		func(c *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(c *cobra.Command) (string, tea.Cmd) {
 			m, err := connection.Client.GetSystemDescriptions()
 			if err != nil {
 				return stylesheet.Cur.ErrorText.Render(err.Error()), nil
