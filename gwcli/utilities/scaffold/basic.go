@@ -7,12 +7,16 @@
  **************************************************************************/
 
 /*
-Package scaffold contains packages for generating new actions from skeletons. See scaffoldlist, scaffolddelete, etc for more information.
+Package scaffold contains packages for generating new actions from skeletons.
+See scaffoldlist, scaffolddelete, etc for more information.
 The bare scaffold package comes with a skeleton for basic actions.
 
-A basic action is the simplest action: it does its thing and returns a string to be printed to the
-terminal. Give it the function you want performed when the action is invoked and have it return
-whatever string value you want printed to the screen, if at all.
+A basic action is the simplest action: it does its thing and returns a string to be printed to the terminal (plus any tea.Cmds to be run by Mother).
+Give it the function you want performed when the action is invoked and have it return whatever string value you want printed to the screen, if at all.
+Prefer printing via returning a string, rather than returning a tea.Printf cmd.
+
+If this action is for retrieving data, consider making basing it on scaffoldlist instead.
+Scaffoldlist comes with csv/json/table formatting and file redirection out of the box.
 
 Basic actions have no default flags and will not handle flags unless a flagFunc is given.
 
@@ -26,7 +30,7 @@ Implementations will probably look a lot like:
 	)
 
 	func New[parentpkg][pkg]Action() action.Pair {
-		return scaffold.NewBasicAction(use, short, long, aliases, func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd) {
+		return scaffold.NewBasicAction(use, short, long, aliases, func(*cobra.Command) (string, tea.Cmd) {
 
 		}, nil)
 	}
