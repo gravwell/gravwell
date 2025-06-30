@@ -50,7 +50,8 @@ import (
 //
 // NOTE: The tea.Cmd returned by act will be thrown away if run in a Cobra context.
 func NewBasicAction(use, short, long string, aliases []string,
-	act func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd), flagFunc func() pflag.FlagSet) action.Pair {
+	act func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd), flagFunc func() pflag.FlagSet,
+	opts ...BasicActionOption) action.Pair {
 
 	cmd := treeutils.GenerateAction(
 		use,
@@ -73,8 +74,24 @@ func NewBasicAction(use, short, long string, aliases []string,
 		ba.fsFunc = flagFunc
 	}
 
+	for _, opt := range opts {
+		opt(&ba)
+	}
+
 	return action.NewPair(cmd, &ba)
 }
+
+//#region options
+
+type BasicActionOption = func(*basicAction)
+
+func WithExample(ex string) BasicActionOption {
+	return func(ba *basicAction) {
+		ba.cmd.Example = ex
+	}
+}
+
+//#endregion options
 
 //#region interactive mode (model) implementation
 
