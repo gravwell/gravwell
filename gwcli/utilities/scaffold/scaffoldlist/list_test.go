@@ -9,14 +9,17 @@
 package scaffoldlist
 
 import (
+	"os"
 	"path"
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/spf13/pflag"
 )
 
-/*
 func Test_initOutFile(t *testing.T) {
+	tDir := t.TempDir()
 	t.Run("undefined output", func(t *testing.T) {
 		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
 		fs.Parse([]string{})
@@ -27,16 +30,26 @@ func Test_initOutFile(t *testing.T) {
 		}
 	})
 	t.Run("whitespace path", func(t *testing.T) {
-		fs := listStarterFlags()
+		fs := buildFlagSet(nil, false)
 		fs.Parse([]string{"-o", ""})
-		if f, err := initOutFile(&fs); err != nil {
+		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
 		} else if f != nil {
 			t.Errorf("a file was created: %+v", f)
 		}
 	})
+	t.Run("whitespace path with pretty defined", func(t *testing.T) {
+		fs := buildFlagSet(nil, true)
+		fs.Parse([]string{"-o", ""})
+		if f, err := initOutFile(fs); err != nil {
+			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
+		} else if f != nil {
+			t.Errorf("a file was created: %+v", f)
+		}
+	})
+
 	t.Run("truncate", func(t *testing.T) {
-		var path = "hello.world"
+		var path = path.Join(tDir, "hello.world")
 		orig, err := os.Create(path)
 		if err != nil {
 			t.Skip("failed to create file to be truncated:", err)
@@ -46,9 +59,9 @@ func Test_initOutFile(t *testing.T) {
 		orig.Sync()
 		orig.Close()
 
-		fs := listStarterFlags()
+		fs := buildFlagSet(nil, false)
 		fs.Parse([]string{"-o", path})
-		if f, err := initOutFile(&fs); err != nil {
+		if f, err := initOutFile(fs); err != nil {
 			t.Error("unexpected error", testsupport.ExpectedActual(nil, err))
 		} else if f == nil {
 			t.Error("a file was not created, but should have been")
@@ -58,29 +71,7 @@ func Test_initOutFile(t *testing.T) {
 			t.Fatalf("file was not truncated (size: %v)", stat.Size())
 		}
 	})
-
 }
-
-func Test_format_String(t *testing.T) {
-	tests := []struct {
-		name string
-		f    outputFormat
-		want string
-	}{
-		{"JSON", json, "JSON"},
-		{"CSV", csv, "CSV"},
-		{"table", tbl, "table"},
-		{"unknown", 5, "unknown format (5)"},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.f.String(); got != tt.want {
-				t.Errorf("format.String() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-*/
 
 func Test_determineFormat(t *testing.T) {
 	// spin up the logger
