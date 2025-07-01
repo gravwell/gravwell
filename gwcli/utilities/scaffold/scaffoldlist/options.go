@@ -8,21 +8,16 @@
 
 package scaffoldlist
 
-import (
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
-)
-
 // The Options struct allows developers to tweak parameters of an action's specific implementation.
 type Options struct {
 	// Overrides the default "list" action name.
 	Use string
 	// Pretty defines a free-form, pretty-printing function, allowing this action to be displayed in a user-friendly (albeit likely script-unfriendly) way.
 	// If !nil, --pretty will also be defined and set as the default.
-	Pretty func(*cobra.Command) (string, error)
+	Pretty PrettyPrinterFunc
 	// Replace the default list example.
 	Example string
 	// AddtlFlags defines a function that generates a fresh flagset to be bolted on to the default list flagset.
 	// NOTE(rlandau): It must be a function returning a fresh struct because FlagSets are shallow copies, even when passed by reference.
-	AddtlFlags func() pflag.FlagSet
+	AddtlFlags AddtlFlagFunction
 }

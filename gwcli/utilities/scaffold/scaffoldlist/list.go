@@ -111,10 +111,13 @@ func (f outputFormat) String() string {
 const outFilePerm os.FileMode = 0644
 
 // ListDataFunction is a function that retrieves an array of structs of type dataStruct
-type ListDataFunction[Any any] func(*grav.Client, *pflag.FlagSet) ([]Any, error)
+type ListDataFunction[dataStruct any] func(*grav.Client, *pflag.FlagSet) ([]dataStruct, error)
 
 // AddtlFlagFunction (if not nil) bolts additional flags onto this action for later during the data func.
 type AddtlFlagFunction func() pflag.FlagSet
+
+// A PrettyPrinterFunc defines a free-form function for outputting a pretty string for human consumption.
+type PrettyPrinterFunc func(*cobra.Command) (string, error)
 
 // NewListAction creates and returns a cobra.Command suitable for use as a list action,
 // complete with common flags and a generic run function operating off the given dataFunction.
