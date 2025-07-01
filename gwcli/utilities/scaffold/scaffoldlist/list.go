@@ -9,52 +9,11 @@
 /*
 Package scaffoldlist provides a template for building list actions.
 
-A list action runs a given function that outputs an arbitrary data structure.
-The results are sent to weave and packaged in a way that can be listed for the user.
+A list action is any action that fetches and prints data, typically in a tabular manner.
+This provides a consistent interface and the versatility of multiple formats for actions that list arbitrary data
 
-This provides a consistent interface for actions that list arbitrary data.
-
-List actions have the --output, --append, --json, --table, --CSV, and --show-columns default flags.
-
-Example implementation:
-
-	const (
-		use   string = "" // defaults to 'list'
-		short string = ""
-		long  string = ""
-	)
-
-	var (
-		defaultColumns []string = []string{"ID", "UID", "Name", "Description"}
-	)
-
-	func New[parentpkg]ListAction() action.Pair {
-		return scaffoldlist.NewListAction(short, long, defaultColumns,
-			types.[X]{}, list, flags)
-	}
-
-	func flags() pflag.FlagSet {
-		addtlFlags := pflag.FlagSet{}
-		addtlFlags.Bool(ft.Name.ListAll, false, ft.Usage.ListAll("[plural]")+
-			" Supercedes --group. Ignored if you are not an admin.")
-		addtlFlags.Int32("group", 0, "Fetches all [Y] shared with the given group id.")
-		return addtlFlags
-	}
-
-	func list(c *grav.Client, fs *pflag.FlagSet) ([]types.[X], error) {
-		if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
-			clilog.LogFlagFailedGet(ft.Name.ListAll, err)
-		} else if all {
-			return c.GetAll[Y]()
-		}
-		if gid, err := fs.GetInt32("group"); err != nil {
-			clilog.LogFlagFailedGet("group", err)
-		} else if gid != 0 {
-			return c.GetGroup[Y](gid)
-		}
-
-		return c.GetUser[Y]()
-	}
+List actions have the --output, --append, --json, --table, --CSV, --columns, and --show-columns default flags.
+If a pretty printer function is defined, --pretty is also available.
 */
 package scaffoldlist
 
@@ -177,6 +136,7 @@ func NewListAction[dataStruct_t any](short, long string, defaultColumns []string
 	return action.NewPair(cmd, &la)
 }
 
+// generateRun builds and returns a function to be run when this action is invoked via Cobra.
 func generateRun[dataStruct_t any](dataStruct dataStruct_t, dataFn ListDataFunction[dataStruct_t], defaultColumns []string, options Options) func(c *cobra.Command, _ []string) {
 	return func(c *cobra.Command, _ []string) {
 		// check for --show-columns
@@ -254,7 +214,7 @@ func buildFlagSet(afs AddtlFlagFunction, prettyDefined bool) *pflag.FlagSet {
 	fs.Bool(ft.Name.JSON, false, ft.Usage.JSON)
 	fs.Bool(ft.Name.Table, true, ft.Usage.Table) // default
 	fs.StringSlice("columns", []string{},
-		"comma-seperated list of columns to include in the results."+
+		"comma-separated list of columns to include in the results."+
 			"Use --show-columns to see the full list of columns.")
 	fs.Bool("show-columns", false, "display the list of fully qualified column names and die.")
 	fs.StringP(ft.Name.Output, "o", "", ft.Usage.Output)
@@ -338,9 +298,8 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 	return format
 }
 
-// Driver function to call the provided data func and format its output via weave.
-//
-// ! pretty format should not be given here
+// Driver function to fetch the list output.
+// Determines what (pre)processing is required to retrieve output for the given format and does so, returning the formatted string.
 func listOutput[retStruct any](
 	c *cobra.Command,
 	format outputFormat,
