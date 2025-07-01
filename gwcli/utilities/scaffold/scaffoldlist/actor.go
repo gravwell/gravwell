@@ -54,7 +54,7 @@ func newListAction[dataStruct_t any](defaultColumns []string, dataStruct dataStr
 	la := ListAction[dataStruct_t]{
 		done:    false,
 		columns: defaultColumns,
-		fs:      buildFlagSet(options.AddtlFlags, options.Pretty != nil),
+		fs:      nil, // set in SetArgs
 
 		DefaultFormat:  tbl,
 		DefaultColumns: defaultColumns,
@@ -148,17 +148,16 @@ var _ action.Model = &ListAction[any]{}
 
 // SetArgs is called when the action is invoked by the user and Mother *enters* handoff mode.
 // Mother parses flags and provides us a handle to check against.
-func (la *ListAction[T]) SetArgs(
-	inherited *pflag.FlagSet, tokens []string) (invalid string, onStart tea.Cmd, err error) {
-
-	// attach inherited flags to the normal flagset
-	la.fs.AddFlagSet(inherited)
+func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
+	invalid string, onStart tea.Cmd, err error,
+) {
+	// attach flags
+	la.fs = buildFlagSet(la.addtlFlagSetFunc, la.prettyFunc != nil)
 
 	err = la.fs.Parse(tokens)
 	if err != nil {
 		return err.Error(), nil, nil
 	}
-	//fs := la.fs
 
 	// parse column handling
 	// only need to parse columns if user did not pass in --show-columns
@@ -172,13 +171,6 @@ func (la *ListAction[T]) SetArgs(
 			la.columns = cols
 		} // else: defaults to DefaultColumns
 	}
-
-	nc, err := la.fs.GetBool("no-color")
-	if err != nil {
-		la.color = false
-		clilog.Writer.Warnf("Failed to fetch no-color from inherited: %v", err)
-	}
-	la.color = !nc
 
 	if f, err := initOutFile(la.fs); err != nil {
 		return "", nil, err
