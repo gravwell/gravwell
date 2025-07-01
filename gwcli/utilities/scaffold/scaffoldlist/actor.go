@@ -5,6 +5,7 @@
  * This software may be modified and distributed under the terms of the
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
+
 package scaffoldlist
 
 // This file defines interactive usage of the scaffolded action.
@@ -16,8 +17,10 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -27,9 +30,9 @@ type ListAction[dataStruct any] struct {
 	// data cleared by .Reset()
 	done        bool
 	columns     []string
-	showColumns bool          // print columns and exit
-	fs          pflag.FlagSet // current flagset, parsed or unparsed
-	outFile     *os.File      // file to output results to (or nil)
+	showColumns bool           // print columns and exit
+	fs          *pflag.FlagSet // current flagset, parsed or unparsed
+	outFile     *os.File       // file to output results to (or nil)
 
 	// data shielded from .Reset()
 	DefaultFormat  outputFormat
@@ -47,11 +50,11 @@ type ListAction[dataStruct any] struct {
 
 // Constructs a ListAction suitable for interactive use.
 // Options are execution in array-order.
-func newListAction[Any any](defaultColumns []string, dataStruct Any, dFn ListDataFunction[Any], options Options) ListAction[Any] {
-	la := ListAction[Any]{
+func newListAction[dataStruct_t any](defaultColumns []string, dataStruct dataStruct_t, dFn ListDataFunction[dataStruct_t], options Options) ListAction[dataStruct_t] {
+	la := ListAction[dataStruct_t]{
 		done:    false,
 		columns: defaultColumns,
-		fs:      *buildFlagSet(options.AddtlFlags, options.Pretty != nil),
+		fs:      buildFlagSet(options.AddtlFlags, options.Pretty != nil),
 
 		DefaultFormat:  tbl,
 		DefaultColumns: defaultColumns,
@@ -67,7 +70,7 @@ func newListAction[Any any](defaultColumns []string, dataStruct Any, dFn ListDat
 }
 
 // Update takes in a msg (some event that occurred, like a window redraw or a key press) and acts on it.
-// List only ever needs to update once; it figured out what data is to be displayed, fetches it, and spits it out above the prompt.
+// List only ever needs to update once; it figures out what data is to be displayed, fetches it, and spits it out above the prompt.
 func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 	if la.done {
 		return nil
@@ -87,11 +90,16 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 	}
 
 	// fetch the list data
-	s, err := listOutput(&la.fs, la.columns, la.color, la.dataFunc)
+	s, err := listOutput(
+		la.cmd,
+		determineFormat(la.fs, la.prettyFunc != nil),
+		la.columns,
+		la.dataFunc,
+		la.prettyFunc)
 	if err != nil {
 		// log and print the error
 		clilog.Writer.Error(err.Error())
-		return tea.Println("An error has occurred: ", err)
+		return tea.Println(uniques.ErrGeneric.Error())
 	}
 
 	// if we received no data, note that (unless we are printing to a file, then do nothing)
@@ -128,7 +136,7 @@ func (la *ListAction[T]) Reset() error {
 	la.columns = la.DefaultColumns
 	la.showColumns = false
 
-	la.fs = listStarterFlags()
+	la.fs = buildFlagSet(la.addtlFlagSetFunc, la.prettyFunc != nil)
 	// if we were given additional flags, add them
 	if la.addtlFlagSetFunc != nil {
 		afs := la.addtlFlagSetFunc()
@@ -178,7 +186,7 @@ func (la *ListAction[T]) SetArgs(
 	}
 	la.color = !nc
 
-	if f, err := initOutFile(&la.fs); err != nil {
+	if f, err := initOutFile(la.fs); err != nil {
 		return "", nil, err
 	} else {
 		la.outFile = f
