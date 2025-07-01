@@ -12,6 +12,7 @@ package status
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/status/indexers"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/status/storage"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	"github.com/spf13/cobra"
@@ -32,5 +33,6 @@ func NewStatusNav() *cobra.Command {
 		},
 		[]action.Pair{
 			newDescAction(),
+			storage.NewAction(),
 		})
 }
