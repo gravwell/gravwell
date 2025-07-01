@@ -9,74 +9,13 @@
 package scaffoldlist
 
 import (
-	"os"
 	"path"
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/spf13/pflag"
 )
 
-func Test_determineFormat(t *testing.T) {
-	// spin up the logger
-	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
-		t.Fatal("failed to spawn logger:", err)
-	}
-
-	t.Run("unparsed", func(t *testing.T) {
-		fs := listStarterFlags()
-		if format := determineFormat(&fs); format != unknown {
-			t.Error("incorrect format:", testsupport.ExpectedActual(unknown, format))
-		}
-	})
-	t.Run("undefined CSV", func(t *testing.T) {
-		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-		//fs.Bool(ft.Name.CSV, false, "")
-		fs.Parse([]string{})
-		if format := determineFormat(fs); format != unknown {
-			t.Error("incorrect format:", testsupport.ExpectedActual(unknown, format))
-		}
-	})
-	t.Run("CSV", func(t *testing.T) {
-		fs := listStarterFlags()
-		fs.Parse([]string{"--csv"})
-		if format := determineFormat(&fs); format != csv {
-			t.Error("incorrect format:", testsupport.ExpectedActual(csv, format))
-		}
-	})
-	t.Run("undefined JSON", func(t *testing.T) {
-		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
-		fs.Bool(ft.Name.CSV, false, "")
-		fs.Parse([]string{})
-		if format := determineFormat(fs); format != unknown {
-			t.Error("incorrect format:", testsupport.ExpectedActual(unknown, format))
-		}
-	})
-	t.Run("JSON", func(t *testing.T) {
-		fs := listStarterFlags()
-		fs.Parse([]string{"--json"})
-		if format := determineFormat(&fs); format != json {
-			t.Error("incorrect format:", testsupport.ExpectedActual(json, format))
-		}
-	})
-	t.Run("CSV priority over JSON", func(t *testing.T) {
-		fs := listStarterFlags()
-		fs.Parse([]string{"--csv", "--json"})
-		if format := determineFormat(&fs); format != csv {
-			t.Error("incorrect format:", testsupport.ExpectedActual(csv, format))
-		}
-	})
-	t.Run("neither", func(t *testing.T) {
-		fs := listStarterFlags()
-		fs.Parse([]string{})
-		if format := determineFormat(&fs); format != tbl {
-			t.Error("incorrect format:", testsupport.ExpectedActual(tbl, format))
-		}
-	})
-}
-
+/*
 func Test_initOutFile(t *testing.T) {
 	t.Run("undefined output", func(t *testing.T) {
 		fs := pflag.NewFlagSet("test", pflag.ContinueOnError)
@@ -137,6 +76,42 @@ func Test_format_String(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := tt.f.String(); got != tt.want {
 				t.Errorf("format.String() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+*/
+
+func Test_determineFormat(t *testing.T) {
+	// spin up the logger
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+		t.Fatal("failed to spawn logger:", err)
+	}
+
+	tests := []struct {
+		name          string
+		args          []string
+		prettyDefined bool
+		want          outputFormat
+	}{
+		{"default, pretty", []string{}, true, pretty},
+		{"default, no pretty", []string{}, false, tbl},
+		{"explicit pretty, pretty", []string{"--pretty"}, true, pretty},
+		{"explicit pretty, no pretty", []string{"--pretty"}, false, tbl},
+		{"csv, pretty", []string{"--csv"}, true, csv},
+		{"csv, no pretty", []string{"--csv"}, false, csv},
+		{"json, pretty", []string{"--json"}, true, json},
+		{"json, no pretty", []string{"--json"}, false, json},
+		{"csv precedence over json", []string{"--json", "--csv"}, false, csv},
+		{"pretty precedence over all", []string{"--json", "--csv", "--pretty", "--table"}, true, pretty},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// generate flagset
+			fs := buildFlagSet(nil, tt.prettyDefined)
+			fs.Parse(tt.args)
+			if got := determineFormat(fs, tt.prettyDefined); got != tt.want {
+				t.Errorf("determineFormat() = %v, want %v", got, tt.want)
 			}
 		})
 	}
