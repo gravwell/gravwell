@@ -170,7 +170,7 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	flags := ingestFlags{}
 
 	if script, err := fs.GetBool("script"); err != nil {
-		return flags, nil, uniques.ErrFlagDNE("script", "ingest")
+		return flags, nil, uniques.ErrGetFlag("ingest", err)
 	} else {
 		flags.script = script
 	}
@@ -180,12 +180,12 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 		flags.hidden = includeHidden
 	}*/
 	if recursive, err := fs.GetBool("recursive"); err != nil {
-		return flags, nil, uniques.ErrFlagDNE("recursive", "ingest")
+		return flags, nil, uniques.ErrGetFlag("ingest", err)
 	} else {
 		flags.recursive = recursive
 	}
 	if srcRaw, err := fs.GetString("source"); err != nil {
-		return flags, invalids, uniques.ErrFlagDNE("source", "ingest")
+		return flags, invalids, uniques.ErrGetFlag("ingest", err)
 	} else if srcRaw != "" {
 		if src := net.ParseIP(srcRaw); src == nil {
 			invalids = append(invalids, srcRaw+" is not a valid IP address")
@@ -196,17 +196,17 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	}
 
 	if ignoreTS, err := fs.GetBool("ignore-timestamp"); err != nil {
-		return flags, invalids, uniques.ErrFlagDNE("ignore-timestamp", "ingest")
+		return flags, invalids, uniques.ErrGetFlag("ingest", err)
 	} else {
 		flags.ignoreTS = ignoreTS
 	}
 	if localTime, err := fs.GetBool("local-time"); err != nil {
-		return flags, invalids, uniques.ErrFlagDNE("local-time", "ingest")
+		return flags, invalids, uniques.ErrGetFlag("ingest", err)
 	} else {
 		flags.localTime = localTime
 	}
 	if dir, err := fs.GetString("dir"); err != nil {
-		return flags, invalids, uniques.ErrFlagDNE("dir", "ingest")
+		return flags, invalids, uniques.ErrGetFlag("ingest", err)
 	} else {
 		dir = strings.TrimSpace(dir)
 		if invalid, err := validateDirFlag(dir); err != nil {
@@ -219,7 +219,7 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 		}
 	}
 	if def, err := fs.GetString("default-tag"); err != nil {
-		return flags, invalids, uniques.ErrFlagDNE("default-tag", "ingest")
+		return flags, invalids, uniques.ErrGetFlag("ingest", err)
 	} else if err := validateTag(def); err != nil {
 		return flags, invalids, err
 	} else {
