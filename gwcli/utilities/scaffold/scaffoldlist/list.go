@@ -318,7 +318,7 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 		uniques.ErrGetFlag("list", err)
 		// non-fatal
 	} else if format_csv {
-		return csv, nil
+		return csv
 	}
 
 	// check for JSON
