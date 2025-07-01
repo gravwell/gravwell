@@ -10,9 +10,9 @@
 package kits
 
 import (
-	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -49,15 +49,15 @@ func newKitsListAction() action.Pair {
 		long,
 		defaultColumns,
 		types.IdKitState{},
-		func(c *grav.Client, fs *pflag.FlagSet) ([]types.IdKitState, error) {
+		func(fs *pflag.FlagSet) ([]types.IdKitState, error) {
 			// if --all, use the admin version
 			if all, err := fs.GetBool("all"); err != nil {
 				uniques.ErrGetFlag("kist list", err)
 			} else if all {
-				return c.AdminListKits()
+				return connection.Client.AdminListKits()
 			}
 
-			return c.ListKits()
+			return connection.Client.ListKits()
 		},
 		scaffoldlist.Options{AddtlFlags: flags})
 }

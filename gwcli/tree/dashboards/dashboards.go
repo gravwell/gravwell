@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"time"
 
-	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -64,13 +63,13 @@ func flags() pflag.FlagSet {
 	return addtlFlags
 }
 
-func list(c *grav.Client, fs *pflag.FlagSet) ([]types.Dashboard, error) {
+func list(fs *pflag.FlagSet) ([]types.Dashboard, error) {
 	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
 		uniques.ErrGetFlag("dashboards list", err)
 	} else if all {
-		return c.GetAllDashboards()
+		return connection.Client.GetAllDashboards()
 	}
-	return c.GetUserDashboards(connection.CurrentUser().UID)
+	return connection.Client.GetUserDashboards(connection.CurrentUser().UID)
 }
 
 //#endregion list

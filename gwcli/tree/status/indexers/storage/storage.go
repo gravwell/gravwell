@@ -10,7 +10,6 @@
 package storage
 
 import (
-	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -43,7 +42,7 @@ func NewIndexerStorageAction() action.Pair {
 	}
 
 	return scaffoldlist.NewListAction(short, long, cols, namedStorage{},
-		func(c *grav.Client, fs *pflag.FlagSet) ([]namedStorage, error) {
+		func(fs *pflag.FlagSet) ([]namedStorage, error) {
 			ss, err := connection.Client.GetStorageStats()
 			if err != nil {
 				return []namedStorage{}, err

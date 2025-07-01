@@ -67,13 +67,11 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
-	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -109,7 +107,7 @@ func (f outputFormat) String() string {
 const outFilePerm os.FileMode = 0644
 
 // ListDataFunction is a function that retrieves an array of structs of type dataStruct
-type ListDataFunction[dataStruct_t any] func(*grav.Client, *pflag.FlagSet) ([]dataStruct_t, error)
+type ListDataFunction[dataStruct_t any] func(*pflag.FlagSet) ([]dataStruct_t, error)
 
 // AddtlFlagFunction (if not nil) bolts additional flags onto this action for later during the data func.
 type AddtlFlagFunction func() pflag.FlagSet
@@ -355,7 +353,7 @@ func listOutput[retStruct any](
 	}
 
 	// massage the data for weave
-	data, err := dataFn(connection.Client, c.Flags())
+	data, err := dataFn(c.Flags())
 	if err != nil {
 		return "", err
 	} else if len(data) < 1 {

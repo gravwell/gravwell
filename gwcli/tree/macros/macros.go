@@ -28,7 +28,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 
-	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/pflag"
 )
@@ -71,19 +70,19 @@ func flags() pflag.FlagSet {
 }
 
 // lister subroutine for macros
-func listMacros(c *grav.Client, fs *pflag.FlagSet) ([]types.SearchMacro, error) {
+func listMacros(fs *pflag.FlagSet) ([]types.SearchMacro, error) {
 	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
 		uniques.ErrGetFlag("macros list", err)
 	} else if all {
-		return c.GetAllMacros()
+		return connection.Client.GetAllMacros()
 	}
 	if gid, err := fs.GetInt32("group"); err != nil {
 		uniques.ErrGetFlag("macros list", err)
 	} else if gid != 0 {
-		return c.GetGroupMacros(gid)
+		return connection.Client.GetGroupMacros(gid)
 	}
 
-	return c.GetUserMacros(connection.CurrentUser().UID)
+	return connection.Client.GetUserMacros(connection.CurrentUser().UID)
 }
 
 //#region create
