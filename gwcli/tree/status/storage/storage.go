@@ -13,11 +13,9 @@ import (
 	"fmt"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-	"github.com/gravwell/gravwell/v4/utils/weave"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/pflag"
@@ -37,14 +35,8 @@ func NewAction() action.Pair {
 	)
 	var long = fmt.Sprintf("Fetch storage statistics across all indexers.\n"+
 		"Use the %v %v action for more detailed information about a specified indexer.", stylesheet.Cur.Nav.Render("indexer"), stylesheet.Cur.Action.Render("inspect"))
-	// default to using all columns
-	cols, err := weave.StructFields(namedStorage{}, true)
-	if err != nil { // something has gone horribly wrong
-		clilog.Writer.Criticalf("failed to divine fields from storage wrapper: %v", err)
-		cols = []string{}
-	}
 
-	return scaffoldlist.NewListAction(short, long, cols, namedStorage{},
+	return scaffoldlist.NewListAction(short, long, namedStorage{},
 		func(fs *pflag.FlagSet) ([]namedStorage, error) {
 			ss, err := connection.Client.GetStorageStats()
 			if err != nil {

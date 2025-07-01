@@ -30,7 +30,7 @@ var (
 )
 
 func NewResourcesListAction() action.Pair {
-	return scaffoldlist.NewListAction(short, long, defaultColumns,
+	return scaffoldlist.NewListAction(short, long,
 		types.ResourceMetadata{}, list, scaffoldlist.Options{AddtlFlags: flags})
 }
 

@@ -15,7 +15,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
-	"github.com/gravwell/gravwell/v4/utils/weave"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -52,14 +51,9 @@ func newStatsListAction() action.Pair {
 		short string = "review the statistics of each indexer"
 		long  string = "Review the statistics of each indexer"
 	)
-	// default to using all columns; dive into the struct to find all columns
-	cols, err := weave.StructFields(namedStats{}, true)
-	if err != nil {
-		panic(err)
-	}
 
 	return scaffoldlist.NewListAction(
-		short, long, cols,
+		short, long,
 		namedStats{}, listStats, scaffoldlist.Options{
 			Use:    use,
 			Pretty: nil, // TODO

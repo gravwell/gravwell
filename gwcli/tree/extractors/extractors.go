@@ -48,15 +48,13 @@ func newExtractorsListAction() action.Pair {
 		short string = "list extractors"
 		long  string = "list autoextractions available to you and the system"
 	)
-	var defaultColumns = []string{"UID", "UUID", "Name", "Desc"}
 
 	return scaffoldlist.NewListAction(
 		short,
 		long,
-		defaultColumns,
 		types.AXDefinition{},
 		list,
-		scaffoldlist.Options{AddtlFlags: flags})
+		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"UID", "UUID", "Name", "Desc"}})
 }
 
 func flags() pflag.FlagSet {

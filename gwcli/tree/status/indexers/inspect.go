@@ -7,24 +7,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
-
-//#region inspect
-
-// TODO just split the calendar list into its own action
-// TODO include extra options
-/*
-	scaffold.WithPositionalArguments(cobra.ExactArgs(1)),
-	scaffold.WithFlagsRequiredTogether("start", "end"),
-*/
 
 // wrapper for the the map returned by grav.GetIndexerStorageStats()
 type inspectData struct {
@@ -40,14 +29,7 @@ func newInspectBasicAction() action.Pair {
 	)
 	var example = use + ft.Mandatory("xxx22024-999a-4728-94d7-d0c0703221ff")
 
-	// default to using all columns
-	cols, err := weave.StructFields(inspectData{}, true)
-	if err != nil { // something has gone horribly wrong
-		clilog.Writer.Criticalf("failed to divine fields from storage wrapper: %v", err)
-		cols = []string{}
-	}
-
-	return scaffoldlist.NewListAction(short, long, cols, inspectData{},
+	return scaffoldlist.NewListAction(short, long, inspectData{},
 		func(fs *pflag.FlagSet) ([]inspectData, error) {
 			ss, err := getInspectStats(fs)
 			if err != nil {
@@ -63,21 +45,11 @@ func newInspectBasicAction() action.Pair {
 			}
 			return c, nil
 		},
-		scaffoldlist.Options{Use: use, Pretty: prettyInspect, Example: example, AddtlFlags: inspectAddtlFlags})
+		scaffoldlist.Options{Use: use, Pretty: prettyInspect, Example: example})
 }
 
-func inspectAddtlFlags() pflag.FlagSet {
-	fs := pflag.FlagSet{}
-	fs.String("start", "", "start time for calendar stats.\n"+
-		"May be given in RFC1123Z (Mon, 02 Jan 2006 15:04:05 -0700) or DateTime (2006-01-02 15:04:05).\n"+
-		"If --start is given, --end must also be specified.")
-	fs.String("end", "", "end time for calendar stats.\n"+
-		"May be given in RFC1123Z (Mon, 02 Jan 2006 15:04:05 -0700) or DateTime (2006-01-02 15:04:05).\n"+
-		"If --end is given, --start must also be specified.")
-	return fs
-
-}
-
+// helper function for list dataFn and prettyInspect.
+// getInspectStats parses the indexer uuid and fetches its storage stats.
 func getInspectStats(fs *pflag.FlagSet) (map[string]types.PerWellStorageStats, error) {
 	indexer := strings.TrimSpace(fs.Arg(0))
 	// attempt to cast to uuid
@@ -93,7 +65,6 @@ func getInspectStats(fs *pflag.FlagSet) (map[string]types.PerWellStorageStats, e
 	} else if len(ss) < 1 {
 		return nil, errors.New("did not find any indexers associated with given uuid")
 	}
-	// TODO include start and end in wrapped struct
 	return ss, nil
 }
 
@@ -118,6 +89,24 @@ func prettyInspect(c *cobra.Command) (string, error) {
 
 	return sb.String(), nil
 }
+
+// TODO just split the calendar list into its own action
+// TODO include extra options
+/*
+	scaffold.WithPositionalArguments(cobra.ExactArgs(1)),
+	scaffold.WithFlagsRequiredTogether("start", "end"),
+*/
+
+/*func inspectAddtlFlags() pflag.FlagSet {
+	fs := pflag.FlagSet{}
+	fs.String("start", "", "start time for calendar stats.\n"+
+		"May be given in RFC1123Z (Mon, 02 Jan 2006 15:04:05 -0700) or DateTime (2006-01-02 15:04:05).\n"+
+		"If --start is given, --end must also be specified.")
+	fs.String("end", "", "end time for calendar stats.\n"+
+		"May be given in RFC1123Z (Mon, 02 Jan 2006 15:04:05 -0700) or DateTime (2006-01-02 15:04:05).\n"+
+		"If --end is given, --start must also be specified.")
+	return fs
+}*/
 
 /*start, err := fetchTime(fs, "start")
 if err != nil {

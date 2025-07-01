@@ -42,14 +42,10 @@ func newKitsListAction() action.Pair {
 		long  string = "lists kits available to your user" +
 			"(or all kits on the system, via the --all flag if you are an admin)"
 	)
-	var defaultColumns = []string{"UUID", "KitState.Name", "KitState.Description", "KitState.Version"}
 
 	return scaffoldlist.NewListAction(
-		short,
-		long,
-		defaultColumns,
-		types.IdKitState{},
-		func(fs *pflag.FlagSet) ([]types.IdKitState, error) {
+		short, long,
+		types.IdKitState{}, func(fs *pflag.FlagSet) ([]types.IdKitState, error) {
 			// if --all, use the admin version
 			if all, err := fs.GetBool("all"); err != nil {
 				uniques.ErrGetFlag("kist list", err)
@@ -59,7 +55,7 @@ func newKitsListAction() action.Pair {
 
 			return connection.Client.ListKits()
 		},
-		scaffoldlist.Options{AddtlFlags: flags})
+		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"UUID", "KitState.Name", "KitState.Description", "KitState.Version"}})
 }
 
 func flags() pflag.FlagSet {

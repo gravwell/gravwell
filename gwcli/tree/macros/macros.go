@@ -55,9 +55,9 @@ func newMacroListAction() action.Pair {
 		listLong  = "lists all macros associated to your user, a group," +
 			"or the system itself"
 	)
-	var listDefaultColumns = []string{"ID", "Name", "Description", "Expansion"}
-	return scaffoldlist.NewListAction(listShort, listLong, listDefaultColumns,
-		types.SearchMacro{}, listMacros, scaffoldlist.Options{AddtlFlags: flags})
+	return scaffoldlist.NewListAction(listShort, listLong,
+		types.SearchMacro{}, listMacros,
+		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"ID", "Name", "Description", "Expansion"}})
 }
 
 func flags() pflag.FlagSet {

@@ -34,8 +34,9 @@ var (
 const defaultCount = 30
 
 func NewQueriesHistoryListAction() action.Pair {
-	return scaffoldlist.NewListAction(short, long, defaultColumns,
-		types.SearchLog{}, list, scaffoldlist.Options{Use: use, AddtlFlags: flags})
+	return scaffoldlist.NewListAction(short, long,
+		types.SearchLog{}, list,
+		scaffoldlist.Options{Use: use, AddtlFlags: flags})
 }
 
 func flags() pflag.FlagSet {

@@ -58,8 +58,9 @@ var (
 )
 
 func newScheduledQryListAction() action.Pair {
-	return scaffoldlist.NewListAction(short, long, defaultColumns,
-		types.ScheduledSearch{}, listScheduledSearch, scaffoldlist.Options{AddtlFlags: flags})
+	return scaffoldlist.NewListAction(short, long,
+		types.ScheduledSearch{}, listScheduledSearch,
+		scaffoldlist.Options{AddtlFlags: flags})
 }
 
 func flags() pflag.FlagSet {

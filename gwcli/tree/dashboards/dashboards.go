@@ -50,10 +50,10 @@ func newDashboardsListAction() action.Pair {
 		short string = "list dashboards"
 		long  string = "list dashboards available to you and the system"
 	)
-	var defaultColumns = []string{"ID", "Name", "Description"}
 
-	return scaffoldlist.NewListAction(short, long, defaultColumns,
-		types.Dashboard{}, list, scaffoldlist.Options{AddtlFlags: flags})
+	return scaffoldlist.NewListAction(short, long,
+		types.Dashboard{}, list,
+		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"ID", "Name", "Description"}})
 }
 
 func flags() pflag.FlagSet {
