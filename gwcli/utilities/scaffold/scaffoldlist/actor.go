@@ -50,14 +50,14 @@ type ListAction[dataStruct any] struct {
 
 // Constructs a ListAction suitable for interactive use.
 // Options are execution in array-order.
-func newListAction[dataStruct_t any](defaultColumns []string, dataStruct dataStruct_t, dFn ListDataFunction[dataStruct_t], options Options) ListAction[dataStruct_t] {
+func newListAction[dataStruct_t any](dataStruct dataStruct_t, dFn ListDataFunction[dataStruct_t], options Options) ListAction[dataStruct_t] {
 	la := ListAction[dataStruct_t]{
 		done:    false,
-		columns: defaultColumns,
+		columns: options.DefaultColumns,
 		fs:      nil, // set in SetArgs
 
 		DefaultFormat:  tbl,
-		DefaultColumns: defaultColumns,
+		DefaultColumns: options.DefaultColumns,
 		color:          true,
 		cmd:            nil,
 
@@ -159,6 +159,9 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 		return err.Error(), nil, nil
 	}
 
+	// default to... well... the default columns
+	la.columns = la.DefaultColumns
+
 	// parse column handling
 	// only need to parse columns if user did not pass in --show-columns
 	if la.showColumns, err = la.fs.GetBool("show-columns"); err != nil {
@@ -169,7 +172,7 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 			return "", nil, err
 		} else if len(cols) > 0 {
 			la.columns = cols
-		} // else: defaults to DefaultColumns
+		}
 	}
 
 	if f, err := initOutFile(la.fs); err != nil {

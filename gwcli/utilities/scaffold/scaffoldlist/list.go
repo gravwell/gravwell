@@ -95,7 +95,7 @@ type PrettyPrinterFunc func(*cobra.Command) (string, error)
 // See tree/kits/list's ListKits() as an example.
 //
 // Go's Generics are a godsend.
-func NewListAction[dataStruct_t any](short, long string, defaultColumns []string,
+func NewListAction[dataStruct_t any](short, long string,
 	dataStruct dataStruct_t, dataFn ListDataFunction[dataStruct_t], options Options) action.Pair {
 	// check for developer errors
 	if reflect.TypeOf(dataStruct).Kind() != reflect.Struct {
@@ -113,7 +113,18 @@ func NewListAction[dataStruct_t any](short, long string, defaultColumns []string
 	if options.Use != "" {
 		use = options.Use
 	}
-	cmd := treeutils.GenerateAction(use, short, long, []string{}, generateRun(dataStruct, dataFn, defaultColumns, options))
+
+	// if default columns was not set in options, generate it
+
+	if options.DefaultColumns == nil {
+		cols, err := weave.StructFields(dataStruct, true)
+		if err != nil { // something has gone horribly wrong
+			clilog.Writer.Criticalf("failed to divine fields from storage wrapper: %v", err)
+		}
+		options.DefaultColumns = cols
+	}
+
+	cmd := treeutils.GenerateAction(use, short, long, []string{}, generateRun(dataStruct, dataFn, options))
 
 	cmd.Flags().AddFlagSet(buildFlagSet(options.AddtlFlags, options.Pretty != nil))
 	cmd.Flags().SortFlags = false // does not seem to be respected
@@ -131,13 +142,13 @@ func NewListAction[dataStruct_t any](short, long string, defaultColumns []string
 	}
 
 	// generate the list action.
-	la := newListAction(defaultColumns, dataStruct, dataFn, options)
+	la := newListAction(dataStruct, dataFn, options)
 
 	return action.NewPair(cmd, &la)
 }
 
 // generateRun builds and returns a function to be run when this action is invoked via Cobra.
-func generateRun[dataStruct_t any](dataStruct dataStruct_t, dataFn ListDataFunction[dataStruct_t], defaultColumns []string, options Options) func(c *cobra.Command, _ []string) {
+func generateRun[dataStruct_t any](dataStruct dataStruct_t, dataFn ListDataFunction[dataStruct_t], options Options) func(c *cobra.Command, _ []string) {
 	return func(c *cobra.Command, _ []string) {
 		// check for --show-columns
 		if sc, err := c.Flags().GetBool("show-columns"); err != nil {
@@ -181,7 +192,7 @@ func generateRun[dataStruct_t any](dataStruct dataStruct_t, dataFn ListDataFunct
 				uniques.ErrGetFlag("list", err)
 			}
 			if len(columns) == 0 {
-				columns = defaultColumns
+				columns = options.DefaultColumns
 			}
 			format = determineFormat(c.Flags(), options.Pretty != nil)
 		}
