@@ -137,8 +137,8 @@ type AddtlFlagFunction func() pflag.FlagSet
 // See tree/kits/list's ListKits() as an example.
 //
 // Go's Generics are a godsend.
-func NewListAction[Any any](short, long string, defaultColumns []string,
-	dataStruct Any, dataFn ListDataFunction[Any], options Options) action.Pair {
+func NewListAction[retStruct any](short, long string, defaultColumns []string,
+	dataStruct retStruct, dataFn ListDataFunction[retStruct], options Options) action.Pair {
 	// check for developer errors
 	if reflect.TypeOf(dataStruct).Kind() != reflect.Struct {
 		panic("dataStruct must be a struct")
@@ -150,10 +150,30 @@ func NewListAction[Any any](short, long string, defaultColumns []string,
 		panic("long description cannot be empty")
 	}
 
-	// the function to run if called from the shell/non-interactively.
-	// anonymous because it must reference la to interface with options.
-	// TODO
-	runFunc := func(c *cobra.Command, _ []string) {
+	// generate the command
+	var use = "list"
+	if options.Use != "" {
+		use = options.Use
+	}
+	cmd := treeutils.GenerateAction(use, short, long, []string{}, generateRun(dataStruct, dataFn, defaultColumns, options))
+
+	cmd.Flags().AddFlagSet(buildFlagSet(options.AddtlFlags, options.Pretty != nil))
+	cmd.Flags().SortFlags = false // does not seem to be respected
+	cmd.MarkFlagsMutuallyExclusive(ft.Name.CSV, ft.Name.JSON, ft.Name.Table)
+
+	// attach example
+	if options.Example != "" {
+		cmd.Example = options.Example
+	}
+
+	// generate the list action.
+	la := newListAction(defaultColumns, dataStruct, dataFn, options)
+
+	return action.NewPair(cmd, &la)
+}
+
+func generateRun[retStruct any](dataStruct retStruct, dataFn ListDataFunction[retStruct], defaultColumns []string, options Options) func(c *cobra.Command, _ []string) {
+	return func(c *cobra.Command, _ []string) {
 		// check for --show-columns
 		if sc, err := c.Flags().GetBool("show-columns"); err != nil {
 			fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag("list", err))
@@ -220,27 +240,6 @@ func NewListAction[Any any](short, long string, defaultColumns []string,
 			fmt.Fprintln(c.OutOrStdout(), s)
 		}
 	}
-
-	// generate the command
-	var use = "list"
-	if options.Use != "" {
-		use = options.Use
-	}
-	cmd := treeutils.GenerateAction(use, short, long, []string{}, runFunc)
-
-	cmd.Flags().AddFlagSet(buildFlagSet())
-	cmd.Flags().SortFlags = false // does not seem to be respected
-	cmd.MarkFlagsMutuallyExclusive(ft.Name.CSV, ft.Name.JSON, ft.Name.Table)
-
-	// attach example
-	if options.Example != "" {
-		cmd.Example = options.Example
-	}
-
-	// generate the list action.
-	la := newListAction(defaultColumns, dataStruct, dataFn, options)
-
-	return action.NewPair(cmd, &la)
 }
 
 // buildFlagSet constructs and returns a flagset composed of the default list flags, additional flags defined for this action, and --pretty if a prettyFunc was defined.
@@ -333,11 +332,11 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 // Driver function to call the provided data func and format its output via weave.
 //
 // ! pretty format should not be given here
-func listOutput[Any any](
+func listOutput[retStruct any](
 	c *cobra.Command,
 	format outputFormat,
 	columns []string,
-	dataFn ListDataFunction[Any],
+	dataFn ListDataFunction[retStruct],
 	prettyFunc func(*cobra.Command) (string, error),
 ) (string, error) {
 	// hand off control to pretty
