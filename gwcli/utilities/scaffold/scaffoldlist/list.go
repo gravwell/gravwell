@@ -298,6 +298,10 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 }
 
 // Given a **parsed** flagset, determines and returns output format.
+// If multiple format flags are found, they are selected with the following precedence:
+//
+// pretty -> csv -> json -> tbl
+//
 // Logs errors, allowing execution to continue towards default.
 // If an error was returned, the outputFormat is undefined.
 func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
