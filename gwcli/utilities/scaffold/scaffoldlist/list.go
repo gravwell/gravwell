@@ -165,6 +165,12 @@ func NewListAction[dataStruct_t any](short, long string, defaultColumns []string
 	// attach example
 	if options.Example != "" {
 		cmd.Example = options.Example
+	} else {
+		formats := []string{"--csv", "--json", "--table"}
+		if options.Pretty != nil {
+			formats = append(formats, "--pretty")
+		}
+		cmd.Example = fmt.Sprintf("%v %v %v", use, ft.MutuallyExclusive(formats), ft.Optional("--columns=[...]"))
 	}
 
 	// generate the list action.
@@ -338,7 +344,7 @@ func listOutput[retStruct any](
 	format outputFormat,
 	columns []string,
 	dataFn ListDataFunction[retStruct],
-	prettyFunc func(*cobra.Command) (string, error),
+	prettyFunc PrettyPrinterFunc,
 ) (string, error) {
 	// hand off control to pretty
 	if format == pretty {
