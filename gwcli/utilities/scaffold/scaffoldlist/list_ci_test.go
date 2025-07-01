@@ -8,6 +8,8 @@
 
 package scaffoldlist
 
+// Tests that do not require a backend and thus can be run from a pipeline
+
 import (
 	"os"
 	"path"
