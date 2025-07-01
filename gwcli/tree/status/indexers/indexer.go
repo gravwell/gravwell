@@ -70,8 +70,12 @@ func newStatsListAction() action.Pair {
 		panic(err)
 	}
 
-	return scaffoldlist.NewListAction(use, short, long, cols,
-		namedStats{}, listStats, nil)
+	return scaffoldlist.NewListAction(
+		short, long, cols,
+		namedStats{}, listStats, scaffoldlist.Options{
+			Use:    use,
+			Pretty: nil, // TODO
+		})
 }
 
 func listStats(c *grav.Client, fs *pflag.FlagSet) ([]namedStats, error) {
@@ -131,11 +135,14 @@ func newInspectBasicAction() action.Pair {
 
 		var sb strings.Builder
 		// format indexer storage stats
-		var wells []string = make([]string, len(ss)) // collect keys in case --start && --end were specified
+		var wells = make([]string, len(ss)) // collect keys in case --start && --end were specified
 		var i uint8 = 0
 		for well, stats := range ss {
 			wells[i] = well
 			i++
+			// per-well indentation
+			sb.WriteString(stylesheet.Cur.PrimaryText.Render(well))
+			sb.WriteString(stylesheet.Indent + stats.Accelerator)
 			// TODO format stats into sb
 		}
 
@@ -170,7 +177,7 @@ func fetchTime(c *cobra.Command, flagName string) (time.Time, error) {
 	// check for and parse start and end flags
 	s, err := c.Flags().GetString(flagName)
 	if err != nil {
-		return time.Time{}, uniques.ErrFlagDNE("start", "inspect")
+		return time.Time{}, uniques.ErrGetFlag("start", err)
 	}
 	s = strings.TrimSpace(s)
 	if s == "" {
@@ -191,13 +198,14 @@ func fetchTime(c *cobra.Command, flagName string) (time.Time, error) {
 // attachCalendarStats checks for the start and end flags. If they are found, it attaches calendar stats for the given indexer to the string builder.
 // Expects the caller to validate that start and end are !zero.
 func attachCalendarStats(sb *strings.Builder, start, end time.Time, indexer uuid.UUID, wells []string) error {
-	ce, err := connection.Client.GetIndexerCalendarStats(indexer, start, end, wells)
+	_, err := connection.Client.GetIndexerCalendarStats(indexer, start, end, wells)
 	if err != nil {
 		return err
 	}
 
 	// TODO format ce into sb
 
+	return nil
 }
 
 //#endregion inspect
