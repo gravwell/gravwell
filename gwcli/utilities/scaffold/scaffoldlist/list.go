@@ -109,7 +109,7 @@ func (f outputFormat) String() string {
 const outFilePerm os.FileMode = 0644
 
 // ListDataFunction is a function that retrieves an array of structs of type dataStruct
-type ListDataFunction[dataStruct any] func(*grav.Client, *pflag.FlagSet) ([]dataStruct, error)
+type ListDataFunction[dataStruct_t any] func(*grav.Client, *pflag.FlagSet) ([]dataStruct_t, error)
 
 // AddtlFlagFunction (if not nil) bolts additional flags onto this action for later during the data func.
 type AddtlFlagFunction func() pflag.FlagSet
@@ -138,8 +138,8 @@ type PrettyPrinterFunc func(*cobra.Command) (string, error)
 // See tree/kits/list's ListKits() as an example.
 //
 // Go's Generics are a godsend.
-func NewListAction[retStruct any](short, long string, defaultColumns []string,
-	dataStruct retStruct, dataFn ListDataFunction[retStruct], options Options) action.Pair {
+func NewListAction[dataStruct_t any](short, long string, defaultColumns []string,
+	dataStruct dataStruct_t, dataFn ListDataFunction[dataStruct_t], options Options) action.Pair {
 	// check for developer errors
 	if reflect.TypeOf(dataStruct).Kind() != reflect.Struct {
 		panic("dataStruct must be a struct")
@@ -173,7 +173,7 @@ func NewListAction[retStruct any](short, long string, defaultColumns []string,
 	return action.NewPair(cmd, &la)
 }
 
-func generateRun[retStruct any](dataStruct retStruct, dataFn ListDataFunction[retStruct], defaultColumns []string, options Options) func(c *cobra.Command, _ []string) {
+func generateRun[dataStruct_t any](dataStruct dataStruct_t, dataFn ListDataFunction[dataStruct_t], defaultColumns []string, options Options) func(c *cobra.Command, _ []string) {
 	return func(c *cobra.Command, _ []string) {
 		// check for --show-columns
 		if sc, err := c.Flags().GetBool("show-columns"); err != nil {
