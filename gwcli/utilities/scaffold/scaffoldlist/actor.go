@@ -135,18 +135,12 @@ func (la *ListAction[T]) Reset() error {
 	la.done = false
 	la.columns = la.DefaultColumns
 	la.showColumns = false
-
 	la.fs = buildFlagSet(la.addtlFlagSetFunc, la.prettyFunc != nil)
-	// if we were given additional flags, add them
-	if la.addtlFlagSetFunc != nil {
-		afs := la.addtlFlagSetFunc()
-		la.fs.AddFlagSet(&afs)
-	}
-
 	if la.outFile != nil {
 		la.outFile.Close()
 	}
 	la.outFile = nil
+
 	return nil
 }
 
