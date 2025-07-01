@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -50,13 +51,12 @@ func newExtractorsListAction() action.Pair {
 	var defaultColumns = []string{"UID", "UUID", "Name", "Desc"}
 
 	return scaffoldlist.NewListAction(
-		"",
 		short,
 		long,
 		defaultColumns,
 		types.AXDefinition{},
 		list,
-		flags)
+		scaffoldlist.Options{AddtlFlags: flags})
 }
 
 func flags() pflag.FlagSet {
@@ -67,7 +67,7 @@ func flags() pflag.FlagSet {
 
 func list(c *grav.Client, fs *pflag.FlagSet) ([]types.AXDefinition, error) {
 	if id, err := fs.GetString("uuid"); err != nil {
-		clilog.LogFlagFailedGet("uuid", err)
+		uniques.ErrGetFlag("extractors list", err)
 	} else {
 		uid, err := uuid.Parse(id)
 		if err != nil {

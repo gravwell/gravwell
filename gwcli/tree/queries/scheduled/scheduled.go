@@ -59,8 +59,8 @@ var (
 )
 
 func newScheduledQryListAction() action.Pair {
-	return scaffoldlist.NewListAction("", short, long, defaultColumns,
-		types.ScheduledSearch{}, listScheduledSearch, flags)
+	return scaffoldlist.NewListAction(short, long, defaultColumns,
+		types.ScheduledSearch{}, listScheduledSearch, scaffoldlist.Options{AddtlFlags: flags})
 }
 
 func flags() pflag.FlagSet {
@@ -75,12 +75,12 @@ func flags() pflag.FlagSet {
 
 func listScheduledSearch(c *grav.Client, fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {
 	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
-		clilog.LogFlagFailedGet(ft.Name.ListAll, err)
+		uniques.ErrGetFlag("scheduled list", err)
 	} else if all {
 		return c.GetAllScheduledSearches()
 	}
 	if untypedID, err := fs.GetString(ft.Name.ListAll); err != nil {
-		clilog.LogFlagFailedGet(ft.Name.ListAll, err)
+		uniques.ErrGetFlag("scheduled list", err)
 	} else if untypedID != "" {
 		// attempt to parse as UUID first
 		if uuid, err := uuid.Parse(untypedID); err == nil {

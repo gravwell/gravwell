@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	grav "github.com/gravwell/gravwell/v4/client"
 
@@ -35,8 +35,8 @@ var (
 const defaultCount = 30
 
 func NewQueriesHistoryListAction() action.Pair {
-	return scaffoldlist.NewListAction(use, short, long, defaultColumns,
-		types.SearchLog{}, list, flags)
+	return scaffoldlist.NewListAction(short, long, defaultColumns,
+		types.SearchLog{}, list, scaffoldlist.Options{Use: use, AddtlFlags: flags})
 }
 
 func flags() pflag.FlagSet {
@@ -53,7 +53,7 @@ func list(c *grav.Client, fs *pflag.FlagSet) ([]types.SearchLog, error) {
 	)
 
 	if count, e := fs.GetInt("count"); e != nil {
-		clilog.LogFlagFailedGet("count", err)
+		uniques.ErrGetFlag(use, err)
 	} else if count > 0 {
 		toRet, err = c.GetSearchHistoryRange(0, count)
 	} else {

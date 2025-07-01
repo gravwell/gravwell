@@ -16,12 +16,12 @@ import (
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -53,8 +53,8 @@ func newDashboardsListAction() action.Pair {
 	)
 	var defaultColumns = []string{"ID", "Name", "Description"}
 
-	return scaffoldlist.NewListAction("", short, long, defaultColumns,
-		types.Dashboard{}, list, flags)
+	return scaffoldlist.NewListAction(short, long, defaultColumns,
+		types.Dashboard{}, list, scaffoldlist.Options{AddtlFlags: flags})
 }
 
 func flags() pflag.FlagSet {
@@ -66,7 +66,7 @@ func flags() pflag.FlagSet {
 
 func list(c *grav.Client, fs *pflag.FlagSet) ([]types.Dashboard, error) {
 	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
-		clilog.LogFlagFailedGet(ft.Name.ListAll, err)
+		uniques.ErrGetFlag("dashboards list", err)
 	} else if all {
 		return c.GetAllDashboards()
 	}

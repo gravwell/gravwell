@@ -42,7 +42,7 @@ func NewIndexerStorageAction() action.Pair {
 		cols = []string{}
 	}
 
-	return scaffoldlist.NewListAction(use, short, long, cols, namedStorage{},
+	return scaffoldlist.NewListAction(short, long, cols, namedStorage{},
 		func(c *grav.Client, fs *pflag.FlagSet) ([]namedStorage, error) {
 			ss, err := connection.Client.GetStorageStats()
 			if err != nil {
@@ -56,5 +56,5 @@ func NewIndexerStorageAction() action.Pair {
 			}
 
 			return wrap, nil
-		}, nil)
+		}, scaffoldlist.Options{Use: use})
 }

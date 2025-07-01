@@ -17,8 +17,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/spf13/cobra"
 
@@ -57,8 +57,8 @@ func newMacroListAction() action.Pair {
 			"or the system itself"
 	)
 	var listDefaultColumns = []string{"ID", "Name", "Description", "Expansion"}
-	return scaffoldlist.NewListAction("", listShort, listLong, listDefaultColumns,
-		types.SearchMacro{}, listMacros, flags)
+	return scaffoldlist.NewListAction(listShort, listLong, listDefaultColumns,
+		types.SearchMacro{}, listMacros, scaffoldlist.Options{AddtlFlags: flags})
 }
 
 func flags() pflag.FlagSet {
@@ -73,12 +73,12 @@ func flags() pflag.FlagSet {
 // lister subroutine for macros
 func listMacros(c *grav.Client, fs *pflag.FlagSet) ([]types.SearchMacro, error) {
 	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
-		clilog.LogFlagFailedGet(ft.Name.ListAll, err)
+		uniques.ErrGetFlag("macros list", err)
 	} else if all {
 		return c.GetAllMacros()
 	}
 	if gid, err := fs.GetInt32("group"); err != nil {
-		clilog.LogFlagFailedGet("group", err)
+		uniques.ErrGetFlag("macros list", err)
 	} else if gid != 0 {
 		return c.GetGroupMacros(gid)
 	}

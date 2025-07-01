@@ -13,9 +13,9 @@ import (
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -45,7 +45,6 @@ func newKitsListAction() action.Pair {
 	var defaultColumns = []string{"UUID", "KitState.Name", "KitState.Description", "KitState.Version"}
 
 	return scaffoldlist.NewListAction(
-		"",
 		short,
 		long,
 		defaultColumns,
@@ -53,14 +52,14 @@ func newKitsListAction() action.Pair {
 		func(c *grav.Client, fs *pflag.FlagSet) ([]types.IdKitState, error) {
 			// if --all, use the admin version
 			if all, err := fs.GetBool("all"); err != nil {
-				clilog.LogFlagFailedGet("all", err)
+				uniques.ErrGetFlag("kist list", err)
 			} else if all {
 				return c.AdminListKits()
 			}
 
 			return c.ListKits()
 		},
-		flags)
+		scaffoldlist.Options{AddtlFlags: flags})
 }
 
 func flags() pflag.FlagSet {
