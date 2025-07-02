@@ -18,7 +18,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/gravwell/gravwell/v3/client/objlog"
+	"github.com/gravwell/gravwell/v4/client/objlog"
 
 	"github.com/gorilla/websocket"
 )

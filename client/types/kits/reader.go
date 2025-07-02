@@ -17,9 +17,9 @@ import (
 	"io"
 	"path/filepath"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 )
 
 var (
@@ -49,7 +49,7 @@ type Reader struct {
 
 // NewReader returns a Reader which will parse a kit from the given ReadResetCloser.
 // Note that rdr is a ReadResetCloser; the Reset function is used to reset the reader to
-// the beginning of the stream. The github.com/gravwell/gravwell/v3/ingesters/utils package
+// the beginning of the stream. The github.com/gravwell/gravwell/v4/ingesters/utils package
 // includes several convenient ReadResetCloser implementations.
 //
 // The sigVerify parameter is an optional function used to validate the kit's manifest signature.
