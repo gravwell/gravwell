@@ -157,16 +157,15 @@ type BaseResponse struct {
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
 
-	//SessionID is the search Session ID, used for tracking "handles" on a search using REST interface
+	// SessionID is the search Session ID, used for tracking "handles" on a search using REST interface
 	SessionID uuid.UUID
 
-	//Interval is the number of seconds between hits on the search control REST API for a given second
-	//that can transpire before we consider the search session abandoned
+	// Interval is the number of seconds between hits on the search control REST API for a given second
+	// that can transpire before we consider the search session abandoned
 	Interval uint
 
-	// Indicates that there is some warning about the query results the user should be aware of.
-	// Will be empty if no warning is present.
-	Warning string
+	// Messages are warnings, errors, etc. for this request.
+	Messages []Message
 }
 
 func (br BaseResponse) Err() error {
@@ -312,10 +311,6 @@ type OverviewStats struct {
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
 
-	// Indicates that there is some warning about the query results the user should be aware of.
-	// Will be empty if no warning is present.
-	Warning string
-
 	// For some renderers, the EntryCount accurately represents the total
 	// number of results available. This field is set to 'true' in that case,
 	// meaning the EntryCount number can be displayed alongside the results
@@ -323,6 +318,9 @@ type OverviewStats struct {
 	EntryCountValid bool
 	EntryCount      uint64
 	Stats           []OverviewStatSet `json:",omitempty"`
+
+	// Warnings, errors, etc.
+	Messages []Message
 }
 
 type SearchMetadataNumber struct {
@@ -352,6 +350,7 @@ type SearchMetadata struct {
 	ValueStats  []SearchMetadataEntry `json:",omitempty"`
 	SourceStats []SourceMetadataEntry `json:",omitempty"`
 	TagStats    map[string]uint       `json:",omitempty"`
+	Messages    []Message
 }
 
 func (ss *StatSet) AddParts(ts entry.Timestamp, stats []SearchModuleStats) {
