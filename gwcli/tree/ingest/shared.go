@@ -160,7 +160,7 @@ type ingestFlags struct {
 // Encountering an invalid argument does *not* return early.
 func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 	if !fs.Parsed() {
-		return ingestFlags{}, nil, errors.New("flagset must be parsed prior to transmogrification.")
+		return ingestFlags{}, nil, errors.New("flagset must be parsed prior to transmogrification")
 	}
 
 	var (
