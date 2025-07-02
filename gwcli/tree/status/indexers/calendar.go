@@ -90,7 +90,7 @@ func data(fs *pflag.FlagSet) ([]types.CalendarEntry, error) {
 		return connection.Client.GetIndexerCalendarStats(indexer, start, end, nil)
 	}
 
-	return connection.Client.GetCalendarStats(time.Time{}, end, nil)
+	return connection.Client.GetCalendarStats(start, end, nil)
 }
 
 // fetchTime attempts to parse the given flag as a time.Time.
