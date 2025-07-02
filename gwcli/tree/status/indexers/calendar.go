@@ -11,6 +11,7 @@ package indexers
 // This file implements the indexer calendar action, which returns timestamped entries associated to the named indexer.
 
 import (
+	"errors"
 	"strings"
 	"time"
 
@@ -98,11 +99,11 @@ func fetchTime(fs *pflag.FlagSet, flagName string) (time.Time, error) {
 	// check for and parse start and end flags
 	s, err := fs.GetString(flagName)
 	if err != nil {
-		return time.Time{}, uniques.ErrGetFlag("start", err)
+		return time.Time{}, uniques.ErrGetFlag(useCalendar, err)
 	}
 	s = strings.TrimSpace(s)
 	if s == "" {
-		return time.Time{}, nil
+		return time.Now(), nil
 	}
 	// attempt to parse time
 	if t, err := time.Parse(time.RFC1123Z, s); err == nil {
@@ -112,5 +113,5 @@ func fetchTime(fs *pflag.FlagSet, flagName string) (time.Time, error) {
 		return t, nil
 	}
 
-	return time.Now(), nil
+	return time.Time{}, errors.New("--" + flagName + " must be a valid timestamp in RFC1123Z or DateTime format")
 }
