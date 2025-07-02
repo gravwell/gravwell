@@ -13,6 +13,7 @@ package scaffoldlist
 import (
 	"os"
 	"path"
+	"strings"
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -112,6 +113,12 @@ func Test_determineFormat(t *testing.T) {
 
 // Mostly just tests that options are properly reflected in the returned command and model.
 func TestNewListAction(t *testing.T) {
+	tDir := t.TempDir()
+	// spin up the logger
+	if err := clilog.Init(path.Join(tDir, "dev.log"), "debug"); err != nil {
+		t.Fatal("failed to spawn logger:", err)
+	}
+
 	short, long := "a test action", "a test action's longer description"
 	t.Run("non-struct dataStruct", func(t *testing.T) {
 		var recovered bool
@@ -144,25 +151,72 @@ func TestNewListAction(t *testing.T) {
 		NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) { return nil, nil }, Options{Use: use})
 	})
 
-	/*type args struct {
-		short      string
-		long       string
-		dataStruct dataStruct_t
-		dataFn     ListDataFunction[dataStruct_t]
-		options    Options
-	}
+	// column tests
 	tests := []struct {
-		name string
-		args args
-		want action.Pair
+		name          string
+		options       Options
+		args          []string
+		wantedColumns []string
 	}{
-		// TODO: Add test cases.
+		{"default to all columns", Options{}, []string{"--script", "--csv"}, []string{"Col1", "Col2", "Col3", "Col4.SubCol1"}},
+		{"respect defaults option",
+			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
+			[]string{"--script", "--csv"},
+			[]string{"Col1", "Col4.SubCol1"},
+		},
+		{"all overrides default columns",
+			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
+			[]string{"--script", "--csv", "--all"},
+			[]string{"Col1", "Col2", "Col3", "Col4.SubCol1"},
+		},
+	}
+	type st struct { // the struct we will be testing against
+		Col1 string
+		Col2 uint
+		Col3 int
+		Col4 struct {
+			SubCol1        bool
+			privateSubCol2 float32
+		}
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := NewListAction(tt.args.short, tt.args.long, tt.args.dataStruct, tt.args.dataFn, tt.args.options); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NewListAction() = %v, want %v", got, tt.want)
+			// generate the pair
+			pair := NewListAction("test short", "test long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
+				return []st{
+					{"1", 1, -1, struct {
+						SubCol1        bool
+						privateSubCol2 float32
+					}{true, 3.14}},
+				}, nil
+			}, tt.options)
+			pair.Action.SetArgs(tt.args)
+			// capture output
+			var sb strings.Builder
+			var sbErr strings.Builder
+			pair.Action.SetOut(&sb)
+			pair.Action.SetErr(&sbErr)
+			// bolt on persistent flags that Mother would usually take care of
+			pair.Action.Flags().Bool("script", false, "")
+			if err := pair.Action.Execute(); err != nil {
+				t.Fatal(err)
+			} else if sbErr.String() != "" {
+				f, err := os.ReadFile(path.Join(tDir, "dev.log"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Logf("Dev Log:\n%s", f)
+				t.Fatal(sbErr.String())
+			}
+			// we only care about the first line of the csv
+			columns, _, found := strings.Cut(sb.String(), "\n")
+			if !found {
+				t.Fatalf("failed to find csv header in %v", sb.String())
+			}
+			exploded := strings.Split(columns, ",")
+			if !testsupport.SlicesUnorderedEqual(exploded, tt.wantedColumns) {
+				t.Fatalf("columns mismatch (not accounting for order): %v", testsupport.ExpectedActual(tt.wantedColumns, exploded))
 			}
 		})
-	}*/
+	}
 }
