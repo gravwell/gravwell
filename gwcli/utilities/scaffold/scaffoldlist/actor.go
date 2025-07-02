@@ -50,7 +50,7 @@ type ListAction[dataStruct any] struct {
 
 // Constructs a ListAction suitable for interactive use.
 // Options are execution in array-order.
-func newListAction[dataStruct_t any](dataStruct dataStruct_t, dFn ListDataFunction[dataStruct_t], options Options) ListAction[dataStruct_t] {
+func newListAction[dataStruct_t any](c *cobra.Command, dataStruct dataStruct_t, dFn ListDataFunction[dataStruct_t], options Options) ListAction[dataStruct_t] {
 	la := ListAction[dataStruct_t]{
 		done:    false,
 		columns: options.DefaultColumns,
@@ -59,7 +59,7 @@ func newListAction[dataStruct_t any](dataStruct dataStruct_t, dFn ListDataFuncti
 		DefaultFormat:  tbl,
 		DefaultColumns: options.DefaultColumns,
 		color:          true,
-		cmd:            nil,
+		cmd:            c,
 
 		dataStruct:       dataStruct,
 		dataFunc:         dFn,

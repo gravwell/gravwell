@@ -152,7 +152,7 @@ func NewListAction[dataStruct_t any](short, long string,
 	}
 
 	// generate the list action.
-	la := newListAction(dataStruct, dataFn, options)
+	la := newListAction(cmd, dataStruct, dataFn, options)
 
 	return action.NewPair(cmd, &la)
 }
