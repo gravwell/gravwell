@@ -10,11 +10,8 @@
 package storage
 
 import (
-	"fmt"
-
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -31,10 +28,10 @@ type namedStorage struct {
 func NewAction() action.Pair {
 	const (
 		use   string = "storage"
-		short string = "review storage statistics for all indexers"
+		short string = "review storage statistics"
 	)
-	var long = fmt.Sprintf("Fetch storage statistics across all indexers.\n"+
-		"Use the %v %v action for more detailed information about a specified indexer.", stylesheet.Cur.Nav.Render("indexer"), stylesheet.Cur.Action.Render("inspect"))
+	var long = "Fetch instance-wide storage statistics.\n" +
+		"All data is in bytes, unless otherwise marked."
 
 	return scaffoldlist.NewListAction(short, long, namedStorage{},
 		func(fs *pflag.FlagSet) ([]namedStorage, error) {
