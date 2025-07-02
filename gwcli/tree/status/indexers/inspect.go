@@ -21,7 +21,7 @@ type inspectData struct {
 	types.PerWellStorageStats
 }
 
-func newInspectBasicAction() action.Pair {
+func newInspectAction() action.Pair {
 	const (
 		use   string = "inspect"
 		short string = "get details about a specific indexer"
@@ -45,7 +45,9 @@ func newInspectBasicAction() action.Pair {
 			}
 			return c, nil
 		},
-		scaffoldlist.Options{Use: use, Pretty: prettyInspect, Example: example})
+		scaffoldlist.Options{Use: use, Pretty: prettyInspect, CmdMods: func(c *cobra.Command) {
+			c.Example = example
+		}})
 }
 
 // helper function for list dataFn and prettyInspect.

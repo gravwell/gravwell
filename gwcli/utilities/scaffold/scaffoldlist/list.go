@@ -125,7 +125,6 @@ func NewListAction[dataStruct_t any](short, long string,
 	}
 
 	// if default columns was not set in options, generate it
-
 	if options.DefaultColumns == nil {
 		cols, err := weave.StructFields(dataStruct, true)
 		if err != nil { // something has gone horribly wrong
@@ -134,21 +133,22 @@ func NewListAction[dataStruct_t any](short, long string,
 		options.DefaultColumns = cols
 	}
 
-	cmd := treeutils.GenerateAction(use, short, long, []string{}, generateRun(dataStruct, dataFn, options))
+	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataStruct, dataFn, options))
 
 	cmd.Flags().AddFlagSet(buildFlagSet(options.AddtlFlags, options.Pretty != nil))
 	cmd.Flags().SortFlags = false // does not seem to be respected
 	cmd.MarkFlagsMutuallyExclusive(ft.Name.CSV, ft.Name.JSON, ft.Name.Table)
 
 	// attach example
-	if options.Example != "" {
-		cmd.Example = options.Example
-	} else {
-		formats := []string{"--csv", "--json", "--table"}
-		if options.Pretty != nil {
-			formats = append(formats, "--pretty")
-		}
-		cmd.Example = fmt.Sprintf("%v %v %v", use, ft.MutuallyExclusive(formats), ft.Optional("--columns=[...]"))
+	formats := []string{"--csv", "--json", "--table"}
+	if options.Pretty != nil {
+		formats = append(formats, "--pretty")
+	}
+	cmd.Example = fmt.Sprintf("%v %v %v", use, ft.MutuallyExclusive(formats), ft.Optional("--columns=[...]"))
+
+	// apply command modifiers
+	if options.CmdMods != nil {
+		options.CmdMods(cmd)
 	}
 
 	// generate the list action.

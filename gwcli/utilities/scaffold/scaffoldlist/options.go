@@ -8,19 +8,24 @@
 
 package scaffoldlist
 
+import "github.com/spf13/cobra"
+
 // The Options struct allows developers to tweak parameters of an action's specific implementation.
 type Options struct {
 	// Overrides the default "list" action name.
 	Use string
+	// Other names for this action.
+	Aliases []string
 	// Pretty defines a free-form, pretty-printing function, allowing this action to be displayed in a user-friendly (albeit likely script-unfriendly) way.
 	// If !nil, --pretty will also be defined and set as the default.
 	Pretty PrettyPrinterFunc
-	// Replace the default list example.
-	Example string
 	// AddtlFlags defines a function that generates a fresh flagset to be bolted on to the default list flagset.
 	// NOTE(rlandau): It must be a function returning a fresh struct because FlagSets are shallow copies, even when passed by reference.
 	AddtlFlags AddtlFlagFunction
 	// Sets the default columns to return if --columns is not specified.
 	// If not set, defaults to all exported fields.
 	DefaultColumns []string
+	// A free-form function allowing implementations to directly alter properties on the command scaffold list creates.
+	// Applied after all other options, so changes made here may override prior options (such as Use and Aliases).
+	CmdMods func(*cobra.Command)
 }
