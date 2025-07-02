@@ -109,3 +109,60 @@ func Test_determineFormat(t *testing.T) {
 		})
 	}
 }
+
+// Mostly just tests that options are properly reflected in the returned command and model.
+func TestNewListAction(t *testing.T) {
+	short, long := "a test action", "a test action's longer description"
+	t.Run("non-struct dataStruct", func(t *testing.T) {
+		var recovered bool
+		defer func() {
+			if !recovered {
+				t.Errorf("test did not recover from panic")
+			}
+		}()
+		defer func() { // recover from the expected panic and note that we recovered
+			recover()
+			recovered = true
+		}()
+		NewListAction(short, long, 5, func(fs *pflag.FlagSet) ([]int, error) { return nil, nil }, Options{})
+	})
+	t.Run("non alphanumerics in use", func(t *testing.T) {
+		use := "<action|"
+		type st struct {
+		}
+
+		var recovered bool
+		defer func() {
+			if !recovered {
+				t.Errorf("test did not recover from panic")
+			}
+		}()
+		defer func() { // recover from the expected panic and note that we recovered
+			recover()
+			recovered = true
+		}()
+		NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) { return nil, nil }, Options{Use: use})
+	})
+
+	/*type args struct {
+		short      string
+		long       string
+		dataStruct dataStruct_t
+		dataFn     ListDataFunction[dataStruct_t]
+		options    Options
+	}
+	tests := []struct {
+		name string
+		args args
+		want action.Pair
+	}{
+		// TODO: Add test cases.
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := NewListAction(tt.args.short, tt.args.long, tt.args.dataStruct, tt.args.dataFn, tt.args.options); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("NewListAction() = %v, want %v", got, tt.want)
+			}
+		})
+	}*/
+}
