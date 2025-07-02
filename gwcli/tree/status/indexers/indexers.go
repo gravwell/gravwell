@@ -35,6 +35,7 @@ func NewIndexersNav() *cobra.Command {
 			newStatsListAction(),
 			newInspectAction(),
 			newCalendarAction(),
+			newDescAction(),
 		})
 }
 

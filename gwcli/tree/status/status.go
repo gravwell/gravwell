@@ -32,7 +32,6 @@ func NewStatusNav() *cobra.Command {
 			indexers.NewIndexersNav(),
 		},
 		[]action.Pair{
-			newDescAction(),
 			storage.NewAction(),
 		})
 }
