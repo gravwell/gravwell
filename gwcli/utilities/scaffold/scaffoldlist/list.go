@@ -111,6 +111,16 @@ func NewListAction[dataStruct_t any](short, long string,
 	// generate the command
 	var use = "list"
 	if options.Use != "" {
+		// validate use and override default
+		for i := 0; i < len(options.Use); i++ { // check each rune for non-alphanumerics
+			if options.Use[i] >= 48 && options.Use[i] <= 57 { // 0-9 in ASCII
+				continue
+			} else if options.Use[i] >= 65 && options.Use[i] <= 122 { //A-z in ASCII
+				continue
+			}
+			panic("non-alphanumeric character found: " + string(options.Use[i]))
+		}
+
 		use = options.Use
 	}
 
