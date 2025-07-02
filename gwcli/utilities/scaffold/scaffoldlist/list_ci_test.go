@@ -169,6 +169,11 @@ func TestNewListAction(t *testing.T) {
 			[]string{"--script", "--csv", "--all"},
 			[]string{"Col1", "Col2", "Col3", "Col4.SubCol1"},
 		},
+		{"explicit columns overrides default columns",
+			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
+			[]string{"--script", "--csv", "--columns", "Col3"},
+			[]string{"Col3"},
+		},
 	}
 	type st struct { // the struct we will be testing against
 		Col1 string
@@ -219,4 +224,36 @@ func TestNewListAction(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("show columns", func(t *testing.T) {
+		// generate the pair
+		pair := NewListAction("test short", "test long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
+			return []st{
+				{"1", 1, -1, struct {
+					SubCol1        bool
+					privateSubCol2 float32
+				}{true, 3.14}},
+			}, nil
+		}, Options{})
+		pair.Action.SetArgs([]string{"--script", "--csv", "--show-columns"})
+		// capture output
+		var sb strings.Builder
+		var sbErr strings.Builder
+		pair.Action.SetOut(&sb)
+		pair.Action.SetErr(&sbErr)
+		// bolt on persistent flags that Mother would usually take care of
+		pair.Action.Flags().Bool("script", false, "")
+		if err := pair.Action.Execute(); err != nil {
+			t.Fatal(err)
+		} else if sbErr.String() != "" {
+			t.Fatal(sbErr.String())
+		}
+		exploded := strings.Split(strings.TrimSpace(sb.String()), " ")
+		wanted := []string{"Col1", "Col2", "Col3", "Col4.SubCol1"}
+		if !testsupport.SlicesUnorderedEqual(exploded, wanted) {
+			t.Fatalf("columns mismatch (not accounting for order): %v",
+				testsupport.ExpectedActual(wanted, exploded))
+		}
+	})
+
 }
