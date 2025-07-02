@@ -144,7 +144,7 @@ func NewListAction[dataStruct_t any](short, long string,
 	if options.Pretty != nil {
 		formats = append(formats, "--pretty")
 	}
-	cmd.Example = fmt.Sprintf("%v %v %v", use, ft.MutuallyExclusive(formats), ft.Optional("--columns=[...]"))
+	cmd.Example = fmt.Sprintf("%v %v %v", use, ft.MutuallyExclusive(formats), ft.Optional("--columns=col1,col2,..."))
 
 	// apply command modifiers
 	if options.CmdMods != nil {
