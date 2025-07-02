@@ -225,7 +225,7 @@ func newMacroDeleteAction() action.Pair {
 				items[i] = scaffolddelete.NewItem(
 					m.Name,
 					fmt.Sprintf("Expansion: '%v'\n%v",
-						stylesheet.Header2Style.Render(m.Expansion), m.Description),
+						stylesheet.Cur.SecondaryText.Render(m.Expansion), m.Description),
 					m.ID)
 			}
 			return items, nil

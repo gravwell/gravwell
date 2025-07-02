@@ -13,7 +13,6 @@ import (
 	"io"
 
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 
@@ -78,9 +77,9 @@ func defaultRender[I scaffold.Id_t](w io.Writer, m list.Model, index int, listIt
 	}
 
 	str := fmt.Sprintf("%s%s. %s\n%s",
-		colorizer.Pip(uint(index), uint(m.Index())),
-		colorizer.Index(index+1),
-		stylesheet.Header1Style.Render(i.Title()),
+		stylesheet.Pip(uint(index), uint(m.Index())),
+		stylesheet.Index(index+1),
+		stylesheet.Cur.PrimaryText.Render(i.Title()),
 		i.Description())
 	fmt.Fprint(w, str)
 }

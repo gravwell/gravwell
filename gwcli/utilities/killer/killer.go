@@ -23,8 +23,18 @@ const (
 // keys kill the program in Update no matter its other states
 var globalKillKeys = [...]tea.KeyType{tea.KeyCtrlC, tea.KeyCtrlD}
 
+// GlobalKillKeys returns the list of bubble tea combinations that act as global kills by Mother.
+func GlobalKillKeys() [2]tea.KeyType {
+	return globalKillKeys
+}
+
 // keys that kill the child if it exists, otherwise do nothing
 var childOnlykillKeys = [...]tea.KeyType{tea.KeyEscape}
+
+// ChildKillKeys returns the list of bubble tea combinations that act as child-only kills by Mother.
+func ChildKillKeys() [1]tea.KeyType {
+	return childOnlykillKeys
+}
 
 // CheckKillKeys returns if the given message is a global kill key, a child kill key, or not a kill key (or even key message at all).
 func CheckKillKeys(msg tea.Msg) Kill {
