@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-/* Package indexers defines a nav for status actions related to the indexers. */
+/* Package indexers defines a parent nav and child actions for fetching indexer state. */
 package indexers
 
 import (
@@ -33,7 +33,7 @@ func NewIndexersNav() *cobra.Command {
 		[]*cobra.Command{},
 		[]action.Pair{
 			newStatsListAction(),
-			newInspectBasicAction(),
+			newInspectAction(),
 		})
 }
 
