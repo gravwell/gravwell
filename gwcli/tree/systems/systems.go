@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/systems/indexers"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/systems/ingesters"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -33,6 +34,7 @@ func NewSystemsNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases,
 		[]*cobra.Command{
 			indexers.NewIndexersNav(),
+			ingesters.NewIngestersNav(),
 		},
 		[]action.Pair{
 			newStorageAction(),
@@ -53,9 +55,9 @@ func newStorageAction() action.Pair {
 	const (
 		use   string = "storage"
 		short string = "review storage statistics"
+		long  string = "Fetch instance-wide storage statistics.\n" +
+			"All data is in bytes, unless otherwise marked."
 	)
-	var long = "Fetch instance-wide storage statistics.\n" +
-		"All data is in bytes, unless otherwise marked."
 
 	return scaffoldlist.NewListAction(short, long, namedStorage{},
 		func(fs *pflag.FlagSet) ([]namedStorage, error) {
