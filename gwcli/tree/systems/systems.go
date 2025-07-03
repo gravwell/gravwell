@@ -6,17 +6,41 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-/* Package storage defines a basic action for fetching indexer storage info. */
-package storage
+/* Package systemshealth defines a nav for actions related to the status of the backend. */
+package systemshealth
 
 import (
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/systems/indexers"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
-	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
+
+const (
+	use   string = "systems"
+	short string = "systems and health of the instance"
+	long  string = "Review the state and health of your system."
+)
+
+var aliases []string = []string{"health", "status"}
+
+func NewSystemsNav() *cobra.Command {
+	return treeutils.GenerateNav(use, short, long, aliases,
+		[]*cobra.Command{
+			indexers.NewIndexersNav(),
+		},
+		[]action.Pair{
+			newStorageAction(),
+		})
+}
+
+//#region storage
+// a basic action for fetching indexer storage info.
 
 // wrapper for the map returned by GetStorageStats.
 type namedStorage struct {
@@ -24,8 +48,8 @@ type namedStorage struct {
 	Stats types.StorageStats
 }
 
-// NewAction generates a list action that returns the storage statistics of all indexers in the Gravwell instance..
-func NewAction() action.Pair {
+// Generates a list action that returns the storage statistics of all indexers in the Gravwell instance.
+func newStorageAction() action.Pair {
 	const (
 		use   string = "storage"
 		short string = "review storage statistics"
@@ -49,3 +73,5 @@ func NewAction() action.Pair {
 			return wrap, nil
 		}, scaffoldlist.Options{Use: use})
 }
+
+//#endregion storage
