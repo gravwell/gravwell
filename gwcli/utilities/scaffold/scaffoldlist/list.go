@@ -199,20 +199,12 @@ func generateRun[dataStruct_t any](
 				stylesheet.Cur = stylesheet.NoColor()
 			}
 
-			if columns, err = c.Flags().GetStringSlice("columns"); err != nil {
-				// non-fatal; falls back to default columns
-				uniques.ErrGetFlag("list", err)
-			}
-			if len(columns) == 0 {
-				columns = options.DefaultColumns
+			columns, err = getColumns(c.Flags(), options.DefaultColumns, availDataStructColumns)
+			if err != nil {
+				fmt.Fprintln(c.ErrOrStderr(), err)
+				return
 			}
 			format = determineFormat(c.Flags(), options.Pretty != nil)
-			if all, err := c.Flags().GetBool("all"); err != nil {
-				fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag(c.Use, err))
-				return
-			} else if all {
-				columns = availDataStructColumns
-			}
 		}
 
 		s, err := listOutput(c, format, columns, dataFn, options.Pretty)
@@ -369,4 +361,42 @@ func listOutput[retStruct any](
 		err = fmt.Errorf("unknown output format (%d)", format)
 	}
 	return toRet, err
+}
+
+// getColumns checks for --columns then validates and returns them if found and returns the default columns otherwise.
+func getColumns(fs *pflag.FlagSet, defaultColumns []string, availDSColumns []string) ([]string, error) {
+	if all, err := fs.GetBool("all"); err != nil {
+		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
+	} else if all {
+		return availDSColumns, nil
+	}
+	cols, err := fs.GetStringSlice("columns")
+	if err != nil {
+		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
+	} else if len(cols) < 1 {
+		return defaultColumns, nil
+	}
+
+	if err := validateColumns(cols, availDSColumns); err != nil {
+		return nil, err
+	}
+	return cols, nil
+}
+
+// validateColumns tests that every given column exists within the given struct.
+func validateColumns(cols []string, availDSColumns []string) error {
+	// transform the DS columns into a map for faster access
+	m := make(map[string]bool, len(availDSColumns))
+	for _, col := range availDSColumns {
+		m[col] = true
+	}
+
+	// confirm that each column is an existing column
+	for _, col := range cols {
+		if _, found := m[col]; !found {
+			return fmt.Errorf("columns %v does not exist", col)
+		}
+	}
+
+	return nil
 }
