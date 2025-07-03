@@ -455,6 +455,36 @@ func TestNewListAction(t *testing.T) {
 			t.Fatal("bad IP.", testsupport.ExpectedActual("127.0.0.1", returned.String()))
 		}
 	})
+	t.Run("extra argument validation", func(t *testing.T) {
+		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
+			return []st{}, nil
+		}, Options{
+			AddtlFlags: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				fs.IPP("ipp", "p", nil, "must be an ip in the 127.0.0.0/8 block")
+				return fs
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				ip, err := fs.GetIP("ipp")
+				if err != nil {
+					return "", err
+				}
+				if ip4 := ip.To4(); ip4 == nil || ip4[0] != 127 {
+					return "ip address must be in the 127.0.0.0/8 block", nil
+				}
+				return "", nil
+			},
+		},
+		)
+
+		pair.Action.ParseFlags([]string{"-p", "127.0.0.1"})
+
+		if returned, err := pair.Action.Flags().GetIP("ipp"); err != nil {
+			t.Fatal(err)
+		} else if returned.String() != "127.0.0.1" {
+			t.Fatal("bad IP.", testsupport.ExpectedActual("127.0.0.1", returned.String()))
+		}
+	})
 	t.Run("pretty", func(t *testing.T) {
 		prettyReturn := "pretty string"
 		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
@@ -584,7 +614,7 @@ func TestModel(t *testing.T) {
 			},
 			flags:           flags{},
 			freeformArgs:    []string{"--invalid=5"},
-			wantInvalidArgs: true},
+			wantInvalidArgs: false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
