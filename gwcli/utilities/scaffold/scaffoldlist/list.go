@@ -77,9 +77,7 @@ type PrettyPrinterFunc func(*cobra.Command) (string, error)
 // NewListAction creates and returns a cobra.Command suitable for use as a list action,
 // complete with common flags and a generic run function operating off the given dataFunction.
 //
-// Flags: {--csv|--json|--table} [--columns ...]
-//
-// If no output module is given, defaults to --table.
+// If no output module is given, defaults to --table (unless a PrettyFunc is given, in which case it defaults to --pretty).
 //
 // ! `dataFn` should be a static wrapper function for a method that returns an array of structures
 // containing the data to be listed.
@@ -184,7 +182,7 @@ func generateRun[dataStruct_t any](dataStruct dataStruct_t, dataFn ListDataFunct
 			var err error
 			script, err = c.Flags().GetBool(ft.Name.Script)
 			if err != nil {
-				fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag("list", err))
+				fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag(c.Use, err))
 				return
 			}
 			outFile, err = initOutFile(c.Flags())
@@ -205,6 +203,16 @@ func generateRun[dataStruct_t any](dataStruct dataStruct_t, dataFn ListDataFunct
 				columns = options.DefaultColumns
 			}
 			format = determineFormat(c.Flags(), options.Pretty != nil)
+			if all, err := c.Flags().GetBool("all"); err != nil {
+				fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag(c.Use, err))
+				return
+			} else if all {
+				cols, err := weave.StructFields(dataStruct, true)
+				if err != nil { // something has gone horribly wrong
+					clilog.Writer.Criticalf("failed to divine fields from storage wrapper: %v", err)
+				}
+				columns = cols
+			}
 		}
 
 		s, err := listOutput(c, format, columns, dataFn, options.Pretty)
@@ -240,6 +248,8 @@ func buildFlagSet(afs AddtlFlagFunction, prettyDefined bool) *pflag.FlagSet {
 	fs.Bool("show-columns", false, "display the list of fully qualified column names and die.")
 	fs.StringP(ft.Name.Output, "o", "", ft.Usage.Output)
 	fs.Bool(ft.Name.Append, false, ft.Usage.Append)
+	fs.Bool("all", false, "displays data from all columns, ignoring the default column set.\n"+
+		"Overrides --columns.")
 	// if prettyFunc was defined, bolt on pretty
 	if prettyDefined {
 		fs.Bool("pretty", false, "display results as prettified text.\n"+

@@ -174,6 +174,15 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 			la.columns = cols
 		}
 	}
+	if all, err := la.fs.GetBool("all"); err != nil {
+		return "", nil, err
+	} else if all {
+		cols, err := weave.StructFields(la.dataStruct, true)
+		if err != nil { // something has gone horribly wrong
+			return "", nil, fmt.Errorf("failed to divine fields from storage wrapper: %v", err)
+		}
+		la.columns = cols
+	}
 
 	if f, err := initOutFile(la.fs); err != nil {
 		return "", nil, err
