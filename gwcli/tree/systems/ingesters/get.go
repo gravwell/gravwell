@@ -84,6 +84,28 @@ func get() action.Pair {
 			CmdMods: func(c *cobra.Command) {
 				c.Example = fmt.Sprintf("%v --hostname=176.1 --name=web", use)
 			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				// validate that at least one of the additional flags was given
+				// check that we were given ingesters to fetch
+				hostPrefix, err := fs.GetString("hostname")
+				if err != nil {
+					return "", uniques.ErrGetFlag(use, err)
+				}
+				uuidPrefix, err := fs.GetString("uuid")
+				if err != nil {
+					return "", uniques.ErrGetFlag(use, err)
+				}
+				namePrefix, err := fs.GetString("name")
+				if err != nil {
+					return "", uniques.ErrGetFlag(use, err)
+				}
+
+				// we cannot use c.MarkFlagsOneRequired("hostname", "uuid", "name") as it will not be factored into SetArgs
+				if hostPrefix == "" && uuidPrefix == "" && namePrefix == "" {
+					return "at least one of --hostname, --uuid, --name is required", nil
+				}
+				return "", nil
+			},
 		})
 }
 
