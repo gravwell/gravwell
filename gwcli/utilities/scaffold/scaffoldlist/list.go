@@ -134,6 +134,8 @@ func NewListAction[dataStruct_t any](short, long string,
 	// if default columns was not set in options, set it to all columns
 	if options.DefaultColumns == nil {
 		options.DefaultColumns = availDSColumns
+	} else if err := validateColumns(options.DefaultColumns, availDSColumns); err != nil { // otherwise, validate the given defaults
+		panic(err)
 	}
 
 	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataStruct, dataFn, options, availDSColumns))
