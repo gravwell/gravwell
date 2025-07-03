@@ -92,9 +92,6 @@ func TestMacros(t *testing.T) {
 		}
 		columns := []string{"UID", "Global", "Name"}
 		want := strings.TrimSpace(weave.ToCSV(macros, columns))
-		if want == "" { // empty list command results output "no data found"
-			want = "no data found"
-		}
 
 		// run the test body
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros list --csv --columns=%s", user, pf, strings.Join(columns, ","))
