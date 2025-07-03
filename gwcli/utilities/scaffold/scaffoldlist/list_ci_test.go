@@ -485,6 +485,10 @@ func TestNewListAction(t *testing.T) {
 	})
 }
 
+// Test the action model created by mimic'ing Mother and checking the struct after each stage.
+// NOTE(rlandau): This tests is able to test all of the auxiliary aspects and fields of an interactive list action.
+// However, it does not test the actual output (as this is returned as a printLineMessage, which is not exported and thus we cannot assert to).
+// This could be worked around with reflection, but it isn't high enough priority to bother atm.
 func TestModel(t *testing.T) {
 	tDir := t.TempDir()
 
@@ -493,72 +497,193 @@ func TestModel(t *testing.T) {
 		t.Fatal("failed to spawn logger:", err)
 	}
 
-	pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
-		return []st{
-			{Col1: "column", Col4: struct {
-				SubCol1        bool
-				privateSubCol2 float32
-			}{SubCol1: false}},
-			{Col1: "different column", Col3: -901},
-		}, nil
-	}, Options{})
-
-	// mimic Mother's set up
-	tkns := []string{}
-	if err := pair.Action.ParseFlags(tkns); err != nil {
-		t.Fatal(err)
+	type flags struct {
+		columns []string
+		all     bool
 	}
-
-	// mimic mother's order of operations, validating after each step
-	pair.Model.SetArgs(pair.Action.Flags(), tkns)
-	if la, ok := pair.Model.(*ListAction[st]); !ok {
-		t.Fatal("failed to assert model to listAction")
-	} else {
-		const pfx string = "Post-SetArgs: "
-		// validate fields
-		if !la.fs.Parsed() {
-			t.Error(pfx + "flagset should be parsed")
-		}
-
-		expectedColumns, err := weave.StructFields(st{}, exportedColumnsOnly)
-		if err != nil {
-			t.Error("failed to determine all columns")
-		}
-
-		// check for all columns, as no defaults where specified
-		if !testsupport.SlicesUnorderedEqual(la.columns, expectedColumns) {
-			t.Error(pfx+"column set do not match expected columns.", testsupport.ExpectedActual(expectedColumns, la.columns))
-		}
-
-		// no -o, confirm no outfile
-		if la.outFile != nil {
-			t.Error("unexpected outfile.", testsupport.ExpectedActual(nil, la.outFile))
-		}
-
-		if la.done {
-			t.Errorf("list action is done prior to update")
-		}
+	tests := []struct {
+		name    string
+		options Options
+		//args       []string // cli arguments
+		flags flags
+	}{
+		{"default to all columns", Options{}, flags{}},
+		{"respect given columns",
+			Options{},
+			flags{columns: []string{"Col1", "Col2"}},
+		},
+		{"respect all columns over defaults",
+			Options{DefaultColumns: []string{"Col1"}},
+			flags{all: true},
+		},
+		{"additional flags",
+			Options{AddtlFlags: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				fs.Bool("test", false, "")
+				return fs
+			}},
+			flags{},
+		},
+		/*{"default to all columns",
+			Options{},
+			[]string{},
+			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
+		},
+		{"respect defaults option",
+			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
+			[]string{}, // --script and --json are attached in the test
+			`[{"Col1":"1","Col4":{"SubCol1":"true"}}]`,
+		},
+		{"all overrides default columns",
+			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
+			[]string{"--all"}, // --script and --json are attached in the test
+			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
+		},
+		{"explicit columns overrides default columns",
+			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
+			[]string{"--columns", "Col3"}, // --script and --json are attached in the test
+			`[{"Col3":-1}]`,
+		},*/
 	}
-	pair.Model.Update(nil) // list action does not care about messages
-	if la, ok := pair.Model.(*ListAction[st]); !ok {
-		t.Fatal("failed to assert model to listAction")
-	} else {
-		const pfx string = "Post-Update: "
-		if !la.done {
-			t.Errorf("list action is not done after update")
-		}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
+				return []st{
+					{Col1: "column", Col4: struct {
+						SubCol1        bool
+						privateSubCol2 float32
+					}{SubCol1: false}},
+					{Col1: "different column", Col3: -901},
+				}, nil
+			}, Options{})
+
+			// generate arguments list
+			args := []string{}
+			if tt.flags.columns != nil {
+				args = append(args, "--columns="+strings.Join(tt.flags.columns, ","))
+			}
+			if tt.flags.all {
+				args = append(args, "--all")
+			}
+
+			t.Logf("passing argument list: %v", args)
+
+			// mimic Mother's set up
+			if err := pair.Action.ParseFlags(args); err != nil {
+				t.Fatal(err)
+			}
+
+			// mimic mother's order of operations, validating after each step
+			pair.Model.SetArgs(pair.Action.Flags(), args)
+			if la, ok := pair.Model.(*ListAction[st]); !ok {
+				t.Fatal("failed to assert model to listAction")
+			} else {
+				const pfx string = "Post-SetArgs: "
+				// validate fields
+				if !la.fs.Parsed() {
+					t.Error(pfx + "flagset should be parsed")
+				}
+
+				// ensure available DS columns matches actual available columns
+				if allColumns, err := weave.StructFields(st{}, exportedColumnsOnly); err != nil {
+					t.Fatal(err)
+				} else if !testsupport.SlicesUnorderedEqual(la.availDSColumns, allColumns) {
+					t.Error("derived columns saved in list do not match externally derived columns.", testsupport.ExpectedActual(allColumns, la.availDSColumns))
+				}
+
+				// confirm columns were set properly
+				if tt.flags.all { // prioritize all above all else
+					if !testsupport.SlicesUnorderedEqual(la.columns, la.availDSColumns) {
+						t.Error("derived columns saved in list do not match externally derived columns.", testsupport.ExpectedActual(la.availDSColumns, la.columns))
+					}
+				} else if len(tt.flags.columns) > 0 { // --columns was specified
+					if !testsupport.SlicesUnorderedEqual(tt.flags.columns, la.columns) {
+						t.Error("action columns do not match given columns", testsupport.ExpectedActual(tt.flags.columns, la.columns))
+					}
+				} else if len(tt.options.DefaultColumns) > 0 { // options.DefaultColumns was given
+					if !testsupport.SlicesUnorderedEqual(tt.options.DefaultColumns, la.columns) {
+						t.Error("action columns do not match default columns.", testsupport.ExpectedActual(tt.options.DefaultColumns, la.columns))
+					}
+				} else { // nothing was specified, check for all columns again
+					if !testsupport.SlicesUnorderedEqual(la.columns, la.availDSColumns) {
+						t.Error("true default columns is not all columns.", testsupport.ExpectedActual(la.availDSColumns, la.columns))
+					}
+				}
+
+				// if additional flags were given, ensure they were bolted on
+				if la.addtlFlagSetFunc != nil {
+					afs := la.addtlFlagSetFunc()
+
+					afs.Visit(func(f *pflag.Flag) {
+						flag := la.fs.Lookup(f.Name)
+						if flag == nil {
+							t.Errorf(pfx+"additional flag %v does not exist", f.Name)
+						}
+					})
+				}
+				if la.outFile != nil {
+					t.Error("unexpected outfile.", testsupport.ExpectedActual(nil, la.outFile))
+				}
+
+				if la.done {
+					t.Errorf("list action is done prior to update")
+				}
+				if t.Failed() {
+					t.FailNow()
+				}
+			}
+			t.Log(pair.Model.Update(nil)) // list action does not care about messages
+			if la, ok := pair.Model.(*ListAction[st]); !ok {
+				t.Fatal("failed to assert model to listAction")
+			} else {
+				const pfx string = "Post-Update: "
+				if !la.done {
+					t.Errorf("list action is not done after update")
+				}
+				if t.Failed() {
+					t.FailNow()
+				}
+			}
+			view := pair.Model.View()
+			if view != "" {
+				t.Errorf("view returned data: %v", view)
+			}
+			// at this point we should be done
+			if !pair.Model.Done() {
+				t.Error("model should be done after a single cycle")
+			}
+			err := pair.Model.Reset()
+			if err != nil {
+				t.Errorf("failed to reset model")
+			}
+			if la, ok := pair.Model.(*ListAction[st]); !ok {
+				t.Fatal("failed to assert model to listAction")
+			} else {
+				const pfx string = "Post-Reset: "
+				if la.done {
+					t.Errorf(pfx + "list action done was not reset properly")
+				}
+				if !testsupport.SlicesUnorderedEqual(la.columns, la.DefaultColumns) {
+					t.Error(pfx+"list action columns were not reset to defaults.", testsupport.ExpectedActual(la.DefaultColumns, la.columns))
+				}
+				if la.fs.Parsed() {
+					t.Error(pfx + "flagset should not be parsed")
+				}
+				// if additional flags were given, ensure they were bolted back on
+				if la.addtlFlagSetFunc != nil {
+					afs := la.addtlFlagSetFunc()
+
+					afs.Visit(func(f *pflag.Flag) {
+						flag := la.fs.Lookup(f.Name)
+						if flag == nil {
+							t.Errorf(pfx+"additional flag %v does not exist", f.Name)
+						}
+					})
+				}
+				if la.outFile != nil {
+					t.Errorf(pfx+"outfile '%v' was not nil'd", la.outFile.Name())
+				}
+			}
+		})
 	}
-	view := pair.Model.View()
-	if view != "" {
-		t.Errorf("view returned data: %v", view)
-	}
-	// at this point we should be done
-	if !pair.Model.Done() {
-		t.Error("model should be done after a single cycle")
-	}
-	err := pair.Model.Reset()
-	if err != nil {
-		t.Errorf("failed to reset model")
-	}
-	// TODO validate that all fields are empty again
 }
