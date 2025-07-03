@@ -137,7 +137,7 @@ func NewListAction[dataStruct_t any](short, long string,
 		panic(err)
 	}
 
-	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataStruct, dataFn, options, availDSColumns))
+	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataFn, options, availDSColumns))
 
 	cmd.Flags().AddFlagSet(buildFlagSet(options.AddtlFlags, options.Pretty != nil))
 	cmd.Flags().SortFlags = false // does not seem to be respected
@@ -163,7 +163,6 @@ func NewListAction[dataStruct_t any](short, long string,
 
 // generateRun builds and returns a function to be run when this action is invoked via Cobra.
 func generateRun[dataStruct_t any](
-	dataStruct dataStruct_t,
 	dataFn ListDataFunction[dataStruct_t],
 	options Options,
 	availDataStructColumns []string) func(c *cobra.Command, _ []string) {
