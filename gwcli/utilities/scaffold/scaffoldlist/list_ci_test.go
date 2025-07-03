@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -482,5 +483,82 @@ func TestNewListAction(t *testing.T) {
 			t.Fatal("bad pretty text", testsupport.ExpectedActual(prettyReturn, outcome))
 		}
 	})
+}
 
+func TestModel(t *testing.T) {
+	tDir := t.TempDir()
+
+	// spin up the logger
+	if err := clilog.Init(path.Join(tDir, "dev.log"), "debug"); err != nil {
+		t.Fatal("failed to spawn logger:", err)
+	}
+
+	pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
+		return []st{
+			{Col1: "column", Col4: struct {
+				SubCol1        bool
+				privateSubCol2 float32
+			}{SubCol1: false}},
+			{Col1: "different column", Col3: -901},
+		}, nil
+	}, Options{})
+
+	// mimic Mother's set up
+	tkns := []string{}
+	if err := pair.Action.ParseFlags(tkns); err != nil {
+		t.Fatal(err)
+	}
+
+	// mimic mother's order of operations, validating after each step
+	pair.Model.SetArgs(pair.Action.Flags(), tkns)
+	if la, ok := pair.Model.(*ListAction[st]); !ok {
+		t.Fatal("failed to assert model to listAction")
+	} else {
+		const pfx string = "Post-SetArgs: "
+		// validate fields
+		if !la.fs.Parsed() {
+			t.Error(pfx + "flagset should be parsed")
+		}
+
+		expectedColumns, err := weave.StructFields(st{}, exportedColumnsOnly)
+		if err != nil {
+			t.Error("failed to determine all columns")
+		}
+
+		// check for all columns, as no defaults where specified
+		if !testsupport.SlicesUnorderedEqual(la.columns, expectedColumns) {
+			t.Error(pfx+"column set do not match expected columns.", testsupport.ExpectedActual(expectedColumns, la.columns))
+		}
+
+		// no -o, confirm no outfile
+		if la.outFile != nil {
+			t.Error("unexpected outfile.", testsupport.ExpectedActual(nil, la.outFile))
+		}
+
+		if la.done {
+			t.Errorf("list action is done prior to update")
+		}
+	}
+	pair.Model.Update(nil) // list action does not care about messages
+	if la, ok := pair.Model.(*ListAction[st]); !ok {
+		t.Fatal("failed to assert model to listAction")
+	} else {
+		const pfx string = "Post-Update: "
+		if !la.done {
+			t.Errorf("list action is not done after update")
+		}
+	}
+	view := pair.Model.View()
+	if view != "" {
+		t.Errorf("view returned data: %v", view)
+	}
+	// at this point we should be done
+	if !pair.Model.Done() {
+		t.Error("model should be done after a single cycle")
+	}
+	err := pair.Model.Reset()
+	if err != nil {
+		t.Errorf("failed to reset model")
+	}
+	// TODO validate that all fields are empty again
 }
