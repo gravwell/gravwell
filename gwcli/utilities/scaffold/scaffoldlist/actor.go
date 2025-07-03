@@ -35,13 +35,11 @@ type ListAction[dataStruct any] struct {
 
 	// data shielded from .Reset()
 	DefaultFormat  outputFormat
-	DefaultColumns []string // columns to output if unspecified
-	//afsFunc        AddtlFlagFunction // the additional flagset to add to the starter when restoring
-	color bool           // inferred from the global "--no-color" flag
-	cmd   *cobra.Command // the command associated to this list action
+	DefaultColumns []string       // columns to output if unspecified
+	color          bool           // inferred from the global "--no-color" flag
+	cmd            *cobra.Command // the command associated to this list action
 
 	// individualized for each use of scaffoldlist
-	//dataStruct       dataStruct
 	availDSColumns   []string                     // dot-qual columns on the data struct
 	dataFunc         ListDataFunction[dataStruct] // function for fetching data for table/json/csv
 	prettyFunc       PrettyPrinterFunc
@@ -164,10 +162,9 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 		return "", nil, err
 	} else if !la.showColumns {
 		// fetch columns if it exists
-		if cols, err := la.fs.GetStringSlice("columns"); err != nil {
-			return "", nil, err
-		} else if len(cols) > 0 {
-			la.columns = cols
+		la.columns, err = getColumns(la.fs, la.DefaultColumns, la.availDSColumns)
+		if err != nil {
+			return err.Error(), nil, nil
 		}
 	}
 	if all, err := la.fs.GetBool("all"); err != nil {
