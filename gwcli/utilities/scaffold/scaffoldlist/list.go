@@ -303,25 +303,25 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 	var format = tbl   // default to tbl
 	if prettyDefined { // if defined, default to pretty and check for explicit flag
 		format = pretty
-		if format_pretty, err := fs.GetBool("pretty"); err != nil {
+		if fm, err := fs.GetBool("pretty"); err != nil {
 			clilog.Writer.Criticalf("failed to fetch --pretty despite believing prettyFunc to be defined: %v", err)
-		} else if format_pretty {
+		} else if fm {
 			// manually declared, use it
 			return pretty
 		}
 	}
 	// check for CSV
-	if format_csv, err := fs.GetBool(ft.Name.CSV); err != nil {
+	if fm, err := fs.GetBool(ft.Name.CSV); err != nil {
 		uniques.ErrGetFlag("list", err)
 		// non-fatal
-	} else if format_csv {
+	} else if fm {
 		return csv
 	}
 
 	// check for JSON
-	if format_json, err := fs.GetBool(ft.Name.JSON); err != nil {
+	if fm, err := fs.GetBool(ft.Name.JSON); err != nil {
 		uniques.ErrGetFlag("list", err)
-	} else if format_json {
+	} else if fm {
 		format = json
 	}
 
