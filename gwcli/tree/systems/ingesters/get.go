@@ -1,7 +1,6 @@
 package ingesters
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -111,61 +111,57 @@ func get() action.Pair {
 
 // wrapper around types.IngesterStats for clearer columns names
 type wrappedIngesterStats struct {
-	Indexer       string
-	RemoteAddress string
-	Count         uint64
-	Size          uint64
-	Uptime        string
-	Tags          []string
-	Name          string
-	Version       string
-	UUID          string
-	StateUUID     string
-	StateName     string
-	StateVersion  string
-	Label         string
-	IP            net.IP
-	Hostname      string
-	Entries       uint64
-	StateSize     uint64
-	StateUptime   string // time.Duration
-	StateTags     []string
-	CacheState    string
-	CacheSize     uint64
-	LastSeen      time.Time
-	Children      []string
-	Configuration json.RawMessage `json:",omitempty"`
-	Metadata      json.RawMessage `json:",omitempty"`
+	Indexer           string
+	RemoteAddress     string
+	Size              uint64
+	Uptime            string // time.Duration
+	Tags              []string
+	Name              string
+	Version           string
+	UUID              string
+	Label             string
+	IP                net.IP
+	Hostname          string
+	Entries           uint64 // appears to be equal to types.IngesterStats.Count
+	StateSize         uint64
+	CacheState        string
+	CacheSize         uint64
+	LastSeen          time.Time
+	Children          []string
+	ConfigurationJSON string
+	MetadataJSON      string
 }
 
 // Returns a new wrappedIngesterStats instance.
 func newWrapped(indexer string, stats types.IngesterStats) wrappedIngesterStats {
+	cfg, err := stats.State.Configuration.MarshalJSON()
+	if err != nil {
+		clilog.Writer.Warnf("failed to marshal configuration while wrapping: %v", err)
+	}
+	mtdta, err := stats.State.Metadata.MarshalJSON()
+	if err != nil {
+		clilog.Writer.Warnf("failed to marshal metadata while wrapping: %v", err)
+	}
 	w := wrappedIngesterStats{
-		Indexer:       indexer,
-		RemoteAddress: stats.RemoteAddress,
-		Count:         stats.Count,
-		Size:          stats.Size,
-		Uptime:        stats.Uptime.String(),
-		Tags:          stats.Tags,
-		Name:          stats.Name,
-		Version:       stats.Version,
-		UUID:          stats.UUID,
-		StateUUID:     stats.State.UUID,
-		StateName:     stats.State.Name,
-		StateVersion:  stats.State.Version,
-		Label:         stats.State.Label,
-		IP:            stats.State.IP,
-		Hostname:      stats.State.Hostname,
-		Entries:       stats.State.Entries,
-		StateSize:     stats.State.Size,
-		StateUptime:   stats.State.Uptime.String(),
-		StateTags:     stats.State.Tags,
-		CacheState:    stats.State.CacheState,
-		CacheSize:     stats.State.CacheSize,
-		LastSeen:      stats.State.LastSeen,
-		Children:      slices.Collect(maps.Keys(stats.State.Children)),
-		Configuration: stats.State.Configuration,
-		Metadata:      stats.State.Metadata,
+		Indexer:           indexer,
+		RemoteAddress:     stats.RemoteAddress,
+		Size:              stats.Size,
+		Uptime:            stats.Uptime.String(),
+		Tags:              stats.Tags,
+		Name:              stats.Name,
+		Version:           stats.Version,
+		UUID:              stats.UUID,
+		Label:             stats.State.Label,
+		IP:                stats.State.IP,
+		Hostname:          stats.State.Hostname,
+		Entries:           stats.State.Entries,
+		StateSize:         stats.State.Size,
+		CacheState:        stats.State.CacheState,
+		CacheSize:         stats.State.CacheSize,
+		LastSeen:          stats.State.LastSeen,
+		Children:          slices.Collect(maps.Keys(stats.State.Children)),
+		ConfigurationJSON: string(cfg),
+		MetadataJSON:      string(mtdta),
 	}
 	return w
 }
