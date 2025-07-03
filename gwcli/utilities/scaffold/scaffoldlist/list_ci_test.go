@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -230,7 +231,7 @@ func TestNewListAction(t *testing.T) {
 		},
 		{"all overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--all"}, // --script and --csv are attached in the test
+			[]string{"--" + ft.Name.AllColumns + ""}, // --script and --csv are attached in the test
 			[]string{"Col1", "Col2", "Col3", "Col4.SubCol1"},
 		},
 		{"explicit columns overrides default columns",
@@ -389,7 +390,7 @@ func TestNewListAction(t *testing.T) {
 		},
 		{"all overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--all"}, // --script and --json are attached in the test
+			[]string{"--" + ft.Name.AllColumns + ""}, // --script and --json are attached in the test
 			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
 		},
 		{"explicit columns overrides default columns",
@@ -501,49 +502,89 @@ func TestModel(t *testing.T) {
 		columns []string
 		all     bool
 	}
-	tests := []struct {
+	type test struct {
 		name    string
 		options Options
-		//args       []string // cli arguments
-		flags flags
-	}{
-		{"default to all columns", Options{}, flags{}},
-		{"respect given columns",
-			Options{},
-			flags{columns: []string{"Col1", "Col2"}},
+		flags   flags
+		// freeform arguments appended to the argument list
+		// No additional processing is performed on them (e.g. you will need to prefix flags with '-' or '--')
+		freeformArgs    []string
+		wantInvalidArgs bool
+	}
+	tests := []test{
+		{name: "default to all columns",
+			options:         Options{},
+			flags:           flags{},
+			wantInvalidArgs: false},
+		{name: "respect given columns",
+			options:         Options{},
+			flags:           flags{columns: []string{"Col1", "Col2"}},
+			wantInvalidArgs: false,
 		},
-		{"respect all columns over defaults",
-			Options{DefaultColumns: []string{"Col1"}},
-			flags{all: true},
+		{name: "respect all columns over defaults",
+			options:         Options{DefaultColumns: []string{"Col1"}},
+			flags:           flags{all: true},
+			wantInvalidArgs: false,
 		},
-		{"additional flags",
-			Options{AddtlFlags: func() pflag.FlagSet {
+		{name: "additional flags",
+			options: Options{AddtlFlags: func() pflag.FlagSet {
 				fs := pflag.FlagSet{}
 				fs.Bool("test", false, "")
 				return fs
 			}},
-			flags{},
+			flags:           flags{},
+			wantInvalidArgs: false,
 		},
-		/*{"default to all columns",
-			Options{},
-			[]string{},
-			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
-		},
-		{"respect defaults option",
-			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{}, // --script and --json are attached in the test
-			`[{"Col1":"1","Col4":{"SubCol1":"true"}}]`,
-		},
-		{"all overrides default columns",
-			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--all"}, // --script and --json are attached in the test
-			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
-		},
-		{"explicit columns overrides default columns",
-			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--columns", "Col3"}, // --script and --json are attached in the test
-			`[{"Col3":-1}]`,
-		},*/
+		{name: "invalid flags, no extra validation",
+			options: Options{AddtlFlags: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				fs.Int("invalid", 0, "")
+				return fs
+			},
+			},
+			flags:           flags{},
+			freeformArgs:    []string{"--invalid=inv"},
+			wantInvalidArgs: true},
+		{name: "invalid flags, w/ extra validation",
+			options: Options{AddtlFlags: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				fs.Int("invalid", 0, "can only be set to 5")
+				return fs
+			},
+				ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+					inv, err := fs.GetInt("invalid")
+					if err != nil {
+						return "", err
+					}
+					if inv != 5 {
+						return "if --invalid is set, it must be set to 5", nil
+					}
+					return "", nil
+				},
+			},
+			flags:           flags{},
+			freeformArgs:    []string{"--invalid=2"},
+			wantInvalidArgs: true},
+		{name: "valid flags, w/ extra validation",
+			options: Options{AddtlFlags: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				fs.Int("invalid", 0, "can only be set to 5")
+				return fs
+			},
+				ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+					inv, err := fs.GetInt("invalid")
+					if err != nil {
+						return "", err
+					}
+					if inv != 5 {
+						return "if --invalid is set, it must be set to 5", nil
+					}
+					return "", nil
+				},
+			},
+			flags:           flags{},
+			freeformArgs:    []string{"--invalid=5"},
+			wantInvalidArgs: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -555,26 +596,33 @@ func TestModel(t *testing.T) {
 					}{SubCol1: false}},
 					{Col1: "different column", Col3: -901},
 				}, nil
-			}, Options{})
+			}, tt.options)
 
 			// generate arguments list
 			args := []string{}
 			if tt.flags.columns != nil {
-				args = append(args, "--columns="+strings.Join(tt.flags.columns, ","))
+				args = append(args, "--"+ft.Name.SelectColumns+"="+strings.Join(tt.flags.columns, ","))
 			}
 			if tt.flags.all {
-				args = append(args, "--all")
+				args = append(args, "--"+ft.Name.AllColumns+"")
 			}
+			args = append(args, tt.freeformArgs...)
 
 			t.Logf("passing argument list: %v", args)
 
-			// mimic Mother's set up
-			if err := pair.Action.ParseFlags(args); err != nil {
+			// mimic mother's order of operations, validating after each step
+			invalid, setArgsCmd, err := pair.Model.SetArgs(pair.Action.Flags(), args)
+			t.Log(setArgsCmd)
+			if tt.wantInvalidArgs && invalid != "" {
+				return
+			} else if tt.wantInvalidArgs && invalid == "" {
+				t.Fatal("expected arguments to be invalid")
+			} else if !tt.wantInvalidArgs && invalid != "" {
+				t.Fatal("arguments were invalid: ", invalid)
+			}
+			if err != nil {
 				t.Fatal(err)
 			}
-
-			// mimic mother's order of operations, validating after each step
-			pair.Model.SetArgs(pair.Action.Flags(), args)
 			if la, ok := pair.Model.(*ListAction[st]); !ok {
 				t.Fatal("failed to assert model to listAction")
 			} else {
@@ -652,7 +700,7 @@ func TestModel(t *testing.T) {
 			if !pair.Model.Done() {
 				t.Error("model should be done after a single cycle")
 			}
-			err := pair.Model.Reset()
+			err = pair.Model.Reset()
 			if err != nil {
 				t.Errorf("failed to reset model")
 			}
