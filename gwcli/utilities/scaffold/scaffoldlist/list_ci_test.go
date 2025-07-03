@@ -279,6 +279,37 @@ func TestNewListAction(t *testing.T) {
 		})
 	}
 
+	t.Run("unknown default column", func(t *testing.T) {
+		var recovered bool
+		defer func() {
+			if !recovered {
+				t.Errorf("test did not recover from panic")
+			}
+		}()
+		defer func() { // recover from the expected panic and note that we recovered
+			recover()
+			recovered = true
+		}()
+		NewListAction(short, long, st{},
+			func(fs *pflag.FlagSet) ([]st, error) { return nil, nil },
+			Options{DefaultColumns: []string{"Xol1"}})
+	})
+	t.Run("unknown default column -- lowercase", func(t *testing.T) {
+		var recovered bool
+		defer func() {
+			if !recovered {
+				t.Errorf("test did not recover from panic")
+			}
+		}()
+		defer func() { // recover from the expected panic and note that we recovered
+			recover()
+			recovered = true
+		}()
+		NewListAction(short, long, st{},
+			func(fs *pflag.FlagSet) ([]st, error) { return nil, nil },
+			Options{DefaultColumns: []string{"col1"}})
+	})
+
 	t.Run("show columns", func(t *testing.T) {
 		// generate the pair
 		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
@@ -307,6 +338,35 @@ func TestNewListAction(t *testing.T) {
 		if !testsupport.SlicesUnorderedEqual(exploded, wanted) {
 			t.Fatalf("columns mismatch (not accounting for order): %v",
 				testsupport.ExpectedActual(wanted, exploded))
+		}
+	})
+
+	t.Run("bad column given", func(t *testing.T) {
+		// generate the pair
+		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
+			return []st{
+				{"1", 1, -1, struct {
+					SubCol1        bool
+					privateSubCol2 float32
+				}{true, 3.14}},
+			}, nil
+		}, Options{Use: "validU53"})
+		pair.Action.SetArgs([]string{"--script", "--csv", "--columns=Xol1"})
+		// capture output
+		var sb strings.Builder
+		var sbErr strings.Builder
+		pair.Action.SetOut(&sb)
+		pair.Action.SetErr(&sbErr)
+		// bolt on persistent flags that Mother would usually take care of
+		pair.Action.Flags().Bool("script", false, "")
+		if err := pair.Action.Execute(); err != nil {
+			t.Fatal(err)
+		} else if sb.String() != "" { // TODO confirm err
+			t.Error("expected stdout to be empty due to error")
+		}
+		errS := strings.TrimSpace(sbErr.String())
+		if !strings.Contains(errS, "Xol1") {
+			t.Fatal("error does not contain expected string. Error: ")
 		}
 	})
 
