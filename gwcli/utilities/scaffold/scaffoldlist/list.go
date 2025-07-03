@@ -394,7 +394,7 @@ func validateColumns(cols []string, availDSColumns []string) error {
 	// confirm that each column is an existing column
 	for _, col := range cols {
 		if _, found := m[col]; !found {
-			return fmt.Errorf("columns %v does not exist", col)
+			return fmt.Errorf("'%v' is not a known column", col)
 		}
 	}
 
