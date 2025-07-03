@@ -20,6 +20,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -40,10 +41,11 @@ type ListAction[dataStruct any] struct {
 	cmd            *cobra.Command // the command associated to this list action
 
 	// individualized for each use of scaffoldlist
-	availDSColumns   []string                     // dot-qual columns on the data struct
-	dataFunc         ListDataFunction[dataStruct] // function for fetching data for table/json/csv
-	prettyFunc       PrettyPrinterFunc
-	addtlFlagSetFunc AddtlFlagFunction // function to regenerate the additional flags, as all FlagSet copies are shallow
+	availDSColumns          []string                     // dot-qual columns on the data struct
+	dataFunc                ListDataFunction[dataStruct] // function for fetching data for table/json/csv
+	prettyFunc              PrettyPrinterFunc
+	addtlFlagSetFunc        AddtlFlagFunction // function to regenerate the additional flags, as all FlagSet copies are shallow
+	addtlFlagValidationFunc func(*pflag.FlagSet) (invalid string, err error)
 }
 
 // Constructs a ListAction suitable for interactive use.
@@ -59,11 +61,12 @@ func newListAction[dataStruct_t any](c *cobra.Command, DSColumns []string, dFn L
 		color:          true,
 		cmd:            c,
 
-		//dataStruct:       dataStruct,
-		availDSColumns:   DSColumns,
-		dataFunc:         dFn,
-		prettyFunc:       options.Pretty,
-		addtlFlagSetFunc: options.AddtlFlags}
+		availDSColumns:          DSColumns,
+		dataFunc:                dFn,
+		prettyFunc:              options.Pretty,
+		addtlFlagSetFunc:        options.AddtlFlags,
+		addtlFlagValidationFunc: options.ValidateArgs,
+	}
 
 	return la
 }
@@ -153,6 +156,15 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 		return err.Error(), nil, nil
 	}
 
+	// run custom validation
+	if la.addtlFlagValidationFunc != nil {
+		if invalid, err := la.addtlFlagValidationFunc(la.fs); err != nil {
+			return "", nil, err
+		} else if invalid != "" {
+			return invalid, nil, nil
+		}
+	}
+
 	// default to... well... the default columns
 	la.columns = la.DefaultColumns
 
@@ -167,7 +179,7 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 			return err.Error(), nil, nil
 		}
 	}
-	if all, err := la.fs.GetBool("all"); err != nil {
+	if all, err := la.fs.GetBool(ft.Name.AllColumns); err != nil {
 		return "", nil, err
 	} else if all {
 		la.columns = la.availDSColumns

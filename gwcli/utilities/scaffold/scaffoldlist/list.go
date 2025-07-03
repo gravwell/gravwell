@@ -167,6 +167,17 @@ func generateRun[dataStruct_t any](
 	options Options,
 	availDataStructColumns []string) func(c *cobra.Command, _ []string) {
 	return func(c *cobra.Command, _ []string) {
+		// run custom validation
+		if options.ValidateArgs != nil {
+			if invalid, err := options.ValidateArgs(c.Flags()); err != nil {
+				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
+				return
+			} else if invalid != "" {
+				fmt.Fprintln(c.OutOrStdout(), invalid)
+				return
+			}
+		}
+
 		// check for --show-columns
 		if sc, err := c.Flags().GetBool("show-columns"); err != nil {
 			fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag("list", err))

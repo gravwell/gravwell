@@ -112,14 +112,11 @@ func buildFlagSet(afs AddtlFlagFunction, prettyDefined bool) *pflag.FlagSet {
 	fs.Bool(ft.Name.CSV, false, ft.Usage.CSV)
 	fs.Bool(ft.Name.JSON, false, ft.Usage.JSON)
 	fs.Bool(ft.Name.Table, true, ft.Usage.Table) // default
-	fs.StringSlice("columns", []string{},
-		"comma-separated list of columns to include in the results."+
-			"Use --show-columns to see the full list of columns.")
+	fs.StringSlice(ft.Name.SelectColumns, []string{}, ft.Usage.SelectColumns)
 	fs.Bool("show-columns", false, "display the list of fully qualified column names and die.")
 	fs.StringP(ft.Name.Output, "o", "", ft.Usage.Output)
 	fs.Bool(ft.Name.Append, false, ft.Usage.Append)
-	fs.Bool("all", false, "displays data from all columns, ignoring the default column set.\n"+
-		"Overrides --columns.")
+	fs.Bool(ft.Name.AllColumns, false, ft.Usage.AllColumns)
 	// if prettyFunc was defined, bolt on pretty
 	if prettyDefined {
 		fs.Bool("pretty", false, "display results as prettified text.\n"+
@@ -160,12 +157,12 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 
 // getColumns checks for --columns then validates and returns them if found and returns the default columns otherwise.
 func getColumns(fs *pflag.FlagSet, defaultColumns []string, availDSColumns []string) ([]string, error) {
-	if all, err := fs.GetBool("all"); err != nil {
+	if all, err := fs.GetBool(ft.Name.AllColumns); err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if all {
 		return availDSColumns, nil
 	}
-	cols, err := fs.GetStringSlice("columns")
+	cols, err := fs.GetStringSlice(ft.Name.SelectColumns)
 	if err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if len(cols) < 1 {

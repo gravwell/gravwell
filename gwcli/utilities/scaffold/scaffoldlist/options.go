@@ -8,7 +8,10 @@
 
 package scaffoldlist
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
+)
 
 // The Options struct allows developers to tweak parameters of an action's specific implementation.
 type Options struct {
@@ -27,5 +30,11 @@ type Options struct {
 	DefaultColumns []string
 	// A free-form function allowing implementations to directly alter properties on the command scaffold list creates.
 	// Applied after all other options, so changes made here may override prior options (such as Use and Aliases).
+	//
+	// ! Do not rely on cobra.Args, as they will not be respected in interactive mode.
+	// Use the ValidateArgs option instead.
 	CmdMods func(*cobra.Command)
+	// Free-form function called in SetArgs or at the start of run to validate the given flags.
+	// You can assume that the flags have already been parsed, but that no additional actions have been taken on them.
+	ValidateArgs func(*pflag.FlagSet) (invalid string, err error)
 }
