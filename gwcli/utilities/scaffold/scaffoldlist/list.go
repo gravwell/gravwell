@@ -363,16 +363,7 @@ func listOutput[retStruct any](
 	case json:
 		toRet, err = weave.ToJSON(data, columns)
 	case tbl:
-		// TODO check if this is still necessary
-		//if color {
 		toRet = weave.ToTable(data, columns, stylesheet.Table)
-		/*} else {
-			toRet = weave.ToTable(data, columns, func() *table.Table {
-				tbl := table.New()
-				tbl.Border(lipgloss.ASCIIBorder())
-				return tbl
-			}) // omit table styling
-		}*/
 	default:
 		toRet = ""
 		err = fmt.Errorf("unknown output format (%d)", format)
