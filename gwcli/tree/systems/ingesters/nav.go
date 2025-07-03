@@ -26,5 +26,6 @@ func NewIngestersNav() *cobra.Command {
 		[]*cobra.Command{},
 		[]action.Pair{
 			list(),
+			get(),
 		})
 }
