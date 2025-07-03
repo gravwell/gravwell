@@ -21,7 +21,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -42,7 +41,8 @@ type ListAction[dataStruct any] struct {
 	cmd   *cobra.Command // the command associated to this list action
 
 	// individualized for each use of scaffoldlist
-	dataStruct       dataStruct
+	//dataStruct       dataStruct
+	availDSColumns   []string                     // dot-qual columns on the data struct
 	dataFunc         ListDataFunction[dataStruct] // function for fetching data for table/json/csv
 	prettyFunc       PrettyPrinterFunc
 	addtlFlagSetFunc AddtlFlagFunction // function to regenerate the additional flags, as all FlagSet copies are shallow
@@ -50,7 +50,7 @@ type ListAction[dataStruct any] struct {
 
 // Constructs a ListAction suitable for interactive use.
 // Options are execution in array-order.
-func newListAction[dataStruct_t any](c *cobra.Command, dataStruct dataStruct_t, dFn ListDataFunction[dataStruct_t], options Options) ListAction[dataStruct_t] {
+func newListAction[dataStruct_t any](c *cobra.Command, DSColumns []string, dFn ListDataFunction[dataStruct_t], options Options) ListAction[dataStruct_t] {
 	la := ListAction[dataStruct_t]{
 		done:    false,
 		columns: options.DefaultColumns,
@@ -61,7 +61,8 @@ func newListAction[dataStruct_t any](c *cobra.Command, dataStruct dataStruct_t, 
 		color:          true,
 		cmd:            c,
 
-		dataStruct:       dataStruct,
+		//dataStruct:       dataStruct,
+		availDSColumns:   DSColumns,
 		dataFunc:         dFn,
 		prettyFunc:       options.Pretty,
 		addtlFlagSetFunc: options.AddtlFlags}
@@ -81,12 +82,7 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 
 	// check for --show-columns
 	if la.showColumns {
-		cols, err := weave.StructFields(la.dataStruct, true)
-		if err != nil {
-			tea.Println("An error has occurred: ", err)
-			return textinput.Blink
-		}
-		return tea.Println(strings.Join(cols, " "))
+		return tea.Println(strings.Join(la.availDSColumns, " "))
 	}
 
 	// fetch the list data
@@ -177,11 +173,7 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 	if all, err := la.fs.GetBool("all"); err != nil {
 		return "", nil, err
 	} else if all {
-		cols, err := weave.StructFields(la.dataStruct, true)
-		if err != nil { // something has gone horribly wrong
-			return "", nil, fmt.Errorf("failed to divine fields from storage wrapper: %v", err)
-		}
-		la.columns = cols
+		la.columns = la.availDSColumns
 	}
 
 	if f, err := initOutFile(la.fs); err != nil {
