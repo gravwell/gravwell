@@ -95,7 +95,7 @@ func NewSheet(pip func() string, promptSymbol func() string, promptText func(str
 			OddCells    lipgloss.Style
 			BorderType  lipgloss.Border
 			BorderStyle lipgloss.Style
-		}{},
+		}{BorderType: lipgloss.ASCIIBorder()},
 		PromptSty: struct {
 			Symbol func() string
 			Text   func(string) string
