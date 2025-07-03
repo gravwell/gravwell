@@ -11,6 +11,7 @@ package scaffoldlist
 // Tests that do not require a backend and thus can be run from a pipeline
 
 import (
+	ecsv "encoding/csv"
 	"os"
 	"path"
 	"strings"
@@ -18,8 +19,20 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
+
+// the struct we will be testing against as the List's type
+type st struct {
+	Col1 string
+	Col2 uint
+	Col3 int
+	Col4 struct {
+		SubCol1        bool
+		privateSubCol2 float32
+	}
+}
 
 func Test_initOutFile(t *testing.T) {
 	tDir := t.TempDir()
@@ -150,41 +163,82 @@ func TestNewListAction(t *testing.T) {
 		}()
 		NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) { return nil, nil }, Options{Use: use})
 	})
+	t.Run("specific columns to outfile", func(t *testing.T) {
+		// generate the pair
+		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
+			return []st{
+				{"1", 1, -1, struct {
+					SubCol1        bool
+					privateSubCol2 float32
+				}{true, 3.14}},
+			}, nil
+		}, Options{Use: "validUse"})
+		filepath := path.Join(tDir, "specific_columns.csv")
+		pair.Action.SetArgs([]string{"--script", "--csv", "--columns", "Col1,Col3", "-o", filepath})
+		// capture output
+		var sb strings.Builder
+		var sbErr strings.Builder
+		pair.Action.SetOut(&sb)
+		pair.Action.SetErr(&sbErr)
+		// bolt on persistent flags that Mother would usually take care of
+		pair.Action.Flags().Bool("script", false, "")
+		if err := pair.Action.Execute(); err != nil {
+			t.Fatal(err)
+		} else if sbErr.String() != "" {
+			t.Fatal(sbErr.String())
+		}
+		// check the data in the output file
+		f, err := os.Open(filepath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		csvRdr := ecsv.NewReader(f)
+		records, err := csvRdr.ReadAll()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(records) != 2 {
+			t.Fatal("incorrect record size.", testsupport.ExpectedActual(2, len(records)))
+		}
+		hdr := records[0]
+		wantedHdr := []string{"Col1", "Col3"}
+		if !testsupport.SlicesUnorderedEqual(hdr, wantedHdr) {
+			t.Fatalf("hdr mismatch (not accounting for order): %v",
+				testsupport.ExpectedActual(wantedHdr, hdr))
+		}
+		data := records[1]
+		wantedData := []string{"1", "-1"}
+		if !testsupport.SlicesUnorderedEqual(data, wantedData) {
+			t.Fatalf("data mismatch (not accounting for order): %v",
+				testsupport.ExpectedActual(wantedData, data))
+		}
+	})
 
-	// column tests
-	tests := []struct {
+	// column csvTests
+	csvTests := []struct {
 		name          string
 		options       Options
 		args          []string
 		wantedColumns []string
 	}{
-		{"default to all columns", Options{}, []string{"--script", "--csv"}, []string{"Col1", "Col2", "Col3", "Col4.SubCol1"}},
+		{"default to all columns", Options{}, []string{}, []string{"Col1", "Col2", "Col3", "Col4.SubCol1"}},
 		{"respect defaults option",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--script", "--csv"},
+			[]string{}, // --script and --csv are attached in the test
 			[]string{"Col1", "Col4.SubCol1"},
 		},
 		{"all overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--script", "--csv", "--all"},
+			[]string{"--all"}, // --script and --csv are attached in the test
 			[]string{"Col1", "Col2", "Col3", "Col4.SubCol1"},
 		},
 		{"explicit columns overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--script", "--csv", "--columns", "Col3"},
+			[]string{"--columns", "Col3"}, // --script and --csv are attached in the test
 			[]string{"Col3"},
 		},
 	}
-	type st struct { // the struct we will be testing against
-		Col1 string
-		Col2 uint
-		Col3 int
-		Col4 struct {
-			SubCol1        bool
-			privateSubCol2 float32
-		}
-	}
-	for _, tt := range tests {
+	for _, tt := range csvTests {
 		t.Run(tt.name, func(t *testing.T) {
 			// generate the pair
 			pair := NewListAction("test short", "test long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
@@ -195,7 +249,7 @@ func TestNewListAction(t *testing.T) {
 					}{true, 3.14}},
 				}, nil
 			}, tt.options)
-			pair.Action.SetArgs(tt.args)
+			pair.Action.SetArgs(append(tt.args, "--script", "--csv"))
 			// capture output
 			var sb strings.Builder
 			var sbErr strings.Builder
@@ -227,14 +281,14 @@ func TestNewListAction(t *testing.T) {
 
 	t.Run("show columns", func(t *testing.T) {
 		// generate the pair
-		pair := NewListAction("test short", "test long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
+		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return []st{
 				{"1", 1, -1, struct {
 					SubCol1        bool
 					privateSubCol2 float32
 				}{true, 3.14}},
 			}, nil
-		}, Options{})
+		}, Options{Use: "validU53"})
 		pair.Action.SetArgs([]string{"--script", "--csv", "--show-columns"})
 		// capture output
 		var sb strings.Builder
@@ -253,6 +307,119 @@ func TestNewListAction(t *testing.T) {
 		if !testsupport.SlicesUnorderedEqual(exploded, wanted) {
 			t.Fatalf("columns mismatch (not accounting for order): %v",
 				testsupport.ExpectedActual(wanted, exploded))
+		}
+	})
+
+	jsonTests := []struct {
+		name       string
+		options    Options
+		args       []string
+		wantedJSON string
+	}{
+		{"default to all columns",
+			Options{},
+			[]string{},
+			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
+		},
+		{"respect defaults option",
+			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
+			[]string{}, // --script and --json are attached in the test
+			`[{"Col1":"1","Col4":{"SubCol1":"true"}}]`,
+		},
+		{"all overrides default columns",
+			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
+			[]string{"--all"}, // --script and --json are attached in the test
+			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
+		},
+		{"explicit columns overrides default columns",
+			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
+			[]string{"--columns", "Col3"}, // --script and --json are attached in the test
+			`[{"Col3":-1}]`,
+		},
+	}
+	for _, tt := range jsonTests {
+		t.Run(tt.name, func(t *testing.T) {
+			// generate the pair
+			pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
+				return []st{
+					{"1", 1, -1, struct {
+						SubCol1        bool
+						privateSubCol2 float32
+					}{true, 3.14}},
+				}, nil
+			}, tt.options)
+			pair.Action.SetArgs(append(tt.args, "--script", "--json"))
+			// capture output
+			var sb strings.Builder
+			var sbErr strings.Builder
+			pair.Action.SetOut(&sb)
+			pair.Action.SetErr(&sbErr)
+			// bolt on persistent flags that Mother would usually take care of
+			pair.Action.Flags().Bool("script", false, "")
+			if err := pair.Action.Execute(); err != nil {
+				t.Fatal(err)
+			} else if sbErr.String() != "" {
+				f, err := os.ReadFile(path.Join(tDir, "dev.log"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Logf("Dev Log:\n%s", f)
+				t.Fatal(sbErr.String())
+			}
+
+			// compare
+			actual := strings.TrimSpace(sb.String())
+			if actual != tt.wantedJSON {
+				t.Fatalf("bad JSON. %v", testsupport.ExpectedActual(tt.wantedJSON, actual))
+			}
+		})
+	}
+
+	t.Run("additional flags", func(t *testing.T) {
+		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
+			return []st{}, nil
+		}, Options{AddtlFlags: func() pflag.FlagSet {
+			fs := pflag.FlagSet{}
+			fs.IPP("ipp", "p", nil, "")
+			return fs
+		}},
+		)
+
+		pair.Action.ParseFlags([]string{"-p", "127.0.0.1"})
+
+		if returned, err := pair.Action.Flags().GetIP("ipp"); err != nil {
+			t.Fatal(err)
+		} else if returned.String() != "127.0.0.1" {
+			t.Fatal("bad IP.", testsupport.ExpectedActual("127.0.0.1", returned.String()))
+		}
+	})
+	t.Run("pretty", func(t *testing.T) {
+		prettyReturn := "pretty string"
+		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
+			return []st{}, nil
+		}, Options{Pretty: func(c *cobra.Command) (string, error) { return prettyReturn, nil }})
+		pair.Action.SetArgs([]string{"--script"})
+		// capture output
+		var sb strings.Builder
+		var sbErr strings.Builder
+		pair.Action.SetOut(&sb)
+		pair.Action.SetErr(&sbErr)
+		// bolt on persistent flags that Mother would usually take care of
+		pair.Action.Flags().Bool("script", false, "")
+		if err := pair.Action.Execute(); err != nil {
+			t.Fatal(err)
+		} else if sbErr.String() != "" {
+			f, err := os.ReadFile(path.Join(tDir, "dev.log"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Logf("Dev Log:\n%s", f)
+			t.Fatal(sbErr.String())
+		}
+		// check that the pretty outcome is what we expect
+		outcome := strings.TrimSpace(sb.String())
+		if prettyReturn != outcome {
+			t.Fatal("bad pretty text", testsupport.ExpectedActual(prettyReturn, outcome))
 		}
 	})
 
