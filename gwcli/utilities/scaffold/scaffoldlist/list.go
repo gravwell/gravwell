@@ -63,7 +63,10 @@ func (f outputFormat) String() string {
 
 //#endregion enumeration
 
-const outFilePerm os.FileMode = 0644
+const (
+	outFilePerm         os.FileMode = 0644
+	exportedColumnsOnly bool        = true // only allow users to query for exported fields as columns?
+)
 
 // ListDataFunction is a function that retrieves an array of structs of type dataStruct
 type ListDataFunction[dataStruct_t any] func(*pflag.FlagSet) ([]dataStruct_t, error)
@@ -122,16 +125,18 @@ func NewListAction[dataStruct_t any](short, long string,
 		use = options.Use
 	}
 
-	// if default columns was not set in options, generate it
-	if options.DefaultColumns == nil {
-		cols, err := weave.StructFields(dataStruct, true)
-		if err != nil { // something has gone horribly wrong
-			clilog.Writer.Criticalf("failed to divine fields from storage wrapper: %v", err)
-		}
-		options.DefaultColumns = cols
+	// cache the struct fields so we do not need to reflect through them again later.
+	availDSColumns, err := weave.StructFields(dataStruct, exportedColumnsOnly)
+	if err != nil {
+		panic(fmt.Sprintf("failed to cache available columns: %v", err))
 	}
 
-	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataStruct, dataFn, options))
+	// if default columns was not set in options, set it to all columns
+	if options.DefaultColumns == nil {
+		options.DefaultColumns = availDSColumns
+	}
+
+	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataStruct, dataFn, options, availDSColumns))
 
 	cmd.Flags().AddFlagSet(buildFlagSet(options.AddtlFlags, options.Pretty != nil))
 	cmd.Flags().SortFlags = false // does not seem to be respected
@@ -156,19 +161,18 @@ func NewListAction[dataStruct_t any](short, long string,
 }
 
 // generateRun builds and returns a function to be run when this action is invoked via Cobra.
-func generateRun[dataStruct_t any](dataStruct dataStruct_t, dataFn ListDataFunction[dataStruct_t], options Options) func(c *cobra.Command, _ []string) {
+func generateRun[dataStruct_t any](
+	dataStruct dataStruct_t,
+	dataFn ListDataFunction[dataStruct_t],
+	options Options,
+	availDataStructColumns []string) func(c *cobra.Command, _ []string) {
 	return func(c *cobra.Command, _ []string) {
 		// check for --show-columns
 		if sc, err := c.Flags().GetBool("show-columns"); err != nil {
 			fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag("list", err))
 			return
 		} else if sc {
-			cols, err := weave.StructFields(dataStruct, true)
-			if err != nil {
-				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), fmt.Sprintf("failed to grok struct fields from %#v", dataStruct))
-				return
-			}
-			fmt.Fprintln(c.OutOrStdout(), strings.Join(cols, " "))
+			fmt.Fprintln(c.OutOrStdout(), strings.Join(availDataStructColumns, " "))
 			return
 		}
 
@@ -207,11 +211,7 @@ func generateRun[dataStruct_t any](dataStruct dataStruct_t, dataFn ListDataFunct
 				fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag(c.Use, err))
 				return
 			} else if all {
-				cols, err := weave.StructFields(dataStruct, true)
-				if err != nil { // something has gone horribly wrong
-					clilog.Writer.Criticalf("failed to divine fields from storage wrapper: %v", err)
-				}
-				columns = cols
+				columns = availDataStructColumns
 			}
 		}
 
