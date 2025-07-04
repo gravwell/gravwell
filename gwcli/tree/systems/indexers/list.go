@@ -20,13 +20,16 @@ import (
 )
 
 type list_t struct {
-	Name    string //
-	UUID    string
-	Ping    string
-	Wells   []string
-	Storage types.StorageStats
+	Name             string // IP address or "webserver", typically
+	UUID             string
+	Ping             string
+	Wells            []string
+	Storage          types.StorageStats
+	Ingesters        []string // ingester names
+	MissingIngesters []string
 }
 
+// list samples a data about indexers from a range of API calls, coalescing the data into list_t.
 func list() action.Pair {
 	const (
 		short string = "review info about all indexers"
@@ -50,15 +53,6 @@ func list() action.Pair {
 					m[idxr].Ping = ping
 				}
 			}
-
-			// TODO move to inspect or system overview
-			/*if stats, err := connection.Client.GetSystemStats(); err != nil {
-				return nil, err
-			} else {
-				for idxr, stat := range stats {
-					addIndexer(m, idxr)
-				}
-			}*/
 
 			// indexStats returns name/IP -> stats
 			if stats, err := connection.Client.GetIndexStats(); err != nil {
@@ -103,10 +97,29 @@ func list() action.Pair {
 			}
 
 			// ingester stats are returned data by indexer
-			/*	ingStats, err := connection.Client.GetIngesterStats() // indexer -> ingestion stats
-				if err != nil {
-					return nil, err
-				}*/
+			if ingStats, err := connection.Client.GetIngesterStats(); err != nil {
+				return nil, err
+			} else {
+				for idxr, stat := range ingStats {
+					if addIndexer(m, idxr) {
+						continue
+					}
+					{
+						ingesterNames := make([]string, len(stat.Ingesters))
+						for i, ing := range stat.Ingesters {
+							ingesterNames[i] = ing.Name
+						}
+						m[idxr].Ingesters = ingesterNames
+					}
+					{
+						missingIngesterNames := make([]string, len(stat.Missing))
+						for i, ing := range stat.Missing {
+							missingIngesterNames[i] = ing.Name
+						}
+						m[idxr].MissingIngesters = missingIngesterNames
+					}
+				}
+			}
 
 			// dereference each item, now that it has been built
 			itr := maps.Values(m)
