@@ -15,32 +15,26 @@ import (
 	"github.com/spf13/pflag"
 )
 
-// wrapper for the the map returned by grav.GetIndexerStorageStats()
-type inspectData struct {
-	id string
-	types.PerWellStorageStats
-}
-
-func newInspectAction() action.Pair {
+func get() action.Pair {
 	const (
-		use   string = "inspect"
+		use   string = "get"
 		short string = "get details about a specific indexer"
 		long  string = "Review detailed information about a single, specified indexer"
 	)
 	var example = use + ft.Mandatory("xxx22024-999a-4728-94d7-d0c0703221ff")
 
-	return scaffoldlist.NewListAction(short, long, inspectData{},
-		func(fs *pflag.FlagSet) ([]inspectData, error) {
+	return scaffoldlist.NewListAction(short, long, deepIndexerInfo{},
+		func(fs *pflag.FlagSet) ([]deepIndexerInfo, error) {
 			ss, err := getInspectStats(fs)
 			if err != nil {
 				return nil, err
 			}
 
 			// coerce the map to an array to pass back
-			var c = make([]inspectData, len(ss))
+			var c = make([]deepIndexerInfo, len(ss))
 			var i uint16
 			for id, stats := range ss {
-				c[i] = inspectData{id, stats}
+				c[i] = deepIndexerInfo{id, stats}
 				i += 1
 			}
 			return c, nil
@@ -48,6 +42,12 @@ func newInspectAction() action.Pair {
 		scaffoldlist.Options{Use: use, Pretty: prettyInspect, CmdMods: func(c *cobra.Command) {
 			c.Example = example
 		}})
+}
+
+// wrapper for the the map returned by grav.GetIndexerStorageStats()
+type deepIndexerInfo struct {
+	id string
+	types.PerWellStorageStats
 }
 
 // helper function for list dataFn and prettyInspect.
