@@ -6,13 +6,14 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-/* Package indexers defines a parent nav and child actions for fetching indexer state. */
+// Package indexers contains actions for fetching information about the state of the indexers.
 package indexers
 
 import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -20,20 +21,22 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const (
-	use   string = "indexers"
-	short string = "view indexer status"
-	long  string = "Review the status, storage, and state of indexers associated to your instance."
-)
-
-var aliases []string = []string{"index", "idx", "indexer"}
-
 func NewIndexersNav() *cobra.Command {
+	const (
+		use   string = "indexers"
+		short string = "view indexer status"
+	)
+
+	var long = "Review the health, storage, configuration, and history of indexers. Use " + stylesheet.Cur.Action.Render("list")
+
+	var aliases = []string{"index", "idx", "indexer"}
+
 	return treeutils.GenerateNav(use, short, long, aliases,
 		[]*cobra.Command{},
 		[]action.Pair{
 			newStatsListAction(),
-			newInspectAction(),
+			get(),
+			list(),
 			newCalendarAction(),
 			newDescAction(),
 		})
