@@ -18,7 +18,7 @@ import (
 func NewIngestersNav() *cobra.Command {
 	const (
 		use   string = "ingesters"
-		short string = "review the state of ingesters"
+		short string = "view ingesters status"
 		long  string = "Review information for all ingesters or get detailed information about a specific ingester."
 	)
 
