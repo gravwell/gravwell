@@ -23,7 +23,7 @@ import (
 func get() action.Pair {
 	const (
 		use   string = "get"
-		short string = "review info about all ingesters"
+		short string = "get all info about a subset of ingesters"
 		long  string = "Get detailed information about one or several ingesters by prefix-matching on their attributes\n" +
 			"You must specify at least one of --hostname, --uuid, or --name."
 	)

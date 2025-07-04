@@ -11,7 +11,7 @@ import (
 func list() action.Pair {
 	const (
 		short string = "review info about all ingesters"
-		long  string = "Review info about all ingesters."
+		long  string = "Review general statistics about all ingesters."
 	)
 
 	type wrappedIngesterStats struct {
