@@ -2,6 +2,7 @@ package indexers
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/google/uuid"
@@ -9,19 +10,20 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
+// get fetches all available information about the named ingester.
+// Currently requires a UUID, but could be upgraded to prefix match, like ingesters.
 func get() action.Pair {
 	const (
 		use   string = "get"
 		short string = "get details about a specific indexer"
 		long  string = "Review detailed information about a single, specified indexer"
 	)
-	var example = use + ft.Mandatory("xxx22024-999a-4728-94d7-d0c0703221ff")
+	var example = fmt.Sprintf("%v xxx22024-999a-4728-94d7-d0c0703221ff", use)
 
 	return scaffoldlist.NewListAction(short, long, deepIndexerInfo{},
 		func(fs *pflag.FlagSet) ([]deepIndexerInfo, error) {
@@ -39,9 +41,19 @@ func get() action.Pair {
 			}
 			return c, nil
 		},
-		scaffoldlist.Options{Use: use, Pretty: prettyInspect, CmdMods: func(c *cobra.Command) {
-			c.Example = example
-		}})
+		scaffoldlist.Options{
+			Use:    use,
+			Pretty: prettyInspect,
+			CmdMods: func(c *cobra.Command) {
+				c.Example = example
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return "exactly 1 argument (UUID) is required", nil
+				}
+				return "", nil
+			},
+		})
 }
 
 // wrapper for the the map returned by grav.GetIndexerStorageStats()
