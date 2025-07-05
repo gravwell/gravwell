@@ -38,7 +38,6 @@ func NewIndexersNav() *cobra.Command {
 			get(),
 			list(),
 			newCalendarAction(),
-			newDescAction(),
 		})
 }
 

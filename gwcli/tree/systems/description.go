@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package indexers
+package systemshealth
 
 import (
 	"fmt"
@@ -23,13 +23,11 @@ import (
 	"github.com/spf13/pflag"
 )
 
-//#region description
-
 func newDescAction() action.Pair {
 	const (
 		use   string = "desc"
-		short string = "display the description of each indexer"
-		long  string = "Display the description of each indexer"
+		short string = "display system hardware"
+		long  string = "Display metadata about the Gravwell instance and its underlying systems."
 	)
 
 	return scaffold.NewBasicAction(use, short, long, []string{"description"},
@@ -97,5 +95,3 @@ func printIfSet(indent bool, field string, value any, suffix string) string {
 	}
 	return ""
 }
-
-//#endregion description
