@@ -43,10 +43,22 @@ func NewIndexersNav() *cobra.Command {
 
 //#region stats
 
-// wrapper for the SysStats map
-type namedStats struct {
-	Indexer string
-	Stats   types.HostSysStats
+// wrapper for the SysStats map.
+// Allows us to omit a prefix for the embedded type.
+type wrappedSysStats struct {
+	Indexer               string
+	Uptime                uint64
+	TotalMemory           uint64
+	ProcessHeapAllocation uint64 // bytes allocated by this process's heap
+	ProcessSysReserved    uint64 // total bytes obtained from the OS
+	MemoryUsedPercent     float64
+	HostHash              string
+	Net                   types.NetworkUsage
+	VirtSystem            string          // e.g. "kvm" or "xen"
+	VirtRole              string          // "host" or "guest"
+	BuildInfo             types.BuildInfo // e.g. 3.3.1
+	CanonicalVersion      string
+	Iowait                float64
 }
 
 func newStatsListAction() action.Pair {
@@ -58,25 +70,40 @@ func newStatsListAction() action.Pair {
 
 	return scaffoldlist.NewListAction(
 		short, long,
-		namedStats{}, listStats, scaffoldlist.Options{
-			Use:    use,
-			Pretty: nil, // TODO
+		wrappedSysStats{}, listStats, scaffoldlist.Options{
+			Use:            use,
+			Pretty:         nil, // TODO
+			DefaultColumns: []string{"Indexer", "Uptime", "TotalMemory", "VirtSystem", "VirtRole", "CanonicalVersion"},
 		})
 }
 
-func listStats(fs *pflag.FlagSet) ([]namedStats, error) {
-	var ns []namedStats
+func listStats(fs *pflag.FlagSet) ([]wrappedSysStats, error) {
+	var ns []wrappedSysStats
 
 	stats, err := connection.Client.GetSystemStats()
 	if err != nil {
-		return []namedStats{}, err
+		return []wrappedSysStats{}, err
 	}
-	ns = make([]namedStats, len(stats))
+	ns = make([]wrappedSysStats, len(stats))
 
-	// wrap the results in namedStats
+	// wrap the results
 	var i = 0
 	for k, v := range stats {
-		ns[i] = namedStats{Indexer: k, Stats: *v.Stats}
+		ns[i] = wrappedSysStats{
+			Indexer:               k,
+			Uptime:                v.Stats.Uptime,
+			TotalMemory:           v.Stats.TotalMemory,
+			ProcessHeapAllocation: v.Stats.ProcessHeapAllocation,
+			ProcessSysReserved:    v.Stats.ProcessSysReserved,
+			MemoryUsedPercent:     v.Stats.MemoryUsedPercent,
+			HostHash:              v.Stats.HostHash,
+			Net:                   v.Stats.Net,
+			VirtSystem:            v.Stats.VirtSystem,
+			VirtRole:              v.Stats.VirtRole,
+			BuildInfo:             v.Stats.BuildInfo,
+			CanonicalVersion:      v.Stats.BuildInfo.CanonicalVersion.String(),
+			Iowait:                v.Stats.Iowait,
+		}
 		i += 1
 	}
 
