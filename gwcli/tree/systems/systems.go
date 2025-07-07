@@ -38,7 +38,7 @@ func NewSystemsNav() *cobra.Command {
 		},
 		[]action.Pair{
 			newStorageAction(),
-			newDescAction(),
+			newHardwareAction(),
 		})
 }
 
