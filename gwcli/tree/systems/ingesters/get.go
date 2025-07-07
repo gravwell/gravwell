@@ -61,9 +61,9 @@ func get() action.Pair {
 			for idxr, idxrStats := range ss { // walk each indexer
 				for _, ingstrStats := range idxrStats.Ingesters { // walk each ingester
 					// if we get any prefix match, note this ingester
-					if strings.HasPrefix(ingstrStats.State.Hostname, hostPrefix) ||
-						strings.HasPrefix(ingstrStats.State.UUID, uuidPrefix) ||
-						strings.HasPrefix(ingstrStats.State.Name, namePrefix) {
+					if nonEmptyPrefixMatch(ingstrStats.State.Hostname, hostPrefix) ||
+						nonEmptyPrefixMatch(ingstrStats.State.UUID, uuidPrefix) ||
+						nonEmptyPrefixMatch(ingstrStats.State.Name, namePrefix) {
 						insertNoOverride(ingesters, newWrapped(idxr, ingstrStats))
 					}
 				}
@@ -173,4 +173,12 @@ func insertNoOverride(ingesters map[string]wrappedIngesterStats, ing wrappedInge
 		return
 	}
 	ingesters[ing.UUID] = ing
+}
+
+// Returns true iff s is not empty and begins with prefix.
+func nonEmptyPrefixMatch(s, prefix string) bool {
+	if s == "" || prefix == "" {
+		return false
+	}
+	return strings.HasPrefix(s, prefix)
 }
