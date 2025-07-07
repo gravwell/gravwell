@@ -21,7 +21,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/utils/weave"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -489,7 +488,7 @@ func TestNewListAction(t *testing.T) {
 		prettyReturn := "pretty string"
 		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return []st{}, nil
-		}, Options{Pretty: func(c *cobra.Command) (string, error) { return prettyReturn, nil }})
+		}, Options{Pretty: func(c *pflag.FlagSet) (string, error) { return prettyReturn, nil }})
 		pair.Action.SetArgs([]string{"--script"})
 		// capture output
 		var sb strings.Builder

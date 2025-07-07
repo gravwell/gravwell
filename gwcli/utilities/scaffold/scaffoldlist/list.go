@@ -74,7 +74,7 @@ type ListDataFunction[dataStruct_t any] func(*pflag.FlagSet) ([]dataStruct_t, er
 type AddtlFlagFunction func() pflag.FlagSet
 
 // A PrettyPrinterFunc defines a free-form function for outputting a pretty string for human consumption.
-type PrettyPrinterFunc func(*cobra.Command) (string, error)
+type PrettyPrinterFunc func(*pflag.FlagSet) (string, error)
 
 // NewListAction creates and returns a cobra.Command suitable for use as a list action,
 // complete with common flags and a generic run function operating off the given dataFunction.
@@ -218,7 +218,7 @@ func generateRun[dataStruct_t any](
 			format = determineFormat(c.Flags(), options.Pretty != nil)
 		}
 
-		s, err := listOutput(c, format, columns, dataFn, options.Pretty)
+		s, err := listOutput(c.Flags(), format, columns, dataFn, options.Pretty)
 		if err != nil {
 			clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
 			return

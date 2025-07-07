@@ -19,7 +19,6 @@ import (
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/gravwell/gravwell/v4/utils/weave"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -67,7 +66,7 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 // Driver function to fetch the list output.
 // Determines what (pre)processing is required to retrieve output for the given format and does so, returning the formatted string.
 func listOutput[retStruct any](
-	c *cobra.Command,
+	fs *pflag.FlagSet,
 	format outputFormat,
 	columns []string,
 	dataFn ListDataFunction[retStruct],
@@ -78,11 +77,11 @@ func listOutput[retStruct any](
 		if prettyFunc == nil {
 			return "", errors.New("format is pretty, but prettyFunc is nil")
 		}
-		return prettyFunc(c)
+		return prettyFunc(fs)
 	}
 
 	// massage the data for weave
-	data, err := dataFn(c.Flags())
+	data, err := dataFn(fs)
 	if err != nil {
 		return "", err
 	} else if len(data) < 1 {

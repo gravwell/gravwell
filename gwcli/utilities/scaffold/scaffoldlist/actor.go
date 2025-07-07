@@ -36,9 +36,8 @@ type ListAction[dataStruct any] struct {
 
 	// data shielded from .Reset()
 	DefaultFormat  outputFormat
-	DefaultColumns []string       // columns to output if unspecified
-	color          bool           // inferred from the global "--no-color" flag
-	cmd            *cobra.Command // the command associated to this list action
+	DefaultColumns []string // columns to output if unspecified
+	color          bool     // inferred from the global "--no-color" flag
 
 	// individualized for each use of scaffoldlist
 	availDSColumns          []string                     // dot-qual columns on the data struct
@@ -59,7 +58,6 @@ func newListAction[dataStruct_t any](c *cobra.Command, DSColumns []string, dFn L
 		DefaultFormat:  tbl,
 		DefaultColumns: options.DefaultColumns,
 		color:          true,
-		cmd:            c,
 
 		availDSColumns:          DSColumns,
 		dataFunc:                dFn,
@@ -88,7 +86,7 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 
 	// fetch the list data
 	s, err := listOutput(
-		la.cmd,
+		la.fs,
 		determineFormat(la.fs, la.prettyFunc != nil),
 		la.columns,
 		la.dataFunc,
