@@ -1,7 +1,6 @@
 package ingesters
 
 import (
-	"errors"
 	"fmt"
 	"maps"
 	"net"
@@ -19,34 +18,35 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const (
+	flagHostname string = "hostname"
+	flagUUID     string = "uuid"
+	flagName     string = "name"
+)
+
 // list generates an action for retrieving information about the ingesters.
 func get() action.Pair {
 	const (
 		use   string = "get"
 		short string = "get all info about a subset of ingesters"
 		long  string = "Get detailed information about one or several ingesters by prefix-matching on their attributes\n" +
-			"You must specify at least one of --hostname, --uuid, or --name."
+			"You must specify at least one of --" + flagHostname + ", --" + flagUUID + ", --" + flagName + " is required"
 	)
 
 	return scaffoldlist.NewListAction(short, long, wrappedIngesterStats{},
 		func(fs *pflag.FlagSet) ([]wrappedIngesterStats, error) {
 			// check that we were given ingesters to fetch
-			hostPrefix, err := fs.GetString("hostname")
+			hostPrefix, err := fs.GetString(flagHostname)
 			if err != nil {
 				return nil, uniques.ErrGetFlag(use, err)
 			}
-			uuidPrefix, err := fs.GetString("uuid")
+			uuidPrefix, err := fs.GetString(flagUUID)
 			if err != nil {
 				return nil, uniques.ErrGetFlag(use, err)
 			}
-			namePrefix, err := fs.GetString("name")
+			namePrefix, err := fs.GetString(flagName)
 			if err != nil {
 				return nil, uniques.ErrGetFlag(use, err)
-			}
-
-			// we cannot use c.MarkFlagsOneRequired("hostname", "uuid", "name") as it will not be factored into SetArgs
-			if hostPrefix == "" && uuidPrefix == "" && namePrefix == "" {
-				return nil, errors.New("at least one of --hostname, --uuid, --name is required")
 			}
 
 			ss, err := connection.Client.GetIngesterStats()
@@ -75,14 +75,13 @@ func get() action.Pair {
 			Use: use,
 			AddtlFlags: func() pflag.FlagSet {
 				fs := pflag.FlagSet{}
-				fs.String("hostname", "", "prefix-match ingesters on hostname")
-				fs.String("uuid", "", "prefix-match ingesters on uuid")
-				fs.String("name", "", "prefix-match ingesters on name")
+				fs.String(flagHostname, "", "prefix-match ingesters on hostname")
+				fs.String(flagUUID, "", "prefix-match ingesters on uuid")
+				fs.String(flagName, "", "prefix-match ingesters on name")
 				return fs
 			},
-			//DefaultColumns: ,
 			CmdMods: func(c *cobra.Command) {
-				c.Example = fmt.Sprintf("%v --hostname=176.1 --name=web", use)
+				c.Example = fmt.Sprintf("%v --%s=12345", flagHostname, use)
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// validate that at least one of the additional flags was given
@@ -102,7 +101,7 @@ func get() action.Pair {
 
 				// we cannot use c.MarkFlagsOneRequired("hostname", "uuid", "name") as it will not be factored into SetArgs
 				if hostPrefix == "" && uuidPrefix == "" && namePrefix == "" {
-					return "at least one of --hostname, --uuid, --name is required", nil
+					return fmt.Sprintf("at least one of --%s, --%s, --%s is required", flagHostname, flagUUID, flagName), nil
 				}
 				return "", nil
 			},
