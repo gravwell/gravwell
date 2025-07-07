@@ -20,9 +20,9 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -41,8 +41,11 @@ func newCalendarAction() action.Pair {
 			Use:        useCalendar,
 			Aliases:    aliases,
 			AddtlFlags: calendarFlags,
-			CmdMods: func(c *cobra.Command) {
-				c.Args = cobra.MaximumNArgs(1) // indexer uuid may be specified
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() > 1 {
+					return ft.InvAtMostArgN(1, uint(fs.NArg())), nil
+				}
+				return "", nil
 			},
 		})
 }
