@@ -69,6 +69,10 @@ func newHardwareAction() action.Pair {
 				var cpuSamples, memSamples uint
 
 				for idxr, stat := range metrics {
+					if idxr == "webserver" {
+						// the GUI skips the webserver, as do we
+						continue
+					}
 					// check for an error
 					if stat.Error != "" {
 						clilog.Writer.Warnf("failed to get statistics for indexer '%s': %v", idxr, stat.Error)
@@ -127,19 +131,17 @@ func newHardwareAction() action.Pair {
 func writeOverview(sb *strings.Builder, o ovrvw) {
 	{ // reformat the floats as strings and colorize them
 		// we need to pre-format the strings, otherwise Go will get confused counting the ASCII escapes.
-		cuField := fmt.Sprintf("%"+fieldWidth+"s", "Avg CPU Usage:")
 		cu := fmt.Sprintf("%6.2f", o.CPUAvgUsage)
-		muField := fmt.Sprintf("%"+fieldWidth+"s", "Avg Memory Usage:")
 		mu := fmt.Sprintf("%6.2f", o.MemAvgUsage)
-		sb.WriteString(stylesheet.Cur.FieldText.Render(cuField) + " " + cu + "%\n")
-		sb.WriteString(stylesheet.Cur.FieldText.Render(muField) + " " + mu + "%\n")
+		sb.WriteString(stylesheet.Cur.FieldText.Render(field("Avg CPU Usage")) + " " + cu + "%\n")
+		sb.WriteString(stylesheet.Cur.FieldText.Render(field("Avg Memory Usage")) + " " + mu + "%\n")
 	}
 	{ // now for disks
 		headerField := stylesheet.Cur.SecondaryText.Bold(true).Render(fmt.Sprintf("Disks[%d]", o.Disks.DiskCount))
-		totalField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Total Space:"))
-		usedField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Space Used:"))
-		avgReadField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Avg Reads/sec:"))
-		avgWriteField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Avg Writes/sec:"))
+		totalField := field("Total Space")
+		usedField := field("Space Used")
+		avgReadField := field("Avg Reads/sec")
+		avgWriteField := field("Avg Writes/sec")
 
 		// convert accumulations to GB
 		totalGB := fmt.Sprintf("%8.2f", ((float64(o.Disks.Total)/1024)/1024)/1024)
@@ -165,24 +167,31 @@ func writeOverview(sb *strings.Builder, o ovrvw) {
 }
 
 func writeIndexers(sb *strings.Builder, desc map[string]types.SysInfo, sys map[string]types.SysStats) {
+	H1sty := stylesheet.Cur.PrimaryText.Bold(true)
+	H2sty := stylesheet.Cur.SecondaryText.Bold(true)
+	H3sty := stylesheet.Cur.TertiaryText.Bold(true)
+
 	for idxr, stat := range sys {
-		sb.WriteString(stylesheet.Cur.PrimaryText.Bold(true).Render(idxr))
+		if idxr == "webserver" {
+			// the GUI skips the webserver, as do we
+			continue
+		}
+		sb.WriteString(H1sty.Render(idxr))
 
 		if stat.Error != "" {
 			clilog.Writer.Warnf("failed to stat indexer %v: %v", idxr, stat.Error)
 			sb.WriteString("\n" + stylesheet.Cur.ErrorText.Render(stat.Error) + "\n")
 		} else {
 			// attach version
-			sb.WriteString(" (" + stylesheet.Cur.SecondaryText.Render(stat.Stats.BuildInfo.CanonicalVersion.String()) + ")\n")
+			sb.WriteString(" (" + H2sty.Render(stat.Stats.BuildInfo.CanonicalVersion.String()) + ")\n")
 			// health section
-			sb.WriteString(stylesheet.Cur.SecondaryText.Bold(true).Render("Health") + "\n")
-			uptimeField := stylesheet.Cur.TertiaryText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Uptime:"))
+			sb.WriteString(H2sty.Render("Health") + "\n")
+			uptimeField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Uptime:"))
 			sb.WriteString(uptimeField + " " + (time.Duration(stat.Stats.Uptime) * time.Second).String() + "\n")
 			netField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"v", "Up/Down:"))
 			netUpKB := float64(stat.Stats.Net.Up) / 1024
 			netDownKB := float64(stat.Stats.Net.Down) / 1024
 			fmt.Fprintf(sb, "%s %.2fKB/%.2fKB\n", netField, netUpKB, netDownKB)
-			rwField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"v", "Read/Write:"))
 			var readMB, writeMB float64
 			for _, b := range stat.Stats.IO {
 				readMB += float64(b.Read)
@@ -190,25 +199,55 @@ func writeIndexers(sb *strings.Builder, desc map[string]types.SysInfo, sys map[s
 			}
 			readMB = readMB / 1024 / 1024
 			writeMB = writeMB / 1024 / 1024
-			fmt.Fprintf(sb, "%s %.2fKB/%.2fKB\n", rwField, readMB, writeMB)
+			fmt.Fprintf(sb, "%s %.2fKB/%.2fKB\n", field("Read.Write"), readMB, writeMB)
 			// disk section
-			sb.WriteString(stylesheet.Cur.SecondaryText.Bold(true).Render(fmt.Sprintf("Disks(%d)", len(stat.Stats.Disks)) + "\n"))
-			for i, d := range stat.Stats.Disks {
-				index := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%3d:", i))
-				fmt.Fprintf(sb, "%s %s\n"+"Partition %s mounted at %s\n"+
-					"%d used of %d total\n",
-					index, d.ID,
+			sb.WriteString(H2sty.Render(fmt.Sprintf("Disks(%d)", len(stat.Stats.Disks))) + "\n")
+			for _, d := range stat.Stats.Disks {
+				usedGB := ((float64(d.Used) / 1024) / 1024) / 1024
+				totalGB := ((float64(d.Total) / 1024) / 1024) / 1024
+
+				fmt.Fprintf(sb, "%s\n"+stylesheet.Indent+"'%s' mounted at %s\n"+
+					stylesheet.Indent+stylesheet.Indent+"%.2fGB used of %.2fGB total\n",
+					stylesheet.Cur.TertiaryText.Render(d.ID),
 					d.Partition, d.Mount,
-					d.Used, d.Total,
+					usedGB, totalGB,
 				)
 			}
 		}
-
-		// find the matching hw descriptions
-		// TODO
+		hw, ok := desc[idxr]
+		if !ok {
+			continue
+		} else if hw.Error != "" {
+			clilog.Writer.Warnf("failed to stat indexer hardware %v: %v", idxr, hw.Error)
+			sb.WriteString(stylesheet.Cur.ErrorText.Render(hw.Error) + "\n")
+		} else {
+			// specs section
+			sb.WriteString(H2sty.Render("Specifications"))
+			// attach virtualization info
+			sb.WriteString(" (" + H3sty.Render(fmt.Sprintf("%v[%v]", hw.VirtSystem, hw.VirtRole)) + ")\n")
+			// attach hardware info
+			fmt.Fprintf(sb,
+				"%s %s\n"+
+					"%s %s\n"+
+					"%s %d\n"+
+					"%s %sMHz\n"+
+					"%s %sKB per CPU\n"+
+					"%s %dMB\n", // I believe this is L2/core and L3/thread
+				field("System Version"), hw.SystemVersion,
+				field("CPU Model"), hw.CPUModel,
+				field("CPU Count"), hw.CPUCount,
+				field("CPU Clock Speed"), hw.CPUMhz,
+				field("CPU Cache Size"), hw.CPUCache,
+				field("Total Memory"), hw.TotalMemoryMB,
+			)
+		}
 
 	}
+}
 
+// styles the given text as a field by colorizing it and appending a colon.
+func field(fieldText string) string {
+	return stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", ""+fieldText+":"))
 }
 
 /*func attachDescriptions(sb *strings.Builder) error {
@@ -225,13 +264,7 @@ func writeIndexers(sb *strings.Builder, desc map[string]types.SysInfo, sys map[s
 			sb.WriteString(key)
 		}
 		// append version to header line
-		if inf.SystemVersion != "" {
-			sb.WriteString(" | v" + inf.SystemVersion)
-		}
-		// append virtualization info to the header line
-		sb.WriteString(fmt.Sprintf(" | %s (%s)", inf.VirtSystem, inf.VirtRole))
 
-		sb.WriteString("\n")
 
 		// attach error
 		if inf.Error != "" {
