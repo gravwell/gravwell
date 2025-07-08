@@ -10,9 +10,9 @@ package systemshealth
 
 import (
 	"fmt"
-	"net/netip"
 	"reflect"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -24,6 +24,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const (
+	fieldWidth string = "20"
+)
+
 // The hardware action fetches and averages system statistics.
 // Under the hood, it gathers all the required information (via a couple of API calls) before piecing it together in the main thread.
 // NOTE(rlandau): most of the info contained in here is available via ingesters get,
@@ -33,63 +37,182 @@ func newHardwareAction() action.Pair {
 		use   string = "hardware"
 		short string = "see hardware information and statistics"
 		long  string = "Preformatted information about the hardware platforms powering your indexers and ingesters.\n" +
-			"This action is not particularly script-friendly, but most of this information is available in JSON/CSV via the indexer and ingester actions."
+			"This action is intended for human consumption; most of this information is available in JSON/CSV via the indexer and ingester actions if you need better script support."
 	)
 	return scaffold.NewBasicAction(use, short, long, []string{"hw"},
 		func(c *cobra.Command) (string, tea.Cmd) {
 			var sb strings.Builder
 
-			// attach descriptions
-			if err := attachDescriptions(&sb); err != nil {
-				clilog.Writer.Errorf("%v", err)
-				sb.WriteString(stylesheet.Cur.ErrorText.Render(err.Error() + "\n"))
-			}
+			var (
+				o = ovrvw{
+					CPUAvgUsage: -1,
+					MemAvgUsage: -1,
+					Disks: struct {
+						DiskCount        uint
+						Total            uint64
+						Used             uint64
+						IOCount          uint
+						AvgReadsPerSecB  float64
+						AvgWritesPerSecB float64
+					}{0, 0, 0, 0, -1, -1},
+				}
+			)
 
-			// attach stats
-			overview, err := gatherStats()
+			metrics, err := connection.Client.GetSystemStats()
 			if err != nil {
-				clilog.Writer.Errorf("%v", err)
-				sb.WriteString(stylesheet.Cur.ErrorText.Render(err.Error() + "\n"))
+				clilog.Writer.Errorf("%v", err.Error())
+				return stylesheet.Cur.ErrorText.Render(err.Error()), nil
 			}
-			sb.WriteString(stylesheet.Cur.PrimaryText.Bold(true).Render("System Stats (Averages)") + "\n") // TODO should we bold this?
+			{ // collect averages and accumulations
+				i := 0
 
-			{ // reformat the floats as strings and colorize them
-				// we need to pre-format the strings, otherwise Go will get confused counting the ASCII escapes.
-				cuField := fmt.Sprintf("%-13s", "CPU Usage:")
-				cu := stylesheet.Cur.SecondaryText.Render(fmt.Sprintf("%5.2f", overview.CPUAvgUsage))
-				muField := fmt.Sprintf("%-13s", "Memory Usage:")
-				mu := stylesheet.Cur.SecondaryText.Render(fmt.Sprintf("%5.2f", overview.MemAvgUsage))
-				sb.WriteString(stylesheet.Cur.FieldText.Render(cuField) + " " + cu + "\n")
-				sb.WriteString(stylesheet.Cur.FieldText.Render(muField) + " " + mu + "\n")
+				var cpuSamples, memSamples uint
+
+				for idxr, stat := range metrics {
+					// check for an error
+					if stat.Error != "" {
+						clilog.Writer.Warnf("failed to get statistics for indexer '%s': %v", idxr, stat.Error)
+						continue
+					}
+					// accumulate for averages
+					o.CPUAvgUsage += stat.Stats.CPUUsage
+					cpuSamples += 1
+					o.MemAvgUsage += stat.Stats.MemoryUsedPercent
+					memSamples += 1
+
+					o.Disks.DiskCount += uint(len(stat.Stats.Disks))
+					for _, disk := range stat.Stats.Disks { // accumulate special stats
+						o.Disks.Total += disk.Total
+						o.Disks.Used += disk.Used
+					}
+					o.Disks.IOCount += uint(len(stat.Stats.IO))
+					for _, io := range stat.Stats.IO {
+						o.Disks.AvgReadsPerSecB += float64(io.Read)
+						o.Disks.AvgWritesPerSecB += float64(io.Write)
+					}
+
+					i += 1
+				}
+
+				if memSamples != cpuSamples { // sanity check: these should never be out of sync
+					clilog.Writer.Errorf("cpu sample count (%v) and memory sample count (%v) are out of sync", cpuSamples, memSamples)
+				}
+
+				if cpuSamples > 0 {
+					o.CPUAvgUsage /= float64(cpuSamples)
+					o.MemAvgUsage /= float64(cpuSamples)
+				}
+				if o.Disks.IOCount > 0 {
+					o.Disks.AvgReadsPerSecB /= float64(o.Disks.IOCount)
+					o.Disks.AvgWritesPerSecB /= float64(o.Disks.IOCount)
+				}
 			}
-			{ // now for disks
-				headerField := stylesheet.Cur.PrimaryText.Bold(true).Render(fmt.Sprintf("Disks[%d]", overview.Disks.Count))
-				totalField := fmt.Sprintf("%12s", "Total Space:")
-				usedField := fmt.Sprintf("%12s", "Space Used:")
 
-				// convert accumulations to GB
-				totalGB := ((float64(overview.Disks.Total) / 1024) / 1024) / 1024
-				usedGB := ((float64(overview.Disks.Used) / 1024) / 1024) / 1024
+			writeOverview(&sb, o)
 
-				sb.WriteString(
-					fmt.Sprintf("%s\n"+stylesheet.Indent+"%s %.2fGB\n"+stylesheet.Indent+"%s %.2fGB\n",
-						headerField,
-						stylesheet.Cur.FieldText.Render(totalField), totalGB,
-						stylesheet.Cur.FieldText.Render(usedField), usedGB,
-					),
-				)
+			hw, err := connection.Client.GetSystemDescriptions()
+			if err != nil {
+				clilog.Writer.Errorf("%v", err.Error())
+				return stylesheet.Cur.ErrorText.Render(err.Error()), nil
 			}
+
+			writeIndexers(&sb, hw, metrics)
 
 			return sb.String(), nil
-
-			// chip the last newline // TODO is this still necessary
-			//return sb.String()[:sb.Len()-1], nil
 		},
 		nil)
 }
 
-func attachDescriptions(sb *strings.Builder) error {
-	m, err := connection.Client.GetSystemDescriptions()
+// writeOverview attach the stat averages and cumulated disk data to the string builder
+func writeOverview(sb *strings.Builder, o ovrvw) {
+	{ // reformat the floats as strings and colorize them
+		// we need to pre-format the strings, otherwise Go will get confused counting the ASCII escapes.
+		cuField := fmt.Sprintf("%"+fieldWidth+"s", "Avg CPU Usage:")
+		cu := fmt.Sprintf("%6.2f", o.CPUAvgUsage)
+		muField := fmt.Sprintf("%"+fieldWidth+"s", "Avg Memory Usage:")
+		mu := fmt.Sprintf("%6.2f", o.MemAvgUsage)
+		sb.WriteString(stylesheet.Cur.FieldText.Render(cuField) + " " + cu + "%\n")
+		sb.WriteString(stylesheet.Cur.FieldText.Render(muField) + " " + mu + "%\n")
+	}
+	{ // now for disks
+		headerField := stylesheet.Cur.SecondaryText.Bold(true).Render(fmt.Sprintf("Disks[%d]", o.Disks.DiskCount))
+		totalField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Total Space:"))
+		usedField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Space Used:"))
+		avgReadField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Avg Reads/sec:"))
+		avgWriteField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Avg Writes/sec:"))
+
+		// convert accumulations to GB
+		totalGB := fmt.Sprintf("%8.2f", ((float64(o.Disks.Total)/1024)/1024)/1024)
+		usedGB := fmt.Sprintf("%8.2f", ((float64(o.Disks.Used)/1024)/1024)/1024)
+		// convert read/write to KB (and max to avoid negatives)
+		readMB := fmt.Sprintf("%8.2f", max(o.Disks.AvgReadsPerSecB/1024/1024, 0))
+		writeMB := fmt.Sprintf("%8.2f", max(o.Disks.AvgWritesPerSecB/1024/1024, 0))
+
+		fmt.Fprintf(sb,
+			"%s\n"+
+				"%s %sGB\n"+
+				"%s %sGB\n"+
+				"%s %sMB\n"+
+				"%s %sMB\n",
+			headerField,
+			totalField, totalGB,
+			usedField, usedGB,
+			avgReadField, readMB,
+			avgWriteField, writeMB,
+		)
+	}
+	sb.WriteString("\n")
+}
+
+func writeIndexers(sb *strings.Builder, desc map[string]types.SysInfo, sys map[string]types.SysStats) {
+	for idxr, stat := range sys {
+		sb.WriteString(stylesheet.Cur.PrimaryText.Bold(true).Render(idxr))
+
+		if stat.Error != "" {
+			clilog.Writer.Warnf("failed to stat indexer %v: %v", idxr, stat.Error)
+			sb.WriteString("\n" + stylesheet.Cur.ErrorText.Render(stat.Error) + "\n")
+		} else {
+			// attach version
+			sb.WriteString(" (" + stylesheet.Cur.SecondaryText.Render(stat.Stats.BuildInfo.CanonicalVersion.String()) + ")\n")
+			// health section
+			sb.WriteString(stylesheet.Cur.SecondaryText.Bold(true).Render("Health") + "\n")
+			uptimeField := stylesheet.Cur.TertiaryText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Uptime:"))
+			sb.WriteString(uptimeField + " " + (time.Duration(stat.Stats.Uptime) * time.Second).String() + "\n")
+			netField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"v", "Up/Down:"))
+			netUpKB := float64(stat.Stats.Net.Up) / 1024
+			netDownKB := float64(stat.Stats.Net.Down) / 1024
+			fmt.Fprintf(sb, "%s %.2fKB/%.2fKB\n", netField, netUpKB, netDownKB)
+			rwField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"v", "Read/Write:"))
+			var readMB, writeMB float64
+			for _, b := range stat.Stats.IO {
+				readMB += float64(b.Read)
+				writeMB += float64(b.Write)
+			}
+			readMB = readMB / 1024 / 1024
+			writeMB = writeMB / 1024 / 1024
+			fmt.Fprintf(sb, "%s %.2fKB/%.2fKB\n", rwField, readMB, writeMB)
+			// disk section
+			sb.WriteString(stylesheet.Cur.SecondaryText.Bold(true).Render(fmt.Sprintf("Disks(%d)", len(stat.Stats.Disks)) + "\n"))
+			for i, d := range stat.Stats.Disks {
+				index := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%3d:", i))
+				fmt.Fprintf(sb, "%s %s\n"+"Partition %s mounted at %s\n"+
+					"%d used of %d total\n",
+					index, d.ID,
+					d.Partition, d.Mount,
+					d.Used, d.Total,
+				)
+			}
+		}
+
+		// find the matching hw descriptions
+		// TODO
+
+	}
+
+}
+
+/*func attachDescriptions(sb *strings.Builder) error {
+
 	if err != nil {
 		return err
 	}
@@ -130,88 +253,22 @@ func attachDescriptions(sb *strings.Builder) error {
 	}
 
 	return nil
-}
-
-type indexer struct {
-	title string // <ip>:<port>, typically
-	disks types.DiskStats
-}
+}*/
 
 // ovrvw holds the collected averages and totals calculated by gatherStats().
 type ovrvw struct {
 	CPUAvgUsage float64
 	MemAvgUsage float64
 	Disks       struct {
-		Count            uint
+		DiskCount        uint
 		Total            uint64
 		Used             uint64
-		AvgReadsPerSecB  float64 // TODO where do these data come from?
-		AvgWritesPerSecB float64 // TODO where do these data come from?
+		IOCount          uint // # of items in types.SysStats.Stats.IO
+		AvgReadsPerSecB  float64
+		AvgWritesPerSecB float64
 	}
 	AvgUp   float64
 	AvgDown float64
-}
-
-// TODO annotate
-func gatherStats() (fullInfo []indexer, _ ovrvw, _ error) {
-	var o = ovrvw{
-		CPUAvgUsage: -1,
-		MemAvgUsage: -1,
-		Disks: struct {
-			Count            uint
-			Total            uint64
-			Used             uint64
-			AvgReadsPerSecB  float64
-			AvgWritesPerSecB float64
-		}{0, 0, 0, -1, -1},
-	}
-
-	stats, err := connection.Client.GetSystemStats()
-	if err != nil {
-		return o, err
-	}
-	i := 0
-
-	var cpuSamples, memSamples uint
-
-	for idxr, stat := range stats {
-		full := indexer{title: idxr} // TODO insert full into an array
-		// check for an error
-		if stat.Error != "" {
-			clilog.Writer.Warnf("failed to get statistics for indexer '%s': %v", idxr, stat.Error)
-			continue
-		}
-		// accumulate for averages
-		o.CPUAvgUsage += stat.Stats.CPUUsage
-		cpuSamples += 1
-		o.MemAvgUsage += stat.Stats.MemoryUsedPercent
-		memSamples += 1
-
-		for _, disk := range stat.Stats.Disks {
-			// attach all info to indexer hw
-			full.disks = disk
-			// accumulate special stats
-			o.Disks.Count += 1
-			o.Disks.Total += disk.Total
-			o.Disks.Used += disk.Used
-
-		}
-
-		// TODO save off other data
-
-		i += 1
-	}
-
-	if memSamples != cpuSamples { // sanity check: these should never be out of sync
-		clilog.Writer.Errorf("cpu sample count (%v) and memory sample count (%v) are out of sync", cpuSamples, memSamples)
-	}
-
-	if cpuSamples > 0 {
-		o.CPUAvgUsage /= float64(cpuSamples)
-		o.MemAvgUsage /= float64(cpuSamples)
-	}
-
-	return o, nil
 }
 
 // helper for the description action.
