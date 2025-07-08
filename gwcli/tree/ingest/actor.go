@@ -45,6 +45,8 @@ const (
 var _ action.Model = Initial()
 
 type ingest struct {
+	boxWidth int // width of the filepicker view, inside of its box
+
 	width       int // current known maximum width of the terminal
 	height      int // current known maximum height of the terminal
 	mode        mode
@@ -75,7 +77,6 @@ func Initial() *ingest {
 
 		mod: NewMod(),
 	}
-	i.fp.AutoHeight = false // need to factor in other vertically-stacked elements
 	i.fp.Cursor = stylesheet.Cur.PromptSty.Symbol()
 	i.fp.DirAllowed = false
 	i.fp.FileAllowed = true
@@ -118,6 +119,28 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 				i.mod.focused = !i.mod.focused
 				return textinput.Blink
 			}
+		}
+		// intercept window size messages
+		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
+			i.width = wsMsg.Width
+			// need to save off 3 cells
+			// left border (1) +
+			// right border (1) +
+			// center divider btwn file names and size/permissions (1)
+			inner := wsMsg.Width - 3
+			// left side (pip+permissions+size) and right size (file/dir name) should each be half of the remainder
+			// NOTE(rlandau): this is not used as we can only view a filepicker as a complete unit;
+			// we can not compose the left and right individually until we implement pathbasket.
+
+			i.boxWidth = inner
+			i.fp.Styles.File = i.fp.Styles.File.MaxWidth(inner)
+			i.fp.Styles.Selected = i.fp.Styles.Selected.MaxWidth(inner)
+			i.fp.Styles.Symlink = i.fp.Styles.Symlink.MaxWidth(inner)
+			i.fp.Styles.Directory = i.fp.Styles.Directory.MaxWidth(inner)
+			i.fp.Styles.DisabledFile = i.fp.Styles.DisabledFile.MaxWidth(inner)
+			i.fp.Styles.DisabledSelected = i.fp.Styles.DisabledSelected.MaxWidth(inner)
+
+			i.height = wsMsg.Height
 		}
 
 		// pass message to mod view or fp, depending on focus
@@ -183,12 +206,6 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			}
 		}
 
-		// with all updates made, update sizes (if applicable)
-		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
-			i.width = wsMsg.Width
-			i.height = wsMsg.Height
-		}
-
 		return cmd
 	}
 }
@@ -212,19 +229,24 @@ func (i *ingest) View() string {
 //#region view helpers
 
 func (i *ingest) breadcrumbsView() string {
-	return stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(i.fp.CurrentDirectory)
+	availWidth := i.width - (stylesheet.Cur.ComposableSty.ComplimentaryBorder.GetHorizontalMargins() +
+		stylesheet.Cur.ComposableSty.ComplimentaryBorder.GetHorizontalPadding() +
+		2) // ensure we have at least a cell on either side
+	path := i.fp.CurrentDirectory
+	if availWidth < 0 {
+		return path
+	}
+	// determine if we need to truncate
+	if overflowing := len(path) - availWidth; overflowing > 0 {
+		path = path[overflowing:] // left trim the overflow
+	}
+
+	return stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(path)
 }
 
 func (i *ingest) pickerView() string {
-	// generate the margins to ensure border stays stable during usage
-	// split the width 3 ways
-	usableWidth := i.width - 4
-	leftMargin := (usableWidth / 4) + 5
-	centerWidth := (usableWidth / 2)
-	rightMargin := (usableWidth / 5)
-	sty := lipgloss.NewStyle().
-		MarginLeft(leftMargin).
-		MarginRight(rightMargin).Width(centerWidth)
+	// NOTE(rlandau): Width > maxWidth is a hacky way to ensure file names are truncated, not wrapped.
+	sty := lipgloss.NewStyle().MaxWidth(i.boxWidth).Width(i.boxWidth + 100)
 
 	// figure out how much height everything else needs
 	breadcrumbHeight := lipgloss.Height(stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(i.fp.CurrentDirectory))
