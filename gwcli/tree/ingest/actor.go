@@ -144,12 +144,14 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 				}
 
 				tag := strings.TrimSpace(i.mod.tagTI.Value())
-				if tag == "" {
-					i.err = errors.New("tag is required")
-					return cmd
-				}
-				if err := validateTag(tag); err != nil {
-					i.err = err
+				var err error
+				tag, err = determineTag(path, tag, "")
+				if err != nil {
+					if errors.Is(err, errNoTagSpecified) {
+						i.err = errors.New("a tag must be specified for this file")
+					} else {
+						i.err = err
+					}
 					return cmd
 				}
 
