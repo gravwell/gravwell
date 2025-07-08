@@ -65,6 +65,7 @@ func New(displayTabPaneSwitch, displayShiftTabPaneSwitch bool) FileGrabber {
 		paddingLeft   = 2
 	)
 	fp := filepicker.New()
+	fp.AutoHeight = false
 	// replace the default keys and help display
 	fp.KeyMap = filepicker.KeyMap{
 		GoToTop:  key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "first")),
@@ -91,6 +92,7 @@ func New(displayTabPaneSwitch, displayShiftTabPaneSwitch bool) FileGrabber {
 		FileSize:         stylesheet.Cur.PrimaryText.Faint(true).Width(fileSizeWidth).Align(lipgloss.Right),
 		EmptyDirectory:   stylesheet.Cur.DisabledText.PaddingLeft(paddingLeft).SetString("Bummer. No Files Found."),
 	}
+	fp.Cursor = stylesheet.Cur.Pip()
 
 	h := FileGrabber{fp,
 		help.New(),
