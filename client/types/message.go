@@ -17,8 +17,7 @@ const (
 
 // Unique Message IDs.
 const (
-	MessageMisaligned   = iota // Misaligned time window request
-	MessageInvalidRange        // Invalid time range
+	MessageIDRenderStoreLimitExceeded = iota // Render storage limit exceeded.
 )
 
 // A Message is a general use type for communicating various forms of errors,
@@ -30,3 +29,11 @@ type Message struct {
 	Severity string // One of "info", "warn", "error", or "fatal"
 	Value    string // Message contents
 }
+
+var (
+	MessageRenderStoreLimitExceeded = Message{
+		ID:       MessageIDRenderStoreLimitExceeded,
+		Severity: Warn,
+		Value:    "Query exceeded render storage limit",
+	}
+)
