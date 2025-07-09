@@ -46,7 +46,7 @@ const (
 type modifView struct {
 	width    uint
 	height   uint
-	selected uint // tracks which modifier is currently active w/in this view
+	selected modifSelection // tracks which modifier is currently active w/in this view
 	// knobs available to user
 	durationTI textinput.Model
 	background bool
@@ -153,5 +153,20 @@ func (mv *modifView) view() string {
 
 func (mv *modifView) reset() {
 	mv.durationTI.Reset()
+	mv.durationTI.Blur()
+}
+
+// Focus sets the focus state on the model.
+// When the model is in focus it can receive keyboard input and the cursor will be shown.
+func (mv *modifView) Focus() {
+	switch mv.selected {
+	case duration:
+		mv.durationTI.Focus()
+	}
+}
+
+// Blur removes the focus state on the model.
+// When the model is blurred it can not receive keyboard input and the cursor will be hidden
+func (mv *modifView) Blur() {
 	mv.durationTI.Blur()
 }
