@@ -16,6 +16,7 @@ func list() action.Pair {
 
 	type wrappedIngesterStats struct {
 		Indexer       string
+		Hostname      string
 		RemoteAddress string
 		Count         uint64
 		Size          uint64
@@ -41,6 +42,7 @@ func list() action.Pair {
 				for _, ingstr := range stats.Ingesters { // walk each ingester
 					wrap = append(wrap, wrappedIngesterStats{
 						Indexer:       idxr,
+						Hostname:      ingstr.State.Hostname,
 						RemoteAddress: ingstr.RemoteAddress,
 						Count:         ingstr.Count,
 						Size:          ingstr.Size,
