@@ -44,7 +44,7 @@ func (kvl *KVLogger) Debug(msg string, sds ...rfc5424.SDParam) error {
 	return kvl.outputStructured(DEFAULT_DEPTH, DEBUG, msg, append(kvl.sds, sds...)...)
 }
 
-// Infof writes an INFO level log to the underlying writer using a format string,
+// Info writes an INFO level log to the underlying writer using a static string,
 // if the logging level is higher than DEBUG no action is taken
 func (kvl *KVLogger) Info(msg string, sds ...rfc5424.SDParam) error {
 	return kvl.outputStructured(DEFAULT_DEPTH, INFO, msg, append(kvl.sds, sds...)...)
@@ -68,7 +68,7 @@ func (kvl *KVLogger) Critical(msg string, sds ...rfc5424.SDParam) error {
 	return kvl.outputStructured(DEFAULT_DEPTH, CRITICAL, msg, append(kvl.sds, sds...)...)
 }
 
-// AddKVs allows for adding additional KVs to the KV logger
+// AddKV allows for adding additional KVs to the KV logger
 func (kvl *KVLogger) AddKV(sds ...rfc5424.SDParam) {
 	kvl.sds = append(kvl.sds, sds...)
 }

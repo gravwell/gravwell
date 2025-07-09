@@ -152,7 +152,7 @@ func (c *Client) SetLogLevel(level string) error {
 	ok := false
 	//check that what is requested is valid
 	for i := range ll.Levels {
-		if strings.ToLower(level) == strings.ToLower(ll.Levels[i]) {
+		if strings.EqualFold(level, ll.Levels[i]) {
 			level = ll.Levels[i]
 			ok = true
 			break

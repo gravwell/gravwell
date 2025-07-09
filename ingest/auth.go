@@ -26,7 +26,7 @@ const (
 	// The number of times to hash the shared secret
 	HASH_ITERATIONS uint16 = 16
 	// Auth protocol version number
-	VERSION uint16 = 0x8
+	VERSION uint16 = 0x9
 	// Authenticated, but not ready for ingest
 	STATE_AUTHENTICATED uint32 = 0xBEEF42
 	// Not authenticated
@@ -111,7 +111,7 @@ type TagResponse struct {
 	Tags  map[string]entry.EntryTag
 }
 
-// StateResponse
+// StateResponse defines a state ID and associated message when authenticating
 type StateResponse struct {
 	ID   uint32
 	Info string
@@ -216,9 +216,7 @@ func GenerateResponse(auth AuthHash, ch Challenge) (resp *ChallengeResponse, err
 	for i := 0; i < 32; i++ {
 		runningHash[i] = ch.RandChallenge[i]
 	}
-	for i := 0; i < len(auth); i++ {
-		authSlice[i] = auth[i]
-	}
+	copy(authSlice, auth[:])
 	sha := sha512.New()
 	if _, err = sha.Write(runningHash); err != nil {
 		return
@@ -248,7 +246,7 @@ func GenerateResponse(auth AuthHash, ch Challenge) (resp *ChallengeResponse, err
 	return
 }
 
-// Decode the ChallengeResponse from the reader
+// Read decodes the ChallengeResponse from the reader
 func (cr *ChallengeResponse) Read(r io.Reader) error {
 	var buff [32]byte
 	if n, err := r.Read(buff[:]); err != nil {

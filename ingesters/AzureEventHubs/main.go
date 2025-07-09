@@ -200,7 +200,13 @@ func main() {
 			}
 
 			// configure time handling
+			var window timegrinder.TimestampWindow
+			window, err = cfg.Global.GlobalTimestampWindow()
+			if err != nil {
+				return
+			}
 			tcfg := timegrinder.Config{
+				TSWindow:           window,
 				EnableLeftMostSeed: true,
 			}
 			tg, err := timegrinder.NewTimeGrinder(tcfg)
@@ -237,7 +243,7 @@ func main() {
 					SRC:  src,
 				}
 				size += uint64(len(msg.Data))
-				if hubDef.Parse_Time == false {
+				if !hubDef.Parse_Time {
 					if msg.SystemProperties != nil && msg.SystemProperties.EnqueuedTime != nil {
 						ent.TS = entry.FromStandard(*msg.SystemProperties.EnqueuedTime)
 					} else {

@@ -10,6 +10,7 @@ package entry
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -78,6 +79,9 @@ func (eb *EVBlock) updateEv(ev EnumeratedValue) {
 
 // AddSet adds a slice of enumerated value to an evbloc, this function keeps a running tally of size for fast query.
 func (eb *EVBlock) AddSet(evs []EnumeratedValue) {
+	if len(evs) == 0 {
+		return //skip adding if there is nothing to add
+	}
 	if eb.size == 0 {
 		eb.fastAddSet(evs)
 	} else {
@@ -110,7 +114,7 @@ func (eb EVBlock) Count() int {
 
 // Populated is a helper to check if there are any EVs.
 func (eb EVBlock) Populated() bool {
-	return eb.size > 0
+	return len(eb.evs) > 0
 }
 
 // Reset resets the entry block, the underlying slice is not freed.
@@ -164,7 +168,6 @@ func (eb *EVBlock) Append(seb EVBlock) {
 			eb.Add(v)
 		}
 	}
-	return
 }
 
 func (eb EVBlock) GobEncode() ([]byte, error) {
@@ -209,6 +212,10 @@ func (eb EVBlock) Encode() (bts []byte, err error) {
 // EncodeBuffer encodes an evblock into a caller provided byte buffer
 // and returns the number of bytes consumed and a potential error.
 func (eb EVBlock) EncodeBuffer(bts []byte) (r int, err error) {
+	// do nothing if there is nothing to be done
+	if !eb.Populated() {
+		return
+	}
 	// check if its valid
 	if err = eb.Valid(); err != nil {
 		return
@@ -246,6 +253,10 @@ func (eb EVBlock) EncodeBuffer(bts []byte) (r int, err error) {
 // EncodeWriter encodes an evblock directly into a writer
 // and returns the number of bytes consumed and a potential error.
 func (eb EVBlock) EncodeWriter(w io.Writer) (r int, err error) {
+	// do nothing if there is nothing to be done
+	if !eb.Populated() {
+		return
+	}
 	// check if its valid
 	if err = eb.Valid(); err != nil {
 		return
@@ -433,8 +444,8 @@ func DecodeEVBlockHeader(buff []byte) (h EVBlockHeader, err error) {
 func (eb EVBlock) Compare(eb2 EVBlock) error {
 	if eb.size != eb2.size {
 		return fmt.Errorf("mismatch size: %d != %d", eb.size, eb2.size)
-	} else if len(eb.evs) != len(eb.evs) {
-		return fmt.Errorf("mismatch count: %d != %d", len(eb.evs), len(eb.evs))
+	} else if len(eb.evs) != len(eb2.evs) {
+		return fmt.Errorf("mismatch count: %d != %d", len(eb.evs), len(eb2.evs))
 	}
 	for i := range eb.evs {
 		if err := eb.evs[i].Compare(eb2.evs[i]); err != nil {
@@ -464,4 +475,20 @@ func (eb EVBlock) DeepCopy() (r EVBlock) {
 		})
 	}
 	return
+}
+
+func (eb EVBlock) MarshalJSON() ([]byte, error) {
+	if len(eb.evs) == 0 {
+		return []byte("[]"), nil
+	}
+	return json.Marshal(eb.evs)
+}
+
+func (eb *EVBlock) UnmarshalJSON(bts []byte) error {
+	if len(bts) == 0 {
+		eb.size = 0
+		eb.evs = nil
+		return nil
+	}
+	return json.Unmarshal(bts, &eb.evs)
 }

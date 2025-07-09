@@ -22,7 +22,9 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
 const (
@@ -132,7 +134,7 @@ func (m *mainService) shutdown() error {
 				}
 			}
 		}
-		if err := m.igst.Sync(time.Second); err != nil {
+		if err := m.igst.Sync(utils.ExitSyncTimeout); err != nil {
 			rerr = fmt.Errorf("Failed to sync the ingest muxer: %v", err)
 			errorout("%s", rerr)
 		} else {
@@ -324,6 +326,13 @@ func (m *mainService) init(ctx context.Context) error {
 		src, _ = igst.SourceIP()
 	}
 
+	var window timegrinder.TimestampWindow
+	window, err = m.cfg.GlobalTimestampWindow()
+	if err != nil {
+		errorout("Failed to get global timestamp window: %v", err)
+		return err
+	}
+
 	//build up the handlers
 	for k, val := range m.flocs {
 		pproc, err := m.pp.ProcessorSet(igst, val.Preprocessor)
@@ -362,6 +371,7 @@ func (m *mainService) init(ctx context.Context) error {
 			TimeFormat:              m.timeFormats,
 			AttachFilename:          val.Attach_Filename,
 			Trim:                    val.Trim,
+			TimestampWindow:         window,
 		}
 
 		lh, err := filewatch.NewLogHandler(cfg, pproc)

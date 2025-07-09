@@ -2,7 +2,7 @@
 // +build linux
 
 /*************************************************************************
- * Copyright 2017 Gravwell, Inc. All rights reserved.
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -13,13 +13,13 @@ package log
 
 import (
 	"bytes"
-	"io/ioutil"
+	"os"
 )
 
 var kernelVersion string
 
 func init() {
-	if val, err := ioutil.ReadFile("/proc/sys/kernel/osrelease"); err == nil {
+	if val, err := os.ReadFile("/proc/sys/kernel/osrelease"); err == nil {
 		kernelVersion = string(bytes.Trim(val, " \n\r"))
 	}
 }

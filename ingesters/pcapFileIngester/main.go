@@ -147,7 +147,7 @@ func main() {
 			fmt.Println("failed to Simulate packet read", err)
 		}
 	}
-	if err := igst.Sync(10 * time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to sync: %v\n", err)
 	}
 	if err := igst.Close(); err != nil {

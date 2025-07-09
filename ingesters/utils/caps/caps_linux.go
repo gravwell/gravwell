@@ -9,6 +9,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package caps implements some helpers to check capabilities on a file on Linux
 package caps
 
 import (

@@ -9,14 +9,11 @@
 package ipgen
 
 import (
-	"math/rand"
 	"net"
 	"testing"
-	"time"
 )
 
 func TestV4Gen(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
 	_, n, err := net.ParseCIDR("192.168.0.0/16")
 	if err != nil {
 		t.Fatal(err)
@@ -35,7 +32,6 @@ func TestV4Gen(t *testing.T) {
 }
 
 func TestV6Gen(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
 	_, n, err := net.ParseCIDR("dead::/64")
 	if err != nil {
 		t.Fatal(err)
@@ -54,7 +50,6 @@ func TestV6Gen(t *testing.T) {
 }
 
 func TestRandomWeightedV4Generator(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
 	gen, err := RandomWeightedV4Generator(20)
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +61,6 @@ func TestRandomWeightedV4Generator(t *testing.T) {
 }
 
 func TestRandomWeightedV6Generator(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
 	gen, err := RandomWeightedV6Generator(20)
 	if err != nil {
 		t.Fatal(err)

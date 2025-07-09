@@ -214,7 +214,7 @@ func (f *follower) Sync(qc chan os.Signal) (bool, error) {
 			break // this essentially returns false, nil
 		}
 		select {
-		case _ = <-qc:
+		case <-qc:
 			f.lastAct = now
 			return true, nil //just asked to quit
 		default:
@@ -305,6 +305,9 @@ func (f *follower) processLines(writeEvent, removing, allowPartial bool) error {
 		if sawEOF && writeEvent {
 			// We got an EOF on the file after a write
 			sz, err := f.lnr.FileSize()
+			if err != nil {
+				return err
+			}
 			if sz < *f.state {
 				// the file must have been truncated
 				*f.state = 0
@@ -394,7 +397,7 @@ routineLoop:
 				}
 				tckr.Reset(tickInterval)
 			}
-		case _ = <-tckr.C:
+		case <-tckr.C:
 			//just loop and attempt to get some lines
 			//this is purely to deal with race conditions where lines come in when we are starting up
 			//causing us to miss the event

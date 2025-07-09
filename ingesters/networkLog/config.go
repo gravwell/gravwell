@@ -10,6 +10,7 @@ package main
 
 import (
 	"errors"
+	"math"
 	"net"
 	"sort"
 
@@ -151,9 +152,13 @@ func getEnvInt(cnd *int, defval int, nm string) (err error) {
 		*cnd = defval
 	} else {
 		//attempt to parse snaplen
-		var t uint64
-		if t, err = config.ParseUint64(s); err == nil {
-			*cnd = int(t)
+		var t int64
+		if t, err = config.ParseInt64(s); err == nil {
+			if t > math.MaxInt || t < 0 {
+				err = errors.New("invalid value")
+			} else {
+				*cnd = int(t)
+			}
 		}
 	}
 	return

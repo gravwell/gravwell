@@ -9,13 +9,12 @@
 package chancacher
 
 import (
-	"io/ioutil"
 	"os"
 	"testing"
 )
 
 func TestFileCounter(t *testing.T) {
-	f, err := ioutil.TempFile("", "testfilecounter")
+	f, err := os.CreateTemp(t.TempDir(), "testfilecounter")
 	if err != nil {
 		t.Errorf("tempfile: %v", err)
 		t.FailNow()
@@ -59,7 +58,7 @@ func TestFileCounter(t *testing.T) {
 }
 
 func TestFileCounterCount(t *testing.T) {
-	f, err := ioutil.TempFile("", "testfilecounter")
+	f, err := os.CreateTemp(t.TempDir(), "testfilecounter")
 	if err != nil {
 		t.Errorf("tempfile: %v", err)
 		t.FailNow()

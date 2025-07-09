@@ -9,7 +9,6 @@
 package config
 
 import (
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -286,7 +285,7 @@ func TestEnvFileLoadString(t *testing.T) {
 	tval := `testing123`
 	def := `default values`
 	var v string
-	if err := ioutil.WriteFile(tfile, []byte(tval), 0660); err != nil {
+	if err := os.WriteFile(tfile, []byte(tval), 0660); err != nil {
 		t.Fatal(err)
 	}
 
@@ -331,7 +330,7 @@ func TestEnvFileLoadInt64(t *testing.T) {
 	tval := `0x1234`
 	def := int64(1000)
 	var v int64
-	if err := ioutil.WriteFile(tfile, []byte(tval), 0660); err != nil {
+	if err := os.WriteFile(tfile, []byte(tval), 0660); err != nil {
 		t.Fatal(err)
 	}
 

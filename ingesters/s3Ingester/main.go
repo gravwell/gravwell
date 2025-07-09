@@ -187,7 +187,7 @@ func main() {
 	// wait for graceful shutdown
 	wg.Wait()
 
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		ib.Logger.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {

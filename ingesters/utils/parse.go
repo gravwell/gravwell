@@ -39,6 +39,7 @@ func ParseSource(v string) (ret net.IP, err error) {
 	//the string length must be > 0 && <= 32 && even
 	if len(v) == 0 || len(v) > 32 || (len(v)&0x1) != 0 {
 		err = errors.New("invalid source override")
+		return
 	}
 	if x, err = hex.DecodeString(v); err == nil {
 		if len(x) > 16 {

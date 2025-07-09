@@ -16,14 +16,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
@@ -92,7 +89,7 @@ type job struct {
 	ID     uint
 	Bytes  uint
 	Query  string
-	Source uint32
+	Source string
 	Conns  []string
 	lock   sync.Mutex
 }
@@ -190,7 +187,7 @@ func main() {
 		}
 
 		// Load CA cert
-		caCert, err := ioutil.ReadFile(hcfg.caCert)
+		caCert, err := os.ReadFile(hcfg.caCert)
 		if err != nil {
 			lg.FatalCode(0, "failed to load CA certificate", log.KV("cacert", hcfg.caCert), log.KVErr(err))
 			return
@@ -200,11 +197,9 @@ func main() {
 
 		// Setup HTTPS client
 		tlsConfig := &tls.Config{
-			InsecureSkipVerify: true,
-			Certificates:       []tls.Certificate{cert},
-			RootCAs:            caCertPool,
+			Certificates: []tls.Certificate{cert},
+			RootCAs:      caCertPool,
 		}
-		tlsConfig.BuildNameToCertificate()
 		transport := &http.Transport{TLSClientConfig: tlsConfig}
 		hcfg.client = &http.Client{Transport: transport}
 
@@ -222,7 +217,7 @@ func main() {
 
 	cancel()
 
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
@@ -297,8 +292,6 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	debugout("query received: %v\n", p.Q)
 
-	ss, _ := strconv.Atoi(p.S)
-
 	var wg sync.WaitGroup
 
 	// create a new job
@@ -306,7 +299,7 @@ func (s *server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	j := &job{
 		ID:     jcount,
 		Query:  p.Q,
-		Source: uint32(ss),
+		Source: p.S,
 		Conns:  p.C,
 	}
 	jcount++
@@ -393,8 +386,8 @@ func (h *handlerConfig) processPcap(in io.ReadCloser, j *job, wg *sync.WaitGroup
 			Tag:  h.tag,
 			Data: data,
 		}
-		if j.Source != 0 {
-			b, err := config.ParseSource(fmt.Sprintf("%v", j.Source))
+		if j.Source != "" {
+			b, err := config.ParseSource(j.Source)
 			if err == nil {
 				ent.SRC = b
 			}
@@ -426,7 +419,7 @@ func status() []byte {
 
 func conns() []byte {
 	var sc []string
-	for k, _ := range stenos {
+	for k := range stenos {
 		sc = append(sc, k)
 	}
 	ret, err := json.Marshal(sc)

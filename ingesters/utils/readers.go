@@ -163,8 +163,8 @@ func NewJSONReader(rdr io.Reader, th TagHandler) (*JSONReader, error) {
 	}, nil
 }
 
-func (jr *JSONReader) DisableEVs() {
-	jr.disableEVs = true
+func (j *JSONReader) DisableEVs() {
+	j.disableEVs = true
 }
 
 // we have some duplicates here so that the decoder can handle both formats
@@ -217,7 +217,7 @@ func (j *JSONReader) ReadEntry() (ent *entry.Entry, err error) {
 		Tag:  tag,
 		Data: jent.Data,
 	}
-	if j.disableEVs == false {
+	if !j.disableEVs {
 		for _, v := range jent.Enumerated {
 			if v.RawValue.Type <= 0xff {
 				//some weird type, just cast to a string and roll

@@ -69,7 +69,7 @@ func (c *Client) GetUserCapabilityExplanations(uid int32) (cs []types.Capability
 	return
 }
 
-// SetUserCaapbilities (admin-only) sets a user's capabilities to the provided list.
+// SetUserCapabilities (admin-only) sets a user's capabilities to the provided list.
 func (c *Client) SetUserCapabilities(uid int32, cs types.CapabilityState) (err error) {
 	err = c.putStaticURL(fmt.Sprintf(CAPABILITY_USER_URL, uid), &cs)
 	return

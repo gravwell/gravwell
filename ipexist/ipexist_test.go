@@ -9,7 +9,6 @@
 package ipexist
 
 import (
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
@@ -25,7 +24,7 @@ var (
 
 func TestMain(m *testing.M) {
 	var err error
-	if testDir, err = ioutil.TempDir(os.TempDir(), "mmap"); err != nil {
+	if testDir, err = os.MkdirTemp(os.TempDir(), "mmap"); err != nil {
 		log.Fatal("Failed to create temp dir", err)
 	}
 
@@ -96,7 +95,7 @@ func TestBitmap(t *testing.T) {
 }
 
 func TestEncodeDecode(t *testing.T) {
-	f, err := ioutil.TempFile(testDir, "test")
+	f, err := os.CreateTemp(testDir, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -126,7 +125,7 @@ func TestEncodeDecode(t *testing.T) {
 	if f, err = os.Open(fname); err != nil {
 		t.Fatal(err)
 	}
-	if ip, err = LoadIPBitMap(f); err != nil {
+	if _, err = LoadIPBitMap(f); err != nil {
 		t.Fatal(err)
 	}
 	if _, err = f.Seek(0, 0); err != nil {
@@ -162,7 +161,7 @@ func TestAdd(t *testing.T) {
 		}
 	}
 	//encode to a file
-	f, err := ioutil.TempFile(testDir, "test")
+	f, err := os.CreateTemp(testDir, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -213,7 +212,7 @@ func TestRemove(t *testing.T) {
 		}
 	}
 	//encode to a file
-	f, err := ioutil.TempFile(testDir, "test")
+	f, err := os.CreateTemp(testDir, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -255,7 +254,7 @@ func TestRemove(t *testing.T) {
 	}
 
 	//encode to a file
-	f, err = ioutil.TempFile(testDir, "test")
+	f, err = os.CreateTemp(testDir, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -301,7 +300,7 @@ func TestEncodeDecodeMemoryMapped(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	f, err := ioutil.TempFile(testDir, "test")
+	f, err := os.CreateTemp(testDir, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -337,7 +336,7 @@ func TestEncodeDecodeMemoryMapped(t *testing.T) {
 	if mmn, err = getTempFileName(); err != nil {
 		t.Fatal(err)
 	}
-	if ip, err = LoadIPBitMapMemoryMapped(f, mmn); err != nil {
+	if _, err = LoadIPBitMapMemoryMapped(f, mmn); err != nil {
 		t.Fatal(err)
 	}
 	if err = f.Close(); err != nil {
@@ -373,7 +372,7 @@ func TestAddMemoryMapped(t *testing.T) {
 		}
 	}
 	//encode to a file
-	f, err := ioutil.TempFile(testDir, "test")
+	f, err := os.CreateTemp(testDir, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -479,7 +478,7 @@ func genIP() (ip net.IP) {
 
 func getTempFileName() (s string, err error) {
 	var f *os.File
-	if f, err = ioutil.TempFile(testDir, "mm"); err != nil {
+	if f, err = os.CreateTemp(testDir, "mm"); err != nil {
 		return
 	}
 	s = f.Name()

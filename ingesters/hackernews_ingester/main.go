@@ -186,7 +186,6 @@ outerLoop:
 			}
 		}
 	}
-	return
 }
 
 // hnIngester pulls individual JSON records from a HNStream and ingests them.

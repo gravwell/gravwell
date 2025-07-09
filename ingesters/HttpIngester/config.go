@@ -30,15 +30,20 @@ const (
 	defaultLogLoc        = `/opt/gravwell/log/gravwell_http_ingester.log`
 
 	defaultMethod = http.MethodPost
+
+	defaultMaxConnections        = 1024 * 10 // about 10k connections, any modern OS should be able to handle this
+	defaultMaxConcurrentRequests = 1024 * 16 // HTTP2 means concurrent requests on a connection, 16k concurrent request is A LOT
 )
 
 type gbl struct {
 	config.IngestConfig
-	Bind                 string
-	Max_Body             int
-	TLS_Certificate_File string
-	TLS_Key_File         string
-	Health_Check_URL     string
+	Bind                    string
+	Max_Body                int
+	TLS_Certificate_File    string
+	TLS_Key_File            string
+	Health_Check_URL        string
+	Max_Connections         int
+	Max_Concurrent_Requests int
 }
 
 type cfgReadType struct {
@@ -109,6 +114,12 @@ func (c *cfgType) Verify() error {
 	if err := c.ValidateTLS(); err != nil {
 		return err
 	}
+	if c.Max_Connections == 0 {
+		c.Max_Connections = defaultMaxConnections
+	}
+	if c.Max_Concurrent_Requests == 0 {
+		c.Max_Concurrent_Requests = defaultMaxConcurrentRequests
+	}
 	urls := map[route]string{}
 	if len(c.Listener) == 0 && len(c.HECListener) == 0 && len(c.AFHListener) == 0 {
 		return errors.New("No Listeners specified")
@@ -121,6 +132,7 @@ func (c *cfgType) Verify() error {
 	if hc, ok := c.HealthCheck(); ok {
 		urls[newRoute(http.MethodGet, hc)] = `health check`
 	}
+
 	for k, v := range c.Listener {
 		pth, err := v.validate(k)
 		if err != nil {
@@ -295,6 +307,7 @@ func (v *lst) validate(name string) (string, error) {
 	if v.Method == `` {
 		v.Method = defaultMethod
 	}
+
 	return pth, nil
 }
 
@@ -335,7 +348,7 @@ func (pa *paramAttacher) process(req *http.Request) {
 	if req == nil {
 		pa.exts = nil
 		return
-	} else if pa.active == false {
+	} else if !pa.active {
 		return
 	}
 
@@ -351,7 +364,6 @@ func (pa *paramAttacher) process(req *http.Request) {
 			pa.processSet(v)
 		}
 	}
-	return
 }
 
 func (pa *paramAttacher) processSet(vals url.Values) {

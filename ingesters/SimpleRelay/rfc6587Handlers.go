@@ -81,6 +81,7 @@ func rfc6587ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 	}
 
 	tcfg := timegrinder.Config{
+		TSWindow:           cfg.tsWindow,
 		EnableLeftMostSeed: true,
 	}
 	tg, err := timegrinder.NewTimeGrinder(tcfg)

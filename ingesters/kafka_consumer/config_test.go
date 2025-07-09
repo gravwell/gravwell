@@ -8,36 +8,13 @@
 package main
 
 import (
-	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"testing"
 )
 
-var (
-	tmpDir string
-)
-
-func TestMain(m *testing.M) {
-	var err error
-	if tmpDir, err = ioutil.TempDir(os.TempDir(), `sr`); err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create tempdir %v\n", err)
-		os.Exit(-1)
-	}
-	r := m.Run()
-	if r == 0 {
-		if err = os.RemoveAll(tmpDir); err != nil {
-			r = -2
-		}
-	} else {
-		os.RemoveAll(tmpDir)
-	}
-	os.Exit(r)
-}
-
 func TestBasicConfig(t *testing.T) {
-	fout, err := ioutil.TempFile(tmpDir, `cfg`)
+	fout, err := os.CreateTemp(t.TempDir(), `cfg`)
 	if err != nil {
 		t.Fatal()
 	}
@@ -45,7 +22,7 @@ func TestBasicConfig(t *testing.T) {
 	if n, err := io.WriteString(fout, baseConfig); err != nil {
 		t.Fatal(err)
 	} else if n != len(baseConfig) {
-		t.Fatal(fmt.Sprintf("Failed to write full file: %d != %d", n, len(baseConfig)))
+		t.Fatalf("Failed to write full file: %d != %d", n, len(baseConfig))
 	}
 	cfg, err := GetConfig(fout.Name(), ``)
 	if err != nil {
@@ -60,7 +37,7 @@ func TestBasicConfig(t *testing.T) {
 		t.Fatal("invalid secret")
 	}
 	if len(cfg.Consumers) != 3 {
-		t.Fatal(fmt.Sprintf("invalid listener counts: %d != 7", len(cfg.Consumers)))
+		t.Fatalf("invalid listener counts: %d != 7", len(cfg.Consumers))
 	}
 }
 

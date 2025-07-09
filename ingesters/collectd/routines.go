@@ -209,7 +209,7 @@ type jvl struct {
 	Type           string        `json:"type,omitempty"`
 	TypeInstance   string        `json:"type_instance,omitempty"`
 	Value          api.Value     `json:"value,omitempty"`
-	DS             string        `json:"dsname,omitemtpy"`
+	DS             string        `json:"dsname,omitempty"`
 	Time           time.Time     `json:"time"`
 	Interval       time.Duration `json:"interval"`
 }

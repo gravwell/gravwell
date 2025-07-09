@@ -87,16 +87,12 @@ func getIngestConnection(cfg *cfgType, lg *log.Logger) *ingest.IngestMuxer {
 		lg.FatalCode(0, "failed to set configuration for ingester state messages", log.KVErr(err))
 	}
 
-	var src net.IP
 	if cfg.Source_Override != "" {
 		// global override
-		if src = net.ParseIP(cfg.Source_Override); src == nil {
+		if net.ParseIP(cfg.Source_Override) == nil {
 			igst.Close()
 			lg.Fatal("Global Source-Override is invalid", log.KV("sourceoverride", cfg.Source_Override))
 		}
-	} else {
-		//it is fine to set it to nil, it will be set by the ingest muxer, this can and WILL fail sometimes
-		src, _ = igst.SourceIP()
 	}
 	return igst
 }
@@ -114,7 +110,7 @@ type statusUpdate struct {
 }
 
 func statusEater(sc <-chan statusUpdate) {
-	for _ = range sc {
+	for range sc {
 	}
 }
 

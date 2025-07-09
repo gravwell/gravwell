@@ -173,7 +173,7 @@ func main() {
 	exitFn()
 
 	lg.Info("netflow ingester exiting", log.KV("ingesteruuid", id))
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
@@ -217,7 +217,7 @@ mainLoop:
 				}
 				ents = nil
 			}
-		case _ = <-tckr.C:
+		case <-tckr.C:
 			if len(ents) > 0 {
 				if err := igst.WriteBatchContext(exitCtx, ents); err != nil {
 					if err != ingest.ErrNotRunning {

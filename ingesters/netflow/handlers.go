@@ -68,11 +68,11 @@ func (n *NetflowV5Handler) Listen(s string) (err error) {
 }
 
 func (n *NetflowV5Handler) Close() error {
-	n.mtx.Lock()
-	defer n.mtx.Unlock()
 	if n == nil {
 		return ErrAlreadyClosed
 	}
+	n.mtx.Lock()
+	defer n.mtx.Unlock()
 	n.ready = false
 	return n.c.Close()
 }
@@ -101,7 +101,7 @@ func (n *NetflowV5Handler) routine(id int) {
 	var ts entry.Timestamp
 	tbuff := make([]byte, netflow.HeaderSize+(30*netflow.RecordSize))
 	for {
-		if l, addr, err = n.c.ReadFromUDP(tbuff); err != nil {
+		if _, addr, err = n.c.ReadFromUDP(tbuff); err != nil {
 			return
 		}
 		if l, err = nf.ValidateSize(tbuff); err != nil {
@@ -164,11 +164,11 @@ func (i *IpfixHandler) Listen(s string) (err error) {
 }
 
 func (i *IpfixHandler) Close() error {
-	i.mtx.Lock()
-	defer i.mtx.Unlock()
 	if i == nil {
 		return ErrAlreadyClosed
 	}
+	i.mtx.Lock()
+	defer i.mtx.Unlock()
 	i.ready = false
 	return i.c.Close()
 }
@@ -272,8 +272,8 @@ func (i *IpfixHandler) routine(id int) {
 			sessionMap[key] = s
 		}
 
-		if i.sessionDumpEnabled && time.Now().Sub(i.lastInfoDump) > 1*time.Hour {
-			for k, _ := range sessionMap {
+		if i.sessionDumpEnabled && time.Since(i.lastInfoDump) > 1*time.Hour {
+			for k := range sessionMap {
 				lg.Info("IPFIX/Netflow v9 session dump", log.KV("session", k.String()))
 			}
 			i.lastInfoDump = time.Now()

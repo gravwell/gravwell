@@ -9,6 +9,7 @@
 package main
 
 import (
+	"fmt"
 	"math/rand"
 	"net"
 	"time"
@@ -24,7 +25,8 @@ type datum struct {
 	Groups    []ComplexGroup `json:"groups,omitempty"`
 	UserAgent string         `json:"user_agent"`
 	IP        net.IP         `json:"ip"`
-	Data      string         `json:"data,escape"`
+	Host      string         `json:"remote_host"`
+	Data      string         `json:"data"`
 }
 
 type megaDatum struct {
@@ -35,13 +37,13 @@ type megaDatum struct {
 	IP        net.IP         `json:"ip"`
 	TS        int64          `json:"time"` //bury the timestamp somewhere dumb, its also encoded unix timestamp
 	Records   []megaRecord   `json:"records"`
-	Data      string         `json:"data,escape"`
+	Data      string         `json:"data"`
 }
 
 type megaRecord struct {
 	TS         string   `json:"record_time"`
 	Flows      []flow   `json:"flows"`
-	Statements []string `json:"statements,escape"`
+	Statements []string `json:"statements"`
 	Agents     []string `json:"agents"`
 }
 
@@ -67,6 +69,7 @@ func genDataJSON(ts time.Time) (r []byte) {
 	d.Account = getUser()
 	d.UserAgent = rd.UserAgentString()
 	d.IP = getIP()
+	d.Host = net.JoinHostPort(d.IP.String(), fmt.Sprintf("%d", rand.Intn(0xf000)+0x400))
 	r, _ = json.Marshal(&d)
 	return
 }

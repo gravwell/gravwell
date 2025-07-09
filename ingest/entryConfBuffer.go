@@ -49,7 +49,12 @@ func newEntryConfirmationBuffer(unconfirmedBufferSize int) (entryConfBuffer, err
 		unconfirmedBufferSize = ABSOLUTE_MAX_UNCONFIRMED_WRITES
 	}
 	buff := make([](*entryConfirmation), unconfirmedBufferSize)
-	return entryConfBuffer{buff, unconfirmedBufferSize, 0, 0}, nil
+	return entryConfBuffer{
+		buff:     buff,
+		capacity: unconfirmedBufferSize,
+		head:     0,
+		count:    0,
+	}, nil
 }
 
 func (ecb *entryConfBuffer) outstandingEntries() []*entry.Entry {
@@ -71,6 +76,32 @@ func (ecb *entryConfBuffer) outstandingEntries() []*entry.Entry {
 	return ents
 }
 
+func (ecb *entryConfBuffer) ejectAll() []*entry.Entry {
+	if len(ecb.buff) == 0 {
+		return nil
+	}
+	var ents []*entry.Entry
+	idx := ecb.head
+	for i := 0; i < ecb.count; i++ {
+		if idx == len(ecb.buff) {
+			idx = 0
+		}
+		if ecb.buff[idx] == nil {
+			break
+		}
+		ents = append(ents, ecb.buff[idx].Ent)
+		idx++
+	}
+	ecb.reset()
+	return ents
+}
+
+// reset effectively purges the confBuffer
+func (ecb *entryConfBuffer) reset() {
+	ecb.head = 0
+	ecb.count = 0
+}
+
 func (ecb *entryConfBuffer) IsHead(id entrySendID) (bool, error) {
 	if ecb.count <= 0 {
 		return false, errEmptyList
@@ -82,10 +113,7 @@ func (ecb *entryConfBuffer) IsHead(id entrySendID) (bool, error) {
 }
 
 func (ecb *entryConfBuffer) Full() bool {
-	if ecb.count >= (ecb.capacity - 1) {
-		return true
-	}
-	return false
+	return ecb.count >= (ecb.capacity - 1)
 }
 
 func (ecb *entryConfBuffer) Count() int {

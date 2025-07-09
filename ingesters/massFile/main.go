@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"github.com/shirou/gopsutil/mem"
 
@@ -177,7 +178,7 @@ func main() {
 		}
 	} else {
 		var err error
-		sz, cnt, err = getLogSetSize(working)
+		sz, _, err = getLogSetSize(working)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Failed to get working log set size: %v\n", err)
 			return
@@ -230,7 +231,7 @@ func main() {
 		}
 	}
 	if iv != nil {
-		if err := iv.m.Sync(time.Second); err != nil {
+		if err := iv.m.Sync(utils.ExitSyncTimeout); err != nil {
 			fmt.Printf("ERROR: Failed to sync ingester: %v\n", err)
 			os.Exit(-1)
 		}

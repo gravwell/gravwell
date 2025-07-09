@@ -9,12 +9,12 @@
 package ipexist
 
 import (
-	"io/ioutil"
+	"os"
 	"testing"
 )
 
 func TestNewMMap(t *testing.T) {
-	f, err := ioutil.TempFile(testDir, "test")
+	f, err := os.CreateTemp(testDir, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestNewMMap(t *testing.T) {
 }
 
 func TestExpand(t *testing.T) {
-	f, err := ioutil.TempFile(testDir, "test")
+	f, err := os.CreateTemp(testDir, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -77,7 +77,7 @@ func TestExpand(t *testing.T) {
 }
 
 func TestSetSize(t *testing.T) {
-	f, err := ioutil.TempFile(testDir, "test")
+	f, err := os.CreateTemp(testDir, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,7 @@ func TestSetSize(t *testing.T) {
 }
 
 func TestPreload(t *testing.T) {
-	f, err := ioutil.TempFile(testDir, "test")
+	f, err := os.CreateTemp(testDir, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -129,7 +129,7 @@ func TestPreload(t *testing.T) {
 }
 
 func TestWrite(t *testing.T) {
-	f, err := ioutil.TempFile(testDir, "test")
+	f, err := os.CreateTemp(testDir, "test")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -153,7 +153,7 @@ func TestWrite(t *testing.T) {
 	if err := f.Close(); err != nil {
 		t.Fatal(err)
 	}
-	tbuff, err := ioutil.ReadFile(fname)
+	tbuff, err := os.ReadFile(fname)
 	if err != nil {
 		t.Fatal(err)
 	}

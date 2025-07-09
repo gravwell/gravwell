@@ -50,7 +50,7 @@ func init() {
 	for i := 0; i < ENTRY_PAD_SIZE; i++ {
 		entryPad[i] = byte(rand.Intn(0xff))
 	}
-	rand.Seed(0xBEEF3)
+	//rand.Seed(0xBEEF3)
 	entIp = net.ParseIP("127.0.0.1")
 
 	runtime.GOMAXPROCS(2)
@@ -83,6 +83,192 @@ func TestInit(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := closeConnections(cli, srv); err != nil {
+		t.Fatal(err)
+	}
+	lst.Close()
+}
+
+// if failAfter is greater than 0, the dittoreader will return a nack after that many entries are read
+func dittoreader(et *EntryReader, expected int, failAfter int, errChan chan error) {
+	var count int
+feederLoop:
+	for count < expected {
+		_, err := et.Read()
+		if err != nil {
+			if err == io.EOF {
+				break feederLoop
+			} else if err == ErrPendingDittoBlock {
+				// Handle the ditto block
+				ents, err := et.GetPendingDittoBlock()
+				if err != nil {
+					errChan <- err
+					return
+				}
+				count += len(ents)
+				if failAfter > 0 && count >= failAfter {
+					errChan <- et.NackDittoBlock()
+					return
+				}
+				if err := et.AckDittoBlock(); err != nil {
+					errChan <- err
+					return
+				}
+			} else {
+				errChan <- err
+				return
+			}
+		}
+	}
+	if count < expected {
+		// we got an eof before we were done
+		errChan <- fmt.Errorf("expected %v entries, got %v", expected, count)
+		return
+	}
+	errChan <- nil
+}
+
+func TestDittoWrite(t *testing.T) {
+	var totalBytes uint64
+	var ents [](entry.Entry)
+	var entsIndex int
+
+	errChan := make(chan error)
+	lst, cli, srv, err := getConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	etSrv, err := NewEntryReader(srv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	etSrv.Start()
+
+	etCli, err := NewEntryWriter(cli)
+	if err != nil {
+		t.Fatal(err)
+	}
+	etCli.serverVersion = VERSION
+
+	ents = make([](entry.Entry), etCli.OptimalBatchWriteSize())
+	entsIndex = 0
+	count := 100000
+	go dittoreader(etSrv, count, 0, errChan)
+
+	for i := 0; i < count; i++ {
+		ent := makeEntry()
+		if ent == nil {
+			t.Fatal("got a nil entry")
+		}
+		totalBytes += ent.Size()
+		//check if we need to throw a batch
+		if entsIndex >= cap(ents) {
+			if err := etCli.WriteDittoBlock(ents[0:entsIndex]); err != nil {
+				t.Fatal(err)
+			}
+			entsIndex = 0
+		}
+		ents[entsIndex] = *ent
+		entsIndex++
+	}
+	if entsIndex > 0 {
+		if err := etCli.WriteDittoBlock(ents[0:entsIndex]); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err = etCli.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = <-errChan; err != nil {
+		t.Fatal(err)
+	}
+
+	if err = etSrv.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	err = closeConnections(cli, srv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lst.Close()
+}
+
+func TestDittoWriteFail(t *testing.T) {
+	var totalBytes uint64
+	var ents [](entry.Entry)
+	var entsIndex int
+
+	errChan := make(chan error)
+	lst, cli, srv, err := getConnections()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	etSrv, err := NewEntryReader(srv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	etSrv.Start()
+
+	etCli, err := NewEntryWriter(cli)
+	if err != nil {
+		t.Fatal(err)
+	}
+	etCli.serverVersion = VERSION
+
+	ents = make([](entry.Entry), etCli.OptimalBatchWriteSize())
+	entsIndex = 0
+	count := 100000
+	errThresh := count / 2 // when we expect to see an error
+	go dittoreader(etSrv, count, errThresh, errChan)
+
+	for i := 0; i < count; i++ {
+		ent := makeEntry()
+		if ent == nil {
+			t.Fatal("got a nil entry")
+		}
+		totalBytes += ent.Size()
+		//check if we need to throw a batch
+		if entsIndex >= cap(ents) {
+			if err := etCli.WriteDittoBlock(ents[0:entsIndex]); err != nil {
+				if i >= errThresh {
+					entsIndex = 0
+					// This is good! We expected an error
+					break
+				}
+				t.Fatal(err)
+			}
+			entsIndex = 0
+			// If we get over our expected error threshold and there's no error,
+			// that's a problem
+			if i >= errThresh {
+				t.Fatalf("No error after %d entries (threshold = %d)", i, errThresh)
+			}
+		}
+		ents[entsIndex] = *ent
+		entsIndex++
+	}
+	if entsIndex > 0 {
+		if err := etCli.WriteDittoBlock(ents[0:entsIndex]); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	if err = etCli.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err = <-errChan; err != nil {
+		t.Fatalf("entry reader error: %v", err)
+	}
+
+	if err = etSrv.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	err = closeConnections(cli, srv)
+	if err != nil {
 		t.Fatal(err)
 	}
 	lst.Close()
@@ -394,6 +580,8 @@ func BenchmarkSingle(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	etCli.serverVersion = VERSION
+
 	go reader(etSrv, b.N, 0xffffffff, errChan)
 	b.StartTimer() //done with initialization
 

@@ -18,7 +18,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
@@ -56,7 +56,7 @@ type ConfigConsumer struct {
 	Topic              string
 	Consumer_Group     string
 	Source_Override    string
-	Rebalance_Strategy string
+	Rebalance_Strategy []string
 	Source_Header      string
 	Tag_Header         string
 	Source_As_Binary   bool
@@ -89,7 +89,7 @@ type consumerCfg struct {
 	leader      []string
 	topic       string
 	group       string
-	strat       sarama.BalanceStrategy
+	strats      []sarama.BalanceStrategy
 	sync        bool
 	batchSize   int
 	srcKey      string
@@ -107,6 +107,7 @@ type consumerCfg struct {
 	ignoreTS     bool
 	extractTS    bool
 	tg           *timegrinder.TimeGrinder
+	timeWindow   timegrinder.TimestampWindow
 	preprocessor []string
 }
 
@@ -151,7 +152,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
 			return nil, fmt.Errorf("Consumer %s preprocessor invalid: %v", k, err)
 		}
-		if cnsmr, err := v.validateAndProcess(); err != nil {
+		if cnsmr, err := v.validateAndProcess(cr); err != nil {
 			return nil, err
 		} else if err := c.TimeFormat.LoadFormats(cnsmr.tg); err != nil {
 			return nil, err
@@ -233,7 +234,7 @@ func (c *cfgType) AttachConfig() attach.AttachConfig {
 	return c.Attach
 }
 
-func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
+func (cc ConfigConsumer) validateAndProcess(cr cfgReadType) (c consumerCfg, err error) {
 	//check tag
 	if len(cc.Default_Tag) == 0 {
 		err = errors.New("missing Default-Tag")
@@ -303,6 +304,11 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 			return
 		}
 	}
+	if c.timeWindow, err = cr.Global.GlobalTimestampWindow(); err != nil {
+		err = fmt.Errorf("Failed to get global timestamp window: %v", err)
+		return
+	}
+
 	if cc.Ignore_Timestamps {
 		c.ignoreTS = true
 	} else if cc.Extract_Timestamps {
@@ -310,6 +316,7 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 		tcfg := timegrinder.Config{
 			EnableLeftMostSeed: true,
 			FormatOverride:     cc.Timestamp_Format_Override,
+			TSWindow:           c.timeWindow,
 		}
 		if c.tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {
 			err = fmt.Errorf("Failed to generate new timegrinder: %v", err)
@@ -344,29 +351,36 @@ func (cc ConfigConsumer) validateAndProcess() (c consumerCfg, err error) {
 
 	c.preprocessor = cc.Preprocessor
 
-	c.strat, err = cc.balanceStrat()
+	c.strats, err = cc.balanceStrats()
 	return
 }
 
-func (cc ConfigConsumer) balanceStrat() (st sarama.BalanceStrategy, err error) {
-	switch strings.ToLower(strings.TrimSpace(cc.Rebalance_Strategy)) {
-	case `sticky`:
-		st = sarama.BalanceStrategySticky
-	case `range`:
-		st = sarama.BalanceStrategyRange
-	case `roundrobin`:
-		st = sarama.BalanceStrategyRoundRobin
-	case ``:
-		st = sarama.BalanceStrategyRoundRobin
-	default:
-		err = errors.New("Unknown balance strategy")
+func (cc ConfigConsumer) balanceStrats() (st []sarama.BalanceStrategy, err error) {
+	//if non specified just use a default of all of them
+	if len(cc.Rebalance_Strategy) == 0 {
+		st = []sarama.BalanceStrategy{
+			sarama.NewBalanceStrategyRoundRobin(),
+			sarama.NewBalanceStrategyRange(),
+			sarama.NewBalanceStrategySticky(),
+		}
+		return
+	}
+	for _, v := range cc.Rebalance_Strategy {
+		switch strings.ToLower(strings.TrimSpace(v)) {
+		case `sticky`:
+			st = append(st, sarama.NewBalanceStrategySticky())
+		case `range`:
+			st = append(st, sarama.NewBalanceStrategyRange())
+		case `roundrobin`:
+			st = append(st, sarama.NewBalanceStrategyRoundRobin())
+		default:
+			err = fmt.Errorf("Unknown balance strategy %q", v)
+		}
 	}
 	return
 }
 
 func (kac KafkaAuthConfig) Validate() (err error) {
-	if kac.Auth_Type == `` {
-	}
 	switch strings.ToLower(kac.Auth_Type) {
 	case ``:
 		return //no auth

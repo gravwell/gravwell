@@ -11,9 +11,14 @@ package utils
 import (
 	"os"
 	"runtime"
+	"time"
 )
 
-// this will set the GOMAXPROC value ONLY if the environment variable hasn't been set to a valid integer
+const (
+	ExitSyncTimeout = 10 * time.Second
+)
+
+// MaxProcTune will set the GOMAXPROC value ONLY if the environment variable hasn't been set to a valid integer
 func MaxProcTune(val int) bool {
 	if ev := os.Getenv(`GOMAXPROCS`); ev == `` {
 		//try to parse it as an int

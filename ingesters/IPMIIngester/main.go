@@ -155,7 +155,7 @@ func main() {
 	cancel()
 
 	lg.Info("IPMI ingester exiting", log.KV("ingesteruuid", id))
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		lg.Error("failed to sync", log.KVErr(err))
 	}
 	if err := igst.Close(); err != nil {
@@ -366,7 +366,7 @@ func (h *handlerConfig) getSEL() ([]*tSEL, error) {
 		return nil, fmt.Errorf("Failed to get SEL entries on target %v: %w", h.target, err)
 	}
 
-	selrecords, total, err := ipmigo.SELGetEntries(h.client, 0, total)
+	selrecords, _, err := ipmigo.SELGetEntries(h.client, 0, total)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get SEL entries on target %v: %w", h.target, err)
 	}

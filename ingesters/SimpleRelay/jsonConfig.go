@@ -129,7 +129,7 @@ func (jl jsonListener) Tags() (tags []string, err error) {
 	for _, tm := range tms {
 		mp[tm.Tag] = true
 	}
-	for k, _ := range mp {
+	for k := range mp {
 		tags = append(tags, k)
 	}
 

@@ -10,7 +10,6 @@ package utils
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -24,7 +23,7 @@ var (
 
 func TestMain(m *testing.M) {
 	var err error
-	if tdir, err = ioutil.TempDir(os.TempDir(), "state"); err != nil {
+	if tdir, err = os.MkdirTemp(os.TempDir(), "state"); err != nil {
 		fmt.Println("Failed to create temp dir", err)
 		os.Exit(-1)
 	}

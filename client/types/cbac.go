@@ -69,13 +69,15 @@ const (
 	NotificationRead  Capability = 42
 	NotificationWrite Capability = 43
 	SystemInfoRead    Capability = 44
-	TokenRead         Capability = 45
-	TokenWrite        Capability = 46
-	SecretRead        Capability = 47
-	SecretWrite       Capability = 48
-	AlertRead         Capability = 49
-	AlertWrite        Capability = 50
-	_maxCap           Capability = 51 //REMINDER - when adding capabilities, make sure to expand this number
+
+	TokenRead   Capability = 45
+	TokenWrite  Capability = 46
+	SecretRead  Capability = 47
+	SecretWrite Capability = 48
+	AlertRead   Capability = 49
+	AlertWrite  Capability = 50
+	LogbotAI    Capability = 51
+	_maxCap     Capability = 52 //REMINDER - when adding capabilities, make sure to expand this number
 )
 
 type CapabilityCategory string
@@ -99,6 +101,7 @@ const (
 	UsersAndGroupsCat = `Users and Groups`
 	SystemAndStatsCat = `System and Stats`
 	SecretsCat        = `Secrets`
+	LogbotAICat       = `Logbot AI`
 )
 
 const (
@@ -128,11 +131,11 @@ type CapabilityState struct {
 	Grants []string
 }
 
-func (cs CapabilityState) MarshalJSON() ([]byte, error) {
+func (st CapabilityState) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
 		Grants emptyStrings
 	}{
-		cs.Grants,
+		st.Grants,
 	})
 }
 
@@ -224,7 +227,7 @@ func (c Capability) CapabilityDesc() CapabilityDesc {
 	}
 }
 
-// Check if the capability value is valid/known
+// Valid checks if the capability value is valid/known
 func (c Capability) Valid() bool {
 	return c < _maxCap
 }
@@ -332,11 +335,13 @@ func (c Capability) Name() string {
 		return `AlertRead`
 	case AlertWrite:
 		return `AlertWrite`
+	case LogbotAI:
+		return `LogbotAI`
 	}
 	return `UNKNOWN`
 }
 
-// Name returns the ASCII name of a capability
+// Category returns the ASCII catagory of a capability
 func (c Capability) Category() CapabilityCategory {
 	switch c {
 	case Search:
@@ -456,6 +461,8 @@ func (c Capability) Category() CapabilityCategory {
 		return SecretsCat
 	case SecretWrite:
 		return SecretsCat
+	case LogbotAI:
+		return LogbotAICat
 	}
 	return `UNKNOWN`
 }
@@ -565,6 +572,8 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = AlertRead
 	case `alertwrite`:
 		*c = AlertWrite
+	case `logbotai`:
+		*c = LogbotAI
 	default:
 		err = ErrUnknownCapability
 	}
@@ -674,6 +683,8 @@ func (c Capability) String() string {
 		return `Read Alerts`
 	case AlertWrite:
 		return `Write and Delete Alerts`
+	case LogbotAI:
+		return `Logbot AI`
 	}
 	return `UNKNOWN`
 }
@@ -781,6 +792,8 @@ func (c Capability) Description() string {
 		return `User can read and access alerts`
 	case AlertWrite:
 		return `User can create, update, and delete alerts`
+	case LogbotAI:
+		return `User can submit requests to Logbot AI`
 	}
 	return `UNKNOWN`
 }
@@ -887,7 +900,7 @@ func CheckTagAccess(tg string, prime TagAccess, set []TagAccess) (allowed bool) 
 	return
 }
 
-// Return the set of tags permitted within a given slice of tags.
+// FilterTags returns the set of tags permitted within a given slice of tags.
 func FilterTags(tags []string, prime TagAccess, set []TagAccess) (r []string) {
 	for _, t := range tags {
 		if CheckTagAccess(t, prime, set) {
@@ -1014,7 +1027,7 @@ func (t Token) CapabilitiesString() string {
 	return strings.Join(t.Capabilities, " ")
 }
 
-// Encode encodes a list of capabilities into a buffer
+// EncodeCapabilities encodes a list of capabilities into a buffer
 func EncodeCapabilities(caps []Capability) (b []byte, err error) {
 	if len(caps) == 0 {
 		return
@@ -1068,7 +1081,7 @@ func RemoveCapability(b []byte, c Capability) (r bool) {
 // CheckCapability checks if the capability c is set in the bitmask b
 func CheckCapability(b []byte, c Capability) (r bool) {
 	if off, mask := bitmask(c); off < len(b) {
-		//remove the bit
+		//check the bit
 		r = (b[off] & mask) != 0
 	}
 	return
@@ -1096,7 +1109,7 @@ func (abr *CBACRules) CapabilityList() (r []CapabilityDesc) {
 	return
 }
 
-// export a CapabilityState from the underlying capability rules
+// CapabilityState exports the capabilities state from the underlying capability rules
 func (abr *CBACRules) CapabilityState() (r CapabilityState) {
 	r.Grants = []string{}
 	for _, c := range fullCapList {

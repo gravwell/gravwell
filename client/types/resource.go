@@ -38,7 +38,7 @@ type ResourceUpdate struct {
 	rdr      io.ReadCloser //do not export this, gob can't handle the type
 }
 
-// This is used for client->server resource sync operations, basically "I am a
+// ResourceList is used for client->server resource sync operations, basically "I am a
 // webserver from domain <Domain>, here's what I have (<List>), delete anything
 // in my domain that's not on the list".
 type ResourceList struct {
@@ -52,29 +52,29 @@ type ResourceContentType struct {
 }
 
 // Equal returns true of both ResourceMetadata objects are identical.
-func (m1 ResourceMetadata) Equal(m2 ResourceMetadata) bool {
-	if m1.GroupACL == nil {
-		m1.GroupACL = []int32{}
+func (m ResourceMetadata) Equal(m2 ResourceMetadata) bool {
+	if m.GroupACL == nil {
+		m.GroupACL = []int32{}
 	}
 	if m2.GroupACL == nil {
 		m2.GroupACL = []int32{}
 	}
-	if m1.Hash == nil {
-		m1.Hash = []byte{}
+	if m.Hash == nil {
+		m.Hash = []byte{}
 	}
 	if m2.Hash == nil {
 		m2.Hash = []byte{}
 	}
-	if m1.Labels == nil {
-		m1.Labels = []string{}
+	if m.Labels == nil {
+		m.Labels = []string{}
 	}
 	if m2.Labels == nil {
 		m2.Labels = []string{}
 	}
-	if m1.LastModified.Equal(m2.LastModified) {
-		m2.LastModified = m1.LastModified
+	if m.LastModified.Equal(m2.LastModified) {
+		m2.LastModified = m.LastModified
 	}
-	return reflect.DeepEqual(m1, m2)
+	return reflect.DeepEqual(m, m2)
 }
 
 func (m ResourceMetadata) String() string {

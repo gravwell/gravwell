@@ -6,6 +6,10 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+//lint:file-ignore SA1019 suggestion isn't the same and we can't actually use it, ignore.
+
+// Package ipexist is a very high performance bitfield existence checker for IPv4 addresses
+// IPv6 is not supported to to the huge address space
 package ipexist
 
 import (
@@ -288,7 +292,7 @@ func (ipbm *IpBitMap) Decode(r io.Reader) (err error) {
 	ipbm.maxOffset = uint16(len(ipbm.bitmaps))
 
 	if len(ipbm.bitmaps) != int(cnt) {
-		err = errors.New("bitmaps are corrupt")
+		return errors.New("bitmaps are corrupt")
 	}
 	return nil
 }

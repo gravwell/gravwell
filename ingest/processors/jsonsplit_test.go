@@ -301,10 +301,7 @@ func TestJsonSplitQuotedCSV(t *testing.T) {
 	expected := []string{`foo`, `bar.baz`, `"foo.bar"`, `"foo,bar"`}
 
 	f := func(v rune) bool {
-		if v == ',' {
-			return true
-		}
-		return false
+		return v == ','
 	}
 
 	fields := splitRespectQuotes(in, f)
@@ -321,10 +318,7 @@ func TestJsonSplitQuotedCSV2(t *testing.T) {
 	expected := []string{`"foo"`, `bar.baz`, `foo.bar`}
 
 	f := func(v rune) bool {
-		if v == ',' {
-			return true
-		}
-		return false
+		return v == ','
 	}
 
 	fields := splitRespectQuotes(in, f)
@@ -341,10 +335,7 @@ func TestJsonSplitQuotedCSV3(t *testing.T) {
 	expected := []string{`"foo"`, `bar.baz`, `"foo.bar".baz`}
 
 	f := func(v rune) bool {
-		if v == ',' {
-			return true
-		}
-		return false
+		return v == ','
 	}
 
 	fields := splitRespectQuotes(in, f)
@@ -361,10 +352,7 @@ func TestJsonSplitQuotedDot(t *testing.T) {
 	expected := []string{`"foo.bar"`}
 
 	f := func(v rune) bool {
-		if v == '.' {
-			return true
-		}
-		return false
+		return v == '.'
 	}
 
 	fields := splitRespectQuotes(in, f)
@@ -381,10 +369,7 @@ func TestJsonSplitQuotedDot2(t *testing.T) {
 	expected := []string{`foo`, `"bar"`}
 
 	f := func(v rune) bool {
-		if v == '.' {
-			return true
-		}
-		return false
+		return v == '.'
 	}
 
 	fields := splitRespectQuotes(in, f)

@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2019 Gravwell, Inc. All rights reserved.
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -17,7 +17,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Shopify/sarama"
+	"github.com/IBM/sarama"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -91,11 +91,12 @@ type kafkaConsumer struct {
 
 type kafkaConsumerConfig struct {
 	consumerCfg
-	defTag entry.EntryTag
-	igst   *ingest.IngestMuxer
-	lg     *log.Logger
-	pproc  *processors.ProcessorSet
-	tgr    *tags.Tagger
+	name       string // name of the consumer as defined in the config
+	defaultTag entry.EntryTag
+	igst       *ingest.IngestMuxer
+	lg         *log.Logger
+	pproc      *processors.ProcessorSet
+	tgr        *tags.Tagger
 }
 
 func newKafkaConsumer(cfg kafkaConsumerConfig) (kc *kafkaConsumer, err error) {
@@ -123,7 +124,7 @@ func (kc *kafkaConsumer) Start(wg *sync.WaitGroup) (err error) {
 		if cfg.Version, err = sarama.ParseKafkaVersion(currKafkaVersion); err != nil {
 			return
 		}
-		cfg.Consumer.Group.Rebalance.Strategy = kc.strat
+		cfg.Consumer.Group.Rebalance.GroupStrategies = kc.strats
 		cfg.Consumer.Offsets.Initial = sarama.OffsetOldest
 
 		if kc.useTLS {
@@ -209,26 +210,38 @@ func (kc *kafkaConsumer) Setup(cgs sarama.ConsumerGroupSession) (err error) {
 
 // Cleanup executes at the end of a session, this a chance to clean up and sync our ingester
 func (kc *kafkaConsumer) Cleanup(cgs sarama.ConsumerGroupSession) (err error) {
-	kc.lg.Info("kafka consumer cleaning up", log.KV("consumer", cgs.MemberID()))
+	mid := cgs.MemberID()
+	kc.lg.Info("kafka consumer cleaning up", log.KV("consumer", mid))
 	//get a local handle on the ingest muxer
 	kc.mtx.Lock()
 	igst := kc.igst
 	kc.mtx.Unlock()
 
 	if igst != nil {
-		igst.Info("kafka consumer stats", log.KV("consumer", cgs.MemberID()), log.KV("group", kc.group),
-			log.KV("member", kc.memberId), log.KV("count", kc.count), log.KV("size", kc.size))
-		if err = igst.Sync(0); err != nil {
-			kc.lg.Info("consumer cleanup failed", log.KV("consumer", cgs.MemberID()), log.KVErr(err))
+		igst.Info("kafka consumer stats",
+			log.KV("consumer", kc.name),
+			log.KV("group", kc.group),
+			log.KV("member", kc.memberId),
+			log.KV("count", kc.count),
+			log.KV("size", kc.size))
+		if err = igst.SyncContext(kc.ctx, 0); err != nil {
+			kc.lg.Info("consumer cleanup sync failed", log.KV("consumer", kc.name), log.KVErr(err))
+			//failing to sync should not return an error
+			// the sarama library treats an error coming off of Cleanup as fatal and won't restart the worker
+			// as a result any network bump that coincides with Kafka telling us to GTFO will cause an error here
+			// which we don't want.  Older versions of kafka (2.X line) seem to boot clients when new clients in the same
+			// consumer group connect as some sort of rebalance strategy or something.  So we need to basically always complete
+			// cleanup with no error or the consumer won't reconnect
+			err = nil
 		} else {
-			kc.lg.Info("Consumer cleanup complete", log.KV("consumer", cgs.MemberID()))
+			kc.lg.Info("Consumer cleanup complete", log.KV("consumer", kc.name))
 		}
 	}
 	return
 }
 
 // ConsumeClaim actually eats entries from the session and writes them into our ingester
-func (kc *kafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+func (kc *kafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) (err error) {
 	//README the ConsumeClaim function is running in a go routine
 	//it is entirely possible for multiple of these routines to be running at a time
 
@@ -243,12 +256,14 @@ func (kc *kafkaConsumer) ConsumeClaim(session sarama.ConsumerGroupSession, claim
 	var currTS int64
 	batch := make([]*sarama.ConsumerMessage, 0, kc.batchSize)
 
-	kc.lg.Info("consumer started", log.KV("consumer", kc.memberId), log.KV("group", kc.group))
+	kc.lg.Info("consumer started", log.KV("consumer", kc.name), log.KV("group", kc.group))
+	var reason string
 loop:
 	for {
 		select {
 		case msg, ok := <-rch:
 			if !ok {
+				reason = `consumer group claim closed`
 				break loop
 			} else if msg == nil {
 				continue
@@ -256,9 +271,10 @@ loop:
 			ts := msg.Timestamp.Unix()
 			if currTS != ts && len(batch) > 0 {
 				//flush the existing batch
-				if err := kc.flush(session, batch); err != nil {
-					kc.lg.Error("failed to write entries", log.KV("count", len(batch)), log.KVErr(err))
-					return err
+				if err = kc.flush(session, batch); err != nil {
+					kc.lg.Error("failed to write entries", log.KV("consumer", kc.name), log.KV("count", len(batch)), log.KVErr(err))
+					reason = `consumer write failed on timestamp transition`
+					break loop
 				}
 				batch = batch[0:0]
 			}
@@ -267,9 +283,10 @@ loop:
 			//check if we hit capacity
 			if len(batch) == cap(batch) {
 				//flush the existing batch
-				if err := kc.flush(session, batch); err != nil {
-					kc.lg.Error("failed to write entries", log.KV("count", len(batch)), log.KVErr(err))
-					return err
+				if err = kc.flush(session, batch); err != nil {
+					kc.lg.Error("failed to write entries", log.KV("consumer", kc.name), log.KV("count", len(batch)), log.KVErr(err))
+					reason = `consumer write failed on max-capacity write`
+					break loop
 				}
 				currTS = 0
 				batch = batch[0:0]
@@ -277,17 +294,32 @@ loop:
 		case <-tckr.C:
 			if len(batch) > 0 {
 				//flush the existing batch
-				if err := kc.flush(session, batch); err != nil {
-					kc.lg.Error("failed to write entries", log.KV("count", len(batch)), log.KVErr(err))
-					return err
+				if err = kc.flush(session, batch); err != nil {
+					kc.lg.Error("failed to write entries", log.KV("consumer", kc.name), log.KV("count", len(batch)), log.KVErr(err))
+					reason = `consumer write failed on ticker`
+					break loop
 				}
 				currTS = 0
 				batch = batch[0:0]
 			}
 		}
 	}
-	kc.lg.Info("consumer exited", log.KV("consumer", kc.memberId), log.KV("group", kc.group))
-	return nil
+	//add the reason for exiting and an error if there is one, typically its just context cancelled but... maybe its something else
+	if err != nil {
+		kc.lg.Info("consumer exited with error",
+			log.KV("consumer", kc.name),
+			log.KV("group", kc.group),
+			log.KV("exit-reason", reason),
+			log.KVErr(err),
+		)
+	} else {
+		kc.lg.Info("consumer exited",
+			log.KV("consumer", kc.name),
+			log.KV("group", kc.group),
+			log.KV("exit-reason", reason),
+		)
+	}
+	return
 }
 
 func (kc *kafkaConsumer) resolveTag(tn string) (tag entry.EntryTag, ok bool, err error) {
@@ -303,8 +335,10 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 	var sz uint
 	var cnt uint
 	for _, m := range msgs {
+		// optionally override the timestamp, if no window is set, this does nothing
+		ts := kc.timeWindow.Override(m.Timestamp)
 		ent := &entry.Entry{
-			TS:   entry.FromStandard(m.Timestamp),
+			TS:   entry.FromStandard(ts),
 			Data: m.Value,
 		}
 		if kc.ignoreTS {
@@ -312,6 +346,7 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 		} else if kc.extractTS && kc.tg != nil {
 			var hts time.Time
 			var ok bool
+			// no need to do any override with the window, that is already all plugged into the time grinder
 			if hts, ok, err = kc.tg.Extract(ent.Data); err != nil {
 				kc.lg.Warn("catastrophic timegrinder error", log.KVErr(err))
 			} else if ok {
@@ -329,7 +364,7 @@ func (kc *kafkaConsumer) flush(session sarama.ConsumerGroupSession, msgs []*sara
 		cnt++
 	}
 	if kc.sync {
-		if err = kc.igst.SyncContext(kc.ctx, time.Second); err != nil {
+		if err = kc.igst.SyncContext(kc.ctx, 0); err != nil {
 			return
 		}
 	}
@@ -346,7 +381,7 @@ func (kc *kafkaConsumer) resolveSourceAndTag(m *sarama.ConsumerMessage) (tag ent
 	//short circuit out
 	if m == nil {
 		ip = kc.src
-		tag = kc.defTag
+		tag = kc.defaultTag
 		return
 	}
 	var tagHit bool
@@ -365,7 +400,7 @@ func (kc *kafkaConsumer) resolveSourceAndTag(m *sarama.ConsumerMessage) (tag ent
 		ip = kc.src
 	}
 	if !tagHit {
-		tag = kc.defTag
+		tag = kc.defaultTag
 	}
 	return
 }

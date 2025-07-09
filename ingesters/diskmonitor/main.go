@@ -15,7 +15,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -29,6 +28,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 
 	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
@@ -123,9 +123,9 @@ func main() {
 	debug.SetTraceback("all")
 	//test that the disk stats path exists
 	if st, err := os.Stat(dpath); err != nil {
-		log.Fatal(fmt.Sprintf("Failed to open %s: %v", dpath, err))
+		log.Fatalf("Failed to open %s: %v", dpath, err)
 	} else if !st.Mode().IsRegular() {
-		log.Fatal(fmt.Sprintf("%s is not a regular file", dpath))
+		log.Fatalf("%s is not a regular file", dpath)
 	}
 
 	//get the hostname
@@ -187,7 +187,7 @@ func main() {
 		}
 
 	}
-	if err := igst.Sync(time.Second); err != nil {
+	if err := igst.Sync(utils.ExitSyncTimeout); err != nil {
 		fmt.Println("Failed to sync", err)
 	}
 
@@ -204,7 +204,7 @@ func sampleRoutine(dm *diskMonitor, freq time.Duration, outch chan diskSample, q
 
 	for {
 		select {
-		case _ = <-tckr.C:
+		case <-tckr.C:
 			ts := entry.Now()
 			smp, err := dm.Sample()
 			if err != nil {
@@ -212,7 +212,7 @@ func sampleRoutine(dm *diskMonitor, freq time.Duration, outch chan diskSample, q
 				continue
 			}
 			outch <- diskSample{st: smp, ts: ts}
-		case _ = <-quit:
+		case <-quit:
 			close(outch)
 			return
 		}
@@ -277,7 +277,7 @@ func (dm *diskMonitor) Sample() (ds diskStats, err error) {
 
 func (ds *diskStats) Load(in io.Reader) (err error) {
 	var bts []byte
-	if bts, err = ioutil.ReadAll(in); err != nil {
+	if bts, err = io.ReadAll(in); err != nil {
 		return
 	}
 	if len(bts) == 0 {

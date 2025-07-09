@@ -130,7 +130,6 @@ func (p *Vpc) processItem(ent *entry.Entry) (rset []*entry.Entry, err error) {
 			return
 		}
 		logEvents = append(logEvents, v)
-		return
 	}
 	if _, err = jsonparser.ArrayEach(ent.Data, cb, "logEvents"); err != nil {
 		return

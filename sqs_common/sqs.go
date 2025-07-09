@@ -6,6 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package sqs_common implements the core of the of the SQS systems for
+// the Gravwell S3 and SQS ingesters
 package sqs_common
 
 import (
@@ -33,7 +35,7 @@ type SQS struct {
 	svc  *sqs.SQS
 }
 
-// Creates a new SQS connection from a given Config object.
+// SQSListener creates a new SQS connection from a given Config object.
 func SQSListener(c *Config) (*SQS, error) {
 	var err error
 
@@ -54,7 +56,7 @@ func SQSListener(c *Config) (*SQS, error) {
 	return s, nil
 }
 
-// Returns one or more messages from the queue on this SQS object.
+// GetMessages returns one or more messages from the queue on this SQS object.
 func (s *SQS) GetMessages() ([]*sqs.Message, error) {
 	// aws uses string pointers, so we have to declare it on the
 	// stack in order to take it's reference... why aws, why......
@@ -129,7 +131,11 @@ func GetCredentials(t, akid, secret string) (*credentials.Credentials, error) {
 			return nil, errors.New("no environment credentials available")
 		}
 	case "ec2role":
-		c = ec2rolecreds.NewCredentials(session.New())
+		sess, err := session.NewSession()
+		if err != nil {
+			return nil, fmt.Errorf("failed to create session %w", err)
+		}
+		c = ec2rolecreds.NewCredentials(sess)
 	default:
 		return nil, fmt.Errorf("invalid Credentials-Type %q", t)
 	}

@@ -76,6 +76,7 @@ func CheckProcessor(id string) error {
 	case VpcProcessor:
 	case CorelightProcessor:
 	case SyslogRouterProcessor:
+	case TagSrcRouterProcessor:
 	default:
 		return checkProcessorOS(id)
 	}
@@ -141,6 +142,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = CorelightLoadConfig(vc)
 	case SyslogRouterProcessor:
 		cfg, err = SyslogRouterLoadConfig(vc)
+	case TagSrcRouterProcessor:
+		cfg, err = TagSrcRouterLoadConfig(vc)
 	default:
 		cfg, err = processorLoadConfigOS(vc)
 	}
@@ -298,6 +301,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewSyslogRouter(cfg, tgr)
+	case TagSrcRouterProcessor:
+		var cfg TagSrcRouterConfig
+		if cfg, err = TagSrcRouterLoadConfig(vc); err != nil {
+			return
+		}
+		p, err = NewTagSrcRouter(cfg, tgr)
 	default:
 		p, err = newProcessorOS(vc, tgr)
 	}
@@ -327,7 +336,7 @@ func (pr *ProcessorSet) Process(ent *entry.Entry) (err error) {
 		return ErrInvalidEntry
 	}
 	pr.Lock()
-	if pr == nil || pr.wtr == nil {
+	if pr.wtr == nil {
 		err = ErrNotReady
 	} else if len(pr.set) == 0 {
 		err = pr.wtr.WriteEntry(ent)
@@ -347,7 +356,7 @@ func (pr *ProcessorSet) ProcessBatch(ents []*entry.Entry) (err error) {
 		return nil
 	}
 	pr.Lock()
-	if pr == nil || pr.wtr == nil {
+	if pr.wtr == nil {
 		err = ErrNotReady
 	} else if len(pr.set) == 0 {
 		err = pr.wtr.WriteBatch(ents)
@@ -367,7 +376,7 @@ func (pr *ProcessorSet) ProcessContext(ent *entry.Entry, ctx context.Context) (e
 		return ErrInvalidEntry
 	}
 	pr.Lock()
-	if pr == nil || pr.wtr == nil {
+	if pr.wtr == nil {
 		err = ErrNotReady
 	} else if len(pr.set) == 0 {
 		err = pr.wtr.WriteEntryContext(ctx, ent)
@@ -387,7 +396,7 @@ func (pr *ProcessorSet) ProcessBatchContext(ents []*entry.Entry, ctx context.Con
 		return nil
 	}
 	pr.Lock()
-	if pr == nil || pr.wtr == nil {
+	if pr.wtr == nil {
 		err = ErrNotReady
 	} else if len(pr.set) == 0 {
 		err = pr.writeSetContext(ents, ctx)

@@ -171,7 +171,7 @@ const subChar rune = '_'
 
 func remapTagCharacters(orig string) (ret string, err error) {
 	mf := func(r rune) rune {
-		if strings.IndexRune(ingest.FORBIDDEN_TAG_SET, r) != -1 {
+		if strings.ContainsRune(ingest.FORBIDDEN_TAG_SET, r) {
 			return subChar
 		}
 		return r

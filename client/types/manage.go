@@ -16,6 +16,10 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	maxJsonTimestamp = time.Date(9999, time.December, 12, 23, 59, 59, 99, time.UTC)
+)
+
 type IndexerRequest struct {
 	DialString string
 
@@ -39,7 +43,7 @@ type ShardInfo struct {
 	Cold        bool             //true if the shard is in the code storage
 }
 
-// custom marshaller to deal with the fact that the json marshaller can't handle the "empty" uuid value
+// MarshalJSON implements a custom marshaller to deal with the fact that the json marshaller can't handle the "empty" uuid value
 func (si ShardInfo) MarshalJSON() ([]byte, error) {
 	x := struct {
 		Name        string
@@ -58,6 +62,12 @@ func (si ShardInfo) MarshalJSON() ([]byte, error) {
 		Size:    si.Size,
 		Stored:  si.Stored,
 		Cold:    si.Cold,
+	}
+	if si.Start.After(maxJsonTimestamp) {
+		x.Start = maxJsonTimestamp
+	}
+	if si.End.After(maxJsonTimestamp) {
+		x.End = maxJsonTimestamp
 	}
 	if !si.RemoteState.isEmpty() {
 		x.RemoteState = &si.RemoteState
@@ -143,15 +153,15 @@ func (iwd *IndexerWellData) Sort() {
 	}
 }
 
-func (v IndexerWellData) MarshalJSON() ([]byte, error) {
+func (iwd IndexerWellData) MarshalJSON() ([]byte, error) {
 	x := struct {
 		UUID       uuid.UUID
 		Wells      emptyWellList
 		Replicated erp
 	}{
-		UUID:       v.UUID,
-		Wells:      emptyWellList(v.Wells),
-		Replicated: erp(v.Replicated),
+		UUID:       iwd.UUID,
+		Wells:      emptyWellList(iwd.Wells),
+		Replicated: erp(iwd.Replicated),
 	}
 
 	return json.Marshal(x)

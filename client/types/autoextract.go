@@ -27,7 +27,7 @@ var (
 	ErrMissingTag    error = errors.New("extraction tag assignment missing")
 )
 
-// AutoExtractor object. When setting an AutoExtractor, only Name, Module,
+// AXDefinition object, when setting an AutoExtractor, only Name, Module,
 // Params, and Tag must be set.
 type AXDefinition struct {
 	Name        string    `toml:"name,omitempty" json:",omitempty"`
@@ -46,7 +46,7 @@ type AXDefinition struct {
 	LastUpdated time.Time `toml:"-"`
 }
 
-// Verify all required fields in an AXDefinition object are valid.
+// Validate verifies all required fields in an AXDefinition object are valid.
 func (dc *AXDefinition) Validate() error {
 	if dc.Module == `` {
 		return ErrMissingModule
@@ -173,15 +173,15 @@ func GenLine(wtr io.Writer, name, line string) (err error) {
 	return
 }
 
-func (axd AXDefinition) Equal(v AXDefinition) bool {
-	if axd.Name != v.Name || axd.Desc != v.Desc || axd.Module != v.Module || axd.UUID != v.UUID {
+func (dc AXDefinition) Equal(v AXDefinition) bool {
+	if dc.Name != v.Name || dc.Desc != v.Desc || dc.Module != v.Module || dc.UUID != v.UUID {
 		return false
 	}
-	if axd.Params != v.Params || axd.Args != v.Args {
+	if dc.Params != v.Params || dc.Args != v.Args {
 		return false
 	}
 
-	t1 := axd.GetTags()
+	t1 := dc.GetTags()
 	t2 := v.GetTags()
 	sort.Strings(t1)
 	sort.Strings(t2)
@@ -194,18 +194,18 @@ func (axd AXDefinition) Equal(v AXDefinition) bool {
 		}
 	}
 
-	if axd.UID != v.UID || axd.Global != v.Global {
+	if dc.UID != v.UID || dc.Global != v.Global {
 		return false
 	}
-	if len(axd.Labels) != len(v.Labels) || len(axd.GIDs) != len(v.GIDs) {
+	if len(dc.Labels) != len(v.Labels) || len(dc.GIDs) != len(v.GIDs) {
 		return false
 	}
-	for i, l := range axd.Labels {
+	for i, l := range dc.Labels {
 		if v.Labels[i] != l {
 			return false
 		}
 	}
-	for i, g := range axd.GIDs {
+	for i, g := range dc.GIDs {
 		if v.GIDs[i] != g {
 			return false
 		}

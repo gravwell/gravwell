@@ -46,6 +46,7 @@ func lineConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 	if !cfg.ignoreTimestamps {
 		var err error
 		tcfg := timegrinder.Config{
+			TSWindow:           cfg.tsWindow,
 			EnableLeftMostSeed: true,
 		}
 		tg, err = timegrinder.NewTimeGrinder(tcfg)
@@ -102,6 +103,7 @@ func lineConnHandlerUDP(c *net.UDPConn, cfg handlerConfig) {
 	sp := []byte("\n")
 	buff := make([]byte, 16*1024) //local buffer that should be big enough for even the largest UDP packets
 	tcfg := timegrinder.Config{
+		TSWindow:           cfg.tsWindow,
 		EnableLeftMostSeed: true,
 	}
 	tg, err := timegrinder.NewTimeGrinder(tcfg)

@@ -35,13 +35,13 @@ type ModuleStatsUpdate struct {
 	ScratchWritten          uint64 // Bytes of scratch written
 }
 
-func (m *ModuleStatsUpdate) Size() (sz int64) {
+func (sms *ModuleStatsUpdate) Size() (sz int64) {
 	sz = 3 * 16 //counts, duration
 	return
 }
 
-func (s *SearchModuleStats) Size() int64 {
-	return int64(len(s.Name)+len(s.Args)) + s.ModuleStatsUpdate.Size()
+func (sms *SearchModuleStats) Size() int64 {
+	return int64(len(sms.Name)+len(sms.Args)) + sms.ModuleStatsUpdate.Size()
 }
 
 func (sms SearchModuleStats) JSON() ([]byte, error) {
@@ -79,11 +79,11 @@ func (sms SearchModuleStats) Equal(t SearchModuleStats) bool {
 	return sms.Name == t.Name && sms.ModuleStatsUpdate.Equal(t.ModuleStatsUpdate)
 }
 
-func (s *SearchModuleStats) ResetCounters() {
-	s.InputCount = 0
-	s.OutputCount = 0
-	s.InputBytes = 0
-	s.OutputBytes = 0
+func (sms *SearchModuleStats) ResetCounters() {
+	sms.InputCount = 0
+	sms.OutputCount = 0
+	sms.InputBytes = 0
+	sms.OutputBytes = 0
 }
 
 func (s *SearchModuleStatsUpdate) Size() (sz int64) {
@@ -186,25 +186,25 @@ func (s *SearchModuleStatsUpdate) CopyZero() SearchModuleStatsUpdate {
 	}
 }
 
-func (m *SearchModuleStatsUpdate) MarshalJSON() ([]byte, error) {
+func (s *SearchModuleStatsUpdate) MarshalJSON() ([]byte, error) {
 	type alias SearchModuleStatsUpdate
 	return json.Marshal(&struct {
 		alias
 		Stats sms
 	}{
-		alias: alias(*m),
-		Stats: sms(m.Stats),
+		alias: alias(*s),
+		Stats: sms(s.Stats),
 	})
 }
 
-func (m *StatSet) MarshalJSON() ([]byte, error) {
+func (ss *StatSet) MarshalJSON() ([]byte, error) {
 	type alias StatSet
 	return json.Marshal(&struct {
 		alias
 		Stats sms
 	}{
-		alias: alias(*m),
-		Stats: sms(m.Stats),
+		alias: alias(*ss),
+		Stats: sms(ss.Stats),
 	})
 }
 
