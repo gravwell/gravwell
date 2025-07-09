@@ -15,20 +15,17 @@ package query
 
 import (
 	"fmt"
-	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 
-	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textarea"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 // editorView represents the composable view box containing the query editor and any errors therein
 type editorView struct {
-	ta   textarea.Model
-	err  string
-	keys []key.Binding
+	ta  textarea.Model
+	err string
 }
 
 func initialEditorView(height, width uint) editorView {
@@ -43,12 +40,6 @@ func initialEditorView(height, width uint) editorView {
 	ev.ta.KeyMap.WordForward.SetKeys("ctrl+right", "alt+right", "alt+f")
 	ev.ta.KeyMap.WordBackward.SetKeys("ctrl+left", "alt+left", "alt+b")
 	ev.ta.Focus()
-	// set up the help keys
-	ev.keys = []key.Binding{ // 0: submit
-		key.NewBinding(
-			key.WithKeys("ctrl+d"),
-			key.WithHelp("ctrl+d", "submit query"),
-		)}
 
 	return ev
 }
@@ -56,21 +47,13 @@ func initialEditorView(height, width uint) editorView {
 // Passes messages into the editor view's text area.
 // Returns submit if focused and the submit keybind was contained in the message.
 // If submit is returned, caller can attempt to submit the query.
-func (ev *editorView) update(msg tea.Msg) (cmd tea.Cmd, submit bool) {
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
+func (ev *editorView) update(msg tea.Msg) tea.Cmd {
+	if _, ok := msg.(tea.KeyMsg); ok { // clear error on keymsg
 		ev.err = ""
-		if key.Matches(msg, ev.keys[0]) && ev.ta.Focused() {
-			if strings.TrimSpace(ev.ta.Value()) != "" {
-				return nil, true
-			}
-			// fallthrough to standard update
-			ev.err = "cannot submit an empty query"
-		}
 	}
 	var t tea.Cmd
 	ev.ta, t = ev.ta.Update(msg)
-	return t, false
+	return t
 }
 
 func (ev *editorView) view() string {

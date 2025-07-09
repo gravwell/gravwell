@@ -54,6 +54,16 @@ const (
 
 //#endregion modes
 
+//#region global key constants
+
+// keys for fetching keybind values
+const (
+	cycleView int = 0
+	submit    int = 1
+)
+
+//#endregion
+
 // interactive model definition
 type query struct {
 	mode mode
@@ -85,8 +95,10 @@ type query struct {
 
 	help help.Model
 
-	keys []key.Binding // global keys, always active no matter the focused view
-
+	// global keys, always active no matter the focused view
+	//
+	// use the global key constants for consistent querying
+	keys []key.Binding
 }
 
 var Query action.Model = Initial()
@@ -111,6 +123,10 @@ func Initial() *query {
 	q.keys = []key.Binding{
 		key.NewBinding(key.WithKeys("tab"), // 0: cycle
 			key.WithHelp("tab", "cycle view")),
+		key.NewBinding( // 1: submit
+			key.WithKeys("ctrl+d"),
+			key.WithHelp("ctrl+d", "submit query"),
+		),
 		key.NewBinding(key.WithKeys("esc"), // [handled by mother]
 			key.WithHelp("esc", "return to navigation")),
 	}
@@ -199,19 +215,22 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 	// handle global keys
 	if isKeyMsg {
 		switch {
-		case key.Matches(keyMsg, q.keys[0]):
+		case key.Matches(keyMsg, q.keys[cycleView]):
 			q.switchFocus()
+		case key.Matches(keyMsg, q.keys[submit]): // attempting to submit
+			if qry := strings.TrimSpace(q.editor.ta.Value()); qry != "" {
+				// TODO don't we need to check background?
+				return q.submitForegroundQuery(qry)
+			}
+			q.editor.err = "cannot submit empty query"
+			return nil
 		}
 	}
 
 	// pass message to the active view
 	var cmds []tea.Cmd
 	if q.focusedEditor { // editor view active
-		c, submit := q.editor.update(msg)
-		if submit {
-			return q.submitForegroundQuery(q.editor.ta.Value())
-		}
-		cmds = []tea.Cmd{c}
+		cmds = []tea.Cmd{q.editor.update(msg)}
 	} else { // modifiers view active
 		cmds = q.modifiers.update(msg)
 	}
@@ -237,7 +256,6 @@ func (q *query) View() string {
 		modifierView string
 	)
 	if q.focusedEditor {
-		viewKeys = q.editor.keys
 		editorView = stylesheet.Cur.ComposableSty.FocusedBorder.Render(q.editor.view())
 		modifierView = stylesheet.Cur.ComposableSty.UnfocusedBorder.Render(q.modifiers.view())
 	} else {
