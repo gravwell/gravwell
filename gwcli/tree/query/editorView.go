@@ -15,6 +15,7 @@ package query
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 
@@ -45,28 +46,26 @@ func initialEditorView(height, width uint) editorView {
 	// set up the help keys
 	ev.keys = []key.Binding{ // 0: submit
 		key.NewBinding(
-			key.WithKeys("alt+enter"),
-			key.WithHelp("alt+enter", "submit query"),
+			key.WithKeys("ctrl+d"),
+			key.WithHelp("ctrl+d", "submit query"),
 		)}
 
 	return ev
 }
 
 // Passes messages into the editor view's text area.
-// Catches "alt+enter", returning submit if caught, alerting the caller to go ahead and submit the query inside of the TA.
+// Returns submit if focused and the submit keybind was contained in the message.
+// If submit is returned, caller can attempt to submit the query.
 func (ev *editorView) update(msg tea.Msg) (cmd tea.Cmd, submit bool) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		ev.err = ""
-		switch {
-		case key.Matches(msg, ev.keys[0]): // submit
-			if ev.ta.Value() == "" {
-				// superfluous request
-				ev.err = "empty request"
-				// falls through to standard update
-			} else {
+		if key.Matches(msg, ev.keys[0]) && ev.ta.Focused() {
+			if strings.TrimSpace(ev.ta.Value()) != "" {
 				return nil, true
 			}
+			// fallthrough to standard update
+			ev.err = "cannot submit an empty query"
 		}
 	}
 	var t tea.Cmd

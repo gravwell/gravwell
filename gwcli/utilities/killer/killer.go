@@ -21,10 +21,10 @@ const (
 )
 
 // keys kill the program in Update no matter its other states
-var globalKillKeys = [...]tea.KeyType{tea.KeyCtrlC, tea.KeyCtrlD}
+var globalKillKeys = [...]tea.KeyType{tea.KeyCtrlC}
 
 // GlobalKillKeys returns the list of bubble tea combinations that act as global kills by Mother.
-func GlobalKillKeys() [2]tea.KeyType {
+func GlobalKillKeys() [1]tea.KeyType {
 	return globalKillKeys
 }
 
