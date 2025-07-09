@@ -11,7 +11,6 @@ package indexers
 // This file implements the indexer calendar action, which returns timestamped entries associated to the named indexer.
 
 import (
-	"errors"
 	"strings"
 	"time"
 
@@ -32,8 +31,12 @@ const (
 	longCalendar  string = "Display day-by-day calendar statistics for a given indexer and its wells."
 )
 
-func newCalendarAction() action.Pair {
+var ( // set and reset by ValidateArgs()
+	start time.Time
+	end   time.Time
+)
 
+func newCalendarAction() action.Pair {
 	var aliases = []string{"entries"}
 
 	return scaffoldlist.NewListAction(shortCalendar, longCalendar, types.CalendarEntry{}, data,
@@ -45,18 +48,53 @@ func newCalendarAction() action.Pair {
 				if fs.NArg() > 1 {
 					return ft.InvAtMostArgN(1, uint(fs.NArg())), nil
 				}
+				if v, inv, err := validateTime(fs, "start"); err != nil {
+					return "", err
+				} else if inv != "" {
+					return inv, nil
+				} else {
+					start = time.Date(v.Year(), v.Month(), v.Day(), 00, 00, 00, 0, time.Local)
+				}
+				if v, inv, err := validateTime(fs, "end"); err != nil {
+					return "", err
+				} else if inv != "" {
+					return inv, nil
+				} else {
+					// end is not inclusive by default, so we set it to the very end of the given day
+					end = time.Date(v.Year(), v.Month(), v.Day(), 23, 59, 59, 0, time.Local)
+				}
+
 				return "", nil
 			},
 		})
 }
 
+func validateTime(fs *pflag.FlagSet, flagName string) (v time.Time, invalid string, err error) {
+	v = time.Now()
+	s, err := fs.GetString(flagName)
+	if err != nil {
+		return v, "", err
+	}
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return v, "", nil
+	}
+
+	// attempt to parse time
+	t, err := time.Parse(time.DateOnly, s)
+	if err != nil {
+		return v, "--" + flagName + " must be a valid date formatted as YYYY-MM-DD", nil
+	}
+	return t, "", nil
+}
+
 func calendarFlags() pflag.FlagSet {
 	fs := pflag.FlagSet{}
-	fs.String("start", "", "start time for calendar stats.\n"+
-		"May be given in RFC1123Z (Mon, 02 Jan 2006 15:04:05 -0700) or DateTime (2006-01-02 15:04:05).\n"+
+	fs.String("start", "", "start date for calendar stats (inclusive).\n"+
+		"Must be given as YYYY-MM-DD\n"+
 		"If unset, defaults to now.")
-	fs.String("end", "", "end time for calendar stats.\n"+
-		"May be given in RFC1123Z (Mon, 02 Jan 2006 15:04:05 -0700) or DateTime (2006-01-02 15:04:05).\n"+
+	fs.String("end", "", "end date for calendar stats (inclusive).\n"+
+		"Must be given as YYYY-MM-DD\n"+
 		"If unset, defaults to now.")
 	fs.StringSlice("wells", nil, "specify the wells to fetch data for.\n"+
 		"If unspecified, all wells will be selected.")
@@ -64,14 +102,8 @@ func calendarFlags() pflag.FlagSet {
 }
 
 func data(fs *pflag.FlagSet) ([]types.CalendarEntry, error) {
-	start, err := fetchTime(fs, "start")
-	if err != nil {
-		return nil, err
-	}
-	end, err := fetchTime(fs, "end")
-	if err != nil {
-		return nil, err
-	}
+	// start/end are set by ValidateArgs
+
 	wells, err := fs.GetStringSlice("wells")
 	if err != nil {
 		return nil, uniques.ErrGetFlag(useCalendar, err)
@@ -94,27 +126,4 @@ func data(fs *pflag.FlagSet) ([]types.CalendarEntry, error) {
 	}
 
 	return connection.Client.GetCalendarStats(start, end, nil)
-}
-
-// fetchTime attempts to parse the given flag as a time.Time.
-// If the flag was unset, fetchTime will return time.Time{} and nil.
-func fetchTime(fs *pflag.FlagSet, flagName string) (time.Time, error) {
-	// check for and parse start and end flags
-	s, err := fs.GetString(flagName)
-	if err != nil {
-		return time.Time{}, uniques.ErrGetFlag(useCalendar, err)
-	}
-	s = strings.TrimSpace(s)
-	if s == "" {
-		return time.Now(), nil
-	}
-	// attempt to parse time
-	if t, err := time.Parse(time.RFC1123Z, s); err == nil {
-		return t, nil
-	}
-	if t, err := time.Parse(time.DateTime, s); err == nil {
-		return t, nil
-	}
-
-	return time.Time{}, errors.New("--" + flagName + " must be a valid timestamp in RFC1123Z or DateTime format")
 }
