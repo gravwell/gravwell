@@ -12,6 +12,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
+	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -32,6 +33,26 @@ func get() action.Pair {
 		example = fmt.Sprintf("%v 127.0.0.1:9404", use)
 	)
 
+	// we want to get *most* columns by default so it is easier to grab all of them and remove ones we do not want
+	var defaultColumns []string
+	if dcols, err := weave.StructFields(deepIndexerInfo{}, true); err != nil {
+		panic("failed to delve dii: " + err.Error())
+	} else {
+		// add columns not in exclude to the set of default columns
+		var defaultExclude = map[string]bool{
+			"Ingest.EntriesHourTail":   true,
+			"Ingest.EntriesMinuteTail": true,
+			"Ingest.BytesHourTail":     true,
+			"Ingest.BytesMinuteTail":   true,
+		} // hashset
+		for i := range dcols {
+			if _, found := defaultExclude[dcols[i]]; !found {
+				defaultColumns = append(defaultColumns, dcols[i])
+			}
+		}
+
+	}
+
 	return scaffoldlist.NewListAction(short, long, deepIndexerInfo{},
 		func(fs *pflag.FlagSet) ([]deepIndexerInfo, error) {
 			dii := deepIndexerInfo{Name: strings.TrimSpace(fs.Arg(0))}
@@ -44,8 +65,8 @@ func get() action.Pair {
 			return []deepIndexerInfo{dii}, nil
 		},
 		scaffoldlist.Options{
-			Use: use,
-			//Pretty: prettyInspect,
+			Use:            use,
+			DefaultColumns: defaultColumns,
 			CmdMods: func(c *cobra.Command) {
 				c.Example = example
 			},
