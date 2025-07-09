@@ -3,13 +3,14 @@ package indexers
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -21,27 +22,24 @@ func get() action.Pair {
 	const (
 		use   string = "get"
 		short string = "get details about a specific indexer"
-		long  string = "Review detailed information about a single, specified indexer.\n" +
-			"Does not include calendar data; use the calendar action for that.\n" +
-			"If an error occurs, processing will continue, skipping queries related to or cascading from the error source."
 	)
-	var example = fmt.Sprintf("%v xxx22024-999a-4728-94d7-d0c0703221ff", use)
+
+	var (
+		long = "Review detailed information about a single indexer.\n" +
+			"Does not include calendar data; use the calendar action for that.\n" +
+			"Indexer is specified by name; use the " + stylesheet.Cur.Nav.Render("indexers") + " " + stylesheet.Cur.Action.Render("list") + " command.\n" +
+			"If an error occurs, processing will continue, skipping queries related to or cascading from the error source."
+		example = fmt.Sprintf("%v 127.0.0.1:9404", use)
+	)
 
 	return scaffoldlist.NewListAction(short, long, deepIndexerInfo{},
 		func(fs *pflag.FlagSet) ([]deepIndexerInfo, error) {
-			// validate the given UUID
-			idxrUUID, err := uuid.Parse(fs.Arg(0))
-			if err != nil {
-				return nil, err
-			}
+			dii := deepIndexerInfo{Name: strings.TrimSpace(fs.Arg(0))}
 
-			// get as much info as we can by UUID
-			dii, err := fetchByUUID(idxrUUID)
-			if err != nil {
-				return nil, err
+			if !dii.fetchByName() {
+				return nil, errors.New("found no data related to indexer '" + dii.Name + "'")
 			}
-
-			fetchByName(&dii)
+			dii.fetchByUUID()
 
 			return []deepIndexerInfo{dii}, nil
 		},
@@ -53,27 +51,101 @@ func get() action.Pair {
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
-					return "exactly 1 argument (UUID) is required", nil
+					return "exactly 1 argument (name) is required", nil
+				}
+				// preliminary existence query
+				if m, err := connection.Client.GetPingStates(); err != nil {
+					return "", err
+				} else if _, found := m[fs.Arg(0)]; !found {
+					return "did not find indexer '" + fs.Arg(0) + "'", nil
 				}
 				return "", nil
 			},
 		})
 }
 
-// wrapper for the the map returned by grav.GetIndexerStorageStats()
+// deepIndexerInfo collects all information available about a single indexer.
+// Most data is queried by name, though we must pivot on UUID for a couple calls.
 type deepIndexerInfo struct {
-	UUID    string // our initial pivot point
 	Name    string // used to retrieve most info
+	UUID    string
 	Storage types.StorageStats
 	Wells   map[string]types.PerWellStorageStats // can we use a map? // TODO
 	Ingest  types.IngestStats
 	Ping    string
 }
 
-// fetchbyUUID fetches all indexer info that can be plumbed via UUID.
-// An error is only returned if it was a critical error (specifically being unable to find an indexer associated to the UUID).
-// Logs for the caller; no need to log the returned error.
-func fetchByUUID(idxrUUID uuid.UUID) (dii deepIndexerInfo, _ error) {
+// DESTRUCTIVELY ALTERS DII.
+//
+// Using dii.Name, fetches as much information as can be queried by name and installs it into dii.
+// Returns immediately if dii.Name is empty.
+// fetchByName logs and swallows errors, leaving the related fields empty.
+// Only returns false if ALL queries failed to find the named indexer.
+func (dii *deepIndexerInfo) fetchByName() (found bool) {
+	if dii.Name == "" {
+		return
+	}
+
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+
+	// get ingesters
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ingStats, err := connection.Client.GetIngesterStats()
+		if err != nil {
+			clilog.Writer.Warnf("failed to fetch ingester stats: %v", err)
+			return
+		}
+		mu.Lock()
+		found = true
+		mu.Unlock()
+		for idxr, stat := range ingStats {
+			if idxr != dii.Name {
+				continue
+			}
+			mu.Lock()
+			dii.Ingest = stat
+			mu.Unlock()
+			return
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		pings, err := connection.Client.GetPingStates()
+		if err != nil {
+			clilog.Writer.Warnf("failed to fetch ping states: %v", err)
+			return
+		}
+		mu.Lock()
+		found = true
+		mu.Unlock()
+		for idxrName, pingState := range pings {
+			if idxrName != dii.Name {
+				continue
+			}
+			mu.Lock()
+			dii.Ping = pingState
+			mu.Unlock()
+		}
+	}()
+
+	// TODO fetch additional queried by name
+
+	wg.Wait()
+
+	return
+}
+
+// DESTRUCTIVELY ALTERS DII.
+//
+// Pivoting on dii.UUID, fetches as much information as can be queried by uuid and installs it into dii.
+// Returns immediately if dii.UUID is empty.
+// Logs and swallows errors, leaving the related fields empty.
+func (dii *deepIndexerInfo) fetchByUUID() {
 	// fetch storage stats by UUID
 	if stats, err := connection.Client.GetStorageStats(); err != nil {
 		// TODO check for no-indexer-found error
@@ -105,60 +177,4 @@ func fetchByUUID(idxrUUID uuid.UUID) (dii deepIndexerInfo, _ error) {
 		}
 	}
 	return dii, nil
-}
-
-// Using dii.Name, fetches as much information as can be queried by name.
-// Updates the given dii.
-// Returns immediately if dii.Name is empty.
-// Logs and swallows errors, leaving the related fields empty.
-func fetchByName(dii *deepIndexerInfo) {
-	if dii.Name == "" {
-		return
-	}
-
-	var mu sync.Mutex
-	var wg sync.WaitGroup
-
-	// get ingesters
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		ingStats, err := connection.Client.GetIngesterStats()
-		if err != nil {
-			clilog.Writer.Warnf("failed to fetch ingester stats: %v", err)
-			return
-		}
-		for idxr, stat := range ingStats {
-			if idxr != dii.Name {
-				continue
-			}
-			mu.Lock()
-			dii.Ingest = stat
-			mu.Unlock()
-			return
-		}
-	}()
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		pings, err := connection.Client.GetPingStates()
-		if err != nil {
-			clilog.Writer.Warnf("failed to fetch ping states: %v", err)
-			return
-		}
-		for idxrName, pingState := range pings {
-			if idxrName != dii.Name {
-				continue
-			}
-			mu.Lock()
-			dii.Ping = pingState
-			mu.Unlock()
-		}
-	}()
-
-	// TODO fetch additional queried by name
-
-	wg.Wait()
-
 }
