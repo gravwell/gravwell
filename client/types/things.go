@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/utils"
+	"github.com/gravwell/gravwell/v4/utils"
 )
 
 const (

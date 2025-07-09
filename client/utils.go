@@ -23,8 +23,8 @@ var (
 )
 
 var (
-	adminParams = map[string]string{
-		`admin`: `true`,
+	adminParams = []urlParam{
+		urlParam{key: `admin`, value: `true`},
 	}
 )
 
