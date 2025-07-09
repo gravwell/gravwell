@@ -217,6 +217,7 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 		switch {
 		case key.Matches(keyMsg, q.keys[keyCycleView]):
 			q.switchFocus()
+			return textarea.Blink
 		case key.Matches(keyMsg, q.keys[keySubmit]): // attempting to submit
 			if qry := strings.TrimSpace(q.editor.ta.Value()); qry != "" {
 				return q.submitQuery(qry)
