@@ -58,8 +58,8 @@ const (
 
 // keys for fetching keybind values
 const (
-	cycleView int = 0
-	submit    int = 1
+	keyCycleView int = 0
+	keySubmit    int = 1
 )
 
 //#endregion
@@ -215,11 +215,10 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 	// handle global keys
 	if isKeyMsg {
 		switch {
-		case key.Matches(keyMsg, q.keys[cycleView]):
+		case key.Matches(keyMsg, q.keys[keyCycleView]):
 			q.switchFocus()
-		case key.Matches(keyMsg, q.keys[submit]): // attempting to submit
+		case key.Matches(keyMsg, q.keys[keySubmit]): // attempting to submit
 			if qry := strings.TrimSpace(q.editor.ta.Value()); qry != "" {
-				// TODO don't we need to check background?
 				return q.submitQuery(qry)
 			}
 			q.editor.err = "cannot submit empty query"
@@ -232,7 +231,14 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 	if q.focusedEditor { // editor view active
 		cmds = []tea.Cmd{q.editor.update(msg)}
 	} else { // modifiers view active
-		cmds = q.modifiers.update(msg)
+		var submit bool
+		cmds, submit = q.modifiers.update(msg)
+		if submit {
+			if qry := strings.TrimSpace(q.editor.ta.Value()); qry != "" {
+				return q.submitQuery(qry)
+			}
+			q.editor.err = "cannot submit empty query"
+		}
 	}
 
 	return tea.Batch(cmds...)

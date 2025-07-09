@@ -38,6 +38,7 @@ const (
 	lowBound modifSelection = iota
 	duration
 	background
+	submit
 	highBound
 )
 
@@ -92,7 +93,8 @@ func initialModifView(height, width uint) modifView {
 }
 
 // Walks through the options in modifSelection and passes keys to the currently selected one.
-func (mv *modifView) update(msg tea.Msg) []tea.Cmd { // TODO switch away from an array of Cmds.
+// Returns true if the user selected the submit button.
+func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away from an array of Cmds.
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -106,7 +108,7 @@ func (mv *modifView) update(msg tea.Msg) []tea.Cmd { // TODO switch away from an
 			} else {
 				mv.durationTI.Blur()
 			}
-			return []tea.Cmd{textinput.Blink}
+			return []tea.Cmd{textinput.Blink}, false
 		case tea.KeyDown:
 			mv.selected += 1
 			if mv.selected >= highBound {
@@ -117,33 +119,36 @@ func (mv *modifView) update(msg tea.Msg) []tea.Cmd { // TODO switch away from an
 			} else {
 				mv.durationTI.Blur()
 			}
-			return []tea.Cmd{textinput.Blink}
+			return []tea.Cmd{textinput.Blink}, false
 		case tea.KeySpace, tea.KeyEnter:
-			// handle booleans
 			switch mv.selected {
 			case background:
 				mv.background = !mv.background
+			case submit:
+				return nil, true
+
 			}
 		}
 	}
 	var cmds = make([]tea.Cmd, 1)
 	mv.durationTI, cmds[0] = mv.durationTI.Update(msg)
 
-	return cmds
+	return cmds, false
 }
 
 func (mv *modifView) view() string {
-	var bldr strings.Builder
+	var sb strings.Builder
 
-	bldr.WriteString(" " + stylesheet.Cur.PrimaryText.Render("Duration:") + "\n")
-	bldr.WriteString(
+	sb.WriteString(" " + stylesheet.Cur.PrimaryText.Render("Duration:") + "\n")
+	sb.WriteString(
 		fmt.Sprintf("%s%s\n", stylesheet.Pip(mv.selected, duration), mv.durationTI.View()),
 	)
-	bldr.WriteString(
+	sb.WriteString(
 		fmt.Sprintf("%s%s %s\n", stylesheet.Pip(mv.selected, background), stylesheet.Checkbox(mv.background), stylesheet.Cur.PrimaryText.Render("Background?")),
 	)
+	sb.WriteString(stylesheet.Button("submit", mv.selected == submit))
 
-	return bldr.String()
+	return sb.String()
 }
 
 func (mv *modifView) reset() {

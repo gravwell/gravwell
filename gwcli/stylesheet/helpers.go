@@ -54,6 +54,21 @@ func box(val bool, leftBoundary, rightBoundary rune) string {
 	return fmt.Sprintf("%c%s%c", leftBoundary, Cur.SecondaryText.Render(string(c)), rightBoundary)
 }
 
+// Button returns the text stylized as a selectable button.
+// Leaves a cell on the left for the pip (which is drawn if pip is set).
+func Button(text string, pip bool) string {
+	r := " "
+	if pip {
+		r = Cur.Pip()
+	}
+	btn := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(Cur.SecondaryText.GetForeground()).
+		Foreground(Cur.PrimaryText.GetForeground()).
+		Render(text)
+	return lipgloss.JoinHorizontal(lipgloss.Center, r, btn)
+}
+
 // SubmitString displays either the key-bind to submit the action on the current tab or the input error,
 // if one exists, as well as the result string, beneath the submit-string/input-error.
 func SubmitString(keybind, inputErr, result string, width int) string {
