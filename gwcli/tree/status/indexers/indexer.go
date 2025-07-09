@@ -133,7 +133,7 @@ func newInspectBasicAction() action.Pair {
 		// format indexer storage stats
 		var wells []string = make([]string, len(ss)) // collect keys in case --start && --end were specified
 		var i uint8 = 0
-		for well, stats := range ss {
+		for well, _ := range ss {
 			wells[i] = well
 			i++
 			// TODO format stats into sb
@@ -191,13 +191,13 @@ func fetchTime(c *cobra.Command, flagName string) (time.Time, error) {
 // attachCalendarStats checks for the start and end flags. If they are found, it attaches calendar stats for the given indexer to the string builder.
 // Expects the caller to validate that start and end are !zero.
 func attachCalendarStats(sb *strings.Builder, start, end time.Time, indexer uuid.UUID, wells []string) error {
-	ce, err := connection.Client.GetIndexerCalendarStats(indexer, start, end, wells)
+	_, err := connection.Client.GetIndexerCalendarStats(indexer, start, end, wells)
 	if err != nil {
 		return err
 	}
 
 	// TODO format ce into sb
-
+	return nil
 }
 
 //#endregion inspect
