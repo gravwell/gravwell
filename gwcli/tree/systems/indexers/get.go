@@ -6,6 +6,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -86,14 +87,31 @@ func get() action.Pair {
 }
 
 // deepIndexerInfo collects all information available about a single indexer.
-// Most data is queried by name, though we must pivot on UUID for a couple calls.
+// Allows us to massage the output format and column names.
+// NOTE(rlandau): like many systems commands, these structs are based off the gravwell structs, with some variation for better print-ability.
 type deepIndexerInfo struct {
 	Name    string // used to retrieve most info
 	UUID    string
-	Storage types.StorageStats
-	Wells   map[string]types.PerWellStorageStats // can we use a map? // TODO
-	Ingest  types.IngestStats
-	Ping    string
+	Storage struct {
+		CoverageStart    string
+		CoverageEnd      string
+		DataIngestedHot  uint64
+		DataIngestedCold uint64
+		DataStoredHot    uint64
+		DataStoredCold   uint64
+		EntryCountHot    uint64
+		EntryCountCold   uint64
+	}
+	Wells []struct {
+		Name  string
+		Stats types.PerWellStorageStats
+	}
+	Ingest   types.IngestStats
+	Ping     string
+	Children struct {
+		Err   string
+		Wells []types.IndexManagerStats
+	}
 }
 
 // DESTRUCTIVELY ALTERS DII.
@@ -141,20 +159,41 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 			clilog.Writer.Warnf("failed to fetch ping states: %v", err)
 			return
 		}
-		mu.Lock()
-		found = true
-		mu.Unlock()
-		for idxrName, pingState := range pings {
-			if idxrName != dii.Name {
-				continue
-			}
+		if state, ok := pings[dii.Name]; !ok {
+			clilog.Writer.Warnf("did not find a ping state associated with indexer %v", dii.Name)
+		} else {
 			mu.Lock()
-			dii.Ping = pingState
+			dii.Ping = state
+			found = true
 			mu.Unlock()
 		}
 	}()
 
-	// TODO fetch additional queried by name
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		stats, err := connection.Client.GetIndexStats()
+		if err != nil {
+			clilog.Writer.Warnf("failed to fetch index stats: %v", err)
+			return
+		}
+		if state, ok := stats[dii.Name]; !ok {
+			clilog.Writer.Warnf("did not find a ping state associated with indexer %v", dii.Name)
+		} else {
+			mu.Lock()
+			defer mu.Unlock()
+			found = true
+			// check error
+			if state.Error != "" {
+				dii.Children.Err = state.Error
+				return
+			}
+			dii.Children.Wells = state.IndexStats
+			dii.UUID = state.UUID.String()
+		}
+	}()
+
+	// TODO fetch additional queries by name
 
 	wg.Wait()
 
@@ -169,33 +208,54 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 func (dii *deepIndexerInfo) fetchByUUID() {
 	// fetch storage stats by UUID
 	if stats, err := connection.Client.GetStorageStats(); err != nil {
-		// TODO check for no-indexer-found error
-		return dii, err
+		clilog.Writer.Warnf("failed to get storage stats by UUID: %v", err)
 	} else if storeStats, ok := stats[dii.UUID]; ok {
-		dii.Storage = storeStats
+		dii.Storage = struct {
+			CoverageStart    string
+			CoverageEnd      string
+			DataIngestedHot  uint64
+			DataIngestedCold uint64
+			DataStoredHot    uint64
+			DataStoredCold   uint64
+			EntryCountHot    uint64
+			EntryCountCold   uint64
+		}{
+			CoverageStart:    storeStats.CoverageStart.String(),
+			CoverageEnd:      storeStats.CoverageEnd.String(),
+			DataIngestedHot:  storeStats.DataIngestedHot,
+			DataIngestedCold: storeStats.DataIngestedCold,
+			DataStoredHot:    storeStats.DataStoredHot,
+			DataStoredCold:   storeStats.DataStoredCold,
+			EntryCountHot:    storeStats.EntryCountHot,
+			EntryCountCold:   storeStats.EntryCountCold,
+		}
 	} else { // this is likely redundant, covered by the error above
-		clilog.Writer.Infof("found no indexer with uuid %v", idxrUUID.String())
-		return dii, errors.New("found no indexer associated with uuid " + idxrUUID.String())
+		clilog.Writer.Infof("found no indexer with uuid %v", dii.UUID)
 	}
 
-	if stats, err := connection.Client.GetIndexerStorageStats(idxrUUID); err != nil {
-		clilog.Writer.Warnf("failed to fetch per well storage stats for indexer %v", idxrUUID.String())
+	// fetch by parsed UUID
+	parsed, err := uuid.Parse(dii.UUID)
+	if err != nil {
+		clilog.Writer.Infof("failed to parse %s as a UUID: %v", dii.UUID, err)
 	} else {
-		dii.Wells = stats
-	}
-
-	// we need to pivot off the indexer name, as most other information is fetched by name, not UUID
-	if stats, err := connection.Client.GetIndexStats(); err != nil {
-		clilog.Writer.Warnf("failed to fetch per well storage stats for indexer %v", idxrUUID.String())
-	} else {
-		// walk through the list of indexers and find a matching UUID
-		for idxrName, idxrStats := range stats {
-			if idxrStats.UUID == idxrUUID {
-				// found a match, save off the info (and the name for further querying)
-				dii.Name = idxrName
-				// TODO attach the stats array
+		if stats, err := connection.Client.GetIndexerStorageStats(parsed); err != nil {
+			clilog.Writer.Warnf("failed to fetch per well storage stats for indexer %v", parsed.String())
+		} else {
+			// transmute the map
+			var st = make([]struct {
+				Name  string
+				Stats types.PerWellStorageStats
+			}, len(stats))
+			var i = 0
+			for name, stat := range stats {
+				st[i] = struct {
+					Name  string
+					Stats types.PerWellStorageStats
+				}{name, stat}
+				i += 1
 			}
+
+			dii.Wells = st
 		}
 	}
-	return dii, nil
 }
