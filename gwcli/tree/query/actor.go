@@ -103,7 +103,7 @@ func Initial() *query {
 	q.width = 80
 	q.height = 6
 
-	q.editor = initialEdiorView(q.height, stylesheet.TIWidth)
+	q.editor = initialEditorView(q.height, stylesheet.TIWidth)
 	q.modifiers = initialModifView(q.height, q.width-stylesheet.TIWidth)
 
 	q.focusedEditor = true

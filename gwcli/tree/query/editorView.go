@@ -30,7 +30,7 @@ type editorView struct {
 	keys []key.Binding
 }
 
-func initialEdiorView(height, width uint) editorView {
+func initialEditorView(height, width uint) editorView {
 	ev := editorView{}
 
 	// configure text area
