@@ -220,7 +220,7 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 		case key.Matches(keyMsg, q.keys[submit]): // attempting to submit
 			if qry := strings.TrimSpace(q.editor.ta.Value()); qry != "" {
 				// TODO don't we need to check background?
-				return q.submitForegroundQuery(qry)
+				return q.submitQuery(qry)
 			}
 			q.editor.err = "cannot submit empty query"
 			return nil
@@ -251,7 +251,7 @@ func (q *query) View() string {
 	}
 
 	var (
-		viewKeys     []key.Binding
+		addtlKeys    []key.Binding
 		editorView   string
 		modifierView string
 	)
@@ -259,11 +259,11 @@ func (q *query) View() string {
 		editorView = stylesheet.Cur.ComposableSty.FocusedBorder.Render(q.editor.view())
 		modifierView = stylesheet.Cur.ComposableSty.UnfocusedBorder.Render(q.modifiers.view())
 	} else {
-		viewKeys = q.modifiers.keys
+		addtlKeys = q.modifiers.keys
 		editorView = stylesheet.Cur.ComposableSty.UnfocusedBorder.Render(q.editor.view())
 		modifierView = stylesheet.Cur.ComposableSty.FocusedBorder.Render(q.modifiers.view())
 	}
-	h := q.help.ShortHelpView(append(q.keys, viewKeys...))
+	h := q.help.ShortHelpView(append(q.keys, addtlKeys...))
 
 	return fmt.Sprintf("%s\n%s\n%s",
 		lipgloss.JoinHorizontal(lipgloss.Top, editorView, modifierView),
@@ -372,7 +372,7 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 
 		// normal, foreground, valid query.
 		// submit it and boot directly into datascope
-		return "", q.submitForegroundQuery(qry), nil
+		return "", q.submitQuery(qry), nil
 	}
 
 	// boot into the editor view
@@ -395,7 +395,7 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 // state. A separate goroutine, initialized here, waits on the search, allowing this thread to
 // display a spinner.
 // Corollary to `outputSearchResults` (connected via `case waiting` in Update()).
-func (q *query) submitForegroundQuery(qry string) tea.Cmd {
+func (q *query) submitQuery(qry string) tea.Cmd {
 	// fetch modifiers from alternative view
 	var (
 		duration time.Duration
