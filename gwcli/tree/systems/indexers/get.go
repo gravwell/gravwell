@@ -112,6 +112,10 @@ type deepIndexerInfo struct {
 		Err   string
 		Wells []types.IndexManagerStats
 	}
+	System struct {
+		Description types.SysInfo
+		Stats       types.SysStats
+	}
 }
 
 // DESTRUCTIVELY ALTERS DII.
@@ -178,7 +182,7 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 			return
 		}
 		if state, ok := stats[dii.Name]; !ok {
-			clilog.Writer.Warnf("did not find a ping state associated with indexer %v", dii.Name)
+			clilog.Writer.Warnf("did not find an index state associated with indexer %v", dii.Name)
 		} else {
 			mu.Lock()
 			defer mu.Unlock()
@@ -193,8 +197,41 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 		}
 	}()
 
-	// TODO fetch additional queries by name
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		descs, err := connection.Client.GetSystemDescriptions()
+		if err != nil {
+			clilog.Writer.Warnf("failed to fetch system descriptions: %v", err)
+			return
+		}
+		if desc, ok := descs[dii.Name]; !ok {
+			clilog.Writer.Warnf("did not find a system description associated with indexer %v", dii.Name)
+		} else {
+			mu.Lock()
+			defer mu.Unlock()
+			found = true
+			dii.System.Description = desc
+		}
+	}()
 
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		stats, err := connection.Client.GetSystemStats()
+		if err != nil {
+			clilog.Writer.Warnf("failed to fetch system descriptions: %v", err)
+			return
+		}
+		if stat, ok := stats[dii.Name]; !ok {
+			clilog.Writer.Warnf("did not find a system description associated with indexer %v", dii.Name)
+		} else {
+			mu.Lock()
+			defer mu.Unlock()
+			found = true
+			dii.System.Stats = stat
+		}
+	}()
 	wg.Wait()
 
 	return
