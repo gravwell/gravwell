@@ -287,6 +287,8 @@ func (i *ingest) Reset() error {
 
 	i.mod = i.mod.reset()
 
+	i.fg.Reset()
+
 	return nil
 }
 

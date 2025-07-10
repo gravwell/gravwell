@@ -10,11 +10,14 @@
 package filegrabber
 
 import (
+	"os"
+
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 )
 
@@ -149,6 +152,16 @@ func (fg FileGrabber) View() string {
 // ViewHelp displays the help keys and text associated to the file picker.
 func (fg FileGrabber) ViewHelp() string {
 	return fg.help.View(fg)
+}
+
+// Reset destructively reset the filegrabber to its base state, given the values originally fed to it.
+func (fg *FileGrabber) Reset() {
+	// throw away fp and completely reinitialize it
+	// NOTE(rlandau): this is because the filepicker bubble, in all its wisdom, has no way to reset
+	loc := fg.CurrentDirectory
+	fg.Model = newfp()
+	// return to the prior location
+	fg.CurrentDirectory = loc
 }
 
 // Below is relic code for a filegrabber with path jumping capabilities.
