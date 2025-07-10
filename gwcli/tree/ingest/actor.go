@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
-	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -122,6 +121,10 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 		}
 		// intercept window size messages
 		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
+			if wsMsg.Width == 0 || wsMsg.Height == 0 {
+				// throw it away
+				return nil
+			}
 			i.width = wsMsg.Width
 			// need to save off 3 cells
 			// left border (1) +
@@ -141,6 +144,14 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			i.fg.Styles.DisabledSelected = i.fg.Styles.DisabledSelected.MaxWidth(inner)
 
 			i.height = wsMsg.Height
+
+			// TODO set help width
+
+			var cmds = make([]tea.Cmd, 2)
+			// ensure this makes it to both panes
+			i.mod, cmds[0] = i.mod.update(msg)
+			i.fg, cmds[1] = i.fg.Update(msg)
+			return tea.Batch(cmds...)
 		}
 
 		// pass message to mod view or fp, depending on focus
