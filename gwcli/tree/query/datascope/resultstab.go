@@ -128,7 +128,7 @@ func (rt *resultsTab) renderFooter(width int) string {
 	spl := scrollPercentLine(width-lipgloss.Width(pageNumber), rt.vp.ScrollPercent())
 
 	return lipgloss.JoinVertical(lipgloss.Center,
-		pageNumber+spl,
+		lipgloss.JoinHorizontal(lipgloss.Center, pageNumber, spl),
 		alignerSty.Render(rt.pager.View()),
 		alignerSty.Render(resultShortHelp),
 	)
