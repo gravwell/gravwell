@@ -190,6 +190,19 @@ func WithSchedule(cronfreq, name, desc string) DataScopeOption {
 	}
 }
 
+// WithPerPage sets the maximum number of items per page.
+func WithPerPage(count uint) DataScopeOption {
+	return func(ds *DataScope) error {
+		if count <= 0 {
+			return errors.New("each page must have at least one item")
+		}
+		ds.results.pager.PerPage = int(count)
+		ds.results.pager.SetTotalPages(len(ds.results.data))
+
+		return nil
+	}
+}
+
 //#endregion
 
 // Init is unused in Datascope.
