@@ -136,21 +136,15 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 			// we can not compose the left and right individually until we implement pathbasket.
 
 			i.boxWidth = inner
-			i.fg.Styles.File = i.fg.Styles.File.MaxWidth(inner)
-			i.fg.Styles.Selected = i.fg.Styles.Selected.MaxWidth(inner)
-			i.fg.Styles.Symlink = i.fg.Styles.Symlink.MaxWidth(inner)
-			i.fg.Styles.Directory = i.fg.Styles.Directory.MaxWidth(inner)
-			i.fg.Styles.DisabledFile = i.fg.Styles.DisabledFile.MaxWidth(inner)
-			i.fg.Styles.DisabledSelected = i.fg.Styles.DisabledSelected.MaxWidth(inner)
 
 			i.height = wsMsg.Height
-
-			// TODO set help width
 
 			var cmds = make([]tea.Cmd, 2)
 			// ensure this makes it to both panes
 			i.mod, cmds[0] = i.mod.update(msg)
-			i.fg, cmds[1] = i.fg.Update(msg)
+			// intercept the widths sent to filegrabber
+			wsMsg.Width = i.boxWidth
+			i.fg, cmds[1] = i.fg.Update(wsMsg)
 			return tea.Batch(cmds...)
 		}
 

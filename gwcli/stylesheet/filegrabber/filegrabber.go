@@ -130,12 +130,19 @@ func newfp() filepicker.Model {
 
 // Update handles ShowHelp key ('?') and passes any other messages to the file picker.
 func (fg FileGrabber) Update(msg tea.Msg) (FileGrabber, tea.Cmd) {
-	// check for show all key
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		if key.Matches(keyMsg, fg.fullHelp) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg: // check for show all key
+		if key.Matches(msg, fg.fullHelp) {
 			fg.help.ShowAll = !fg.help.ShowAll
 			return fg, nil
 		}
+	case tea.WindowSizeMsg: // update maximum widths
+		fg.Styles.File = fg.Styles.File.MaxWidth(msg.Width)
+		fg.Styles.Selected = fg.Styles.Selected.MaxWidth(msg.Width)
+		fg.Styles.Symlink = fg.Styles.Symlink.MaxWidth(msg.Width)
+		fg.Styles.Directory = fg.Styles.Directory.MaxWidth(msg.Width)
+		fg.Styles.DisabledFile = fg.Styles.DisabledFile.MaxWidth(msg.Width)
+		fg.Styles.DisabledSelected = fg.Styles.DisabledSelected.MaxWidth(msg.Width)
 	}
 
 	var cmd tea.Cmd
