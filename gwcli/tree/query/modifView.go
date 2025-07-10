@@ -38,6 +38,7 @@ const (
 	lowBound modifSelection = iota
 	duration
 	background
+	perpage
 	submit
 	highBound
 )
@@ -50,6 +51,7 @@ type modifView struct {
 	// knobs available to user
 	durationTI textinput.Model
 	background bool
+	perpageTI  textinput.Model
 
 	keys []key.Binding
 }
@@ -89,6 +91,19 @@ func initialModifView(height, width uint) modifView {
 		}
 		return nil
 	}
+	// build per page ti
+	mv.perpageTI = stylesheet.NewTI("25", true)
+	mv.perpageTI.Placeholder = "25"
+	mv.perpageTI.Validate = func(s string) error {
+		// checks that each character is a number
+		for _, r := range s {
+			if !unicode.IsDigit(r) {
+				return errors.New("only digits are allowed")
+			}
+		}
+		return nil
+	}
+
 	return mv
 }
 
@@ -103,22 +118,14 @@ func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away
 			if mv.selected <= lowBound {
 				mv.selected = highBound - 1
 			}
-			if mv.selected == duration {
-				mv.durationTI.Focus()
-			} else {
-				mv.durationTI.Blur()
-			}
+			mv.updateFocus()
 			return []tea.Cmd{textinput.Blink}, false
 		case tea.KeyDown:
 			mv.selected += 1
 			if mv.selected >= highBound {
 				mv.selected = lowBound + 1
 			}
-			if mv.selected == duration {
-				mv.durationTI.Focus()
-			} else {
-				mv.durationTI.Blur()
-			}
+			mv.updateFocus()
 			return []tea.Cmd{textinput.Blink}, false
 		case tea.KeySpace, tea.KeyEnter:
 			switch mv.selected {
@@ -130,8 +137,9 @@ func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away
 			}
 		}
 	}
-	var cmds = make([]tea.Cmd, 1)
+	var cmds = make([]tea.Cmd, 2)
 	mv.durationTI, cmds[0] = mv.durationTI.Update(msg)
+	mv.perpageTI, cmds[1] = mv.perpageTI.Update(msg)
 
 	return cmds, false
 }
@@ -139,12 +147,18 @@ func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away
 func (mv *modifView) view() string {
 	var sb strings.Builder
 
-	sb.WriteString(" " + stylesheet.Cur.PrimaryText.Render("Duration:") + "\n")
+	sb.WriteString(" " + stylesheet.Cur.FieldText.Render("Duration:") + "\n")
 	sb.WriteString(
 		fmt.Sprintf("%s%s\n", stylesheet.Pip(mv.selected, duration), mv.durationTI.View()),
 	)
+
 	sb.WriteString(
 		fmt.Sprintf("%s%s %s\n", stylesheet.Pip(mv.selected, background), stylesheet.Checkbox(mv.background), stylesheet.Cur.PrimaryText.Render("Background?")),
+	)
+
+	sb.WriteString(" " + stylesheet.Cur.FieldText.Render("Entries/page:") + "\n")
+	sb.WriteString(
+		fmt.Sprintf("%s%s\n", stylesheet.Pip(mv.selected, perpage), mv.perpageTI.View()),
 	)
 	sb.WriteString(stylesheet.Button("submit", mv.selected == submit))
 
@@ -154,6 +168,19 @@ func (mv *modifView) view() string {
 func (mv *modifView) reset() {
 	mv.durationTI.Reset()
 	mv.durationTI.Blur()
+	mv.perpageTI.Reset()
+	mv.perpageTI.Blur()
+}
+
+func (mv *modifView) updateFocus() {
+	mv.durationTI.Blur()
+	mv.perpageTI.Blur()
+	switch mv.selected {
+	case duration:
+		mv.durationTI.Focus()
+	case perpage:
+		mv.perpageTI.Focus()
+	}
 }
 
 // Focus sets the focus state on the model.
@@ -162,6 +189,8 @@ func (mv *modifView) Focus() {
 	switch mv.selected {
 	case duration:
 		mv.durationTI.Focus()
+	case perpage:
+		mv.perpageTI.Focus()
 	}
 }
 
@@ -169,4 +198,5 @@ func (mv *modifView) Focus() {
 // When the model is blurred it can not receive keyboard input and the cursor will be hidden
 func (mv *modifView) Blur() {
 	mv.durationTI.Blur()
+	mv.perpageTI.Blur()
 }
