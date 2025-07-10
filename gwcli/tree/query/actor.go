@@ -18,6 +18,7 @@ When a search has been submitted, this model is still invoked by Mother, but it 
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -180,6 +181,15 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 				return tea.Println(querysupport.NoResults)
 			}
 
+			// get perpage count
+			perpage, err := strconv.Atoi(q.modifiers.perpageTI.Value())
+			if err != nil {
+				clilog.Writer.Warnf("failed to parse per page '%v' as int: %v", q.modifiers.perpageTI.Value(), err)
+			}
+			if perpage == 0 {
+				perpage = 25
+			}
+
 			var cmd tea.Cmd
 			// JSON,CSV,outfn,append are user-editable in the DataScope; these just set initial
 			// values
@@ -192,7 +202,9 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 				datascope.WithSchedule(
 					q.flagModifiers.schedule.CronFreq,
 					q.flagModifiers.schedule.Name,
-					q.flagModifiers.schedule.Desc))
+					q.flagModifiers.schedule.Desc),
+				datascope.WithPerPage(uint(perpage)),
+			)
 			if err != nil {
 				clilog.Writer.Errorf("failed to create DataScope: %v", err)
 				q.mode = quitting
@@ -408,6 +420,12 @@ func (q *query) submitQuery(qry string) tea.Cmd {
 		duration time.Duration
 		err      error
 	)
+	// check for error now that BubbleTea broke auto-validation
+	if q.modifiers.durationTI.Err != nil {
+		q.editor.err = "duration: " + q.modifiers.durationTI.Err.Error()
+		return nil
+	}
+
 	if d := strings.TrimSpace(q.modifiers.durationTI.Value()); d != "" {
 		duration, err = time.ParseDuration(q.modifiers.durationTI.Value())
 		if err != nil {
@@ -416,6 +434,12 @@ func (q *query) submitQuery(qry string) tea.Cmd {
 		}
 	} else {
 		duration = defaultDuration
+	}
+
+	// check for error in perpage
+	if q.modifiers.perpageTI.Err != nil {
+		q.editor.err = "entries/page: " + q.modifiers.perpageTI.Err.Error()
+		return nil
 	}
 
 	s, err := connection.StartQuery(qry, -duration, q.modifiers.background)
