@@ -59,8 +59,37 @@ func (fg FileGrabber) FullHelp() [][]key.Binding {
 // If displayTabPaneSwitch, then help will also display "tab" to switch to the next composed views.
 // If displayShiftTabPaneSwitch, then help will also display "shift tab" to switch to the prior composed view.
 func New(displayTabPaneSwitch, displayShiftTabPaneSwitch bool) FileGrabber {
+	h := FileGrabber{newfp(),
+		help.New(),
+		false,
+		key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "toggle help"),
+		),
+		key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "quit"),
+		),
+		key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next pane")),
+		key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous pane")),
+	}
+	if !displayTabPaneSwitch {
+		h.nextPane = key.NewBinding(key.WithDisabled())
+	}
+	if !displayShiftTabPaneSwitch {
+		h.priorPane = key.NewBinding(key.WithDisabled())
+	}
+	var err error
+	h.CurrentDirectory, err = os.Getwd()
+	if err != nil {
+		clilog.Writer.Warnf("filegrabber failed to get pwd: %v", err)
+		h.CurrentDirectory = "." // allow OS to decide where to drop us
+	}
+	return h
+}
+
+func newfp() filepicker.Model {
 	const (
-		marginBottom  = 5
 		fileSizeWidth = 7
 		paddingLeft   = 2
 	)
@@ -93,28 +122,7 @@ func New(displayTabPaneSwitch, displayShiftTabPaneSwitch bool) FileGrabber {
 		EmptyDirectory:   stylesheet.Cur.DisabledText.PaddingLeft(paddingLeft).SetString("Bummer. No Files Found."),
 	}
 	fp.Cursor = stylesheet.Cur.Pip()
-
-	h := FileGrabber{fp,
-		help.New(),
-		false,
-		key.NewBinding(
-			key.WithKeys("?"),
-			key.WithHelp("?", "toggle help"),
-		),
-		key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "quit"),
-		),
-		key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next pane")),
-		key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous pane")),
-	}
-	if !displayTabPaneSwitch {
-		h.nextPane = key.NewBinding(key.WithDisabled())
-	}
-	if !displayShiftTabPaneSwitch {
-		h.priorPane = key.NewBinding(key.WithDisabled())
-	}
-	return h
+	return fp
 }
 
 // Update handles ShowHelp key ('?') and passes any other messages to the file picker.
