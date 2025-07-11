@@ -185,7 +185,7 @@ func TestIntegration() error {
 	}
 
 	// run integration tests external to the binary
-	fmt.Println("NYI")
+	fmt.Println("NYI") // TODO
 
 	// spit out coverage data
 	out, err = sh.Output("go", "tool", "covdata", "percent", "-i="+coverdirPath)

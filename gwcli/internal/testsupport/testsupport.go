@@ -48,9 +48,6 @@ func Type(prog *tea.Program, text string) {
 // TTMatchGolden compares the output (final View) of tm against the test's associated output file.
 //
 // ! This blocks until tm returns.
-//
-// Use mage update_goldens to refresh/generate the golden files this tests against.
-// TODO
 func TTMatchGolden(t *testing.T, tm *teatest.TestModel) {
 	t.Helper()
 	out, err := io.ReadAll(tm.FinalOutput(t, teatest.WithFinalTimeout(3*time.Second)))
