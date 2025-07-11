@@ -60,7 +60,7 @@ func NewUserMyInfoAction() action.Pair {
 
 			inf := connection.CurrentUser()
 
-			sty := stylesheet.Header1Style.Bold(false)
+			sty := stylesheet.Cur.PrimaryText.Bold(false)
 			out := fmt.Sprintf("%v, %v, %v\n%s: %v\n%s: %v\n%s: %v",
 				inf.Name,
 				inf.User, inf.Email,

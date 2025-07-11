@@ -21,7 +21,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -122,7 +121,7 @@ func viewSchedule(s *DataScope) string {
 	sel := s.schedule.selected // brevity
 
 	var (
-		titleSty       = stylesheet.Header1Style
+		titleSty       = stylesheet.Cur.PrimaryText
 		leftAlignerSty = lipgloss.NewStyle().
 				Width(20).
 				AlignHorizontal(lipgloss.Right).
@@ -130,16 +129,16 @@ func viewSchedule(s *DataScope) string {
 	)
 
 	tabDesc := tabDescStyle(s.usableWidth()).Render("Schedule this search to be rerun at" +
-		" consistent intervals." + "\nQuery: " + stylesheet.Header2Style.Render(s.search.UserQuery))
+		" consistent intervals." + "\nQuery: " + stylesheet.Cur.SecondaryText.Render(s.search.UserQuery))
 
 	// build the field names column
 	fields := lipgloss.JoinVertical(lipgloss.Right,
 		leftAlignerSty.Render(fmt.Sprintf("%s%s",
-			colorizer.Pip(sel, schcronfreq), titleSty.Render("Frequency:"))),
+			stylesheet.Pip(sel, schcronfreq), titleSty.Render("Frequency:"))),
 		leftAlignerSty.Render(fmt.Sprintf("%s%s",
-			colorizer.Pip(sel, schname), titleSty.Render("Name:"))),
+			stylesheet.Pip(sel, schname), titleSty.Render("Name:"))),
 		leftAlignerSty.Render(fmt.Sprintf("%s%s",
-			colorizer.Pip(sel, schdesc), titleSty.Render("Description:"))),
+			stylesheet.Pip(sel, schdesc), titleSty.Render("Description:"))),
 	)
 
 	// build the TIs column
@@ -159,7 +158,7 @@ func viewSchedule(s *DataScope) string {
 			tabDesc,
 			composed,
 			"",
-			colorizer.SubmitString("alt+enter", s.schedule.inputErrorString, s.schedule.resultString, s.usableWidth()),
+			stylesheet.SubmitString("alt+enter", s.schedule.inputErrorString, s.schedule.resultString, s.usableWidth()),
 		),
 	)
 }

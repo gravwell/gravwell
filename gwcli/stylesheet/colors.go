@@ -8,28 +8,26 @@
 
 package stylesheet
 
-// Colors provides constants used to provide uniform, readable colors to the styles
-
 import "github.com/charmbracelet/lipgloss"
 
-// The Primary+Accents are based on a triadic scheme with #9c7af7 at the head
-// The secondary, tertiary colors are analogous to the primary
-
 const (
-	PrimaryColor   = lipgloss.Color("#9c7af7")
-	SecondaryColor = lipgloss.Color("#bb7af7")
-	TertiaryColor  = lipgloss.Color("#f77af4")
-	AccentColor1   = lipgloss.Color("#f79c7a")
-	AccentColor2   = lipgloss.Color("#7af79c")
-	ErrorColor     = lipgloss.Color("#f77a96")
-	NavColor       = SecondaryColor
-	ActionColor    = AccentColor1
-	FocusedColor   = AccentColor2   // an element currently in focus
-	UnfocusedColor = SecondaryColor // complimentary elements to the focused element
-)
+	amethyst = lipgloss.Color("#A267F5")
+	//roseTaupe      = lipgloss.Color("#8A6A69")
+	melon          = lipgloss.Color("#FFC0BE")
+	mistyRose      = lipgloss.Color("#FFEBE7")
+	satinSheenGold = lipgloss.Color("#B9A44C")
+	bloodRed       = lipgloss.Color("#710909")
+	amaranthPurple = lipgloss.Color("#AA1155")
+	murrey         = lipgloss.Color("#880044")
+	darkViolet     = lipgloss.Color("#A20EC7")
+	sunglow        = lipgloss.Color("#FFCA3A")
+	yellowGreen    = lipgloss.Color("#8AC926")
+	steelBlue      = lipgloss.Color("#1982C4")
+	bittersweet    = lipgloss.Color("#FF595E")
 
-const ( // table colors
-	borderColor = PrimaryColor
-	row1Color   = SecondaryColor
-	row2Color   = TertiaryColor
+	tropicalIndigo  = lipgloss.Color("#9c7af7")
+	lavender_floral = lipgloss.Color("#bb7af7")
+	violet_web      = lipgloss.Color("#f77af4")
+	atomicTangerine = lipgloss.Color("#f79c7a")
+	aquamarine      = lipgloss.Color("#AEFFD8")
 )

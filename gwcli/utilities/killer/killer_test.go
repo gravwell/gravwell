@@ -1,4 +1,4 @@
-package killer
+package killer_test
 
 import (
 	"math/rand"
@@ -7,11 +7,15 @@ import (
 	"github.com/Pallinder/go-randomdata"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	. "github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 )
+
+var gbl = GlobalKillKeys()
+var chld = ChildKillKeys()
 
 func TestCheckKillKeys(t *testing.T) {
 	t.Run("global kill keys", func(t *testing.T) {
-		for _, typ := range globalKillKeys {
+		for _, typ := range gbl {
 			msg := tea.KeyMsg(tea.Key{
 				Type:  typ,
 				Runes: []rune{' '}, // bad practice, but shouldn't matter for this test
@@ -24,7 +28,7 @@ func TestCheckKillKeys(t *testing.T) {
 	})
 
 	t.Run("child kill keys", func(t *testing.T) {
-		for _, typ := range childOnlykillKeys {
+		for _, typ := range chld {
 			msg := tea.KeyMsg(tea.Key{
 				Type:  typ,
 				Runes: []rune{' '}, // bad practice, but shouldn't matter for this test
@@ -59,6 +63,5 @@ func TestCheckKillKeys(t *testing.T) {
 		if kill := CheckKillKeys(msg); kill != None {
 			t.Error("non key message returned a kill", testsupport.ExpectedActual(None, kill))
 		}
-
 	})
 }

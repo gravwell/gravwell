@@ -39,13 +39,13 @@ func initBuiltins() {
 
 	builtinHelp = map[string]string{
 		"help": "Display context-sensitive help. Equivalent to pressing F1.\n" +
-			"Calling " + stylesheet.ExampleStyle.Render("help") + " bare provides currently available navigations.\n" +
+			"Calling " + stylesheet.Cur.ExampleText.Render("help") + " bare provides currently available navigations.\n" +
 			"Help can also be passed a path to display help on remote directories or actions.\n" +
 			"Ex: " +
-			stylesheet.ExampleStyle.Render("help ~ kits list") +
+			stylesheet.Cur.ExampleText.Render("help ~ kits list") +
 			", " +
-			stylesheet.ExampleStyle.Render("help query"),
-		"history": "List previous commands. Navigate history via " + stylesheet.UpDown,
+			stylesheet.Cur.ExampleText.Render("help query"),
+		"history": "List previous commands. Navigate history via " + stylesheet.UpDownSigils,
 		"pwd":     "Current working directory (path)",
 		"quit":    "Kill the application",
 		"exit":    "Kill the application",
@@ -64,7 +64,7 @@ func contextHelp(m *Mother, args []string) tea.Cmd {
 	wr := walk(m.pwd, args)
 
 	if wr.errString != "" { // erroneous input
-		return tea.Println(stylesheet.ErrStyle.Render(wr.errString))
+		return tea.Println(stylesheet.Cur.ErrorText.Render(wr.errString))
 	}
 	switch wr.status {
 	case foundNav, foundAction:

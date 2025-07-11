@@ -81,7 +81,7 @@ type mfaModel struct {
 func New() mfaModel {
 	c := mfaModel{codeSelected: true}
 	c.codeTI = textinput.New()
-	c.codeTI.Prompt = stylesheet.TIPromptPrefix
+	c.codeTI.Prompt = ""
 	c.codeTI.Validate = func(s string) error {
 		for _, r := range s {
 			if !unicode.IsDigit(r) {
@@ -96,7 +96,7 @@ func New() mfaModel {
 	c.codeTI.Focus()
 
 	c.recoveryTI = textinput.New()
-	c.recoveryTI.Prompt = stylesheet.TIPromptPrefix
+	c.recoveryTI.Prompt = ""
 	c.recoveryTI.Blur()
 
 	return c
@@ -141,8 +141,8 @@ func (m mfaModel) View() string {
 		"If you don't have access to your authenticator, you can enter a recovery code below:\n"+
 		"%v%v\n"+
 		"Once a recovery code has been used, it cannot be used again!\n",
-		stylesheet.IndexStyle.Render("TOTP"), m.codeTI.View(),
-		stylesheet.ExampleStyle.Render("recovery"), m.recoveryTI.View())
+		stylesheet.Cur.Prompt("TOTP"), m.codeTI.View(),
+		stylesheet.Cur.Prompt("recovery"), m.recoveryTI.View())
 }
 
 // select the next TI

@@ -30,6 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/macros"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries"
@@ -38,8 +39,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/status"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/tree"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/user"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 )
@@ -51,6 +52,13 @@ var profilerFile *os.File
 // Ensures the logger is set up and the user has logged into the gravwell instance,
 // completing these actions if either is false.
 func ppre(cmd *cobra.Command, args []string) error {
+	// check for no color flag
+	if nc, err := cmd.Flags().GetBool("no-color"); err != nil {
+		panic(err)
+	} else if nc {
+		stylesheet.Cur = stylesheet.NoColor()
+	}
+
 	// set up the logger, if it is not already initialized
 	if clilog.Writer == nil {
 		path, err := cmd.Flags().GetString("log")
@@ -193,30 +201,6 @@ func ppost(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// GenerateFlags populates all root-relevant flags (ergo global and root-local flags)
-func GenerateFlags(root *cobra.Command) {
-	// global flags
-	root.PersistentFlags().Bool("script", false,
-		"disallows gwcli from entering interactive mode and prints context help instead.\n"+
-			"Recommended for use in scripts to avoid hanging on a malformed command.")
-	root.PersistentFlags().StringP("username", "u", "", "login credential.")
-	root.PersistentFlags().String("password", "", "login credential.")
-	root.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
-	root.PersistentFlags().String("api", "", "log in via API key instead of credentials")
-
-	root.MarkFlagsMutuallyExclusive("password", "passfile", "api")
-	root.MarkFlagsMutuallyExclusive("api", "username")
-
-	root.PersistentFlags().Bool("no-color", false, "disables colourized output.")
-	root.PersistentFlags().String("server", "localhost:80", "<host>:<port> of instance to connect to.\n")
-	root.PersistentFlags().StringP("log", "l", cfgdir.DefaultStdLogPath, "log location for developer logs.\n")
-	root.PersistentFlags().String("loglevel", "DEBUG", "log level for developer logs (-l).\n"+
-		"Possible values: 'OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'.\n")
-	root.PersistentFlags().Bool("insecure", false, "do not use HTTPS and do not enforce certs.")
-	root.PersistentFlags().String("profile", "", "spins up the native CPU profiler to log samples (in pprof format) into the given path")
-	root.PersistentFlags().MarkHidden("profile")
-}
-
 const ( // usage
 	use   string = "gwcli"
 	short string = "Gravwell CLI Client"
@@ -226,10 +210,10 @@ const ( // usage
 var long string = "gwcli is a CLI client for interacting with your Gravwell instance directly" +
 	"from your terminal.\n" +
 	"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
-	"To invoke the TUI, simply call " + stylesheet.ExampleStyle.Render("gwcli") + ".\n" +
+	"To invoke the TUI, simply call " + stylesheet.Cur.ExampleText.Render("gwcli") + ".\n" +
 	"You can view help for any submenu or action by providing help a path.\n" +
-	"For instance, try: " + stylesheet.ExampleStyle.Render("gwcli help macros create") +
-	" or " + stylesheet.ExampleStyle.Render("gwcli query -h")
+	"For instance, try: " + stylesheet.Cur.ExampleText.Render("gwcli help macros create") +
+	" or " + stylesheet.Cur.ExampleText.Render("gwcli query -h")
 
 const ( // mousetrap
 	mousetrapText string = "This is a command line tool.\n" +
@@ -273,14 +257,15 @@ func Execute(args []string) int {
 		[]action.Pair{
 			query.NewQueryAction(),
 			tree.NewTreeAction(),
+			ingest.NewIngestAction(),
 		})
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentPreRunE = ppre
 	rootCmd.PersistentPostRunE = ppost
-	rootCmd.Version = "alpha 1"
+	rootCmd.Version = uniques.Version
 
 	// associate flags
-	GenerateFlags(rootCmd)
+	uniques.AttachPersistentFlags(rootCmd)
 
 	if !rootCmd.AllChildCommandsHaveGroup() {
 		panic("some children missing a group")
@@ -326,7 +311,7 @@ func Usage(c *cobra.Command) error {
 		return p[0], strings.Join(p[1:], " ")
 	}()
 
-	bldr.WriteString(stylesheet.Header1Style.Render("Usage:") +
+	bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Usage:") +
 		strings.TrimRight(fmt.Sprintf(" %v %s",
 			root, path,
 		), " "))
@@ -335,17 +320,17 @@ func Usage(c *cobra.Command) error {
 		bldr.WriteString(" [subcommand]\n")
 	} else { // action
 		bldr.WriteString(" [flags]\n\n")
-		bldr.WriteString(stylesheet.Header1Style.Render("Local Flags:") + "\n")
+		bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Local Flags:") + "\n")
 		bldr.WriteString(c.LocalNonPersistentFlags().FlagUsages())
 	}
 
 	bldr.WriteRune('\n')
 
 	if c.HasExample() {
-		bldr.WriteString(stylesheet.Header1Style.Render("Example:") + " " + c.Example + "\n\n")
+		bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Example:") + " " + c.Example + "\n\n")
 	}
 
-	bldr.WriteString(stylesheet.Header1Style.Render("Global Flags:") + "\n")
+	bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Global Flags:") + "\n")
 	bldr.WriteString(c.Root().PersistentFlags().FlagUsages())
 
 	bldr.WriteRune('\n')
@@ -353,7 +338,7 @@ func Usage(c *cobra.Command) error {
 	// print aliases
 	if len(c.Aliases) != 0 {
 		var s strings.Builder
-		s.WriteString(stylesheet.Header1Style.Render("Aliases:") + " ")
+		s.WriteString(stylesheet.Cur.PrimaryText.Render("Aliases:") + " ")
 		for _, a := range c.Aliases {
 			s.WriteString(a + ", ")
 		}
@@ -375,9 +360,9 @@ func Usage(c *cobra.Command) error {
 	// output navs as submenus
 	if len(navs) > 0 {
 		var s strings.Builder
-		s.WriteString(stylesheet.Header1Style.Render("Submenus"))
+		s.WriteString(stylesheet.Cur.PrimaryText.Render("Submenus"))
 		for _, n := range navs {
-			s.WriteString("\n  " + stylesheet.NavStyle.Render(n.Name()))
+			s.WriteString("\n  " + stylesheet.Cur.Nav.Render(n.Name()))
 		}
 		bldr.WriteString(s.String() + "\n")
 	}
@@ -385,9 +370,9 @@ func Usage(c *cobra.Command) error {
 	// output actions
 	if len(actions) > 0 {
 		var s strings.Builder
-		s.WriteString("\n" + stylesheet.Header1Style.Render("Actions"))
+		s.WriteString("\n" + stylesheet.Cur.PrimaryText.Render("Actions"))
 		for _, a := range actions {
-			s.WriteString("\n  " + stylesheet.ActionStyle.Render(a.Name()))
+			s.WriteString("\n  " + stylesheet.Cur.Action.Render(a.Name()))
 		}
 		bldr.WriteString(s.String())
 	}
