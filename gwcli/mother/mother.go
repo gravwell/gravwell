@@ -186,7 +186,9 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.mode == handoff { // a child is running
-		activeChildSanityCheck(m)
+		if clilog.Active(clilog.DEBUG) {
+			activeChildSanityCheck(m)
+		}
 		// test for child state
 		if !m.active.model.Done() { // child still processing
 			return m, m.active.model.Update(msg)
@@ -229,8 +231,7 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.Type == tea.KeyEnter { // submit
 			m.history.unsetFetch()
-			cmd := processInput(&m)
-			return m, cmd
+			return m, processInput(&m)
 		}
 	}
 
