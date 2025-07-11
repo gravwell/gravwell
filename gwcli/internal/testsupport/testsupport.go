@@ -14,9 +14,12 @@ package testsupport
 
 import (
 	"fmt"
+	"io"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/x/exp/teatest"
 )
 
 //#region TeaTest
@@ -40,6 +43,22 @@ func Type(prog *tea.Program, text string) {
 		prog.Send(tea.KeyMsg(
 			tea.Key{Type: tea.KeyRunes, Runes: []rune{rune(r)}}))
 	}
+}
+
+// TTMatchGolden compares the output (final View) of tm against the test's associated output file.
+//
+// ! This blocks until tm returns.
+//
+// Use mage update_goldens to refresh/generate the golden files this tests against.
+// TODO
+func TTMatchGolden(t *testing.T, tm *teatest.TestModel) {
+	t.Helper()
+	out, err := io.ReadAll(tm.FinalOutput(t, teatest.WithFinalTimeout(3*time.Second)))
+	if err != nil {
+		t.Error(err)
+	}
+	// matches on the golden file with the test function's name
+	teatest.RequireEqualOutput(t, out)
 }
 
 //#endregion TeaTest
