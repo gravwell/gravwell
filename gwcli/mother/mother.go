@@ -361,7 +361,7 @@ func processInput(m *Mother) tea.Cmd {
 
 		// reconstitute remaining tokens to re-split them via shlex
 		cmd := processActionHandoff(m, wr.endCommand, wr.remainingString)
-		return tea.Sequence(historyCmd, tea.WindowSize(), cmd)
+		return tea.Sequence(historyCmd, cmd)
 
 	case invalidCommand:
 		clilog.Writer.Errorf("walking input %v returned invalid", given)
@@ -458,9 +458,9 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 	}
 	clilog.Writer.Debugf("Handing off control to %s", m.active.command.Name())
 	if cmd != nil {
-		return cmd
+		return tea.Batch(cmd, tea.WindowSize())
 	}
-	return nil
+	return tea.WindowSize()
 }
 
 // Walk through the given tokens
