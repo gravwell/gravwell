@@ -12,8 +12,6 @@ package ingest
 // It has a 2x2 format.
 
 import (
-	"fmt"
-
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -129,34 +127,30 @@ func (m *mod) moveCursor(msg tea.Msg) (done bool) {
 	return done
 }
 
-func (m mod) view(width int) string {
-	usableWidth := width - 4
-	leftMargin := (usableWidth / 4)
-	centerWidth := (usableWidth / 2)
-	rightMargin := (usableWidth / 5)
-	sty := lipgloss.NewStyle().
-		MarginLeft(leftMargin).
-		MarginRight(rightMargin).Width(centerWidth)
+func (m mod) view(terminalWidth int) string {
+	// NOTE(rlandau): we use FocusedBorder for the calculations to ensure it doesn't jitter when (de)selected
+	availWidth := terminalWidth - (stylesheet.Cur.ComposableSty.FocusedBorder.GetHorizontalMargins() +
+		stylesheet.Cur.ComposableSty.ComplimentaryBorder.GetHorizontalPadding() +
+		2) // ensure we have at least a cell on either side
 
-	v := fmt.Sprintf(
-		"%v"+stylesheet.Cur.FieldText.Render("source")+": %s\t"+
-			"%v"+stylesheet.Cur.FieldText.Render("tag")+": %s\n"+
-			"%v"+stylesheet.Cur.FieldText.Render("Ignore Timestamps?")+" %v\t"+
-			"%v"+stylesheet.Cur.FieldText.Render("Use Server Local Time?")+" %v\t",
-		stylesheet.Pip(m.selected, src), m.srcTI.View(),
-		stylesheet.Pip(m.selected, tag), m.tagTI.View(),
-		stylesheet.Pip(m.selected, ignoreTS), stylesheet.Checkbox(m.ignoreTS),
-		stylesheet.Pip(m.selected, localTime), stylesheet.Checkbox(m.localTime),
-	)
+	src := stylesheet.Pip(m.selected, src) + stylesheet.Cur.FieldText.Render("source") + ": " + m.srcTI.View()
+	ts := stylesheet.Pip(m.selected, ignoreTS) + stylesheet.Cur.FieldText.Render("Ignore Timestamps?") + stylesheet.Checkbox(m.ignoreTS)
+	l := lipgloss.JoinVertical(lipgloss.Left, src, ts)
 
-	sv := sty.Render(v)
+	tag := stylesheet.Pip(m.selected, tag) + stylesheet.Cur.FieldText.Render("tag") + ": " + m.tagTI.View()
+	tm := stylesheet.Pip(m.selected, localTime) + stylesheet.Cur.FieldText.Render("Use Server Local Time?") + " " + stylesheet.Checkbox(m.localTime)
+	r := lipgloss.JoinVertical(lipgloss.Left, tag, tm)
+
+	s := lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Width(availWidth).Render(lipgloss.JoinHorizontal(lipgloss.Center, l, r))
 
 	if !m.focused {
 		return stylesheet.Cur.ComposableSty.UnfocusedBorder.
-			AlignHorizontal(lipgloss.Center).Render(sv)
+			AlignHorizontal(lipgloss.Center).
+			Render(s)
 	} else {
 		return stylesheet.Cur.ComposableSty.FocusedBorder.
-			AlignHorizontal(lipgloss.Center).Render(sv)
+			AlignHorizontal(lipgloss.Center).
+			Render(s)
 	}
 }
 
