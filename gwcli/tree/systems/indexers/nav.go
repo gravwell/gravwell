@@ -6,29 +6,32 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-/* Package status defines a nav for actions related to the status of the backend. */
-package status
+// Package indexers contains actions for fetching information about the state of the indexers.
+package indexers
 
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/status/indexers"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	"github.com/spf13/cobra"
 )
 
-const (
-	use   string = "status"
-	short string = "view system statuses"
-	long  string = "Review the status and indicators of your system."
-)
+func NewIndexersNav() *cobra.Command {
+	const (
+		use   string = "indexers"
+		short string = "view indexer status"
+	)
 
-var aliases []string = []string{}
+	var long = "Review the health, storage, configuration, and history of indexers. Use " + stylesheet.Cur.Action.Render("list")
 
-func NewStatusNav() *cobra.Command {
+	var aliases = []string{"index", "idx", "indexer"}
+
 	return treeutils.GenerateNav(use, short, long, aliases,
-		[]*cobra.Command{
-			indexers.NewIndexersNav(),
-		},
-		[]action.Pair{})
+		[]*cobra.Command{},
+		[]action.Pair{
+			get(),
+			list(),
+			newCalendarAction(),
+		})
 }

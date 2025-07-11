@@ -41,6 +41,11 @@ var Name = struct {
 	CSV    string
 	JSON   string
 	Table  string
+
+	// column selection
+
+	AllColumns    string // return data from all available columns
+	SelectColumns string // return data from specified columns
 }{
 	Dryrun:    "dryrun",
 	Name:      "name",
@@ -59,6 +64,11 @@ var Name = struct {
 	CSV:    "csv",
 	JSON:   "json",
 	Table:  "table",
+
+	// column selection
+
+	AllColumns:    "all-columns",
+	SelectColumns: "columns",
 }
 
 // Usage contains shared, common flag usage description used across a variety of actions.
@@ -80,6 +90,11 @@ var Usage = struct {
 	CSV    string
 	JSON   string
 	Table  string
+
+	// column selection
+
+	AllColumns    string // return data from all available columns
+	SelectColumns string // return data from specified columns
 }{
 	Dryrun: "feigns, describing actions that " +
 		lipgloss.NewStyle().Italic(true).Render("would") +
@@ -104,6 +119,13 @@ var Usage = struct {
 	JSON:   "display results as JSON.\nMutually exclusive with --csv, --table.",
 	Table: "display results in a fancy table.\nMutually exclusive with --json, --csv.\n" +
 		"Default if no format flags are given.",
+
+	// column selection
+
+	AllColumns: "displays data from all columns, ignoring the default column set.\n" +
+		"Overrides --" + Name.AllColumns,
+	SelectColumns: "comma-separated list of columns to include in the results." +
+		"Use --show-columns to see the full list of columns.",
 }
 
 // WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.

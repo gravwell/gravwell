@@ -117,9 +117,3 @@ func Tee(lvl Level, alt io.Writer, str string) {
 func Active(lvl Level) bool {
 	return Writer.GetLevel() <= log.Level(lvl)
 }
-
-// LogFlagFailedGet logs the non-fatal failure to fetch named flag from flagset.
-// Used to keep flag handling errors uniform.
-func LogFlagFailedGet(flagname string, err error) {
-	Writer.Warnf("failed to fetch '--%v':%v\nignoring", flagname, err)
-}

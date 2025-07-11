@@ -13,15 +13,14 @@ import (
 	"fmt"
 	"time"
 
-	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -51,10 +50,10 @@ func newDashboardsListAction() action.Pair {
 		short string = "list dashboards"
 		long  string = "list dashboards available to you and the system"
 	)
-	var defaultColumns = []string{"ID", "Name", "Description"}
 
-	return scaffoldlist.NewListAction("", short, long, defaultColumns,
-		types.Dashboard{}, list, flags)
+	return scaffoldlist.NewListAction(short, long,
+		types.Dashboard{}, list,
+		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"ID", "Name", "Description"}})
 }
 
 func flags() pflag.FlagSet {
@@ -64,13 +63,13 @@ func flags() pflag.FlagSet {
 	return addtlFlags
 }
 
-func list(c *grav.Client, fs *pflag.FlagSet) ([]types.Dashboard, error) {
+func list(fs *pflag.FlagSet) ([]types.Dashboard, error) {
 	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
-		clilog.LogFlagFailedGet(ft.Name.ListAll, err)
+		uniques.ErrGetFlag("dashboards list", err)
 	} else if all {
-		return c.GetAllDashboards()
+		return connection.Client.GetAllDashboards()
 	}
-	return c.GetUserDashboards(connection.CurrentUser().UID)
+	return connection.Client.GetUserDashboards(connection.CurrentUser().UID)
 }
 
 //#endregion list

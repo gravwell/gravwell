@@ -13,10 +13,9 @@ import (
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-
-	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/pflag"
@@ -35,8 +34,9 @@ var (
 const defaultCount = 30
 
 func NewQueriesHistoryListAction() action.Pair {
-	return scaffoldlist.NewListAction(use, short, long, defaultColumns,
-		types.SearchLog{}, list, flags)
+	return scaffoldlist.NewListAction(short, long,
+		types.SearchLog{}, list,
+		scaffoldlist.Options{Use: use, AddtlFlags: flags})
 }
 
 func flags() pflag.FlagSet {
@@ -46,18 +46,18 @@ func flags() pflag.FlagSet {
 	return addtlFlags
 }
 
-func list(c *grav.Client, fs *pflag.FlagSet) ([]types.SearchLog, error) {
+func list(fs *pflag.FlagSet) ([]types.SearchLog, error) {
 	var (
 		toRet []types.SearchLog
 		err   error
 	)
 
 	if count, e := fs.GetInt("count"); e != nil {
-		clilog.LogFlagFailedGet("count", err)
+		uniques.ErrGetFlag(use, err)
 	} else if count > 0 {
-		toRet, err = c.GetSearchHistoryRange(0, count)
+		toRet, err = connection.Client.GetSearchHistoryRange(0, count)
 	} else {
-		toRet, err = c.GetSearchHistory()
+		toRet, err = connection.Client.GetSearchHistory()
 	}
 
 	// check for explicit no records error
