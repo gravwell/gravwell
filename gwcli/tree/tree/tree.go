@@ -18,7 +18,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -46,11 +45,11 @@ func walkBranch(nav *cobra.Command) *tree.Tree {
 	// generate a new tree, stemming from the given nav
 	branchRoot := tree.New()
 
-	navSty := stylesheet.NavStyle //.PaddingLeft(1)
-	actionSty := stylesheet.ActionStyle.PaddingLeft(1)
+	navSty := stylesheet.Cur.Nav
+	actionSty := stylesheet.Cur.Action //.PaddingLeft(1)
 
 	branchRoot.Root(navSty.Render(nav.Name()))
-	branchRoot.EnumeratorStyle(lipgloss.NewStyle().Foreground(stylesheet.TertiaryColor).PaddingLeft(1))
+	branchRoot.EnumeratorStyle(stylesheet.Cur.PrimaryText.PaddingLeft(1))
 
 	// add children of this nav to its tree
 	for _, child := range nav.Commands() {

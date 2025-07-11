@@ -34,9 +34,12 @@ Tree nodes (commands that require further input/are submenus), such as `user`, a
 
     - This lesson took a while to sink in; you may see `[]tea.Cmd` signatures floating around, but these should be replaced, primarily with `.Batch()`s. I already incorporated .Sequence() where important.
 
+    - There are some caveats to this, with BubbleTea not guaranteeing to fully unpack nested sequence and batch commands in proper order ([#847](https://github.com/charmbracelet/bubbletea/issues/847), [#680](https://github.com/charmbracelet/bubbletea/issues/680)). This is actually why Mother sequences a WindowSizeCmd whenever it processes SetArgs on a new child action.
+
 # Build System
 
-gwcli uses [Mage](magefile.org) as its build system. Because go's tooling so robust, you don't *really* need mage, but it has some extra utilities for testing. You can explore it by installing mage and calling `mage -h`/`mage -h <cmd>`.
+gwcli uses [Mage](magefile.org) as its build system. Because go's tooling is so robust, you don't *really* need mage, but it has some extra utilities for testing. You can explore it by installing mage and calling `mage -h`/`mage -h <cmd>`.
+
 
 # Changing the Command Tree
 
@@ -173,8 +176,11 @@ Actions must satisfy the `action.Model` interface to be able to supplant Mother 
 
 `Reset() error` is called by Mother *after* `Done()` returns true. It resets the child to a clean state so it can be called again later.
 
-`SetArgs(*pflag.FlagSet, []string) (string, []tea.Cmd, error)` sets fields in the child that manipulate its next run. It is called when Mother *first enters handoff mode* for a child. It provides the flagset this action inherited from its ancestors as well as all tokens remaining *after* the action invocation. The former is likely to be unused (but provided just in case) and the latter is pre-split by shlex (shell-splitting rules).
+`SetArgs(*pflag.FlagSet, []string) (string, []tea.Cmd, error)` sets fields in the child that manipulate its next run. It is called when Mother *first enters handoff mode* for a child, before the child's first `Update()`. It provides the flagset this action inherited from its ancestors as well as all tokens remaining *after* the action invocation. The former is likely to be unused (but provided just in case) and the latter is pre-split by shlex (shell-splitting rules).
 It returns, respectively: the reason this argument set is invalid (or ""), tea.Cmds the child needs run on startup (eg: right now), errors outside of the users control. The startup Cmd somewhat takes the place of `tea.Model.Init()`.
+
+> [!NOTE]
+> Mother prepends a WindowSizeCmd to whatever command is returned from .SetArgs(); action's SetArgs() do not need to Batch/Sequence WindowSizeCmd themselves.
 
 ```mermaid
 flowchart

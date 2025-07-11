@@ -456,7 +456,11 @@ func keepRefreshed(kill chan bool) {
 			clilog.Writer.Debugf("refresher: refreshing JWT...")
 			clientMu.Lock()
 			// ensure the client is still in an acceptable state
-			if Client.State() != grav.STATE_AUTHED {
+			if Client == nil {
+				// client has been killed, but we haven't received the signal yet
+				clientMu.Unlock()
+				continue
+			} else if Client.State() != grav.STATE_AUTHED {
 				clientMu.Unlock()
 				clilog.Writer.Errorf("failed to refresh login: client not authenticated")
 				// back off for a few minutes

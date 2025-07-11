@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -97,7 +96,7 @@ func Initial() *query {
 		mode:        inactive,
 		searchError: make(chan error),
 		curSearch:   nil,
-		spnr:        busywait.NewSpinner(),
+		spnr:        stylesheet.NewSpinner(),
 	}
 
 	// configure max dimensions
@@ -239,12 +238,12 @@ func (q *query) View() string {
 	)
 	if q.focusedEditor {
 		viewKeys = q.editor.keys
-		editorView = stylesheet.Composable.Focused.Render(q.editor.view())
-		modifierView = stylesheet.Composable.Unfocused.Render(q.modifiers.view())
+		editorView = stylesheet.Cur.ComposableSty.FocusedBorder.Render(q.editor.view())
+		modifierView = stylesheet.Cur.ComposableSty.UnfocusedBorder.Render(q.modifiers.view())
 	} else {
 		viewKeys = q.modifiers.keys
-		editorView = stylesheet.Composable.Unfocused.Render(q.editor.view())
-		modifierView = stylesheet.Composable.Focused.Render(q.modifiers.view())
+		editorView = stylesheet.Cur.ComposableSty.UnfocusedBorder.Render(q.editor.view())
+		modifierView = stylesheet.Cur.ComposableSty.FocusedBorder.Render(q.modifiers.view())
 	}
 	h := q.help.ShortHelpView(append(q.keys, viewKeys...))
 

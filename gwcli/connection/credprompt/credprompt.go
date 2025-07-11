@@ -74,11 +74,11 @@ type credModel struct {
 func New(initialUser string) credModel {
 	c := credModel{userStartingValue: initialUser, userSelected: true}
 	c.UserTI = textinput.New()
-	c.UserTI.Prompt = stylesheet.TIPromptPrefix
+	c.UserTI.Prompt = ""
 	c.UserTI.SetValue(c.userStartingValue)
 	c.UserTI.Focus()
 	c.PassTI = textinput.New()
-	c.PassTI.Prompt = stylesheet.TIPromptPrefix
+	c.PassTI.Prompt = ""
 	c.PassTI.EchoMode = textinput.EchoNone
 	c.PassTI.Blur()
 	return c
@@ -125,8 +125,8 @@ func (c credModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (c credModel) View() string {
 	return fmt.Sprintf("%v%v\n%v%v\n\n",
-		stylesheet.PromptStyle.Render("username"), c.UserTI.View(),
-		stylesheet.PromptStyle.Render("password"), c.PassTI.View())
+		stylesheet.Cur.Prompt("username"), c.UserTI.View(),
+		stylesheet.Cur.Prompt("password"), c.PassTI.View())
 }
 
 // select the next TI

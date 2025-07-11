@@ -18,7 +18,6 @@ import (
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/colorizer"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/paginator"
@@ -43,8 +42,8 @@ func initResultsTab(data []string) resultsTab {
 	p := paginator.New()
 	p.Type = paginator.Dots
 	p.PerPage = 25
-	p.ActiveDot = lipgloss.NewStyle().Foreground(stylesheet.FocusedColor).Render("•")
-	p.InactiveDot = lipgloss.NewStyle().Foreground(stylesheet.UnfocusedColor).Render("•")
+	p.ActiveDot = stylesheet.Cur.ComposableSty.FocusedBorder.Render("•")
+	p.InactiveDot = stylesheet.Cur.ComposableSty.UnfocusedBorder.Render("•")
 	p.SetTotalPages(len(data))
 
 	// set up viewport
@@ -102,7 +101,7 @@ func (s *DataScope) setResultsDisplayed() {
 	var bldr strings.Builder
 	var trueIndex = start // index of full results, between start and end
 	for _, d := range data {
-		bldr.WriteString(colorizer.Index(trueIndex+1) + ":")
+		bldr.WriteString(stylesheet.Index(trueIndex+1) + ":")
 		if trueIndex%2 == 0 {
 			bldr.WriteString(evenEntryStyle.Render(d))
 		} else {
@@ -114,18 +113,17 @@ func (s *DataScope) setResultsDisplayed() {
 	s.results.vp.SetContent(wrap(s.results.vp.Width, bldr.String()))
 }
 
-var resultShortHelp = stylesheet.GreyedOutStyle.Render(
+var resultShortHelp = stylesheet.Cur.DisabledText.Render(
 	fmt.Sprintf("%v page • %v scroll • home: jump top • end: jump bottom\n"+
 		"tab: cycle • esc: quit",
-		stylesheet.LeftRight, stylesheet.UpDown),
+		stylesheet.LeftRightSigils, stylesheet.UpDownSigils),
 )
 
 // generates a renderFooter with the box+line and help keys
 func (rt *resultsTab) renderFooter(width int) string {
 	var alignerSty = lipgloss.NewStyle().Width(rt.vp.Width).AlignHorizontal(lipgloss.Center)
 	// set up each element
-	pageNumber := lipgloss.NewStyle().
-		Foreground(stylesheet.FocusedColor).
+	pageNumber := stylesheet.Cur.ComposableSty.ComplimentaryBorder.
 		Render(strconv.Itoa(rt.pager.Page+1)) + " "
 	spl := scrollPercentLine(width-lipgloss.Width(pageNumber), rt.vp.ScrollPercent())
 

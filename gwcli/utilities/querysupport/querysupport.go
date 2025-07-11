@@ -17,9 +17,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
-	"github.com/gravwell/gravwell/v4/gwcli/busywait"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query/datascope"
 )
 
@@ -234,7 +234,7 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 	// if we are not in script mode, spawn a spinner to show that we didn't just hang during processing
 	var spnr *tea.Program
 	if !flags.Script {
-		spnr = busywait.CobraNew("(cancel with ctrl+c)")
+		spnr = stylesheet.CobraSpinner("(cancel with ctrl+c)")
 		go spnr.Run()
 	}
 
