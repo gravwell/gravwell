@@ -20,6 +20,8 @@ import (
 	"io"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
@@ -122,4 +124,11 @@ func Active(lvl Level) bool {
 // Used to keep flag handling errors uniform.
 func LogFlagFailedGet(flagname string, err error) {
 	Writer.Warnf("failed to fetch '--%v':%v\nignoring", flagname, err)
+}
+
+var dbgMsgSty = lipgloss.NewStyle().Italic(true)
+
+// LogMsg is a helper method for consistently displaying messages (at the debug level).
+func LogMsg(str string, msg tea.Msg) {
+	Writer.Debugf("%s\n\t"+dbgMsgSty.Render("%#v"), str, msg)
 }
