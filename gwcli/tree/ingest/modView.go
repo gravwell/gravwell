@@ -127,11 +127,10 @@ func (m *mod) moveCursor(msg tea.Msg) (done bool) {
 	return done
 }
 
-func (m mod) view(terminalWidth int) string {
-	// NOTE(rlandau): we use FocusedBorder for the calculations to ensure it doesn't jitter when (de)selected
-	availWidth := terminalWidth - (stylesheet.Cur.ComposableSty.FocusedBorder.GetHorizontalMargins() +
-		stylesheet.Cur.ComposableSty.ComplimentaryBorder.GetHorizontalPadding() +
-		2) // ensure we have at least a cell on either side
+func (m mod) view(termWidth int) string {
+	// always allocate the maximum space so it doesn't jitter when switching focys
+	maxFrameSize := max(stylesheet.Cur.ComposableSty.FocusedBorder.GetHorizontalFrameSize(), stylesheet.Cur.ComposableSty.UnfocusedBorder.GetHorizontalFrameSize())
+	availWidth := termWidth - maxFrameSize
 
 	src := stylesheet.Pip(m.selected, src) + stylesheet.Cur.FieldText.Render("source") + ": " + m.srcTI.View()
 	ts := stylesheet.Pip(m.selected, ignoreTS) + stylesheet.Cur.FieldText.Render("Ignore Timestamps?") + stylesheet.Checkbox(m.ignoreTS)
