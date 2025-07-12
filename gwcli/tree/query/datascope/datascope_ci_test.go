@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package datascope
 
 // CI-compatible testing for Datascope.
@@ -76,6 +84,54 @@ func Test_MultiPage(t *testing.T) {
 	TTSendSpecial(tm, tea.KeyRight)
 	TTSendSpecial(tm, tea.KeyRight)
 
+	TTSendSpecial(tm, tea.KeyCtrlC)
+	TTMatchGolden(t, tm)
+}
+
+// This test replicates the simple test above but with a different color scheme.
+// This is more or less redundant as lipgloss will corral the colors down to what the tty supports and
+// the "tty" in this case (the file) is probably considered a single bit.
+func Test_SimpleColor(t *testing.T) {
+	data := []string{
+		"Line 1",
+		"Line 2",
+		"line 3",
+		"\n\n\nLine\n4",
+	}
+	// manual setup to set a different color scheme
+	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
+		t.Fatal(err)
+	}
+	// use a consistent color scheme
+	stylesheet.Cur = stylesheet.Classic()
+	// create a dummy search that should work so long as we don't trigger download or schedule
+	search := grav.Search{RenderMod: "text"}
+	ds, cmd, err := NewDataScope(data, false, &search, false)
+	if err != nil {
+		t.Fatalf("failed to create datascope: %v", err)
+	} else if cmd != nil {
+		t.Fatalf("datascope should never return a command if it knows Mother isn't running. Returned command: %v", err)
+	}
+	// spin up the teatest
+	tm := teatest.NewTestModel(t, ds, teatest.WithInitialTermSize(termWidth, termHeight))
+	// check the final output
+	TTSendSpecial(tm, tea.KeyCtrlC)
+	TTMatchGolden(t, tm)
+}
+
+func Test_SimpleTable(t *testing.T) {
+	data := []string{
+		"Col1,Col2,Col3", //header
+		// data start
+		"A1,B1,C1",
+		"A2,B2,C2",
+		"A3,B3,C3",
+		"A4,B4,C4",
+		"A5,B5,C5",
+		"A6,B6,C6",
+	}
+	_, tm := setup(t, data, true)
+	// check the final output
 	TTSendSpecial(tm, tea.KeyCtrlC)
 	TTMatchGolden(t, tm)
 }
