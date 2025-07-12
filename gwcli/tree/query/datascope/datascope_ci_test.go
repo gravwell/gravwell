@@ -14,7 +14,7 @@ package datascope
 // CI-compatible testing for Datascope.
 //
 // Relies on TeaTest, which relies on Golden files
-// Regenerate the associate golden file with: go test ./tree/query/datascope -run ^Test_ -update
+// Regenerate the associate golden files with: go test ./tree/query/datascope -run ^Test_ -update
 
 import (
 	"path"
@@ -30,8 +30,9 @@ import (
 )
 
 const (
-	termWidth  int = 80
-	termHeight int = 50
+	termWidth      int    = 80
+	termHeight     int    = 50
+	failedDSAssert string = "failed to cast final model to datascope"
 )
 
 // A basic test that spins up DS and immediately shutters it to confirm it still conforms to our expected output.
@@ -51,31 +52,59 @@ func Test_Simple(t *testing.T) {
 }
 
 func Test_TabCycle(t *testing.T) {
-	data := []string{
-		"Line 1",
-		"Multi\nLine2",
-		"Line 3",
-	}
-	_, tm := setup(t, data, false)
+	t.Run("cycletabs_simple", func(t *testing.T) {
+		data := []string{
+			"Line 1",
+			"Multi\nLine2",
+			"Line 3",
+		}
+		_, tm := setup(t, data, false)
 
-	// perform a full cycle and then continue to the second tab to ensure we actually moved
-	TTSendSpecial(tm, tea.KeyTab)
-	TTSendSpecial(tm, tea.KeyTab)
-	TTSendSpecial(tm, tea.KeyTab)
-	TTSendSpecial(tm, tea.KeyTab)
-	TTSendSpecial(tm, tea.KeyTab)
+		// perform a full cycle and then continue to the second tab to ensure we actually moved
+		TTSendSpecial(tm, tea.KeyTab)
+		TTSendSpecial(tm, tea.KeyTab)
+		TTSendSpecial(tm, tea.KeyTab)
+		TTSendSpecial(tm, tea.KeyTab)
+		TTSendSpecial(tm, tea.KeyTab)
 
-	TTSendSpecial(tm, tea.KeyCtrlC)
-	TTMatchGolden(t, tm)
+		TTSendSpecial(tm, tea.KeyCtrlC)
+		TTMatchGolden(t, tm)
 
-	// also want to check the state of the final model
-	finalDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
-	if !ok {
-		t.Fatal("failed to cast final model to datascope")
-	}
-	if finalDS.activeTab != 1 {
-		t.Fatal("expected DS to end on second (zero-indexed) tab", ExpectedActual(1, finalDS.activeTab))
-	}
+		// also want to check the state of the final model
+		finalDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
+		if !ok {
+			t.Fatal(failedDSAssert)
+		}
+		if finalDS.activeTab != 1 {
+			t.Fatal("expected DS to end on second (zero-indexed) tab", ExpectedActual(1, finalDS.activeTab))
+		}
+	})
+
+	t.Run("cycletabs_hide_reverse", func(t *testing.T) {
+		data := []string{
+			"Line 1",
+			"Multi\nLine2",
+			"Line 3",
+		}
+		_, tm := setup(t, data, false)
+
+		// perform a full cycle and then continue to the second tab to ensure we actually moved
+		TTSendSpecial(tm, tea.KeyShiftTab)
+		TTSendSpecial(tm, tea.KeyCtrlS) // show/hide tabs key
+
+		TTSendSpecial(tm, tea.KeyCtrlC)
+		TTMatchGolden(t, tm)
+
+		// also want to check the state of the final model
+		finalDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
+		if !ok {
+			t.Fatal(failedDSAssert)
+		}
+		if finalDS.activeTab != schedule {
+			t.Fatal("expected DS to end on last (schedule) tab", ExpectedActual(schedule, finalDS.activeTab))
+		}
+	})
+
 }
 
 func Test_MultiPage(t *testing.T) {
@@ -94,13 +123,7 @@ func Test_MultiPage(t *testing.T) {
 // This test replicates the simple test above but with a different color scheme.
 // This is more or less redundant as lipgloss will corral the colors down to what the tty supports and
 // the "tty" in this case (the file) is probably considered a single bit.
-func Test_SimpleColor(t *testing.T) {
-	data := []string{
-		"Line 1",
-		"Line 2",
-		"line 3",
-		"\n\n\nLine\n4",
-	}
+func Test_ColorWithPerPage(t *testing.T) {
 	// manual setup to set a different color scheme
 	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
 		t.Fatal(err)
@@ -109,7 +132,7 @@ func Test_SimpleColor(t *testing.T) {
 	stylesheet.Cur = stylesheet.Classic()
 	// create a dummy search that should work so long as we don't trigger download or schedule
 	search := grav.Search{RenderMod: "text"}
-	ds, cmd, err := NewDataScope(data, false, &search, false)
+	ds, cmd, err := NewDataScope(loooongData, false, &search, false, WithPerPage(50))
 	if err != nil {
 		t.Fatalf("failed to create datascope: %v", err)
 	} else if cmd != nil {
@@ -137,6 +160,121 @@ func Test_SimpleTable(t *testing.T) {
 	// check the final output
 	TTSendSpecial(tm, tea.KeyCtrlC)
 	TTMatchGolden(t, tm)
+}
+
+// Tests the functionality of the download tab.
+// NOTE(rlandau): This file does not require !ci, so we can't invoke the connection singleton.
+// This limits what aspects of dl can actually be tested.
+// Specifically, we must do records-only downloads.
+func Test_Download(t *testing.T) {
+	//tDir := t.TempDir()
+	data := []string{
+		"Col1,Col2,Col3", //header
+		// data start
+		"A1,B1,C1",
+		"A2,B2,C2",
+		"A3,B3,C3",
+		"A4,B4,C4",
+		"A5,B5,C5",
+		"A6,B6,C6",
+	}
+
+	t.Run("Simple", func(t *testing.T) {
+		_, tm := setup(t, data, true)
+
+		// navigate to the download tab
+		TTSendSpecial(tm, tea.KeyShiftTab)
+		TTSendSpecial(tm, tea.KeyShiftTab)
+
+		// check the final output
+		TTSendSpecial(tm, tea.KeyCtrlC)
+		TTMatchGolden(t, tm)
+	})
+	t.Run("Records", func(t *testing.T) {
+		recordsText := "1"
+		outPath := "./out.txt"
+		_, tm := setup(t, data, true)
+
+		// navigate to the download tab
+		TTSendSpecial(tm, tea.KeyShiftTab)
+		TTSendSpecial(tm, tea.KeyShiftTab)
+		// enter a path to download to
+		tm.Type(outPath) // TODO place in temp directory
+		time.Sleep(SendSpecialPause)
+		// set record numbers
+		TTSendSpecial(tm, tea.KeyUp)
+		tm.Type("1")
+		time.Sleep(SendSpecialPause)
+
+		// TODO submit query
+
+		// check the final output
+		TTSendSpecial(tm, tea.KeyCtrlC)
+
+		// MatchGolden finds negligible differences in this test.
+		// Seems to be down to KeyMsg propagation time.
+		// Assert against the final model instead.
+		//TTMatchGolden(t, tm)
+
+		fDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
+		if !ok {
+			t.Fatal(failedDSAssert)
+		}
+		if fDS.download.recordsTI.Value() != recordsText {
+			t.Fatal("bad value in recordsTI", ExpectedActual(recordsText, fDS.download.recordsTI.Value()))
+		} else if fDS.download.outfileTI.Value() != outPath {
+			t.Fatal("bad value in outfileTI", ExpectedActual(outPath, fDS.download.outfileTI.Value()))
+		} else if fDS.download.append {
+			t.Fatal("bad append value", ExpectedActual(false, fDS.download.append))
+		}
+		// TODO test the data in the output file
+
+	})
+	// builds on the prior test, appending data to it
+	t.Run("Append", func(t *testing.T) {
+		recordsText := "1"
+		outPath := "./out.txt"
+		_, tm := setup(t, data, true)
+
+		// navigate to the download tab
+		TTSendSpecial(tm, tea.KeyShiftTab)
+		TTSendSpecial(tm, tea.KeyShiftTab)
+		// enter a path to download to
+		tm.Type("./out.txt") // TODO place in temp directory
+		time.Sleep(500 * time.Millisecond)
+		// set append-mode
+		TTSendSpecial(tm, tea.KeyDown)
+		//time.Sleep(50 * time.Millisecond)
+		TTSendSpecial(tm, tea.KeySpace)
+		//time.Sleep(50 * time.Millisecond)
+		TTSendSpecial(tm, tea.KeyUp)
+		//time.Sleep(50 * time.Millisecond)
+		TTSendSpecial(tm, tea.KeyUp)
+		//time.Sleep(50 * time.Millisecond)
+		tm.Type("1")
+		time.Sleep(500 * time.Millisecond)
+		// TODO submit query
+
+		// check the final output
+		TTSendSpecial(tm, tea.KeyCtrlC)
+
+		// MatchGolden finds negligible differences in this test.
+		// Seems to be down to KeyMsg propagation time.
+		// Assert against the final model instead.
+		//TTMatchGolden(t, tm)
+
+		fDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
+		if !ok {
+			t.Fatal(failedDSAssert)
+		}
+		if fDS.download.recordsTI.Value() != recordsText {
+			t.Fatal("bad value in recordsTI", ExpectedActual(recordsText, fDS.download.recordsTI.Value()))
+		} else if fDS.download.outfileTI.Value() != outPath {
+			t.Fatal("bad value in outfileTI", ExpectedActual(outPath, fDS.download.outfileTI.Value()))
+		} else if !fDS.download.append {
+			t.Fatal("bad append value", ExpectedActual(true, fDS.download.append))
+		}
+	})
 }
 
 // shared helper function that returns datascope and teatest models ready for use.
