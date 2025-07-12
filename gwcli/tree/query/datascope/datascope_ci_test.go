@@ -1,3 +1,6 @@
+//go:build !race
+// +build !race
+
 /*************************************************************************
  * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
