@@ -190,7 +190,7 @@ func classic() Sheet {
 }
 */
 
-func classic() Sheet {
+func Classic() Sheet {
 	return Palette{
 		PrimaryColor:   tropicalIndigo,
 		SecondaryColor: lavender_floral,
