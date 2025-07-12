@@ -22,6 +22,14 @@ import (
 	"github.com/charmbracelet/x/exp/teatest"
 )
 
+const (
+	// This adds a short pause after TTSendSpecial sends.
+	// This is because tea.Cmds are async and time-unbounded.
+	// In other words, we need to buy Bubbletea extra time for the messages to propagate down to the final action model.
+	// If we don't, MatchGolden can fail even if the final-final output is correct.
+	SendSpecialPause time.Duration = 50 * time.Millisecond
+)
+
 //#region TeaTest
 
 // A MessageRcvr is anything that can accept tea.Msgs via a .Send() method.
@@ -35,6 +43,8 @@ type MessageRcvr interface {
 // For use with TeaTests.
 func TTSendSpecial(r MessageRcvr, kt tea.KeyType) {
 	r.Send(tea.KeyMsg(tea.Key{Type: kt, Runes: []rune{rune(kt)}}))
+	time.Sleep(SendSpecialPause)
+
 }
 
 // Type adds teatest.TestModel.Type() to a normal tea.Program.
