@@ -17,7 +17,9 @@ package datascope
 // Regenerate the associate golden files with: go test ./tree/query/datascope -run ^Test_ -update
 
 import (
+	"os"
 	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -190,23 +192,28 @@ func Test_Download(t *testing.T) {
 		TTSendSpecial(tm, tea.KeyCtrlC)
 		TTMatchGolden(t, tm)
 	})
+
+	outPath := "out.txt" // move to temp dir
+
 	t.Run("Records", func(t *testing.T) {
 		recordsText := "1"
-		outPath := "./out.txt"
 		_, tm := setup(t, data, true)
 
 		// navigate to the download tab
 		TTSendSpecial(tm, tea.KeyShiftTab)
 		TTSendSpecial(tm, tea.KeyShiftTab)
 		// enter a path to download to
-		tm.Type(outPath) // TODO place in temp directory
-		time.Sleep(SendSpecialPause)
+		tm.Type(outPath)
+		time.Sleep(500 * time.Millisecond)
 		// set record numbers
 		TTSendSpecial(tm, tea.KeyUp)
-		tm.Type("1")
+		TTSendSpecial(tm, tea.KeyUp)
+		tm.Type(recordsText)
 		time.Sleep(SendSpecialPause)
 
-		// TODO submit query
+		// submit request
+		TTSendSpecial(tm, tea.KeyDown)
+		TTSendSpecial(tm, tea.KeyEnter)
 
 		// check the final output
 		TTSendSpecial(tm, tea.KeyCtrlC)
@@ -228,34 +235,32 @@ func Test_Download(t *testing.T) {
 			t.Fatal("bad append value", ExpectedActual(false, fDS.download.append))
 		}
 		// TODO test the data in the output file
-
 	})
 	// builds on the prior test, appending data to it
 	t.Run("Append", func(t *testing.T) {
-		recordsText := "1"
-		outPath := "./out.txt"
+		recordsText := "1,2"
 		_, tm := setup(t, data, true)
 
 		// navigate to the download tab
 		TTSendSpecial(tm, tea.KeyShiftTab)
 		TTSendSpecial(tm, tea.KeyShiftTab)
 		// enter a path to download to
-		tm.Type("./out.txt") // TODO place in temp directory
+		tm.Type(outPath)
 		time.Sleep(500 * time.Millisecond)
 		// set append-mode
 		TTSendSpecial(tm, tea.KeyDown)
-		//time.Sleep(50 * time.Millisecond)
 		TTSendSpecial(tm, tea.KeySpace)
-		//time.Sleep(50 * time.Millisecond)
+		// set record
 		TTSendSpecial(tm, tea.KeyUp)
-		//time.Sleep(50 * time.Millisecond)
 		TTSendSpecial(tm, tea.KeyUp)
-		//time.Sleep(50 * time.Millisecond)
-		tm.Type("1")
+		TTSendSpecial(tm, tea.KeyUp)
+		tm.Type(recordsText)
 		time.Sleep(500 * time.Millisecond)
-		// TODO submit query
+		// submit request
+		TTSendSpecial(tm, tea.KeyDown)
+		TTSendSpecial(tm, tea.KeyEnter)
 
-		// check the final output
+		// kill the bubble
 		TTSendSpecial(tm, tea.KeyCtrlC)
 
 		// MatchGolden finds negligible differences in this test.
@@ -274,6 +279,29 @@ func Test_Download(t *testing.T) {
 		} else if !fDS.download.append {
 			t.Fatal("bad append value", ExpectedActual(true, fDS.download.append))
 		}
+
+		b, err := os.ReadFile(outPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		exploded := strings.Split(strings.TrimSpace(string(b)), "\n")
+		if len(exploded) != 3 {
+			t.Fatal("bad line count.", ExpectedActual(3, len(exploded)), "\n",
+				exploded,
+			)
+		}
+		if exploded[0] != exploded[1] {
+			t.Errorf("the first two lines should match.\nLine 1: '%v'\nLine 2: '%v'\n",
+				exploded[0], exploded[1],
+			)
+		}
+		if exploded[0] == exploded[2] || exploded[1] == exploded[2] {
+			t.Errorf("the third line should not match the prior two.\nLine 1: '%v'\nLine 2: '%v'\nLine 3: '%v'\n",
+				exploded[0], exploded[1], exploded[2],
+			)
+
+		}
+
 	})
 }
 
