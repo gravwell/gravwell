@@ -35,6 +35,7 @@ const (
 	schcronfreq
 	schname
 	schdesc
+	schsubmit
 	schhighBound
 )
 
@@ -72,6 +73,7 @@ func initScheduleTab(cronfreq, name, desc string) scheduleTab {
 func updateSchedule(s *DataScope, msg tea.Msg) tea.Cmd {
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		s.schedule.inputErrorString = ""
+		s.schedule.resultString = ""
 		switch msg.Type {
 		case tea.KeyUp:
 			s.schedule.selected -= 1
@@ -88,10 +90,10 @@ func updateSchedule(s *DataScope, msg tea.Msg) tea.Cmd {
 			s.schedule.focusSelected()
 			return textinput.Blink
 		case tea.KeyEnter:
-			if msg.Alt { // only accept alt+enter
+			if s.schedule.selected == schsubmit {
 				s.sch()
-				return nil
 			}
+			return nil
 		}
 	}
 
@@ -158,7 +160,11 @@ func viewSchedule(s *DataScope) string {
 			tabDesc,
 			composed,
 			"",
-			stylesheet.SubmitString("alt+enter", s.schedule.inputErrorString, s.schedule.resultString, s.usableWidth()),
+			stylesheet.ViewSubmitButton(
+				s.schedule.selected == schsubmit,
+				s.schedule.resultString,
+				s.schedule.inputErrorString,
+			),
 		),
 	)
 }

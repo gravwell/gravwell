@@ -42,6 +42,7 @@ const (
 	dlfmtcsv
 	dlfmtraw
 	dlrecords
+	dlsubmit
 	dlhighBound
 )
 
@@ -108,6 +109,7 @@ func initDownloadTab(outfn string, append, json, csv bool) downloadTab {
 func updateDownload(s *DataScope, msg tea.Msg) tea.Cmd {
 	if msg, ok := msg.(tea.KeyMsg); ok {
 		s.download.inputErrorString = "" // clear input error on newest key message
+		s.download.resultString = ""
 		switch msg.Type {
 		case tea.KeyUp:
 			cycleUp(&s.download)
@@ -116,23 +118,6 @@ func updateDownload(s *DataScope, msg tea.Msg) tea.Cmd {
 			cycleDown(&s.download)
 			return textinput.Blink
 		case tea.KeySpace, tea.KeyEnter:
-			if msg.Alt && msg.Type == tea.KeyEnter { // only accept alt+enter
-				// gather and validate selections
-				fn := strings.TrimSpace(s.download.outfileTI.Value())
-				if fn == "" {
-					str := "output file cannot be empty"
-					s.download.inputErrorString = str
-					return nil
-				}
-				res, success := s.dl(fn)
-				s.download.resultString = res
-				if !success {
-					clilog.Writer.Error(res)
-				} else {
-					clilog.Writer.Info(res)
-				}
-				return nil
-			}
 			// handle booleans
 			switch s.download.selected {
 			case dlappend:
@@ -154,6 +139,24 @@ func updateDownload(s *DataScope, msg tea.Msg) tea.Cmd {
 				if s.download.format.raw {
 					s.download.format.json = false
 					s.download.format.csv = false
+				}
+			case dlsubmit:
+				if msg.Type == tea.KeyEnter { // only accept enter when submitting
+					// gather and validate selections
+					fn := strings.TrimSpace(s.download.outfileTI.Value())
+					if fn == "" {
+						str := "output file cannot be empty"
+						s.download.inputErrorString = str
+						return nil
+					}
+					res, success := s.dl(fn)
+					s.download.resultString = res
+					if !success {
+						clilog.Writer.Error(res)
+					} else {
+						clilog.Writer.Info(res)
+					}
+					return nil
 				}
 			}
 		}
@@ -357,7 +360,11 @@ func viewDownload(s *DataScope) string {
 			"",
 			recs,
 			"",
-			stylesheet.SubmitString("alt+enter", s.download.inputErrorString, s.download.resultString, s.usableWidth()),
+			stylesheet.ViewSubmitButton(
+				s.download.selected == dlsubmit,
+				s.download.resultString,
+				s.download.inputErrorString,
+			),
 		),
 	)
 }

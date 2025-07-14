@@ -160,7 +160,7 @@ func (mv *modifView) view() string {
 	sb.WriteString(
 		fmt.Sprintf("%s%s\n", stylesheet.Pip(mv.selected, perpage), mv.perpageTI.View()),
 	)
-	sb.WriteString(stylesheet.Button("submit", mv.selected == submit))
+	sb.WriteString(stylesheet.ViewSubmitButton(mv.selected == submit, "", ""))
 
 	return sb.String()
 }
