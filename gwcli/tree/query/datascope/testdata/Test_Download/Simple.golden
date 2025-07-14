@@ -19,9 +19,9 @@
                                   Name:                                         
                            Description:                                         
                                                                                 
-                                                                                
-                           Press alt+enter to submit                            
-                                                                                
+                                     ╭──────╮                                   
+                                     │submit│                                   
+                                     ╰──────╯                                   
                                                                                 
                                                                                 
                                                                                 
@@ -58,25 +58,25 @@
 
 
 
+
  Download all data in your preferred format or cherry-pick specific records by  
                                   their index.                                  
-
+                                                                                
                           >Output Path:                                         
                                 Append? [ ]                                     
                                      Format                                     
                                    JSON ( )                                     
                                     CSV ( )                                     
                                     raw (✓)                                     
-
+                                                                                
                         Record Numbers: (optional)                              
                    Enter a comma-seperated list of records to                   
                           download just those records,                          
                            instead of the whole file.                           
 
-
-                           Press alt+enter to submit                            
-
-
+                                     ╭──────╮                                   
+                                     │submit│                                   
+                                     ╰──────╯                                   
 
 
 

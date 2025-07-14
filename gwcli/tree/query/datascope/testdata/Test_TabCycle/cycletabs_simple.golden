@@ -58,6 +58,7 @@
 
 
 
+
  Download all data in your preferred format or cherry-pick specific records by  
                                   their index.                                  
 
@@ -73,10 +74,9 @@
                           download just those records,                          
                            instead of the whole file.                           
                                                                                 
-                                                                                
-                           Press alt+enter to submit                            
-                                                                                
-                                                                                
+                                     ╭──────╮                                   
+                                     │submit│                                   
+                                     ╰──────╯                                   
                                                                                 
 
 
@@ -107,25 +107,25 @@
 
 
 
-                                                                                
-                                                                                
 
+                                                                                
+                                                                                
            Schedule this search to be rerun at consistent intervals.            
                                     Query:                                      
                                                                                 
                             >Frequency: * * * * *                               
                                   Name:                                         
                            Description:                                         
-
                                                                                 
-                           Press alt+enter to submit                            
+                                     ╭──────╮                                   
+                                     │submit│                                   
+                                     ╰──────╯                                   
                                                                                 
-                                                                                
-
-
                                                                                 
 
-
+                                                                                
+                                                                                
+                                                                                
 
 
 
@@ -166,9 +166,9 @@ Line2
                                                                                 
                                                                                 
 
-
                                                                                 
-
+                                                                                
+                                                                                
 
 
 
