@@ -83,8 +83,9 @@ import (
 )
 
 const (
-	errMissingRequiredFlags = "missing required flags %v"
-	createdSuccessfully     = "Successfully created %v (ID: %v)."
+	errMissingRequiredFlags string = "missing required flags %v"
+	createdSuccessfully     string = "Successfully created %v (ID: %v)."
+	minFieldWidth           uint   = 25
 )
 
 // A Config maps keys -> Field; used as (ReadOnly) configuration for this creation instance
@@ -237,6 +238,10 @@ type createModel struct {
 	cf CreateFunc // function to create the new entity
 }
 
+func (c *createModel) SubmitSelected() bool {
+	return c.selected == uint(len(c.orderedTIs))
+}
+
 // Creates and returns a create Model, ready for interactive usage via Mother.
 func newCreateModel(fields Config, singular string, cf CreateFunc, addtlFlagFunc func() pflag.FlagSet) *createModel {
 	c := &createModel{
@@ -275,7 +280,10 @@ func newCreateModel(fields Config, singular string, cf CreateFunc, addtlFlagFunc
 		if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
 			c.longestFieldLength = w
 		}
-
+	}
+	// buffer the field length
+	if c.longestFieldLength < int(minFieldWidth) {
+		c.longestFieldLength = int(minFieldWidth)
 	}
 	// sort keys from highest order to lowest order
 	slices.SortFunc(c.orderedTIs, func(a, b keyedTI) int {
@@ -299,7 +307,8 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		c.inputErr = "" // clear last input error
+		c.inputErr = ""  // clear last input error
+		c.createErr = "" // clear error from last create attempt
 		switch keyMsg.Type {
 		case tea.KeyUp, tea.KeyShiftTab:
 			c.focusPrevious()
@@ -308,8 +317,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 			c.focusNext()
 			return textinput.Blink
 		case tea.KeyEnter:
-			if keyMsg.Alt { // only submit on alt+enter
-				c.createErr = "" // clear last error
+			if c.SubmitSelected() {
 				// extract values from TIs
 				values, mr := c.extractValuesFromTIs()
 				if mr != nil {
@@ -335,25 +343,25 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		c.width = sizeMsg.Width
 		return nil
 	}
-	// pass message to currently focused ti
-	var cmd tea.Cmd
-	c.orderedTIs[c.selected].ti, cmd = c.orderedTIs[c.selected].ti.Update(msg)
-	return cmd
+	if !c.SubmitSelected() {
+		// pass message to currently focused ti
+		var cmd tea.Cmd
+		c.orderedTIs[c.selected].ti, cmd = c.orderedTIs[c.selected].ti.Update(msg)
+		return cmd
+	}
+	return nil
 }
 
 // Blurs the current ti, selects and focuses the next (indexically) one.
-// If c.selected == len(c.orderedTIs), then we are on the submit button
 func (c *createModel) focusNext() {
-	// if we are not on the submit button, then blur
-	if c.selected != uint(len(c.orderedTIs)) {
+	if !c.SubmitSelected() {
 		c.orderedTIs[c.selected].ti.Blur()
 	}
 	c.selected += 1
 	if c.selected > uint(len(c.orderedTIs)) { // jump to start
 		c.selected = 0
 	}
-	// if we are not on the submit button, then focus
-	if c.selected != uint(len(c.orderedTIs)) {
+	if !c.SubmitSelected() {
 		c.orderedTIs[c.selected].ti.Focus()
 	}
 }
@@ -361,7 +369,7 @@ func (c *createModel) focusNext() {
 // Blurs the current ti, selects and focuses the previous (indexically) one.
 func (c *createModel) focusPrevious() {
 	// if we are not on the submit button, then blur
-	if c.selected != uint(len(c.orderedTIs)) {
+	if !c.SubmitSelected() {
 		c.orderedTIs[c.selected].ti.Blur()
 	}
 	if c.selected == 0 { // wrap to submit button
@@ -370,7 +378,7 @@ func (c *createModel) focusPrevious() {
 		c.selected -= 1
 	}
 	// if we are not on the submit button, then focus
-	if c.selected != uint(len(c.orderedTIs)) {
+	if !c.SubmitSelected() {
 		c.orderedTIs[c.selected].ti.Focus()
 	}
 }
@@ -378,7 +386,7 @@ func (c *createModel) focusPrevious() {
 // Generates the corrollary value map from the TIs.
 //
 // Returns the values for each TI (mapped to their Config key), a list of required fields (as their
-// field.Title names) that were not set, and an error (if one occured).
+// field.Title names) that were not set, and an error (if one occurred).
 func (c *createModel) extractValuesFromTIs() (
 	values Values, missingRequireds []string,
 ) {
@@ -435,7 +443,21 @@ func (c *createModel) View() string {
 	// conjoin fields and TIs
 	composed := lipgloss.JoinHorizontal(lipgloss.Center, f, t)
 
-	return composed + "\n" //+ //TODO //stylesheet.SubmitString("alt+enter", c.inputErr, c.createErr, c.width)
+	var wrapSty = lipgloss.NewStyle().Width(c.longestFieldLength)
+
+	var inE, cE string
+	if c.inputErr != "" {
+		inE = wrapSty.Render(c.inputErr)
+	}
+	if c.createErr != "" {
+		cE = wrapSty.Render(c.createErr)
+	}
+
+	return composed +
+		"\n" +
+		lipgloss.NewStyle().Width(lipgloss.Width(composed)).AlignHorizontal(lipgloss.Center).Render(
+			stylesheet.ViewSubmitButton(c.SubmitSelected(), inE, cE),
+		)
 }
 
 func (c *createModel) Done() bool {
@@ -498,7 +520,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string) (
 		}
 	}
 
-	return "", tea.WindowSize(), nil
+	return "", nil, nil
 }
 
 //#endregion
