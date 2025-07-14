@@ -289,6 +289,11 @@ func newCreateModel(fields Config, singular string, cf CreateFunc, addtlFlagFunc
 	return c
 }
 
+// Init is unused. It just exists so we can feed createModel into teatest.
+func (c *createModel) Init() tea.Cmd {
+	return nil
+}
+
 func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	if c.mode == quitting {
 		return nil
