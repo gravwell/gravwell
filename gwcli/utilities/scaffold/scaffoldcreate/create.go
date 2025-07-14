@@ -317,7 +317,11 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 				// extract values from TIs
 				values, mr := c.extractValuesFromTIs()
 				if mr != nil {
-					c.inputErr = fmt.Sprintf("%v are required", mr)
+					if len(mr) == 1 {
+						c.inputErr = fmt.Sprintf("%v is required", mr[0])
+					} else {
+						c.inputErr = fmt.Sprintf("%v are required", mr)
+					}
 					return nil
 				}
 				id, invalid, err := c.cf(c.fields, values, &c.fs)
