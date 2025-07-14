@@ -12,9 +12,10 @@ Package scaffoldedit provides a template for building actions that modify existi
 An edit action allows the user to select an entity from a list of all available entities, modify its
 fields (as interfaced by the implementor), and reflect the changes to the server.
 
-Implementors provide a struct of subroutines and a map of manipulate-able Fields to be displayed
-after an item is selected. The subroutines provide methods for scaffoldedit to find and manipulate
-data, including translation services for plucking specific fields out of the generic data struct.
+Implementor (you) must provide a struct of subroutines and a map of manipulate-able Fields to be displayed
+after an item is selected for editing.
+The subroutines provide methods for scaffoldedit to find and manipulate data,
+including translation services for plucking specific fields out of the generic data struct.
 
 This scaffold is notably more complex to modify and heavier to implement than the other scaffolds.
 See the Design block below for why.
@@ -268,12 +269,6 @@ const (
 	idle                  // inactive
 )
 
-// a tuple for associating a TI with its field key
-type keyedTI struct {
-	key string          // key to look up the related field in the Config
-	ti  textinput.Model // ti for user modifications
-}
-
 type editModel[I id_t, S any] struct {
 	mode             mode                // current program state
 	fs               pflag.FlagSet       // current state of the flagset
@@ -288,12 +283,14 @@ type editModel[I id_t, S any] struct {
 	list            list.Model // list displayed during `selecting` mode
 	listInitialized bool       // check before accessing the list, in case the user skipped to edit mode
 
-	orderedKTIs  []keyedTI // TIs will be displayed in array order, as sorted on population
-	tiIndex      int       // array index of active TI
-	tiCount      int       // len(ttis)
-	selectedData S         // item chosen from the list
-	inputErr     string    // input is erroneous
-	updateErr    string    // error occurred performing the update
+	orderedKTIs []scaffold.KeyedTI // TIs will be displayed in array order, as sorted on population
+
+	// editing-specific fields
+	tiIndex      int    // array index of active TI
+	tiCount      int    // len(ttis)
+	selectedData S      // item chosen from the list
+	inputErr     string // input is erroneous
+	updateErr    string // error occurred performing the update
 }
 
 // Creates and returns a new edit model, ready for interactive use.
@@ -425,16 +422,16 @@ func (em *editModel[I, S]) updateSelecting(msg tea.Msg) tea.Cmd {
 // Updates the TIs and performs data transmutation and submission if user confirms changes.
 func (em *editModel[I, S]) updateEditting(msg tea.Msg) tea.Cmd {
 	if keymsg, ok := msg.(tea.KeyMsg); ok {
-		em.inputErr = "" // clear input errors on new key input
+		em.inputErr = ""  // clear input errors on new key input
+		em.updateErr = "" // clear existing updateErr
 		switch keymsg.Type {
 		case tea.KeyEnter:
+			// TODO check if we are selecting the submit button
 			if keymsg.Alt { // check for a submission via alt+enter
-				em.updateErr = "" // clear existing updateErr
-
 				var missing []string
 				for _, kti := range em.orderedKTIs { // check all required fields are populated
-					if em.cfg[kti.key].Required && strings.TrimSpace(kti.ti.Value()) == "" {
-						missing = append(missing, kti.key)
+					if em.cfg[kti.Key].Required && strings.TrimSpace(kti.TI.Value()) == "" {
+						missing = append(missing, kti.Key)
 					}
 				}
 
@@ -451,7 +448,7 @@ func (em *editModel[I, S]) updateEditting(msg tea.Msg) tea.Cmd {
 
 				// yank the TI values and reinstall them into a data structure to update against
 				for _, kti := range em.orderedKTIs {
-					if inv, err := em.funcs.SetFieldSub(&em.selectedData, kti.key, kti.ti.Value()); err != nil {
+					if inv, err := em.funcs.SetFieldSub(&em.selectedData, kti.Key, kti.TI.Value()); err != nil {
 						em.mode = quitting
 						return tea.Println(err, "\n", "no changes made")
 					} else if inv != "" {
@@ -482,31 +479,34 @@ func (em *editModel[I, S]) updateEditting(msg tea.Msg) tea.Cmd {
 	// update tis
 	cmds := make([]tea.Cmd, len(em.orderedKTIs))
 	for i, tti := range em.orderedKTIs {
-		em.orderedKTIs[i].ti, cmds[i] = tti.ti.Update(msg)
+		em.orderedKTIs[i].TI, cmds[i] = tti.TI.Update(msg)
 	}
 	return tea.Batch(cmds...)
 }
 
 // Blur existing TI, select and focus previous (higher) TI
 func (em *editModel[I, S]) previousTI() {
-	em.orderedKTIs[em.tiIndex].ti.Blur()
+	em.orderedKTIs[em.tiIndex].TI.Blur()
 	em.tiIndex -= 1
 	if em.tiIndex < 0 {
 		em.tiIndex = em.tiCount - 1
 	}
-	em.orderedKTIs[em.tiIndex].ti.Focus()
+	em.orderedKTIs[em.tiIndex].TI.Focus()
 }
 
 // Blur existing TI, select and focus next (lower) TI
 func (em *editModel[I, S]) nextTI() {
-	em.orderedKTIs[em.tiIndex].ti.Blur()
+	em.orderedKTIs[em.tiIndex].TI.Blur()
 	em.tiIndex += 1
 	if em.tiIndex >= em.tiCount {
 		em.tiIndex = 0
 	}
-	em.orderedKTIs[em.tiIndex].ti.Focus()
+	em.orderedKTIs[em.tiIndex].TI.Focus()
 }
 
+func (em *editModel[I, S]) selectedSubmit() bool {
+	return false // TODO
+}
 func (em *editModel[I, S]) View() string {
 	var str string
 
@@ -523,14 +523,15 @@ func (em *editModel[I, S]) View() string {
 		var sb strings.Builder
 		for _, kti := range em.orderedKTIs {
 			// color the title appropriately
-			if em.cfg[kti.key].Required {
-				sb.WriteString(tiFieldRequiredSty.Render(kti.key + ": "))
+			if em.cfg[kti.Key].Required {
+				sb.WriteString(tiFieldRequiredSty.Render(kti.Key + ": "))
 			} else {
-				sb.WriteString(tiFieldOptionalSty.Render(kti.key + ": "))
+				sb.WriteString(tiFieldOptionalSty.Render(kti.Key + ": "))
 			}
-			sb.WriteString(kti.ti.View() + "\n")
+			sb.WriteString(kti.TI.View() + "\n")
 		}
-		sb.WriteString(stylesheet.SubmitString("alt+enter", em.inputErr, em.updateErr, em.width))
+		//sb.WriteString(stylesheet.SubmitString("alt+enter", em.inputErr, em.updateErr, em.width))
+		//sb.WriteString(stylesheet.ViewSubmitButton(em.sel, em.inputErr, em.updateErr, em.width))
 		str = sb.String()
 	}
 	return str
@@ -566,23 +567,23 @@ func (em *editModel[I, S]) Reset() error {
 // and sorting them into an ordered array.
 func (em *editModel[I, S]) enterEditMode() error {
 	// prepare list
-	em.orderedKTIs = make([]keyedTI, len(em.cfg))
+	em.orderedKTIs = make([]scaffold.KeyedTI, len(em.cfg))
 
 	// use the get function to pull current values for each field and display them in their
 	// respective TIs
 	var i uint8 = 0
-	for k, field := range em.cfg {
+	for k, fieldCfg := range em.cfg {
 		// create the ti
 		var ti textinput.Model
-		if field.CustomTIFuncInit != nil {
-			ti = field.CustomTIFuncInit()
+		if fieldCfg.CustomTIFuncInit != nil {
+			ti = fieldCfg.CustomTIFuncInit()
 		} else {
-			ti = stylesheet.NewTI("", !field.Required)
+			ti = stylesheet.NewTI("", !fieldCfg.Required)
 		}
 
 		var setByFlag bool
-		if em.fs.Changed(field.FlagName) { // prefer flag value
-			if x, err := em.fs.GetString(field.FlagName); err == nil {
+		if em.fs.Changed(fieldCfg.FlagName) { // prefer flag value
+			if x, err := em.fs.GetString(fieldCfg.FlagName); err == nil {
 				ti.SetValue(x)
 				setByFlag = true
 			}
@@ -597,7 +598,7 @@ func (em *editModel[I, S]) enterEditMode() error {
 		}
 
 		// attach TI to list
-		em.orderedKTIs[i] = keyedTI{key: k, ti: ti}
+		em.orderedKTIs[i] = scaffold.KeyedTI{Key: k, FieldTitle: fieldCfg.Title, TI: ti, Required: fieldCfg.Required}
 		i += 1
 	}
 
@@ -607,11 +608,11 @@ func (em *editModel[I, S]) enterEditMode() error {
 	}
 
 	// order TIs from highest to lowest orders
-	slices.SortFunc(em.orderedKTIs, func(a, b keyedTI) int {
-		return em.cfg[b.key].Order - em.cfg[a.key].Order
+	slices.SortFunc(em.orderedKTIs, func(a, b scaffold.KeyedTI) int {
+		return em.cfg[b.Key].Order - em.cfg[a.Key].Order
 	})
 
-	em.orderedKTIs[0].ti.Focus() // focus the first TI
+	em.orderedKTIs[0].TI.Focus() // focus the first TI
 
 	em.mode = editing
 	return nil

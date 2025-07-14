@@ -39,10 +39,10 @@ func Test_createModel_basics(t *testing.T) {
 
 	if len(cm.orderedTIs) != 2 {
 		t.Fatal(ExpectedActual(1, len(cm.orderedTIs)))
-	} else if cm.orderedTIs[0].key != "A" {
-		t.Fatal(ExpectedActual("A", cm.orderedTIs[0].key))
-	} else if cm.orderedTIs[1].key != "B" {
-		t.Fatal(ExpectedActual("B", cm.orderedTIs[1].key))
+	} else if cm.orderedTIs[0].Key != "A" {
+		t.Fatal(ExpectedActual("A", cm.orderedTIs[0].Key))
+	} else if cm.orderedTIs[1].Key != "B" {
+		t.Fatal(ExpectedActual("B", cm.orderedTIs[1].Key))
 	}
 	cm.focusNext()
 	// should be the second field
@@ -81,7 +81,7 @@ func Test_Ordering(t *testing.T) {
 		})
 
 	for i, ti := range cm.orderedTIs {
-		kint, err := strconv.Atoi(ti.key)
+		kint, err := strconv.Atoi(ti.Key)
 		if err != nil {
 			t.Fatal(err)
 		} else if i+1 != kint {
@@ -99,7 +99,7 @@ func Test_ExtractValues(t *testing.T) {
 		})
 		// set values into all TIs
 		for i := range cm.orderedTIs {
-			cm.orderedTIs[i].ti.SetValue(fmt.Sprintf("%d", i))
+			cm.orderedTIs[i].TI.SetValue(fmt.Sprintf("%d", i))
 		}
 
 		// extract values from TIs
@@ -115,10 +115,10 @@ func Test_ExtractValues(t *testing.T) {
 			num, err := strconv.Atoi(v)
 			if err != nil {
 				t.Errorf("failed to parse %v as an int", v)
-			} else if cm.orderedTIs[num].key != key || cm.orderedTIs[num].ti.Value() != v {
+			} else if cm.orderedTIs[num].Key != key || cm.orderedTIs[num].TI.Value() != v {
 				t.Error("mismatching values after extraction.",
-					ExpectedActual(cm.orderedTIs[num].key, key),
-					ExpectedActual(cm.orderedTIs[num].ti.Value(), v))
+					ExpectedActual(cm.orderedTIs[num].Key, key),
+					ExpectedActual(cm.orderedTIs[num].TI.Value(), v))
 			}
 		}
 	})
@@ -135,7 +135,7 @@ func Test_ExtractValues(t *testing.T) {
 		}
 
 		// set one of the requireds and try again
-		cm.orderedTIs[1].ti.SetValue("test value") // A
+		cm.orderedTIs[1].TI.SetValue("test value") // A
 		_, mr = cm.extractValuesFromTIs()
 		if len(mr) != 1 {
 			t.Error("incorrect missing required count.", ExpectedActual(1, len(mr)))
