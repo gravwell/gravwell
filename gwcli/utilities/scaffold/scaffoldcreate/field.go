@@ -10,6 +10,7 @@ package scaffoldcreate
 
 import (
 	"errors"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -47,10 +48,15 @@ type Field struct {
 }
 
 // NewField returns a new field with only the required fields. Defaults to a Text type.
+// Order may be negative. Fields are sorted from highest at the top to lowest at the bottom.
 //
 // You can build a Field manually, w/o NewField, but make sure you call
 // .DeriveFlagName() if you do not supply one.
 func NewField(req bool, title string, order int) Field {
+	// validate parameters
+	if strings.TrimSpace(title) == "" {
+		panic("title cannot be empty")
+	}
 	f := Field{
 		Required: req,
 		Title:    title,

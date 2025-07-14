@@ -337,24 +337,37 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 }
 
 // Blurs the current ti, selects and focuses the next (indexically) one.
+// If c.selected == len(c.orderedTIs), then we are on the submit button
 func (c *createModel) focusNext() {
-	c.orderedTIs[c.selected].ti.Blur()
+	// if we are not on the submit button, then blur
+	if c.selected != uint(len(c.orderedTIs)) {
+		c.orderedTIs[c.selected].ti.Blur()
+	}
 	c.selected += 1
-	if c.selected >= uint(len(c.orderedTIs)) { // jump to start
+	if c.selected > uint(len(c.orderedTIs)) { // jump to start
 		c.selected = 0
 	}
-	c.orderedTIs[c.selected].ti.Focus()
+	// if we are not on the submit button, then focus
+	if c.selected != uint(len(c.orderedTIs)) {
+		c.orderedTIs[c.selected].ti.Focus()
+	}
 }
 
 // Blurs the current ti, selects and focuses the previous (indexically) one.
 func (c *createModel) focusPrevious() {
-	c.orderedTIs[c.selected].ti.Blur()
-	if c.selected == 0 { // jump to end
-		c.selected = uint(len(c.orderedTIs)) - 1
+	// if we are not on the submit button, then blur
+	if c.selected != uint(len(c.orderedTIs)) {
+		c.orderedTIs[c.selected].ti.Blur()
+	}
+	if c.selected == 0 { // wrap to submit button
+		c.selected = uint(len(c.orderedTIs))
 	} else {
 		c.selected -= 1
 	}
-	c.orderedTIs[c.selected].ti.Focus()
+	// if we are not on the submit button, then focus
+	if c.selected != uint(len(c.orderedTIs)) {
+		c.orderedTIs[c.selected].ti.Focus()
+	}
 }
 
 // Generates the corrollary value map from the TIs.
@@ -417,7 +430,7 @@ func (c *createModel) View() string {
 	// conjoin fields and TIs
 	composed := lipgloss.JoinHorizontal(lipgloss.Center, f, t)
 
-	return composed + "\n" + stylesheet.SubmitString("alt+enter", c.inputErr, c.createErr, c.width)
+	return composed + "\n" //+ //TODO //stylesheet.SubmitString("alt+enter", c.inputErr, c.createErr, c.width)
 }
 
 func (c *createModel) Done() bool {
