@@ -234,7 +234,16 @@ func Test_Download(t *testing.T) {
 		} else if fDS.download.append {
 			t.Fatal("bad append value", ExpectedActual(false, fDS.download.append))
 		}
-		// TODO test the data in the output file
+		b, err := os.ReadFile(outPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		exploded := strings.Split(strings.TrimSpace(string(b)), "\n")
+		if len(exploded) != 1 {
+			t.Fatal("bad line count.", ExpectedActual(1, len(exploded)), "\n",
+				exploded,
+			)
+		}
 	})
 	// builds on the prior test, appending data to it
 	t.Run("Append", func(t *testing.T) {
@@ -301,7 +310,154 @@ func Test_Download(t *testing.T) {
 			)
 
 		}
+	})
 
+	t.Run("formats", func(t *testing.T) {
+		// we cannot submit, but we can check that the format checkboxes work
+		t.Run("JSON", func(t *testing.T) {
+			_, tm := setup(t, data, true)
+
+			// navigate to the download tab
+			TTSendSpecial(tm, tea.KeyShiftTab)
+			TTSendSpecial(tm, tea.KeyShiftTab)
+
+			// set JSON
+			TTSendSpecial(tm, tea.KeyDown)
+			TTSendSpecial(tm, tea.KeyDown)
+			TTSendSpecial(tm, tea.KeySpace)
+
+			// check the final output
+			TTSendSpecial(tm, tea.KeyCtrlC)
+			TTMatchGolden(t, tm)
+		})
+		t.Run("CSV", func(t *testing.T) {
+			_, tm := setup(t, data, true)
+
+			// navigate to the download tab
+			TTSendSpecial(tm, tea.KeyShiftTab)
+			TTSendSpecial(tm, tea.KeyShiftTab)
+
+			// set JSON
+			TTSendSpecial(tm, tea.KeyDown)
+			TTSendSpecial(tm, tea.KeyDown)
+			TTSendSpecial(tm, tea.KeyDown)
+			TTSendSpecial(tm, tea.KeySpace)
+
+			// check the final output
+			TTSendSpecial(tm, tea.KeyCtrlC)
+			TTMatchGolden(t, tm)
+		})
+
+	})
+
+}
+
+// We can't actually schedule anything as this file is ci-compliant (no back end).
+// However, we can check that it looks correct and accepts input.
+func Test_Schedule(t *testing.T) {
+	data := []string{
+		"Single Line",
+	}
+	t.Run("Simple", func(t *testing.T) {
+		_, tm := setup(t, data, true)
+
+		// navigate to the schedule tab
+		TTSendSpecial(tm, tea.KeyShiftTab)
+
+		// check the final output
+		TTSendSpecial(tm, tea.KeyCtrlC)
+		TTMatchGolden(t, tm)
+	})
+	t.Run("Correct Input", func(t *testing.T) {
+		var (
+			cron = "1 1 1 1 1"
+			name = "namet"
+			desc = "desct"
+		)
+
+		_, tm := setup(t, data, true)
+
+		// navigate to the schedule tab
+		TTSendSpecial(tm, tea.KeyShiftTab)
+
+		// cron
+		tm.Type(cron)
+		time.Sleep(500 * time.Millisecond)
+		TTSendSpecial(tm, tea.KeyDown)
+		// name
+		tm.Type(name)
+		time.Sleep(500 * time.Millisecond)
+		TTSendSpecial(tm, tea.KeyDown)
+		// desc
+		tm.Type(desc)
+		time.Sleep(500 * time.Millisecond)
+		TTSendSpecial(tm, tea.KeyDown)
+
+		// kill the bubble
+		TTSendSpecial(tm, tea.KeyCtrlC)
+
+		// Assert against the final model instead.
+		//TTMatchGolden(t, tm)
+
+		fDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
+		if !ok {
+			t.Fatal(failedDSAssert)
+		}
+		if fDS.schedule.cronfreqTI.Value() != cron {
+			t.Fatal("bad value in cronfreqTI", ExpectedActual(cron, fDS.schedule.cronfreqTI.Value()))
+		} else if fDS.schedule.nameTI.Value() != name {
+			t.Fatal("bad value in nameTI", ExpectedActual(name, fDS.schedule.nameTI.Value()))
+		} else if fDS.schedule.descTI.Value() != desc {
+			t.Fatal("bad value in descTI", ExpectedActual(name, fDS.schedule.descTI.Value()))
+		}
+	})
+	t.Run("Invalid Cron", func(t *testing.T) {
+		var (
+			cron = "1 1 1 1 d"
+			name = "namet"
+			desc = "desct"
+		)
+
+		_, tm := setup(t, data, true)
+
+		// navigate to the schedule tab
+		TTSendSpecial(tm, tea.KeyShiftTab)
+
+		// cron
+		tm.Type(cron)
+		time.Sleep(500 * time.Millisecond)
+		TTSendSpecial(tm, tea.KeyDown)
+		// name
+		tm.Type(name)
+		time.Sleep(500 * time.Millisecond)
+		TTSendSpecial(tm, tea.KeyDown)
+		// desc
+		tm.Type(desc)
+		time.Sleep(500 * time.Millisecond)
+		TTSendSpecial(tm, tea.KeyDown)
+
+		// attempt to submit
+		// this should have no lasting effect, as the search is invalid
+		TTSendSpecial(tm, tea.KeyDown)
+		TTSendSpecial(tm, tea.KeyEnter)
+
+		// kill the bubble
+		TTSendSpecial(tm, tea.KeyCtrlC)
+
+		// Assert against the final model instead.
+		//TTMatchGolden(t, tm)
+
+		fDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
+		if !ok {
+			t.Fatal(failedDSAssert)
+		}
+		if fDS.schedule.cronfreqTI.Value() != cron {
+			t.Error("bad value in cronfreqTI", ExpectedActual(cron, fDS.schedule.cronfreqTI.Value()))
+		} else if fDS.schedule.nameTI.Value() != name {
+			t.Error("bad value in nameTI", ExpectedActual(name, fDS.schedule.nameTI.Value()))
+		} else if fDS.schedule.descTI.Value() != desc {
+			t.Error("bad value in descTI", ExpectedActual(name, fDS.schedule.descTI.Value()))
+		}
 	})
 }
 
