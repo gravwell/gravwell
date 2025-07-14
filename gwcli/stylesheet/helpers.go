@@ -89,28 +89,6 @@ func ViewSubmitButton(selected bool, result, errStr string) string {
 	return lipgloss.JoinHorizontal(lipgloss.Center, pip, str)
 }
 
-// SubmitString displays either the key-bind to submit the action on the current tab or the input error,
-// if one exists, as well as the result string, beneath the submit-string/input-error.
-func SubmitString(keybind, inputErr, result string, width int) string {
-	alignerSty := lipgloss.NewStyle().
-		PaddingTop(1).
-		AlignHorizontal(lipgloss.Center).
-		Width(width)
-	var (
-		inputErrOrAltEnterColor = Cur.ExampleText.GetForeground()
-		inputErrOrAltEnterText  = "Press " + keybind + " to submit"
-	)
-	if inputErr != "" {
-		inputErrOrAltEnterColor = Cur.ErrorText.GetForeground()
-		inputErrOrAltEnterText = inputErr
-	}
-
-	return lipgloss.JoinVertical(lipgloss.Center,
-		alignerSty.Foreground(inputErrOrAltEnterColor).Render(inputErrOrAltEnterText),
-		alignerSty.Foreground(Cur.SecondaryText.GetForeground()).Render(result),
-	)
-}
-
 // Index returns the given number, styled as an index number in a list or table.
 func Index(i int) string {
 	return Cur.PrimaryText.Render(strconv.Itoa(i))
