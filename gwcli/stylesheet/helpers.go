@@ -3,6 +3,7 @@ package stylesheet
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -56,17 +57,36 @@ func box(val bool, leftBoundary, rightBoundary rune) string {
 
 // Button returns the text stylized as a selectable button.
 // Leaves a cell on the left for the pip (which is drawn if pip is set).
-func Button(text string, pip bool) string {
-	r := " "
-	if pip {
-		r = Cur.Pip()
-	}
+func Button(text string) string {
 	btn := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(Cur.SecondaryText.GetForeground()).
 		Foreground(Cur.PrimaryText.GetForeground()).
 		Render(text)
-	return lipgloss.JoinHorizontal(lipgloss.Center, r, btn)
+	return btn
+}
+
+// ViewSubmitButton displays... a submit button.
+// It displays the error if set.
+// Same for the result.
+// If not displaying either, it displays a box with "submit" in it.
+func ViewSubmitButton(selected bool, result, errStr string) string {
+	var (
+		str string
+		pip = strings.Repeat(" ", lipgloss.Width(Cur.Pip()))
+	)
+	if errStr != "" {
+		str = Cur.ComposableSty.ComplimentaryBorder.Render(Cur.ErrorText.Render(errStr))
+	} else if result != "" {
+		str = Cur.ComposableSty.ComplimentaryBorder.Render(result)
+	} else {
+		str = Button("submit")
+	}
+	if selected {
+		pip = Cur.Pip()
+	}
+
+	return lipgloss.JoinHorizontal(lipgloss.Center, pip, str)
 }
 
 // SubmitString displays either the key-bind to submit the action on the current tab or the input error,
