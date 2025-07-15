@@ -6,20 +6,24 @@ import (
 
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 )
 
 // stateEdit is the collection of fields required to track and display an item currently being edited.
+// Expects to be prepared by editModel.enterEditMode().
 type stateEdit[S any] struct {
-	err string // SetField or Update encountered an error or invalid setting
+	err          string // SetField or Update encountered an error or invalid setting
+	item         S      // the item being altered
+	longestWidth int    // longest line width
 
 	// currently selected field.
 	// Equal to len(tiCount), where the last item is the submit button
 	hovered uint
-	item    S // the item being altered
-
-	tiCount     int                // # of TIs currently available for editing this item
+	// # of TIs currently available for editing this item
+	tiCount     int
 	orderedKTIs []scaffold.KeyedTI // KTIs, sorted by rank (cfg.Order)
 }
 
@@ -94,40 +98,53 @@ func (se *stateEdit[S]) update(msg tea.Msg,
 }
 
 func (se *stateEdit[S]) view() string {
-	var sb strings.Builder
-	for _, kti := range se.orderedKTIs {
-		// color the title appropriately
-		if kti.Required {
-			sb.WriteString(tiFieldRequiredSty.Render(kti.Key + ": "))
-		} else {
-			sb.WriteString(tiFieldOptionalSty.Render(kti.Key + ": "))
-		}
-		sb.WriteString(kti.TI.View() + "\n")
+	inputs := scaffold.ViewKTIs(uint(se.longestWidth), se.orderedKTIs, se.hovered)
+
+	var wrapSty = lipgloss.NewStyle().Width(se.longestWidth)
+
+	var inE string
+	if se.err != "" {
+		inE = wrapSty.Render(se.err)
 	}
-	//sb.WriteString(stylesheet.SubmitString("alt+enter", em.inputErr, em.updateErr, em.width))
-	//sb.WriteString(stylesheet.ViewSubmitButton(em.sel, em.inputErr, em.updateErr, em.width))
-	return sb.String()
+
+	return inputs +
+		"\n" +
+		lipgloss.NewStyle().Width(lipgloss.Width(inputs)).AlignHorizontal(lipgloss.Center).Render(
+			stylesheet.ViewSubmitButton(se.submitHovered(), inE, ""),
+		)
 }
 
-// Blur existing TI, select and focus previous (higher) TI
+// Blur existing TI, select and focus previous (higher) TI.
+// Wraps from the first TI to the submit button.
 func (se *stateEdit[S]) previousTI() {
-	se.orderedKTIs[se.hovered].TI.Blur()
-	if se.hovered == 0 {
-		se.hovered = uint(se.tiCount - 1)
+	// if we are not on the submit button, then blur
+	if !se.submitHovered() {
+		se.orderedKTIs[se.hovered].TI.Blur()
+	}
+	if se.hovered == 0 { // wrap to submit button
+		se.hovered = uint(len(se.orderedKTIs))
 	} else {
 		se.hovered -= 1
 	}
-	se.orderedKTIs[se.hovered].TI.Focus()
+	// if we are not on the submit button, then focus
+	if !se.submitHovered() {
+		se.orderedKTIs[se.hovered].TI.Focus()
+	}
 }
 
-// Blur existing TI, select and focus next (lower) TI
+// Blur existing TI, select and focus next (lower) TI.
+// Selects the submit button after the last TI and wraps after the submit button.
 func (se *stateEdit[S]) nextTI() {
-	se.orderedKTIs[se.hovered].TI.Blur()
+	if !se.submitHovered() {
+		se.orderedKTIs[se.hovered].TI.Blur()
+	}
 	se.hovered += 1
-	if se.hovered >= uint(se.tiCount) {
+	if se.hovered > uint(len(se.orderedKTIs)) { // jump to start
 		se.hovered = 0
 	}
-	se.orderedKTIs[se.hovered].TI.Focus()
+	if !se.submitHovered() {
+		se.orderedKTIs[se.hovered].TI.Focus()
+	}
 }
 
 func (se *stateEdit[S]) reset() {
