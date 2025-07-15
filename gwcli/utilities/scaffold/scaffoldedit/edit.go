@@ -353,7 +353,7 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 	em.listInitialized = true
 	em.mode = selecting
 
-	return "", tea.WindowSize(), nil
+	return "", nil, nil
 }
 
 func (em *editModel[I, S]) Update(msg tea.Msg) tea.Cmd {
