@@ -325,12 +325,13 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 		}
 
 		// select the item associated to the id
-		if em.editing.item, err = em.funcs.SelectSub(id); err != nil {
+		item, err := em.funcs.SelectSub(id)
+		if err != nil {
 			// treat this as an invalid argument
 			return fmt.Sprintf("failed to fetch %s by id (%v): %v", em.singular, id, err), nil, nil
 		}
 		// we can jump directly to editing phase on start
-		if err := em.enterEditMode(); err != nil {
+		if err := em.enterEditMode(item); err != nil {
 			em.mode = quitting
 			clilog.Writer.Errorf("%v", err)
 			return "", nil, err
@@ -407,8 +408,8 @@ func (em *editModel[I, S]) updateSelecting(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.Type == tea.KeySpace || msg.Type == tea.KeyEnter {
-			em.editing.item = em.data[em.list.Index()]
-			if err := em.enterEditMode(); err != nil {
+			item := em.data[em.list.Index()]
+			if err := em.enterEditMode(item); err != nil {
 				em.mode = quitting
 				clilog.Writer.Errorf("%v", err)
 				return tea.Println(err.Error())
@@ -462,9 +463,12 @@ func (em *editModel[I, S]) Reset() error {
 
 // Triggers the edit model to enter editing mode, establishing and displaying a TI for each field
 // and sorting them into an ordered array.
-func (em *editModel[I, S]) enterEditMode() error {
-	// prepare list
-	em.editing.orderedKTIs = make([]scaffold.KeyedTI, len(em.cfg))
+func (em *editModel[I, S]) enterEditMode(item S) error {
+	es := stateEdit[S]{
+		item:        item,
+		tiCount:     len(em.cfg),
+		orderedKTIs: make([]scaffold.KeyedTI, len(em.cfg)),
+	}
 
 	// use the get function to pull current values for each field and display them in their
 	// respective TIs
@@ -487,7 +491,7 @@ func (em *editModel[I, S]) enterEditMode() error {
 		}
 
 		if !setByFlag { // fallback to current value
-			curVal, err := em.funcs.GetFieldSub(em.editing.item, k)
+			curVal, err := em.funcs.GetFieldSub(es.item, k)
 			if err != nil {
 				return err
 			}
@@ -495,12 +499,18 @@ func (em *editModel[I, S]) enterEditMode() error {
 		}
 
 		// attach TI to list
-		em.editing.orderedKTIs[i] = scaffold.KeyedTI{Key: k, FieldTitle: fieldCfg.Title, TI: ti, Required: fieldCfg.Required}
+		es.orderedKTIs[i] = scaffold.KeyedTI{
+			Key:        k,
+			FieldTitle: fieldCfg.Title,
+			TI:         ti,
+			Required:   fieldCfg.Required}
 		i += 1
+
+		// check width
+		es.longestWidth = min(lipgloss.Width(fieldCfg.Title)+3+ti.Width, es.longestWidth)
 	}
 
-	em.editing.tiCount = len(em.editing.orderedKTIs)
-	if em.editing.tiCount < 1 {
+	if len(es.orderedKTIs) < 1 {
 		return errors.New("no TIs created by transmutation")
 	}
 
@@ -509,8 +519,9 @@ func (em *editModel[I, S]) enterEditMode() error {
 		return em.cfg[b.Key].Order - em.cfg[a.Key].Order
 	})
 
-	em.editing.orderedKTIs[0].TI.Focus() // focus the first TI
+	es.orderedKTIs[0].TI.Focus() // focus the first TI
 
+	em.editing = es
 	em.mode = editing
 	return nil
 }
