@@ -10,7 +10,7 @@
 Package scaffoldedit provides a template for building actions that modify existing data.
 
 An edit action allows the user to select an entity from a list of all available entities, modify its
-fields (as interfaced by the implementor), and reflect the changes to the server.
+fields, and reflect the changes to the server.
 
 Implementor (you) must provide a struct of subroutines and a map of manipulate-able Fields to be displayed
 after an item is selected for editing.
@@ -26,7 +26,7 @@ See the Design block below for why.
 are destructive by design.
 
 Implementations will resemble scaffoldcreate implementations with the addition of a SubroutineSet.
-An example implementation doesn't really make sense for how much scaffoldedit requires from the
+An example implementation doesn't really make sense due to the amount that scaffoldedit requires from the
 implementor; instead take a look at the macro edit action implementation. That is fairly simple.
 */
 package scaffoldedit
@@ -40,7 +40,7 @@ package scaffoldedit
  * single instance of the struct we are/will be editing.
  * The use of reflection to reduce the complexity of the SubroutineSet, thereby reducing implementor
  * load, was considered, but ditched fairly early.
- * I figured that reflection is
+ * Reflection is
  * 1) slow
  * 2) error-prone (needing to look up qualified field names given by the implementor)
  * 3) an added layer of complexity on top of the already-in-play generics
@@ -81,26 +81,14 @@ const (
 	listHeightMax  = 40 // lines
 	successStringF = "Successfully updated %v %v"
 )
-const ( // local flag values
-	flagIDUsageF = "id of the %v to edit"
-)
 
+// id_t defines the acceptable types for generic I, the item identifier.
+// It can be expanded to support strings if need be.
 type id_t interface {
 	constraints.Integer | uuid.UUID
 }
 
-// #region local styles
-
-var (
-	// TI field marked as required
-	tiFieldRequiredSty = stylesheet.Cur.PrimaryText
-	// TI field marked as optional
-	tiFieldOptionalSty = stylesheet.Cur.SecondaryText
-)
-
-// #endregion
-
-// NewEditAction composes a usable edit action, returning its cobra.Command and action model pair.
+// NewEditAction composes a usable edit action, returning its action pair.
 // The parameters, specifically funcs, do most of the heavy lifting; this just bolts on necessities to make the new action work in Mother and via a script.
 // This is the function that implementations/implementors should call as their action implementation.
 // This function panics if any parameters are missing.
@@ -162,7 +150,7 @@ func generateFlagSet(cfg Config, singular string) pflag.FlagSet {
 	}
 
 	// attach native flags
-	fs.StringP(ft.Name.ID, "i", "", fmt.Sprintf(flagIDUsageF, singular))
+	fs.StringP(ft.Name.ID, "i", "", fmt.Sprintf("id of the %v to edit", singular))
 
 	return fs
 }
