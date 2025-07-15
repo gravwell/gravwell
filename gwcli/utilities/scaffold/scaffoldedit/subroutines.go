@@ -44,6 +44,8 @@ type SetFieldSubroutine[S any] func(item *S, fieldKey, val string) (
 )
 
 // UpdateStructSubroutine defines the function that performs the actual update of the data on the GW instance.
+// The error returned by this subroutine does not kill the action, instead displaying to the user.
+// In that way, it is closer to an invalid, even though validation errors are assumed to be caught by the SetField sub.
 type UpdateStructSubroutine[S any] func(data *S) (
 	identifier string, err error,
 )
