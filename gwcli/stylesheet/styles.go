@@ -19,6 +19,8 @@ package stylesheet
 // miscellaneous styles
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -143,65 +145,52 @@ func (p Palette) GenerateSheet() Sheet {
 	secondaryColorSty := lipgloss.NewStyle().Foreground(p.SecondaryColor)
 	accentColor1Sty := lipgloss.NewStyle().Foreground(p.AccentColor1)
 
-	return Sheet{
-		Nav:    secondaryColorSty,
-		Action: lipgloss.NewStyle().Foreground(p.AccentColor2),
-
-		FieldText: primaryColorSty,
-		Pip:       func() string { return pipSty.Render(string(pipRune)) },
-
-		ComposableSty: struct {
-			FocusedBorder       lipgloss.Style
-			UnfocusedBorder     lipgloss.Style
-			ComplimentaryBorder lipgloss.Style
-		}{
-			FocusedBorder: lipgloss.NewStyle().
-				Align(lipgloss.Left, lipgloss.Center).
-				BorderStyle(lipgloss.NormalBorder()).
-				BorderForeground(p.PrimaryColor),
-			UnfocusedBorder: lipgloss.NewStyle().
-				Align(lipgloss.Left, lipgloss.Center).
-				BorderStyle(lipgloss.HiddenBorder()),
-			ComplimentaryBorder: lipgloss.NewStyle().
-				Align(lipgloss.Left, lipgloss.Center).
-				BorderStyle(lipgloss.NormalBorder()).
-				BorderForeground(p.AccentColor1),
-		},
-
-		TableSty: struct {
-			HeaderCells lipgloss.Style
-			EvenCells   lipgloss.Style
-			OddCells    lipgloss.Style
-			BorderType  lipgloss.Border
-			BorderStyle lipgloss.Style
-		}{
-			HeaderCells: lipgloss.NewStyle().
-				Foreground(p.PrimaryColor).
-				AlignHorizontal(lipgloss.Center).
-				AlignVertical(lipgloss.Center).Bold(true),
-			EvenCells:   lipgloss.NewStyle().Padding(0, 1).Width(15).Foreground(p.SecondaryColor),
-			OddCells:    lipgloss.NewStyle().Padding(0, 1).Width(15).Foreground(p.TertiaryColor),
-			BorderType:  lipgloss.NormalBorder(),
-			BorderStyle: primaryColorSty,
-		},
-
-		ErrorText:    lipgloss.NewStyle().Foreground(bittersweet),
-		ExampleText:  accentColor1Sty.Italic(true),
-		DisabledText: lipgloss.NewStyle().Faint(true),
-
-		PromptSty: struct {
-			Symbol func() string
-			Text   func(string) string
-		}{
-			Symbol: func() string { return primaryColorSty.Render("⦠") },
-			Text:   func(s string) string { return primaryColorSty.Render(s) },
-		},
-
-		PrimaryText:   primaryColorSty,
-		SecondaryText: secondaryColorSty,
-		TertiaryText:  lipgloss.NewStyle().Foreground(p.TertiaryColor),
-
-		Spinner:     primaryColorSty,
-		SpinnerText: secondaryColorSty,
+	s := NewSheet(func() string { return pipSty.Render(string(pipRune)) }, func() string { return primaryColorSty.Render("⦠") }, func(s string) string { return primaryColorSty.Render(s) })
+	s.Nav = secondaryColorSty
+	s.Action = lipgloss.NewStyle().Foreground(p.AccentColor2)
+	s.FieldText = primaryColorSty
+	s.ComposableSty = struct {
+		FocusedBorder       lipgloss.Style
+		UnfocusedBorder     lipgloss.Style
+		ComplimentaryBorder lipgloss.Style
+	}{
+		FocusedBorder: lipgloss.NewStyle().
+			Align(lipgloss.Left, lipgloss.Center).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(p.PrimaryColor),
+		UnfocusedBorder: lipgloss.NewStyle().
+			Align(lipgloss.Left, lipgloss.Center).
+			BorderStyle(lipgloss.HiddenBorder()),
+		ComplimentaryBorder: lipgloss.NewStyle().
+			Align(lipgloss.Left, lipgloss.Center).
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(p.AccentColor1),
 	}
+	s.TableSty = struct {
+		HeaderCells lipgloss.Style
+		EvenCells   lipgloss.Style
+		OddCells    lipgloss.Style
+		BorderType  lipgloss.Border
+		BorderStyle lipgloss.Style
+	}{
+		HeaderCells: lipgloss.NewStyle().
+			Foreground(p.PrimaryColor).
+			AlignHorizontal(lipgloss.Center).
+			AlignVertical(lipgloss.Center).Bold(true),
+		EvenCells:   lipgloss.NewStyle().Padding(0, 1).Width(15).Foreground(p.SecondaryColor),
+		OddCells:    lipgloss.NewStyle().Padding(0, 1).Width(15).Foreground(p.TertiaryColor),
+		BorderType:  lipgloss.NormalBorder(),
+		BorderStyle: primaryColorSty,
+	}
+	s.ErrorText = lipgloss.NewStyle().Foreground(bittersweet)
+	s.ExampleText = accentColor1Sty.Italic(true)
+	s.DisabledText = lipgloss.NewStyle().Faint(true)
+	s.PrimaryText = primaryColorSty
+	s.SecondaryText = secondaryColorSty
+	s.TertiaryText = lipgloss.NewStyle().Foreground(p.TertiaryColor)
+	s.Spinner = primaryColorSty
+	s.SpinnerText = secondaryColorSty
+	s.Divider = func(width int) string { return s.TertiaryText.Render(strings.Repeat("-", width)) }
+
+	return s
 }
