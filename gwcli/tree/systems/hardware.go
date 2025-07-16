@@ -25,22 +25,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	fieldWidth string = "20"
-)
-
 // styles, set in init()
 var (
-	h1sty lipgloss.Style
-	h2sty lipgloss.Style
-	h3sty lipgloss.Style
+	sectionHeaderSty    lipgloss.Style
+	subSectionHeaderSty lipgloss.Style
 )
 
 func init() {
 	// set local styles based on stylesheet's state
-	h1sty = stylesheet.Cur.TertiaryText.Bold(true)
-	h2sty = stylesheet.Cur.SecondaryText.Bold(true)
-	h3sty = stylesheet.Cur.TertiaryText.Bold(true)
+	sectionHeaderSty = stylesheet.Cur.TertiaryText.Bold(true)
+	subSectionHeaderSty = stylesheet.Cur.SecondaryText.Bold(true)
 
 }
 
@@ -143,7 +137,7 @@ func newHardwareAction() action.Pair {
 		nil)
 }
 
-// writeOverview attach the stat averages and cumulated disk data to the string builder
+// constructOverview generates a segmented border containing the overview information.
 func constructOverview(o ovrvw, width int) string {
 	var avgs, disks, disksTitle string
 
@@ -151,15 +145,15 @@ func constructOverview(o ovrvw, width int) string {
 		// we need to pre-format the strings, otherwise Go will get confused counting the ASCII escapes.
 		cu := fmt.Sprintf("%6.2f", o.CPUAvgUsage)
 		mu := fmt.Sprintf("%6.2f", o.MemAvgUsage)
-		avgs = stylesheet.Cur.FieldText.Render(field("Avg CPU Usage")) + " " + cu + "%\n"
-		avgs += stylesheet.Cur.FieldText.Render(field("Avg Memory Usage")) + " " + mu + "%"
+		avgs = stylesheet.Cur.FieldText.Render(field("Avg CPU Usage", 17)) + " " + cu + "%\n"
+		avgs += stylesheet.Cur.FieldText.Render(field("Avg Memory Usage", 17)) + " " + mu + "%"
 	}
 	{ // now for disks
 		disksTitle = " " + stylesheet.Cur.SecondaryText.Bold(true).Render(fmt.Sprintf("Disks[%d]", o.Disks.DiskCount)) + " "
-		totalField := field("Total Space")
-		usedField := field("Space Used")
-		avgReadField := field("Avg Reads/sec")
-		avgWriteField := field("Avg Writes/sec")
+		totalField := field("Total Space", 15)
+		usedField := field("Space Used", 15)
+		avgReadField := field("Avg Reads/sec", 15)
+		avgWriteField := field("Avg Writes/sec", 15)
 
 		// convert accumulations to GB
 		totalGB := fmt.Sprintf("%8.2f", ((float64(o.Disks.Total)/1024)/1024)/1024)
@@ -183,7 +177,7 @@ func constructOverview(o ovrvw, width int) string {
 	if s, err := stylesheet.SegmentedBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), width, struct {
 		StylizedTitle string
 		Contents      string
-	}{h1sty.Render(" Overview "), avgs}, struct {
+	}{sectionHeaderSty.Render(" Overview "), avgs}, struct {
 		StylizedTitle string
 		Contents      string
 	}{disksTitle, disks}); err != nil {
@@ -195,6 +189,7 @@ func constructOverview(o ovrvw, width int) string {
 
 }
 
+// constructIndexers generates a segmented border containing the overview information.
 func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysStats) (_ string, longestLineWidth int) {
 	var ( // length of the longest line
 		writeString = func(sb *strings.Builder, stylizedStr string) { // test and (if new longest) record length prior to writing to the builder
@@ -204,6 +199,10 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 	)
 
 	var toRet strings.Builder
+	var indexersBlocks [][]struct {
+		StylizedTitle string
+		Contents      string
+	}
 
 	for idxr, stat := range sys {
 		if idxr == "webserver" {
@@ -211,27 +210,18 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 			continue
 		}
 
-		// 1: empty section for just the indexer name + version
-		// 2: health section
-		// 3: disks section
-		// 4: specs section
+		// 0: empty section for just the indexer name + version
+		// 1: health section
+		// 2: disks section
+		// 3: specs section
 		// if stat.Err != "", health and disks are consolidated into a single section
 		sections := []struct {
 			StylizedTitle string
 			Contents      string
 		}{
 			{
-				StylizedTitle: h1sty.Render(idxr),
+				StylizedTitle: sectionHeaderSty.Render(idxr),
 			},
-			/*{
-							StylizedTitle: h2sty.Render("Health"),
-						},
-						{
-							StylizedTitle: h2sty.Render("Disks"),
-						},
-						{
-			StylizedTitle: h2sty.Render("Specifications"),
-						},*/
 		}
 
 		longestLineWidth = lipgloss.Width(sections[0].StylizedTitle)
@@ -244,23 +234,21 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 			sections = append(sections, struct {
 				StylizedTitle string
 				Contents      string
-			}{h2sty.Render("Health & Disks"), e})
+			}{subSectionHeaderSty.Render("Health & Disks"), e})
 		} else {
 			var sb strings.Builder
-			{ // health section
+			{
 				sctn := struct {
 					StylizedTitle string
 					Contents      string
 				}{
-					StylizedTitle: h2sty.Render(" Health") + " (" + h2sty.Render(stat.Stats.BuildInfo.CanonicalVersion.String()) + ") ",
+					StylizedTitle: subSectionHeaderSty.Render(" Health") + " (" + subSectionHeaderSty.Render(stat.Stats.BuildInfo.CanonicalVersion.String()) + ") ",
 				}
 				// generate content
-				uptimeField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Uptime:"))
-				writeString(&sb, uptimeField+" "+(time.Duration(stat.Stats.Uptime)*time.Second).String()+"\n")
-				netField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"v", "Up/Down:"))
+				writeString(&sb, field("Uptime", 11)+" "+(time.Duration(stat.Stats.Uptime)*time.Second).String()+"\n")
 				netUpKB := float64(stat.Stats.Net.Up) / 1024
 				netDownKB := float64(stat.Stats.Net.Down) / 1024
-				writeString(&sb, fmt.Sprintf("%s %.2fKB/%.2fKB\n", netField, netUpKB, netDownKB))
+				writeString(&sb, fmt.Sprintf("%s %.2fKB/%.2fKB\n", field("Up/Down", 11), netUpKB, netDownKB))
 				var readMB, writeMB float64
 				for _, b := range stat.Stats.IO {
 					readMB += float64(b.Read)
@@ -268,7 +256,7 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 				}
 				readMB = readMB / 1024 / 1024
 				writeMB = writeMB / 1024 / 1024
-				writeString(&sb, fmt.Sprintf("%s %.2fKB/%.2fKB", field("Read/Write"), readMB, writeMB))
+				writeString(&sb, fmt.Sprintf("%s %.2fKB/%.2fKB", field("Read/Write", 11), readMB, writeMB))
 				// write content
 				sctn.Contents = sb.String()
 				sections = append(sections, sctn)
@@ -279,16 +267,16 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 					StylizedTitle string
 					Contents      string
 				}{
-					StylizedTitle: h2sty.Render(fmt.Sprintf(" Disk[%d] ", len(stat.Stats.Disks))),
+					StylizedTitle: subSectionHeaderSty.Render(fmt.Sprintf(" Disk[%d] ", len(stat.Stats.Disks))),
 				}
 				// generate content
 				for _, d := range stat.Stats.Disks {
 					usedGB := ((float64(d.Used) / 1024) / 1024) / 1024
 					totalGB := ((float64(d.Total) / 1024) / 1024) / 1024
 
-					writeString(&sb, fmt.Sprintf("%s\n"+stylesheet.Indent+"'%s' mounted at %s\n"+
-						stylesheet.Indent+stylesheet.Indent+"%.2fGB used of %.2fGB total",
-						stylesheet.Cur.TertiaryText.Render(d.ID),
+					writeString(&sb, fmt.Sprintf("%s\n"+stylesheet.Cur.TertiaryText.Render("partition '%s' @ %s")+"\n"+
+						stylesheet.Cur.TertiaryText.Render("↳")+" %.2fGB used of %.2fGB total",
+						stylesheet.Cur.PrimaryText.Render(d.ID),
 						d.Partition, d.Mount,
 						usedGB, totalGB,
 					))
@@ -298,87 +286,71 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 				sections = append(sections, sctn)
 			}
 		}
-		s, err := stylesheet.SegmentedBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), longestLineWidth, sections...)
-		if err != nil {
-			// TODO
-		} else {
-			toRet.WriteString(s)
-		}
-		/*
-			hw, ok := desc[idxr]
-			if !ok {
-				continue
-			} else if hw.Error != "" {
+
+		if hw, ok := desc[idxr]; ok {
+			sctn := struct {
+				StylizedTitle string
+				Contents      string
+			}{
+				StylizedTitle: subSectionHeaderSty.Render(" Specifications"),
+				Contents:      "",
+			}
+
+			if hw.Error != "" {
 				clilog.Writer.Warnf("failed to stat indexer hardware %v: %v", idxr, hw.Error)
-				sb.WriteString(stylesheet.Cur.ErrorText.Render(hw.Error) + "\n")
+				// apply a wrap to the error, as we have no scale for length
+				sctn.Contents = stylesheet.Cur.ErrorText.Width(40).Render(hw.Error)
+				// add an extra space to the subsection header
+				sctn.StylizedTitle += " "
 			} else {
-				// specs section
-				sb.WriteString()
+				var sb strings.Builder
 				// attach virtualization info
-				sb.WriteString(" (" + h3sty.Render(fmt.Sprintf("%v[%v]", hw.VirtSystem, hw.VirtRole)) + ")\n")
+				sctn.StylizedTitle += " (" + subSectionHeaderSty.Render(fmt.Sprintf("%v[%v]", hw.VirtSystem, hw.VirtRole)) + ") "
 				// attach hardware info
-				fmt.Fprintf(sb,
+				writeString(&sb, fmt.Sprintf(
 					"%s %s\n"+
 						"%s %s\n"+
 						"%s %d\n"+
 						"%s %sMHz\n"+
 						"%s %sKB per CPU\n"+
-						"%s %dMB\n", // I believe this is L2/core and L3/thread
-					field("System Version"), hw.SystemVersion,
-					field("CPU Model"), hw.CPUModel,
-					field("CPU Count"), hw.CPUCount,
-					field("CPU Clock Speed"), hw.CPUMhz,
-					field("CPU Cache Size"), hw.CPUCache,
-					field("Total Memory"), hw.TotalMemoryMB,
-				)
-			}*/
+						"%s %dMB", // I believe this is L2/core and L3/thread
+					field("System Version", 16), hw.SystemVersion,
+					field("CPU Model", 16), hw.CPUModel,
+					field("CPU Count", 16), hw.CPUCount,
+					field("CPU Clock Speed", 16), hw.CPUMhz,
+					field("CPU Cache Size", 16), hw.CPUCache,
+					field("Total Memory", 16), hw.TotalMemoryMB))
+				sctn.Contents = sb.String()
+			}
+			sections = append(sections, sctn)
+		} else {
+			clilog.Writer.Warnf("did not find a hardware description associated to indexer %v", idxr)
+		}
+		// we cannot write the segborder yet as we don't know if a later indexer might have a greater width we need to adhere to
+		indexersBlocks = append(indexersBlocks, sections)
+	}
+
+	// generate each indexer block
+	for _, idxrBlk := range indexersBlocks {
+		s, err := stylesheet.SegmentedBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), longestLineWidth, idxrBlk...)
+		if err != nil {
+			clilog.Writer.Errorf("SegmentedBorder failed to draw indexer block: %v", err)
+		} else {
+			toRet.WriteString(s)
+		}
 	}
 
 	return toRet.String(), longestLineWidth
 }
 
 // styles the given text as a field by colorizing it and appending a colon.
-func field(fieldText string) string {
-	return stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", ""+fieldText+":"))
+func field(fieldText string, width int) string {
+	pad := width - len(fieldText)
+	if pad > 0 {
+		fieldText = strings.Repeat(" ", pad) + fieldText
+	}
+	return stylesheet.Cur.FieldText.Render(fieldText + ":")
 }
-
-/*func attachDescriptions(sb *strings.Builder) error {
-
-	if err != nil {
-		return err
-	}
-
-	for key, inf := range m {
-		// key will either be an IP address or "webserver"
-		if _, err := netip.ParseAddrPort(key); err == nil {
-			sb.WriteString("ingester @ " + key)
-		} else {
-			sb.WriteString(key)
-		}
-		// append version to header line
-
-
-		// attach error
-		if inf.Error != "" {
-			sb.WriteString(stylesheet.Cur.ErrorText.Render("Error") + ": " + inf.Error + "\n")
-		}
-
-		// attach CPU info
-		cpuM := "unknown"
-		if inf.CPUModel != "" {
-			cpuM = inf.CPUModel
-		}
-		sb.WriteString(stylesheet.Cur.SecondaryText.Render("CPU") + ": " + cpuM + "\n")
-		sb.WriteString(printIfSet(true, "Clock Speed", inf.CPUMhz, "MHz"))
-		sb.WriteString(printIfSet(true, "Thread Count", inf.CPUCount, ""))
-		sb.WriteString(printIfSet(true, "Cache Size", inf.CPUCache, "MB"))
-		// attach memory
-		sb.WriteString(fmt.Sprintf("%v: %vMB\n", stylesheet.Cur.PrimaryText.Render("Total Memory"), inf.TotalMemoryMB))
-		sb.WriteString("\n")
-	}
-
-	return nil
-}*/
 
 // ovrvw holds the collected averages and totals calculated by gatherStats().
 type ovrvw struct {
