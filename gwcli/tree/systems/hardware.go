@@ -134,17 +134,17 @@ func newHardwareAction() action.Pair {
 				return stylesheet.Cur.ErrorText.Render(err.Error()), nil
 			}
 
-			writeIndexers(&sb, hw, metrics)
+			s, llw := constructIndexers(hw, metrics)
+			sb.WriteString(s)
 
-			//sb.WriteString(stylesheet.TitledBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), h1sty, " Overview ", strings.TrimSpace(constructOverview(o))))
-			sb.WriteString(constructOverview(o))
+			sb.WriteString(constructOverview(o, llw))
 			return sb.String(), nil
 		},
 		nil)
 }
 
 // writeOverview attach the stat averages and cumulated disk data to the string builder
-func constructOverview(o ovrvw) string {
+func constructOverview(o ovrvw, width int) string {
 	var avgs, disks, disksTitle string
 
 	{ // reformat the floats as strings and colorize them
@@ -180,7 +180,7 @@ func constructOverview(o ovrvw) string {
 		)
 	}
 
-	if s, err := stylesheet.SegmentedBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), 40, struct {
+	if s, err := stylesheet.SegmentedBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), width, struct {
 		StylizedTitle string
 		Contents      string
 	}{h1sty.Render(" Overview "), avgs}, struct {
@@ -195,80 +195,146 @@ func constructOverview(o ovrvw) string {
 
 }
 
-func writeIndexers(sb *strings.Builder, desc map[string]types.SysInfo, sys map[string]types.SysStats) {
+func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysStats) (_ string, longestLineWidth int) {
+	var ( // length of the longest line
+		writeString = func(sb *strings.Builder, stylizedStr string) { // test and (if new longest) record length prior to writing to the builder
+			longestLineWidth = max(lipgloss.Width(stylizedStr), longestLineWidth)
+			sb.WriteString(stylizedStr)
+		}
+	)
+
+	var toRet strings.Builder
 
 	for idxr, stat := range sys {
 		if idxr == "webserver" {
 			// the GUI skips the webserver, as do we
 			continue
 		}
-		sb.WriteString(h1sty.Render(idxr))
 
+		// 1: empty section for just the indexer name + version
+		// 2: health section
+		// 3: disks section
+		// 4: specs section
+		// if stat.Err != "", health and disks are consolidated into a single section
+		sections := []struct {
+			StylizedTitle string
+			Contents      string
+		}{
+			{
+				StylizedTitle: h1sty.Render(idxr),
+			},
+			/*{
+							StylizedTitle: h2sty.Render("Health"),
+						},
+						{
+							StylizedTitle: h2sty.Render("Disks"),
+						},
+						{
+			StylizedTitle: h2sty.Render("Specifications"),
+						},*/
+		}
+
+		longestLineWidth = lipgloss.Width(sections[0].StylizedTitle)
+
+		// collect health and disk stats
 		if stat.Error != "" {
 			clilog.Writer.Warnf("failed to stat indexer %v: %v", idxr, stat.Error)
-			sb.WriteString("\n" + stylesheet.Cur.ErrorText.Render(stat.Error) + "\n")
+			// apply a wrap to the error, as we have no scale for length
+			e := stylesheet.Cur.ErrorText.Width(40).Render(stat.Error)
+			sections = append(sections, struct {
+				StylizedTitle string
+				Contents      string
+			}{h2sty.Render("Health & Disks"), e})
 		} else {
-			// attach version
-			sb.WriteString(" (" + h2sty.Render(stat.Stats.BuildInfo.CanonicalVersion.String()) + ")\n")
-			// health section
-			sb.WriteString(h2sty.Render("Health") + "\n")
-			uptimeField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Uptime:"))
-			sb.WriteString(uptimeField + " " + (time.Duration(stat.Stats.Uptime) * time.Second).String() + "\n")
-			netField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"v", "Up/Down:"))
-			netUpKB := float64(stat.Stats.Net.Up) / 1024
-			netDownKB := float64(stat.Stats.Net.Down) / 1024
-			fmt.Fprintf(sb, "%s %.2fKB/%.2fKB\n", netField, netUpKB, netDownKB)
-			var readMB, writeMB float64
-			for _, b := range stat.Stats.IO {
-				readMB += float64(b.Read)
-				writeMB += float64(b.Write)
+			var sb strings.Builder
+			{ // health section
+				sctn := struct {
+					StylizedTitle string
+					Contents      string
+				}{
+					StylizedTitle: h2sty.Render(" Health") + " (" + h2sty.Render(stat.Stats.BuildInfo.CanonicalVersion.String()) + ") ",
+				}
+				// generate content
+				uptimeField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Uptime:"))
+				writeString(&sb, uptimeField+" "+(time.Duration(stat.Stats.Uptime)*time.Second).String()+"\n")
+				netField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"v", "Up/Down:"))
+				netUpKB := float64(stat.Stats.Net.Up) / 1024
+				netDownKB := float64(stat.Stats.Net.Down) / 1024
+				writeString(&sb, fmt.Sprintf("%s %.2fKB/%.2fKB\n", netField, netUpKB, netDownKB))
+				var readMB, writeMB float64
+				for _, b := range stat.Stats.IO {
+					readMB += float64(b.Read)
+					writeMB += float64(b.Write)
+				}
+				readMB = readMB / 1024 / 1024
+				writeMB = writeMB / 1024 / 1024
+				writeString(&sb, fmt.Sprintf("%s %.2fKB/%.2fKB", field("Read/Write"), readMB, writeMB))
+				// write content
+				sctn.Contents = sb.String()
+				sections = append(sections, sctn)
 			}
-			readMB = readMB / 1024 / 1024
-			writeMB = writeMB / 1024 / 1024
-			fmt.Fprintf(sb, "%s %.2fKB/%.2fKB\n", field("Read.Write"), readMB, writeMB)
-			// disk section
-			sb.WriteString(h2sty.Render(fmt.Sprintf("Disks(%d)", len(stat.Stats.Disks))) + "\n")
-			for _, d := range stat.Stats.Disks {
-				usedGB := ((float64(d.Used) / 1024) / 1024) / 1024
-				totalGB := ((float64(d.Total) / 1024) / 1024) / 1024
+			sb.Reset()
+			{ // disk section
+				sctn := struct {
+					StylizedTitle string
+					Contents      string
+				}{
+					StylizedTitle: h2sty.Render(fmt.Sprintf(" Disk[%d] ", len(stat.Stats.Disks))),
+				}
+				// generate content
+				for _, d := range stat.Stats.Disks {
+					usedGB := ((float64(d.Used) / 1024) / 1024) / 1024
+					totalGB := ((float64(d.Total) / 1024) / 1024) / 1024
 
-				fmt.Fprintf(sb, "%s\n"+stylesheet.Indent+"'%s' mounted at %s\n"+
-					stylesheet.Indent+stylesheet.Indent+"%.2fGB used of %.2fGB total\n",
-					stylesheet.Cur.TertiaryText.Render(d.ID),
-					d.Partition, d.Mount,
-					usedGB, totalGB,
-				)
+					writeString(&sb, fmt.Sprintf("%s\n"+stylesheet.Indent+"'%s' mounted at %s\n"+
+						stylesheet.Indent+stylesheet.Indent+"%.2fGB used of %.2fGB total",
+						stylesheet.Cur.TertiaryText.Render(d.ID),
+						d.Partition, d.Mount,
+						usedGB, totalGB,
+					))
+				}
+				// write content
+				sctn.Contents = sb.String()
+				sections = append(sections, sctn)
 			}
 		}
-		hw, ok := desc[idxr]
-		if !ok {
-			continue
-		} else if hw.Error != "" {
-			clilog.Writer.Warnf("failed to stat indexer hardware %v: %v", idxr, hw.Error)
-			sb.WriteString(stylesheet.Cur.ErrorText.Render(hw.Error) + "\n")
+		s, err := stylesheet.SegmentedBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), longestLineWidth, sections...)
+		if err != nil {
+			// TODO
 		} else {
-			// specs section
-			sb.WriteString(h2sty.Render("Specifications"))
-			// attach virtualization info
-			sb.WriteString(" (" + h3sty.Render(fmt.Sprintf("%v[%v]", hw.VirtSystem, hw.VirtRole)) + ")\n")
-			// attach hardware info
-			fmt.Fprintf(sb,
-				"%s %s\n"+
+			toRet.WriteString(s)
+		}
+		/*
+			hw, ok := desc[idxr]
+			if !ok {
+				continue
+			} else if hw.Error != "" {
+				clilog.Writer.Warnf("failed to stat indexer hardware %v: %v", idxr, hw.Error)
+				sb.WriteString(stylesheet.Cur.ErrorText.Render(hw.Error) + "\n")
+			} else {
+				// specs section
+				sb.WriteString()
+				// attach virtualization info
+				sb.WriteString(" (" + h3sty.Render(fmt.Sprintf("%v[%v]", hw.VirtSystem, hw.VirtRole)) + ")\n")
+				// attach hardware info
+				fmt.Fprintf(sb,
 					"%s %s\n"+
-					"%s %d\n"+
-					"%s %sMHz\n"+
-					"%s %sKB per CPU\n"+
-					"%s %dMB\n", // I believe this is L2/core and L3/thread
-				field("System Version"), hw.SystemVersion,
-				field("CPU Model"), hw.CPUModel,
-				field("CPU Count"), hw.CPUCount,
-				field("CPU Clock Speed"), hw.CPUMhz,
-				field("CPU Cache Size"), hw.CPUCache,
-				field("Total Memory"), hw.TotalMemoryMB,
-			)
-		}
-
+						"%s %s\n"+
+						"%s %d\n"+
+						"%s %sMHz\n"+
+						"%s %sKB per CPU\n"+
+						"%s %dMB\n", // I believe this is L2/core and L3/thread
+					field("System Version"), hw.SystemVersion,
+					field("CPU Model"), hw.CPUModel,
+					field("CPU Count"), hw.CPUCount,
+					field("CPU Clock Speed"), hw.CPUMhz,
+					field("CPU Cache Size"), hw.CPUCache,
+					field("Total Memory"), hw.TotalMemoryMB,
+				)
+			}*/
 	}
+
+	return toRet.String(), longestLineWidth
 }
 
 // styles the given text as a field by colorizing it and appending a colon.
