@@ -3,6 +3,7 @@ package stylesheet
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -79,4 +80,27 @@ func SubmitString(keybind, inputErr, result string, width int) string {
 // Index returns the given number, styled as an index number in a list or table.
 func Index(i int) string {
 	return Cur.PrimaryText.Render(strconv.Itoa(i))
+}
+
+// TitledBorder returns content wrapped in a border (according to borderStyle) with a title in the top border.
+func TitledBorder(borderStyle lipgloss.Style, titleTextStyle lipgloss.Style, title string, contents string) string {
+	topWidth := lipgloss.Width(contents)
+
+	var (
+		bs     = borderStyle.GetBorderStyle()
+		topSty = lipgloss.NewStyle().Foreground(borderStyle.GetBorderTopForeground())
+		div    = strings.Repeat(bs.Top, (topWidth-len(title))/2) // the lines on either side of title
+	)
+
+	// compensate for odd lengths
+	rightDiv := div
+	if (topWidth-len(title))%2 == 1 {
+		rightDiv += bs.Top
+	}
+	// generate the top
+	top := topSty.Render(bs.TopLeft+div) + titleTextStyle.Render(title) + topSty.Render(rightDiv+bs.TopRight)
+
+	// wrap the contents in a border and prefix the top
+	return top + "\n" +
+		borderStyle.Border(bs, false, true, true, true).Width(topWidth).Render(contents)
 }
