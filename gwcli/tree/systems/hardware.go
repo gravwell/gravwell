@@ -15,6 +15,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -27,6 +28,21 @@ import (
 const (
 	fieldWidth string = "20"
 )
+
+// styles, set in init()
+var (
+	h1sty lipgloss.Style
+	h2sty lipgloss.Style
+	h3sty lipgloss.Style
+)
+
+func init() {
+	// set local styles based on stylesheet's state
+	h1sty = stylesheet.Cur.TertiaryText.Bold(true)
+	h2sty = stylesheet.Cur.SecondaryText.Bold(true)
+	h3sty = stylesheet.Cur.TertiaryText.Bold(true)
+
+}
 
 // The hardware action fetches and averages system statistics.
 // Under the hood, it gathers all the required information (via a couple of API calls) before piecing it together in the main thread.
@@ -112,8 +128,6 @@ func newHardwareAction() action.Pair {
 				}
 			}
 
-			writeOverview(&sb, o)
-
 			hw, err := connection.Client.GetSystemDescriptions()
 			if err != nil {
 				clilog.Writer.Errorf("%v", err.Error())
@@ -122,13 +136,17 @@ func newHardwareAction() action.Pair {
 
 			writeIndexers(&sb, hw, metrics)
 
+			sb.WriteString(stylesheet.TitledBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), h1sty, " Overview ", strings.TrimSpace(constructOverview(o))))
+
 			return sb.String(), nil
 		},
 		nil)
 }
 
 // writeOverview attach the stat averages and cumulated disk data to the string builder
-func writeOverview(sb *strings.Builder, o ovrvw) {
+func constructOverview(o ovrvw) string {
+	var sb strings.Builder
+
 	{ // reformat the floats as strings and colorize them
 		// we need to pre-format the strings, otherwise Go will get confused counting the ASCII escapes.
 		cu := fmt.Sprintf("%6.2f", o.CPUAvgUsage)
@@ -150,7 +168,7 @@ func writeOverview(sb *strings.Builder, o ovrvw) {
 		readMB := fmt.Sprintf("%8.2f", max(o.Disks.AvgReadsPerSecB/1024/1024, 0))
 		writeMB := fmt.Sprintf("%8.2f", max(o.Disks.AvgWritesPerSecB/1024/1024, 0))
 
-		fmt.Fprintf(sb,
+		fmt.Fprintf(&sb,
 			"%s\n"+
 				"%s %sGB\n"+
 				"%s %sGB\n"+
@@ -163,29 +181,27 @@ func writeOverview(sb *strings.Builder, o ovrvw) {
 			avgWriteField, writeMB,
 		)
 	}
-	sb.WriteString("\n")
+	//sb.WriteString("\n")
+	return sb.String() //stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(sb.String())
 }
 
 func writeIndexers(sb *strings.Builder, desc map[string]types.SysInfo, sys map[string]types.SysStats) {
-	H1sty := stylesheet.Cur.PrimaryText.Bold(true)
-	H2sty := stylesheet.Cur.SecondaryText.Bold(true)
-	H3sty := stylesheet.Cur.TertiaryText.Bold(true)
 
 	for idxr, stat := range sys {
 		if idxr == "webserver" {
 			// the GUI skips the webserver, as do we
 			continue
 		}
-		sb.WriteString(H1sty.Render(idxr))
+		sb.WriteString(h1sty.Render(idxr))
 
 		if stat.Error != "" {
 			clilog.Writer.Warnf("failed to stat indexer %v: %v", idxr, stat.Error)
 			sb.WriteString("\n" + stylesheet.Cur.ErrorText.Render(stat.Error) + "\n")
 		} else {
 			// attach version
-			sb.WriteString(" (" + H2sty.Render(stat.Stats.BuildInfo.CanonicalVersion.String()) + ")\n")
+			sb.WriteString(" (" + h2sty.Render(stat.Stats.BuildInfo.CanonicalVersion.String()) + ")\n")
 			// health section
-			sb.WriteString(H2sty.Render("Health") + "\n")
+			sb.WriteString(h2sty.Render("Health") + "\n")
 			uptimeField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"s", "Uptime:"))
 			sb.WriteString(uptimeField + " " + (time.Duration(stat.Stats.Uptime) * time.Second).String() + "\n")
 			netField := stylesheet.Cur.FieldText.Render(fmt.Sprintf("%"+fieldWidth+"v", "Up/Down:"))
@@ -201,7 +217,7 @@ func writeIndexers(sb *strings.Builder, desc map[string]types.SysInfo, sys map[s
 			writeMB = writeMB / 1024 / 1024
 			fmt.Fprintf(sb, "%s %.2fKB/%.2fKB\n", field("Read.Write"), readMB, writeMB)
 			// disk section
-			sb.WriteString(H2sty.Render(fmt.Sprintf("Disks(%d)", len(stat.Stats.Disks))) + "\n")
+			sb.WriteString(h2sty.Render(fmt.Sprintf("Disks(%d)", len(stat.Stats.Disks))) + "\n")
 			for _, d := range stat.Stats.Disks {
 				usedGB := ((float64(d.Used) / 1024) / 1024) / 1024
 				totalGB := ((float64(d.Total) / 1024) / 1024) / 1024
@@ -222,9 +238,9 @@ func writeIndexers(sb *strings.Builder, desc map[string]types.SysInfo, sys map[s
 			sb.WriteString(stylesheet.Cur.ErrorText.Render(hw.Error) + "\n")
 		} else {
 			// specs section
-			sb.WriteString(H2sty.Render("Specifications"))
+			sb.WriteString(h2sty.Render("Specifications"))
 			// attach virtualization info
-			sb.WriteString(" (" + H3sty.Render(fmt.Sprintf("%v[%v]", hw.VirtSystem, hw.VirtRole)) + ")\n")
+			sb.WriteString(" (" + h3sty.Render(fmt.Sprintf("%v[%v]", hw.VirtSystem, hw.VirtRole)) + ")\n")
 			// attach hardware info
 			fmt.Fprintf(sb,
 				"%s %s\n"+
