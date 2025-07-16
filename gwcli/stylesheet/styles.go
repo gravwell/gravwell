@@ -78,9 +78,13 @@ type Sheet struct {
 
 	Spinner     lipgloss.Style
 	SpinnerText lipgloss.Style // text that sometimes accompanies a spinner
+
+	// Divider is a function that returns a 1-height line for visually-separating some elements.
+	Divider func(width int) string
 }
 
 // NewSheet initializes a bare minimum sheet, ensuring required parameters are in place.
+// While sheets can be built completely from scratch, calling NewSheet as the base ensures the style will not cause panics.
 func NewSheet(pip func() string, promptSymbol func() string, promptText func(string) string) Sheet {
 	return Sheet{
 		Pip: pip,
@@ -100,6 +104,7 @@ func NewSheet(pip func() string, promptSymbol func() string, promptText func(str
 			Symbol func() string
 			Text   func(string) string
 		}{Symbol: promptSymbol, Text: promptText},
+		Divider: func(width int) string { return strings.Repeat("-", width) },
 	}
 }
 
