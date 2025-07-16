@@ -20,6 +20,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 )
 
 type val struct {
@@ -27,8 +28,12 @@ type val struct {
 	value string
 }
 
-// Just spawns a basic edit model to ensure we can and that fields are set properly.
-func TestNewEditAction(t *testing.T) {
+// E2E testing for a dummy edit action.
+// Runs the dummy action twice to ensure Reset and SetArgs work back to back.
+//
+// Does not utilize teatest as editModel is not a full tea.Model.
+// Thus, input and output are handled manually and some features (update's return, and the entirely of .View()) are ignored.
+func Test_Full(t *testing.T) {
 	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
 		t.Fatal(err)
 	}
@@ -38,6 +43,7 @@ func TestNewEditAction(t *testing.T) {
 		5: {title: "five", value: "f"},
 	}
 
+	var updateCalled bool
 	pair := NewEditAction("bauble", "baubles",
 		Config{
 			"value": &Field{
@@ -96,6 +102,7 @@ func TestNewEditAction(t *testing.T) {
 			},
 			UpdateSub: func(data *val) (identifier string, err error) {
 				// we don't actually have updates we need to make
+				updateCalled = true
 				return data.title, nil
 			},
 		},
@@ -104,7 +111,22 @@ func TestNewEditAction(t *testing.T) {
 	if !ok {
 		t.Fatal("failed to type assert result to edit model")
 	}
-	inv, _, err := em.SetArgs(nil, []string{})
+
+	fauxMother(t, em, &updateCalled, -1)
+	fauxMother(t, em, &updateCalled, 5)
+	fauxMother(t, em, &updateCalled, -1)
+}
+
+// helper function to allow the action to be run back-by-back.
+//
+// if id is NOT set to -1, it will be passed as an argument and tested that we jumped directly to edit mode (if valid).
+func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id int) {
+	var args []string
+	if id != -1 {
+		args = append(args, fmt.Sprintf("--id=%d", id))
+	}
+
+	inv, _, err := em.SetArgs(nil, args)
 	if err != nil {
 		t.Fatal(err)
 	} else if inv != "" {
@@ -112,13 +134,17 @@ func TestNewEditAction(t *testing.T) {
 	}
 	em.Update(tea.WindowSizeMsg{Width: 80, Height: 50})
 	time.Sleep(50 * time.Millisecond)
-	// enter edit mode for whichever item was listed first, don't care
-	em.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	time.Sleep(50 * time.Millisecond)
+
+	// if id was specified, we should have jumped directly to edit mode
+	if id == -1 {
+		// enter edit mode for whichever item was listed first, don't care
+		em.Update(tea.KeyMsg{Type: tea.KeyEnter})
+		time.Sleep(50 * time.Millisecond)
+	}
 
 	// check that we are actually in edit mode
 	if em.mode != editing {
-		t.Fatal("did not enter edit mode despite enter key")
+		t.Fatal("incorrect mode", ExpectedActual(editing, em.mode))
 	}
 	// sanity check edit mode
 	if em.editing.hovered != 0 {
@@ -128,4 +154,44 @@ func TestNewEditAction(t *testing.T) {
 	} else if em.editing.longestWidth < 10 { // arbitrarily small amount
 		t.Errorf("longest width is too small (%v) given window width.", em.editing.longestWidth)
 	}
+
+	// check the value of the TI
+
+	// make sure we can nav up to cycle to the submit button
+	em.Update(tea.KeyMsg{Type: tea.KeyUp})
+	time.Sleep(50 * time.Millisecond)
+
+	if !em.editing.submitHovered() {
+		t.Fatal("keyUp on first field did not hover submit.",
+			ExpectedActual(uint(em.editing.tiCount), em.editing.hovered))
+	}
+	// return to top
+	em.Update(tea.KeyMsg{Type: tea.KeyDown})
+	time.Sleep(50 * time.Millisecond)
+
+	for i := 0; i < len(em.cfg); i++ { // we should one TI for each field
+		// nav through each to the submit
+		em.Update(tea.KeyMsg{Type: tea.KeyDown})
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	if !em.editing.submitHovered() {
+		t.Fatal("traversing down the list of TIs did not hover submit.",
+			ExpectedActual(uint(em.editing.tiCount), em.editing.hovered))
+	}
+
+	// test the update procedure
+	em.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	time.Sleep(50 * time.Millisecond)
+
+	if !(*updateCalled) {
+		t.Fatal("the update subroutine was not triggered")
+	} else if !em.Done() {
+		t.Fatal("triggering the update function did not mark the action as done")
+	}
+	if err := em.Reset(); err != nil {
+		t.Fatal(err)
+	}
 }
+
+// TODO test runNonInteractive
