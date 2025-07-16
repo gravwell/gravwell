@@ -80,6 +80,7 @@ func get() action.Pair {
 				fs.String(flagName, "", "prefix-match ingesters on name")
 				return fs
 			},
+			DefaultColumns: []string{"Indexer", "RemoteAddress", "Size", "Uptime", "Tags", "Name", "Version", "UUID", "Label", "IP", "Hostname", "Entries", "StateSize", "CacheState", "CacheSize", "Children"},
 			CmdMods: func(c *cobra.Command) {
 				c.Example = fmt.Sprintf("%v --%s=12345", flagHostname, use)
 			},
