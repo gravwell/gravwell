@@ -19,8 +19,6 @@ package stylesheet
 // miscellaneous styles
 
 import (
-	"strings"
-
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -80,9 +78,6 @@ type Sheet struct {
 
 	Spinner     lipgloss.Style
 	SpinnerText lipgloss.Style // text that sometimes accompanies a spinner
-
-	// Divider is a function that returns a 1-height line for visually-separating some elements.
-	Divider func(width int) string
 }
 
 // NewSheet initializes a bare minimum sheet, ensuring required parameters are in place.
@@ -106,7 +101,6 @@ func NewSheet(pip func() string, promptSymbol func() string, promptText func(str
 			Symbol func() string
 			Text   func(string) string
 		}{Symbol: promptSymbol, Text: promptText},
-		Divider: func(width int) string { return strings.Repeat("-", width) },
 	}
 }
 
@@ -190,7 +184,6 @@ func (p Palette) GenerateSheet() Sheet {
 	s.TertiaryText = lipgloss.NewStyle().Foreground(p.TertiaryColor)
 	s.Spinner = primaryColorSty
 	s.SpinnerText = secondaryColorSty
-	s.Divider = func(width int) string { return s.TertiaryText.Render(strings.Repeat("-", width)) }
 
 	return s
 }
