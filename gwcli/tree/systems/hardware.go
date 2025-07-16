@@ -136,8 +136,8 @@ func newHardwareAction() action.Pair {
 
 			writeIndexers(&sb, hw, metrics)
 
-			sb.WriteString(stylesheet.TitledBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), h1sty, " Overview ", strings.TrimSpace(constructOverview(o))))
-
+			//sb.WriteString(stylesheet.TitledBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), h1sty, " Overview ", strings.TrimSpace(constructOverview(o))))
+			sb.WriteString(constructOverview(o))
 			return sb.String(), nil
 		},
 		nil)
@@ -145,17 +145,17 @@ func newHardwareAction() action.Pair {
 
 // writeOverview attach the stat averages and cumulated disk data to the string builder
 func constructOverview(o ovrvw) string {
-	var sb strings.Builder
+	var avgs, disks, disksTitle string
 
 	{ // reformat the floats as strings and colorize them
 		// we need to pre-format the strings, otherwise Go will get confused counting the ASCII escapes.
 		cu := fmt.Sprintf("%6.2f", o.CPUAvgUsage)
 		mu := fmt.Sprintf("%6.2f", o.MemAvgUsage)
-		sb.WriteString(stylesheet.Cur.FieldText.Render(field("Avg CPU Usage")) + " " + cu + "%\n")
-		sb.WriteString(stylesheet.Cur.FieldText.Render(field("Avg Memory Usage")) + " " + mu + "%\n")
+		avgs = stylesheet.Cur.FieldText.Render(field("Avg CPU Usage")) + " " + cu + "%\n"
+		avgs += stylesheet.Cur.FieldText.Render(field("Avg Memory Usage")) + " " + mu + "%"
 	}
 	{ // now for disks
-		headerField := stylesheet.Cur.SecondaryText.Bold(true).Render(fmt.Sprintf("Disks[%d]", o.Disks.DiskCount))
+		disksTitle = " " + stylesheet.Cur.SecondaryText.Bold(true).Render(fmt.Sprintf("Disks[%d]", o.Disks.DiskCount)) + " "
 		totalField := field("Total Space")
 		usedField := field("Space Used")
 		avgReadField := field("Avg Reads/sec")
@@ -168,21 +168,31 @@ func constructOverview(o ovrvw) string {
 		readMB := fmt.Sprintf("%8.2f", max(o.Disks.AvgReadsPerSecB/1024/1024, 0))
 		writeMB := fmt.Sprintf("%8.2f", max(o.Disks.AvgWritesPerSecB/1024/1024, 0))
 
-		fmt.Fprintf(&sb,
-			"%s\n"+
-				"%s %sGB\n"+
+		disks = fmt.Sprintf(
+			"%s %sGB\n"+
 				"%s %sGB\n"+
 				"%s %sMB\n"+
-				"%s %sMB\n",
-			headerField,
+				"%s %sMB",
 			totalField, totalGB,
 			usedField, usedGB,
 			avgReadField, readMB,
 			avgWriteField, writeMB,
 		)
 	}
-	//sb.WriteString("\n")
-	return sb.String() //stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(sb.String())
+
+	if s, err := stylesheet.SegmentedBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), 40, struct {
+		StylizedTitle string
+		Contents      string
+	}{h1sty.Render(" Overview "), avgs}, struct {
+		StylizedTitle string
+		Contents      string
+	}{disksTitle, disks}); err != nil {
+		clilog.Writer.Warnf("failed to generate overview: %v", err)
+		return "failed to generate overview"
+	} else {
+		return s
+	}
+
 }
 
 func writeIndexers(sb *strings.Builder, desc map[string]types.SysInfo, sys map[string]types.SysStats) {
