@@ -10,10 +10,39 @@
 Package scaffoldlist provides a template for building list actions.
 
 A list action is any action that fetches and prints data, typically in a tabular manner.
-This provides a consistent interface and the versatility of multiple formats for actions that list arbitrary data
+This provides a consistent interface and the versatility of multiple formats for actions that list arbitrary data.
 
 List actions have the --output, --append, --json, --table, --CSV, --columns, and --show-columns default flags.
 If a pretty printer function is defined, --pretty is also available.
+
+Implementations will probably look a lot like:
+
+	type someData struct {
+		Name             string // IP address or "webserver", typically
+		A				 int
+		B                []string
+	}
+
+	func listAction() action.Pair {
+		const (
+			short string = "list all data about X"
+			long  string = "List data about X but this has more words."
+		)
+
+		return scaffoldlist.NewListAction(short, long, someData{},
+			func(fs *pflag.FlagSet) ([]someData, error) {
+				sd := []someData{}
+
+				if stuff, err := fetchData(); err != nil {
+					return nil, err
+				} else {
+					sd = stuff.transmute()
+				}
+
+				return d, nil
+			},
+			scaffoldlist.Options{})
+	}
 */
 package scaffoldlist
 
