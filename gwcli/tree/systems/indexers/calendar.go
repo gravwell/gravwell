@@ -122,8 +122,8 @@ func data(fs *pflag.FlagSet) ([]types.CalendarEntry, error) {
 
 	// if an indexer was specified, get stats for that specific indexer
 	if indexer != uuid.Nil {
-		return connection.Client.GetIndexerCalendarStats(indexer, start, end, nil)
+		return connection.Client.GetIndexerCalendarStats(indexer, start, end, wells)
 	}
 
-	return connection.Client.GetCalendarStats(start, end, nil)
+	return connection.Client.GetCalendarStats(start, end, wells)
 }
