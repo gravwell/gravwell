@@ -59,11 +59,9 @@ func newCalendarAction() action.Pair {
 				fs.String("end", "", "end date for calendar stats (inclusive).\n"+
 					"Must be given as YYYY-MM-DD\n"+
 					"If unset, defaults to now.")
-				fs.StringSlice("wells", nil, fmt.Sprintf("specify the wells to fetch data for.\n"+
-					"Wells must be specified by ID (ex: %s) unless an indexer is also specified, in which case they can be specified by name (ex: %s).\n"+
-					"If unset, all wells will be selected (for the specified indexer or across all indexers).", // TODO
-					stylesheet.Cur.ExampleText.Render("a312211e-11a1-4ff4-8888-aa1a1aa11a11-default"),
-					stylesheet.Cur.ExampleText.Render("default")))
+				fs.StringSlice("wells", nil, "specify the wells to fetch data for.\n"+
+					"Wells must be specified by ID (ex: "+stylesheet.Cur.ExampleText.Render("a312211e-11a1-4ff4-8888-aa1a1aa11a11-default")+") or they will be ignored.\n"+
+					"If unset, all wells will be selected (for the specified indexer or across all indexers).")
 				return fs
 			},
 			// ValidateArgs does its namesake and sets/resets the package vars.
@@ -172,6 +170,8 @@ func data(fs *pflag.FlagSet) ([]types.CalendarEntry, error) {
 
 	// if an indexer was specified, get stats for that specific indexer
 	if idxrUUID.Valid {
+		clilog.Writer.Debugf("indexer=%v|start=%v|end=%v|given wells=%v", idxrUUID.UUID.String(), start, end, wells)
+
 		// if no wells were given, get all wells associated to this indexer
 		if len(wells) == 0 {
 			wellData, err := connection.Client.WellData()
@@ -187,17 +187,12 @@ func data(fs *pflag.FlagSet) ([]types.CalendarEntry, error) {
 			for i, w := range wellData[idxrName].Wells {
 				wells[i] = w.ID
 			}
-		} else { // prefix indexer uuid, if applicable
-			/*for i := range wells {
-				if wells[i]
-			}*/
-			// TODO
 		}
-
-		clilog.Writer.Debugf("indexer=%v|start=%v|end=%v|wells=%v", idxrUUID.UUID.String(), start, end, wells)
 
 		return connection.Client.GetIndexerCalendarStats(idxrUUID.UUID, start, end, wells)
 	}
+
+	clilog.Writer.Debugf("start=%v|end=%v|given wells=%v", start, end, wells)
 
 	// if no wells were given, get all wells
 	if len(wells) == 0 {
@@ -224,9 +219,6 @@ func data(fs *pflag.FlagSet) ([]types.CalendarEntry, error) {
 			wells = append(wells, key.(string))
 			return true
 		})
-	} else {
-		// validate that all given wells are in their id format, as we cannot accept them in bare name format
-		// TODO
 	}
 
 	return connection.Client.GetCalendarStats(start, end, wells)
