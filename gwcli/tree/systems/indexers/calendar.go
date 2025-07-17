@@ -49,21 +49,9 @@ func newCalendarAction() action.Pair {
 
 	return scaffoldlist.NewListAction(shortCalendar, longCalendar, types.CalendarEntry{}, data,
 		scaffoldlist.Options{
-			Use:     useCalendar,
-			Aliases: aliases,
-			AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.String("start", "", "start date for calendar stats (inclusive).\n"+
-					"Must be given as YYYY-MM-DD\n"+
-					"If unset, defaults to now.")
-				fs.String("end", "", "end date for calendar stats (inclusive).\n"+
-					"Must be given as YYYY-MM-DD\n"+
-					"If unset, defaults to now.")
-				fs.StringSlice("wells", nil, "specify the wells to fetch data for.\n"+
-					"Wells must be specified by ID (ex: "+stylesheet.Cur.ExampleText.Render("a312211e-11a1-4ff4-8888-aa1a1aa11a11-default")+") or they will be ignored.\n"+
-					"If unset, all wells will be selected (for the specified indexer or across all indexers).")
-				return fs
-			},
+			Use:        useCalendar,
+			Aliases:    aliases,
+			AddtlFlags: calendarFlags,
 			// ValidateArgs does its namesake and sets/resets the package vars.
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				start, end, idxrUUID, idxrName = time.Time{}, time.Time{}, uuid.NullUUID{}, ""
@@ -103,6 +91,20 @@ func newCalendarAction() action.Pair {
 				c.Example = fmt.Sprintf("%v 127.0.0.1:9404 --start=1998-10-31 --wells=a311109e-63d3-4dd4-8884-da0e5cc30c33-default", useCalendar)
 			},
 		})
+}
+
+func calendarFlags() pflag.FlagSet {
+	fs := pflag.FlagSet{}
+	fs.String("start", "", "start date for calendar stats (inclusive).\n"+
+		"Must be given as YYYY-MM-DD\n"+
+		"If unset, defaults to now.")
+	fs.String("end", "", "end date for calendar stats (inclusive).\n"+
+		"Must be given as YYYY-MM-DD\n"+
+		"If unset, defaults to now.")
+	fs.StringSlice("wells", nil, "specify the wells to fetch data for.\n"+
+		"Wells must be specified by ID (ex: "+stylesheet.Cur.ExampleText.Render("a312211e-11a1-4ff4-8888-aa1a1aa11a11-default")+") or they will be ignored.\n"+
+		"If unset, all wells will be selected (for the specified indexer or across all indexers).")
+	return fs
 }
 
 // helper function for ValidateArgs().
