@@ -155,7 +155,9 @@ func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 		if i == len(segments)-1 { // use the border with a footer
 			footer = true
 		}
-		sb.WriteString(borderStyle.Border(bs, false, true, footer, true).Width(width).Render(segment.Contents) + "\n")
+		if segment.Contents != "" {
+			sb.WriteString(borderStyle.Border(bs, false, true, footer, true).Width(width).Render(segment.Contents) + "\n")
+		}
 	}
 
 	// wrap the contents in a border and prefix the top
