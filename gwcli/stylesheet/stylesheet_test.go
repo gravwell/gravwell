@@ -12,7 +12,7 @@ func TestCheckBox(t *testing.T) {
 		t.Fatal("incorrect checkbox.", testsupport.ExpectedActual("[✓]", tmp))
 	}
 }
-func TestRadopbox(t *testing.T) {
+func TestRadiobox(t *testing.T) {
 	if tmp := stylesheet.Radiobox(true); tmp != "(✓)" {
 		t.Fatal("incorrect checkbox.", testsupport.ExpectedActual("(✓)", tmp))
 	}
