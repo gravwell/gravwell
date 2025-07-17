@@ -145,8 +145,8 @@ func constructOverview(o ovrvw, width int) string {
 		// we need to pre-format the strings, otherwise Go will get confused counting the ASCII escapes.
 		cu := fmt.Sprintf("%6.2f", o.CPUAvgUsage)
 		mu := fmt.Sprintf("%6.2f", o.MemAvgUsage)
-		avgs = stylesheet.Cur.FieldText.Render(field("Avg CPU Usage", 17)) + " " + cu + "%\n"
-		avgs += stylesheet.Cur.FieldText.Render(field("Avg Memory Usage", 17)) + " " + mu + "%"
+		avgs = stylesheet.Cur.FieldText.Render(field("Avg CPU Usage", 17)) + cu + "%\n"
+		avgs += stylesheet.Cur.FieldText.Render(field("Avg Memory Usage", 17)) + mu + "%"
 	}
 	{ // now for disks
 		disksTitle = " " + stylesheet.Cur.SecondaryText.Bold(true).Render(fmt.Sprintf("Disks[%d]", o.Disks.DiskCount)) + " "
@@ -163,10 +163,10 @@ func constructOverview(o ovrvw, width int) string {
 		writeMB := fmt.Sprintf("%8.2f", max(o.Disks.AvgWritesPerSecB/1024/1024, 0))
 
 		disks = fmt.Sprintf(
-			"%s %sGB\n"+
-				"%s %sGB\n"+
-				"%s %sMB\n"+
-				"%s %sMB",
+			"%s%sGB\n"+
+				"%s%sGB\n"+
+				"%s%sMB\n"+
+				"%s%sMB",
 			totalField, totalGB,
 			usedField, usedGB,
 			avgReadField, readMB,
@@ -242,13 +242,14 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 					StylizedTitle string
 					Contents      string
 				}{
-					StylizedTitle: subSectionHeaderSty.Render(" Health") + " (" + subSectionHeaderSty.Render(stat.Stats.BuildInfo.CanonicalVersion.String()) + ") ",
+					StylizedTitle: " " + subSectionHeaderSty.Render("Health") + " ",
 				}
 				// generate content
-				writeString(&sb, field("Uptime", 11)+" "+(time.Duration(stat.Stats.Uptime)*time.Second).String()+"\n")
+				writeString(&sb, field("Gravwell Version", 17)+stat.Stats.BuildInfo.CanonicalVersion.String()+"\n")
+				writeString(&sb, field("Uptime", 17)+(time.Duration(stat.Stats.Uptime)*time.Second).String()+"\n")
 				netUpKB := float64(stat.Stats.Net.Up) / 1024
 				netDownKB := float64(stat.Stats.Net.Down) / 1024
-				writeString(&sb, fmt.Sprintf("%s %.2fKB/%.2fKB\n", field("Up/Down", 11), netUpKB, netDownKB))
+				writeString(&sb, fmt.Sprintf("%s%.2fKB/%.2fKB\n", field("Up/Down", 17), netUpKB, netDownKB))
 				var readMB, writeMB float64
 				for _, b := range stat.Stats.IO {
 					readMB += float64(b.Read)
@@ -256,7 +257,7 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 				}
 				readMB = readMB / 1024 / 1024
 				writeMB = writeMB / 1024 / 1024
-				writeString(&sb, fmt.Sprintf("%s %.2fKB/%.2fKB", field("Read/Write", 11), readMB, writeMB))
+				writeString(&sb, fmt.Sprintf("%s%.2fKB/%.2fKB", field("Read/Write", 17), readMB, writeMB))
 				// write content
 				sctn.Contents = sb.String()
 				sections = append(sections, sctn)
@@ -343,13 +344,13 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 	return toRet.String(), longestLineWidth
 }
 
-// styles the given text as a field by colorizing it and appending a colon.
+// styles the given text as a field by colorizing it and appending a colon and a space.
 func field(fieldText string, width int) string {
 	pad := width - len(fieldText)
 	if pad > 0 {
 		fieldText = strings.Repeat(" ", pad) + fieldText
 	}
-	return stylesheet.Cur.FieldText.Render(fieldText + ":")
+	return stylesheet.Cur.FieldText.Render(fieldText + ": ")
 }
 
 // ovrvw holds the collected averages and totals calculated by gatherStats().
