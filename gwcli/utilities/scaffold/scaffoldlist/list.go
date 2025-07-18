@@ -50,6 +50,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"slices"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -157,6 +158,15 @@ func NewListAction[dataStruct_t any](short, long string,
 	availDSColumns, err := weave.StructFields(dataStruct, exportedColumnsOnly)
 	if err != nil {
 		panic(fmt.Sprintf("failed to cache available columns: %v", err))
+	}
+
+	// validate that all column aliases point to valid columns.
+	// Operates in O(n*m) time, unfortunately.
+	for dqcol := range options.ColumnAliases {
+		if !slices.Contains(availDSColumns, dqcol) {
+			panic("cannot alias unknown column '" + dqcol + "'")
+		}
+
 	}
 
 	// if default columns was not set in options, set it to all columns
