@@ -97,7 +97,7 @@ func stringifyStructCSV(s interface{}, columns []string, columnMap map[string][]
 // outputs a table containing the data in the array of the struct.
 //
 // Can optionally be given a table style func. Uses DefaultTblStyle() if not given.
-func ToTable[Any any](st []Any, columns []string, styleFunc ...func() *table.Table) string {
+func ToTable[Any any](st []Any, columns []string, options TableOptions) string {
 	if columns == nil || st == nil || len(st) < 1 || len(columns) < 1 { // superfluous request
 		return ""
 	}
@@ -124,12 +124,22 @@ func ToTable[Any any](st []Any, columns []string, styleFunc ...func() *table.Tab
 		}
 	}
 
+	// generate the table
 	var tbl *table.Table
-	// if user supplied a tableStyle, use it. Otherwise, use the default
-	if len(styleFunc) > 0 {
-		tbl = styleFunc[0]()
+	if options.Base != nil {
+		tbl = options.Base()
 	} else {
-		tbl = DefaultTblStyle()
+		tbl = table.New()
+	}
+
+	// apply aliases
+	if options.Aliases != nil {
+		for i := range columns {
+			// on match, replace the column
+			if alias, found := options.Aliases[columns[i]]; found {
+				columns[i] = alias
+			}
+		}
 	}
 
 	tbl.Headers(columns...)
@@ -411,11 +421,9 @@ func innerStructFields(qualification string, field reflect.StructField, exported
 // field names to their complete index chain. If a field is not found in the
 // struct, its value is set to nil in the map.
 func buildColumnMap(st any, columns []string) (columnMap map[string][]int) {
-	numColumns := len(columns)
-
 	// deconstruct the first struct to validate requested columns
 	// coordinate columns
-	columnMap = make(map[string][]int, numColumns) // column name -> recursive field indices
+	columnMap = make(map[string][]int, len(columns)) // column name -> recursive field indices
 	for i := range columns {
 		// map column names to their field indices
 		// if a name is not found, nil it so it can be skipped later
