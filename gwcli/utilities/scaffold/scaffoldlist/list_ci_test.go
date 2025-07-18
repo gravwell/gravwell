@@ -595,24 +595,25 @@ func TestModel(t *testing.T) {
 			freeformArgs:    []string{"--invalid=2"},
 			wantInvalidArgs: true},
 		{name: "valid flags, w/ extra validation",
-			options: Options{AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Int("invalid", 0, "can only be set to 5")
-				return fs
-			},
+			options: Options{
+				AddtlFlags: func() pflag.FlagSet {
+					fs := pflag.FlagSet{}
+					fs.Int("valid", 0, "can only be set to 5")
+					return fs
+				},
 				ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-					inv, err := fs.GetInt("invalid")
+					inv, err := fs.GetInt("valid")
 					if err != nil {
 						return "", err
 					}
 					if inv != 5 {
-						return "if --invalid is set, it must be set to 5", nil
+						return "if --valid is set, it must be set to 5", nil
 					}
 					return "", nil
 				},
 			},
 			flags:           flags{},
-			freeformArgs:    []string{"--invalid=5"},
+			freeformArgs:    []string{"--valid=5"},
 			wantInvalidArgs: false},
 	}
 	for _, tt := range tests {
@@ -688,8 +689,8 @@ func TestModel(t *testing.T) {
 				}
 
 				// if additional flags were given, ensure they were bolted on
-				if la.addtlFlagSetFunc != nil {
-					afs := la.addtlFlagSetFunc()
+				if la.options.AddtlFlags != nil {
+					afs := la.options.AddtlFlags()
 
 					afs.Visit(func(f *pflag.Flag) {
 						flag := la.fs.Lookup(f.Name)
@@ -747,8 +748,8 @@ func TestModel(t *testing.T) {
 					t.Error(pfx + "flagset should not be parsed")
 				}
 				// if additional flags were given, ensure they were bolted back on
-				if la.addtlFlagSetFunc != nil {
-					afs := la.addtlFlagSetFunc()
+				if la.options.AddtlFlags != nil {
+					afs := la.options.AddtlFlags()
 
 					afs.Visit(func(f *pflag.Flag) {
 						flag := la.fs.Lookup(f.Name)

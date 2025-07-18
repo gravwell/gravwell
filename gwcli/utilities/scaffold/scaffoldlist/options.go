@@ -28,6 +28,13 @@ type Options struct {
 	// Sets the default columns to return if --columns is not specified.
 	// If not set, defaults to all exported fields.
 	DefaultColumns []string
+	// ! Currently only applies to tables.
+	//
+	// ColumnAliases maps fully-dot-qualified field names -> display names in the table header.
+	// Keys must exactly match native column names (from weave.StructFields());
+	// unmatched aliases will be unused and native column names are case-sensitive.
+	// Operates in O(len(columns)) time, if not nil.
+	ColumnAliases map[string]string
 	// A free-form function allowing implementations to directly alter properties on the command scaffold list creates.
 	// Applied after all other options, so changes made here may override prior options (such as Use and Aliases).
 	//

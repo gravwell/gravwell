@@ -40,15 +40,13 @@ type ListAction[dataStruct any] struct {
 	color          bool     // inferred from the global "--no-color" flag
 
 	// individualized for each use of scaffoldlist
-	availDSColumns          []string                     // dot-qual columns on the data struct
-	dataFunc                ListDataFunction[dataStruct] // function for fetching data for table/json/csv
-	prettyFunc              PrettyPrinterFunc
-	addtlFlagSetFunc        AddtlFlagFunction // function to regenerate the additional flags, as all FlagSet copies are shallow
-	addtlFlagValidationFunc func(*pflag.FlagSet) (invalid string, err error)
+	options        Options
+	availDSColumns []string                     // dot-qual columns on the data struct
+	dataFunc       ListDataFunction[dataStruct] // function for fetching data for table/json/csv}
 }
 
 // Constructs a ListAction suitable for interactive use.
-// Options are execution in array-order.
+// Assumes that Options.DefaultColumns is set; no other assumptions are made about the state of the options struct.
 func newListAction[dataStruct_t any](c *cobra.Command, DSColumns []string, dFn ListDataFunction[dataStruct_t], options Options) ListAction[dataStruct_t] {
 	la := ListAction[dataStruct_t]{
 		done:    false,
@@ -59,11 +57,9 @@ func newListAction[dataStruct_t any](c *cobra.Command, DSColumns []string, dFn L
 		DefaultColumns: options.DefaultColumns,
 		color:          true,
 
-		availDSColumns:          DSColumns,
-		dataFunc:                dFn,
-		prettyFunc:              options.Pretty,
-		addtlFlagSetFunc:        options.AddtlFlags,
-		addtlFlagValidationFunc: options.ValidateArgs,
+		options:        options,
+		availDSColumns: DSColumns,
+		dataFunc:       dFn,
 	}
 
 	return la
@@ -87,10 +83,11 @@ func (la *ListAction[T]) Update(msg tea.Msg) tea.Cmd {
 	// fetch the list data
 	s, err := listOutput(
 		la.fs,
-		determineFormat(la.fs, la.prettyFunc != nil),
+		determineFormat(la.fs, la.options.Pretty != nil),
 		la.columns,
 		la.dataFunc,
-		la.prettyFunc)
+		la.options.Pretty,
+		la.options.ColumnAliases)
 	if err != nil {
 		// log and print the error
 		clilog.Writer.Error(err.Error())
@@ -130,7 +127,7 @@ func (la *ListAction[T]) Reset() error {
 	la.done = false
 	la.columns = la.DefaultColumns
 	la.showColumns = false
-	la.fs = buildFlagSet(la.addtlFlagSetFunc, la.prettyFunc != nil)
+	la.fs = buildFlagSet(la.options.AddtlFlags, la.options.Pretty != nil)
 	if la.outFile != nil {
 		la.outFile.Close()
 	}
@@ -147,7 +144,7 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 	invalid string, onStart tea.Cmd, err error,
 ) {
 	// attach flags
-	la.fs = buildFlagSet(la.addtlFlagSetFunc, la.prettyFunc != nil)
+	la.fs = buildFlagSet(la.options.AddtlFlags, la.options.Pretty != nil)
 
 	err = la.fs.Parse(tokens)
 	if err != nil {
@@ -155,8 +152,8 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 	}
 
 	// run custom validation
-	if la.addtlFlagValidationFunc != nil {
-		if invalid, err := la.addtlFlagValidationFunc(la.fs); err != nil {
+	if la.options.ValidateArgs != nil {
+		if invalid, err := la.options.ValidateArgs(la.fs); err != nil {
 			return "", nil, err
 		} else if invalid != "" {
 			return invalid, nil, nil

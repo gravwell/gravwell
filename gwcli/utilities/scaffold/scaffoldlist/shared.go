@@ -71,6 +71,7 @@ func listOutput[retStruct any](
 	columns []string,
 	dataFn ListDataFunction[retStruct],
 	prettyFunc PrettyPrinterFunc,
+	aliases map[string]string,
 ) (string, error) {
 	// hand off control to pretty
 	if format == pretty {
@@ -97,7 +98,10 @@ func listOutput[retStruct any](
 	case json:
 		toRet, err = weave.ToJSON(data, columns)
 	case tbl:
-		toRet = weave.ToTable(data, columns, stylesheet.Table)
+		toRet = weave.ToTable(data, columns, weave.TableOptions{
+			Base:    stylesheet.Table,
+			Aliases: aliases,
+		})
 	default:
 		toRet = ""
 		err = fmt.Errorf("unknown output format (%d)", format)

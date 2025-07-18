@@ -247,7 +247,7 @@ func generateRun[dataStruct_t any](
 			format = determineFormat(c.Flags(), options.Pretty != nil)
 		}
 
-		s, err := listOutput(c.Flags(), format, columns, dataFn, options.Pretty)
+		s, err := listOutput(c.Flags(), format, columns, dataFn, options.Pretty, options.ColumnAliases)
 		if err != nil {
 			clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
 			return
