@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/pflag"
@@ -213,6 +214,48 @@ func TestNewListAction(t *testing.T) {
 			t.Fatalf("data mismatch (not accounting for order): %v",
 				testsupport.ExpectedActual(wantedData, data))
 		}
+	})
+
+	t.Run("aliased columns", func(t *testing.T) {
+		data := []st{
+			{"1", 1, -1, struct {
+				SubCol1        bool
+				privateSubCol2 float32
+			}{true, 3.14}},
+		}
+
+		// generate the pair
+		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
+			return data, nil
+		}, Options{
+			Use:           "validUse",
+			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
+		})
+		pair.Action.SetArgs([]string{})
+		// capture output
+		var sb strings.Builder
+		var sbErr strings.Builder
+		pair.Action.SetOut(&sb)
+		pair.Action.SetErr(&sbErr)
+		// bolt on persistent flags that Mother would usually take care of
+		pair.Action.Flags().Bool("script", false, "")
+		if err := pair.Action.Execute(); err != nil {
+			t.Fatal(err)
+		} else if sbErr.String() != "" {
+			t.Fatal(sbErr.String())
+		}
+
+		// construct the expected table
+		expected := weave.ToTable(data, []string{"Col1", "Col2", "Col3", "Col4.SubCol1"}, weave.TableOptions{
+			Base:    stylesheet.Table,
+			Aliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
+		})
+		actual := strings.TrimSpace(sb.String())
+
+		if expected != actual {
+			t.Fatal(testsupport.ExpectedActual(expected, actual))
+		}
+
 	})
 
 	// column csvTests
