@@ -94,10 +94,9 @@ func stringifyStructCSV(s interface{}, columns []string, columnMap map[string][]
 
 // ToTable when given an array of an arbitrary struct and the list of *fully-qualified* fields,
 // outputs a table containing the data in the array of the struct.
-//
-// Can optionally be given a table style func. Uses DefaultTblStyle() if not given.
+// If no columns are specified or st is nil, returns the empty string.
 func ToTable[Any any](st []Any, columns []string, options TableOptions) string {
-	if columns == nil || st == nil || len(st) < 1 || len(columns) < 1 { // superfluous request
+	if len(st) < 1 || len(columns) < 1 { // superfluous request
 		return ""
 	}
 
