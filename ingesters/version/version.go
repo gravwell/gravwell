@@ -18,11 +18,11 @@ import (
 const (
 	MajorVersion = 5
 	MinorVersion = 8
-	PointVersion = 4
+	PointVersion = 5
 )
 
 var (
-	BuildDate time.Time = time.Date(2025, 7, 1, 23, 59, 59, 0, time.UTC)
+	BuildDate time.Time = time.Date(2025, 7, 24, 23, 59, 59, 0, time.UTC)
 )
 
 func PrintVersion(wtr io.Writer) {
