@@ -16,7 +16,6 @@ import (
 	"strings"
 
 	"github.com/Jeffail/gabs/v2"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 )
 
@@ -146,14 +145,6 @@ func ToTable[Any any](st []Any, columns []string, options TableOptions) string {
 	tbl.Rows(rows...)
 
 	return tbl.Render()
-}
-
-// DefaultTblStyle function used internally by ToTable if a styleFunc is not provided.
-// Use as an example for supplying your own.
-func DefaultTblStyle() *table.Table {
-	return table.New().StyleFunc(func(row, col int) lipgloss.Style {
-		return lipgloss.NewStyle().Width(10) // set set row and column width
-	})
 }
 
 // transmogrification struct for outputting complex numbers that encoding/json
