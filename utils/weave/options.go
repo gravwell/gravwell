@@ -10,7 +10,7 @@ type TableOptions struct {
 	Base func() *table.Table
 	// Aliases maps fully-dot-qualified field names -> display names.
 	// Keys must exactly match native column names (from StructFields());
-	// unmatched aliases will be unused.
+	// unmatched aliases will be unused and native column names are case-sensitive.
 	// When writing headers, ToTable will prefer an Alias, if found.
 	// Operates in O(len(columns)) time, if not nil.
 	Aliases map[string]string
