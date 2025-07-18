@@ -91,6 +91,15 @@ func Test_initOutFile(t *testing.T) {
 	})
 }
 
+func Test_showColumnsString(t *testing.T) {
+	actual := showColumnsString([]string{"A.1", "B", "C.1.⌚"}, map[string]string{"C.1.⌚": "Clock", "nonexistent": "some_alias"})
+	expected := "A.1,B,Clock"
+
+	if actual != expected {
+		t.Fatal(testsupport.ExpectedActual(expected, actual))
+	}
+}
+
 func Test_determineFormat(t *testing.T) {
 	// spin up the logger
 	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
@@ -255,7 +264,44 @@ func TestNewListAction(t *testing.T) {
 		if expected != actual {
 			t.Fatal(testsupport.ExpectedActual(expected, actual))
 		}
+	})
 
+	t.Run("show columns with aliased", func(t *testing.T) {
+		data := []st{
+			{"1", 1, -1, struct {
+				SubCol1        bool
+				privateSubCol2 float32
+			}{true, 3.14}},
+		}
+
+		// generate the pair
+		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
+			return data, nil
+		}, Options{
+			Use:           "validUse",
+			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
+		})
+		pair.Action.SetArgs([]string{"--show-columns"})
+		// capture output
+		var sb strings.Builder
+		var sbErr strings.Builder
+		pair.Action.SetOut(&sb)
+		pair.Action.SetErr(&sbErr)
+		// bolt on persistent flags that Mother would usually take care of
+		pair.Action.Flags().Bool("script", false, "")
+		if err := pair.Action.Execute(); err != nil {
+			t.Fatal(err)
+		} else if sbErr.String() != "" {
+			t.Fatal(sbErr.String())
+		}
+
+		// construct the expected output
+		exploded := strings.Split(strings.TrimSpace(sb.String()), " ")
+		expected := []string{"C1", "Col2", "Col3", "SC1"}
+		if !testsupport.SlicesUnorderedEqual(exploded, expected) {
+			t.Fatalf("columns mismatch (not accounting for order): %v",
+				testsupport.ExpectedActual(expected, exploded))
+		}
 	})
 
 	// column csvTests
