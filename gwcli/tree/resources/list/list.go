@@ -11,11 +11,10 @@ package list
 
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-
-	grav "github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/pflag"
@@ -31,8 +30,8 @@ var (
 )
 
 func NewResourcesListAction() action.Pair {
-	return scaffoldlist.NewListAction("", short, long, defaultColumns,
-		types.ResourceMetadata{}, list, flags)
+	return scaffoldlist.NewListAction(short, long,
+		types.ResourceMetadata{}, list, scaffoldlist.Options{AddtlFlags: flags})
 }
 
 func flags() pflag.FlagSet {
@@ -41,12 +40,12 @@ func flags() pflag.FlagSet {
 	return addtlFlags
 }
 
-func list(c *grav.Client, fs *pflag.FlagSet) ([]types.ResourceMetadata, error) {
+func list(fs *pflag.FlagSet) ([]types.ResourceMetadata, error) {
 	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
-		clilog.LogFlagFailedGet(ft.Name.ListAll, err)
+		uniques.ErrGetFlag("resources list", err)
 	} else if all {
-		return c.GetAllResourceList()
+		return connection.Client.GetAllResourceList()
 	}
 
-	return c.GetResourceList()
+	return connection.Client.GetResourceList()
 }

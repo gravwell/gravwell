@@ -384,7 +384,7 @@ func TestToCSV(t *testing.T) {
 
 func TestToTable(t *testing.T) {
 	t.Run("superfluous", func(t *testing.T) {
-		actual := ToTable[any](nil, []string{"A", "B", "c"})
+		actual := ToTable[any](nil, []string{"A", "B", "c"}, TableOptions{})
 
 		if actual != "" {
 			t.Errorf("string mismatch.\nactual%s\nexpected the empty string", actual)
@@ -414,9 +414,9 @@ func TestToTable(t *testing.T) {
 		}
 		expectedHeader := []string{"A", "B", "c"}
 
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
-		actual := ToTable(actualData, []string{"A", "B", "c"})
+		actual := ToTable(actualData, []string{"A", "B", "c"}, TableOptions{})
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual%s\nexpected%s", actual, expected)
 		}
@@ -426,14 +426,14 @@ func TestToTable(t *testing.T) {
 			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
 			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
 		}
-		actual := ToTable(actualData, []string{"A", "B", "c", "depth1.one", "depth1.Two"})
+		actual := ToTable(actualData, []string{"A", "B", "c", "depth1.one", "depth1.Two"}, TableOptions{})
 
 		expectedRows := [][]string{
 			{"1", "2", "c", "one", "Two"},
 			{"1", "2", "c", "one", "Two"},
 		}
 		expectedHeader := []string{"A", "B", "c", "depth1.one", "depth1.Two"}
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -444,14 +444,14 @@ func TestToTable(t *testing.T) {
 			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
 			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
 		}
-		actual := ToTable(actualData, []string{"A", "depth1.one", "depth1.Two"})
+		actual := ToTable(actualData, []string{"A", "depth1.one", "depth1.Two"}, TableOptions{})
 
 		expectedRows := [][]string{
 			{"1", "one", "Two"},
 			{"1", "one", "Two"},
 		}
 		expectedHeader := []string{"A", "depth1.one", "depth1.Two"}
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -462,14 +462,36 @@ func TestToTable(t *testing.T) {
 			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
 			{A: 3, B: 4, c: "c2", depth1: d1{one: "one2", Two: "Two2"}},
 		}
-		actual := ToTable(actualData, []string{"A", "depth1.one", "depth1.Two"})
+		actual := ToTable(actualData, []string{"A", "depth1.one", "depth1.Two"}, TableOptions{})
 
 		expectedRows := [][]string{
 			{"1", "one", "Two"},
 			{"3", "one2", "Two2"},
 		}
 		expectedHeader := []string{"A", "depth1.one", "depth1.Two"}
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
+
+		if actual != expected {
+			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
+		}
+	})
+	t.Run("with column aliases", func(t *testing.T) {
+		actualData := []d0{
+			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
+			{A: 3, B: 4, c: "c2", depth1: d1{one: "one2", Two: "Two2"}},
+		}
+		actual := ToTable(actualData, []string{"A", "depth1.one", "depth1.Two"},
+			TableOptions{
+				Aliases: map[string]string{"A": "a", "depth1.Two": "d1Two"},
+			},
+		)
+
+		expectedRows := [][]string{
+			{"1", "one", "Two"},
+			{"3", "one2", "Two2"},
+		}
+		expectedHeader := []string{"a", "depth1.one", "d1Two"}
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -499,14 +521,14 @@ func TestToTable(t *testing.T) {
 			{A: &A, B: 2, c: &c},
 			{A: &A, B: 2, c: &c},
 		}
-		actual := ToTable(actualData, []string{"A", "B", "c"})
+		actual := ToTable(actualData, []string{"A", "B", "c"}, TableOptions{})
 
 		expectedRows := [][]string{
 			{"1", "2", "c"},
 			{"1", "2", "c"},
 		}
 		expectedHeader := []string{"A", "B", "c"}
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -523,14 +545,14 @@ func TestToTable(t *testing.T) {
 			{A: &A, B: 2, c: &c, D: "D", depth1p: &depth1p},
 			{A: &A, B: 2, c: &c, D: "D", depth1p: &depth1p},
 		}
-		actual := ToTable(actualData, []string{"A", "B", "c", "D", "depth1p.Alpha", "depth1p.beta", "depth1p.one"})
+		actual := ToTable(actualData, []string{"A", "B", "c", "D", "depth1p.Alpha", "depth1p.beta", "depth1p.one"}, TableOptions{})
 
 		expectedRows := [][]string{
 			{"1", "2", "c", "D", "3.14", "6.28", "one"},
 			{"1", "2", "c", "D", "3.14", "6.28", "one"},
 		}
 		expectedHeader := []string{"A", "B", "c", "D", "depth1p.Alpha", "depth1p.beta", "depth1p.one"}
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -555,7 +577,7 @@ func TestToTable(t *testing.T) {
 		}
 		actual := ToTable(actualData,
 			[]string{"A", "B", "c", "D", "depth1p.Alpha", "depth1p.beta", "depth1p.one"},
-			styleFunc)
+			TableOptions{Base: styleFunc})
 
 		expectedRows := [][]string{
 			{"1", "2", "c", "D", "3.14", "6.28", "one"},

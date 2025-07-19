@@ -20,7 +20,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 const (
@@ -34,7 +33,7 @@ var aliases []string = []string{}
 
 func NewTreeAction() action.Pair {
 	return scaffold.NewBasicAction(use, short, long, aliases,
-		func(c *cobra.Command, _ *pflag.FlagSet) (string, tea.Cmd) {
+		func(c *cobra.Command) (string, tea.Cmd) {
 			lgt := walkBranch(c.Root())
 
 			return lgt.String(), nil

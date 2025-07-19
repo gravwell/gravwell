@@ -62,6 +62,12 @@ In the `./gwcli` directory, call `mage build`. If you do not have [mage](magefil
 
 Does your gravwell instance have a valid cert? If not, make sure you are using `--insecure`.
 
+## Terminal Scrolls Back Down Every Blink/Output
+
+This is likely a setting in your terminal.
+
+`xterm` (and some xterm-based terminals) have it set by default; it can be disabled (at least in xterm) by unchecking the "Scroll to Bottom On Tty Output" option in your ctrl+MMB modal.
+
 # Design
 
 gwcli is built on the fabulous BubbleTea and Cobra libraries. In the simplest of terms, gwcli is a cobra.Command tree with a bubbletea.Model crawling around it, interacting with Gravwell via their batteries-included client library.

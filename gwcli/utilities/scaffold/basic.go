@@ -7,12 +7,16 @@
  **************************************************************************/
 
 /*
-Package scaffold contains packages for generating new actions from skeletons. See scaffoldlist, scaffolddelete, etc for more information.
+Package scaffold contains packages for generating new actions from skeletons.
+See scaffoldlist, scaffolddelete, etc for more information.
 The bare scaffold package comes with a skeleton for basic actions.
 
-A basic action is the simplest action: it does its thing and returns a string to be printed to the
-terminal. Give it the function you want performed when the action is invoked and have it return
-whatever string value you want printed to the screen, if at all.
+A basic action is the simplest action: it does its thing and returns a string to be printed to the terminal (plus any tea.Cmds to be run by Mother).
+Give it the function you want performed when the action is invoked and have it return whatever string value you want printed to the screen, if at all.
+Prefer printing via returning a string, rather than returning a tea.Printf cmd.
+
+If this action is for retrieving data, consider making it a scaffoldlist instead.
+Scaffoldlist comes with csv/json/table formatting and file redirection out of the box.
 
 Basic actions have no default flags and will not handle flags unless a flagFunc is given.
 
@@ -25,9 +29,11 @@ Implementations will probably look a lot like:
 		aliases []string = []string{}
 	)
 
-	func New[parentpkg][pkg]Action() action.Pair {
-		return scaffold.NewBasicAction(use, short, long, aliases, func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd) {
-
+	func FooAction() action.Pair {
+		return scaffold.NewBasicAction(use, short, long, aliases, func(*cobra.Command) (string, tea.Cmd) {
+			data := connection.Client.GetSomeData()
+			str := formatData(data)
+			return str, nil
 		}, nil)
 	}
 */
@@ -50,7 +56,8 @@ import (
 //
 // NOTE: The tea.Cmd returned by act will be thrown away if run in a Cobra context.
 func NewBasicAction(use, short, long string, aliases []string,
-	act func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd), flagFunc func() pflag.FlagSet) action.Pair {
+	act func(*cobra.Command) (string, tea.Cmd), flagFunc func() pflag.FlagSet,
+	opts ...BasicActionOption) action.Pair {
 
 	cmd := treeutils.GenerateAction(
 		use,
@@ -58,7 +65,7 @@ func NewBasicAction(use, short, long string, aliases []string,
 		long,
 		aliases,
 		func(c *cobra.Command, _ []string) {
-			s, _ := act(c, c.Flags())
+			s, _ := act(c)
 			fmt.Fprintf(c.OutOrStdout(), "%v\n", s)
 		})
 
@@ -67,18 +74,60 @@ func NewBasicAction(use, short, long string, aliases []string,
 		cmd.Flags().AddFlagSet(&f)
 	}
 
-	ba := BasicAction{cmd: cmd, fn: act}
+	ba := basicAction{cmd: cmd, fn: act}
 	if flagFunc != nil {
 		ba.fs = flagFunc()
 		ba.fsFunc = flagFunc
 	}
 
+	for _, opt := range opts {
+		opt(&ba)
+	}
+
 	return action.NewPair(cmd, &ba)
 }
 
+//#region options
+
+// A BasicActionOption is a function that can be passed to NewBasicAction to modify the created action.
+type BasicActionOption = func(*basicAction)
+
+// WithExample specifies the example to display in the help text.
+func WithExample(ex string) BasicActionOption {
+	return func(ba *basicAction) {
+		ba.cmd.Example = ex
+	}
+}
+
+// WithPositionalArguments specifies bare argument handling function.
+func WithPositionalArguments(a cobra.PositionalArgs) BasicActionOption {
+	return func(ba *basicAction) {
+		ba.cmd.Args = a
+	}
+}
+
+// WithFlagsRequired instructs the various shell completion implementations to prioritize the named flag when performing completion,
+// and causes the basic action command to report an error if invoked without the flag.
+func WithFlagsRequired(flags ...string) BasicActionOption {
+	return func(ba *basicAction) {
+		for _, f := range flags {
+			ba.cmd.MarkFlagRequired(f)
+		}
+	}
+}
+
+// WithFlagsRequiredTogether makes Cobra error if the action is invoked with a subset (but not all) of the given flags.
+func WithFlagsRequiredTogether(flags ...string) BasicActionOption {
+	return func(ba *basicAction) {
+		ba.cmd.MarkFlagsRequiredTogether(flags...)
+	}
+}
+
+//#endregion options
+
 //#region interactive mode (model) implementation
 
-type BasicAction struct {
+type basicAction struct {
 	done bool
 
 	fs     pflag.FlagSet        // the current state of the flagset; destroyed on .Reset()
@@ -87,26 +136,26 @@ type BasicAction struct {
 	cmd *cobra.Command // the command associated to this basic action
 
 	// the function performing the basic action
-	fn func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd)
+	fn func(*cobra.Command) (string, tea.Cmd)
 }
 
-var _ action.Model = &BasicAction{}
+var _ action.Model = &basicAction{}
 
-func (ba *BasicAction) Update(msg tea.Msg) tea.Cmd {
+func (ba *basicAction) Update(msg tea.Msg) tea.Cmd {
 	ba.done = true
-	s, cmd := ba.fn(ba.cmd, &ba.fs)
+	s, cmd := ba.fn(ba.cmd)
 	return tea.Sequence(tea.Println(s), cmd)
 }
 
-func (*BasicAction) View() string {
+func (*basicAction) View() string {
 	return ""
 }
 
-func (ba *BasicAction) Done() bool {
+func (ba *basicAction) Done() bool {
 	return ba.done
 }
 
-func (ba *BasicAction) Reset() error {
+func (ba *basicAction) Reset() error {
 	ba.done = false
 	if ba.fsFunc != nil {
 		ba.fs = ba.fsFunc()
@@ -114,7 +163,7 @@ func (ba *BasicAction) Reset() error {
 	return nil
 }
 
-func (ba *BasicAction) SetArgs(_ *pflag.FlagSet, tokens []string) (_ string, _ tea.Cmd, err error) {
+func (ba *basicAction) SetArgs(_ *pflag.FlagSet, tokens []string) (_ string, _ tea.Cmd, err error) {
 	// if no additional flags could be given, we have nothing more to do
 	// (basic actions have no starter flags)
 	if ba.fsFunc != nil {
