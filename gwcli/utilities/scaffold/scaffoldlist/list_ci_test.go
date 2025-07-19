@@ -14,6 +14,7 @@ import (
 	ecsv "encoding/csv"
 	"os"
 	"path"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -853,4 +854,39 @@ func TestModel(t *testing.T) {
 			}
 		})
 	}
+	t.Run("interactive --show-columns", func(t *testing.T) {
+		availableColumns := []string{"Column1", "column2", "sub.column.1", "Sub.column.2"}
+		columnAliases := map[string]string{"Column1": "C1", "Sub.column.2": "Sc2"}
+
+		// only sets and calls the bare minimum to test an Update that displays column
+		la := ListAction[st]{
+			showColumns:    true,
+			availDSColumns: availableColumns,
+			options: Options{
+				ColumnAliases: columnAliases,
+			},
+		}
+		expected := showColumnsString(availableColumns, columnAliases)
+
+		tCmd := la.Update(nil)
+		if tCmd == nil {
+			t.Fatal("nil command")
+		}
+		// printLineMessages are private, so we need to reflect into it to check the value it holds
+		voMsg := reflect.ValueOf(tCmd())
+		if voMsg.Kind() != reflect.Struct {
+			t.Fatal(testsupport.ExpectedActual(reflect.Struct, voMsg.Kind()))
+		}
+		if voMsg.NumField() != 1 {
+			t.Fatal(testsupport.ExpectedActual(1, voMsg.NumField()))
+		}
+		voMessageBody := voMsg.FieldByName("messageBody")
+		if voMessageBody.Kind() != reflect.String {
+			t.Fatal(testsupport.ExpectedActual(reflect.String, voMessageBody.Kind()))
+		}
+		if expected != voMessageBody.String() {
+			t.Fatal(testsupport.ExpectedActual(expected, voMessageBody.String()))
+		}
+	})
+
 }
