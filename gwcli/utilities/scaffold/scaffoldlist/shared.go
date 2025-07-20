@@ -96,7 +96,7 @@ func listOutput[retStruct any](
 	case csv:
 		toRet = weave.ToCSV(data, columns, weave.CSVOptions{Aliases: aliases})
 	case json:
-		toRet, err = weave.ToJSON(data, columns)
+		toRet, err = weave.ToJSON(data, columns, weave.JSONOptions{Aliases: aliases})
 	case tbl:
 		toRet = weave.ToTable(data, columns, weave.TableOptions{
 			Base:    stylesheet.Table,

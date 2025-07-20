@@ -266,6 +266,89 @@ func TestNewListAction(t *testing.T) {
 			t.Fatal(testsupport.ExpectedActual(expected, actual))
 		}
 	})
+	t.Run("aliased columns JSON", func(t *testing.T) {
+		data := []st{
+			{"1", 1, -1, struct {
+				SubCol1        bool
+				privateSubCol2 float32
+			}{true, 3.14}},
+		}
+
+		// generate the pair
+		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
+			return data, nil
+		}, Options{
+			Use:           "validUse",
+			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
+		})
+		pair.Action.SetArgs([]string{})
+		// capture output
+		var sb strings.Builder
+		var sbErr strings.Builder
+		pair.Action.SetOut(&sb)
+		pair.Action.SetErr(&sbErr)
+		pair.Action.Flags().Set("json", "true")
+		// bolt on persistent flags that Mother would usually take care of
+		pair.Action.Flags().Bool("script", false, "")
+		if err := pair.Action.Execute(); err != nil {
+			t.Fatal(err)
+		} else if sbErr.String() != "" {
+			t.Fatal(sbErr.String())
+		}
+
+		// construct the expected table
+		expected, err := weave.ToJSON(data, []string{"Col1", "Col2", "Col3", "Col4.SubCol1"}, weave.JSONOptions{
+			Aliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		actual := strings.TrimSpace(sb.String())
+
+		if expected != actual {
+			t.Fatal(testsupport.ExpectedActual(expected, actual))
+		}
+	})
+	t.Run("aliased columns CSV", func(t *testing.T) {
+		data := []st{
+			{"1", 1, -1, struct {
+				SubCol1        bool
+				privateSubCol2 float32
+			}{true, 3.14}},
+		}
+
+		// generate the pair
+		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
+			return data, nil
+		}, Options{
+			Use:           "validUse",
+			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
+		})
+		pair.Action.SetArgs([]string{})
+		// capture output
+		var sb strings.Builder
+		var sbErr strings.Builder
+		pair.Action.SetOut(&sb)
+		pair.Action.SetErr(&sbErr)
+		pair.Action.Flags().Set("csv", "true")
+		// bolt on persistent flags that Mother would usually take care of
+		pair.Action.Flags().Bool("script", false, "")
+		if err := pair.Action.Execute(); err != nil {
+			t.Fatal(err)
+		} else if sbErr.String() != "" {
+			t.Fatal(sbErr.String())
+		}
+
+		// construct the expected table
+		expected := weave.ToCSV(data, []string{"Col1", "Col2", "Col3", "Col4.SubCol1"}, weave.CSVOptions{
+			Aliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
+		})
+		actual := strings.TrimSpace(sb.String())
+
+		if expected != actual {
+			t.Fatal(testsupport.ExpectedActual(expected, actual))
+		}
+	})
 
 	t.Run("show columns with aliased", func(t *testing.T) {
 		data := []st{

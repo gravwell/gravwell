@@ -161,7 +161,7 @@ func TestMacros(t *testing.T) {
 		}
 		columns := []string{"UID", "Global", "Name", "WriteAccess.GIDs", "Description", "Expansion", "Labels"}
 		var want string
-		if json, err := weave.ToJSON(macros, columns); err != nil {
+		if json, err := weave.ToJSON(macros, columns, weave.JSONOptions{}); err != nil {
 			t.Fatal(err)
 		} else {
 			want = strings.TrimSpace(json)
