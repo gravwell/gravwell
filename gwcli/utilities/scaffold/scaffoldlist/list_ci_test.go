@@ -297,7 +297,7 @@ func TestNewListAction(t *testing.T) {
 		}
 
 		// construct the expected output
-		exploded := strings.Split(strings.TrimSpace(sb.String()), " ")
+		exploded := strings.Split(strings.TrimSpace(sb.String()), ",")
 		expected := []string{"C1", "Col2", "Col3", "SC1"}
 		if !testsupport.SlicesUnorderedEqual(exploded, expected) {
 			t.Fatalf("columns mismatch (not accounting for order): %v",
@@ -424,7 +424,7 @@ func TestNewListAction(t *testing.T) {
 		} else if sbErr.String() != "" {
 			t.Fatal(sbErr.String())
 		}
-		exploded := strings.Split(strings.TrimSpace(sb.String()), " ")
+		exploded := strings.Split(strings.TrimSpace(sb.String()), ",")
 		wanted := []string{"Col1", "Col2", "Col3", "Col4.SubCol1"}
 		if !testsupport.SlicesUnorderedEqual(exploded, wanted) {
 			t.Fatalf("columns mismatch (not accounting for order): %v",
