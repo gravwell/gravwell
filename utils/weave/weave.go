@@ -33,7 +33,7 @@ const (
 // data contained therein.
 //
 // ! Returns the empty string if columns or st are empty
-func ToCSV[Any any](st []Any, columns []string) string {
+func ToCSV[Any any](st []Any, columns []string, options CSVOptions) string {
 	// DESIGN:
 	// We have a list of column, ordered.
 	// We have a map of column names -> field index.
@@ -53,7 +53,21 @@ func ToCSV[Any any](st []Any, columns []string) string {
 
 	columnMap := buildColumnMap(st[0], columns)
 
-	var hdr = strings.Join(columns, ",")
+	// generate header line, referencing aliases if relevant
+	var hdr string
+	if options.Aliases != nil {
+		var sb strings.Builder
+		for _, col := range columns {
+			if alias, found := options.Aliases[col]; found {
+				sb.WriteString(alias + ",")
+			} else {
+				sb.WriteString(col + ",")
+			}
+		}
+		hdr = sb.String()[:sb.Len()-1]
+	} else {
+		hdr = strings.Join(columns, ",")
+	}
 
 	var csv strings.Builder // stores the actual data
 
