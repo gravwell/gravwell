@@ -55,7 +55,7 @@ func NewUserMyInfoAction() action.Pair {
 					"Groups",
 					"Hash",
 					"Synced",
-					"CBAC"}), nil
+					"CBAC"}, weave.CSVOptions{}), nil
 			}
 
 			inf := connection.CurrentUser()

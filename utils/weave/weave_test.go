@@ -46,6 +46,7 @@ func TestToCSV(t *testing.T) {
 	type args struct {
 		st      []interface{}
 		columns []string
+		options CSVOptions
 	}
 
 	var c float32 = 5.0123
@@ -196,7 +197,59 @@ func TestToCSV(t *testing.T) {
 				"5.0123,FOO,3.145,D,10,0\n" +
 				"5.0123,FOO,3.145,D!,10,0",
 		},
-		{"∃c2r, non-existant column 'missing' and 'foobar'",
+		{"∀c5r, ordered randomly, aliased",
+			args{
+				st: []interface{}{
+					outer{
+						inner:    inner{foo: "FOO"},
+						a:        10,
+						b:        0,
+						c:        &c,
+						d:        "D",
+						Exported: 3.145},
+					outer{
+						inner:    inner{foo: "FOO"},
+						a:        57,
+						b:        0,
+						c:        &c,
+						d:        "D",
+						Exported: 3.145},
+					outer{
+						inner:    inner{foo: "FOO"},
+						a:        10,
+						b:        256,
+						c:        &c,
+						d:        "D",
+						Exported: 3.145},
+					outer{
+						inner:    inner{foo: "FOO"},
+						a:        10,
+						b:        0,
+						c:        &c,
+						d:        "D",
+						Exported: 3.145},
+					outer{
+						inner:    inner{foo: "FOO"},
+						a:        10,
+						b:        0,
+						c:        &c,
+						d:        "D!",
+						Exported: 3.145}},
+				columns: []string{
+					"c", "foo", "Exported", "d", "a", "b",
+				},
+				options: CSVOptions{
+					Aliases: map[string]string{"Exported": "exp", "b": "Beetsies"},
+				},
+			},
+			"c,foo,exp,d,a,Beetsies\n" +
+				"5.0123,FOO,3.145,D,10,0\n" +
+				"5.0123,FOO,3.145,D,57,0\n" +
+				"5.0123,FOO,3.145,D,10,256\n" +
+				"5.0123,FOO,3.145,D,10,0\n" +
+				"5.0123,FOO,3.145,D!,10,0",
+		},
+		{"∃c2r, non-existent column 'missing' and 'foobar'",
 			args{
 				st: []interface{}{
 					outer{
@@ -244,10 +297,18 @@ func TestToCSV(t *testing.T) {
 				columns: []string{"c", "foo", "Exported", "missing", "d", "a", "b", "foobar"}},
 			"",
 		},
+		{"superfluous, no data, unmatched aliases",
+			args{
+				st:      []interface{}{},
+				columns: []string{"c", "foo", "Exported", "missing", "d", "a", "b", "foobar"},
+				options: CSVOptions{Aliases: map[string]string{"Exported": "exp"}},
+			},
+			"",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ToCSV(tt.args.st, tt.args.columns); got != tt.want {
+			if got := ToCSV(tt.args.st, tt.args.columns, tt.args.options); got != tt.want {
 				t.Errorf("\n---ToCSVHash()---\n'%v'\n---want---\n'%v'", got, tt.want)
 			}
 		})
@@ -256,7 +317,7 @@ func TestToCSV(t *testing.T) {
 	t.Run("not a struct", func(t *testing.T) {
 		m := map[int]float32{}
 
-		if got := ToCSV([]map[int]float32{m}, []string{"some", "column", "names"}); got != "" {
+		if got := ToCSV([]map[int]float32{m}, []string{"some", "column", "names"}, CSVOptions{}); got != "" {
 			t.Errorf("expected the empty string, got %v", got)
 		}
 	})
@@ -300,7 +361,7 @@ func TestToCSV(t *testing.T) {
 			)
 		}
 
-		actual := ToCSV(data, []string{"n", "in", "iin", "iiin"})
+		actual := ToCSV(data, []string{"n", "in", "iin", "iiin"}, CSVOptions{})
 		expected := strings.TrimSpace(expectedBldr.String()) // chomp newline
 		if actual != expected {
 			// count newlines in parallel
@@ -347,7 +408,7 @@ func TestToCSV(t *testing.T) {
 		want := "a,ptr\n" +
 			"1,5"
 
-		actual := ToCSV([]ptrstruct{st}, []string{"a", "ptr"})
+		actual := ToCSV([]ptrstruct{st}, []string{"a", "ptr"}, CSVOptions{})
 
 		if actual != want {
 			t.Errorf("\n---ToCSVHash()---\n'%v'\n---want---\n'%v'", actual, want)
@@ -373,7 +434,7 @@ func TestToCSV(t *testing.T) {
 		inptrVal := -9
 		ptrStructVal := ptrstruct{a: 0, b: "B"}
 		v := outer{z: 10, inner: inner{inptr: &inptrVal, p: &ptrStructVal}}
-		actual := ToCSV([]outer{v}, []string{"z", "inptr", "p", "a", "b"})
+		actual := ToCSV([]outer{v}, []string{"z", "inptr", "p", "a", "b"}, CSVOptions{})
 		expected := "z,inptr,p,a,b\n" +
 			"10,-9,{0 B},,"
 		if actual != expected {

@@ -91,7 +91,8 @@ func TestMacros(t *testing.T) {
 			t.Fatal(err)
 		}
 		columns := []string{"UID", "Global", "Name"}
-		want := strings.TrimSpace(weave.ToCSV(macros, columns))
+		want := strings.TrimSpace(weave.ToCSV(macros, columns,
+			weave.CSVOptions{}))
 
 		// run the test body
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros list --csv --columns=%s", user, pf, strings.Join(columns, ","))
