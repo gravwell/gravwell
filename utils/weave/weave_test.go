@@ -657,11 +657,11 @@ func TestToJSON(t *testing.T) {
 	t.Run("superfluous", func(t *testing.T) {
 		var err error
 		var a1, a2 string
-		a1, err = ToJSON[any](nil, []string{"A", "B", "c"})
+		a1, err = ToJSON[any](nil, []string{"A", "B", "c"}, JSONOptions{})
 		if err != nil {
 			t.Error("Expected no error, got: ", err)
 		}
-		a2, err = ToJSON[any]([]interface{}{}, nil)
+		a2, err = ToJSON[any]([]interface{}{}, nil, JSONOptions{})
 		if err != nil {
 			t.Error("Expected no error, got: ", err)
 		}
@@ -681,7 +681,7 @@ func TestToJSON(t *testing.T) {
 			{A: 1, b: -2, C: "C string"},
 		}
 
-		actual, err := ToJSON(data, []string{"A", "C"})
+		actual, err := ToJSON(data, []string{"A", "C"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -713,7 +713,7 @@ func TestToJSON(t *testing.T) {
 			{A: &A, b: &b, C: &C},
 		}
 
-		actual, err := ToJSON(data, []string{"A", "C"})
+		actual, err := ToJSON(data, []string{"A", "C"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -759,7 +759,7 @@ func TestToJSON(t *testing.T) {
 		}
 
 		actual, err := ToJSON(data, []string{"A", "B", "C",
-			"D", "E", "F", "G", "H"})
+			"D", "E", "F", "G", "H"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -790,7 +790,7 @@ func TestToJSON(t *testing.T) {
 			{A: &A, B: B},
 		}
 
-		actual, err := ToJSON(data, []string{"A", "B"})
+		actual, err := ToJSON(data, []string{"A", "B"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -825,7 +825,7 @@ func TestToJSON(t *testing.T) {
 			{A: A, B: &B},
 		}
 
-		actual, err := ToJSON(data, []string{"A", "B"})
+		actual, err := ToJSON(data, []string{"A", "B"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -863,7 +863,7 @@ func TestToJSON(t *testing.T) {
 			{A: A, B: &B, c: "face"},
 		}
 
-		actual, err := ToJSON(data, []string{"A", "B"})
+		actual, err := ToJSON(data, []string{"A", "B"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -897,7 +897,7 @@ func TestToJSON(t *testing.T) {
 		defer func() {
 			recover()
 		}()
-		ToJSON(data, []string{"A", "B", "c"})
+		ToJSON(data, []string{"A", "B", "c"}, JSONOptions{})
 		t.Error("ToJSON should have panicked due to unexported value")
 	})
 	t.Run("depth 1 simple", func(t *testing.T) {
@@ -918,7 +918,7 @@ func TestToJSON(t *testing.T) {
 			{A0: &A0, B0: B0, Depth1: d1{A1: A1, B1: &B1}},
 		}
 
-		actual, err := ToJSON(data, []string{"A0", "B0", "Depth1.A1", "Depth1.B1"})
+		actual, err := ToJSON(data, []string{"A0", "B0", "Depth1.A1", "Depth1.B1"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -986,7 +986,7 @@ func TestToJSON(t *testing.T) {
 		actual, err := ToJSON(data, []string{"A0",
 			"Depth1.A1",
 			"Depth1.Depth2.A2", "Depth1.Depth2.B2",
-			"Depth1.Depth2.Depth3.A", "Depth1.Depth2.Depth3.B", "Depth1.Depth2.Depth3.C", "Depth1.Depth2.Depth3.D"})
+			"Depth1.Depth2.Depth3.A", "Depth1.Depth2.Depth3.B", "Depth1.Depth2.Depth3.C", "Depth1.Depth2.Depth3.D"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -1029,7 +1029,7 @@ func TestToJSON(t *testing.T) {
 			{A0: &A0, B0: B0, d1: d1{C1: C1, D1: &D1}},
 		}
 
-		actual, err := ToJSON(data, []string{"A0", "B0", "C1", "D1"})
+		actual, err := ToJSON(data, []string{"A0", "B0", "C1", "D1"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -1067,7 +1067,7 @@ func TestToJSON(t *testing.T) {
 			{A0: &A0, B0: B0, d1: d1{C1: C1, D1: &D1}},
 		}
 
-		actual, err := ToJSON(data, []string{"C1", "D1", "B0", "A0"})
+		actual, err := ToJSON(data, []string{"C1", "D1", "B0", "A0"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -1084,6 +1084,104 @@ func TestToJSON(t *testing.T) {
 		want += "]"
 
 		if string(want) != actual {
+			t.Errorf("want <> actual:\nwant: '%v'\nactual: '%v'\n", string(want), actual)
+		}
+	})
+	t.Run("depth 1 embedding w/ disordered columns and aliases", func(t *testing.T) {
+		type d1 struct {
+			C1 int
+			D1 *float64
+		}
+		type d0 struct {
+			A0 *string
+			B0 float32
+			d1
+		}
+		var A0 = "Go drink some water"
+		var B0 float32 = 12.8
+		var C1 = 5
+		var D1 = 3.14
+		data := []d0{
+			{A0: &A0, B0: B0, d1: d1{C1: C1, D1: &D1}},
+		}
+
+		actual, err := ToJSON(data, []string{"C1", "D1", "B0", "A0"},
+			JSONOptions{Aliases: map[string]string{"D1": "delamain", "A0": "water_reminder", "fakecolumn": "does not matter"}})
+		if err != nil {
+			panic(err)
+		}
+
+		want := `[{"B0":12.8,"C1":5,"delamain":3.14,"water_reminder":"Go drink some water"}]`
+
+		if want != actual {
+			t.Errorf("want <> actual:\nwant: '%v'\nactual: '%v'\n", string(want), actual)
+		}
+	})
+
+	// NOTE: this test must be crafted carefully because ToJSON and
+	// encoding/json do not use the same sorting method.
+	//
+	// encoding/json sorts by struct order
+	// ToJSON (via gabs) sorts alphabetically
+	t.Run("r30 deep ints with aliases", func(t *testing.T) {
+		const iterations = 30
+		type d3 struct {
+			A uint8
+			B uint16
+			C uint32
+			D *uint64
+		}
+		type d2 struct {
+			A2     *int64
+			B2     int32
+			Depth3 d3
+		}
+		type d1 struct {
+			A1     int16
+			Depth2 *d2
+		}
+		type d0 struct {
+			A0     int8
+			Depth1 d1
+		}
+		var (
+			d3A  uint8  = math.MaxUint8
+			d3B  uint16 = math.MaxUint16
+			d3C  uint32 = math.MaxUint32
+			d3D  uint64 = math.MaxUint64
+			d2A2 int64  = math.MaxInt64
+			d2B2 int32  = math.MaxInt32
+			d1A1 int16  = math.MaxInt16
+			d0A0 int8   = math.MaxInt8
+		)
+
+		data := make([]d0, iterations)
+		for i := range iterations {
+			data[i] = d0{A0: d0A0,
+				Depth1: d1{A1: d1A1,
+					Depth2: &d2{A2: &d2A2, B2: d2B2,
+						Depth3: d3{A: d3A, B: d3B, C: d3C, D: &d3D}}}}
+		}
+
+		actual, err := ToJSON(data, []string{
+			"A0",
+			"Depth1.A1",
+			"Depth1.Depth2.A2", "Depth1.Depth2.B2",
+			"Depth1.Depth2.Depth3.A", "Depth1.Depth2.Depth3.B", "Depth1.Depth2.Depth3.C", "Depth1.Depth2.Depth3.D"},
+			JSONOptions{Aliases: map[string]string{"A0": "arms_akimbo",
+				"Depth1.A1":              "glass_animals",
+				"Depth1.Depth2.A2":       "red_hot_chili_peppers",
+				"Depth1.Depth2.B2":       "ab.abhi_the_nomad",
+				"Depth1.Depth2.Depth3.A": "lex_leosis",
+				"Depth1.Depth2.Depth3.B": "diveliner",
+				"Depth1.Depth2.Depth3.C": "aries",
+				"Depth1.Depth2.Depth3.D": "hippo_campus"}})
+		if err != nil {
+			panic(err)
+		}
+
+		want := `[{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807}]`
+		if want != actual {
 			t.Errorf("want <> actual:\nwant: '%v'\nactual: '%v'\n", string(want), actual)
 		}
 	})

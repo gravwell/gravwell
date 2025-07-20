@@ -170,7 +170,7 @@ type gComplex[t float32 | float64] struct {
 // ToJSON when given an array of an arbitrary struct and the list of *fully-qualified* fields,
 // outputs a JSON array containing the data in the array of the struct.
 // Output is sorted alphabetically
-func ToJSON[Any any](st []Any, columns []string) (string, error) {
+func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, error) {
 	if columns == nil || st == nil || len(st) < 1 || len(columns) < 1 { // superfluous request
 		return "[]", nil
 	}
@@ -190,6 +190,11 @@ func ToJSON[Any any](st []Any, columns []string) (string, error) {
 				if data.Kind() == reflect.Pointer {
 					data = data.Elem()
 				}
+				// if there is an alias, we write that as the key instead
+				if alias, found := options.Aliases[col]; found {
+					col = alias
+				}
+
 				switch data.Type().Kind() {
 				case reflect.Float32:
 					v := data.Interface().(float32)
