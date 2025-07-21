@@ -885,7 +885,7 @@ func TestToJSON(t *testing.T) {
 			t.Errorf("want <> actual:\nwant: '%v'\nactual: '%v'\n", "", actual)
 		}
 	})
-	t.Run("depth 0 unexported panic", func(t *testing.T) {
+	t.Run("depth 0 unexported", func(t *testing.T) {
 		type d0 struct {
 			A int
 			B *uint
@@ -895,12 +895,11 @@ func TestToJSON(t *testing.T) {
 		data := []d0{
 			{A: A, B: &B, c: "Linux or death"},
 		}
-
-		defer func() {
-			recover()
-		}()
-		ToJSON(data, []string{"A", "B", "c"}, JSONOptions{})
-		t.Error("ToJSON should have panicked due to unexported value")
+		if j, err := ToJSON(data, []string{"A", "B", "c"}, JSONOptions{}); err != nil {
+			t.Fatal(err)
+		} else if j != `[{"A":-5,"B":1,"c":"Linux or death"}]` {
+			t.Errorf("want <> actual:\nwant: '%v'\nactual: '%v'\n", "", j)
+		}
 	})
 	t.Run("depth 1 simple", func(t *testing.T) {
 		type d1 struct {
