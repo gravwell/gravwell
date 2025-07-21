@@ -109,6 +109,7 @@ func stringifyStructCSV(s interface{}, columns []string, columnMap map[string][]
 // ToTable when given an array of an arbitrary struct and the list of *fully-qualified* fields,
 // outputs a table containing the data in the array of the struct.
 // If no columns are specified or st is nil, returns the empty string.
+// If ToTable encounters a nil pointer while traversing the data, it will populate the cell (and the cells of all child fields) with "nil".
 func ToTable[Any any](st []Any, columns []string, options TableOptions) string {
 	if len(st) < 1 || len(columns) < 1 { // superfluous request
 		return ""
@@ -124,9 +125,34 @@ func ToTable[Any any](st []Any, columns []string, options TableOptions) string {
 		structVals := reflect.ValueOf(st[i])
 		// search for each column
 		for k := range columns {
-			findex := columnMap[columns[k]]
-			if findex != nil {
-				data := structVals.FieldByIndex(findex)
+			findicies := columnMap[columns[k]]
+			if findicies != nil {
+				// manually step through the struct to check for nils.
+				// NOTE(rlandau): we use this instead of just passing the slice to FieldByIndex because FbI panics on attempting to step through a nil pointer.
+				// Panicking won't work for us.
+				var (
+					invalid bool
+					data    = structVals
+				)
+				for _, findex := range findicies {
+					// step one level lower
+					data = data.Field(findex)
+					if data.Kind() == reflect.Ptr {
+						if data.IsNil() { // stop traveling at a nil pointer
+							invalid = true
+							break
+						}
+						data = data.Elem() // otherwise, dereference to continue to delve
+					}
+					// data.Kind() != reflect.Struct
+				}
+
+				// if we failed to walk to the end of the indices,
+				if invalid {
+					rows[i][k] = "nil"
+					continue
+				}
+
 				if data.Kind() == reflect.Pointer {
 					data = data.Elem()
 				}
@@ -219,7 +245,8 @@ func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, e
 					v := data.Interface().(int32)
 					g.SetP(v, col)
 				case reflect.Int64:
-					v := data.Interface().(int64)
+					//v := data.Interface().(int64)
+					v := data.Int()
 					g.SetP(v, col)
 				case reflect.Complex64:
 					v := data.Interface().(complex64)
@@ -243,7 +270,11 @@ func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, e
 						g.ArrayAppendP(data.Index(i).Interface(), col)
 					}
 				case reflect.Uint:
-					v := data.Interface().(uint)
+					if !data.CanUint() {
+						panic("cannot assert to uint")
+					}
+					v := data.Uint()
+					//v := data.Interface().(uint)
 					g.SetP(v, col)
 				case reflect.Uint8:
 					v := data.Interface().(uint8)
@@ -255,7 +286,8 @@ func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, e
 					v := data.Interface().(uint32)
 					g.SetP(v, col)
 				case reflect.Uint64:
-					v := data.Interface().(uint64)
+					//v := data.Interface().(uint64)
+					v := data.Uint()
 					g.SetP(v, col)
 				case reflect.String:
 					v := data.Interface().(string)
