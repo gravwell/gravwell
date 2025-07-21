@@ -22,15 +22,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const (
-	use   string = "systems"
-	short string = "systems and health of the instance"
-	long  string = "Review the state and health of your system."
-)
-
-var aliases []string = []string{"health", "status"}
-
 func NewSystemsNav() *cobra.Command {
+	const (
+		use   string = "systems"
+		short string = "systems and health of the instance"
+		long  string = "Review the state and health of your system."
+	)
+	var aliases = []string{"health", "status", "system"}
 	return treeutils.GenerateNav(use, short, long, aliases,
 		[]*cobra.Command{
 			indexers.NewIndexersNav(),
