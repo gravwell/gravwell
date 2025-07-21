@@ -309,6 +309,54 @@ func TestNewListAction(t *testing.T) {
 			t.Fatal(testsupport.ExpectedActual(expected, actual))
 		}
 	})
+	t.Run("exclude default columns", func(t *testing.T) {
+		data := []st{
+			{"1", 1, -1, struct {
+				SubCol1        bool
+				privateSubCol2 float32
+			}{true, 3.14}},
+		}
+
+		// generate the pair
+		pair := NewListAction(short, long, st{}, func(fs *pflag.FlagSet) ([]st, error) {
+			return data, nil
+		}, Options{
+			Use:                       "validUse",
+			ExcludeColumnsFromDefault: []string{"Col1"},
+		})
+
+		// check default columns
+		if la, ok := pair.Model.(*ListAction[st]); !ok {
+			t.Fatal("failed to assert model to listAction")
+		} else if !testsupport.SlicesUnorderedEqual(la.defaultColumns, []string{"Col2", "Col3", "Col4.SubCol1"}) {
+			t.Fatal("bad default columns.", testsupport.ExpectedActual([]string{"Col2", "Col3", "Col4.SubCol1"}, la.defaultColumns))
+		}
+
+		pair.Action.SetArgs([]string{})
+		// capture output
+		var sb strings.Builder
+		var sbErr strings.Builder
+		pair.Action.SetOut(&sb)
+		pair.Action.SetErr(&sbErr)
+		//pair.Action.Flags().Set("json", "true")
+		// bolt on persistent flags that Mother would usually take care of
+		pair.Action.Flags().Bool("script", false, "")
+		if err := pair.Action.Execute(); err != nil {
+			t.Fatal(err)
+		} else if sbErr.String() != "" {
+			t.Fatal(sbErr.String())
+		}
+
+		// construct the expected table
+		expected := weave.ToTable(data, []string{"Col2", "Col3", "Col4.SubCol1"}, weave.TableOptions{Base: stylesheet.Table})
+
+		actual := strings.TrimSpace(sb.String())
+
+		if expected != actual {
+			t.Fatal(testsupport.ExpectedActual(expected, actual))
+		}
+	})
+
 	t.Run("aliased columns CSV", func(t *testing.T) {
 		data := []st{
 			{"1", 1, -1, struct {

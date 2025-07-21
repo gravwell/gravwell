@@ -169,11 +169,34 @@ func NewListAction[dataStruct_t any](short, long string,
 
 	}
 
-	// if default columns was not set in options, set it to all columns
-	if options.DefaultColumns == nil {
+	// set default columns from DefaultColumns or ExcludeColumnsFromDefault
+	if options.DefaultColumns != nil && options.ExcludeColumnsFromDefault != nil { // both were given
+		panic("DefautlColumns and ExcludeColumnsFromDefault are mutually exclusive")
+	} else if options.ExcludeColumnsFromDefault != nil { // exclude was given
+		// to exclude columns, traverse the data structure and skip excluded columns
+
+		// transmute the list to a hashset for faster look ups
+		var excludeMap = make(map[string]bool, len(options.ExcludeColumnsFromDefault))
+		for _, exCol := range options.ExcludeColumnsFromDefault {
+			excludeMap[exCol] = true
+		}
+		// put available data struct columns into default, minus excludes
+		options.DefaultColumns = make([]string, len(availDSColumns)-len(options.ExcludeColumnsFromDefault))
+		var excluded int // track the # skipped to decrement insertion index by that much
+		for i := range availDSColumns {
+			if _, found := excludeMap[availDSColumns[i]]; found {
+				excluded += 1
+			} else {
+				options.DefaultColumns[i-excluded] = availDSColumns[i]
+			}
+		}
+		options.DefaultColumns = slices.Clip(options.DefaultColumns)
+	} else if options.DefaultColumns != nil { // defaults were given
+		if err := validateColumns(options.DefaultColumns, availDSColumns); err != nil { // otherwise, validate the given defaults
+			panic(err)
+		}
+	} else { // nothing was given
 		options.DefaultColumns = availDSColumns
-	} else if err := validateColumns(options.DefaultColumns, availDSColumns); err != nil { // otherwise, validate the given defaults
-		panic(err)
 	}
 
 	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataFn, options, availDSColumns))
