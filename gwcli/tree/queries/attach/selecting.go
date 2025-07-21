@@ -43,7 +43,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
@@ -199,7 +198,7 @@ func (sv *selectingView) view() string {
 
 //#region item
 
-var _ listsupport.Item = attachable{}
+var _ stylesheet.ListItem = attachable{}
 
 // An attachable is just a wrapper around the SearchCtrlStatus type to allow us to fit it to the Item interface.
 type attachable struct {
@@ -313,7 +312,7 @@ func spawnListAndMaintainer(ss []types.SearchCtrlStatus, done <-chan bool, updat
 	for i, s := range ss {
 		itms[i] = attachable{s}
 	}
-	l := listsupport.NewList(itms, 0, 0, "attach", "attach-ables")
+	l := stylesheet.NewList(itms, 0, 0, "attach", "attach-ables")
 
 	// NOTE(rlandau): we re-set items on creation as there appears to be a discrepancy between how list.New() and list.SetItems() update keybinds.
 	// This can cause the UI to stutter when the first .SetItems occurs as .SetItems changes what keys are visible in the help section.

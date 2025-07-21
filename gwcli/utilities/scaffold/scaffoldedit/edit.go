@@ -63,7 +63,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -349,7 +348,7 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 	}
 
 	// generate list
-	em.list = listsupport.NewList(itms, 80, listHeightMax, em.singular, em.plural)
+	em.list = stylesheet.NewList(itms, 80, listHeightMax, em.singular, em.plural)
 	em.listInitialized = true
 	em.mode = selecting
 
@@ -521,7 +520,7 @@ type item struct {
 	description string
 }
 
-var _ listsupport.Item = item{}
+var _ stylesheet.ListItem = item{}
 
 func (i item) Title() string {
 	return i.title
