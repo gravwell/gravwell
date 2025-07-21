@@ -26,6 +26,10 @@ const (
 	ErrStructIsNil string = "given value is nil"
 )
 
+func errFailedKindAssert(assertType string, kind string) error {
+	return fmt.Errorf("cannot assert to %s despite %s kind", assertType, kind)
+}
+
 //#endregion
 
 // ToCSV takes an array of arbitrary struct `st` and the *ordered* columns to
@@ -227,35 +231,66 @@ func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, e
 
 				switch data.Type().Kind() {
 				case reflect.Float32:
-					v := data.Interface().(float32)
-					g.SetP(v, col)
+					if !data.CanFloat() {
+						return "", errFailedKindAssert("float", "Float32")
+					}
+					if _, err := g.SetP(float32(data.Float()), col); err != nil {
+						return "", err
+					}
 				case reflect.Float64:
-					v := data.Interface().(float64)
-					g.SetP(v, col)
+					if !data.CanFloat() {
+						return "", errFailedKindAssert("float", "Float64")
+					}
+					if _, err := g.SetP(float64(data.Float()), col); err != nil {
+						return "", err
+					}
 				case reflect.Int:
-					v := data.Interface().(int)
-					g.SetP(v, col)
+					if !data.CanInt() {
+						return "", errFailedKindAssert("int", "Int")
+					}
+					if _, err := g.SetP(int(data.Int()), col); err != nil {
+						return "", err
+					}
 				case reflect.Int8:
-					v := data.Interface().(int8)
-					g.SetP(v, col)
+					if !data.CanInt() {
+						return "", errFailedKindAssert("int", "Int8")
+					}
+					if _, err := g.SetP(int8(data.Int()), col); err != nil {
+						return "", err
+					}
 				case reflect.Int16:
-					v := data.Interface().(int16)
-					g.SetP(v, col)
+					if !data.CanInt() {
+						return "", errFailedKindAssert("int", "Int16")
+					}
+					if _, err := g.SetP(int16(data.Int()), col); err != nil {
+						return "", err
+					}
 				case reflect.Int32:
-					v := data.Interface().(int32)
-					g.SetP(v, col)
+					if !data.CanInt() {
+						return "", errFailedKindAssert("int", "Int32")
+					}
+					if _, err := g.SetP(int32(data.Int()), col); err != nil {
+						return "", err
+					}
 				case reflect.Int64:
-					//v := data.Interface().(int64)
-					v := data.Int()
-					g.SetP(v, col)
+					if !data.CanInt() {
+						return "", errFailedKindAssert("int", "Int64")
+					}
+					g.SetP(data.Int(), col)
 				case reflect.Complex64:
-					v := data.Interface().(complex64)
+					if !data.CanComplex() {
+						return "", errFailedKindAssert("complex", "Complex64")
+					}
+					v := complex64(data.Complex())
 					gC := gComplex[float32]{Real: real(v), Imaginary: imag(v)}
 					if _, err := g.SetP(gC, col); err != nil {
 						return "", err
 					}
 				case reflect.Complex128:
-					v := data.Interface().(complex128)
+					if !data.CanComplex() {
+						return "", errFailedKindAssert("complex", "Complex128")
+					}
+					v := data.Complex()
 					gC := gComplex[float64]{Real: real(v), Imaginary: imag(v)}
 					if _, err := g.SetP(gC, col); err != nil {
 						return "", err
@@ -266,31 +301,46 @@ func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, e
 					g.ArrayP(col)
 					// append each item in the array
 					iCount := data.Len()
-					for i := 0; i < iCount; i++ {
+					for i := range iCount {
 						g.ArrayAppendP(data.Index(i).Interface(), col)
 					}
 				case reflect.Uint:
 					if !data.CanUint() {
-						panic("cannot assert to uint")
+						return "", errFailedKindAssert("uint", "Uint")
 					}
-					v := data.Uint()
-					//v := data.Interface().(uint)
-					g.SetP(v, col)
+					if _, err := g.SetP(uint(data.Uint()), col); err != nil {
+						return "", err
+					}
 				case reflect.Uint8:
-					v := data.Interface().(uint8)
-					g.SetP(v, col)
+					if !data.CanUint() {
+						return "", errFailedKindAssert("uint", "Uint8")
+					}
+					if _, err := g.SetP(uint8(data.Uint()), col); err != nil {
+						return "", err
+					}
 				case reflect.Uint16:
-					v := data.Interface().(uint16)
-					g.SetP(v, col)
+					if !data.CanUint() {
+						return "", errFailedKindAssert("uint", "Uint16")
+					}
+					if _, err := g.SetP(uint16(data.Uint()), col); err != nil {
+						return "", err
+					}
 				case reflect.Uint32:
-					v := data.Interface().(uint32)
-					g.SetP(v, col)
+					if !data.CanUint() {
+						return "", errFailedKindAssert("uint", "Uint32")
+					}
+					if _, err := g.SetP(uint32(data.Uint()), col); err != nil {
+						return "", err
+					}
 				case reflect.Uint64:
-					//v := data.Interface().(uint64)
-					v := data.Uint()
-					g.SetP(v, col)
+					if !data.CanUint() {
+						return "", errFailedKindAssert("uint", "Uint64")
+					}
+					if _, err := g.SetP(data.Uint(), col); err != nil {
+						return "", err
+					}
 				case reflect.String:
-					v := data.Interface().(string)
+					v := data.String()
 					g.SetP(v, col)
 				default: // unsupported type, default to string
 					g.SetP(fmt.Sprintf("%v", data), col)
