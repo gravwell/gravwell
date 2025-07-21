@@ -146,15 +146,19 @@ func ToTable[Any any](st []Any, columns []string, options TableOptions) string {
 
 	// apply aliases
 	if options.Aliases != nil {
+		withAliases := make([]string, len(columns))
 		for i := range columns {
 			// on match, replace the column
 			if alias, found := options.Aliases[columns[i]]; found {
-				columns[i] = alias
+				withAliases[i] = alias
+			} else {
+				withAliases[i] = columns[i]
 			}
 		}
+		tbl.Headers(withAliases...)
+	} else {
+		tbl.Headers(columns...)
 	}
-
-	tbl.Headers(columns...)
 	tbl.Rows(rows...)
 
 	return tbl.Render()
