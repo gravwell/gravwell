@@ -914,8 +914,8 @@ func TestModel(t *testing.T) {
 				if la.done {
 					t.Errorf(pfx + "list action done was not reset properly")
 				}
-				if !testsupport.SlicesUnorderedEqual(la.columns, la.DefaultColumns) {
-					t.Error(pfx+"list action columns were not reset to defaults.", testsupport.ExpectedActual(la.DefaultColumns, la.columns))
+				if !testsupport.SlicesUnorderedEqual(la.columns, la.defaultColumns) {
+					t.Error(pfx+"list action columns were not reset to defaults.", testsupport.ExpectedActual(la.defaultColumns, la.columns))
 				}
 				if la.fs.Parsed() {
 					t.Error(pfx + "flagset should not be parsed")
