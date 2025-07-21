@@ -13,7 +13,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
-	"github.com/gravwell/gravwell/v4/utils/weave"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -34,26 +33,6 @@ func get() action.Pair {
 		example = fmt.Sprintf("%v 127.0.0.1:9404", use)
 	)
 
-	// we want to get *most* columns by default so it is easier to grab all of them and remove ones we do not want
-	var defaultColumns []string
-	if dcols, err := weave.StructFields(deepIndexerInfo{}, true); err != nil {
-		panic("failed to delve dii: " + err.Error())
-	} else {
-		// add columns not in exclude to the set of default columns
-		var defaultExclude = map[string]bool{
-			"Ingest.EntriesHourTail":   true,
-			"Ingest.EntriesMinuteTail": true,
-			"Ingest.BytesHourTail":     true,
-			"Ingest.BytesMinuteTail":   true,
-		} // hashset
-		for i := range dcols {
-			if _, found := defaultExclude[dcols[i]]; !found {
-				defaultColumns = append(defaultColumns, dcols[i])
-			}
-		}
-
-	}
-
 	return scaffoldlist.NewListAction(short, long, deepIndexerInfo{},
 		func(fs *pflag.FlagSet) ([]deepIndexerInfo, error) {
 			dii := deepIndexerInfo{Name: strings.TrimSpace(fs.Arg(0))}
@@ -66,8 +45,13 @@ func get() action.Pair {
 			return []deepIndexerInfo{dii}, nil
 		},
 		scaffoldlist.Options{
-			Use:            use,
-			DefaultColumns: defaultColumns,
+			Use: use,
+			ExcludeColumnsFromDefault: []string{
+				"Ingest.EntriesHourTail",
+				"Ingest.EntriesMinuteTail",
+				"Ingest.BytesHourTail",
+				"Ingest.BytesMinuteTail",
+			},
 			CmdMods: func(c *cobra.Command) {
 				c.Example = example
 			},
@@ -82,6 +66,14 @@ func get() action.Pair {
 					return "did not find indexer '" + fs.Arg(0) + "'", nil
 				}
 				return "", nil
+			},
+			ColumnAliases: map[string]string{
+				"Storage.DataIngestedHot":  "Storage.Hot.Ingested",
+				"Storage.DataIngestedCold": "Storage.Cold.Ingested",
+				"Storage.DataStoredHot":    "Storage.Hot.Stored",
+				"Storage.DataStoredCold":   "Storage.Cold.Stored",
+				"Storage.EntryCountHot":    "Storage.Hot.Count",
+				"Storage.EntryCountCold":   "Storage.Cold.Count",
 			},
 		})
 }
@@ -106,7 +98,30 @@ type deepIndexerInfo struct {
 		Name  string
 		Stats types.PerWellStorageStats
 	}
-	Ingest   types.IngestStats
+	Ingest struct { // based on types.IngestStats, but with Ingesters removed
+		QuotaUsed         uint64     // Quota used so far
+		QuotaMax          uint64     // Total quota
+		EntriesPerSecond  float64    // Entries per second over the last few seconds
+		BytesPerSecond    float64    // Bytes per second over the last few seconds
+		TotalCount        uint64     //Total Entries since the ingest server started
+		TotalSize         uint64     //Total Data since the ingest server started
+		LastDayCount      uint64     //total entries in last 24 hours
+		LastDaySize       uint64     //total ingested in last 24 hours
+		EntriesHourTail   [24]uint64 //entries per 1 hour bucket with 24 hours of tail
+		EntriesMinuteTail [60]uint64 //entries per 1 second bucket with 60s of tail
+		BytesHourTail     [24]uint64 //bytes per 1 hour bucket with 24 hours of tail
+		BytesMinuteTail   [60]uint64 //bytes per 1 second bucket with 60s of tail
+		Ingesters         []struct { // based on types.IngesterStats
+			RemoteAddress string
+			UUID          string
+			Name          string
+		}
+		Missing []struct { // ingesters that have been seen before but not actively connected now
+			UUID     string
+			Name     string
+			LastSeen string
+		}
+	}
 	Ping     string
 	Children struct {
 		Err   string
@@ -149,7 +164,71 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 				continue
 			}
 			mu.Lock()
-			dii.Ingest = stat
+			dii.Ingest = struct {
+				QuotaUsed         uint64
+				QuotaMax          uint64
+				EntriesPerSecond  float64
+				BytesPerSecond    float64
+				TotalCount        uint64
+				TotalSize         uint64
+				LastDayCount      uint64
+				LastDaySize       uint64
+				EntriesHourTail   [24]uint64
+				EntriesMinuteTail [60]uint64
+				BytesHourTail     [24]uint64
+				BytesMinuteTail   [60]uint64
+				Ingesters         []struct {
+					RemoteAddress string
+					UUID          string
+					Name          string
+				}
+				Missing []struct {
+					UUID     string
+					Name     string
+					LastSeen string
+				}
+			}{
+				QuotaUsed:         stat.QuotaUsed,
+				QuotaMax:          stat.QuotaMax,
+				EntriesPerSecond:  stat.EntriesPerSecond,
+				BytesPerSecond:    stat.BytesPerSecond,
+				TotalCount:        stat.TotalCount,
+				TotalSize:         stat.TotalSize,
+				LastDayCount:      stat.LastDayCount,
+				LastDaySize:       stat.LastDaySize,
+				EntriesHourTail:   stat.EntriesHourTail,
+				EntriesMinuteTail: stat.EntriesMinuteTail,
+				BytesHourTail:     stat.BytesHourTail,
+				BytesMinuteTail:   stat.BytesMinuteTail,
+				Ingesters: make([]struct {
+					RemoteAddress string
+					UUID          string
+					Name          string
+				}, len(stat.Ingesters)),
+				Missing: make([]struct {
+					UUID     string
+					Name     string
+					LastSeen string
+				}, len(stat.Missing)),
+			}
+			for i, ing := range stat.Ingesters {
+				dii.Ingest.Ingesters[i] = struct {
+					RemoteAddress string
+					UUID          string
+					Name          string
+				}{
+					ing.RemoteAddress, ing.UUID, ing.Name,
+				}
+			}
+			for i, ing := range stat.Missing {
+				dii.Ingest.Missing[i] = struct {
+					UUID     string
+					Name     string
+					LastSeen string
+				}{
+					ing.UUID, ing.Name, ing.LastSeen.String(),
+				}
+			}
 			mu.Unlock()
 			return
 		}
