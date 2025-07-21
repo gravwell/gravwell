@@ -25,9 +25,16 @@ type Options struct {
 	// AddtlFlags defines a function that generates a fresh flagset to be bolted on to the default list flagset.
 	// NOTE(rlandau): It must be a function returning a fresh struct because FlagSets are shallow copies, even when passed by reference.
 	AddtlFlags AddtlFlagFunction
-	// Sets the default columns to return if --columns is not specified.
-	// If not set, defaults to all exported fields.
+	// Sets the default columns to display if --columns is not specified.
+	// Column names must be dot-qualified exact matches, not aliases.
+	// If set, only these columns will be displayed by default.
+	// Mutually exclusive with ExcludeColumnsFromDefault.
 	DefaultColumns []string
+	// Sets the list to display all columns EXCEPT for these by default.
+	// Column names must be dot-qualified exact matches, not aliases.
+	// Overridden by --columns.
+	// Mutually exclusive with DefaultColumns.
+	ExcludeColumnsFromDefault []string
 	// ! Currently only applies to tables.
 	//
 	// ColumnAliases maps fully-dot-qualified field names -> display names in the table header.

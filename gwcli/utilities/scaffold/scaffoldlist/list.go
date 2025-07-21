@@ -178,6 +178,10 @@ func NewListAction[dataStruct_t any](short, long string,
 		// transmute the list to a hashset for faster look ups
 		var excludeMap = make(map[string]bool, len(options.ExcludeColumnsFromDefault))
 		for _, exCol := range options.ExcludeColumnsFromDefault {
+			// check that the column exists in dq
+			if !slices.Contains(availDSColumns, exCol) {
+				panic("cannot exclude unknown column '" + exCol + "'")
+			}
 			excludeMap[exCol] = true
 		}
 		// put available data struct columns into default, minus excludes
