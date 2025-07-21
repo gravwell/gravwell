@@ -60,7 +60,30 @@ var (
 func newScheduledQryListAction() action.Pair {
 	return scaffoldlist.NewListAction(short, long,
 		types.ScheduledSearch{}, listScheduledSearch,
-		scaffoldlist.Options{AddtlFlags: flags})
+		scaffoldlist.Options{
+			AddtlFlags: flags,
+			ExcludeColumnsFromDefault: []string{
+				"DebugEvent.Type",
+				"DebugEvent.Metadata.UID",
+				"DebugEvent.Metadata.Username",
+				"DebugEvent.Metadata.AlertID",
+				"DebugEvent.Metadata.AlertName",
+				"DebugEvent.Metadata.AlertActivation",
+				"DebugEvent.Metadata.EventIndex",
+				"DebugEvent.Metadata.TargetTag",
+				"DebugEvent.Metadata.AlertLabels",
+				"DebugEvent.Metadata.Dispatcher.Type",
+				"DebugEvent.Metadata.Dispatcher.ID",
+				"DebugEvent.Metadata.Dispatcher.Name",
+				"DebugEvent.Metadata.Dispatcher.SearchID",
+				"DebugEvent.Metadata.Dispatcher.Labels",
+				"DebugEvent.Metadata.Dispatcher.EventCount",
+				"DebugEvent.Metadata.Dispatcher.EventsElided",
+				"DebugEvent.Metadata.Consumers",
+				"DebugEvent.Metadata.UserMetadata",
+				"DebugEvent.Metadata.ValidationProblems",
+				"DebugEvent.Contents"},
+		})
 }
 
 func flags() pflag.FlagSet {

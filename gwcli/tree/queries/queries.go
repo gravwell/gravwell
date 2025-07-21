@@ -17,6 +17,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/attach"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries/scheduled"
@@ -59,7 +60,7 @@ func past() action.Pair {
 	return scaffoldlist.NewListAction(short, long,
 		types.SearchLog{}, list,
 		scaffoldlist.Options{
-			Use: pastUse, AddtlFlags: flags, DefaultColumns: defaultColumns,
+			Use: pastUse, AddtlFlags: flags, DefaultColumns: defaultColumns, ColumnAliases: map[string]string{"EffectiveQuery": "eQuery"},
 		})
 }
 
@@ -79,7 +80,7 @@ func list(fs *pflag.FlagSet) ([]types.SearchLog, error) {
 	)
 
 	if count, e := fs.GetInt("count"); e != nil {
-		uniques.ErrGetFlag(pastUse, err)
+		return nil, uniques.ErrGetFlag(pastUse, err)
 	} else if count > 0 {
 		toRet, err = connection.Client.GetSearchHistoryRange(0, count)
 	} else {
@@ -88,8 +89,10 @@ func list(fs *pflag.FlagSet) ([]types.SearchLog, error) {
 
 	// check for explicit no records error
 	if err != nil && strings.Contains(err.Error(), "No record") {
+		clilog.Writer.Debugf("no records error: %v", err)
 		return []types.SearchLog{}, nil
 	}
+	clilog.Writer.Debugf("found %v prior searches", len(toRet))
 	return toRet, err
 }
 

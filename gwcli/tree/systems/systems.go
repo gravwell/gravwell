@@ -74,7 +74,17 @@ func newStorageAction() action.Pair {
 			}
 
 			return wrap, nil
-		}, scaffoldlist.Options{Use: use})
+		}, scaffoldlist.Options{
+			Use: use,
+			ColumnAliases: map[string]string{
+				"Stats.DataIngestedHot":  "Hot.Ingested",
+				"Stats.DataIngestedCold": "Cold.Ingested",
+				"Stats.DataStoredHot":    "Hot.Stored",
+				"Stats.DataStoredCold":   "Cold.Stored",
+				"Stats.EntryCountHot":    "Hot.Count",
+				"Stats.EntryCountCold":   "Cold.Count",
+			},
+		})
 }
 
 //#endregion storage

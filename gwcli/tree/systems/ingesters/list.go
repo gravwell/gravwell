@@ -31,7 +31,7 @@ func list() action.Pair {
 		func(fs *pflag.FlagSet) ([]wrappedIngesterStats, error) {
 			// GetIngesterStats returns data according to each indexer.
 			// We extract just the ingester stats sub items.
-			// The rest of the stats are inside of the indexer-specific actions // TODO
+			// The rest of the stats are inside of the indexer-specific actions.
 			ss, err := connection.Client.GetIngesterStats()
 			if err != nil {
 				return nil, err
