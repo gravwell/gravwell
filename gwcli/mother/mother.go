@@ -186,7 +186,9 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if m.mode == handoff { // a child is running
-		activeChildSanityCheck(m)
+		if clilog.Active(clilog.DEBUG) {
+			activeChildSanityCheck(m)
+		}
 		// test for child state
 		if !m.active.model.Done() { // child still processing
 			return m, m.active.model.Update(msg)
@@ -229,8 +231,7 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if msg.Type == tea.KeyEnter { // submit
 			m.history.unsetFetch()
-			cmd := processInput(&m)
-			return m, cmd
+			return m, processInput(&m)
 		}
 	}
 
@@ -360,7 +361,7 @@ func processInput(m *Mother) tea.Cmd {
 
 		// reconstitute remaining tokens to re-split them via shlex
 		cmd := processActionHandoff(m, wr.endCommand, wr.remainingString)
-		return tea.Sequence(historyCmd, tea.WindowSize(), cmd)
+		return tea.Sequence(historyCmd, cmd)
 
 	case invalidCommand:
 		clilog.Writer.Errorf("walking input %v returned invalid", given)
@@ -457,9 +458,9 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 	}
 	clilog.Writer.Debugf("Handing off control to %s", m.active.command.Name())
 	if cmd != nil {
-		return cmd
+		return tea.Batch(cmd, tea.WindowSize())
 	}
-	return nil
+	return tea.WindowSize()
 }
 
 // Walk through the given tokens

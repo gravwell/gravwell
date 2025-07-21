@@ -76,7 +76,6 @@ func Initial() *ingest {
 
 		mod: NewMod(),
 	}
-	i.fg.Cursor = stylesheet.Cur.PromptSty.Symbol()
 	i.fg.DirAllowed = false
 	i.fg.FileAllowed = true
 	i.fg.ShowSize = true
@@ -222,21 +221,23 @@ func (i *ingest) View() string {
 	case ingesting: // display JUST a spinner; file statuses will be printed above the TUI for us
 		return i.spinner.View()
 	default:
+		breadcrumbs := i.breadcrumbsView(i.width)
+		modifiers := i.mod.view(i.width)
 		// compose views
 		return lipgloss.JoinVertical(lipgloss.Center,
-			i.breadcrumbsView(),
-			i.pickerView(),
-			i.mod.view(i.width),
+			breadcrumbs,
+			i.pickerView(lipgloss.Height(breadcrumbs), lipgloss.Height(modifiers)),
+			modifiers,
 		)
 	}
 }
 
 //#region view helpers
 
-func (i *ingest) breadcrumbsView() string {
-	availWidth := i.width - (stylesheet.Cur.ComposableSty.ComplimentaryBorder.GetHorizontalMargins() +
-		stylesheet.Cur.ComposableSty.ComplimentaryBorder.GetHorizontalPadding() +
-		2) // ensure we have at least a cell on either side
+func (i *ingest) breadcrumbsView(termWidth int) string {
+	maxFrameSize := stylesheet.Cur.ComposableSty.ComplimentaryBorder.GetHorizontalFrameSize()
+	availWidth := termWidth - maxFrameSize
+
 	path := i.fg.CurrentDirectory
 	if availWidth < 0 {
 		return path
@@ -249,20 +250,31 @@ func (i *ingest) breadcrumbsView() string {
 	return stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(path)
 }
 
-func (i *ingest) pickerView() string {
-	// NOTE(rlandau): Width > maxWidth is a hacky way to ensure file names are truncated, not wrapped.
-	sty := lipgloss.NewStyle().MaxWidth(i.boxWidth).Width(i.boxWidth + 100)
+// ! pickerView pulls double-duty here.
+// It returns a string to be displayed (as usual),
+// AND updates the height of the filepicker based on the heights of all other elements.
+//
+// Normally, this would be done in the Update handling for a WindowSizeMessage.
+// However, elements may change height based on key inputs (such as ShortHelp -> FullHelp).
+// This is the most reliable way to get a static height to work with.
+func (i *ingest) pickerView(breadcrumbsHeight, modifiersHeight int) string {
+	// Width > maxWidth is a hacky way to ensure file names are truncated, not wrapped.
+	expandToEdgesSty := lipgloss.NewStyle().MaxWidth(i.boxWidth).Width(i.boxWidth + 100)
+	wrapSty := lipgloss.NewStyle().Width(i.boxWidth)
 
-	// figure out how much height everything else needs
-	breadcrumbHeight := lipgloss.Height(stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(i.fg.CurrentDirectory))
-	modHeight := lipgloss.Height(i.mod.view(i.width))
-	errHelpHeight := lipgloss.Height(i.errHelpView())
-	buffer := 5
+	errHelp := wrapSty.Render(i.errHelpView())
 
-	newHeight := i.height - (breadcrumbHeight + modHeight + errHelpHeight + buffer)
-	i.fg.SetHeight(min(newHeight, maxPickerHeight))
+	// subtract available height according to the heights of all other elements
+	newHeight := i.height - (breadcrumbsHeight + modifiersHeight + lipgloss.Height(errHelp) +
+		max(stylesheet.Cur.ComposableSty.FocusedBorder.GetVerticalFrameSize(), stylesheet.Cur.ComposableSty.UnfocusedBorder.GetVerticalFrameSize()) +
+		1) // include an extra line buffer
+	if newHeight > 0 { // don't bother setting a negative height
+		i.fg.SetHeight(min(newHeight, maxPickerHeight))
+	}
 
-	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fg.View()), sty.Render(i.errHelpView()))
+	var s = lipgloss.JoinVertical(lipgloss.Center,
+		expandToEdgesSty.Render(i.fg.View()),
+		errHelp)
 	if i.mod.focused {
 		return stylesheet.Cur.ComposableSty.UnfocusedBorder.
 			AlignHorizontal(lipgloss.Center).Render(s)
