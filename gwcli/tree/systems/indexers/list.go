@@ -10,6 +10,8 @@ package indexers
 
 import (
 	"maps"
+	"slices"
+	"strings"
 
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -73,6 +75,8 @@ func list() action.Pair {
 						w[i] = wellInfo.Name
 					}
 					m[idxr].Wells = w
+					// stable sort Wells, as the API's list is unstable
+					slices.SortStableFunc(m[idxr].Wells, strings.Compare)
 				}
 			}
 
