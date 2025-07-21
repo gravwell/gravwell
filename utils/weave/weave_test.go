@@ -21,8 +21,10 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 )
 
+type fauxInt int
+
 type too struct {
-	mu int
+	mu fauxInt
 	yu int16
 }
 
@@ -484,14 +486,14 @@ func TestToTable(t *testing.T) {
 	})
 	t.Run("depth 1, all columns", func(t *testing.T) {
 		actualData := []d0{
-			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
-			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
+			{A: 1, B: 2, c: "c", depth1: d1{one: "ein", Two: "zwei"}},
+			{A: 1, B: 2, c: "c", depth1: d1{one: "ein", Two: "zwei"}},
 		}
 		actual := ToTable(actualData, []string{"A", "B", "c", "depth1.one", "depth1.Two"}, TableOptions{})
 
 		expectedRows := [][]string{
-			{"1", "2", "c", "one", "Two"},
-			{"1", "2", "c", "one", "Two"},
+			{"1", "2", "c", "ein", "zwei"},
+			{"1", "2", "c", "ein", "zwei"},
 		}
 		expectedHeader := []string{"A", "B", "c", "depth1.one", "depth1.Two"}
 		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
