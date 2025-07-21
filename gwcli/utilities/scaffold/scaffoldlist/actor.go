@@ -33,14 +33,11 @@ type ListAction[dataStruct any] struct {
 	fs          *pflag.FlagSet // current flagset, parsed or unparsed
 	outFile     *os.File       // file to output results to (or nil)
 
-	// data shielded from .Reset()
-	DefaultFormat  outputFormat
-	DefaultColumns []string // columns to output if unspecified
-	color          bool     // inferred from the global "--no-color" flag
-
 	// individualized for each use of scaffoldlist
-	options        Options
-	availDSColumns []string                     // dot-qual columns on the data struct
+	defaultColumns []string                     // columns to output if --all and --columns=<> are unspecified
+	defaultFormat  outputFormat                 // output format to use if not specified by the user
+	options        Options                      // modifiers for the list action
+	availDSColumns []string                     // set of all columns, fully-dot-qualified, in the data struct
 	dataFunc       ListDataFunction[dataStruct] // function for fetching data for table/json/csv}
 }
 
@@ -52,9 +49,8 @@ func newListAction[dataStruct_t any](c *cobra.Command, DSColumns []string, dFn L
 		columns: options.DefaultColumns,
 		fs:      nil, // set in SetArgs
 
-		DefaultFormat:  tbl,
-		DefaultColumns: options.DefaultColumns,
-		color:          true,
+		defaultFormat:  tbl,
+		defaultColumns: options.DefaultColumns,
 
 		options:        options,
 		availDSColumns: DSColumns,
@@ -124,7 +120,7 @@ func (la *ListAction[T]) Done() bool {
 // Reset is called when the action is unseated by Mother on exiting handoff mode
 func (la *ListAction[T]) Reset() error {
 	la.done = false
-	la.columns = la.DefaultColumns
+	la.columns = la.defaultColumns
 	la.showColumns = false
 	la.fs = buildFlagSet(la.options.AddtlFlags, la.options.Pretty != nil)
 	if la.outFile != nil {
@@ -160,7 +156,7 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 	}
 
 	// default to... well... the default columns
-	la.columns = la.DefaultColumns
+	la.columns = la.defaultColumns
 
 	// parse column handling
 	// only need to parse columns if user did not pass in --show-columns
@@ -168,7 +164,7 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 		return "", nil, err
 	} else if !la.showColumns {
 		// fetch columns if it exists
-		la.columns, err = getColumns(la.fs, la.DefaultColumns, la.availDSColumns)
+		la.columns, err = getColumns(la.fs, la.defaultColumns, la.availDSColumns)
 		if err != nil {
 			return err.Error(), nil, nil
 		}
