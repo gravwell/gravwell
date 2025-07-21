@@ -10,11 +10,14 @@
 package filegrabber
 
 import (
+	"os"
+
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 )
 
@@ -59,12 +62,42 @@ func (fg FileGrabber) FullHelp() [][]key.Binding {
 // If displayTabPaneSwitch, then help will also display "tab" to switch to the next composed views.
 // If displayShiftTabPaneSwitch, then help will also display "shift tab" to switch to the prior composed view.
 func New(displayTabPaneSwitch, displayShiftTabPaneSwitch bool) FileGrabber {
+	h := FileGrabber{newfp(),
+		help.New(),
+		false,
+		key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "toggle help"),
+		),
+		key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "quit"),
+		),
+		key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next pane")),
+		key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous pane")),
+	}
+	if !displayTabPaneSwitch {
+		h.nextPane = key.NewBinding(key.WithDisabled())
+	}
+	if !displayShiftTabPaneSwitch {
+		h.priorPane = key.NewBinding(key.WithDisabled())
+	}
+	var err error
+	h.CurrentDirectory, err = os.Getwd()
+	if err != nil {
+		clilog.Writer.Warnf("filegrabber failed to get pwd: %v", err)
+		h.CurrentDirectory = "." // allow OS to decide where to drop us
+	}
+	return h
+}
+
+func newfp() filepicker.Model {
 	const (
-		marginBottom  = 5
 		fileSizeWidth = 7
 		paddingLeft   = 2
 	)
 	fp := filepicker.New()
+	fp.AutoHeight = false
 	// replace the default keys and help display
 	fp.KeyMap = filepicker.KeyMap{
 		GoToTop:  key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "first")),
@@ -91,38 +124,25 @@ func New(displayTabPaneSwitch, displayShiftTabPaneSwitch bool) FileGrabber {
 		FileSize:         stylesheet.Cur.PrimaryText.Faint(true).Width(fileSizeWidth).Align(lipgloss.Right),
 		EmptyDirectory:   stylesheet.Cur.DisabledText.PaddingLeft(paddingLeft).SetString("Bummer. No Files Found."),
 	}
-
-	h := FileGrabber{fp,
-		help.New(),
-		false,
-		key.NewBinding(
-			key.WithKeys("?"),
-			key.WithHelp("?", "toggle help"),
-		),
-		key.NewBinding(
-			key.WithKeys("esc"),
-			key.WithHelp("esc", "quit"),
-		),
-		key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "next pane")),
-		key.NewBinding(key.WithKeys("shift+tab"), key.WithHelp("shift+tab", "previous pane")),
-	}
-	if !displayTabPaneSwitch {
-		h.nextPane = key.NewBinding(key.WithDisabled())
-	}
-	if !displayShiftTabPaneSwitch {
-		h.priorPane = key.NewBinding(key.WithDisabled())
-	}
-	return h
+	fp.Cursor = stylesheet.Cur.Pip()
+	return fp
 }
 
 // Update handles ShowHelp key ('?') and passes any other messages to the file picker.
 func (fg FileGrabber) Update(msg tea.Msg) (FileGrabber, tea.Cmd) {
-	// check for show all key
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		if key.Matches(keyMsg, fg.fullHelp) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg: // check for show all key
+		if key.Matches(msg, fg.fullHelp) {
 			fg.help.ShowAll = !fg.help.ShowAll
 			return fg, nil
 		}
+	case tea.WindowSizeMsg: // update maximum widths
+		fg.Styles.File = fg.Styles.File.MaxWidth(msg.Width)
+		fg.Styles.Selected = fg.Styles.Selected.MaxWidth(msg.Width)
+		fg.Styles.Symlink = fg.Styles.Symlink.MaxWidth(msg.Width)
+		fg.Styles.Directory = fg.Styles.Directory.MaxWidth(msg.Width)
+		fg.Styles.DisabledFile = fg.Styles.DisabledFile.MaxWidth(msg.Width)
+		fg.Styles.DisabledSelected = fg.Styles.DisabledSelected.MaxWidth(msg.Width)
 	}
 
 	var cmd tea.Cmd
@@ -139,6 +159,16 @@ func (fg FileGrabber) View() string {
 // ViewHelp displays the help keys and text associated to the file picker.
 func (fg FileGrabber) ViewHelp() string {
 	return fg.help.View(fg)
+}
+
+// Reset destructively reset the filegrabber to its base state, given the values originally fed to it.
+func (fg *FileGrabber) Reset() {
+	// throw away fp and completely reinitialize it
+	// NOTE(rlandau): this is because the filepicker bubble, in all its wisdom, has no way to reset
+	loc := fg.CurrentDirectory
+	fg.Model = newfp()
+	// return to the prior location
+	fg.CurrentDirectory = loc
 }
 
 // Below is relic code for a filegrabber with path jumping capabilities.

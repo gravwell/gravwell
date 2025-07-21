@@ -16,7 +16,6 @@ import (
 	"errors"
 	"fmt"
 	"net/netip"
-	"os"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/spinner"
@@ -45,6 +44,8 @@ const (
 var _ action.Model = Initial()
 
 type ingest struct {
+	boxWidth int // width of the filepicker view, inside of its box
+
 	width       int // current known maximum width of the terminal
 	height      int // current known maximum height of the terminal
 	mode        mode
@@ -59,14 +60,14 @@ type ingest struct {
 
 	spinner spinner.Model
 
-	fp filegrabber.FileGrabber // mildly upgraded filepicker
+	fg filegrabber.FileGrabber // mildly upgraded filepicker
 }
 
 // Initial returns a pointer to a new ingest action.
 // It is ready for use/.SetArgs().
 func Initial() *ingest {
 	i := &ingest{
-		fp:   filegrabber.New(true, false),
+		fg:   filegrabber.New(true, false),
 		mode: picking,
 		ingestResCh: make(chan struct {
 			string
@@ -75,11 +76,10 @@ func Initial() *ingest {
 
 		mod: NewMod(),
 	}
-	i.fp.AutoHeight = false // need to factor in other vertically-stacked elements
-	i.fp.Cursor = stylesheet.Cur.PromptSty.Symbol()
-	i.fp.DirAllowed = false
-	i.fp.FileAllowed = true
-	i.fp.ShowSize = true
+	i.fg.Cursor = stylesheet.Cur.PromptSty.Symbol()
+	i.fg.DirAllowed = false
+	i.fg.FileAllowed = true
+	i.fg.ShowSize = true
 
 	return i
 }
@@ -119,15 +119,43 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 				return textinput.Blink
 			}
 		}
+		// intercept window size messages
+		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
+			if wsMsg.Width == 0 || wsMsg.Height == 0 {
+				// throw it away
+				return nil
+			}
+			i.width = wsMsg.Width
+			// need to save off 3 cells
+			// left border (1) +
+			// right border (1) +
+			// center divider btwn file names and size/permissions (1)
+			inner := wsMsg.Width - 3
+			// left side (pip+permissions+size) and right size (file/dir name) should each be half of the remainder
+			// NOTE(rlandau): this is not used as we can only view a filepicker as a complete unit;
+			// we can not compose the left and right individually until we implement pathbasket.
+
+			i.boxWidth = inner
+
+			i.height = wsMsg.Height
+
+			var cmds = make([]tea.Cmd, 2)
+			// ensure this makes it to both panes
+			i.mod, cmds[0] = i.mod.update(msg)
+			// intercept the widths sent to filegrabber
+			wsMsg.Width = i.boxWidth
+			i.fg, cmds[1] = i.fg.Update(wsMsg)
+			return tea.Batch(cmds...)
+		}
 
 		// pass message to mod view or fp, depending on focus
 		var cmd tea.Cmd
 		if i.mod.focused {
 			i.mod, cmd = i.mod.update(msg)
 		} else {
-			i.fp, cmd = i.fp.Update(msg)
+			i.fg, cmd = i.fg.Update(msg)
 			// check for file selection (and thus, attempt ingestion)
-			if didSelect, path := i.fp.DidSelectFile(msg); didSelect {
+			if didSelect, path := i.fg.DidSelectFile(msg); didSelect {
 				// validate selections and modifiers prior to ingestion
 				if path == "" {
 					i.err = errEmptyPath
@@ -144,12 +172,14 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 				}
 
 				tag := strings.TrimSpace(i.mod.tagTI.Value())
-				if tag == "" {
-					i.err = errors.New("tag is required")
-					return cmd
-				}
-				if err := validateTag(tag); err != nil {
-					i.err = err
+				var err error
+				tag, err = determineTag(path, tag, "")
+				if err != nil {
+					if errors.Is(err, errNoTagSpecified) {
+						i.err = errors.New("a tag must be specified for this file")
+					} else {
+						i.err = err
+					}
 					return cmd
 				}
 
@@ -174,17 +204,11 @@ func (i *ingest) Update(msg tea.Msg) tea.Cmd {
 
 			// Did the user select a disabled file?
 			// This is only necessary to display an error to the user.
-			if didSelect, path := i.fp.DidSelectDisabledFile(msg); didSelect {
+			if didSelect, path := i.fg.DidSelectDisabledFile(msg); didSelect {
 				// Let's clear the selectedFile and display an error.
 				i.err = errors.New(path + " is not a valid file for ingestion")
 				return nil
 			}
-		}
-
-		// with all updates made, update sizes (if applicable)
-		if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
-			i.width = wsMsg.Width
-			i.height = wsMsg.Height
 		}
 
 		return cmd
@@ -210,30 +234,35 @@ func (i *ingest) View() string {
 //#region view helpers
 
 func (i *ingest) breadcrumbsView() string {
-	return stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(i.fp.CurrentDirectory)
+	availWidth := i.width - (stylesheet.Cur.ComposableSty.ComplimentaryBorder.GetHorizontalMargins() +
+		stylesheet.Cur.ComposableSty.ComplimentaryBorder.GetHorizontalPadding() +
+		2) // ensure we have at least a cell on either side
+	path := i.fg.CurrentDirectory
+	if availWidth < 0 {
+		return path
+	}
+	// determine if we need to truncate
+	if overflowing := len(path) - availWidth; overflowing > 0 {
+		path = path[overflowing:] // left trim the overflow
+	}
+
+	return stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(path)
 }
 
 func (i *ingest) pickerView() string {
-	// generate the margins to ensure border stays stable during usage
-	// split the width 3 ways
-	usableWidth := i.width - 4
-	leftMargin := (usableWidth / 4) + 5
-	centerWidth := (usableWidth / 2)
-	rightMargin := (usableWidth / 5)
-	sty := lipgloss.NewStyle().
-		MarginLeft(leftMargin).
-		MarginRight(rightMargin).Width(centerWidth)
+	// NOTE(rlandau): Width > maxWidth is a hacky way to ensure file names are truncated, not wrapped.
+	sty := lipgloss.NewStyle().MaxWidth(i.boxWidth).Width(i.boxWidth + 100)
 
 	// figure out how much height everything else needs
-	breadcrumbHeight := lipgloss.Height(stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(i.fp.CurrentDirectory))
+	breadcrumbHeight := lipgloss.Height(stylesheet.Cur.ComposableSty.ComplimentaryBorder.Render(i.fg.CurrentDirectory))
 	modHeight := lipgloss.Height(i.mod.view(i.width))
 	errHelpHeight := lipgloss.Height(i.errHelpView())
 	buffer := 5
 
 	newHeight := i.height - (breadcrumbHeight + modHeight + errHelpHeight + buffer)
-	i.fp.SetHeight(min(newHeight, maxPickerHeight))
+	i.fg.SetHeight(min(newHeight, maxPickerHeight))
 
-	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fp.View()), sty.Render(i.errHelpView()))
+	var s = lipgloss.JoinVertical(lipgloss.Center, sty.Render(i.fg.View()), sty.Render(i.errHelpView()))
 	if i.mod.focused {
 		return stylesheet.Cur.ComposableSty.UnfocusedBorder.
 			AlignHorizontal(lipgloss.Center).Render(s)
@@ -247,7 +276,7 @@ func (i *ingest) errHelpView() string {
 	if i.err != nil {
 		return stylesheet.Cur.ErrorText.Render(i.err.Error())
 	} else {
-		return i.fp.ViewHelp() // display help keys for submission and changing focus
+		return i.fg.ViewHelp() // display help keys for submission and changing focus
 	}
 }
 
@@ -262,6 +291,8 @@ func (i *ingest) Reset() error {
 	i.err = nil
 
 	i.mod = i.mod.reset()
+
+	i.fg.Reset()
 
 	return nil
 }
@@ -306,15 +337,9 @@ func (i *ingest) SetArgs(fs *pflag.FlagSet, tokens []string) (string, tea.Cmd, e
 	i.mod.tagTI.SetValue(flags.defaultTag)
 	i.mod.srcTI.SetValue(flags.src)
 
-	if flags.dir == "" {
-		i.fp.CurrentDirectory, err = os.Getwd()
-		if err != nil {
-			clilog.Writer.Warnf("failed to get pwd: %v", err)
-			i.fp.CurrentDirectory = "." // allow OS to decide where to drop us
-		}
-	} else {
-		i.fp.CurrentDirectory = flags.dir
+	if flags.dir != "" {
+		i.fg.CurrentDirectory = flags.dir
 	}
 
-	return "", i.fp.Init(), nil
+	return "", i.fg.Init(), nil
 }
