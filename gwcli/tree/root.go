@@ -36,7 +36,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/status"
+	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/tree"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/user"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -235,7 +235,7 @@ func Execute(args []string) int {
 		extractors.NewExtractorsNav,
 		dashboards.NewDashboardNav,
 		resources.NewResourcesNav,
-		status.NewStatusNav,
+		systemshealth.NewSystemsNav,
 	}
 
 	var (

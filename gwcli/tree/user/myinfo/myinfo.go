@@ -37,8 +37,8 @@ var aliases []string = []string{}
 func NewUserMyInfoAction() action.Pair {
 
 	return scaffold.NewBasicAction(use, short, long, aliases,
-		func(_ *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
-			if asCSV, err := fs.GetBool(ft.Name.CSV); err != nil {
+		func(c *cobra.Command) (string, tea.Cmd) {
+			if asCSV, err := c.Flags().GetBool(ft.Name.CSV); err != nil {
 				s := fmt.Sprintf("Failed to fetch csv flag: %v", err)
 				clilog.Writer.Error(s)
 				return s, nil
@@ -55,7 +55,7 @@ func NewUserMyInfoAction() action.Pair {
 					"Groups",
 					"Hash",
 					"Synced",
-					"CBAC"}), nil
+					"CBAC"}, weave.CSVOptions{}), nil
 			}
 
 			inf := connection.CurrentUser()

@@ -21,8 +21,10 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 )
 
+type fauxInt int
+
 type too struct {
-	mu int
+	mu fauxInt
 	yu int16
 }
 
@@ -46,6 +48,7 @@ func TestToCSV(t *testing.T) {
 	type args struct {
 		st      []interface{}
 		columns []string
+		options CSVOptions
 	}
 
 	var c float32 = 5.0123
@@ -196,7 +199,59 @@ func TestToCSV(t *testing.T) {
 				"5.0123,FOO,3.145,D,10,0\n" +
 				"5.0123,FOO,3.145,D!,10,0",
 		},
-		{"∃c2r, non-existant column 'missing' and 'foobar'",
+		{"∀c5r, ordered randomly, aliased",
+			args{
+				st: []interface{}{
+					outer{
+						inner:    inner{foo: "FOO"},
+						a:        10,
+						b:        0,
+						c:        &c,
+						d:        "D",
+						Exported: 3.145},
+					outer{
+						inner:    inner{foo: "FOO"},
+						a:        57,
+						b:        0,
+						c:        &c,
+						d:        "D",
+						Exported: 3.145},
+					outer{
+						inner:    inner{foo: "FOO"},
+						a:        10,
+						b:        256,
+						c:        &c,
+						d:        "D",
+						Exported: 3.145},
+					outer{
+						inner:    inner{foo: "FOO"},
+						a:        10,
+						b:        0,
+						c:        &c,
+						d:        "D",
+						Exported: 3.145},
+					outer{
+						inner:    inner{foo: "FOO"},
+						a:        10,
+						b:        0,
+						c:        &c,
+						d:        "D!",
+						Exported: 3.145}},
+				columns: []string{
+					"c", "foo", "Exported", "d", "a", "b",
+				},
+				options: CSVOptions{
+					Aliases: map[string]string{"Exported": "exp", "b": "Beetsies"},
+				},
+			},
+			"c,foo,exp,d,a,Beetsies\n" +
+				"5.0123,FOO,3.145,D,10,0\n" +
+				"5.0123,FOO,3.145,D,57,0\n" +
+				"5.0123,FOO,3.145,D,10,256\n" +
+				"5.0123,FOO,3.145,D,10,0\n" +
+				"5.0123,FOO,3.145,D!,10,0",
+		},
+		{"∃c2r, non-existent column 'missing' and 'foobar'",
 			args{
 				st: []interface{}{
 					outer{
@@ -244,10 +299,18 @@ func TestToCSV(t *testing.T) {
 				columns: []string{"c", "foo", "Exported", "missing", "d", "a", "b", "foobar"}},
 			"",
 		},
+		{"superfluous, no data, unmatched aliases",
+			args{
+				st:      []interface{}{},
+				columns: []string{"c", "foo", "Exported", "missing", "d", "a", "b", "foobar"},
+				options: CSVOptions{Aliases: map[string]string{"Exported": "exp"}},
+			},
+			"",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := ToCSV(tt.args.st, tt.args.columns); got != tt.want {
+			if got := ToCSV(tt.args.st, tt.args.columns, tt.args.options); got != tt.want {
 				t.Errorf("\n---ToCSVHash()---\n'%v'\n---want---\n'%v'", got, tt.want)
 			}
 		})
@@ -256,7 +319,7 @@ func TestToCSV(t *testing.T) {
 	t.Run("not a struct", func(t *testing.T) {
 		m := map[int]float32{}
 
-		if got := ToCSV([]map[int]float32{m}, []string{"some", "column", "names"}); got != "" {
+		if got := ToCSV([]map[int]float32{m}, []string{"some", "column", "names"}, CSVOptions{}); got != "" {
 			t.Errorf("expected the empty string, got %v", got)
 		}
 	})
@@ -300,7 +363,7 @@ func TestToCSV(t *testing.T) {
 			)
 		}
 
-		actual := ToCSV(data, []string{"n", "in", "iin", "iiin"})
+		actual := ToCSV(data, []string{"n", "in", "iin", "iiin"}, CSVOptions{})
 		expected := strings.TrimSpace(expectedBldr.String()) // chomp newline
 		if actual != expected {
 			// count newlines in parallel
@@ -347,7 +410,7 @@ func TestToCSV(t *testing.T) {
 		want := "a,ptr\n" +
 			"1,5"
 
-		actual := ToCSV([]ptrstruct{st}, []string{"a", "ptr"})
+		actual := ToCSV([]ptrstruct{st}, []string{"a", "ptr"}, CSVOptions{})
 
 		if actual != want {
 			t.Errorf("\n---ToCSVHash()---\n'%v'\n---want---\n'%v'", actual, want)
@@ -373,7 +436,7 @@ func TestToCSV(t *testing.T) {
 		inptrVal := -9
 		ptrStructVal := ptrstruct{a: 0, b: "B"}
 		v := outer{z: 10, inner: inner{inptr: &inptrVal, p: &ptrStructVal}}
-		actual := ToCSV([]outer{v}, []string{"z", "inptr", "p", "a", "b"})
+		actual := ToCSV([]outer{v}, []string{"z", "inptr", "p", "a", "b"}, CSVOptions{})
 		expected := "z,inptr,p,a,b\n" +
 			"10,-9,{0 B},,"
 		if actual != expected {
@@ -384,7 +447,7 @@ func TestToCSV(t *testing.T) {
 
 func TestToTable(t *testing.T) {
 	t.Run("superfluous", func(t *testing.T) {
-		actual := ToTable[any](nil, []string{"A", "B", "c"})
+		actual := ToTable[any](nil, []string{"A", "B", "c"}, TableOptions{})
 
 		if actual != "" {
 			t.Errorf("string mismatch.\nactual%s\nexpected the empty string", actual)
@@ -414,26 +477,26 @@ func TestToTable(t *testing.T) {
 		}
 		expectedHeader := []string{"A", "B", "c"}
 
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
-		actual := ToTable(actualData, []string{"A", "B", "c"})
+		actual := ToTable(actualData, []string{"A", "B", "c"}, TableOptions{})
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual%s\nexpected%s", actual, expected)
 		}
 	})
 	t.Run("depth 1, all columns", func(t *testing.T) {
 		actualData := []d0{
-			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
-			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
+			{A: 1, B: 2, c: "c", depth1: d1{one: "ein", Two: "zwei"}},
+			{A: 1, B: 2, c: "c", depth1: d1{one: "ein", Two: "zwei"}},
 		}
-		actual := ToTable(actualData, []string{"A", "B", "c", "depth1.one", "depth1.Two"})
+		actual := ToTable(actualData, []string{"A", "B", "c", "depth1.one", "depth1.Two"}, TableOptions{})
 
 		expectedRows := [][]string{
-			{"1", "2", "c", "one", "Two"},
-			{"1", "2", "c", "one", "Two"},
+			{"1", "2", "c", "ein", "zwei"},
+			{"1", "2", "c", "ein", "zwei"},
 		}
 		expectedHeader := []string{"A", "B", "c", "depth1.one", "depth1.Two"}
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -444,14 +507,14 @@ func TestToTable(t *testing.T) {
 			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
 			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
 		}
-		actual := ToTable(actualData, []string{"A", "depth1.one", "depth1.Two"})
+		actual := ToTable(actualData, []string{"A", "depth1.one", "depth1.Two"}, TableOptions{})
 
 		expectedRows := [][]string{
 			{"1", "one", "Two"},
 			{"1", "one", "Two"},
 		}
 		expectedHeader := []string{"A", "depth1.one", "depth1.Two"}
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -462,14 +525,36 @@ func TestToTable(t *testing.T) {
 			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
 			{A: 3, B: 4, c: "c2", depth1: d1{one: "one2", Two: "Two2"}},
 		}
-		actual := ToTable(actualData, []string{"A", "depth1.one", "depth1.Two"})
+		actual := ToTable(actualData, []string{"A", "depth1.one", "depth1.Two"}, TableOptions{})
 
 		expectedRows := [][]string{
 			{"1", "one", "Two"},
 			{"3", "one2", "Two2"},
 		}
 		expectedHeader := []string{"A", "depth1.one", "depth1.Two"}
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
+
+		if actual != expected {
+			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
+		}
+	})
+	t.Run("with column aliases", func(t *testing.T) {
+		actualData := []d0{
+			{A: 1, B: 2, c: "c", depth1: d1{one: "one", Two: "Two"}},
+			{A: 3, B: 4, c: "c2", depth1: d1{one: "one2", Two: "Two2"}},
+		}
+		actual := ToTable(actualData, []string{"A", "depth1.one", "depth1.Two"},
+			TableOptions{
+				Aliases: map[string]string{"A": "a", "depth1.Two": "d1Two"},
+			},
+		)
+
+		expectedRows := [][]string{
+			{"1", "one", "Two"},
+			{"3", "one2", "Two2"},
+		}
+		expectedHeader := []string{"a", "depth1.one", "d1Two"}
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -499,14 +584,14 @@ func TestToTable(t *testing.T) {
 			{A: &A, B: 2, c: &c},
 			{A: &A, B: 2, c: &c},
 		}
-		actual := ToTable(actualData, []string{"A", "B", "c"})
+		actual := ToTable(actualData, []string{"A", "B", "c"}, TableOptions{})
 
 		expectedRows := [][]string{
 			{"1", "2", "c"},
 			{"1", "2", "c"},
 		}
 		expectedHeader := []string{"A", "B", "c"}
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -523,14 +608,14 @@ func TestToTable(t *testing.T) {
 			{A: &A, B: 2, c: &c, D: "D", depth1p: &depth1p},
 			{A: &A, B: 2, c: &c, D: "D", depth1p: &depth1p},
 		}
-		actual := ToTable(actualData, []string{"A", "B", "c", "D", "depth1p.Alpha", "depth1p.beta", "depth1p.one"})
+		actual := ToTable(actualData, []string{"A", "B", "c", "D", "depth1p.Alpha", "depth1p.beta", "depth1p.one"}, TableOptions{})
 
 		expectedRows := [][]string{
 			{"1", "2", "c", "D", "3.14", "6.28", "one"},
 			{"1", "2", "c", "D", "3.14", "6.28", "one"},
 		}
 		expectedHeader := []string{"A", "B", "c", "D", "depth1p.Alpha", "depth1p.beta", "depth1p.one"}
-		expected := DefaultTblStyle().Headers(expectedHeader...).Rows(expectedRows...).Render()
+		expected := table.New().Headers(expectedHeader...).Rows(expectedRows...).Render()
 
 		if actual != expected {
 			t.Errorf("string mismatch.\nactual\n%s\nexpected\n%s", actual, expected)
@@ -555,7 +640,7 @@ func TestToTable(t *testing.T) {
 		}
 		actual := ToTable(actualData,
 			[]string{"A", "B", "c", "D", "depth1p.Alpha", "depth1p.beta", "depth1p.one"},
-			styleFunc)
+			TableOptions{Base: styleFunc})
 
 		expectedRows := [][]string{
 			{"1", "2", "c", "D", "3.14", "6.28", "one"},
@@ -574,11 +659,11 @@ func TestToJSON(t *testing.T) {
 	t.Run("superfluous", func(t *testing.T) {
 		var err error
 		var a1, a2 string
-		a1, err = ToJSON[any](nil, []string{"A", "B", "c"})
+		a1, err = ToJSON[any](nil, []string{"A", "B", "c"}, JSONOptions{})
 		if err != nil {
 			t.Error("Expected no error, got: ", err)
 		}
-		a2, err = ToJSON[any]([]interface{}{}, nil)
+		a2, err = ToJSON[any]([]interface{}{}, nil, JSONOptions{})
 		if err != nil {
 			t.Error("Expected no error, got: ", err)
 		}
@@ -598,7 +683,7 @@ func TestToJSON(t *testing.T) {
 			{A: 1, b: -2, C: "C string"},
 		}
 
-		actual, err := ToJSON(data, []string{"A", "C"})
+		actual, err := ToJSON(data, []string{"A", "C"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -630,7 +715,7 @@ func TestToJSON(t *testing.T) {
 			{A: &A, b: &b, C: &C},
 		}
 
-		actual, err := ToJSON(data, []string{"A", "C"})
+		actual, err := ToJSON(data, []string{"A", "C"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -676,7 +761,7 @@ func TestToJSON(t *testing.T) {
 		}
 
 		actual, err := ToJSON(data, []string{"A", "B", "C",
-			"D", "E", "F", "G", "H"})
+			"D", "E", "F", "G", "H"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -707,7 +792,7 @@ func TestToJSON(t *testing.T) {
 			{A: &A, B: B},
 		}
 
-		actual, err := ToJSON(data, []string{"A", "B"})
+		actual, err := ToJSON(data, []string{"A", "B"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -742,7 +827,7 @@ func TestToJSON(t *testing.T) {
 			{A: A, B: &B},
 		}
 
-		actual, err := ToJSON(data, []string{"A", "B"})
+		actual, err := ToJSON(data, []string{"A", "B"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -780,7 +865,7 @@ func TestToJSON(t *testing.T) {
 			{A: A, B: &B, c: "face"},
 		}
 
-		actual, err := ToJSON(data, []string{"A", "B"})
+		actual, err := ToJSON(data, []string{"A", "B"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -800,7 +885,7 @@ func TestToJSON(t *testing.T) {
 			t.Errorf("want <> actual:\nwant: '%v'\nactual: '%v'\n", "", actual)
 		}
 	})
-	t.Run("depth 0 unexported panic", func(t *testing.T) {
+	t.Run("depth 0 unexported", func(t *testing.T) {
 		type d0 struct {
 			A int
 			B *uint
@@ -810,12 +895,11 @@ func TestToJSON(t *testing.T) {
 		data := []d0{
 			{A: A, B: &B, c: "Linux or death"},
 		}
-
-		defer func() {
-			recover()
-		}()
-		ToJSON(data, []string{"A", "B", "c"})
-		t.Error("ToJSON should have panicked due to unexported value")
+		if j, err := ToJSON(data, []string{"A", "B", "c"}, JSONOptions{}); err != nil {
+			t.Fatal(err)
+		} else if j != `[{"A":-5,"B":1,"c":"Linux or death"}]` {
+			t.Errorf("want <> actual:\nwant: '%v'\nactual: '%v'\n", "", j)
+		}
 	})
 	t.Run("depth 1 simple", func(t *testing.T) {
 		type d1 struct {
@@ -835,7 +919,7 @@ func TestToJSON(t *testing.T) {
 			{A0: &A0, B0: B0, Depth1: d1{A1: A1, B1: &B1}},
 		}
 
-		actual, err := ToJSON(data, []string{"A0", "B0", "Depth1.A1", "Depth1.B1"})
+		actual, err := ToJSON(data, []string{"A0", "B0", "Depth1.A1", "Depth1.B1"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -903,7 +987,7 @@ func TestToJSON(t *testing.T) {
 		actual, err := ToJSON(data, []string{"A0",
 			"Depth1.A1",
 			"Depth1.Depth2.A2", "Depth1.Depth2.B2",
-			"Depth1.Depth2.Depth3.A", "Depth1.Depth2.Depth3.B", "Depth1.Depth2.Depth3.C", "Depth1.Depth2.Depth3.D"})
+			"Depth1.Depth2.Depth3.A", "Depth1.Depth2.Depth3.B", "Depth1.Depth2.Depth3.C", "Depth1.Depth2.Depth3.D"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -946,7 +1030,7 @@ func TestToJSON(t *testing.T) {
 			{A0: &A0, B0: B0, d1: d1{C1: C1, D1: &D1}},
 		}
 
-		actual, err := ToJSON(data, []string{"A0", "B0", "C1", "D1"})
+		actual, err := ToJSON(data, []string{"A0", "B0", "C1", "D1"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -984,7 +1068,7 @@ func TestToJSON(t *testing.T) {
 			{A0: &A0, B0: B0, d1: d1{C1: C1, D1: &D1}},
 		}
 
-		actual, err := ToJSON(data, []string{"C1", "D1", "B0", "A0"})
+		actual, err := ToJSON(data, []string{"C1", "D1", "B0", "A0"}, JSONOptions{})
 		if err != nil {
 			panic(err)
 		}
@@ -1001,6 +1085,104 @@ func TestToJSON(t *testing.T) {
 		want += "]"
 
 		if string(want) != actual {
+			t.Errorf("want <> actual:\nwant: '%v'\nactual: '%v'\n", string(want), actual)
+		}
+	})
+	t.Run("depth 1 embedding w/ disordered columns and aliases", func(t *testing.T) {
+		type d1 struct {
+			C1 int
+			D1 *float64
+		}
+		type d0 struct {
+			A0 *string
+			B0 float32
+			d1
+		}
+		var A0 = "Go drink some water"
+		var B0 float32 = 12.8
+		var C1 = 5
+		var D1 = 3.14
+		data := []d0{
+			{A0: &A0, B0: B0, d1: d1{C1: C1, D1: &D1}},
+		}
+
+		actual, err := ToJSON(data, []string{"C1", "D1", "B0", "A0"},
+			JSONOptions{Aliases: map[string]string{"D1": "delamain", "A0": "water_reminder", "fakecolumn": "does not matter"}})
+		if err != nil {
+			panic(err)
+		}
+
+		want := `[{"B0":12.8,"C1":5,"delamain":3.14,"water_reminder":"Go drink some water"}]`
+
+		if want != actual {
+			t.Errorf("want <> actual:\nwant: '%v'\nactual: '%v'\n", string(want), actual)
+		}
+	})
+
+	// NOTE: this test must be crafted carefully because ToJSON and
+	// encoding/json do not use the same sorting method.
+	//
+	// encoding/json sorts by struct order
+	// ToJSON (via gabs) sorts alphabetically
+	t.Run("r30 deep ints with aliases", func(t *testing.T) {
+		const iterations = 30
+		type d3 struct {
+			A uint8
+			B uint16
+			C uint32
+			D *uint64
+		}
+		type d2 struct {
+			A2     *int64
+			B2     int32
+			Depth3 d3
+		}
+		type d1 struct {
+			A1     int16
+			Depth2 *d2
+		}
+		type d0 struct {
+			A0     int8
+			Depth1 d1
+		}
+		var (
+			d3A  uint8  = math.MaxUint8
+			d3B  uint16 = math.MaxUint16
+			d3C  uint32 = math.MaxUint32
+			d3D  uint64 = math.MaxUint64
+			d2A2 int64  = math.MaxInt64
+			d2B2 int32  = math.MaxInt32
+			d1A1 int16  = math.MaxInt16
+			d0A0 int8   = math.MaxInt8
+		)
+
+		data := make([]d0, iterations)
+		for i := range iterations {
+			data[i] = d0{A0: d0A0,
+				Depth1: d1{A1: d1A1,
+					Depth2: &d2{A2: &d2A2, B2: d2B2,
+						Depth3: d3{A: d3A, B: d3B, C: d3C, D: &d3D}}}}
+		}
+
+		actual, err := ToJSON(data, []string{
+			"A0",
+			"Depth1.A1",
+			"Depth1.Depth2.A2", "Depth1.Depth2.B2",
+			"Depth1.Depth2.Depth3.A", "Depth1.Depth2.Depth3.B", "Depth1.Depth2.Depth3.C", "Depth1.Depth2.Depth3.D"},
+			JSONOptions{Aliases: map[string]string{"A0": "arms_akimbo",
+				"Depth1.A1":              "glass_animals",
+				"Depth1.Depth2.A2":       "red_hot_chili_peppers",
+				"Depth1.Depth2.B2":       "ab.abhi_the_nomad",
+				"Depth1.Depth2.Depth3.A": "lex_leosis",
+				"Depth1.Depth2.Depth3.B": "diveliner",
+				"Depth1.Depth2.Depth3.C": "aries",
+				"Depth1.Depth2.Depth3.D": "hippo_campus"}})
+		if err != nil {
+			panic(err)
+		}
+
+		want := `[{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807},{"ab":{"abhi_the_nomad":2147483647},"aries":4294967295,"arms_akimbo":127,"diveliner":65535,"glass_animals":32767,"hippo_campus":18446744073709551615,"lex_leosis":255,"red_hot_chili_peppers":9223372036854775807}]`
+		if want != actual {
 			t.Errorf("want <> actual:\nwant: '%v'\nactual: '%v'\n", string(want), actual)
 		}
 	})
