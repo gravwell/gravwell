@@ -18,7 +18,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 )
@@ -194,4 +196,127 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 	}
 }
 
-// TODO test runNonInteractive
+func TestNonInteractive(t *testing.T) {
+	type cat struct {
+		name      string
+		color     string
+		furLength string
+		note      string
+	}
+
+	// just some random UUIDs paired to garbage values
+	var items = map[uuid.UUID]*cat{
+		uuid.MustParse("eb8b5cb2-7cb6-4586-a2d6-665e662ad976"): {name: "Bee", color: "tortie"},
+		uuid.MustParse("eb8b5cb2-7cb6-4586-a2d6-8f3308fafb52"): {name: "Coco", note: "adventure buddy"},
+		uuid.MustParse("65d7e5a3-9be4-43e0-9fce-887052753661"): {name: "Mozzie", note: "little grey girl"},
+	}
+
+	pair := NewEditAction("cat", "cats", Config{
+		"fur color": &Field{
+			Required: true,
+			Title:    "Fur Color",
+			Usage:    "set the fur color of your feline",
+			Order:    80,
+			CustomTIFuncInit: func() textinput.Model {
+				m := textinput.New()
+				m.EchoCharacter = '^'
+				m.Width = 50
+				return m
+			},
+		},
+		"fur length": &Field{
+			Required: false,
+			Title:    "Fur Length",
+			Usage:    "set the fur length of your feline (hairless, short, medium, long)",
+			Order:    100,
+		},
+		"note": &Field{
+			Required: false,
+			Title:    "note",
+			Usage:    "add a note to the kitty description",
+			Order:    20,
+		},
+	}, SubroutineSet[uuid.UUID, *cat]{
+		SelectSub: func(id uuid.UUID) (item *cat, err error) {
+			itm, found := items[id]
+			if !found {
+				return &cat{}, ErrUnknownID(id)
+			}
+			return itm, nil
+		},
+		FetchSub: func() (items []*cat, err error) {
+			return items, nil
+		},
+		GetFieldSub: func(i *cat, fieldKey string) (value string, err error) {
+			fieldKey = strings.ToLower(fieldKey)
+			switch fieldKey {
+			case "title":
+				return i.name, nil
+			case "fur color":
+				return i.color, nil
+			case "fur length":
+				return i.furLength, nil
+			case "note":
+				return i.note, nil
+			}
+			return "", ErrUnknownField(fieldKey)
+		},
+		SetFieldSub: func(i **cat, fieldKey, val string) (invalid string, err error) {
+			if val == "" {
+				return "cannot set an empty value", nil
+			}
+			fieldKey = strings.ToLower(fieldKey)
+			switch fieldKey {
+			case "title":
+				(*i).name = val
+			case "fur color":
+				(*i).color = val
+			case "fur length":
+				(*i).furLength = val
+			case "note":
+				(*i).note = val
+			default:
+				return "", ErrUnknownField(fieldKey)
+			}
+			return "", nil
+		},
+		GetTitleSub: func(i *cat) string {
+			return i.name
+		},
+		GetDescriptionSub: func(i *cat) string {
+			return "some description"
+		},
+		UpdateSub: func(data **cat) (identifier string, err error) {
+			// nothing to be done in testing
+			return (*data).name, nil
+		},
+	})
+
+	// bolt on script flag
+	pair.Action.Flags().Bool("script", false, "???")
+	// capture output
+	var (
+		sbOut strings.Builder
+		sbErr strings.Builder
+	)
+	pair.Action.SetOut(&sbOut)
+	pair.Action.SetErr(&sbErr)
+	pair.Action.SetArgs([]string{"--script", "--id=eb8b5cb2-7cb6-4586-a2d6-665e662ad976", "--note=\"baby girl\""})
+	if err := pair.Action.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	// check outputs
+	//out := strings.TrimSpace(sbOut.String())
+	outErr := strings.TrimSpace(sbErr.String())
+	if outErr != "" {
+		t.Fatal(outErr)
+	}
+	// check that the map was actually updated
+	if items[uuid.MustParse("eb8b5cb2-7cb6-4586-a2d6-665e662ad976")].note == "" {
+		t.Fatal("expected a note to be set on Bee")
+	}
+	if items[uuid.MustParse("65d7e5a3-9be4-43e0-9fce-887052753661")].color != "" {
+		t.Fatal("did not expect a color to be set on Mozzie")
+	}
+
+}
