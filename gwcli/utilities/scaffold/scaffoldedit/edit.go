@@ -70,10 +70,8 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"golang.org/x/exp/constraints"
 )
 
 const (
@@ -81,17 +79,11 @@ const (
 	successStringF = "Successfully updated %v %v"
 )
 
-// id_t defines the acceptable types for generic I, the item identifier.
-// It can be expanded to support strings if need be.
-type id_t interface {
-	constraints.Integer | uuid.UUID
-}
-
 // NewEditAction composes a usable edit action, returning its action pair.
 // The parameters, specifically funcs, do most of the heavy lifting; this just bolts on necessities to make the new action work in Mother and via a script.
 // This is the function that implementations/implementors should call as their action implementation.
 // This function panics if any parameters are missing.
-func NewEditAction[I id_t, S any](singular, plural string, cfg Config, funcs SubroutineSet[I, S]) action.Pair {
+func NewEditAction[I scaffold.Id_t, S any](singular, plural string, cfg Config, funcs SubroutineSet[I, S]) action.Pair {
 	funcs.guarantee() // check that all functions are given
 	if len(cfg) < 1 { // check that config has fields in it
 		panic("cannot edit with no fields defined")
@@ -158,7 +150,7 @@ func generateFlagSet(cfg Config, singular string) pflag.FlagSet {
 // runNonInteractive is the --script portion of edit's runFunc.
 // It requires --id be set and is ineffectual if no other flags were given.
 // Prints and error handles on its own; the program is expected to exit on its completion.
-func runNonInteractive[I id_t, S any](cmd *cobra.Command, cfg Config, funcs SubroutineSet[I, S], singular string) {
+func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, funcs SubroutineSet[I, S], singular string) {
 	var err error
 	var (
 		id   I
@@ -176,7 +168,7 @@ func runNonInteractive[I id_t, S any](cmd *cobra.Command, cfg Config, funcs Subr
 		}
 	}
 	if id == zero { // id was not given
-		fmt.Fprintln(cmd.OutOrStdout(), "--id is required in script mode")
+		fmt.Fprintln(cmd.OutOrStdout(), "--"+ft.Name.ID+" is required in script mode")
 		return
 	}
 
@@ -256,7 +248,7 @@ const (
 	idle                  // inactive
 )
 
-type editModel[I id_t, S any] struct {
+type editModel[I scaffold.Id_t, S any] struct {
 	mode             mode                // current program state
 	fs               pflag.FlagSet       // current state of the flagset
 	singular, plural string              // forms of the noun
@@ -276,7 +268,7 @@ type editModel[I id_t, S any] struct {
 }
 
 // Creates and returns a new edit model, ready for interactive use.
-func newEditModel[I id_t, S any](cfg Config, singular, plural string,
+func newEditModel[I scaffold.Id_t, S any](cfg Config, singular, plural string,
 	funcs SubroutineSet[I, S], initialFS pflag.FlagSet) *editModel[I, S] {
 	em := &editModel[I, S]{
 		mode:     idle,
