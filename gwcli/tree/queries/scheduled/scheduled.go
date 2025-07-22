@@ -27,7 +27,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 
-	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
@@ -59,8 +58,32 @@ var (
 )
 
 func newScheduledQryListAction() action.Pair {
-	return scaffoldlist.NewListAction("", short, long, defaultColumns,
-		types.ScheduledSearch{}, listScheduledSearch, flags)
+	return scaffoldlist.NewListAction(short, long,
+		types.ScheduledSearch{}, listScheduledSearch,
+		scaffoldlist.Options{
+			AddtlFlags: flags,
+			ExcludeColumnsFromDefault: []string{
+				"DebugEvent.Type",
+				"DebugEvent.Metadata.UID",
+				"DebugEvent.Metadata.Username",
+				"DebugEvent.Metadata.AlertID",
+				"DebugEvent.Metadata.AlertName",
+				"DebugEvent.Metadata.AlertActivation",
+				"DebugEvent.Metadata.EventIndex",
+				"DebugEvent.Metadata.TargetTag",
+				"DebugEvent.Metadata.AlertLabels",
+				"DebugEvent.Metadata.Dispatcher.Type",
+				"DebugEvent.Metadata.Dispatcher.ID",
+				"DebugEvent.Metadata.Dispatcher.Name",
+				"DebugEvent.Metadata.Dispatcher.SearchID",
+				"DebugEvent.Metadata.Dispatcher.Labels",
+				"DebugEvent.Metadata.Dispatcher.EventCount",
+				"DebugEvent.Metadata.Dispatcher.EventsElided",
+				"DebugEvent.Metadata.Consumers",
+				"DebugEvent.Metadata.UserMetadata",
+				"DebugEvent.Metadata.ValidationProblems",
+				"DebugEvent.Contents"},
+		})
 }
 
 func flags() pflag.FlagSet {
@@ -73,23 +96,23 @@ func flags() pflag.FlagSet {
 	return addtlFlags
 }
 
-func listScheduledSearch(c *grav.Client, fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {
+func listScheduledSearch(fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {
 	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
-		clilog.LogFlagFailedGet(ft.Name.ListAll, err)
+		uniques.ErrGetFlag("scheduled list", err)
 	} else if all {
-		return c.GetAllScheduledSearches()
+		return connection.Client.GetAllScheduledSearches()
 	}
 	if untypedID, err := fs.GetString(ft.Name.ListAll); err != nil {
-		clilog.LogFlagFailedGet(ft.Name.ListAll, err)
+		uniques.ErrGetFlag("scheduled list", err)
 	} else if untypedID != "" {
 		// attempt to parse as UUID first
 		if uuid, err := uuid.Parse(untypedID); err == nil {
-			ss, err := c.GetScheduledSearch(uuid)
+			ss, err := connection.Client.GetScheduledSearch(uuid)
 			return []types.ScheduledSearch{ss}, err
 		}
 		// now try as int32
 		if i32id, err := strconv.Atoi(untypedID); err == nil {
-			ss, err := c.GetScheduledSearch(i32id)
+			ss, err := connection.Client.GetScheduledSearch(i32id)
 			return []types.ScheduledSearch{ss}, err
 		}
 
@@ -99,7 +122,7 @@ func listScheduledSearch(c *grav.Client, fs *pflag.FlagSet) ([]types.ScheduledSe
 
 		return nil, errors.New(errString)
 	}
-	return c.GetScheduledSearchList()
+	return connection.Client.GetScheduledSearchList()
 }
 
 //#endregion list

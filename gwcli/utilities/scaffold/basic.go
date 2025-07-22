@@ -15,7 +15,7 @@ A basic action is the simplest action: it does its thing and returns a string to
 Give it the function you want performed when the action is invoked and have it return whatever string value you want printed to the screen, if at all.
 Prefer printing via returning a string, rather than returning a tea.Printf cmd.
 
-If this action is for retrieving data, consider making basing it on scaffoldlist instead.
+If this action is for retrieving data, consider making it a scaffoldlist instead.
 Scaffoldlist comes with csv/json/table formatting and file redirection out of the box.
 
 Basic actions have no default flags and will not handle flags unless a flagFunc is given.
@@ -29,9 +29,11 @@ Implementations will probably look a lot like:
 		aliases []string = []string{}
 	)
 
-	func New[parentpkg][pkg]Action() action.Pair {
+	func FooAction() action.Pair {
 		return scaffold.NewBasicAction(use, short, long, aliases, func(*cobra.Command) (string, tea.Cmd) {
-
+			data := connection.Client.GetSomeData()
+			str := formatData(data)
+			return str, nil
 		}, nil)
 	}
 */

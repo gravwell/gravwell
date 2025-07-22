@@ -11,7 +11,7 @@ import (
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/status"
+	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/tree"
 )
 
@@ -31,7 +31,7 @@ func TestIs(t *testing.T) {
 
 	// create a known nav
 	// NOTE(rlandau): this also adds actions underneath this nav to the action map
-	statusNav := status.NewStatusNav()
+	statusNav := systemshealth.NewSystemsNav()
 	if action.Is(statusNav) {
 		t.Fatal("known Nav classified as Action")
 	}

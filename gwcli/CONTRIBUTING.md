@@ -1,12 +1,12 @@
 # Overview
 
-In essence, gwcli is a [Cobra](http://cobra.dev) command tree that can be crawled around via our [Bubble Tea](https://github.com/charmbracelet/bubbletea) instance. As such, you should understand the [Elm Architecture](https://guide.elm-lang.org/architecture/) before continuing. Don't worry, it is really simple.
+In essence, gwcli is a [Cobra](http://cobra.dev) command tree that can be crawled around via our [Bubble Tea](https://github.com/charmbracelet/bubbletea) instance.
 
-gwcli is built to allow more functionality to be easily plugged in; it follows design principles closer to that of a toolbox or framework. For instance, [list scaffolding](utilities/scaffold/scaffoldlist/list.go) provides complete functionality for listing any kind of data in a unified way while requiring minimal new code. The goal is to genericize as much as possible, so future developers can simply call these genericized subroutines.
+gwcli is built to allow more functionality to be easily plugged in; it follows design principles closer to that of a toolbox or framework. For instance, [list scaffolding](utilities/scaffold/scaffoldlist/list.go) provides complete functionality for listing any kind of data in a unified way while requiring minimal code. The goal is to genericize as much as possible, so future developers can simply call these genericized subroutines. See [Scaffolded](#scaffolded).
 
 # Terminology
 
-Bubble Tea has the `tea.Model` interface that must be implemented by a model struct of our own. Bubbles.TextInput, along with every other Bubble, is a tea.Model under the hood. Cobra is composed of `cobra.Commands` and Bubble Tea drives its I/O via `tea.Cmd`s. CLI invocation is composed of commands, arguments, and flags.
+Bubble Tea has the `tea.Model` interface that must be implemented by a `model` struct of our own. `Bubbles.TextInput`, along with every other Bubble, is a `tea.Model` under the hood. Cobra is composed of `cobra.Commands` and Bubble Tea drives its I/O via `tea.Cmd`s. CLI invocation is composed of commands, arguments, and flags.
 
 So we are using our own terminology to avoid further homonyms.
 
@@ -64,9 +64,9 @@ Creating a new action will depend heavily on whether or not you are using a scaf
 
 ### Scaffolded
 
-These are pre-generated actions (list, edit, create, delete, or basic (perform one thing that does not require further interaction)) that can be tweaked for specific use-cases.
+Most things people want to do with a cli app fall into one of several buckets. Folks typically want to create data, delete data, edit data, or list data. As such, gwcli has skeletons in place to make creating these types of actions super easy!
 
-Each scaffold package has a header comment describing how to use it. In general, you will create a new package for your action, call `scaffold*.New*Action()`, and then insert the returned action pair into the []action.Pair of the parent's `GenerateNav()` call. The [macro list](tree/macros/list/list.go) action is a good example.
+These frameworks are known as "scaffolds". Each scaffold package has a header comment describing how to use it. In general, you will create a new package for your action, call `scaffold*.New*Action()`, and then insert the returned action pair into the []action.Pair of the parent's `GenerateNav()` call. The [macro actions](gwcli/tree/macros/macros.go) make good examples for most of the scaffolds.
 
 ### Bare
 
