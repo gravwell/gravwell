@@ -11,12 +11,13 @@ package extractors
 
 import (
 	"github.com/google/uuid"
-	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -47,16 +48,13 @@ func newExtractorsListAction() action.Pair {
 		short string = "list extractors"
 		long  string = "list autoextractions available to you and the system"
 	)
-	var defaultColumns = []string{"UID", "UUID", "Name", "Desc"}
 
 	return scaffoldlist.NewListAction(
-		"",
 		short,
 		long,
-		defaultColumns,
 		types.AXDefinition{},
 		list,
-		flags)
+		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"UID", "UUID", "Name", "Desc"}})
 }
 
 func flags() pflag.FlagSet {
@@ -65,9 +63,9 @@ func flags() pflag.FlagSet {
 	return addtlFlags
 }
 
-func list(c *grav.Client, fs *pflag.FlagSet) ([]types.AXDefinition, error) {
+func list(fs *pflag.FlagSet) ([]types.AXDefinition, error) {
 	if id, err := fs.GetString("uuid"); err != nil {
-		clilog.LogFlagFailedGet("uuid", err)
+		uniques.ErrGetFlag("extractors list", err)
 	} else {
 		uid, err := uuid.Parse(id)
 		if err != nil {
@@ -75,13 +73,13 @@ func list(c *grav.Client, fs *pflag.FlagSet) ([]types.AXDefinition, error) {
 		}
 		if uid != uuid.Nil {
 			clilog.Writer.Infof("Fetching ax with uuid %v", uid)
-			d, err := c.GetExtraction(id)
+			d, err := connection.Client.GetExtraction(id)
 			return []types.AXDefinition{d}, err
 		}
 		// if uid was nil, move on to normal get-all
 	}
 
-	return c.GetExtractions()
+	return connection.Client.GetExtractions()
 }
 
 //#endregion list

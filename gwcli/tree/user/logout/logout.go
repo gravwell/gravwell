@@ -16,7 +16,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 const (
@@ -30,7 +29,7 @@ var aliases []string = []string{}
 
 func NewUserLogoutAction() action.Pair {
 	return scaffold.NewBasicAction(use, short, long, aliases,
-		func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd) {
+		func(*cobra.Command) (string, tea.Cmd) {
 			connection.Client.Logout()
 			connection.End()
 

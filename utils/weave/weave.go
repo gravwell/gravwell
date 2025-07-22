@@ -16,7 +16,6 @@ import (
 	"strings"
 
 	"github.com/Jeffail/gabs/v2"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/table"
 )
 
@@ -27,6 +26,10 @@ const (
 	ErrStructIsNil string = "given value is nil"
 )
 
+func errFailedKindAssert(assertType string, kind string) error {
+	return fmt.Errorf("cannot assert to %s despite %s kind", assertType, kind)
+}
+
 //#endregion
 
 // ToCSV takes an array of arbitrary struct `st` and the *ordered* columns to
@@ -34,7 +37,7 @@ const (
 // data contained therein.
 //
 // ! Returns the empty string if columns or st are empty
-func ToCSV[Any any](st []Any, columns []string) string {
+func ToCSV[Any any](st []Any, columns []string, options CSVOptions) string {
 	// DESIGN:
 	// We have a list of column, ordered.
 	// We have a map of column names -> field index.
@@ -54,7 +57,21 @@ func ToCSV[Any any](st []Any, columns []string) string {
 
 	columnMap := buildColumnMap(st[0], columns)
 
-	var hdr = strings.Join(columns, ",")
+	// generate header line, referencing aliases if relevant
+	var hdr string
+	if options.Aliases != nil {
+		var sb strings.Builder
+		for _, col := range columns {
+			if alias, found := options.Aliases[col]; found {
+				sb.WriteString(alias + ",")
+			} else {
+				sb.WriteString(col + ",")
+			}
+		}
+		hdr = sb.String()[:sb.Len()-1]
+	} else {
+		hdr = strings.Join(columns, ",")
+	}
 
 	var csv strings.Builder // stores the actual data
 
@@ -95,10 +112,10 @@ func stringifyStructCSV(s interface{}, columns []string, columnMap map[string][]
 
 // ToTable when given an array of an arbitrary struct and the list of *fully-qualified* fields,
 // outputs a table containing the data in the array of the struct.
-//
-// Can optionally be given a table style func. Uses DefaultTblStyle() if not given.
-func ToTable[Any any](st []Any, columns []string, styleFunc ...func() *table.Table) string {
-	if columns == nil || st == nil || len(st) < 1 || len(columns) < 1 { // superfluous request
+// If no columns are specified or st is nil, returns the empty string.
+// If ToTable encounters a nil pointer while traversing the data, it will populate the cell (and the cells of all child fields) with "nil".
+func ToTable[Any any](st []Any, columns []string, options TableOptions) string {
+	if len(st) < 1 || len(columns) < 1 { // superfluous request
 		return ""
 	}
 
@@ -112,9 +129,34 @@ func ToTable[Any any](st []Any, columns []string, styleFunc ...func() *table.Tab
 		structVals := reflect.ValueOf(st[i])
 		// search for each column
 		for k := range columns {
-			findex := columnMap[columns[k]]
-			if findex != nil {
-				data := structVals.FieldByIndex(findex)
+			findicies := columnMap[columns[k]]
+			if findicies != nil {
+				// manually step through the struct to check for nils.
+				// NOTE(rlandau): we use this instead of just passing the slice to FieldByIndex because FbI panics on attempting to step through a nil pointer.
+				// Panicking won't work for us.
+				var (
+					invalid bool
+					data    = structVals
+				)
+				for _, findex := range findicies {
+					// step one level lower
+					data = data.Field(findex)
+					if data.Kind() == reflect.Ptr {
+						if data.IsNil() { // stop traveling at a nil pointer
+							invalid = true
+							break
+						}
+						data = data.Elem() // otherwise, dereference to continue to delve
+					}
+					// data.Kind() != reflect.Struct
+				}
+
+				// if we failed to walk to the end of the indices,
+				if invalid {
+					rows[i][k] = "nil"
+					continue
+				}
+
 				if data.Kind() == reflect.Pointer {
 					data = data.Elem()
 				}
@@ -124,26 +166,32 @@ func ToTable[Any any](st []Any, columns []string, styleFunc ...func() *table.Tab
 		}
 	}
 
+	// generate the table
 	var tbl *table.Table
-	// if user supplied a tableStyle, use it. Otherwise, use the default
-	if len(styleFunc) > 0 {
-		tbl = styleFunc[0]()
+	if options.Base != nil {
+		tbl = options.Base()
 	} else {
-		tbl = DefaultTblStyle()
+		tbl = table.New()
 	}
 
-	tbl.Headers(columns...)
+	// apply aliases
+	if options.Aliases != nil {
+		withAliases := make([]string, len(columns))
+		for i := range columns {
+			// on match, replace the column
+			if alias, found := options.Aliases[columns[i]]; found {
+				withAliases[i] = alias
+			} else {
+				withAliases[i] = columns[i]
+			}
+		}
+		tbl.Headers(withAliases...)
+	} else {
+		tbl.Headers(columns...)
+	}
 	tbl.Rows(rows...)
 
 	return tbl.Render()
-}
-
-// DefaultTblStyle function used internally by ToTable if a styleFunc is not provided.
-// Use as an example for supplying your own.
-func DefaultTblStyle() *table.Table {
-	return table.New().StyleFunc(func(row, col int) lipgloss.Style {
-		return lipgloss.NewStyle().Width(10) // set set row and column width
-	})
 }
 
 // transmogrification struct for outputting complex numbers that encoding/json
@@ -156,7 +204,7 @@ type gComplex[t float32 | float64] struct {
 // ToJSON when given an array of an arbitrary struct and the list of *fully-qualified* fields,
 // outputs a JSON array containing the data in the array of the struct.
 // Output is sorted alphabetically
-func ToJSON[Any any](st []Any, columns []string) (string, error) {
+func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, error) {
 	if columns == nil || st == nil || len(st) < 1 || len(columns) < 1 { // superfluous request
 		return "[]", nil
 	}
@@ -176,36 +224,73 @@ func ToJSON[Any any](st []Any, columns []string) (string, error) {
 				if data.Kind() == reflect.Pointer {
 					data = data.Elem()
 				}
+				// if there is an alias, we write that as the key instead
+				if alias, found := options.Aliases[col]; found {
+					col = alias
+				}
+
 				switch data.Type().Kind() {
 				case reflect.Float32:
-					v := data.Interface().(float32)
-					g.SetP(v, col)
+					if !data.CanFloat() {
+						return "", errFailedKindAssert("float", "Float32")
+					}
+					if _, err := g.SetP(float32(data.Float()), col); err != nil {
+						return "", err
+					}
 				case reflect.Float64:
-					v := data.Interface().(float64)
-					g.SetP(v, col)
+					if !data.CanFloat() {
+						return "", errFailedKindAssert("float", "Float64")
+					}
+					if _, err := g.SetP(float64(data.Float()), col); err != nil {
+						return "", err
+					}
 				case reflect.Int:
-					v := data.Interface().(int)
-					g.SetP(v, col)
+					if !data.CanInt() {
+						return "", errFailedKindAssert("int", "Int")
+					}
+					if _, err := g.SetP(int(data.Int()), col); err != nil {
+						return "", err
+					}
 				case reflect.Int8:
-					v := data.Interface().(int8)
-					g.SetP(v, col)
+					if !data.CanInt() {
+						return "", errFailedKindAssert("int", "Int8")
+					}
+					if _, err := g.SetP(int8(data.Int()), col); err != nil {
+						return "", err
+					}
 				case reflect.Int16:
-					v := data.Interface().(int16)
-					g.SetP(v, col)
+					if !data.CanInt() {
+						return "", errFailedKindAssert("int", "Int16")
+					}
+					if _, err := g.SetP(int16(data.Int()), col); err != nil {
+						return "", err
+					}
 				case reflect.Int32:
-					v := data.Interface().(int32)
-					g.SetP(v, col)
+					if !data.CanInt() {
+						return "", errFailedKindAssert("int", "Int32")
+					}
+					if _, err := g.SetP(int32(data.Int()), col); err != nil {
+						return "", err
+					}
 				case reflect.Int64:
-					v := data.Interface().(int64)
-					g.SetP(v, col)
+					if !data.CanInt() {
+						return "", errFailedKindAssert("int", "Int64")
+					}
+					g.SetP(data.Int(), col)
 				case reflect.Complex64:
-					v := data.Interface().(complex64)
+					if !data.CanComplex() {
+						return "", errFailedKindAssert("complex", "Complex64")
+					}
+					v := complex64(data.Complex())
 					gC := gComplex[float32]{Real: real(v), Imaginary: imag(v)}
 					if _, err := g.SetP(gC, col); err != nil {
 						return "", err
 					}
 				case reflect.Complex128:
-					v := data.Interface().(complex128)
+					if !data.CanComplex() {
+						return "", errFailedKindAssert("complex", "Complex128")
+					}
+					v := data.Complex()
 					gC := gComplex[float64]{Real: real(v), Imaginary: imag(v)}
 					if _, err := g.SetP(gC, col); err != nil {
 						return "", err
@@ -216,26 +301,46 @@ func ToJSON[Any any](st []Any, columns []string) (string, error) {
 					g.ArrayP(col)
 					// append each item in the array
 					iCount := data.Len()
-					for i := 0; i < iCount; i++ {
+					for i := range iCount {
 						g.ArrayAppendP(data.Index(i).Interface(), col)
 					}
 				case reflect.Uint:
-					v := data.Interface().(uint)
-					g.SetP(v, col)
+					if !data.CanUint() {
+						return "", errFailedKindAssert("uint", "Uint")
+					}
+					if _, err := g.SetP(uint(data.Uint()), col); err != nil {
+						return "", err
+					}
 				case reflect.Uint8:
-					v := data.Interface().(uint8)
-					g.SetP(v, col)
+					if !data.CanUint() {
+						return "", errFailedKindAssert("uint", "Uint8")
+					}
+					if _, err := g.SetP(uint8(data.Uint()), col); err != nil {
+						return "", err
+					}
 				case reflect.Uint16:
-					v := data.Interface().(uint16)
-					g.SetP(v, col)
+					if !data.CanUint() {
+						return "", errFailedKindAssert("uint", "Uint16")
+					}
+					if _, err := g.SetP(uint16(data.Uint()), col); err != nil {
+						return "", err
+					}
 				case reflect.Uint32:
-					v := data.Interface().(uint32)
-					g.SetP(v, col)
+					if !data.CanUint() {
+						return "", errFailedKindAssert("uint", "Uint32")
+					}
+					if _, err := g.SetP(uint32(data.Uint()), col); err != nil {
+						return "", err
+					}
 				case reflect.Uint64:
-					v := data.Interface().(uint64)
-					g.SetP(v, col)
+					if !data.CanUint() {
+						return "", errFailedKindAssert("uint", "Uint64")
+					}
+					if _, err := g.SetP(data.Uint(), col); err != nil {
+						return "", err
+					}
 				case reflect.String:
-					v := data.Interface().(string)
+					v := data.String()
 					g.SetP(v, col)
 				default: // unsupported type, default to string
 					g.SetP(fmt.Sprintf("%v", data), col)
@@ -411,11 +516,9 @@ func innerStructFields(qualification string, field reflect.StructField, exported
 // field names to their complete index chain. If a field is not found in the
 // struct, its value is set to nil in the map.
 func buildColumnMap(st any, columns []string) (columnMap map[string][]int) {
-	numColumns := len(columns)
-
 	// deconstruct the first struct to validate requested columns
 	// coordinate columns
-	columnMap = make(map[string][]int, numColumns) // column name -> recursive field indices
+	columnMap = make(map[string][]int, len(columns)) // column name -> recursive field indices
 	for i := range columns {
 		// map column names to their field indices
 		// if a name is not found, nil it so it can be skipped later

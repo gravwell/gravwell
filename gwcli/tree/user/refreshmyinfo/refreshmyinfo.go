@@ -18,7 +18,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 )
 
 const (
@@ -32,7 +31,7 @@ var aliases []string = []string{}
 
 func NewUserRefreshMyInfoAction() action.Pair {
 	return scaffold.NewBasicAction(use, short, long, aliases,
-		func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd) {
+		func(*cobra.Command) (string, tea.Cmd) {
 			if err := connection.RefreshCurrentUser(); err != nil {
 				return "Failed to refresh user info: " + err.Error(), nil
 			}

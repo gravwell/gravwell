@@ -6,6 +6,7 @@ package testsupport
 
 import (
 	"fmt"
+	"maps"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -48,6 +49,22 @@ func NonZeroExit(t *testing.T, code int, stderr string) {
 	if code != 0 {
 		t.Fatalf("non-zero exit code %v.\nstderr: '%v'", code, stderr)
 	}
+}
+
+// SlicesUnorderedEqual compares the elements of two slices for equality (and equal count) without caring about the order of the elements.
+// Copied from my (rflandau) Orv test code.
+func SlicesUnorderedEqual(a []string, b []string) bool {
+	// convert each slice into map of key --> count
+	am := make(map[string]uint)
+	for _, k := range a {
+		am[k] += 1
+	}
+	bm := make(map[string]uint)
+	for _, k := range b {
+		bm[k] += 1
+	}
+
+	return maps.Equal(am, bm)
 }
 
 // StartSingletons spins up all the required singletons that actions/tests/commands typically expect to be in place.

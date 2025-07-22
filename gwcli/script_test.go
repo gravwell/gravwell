@@ -91,10 +91,8 @@ func TestMacros(t *testing.T) {
 			t.Fatal(err)
 		}
 		columns := []string{"UID", "Global", "Name"}
-		want := strings.TrimSpace(weave.ToCSV(macros, columns))
-		if want == "" { // empty list command results output "no data found"
-			want = "no data found"
-		}
+		want := strings.TrimSpace(weave.ToCSV(macros, columns,
+			weave.CSVOptions{}))
 
 		// run the test body
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros list --csv --columns=%s", user, pf, strings.Join(columns, ","))
@@ -163,7 +161,7 @@ func TestMacros(t *testing.T) {
 		}
 		columns := []string{"UID", "Global", "Name", "WriteAccess.GIDs", "Description", "Expansion", "Labels"}
 		var want string
-		if json, err := weave.ToJSON(macros, columns); err != nil {
+		if json, err := weave.ToJSON(macros, columns, weave.JSONOptions{}); err != nil {
 			t.Fatal(err)
 		} else {
 			want = strings.TrimSpace(json)
