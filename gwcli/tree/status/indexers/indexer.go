@@ -133,7 +133,7 @@ func newInspectBasicAction() action.Pair {
 		// format indexer storage stats
 		var wells = make([]string, len(ss)) // collect keys in case --start && --end were specified
 		var i uint8 = 0
-		for well, _ := range ss {
+		for well := range ss {
 			wells[i] = well
 			i++
 			// TODO format stats into sb
