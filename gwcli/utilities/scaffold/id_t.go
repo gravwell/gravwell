@@ -16,6 +16,8 @@ import (
 	"golang.org/x/exp/constraints"
 )
 
+// Id_t is the set of constraints defining what can be used as an id for some scaffolds.
+// It can be expanded to more types (strings, mayhaps?) if need be, but make sure FromString is expanded, too.
 type Id_t interface {
 	constraints.Integer | uuid.UUID
 }
