@@ -21,6 +21,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 )
@@ -197,13 +198,38 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 }
 
 func TestNonInteractive(t *testing.T) {
-	type cat struct {
-		name      string
-		color     string
-		furLength string
-		note      string
-	}
+	pair, items, _, sbErr := generateTestPair()
 
+	pair.Action.SetArgs([]string{"--script", "--id=eb8b5cb2-7cb6-4586-a2d6-665e662ad976", "--note=\"baby girl\""})
+	if err := pair.Action.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	// check outputs
+	//out := strings.TrimSpace(sbOut.String())
+	outErr := strings.TrimSpace(sbErr.String())
+	if outErr != "" {
+		t.Fatal(outErr)
+	}
+	// check that the map was actually updated
+	if items[uuid.MustParse("eb8b5cb2-7cb6-4586-a2d6-665e662ad976")].note == "" {
+		t.Fatal("expected a note to be set on Bee")
+	}
+	if items[uuid.MustParse("65d7e5a3-9be4-43e0-9fce-887052753661")].color != "" {
+		t.Fatal("did not expect a color to be set on Mozzie")
+	}
+}
+
+type cat struct {
+	name      string
+	color     string
+	furLength string
+	note      string
+}
+
+// generateTestPair builds an edit action pair, performing all required setup.
+// This includes generating the data for it to operate on and redirecting stdout/stderr.
+// Returns the pair, the data, and both pipes.
+func generateTestPair() (pair action.Pair, data map[uuid.UUID]*cat, sbOut, sbErr strings.Builder) {
 	// just some random UUIDs paired to garbage values
 	var items = map[uuid.UUID]*cat{
 		uuid.MustParse("eb8b5cb2-7cb6-4586-a2d6-665e662ad976"): {name: "Bee", color: "tortie"},
@@ -211,7 +237,7 @@ func TestNonInteractive(t *testing.T) {
 		uuid.MustParse("65d7e5a3-9be4-43e0-9fce-887052753661"): {name: "Mozzie", note: "little grey girl"},
 	}
 
-	pair := NewEditAction("cat", "cats", Config{
+	pair = NewEditAction("cat", "cats", Config{
 		"fur color": &Field{
 			Required: true,
 			Title:    "Fur Color",
@@ -291,32 +317,10 @@ func TestNonInteractive(t *testing.T) {
 			return (*data).name, nil
 		},
 	})
-
 	// bolt on script flag
 	pair.Action.Flags().Bool("script", false, "???")
 	// capture output
-	var (
-		sbOut strings.Builder
-		sbErr strings.Builder
-	)
 	pair.Action.SetOut(&sbOut)
 	pair.Action.SetErr(&sbErr)
-	pair.Action.SetArgs([]string{"--script", "--id=eb8b5cb2-7cb6-4586-a2d6-665e662ad976", "--note=\"baby girl\""})
-	if err := pair.Action.Execute(); err != nil {
-		t.Fatal(err)
-	}
-	// check outputs
-	//out := strings.TrimSpace(sbOut.String())
-	outErr := strings.TrimSpace(sbErr.String())
-	if outErr != "" {
-		t.Fatal(outErr)
-	}
-	// check that the map was actually updated
-	if items[uuid.MustParse("eb8b5cb2-7cb6-4586-a2d6-665e662ad976")].note == "" {
-		t.Fatal("expected a note to be set on Bee")
-	}
-	if items[uuid.MustParse("65d7e5a3-9be4-43e0-9fce-887052753661")].color != "" {
-		t.Fatal("did not expect a color to be set on Mozzie")
-	}
-
+	return pair, items, sbOut, sbErr
 }
