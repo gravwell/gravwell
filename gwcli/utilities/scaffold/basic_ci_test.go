@@ -174,7 +174,7 @@ func TestModel(t *testing.T) {
 				fs := pflag.FlagSet{}
 				fs.Bool("testbool", false, "a boolean for testing")
 				return fs
-			}, WithPositionalArguments(cobra.ExactArgs(2)))
+			}, WithArgValidation(cobra.ExactArgs(2)))
 		var (
 			sbOut strings.Builder
 			sbErr strings.Builder

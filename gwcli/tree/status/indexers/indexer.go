@@ -158,7 +158,7 @@ func newInspectBasicAction() action.Pair {
 		return fs
 	},
 		scaffold.WithExample("gwcli status indexers inspect xxx22024-999a-4728-94d7-d0c0703221ff"),
-		scaffold.WithPositionalArguments(cobra.ExactArgs(1)),
+		scaffold.WithArgValidation(cobra.ExactArgs(1)),
 		scaffold.WithFlagsRequiredTogether("start", "end"),
 	)
 

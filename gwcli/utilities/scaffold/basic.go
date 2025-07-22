@@ -97,8 +97,8 @@ func WithExample(ex string) BasicActionOption {
 	}
 }
 
-// WithPositionalArguments specifies bare argument handling function.
-func WithPositionalArguments(a cobra.PositionalArgs) BasicActionOption {
+// WithArgValidation specifies bare argument handling function.
+func WithArgValidation(a cobra.PositionalArgs) BasicActionOption {
 	return func(ba *basicAction) {
 		ba.cmd.Args = a
 	}
@@ -114,7 +114,7 @@ func WithFlagsRequired(flags ...string) BasicActionOption {
 	}
 }
 
-// WithFlagsRequiredTogether makes Cobra error if the action is invoked with a subset (but not all) of the given flags.
+// WithFlagsRequiredTogether causes gwcli to error if the action is invoked with a subset (but not all) of the given flags.
 func WithFlagsRequiredTogether(flags ...string) BasicActionOption {
 	return func(ba *basicAction) {
 		ba.cmd.MarkFlagsRequiredTogether(flags...)
@@ -162,6 +162,13 @@ func (ba *basicAction) Reset() error {
 }
 
 func (ba *basicAction) SetArgs(_ *pflag.FlagSet, tokens []string) (_ string, _ tea.Cmd, err error) {
+	// validate arguments using the set method
+	if ba.cmd.Args != nil {
+		if err := ba.cmd.Args(ba.cmd, tokens); err != nil {
+			return err.Error(), nil, nil
+		}
+	}
+
 	// if no additional flags could be given, we have nothing more to do
 	// (basic actions have no starter flags)
 	if ba.fsFunc != nil {
