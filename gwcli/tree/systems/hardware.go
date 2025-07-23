@@ -49,7 +49,7 @@ func newHardwareAction() action.Pair {
 		long  string = "Preformatted information about the hardware platforms powering your indexers and ingesters.\n" +
 			"This action is intended for human consumption; most of this information is available in JSON/CSV via the indexer and ingester actions if you need better script support."
 	)
-	return scaffold.NewBasicAction(use, short, long, []string{"hw"},
+	return scaffold.NewBasicAction(use, short, long,
 		func(c *cobra.Command) (string, tea.Cmd) {
 			var sb strings.Builder
 
@@ -133,8 +133,7 @@ func newHardwareAction() action.Pair {
 
 			sb.WriteString(constructOverview(o, llw))
 			return sb.String(), nil
-		},
-		nil)
+		}, scaffold.BasicOptions{Aliases: []string{"hw"}})
 }
 
 // constructOverview generates a segmented border containing the overview information.

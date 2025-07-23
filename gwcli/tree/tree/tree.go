@@ -22,22 +22,19 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	use   string = "tree"
-	short string = "display all commands as a tree"
-	long  string = "Displays a directory-tree showing the full structure of gwcli and all" +
-		"available actions."
-)
-
-var aliases []string = []string{}
-
 func NewTreeAction() action.Pair {
-	return scaffold.NewBasicAction(use, short, long, aliases,
+	const (
+		use   string = "tree"
+		short string = "display all commands as a tree"
+		long  string = "Displays a directory-tree showing the full structure of gwcli and all" +
+			"available actions."
+	)
+	return scaffold.NewBasicAction(use, short, long,
 		func(c *cobra.Command) (string, tea.Cmd) {
 			lgt := walkBranch(c.Root())
 
 			return lgt.String(), nil
-		}, nil)
+		}, scaffold.BasicOptions{})
 }
 
 func walkBranch(nav *cobra.Command) *tree.Tree {

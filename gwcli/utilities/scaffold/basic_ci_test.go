@@ -11,6 +11,7 @@ package scaffold
 import (
 	"fmt"
 	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -39,7 +40,6 @@ func TestFromString(t *testing.T) {
 	tfs(t, "int16 out of range", "65535", int16(math.MaxInt16), true)
 	tfs(t, "bad character", "60s", 0, true)
 	tfs(t, "empty", "", 0, true)
-
 }
 
 // helper for TestFromString to execute FromString and check the outcome.
@@ -55,8 +55,9 @@ func tfs[I Id_t](t *testing.T, name string, strVal string, expected I, wantErr b
 }
 
 func TestNewBasicAction(t *testing.T) {
-	t.Run("simple", func(t *testing.T) {
-		ba := NewBasicAction("test", "short test", "long test", []string{"some", "aliases"},
+	t.Run("aliases, additional flags unset", func(t *testing.T) {
+		aliases := []string{"some", "aliases"}
+		ba := NewBasicAction("test", "short test", "long test",
 			func(c *cobra.Command) (string, tea.Cmd) {
 				testbool, err := c.Flags().GetBool("testbool")
 				if err != nil {
@@ -64,15 +65,21 @@ func TestNewBasicAction(t *testing.T) {
 				}
 				s := fmt.Sprintf("testbool: %v", testbool)
 				return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
-			}, func() pflag.FlagSet {
+			}, BasicOptions{Aliases: aliases, AddtlFlagFunc: func() pflag.FlagSet {
 				fs := pflag.FlagSet{}
 				fs.Bool("testbool", false, "a boolean for testing")
 				return fs
-			})
+			}})
 		var (
 			sbOut strings.Builder
 			sbErr strings.Builder
 		)
+
+		// initial check options
+		if slices.Compare(ba.Action.Aliases, aliases) != 0 {
+			t.Fatal(ExpectedActual(aliases, ba.Action.Aliases))
+		}
+
 		ba.Action.SetOut(&sbOut)
 		ba.Action.SetErr(&sbErr)
 
@@ -87,8 +94,8 @@ func TestNewBasicAction(t *testing.T) {
 			t.Fatal(ExpectedActual("testbool: false", strOut))
 		}
 	})
-	t.Run("set flag", func(t *testing.T) {
-		ba := NewBasicAction("test", "short test", "long test", []string{"some", "aliases"},
+	t.Run("additional flags set", func(t *testing.T) {
+		ba := NewBasicAction("test", "short test", "long test",
 			func(c *cobra.Command) (string, tea.Cmd) {
 				testbool, err := c.Flags().GetBool("testbool")
 				if err != nil {
@@ -96,11 +103,11 @@ func TestNewBasicAction(t *testing.T) {
 				}
 				s := fmt.Sprintf("testbool: %v", testbool)
 				return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
-			}, func() pflag.FlagSet {
+			}, BasicOptions{AddtlFlagFunc: func() pflag.FlagSet {
 				fs := pflag.FlagSet{}
 				fs.Bool("testbool", false, "a boolean for testing")
 				return fs
-			})
+			}})
 		var (
 			sbOut strings.Builder
 			sbErr strings.Builder
@@ -124,7 +131,7 @@ func TestNewBasicAction(t *testing.T) {
 
 func TestModel(t *testing.T) {
 	t.Run("normal run, twice", func(t *testing.T) {
-		pair := NewBasicAction("test", "short test", "long test", []string{"some", "aliases"},
+		pair := NewBasicAction("test", "short test", "long test",
 			func(c *cobra.Command) (string, tea.Cmd) {
 				testbool, err := c.Flags().GetBool("testbool")
 				if err != nil {
@@ -132,11 +139,17 @@ func TestModel(t *testing.T) {
 				}
 				s := fmt.Sprintf("testbool: %v", testbool)
 				return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
-			}, func() pflag.FlagSet {
+			}, BasicOptions{AddtlFlagFunc: func() pflag.FlagSet {
 				fs := pflag.FlagSet{}
 				fs.Bool("testbool", false, "a boolean for testing")
 				return fs
-			})
+			}, CmdMods: func(c *cobra.Command) { c.Example = "an example of " + c.Use + " command" }})
+
+		// initial check options
+		if pair.Action.Example != "an example of test command" {
+			t.Fatal(ExpectedActual("an example of test command", pair.Action.Example))
+		}
+
 		var (
 			sbOut strings.Builder
 			sbErr strings.Builder
@@ -162,7 +175,7 @@ func TestModel(t *testing.T) {
 		}
 	})
 	t.Run("run with options, twice", func(t *testing.T) {
-		pair := NewBasicAction("test", "short test", "long test", []string{"some", "aliases"},
+		pair := NewBasicAction("test", "short test", "long test",
 			func(c *cobra.Command) (string, tea.Cmd) {
 				testbool, err := c.Flags().GetBool("testbool")
 				if err != nil {
@@ -170,11 +183,14 @@ func TestModel(t *testing.T) {
 				}
 				s := fmt.Sprintf("testbool: %v", testbool)
 				return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
-			}, func() pflag.FlagSet {
+			}, BasicOptions{AddtlFlagFunc: func() pflag.FlagSet {
 				fs := pflag.FlagSet{}
 				fs.Bool("testbool", false, "a boolean for testing")
 				return fs
-			}, WithArgValidation(cobra.ExactArgs(2)))
+			},
+				CmdMods: func(c *cobra.Command) {
+					c.Args = cobra.ExactArgs(2)
+				}})
 		var (
 			sbOut strings.Builder
 			sbErr strings.Builder

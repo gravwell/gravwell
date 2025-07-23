@@ -18,21 +18,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	use   string = "logout"
-	short string = "logout and end the session"
-	long  string = "Ends your current session and invalids your login token, forcing the next" +
-		" login to request credentials."
-)
-
-var aliases []string = []string{}
-
 func NewUserLogoutAction() action.Pair {
-	return scaffold.NewBasicAction(use, short, long, aliases,
+	const (
+		use   string = "logout"
+		short string = "logout and end the session"
+		long  string = "Ends your current session and invalids your login token, forcing the next" +
+			" login to request credentials."
+	)
+	return scaffold.NewBasicAction(use, short, long,
 		func(*cobra.Command) (string, tea.Cmd) {
 			connection.Client.Logout()
 			connection.End()
 
 			return "Successfully logged out", tea.Quit
-		}, nil)
+		}, scaffold.BasicOptions{})
 }

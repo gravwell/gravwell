@@ -20,16 +20,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const (
-	use   string = "admin"
-	short string = "prints your admin status"
-	long  string = "Displays whether or not your current user has admin permissions."
-)
-
-var aliases []string = []string{}
-
 func NewUserAdminAction() action.Pair {
-	p := scaffold.NewBasicAction(use, short, long, aliases,
+	const (
+		use   string = "admin"
+		short string = "prints your admin status"
+		long  string = "Displays whether or not your current user has admin permissions."
+	)
+	return scaffold.NewBasicAction(use, short, long,
 		func(*cobra.Command) (string, tea.Cmd) {
 			var not string
 			// todo what is the difference re: MyAdminStatus?
@@ -37,6 +34,5 @@ func NewUserAdminAction() action.Pair {
 				not = " not"
 			}
 			return fmt.Sprintf("You are%v in admin mode", not), nil
-		}, nil)
-	return p
+		}, scaffold.BasicOptions{})
 }
