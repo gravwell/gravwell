@@ -117,12 +117,12 @@ func Test_determineFormat(t *testing.T) {
 		{"default, no pretty", []string{}, false, tbl},
 		{"explicit pretty, pretty", []string{"--pretty"}, true, pretty},
 		{"explicit pretty, no pretty", []string{"--pretty"}, false, tbl},
-		{"csv, pretty", []string{"--csv"}, true, csv},
-		{"csv, no pretty", []string{"--csv"}, false, csv},
-		{"json, pretty", []string{"--json"}, true, json},
-		{"json, no pretty", []string{"--json"}, false, json},
-		{"csv precedence over json", []string{"--json", "--csv"}, false, csv},
-		{"pretty precedence over all", []string{"--json", "--csv", "--pretty", "--table"}, true, pretty},
+		{"csv, pretty", []string{"--" + ft.CSV.Name}, true, csv},
+		{"csv, no pretty", []string{"--" + ft.CSV.Name}, false, csv},
+		{"json, pretty", []string{"--" + ft.JSON.Name}, true, json},
+		{"json, no pretty", []string{"--" + ft.JSON.Name}, false, json},
+		{"csv precedence over json", []string{"--" + ft.JSON.Name, "--" + ft.CSV.Name}, false, csv},
+		{"pretty precedence over all", []string{"--" + ft.JSON.Name, "--" + ft.CSV.Name, "--pretty", "--" + ft.Table.Name}, true, pretty},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -186,7 +186,7 @@ func TestNewListAction(t *testing.T) {
 			}, nil
 		}, Options{Use: "validUse"})
 		filepath := path.Join(tDir, "specific_columns.csv")
-		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--csv", "--columns", "Col1,Col3", "-o", filepath})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--columns", "Col1,Col3", "-" + ft.Output.P(), filepath})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
@@ -471,7 +471,7 @@ func TestNewListAction(t *testing.T) {
 					}{true, 3.14}},
 				}, nil
 			}, tt.options)
-			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name, "--csv"))
+			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name, "--"+ft.CSV.Name))
 			// capture output
 			var sb strings.Builder
 			var sbErr strings.Builder
@@ -542,7 +542,7 @@ func TestNewListAction(t *testing.T) {
 				}{true, 3.14}},
 			}, nil
 		}, Options{Use: "validU53"})
-		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--csv", "--show-columns"})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--show-columns"})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
@@ -573,7 +573,7 @@ func TestNewListAction(t *testing.T) {
 				}{true, 3.14}},
 			}, nil
 		}, Options{Use: "validU53"})
-		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--csv", "--columns=Xol1"})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--columns=Xol1"})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
@@ -630,7 +630,7 @@ func TestNewListAction(t *testing.T) {
 					}{true, 3.14}},
 				}, nil
 			}, tt.options)
-			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name, "--json"))
+			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name, "--"+ft.JSON.Name))
 			// capture output
 			var sb strings.Builder
 			var sbErr strings.Builder

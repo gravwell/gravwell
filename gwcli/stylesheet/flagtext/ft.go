@@ -7,11 +7,9 @@
  **************************************************************************/
 
 /*
-Package ft (flagtext) provides a repository of strings shared by flags across gwcli to enforce output consistency.
-While all are constant and *should not be modified at runtime*, it is organized as a struct for clearer access.
-
-Struct parity between Name and Usage is not guaranteed; some usages may vary too much to warrant
-sharing a base string.
+Package ft (flagtext) provides a repository of strings shared by flags used across actions to enforce output/visual consistency.
+If a flag is used the same way in multiple actions, place it in this package.
+All fields should be considered constant and therefore not be modified at runtime.
 */
 package ft
 
@@ -24,6 +22,12 @@ type flag struct {
 	Name      string
 	Shorthand rune
 	Usage     string
+}
+
+// P returns the shorthand of the flag as a string, if any.
+// Just a convenience function.
+func (f flag) P() string {
+	return string(f.Shorthand)
 }
 
 // NoInteractive (--no-interactive) is a global flag that disables all interactive components of gwcli.
@@ -39,6 +43,46 @@ var Dryrun = flag{
 	Usage: "feigns the request action, instead displaying the effects that would have occurred",
 }
 
+//#region output manipulation
+
+// Output (-o) is a local flag implemented by actions to redirect their results to a file.
+// Should be paired with --append; often also paired with --json and --csv.
+var Output = flag{
+	Name:      "output",
+	Shorthand: 'o',
+	Usage: "file to write results to.\n" +
+		"Truncates file unless --" + Append.Name + " is also given",
+}
+
+// Append (--append) is a local flag implemented with --output to indicated that the target file should be appended to instead of truncated.
+var Append = flag{
+	Name:  "append",
+	Usage: "append to the given output file instead of truncating it",
+}
+
+// CSV (--csv) is a local flag implemented --output to indicated that results should be in csv format.
+var CSV = flag{
+	Name: "csv",
+	Usage: "display results as CSV.\n" +
+		"Mutually exclusive with --json, --table",
+}
+
+// JSON (--json) is a local flag implemented --output to indicated that results should be in json format.
+var JSON = flag{
+	Name: "json",
+	Usage: "display results as JSON.\n" +
+		"Mutually exclusive with --csv, --table",
+}
+
+// Table (--table) is a local flag implemented --output to indicated that results should be outputted as a fancy table.
+var Table = flag{
+	Name: "table",
+	Usage: "display results in a fancy table.\nMutually exclusive with --json, --csv.\n" +
+		"Default if no format flags are given",
+}
+
+//#endregion output manipulation
+
 // Name struct contains common flag names used across a variety of actions.
 var Name = struct {
 	Name      string
@@ -48,14 +92,6 @@ var Name = struct {
 	Frequency string
 	Expansion string // macro expansions
 	ListAll   string
-
-	// output manipulation
-
-	Output string // file output
-	Append string // append to file output
-	CSV    string
-	JSON   string
-	Table  string
 
 	// column selection
 
@@ -69,15 +105,6 @@ var Name = struct {
 	Frequency: "frequency",
 	Expansion: "expansion",
 	ListAll:   "all",
-
-	// output manipulation
-
-	Output: "output",
-	Append: "append",
-	CSV:    "csv",
-	JSON:   "json",
-	Table:  "table",
-
 	// column selection
 
 	AllColumns:    "all-columns",
@@ -95,14 +122,6 @@ var Usage = struct {
 	// library GetAll* functions actually do this rather than failing outright.
 	ListAll func(plural string) string
 
-	// output manipulation
-
-	Output string // file output
-	Append string // append to file output
-	CSV    string
-	JSON   string
-	Table  string
-
 	// column selection
 
 	AllColumns    string // return data from all available columns
@@ -119,15 +138,6 @@ var Usage = struct {
 	ListAll: func(plural string) string {
 		return "ADMIN-ONLY. Lists all " + plural + " on the system."
 	},
-
-	// output manipulation
-
-	Output: "file to write results to.\nTruncates file unless --append is also given.",
-	Append: "append to the given output file instead of truncating it.",
-	CSV:    "display results as CSV.\nMutually exclusive with --json, --table.",
-	JSON:   "display results as JSON.\nMutually exclusive with --csv, --table.",
-	Table: "display results in a fancy table.\nMutually exclusive with --json, --csv.\n" +
-		"Default if no format flags are given.",
 
 	// column selection
 

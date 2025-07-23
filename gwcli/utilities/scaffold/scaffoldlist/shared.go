@@ -45,7 +45,7 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 		}
 	}
 	// check for CSV
-	if fm, err := fs.GetBool(ft.Name.CSV); err != nil {
+	if fm, err := fs.GetBool(ft.CSV.Name); err != nil {
 		uniques.ErrGetFlag("list", err)
 		// non-fatal
 	} else if fm {
@@ -53,7 +53,7 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 	}
 
 	// check for JSON
-	if fm, err := fs.GetBool(ft.Name.JSON); err != nil {
+	if fm, err := fs.GetBool(ft.JSON.Name); err != nil {
 		uniques.ErrGetFlag("list", err)
 	} else if fm {
 		format = json
@@ -112,13 +112,13 @@ func listOutput[retStruct any](
 // buildFlagSet constructs and returns a flagset composed of the default list flags, additional flags defined for this action, and --pretty if a prettyFunc was defined.
 func buildFlagSet(afs AddtlFlagFunction, prettyDefined bool) *pflag.FlagSet {
 	fs := pflag.FlagSet{}
-	fs.Bool(ft.Name.CSV, false, ft.Usage.CSV)
-	fs.Bool(ft.Name.JSON, false, ft.Usage.JSON)
-	fs.Bool(ft.Name.Table, true, ft.Usage.Table) // default
+	fs.Bool(ft.CSV.Name, false, ft.CSV.Usage)
+	fs.Bool(ft.JSON.Name, false, ft.JSON.Usage)
+	fs.Bool(ft.Table.Name, true, ft.Table.Usage) // default
 	fs.StringSlice(ft.Name.SelectColumns, []string{}, ft.Usage.SelectColumns)
 	fs.Bool("show-columns", false, "display the list of fully qualified column names and die.")
-	fs.StringP(ft.Name.Output, "o", "", ft.Usage.Output)
-	fs.Bool(ft.Name.Append, false, ft.Usage.Append)
+	fs.StringP(ft.Output.Name, "o", "", ft.Output.Usage)
+	fs.Bool(ft.Append.Name, false, ft.Append.Usage)
 	fs.Bool(ft.Name.AllColumns, false, ft.Usage.AllColumns)
 	// if prettyFunc was defined, bolt on pretty
 	if prettyDefined {
@@ -141,14 +141,14 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 	if !fs.Parsed() {
 		return nil, nil
 	}
-	outPath, err := fs.GetString(ft.Name.Output)
+	outPath, err := fs.GetString(ft.Output.Name)
 	if err != nil {
 		return nil, err
 	} else if strings.TrimSpace(outPath) == "" {
 		return nil, nil
 	}
 	var flags = os.O_CREATE | os.O_WRONLY
-	if append, err := fs.GetBool(ft.Name.Append); err != nil {
+	if append, err := fs.GetBool(ft.Append.Name); err != nil {
 		return nil, err
 	} else if append {
 		flags |= os.O_APPEND

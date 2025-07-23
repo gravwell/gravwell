@@ -229,7 +229,7 @@ func Test_run(t *testing.T) {
 
 	t2 := "Test_run.output-to-file.results.json"
 	t.Run("output to file '"+t2+"'", func(t *testing.T) {
-		flagArgs := strings.Split("-o "+t2+" --"+ft.NoInteractive.Name+" --json", " ")
+		flagArgs := strings.Split("-o "+t2+" --"+ft.NoInteractive.Name+" --"+ft.JSON.Name+"", " ")
 		args := strings.Split("tag=gravwell", " ")
 
 		cmd := prepCmd(flagArgs)

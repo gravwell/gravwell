@@ -34,7 +34,7 @@ func NewUserMyInfoAction() action.Pair {
 	)
 	return scaffold.NewBasicAction(use, short, long,
 		func(cmd *cobra.Command, _ *pflag.FlagSet) (string, tea.Cmd) {
-			if asCSV, err := cmd.Flags().GetBool(ft.Name.CSV); err != nil {
+			if asCSV, err := cmd.Flags().GetBool(ft.CSV.Name); err != nil {
 				s := fmt.Sprintf("Failed to fetch csv flag: %v", err)
 				clilog.Writer.Error(s)
 				return s, nil
@@ -70,6 +70,6 @@ func NewUserMyInfoAction() action.Pair {
 
 func flags() pflag.FlagSet {
 	fs := pflag.FlagSet{}
-	fs.Bool(ft.Name.CSV, false, "display results as CSV")
+	fs.Bool(ft.CSV.Name, false, "display results as CSV")
 	return fs
 }

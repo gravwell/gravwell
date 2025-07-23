@@ -45,19 +45,19 @@ func scheduleQuery(flags *querysupport.QueryFlags, validatedQry string) (ssid in
 	if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
 		warnings = make([]string, 0)
 		if flags.OutPath != "" {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Output, ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Output.Name, ft.Name.Frequency))
 		}
 		if flags.Background {
 			warnings = append(warnings, ft.WarnFlagIgnore("background", ft.Name.Frequency))
 		}
 		if flags.Append {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Append, ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Append.Name, ft.Name.Frequency))
 		}
 		if flags.JSON {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.JSON, ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.JSON.Name, ft.Name.Frequency))
 		}
 		if flags.CSV {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.CSV, ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.CSV.Name, ft.Name.Frequency))
 		}
 	}
 
@@ -105,16 +105,16 @@ func warnBackgroundFlagConflicts(flags querysupport.QueryFlags) (warnings []stri
 	if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
 		warnings = make([]string, 0)
 		if flags.OutPath != "" {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Output, "background")+"\n")
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Output.Name, "background")+"\n")
 		}
 		if flags.Append {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.Append, "background")+"\n")
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Append.Name, "background")+"\n")
 		}
 		if flags.JSON {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.JSON, "background")+"\n")
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.JSON.Name, "background")+"\n")
 		}
 		if flags.CSV {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.Name.CSV, "background")+"\n")
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.CSV.Name, "background")+"\n")
 		}
 	}
 

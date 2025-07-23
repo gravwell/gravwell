@@ -207,10 +207,10 @@ func NewListAction[dataStruct_t any](short, long string,
 
 	cmd.Flags().AddFlagSet(buildFlagSet(options.AddtlFlags, options.Pretty != nil))
 	cmd.Flags().SortFlags = false // does not seem to be respected
-	cmd.MarkFlagsMutuallyExclusive(ft.Name.CSV, ft.Name.JSON, ft.Name.Table)
+	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name, ft.JSON.Name, ft.Table.Name)
 
 	// attach example
-	formats := []string{"--csv", "--json", "--table"}
+	formats := []string{"--" + ft.CSV.Name, "--" + ft.JSON.Name, "--" + ft.Table.Name}
 	if options.Pretty != nil {
 		formats = append(formats, "--pretty")
 	}

@@ -96,7 +96,7 @@ func TestMacros(t *testing.T) {
 			weave.CSVOptions{}))
 
 		// run the test body
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros list --csv --columns=%s", user, pf, strings.Join(columns, ","))
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros list --"+ft.CSV.Name+" --columns=%s", user, pf, strings.Join(columns, ","))
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
@@ -149,7 +149,7 @@ func TestMacros(t *testing.T) {
 		// TODO parse out macro ID from stdout and ensure it exists in the postMacros list
 	})
 
-	t.Run("macros list --json", func(t *testing.T) {
+	t.Run("macros list "+ft.JSON.Name, func(t *testing.T) {
 		// generate results manually, for comparison
 		myInfo, err := testclient.MyInfo()
 		if err != nil {
@@ -171,7 +171,7 @@ func TestMacros(t *testing.T) {
 			}
 		}
 
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros list --json --columns=%s", user, pf, strings.Join(columns, ","))
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros list --"+ft.JSON.Name+" --columns=%s", user, pf, strings.Join(columns, ","))
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
@@ -325,7 +325,7 @@ func TestQueries(t *testing.T) {
 		qry := "tag=gravwell"
 
 		// TODO need to make sure -o is valid before submitting the query
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" query %s -o %s --json", user, pf, qry, outPath)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" query %s -o %s --"+ft.JSON.Name, user, pf, qry, outPath)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
@@ -480,7 +480,7 @@ func TestQueries(t *testing.T) {
 
 	t.Run("query csv", func(t *testing.T) {
 		qry := "tag=gravwell limit 1"
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" query %s --csv", user, pf, qry)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" query %s --"+ft.CSV.Name, user, pf, qry)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)

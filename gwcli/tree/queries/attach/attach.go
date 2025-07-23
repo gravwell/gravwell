@@ -31,13 +31,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const (
+var (
 	helpDesc string = "Attach to an existing query by search ID and display its results.\n" +
 		"If the query is still running, attaching to it will block until it is complete.\n" +
 		"\n" +
 		"In interactive mode, a list of available, attach-able queries will be displayed.\n" +
 		"\n" +
-		"If --json or --csv is not given when outputting to a file (`-o`), the results will be " +
+		"If --" + ft.JSON.Name + " or --" + ft.CSV.Name + " is not given when outputting to a file (`-o`), the results will be " +
 		"text (if able) or an archive binary blob (if unable), depending on the query's render " +
 		"module.\n" +
 		"gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
@@ -80,10 +80,10 @@ func NewAttachAction() action.Pair {
 func initialLocalFlagSet() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 
-	fs.StringP(ft.Name.Output, "o", "", ft.Usage.Output)
-	fs.Bool(ft.Name.Append, false, ft.Usage.Append)
-	fs.Bool(ft.Name.JSON, false, ft.Usage.JSON)
-	fs.Bool(ft.Name.CSV, false, ft.Usage.CSV)
+	fs.StringP(ft.Output.Name, "o", "", ft.Output.Usage)
+	fs.Bool(ft.Append.Name, false, ft.Append.Usage)
+	fs.Bool(ft.JSON.Name, false, ft.JSON.Usage)
+	fs.Bool(ft.CSV.Name, false, ft.CSV.Usage)
 
 	return fs
 }
