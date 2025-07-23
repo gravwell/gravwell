@@ -62,16 +62,15 @@ func newMacroListAction() action.Pair {
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool(ft.Name.ListAll, false, ft.Usage.ListAll("macros")+"\n"+
-		"Ignored if you are not an admin.\n"+
-		"Supersedes --group.")
-	addtlFlags.Int32("group", 0, "Fetches all macros shared with the given group id.")
+	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all macros on the system.\n"+
+		"Supersedes --group")
+	addtlFlags.Int32("group", 0, "fetches all macros shared with the given group id")
 	return addtlFlags
 }
 
 // lister subroutine for macros
 func listMacros(fs *pflag.FlagSet) ([]types.SearchMacro, error) {
-	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
+	if all, err := fs.GetBool("all"); err != nil {
 		uniques.ErrGetFlag("macros list", err)
 	} else if all {
 		return connection.Client.GetAllMacros()

@@ -96,7 +96,7 @@ func TestMacros(t *testing.T) {
 			weave.CSVOptions{}))
 
 		// run the test body
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros list --"+ft.CSV.Name+" --columns=%s", user, pf, strings.Join(columns, ","))
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros list --"+ft.CSV.Name+" --"+ft.SelectColumns.Name+"=%s", user, pf, strings.Join(columns, ","))
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
@@ -171,7 +171,7 @@ func TestMacros(t *testing.T) {
 			}
 		}
 
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros list --"+ft.JSON.Name+" --columns=%s", user, pf, strings.Join(columns, ","))
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros list --"+ft.JSON.Name+" --"+ft.SelectColumns.Name+"=%s", user, pf, strings.Join(columns, ","))
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome

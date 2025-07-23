@@ -112,14 +112,17 @@ func listOutput[retStruct any](
 // buildFlagSet constructs and returns a flagset composed of the default list flags, additional flags defined for this action, and --pretty if a prettyFunc was defined.
 func buildFlagSet(afs AddtlFlagFunction, prettyDefined bool) *pflag.FlagSet {
 	fs := pflag.FlagSet{}
-	fs.Bool(ft.CSV.Name, false, ft.CSV.Usage)
-	fs.Bool(ft.JSON.Name, false, ft.JSON.Usage)
-	fs.Bool(ft.Table.Name, true, ft.Table.Usage) // default
-	fs.StringSlice(ft.Name.SelectColumns, []string{}, ft.Usage.SelectColumns)
-	fs.Bool("show-columns", false, "display the list of fully qualified column names and die.")
-	fs.StringP(ft.Output.Name, "o", "", ft.Output.Usage)
-	fs.Bool(ft.Append.Name, false, ft.Append.Usage)
-	fs.Bool(ft.Name.AllColumns, false, ft.Usage.AllColumns)
+	ft.CSV.Register(&fs)
+	ft.JSON.Register(&fs)
+	ft.Table.Register(&fs)
+	//fs.Bool(ft.Table.Name, true, ft.Table.Usage) // default
+	ft.SelectColumns.Register(&fs)
+	ft.ShowColumns.Register(&fs)
+
+	ft.Output.Register(&fs)
+	ft.Append.Register(&fs)
+	ft.AllColumns.Register(&fs)
+
 	// if prettyFunc was defined, bolt on pretty
 	if prettyDefined {
 		fs.Bool("pretty", false, "display results as prettified text.\n"+
@@ -160,12 +163,12 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 
 // getColumns checks for --columns then validates and returns them if found and returns the default columns otherwise.
 func getColumns(fs *pflag.FlagSet, defaultColumns []string, availDSColumns []string) ([]string, error) {
-	if all, err := fs.GetBool(ft.Name.AllColumns); err != nil {
+	if all, err := fs.GetBool(ft.AllColumns.Name); err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if all {
 		return availDSColumns, nil
 	}
-	cols, err := fs.GetStringSlice(ft.Name.SelectColumns)
+	cols, err := fs.GetStringSlice(ft.SelectColumns.Name)
 	if err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if len(cols) < 1 {

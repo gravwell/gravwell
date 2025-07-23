@@ -214,7 +214,7 @@ func NewListAction[dataStruct_t any](short, long string,
 	if options.Pretty != nil {
 		formats = append(formats, "--pretty")
 	}
-	cmd.Example = fmt.Sprintf("%v %v %v", use, ft.MutuallyExclusive(formats), ft.Optional("--columns=col1,col2,..."))
+	cmd.Example = fmt.Sprintf("%v %v %v", use, ft.MutuallyExclusive(formats), ft.Optional("--"+ft.SelectColumns.Name+"=col1,col2,..."))
 
 	// apply command modifiers
 	if options.CmdMods != nil {
@@ -245,7 +245,7 @@ func generateRun[dataStruct_t any](
 		}
 
 		// check for --show-columns
-		if sc, err := c.Flags().GetBool("show-columns"); err != nil {
+		if sc, err := c.Flags().GetBool(ft.ShowColumns.Name); err != nil {
 			fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag("list", err))
 			return
 		} else if sc {

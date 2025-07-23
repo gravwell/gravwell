@@ -186,7 +186,7 @@ func TestNewListAction(t *testing.T) {
 			}, nil
 		}, Options{Use: "validUse"})
 		filepath := path.Join(tDir, "specific_columns.csv")
-		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--columns", "Col1,Col3", "-" + ft.Output.P(), filepath})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--" + ft.SelectColumns.Name, "Col1,Col3", "-" + ft.Output.P(), filepath})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
@@ -413,7 +413,7 @@ func TestNewListAction(t *testing.T) {
 			Use:           "validUse",
 			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
 		})
-		pair.Action.SetArgs([]string{"--show-columns"})
+		pair.Action.SetArgs([]string{"--" + ft.ShowColumns.Name})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
@@ -451,12 +451,12 @@ func TestNewListAction(t *testing.T) {
 		},
 		{"all overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--" + ft.Name.AllColumns + ""}, // --no-interactive and --csv are attached in the test
+			[]string{"--" + ft.AllColumns.Name}, // --no-interactive and --csv are attached in the test
 			[]string{"Col1", "Col2", "Col3", "Col4.SubCol1"},
 		},
 		{"explicit columns overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--columns", "Col3"}, // --no-interactive and --csv are attached in the test
+			[]string{"--" + ft.SelectColumns.Name, "Col3"}, // --no-interactive and --csv are attached in the test
 			[]string{"Col3"},
 		},
 	}
@@ -542,7 +542,7 @@ func TestNewListAction(t *testing.T) {
 				}{true, 3.14}},
 			}, nil
 		}, Options{Use: "validU53"})
-		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--show-columns"})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--" + ft.ShowColumns.Name})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
@@ -573,7 +573,7 @@ func TestNewListAction(t *testing.T) {
 				}{true, 3.14}},
 			}, nil
 		}, Options{Use: "validU53"})
-		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--columns=Xol1"})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--" + ft.SelectColumns.Name + "=Xol1"})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
@@ -610,12 +610,12 @@ func TestNewListAction(t *testing.T) {
 		},
 		{"all overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--" + ft.Name.AllColumns + ""}, // --no-interactive and --json are attached in the test
+			[]string{"--" + ft.AllColumns.Name}, // --no-interactive and --json are attached in the test
 			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
 		},
 		{"explicit columns overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--columns", "Col3"}, // --no-interactive and --json are attached in the test
+			[]string{"--" + ft.SelectColumns.Name, "Col3"}, // --no-interactive and --json are attached in the test
 			`[{"Col3":-1}]`,
 		},
 	}
@@ -852,10 +852,10 @@ func TestModel(t *testing.T) {
 			// generate arguments list
 			args := []string{}
 			if tt.flags.columns != nil {
-				args = append(args, "--"+ft.Name.SelectColumns+"="+strings.Join(tt.flags.columns, ","))
+				args = append(args, "--"+ft.SelectColumns.Name+"="+strings.Join(tt.flags.columns, ","))
 			}
 			if tt.flags.all {
-				args = append(args, "--"+ft.Name.AllColumns+"")
+				args = append(args, "--"+ft.AllColumns.Name)
 			}
 			args = append(args, tt.freeformArgs...)
 
@@ -985,7 +985,7 @@ func TestModel(t *testing.T) {
 			}
 		})
 	}
-	t.Run("interactive --show-columns", func(t *testing.T) {
+	t.Run("interactive show columns", func(t *testing.T) {
 		availableColumns := []string{"Column1", "column2", "sub.column.1", "Sub.column.2"}
 		columnAliases := map[string]string{"Column1": "C1", "Sub.column.2": "Sc2"}
 

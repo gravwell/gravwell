@@ -15,18 +15,47 @@ package ft
 
 import (
 	"fmt"
+	"go/types"
 	"strings"
+
+	"github.com/spf13/pflag"
 )
 
 type flag struct {
 	Name      string
 	Shorthand rune
 	Usage     string
+	typ       types.BasicKind
+}
+
+// Register installs this flag (with its standard type) in the given flagset.
+// Sets the default to the zero value of the type.
+// Only supports a subset of types; expand as need be.
+//
+// It is a helper function to provide consistent usage.
+func (f flag) Register(fs *pflag.FlagSet) {
+	if f.typ == types.Invalid {
+		panic("cannot register a flag with an invalid type")
+	}
+	// There is probably a better way to do this, but pflag does not expose the pflag.Value implementations it uses for primitive types.
+	// Therefore, this will do well enough for a helper function of this low priority.
+	switch f.typ {
+	case types.Bool:
+		fs.BoolP(f.Name, f.P(), false, f.Usage)
+	case types.String:
+		fs.StringP(f.Name, f.P(), "", f.Usage)
+	default:
+		panic(fmt.Sprintf("unhandled type: %v", f.typ))
+	}
 }
 
 // P returns the shorthand of the flag as a string, if any.
 // Just a convenience function.
 func (f flag) P() string {
+	var zero rune
+	if f.Shorthand == zero {
+		return ""
+	}
 	return string(f.Shorthand)
 }
 
@@ -35,13 +64,40 @@ var NoInteractive = flag{
 	Name:      "no-interactive",
 	Shorthand: 'x',
 	Usage: "disallows gwcli from awaiting user input, making it safe to execute in a scripting context.\n" +
-		"If more data is required or bad input given, gwcli will fail out instead of entering interactive mode"}
+		"If more data is required or bad input given, gwcli will fail out instead of entering interactive mode",
+	typ: types.Bool,
+}
 
 // Dryrun (--dryrun) is a local flag implemented by actions (typically deletes) to describe actions that would have been taken had --dryrun not been set.
 var Dryrun = flag{
 	Name:  "dryrun",
 	Usage: "feigns the request action, instead displaying the effects that would have occurred",
+	typ:   types.Bool,
 }
+
+// GetAll is a local flag that tells the implementing action to fetch all items, rather than just the current user's items (or something to that effect).
+// For example, providing this to macros should fetch all macros on the instance, rather than just your macros.
+/*var GetAll = struct {
+	Name      string
+	Shorthand rune
+	Usage     func(adminOnly bool, plural string) string
+	Register  func(fs *pflag.FlagSet)
+}{
+	Name: "all",
+	// would include "Ignored if you are not admin" suffixed, except I cannot guarentee all Client
+	// library GetAll* functions actually do this rather than failing outright.
+	Usage: func(adminOnly bool, plural string) string {
+		s := "Lists all " + plural + " on the system."
+		if adminOnly {
+			s = "ADMIN-ONLY." + s
+		}
+		return s
+	},
+	Register: func(fs *pflag.FlagSet) {
+		// if it is stupid but it works....
+		fs.Bool("all", false, Usag)
+	},
+}*/
 
 //#region output manipulation
 
@@ -52,12 +108,14 @@ var Output = flag{
 	Shorthand: 'o',
 	Usage: "file to write results to.\n" +
 		"Truncates file unless --" + Append.Name + " is also given",
+	typ: types.String,
 }
 
 // Append (--append) is a local flag implemented with --output to indicated that the target file should be appended to instead of truncated.
 var Append = flag{
 	Name:  "append",
 	Usage: "append to the given output file instead of truncating it",
+	typ:   types.Bool,
 }
 
 // CSV (--csv) is a local flag implemented --output to indicated that results should be in csv format.
@@ -65,6 +123,7 @@ var CSV = flag{
 	Name: "csv",
 	Usage: "display results as CSV.\n" +
 		"Mutually exclusive with --json, --table",
+	typ: types.Bool,
 }
 
 // JSON (--json) is a local flag implemented --output to indicated that results should be in json format.
@@ -72,6 +131,7 @@ var JSON = flag{
 	Name: "json",
 	Usage: "display results as JSON.\n" +
 		"Mutually exclusive with --csv, --table",
+	typ: types.Bool,
 }
 
 // Table (--table) is a local flag implemented --output to indicated that results should be outputted as a fancy table.
@@ -79,9 +139,49 @@ var Table = flag{
 	Name: "table",
 	Usage: "display results in a fancy table.\nMutually exclusive with --json, --csv.\n" +
 		"Default if no format flags are given",
+	typ: types.Bool,
 }
 
 //#endregion output manipulation
+
+//#region scaffoldlist/columns
+
+// ShowColumns (--show-columns) is a local flag used by scaffold list to display all known columns.
+// Unlikely to be used outside of actions that implement scaffold list.
+var ShowColumns = flag{
+	Name:  "show-columns",
+	Usage: "display the list of fully qualified column names and exit",
+	typ:   types.Bool,
+}
+
+// SelectColumns (--columns) is a local flag used by scaffold list to select which columns to display, overriding the default.
+// Unlikely to be used outside of actions that implement scaffold list.
+var SelectColumns = struct { // we have to use a custom Add implementation as we need StringSlice.
+	Name      string
+	Shorthand rune
+	Usage     string
+	Register  func(fs *pflag.FlagSet)
+}{
+	Name: "columns",
+	Usage: "comma-separated list of columns to include in the results\n." +
+		"Use --" + ShowColumns.Name + " to see the full list of columns",
+	Register: func(fs *pflag.FlagSet) {
+		// if it is stupid but it works....
+		fs.StringSlice("columns", nil, "comma-separated list of columns to include in the results\n."+
+			"Use --"+ShowColumns.Name+" to see the full list of columns")
+	},
+}
+
+// AllColumns (--all-columns) is a local flag used by scaffold list to force the action to display data from all available columns.
+// Unlikely to be used outside of actions that implement scaffold list.
+var AllColumns = flag{
+	Name: "all-columns",
+	Usage: "displays data from all columns, ignoring the default column set.\n" +
+		"Overrides --" + SelectColumns.Name,
+	typ: types.Bool,
+}
+
+//#endregion scaffoldlist/columns
 
 // Name struct contains common flag names used across a variety of actions.
 var Name = struct {
@@ -91,12 +191,6 @@ var Name = struct {
 	Query     string
 	Frequency string
 	Expansion string // macro expansions
-	ListAll   string
-
-	// column selection
-
-	AllColumns    string // return data from all available columns
-	SelectColumns string // return data from specified columns
 }{
 	Name:      "name",
 	Desc:      "description",
@@ -104,11 +198,6 @@ var Name = struct {
 	Query:     "query",
 	Frequency: "frequency",
 	Expansion: "expansion",
-	ListAll:   "all",
-	// column selection
-
-	AllColumns:    "all-columns",
-	SelectColumns: "columns",
 }
 
 // Usage contains shared, common flag usage description used across a variety of actions.
@@ -118,14 +207,6 @@ var Usage = struct {
 	Desc      func(singular string) string
 	Frequency string
 	Expansion string // macro expansions
-	// would include "Ignored if you are not admin" suffixed, except I cannot guarentee all Client
-	// library GetAll* functions actually do this rather than failing outright.
-	ListAll func(plural string) string
-
-	// column selection
-
-	AllColumns    string // return data from all available columns
-	SelectColumns string // return data from specified columns
 }{
 	Name: func(singular string) string {
 		return "name of the " + singular
@@ -135,16 +216,6 @@ var Usage = struct {
 	},
 	Frequency: "cron-style execution frequency",
 	Expansion: "value for the macro to expand to", // macro expansions
-	ListAll: func(plural string) string {
-		return "ADMIN-ONLY. Lists all " + plural + " on the system."
-	},
-
-	// column selection
-
-	AllColumns: "displays data from all columns, ignoring the default column set.\n" +
-		"Overrides --" + Name.AllColumns,
-	SelectColumns: "comma-separated list of columns to include in the results." +
-		"Use --show-columns to see the full list of columns.",
 }
 
 // WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.

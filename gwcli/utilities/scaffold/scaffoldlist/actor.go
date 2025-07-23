@@ -160,7 +160,7 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 
 	// parse column handling
 	// only need to parse columns if user did not pass in --show-columns
-	if la.showColumns, err = la.fs.GetBool("show-columns"); err != nil {
+	if la.showColumns, err = la.fs.GetBool(ft.ShowColumns.Name); err != nil {
 		return "", nil, err
 	} else if !la.showColumns {
 		// fetch columns if it exists
@@ -169,7 +169,7 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 			return err.Error(), nil, nil
 		}
 	}
-	if all, err := la.fs.GetBool(ft.Name.AllColumns); err != nil {
+	if all, err := la.fs.GetBool(ft.AllColumns.Name); err != nil {
 		return "", nil, err
 	} else if all {
 		la.columns = la.availDSColumns

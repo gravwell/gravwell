@@ -88,21 +88,21 @@ func newScheduledQryListAction() action.Pair {
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool(ft.Name.ListAll, false, ft.Usage.ListAll("scheduled searches")+
-		" Supercedes --id. Returns your searches if you are not an admin.")
-	addtlFlags.String(ft.Name.ID, "", "Fetches the scheduled search associated to the given id."+
+	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all schedule searches on the system.\n"+
+		"Supersedes --id.")
+	addtlFlags.String(ft.Name.ID, "", "fetches the scheduled search associated to the given id."+
 		"This id can be a standard, numeric ID or a uuid.")
 
 	return addtlFlags
 }
 
 func listScheduledSearch(fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {
-	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
+	if all, err := fs.GetBool("all"); err != nil {
 		uniques.ErrGetFlag("scheduled list", err)
 	} else if all {
 		return connection.Client.GetAllScheduledSearches()
 	}
-	if untypedID, err := fs.GetString(ft.Name.ListAll); err != nil {
+	if untypedID, err := fs.GetString(ft.Name.ID); err != nil {
 		uniques.ErrGetFlag("scheduled list", err)
 	} else if untypedID != "" {
 		// attempt to parse as UUID first
