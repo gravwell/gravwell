@@ -18,6 +18,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -55,31 +56,55 @@ func tfs[I Id_t](t *testing.T, name string, strVal string, expected I, wantErr b
 	})
 }
 
-func TestNewBasicAction(t *testing.T) {
-	t.Run("aliases, additional flags unset", func(t *testing.T) {
-		aliases := []string{"some", "aliases"}
-		ba := NewBasicAction("test", "short test", "long test",
-			func(c *cobra.Command) (string, tea.Cmd) {
-				testbool, err := c.Flags().GetBool("testbool")
-				if err != nil {
-					panic(err)
+func TestNonInteractive(t *testing.T) {
+	t.Run("sanity check arguments", func(t *testing.T) {
+		// helper function
+		fn := func(use, short, long string, act ActFunc) {
+			var recovered bool
+			defer func() {
+				// this is the final deferred function; if we have not recovered by this point, we goofed
+				if !recovered {
+					t.Error("test did not recover from expected panic (either it panicked and failed to recover or it did not panic)")
 				}
-				s := fmt.Sprintf("testbool: %v", testbool)
-				return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
-			}, BasicOptions{Aliases: aliases, AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Bool("testbool", false, "a boolean for testing")
-				return fs
-			}})
+			}()
+			defer func() {
+				recover()
+				recovered = true
+			}()
+			// call function expected to panic
+			NewBasicAction(use, short, long, act, BasicOptions{})
+		}
+
+		t.Run("use", func(t *testing.T) {
+			fn("", "short", "long", func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+				return "", nil
+			})
+		})
+		t.Run("short", func(t *testing.T) {
+			fn("use", "", "long", func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+				return "", nil
+			})
+		})
+		t.Run("long", func(t *testing.T) {
+			fn("", "short", "", func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+				return "", nil
+			})
+		})
+		t.Run("act", func(t *testing.T) {
+			fn("use", "short", "", nil)
+		})
+
+	})
+	t.Run("no options", func(t *testing.T) {
+		expectedOutput := "Hello World"
+		ba := NewBasicAction("test", "short test", "long test",
+			func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+				return expectedOutput, tea.Println(expectedOutput) // basics typically should not return printlns, but we can use it for testing
+			}, BasicOptions{})
 		var (
 			sbOut strings.Builder
 			sbErr strings.Builder
 		)
-
-		// initial check options
-		if slices.Compare(ba.Action.Aliases, aliases) != 0 {
-			t.Fatal(ExpectedActual(aliases, ba.Action.Aliases))
-		}
 
 		ba.Action.SetOut(&sbOut)
 		ba.Action.SetErr(&sbErr)
@@ -91,50 +116,97 @@ func TestNewBasicAction(t *testing.T) {
 		if strErr := strings.TrimSpace(sbErr.String()); strErr != "" {
 			t.Fatal(strErr)
 		}
-		if strOut := strings.TrimSpace(sbOut.String()); strOut != "testbool: false" {
-			t.Fatal(ExpectedActual("testbool: false", strOut))
+		if strOut := strings.TrimSpace(sbOut.String()); strOut != expectedOutput {
+			t.Fatal(ExpectedActual(expectedOutput, strOut))
 		}
 	})
-	t.Run("additional flags set", func(t *testing.T) {
-		ba := NewBasicAction("test", "short test", "long test",
-			func(c *cobra.Command) (string, tea.Cmd) {
-				testbool, err := c.Flags().GetBool("testbool")
-				if err != nil {
-					panic(err)
-				}
-				s := fmt.Sprintf("testbool: %v", testbool)
-				return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
-			}, BasicOptions{AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Bool("testbool", false, "a boolean for testing")
-				return fs
-			}})
-		var (
-			sbOut strings.Builder
-			sbErr strings.Builder
-		)
-		ba.Action.SetOut(&sbOut)
-		ba.Action.SetErr(&sbErr)
+	t.Run("options set", func(t *testing.T) {
+		t.Run("all as expected", func(t *testing.T) {
+			pair, _, _ := newPairWithRequiredFlags()
+			var (
+				sbOut strings.Builder
+				sbErr strings.Builder
+			)
+			pair.Action.SetOut(&sbOut)
+			pair.Action.SetErr(&sbErr)
 
-		ba.Action.SetArgs([]string{"--testbool"})
-		if err := ba.Action.Execute(); err != nil {
-			t.Fatal(err)
-		}
-		// check outputs
-		if strErr := strings.TrimSpace(sbErr.String()); strErr != "" {
-			t.Fatal(strErr)
-		}
-		if strOut := strings.TrimSpace(sbOut.String()); strOut != "testbool: true" {
-			t.Fatal(ExpectedActual("testbool: true", strOut))
-		}
+			pair.Action.SetArgs([]string{"--testbool", "--negative-five=-5", "--five", "5"})
+			if err := pair.Action.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			// check outputs
+			if strErr := strings.TrimSpace(sbErr.String()); strErr != "" {
+				t.Fatal(strErr)
+			}
+			if strOut := strings.TrimSpace(sbOut.String()); strOut != "testbool: true" {
+				t.Fatal(ExpectedActual("testbool: true", strOut))
+			}
+		})
+		t.Run("--negative-five unset", func(t *testing.T) {
+			pair, _, _ := newPairWithRequiredFlags()
+			var (
+				sbOut strings.Builder
+				sbErr strings.Builder
+			)
+			pair.Action.SetOut(&sbOut)
+			pair.Action.SetErr(&sbErr)
+
+			pair.Action.SetArgs([]string{"--testbool", "--five", "5"})
+			if err := pair.Action.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			// check outputs
+			if strErr := strings.TrimSpace(sbErr.String()); strErr == "" {
+				t.Fatal("expected failure due to missing required parameter --negative-five=-5")
+			}
+			if strOut := strings.TrimSpace(sbOut.String()); strOut != "" {
+				t.Fatal("expected stdout to failure due to validate error")
+			}
+		})
+		t.Run("--five unset", func(t *testing.T) {
+			pair, _, _ := newPairWithRequiredFlags()
+			var (
+				sbOut strings.Builder
+				sbErr strings.Builder
+			)
+			pair.Action.SetOut(&sbOut)
+			pair.Action.SetErr(&sbErr)
+
+			pair.Action.SetArgs([]string{"--testbool", "--negative-five=-5"})
+			if err := pair.Action.Execute(); err != nil {
+				t.Fatal(err)
+			}
+			// check outputs
+			if strErr := strings.TrimSpace(sbErr.String()); strErr == "" {
+				t.Fatal("expected failure due to missing required parameter --negative-five=-5")
+			}
+			if strOut := strings.TrimSpace(sbOut.String()); strOut != "" {
+				t.Fatal("expected stdout to failure due to validate error")
+			}
+		})
+		t.Run("--five given a negative", func(t *testing.T) {
+			pair, _, _ := newPairWithRequiredFlags()
+			var (
+				sbOut strings.Builder
+				sbErr strings.Builder
+			)
+			pair.Action.SetOut(&sbOut)
+			pair.Action.SetErr(&sbErr)
+
+			pair.Action.SetArgs([]string{"--testbool", "--five=-5"})
+			if err := pair.Action.Execute(); err == nil {
+				t.Fatal("expected an error after giving a negative number to uint")
+			}
+		})
+
 	})
 }
 
 func TestModel(t *testing.T) {
 	t.Run("normal run, twice", func(t *testing.T) {
 		pair := NewBasicAction("test", "short test", "long test",
-			func(c *cobra.Command) (string, tea.Cmd) {
-				testbool, err := c.Flags().GetBool("testbool")
+			func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+				testbool, err := fs.GetBool("testbool")
 				if err != nil {
 					panic(err)
 				}
@@ -177,13 +249,12 @@ func TestModel(t *testing.T) {
 	})
 	t.Run("run with options, twice", func(t *testing.T) {
 		pair := NewBasicAction("test", "short test", "long test",
-			func(c *cobra.Command) (string, tea.Cmd) {
-				testbool, err := c.Flags().GetBool("testbool")
+			func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+				testbool, err := fs.GetBool("testbool")
 				if err != nil {
 					panic(err)
 				}
-				s := fmt.Sprintf("testbool: %v", testbool)
-				return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
+				return fmt.Sprintf("testbool: %v", testbool), nil
 			}, BasicOptions{AddtlFlagFunc: func() pflag.FlagSet {
 				fs := pflag.FlagSet{}
 				fs.Bool("testbool", false, "a boolean for testing")
@@ -204,7 +275,6 @@ func TestModel(t *testing.T) {
 			t.Fatal("failed to type assert model to *basicAction")
 		}
 
-		// run it again
 		fauxMother(t, ba, []string{"1", "2"}, false, "testbool: false")
 		// check that outputs are empty
 		if e := strings.TrimSpace(sbErr.String()); e != "" {
@@ -228,6 +298,26 @@ func TestModel(t *testing.T) {
 			t.Fatal(ExpectedActual("", o))
 		}
 	})
+	t.Run("required flags", func(t *testing.T) {
+		pair, _, _ := newPairWithRequiredFlags()
+		var (
+			sbOut strings.Builder
+			sbErr strings.Builder
+		)
+		pair.Action.SetOut(&sbOut)
+		pair.Action.SetErr(&sbErr)
+
+		ba, ok := pair.Model.(*basicAction)
+		if !ok {
+			t.Fatal("failed to type assert model to *basicAction")
+		}
+		// supplying a bare argument, but not one of the required flags
+		fauxMother(t, ba, []string{"1"}, true, "")
+		// supplying a bare argument and one of the required flags (but not both)
+		fauxMother(t, ba, []string{"--negative-five", "-5", "1"}, true, "")
+		// supplying a bare argument and both required flags
+		fauxMother(t, ba, []string{"--negative-five", "-5", "--five=5", "1"}, false, "testbool: false")
+	})
 }
 
 // fauxMother mimics the call tree of Mother (.SetArgs -> .Update -> .View() -> .Done() -> .Reset()) against ba.
@@ -235,6 +325,7 @@ func TestModel(t *testing.T) {
 // setArgsInvalid checks that .SetArgs() returned invalid. If setArgsInvalid is set and matched, fauxMother will return early.
 // expectedUpdatePrintMsg tests the printLineMessage returned by .Update() (in sequence form or bare form).
 func fauxMother(t *testing.T, ba *basicAction, args []string, setArgsInvalid bool, expectedUpdatePrintMsg string) {
+	t.Helper()
 	{
 		inv, cmd, err := ba.SetArgs(nil, args)
 		if err != nil {
@@ -277,9 +368,11 @@ func fauxMother(t *testing.T, ba *basicAction, args []string, setArgsInvalid boo
 }
 
 func extractPrintLineMessageString(t *testing.T, cmd tea.Cmd) string {
+	t.Helper()
 	voItm1 := reflect.ValueOf(cmd())
 	t.Logf("Update msg kind: %v", voItm1.Kind())
 	// this will be a slice if it is a sequence or a struct if a single msg
+	var voPLM reflect.Value
 	if voItm1.Kind() == reflect.Slice {
 		if voItm1.Len() < 1 {
 			t.Fatal(ExpectedActual(2, voItm1.Len()))
@@ -288,18 +381,20 @@ func extractPrintLineMessageString(t *testing.T, cmd tea.Cmd) string {
 		}
 		// replace voMsg with the first item
 		voItm1 = voItm1.Index(0)
+		// voItm1 should now be a Cmd that returns a printLineMessage
+		if voItm1.Kind() != reflect.Func {
+			t.Fatal(ExpectedActual(reflect.Func, voItm1.Kind()))
+		}
+
+		if res := voItm1.Call(nil); len(res) != 1 {
+			t.Fatal("bad output  count", ExpectedActual(1, len(res)))
+		} else {
+			voPLM = res[0]
+		}
+	} else { // not a sequence, just a raw printLineMessage (or an interface of a  Msg)
+		voPLM = voItm1
 	}
-	// voItm1 should now be a Cmd that returns a printLineMessage
-	if voItm1.Kind() != reflect.Func {
-		t.Fatal(ExpectedActual(reflect.Func, voItm1.Kind()))
-	}
-	var voPLM reflect.Value
-	if res := voItm1.Call(nil); len(res) != 1 {
-		t.Fatal("bad output  count", ExpectedActual(1, len(res)))
-	} else {
-		voPLM = res[0]
-	}
-	// likely an interface
+
 	// if the Message is still in interface form, we need to dereference it
 	if voPLM.Kind() == reflect.Interface {
 		voPLM = voPLM.Elem()
@@ -313,4 +408,56 @@ func extractPrintLineMessageString(t *testing.T, cmd tea.Cmd) string {
 		t.Fatal(ExpectedActual(reflect.String, voMessageBody.Kind()))
 	}
 	return voMessageBody.String()
+}
+
+// helper function to generate a new action pair (with returned aliases and example set in the command) with three flags:
+//
+// --testbool
+//
+// --negative-five=<> (required to equal -5)
+//
+// --five=<> (required to equal 5)
+func newPairWithRequiredFlags() (pair action.Pair, aliases []string, example string) {
+	aliases, example = []string{"alias1", "alias2"}, "example"
+	return NewBasicAction("test", "short test", "long test",
+		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			// validate that the command has the expected values
+			if slices.Compare(cmd.Aliases, aliases) != 0 {
+				panic(ExpectedActual(aliases, cmd.Aliases))
+			} else if cmd.Example != example {
+				panic(ExpectedActual(example, cmd.Example))
+			}
+			testbool, err := fs.GetBool("testbool")
+			if err != nil {
+				panic(err)
+			}
+			s := fmt.Sprintf("testbool: %v", testbool)
+			return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
+		}, BasicOptions{
+			// define a boolean that can be set by the actFunc and a couple ints to test ValidateArgs
+			AddtlFlagFunc: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				fs.Bool("testbool", false, "a boolean for testing")
+				fs.Int("negative-five", 0, "must be set to -5")
+				fs.Uint("five", 0, "must be set to 5")
+				return fs
+			},
+			Aliases: aliases,
+			CmdMods: func(c *cobra.Command) {
+				c.Example = example
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if nfive, err := fs.GetInt("negative-five"); err != nil {
+					return "", err
+				} else if nfive != -5 {
+					return "--negative-five must equal -5", nil
+				}
+				if five, err := fs.GetUint("five"); err != nil {
+					return "", err
+				} else if five != 5 {
+					return "--five must equal 5", nil
+				}
+				return "", nil
+			},
+		}), aliases, example
 }
