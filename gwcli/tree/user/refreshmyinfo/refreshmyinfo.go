@@ -18,6 +18,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func NewUserRefreshMyInfoAction() action.Pair {
@@ -28,7 +29,7 @@ func NewUserRefreshMyInfoAction() action.Pair {
 			"Only useful if your account has had remote changes since the beginning of this session."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(*cobra.Command) (string, tea.Cmd) {
+		func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd) {
 			if err := connection.RefreshCurrentUser(); err != nil {
 				return "Failed to refresh user info: " + err.Error(), nil
 			}

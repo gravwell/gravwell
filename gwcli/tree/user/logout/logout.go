@@ -16,6 +16,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func NewUserLogoutAction() action.Pair {
@@ -26,7 +27,7 @@ func NewUserLogoutAction() action.Pair {
 			" login to request credentials."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(*cobra.Command) (string, tea.Cmd) {
+		func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd) {
 			connection.Client.Logout()
 			connection.End()
 

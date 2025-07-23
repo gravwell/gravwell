@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 // styles, set in init()
@@ -50,7 +51,7 @@ func newHardwareAction() action.Pair {
 			"This action is intended for human consumption; most of this information is available in JSON/CSV via the indexer and ingester actions if you need better script support."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(c *cobra.Command) (string, tea.Cmd) {
+		func(_ *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
 			var sb strings.Builder
 
 			var (

@@ -20,6 +20,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func NewTreeAction() action.Pair {
@@ -30,8 +31,8 @@ func NewTreeAction() action.Pair {
 			"available actions."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(c *cobra.Command) (string, tea.Cmd) {
-			lgt := walkBranch(c.Root())
+		func(cmd *cobra.Command, _ *pflag.FlagSet) (string, tea.Cmd) {
+			lgt := walkBranch(cmd.Root())
 
 			return lgt.String(), nil
 		}, scaffold.BasicOptions{})

@@ -18,6 +18,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 func NewUserAdminAction() action.Pair {
@@ -27,9 +28,9 @@ func NewUserAdminAction() action.Pair {
 		long  string = "Displays whether or not your current user has admin permissions."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(*cobra.Command) (string, tea.Cmd) {
+		func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd) {
 			var not string
-			// todo what is the difference re: MyAdminStatus?
+			// checks if we are in admin mode (aka: appending 'admin' to API query strings)
 			if !connection.Client.AdminMode() {
 				not = " not"
 			}

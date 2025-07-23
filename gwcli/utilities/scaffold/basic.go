@@ -50,13 +50,20 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// ActFunc is the driver code for a basic action.
+// It is called whenever this action is invoked and runs exactly once per invocation.
+//
+// ! Do not use the flags inside of cmd. They are unused and their state is undefined.
+// Use fs instead.
+type ActFunc func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd)
+
 // NewBasicAction creates a new Basic action fully featured for Cobra and Mother usage.
 // The given act func will be executed when the action is triggered and its result printed to the
 // screen.
 //
 // NOTE: The tea.Cmd returned by act will be thrown away if run in a Cobra context.
 func NewBasicAction(use, short, long string,
-	act func(*cobra.Command) (string, tea.Cmd),
+	act ActFunc,
 	options BasicOptions) action.Pair {
 	// validate options
 	if use == "" {
@@ -75,7 +82,16 @@ func NewBasicAction(use, short, long string,
 		long,
 		options.Aliases,
 		func(c *cobra.Command, _ []string) {
-			s, _ := act(c)
+			if options.ValidateArgs != nil {
+				if inv, err := options.ValidateArgs(c.Flags()); err != nil {
+					fmt.Fprintf(c.ErrOrStderr(), "%v", err)
+					return
+				} else if inv != "" {
+					fmt.Fprintf(c.ErrOrStderr(), "invalid arguments: %v", inv)
+					return
+				}
+			}
+			s, _ := act(c, c.Flags())
 			fmt.Fprintf(c.OutOrStdout(), "%v\n", s)
 		})
 	ba := basicAction{cmd: cmd, options: options, fn: act}
@@ -105,16 +121,16 @@ type basicAction struct {
 	fs   pflag.FlagSet // the current state of the flagset
 
 	// individualized for each implementation of scaffoldbasic
-	cmd     *cobra.Command                         // the command associated to this basic action
-	options BasicOptions                           // modifiers for the list action
-	fn      func(*cobra.Command) (string, tea.Cmd) // the function performing the basic action
+	cmd     *cobra.Command // the command associated to this basic action
+	options BasicOptions   // modifiers for the list action
+	fn      ActFunc        // the function performing the basic action
 }
 
 var _ action.Model = &basicAction{}
 
 func (ba *basicAction) Update(msg tea.Msg) tea.Cmd {
 	ba.done = true
-	s, cmd := ba.fn(ba.cmd)
+	s, cmd := ba.fn(ba.cmd, &ba.fs)
 	if cmd != nil { // no point in sequencing with nil
 		return tea.Sequence(tea.Println(s), cmd)
 	}
