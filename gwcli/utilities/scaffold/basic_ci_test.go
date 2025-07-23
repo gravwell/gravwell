@@ -11,6 +11,7 @@ package scaffold
 import (
 	"fmt"
 	"math"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -163,8 +164,8 @@ func TestModel(t *testing.T) {
 		}
 
 		// run it twice
-		fauxMother(t, ba, []string{})
-		fauxMother(t, ba, []string{})
+		fauxMother(t, ba, []string{}, false, "testbool: false")
+		fauxMother(t, ba, []string{"--testbool"}, false, "testbool: true")
 
 		// check outputs
 		if strErr := strings.TrimSpace(sbErr.String()); strErr != "" {
@@ -203,58 +204,66 @@ func TestModel(t *testing.T) {
 			t.Fatal("failed to type assert model to *basicAction")
 		}
 
-		// run it twice
-		fauxMother(t, ba, []string{"1", "2"})
-		if inv, cmd, err := ba.SetArgs(nil, []string{}); err != nil {
-			t.Fatal(err)
-		} else if inv == "" {
-			t.Fatal("no arguments were given, 2 expected; ") // TODO SetArgs with no args should fail due to positional args
-		} else if cmd != nil {
-			t.Fatal("SetArgs should not return commands")
+		// run it again
+		fauxMother(t, ba, []string{"1", "2"}, false, "testbool: false")
+		// check that outputs are empty
+		if e := strings.TrimSpace(sbErr.String()); e != "" {
+			t.Fatal(ExpectedActual("", e))
 		}
-		if ba.Done() {
-			t.Fatal("Should not be done before a cycle has been run")
-		}
-		if cmd := ba.Update(tea.WindowSizeMsg{Width: 80, Height: 50}); cmd == nil {
-			t.Fatal("Update should always return at least 1 cmd")
-		} else {
-			// TODO crack open the tea.Sequence and check for at least a println
-		}
-		if view := ba.View(); view != "" {
-			t.Fatal("View should never return data")
-		}
-		if !ba.Done() {
-			t.Fatal("Should be done after a single cycle")
-		}
-		if err := ba.Reset(); err != nil {
-			t.Fatal(err)
+		if o := strings.TrimSpace(sbOut.String()); o != "" {
+			t.Fatal(ExpectedActual("", o))
 		}
 
-		// check outputs
-		if strErr := strings.TrimSpace(sbErr.String()); strErr != "" {
-			t.Fatal(strErr)
+		sbOut.Reset()
+		sbErr.Reset()
+
+		fauxMother(t, ba, []string{}, true, "")
+		t.Log("stdout (second run): ", sbOut.String())
+		t.Log("stderr (second run): ", sbErr.String())
+		// check that outputs are empty
+		if e := strings.TrimSpace(sbErr.String()); e != "" {
+			t.Fatal(ExpectedActual("", e))
 		}
-		if strOut := strings.TrimSpace(sbOut.String()); strOut != "" {
-			t.Fatal(strOut)
+		if o := strings.TrimSpace(sbOut.String()); o != "" {
+			t.Fatal(ExpectedActual("", o))
 		}
 	})
 }
 
-func fauxMother(t *testing.T, ba *basicAction, args []string) {
-	if inv, cmd, err := ba.SetArgs(nil, args); err != nil {
-		t.Fatal(err)
-	} else if inv != "" {
-		t.Fatal(inv)
-	} else if cmd != nil {
-		t.Fatal("SetArgs should not return commands")
+// fauxMother mimics the call tree of Mother (.SetArgs -> .Update -> .View() -> .Done() -> .Reset()) against ba.
+//
+// setArgsInvalid checks that .SetArgs() returned invalid. If setArgsInvalid is set and matched, fauxMother will return early.
+// expectedUpdatePrintMsg tests the printLineMessage returned by .Update() (in sequence form or bare form).
+func fauxMother(t *testing.T, ba *basicAction, args []string, setArgsInvalid bool, expectedUpdatePrintMsg string) {
+	{
+		inv, cmd, err := ba.SetArgs(nil, args)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if inv != "" && setArgsInvalid { // expected invalid
+			return
+		} else if inv == "" && setArgsInvalid { // unexpected okay
+			t.Fatal("expected .SetArgs to return invalid")
+		} else if inv != "" && !setArgsInvalid { // unexpected invalid
+			t.Fatal(inv)
+		}
+		// expected okay
+
+		if cmd != nil {
+			t.Fatal("SetArgs should not return commands")
+		}
 	}
 	if ba.Done() {
 		t.Fatal("Should not be done before a cycle has been run")
 	}
 	if cmd := ba.Update(tea.WindowSizeMsg{Width: 80, Height: 50}); cmd == nil {
 		t.Fatal("Update should always return at least 1 cmd")
-	} else {
-		// TODO crack open the tea.Sequence and check for at least a println
+	} else { // crack open the message to check for a println (possibly nested in a tea.Sequence)
+		plm := extractPrintLineMessageString(t, cmd)
+		if expectedUpdatePrintMsg != plm {
+			t.Fatal(ExpectedActual(expectedUpdatePrintMsg, plm))
+		}
 	}
 	if view := ba.View(); view != "" {
 		t.Fatal("View should never return data")
@@ -265,4 +274,43 @@ func fauxMother(t *testing.T, ba *basicAction, args []string) {
 	if err := ba.Reset(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func extractPrintLineMessageString(t *testing.T, cmd tea.Cmd) string {
+	voItm1 := reflect.ValueOf(cmd())
+	t.Logf("Update msg kind: %v", voItm1.Kind())
+	// this will be a slice if it is a sequence or a struct if a single msg
+	if voItm1.Kind() == reflect.Slice {
+		if voItm1.Len() < 1 {
+			t.Fatal(ExpectedActual(2, voItm1.Len()))
+		} else if voItm1.Len() > 2 {
+			t.Log(ExpectedActual(2, voItm1.Len()))
+		}
+		// replace voMsg with the first item
+		voItm1 = voItm1.Index(0)
+	}
+	// voItm1 should now be a Cmd that returns a printLineMessage
+	if voItm1.Kind() != reflect.Func {
+		t.Fatal(ExpectedActual(reflect.Func, voItm1.Kind()))
+	}
+	var voPLM reflect.Value
+	if res := voItm1.Call(nil); len(res) != 1 {
+		t.Fatal("bad output  count", ExpectedActual(1, len(res)))
+	} else {
+		voPLM = res[0]
+	}
+	// likely an interface
+	// if the Message is still in interface form, we need to dereference it
+	if voPLM.Kind() == reflect.Interface {
+		voPLM = voPLM.Elem()
+	}
+	if voPLM.Kind() != reflect.Struct {
+		t.Fatal(ExpectedActual(reflect.Struct, voPLM.Kind()))
+	}
+
+	voMessageBody := voPLM.FieldByName("messageBody")
+	if voMessageBody.Kind() != reflect.String {
+		t.Fatal(ExpectedActual(reflect.String, voMessageBody.Kind()))
+	}
+	return voMessageBody.String()
 }
