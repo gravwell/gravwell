@@ -78,7 +78,7 @@ func NewBasicAction(use, short, long string,
 			s, _ := act(c)
 			fmt.Fprintf(c.OutOrStdout(), "%v\n", s)
 		})
-	ba := basicAction{cmd: cmd, fn: act}
+	ba := basicAction{cmd: cmd, options: options, fn: act}
 
 	// operate on the given options, if any
 
