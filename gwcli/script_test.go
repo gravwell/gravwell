@@ -197,7 +197,7 @@ func TestMacros(t *testing.T) {
 		toDeleteID := priorMacros[0].ID
 		t.Logf("Selecting macro %v (ID: %v) for faux-deletion", priorMacros[0].Name, priorMacros[0].ID)
 
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros delete --dryrun --id=%d", user, pf, toDeleteID)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros delete --"+ft.Dryrun.Name+" --id=%d", user, pf, toDeleteID)
 		statusCode, _, stderr := executeCmd(t, cmd)
 
 		// check the outcome

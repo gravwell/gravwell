@@ -163,7 +163,7 @@ func NewDeleteAction[I scaffold.Id_t](
 // base flagset
 func flags() pflag.FlagSet {
 	fs := pflag.FlagSet{}
-	fs.Bool(ft.Name.Dryrun, false, ft.Usage.Dryrun)
+	fs.Bool(ft.Dryrun.Name, false, ft.Dryrun.Usage)
 	fs.String(ft.Name.ID, "", "ID of the item to be deleted")
 	return fs
 }
@@ -178,7 +178,7 @@ func fetchFlagValues[I scaffold.Id_t](fs *pflag.FlagSet) (id I, dryrun bool, _ e
 			return id, dryrun, err
 		}
 	}
-	if dr, err := fs.GetBool(ft.Name.Dryrun); err != nil {
+	if dr, err := fs.GetBool(ft.Dryrun.Name); err != nil {
 		return id, dryrun, err
 	} else {
 		dryrun = dr

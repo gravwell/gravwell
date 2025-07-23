@@ -18,8 +18,6 @@ package ft
 import (
 	"fmt"
 	"strings"
-
-	"github.com/charmbracelet/lipgloss"
 )
 
 type flag struct {
@@ -28,15 +26,21 @@ type flag struct {
 	Usage     string
 }
 
+// NoInteractive (--no-interactive) is a global flag that disables all interactive components of gwcli.
 var NoInteractive = flag{
 	Name:      "no-interactive",
 	Shorthand: 'x',
 	Usage: "disallows gwcli from awaiting user input, making it safe to execute in a scripting context.\n" +
-		"If more data is required or bad input given, gwcli will fail out instead of entering interactive mode."}
+		"If more data is required or bad input given, gwcli will fail out instead of entering interactive mode"}
+
+// Dryrun (--dryrun) is a local flag implemented by actions (typically deletes) to describe actions that would have been taken had --dryrun not been set.
+var Dryrun = flag{
+	Name:  "dryrun",
+	Usage: "feigns the request action, instead displaying the effects that would have occurred",
+}
 
 // Name struct contains common flag names used across a variety of actions.
 var Name = struct {
-	Dryrun    string
 	Name      string
 	Desc      string
 	ID        string
@@ -58,7 +62,6 @@ var Name = struct {
 	AllColumns    string // return data from all available columns
 	SelectColumns string // return data from specified columns
 }{
-	Dryrun:    "dryrun",
 	Name:      "name",
 	Desc:      "description",
 	ID:        "id",
@@ -84,7 +87,6 @@ var Name = struct {
 // Usage contains shared, common flag usage description used across a variety of actions.
 // The compiler should inline all of these functions so they are overhead-less.
 var Usage = struct {
-	Dryrun    string
 	Name      func(singular string) string
 	Desc      func(singular string) string
 	Frequency string
@@ -106,9 +108,6 @@ var Usage = struct {
 	AllColumns    string // return data from all available columns
 	SelectColumns string // return data from specified columns
 }{
-	Dryrun: "feigns, describing actions that " +
-		lipgloss.NewStyle().Italic(true).Render("would") +
-		" have been taken",
 	Name: func(singular string) string {
 		return "name of the " + singular
 	},
