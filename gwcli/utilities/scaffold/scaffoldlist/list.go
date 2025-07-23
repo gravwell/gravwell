@@ -261,7 +261,7 @@ func generateRun[dataStruct_t any](
 		)
 		{ // gather flags and set up variables required for listOutput
 			var err error
-			noInteractive, err = c.Flags().GetBool(ft.Name.NoInteractive)
+			noInteractive, err = c.Flags().GetBool(ft.NoInteractive.Name)
 			if err != nil {
 				fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag(c.Use, err))
 				return

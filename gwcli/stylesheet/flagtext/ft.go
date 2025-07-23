@@ -36,15 +36,14 @@ var NoInteractive = flag{
 
 // Name struct contains common flag names used across a variety of actions.
 var Name = struct {
-	Dryrun        string
-	Name          string
-	Desc          string
-	ID            string
-	Query         string
-	Frequency     string
-	Expansion     string // macro expansions
-	ListAll       string
-	NoInteractive string
+	Dryrun    string
+	Name      string
+	Desc      string
+	ID        string
+	Query     string
+	Frequency string
+	Expansion string // macro expansions
+	ListAll   string
 
 	// output manipulation
 
@@ -59,15 +58,14 @@ var Name = struct {
 	AllColumns    string // return data from all available columns
 	SelectColumns string // return data from specified columns
 }{
-	Dryrun:        "dryrun",
-	Name:          "name",
-	Desc:          "description",
-	ID:            "id",
-	Query:         "query",
-	Frequency:     "frequency",
-	Expansion:     "expansion",
-	ListAll:       "all",
-	NoInteractive: "no-interactive",
+	Dryrun:    "dryrun",
+	Name:      "name",
+	Desc:      "description",
+	ID:        "id",
+	Query:     "query",
+	Frequency: "frequency",
+	Expansion: "expansion",
+	ListAll:   "all",
 
 	// output manipulation
 
