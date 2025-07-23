@@ -126,11 +126,11 @@ func NewDeleteAction[I scaffold.Id_t](
 
 			var zero I
 			if id == zero {
-				if script, err := c.Flags().GetBool("script"); err != nil {
+				if noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name); err != nil {
 					clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
 					return
-				} else if script {
-					fmt.Fprintln(c.ErrOrStderr(), "--id is required in script mode")
+				} else if noInteractive {
+					fmt.Fprintln(c.ErrOrStderr(), "--id is required in no-interactive mode")
 					return
 				}
 				// spin up mother

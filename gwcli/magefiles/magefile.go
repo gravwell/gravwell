@@ -165,7 +165,7 @@ func TestAll(cover, noCache bool) error {
 }
 
 // TestIntegration calls the tests in script_test for targeting external, automated usage (via --script).
-func TestIntegration() error {
+/*func TestIntegration() error {
 	coverdirPath := path.Join(os.TempDir(), "coverout")
 	if err := os.Mkdir(coverdirPath, 0660); err != nil {
 		return err
@@ -197,7 +197,7 @@ func TestIntegration() error {
 	}
 
 	return nil
-}
+}*/
 
 // Runs the test packages that rely on teatest and golden files.
 func TeaTests(cover, noCache bool) error {

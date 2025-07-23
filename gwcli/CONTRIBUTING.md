@@ -74,11 +74,11 @@ Creating an action from scratch is much more arduous and should only be done if 
 
 You will still have a `New*Action() action.Pair` function that can be given to the parent nav. In here, define your cobra.Command via `treeutils.NewActionCommand()` and `treeutils.GenerateAction()`.
 
-Your action must be able to handle three, primary user modes: script mode, interactive run mode, and interactive (Mother) mode.
-Script mode and interactive run mode are handled in your cobra.Command runFunc; the user invokes this action directly from their shell, with or without --script.
+Your action must be able to handle three, primary user modes: script(/NoInteractive) mode, interactive run mode, and interactive (Mother) mode.
+Script mode and interactive run mode are handled in your cobra.Command runFunc; the user invokes this action directly from their shell, with or without --no-interactive.
 Interactive (Mother) mode requires you to create a new implementation of `action.Model` (see [below](#actionmodel)). This new struct will be given to `GenerateAction()`, returning you the `action.Pair` needed to attach this action to a nav.
 
-The Basic scaffold is a highly simplistic implementation of an action. For a much more in-depth example, take a look at [query.go](tree/query/query.go). This showcases an entirely manual implementation of an action, from creating the runFunc and branching it on --script to spawning a totally new action.Model and shifting it between different modes.
+The Basic scaffold is a highly simplistic implementation of an action. For a much more in-depth example, take a look at [query.go](tree/query/query.go). This showcases an entirely manual implementation of an action, from creating the runFunc and branching it on --no-interactive to spawning a totally new action.Model and shifting it between different modes.
 
 # Packages
 
@@ -247,4 +247,4 @@ There are a number of flags that are useful and functionally identically across 
 
 As such, I am not including these common flags as persistents at root level, lest it require every action to support tangential flags. Instead, common elements of these flags are stored in the flagtext package, to at least provide some degree of consistency across flags that are technically unrelated.
 
-Other flags, such as --script, must be supported by all actions anyways, so they are persistent at a root level.
+Other flags, such as --no-interactive, must be supported by all actions anyways, so they are persistent at a root level.

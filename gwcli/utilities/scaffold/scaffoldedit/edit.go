@@ -103,13 +103,13 @@ func NewEditAction[I scaffold.Id_t, S any](singular, plural string, cfg Config, 
 		[]string{"e"},                      // aliases
 		func(cmd *cobra.Command, args []string) {
 			var err error
-			// hard branch on script mode
-			var script bool
-			if script, err = cmd.Flags().GetBool("script"); err != nil {
+			// hard branch on noInteractive mode
+			var noInteractive bool
+			if noInteractive, err = cmd.Flags().GetBool(ft.NoInteractive.Name); err != nil {
 				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 				return
 			}
-			if script {
+			if noInteractive {
 				runNonInteractive(cmd, cfg, funcs, singular)
 			} else {
 				runInteractive(cmd, args)
@@ -147,7 +147,7 @@ func generateFlagSet(cfg Config, singular string) pflag.FlagSet {
 }
 
 // run helper function.
-// runNonInteractive is the --script portion of edit's runFunc.
+// runNonInteractive is the --no-interactive portion of edit's runFunc.
 // It requires --id be set and is ineffectual if no other flags were given.
 // Prints and error handles on its own; the program is expected to exit on its completion.
 func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, funcs SubroutineSet[I, S], singular string) {
@@ -168,7 +168,7 @@ func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, f
 		}
 	}
 	if id == zero { // id was not given
-		fmt.Fprintln(cmd.OutOrStdout(), "--"+ft.Name.ID+" is required in script mode")
+		fmt.Fprintln(cmd.OutOrStdout(), "--"+ft.Name.ID+" is required in no-interactive mode")
 		return
 	}
 

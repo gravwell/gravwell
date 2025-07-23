@@ -28,6 +28,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
@@ -121,14 +122,14 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 
 	// generate credentials
 	var (
-		err          error
-		script       bool
-		username     string
-		password     string
-		passfilePath string
-		apiKey       string
+		err           error
+		noInteractive bool
+		username      string
+		password      string
+		passfilePath  string
+		apiKey        string
 	)
-	if script, err = cmd.Flags().GetBool("script"); err != nil {
+	if noInteractive, err = cmd.Flags().GetBool(ft.NoInteractive.Name); err != nil {
 		return err
 	}
 	if username, err = cmd.Flags().GetString("username"); err != nil {
@@ -159,7 +160,7 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 	}
 
 	// pass all information to Login to decide how to proceed
-	if err := connection.Login(username, password, apiKey, script); err != nil {
+	if err := connection.Login(username, password, apiKey, noInteractive); err != nil {
 		return err
 	}
 

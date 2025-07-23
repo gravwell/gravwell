@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/pflag"
 )
@@ -144,7 +145,7 @@ func validateDirFlag(dir string) (invalid string, err error) {
 
 // ingestFlags holds all flags so we don't have to keep passing around the pflag set.
 type ingestFlags struct {
-	script bool
+	noInteractive bool
 	//hidden     bool   // include hidden files when ingesting directories
 	recursive  bool   // recursively descend directories
 	src        string // IP address to use as the source of the files; comes in as a net.IP
@@ -169,10 +170,10 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 
 	flags := ingestFlags{}
 
-	if script, err := fs.GetBool("script"); err != nil {
+	if noInteractive, err := fs.GetBool(ft.NoInteractive.Name); err != nil {
 		return flags, nil, uniques.ErrGetFlag("ingest", err)
 	} else {
-		flags.script = script
+		flags.noInteractive = noInteractive
 	}
 	/*if includeHidden, err := fs.GetBool("hidden"); err != nil {
 		return flags, nil, uniques.ErrFlagDNE("hidden", "ingest")

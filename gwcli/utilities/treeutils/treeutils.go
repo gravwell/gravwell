@@ -17,6 +17,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 
 	"github.com/spf13/cobra"
 )
@@ -67,19 +68,17 @@ func GenerateAction(use, short, long string, aliases []string,
 	}
 
 	cmd.SilenceUsage = true
-
 	return cmd
 }
 
 // NavRun is the Run function for all Navs (nodes).
-// It checks for the --script flag and initializes Mother with the command as her pwd if script is
-// unset.
+// It checks for the --no-interactive flag and initializes Mother with the command as her pwd if script is unset.
 var NavRun = func(cmd *cobra.Command, args []string) {
-	script, err := cmd.Flags().GetBool("script")
+	noInteractive, err := cmd.Flags().GetBool(ft.NoInteractive.Name)
 	if err != nil {
 		panic(err)
 	}
-	if script {
+	if noInteractive {
 		cmd.Help()
 		return
 	}

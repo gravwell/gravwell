@@ -186,14 +186,14 @@ func TestNewListAction(t *testing.T) {
 			}, nil
 		}, Options{Use: "validUse"})
 		filepath := path.Join(tDir, "specific_columns.csv")
-		pair.Action.SetArgs([]string{"--script", "--csv", "--columns", "Col1,Col3", "-o", filepath})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--csv", "--columns", "Col1,Col3", "-o", filepath})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool("script", false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -248,7 +248,7 @@ func TestNewListAction(t *testing.T) {
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool("script", false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -289,7 +289,7 @@ func TestNewListAction(t *testing.T) {
 		pair.Action.SetErr(&sbErr)
 		pair.Action.Flags().Set("json", "true")
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool("script", false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -340,7 +340,7 @@ func TestNewListAction(t *testing.T) {
 		pair.Action.SetErr(&sbErr)
 		//pair.Action.Flags().Set("json", "true")
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool("script", false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -380,7 +380,7 @@ func TestNewListAction(t *testing.T) {
 		pair.Action.SetErr(&sbErr)
 		pair.Action.Flags().Set("csv", "true")
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool("script", false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -420,7 +420,7 @@ func TestNewListAction(t *testing.T) {
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool("script", false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -446,17 +446,17 @@ func TestNewListAction(t *testing.T) {
 		{"default to all columns", Options{}, []string{}, []string{"Col1", "Col2", "Col3", "Col4.SubCol1"}},
 		{"respect defaults option",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{}, // --script and --csv are attached in the test
+			[]string{}, // --no-interactive and --csv are attached in the test
 			[]string{"Col1", "Col4.SubCol1"},
 		},
 		{"all overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--" + ft.Name.AllColumns + ""}, // --script and --csv are attached in the test
+			[]string{"--" + ft.Name.AllColumns + ""}, // --no-interactive and --csv are attached in the test
 			[]string{"Col1", "Col2", "Col3", "Col4.SubCol1"},
 		},
 		{"explicit columns overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--columns", "Col3"}, // --script and --csv are attached in the test
+			[]string{"--columns", "Col3"}, // --no-interactive and --csv are attached in the test
 			[]string{"Col3"},
 		},
 	}
@@ -471,14 +471,14 @@ func TestNewListAction(t *testing.T) {
 					}{true, 3.14}},
 				}, nil
 			}, tt.options)
-			pair.Action.SetArgs(append(tt.args, "--script", "--csv"))
+			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name, "--csv"))
 			// capture output
 			var sb strings.Builder
 			var sbErr strings.Builder
 			pair.Action.SetOut(&sb)
 			pair.Action.SetErr(&sbErr)
 			// bolt on persistent flags that Mother would usually take care of
-			pair.Action.Flags().Bool("script", false, "")
+			pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
 			if err := pair.Action.Execute(); err != nil {
 				t.Fatal(err)
 			} else if sbErr.String() != "" {
@@ -542,14 +542,14 @@ func TestNewListAction(t *testing.T) {
 				}{true, 3.14}},
 			}, nil
 		}, Options{Use: "validU53"})
-		pair.Action.SetArgs([]string{"--script", "--csv", "--show-columns"})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--csv", "--show-columns"})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool("script", false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -573,14 +573,14 @@ func TestNewListAction(t *testing.T) {
 				}{true, 3.14}},
 			}, nil
 		}, Options{Use: "validU53"})
-		pair.Action.SetArgs([]string{"--script", "--csv", "--columns=Xol1"})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--csv", "--columns=Xol1"})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool("script", false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sb.String() != "" { // TODO confirm err
@@ -605,17 +605,17 @@ func TestNewListAction(t *testing.T) {
 		},
 		{"respect defaults option",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{}, // --script and --json are attached in the test
+			[]string{}, // --no-interactive and --json are attached in the test
 			`[{"Col1":"1","Col4":{"SubCol1":"true"}}]`,
 		},
 		{"all overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--" + ft.Name.AllColumns + ""}, // --script and --json are attached in the test
+			[]string{"--" + ft.Name.AllColumns + ""}, // --no-interactive and --json are attached in the test
 			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
 		},
 		{"explicit columns overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--columns", "Col3"}, // --script and --json are attached in the test
+			[]string{"--columns", "Col3"}, // --no-interactive and --json are attached in the test
 			`[{"Col3":-1}]`,
 		},
 	}
@@ -630,14 +630,14 @@ func TestNewListAction(t *testing.T) {
 					}{true, 3.14}},
 				}, nil
 			}, tt.options)
-			pair.Action.SetArgs(append(tt.args, "--script", "--json"))
+			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name, "--json"))
 			// capture output
 			var sb strings.Builder
 			var sbErr strings.Builder
 			pair.Action.SetOut(&sb)
 			pair.Action.SetErr(&sbErr)
 			// bolt on persistent flags that Mother would usually take care of
-			pair.Action.Flags().Bool("script", false, "")
+			pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
 			if err := pair.Action.Execute(); err != nil {
 				t.Fatal(err)
 			} else if sbErr.String() != "" {
@@ -710,14 +710,14 @@ func TestNewListAction(t *testing.T) {
 		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return []st{}, nil
 		}, Options{Pretty: func(c *pflag.FlagSet) (string, error) { return prettyReturn, nil }})
-		pair.Action.SetArgs([]string{"--script"})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool("script", false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {

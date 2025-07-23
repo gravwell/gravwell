@@ -153,7 +153,7 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 // Attempts to use a JWT token first, then falls back to supplied credentials.
 //
 // Ineffectual if Client is already logged in.
-func Login(username, password, apiToken string, scriptMode bool) (err error) {
+func Login(username, password, apiToken string, noInteractive bool) (err error) {
 	clientMu.Lock()
 	defer clientMu.Unlock()
 	if Client == nil {
@@ -169,18 +169,18 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 		}
 		clilog.Writer.Infof("logged in via API token")
 	} else if username == "" { // if a username was not given, act as if no credentials were given
-		err := loginNoCredentials(scriptMode)
+		err := loginNoCredentials(noInteractive)
 		if err != nil {
 			return err
 		}
 	} else if username != "" && password != "" {
 		// if all credentials were given, try to log in using only those credentials
-		if err := loginWithCredentials(username, password, scriptMode); err != nil {
+		if err := loginWithCredentials(username, password, noInteractive); err != nil {
 			return err
 		}
 	} else { // a username was given, but no password/passfile
 		// in script mode, fail out
-		if scriptMode {
+		if noInteractive {
 			return ErrCredentialsOrAPITokenRequired
 		}
 		// in interactive mode, throw up a prompt and pre-populate username
@@ -220,12 +220,12 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 }
 
 // helper function for Login when no credentials were given.
-func loginNoCredentials(scriptMode bool) (err error) {
+func loginNoCredentials(noInteractive bool) (err error) {
 	// attempt to login to whichever account was responsible for the pre-existing token
 	if err := loginViaJWT(""); err != nil {
 		clilog.Writer.Warnf("failed to login via JWT token: %v", err)
 		// if we are in script mode, fail out
-		if scriptMode {
+		if noInteractive {
 			return ErrCredentialsOrAPITokenRequired
 		}
 
@@ -243,7 +243,7 @@ func loginNoCredentials(scriptMode bool) (err error) {
 
 		// if we are in script mode and MFA would have been required, fail out
 		// this is to enforce consistent script usage, lest the token expire mid-script
-		if scriptMode {
+		if noInteractive {
 			mfa, err := Client.GetMFAInfo()
 			if err != nil {
 				err = errors.Join(errors.New("failed to fetch mfa info after token login"), err)
@@ -266,13 +266,13 @@ func loginNoCredentials(scriptMode bool) (err error) {
 
 // helper function for Login when BOTH credentials were explicitly set.
 // If error is nil, caller can assume Client has successfully logged in and state has been logged (if applicable).
-func loginWithCredentials(username, password string, script bool) error {
+func loginWithCredentials(username, password string, noInteractive bool) error {
 	resp, err := Client.LoginEx(username, password)
 	if mfa, ufErr := testLoginError(resp, err); ufErr != nil {
 		return ufErr
 	} else if mfa {
 		// if we are in script mode, fail out and alert the user to use an API key
-		if script {
+		if noInteractive {
 			return ErrAPITokenRequired
 		}
 

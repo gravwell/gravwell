@@ -22,17 +22,29 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+type flag struct {
+	Name      string
+	Shorthand rune
+	Usage     string
+}
+
+var NoInteractive = flag{
+	Name:      "no-interactive",
+	Shorthand: 'x',
+	Usage: "disallows gwcli from awaiting user input, making it safe to execute in a scripting context.\n" +
+		"If more data is required or bad input given, gwcli will fail out instead of entering interactive mode."}
+
 // Name struct contains common flag names used across a variety of actions.
 var Name = struct {
-	Dryrun    string
-	Name      string
-	Desc      string
-	ID        string
-	Query     string
-	Frequency string
-	Expansion string // macro expansions
-	ListAll   string
-	Script    string
+	Dryrun        string
+	Name          string
+	Desc          string
+	ID            string
+	Query         string
+	Frequency     string
+	Expansion     string // macro expansions
+	ListAll       string
+	NoInteractive string
 
 	// output manipulation
 
@@ -47,15 +59,15 @@ var Name = struct {
 	AllColumns    string // return data from all available columns
 	SelectColumns string // return data from specified columns
 }{
-	Dryrun:    "dryrun",
-	Name:      "name",
-	Desc:      "description",
-	ID:        "id",
-	Query:     "query",
-	Frequency: "frequency",
-	Expansion: "expansion",
-	ListAll:   "all",
-	Script:    "script",
+	Dryrun:        "dryrun",
+	Name:          "name",
+	Desc:          "description",
+	ID:            "id",
+	Query:         "query",
+	Frequency:     "frequency",
+	Expansion:     "expansion",
+	ListAll:       "all",
+	NoInteractive: "no-interactive",
 
 	// output manipulation
 

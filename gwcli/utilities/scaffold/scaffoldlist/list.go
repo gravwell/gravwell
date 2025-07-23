@@ -254,14 +254,14 @@ func generateRun[dataStruct_t any](
 		}
 
 		var (
-			script  bool // TODO should script imply no-color at a global level?
-			outFile *os.File
-			format  outputFormat
-			columns []string
+			noInteractive bool // TODO should script imply no-color at a global level?
+			outFile       *os.File
+			format        outputFormat
+			columns       []string
 		)
 		{ // gather flags and set up variables required for listOutput
 			var err error
-			script, err = c.Flags().GetBool(ft.Name.Script)
+			noInteractive, err = c.Flags().GetBool(ft.Name.NoInteractive)
 			if err != nil {
 				fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag(c.Use, err))
 				return
@@ -291,7 +291,7 @@ func generateRun[dataStruct_t any](
 		}
 
 		if s == "" {
-			if outFile == nil && !script {
+			if outFile == nil && !noInteractive {
 				fmt.Fprintln(c.OutOrStdout(), "no data found")
 			}
 			return

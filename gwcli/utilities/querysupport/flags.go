@@ -29,14 +29,14 @@ type Schedule struct {
 //
 // Should be constructed via TransmogrifyFlags().
 type QueryFlags struct {
-	Duration   time.Duration
-	Script     bool
-	JSON       bool
-	CSV        bool
-	OutPath    string
-	Append     bool
-	Schedule   Schedule
-	Background bool
+	Duration      time.Duration
+	NoInteractive bool
+	JSON          bool
+	CSV           bool
+	OutPath       string
+	Append        bool
+	Schedule      Schedule
+	Background    bool
 	//referenceID string
 }
 
@@ -49,7 +49,7 @@ func TransmogrifyFlags(fs *pflag.FlagSet) QueryFlags {
 	var qf QueryFlags
 
 	qf.Duration, _ = fs.GetDuration("duration")
-	qf.Script, _ = fs.GetBool(ft.Name.Script)
+	qf.NoInteractive, _ = fs.GetBool(ft.NoInteractive.Name)
 	qf.JSON, _ = fs.GetBool(ft.Name.JSON)
 	qf.CSV, _ = fs.GetBool(ft.Name.CSV)
 	qf.Append, _ = fs.GetBool(ft.Name.Append)

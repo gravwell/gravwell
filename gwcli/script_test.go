@@ -12,7 +12,7 @@
 package main
 
 /*
-This file covers tests for using gwcli in --script mode (from a user's shell or via an external script).
+This file covers tests for using gwcli in --no-interactive mode (from a user's shell or via an external script).
 
 These tests make destructive changes to the gravwell server; make sure you are targeting a safe, clean server!
 
@@ -43,6 +43,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/querysupport"
 
@@ -95,7 +96,7 @@ func TestMacros(t *testing.T) {
 			weave.CSVOptions{}))
 
 		// run the test body
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros list --csv --columns=%s", user, pf, strings.Join(columns, ","))
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros list --csv --columns=%s", user, pf, strings.Join(columns, ","))
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
@@ -133,7 +134,7 @@ func TestMacros(t *testing.T) {
 		}
 
 		// create a new macro from the cli, in script mode
-		cmd := fmt.Sprintf("-u %s --password %s --insecure --script macros create -n %s -d %s -e %s", user, password, macroName, macroDesc, macroExp)
+		cmd := fmt.Sprintf("-u %s --password %s --insecure --"+ft.NoInteractive.Name+" macros create -n %s -d %s -e %s", user, password, macroName, macroDesc, macroExp)
 		statusCode, _, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
@@ -170,7 +171,7 @@ func TestMacros(t *testing.T) {
 			}
 		}
 
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros list --json --columns=%s", user, pf, strings.Join(columns, ","))
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros list --json --columns=%s", user, pf, strings.Join(columns, ","))
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
@@ -196,7 +197,7 @@ func TestMacros(t *testing.T) {
 		toDeleteID := priorMacros[0].ID
 		t.Logf("Selecting macro %v (ID: %v) for faux-deletion", priorMacros[0].Name, priorMacros[0].ID)
 
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros delete --dryrun --id=%d", user, pf, toDeleteID)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros delete --dryrun --id=%d", user, pf, toDeleteID)
 		statusCode, _, stderr := executeCmd(t, cmd)
 
 		// check the outcome
@@ -239,7 +240,7 @@ func TestMacros(t *testing.T) {
 			t.Skip("no macros to delete")
 		}
 
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros delete", user, pf)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros delete", user, pf)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 
 		// check the outcome
@@ -274,7 +275,7 @@ func TestMacros(t *testing.T) {
 		toDeleteID := priorMacros[0].ID
 		t.Logf("Selecting macro %v (ID: %v) for deletion", priorMacros[0].Name, priorMacros[0].ID)
 
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script macros delete --id %v", user, pf, toDeleteID)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" macros delete --id %v", user, pf, toDeleteID)
 		statusCode, _, stderr := executeCmd(t, cmd)
 
 		// check the outcome
@@ -324,7 +325,7 @@ func TestQueries(t *testing.T) {
 		qry := "tag=gravwell"
 
 		// TODO need to make sure -o is valid before submitting the query
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --json", user, pf, qry, outPath)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" query %s -o %s --json", user, pf, qry, outPath)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
@@ -387,7 +388,7 @@ func TestQueries(t *testing.T) {
 		outPath := path.Join(t.TempDir(), "IShouldNotBeCreated.txt")
 		qry := "tag=gravwell"
 
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --background", user, pf, qry, outPath)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" query %s -o %s --background", user, pf, qry, outPath)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "WARN: ignoring flag --output due to --background", strings.TrimSpace(stderr))
@@ -447,7 +448,7 @@ func TestQueries(t *testing.T) {
 
 		// execute the query in append mode
 		qry := "tag=gravwell limit 1"
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s -o %s --append", user, pf, qry, outPath)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" query %s -o %s --append", user, pf, qry, outPath)
 		statusCode, _, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
@@ -479,7 +480,7 @@ func TestQueries(t *testing.T) {
 
 	t.Run("query csv", func(t *testing.T) {
 		qry := "tag=gravwell limit 1"
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s --csv", user, pf, qry)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" query %s --csv", user, pf, qry)
 		statusCode, stdout, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
@@ -523,7 +524,7 @@ func TestQueries(t *testing.T) {
 				t.Skip("background query could be not parsed: ", err)
 			}
 
-			cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s --background", user, pf, bgQry)
+			cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" query %s --background", user, pf, bgQry)
 			statusCode, stdout, stderr := executeCmd(t, cmd)
 			testsupport.NonZeroExit(t, statusCode, stderr)
 			checkResult(t, false, "stderr", "", stderr)
@@ -537,7 +538,7 @@ func TestQueries(t *testing.T) {
 		}
 
 		// attach to background query
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script queries attach %s", user, pf, sid)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" queries attach %s", user, pf, sid)
 		statusCode, attachSTDOUT, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
@@ -576,7 +577,7 @@ func TestQueries(t *testing.T) {
 				t.Skip("background query could be not parsed: ", err)
 			}
 
-			cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s --background", user, pf, bgQry)
+			cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" query %s --background", user, pf, bgQry)
 			statusCode, stdout, stderr := executeCmd(t, cmd)
 			testsupport.NonZeroExit(t, statusCode, stderr)
 			checkResult(t, false, "stderr", "", stderr)
@@ -591,7 +592,7 @@ func TestQueries(t *testing.T) {
 
 		// attach to background query
 		outPath := path.Join(t.TempDir(), "out.txt")
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script queries attach %s -o %s", user, pf, sid, outPath)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" queries attach %s -o %s", user, pf, sid, outPath)
 		statusCode, _, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
@@ -636,7 +637,7 @@ func TestQueries(t *testing.T) {
 				t.Skip("background query could be not parsed: ", err)
 			}
 
-			cmd := fmt.Sprintf("-u %s -p %s --insecure --script query %s --background", user, pf, bgQry)
+			cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" query %s --background", user, pf, bgQry)
 			statusCode, stdout, stderr := executeCmd(t, cmd)
 			testsupport.NonZeroExit(t, statusCode, stderr)
 			checkResult(t, false, "stderr", "", stderr)
@@ -653,7 +654,7 @@ func TestQueries(t *testing.T) {
 		time.Sleep(5 * time.Second)
 
 		// attach to background query
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script queries attach %s", user, pf, sid)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" queries attach %s", user, pf, sid)
 		statusCode, cmdOut, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
@@ -699,7 +700,7 @@ func TestQueries(t *testing.T) {
 		time.Sleep(300 * time.Millisecond)
 
 		// attach to background query
-		cmd := fmt.Sprintf("-u %s -p %s --insecure --script queries attach %s", user, pf, sid)
+		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name+" queries attach %s", user, pf, sid)
 		statusCode, cmdOut, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
@@ -735,23 +736,13 @@ func TestQueries(t *testing.T) {
 func TestLogin(t *testing.T) {
 	t.Run("login via full cred, no MFA", func(t *testing.T) {
 		// issue the my info command to confirm we are logged into the correct user
-		cmd := fmt.Sprintf("-u %s --password %s --insecure --script user myinfo", user, password)
+		cmd := fmt.Sprintf("-u %s --password %s --insecure --"+ft.NoInteractive.Name+" user myinfo", user, password)
 		statusCode, cmdOut, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
 		testUser(t, user, cmdOut)
 	})
-	/*t.Run("login via API token", func(t *testing.T) {
-		// issue the my info command to confirm we are logged into the correct user
-		cmd := fmt.Sprintf("--api %s --insecure --script user myinfo", apiKey)
-		statusCode, cmdOut, stderr := executeCmd(t, cmd)
-		NonZeroExit(t, statusCode, stderr)
-		checkResult(t, false, "stderr", "", stderr)
-
-		testUser(t, user, cmdOut)
-	})*/
-
 }
 
 //#region helper functions

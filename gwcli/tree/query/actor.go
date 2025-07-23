@@ -333,8 +333,8 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 	flags := querysupport.TransmogrifyFlags(&localFS)
 
 	// check for script mode (invalid, as Mother is already running)
-	if flags.Script {
-		return "", nil, errors.New("cannot invoke script mode while in interactive mode")
+	if flags.NoInteractive { // TODO this check should be performed by Mother
+		return "", nil, errors.New("cannot invoke no-interactive mode while in interactive mode")
 	}
 
 	qry := strings.TrimSpace(strings.Join(localFS.Args(), " "))

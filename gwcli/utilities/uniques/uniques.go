@@ -19,6 +19,7 @@ import (
 	"time"
 	"unicode"
 
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/spf13/cobra"
 )
@@ -116,9 +117,7 @@ func ParseJWT(tkn string) (header JWTHeader, payload JWTPayload, signature []byt
 // This subroutine should ONLY be used by Mother when building the root command or by test suites that omit Mother.
 func AttachPersistentFlags(cmd *cobra.Command) {
 	// global flags
-	cmd.PersistentFlags().Bool("script", false,
-		"disallows gwcli from entering interactive mode and prints context help instead.\n"+
-			"Recommended for use in scripts to avoid hanging on a malformed command.")
+	cmd.PersistentFlags().BoolP(ft.NoInteractive.Name, string(ft.NoInteractive.Shorthand), false, ft.NoInteractive.Usage)
 	cmd.PersistentFlags().StringP("username", "u", "", "login credential.")
 	cmd.PersistentFlags().String("password", "", "login credential.")
 	cmd.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")

@@ -70,21 +70,21 @@ const (
 	defaultDuration = 1 * time.Hour
 
 	pageSize = 500 // fetch results page by page
-
-	helpDesc = "Generate and send a query to the remote server either by arguments or " +
-		"the interactive query builder.\n" +
-		"All bare arguments after `query` will be passed to the instance as the query string.\n" +
-		"\n" +
-		"Omitting --script will open the results in an interactive viewing pane with additional" +
-		"functionality for downloading the results to a file or scheduling this query to run in " +
-		"the future" +
-		"\n" +
-		"If --json or --csv is not given when outputting to a file (`-o`), the results will be " +
-		"text (if able) or an archive binary blob (if unable), depending on the query's render " +
-		"module.\n" +
-		"gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
-		"blob (aka: your query uses a chart-style renderer)."
 )
+
+var helpDesc = "Generate and send a query to the remote server either by arguments or " +
+	"the interactive query builder.\n" +
+	"All bare arguments after `query` will be passed to the instance as the query string.\n" +
+	"\n" +
+	"Omitting --" + ft.NoInteractive.Name + " will open the results in an interactive viewing pane with additional" +
+	"functionality for downloading the results to a file or scheduling this query to run in " +
+	"the future" +
+	"\n" +
+	"If --json or --csv is not given when outputting to a file (`-o`), the results will be " +
+	"text (if able) or an archive binary blob (if unable), depending on the query's render " +
+	"module.\n" +
+	"gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
+	"blob (aka: your query uses a chart-style renderer)."
 
 var (
 	ErrSuperfluousQuery = "query is empty and therefore ineffectual"
@@ -149,7 +149,7 @@ func run(cmd *cobra.Command, args []string) {
 	valid, err := testQryValidity(qry)
 
 	if !valid {
-		if flags.Script { // fail out
+		if flags.NoInteractive { // fail out
 			var errMsg string
 			if err != nil {
 				errMsg = err.Error()

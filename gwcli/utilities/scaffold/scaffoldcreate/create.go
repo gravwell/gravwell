@@ -73,6 +73,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -127,7 +128,7 @@ func NewCreateAction(singular string,
 		[]string{},               // aliases
 		func(c *cobra.Command, s []string) {
 			// get standard flags
-			script, err := c.Flags().GetBool("script")
+			noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name)
 			if err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
 				return
@@ -138,7 +139,7 @@ func NewCreateAction(singular string,
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
 				return
 			} else if mr != nil {
-				if !script {
+				if !noInteractive {
 					if err := mother.Spawn(c.Root(), c, s); err != nil {
 						clilog.Writer.Critical(err.Error())
 					}

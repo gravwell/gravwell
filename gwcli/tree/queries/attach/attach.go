@@ -55,13 +55,13 @@ func NewAttachAction() action.Pair {
 
 	localFS := initialLocalFlagSet()
 	cmd.Flags().AddFlagSet(&localFS)
-	// add bare argument validator (require 1 arg if --script, 0 or 1 otherwise)
+	// add bare argument validator (require 1 arg if --no-interactive, 0 or 1 otherwise)
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
-		script, err := cmd.Flags().GetBool("script")
+		noInteractive, err := cmd.Flags().GetBool(ft.NoInteractive.Name)
 		if err != nil {
 			panic(err)
 		}
-		if script && len(args) != 1 {
+		if noInteractive && len(args) != 1 {
 			return errors.New(errWrongArgCount(true))
 		}
 		if len(args) > 1 {
@@ -95,8 +95,8 @@ func run(cmd *cobra.Command, args []string) {
 	flags := querysupport.TransmogrifyFlags(cmd.Flags())
 
 	// check arg count
-	if len(args) > 1 || (flags.Script && len(args) == 0) {
-		fmt.Fprint(cmd.ErrOrStderr(), errWrongArgCount(flags.Script)+"\n")
+	if len(args) > 1 || (flags.NoInteractive && len(args) == 0) {
+		fmt.Fprint(cmd.ErrOrStderr(), errWrongArgCount(flags.NoInteractive)+"\n")
 		return
 	}
 	// if a sid was given, attempt to fetch results
