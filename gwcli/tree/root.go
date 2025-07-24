@@ -21,6 +21,7 @@ import (
 	"runtime/pprof"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -323,8 +324,8 @@ func Execute(args []string) int {
 	}
 
 	// override the help command to just call usage
-	rootCmd.SetHelpFunc(func(c *cobra.Command, s []string) { c.Usage() })
-	rootCmd.SetUsageFunc(Usage)
+	rootCmd.SetHelpFunc(help)
+	rootCmd.SetUsageFunc(func(c *cobra.Command) error { fmt.Fprintf(c.OutOrStdout(), "%s", "<usage>"); return nil }) // TODO replace root's usage
 
 	err := rootCmd.Execute()
 	if err != nil {
@@ -332,6 +333,39 @@ func Execute(args []string) int {
 	}
 
 	return 0
+}
+
+// Help generates the full help text for a command and prints it on c.Out.
+// The specific command's Usage and Example are displayed, if provided, along with all available flags.
+func help(c *cobra.Command, _ []string) {
+	var sb strings.Builder
+
+	// write the description block
+	sb.WriteString(stylesheet.Cur.FieldText.Render("Synopsis:") + "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(c.Long) + "\n\n")
+
+	// write usage line, if available
+	// NOTE(rlandau): assumes usage is already color coded and in the form "<cmd.Name> <following usage>"
+	if usage := strings.TrimSpace(c.UsageString()); usage != "" {
+		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.FieldText.Render("Usage:"), usage)
+	}
+
+	// write example line, if available
+	// NOTE(rlandau): assumes example is already color coded and in the form "<cmd.Name> <following example>"
+	if ex := strings.TrimSpace(c.Example); ex != "" {
+		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.ExampleText.Render("Example:"), ex)
+	}
+
+	// write local flags
+	if lf := c.LocalNonPersistentFlags().FlagUsages(); lf != "" {
+		sb.WriteString(stylesheet.Cur.FieldText.Render("Flags:") + "\n" + lf + "\n")
+	}
+
+	// write global flags
+	if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
+		sb.WriteString(stylesheet.Cur.FieldText.Render("Global Flags:") + "\n" + gf)
+	}
+
+	fmt.Fprint(c.OutOrStdout(), sb.String())
 }
 
 // Usage provides a replacement for cobra's usage command, dynamically building the usage based on pwd (/ the full path the user gave).
