@@ -322,6 +322,8 @@ func Execute(args []string) int {
 		rootCmd.SetArgs(args)
 	}
 
+	// override the help command to just call usage
+	rootCmd.SetHelpFunc(func(c *cobra.Command, s []string) { c.Usage() })
 	rootCmd.SetUsageFunc(Usage)
 
 	err := rootCmd.Execute()
@@ -355,8 +357,21 @@ func Usage(c *cobra.Command) error {
 		bldr.WriteString(" [subcommand]\n")
 	} else { // action
 		bldr.WriteString(" [flags]\n\n")
-		bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Local Flags:") + "\n")
-		bldr.WriteString(c.LocalNonPersistentFlags().FlagUsages())
+
+		// attach long
+		/*		if l := strings.TrimSpace(c.Long); l != "" {
+				bldr.WriteString(l + "\n\n")
+			}*/
+
+		// attach local flag info if it is not empty
+		{
+			localFlagsUsages := c.LocalNonPersistentFlags().FlagUsages()
+			if strings.TrimSpace(localFlagsUsages) != "" {
+				bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Local Flags:") + "\n")
+				bldr.WriteString(localFlagsUsages)
+			}
+		}
+
 	}
 
 	bldr.WriteRune('\n')
@@ -365,8 +380,13 @@ func Usage(c *cobra.Command) error {
 		bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Example:") + " " + c.Example + "\n\n")
 	}
 
-	bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Global Flags:") + "\n")
-	bldr.WriteString(c.Root().PersistentFlags().FlagUsages())
+	{ // attach global flag info if it is not empty
+		globalFlagUsages := c.Root().PersistentFlags().FlagUsages()
+		if strings.TrimSpace(globalFlagUsages) != "" {
+			bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Global Flags:") + "\n")
+			bldr.WriteString(globalFlagUsages)
+		}
+	}
 
 	bldr.WriteRune('\n')
 
