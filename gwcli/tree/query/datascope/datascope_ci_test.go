@@ -468,7 +468,7 @@ func setup(t *testing.T, data []string, table bool) (DataScope, *teatest.TestMod
 		t.Fatal(err)
 	}
 	// use a consistent color scheme
-	stylesheet.Cur = stylesheet.NoColor()
+	stylesheet.Cur = stylesheet.Plain()
 	// create a dummy search that should work so long as we don't trigger download or schedule
 	search := grav.Search{RenderMod: "text"}
 	ds, cmd, err := NewDataScope(data, false, &search, table)

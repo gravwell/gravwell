@@ -153,7 +153,7 @@ func Test_Full(t *testing.T) {
 		t.Fatal(err)
 	}
 	// use a consistent color scheme
-	stylesheet.Cur = stylesheet.NoColor()
+	stylesheet.Cur = stylesheet.Plain()
 
 	var createdCalled bool
 
@@ -265,7 +265,7 @@ func setup(t *testing.T, cfg Config) *createModel {
 		t.Fatal(err)
 	}
 	// use a consistent color scheme
-	stylesheet.Cur = stylesheet.NoColor()
+	stylesheet.Cur = stylesheet.Plain()
 	cm := newCreateModel(
 		cfg, "test",
 		func(cfg Config, values Values, fs *pflag.FlagSet) (id any, invalid string, err error) {

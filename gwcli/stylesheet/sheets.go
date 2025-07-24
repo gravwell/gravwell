@@ -200,8 +200,8 @@ func Classic() Sheet {
 	}.GenerateSheet()
 }
 
-// NoColor returns a sheet with no colors or special characters, for maximal compatibility.
-func NoColor() Sheet {
+// Plain returns a sheet with no colors or special characters, for maximal compatibility.
+func Plain() Sheet {
 	return NewSheet(
 		func() string { return ">" },
 		func() string { return "#" },

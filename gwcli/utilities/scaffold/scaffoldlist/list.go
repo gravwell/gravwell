@@ -254,7 +254,7 @@ func generateRun[dataStruct_t any](
 		}
 
 		var (
-			noInteractive bool // TODO should script imply no-color at a global level?
+			noInteractive bool
 			outFile       *os.File
 			format        outputFormat
 			columns       []string
@@ -273,7 +273,7 @@ func generateRun[dataStruct_t any](
 			} else if outFile != nil {
 				defer outFile.Close()
 				// ensure color is disabled.
-				stylesheet.Cur = stylesheet.NoColor()
+				stylesheet.Cur = stylesheet.Plain()
 			}
 
 			columns, err = getColumns(c.Flags(), options.DefaultColumns, availDataStructColumns)
