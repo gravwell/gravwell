@@ -37,7 +37,7 @@ var (
 		"\n" +
 		"In interactive mode, a list of available, attach-able queries will be displayed.\n" +
 		"\n" +
-		"If --" + ft.JSON.Name + " or --" + ft.CSV.Name + " is not given when outputting to a file (`-o`), the results will be " +
+		"If --" + ft.JSON.Name() + " or --" + ft.CSV.Name() + " is not given when outputting to a file (`-o`), the results will be " +
 		"text (if able) or an archive binary blob (if unable), depending on the query's render " +
 		"module.\n" +
 		"gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
@@ -57,7 +57,7 @@ func NewAttachAction() action.Pair {
 	cmd.Flags().AddFlagSet(&localFS)
 	// add bare argument validator (require 1 arg if --no-interactive, 0 or 1 otherwise)
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
-		noInteractive, err := cmd.Flags().GetBool(ft.NoInteractive.Name)
+		noInteractive, err := cmd.Flags().GetBool(ft.NoInteractive.Name())
 		if err != nil {
 			panic(err)
 		}
@@ -80,10 +80,10 @@ func NewAttachAction() action.Pair {
 func initialLocalFlagSet() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 
-	fs.StringP(ft.Output.Name, "o", "", ft.Output.Usage)
-	fs.Bool(ft.Append.Name, false, ft.Append.Usage)
-	fs.Bool(ft.JSON.Name, false, ft.JSON.Usage)
-	fs.Bool(ft.CSV.Name, false, ft.CSV.Usage)
+	ft.Output.Register(&fs)
+	ft.Append.Register(&fs)
+	ft.JSON.Register(&fs)
+	ft.CSV.Register(&fs)
 
 	return fs
 }

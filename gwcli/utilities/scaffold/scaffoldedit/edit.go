@@ -105,7 +105,7 @@ func NewEditAction[I scaffold.Id_t, S any](singular, plural string, cfg Config, 
 			var err error
 			// hard branch on noInteractive mode
 			var noInteractive bool
-			if noInteractive, err = cmd.Flags().GetBool(ft.NoInteractive.Name); err != nil {
+			if noInteractive, err = cmd.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
 				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 				return
 			}

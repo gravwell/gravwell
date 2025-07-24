@@ -117,12 +117,12 @@ func Test_determineFormat(t *testing.T) {
 		{"default, no pretty", []string{}, false, tbl},
 		{"explicit pretty, pretty", []string{"--pretty"}, true, pretty},
 		{"explicit pretty, no pretty", []string{"--pretty"}, false, tbl},
-		{"csv, pretty", []string{"--" + ft.CSV.Name}, true, csv},
-		{"csv, no pretty", []string{"--" + ft.CSV.Name}, false, csv},
-		{"json, pretty", []string{"--" + ft.JSON.Name}, true, json},
-		{"json, no pretty", []string{"--" + ft.JSON.Name}, false, json},
-		{"csv precedence over json", []string{"--" + ft.JSON.Name, "--" + ft.CSV.Name}, false, csv},
-		{"pretty precedence over all", []string{"--" + ft.JSON.Name, "--" + ft.CSV.Name, "--pretty", "--" + ft.Table.Name}, true, pretty},
+		{"csv, pretty", []string{"--" + ft.CSV.Name()}, true, csv},
+		{"csv, no pretty", []string{"--" + ft.CSV.Name()}, false, csv},
+		{"json, pretty", []string{"--" + ft.JSON.Name()}, true, json},
+		{"json, no pretty", []string{"--" + ft.JSON.Name()}, false, json},
+		{"csv precedence over json", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name()}, false, csv},
+		{"pretty precedence over all", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name(), "--pretty", "--" + ft.Table.Name()}, true, pretty},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -186,14 +186,14 @@ func TestNewListAction(t *testing.T) {
 			}, nil
 		}, Options{Use: "validUse"})
 		filepath := path.Join(tDir, "specific_columns.csv")
-		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--" + ft.SelectColumns.Name, "Col1,Col3", "-" + ft.Output.P(), filepath})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name(), "--" + ft.CSV.Name(), "--" + ft.SelectColumns.Name(), "Col1,Col3", "-" + ft.Output.Shorthand(), filepath})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -248,7 +248,7 @@ func TestNewListAction(t *testing.T) {
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -289,7 +289,7 @@ func TestNewListAction(t *testing.T) {
 		pair.Action.SetErr(&sbErr)
 		pair.Action.Flags().Set("json", "true")
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -340,7 +340,7 @@ func TestNewListAction(t *testing.T) {
 		pair.Action.SetErr(&sbErr)
 		//pair.Action.Flags().Set("json", "true")
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -380,7 +380,7 @@ func TestNewListAction(t *testing.T) {
 		pair.Action.SetErr(&sbErr)
 		pair.Action.Flags().Set("csv", "true")
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -413,14 +413,14 @@ func TestNewListAction(t *testing.T) {
 			Use:           "validUse",
 			ColumnAliases: map[string]string{"Col1": "C1", "Col4.SubCol1": "SC1"},
 		})
-		pair.Action.SetArgs([]string{"--" + ft.ShowColumns.Name})
+		pair.Action.SetArgs([]string{"--" + ft.ShowColumns.Name()})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -451,12 +451,12 @@ func TestNewListAction(t *testing.T) {
 		},
 		{"all overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--" + ft.AllColumns.Name}, // --no-interactive and --csv are attached in the test
+			[]string{"--" + ft.AllColumns.Name()}, // --no-interactive and --csv are attached in the test
 			[]string{"Col1", "Col2", "Col3", "Col4.SubCol1"},
 		},
 		{"explicit columns overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--" + ft.SelectColumns.Name, "Col3"}, // --no-interactive and --csv are attached in the test
+			[]string{"--" + ft.SelectColumns.Name(), "Col3"}, // --no-interactive and --csv are attached in the test
 			[]string{"Col3"},
 		},
 	}
@@ -471,14 +471,14 @@ func TestNewListAction(t *testing.T) {
 					}{true, 3.14}},
 				}, nil
 			}, tt.options)
-			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name, "--"+ft.CSV.Name))
+			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name(), "--"+ft.CSV.Name()))
 			// capture output
 			var sb strings.Builder
 			var sbErr strings.Builder
 			pair.Action.SetOut(&sb)
 			pair.Action.SetErr(&sbErr)
 			// bolt on persistent flags that Mother would usually take care of
-			pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
+			pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "")
 			if err := pair.Action.Execute(); err != nil {
 				t.Fatal(err)
 			} else if sbErr.String() != "" {
@@ -542,14 +542,14 @@ func TestNewListAction(t *testing.T) {
 				}{true, 3.14}},
 			}, nil
 		}, Options{Use: "validU53"})
-		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--" + ft.ShowColumns.Name})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name(), "--" + ft.CSV.Name(), "--" + ft.ShowColumns.Name()})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -573,14 +573,14 @@ func TestNewListAction(t *testing.T) {
 				}{true, 3.14}},
 			}, nil
 		}, Options{Use: "validU53"})
-		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--" + ft.CSV.Name, "--" + ft.SelectColumns.Name + "=Xol1"})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name(), "--" + ft.CSV.Name(), "--" + ft.SelectColumns.Name() + "=Xol1"})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sb.String() != "" { // TODO confirm err
@@ -610,12 +610,12 @@ func TestNewListAction(t *testing.T) {
 		},
 		{"all overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--" + ft.AllColumns.Name}, // --no-interactive and --json are attached in the test
+			[]string{"--" + ft.AllColumns.Name()}, // --no-interactive and --json are attached in the test
 			`[{"Col1":"1","Col2":1,"Col3":-1,"Col4":{"SubCol1":"true"}}]`,
 		},
 		{"explicit columns overrides default columns",
 			Options{DefaultColumns: []string{"Col1", "Col4.SubCol1"}},
-			[]string{"--" + ft.SelectColumns.Name, "Col3"}, // --no-interactive and --json are attached in the test
+			[]string{"--" + ft.SelectColumns.Name(), "Col3"}, // --no-interactive and --json are attached in the test
 			`[{"Col3":-1}]`,
 		},
 	}
@@ -630,14 +630,14 @@ func TestNewListAction(t *testing.T) {
 					}{true, 3.14}},
 				}, nil
 			}, tt.options)
-			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name, "--"+ft.JSON.Name))
+			pair.Action.SetArgs(append(tt.args, "--"+ft.NoInteractive.Name(), "--"+ft.JSON.Name()))
 			// capture output
 			var sb strings.Builder
 			var sbErr strings.Builder
 			pair.Action.SetOut(&sb)
 			pair.Action.SetErr(&sbErr)
 			// bolt on persistent flags that Mother would usually take care of
-			pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
+			pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "")
 			if err := pair.Action.Execute(); err != nil {
 				t.Fatal(err)
 			} else if sbErr.String() != "" {
@@ -710,14 +710,14 @@ func TestNewListAction(t *testing.T) {
 		pair := NewListAction("short", "long", st{}, func(fs *pflag.FlagSet) ([]st, error) {
 			return []st{}, nil
 		}, Options{Pretty: func(c *pflag.FlagSet) (string, error) { return prettyReturn, nil }})
-		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name})
+		pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name()})
 		// capture output
 		var sb strings.Builder
 		var sbErr strings.Builder
 		pair.Action.SetOut(&sb)
 		pair.Action.SetErr(&sbErr)
 		// bolt on persistent flags that Mother would usually take care of
-		pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "")
+		pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "")
 		if err := pair.Action.Execute(); err != nil {
 			t.Fatal(err)
 		} else if sbErr.String() != "" {
@@ -852,10 +852,10 @@ func TestModel(t *testing.T) {
 			// generate arguments list
 			args := []string{}
 			if tt.flags.columns != nil {
-				args = append(args, "--"+ft.SelectColumns.Name+"="+strings.Join(tt.flags.columns, ","))
+				args = append(args, "--"+ft.SelectColumns.Name()+"="+strings.Join(tt.flags.columns, ","))
 			}
 			if tt.flags.all {
-				args = append(args, "--"+ft.AllColumns.Name)
+				args = append(args, "--"+ft.AllColumns.Name())
 			}
 			args = append(args, tt.freeformArgs...)
 

@@ -201,7 +201,7 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 func TestNonInteractive(t *testing.T) {
 	pair, items, _, sbErr := generateTestPair()
 
-	pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name, "--id=eb8b5cb2-7cb6-4586-a2d6-665e662ad976", "--note=\"baby girl\""})
+	pair.Action.SetArgs([]string{"--" + ft.NoInteractive.Name(), "--id=eb8b5cb2-7cb6-4586-a2d6-665e662ad976", "--note=\"baby girl\""})
 	if err := pair.Action.Execute(); err != nil {
 		t.Fatal(err)
 	}
@@ -319,7 +319,7 @@ func generateTestPair() (pair action.Pair, data map[uuid.UUID]*cat, sbOut, sbErr
 		},
 	})
 	// bolt on script flag
-	pair.Action.Flags().Bool(ft.NoInteractive.Name, false, "???")
+	pair.Action.Flags().Bool(ft.NoInteractive.Name(), false, "???")
 	// capture output
 	pair.Action.SetOut(&sbOut)
 	pair.Action.SetErr(&sbErr)

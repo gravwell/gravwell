@@ -116,8 +116,7 @@ func ParseJWT(tkn string) (header JWTHeader, payload JWTPayload, signature []byt
 // AttachPersistentFlags populates all persistent flags and attaches them to the given command.
 // This subroutine should ONLY be used by Mother when building the root command or by test suites that omit Mother.
 func AttachPersistentFlags(cmd *cobra.Command) {
-	// global flags
-	cmd.PersistentFlags().BoolP(ft.NoInteractive.Name, string(ft.NoInteractive.Shorthand), false, ft.NoInteractive.Usage)
+	ft.NoInteractive.Register(cmd.PersistentFlags())
 	cmd.PersistentFlags().StringP("username", "u", "", "login credential.")
 	cmd.PersistentFlags().String("password", "", "login credential.")
 	cmd.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")

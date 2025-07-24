@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -37,17 +38,15 @@ func NewKitsNav() *cobra.Command {
 //#region list
 
 func newKitsListAction() action.Pair {
-	const (
-		short string = "list installed and staged kits"
-		long  string = "lists kits available to your user" +
-			"(or all kits on the system, via the --all flag if you are an admin)"
-	)
+	const short string = "list installed and staged kits"
+	var long = "lists kits available to your user" +
+		"(or all kits on the system, via the --" + ft.GetAll.Name() + " flag if you are an admin)"
 
 	return scaffoldlist.NewListAction(
 		short, long,
 		types.IdKitState{}, func(fs *pflag.FlagSet) ([]types.IdKitState, error) {
 			// if --all, use the admin version
-			if all, err := fs.GetBool("all"); err != nil {
+			if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
 				uniques.ErrGetFlag("kist list", err)
 			} else if all {
 				return connection.Client.AdminListKits()
@@ -60,8 +59,7 @@ func newKitsListAction() action.Pair {
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool("all", false, "(admin-only) Fetch all kits on the system."+
-		"Ignored if you are not an admin.")
+	ft.GetAll.Register(&addtlFlags, true, "kist")
 
 	return addtlFlags
 }

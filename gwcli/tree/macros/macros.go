@@ -62,8 +62,7 @@ func newMacroListAction() action.Pair {
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all macros on the system.\n"+
-		"Supersedes --group")
+	ft.GetAll.Register(&addtlFlags, true, "macros", "Supersedes --group")
 	addtlFlags.Int32("group", 0, "fetches all macros shared with the given group id")
 	return addtlFlags
 }

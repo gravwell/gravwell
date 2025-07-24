@@ -170,7 +170,7 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 
 	flags := ingestFlags{}
 
-	if noInteractive, err := fs.GetBool(ft.NoInteractive.Name); err != nil {
+	if noInteractive, err := fs.GetBool(ft.NoInteractive.Name()); err != nil {
 		return flags, nil, uniques.ErrGetFlag("ingest", err)
 	} else {
 		flags.noInteractive = noInteractive

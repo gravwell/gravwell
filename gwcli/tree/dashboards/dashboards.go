@@ -16,6 +16,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -57,13 +58,13 @@ func newDashboardsListAction() action.Pair {
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all dashboards on the system.\n")
+	ft.GetAll.Register(&addtlFlags, true, "dashboards")
 
 	return addtlFlags
 }
 
 func list(fs *pflag.FlagSet) ([]types.Dashboard, error) {
-	if all, err := fs.GetBool("all"); err != nil {
+	if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
 		uniques.ErrGetFlag("dashboards list", err)
 	} else if all {
 		return connection.Client.GetAllDashboards()

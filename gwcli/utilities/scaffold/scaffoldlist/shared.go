@@ -45,7 +45,7 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 		}
 	}
 	// check for CSV
-	if fm, err := fs.GetBool(ft.CSV.Name); err != nil {
+	if fm, err := fs.GetBool(ft.CSV.Name()); err != nil {
 		uniques.ErrGetFlag("list", err)
 		// non-fatal
 	} else if fm {
@@ -53,7 +53,7 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 	}
 
 	// check for JSON
-	if fm, err := fs.GetBool(ft.JSON.Name); err != nil {
+	if fm, err := fs.GetBool(ft.JSON.Name()); err != nil {
 		uniques.ErrGetFlag("list", err)
 	} else if fm {
 		format = json
@@ -115,7 +115,7 @@ func buildFlagSet(afs AddtlFlagFunction, prettyDefined bool) *pflag.FlagSet {
 	ft.CSV.Register(&fs)
 	ft.JSON.Register(&fs)
 	ft.Table.Register(&fs)
-	//fs.Bool(ft.Table.Name, true, ft.Table.Usage) // default
+	//fs.Bool(ft.Table.Name(), true, ft.Table.Usage()) // default
 	ft.SelectColumns.Register(&fs)
 	ft.ShowColumns.Register(&fs)
 
@@ -144,14 +144,14 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 	if !fs.Parsed() {
 		return nil, nil
 	}
-	outPath, err := fs.GetString(ft.Output.Name)
+	outPath, err := fs.GetString(ft.Output.Name())
 	if err != nil {
 		return nil, err
 	} else if strings.TrimSpace(outPath) == "" {
 		return nil, nil
 	}
 	var flags = os.O_CREATE | os.O_WRONLY
-	if append, err := fs.GetBool(ft.Append.Name); err != nil {
+	if append, err := fs.GetBool(ft.Append.Name()); err != nil {
 		return nil, err
 	} else if append {
 		flags |= os.O_APPEND
@@ -163,12 +163,12 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 
 // getColumns checks for --columns then validates and returns them if found and returns the default columns otherwise.
 func getColumns(fs *pflag.FlagSet, defaultColumns []string, availDSColumns []string) ([]string, error) {
-	if all, err := fs.GetBool(ft.AllColumns.Name); err != nil {
+	if all, err := fs.GetBool(ft.AllColumns.Name()); err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if all {
 		return availDSColumns, nil
 	}
-	cols, err := fs.GetStringSlice(ft.SelectColumns.Name)
+	cols, err := fs.GetStringSlice(ft.SelectColumns.Name())
 	if err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if len(cols) < 1 {

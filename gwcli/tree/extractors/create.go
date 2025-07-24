@@ -157,7 +157,7 @@ func newExtractorsCreateAction() action.Pair {
 	}
 
 	return scaffoldcreate.NewCreateAction("extractor", fields, create, func() (fs pflag.FlagSet) {
-		fs.Bool(ft.Dryrun.Name, false, ft.Dryrun.Usage)
+		ft.Dryrun.Register(&fs)
 		return fs
 	})
 }
@@ -179,7 +179,7 @@ func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values, fs *pflag.FlagS
 		dr  bool
 		err error
 	)
-	if dr, err = fs.GetBool(ft.Dryrun.Name); err != nil {
+	if dr, err = fs.GetBool(ft.Dryrun.Name()); err != nil {
 		return 0, "", err
 	}
 

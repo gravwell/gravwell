@@ -9,8 +9,8 @@ var _ error = ErrBinaryBlobCoward("format")
 
 func (fmt ErrBinaryBlobCoward) Error() string {
 	return "refusing to dump binary blob (format " + string(fmt) + ") to stdout.\n" +
-		"If this is intentional, re-run with -" + ft.Output.P() + " <FILENAME>.\n" +
-		"If it was not, re-run with --" + ft.CSV.Name + " or --" + ft.JSON.Name + " to download in a more appropriate format."
+		"If this is intentional, re-run with -" + ft.Output.Shorthand() + " <FILENAME>.\n" +
+		"If it was not, re-run with --" + ft.CSV.Name() + " or --" + ft.JSON.Name() + " to download in a more appropriate format."
 }
 
 // ErrUnknownSID returns a user-facing error stating that the given sid is unknown.

@@ -32,7 +32,7 @@ var (
 		"Note, however, that ingest provides special handling for Gravwell JSON files.\n" +
 		"Gravwell JSON files typically have a tag built into them, which will be used instead of --default-tag if a tag is not specified as part of the argument.\n" +
 		"\n" +
-		"Calling ingest with no arguments will spin up a file picker (unless --" + ft.NoInteractive.Name + " is specified in which case it will fail out).\n" +
+		"Calling ingest with no arguments will spin up a file picker (unless --" + ft.NoInteractive.Name() + " is specified in which case it will fail out).\n" +
 		"Use --dir to specify a starting directory (otherwise pwd will be used)."
 )
 

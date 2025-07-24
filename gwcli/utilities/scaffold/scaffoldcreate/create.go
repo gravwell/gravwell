@@ -128,7 +128,7 @@ func NewCreateAction(singular string,
 		[]string{},               // aliases
 		func(c *cobra.Command, s []string) {
 			// get standard flags
-			noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name)
+			noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name())
 			if err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
 				return

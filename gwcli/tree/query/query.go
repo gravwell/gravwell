@@ -76,11 +76,11 @@ var helpDesc = "Generate and send a query to the remote server either by argumen
 	"the interactive query builder.\n" +
 	"All bare arguments after `query` will be passed to the instance as the query string.\n" +
 	"\n" +
-	"Omitting --" + ft.NoInteractive.Name + " will open the results in an interactive viewing pane with additional" +
+	"Omitting --" + ft.NoInteractive.Name() + " will open the results in an interactive viewing pane with additional" +
 	"functionality for downloading the results to a file or scheduling this query to run in " +
 	"the future" +
 	"\n" +
-	"If --" + ft.JSON.Name + " or --" + ft.CSV.Name + " is not given when outputting to a file (`-o`), the results will be " +
+	"If --" + ft.JSON.Name() + " or --" + ft.CSV.Name() + " is not given when outputting to a file (`-o`), the results will be " +
 	"text (if able) or an archive binary blob (if unable), depending on the query's render " +
 	"module.\n" +
 	"gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
@@ -114,10 +114,10 @@ func initialLocalFlagSet() pflag.FlagSet {
 	fs.DurationP("duration", "t", time.Hour*1,
 		"the historical timeframe from now the query should pour over.\n"+
 			"Ex: '1h' = the past hour, '5s500ms'= the previous 5 and a half seconds")
-	fs.StringP(ft.Output.Name, "o", "", ft.Output.Usage)
-	fs.Bool(ft.Append.Name, false, ft.Append.Name)
-	fs.Bool(ft.JSON.Name, false, ft.JSON.Usage)
-	fs.Bool(ft.CSV.Name, false, ft.CSV.Usage)
+	ft.Output.Register(&fs)
+	ft.Append.Register(&fs)
+	ft.JSON.Register(&fs)
+	ft.CSV.Register(&fs)
 
 	fs.BoolP("background", "b", false, "run this search in the background, rather than awaiting and loading the results as soon as they are ready")
 

@@ -129,7 +129,7 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 		passfilePath  string
 		apiKey        string
 	)
-	if noInteractive, err = cmd.Flags().GetBool(ft.NoInteractive.Name); err != nil {
+	if noInteractive, err = cmd.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
 		return err
 	}
 	if username, err = cmd.Flags().GetString("username"); err != nil {

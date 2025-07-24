@@ -207,14 +207,14 @@ func NewListAction[dataStruct_t any](short, long string,
 
 	cmd.Flags().AddFlagSet(buildFlagSet(options.AddtlFlags, options.Pretty != nil))
 	cmd.Flags().SortFlags = false // does not seem to be respected
-	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name, ft.JSON.Name, ft.Table.Name)
+	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name(), ft.JSON.Name(), ft.Table.Name())
 
 	// attach example
-	formats := []string{"--" + ft.CSV.Name, "--" + ft.JSON.Name, "--" + ft.Table.Name}
+	formats := []string{"--" + ft.CSV.Name(), "--" + ft.JSON.Name(), "--" + ft.Table.Name()}
 	if options.Pretty != nil {
 		formats = append(formats, "--pretty")
 	}
-	cmd.Example = fmt.Sprintf("%v %v %v", use, ft.MutuallyExclusive(formats), ft.Optional("--"+ft.SelectColumns.Name+"=col1,col2,..."))
+	cmd.Example = fmt.Sprintf("%v %v %v", use, ft.MutuallyExclusive(formats), ft.Optional("--"+ft.SelectColumns.Name()+"=col1,col2,..."))
 
 	// apply command modifiers
 	if options.CmdMods != nil {
@@ -245,7 +245,7 @@ func generateRun[dataStruct_t any](
 		}
 
 		// check for --show-columns
-		if sc, err := c.Flags().GetBool(ft.ShowColumns.Name); err != nil {
+		if sc, err := c.Flags().GetBool(ft.ShowColumns.Name()); err != nil {
 			fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag("list", err))
 			return
 		} else if sc {
@@ -261,7 +261,7 @@ func generateRun[dataStruct_t any](
 		)
 		{ // gather flags and set up variables required for listOutput
 			var err error
-			noInteractive, err = c.Flags().GetBool(ft.NoInteractive.Name)
+			noInteractive, err = c.Flags().GetBool(ft.NoInteractive.Name())
 			if err != nil {
 				fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag(c.Use, err))
 				return

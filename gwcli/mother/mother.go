@@ -98,8 +98,8 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 	}
 	// disable nonsensical flags when Mother is running
 	// TODO disable most persistent flags when Mother executes
-	if err := root.PersistentFlags().MarkHidden(ft.NoInteractive.Name); err != nil {
-		clilog.Writer.Warnf("failed to hide --"+ft.NoInteractive.Name+": %v", err)
+	if err := root.PersistentFlags().MarkHidden(ft.NoInteractive.Name()); err != nil {
+		clilog.Writer.Warnf("failed to hide --"+ft.NoInteractive.Name()+": %v", err)
 	}
 
 	// text input
