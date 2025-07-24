@@ -49,9 +49,9 @@ func newExtractorsCreateAction() action.Pair {
 		createDescKey: scaffoldcreate.Field{
 			Required:      true,
 			Title:         "description",
-			Usage:         "description of the new extractor",
+			Usage:         ft.Description.Usage("extractor"),
 			Type:          scaffoldcreate.Text,
-			FlagName:      "desc",
+			FlagName:      ft.Description.Name(),
 			FlagShorthand: 'd',
 			Order:         90,
 		},

@@ -58,13 +58,13 @@ func TransmogrifyFlags(fs *pflag.FlagSet) QueryFlags {
 	qf.OutPath, _ = fs.GetString(ft.Output.Name())
 	qf.OutPath = strings.TrimSpace(qf.OutPath)
 
-	qf.Schedule.CronFreq, _ = fs.GetString(ft.Name.Frequency)
+	qf.Schedule.CronFreq, _ = fs.GetString(ft.Frequency.Name())
 	qf.Schedule.CronFreq = strings.TrimSpace(qf.Schedule.CronFreq)
 
-	qf.Schedule.Name, _ = fs.GetString(ft.Name.Name)
+	qf.Schedule.Name, _ = fs.GetString(ft.Name.Name())
 	qf.Schedule.Name = strings.TrimSpace(qf.Schedule.Name)
 
-	qf.Schedule.Desc, _ = fs.GetString(ft.Name.Desc)
+	qf.Schedule.Desc, _ = fs.GetString(ft.Description.Name())
 	qf.Schedule.Desc = strings.TrimSpace(qf.Schedule.Desc)
 
 	return qf

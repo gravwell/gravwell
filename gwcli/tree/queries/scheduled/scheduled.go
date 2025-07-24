@@ -90,7 +90,7 @@ func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all schedule searches on the system.\n"+
 		"Supersedes --id.")
-	addtlFlags.String(ft.Name.ID, "", "fetches the scheduled search associated to the given id."+
+	addtlFlags.String("id", "", "fetches the scheduled search associated to the given id."+
 		"This id can be a standard, numeric ID or a uuid.")
 
 	return addtlFlags
@@ -102,7 +102,7 @@ func listScheduledSearch(fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {
 	} else if all {
 		return connection.Client.GetAllScheduledSearches()
 	}
-	if untypedID, err := fs.GetString(ft.Name.ID); err != nil {
+	if untypedID, err := fs.GetString("id"); err != nil {
 		uniques.ErrGetFlag("scheduled list", err)
 	} else if untypedID != "" {
 		// attempt to parse as UUID first
@@ -147,9 +147,9 @@ func newScheduledQryCreateAction() action.Pair {
 		createFreqKey: scaffoldcreate.Field{ // manually build so we have more control
 			Required:      true,
 			Title:         "frequency",
-			Usage:         ft.Usage.Frequency,
+			Usage:         ft.Frequency.Usage(),
 			Type:          scaffoldcreate.Text,
-			FlagName:      ft.Name.Frequency, // custom flag name
+			FlagName:      ft.Frequency.Name(), // custom flag name
 			FlagShorthand: 'f',
 			DefaultValue:  "", // no default value
 			Order:         50,
@@ -237,28 +237,28 @@ func newScheduledQryEditAction() action.Pair {
 		editNameKey: &scaffoldedit.Field{
 			Required: true,
 			Title:    "Name",
-			Usage:    ft.Usage.Name(singular),
-			FlagName: ft.Name.Name,
+			Usage:    ft.Name.Usage(singular),
+			FlagName: ft.Name.Name(),
 			Order:    100,
 		},
 		editDescKey: &scaffoldedit.Field{
 			Required: true,
 			Title:    "Description",
-			Usage:    ft.Usage.Desc(singular),
-			FlagName: ft.Name.Desc,
+			Usage:    ft.Description.Usage(singular),
+			FlagName: ft.Description.Name(),
 			Order:    80,
 		},
 		editSearchKey: &scaffoldedit.Field{
 			Required: true,
 			Title:    "Query",
 			Usage:    "the query executed by this scheduled search",
-			FlagName: ft.Name.Query,
+			FlagName: "query",
 			Order:    60,
 		},
 		editScheduleKey: &scaffoldedit.Field{
 			Required: true,
 			Title:    "Schedule",
-			Usage:    ft.Usage.Frequency,
+			Usage:    ft.Frequency.Usage(),
 			FlagName: "schedule",
 			Order:    40,
 		},

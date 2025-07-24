@@ -18,6 +18,7 @@ package ft
 //
 // ft.<flag>.Name() is the standardized mechanism for retrieving flags.
 // ft.<flag>.Register(fs) is the standardized mechanism for installing this flag in the given flagset.
+// If a flag needs to modify its parameters (custom usage, set a default value), Name(), Usage(), and Shorthand() are available for manual installation.
 
 import (
 	"fmt"
@@ -63,6 +64,11 @@ func (s simple) Shorthand() string {
 		return ""
 	}
 	return string(s.shorthand)
+}
+
+// Usage returns the flag description.
+func (s simple) Usage() string {
+	return s.usage
 }
 
 // Register installs this flag (with its standard type) in the given flagset.
@@ -119,6 +125,38 @@ func (s stringSliceRegister) Register(fs *pflag.FlagSet) {
 }
 
 //#endregion string slice flag
+
+//#region singular
+
+type singular struct {
+	name      string
+	shorthand rune
+	// the body of the usage message, prior to the singular form being appended.
+	// Expected to be whitespace-trimmed.
+	usagePrefix string
+}
+
+func (s singular) Name() string {
+	return s.name
+}
+
+func (s singular) Shorthand() string {
+	var zero rune
+	if s.shorthand == zero {
+		return ""
+	}
+	return string(s.shorthand)
+}
+
+func (s singular) Usage(singular string) string {
+	return s.usagePrefix + " " + singular
+}
+
+// Register installs this flag as a string in the given flagset.
+// It is a helper function to provide consistent usage.
+func (s singular) Register(fs *pflag.FlagSet, singular string) {
+	fs.StringP(s.Name(), s.Shorthand(), "", s.Usage(singular))
+}
 
 // NoInteractive (--no-interactive) is a global flag that disables all interactive components of gwcli.
 var NoInteractive = simple{
@@ -253,39 +291,25 @@ func (gaf getAllFlag) Register(fs *pflag.FlagSet, requiresAdmin bool, plural str
 	fs.Bool("all", false, strings.TrimSuffix(strings.TrimSpace(usage), "."))
 }
 
-// Name struct contains common flag names used across a variety of actions.
-var Name = struct {
-	Name      string
-	Desc      string
-	ID        string
-	Query     string
-	Frequency string
-	Expansion string // macro expansions
-}{
-	Name:      "name",
-	Desc:      "description",
-	ID:        "id",
-	Query:     "query",
-	Frequency: "frequency",
-	Expansion: "expansion",
+// Frequency is a local flag for defining a cron-style interval in which something occurs.
+var Frequency = simple{
+	name:      "frequency",
+	shorthand: 'f',
+	usage:     "cron-style scheduling for scheduled execution",
 }
 
-// Usage contains shared, common flag usage description used across a variety of actions.
-// The compiler should inline all of these functions so they are overhead-less.
-var Usage = struct {
-	Name      func(singular string) string
-	Desc      func(singular string) string
-	Frequency string
-	Expansion string // macro expansions
-}{
-	Name: func(singular string) string {
-		return "name of the " + singular
-	},
-	Desc: func(singular string) string {
-		return "flavour description of the " + singular
-	},
-	Frequency: "cron-style execution frequency",
-	Expansion: "value for the macro to expand to", // macro expansions
+// Description is a local flag for providing the description of an item.
+var Description = singular{
+	name:        "description",
+	shorthand:   'd',
+	usagePrefix: "flavour description of the",
+}
+
+// Name is a local flag for providing or specifying the name of an item.
+var Name = singular{
+	name:        "name",
+	shorthand:   'n',
+	usagePrefix: "name of the",
 }
 
 // WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.

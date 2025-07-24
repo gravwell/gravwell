@@ -45,19 +45,19 @@ func scheduleQuery(flags *querysupport.QueryFlags, validatedQry string) (ssid in
 	if clilog.Active(clilog.WARN) { // only warn if WARN level is enabled
 		warnings = make([]string, 0)
 		if flags.OutPath != "" {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.Output.Name(), ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Output.Name(), ft.Frequency.Name()))
 		}
 		if flags.Background {
-			warnings = append(warnings, ft.WarnFlagIgnore("background", ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore("background", ft.Frequency.Name()))
 		}
 		if flags.Append {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.Append.Name(), ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.Append.Name(), ft.Frequency.Name()))
 		}
 		if flags.JSON {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.JSON.Name(), ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.JSON.Name(), ft.Frequency.Name()))
 		}
 		if flags.CSV {
-			warnings = append(warnings, ft.WarnFlagIgnore(ft.CSV.Name(), ft.Name.Frequency))
+			warnings = append(warnings, ft.WarnFlagIgnore(ft.CSV.Name(), ft.Frequency.Name()))
 		}
 	}
 

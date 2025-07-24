@@ -141,7 +141,7 @@ func generateFlagSet(cfg Config, singular string) pflag.FlagSet {
 	}
 
 	// attach native flags
-	fs.StringP(ft.Name.ID, "i", "", fmt.Sprintf("id of the %v to edit", singular))
+	fs.StringP("id", "i", "", fmt.Sprintf("id of the %v to edit", singular))
 
 	return fs
 }
@@ -157,7 +157,7 @@ func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, f
 		zero I
 		itm  S
 	)
-	if strid, err := cmd.Flags().GetString(ft.Name.ID); err != nil {
+	if strid, err := cmd.Flags().GetString("id"); err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
 	} else {
@@ -168,7 +168,7 @@ func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, f
 		}
 	}
 	if id == zero { // id was not given
-		fmt.Fprintln(cmd.OutOrStdout(), "--"+ft.Name.ID+" is required in no-interactive mode")
+		fmt.Fprintln(cmd.OutOrStdout(), "--id is required in no-interactive mode")
 		return
 	}
 
@@ -292,9 +292,9 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 	}
 
 	// check for an explicit ID
-	if em.fs.Changed(ft.Name.ID) {
+	if em.fs.Changed("id") {
 		var id I
-		if strid, err := em.fs.GetString(ft.Name.ID); err != nil {
+		if strid, err := em.fs.GetString("id"); err != nil {
 			return "", nil, err
 		} else {
 			id, err = scaffold.FromString[I](strid)

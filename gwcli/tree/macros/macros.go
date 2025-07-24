@@ -32,6 +32,11 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const (
+	FlagExpansion      string = "expansion"
+	FlagExpansionUsage string = "value for the macro to expand to"
+)
+
 // NewMacrosNav returns a nav with children relating to macro handling.
 func NewMacrosNav() *cobra.Command {
 	const (
@@ -97,9 +102,9 @@ func newMacroCreateAction() action.Pair {
 		"exp": scaffoldcreate.Field{
 			Required:      true,
 			Title:         "expansion",
-			Usage:         ft.Usage.Expansion,
+			Usage:         FlagExpansionUsage,
 			Type:          scaffoldcreate.Text,
-			FlagName:      ft.Name.Expansion,
+			FlagName:      FlagExpansion,
 			FlagShorthand: 'e',
 			DefaultValue:  "",
 			Order:         80,
@@ -132,22 +137,22 @@ func newMacroEditAction() action.Pair {
 		"name": &scaffoldedit.Field{
 			Required: true,
 			Title:    "Name",
-			Usage:    ft.Usage.Name(singular),
-			FlagName: ft.Name.Name,
+			Usage:    ft.Name.Usage(singular),
+			FlagName: ft.Name.Name(),
 			Order:    100,
 		},
 		"description": &scaffoldedit.Field{
 			Required: false,
 			Title:    "Description",
-			Usage:    ft.Usage.Desc(singular),
-			FlagName: ft.Name.Desc,
+			Usage:    ft.Description.Usage(singular),
+			FlagName: ft.Description.Name(),
 			Order:    80,
 		},
 		"expansion": &scaffoldedit.Field{
 			Required: true,
 			Title:    "Expansion",
-			Usage:    ft.Usage.Expansion,
-			FlagName: ft.Name.Expansion,
+			Usage:    FlagExpansionUsage,
+			FlagName: FlagExpansion,
 			Order:    60,
 		},
 	}

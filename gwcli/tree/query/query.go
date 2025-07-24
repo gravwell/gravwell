@@ -122,9 +122,9 @@ func initialLocalFlagSet() pflag.FlagSet {
 	fs.BoolP("background", "b", false, "run this search in the background, rather than awaiting and loading the results as soon as they are ready")
 
 	// scheduled searches
-	fs.StringP(ft.Name.Name, "n", "", "SCHEDULED."+ft.Usage.Name("scheduled search"))
-	fs.StringP(ft.Name.Desc, "d", "", "SCHEDULED."+ft.Usage.Desc("scheduled search"))
-	fs.StringP(ft.Name.Frequency, "f", "", "SCHEDULED."+ft.Usage.Frequency)
+	fs.StringP(ft.Name.Name(), ft.Name.Shorthand(), "", "SCHEDULED ONLY. "+ft.Name.Usage("scheduled search"))
+	fs.StringP(ft.Description.Name(), ft.Description.Shorthand(), "", "SCHEDULED ONLY. "+ft.Description.Usage("scheduled search"))
+	fs.StringP(ft.Frequency.Name(), ft.Frequency.Shorthand(), "", "SCHEDULED ONLY. "+ft.Frequency.Usage())
 
 	return fs
 }
