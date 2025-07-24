@@ -101,10 +101,8 @@ func Table() *table.Table {
 		Border(Cur.TableSty.BorderType).
 		BorderStyle(Cur.TableSty.BorderStyle).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			switch {
-			case row == 0:
-				return Cur.TableSty.HeaderCells
-			case row%2 == 0:
+			switch row % 2 {
+			case 0:
 				return Cur.TableSty.EvenCells
 			default:
 				return Cur.TableSty.OddCells
