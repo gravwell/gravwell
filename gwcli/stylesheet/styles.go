@@ -58,6 +58,8 @@ type Sheet struct {
 		EvenCells   lipgloss.Style
 		OddCells    lipgloss.Style
 		BorderType  lipgloss.Border
+		// do not set .Border in this style; it causes tbl.Render to freak out and drop results.
+		// Instead, set TableSty.BorderType
 		BorderStyle lipgloss.Style
 	}
 
