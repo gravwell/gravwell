@@ -28,16 +28,9 @@ import (
 
 // styles, set in init()
 var (
-	sectionHeaderSty    lipgloss.Style
-	subSectionHeaderSty lipgloss.Style
+	sectionHeader    = func(str string) string { return stylesheet.Cur.TertiaryText.Bold(true).Render(str) }
+	subSectionHeader = func(str string) string { return stylesheet.Cur.SecondaryText.Bold(true).Render(str) }
 )
-
-func init() {
-	// set local styles based on stylesheet's state
-	sectionHeaderSty = stylesheet.Cur.TertiaryText.Bold(true)
-	subSectionHeaderSty = stylesheet.Cur.SecondaryText.Bold(true)
-
-}
 
 // The hardware action fetches and averages system statistics.
 // Under the hood, it gathers all the required information (via a couple of API calls) before piecing it together in the main thread.
@@ -177,7 +170,7 @@ func constructOverview(o ovrvw, width int) string {
 	if s, err := stylesheet.SegmentedBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()), width, struct {
 		StylizedTitle string
 		Contents      string
-	}{sectionHeaderSty.Render(" Overview "), avgs}, struct {
+	}{sectionHeader(" Overview "), avgs}, struct {
 		StylizedTitle string
 		Contents      string
 	}{disksTitle, disks}); err != nil {
@@ -220,7 +213,7 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 			Contents      string
 		}{
 			{
-				StylizedTitle: sectionHeaderSty.Render(idxr),
+				StylizedTitle: sectionHeader(idxr),
 			},
 		}
 
@@ -234,7 +227,7 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 			sections = append(sections, struct {
 				StylizedTitle string
 				Contents      string
-			}{subSectionHeaderSty.Render("Health & Disks"), e})
+			}{subSectionHeader("Health & Disks"), e})
 		} else {
 			var sb strings.Builder
 			{
@@ -242,7 +235,7 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 					StylizedTitle string
 					Contents      string
 				}{
-					StylizedTitle: " " + subSectionHeaderSty.Render("Health") + " ",
+					StylizedTitle: " " + subSectionHeader("Health") + " ",
 				}
 				// generate content
 				writeString(&sb, field("Gravwell Version", 17)+stat.Stats.BuildInfo.CanonicalVersion.String()+"\n")
@@ -268,7 +261,7 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 					StylizedTitle string
 					Contents      string
 				}{
-					StylizedTitle: subSectionHeaderSty.Render(fmt.Sprintf(" Disk[%d] ", len(stat.Stats.Disks))),
+					StylizedTitle: subSectionHeader(fmt.Sprintf(" Disk[%d] ", len(stat.Stats.Disks))),
 				}
 				// generate content
 				for _, d := range stat.Stats.Disks {
@@ -293,7 +286,7 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 				StylizedTitle string
 				Contents      string
 			}{
-				StylizedTitle: subSectionHeaderSty.Render(" Specifications"),
+				StylizedTitle: subSectionHeader(" Specifications"),
 				Contents:      "",
 			}
 
@@ -306,7 +299,7 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 			} else {
 				var sb strings.Builder
 				// attach virtualization info
-				sctn.StylizedTitle += " (" + subSectionHeaderSty.Render(fmt.Sprintf("%v[%v]", hw.VirtSystem, hw.VirtRole)) + ") "
+				sctn.StylizedTitle += " (" + subSectionHeader(fmt.Sprintf("%v[%v]", hw.VirtSystem, hw.VirtRole)) + ") "
 				// attach hardware info
 				writeString(&sb, fmt.Sprintf(
 					"%s %s\n"+
