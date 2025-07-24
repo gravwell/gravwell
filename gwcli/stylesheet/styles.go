@@ -22,6 +22,11 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// NoColor is derived and set by Mother in ppre().
+// If this is true, assume stylesheet.Cur has been set to its simplest, colorless form.
+// Can be read by other packages to tweak their output beyond what the stylesheet can do.
+var NoColor bool
+
 // Cur is the stylesheet currently in-use by gwcli.
 // This is what other packages should reference when stylizing their elements.
 var Cur Sheet

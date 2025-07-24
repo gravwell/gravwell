@@ -21,6 +21,7 @@ import (
 	"runtime/pprof"
 	"strings"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -54,10 +55,6 @@ var profilerFile *os.File
 // ensures the logger is set up,
 // and attempts to log the user into the gravwell instance.
 func ppre(cmd *cobra.Command, args []string) error {
-	if checkNoColor(cmd.Flags()) {
-		stylesheet.Cur = stylesheet.NoColor()
-	}
-
 	// set up the logger, if it is not already initialized
 	if clilog.Writer == nil {
 		path, err := cmd.Flags().GetString("log")
@@ -69,6 +66,11 @@ func ppre(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		clilog.Init(path, lvl)
+	}
+
+	if isNoColor(cmd.Flags()) {
+		stylesheet.Cur = stylesheet.Plain()
+		stylesheet.NoColor = true
 	}
 
 	// if this is a 'complete' request, do not enforce login
@@ -104,24 +106,39 @@ func ppre(cmd *cobra.Command, args []string) error {
 // helper function for ppre.
 //
 // Checks for --no-color, $env.NO_COLOR, and --no-interactive in that order.
-func checkNoColor(fs *pflag.FlagSet) (colorEnabled bool) {
+func isNoColor(fs *pflag.FlagSet) bool {
 	// check --no-color
 	if nc, err := fs.GetBool(ft.NoColor.Name()); err != nil {
 		panic(err)
 	} else if nc {
-		return false
+		clilog.Writer.Debug("disabled color",
+			rfc5424.SDParam{
+				Name:  "reason",
+				Value: "--" + ft.NoColor.Name(),
+			})
+		return true
 	}
 	// check NO_COLOR env var
 	if _, found := os.LookupEnv("NO_COLOR"); found { // https://no-color.org/
-		return false
+		clilog.Writer.Debug("disabled color",
+			rfc5424.SDParam{
+				Name:  "reason",
+				Value: "NO_COLOR",
+			})
+		return true
 	}
 
-	noInteractive, err := fs.GetBool(ft.NoInteractive.Name())
-	if err != nil {
+	if noInteractive, err := fs.GetBool(ft.NoInteractive.Name()); err != nil {
 		panic(err)
+	} else if noInteractive {
+		clilog.Writer.Debug("disabled color",
+			rfc5424.SDParam{
+				Name:  "reason",
+				Value: "--" + ft.NoInteractive.Name(),
+			})
+		return true
 	}
-
-	return !noInteractive
+	return false
 
 }
 

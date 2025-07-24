@@ -104,14 +104,17 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 
 	// text input
 	ti := textinput.New()
-	ti.Placeholder = "help"
+	// disable the placeholder and in-line suggestions if no-color is active
+	if !stylesheet.NoColor {
+		ti.Placeholder = "help"
+		ti.ShowSuggestions = true
+	}
 	ti.Prompt = "" // replicated externally
 	ti.Focus()
 	ti.Width = stylesheet.TIWidth // replaced on first WindowSizeMsg, proc'd by Init()
 	// add ctrl+left/right to the word traversal keys
 	ti.KeyMap.WordForward.SetKeys("ctrl+right", "alt+right", "alt+f")
 	ti.KeyMap.WordBackward.SetKeys("ctrl+left", "alt+left", "alt+b")
-	ti.ShowSuggestions = true
 
 	m := Mother{
 		root:    root,
