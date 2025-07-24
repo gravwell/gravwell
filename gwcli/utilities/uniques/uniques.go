@@ -125,7 +125,7 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("password", "passfile", "api")
 	cmd.MarkFlagsMutuallyExclusive("api", "username")
 
-	cmd.PersistentFlags().Bool("no-color", false, "disables colourized output.")
+	ft.NoColor.Register(cmd.PersistentFlags())
 	cmd.PersistentFlags().String("server", "localhost:80", "<host>:<port> of instance to connect to.\n")
 	cmd.PersistentFlags().StringP("log", "l", cfgdir.DefaultStdLogPath, "log location for developer logs.\n")
 	cmd.PersistentFlags().String("loglevel", "DEBUG", "log level for developer logs (-l).\n"+

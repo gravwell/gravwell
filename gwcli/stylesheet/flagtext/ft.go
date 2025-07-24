@@ -174,6 +174,14 @@ var Dryrun = simple{
 	typ:   types.Bool,
 }
 
+// NoColor is a global flag that disables color and stylization across the board.
+// It is primarily handled by Mother, in ppre().
+var NoColor = simple{
+	name:  "no-color",
+	usage: "disables colourized output",
+	typ:   types.Bool,
+}
+
 //#region output manipulation
 
 // Output (-o) is a local flag implemented by actions to redirect their results to a file.
