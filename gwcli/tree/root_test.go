@@ -9,9 +9,13 @@
 package tree
 
 import (
+	"maps"
 	"os"
 	"path"
 	"testing"
+
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/spf13/pflag"
 )
 
 const (
@@ -64,4 +68,43 @@ func Test_skimPassfile(t *testing.T) {
 
 	}
 
+}
+
+func Test_checkNoColor(t *testing.T) {
+	tests := []struct {
+		name             string
+		args             []string
+		envs             map[string]string
+		wantColorEnabled bool
+	}{
+		{"none", []string{"some", "bare", "arguments"}, nil, true},
+		{"NO_COLOR env", []string{"some", "bare", "arguments"}, map[string]string{"NO_COLOR": "1"}, false},
+		{"bad env", []string{"some", "bare", "arguments"}, map[string]string{"NONE_COLOR": "1"}, true},
+		{"no-color (not a flag)", []string{ft.NoColor.Name(), "bare", "arguments"}, nil, true},
+		{"--no-color ", []string{"--" + ft.NoColor.Name(), "bare", "arguments"}, nil, false},
+		{"--no-interactive", []string{"--" + ft.NoInteractive.Name()}, nil, false},
+		{"all", []string{ft.NoInteractive.Name(), "Something"}, map[string]string{"NO_COLOR": "1", "NONE_COLOR": "1"}, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			os.Clearenv()
+			// build and parse the required flagset
+			fs := new(pflag.FlagSet)
+			ft.NoColor.Register(fs)
+			ft.NoInteractive.Register(fs)
+			fs.Parse(tt.args)
+
+			// prep environment variables
+
+			for key, value := range maps.All(tt.envs) {
+				if err := os.Setenv(key, value); err != nil {
+					t.Fatalf("failed to set env var: %v", err)
+				}
+			}
+
+			if gotColorEnabled := checkNoColor(fs); gotColorEnabled != tt.wantColorEnabled {
+				t.Errorf("checkNoColor() = %v, want %v", gotColorEnabled, tt.wantColorEnabled)
+			}
+		})
+	}
 }

@@ -20,7 +20,6 @@ import (
 	"os"
 	"runtime/pprof"
 	"strings"
-	"time"
 
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -44,19 +43,18 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 var profilerFile *os.File
 
 // global PersistentPreRunE.
 //
-// Ensures the logger is set up and the user has logged into the gravwell instance,
-// completing these actions if either is false.
+// Before any command is executed, ppre checks for NOCOLOR,
+// ensures the logger is set up,
+// and attempts to log the user into the gravwell instance.
 func ppre(cmd *cobra.Command, args []string) error {
-	// check for no color flag
-	if nc, err := cmd.Flags().GetBool("no-color"); err != nil {
-		panic(err)
-	} else if nc {
+	if checkNoColor(cmd.Flags()) {
 		stylesheet.Cur = stylesheet.NoColor()
 	}
 
@@ -101,6 +99,30 @@ func ppre(cmd *cobra.Command, args []string) error {
 	}
 
 	return EnforceLogin(cmd, args)
+}
+
+// helper function for ppre.
+//
+// Checks for --no-color, $env.NO_COLOR, and --no-interactive in that order.
+func checkNoColor(fs *pflag.FlagSet) (colorEnabled bool) {
+	// check --no-color
+	if nc, err := fs.GetBool(ft.NoColor.Name()); err != nil {
+		panic(err)
+	} else if nc {
+		return false
+	}
+	// check NO_COLOR env var
+	if _, found := os.LookupEnv("NO_COLOR"); found { // https://no-color.org/
+		return false
+	}
+
+	noInteractive, err := fs.GetBool(ft.NoInteractive.Name())
+	if err != nil {
+		panic(err)
+	}
+
+	return !noInteractive
+
 }
 
 // EnforceLogin initializes the connection singleton, which logs the client into the Gravwell instance dictated by the --server flag.
@@ -202,31 +224,24 @@ func ppost(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-const ( // usage
-	use   string = "gwcli"
-	short string = "Gravwell CLI Client"
-)
-
-// must be variable to allow lipgloss formatting
-var long string = "gwcli is a CLI client for interacting with your Gravwell instance directly" +
-	"from your terminal.\n" +
-	"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
-	"To invoke the TUI, simply call " + stylesheet.Cur.ExampleText.Render("gwcli") + ".\n" +
-	"You can view help for any submenu or action by providing help a path.\n" +
-	"For instance, try: " + stylesheet.Cur.ExampleText.Render("gwcli help macros create") +
-	" or " + stylesheet.Cur.ExampleText.Render("gwcli query -h")
-
-const ( // mousetrap
-	mousetrapText string = "This is a command line tool.\n" +
-		"You need to open gwcli.exe and run it from there.\n" +
-		"Press Return to close.\n"
-	mousetrapDuration time.Duration = (0 * time.Second)
-)
-
 // Execute adds all child commands to the root command, sets flags appropriately, and launches the
 // program according to the given parameters
 // (via cobra.Command.Execute()).
 func Execute(args []string) int {
+	const (
+		// usage
+		use   string = "gwcli"
+		short string = "Gravwell CLI Client"
+	)
+
+	// must be variable to allow lipgloss formatting
+	var long = "gwcli is a CLI client for interacting with your Gravwell instance directly from your terminal.\n" +
+		"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
+		"To invoke the TUI, simply call " + stylesheet.Cur.ExampleText.Render("gwcli") + ".\n" +
+		"You can view help for any submenu or action by providing help a path.\n" +
+		"For instance, try: " + stylesheet.Cur.ExampleText.Render("gwcli help macros create") +
+		" or " + stylesheet.Cur.ExampleText.Render("gwcli query -h")
+
 	// spawn the cobra commands in parallel
 	var cmdFn = []func() *cobra.Command{
 		macros.NewMacrosNav,
@@ -276,8 +291,10 @@ func Execute(args []string) int {
 	rootCmd.SetCompletionCommandGroupID(group.ActionID)
 
 	// configure Windows mouse trap
-	cobra.MousetrapHelpText = mousetrapText
-	cobra.MousetrapDisplayDuration = mousetrapDuration
+	cobra.MousetrapHelpText = "This is a command line tool.\n" +
+		"You need to open gwcli.exe and run it from there.\n" +
+		"Press Return to close.\n"
+	cobra.MousetrapDisplayDuration = 0
 
 	// configure root's Run to launch Mother
 	rootCmd.Run = treeutils.NavRun
