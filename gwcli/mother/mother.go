@@ -29,7 +29,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -96,11 +95,8 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 	} else if c != nil {
 		root.RemoveCommand(c)
 	}
-	// disable nonsensical flags when Mother is running
-	// TODO disable most persistent flags when Mother executes
-	if err := root.PersistentFlags().MarkHidden(ft.NoInteractive.Name()); err != nil {
-		clilog.Writer.Warnf("failed to hide --"+ft.NoInteractive.Name()+": %v", err)
-	}
+
+	root.PersistentFlags().VisitAll(func(f *pflag.Flag) { f.Hidden = true })
 
 	// text input
 	ti := textinput.New()
