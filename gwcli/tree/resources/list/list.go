@@ -27,8 +27,9 @@ const (
 func NewResourcesListAction() action.Pair {
 	return scaffoldlist.NewListAction(short, long,
 		types.ResourceMetadata{}, list, scaffoldlist.Options{
-			Aliases:    []string{"ID", "UID", "Name", "Description"},
-			AddtlFlags: flags,
+			DefaultColumns: []string{"UID", "ResourceName", "Description", "Size", "Global"},
+			ColumnAliases:  map[string]string{"ResourceName": "Name"},
+			AddtlFlags:     flags,
 		})
 }
 
