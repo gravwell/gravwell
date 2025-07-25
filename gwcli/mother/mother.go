@@ -596,7 +596,16 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 	var s strings.Builder
 
 	if action.Is(c) {
-		s.WriteString(c.UsageString())
+		// redirect output to capture help
+		priorOut := c.OutOrStdout()
+		var sb strings.Builder
+		c.SetOut(&sb)
+		if err := c.Help(); err != nil {
+			clilog.Writer.Warnf("failed to get help for command %v", c.CommandPath())
+		}
+
+		s.WriteString(sb.String())
+		c.SetOut(priorOut)
 	} else {
 		specialStyle := stylesheet.Cur.SecondaryText
 		// write .. and /
