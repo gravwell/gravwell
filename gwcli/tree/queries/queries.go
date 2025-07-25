@@ -85,11 +85,9 @@ func past() action.Pair {
 }
 
 func flags() pflag.FlagSet {
-	const defaultCount = 30
-
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Int("count", defaultCount, "the number of past searches to display.\n"+
-		"If negative, fecthes entire history.")
+	addtlFlags.Int("count", 0, "the number of past searches to display.\n"+
+		"If negative or 0, fetches entire history")
 	return addtlFlags
 }
 
