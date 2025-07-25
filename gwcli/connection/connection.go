@@ -216,7 +216,9 @@ func Login(username, password, apiToken string, noInteractive bool) (err error) 
 	refresherDone = make(chan bool)
 	go keepRefreshed(refresherDone)
 
-	return nil
+	// while most login methods call Sync for us, JWT does not.
+	// To ensure the data exists no matter what changes occur or which method we use, Sync now.
+	return Client.Sync()
 }
 
 // helper function for Login when no credentials were given.
