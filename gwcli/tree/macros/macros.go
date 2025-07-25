@@ -91,23 +91,33 @@ func listMacros(fs *pflag.FlagSet) ([]types.SearchMacro, error) {
 //#region create
 
 func newMacroCreateAction() action.Pair {
-	n := scaffoldcreate.NewField(true, "name", 100)
-	n.FlagShorthand = 'n'
-	d := scaffoldcreate.NewField(true, "description", 90)
-	d.FlagShorthand = 'd'
-
 	fields := scaffoldcreate.Config{
-		"name": n,
-		"desc": d,
+		"name": scaffoldcreate.Field{
+			Required:     true,
+			Title:        "name",
+			Usage:        ft.Name.Usage("macro"),
+			Type:         scaffoldcreate.Text,
+			FlagName:     ft.Name.Name(),
+			DefaultValue: "",
+			Order:        100,
+		},
+		"desc": scaffoldcreate.Field{
+			Required:     true,
+			Title:        "description",
+			Usage:        ft.Description.Usage("macro"),
+			Type:         scaffoldcreate.Text,
+			FlagName:     ft.Description.Name(),
+			DefaultValue: "",
+			Order:        90,
+		},
 		"exp": scaffoldcreate.Field{
-			Required:      true,
-			Title:         "expansion",
-			Usage:         FlagExpansionUsage,
-			Type:          scaffoldcreate.Text,
-			FlagName:      FlagExpansion,
-			FlagShorthand: 'e',
-			DefaultValue:  "",
-			Order:         80,
+			Required:     true,
+			Title:        "expansion",
+			Usage:        FlagExpansionUsage,
+			Type:         scaffoldcreate.Text,
+			FlagName:     FlagExpansion,
+			DefaultValue: "",
+			Order:        80,
 		},
 	}
 
