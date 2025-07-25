@@ -33,8 +33,8 @@ func NewUserMyInfoAction() action.Pair {
 		long  string = "Displays your account's information and capabilities."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(cmd *cobra.Command, _ *pflag.FlagSet) (string, tea.Cmd) {
-			if asCSV, err := cmd.Flags().GetBool(ft.CSV.Name()); err != nil {
+		func(_ *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			if asCSV, err := fs.GetBool(ft.CSV.Name()); err != nil {
 				s := fmt.Sprintf("Failed to fetch csv flag: %v", err)
 				clilog.Writer.Error(s)
 				return s, nil
