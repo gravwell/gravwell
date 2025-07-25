@@ -203,19 +203,23 @@ func NewListAction[dataStruct_t any](short, long string,
 		options.DefaultColumns = availDSColumns
 	}
 
-	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataFn, options, availDSColumns))
+	// generate usage and example
+	actionOptions := treeutils.GenerateActionOptions{}
+	{
+		formats := []string{"--" + ft.CSV.Name(), "--" + ft.JSON.Name(), "--" + ft.Table.Name()}
+		if options.Pretty != nil {
+			formats = append(formats, "--pretty")
+		}
+		actionOptions.Usage = fmt.Sprintf("%v %v", ft.MutuallyExclusive(formats), ft.Optional("--"+ft.SelectColumns.Name()+"=col1,col2,..."))
+		actionOptions.Example = "--" + ft.JSON.Name() + " --" + ft.AllColumns.Name()
+	}
+
+	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataFn, options, availDSColumns),
+		actionOptions)
 
 	cmd.Flags().AddFlagSet(buildFlagSet(options.AddtlFlags, options.Pretty != nil))
 	cmd.Flags().SortFlags = false // does not seem to be respected
 	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name(), ft.JSON.Name(), ft.Table.Name())
-
-	// attach example
-	formats := []string{"--" + ft.CSV.Name(), "--" + ft.JSON.Name(), "--" + ft.Table.Name()}
-	if options.Pretty != nil {
-		formats = append(formats, "--pretty")
-	}
-	cmd.Example = fmt.Sprintf("%v %v %v", use, ft.MutuallyExclusive(formats), ft.Optional("--"+ft.SelectColumns.Name()+"=col1,col2,..."))
-
 	// apply command modifiers
 	if options.CmdMods != nil {
 		options.CmdMods(cmd)
