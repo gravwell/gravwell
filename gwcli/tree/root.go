@@ -325,7 +325,21 @@ func Execute(args []string) int {
 
 	// override the help command to just call usage
 	rootCmd.SetHelpFunc(help)
-	rootCmd.SetUsageFunc(func(c *cobra.Command) error { return nil })
+	rootCmd.SetUsageFunc(func(c *cobra.Command) error {
+		fmt.Fprintf(c.OutOrStdout(), "gwcli %s %s", ft.Optional("flags"), ft.Optional("subcommand path"))
+		return nil
+	})
+
+	{ // build a set of examples
+		fields := "  " + stylesheet.Cur.ExampleText.Render("Invoke an action directly:") +
+			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke the interactive prompt:") +
+			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke in a script:")
+		examples := " gwcli -u USERNAME system indexers list --json" +
+			"\n gwcli --server=gravwell.io:4090" +
+			"\n" + ` gwcli --api APIKEY query "tag=gravwell stats count | chart count"`
+		rootCmd.Example = "\n" + lipgloss.JoinHorizontal(lipgloss.Left, fields, examples)
+
+	}
 
 	err := rootCmd.Execute()
 	if err != nil {
@@ -345,7 +359,7 @@ func help(c *cobra.Command, _ []string) {
 
 	// write usage line, if available
 	// NOTE(rlandau): assumes usage is in the form "<cmd.Name> <following usage>"
-	if usage := strings.TrimSpace(c.UsageString()); usage != "" {
+	if usage := c.UsageString(); usage != "" {
 		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.FieldText.Render("Usage:"), usage)
 	}
 
@@ -357,7 +371,7 @@ func help(c *cobra.Command, _ []string) {
 	// write example line, if available
 	// NOTE(rlandau): assumes example is in the form "<cmd.Name> <following example>"
 	if ex := strings.TrimSpace(c.Example); ex != "" {
-		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.FieldText.Render("Example:"), ex)
+		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.FieldText.Render("Example:"), c.Example) // use the untrimmed version
 	}
 
 	// write local flags
