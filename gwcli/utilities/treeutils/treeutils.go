@@ -123,7 +123,7 @@ func GenerateAction(use, short, long string, aliases []string,
 			})
 		}
 		if ex := strings.TrimSpace(options[0].Example); ex != "" {
-			cmd.Example = cmd.Name() + options[0].Example
+			cmd.Example = cmd.Name() + " " + options[0].Example
 		}
 	}
 
