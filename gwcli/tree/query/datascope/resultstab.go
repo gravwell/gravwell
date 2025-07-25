@@ -42,8 +42,9 @@ func initResultsTab(data []string) resultsTab {
 	p := paginator.New()
 	p.Type = paginator.Dots
 	p.PerPage = 25
-	p.ActiveDot = stylesheet.Cur.ComposableSty.FocusedBorder.Render("•")
-	p.InactiveDot = stylesheet.Cur.ComposableSty.UnfocusedBorder.Render("•")
+	p.ActiveDot = lipgloss.NewStyle().Foreground(stylesheet.Cur.PrimaryText.GetForeground()).Render(p.ActiveDot)
+	p.InactiveDot = lipgloss.NewStyle().Foreground(stylesheet.Cur.TertiaryText.GetForeground()).Render(p.InactiveDot)
+
 	p.SetTotalPages(len(data))
 
 	// set up viewport
@@ -121,15 +122,17 @@ var resultShortHelp = stylesheet.Cur.DisabledText.Render(
 
 // generates a renderFooter with the box+line and help keys
 func (rt *resultsTab) renderFooter(width int) string {
-	var alignerSty = lipgloss.NewStyle().Width(rt.vp.Width).AlignHorizontal(lipgloss.Center)
+	//var alignerSty = lipgloss.NewStyle().Width(rt.vp.Width).AlignHorizontal(lipgloss.Center)
+	var alignerSty = lipgloss.NewStyle().Width(width).AlignHorizontal(lipgloss.Center)
+
 	// set up each element
 	pageNumber := stylesheet.Cur.ComposableSty.ComplimentaryBorder.
 		Render(strconv.Itoa(rt.pager.Page+1)) + " "
 	spl := scrollPercentLine(width-lipgloss.Width(pageNumber), rt.vp.ScrollPercent())
 
 	return lipgloss.JoinVertical(lipgloss.Center,
-		pageNumber+spl,
-		alignerSty.Render(rt.pager.View()),
+		lipgloss.JoinHorizontal(lipgloss.Center, pageNumber, spl),
+		rt.pager.View(), //alignerSty.Render(),
 		alignerSty.Render(resultShortHelp),
 	)
 }

@@ -73,6 +73,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -83,8 +84,9 @@ import (
 )
 
 const (
-	errMissingRequiredFlags = "missing required flags %v"
-	createdSuccessfully     = "Successfully created %v (ID: %v)."
+	errMissingRequiredFlags string = "missing required flags %v"
+	createdSuccessfully     string = "Successfully created %v (ID: %v)."
+	minFieldWidth           uint   = 25
 )
 
 // A Config maps keys -> Field; used as (ReadOnly) configuration for this creation instance
@@ -207,12 +209,6 @@ const (
 	quitting              // done
 )
 
-// a tuple for storing a TI and the field key it is associated with
-type keyedTI struct {
-	key string
-	ti  textinput.Model
-}
-
 // interactive model that builds out inputs based on the read-only Config supplied on creation.
 type createModel struct {
 	mode mode
@@ -223,9 +219,9 @@ type createModel struct {
 
 	fields Config // RO configuration provided by the caller
 
-	orderedTIs         []keyedTI // Ordered array of map keys, based on Config.TI.Order
-	selected           uint      // currently focused ti (in key order index)
-	longestFieldLength int       // the longest field name of the TIs
+	orderedTIs         []scaffold.KeyedTI // Ordered array of map keys, based on Config.TI.Order
+	selected           uint               // currently focused ti (in key order index)
+	longestFieldLength int                // the longest field name of the TIs
 
 	inputErr  string // the reason inputs are invalid
 	createErr string // the reason the last create failed (not for invalid parameters)
@@ -237,6 +233,10 @@ type createModel struct {
 	cf CreateFunc // function to create the new entity
 }
 
+func (c *createModel) SubmitSelected() bool {
+	return c.selected == uint(len(c.orderedTIs))
+}
+
 // Creates and returns a create Model, ready for interactive usage via Mother.
 func newCreateModel(fields Config, singular string, cf CreateFunc, addtlFlagFunc func() pflag.FlagSet) *createModel {
 	c := &createModel{
@@ -244,7 +244,7 @@ func newCreateModel(fields Config, singular string, cf CreateFunc, addtlFlagFunc
 		width:         defaultWidth,
 		singular:      singular,
 		fields:        fields,
-		orderedTIs:    make([]keyedTI, 0),
+		orderedTIs:    make([]scaffold.KeyedTI, 0),
 		addtlFlagFunc: addtlFlagFunc,
 		cf:            cf,
 	}
@@ -258,15 +258,16 @@ func newCreateModel(fields Config, singular string, cf CreateFunc, addtlFlagFunc
 
 	for k, f := range fields {
 		// generate the TI
-		kti := keyedTI{
-			key: k,
+		kti := scaffold.KeyedTI{
+			Key:        k,
+			FieldTitle: f.Title,
+			Required:   f.Required,
 		}
-
 		// if a custom func was not given, use the default generation
 		if f.CustomTIFuncInit == nil {
-			kti.ti = stylesheet.NewTI(f.DefaultValue, !f.Required)
+			kti.TI = stylesheet.NewTI(f.DefaultValue, !f.Required)
 		} else {
-			kti.ti = f.CustomTIFuncInit()
+			kti.TI = f.CustomTIFuncInit()
 		}
 
 		c.orderedTIs = append(c.orderedTIs, kti)
@@ -275,18 +276,26 @@ func newCreateModel(fields Config, singular string, cf CreateFunc, addtlFlagFunc
 		if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
 			c.longestFieldLength = w
 		}
-
+	}
+	// buffer the field length
+	if c.longestFieldLength < int(minFieldWidth) {
+		c.longestFieldLength = int(minFieldWidth)
 	}
 	// sort keys from highest order to lowest order
-	slices.SortFunc(c.orderedTIs, func(a, b keyedTI) int {
-		return fields[b.key].Order - fields[a.key].Order
+	slices.SortFunc(c.orderedTIs, func(a, b scaffold.KeyedTI) int {
+		return fields[b.Key].Order - fields[a.Key].Order
 	})
 
 	if len(c.orderedTIs) > 0 {
-		c.orderedTIs[0].ti.Focus()
+		c.orderedTIs[0].TI.Focus()
 	}
 
 	return c
+}
+
+// Init is unused. It just exists so we can feed createModel into teatest.
+func (c *createModel) Init() tea.Cmd {
+	return nil
 }
 
 func (c *createModel) Update(msg tea.Msg) tea.Cmd {
@@ -294,7 +303,8 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		c.inputErr = "" // clear last input error
+		c.inputErr = ""  // clear last input error
+		c.createErr = "" // clear error from last create attempt
 		switch keyMsg.Type {
 		case tea.KeyUp, tea.KeyShiftTab:
 			c.focusPrevious()
@@ -303,12 +313,15 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 			c.focusNext()
 			return textinput.Blink
 		case tea.KeyEnter:
-			if keyMsg.Alt { // only submit on alt+enter
-				c.createErr = "" // clear last error
+			if c.SubmitSelected() {
 				// extract values from TIs
 				values, mr := c.extractValuesFromTIs()
 				if mr != nil {
-					c.inputErr = fmt.Sprintf("%v are required", mr)
+					if len(mr) == 1 {
+						c.inputErr = fmt.Sprintf("%v is required", mr[0])
+					} else {
+						c.inputErr = fmt.Sprintf("%v are required", mr)
+					}
 					return nil
 				}
 				id, invalid, err := c.cf(c.fields, values, &c.fs)
@@ -330,49 +343,62 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		c.width = sizeMsg.Width
 		return nil
 	}
-	// pass message to currently focused ti
-	var cmd tea.Cmd
-	c.orderedTIs[c.selected].ti, cmd = c.orderedTIs[c.selected].ti.Update(msg)
-	return cmd
+	if !c.SubmitSelected() {
+		// pass message to currently focused ti
+		var cmd tea.Cmd
+		c.orderedTIs[c.selected].TI, cmd = c.orderedTIs[c.selected].TI.Update(msg)
+		return cmd
+	}
+	return nil
 }
 
 // Blurs the current ti, selects and focuses the next (indexically) one.
 func (c *createModel) focusNext() {
-	c.orderedTIs[c.selected].ti.Blur()
+	if !c.SubmitSelected() {
+		c.orderedTIs[c.selected].TI.Blur()
+	}
 	c.selected += 1
-	if c.selected >= uint(len(c.orderedTIs)) { // jump to start
+	if c.selected > uint(len(c.orderedTIs)) { // jump to start
 		c.selected = 0
 	}
-	c.orderedTIs[c.selected].ti.Focus()
+	if !c.SubmitSelected() {
+		c.orderedTIs[c.selected].TI.Focus()
+	}
 }
 
 // Blurs the current ti, selects and focuses the previous (indexically) one.
 func (c *createModel) focusPrevious() {
-	c.orderedTIs[c.selected].ti.Blur()
-	if c.selected == 0 { // jump to end
-		c.selected = uint(len(c.orderedTIs)) - 1
+	// if we are not on the submit button, then blur
+	if !c.SubmitSelected() {
+		c.orderedTIs[c.selected].TI.Blur()
+	}
+	if c.selected == 0 { // wrap to submit button
+		c.selected = uint(len(c.orderedTIs))
 	} else {
 		c.selected -= 1
 	}
-	c.orderedTIs[c.selected].ti.Focus()
+	// if we are not on the submit button, then focus
+	if !c.SubmitSelected() {
+		c.orderedTIs[c.selected].TI.Focus()
+	}
 }
 
 // Generates the corrollary value map from the TIs.
 //
 // Returns the values for each TI (mapped to their Config key), a list of required fields (as their
-// field.Title names) that were not set, and an error (if one occured).
+// field.Title names) that were not set, and an error (if one occurred).
 func (c *createModel) extractValuesFromTIs() (
 	values Values, missingRequireds []string,
 ) {
 	values = make(Values)
 	for _, kti := range c.orderedTIs {
-		val := strings.TrimSpace(kti.ti.Value())
-		field := c.fields[kti.key]
+		val := strings.TrimSpace(kti.TI.Value())
+		field := c.fields[kti.Key]
 		if val == "" && field.Required {
 			missingRequireds = append(missingRequireds, field.Title)
 		}
 
-		values[kti.key] = val
+		values[kti.Key] = val
 	}
 
 	return values, missingRequireds
@@ -380,44 +406,24 @@ func (c *createModel) extractValuesFromTIs() (
 
 // Iterates through the keymap, drawing each ti and title in key key order
 func (c *createModel) View() string {
-	fieldWidth := c.longestFieldLength + 3 // 1 spaces for ":", 1 for pip, 1 for padding
 
-	var ( // styles
-		tiFieldRequiredSty = stylesheet.Cur.PrimaryText
-		tiFieldOptionalSty = stylesheet.Cur.SecondaryText
-		leftAlignerSty     = lipgloss.NewStyle().
-					Width(fieldWidth).
-					AlignHorizontal(lipgloss.Right).
-					PaddingRight(1)
-	)
+	inputs := scaffold.ViewKTIs(uint(c.longestFieldLength), c.orderedTIs, c.selected)
 
-	var fields []string
-	var TIs []string
+	var wrapSty = lipgloss.NewStyle().Width(c.longestFieldLength)
 
-	for i, kti := range c.orderedTIs {
-		var title string
-		// color the title appropriately
-		if c.fields[kti.key].Required {
-			title = tiFieldRequiredSty.Render(c.fields[kti.key].Title + ":")
-		} else {
-			title = tiFieldOptionalSty.Render(c.fields[kti.key].Title + ":")
-		}
-
-		fields = append(fields, leftAlignerSty.Render(stylesheet.Pip(c.selected, uint(i))+title))
-
-		TIs = append(TIs, c.orderedTIs[i].ti.View())
+	var inE, cE string
+	if c.inputErr != "" {
+		inE = wrapSty.Render(c.inputErr)
+	}
+	if c.createErr != "" {
+		cE = wrapSty.Render(c.createErr)
 	}
 
-	// compose all fields
-	f := lipgloss.JoinVertical(lipgloss.Right, fields...)
-
-	// compose all TIs
-	t := lipgloss.JoinVertical(lipgloss.Left, TIs...)
-
-	// conjoin fields and TIs
-	composed := lipgloss.JoinHorizontal(lipgloss.Center, f, t)
-
-	return composed + "\n" + stylesheet.SubmitString("alt+enter", c.inputErr, c.createErr, c.width)
+	return inputs +
+		"\n" +
+		lipgloss.NewStyle().Width(lipgloss.Width(inputs)).AlignHorizontal(lipgloss.Center).Render(
+			stylesheet.ViewSubmitButton(c.SubmitSelected(), inE, cE),
+		)
 }
 
 func (c *createModel) Done() bool {
@@ -432,8 +438,8 @@ func (c *createModel) Reset() error {
 	// reset TIs
 	go func() {
 		for i := range c.orderedTIs {
-			c.orderedTIs[i].ti.Reset()
-			c.orderedTIs[i].ti.Blur()
+			c.orderedTIs[i].TI.Reset()
+			c.orderedTIs[i].TI.Blur()
 		}
 		wg.Done()
 	}()
@@ -453,7 +459,7 @@ func (c *createModel) Reset() error {
 	c.inputErr = ""
 	c.selected = 0
 	if len(c.orderedTIs) > 0 {
-		c.orderedTIs[0].ti.Focus()
+		c.orderedTIs[0].TI.Focus()
 	}
 	return nil
 }
@@ -473,14 +479,14 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string) (
 
 	for i, kti := range c.orderedTIs {
 		// set flag values as the starter values in their corresponding TI
-		c.orderedTIs[i].ti.SetValue(flagVals[kti.key])
+		c.orderedTIs[i].TI.SetValue(flagVals[kti.Key])
 		// if a TI has a CustomSetArg, call it now
-		if c.fields[kti.key].CustomTIFuncSetArg != nil {
-			c.orderedTIs[i].ti = c.fields[kti.key].CustomTIFuncSetArg(&kti.ti)
+		if c.fields[kti.Key].CustomTIFuncSetArg != nil {
+			c.orderedTIs[i].TI = c.fields[kti.Key].CustomTIFuncSetArg(&kti.TI)
 		}
 	}
 
-	return "", tea.WindowSize(), nil
+	return "", nil, nil
 }
 
 //#endregion

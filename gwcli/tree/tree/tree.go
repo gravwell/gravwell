@@ -20,24 +20,22 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss/tree"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
-
-const (
-	use   string = "tree"
-	short string = "display all commands as a tree"
-	long  string = "Displays a directory-tree showing the full structure of gwcli and all" +
-		"available actions."
-)
-
-var aliases []string = []string{}
 
 func NewTreeAction() action.Pair {
-	return scaffold.NewBasicAction(use, short, long, aliases,
-		func(c *cobra.Command) (string, tea.Cmd) {
-			lgt := walkBranch(c.Root())
+	const (
+		use   string = "tree"
+		short string = "display all commands as a tree"
+		long  string = "Displays a directory-tree showing the full structure of gwcli and all" +
+			"available actions."
+	)
+	return scaffold.NewBasicAction(use, short, long,
+		func(cmd *cobra.Command, _ *pflag.FlagSet) (string, tea.Cmd) {
+			lgt := walkBranch(cmd.Root())
 
 			return lgt.String(), nil
-		}, nil)
+		}, scaffold.BasicOptions{})
 }
 
 func walkBranch(nav *cobra.Command) *tree.Tree {

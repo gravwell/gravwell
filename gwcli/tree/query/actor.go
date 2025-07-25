@@ -18,6 +18,7 @@ When a search has been submitted, this model is still invoked by Mother, but it 
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -54,6 +55,16 @@ const (
 
 //#endregion modes
 
+//#region global key constants
+
+// keys for fetching keybind values
+const (
+	keyCycleView int = 0
+	keySubmit    int = 1
+)
+
+//#endregion
+
 // interactive model definition
 type query struct {
 	mode mode
@@ -85,8 +96,10 @@ type query struct {
 
 	help help.Model
 
-	keys []key.Binding // global keys, always active no matter the focused view
-
+	// global keys, always active no matter the focused view
+	//
+	// use the global key constants for consistent querying
+	keys []key.Binding
 }
 
 var Query action.Model = Initial()
@@ -103,7 +116,7 @@ func Initial() *query {
 	q.width = 80
 	q.height = 6
 
-	q.editor = initialEdiorView(q.height, stylesheet.TIWidth)
+	q.editor = initialEditorView(q.height, stylesheet.TIWidth)
 	q.modifiers = initialModifView(q.height, q.width-stylesheet.TIWidth)
 
 	q.focusedEditor = true
@@ -111,6 +124,10 @@ func Initial() *query {
 	q.keys = []key.Binding{
 		key.NewBinding(key.WithKeys("tab"), // 0: cycle
 			key.WithHelp("tab", "cycle view")),
+		key.NewBinding( // 1: submit
+			key.WithKeys("ctrl+d"),
+			key.WithHelp("ctrl+d", "submit query"),
+		),
 		key.NewBinding(key.WithKeys("esc"), // [handled by mother]
 			key.WithHelp("esc", "return to navigation")),
 	}
@@ -164,6 +181,15 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 				return tea.Println(querysupport.NoResults)
 			}
 
+			// get perpage count
+			perpage, err := strconv.Atoi(q.modifiers.perpageTI.Value())
+			if err != nil {
+				clilog.Writer.Warnf("failed to parse per page '%v' as int: %v", q.modifiers.perpageTI.Value(), err)
+			}
+			if perpage == 0 {
+				perpage = 25
+			}
+
 			var cmd tea.Cmd
 			// JSON,CSV,outfn,append are user-editable in the DataScope; these just set initial
 			// values
@@ -176,7 +202,9 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 				datascope.WithSchedule(
 					q.flagModifiers.schedule.CronFreq,
 					q.flagModifiers.schedule.Name,
-					q.flagModifiers.schedule.Desc))
+					q.flagModifiers.schedule.Desc),
+				datascope.WithPerPage(uint(perpage)),
+			)
 			if err != nil {
 				clilog.Writer.Errorf("failed to create DataScope: %v", err)
 				q.mode = quitting
@@ -199,21 +227,31 @@ func (q *query) Update(msg tea.Msg) tea.Cmd {
 	// handle global keys
 	if isKeyMsg {
 		switch {
-		case key.Matches(keyMsg, q.keys[0]):
+		case key.Matches(keyMsg, q.keys[keyCycleView]):
 			q.switchFocus()
+			return textarea.Blink
+		case key.Matches(keyMsg, q.keys[keySubmit]): // attempting to submit
+			if qry := strings.TrimSpace(q.editor.ta.Value()); qry != "" {
+				return q.submitQuery(qry)
+			}
+			q.editor.err = "cannot submit empty query"
+			return nil
 		}
 	}
 
 	// pass message to the active view
 	var cmds []tea.Cmd
 	if q.focusedEditor { // editor view active
-		c, submit := q.editor.update(msg)
-		if submit {
-			return q.submitForegroundQuery(q.editor.ta.Value())
-		}
-		cmds = []tea.Cmd{c}
+		cmds = []tea.Cmd{q.editor.update(msg)}
 	} else { // modifiers view active
-		cmds = q.modifiers.update(msg)
+		var submit bool
+		cmds, submit = q.modifiers.update(msg)
+		if submit {
+			if qry := strings.TrimSpace(q.editor.ta.Value()); qry != "" {
+				return q.submitQuery(qry)
+			}
+			q.editor.err = "cannot submit empty query"
+		}
 	}
 
 	return tea.Batch(cmds...)
@@ -232,20 +270,19 @@ func (q *query) View() string {
 	}
 
 	var (
-		viewKeys     []key.Binding
+		addtlKeys    []key.Binding
 		editorView   string
 		modifierView string
 	)
 	if q.focusedEditor {
-		viewKeys = q.editor.keys
 		editorView = stylesheet.Cur.ComposableSty.FocusedBorder.Render(q.editor.view())
 		modifierView = stylesheet.Cur.ComposableSty.UnfocusedBorder.Render(q.modifiers.view())
 	} else {
-		viewKeys = q.modifiers.keys
+		addtlKeys = q.modifiers.keys
 		editorView = stylesheet.Cur.ComposableSty.UnfocusedBorder.Render(q.editor.view())
 		modifierView = stylesheet.Cur.ComposableSty.FocusedBorder.Render(q.modifiers.view())
 	}
-	h := q.help.ShortHelpView(append(q.keys, viewKeys...))
+	h := q.help.ShortHelpView(append(q.keys, addtlKeys...))
 
 	return fmt.Sprintf("%s\n%s\n%s",
 		lipgloss.JoinHorizontal(lipgloss.Top, editorView, modifierView),
@@ -354,7 +391,7 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 
 		// normal, foreground, valid query.
 		// submit it and boot directly into datascope
-		return "", q.submitForegroundQuery(qry), nil
+		return "", q.submitQuery(qry), nil
 	}
 
 	// boot into the editor view
@@ -377,12 +414,18 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 // state. A separate goroutine, initialized here, waits on the search, allowing this thread to
 // display a spinner.
 // Corollary to `outputSearchResults` (connected via `case waiting` in Update()).
-func (q *query) submitForegroundQuery(qry string) tea.Cmd {
+func (q *query) submitQuery(qry string) tea.Cmd {
 	// fetch modifiers from alternative view
 	var (
 		duration time.Duration
 		err      error
 	)
+	// check for error now that BubbleTea broke auto-validation
+	if q.modifiers.durationTI.Err != nil {
+		q.editor.err = "duration: " + q.modifiers.durationTI.Err.Error()
+		return nil
+	}
+
 	if d := strings.TrimSpace(q.modifiers.durationTI.Value()); d != "" {
 		duration, err = time.ParseDuration(q.modifiers.durationTI.Value())
 		if err != nil {
@@ -391,6 +434,12 @@ func (q *query) submitForegroundQuery(qry string) tea.Cmd {
 		}
 	} else {
 		duration = defaultDuration
+	}
+
+	// check for error in perpage
+	if q.modifiers.perpageTI.Err != nil {
+		q.editor.err = "entries/page: " + q.modifiers.perpageTI.Err.Error()
+		return nil
 	}
 
 	s, err := connection.StartQuery(qry, -duration, q.modifiers.background)
@@ -423,11 +472,11 @@ func (q *query) submitForegroundQuery(qry string) tea.Cmd {
 func (q *query) switchFocus() {
 	q.focusedEditor = !q.focusedEditor
 	if q.focusedEditor { // disable viewB interactions
-		q.modifiers.durationTI.Blur()
+		q.modifiers.Blur()
 		q.editor.ta.Focus()
 	} else { // disable query editor interaction
 		q.editor.ta.Blur()
-		q.modifiers.durationTI.Focus()
+		q.modifiers.Focus()
 	}
 }
 

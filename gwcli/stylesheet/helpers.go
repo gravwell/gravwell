@@ -56,26 +56,38 @@ func box(val bool, leftBoundary, rightBoundary rune) string {
 	return fmt.Sprintf("%c%s%c", leftBoundary, Cur.SecondaryText.Render(string(c)), rightBoundary)
 }
 
-// SubmitString displays either the key-bind to submit the action on the current tab or the input error,
-// if one exists, as well as the result string, beneath the submit-string/input-error.
-func SubmitString(keybind, inputErr, result string, width int) string {
-	alignerSty := lipgloss.NewStyle().
-		PaddingTop(1).
-		AlignHorizontal(lipgloss.Center).
-		Width(width)
+// Button returns the text stylized as a selectable button.
+// Leaves a cell on the left for the pip (which is drawn if pip is set).
+func Button(text string) string {
+	btn := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(Cur.SecondaryText.GetForeground()).
+		Foreground(Cur.PrimaryText.GetForeground()).
+		Render(text)
+	return btn
+}
+
+// ViewSubmitButton displays... a submit button.
+// It displays the error if set.
+// Same for the result.
+// If not displaying either, it displays a box with "submit" in it.
+func ViewSubmitButton(selected bool, result, errStr string) string {
 	var (
-		inputErrOrAltEnterColor = Cur.ExampleText.GetForeground()
-		inputErrOrAltEnterText  = "Press " + keybind + " to submit"
+		str string
+		pip = strings.Repeat(" ", lipgloss.Width(Cur.Pip()))
 	)
-	if inputErr != "" {
-		inputErrOrAltEnterColor = Cur.ErrorText.GetForeground()
-		inputErrOrAltEnterText = inputErr
+	if errStr != "" {
+		str = Cur.ComposableSty.ComplimentaryBorder.Render(Cur.ErrorText.Render(errStr))
+	} else if result != "" {
+		str = Cur.ComposableSty.ComplimentaryBorder.Render(result)
+	} else {
+		str = Button("submit")
+	}
+	if selected {
+		pip = Cur.Pip()
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Center,
-		alignerSty.Foreground(inputErrOrAltEnterColor).Render(inputErrOrAltEnterText),
-		alignerSty.Foreground(Cur.SecondaryText.GetForeground()).Render(result),
-	)
+	return lipgloss.JoinHorizontal(lipgloss.Center, pip, str)
 }
 
 // Index returns the given number, styled as an index number in a list or table.

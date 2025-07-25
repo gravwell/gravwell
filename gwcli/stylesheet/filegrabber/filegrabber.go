@@ -97,7 +97,6 @@ func newfp() filepicker.Model {
 		paddingLeft   = 2
 	)
 	fp := filepicker.New()
-	fp.AutoHeight = false
 	// replace the default keys and help display
 	fp.KeyMap = filepicker.KeyMap{
 		GoToTop:  key.NewBinding(key.WithKeys("g"), key.WithHelp("g", "first")),

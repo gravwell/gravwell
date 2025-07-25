@@ -223,6 +223,9 @@ var (
 )
 
 func (s *DataScope) renderTabs(width int) string {
+	if width <= 0 {
+		return "\n\n\n" // typically takes up 3 lines
+	}
 
 	var rendered = make([]string, len(s.tabs))
 
@@ -233,8 +236,13 @@ func (s *DataScope) renderTabs(width int) string {
 	tabWidth := (width - (margin*tabCount - 1)) / tabCount
 	// iterate and draw each tab, with special styling on the active tab
 	for i, t := range s.tabs {
-		var style lipgloss.Style
-		isFirst, isLast, isActive := i == 0, i == len(s.tabs)-1, i == int(s.activeTab)
+		var (
+			style    lipgloss.Style
+			isFirst  = i == 0
+			isLast   = i == len(s.tabs)-1
+			isActive = i == int(s.activeTab)
+		)
+
 		if isActive {
 			style = activeTabStyle
 		} else {
@@ -253,7 +261,7 @@ func (s *DataScope) renderTabs(width int) string {
 		}
 		style = style.Border(border)
 		if i == int(results) {
-			rendered[i] = stylesheet.Cur.PrimaryText.Render(t.name)
+			rendered[i] = style.Foreground(stylesheet.Cur.PrimaryText.GetForeground()).Background(stylesheet.Cur.PrimaryText.GetBackground()).Render(t.name)
 		} else {
 			rendered[i] = style.Render(t.name)
 		}

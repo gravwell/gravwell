@@ -13,7 +13,6 @@ import (
 	"io"
 
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 
 	"github.com/charmbracelet/bubbles/list"
@@ -30,7 +29,7 @@ type Item[I scaffold.Id_t] struct {
 
 }
 
-var _ listsupport.Item = Item[uint64]{}
+var _ stylesheet.ListItem = Item[uint64]{}
 
 // NewItem returns a new item instance with the given basic information and unique identifier.
 func NewItem[I scaffold.Id_t](title, description string, ID I) Item[I] {

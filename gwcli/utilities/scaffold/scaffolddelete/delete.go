@@ -57,7 +57,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -370,7 +369,7 @@ func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid str
 	}
 
 	// create list from the generated delegate
-	d.list = listsupport.NewList(simpleitems, 80, 40, d.itemSingular, d.itemPlural)
+	d.list = stylesheet.NewList(simpleitems, 80, 40, d.itemSingular, d.itemPlural)
 
 	// flags and flagset
 	if err := d.flagset.Parse(tokens); err != nil {

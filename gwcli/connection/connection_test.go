@@ -211,6 +211,8 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 			t.Fatalf("expected to receive an error after shuttering connection, but call successfully returned info (%v)", info)
 		}
 
+		time.Sleep(500 * time.Millisecond)
+
 		// ensure the token has updated to our second user
 		initLogin(t, "", "")
 
