@@ -32,6 +32,12 @@ var ErrEmptyPath error = errors.New("path cannot be empty")
 
 //#endregion errors
 
+const (
+	mb                = 1024 * 1024
+	maxLogSize  int64 = 10 * mb
+	maxLogCount uint  = 8
+)
+
 // Level recreates log.Level so other packages do not have to import the ingest logger
 type Level int
 
@@ -66,8 +72,7 @@ func Init(path string, lvlString string) error {
 	}
 
 	// spawn a log rotator on the given file
-	// Using Open over OpenEx uses the defaults of 4MB max size, 3 max history, and compress old files to .gz
-	lr, err := rotate.Open(path, 0660)
+	lr, err := rotate.OpenEx(path, 0660, maxLogSize, maxLogCount, true)
 	if err != nil {
 		return err
 	}
