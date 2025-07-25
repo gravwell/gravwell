@@ -10,11 +10,12 @@
 Package scaffoldedit provides a template for building actions that modify existing data.
 
 An edit action allows the user to select an entity from a list of all available entities, modify its
-fields (as interfaced by the implementor), and reflect the changes to the server.
+fields, and reflect the changes to the server.
 
-Implementors provide a struct of subroutines and a map of manipulate-able Fields to be displayed
-after an item is selected. The subroutines provide methods for scaffoldedit to find and manipulate
-data, including translation services for plucking specific fields out of the generic data struct.
+Implementor (you) must provide a struct of subroutines and a map of manipulate-able Fields to be displayed
+after an item is selected for editing.
+The subroutines provide methods for scaffoldedit to find and manipulate data,
+including translation services for plucking specific fields out of the generic data struct.
 
 This scaffold is notably more complex to modify and heavier to implement than the other scaffolds.
 See the Design block below for why.
@@ -25,7 +26,7 @@ See the Design block below for why.
 are destructive by design.
 
 Implementations will resemble scaffoldcreate implementations with the addition of a SubroutineSet.
-An example implementation doesn't really make sense for how much scaffoldedit requires from the
+An example implementation doesn't really make sense due to the amount that scaffoldedit requires from the
 implementor; instead take a look at the macro edit action implementation. That is fairly simple.
 */
 package scaffoldedit
@@ -39,7 +40,7 @@ package scaffoldedit
  * single instance of the struct we are/will be editing.
  * The use of reflection to reduce the complexity of the SubroutineSet, thereby reducing implementor
  * load, was considered, but ditched fairly early.
- * I figured that reflection is
+ * Reflection is
  * 1) slow
  * 2) error-prone (needing to look up qualified field names given by the implementor)
  * 3) an added layer of complexity on top of the already-in-play generics
@@ -62,7 +63,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/listsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -70,40 +70,20 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"golang.org/x/exp/constraints"
 )
 
 const (
 	listHeightMax  = 40 // lines
 	successStringF = "Successfully updated %v %v"
 )
-const ( // local flag values
-	flagIDUsageF = "id of the %v to edit"
-)
 
-type id_t interface {
-	constraints.Integer | uuid.UUID
-}
-
-// #region local styles
-
-var (
-	// TI field marked as required
-	tiFieldRequiredSty = stylesheet.Cur.PrimaryText
-	// TI field marked as optional
-	tiFieldOptionalSty = stylesheet.Cur.SecondaryText
-)
-
-// #endregion
-
-// NewEditAction composes a usable edit action, returning its cobra.Command and action model pair.
+// NewEditAction composes a usable edit action, returning its action pair.
 // The parameters, specifically funcs, do most of the heavy lifting; this just bolts on necessities to make the new action work in Mother and via a script.
 // This is the function that implementations/implementors should call as their action implementation.
 // This function panics if any parameters are missing.
-func NewEditAction[I id_t, S any](singular, plural string, cfg Config, funcs SubroutineSet[I, S]) action.Pair {
+func NewEditAction[I scaffold.Id_t, S any](singular, plural string, cfg Config, funcs SubroutineSet[I, S]) action.Pair {
 	funcs.guarantee() // check that all functions are given
 	if len(cfg) < 1 { // check that config has fields in it
 		panic("cannot edit with no fields defined")
@@ -161,7 +141,7 @@ func generateFlagSet(cfg Config, singular string) pflag.FlagSet {
 	}
 
 	// attach native flags
-	fs.StringP(ft.Name.ID, "i", "", fmt.Sprintf(flagIDUsageF, singular))
+	fs.StringP(ft.Name.ID, "i", "", fmt.Sprintf("id of the %v to edit", singular))
 
 	return fs
 }
@@ -170,7 +150,7 @@ func generateFlagSet(cfg Config, singular string) pflag.FlagSet {
 // runNonInteractive is the --script portion of edit's runFunc.
 // It requires --id be set and is ineffectual if no other flags were given.
 // Prints and error handles on its own; the program is expected to exit on its completion.
-func runNonInteractive[I id_t, S any](cmd *cobra.Command, cfg Config, funcs SubroutineSet[I, S], singular string) {
+func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, funcs SubroutineSet[I, S], singular string) {
 	var err error
 	var (
 		id   I
@@ -188,7 +168,7 @@ func runNonInteractive[I id_t, S any](cmd *cobra.Command, cfg Config, funcs Subr
 		}
 	}
 	if id == zero { // id was not given
-		fmt.Fprintln(cmd.OutOrStdout(), "--id is required in script mode")
+		fmt.Fprintln(cmd.OutOrStdout(), "--"+ft.Name.ID+" is required in script mode")
 		return
 	}
 
@@ -268,13 +248,7 @@ const (
 	idle                  // inactive
 )
 
-// a tuple for associating a TI with its field key
-type keyedTI struct {
-	key string          // key to look up the related field in the Config
-	ti  textinput.Model // ti for user modifications
-}
-
-type editModel[I id_t, S any] struct {
+type editModel[I scaffold.Id_t, S any] struct {
 	mode             mode                // current program state
 	fs               pflag.FlagSet       // current state of the flagset
 	singular, plural string              // forms of the noun
@@ -288,16 +262,13 @@ type editModel[I id_t, S any] struct {
 	list            list.Model // list displayed during `selecting` mode
 	listInitialized bool       // check before accessing the list, in case the user skipped to edit mode
 
-	orderedKTIs  []keyedTI // TIs will be displayed in array order, as sorted on population
-	tiIndex      int       // array index of active TI
-	tiCount      int       // len(ttis)
-	selectedData S         // item chosen from the list
-	inputErr     string    // input is erroneous
-	updateErr    string    // error occurred performing the update
+	// editing-specific fields
+	editing   stateEdit[S]
+	updateErr string // error occurred performing the update
 }
 
 // Creates and returns a new edit model, ready for interactive use.
-func newEditModel[I id_t, S any](cfg Config, singular, plural string,
+func newEditModel[I scaffold.Id_t, S any](cfg Config, singular, plural string,
 	funcs SubroutineSet[I, S], initialFS pflag.FlagSet) *editModel[I, S] {
 	em := &editModel[I, S]{
 		mode:     idle,
@@ -306,6 +277,7 @@ func newEditModel[I id_t, S any](cfg Config, singular, plural string,
 		plural:   plural,
 		cfg:      cfg,
 		funcs:    funcs,
+		editing:  stateEdit[S]{},
 	}
 
 	return em
@@ -332,12 +304,13 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 		}
 
 		// select the item associated to the id
-		if em.selectedData, err = em.funcs.SelectSub(id); err != nil {
+		item, err := em.funcs.SelectSub(id)
+		if err != nil {
 			// treat this as an invalid argument
 			return fmt.Sprintf("failed to fetch %s by id (%v): %v", em.singular, id, err), nil, nil
 		}
 		// we can jump directly to editing phase on start
-		if err := em.enterEditMode(); err != nil {
+		if err := em.enterEditMode(item); err != nil {
 			em.mode = quitting
 			clilog.Writer.Errorf("%v", err)
 			return "", nil, err
@@ -367,21 +340,23 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 	}
 
 	// generate list
-	em.list = listsupport.NewList(itms, 80, listHeightMax, em.singular, em.plural)
+	em.list = stylesheet.NewList(itms, 80, listHeightMax, em.singular, em.plural)
 	em.listInitialized = true
 	em.mode = selecting
 
-	return "", tea.WindowSize(), nil
+	return "", nil, nil
 }
 
 func (em *editModel[I, S]) Update(msg tea.Msg) tea.Cmd {
-	if msg, ok := msg.(tea.WindowSizeMsg); ok {
-		em.width = msg.Width
-		em.height = msg.Height
+	if wsMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		em.width = wsMsg.Width
+		em.height = wsMsg.Height
 		// if we skipped directly to edit mode, list will be nil
 		if em.listInitialized {
-			em.list.SetHeight(min(msg.Height-2, listHeightMax))
+			em.list.SetHeight(min(wsMsg.Height-2, listHeightMax))
 		}
+	} else if _, ok := msg.(tea.KeyMsg); ok {
+		em.updateErr = ""
 	}
 
 	// switch handling based on mode
@@ -391,7 +366,12 @@ func (em *editModel[I, S]) Update(msg tea.Msg) tea.Cmd {
 	case selecting:
 		return em.updateSelecting(msg)
 	case editing:
-		return em.updateEditting(msg)
+		cmd, identifier := em.editing.update(msg, em.cfg, em.funcs.SetFieldSub, em.funcs.UpdateSub)
+		if identifier != "" {
+			em.mode = quitting
+			return tea.Printf(successStringF, em.singular, identifier)
+		}
+		return cmd
 	default:
 		clilog.Writer.Criticalf("unknown edit mode %v.", em.mode)
 		clilog.Writer.Debugf("model dump: %#v.", em)
@@ -407,8 +387,8 @@ func (em *editModel[I, S]) updateSelecting(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.Type == tea.KeySpace || msg.Type == tea.KeyEnter {
-			em.selectedData = em.data[em.list.Index()]
-			if err := em.enterEditMode(); err != nil {
+			item := em.data[em.list.Index()]
+			if err := em.enterEditMode(item); err != nil {
 				em.mode = quitting
 				clilog.Writer.Errorf("%v", err)
 				return tea.Println(err.Error())
@@ -421,119 +401,23 @@ func (em *editModel[I, S]) updateSelecting(msg tea.Msg) tea.Cmd {
 	return cmd
 }
 
-// Update() handling for editing mode.
-// Updates the TIs and performs data transmutation and submission if user confirms changes.
-func (em *editModel[I, S]) updateEditting(msg tea.Msg) tea.Cmd {
-	if keymsg, ok := msg.(tea.KeyMsg); ok {
-		em.inputErr = "" // clear input errors on new key input
-		switch keymsg.Type {
-		case tea.KeyEnter:
-			if keymsg.Alt { // check for a submission via alt+enter
-				em.updateErr = "" // clear existing updateErr
-
-				var missing []string
-				for _, kti := range em.orderedKTIs { // check all required fields are populated
-					if em.cfg[kti.key].Required && strings.TrimSpace(kti.ti.Value()) == "" {
-						missing = append(missing, kti.key)
-					}
-				}
-
-				// if fields are missing, warn and do not submit
-				if len(missing) > 0 {
-					imploded := strings.Join(missing, ", ")
-					copula := "is"
-					if len(missing) > 1 {
-						copula = "are"
-					}
-					em.inputErr = fmt.Sprintf("%v %v required", imploded, copula)
-					return textinput.Blink
-				}
-
-				// yank the TI values and reinstall them into a data structure to update against
-				for _, kti := range em.orderedKTIs {
-					if inv, err := em.funcs.SetFieldSub(&em.selectedData, kti.key, kti.ti.Value()); err != nil {
-						em.mode = quitting
-						return tea.Println(err, "\n", "no changes made")
-					} else if inv != "" {
-						em.inputErr = inv
-						return textinput.Blink
-					}
-				}
-
-				// perform the update
-				identifier, err := em.funcs.UpdateSub(&em.selectedData)
-				if err != nil {
-					em.updateErr = err.Error()
-					return textinput.Blink
-				}
-				// success
-				em.mode = quitting
-				return tea.Printf(successStringF, em.singular, identifier)
-			} else {
-				em.nextTI()
-			}
-		case tea.KeyUp:
-			em.previousTI()
-		case tea.KeyDown:
-			em.nextTI()
-		}
-	}
-
-	// update tis
-	cmds := make([]tea.Cmd, len(em.orderedKTIs))
-	for i, tti := range em.orderedKTIs {
-		em.orderedKTIs[i].ti, cmds[i] = tti.ti.Update(msg)
-	}
-	return tea.Batch(cmds...)
-}
-
-// Blur existing TI, select and focus previous (higher) TI
-func (em *editModel[I, S]) previousTI() {
-	em.orderedKTIs[em.tiIndex].ti.Blur()
-	em.tiIndex -= 1
-	if em.tiIndex < 0 {
-		em.tiIndex = em.tiCount - 1
-	}
-	em.orderedKTIs[em.tiIndex].ti.Focus()
-}
-
-// Blur existing TI, select and focus next (lower) TI
-func (em *editModel[I, S]) nextTI() {
-	em.orderedKTIs[em.tiIndex].ti.Blur()
-	em.tiIndex += 1
-	if em.tiIndex >= em.tiCount {
-		em.tiIndex = 0
-	}
-	em.orderedKTIs[em.tiIndex].ti.Focus()
-}
-
 func (em *editModel[I, S]) View() string {
-	var str string
-
 	switch em.mode {
 	case quitting:
 		return ""
 	case selecting:
-		str = em.list.View() + "\n" +
+		return em.list.View() + "\n" +
 			stylesheet.Cur.ExampleText.
 				AlignHorizontal(lipgloss.Center).
 				Width(em.width).
 				Render("Press space or enter to select")
 	case editing:
-		var sb strings.Builder
-		for _, kti := range em.orderedKTIs {
-			// color the title appropriately
-			if em.cfg[kti.key].Required {
-				sb.WriteString(tiFieldRequiredSty.Render(kti.key + ": "))
-			} else {
-				sb.WriteString(tiFieldOptionalSty.Render(kti.key + ": "))
-			}
-			sb.WriteString(kti.ti.View() + "\n")
-		}
-		sb.WriteString(stylesheet.SubmitString("alt+enter", em.inputErr, em.updateErr, em.width))
-		str = sb.String()
+		return em.editing.view()
+	default:
+		clilog.Writer.Errorf("unknown mode %v", em.mode)
+		em.mode = quitting
+		return ""
 	}
-	return str
 }
 
 func (em *editModel[I, S]) Done() bool {
@@ -541,8 +425,6 @@ func (em *editModel[I, S]) Done() bool {
 }
 
 func (em *editModel[I, S]) Reset() error {
-	var zero S
-
 	em.mode = idle
 	em.data = nil
 	em.fs = generateFlagSet(em.cfg, em.singular)
@@ -552,11 +434,7 @@ func (em *editModel[I, S]) Reset() error {
 	em.listInitialized = false
 
 	// editing mode
-	em.orderedKTIs = nil
-	em.tiIndex = 0
-	em.tiCount = 0
-	em.selectedData = zero
-	em.inputErr = ""
+	em.editing.reset()
 	em.updateErr = ""
 
 	return nil
@@ -564,32 +442,35 @@ func (em *editModel[I, S]) Reset() error {
 
 // Triggers the edit model to enter editing mode, establishing and displaying a TI for each field
 // and sorting them into an ordered array.
-func (em *editModel[I, S]) enterEditMode() error {
-	// prepare list
-	em.orderedKTIs = make([]keyedTI, len(em.cfg))
+func (em *editModel[I, S]) enterEditMode(item S) error {
+	es := stateEdit[S]{
+		item:        item,
+		tiCount:     len(em.cfg),
+		orderedKTIs: make([]scaffold.KeyedTI, len(em.cfg)),
+	}
 
 	// use the get function to pull current values for each field and display them in their
 	// respective TIs
 	var i uint8 = 0
-	for k, field := range em.cfg {
+	for k, fieldCfg := range em.cfg {
 		// create the ti
 		var ti textinput.Model
-		if field.CustomTIFuncInit != nil {
-			ti = field.CustomTIFuncInit()
+		if fieldCfg.CustomTIFuncInit != nil {
+			ti = fieldCfg.CustomTIFuncInit()
 		} else {
-			ti = stylesheet.NewTI("", !field.Required)
+			ti = stylesheet.NewTI("", !fieldCfg.Required)
 		}
 
 		var setByFlag bool
-		if em.fs.Changed(field.FlagName) { // prefer flag value
-			if x, err := em.fs.GetString(field.FlagName); err == nil {
+		if em.fs.Changed(fieldCfg.FlagName) { // prefer flag value
+			if x, err := em.fs.GetString(fieldCfg.FlagName); err == nil {
 				ti.SetValue(x)
 				setByFlag = true
 			}
 		}
 
 		if !setByFlag { // fallback to current value
-			curVal, err := em.funcs.GetFieldSub(em.selectedData, k)
+			curVal, err := em.funcs.GetFieldSub(es.item, k)
 			if err != nil {
 				return err
 			}
@@ -597,22 +478,29 @@ func (em *editModel[I, S]) enterEditMode() error {
 		}
 
 		// attach TI to list
-		em.orderedKTIs[i] = keyedTI{key: k, ti: ti}
+		es.orderedKTIs[i] = scaffold.KeyedTI{
+			Key:        k,
+			FieldTitle: fieldCfg.Title,
+			TI:         ti,
+			Required:   fieldCfg.Required}
 		i += 1
+
+		// check width
+		es.longestWidth = max(lipgloss.Width(fieldCfg.Title)+3+ti.Width, es.longestWidth)
 	}
 
-	em.tiCount = len(em.orderedKTIs)
-	if em.tiCount < 1 {
+	if len(es.orderedKTIs) < 1 {
 		return errors.New("no TIs created by transmutation")
 	}
 
 	// order TIs from highest to lowest orders
-	slices.SortFunc(em.orderedKTIs, func(a, b keyedTI) int {
-		return em.cfg[b.key].Order - em.cfg[a.key].Order
+	slices.SortFunc(es.orderedKTIs, func(a, b scaffold.KeyedTI) int {
+		return em.cfg[b.Key].Order - em.cfg[a.Key].Order
 	})
 
-	em.orderedKTIs[0].ti.Focus() // focus the first TI
+	es.orderedKTIs[0].TI.Focus() // focus the first TI
 
+	em.editing = es
 	em.mode = editing
 	return nil
 }
@@ -624,7 +512,7 @@ type item struct {
 	description string
 }
 
-var _ listsupport.Item = item{}
+var _ stylesheet.ListItem = item{}
 
 func (i item) Title() string {
 	return i.title

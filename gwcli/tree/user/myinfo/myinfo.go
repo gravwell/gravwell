@@ -26,19 +26,15 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const (
-	use   string = "myinfo"
-	short string = "information about the current user and session"
-	long  string = "Displays your account's information and capabilities."
-)
-
-var aliases []string = []string{}
-
 func NewUserMyInfoAction() action.Pair {
-
-	return scaffold.NewBasicAction(use, short, long, aliases,
-		func(c *cobra.Command) (string, tea.Cmd) {
-			if asCSV, err := c.Flags().GetBool(ft.Name.CSV); err != nil {
+	const (
+		use   string = "myinfo"
+		short string = "information about the current user and session"
+		long  string = "Displays your account's information and capabilities."
+	)
+	return scaffold.NewBasicAction(use, short, long,
+		func(cmd *cobra.Command, _ *pflag.FlagSet) (string, tea.Cmd) {
+			if asCSV, err := cmd.Flags().GetBool(ft.Name.CSV); err != nil {
 				s := fmt.Sprintf("Failed to fetch csv flag: %v", err)
 				clilog.Writer.Error(s)
 				return s, nil
@@ -69,7 +65,7 @@ func NewUserMyInfoAction() action.Pair {
 				sty.Render("Admin"), inf.Admin)
 
 			return out, nil
-		}, flags)
+		}, scaffold.BasicOptions{AddtlFlagFunc: flags})
 }
 
 func flags() pflag.FlagSet {

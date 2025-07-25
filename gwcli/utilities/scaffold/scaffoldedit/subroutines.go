@@ -8,8 +8,10 @@
 
 package scaffoldedit
 
+import "github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+
 // SelectSubroutine defines the subrotuine used to pull a specific (selected), edit-able struct when skipping list/selecting mode.
-type SelectSubroutine[I id_t, S any] func(id I) (
+type SelectSubroutine[I scaffold.Id_t, S any] func(id I) (
 	item S, err error,
 )
 
@@ -44,6 +46,8 @@ type SetFieldSubroutine[S any] func(item *S, fieldKey, val string) (
 )
 
 // UpdateStructSubroutine defines the function that performs the actual update of the data on the GW instance.
+// The error returned by this subroutine does not kill the action, instead displaying to the user.
+// In that way, it is closer to an invalid, even though validation errors are assumed to be caught by the SetField sub.
 type UpdateStructSubroutine[S any] func(data *S) (
 	identifier string, err error,
 )
@@ -51,7 +55,7 @@ type UpdateStructSubroutine[S any] func(data *S) (
 // SubroutineSet defines the set of all subroutines required by an implementation of an edit action.
 //
 // ! AddEditAction will panic if any subroutine is nil
-type SubroutineSet[I id_t, S any] struct {
+type SubroutineSet[I scaffold.Id_t, S any] struct {
 	SelectSub SelectSubroutine[I, S] // fetch a specific editable struct
 	// used in interactive mode to fetch all editable structs
 	FetchSub    FetchAllSubroutine[S]

@@ -38,6 +38,8 @@ const (
 	lowBound modifSelection = iota
 	duration
 	background
+	perpage
+	submit
 	highBound
 )
 
@@ -45,10 +47,11 @@ const (
 type modifView struct {
 	width    uint
 	height   uint
-	selected uint // tracks which modifier is currently active w/in this view
+	selected modifSelection // tracks which modifier is currently active w/in this view
 	// knobs available to user
 	durationTI textinput.Model
 	background bool
+	perpageTI  textinput.Model
 
 	keys []key.Binding
 }
@@ -88,11 +91,25 @@ func initialModifView(height, width uint) modifView {
 		}
 		return nil
 	}
+	// build per page ti
+	mv.perpageTI = stylesheet.NewTI("25", true)
+	mv.perpageTI.Placeholder = "25"
+	mv.perpageTI.Validate = func(s string) error {
+		// checks that each character is a number
+		for _, r := range s {
+			if !unicode.IsDigit(r) {
+				return errors.New("only digits are allowed")
+			}
+		}
+		return nil
+	}
+
 	return mv
 }
 
 // Walks through the options in modifSelection and passes keys to the currently selected one.
-func (mv *modifView) update(msg tea.Msg) []tea.Cmd { // TODO switch away from an array of Cmds.
+// Returns true if the user selected the submit button.
+func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away from an array of Cmds.
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.Type {
@@ -101,52 +118,85 @@ func (mv *modifView) update(msg tea.Msg) []tea.Cmd { // TODO switch away from an
 			if mv.selected <= lowBound {
 				mv.selected = highBound - 1
 			}
-			if mv.selected == duration {
-				mv.durationTI.Focus()
-			} else {
-				mv.durationTI.Blur()
-			}
-			return []tea.Cmd{textinput.Blink}
+			mv.updateFocus()
+			return []tea.Cmd{textinput.Blink}, false
 		case tea.KeyDown:
 			mv.selected += 1
 			if mv.selected >= highBound {
 				mv.selected = lowBound + 1
 			}
-			if mv.selected == duration {
-				mv.durationTI.Focus()
-			} else {
-				mv.durationTI.Blur()
-			}
-			return []tea.Cmd{textinput.Blink}
+			mv.updateFocus()
+			return []tea.Cmd{textinput.Blink}, false
 		case tea.KeySpace, tea.KeyEnter:
-			// handle booleans
 			switch mv.selected {
 			case background:
 				mv.background = !mv.background
+			case submit:
+				return nil, true
+
 			}
 		}
 	}
-	var cmds = make([]tea.Cmd, 1)
+	var cmds = make([]tea.Cmd, 2)
 	mv.durationTI, cmds[0] = mv.durationTI.Update(msg)
+	mv.perpageTI, cmds[1] = mv.perpageTI.Update(msg)
 
-	return cmds
+	return cmds, false
 }
 
 func (mv *modifView) view() string {
-	var bldr strings.Builder
+	var sb strings.Builder
 
-	bldr.WriteString(" " + stylesheet.Cur.PrimaryText.Render("Duration:") + "\n")
-	bldr.WriteString(
+	sb.WriteString(" " + stylesheet.Cur.FieldText.Render("Duration:") + "\n")
+	sb.WriteString(
 		fmt.Sprintf("%s%s\n", stylesheet.Pip(mv.selected, duration), mv.durationTI.View()),
 	)
-	bldr.WriteString(
+
+	sb.WriteString(
 		fmt.Sprintf("%s%s %s\n", stylesheet.Pip(mv.selected, background), stylesheet.Checkbox(mv.background), stylesheet.Cur.PrimaryText.Render("Background?")),
 	)
 
-	return bldr.String()
+	sb.WriteString(" " + stylesheet.Cur.FieldText.Render("Entries/page:") + "\n")
+	sb.WriteString(
+		fmt.Sprintf("%s%s\n", stylesheet.Pip(mv.selected, perpage), mv.perpageTI.View()),
+	)
+	sb.WriteString(stylesheet.ViewSubmitButton(mv.selected == submit, "", ""))
+
+	return sb.String()
 }
 
 func (mv *modifView) reset() {
 	mv.durationTI.Reset()
 	mv.durationTI.Blur()
+	mv.perpageTI.Reset()
+	mv.perpageTI.Blur()
+}
+
+func (mv *modifView) updateFocus() {
+	mv.durationTI.Blur()
+	mv.perpageTI.Blur()
+	switch mv.selected {
+	case duration:
+		mv.durationTI.Focus()
+	case perpage:
+		mv.perpageTI.Focus()
+	}
+}
+
+// Focus sets the focus state on the model.
+// When the model is in focus it can receive keyboard input and the cursor will be shown.
+func (mv *modifView) Focus() {
+	switch mv.selected {
+	case duration:
+		mv.durationTI.Focus()
+	case perpage:
+		mv.perpageTI.Focus()
+	}
+}
+
+// Blur removes the focus state on the model.
+// When the model is blurred it can not receive keyboard input and the cursor will be hidden
+func (mv *modifView) Blur() {
+	mv.durationTI.Blur()
+	mv.perpageTI.Blur()
 }

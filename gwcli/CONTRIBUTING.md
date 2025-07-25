@@ -20,9 +20,7 @@ Tree nodes (commands that require further input/are submenus), such as `user`, a
 
 - By default, gwcli logs to `$CONFIGDIR/gwcli/dev.log`. On Linux, this is likely `~/.config/gwcli/dev.log`. Strongly recommend `tail -f ~/.config/gwcli/dev.log` to see what the program is doing under the hood while you are working on it.
 
-- Actions' Update subroutines should **always** return a tea.Cmd when handing control back to Mother.
-
-    - If you do not have anything to `tea.Println()` on completion, use a `.Blink` method
+- If your action seems to hang until a key is pressed, try returning a `.Blink`. This typically is not necessary, but the TUI only redraws when a messages occurs. If you are only returning nils, but need an update to occur, there will nothing to proc it.
 
     - This is to prevent faux-hanging. Bubble Tea only triggers its cycle when a message comes in. Returning nil when few other messages are being sent can cause the application to appear unresponsive when it is instead waiting for another message, thus triggering the anticipated redraw.
 
@@ -36,10 +34,11 @@ Tree nodes (commands that require further input/are submenus), such as `user`, a
 
     - There are some caveats to this, with BubbleTea not guaranteeing to fully unpack nested sequence and batch commands in proper order ([#847](https://github.com/charmbracelet/bubbletea/issues/847), [#680](https://github.com/charmbracelet/bubbletea/issues/680)). This is actually why Mother sequences a WindowSizeCmd whenever it processes SetArgs on a new child action.
 
+- Most errors should be recoverable while in interactive mode and therefore panics while running are profane. Panicking during setup, however, is perfectly acceptable; errors during setup are almost certainly developer error, therefore the earlier they arise the better.
+
 # Build System
 
 gwcli uses [Mage](magefile.org) as its build system. Because go's tooling is so robust, you don't *really* need mage, but it has some extra utilities for testing. You can explore it by installing mage and calling `mage -h`/`mage -h <cmd>`.
-
 
 # Changing the Command Tree
 
@@ -83,15 +82,13 @@ The Basic scaffold is a highly simplistic implementation of an action. For a muc
 
 # Packages
 
-Every effort has been made to document each package/file internally. There is, quite possibly, too much documentation. Here is a short list of the most important packages.
+Every effort has been made to document each package/file internally. There is, quite possibly, too much documentation. Here are short descriptors of important packages.
 
 ## Clilog
 
 Clilog is the logging apparatus of gwcli. All packages should use its `Writer` singleton for logging.
 
 Stylistically speaking, callees log relevant data only they have access to, but return errors for the caller to log, lest both callee and caller try to log the same error.
-
-*Please note*: Most errors should be recoverable while in interactive mode and therefore panics are profane (panic/recover is slow as hell). However, panicking during setup is perfectly acceptable; errors during setup are almost certainly developer error, therefore the earlier they arise the better.
 
 ## Connection
 
@@ -103,14 +100,14 @@ The true workhorse of gwcli, Mother manages *all* interactivity. See [her sectio
 
 ## Stylesheet
 
-A menagerie package focused on enforcing consistent text and colors across the program. Admittedly, its organization is imperfect and has become some degree of a catch-all.
+A menagerie package focused on enforcing consistent text and colors across the program.
 The intention is for this to eventually be supplant-able for custom styling.
 
 ## Tree
 
 The one containing `root.go`, not the one beneath that that contains `tree.go`. Yes, a lot of packages share names. `¯\_(ツ)_/¯`
 
-The actual command tree. This package is organized to be a replica of how the navs and actions are situated inside of gwcli's shell.
+The actual [command tree](#the-command-tree). This package is organized to be a replica of how the navs and actions are situated inside of gwcli's shell.
 
 
 ## Utilities/Scaffold
@@ -158,7 +155,7 @@ Navigation is just a couple of pointers; `Mother.root` is the root of the tree a
 
 Child actions are held in the Action map implemented in [action.go](action/action.go). Basically, `treeutils.GenerateAction()` registers the `action.Model` and its `cobra.Command` in a hashtable and Mother looks up these `action.Model`s when it is time to invoke them interactively. This isn't necessary when invoked non-interactively (ex: from your shell's command line) because we can just use cobra's `.run()`. See [below](#actionmodel) for more information on `action.Model`s.
 
-When a child action is being interacted with, it is considered "in control". Instead of running her usual prompt management in `.Update()`, Mother passes control to the child action's `.Update()`. Same for `.View()`. Note, however, that we never call a child's `.Update()` without `Mother.Update()` calling it. This allows Mother to check for kill keys and the child's `.Done()` first so she knows if she must reassert control. instead of passing to the child.
+When a child action is being interacted with, Mother runs in "handoff" mode. Instead of running her usual prompt management in `.Update()`, Mother passes control to the child action's `.Update()`. Same for `.View()`. Note, however, that we never call a child's `.Update()` without `Mother.Update()` calling it. This allows Mother to check for kill keys and the child's `.Done()` first so she knows if she must reassert control. instead of passing to the child.
 
 History is handled by `history.go` in the `mother` package and is fairly straightforward. Go check it out if you are interested, but it is functionally complete.
 
@@ -172,9 +169,9 @@ Actions must satisfy the `action.Model` interface to be able to supplant Mother 
 
 `View() string`, like Update, supplants Mother's View method while in handoff mode. Note, however, that this is a prompt and all non-interactive output should instead be printed outside of Bubble Tea's control (via `tea.Print*()`).
 
-`Done() bool` is called by mother *before handing off* each cycle. If it is true, Mother will *not* hand off and will instead reassert control and unseat the child. Generally tracked by a private variable in the child struct.
+`Done() bool` is called by mother *before handing off* each cycle. If it is true, Mother will *not* hand off and will instead reassert control, unseating the child. Generally tracked by a private variable in the child struct.
 
-`Reset() error` is called by Mother *after* `Done()` returns true. It resets the child to a clean state so it can be called again later.
+`Reset() error` is called by Mother *after* Mother reasserts control (exiting handoff mode). This typically occurs after `Done()` returns true or the user pressed a child-only kill key (like `esc`). It resets the child to a clean state so it can be called again later.
 
 `SetArgs(*pflag.FlagSet, []string) (string, []tea.Cmd, error)` sets fields in the child that manipulate its next run. It is called when Mother *first enters handoff mode* for a child, before the child's first `Update()`. It provides the flagset this action inherited from its ancestors as well as all tokens remaining *after* the action invocation. The former is likely to be unused (but provided just in case) and the latter is pre-split by shlex (shell-splitting rules).
 It returns, respectively: the reason this argument set is invalid (or ""), tea.Cmds the child needs run on startup (eg: right now), errors outside of the users control. The startup Cmd somewhat takes the place of `tea.Model.Init()`.

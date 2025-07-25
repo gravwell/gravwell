@@ -13,6 +13,8 @@ package stylesheet
  */
 
 import (
+	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
@@ -102,4 +104,85 @@ func Table() *table.Table {
 		}).BorderRow(true)
 
 	return tbl
+}
+
+// NewList creates and returns a new list.Model with customized defaults.
+// items must fit the listsupport.Item interface in order to be used with the delegate. However,
+// because Go cannot interface arrays, you must pass in your items as []list.Item.
+func NewList(items []list.Item, width, height int, singular, plural string) list.Model {
+	// update the styles on the default delegate to wrap properly
+	dlg := list.NewDefaultDelegate()
+	dlg.Styles.SelectedTitle = dlg.Styles.SelectedTitle.Foreground(Cur.PrimaryText.GetForeground())
+	dlg.Styles.SelectedDesc = dlg.Styles.SelectedDesc.Foreground(Cur.SecondaryText.GetForeground())
+
+	l := list.New(items, dlg, width, height)
+	// list.DefaultKeyMap, but has the quits removed and conflicting filter keys reassigned.
+	l.KeyMap = list.KeyMap{
+		// Browsing.
+		CursorUp: key.NewBinding(
+			key.WithKeys("up", "k"),
+			key.WithHelp("↑/k", "up"),
+		),
+		CursorDown: key.NewBinding(
+			key.WithKeys("down", "j"),
+			key.WithHelp("↓/j", "down"),
+		),
+		PrevPage: key.NewBinding(
+			key.WithKeys("left", "h", "pgup", "b", "u"),
+			key.WithHelp("←/h/pgup", "prev page"),
+		),
+		NextPage: key.NewBinding(
+			key.WithKeys("right", "l", "pgdown", "f", "d"),
+			key.WithHelp("→/l/pgdn", "next page"),
+		),
+		GoToStart: key.NewBinding(
+			key.WithKeys("home", "g"),
+			key.WithHelp("g/home", "go to start"),
+		),
+		GoToEnd: key.NewBinding(
+			key.WithKeys("end", "G"),
+			key.WithHelp("G/end", "go to end"),
+		),
+		Filter: key.NewBinding(
+			key.WithKeys("/"),
+			key.WithHelp("/", "filter"),
+		),
+		ClearFilter: key.NewBinding(
+			key.WithKeys("esc"),
+			key.WithHelp("esc", "clear filter"),
+		),
+
+		// Filtering.
+		CancelWhileFiltering: key.NewBinding(
+			key.WithKeys("alt+/"),
+			key.WithHelp("alt+/", "cancel"),
+		),
+		AcceptWhileFiltering: key.NewBinding(
+			key.WithKeys("tab", "shift+tab", "ctrl+k", "up", "ctrl+j", "down"),
+			key.WithHelp("tab", "apply filter"),
+		),
+
+		// Toggle help.
+		ShowFullHelp: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "more"),
+		),
+		CloseFullHelp: key.NewBinding(
+			key.WithKeys("?"),
+			key.WithHelp("?", "close help"),
+		),
+	}
+	l.SetSpinner(spinner.Moon)
+	l.SetStatusBarItemName(singular, plural)
+	l.SetShowTitle(false)
+
+	return l
+}
+
+// The ListItem interface defines the basic values an item must be able to provide prior to casting to list.ListItem for NewList().
+// list will cast the item to this interface when interacting with it.
+type ListItem interface {
+	Title() string
+	Description() string
+	FilterValue() string
 }

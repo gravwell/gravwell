@@ -28,7 +28,7 @@ var Cur Sheet
 
 func init() {
 	// set the current stylesheet
-	Cur = classic() //tritonePlus()
+	Cur = Classic() //tritonePlus()
 }
 
 // A Sheet is a set of lipgloss.Style fields sufficient to colorize/theme gwcli.

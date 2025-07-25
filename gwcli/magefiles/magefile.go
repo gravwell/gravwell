@@ -155,11 +155,13 @@ func TestAll(cover, noCache bool) error {
 
 	args = append(args, "./...")
 
-	out, err := sh.Output("go", args...)
-	if mg.Verbose() || err != nil {
+	if out, err := sh.Output("go", args...); mg.Verbose() || err != nil {
 		fmt.Println(out)
+		return err
 	}
-	return err
+
+	// run tea tests
+	return TeaTests(cover, noCache)
 }
 
 // TestIntegration calls the tests in script_test for targeting external, automated usage (via --script).
@@ -185,7 +187,7 @@ func TestIntegration() error {
 	}
 
 	// run integration tests external to the binary
-	fmt.Println("NYI")
+	fmt.Println("NYI") // TODO
 
 	// spit out coverage data
 	out, err = sh.Output("go", "tool", "covdata", "percent", "-i="+coverdirPath)
@@ -195,6 +197,28 @@ func TestIntegration() error {
 	}
 
 	return nil
+}
+
+// Runs the test packages that rely on teatest and golden files.
+func TeaTests(cover, noCache bool) error {
+	// This has to be broken out from normal testing because golden files do not (as of 2025-07-12) play nicely with the -race flag.
+	// These files should have the !race build condition, omitting them from normal processing.
+	args := []string{"test", "-vet=all"}
+	if cover {
+		args = append(args, "-cover")
+	}
+	if noCache {
+		args = append(args, "-count=1")
+	}
+
+	args = append(args, "./tree/query/datascope")
+
+	out, err := sh.Output("go", args...)
+	if mg.Verbose() || err != nil {
+		fmt.Println(out)
+	}
+	return err
+
 }
 
 // Clean up the binary and any and all logs.
