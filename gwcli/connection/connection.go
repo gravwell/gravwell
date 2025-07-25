@@ -125,12 +125,12 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 
 	var l objlog.ObjLog = nil
 	if restLogPath != "" { // used for testing, not intended for production modes
-		l, err = NewRestRotator(restLogPath)
+		l, err = newRestRotator(restLogPath)
 		if err != nil {
 			return err
 		}
 	} else if clilog.Writer != nil && (clilog.Writer.GetLevel() == log.Level(clilog.DEBUG) || clilog.Writer.GetLevel() == log.Level(clilog.INFO)) { // spin up the rest logger if in INFO+
-		l, err = NewRestRotator(cfgdir.DefaultRestLogPath)
+		l, err = newRestRotator(cfgdir.DefaultRestLogPath)
 		if err != nil {
 			return err
 		}

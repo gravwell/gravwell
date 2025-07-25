@@ -24,9 +24,9 @@ type restRotator struct {
 // fit to the interface
 var _ objlog.ObjLog = restRotator{}
 
-// NewRestRotator creates an adaptor between rotate.FileRotator and objlog.Objlog.
+// newRestRotator creates an adaptor between rotate.FileRotator and objlog.Objlog.
 // It allows the rest log to take advantage of log rotation.
-func NewRestRotator(path string) (restRotator, error) {
+func newRestRotator(path string) (restRotator, error) {
 	olw := restRotator{}
 	var err error
 	olw.FileRotator, err = rotate.OpenEx(path, 0660, maxLogSize, maxLogCount, true)
