@@ -118,7 +118,7 @@ func GenerateAction(use, short, long string, aliases []string,
 	if len(options) > 0 {
 		if usage := strings.TrimSpace(options[0].Usage); usage != "" {
 			cmd.SetUsageFunc(func(c *cobra.Command) error {
-				fmt.Fprintf(c.OutOrStdout(), "%s %s", cmd.Name(), options[0].Example)
+				fmt.Fprintf(c.OutOrStdout(), "%s %s", cmd.Name(), options[0].Usage)
 				return nil
 			})
 		}
