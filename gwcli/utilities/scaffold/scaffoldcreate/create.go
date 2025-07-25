@@ -121,6 +121,16 @@ func NewCreateAction(singular string,
 		flags.AddFlagSet(&afs)
 	}
 
+	// pull required flags from cfg
+	requiredFlags := make([]string, 0)
+	for _, v := range fields {
+		if v.Required && v.FlagName != "" {
+			// switch on v.Type... when there is more than 1
+			txt := "--" + v.FlagName + "=" + ft.Mandatory("string")
+			requiredFlags = append(requiredFlags, txt)
+		}
+	}
+
 	cmd := treeutils.GenerateAction(
 		"create",                 // use
 		"create a "+singular,     // short
@@ -162,7 +172,7 @@ func NewCreateAction(singular string,
 			} else {
 				fmt.Fprintf(c.OutOrStdout(), "Successfully created %v (ID: %v).", singular, id)
 			}
-		})
+		}, treeutils.GenerateActionOptions{Usage: strings.Join(requiredFlags, " ")})
 
 	// attach mined flags to cmd
 	cmd.Flags().AddFlagSet(&flags)
