@@ -88,7 +88,7 @@ func Init(path string, lvlString string) error {
 	Writer.SetHostname(".") // autopopulates if empty
 
 	// error check the first call
-	if err := Writer.Infof("Logger initialized at %v level, hostname %v", Writer.GetLevel(), Writer.Hostname()); err != nil {
+	if err := Writer.Infof("--- Logger initialized at %v level, hostname %v ---", Writer.GetLevel(), Writer.Hostname()); err != nil {
 		Writer.Close()
 		return err
 	}
