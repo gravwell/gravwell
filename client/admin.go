@@ -495,7 +495,8 @@ func (c *Client) Impersonate(uid int32) (nc *Client, err error) {
 	hdrMap.add(authHeaderName, "Bearer "+loginResp.JWT)
 
 	sessData := ActiveSession{
-		JWT: loginResp.JWT,
+		JWT:     loginResp.JWT,
+		Expires: decodeJWTExpires(loginResp.JWT),
 	}
 	//generate a new client
 	nc = &Client{
