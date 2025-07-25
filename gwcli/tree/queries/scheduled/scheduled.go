@@ -43,21 +43,19 @@ func NewScheduledNav() *cobra.Command {
 		[]*cobra.Command{},
 		[]action.Pair{
 			newScheduledQryCreateAction(),
-			newScheduledQryListAction(),
-			newScheduledQryDeleteAction(),
-			newScheduledQryEditAction(),
+			list(),
+			delete(),
+			edit(),
 		})
 }
 
 //#region list
 
-var (
-	short          string   = "list scheduled queries"
-	long           string   = "prints out all scheduled queries."
-	defaultColumns []string = []string{"ID", "Name", "Description", "Duration", "Schedule"}
-)
-
-func newScheduledQryListAction() action.Pair {
+func list() action.Pair {
+	var (
+		short = "list scheduled queries"
+		long  = "prints out all scheduled queries."
+	)
 	return scaffoldlist.NewListAction(short, long,
 		types.ScheduledSearch{}, listScheduledSearch,
 		scaffoldlist.Options{
@@ -186,7 +184,7 @@ func create(_ scaffoldcreate.Config, vals map[string]string, _ *pflag.FlagSet) (
 //#region delete
 
 // builds the scheduled search delete action
-func newScheduledQryDeleteAction() action.Pair {
+func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction(
 		"query", "queries", del, func() ([]scaffolddelete.Item[int32], error) {
 			ss, err := connection.Client.GetScheduledSearchList()
@@ -232,7 +230,7 @@ const ( // field keys
 
 const singular string = "scheduled search"
 
-func newScheduledQryEditAction() action.Pair {
+func edit() action.Pair {
 	cfg := scaffoldedit.Config{
 		editNameKey: &scaffoldedit.Field{
 			Required: true,
