@@ -151,7 +151,7 @@ func NewDeleteAction[I scaffold.Id_t](
 				fmt.Fprintf(c.OutOrStdout(), deleteSuccessText+"\n",
 					singular, id)
 			}
-		})
+		}, treeutils.GenerateActionOptions{Usage: "--id=" + ft.Mandatory(singular+" id")})
 	fs := flags()
 	cmd.Flags().AddFlagSet(&fs)
 	d := newDeleteModel(del, fch)
