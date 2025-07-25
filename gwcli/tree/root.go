@@ -325,7 +325,7 @@ func Execute(args []string) int {
 
 	// override the help command to just call usage
 	rootCmd.SetHelpFunc(help)
-	rootCmd.SetUsageFunc(func(c *cobra.Command) error { fmt.Fprintf(c.OutOrStdout(), "%s", "<usage>"); return nil }) // TODO replace root's usage
+	rootCmd.SetUsageFunc(func(c *cobra.Command) error { return nil })
 
 	err := rootCmd.Execute()
 	if err != nil {
@@ -341,18 +341,23 @@ func help(c *cobra.Command, _ []string) {
 	var sb strings.Builder
 
 	// write the description block
-	sb.WriteString(stylesheet.Cur.FieldText.Render("Synopsis:") + "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(c.Long) + "\n\n")
+	sb.WriteString(stylesheet.Cur.FieldText.Render("Synopsis:") + "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(strings.TrimSpace(c.Long)) + "\n\n")
 
 	// write usage line, if available
-	// NOTE(rlandau): assumes usage is already color coded and in the form "<cmd.Name> <following usage>"
+	// NOTE(rlandau): assumes usage is in the form "<cmd.Name> <following usage>"
 	if usage := strings.TrimSpace(c.UsageString()); usage != "" {
 		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.FieldText.Render("Usage:"), usage)
 	}
 
+	// write aliases line, if available
+	if aliases := strings.Join(c.Aliases, ", "); aliases != "" {
+		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.FieldText.Render("Aliases:"), aliases)
+	}
+
 	// write example line, if available
-	// NOTE(rlandau): assumes example is already color coded and in the form "<cmd.Name> <following example>"
+	// NOTE(rlandau): assumes example is in the form "<cmd.Name> <following example>"
 	if ex := strings.TrimSpace(c.Example); ex != "" {
-		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.ExampleText.Render("Example:"), ex)
+		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.FieldText.Render("Example:"), ex)
 	}
 
 	// write local flags
@@ -365,74 +370,7 @@ func help(c *cobra.Command, _ []string) {
 		sb.WriteString(stylesheet.Cur.FieldText.Render("Global Flags:") + "\n" + gf)
 	}
 
-	fmt.Fprint(c.OutOrStdout(), sb.String())
-}
-
-// Usage provides a replacement for cobra's usage command, dynamically building the usage based on pwd (/ the full path the user gave).
-func Usage(c *cobra.Command) error {
-	var bldr strings.Builder
-	// pull off first string, recombine the rest to retrieve a usable path sans root
-	root, path := func() (string, string) {
-		// could do all of this in a one-liner in the fmt.Sprintf, but this is clearer
-		p := strings.Split(c.CommandPath(), " ")
-		if len(p) < 1 { // should be impossible
-			clilog.Writer.Critical("exploded command path is zero-length")
-			return "UNKNOWN", "UNKNOWN"
-		}
-		return p[0], strings.Join(p[1:], " ")
-	}()
-
-	bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Usage:") +
-		strings.TrimRight(fmt.Sprintf(" %v %s",
-			root, path,
-		), " "))
-
-	if c.GroupID == group.NavID { // nav
-		bldr.WriteString(" [subcommand]\n")
-	} else { // action
-		bldr.WriteString(" [flags]\n\n")
-
-		// attach long
-		/*		if l := strings.TrimSpace(c.Long); l != "" {
-				bldr.WriteString(l + "\n\n")
-			}*/
-
-		// attach local flag info if it is not empty
-		{
-			localFlagsUsages := c.LocalNonPersistentFlags().FlagUsages()
-			if strings.TrimSpace(localFlagsUsages) != "" {
-				bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Local Flags:") + "\n")
-				bldr.WriteString(localFlagsUsages)
-			}
-		}
-
-	}
-
-	bldr.WriteRune('\n')
-
-	if c.HasExample() {
-		bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Example:") + " " + c.Example + "\n\n")
-	}
-
-	{ // attach global flag info if it is not empty
-		globalFlagUsages := c.Root().PersistentFlags().FlagUsages()
-		if strings.TrimSpace(globalFlagUsages) != "" {
-			bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Global Flags:") + "\n")
-			bldr.WriteString(globalFlagUsages)
-		}
-	}
-
-	bldr.WriteRune('\n')
-
-	// print aliases
-	if len(c.Aliases) != 0 {
-		var s strings.Builder
-		s.WriteString(stylesheet.Cur.PrimaryText.Render("Aliases:") + " ")
-		for _, a := range c.Aliases {
-			s.WriteString(a + ", ")
-		}
-		bldr.WriteString(strings.TrimRight(s.String(), ", ") + "\n") // chomp
-	}
+	// attach children
 
 	// split children by group
 	navs := make([]*cobra.Command, 0)
@@ -449,23 +387,23 @@ func Usage(c *cobra.Command) error {
 	// output navs as submenus
 	if len(navs) > 0 {
 		var s strings.Builder
-		s.WriteString(stylesheet.Cur.PrimaryText.Render("Submenus"))
 		for _, n := range navs {
 			s.WriteString("\n  " + stylesheet.Cur.Nav.Render(n.Name()))
 		}
-		bldr.WriteString(s.String() + "\n")
+		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Submenus"), s.String())
 	}
 
 	// output actions
 	if len(actions) > 0 {
+		if len(navs) > 0 {
+			sb.WriteString("\n")
+		}
 		var s strings.Builder
-		s.WriteString("\n" + stylesheet.Cur.PrimaryText.Render("Actions"))
 		for _, a := range actions {
 			s.WriteString("\n  " + stylesheet.Cur.Action.Render(a.Name()))
 		}
-		bldr.WriteString(s.String())
+		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Actions"), s.String())
 	}
 
-	fmt.Fprintln(c.OutOrStdout(), strings.TrimSpace(bldr.String()))
-	return nil
+	fmt.Fprint(c.OutOrStdout(), sb.String())
 }
