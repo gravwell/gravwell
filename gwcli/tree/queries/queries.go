@@ -80,7 +80,7 @@ func past() action.Pair {
 		},
 		scaffoldlist.Options{
 			Use: pastUse, AddtlFlags: flags,
-			DefaultColumns: defaultColumns, ColumnAliases: map[string]string{"EffectiveQuery": "eQuery"},
+			DefaultColumns: defaultColumns, ColumnAliases: map[string]string{"EffectiveQuery": "EQuery"},
 		})
 }
 
