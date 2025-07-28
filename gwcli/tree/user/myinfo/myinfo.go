@@ -48,7 +48,6 @@ func NewUserMyInfoAction() action.Pair {
 				if err := connection.RefreshCurrentUser(); err != nil {
 					clilog.Writer.Warn("failed to refresh local user's information")
 				}
-				// TODO add a "refreshed" message
 			}
 
 			// get our information
