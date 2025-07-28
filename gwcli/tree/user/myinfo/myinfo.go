@@ -26,6 +26,10 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const borderWidth int = 48
+
+var sectionHeader = func(str string) string { return stylesheet.Cur.TertiaryText.Bold(true).Render(str) }
+
 func NewUserMyInfoAction() action.Pair {
 	const (
 		use   string = "myinfo"
@@ -34,42 +38,75 @@ func NewUserMyInfoAction() action.Pair {
 	)
 	return scaffold.NewBasicAction(use, short, long,
 		func(_ *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
-			if asCSV, err := fs.GetBool(ft.CSV.Name()); err != nil {
-				s := fmt.Sprintf("Failed to fetch csv flag: %v", err)
-				clilog.Writer.Error(s)
-				return s, nil
-			} else if asCSV {
-				return weave.ToCSV([]types.UserDetails{connection.CurrentUser()}, []string{
-					"UID",
-					"User",
-					"Name",
-					"Email",
-					"Admin",
-					"Locked",
-					"TS",
-					"DefaultGID",
-					"Groups",
-					"Hash",
-					"Synced",
-					"CBAC"}, weave.CSVOptions{}), nil
+			// check for refresh
+			if refresh, err := fs.GetBool("refresh"); err != nil {
+				clilog.LogFlagFailedGet("refresh", err)
+			} else if refresh {
+				if err := connection.RefreshCurrentUser(); err != nil {
+					clilog.Writer.Warn("failed to refresh local user's information")
+				}
+				// TODO add a "refreshed" message
 			}
 
+			// get our information
 			inf := connection.CurrentUser()
 
-			sty := stylesheet.Cur.PrimaryText.Bold(false)
-			out := fmt.Sprintf("%v, %v, %v\n%s: %v\n%s: %v\n%s: %v",
-				inf.Name,
-				inf.User, inf.Email,
-				sty.Render("Groups"), inf.Groups,
-				sty.Render("Capabilities"), inf.CapabilityList(),
-				sty.Render("Admin"), inf.Admin)
+			// output as CSV
+			if asCSV, err := fs.GetBool(ft.CSV.Name()); err != nil {
+				clilog.LogFlagFailedGet(ft.CSV.Name(), err)
+			} else if asCSV {
+				return weave.ToCSV(
+					[]types.UserDetails{inf},
+					[]string{
+						"UID",
+						"User",
+						"Name",
+						"Email",
+						"Admin",
+						"Locked",
+						"TS",
+						"DefaultGID",
+						"Groups",
+						"Hash",
+						"Synced",
+						"CBAC",
+					},
+					weave.CSVOptions{}), nil
+			}
 
-			return out, nil
+			// output as segmented table
+
+			// compose the body
+			body := fmt.Sprintf("%v\n"+
+				"%v\n"+
+				"%s%v\n"+
+				"%s%v\n"+
+				"%s%v\n"+
+				"%s%v\n"+
+				"%s%v",
+				inf.Name,
+				inf.Email,
+				stylesheet.Cur.Field("UserID", 14), inf.UID,
+				stylesheet.Cur.Field("MFA Enabled?", 14), inf.MFA.MFAEnabled(),
+				stylesheet.Cur.Field("Groups", 14), inf.Groups,
+				stylesheet.Cur.Field("Capabilities", 14), inf.CapabilityList(),
+				stylesheet.Cur.Field("Admin", 14), inf.Admin)
+			res, err := stylesheet.SegmentedBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()),
+				borderWidth,
+				struct {
+					StylizedTitle string
+					Contents      string
+				}{sectionHeader(" " + inf.User + " "), body})
+			if err != nil {
+				clilog.Writer.Warnf("failed to generate segmented border: %v", err)
+			}
+			return res, nil
 		}, scaffold.BasicOptions{AddtlFlagFunc: flags})
 }
 
 func flags() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 	fs.Bool(ft.CSV.Name(), false, "display results as CSV")
+	fs.BoolP("refresh", "r", false, "refresh the local user cache prior to display")
 	return fs
 }
