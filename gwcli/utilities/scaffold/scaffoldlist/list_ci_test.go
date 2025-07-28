@@ -862,7 +862,7 @@ func TestModel(t *testing.T) {
 			t.Logf("passing argument list: %v", args)
 
 			// mimic mother's order of operations, validating after each step
-			invalid, setArgsCmd, err := pair.Model.SetArgs(pair.Action.Flags(), args)
+			invalid, setArgsCmd, err := pair.Model.SetArgs(pair.Action.Flags(), args, 80, 50)
 			t.Log(setArgsCmd)
 			if tt.wantInvalidArgs && invalid != "" {
 				return

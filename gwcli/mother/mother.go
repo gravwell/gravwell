@@ -56,7 +56,12 @@ type Mother struct {
 	root *navCmd
 	pwd  *navCmd
 
+	// prompt
 	ti textinput.Model
+
+	// terminal information
+	width  int
+	height int
 
 	active struct {
 		command *actionCmd   // command user called
@@ -150,7 +155,7 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 var _ tea.Model = Mother{}
 
 func (m Mother) Init() tea.Cmd {
-	return tea.WindowSize()
+	return tea.WindowSize() // TODO we can likely junk this
 }
 
 // Update (specifically Mother's Update()) is always the entrypoint for BubbleTea to drive.
@@ -211,7 +216,10 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// normal handling
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		// consume the width to update mother's prompt width
+		// save off terminal dimensions
+		m.width = msg.Width
+		m.height = msg.Height
+		// update mother's prompt width
 		m.ti.Width = msg.Width -
 			lipgloss.Width(m.pwd.CommandPath()) - // reserve space for prompt head
 			3 // include a padding
@@ -448,7 +456,7 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 		invalid string
 		cmd     tea.Cmd
 	)
-	if invalid, cmd, err = m.active.model.SetArgs(m.active.command.InheritedFlags(), args); err != nil || invalid != "" { // undo and return
+	if invalid, cmd, err = m.active.model.SetArgs(m.active.command.InheritedFlags(), args, m.width, m.height); err != nil || invalid != "" { // undo and return
 		m.unsetAction()
 
 		if err != nil {

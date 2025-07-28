@@ -135,9 +135,8 @@ var _ action.Model = &ListAction[any]{}
 
 // SetArgs is called when the action is invoked by the user and Mother *enters* handoff mode.
 // Mother parses flags and provides us a handle to check against.
-func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
-	invalid string, onStart tea.Cmd, err error,
-) {
+func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
 	// attach flags
 	la.fs = buildFlagSet(la.options.AddtlFlags, la.options.Pretty != nil)
 

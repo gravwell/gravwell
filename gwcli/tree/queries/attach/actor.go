@@ -154,7 +154,7 @@ func (a *attach) Reset() error {
 }
 
 // SetArgs allows interactive mode usage to fetch the pre-existing search by its id.
-func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid string, _ tea.Cmd, err error) {
+func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, _ tea.Cmd, err error) {
 	// parse the tokens against the local flagset
 	if err := a.flagset.Parse(tokens); err != nil {
 		return err.Error(), nil, nil
@@ -202,7 +202,7 @@ func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid string, _ t
 	// if a sid was not given, prepare a list of queries for the user to select from
 	a.mode = selecting
 
-	cmd, noAttachables, err := a.sv.init()
+	noAttachables, err := a.sv.init()
 	if err != nil { // check that we actually have data to manipulate
 		return "", nil, err
 	} else if noAttachables {
@@ -210,5 +210,5 @@ func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid string, _ t
 		return "", tea.Println("you have no attachable searches"), nil
 	}
 
-	return "", cmd, nil
+	return "", nil, nil
 }

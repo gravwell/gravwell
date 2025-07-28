@@ -47,7 +47,8 @@ type Model interface {
 	View() string               // action displaying
 	Done() bool                 // should Mother reassert control?
 	Reset() error               // clean up action post-run
-	SetArgs(*pflag.FlagSet, []string) (invalid string, onStart tea.Cmd, err error)
+	SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+		invalid string, onStart tea.Cmd, err error) // prepare an action for hand-off
 }
 
 // Pair is a duple used to construct the Action Map.
