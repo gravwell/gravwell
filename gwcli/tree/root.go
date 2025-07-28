@@ -112,7 +112,7 @@ func isNoColor(fs *pflag.FlagSet) bool {
 	if nc, err := fs.GetBool(ft.NoColor.Name()); err != nil {
 		panic(err)
 	} else if nc {
-		clilog.Writer.Debug("disabled color",
+		clilog.Writer.Debug("disabled_color",
 			rfc5424.SDParam{
 				Name:  "reason",
 				Value: "--" + ft.NoColor.Name(),
@@ -121,7 +121,7 @@ func isNoColor(fs *pflag.FlagSet) bool {
 	}
 	// check NO_COLOR env var
 	if _, found := os.LookupEnv("NO_COLOR"); found { // https://no-color.org/
-		clilog.Writer.Debug("disabled color",
+		clilog.Writer.Debug("disabled_color",
 			rfc5424.SDParam{
 				Name:  "reason",
 				Value: "NO_COLOR",
@@ -132,7 +132,7 @@ func isNoColor(fs *pflag.FlagSet) bool {
 	if noInteractive, err := fs.GetBool(ft.NoInteractive.Name()); err != nil {
 		panic(err)
 	} else if noInteractive {
-		clilog.Writer.Debug("disabled color",
+		clilog.Writer.Debug("disabled_color",
 			rfc5424.SDParam{
 				Name:  "reason",
 				Value: "--" + ft.NoInteractive.Name(),
