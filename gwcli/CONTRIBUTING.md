@@ -173,7 +173,7 @@ Actions must satisfy the `action.Model` interface to be able to supplant Mother 
 
 `Reset() error` is called by Mother *after* Mother reasserts control (exiting handoff mode). This typically occurs after `Done()` returns true or the user pressed a child-only kill key (like `esc`). It resets the child to a clean state so it can be called again later.
 
-`SetArgs(*pflag.FlagSet, []string) (string, []tea.Cmd, error)` sets fields in the child that manipulate its next run. It is called when Mother *first enters handoff mode* for a child, before the child's first `Update()`. It provides the flagset this action inherited from its ancestors as well as all tokens remaining *after* the action invocation. The former is likely to be unused (but provided just in case) and the latter is pre-split by shlex (shell-splitting rules).
+`SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error)` sets fields in the child that manipulate its next run. It is called when Mother *first enters handoff mode* for a child, before the child's first `Update()`. It provides the flagset this action inherited from its ancestors as well as all tokens remaining *after* the action invocation. The former is likely to be unused (but provided just in case) and the latter is pre-split by shlex (shell-splitting rules). Last-known available width and height are also provided. 
 It returns, respectively: the reason this argument set is invalid (or ""), tea.Cmds the child needs run on startup (eg: right now), errors outside of the users control. The startup Cmd somewhat takes the place of `tea.Model.Init()`.
 
 > [!NOTE]

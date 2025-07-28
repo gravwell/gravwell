@@ -283,9 +283,8 @@ func newEditModel[I scaffold.Id_t, S any](cfg Config, singular, plural string,
 	return em
 }
 
-func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
-	invalid string, onStart tea.Cmd, err error,
-) {
+func (em *editModel[I, S]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
 	// parse the flags, save them for later, when TIs are created
 	if err := em.fs.Parse(tokens); err != nil {
 		return err.Error(), nil, nil

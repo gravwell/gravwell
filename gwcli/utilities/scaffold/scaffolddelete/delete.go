@@ -345,7 +345,8 @@ func (d *deleteModel[I]) Reset() error {
 	return nil
 }
 
-func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid string, onStart tea.Cmd, err error) {
+func (d *deleteModel[I]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
 	var zero I
 	// initialize the list
 	itms, err := d.ff()

@@ -130,7 +130,7 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 		args = append(args, fmt.Sprintf("--id=%d", id))
 	}
 
-	inv, _, err := em.SetArgs(nil, args)
+	inv, _, err := em.SetArgs(nil, args, 80, 50)
 	if err != nil {
 		t.Fatal(err)
 	} else if inv != "" {

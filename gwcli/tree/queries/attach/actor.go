@@ -154,7 +154,7 @@ func (a *attach) Reset() error {
 }
 
 // SetArgs allows interactive mode usage to fetch the pre-existing search by its id.
-func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid string, _ tea.Cmd, err error) {
+func (a *attach) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, _ tea.Cmd, err error) {
 	// parse the tokens against the local flagset
 	if err := a.flagset.Parse(tokens); err != nil {
 		return err.Error(), nil, nil

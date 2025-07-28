@@ -327,7 +327,7 @@ func TestModel(t *testing.T) {
 func fauxMother(t *testing.T, ba *basicAction, args []string, setArgsInvalid bool, expectedUpdatePrintMsg string) {
 	t.Helper()
 	{
-		inv, cmd, err := ba.SetArgs(nil, args)
+		inv, cmd, err := ba.SetArgs(nil, args, 80, 50)
 		if err != nil {
 			t.Fatal(err)
 		}

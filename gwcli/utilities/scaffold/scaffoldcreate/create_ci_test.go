@@ -194,7 +194,7 @@ func Test_Full(t *testing.T) {
 // helper function for Test_Full to allow it to be run back-by-back.
 func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	t.Helper()
-	if inv, _, err := cm.SetArgs(nil, []string{"--bln"}); err != nil {
+	if inv, _, err := cm.SetArgs(nil, []string{"--bln"}, 80, 50); err != nil {
 		t.Fatal("failed to Set Args:", err)
 	} else if inv != "" {
 		t.Fatal("failed to validate valid args:", inv)

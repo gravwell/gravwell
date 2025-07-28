@@ -224,8 +224,8 @@ func Plain() Sheet {
 		HeaderCells: lipgloss.NewStyle().
 			AlignHorizontal(lipgloss.Center).
 			AlignVertical(lipgloss.Center).Bold(true),
-		EvenCells:  lipgloss.NewStyle().Padding(0, 1).Width(15),
-		OddCells:   lipgloss.NewStyle().Padding(0, 1).Width(15),
+		EvenCells:  lipgloss.NewStyle().Padding(0, 1),
+		OddCells:   lipgloss.NewStyle().Padding(0, 1),
 		BorderType: lipgloss.ASCIIBorder(),
 	}
 
