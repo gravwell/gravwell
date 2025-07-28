@@ -619,12 +619,13 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 		c.SetOut(priorOut)
 	} else {
 		specialStyle := stylesheet.Cur.SecondaryText
-		// write .. and /
-		s.WriteString(fmt.Sprintf("%s%s - %s\n",
-			stylesheet.Indent, specialStyle.Render(".."), "step up"))
-		s.WriteString(fmt.Sprintf("%s%s - %s\n",
-			stylesheet.Indent, specialStyle.Render("~"), "return to root"))
-
+		// write .. and / if we are below root
+		if c.HasParent() {
+			fmt.Fprintf(&s, "%s%s - %s\n",
+				stylesheet.Indent, specialStyle.Render(".."), "step up")
+			fmt.Fprintf(&s, "%s%s - %s\n",
+				stylesheet.Indent, specialStyle.Render("~"), "return to root")
+		}
 		children := c.Commands()
 		for _, child := range children {
 			// handle special commands
