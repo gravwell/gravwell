@@ -26,7 +26,10 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const borderWidth int = 48
+const (
+	borderWidth int = 48
+	fieldWidth  int = 14
+)
 
 var sectionHeader = func(str string) string { return stylesheet.Cur.TertiaryText.Bold(true).Render(str) }
 
@@ -86,11 +89,11 @@ func NewUserMyInfoAction() action.Pair {
 				"%s%v",
 				inf.Name,
 				inf.Email,
-				stylesheet.Cur.Field("UserID", 14), inf.UID,
-				stylesheet.Cur.Field("MFA Enabled?", 14), inf.MFA.MFAEnabled(),
-				stylesheet.Cur.Field("Groups", 14), inf.Groups,
-				stylesheet.Cur.Field("Capabilities", 14), inf.CapabilityList(),
-				stylesheet.Cur.Field("Admin", 14), inf.Admin)
+				stylesheet.Cur.Field("UserID", fieldWidth), inf.UID,
+				stylesheet.Cur.Field("MFA Enabled?", fieldWidth), inf.MFA.MFAEnabled(),
+				stylesheet.Cur.Field("Groups", fieldWidth), inf.Groups,
+				stylesheet.Cur.Field("Capabilities", fieldWidth), inf.CapabilityList(),
+				stylesheet.Cur.Field("Admin", fieldWidth), inf.Admin)
 			res, err := stylesheet.SegmentedBorder(stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()),
 				borderWidth,
 				struct {
