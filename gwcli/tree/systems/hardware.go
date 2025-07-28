@@ -138,15 +138,15 @@ func constructOverview(o ovrvw, width int) string {
 		// we need to pre-format the strings, otherwise Go will get confused counting the ASCII escapes.
 		cu := fmt.Sprintf("%6.2f", o.CPUAvgUsage)
 		mu := fmt.Sprintf("%6.2f", o.MemAvgUsage)
-		avgs = stylesheet.Cur.FieldText.Render(field("Avg CPU Usage", 17)) + cu + "%\n"
-		avgs += stylesheet.Cur.FieldText.Render(field("Avg Memory Usage", 17)) + mu + "%"
+		avgs = stylesheet.Cur.FieldText.Render(stylesheet.Cur.Field("Avg CPU Usage", 17)) + cu + "%\n"
+		avgs += stylesheet.Cur.FieldText.Render(stylesheet.Cur.Field("Avg Memory Usage", 17)) + mu + "%"
 	}
 	{ // now for disks
 		disksTitle = " " + stylesheet.Cur.SecondaryText.Bold(true).Render(fmt.Sprintf("Disks[%d]", o.Disks.DiskCount)) + " "
-		totalField := field("Total Space", 15)
-		usedField := field("Space Used", 15)
-		avgReadField := field("Avg Reads/sec", 15)
-		avgWriteField := field("Avg Writes/sec", 15)
+		totalField := stylesheet.Cur.Field("Total Space", 15)
+		usedField := stylesheet.Cur.Field("Space Used", 15)
+		avgReadField := stylesheet.Cur.Field("Avg Reads/sec", 15)
+		avgWriteField := stylesheet.Cur.Field("Avg Writes/sec", 15)
 
 		// convert accumulations to GB
 		totalGB := fmt.Sprintf("%8.2f", ((float64(o.Disks.Total)/1024)/1024)/1024)
@@ -238,11 +238,11 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 					StylizedTitle: " " + subSectionHeader("Health") + " ",
 				}
 				// generate content
-				writeString(&sb, field("Gravwell Version", 17)+stat.Stats.BuildInfo.CanonicalVersion.String()+"\n")
-				writeString(&sb, field("Uptime", 17)+(time.Duration(stat.Stats.Uptime)*time.Second).String()+"\n")
+				writeString(&sb, stylesheet.Cur.Field("Gravwell Version", 17)+stat.Stats.BuildInfo.CanonicalVersion.String()+"\n")
+				writeString(&sb, stylesheet.Cur.Field("Uptime", 17)+(time.Duration(stat.Stats.Uptime)*time.Second).String()+"\n")
 				netUpKB := float64(stat.Stats.Net.Up) / 1024
 				netDownKB := float64(stat.Stats.Net.Down) / 1024
-				writeString(&sb, fmt.Sprintf("%s%.2fKB/%.2fKB\n", field("Up/Down", 17), netUpKB, netDownKB))
+				writeString(&sb, fmt.Sprintf("%s%.2fKB/%.2fKB\n", stylesheet.Cur.Field("Up/Down", 17), netUpKB, netDownKB))
 				var readMB, writeMB float64
 				for _, b := range stat.Stats.IO {
 					readMB += float64(b.Read)
@@ -250,7 +250,7 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 				}
 				readMB = readMB / 1024 / 1024
 				writeMB = writeMB / 1024 / 1024
-				writeString(&sb, fmt.Sprintf("%s%.2fKB/%.2fKB", field("Read/Write", 17), readMB, writeMB))
+				writeString(&sb, fmt.Sprintf("%s%.2fKB/%.2fKB", stylesheet.Cur.Field("Read/Write", 17), readMB, writeMB))
 				// write content
 				sctn.Contents = sb.String()
 				sections = append(sections, sctn)
@@ -308,12 +308,12 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 						"%s %sMHz\n"+
 						"%s %sKB per CPU\n"+
 						"%s %dMB", // I believe this is L2/core and L3/thread
-					field("System Version", 16), hw.SystemVersion,
-					field("CPU Model", 16), hw.CPUModel,
-					field("CPU Count", 16), hw.CPUCount,
-					field("CPU Clock Speed", 16), hw.CPUMhz,
-					field("CPU Cache Size", 16), hw.CPUCache,
-					field("Total Memory", 16), hw.TotalMemoryMB))
+					stylesheet.Cur.Field("System Version", 16), hw.SystemVersion,
+					stylesheet.Cur.Field("CPU Model", 16), hw.CPUModel,
+					stylesheet.Cur.Field("CPU Count", 16), hw.CPUCount,
+					stylesheet.Cur.Field("CPU Clock Speed", 16), hw.CPUMhz,
+					stylesheet.Cur.Field("CPU Cache Size", 16), hw.CPUCache,
+					stylesheet.Cur.Field("Total Memory", 16), hw.TotalMemoryMB))
 				sctn.Contents = sb.String()
 			}
 			sections = append(sections, sctn)
@@ -335,15 +335,6 @@ func constructIndexers(desc map[string]types.SysInfo, sys map[string]types.SysSt
 	}
 
 	return toRet.String(), longestLineWidth
-}
-
-// styles the given text as a field by colorizing it and appending a colon and a space.
-func field(fieldText string, width int) string {
-	pad := width - len(fieldText)
-	if pad > 0 {
-		fieldText = strings.Repeat(" ", pad) + fieldText
-	}
-	return stylesheet.Cur.FieldText.Render(fieldText + ": ")
 }
 
 // ovrvw holds the collected averages and totals calculated by gatherStats().

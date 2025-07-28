@@ -118,6 +118,7 @@ func (s Sheet) Prompt(text string) string {
 }
 
 // Field returns the title in the form ` <title>: `, with the spacing prefix set by width-len(title).
+// fieldTitle is stylized with by Cur.FieldText.
 func (s Sheet) Field(fieldTitle string, width int) string {
 	pad := width - len(fieldTitle)
 	if pad > 0 {
