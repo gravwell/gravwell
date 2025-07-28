@@ -736,12 +736,28 @@ func TestQueries(t *testing.T) {
 func TestLogin(t *testing.T) {
 	t.Run("login via full cred, no MFA", func(t *testing.T) {
 		// issue the my info command to confirm we are logged into the correct user
-		cmd := fmt.Sprintf("-u %s --password %s --insecure --"+ft.NoInteractive.Name()+" user myinfo", user, password)
+		cmd := fmt.Sprintf("-u %s --password %s --insecure --"+ft.NoInteractive.Name()+" user myinfo --"+ft.CSV.Name(), user, password)
 		statusCode, cmdOut, stderr := executeCmd(t, cmd)
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 
-		testUser(t, user, cmdOut)
+		// check that the output is valid CSV
+		csvR := csv.NewReader(strings.NewReader(cmdOut))
+		records, err := csvR.ReadAll()
+		if err != nil {
+			t.Fatal(err)
+		} else if len(records) != 2 { // check that we have exactly 2 lines (a header line and 1 data line)
+			t.Fatal("bad line count.", testsupport.ExpectedActual(2, len(records)))
+		}
+		// walk the header line for username's index
+		idx := slices.Index(records[0], "User")
+		if idx == -1 {
+			t.Fatal("found no 'User' column")
+		}
+		username := records[1][idx]
+		if user != username {
+			t.Fatal(testsupport.ExpectedActual(user, username))
+		}
 	})
 }
 
@@ -908,24 +924,6 @@ func checkResult(t *testing.T, fatal bool, source, expected, actual string) {
 		} else {
 			t.Errorf("bad %s: %s", source, testsupport.ExpectedActual(expected, actual))
 		}
-	}
-}
-
-// Given the expected username and the output of a myinfo command, tests if the expected user was printed.
-func testUser(t *testing.T, expectedUser string, stdout string) {
-	// we only want the first line
-	lines := strings.Split(stdout, "\n")
-	if len(lines) < 1 {
-		t.Fatal("my info has no header line: ", stdout)
-	}
-	exploded := strings.Split(lines[0], ",")
-	if len(exploded) != 3 {
-		t.Fatal("expected exactly 3 fields on the header line, found ", len(exploded), " on ", stdout)
-	}
-
-	got := strings.TrimSpace(exploded[1])
-	if got != user {
-		t.Fatal("mismatching username.", testsupport.ExpectedActual(expectedUser, got))
 	}
 }
 
