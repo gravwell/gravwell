@@ -306,6 +306,10 @@ func (m Mother) View() string {
 				if lastRune == ' ' {
 					filtered = append(filtered, before)
 				} else {
+					// display only the last item
+					if exploded := strings.Split(curInput, " "); len(exploded) > 0 {
+						curInput = exploded[len(exploded)-1]
+					}
 					filtered = append(filtered, stylesheet.Cur.ExampleText.Render(curInput)+before)
 				}
 			}
