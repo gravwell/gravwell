@@ -225,22 +225,22 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			3 // include a padding
 	case tea.KeyMsg:
 		// NOTE kill keys are handled above
-		if msg.Type == tea.KeyF1 { // help
+		switch msg.Type {
+		case tea.KeyF1: // help
 			return m, contextHelp(&m, strings.Split(strings.TrimSpace(m.ti.Value()), " "))
-		}
-		if msg.Type == tea.KeyUp { // history
+		case tea.KeyUp: // history
 			m.ti.SetValue(m.history.getOlderRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		}
-		if msg.Type == tea.KeyDown { // history
+		case tea.KeyDown: // history
 			m.ti.SetValue(m.history.getNewerRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		}
-		if msg.Type == tea.KeyEnter { // submit
+		case tea.KeyEnter:
 			m.history.unsetFetch()
 			return m, processInput(&m)
+		case tea.KeyCtrlL:
+			return m, clear(&m, nil)
 		}
 	}
 
