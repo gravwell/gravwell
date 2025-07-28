@@ -362,6 +362,9 @@ func processInput(m *Mother) tea.Cmd {
 
 		// reconstitute remaining tokens to re-split them via shlex
 		cmd := processActionHandoff(m, wr.endCommand, wr.remainingString)
+		if cmd == nil {
+			return historyCmd
+		}
 		return tea.Sequence(historyCmd, cmd)
 
 	case invalidCommand:
@@ -459,9 +462,9 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 	}
 	clilog.Writer.Debugf("Handing off control to %s", m.active.command.Name())
 	if cmd != nil {
-		return tea.Batch(cmd, tea.WindowSize())
+		return cmd
 	}
-	return tea.WindowSize()
+	return nil
 }
 
 // Walk through the given tokens
