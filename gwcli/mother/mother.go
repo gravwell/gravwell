@@ -155,7 +155,7 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 var _ tea.Model = Mother{}
 
 func (m Mother) Init() tea.Cmd {
-	return tea.WindowSize()
+	return tea.WindowSize() // TODO we can likely junk this
 }
 
 // Update (specifically Mother's Update()) is always the entrypoint for BubbleTea to drive.
@@ -467,9 +467,9 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 	}
 	clilog.Writer.Debugf("Handing off control to %s", m.active.command.Name())
 	if cmd != nil {
-		return tea.Batch(cmd, tea.WindowSize())
+		return cmd //tea.Batch(cmd, tea.WindowSize())
 	}
-	return tea.WindowSize()
+	return nil //tea.WindowSize()
 }
 
 // Walk through the given tokens

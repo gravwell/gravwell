@@ -32,7 +32,7 @@ Tree nodes (commands that require further input/are submenus), such as `user`, a
 
     - This lesson took a while to sink in; you may see `[]tea.Cmd` signatures floating around, but these should be replaced, primarily with `.Batch()`s. I already incorporated .Sequence() where important.
 
-    - There are some caveats to this, with BubbleTea not guaranteeing to fully unpack nested sequence and batch commands in proper order ([#847](https://github.com/charmbracelet/bubbletea/issues/847), [#680](https://github.com/charmbracelet/bubbletea/issues/680)). This is actually why Mother sequences a WindowSizeCmd whenever it processes SetArgs on a new child action.
+    - There are some caveats to this, with BubbleTea not guaranteeing to fully unpack nested sequence and batch commands in proper order ([#847](https://github.com/charmbracelet/bubbletea/issues/847), [#680](https://github.com/charmbracelet/bubbletea/issues/680)).
 
 - Most errors should be recoverable while in interactive mode and therefore panics while running are profane. Panicking during setup, however, is perfectly acceptable; errors during setup are almost certainly developer error, therefore the earlier they arise the better.
 
@@ -175,9 +175,6 @@ Actions must satisfy the `action.Model` interface to be able to supplant Mother 
 
 `SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error)` sets fields in the child that manipulate its next run. It is called when Mother *first enters handoff mode* for a child, before the child's first `Update()`. It provides the flagset this action inherited from its ancestors as well as all tokens remaining *after* the action invocation. The former is likely to be unused (but provided just in case) and the latter is pre-split by shlex (shell-splitting rules). Last-known available width and height are also provided. 
 It returns, respectively: the reason this argument set is invalid (or ""), tea.Cmds the child needs run on startup (eg: right now), errors outside of the users control. The startup Cmd somewhat takes the place of `tea.Model.Init()`.
-
-> [!NOTE]
-> Mother prepends a WindowSizeCmd to whatever command is returned from .SetArgs(); action's SetArgs() do not need to Batch/Sequence WindowSizeCmd themselves.
 
 ```mermaid
 flowchart

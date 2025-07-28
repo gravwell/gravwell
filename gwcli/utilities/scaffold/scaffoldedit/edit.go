@@ -343,6 +343,9 @@ func (em *editModel[I, S]) SetArgs(fs *pflag.FlagSet, tokens []string, width, he
 	em.listInitialized = true
 	em.mode = selecting
 
+	em.width = width
+	em.height = height
+
 	return "", nil, nil
 }
 

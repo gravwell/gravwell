@@ -400,5 +400,7 @@ func (d *deleteModel[I]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 
 	}
 	d.dryrun = dryrun
+	d.width = width
+	d.height = height
 	return "", nil, nil
 }

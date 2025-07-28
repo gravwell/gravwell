@@ -156,6 +156,8 @@ func NewDataScope(data []string, motherRunning bool,
 
 //#region constructor options
 
+// TODO include WithDimensions(width, height int)
+
 // WithAutoDownload prep-populates the download tab's values and, if able, automatically download the results in the
 // given format.
 func WithAutoDownload(outfn string, append, json, csv bool) DataScopeOption {

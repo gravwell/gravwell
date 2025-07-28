@@ -496,6 +496,8 @@ func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height 
 		}
 	}
 
+	c.width = width
+
 	return "", nil, nil
 }
 

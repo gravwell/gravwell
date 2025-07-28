@@ -353,5 +353,8 @@ func (i *ingest) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) 
 		i.fg.CurrentDirectory = flags.dir
 	}
 
+	i.width = width
+	i.height = height
+
 	return "", i.fg.Init(), nil
 }
