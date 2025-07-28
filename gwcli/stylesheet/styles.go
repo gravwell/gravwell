@@ -19,6 +19,8 @@ package stylesheet
 // miscellaneous styles
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 )
 
@@ -113,6 +115,15 @@ func NewSheet(pip func() string, promptSymbol func() string, promptText func(str
 
 func (s Sheet) Prompt(text string) string {
 	return s.PromptSty.Text(text) + s.PromptSty.Symbol()
+}
+
+// Field returns the title in the form ` <title>: `, with the spacing prefix set by width-len(title).
+func (s Sheet) Field(fieldTitle string, width int) string {
+	pad := width - len(fieldTitle)
+	if pad > 0 {
+		fieldTitle = strings.Repeat(" ", pad) + fieldTitle
+	}
+	return Cur.FieldText.Render(fieldTitle + ": ")
 }
 
 // A Tetrad is a set of 4 colors that can be transmuted into a full sheet via GenerateSheet().
