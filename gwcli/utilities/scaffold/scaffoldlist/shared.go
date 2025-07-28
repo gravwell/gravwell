@@ -85,9 +85,9 @@ func listOutput[retStruct any](
 	data, err := dataFn(fs)
 	if err != nil {
 		return "", err
-	} else if len(data) < 1 {
+	} /*else if len(data) < 1 {
 		return "", nil
-	}
+	}*/
 
 	// hand off control
 	clilog.Writer.Debugf("List: format %s | row count: %d", format, len(data))
