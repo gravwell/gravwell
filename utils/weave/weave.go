@@ -36,7 +36,9 @@ func errFailedKindAssert(assertType string, kind string) error {
 // include/exclude and returns a string containing the csv representation of the
 // data contained therein.
 //
-// ! Returns the empty string if columns or st are empty
+// ! Returns the empty string if columns is empty.
+//
+// ! Returns just the header if no valid data are given.
 func ToCSV[Any any](st []Any, columns []string, options CSVOptions) string {
 	// DESIGN:
 	// We have a list of column, ordered.
@@ -45,17 +47,9 @@ func ToCSV[Any any](st []Any, columns []string, options CSVOptions) string {
 	//	iterate through the list of columns and use the map to fetch the
 	//	column/field's values by index, building the csv token by token
 
-	if columns == nil || st == nil || len(st) < 1 || len(columns) < 1 { // superfluous request
+	if len(columns) < 1 { // superfluous request
 		return ""
 	}
-
-	// test the first struct is actually a struct
-	// if later structs do not match, that is a developer error
-	if reflect.TypeOf(st[0]).Kind() != reflect.Struct {
-		return ""
-	}
-
-	columnMap := buildColumnMap(st[0], columns)
 
 	// generate header line, referencing aliases if relevant
 	var hdr string
@@ -72,6 +66,14 @@ func ToCSV[Any any](st []Any, columns []string, options CSVOptions) string {
 	} else {
 		hdr = strings.Join(columns, ",")
 	}
+
+	// test that there is actually data and that (at least the first) is a struct.
+	// if later structs do not match, that is a caller issue
+	if len(st) < 1 || reflect.TypeOf(st[0]).Kind() != reflect.Struct {
+		return hdr
+	}
+
+	columnMap := buildColumnMap(st[0], columns)
 
 	var csv strings.Builder // stores the actual data
 
@@ -114,6 +116,8 @@ func stringifyStructCSV(s interface{}, columns []string, columnMap map[string][]
 // outputs a table containing the data in the array of the struct.
 // If no columns are specified or st is nil, returns the empty string.
 // If ToTable encounters a nil pointer while traversing the data, it will populate the cell (and the cells of all child fields) with "nil".
+//
+// ! Returns the empty string if data or columns are empty.
 func ToTable[Any any](st []Any, columns []string, options TableOptions) string {
 	if len(st) < 1 || len(columns) < 1 { // superfluous request
 		return ""
@@ -203,7 +207,8 @@ type gComplex[t float32 | float64] struct {
 
 // ToJSON when given an array of an arbitrary struct and the list of *fully-qualified* fields,
 // outputs a JSON array containing the data in the array of the struct.
-// Output is sorted alphabetically
+// Output is sorted alphabetically.
+// If no valid data is given, prints "[]".
 func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, error) {
 	if columns == nil || st == nil || len(st) < 1 || len(columns) < 1 { // superfluous request
 		return "[]", nil
