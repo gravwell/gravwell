@@ -132,12 +132,12 @@ func (m mod) view(termWidth int) string {
 	maxFrameSize := max(stylesheet.Cur.ComposableSty.FocusedBorder.GetHorizontalFrameSize(), stylesheet.Cur.ComposableSty.UnfocusedBorder.GetHorizontalFrameSize())
 	availWidth := termWidth - maxFrameSize
 
-	src := stylesheet.Pip(m.selected, src) + stylesheet.Cur.FieldText.Render("source") + ": " + m.srcTI.View()
-	ts := stylesheet.Pip(m.selected, ignoreTS) + stylesheet.Cur.FieldText.Render("Ignore Timestamps?") + stylesheet.Checkbox(m.ignoreTS)
+	src := stylesheet.Pip(m.selected, src) + stylesheet.Cur.Field("source", 0) + m.srcTI.View()
+	ts := stylesheet.Pip(m.selected, ignoreTS) + stylesheet.Cur.Field("Ignore Timestamps?", 0) + stylesheet.Checkbox(m.ignoreTS)
 	l := lipgloss.JoinVertical(lipgloss.Left, src, ts)
 
-	tag := stylesheet.Pip(m.selected, tag) + stylesheet.Cur.FieldText.Render("tag") + ": " + m.tagTI.View()
-	tm := stylesheet.Pip(m.selected, localTime) + stylesheet.Cur.FieldText.Render("Use Server Local Time?") + " " + stylesheet.Checkbox(m.localTime)
+	tag := stylesheet.Pip(m.selected, tag) + stylesheet.Cur.Field("tag", 0) + m.tagTI.View()
+	tm := stylesheet.Pip(m.selected, localTime) + stylesheet.Cur.Field("Use Server Local Time?", 0) + stylesheet.Checkbox(m.localTime)
 	r := lipgloss.JoinVertical(lipgloss.Left, tag, tm)
 
 	s := lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Width(availWidth).Render(lipgloss.JoinHorizontal(lipgloss.Center, l, r))

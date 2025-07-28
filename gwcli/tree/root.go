@@ -355,33 +355,33 @@ func help(c *cobra.Command, _ []string) {
 	var sb strings.Builder
 
 	// write the description block
-	sb.WriteString(stylesheet.Cur.FieldText.Render("Synopsis:") + "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(strings.TrimSpace(c.Long)) + "\n\n")
+	sb.WriteString(stylesheet.Cur.Field("Synopsis", 0) + "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(strings.TrimSpace(c.Long)) + "\n\n")
 
 	// write usage line, if available
 	// NOTE(rlandau): assumes usage is in the form "<cmd.Name> <following usage>"
 	if usage := c.UsageString(); usage != "" {
-		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.FieldText.Render("Usage:"), usage)
+		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Usage", 0), usage)
 	}
 
 	// write aliases line, if available
 	if aliases := strings.Join(c.Aliases, ", "); aliases != "" {
-		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.FieldText.Render("Aliases:"), aliases)
+		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Aliases", 0), aliases)
 	}
 
 	// write example line, if available
 	// NOTE(rlandau): assumes example is in the form "<cmd.Name> <following example>"
 	if ex := strings.TrimSpace(c.Example); ex != "" {
-		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.FieldText.Render("Example:"), c.Example) // use the untrimmed version
+		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Example", 0), c.Example) // use the untrimmed version
 	}
 
 	// write local flags
 	if lf := c.LocalNonPersistentFlags().FlagUsages(); lf != "" {
-		sb.WriteString(stylesheet.Cur.FieldText.Render("Flags:") + "\n" + lf + "\n")
+		sb.WriteString(stylesheet.Cur.Field("Flags", 0) + "\n" + lf + "\n")
 	}
 
 	// write global flags
 	if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
-		sb.WriteString(stylesheet.Cur.FieldText.Render("Global Flags:") + "\n" + gf)
+		sb.WriteString(stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
 	}
 
 	// attach children

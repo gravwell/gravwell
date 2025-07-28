@@ -138,8 +138,8 @@ func constructOverview(o ovrvw, width int) string {
 		// we need to pre-format the strings, otherwise Go will get confused counting the ASCII escapes.
 		cu := fmt.Sprintf("%6.2f", o.CPUAvgUsage)
 		mu := fmt.Sprintf("%6.2f", o.MemAvgUsage)
-		avgs = stylesheet.Cur.FieldText.Render(stylesheet.Cur.Field("Avg CPU Usage", 17)) + cu + "%\n"
-		avgs += stylesheet.Cur.FieldText.Render(stylesheet.Cur.Field("Avg Memory Usage", 17)) + mu + "%"
+		avgs = stylesheet.Cur.Field("Avg CPU Usage", 17) + cu + "%\n"
+		avgs += stylesheet.Cur.Field("Avg Memory Usage", 17) + mu + "%"
 	}
 	{ // now for disks
 		disksTitle = " " + stylesheet.Cur.SecondaryText.Bold(true).Render(fmt.Sprintf("Disks[%d]", o.Disks.DiskCount)) + " "

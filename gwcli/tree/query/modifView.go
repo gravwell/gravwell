@@ -147,7 +147,7 @@ func (mv *modifView) update(msg tea.Msg) ([]tea.Cmd, bool) { // TODO switch away
 func (mv *modifView) view() string {
 	var sb strings.Builder
 
-	sb.WriteString(" " + stylesheet.Cur.FieldText.Render("Duration:") + "\n")
+	sb.WriteString(" " + stylesheet.Cur.Field("Duration", 0) + "\n")
 	sb.WriteString(
 		fmt.Sprintf("%s%s\n", stylesheet.Pip(mv.selected, duration), mv.durationTI.View()),
 	)
@@ -156,7 +156,7 @@ func (mv *modifView) view() string {
 		fmt.Sprintf("%s%s %s\n", stylesheet.Pip(mv.selected, background), stylesheet.Checkbox(mv.background), stylesheet.Cur.PrimaryText.Render("Background?")),
 	)
 
-	sb.WriteString(" " + stylesheet.Cur.FieldText.Render("Entries/page:") + "\n")
+	sb.WriteString(" " + stylesheet.Cur.Field("Entries/page", 0) + "\n")
 	sb.WriteString(
 		fmt.Sprintf("%s%s\n", stylesheet.Pip(mv.selected, perpage), mv.perpageTI.View()),
 	)
