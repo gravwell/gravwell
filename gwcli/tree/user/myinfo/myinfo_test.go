@@ -14,6 +14,7 @@ package myinfo
 import (
 	"bytes"
 	"encoding/csv"
+	"errors"
 	"path"
 	"strings"
 	"testing"
@@ -91,14 +92,9 @@ func nonInteractive(t *testing.T, action *cobra.Command) (normalOut, csvOut stri
 		t.Fatal(err)
 	}
 	csvOut = strings.TrimSpace(outBuf.String())
-	//t.Fatal(csvOut)
-	// perform some basic validation
-	if exploded := strings.Split(csvOut, "\n"); len(exploded) != 2 {
-		t.Error("bad CSV line count.", ExpectedActual(2, len(exploded)))
-	}
-	csvR := csv.NewReader(strings.NewReader(csvOut))
-	if _, err := csvR.ReadAll(); err != nil {
-		t.Errorf("failed to read CSV: %v", err)
+
+	if err := validateCSV(csvOut); err != nil {
+		t.Error(err)
 	}
 	return normalOut, csvOut
 }
@@ -161,5 +157,21 @@ func model(t *testing.T, mdl action.Model) (normalOut, csvOut string) {
 		t.Error(err)
 	}
 
+	if err := validateCSV(csvOut); err != nil {
+		t.Error(err)
+	}
+
 	return normalOut, csvOut
+}
+
+func validateCSV(csvStr string) error {
+	// perform some basic validation
+	if exploded := strings.Split(csvStr, "\n"); len(exploded) != 2 {
+		return errors.New("bad CSV line count." + ExpectedActual(2, len(exploded)))
+	}
+	csvR := csv.NewReader(strings.NewReader(csvStr))
+	if _, err := csvR.ReadAll(); err != nil {
+		return errors.New("failed to read CSV: " + err.Error())
+	}
+	return nil
 }
