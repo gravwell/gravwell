@@ -380,7 +380,7 @@ func help(c *cobra.Command, _ []string) {
 	}
 
 	// write global flags (except for the completion command)
-	if c.Name() != "completion" {
+	if c.Name() != "completion" && (c.HasParent() && c.Parent().Name() != "completion") {
 		if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
 			sb.WriteString("\n" + stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
 		}
