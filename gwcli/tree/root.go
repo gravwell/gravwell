@@ -376,12 +376,14 @@ func help(c *cobra.Command, _ []string) {
 
 	// write local flags
 	if lf := c.LocalNonPersistentFlags().FlagUsages(); lf != "" {
-		sb.WriteString(stylesheet.Cur.Field("Flags", 0) + "\n" + lf + "\n")
+		sb.WriteString(stylesheet.Cur.Field("Flags", 0) + "\n" + lf)
 	}
 
-	// write global flags
-	if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
-		sb.WriteString(stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
+	// write global flags (except for the completion command)
+	if c.Name() != "completion" {
+		if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
+			sb.WriteString("\n" + stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
+		}
 	}
 
 	// attach children
