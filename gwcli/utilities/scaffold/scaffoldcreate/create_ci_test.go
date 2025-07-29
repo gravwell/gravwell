@@ -24,7 +24,7 @@ import (
 
 func Test_createModel_basics(t *testing.T) {
 	cfg := map[string]Field{
-		"A": NewField(true, "A", 0),
+		"A": NewField(true, "A", 10),
 		"B": NewField(true, "B", 0),
 	}
 	ca := NewCreateAction("test", cfg, func(cfg Config, values Values, fs *pflag.FlagSet) (id any, invalid string, err error) {
