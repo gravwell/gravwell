@@ -83,6 +83,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection/credprompt"
 	"github.com/gravwell/gravwell/v4/gwcli/connection/mfaprompt"
@@ -438,7 +439,7 @@ func createTokenFile(username string) error {
 		return fmt.Errorf("failed to close token file: %v", err)
 	}
 
-	clilog.Writer.Infof("Created token file @ %v", cfgdir.DefaultTokenPath)
+	clilog.Writer.Infof("Created token file (user %v) @ %v", username, cfgdir.DefaultTokenPath)
 	return nil
 }
 
@@ -455,10 +456,9 @@ func keepRefreshed(kill chan bool) {
 
 		select {
 		case <-kill:
-			clilog.Writer.Debug("refresher closing up shop")
+			clilog.Writer.Debug("closing up shop", rfc5424.SDParam{Name: "sublogger", Value: "refresher"})
 			return
 		case <-time.After(sleepTime):
-			clilog.Writer.Debugf("refresher: refreshing JWT...")
 			clientMu.Lock()
 			// ensure the client is still in an acceptable state
 			if Client == nil {
@@ -467,16 +467,20 @@ func keepRefreshed(kill chan bool) {
 				continue
 			} else if Client.State() != grav.STATE_AUTHED {
 				clientMu.Unlock()
-				clilog.Writer.Errorf("failed to refresh login: client not authenticated")
+				clilog.Writer.Error("failed to refresh login: client not authenticated", rfc5424.SDParam{Name: "sublogger", Value: "refresher"})
 				// back off for a few minutes
 				time.Sleep(3 * time.Minute)
 				continue
 			}
 			// token will expire soon, regenerate it
 			if err := Client.RefreshLoginToken(); err != nil {
-				clilog.Writer.Errorf("failed to refresh login: %v", err)
+				clilog.Writer.Error("failed to refresh login", rfc5424.SDParam{Name: "sublogger", Value: "refresher"}, rfc5424.SDParam{Name: "Error", Value: err.Error()})
 			}
 			// write the new token to our token file
+			clilog.Writer.Info("rewriting token file ",
+				rfc5424.SDParam{Name: "username", Value: myInfo.Name},
+				rfc5424.SDParam{Name: "path", Value: cfgdir.DefaultTokenPath},
+				rfc5424.SDParam{Name: "sublogger", Value: "refresher"})
 			if err := createTokenFile(myInfo.User); err != nil {
 				clilog.Writer.Warnf("%v", err)
 			}
