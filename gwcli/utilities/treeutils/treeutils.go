@@ -11,12 +11,16 @@
 package treeutils
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 
 	"github.com/spf13/cobra"
 )
@@ -33,6 +37,31 @@ func GenerateNav(use, short, long string, aliases []string,
 		GroupID: group.NavID,
 		Run:     NavRun,
 	}
+
+	cmd.SetUsageFunc(
+		func(c *cobra.Command) error {
+			if c.HasSubCommands() {
+				// select the first few children.
+				// if there are more, suffix an ellipse
+				kids := make([]string, 4)
+				for i, c := range c.Commands() {
+					if i > 2 {
+						kids[3] = "..."
+						break
+					}
+					kids[i] = stylesheet.ColorCommandName(c)
+				}
+				kids = slices.Clip(kids)
+				fmt.Fprintf(c.OutOrStdout(), "%s %s", c.Name(), ft.MutuallyExclusive(kids))
+
+			} else {
+				fmt.Fprintf(c.OutOrStdout(), "%s [subcommand]", c.Name())
+
+			}
+
+			return nil
+		},
+	)
 
 	// associate groups available to this (and all) navs
 	group.AddNavGroup(cmd)
@@ -51,12 +80,25 @@ func GenerateNav(use, short, long string, aliases []string,
 	return cmd
 }
 
+type GenerateActionOptions struct {
+	// Sets the general form of this command (the usage).
+	// Use is already prefixed; no need to include it or a path in the example.
+	// Printed in the form: "Usage: <command.Name> <Usage>"
+	Usage string
+	// Sets the example on the command.
+	// Use is already prefixed; no need to include it or a path in the example.
+	// Printed in the form: "Example: <command.Name> <Example>"
+	Example string
+}
+
 // GenerateAction returns a boilerplate action command with all required information for it to be fed into action.NewPair().
 // Basically just a form of cobra.Command constructor.
 //
-// ! Does NOT add this action to the action map; you still need to pass the returned command to its Nav.
+// Accepts 0 or 1 GenerateActionOptions; any more are ignored.
+//
+// ! Does NOT add this action to the action map or add the Action to a parent.
 func GenerateAction(use, short, long string, aliases []string,
-	runFunc func(*cobra.Command, []string)) *cobra.Command {
+	runFunc func(*cobra.Command, []string), options ...GenerateActionOptions) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     use,
 		Short:   short,
@@ -66,20 +108,37 @@ func GenerateAction(use, short, long string, aliases []string,
 		Run:     runFunc,
 	}
 
-	cmd.SilenceUsage = true
+	// possibly overwritten by options
+	cmd.SetUsageFunc(func(c *cobra.Command) error {
+		fmt.Fprintf(c.OutOrStdout(), "%s %s", cmd.Name(), ft.Optional("flags"))
+		return nil
+	})
 
+	// apply options
+	if len(options) > 0 {
+		if usage := strings.TrimSpace(options[0].Usage); usage != "" {
+			cmd.SetUsageFunc(func(c *cobra.Command) error {
+				fmt.Fprintf(c.OutOrStdout(), "%s %s", cmd.Name(), options[0].Usage)
+				return nil
+			})
+		}
+		if ex := strings.TrimSpace(options[0].Example); ex != "" {
+			cmd.Example = cmd.Name() + " " + options[0].Example
+		}
+	}
+
+	cmd.SilenceUsage = true
 	return cmd
 }
 
 // NavRun is the Run function for all Navs (nodes).
-// It checks for the --script flag and initializes Mother with the command as her pwd if script is
-// unset.
+// It checks for the --no-interactive flag and initializes Mother with the command as her pwd if script is unset.
 var NavRun = func(cmd *cobra.Command, args []string) {
-	script, err := cmd.Flags().GetBool("script")
+	noInteractive, err := cmd.Flags().GetBool(ft.NoInteractive.Name())
 	if err != nil {
 		panic(err)
 	}
-	if script {
+	if noInteractive {
 		cmd.Help()
 		return
 	}

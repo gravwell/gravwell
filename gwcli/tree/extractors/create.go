@@ -49,9 +49,9 @@ func newExtractorsCreateAction() action.Pair {
 		createDescKey: scaffoldcreate.Field{
 			Required:      true,
 			Title:         "description",
-			Usage:         "description of the new extractor",
+			Usage:         ft.Description.Usage("extractor"),
 			Type:          scaffoldcreate.Text,
-			FlagName:      "desc",
+			FlagName:      ft.Description.Name(),
 			FlagShorthand: 'd',
 			Order:         90,
 		},
@@ -157,7 +157,7 @@ func newExtractorsCreateAction() action.Pair {
 	}
 
 	return scaffoldcreate.NewCreateAction("extractor", fields, create, func() (fs pflag.FlagSet) {
-		fs.Bool(ft.Name.Dryrun, false, ft.Usage.Dryrun)
+		ft.Dryrun.Register(&fs)
 		return fs
 	})
 }
@@ -179,7 +179,7 @@ func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values, fs *pflag.FlagS
 		dr  bool
 		err error
 	)
-	if dr, err = fs.GetBool(ft.Name.Dryrun); err != nil {
+	if dr, err = fs.GetBool(ft.Dryrun.Name()); err != nil {
 		return 0, "", err
 	}
 

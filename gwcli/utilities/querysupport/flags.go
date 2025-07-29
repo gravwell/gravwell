@@ -29,14 +29,14 @@ type Schedule struct {
 //
 // Should be constructed via TransmogrifyFlags().
 type QueryFlags struct {
-	Duration   time.Duration
-	Script     bool
-	JSON       bool
-	CSV        bool
-	OutPath    string
-	Append     bool
-	Schedule   Schedule
-	Background bool
+	Duration      time.Duration
+	NoInteractive bool
+	JSON          bool
+	CSV           bool
+	OutPath       string
+	Append        bool
+	Schedule      Schedule
+	Background    bool
 	//referenceID string
 }
 
@@ -49,22 +49,22 @@ func TransmogrifyFlags(fs *pflag.FlagSet) QueryFlags {
 	var qf QueryFlags
 
 	qf.Duration, _ = fs.GetDuration("duration")
-	qf.Script, _ = fs.GetBool(ft.Name.Script)
-	qf.JSON, _ = fs.GetBool(ft.Name.JSON)
-	qf.CSV, _ = fs.GetBool(ft.Name.CSV)
-	qf.Append, _ = fs.GetBool(ft.Name.Append)
+	qf.NoInteractive, _ = fs.GetBool(ft.NoInteractive.Name())
+	qf.JSON, _ = fs.GetBool(ft.JSON.Name())
+	qf.CSV, _ = fs.GetBool(ft.CSV.Name())
+	qf.Append, _ = fs.GetBool(ft.Append.Name())
 	qf.Background, _ = fs.GetBool("background")
 
-	qf.OutPath, _ = fs.GetString(ft.Name.Output)
+	qf.OutPath, _ = fs.GetString(ft.Output.Name())
 	qf.OutPath = strings.TrimSpace(qf.OutPath)
 
-	qf.Schedule.CronFreq, _ = fs.GetString(ft.Name.Frequency)
+	qf.Schedule.CronFreq, _ = fs.GetString(ft.Frequency.Name())
 	qf.Schedule.CronFreq = strings.TrimSpace(qf.Schedule.CronFreq)
 
-	qf.Schedule.Name, _ = fs.GetString(ft.Name.Name)
+	qf.Schedule.Name, _ = fs.GetString(ft.Name.Name())
 	qf.Schedule.Name = strings.TrimSpace(qf.Schedule.Name)
 
-	qf.Schedule.Desc, _ = fs.GetString(ft.Name.Desc)
+	qf.Schedule.Desc, _ = fs.GetString(ft.Description.Name())
 	qf.Schedule.Desc = strings.TrimSpace(qf.Schedule.Desc)
 
 	return qf

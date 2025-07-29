@@ -21,6 +21,8 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
 )
@@ -199,25 +201,14 @@ func Test_run(t *testing.T) {
 
 		fs := initialLocalFlagSet()
 		cmd.Flags().AddFlagSet(&fs)
-		// mock the root persistent flags that should have been passed down
-		cmd.Flags().Bool("script", false,
-			"disallows gwcli from entering interactive mode and prints context help instead.\n"+
-				"Recommended for use in scripts to avoid hanging on a malformed command.")
-		cmd.Flags().StringP("username", "u", "", "login credential.")
-		cmd.Flags().StringP("password", "p", "", "login credential.")
-		cmd.Flags().Bool("no-color", false, "disables colourized output.")
-		cmd.Flags().String("server", "localhost:80", "<host>:<port> of instance to connect to.\n")
-		cmd.Flags().StringP("log", "l", "./gwcli.log", "log location for developer logs.\n")
-		cmd.Flags().String("loglevel", "DEBUG", "log level for developer logs (-l).\n"+
-			"Possible values: 'OFF', 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL', 'FATAL'.\n")
-		cmd.Flags().Bool("insecure", false, "do not use HTTPS and do not enforce certs.")
+		uniques.AttachPersistentFlags(&cmd)
 		cmd.ParseFlags(flagArgs)
 		return &cmd
 	}
 
 	t1 := "Test_run.output-to-file.results.txt"
 	t.Run("output to file '"+t1+"'", func(t *testing.T) {
-		flagArgs := strings.Split("-o "+t1+" --script", " ")
+		flagArgs := strings.Split("-o "+t1+" --"+ft.NoInteractive.Name(), " ")
 		args := strings.Split("tag=gravwell", " ")
 
 		cmd := prepCmd(flagArgs)
@@ -238,7 +229,7 @@ func Test_run(t *testing.T) {
 
 	t2 := "Test_run.output-to-file.results.json"
 	t.Run("output to file '"+t2+"'", func(t *testing.T) {
-		flagArgs := strings.Split("-o "+t2+" --script --json", " ")
+		flagArgs := strings.Split("-o "+t2+" --"+ft.NoInteractive.Name()+" --"+ft.JSON.Name()+"", " ")
 		args := strings.Split("tag=gravwell", " ")
 
 		cmd := prepCmd(flagArgs)

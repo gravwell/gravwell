@@ -126,11 +126,11 @@ func NewDeleteAction[I scaffold.Id_t](
 
 			var zero I
 			if id == zero {
-				if script, err := c.Flags().GetBool("script"); err != nil {
+				if noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
 					clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error())
 					return
-				} else if script {
-					fmt.Fprintln(c.ErrOrStderr(), "--id is required in script mode")
+				} else if noInteractive {
+					fmt.Fprintln(c.ErrOrStderr(), "--id is required in no-interactive mode")
 					return
 				}
 				// spin up mother
@@ -151,7 +151,7 @@ func NewDeleteAction[I scaffold.Id_t](
 				fmt.Fprintf(c.OutOrStdout(), deleteSuccessText+"\n",
 					singular, id)
 			}
-		})
+		}, treeutils.GenerateActionOptions{Usage: "--id=" + ft.Mandatory(singular+" id")})
 	fs := flags()
 	cmd.Flags().AddFlagSet(&fs)
 	d := newDeleteModel(del, fch)
@@ -163,14 +163,14 @@ func NewDeleteAction[I scaffold.Id_t](
 // base flagset
 func flags() pflag.FlagSet {
 	fs := pflag.FlagSet{}
-	fs.Bool(ft.Name.Dryrun, false, ft.Usage.Dryrun)
-	fs.String(ft.Name.ID, "", "ID of the item to be deleted")
+	ft.Dryrun.Register(&fs)
+	fs.String("id", "", "ID of the item to be deleted")
 	return fs
 }
 
 // helper function for getting and casting flag values
 func fetchFlagValues[I scaffold.Id_t](fs *pflag.FlagSet) (id I, dryrun bool, _ error) {
-	if strid, err := fs.GetString(ft.Name.ID); err != nil {
+	if strid, err := fs.GetString("id"); err != nil {
 		return id, false, err
 	} else if strid != "" {
 		id, err = scaffold.FromString[I](strid)
@@ -178,7 +178,7 @@ func fetchFlagValues[I scaffold.Id_t](fs *pflag.FlagSet) (id I, dryrun bool, _ e
 			return id, dryrun, err
 		}
 	}
-	if dr, err := fs.GetBool(ft.Name.Dryrun); err != nil {
+	if dr, err := fs.GetBool(ft.Dryrun.Name()); err != nil {
 		return id, dryrun, err
 	} else {
 		dryrun = dr
@@ -345,7 +345,8 @@ func (d *deleteModel[I]) Reset() error {
 	return nil
 }
 
-func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid string, onStart tea.Cmd, err error) {
+func (d *deleteModel[I]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
 	var zero I
 	// initialize the list
 	itms, err := d.ff()
@@ -399,5 +400,7 @@ func (d *deleteModel[I]) SetArgs(_ *pflag.FlagSet, tokens []string) (invalid str
 
 	}
 	d.dryrun = dryrun
+	d.width = width
+	d.height = height
 	return "", nil, nil
 }

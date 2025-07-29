@@ -103,13 +103,13 @@ func NewEditAction[I scaffold.Id_t, S any](singular, plural string, cfg Config, 
 		[]string{"e"},                      // aliases
 		func(cmd *cobra.Command, args []string) {
 			var err error
-			// hard branch on script mode
-			var script bool
-			if script, err = cmd.Flags().GetBool("script"); err != nil {
+			// hard branch on noInteractive mode
+			var noInteractive bool
+			if noInteractive, err = cmd.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
 				clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 				return
 			}
-			if script {
+			if noInteractive {
 				runNonInteractive(cmd, cfg, funcs, singular)
 			} else {
 				runInteractive(cmd, args)
@@ -141,13 +141,13 @@ func generateFlagSet(cfg Config, singular string) pflag.FlagSet {
 	}
 
 	// attach native flags
-	fs.StringP(ft.Name.ID, "i", "", fmt.Sprintf("id of the %v to edit", singular))
+	fs.StringP("id", "i", "", fmt.Sprintf("id of the %v to edit", singular))
 
 	return fs
 }
 
 // run helper function.
-// runNonInteractive is the --script portion of edit's runFunc.
+// runNonInteractive is the --no-interactive portion of edit's runFunc.
 // It requires --id be set and is ineffectual if no other flags were given.
 // Prints and error handles on its own; the program is expected to exit on its completion.
 func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, funcs SubroutineSet[I, S], singular string) {
@@ -157,7 +157,7 @@ func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, f
 		zero I
 		itm  S
 	)
-	if strid, err := cmd.Flags().GetString(ft.Name.ID); err != nil {
+	if strid, err := cmd.Flags().GetString("id"); err != nil {
 		clilog.Tee(clilog.ERROR, cmd.ErrOrStderr(), err.Error()+"\n")
 		return
 	} else {
@@ -168,7 +168,7 @@ func runNonInteractive[I scaffold.Id_t, S any](cmd *cobra.Command, cfg Config, f
 		}
 	}
 	if id == zero { // id was not given
-		fmt.Fprintln(cmd.OutOrStdout(), "--"+ft.Name.ID+" is required in script mode")
+		fmt.Fprintln(cmd.OutOrStdout(), "--id is required in no-interactive mode")
 		return
 	}
 
@@ -283,18 +283,17 @@ func newEditModel[I scaffold.Id_t, S any](cfg Config, singular, plural string,
 	return em
 }
 
-func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
-	invalid string, onStart tea.Cmd, err error,
-) {
+func (em *editModel[I, S]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
 	// parse the flags, save them for later, when TIs are created
 	if err := em.fs.Parse(tokens); err != nil {
 		return err.Error(), nil, nil
 	}
 
 	// check for an explicit ID
-	if em.fs.Changed(ft.Name.ID) {
+	if em.fs.Changed("id") {
 		var id I
-		if strid, err := em.fs.GetString(ft.Name.ID); err != nil {
+		if strid, err := em.fs.GetString("id"); err != nil {
 			return "", nil, err
 		} else {
 			id, err = scaffold.FromString[I](strid)
@@ -343,6 +342,9 @@ func (em *editModel[I, S]) SetArgs(_ *pflag.FlagSet, tokens []string) (
 	em.list = stylesheet.NewList(itms, 80, listHeightMax, em.singular, em.plural)
 	em.listInitialized = true
 	em.mode = selecting
+
+	em.width = width
+	em.height = height
 
 	return "", nil, nil
 }

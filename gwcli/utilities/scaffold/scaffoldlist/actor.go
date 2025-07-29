@@ -43,7 +43,7 @@ type ListAction[dataStruct any] struct {
 
 // Constructs a ListAction suitable for interactive use.
 // Assumes that Options.DefaultColumns is set; no other assumptions are made about the state of the options struct.
-func newListAction[dataStruct_t any](c *cobra.Command, DSColumns []string, dFn ListDataFunction[dataStruct_t], options Options) ListAction[dataStruct_t] {
+func newListAction[dataStruct_t any](_ *cobra.Command, DSColumns []string, dFn ListDataFunction[dataStruct_t], options Options) ListAction[dataStruct_t] {
 	la := ListAction[dataStruct_t]{
 		done:    false,
 		columns: options.DefaultColumns,
@@ -135,9 +135,8 @@ var _ action.Model = &ListAction[any]{}
 
 // SetArgs is called when the action is invoked by the user and Mother *enters* handoff mode.
 // Mother parses flags and provides us a handle to check against.
-func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
-	invalid string, onStart tea.Cmd, err error,
-) {
+func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
 	// attach flags
 	la.fs = buildFlagSet(la.options.AddtlFlags, la.options.Pretty != nil)
 
@@ -160,7 +159,7 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 
 	// parse column handling
 	// only need to parse columns if user did not pass in --show-columns
-	if la.showColumns, err = la.fs.GetBool("show-columns"); err != nil {
+	if la.showColumns, err = la.fs.GetBool(ft.ShowColumns.Name()); err != nil {
 		return "", nil, err
 	} else if !la.showColumns {
 		// fetch columns if it exists
@@ -169,7 +168,7 @@ func (la *ListAction[T]) SetArgs(inherited *pflag.FlagSet, tokens []string) (
 			return err.Error(), nil, nil
 		}
 	}
-	if all, err := la.fs.GetBool(ft.Name.AllColumns); err != nil {
+	if all, err := la.fs.GetBool(ft.AllColumns.Name()); err != nil {
 		return "", nil, err
 	} else if all {
 		la.columns = la.availDSColumns

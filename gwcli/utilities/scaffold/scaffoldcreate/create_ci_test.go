@@ -24,7 +24,7 @@ import (
 
 func Test_createModel_basics(t *testing.T) {
 	cfg := map[string]Field{
-		"A": NewField(true, "A", 0),
+		"A": NewField(true, "A", 10),
 		"B": NewField(true, "B", 0),
 	}
 	ca := NewCreateAction("test", cfg, func(cfg Config, values Values, fs *pflag.FlagSet) (id any, invalid string, err error) {
@@ -153,7 +153,7 @@ func Test_Full(t *testing.T) {
 		t.Fatal(err)
 	}
 	// use a consistent color scheme
-	stylesheet.Cur = stylesheet.NoColor()
+	stylesheet.Cur = stylesheet.Plain()
 
 	var createdCalled bool
 
@@ -194,7 +194,7 @@ func Test_Full(t *testing.T) {
 // helper function for Test_Full to allow it to be run back-by-back.
 func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	t.Helper()
-	if inv, _, err := cm.SetArgs(nil, []string{"--bln"}); err != nil {
+	if inv, _, err := cm.SetArgs(nil, []string{"--bln"}, 80, 50); err != nil {
 		t.Fatal("failed to Set Args:", err)
 	} else if inv != "" {
 		t.Fatal("failed to validate valid args:", inv)
@@ -265,7 +265,7 @@ func setup(t *testing.T, cfg Config) *createModel {
 		t.Fatal(err)
 	}
 	// use a consistent color scheme
-	stylesheet.Cur = stylesheet.NoColor()
+	stylesheet.Cur = stylesheet.Plain()
 	cm := newCreateModel(
 		cfg, "test",
 		func(cfg Config, values Values, fs *pflag.FlagSet) (id any, invalid string, err error) {

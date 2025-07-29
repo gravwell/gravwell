@@ -19,8 +19,15 @@ package stylesheet
 // miscellaneous styles
 
 import (
+	"strings"
+
 	"github.com/charmbracelet/lipgloss"
 )
+
+// NoColor is derived and set by Mother in ppre().
+// If this is true, assume stylesheet.Cur has been set to its simplest, colorless form.
+// Can be read by other packages to tweak their output beyond what the stylesheet can do.
+var NoColor bool
 
 // Cur is the stylesheet currently in-use by gwcli.
 // This is what other packages should reference when stylizing their elements.
@@ -53,6 +60,8 @@ type Sheet struct {
 		EvenCells   lipgloss.Style
 		OddCells    lipgloss.Style
 		BorderType  lipgloss.Border
+		// do not set .Border in this style; it causes tbl.Render to freak out and drop results.
+		// Instead, set TableSty.BorderType
 		BorderStyle lipgloss.Style
 	}
 
@@ -108,6 +117,16 @@ func (s Sheet) Prompt(text string) string {
 	return s.PromptSty.Text(text) + s.PromptSty.Symbol()
 }
 
+// Field returns the title in the form ` <title>: `, with the spacing prefix set by width-len(title).
+// fieldTitle is stylized with by Cur.FieldText.
+func (s Sheet) Field(fieldTitle string, width int) string {
+	pad := width - len(fieldTitle)
+	if pad > 0 {
+		fieldTitle = strings.Repeat(" ", pad) + fieldTitle
+	}
+	return Cur.FieldText.Render(fieldTitle + ": ")
+}
+
 // A Tetrad is a set of 4 colors that can be transmuted into a full sheet via GenerateSheet().
 /*type Tetrad struct {
 
@@ -133,13 +152,16 @@ type Palette struct {
 }
 
 func (p Palette) GenerateSheet() Sheet {
-	pipRune := '»'
+	pipRune := '>'
 	pipSty := lipgloss.NewStyle().Foreground(p.AccentColor1)
 	primaryColorSty := lipgloss.NewStyle().Foreground(p.PrimaryColor)
 	secondaryColorSty := lipgloss.NewStyle().Foreground(p.SecondaryColor)
 	accentColor1Sty := lipgloss.NewStyle().Foreground(p.AccentColor1)
 
-	s := NewSheet(func() string { return pipSty.Render(string(pipRune)) }, func() string { return primaryColorSty.Render("⦠") }, func(s string) string { return primaryColorSty.Render(s) })
+	s := NewSheet(
+		func() string { return pipSty.Render(string(pipRune)) },
+		func() string { return primaryColorSty.Render(">") },
+		func(s string) string { return primaryColorSty.Render(s) })
 	s.Nav = secondaryColorSty
 	s.Action = lipgloss.NewStyle().Foreground(p.AccentColor2)
 	s.FieldText = primaryColorSty

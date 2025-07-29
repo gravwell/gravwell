@@ -32,6 +32,11 @@ import (
 	"github.com/spf13/pflag"
 )
 
+const (
+	FlagExpansion      string = "expansion"
+	FlagExpansionUsage string = "value for the macro to expand to"
+)
+
 // NewMacrosNav returns a nav with children relating to macro handling.
 func NewMacrosNav() *cobra.Command {
 	const (
@@ -62,16 +67,14 @@ func newMacroListAction() action.Pair {
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool(ft.Name.ListAll, false, ft.Usage.ListAll("macros")+"\n"+
-		"Ignored if you are not an admin.\n"+
-		"Supersedes --group.")
-	addtlFlags.Int32("group", 0, "Fetches all macros shared with the given group id.")
+	ft.GetAll.Register(&addtlFlags, true, "macros", "Supersedes --group")
+	addtlFlags.Int32("group", 0, "fetches all macros shared with the given group id")
 	return addtlFlags
 }
 
 // lister subroutine for macros
 func listMacros(fs *pflag.FlagSet) ([]types.SearchMacro, error) {
-	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
+	if all, err := fs.GetBool("all"); err != nil {
 		uniques.ErrGetFlag("macros list", err)
 	} else if all {
 		return connection.Client.GetAllMacros()
@@ -88,23 +91,33 @@ func listMacros(fs *pflag.FlagSet) ([]types.SearchMacro, error) {
 //#region create
 
 func newMacroCreateAction() action.Pair {
-	n := scaffoldcreate.NewField(true, "name", 100)
-	n.FlagShorthand = 'n'
-	d := scaffoldcreate.NewField(true, "description", 90)
-	d.FlagShorthand = 'd'
-
 	fields := scaffoldcreate.Config{
-		"name": n,
-		"desc": d,
+		"name": scaffoldcreate.Field{
+			Required:     true,
+			Title:        "name",
+			Usage:        ft.Name.Usage("macro"),
+			Type:         scaffoldcreate.Text,
+			FlagName:     ft.Name.Name(),
+			DefaultValue: "",
+			Order:        100,
+		},
+		"desc": scaffoldcreate.Field{
+			Required:     true,
+			Title:        "description",
+			Usage:        ft.Description.Usage("macro"),
+			Type:         scaffoldcreate.Text,
+			FlagName:     ft.Description.Name(),
+			DefaultValue: "",
+			Order:        90,
+		},
 		"exp": scaffoldcreate.Field{
-			Required:      true,
-			Title:         "expansion",
-			Usage:         ft.Usage.Expansion,
-			Type:          scaffoldcreate.Text,
-			FlagName:      ft.Name.Expansion,
-			FlagShorthand: 'e',
-			DefaultValue:  "",
-			Order:         80,
+			Required:     true,
+			Title:        "expansion",
+			Usage:        FlagExpansionUsage,
+			Type:         scaffoldcreate.Text,
+			FlagName:     FlagExpansion,
+			DefaultValue: "",
+			Order:        80,
 		},
 	}
 
@@ -134,22 +147,22 @@ func newMacroEditAction() action.Pair {
 		"name": &scaffoldedit.Field{
 			Required: true,
 			Title:    "Name",
-			Usage:    ft.Usage.Name(singular),
-			FlagName: ft.Name.Name,
+			Usage:    ft.Name.Usage(singular),
+			FlagName: ft.Name.Name(),
 			Order:    100,
 		},
 		"description": &scaffoldedit.Field{
 			Required: false,
 			Title:    "Description",
-			Usage:    ft.Usage.Desc(singular),
-			FlagName: ft.Name.Desc,
+			Usage:    ft.Description.Usage(singular),
+			FlagName: ft.Description.Name(),
 			Order:    80,
 		},
 		"expansion": &scaffoldedit.Field{
 			Required: true,
 			Title:    "Expansion",
-			Usage:    ft.Usage.Expansion,
-			FlagName: ft.Name.Expansion,
+			Usage:    FlagExpansionUsage,
+			FlagName: FlagExpansion,
 			Order:    60,
 		},
 	}

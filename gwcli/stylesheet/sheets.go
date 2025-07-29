@@ -8,6 +8,8 @@
 
 package stylesheet
 
+import "github.com/charmbracelet/lipgloss"
+
 // this file just holds pre-created themes/sheets.
 
 /*
@@ -200,11 +202,32 @@ func Classic() Sheet {
 	}.GenerateSheet()
 }
 
-// NoColor returns a sheet with no colors or special characters, for maximal compatibility.
-func NoColor() Sheet {
-	return NewSheet(
+// Plain returns a sheet with no colors or special characters, for maximal compatibility.
+func Plain() Sheet {
+	s := NewSheet(
 		func() string { return ">" },
 		func() string { return "#" },
 		func(s string) string { return s },
 	)
+
+	s.ComposableSty.FocusedBorder = lipgloss.NewStyle().BorderStyle(lipgloss.ASCIIBorder())
+	s.ComposableSty.UnfocusedBorder = lipgloss.NewStyle().BorderStyle(lipgloss.HiddenBorder())
+	s.ComposableSty.ComplimentaryBorder = lipgloss.NewStyle().BorderStyle(lipgloss.ASCIIBorder())
+
+	s.TableSty = struct {
+		HeaderCells lipgloss.Style
+		EvenCells   lipgloss.Style
+		OddCells    lipgloss.Style
+		BorderType  lipgloss.Border
+		BorderStyle lipgloss.Style
+	}{
+		HeaderCells: lipgloss.NewStyle().
+			AlignHorizontal(lipgloss.Center).
+			AlignVertical(lipgloss.Center).Bold(true),
+		EvenCells:  lipgloss.NewStyle().Padding(0, 1),
+		OddCells:   lipgloss.NewStyle().Padding(0, 1),
+		BorderType: lipgloss.ASCIIBorder(),
+	}
+
+	return s
 }

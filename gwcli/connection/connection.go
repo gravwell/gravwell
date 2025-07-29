@@ -83,6 +83,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection/credprompt"
 	"github.com/gravwell/gravwell/v4/gwcli/connection/mfaprompt"
@@ -125,12 +126,12 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 
 	var l objlog.ObjLog = nil
 	if restLogPath != "" { // used for testing, not intended for production modes
-		l, err = objlog.NewJSONLogger(restLogPath)
+		l, err = newRestRotator(restLogPath)
 		if err != nil {
 			return err
 		}
 	} else if clilog.Writer != nil && (clilog.Writer.GetLevel() == log.Level(clilog.DEBUG) || clilog.Writer.GetLevel() == log.Level(clilog.INFO)) { // spin up the rest logger if in INFO+
-		l, err = objlog.NewJSONLogger(cfgdir.DefaultRestLogPath)
+		l, err = newRestRotator(cfgdir.DefaultRestLogPath)
 		if err != nil {
 			return err
 		}
@@ -153,7 +154,7 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 // Attempts to use a JWT token first, then falls back to supplied credentials.
 //
 // Ineffectual if Client is already logged in.
-func Login(username, password, apiToken string, scriptMode bool) (err error) {
+func Login(username, password, apiToken string, noInteractive bool) (err error) {
 	clientMu.Lock()
 	defer clientMu.Unlock()
 	if Client == nil {
@@ -169,18 +170,18 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 		}
 		clilog.Writer.Infof("logged in via API token")
 	} else if username == "" { // if a username was not given, act as if no credentials were given
-		err := loginNoCredentials(scriptMode)
+		err := loginNoCredentials(noInteractive)
 		if err != nil {
 			return err
 		}
 	} else if username != "" && password != "" {
 		// if all credentials were given, try to log in using only those credentials
-		if err := loginWithCredentials(username, password, scriptMode); err != nil {
+		if err := loginWithCredentials(username, password, noInteractive); err != nil {
 			return err
 		}
 	} else { // a username was given, but no password/passfile
 		// in script mode, fail out
-		if scriptMode {
+		if noInteractive {
 			return ErrCredentialsOrAPITokenRequired
 		}
 		// in interactive mode, throw up a prompt and pre-populate username
@@ -216,16 +217,18 @@ func Login(username, password, apiToken string, scriptMode bool) (err error) {
 	refresherDone = make(chan bool)
 	go keepRefreshed(refresherDone)
 
-	return nil
+	// while most login methods call Sync for us, JWT does not.
+	// To ensure the data exists no matter what changes occur or which method we use, Sync now.
+	return Client.Sync()
 }
 
 // helper function for Login when no credentials were given.
-func loginNoCredentials(scriptMode bool) (err error) {
+func loginNoCredentials(noInteractive bool) (err error) {
 	// attempt to login to whichever account was responsible for the pre-existing token
 	if err := loginViaJWT(""); err != nil {
 		clilog.Writer.Warnf("failed to login via JWT token: %v", err)
 		// if we are in script mode, fail out
-		if scriptMode {
+		if noInteractive {
 			return ErrCredentialsOrAPITokenRequired
 		}
 
@@ -243,7 +246,7 @@ func loginNoCredentials(scriptMode bool) (err error) {
 
 		// if we are in script mode and MFA would have been required, fail out
 		// this is to enforce consistent script usage, lest the token expire mid-script
-		if scriptMode {
+		if noInteractive {
 			mfa, err := Client.GetMFAInfo()
 			if err != nil {
 				err = errors.Join(errors.New("failed to fetch mfa info after token login"), err)
@@ -266,13 +269,13 @@ func loginNoCredentials(scriptMode bool) (err error) {
 
 // helper function for Login when BOTH credentials were explicitly set.
 // If error is nil, caller can assume Client has successfully logged in and state has been logged (if applicable).
-func loginWithCredentials(username, password string, script bool) error {
+func loginWithCredentials(username, password string, noInteractive bool) error {
 	resp, err := Client.LoginEx(username, password)
 	if mfa, ufErr := testLoginError(resp, err); ufErr != nil {
 		return ufErr
 	} else if mfa {
 		// if we are in script mode, fail out and alert the user to use an API key
-		if script {
+		if noInteractive {
 			return ErrAPITokenRequired
 		}
 
@@ -429,11 +432,14 @@ func createTokenFile(username string) error {
 		return fmt.Errorf("failed to write token: %v", err)
 	}
 
+	if err := fd.Sync(); err != nil {
+		return fmt.Errorf("failed to sync token file: %v", err)
+	}
 	if err = fd.Close(); err != nil {
 		return fmt.Errorf("failed to close token file: %v", err)
 	}
 
-	clilog.Writer.Infof("Created token file @ %v", cfgdir.DefaultTokenPath)
+	clilog.Writer.Infof("Created token file (user %v) @ %v", username, cfgdir.DefaultTokenPath)
 	return nil
 }
 
@@ -450,10 +456,9 @@ func keepRefreshed(kill chan bool) {
 
 		select {
 		case <-kill:
-			clilog.Writer.Debug("refresher closing up shop")
+			clilog.Writer.Debug("closing up shop", rfc5424.SDParam{Name: "sublogger", Value: "refresher"})
 			return
 		case <-time.After(sleepTime):
-			clilog.Writer.Debugf("refresher: refreshing JWT...")
 			clientMu.Lock()
 			// ensure the client is still in an acceptable state
 			if Client == nil {
@@ -462,16 +467,20 @@ func keepRefreshed(kill chan bool) {
 				continue
 			} else if Client.State() != grav.STATE_AUTHED {
 				clientMu.Unlock()
-				clilog.Writer.Errorf("failed to refresh login: client not authenticated")
+				clilog.Writer.Error("failed to refresh login: client not authenticated", rfc5424.SDParam{Name: "sublogger", Value: "refresher"})
 				// back off for a few minutes
 				time.Sleep(3 * time.Minute)
 				continue
 			}
 			// token will expire soon, regenerate it
 			if err := Client.RefreshLoginToken(); err != nil {
-				clilog.Writer.Errorf("failed to refresh login: %v", err)
+				clilog.Writer.Error("failed to refresh login", rfc5424.SDParam{Name: "sublogger", Value: "refresher"}, rfc5424.SDParam{Name: "Error", Value: err.Error()})
 			}
 			// write the new token to our token file
+			clilog.Writer.Info("rewriting token file ",
+				rfc5424.SDParam{Name: "username", Value: myInfo.Name},
+				rfc5424.SDParam{Name: "path", Value: cfgdir.DefaultTokenPath},
+				rfc5424.SDParam{Name: "sublogger", Value: "refresher"})
 			if err := createTokenFile(myInfo.User); err != nil {
 				clilog.Writer.Warnf("%v", err)
 			}

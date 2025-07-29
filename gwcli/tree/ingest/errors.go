@@ -37,11 +37,11 @@ func init() {
 }
 
 // returned by autoingest if no file paths were given.
-// If script is specified, " in script mode" will be appended.
-func errNoFilesSpecified(script bool) error {
+// If noInteractive is specified, " in no-interactive mode" will be appended.
+func errNoFilesSpecified(noInteractive bool) error {
 	tail := ""
-	if script {
-		tail = " in script mode"
+	if noInteractive {
+		tail = " in no-interactive mode"
 	}
 	return fmt.Errorf("at least 1 path must be specified%v", tail)
 }

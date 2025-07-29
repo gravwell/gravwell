@@ -14,7 +14,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/user/admin"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/user/logout"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/user/myinfo"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/user/refreshmyinfo"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
 	"github.com/spf13/cobra"
@@ -32,6 +31,5 @@ func NewUserNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases, nil,
 		[]action.Pair{logout.NewUserLogoutAction(),
 			admin.NewUserAdminAction(),
-			myinfo.NewUserMyInfoAction(),
-			refreshmyinfo.NewUserRefreshMyInfoAction()})
+			myinfo.NewUserMyInfoAction()})
 }

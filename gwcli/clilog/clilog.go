@@ -23,6 +23,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log/rotate"
 )
 
 //#region errors
@@ -30,6 +31,12 @@ import (
 var ErrEmptyPath error = errors.New("path cannot be empty")
 
 //#endregion errors
+
+const (
+	mb                = 1024 * 1024
+	maxLogSize  int64 = 10 * mb
+	maxLogCount uint  = 8
+)
 
 // Level recreates log.Level so other packages do not have to import the ingest logger
 type Level int
@@ -64,23 +71,27 @@ func Init(path string, lvlString string) error {
 		return err
 	}
 
-	Writer, err = log.NewFile(path)
+	// spawn a log rotator on the given file
+	lr, err := rotate.OpenEx(path, 0660, maxLogSize, maxLogCount, true)
 	if err != nil {
-		if Writer != nil {
-			errors.Join(err, Writer.Close())
-		}
 		return err
 	}
-
+	// spawn a logger on our logrotator
+	Writer = log.New(lr)
 	if err = Writer.SetLevel(lvl); err != nil {
 		Writer.Close()
 		return err
 	}
 
-	Writer.Infof("Logger initialized at %v level, hostname %v", Writer.GetLevel(), Writer.Hostname())
-
+	// empty out the extra info gwcli does not benefit from
 	Writer.SetAppname(".")
 	Writer.SetHostname(".") // autopopulates if empty
+
+	// error check the first call
+	if err := Writer.Infof("--- Logger initialized at %v level, hostname %v ---", Writer.GetLevel(), Writer.Hostname()); err != nil {
+		Writer.Close()
+		return err
+	}
 
 	return nil
 }

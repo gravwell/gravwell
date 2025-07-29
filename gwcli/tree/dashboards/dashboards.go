@@ -58,13 +58,13 @@ func newDashboardsListAction() action.Pair {
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool(ft.Name.ListAll, false, ft.Usage.ListAll("dashboards"))
+	ft.GetAll.Register(&addtlFlags, true, "dashboards")
 
 	return addtlFlags
 }
 
 func list(fs *pflag.FlagSet) ([]types.Dashboard, error) {
-	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
+	if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
 		uniques.ErrGetFlag("dashboards list", err)
 	} else if all {
 		return connection.Client.GetAllDashboards()
