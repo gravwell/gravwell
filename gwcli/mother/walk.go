@@ -18,6 +18,7 @@ validity of a proposed path.
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -59,8 +60,7 @@ Returns a walkResult struct with:
   - and an error (if one occurred)
 */
 func walk(dir *cobra.Command, tokens []string) walkResult {
-	if len(tokens) == 0 {
-		// only move if the final command was a nav
+	if len(tokens) == 0 { // move to this nav
 		return walkResult{
 			endCommand: dir,
 			status:     foundNav,
@@ -98,23 +98,14 @@ func walk(dir *cobra.Command, tokens []string) walkResult {
 		if c.Name() == curToken { // check name
 			invocation = c
 			clilog.Writer.Debugf("Direct match on %s", invocation.Name())
-		} else { // check aliases
-			for _, alias := range c.Aliases {
-				if alias == curToken {
-					invocation = c
-					clilog.Writer.Debugf("Alias match on %s", invocation.Name())
-					break
-				}
-			}
-		}
-		if invocation != nil {
+			break
+		} else if slices.Contains(c.Aliases, curToken) { // check aliases
+			invocation = c
+			clilog.Writer.Debugf("Alias match on %s", invocation.Name())
 			break
 		}
 	}
-
-	// check if we found a match
-	if invocation == nil {
-		// user request unhandlable
+	if invocation == nil { // unknown token, no where to go from here
 		return walkResult{
 			endCommand:      nil,
 			status:          invalidCommand,
@@ -131,8 +122,6 @@ func walk(dir *cobra.Command, tokens []string) walkResult {
 			remainingString: strings.Join(tokens[1:], " "),
 		}
 	} else { // nav
-		// navigate given path
-		dir = invocation
-		return walk(dir, tokens[1:])
+		return walk(invocation, tokens[1:])
 	}
 }
