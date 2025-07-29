@@ -431,6 +431,9 @@ func createTokenFile(username string) error {
 		return fmt.Errorf("failed to write token: %v", err)
 	}
 
+	if err := fd.Sync(); err != nil {
+		return fmt.Errorf("failed to sync token file: %v", err)
+	}
 	if err = fd.Close(); err != nil {
 		return fmt.Errorf("failed to close token file: %v", err)
 	}
