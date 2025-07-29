@@ -51,6 +51,11 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		panic(err)
 	}
 
+	// change token file path to avoid conflicts
+	temp := cfgdir.DefaultTokenPath
+	cfgdir.DefaultTokenPath = path.Join(t.TempDir(), "tknfile")
+	defer func() { cfgdir.DefaultTokenPath = temp }()
+
 	// spawn a test client
 	testclient, err := grav.NewOpts(grav.Opts{Server: server, UseHttps: false, InsecureNoEnforceCerts: true, ObjLogger: &objlog.NilObjLogger{}})
 	if err != nil {
