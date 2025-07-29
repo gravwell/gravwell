@@ -75,7 +75,6 @@ const (
 var helpDesc = "Generate and send a query to the remote server either by arguments or " +
 	"the interactive query builder.\n" +
 	"All bare arguments after `query` will be passed to the instance as the query string.\n" +
-	"\n" +
 	"Omitting --" + ft.NoInteractive.Name() + " will open the results in an interactive viewing pane with additional" +
 	"functionality for downloading the results to a file or scheduling this query to run in " +
 	"the future" +
