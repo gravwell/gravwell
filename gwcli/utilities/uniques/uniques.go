@@ -15,10 +15,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"slices"
 	"strings"
 	"time"
 	"unicode"
 
+	"github.com/google/shlex"
+	"github.com/gravwell/gravwell/v4/gwcli/action"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/spf13/cobra"
@@ -133,4 +137,105 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().Bool("insecure", false, "do not use HTTPS and do not enforce certs.")
 	cmd.PersistentFlags().String("profile", "", "spins up the native CPU profiler to log samples (in pprof format) into the given path")
 	cmd.PersistentFlags().MarkHidden("profile")
+}
+
+type WalkResult struct {
+	EndCmd *cobra.Command // the last nav or action seen
+	//activate        bool           // should endCmd be called (moved to, in the case of a nav)?
+	RemainingTokens []string // all tokens remaining after endCmd
+	Builtin         string   // the non-help builtin to trigger
+}
+
+// Walk recursively traverses input, searching for a command or builtin to match on.
+// If an error is returned, do not rely on any information in WalkResult.
+func Walk(pwd *cobra.Command, input string, builtinActions []string) (WalkResult, error) {
+	if pwd == nil {
+		return WalkResult{}, errors.New("pwd cannot be nil")
+	}
+	// transmute builtins to a hashset
+	var biSet = make(map[string]bool, len(builtinActions))
+	for _, biAct := range builtinActions {
+		biSet[biAct] = true
+	}
+	// split input
+	tokens, err := shlex.Split(input)
+	if err != nil {
+		return WalkResult{}, err
+	}
+	return innerWalk(pwd, slices.Clip(tokens), biSet)
+}
+
+// innerWalk is the underlying, recursive driver for Walk.
+// pwd is our current position.
+// remainingTokens is the shlex'd tokens that have not yet been processed.
+// builtins is a hashset of builtin action names.
+// curRes is the current, in-progress WalkResult.
+func innerWalk(pwd *cobra.Command, remainingTokens []string, builtins map[string]bool) (WalkResult, error) {
+	if len(remainingTokens) == 0 { // nothing left to parse
+		return WalkResult{
+			EndCmd: pwd,
+		}, nil
+	}
+	// cut the first token
+	curTkn, remainingTokens := strings.TrimSpace(remainingTokens[0]), remainingTokens[1:]
+	if curTkn == "" { // no token, keep walking
+		return innerWalk(pwd, remainingTokens, builtins)
+	}
+	// check for a built-in command
+	if _, found := builtins[curTkn]; found {
+		return WalkResult{
+			EndCmd:          pwd,
+			RemainingTokens: remainingTokens,
+			Builtin:         curTkn,
+		}, nil
+	}
+
+	// check for special tokens
+	switch curTkn {
+	case "..": // upward
+		return innerWalk(up(pwd), remainingTokens, builtins)
+	case "~", "/": // root
+		return innerWalk(pwd.Root(), remainingTokens, builtins)
+	case "-h", "--help": // the only flags we handle are the help flags
+		return WalkResult{
+			EndCmd:          pwd,
+			RemainingTokens: remainingTokens,
+			Builtin:         "help",
+		}, nil
+	}
+
+	// check for a child command
+	var nextCmd *cobra.Command
+	for _, chld := range pwd.Commands() {
+		if chld.Name() == curTkn || chld.HasAlias(curTkn) {
+			//clilog.Writer.Debugf("child match on %s", curTkn)
+			nextCmd = chld
+			break
+		}
+	}
+	if nextCmd == nil {
+		// NOTE(rlandau): remaining tokens does not (currently) include the erroneous token
+		return WalkResult{EndCmd: pwd, RemainingTokens: remainingTokens}, fmt.Errorf("%s is not a known child of %v", curTkn, pwd.Name())
+	}
+	// split on nav or action
+	if action.Is(nextCmd) {
+		// found an action, we are done
+		return WalkResult{
+			EndCmd:          nextCmd,
+			RemainingTokens: remainingTokens,
+		}, nil
+	}
+	// found a nav, keep walking
+	return innerWalk(nextCmd, remainingTokens, builtins)
+
+}
+
+// Return the parent directory to the given command
+func up(dir *cobra.Command) *cobra.Command {
+	if dir.Parent() == nil { // if we are at root, do nothing
+		return dir
+	}
+	// otherwise, step upward
+	//clilog.Writer.Debugf("Up: %v -> %v", dir.Name(), dir.Parent().Name())
+	return dir.Parent()
 }

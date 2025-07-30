@@ -9,12 +9,18 @@
 package uniques_test
 
 import (
+	"errors"
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Pallinder/go-randomdata"
-	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/group"
+	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	. "github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
+	"github.com/spf13/cobra"
 )
 
 // NOTE(rlandau): these tests are limited as the validator generally only checks the last rune/word.
@@ -60,12 +66,140 @@ func TestParseJWT(t *testing.T) {
 	}
 
 	if hdr, payload, sig, err := ParseJWT(validTkn); err != nil {
-		t.Fatal("unexpected error:", testsupport.ExpectedActual(nil, err))
+		t.Fatal("unexpected error:", ExpectedActual(nil, err))
 	} else if hdr.Algo != expectedHeader.Algo || hdr.Typ != expectedHeader.Typ {
-		t.Fatal("header mismatch:", testsupport.ExpectedActual(expectedHeader, hdr))
+		t.Fatal("header mismatch:", ExpectedActual(expectedHeader, hdr))
 	} else if payload.UID != expectedPayload.UID || payload.Expires != expectedPayload.Expires {
-		t.Fatal("payload mismatch:", testsupport.ExpectedActual(expectedPayload, payload))
+		t.Fatal("payload mismatch:", ExpectedActual(expectedPayload, payload))
 	} else if sig == nil {
 		t.Fatalf("nil signature")
 	}
+}
+
+type ExpectedWalkResult struct {
+	commandName     string
+	remainingTokens []string
+	builtin         string
+	err             bool
+}
+
+func TestWalk(t *testing.T) {
+	// build a tree to walk
+	root := newNav("root", "short", "long", nil, []*cobra.Command{
+		newNav("Anav", "short", "long", []string{"Anav_alias"}, nil),
+		newNav("Bnav", "short", "long", nil, []*cobra.Command{
+			newAction("BAaction", "short", "long", nil),
+			newAction("BBaction", "short", "long", nil),
+			newAction("BCaction", "short", "long", []string{"BCaction_alias1", "BCaction_alias2", "BCaction_alias3"}),
+		}),
+		newNav("Cnav", "short", "long", nil, []*cobra.Command{
+			newAction("CAaction", "short", "long", nil),
+			newAction("CBaction", "short", "long", nil),
+			newNav("CCnav", "short", "long", []string{"CCnav_alias"}, []*cobra.Command{
+				newAction("CCAaction", "short", "long", nil),
+			}),
+		}),
+		newAction("Daction", "short", "long", nil),
+	})
+
+	builtins := []string{"builtin1", "builtin2", "help", "jump", "ls"}
+
+	tests := []struct {
+		name    string
+		pwdPath string // if given, walks to this location and sets it as dir before passing in tokens
+		input   string // string to tokenize and feed to walk
+		want    ExpectedWalkResult
+	}{
+		{"first level nav", "", "Anav", ExpectedWalkResult{"Anav", nil, "", false}},
+		{"first level nav alias", "", "Anav_alias", ExpectedWalkResult{"Anav", nil, "", false}},
+		{"upward from root", "", "..", ExpectedWalkResult{"root", nil, "", false}},
+		{"rootward from root", "", "~", ExpectedWalkResult{"root", nil, "", false}},
+		{"rootward from root", "", "/", ExpectedWalkResult{"root", nil, "", false}},
+		{"rootward", "Cnav", "/", ExpectedWalkResult{"root", nil, "", false}},
+		{"unknown first token", "", "bad", ExpectedWalkResult{"root", nil, "", true}},
+		{"second level action", "", "Bnav BCaction", ExpectedWalkResult{"BCaction", nil, "", false}},
+		{"start at CCnav", "Cnav CCnav", "CCAaction", ExpectedWalkResult{"CCAaction", nil, "", false}},
+		{"circuitous route", "Cnav CCnav", ".. .. Bnav ~ Cnav CBaction", ExpectedWalkResult{"CBaction", nil, "", false}},
+		{"simple builtin", "", "builtin1", ExpectedWalkResult{"root", nil, "builtin1", false}},
+		{"builtin with excess tokens", "", "builtin1 some extra tokens", ExpectedWalkResult{"root", []string{"some", "extra", "tokens"}, "builtin1", false}},
+		{"interspersed builtin", "", "Bnav builtin1", ExpectedWalkResult{"Bnav", nil, "builtin1", false}},
+		{"interspersed builtin", "", "Bnav builtin1 excess", ExpectedWalkResult{"Bnav", []string{"excess"}, "builtin1", false}},
+		{"help builtin", "", "help", ExpectedWalkResult{"root", nil, "help", false}},
+		{"help builtin, extra token", "", "help Anav", ExpectedWalkResult{"root", []string{"Anav"}, "help", false}},
+		{"interspersed help", "", "Cnav help CCnav", ExpectedWalkResult{"Cnav", []string{"CCnav"}, "help", false}},
+		{"interspersed help", "", "Cnav help CCnav CCAaction", ExpectedWalkResult{"Cnav", []string{"CCnav", "CCAaction"}, "help", false}},
+		{"interspersed help", "", "Cnav CCnav help CCAaction", ExpectedWalkResult{"CCnav", []string{"CCAaction"}, "help", false}},
+		// TODO -h flag
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			startingDir := root
+			// walk to pwd, if given
+			if tt.pwdPath != "" {
+				if c, tkns, err := root.Find(strings.Split(strings.TrimSpace(tt.pwdPath), " ")); err != nil {
+					t.Fatal(err)
+				} else if len(tkns) > 0 {
+					t.Error("found extra tokens: ", tkns)
+				} else {
+					startingDir = c
+				}
+			}
+
+			actual, err := Walk(startingDir, tt.input, builtins)
+			if err := testWalkResult(actual, err, tt.want); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+// helper for TestWalk
+func newNav(use, short, long string, aliases []string, children []*cobra.Command) *cobra.Command {
+	root := &cobra.Command{
+		Use:     use,
+		Short:   strings.ToLower(short),
+		Long:    long,
+		Aliases: aliases,
+		GroupID: group.NavID,
+		Run:     func(cmd *cobra.Command, args []string) {},
+	}
+	group.AddNavGroup(root)
+	group.AddActionGroup(root)
+
+	root.AddCommand(children...)
+
+	return root
+}
+
+// helper for TestWalk
+func newAction(use, short, long string, aliases []string) *cobra.Command {
+	root := &cobra.Command{
+		Use:     use,
+		Short:   strings.ToLower(short),
+		Long:    long,
+		Aliases: aliases,
+		GroupID: group.ActionID,
+		Run:     func(cmd *cobra.Command, args []string) {},
+	}
+
+	return root
+}
+
+// helper for TestWalk
+func testWalkResult(actual WalkResult, actualErr error, want ExpectedWalkResult) error {
+	// check errors first
+	if (want.err && actualErr == nil) || (!want.err && actualErr != nil) {
+		return fmt.Errorf("mismatch error state.\nwant err? %v | actual err: %v", want.err, actualErr)
+	}
+	if actual.EndCmd != nil && (actual.EndCmd.Name() != want.commandName) {
+		return errors.New(ExpectedActual(want.commandName, actual.EndCmd.Name()))
+	}
+	if slices.Compare(actual.RemainingTokens, want.remainingTokens) != 0 {
+		return errors.New("bad remaining tokens" + ExpectedActual(want.remainingTokens, actual.RemainingTokens))
+	}
+	if actual.Builtin != want.builtin {
+		return errors.New("bad built-in." + ExpectedActual(want.builtin, actual.Builtin))
+	}
+
+	return nil
 }
