@@ -129,7 +129,12 @@ func TestWalk(t *testing.T) {
 		{"interspersed help", "", "Cnav help CCnav", ExpectedWalkResult{"Cnav", []string{"CCnav"}, "help", false}},
 		{"interspersed help", "", "Cnav help CCnav CCAaction", ExpectedWalkResult{"Cnav", []string{"CCnav", "CCAaction"}, "help", false}},
 		{"interspersed help", "", "Cnav CCnav help CCAaction", ExpectedWalkResult{"CCnav", []string{"CCAaction"}, "help", false}},
-		// TODO -h flag
+		{"help flag, shortform", "", "-h", ExpectedWalkResult{"root", nil, "help", false}},
+		{"help flag, longform", "", "--help", ExpectedWalkResult{"root", nil, "help", false}},
+		{"help flag on pwd nav", "Anav", "--help", ExpectedWalkResult{"Anav", nil, "help", false}},
+		{"help flag on nav", "", "Anav --help", ExpectedWalkResult{"Anav", nil, "help", false}},
+		{"help flag on action", "", "Bnav BAaction -h", ExpectedWalkResult{"BAaction", []string{"-h"}, "help", false}}, // TODO
+		//{"help flag on builtin", "", "jump --help", ExpectedWalkResult{"", nil, "help", false}},            // TODO
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
