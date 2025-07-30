@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
+// list_t is a composite of basic indexer information.
 type list_t struct {
 	Name             string // IP address or "webserver", typically
 	UUID             string
@@ -137,7 +138,17 @@ func list() action.Pair {
 
 			return ret, nil
 		},
-		scaffoldlist.Options{})
+		scaffoldlist.Options{
+			// should match the aliases used in the systems storage action
+			ColumnAliases: map[string]string{
+				"Storage.DataIngestedHot":  "Hot.Ingested",
+				"Storage.DataIngestedCold": "Cold.Ingested",
+				"Storage.DataStoredHot":    "Hot.Stored",
+				"Storage.DataStoredCold":   "Cold.Stored",
+				"Storage.EntryCountHot":    "Hot.Count",
+				"Storage.EntryCountCold":   "Cold.Count",
+			},
+		})
 }
 
 // Inserts the indexer into the map if it does not already exist.

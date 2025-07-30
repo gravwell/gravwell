@@ -56,7 +56,12 @@ type Mother struct {
 	root *navCmd
 	pwd  *navCmd
 
+	// prompt
 	ti textinput.Model
+
+	// terminal information
+	width  int
+	height int
 
 	active struct {
 		command *actionCmd   // command user called
@@ -95,21 +100,22 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 	} else if c != nil {
 		root.RemoveCommand(c)
 	}
-	// disable --script when Mother is running
-	if err := root.PersistentFlags().MarkHidden("script"); err != nil {
-		clilog.Writer.Warnf("failed to hide --script: %v", err)
-	}
+
+	root.PersistentFlags().VisitAll(func(f *pflag.Flag) { f.Hidden = true })
 
 	// text input
 	ti := textinput.New()
-	ti.Placeholder = "help"
+	// disable the placeholder and in-line suggestions if no-color is active
+	if !stylesheet.NoColor {
+		ti.Placeholder = "help"
+		ti.ShowSuggestions = true
+	}
 	ti.Prompt = "" // replicated externally
 	ti.Focus()
 	ti.Width = stylesheet.TIWidth // replaced on first WindowSizeMsg, proc'd by Init()
 	// add ctrl+left/right to the word traversal keys
 	ti.KeyMap.WordForward.SetKeys("ctrl+right", "alt+right", "alt+f")
 	ti.KeyMap.WordBackward.SetKeys("ctrl+left", "alt+left", "alt+b")
-	ti.ShowSuggestions = true
 
 	m := Mother{
 		root:    root,
@@ -149,7 +155,7 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 var _ tea.Model = Mother{}
 
 func (m Mother) Init() tea.Cmd {
-	return tea.WindowSize()
+	return tea.WindowSize() // TODO we can likely junk this
 }
 
 // Update (specifically Mother's Update()) is always the entrypoint for BubbleTea to drive.
@@ -210,28 +216,31 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// normal handling
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		// consume the width to update mother's prompt width
+		// save off terminal dimensions
+		m.width = msg.Width
+		m.height = msg.Height
+		// update mother's prompt width
 		m.ti.Width = msg.Width -
 			lipgloss.Width(m.pwd.CommandPath()) - // reserve space for prompt head
 			3 // include a padding
 	case tea.KeyMsg:
 		// NOTE kill keys are handled above
-		if msg.Type == tea.KeyF1 { // help
+		switch msg.Type {
+		case tea.KeyF1: // help
 			return m, contextHelp(&m, strings.Split(strings.TrimSpace(m.ti.Value()), " "))
-		}
-		if msg.Type == tea.KeyUp { // history
+		case tea.KeyUp: // history
 			m.ti.SetValue(m.history.getOlderRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		}
-		if msg.Type == tea.KeyDown { // history
+		case tea.KeyDown: // history
 			m.ti.SetValue(m.history.getNewerRecord())
 			// update cursor position
 			m.ti.CursorEnd()
-		}
-		if msg.Type == tea.KeyEnter { // submit
+		case tea.KeyEnter:
 			m.history.unsetFetch()
 			return m, processInput(&m)
+		case tea.KeyCtrlL:
+			return m, clear(&m, nil)
 		}
 	}
 
@@ -297,6 +306,10 @@ func (m Mother) View() string {
 				if lastRune == ' ' {
 					filtered = append(filtered, before)
 				} else {
+					// display only the last item
+					if exploded := strings.Split(curInput, " "); len(exploded) > 0 {
+						curInput = exploded[len(exploded)-1]
+					}
 					filtered = append(filtered, stylesheet.Cur.ExampleText.Render(curInput)+before)
 				}
 			}
@@ -361,6 +374,9 @@ func processInput(m *Mother) tea.Cmd {
 
 		// reconstitute remaining tokens to re-split them via shlex
 		cmd := processActionHandoff(m, wr.endCommand, wr.remainingString)
+		if cmd == nil {
+			return historyCmd
+		}
 		return tea.Sequence(historyCmd, cmd)
 
 	case invalidCommand:
@@ -444,7 +460,7 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 		invalid string
 		cmd     tea.Cmd
 	)
-	if invalid, cmd, err = m.active.model.SetArgs(m.active.command.InheritedFlags(), args); err != nil || invalid != "" { // undo and return
+	if invalid, cmd, err = m.active.model.SetArgs(m.active.command.InheritedFlags(), args, m.width, m.height); err != nil || invalid != "" { // undo and return
 		m.unsetAction()
 
 		if err != nil {
@@ -458,9 +474,9 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 	}
 	clilog.Writer.Debugf("Handing off control to %s", m.active.command.Name())
 	if cmd != nil {
-		return tea.Batch(cmd, tea.WindowSize())
+		return cmd
 	}
-	return tea.WindowSize()
+	return nil
 }
 
 // Walk through the given tokens
@@ -595,15 +611,25 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 	var s strings.Builder
 
 	if action.Is(c) {
-		s.WriteString(c.UsageString())
+		// redirect output to capture help
+		priorOut := c.OutOrStdout()
+		var sb strings.Builder
+		c.SetOut(&sb)
+		if err := c.Help(); err != nil {
+			clilog.Writer.Warnf("failed to get help for command %v", c.CommandPath())
+		}
+
+		s.WriteString(sb.String())
+		c.SetOut(priorOut)
 	} else {
 		specialStyle := stylesheet.Cur.SecondaryText
-		// write .. and /
-		s.WriteString(fmt.Sprintf("%s%s - %s\n",
-			stylesheet.Indent, specialStyle.Render(".."), "step up"))
-		s.WriteString(fmt.Sprintf("%s%s - %s\n",
-			stylesheet.Indent, specialStyle.Render("~"), "return to root"))
-
+		// write .. and / if we are below root
+		if c.HasParent() {
+			fmt.Fprintf(&s, "%s%s - %s\n",
+				stylesheet.Indent, specialStyle.Render(".."), "step up")
+			fmt.Fprintf(&s, "%s%s - %s\n",
+				stylesheet.Indent, specialStyle.Render("~"), "return to root")
+		}
 		children := c.Commands()
 		for _, child := range children {
 			// handle special commands

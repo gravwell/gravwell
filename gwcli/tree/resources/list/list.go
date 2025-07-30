@@ -12,7 +12,6 @@ package list
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -25,23 +24,23 @@ const (
 	long  string = "view resources avaialble to your user and the system"
 )
 
-var (
-	defaultColumns []string = []string{"ID", "UID", "Name", "Description"}
-)
-
 func NewResourcesListAction() action.Pair {
 	return scaffoldlist.NewListAction(short, long,
-		types.ResourceMetadata{}, list, scaffoldlist.Options{AddtlFlags: flags})
+		types.ResourceMetadata{}, list, scaffoldlist.Options{
+			DefaultColumns: []string{"UID", "ResourceName", "Description", "Size", "Global"},
+			ColumnAliases:  map[string]string{"ResourceName": "Name"},
+			AddtlFlags:     flags,
+		})
 }
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool(ft.Name.ListAll, false, ft.Usage.ListAll("resources"))
+	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all schedule searches on the system")
 	return addtlFlags
 }
 
 func list(fs *pflag.FlagSet) ([]types.ResourceMetadata, error) {
-	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
+	if all, err := fs.GetBool("all"); err != nil {
 		uniques.ErrGetFlag("resources list", err)
 	} else if all {
 		return connection.Client.GetAllResourceList()

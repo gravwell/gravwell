@@ -20,14 +20,16 @@ import (
 	"os"
 	"runtime/pprof"
 	"strings"
-	"time"
 
+	"github.com/charmbracelet/lipgloss"
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
@@ -43,22 +45,17 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 )
 
 var profilerFile *os.File
 
 // global PersistentPreRunE.
 //
-// Ensures the logger is set up and the user has logged into the gravwell instance,
-// completing these actions if either is false.
+// Before any command is executed, ppre checks for NOCOLOR,
+// ensures the logger is set up,
+// and attempts to log the user into the gravwell instance.
 func ppre(cmd *cobra.Command, args []string) error {
-	// check for no color flag
-	if nc, err := cmd.Flags().GetBool("no-color"); err != nil {
-		panic(err)
-	} else if nc {
-		stylesheet.Cur = stylesheet.NoColor()
-	}
-
 	// set up the logger, if it is not already initialized
 	if clilog.Writer == nil {
 		path, err := cmd.Flags().GetString("log")
@@ -70,6 +67,11 @@ func ppre(cmd *cobra.Command, args []string) error {
 			return err
 		}
 		clilog.Init(path, lvl)
+	}
+
+	if isNoColor(cmd.Flags()) {
+		stylesheet.Cur = stylesheet.Plain()
+		stylesheet.NoColor = true
 	}
 
 	// if this is a 'complete' request, do not enforce login
@@ -102,6 +104,45 @@ func ppre(cmd *cobra.Command, args []string) error {
 	return EnforceLogin(cmd, args)
 }
 
+// helper function for ppre.
+//
+// Checks for --no-color, $env.NO_COLOR, and --no-interactive in that order.
+func isNoColor(fs *pflag.FlagSet) bool {
+	// check --no-color
+	if nc, err := fs.GetBool(ft.NoColor.Name()); err != nil {
+		panic(err)
+	} else if nc {
+		clilog.Writer.Debug("disabled_color",
+			rfc5424.SDParam{
+				Name:  "reason",
+				Value: "--" + ft.NoColor.Name(),
+			})
+		return true
+	}
+	// check NO_COLOR env var
+	if _, found := os.LookupEnv("NO_COLOR"); found { // https://no-color.org/
+		clilog.Writer.Debug("disabled_color",
+			rfc5424.SDParam{
+				Name:  "reason",
+				Value: "NO_COLOR",
+			})
+		return true
+	}
+
+	if noInteractive, err := fs.GetBool(ft.NoInteractive.Name()); err != nil {
+		panic(err)
+	} else if noInteractive {
+		clilog.Writer.Debug("disabled_color",
+			rfc5424.SDParam{
+				Name:  "reason",
+				Value: "--" + ft.NoInteractive.Name(),
+			})
+		return true
+	}
+	return false
+
+}
+
 // EnforceLogin initializes the connection singleton, which logs the client into the Gravwell instance dictated by the --server flag.
 // Safe (ineffectual) to call if already logged in.
 func EnforceLogin(cmd *cobra.Command, args []string) error {
@@ -121,14 +162,14 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 
 	// generate credentials
 	var (
-		err          error
-		script       bool
-		username     string
-		password     string
-		passfilePath string
-		apiKey       string
+		err           error
+		noInteractive bool
+		username      string
+		password      string
+		passfilePath  string
+		apiKey        string
 	)
-	if script, err = cmd.Flags().GetBool("script"); err != nil {
+	if noInteractive, err = cmd.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
 		return err
 	}
 	if username, err = cmd.Flags().GetString("username"); err != nil {
@@ -159,7 +200,7 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 	}
 
 	// pass all information to Login to decide how to proceed
-	if err := connection.Login(username, password, apiKey, script); err != nil {
+	if err := connection.Login(username, password, apiKey, noInteractive); err != nil {
 		return err
 	}
 
@@ -201,31 +242,24 @@ func ppost(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-const ( // usage
-	use   string = "gwcli"
-	short string = "Gravwell CLI Client"
-)
-
-// must be variable to allow lipgloss formatting
-var long string = "gwcli is a CLI client for interacting with your Gravwell instance directly" +
-	"from your terminal.\n" +
-	"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
-	"To invoke the TUI, simply call " + stylesheet.Cur.ExampleText.Render("gwcli") + ".\n" +
-	"You can view help for any submenu or action by providing help a path.\n" +
-	"For instance, try: " + stylesheet.Cur.ExampleText.Render("gwcli help macros create") +
-	" or " + stylesheet.Cur.ExampleText.Render("gwcli query -h")
-
-const ( // mousetrap
-	mousetrapText string = "This is a command line tool.\n" +
-		"You need to open gwcli.exe and run it from there.\n" +
-		"Press Return to close.\n"
-	mousetrapDuration time.Duration = (0 * time.Second)
-)
-
 // Execute adds all child commands to the root command, sets flags appropriately, and launches the
 // program according to the given parameters
 // (via cobra.Command.Execute()).
 func Execute(args []string) int {
+	const (
+		// usage
+		use   string = "gwcli"
+		short string = "Gravwell CLI Client"
+	)
+
+	// must be variable to allow lipgloss formatting
+	var long = "gwcli is a CLI client for interacting with your Gravwell instance directly from your terminal.\n" +
+		"It can be used non-interactively in your scripts or interactively via the built-in TUI.\n" +
+		"To invoke the TUI, simply call " + stylesheet.Cur.ExampleText.Render("gwcli") + ".\n" +
+		"You can view help for any submenu or action by providing help a path.\n" +
+		"For instance, try: " + stylesheet.Cur.ExampleText.Render("gwcli help macros create") +
+		" or " + stylesheet.Cur.ExampleText.Render("gwcli query -h")
+
 	// spawn the cobra commands in parallel
 	var cmdFn = []func() *cobra.Command{
 		macros.NewMacrosNav,
@@ -275,8 +309,10 @@ func Execute(args []string) int {
 	rootCmd.SetCompletionCommandGroupID(group.ActionID)
 
 	// configure Windows mouse trap
-	cobra.MousetrapHelpText = mousetrapText
-	cobra.MousetrapDisplayDuration = mousetrapDuration
+	cobra.MousetrapHelpText = "This is a command line tool.\n" +
+		"You need to open gwcli.exe and run it from there.\n" +
+		"Press Return to close.\n"
+	cobra.MousetrapDisplayDuration = 0
 
 	// configure root's Run to launch Mother
 	rootCmd.Run = treeutils.NavRun
@@ -287,7 +323,23 @@ func Execute(args []string) int {
 		rootCmd.SetArgs(args)
 	}
 
-	rootCmd.SetUsageFunc(Usage)
+	// override the help command to just call usage
+	rootCmd.SetHelpFunc(help)
+	rootCmd.SetUsageFunc(func(c *cobra.Command) error {
+		fmt.Fprintf(c.OutOrStdout(), "gwcli %s %s", ft.Optional("flags"), ft.Optional("subcommand path"))
+		return nil
+	})
+
+	{ // build a set of examples
+		fields := "  " + stylesheet.Cur.ExampleText.Render("Invoke an action directly:") +
+			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke the interactive prompt:") +
+			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke in a script:")
+		examples := " gwcli -u USERNAME system indexers list --json" +
+			"\n gwcli --server=gravwell.io:4090" +
+			"\n" + ` gwcli --api APIKEY query "tag=gravwell stats count | chart count"`
+		rootCmd.Example = "\n" + lipgloss.JoinHorizontal(lipgloss.Left, fields, examples)
+
+	}
 
 	err := rootCmd.Execute()
 	if err != nil {
@@ -297,53 +349,42 @@ func Execute(args []string) int {
 	return 0
 }
 
-// Usage provides a replacement for cobra's usage command, dynamically building the usage based on pwd (/ the full path the user gave).
-func Usage(c *cobra.Command) error {
-	var bldr strings.Builder
-	// pull off first string, recombine the rest to retrieve a usable path sans root
-	root, path := func() (string, string) {
-		// could do all of this in a one-liner in the fmt.Sprintf, but this is clearer
-		p := strings.Split(c.CommandPath(), " ")
-		if len(p) < 1 { // should be impossible
-			clilog.Writer.Critical("exploded command path is zero-length")
-			return "UNKNOWN", "UNKNOWN"
-		}
-		return p[0], strings.Join(p[1:], " ")
-	}()
+// Help generates the full help text for a command and prints it on c.Out.
+// The specific command's Usage and Example are displayed, if provided, along with all available flags.
+func help(c *cobra.Command, _ []string) {
+	var sb strings.Builder
 
-	bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Usage:") +
-		strings.TrimRight(fmt.Sprintf(" %v %s",
-			root, path,
-		), " "))
+	// write the description block
+	sb.WriteString(stylesheet.Cur.Field("Synopsis", 0) + "\n" + lipgloss.NewStyle().PaddingLeft(2).Render(strings.TrimSpace(c.Long)) + "\n\n")
 
-	if c.GroupID == group.NavID { // nav
-		bldr.WriteString(" [subcommand]\n")
-	} else { // action
-		bldr.WriteString(" [flags]\n\n")
-		bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Local Flags:") + "\n")
-		bldr.WriteString(c.LocalNonPersistentFlags().FlagUsages())
+	// write usage line, if available
+	// NOTE(rlandau): assumes usage is in the form "<cmd.Name> <following usage>"
+	if usage := c.UsageString(); usage != "" {
+		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Usage", 0), usage)
 	}
 
-	bldr.WriteRune('\n')
-
-	if c.HasExample() {
-		bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Example:") + " " + c.Example + "\n\n")
+	// write aliases line, if available
+	if aliases := strings.Join(c.Aliases, ", "); aliases != "" {
+		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Aliases", 0), aliases)
 	}
 
-	bldr.WriteString(stylesheet.Cur.PrimaryText.Render("Global Flags:") + "\n")
-	bldr.WriteString(c.Root().PersistentFlags().FlagUsages())
-
-	bldr.WriteRune('\n')
-
-	// print aliases
-	if len(c.Aliases) != 0 {
-		var s strings.Builder
-		s.WriteString(stylesheet.Cur.PrimaryText.Render("Aliases:") + " ")
-		for _, a := range c.Aliases {
-			s.WriteString(a + ", ")
-		}
-		bldr.WriteString(strings.TrimRight(s.String(), ", ") + "\n") // chomp
+	// write example line, if available
+	// NOTE(rlandau): assumes example is in the form "<cmd.Name> <following example>"
+	if ex := strings.TrimSpace(c.Example); ex != "" {
+		fmt.Fprintf(&sb, "%s %s\n\n", stylesheet.Cur.Field("Example", 0), c.Example) // use the untrimmed version
 	}
+
+	// write local flags
+	if lf := c.LocalNonPersistentFlags().FlagUsages(); lf != "" {
+		sb.WriteString(stylesheet.Cur.Field("Flags", 0) + "\n" + lf + "\n")
+	}
+
+	// write global flags
+	if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
+		sb.WriteString(stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
+	}
+
+	// attach children
 
 	// split children by group
 	navs := make([]*cobra.Command, 0)
@@ -360,23 +401,23 @@ func Usage(c *cobra.Command) error {
 	// output navs as submenus
 	if len(navs) > 0 {
 		var s strings.Builder
-		s.WriteString(stylesheet.Cur.PrimaryText.Render("Submenus"))
 		for _, n := range navs {
 			s.WriteString("\n  " + stylesheet.Cur.Nav.Render(n.Name()))
 		}
-		bldr.WriteString(s.String() + "\n")
+		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Submenus"), s.String())
 	}
 
 	// output actions
 	if len(actions) > 0 {
+		if len(navs) > 0 {
+			sb.WriteString("\n")
+		}
 		var s strings.Builder
-		s.WriteString("\n" + stylesheet.Cur.PrimaryText.Render("Actions"))
 		for _, a := range actions {
 			s.WriteString("\n  " + stylesheet.Cur.Action.Render(a.Name()))
 		}
-		bldr.WriteString(s.String())
+		fmt.Fprintf(&sb, "\n%s%s", stylesheet.Cur.FieldText.Render("Actions"), s.String())
 	}
 
-	fmt.Fprintln(c.OutOrStdout(), strings.TrimSpace(bldr.String()))
-	return nil
+	fmt.Fprint(c.OutOrStdout(), sb.String())
 }

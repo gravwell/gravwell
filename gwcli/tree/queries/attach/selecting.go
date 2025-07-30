@@ -65,7 +65,7 @@ type selectingView struct {
 
 // (Re-)initializes the view, clobbering existing data.
 // Should be called whenever this view is entered (such as on attach startup).
-func (sv *selectingView) init() (cmd tea.Cmd, noAttachables bool, err error) {
+func (sv *selectingView) init() (noAttachables bool, err error) {
 	// initialize variables
 	sv.allDone = make(chan bool)
 	sv.updatedItems = make(chan []list.Item)
@@ -74,18 +74,16 @@ func (sv *selectingView) init() (cmd tea.Cmd, noAttachables bool, err error) {
 	ss, err := connection.Client.ListSearchStatuses()
 	if err != nil {
 		clilog.Writer.Warnf("failed to get search status: %v", err)
-		return nil, false, err
+		return false, err
 	} else if len(ss) == 0 {
-		return nil, true, nil
+		return true, nil
 	}
 
 	if sv.list, err = spawnListAndMaintainer(ss, sv.allDone, sv.updatedItems); err != nil {
-		return nil, false, err
+		return false, err
 	}
 
-	//sv.list.Styles.HelpStyle = sv.list.Styles.HelpStyle.Width(sv.width)
-
-	return tea.WindowSize(), false, nil
+	return false, nil
 }
 
 // Destroys the state of the selecting view, killing any and all updater goroutines.

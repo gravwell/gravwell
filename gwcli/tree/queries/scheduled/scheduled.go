@@ -42,22 +42,20 @@ func NewScheduledNav() *cobra.Command {
 	return treeutils.GenerateNav("scheduled", "Manage scheduled queries", "Alter and view previously scheduled queries", []string{},
 		[]*cobra.Command{},
 		[]action.Pair{
-			newScheduledQryCreateAction(),
-			newScheduledQryListAction(),
-			newScheduledQryDeleteAction(),
-			newScheduledQryEditAction(),
+			create(),
+			list(),
+			delete(),
+			edit(),
 		})
 }
 
 //#region list
 
-var (
-	short          string   = "list scheduled queries"
-	long           string   = "prints out all scheduled queries."
-	defaultColumns []string = []string{"ID", "Name", "Description", "Duration", "Schedule"}
-)
-
-func newScheduledQryListAction() action.Pair {
+func list() action.Pair {
+	var (
+		short = "list scheduled queries"
+		long  = "prints out all scheduled queries."
+	)
 	return scaffoldlist.NewListAction(short, long,
 		types.ScheduledSearch{}, listScheduledSearch,
 		scaffoldlist.Options{
@@ -88,21 +86,21 @@ func newScheduledQryListAction() action.Pair {
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool(ft.Name.ListAll, false, ft.Usage.ListAll("scheduled searches")+
-		" Supercedes --id. Returns your searches if you are not an admin.")
-	addtlFlags.String(ft.Name.ID, "", "Fetches the scheduled search associated to the given id."+
+	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all schedule searches on the system.\n"+
+		"Supersedes --id.")
+	addtlFlags.String("id", "", "fetches the scheduled search associated to the given id."+
 		"This id can be a standard, numeric ID or a uuid.")
 
 	return addtlFlags
 }
 
 func listScheduledSearch(fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {
-	if all, err := fs.GetBool(ft.Name.ListAll); err != nil {
+	if all, err := fs.GetBool("all"); err != nil {
 		uniques.ErrGetFlag("scheduled list", err)
 	} else if all {
 		return connection.Client.GetAllScheduledSearches()
 	}
-	if untypedID, err := fs.GetString(ft.Name.ListAll); err != nil {
+	if untypedID, err := fs.GetString("id"); err != nil {
 		uniques.ErrGetFlag("scheduled list", err)
 	} else if untypedID != "" {
 		// attempt to parse as UUID first
@@ -137,22 +135,29 @@ const ( // field keys
 	createDurationKey = "dur"
 )
 
-// newScheduledQryCreateAction creates the action for creating new scheduled queries.
-func newScheduledQryCreateAction() action.Pair {
+// create creates the action for creating new scheduled queries.
+func create() action.Pair {
 	fields := scaffoldcreate.Config{
-		createNameKey:     scaffoldcreate.NewField(true, "name", 100),
-		createDescKey:     scaffoldcreate.NewField(false, "description", 90),
-		createDurationKey: scaffoldcreate.NewField(true, "duration", 140),
-		createQryKey:      scaffoldcreate.NewField(true, "query", 150),
+		createNameKey: scaffoldcreate.NewField(true, "name", 100),
+		createDescKey: scaffoldcreate.NewField(false, "description", 90),
+		createDurationKey: scaffoldcreate.Field{
+			Required:         true,
+			Title:            "duration",
+			Usage:            "the time span the query will look back over",
+			Type:             scaffoldcreate.Text,
+			FlagName:         "duration",
+			Order:            140,
+			CustomTIFuncInit: func() textinput.Model { ti := stylesheet.NewTI("", false); ti.Placeholder = "1h2m3s4ms"; return ti },
+		},
+		createQryKey: scaffoldcreate.NewField(true, "query", 150),
 		createFreqKey: scaffoldcreate.Field{ // manually build so we have more control
-			Required:      true,
-			Title:         "frequency",
-			Usage:         ft.Usage.Frequency,
-			Type:          scaffoldcreate.Text,
-			FlagName:      ft.Name.Frequency, // custom flag name
-			FlagShorthand: 'f',
-			DefaultValue:  "", // no default value
-			Order:         50,
+			Required:     true,
+			Title:        "frequency",
+			Usage:        ft.Frequency.Usage(),
+			Type:         scaffoldcreate.Text,
+			FlagName:     ft.Frequency.Name(), // custom flag name
+			DefaultValue: "",                  // no default value
+			Order:        50,
 			CustomTIFuncInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", false)
 				ti.Placeholder = "* * * * *"
@@ -162,10 +167,11 @@ func newScheduledQryCreateAction() action.Pair {
 		},
 	}
 
-	return scaffoldcreate.NewCreateAction("scheduled query", fields, create, nil)
+	return scaffoldcreate.NewCreateAction("scheduled query", fields, createFunc, nil)
 }
 
-func create(_ scaffoldcreate.Config, vals map[string]string, _ *pflag.FlagSet) (any, string, error) {
+// driver function for scheduled create
+func createFunc(_ scaffoldcreate.Config, vals map[string]string, _ *pflag.FlagSet) (any, string, error) {
 	var (
 		name      = vals[createNameKey]
 		desc      = vals[createDescKey]
@@ -186,7 +192,7 @@ func create(_ scaffoldcreate.Config, vals map[string]string, _ *pflag.FlagSet) (
 //#region delete
 
 // builds the scheduled search delete action
-func newScheduledQryDeleteAction() action.Pair {
+func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction(
 		"query", "queries", del, func() ([]scaffolddelete.Item[int32], error) {
 			ss, err := connection.Client.GetScheduledSearchList()
@@ -232,35 +238,41 @@ const ( // field keys
 
 const singular string = "scheduled search"
 
-func newScheduledQryEditAction() action.Pair {
+func edit() action.Pair {
 	cfg := scaffoldedit.Config{
 		editNameKey: &scaffoldedit.Field{
 			Required: true,
-			Title:    "Name",
-			Usage:    ft.Usage.Name(singular),
-			FlagName: ft.Name.Name,
+			Title:    "name",
+			Usage:    ft.Name.Usage(singular),
+			FlagName: ft.Name.Name(),
 			Order:    100,
 		},
 		editDescKey: &scaffoldedit.Field{
 			Required: true,
-			Title:    "Description",
-			Usage:    ft.Usage.Desc(singular),
-			FlagName: ft.Name.Desc,
+			Title:    "description",
+			Usage:    ft.Description.Usage(singular),
+			FlagName: ft.Description.Name(),
 			Order:    80,
 		},
 		editSearchKey: &scaffoldedit.Field{
 			Required: true,
-			Title:    "Query",
+			Title:    "query",
 			Usage:    "the query executed by this scheduled search",
-			FlagName: ft.Name.Query,
+			FlagName: "query",
 			Order:    60,
 		},
 		editScheduleKey: &scaffoldedit.Field{
 			Required: true,
-			Title:    "Schedule",
-			Usage:    ft.Usage.Frequency,
-			FlagName: "schedule",
+			Title:    "frequency",
+			Usage:    ft.Frequency.Usage(),
+			FlagName: ft.Frequency.Name(),
 			Order:    40,
+			CustomTIFuncInit: func() textinput.Model {
+				ti := stylesheet.NewTI("", false)
+				ti.Placeholder = "* * * * *"
+				ti.Validate = uniques.CronRuneValidator
+				return ti
+			},
 		},
 	}
 

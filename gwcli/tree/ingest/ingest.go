@@ -32,7 +32,7 @@ var (
 		"Note, however, that ingest provides special handling for Gravwell JSON files.\n" +
 		"Gravwell JSON files typically have a tag built into them, which will be used instead of --default-tag if a tag is not specified as part of the argument.\n" +
 		"\n" +
-		"Calling ingest with no arguments will spin up a file picker (unless --script is specified in which case it will fail out).\n" +
+		"Calling ingest with no arguments will spin up a file picker (unless --" + ft.NoInteractive.Name() + " is specified in which case it will fail out).\n" +
 		"Use --dir to specify a starting directory (otherwise pwd will be used)."
 )
 
@@ -70,7 +70,7 @@ func initialLocalFlagSet() pflag.FlagSet {
 		"any timezone information in the data will be ignored and "+
 			"timestamps will be assumed to be in the Gravwell server's local timezone")
 	fs.String("dir", "",
-		"directory to start the interactive file picker in. Has no effect in script mode.")
+		"directory to start the interactive file picker in. Has no effect in no-interactive mode.")
 	fs.StringP("default-tag", "t", "",
 		"tag to use for each file that does not have one specified (either in the argument or embedded in the JSON (in the case of Gravwell JSON files))")
 
@@ -97,7 +97,7 @@ func run(c *cobra.Command, args []string) {
 
 	// if no files were given, launch mother or fail out
 	if len(pairs) == 0 {
-		if flags.script {
+		if flags.noInteractive {
 			fmt.Fprintln(c.ErrOrStderr(), errNoFilesSpecified(true))
 			return
 		}
@@ -124,7 +124,7 @@ func run(c *cobra.Command, args []string) {
 
 	// start up a spinner
 	var spinner *tea.Program
-	if !flags.script {
+	if !flags.noInteractive {
 		var s = "ingesting file"
 		if len(pairs) > 1 {
 			s += "s"

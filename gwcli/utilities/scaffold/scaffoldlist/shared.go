@@ -45,7 +45,7 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 		}
 	}
 	// check for CSV
-	if fm, err := fs.GetBool(ft.Name.CSV); err != nil {
+	if fm, err := fs.GetBool(ft.CSV.Name()); err != nil {
 		uniques.ErrGetFlag("list", err)
 		// non-fatal
 	} else if fm {
@@ -53,7 +53,7 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 	}
 
 	// check for JSON
-	if fm, err := fs.GetBool(ft.Name.JSON); err != nil {
+	if fm, err := fs.GetBool(ft.JSON.Name()); err != nil {
 		uniques.ErrGetFlag("list", err)
 	} else if fm {
 		format = json
@@ -85,9 +85,9 @@ func listOutput[retStruct any](
 	data, err := dataFn(fs)
 	if err != nil {
 		return "", err
-	} else if len(data) < 1 {
+	} /*else if len(data) < 1 {
 		return "", nil
-	}
+	}*/
 
 	// hand off control
 	clilog.Writer.Debugf("List: format %s | row count: %d", format, len(data))
@@ -112,14 +112,17 @@ func listOutput[retStruct any](
 // buildFlagSet constructs and returns a flagset composed of the default list flags, additional flags defined for this action, and --pretty if a prettyFunc was defined.
 func buildFlagSet(afs AddtlFlagFunction, prettyDefined bool) *pflag.FlagSet {
 	fs := pflag.FlagSet{}
-	fs.Bool(ft.Name.CSV, false, ft.Usage.CSV)
-	fs.Bool(ft.Name.JSON, false, ft.Usage.JSON)
-	fs.Bool(ft.Name.Table, true, ft.Usage.Table) // default
-	fs.StringSlice(ft.Name.SelectColumns, []string{}, ft.Usage.SelectColumns)
-	fs.Bool("show-columns", false, "display the list of fully qualified column names and die.")
-	fs.StringP(ft.Name.Output, "o", "", ft.Usage.Output)
-	fs.Bool(ft.Name.Append, false, ft.Usage.Append)
-	fs.Bool(ft.Name.AllColumns, false, ft.Usage.AllColumns)
+	ft.CSV.Register(&fs)
+	ft.JSON.Register(&fs)
+	ft.Table.Register(&fs)
+	//fs.Bool(ft.Table.Name(), true, ft.Table.Usage()) // default
+	ft.SelectColumns.Register(&fs)
+	ft.ShowColumns.Register(&fs)
+
+	ft.Output.Register(&fs)
+	ft.Append.Register(&fs)
+	ft.AllColumns.Register(&fs)
+
 	// if prettyFunc was defined, bolt on pretty
 	if prettyDefined {
 		fs.Bool("pretty", false, "display results as prettified text.\n"+
@@ -141,14 +144,14 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 	if !fs.Parsed() {
 		return nil, nil
 	}
-	outPath, err := fs.GetString(ft.Name.Output)
+	outPath, err := fs.GetString(ft.Output.Name())
 	if err != nil {
 		return nil, err
 	} else if strings.TrimSpace(outPath) == "" {
 		return nil, nil
 	}
 	var flags = os.O_CREATE | os.O_WRONLY
-	if append, err := fs.GetBool(ft.Name.Append); err != nil {
+	if append, err := fs.GetBool(ft.Append.Name()); err != nil {
 		return nil, err
 	} else if append {
 		flags |= os.O_APPEND
@@ -160,12 +163,12 @@ func initOutFile(fs *pflag.FlagSet) (*os.File, error) {
 
 // getColumns checks for --columns then validates and returns them if found and returns the default columns otherwise.
 func getColumns(fs *pflag.FlagSet, defaultColumns []string, availDSColumns []string) ([]string, error) {
-	if all, err := fs.GetBool(ft.Name.AllColumns); err != nil {
+	if all, err := fs.GetBool(ft.AllColumns.Name()); err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if all {
 		return availDSColumns, nil
 	}
-	cols, err := fs.GetStringSlice(ft.Name.SelectColumns)
+	cols, err := fs.GetStringSlice(ft.SelectColumns.Name())
 	if err != nil {
 		return nil, uniques.ErrGetFlag("list", err) // does not return the actual 'use' of the action, but I don't want to include it as a param just for this super rare case
 	} else if len(cols) < 1 {

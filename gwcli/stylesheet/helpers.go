@@ -23,7 +23,7 @@ func ColorCommandName(c *cobra.Command) string {
 	if action.Is(c) {
 		return Cur.Action.Render(c.Name())
 	} else {
-		return Cur.Action.Render(c.Name())
+		return Cur.Nav.Render(c.Name())
 	}
 }
 

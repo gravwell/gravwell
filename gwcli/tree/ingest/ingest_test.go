@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 )
 
@@ -53,24 +54,24 @@ func Test_autoingest(t *testing.T) {
 		wantCount        uint
 		expectedOutcomes map[string]bool // filename -> expectingAnError?
 	}{
-		{"0 pairs", args{[]pair{}, ingestFlags{script: true}},
+		{"0 pairs", args{[]pair{}, ingestFlags{noInteractive: true}},
 			0, nil},
 		{"1 pair", args{
 			[]pair{{path: "hello", tag: "test"}},
-			ingestFlags{script: true}},
+			ingestFlags{noInteractive: true}},
 			1, map[string]bool{"hello": false}},
-		{"1 pair, no tag no default", args{[]pair{{"hello", ""}}, ingestFlags{script: true}},
+		{"1 pair, no tag no default", args{[]pair{{"hello", ""}}, ingestFlags{noInteractive: true}},
 			1, map[string]bool{"hello": true}},
 		{"2 pairs",
 			args{
 				[]pair{{"file1", "tag1"}, {"dir/file2", "tag2"}},
-				ingestFlags{script: true},
+				ingestFlags{noInteractive: true},
 			},
 			2, map[string]bool{"file1": false, "dir/file2": false}},
 		{"2 pair, default tag",
 			args{
 				[]pair{{path: "Ironeye"}, {path: "Duchess"}},
-				ingestFlags{script: true, defaultTag: "Limveld"},
+				ingestFlags{noInteractive: true, defaultTag: "Limveld"},
 			}, 2, map[string]bool{"Ironeye": false, "Duchess": false}},
 	}
 	for _, tt := range tests {
@@ -189,7 +190,7 @@ func Test_autoingest(t *testing.T) {
 			tag := "shallow" + randomdata.Alphanumeric(10)
 
 			// execute autoingest and await results on the channel
-			count := autoingest(ch, ingestFlags{script: true}, []pair{{path: dir, tag: tag}})
+			count := autoingest(ch, ingestFlags{noInteractive: true}, []pair{{path: dir, tag: tag}})
 			if count != 3 {
 				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(3, count))
 			}
@@ -217,7 +218,7 @@ func Test_autoingest(t *testing.T) {
 			tag := "recursive" + randomdata.Alphanumeric(10)
 
 			// execute autoingest and await results on the channel
-			count := autoingest(ch, ingestFlags{script: true, recursive: true}, []pair{{path: dir, tag: tag}})
+			count := autoingest(ch, ingestFlags{noInteractive: true, recursive: true}, []pair{{path: dir, tag: tag}})
 			if count != 5 {
 				t.Errorf("incorrect ingestion count.%v", testsupport.ExpectedActual(5, count))
 			}
@@ -281,8 +282,8 @@ func TestNewIngestActionRun(t *testing.T) {
 		setup       func() (success bool)                // optionally used to perform prior set up (such as file creation)
 		checkOutput func(out, err string) (success bool) // used to check stdout and stderr for expected values
 	}{
-		{"script; no files",
-			[]string{"--script"},
+		{"noInteractive; no files",
+			[]string{"--" + ft.NoInteractive.Name()},
 			func() bool { return true },
 			func(out, err string) bool {
 				if out != "" {
@@ -296,8 +297,8 @@ func TestNewIngestActionRun(t *testing.T) {
 				return true
 			},
 		},
-		{"script; 1 file+tag",
-			[]string{"--script", path.Join(dir, "raider") + ",Limveld"},
+		{"noInteractive; 1 file+tag",
+			[]string{"--" + ft.NoInteractive.Name(), path.Join(dir, "raider") + ",Limveld"},
 			func() bool {
 				// create the file to ingest
 				if err := os.WriteFile(path.Join(dir, "raider"), []byte(randomdata.Paragraph()), 0644); err != nil {
@@ -325,18 +326,18 @@ func TestNewIngestActionRun(t *testing.T) {
 			func() (success bool) { return true },
 			func(out, err string) (success bool) { return err != "" },
 		},
-		{"--dir given with --script",
-			[]string{"--dir", "/tmp", "--script"},
+		{"--dir given with --noInteractive",
+			[]string{"--dir", "/tmp", "--" + ft.NoInteractive.Name()},
 			func() (success bool) { return true },
 			func(out, err string) (success bool) { return err != "" },
 		},
 		{"invalid source",
-			[]string{"--source", "badsrc", "--script"},
+			[]string{"--source", "badsrc", "--" + ft.NoInteractive.Name()},
 			func() (success bool) { return true },
 			func(out, err string) (success bool) { return err != "" },
 		},
 		{"invalid default tag",
-			[]string{"--default-tag", "some|tag", "--script"},
+			[]string{"--default-tag", "some|tag", "--" + ft.NoInteractive.Name()},
 			func() (success bool) { return true },
 			func(out, err string) (success bool) { return err != "" },
 		},
@@ -412,7 +413,7 @@ func TestNewIngestActionRun(t *testing.T) {
 {"TS":"2025-06-26T23:26:56.100091382Z","Tag":"` + tag3 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRC","Enumerated":null}`
 			tdir     = t.TempDir()
 			jsonpath = path.Join(tdir, "test.json")
-			args     = []string{jsonpath, "--script"}
+			args     = []string{jsonpath, "--" + ft.NoInteractive.Name()}
 		)
 
 		// put the above JSON into a file

@@ -324,7 +324,8 @@ func (q *query) Reset() error {
 
 // Initializes the query action with the given flags,
 // deciding whether to boot into the editor view, datascope directly, or launch the query and return to Mother's prompt.
-func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, error) {
+func (q *query) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
 	// parse the tokens against the local flagset
 	if err := localFS.Parse(tokens); err != nil {
 		return err.Error(), nil, nil
@@ -333,8 +334,8 @@ func (q *query) SetArgs(_ *pflag.FlagSet, tokens []string) (string, tea.Cmd, err
 	flags := querysupport.TransmogrifyFlags(&localFS)
 
 	// check for script mode (invalid, as Mother is already running)
-	if flags.Script {
-		return "", nil, errors.New("cannot invoke script mode while in interactive mode")
+	if flags.NoInteractive { // TODO this check should be performed by Mother
+		return "", nil, errors.New("cannot invoke no-interactive mode while in interactive mode")
 	}
 
 	qry := strings.TrimSpace(strings.Join(localFS.Args(), " "))

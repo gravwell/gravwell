@@ -35,7 +35,9 @@ func initBuiltins() {
 		"history": listHistory,
 		"pwd":     pwd,
 		"quit":    quit,
-		"exit":    quit}
+		"exit":    quit,
+		"clear":   clear,
+	}
 
 	builtinHelp = map[string]string{
 		"help": "Display context-sensitive help. Equivalent to pressing F1.\n" +
@@ -49,6 +51,7 @@ func initBuiltins() {
 		"pwd":     "Current working directory (path)",
 		"quit":    "Kill the application",
 		"exit":    "Kill the application",
+		"clear":   "clear the screen",
 	}
 }
 
@@ -109,4 +112,9 @@ func pwd(m *Mother, _ []string) tea.Cmd {
 func quit(m *Mother, _ []string) tea.Cmd {
 	m.exiting = true
 	return tea.Sequence(tea.Println("Bye"), tea.Quit)
+}
+
+// Clears the screen, returning Mother's prompt to the top left.
+func clear(m *Mother, _ []string) tea.Cmd {
+	return tea.ClearScreen
 }

@@ -205,7 +205,7 @@ func fetchTextResults(s *grav.Search) ([]types.SearchEntry, error) {
 // HandleFGCobraSearch is intended to be called from a search-related action's run function once it acquires a handle to a foreground search.
 // Waits on the search,
 // pings the search according to its interval,
-// displays a spinner if !script,
+// displays a spinner if !noInteractive,
 // and fetches the results according to whether they are intended for a writer (file/stdout) or datascope.
 // If the results a
 //
@@ -231,15 +231,15 @@ func HandleFGCobraSearch(s *grav.Search, flags QueryFlags, stdout, stderr io.Wri
 			}
 		}
 	}()
-	// if we are not in script mode, spawn a spinner to show that we didn't just hang during processing
+	// if we are not in noInteractive mode, spawn a spinner to show that we didn't just hang during processing
 	var spnr *tea.Program
-	if !flags.Script {
+	if !flags.NoInteractive {
 		spnr = stylesheet.CobraSpinner("(cancel with ctrl+c)")
 		go spnr.Run()
 	}
 
-	// if we are in script mode or were given an output file, the results will be streamed
-	if flags.Script || flags.OutPath != "" {
+	// if we are in noInteractive mode or were given an output file, the results will be streamed
+	if flags.NoInteractive || flags.OutPath != "" {
 		// ensure we stop our other goroutines when the job is done
 		defer func() {
 			close(ping)
