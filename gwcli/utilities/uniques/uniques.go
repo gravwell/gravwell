@@ -219,11 +219,15 @@ func innerWalk(pwd *cobra.Command, remainingTokens []string, builtins map[string
 	}
 	// split on nav or action
 	if action.Is(nextCmd) {
-		// found an action, we are done
-		return WalkResult{
+		// look ahead for help flags
+		wr := WalkResult{
 			EndCmd:          nextCmd,
 			RemainingTokens: remainingTokens,
-		}, nil
+		}
+		if slices.ContainsFunc(remainingTokens, func(item string) bool { return item == "-h" || item == "--help" }) {
+			wr.Builtin = "help"
+		}
+		return wr, nil
 	}
 	// found a nav, keep walking
 	return innerWalk(nextCmd, remainingTokens, builtins)
