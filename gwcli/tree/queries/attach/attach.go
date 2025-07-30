@@ -31,13 +31,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const (
+var (
 	helpDesc string = "Attach to an existing query by search ID and display its results.\n" +
 		"If the query is still running, attaching to it will block until it is complete.\n" +
 		"\n" +
 		"In interactive mode, a list of available, attach-able queries will be displayed.\n" +
 		"\n" +
-		"If --json or --csv is not given when outputting to a file (`-o`), the results will be " +
+		"If --" + ft.JSON.Name() + " or --" + ft.CSV.Name() + " is not given when outputting to a file (`-o`), the results will be " +
 		"text (if able) or an archive binary blob (if unable), depending on the query's render " +
 		"module.\n" +
 		"gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
@@ -55,13 +55,13 @@ func NewAttachAction() action.Pair {
 
 	localFS := initialLocalFlagSet()
 	cmd.Flags().AddFlagSet(&localFS)
-	// add bare argument validator (require 1 arg if --script, 0 or 1 otherwise)
+	// add bare argument validator (require 1 arg if --no-interactive, 0 or 1 otherwise)
 	cmd.Args = func(cmd *cobra.Command, args []string) error {
-		script, err := cmd.Flags().GetBool("script")
+		noInteractive, err := cmd.Flags().GetBool(ft.NoInteractive.Name())
 		if err != nil {
 			panic(err)
 		}
-		if script && len(args) != 1 {
+		if noInteractive && len(args) != 1 {
 			return errors.New(errWrongArgCount(true))
 		}
 		if len(args) > 1 {
@@ -80,10 +80,10 @@ func NewAttachAction() action.Pair {
 func initialLocalFlagSet() pflag.FlagSet {
 	fs := pflag.FlagSet{}
 
-	fs.StringP(ft.Name.Output, "o", "", ft.Usage.Output)
-	fs.Bool(ft.Name.Append, false, ft.Usage.Append)
-	fs.Bool(ft.Name.JSON, false, ft.Usage.JSON)
-	fs.Bool(ft.Name.CSV, false, ft.Usage.CSV)
+	ft.Output.Register(&fs)
+	ft.Append.Register(&fs)
+	ft.JSON.Register(&fs)
+	ft.CSV.Register(&fs)
 
 	return fs
 }
@@ -95,8 +95,8 @@ func run(cmd *cobra.Command, args []string) {
 	flags := querysupport.TransmogrifyFlags(cmd.Flags())
 
 	// check arg count
-	if len(args) > 1 || (flags.Script && len(args) == 0) {
-		fmt.Fprint(cmd.ErrOrStderr(), errWrongArgCount(flags.Script)+"\n")
+	if len(args) > 1 || (flags.NoInteractive && len(args) == 0) {
+		fmt.Fprint(cmd.ErrOrStderr(), errWrongArgCount(flags.NoInteractive)+"\n")
 		return
 	}
 	// if a sid was given, attempt to fetch results

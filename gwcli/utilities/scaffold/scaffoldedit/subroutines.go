@@ -15,7 +15,7 @@ type SelectSubroutine[I scaffold.Id_t, S any] func(id I) (
 	item S, err error,
 )
 
-// FetchAllSubroutine defines a subroutine that returns all edit-able data (in the form of their structs). Not used in script mode.
+// FetchAllSubroutine defines a subroutine that returns all edit-able data (in the form of their structs). Not used in no-interactive mode.
 type FetchAllSubroutine[S any] func() (
 	items []S, err error,
 )

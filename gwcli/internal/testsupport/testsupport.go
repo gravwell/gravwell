@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"io"
 	"maps"
+	"reflect"
 	"testing"
 	"time"
 
@@ -99,4 +100,57 @@ func SlicesUnorderedEqual(a []string, b []string) bool {
 	}
 
 	return maps.Equal(am, bm)
+}
+
+// ExtractPrintLineMessageString attempts to pull the messageBody string out from the tea.printLineMessage private struct by reflecting into it.
+// It can parse sequences/batches.
+// Returns the string on success; fatal on failure.
+// Only operates at the first layer; will not traverse nested sequence/batches
+//
+// If !sliceOK, then it will fail if the given command returned a tea.Batch or tea.Sequence.
+// sequenceIndex sets the expected index of the printLineMessage if the cmd is a tea.Batch or tea.Sequence.
+// Has no effect if !sliceOK.
+func ExtractPrintLineMessageString(t *testing.T, cmd tea.Cmd, sliceOK bool, sequenceIndex uint) string {
+	t.Helper()
+	voMsg := reflect.ValueOf(cmd())
+	t.Logf("Update msg kind: %v", voMsg.Kind())
+	// this will be a slice if it is a sequence or a struct if a single msg
+	var voPLM reflect.Value
+	if voMsg.Kind() == reflect.Slice {
+		if !sliceOK {
+			t.Fatal("message is a slice; slices were marked unacceptable")
+		}
+		// ensure the sequence/batch is at least as large as the index
+		if voMsg.Len() <= int(sequenceIndex) {
+			t.Fatal("sequence/batch is too short.", ExpectedActual(fmt.Sprintf("at least %v", sequenceIndex), voMsg.Len()))
+		}
+		// select a single item
+		voInnerCmd := voMsg.Index(int(sequenceIndex))
+		// voItm1 should now be a Cmd that returns a printLineMessage
+		if voInnerCmd.Kind() != reflect.Func {
+			t.Fatal(ExpectedActual(reflect.Func, voMsg.Kind()))
+		}
+		// invoke, check that exactly 1 value (the message) is returned
+		if voInnerMsg := voInnerCmd.Call(nil); len(voInnerMsg) != 1 {
+			t.Fatal("bad output count", ExpectedActual(1, len(voInnerMsg)))
+		} else {
+			voPLM = voInnerMsg[sequenceIndex]
+		}
+	} else { // not a sequence, just a raw printLineMessage (or an interface of a Msg)
+		voPLM = voMsg
+	}
+
+	// if the Message is still in interface form, we need to dereference it
+	if voPLM.Kind() == reflect.Interface {
+		voPLM = voPLM.Elem()
+	}
+	if voPLM.Kind() != reflect.Struct {
+		t.Fatal(ExpectedActual(reflect.Struct, voPLM.Kind()))
+	}
+
+	voMessageBody := voPLM.FieldByName("messageBody")
+	if voMessageBody.Kind() != reflect.String {
+		t.Fatal(ExpectedActual(reflect.String, voMessageBody.Kind()))
+	}
+	return voMessageBody.String()
 }

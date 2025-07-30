@@ -22,17 +22,25 @@ import (
 	"github.com/charmbracelet/lipgloss/table"
 )
 
-// NewTI creates a textinput with common attributes.
+// NewTI creates a textinput with common attributes that respect the current stylesheet.
+// defVal sets the default value in the TI and its placeholder.
+// optional just sets the placeholder to "(optional)".
+// If stylesheet.NoColor is set, no placeholders will be set.
 func NewTI(defVal string, optional bool) textinput.Model {
 	ti := textinput.New()
 	ti.Prompt = ""
 	ti.Width = 20
 	ti.Blur()
 	ti.SetValue(defVal)
+
 	ti.KeyMap.WordForward.SetKeys("ctrl+right", "alt+right", "alt+f")
 	ti.KeyMap.WordBackward.SetKeys("ctrl+left", "alt+left", "alt+b")
-	if optional {
-		ti.Placeholder = "(optional)"
+	if !NoColor {
+		if optional {
+			ti.Placeholder = "(optional)"
+		} else {
+			ti.Placeholder = defVal
+		}
 	}
 	return ti
 }
@@ -93,10 +101,8 @@ func Table() *table.Table {
 		Border(Cur.TableSty.BorderType).
 		BorderStyle(Cur.TableSty.BorderStyle).
 		StyleFunc(func(row, col int) lipgloss.Style {
-			switch {
-			case row == 0:
-				return Cur.TableSty.HeaderCells
-			case row%2 == 0:
+			switch row % 2 {
+			case 0:
 				return Cur.TableSty.EvenCells
 			default:
 				return Cur.TableSty.OddCells

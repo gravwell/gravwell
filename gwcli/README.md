@@ -30,7 +30,7 @@ A redesigned Gravwell client for the terminal, supporting both TUI-served intera
 
 - pluggable framework for easily adding new capabilities (complete with genericized boilerplate and generator functions)
 
-- `--script` flag to indicate that the program should never wait for user input or confirmation
+- `--no-interactive` flag to indicate that the program should never wait for user input or confirmation
 
 # Usage
 
@@ -42,7 +42,7 @@ The CLI can be used interactively or as a script tool.
 
 Calling an action directly (ex: `./gwcli query tag=gravwell`) will invoke the action and return the results.
 
-Calling gwcli bare or from a menu (ex: `./gwcli macros`) will start an interactive prompt at that directory (unless `--script` is given, in which case it will display help).
+Calling gwcli bare or from a menu (ex: `./gwcli macros`) will start an interactive prompt at that directory (unless `--no-interactive` is given, in which case it will display help).
 
 Attach `-h` to any command for full details on flags and commands.
 

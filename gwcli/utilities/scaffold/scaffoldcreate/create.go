@@ -73,6 +73,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -120,6 +121,16 @@ func NewCreateAction(singular string,
 		flags.AddFlagSet(&afs)
 	}
 
+	// pull required flags from cfg
+	requiredFlags := make([]string, 0)
+	for _, v := range fields {
+		if v.Required && v.FlagName != "" {
+			// switch on v.Type... when there is more than 1
+			txt := "--" + v.FlagName + "=" + ft.Mandatory("string")
+			requiredFlags = append(requiredFlags, txt)
+		}
+	}
+
 	cmd := treeutils.GenerateAction(
 		"create",                 // use
 		"create a "+singular,     // short
@@ -127,7 +138,7 @@ func NewCreateAction(singular string,
 		[]string{},               // aliases
 		func(c *cobra.Command, s []string) {
 			// get standard flags
-			script, err := c.Flags().GetBool("script")
+			noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name())
 			if err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
 				return
@@ -138,7 +149,7 @@ func NewCreateAction(singular string,
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
 				return
 			} else if mr != nil {
-				if !script {
+				if !noInteractive {
 					if err := mother.Spawn(c.Root(), c, s); err != nil {
 						clilog.Writer.Critical(err.Error())
 					}
@@ -161,7 +172,7 @@ func NewCreateAction(singular string,
 			} else {
 				fmt.Fprintf(c.OutOrStdout(), "Successfully created %v (ID: %v).", singular, id)
 			}
-		})
+		}, treeutils.GenerateActionOptions{Usage: strings.Join(requiredFlags, " ")})
 
 	// attach mined flags to cmd
 	cmd.Flags().AddFlagSet(&flags)
@@ -464,9 +475,8 @@ func (c *createModel) Reset() error {
 	return nil
 }
 
-func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string) (
-	invalid string, onStart tea.Cmd, err error,
-) {
+func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
 	if err := c.fs.Parse(tokens); err != nil {
 		return err.Error(), nil, nil
 	}
@@ -485,6 +495,8 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string) (
 			c.orderedTIs[i].TI = c.fields[kti.Key].CustomTIFuncSetArg(&kti.TI)
 		}
 	}
+
+	c.width = width
 
 	return "", nil, nil
 }

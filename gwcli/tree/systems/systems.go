@@ -74,6 +74,7 @@ func newStorageAction() action.Pair {
 			return wrap, nil
 		}, scaffoldlist.Options{
 			Use: use,
+			// should match the aliases used in the systems indexers list action
 			ColumnAliases: map[string]string{
 				"Stats.DataIngestedHot":  "Hot.Ingested",
 				"Stats.DataIngestedCold": "Cold.Ingested",

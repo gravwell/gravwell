@@ -32,7 +32,7 @@ Tree nodes (commands that require further input/are submenus), such as `user`, a
 
     - This lesson took a while to sink in; you may see `[]tea.Cmd` signatures floating around, but these should be replaced, primarily with `.Batch()`s. I already incorporated .Sequence() where important.
 
-    - There are some caveats to this, with BubbleTea not guaranteeing to fully unpack nested sequence and batch commands in proper order ([#847](https://github.com/charmbracelet/bubbletea/issues/847), [#680](https://github.com/charmbracelet/bubbletea/issues/680)). This is actually why Mother sequences a WindowSizeCmd whenever it processes SetArgs on a new child action.
+    - There are some caveats to this, with BubbleTea not guaranteeing to fully unpack nested sequence and batch commands in proper order ([#847](https://github.com/charmbracelet/bubbletea/issues/847), [#680](https://github.com/charmbracelet/bubbletea/issues/680)).
 
 - Most errors should be recoverable while in interactive mode and therefore panics while running are profane. Panicking during setup, however, is perfectly acceptable; errors during setup are almost certainly developer error, therefore the earlier they arise the better.
 
@@ -74,11 +74,11 @@ Creating an action from scratch is much more arduous and should only be done if 
 
 You will still have a `New*Action() action.Pair` function that can be given to the parent nav. In here, define your cobra.Command via `treeutils.NewActionCommand()` and `treeutils.GenerateAction()`.
 
-Your action must be able to handle three, primary user modes: script mode, interactive run mode, and interactive (Mother) mode.
-Script mode and interactive run mode are handled in your cobra.Command runFunc; the user invokes this action directly from their shell, with or without --script.
+Your action must be able to handle three, primary user modes: script(/NoInteractive) mode, interactive run mode, and interactive (Mother) mode.
+Script mode and interactive run mode are handled in your cobra.Command runFunc; the user invokes this action directly from their shell, with or without --no-interactive.
 Interactive (Mother) mode requires you to create a new implementation of `action.Model` (see [below](#actionmodel)). This new struct will be given to `GenerateAction()`, returning you the `action.Pair` needed to attach this action to a nav.
 
-The Basic scaffold is a highly simplistic implementation of an action. For a much more in-depth example, take a look at [query.go](tree/query/query.go). This showcases an entirely manual implementation of an action, from creating the runFunc and branching it on --script to spawning a totally new action.Model and shifting it between different modes.
+The Basic scaffold is a highly simplistic implementation of an action. For a much more in-depth example, take a look at [query.go](tree/query/query.go). This showcases an entirely manual implementation of an action, from creating the runFunc and branching it on --no-interactive to spawning a totally new action.Model and shifting it between different modes.
 
 # Packages
 
@@ -173,11 +173,8 @@ Actions must satisfy the `action.Model` interface to be able to supplant Mother 
 
 `Reset() error` is called by Mother *after* Mother reasserts control (exiting handoff mode). This typically occurs after `Done()` returns true or the user pressed a child-only kill key (like `esc`). It resets the child to a clean state so it can be called again later.
 
-`SetArgs(*pflag.FlagSet, []string) (string, []tea.Cmd, error)` sets fields in the child that manipulate its next run. It is called when Mother *first enters handoff mode* for a child, before the child's first `Update()`. It provides the flagset this action inherited from its ancestors as well as all tokens remaining *after* the action invocation. The former is likely to be unused (but provided just in case) and the latter is pre-split by shlex (shell-splitting rules).
+`SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error)` sets fields in the child that manipulate its next run. It is called when Mother *first enters handoff mode* for a child, before the child's first `Update()`. It provides the flagset this action inherited from its ancestors as well as all tokens remaining *after* the action invocation. The former is likely to be unused (but provided just in case) and the latter is pre-split by shlex (shell-splitting rules). Last-known available width and height are also provided. 
 It returns, respectively: the reason this argument set is invalid (or ""), tea.Cmds the child needs run on startup (eg: right now), errors outside of the users control. The startup Cmd somewhat takes the place of `tea.Model.Init()`.
-
-> [!NOTE]
-> Mother prepends a WindowSizeCmd to whatever command is returned from .SetArgs(); action's SetArgs() do not need to Batch/Sequence WindowSizeCmd themselves.
 
 ```mermaid
 flowchart
@@ -247,4 +244,4 @@ There are a number of flags that are useful and functionally identically across 
 
 As such, I am not including these common flags as persistents at root level, lest it require every action to support tangential flags. Instead, common elements of these flags are stored in the flagtext package, to at least provide some degree of consistency across flags that are technically unrelated.
 
-Other flags, such as --script, must be supported by all actions anyways, so they are persistent at a root level.
+Other flags, such as --no-interactive, must be supported by all actions anyways, so they are persistent at a root level.

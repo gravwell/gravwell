@@ -151,7 +151,8 @@ func (ba *basicAction) Reset() error {
 	return nil
 }
 
-func (ba *basicAction) SetArgs(_ *pflag.FlagSet, tokens []string) (_ string, _ tea.Cmd, err error) {
+func (ba *basicAction) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+	invalid string, onStart tea.Cmd, err error) {
 	// validate arguments using the set method
 	if ba.cmd.Args != nil {
 		if err := ba.cmd.Args(ba.cmd, tokens); err != nil {

@@ -70,21 +70,20 @@ const (
 	defaultDuration = 1 * time.Hour
 
 	pageSize = 500 // fetch results page by page
-
-	helpDesc = "Generate and send a query to the remote server either by arguments or " +
-		"the interactive query builder.\n" +
-		"All bare arguments after `query` will be passed to the instance as the query string.\n" +
-		"\n" +
-		"Omitting --script will open the results in an interactive viewing pane with additional" +
-		"functionality for downloading the results to a file or scheduling this query to run in " +
-		"the future" +
-		"\n" +
-		"If --json or --csv is not given when outputting to a file (`-o`), the results will be " +
-		"text (if able) or an archive binary blob (if unable), depending on the query's render " +
-		"module.\n" +
-		"gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
-		"blob (aka: your query uses a chart-style renderer)."
 )
+
+var helpDesc = "Generate and send a query to the remote server either by arguments or " +
+	"the interactive query builder.\n" +
+	"All bare arguments after `query` will be passed to the instance as the query string.\n" +
+	"Omitting --" + ft.NoInteractive.Name() + " will open the results in an interactive viewing pane with additional" +
+	"functionality for downloading the results to a file or scheduling this query to run in " +
+	"the future" +
+	"\n" +
+	"If --" + ft.JSON.Name() + " or --" + ft.CSV.Name() + " is not given when outputting to a file (`-o`), the results will be " +
+	"text (if able) or an archive binary blob (if unable), depending on the query's render " +
+	"module.\n" +
+	"gwcli will not dump binary to terminal; you must supply -o if the results are a binary " +
+	"blob (aka: your query uses a chart-style renderer)."
 
 var (
 	ErrSuperfluousQuery = "query is empty and therefore ineffectual"
@@ -114,17 +113,17 @@ func initialLocalFlagSet() pflag.FlagSet {
 	fs.DurationP("duration", "t", time.Hour*1,
 		"the historical timeframe from now the query should pour over.\n"+
 			"Ex: '1h' = the past hour, '5s500ms'= the previous 5 and a half seconds")
-	fs.StringP(ft.Name.Output, "o", "", ft.Usage.Output)
-	fs.Bool(ft.Name.Append, false, ft.Name.Append)
-	fs.Bool(ft.Name.JSON, false, ft.Usage.JSON)
-	fs.Bool(ft.Name.CSV, false, ft.Usage.CSV)
+	ft.Output.Register(&fs)
+	ft.Append.Register(&fs)
+	ft.JSON.Register(&fs)
+	ft.CSV.Register(&fs)
 
 	fs.BoolP("background", "b", false, "run this search in the background, rather than awaiting and loading the results as soon as they are ready")
 
 	// scheduled searches
-	fs.StringP(ft.Name.Name, "n", "", "SCHEDULED."+ft.Usage.Name("scheduled search"))
-	fs.StringP(ft.Name.Desc, "d", "", "SCHEDULED."+ft.Usage.Desc("scheduled search"))
-	fs.StringP(ft.Name.Frequency, "f", "", "SCHEDULED."+ft.Usage.Frequency)
+	fs.StringP(ft.Name.Name(), ft.Name.Shorthand(), "", "SCHEDULED ONLY. "+ft.Name.Usage("scheduled search"))
+	fs.StringP(ft.Description.Name(), ft.Description.Shorthand(), "", "SCHEDULED ONLY. "+ft.Description.Usage("scheduled search"))
+	fs.StringP(ft.Frequency.Name(), ft.Frequency.Shorthand(), "", "SCHEDULED ONLY. "+ft.Frequency.Usage())
 
 	return fs
 }
@@ -149,7 +148,7 @@ func run(cmd *cobra.Command, args []string) {
 	valid, err := testQryValidity(qry)
 
 	if !valid {
-		if flags.Script { // fail out
+		if flags.NoInteractive { // fail out
 			var errMsg string
 			if err != nil {
 				errMsg = err.Error()

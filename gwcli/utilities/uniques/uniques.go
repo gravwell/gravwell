@@ -19,6 +19,7 @@ import (
 	"time"
 	"unicode"
 
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/spf13/cobra"
 )
@@ -115,10 +116,7 @@ func ParseJWT(tkn string) (header JWTHeader, payload JWTPayload, signature []byt
 // AttachPersistentFlags populates all persistent flags and attaches them to the given command.
 // This subroutine should ONLY be used by Mother when building the root command or by test suites that omit Mother.
 func AttachPersistentFlags(cmd *cobra.Command) {
-	// global flags
-	cmd.PersistentFlags().Bool("script", false,
-		"disallows gwcli from entering interactive mode and prints context help instead.\n"+
-			"Recommended for use in scripts to avoid hanging on a malformed command.")
+	ft.NoInteractive.Register(cmd.PersistentFlags())
 	cmd.PersistentFlags().StringP("username", "u", "", "login credential.")
 	cmd.PersistentFlags().String("password", "", "login credential.")
 	cmd.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
@@ -127,7 +125,7 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 	cmd.MarkFlagsMutuallyExclusive("password", "passfile", "api")
 	cmd.MarkFlagsMutuallyExclusive("api", "username")
 
-	cmd.PersistentFlags().Bool("no-color", false, "disables colourized output.")
+	ft.NoColor.Register(cmd.PersistentFlags())
 	cmd.PersistentFlags().String("server", "localhost:80", "<host>:<port> of instance to connect to.\n")
 	cmd.PersistentFlags().StringP("log", "l", cfgdir.DefaultStdLogPath, "log location for developer logs.\n")
 	cmd.PersistentFlags().String("loglevel", "DEBUG", "log level for developer logs (-l).\n"+

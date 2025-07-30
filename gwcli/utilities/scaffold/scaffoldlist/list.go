@@ -203,19 +203,23 @@ func NewListAction[dataStruct_t any](short, long string,
 		options.DefaultColumns = availDSColumns
 	}
 
-	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataFn, options, availDSColumns))
+	// generate usage and example
+	actionOptions := treeutils.GenerateActionOptions{}
+	{
+		formats := []string{"--" + ft.CSV.Name(), "--" + ft.JSON.Name(), "--" + ft.Table.Name()}
+		if options.Pretty != nil {
+			formats = append(formats, "--pretty")
+		}
+		actionOptions.Usage = fmt.Sprintf("%v %v", ft.MutuallyExclusive(formats), ft.Optional("--"+ft.SelectColumns.Name()+"=col1,col2,..."))
+		actionOptions.Example = "--" + ft.JSON.Name() + " --" + ft.AllColumns.Name()
+	}
+
+	cmd := treeutils.GenerateAction(use, short, long, options.Aliases, generateRun(dataFn, options, availDSColumns),
+		actionOptions)
 
 	cmd.Flags().AddFlagSet(buildFlagSet(options.AddtlFlags, options.Pretty != nil))
 	cmd.Flags().SortFlags = false // does not seem to be respected
-	cmd.MarkFlagsMutuallyExclusive(ft.Name.CSV, ft.Name.JSON, ft.Name.Table)
-
-	// attach example
-	formats := []string{"--csv", "--json", "--table"}
-	if options.Pretty != nil {
-		formats = append(formats, "--pretty")
-	}
-	cmd.Example = fmt.Sprintf("%v %v %v", use, ft.MutuallyExclusive(formats), ft.Optional("--columns=col1,col2,..."))
-
+	cmd.MarkFlagsMutuallyExclusive(ft.CSV.Name(), ft.JSON.Name(), ft.Table.Name())
 	// apply command modifiers
 	if options.CmdMods != nil {
 		options.CmdMods(cmd)
@@ -245,7 +249,7 @@ func generateRun[dataStruct_t any](
 		}
 
 		// check for --show-columns
-		if sc, err := c.Flags().GetBool("show-columns"); err != nil {
+		if sc, err := c.Flags().GetBool(ft.ShowColumns.Name()); err != nil {
 			fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag("list", err))
 			return
 		} else if sc {
@@ -254,14 +258,14 @@ func generateRun[dataStruct_t any](
 		}
 
 		var (
-			script  bool // TODO should script imply no-color at a global level?
-			outFile *os.File
-			format  outputFormat
-			columns []string
+			noInteractive bool
+			outFile       *os.File
+			format        outputFormat
+			columns       []string
 		)
 		{ // gather flags and set up variables required for listOutput
 			var err error
-			script, err = c.Flags().GetBool(ft.Name.Script)
+			noInteractive, err = c.Flags().GetBool(ft.NoInteractive.Name())
 			if err != nil {
 				fmt.Fprintln(c.ErrOrStderr(), uniques.ErrGetFlag(c.Use, err))
 				return
@@ -273,7 +277,7 @@ func generateRun[dataStruct_t any](
 			} else if outFile != nil {
 				defer outFile.Close()
 				// ensure color is disabled.
-				stylesheet.Cur = stylesheet.NoColor()
+				stylesheet.Cur = stylesheet.Plain()
 			}
 
 			columns, err = getColumns(c.Flags(), options.DefaultColumns, availDataStructColumns)
@@ -291,7 +295,7 @@ func generateRun[dataStruct_t any](
 		}
 
 		if s == "" {
-			if outFile == nil && !script {
+			if outFile == nil && !noInteractive {
 				fmt.Fprintln(c.OutOrStdout(), "no data found")
 			}
 			return
