@@ -39,7 +39,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/tree"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/user"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -290,7 +289,6 @@ func Execute(args []string) int {
 		cmds,
 		[]action.Pair{
 			query.NewQueryAction(),
-			tree.NewTreeAction(),
 			ingest.NewIngestAction(),
 		})
 	rootCmd.SilenceUsage = true
