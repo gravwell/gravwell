@@ -57,6 +57,7 @@ func TestWalk(t *testing.T) {
 		{"empty input", "", "",
 			ExpectedWalkResult{commandName: "root", remainingTokens: nil, builtin: "", helpMode: false, err: false}},
 
+		// navigation
 		{"first level nav", "", "Anav",
 			ExpectedWalkResult{commandName: "Anav", remainingTokens: nil, builtin: "", helpMode: false, err: false}},
 		{"first level nav alias", "", "Anav_alias", ExpectedWalkResult{"Anav", nil, "", false, false}},
@@ -72,6 +73,7 @@ func TestWalk(t *testing.T) {
 		{"circuitous route with excess whitespace", "    Cnav CCnav", "..    .. Bnav ~   Cnav CBaction  ",
 			ExpectedWalkResult{"CBaction", nil, "", false, false}},
 
+		// builtins
 		{"simple builtin", "", "builtin1",
 			ExpectedWalkResult{"root", nil, "builtin1", false, false}},
 		{"builtin with excess tokens", "", "builtin1 some extra tokens",
@@ -81,6 +83,7 @@ func TestWalk(t *testing.T) {
 		{"interspersed builtin", "", "Bnav builtin1 excess",
 			ExpectedWalkResult{"Bnav", []string{"excess"}, "builtin1", false, false}},
 
+		// bare help
 		{"bare help", "", "help",
 			ExpectedWalkResult{"root", nil, "", true, false}},
 		{"bare help, extra token", "", "help Anav",
@@ -102,6 +105,7 @@ func TestWalk(t *testing.T) {
 		{"interspersed help help", "", "help Cnav CCnav help CCAaction",
 			ExpectedWalkResult{commandName: "CCnav", remainingTokens: []string{"CCAaction"}, builtin: "help", helpMode: false, err: true}},
 
+		// help flag
 		{"help flag, shortform on root", "", "-h",
 			ExpectedWalkResult{commandName: "root", remainingTokens: nil, builtin: "", helpMode: true, err: false}},
 		{"help flag, longform on root", "", "--help",
@@ -115,6 +119,18 @@ func TestWalk(t *testing.T) {
 		{"help flag on builtin", "", "jump --help",
 			ExpectedWalkResult{commandName: "root", remainingTokens: nil, builtin: "jump", helpMode: true, err: false},
 		},
+
+		// other flags
+		{"help flag, shortform on root", "", "-h --flag=1",
+			ExpectedWalkResult{commandName: "root", remainingTokens: []string{"--flag=1"}, builtin: "", helpMode: true, err: false}},
+		{"stop nav on first flag", "", "Cnav --flag=1 CCnav",
+			ExpectedWalkResult{commandName: "Cnav", remainingTokens: []string{"--flag=1", "CCnav"}, builtin: "", helpMode: true, err: false}},
+		{"include flags in action", "", "Daction --flag=1 CCnav",
+			ExpectedWalkResult{commandName: "Daction", remainingTokens: []string{"--flag=1", "CCnav"}, builtin: "", helpMode: true, err: false}},
+		{"stop on builtin prior to flags", "", "ls -f",
+			ExpectedWalkResult{commandName: "root", remainingTokens: []string{"-f"}, builtin: "ls", helpMode: true, err: false}},
+		{"stop on flag prior to builtin", "", "-p 1 ls",
+			ExpectedWalkResult{commandName: "root", remainingTokens: []string{"-p", "1", "ls"}, builtin: "", helpMode: true, err: false}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
