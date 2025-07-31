@@ -15,9 +15,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -139,98 +139,146 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().MarkHidden("profile")
 }
 
+// WalkResult is the outcome of a Walk() call.
+// It represents the properties found from parsing a user input string.
+// Currently, Builtin and EndCmd are mutually exclusive; if one is set then you can assume the other is not.
+// It is conceivable that future builtins will be context-aware of the cmd they are to run on, but that is currently not the case (as Help has special handling).
+// Relatedly, Builtin should not contain "Help" unless HelpMode is also set.
+// This is because HelpMode represents that the caller should invoke help;
+// if Builtin contains Help, then it is because the user activated HelpMode on the "help" builtin.
 type WalkResult struct {
-	EndCmd *cobra.Command // the last nav or action seen
-	//activate        bool           // should endCmd be called (moved to, in the case of a nav)?
-	RemainingTokens []string // all tokens remaining after endCmd
-	Builtin         string   // the non-help builtin to trigger
+	EndCmd          *cobra.Command // the last nav or action seen.
+	RemainingTokens []string       // all tokens remaining after endCmd
+	Builtin         string         // the non-help builtin to trigger
+	HelpMode        bool           // help was request for the named builtin or EndCmd (whichever is set)
 }
 
-// Walk recursively traverses input, searching for a command or builtin to match on.
-// If an error is returned, do not rely on any information in WalkResult.
+// Walk traverses the given user input and returns how to handle it (and whether or not it is erroneous).
+// It assumes input has the form ["help"] <command path> [flags] and will error if this form is not met.
+// Parsing stops when a flag is found, an action is found, no tokens remain, or an error occurred.
+// If an error is returned, WalkResult will contain the state of Walk when the error was encountered.
 func Walk(pwd *cobra.Command, input string, builtinActions []string) (WalkResult, error) {
 	if pwd == nil {
 		return WalkResult{}, errors.New("pwd cannot be nil")
 	}
+
+	// setup
+	var wg sync.WaitGroup
+
 	// transmute builtins to a hashset
-	var biSet = make(map[string]bool, len(builtinActions))
-	for _, biAct := range builtinActions {
-		biSet[biAct] = true
-	}
+	wg.Add(1)
+	var biSet map[string]bool
+	go func() {
+		defer wg.Done()
+		biSet = make(map[string]bool, len(builtinActions))
+		for _, biAct := range builtinActions {
+			biSet[biAct] = true
+		}
+	}()
+
 	// split input
-	tokens, err := shlex.Split(input)
+	wg.Add(1)
+	var (
+		tokens []string
+		err    error
+	)
+	go func() {
+		defer wg.Done()
+		tokens, err = shlex.Split(input)
+	}()
+	wg.Wait()
+
 	if err != nil {
 		return WalkResult{}, err
 	}
-	return innerWalk(pwd, slices.Clip(tokens), biSet)
+
+	return innerWalk(pwd, slices.Clip(tokens), biSet, false)
 }
 
 // innerWalk is the underlying, recursive driver for Walk.
 // pwd is our current position.
 // remainingTokens is the shlex'd tokens that have not yet been processed.
 // builtins is a hashset of builtin action names.
-// curRes is the current, in-progress WalkResult.
-func innerWalk(pwd *cobra.Command, remainingTokens []string, builtins map[string]bool) (WalkResult, error) {
-	if len(remainingTokens) == 0 { // nothing left to parse
+// helpMode is set to true if the help builtin is found.
+func innerWalk(pwd *cobra.Command, remainingTokens []string, builtins map[string]bool, helpMode bool) (WalkResult, error) {
+	if len(remainingTokens) == 0 { // nothing left to parse, return current state
 		return WalkResult{
-			EndCmd: pwd,
+			EndCmd:   pwd,
+			HelpMode: helpMode,
 		}, nil
 	}
 	// cut the first token
 	curTkn, remainingTokens := strings.TrimSpace(remainingTokens[0]), remainingTokens[1:]
-	if curTkn == "" { // no token, keep walking
-		return innerWalk(pwd, remainingTokens, builtins)
+	if curTkn == "" { // ignore extra whitespace
+		return innerWalk(pwd, remainingTokens, builtins, helpMode)
 	}
-	// check for a built-in command
-	if _, found := builtins[curTkn]; found {
+	// special tokens have the highest priority
+	switch curTkn {
+	case "..": // up
+		return innerWalk(up(pwd), remainingTokens, builtins, helpMode)
+	case "~", "/": // root
+		return innerWalk(pwd.Root(), remainingTokens, builtins, helpMode)
+	}
+	// child commands have next highest priority
+	var nextCmd *cobra.Command
+	for _, child := range pwd.Commands() {
+		if child.Name() == curTkn || child.HasAlias(curTkn) {
+			nextCmd = child
+			break
+		}
+	}
+	if nextCmd != nil { // found a matching child
+		if action.Is(nextCmd) {
+			wr := WalkResult{
+				EndCmd:          nextCmd,
+				RemainingTokens: remainingTokens,
+				// if we are not already in help mode, check remaining tokens for -h/--help
+				HelpMode: helpMode || slices.ContainsFunc(remainingTokens, func(item string) bool { return item == "-h" || item == "--help" }),
+			}
+			return wr, nil
+		}
+		// navs keep walking so long as the next token is not -h/--help
+		if remainingTokens[0] == "-h" || remainingTokens[0] == "--help" {
+			return WalkResult{
+				EndCmd:          nextCmd,
+				RemainingTokens: remainingTokens,
+				Builtin:         "",
+				HelpMode:        true,
+			}, nil
+		}
+		return innerWalk(nextCmd, remainingTokens, builtins, helpMode)
+	}
+	// finally, check builtins
+	if curTkn == "help" { // special handling for "help"
+		// TODO help as the first token should be checked by Walk()
+		// if we find it again, this is bad input
+		// return "help keyword found multiple times"
+	}
+	/*if nextCmd == nil {
+		// NOTE(rlandau): remaining tokens does not (currently) include the erroneous token
+		return WalkResult{EndCmd: pwd, RemainingTokens: remainingTokens}, fmt.Errorf("%s is not a known child of %v", curTkn, pwd.Name())
+	}*/
+
+	// handle builtin commands
+	if curTkn == "help" { // help has special handling
+		// if helpMode is already set, then the user is requesting help about help
+		if helpMode {
+			return WalkResult{
+				EndCmd:   nil,
+				Builtin:  "help",
+				HelpMode: true,
+			}, nil
+		}
+		// check the next token for -h/--help
+		//if len(remainingTokens) > 0 && (remainingTokens[0] == "")
+
+	} else if _, found := builtins[curTkn]; found {
 		return WalkResult{
 			EndCmd:          pwd,
 			RemainingTokens: remainingTokens,
 			Builtin:         curTkn,
 		}, nil
 	}
-
-	// check for special tokens
-	switch curTkn {
-	case "..": // upward
-		return innerWalk(up(pwd), remainingTokens, builtins)
-	case "~", "/": // root
-		return innerWalk(pwd.Root(), remainingTokens, builtins)
-	case "-h", "--help": // the only flags we handle are the help flags
-		return WalkResult{
-			EndCmd:          pwd,
-			RemainingTokens: remainingTokens,
-			Builtin:         "help",
-		}, nil
-	}
-
-	// check for a child command
-	var nextCmd *cobra.Command
-	for _, chld := range pwd.Commands() {
-		if chld.Name() == curTkn || chld.HasAlias(curTkn) {
-			//clilog.Writer.Debugf("child match on %s", curTkn)
-			nextCmd = chld
-			break
-		}
-	}
-	if nextCmd == nil {
-		// NOTE(rlandau): remaining tokens does not (currently) include the erroneous token
-		return WalkResult{EndCmd: pwd, RemainingTokens: remainingTokens}, fmt.Errorf("%s is not a known child of %v", curTkn, pwd.Name())
-	}
-	// split on nav or action
-	if action.Is(nextCmd) {
-		// look ahead for help flags
-		wr := WalkResult{
-			EndCmd:          nextCmd,
-			RemainingTokens: remainingTokens,
-		}
-		if slices.ContainsFunc(remainingTokens, func(item string) bool { return item == "-h" || item == "--help" }) {
-			wr.Builtin = "help"
-		}
-		return wr, nil
-	}
-	// found a nav, keep walking
-	return innerWalk(nextCmd, remainingTokens, builtins)
 
 }
 
