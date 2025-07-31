@@ -18,15 +18,18 @@ import (
 //Put any constants here that are needed only for duo
 */
 const (
-	mimecastAuthBaseDomain   = "https://api.services.mimecast.com"
-	mimecastEmptySleepDur    = 15 * time.Second // length of time we sleep when no results are returned at all
-	mimecastDateTimeFormat   = "2006-01-02T15:04:05-0700"
-	mimecastAuditAPI         = "/api/audit/get-audit-events"
-	mimecastSIEMAPI          = "/siem/v1/batch/events/cg"
-	mimecastMonitoringURLAPI = "/api/ttp/url/get-logs"
-	mimecastMonitoringAttAPI = "/api/ttp/attachment/get-logs"
-	mimecastMonitoringImpAPI = "/api/ttp/impersonation/get-logs"
-	mimecastMonitoringDLPAPI = "/api/dlp/get-logs"
+	mimecastAuthBaseDomain = "https://api.services.mimecast.com"
+	mimecastEmptySleepDur  = 120 * time.Second // length of time we sleep when no results are returned at all
+	mimecastDateTimeFormat = "2006-01-02T15:04:05-0700"
+	//mimecastMTADateTimeFormat = "2006-01-02T15:04:05.000Z"
+	mimecastMTADateTimeFormat = "2006-01-02"
+	mimecastAuditAPI          = "/api/audit/get-audit-events"
+	mimecastSIEMAPI           = "/siem/v1/batch/events/cg"
+	mimecastMonitoringURLAPI  = "/api/ttp/url/get-logs"
+	mimecastMonitoringAttAPI  = "/api/ttp/attachment/get-logs"
+	mimecastMonitoringImpAPI  = "/api/ttp/impersonation/get-logs"
+	mimecastMonitoringDLPAPI  = "/api/dlp/get-logs"
+	mimecastMTAPageSize       = "25"
 )
 
 /*
@@ -76,9 +79,16 @@ func IsValidMimecastAPI(mimecastApi string) bool {
 	switch mimecastApi {
 	case
 		"audit",
-		"url",
-		"attachment",
-		"impersonation":
+		"mta-url",
+		"mta-attachment",
+		"mta-delivery",
+		"mta-receipt",
+		"mta-process",
+		"mta-av",
+		"mta-spam",
+		"mta-internal",
+		"mta-journal",
+		"mta-impersonation":
 		return true
 	}
 	return false
