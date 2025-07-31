@@ -9,8 +9,6 @@
 package uniques_test
 
 import (
-	"errors"
-	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -80,6 +78,7 @@ type ExpectedWalkResult struct {
 	commandName     string
 	remainingTokens []string
 	builtin         string
+	helpMode        bool
 	err             bool
 }
 
@@ -110,31 +109,66 @@ func TestWalk(t *testing.T) {
 		input   string // string to tokenize and feed to walk
 		want    ExpectedWalkResult
 	}{
-		{"first level nav", "", "Anav", ExpectedWalkResult{"Anav", nil, "", false}},
-		{"first level nav alias", "", "Anav_alias", ExpectedWalkResult{"Anav", nil, "", false}},
-		{"upward from root", "", "..", ExpectedWalkResult{"root", nil, "", false}},
-		{"rootward from root", "", "~", ExpectedWalkResult{"root", nil, "", false}},
-		{"rootward from root", "", "/", ExpectedWalkResult{"root", nil, "", false}},
-		{"rootward", "Cnav", "/", ExpectedWalkResult{"root", nil, "", false}},
-		{"unknown first token", "", "bad", ExpectedWalkResult{"root", nil, "", true}},
-		{"second level action", "", "Bnav BCaction", ExpectedWalkResult{"BCaction", nil, "", false}},
-		{"start at CCnav", "Cnav CCnav", "CCAaction", ExpectedWalkResult{"CCAaction", nil, "", false}},
-		{"circuitous route", "Cnav CCnav", ".. .. Bnav ~ Cnav CBaction", ExpectedWalkResult{"CBaction", nil, "", false}},
-		{"simple builtin", "", "builtin1", ExpectedWalkResult{"root", nil, "builtin1", false}},
-		{"builtin with excess tokens", "", "builtin1 some extra tokens", ExpectedWalkResult{"root", []string{"some", "extra", "tokens"}, "builtin1", false}},
-		{"interspersed builtin", "", "Bnav builtin1", ExpectedWalkResult{"Bnav", nil, "builtin1", false}},
-		{"interspersed builtin", "", "Bnav builtin1 excess", ExpectedWalkResult{"Bnav", []string{"excess"}, "builtin1", false}},
-		{"help builtin", "", "help", ExpectedWalkResult{"root", nil, "help", false}},
-		{"help builtin, extra token", "", "help Anav", ExpectedWalkResult{"root", []string{"Anav"}, "help", false}},
-		{"interspersed help", "", "Cnav help CCnav", ExpectedWalkResult{"Cnav", []string{"CCnav"}, "help", false}},
-		{"interspersed help", "", "Cnav help CCnav CCAaction", ExpectedWalkResult{"Cnav", []string{"CCnav", "CCAaction"}, "help", false}},
-		{"interspersed help", "", "Cnav CCnav help CCAaction", ExpectedWalkResult{"CCnav", []string{"CCAaction"}, "help", false}},
-		{"help flag, shortform", "", "-h", ExpectedWalkResult{"root", nil, "help", false}},
-		{"help flag, longform", "", "--help", ExpectedWalkResult{"root", nil, "help", false}},
-		{"help flag on pwd nav", "Anav", "--help", ExpectedWalkResult{"Anav", nil, "help", false}},
-		{"help flag on nav", "", "Anav --help", ExpectedWalkResult{"Anav", nil, "help", false}},
-		{"help flag on action", "", "Bnav BAaction -h", ExpectedWalkResult{"BAaction", []string{"-h"}, "help", false}}, // TODO
-		//{"help flag on builtin", "", "jump --help", ExpectedWalkResult{"", nil, "help", false}},            // TODO
+		// edge cases
+		{"empty input", "", "",
+			ExpectedWalkResult{commandName: "root", remainingTokens: nil, builtin: "", helpMode: false, err: false}},
+
+		{"first level nav", "", "Anav",
+			ExpectedWalkResult{commandName: "Anav", remainingTokens: nil, builtin: "", helpMode: false, err: false}},
+		{"first level nav alias", "", "Anav_alias", ExpectedWalkResult{"Anav", nil, "", false, false}},
+		{"upward from root", "", "..", ExpectedWalkResult{"root", nil, "", false, false}},
+		{"rootward from root", "", "~", ExpectedWalkResult{"root", nil, "", false, false}},
+		{"rootward from root", "", "/", ExpectedWalkResult{"root", nil, "", false, false}},
+		{"rootward", "Cnav", "/", ExpectedWalkResult{"root", nil, "", false, false}},
+		{"unknown first token", "", "bad", ExpectedWalkResult{"root", nil, "", false, true}},
+		{"second level action", "", "Bnav BCaction", ExpectedWalkResult{"BCaction", nil, "", false, false}},
+		{"start at CCnav", "Cnav CCnav", "CCAaction", ExpectedWalkResult{"CCAaction", nil, "", false, false}},
+		{"circuitous route", "Cnav CCnav", ".. .. Bnav ~ Cnav CBaction",
+			ExpectedWalkResult{"CBaction", nil, "", false, false}},
+
+		{"simple builtin", "", "builtin1",
+			ExpectedWalkResult{"root", nil, "builtin1", false, false}},
+		{"builtin with excess tokens", "", "builtin1 some extra tokens",
+			ExpectedWalkResult{"root", []string{"some", "extra", "tokens"}, "builtin1", false, false}},
+		{"interspersed builtin", "", "Bnav builtin1",
+			ExpectedWalkResult{"Bnav", nil, "builtin1", false, false}},
+		{"interspersed builtin", "", "Bnav builtin1 excess",
+			ExpectedWalkResult{"Bnav", []string{"excess"}, "builtin1", false, false}},
+
+		{"bare help", "", "help",
+			ExpectedWalkResult{"root", nil, "", true, false}},
+		{"bare help, extra token", "", "help Anav",
+			ExpectedWalkResult{"Anav", []string{}, "", true, false}},
+		{"bare help on builtin", "", "help jump",
+			ExpectedWalkResult{"root", []string{}, "jump", true, false}},
+		{"help help", "", "help help",
+			ExpectedWalkResult{"root", []string{}, "help", true, false}},
+		{"help help excess tokens", "", "help help excess tokens",
+			ExpectedWalkResult{"root", []string{"excess", "tokens"}, "help", true, false}},
+		{"help help on non-root nav", "Anav", "help help",
+			ExpectedWalkResult{"Anav", []string{}, "help", true, false}},
+		{"interspersed help", "", "Cnav help CCnav",
+			ExpectedWalkResult{"Cnav", []string{"CCnav"}, "help", false, true}},
+		{"interspersed help", "", "Cnav help CCnav CCAaction",
+			ExpectedWalkResult{"Cnav", []string{"CCnav", "CCAaction"}, "help", false, true}},
+		{"interspersed help", "", "Cnav CCnav help CCAaction",
+			ExpectedWalkResult{commandName: "CCnav", remainingTokens: []string{"CCAaction"}, builtin: "help", helpMode: false, err: true}},
+		{"interspersed help help", "", "help Cnav CCnav help CCAaction",
+			ExpectedWalkResult{commandName: "CCnav", remainingTokens: []string{"CCAaction"}, builtin: "help", helpMode: false, err: true}},
+
+		{"help flag, shortform on root", "", "-h",
+			ExpectedWalkResult{commandName: "root", remainingTokens: nil, builtin: "", helpMode: true, err: false}},
+		{"help flag, longform on root", "", "--help",
+			ExpectedWalkResult{commandName: "root", remainingTokens: nil, builtin: "", helpMode: true, err: false}},
+		{"help flag on non-root pwd", "Anav", "--help",
+			ExpectedWalkResult{commandName: "Anav", remainingTokens: nil, builtin: "", helpMode: true, err: false}},
+		{"help flag on remote nav", "", "Bnav --help",
+			ExpectedWalkResult{commandName: "Bnav", remainingTokens: nil, builtin: "", helpMode: true, err: false}},
+		{"help flag on remote action", "", "Bnav BAaction --help",
+			ExpectedWalkResult{commandName: "BAaction", remainingTokens: nil, builtin: "", helpMode: true, err: false}},
+		{"help flag on builtin", "", "jump --help",
+			ExpectedWalkResult{commandName: "root", remainingTokens: nil, builtin: "jump", helpMode: true, err: false},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -151,11 +185,20 @@ func TestWalk(t *testing.T) {
 			}
 
 			actual, err := Walk(startingDir, tt.input, builtins)
-			if err := testWalkResult(actual, err, tt.want); err != nil {
-				t.Fatal(err)
-			}
+			testWalkResult(t, actual, err, tt.want)
 		})
 	}
+
+	// check edge cases
+	t.Run("nil pwd", func(t *testing.T) {
+		actual, err := Walk(nil, "", builtins)
+		testWalkResult(t, actual, err, ExpectedWalkResult{"", nil, "", false, true})
+	})
+	t.Run("nil pwd with excess tokens", func(t *testing.T) {
+		actual, err := Walk(nil, "excess tokens", builtins)
+		testWalkResult(t, actual, err, ExpectedWalkResult{"", nil, "", false, true})
+	})
+
 }
 
 // helper for TestWalk
@@ -191,20 +234,18 @@ func newAction(use, short, long string, aliases []string) *cobra.Command {
 }
 
 // helper for TestWalk
-func testWalkResult(actual WalkResult, actualErr error, want ExpectedWalkResult) error {
+func testWalkResult(t *testing.T, actual WalkResult, actualErr error, want ExpectedWalkResult) {
 	// check errors first
 	if (want.err && actualErr == nil) || (!want.err && actualErr != nil) {
-		return fmt.Errorf("mismatch error state.\nwant err? %v | actual err: %v", want.err, actualErr)
+		t.Errorf("mismatch error state.\nwant err? %v | actual err: %v", want.err, actualErr)
 	}
 	if actual.EndCmd != nil && (actual.EndCmd.Name() != want.commandName) {
-		return errors.New(ExpectedActual(want.commandName, actual.EndCmd.Name()))
+		t.Error(ExpectedActual(want.commandName, actual.EndCmd.Name()))
 	}
 	if slices.Compare(actual.RemainingTokens, want.remainingTokens) != 0 {
-		return errors.New("bad remaining tokens" + ExpectedActual(want.remainingTokens, actual.RemainingTokens))
+		t.Error("bad remaining tokens" + ExpectedActual(want.remainingTokens, actual.RemainingTokens))
 	}
 	if actual.Builtin != want.builtin {
-		return errors.New("bad built-in." + ExpectedActual(want.builtin, actual.Builtin))
+		t.Error("bad built-in." + ExpectedActual(want.builtin, actual.Builtin))
 	}
-
-	return nil
 }
