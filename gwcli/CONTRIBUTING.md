@@ -130,7 +130,7 @@ Root begins generation as it is just a Nav. Take a look at `Execute()` in root.g
 
 # Mother: The Beating Heart of Gwcli
 
-Cobra does not natively support interactivity, so we need an adapter of some kind: Mother.
+Cobra does not natively support interactivity, so we need an adapter: Mother.
 Mother performs a variety of key tasks: traversing the command tree; associating `cobra.Commands` with their interactive elements (`action.Model`s); handing off to, and reasserting control from, children when they are invoked; printing and managing the historical record of commands, and parsing user input on the prompt.
 
 ```mermaid
@@ -155,11 +155,11 @@ Navigation is just a couple of pointers; `Mother.root` is the root of the tree a
 
 Child actions are held in the Action map implemented in [action.go](action/action.go). Basically, `treeutils.GenerateAction()` registers the `action.Model` and its `cobra.Command` in a hashtable and Mother looks up these `action.Model`s when it is time to invoke them interactively. This isn't necessary when invoked non-interactively (ex: from your shell's command line) because we can just use cobra's `.run()`. See [below](#actionmodel) for more information on `action.Model`s.
 
-When a child action is being interacted with, Mother runs in "handoff" mode. Instead of running her usual prompt management in `.Update()`, Mother passes control to the child action's `.Update()`. Same for `.View()`. Note, however, that we never call a child's `.Update()` without `Mother.Update()` calling it. This allows Mother to check for kill keys and the child's `.Done()` first so she knows if she must reassert control. instead of passing to the child.
+When a child action is being interacted with, Mother runs in "handoff" mode. Instead of running her usual prompt management in `.Update()`, Mother passes control to the child action's `.Update()`. Same for `.View()`. Note, however, that we never call a child's `.Update()` without `Mother.Update()` calling it. This allows Mother to check for kill keys and the child's `.Done()` first so she knows if she must reassert control instead of passing to the child.
 
-History is handled by `history.go` in the `mother` package and is fairly straightforward. Go check it out if you are interested, but it is functionally complete.
+History is handled by `history.go` in the `mother` package and is fairly straightforward. Go check it out if you are interested, but it is functionally complete until someone tackles persistent history.
 
-Input parsing, for when a Mother is in control, is managed by `processInput()`. The heavy lifter here is the `walk()` subroutine, which recursively walks a string and decides what the user meant by it. I am pretty proud of it, go take a look in [walk.go](mother/walk.go).
+Input parsing, for when a Mother is in control, is managed by `processInput()`. The heavy lifter here is the [`Walk()` subroutine](gwcli/utilities/uniques/uniques.go), which recursively walks a string and decides what the user meant by it.
 
 ## action.Model
 
