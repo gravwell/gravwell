@@ -83,7 +83,7 @@ func Walk(pwd *cobra.Command, input string, builtinActions []string) (WalkResult
 	var helpMode bool
 	switch tokens[0] {
 	case "-h", "--help":
-		return WalkResult{EndCmd: pwd, HelpMode: true}, nil
+		return WalkResult{EndCmd: pwd, RemainingTokens: tokens[1:], HelpMode: true}, nil
 	case "help":
 		helpMode = true
 		// check for "help help"
@@ -146,7 +146,8 @@ func findEndCommand(pwd *cobra.Command, remainingTokens []string, builtins map[s
 	if curTkn == "" { // ignore extra whitespace
 		return findEndCommand(pwd, remainingTokens, builtins)
 	} else if curTkn[0] == '-' { // found a flag or flag-like token
-		return pwd, nil, "", ""
+		// reattach the flag
+		return pwd, append([]string{curTkn}, remainingTokens...), "", ""
 	}
 	// special tokens have the highest priority
 	switch curTkn {
