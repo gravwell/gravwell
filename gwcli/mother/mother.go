@@ -585,16 +585,6 @@ func (m *Mother) unsetAction() {
 
 //#region static helper functions
 
-// Return the parent directory to the given command
-func up(dir *cobra.Command) *cobra.Command {
-	if dir.Parent() == nil { // if we are at root, do nothing
-		return dir
-	}
-	// otherwise, step upward
-	clilog.Writer.Debugf("Up: %v -> %v", dir.Name(), dir.Parent().Name())
-	return dir.Parent()
-}
-
 // TeaCmdContextHelp returns a tea.Println Cmd containing the context help for the given command.
 //
 // Structure:
