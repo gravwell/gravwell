@@ -125,6 +125,8 @@ func TestWalk(t *testing.T) {
 		{"start at CCnav", "Cnav CCnav", "CCAaction", ExpectedWalkResult{"CCAaction", nil, "", false, false}},
 		{"circuitous route", "Cnav CCnav", ".. .. Bnav ~ Cnav CBaction",
 			ExpectedWalkResult{"CBaction", nil, "", false, false}},
+		{"circuitous route with excess whitespace", "    Cnav CCnav", "..    .. Bnav ~   Cnav CBaction  ",
+			ExpectedWalkResult{"CBaction", nil, "", false, false}},
 
 		{"simple builtin", "", "builtin1",
 			ExpectedWalkResult{"root", nil, "builtin1", false, false}},
