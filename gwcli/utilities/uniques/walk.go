@@ -24,9 +24,7 @@ import (
 
 // WalkResult is the outcome of a Walk() call.
 // It represents the properties found from parsing a user input string.
-// Currently, Builtin and EndCmd are mutually exclusive; if one is set then you can assume the other is not.
-// It is conceivable that future builtins will be context-aware of the cmd they are to run on, but that is currently not the case (as Help has special handling).
-// Relatedly, Builtin should not contain "Help" unless HelpMode is also set.
+// Builtin should not contain "Help" unless HelpMode is also set.
 // This is because HelpMode represents that the caller should invoke help;
 // if Builtin contains Help, then it is because the user activated HelpMode on the "help" builtin.
 type WalkResult struct {
@@ -43,6 +41,8 @@ type WalkResult struct {
 func Walk(pwd *cobra.Command, input string, builtinActions []string) (WalkResult, error) {
 	if pwd == nil {
 		return WalkResult{}, errors.New("pwd cannot be nil")
+	} else if input == "" {
+		return WalkResult{}, nil
 	}
 
 	// setup
@@ -107,7 +107,7 @@ func Walk(pwd *cobra.Command, input string, builtinActions []string) (WalkResult
 	}
 	// check for errors
 	if unknownToken != "" {
-		return wr, errors.New(unknownToken + " is not a valid child command of " + stylesheet.ColorCommandName(endCmd) + " or builtin")
+		return wr, errors.New(unknownToken + " is not a valid builtin or subcommand")
 	} else if builtin == "help" {
 		// we explicitly check for help prior to findEndCommand.
 		// if it was found again, then this must have been bad input
