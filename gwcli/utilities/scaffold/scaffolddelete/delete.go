@@ -370,7 +370,7 @@ func (d *deleteModel[I]) SetArgs(fs *pflag.FlagSet, tokens []string, width, heig
 	}
 
 	// create list from the generated delegate
-	d.list = stylesheet.NewList(simpleitems, 80, 40, d.itemSingular, d.itemPlural)
+	d.list = stylesheet.NewList(simpleitems, width, height, d.itemSingular, d.itemPlural)
 
 	// flags and flagset
 	if err := d.flagset.Parse(tokens); err != nil {

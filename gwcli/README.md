@@ -6,13 +6,11 @@ A redesigned Gravwell client for the terminal, supporting both TUI-served intera
 
 # Features
 
-- interactive *and* scriptable
+- easy to use interactive and safe to use interactively! Call it bare to get a fancy TUI or pass the `--no-interactive` flag to indicate that the program should never wait for user input or confirmation
 
-- query editor
+- interactive query editor with dynamic (paged and scrollable) viewport for interacting with results
 
-- dynamic (paged and scrollable) viewport for interacting with query results
-
-- multiple query result download formats (CSV, JSON, raw)
+- download datasets and query results in a variety of formats (JSON, CSV, raw, or fancy table)
 
 - shell-style navigation
 
@@ -20,17 +18,15 @@ A redesigned Gravwell client for the terminal, supporting both TUI-served intera
 
 - command history
 
-- context-aware help for every command
+- context-aware help for every command and builtin action
 
-- automatic login via token (for subsequent logins)
+- variety of login options: username/password (with optional MFA), auto-login via token, script-friendly authentication via API key
 
 - completions for zsh, fish, bash, and powershell
 
-- limited tab completion in interactive mode
+- tab completion in interactive mode
 
 - pluggable framework for easily adding new capabilities (complete with genericized boilerplate and generator functions)
-
-- `--no-interactive` flag to indicate that the program should never wait for user input or confirmation
 
 # Usage
 
@@ -44,13 +40,13 @@ Calling an action directly (ex: `./gwcli query tag=gravwell`) will invoke the ac
 
 Calling gwcli bare or from a menu (ex: `./gwcli macros`) will start an interactive prompt at that directory (unless `--no-interactive` is given, in which case it will display help).
 
-Attach `-h` to any command for full details on flags and commands.
+Attach `-h` to any command for full details on flags and subcommands.
 
 ## Login
 
-In interactive mode (when `--script` is not supplied), gwcli will attempt to use an existing token and will prompt you for any missing credentials (username, password, TOTP).
+In interactive mode, gwcli will attempt to use an existing token and will prompt you for any missing credentials (username, password, TOTP).
 
-If you are in script mode, you should use an API Token (see [Kris' blog post](https://www.gravwell.io/blog/the-basics-of-gravwell-api-access-tokens)). If your account is *not* MFA-enabled, you can also log on with `-u`/`-p` or `-u`/`--password`.
+If you are in no-interactive mode, you should use an API Token (see [Kris' blog post](https://www.gravwell.io/blog/the-basics-of-gravwell-api-access-tokens)). If your account is *not* MFA-enabled, you can also log on with `-u`/`-p` or `-u`/`--password`.
 
 # Building
 
@@ -78,4 +74,4 @@ gwcli is built on the fabulous BubbleTea and Cobra libraries. In the simplest of
 
 - Suggestions do not populate when navigation includes `..` (upward) or `~`/`/` (from home/root)
 
-    - This is just based on how bubbletea manages its suggestions. It operates off a list of strings, where each string is a *complete command*, returning closest-match. The suggestion engine is not intelligent enough to "walk" the current prompt (like the walk() subroutine is). We simple recur downward and supply these strings on every move. We do not supply suggestions with upward or rooted navigation because it would add a boatload more iterations and recusive logic when building the suggestions each hop. Relately, Bubble Tea does not handle .SetSuggestions coming in asyncronously, meaning each hop has to determine its suggestions immediately so keeping the lists down improves responsiveness.
+    - This is just based on how bubbletea manages its suggestions. It operates off a list of strings, where each string is a *complete command*, returning closest-match. The suggestion engine is not intelligent enough to "walk" the current prompt (like the walk() subroutine is). We simple recur downward and supply these strings on every move. We do not supply suggestions with upward or rooted navigation because it would add a boatload more iterations and recursive logic when building the suggestions each hop. Relatedly, Bubble Tea does not handle .SetSuggestions coming in asynchronously, meaning each hop has to determine its suggestions immediately so keeping the lists down improves responsiveness.

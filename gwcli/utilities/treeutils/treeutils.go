@@ -12,7 +12,6 @@ package treeutils
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -42,16 +41,17 @@ func GenerateNav(use, short, long string, aliases []string,
 		func(c *cobra.Command) error {
 			if c.HasSubCommands() {
 				// select the first few children.
+				subCmds := c.Commands()
 				// if there are more, suffix an ellipse
-				kids := make([]string, 4)
-				for i, c := range c.Commands() {
+				kids := make([]string, min(4, len(subCmds)))
+				for i, c := range subCmds {
 					if i > 2 {
 						kids[3] = "..."
 						break
 					}
 					kids[i] = stylesheet.ColorCommandName(c)
 				}
-				kids = slices.Clip(kids)
+
 				fmt.Fprintf(c.OutOrStdout(), "%s %s", c.Name(), ft.MutuallyExclusive(kids))
 
 			} else {

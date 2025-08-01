@@ -30,6 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
@@ -39,7 +40,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/tree"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/user"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -262,6 +262,7 @@ func Execute(args []string) int {
 
 	// spawn the cobra commands in parallel
 	var cmdFn = []func() *cobra.Command{
+		alerts.NewAlertsNav,
 		macros.NewMacrosNav,
 		queries.NewQueriesNav,
 		kits.NewKitsNav,
@@ -290,7 +291,6 @@ func Execute(args []string) int {
 		cmds,
 		[]action.Pair{
 			query.NewQueryAction(),
-			tree.NewTreeAction(),
 			ingest.NewIngestAction(),
 		})
 	rootCmd.SilenceUsage = true
@@ -376,12 +376,14 @@ func help(c *cobra.Command, _ []string) {
 
 	// write local flags
 	if lf := c.LocalNonPersistentFlags().FlagUsages(); lf != "" {
-		sb.WriteString(stylesheet.Cur.Field("Flags", 0) + "\n" + lf + "\n")
+		sb.WriteString(stylesheet.Cur.Field("Flags", 0) + "\n" + lf)
 	}
 
-	// write global flags
-	if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
-		sb.WriteString(stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
+	// write global flags (except for the completion command)
+	if c.Name() != "completion" && (c.HasParent() && c.Parent().Name() != "completion") {
+		if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
+			sb.WriteString("\n" + stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
+		}
 	}
 
 	// attach children
@@ -391,6 +393,9 @@ func help(c *cobra.Command, _ []string) {
 	actions := make([]*cobra.Command, 0)
 	children := c.Commands()
 	for _, c := range children {
+		if c.Hidden {
+			continue
+		}
 		if c.GroupID == group.NavID {
 			navs = append(navs, c)
 		} else {

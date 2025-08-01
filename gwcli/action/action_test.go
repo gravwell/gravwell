@@ -12,13 +12,13 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/tree"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/user/myinfo"
 )
 
 func TestIs(t *testing.T) {
 
 	// create a known action pair
-	treePair := tree.NewTreeAction()
+	treePair := myinfo.NewUserMyInfoAction()
 	action.AddModel(treePair.Action, treePair.Model)
 
 	if !action.Is(treePair.Action) {

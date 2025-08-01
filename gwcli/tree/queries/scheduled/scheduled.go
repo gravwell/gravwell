@@ -80,7 +80,10 @@ func list() action.Pair {
 				"DebugEvent.Metadata.Consumers",
 				"DebugEvent.Metadata.UserMetadata",
 				"DebugEvent.Metadata.ValidationProblems",
-				"DebugEvent.Contents"},
+				"DebugEvent.Contents",
+				"WriteAccess.Global",
+				"WriteAccess.GIDs",
+			},
 		})
 }
 

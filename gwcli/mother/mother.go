@@ -24,12 +24,14 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/shlex"
@@ -81,6 +83,13 @@ type Mother struct {
 func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 	// spin up mother
 	interactive := tea.NewProgram(new(root, cur, trailingTokens, nil))
+	// reactive the admin command
+	if c, _, err := root.Find([]string{"user", "admin"}); err != nil {
+		clilog.Writer.Warnf("failed to reveal the admin command")
+	} else if c != nil {
+		c.Hidden = false
+	}
+
 	if _, err := interactive.Run(); err != nil {
 		panic(err)
 	}
@@ -227,7 +236,7 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// NOTE kill keys are handled above
 		switch msg.Type {
 		case tea.KeyF1: // help
-			return m, contextHelp(&m, strings.Split(strings.TrimSpace(m.ti.Value()), " "))
+			return m, contextHelp(&m, m.pwd, strings.Split(strings.TrimSpace(m.ti.Value()), " "))
 		case tea.KeyUp: // history
 			m.ti.SetValue(m.history.getOlderRecord())
 			// update cursor position
@@ -240,7 +249,7 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.history.unsetFetch()
 			return m, processInput(&m)
 		case tea.KeyCtrlL:
-			return m, clear(&m, nil)
+			return m, clear(&m, nil, nil)
 		}
 	}
 
@@ -344,43 +353,43 @@ func processInput(m *Mother) tea.Cmd {
 		return nil
 	}
 
-	// tokenize input
-	given := strings.Split(strings.TrimSpace(input), " ")
-
-	wr := walk(m.pwd, given)
-	if wr.errString != "" {
+	wr, err := uniques.Walk(m.pwd, input, builtinKeys)
+	if err != nil {
 		return tea.Sequence(
 			historyCmd,
-			tea.Println(stylesheet.Cur.ErrorText.Render(wr.errString)),
+			tea.Println(stylesheet.Cur.ErrorText.Render(err.Error())),
 		)
 	}
-
-	// split on action or nav
-	switch wr.status {
-	case foundBuiltin:
-		return tea.Sequence(historyCmd, wr.builtinFunc(m, given[1:]))
-	case foundNav:
-		m.pwd = wr.endCommand // move mother to target directory
-		// update her suggestions
+	if wr.HelpMode {
+		return tea.Sequence(
+			historyCmd,
+			contextHelp(m, wr.EndCmd, []string{wr.Builtin}),
+		)
+	}
+	// invoke action, nav, or builtin
+	if wr.Builtin != "" {
+		return tea.Sequence(
+			historyCmd,
+			builtins[wr.Builtin](m, wr.EndCmd, wr.RemainingTokens),
+		)
+	} else if wr.EndCmd != nil {
+		if action.Is(wr.EndCmd) {
+			cmd := processActionHandoff(m, wr.EndCmd, strings.Join(wr.RemainingTokens, " "))
+			if cmd == nil {
+				return historyCmd
+			}
+			return tea.Sequence(historyCmd, cmd)
+		}
+		// move mother to target nav
+		m.pwd = wr.EndCmd
 		m.updateSuggestions()
 		return historyCmd
-	case foundAction:
-		// check for -h and confirm -h is not nested with a different, long flag (ex: -history)
-		if _, after, found := strings.Cut(wr.remainingString, "-h"); found &&
-			(len(after) == 0 || after[0] == ' ') {
+	}
 
-			return tea.Sequence(historyCmd, builtins["help"](m, given))
-		}
-
-		// reconstitute remaining tokens to re-split them via shlex
-		cmd := processActionHandoff(m, wr.endCommand, wr.remainingString)
-		if cmd == nil {
-			return historyCmd
-		}
-		return tea.Sequence(historyCmd, cmd)
-
-	case invalidCommand:
-		clilog.Writer.Errorf("walking input %v returned invalid", given)
+	// if we made it this far, err, builtin, and endcmd are all nil so we have nothing to act on.
+	// this probably means input was nil, so warn if it wasn't
+	if input == "" {
+		clilog.Writer.Warn("taking no action on process input", rfc5424.SDParam{Name: "input", Value: input})
 	}
 
 	return historyCmd
@@ -411,8 +420,7 @@ func (m *Mother) promptString(live bool) string {
 	} else {
 		ti = m.ti.Value()
 	}
-
-	return fmt.Sprintf("%s%s", stylesheet.Cur.Prompt(m.pwd.CommandPath()), ti)
+	return stylesheet.Cur.Prompt(m.pwd.CommandPath(), connection.Client.AdminMode()) + ti
 }
 
 // helper subroutine for processInput
@@ -582,16 +590,6 @@ func (m *Mother) unsetAction() {
 }
 
 //#region static helper functions
-
-// Return the parent directory to the given command
-func up(dir *cobra.Command) *cobra.Command {
-	if dir.Parent() == nil { // if we are at root, do nothing
-		return dir
-	}
-	// otherwise, step upward
-	clilog.Writer.Debugf("Up: %v -> %v", dir.Name(), dir.Parent().Name())
-	return dir.Parent()
-}
 
 // TeaCmdContextHelp returns a tea.Println Cmd containing the context help for the given command.
 //
