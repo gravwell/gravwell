@@ -30,6 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/group"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
@@ -261,6 +262,7 @@ func Execute(args []string) int {
 
 	// spawn the cobra commands in parallel
 	var cmdFn = []func() *cobra.Command{
+		alerts.NewAlertsNav,
 		macros.NewMacrosNav,
 		queries.NewQueriesNav,
 		kits.NewKitsNav,
