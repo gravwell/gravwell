@@ -4,12 +4,11 @@
 Output demo.gif
 
 Set Shell "bash"
-Set FontSize 28
+Set FontSize 26
 Set Width 1920
 Set Height 1080
 Set Margin 5
 Set MarginFill "#9c7af7"
-Set WindowBar ColorfulRight
 Set BorderRadius 20
 Set Framerate 60
 
