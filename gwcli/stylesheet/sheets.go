@@ -204,11 +204,7 @@ func Classic() Sheet {
 
 // Plain returns a sheet with no colors or special characters, for maximal compatibility.
 func Plain() Sheet {
-	s := NewSheet(
-		func() string { return ">" },
-		func() string { return "#" },
-		func(s string) string { return s },
-	)
+	s := NewSheet()
 
 	s.ComposableSty.FocusedBorder = lipgloss.NewStyle().BorderStyle(lipgloss.ASCIIBorder())
 	s.ComposableSty.UnfocusedBorder = lipgloss.NewStyle().BorderStyle(lipgloss.HiddenBorder())
