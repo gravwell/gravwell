@@ -391,6 +391,9 @@ func help(c *cobra.Command, _ []string) {
 	actions := make([]*cobra.Command, 0)
 	children := c.Commands()
 	for _, c := range children {
+		if c.Hidden {
+			continue
+		}
 		if c.GroupID == group.NavID {
 			navs = append(navs, c)
 		} else {

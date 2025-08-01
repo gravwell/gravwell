@@ -83,6 +83,13 @@ type Mother struct {
 func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 	// spin up mother
 	interactive := tea.NewProgram(new(root, cur, trailingTokens, nil))
+	// reactive the admin command
+	if c, _, err := root.Find([]string{"user", "admin"}); err != nil {
+		clilog.Writer.Warnf("failed to reveal the admin command")
+	} else if c != nil {
+		c.Hidden = false
+	}
+
 	if _, err := interactive.Run(); err != nil {
 		panic(err)
 	}
@@ -413,8 +420,7 @@ func (m *Mother) promptString(live bool) string {
 	} else {
 		ti = m.ti.Value()
 	}
-
-	return fmt.Sprintf("%s%s", stylesheet.Cur.Prompt(m.pwd.CommandPath()), ti)
+	return stylesheet.Cur.Prompt(m.pwd.CommandPath(), connection.Client.AdminMode()) + ti
 }
 
 // helper subroutine for processInput
