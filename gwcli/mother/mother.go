@@ -420,8 +420,7 @@ func (m *Mother) promptString(live bool) string {
 	} else {
 		ti = m.ti.Value()
 	}
-
-	return fmt.Sprintf("%s%s", stylesheet.Cur.Prompt(m.pwd.CommandPath()), ti)
+	return stylesheet.Cur.Prompt(m.pwd.CommandPath(), connection.Client.AdminMode()) + ti
 }
 
 // helper subroutine for processInput
