@@ -5,6 +5,8 @@
  * This software may be modified and distributed under the terms of the
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
+
+// Package base implements a base object and config for Gravwell data generators
 package base
 
 import (
@@ -388,11 +390,11 @@ func Stream(conn GeneratorConn, tag entry.EntryTag, src net.IP, cfg GeneratorCon
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	select {
-	case _ = <-c:
+	case <-c:
 		stop = true
 		select {
 		case err = <-r:
-		case _ = <-time.After(3 * time.Second):
+		case <-time.After(3 * time.Second):
 			err = errors.New("Timed out waiting for exit")
 		}
 	case err = <-r:

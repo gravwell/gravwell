@@ -10,6 +10,7 @@ package entry
 
 import (
 	"encoding/binary"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -548,4 +549,21 @@ func (ev EnumeratedData) Valid() bool {
 		return false
 	}
 	return false //bad type
+}
+
+func (ev EnumeratedData) MarshalJSON() ([]byte, error) {
+	return json.Marshal(ev.Interface())
+}
+
+func (ev *EnumeratedData) UnmarshalJSON(v []byte) error {
+	var x interface{}
+	if err := json.Unmarshal(v, &x); err != nil {
+		return err
+	}
+	nev, err := InferEnumeratedData(x)
+	if err != nil {
+		return err
+	}
+	*ev = nev
+	return nil
 }

@@ -49,6 +49,7 @@ type regexHandlerConfig struct {
 	timeFormats      config.CustomTimeFormat
 	trimWhitespace   bool
 	maxBuffer        int
+	tsWindow         timegrinder.TimestampWindow
 }
 
 func startRegexListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGroup, f *flusher, ctx context.Context) error {
@@ -58,6 +59,12 @@ func startRegexListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGr
 		return nil
 	}
 
+	var window timegrinder.TimestampWindow
+	window, err = cfg.GlobalTimestampWindow()
+	if err != nil {
+		err = fmt.Errorf("Failed to get global timestamp window: %v", err)
+		return err
+	}
 	for k, v := range cfg.RegexListener {
 		rhc := regexHandlerConfig{
 			name:             k,
@@ -71,6 +78,7 @@ func startRegexListeners(cfg *cfgType, igst *ingest.IngestMuxer, wg *sync.WaitGr
 			regex:            v.Regex,
 			trimWhitespace:   v.Trim_Whitespace,
 			maxBuffer:        v.Max_Buffer,
+			tsWindow:         window,
 		}
 		if rhc.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.Fatal("preprocessor error", log.KVErr(err))
@@ -191,6 +199,7 @@ func regexAcceptorUDP(conn *net.UDPConn, id int, cfg regexHandlerConfig, igst *i
 
 	buff := make([]byte, 16*1024) //local buffer that should be big enough for even the largest UDP packets
 	tcfg := timegrinder.Config{
+		TSWindow:           cfg.tsWindow,
 		EnableLeftMostSeed: true,
 	}
 	tg, err := timegrinder.NewTimeGrinder(tcfg)
@@ -296,6 +305,7 @@ func regexConnHandler(c net.Conn, cfg regexHandlerConfig, igst *ingest.IngestMux
 	if !cfg.ignoreTimestamps {
 		var err error
 		tcfg := timegrinder.Config{
+			TSWindow:           cfg.tsWindow,
 			EnableLeftMostSeed: true,
 		}
 		tg, err = timegrinder.NewTimeGrinder(tcfg)

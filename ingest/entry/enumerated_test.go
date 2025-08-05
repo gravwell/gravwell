@@ -10,6 +10,7 @@ package entry
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net"
 	"reflect"
@@ -236,6 +237,108 @@ func TestEnumeratedStringTail(t *testing.T) {
 	ed := StringEnumDataTail(orig)
 	if len(tgt) != len(ed.String()) {
 		t.Fatalf("bad return size: %d != %d", len(tgt), len(ed.String()))
+	}
+}
+
+func TestEnumeratedJSON(t *testing.T) {
+	// test with just an enumerated data
+	ed, err := InferEnumeratedData("hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var ned EnumeratedData
+	bts, err := ed.MarshalJSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = ned.UnmarshalJSON(bts); err != nil {
+		t.Fatal(err)
+	}
+	if ed.String() != ned.String() {
+		t.Fatalf("JSON encode/decode error %q != %q", ed.String(), ned.String())
+	}
+
+	// do with a full up enumerated value
+	ev, err := NewEnumeratedValue("foobar", float64(3.14159))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bts, err = json.Marshal(ev); err != nil {
+		t.Fatal(err)
+	}
+	var nev EnumeratedValue
+	if err = json.Unmarshal(bts, &nev); err != nil {
+		t.Fatal(err)
+	}
+
+	if ev.String() != nev.String() {
+		t.Fatalf("JSON encode/decode error %q != %q", ev.String(), nev.String())
+	}
+}
+
+func TestEntryJSON(t *testing.T) {
+	ent := Entry{
+		TS:   Now(),
+		Tag:  1,
+		Data: []byte("hello"),
+		SRC:  net.ParseIP("dead:beef::feed:febe"),
+	}
+	x := []interface{}{
+		float32(3.14),
+		float64(1.6180),
+		"hello",
+		net.ParseIP("192.168.1.1"),
+		1234567890,
+	}
+	for i, v := range x {
+		if ev, err := NewEnumeratedValue(fmt.Sprintf("name%d", i), v); err != nil {
+			t.Fatal(err)
+		} else if err = ent.AddEnumeratedValue(ev); err != nil {
+			t.Fatal(err)
+		}
+	}
+	bts, err := json.Marshal(ent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var nent Entry
+	if err = json.Unmarshal(bts, &nent); err != nil {
+		t.Fatal(err)
+	}
+
+	if !ent.TS.Equal(nent.TS) {
+		t.Fatalf("json encode/decode TS failure: %v != %v", ent.TS, nent.TS)
+	} else if ent.Tag != nent.Tag {
+		t.Fatalf("json encode/decode Tag failure: %v != %v", ent.Tag, nent.Tag)
+	} else if !ent.SRC.Equal(nent.SRC) {
+		t.Fatalf("json encode/decode SRC failure: %v != %v", ent.SRC, nent.SRC)
+	} else if !bytes.Equal(ent.Data, nent.Data) {
+		t.Fatalf("json encode/decode Data failure %d %d", len(ent.Data), len(nent.Data))
+	} else if ent.EVB.Count() != len(x) {
+		t.Fatalf("Original EVBlock count is bad: %d != %d", ent.EVB.Count(), len(x))
+	} else if nent.EVB.Count() != len(x) {
+		t.Fatalf("post decode EVBlock count is bad: %d != %d", nent.EVB.Count(), len(x))
+	}
+
+	for i := range x {
+		name := fmt.Sprintf("name%d", i)
+		if ev, ok := nent.EVB.Get(name); !ok {
+			t.Fatalf("Failed to get %s", name)
+		} else if ev.Value.String() != fmt.Sprintf("%v", x[i]) {
+			t.Fatalf("EV %d %s %s != %v", i, name, ev.Value.String(), x[i])
+		}
+	}
+
+	// do it again with empty EVs
+	ent.EVB = EVBlock{}
+	if bts, err = json.Marshal(ent); err != nil {
+		t.Fatal(err)
+	}
+	if err = json.Unmarshal(bts, &nent); err != nil {
+		t.Fatal(err)
+	}
+	if ent.EVB.Count() != 0 || nent.EVB.Count() != 0 {
+		t.Fatalf("Invalid empty EV block counts: %d %d", ent.EVB.Count(), ent.EVB.Count())
 	}
 }
 

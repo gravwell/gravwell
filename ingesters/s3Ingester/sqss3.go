@@ -52,6 +52,10 @@ func NewSQSS3Listener(cfg SQSS3Config) (s *SQSS3Listener, err error) {
 		return
 	}
 
+	if cfg.MaxLineSize <= 0 {
+		cfg.MaxLineSize = defaultMaxLineSize
+	}
+
 	var filter *matcher
 	if filter, err = newMatcher(cfg.FileFilters); err != nil {
 		return

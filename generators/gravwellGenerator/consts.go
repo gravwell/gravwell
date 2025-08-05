@@ -27,6 +27,7 @@ const (
 	maxUsers  int = 256 * 1024
 	maxHosts  int = 512 * 1024
 	maxApps   int = 25000
+	minCount  int = 10 //min randomness for seeding
 
 	tsFormat string = `2006-01-02T15:04:05.999999Z07:00`
 )
@@ -197,9 +198,9 @@ type ComplexLocation struct {
 }
 
 func seedVars(cnt int) {
-	seedUsers(overrideCount(cnt, maxUsers, `USER_COUNT`), overrideCount(cnt, maxGroups, `GROUP_COUNT`))
-	seedHosts(overrideCount(int(float64(cnt)/50.0), maxHosts, `HOST_COUNT`))
-	seedApps(overrideCount(int(float64(cnt)*50.0), maxApps, `APP_COUNT`))
+	seedUsers(overrideCount(cnt, minCount, maxUsers, `USER_COUNT`), overrideCount(cnt, minCount, maxGroups, `GROUP_COUNT`))
+	seedHosts(overrideCount(int(float64(cnt)/50.0), minCount, maxHosts, `HOST_COUNT`))
+	seedApps(overrideCount(int(float64(cnt)*50.0), minCount, maxApps, `APP_COUNT`))
 }
 
 func seedUsers(usercount, gcount int) {
@@ -387,9 +388,11 @@ func roundFloat(val float64, precision uint) float64 {
 	return float64(math.Round(val*ratio) / ratio)
 }
 
-func overrideCount(cnt, max int, envName string) int {
+func overrideCount(cnt, min, max int, envName string) int {
 	if cnt > max {
 		cnt = max
+	} else if cnt < min {
+		cnt = min
 	}
 	val := os.Getenv(envName)
 	if envName == `` || val == `` {

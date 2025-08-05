@@ -252,7 +252,13 @@ func (c *cfgType) AttachConfig() attach.AttachConfig {
 }
 
 func (c *cfgType) newTimeGrinder(tc TimeConfig) (tg *timegrinder.TimeGrinder, err error) {
+	var window timegrinder.TimestampWindow
+	window, err = c.GlobalTimestampWindow()
+	if err != nil {
+		return
+	}
 	tcfg := timegrinder.Config{
+		TSWindow:           window,
 		EnableLeftMostSeed: true,
 	}
 	if tg, err = timegrinder.NewTimeGrinder(tcfg); err != nil {

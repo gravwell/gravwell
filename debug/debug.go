@@ -1,3 +1,12 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+// Package debug implements some debug helpers that are used in all ingesters
 package debug
 
 import (
@@ -31,10 +40,16 @@ func HandleDebugSignals(name string) {
 			continue
 		}
 
-		generateStackTrace(dir)
-		generateMemoryProfile(dir)
-		generateCPUProfile(dir)
+		DumpDebugFiles(dir)
 	}
+}
+
+// DumpDebugFiles generates a stacktrace, memory profile, and CPU profile into the provided
+// directory.  These are useful for runtime debugging and profiling.
+func DumpDebugFiles(dir string) {
+	generateStackTrace(dir)
+	generateMemoryProfile(dir)
+	generateCPUProfile(dir)
 }
 
 func generateStackTrace(dir string) {

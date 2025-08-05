@@ -305,6 +305,7 @@ type SearchAgentConfig struct {
 	Scratch_Path                     string
 	Max_Script_Run_Time              int64 // minutes!
 	Log_File                         string
+	Log_UDP_Target                   string
 	Log_Level                        string
 	Disable_Network_Script_Functions bool // disables "risky" scripting functions (network stuff)
 	Disable_Self_Ingest              bool // disables ingesting search agent logs to indexers

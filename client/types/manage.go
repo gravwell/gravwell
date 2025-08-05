@@ -16,6 +16,10 @@ import (
 	"github.com/google/uuid"
 )
 
+var (
+	maxJsonTimestamp = time.Date(9999, time.December, 12, 23, 59, 59, 99, time.UTC)
+)
+
 type IndexerRequest struct {
 	DialString string
 
@@ -58,6 +62,12 @@ func (si ShardInfo) MarshalJSON() ([]byte, error) {
 		Size:    si.Size,
 		Stored:  si.Stored,
 		Cold:    si.Cold,
+	}
+	if si.Start.After(maxJsonTimestamp) {
+		x.Start = maxJsonTimestamp
+	}
+	if si.End.After(maxJsonTimestamp) {
+		x.End = maxJsonTimestamp
 	}
 	if !si.RemoteState.isEmpty() {
 		x.RemoteState = &si.RemoteState

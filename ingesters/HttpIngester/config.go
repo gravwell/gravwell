@@ -132,6 +132,7 @@ func (c *cfgType) Verify() error {
 	if hc, ok := c.HealthCheck(); ok {
 		urls[newRoute(http.MethodGet, hc)] = `health check`
 	}
+
 	for k, v := range c.Listener {
 		pth, err := v.validate(k)
 		if err != nil {
@@ -306,6 +307,7 @@ func (v *lst) validate(name string) (string, error) {
 	if v.Method == `` {
 		v.Method = defaultMethod
 	}
+
 	return pth, nil
 }
 
@@ -346,7 +348,7 @@ func (pa *paramAttacher) process(req *http.Request) {
 	if req == nil {
 		pa.exts = nil
 		return
-	} else if pa.active == false {
+	} else if !pa.active {
 		return
 	}
 
@@ -362,7 +364,6 @@ func (pa *paramAttacher) process(req *http.Request) {
 			pa.processSet(v)
 		}
 	}
-	return
 }
 
 func (pa *paramAttacher) processSet(vals url.Values) {

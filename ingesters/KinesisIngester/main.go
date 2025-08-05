@@ -188,7 +188,13 @@ func main() {
 				continue
 			}
 			//get timegrinder stood up
+			var window timegrinder.TimestampWindow
+			window, err = cfg.Global.GlobalTimestampWindow()
+			if err != nil {
+				return
+			}
 			tcfg := timegrinder.Config{
+				TSWindow:           window,
 				EnableLeftMostSeed: true,
 			}
 			tgr, err := timegrinder.NewTimeGrinder(tcfg)

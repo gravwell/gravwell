@@ -80,6 +80,7 @@ type DeploymentInfo struct {
 	AIEnabled        bool   // is the AI system available at all
 	AIProcessor      string // URL of system that services Logbot AI requests
 	AIDisabledReason string `json:",omitempty"` // if AI is disabled, explain why
+	RenderStoreLimit uint   //maximum amount of data that can be stored in a renderer per search
 }
 
 func (si SysInfo) Empty() bool {
