@@ -22,16 +22,14 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingesters/args"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
-	"github.com/gravwell/gravwell/v3/timegrinder"
-
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingesters/args"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 	"github.com/tealeg/xlsx"
-
-	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
 )
 
 const (
@@ -173,7 +171,7 @@ loop:
 		case err = <-errCh:
 			fmt.Println("\nDONE")
 			break loop
-		case _ = <-tckr.C:
+		case <-tckr.C:
 			dur := time.Since(lastts)
 			cnt := count - lastcnt
 			bts := totalBytes - lastsz
@@ -293,7 +291,6 @@ func xlsxCsvReader(f *xlsx.File, out chan []byte) {
 			}
 		}
 	}
-	return
 }
 
 func encodeLine(row *xlsx.Row) (b []byte, err error) {

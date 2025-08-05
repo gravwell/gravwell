@@ -18,9 +18,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
 
 	"collectd.org/api"
 	"collectd.org/network"
@@ -209,7 +209,7 @@ type jvl struct {
 	Type           string        `json:"type,omitempty"`
 	TypeInstance   string        `json:"type_instance,omitempty"`
 	Value          api.Value     `json:"value,omitempty"`
-	DS             string        `json:"dsname,omitemtpy"`
+	DS             string        `json:"dsname,omitempty"`
 	Time           time.Time     `json:"time"`
 	Interval       time.Duration `json:"interval"`
 }

@@ -11,7 +11,7 @@ package ingest
 import (
 	"errors"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -113,10 +113,7 @@ func (ecb *entryConfBuffer) IsHead(id entrySendID) (bool, error) {
 }
 
 func (ecb *entryConfBuffer) Full() bool {
-	if ecb.count >= (ecb.capacity - 1) {
-		return true
-	}
-	return false
+	return ecb.count >= (ecb.capacity - 1)
 }
 
 func (ecb *entryConfBuffer) Count() int {

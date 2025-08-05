@@ -9,11 +9,10 @@
 package processors
 
 import (
-	"fmt"
 	"net"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const ()
@@ -174,7 +173,7 @@ func makeSrcTestEntry(ip string) *entry.Entry {
 		Tag:  0, //doesn't matter
 		SRC:  net.ParseIP(ip),
 		TS:   testTime,
-		Data: []byte(fmt.Sprintf(`foo bar and some other things`)),
+		Data: []byte(`foo bar and some other things`),
 	}
 	ent.AddEnumeratedValueEx(`testing`, uint64(42))
 	return ent

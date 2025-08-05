@@ -3,7 +3,7 @@ package processors
 import (
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 func TestCorelightConfig(t *testing.T) {
@@ -48,8 +48,7 @@ func TestCorelightConfig(t *testing.T) {
 		type = corelight
 		Prefix="foobar:this-that'TheOther"
 	`
-	p, err = testLoadPreprocessor(b, `corelight`)
-	if err == nil {
+	if _, err = testLoadPreprocessor(b, `corelight`); err == nil {
 		t.Fatal("failed to catch bad prefix")
 	}
 

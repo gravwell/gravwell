@@ -15,7 +15,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 var (
@@ -173,7 +173,7 @@ func (cvs *ChartableValueSet) SortByNames() error {
 	return nil
 }
 
-// SortByValues will sort the series by the the first value in the chartable data set
+// SortByValue will sort the series by the the first value in the chartable data set
 // this will return an error if there is more than one time slice of data
 func (cvs *ChartableValueSet) SortByValue() error {
 	if len(cvs.Values) > 1 {

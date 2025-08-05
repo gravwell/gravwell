@@ -6,6 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package base implements an abstracted base ingester to simplify the process of writing
+// new ingesters
 package base
 
 import (
@@ -21,13 +23,13 @@ import (
 	"runtime/debug"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/config/validate"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/config/validate"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 
 	"github.com/crewjam/rfc5424"
 	"github.com/shirou/gopsutil/host"
@@ -58,11 +60,12 @@ type IngesterBaseConfig struct {
 
 type IngesterBase struct {
 	IngesterBaseConfig
-	Verbose bool
-	Logger  *log.Logger
-	Cfg     interface{}
-	id      uuid.UUID
-	sm      *utils.StatsManager
+	Verbose  bool
+	Logger   *log.Logger
+	Cfg      interface{}
+	id       uuid.UUID
+	emitUUID bool
+	sm       *utils.StatsManager
 }
 
 func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
@@ -88,6 +91,7 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	var fp string
 	if pth := filepath.Clean(*stderrOverride); pth != `` && pth != `.` {
 		fp = filepath.Join(`/dev/shm/`, pth)
+		ib.emitUUID = true
 	}
 	cb := func(w io.Writer) {
 		version.PrintVersion(w)
@@ -206,6 +210,9 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 	id, ok := cfg.IngesterUUID()
 	if !ok {
 		id = uuid.Nil //set to the zero UUID, we attempt to write one back during init, but if that fails... just use zero
+	} else if ib.emitUUID {
+		// got a good UUID and we are redirecting stderr (e.g. we should emit the UUID to stderr)
+		fmt.Fprintf(os.Stderr, "UUID:\t\t%v\n", id)
 	}
 	ib.id = id
 	igCfg := ingest.UniformMuxerConfig{
@@ -264,13 +271,13 @@ func (ib *IngesterBase) validateUUID(cfg config.IngestConfig, loc string) (err e
 	if ib == nil || ib.Cfg == nil {
 		return //nothing to do here
 	}
-	id, ok := cfg.IngesterUUID()
+	_, ok := cfg.IngesterUUID()
 	if ok {
 		//all good
 		return
 	}
 	//generate a UUID
-	id = uuid.New()
+	id := uuid.New()
 
 	if loc != `` {
 		if err = cfg.SetIngesterUUID(id, loc); err != nil {
@@ -310,27 +317,27 @@ func (ib *IngesterBase) writebackUUID(id uuid.UUID) (err error) {
 
 	//ok, lets start diving into this thing and try to set a value inside of it
 	sv := rv.FieldByName(`Ingester_UUID`)
-	if sv.IsValid() == false {
+	if !sv.IsValid() {
 		//try to look for a field named "Global"
 		sv = rv.FieldByName(`Global`)
-		if sv.IsValid() == false {
+		if !sv.IsValid() {
 			err = fmt.Errorf("Failed to find Ingester_UUID in config type %T", rv.Interface())
 			return
 		}
 		//sv is pointing at Global, try to grab the Ingester_UUID in there
 		ssv := sv.FieldByName(`Ingester_UUID`)
-		if ssv.IsValid() == false {
+		if !ssv.IsValid() {
 			err = fmt.Errorf("Failed to find Ingester_UUID in nested Global type %T", sv.Interface())
 			return
 		}
-		if ssv.CanSet() == false {
+		if !ssv.CanSet() {
 			err = fmt.Errorf("Cannot set Ingester_UUID inside nested global type %T", sv.Interface())
 			return
 		}
 		//all good
 		sv = ssv
 	}
-	if sv.CanSet() == false {
+	if !sv.CanSet() {
 		err = fmt.Errorf("Cannot set Ingester_UUID field in type %T", ib.Cfg)
 		return
 	} else if sv.Kind() != reflect.String {

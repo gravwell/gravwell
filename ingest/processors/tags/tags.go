@@ -6,6 +6,7 @@
 * BSD 2-clause license. See the LICENSE file for details.
 **************************************************************************/
 
+// Package tags implements a concurrent safe tag manager for dynamic plugins
 package tags
 
 import (
@@ -14,8 +15,8 @@ import (
 	"fmt"
 
 	"github.com/gobwas/glob"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (

@@ -21,13 +21,13 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 
 	"github.com/gravwell/jsonparser"
 )
@@ -204,7 +204,6 @@ func jsonAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg jsonHa
 		failCount = 0
 		go jsonConnHandler(conn, cfg, igst)
 	}
-	return
 }
 
 func jsonAcceptorUDP(conn *net.UDPConn, id int, igst *ingest.IngestMuxer, cfg jsonHandlerConfig) {
@@ -328,7 +327,6 @@ func jsonConnHandler(c net.Conn, cfg jsonHandlerConfig, igst *ingest.IngestMuxer
 	if err := handleJSONStream(c, cfg, rip, tg, ll); err != nil {
 		ll.Error("JSON Stream handler error", log.KVErr(err))
 	}
-	return
 }
 
 func handleJSONStream(rdr io.Reader, cfg jsonHandlerConfig, rip net.IP, tg *timegrinder.TimeGrinder, ll *log.KVLogger) error {

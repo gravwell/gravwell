@@ -247,6 +247,7 @@ func (s *IngesterState) Write(wtr io.Writer) (err error) {
 		return
 	} else if n != len(buff) {
 		err = errors.New("Failed to write ingest state size block")
+		return
 	}
 
 	// and write the JSON

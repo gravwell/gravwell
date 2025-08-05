@@ -18,13 +18,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/filewatch"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/filewatch"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -190,12 +190,12 @@ func (c *cfgType) AttachConfig() attach.AttachConfig {
 	return c.Attach
 }
 
-func (cfg *cfgType) Followers() map[string]follower {
-	mp := make(map[string]follower, len(cfg.Follower))
-	for k, v := range cfg.Follower {
+func (c *cfgType) Followers() map[string]follower {
+	mp := make(map[string]follower, len(c.Follower))
+	for k, v := range c.Follower {
 		if v != nil {
 			f := *v
-			f.timeFormats = cfg.TimeFormat
+			f.timeFormats = c.TimeFormat
 			mp[k] = f
 		}
 	}

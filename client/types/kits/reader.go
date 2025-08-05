@@ -15,12 +15,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"path/filepath"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 )
 
 var (
@@ -50,7 +49,7 @@ type Reader struct {
 
 // NewReader returns a Reader which will parse a kit from the given ReadResetCloser.
 // Note that rdr is a ReadResetCloser; the Reset function is used to reset the reader to
-// the beginning of the stream. The github.com/gravwell/gravwell/v3/ingesters/utils package
+// the beginning of the stream. The github.com/gravwell/gravwell/v4/ingesters/utils package
 // includes several convenient ReadResetCloser implementations.
 //
 // The sigVerify parameter is an optional function used to validate the kit's manifest signature.
@@ -199,7 +198,7 @@ func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest
 				R: tr,
 				N: maxManifestSize,
 			}
-			if m, err = ioutil.ReadAll(&lr); err != nil {
+			if m, err = io.ReadAll(&lr); err != nil {
 				return
 			}
 		} else if nm == ManifestSigName {
@@ -207,7 +206,7 @@ func Verify(rdr io.Reader, sigVerify SigVerificationFunc) (signed bool, manifest
 				R: tr,
 				N: maxManifestSigSize,
 			}
-			if s, err = ioutil.ReadAll(&lr); err != nil {
+			if s, err = io.ReadAll(&lr); err != nil {
 				return
 			}
 		} else {
@@ -325,7 +324,7 @@ func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err
 		}
 	case License:
 		var b []byte
-		if b, err = ioutil.ReadAll(rdr); err == nil {
+		if b, err = io.ReadAll(rdr); err == nil {
 			if len(b) == 0 {
 				err = errors.New("Empty license file")
 			} else {

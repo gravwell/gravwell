@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package objlog is a utility helper for the Gravwell CLI to log objects on requests
 package objlog
 
 // ObjLog is the interfaced used by the command line client so that all API requests and responses
@@ -16,7 +17,7 @@ type ObjLog interface {
 	Log(id, method string, obj interface{}) error
 }
 
-// NillObjLogger is an empty implementation of the ObjLog interface for use when no logging is desired.
+// NilObjLogger is an empty implementation of the ObjLog interface for use when no logging is desired.
 type NilObjLogger struct {
 }
 

@@ -20,8 +20,8 @@ import (
 	_ "time/tzdata"
 
 	"github.com/Bowery/prompt"
-	"github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/client/objlog"
+	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/objlog"
 )
 
 var (
@@ -84,8 +84,13 @@ func main() {
 
 func login() (cli *client.Client, err error) {
 	var uname, passwd string
-	objLogger, _ := objlog.NewNilLogger()
-	if cli, err = client.NewClient(*server, !*noCertsEnf, !*noHttps, objLogger); err != nil {
+	opts := client.Opts{
+		Server:                 *server,
+		InsecureNoEnforceCerts: *noCertsEnf,
+		UseHttps:               !*noHttps,
+	}
+	opts.ObjLogger, _ = objlog.NewNilLogger()
+	if cli, err = client.NewOpts(opts); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create new client: %v\n", err)
 		return
 	}

@@ -9,6 +9,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package winevent implements the basic windows event system interface and bookmark system for Gravwell
 package winevent
 
 import (
@@ -20,7 +21,7 @@ import (
 
 	"golang.org/x/sys/windows"
 
-	"github.com/gravwell/gravwell/v3/winevent/wineventlog"
+	"github.com/gravwell/gravwell/v4/winevent/wineventlog"
 )
 
 const (

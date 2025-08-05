@@ -1,10 +1,18 @@
+/*************************************************************************
+ * Copyright 2024 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package client
 
 import (
 	"net/http"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // GetTOTPSetup requests the parameters necessary for configuring
@@ -32,7 +40,10 @@ func (c *Client) GetTOTPSetupEx(user, pass string, authtype types.AuthType, code
 
 // InstallTOTPSetup installs the parameters requested by
 // GetTOTPSetup. The code parameter should be generated from the URL
-// in the reponse.
+// in the response.
+//
+// On success, the client's session is destroyed and they must
+// re-authenticate.
 func (c *Client) InstallTOTPSetup(user, pass, code string) (types.MFATOTPInstallResponse, error) {
 	rq := types.MFAAuthRequest{
 		User:     user,
@@ -41,7 +52,10 @@ func (c *Client) InstallTOTPSetup(user, pass, code string) (types.MFATOTPInstall
 		AuthCode: code,
 	}
 	var resp types.MFATOTPInstallResponse
-	err := c.methodStaticPushURL(http.MethodPut, totpSetupUrl(), rq, &resp)
+	err := c.methodStaticPushURL(http.MethodPut, totpSetupUrl(), rq, &resp, nil, nil)
+	if err == nil {
+		c.state = STATE_LOGGED_OFF // the backend boots our session; reflect that locally
+	}
 	return resp, err
 }
 
@@ -59,7 +73,7 @@ func (c *Client) TOTPClear(user, pass string, authtype types.AuthType, code stri
 		AuthType: authtype,
 		AuthCode: code,
 	}
-	err := c.methodStaticPushURL(http.MethodPost, totpClearUrl(), rq, nil)
+	err := c.methodStaticPushURL(http.MethodPost, totpClearUrl(), rq, nil, nil, nil)
 	return err
 }
 
@@ -78,7 +92,7 @@ func (c *Client) ClearAllMFA(user, pass string, authtype types.AuthType, code st
 		AuthType: authtype,
 		AuthCode: code,
 	}
-	return c.methodStaticPushURL(http.MethodPost, mfaClearAllUrl(), rq, nil)
+	return c.methodStaticPushURL(http.MethodPost, mfaClearAllUrl(), rq, nil, nil, nil)
 }
 
 // AdminClearUserMFA completely clears the specified user's MFA
@@ -105,12 +119,13 @@ func (c *Client) GenerateRecoveryCodes(user, pass string, authtype types.AuthTyp
 		Remaining int
 		Generated time.Time
 	}
-	err = c.methodStaticPushURL(http.MethodPost, mfaGenerateRecoveryCodesUrl(), rq, &resp)
-	codes = types.RecoveryCodes{
-		Enabled:   resp.Enabled,
-		Codes:     resp.Codes,
-		Remaining: resp.Remaining,
-		Generated: resp.Generated,
+	if err = c.methodStaticPushURL(http.MethodPost, mfaGenerateRecoveryCodesUrl(), rq, &resp, nil, nil); err == nil {
+		codes = types.RecoveryCodes{
+			Enabled:   resp.Enabled,
+			Codes:     resp.Codes,
+			Remaining: resp.Remaining,
+			Generated: resp.Generated,
+		}
 	}
 	return
 }

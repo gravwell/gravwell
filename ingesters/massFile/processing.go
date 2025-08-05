@@ -19,8 +19,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -80,6 +80,9 @@ func groupLargeLogs(src, wrk string, totalSize int64) error {
 
 	//walk the files
 	if err := filepath.Walk(src, func(p string, fi os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
 		var lastTS time.Time
 		if !fi.Mode().IsRegular() {
 			return nil
@@ -294,7 +297,10 @@ func walkAndReadFiles(dir string, totalSize int64, iv *ingestVars, f entsFunc) e
 	ud := newUpdater(totalSize)
 	var tally int64
 	//walk the files
-	if err := filepath.Walk(dir, func(p string, fi os.FileInfo, err error) error {
+	if err := filepath.Walk(dir, func(p string, fi os.FileInfo, lerr error) error {
+		if lerr != nil {
+			return lerr
+		}
 		var lastTS time.Time
 		if !fi.Mode().IsRegular() {
 			return nil

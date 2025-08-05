@@ -22,14 +22,13 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingesters/args"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
-
-	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingesters/args"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 )
 
 const (
@@ -152,7 +151,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("Couldn't read full input file: %v", err)
 		}
-		timeDelta = time.Now().Sub(newest.TS.StandardTime())
+		timeDelta = time.Since(newest.TS.StandardTime())
 		fmt.Printf("timeDelta = %v\n", timeDelta)
 		// Now reset the reader
 		fin, err = utils.OpenBufferedFileReader(*inFile, 8192)
@@ -218,7 +217,7 @@ loop:
 		case err = <-errCh:
 			fmt.Println("\nDONE")
 			break loop
-		case _ = <-tckr.C:
+		case <-tckr.C:
 			dur := time.Since(lastts)
 			cnt := count - lastcnt
 			bts := totalBytes - lastsz

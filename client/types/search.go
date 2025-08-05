@@ -16,7 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -202,7 +202,8 @@ type StartSearchRequest struct {
 	Global bool
 }
 
-// The webserver responds yay/nay plus new subprotocols if the search is valid.
+// StartSearchResponse is the type the webserver responds to a start search request
+// it contains a yay/nay plus new subprotocols if the search is valid.
 // SearchStartRange and SearchEndRange should be strings in RFC3339Nano format
 type StartSearchResponse struct {
 	Error string `json:",omitempty"`
@@ -233,14 +234,13 @@ type SearchSessionIntervalUpdate struct {
 	Interval uint
 }
 
-// Once a search has begin, an ACK is sent.
+// StartSearchAck is sent when a search has begun
 type StartSearchAck struct {
 	Ok                   bool
 	OutputSearchSubproto string `json:",omitempty"`
 	OutputStatsSubproto  string `json:",omitempty"`
 }
 
-// Request to reattach to a search.
 type AttachSearchRequest struct {
 	ID string
 }
@@ -352,6 +352,24 @@ type SearchState struct {
 	Status       SearchStatus `json:"status"`
 }
 
+// String just implements a basic stringer on this type for some of the more simple CLI tooling
+func (ss SearchState) String() (r string) {
+	r = string(ss.Status)
+	if ss.Streaming {
+		r = r + "/streaming"
+	}
+	if ss.Saved {
+		r = r + "/saved"
+	}
+	if ss.Backgrounded {
+		r = r + "/backgrounded"
+	}
+	if ss.Attached {
+		r = r + "/attached"
+	}
+	return
+}
+
 type SearchStatus string
 
 const (
@@ -390,7 +408,6 @@ func CheckMacroName(name string) error {
 	return nil
 }
 
-// custom Marshallers
 func (si SearchInfo) MarshalJSON() ([]byte, error) {
 	type alias SearchInfo
 	return json.Marshal(struct {

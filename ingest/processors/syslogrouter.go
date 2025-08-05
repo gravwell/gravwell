@@ -13,9 +13,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/syslogparser"
 	"github.com/gravwell/syslogparser/rfc3164"
 	"github.com/gravwell/syslogparser/rfc5424"
@@ -171,7 +171,7 @@ const subChar rune = '_'
 
 func remapTagCharacters(orig string) (ret string, err error) {
 	mf := func(r rune) rune {
-		if strings.IndexRune(ingest.FORBIDDEN_TAG_SET, r) != -1 {
+		if strings.ContainsRune(ingest.FORBIDDEN_TAG_SET, r) {
 			return subChar
 		}
 		return r

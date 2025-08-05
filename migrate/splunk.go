@@ -20,10 +20,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
 )
 
 const (
@@ -181,7 +181,6 @@ func (t *statusTracker) Update(server string, progress SplunkToGravwell) {
 		return
 	}
 	status.Update(progress)
-	return
 }
 
 // a splunkStatus keeps track of how much we've migrated from a given splunk server
@@ -390,7 +389,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 				ev, err := entry.NewEnumeratedValue(k, v)
 				if err != nil {
 					// we'll only warn once
-					warnCount, _ := evWarnings[k]
+					warnCount := evWarnings[k]
 					warnCount++
 					evWarnings[k] = warnCount
 					continue
@@ -487,7 +486,7 @@ func splunkJob(cfgName string, progress SplunkToGravwell, cfg *cfgType, ctx cont
 
 		progress.ConsumedUpTo = end
 		splunkTracker.Update(cfgName, progress)
-		elapsed := time.Now().Sub(startTime)
+		elapsed := time.Since(startTime)
 		if *fParanoid {
 			status := splunkTracker.GetStatus(cfgName)
 			st.Add(splunkStateType, status)

@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 const (
@@ -145,7 +145,7 @@ func (sm *StatsManager) doTick(dur time.Duration) {
 	sm.Unlock()
 
 	//emit entry
-	if len(params) > 0 && ok == true {
+	if len(params) > 0 && ok {
 		sm.lgr.Info(statsMsg, params...)
 	}
 }

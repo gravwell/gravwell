@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 
 	"github.com/google/uuid"
 )
@@ -51,7 +51,7 @@ func (c *Client) LockUserAccount(id int32) error {
 	return c.putStaticURL(lockUrl(id), nil)
 }
 
-// LockUserAccount (admin-only) unlocks a user account.
+// UnlockUserAccount (admin-only) unlocks a user account.
 func (c *Client) UnlockUserAccount(id int32) error {
 	return c.deleteStaticURL(lockUrl(id), nil)
 }
@@ -141,7 +141,7 @@ func (c *Client) SetDefaultSearchGroup(uid int32, gid int32) error {
 	req := types.UserDefaultSearchGroup{
 		GID: gid,
 	}
-	return c.methodStaticPushURL(http.MethodPut, usersSearchGroupUrl(uid), req, nil)
+	return c.methodStaticPushURL(http.MethodPut, usersSearchGroupUrl(uid), req, nil, nil, nil)
 }
 
 // GetDefaultSearchGroup returns the specified users default search group
@@ -157,7 +157,7 @@ func (c *Client) DeleteDefaultSearchGroup(uid int32) error {
 	return c.deleteStaticURL(usersSearchGroupUrl(uid), nil)
 }
 
-// AdminUpdateInfo changes basic information about the specified user.
+// UpdateUserInfo changes basic information about the specified user.
 // Admins can set any user's info, but regular users can only set their own.
 func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
 	req := types.UpdateUser{
@@ -165,7 +165,7 @@ func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
 		Name:  name,
 		Email: email,
 	}
-	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(id), req, nil)
+	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(id), req, nil, nil, nil)
 }
 
 // AddGroup (admin-only) creates a new group with the given name and description.
@@ -209,7 +209,7 @@ func (c *Client) DeleteUserFromGroup(uid, gid int32) error {
 	return c.deleteStaticURL(usersGroupIdUrl(uid, gid), nil)
 }
 
-// ListGroups returns information about groups to which the user belongs.
+// GetUserGroups returns information about groups to which the user belongs.
 func (c *Client) GetUserGroups(uid int32) ([]types.GroupDetails, error) {
 	var udet types.UserDetails
 	if err := c.getStaticURL(usersInfoUrl(uid), &udet); err != nil {
@@ -262,7 +262,7 @@ func (c *Client) GetGroup(id int32) (types.GroupDetails, error) {
 	return gp, nil
 }
 
-// ListGroupUsers will return user details for all members of a group.
+// GetGroupUsers will return user details for all members of a group.
 // Only administrators or members of the group may call this function.
 func (c *Client) GetGroupUsers(gid int32) ([]types.UserDetails, error) {
 	var udets []types.UserDetails
@@ -471,7 +471,7 @@ func (c *Client) UploadLicenseFile(f string) ([]types.LicenseUpdateError, error)
 	req.Header.Set(`Content-Type`, wtr.FormDataContentType())
 	var warnings []types.LicenseUpdateError
 	okResps := []int{http.StatusOK, http.StatusMultiStatus}
-	if err := c.staticRequest(req, &warnings, okResps); err != nil {
+	if err := c.staticRequest(req, &warnings, okResps, nil); err != nil {
 		if err != io.EOF {
 			return nil, err
 		}
@@ -495,7 +495,8 @@ func (c *Client) Impersonate(uid int32) (nc *Client, err error) {
 	hdrMap.add(authHeaderName, "Bearer "+loginResp.JWT)
 
 	sessData := ActiveSession{
-		JWT: loginResp.JWT,
+		JWT:     loginResp.JWT,
+		Expires: decodeJWTExpires(loginResp.JWT),
 	}
 	//generate a new client
 	nc = &Client{
@@ -597,7 +598,7 @@ func (c *Client) UpdateExtraction(d types.AXDefinition) (wrs []types.WarnResp, e
 	if err = d.Validate(); err != nil {
 		return
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, extractionsUrl(), d, nil); err == io.EOF {
+	if err = c.methodStaticPushURL(http.MethodPut, extractionsUrl(), d, nil, nil, nil); err == io.EOF {
 		err = nil
 	}
 	return
@@ -732,7 +733,7 @@ func (c *Client) RestoreEncrypted(rdr io.Reader, password string) (err error) {
 	return
 }
 
-// DistributedWebservers queries to determine if the webserver is in distributed mode
+// DeploymentInfo queries to determine if the webserver is in distributed mode
 // and therefore using the datastore.  This means that certain resource changes may take some
 // time to fully distribute. This is an admin-only function.
 func (c *Client) DeploymentInfo() (di types.DeploymentInfo, err error) {

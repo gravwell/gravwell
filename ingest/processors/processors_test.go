@@ -19,8 +19,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -77,8 +77,6 @@ func TestEmptyProcessorSet(t *testing.T) {
 	if !entryEqual(tw.ents[0], &ent) {
 		t.Fatal("resulting ent is bad")
 	}
-
-	return
 }
 
 func TestSingleProcessorSet(t *testing.T) {
@@ -116,8 +114,6 @@ func TestSingleProcessorSet(t *testing.T) {
 	if !entryEqual(tw.ents[0], &ent) {
 		t.Fatal("resulting ent is bad")
 	}
-
-	return
 }
 
 func TestMultiProcessorSet(t *testing.T) {
@@ -159,8 +155,6 @@ func TestMultiProcessorSet(t *testing.T) {
 	if !entryEqual(tw.ents[0], &ent) {
 		t.Fatal("resulting ent is bad")
 	}
-
-	return
 }
 
 func gzipCompressVal(x string) (r []byte, err error) {

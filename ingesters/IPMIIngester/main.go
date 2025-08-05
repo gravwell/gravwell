@@ -22,13 +22,12 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/debug"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingesters/base"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-
+	"github.com/gravwell/gravwell/v4/debug"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/base"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/ipmigo"
 )
 
@@ -366,7 +365,7 @@ func (h *handlerConfig) getSEL() ([]*tSEL, error) {
 		return nil, fmt.Errorf("Failed to get SEL entries on target %v: %w", h.target, err)
 	}
 
-	selrecords, total, err := ipmigo.SELGetEntries(h.client, 0, total)
+	selrecords, _, err := ipmigo.SELGetEntries(h.client, 0, total)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to get SEL entries on target %v: %w", h.target, err)
 	}

@@ -43,7 +43,7 @@ type ShardInfo struct {
 	Cold        bool             //true if the shard is in the code storage
 }
 
-// custom marshaller to deal with the fact that the json marshaller can't handle the "empty" uuid value
+// MarshalJSON implements a custom marshaller to deal with the fact that the json marshaller can't handle the "empty" uuid value
 func (si ShardInfo) MarshalJSON() ([]byte, error) {
 	x := struct {
 		Name        string
@@ -153,15 +153,15 @@ func (iwd *IndexerWellData) Sort() {
 	}
 }
 
-func (v IndexerWellData) MarshalJSON() ([]byte, error) {
+func (iwd IndexerWellData) MarshalJSON() ([]byte, error) {
 	x := struct {
 		UUID       uuid.UUID
 		Wells      emptyWellList
 		Replicated erp
 	}{
-		UUID:       v.UUID,
-		Wells:      emptyWellList(v.Wells),
-		Replicated: erp(v.Replicated),
+		UUID:       iwd.UUID,
+		Wells:      emptyWellList(iwd.Wells),
+		Replicated: erp(iwd.Replicated),
 	}
 
 	return json.Marshal(x)

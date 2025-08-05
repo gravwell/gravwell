@@ -20,18 +20,17 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/debug"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/base"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/sqs_common"
-	"github.com/gravwell/gravwell/v3/timegrinder"
-
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kinesis"
+	"github.com/gravwell/gravwell/v4/debug"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/base"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/sqs_common"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -215,8 +214,8 @@ func main() {
 				}
 			}
 
+			wg.Add(1)
 			go func(stream streamDef, shard kinesis.Shard, tagid entry.EntryTag, shardid int, tg *timegrinder.TimeGrinder) {
-				wg.Add(1)
 				defer wg.Done()
 				// set up timegrinder and other long-lived stuff
 				var src net.IP
@@ -319,7 +318,7 @@ func main() {
 								SRC:  src,
 								Data: r.Data,
 							}
-							if stream.Parse_Time == false {
+							if !stream.Parse_Time {
 								ent.TS = entry.FromStandard(*r.ApproximateArrivalTimestamp)
 							} else {
 								ts, ok, err := tg.Extract(ent.Data)
@@ -436,11 +435,10 @@ func NewStateman(stateFile *utils.State) *stateman {
 
 func (s *stateman) Start() {
 	go func() {
-		for {
-			select {
-			case <-time.After(15 * time.Second):
-				s.Flush()
-			}
+		tckr := time.NewTicker(15 * time.Second)
+		defer tckr.Stop()
+		for range tckr.C {
+			s.Flush()
 		}
 	}()
 }

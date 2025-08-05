@@ -6,6 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package version just implements some globals and helpers that all ingesters can import
 package version
 
 import (
@@ -15,13 +16,13 @@ import (
 )
 
 const (
-	MajorVersion = 5
-	MinorVersion = 8
+	MajorVersion = 6
+	MinorVersion = 0
 	PointVersion = 0
 )
 
 var (
-	BuildDate time.Time = time.Date(2025, 4, 30, 12, 0, 0, 0, time.UTC)
+	BuildDate time.Time = time.Date(2025, 7, 22, 23, 59, 59, 0, time.UTC)
 )
 
 func PrintVersion(wtr io.Writer) {

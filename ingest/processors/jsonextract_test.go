@@ -12,8 +12,8 @@ import (
 	"net"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 var (
@@ -215,8 +215,6 @@ func TestBzipJson(t *testing.T) {
 	if !entryEqual(tw.ents[0], &ent) {
 		t.Fatal("resulting ent is bad", string(ent.Data))
 	}
-
-	return
 }
 
 func TestBzipJsonExtractArraySplit(t *testing.T) {

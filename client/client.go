@@ -24,10 +24,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client/objlog"
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/objlog"
+	"github.com/gravwell/gravwell/v4/client/types"
 
 	"bytes"
+
 	"github.com/gorilla/websocket"
 	"golang.org/x/net/publicsuffix"
 )
@@ -93,7 +94,8 @@ type Opts struct {
 // JWT field contains a negotiated authentication token (with expiration).
 type ActiveSession struct {
 	JWT                  string
-	LastNotificationTime time.Time
+	LastNotificationTime time.Time // when was the last notification seen
+	Expires              time.Time // timestamp when this session (e.g. JWT) expires, will be the zero time on token based logins
 }
 
 // New connects to the specified server and returns a new Client object.
@@ -457,7 +459,8 @@ func (c *Client) importLoginToken(token string) (err error) {
 		c.hm.add(authHeaderName, "Bearer "+token)
 
 		c.sessionData = ActiveSession{
-			JWT: token,
+			JWT:     token,
+			Expires: decodeJWTExpires(token),
 		}
 
 		c.state = STATE_AUTHED //we just assume that we are logged in if we are importing a token
@@ -556,6 +559,9 @@ func (c *Client) InheritSession(sess *ActiveSession) (bool, error) {
 	}
 	c.state = STATE_AUTHED
 	c.sessionData = *sess
+	// redecode the expires from the session just in case, if its not a valid JWT then we will clear it
+	// some old clients may not have decode it when it created the session object
+	c.sessionData.Expires = decodeJWTExpires(sess.JWT)
 	return true, nil
 }
 

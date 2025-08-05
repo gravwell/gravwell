@@ -18,11 +18,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingesters/base"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/base"
 	"golang.org/x/time/rate"
 )
 
@@ -127,6 +127,10 @@ type shodanCountResponse struct {
 	Total int `json:"total"`
 }
 
+type shodanQueryResponse struct {
+	Query string `json:"query"`
+}
+
 func buildShodanHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *log.Logger, igst *ingest.IngestMuxer, ib base.IngesterBase, ctx context.Context, wg *sync.WaitGroup) *shodanHandlerConfig {
 
 	shodanConns = make(map[string]*shodanHandlerConfig)
@@ -140,13 +144,20 @@ func buildShodanHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *l
 		// check if there is a statetracker object for each config
 		_, ok := ot.Get("shodan", k)
 		if !ok {
+			query := shodanQueryResponse{
+				Query: v.Query,
+			}
+			keyBytes, err := json.Marshal(query)
+			if err != nil {
+				lg.Error("Failed to marshal last entry key", log.KVErr(err))
+			}
 
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: time.Now(),
-				Key:        v.Query,
+				Key:        keyBytes,
 			}
-			err := ot.Set("shodan", k, state, false)
+			err = ot.Set("shodan", k, state, false)
 			if err != nil {
 				lg.Fatal("failed to set state tracker", log.KV("listener", k), log.KV("tag", v.Tag_Name), log.KVErr(err))
 
@@ -210,7 +221,15 @@ func (h *shodanHandlerConfig) run() {
 			if !ok {
 				lg.Fatal("failed to get state tracker", log.KV("listener", h.name), log.KV("tag", h.tag))
 			}
-			if err = getShodanHostData(h, latestTS.Key, h.src, rl, lg, h.ot); err != nil {
+
+			var lastKey shodanQueryResponse
+			if err = json.Unmarshal(latestTS.Key, &lastKey); err != nil {
+				lg.Error("Failed to unmarshal last entry key", log.KVErr(err))
+				// If we can't unmarshal, start with empty key
+				lastKey.Query = ""
+			}
+
+			if err = getShodanHostData(h, lastKey.Query, h.src, rl, lg, h.ot); err != nil {
 				lg.Error("Error getting host data", log.KVErr(err))
 			}
 		case "search":
@@ -218,7 +237,14 @@ func (h *shodanHandlerConfig) run() {
 			if !ok {
 				lg.Fatal("failed to get state tracker", log.KV("listener", h.name), log.KV("tag", h.tag))
 			}
-			if err = getShodanSearchData(h, latestTS.Key, h.src, rl, lg, h.ot); err != nil {
+
+			var lastKey shodanQueryResponse
+			if err = json.Unmarshal(latestTS.Key, &lastKey); err != nil {
+				lg.Error("Failed to unmarshal last entry key", log.KVErr(err))
+				// If we can't unmarshal, start with empty key
+				lastKey.Query = ""
+			}
+			if err = getShodanSearchData(h, lastKey.Query, h.src, rl, lg, h.ot); err != nil {
 				lg.Error("Error getting search data", log.KVErr(err))
 			}
 		case "count":
@@ -226,7 +252,14 @@ func (h *shodanHandlerConfig) run() {
 			if !ok {
 				lg.Fatal("failed to get state tracker", log.KV("listener", h.name), log.KV("tag", h.tag))
 			}
-			if err = getShodanCountData(h, latestTS.Key, h.src, rl, lg, h.ot); err != nil {
+
+			var lastKey shodanQueryResponse
+			if err = json.Unmarshal(latestTS.Key, &lastKey); err != nil {
+				lg.Error("Failed to unmarshal last entry key", log.KVErr(err))
+				// If we can't unmarshal, start with empty key
+				lastKey.Query = ""
+			}
+			if err = getShodanCountData(h, lastKey.Query, h.src, rl, lg, h.ot); err != nil {
 				lg.Error("Error getting count data", log.KVErr(err))
 			}
 		default:
@@ -252,12 +285,12 @@ func getShodanHostData(h *shodanHandlerConfig, latestTS string, src net.IP, rl *
 	// For host API, we need an IP address to query
 	// This is a simplified example - in a real implementation, you would need to
 	// provide a list of IPs to query or a mechanism to discover IPs
-	if latestTS == "" {
+	if h.query == "" {
 		lg.Info("No IP address provided for host query")
 		return nil
 	}
 
-	req, err := http.NewRequest(http.MethodGet, h.domain+shodanHostDomain+latestTS, nil)
+	req, err := http.NewRequest(http.MethodGet, h.domain+shodanHostDomain+h.query, nil)
 	if err != nil {
 		return err
 	}
@@ -308,7 +341,7 @@ func getShodanHostData(h *shodanHandlerConfig, latestTS string, src net.IP, rl *
 	state := trackedObjectState{
 		Updated:    time.Now(),
 		LatestTime: time.Now(),
-		Key:        latestTS,
+		Key:        json.RawMessage(`{"key": "none"}`),
 	}
 	err = ot.Set("shodan", h.name, state, false)
 	if err != nil {
@@ -378,7 +411,7 @@ func getShodanSearchData(h *shodanHandlerConfig, latestTS string, src net.IP, rl
 	state := trackedObjectState{
 		Updated:    time.Now(),
 		LatestTime: time.Now(),
-		Key:        latestTS,
+		Key:        json.RawMessage(`{"key": "none"}`),
 	}
 	err = ot.Set("shodan", h.name, state, false)
 	if err != nil {
@@ -453,7 +486,7 @@ func getShodanCountData(h *shodanHandlerConfig, latestTS string, src net.IP, rl 
 	state := trackedObjectState{
 		Updated:    time.Now(),
 		LatestTime: time.Now(),
-		Key:        latestTS,
+		Key:        json.RawMessage(`{"key": "none"}`),
 	}
 	err = ot.Set("shodan", h.name, state, false)
 	if err != nil {

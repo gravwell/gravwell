@@ -14,7 +14,7 @@ import (
 	"github.com/shirou/gopsutil/load"
 )
 
-// System information as displayed in the System Overview in Gravwell.
+// SysInfo as displayed in the System Overview in Gravwell.
 type SysInfo struct {
 	VirtSystem    string `json:",omitempty"` // e.g. "kvm" or "xen"
 	VirtRole      string `json:",omitempty"` // "host" or "guest"
@@ -27,7 +27,7 @@ type SysInfo struct {
 	Error         string `json:",omitempty"`
 }
 
-// Disk statistics as shown in the System Stats - Hardware and Disks view in Gravwell.
+// DiskStats as shown in the System Stats - Hardware and Disks view in Gravwell.
 type DiskStats struct {
 	Mount     string
 	Partition string
@@ -41,7 +41,7 @@ type DiskStats struct {
 	ID string
 }
 
-// Disk statistics as shown in the System Stats - Hardware and Disks view in Gravwell.
+// DiskIO statistics as shown in the System Stats - Hardware and Disks view in Gravwell.
 type DiskIO struct {
 	Device string
 	Read   uint64
@@ -53,7 +53,7 @@ type NetworkUsage struct {
 	Down uint64
 }
 
-// Host statistics, used by the System Stats view in Gravwell.
+// HostSysStats statistics, used by the System Stats view in Gravwell.
 type HostSysStats struct {
 	Uptime                uint64  `json:",omitempty"`
 	TotalMemory           uint64  `json:",omitempty"`

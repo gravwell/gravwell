@@ -18,14 +18,13 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/debug"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/base"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/timegrinder"
-
 	"cloud.google.com/go/pubsub"
+	"github.com/gravwell/gravwell/v4/debug"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/base"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -196,6 +195,8 @@ func main() {
 				}
 			}
 
+			cctx, cancel := context.WithCancel(ctx)
+			defer cancel()
 			for {
 				callback := func(ctx context.Context, msg *pubsub.Message) {
 					ent := &entry.Entry{
@@ -204,7 +205,7 @@ func main() {
 						SRC:  src,
 					}
 					size += uint64(len(msg.Data))
-					if ps.Parse_Time == false {
+					if !ps.Parse_Time {
 						ent.TS = entry.FromStandard(msg.PublishTime)
 					} else {
 						ts, ok, err := tg.Extract(msg.Data)
@@ -216,11 +217,12 @@ func main() {
 							ent.TS = entry.FromStandard(ts)
 						}
 					}
-					eChan <- ent
-					msg.Ack()
+					select {
+					case eChan <- ent:
+						msg.Ack()
+					case <-ctx.Done():
+					}
 				}
-				cctx, cancel := context.WithCancel(ctx)
-				defer cancel()
 				if err := sub.Receive(cctx, callback); err != nil {
 					lg.Error("receive failed", log.KVErr(err))
 				}

@@ -21,13 +21,12 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config/validate"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
-
-	gravwelldebug "github.com/gravwell/gravwell/v3/debug"
+	gravwelldebug "github.com/gravwell/gravwell/v4/debug"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config/validate"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 )
 
 const (
@@ -194,12 +193,13 @@ func main() {
 func rebuildPacketSource(s sniffer) (c *Cansock, ok bool) {
 	var threwErr bool
 	var err error
+loop:
 	for {
 		//we sleep when we first come in
 		select {
 		case <-time.After(time.Second):
 		case <-s.die:
-			break
+			break loop
 		}
 		//sleep over, try to reopen our pcap device
 		if c, err = New(s.Interface); err == nil {
@@ -243,7 +243,7 @@ mainLoop:
 	for {
 		//check if we are supposed to die
 		select {
-		case _ = <-s.die:
+		case <-s.die:
 			s.c.Close()
 			break mainLoop
 		case pkt, ok := <-ch: //get a packet

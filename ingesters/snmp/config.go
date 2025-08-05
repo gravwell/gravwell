@@ -15,11 +15,11 @@ import (
 	"sort"
 
 	"github.com/gosnmp/gosnmp"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
 )
 
 type listener struct {
@@ -60,10 +60,10 @@ type cfgType struct {
 
 func (a *v3auth) validate() error {
 	if a.Auth_Protocol != "" && a.Auth_Protocol != "MD5" && a.Auth_Protocol != "SHA" {
-		return fmt.Errorf("Invalid Auth-Protocol %v. Supported protocols: MD5, SHA")
+		return fmt.Errorf("Invalid Auth-Protocol %v. Supported protocols: MD5, SHA", a.Auth_Protocol)
 	}
 	if a.Privacy_Protocol != "" && a.Privacy_Protocol != "DES" {
-		return fmt.Errorf("Invalid Privacy-Protocol %v. Supported protocols: DES")
+		return fmt.Errorf("Invalid Privacy-Protocol %v. Supported protocols: DES", a.Auth_Protocol)
 	}
 	return nil
 }

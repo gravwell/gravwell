@@ -14,12 +14,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 
 	"github.com/google/uuid"
 )
@@ -80,7 +79,7 @@ func (c *Client) UploadKit(p string) (pc types.KitState, err error) {
 	req.Header.Set(`Content-Type`, wtr.FormDataContentType())
 
 	okResps := []int{http.StatusOK, http.StatusMultiStatus}
-	err = c.staticRequest(req, &pc, okResps)
+	err = c.staticRequest(req, &pc, okResps, nil)
 	return
 }
 
@@ -109,7 +108,7 @@ func (c *Client) PullKit(guid uuid.UUID) (pc types.KitState, err error) {
 	req.Header.Set(`Content-Type`, wtr.FormDataContentType())
 
 	okResps := []int{http.StatusOK, http.StatusMultiStatus}
-	err = c.staticRequest(req, &pc, okResps)
+	err = c.staticRequest(req, &pc, okResps, nil)
 	return
 
 }
@@ -146,7 +145,7 @@ func (c *Client) InstallKit(id string, cfg types.KitConfig) (err error) {
 // the desired changes, with the following fields being respected: Global, InstallationGroup,
 // and Labels.
 func (c *Client) ModifyKit(id string, cfg types.KitConfig) (report types.KitModifyReport, err error) {
-	err = c.methodStaticPushURL(http.MethodPatch, kitIdUrl(id), cfg, &report)
+	err = c.methodStaticPushURL(http.MethodPatch, kitIdUrl(id), cfg, &report, nil, nil)
 	return
 }
 
@@ -174,7 +173,7 @@ func (c *Client) DeleteKitEx(id string) ([]types.SourcedKitItem, error) {
 		// There are basically two kinds of errors:
 		// 1. Kit items have been modified; body contains a list of modified items
 		// 2. Other errors (kit doesn't exist, malformed ID, etc.)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return []types.SourcedKitItem{}, err
 		}
@@ -205,8 +204,8 @@ func (c *Client) AdminDeleteKit(id string) (err error) {
 // ForceDeleteKit uninstalls a kit (specified by UUID) regardless of any
 // changes made since installation.
 func (c *Client) ForceDeleteKit(id string) (err error) {
-	params := map[string]string{
-		"force": "true",
+	params := []urlParam{
+		urlParam{key: "force", value: "true"},
 	}
 	err = c.methodStaticParamURL(http.MethodDelete, kitIdUrl(id), params, nil)
 	return

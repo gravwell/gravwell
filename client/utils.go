@@ -9,9 +9,13 @@
 package client
 
 import (
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
+	"strings"
+	"time"
 )
 
 const (
@@ -23,8 +27,8 @@ var (
 )
 
 var (
-	adminParams = map[string]string{
-		`admin`: `true`,
+	adminParams = []urlParam{
+		urlParam{key: `admin`, value: `true`},
 	}
 )
 
@@ -51,5 +55,24 @@ func (nw *nilWriter) Write(b []byte) (r int, err error) {
 	}
 	nw.n += len(b)
 	r = len(b)
+	return
+}
+
+type jwtState struct {
+	UID     int       `json:"uid"`
+	Expires time.Time `json:"expires"`
+}
+
+// simple wrapper that decodes the JWT expire timestamp
+// a zero time is returned on any decode failure
+func decodeJWTExpires(jwt string) (r time.Time) {
+	var st jwtState
+	if bits := strings.Split(jwt, "."); len(bits) == 3 {
+		if stateBts, err := hex.DecodeString(bits[1]); err == nil {
+			if err = json.Unmarshal(stateBts, &st); err == nil {
+				r = st.Expires
+			}
+		}
+	}
 	return
 }

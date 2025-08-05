@@ -14,11 +14,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // GetResourceList returns information about all resources the user can access.
@@ -178,7 +177,7 @@ func (c *Client) GetResource(name string) ([]byte, error) {
 		return nil, err
 	}
 	defer resp.Body.Close()
-	return ioutil.ReadAll(resp.Body)
+	return io.ReadAll(resp.Body)
 }
 
 // LookupResourceGUID attempts to resolve the GUID for a resource with the specified

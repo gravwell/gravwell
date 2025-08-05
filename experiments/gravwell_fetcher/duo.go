@@ -4,23 +4,21 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-
-	duoapi "github.com/duosecurity/duo_api_golang"
-	"github.com/gravwell/gravwell/v3/ingest"
-
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingesters/base"
-	"golang.org/x/time/rate"
-
 	"net"
-
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
+
+	duoapi "github.com/duosecurity/duo_api_golang"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/base"
+
+	"golang.org/x/time/rate"
 )
 
 /*
@@ -150,7 +148,7 @@ func buildDuoHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *log.
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: time.Now(),
-				Key:        "",
+				Key:        json.RawMessage(`{"key": "none"}`),
 			}
 			err := ot.Set("duo", k, state, false)
 			if err != nil {

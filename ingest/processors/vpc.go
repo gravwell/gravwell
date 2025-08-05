@@ -15,8 +15,8 @@ import (
 	"io"
 	"strconv"
 
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/jsonparser"
 	"github.com/klauspost/compress/gzip"
 )
@@ -130,7 +130,6 @@ func (p *Vpc) processItem(ent *entry.Entry) (rset []*entry.Entry, err error) {
 			return
 		}
 		logEvents = append(logEvents, v)
-		return
 	}
 	if _, err = jsonparser.ArrayEach(ent.Data, cb, "logEvents"); err != nil {
 		return

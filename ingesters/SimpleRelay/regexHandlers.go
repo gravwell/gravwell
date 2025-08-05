@@ -22,12 +22,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/timegrinder"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/timegrinder"
 )
 
 const (
@@ -189,7 +189,6 @@ func regexAcceptor(lst net.Listener, id int, igst *ingest.IngestMuxer, cfg regex
 		failCount = 0
 		go regexConnHandler(conn, cfg, igst)
 	}
-	return
 }
 
 func regexAcceptorUDP(conn *net.UDPConn, id int, cfg regexHandlerConfig, igst *ingest.IngestMuxer) {

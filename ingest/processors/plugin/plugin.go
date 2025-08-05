@@ -9,6 +9,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package plugin implements the dynamic plugin system for Gravwell ingesters
 package plugin
 
 import (
@@ -20,9 +21,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/open2b/scriggo"
 	"github.com/open2b/scriggo/native"
 )
@@ -154,7 +155,7 @@ type ConfigMap interface {
 	GetStringSlice(string) ([]string, error)
 }
 
-// this is a copy of the interface in processors, but we can't import processors due to import cycles
+// Tagger interface is a copy of the interface in processors, but we can't import processors due to import cycles
 type Tagger interface {
 	NegotiateTag(name string) (entry.EntryTag, error)
 	LookupTag(entry.EntryTag) (string, bool)

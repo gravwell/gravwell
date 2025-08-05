@@ -63,7 +63,6 @@ func (hm *headerMap) populateRequest(hdr http.Header) {
 		hdr.Add(k, v)
 	}
 	hm.Unlock()
-	return
 }
 
 func (hm *headerMap) duplicate() (r *headerMap) {

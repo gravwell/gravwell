@@ -12,7 +12,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log/slog"
 	"net"
 	"os"
@@ -33,7 +32,7 @@ var (
 
 func TestMain(m *testing.M) {
 	var err error
-	if tempdir, err = ioutil.TempDir(os.TempDir(), ``); err != nil {
+	if tempdir, err = os.MkdirTemp(os.TempDir(), ``); err != nil {
 		fmt.Println("Failed to create temp dir", err)
 		os.Exit(-1)
 	}
@@ -100,7 +99,7 @@ func TestRawValue(t *testing.T) {
 	}
 	lgr.raw = true
 	testOutputs(t, lgr)
-	bts, err := ioutil.ReadFile(pth)
+	bts, err := os.ReadFile(pth)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +136,7 @@ func testOutputs(t *testing.T, lgr *Logger) {
 	if err = lgr.Close(); err != nil {
 		t.Fatal(err)
 	}
-	bts, err := ioutil.ReadFile(filepath.Join(tempdir, testFile))
+	bts, err := os.ReadFile(filepath.Join(tempdir, testFile))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,7 +171,7 @@ func TestMulti(t *testing.T) {
 	}
 	var toCheck []string
 	for i := 0; i < 8; i++ {
-		fout, err := ioutil.TempFile(tempdir, ``)
+		fout, err := os.CreateTemp(tempdir, ``)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -190,7 +189,7 @@ func TestMulti(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, n := range toCheck {
-		bts, err := ioutil.ReadFile(n)
+		bts, err := os.ReadFile(n)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -214,7 +213,7 @@ func TestAddRemove(t *testing.T) {
 	var added []io.WriteCloser
 	var toCheck []string
 	for i := 0; i < 8; i++ {
-		fout, err := ioutil.TempFile(tempdir, ``)
+		fout, err := os.CreateTemp(tempdir, ``)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -243,7 +242,7 @@ func TestAddRemove(t *testing.T) {
 	}
 
 	for _, n := range toCheck {
-		bts, err := ioutil.ReadFile(n)
+		bts, err := os.ReadFile(n)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -256,7 +255,7 @@ func TestAddRemove(t *testing.T) {
 	}
 
 	//check the original which should have both
-	bts, err := ioutil.ReadFile(filepath.Join(tempdir, testFile))
+	bts, err := os.ReadFile(filepath.Join(tempdir, testFile))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -314,7 +313,7 @@ func TestStdLibLogger(t *testing.T) {
 	if err := lgr.Close(); err != nil {
 		t.Fatal(err)
 	}
-	bts, err := ioutil.ReadFile(pth)
+	bts, err := os.ReadFile(pth)
 	if err != nil {
 		t.Fatal(err)
 	}
