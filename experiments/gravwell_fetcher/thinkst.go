@@ -279,9 +279,7 @@ func getThinkstIncidentLogs(cli *http.Client, latestTS string, src net.IP, rl *r
 	if err != nil {
 		return err
 	}
-	if err != nil {
-		return err
-	}
+
 	req.Header.Set(`accept`, `application/json`)
 
 	var quit bool
