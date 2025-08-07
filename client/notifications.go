@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // MyNotificationCount returns the number of notifications for the current user.
@@ -46,8 +46,8 @@ func (c *Client) MyNewNotifications() (types.NotificationSet, error) {
 }
 
 func (c *Client) getNotifications(after time.Time, update bool) (n types.NotificationSet, err error) {
-	params := map[string]string{
-		"after": after.Format("2006-01-02T15:04:05.999999999Z07"),
+	params := []urlParam{
+		urlParam{key: "after", value: after.Format("2006-01-02T15:04:05.999999999Z07")},
 	}
 	if err = c.methodStaticParamURL(http.MethodGet, NOTIFICATIONS_URL, params, &n); err == nil && update {
 		for _, v := range n {
@@ -76,7 +76,7 @@ func (c *Client) AllNotifications() (n types.NotificationSet, err error) {
 // will instead set a default expiration.
 func (c *Client) AddSelfTargetedNotification(notifType uint32, msg, link string, expiration time.Time) error {
 	n := types.Notification{Type: notifType, Msg: msg, Link: link, Expires: expiration}
-	return c.methodStaticPushURL(http.MethodPost, notificationsSelfTargetedUrl(), n, nil)
+	return c.methodStaticPushURL(http.MethodPost, notificationsSelfTargetedUrl(), n, nil, nil, nil)
 }
 
 // DeleteNotification will delete a notification using a notification ID
