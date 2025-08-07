@@ -72,8 +72,12 @@ type Sheet struct {
 	// user inputs (NOT including those already covered by FieldText).
 	// This is primarily used for Mother's prompt and the cred/mfa prompts.
 	PromptSty struct {
-		Symbol func() string       // a stylized sigil (expected to be a single character) that suffixes prompt text
-		Text   func(string) string // given the text prefixing the input, returns a stylized version of it
+		Symbol      rune // the sigil that sits between the prompt text and the user input
+		AdminSymbol rune // the sigil that sits between the prompt text and the user input when it is an admin prompt
+		// the style to apply to prompt text.
+		// This style will also be applied to the symbol suffixed to it.
+		// If the prompt is printed in an admin context, this style will be ignored in favour of the ErrorText style.
+		Text lipgloss.Style
 	}
 
 	// catchall for important/focal text that does not fit into a different category.
@@ -91,9 +95,9 @@ type Sheet struct {
 
 // NewSheet initializes a bare minimum sheet, ensuring required parameters are in place.
 // While sheets can be built completely from scratch, calling NewSheet as the base ensures the style will not cause panics.
-func NewSheet(pip func() string, promptSymbol func() string, promptText func(string) string) Sheet {
+func NewSheet() Sheet {
 	return Sheet{
-		Pip: pip,
+		Pip: func() string { return ">" },
 		ComposableSty: struct {
 			FocusedBorder       lipgloss.Style
 			UnfocusedBorder     lipgloss.Style
@@ -107,14 +111,23 @@ func NewSheet(pip func() string, promptSymbol func() string, promptText func(str
 			BorderStyle lipgloss.Style
 		}{BorderType: lipgloss.ASCIIBorder()},
 		PromptSty: struct {
-			Symbol func() string
-			Text   func(string) string
-		}{Symbol: promptSymbol, Text: promptText},
+			Symbol      rune           // the sigil that sits between the prompt text and the user input
+			AdminSymbol rune           // the sigil that sits between the prompt text and the user input when it is an admin prompt
+			Text        lipgloss.Style // given the text prefixing the input, returns a stylized version of it
+		}{
+			Symbol:      '>',
+			AdminSymbol: '#',
+			//Text: lipgloss.NewStyle(),
+		},
 	}
 }
 
-func (s Sheet) Prompt(text string) string {
-	return s.PromptSty.Text(text) + s.PromptSty.Symbol()
+// Prompt returns a stylized prompt line of the form: "<text><symbol>"
+func (s Sheet) Prompt(text string, admin bool) string {
+	if admin {
+		return s.ErrorText.Render(("(admin)" + text + string(s.PromptSty.AdminSymbol)))
+	}
+	return s.PromptSty.Text.Render(text + string(s.PromptSty.Symbol))
 }
 
 // Field returns the title in the form ` <title>: `, with the spacing prefix set by width-len(title).
@@ -158,10 +171,7 @@ func (p Palette) GenerateSheet() Sheet {
 	secondaryColorSty := lipgloss.NewStyle().Foreground(p.SecondaryColor)
 	accentColor1Sty := lipgloss.NewStyle().Foreground(p.AccentColor1)
 
-	s := NewSheet(
-		func() string { return pipSty.Render(string(pipRune)) },
-		func() string { return primaryColorSty.Render(">") },
-		func(s string) string { return primaryColorSty.Render(s) })
+	s := NewSheet()
 	s.Nav = secondaryColorSty
 	s.Action = lipgloss.NewStyle().Foreground(p.AccentColor2)
 	s.FieldText = primaryColorSty
@@ -206,6 +216,8 @@ func (p Palette) GenerateSheet() Sheet {
 	s.TertiaryText = lipgloss.NewStyle().Foreground(p.TertiaryColor)
 	s.Spinner = primaryColorSty
 	s.SpinnerText = secondaryColorSty
+	s.Pip = func() string { return pipSty.Render(string(pipRune)) }
+	s.PromptSty.Text = primaryColorSty
 
 	return s
 }
