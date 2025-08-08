@@ -267,7 +267,6 @@ func main() {
 					lg.Error("failed to process entry", log.KVErr(err))
 				}
 				count++
-				fmt.Println("PRocessed")
 				return nil
 			}
 
