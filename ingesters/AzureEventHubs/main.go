@@ -308,7 +308,7 @@ func main() {
 				}
 				listeners = append(listeners, handle)
 				readers = append(readers, readerInfo{hubDef.Event_Hubs_Namespace, hubDef.Event_Hub, hubDef.Consumer_Group, partitionID})
-				lg.Info("started receiver for partition", log.KV("partition", partitionID))
+				lg.Info("started receiver for partition", log.KV("consumer-group", cg), log.KV("partition", partitionID))
 			}
 			<-quitSig
 		}(k, *def)
