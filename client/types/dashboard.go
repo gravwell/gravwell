@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/utils"
+	"github.com/gravwell/gravwell/v4/utils"
 )
 
 // Dashboard type used for relaying data back and forth to frontend.
