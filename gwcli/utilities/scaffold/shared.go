@@ -64,7 +64,7 @@ func ViewKTIs(fieldWidth uint, ktis []KeyedTI, selectedIdx uint) string {
 // Id_t is the set of constraints defining what can be used as an id for some scaffolds.
 // It can be expanded to more types (strings, mayhaps?) if need be, but make sure FromString is expanded, too.
 type Id_t interface {
-	constraints.Integer | uuid.UUID
+	constraints.Integer | uuid.UUID | string
 }
 
 // FromString returns str converted to an id of type I.
