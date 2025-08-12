@@ -36,6 +36,8 @@ var (
 
 	//helper that calls out ok responses as just 200
 	stdOk = []int{http.StatusOK}
+
+	adminParam = ezParam("admin", "true")
 )
 
 type urlParam struct {
