@@ -92,6 +92,7 @@ func listMacros(fs *pflag.FlagSet) ([]types.Macro, error) {
 				ret = append(ret, m)
 			}
 		}
+		return ret, nil
 	}
 
 	return connection.Client.ListMacros()
