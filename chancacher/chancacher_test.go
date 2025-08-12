@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	oldentry "github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
@@ -752,11 +753,23 @@ func TestCacheOldEntries(t *testing.T) {
 			if v == nil {
 				t.Error("nil result!")
 			} else {
-				ent := v.(*entry.Entry)
-				if idx, err := strconv.ParseInt(string(ent.Data), 10, 64); err != nil {
-					t.Fatalf("failed to parse entry's data as int: %v, %+v", err, ent)
+				ent, ok := v.(*entry.Entry)
+				if !ok {
+					ent, ok := v.(*oldentry.Entry)
+					if !ok {
+						t.Error("couldn't cast result")
+					}
+					if idx, err := strconv.ParseInt(string(ent.Data), 10, 64); err != nil {
+						t.Fatalf("failed to parse entry's data as int: %v, %+v", err, ent)
+					} else {
+						results[int(idx)]++
+					}
 				} else {
-					results[int(idx)]++
+					if idx, err := strconv.ParseInt(string(ent.Data), 10, 64); err != nil {
+						t.Fatalf("failed to parse entry's data as int: %v, %+v", err, ent)
+					} else {
+						results[int(idx)]++
+					}
 				}
 			}
 		case <-time.After(5 * DEFAULT_TIMEOUT):
