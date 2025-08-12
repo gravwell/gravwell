@@ -118,6 +118,8 @@ func FromString[I Id_t](str string) (I, error) {
 		var i int64
 		i, err = strconv.ParseInt(str, 10, 64)
 		*p = int64(i)
+	case string:
+		p = str
 	default:
 		return ret, fmt.Errorf("unknown id type %#v", p)
 	}
