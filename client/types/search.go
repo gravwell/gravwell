@@ -174,6 +174,9 @@ type LaunchResponse struct {
 	RenderModule string     `json:",omitempty"`
 	RenderCmd    string     `json:",omitempty"`
 	Info         SearchInfo `json:",omitempty"`
+
+	// Errors, warnings, etc.
+	Messages []Message
 }
 
 // StartSearchRequest represents a search that is sent to the search controller
@@ -406,6 +409,17 @@ func CheckMacroName(name string) error {
 		}
 	}
 	return nil
+}
+
+func (l LaunchResponse) MarshalJSON() ([]byte, error) {
+	type alias LaunchResponse
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(l),
+		Messages: emptyMessages(l.Messages),
+	})
 }
 
 func (si SearchInfo) MarshalJSON() ([]byte, error) {
