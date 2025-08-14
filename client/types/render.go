@@ -168,9 +168,9 @@ type BaseResponse struct {
 	Messages []Message
 }
 
-func (br BaseResponse) Err() error {
-	if br.Error != `` {
-		return errors.New(br.Error)
+func (b BaseResponse) Err() error {
+	if b.Error != `` {
+		return errors.New(b.Error)
 	}
 	return nil
 }
@@ -290,6 +290,7 @@ type StatSet struct {
 	Stats     []SearchModuleStats
 	TS        entry.Timestamp
 	populated bool
+	Messages  []Message
 }
 
 type OverviewStatSet struct {
@@ -539,6 +540,48 @@ func (is IngestStats) MarshalJSON() ([]byte, error) {
 		Ingesters:         emptyIngesterStats(is.Ingesters),
 		Missing:           emptyIngesterStates(is.Missing),
 	})
+}
+
+func (s SearchMetadata) MarshalJSON() ([]byte, error) {
+	type alias SearchMetadata
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(s),
+		Messages: emptyMessages(s.Messages),
+	})
+}
+
+func (o OverviewStats) MarshalJSON() ([]byte, error) {
+	type alias OverviewStats
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(o),
+		Messages: emptyMessages(o.Messages),
+	})
+}
+
+func (b BaseResponse) MarshalJSON() ([]byte, error) {
+	type alias BaseResponse
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(b),
+		Messages: emptyMessages(b.Messages),
+	})
+}
+
+type emptyMessages []Message
+
+func (em emptyMessages) MarshalJSON() ([]byte, error) {
+	if len(em) == 0 {
+		return emptyList, nil
+	}
+	return json.Marshal(([]Message)(em))
 }
 
 func (r RawResponse) MarshalJSON() ([]byte, error) {
