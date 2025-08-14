@@ -168,9 +168,9 @@ type BaseResponse struct {
 	Messages []Message
 }
 
-func (br BaseResponse) Err() error {
-	if br.Error != `` {
-		return errors.New(br.Error)
+func (b BaseResponse) Err() error {
+	if b.Error != `` {
+		return errors.New(b.Error)
 	}
 	return nil
 }
