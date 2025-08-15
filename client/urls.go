@@ -103,7 +103,9 @@ const (
 	DASHBOARD_ALL_URL                = `/api/dashboards/all`
 	DASHBOARD_CLONE_URL              = `/api/dashboards/%d/clone`
 	MACROS_URL                       = `/api/macros`
+	MACROS_LIST_URL                  = `/api/macros/list`
 	MACROS_ID_URL                    = `/api/macros/%s`
+	MACROS_ID_PURGE_URL              = `/api/macros/%s/purge`
 	LICENSE_INFO_URL                 = `/api/license`
 	LICENSE_SKU_URL                  = `/api/license/sku`
 	LICENSE_SERIAL_URL               = `/api/license/serial`
@@ -496,6 +498,10 @@ func wellDataUrl() string {
 
 func macroUrl(id string) string {
 	return fmt.Sprintf(MACROS_ID_URL, id)
+}
+
+func macroPurgeUrl(id string) string {
+	return fmt.Sprintf(MACROS_ID_PURGE_URL, id)
 }
 
 func playbookUrl(id uuid.UUID) string {

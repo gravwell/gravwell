@@ -77,12 +77,12 @@ func listMacros(fs *pflag.FlagSet) ([]types.Macro, error) {
 	if all, err := fs.GetBool("all"); err != nil {
 		uniques.ErrGetFlag("macros list", err)
 	} else if all {
-		return connection.Client.ListAllMacros()
+		return connection.Client.ListAllMacros(nil)
 	}
 	if gid, err := fs.GetInt32("group"); err != nil {
 		uniques.ErrGetFlag("macros list", err)
 	} else if gid != 0 {
-		macros, err := connection.Client.ListAllMacros()
+		macros, err := connection.Client.ListAllMacros(nil)
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +95,7 @@ func listMacros(fs *pflag.FlagSet) ([]types.Macro, error) {
 		return ret, nil
 	}
 
-	return connection.Client.ListMacros()
+	return connection.Client.ListMacros(nil)
 }
 
 //#region create
@@ -182,7 +182,7 @@ func newMacroEditAction() action.Pair {
 			return connection.Client.GetMacro(id)
 		},
 		FetchSub: func() ([]types.Macro, error) {
-			return connection.Client.ListMacros()
+			return connection.Client.ListMacros(nil)
 		},
 		GetFieldSub: func(item types.Macro, fieldKey string) (string, error) {
 			switch fieldKey {
@@ -235,7 +235,7 @@ func newMacroEditAction() action.Pair {
 func newMacroDeleteAction() action.Pair {
 	return scaffolddelete.NewDeleteAction("macro", "macros", del,
 		func() ([]scaffolddelete.Item[string], error) {
-			ms, err := connection.Client.ListMacros()
+			ms, err := connection.Client.ListMacros(nil)
 			if err != nil {
 				return nil, err
 			}
