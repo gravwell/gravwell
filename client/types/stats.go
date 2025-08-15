@@ -201,10 +201,12 @@ func (ss *StatSet) MarshalJSON() ([]byte, error) {
 	type alias StatSet
 	return json.Marshal(&struct {
 		alias
-		Stats sms
+		Stats    sms
+		Messages emptyMessages
 	}{
-		alias: alias(*ss),
-		Stats: sms(ss.Stats),
+		alias:    alias(*ss),
+		Stats:    sms(ss.Stats),
+		Messages: emptyMessages(ss.Messages),
 	})
 }
 
