@@ -107,3 +107,60 @@ func (r TableRow) MarshalJSON() ([]byte, error) {
 		Row: emptyStrings(r.Row),
 	})
 }
+
+func (x TableResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries TableValueSet
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
+}
+
+func (x GaugeResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries []GaugeValue
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
+}
+
+func (x WordcloudResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries []WordcloudValue
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
+}
