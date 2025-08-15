@@ -585,23 +585,40 @@ func (em emptyMessages) MarshalJSON() ([]byte, error) {
 }
 
 func (r RawResponse) MarshalJSON() ([]byte, error) {
-	type alias RawResponse
+	base, err := json.Marshal(r.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	var e []byte
+
 	if r.printableData {
-		return json.Marshal(&struct {
-			alias
-			Entries emptyPrintableEntries
+		e, err = json.Marshal(&struct {
+			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
+			Entries               emptyPrintableEntries
+			Explore               []ExploreResult `json:",omitempty"`
 		}{
-			alias:   alias(r),
-			Entries: emptyPrintableEntries(r.Entries),
+			ContainsBinaryEntries: r.ContainsBinaryEntries,
+			Entries:               emptyPrintableEntries(r.Entries),
+			Explore:               r.Explore,
+		})
+	} else {
+		e, err = json.Marshal(&struct {
+			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
+			Entries               emptyEntries
+			Explore               []ExploreResult `json:",omitempty"`
+		}{
+			ContainsBinaryEntries: r.ContainsBinaryEntries,
+			Entries:               emptyEntries(r.Entries),
+			Explore:               r.Explore,
 		})
 	}
-	return json.Marshal(&struct {
-		alias
-		Entries emptyEntries
-	}{
-		alias:   alias(r),
-		Entries: emptyEntries(r.Entries),
-	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }
 
 func (tr *TimeRange) UnmarshalJSON(d []byte) error {
