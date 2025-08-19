@@ -32,10 +32,22 @@ func (c *Client) ListAllMacros(opts *types.QueryOptions) ([]types.Macro, error) 
 	return macros, nil
 }
 
-// GetMacro returns detailed about a particular macro.
+// GetMacro returns a particular macro.
 func (c *Client) GetMacro(id string) (types.Macro, error) {
 	var macro types.Macro
 	err := c.getStaticURL(macroUrl(id), &macro)
+	return macro, err
+}
+
+// GetMacroEx returns a particular macro. If the QueryOptions arg is
+// not nil, applicable parameters (currently only IncludeDeleted) will
+// be applied to the query.
+func (c *Client) GetMacroEx(id string, opts *types.QueryOptions) (types.Macro, error) {
+	var macro types.Macro
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	err := c.getStaticURL(macroUrl(id), &macro, ezParam("include_deleted", opts.IncludeDeleted))
 	return macro, err
 }
 
@@ -46,7 +58,7 @@ func (c *Client) DeleteMacro(id string) error {
 
 // PurgeMacro deletes a macro entirely, removing it from the database.
 func (c *Client) PurgeMacro(id string) error {
-	return c.deleteStaticURL(macroPurgeUrl(id), nil)
+	return c.deleteStaticURL(macroUrl(id), nil, ezParam("purge", "true"))
 }
 
 // CreateMacro creates a new macro with the specified name and expansion, returning
