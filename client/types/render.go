@@ -546,6 +546,17 @@ func (is IngestStats) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (s StatSetResponse) MarshalJSON() ([]byte, error) {
+	type alias StatSetResponse
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(s),
+		Messages: emptyMessages(s.Messages),
+	})
+}
+
 func (s SearchMetadata) MarshalJSON() ([]byte, error) {
 	type alias SearchMetadata
 	return json.Marshal(&struct {
