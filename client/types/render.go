@@ -286,11 +286,15 @@ type SearchStatsResponse struct {
 	Size        int               `json:",omitempty"`
 }
 
+type StatSetResponse struct {
+	Stats    []StatSet
+	Messages []Message
+}
+
 type StatSet struct {
-	Stats     []SearchModuleStats
+	Stats     []SearchModuleStats `json:"ModuleStats"`
 	TS        entry.Timestamp
 	populated bool
-	Messages  []Message
 }
 
 type OverviewStatSet struct {

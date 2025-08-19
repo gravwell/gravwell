@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -509,5 +510,38 @@ func TestRawResponseEncode(t *testing.T) {
 	}
 	if len(x.Entries) != 1 {
 		t.Fatal("invalid decode")
+	}
+}
+
+func TestStatSetResponseEncode(t *testing.T) {
+	ssr := StatSetResponse{
+		Stats: []StatSet{
+			{
+				Stats: []SearchModuleStats{
+					{
+						Name: "test",
+						ModuleStatsUpdate: ModuleStatsUpdate{
+							InputCount: 1,
+						},
+					},
+				},
+				TS: entry.Timestamp{
+					Sec: 1,
+				},
+			},
+		},
+		Messages: []Message{
+			{
+				ID: 1,
+			},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(ssr); err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.TrimSpace(bb.String()) != `{"Stats":[{"TS":"0000-12-31T17:00:05-06:59","ModuleStats":[{"InputCount":1,"OutputCount":0,"InputBytes":0,"OutputBytes":0,"Duration":0,"ScratchWritten":0,"Name":"test","Args":""}]}],"Messages":[{"ID":1,"Severity":"","Value":""}]}` {
+		t.Fatal("invalid marshal", bb.String())
 	}
 }
