@@ -829,11 +829,11 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//macros
-	if ms, err := nc.GetUserMacros(id); err != nil {
+	if ms, err := nc.ListAllMacros(nil); err != nil {
 		return fmt.Errorf("Failed to list macros %w", err)
 	} else if len(ms) > 0 {
 		for _, p := range ms {
-			if p.UID == id {
+			if p.OwnerID == id {
 				if err = nc.DeleteMacro(p.ID); err != nil {
 					return fmt.Errorf("Failed to delete user macro %v - %w", p.ID, err)
 				}

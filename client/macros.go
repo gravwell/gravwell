@@ -10,62 +10,58 @@ package client
 
 import "github.com/gravwell/gravwell/v4/client/types"
 
-// GetUserGroupsMacros returns all macros accessible to the current user.
-func (c *Client) GetUserGroupsMacros() ([]types.SearchMacro, error) {
-	var macros []types.SearchMacro
-	if err := c.getStaticURL(MACROS_URL, &macros); err != nil {
+// ListMacros returns all macros accessible to the current user.
+func (c *Client) ListMacros(opts *types.QueryOptions) ([]types.Macro, error) {
+	var macros []types.Macro
+	if err := c.postStaticURL(MACROS_LIST_URL, opts, &macros); err != nil {
 		return nil, err
 	}
 	return macros, nil
 }
 
-// GetAllMacros (admin-only) returns all macros on the system.
-func (c *Client) GetAllMacros() ([]types.SearchMacro, error) {
-	var macros []types.SearchMacro
-	if err := c.getStaticURL(MACROS_ALL_URL, &macros); err != nil {
-		return nil, err
+// ListAllMacros (admin-only) returns all macros on the system.
+func (c *Client) ListAllMacros(opts *types.QueryOptions) ([]types.Macro, error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
 	}
-	return macros, nil
-}
-
-// GetUserMacros returns macros belonging to the specified user.
-func (c *Client) GetUserMacros(id int32) ([]types.SearchMacro, error) {
-	var macros []types.SearchMacro
-	if err := c.getStaticURL(userMacrosUrl(id), &macros); err != nil {
-		return nil, err
-	}
-	return macros, nil
-}
-
-// GetGroupMacros returns macros shared with the specified group.
-func (c *Client) GetGroupMacros(id int32) ([]types.SearchMacro, error) {
-	var macros []types.SearchMacro
-	if err := c.getStaticURL(groupMacrosUrl(id), &macros); err != nil {
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	var macros []types.Macro
+	if err := c.postStaticURL(MACROS_LIST_URL, opts, &macros); err != nil {
 		return nil, err
 	}
 	return macros, nil
 }
 
 // GetMacro returns detailed about a particular macro.
-func (c *Client) GetMacro(id uint64) (types.SearchMacro, error) {
-	var macro types.SearchMacro
+func (c *Client) GetMacro(id string) (types.Macro, error) {
+	var macro types.Macro
 	err := c.getStaticURL(macroUrl(id), &macro)
 	return macro, err
 }
 
-// DeleteMacro deletes a macro.
-func (c *Client) DeleteMacro(id uint64) error {
+// DeleteMacro deletes a macro by marking it deleted in the database.
+func (c *Client) DeleteMacro(id string) error {
 	return c.deleteStaticURL(macroUrl(id), nil)
 }
 
-// AddMacro creates a new macro with the specified name and expansion, returning
+// PurgeMacro deletes a macro entirely, removing it from the database.
+func (c *Client) PurgeMacro(id string) error {
+	return c.deleteStaticURL(macroPurgeUrl(id), nil)
+}
+
+// CreateMacro creates a new macro with the specified name and expansion, returning
 // the ID of the newly-created macro.
-func (c *Client) AddMacro(m types.SearchMacro) (id uint64, err error) {
+func (c *Client) CreateMacro(m types.Macro) (id string, err error) {
 	err = c.postStaticURL(MACROS_URL, m, &id)
 	return
 }
 
 // UpdateMacro modifies an existing macro.
-func (c *Client) UpdateMacro(m types.SearchMacro) error {
+func (c *Client) UpdateMacro(m types.Macro) error {
 	return c.putStaticURL(macroUrl(m.ID), m)
+}
+
+// CleanupMacros (admin-only) purges all deleted macros for all users.
+func (c *Client) CleanupMacros() error {
+	return c.deleteStaticURL(MACROS_URL, nil)
 }

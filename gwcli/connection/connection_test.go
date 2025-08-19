@@ -164,7 +164,7 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 			t.Fatal("failed to make call after logging in via credentials: ", err)
 		} else if info.User != defaultUser || connection.CurrentUser().User != defaultUser {
 			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, defaultUser, connection.CurrentUser().User)
-		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
+		} else if _, err := connection.Client.ListMacros(nil); err != nil {
 			t.Fatal("failed to make call after logging in via credentials: ", err)
 		}
 
@@ -184,7 +184,7 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 			t.Fatal("failed to make call after logging in via token: ", err)
 		} else if info.User != defaultUser || connection.CurrentUser().User != defaultUser {
 			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, defaultUser, connection.CurrentUser().User)
-		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
+		} else if _, err := connection.Client.ListMacros(nil); err != nil {
 			t.Fatal("failed to make call after logging in via token: ", err)
 		}
 
@@ -204,7 +204,7 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
 		} else if info.User != altUser || connection.CurrentUser().User != altUser {
 			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, altUser, connection.CurrentUser().User)
-		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
+		} else if _, err := connection.Client.ListMacros(nil); err != nil {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
 		}
 
@@ -604,7 +604,7 @@ func verifyLoggedInStatus(expectedUsername string) error {
 	}
 
 	// make a few different calls for better scope
-	if _, err := connection.Client.GetUserMacros(connection.CurrentUser().UID); err != nil {
+	if _, err := connection.Client.ListMacros(nil); err != nil {
 		return fmt.Errorf("failed to fetch macros: %v", err)
 	}
 	if _, err := connection.Client.ListAllPivots(); err != nil {
