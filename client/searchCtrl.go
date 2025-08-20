@@ -1046,8 +1046,9 @@ func (c *Client) GetSearchOverviewStats(s Search, count uint, start, end time.Ti
 
 // GetSearchStats returns a set of overview stats for the query
 func (c *Client) GetSearchStats(s Search, count uint, start, end time.Time) (ss []types.StatSet, err error) {
-	err = c.getStats(s, count, start, end, searchStatsUrl(s.ID), &ss)
-	return
+	var r types.StatSetResponse
+	err = c.getStats(s, count, start, end, searchStatsUrl(s.ID), &r)
+	return r.Stats, err
 }
 
 // DetachSearch disconnects the client from a search. This may lead to the search being garbage collected.
