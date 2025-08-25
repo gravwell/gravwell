@@ -522,7 +522,7 @@ func (c *Client) Impersonate(uid int32) (nc *Client, err error) {
 	}
 	if dets.UID != uid {
 		nc = nil
-		err = fmt.Errorf("Failed to impersonate new user: %s[%d] != %d", dets.Name, dets.UID, uid)
+		err = fmt.Errorf("Failed to impersonate new user: %s[%d] != %d", dets.User, dets.UID, uid)
 		return
 	}
 	//set the user details the client is ready to use right out of the gate
