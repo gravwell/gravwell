@@ -307,11 +307,15 @@ type SearchStatsResponse struct {
 	Size        int               `json:",omitempty"`
 }
 
+type StatSetResponse struct {
+	Stats    []StatSet
+	Messages []Message
+}
+
 type StatSet struct {
-	Stats     []SearchModuleStats
+	Stats     []SearchModuleStats `json:"ModuleStats"`
 	TS        entry.Timestamp
 	populated bool
-	Messages  []Message
 }
 
 type OverviewStatSet struct {
@@ -560,6 +564,17 @@ func (is IngestStats) MarshalJSON() ([]byte, error) {
 		BytesMinuteTail:   is.BytesMinuteTail,
 		Ingesters:         emptyIngesterStats(is.Ingesters),
 		Missing:           emptyIngesterStates(is.Missing),
+	})
+}
+
+func (s StatSetResponse) MarshalJSON() ([]byte, error) {
+	type alias StatSetResponse
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(s),
+		Messages: emptyMessages(s.Messages),
 	})
 }
 
