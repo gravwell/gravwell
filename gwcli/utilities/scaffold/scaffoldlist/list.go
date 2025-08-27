@@ -171,7 +171,7 @@ func NewListAction[dataStruct_t any](short, long string,
 
 	// set default columns from DefaultColumns or ExcludeColumnsFromDefault
 	if options.DefaultColumns != nil && options.ExcludeColumnsFromDefault != nil { // both were given
-		panic("DefautlColumns and ExcludeColumnsFromDefault are mutually exclusive")
+		panic("DefaultColumns and ExcludeColumnsFromDefault are mutually exclusive")
 	} else if options.ExcludeColumnsFromDefault != nil { // exclude was given
 		// to exclude columns, traverse the data structure and skip excluded columns
 

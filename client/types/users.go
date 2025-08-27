@@ -427,3 +427,43 @@ func (uag *UserAddGroups) MarshalJSON() ([]byte, error) {
 		GIDs:  emptyInts(uag.GIDs),
 	})
 }
+
+/************************************************************
+ *
+ * New (registry) types begin here.
+ *
+ ************************************************************/
+
+type ACL struct {
+	GIDs   []int32
+	Global bool
+}
+
+type User struct {
+	ID                  int32
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	DeletedAt           time.Time
+	LastLogin           time.Time
+	Username            string
+	Name                string
+	Email               string
+	Admin               bool
+	Locked              bool
+	Groups              []Group
+	Hash                []byte
+	CBAC                CBACRules
+	MFA                 MFAUserConfig
+	SSOUser             bool
+	DefaultSearchGroups []Group
+}
+
+type Group struct {
+	ID          int32
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	DeletedAt   time.Time
+	Name        string
+	Description string
+	CBAC        CBACRules
+}
