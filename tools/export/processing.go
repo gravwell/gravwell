@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/client"
-	"github.com/gravwell/gravwell/v3/client/types"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/client"
+	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const maxChunkSize = 256 * 1024 * 1024 //256MB at a time
