@@ -398,6 +398,10 @@ func (lt LicenseType) AllFeatures() (r bool) {
 		r = true
 	case Enterprise:
 		r = true
+	case Cluster:
+		r = true
+	case Eval:
+		r = true
 	case Cloud:
 		r = true
 	}
