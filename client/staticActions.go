@@ -489,23 +489,23 @@ func (c *Client) GetIndexerCalendarStats(indexer uuid.UUID, start, end time.Time
 }
 
 // GetUserList gets a listing of users with basic info like UID, name, email, etc.
-func (c *Client) GetUserList() ([]types.UserDetails, error) {
-	det := []types.UserDetails{}
+func (c *Client) GetUserList() ([]types.User, error) {
+	det := []types.User{}
 	if err := c.getStaticURL(USERS_LIST_URL, &det); err != nil {
 		return nil, err
 	}
 	return det, nil
 }
 
-// LookupUser looks up a UserDetails object given a username
+// LookupUser looks up a User object given a username
 // if the username is not found, ErrNotFound is returned
-func (c *Client) LookupUser(username string) (ud types.UserDetails, err error) {
-	var lst []types.UserDetails
+func (c *Client) LookupUser(username string) (ud types.User, err error) {
+	var lst []types.User
 	if lst, err = c.GetUserList(); err != nil {
 		return
 	}
 	for _, l := range lst {
-		if l.User == username {
+		if l.Username == username {
 			ud = l
 			return
 		}
@@ -516,18 +516,18 @@ func (c *Client) LookupUser(username string) (ud types.UserDetails, err error) {
 }
 
 // GetGroupList gets a listing of groups with basic info like GID, name, desc.
-func (c *Client) GetGroupList() ([]types.GroupDetails, error) {
-	det := []types.GroupDetails{}
+func (c *Client) GetGroupList() ([]types.Group, error) {
+	det := []types.Group{}
 	if err := c.getStaticURL(GROUP_URL, &det); err != nil {
 		return nil, err
 	}
 	return det, nil
 }
 
-// LookupGroup looks up a GroupDetails object given a group name
+// LookupGroup looks up a Group object given a group name
 // if the group name is not found, ErrNotFound is returned
-func (c *Client) LookupGroup(groupname string) (gd types.GroupDetails, err error) {
-	var lst []types.GroupDetails
+func (c *Client) LookupGroup(groupname string) (gd types.Group, err error) {
+	var lst []types.Group
 	if lst, err = c.GetGroupList(); err != nil {
 		return
 	}
