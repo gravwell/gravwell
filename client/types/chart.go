@@ -15,7 +15,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 var (
@@ -253,4 +253,23 @@ func (cs chtbl) MarshalJSON() ([]byte, error) {
 		TS:   cs.TS,
 		Data: chartableDataPoints(cs.Data),
 	})
+}
+
+func (x ChartResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries ChartableValueSet
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }
