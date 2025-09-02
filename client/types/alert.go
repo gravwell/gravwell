@@ -198,7 +198,7 @@ func (alert *AlertDefinition) JSONMetadata() (json.RawMessage, error) {
 // FindMostRelevantAutomation resolves the appropriate ScheduledSearch
 // automation (scheduled search, script, or flow) for the given user
 // based on the specified GUID.
-func FindMostRelevantAutomation(ud UserDetails, guid uuid.UUID, automations []ScheduledSearch) (result ScheduledSearch, ok bool) {
+func FindMostRelevantAutomation(ud User, guid uuid.UUID, automations []ScheduledSearch) (result ScheduledSearch, ok bool) {
 	var adminHit bool
 	var adminHitSearch ScheduledSearch
 	for _, ss := range automations {
@@ -206,14 +206,14 @@ func FindMostRelevantAutomation(ud UserDetails, guid uuid.UUID, automations []Sc
 			continue
 		}
 		//allow if the ownership of both match, OR the user is an admin
-		if ss.Owner == ud.UID {
+		if ss.Owner == ud.ID {
 			ok = true
 			result = ss
 			return
 		}
 		//check if any of the gids match
 		for i := range ss.Groups {
-			if ud.InGroup(ss.Groups[i]) {
+			if ud.IsGroupMember(ss.Groups[i]) {
 				// Found one shared with a group the user is in, but we don't
 				// want to return it in case there's another one *owned* by the user.
 				ok = true
@@ -221,7 +221,7 @@ func FindMostRelevantAutomation(ud UserDetails, guid uuid.UUID, automations []Sc
 			}
 		}
 		for i := range ss.WriteAccess.GIDs {
-			if ud.InGroup(ss.WriteAccess.GIDs[i]) {
+			if ud.IsGroupMember(ss.WriteAccess.GIDs[i]) {
 				// Found one shared with a group the user is in, but we don't
 				// want to return it in case there's another one *owned* by the user.
 				ok = true
