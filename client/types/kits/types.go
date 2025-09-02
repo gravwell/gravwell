@@ -148,21 +148,23 @@ type PackedScheduledSearch struct {
 	Flow                   string `json:",omitempty"`
 	ScheduledType          string
 	GUID                   uuid.UUID // A unique ID for this scheduled search. Useful for detecting and handling upgrades.
+	SearchReference        uuid.UUID // Used if we're referencing a search query asset by GUID instead of including the search directly.
 }
 
 // PackScheduledSearch converts a ScheduledSearch into a PackedScheduledSearch for inclusion in a kit.
 func PackScheduledSearch(ss *types.ScheduledSearch) (p PackedScheduledSearch) {
 	p = PackedScheduledSearch{
-		Name:          ss.Name,
-		Description:   ss.Description,
-		Schedule:      ss.Schedule,
-		SearchString:  ss.SearchString,
-		Duration:      ss.Duration,
-		Script:        ss.Script,
-		Labels:        ss.Labels,
-		Flow:          ss.Flow,
-		ScheduledType: ss.ScheduledType,
-		GUID:          ss.GUID,
+		Name:            ss.Name,
+		Description:     ss.Description,
+		Schedule:        ss.Schedule,
+		SearchString:    ss.SearchString,
+		Duration:        ss.Duration,
+		Script:          ss.Script,
+		Labels:          ss.Labels,
+		Flow:            ss.Flow,
+		ScheduledType:   ss.ScheduledType,
+		GUID:            ss.GUID,
+		SearchReference: ss.SearchReference,
 	}
 	return
 }
@@ -189,6 +191,17 @@ func (pss *PackedScheduledSearch) Validate() error {
 		return errors.New("SearchString and Script are both populated")
 	} else if pss.SearchString != `` && pss.Duration >= 0 {
 		return errors.New("Duration is invalid for SearchString, must be negative")
+	} else if pss.SearchReference != uuid.Nil {
+		if pss.Duration >= 0 {
+			return errors.New("Duration is invalid for SearchReference, must be negative")
+		}
+		if pss.SearchString != `` {
+			return errors.New("SearchReference and SearchString both populated")
+		} else if pss.Flow != `` {
+			return errors.New("SearchReference and Flow both populated")
+		} else if pss.Script != `` {
+			return errors.New("SearchReference and Script both populated")
+		}
 	}
 	return nil
 }
@@ -207,6 +220,7 @@ func (pss *PackedScheduledSearch) Unpackage(uid int32, gids []int32) (ss types.S
 	ss.Flow = pss.Flow
 	ss.ScheduledType = pss.ScheduledType
 	ss.GUID = pss.GUID
+	ss.SearchReference = pss.SearchReference
 	return
 }
 
@@ -223,6 +237,7 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 		ScheduledType          string `json:",omitempty"`
 		DefaultDeploymentRules types.ScriptDeployConfig
 		UUID                   uuid.UUID
+		SearchReference        uuid.UUID
 	}{
 		Name:                   pss.Name,
 		Description:            pss.Description,
@@ -234,6 +249,7 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 		ScheduledType:          pss.TypeName(),
 		DefaultDeploymentRules: pss.DefaultDeploymentRules,
 		UUID:                   pss.GUID,
+		SearchReference:        pss.SearchReference,
 	})
 	return json.RawMessage(b), err
 }
