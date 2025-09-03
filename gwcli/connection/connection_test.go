@@ -119,8 +119,8 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 				myinfo, err := connection.Client.MyInfo()
 				if err != nil {
 					t.Fatal(err)
-				} else if myinfo.User != connection.CurrentUser().User || (tt.args.u != "" && myinfo.User != tt.args.u) {
-					t.Fatalf("username mismatch! query name (%v) != cached name (%v) != argument username (%v)", myinfo.User, connection.CurrentUser().User, tt.args.u)
+				} else if myinfo.Username != connection.CurrentUser().Username || (tt.args.u != "" && myinfo.Username != tt.args.u) {
+					t.Fatalf("username mismatch! query name (%v) != cached name (%v) != argument username (%v)", myinfo.Username, connection.CurrentUser().Username, tt.args.u)
 				}
 			}
 
@@ -162,9 +162,9 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in via credentials: ", err)
-		} else if info.User != defaultUser || connection.CurrentUser().User != defaultUser {
-			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, defaultUser, connection.CurrentUser().User)
-		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
+		} else if info.Username != defaultUser || connection.CurrentUser().Username != defaultUser {
+			t.Fatalf("incorrect user. %v!=%v!=%v", info.Username, defaultUser, connection.CurrentUser().Username)
+		} else if _, err := connection.Client.ListMacros(nil); err != nil {
 			t.Fatal("failed to make call after logging in via credentials: ", err)
 		}
 
@@ -182,9 +182,9 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in via token: ", err)
-		} else if info.User != defaultUser || connection.CurrentUser().User != defaultUser {
-			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, defaultUser, connection.CurrentUser().User)
-		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
+		} else if info.Username != defaultUser || connection.CurrentUser().Username != defaultUser {
+			t.Fatalf("incorrect user. %v!=%v!=%v", info.Username, defaultUser, connection.CurrentUser().Username)
+		} else if _, err := connection.Client.ListMacros(nil); err != nil {
 			t.Fatal("failed to make call after logging in via token: ", err)
 		}
 
@@ -202,9 +202,9 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		// ensure we can make a couple calls
 		if info, err := connection.Client.MyInfo(); err != nil {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
-		} else if info.User != altUser || connection.CurrentUser().User != altUser {
-			t.Fatalf("incorrect user. %v!=%v!=%v", info.User, altUser, connection.CurrentUser().User)
-		} else if _, err := connection.Client.GetUserMacros(info.UID); err != nil {
+		} else if info.Username != altUser || connection.CurrentUser().Username != altUser {
+			t.Fatalf("incorrect user. %v!=%v!=%v", info.Username, altUser, connection.CurrentUser().Username)
+		} else if _, err := connection.Client.ListMacros(nil); err != nil {
 			t.Fatal("failed to make call after logging in second user via credentials: ", err)
 		}
 
@@ -433,8 +433,8 @@ func TestLogin_interactive_mode(t *testing.T) {
 		myinfo, err := connection.Client.MyInfo()
 		if err != nil {
 			t.Fatal(err)
-		} else if myinfo.User != connection.MyInfo.User || myinfo.User != defaultUser {
-			t.Fatalf("username mismatch! query name (%v) != cached name (%v) != given username (%v)", myinfo.User, connection.MyInfo.User, defaultUser)
+		} else if myinfo.Username != connection.MyInfo.Username || myinfo.Username != defaultUser {
+			t.Fatalf("username mismatch! query name (%v) != cached name (%v) != given username (%v)", myinfo.Username, connection.MyInfo.Username, defaultUser)
 		}
 	}) */
 
@@ -588,7 +588,7 @@ func deleteAltUser(t *testing.T, testclient *grav.Client) {
 		return
 	}
 
-	if err := testclient.DeleteUser(u.UID); err != nil {
+	if err := testclient.DeleteUser(u.ID); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -599,12 +599,12 @@ func verifyLoggedInStatus(expectedUsername string) error {
 	// ensure we can make a couple calls
 	if info, err := connection.Client.MyInfo(); err != nil {
 		return fmt.Errorf("failed to manual-fetch user information: %v", err)
-	} else if info.User != expectedUsername || connection.CurrentUser().User != expectedUsername {
-		return fmt.Errorf("incorrect user. %v!=%v!=%v", info.User, expectedUsername, connection.CurrentUser().User)
+	} else if info.Username != expectedUsername || connection.CurrentUser().Username != expectedUsername {
+		return fmt.Errorf("incorrect user. %v!=%v!=%v", info.Username, expectedUsername, connection.CurrentUser().Username)
 	}
 
 	// make a few different calls for better scope
-	if _, err := connection.Client.GetUserMacros(connection.CurrentUser().UID); err != nil {
+	if _, err := connection.Client.ListMacros(nil); err != nil {
 		return fmt.Errorf("failed to fetch macros: %v", err)
 	}
 	if _, err := connection.Client.ListAllPivots(); err != nil {

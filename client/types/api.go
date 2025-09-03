@@ -137,7 +137,7 @@ func ParseCanonicalVersion(s string) (r CanonicalVersion, err error) {
 	return
 }
 
-// NewerVersion returns true if the incoming version is newer than coming
+// NewerVersion returns true if the argument is newer than the receiver.
 func (cv CanonicalVersion) NewerVersion(ncv CanonicalVersion) bool {
 	return cv.Compare(ncv) > 0
 }

@@ -28,7 +28,7 @@ type PackedMacro struct {
 }
 
 // PackSearchMacro turns a regular SearchMacro object into a PackedMacro.
-func PackSearchMacro(m *types.SearchMacro) (p PackedMacro) {
+func PackSearchMacro(m *types.Macro) (p PackedMacro) {
 	p = PackedMacro{
 		Name:        m.Name,
 		Description: m.Description,
