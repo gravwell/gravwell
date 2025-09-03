@@ -443,6 +443,7 @@ type User struct {
 	MFA                 MFAUserConfig
 	SSOUser             bool
 	DefaultSearchGroups []Group
+	SearchPriority      int
 }
 
 // IsGroupMember returns true if the user is a member of group with
@@ -524,13 +525,14 @@ func (u *User) HasCapability(c Capability) bool {
 }
 
 type Group struct {
-	ID          int32
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
-	DeletedAt   time.Time
-	Name        string
-	Description string
-	CBAC        CBACRules
+	ID             int32
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      time.Time
+	Name           string
+	Description    string
+	CBAC           CBACRules
+	SearchPriority int
 }
 
 func (g *Group) GetOld() GroupDetails {
