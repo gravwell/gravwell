@@ -1040,14 +1040,14 @@ func (c *Client) getStats(s Search, count uint, start, end time.Time, pth string
 
 // GetSearchOverviewStats returns a set of overview stats for the query
 func (c *Client) GetSearchOverviewStats(s Search, count uint, start, end time.Time) (sm types.OverviewStats, err error) {
-	err = c.getStats(s, count, start, end, searchStatsOverviewUrl(s.ID), &sm)
+	err = c.getStats(s, count, start, end, searchStatsUrl(s.ID), &sm)
 	return
 }
 
 // GetSearchStats returns a set of overview stats for the query
 func (c *Client) GetSearchStats(s Search, count uint, start, end time.Time) (ss []types.StatSet, err error) {
 	var r types.StatSetResponse
-	err = c.getStats(s, count, start, end, searchStatsUrl(s.ID), &r)
+	err = c.getStats(s, count, start, end, searchStatsModules(s.ID), &r)
 	return r.Stats, err
 }
 

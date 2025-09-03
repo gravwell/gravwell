@@ -344,7 +344,8 @@ type SearchCtrlStatus struct {
 	NoHistory       bool
 	Import          ImportInfo
 	LaunchInfo      SearchLaunchInfo
-	Error           string `json:",omitempty"`
+	Error           string          `json:",omitempty"`
+	Metadata        json.RawMessage `json:",omitempty"` //additional metadata associated with a search
 }
 
 type SearchState struct {
@@ -353,6 +354,7 @@ type SearchState struct {
 	Saved        bool         `json:"saved"`
 	Streaming    bool         `json:"streaming"`
 	Status       SearchStatus `json:"status"`
+	Progress     float64      `json:"progress"`
 }
 
 // String just implements a basic stringer on this type for some of the more simple CLI tooling
