@@ -135,6 +135,15 @@ func (c *Client) GetSearchHistory() ([]types.SearchLog, error) {
 	return sl, nil
 }
 
+// GetSearchHistoryAll (admin-only) returns search history for all users.
+func (c *Client) GetSearchHistoryAll() ([]types.SearchLog, error) {
+	var sl []types.SearchLog
+	if err := c.getStaticURL(SEARCH_HISTORY_ALL_URL, &sl); err != nil {
+		return nil, err
+	}
+	return sl, nil
+}
+
 // GetRefinedSearchHistory retrieves the current search history for the
 // currently logged in user narrowed to searches containing the substring s. It
 // only pulls back searches invoked by the individual user.

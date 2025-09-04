@@ -92,6 +92,7 @@ const (
 	SEARCH_CTRL_IMPORT_URL           = `/api/searchctrl/import`
 	SEARCH_CTRL_LAUNCH_URL           = `/api/searchctrl/launch`
 	SEARCH_HISTORY_URL               = `/api/searchhistory/%s/%d`
+	SEARCH_HISTORY_ALL_URL           = `/api/searchhistory/all`
 	NOTIFICATIONS_URL                = `/api/notifications`
 	NOTIFICATIONS_ID_URL             = `/api/notifications/%d`
 	NOTIFICATIONS_SELF_TARGETED_URL  = `/api/notifications/targeted/self`
