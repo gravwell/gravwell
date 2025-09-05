@@ -72,7 +72,7 @@ type Client struct {
 	lastNotifId  uint64
 	enforceCert  bool
 	sessionData  ActiveSession
-	userDetails  types.UserDetails
+	userDetails  types.User
 	objLog       objlog.ObjLog
 	wsScheme     string
 	httpScheme   string
