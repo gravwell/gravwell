@@ -63,8 +63,8 @@ func (c *Client) PurgeMacro(id string) error {
 
 // CreateMacro creates a new macro with the specified name and expansion, returning
 // the ID of the newly-created macro.
-func (c *Client) CreateMacro(m types.Macro) (id string, err error) {
-	err = c.postStaticURL(MACROS_URL, m, &id)
+func (c *Client) CreateMacro(m types.Macro) (result types.Macro, err error) {
+	err = c.postStaticURL(MACROS_URL, m, &result)
 	return
 }
 
