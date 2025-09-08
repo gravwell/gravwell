@@ -309,6 +309,13 @@ func (c *Client) WellData() (mp map[string]types.IndexerWellData, err error) {
 	return
 }
 
+// SearchQueue returns information about the search queue. If rate limiting is
+// disabled, all values will be zero.
+func (c *Client) SearchQueue() (s types.SearchQueue, err error) {
+	err = c.getStaticURL(searchQueueUrl(), &s)
+	return
+}
+
 // GetLibFile fetches the contents of a particular SOAR library file, as used in
 // scheduled search scripts. The repo and commit arguments are optional.
 // Examples:
