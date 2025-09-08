@@ -38,6 +38,7 @@ const (
 	IDX_URL                          = `/api/stats/idxStats`
 	INGESTER_URL                     = `/api/stats/igstStats`
 	WELLS_URL                        = `/api/stats/wellStats`
+	QUEUE_URL                        = `/api/stats/search/queue`
 	STORAGE_URL                      = `/api/stats/storage/indexers`
 	STORAGE_INDEXER_URL              = `/api/stats/storage/indexer/%s/wells`
 	CALENDAR_URL                     = `/api/stats/storage/calendar`
@@ -494,6 +495,10 @@ func addIndexerUrl() string {
 
 func wellDataUrl() string {
 	return WELLS_URL
+}
+
+func searchQueueUrl() string {
+	return QUEUE_URL
 }
 
 func macroUrl(id string) string {
