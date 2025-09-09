@@ -12,6 +12,8 @@ package version
 import (
 	"fmt"
 	"io"
+	"runtime"
+	"strings"
 	"time"
 )
 
@@ -28,6 +30,7 @@ var (
 func PrintVersion(wtr io.Writer) {
 	fmt.Fprintf(wtr, "Version:\t%d.%d.%d\n", MajorVersion, MinorVersion, PointVersion)
 	fmt.Fprintf(wtr, "BuildDate:\t%s\n", BuildDate.Format(`2006-01-02 15:04:05`))
+	fmt.Fprintf(wtr, "Runtime:\t%s\n", strings.TrimPrefix(runtime.Version(), "go"))
 }
 
 func GetVersion() string {
