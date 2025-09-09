@@ -8,7 +8,7 @@
 
 package client
 
-import "github.com/gravwell/gravwell/v3/client/types"
+import "github.com/gravwell/gravwell/v4/client/types"
 
 // ExploreGenerate takes a tag name and an array of one or more SearchEntry objects as arguments.
 // It has the webserver attempt various data exploration extractions and returns a map of the results.
