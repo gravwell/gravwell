@@ -82,12 +82,8 @@ func TestMacros(t *testing.T) {
 
 	t.Run("macros list --csv", func(t *testing.T) {
 		// generate results manually, for comparison
-		myInfo, err := testclient.MyInfo()
-		if err != nil {
-			t.Fatal(err)
-		}
 		// get the current list of macros so we can validate that gwcli turned back the same ones
-		macros, err := testclient.GetUserMacros(myInfo.UID)
+		macros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -112,18 +108,14 @@ func TestMacros(t *testing.T) {
 			macroExp  = "testexpand"
 		)
 		// fetch the number of macros prior to creation
-		myInfo, err := testclient.MyInfo()
-		if err != nil {
-			panic(err)
-		}
-		priorMacros, err := testclient.GetUserMacros(myInfo.UID)
+		priorMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			panic(err)
 		}
 
 		// ensure the macro DNE, reroll it if it does
 		for {
-			if slices.ContainsFunc(priorMacros, func(sm types.SearchMacro) bool {
+			if slices.ContainsFunc(priorMacros, func(sm types.Macro) bool {
 				return macroName == sm.Name
 			}) {
 				//reroll name
@@ -139,7 +131,7 @@ func TestMacros(t *testing.T) {
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 		// refetch macros to check the count has increased by one
-		postMacros, err := testclient.GetUserMacros(myInfo.UID)
+		postMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			panic(err)
 		}
@@ -151,12 +143,8 @@ func TestMacros(t *testing.T) {
 
 	t.Run("macros list "+ft.JSON.Name(), func(t *testing.T) {
 		// generate results manually, for comparison
-		myInfo, err := testclient.MyInfo()
-		if err != nil {
-			t.Fatal(err)
-		}
 		// get the current list of macros so we can validate that gwcli turned back the same ones
-		macros, err := testclient.GetUserMacros(myInfo.UID)
+		macros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -182,11 +170,7 @@ func TestMacros(t *testing.T) {
 
 	t.Run("macros delete (dryrun)", func(t *testing.T) {
 		// fetch the macros prior to deletion
-		myInfo, err := testclient.MyInfo()
-		if err != nil {
-			panic(err)
-		}
-		priorMacros, err := testclient.GetUserMacros(myInfo.UID)
+		priorMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			panic(err)
 		}
@@ -205,7 +189,7 @@ func TestMacros(t *testing.T) {
 		checkResult(t, false, "stderr", "", stderr)
 
 		// refetch macros to check that count hasn't changed
-		postMacros, err := testclient.GetUserMacros(myInfo.UID)
+		postMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
 		} else if len(postMacros) != len(priorMacros) {
@@ -228,11 +212,7 @@ func TestMacros(t *testing.T) {
 	t.Run("macros delete [failure: missing id]", func(t *testing.T) {
 
 		// fetch the macros prior to deletion
-		myInfo, err := testclient.MyInfo()
-		if err != nil {
-			panic(err)
-		}
-		priorMacros, err := testclient.GetUserMacros(myInfo.UID)
+		priorMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -248,7 +228,7 @@ func TestMacros(t *testing.T) {
 		checkResult(t, false, "stdout", "", stdout)
 
 		// refetch macros to check that count hasn't changed
-		postMacros, err := testclient.GetUserMacros(myInfo.UID)
+		postMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -260,11 +240,7 @@ func TestMacros(t *testing.T) {
 
 	t.Run("macros delete", func(t *testing.T) {
 		// fetch the macros prior to deletion
-		myInfo, err := testclient.MyInfo()
-		if err != nil {
-			panic(err)
-		}
-		priorMacros, err := testclient.GetUserMacros(myInfo.UID)
+		priorMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			panic(err)
 		}
@@ -282,7 +258,7 @@ func TestMacros(t *testing.T) {
 		testsupport.NonZeroExit(t, statusCode, stderr)
 
 		// refetch macros to check the count has decreased by one
-		postMacros, err := testclient.GetUserMacros(myInfo.UID)
+		postMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
 		} else if len(postMacros) != len(priorMacros)-1 {

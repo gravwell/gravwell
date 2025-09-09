@@ -69,7 +69,7 @@ func list(fs *pflag.FlagSet) ([]types.Dashboard, error) {
 	} else if all {
 		return connection.Client.GetAllDashboards()
 	}
-	return connection.Client.GetUserDashboards(connection.CurrentUser().UID)
+	return connection.Client.GetUserDashboards(connection.CurrentUser().ID)
 }
 
 //#endregion list
@@ -90,7 +90,7 @@ func del(dryrun bool, id uint64) error {
 }
 
 func fch() ([]scaffolddelete.Item[uint64], error) {
-	ud, err := connection.Client.GetUserDashboards(connection.CurrentUser().UID)
+	ud, err := connection.Client.GetUserDashboards(connection.CurrentUser().ID)
 	if err != nil {
 		return nil, err
 	}

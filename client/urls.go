@@ -49,7 +49,6 @@ const (
 	USERS_LOCK_URL                   = `/api/users/%d/lock`
 	USERS_LOCKED_URL                 = `/api/users/%d/locked`
 	USERS_DASHBOARD_URL              = `/api/users/%d/dashboards`
-	USERS_MACROS_URL                 = `/api/users/%d/macros`
 	USERS_PREFS_URL                  = `/api/users/%d/preferences`
 	USERS_ALL_PREFS_URL              = `/api/users/preferences`
 	USERS_ADMIN_URL                  = `/api/users/%d/admin`
@@ -68,7 +67,6 @@ const (
 	GROUP_ID_URL                     = `/api/groups/%d`
 	GROUP_MEMBERS_URL                = `/api/groups/%d/members`
 	GROUP_DASHBOARD_URL              = `/api/groups/%d/dashboards`
-	GROUP_MACROS_URL                 = `/api/groups/%d/macros`
 	GROUP_URL                        = `/api/groups`
 	SEARCH_PARS_URL                  = `/api/parse`
 	SEARCH_CTRL_LIST_URL             = `/api/searchctrl`
@@ -95,6 +93,7 @@ const (
 	SEARCH_CTRL_IMPORT_URL           = `/api/searchctrl/import`
 	SEARCH_CTRL_LAUNCH_URL           = `/api/searchctrl/launch`
 	SEARCH_HISTORY_URL               = `/api/searchhistory/%s/%d`
+	SEARCH_HISTORY_ALL_URL           = `/api/searchhistory/all`
 	NOTIFICATIONS_URL                = `/api/notifications`
 	NOTIFICATIONS_ID_URL             = `/api/notifications/%d`
 	NOTIFICATIONS_SELF_TARGETED_URL  = `/api/notifications/targeted/self`
@@ -106,8 +105,8 @@ const (
 	DASHBOARD_ALL_URL                = `/api/dashboards/all`
 	DASHBOARD_CLONE_URL              = `/api/dashboards/%d/clone`
 	MACROS_URL                       = `/api/macros`
-	MACROS_ALL_URL                   = `/api/macros/all`
-	MACROS_ID_URL                    = `/api/macros/%d`
+	MACROS_LIST_URL                  = `/api/macros/list`
+	MACROS_ID_URL                    = `/api/macros/%s`
 	LICENSE_INFO_URL                 = `/api/license`
 	LICENSE_SKU_URL                  = `/api/license/sku`
 	LICENSE_SERIAL_URL               = `/api/license/serial`
@@ -502,15 +501,7 @@ func searchQueueUrl() string {
 	return QUEUE_URL
 }
 
-func userMacrosUrl(id int32) string {
-	return fmt.Sprintf(USERS_MACROS_URL, id)
-}
-
-func groupMacrosUrl(id int32) string {
-	return fmt.Sprintf(GROUP_MACROS_URL, id)
-}
-
-func macroUrl(id uint64) string {
+func macroUrl(id string) string {
 	return fmt.Sprintf(MACROS_ID_URL, id)
 }
 
