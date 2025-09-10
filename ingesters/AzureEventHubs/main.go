@@ -289,11 +289,17 @@ func main() {
 				if checkpoint.Offset == persist.StartOfStream && hubDef.Initial_Checkpoint == "end" {
 					checkpoint = persist.NewCheckpointFromEndOfStream()
 				}
+				// config SHOULD have set this, but double check because it's cheap
+				cg := hubDef.Consumer_Group
+				if cg == `` {
+					cg = eventhubs.DefaultConsumerGroup
+				}
 				handle, err := hub.Receive(
 					ctx,
 					partitionID,
 					callback,
 					eventhubs.ReceiveWithStartingOffset(checkpoint.Offset),
+					eventhubs.ReceiveWithConsumerGroup(cg),
 				)
 				if err != nil {
 					lg.Error("failed to start event hub partition receiver", log.KVErr(err))
@@ -301,7 +307,7 @@ func main() {
 				}
 				listeners = append(listeners, handle)
 				readers = append(readers, readerInfo{hubDef.Event_Hubs_Namespace, hubDef.Event_Hub, hubDef.Consumer_Group, partitionID})
-				lg.Info("started receiver for partition", log.KV("partition", partitionID))
+				lg.Info("started receiver for partition", log.KV("consumer-group", cg), log.KV("partition", partitionID))
 			}
 			<-quitSig
 		}(k, *def)
