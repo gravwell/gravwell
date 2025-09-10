@@ -142,6 +142,13 @@ type IndexerWellData struct {
 	Replicated map[uuid.UUID][]WellInfo
 }
 
+type SearchQueue struct {
+	InFlight    int `json:"running_current"`
+	MaxInFlight int `json:"running_maximum"`
+	Enqueued    int `json:"queued_current"`
+	MaxEnqueued int `json:"queued_maximum"`
+}
+
 func (iwd *IndexerWellData) Sort() {
 	for i := range iwd.Wells {
 		iwd.Wells[i].sort()
