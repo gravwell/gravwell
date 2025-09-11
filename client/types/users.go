@@ -191,19 +191,17 @@ type AddGroup struct {
 }
 
 type UpdateUser struct {
-	User   string
-	Name   string
-	Email  string
+	Username            string
+	Name                string
+	Email               string
+	DefaultSearchGroups []int32
+	// The following are ignored if sent by a non-admin
 	Admin  bool
 	Locked bool
 }
 
 type UserAddGroups struct {
 	GIDs []int32
-}
-
-type UserDefaultSearchGroup struct {
-	GID int32
 }
 
 type AdminActionResp struct {
