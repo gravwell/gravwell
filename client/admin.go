@@ -135,7 +135,7 @@ func (c *Client) UserChangePass(id int32, orig, pass string) error {
 	return c.changePass(id, req)
 }
 
-// SetDefaultSearchGroup will set the specified user's default search group.
+// SetDefaultSearchGroups will set the specified user's default search groups.
 // Admins can set any user's default search group, but regular users can only set their own.
 func (c *Client) SetDefaultSearchGroups(uid int32, gids []int32) error {
 	udet := types.User{}
@@ -153,8 +153,8 @@ func (c *Client) SetDefaultSearchGroups(uid int32, gids []int32) error {
 	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(uid), req, nil, nil, nil)
 }
 
-// GetDefaultSearchGroup returns the specified users default search group
-// Admins can get any user's default search group, but regular users can only get their own.
+// GetDefaultSearchGroups returns the specified users default search groups.
+// Admins can get any user's default search groups, but regular users can only get their own.
 func (c *Client) GetDefaultSearchGroups(uid int32) (gids []int32, err error) {
 	udet := types.User{}
 	if err = c.methodStaticURL(http.MethodGet, usersInfoUrl(uid), &udet); err != nil {
@@ -166,8 +166,8 @@ func (c *Client) GetDefaultSearchGroups(uid int32) (gids []int32, err error) {
 	return
 }
 
-// DeleteDefaultSearchGroup removes the default search group for a specified user
-// Admins can delete any user's default search group, but regular users can only delete their own.
+// DeleteDefaultSearchGroups removes the default search groups for a specified user
+// Admins can delete any user's default search groups, but regular users can only delete their own.
 func (c *Client) DeleteDefaultSearchGroups(uid int32) error {
 	return c.SetDefaultSearchGroups(uid, []int32{})
 }
