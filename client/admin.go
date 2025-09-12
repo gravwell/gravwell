@@ -82,8 +82,8 @@ func (c *Client) DeleteUser(id int32) error {
 }
 
 // GetUserInfo (admin-only) gets information about a specific user.
-func (c *Client) GetUserInfo(id int32) (types.UserDetails, error) {
-	udet := types.UserDetails{}
+func (c *Client) GetUserInfo(id int32) (types.User, error) {
+	udet := types.User{}
 	if err := c.methodStaticURL(http.MethodGet, usersInfoUrl(id), &udet); err != nil {
 		return udet, err
 	}
@@ -135,35 +135,61 @@ func (c *Client) UserChangePass(id int32, orig, pass string) error {
 	return c.changePass(id, req)
 }
 
-// SetDefaultSearchGroup will set the specified user's default search group.
+// SetDefaultSearchGroups will set the specified user's default search groups.
 // Admins can set any user's default search group, but regular users can only set their own.
-func (c *Client) SetDefaultSearchGroup(uid int32, gid int32) error {
-	req := types.UserDefaultSearchGroup{
-		GID: gid,
+func (c *Client) SetDefaultSearchGroups(uid int32, gids []int32) error {
+	udet := types.User{}
+	if err := c.methodStaticURL(http.MethodGet, usersInfoUrl(uid), &udet); err != nil {
+		return err
 	}
-	return c.methodStaticPushURL(http.MethodPut, usersSearchGroupUrl(uid), req, nil, nil, nil)
+	req := types.UpdateUser{
+		Username:            udet.Username,
+		Name:                udet.Name,
+		Email:               udet.Email,
+		Admin:               udet.Admin,
+		Locked:              udet.Locked,
+		DefaultSearchGroups: gids,
+	}
+	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(uid), req, nil, nil, nil)
 }
 
-// GetDefaultSearchGroup returns the specified users default search group
-// Admins can get any user's default search group, but regular users can only get their own.
-func (c *Client) GetDefaultSearchGroup(uid int32) (gid int32, err error) {
-	err = c.getStaticURL(usersSearchGroupUrl(uid), &gid)
+// GetDefaultSearchGroups returns the specified users default search groups.
+// Admins can get any user's default search groups, but regular users can only get their own.
+func (c *Client) GetDefaultSearchGroups(uid int32) (gids []int32, err error) {
+	udet := types.User{}
+	if err = c.methodStaticURL(http.MethodGet, usersInfoUrl(uid), &udet); err != nil {
+		return
+	}
+	for _, g := range udet.DefaultSearchGroups {
+		gids = append(gids, g.ID)
+	}
 	return
 }
 
-// DeleteDefaultSearchGroup removes the default search group for a specified user
-// Admins can delete any user's default search group, but regular users can only delete their own.
-func (c *Client) DeleteDefaultSearchGroup(uid int32) error {
-	return c.deleteStaticURL(usersSearchGroupUrl(uid), nil)
+// DeleteDefaultSearchGroups removes the default search groups for a specified user
+// Admins can delete any user's default search groups, but regular users can only delete their own.
+func (c *Client) DeleteDefaultSearchGroups(uid int32) error {
+	return c.SetDefaultSearchGroups(uid, []int32{})
 }
 
 // UpdateUserInfo changes basic information about the specified user.
 // Admins can set any user's info, but regular users can only set their own.
 func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
+	udet := types.User{}
+	if err := c.methodStaticURL(http.MethodGet, usersInfoUrl(id), &udet); err != nil {
+		return err
+	}
+	var gids []int32
+	for _, g := range udet.DefaultSearchGroups {
+		gids = append(gids, g.ID)
+	}
 	req := types.UpdateUser{
-		User:  user,
-		Name:  name,
-		Email: email,
+		Username:            user,
+		Name:                name,
+		Email:               email,
+		Admin:               udet.Admin,
+		Locked:              udet.Locked,
+		DefaultSearchGroups: gids,
 	}
 	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(id), req, nil, nil, nil)
 }
@@ -183,13 +209,13 @@ func (c *Client) DeleteGroup(gid int32) error {
 }
 
 // UpdateGroup (admin-only) will update the specified group's details.
-func (c *Client) UpdateGroup(gid int32, gdet types.GroupDetails) error {
+func (c *Client) UpdateGroup(gid int32, gdet types.Group) error {
 	return c.putStaticURL(groupIdUrl(gid), gdet)
 }
 
 // GetAllUsers returns information about all users on the system.
-func (c *Client) GetAllUsers() ([]types.UserDetails, error) {
-	var users []types.UserDetails
+func (c *Client) GetAllUsers() ([]types.User, error) {
+	var users []types.User
 	if err := c.getStaticURL(allUsersUrl(), &users); err != nil {
 		return nil, err
 	}
@@ -210,8 +236,8 @@ func (c *Client) DeleteUserFromGroup(uid, gid int32) error {
 }
 
 // GetUserGroups returns information about groups to which the user belongs.
-func (c *Client) GetUserGroups(uid int32) ([]types.GroupDetails, error) {
-	var udet types.UserDetails
+func (c *Client) GetUserGroups(uid int32) ([]types.Group, error) {
+	var udet types.User
 	if err := c.getStaticURL(usersInfoUrl(uid), &udet); err != nil {
 		return nil, err
 	}
@@ -219,8 +245,8 @@ func (c *Client) GetUserGroups(uid int32) ([]types.GroupDetails, error) {
 }
 
 // GetGroups returns information about all groups on the system.
-func (c *Client) GetGroups() ([]types.GroupDetails, error) {
-	var gps []types.GroupDetails
+func (c *Client) GetGroups() ([]types.Group, error) {
+	var gps []types.Group
 	if err := c.getStaticURL(groupUrl(), &gps); err != nil {
 		return nil, err
 	}
@@ -229,33 +255,33 @@ func (c *Client) GetGroups() ([]types.GroupDetails, error) {
 
 // GetGroupMap returns a map of GID to group name for every group on the system.
 func (c *Client) GetGroupMap() (map[int32]string, error) {
-	var gps []types.GroupDetails
+	var gps []types.Group
 	if err := c.getStaticURL(groupUrl(), &gps); err != nil {
 		return nil, err
 	}
 	m := make(map[int32]string, len(gps))
 	for _, g := range gps {
-		m[g.GID] = g.Name
+		m[g.ID] = g.Name
 	}
 	return m, nil
 }
 
 // GetUserMap returns a map of UID to username for every user on the system.
 func (c *Client) GetUserMap() (map[int32]string, error) {
-	var uds []types.UserDetails
+	var uds []types.User
 	if err := c.getStaticURL(allUsersUrl(), &uds); err != nil {
 		return nil, err
 	}
 	m := make(map[int32]string, len(uds))
 	for _, u := range uds {
-		m[u.UID] = u.User
+		m[u.ID] = u.Username
 	}
 	return m, nil
 }
 
 // GetGroup returns information about the specified group.
-func (c *Client) GetGroup(id int32) (types.GroupDetails, error) {
-	var gp types.GroupDetails
+func (c *Client) GetGroup(id int32) (types.Group, error) {
+	var gp types.Group
 	if err := c.getStaticURL(groupIdUrl(id), &gp); err != nil {
 		return gp, err
 	}
@@ -264,8 +290,8 @@ func (c *Client) GetGroup(id int32) (types.GroupDetails, error) {
 
 // GetGroupUsers will return user details for all members of a group.
 // Only administrators or members of the group may call this function.
-func (c *Client) GetGroupUsers(gid int32) ([]types.UserDetails, error) {
-	var udets []types.UserDetails
+func (c *Client) GetGroupUsers(gid int32) ([]types.User, error) {
+	var udets []types.User
 	if err := c.getStaticURL(groupMembersUrl(gid), &udets); err != nil {
 		return nil, err
 	}
@@ -385,10 +411,10 @@ func (c *Client) DeletePreferences(id int32) error {
 
 // GetMyPreferences gets the current user's preferences into obj.
 func (c *Client) GetMyPreferences(obj interface{}) error {
-	if c.userDetails.UID == 0 {
+	if c.userDetails.ID == 0 {
 		return ErrNotSynced
 	}
-	return c.GetPreferences(c.userDetails.UID, obj)
+	return c.GetPreferences(c.userDetails.ID, obj)
 }
 
 // PutPreferences updates the specified user's preferences with obj.
@@ -398,10 +424,10 @@ func (c *Client) PutPreferences(id int32, obj interface{}) error {
 
 // PutMyPreferences updates the current user's preferences with obj.
 func (c *Client) PutMyPreferences(obj interface{}) error {
-	if c.userDetails.UID == 0 {
+	if c.userDetails.ID == 0 {
 		return ErrNotSynced
 	}
-	return c.putStaticURL(preferencesUrl(c.userDetails.UID), obj)
+	return c.putStaticURL(preferencesUrl(c.userDetails.ID), obj)
 }
 
 // GetAllPreferences (admin-only) fetches preferences for all users.
@@ -516,13 +542,13 @@ func (c *Client) Impersonate(uid int32) (nc *Client, err error) {
 		transport:   c.transport,
 		userAgent:   c.userAgent,
 	}
-	var dets types.UserDetails
+	var dets types.User
 	if dets, err = nc.getMyInfo(); err != nil {
 		return
 	}
-	if dets.UID != uid {
+	if dets.ID != uid {
 		nc = nil
-		err = fmt.Errorf("Failed to impersonate new user: %s[%d] != %d", dets.Name, dets.UID, uid)
+		err = fmt.Errorf("Failed to impersonate new user: %s[%d] != %d", dets.Username, dets.ID, uid)
 		return
 	}
 	//set the user details the client is ready to use right out of the gate
@@ -829,11 +855,11 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//macros
-	if ms, err := nc.GetUserMacros(id); err != nil {
+	if ms, err := nc.ListAllMacros(nil); err != nil {
 		return fmt.Errorf("Failed to list macros %w", err)
 	} else if len(ms) > 0 {
 		for _, p := range ms {
-			if p.UID == id {
+			if p.OwnerID == id {
 				if err = nc.DeleteMacro(p.ID); err != nil {
 					return fmt.Errorf("Failed to delete user macro %v - %w", p.ID, err)
 				}

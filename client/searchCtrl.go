@@ -129,7 +129,16 @@ func (c *Client) ListSearchDetails() ([]types.SearchInfo, error) {
 // in user.  It only pulls back searches invoked by the individual user.
 func (c *Client) GetSearchHistory() ([]types.SearchLog, error) {
 	var sl []types.SearchLog
-	if err := c.getStaticURL(searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.UID), &sl); err != nil {
+	if err := c.getStaticURL(searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.ID), &sl); err != nil {
+		return nil, err
+	}
+	return sl, nil
+}
+
+// GetSearchHistoryAll (admin-only) returns search history for all users.
+func (c *Client) GetSearchHistoryAll() ([]types.SearchLog, error) {
+	var sl []types.SearchLog
+	if err := c.getStaticURL(SEARCH_HISTORY_ALL_URL, &sl); err != nil {
 		return nil, err
 	}
 	return sl, nil
@@ -143,7 +152,7 @@ func (c *Client) GetRefinedSearchHistory(s string) ([]types.SearchLog, error) {
 	params := []urlParam{
 		urlParam{key: `refine`, value: s},
 	}
-	pth := searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.UID)
+	pth := searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.ID)
 	if err := c.methodStaticParamURL(http.MethodGet, pth, params, &sl); err != nil {
 		return nil, err
 	}
@@ -168,7 +177,7 @@ func (c *Client) GetSearchHistoryRange(start, end int) ([]types.SearchLog, error
 		urlParam{key: `start`, value: fmt.Sprintf("%d", start)},
 		urlParam{key: `end`, value: fmt.Sprintf("%d", end)},
 	}
-	pth := searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.UID)
+	pth := searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.ID)
 	var sl []types.SearchLog
 	if err := c.methodStaticParamURL(http.MethodGet, pth, params, &sl); err != nil {
 		return nil, err
@@ -1079,7 +1088,7 @@ func (c *Client) DownloadSearch(sid string, tr types.TimeRange, format string) (
 func (c *Client) ImportSearch(rdr io.Reader, gid int32) (err error) {
 	var flds map[string]string
 	if gid > 0 {
-		if !c.userDetails.InGroup(gid) {
+		if !c.userDetails.IsGroupMember(gid) {
 			err = fmt.Errorf("Logged in user not in group %d", gid)
 			return
 		}
@@ -1096,7 +1105,7 @@ func (c *Client) ImportSearch(rdr io.Reader, gid int32) (err error) {
 func (c *Client) ImportSearchBatchInfo(rdr io.Reader, gid int32, name, info string) (err error) {
 	flds := map[string]string{}
 	if gid > 0 {
-		if !c.userDetails.InGroup(gid) {
+		if !c.userDetails.IsGroupMember(gid) {
 			err = fmt.Errorf("Logged in user not in group %d", gid)
 			return
 		}

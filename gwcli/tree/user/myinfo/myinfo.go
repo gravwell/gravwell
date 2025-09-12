@@ -58,20 +58,15 @@ func NewUserMyInfoAction() action.Pair {
 				clilog.LogFlagFailedGet(ft.CSV.Name(), err)
 			} else if asCSV {
 				return weave.ToCSV(
-					[]types.UserDetails{inf},
+					[]types.User{inf},
 					[]string{
-						"UID",
-						"User",
+						"ID",
+						"Username",
 						"Name",
 						"Email",
 						"Admin",
 						"Locked",
-						"TS",
-						"DefaultGID",
 						"Groups",
-						"Hash",
-						"Synced",
-						"CBAC",
 					},
 					weave.CSVOptions{}), nil
 			}
@@ -88,7 +83,7 @@ func NewUserMyInfoAction() action.Pair {
 				"%s%v",
 				inf.Name,
 				inf.Email,
-				stylesheet.Cur.Field("UserID", fieldWidth), inf.UID,
+				stylesheet.Cur.Field("UserID", fieldWidth), inf.ID,
 				stylesheet.Cur.Field("MFA Enabled?", fieldWidth), inf.MFA.MFAEnabled(),
 				stylesheet.Cur.Field("Groups", fieldWidth), inf.Groups,
 				stylesheet.Cur.Field("Capabilities", fieldWidth), inf.CapabilityList(),
@@ -98,7 +93,7 @@ func NewUserMyInfoAction() action.Pair {
 				struct {
 					StylizedTitle string
 					Contents      string
-				}{sectionHeader(" " + inf.User + " "), body})
+				}{sectionHeader(" " + inf.Username + " "), body})
 			if err != nil {
 				clilog.Writer.Warnf("failed to generate segmented border: %v", err)
 			}
