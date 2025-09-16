@@ -997,7 +997,7 @@ type TokenFull struct {
 }
 
 // Expired returns whether a token is expired or not, if no expiration is set then the token is not expired
-func (t *Token) Expired() bool {
+func (t Token) Expired() bool {
 	if t.ExpiresAt.IsZero() {
 		return false
 	}
