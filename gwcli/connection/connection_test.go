@@ -504,8 +504,8 @@ func generateAPIToken(t *testing.T, testclient *grav.Client) (tkn string) {
 	tf, err := testclient.CreateToken(
 		types.TokenCreate{
 			Name:         "LoginMFAToken",
-			Desc:         "API token for the LoginMFA tests",
-			Expires:      time.Now().Add(apiTokenExpiryDur),
+			Description:  "API token for the LoginMFA tests",
+			ExpiresAt:    time.Now().Add(apiTokenExpiryDur),
 			Capabilities: []string{"ListUsers", "ListGroups", "ListGroupMembers", "MacroRead", "PivotRead"}})
 	if err != nil {
 		t.Log("failed to generate APIKey, skipping tests: ", err)

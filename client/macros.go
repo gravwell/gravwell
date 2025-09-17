@@ -12,6 +12,9 @@ import "github.com/gravwell/gravwell/v4/client/types"
 
 // ListMacros returns all macros accessible to the current user.
 func (c *Client) ListMacros(opts *types.QueryOptions) ([]types.Macro, error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
 	var macros []types.Macro
 	if err := c.postStaticURL(MACROS_LIST_URL, opts, &macros); err != nil {
 		return nil, err

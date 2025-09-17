@@ -1,6 +1,6 @@
 package types
 
-var AllowedOperations = []string{"=", ">", "<"}
+var AllowedOperations = []string{"=", "!=", "<>", ">", "<", ">=", "<=", "~"}
 
 type QueryOptions struct {
 	IncludeDeleted bool `json:"include_deleted"`

@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/gobwas/glob"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/ingest"
 )
 
@@ -974,52 +973,43 @@ func (ud *UserDetails) CapabilityList() []CapabilityDesc {
 	return CreateUserCapabilityList(ud)
 }
 
-// Token is a complete API compatible token, it contains ownership information and all capabilities associated with the token
+// Token is a complete API compatible token, it contains ownership information and all capabilities associated with the token but does NOT contain the actual secret string.
 type Token struct {
-	ID           uuid.UUID `json:"id"`
-	Name         string    `json:"name"`
-	Desc         string    `json:"description"`
-	UID          int32     `json:"uid"`
-	Created      time.Time `json:"createdAt"`
-	Expires      time.Time `json:"expiresAt,omitempty"`
+	CommonFields
+	ExpiresAt    time.Time `json:"expiresAt,omitempty"`
 	Capabilities []string  `json:"capabilities"`
 }
 
 // TokenCreate is the structure used to ask the API to make a new token, only the request parameters are present
 type TokenCreate struct {
 	Name         string    `json:"name"`
-	Desc         string    `json:"description"`
-	Expires      time.Time `json:"expiresAt,omitempty"`
+	Description  string    `json:"description"`
+	ExpiresAt    time.Time `json:"expiresAt,omitempty"`
 	Capabilities []string  `json:"capabilities"`
 }
 
-// TokenFull represents the response value for a token create request
-// this type is the only type that contains the token value and is ONLY provided when creating a new token
+// TokenFull represents the response value for a token create request.
+// This type is the only type that contains the token value and is
+// ONLY provided when creating a new token.
 type TokenFull struct {
 	Token
 	Value string `json:"token"`
 }
 
-// TokenFullWire is the internal type for storing token values
-type TokenFullWire struct {
-	TokenFull
-	Caps []byte
-}
-
 // Expired returns whether a token is expired or not, if no expiration is set then the token is not expired
 func (t Token) Expired() bool {
-	if t.Expires.IsZero() {
+	if t.ExpiresAt.IsZero() {
 		return false
 	}
-	return time.Now().After(t.Expires)
+	return time.Now().After(t.ExpiresAt)
 }
 
 // ExpiresString returns a human friendly string of when a token expires
 func (t Token) ExpiresString() string {
-	if t.Expires.IsZero() {
+	if t.ExpiresAt.IsZero() {
 		return `NEVER`
 	}
-	return t.Expires.Format(time.RFC3339)
+	return t.ExpiresAt.Format(time.RFC3339)
 }
 
 // CapabilitiesString returns a human friendly space delimited list of capabilities
@@ -1048,6 +1038,17 @@ func EncodeCapabilities(caps []Capability) (b []byte, err error) {
 		if b, err = AddCapability(b, c); err != nil {
 			b = nil
 			return
+		}
+	}
+	return
+}
+
+// DecodeCapabilities turns an encoded capability slice into a list of
+// friendly names.
+func DecodeCapabilities(caps []byte) (names []string) {
+	for _, c := range fullCapList {
+		if CheckCapability(caps, c) {
+			names = append(names, c.Name())
 		}
 	}
 	return

@@ -184,6 +184,7 @@ const (
 	BACKUP_URL                       = `/api/backup`
 	DEPLOYMENT_URL                   = `/api/deployment`
 	TOKENS_URL                       = `/api/tokens`
+	TOKENS_LIST_URL                  = `/api/tokens/list`
 	TOKENS_ID_URL                    = `/api/tokens/%s`
 	TOKENS_CAPABILITIES_URL          = `/api/tokens/capabilities`
 	SECRETS_URL                      = `/api/secrets`
@@ -619,8 +620,8 @@ func tokensUrl() string {
 	return TOKENS_URL
 }
 
-func tokenIdUrl(id uuid.UUID) string {
-	return fmt.Sprintf(TOKENS_ID_URL, id.String())
+func tokenIdUrl(id string) string {
+	return fmt.Sprintf(TOKENS_ID_URL, id)
 }
 
 func tokenCapabilitiesUrl() string {
