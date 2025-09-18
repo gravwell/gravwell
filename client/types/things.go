@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	otypes "github.com/gravwell/gravwell/v3/client/types"
 	"github.com/gravwell/gravwell/v4/utils"
 )
 
@@ -26,6 +27,13 @@ const (
 type Access struct {
 	Global bool
 	GIDs   []int32
+}
+
+func (a Access) GetOld() otypes.Access {
+	return otypes.Access{
+		Global: a.Global,
+		GIDs:   a.GIDs,
+	}
 }
 
 func (a Access) Equal(b Access) bool {
