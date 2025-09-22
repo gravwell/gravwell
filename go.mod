@@ -1,6 +1,6 @@
 module github.com/gravwell/gravwell/v4
 
-go 1.24.5
+go 1.24.7
 
 require (
 	cloud.google.com/go/pubsub v1.38.0
