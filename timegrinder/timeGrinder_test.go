@@ -976,6 +976,7 @@ var testSetList = []testSet{
 	testSet{name: `UnixNano`, data: `1641818658123456000 unix`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 123456000, time.UTC)},
 	testSet{name: `UnixMilli`, data: `1641818658.0 unix`, ts: time.Date(2022, time.January, 10, 12, 44, 18, 0, time.UTC)},
 	testSet{name: `DirectAdmin`, data: `2022:12:16-15:14:23: 'xxx.xx.xx.xx' failed login attempt. Account 'admin'`, ts: time.Date(2022, time.December, 16, 15, 14, 23, 0, time.UTC)},
+	testSet{name: `GravwellTimePicker`, data: `07/01/2025 11:25:36 AM`, ts: time.Date(2025, time.July, 1, 11, 25, 36, 0, time.UTC)},
 }
 
 func TestExtractions(t *testing.T) {
