@@ -18,7 +18,7 @@ var (
 )
 
 const (
-	defaultRequestPerMinute        = 6
+	defaultRequestPerMinute        = 60
 	defaultConfigLoc               = `/opt/gravwell/etc/gravwell_fetcher.conf`
 	defaultConfigDLoc              = `/opt/gravwell/etc/gravwell_fetcher.conf.d`
 	defaultStateLoc                = `/opt/gravwell/etc/gravwell_fetcher.state`
@@ -100,7 +100,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		return nil, err
 	}
 
-	//initialize the state store location if its empty
+	// initialize the state store location if it's empty
 	if c.Global.State_Store_Location == `` {
 		c.Global.State_Store_Location = defaultStateLoc
 	}
@@ -108,7 +108,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 		c.Global.Log_File = defaultConfigLoc
 	}
 	if c.Global.RequestPerMinute == `` {
-		c.Global.RequestPerMinute = defaultRequestsPerMin
+		c.Global.RequestPerMinute = fmt.Sprint(defaultRequestPerMinute)
 	}
 	return &c, nil
 }

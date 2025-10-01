@@ -338,7 +338,16 @@ type mimecastHandlerConfig struct {
 	ot           *objectTracker
 }
 
-func buildMimecastHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *log.Logger, igst *ingest.IngestMuxer, ib base.IngesterBase, ctx context.Context, wg *sync.WaitGroup) *mimecastHandlerConfig {
+func buildMimecastHandlerConfig(
+	cfg *cfgType,
+	src net.IP,
+	ot *objectTracker,
+	lg *log.Logger,
+	igst *ingest.IngestMuxer,
+	ib base.IngesterBase,
+	ctx context.Context,
+	wg *sync.WaitGroup,
+) *mimecastHandlerConfig {
 
 	mimecastConns = make(map[string]*mimecastHandlerConfig)
 
@@ -348,34 +357,29 @@ func buildMimecastHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg 
 			lg.Fatal("failed to resolve tag", log.KV("listener", k), log.KV("tag", v.Tag_Name), log.KVErr(err))
 		}
 
-		// check if there is a statetracker object for each config
-		_, ok := ot.Get("mimecast", k)
-		if !ok {
-
+		// ensure a state object exists for this listener
+		if _, ok := ot.Get("mimecast", k); !ok {
 			state := trackedObjectState{
 				Updated:    time.Now(),
 				LatestTime: time.Now(),
-				Key:        json.RawMessage(`{"delivery": "none", "receipt": "none", "process": "none", "av": "none", "spam": "none", "internal email protect": "none", "impersonation protect": "none", "url protect": "none", "attachment protect": "none", "journal": "none"}`),
+				Key: 		json.RawMessage(`{"delivery": "none", "receipt": "none", "process": "none", "av": "none", "spam": "none", "internal email protect": "none", "impersonation protect": "none", "url protect": "none", "attachment protect": "none", "journal": "none"}`),
 			}
-
 			if !v.StartTime.IsZero() {
 				state.LatestTime = v.StartTime
 			}
-
-			err := ot.Set("mimecast", k, state, false)
-			if err != nil {
+			if err := ot.Set("mimecast", k, state, false); err != nil {
 				lg.Fatal("failed to set state tracker", log.KV("listener", k), log.KV("tag", v.Tag_Name), log.KVErr(err))
-
 			}
-			err = ot.Flush()
-			if err != nil {
+			if err := ot.Flush(); err != nil {
 				lg.Fatal("failed to flush state tracker", log.KV("listener", k), log.KV("tag", v.Tag_Name), log.KVErr(err))
 			}
 		}
+
 		//TODO: Fix src
 		if src == nil {
 			src = net.ParseIP("127.0.0.1")
 		}
+
 		hcfg := &mimecastHandlerConfig{
 			clientId:     v.ClientID,
 			clientSecret: v.ClientSecret,
@@ -387,17 +391,25 @@ func buildMimecastHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg 
 			wg:           wg,
 			ctx:          ctx,
 			ot:           ot,
-			rate:         defaultRequestPerMinute,
 		}
 
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
 			lg.FatalCode(0, "preprocessor construction error", log.KVErr(err))
 		}
+
+		// apply config RateLimit if set, else default
+		if v.RateLimit > 0 {
+			hcfg.rate = v.RateLimit
+		} else {
+			hcfg.rate = defaultRequestPerMinute
+		}
+
+		// store config for this listener
 		mimecastConns[k] = hcfg
 	}
 
+	// launch all listeners
 	for _, v := range mimecastConns {
-
 		wg.Add(1) // Increment the counter before starting each goroutine
 		go v.run()
 	}

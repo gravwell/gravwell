@@ -19,7 +19,7 @@ import (
 */
 const (
 	mimecastAuthBaseDomain = "https://api.services.mimecast.com"
-	mimecastEmptySleepDur  = 120 * time.Second // length of time we sleep when no results are returned at all
+	mimecastEmptySleepDur  = 600 * time.Second // length of time we sleep when no results are returned at all
 	mimecastDateTimeFormat = "2006-01-02T15:04:05-0700"
 	//mimecastMTADateTimeFormat = "2006-01-02T15:04:05.000Z"
 	mimecastMTADateTimeFormat = "2006-01-02"
@@ -29,7 +29,7 @@ const (
 	mimecastMonitoringAttAPI  = "/api/ttp/attachment/get-logs"
 	mimecastMonitoringImpAPI  = "/api/ttp/impersonation/get-logs"
 	mimecastMonitoringDLPAPI  = "/api/dlp/get-logs"
-	mimecastMTAPageSize       = "25"
+	mimecastMTAPageSize       = "50"
 )
 
 /*
