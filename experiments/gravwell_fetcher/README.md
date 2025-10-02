@@ -33,7 +33,7 @@ Gravwell Fetcher is a Go-based ingester that collects data from multiple externa
     - Internal
     - Journal
     - Process
-    - Reciept
+    - Receipt
     - Spam
     - URL
 
@@ -176,7 +176,7 @@ Multiple Duo API endpoints can be configured:
        Tag-Name="mimecast-delivery"
        StartTime="2025-07-29T00:00:01.000Z"
 
-[MimecastConf "mimecast-mta-reciept"]
+[MimecastConf "mimecast-mta-receipt"]
        ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
        ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
        MimecastAPI="mta-receipt"
