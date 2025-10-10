@@ -44,7 +44,6 @@ type gbl struct {
 	Health_Check_URL        string
 	Max_Connections         int
 	Max_Concurrent_Requests int
-	Enable_Hot_Reload       bool
 }
 
 type cfgReadType struct {

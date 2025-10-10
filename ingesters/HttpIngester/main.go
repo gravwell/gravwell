@@ -153,12 +153,7 @@ func main() {
 		debugout("Binding to %v HTTP mode\n", cfg.Bind)
 	}
 
-	var confReloadSignal chan os.Signal
-
-	if cfg.Enable_Hot_Reload {
-		confReloadSignal = utils.GetSighupChannel()
-	}
-
+	confReloadSignal := utils.GetSighupChannel()
 	qc := utils.GetQuitChannel()
 	defer close(qc)
 watchExitLoop:
