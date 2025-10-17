@@ -168,6 +168,11 @@ func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
 	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(id), req, nil)
 }
 
+// UpdateUser (admin-only) will update the specified user's details.
+func (c *Client) UpdateUser(uid int32, udet types.UserDetails) error {
+	return c.putStaticURL(usersInfoUrl(uid), udet)
+}
+
 // AddGroup (admin-only) creates a new group with the given name and description.
 func (c *Client) AddGroup(name, desc string) error {
 	gpInfo := types.AddGroup{
