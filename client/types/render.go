@@ -100,6 +100,8 @@ const (
 
 	MetadataTypeRaw    string = `raw`
 	MetadataTypeNumber string = `number`
+
+	OPTIONS_BINS string = `bins`
 )
 
 const (
@@ -107,7 +109,9 @@ const (
 	ResultsKindGraph = "graph"
 )
 
-type ResultsOptions struct{}
+type ResultsOptions struct {
+	Bins int
+}
 
 type ResultsResponse struct {
 	Kind  string
