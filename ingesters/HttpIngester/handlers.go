@@ -60,7 +60,6 @@ type handler struct {
 	mp                    map[route]routeHandler
 	auth                  map[route]authHandler
 	custom                map[route]http.Handler
-	rawLineBreaker        string
 	healthCheckURL        string
 	maxConcurrentRequests int64
 	activeRequests        int64

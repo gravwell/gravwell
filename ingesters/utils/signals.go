@@ -16,21 +16,29 @@ import (
 )
 
 // WaitForQuit waits until it receives one of the following signals:
-// SIGHUP, SIGINT, SIGQUIT, SIGTERM
+// SIGINT, SIGQUIT, SIGTERM
 // It returns the received signal.
 func WaitForQuit() (r os.Signal) {
 	quitSig := make(chan os.Signal, 1)
 	defer close(quitSig)
-	signal.Notify(quitSig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
+	signal.Notify(quitSig, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
 	r = <-quitSig
 	signal.Stop(quitSig)
 	return
 }
 
 // GetQuitChannel registers and returns a channel that will be notified upon receipt of the following signals:
-// SIGHUP, SIGINT, SIGQUIT, SIGTERM
+// SIGINT, SIGQUIT, SIGTERM
 func GetQuitChannel() chan os.Signal {
 	quitSig := make(chan os.Signal, 1)
-	signal.Notify(quitSig, syscall.SIGHUP, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
+	signal.Notify(quitSig, syscall.SIGINT, syscall.SIGQUIT, syscall.SIGTERM)
+	return quitSig
+}
+
+// GetSighupChannel registers and returns a channel that will be notified of SIGHUP signals.  This is used
+// for signaling that we need to reload configurations.
+func GetSighupChannel() chan os.Signal {
+	quitSig := make(chan os.Signal, 1)
+	signal.Notify(quitSig, syscall.SIGHUP)
 	return quitSig
 }

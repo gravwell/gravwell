@@ -155,29 +155,25 @@ func includeAFHListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 		hcfg := routeHandler{
 			handler: handleAFH,
 		}
-		if hcfg.tag, err = igst.GetTag(v.Tag_Name); err != nil {
-			lg.Error("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
-			return
+		if hcfg.tag, err = igst.NegotiateTag(v.Tag_Name); err != nil {
+			return fmt.Errorf("failed to pull tag %s %w", v.Tag_Name, err)
 		}
 		if v.Ignore_Timestamps {
 			hcfg.ignoreTs = true
 		} else {
 			if hcfg.tg, err = timegrinder.New(timegrinder.Config{}); err != nil {
-				lg.Error("Failed to create timegrinder", log.KVErr(err))
-				return
+				return fmt.Errorf("Failed to create timegrinder %w", err)
 			}
 		}
 
 		if hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
-			lg.Error("preprocessor construction error", log.KVErr(err))
-			return
+			return fmt.Errorf("preprocessor construction error %w", err)
 		}
 		if hcfg.auth, err = newPresharedHeaderTokenHandler(afhAuthTokenHeader, v.TokenValue, lgr); err != nil {
-			lg.Error("failed to generate Amazon Firehose auth", log.KVErr(err))
-			return
+			return fmt.Errorf("failed to generate Amazon Firehose auth %w", err)
 		}
 		if hnd.addHandler(http.MethodPost, v.URL, hcfg); err != nil {
-			return
+			return fmt.Errorf("failed to add handler for %q %w", v.URL, err)
 		}
 		debugout("AFH Handler URL %s handling %s\n", v.URL, v.Tag_Name)
 	}
