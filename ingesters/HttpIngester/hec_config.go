@@ -19,7 +19,6 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 )
 
@@ -219,7 +218,7 @@ func extractElementTag(v string) (match, tag string, err error) {
 	return
 }
 
-func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
+func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (err error) {
 	for k, v := range cfg.HECListener {
 		hh := &hecHandler{
 			ackIds: map[string]uint64{},
@@ -235,10 +234,10 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			tokenRouter:    v.loadTokenTagRouter(igst),
 		}
 		if hh.timeWindow, err = cfg.GlobalTimestampWindow(); err != nil {
-			lg.Error("TimestampWindow is invalid", log.KVErr(err))
+			return fmt.Errorf("TimestampWindow is invalid %w", err)
 		}
 		if hh.auth, err = newHecAuth(v, igst); err != nil {
-			lg.Error("HEC authentication error", log.KVErr(err))
+			return fmt.Errorf("HEC authentication error %w", err)
 		}
 		hcfg := routeHandler{
 			handler:       hh.handle,
@@ -247,8 +246,7 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 		}
 
 		if hcfg.tag, err = igst.NegotiateTag(v.Tag_Name); err != nil {
-			lg.Error("failed to pull tag", log.KV("tag", v.Tag_Name), log.KVErr(err))
-			return
+			return fmt.Errorf("failed to pull tag %s %w", v.Tag_Name, err)
 		}
 		if v.Ignore_Timestamps {
 			hcfg.ignoreTs = true
@@ -256,26 +254,22 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 			var window timegrinder.TimestampWindow
 			window, err = cfg.GlobalTimestampWindow()
 			if err != nil {
-				lg.Error("Failed to get global timestamp window", log.KVErr(err))
-				return
+				return fmt.Errorf("Failed to get global timestamp window %w", err)
 			}
 			if hcfg.tg, err = timegrinder.New(timegrinder.Config{TSWindow: window}); err != nil {
-				lg.Error("Failed to create timegrinder", log.KVErr(err))
-				return
+				return fmt.Errorf("Failed to create timegrinder %w", err)
 			} else if err = cfg.TimeFormat.LoadFormats(hcfg.tg); err != nil {
-				lg.Error("failed to load custom time formats", log.KVErr(err))
-				return
+				return fmt.Errorf("failed to load custom time formats %w", err)
 			}
 			if v.Timestamp_Format_Override != `` {
 				if err = hcfg.tg.SetFormatOverride(v.Timestamp_Format_Override); err != nil {
-					lg.Fatal("Failed to set override timestamp", log.KVErr(err))
+					return fmt.Errorf("Failed to set override timestamp %w", err)
 				}
 			}
 		}
 
 		if hcfg.pproc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
-			lg.Error("preprocessor construction error", log.KVErr(err))
-			return
+			return fmt.Errorf("preprocessor construction error %w", err)
 		}
 		bp := v.URL
 		// detect if you're specifying `URL=/services/collector/event` in the old way and handle it sneakily
@@ -284,28 +278,23 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, l
 		}
 		//had the main handler for events
 		if err = hnd.addHandler(http.MethodPost, bp, hcfg); err != nil {
-			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
-			return
+			return fmt.Errorf("failed to add HEC-Compatible-Listener handler %w", err)
 		}
 		// the `/event` path just acts like the root
 		if err = hnd.addHandler(http.MethodPost, path.Join(bp, `event`), hcfg); err != nil {
-			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
-			return
+			return fmt.Errorf("failed to add HEC-Compatible-Listener handler %w", err)
 		}
 		// add the other handlers for health, ack, and raw mode
 		if err = hnd.addCustomHandler(http.MethodPost, path.Join(bp, `ack`), hh); err != nil {
-			lg.Error("failed to add HEC-Compatible-Listener ACK handler", log.KVErr(err))
-			return
+			return fmt.Errorf("failed to add HEC-Compatible-Listener ACK handler %w", err)
 		}
 		if err = hnd.addCustomHandler(http.MethodGet, path.Join(bp, `health`), &hh.hecHealth); err != nil {
-			lg.Error("failed to add HEC-Compatible-Listener ACK health handler", log.KVErr(err))
-			return
+			return fmt.Errorf("failed to add HEC-Compatible-Listener ACK health handler %w", err)
 		}
 		// add in the raw handler
 		hcfg.handler = hh.handleRaw
 		if err = hnd.addHandler(http.MethodPost, path.Join(bp, `raw`), hcfg); err != nil {
-			lg.Error("failed to add HEC-Compatible-Listener handler", log.KVErr(err))
-			return
+			return fmt.Errorf("failed to add HEC-Compatible-Listener handler %w", err)
 		}
 
 		debugout("HEC Handler URL %s handling %s\n", v.URL, v.Tag_Name)
