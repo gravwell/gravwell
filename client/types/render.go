@@ -107,7 +107,9 @@ const (
 	ResultsKindGraph = "graph"
 )
 
-type ResultsOptions struct{}
+type ResultsOptions struct {
+	Fence Geofence
+}
 
 type ResultsResponse struct {
 	Kind  string
