@@ -42,7 +42,7 @@ type readerType int
 
 type cfgReadType struct {
 	Global       global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Follower     map[string]*follower
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -79,7 +79,7 @@ type global struct {
 
 type cfgType struct {
 	global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Follower     map[string]*follower
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat

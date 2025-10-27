@@ -48,7 +48,7 @@ type contentType struct {
 
 type cfgType struct {
 	Global       global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	ContentType  map[string]*contentType
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat

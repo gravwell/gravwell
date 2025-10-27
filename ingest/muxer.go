@@ -183,8 +183,8 @@ type UniformMuxerConfig struct {
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
-	Attach            attach.AttachConfig
-	MinVersion        uint16 // minimum API version of indexers
+	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	MinVersion        uint16              // minimum API version of indexers
 }
 
 type MuxerConfig struct {
@@ -206,8 +206,8 @@ type MuxerConfig struct {
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
-	Attach            attach.AttachConfig
-	MinVersion        uint16 // minimum API version of indexers
+	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	MinVersion        uint16              // minimum API version of indexers
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {

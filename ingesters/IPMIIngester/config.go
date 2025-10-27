@@ -33,7 +33,7 @@ type ipmi struct {
 
 type cfgType struct {
 	Global       config.IngestConfig
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	IPMI         map[string]*ipmi
 	Preprocessor processors.ProcessorConfig
 }

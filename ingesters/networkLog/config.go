@@ -34,7 +34,7 @@ const (
 
 type cfgReadType struct {
 	Global  config.IngestConfig
-	Attach  attach.AttachConfig
+	Attach  attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Sniffer map[string]*snif
 }
 
@@ -49,7 +49,7 @@ type snif struct {
 
 type cfgType struct {
 	config.IngestConfig
-	Attach  attach.AttachConfig
+	Attach  attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Sniffer map[string]*snif
 }
 

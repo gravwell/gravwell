@@ -38,7 +38,7 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/gosnmp/gosnmp v1.35.0
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66
-	github.com/gravwell/gcfg v1.2.9-0.20221122204101-04b4a74a3018
+	github.com/gravwell/gcfg v1.2.10-0.20251024173739-a5ba5db9985f
 	github.com/gravwell/gravwell/v3 v3.8.70
 	github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37
 	github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e

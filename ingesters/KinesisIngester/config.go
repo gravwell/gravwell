@@ -51,7 +51,7 @@ type streamDef struct {
 
 type cfgType struct {
 	Global        global
-	Attach        attach.AttachConfig
+	Attach        attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	KinesisStream map[string]*streamDef
 	Preprocessor  processors.ProcessorConfig
 	TimeFormat    config.CustomTimeFormat

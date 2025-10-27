@@ -62,7 +62,7 @@ type baseConfig struct {
 
 type cfgReadType struct {
 	Global        config.IngestConfig
-	Attach        attach.AttachConfig
+	Attach        attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Listener      map[string]*listener
 	JSONListener  map[string]*jsonListener
 	RegexListener map[string]*regexListener
@@ -72,7 +72,7 @@ type cfgReadType struct {
 
 type cfgType struct {
 	config.IngestConfig
-	Attach        attach.AttachConfig
+	Attach        attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Listener      map[string]*listener
 	JSONListener  map[string]*jsonListener
 	RegexListener map[string]*regexListener
