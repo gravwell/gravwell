@@ -113,7 +113,7 @@ type consumerCfg struct {
 
 type cfgReadType struct {
 	Global       config.IngestConfig
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Consumer     map[string]*ConfigConsumer
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat
@@ -121,7 +121,7 @@ type cfgReadType struct {
 
 type cfgType struct {
 	config.IngestConfig
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Consumers    map[string]*consumerCfg
 	Preprocessor processors.ProcessorConfig
 	TimeFormat   config.CustomTimeFormat

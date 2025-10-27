@@ -253,10 +253,10 @@ func (ic *IngestConfig) Verify() error {
 				//try to make the directory
 				err = os.MkdirAll(logdir, 0700)
 				if err != nil {
-					return err
+					return fmt.Errorf("Failed to create Log Directory %w", err)
 				}
 			} else {
-				return err
+				return fmt.Errorf("Failed to find Log Location %w", err)
 			}
 		} else if !fi.IsDir() {
 			return errors.New("Log Location is not a directory")

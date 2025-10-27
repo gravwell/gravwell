@@ -21,7 +21,7 @@ import (
 )
 
 type testConfigStruct struct {
-	Attach AttachConfig
+	Attach AttachConfig `gcfg:",section=raw,ident=regex"`
 }
 
 func TestLoadConfig(t *testing.T) {
@@ -58,10 +58,8 @@ func TestLoadBadConfig(t *testing.T) {
 	}
 
 	cfg = testConfigStruct{}
-	if err := config.LoadConfigBytes(&cfg, []byte(badDupConfig)); err != nil {
-		t.Fatal(err)
-	} else if err = cfg.Attach.Verify(); err == nil {
-		t.Fatal(err)
+	if err := config.LoadConfigBytes(&cfg, []byte(badDupConfig)); err == nil {
+		t.Fatal("bad dupe did not error")
 	}
 
 }

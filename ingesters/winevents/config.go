@@ -75,7 +75,7 @@ type CfgType struct {
 		Bookmark_Location string
 		Ignore_Timestamps bool
 	}
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	EventChannel map[string]*EventStreamConfig
 	Preprocessor processors.ProcessorConfig
 }
@@ -162,7 +162,7 @@ func (c *CfgType) RawConfig() interface{} {
 		config.IngestConfig
 		Bookmark_Location string
 		Ignore_Timestamps bool
-		Attach            attach.AttachConfig
+		Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 		EventChannel      map[string]*EventStreamConfig
 		Preprocessor      processors.ProcessorConfig
 	}{
