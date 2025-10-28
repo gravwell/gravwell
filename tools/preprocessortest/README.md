@@ -1,6 +1,6 @@
 ## Ingest Preprocessor Tester
 
-The plugintest program provides a simple scaffolding for testing ingest preprocessor stacks, it is designed to accept a data export from Gravwell and run the raw data through a set of preprocesors without actually ingesting any data.
+The preprocessortest program provides a simple scaffolding for testing ingest preprocessor stacks, it is designed to accept a data export from Gravwell and run the raw data through a set of preprocesors without actually ingesting any data.
 
 ### Getting Started
 
@@ -37,7 +37,7 @@ The example config is executing a [syslogrouter](https://docs.gravwell.io/ingest
 
 ```
 #> ./test --help
-Usage of ./plugintest:
+Usage of ./preprocessortest:
   -config-path string
     	Path to the plugin configuration
   -data-path string
@@ -53,7 +53,7 @@ An example execution of the test plugin is:
 ```
 
 
-#> ./plugintest -data-path /tmp/51780259054.json -config-path /tmp/recase.conf
+#> ./preprocessortest -data-path /tmp/51780259054.json -config-path /tmp/recase.conf
 
 ```
 INPUT: 100
@@ -62,6 +62,6 @@ PROCESSING TIME: 251.725404ms
 PROCESSING RATE: 397.26 E/s
 ```
 
-Adding the `--verbose` flag will cause the `plugintest` program to print every entry; if entries are not printable characters you may see garbage on the screen.
+Adding the `--verbose` flag will cause the `preprocessortest` program to print every entry; if entries are not printable characters you may see garbage on the screen.
 
-The `plugintest` program also enables debug mode for plugins by default, so any `printf` or `println` calls will output to standard out.
+The `preprocessortest` program also enables debug mode for plugins by default, so any `printf` or `println` calls will output to standard out.
