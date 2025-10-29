@@ -14,8 +14,6 @@ package caps
 
 type Capabilities uint64
 
-const All Capabilities = 0xffffffffffffffff
-
 func GetCaps() (Capabilities, error) {
 	return All, nil
 }
