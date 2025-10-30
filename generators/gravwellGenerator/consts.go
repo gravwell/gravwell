@@ -252,7 +252,7 @@ func seedHosts(cnt int) {
 
 func seedApps(cnt int) {
 	for i := 0; i < cnt; i++ {
-		apps = append(apps, fake.App().Name())
+		apps = append(apps, strings.ReplaceAll(fake.App().Name(), " ", "_"))
 	}
 }
 
