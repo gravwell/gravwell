@@ -17,8 +17,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 const (
@@ -96,6 +96,7 @@ const (
 	RenderNamePointmap   string = `pointmap`
 	RenderNameHeatmap    string = `heatmap`
 	RenderNameP2P        string = `point2point`
+	RenderNameWordcloud  string = `wordcloud`
 
 	MetadataTypeRaw    string = `raw`
 	MetadataTypeNumber string = `number`
@@ -114,6 +115,7 @@ type EntryRange struct {
 }
 
 // BaseRequest contains elements common to all renderer requests.
+// DEPRECATED - use REST API
 type BaseRequest struct {
 	ID         uint32
 	Stats      *SearchStatsRequest `json:",omitempty"`
@@ -123,7 +125,7 @@ type BaseRequest struct {
 
 // BaseResponse contains elements common to all renderer request responses.
 type BaseResponse struct {
-	ID         uint32
+	ID         uint32                    // DEPRECATED - REST API no longer returns this value
 	Stats      *SearchStatsResponse      `json:",omitempty"`
 	Addendum   json.RawMessage           `json:",omitempty"`
 	SearchInfo *SearchInfo               `json:",omitempty"`
@@ -155,14 +157,20 @@ type BaseResponse struct {
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
 
-	// Indicates that there is some warning about the query results the user should be aware of.
-	// Will be empty if no warning is present.
-	Warning string
+	// SessionID is the search Session ID, used for tracking "handles" on a search using REST interface
+	SessionID uuid.UUID
+
+	// Interval is the number of seconds between hits on the search control REST API for a given second
+	// that can transpire before we consider the search session abandoned
+	Interval uint
+
+	// Messages are warnings, errors, etc. for this request.
+	Messages []Message
 }
 
-func (br BaseResponse) Err() error {
-	if br.Error != `` {
-		return errors.New(br.Error)
+func (b BaseResponse) Err() error {
+	if b.Error != `` {
+		return errors.New(b.Error)
 	}
 	return nil
 }
@@ -278,8 +286,13 @@ type SearchStatsResponse struct {
 	Size        int               `json:",omitempty"`
 }
 
+type StatSetResponse struct {
+	Stats    []StatSet
+	Messages []Message
+}
+
 type StatSet struct {
-	Stats     []SearchModuleStats
+	Stats     []SearchModuleStats `json:"ModuleStats"`
 	TS        entry.Timestamp
 	populated bool
 }
@@ -303,16 +316,16 @@ type OverviewStats struct {
 	// Indicates the range of entries that were dropped due to storage limits.
 	LimitDroppedRange TimeRange
 
-	// Indicates that there is some warning about the query results the user should be aware of.
-	// Will be empty if no warning is present.
-	Warning string
-
 	// For some renderers, the EntryCount accurately represents the total
 	// number of results available. This field is set to 'true' in that case,
 	// meaning the EntryCount number can be displayed alongside the results
 	// without confusion.
 	EntryCountValid bool
+	EntryCount      uint64
 	Stats           []OverviewStatSet `json:",omitempty"`
+
+	// Warnings, errors, etc.
+	Messages []Message
 }
 
 type SearchMetadataNumber struct {
@@ -342,6 +355,7 @@ type SearchMetadata struct {
 	ValueStats  []SearchMetadataEntry `json:",omitempty"`
 	SourceStats []SourceMetadataEntry `json:",omitempty"`
 	TagStats    map[string]uint       `json:",omitempty"`
+	Messages    []Message
 }
 
 func (ss *StatSet) AddParts(ts entry.Timestamp, stats []SearchModuleStats) {
@@ -466,6 +480,20 @@ func (ee emptyEntries) MarshalJSON() ([]byte, error) {
 	return json.Marshal(([]SearchEntry)(ee))
 }
 
+type emptyPrintableEntries []SearchEntry
+
+func (ee emptyPrintableEntries) MarshalJSON() ([]byte, error) {
+	if len(ee) == 0 {
+		return emptyList, nil
+	}
+
+	var pse []PrintableSearchEntry
+	for _, v := range ([]SearchEntry)(ee) {
+		pse = append(pse, PrintableSearchEntry(v))
+	}
+	return json.Marshal(pse)
+}
+
 type emptyIngesterStats []IngesterStats
 
 func (eis emptyIngesterStats) MarshalJSON() ([]byte, error) {
@@ -518,15 +546,94 @@ func (is IngestStats) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func (rr RawResponse) MarshalJSON() ([]byte, error) {
-	type alias RawResponse
+func (s StatSetResponse) MarshalJSON() ([]byte, error) {
+	type alias StatSetResponse
 	return json.Marshal(&struct {
 		alias
-		Entries emptyEntries
+		Messages emptyMessages
 	}{
-		alias:   alias(rr),
-		Entries: emptyEntries(rr.Entries),
+		alias:    alias(s),
+		Messages: emptyMessages(s.Messages),
 	})
+}
+
+func (s SearchMetadata) MarshalJSON() ([]byte, error) {
+	type alias SearchMetadata
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(s),
+		Messages: emptyMessages(s.Messages),
+	})
+}
+
+func (o OverviewStats) MarshalJSON() ([]byte, error) {
+	type alias OverviewStats
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(o),
+		Messages: emptyMessages(o.Messages),
+	})
+}
+
+func (b BaseResponse) MarshalJSON() ([]byte, error) {
+	type alias BaseResponse
+	return json.Marshal(&struct {
+		alias
+		Messages emptyMessages
+	}{
+		alias:    alias(b),
+		Messages: emptyMessages(b.Messages),
+	})
+}
+
+type emptyMessages []Message
+
+func (em emptyMessages) MarshalJSON() ([]byte, error) {
+	if len(em) == 0 {
+		return emptyList, nil
+	}
+	return json.Marshal(([]Message)(em))
+}
+
+func (r RawResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(r.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	var e []byte
+
+	if r.printableData {
+		e, err = json.Marshal(&struct {
+			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
+			Entries               emptyPrintableEntries
+			Explore               []ExploreResult `json:",omitempty"`
+		}{
+			ContainsBinaryEntries: r.ContainsBinaryEntries,
+			Entries:               emptyPrintableEntries(r.Entries),
+			Explore:               r.Explore,
+		})
+	} else {
+		e, err = json.Marshal(&struct {
+			ContainsBinaryEntries bool //just a flag to tell the GUI that we might have data that needs some help
+			Entries               emptyEntries
+			Explore               []ExploreResult `json:",omitempty"`
+		}{
+			ContainsBinaryEntries: r.ContainsBinaryEntries,
+			Entries:               emptyEntries(r.Entries),
+			Explore:               r.Explore,
+		})
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }
 
 func (tr *TimeRange) UnmarshalJSON(d []byte) error {

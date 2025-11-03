@@ -14,7 +14,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 const (
