@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -15,7 +15,7 @@ import (
 )
 
 /*
-//Put any constants here that are needed only for duo
+// Put any constants here that are needed only for Duo
 */
 const (
 	duoAccountLog        = "/admin/v1/info/summary"
@@ -23,10 +23,11 @@ const (
 	duoActivityLog       = "/admin/v2/logs/activity"
 	duoTelephonyLog      = "/admin/v2/logs/telephony"
 	duoAuthenticationLog = "/admin/v2/logs/authentication"
-	duoEndpointLog       = "/admin/v1/endpoints"
+	duoEndpointLog       = "/admin/v1/registered_devices"
 	duoTrustMonitorLog   = "/admin/v1/trust_monitor/events"
 
-	duoEmptySleepDur = 15 * time.Second // length of time we sleep when no results are returned at all
+	// Length of time we sleep when no results are returned at all
+	duoEmptySleepDur = 30 * time.Second
 )
 
 /*
@@ -48,8 +49,8 @@ type duoConf struct {
 Build the verify bits for the above conf.
 */
 func (c cfgType) DuoVerify() error {
-
 	for k, v := range c.DuoConf {
+		// validate preprocessor section first so tag errors point to the right listener
 		if err := c.Preprocessor.Validate(); err != nil {
 			return err
 		}
@@ -57,27 +58,29 @@ func (c cfgType) DuoVerify() error {
 			return errors.New("Tag-Name not specified")
 		}
 		if err := c.Preprocessor.CheckProcessors(v.Preprocessor); err != nil {
-			return fmt.Errorf("Listener %s preprocessor invalid: %v", k, err)
+			return fmt.Errorf("listener %s preprocessor invalid: %v", k, err)
 		}
-		if v.StartTime.IsZero() {
-			v.StartTime = time.Now()
-		}
+
+		// Duo creds + endpoint basics
 		if v.Domain == "" {
 			return errors.New("Duo Domain not specified")
 		}
 		if v.Key == "" {
 			return errors.New("Duo Key not specified")
 		}
-
 		if v.Secret == "" {
 			return errors.New("Duo Secret not specified")
 		}
-
 		if v.DuoAPI == "" {
 			return errors.New("Duo API not specified")
 		}
 		if !IsValidDuoAPI(v.DuoAPI) {
-			return errors.New("Duo API is not valid")
+			return fmt.Errorf("Duo API is not valid: %q", v.DuoAPI)
+		}
+
+		// Optional: sanity for ratelimit (allow 0 = use default)
+		if v.RateLimit < 0 {
+			return fmt.Errorf("RateLimit must be >= 0 for listener %s", k)
 		}
 	}
 	return nil

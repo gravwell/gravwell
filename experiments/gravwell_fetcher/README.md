@@ -8,24 +8,49 @@ Gravwell Fetcher is a Go-based ingester that collects data from multiple externa
 
 ## Supported Services
 
-- **Duo Security**
-  - Admin API
-  - Authentication API
-  - Activity API
-  - Account API
+- **Asana** In-Progress
+	- Workspace data Logs
+	- Project information Logs
 
-- **Thinkst Canary**
-  - Audit logs
-  - Incident data
+- **CrowdStrike** In-Progress
+	- Event Stream Logs
+	- Alerts/Detections Logs
+	- Incidents Logs
+	- (RTR) Audit Logs
+	- Hosts/Devices Logs
+
+- **Duo Security**
+	- Account Logs
+	- Activity Logs
+	- Admin Logs
+	- Authentication Logs
+
+- **Mimecast**
+	- Audit Logs
+	- MTA Delivery Logs
+	- MTA Receipt Logs
+	- MTA Process Logs
+	- MTA AV Logs
+	- MTA Spam Logs
+	- MTA Internal Logs
+	- MTA Impersonation Logs
+	- MTA URL Logs
+	- MTA Attachment Logs
+	- MTA Journal Logs
 
 - **Okta**
-  - User data
-  - System logs
-  - Batch processing support
+	- Groups Logs
+	- System Logs
+	- Users Logs
 
-- **Asana** In-Progress
-  - Workspace data
-  - Project information
+- **Shodan**
+	- Host Logs
+	- Search Logs
+	- Count Logs
+
+- **Thinkst Canary**
+	- Audit Logs
+	- Incident Logs
 
 ## Prerequisites
 
@@ -37,13 +62,13 @@ Gravwell Fetcher is a Go-based ingester that collects data from multiple externa
 
 1. Clone the repository
 2. Install dependencies:
-   ```bash
-   go mod download
-   ```
+	```bash
+	go mod download
+	```
 3. Build the project:
-   ```bash
-   go build
-   ```
+	```bash
+	go build
+	```
 
 ## Configuration
 
@@ -76,105 +101,337 @@ Log-Level=INFO
 Log-File=/opt/gravwell/log/gravwell_fetcher.log
 ```
 
+### Asana Configuration - In Progress
+
+```ini
+[AsanaConf "default"]
+	RateLimit = 6                         # API rate limit
+	StartTime = "2025-01-01T00:00:01.000Z"  # Initial fetch time
+	Token = ""                            # Asana API token
+	Workspace = ""                        # Asana workspace ID
+	Tag-Name = "asana"                    # Tag for Gravwell
+```
+
+### CrowdStrike Configuration - In Progress
+
+Multiple CrowdStrike API endpoints can be configured:
+
+```
+# CrowdStrike
+# Make sure to set your tenant region properly within Domain:
+	# US-1: https://api.crowdstrike.com
+	# US-2: https://api.us-2.crowdstrike.com
+	# EU-1: https://api.eu-1.crowdstrike.com
+	# GCW : https://api.laggar.gcw.crowdstrike.com
+
+# CrowdStrike: Event Stream (datafeed v2) — requires a stable AppID
+[CrowdStrikeConf "crowdstrike-stream"]
+	StartTime="2025-10-01T00:00:01.000Z"
+	Domain="https://api.crowdstrike.com"
+	Key="REPLACE_WITH_YOUR_CROWDSTRIKE_KEY"
+	Secret="REPLACE_WITH_YOUR_CROWDSTRIKE_SECRET"
+	AppID="gravwellfetcher01"	 # alphanumeric ≤20; unique per tenant recommended
+	APIType="stream"
+	Tag-Name="crowdstrike-stream"
+	RateLimit=60
+
+# CrowdStrike: Alerts
+[CrowdStrikeConf "crowdstrike-alerts"]
+	StartTime="2025-10-01T00:00:01.000Z"
+	Domain="https://api.crowdstrike.com"
+	Key="REPLACE_WITH_YOUR_CROWDSTRIKE_KEY"
+	Secret="REPLACE_WITH_YOUR_CROWDSTRIKE_SECRET"
+	APIType="detections"		  # will route to Alerts v2 if detections fails
+	Tag-Name="crowdstrike-alerts"
+	RateLimit=60
+
+# CrowdStrike: Incidents (SDK, paginated)
+[CrowdStrikeConf "crowdstrike-incidents"]
+	StartTime="2025-10-01T00:00:01.000Z"
+	Domain="https://api.crowdstrike.com"
+	Key="REPLACE_WITH_YOUR_CROWDSTRIKE_KEY"
+	Secret="REPLACE_WITH_YOUR_CROWDSTRIKE_SECRET"
+	APIType="incidents"
+	Tag-Name="crowdstrike-incidents"
+	RateLimit=60
+
+# CrowdStrike: (RTR) Audit
+[CrowdStrikeConf "crowdstrike-rtr-audit"]
+	StartTime="2025-10-01T00:00:01.000Z"
+	Domain="https://api.crowdstrike.com"
+	Key="REPLACE_WITH_YOUR_CROWDSTRIKE_KEY"
+	Secret="REPLACE_WITH_YOUR_CROWDSTRIKE_SECRET"
+	APIType="audit"		# will route to RTR Audit if audit fails
+	Tag-Name="crowdstrike-audit"
+	RateLimit=60
+
+# CrowdStrike: Hosts / Devices
+[CrowdStrikeConf "crowdstrike-hosts"]
+	StartTime="2025-10-01T00:00:01.000Z"
+	Domain="https://api.crowdstrike.com"
+	Key="REPLACE_WITH_YOUR_CROWDSTRIKE_KEY"
+	Secret="REPLACE_WITH_YOUR_CROWDSTRIKE_SECRET"
+	APIType="hosts"
+	Tag-Name="crowdstrike-hosts"
+	RateLimit=60
+```
+
 ### Duo Security Configuration
 
 Multiple Duo API endpoints can be configured:
 
 ```ini
-[DuoConf "duo-admin"]
-    StartTime="2025-01-01T00:00:01.000Z"  # Initial fetch time
-    Domain=""                             # Duo domain
-    Key=""                                # Duo API key
-    Secret=""                             # Duo API secret
-    DuoAPI="admin"                        # API type: admin, authentication, activity
-    Tag-Name="duo-admin"                  # Tag for Gravwell
-
-[DuoConf "duo-auth"]
-    StartTime="2025-01-01T00:00:01.000Z"
-    Domain=""
-    Key=""
-    Secret=""
-    DuoAPI="authentication"
-    Tag-Name="duo-auth"
-
-[DuoConf "duo-activity"]
-    StartTime="2025-01-01T00:00:01.000Z"
-    Domain=""
-    Key=""
-    Secret=""
-    DuoAPI="activity"
-    Tag-Name="duo-activity"
-
+# Duo: Account
 [DuoConf "duo-account"]
-    StartTime="2025-01-01T00:00:01.000Z"
-    Domain=""
-    Key=""
-    Secret=""
-    DuoAPI="activity"
-    Tag-Name="duo-account"
+	StartTime="2025-01-01T00:00:01.000Z"
+	Domain="api-XXXXXXXX.duosecurity.com"
+	Key="REPLACE_WITH_YOUR_DUO_KEY"
+	Secret="REPLACE_WITH_YOUR_DUO_SECRET"
+	DuoAPI="account"
+	Tag-Name="duo-account"
+
+# Duo: Activity
+[DuoConf "duo-activity"]
+	StartTime="2025-01-01T00:00:01.000Z"
+	Domain="api-XXXXXXXX.duosecurity.com"
+	Key="REPLACE_WITH_YOUR_DUO_KEY"
+	Secret="REPLACE_WITH_YOUR_DUO_SECRET"
+	DuoAPI="activity"
+	Tag-Name="duo-activity"
+
+# Duo: Admin
+[DuoConf "duo-admin"]
+	StartTime="2025-01-01T00:00:01.000Z"
+	Domain="api-XXXXXXXX.duosecurity.com"
+	Key="REPLACE_WITH_YOUR_DUO_KEY"
+	Secret="REPLACE_WITH_YOUR_DUO_SECRET"
+	DuoAPI="admin"
+	Tag-Name="duo-admin"
+
+# Duo: Authentication
+[DuoConf "duo-auth"]
+	StartTime="2025-01-01T00:00:01.000Z"
+	Domain="api-XXXXXXXX.duosecurity.com"
+	Key="REPLACE_WITH_YOUR_DUO_KEY"
+	Secret="REPLACE_WITH_YOUR_DUO_SECRET"
+	DuoAPI="authentication"
+	Tag-Name="duo-auth"
 ```
 
-### Thinkst Canary Configuration
+### Mimecast
 
-```ini
-[ThinkstConf "thinkst-audit"]
-    ThinkstAPI="audit"                    # API type: audit, incident
-    Token=""                              # Thinkst API token
-    Domain="XXXXXXXX.canary.tools"        # Your Thinkst domain
-    StartTime="2025-01-01T00:00:01.000Z"  # Initial fetch time
-    Tag-Name="thinkst"                    # Tag for Gravwell
+Multiple Mimecast API endpoints can be configured:
 
-[ThinkstConf "thinkst-incident"]
-    ThinkstAPI="incident"
-    Token=""
-    Domain="XXXXXXXX.canary.tools"
-    StartTime="2025-01-01T00:00:01.000Z"
-    Tag-Name="thinkst"
+```
+# Mimecast: Audit
+[MimecastConf "mimecast-audit"]
+	ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	ClientSecret="w0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	MimecastAPI="audit"
+	StartTime="2025-06-20T00:00:01.000Z"
+	Tag-Name="mimecast-audit"
+
+# Mimecast: MTA Delivery
+[MimecastConf "mimecast-mta-delivery"]
+	ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	MimecastAPI="mta-delivery"
+	Tag-Name="mimecast-delivery"
+	StartTime="2025-07-29T00:00:01.000Z"
+
+# Mimecast: MTA Receipt 
+[MimecastConf "mimecast-mta-receipt"]
+	ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	MimecastAPI="mta-receipt"
+	Tag-Name="mimecast-receipt"
+	StartTime="2025-07-29T00:00:01.000Z"
+
+# Mimecast: MTA Process
+[MimecastConf "mimecast-mta-process"]
+	ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	MimecastAPI="mta-process"
+	Tag-Name="mimecast-process"
+	StartTime="2025-07-29T00:00:01.000Z"
+
+# Mimecast: MTA AV
+[MimecastConf "mimecast-mta-av"]
+	ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	MimecastAPI="mta-av"
+	Tag-Name="mimecast-av"
+	StartTime="2025-07-29T00:00:01.000Z"
+
+# Mimecast: MTA Spam
+[MimecastConf "mimecast-mta-spam"]
+	ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	MimecastAPI="mta-spam"
+	Tag-Name="mimecast-spam"
+	StartTime="2025-07-29T00:00:01.000Z"
+
+# Mimecast: MTA Internal
+[MimecastConf "mimecast-mta-internal"]
+	ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	MimecastAPI="mta-internal"
+	Tag-Name="mimecast-internal"
+	StartTime="2025-07-29T00:00:01.000Z"
+
+# Mimecast: MTA Impersonation
+[MimecastConf "mimecast-mta-impersonation"]
+	ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	MimecastAPI="mta-impersonation"
+	Tag-Name="mimecast-impersonation"
+	StartTime="2025-07-29T00:00:01.000Z"
+
+# Mimecast: MTA URL
+[MimecastConf "mimecast-mta-url"]
+	ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	MimecastAPI="mta-url"
+	Tag-Name="mimecast-url"
+	StartTime="2025-07-29T00:00:01.000Z"
+
+# Mimecast: MTA Attachment
+[MimecastConf "mimecast-mta-attachment"]
+	ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	MimecastAPI="mta-attachment"
+	Tag-Name="mimecast-attachment"
+	StartTime="2025-07-29T00:00:01.000Z"
+
+# Mimecast: MTA Journal
+[MimecastConf "mimecast-mta-journal"]
+	ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+	MimecastAPI="mta-journal"
+	Tag-Name="mimecast-journal"
+	StartTime="2025-07-29T00:00:01.000Z"
 ```
 
 ### Okta Configuration
 
+Multiple Okta API endpoints can be configured:
+
 ```ini
-[OktaConf "okta1"]
-    StartTime="2025-01-01T00:00:01.000Z"  # Initial fetch time
-    OktaDomain=""                         # Your Okta domain
-    OktaToken=""                          # Okta API token
-    UserTag=""                            # User-specific tag
-    BatchSize=1000                        # Number of records per batch
-    MaxBurstSize=100                      # Maximum burst size
-    SeedUsers=true                        # Whether to seed user data
-    SeedUserStart="2025-01-01T00:00:01.000Z"  # User data start time
-    Tag_Name=okta                         # Tag for Gravwell
+# Okta: Groups
+[OktaConf "okta-groups"]
+	StartTime="2025-01-01T00:00:01.000Z"
+	OktaDomain="https://REPLACE_WITH_YOUR_OKTA_ORG.okta.com"
+	OktaToken="REPLACE_WITH_YOUR_OKTA_TOKEN"
+	BatchSize=1000
+	MaxBurstSize=100
+	SeedUsers=false
+	RateLimit=30
+	Preprocessor=json
+	Tag-Name="okta-groups"
+
+# Okta: System	
+[OktaConf "okta-system"]
+	StartTime="2025-01-01T00:00:01.000Z"
+	OktaDomain="https://REPLACE_WITH_YOUR_OKTA_ORG.okta.com"
+	OktaToken="REPLACE_WITH_YOUR_OKTA_TOKEN"
+	BatchSize=1000
+	MaxBurstSize=100
+	SeedUsers=false
+	SeedUserStart="2025-01-01T00:00:01.000Z"
+	Tag-Name="okta-system"
+	RateLimit=60
+	Preprocessor=json
+
+# Okta: Users
+[OktaConf "okta-users"]
+	StartTime="2025-01-01T00:00:01.000Z"
+	OktaDomain="https://REPLACE_WITH_YOUR_OKTA_ORG.okta.com"
+	OktaToken="REPLACE_WITH_YOUR_OKTA_TOKEN"
+	BatchSize=1000
+	MaxBurstSize=100
+	SeedUsers=true
+	SeedUserStart="2025-01-01T00:00:01.000Z"
+	Tag-Name="okta-users"
+	RateLimit=60
+	Preprocessor=json
 ```
 
-### Asana Configuration - In Progress
+### Shodan Configuration
+
+Multiple Shodan API endpoints can be configured:
+
+```
+# Shodan: Hosts 
+[ShodanConf "shodan-host"]
+	Shodan-API=host
+	Domain="https://api.shodan.io"
+	Token="REPLACE_WITH_YOUR_SHODAN_TOKEN"
+	Tag-Name=shodan-host
+	Rate-Limit=6
+	Query='8.8.8.8'
+
+# Shodan: Search
+[ShodanConf "shodan-search"]
+	Shodan-API=search
+	Domain="https://api.shodan.io"
+	Token="REPLACE_WITH_YOUR_SHODAN_TOKEN"
+	Tag-Name=shodan-search
+	Rate-Limit=6
+	Query='org:"Gravwell"'
+
+# Shodan: Count
+[ShodanConf "shodan-count"]
+	ShodanAPI=count
+	Domain="https://api.shodan.io"
+	Token="REPLACE_WITH_YOUR_SHODAN_TOKEN"
+	Tag-Name=shodan-count
+	RateLimit=6
+	Query='org:"Gravwell"'
+```
+
+
+### Thinkst Canary Configuration
+
+Multiple Thinkst API endpoints can be configured:
 
 ```ini
-[AsanaConf "default"]
-    RateLimit = 6                         # API rate limit
-    StartTime = "2025-01-01T00:00:01.000Z"  # Initial fetch time
-    Token = ""                            # Asana API token
-    Workspace = ""                        # Asana workspace ID
-    Tag-Name = "asana"                    # Tag for Gravwell
+[ThinkstConf "thinkst-audit"]
+	ThinkstAPI="audit"                    # API type: audit, incident
+	Token=""                              # Thinkst API token
+	Domain="XXXXXXXX.canary.tools"        # Your Thinkst domain
+	StartTime="2025-01-01T00:00:01.000Z"  # Initial fetch time
+	Tag-Name="thinkst"                    # Tag for Gravwell
+
+[ThinkstConf "thinkst-incident"]
+	ThinkstAPI="incident"
+	Token=""
+	Domain="XXXXXXXX.canary.tools"
+	StartTime="2025-01-01T00:00:01.000Z"
+	Tag-Name="thinkst"
 ```
 
 ## Usage
 
 1. Copy the example configuration file:
-   ```bash
-   cp gravwell_fetcher.conf.example gravwell_fetcher.conf
-   ```
+	```bash
+	cp gravwell_fetcher.conf.example gravwell_fetcher.conf
+	```
 
 2. Edit the configuration file with your specific settings:
-   - Add your Gravwell connection details
-   - Configure the services you want to use
-   - Set appropriate API credentials
-   - Adjust timeouts and other parameters as needed
+	- Add your Gravwell connection details
+	- Configure the services you want to use
+	- Set appropriate API credentials
+	- Adjust timeouts and other parameters as needed
 
 3. Run the fetcher:
-   ```bash
-   ./gravwell_fetcher
-   ```
+	```bash
+	./gravwell_fetcher
+	```
+
+	- If you individualize vendors, run it with its specific configuration (e.g. for Duo):
+	```bash
+	./duo_fetcher -config-file /opt/gravwell_fetcher/etc/duo_fetcher.conf
+	```
 
 ## Features
 

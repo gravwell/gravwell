@@ -1,9 +1,23 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package main
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
+	"strings"
+	"sync"
+	"time"
 
 	duoapi "github.com/duosecurity/duo_api_golang"
 	"github.com/gravwell/gravwell/v3/ingest"
@@ -13,15 +27,11 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/processors"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"golang.org/x/time/rate"
-
-	"net"
-
-	"net/http"
-	"net/url"
-	"strings"
-	"sync"
-	"time"
 )
+
+/*
+NOTE: Duo Admin API path constants and duoEmptySleepDur live in duoConfig.go
+*/
 
 /*
 Change this variable to duo Conns. and change the handler to duoHandlerConfig
@@ -62,6 +72,9 @@ Bring in any new types needed to pull out the data
 type accountResponse struct {
 	Stat     string          `json:"stat"`
 	Response json.RawMessage `json:"response"`
+	// present when stat != "OK"
+	Message string `json:"message,omitempty"`
+	Code    int    `json:"code,omitempty"`
 }
 
 type adminResponse struct {
@@ -139,23 +152,24 @@ type trustItem struct {
 }
 
 func buildDuoHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *log.Logger, igst *ingest.IngestMuxer, ib base.IngesterBase, ctx context.Context, wg *sync.WaitGroup) *duoHandlerConfig {
-
 	duoConns = make(map[string]*duoHandlerConfig)
 	for k, v := range cfg.DuoConf {
 		tag, err := igst.GetTag(v.Tag_Name)
 		// check if there is a statetracker object for each config
 		_, ok := ot.Get("duo", k)
 		if !ok {
-
+			seed := v.StartTime
+			if seed.IsZero() {
+				seed = time.Now()
+			}
 			state := trackedObjectState{
 				Updated:    time.Now(),
-				LatestTime: time.Now(),
-				Key:        "",
+				LatestTime: seed,
+				Key:        json.RawMessage(`{"key": "none"}`),
 			}
 			err := ot.Set("duo", k, state, false)
 			if err != nil {
 				lg.Fatal("failed to set state tracker", log.KV("listener", k), log.KV("tag", v.Tag_Name), log.KVErr(err))
-
 			}
 			err = ot.Flush()
 			if err != nil {
@@ -178,6 +192,11 @@ func buildDuoHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *log.
 			ctx:       ctx,
 			ot:        ot,
 			rate:      defaultRequestPerMinute,
+		}
+
+		// honor per-listener rate limit if set (>0)
+		if v.RateLimit > 0 {
+			hcfg.rate = v.RateLimit
 		}
 
 		if hcfg.proc, err = cfg.Preprocessor.ProcessorSet(igst, v.Preprocessor); err != nil {
@@ -209,15 +228,15 @@ func (h *duoHandlerConfig) run() {
 			}
 		default:
 			var err error
-			//get our API rate limiter built up, start with a full buckets
+			// get our API rate limiter built up, start with full buckets
 			rl := rate.NewLimiter(rate.Every(time.Minute/time.Duration(h.rate)), h.rate)
 
-			//Build duo api client
+			// Build duo api client
 			api := duoapi.NewDuoApi(h.key, h.secret, h.domain, "")
 
 			var quit bool
-			for quit == false {
-				//get the latest time from the stateTracker map
+			for !quit {
+				// get the latest time from the stateTracker map
 				latestOT, ok := h.ot.Get("duo", h.name)
 				if !ok {
 					lg.Fatal("failed to get state tracker", log.KV("listener", h.domain), log.KV("tag", h.tag))
@@ -236,7 +255,7 @@ func (h *duoHandlerConfig) run() {
 				case <-h.ctx.Done():
 					quit = true
 				default:
-					quit = quitableSleep(h.ctx, time.Minute)
+					quit = quitableSleep(h.ctx, duoEmptySleepDur)
 				}
 			}
 			lg.Info("Exiting")
@@ -245,11 +264,9 @@ func (h *duoHandlerConfig) run() {
 }
 
 func getDuoLogs(api *duoapi.DuoApi, latestTS time.Time, src net.IP, rl *rate.Limiter, h *duoHandlerConfig, lg *log.Logger, ot *objectTracker) error {
-	// get all the tags we need
 	var err error
-
 	var quit bool
-	for quit == false {
+	for !quit {
 		if err := rl.Wait(h.ctx); err != nil {
 			return err
 		}
@@ -262,7 +279,6 @@ func getDuoLogs(api *duoapi.DuoApi, latestTS time.Time, src net.IP, rl *rate.Lim
 			}
 			setObjectTracker(ot, "duo", h.name, latestTS)
 		case "admin":
-
 			latestTS, err = getDuoAdminLog(api, h.tag, latestTS, src, h, lg)
 			if err != nil {
 				return err
@@ -303,7 +319,6 @@ func getDuoLogs(api *duoapi.DuoApi, latestTS time.Time, src net.IP, rl *rate.Lim
 		}
 
 		quit = quitableSleep(h.ctx, duoEmptySleepDur)
-
 	}
 	return nil
 }
@@ -318,10 +333,19 @@ func getDuoAccountLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time
 	}
 	err = json.Unmarshal(data, &accountR)
 	if err != nil {
-		lg.Error(fmt.Sprintf("Failed JSON unmarshall for Duo %s", h.name), log.KVErr(err))
+		lg.Error(fmt.Sprintf("Failed JSON unmarshal for Duo %s", h.name), log.KVErr(err))
 		return latestTS, err
 	}
-	lg.FatalCode(0, fmt.Sprintf("got account log page with length %v", len([]byte(accountR.Response))), log.KVErr(err))
+
+	// This endpoint is a one-shot summary, not a paginated log.
+	if strings.ToUpper(accountR.Stat) != "OK" || len(accountR.Response) == 0 {
+		lg.Warn("Duo account summary not returned",
+			log.KV("stat", accountR.Stat),
+			log.KV("code", accountR.Code),
+			log.KV("message", accountR.Message))
+		// Do NOT fatal — just try again later
+		return latestTS, nil
+	}
 
 	ent := &entry.Entry{
 		TS:   entry.Now(),
@@ -361,7 +385,7 @@ func getDuoAdminLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, 
 		}
 
 		if time.Unix(tsItem.Timestamp, 0).After(latestTS) {
-			latestTS = time.Unix(tsItem.Timestamp+1, 0) // note the plus 1... this is sad.
+			latestTS = time.Unix(tsItem.Timestamp+1, 0) // +1s so we don't re-pull boundary
 		}
 
 		ents = append(ents, &entry.Entry{
@@ -378,7 +402,7 @@ func getDuoAdminLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, 
 	}
 	lg.Info(fmt.Sprintf("moving latest admin timestamp to %v", latestTS))
 
-	return time.Now(), nil
+	return latestTS, nil
 }
 
 func getDuoActivityLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, src net.IP, h *duoHandlerConfig, lg *log.Logger, offset string) (time.Time, error) {
@@ -386,7 +410,7 @@ func getDuoActivityLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Tim
 	vals := url.Values{}
 	nextTS := time.Now().Add(-2 * time.Minute)
 	vals.Set("mintime", fmt.Sprintf("%v", latestTS.UnixMilli()))
-	vals.Set("maxtime", fmt.Sprintf("%v", nextTS.UnixMilli())) // duo api says we can't poll up to two minutes before now...
+	vals.Set("maxtime", fmt.Sprintf("%v", nextTS.UnixMilli())) // Duo API: cannot poll up to 2 minutes before now
 	vals.Set("limit", "1000")
 	if offset != "" {
 		lg.Info(fmt.Sprintf("paginating activity log %v", offset))
@@ -422,12 +446,11 @@ func getDuoActivityLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Tim
 		lg.Error("failed to send entry", log.KVErr(err))
 		return latestTS, err
 	}
-	lg.Info(fmt.Sprintf("moving latest admin timestamp to %v", latestTS))
 	if resp.Response.Metadata.Offset != "" {
 		// paginate
 		return getDuoActivityLog(api, tag, latestTS, src, h, lg, resp.Response.Metadata.Offset)
 	}
-	lg.Info(fmt.Sprintf("moving latest admin timestamp to %v", nextTS))
+	lg.Info(fmt.Sprintf("moving latest activity timestamp to %v", nextTS))
 	return nextTS, nil
 }
 
@@ -437,7 +460,7 @@ func getDuoTelephonyLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Ti
 	vals := url.Values{}
 	nextTS := time.Now().Add(-2 * time.Minute)
 	vals.Set("mintime", fmt.Sprintf("%v", latestTS.UnixMilli()))
-	vals.Set("maxtime", fmt.Sprintf("%v", nextTS.UnixMilli())) // duo api says we can't poll up to two minutes before now...
+	vals.Set("maxtime", fmt.Sprintf("%v", nextTS.UnixMilli()))
 	vals.Set("limit", "1000")
 	if offset != "" {
 		lg.Info(fmt.Sprintf("paginating telephony log %v", offset))
@@ -473,12 +496,11 @@ func getDuoTelephonyLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Ti
 		lg.Error("failed to send entry", log.KVErr(err))
 		return latestTS, err
 	}
-	lg.Info(fmt.Sprintf("moving latest admin timestamp to %v", latestTS))
 	if resp.Response.Metadata.Offset != "" {
 		// paginate
 		return getDuoTelephonyLog(api, tag, latestTS, src, h, lg, resp.Response.Metadata.Offset)
 	}
-	lg.Info(fmt.Sprintf("moving latest admin timestamp to %v", nextTS))
+	lg.Info(fmt.Sprintf("moving latest telephony timestamp to %v", nextTS))
 	return nextTS, nil
 }
 
@@ -487,7 +509,7 @@ func getDuoAuthLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, s
 	vals := url.Values{}
 	nextTS := time.Now().Add(-2 * time.Minute)
 	vals.Set("mintime", fmt.Sprintf("%v", latestTS.UnixMilli()))
-	vals.Set("maxtime", fmt.Sprintf("%v", nextTS.UnixMilli())) // duo api says we can't poll up to two minutes before now...
+	vals.Set("maxtime", fmt.Sprintf("%v", nextTS.UnixMilli()))
 	vals.Set("limit", "1000")
 	if offset != "" {
 		lg.Info(fmt.Sprintf("paginating auth log %v", offset))
@@ -523,12 +545,11 @@ func getDuoAuthLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, s
 		lg.Error("failed to send entry", log.KVErr(err))
 		return latestTS, err
 	}
-	lg.Info(fmt.Sprintf("moving latest admin timestamp to %v", latestTS))
 	if len(resp.Response.Metadata.Offset) != 0 {
 		// paginate
 		return getDuoAuthLog(api, tag, latestTS, src, h, lg, strings.Join(resp.Response.Metadata.Offset, ","))
 	}
-	lg.Info(fmt.Sprintf("moving latest admin timestamp to %v", nextTS))
+	lg.Info(fmt.Sprintf("moving latest auth timestamp to %v", nextTS))
 	return nextTS, nil
 }
 
@@ -609,16 +630,10 @@ func getDuoTrustLog(api *duoapi.DuoApi, tag entry.EntryTag, latestTS time.Time, 
 			return latestTS, err
 		}
 
-		data, err := json.Marshal(v)
-		if err != nil {
-			lg.Warn("failed to re-pack entry", log.KV("thinkst", h.name), log.KVErr(err))
-			continue
-		}
-
 		ents = append(ents, &entry.Entry{
 			TS:   entry.FromStandard(time.UnixMilli(tsItem.TS)),
 			SRC:  src,
-			Data: data,
+			Data: []byte(v),
 			Tag:  tag,
 		})
 	}
