@@ -184,6 +184,9 @@ func New(c Config) (tg *TimeGrinder, err error) {
 	// DirectAdmin format
 	procs = append(procs, NewDirectAdmin())
 
+	// GravwellTimePicker format
+	procs = append(procs, NewGravwellTimePicker())
+
 	for i := range procs {
 		procs[i].SetWindow(c.TSWindow)
 	}

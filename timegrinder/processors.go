@@ -48,6 +48,7 @@ const (
 	Bind                  Format = `Bind`
 	Gravwell              Format = `Gravwell`
 	DirectAdmin           Format = `DirectAdmin`
+	GravwellTimePicker    Format = `GravwellTimePicker`
 )
 
 // Timestamp Formats
@@ -82,6 +83,7 @@ const (
 	GravwellFormat              string = `1-2-2006 15:04:05.99999`
 	BindFormat                  string = `02-Jan-2006 15:04:05.999`
 	DirectAdminFormat           string = `2006:01:02-15:04:05`
+	GravwellTimePickerFormat    string = `01/02/2006 3:04:05 PM`
 )
 
 // Regular Expression Extractors
@@ -116,6 +118,7 @@ const (
 	GravwellRegex              string = `\d{1,2}\-\d{1,2}\-\d{4}\s+\d{1,2}\:\d{2}\:\d{2}(\.\d{1,6})?`
 	BindRegex                  string = `\d{2}\-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec)\-\d{4} \d{2}:\d{2}:\d{2}\.\d{1,3}`
 	DirectAdminRegex           string = `\d{4}:\d{2}:\d{2}-\d{2}:\d{2}:\d{2}`
+	GravwellTimePickerRegex    string = `\d{2}/\d{2}/\d{4} \d{1,2}:\d{2}:\d{2} (AM|PM)`
 
 	// non base extrators
 	_unixSecondsRegex  string = `\d{9,10}`
@@ -510,6 +513,16 @@ func NewDirectAdmin() *processor {
 		format: DirectAdminFormat,
 		name:   DirectAdmin.String(),
 		min:    len(DirectAdminFormat) - 2, //deal with missing leading zeros
+	}
+}
+
+func NewGravwellTimePicker() *processor {
+	return &processor{
+		rxp:    regexp.MustCompile(GravwellTimePickerRegex),
+		rxstr:  GravwellTimePickerRegex,
+		format: GravwellTimePickerFormat,
+		name:   GravwellTimePicker.String(),
+		min:    len(GravwellTimePickerFormat),
 	}
 }
 

@@ -43,14 +43,19 @@ Gravwell Fetcher is a Go-based ingester that collects data from multiple externa
 	- System Logs
 	- Users Logs
 
-- **Shodan**
-	- Host Logs
-	- Search Logs
-	- Count Logs
-
-- **Thinkst Canary**
-	- Audit Logs
-	- Incident Logs
+- **Mimecast**
+  - Audit
+  - MTA
+    - Attachment
+    - AV
+    - Delivery
+    - Impersonation
+    - Internal
+    - Journal
+    - Process
+    - Reciept
+    - Spam
+    - URL
 
 ## Prerequisites
 
@@ -356,58 +361,86 @@ Multiple Okta API endpoints can be configured:
 	Preprocessor=json
 ```
 
-### Shodan Configuration
-
-Multiple Shodan API endpoints can be configured:
-
-```
-# Shodan: Hosts 
-[ShodanConf "shodan-host"]
-	Shodan-API=host
-	Domain="https://api.shodan.io"
-	Token="REPLACE_WITH_YOUR_SHODAN_TOKEN"
-	Tag-Name=shodan-host
-	Rate-Limit=6
-	Query='8.8.8.8'
-
-# Shodan: Search
-[ShodanConf "shodan-search"]
-	Shodan-API=search
-	Domain="https://api.shodan.io"
-	Token="REPLACE_WITH_YOUR_SHODAN_TOKEN"
-	Tag-Name=shodan-search
-	Rate-Limit=6
-	Query='org:"Gravwell"'
-
-# Shodan: Count
-[ShodanConf "shodan-count"]
-	ShodanAPI=count
-	Domain="https://api.shodan.io"
-	Token="REPLACE_WITH_YOUR_SHODAN_TOKEN"
-	Tag-Name=shodan-count
-	RateLimit=6
-	Query='org:"Gravwell"'
-```
-
-
-### Thinkst Canary Configuration
-
-Multiple Thinkst API endpoints can be configured:
-
+### Mimecast Configuration
+> **Note:**
+> The `StartTime` cannot be more than 7 days in the past
 ```ini
-[ThinkstConf "thinkst-audit"]
-	ThinkstAPI="audit"                    # API type: audit, incident
-	Token=""                              # Thinkst API token
-	Domain="XXXXXXXX.canary.tools"        # Your Thinkst domain
-	StartTime="2025-01-01T00:00:01.000Z"  # Initial fetch time
-	Tag-Name="thinkst"                    # Tag for Gravwell
+[MimecastConf "mimecast-audit"]
+        ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        ClientSecret="w0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        MimecastAPI="audit"
+        StartTime="2025-06-20T00:00:01.000Z"
+        Tag-Name="mimecast-audit"
 
-[ThinkstConf "thinkst-incident"]
-	ThinkstAPI="incident"
-	Token=""
-	Domain="XXXXXXXX.canary.tools"
-	StartTime="2025-01-01T00:00:01.000Z"
-	Tag-Name="thinkst"
+[MimecastConf "mimecast-mta-delivery"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-delivery"
+       Tag-Name="mimecast-delivery"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-reciept"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-receipt"
+       Tag-Name="mimecast-receipt"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-process"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-process"
+       Tag-Name="mimecast-process"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-av"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-av"
+       Tag-Name="mimecast-av"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-spam"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-spam"
+       Tag-Name="mimecast-spam"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-internal"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-internal"
+       Tag-Name="mimecast-internal"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-impersonation"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-impersonation"
+       Tag-Name="mimecast-impersonation"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-url"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-url"
+       Tag-Name="mimecast-url"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-attachment"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-attachment"
+       Tag-Name="mimecast-attachment"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-journal"]
+        ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        MimecastAPI="mta-journal"
+        Tag-Name="mimecast-journal"
+        StartTime="2025-07-29T00:00:01.000Z"
 ```
 
 ## Usage

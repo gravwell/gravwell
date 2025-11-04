@@ -164,7 +164,7 @@ func buildDuoHandlerConfig(cfg *cfgType, src net.IP, ot *objectTracker, lg *log.
 			}
 			state := trackedObjectState{
 				Updated:    time.Now(),
-				LatestTime: seed,
+				LatestTime: time.Now(),
 				Key:        json.RawMessage(`{"key": "none"}`),
 			}
 			err := ot.Set("duo", k, state, false)

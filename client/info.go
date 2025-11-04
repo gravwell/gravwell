@@ -121,6 +121,12 @@ func (c *Client) GetApiVersion() (types.ApiInfo, error) {
 	return version.API, err
 }
 
+// GetVersion returns the REST version struct from the webserver.
+func (c *Client) GetVersion() (version types.VersionInfo, err error) {
+	err = c.getStaticURL(API_VERSION_URL, &version)
+	return
+}
+
 func (c *Client) getLogLevelInfo() (types.LoggingLevels, error) {
 	ll := types.LoggingLevels{}
 	if err := c.methodStaticURL(http.MethodGet, LOGGING_PATH_URL, &ll); err != nil {
