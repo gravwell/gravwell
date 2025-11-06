@@ -68,6 +68,7 @@ type lst struct {
 	Timestamp_Format_Override string //override the timestamp format
 	Attach_URL_Parameter      []string
 	Preprocessor              []string
+	Debug_Posts               bool // whether we are going to log on the gravwell tag about received requests
 }
 
 type cfgType struct {

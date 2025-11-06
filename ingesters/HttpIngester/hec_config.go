@@ -229,7 +229,6 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (
 			rawLineBreaker: v.Raw_Line_Breaker,
 			name:           k,
 			maxSize:        fixupMaxSize(v.Max_Size),
-			debugPosts:     v.Debug_Posts,
 			tagRouter:      v.loadSourcetypeTagRouter(igst),
 			tokenRouter:    v.loadTokenTagRouter(igst),
 		}
@@ -243,6 +242,7 @@ func includeHecListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (
 			handler:       hh.handle,
 			paramAttacher: getAttacher(v.Attach_URL_Parameter),
 			auth:          hh.auth,
+			debugPosts:    v.Debug_Posts,
 		}
 
 		if hcfg.tag, err = igst.NegotiateTag(v.Tag_Name); err != nil {

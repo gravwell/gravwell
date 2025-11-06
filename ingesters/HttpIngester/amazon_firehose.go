@@ -18,6 +18,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
@@ -33,6 +34,7 @@ type afh struct {
 	TokenValue        string `json:"-"` //DO NOT SEND THIS when marshalling
 	Tag_Name          string //the tag to assign to the request
 	Ignore_Timestamps bool
+	Debug_Posts       bool // whether we are going to log on the gravwell tag about posts
 	Preprocessor      []string
 }
 
@@ -79,8 +81,15 @@ type record struct {
 }
 
 func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	var now time.Time
+	if cfg.debugPosts {
+		now = time.Now()
+	}
+
 	var kr AFHRequest
-	lr := io.LimitedReader{R: rdr, N: int64(maxBody + 256)}
+	bodyReadLimit := int64(maxBody + 256)
+
+	lr := io.LimitedReader{R: rdr, N: int64(bodyReadLimit)}
 	if err := json.NewDecoder(&lr).Decode(&kr); err != nil {
 		//check if the request was just too large
 		if lr.N == 0 {
@@ -116,6 +125,15 @@ func handleAFH(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Requ
 		sendAFHError(w, http.StatusInternalServerError, kr.RequestId, err)
 	} else {
 		sendAFHOk(w, kr.RequestId)
+
+		if cfg.debugPosts {
+			kvs := []rfc5424.SDParam{log.KV("host", ip),
+				log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
+				log.KV("bytes", bodyReadLimit-lr.N), log.KV("entries", len(batch)),
+				log.KV("ms", time.Since(now).Milliseconds()),
+			}
+			h.igst.Info("Amazon Firehose Event", kvs...)
+		}
 	}
 }
 
@@ -153,7 +171,8 @@ func sendAFHOk(w http.ResponseWriter, id string) {
 func includeAFHListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType, lgr *log.Logger) (err error) {
 	for _, v := range cfg.AFHListener {
 		hcfg := routeHandler{
-			handler: handleAFH,
+			handler:    handleAFH,
+			debugPosts: v.Debug_Posts,
 		}
 		if hcfg.tag, err = igst.NegotiateTag(v.Tag_Name); err != nil {
 			return fmt.Errorf("failed to pull tag %s %w", v.Tag_Name, err)
