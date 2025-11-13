@@ -28,12 +28,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/chancacher"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/gravwell/v4/chancacher"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 )
 
 const (
@@ -183,8 +183,8 @@ type UniformMuxerConfig struct {
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
-	Attach            attach.AttachConfig
-	MinVersion        uint16 // minimum API version of indexers
+	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	MinVersion        uint16              // minimum API version of indexers
 }
 
 type MuxerConfig struct {
@@ -206,8 +206,8 @@ type MuxerConfig struct {
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
-	Attach            attach.AttachConfig
-	MinVersion        uint16 // minimum API version of indexers
+	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	MinVersion        uint16              // minimum API version of indexers
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {

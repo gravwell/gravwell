@@ -23,8 +23,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
 const (

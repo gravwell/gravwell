@@ -11,7 +11,7 @@ package client
 import (
 	"net/http"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 
 	"github.com/google/uuid"
 )
@@ -37,10 +37,10 @@ func (c *Client) TokenInfo(id uuid.UUID) (t types.Token, err error) {
 }
 
 func (c *Client) UpdateToken(id uuid.UUID, tr types.TokenCreate) (t types.Token, err error) {
-	err = c.methodStaticPushURL(http.MethodPut, tokenIdUrl(id), tr, &t)
+	err = c.methodStaticPushURL(http.MethodPut, tokenIdUrl(id), tr, &t, nil, nil)
 	return
 }
 
 func (c *Client) DeleteToken(id uuid.UUID) (err error) {
-	return c.methodStaticPushURL(http.MethodDelete, tokenIdUrl(id), nil, nil, http.StatusNoContent)
+	return c.methodStaticPushURL(http.MethodDelete, tokenIdUrl(id), nil, nil, []int{http.StatusNoContent}, nil)
 }
