@@ -39,21 +39,8 @@ type TokenSigningKey struct {
 }
 
 type UserBackup struct {
-	Groups []GroupDetails
-	Users  []UserDetails
-}
-
-func (ub *UserBackup) ClearSynced() {
-	for i := range ub.Groups {
-		ub.Groups[i].Synced = false
-	}
-	for i := range ub.Users {
-		ub.Users[i].Synced = false
-		//wipe the groups as well just in case
-		for j := range ub.Users[i].Groups {
-			ub.Users[i].Groups[j].Synced = false
-		}
-	}
+	Groups []Group
+	Users  []User
 }
 
 // Session contains all the information needed to authenticate.
@@ -63,7 +50,7 @@ type Session struct {
 	UID         int32  `json:",omitempty"`
 	Origin      net.IP
 	LastHit     time.Time
-	UDets       *UserDetails `json:",omitempty"`
+	UDets       *User `json:",omitempty"`
 	TempSession bool
 	Synced      bool
 }
@@ -204,19 +191,17 @@ type AddGroup struct {
 }
 
 type UpdateUser struct {
-	User   string
-	Name   string
-	Email  string
+	Username            string
+	Name                string
+	Email               string
+	DefaultSearchGroups []int32
+	// The following are ignored if sent by a non-admin
 	Admin  bool
 	Locked bool
 }
 
 type UserAddGroups struct {
 	GIDs []int32
-}
-
-type UserDefaultSearchGroup struct {
-	GID int32
 }
 
 type AdminActionResp struct {
@@ -426,4 +411,133 @@ func (uag *UserAddGroups) MarshalJSON() ([]byte, error) {
 		alias: alias(*uag),
 		GIDs:  emptyInts(uag.GIDs),
 	})
+}
+
+/************************************************************
+ *
+ * New (registry) types begin here.
+ *
+ ************************************************************/
+
+type ACL struct {
+	GIDs   []int32
+	Global bool
+}
+
+type User struct {
+	ID                  int32
+	CreatedAt           time.Time
+	UpdatedAt           time.Time
+	DeletedAt           time.Time
+	LastLogin           time.Time
+	Username            string
+	Name                string
+	Email               string
+	Admin               bool
+	Locked              bool
+	Groups              []Group
+	Hash                []byte
+	CBAC                CBACRules
+	MFA                 MFAUserConfig
+	SSOUser             bool
+	DefaultSearchGroups []Group
+	SearchPriority      int
+}
+
+// IsGroupMember returns true if the user is a member of group with
+// the specified ID.
+func (u *User) IsGroupMember(gid int32) bool {
+	for _, g := range u.Groups {
+		if g.ID == gid {
+			return true
+		}
+	}
+	return false
+}
+
+// IsAnyGroupMember returns true if the user is a member of any group
+// from the provided list of group IDs.
+func (u *User) IsAnyGroupMember(gids []int32) bool {
+	for _, g := range u.Groups {
+		for _, gid := range gids {
+			if g.ID == gid {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// IsMemberOfAllGroups returns true if the user is a member of *every* group in the provided list.
+func (u *User) IsMemberOfAllGroups(gids []int32) bool {
+	for _, gid := range gids {
+		if !u.IsGroupMember(gid) {
+			return false
+		}
+	}
+	return true
+}
+
+// DefaultSearchGIDs returns the IDs of the user's default search groups.
+func (u *User) DefaultSearchGIDs() []int32 {
+	var gids []int32
+	for _, g := range u.DefaultSearchGroups {
+		gids = append(gids, g.ID)
+	}
+	return gids
+}
+
+func (u *User) GetOld() *UserDetails {
+	ud := UserDetails{
+		UID:     u.ID,
+		User:    u.Username,
+		Name:    u.Name,
+		Email:   u.Email,
+		Locked:  u.Locked,
+		TS:      u.LastLogin,
+		Admin:   u.Admin,
+		SSOUser: u.SSOUser,
+		CBAC:    u.CBAC,
+		// Secrets may have already been cleared
+		MFA:  u.MFA,
+		Hash: u.Hash,
+	}
+	// This is goofy...
+	if len(u.DefaultSearchGroups) > 0 {
+		ud.DefaultGID = u.DefaultSearchGIDs()[0]
+	}
+	for _, g := range u.Groups {
+		ud.Groups = append(ud.Groups, g.GetOld())
+	}
+	return &ud
+}
+
+// CapabilityList creates a comprehensive list of capabilities the user has access to based on their direct and group assignments
+func (u *User) CapabilityList() []CapabilityDesc {
+	return CreateUserCapabilityList(u.GetOld())
+}
+
+// HasCapability returns whether the user has access to a given capability
+func (u *User) HasCapability(c Capability) bool {
+	return CheckUserCapabilityAccess(u.GetOld(), c)
+}
+
+type Group struct {
+	ID             int32
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
+	DeletedAt      time.Time
+	Name           string
+	Description    string
+	CBAC           CBACRules
+	SearchPriority int
+}
+
+func (g *Group) GetOld() GroupDetails {
+	return GroupDetails{
+		GID:  g.ID,
+		Name: g.Name,
+		Desc: g.Description,
+		CBAC: g.CBAC,
+	}
 }

@@ -82,17 +82,13 @@ func TestMacros(t *testing.T) {
 
 	t.Run("macros list --csv", func(t *testing.T) {
 		// generate results manually, for comparison
-		myInfo, err := testclient.MyInfo()
-		if err != nil {
-			t.Fatal(err)
-		}
 		// get the current list of macros so we can validate that gwcli turned back the same ones
-		macros, err := testclient.GetUserMacros(myInfo.UID)
+		macros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		columns := []string{"UID", "Global", "Name"}
-		want := strings.TrimSpace(weave.ToCSV(macros, columns,
+		want := strings.TrimSpace(weave.ToCSV(macros.Results, columns,
 			weave.CSVOptions{}))
 
 		// run the test body
@@ -112,18 +108,14 @@ func TestMacros(t *testing.T) {
 			macroExp  = "testexpand"
 		)
 		// fetch the number of macros prior to creation
-		myInfo, err := testclient.MyInfo()
-		if err != nil {
-			panic(err)
-		}
-		priorMacros, err := testclient.GetUserMacros(myInfo.UID)
+		priorMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			panic(err)
 		}
 
 		// ensure the macro DNE, reroll it if it does
 		for {
-			if slices.ContainsFunc(priorMacros, func(sm types.SearchMacro) bool {
+			if slices.ContainsFunc(priorMacros.Results, func(sm types.Macro) bool {
 				return macroName == sm.Name
 			}) {
 				//reroll name
@@ -139,30 +131,26 @@ func TestMacros(t *testing.T) {
 		testsupport.NonZeroExit(t, statusCode, stderr)
 		checkResult(t, false, "stderr", "", stderr)
 		// refetch macros to check the count has increased by one
-		postMacros, err := testclient.GetUserMacros(myInfo.UID)
+		postMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			panic(err)
 		}
-		if len(postMacros) != len(priorMacros)+1 {
-			t.Fatalf("expected post-create macros len(%v) == pre-create macros len(%v)+1 ", len(postMacros), len(priorMacros))
+		if len(postMacros.Results) != len(priorMacros.Results)+1 {
+			t.Fatalf("expected post-create macros len(%v) == pre-create macros len(%v)+1 ", len(postMacros.Results), len(priorMacros.Results))
 		}
 		// TODO parse out macro ID from stdout and ensure it exists in the postMacros list
 	})
 
 	t.Run("macros list "+ft.JSON.Name(), func(t *testing.T) {
 		// generate results manually, for comparison
-		myInfo, err := testclient.MyInfo()
-		if err != nil {
-			t.Fatal(err)
-		}
 		// get the current list of macros so we can validate that gwcli turned back the same ones
-		macros, err := testclient.GetUserMacros(myInfo.UID)
+		macros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		columns := []string{"UID", "Global", "Name", "WriteAccess.GIDs", "Description", "Expansion", "Labels"}
 		var want string
-		if json, err := weave.ToJSON(macros, columns, weave.JSONOptions{}); err != nil {
+		if json, err := weave.ToJSON(macros.Results, columns, weave.JSONOptions{}); err != nil {
 			t.Fatal(err)
 		} else {
 			want = strings.TrimSpace(json)
@@ -182,20 +170,16 @@ func TestMacros(t *testing.T) {
 
 	t.Run("macros delete (dryrun)", func(t *testing.T) {
 		// fetch the macros prior to deletion
-		myInfo, err := testclient.MyInfo()
+		priorMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			panic(err)
 		}
-		priorMacros, err := testclient.GetUserMacros(myInfo.UID)
-		if err != nil {
-			panic(err)
-		}
-		if len(priorMacros) < 1 {
+		if len(priorMacros.Results) < 1 {
 			t.Skip("no macros to delete")
 		}
 		// pick a macro for faux-deletion
-		toDeleteID := priorMacros[0].ID
-		t.Logf("Selecting macro %v (ID: %v) for faux-deletion", priorMacros[0].Name, priorMacros[0].ID)
+		toDeleteID := priorMacros.Results[0].ID
+		t.Logf("Selecting macro %v (ID: %v) for faux-deletion", priorMacros.Results[0].Name, priorMacros.Results[0].ID)
 
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" macros delete --"+ft.Dryrun.Name()+" --id=%d", user, pf, toDeleteID)
 		statusCode, _, stderr := executeCmd(t, cmd)
@@ -205,16 +189,16 @@ func TestMacros(t *testing.T) {
 		checkResult(t, false, "stderr", "", stderr)
 
 		// refetch macros to check that count hasn't changed
-		postMacros, err := testclient.GetUserMacros(myInfo.UID)
+		postMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
-		} else if len(postMacros) != len(priorMacros) {
+		} else if len(postMacros.Results) != len(priorMacros.Results) {
 			t.Fatalf("expected macro count to not change. post count: %v, pre count: %v",
-				len(postMacros), len(priorMacros))
+				len(postMacros.Results), len(priorMacros.Results))
 		}
 		// ensure the selected macro still exists
 		var found = false
-		for _, m := range postMacros {
+		for _, m := range postMacros.Results {
 			if m.ID == toDeleteID {
 				found = true
 				break
@@ -228,15 +212,11 @@ func TestMacros(t *testing.T) {
 	t.Run("macros delete [failure: missing id]", func(t *testing.T) {
 
 		// fetch the macros prior to deletion
-		myInfo, err := testclient.MyInfo()
-		if err != nil {
-			panic(err)
-		}
-		priorMacros, err := testclient.GetUserMacros(myInfo.UID)
+		priorMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(priorMacros) < 1 {
+		if len(priorMacros.Results) < 1 {
 			t.Skip("no macros to delete")
 		}
 
@@ -248,32 +228,28 @@ func TestMacros(t *testing.T) {
 		checkResult(t, false, "stdout", "", stdout)
 
 		// refetch macros to check that count hasn't changed
-		postMacros, err := testclient.GetUserMacros(myInfo.UID)
+		postMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(postMacros) != len(priorMacros) {
+		if len(postMacros.Results) != len(priorMacros.Results) {
 			t.Fatalf("expected macro count to not change. post count: %v, pre count: %v",
-				len(postMacros), len(priorMacros))
+				len(postMacros.Results), len(priorMacros.Results))
 		}
 	})
 
 	t.Run("macros delete", func(t *testing.T) {
 		// fetch the macros prior to deletion
-		myInfo, err := testclient.MyInfo()
+		priorMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			panic(err)
 		}
-		priorMacros, err := testclient.GetUserMacros(myInfo.UID)
-		if err != nil {
-			panic(err)
-		}
-		if len(priorMacros) < 1 {
+		if len(priorMacros.Results) < 1 {
 			t.Skip("no macros to delete")
 		}
 		// pick a macro for deletion
-		toDeleteID := priorMacros[0].ID
-		t.Logf("Selecting macro %v (ID: %v) for deletion", priorMacros[0].Name, priorMacros[0].ID)
+		toDeleteID := priorMacros.Results[0].ID
+		t.Logf("Selecting macro %v (ID: %v) for deletion", priorMacros.Results[0].Name, priorMacros.Results[0].ID)
 
 		cmd := fmt.Sprintf("-u %s -p %s --insecure --"+ft.NoInteractive.Name()+" macros delete --id %v", user, pf, toDeleteID)
 		statusCode, _, stderr := executeCmd(t, cmd)
@@ -282,22 +258,22 @@ func TestMacros(t *testing.T) {
 		testsupport.NonZeroExit(t, statusCode, stderr)
 
 		// refetch macros to check the count has decreased by one
-		postMacros, err := testclient.GetUserMacros(myInfo.UID)
+		postMacros, err := testclient.ListMacros(nil)
 		if err != nil {
 			t.Fatal(err)
-		} else if len(postMacros) != len(priorMacros)-1 {
-			t.Fatalf("expected post-delete macros len (%v) == pre-delete macros len-1 (%v)", len(postMacros), len(priorMacros))
+		} else if len(postMacros.Results) != len(priorMacros.Results)-1 {
+			t.Fatalf("expected post-delete macros len (%v) == pre-delete macros len-1 (%v)", len(postMacros.Results), len(priorMacros.Results))
 		}
 		// ensure the correct macro was deleted
-		for _, m := range postMacros {
+		for _, m := range postMacros.Results {
 			if m.ID == toDeleteID {
 				t.Log("ID of deletion attempt found still alive.")
 				t.Log("priorMacros:\n")
-				for _, prior := range priorMacros {
+				for _, prior := range priorMacros.Results {
 					t.Logf("%v (ID: %v)\n", prior.Name, prior.ID)
 				}
 				t.Log("postMacros:\n")
-				for _, post := range postMacros {
+				for _, post := range postMacros.Results {
 					t.Logf("%v (ID: %v)\n", post.Name, post.ID)
 				}
 				t.FailNow()

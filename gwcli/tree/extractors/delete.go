@@ -14,7 +14,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -28,12 +27,12 @@ func newExtractorDeleteAction() action.Pair {
 		del, fetch)
 }
 
-func del(dryrun bool, id uuid.UUID) error {
+func del(dryrun bool, id string) error {
 	if dryrun {
-		_, err := connection.Client.GetExtraction(id.String())
+		_, err := connection.Client.GetExtraction(id)
 		return err
 	}
-	if wrs, err := connection.Client.DeleteExtraction(id.String()); err != nil {
+	if wrs, err := connection.Client.DeleteExtraction(id); err != nil {
 		return err
 	} else if wrs != nil {
 		var sb strings.Builder
@@ -47,22 +46,23 @@ func del(dryrun bool, id uuid.UUID) error {
 	return nil
 }
 
-func fetch() ([]scaffolddelete.Item[uuid.UUID], error) {
-	axs, err := connection.Client.GetExtractions()
+func fetch() ([]scaffolddelete.Item[string], error) {
+	axl, err := connection.Client.ListExtractions(nil)
 	if err != nil {
 		return nil, err
 	}
-	slices.SortFunc(axs, func(a1, a2 types.AXDefinition) int {
+	axs := axl.Results
+	slices.SortFunc(axs, func(a1, a2 types.AX) int {
 		return strings.Compare(a1.Name, a2.Name)
 	})
-	var items = make([]scaffolddelete.Item[uuid.UUID], len(axs))
+	var items = make([]scaffolddelete.Item[string], len(axs))
 	for i, ax := range axs {
-		items[i] = scaffolddelete.NewItem[uuid.UUID](ax.Name,
+		items[i] = scaffolddelete.NewItem[string](ax.Name,
 			fmt.Sprintf("module: %v\ntags: %v\n%v",
 				stylesheet.Cur.SecondaryText.Render(ax.Module),
 				stylesheet.Cur.SecondaryText.Render(strings.Join(ax.Tags, " ")),
-				ax.Desc),
-			ax.UUID)
+				ax.Description),
+			ax.ID)
 	}
 
 	return items, nil

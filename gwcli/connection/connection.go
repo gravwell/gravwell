@@ -104,7 +104,7 @@ var (
 	clientMu sync.Mutex // should be held when making changes to the local Client instance
 	Client   *grav.Client
 	// MyInfo holds cached data about the current user.
-	myInfo types.UserDetails
+	myInfo types.User
 )
 
 const refreshBuffer time.Duration = 5 * time.Minute // the refresher will next wake at (expiryTime - buffer)
@@ -205,12 +205,12 @@ func Login(username, password, apiToken string, noInteractive bool) (err error) 
 	}
 
 	// check that the info of the user we fetched actually matches the given username
-	if username != "" && myInfo.User != username {
-		return fmt.Errorf("server returned a different username (%v) than the given credentials (%v)", myInfo.User, username)
+	if username != "" && myInfo.Username != username {
+		return fmt.Errorf("server returned a different username (%v) than the given credentials (%v)", myInfo.Username, username)
 	}
 
 	// create/refresh the token
-	if err := createTokenFile(myInfo.User); err != nil {
+	if err := createTokenFile(myInfo.Username); err != nil {
 		clilog.Writer.Warnf("%v", err.Error())
 		// failing to create the token is not fatal
 	}
@@ -481,7 +481,7 @@ func keepRefreshed(kill chan bool) {
 				rfc5424.SDParam{Name: "username", Value: myInfo.Name},
 				rfc5424.SDParam{Name: "path", Value: cfgdir.DefaultTokenPath},
 				rfc5424.SDParam{Name: "sublogger", Value: "refresher"})
-			if err := createTokenFile(myInfo.User); err != nil {
+			if err := createTokenFile(myInfo.Username); err != nil {
 				clilog.Writer.Warnf("%v", err)
 			}
 			clientMu.Unlock()
@@ -502,9 +502,9 @@ func getJWTExpiry() (wakeTime time.Time) {
 
 	// skim off username
 	exploded := strings.Split(string(tkn), "\n")
-	if myInfo.User != exploded[0] {
+	if myInfo.Username != exploded[0] {
 		// either the token or the local cache has changed
-		clilog.Writer.Infof("connection username %v does not match token username %v", myInfo.User, exploded[0])
+		clilog.Writer.Infof("connection username %v does not match token username %v", myInfo.Username, exploded[0])
 		return time.Now()
 	}
 
@@ -520,12 +520,12 @@ func getJWTExpiry() (wakeTime time.Time) {
 
 // CurrentUser returns the local cache of information about the currently logged-in user.
 // Returns the zero value if the local client is not authenticated.
-func CurrentUser() types.UserDetails {
+func CurrentUser() types.User {
 	clientMu.Lock()
 	defer clientMu.Unlock()
 
 	if Client.State() != grav.STATE_AUTHED {
-		return types.UserDetails{}
+		return types.User{}
 	}
 
 	return myInfo
@@ -545,7 +545,7 @@ func End() error {
 
 // internal, lock-less implementation of End.
 func end() error {
-	myInfo = types.UserDetails{}
+	myInfo = types.User{}
 	if Client == nil { // job's done
 		return nil
 	} else if Client.State() == grav.STATE_CLOSED || Client.State() == grav.STATE_LOGGED_OFF {
@@ -613,7 +613,7 @@ func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 	clilog.Writer.Debugf("Scheduling query %v (%v) for %v", name, qry, freq)
 	// TODO provide a dialogue for selecting groups/permissions
 	id, err = Client.CreateScheduledSearch(name, desc, freq,
-		uuid.UUID{}, qry, dur, []int32{myInfo.DefaultGID})
+		uuid.UUID{}, qry, dur, myInfo.DefaultSearchGIDs())
 	if err != nil {
 		return -1, "", fmt.Errorf("failed to schedule search: %v", err)
 	}
