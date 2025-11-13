@@ -20,11 +20,11 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"github.com/gravwell/gravwell/v3/ingest"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/processors"
-	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"github.com/gravwell/gravwell/v4/ingest"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/processors"
+	"github.com/gravwell/gravwell/v4/ingesters/utils"
 )
 
 var (
@@ -61,7 +61,7 @@ func main() {
 		} else if fin, err = os.Open(*dataPath); err != nil {
 			fmt.Printf("Failed to open data file %s: %v\n", *dataPath, err)
 			os.Exit(1)
-		} else if rdr, err = utils.GetImportReader(format, fin, ew.tth); err != nil {
+		} else if rdr, err = utils.GetImportReader(format, fin, ew); err != nil {
 			fmt.Printf("Failed to determine data format: %v\n", err)
 			os.Exit(1)
 		}
@@ -123,9 +123,12 @@ func loadConfig(cnt []byte) (ew *entWriter, ps *processors.ProcessorSet, err err
 		return
 	}
 	ew = &entWriter{
-		tth: newTestTagHandler(),
+		testTagHandler: newTestTagHandler(),
 	}
-	ps = processors.NewProcessorSet(ew)
+	ps, err = cfg.Preprocessor.ProcessorSet(ew, cfg.Global.Preprocessor)
+	if err != nil {
+		return
+	}
 	return
 }
 
@@ -144,8 +147,8 @@ type testTagHandler struct {
 	mp          map[string]entry.EntryTag
 }
 
-func newTestTagHandler() *testTagHandler {
-	return &testTagHandler{
+func newTestTagHandler() testTagHandler {
+	return testTagHandler{
 		mp: map[string]entry.EntryTag{},
 	}
 }
@@ -195,7 +198,7 @@ func (tth *testTagHandler) KnownTags() (r []string) {
 }
 
 type entWriter struct {
-	tth   *testTagHandler
+	testTagHandler
 	count uint64
 	bytes uint64
 }
@@ -203,7 +206,7 @@ type entWriter struct {
 func (ew *entWriter) WriteEntry(ent *entry.Entry) (err error) {
 	if ent != nil {
 		if *verbose {
-			r, ok := ew.tth.LookupTag(ent.Tag)
+			r, ok := ew.LookupTag(ent.Tag)
 			if !ok {
 				r = `UNKNOWN`
 			}

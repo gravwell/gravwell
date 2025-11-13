@@ -77,6 +77,7 @@ func CheckProcessor(id string) error {
 	case CorelightProcessor:
 	case SyslogRouterProcessor:
 	case TagSrcRouterProcessor:
+	case RegexReplaceProcessor:
 	default:
 		return checkProcessorOS(id)
 	}
@@ -144,6 +145,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = SyslogRouterLoadConfig(vc)
 	case TagSrcRouterProcessor:
 		cfg, err = TagSrcRouterLoadConfig(vc)
+	case RegexReplaceProcessor:
+		cfg, err = RegexExtractLoadConfig(vc)
 	default:
 		cfg, err = processorLoadConfigOS(vc)
 	}
@@ -307,6 +310,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewTagSrcRouter(cfg, tgr)
+	case RegexReplaceProcessor:
+		var cfg RegexExtractConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewRegexExtractor(cfg)
 	default:
 		p, err = newProcessorOS(vc, tgr)
 	}
@@ -323,6 +332,12 @@ func (pr *ProcessorSet) Enabled() bool {
 	pr.Lock()
 	defer pr.Unlock()
 	return len(pr.set) > 0 && pr.wtr != nil
+}
+
+func (pr *ProcessorSet) Count() int {
+	pr.Lock()
+	defer pr.Unlock()
+	return len(pr.set)
 }
 
 func (pr *ProcessorSet) AddProcessor(p Processor) {
