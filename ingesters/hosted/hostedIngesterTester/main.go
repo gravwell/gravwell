@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
+	"github.com/gravwell/gravwell/v3/ingesters/hosted/okta"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
@@ -102,9 +103,61 @@ func main() {
 }
 
 func startNativeIngesters(ctx context.Context, cfg *cfgType, ib base.IngesterBase, igst *ingest.IngestMuxer, mp map[uuid.UUID]hosted.Runner) (err error) {
+
+	// okta
+	for k, v := range cfg.Okta {
+		// this shouldn't happen, but scream about it anyway
+		if v == nil {
+			ib.Logger.Error("nil okta ingester config", log.KV("name", k))
+			continue
+		}
+		if existing, ok := mp[v.UUID()]; ok {
+			ib.Logger.Error("hosted ingester UUID collision",
+				log.KV("existing-name", existing.Name()),
+				log.KV("existing-uuid", existing.UUID()),
+				log.KV("colliding-type", `okta`),
+				log.KV("colliding-name", k),
+				log.KV("colliding-uuid", v.Ingester_UUID))
+			continue // just skip it
+		}
+		// get a new ingester
+		var ig *okta.OktaIngester
+		var runner *hosted.NativeRunner
+		if ig, err = okta.NewOktaIngester(*v, igst); err != nil {
+			ib.Logger.Error("failed to create new okta ingester", log.KVErr(err))
+			continue
+		}
+
+		//TODO FIXME - create a new runtime
+		var rt hosted.Runtime
+
+		// create a new hosted native runner
+		if runner, err = hosted.NewNativeRunner(`okta`, v.UUID(), ig, rt); err != nil {
+			ib.Logger.Error("failed to create new native runner",
+				log.KV("type", `okta`),
+				log.KV("name", k),
+				log.KV("uuid", v.Ingester_UUID),
+				log.KVErr(err))
+			continue
+		}
+		mp[v.UUID()] = runner
+
+	}
 	return
 }
 
 func stopIngesters(mp map[uuid.UUID]hosted.Runner) (err error) {
+	for _, v := range mp {
+		if lerr := v.Close(); lerr != nil {
+			err = stackCloseErrors(err, lerr, v.Name(), v.UUID())
+		}
+	}
 	return
+}
+
+func stackCloseErrors(curr, next error, name string, guid uuid.UUID) error {
+	if curr == nil {
+		return fmt.Errorf("failed to close %s (%v) %w", name, guid, next)
+	}
+	return fmt.Errorf("%w\nfailed to close %s (%v) %w", curr, name, guid, next)
 }

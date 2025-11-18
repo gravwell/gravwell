@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/crewjam/rfc5424"
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
@@ -27,12 +28,14 @@ var (
 type Ingester interface {
 	Name() string
 	Version() version.Canonical
+	UUID() uuid.UUID
 	Run(Runtime) error
 }
 
 // Runner is a wrapper around the Ingester that also implements a Closer so that we can start and stop
 type Runner interface {
 	Ingester
+	Start() error
 	Close() error
 }
 

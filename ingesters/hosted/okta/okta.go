@@ -21,6 +21,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
@@ -86,6 +87,13 @@ func (o *OktaIngester) Version() version.Canonical {
 	return version.Current()
 }
 
+func (o *OktaIngester) UUID() uuid.UUID {
+	if o != nil {
+		return o.cfg.UUID()
+	}
+	return uuid.Nil
+}
+
 func (o *OktaIngester) Run(rt hosted.Runtime) (err error) {
 	// initialize our "latest timestamp"
 	o.latestTS = time.Now().Add(-7 * 24 * time.Hour)
@@ -136,6 +144,9 @@ loop:
 		case <-ctx.Done():
 			break loop
 		case ts = <-tckr.C:
+			if !rt.Alive() {
+				continue // okta can back off and wait if the runtime isn't healthy
+			}
 			start := startTs
 			end := ts.Add(-1 * userLogWindowLag).Round(time.Second)
 			if !end.After(start) {
@@ -198,6 +209,11 @@ func (o *OktaIngester) getSystemLogs(rc *retryClient, rt hosted.Runtime, rl *rat
 
 	var quit bool
 	for !quit && rt.Context().Err() == nil {
+		if !rt.Alive() {
+			// okta can back off and wait if the runtime isn't healthy, just loop and wait again
+			quit = rt.Sleep(emptySleepDur)
+			continue
+		}
 		if err = rl.Wait(rt.Context()); err != nil {
 			return err
 		}

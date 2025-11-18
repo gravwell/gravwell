@@ -9,6 +9,7 @@
 package hosted
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"time"
@@ -32,10 +33,33 @@ type NativeRunner struct {
 	Ingester
 	Type         string
 	ingesterUUID uuid.UUID
+	rt           *wrappedRuntime
+	err          error // error from go routine runner
 }
 
-// NewRunner creates a new NativeRunner that has validated some basic parameters and is ready to Run
-func NewRunner(tp string, ingesterUUID uuid.UUID, ig Ingester) (r *NativeRunner, err error) {
+// wrappedRuntime just lets us wrap the context so we can start and stop independently of the upstream
+// Runtime context
+type wrappedRuntime struct {
+	Runtime
+	ctx context.Context
+	cf  context.CancelFunc
+}
+
+func newWrappedRuntime(rt Runtime) *wrappedRuntime {
+	ctx, cf := context.WithCancel(rt.Context())
+	return &wrappedRuntime{
+		Runtime: rt,
+		ctx:     ctx,
+		cf:      cf,
+	}
+}
+
+func (wr *wrappedRuntime) Context() context.Context {
+	return wr.ctx
+}
+
+// NewNativeRunner creates a new NativeRunner that has validated some basic parameters and is ready to Run
+func NewNativeRunner(tp string, ingesterUUID uuid.UUID, ig Ingester, rt Runtime) (r *NativeRunner, err error) {
 	if tp == `` {
 		err = errors.New("missing type")
 		return
@@ -50,43 +74,56 @@ func NewRunner(tp string, ingesterUUID uuid.UUID, ig Ingester) (r *NativeRunner,
 		Type:         tp,
 		Ingester:     ig,
 		ingesterUUID: ingesterUUID,
+		rt:           newWrappedRuntime(rt),
 	}
 	return
 }
 
-// Run wraps the Ingester.Run with some more tests and a recoverable runner loop so we can recover
-func (nr *NativeRunner) Run(rt Runtime) (err error) {
-	if nr == nil || nr.Ingester == nil {
-		err = errors.New("native runner not ready")
-		return
-	} else if rt == nil {
-		err = errors.New("nil runtime")
+func (nr *NativeRunner) Start() (err error) {
+	if nr == nil || nr.Ingester == nil || nr.rt == nil {
+		return errors.New("not ready")
+	}
+	return
+}
+
+func (nr *NativeRunner) Close() (err error) {
+	if nr == nil || nr.rt == nil {
+		return errors.New("not ready")
+	}
+	nr.rt.cf()
+	err = nr.err
+	return
+}
+
+// run wraps the Ingester.Run with some more tests and a recoverable runner loop so we can recover
+func (nr *NativeRunner) run() {
+	if nr == nil || nr.Ingester == nil || nr.rt == nil {
+		nr.err = errors.New("native runner not ready")
 		return
 	}
 	var lastRun time.Time
-	for rt.Context().Err() == nil {
+	for nr.rt.Context().Err() == nil {
 		if d := time.Since(lastRun); d < restartDelay {
-			if rt.Sleep(d) {
+			if nr.rt.Sleep(d) {
 				break
 			}
 		}
 		lastRun = time.Now()
 		var stack string
-		if stack, err = nr.recoverableRun(rt); err != nil {
-			rt.Error("native ingester failed",
+		if stack, nr.err = nr.recoverableRun(); nr.err != nil {
+			nr.rt.Error("native ingester failed",
 				log.KV("type", nr.Type),
 				log.KV("name", nr.Name()),
 				log.KV("uuid", nr.ingesterUUID),
-				log.KVErr(err),
+				log.KVErr(nr.err),
 				log.KV("stack", stack))
 		}
 	}
-	return
 }
 
 // recoverableRun is just the underlying Ingster.Run wrapped in a defer recover so that if an ingester
 // implementation fails we don't take down the entire hosted ingester stack.
-func (nr *NativeRunner) recoverableRun(rt Runtime) (stack string, err error) {
+func (nr *NativeRunner) recoverableRun() (stack string, err error) {
 	defer func(rerr *error) {
 		if r := recover(); r != nil {
 			// check our parameter and that the caller didn't already set it somehow...
@@ -96,6 +133,6 @@ func (nr *NativeRunner) recoverableRun(rt Runtime) (stack string, err error) {
 			stack = fmt.Sprintf("%v", r)
 		}
 	}(&err)
-	err = nr.Ingester.Run(rt)
+	err = nr.Ingester.Run(nr.rt)
 	return
 }

@@ -36,7 +36,7 @@ type cfgType struct {
 	config.IngestConfig
 	Attach attach.AttachConfig
 	State  hosted.StateConfig
-	Okta   map[string]okta.Config
+	Okta   map[string]*okta.Config
 }
 
 func (c cfgType) Verify() (err error) {
@@ -49,9 +49,11 @@ func (c cfgType) Verify() (err error) {
 	}
 
 	for k, v := range c.Okta {
-		if err = v.Verify(); err != nil {
-			err = fmt.Errorf("Okta config %q failed validation %w", k, err)
-			return
+		if v != nil {
+			if err = v.Verify(); err != nil {
+				err = fmt.Errorf("Okta config %q failed validation %w", k, err)
+				return
+			}
 		}
 	}
 	return
