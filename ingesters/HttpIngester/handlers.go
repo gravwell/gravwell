@@ -22,6 +22,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
@@ -48,6 +49,7 @@ type routeHandler struct {
 	auth          authHandler
 	pproc         *processors.ProcessorSet
 	paramAttacher paramAttacher
+	debugPosts    bool
 }
 
 type handler struct {
@@ -399,29 +401,52 @@ func (r route) String() string {
 
 func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
 	debugout("multhandler\n")
+
+	var now time.Time
+	if cfg.debugPosts {
+		now = time.Now()
+	}
 	scanner := bufio.NewScanner(rdr)
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+
+	var entriesCount int
+	var byteCount int64
 	for scanner.Scan() {
 		bts := scanner.Bytes()
 		if bts = bytes.TrimSpace(bts); len(bts) == 0 {
 			continue
 		}
+		byteCount += int64(len(bts))
 		// we have to do a bytes.Clone on the output because the bufio.Scanner does internal buffer reuse
 		if err := h.handleEntry(cfg, bytes.Clone(bts), ip, cfg.tag); err != nil {
 			h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
+		entriesCount++
 	}
 	if err := scanner.Err(); err != nil {
 		h.lgr.Warn("failed to handle multiline upload", log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
+	} else if cfg.debugPosts {
+		kvs := []rfc5424.SDParam{log.KV("host", ip),
+			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
+			log.KV("bytes", byteCount), log.KV("entries", entriesCount),
+			log.KV("ms", time.Since(now).Milliseconds()),
+		}
+		h.igst.Info("HTTP multiline", kvs...)
 	}
 }
 
 func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Request, rdr io.Reader, ip net.IP) {
+	var now time.Time
+	if cfg.debugPosts {
+		now = time.Now()
+	}
+	bodyReadLimit := int64(maxBody + 1)
+
 	//using a limited Reader here makes sense because we are going to be eathing the entire HTTP request body as a single entry
-	lr := io.LimitedReader{R: rdr, N: int64(maxBody + 1)}
+	lr := io.LimitedReader{R: rdr, N: bodyReadLimit}
 	b, err := io.ReadAll(&lr)
 	if err != nil && err != io.EOF {
 		h.lgr.Info("got bad request", log.KV("address", ip), log.KVErr(err))
@@ -438,5 +463,12 @@ func handleSingle(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.R
 	} else if err = h.handleEntry(cfg, b, ip, cfg.tag); err != nil {
 		h.lgr.Error("failed to handle entry", log.KV("address", ip), log.KVErr(err))
 		w.WriteHeader(http.StatusInternalServerError)
+	} else if cfg.debugPosts {
+		kvs := []rfc5424.SDParam{log.KV("host", ip),
+			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
+			log.KV("bytes", bodyReadLimit-lr.N), log.KV("entries", 1),
+			log.KV("ms", time.Since(now).Milliseconds()),
+		}
+		h.igst.Info("HTTP request", kvs...)
 	}
 }

@@ -64,6 +64,7 @@ type IngesterBase struct {
 	Logger        *log.Logger
 	Cfg           interface{}
 	id            uuid.UUID
+	emitUUID      bool
 	sm            *utils.StatsManager
 	configFile    string
 	configOverlay string
@@ -92,6 +93,7 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	var fp string
 	if pth := filepath.Clean(*stderrOverride); pth != `` && pth != `.` {
 		fp = filepath.Join(`/dev/shm/`, pth)
+		ib.emitUUID = true
 	}
 	cb := func(w io.Writer) {
 		version.PrintVersion(w)
@@ -249,6 +251,9 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 	id, ok := cfg.IngesterUUID()
 	if !ok {
 		id = uuid.Nil //set to the zero UUID, we attempt to write one back during init, but if that fails... just use zero
+	} else if ib.emitUUID {
+		// got a good UUID and we are redirecting stderr (e.g. we should emit the UUID to stderr)
+		fmt.Fprintf(os.Stderr, "UUID:\t\t%v\n", id)
 	}
 	ib.id = id
 	igCfg := ingest.UniformMuxerConfig{
