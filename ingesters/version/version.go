@@ -34,5 +34,23 @@ func PrintVersion(wtr io.Writer) {
 }
 
 func GetVersion() string {
-	return fmt.Sprintf("%d.%d.%d", MajorVersion, MinorVersion, PointVersion)
+	return Current().String()
+}
+
+type Canonical struct {
+	Major int
+	Minor int
+	Point int
+}
+
+func Current() Canonical {
+	return Canonical{
+		Major: MajorVersion,
+		Minor: MinorVersion,
+		Point: PointVersion,
+	}
+}
+
+func (c Canonical) String() string {
+	return fmt.Sprintf("%d.%d.%d", c.Major, c.Minor, c.Point)
 }
