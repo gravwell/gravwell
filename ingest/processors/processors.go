@@ -334,6 +334,12 @@ func (pr *ProcessorSet) Enabled() bool {
 	return len(pr.set) > 0 && pr.wtr != nil
 }
 
+func (pr *ProcessorSet) Count() int {
+	pr.Lock()
+	defer pr.Unlock()
+	return len(pr.set)
+}
+
 func (pr *ProcessorSet) AddProcessor(p Processor) {
 	pr.Lock()
 	defer pr.Unlock()
