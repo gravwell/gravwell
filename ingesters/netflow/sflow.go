@@ -15,8 +15,9 @@ import (
 	"net"
 	"sync"
 
-	"github.com/Cistern/sflow"
+	"github.com/gravwell/gravwell/v3/debug"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v3/sflow"
 )
 
 // See `sFlowRcvrMaximumDatagramSize` in https://sflow.org/sflow_version_5.txt , page 17-18.
@@ -102,11 +103,11 @@ func (s *SFlowV5Handler) routine(id int) {
 		if err != nil {
 			return
 		}
-		decoder := sflow.NewDecoder(bytes.NewReader(tbuf))
+		decoder := sflow.NewDatagramDecoder(bytes.NewReader(tbuf))
 		_, err = decoder.Decode()
-		// See https://sflow.org/sflow_version_5.txt - Pag 24-25
-		// Vendor specific samples are permitted as part of the protocol.
-		if err != nil && err != sflow.ErrUnknownSampleType {
+		if err != nil {
+			// TODO  Remove this in final version, this path is way too hot for this.
+			// debug.Out("could not parse packet: %v", err)
 			continue //there isn't much we can do about bad packets...
 		}
 
@@ -115,6 +116,7 @@ func (s *SFlowV5Handler) routine(id int) {
 		e := &entry.Entry{
 			Tag: s.tag,
 			SRC: addr.IP,
+			// TODO  Likely here we will make the datagram type have some method to "best effort" guess this shit, depending on the sample
 			// sflow does not have a timestamp for when the packet was sent.
 			TS:   entry.Now(),
 			Data: lbuf,
