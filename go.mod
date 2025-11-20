@@ -8,7 +8,6 @@ require (
 	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
 	github.com/Bowery/prompt v0.0.0-20190916142128-fa8279994f75
-	github.com/Cistern/sflow v0.0.0-20240622235316-ed105e3cf9fb
 	github.com/IBM/sarama v1.45.1
 	github.com/Pallinder/go-randomdata v1.2.0
 	github.com/asergeyev/nradix v0.0.0-20170505151046-3872ab85bb56

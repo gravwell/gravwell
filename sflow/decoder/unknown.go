@@ -6,15 +6,26 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Package sflow implements a low level high speed sflowV5 decoder
-package sflow
+package decoder
 
 import (
 	"io"
 
-	"github.com/gravwell/gravwell/v3/sflow/decoder"
+	"github.com/gravwell/gravwell/v3/sflow/datagram"
 )
 
-func NewDecoder(r io.Reader) decoder.DatagramDecoder {
-	return decoder.NewDatagramDecoder(r)
+func decodeUnknownSample(r io.Reader, format, length uint32) (*datagram.UnknownSample, error) {
+	rest := make([]byte, length)
+	n, err := r.Read(rest)
+	if err != nil {
+		return nil, err
+	}
+
+	if n != int(length) {
+		return nil, ErrSampleMalformedOrIncomplete
+	}
+
+	res := datagram.UnknownSample(rest)
+
+	return &res, nil
 }

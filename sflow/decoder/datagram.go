@@ -1,9 +1,20 @@
-package sflow
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
+// Package decoder decodes sflow packets
+package decoder
 
 import (
 	"encoding/binary"
 	"errors"
 	"io"
+
+	"github.com/gravwell/gravwell/v3/sflow/datagram"
 )
 
 var (
@@ -19,9 +30,9 @@ func NewDatagramDecoder(r io.Reader) DatagramDecoder {
 	return DatagramDecoder{r: r}
 }
 
-func (dd *DatagramDecoder) Decode() (*Datagram, error) {
+func (dd *DatagramDecoder) Decode() (*datagram.Datagram, error) {
 	// Decode headers first
-	dgram := &Datagram{}
+	dgram := &datagram.Datagram{}
 	var err error
 
 	err = binary.Read(dd.r, binary.BigEndian, &dgram.Version)
@@ -88,3 +99,4 @@ func (dd *DatagramDecoder) Decode() (*Datagram, error) {
 
 	return dgram, nil
 }
+

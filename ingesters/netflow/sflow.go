@@ -15,7 +15,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/gravwell/gravwell/v3/debug"
+	// "github.com/gravwell/gravwell/v3/debug"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/sflow"
 )
@@ -103,7 +103,7 @@ func (s *SFlowV5Handler) routine(id int) {
 		if err != nil {
 			return
 		}
-		decoder := sflow.NewDatagramDecoder(bytes.NewReader(tbuf))
+		decoder := sflow.NewDecoder(bytes.NewReader(tbuf))
 		_, err = decoder.Decode()
 		if err != nil {
 			// TODO  Remove this in final version, this path is way too hot for this.
