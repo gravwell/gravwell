@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Package datagram holds structure of the decoded datagrams
+// Package datagram holds structure of the decoded sflow datagrams
 package datagram
 
 import "net"

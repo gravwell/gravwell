@@ -15,7 +15,9 @@ import (
 	"net"
 	"sync"
 
-	// "github.com/gravwell/gravwell/v3/debug"
+	// TODO Remove in final version
+	"github.com/gravwell/gravwell/v3/debug"
+	//
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/sflow"
 )
@@ -107,7 +109,8 @@ func (s *SFlowV5Handler) routine(id int) {
 		_, err = decoder.Decode()
 		if err != nil {
 			// TODO  Remove this in final version, this path is way too hot for this.
-			// debug.Out("could not parse packet: %v", err)
+			debug.Out("could not parse packet: %v", err)
+			// 
 			continue //there isn't much we can do about bad packets...
 		}
 
