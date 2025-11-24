@@ -144,6 +144,7 @@ import (
 	ingest "github.com/gravwell/gravwell/v4/ingest"
 	config "github.com/gravwell/gravwell/v4/ingest/config"
 	entry "github.com/gravwell/gravwell/v4/ingest/entry"
+	ingestLog "github.com/gravwell/gravwell/v4/ingest/log"
 	ipfix "github.com/gravwell/ipfix"
 	jsonparser_2 "github.com/gravwell/jsonparser"
 	filetype "github.com/h2non/filetype"
@@ -1637,7 +1638,7 @@ func init() {
 	decs["INVALID_MAGIC"] = ingest.INVALID_MAGIC
 	decs["IngestCommand"] = reflect.TypeOf((*ingest.IngestCommand)(nil)).Elem()
 	decs["IngestConnection"] = reflect.TypeOf((*ingest.IngestConnection)(nil)).Elem()
-	decs["IngestLogger"] = reflect.TypeOf((*ingest.IngestLogger)(nil)).Elem()
+	decs["IngestLogger"] = reflect.TypeOf((*ingestLog.IngestLogger)(nil)).Elem()
 	decs["IngestMuxer"] = reflect.TypeOf((*ingest.IngestMuxer)(nil)).Elem()
 	decs["IngesterState"] = reflect.TypeOf((*ingest.IngesterState)(nil)).Elem()
 	decs["IngesterStateCallback"] = reflect.TypeOf((*ingest.IngesterStateCallback)(nil)).Elem()
@@ -1645,7 +1646,7 @@ func init() {
 	decs["K"] = native.UntypedNumericConst("1000.0")
 	decs["KB"] = ingest.KB
 	decs["LockedSource"] = reflect.TypeOf((*ingest.LockedSource)(nil)).Elem()
-	decs["Logger"] = reflect.TypeOf((*ingest.Logger)(nil)).Elem()
+	decs["Logger"] = reflect.TypeOf((*ingestLog.Logger)(nil)).Elem()
 	decs["M"] = native.UntypedNumericConst("1000000.0")
 	decs["MAX_ENTRY_SIZE"] = ingest.MAX_ENTRY_SIZE
 	decs["MAX_TAG_LENGTH"] = ingest.MAX_TAG_LENGTH
@@ -1682,7 +1683,7 @@ func init() {
 	decs["NewUniformIngestMuxer"] = ingest.NewUniformIngestMuxer
 	decs["NewUniformIngestMuxerExt"] = ingest.NewUniformIngestMuxerExt
 	decs["NewUniformMuxer"] = ingest.NewUniformMuxer
-	decs["NoLogger"] = ingest.NoLogger
+	decs["NoLogger"] = ingestLog.NoLogger
 	decs["NsPerSec"] = ingest.NsPerSec
 	decs["P"] = native.UntypedNumericConst("1000000000000.0")
 	decs["PB"] = ingest.PB
