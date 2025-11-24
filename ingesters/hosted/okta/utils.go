@@ -119,10 +119,8 @@ func drainResponse(resp *http.Response) {
 }
 
 func quitableSleep(ctx context.Context, to time.Duration) (quit bool) {
-	tmr := time.NewTimer(to)
-	defer tmr.Stop()
 	select {
-	case <-tmr.C:
+	case <-time.After(to):
 	case <-ctx.Done():
 		quit = true
 	}
