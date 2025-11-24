@@ -17,7 +17,6 @@ import (
 	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
 var (
@@ -26,10 +25,7 @@ var (
 
 // Ingester is the interface that every ingester must implement
 type Ingester interface {
-	Name() string
-	Version() version.Canonical
-	UUID() uuid.UUID
-	Run(Runtime) error
+	Run(context.Context, Runtime) error
 }
 
 // Runner is a wrapper around the Ingester that also implements a Closer so that we can start and stop
@@ -37,6 +33,9 @@ type Runner interface {
 	Ingester
 	Start() error
 	Close() error
+	ID() string
+	Name() string
+	UUID() uuid.UUID
 }
 
 // Runtime is the interface provided to a hosted ingester which enables it to
@@ -46,7 +45,7 @@ type Runtime interface {
 	// and maybe slep more
 	Alive() bool
 	Sleep(time.Duration) bool // a sleep implementation that an abort early due to context cancellation
-	Context() context.Context // grab the context
+	Context() context.Context // grab the global context
 	Storage                   // Storage interface
 	Logger                    // Logger interface which is a trimmed down surface of github.com/gravwell/gravwell/ingest/log
 	Writer

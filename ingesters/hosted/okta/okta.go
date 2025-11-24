@@ -10,6 +10,7 @@
 package okta
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -21,12 +22,17 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
 	"golang.org/x/time/rate"
+)
+
+// export Name, Version, and ID as strings so they are compatible with WASM and any non-native interfaces
+const (
+	Name    string = `okta`
+	ID      string = `okta.ingesters.gravwell.io`
+	Version string = `1.0.0` // must be canonical version string with only major.minor.point
 )
 
 const (
@@ -79,22 +85,7 @@ func NewOktaIngester(c Config, tn hosted.TagNegotiator) (o *OktaIngester, err er
 	return
 }
 
-func (o *OktaIngester) Name() string {
-	return name
-}
-
-func (o *OktaIngester) Version() version.Canonical {
-	return version.Current()
-}
-
-func (o *OktaIngester) UUID() uuid.UUID {
-	if o != nil {
-		return o.cfg.UUID()
-	}
-	return uuid.Nil
-}
-
-func (o *OktaIngester) Run(rt hosted.Runtime) (err error) {
+func (o *OktaIngester) Run(ctx context.Context, rt hosted.Runtime) (err error) {
 	// initialize our "latest timestamp"
 	o.latestTS = time.Now().Add(-7 * 24 * time.Hour)
 
@@ -120,23 +111,22 @@ func (o *OktaIngester) Run(rt hosted.Runtime) (err error) {
 
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go o.userLogRoutine(rl, wg, rt)
+	go o.userLogRoutine(ctx, rl, wg, rt)
 
-	if err = o.systemLogRoutine(rl, rt); err != nil {
+	if err = o.systemLogRoutine(ctx, rl, rt); err != nil {
 		rt.Error("failed to gather system logs", log.KV("error", err))
 	} else {
-		rt.Info("shutting down", log.KV("shutdown", rt.Context().Err() == nil))
+		rt.Info("shutting down", log.KV("shutdown", ctx.Err() == nil))
 	}
 	return
 }
 
 // userLogRoutine is just a goroutine that
-func (o *OktaIngester) userLogRoutine(rl *rate.Limiter, wg *sync.WaitGroup, rt hosted.Runtime) {
+func (o *OktaIngester) userLogRoutine(ctx context.Context, rl *rate.Limiter, wg *sync.WaitGroup, rt hosted.Runtime) {
 	defer wg.Done()
 	startTs := time.Now()
 	tckr := time.NewTicker(userLogWindowSize)
 	// grab the context
-	ctx := rt.Context()
 loop:
 	for {
 		var ts time.Time
@@ -164,11 +154,11 @@ loop:
 	}
 }
 
-func (o *OktaIngester) systemLogRoutine(rl *rate.Limiter, rt hosted.Runtime) error {
+func (o *OktaIngester) systemLogRoutine(ctx context.Context, rl *rate.Limiter, rt hosted.Runtime) error {
 	rt.Info("starting system log routine",
 		log.KV("start-ts", o.latestTS.Format(time.RFC3339)),
 		log.KV("next-url", o.systemLogsNext != nil))
-	rc := newRetryClient(rl, defaultRequestTimeout, defaultBackoff, rt.Context(), defaultRetryCodes)
+	rc := newRetryClient(rl, defaultRequestTimeout, defaultBackoff, ctx, defaultRetryCodes)
 	var quit bool
 	for !quit && rt.Context().Err() == nil {
 		if err := o.getSystemLogs(rc, rt, rl); err != nil {

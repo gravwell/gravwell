@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
 const (
@@ -31,67 +32,90 @@ type NativeConfig struct {
 // in a regular old go routine.  We don't FULLY trust these, so we wrap them in a recover.
 type NativeRunner struct {
 	Ingester
-	Type         string
+	id           string
+	name         string
+	version      version.Canonical
 	ingesterUUID uuid.UUID
-	rt           *wrappedRuntime
+	rt           Runtime
+	ctx          context.Context
+	cf           context.CancelFunc
 	err          error // error from go routine runner
 }
 
-// wrappedRuntime just lets us wrap the context so we can start and stop independently of the upstream
-// Runtime context
-type wrappedRuntime struct {
-	Runtime
-	ctx context.Context
-	cf  context.CancelFunc
-}
-
-func newWrappedRuntime(rt Runtime) *wrappedRuntime {
-	ctx, cf := context.WithCancel(rt.Context())
-	return &wrappedRuntime{
-		Runtime: rt,
-		ctx:     ctx,
-		cf:      cf,
-	}
-}
-
-func (wr *wrappedRuntime) Context() context.Context {
-	return wr.ctx
-}
-
 // NewNativeRunner creates a new NativeRunner that has validated some basic parameters and is ready to Run
-func NewNativeRunner(tp string, ingesterUUID uuid.UUID, ig Ingester, rt Runtime) (r *NativeRunner, err error) {
-	if tp == `` {
-		err = errors.New("missing type")
+func NewNativeRunner(id, name, verstr string, ingesterUUID uuid.UUID, ig Ingester, rt Runtime) (r *NativeRunner, err error) {
+	var ver version.Canonical
+	if id == `` {
+		err = errors.New("missing ingester ID")
+		return
+	} else if name == `` {
+		err = errors.New("missing ingester name")
+		return
+	} else if verstr == `` {
+		err = errors.New("missing ingester version")
 		return
 	} else if ig == nil {
 		err = errors.New("nil ingester interface")
+		return
+	} else if ver, err = version.Parse(verstr); err != nil {
 		return
 	}
 	if ingesterUUID == uuid.Nil {
 		ingesterUUID = uuid.New()
 	}
 	r = &NativeRunner{
-		Type:         tp,
+		id:           id,
+		name:         name,
+		version:      ver,
 		Ingester:     ig,
 		ingesterUUID: ingesterUUID,
-		rt:           newWrappedRuntime(rt),
+		rt:           rt,
 	}
+	r.ctx, r.cf = context.WithCancel(rt.Context())
 	return
 }
 
+// Start initializes and starts the ingester routine
 func (nr *NativeRunner) Start() (err error) {
 	if nr == nil || nr.Ingester == nil || nr.rt == nil {
 		return errors.New("not ready")
 	}
+	//TODO check if we are already started
 	return
 }
 
+// Close stops the running routine, collects the error and returns
 func (nr *NativeRunner) Close() (err error) {
 	if nr == nil || nr.rt == nil {
 		return errors.New("not ready")
 	}
-	nr.rt.cf()
+	nr.cf()
+	//TODO wait for routine to exit
 	err = nr.err
+	return
+}
+
+// ID returns the ID to implement the interface
+func (nr *NativeRunner) ID() (id string) {
+	if nr != nil {
+		id = nr.id
+	}
+	return
+}
+
+// Name returns the name to implement the interface
+func (nr *NativeRunner) Name() (name string) {
+	if nr != nil {
+		name = nr.name
+	}
+	return
+}
+
+// UUID returns the name to implement the interface
+func (nr *NativeRunner) UUID() (r uuid.UUID) {
+	if nr != nil {
+		r = nr.ingesterUUID
+	}
 	return
 }
 
@@ -102,7 +126,7 @@ func (nr *NativeRunner) run() {
 		return
 	}
 	var lastRun time.Time
-	for nr.rt.Context().Err() == nil {
+	for nr.ctx.Err() == nil {
 		if d := time.Since(lastRun); d < restartDelay {
 			if nr.rt.Sleep(d) {
 				break
@@ -112,8 +136,8 @@ func (nr *NativeRunner) run() {
 		var stack string
 		if stack, nr.err = nr.recoverableRun(); nr.err != nil {
 			nr.rt.Error("native ingester failed",
-				log.KV("type", nr.Type),
-				log.KV("name", nr.Name()),
+				log.KV("id", nr.id),
+				log.KV("name", nr.name),
 				log.KV("uuid", nr.ingesterUUID),
 				log.KVErr(nr.err),
 				log.KV("stack", stack))
@@ -133,6 +157,6 @@ func (nr *NativeRunner) recoverableRun() (stack string, err error) {
 			stack = fmt.Sprintf("%v", r)
 		}
 	}(&err)
-	err = nr.Ingester.Run(nr.rt)
+	err = nr.Ingester.Run(nr.ctx, nr.rt)
 	return
 }

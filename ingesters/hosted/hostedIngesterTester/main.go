@@ -113,9 +113,8 @@ func startNativeIngesters(ctx context.Context, cfg *cfgType, ib base.IngesterBas
 		}
 		if existing, ok := mp[v.UUID()]; ok {
 			ib.Logger.Error("hosted ingester UUID collision",
-				log.KV("existing-name", existing.Name()),
 				log.KV("existing-uuid", existing.UUID()),
-				log.KV("colliding-type", `okta`),
+				log.KV("colliding-type", existing.ID),
 				log.KV("colliding-name", k),
 				log.KV("colliding-uuid", v.Ingester_UUID))
 			continue // just skip it
@@ -132,9 +131,9 @@ func startNativeIngesters(ctx context.Context, cfg *cfgType, ib base.IngesterBas
 		var rt hosted.Runtime
 
 		// create a new hosted native runner
-		if runner, err = hosted.NewNativeRunner(`okta`, v.UUID(), ig, rt); err != nil {
+		if runner, err = hosted.NewNativeRunner(okta.ID, k, okta.Version, v.UUID(), ig, rt); err != nil {
 			ib.Logger.Error("failed to create new native runner",
-				log.KV("type", `okta`),
+				log.KV("id", okta.ID),
 				log.KV("name", k),
 				log.KV("uuid", v.Ingester_UUID),
 				log.KVErr(err))

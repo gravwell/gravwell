@@ -10,9 +10,12 @@
 package version
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -49,6 +52,26 @@ func Current() Canonical {
 		Minor: MinorVersion,
 		Point: PointVersion,
 	}
+}
+
+var rx = regexp.MustCompile(`^(?P<major>\d+)\.(?P<minor>\d+)\.(?P<point>\d+)$`)
+
+func Parse(v string) (c Canonical, err error) {
+	m := rx.FindAllStringSubmatch(v, -1)
+	if len(m) != 1 || len(m[0]) != 4 {
+		err = errors.New("invalid canonical version string")
+		return
+	}
+	// we can use Atoi here and just do a simple check on < 0 because the regex should prevent negative numbers
+	// the < 0 check is redundant but I am leaving it
+	if c.Major, err = strconv.Atoi(m[0][1]); err != nil || c.Major < 0 {
+		err = fmt.Errorf("invalid major version %q %w", m[0][1], err)
+	} else if c.Minor, err = strconv.Atoi(m[0][2]); err != nil || c.Minor < 0 {
+		err = fmt.Errorf("invalid minor version %q %w", m[0][2], err)
+	} else if c.Point, err = strconv.Atoi(m[0][3]); err != nil || c.Point < 0 {
+		err = fmt.Errorf("invalid point version %q %w", m[0][4], err)
+	}
+	return
 }
 
 func (c Canonical) String() string {
