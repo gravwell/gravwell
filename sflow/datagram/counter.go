@@ -1,6 +1,9 @@
 package datagram
 
-import "unsafe"
+import (
+	"net"
+	"unsafe"
+)
 
 const (
 	CounterSampleFormat         = 2
@@ -107,8 +110,8 @@ const (
 	EthernetCountersRecordDataFormatValue = 2
 )
 
-// TokenRingCounters see https://sflow.org/sflow_version_5.txt , Pag 41, `tokenring_counters`
-type TokenRingCounters struct {
+// TokenringCounters see https://sflow.org/sflow_version_5.txt , Pag 41, `tokenring_counters`
+type TokenringCounters struct {
 	DataFormat                  uint32
 	Length                      uint32
 	Dot3StatsLineErrors         uint32
@@ -131,9 +134,14 @@ type TokenRingCounters struct {
 	Dot3StatsFreqErrors         uint32
 }
 
-func (tr *TokenRingCounters) GetDataFormat() uint32 {
+func (tr *TokenringCounters) GetDataFormat() uint32 {
 	return tr.DataFormat
 }
+
+const (
+	TokenringCountersRecordValidLength     = unsafe.Sizeof(TokenringCounters{}) - CommonHeaderSize
+	TokenringCountersRecordDataFormatValue = 3
+)
 
 // VgCounters see https://sflow.org/sflow_version_5.txt , Pag 42, `vg_counters`
 type VgCounters struct {
@@ -159,6 +167,11 @@ func (v *VgCounters) GetDataFormat() uint32 {
 	return v.DataFormat
 }
 
+const (
+	VgCountersRecordValidLength     = unsafe.Sizeof(VgCounters{}) - CommonHeaderSize
+	VgCountersRecordDataFormatValue = 4
+)
+
 // VlanCounters see https://sflow.org/sflow_version_5.txt , Pag 42, `vlan_counters`
 type VlanCounters struct {
 	DataFormat       uint32
@@ -175,6 +188,11 @@ func (v *VlanCounters) GetDataFormat() uint32 {
 	return v.DataFormat
 }
 
+const (
+	VlanCountersRecordValidLength     = unsafe.Sizeof(VlanCounters{}) - CommonHeaderSize
+	VlanCountersRecordDataFormatValue = 5
+)
+
 // ProcessorCounters see https://sflow.org/sflow_version_5.txt , Pag 42, `processor`
 type ProcessorCounters struct {
 	DataFormat  uint32
@@ -189,3 +207,274 @@ type ProcessorCounters struct {
 func (v *ProcessorCounters) GetDataFormat() uint32 {
 	return v.DataFormat
 }
+
+const (
+	ProcessorCountersRecordValidLength     = unsafe.Sizeof(ProcessorCounters{}) - CommonHeaderSize
+	ProcessorCountersRecordDataFormatValue = 1001
+)
+
+// HostDescr see https://sflow.org/sflow_host.txt, Pag 7, `host_descr`
+type HostDescr struct {
+	DataFormat  uint32
+	Length      uint32
+	HostName    [64]byte // string
+	UUID        [16]byte // string
+	MachineType uint32
+	OSName      uint32
+	OSRelease   [32]byte // string
+}
+
+func (v *HostDescr) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+const (
+	HostDescrRecordValidLength     = unsafe.Sizeof(HostDescr{}) - CommonHeaderSize
+	HostDescrRecordDataFormatValue = 2000
+)
+
+// HostAdapters see https://sflow.org/sflow_host.txt, Pag 7, `host_adapters`
+type HostAdapters struct {
+	DataFormat    uint32
+	Length        uint32
+	AdaptersCount uint32
+	Adapters      []HostAdapter
+}
+
+type HostAdapter struct {
+	IFIndex    uint32
+	MACLength  uint32
+	MACAddress net.HardwareAddr
+}
+
+func (v *HostAdapters) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+// NOTE  HostAdapters is variable length, so no way to validate it
+const (
+	HostAdaptersRecordDataFormatValue = 2001
+)
+
+// HostParent see https://sflow.org/sflow_host.txt, Pag 8, `host_parent`
+type HostParent struct {
+	DataFormat     uint32
+	Length         uint32
+	ContainerType  uint32
+	ContainerIndex uint32
+}
+
+func (v *HostParent) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+const (
+	HostParentRecordValidLength     = unsafe.Sizeof(HostParent{}) - CommonHeaderSize
+	HostParentRecordDataFormatValue = 2002
+)
+
+// HostCPU see https://sflow.org/sflow_host.txt, Pag 8, `host_cpu`
+type HostCPU struct {
+	DataFormat       uint32
+	Length           uint32
+	LoadOne          float32
+	LoadFive         float32
+	LoadFifteen      float32
+	ProcessesRunning uint32
+	ProcessesTotal   uint32
+	CPUNume          uint32
+	CPUSpeed         uint32
+	Uptime           uint32
+	CPUUser          uint32
+	CPUNice          uint32
+	CPUSys           uint32
+	CPUIdle          uint32
+	CPUWio           uint32
+	CPUIntr          uint32
+	CPUSoftIntr      uint32
+	Interrupts       uint32
+	Contexts         uint32
+}
+
+func (v *HostCPU) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+const (
+	HostCPURecordValidLength     = unsafe.Sizeof(HostCPU{}) - CommonHeaderSize
+	HostCPURecordDataFormatValue = 2003
+)
+
+// HostMemory see https://sflow.org/sflow_host.txt, Pag 9, `host_memory`
+type HostMemory struct {
+	DataFormat   uint32
+	Length       uint32
+	MemTotal     uint64
+	MemFree      uint64
+	MemShared    uint64
+	MemBuffers   uint64
+	MemCached    uint64
+	MemSwapTotal uint64
+	SwapFree     uint64
+	PageIn       uint32
+	PageOut      uint32
+	SwapIn       uint32
+	SwapOut      uint32
+}
+
+func (v *HostMemory) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+const (
+	HostMemoryRecordValidLength     = unsafe.Sizeof(HostMemory{}) - CommonHeaderSize
+	HostMemoryRecordDataFormatValue = 2004
+)
+
+// HostDiskIO see https://sflow.org/sflow_host.txt, Pag 9, `host_disk_io`
+type HostDiskIO struct {
+	DataFormat              uint32
+	Length                  uint32
+	DiskTotal               uint64
+	DiskFree                uint64
+	MaxUsedPartitionPercent float32
+	Reads                   uint32
+	BytesRead               uint64
+	ReadTime                uint32
+	Writes                  uint32
+	BytesWritten            uint64
+	WriteTime               uint32
+}
+
+func (v *HostDiskIO) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+const (
+	HostDiskIORecordValidLength     = unsafe.Sizeof(HostDiskIO{}) - CommonHeaderSize
+	HostDiskIORecordDataFormatValue = 2005
+)
+
+// HostNetIO see https://sflow.org/sflow_host.txt, Pag 9, `host_net_io`
+type HostNetIO struct {
+	DataFormat uint32
+	Length     uint32
+	BytesIn    uint64
+	PacketsIn  uint32
+	ErrorsIn   uint32
+	DropsIn    uint32
+	BytesOut   uint64
+	PacketsOut uint32
+	ErrorsOut  uint32
+	DropsOut   uint32
+}
+
+func (v *HostNetIO) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+const (
+	HostNetIORecordValidLength     = unsafe.Sizeof(HostNetIO{}) - CommonHeaderSize
+	HostHetIORecordDataFormatValue = 2006
+)
+
+// VirtNode see https://sflow.org/sflow_host.txt, Pag 10, `virt_node`
+type VirtNode struct {
+	DataFormat uint32
+	Length     uint32
+	Mhz        uint32
+	CPUs       uint32
+	Memory     uint64
+	MemoryFree uint64
+	NumDomains uint32
+}
+
+func (v *VirtNode) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+const (
+	VirtNodeRecordValidLength     = unsafe.Sizeof(VirtNode{}) - CommonHeaderSize
+	VirtNodeRecordDataFormatValue = 2100
+)
+
+// VirtCPU see https://sflow.org/sflow_host.txt, Pag 10, `virt_cpu`
+type VirtCPU struct {
+	DataFormat      uint32
+	Length          uint32
+	State           uint32
+	CPUTime         uint32
+	VirtualCPUCount uint64
+}
+
+func (v *VirtCPU) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+const (
+	VirtCPURecordValidLength     = unsafe.Sizeof(VirtCPU{}) - CommonHeaderSize
+	VirtCPURecordDataFormatValue = 2101
+)
+
+// VirtMemory see https://sflow.org/sflow_host.txt, Pag 10, `virt_memory`
+type VirtMemory struct {
+	DataFormat uint32
+	Length     uint32
+	Memory     uint64
+	MaxMemory  uint64
+}
+
+func (v *VirtMemory) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+const (
+	VirtMemoryRecordValidLength     = unsafe.Sizeof(VirtMemory{}) - CommonHeaderSize
+	VirtMemoryRecordDataFormatValue = 2102
+)
+
+// VirtDiskIO see https://sflow.org/sflow_host.txt, Pag 11, `virt_disk_io`
+type VirtDiskIO struct {
+	DataFormat uint32
+	Length     uint32
+	Capacity   uint64
+	Allocation uint64
+	Available  uint64
+	RDReq      uint32
+	RDBytes    uint64
+	WRReq      uint32
+	WRBytes    uint64
+	Errors     uint32
+}
+
+func (v *VirtDiskIO) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+const (
+	VirtDiskIORecordValidLength     = unsafe.Sizeof(VirtDiskIO{}) - CommonHeaderSize
+	VirtDiskIORecordDataFormatValue = 2103
+)
+
+// VirtNetIO see https://sflow.org/sflow_host.txt, Pag 11, `virt_net_io`
+type VirtNetIO struct {
+	DataFormat uint32
+	Length     uint32
+	RXBytes    uint64
+	RXPackets  uint32
+	RXErrs     uint32
+	RXDrop     uint32
+	TXBytes    uint64
+	TXPackets  uint32
+	TXErrs     uint32
+	TXDrop     uint32
+}
+
+func (v *VirtNetIO) GetDataFormat() uint32 {
+	return v.DataFormat
+}
+
+const (
+	VirtNetIORecordValidLength     = unsafe.Sizeof(VirtNetIO{}) - CommonHeaderSize
+	VirtNetIORecordDataFormatValue = 2104
+)

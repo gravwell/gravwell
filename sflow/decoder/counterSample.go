@@ -16,8 +16,6 @@ func decodeCounterSampleExpandedFormat(r io.Reader, format, length uint32) (*dat
 		SampleHeader: header,
 	}
 
-	// FIXME FROM HERE DOWNWARDS, SOMETHING IS WRONG, I AM GETTING ABSOLUTELY NON SENSICAL dataFormat VALUES... Above, things seem correct
-	// Use https://github.com/sflow/sflowtool to see the decoded packets and resend them to the ingester to debug this shit
 	err := binary.Read(r, binary.BigEndian, &cs.SequenceNum)
 	if err != nil {
 		return nil, err
@@ -49,7 +47,7 @@ func decodeCounterSampleExpandedFormat(r io.Reader, format, length uint32) (*dat
 		var record datagram.Record
 		switch dataFormat {
 		case datagram.CounterIfRecordDataFormatValue:
-			decoded, err := decodeCounterIfRecord(r, dataFormat, length)
+			decoded, err := decodeCounterIfRecord(r)
 			if err != nil {
 				return nil, err
 			}
@@ -57,7 +55,136 @@ func decodeCounterSampleExpandedFormat(r io.Reader, format, length uint32) (*dat
 			record = &decoded
 			cs.Records = append(cs.Records, record)
 		case datagram.EthernetCountersRecordDataFormatValue:
-			decoded, err := decodeEthernetCountersRecord(r, dataFormat, length)
+			decoded, err := decodeEthernetCountersRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.TokenringCountersRecordDataFormatValue:
+			decoded, err := decordTokenringCountersRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.VgCountersRecordDataFormatValue:
+			decoded, err := decodeVgCountersRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.VlanCountersRecordDataFormatValue:
+			decoded, err := decodeVlanCountersRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.ProcessorCountersRecordDataFormatValue:
+			decoded, err := decodeProcessorCountersRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+
+		case datagram.HostDescrRecordDataFormatValue:
+			decoded, err := decodeHostDescrRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.HostAdaptersRecordDataFormatValue:
+			decoded, err := decodeHostAdaptersRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.HostParentRecordDataFormatValue:
+			decoded, err := decodeHostParentRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.HostCPURecordDataFormatValue:
+			decoded, err := decodeHostCPURecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.HostMemoryRecordDataFormatValue:
+			decoded, err := decodeHostMemoryRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.HostDiskIORecordDataFormatValue:
+			decoded, err := decodeHostDiskIORecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.HostHetIORecordDataFormatValue:
+			decoded, err := decodeHostNetIORecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.VirtNodeRecordDataFormatValue:
+			decoded, err := decodeVirtNodeRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.VirtCPURecordDataFormatValue:
+			decoded, err := decodeVirtCPURecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.VirtMemoryRecordDataFormatValue:
+			decoded, err := decodeVirtMemoryRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.VirtDiskIORecordDataFormatValue:
+			decoded, err := decodeVirtDiskIORecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.VirtNetIORecordDataFormatValue:
+			decoded, err := decodeVirtNetIORecord(r)
 			if err != nil {
 				return nil, err
 			}
