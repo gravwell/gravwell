@@ -31,6 +31,7 @@ func decodeCounterSampleExpandedFormat(r io.Reader, format, length uint32) (*dat
 		return nil, err
 	}
 
+	// TODO From here downwards is the same for normal CounterSample, so this should be `decodeCounterSampleRecords` or something like that
 	err = binary.Read(r, binary.BigEndian, &cs.CounterRecordsCount)
 	if err != nil {
 		return nil, err
@@ -94,7 +95,22 @@ func decodeCounterSampleExpandedFormat(r io.Reader, format, length uint32) (*dat
 
 			record = &decoded
 			cs.Records = append(cs.Records, record)
+		case datagram.OpenFlowPortRecordDataFormatValue:
+			decoded, err := decodeOpenFlowPortRecord(r)
+			if err != nil {
+				return nil, err
+			}
 
+			record = &decoded
+			cs.Records = append(cs.Records, record)
+		case datagram.OpenFlowPortNameRecordDataFormatValue:
+			decoded, err := decodeOpenFlowPortNameRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			cs.Records = append(cs.Records, record)
 		case datagram.HostDescrRecordDataFormatValue:
 			decoded, err := decodeHostDescrRecord(r)
 			if err != nil {
@@ -192,7 +208,12 @@ func decodeCounterSampleExpandedFormat(r io.Reader, format, length uint32) (*dat
 			record = &decoded
 			cs.Records = append(cs.Records, record)
 		default:
-			return nil, datagram.ErrUnknownRecordType
+			record, err := decodeUnknownRecord(r, dataFormat)
+			if err != nil {
+				return nil, err
+			}
+
+			cs.Records = append(cs.Records, record)
 		}
 
 	}

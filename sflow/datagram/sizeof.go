@@ -8,19 +8,16 @@
 
 package datagram
 
-import (
-	"errors"
-	"unsafe"
-)
+import "reflect"
 
-var ErrUnknownRecordType = errors.New("record has unknown data format")
+// Calculate the byte size of s without padding. Only works with flat structs
+func packetSizeOf(s any) uintptr {
+	t := reflect.TypeOf(s)
 
-const (
-	RecordHeaderFormatSize int = 4
-	RecordHeaderLengthSize
-	RecordHeaderSize = unsafe.Sizeof(RecordHeader{})
-)
+	var size uintptr
+	for i := 0; i < t.NumField(); i++ {
+		size += t.Field(i).Type.Size()
+	}
 
-type Record interface {
-	GetRecordHeader() (RecordHeader, error)
+	return size
 }

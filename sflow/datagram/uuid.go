@@ -9,18 +9,21 @@
 package datagram
 
 import (
-	"errors"
-	"unsafe"
+	"strings"
 )
 
-var ErrUnknownRecordType = errors.New("record has unknown data format")
+type SFlowUUID [16]byte
 
-const (
-	RecordHeaderFormatSize int = 4
-	RecordHeaderLengthSize
-	RecordHeaderSize = unsafe.Sizeof(RecordHeader{})
-)
+func (sui SFlowUUID) String() string {
+	var sb strings.Builder
 
-type Record interface {
-	GetRecordHeader() (RecordHeader, error)
+	sb.WriteString(string(sui[:4]))
+	sb.WriteByte('-')
+	sb.WriteString(string(sui[4:8]))
+	sb.WriteByte('-')
+	sb.WriteString(string(sui[8:12]))
+	sb.WriteByte('-')
+	sb.WriteString(string(sui[12:16]))
+
+	return sb.String()
 }

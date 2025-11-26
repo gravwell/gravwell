@@ -18,6 +18,7 @@ import (
 
 var (
 	ErrSampleMalformedOrIncomplete = errors.New("sample is malformed or incomplete")
+	ErrRecordMalformedOrIncomplete = errors.New("record is malformed or incomplete")
 )
 
 func decodeSample(r io.Reader) (datagram.Sample, error) {
@@ -37,8 +38,8 @@ func decodeSample(r io.Reader) (datagram.Sample, error) {
 
 	var sample datagram.Sample
 	switch format {
-		// TODO Not yet
-		// case CounterSampleFormat
+	// TODO Not yet
+	// case CounterSampleFormat
 	case datagram.CounterSampleExtendedFormat:
 		sample, err = decodeCounterSampleExpandedFormat(r, format, length)
 	default:

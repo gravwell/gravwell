@@ -126,7 +126,7 @@ func (s *SFlowV5Handler) routine(id int) {
 		_, err = decoder.Decode()
 		if err != nil {
 			// TODO  Remove this in final version, this path is way too hot for this.
-			debug.Out("could not parse packet: %v", err)
+			debug.Out("could not parse datagram: %+v", err)
 			//
 			continue //there isn't much we can do about bad packets...
 		}
