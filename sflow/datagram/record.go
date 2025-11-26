@@ -22,5 +22,5 @@ const (
 )
 
 type Record interface {
-	GetRecordHeader() (RecordHeader, error)
+	GetHeader() RecordHeader
 }

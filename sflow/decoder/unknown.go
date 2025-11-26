@@ -9,14 +9,13 @@
 package decoder
 
 import (
-	"encoding/binary"
 	"io"
 
 	"github.com/gravwell/gravwell/v3/sflow/datagram"
 )
 
 func decodeUnknownSample(r io.Reader, format, length uint32) (*datagram.UnknownSample, error) {
-	rest := make([]byte, length)
+	rest := make(datagram.XDRVariableLengthOpaque, length+calculatePad(length))
 	n, err := r.Read(rest)
 	if err != nil {
 		return nil, err
@@ -25,47 +24,20 @@ func decodeUnknownSample(r io.Reader, format, length uint32) (*datagram.UnknownS
 		return nil, ErrSampleMalformedOrIncomplete
 	}
 
-	res := datagram.UnknownSample(make([]byte, uint32(datagram.SampleHeaderSize)+length))
-
-	if _, err := binary.Encode(res[:datagram.SampleHeaderFormatSize], binary.BigEndian, &format); err != nil {
-		return nil, err
-	}
-	if _, err := binary.Encode(res[datagram.SampleHeaderFormatSize:datagram.SampleHeaderSize], binary.BigEndian, &length); err != nil {
-		return nil, err
-	}
-
-	copy(res[datagram.SampleHeaderSize:], rest)
-
-	return &res, nil
+	return &datagram.UnknownSample{
+		Format: format,
+		Data:   rest,
+	}, nil
 }
 
-func decodeUnknownRecord(r io.Reader, format uint32) (*datagram.UnknownRecord, error) {
-	var dataFormat uint32
-	var length uint32
-
-	if err := binary.Read(r, binary.BigEndian, &length); err != nil {
-		return nil, err
-	}
-
-	res := datagram.UnknownRecord(make([]byte, uint32(datagram.RecordHeaderSize)+length))
-
-	if _, err := binary.Encode(res[:datagram.RecordHeaderFormatSize], binary.BigEndian, &dataFormat); err != nil {
-		return nil, err
-	}
-	if _, err := binary.Encode(res[datagram.RecordHeaderFormatSize:datagram.RecordHeaderSize], binary.BigEndian, &length); err != nil {
-		return nil, err
-	}
-
-	rest := make([]byte, length)
-	n, err := r.Read(rest)
+func decodeUnknownRecord(r io.Reader, dataFormat uint32) (*datagram.UnknownRecord, error) {
+	record, err := decodeXDRVariableLengthOpaque(r)
 	if err != nil {
 		return nil, err
 	}
-	if n != int(length) {
-		return nil, ErrRecordMalformedOrIncomplete
-	}
 
-	copy(res[datagram.RecordHeaderSize:], rest)
-
-	return &res, nil
+	return &datagram.UnknownRecord{
+		Format: dataFormat,
+		Data:   record,
+	}, nil
 }

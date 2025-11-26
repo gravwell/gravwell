@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package decoder
 
 import (
@@ -454,35 +462,31 @@ func decodeOpenFlowPortRecord(r io.Reader) (datagram.OpenFlowPort, error) {
 
 // FIXME Not decoding correctly
 func decodeOpenFlowPortNameRecord(r io.Reader) (datagram.OpenFlowPortName, error) {
-	hd := datagram.OpenFlowPortName{
+	ofpn := datagram.OpenFlowPortName{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.OpenFlowPortNameRecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &hd.Length); err != nil {
-		return hd, err
+	if err := binary.Read(r, binary.BigEndian, &ofpn.Length); err != nil {
+		return ofpn, err
 	}
 
-	if hd.Length > uint32(datagram.OpenFlowPortNameRecordMaxLength) {
-		return hd, ErrInvalidCounterIfRecordSize
+	if ofpn.Length > uint32(datagram.OpenFlowPortNameRecordMaxLength) {
+		return ofpn, ErrInvalidCounterIfRecordSize
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &hd.NameLength); err != nil {
-		return hd, err
+	var err error
+	ofpn.Name, err = decodeXDRString(r)
+	if err != nil {
+		return ofpn, err
 	}
 
-	if hd.NameLength > datagram.OpenFlowPortNameMaxLength {
-		return hd, errors.New("TODO")
+	if ofpn.Name.Len() > datagram.OpenFlowPortNameMaxLength {
+		return ofpn, errors.New("TODO")
 	}
 
-	portname := make([]byte, hd.NameLength)
-	if err := binary.Read(r, binary.BigEndian, &portname); err != nil {
-		return hd, err
-	}
-	hd.Name = string(portname)
-
-	return hd, nil
+	return ofpn, nil
 }
 
 // FIXME Not decoding correctly
@@ -505,20 +509,15 @@ func decodeHostDescrRecord(r io.Reader) (datagram.HostDescr, error) {
 		return hd, ErrInvalidCounterIfRecordSize
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &hd.HostNameLen); err != nil {
+	var err error
+	hd.HostName, err = decodeXDRString(r)
+	if err != nil {
 		return hd, err
 	}
 
-	if hd.HostNameLen > datagram.HostNameMaxSize {
+	if hd.HostName.Len() > datagram.HostNameMaxSize {
 		return hd, errors.New("TODO")
 	}
-
-	// FIXME Not correctly decoded!
-	hostname := make([]byte, hd.HostNameLen)
-	if err := binary.Read(r, binary.BigEndian, &hostname); err != nil {
-		return hd, err
-	}
-	hd.HostName = string(hostname)
 
 	if err := binary.Read(r, binary.BigEndian, &hd.UUID); err != nil {
 		return hd, err
@@ -532,19 +531,14 @@ func decodeHostDescrRecord(r io.Reader) (datagram.HostDescr, error) {
 		return hd, err
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &hd.OSReleaseLen); err != nil {
+	hd.OSRelease, err = decodeXDRString(r)
+	if err != nil {
 		return hd, err
 	}
 
-	if hd.OSReleaseLen > datagram.OSReleaseMaxSize {
+	if hd.OSRelease.Len() > datagram.OSReleaseMaxSize {
 		return hd, errors.New("TODO")
 	}
-
-	osrelease := make([]byte, hd.OSReleaseLen)
-	if err := binary.Read(r, binary.BigEndian, &osrelease); err != nil {
-		return hd, err
-	}
-	hd.OSRelease = string(osrelease)
 
 	return hd, nil
 }
@@ -566,22 +560,16 @@ func decodeHostAdaptersRecord(r io.Reader) (datagram.HostAdapters, error) {
 
 	ha.Adapters = make([]datagram.HostAdapter, 0, ha.AdaptersCount)
 	for i := uint32(0); i < ha.AdaptersCount; i++ {
+		var err error
 		adapter := datagram.HostAdapter{}
-		if err := binary.Read(r, binary.BigEndian, &adapter.IFIndex); err != nil {
+		if err = binary.Read(r, binary.BigEndian, &adapter.IFIndex); err != nil {
 			return ha, err
 		}
 
-		if err := binary.Read(r, binary.BigEndian, &adapter.MACLength); err != nil {
-			return ha, err
-		}
-
-		addr := make([]byte, adapter.MACLength)
-		_, err := r.Read(addr)
+		adapter.MACAddress, err = decodeXDRMACAddress(r)
 		if err != nil {
 			return ha, err
 		}
-
-		adapter.MACAddress = addr
 
 		ha.Adapters = append(ha.Adapters, adapter)
 	}

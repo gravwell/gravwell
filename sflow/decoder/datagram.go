@@ -56,8 +56,9 @@ func (dd *DatagramDecoder) Decode() (*datagram.Datagram, error) {
 	}
 
 	// IPVersion = 1 -> IP V4
+	// IPVersion = 2 -> IP V6
 	ipLen := 4
-	if dgram.IPVersion == 2 { // IP V6
+	if dgram.IPVersion == 2 {
 		ipLen = 16
 	}
 
@@ -99,4 +100,3 @@ func (dd *DatagramDecoder) Decode() (*datagram.Datagram, error) {
 
 	return dgram, nil
 }
-

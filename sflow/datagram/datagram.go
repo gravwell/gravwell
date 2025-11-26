@@ -14,6 +14,7 @@ import "net"
 type Datagram struct {
 	Version        uint32
 	IPVersion      uint32
+	// Can be 4 bytes for IP V4, 16 bytes for IP V6
 	AgentIP        net.IP
 	SubAgentID     uint32
 	SequenceNumber uint32

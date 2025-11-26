@@ -8,42 +8,22 @@
 
 package datagram
 
-import (
-	"encoding/binary"
-	"errors"
-)
-
-var (
-	ErrSampleHeaderTooShort = errors.New("sample header too small")
-	ErrRecordHeaderTooShort = errors.New("record header too small")
-)
-
 // UnknownSample refers to a vendor specific sample or a sample we don't know the structure of.
-type UnknownSample []byte
+type UnknownSample struct {
+	Format uint32
+	Data   XDRVariableLengthOpaque
+}
 
-func (us *UnknownSample) GetSampleHeader() (SampleHeader, error) {
-	raw := *us
-	if len(raw) < SampleHeaderSize {
-		return SampleHeader{}, ErrSampleHeaderTooShort
-	}
-
+func (us *UnknownSample) GetHeader() SampleHeader {
 	return SampleHeader{
-		Format: binary.BigEndian.Uint32(raw),
-		Length: binary.BigEndian.Uint32(raw[SampleHeaderFormatSize:SampleHeaderLengthSize]),
-	}, nil
+		Format: us.Format,
+		Length: uint32(us.Data.Len()),
+	}
+}
+
+func (us *UnknownSample) GetFullLength() int {
+	return us.Data.FullLen()
 }
 
 // UnknownRecord refers to a vendor specific record or a record we don't know the structure of.
-type UnknownRecord []byte
-
-func (us *UnknownRecord) GetRecordHeader() (RecordHeader, error) {
-	raw := *us
-	if len(raw) < int(RecordHeaderSize) {
-		return RecordHeader{}, ErrRecordHeaderTooShort
-	}
-
-	return RecordHeader{
-		Format: binary.BigEndian.Uint32(raw),
-		Length: binary.BigEndian.Uint32(raw[RecordHeaderFormatSize:RecordHeaderLengthSize]),
-	}, nil
-}
+type UnknownRecord = UnknownSample

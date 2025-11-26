@@ -1,3 +1,11 @@
+/*************************************************************************
+ * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Contact: <legal@gravwell.io>
+ *
+ * This software may be modified and distributed under the terms of the
+ * BSD 2-clause license. See the LICENSE file for details.
+ **************************************************************************/
+
 package decoder
 
 import (
@@ -32,13 +40,13 @@ func decodeCounterSampleExpandedFormat(r io.Reader, format, length uint32) (*dat
 	}
 
 	// TODO From here downwards is the same for normal CounterSample, so this should be `decodeCounterSampleRecords` or something like that
-	err = binary.Read(r, binary.BigEndian, &cs.CounterRecordsCount)
+	err = binary.Read(r, binary.BigEndian, &cs.RecordsCount)
 	if err != nil {
 		return nil, err
 	}
 
-	cs.Records = make([]datagram.Record, 0, cs.CounterRecordsCount)
-	for i := uint32(0); i < cs.CounterRecordsCount; i++ {
+	cs.Records = make([]datagram.Record, 0, cs.RecordsCount)
+	for i := uint32(0); i < cs.RecordsCount; i++ {
 		var dataFormat uint32
 		err := binary.Read(r, binary.BigEndian, &dataFormat)
 		if err != nil {

@@ -19,7 +19,7 @@ const (
 )
 
 type Sample interface {
-	GetSampleHeader() (SampleHeader, error)
+	GetHeader() SampleHeader
 }
 
 // SampleHeader minimum data all sample types, vendor and official, must provide.
@@ -32,4 +32,16 @@ type SampleHeader struct {
 	Format uint32
 	// Length of the rest of the sample data in bytes
 	Length uint32
+}
+
+func (sa SampleHeader) Pad() int {
+	length := int(sa.Length)
+
+	return (4 - (length % 4))
+}
+
+func (sa SampleHeader) DataFullLength() int {
+	length := int(sa.Length)
+
+	return length + sa.Pad()
 }

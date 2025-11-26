@@ -8,10 +8,6 @@
 
 package datagram
 
-import (
-	"net"
-)
-
 const (
 	CounterSampleFormat         = 2
 	CounterSampleExtendedFormat = 4
@@ -31,12 +27,12 @@ type CounterSample struct {
 	SampleHeader
 	SequenceNum uint32
 	SFlowDataSource
-	CounterRecordsCount uint32
-	Records             []Record
+	RecordsCount uint32
+	Records      []Record
 }
 
-func (cs *CounterSample) GetSampleHeader() (RecordHeader, error) {
-	return cs.SampleHeader, nil
+func (cs *CounterSample) GetHeader() SampleHeader {
+	return cs.SampleHeader
 }
 
 // CounterSampleExpanded see https://sflow.org/sflow_version_5.txt, pag 31, `counters_sample_expanded`
@@ -44,12 +40,12 @@ type CounterSampleExpanded struct {
 	SampleHeader
 	SequenceNum uint32
 	SFlowDataSourceExpanded
-	CounterRecordsCount uint32
-	Records             []Record
+	RecordsCount uint32
+	Records      []Record
 }
 
-func (cs *CounterSampleExpanded) GetSampleHeader() (RecordHeader, error) {
-	return cs.SampleHeader, nil
+func (cs *CounterSampleExpanded) GetHeader() SampleHeader {
+	return cs.SampleHeader
 }
 
 type RecordHeader = SampleHeader
@@ -78,8 +74,8 @@ type CounterIfRecord struct {
 	IfPromiscuousMode  uint32
 }
 
-func (cr *CounterIfRecord) GetRecordHeader() (RecordHeader, error) {
-	return cr.RecordHeader, nil
+func (cr *CounterIfRecord) GetHeader() RecordHeader {
+	return cr.RecordHeader
 }
 
 var CounterIfRecordValidLength = packetSizeOf(CounterIfRecord{}) - RecordHeaderSize
@@ -104,8 +100,8 @@ type EthernetCounters struct {
 	Dot3StatsSymbolErrors              uint32
 }
 
-func (ec *EthernetCounters) GetRecordHeader() (RecordHeader, error) {
-	return ec.RecordHeader, nil
+func (ec *EthernetCounters) GetHeader() RecordHeader {
+	return ec.RecordHeader
 }
 
 var EthernetCountersRecordValidLength = packetSizeOf(EthernetCounters{}) - RecordHeaderSize
@@ -135,8 +131,8 @@ type TokenringCounters struct {
 	Dot3StatsFreqErrors         uint32
 }
 
-func (tr *TokenringCounters) GetRecordHeader() (RecordHeader, error) {
-	return tr.RecordHeader, nil
+func (tr *TokenringCounters) GetHeader() RecordHeader {
+	return tr.RecordHeader
 }
 
 var TokenringCountersRecordValidLength = packetSizeOf(TokenringCounters{}) - RecordHeaderSize
@@ -162,8 +158,8 @@ type VgCounters struct {
 	Dot12HCOutHighPriorityOctets uint64
 }
 
-func (v *VgCounters) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *VgCounters) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var VgCountersRecordValidLength = packetSizeOf(VgCounters{}) - RecordHeaderSize
@@ -181,8 +177,8 @@ type VlanCounters struct {
 	Discards         uint32
 }
 
-func (v *VlanCounters) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *VlanCounters) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var VlanCountersRecordValidLength = packetSizeOf(VlanCounters{}) - RecordHeaderSize
@@ -199,8 +195,8 @@ type ProcessorCounters struct {
 	FreeMemory  uint64
 }
 
-func (v *ProcessorCounters) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *ProcessorCounters) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var ProcessorCountersRecordValidLength = packetSizeOf(ProcessorCounters{}) - RecordHeaderSize
@@ -214,8 +210,8 @@ type OpenFlowPort struct {
 	PortNumber uint32
 }
 
-func (v *OpenFlowPort) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *OpenFlowPort) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var OpenFlowPortRecordValidLength = packetSizeOf(OpenFlowPort{}) - RecordHeaderSize
@@ -225,12 +221,11 @@ const OpenFlowPortRecordDataFormatValue uint32 = 1004
 // OpenFlowPortName see https://sflow.org/sflow_openflow.txt, Pag 2, `port_name`
 type OpenFlowPortName struct {
 	RecordHeader
-	NameLength uint32
-	Name       string // 128
+	Name XDRString // 128 max length
 }
 
-func (v *OpenFlowPortName) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *OpenFlowPortName) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var OpenFlowPortNameRecordValidLength = packetSizeOf(OpenFlowPortName{}) - RecordHeaderSize
@@ -244,18 +239,15 @@ const (
 // HostDescr see https://sflow.org/sflow_host.txt, Pag 7, `host_descr`
 type HostDescr struct {
 	RecordHeader
-	HostNameLen  uint32
-	// TODO  XDR Strings T___T
-	HostName     string    // max size 64 bytes
-	UUID         SFlowUUID // fixed size 16 bytes
-	MachineType  uint32
-	OSName       uint32
-	OSReleaseLen uint32
-	OSRelease    string // max size 32 bytes
+	HostName    XDRString // max size 64 bytes
+	UUID        SFlowUUID // fixed size 16 bytes
+	MachineType uint32
+	OSName      uint32
+	OSRelease   XDRString // max size 32 bytes
 }
 
-func (v *HostDescr) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *HostDescr) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 const (
@@ -281,12 +273,11 @@ type HostAdapters struct {
 
 type HostAdapter struct {
 	IFIndex    uint32
-	MACLength  uint32
-	MACAddress net.HardwareAddr
+	MACAddress XDRMACAddress
 }
 
-func (v *HostAdapters) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *HostAdapters) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 // NOTE  HostAdapters is variable length, so no way to validate it
@@ -300,8 +291,8 @@ type HostParent struct {
 	ContainerIndex uint32
 }
 
-func (v *HostParent) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *HostParent) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var HostParentRecordValidLength = packetSizeOf(HostParent{}) - RecordHeaderSize
@@ -330,8 +321,8 @@ type HostCPU struct {
 	Contexts         uint32
 }
 
-func (v *HostCPU) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *HostCPU) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var HostCPURecordValidLength = packetSizeOf(HostCPU{}) - RecordHeaderSize
@@ -354,8 +345,8 @@ type HostMemory struct {
 	SwapOut      uint32
 }
 
-func (v *HostMemory) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *HostMemory) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var HostMemoryRecordValidLength = packetSizeOf(HostMemory{}) - RecordHeaderSize
@@ -376,8 +367,8 @@ type HostDiskIO struct {
 	WriteTime               uint32
 }
 
-func (v *HostDiskIO) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *HostDiskIO) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var HostDiskIORecordValidLength = packetSizeOf(HostDiskIO{}) - RecordHeaderSize
@@ -397,8 +388,8 @@ type HostNetIO struct {
 	DropsOut   uint32
 }
 
-func (v *HostNetIO) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *HostNetIO) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var HostNetIORecordValidLength = packetSizeOf(HostNetIO{}) - RecordHeaderSize
@@ -415,8 +406,8 @@ type VirtNode struct {
 	NumDomains uint32
 }
 
-func (v *VirtNode) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *VirtNode) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var VirtNodeRecordValidLength = packetSizeOf(VirtNode{}) - RecordHeaderSize
@@ -431,8 +422,8 @@ type VirtCPU struct {
 	VirtualCPUCount uint32
 }
 
-func (v *VirtCPU) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *VirtCPU) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var VirtCPURecordValidLength = packetSizeOf(VirtCPU{}) - RecordHeaderSize
@@ -446,8 +437,8 @@ type VirtMemory struct {
 	MaxMemory uint64
 }
 
-func (v *VirtMemory) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *VirtMemory) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var VirtMemoryRecordValidLength = packetSizeOf(VirtMemory{}) - RecordHeaderSize
@@ -467,8 +458,8 @@ type VirtDiskIO struct {
 	Errors     uint32
 }
 
-func (v *VirtDiskIO) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *VirtDiskIO) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var VirtDiskIORecordValidLength = packetSizeOf(VirtDiskIO{}) - RecordHeaderSize
@@ -488,8 +479,8 @@ type VirtNetIO struct {
 	TXDrop    uint32
 }
 
-func (v *VirtNetIO) GetRecordHeader() (RecordHeader, error) {
-	return v.RecordHeader, nil
+func (v *VirtNetIO) GetHeader() RecordHeader {
+	return v.RecordHeader
 }
 
 var VirtNetIORecordValidLength = packetSizeOf(VirtNetIO{}) - RecordHeaderSize
