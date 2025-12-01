@@ -140,6 +140,32 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int, lgr log.IngestLo
 			os.Remove(v)
 		}
 
+		// check if we need to merge
+		var sizeR, sizeW int64
+		fi, err := os.Stat(rPath)
+		if err == nil {
+			sizeR = fi.Size()
+		}
+		fi, err = os.Stat(wPath)
+		if err == nil {
+			sizeW = fi.Size()
+		}
+
+		// if only one file has data in it, just shuffle the files
+		// around. If both have data, merge. If neither have data, no
+		// action is needed.
+		if sizeW != 0 && sizeR == 0 {
+			err := os.Rename(wPath, rPath)
+			if err != nil {
+				return nil, err
+			}
+		} else if sizeW != 0 && sizeR != 0 {
+			err := merge(rPath, wPath)
+			if err != nil {
+				return nil, err
+			}
+		}
+
 		// set a lock for these files
 		c.fileLock = flock.New(filepath.Join(c.cachePath, "lock"))
 		locked, err := c.fileLock.TryLock()
@@ -160,32 +186,6 @@ func NewChanCacher(maxDepth int, cachePath string, maxSize int, lgr log.IngestLo
 		w, err := openCache(wPath, quarantineFolder, c.lgr)
 		if err != nil {
 			return nil, err
-		}
-
-		// check if we need to merge
-		var sizeR, sizeW int64
-		fi, err := r.Stat()
-		if err == nil {
-			sizeR = fi.Size()
-		}
-		fi, err = w.Stat()
-		if err == nil {
-			sizeW = fi.Size()
-		}
-
-		// if only one file has data in it, just shuffle the files
-		// around. If both have data, merge. If neither have data, no
-		// action is needed.
-		if sizeW != 0 && sizeR == 0 {
-			err := os.Rename(wPath, rPath)
-			if err != nil {
-				return nil, err
-			}
-		} else if sizeW != 0 && sizeR != 0 {
-			err := merge(rPath, wPath)
-			if err != nil {
-				return nil, err
-			}
 		}
 
 		if c.cacheR, err = NewFileCounter(r); err != nil {
@@ -549,7 +549,6 @@ func openCache(cPath, quarantineFolder string, lgr log.IngestLogger) (*os.File, 
 
 		return quarantineCache(cPath, quarantineFolder, lgr)
 	}
-
 	return c, nil
 }
 
