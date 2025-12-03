@@ -106,28 +106,10 @@ func (s *SFlowV5Handler) routine(id int) {
 			return
 		}
 
-		// FIXME  This is not working, was a great idea though
-		// TODO  REMOVE ME, this is just to help me debug
-		// 	    I have sflowtool listening to incoming packets to pretty print what I received
-		// if true {
-		// 	udpAddr, err := net.ResolveUDPAddr("udp4", "0.0.0.0:6344")
-		// 	if err != nil {
-		// 		fmt.Println("Error resolving UDP address:", err)
-		// 	}
-		// 	conn, err := net.DialUDP("udp", nil, udpAddr) // local address can be nil
-		// 	if err != nil {
-		// 		fmt.Println("Error dialing UDP connection:", err)
-		// 		return
-		// 	}
-		// 	defer conn.Close() 
-		// }
-
 		decoder := sflow.NewDecoder(bytes.NewReader(tbuf))
 		_, err = decoder.Decode()
 		if err != nil {
-			// TODO  Remove this in final version, this path is way too hot for this.
 			debug.Out("could not parse datagram: %+v", err)
-			//
 			continue //there isn't much we can do about bad packets...
 		}
 

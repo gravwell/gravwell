@@ -17,9 +17,28 @@ import (
 )
 
 var (
-	ErrInvalidCounterIfRecordSize        = errors.New("counter if record size is invalid")
-	ErrInvalidEthernetCountersRecordSize = errors.New("counter ethernet record size is invalid")
-	// TODO  One of these errors for each fucking record T__T
+	ErrInvalidCounterIfRecordSize         = errors.New("counter if record size is invalid")
+	ErrInvalidEthernetCountersRecordSize  = errors.New("counter ethernet record size is invalid")
+	ErrInvalidTokenringCountersRecordSize = errors.New("counter tokenring record size is invalid")
+	ErrInvalidVgCountersRecordSize        = errors.New("counter vg record size is invalid")
+	ErrInvalidVlanCountersRecordSize      = errors.New("counter vlan record size is invalid")
+	ErrInvalidProcessorCountersRecordSize = errors.New("counter processor record size is invalid")
+	ErrInvalidOpenFlowPortRecordSize      = errors.New("openflow port record size is invalid")
+	ErrInvalidOpenFlowPortNameRecordSize  = errors.New("openflow port name record size is invalid")
+	ErrOpenFlowPortNameTooLong            = errors.New("openflow port name exceeds maximum length")
+	ErrInvalidHostDescrRecordSize         = errors.New("host descr record size is invalid")
+	ErrHostNameTooLong                    = errors.New("hostname exceeds maximum length")
+	ErrOSReleaseTooLong                   = errors.New("OS release exceeds maximum length")
+	ErrInvalidHostParentRecordSize        = errors.New("host parent record size is invalid")
+	ErrInvalidHostCPURecordSize           = errors.New("host cpu record size is invalid")
+	ErrInvalidHostMemoryRecordSize        = errors.New("host memory record size is invalid")
+	ErrInvalidHostDiskIORecordSize        = errors.New("host disk io record size is invalid")
+	ErrInvalidHostNetIORecordSize         = errors.New("host net io record size is invalid")
+	ErrInvalidVirtNodeRecordSize          = errors.New("virt node record size is invalid")
+	ErrInvalidVirtCPURecordSize           = errors.New("virt cpu record size is invalid")
+	ErrInvalidVirtMemoryRecordSize        = errors.New("virt memory record size is invalid")
+	ErrInvalidVirtDiskIORecordSize        = errors.New("virt disk io record size is invalid")
+	ErrInvalidVirtNetIORecordSize         = errors.New("virt net io record size is invalid")
 )
 
 func decodeCounterIfRecord(r io.Reader) (datagram.CounterIfRecord, error) {
@@ -128,7 +147,7 @@ func decodeEthernetCountersRecord(r io.Reader) (datagram.EthernetCounters, error
 	}
 
 	if ecr.Length != uint32(datagram.EthernetCountersRecordValidLength) {
-		return ecr, ErrInvalidCounterIfRecordSize
+		return ecr, ErrInvalidEthernetCountersRecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &ecr.Dot3StatsAlignmentErrors); err != nil {
@@ -460,7 +479,6 @@ func decodeOpenFlowPortRecord(r io.Reader) (datagram.OpenFlowPort, error) {
 	return ofp, nil
 }
 
-// FIXME Not decoding correctly
 func decodeOpenFlowPortNameRecord(r io.Reader) (datagram.OpenFlowPortName, error) {
 	ofpn := datagram.OpenFlowPortName{
 		RecordHeader: datagram.RecordHeader{
@@ -473,7 +491,7 @@ func decodeOpenFlowPortNameRecord(r io.Reader) (datagram.OpenFlowPortName, error
 	}
 
 	if ofpn.Length > uint32(datagram.OpenFlowPortNameRecordMaxLength) {
-		return ofpn, ErrInvalidCounterIfRecordSize
+		return ofpn, ErrInvalidOpenFlowPortNameRecordSize
 	}
 
 	var err error
@@ -483,13 +501,12 @@ func decodeOpenFlowPortNameRecord(r io.Reader) (datagram.OpenFlowPortName, error
 	}
 
 	if ofpn.Name.Len() > datagram.OpenFlowPortNameMaxLength {
-		return ofpn, errors.New("TODO")
+		return ofpn, ErrOpenFlowPortNameTooLong
 	}
 
 	return ofpn, nil
 }
 
-// FIXME Not decoding correctly
 func decodeHostDescrRecord(r io.Reader) (datagram.HostDescr, error) {
 	hd := datagram.HostDescr{
 		RecordHeader: datagram.RecordHeader{
@@ -501,10 +518,6 @@ func decodeHostDescrRecord(r io.Reader) (datagram.HostDescr, error) {
 		return hd, err
 	}
 
-	// TODO Pay attention to this too... And the value of r.i here, there is something really fucked going here...
-	// I'm off by one byte when reading the UUID... Hostname is read correctly, it's making me wonder if there is
-	// some fuckery going on with null terminated string, but it doesn't make sense because the reported
-	// Length of the hostname is correct.
 	if hd.Length > uint32(datagram.HostDescrRecordMaxLength) {
 		return hd, ErrInvalidCounterIfRecordSize
 	}
@@ -516,7 +529,7 @@ func decodeHostDescrRecord(r io.Reader) (datagram.HostDescr, error) {
 	}
 
 	if hd.HostName.Len() > datagram.HostNameMaxSize {
-		return hd, errors.New("TODO")
+		return hd, ErrHostNameTooLong
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &hd.UUID); err != nil {
@@ -537,7 +550,7 @@ func decodeHostDescrRecord(r io.Reader) (datagram.HostDescr, error) {
 	}
 
 	if hd.OSRelease.Len() > datagram.OSReleaseMaxSize {
-		return hd, errors.New("TODO")
+		return hd, ErrOSReleaseTooLong
 	}
 
 	return hd, nil
@@ -1011,7 +1024,7 @@ func decodeVirtNetIORecord(r io.Reader) (datagram.VirtNetIO, error) {
 	}
 
 	if vnio.Length != uint32(datagram.VirtNetIORecordValidLength) {
-		return vnio, ErrInvalidCounterIfRecordSize
+		return vnio, ErrInvalidVirtNetIORecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &vnio.RXBytes); err != nil {
