@@ -486,3 +486,284 @@ func (v *VirtNetIO) GetHeader() RecordHeader {
 var VirtNetIORecordValidLength = packetSizeOf(VirtNetIO{}) - RecordHeaderSize
 
 const VirtNetIORecordDataFormatValue uint32 = 2104
+
+// JVMMachineName see https://sflow.org/sflow_jvm.txt, Pag 2, `jvm_runtime`
+type JVMMachineName struct {
+	RecordHeader
+	VMName    XDRString // max size 64 bytes
+	VMVendor  XDRString // max size 32 bytes
+	VMVersion XDRString // max size 32 bytes
+}
+
+func (v *JVMMachineName) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+const (
+	JVMMachineNameRecordDataFormatValue uint32 = 2105
+
+	vmNameLenSize    = 4
+	VMNameMaxSize    = 64
+	vmVendorLenSize  = 4
+	VMVendorMaxSize  = 32
+	vmVersionLenSize = 4
+	VMVersionMaxSize = 32
+
+	JVMMachineNameRecordMaxLength = vmNameLenSize + VMNameMaxSize + vmVendorLenSize + VMVendorMaxSize + vmVersionLenSize + VMVersionMaxSize // 140 Bytes
+)
+
+// JVMStatistics see https://sflow.org/sflow_jvm.txt, Pag 2, `jvm_statistics`
+type JVMStatistics struct {
+	RecordHeader
+	HeapInitial       uint64
+	HeapUsed          uint64
+	HeapCommitted     uint64
+	HeapMax           uint64
+	NonHeapInitial    uint64
+	NonHeapUsed       uint64
+	NonHeapCommitted  uint64
+	NonHeapMax        uint64
+	GCCount           uint32
+	GCTime            uint32
+	ClassesLoaded     uint32
+	ClassesTotal      uint32
+	ClassesUnloaded   uint32
+	CompilationTime   uint32
+	ThreadNumLive     uint32
+	ThreadNumDaemon   uint32
+	ThreadNumStarted  uint32
+	OpenFileDescCount uint32
+	MaxFileDescCount  uint32
+}
+
+func (v *JVMStatistics) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var JVMStatisticsRecordValidLength = packetSizeOf(JVMStatistics{}) - RecordHeaderSize
+
+const JVMStatisticsRecordDataFormatValue uint32 = 2106
+
+// HTTPCounters see https://sflow.org/sflow_http.txt, Pag 3, `http_counters`
+type HTTPCounters struct {
+	RecordHeader
+	MethodOptionCount  uint32
+	MethodGetCount     uint32
+	MethodHeadCount    uint32
+	MethodPostCount    uint32
+	MethodPutCount     uint32
+	MethodDeleteCount  uint32
+	MethodTraceCount   uint32
+	MethodConnectCount uint32
+	MethodOtherCount   uint32
+	Status1XXCount     uint32
+	Status2XXCount     uint32
+	Status3XXCount     uint32
+	Status4XXCount     uint32
+	Status5XXCount     uint32
+	StatusOtherCount   uint32
+}
+
+func (v *HTTPCounters) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var HTTPCountersRecordValidLength = packetSizeOf(HTTPCounters{}) - RecordHeaderSize
+
+const HTTPCountersRecordDataFormatValue uint32 = 2201
+
+// Application see https://sflow.org/sflow_application.txt, Pag 3
+type Application = XDRString
+
+// AppOperations see https://sflow.org/sflow_application.txt, Pag 5, `app_operations`
+type AppOperations struct {
+	RecordHeader
+	Application    Application // max size 32 bytes
+	Success        uint32
+	Other          uint32
+	Timeout        uint32
+	InternalError  uint32
+	BadRequest     uint32
+	Forbidden      uint32
+	TooLarge       uint32
+	NotImplemented uint32
+	NotFound       uint32
+	Unavailable    uint32
+	Unauthorized   uint32
+}
+
+func (v *AppOperations) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+const (
+	AppOperationsRecordDataFormatValue uint32 = 2202
+
+	applicationLenSize = 4
+	ApplicationMaxSize = 32
+
+	successSize        = 4
+	otherSize          = 4
+	timeoutSize        = 4
+	internalErrorSize  = 4
+	badRequestSize     = 4
+	forbiddenSize      = 4
+	tooLargeSize       = 4
+	notImplementedSize = 4
+	notFoundSize       = 4
+	unavailableSize    = 4
+	unauthorizedSize   = 4
+
+	AppOperationsRecordMaxLength = applicationLenSize + ApplicationMaxSize +
+		successSize + otherSize + timeoutSize + internalErrorSize + badRequestSize +
+		forbiddenSize + tooLargeSize + notImplementedSize + notFoundSize +
+		unavailableSize + unauthorizedSize // 80 bytes
+)
+
+// AppResources see https://sflow.org/sflow_application.txt, Pag 5, `app_resources`
+type AppResources struct {
+	RecordHeader
+	UserTime   uint32
+	SystemTime uint32
+	MemUsed    uint64
+	MemMax     uint64
+	FDOpen     uint32
+	FDMax      uint32
+	ConnOpen   uint32
+	ConnMax    uint32
+}
+
+func (v *AppResources) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var AppResourcesRecordValidLength = packetSizeOf(AppResources{}) - RecordHeaderSize
+
+const AppResourcesRecordDataFormatValue uint32 = 2203
+
+// MemcacheCounters see https://sflow.org/sflow_memcache.txt, Pag 4, `memcache_counters`
+type MemcacheCounters struct {
+	RecordHeader
+	CmdSet               uint32
+	CmdTouch             uint32
+	CmdFlush             uint32
+	GetHits              uint32
+	GetMisses            uint32
+	DeleteHits           uint32
+	DeleteMisses         uint32
+	IncrHits             uint32
+	IncrMisses           uint32
+	DecrHits             uint32
+	DecrMisses           uint32
+	CasHits              uint32
+	CasMisses            uint32
+	CasBadval            uint32
+	AuthCmds             uint32
+	AuthErrors           uint32
+	Threads              uint32
+	ConnYields           uint32
+	ListenDisabledNum    uint32
+	CurrConnections      uint32
+	RejectedConnections  uint32
+	TotalConnections     uint32
+	ConnectionStructures uint32
+	Evictions            uint32
+	Reclaimed            uint32
+	CurrItems            uint32
+	TotalItems           uint32
+	BytesRead            uint64
+	BytesWritten         uint64
+	Bytes                uint64
+	LimitMaxbytes        uint64
+}
+
+func (v *MemcacheCounters) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var MemcacheCountersRecordValidLength = packetSizeOf(MemcacheCounters{}) - RecordHeaderSize
+
+const MemcacheCountersRecordDataFormatValue uint32 = 2204
+
+// AppWorkers see https://sflow.org/sflow_application.txt, Pag 6, `app_workers`
+type AppWorkers struct {
+	RecordHeader
+	WorkersActive uint32
+	WorkersIdle   uint32
+	WorkersMax    uint32
+	ReqDelayed    uint32
+	ReqDropped    uint32
+}
+
+func (v *AppWorkers) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var AppWorkersRecordValidLength = packetSizeOf(AppWorkers{}) - RecordHeaderSize
+
+const AppWorkersRecordDataFormatValue uint32 = 2206
+
+// Energy see https://groups.google.com/g/sflow/c/gN3nxSi2SBs, `energy`
+type Energy struct {
+	RecordHeader
+	Voltage     uint32
+	Current     uint32
+	RealPower   uint32
+	PowerFactor int32
+	Energy      uint32
+	Errors      uint32
+}
+
+func (v *Energy) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var EnergyRecordValidLength = packetSizeOf(Energy{}) - RecordHeaderSize
+
+const EnergyRecordDataFormatValue uint32 = 3000
+
+// Temperature see https://groups.google.com/g/sflow/c/gN3nxSi2SBs, `temperature`
+type Temperature struct {
+	RecordHeader
+	Minimum int32
+	Maximum int32
+	Errors  uint32
+}
+
+func (v *Temperature) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var TemperatureRecordValidLength = packetSizeOf(Temperature{}) - RecordHeaderSize
+
+const TemperatureRecordDataFormatValue uint32 = 3001
+
+// Humidity see https://groups.google.com/g/sflow/c/gN3nxSi2SBs, `humidity`
+type Humidity struct {
+	RecordHeader
+	Relative int32
+}
+
+func (v *Humidity) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var HumidityRecordValidLength = packetSizeOf(Humidity{}) - RecordHeaderSize
+
+const HumidityRecordDataFormatValue uint32 = 3002
+
+// Fans see https://groups.google.com/g/sflow/c/gN3nxSi2SBs, `fans`
+type Fans struct {
+	RecordHeader
+	Total  uint32
+	Failed uint32
+	Speed  uint32
+}
+
+func (v *Fans) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var FansRecordValidLength = packetSizeOf(Fans{}) - RecordHeaderSize
+
+const FansRecordDataFormatValue uint32 = 3003

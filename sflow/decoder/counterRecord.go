@@ -39,6 +39,21 @@ var (
 	ErrInvalidVirtMemoryRecordSize        = errors.New("virt memory record size is invalid")
 	ErrInvalidVirtDiskIORecordSize        = errors.New("virt disk io record size is invalid")
 	ErrInvalidVirtNetIORecordSize         = errors.New("virt net io record size is invalid")
+	ErrInvalidJVMMachineNameRecordSize    = errors.New("jvm machine name record size is invalid")
+	ErrJVMVMNameTooLong                   = errors.New("JVM vm name exceeds maximum length")
+	ErrJVMVMVendorTooLong                 = errors.New("JVM vm vendor exceeds maximum length")
+	ErrJVMVMVersionTooLong                = errors.New("JVM vm version exceeds maximum length")
+	ErrInvalidJVMStatisticsRecordSize     = errors.New("jvm statistics record size is invalid")
+	ErrInvalidHTTPCountersRecordSize      = errors.New("http counters record size is invalid")
+	ErrInvalidAppOperationsRecordSize     = errors.New("app operations record size is invalid")
+	ErrApplicationTooLong                 = errors.New("application name exceeds maximum length")
+	ErrInvalidAppResourcesRecordSize      = errors.New("app resources record size is invalid")
+	ErrInvalidMemcacheCountersRecordSize  = errors.New("memcache counters record size is invalid")
+	ErrInvalidAppWorkersRecordSize        = errors.New("app workers record size is invalid")
+	ErrInvalidEnergyRecordSize            = errors.New("energy record size is invalid")
+	ErrInvalidTemperatureRecordSize       = errors.New("temperature record size is invalid")
+	ErrInvalidHumidityRecordSize          = errors.New("humidity record size is invalid")
+	ErrInvalidFansRecordSize              = errors.New("fans record size is invalid")
 )
 
 func decodeCounterIfRecord(r io.Reader) (datagram.CounterIfRecord, error) {
@@ -1060,4 +1075,648 @@ func decodeVirtNetIORecord(r io.Reader) (datagram.VirtNetIO, error) {
 	}
 
 	return vnio, nil
+}
+
+func decodeJVMMachineNameRecord(r io.Reader) (datagram.JVMMachineName, error) {
+	jmn := datagram.JVMMachineName{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.JVMMachineNameRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &jmn.Length); err != nil {
+		return jmn, err
+	}
+
+	if jmn.Length > uint32(datagram.JVMMachineNameRecordMaxLength) {
+		return jmn, ErrInvalidJVMMachineNameRecordSize
+	}
+
+	var err error
+	jmn.VMName, err = decodeXDRString(r)
+	if err != nil {
+		return jmn, err
+	}
+
+	if jmn.VMName.Len() > datagram.VMNameMaxSize {
+		return jmn, ErrJVMVMNameTooLong
+	}
+
+	jmn.VMVendor, err = decodeXDRString(r)
+	if err != nil {
+		return jmn, err
+	}
+
+	if jmn.VMVendor.Len() > datagram.VMVendorMaxSize {
+		return jmn, ErrJVMVMVendorTooLong
+	}
+
+	jmn.VMVersion, err = decodeXDRString(r)
+	if err != nil {
+		return jmn, err
+	}
+
+	if jmn.VMVersion.Len() > datagram.VMVersionMaxSize {
+		return jmn, ErrJVMVMVersionTooLong
+	}
+
+	return jmn, nil
+}
+
+func decodeJVMStatisticsRecord(r io.Reader) (datagram.JVMStatistics, error) {
+	js := datagram.JVMStatistics{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.JVMStatisticsRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.Length); err != nil {
+		return js, err
+	}
+
+	if js.Length != uint32(datagram.JVMStatisticsRecordValidLength) {
+		return js, ErrInvalidJVMStatisticsRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.HeapInitial); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.HeapUsed); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.HeapCommitted); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.HeapMax); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.NonHeapInitial); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.NonHeapUsed); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.NonHeapCommitted); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.NonHeapMax); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.GCCount); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.GCTime); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.ClassesLoaded); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.ClassesTotal); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.ClassesUnloaded); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.CompilationTime); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.ThreadNumLive); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.ThreadNumDaemon); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.ThreadNumStarted); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.OpenFileDescCount); err != nil {
+		return js, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &js.MaxFileDescCount); err != nil {
+		return js, err
+	}
+
+	return js, nil
+}
+
+func decodeHTTPCountersRecord(r io.Reader) (datagram.HTTPCounters, error) {
+	hc := datagram.HTTPCounters{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.HTTPCountersRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.Length); err != nil {
+		return hc, err
+	}
+
+	if hc.Length != uint32(datagram.HTTPCountersRecordValidLength) {
+		return hc, ErrInvalidHTTPCountersRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.MethodOptionCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.MethodGetCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.MethodHeadCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.MethodPostCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.MethodPutCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.MethodDeleteCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.MethodTraceCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.MethodConnectCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.MethodOtherCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.Status1XXCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.Status2XXCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.Status3XXCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.Status4XXCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.Status5XXCount); err != nil {
+		return hc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hc.StatusOtherCount); err != nil {
+		return hc, err
+	}
+
+	return hc, nil
+}
+
+func decodeAppOperationsRecord(r io.Reader) (datagram.AppOperations, error) {
+	ao := datagram.AppOperations{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.AppOperationsRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.Length); err != nil {
+		return ao, err
+	}
+
+	if ao.Length > uint32(datagram.AppOperationsRecordMaxLength) {
+		return ao, ErrInvalidAppOperationsRecordSize
+	}
+
+	var err error
+	ao.Application, err = decodeXDRString(r)
+	if err != nil {
+		return ao, err
+	}
+
+	if ao.Application.Len() > datagram.ApplicationMaxSize {
+		return ao, ErrApplicationTooLong
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.Success); err != nil {
+		return ao, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.Other); err != nil {
+		return ao, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.Timeout); err != nil {
+		return ao, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.InternalError); err != nil {
+		return ao, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.BadRequest); err != nil {
+		return ao, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.Forbidden); err != nil {
+		return ao, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.TooLarge); err != nil {
+		return ao, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.NotImplemented); err != nil {
+		return ao, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.NotFound); err != nil {
+		return ao, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.Unavailable); err != nil {
+		return ao, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ao.Unauthorized); err != nil {
+		return ao, err
+	}
+
+	return ao, nil
+}
+
+func decodeAppResourcesRecord(r io.Reader) (datagram.AppResources, error) {
+	ar := datagram.AppResources{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.AppResourcesRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ar.Length); err != nil {
+		return ar, err
+	}
+
+	if ar.Length != uint32(datagram.AppResourcesRecordValidLength) {
+		return ar, ErrInvalidAppResourcesRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ar.UserTime); err != nil {
+		return ar, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ar.SystemTime); err != nil {
+		return ar, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ar.MemUsed); err != nil {
+		return ar, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ar.MemMax); err != nil {
+		return ar, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ar.FDOpen); err != nil {
+		return ar, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ar.FDMax); err != nil {
+		return ar, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ar.ConnOpen); err != nil {
+		return ar, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ar.ConnMax); err != nil {
+		return ar, err
+	}
+
+	return ar, nil
+}
+
+func decodeMemcacheCountersRecord(r io.Reader) (datagram.MemcacheCounters, error) {
+	mc := datagram.MemcacheCounters{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.MemcacheCountersRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.Length); err != nil {
+		return mc, err
+	}
+
+	if mc.Length != uint32(datagram.MemcacheCountersRecordValidLength) {
+		return mc, ErrInvalidMemcacheCountersRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.CmdSet); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.CmdTouch); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.CmdFlush); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.GetHits); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.GetMisses); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.DeleteHits); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.DeleteMisses); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.IncrHits); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.IncrMisses); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.DecrHits); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.DecrMisses); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.CasHits); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.CasMisses); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.CasBadval); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.AuthCmds); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.AuthErrors); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.Threads); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.ConnYields); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.ListenDisabledNum); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.CurrConnections); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.RejectedConnections); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.TotalConnections); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.ConnectionStructures); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.Evictions); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.Reclaimed); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.CurrItems); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.TotalItems); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.BytesRead); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.BytesWritten); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.Bytes); err != nil {
+		return mc, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mc.LimitMaxbytes); err != nil {
+		return mc, err
+	}
+
+	return mc, nil
+}
+
+func decodeAppWorkersRecord(r io.Reader) (datagram.AppWorkers, error) {
+	aw := datagram.AppWorkers{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.AppWorkersRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &aw.Length); err != nil {
+		return aw, err
+	}
+
+	if aw.Length != uint32(datagram.AppWorkersRecordValidLength) {
+		return aw, ErrInvalidAppWorkersRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &aw.WorkersActive); err != nil {
+		return aw, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &aw.WorkersIdle); err != nil {
+		return aw, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &aw.WorkersMax); err != nil {
+		return aw, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &aw.ReqDelayed); err != nil {
+		return aw, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &aw.ReqDropped); err != nil {
+		return aw, err
+	}
+
+	return aw, nil
+}
+
+func decodeEnergyRecord(r io.Reader) (datagram.Energy, error) {
+	e := datagram.Energy{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.EnergyRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &e.Length); err != nil {
+		return e, err
+	}
+
+	if e.Length != uint32(datagram.EnergyRecordValidLength) {
+		return e, ErrInvalidEnergyRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &e.Voltage); err != nil {
+		return e, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &e.Current); err != nil {
+		return e, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &e.RealPower); err != nil {
+		return e, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &e.PowerFactor); err != nil {
+		return e, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &e.Energy); err != nil {
+		return e, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &e.Errors); err != nil {
+		return e, err
+	}
+
+	return e, nil
+}
+
+func decodeTemperatureRecord(r io.Reader) (datagram.Temperature, error) {
+	t := datagram.Temperature{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.TemperatureRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &t.Length); err != nil {
+		return t, err
+	}
+
+	if t.Length != uint32(datagram.TemperatureRecordValidLength) {
+		return t, ErrInvalidTemperatureRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &t.Minimum); err != nil {
+		return t, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &t.Maximum); err != nil {
+		return t, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &t.Errors); err != nil {
+		return t, err
+	}
+
+	return t, nil
+}
+
+func decodeHumidityRecord(r io.Reader) (datagram.Humidity, error) {
+	h := datagram.Humidity{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.HumidityRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &h.Length); err != nil {
+		return h, err
+	}
+
+	if h.Length != uint32(datagram.HumidityRecordValidLength) {
+		return h, ErrInvalidHumidityRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &h.Relative); err != nil {
+		return h, err
+	}
+
+	return h, nil
+}
+
+func decodeFansRecord(r io.Reader) (datagram.Fans, error) {
+	f := datagram.Fans{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.FansRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &f.Length); err != nil {
+		return f, err
+	}
+
+	if f.Length != uint32(datagram.FansRecordValidLength) {
+		return f, ErrInvalidFansRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &f.Total); err != nil {
+		return f, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &f.Failed); err != nil {
+		return f, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &f.Speed); err != nil {
+		return f, err
+	}
+
+	return f, nil
 }

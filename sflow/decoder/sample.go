@@ -39,9 +39,10 @@ func decodeSample(r io.Reader) (datagram.Sample, error) {
 	var sample datagram.Sample
 	switch format {
 	// TODO Not yet
-	// case CounterSampleFormat
+	case datagram.CounterSampleFormat:
+		sample, err = decodeCounterSampleFormat(r, length)
 	case datagram.CounterSampleExtendedFormat:
-		sample, err = decodeCounterSampleExpandedFormat(r, format, length)
+		sample, err = decodeCounterSampleExpandedFormat(r, length)
 	default:
 		sample, err = decodeUnknownSample(r, format, length)
 	}
