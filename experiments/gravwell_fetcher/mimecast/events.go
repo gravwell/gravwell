@@ -1,6 +1,9 @@
 package mimecast
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 type EventType string
 
@@ -65,4 +68,44 @@ type MtaEventData struct {
 
 type AuditData struct {
 	EventTime string `json:"eventTime"`
+}
+
+type RequestData struct {
+	EndDateTime   string `json:"endDateTime,omitempty"`
+	StartDateTime string `json:"startDateTime,omitempty"`
+}
+
+type RequestMeta struct {
+	Pagination struct {
+		PageSize  int    `json:"pageSize,omitempty"`
+		PageToken string `json:"pageToken,omitempty"`
+	} `json:"pagination,omitzero"`
+}
+
+type Request struct {
+	Meta RequestMeta   `json:"meta,omitzero"`
+	Data []RequestData `json:"data,omitempty"`
+}
+
+type ResponseError struct {
+	Code      string `json:"code,omitempty"`
+	Message   string `json:"message,omitempty"`
+	Retryable bool   `json:"retryable,omitempty"`
+}
+
+type ResponseFail struct {
+	Errors []ResponseError `json:"errors,omitempty"`
+}
+
+type ResponseMeta struct {
+	Pagination struct {
+		PageSize int    `json:"pageSize,omitempty"`
+		Next     string `json:"next,omitempty"`
+	} `json:"pagination,omitzero"`
+}
+
+type Response struct {
+	Meta ResponseMeta      `json:"meta,omitzero"`
+	Data []json.RawMessage `json:"data,omitempty"`
+	Fail []ResponseFail    `json:"fail,omitempty"`
 }
