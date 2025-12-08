@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"net"
 	"net/http"
 	"time"
 
@@ -64,11 +65,20 @@ routine:
 			if err != nil {
 				continue // TODO: what do
 			}
-			e := entry.Entry{
-				TS: entry.FromStandard(data.EventTime), // TODONEXT: parse this bad boy
+			ts, err := time.Parse(AuditTimeFormat, data.EventTime)
+			if err != nil {
+				continue // TODO: same ^
 			}
+			_ = entry.Entry{
+				SRC:  net.ParseIP("127.0.0.1"),
+				TS:   entry.FromStandard(ts),
+				Data: d,
+				Tag:  1234, // TODO: real tag
+			}
+			// TODO: write entry
+			// save progress on currenet cursor?
 		}
-
+		// save cursor
 	}
 
 	// TODO: save state before bailing
