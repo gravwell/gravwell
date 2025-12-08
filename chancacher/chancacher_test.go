@@ -780,7 +780,7 @@ func TestCacheOldEntries(t *testing.T) {
 	}
 }
 
-func Test_openCache(t *testing.T) {
+func Test_validateCache(t *testing.T) {
 	cacheDir, err := os.MkdirTemp("", "chancachertest")
 	if err != nil {
 		t.Fatalf("could not create cacheDir: %v", err)
@@ -790,11 +790,17 @@ func Test_openCache(t *testing.T) {
 	quarantineFolder := "quarantine"
 	quarantineFile := filepath.Join(cacheDir, quarantineFolder, "cache-a.1")
 	cacheFileName := filepath.Join(cacheDir, "cache-a")
+
+	// Non-existent file should return nil (nothing to validate)
+	err = validateCache(cacheFileName, quarantineFolder, defaultLogger)
+	if err != nil {
+		t.Fatalf("validateCache should return nil for non-existent file: %v", err)
+	}
+
 	initialCacheHandler, err := os.Create(cacheFileName)
 	if err != nil {
 		t.Fatalf("could not create initial cache file: %v", err)
 	}
-	defer initialCacheHandler.Close()
 	initialCacheStats, err := initialCacheHandler.Stat()
 	if err != nil {
 		t.Fatalf("could not get stats of initial cache file: %v", err)
@@ -804,12 +810,17 @@ func Test_openCache(t *testing.T) {
 	if err := initialCacheHandler.Chmod(0000); err != nil {
 		t.Fatalf("could not change permissions on initial cache file: %v", err)
 	}
+	initialCacheHandler.Close()
 
-	finalCacheHandler, err := openCache(cacheFileName, quarantineFolder, defaultLogger)
+	err = validateCache(cacheFileName, quarantineFolder, defaultLogger)
 	if err != nil {
-		t.Fatalf("could not create cache file: %v", err)
+		t.Fatalf("validateCache should return nil after quarantining: %v", err)
 	}
-	defer finalCacheHandler.Close()
+
+	// Verify original file is gone
+	if _, err := os.Stat(cacheFileName); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("original cache file should have been moved to quarantine")
+	}
 
 	quarantineFileStats, err := os.Stat(quarantineFile)
 	if err != nil {
@@ -825,17 +836,13 @@ func Test_openCache(t *testing.T) {
 	}
 
 	// Trigger some other error flow (file is a directory)
-	if err := os.RemoveAll(cacheFileName); err != nil {
-		t.Fatalf("could not remove initial cache file: %v", err)
-	}
 	if err := os.Mkdir(cacheFileName, CacheDirPerm); err != nil {
 		t.Fatalf("could not create initial cache file as directory: %v", err)
 	}
 
-	cacheH, err := openCache(cacheFileName, quarantineFolder, defaultLogger)
-	if cacheH != nil {
-		cacheH.Close()
-		t.Fatalf("opened file when it should have bubbled error: %v", err)
+	err = validateCache(cacheFileName, quarantineFolder, defaultLogger)
+	if err == nil {
+		t.Fatalf("validateCache should return error when cache path is a directory")
 	}
 
 	// Trigger validation error flow
@@ -846,7 +853,6 @@ func Test_openCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not create mock corrupted cache file: %v", err)
 	}
-	defer corruptedCacheHandler.Close()
 	if _, err := corruptedCacheHandler.WriteString("notvalid"); err != nil {
 		t.Fatalf("could not write mock corrupted cache file: %v", err)
 	}
@@ -854,12 +860,17 @@ func Test_openCache(t *testing.T) {
 	if err != nil {
 		t.Fatalf("could not get stats on mock corrupted cache file: %v", err)
 	}
+	corruptedCacheHandler.Close()
 
-	newCacheHandler, err := openCache(cacheFileName, quarantineFolder, defaultLogger)
+	err = validateCache(cacheFileName, quarantineFolder, defaultLogger)
 	if err != nil {
-		t.Fatalf("could not create cache file: %v", err)
+		t.Fatalf("validateCache should return nil after quarantining corrupted cache: %v", err)
 	}
-	defer newCacheHandler.Close()
+
+	// Verify original file is gone
+	if _, err := os.Stat(cacheFileName); !os.IsNotExist(err) {
+		t.Fatal("corrupted cache file should have been moved to quarantine")
+	}
 
 	quarantineFileStats, err = os.Stat(quarantineFile)
 	if err != nil {
@@ -896,24 +907,15 @@ func Test_quarantineCache(t *testing.T) {
 		t.Fatalf("could not get initial cache file stats: %v", err)
 	}
 
-	fHandler, err := quarantineCache(cacheFileName, quarantineFolder, defaultLogger)
+	err = quarantineCache(cacheFileName, quarantineFolder, defaultLogger)
 	expectedQuarantineLocation := filepath.Join(quarantineDir, "cache-a.1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer fHandler.Close()
 
-	expectedStat, err := os.Stat(cacheFileName)
-	if err != nil {
-		t.Fatalf("file %s failed to be created: %v", cacheFileName, err)
-	}
-	finalStat, err := fHandler.Stat()
-	if err != nil {
-		t.Fatalf("could not get result cache file handler stats: %v", err)
-	}
-
-	if !os.SameFile(expectedStat, finalStat) {
-		t.Fatal("result cache file is not the expected file")
+	// Verify original file is gone
+	if _, err := os.Stat(cacheFileName); !os.IsNotExist(err) {
+		t.Fatalf("original cache file should have been moved to quarantine")
 	}
 
 	quarantinedStat, err := os.Stat(expectedQuarantineLocation)
@@ -997,6 +999,73 @@ func TestSpam(t *testing.T) {
 		}
 	}
 
+}
+
+// TestCycleConnection tests that multiple ChanCachers can be created and destroyed
+// sequentially using the same cache directory, without losing any cached entries.
+// This simulates a scenario where an ingester cycles through connections repeatedly
+// because of some faultyness and ensures the cache properly persists and recovers data
+// across these cycles.
+func TestCycleConnection(t *testing.T) {
+	dir := t.TempDir()
+
+	const cycles = 10
+	const entriesPerCycle = 100
+
+	for i := 0; i < cycles; i++ {
+		c, err := NewChanCacher(2, dir, 0, defaultLogger)
+		if err != nil {
+			t.Fatalf("cycle %d: failed to create ChanCacher: %v", i, err)
+		}
+
+		for j := 0; j < entriesPerCycle; j++ {
+			select {
+			case c.In <- &ChanCacheTester{V: i*entriesPerCycle + j, Data: fmt.Sprintf("cycle %d entry %d", i, j)}:
+			case <-time.After(DEFAULT_TIMEOUT):
+				t.Fatalf("cycle %d: channel write should not block for entry %d", i, j)
+			}
+		}
+
+		close(c.In)
+		c.Commit()
+		<-c.Out
+	}
+
+	// Create a final ChanCacher to read all entries back
+	c, err := NewChanCacher(2, dir, 0, defaultLogger)
+	if err != nil {
+		t.Fatalf("final: failed to create ChanCacher: %v", err)
+	}
+
+	results := make(map[int]int)
+	totalExpected := cycles * entriesPerCycle
+
+	for i := 0; i < totalExpected; i++ {
+		select {
+		case v := <-c.Out:
+			if v == nil {
+				t.Errorf("received nil at position %d", i)
+			} else {
+				results[v.(*ChanCacheTester).V]++
+			}
+		case <-time.After(5 * DEFAULT_TIMEOUT):
+			t.Fatalf("channel read blocked after %d entries (expected %d)", i, totalExpected)
+		}
+	}
+
+	// Verify we got all entries exactly once
+	for i := 0; i < totalExpected; i++ {
+		count, ok := results[i]
+		if !ok {
+			t.Errorf("missing entry %d", i)
+		} else if count != 1 {
+			t.Errorf("entry %d appeared %d times (expected 1)", i, count)
+		}
+	}
+
+	// Clean up
+	close(c.In)
+	<-c.Out
 }
 
 func BenchmarkReference(b *testing.B) {
