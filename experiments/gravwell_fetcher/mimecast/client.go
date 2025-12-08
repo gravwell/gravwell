@@ -144,7 +144,7 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end
 	return b, nil
 }
 
-func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cursor *string) ([]json.RawMessage, error) {
+func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cursor *string) (*Response, error) {
 	if start.After(end) {
 		return nil, fmt.Errorf("start time is after end time")
 	}
@@ -189,7 +189,7 @@ func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cu
 		return nil, fmt.Errorf("error parsing audit api response: %w", err)
 	}
 
-	return b.Data, nil
+	return b, nil
 }
 
 func parse[T any](rc io.ReadCloser) (*T, error) {

@@ -1,9 +1,13 @@
 package mimecast
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"time"
+
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 )
 
 type Mimecast struct {
@@ -31,10 +35,43 @@ func (m *Mimecast) Run(ctx context.Context) error {
 }
 
 func (m *Mimecast) audit(ctx context.Context) error {
-	_, err := m.c.GetRawAuditEvents(ctx, time.Now().Add(-time.Second*10), time.Now(), nil)
-	if err != nil {
-		return err
+	var cursor *string // if cursor is non-nil don't update timestamps
+	var lastTime time.Time
+
+routine:
+	for { // TODO: quitable sleep
+		select {
+		case <-time.After(time.Second * 10): // TODO: configurable
+		case <-ctx.Done():
+			break routine
+		}
+
+		if cursor == nil {
+			lastTime = time.Now().Add(-time.Second * 10) // TODO: this probably isn't it
+		}
+		r, err := m.c.GetRawAuditEvents(ctx, lastTime, time.Now(), cursor)
+		if err != nil {
+			return err
+		}
+
+		if r.Meta.Pagination.Next != "" {
+			cursor = &r.Meta.Pagination.Next
+		} else {
+			cursor = nil
+		}
+		for _, d := range r.Data {
+			data, err := parse[AuditData](io.NopCloser(bytes.NewReader(d)))
+			if err != nil {
+				continue // TODO: what do
+			}
+			e := entry.Entry{
+				TS: entry.FromStandard(data.EventTime), // TODONEXT: parse this bad boy
+			}
+		}
+
 	}
+
+	// TODO: save state before bailing
 
 	return nil
 }

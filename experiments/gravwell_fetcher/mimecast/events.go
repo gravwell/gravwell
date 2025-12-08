@@ -93,7 +93,7 @@ type ResponseError struct {
 	Retryable bool   `json:"retryable,omitempty"`
 }
 
-type ResponseFail struct {
+type ResponseFailure struct {
 	Errors []ResponseError `json:"errors,omitempty"`
 }
 
@@ -107,5 +107,5 @@ type ResponseMeta struct {
 type Response struct {
 	Meta ResponseMeta      `json:"meta,omitzero"`
 	Data []json.RawMessage `json:"data,omitempty"`
-	Fail []ResponseFail    `json:"fail,omitempty"`
+	Fail []ResponseFailure `json:"fail,omitempty"`
 }
