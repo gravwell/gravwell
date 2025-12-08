@@ -53,7 +53,7 @@ Completes the Host sFlow family - these appear alongside already-implemented `ho
 | 2008   | mib2_icmp_group | ICMP stats - connectivity issues     |
 | 2009   | mib2_tcp_group  | TCP stats - connections, retransmits |
 | 2010   | mib2_udp_group  | UDP stats - datagrams, errors        |
-| 2207   | ovs_dp_stats    | Open vSwitch - pairs with virt_*     |
+| 2207   | ovs_dp_stats    | Open vSwitch - pairs with virt\_\*   |
 | 1003   | queue_length    | Congestion analysis                  |
 
 ---
@@ -72,24 +72,24 @@ Completes the Host sFlow family - these appear alongside already-implemented `ho
 
 Not worth the implementation effort for log ingestion use cases.
 
-| Formats         | Group                  | Why Skip                          |
-| --------------- | ---------------------- | --------------------------------- |
-| 1006, 1008-1011 | MPLS structures        | MPLS-specific deployments only    |
-| 1012            | extended_vlantunnel    | Q-in-Q is rare                    |
-| 1013-1016       | 802.11 flow structures | Wireless sFlow is uncommon        |
-| 1021-1030       | Tunnel structures      | VxLAN/NVGRE - can add if needed   |
-| 1031-1033       | InfiniBand structures  | HPC-specific                      |
-| 1036-1038       | Dropped packet         | Can add if needed                 |
-| 2000-2003       | Transaction structures | Rarely used                       |
-| 2200            | memcached_operations   | Memcache sFlow is rare            |
-| 2202-2205       | Application structures | App sFlow has limited adoption    |
-| 2206-2208       | HTTP/proxy structures  | HTTP sFlow is rare                |
+| Formats         | Group                  | Why Skip                        |
+| --------------- | ---------------------- | ------------------------------- |
+| 1006, 1008-1011 | MPLS structures        | MPLS-specific deployments only  |
+| 1012            | extended_vlantunnel    | Q-in-Q is rare                  |
+| 1013-1016       | 802.11 flow structures | Wireless sFlow is uncommon      |
+| 1021-1030       | Tunnel structures      | VxLAN/NVGRE - can add if needed |
+| 1031-1033       | InfiniBand structures  | HPC-specific                    |
+| 1036-1038       | Dropped packet         | Can add if needed               |
+| 2000-2003       | Transaction structures | Rarely used                     |
+| 2200            | memcached_operations   | Memcache sFlow is rare          |
+| 2202-2205       | Application structures | App sFlow has limited adoption  |
+| 2206-2208       | HTTP/proxy structures  | HTTP sFlow is rare              |
 
 ### Low-Value Counters
 
-| Format | Structure         | Why Skip                   |
-| ------ | ----------------- | -------------------------- |
-| 8      | slow_path_counts  | Very specialized           |
-| 9      | ib_counters       | InfiniBand only            |
-| 10     | sfp               | Optical interface metrics  |
-| 1002   | radio_utilization | Wireless - niche           |
+| Format | Structure         | Why Skip                  |
+| ------ | ----------------- | ------------------------- |
+| 8      | slow_path_counts  | Very specialized          |
+| 9      | ib_counters       | InfiniBand only           |
+| 10     | sfp               | Optical interface metrics |
+| 1002   | radio_utilization | Wireless - niche          |
