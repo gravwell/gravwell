@@ -185,6 +185,64 @@ var VlanCountersRecordValidLength = packetSizeOf(VlanCounters{}) - RecordHeaderS
 
 const VlanCountersRecordDataFormatValue uint32 = 5
 
+// IEEE80211Counters see https://sflow.org/sflow_80211.txt , `ieee80211_counters`
+type IEEE80211Counters struct {
+	RecordHeader
+	Dot11TransmittedFragmentCount       uint32
+	Dot11MulticastTransmittedFrameCount uint32
+	Dot11FailedCount                    uint32
+	Dot11RetryCount                     uint32
+	Dot11MultipleRetryCount             uint32
+	Dot11FrameDuplicateCount            uint32
+	Dot11RTSSuccessCount                uint32
+	Dot11RTSFailureCount                uint32
+	Dot11ACKFailureCount                uint32
+	Dot11ReceivedFragmentCount          uint32
+	Dot11MulticastReceivedFrameCount    uint32
+	Dot11FCSErrorCount                  uint32
+	Dot11TransmittedFrameCount          uint32
+	Dot11WEPUndecryptableCount          uint32
+	Dot11QoSDiscardedFragmentCount      uint32
+	Dot11AssociatedStationCount         uint32
+	Dot11QoSCFPollsReceivedCount        uint32
+	Dot11QoSCFPollsUnusedCount          uint32
+	Dot11QoSCFPollsUnusableCount        uint32
+	Dot11QoSCFPollsLostCount            uint32
+}
+
+func (v *IEEE80211Counters) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var IEEE80211CountersRecordValidLength = packetSizeOf(IEEE80211Counters{}) - RecordHeaderSize
+
+const IEEE80211CountersRecordDataFormatValue uint32 = 6
+
+// LAGPortStats see https://sflow.org/sflow_lag.txt , `lag_port_stats`
+type LAGPortStats struct {
+	RecordHeader
+	Dot3adAggPortActorSystemID             XDRMACAddress
+	Dot3adAggPortPartnerOperSystemID       XDRMACAddress
+	Dot3adAggPortAttachedAggID             uint32
+	Dot3adAggPortState                     [4]byte
+	Dot3adAggPortStatsLACPDUsRx            uint32
+	Dot3adAggPortStatsMarkerPDUsRx         uint32
+	Dot3adAggPortStatsMarkerResponsePDUsRx uint32
+	Dot3adAggPortStatsUnknownRx            uint32
+	Dot3adAggPortStatsIllegalRx            uint32
+	Dot3adAggPortStatsLACPDUsTx            uint32
+	Dot3adAggPortStatsMarkerPDUsTx         uint32
+	Dot3adAggPortStatsMarkerResponsePDUsTx uint32
+}
+
+func (v *LAGPortStats) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var LAGPortStatsRecordValidLength = packetSizeOf(LAGPortStats{}) - RecordHeaderSize
+
+const LAGPortStatsRecordDataFormatValue uint32 = 7
+
 // ProcessorCounters see https://sflow.org/sflow_version_5.txt , Pag 42, `processor`
 type ProcessorCounters struct {
 	RecordHeader

@@ -129,6 +129,22 @@ func decodeCounterSampleRecords(r io.Reader, recordsCount uint32) ([]datagram.Re
 
 			record = &decoded
 			records = append(records, record)
+		case datagram.IEEE80211CountersRecordDataFormatValue:
+			decoded, err := decodeIEEE80211CountersRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			records = append(records, record)
+		case datagram.LAGPortStatsRecordDataFormatValue:
+			decoded, err := decodeLAGPortStatsRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			records = append(records, record)
 		case datagram.ProcessorCountersRecordDataFormatValue:
 			decoded, err := decodeProcessorCountersRecord(r)
 			if err != nil {

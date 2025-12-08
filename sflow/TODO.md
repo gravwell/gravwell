@@ -19,8 +19,8 @@ See https://sflow.org/developers/structures.php
 | 3      | tokenring_counters | ✅              | sFlow Version 5                       |
 | 4      | vg_counters        | ✅              | sFlow Version 5                       |
 | 5      | vlan_counters      | ✅              | sFlow Version 5                       |
-| 6      | ieee80211_counters | ❌              | sFlow 802.11 Structures               |
-| 7      | lag_port_stats     | ❌              | sFlow LAG Counters Structure          |
+| 6      | ieee80211_counters | ✅              | sFlow 802.11 Structures               |
+| 7      | lag_port_stats     | ✅              | sFlow LAG Counters Structure          |
 | 8      | slow_path_counts   | ❌              | Fast path / slow path                 |
 | 9      | ib_counters        | ❌              | sFlow InfiniBand Structures           |
 | 10     | sfp                | ❌              | sFlow Optical Interface Structures    |

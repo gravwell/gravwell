@@ -22,6 +22,8 @@ var (
 	ErrInvalidTokenringCountersRecordSize = errors.New("counter tokenring record size is invalid")
 	ErrInvalidVgCountersRecordSize        = errors.New("counter vg record size is invalid")
 	ErrInvalidVlanCountersRecordSize      = errors.New("counter vlan record size is invalid")
+	ErrInvalidIEEE80211CountersRecordSize = errors.New("ieee80211 counters record size is invalid")
+	ErrInvalidLAGPortStatsRecordSize      = errors.New("lag port stats record size is invalid")
 	ErrInvalidProcessorCountersRecordSize = errors.New("counter processor record size is invalid")
 	ErrInvalidOpenFlowPortRecordSize      = errors.New("openflow port record size is invalid")
 	ErrInvalidOpenFlowPortNameRecordSize  = errors.New("openflow port name record size is invalid")
@@ -428,6 +430,173 @@ func decodeVlanCountersRecord(r io.Reader) (datagram.VlanCounters, error) {
 	}
 
 	return vlc, nil
+}
+
+func decodeIEEE80211CountersRecord(r io.Reader) (datagram.IEEE80211Counters, error) {
+	i8c := datagram.IEEE80211Counters{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.IEEE80211CountersRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Length); err != nil {
+		return i8c, err
+	}
+
+	if i8c.Length != uint32(datagram.IEEE80211CountersRecordValidLength) {
+		return i8c, ErrInvalidIEEE80211CountersRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11TransmittedFragmentCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11MulticastTransmittedFrameCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11FailedCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11RetryCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11MultipleRetryCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11FrameDuplicateCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11RTSSuccessCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11RTSFailureCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11ACKFailureCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11ReceivedFragmentCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11MulticastReceivedFrameCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11FCSErrorCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11TransmittedFrameCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11WEPUndecryptableCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11QoSDiscardedFragmentCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11AssociatedStationCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11QoSCFPollsReceivedCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11QoSCFPollsUnusedCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11QoSCFPollsUnusableCount); err != nil {
+		return i8c, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &i8c.Dot11QoSCFPollsLostCount); err != nil {
+		return i8c, err
+	}
+
+	return i8c, nil
+}
+
+func decodeLAGPortStatsRecord(r io.Reader) (datagram.LAGPortStats, error) {
+	lps := datagram.LAGPortStats{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.LAGPortStatsRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &lps.Length); err != nil {
+		return lps, err
+	}
+
+	if lps.Length != uint32(datagram.LAGPortStatsRecordValidLength) {
+		return lps, ErrInvalidLAGPortStatsRecordSize
+	}
+
+	var err error
+	lps.Dot3adAggPortActorSystemID, err = decodeXDRMACAddress(r)
+	if err != nil {
+		return lps, err
+	}
+
+	lps.Dot3adAggPortPartnerOperSystemID, err = decodeXDRMACAddress(r)
+	if err != nil {
+		return lps, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortAttachedAggID); err != nil {
+		return lps, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortState); err != nil {
+		return lps, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortStatsLACPDUsRx); err != nil {
+		return lps, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortStatsMarkerPDUsRx); err != nil {
+		return lps, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortStatsMarkerResponsePDUsRx); err != nil {
+		return lps, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortStatsUnknownRx); err != nil {
+		return lps, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortStatsIllegalRx); err != nil {
+		return lps, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortStatsLACPDUsTx); err != nil {
+		return lps, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortStatsMarkerPDUsTx); err != nil {
+		return lps, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortStatsMarkerResponsePDUsTx); err != nil {
+		return lps, err
+	}
+
+	return lps, nil
 }
 
 func decodeProcessorCountersRecord(r io.Reader) (datagram.ProcessorCounters, error) {
