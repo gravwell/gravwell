@@ -110,7 +110,7 @@ const (
 )
 
 type ResultsOptions struct {
-	Bins int
+	Fence Geofence
 }
 
 type ResultsResponse struct {

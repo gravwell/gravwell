@@ -357,7 +357,6 @@ type SearchState struct {
 	Progress     float64      `json:"progress"`
 }
 
-// String just implements a basic stringer on this type for some of the more simple CLI tooling
 func (ss SearchState) String() (r string) {
 	r = string(ss.Status)
 	if ss.Streaming {

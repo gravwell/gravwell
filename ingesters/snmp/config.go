@@ -46,14 +46,14 @@ type global struct {
 
 type cfgReadType struct {
 	Global       global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Listener     map[string]*listener
 	Preprocessor processors.ProcessorConfig
 }
 
 type cfgType struct {
 	config.IngestConfig
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Listener     map[string]*listener
 	Preprocessor processors.ProcessorConfig
 }

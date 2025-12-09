@@ -43,13 +43,13 @@ type collector struct {
 
 type cfgReadType struct {
 	Global    config.IngestConfig
-	Attach    attach.AttachConfig
+	Attach    attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Collector map[string]*collector
 }
 
 type cfgType struct {
 	config.IngestConfig
-	Attach    attach.AttachConfig
+	Attach    attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Collector map[string]*collector
 }
 

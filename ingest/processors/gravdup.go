@@ -17,6 +17,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/ingest"
 	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingesters/version"
 )
@@ -80,7 +81,7 @@ func NewGravwellForwarder(cfg GravwellForwarderConfig, tgr Tagger) (*GravwellFor
 		IngesterVersion:    version.GetVersion(),
 		IngesterUUID:       uuid.New().String(),
 		RateLimitBps:       lmt,
-		Logger:             ingest.NoLogger(), //forwarder preprocessor does not support logging
+		Logger:             log.NoLogger(), //forwarder preprocessor does not support logging
 		CacheDepth:         cfg.Cache_Depth,
 		CachePath:          cfg.Ingest_Cache_Path,
 		CacheSize:          cfg.Max_Ingest_Cache,

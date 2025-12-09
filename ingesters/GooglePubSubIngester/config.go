@@ -44,7 +44,7 @@ type pubsubconf struct {
 
 type cfgType struct {
 	Global       global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	PubSub       map[string]*pubsubconf
 	Preprocessor processors.ProcessorConfig
 }

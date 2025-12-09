@@ -60,12 +60,14 @@ type IngesterBaseConfig struct {
 
 type IngesterBase struct {
 	IngesterBaseConfig
-	Verbose  bool
-	Logger   *log.Logger
-	Cfg      interface{}
-	id       uuid.UUID
-	emitUUID bool
-	sm       *utils.StatsManager
+	Verbose       bool
+	Logger        *log.Logger
+	Cfg           interface{}
+	id            uuid.UUID
+	emitUUID      bool
+	sm            *utils.StatsManager
+	configFile    string
+	configOverlay string
 }
 
 func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
@@ -106,6 +108,8 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	ib.Verbose = *verbose
 	debug.SetTraceback("all")
 
+	ib.configFile, ib.configOverlay = *confLoc, *confdLoc
+
 	//now try to call getConfig and extract the base ingester configuration
 	var ch cfgHelper
 	if ib.Cfg, ch, err = ibc.getConfig(*confLoc, *confdLoc); err != nil {
@@ -139,6 +143,43 @@ func Init(ibc IngesterBaseConfig) (ib IngesterBase, err error) {
 	}
 
 	return
+}
+
+// ReloadConfig attempts to validate and reload the configuration into the provided configuration interface.
+// This function is used for hot config reloads on ingesters and that support it.
+func (ib *IngesterBase) ReloadConfig(v interface{}) (err error) {
+	// check that we are ready and have a good interface pointer
+	if ib == nil || (ib.configFile == `` && ib.configOverlay == ``) {
+		return errors.New("ingester base not ready")
+	} else if v == nil {
+		return ErrInvalidParameter
+	} else if reflect.ValueOf(v).Kind() != reflect.Ptr {
+		return ErrInvalidParameter
+	}
+
+	// attempt to load the config
+	var obj interface{}
+	if obj, _, err = ib.getConfig(ib.configFile, ib.configOverlay); err != nil {
+		err = fmt.Errorf("failed to load configuration %w", err)
+		return
+	} else if err = verifyConfig(obj); err != nil {
+		err = fmt.Errorf("failed to verify configuration %w", err)
+		return
+	}
+
+	//config is potentially good, attempt to assign into the interface
+	vv := reflect.ValueOf(v).Elem() //get a handle on the incoming interface pointer value
+	sv := reflect.ValueOf(obj)      // get a handle on the source interface value
+
+	if vv.Type() != sv.Type() {
+		return fmt.Errorf("Type Mismatch: %T != %T", v, obj)
+	} else if !sv.Type().AssignableTo(vv.Type()) || !vv.CanSet() {
+		return fmt.Errorf("%T cannot be assigned into %T", obj, v)
+	}
+
+	//ok... do the actual assignment, this should almost always be a pointer to a pointer
+	vv.Set(sv)
+	return nil
 }
 
 // AssignConfig is a helper function that can take care of most of the sanity checking

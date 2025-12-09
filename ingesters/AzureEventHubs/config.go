@@ -51,7 +51,7 @@ type eventHubConf struct {
 
 type cfgType struct {
 	Global       global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	EventHub     map[string]*eventHubConf
 	Preprocessor processors.ProcessorConfig
 }

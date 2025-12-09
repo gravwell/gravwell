@@ -53,7 +53,7 @@ type global struct {
 
 type cfgType struct {
 	Global       global
-	Attach       attach.AttachConfig
+	Attach       attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	Stenographer map[string]*stenographer
 	Preprocessor processors.ProcessorConfig
 }
