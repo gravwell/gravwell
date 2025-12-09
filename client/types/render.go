@@ -108,7 +108,9 @@ const (
 )
 
 type ResultsOptions struct {
-	Fence Geofence
+	Fence    Geofence
+	BinCount int `json:"binCount,omitempty"`
+	BinWidth int `json:"binWidth,omitempty"`
 }
 
 type ResultsResponse struct {
