@@ -258,6 +258,15 @@ type AttachSearchResponse struct {
 	Info        *SearchInfo `json:",omitempty"` //info if available
 }
 
+// BinningStatus describes whether search results can be condensed (binned) and, if not, why.
+type BinningStatus string
+
+const (
+	BinningStatusNotBinnable       BinningStatus = `NotBinnable`       // results can't be condensed.
+	BinningStatusBinningSetByQuery BinningStatus = `BinningSetByQuery` // results are condensed, but binning was dictated by the query.
+	BinningStatusBinnable          BinningStatus = `Binnable`          // results can be condensed using binCount or binWidth on the results endpoint.
+)
+
 // SearchInfo contains information about a search, including the search
 // parameters, status, and metadata.
 type SearchInfo struct {
@@ -296,6 +305,9 @@ type SearchInfo struct {
 	Error string `json:",omitempty"`
 
 	LaunchInfo SearchLaunchInfo // information about how a search was launched
+
+	// Binning describes whether search results can be condensed (binned) and, if not, why.
+	Binning BinningStatus `json:",omitempty"`
 }
 
 type SearchLaunchInfo struct {
