@@ -16,8 +16,12 @@ import (
 	"sync"
 
 	// TODO Remove in final version
-	"github.com/gravwell/gravwell/v3/debug"
+	"os"
+	"time"
+
+	"github.com/gravwell/gravwell/v3/sflow/datagram"
 	//
+	"github.com/gravwell/gravwell/v3/debug"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/sflow"
 )
@@ -107,11 +111,75 @@ func (s *SFlowV5Handler) routine(id int) {
 		}
 
 		decoder := sflow.NewDecoder(bytes.NewReader(tbuf))
-		_, err = decoder.Decode()
+		dgram, err := decoder.Decode()
 		if err != nil {
-			debug.Out("could not parse datagram: %+v", err)
+			debug.Out("could not parse datagram: %+v\n", err)
+
+			// TODO  Remove this shit, it's just for debugging
+			timestamp := time.Now().Unix()
+			filename := fmt.Sprintf("sflow_%d.bin", timestamp)
+			if writeErr := os.WriteFile(filename, tbuf[:dSize], 0644); writeErr != nil {
+				debug.Out("failed to write datagram to file %s: %+v\n", filename, writeErr)
+			} else {
+				debug.Out("wrote unparseable datagram to %s\n", filename)
+			}
+			//
+
 			continue //there isn't much we can do about bad packets...
 		}
+
+		// TODO  Remove this shit, it's just for debugging
+		for _, sample := range dgram.Samples {
+			sampleSuffix := ""
+			recordSuffix := ""
+			sampleFormat := sample.GetHeader().Format
+
+			// Check if sample is unknown
+			if _, ok := sample.(*datagram.UnknownSample); ok {
+				sampleSuffix = fmt.Sprintf("_unknownsample_%d_", sampleFormat)
+				// Write file for unknown sample and skip record processing
+				timestamp := time.Now().Unix()
+				filename := fmt.Sprintf("sflow%s%d.bin", sampleSuffix, timestamp)
+				if writeErr := os.WriteFile(filename, tbuf[:dSize], 0644); writeErr != nil {
+					debug.Out("failed to write unknown sample (format %d) to file %s: %+v\n", sampleFormat, filename, writeErr)
+				} else {
+					debug.Out("wrote unknown sample (format %d) datagram to %s\n", sampleFormat, filename)
+				}
+				continue // Skip to next sample, can't decode records from unknown sample
+			}
+
+			// Check for unknown records within samples
+			var records []datagram.Record
+			switch s := sample.(type) {
+			case *datagram.FlowSample:
+				records = s.Records
+			case *datagram.FlowSampleExpanded:
+				records = s.Records
+			case *datagram.CounterSample:
+				records = s.Records
+			case *datagram.CounterSampleExpanded:
+				records = s.Records
+			default:
+				panic("Clearly I made a terrible mistake here")
+			}
+
+			for _, record := range records {
+				recordFormat := record.GetHeader().Format
+				if _, ok := record.(*datagram.UnknownRecord); ok {
+					recordSuffix = fmt.Sprintf("_unknownrecord_%d_", recordFormat)
+					// Write file for unknown record
+					timestamp := time.Now().Unix()
+					filename := fmt.Sprintf("sflow%s%d.bin", recordSuffix, timestamp)
+					if writeErr := os.WriteFile(filename, tbuf[:dSize], 0644); writeErr != nil {
+						debug.Out("failed to write unknown record (format %d) to file %s: %+v\n", recordFormat, filename, writeErr)
+					} else {
+						debug.Out("wrote unknown record (format %d) datagram to %s\n", recordFormat, filename)
+					}
+					break // Only write once per datagram
+				}
+			}
+		}
+		//
 
 		lbuf := make([]byte, dSize)
 		copy(lbuf, tbuf[:dSize])

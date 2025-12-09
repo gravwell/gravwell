@@ -34,19 +34,20 @@ func decodeCounterSampleFormat(r io.Reader, length uint32) (*datagram.CounterSam
 		return nil, err
 	}
 
-	err = binary.Read(r, binary.BigEndian, &cs.RecordsCount)
+	var recordsCount uint32
+	err = binary.Read(r, binary.BigEndian, &recordsCount)
 	if err != nil {
 		return nil, err
 	}
 
-	cs.Records, err = decodeCounterSampleRecords(r, cs.RecordsCount)
+	cs.Records, err = decodeCounterSampleRecords(r, recordsCount)
 
 	return cs, err
 }
 
 func decodeCounterSampleExpandedFormat(r io.Reader, length uint32) (*datagram.CounterSampleExpanded, error) {
 	header := datagram.SampleHeader{
-		Format: datagram.CounterSampleExtendedFormat,
+		Format: datagram.CounterSampleExpandedFormat,
 		Length: length,
 	}
 	cs := &datagram.CounterSampleExpanded{
@@ -68,19 +69,20 @@ func decodeCounterSampleExpandedFormat(r io.Reader, length uint32) (*datagram.Co
 		return nil, err
 	}
 
-	err = binary.Read(r, binary.BigEndian, &cs.RecordsCount)
+	var recordsCount uint32
+	err = binary.Read(r, binary.BigEndian, &recordsCount)
 	if err != nil {
 		return nil, err
 	}
 
-	cs.Records, err = decodeCounterSampleRecords(r, cs.RecordsCount)
+	cs.Records, err = decodeCounterSampleRecords(r, recordsCount)
 
 	return cs, err
 }
 
 func decodeCounterSampleRecords(r io.Reader, recordsCount uint32) ([]datagram.Record, error) {
 	records := make([]datagram.Record, 0, recordsCount)
-	for i := uint32(0); i < recordsCount; i++ {
+	for range recordsCount {
 		var dataFormat uint32
 		err := binary.Read(r, binary.BigEndian, &dataFormat)
 		if err != nil {

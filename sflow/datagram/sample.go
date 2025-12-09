@@ -45,3 +45,15 @@ func (sa SampleHeader) DataFullLength() int {
 
 	return length + sa.Pad()
 }
+
+// SFlowDataSource see https://sflow.org/sflow_version_5.txt, pag 30, `sflow_data_source`
+type SFlowDataSource = uint32
+
+// SFlowDataSourceExpanded see https://sflow.org/sflow_version_5.txt, pag 30, `sflow_data_source_expanded`
+type SFlowDataSourceExpanded struct {
+	SourceIDType  uint32
+	SourceIDIndex uint32
+}
+
+// Interface see https://sflow.org/sflow_version_5.txt, pag 28, `interface`
+type Interface = uint32

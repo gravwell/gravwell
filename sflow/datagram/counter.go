@@ -10,24 +10,14 @@ package datagram
 
 const (
 	CounterSampleFormat         = 2
-	CounterSampleExtendedFormat = 4
+	CounterSampleExpandedFormat = 4
 )
-
-// SFlowDataSource see https://sflow.org/sflow_version_5.txt, pag 30, `sflow_data_source`
-type SFlowDataSource = uint32
-
-// SFlowDataSourceExpanded see https://sflow.org/sflow_version_5.txt, pag 30, `sflow_data_source_expanded`
-type SFlowDataSourceExpanded struct {
-	SourceIDType  uint32
-	SourceIDIndex uint32
-}
 
 // CounterSample see https://sflow.org/sflow_version_5.txt, pag 29, `counters_sample`
 type CounterSample struct {
 	SampleHeader
 	SequenceNum uint32
 	SFlowDataSource
-	RecordsCount uint32
 	Records      []Record
 }
 
@@ -40,7 +30,6 @@ type CounterSampleExpanded struct {
 	SampleHeader
 	SequenceNum uint32
 	SFlowDataSourceExpanded
-	RecordsCount uint32
 	Records      []Record
 }
 
