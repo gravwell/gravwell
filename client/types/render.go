@@ -100,8 +100,6 @@ const (
 
 	MetadataTypeRaw    string = `raw`
 	MetadataTypeNumber string = `number`
-
-	OPTIONS_BINS string = `bins`
 )
 
 const (
