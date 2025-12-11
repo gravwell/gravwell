@@ -146,7 +146,7 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 	case TagSrcRouterProcessor:
 		cfg, err = TagSrcRouterLoadConfig(vc)
 	case RegexReplaceProcessor:
-		cfg, err = RegexExtractLoadConfig(vc)
+		cfg, err = RegexReplaceLoadConfig(vc)
 	default:
 		cfg, err = processorLoadConfigOS(vc)
 	}
@@ -311,11 +311,11 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 		}
 		p, err = NewTagSrcRouter(cfg, tgr)
 	case RegexReplaceProcessor:
-		var cfg RegexExtractConfig
+		var cfg RegexReplaceConfig
 		if err = vc.MapTo(&cfg); err != nil {
 			return
 		}
-		p, err = NewRegexExtractor(cfg)
+		p, err = NewRegexReplacer(cfg)
 	default:
 		p, err = newProcessorOS(vc, tgr)
 	}
