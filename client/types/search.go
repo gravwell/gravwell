@@ -296,6 +296,7 @@ type SearchInfo struct {
 	Background            bool // set to true if this search has been marked as backgrounded.
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
+	EVs                   []string   // EVs produced by the search
 	Import                ImportInfo `json:",omitempty"` //information attached if there this search is saved and from an external import
 	// Preview indicates that this search is a preview search
 	// this means that the query most likely did not cover the entire time range that was originally requested
