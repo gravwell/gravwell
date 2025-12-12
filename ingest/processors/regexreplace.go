@@ -23,8 +23,6 @@ const (
 type RegexReplaceConfig struct {
 	Regex         string
 	Replacement   string
-	SourceField   string
-	TargetField   string
 	CaseSensitive bool
 }
 
@@ -125,29 +123,10 @@ func (rr *RegexReplacer) processItem(ent *entry.Entry) (rset []*entry.Entry, err
 	// Apply regex replacement to the entry data
 	if len(newEnt.Data) > 0 {
 		// Use ReplaceAllString to replace all matches
-		replacedData := rr.re.ReplaceAllString(string(newEnt.Data), rr.Replacement)
-		newEnt.Data = []byte(replacedData)
-	}
-
-	// If we have a source field specified, apply replacement to that field
-	if len(rr.SourceField) > 0 {
-		// For JSON data, we would need to parse and modify specific fields
-		// This implementation works on the raw data
-		// For more complex field-based replacements, we'd need to parse JSON
-		if rr.SourceField == "data" {
-			// Replace in the raw data
-			replacedData := rr.re.ReplaceAllString(string(newEnt.Data), rr.Replacement)
-			newEnt.Data = []byte(replacedData)
-		}
+		replacedData := rr.re.ReplaceAll(newEnt.Data, []byte(rr.Replacement))
+		newEnt.Data = replacedData
 	}
 
 	rset = append(rset, newEnt)
 	return
-}
-
-// Helper function to process JSON fields if needed
-func (rr *RegexReplacer) processJSONField(data []byte, fieldName string, value string) []byte {
-	// This would be more complex for actual JSON field replacement
-	// For now, we're just replacing in the entire data
-	return data
 }
