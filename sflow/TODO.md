@@ -47,10 +47,10 @@ Note: Flow sample containers are implemented, but flow sample **records** (sampl
 | 2004   | host_memory        | ✅              | sFlow Host Structures                 |
 | 2005   | host_disk_io       | ✅              | sFlow Host Structures                 |
 | 2006   | host_net_io        | ✅              | sFlow Host Structures                 |
-| 2007   | mib2_ip_group      | ❌              | sFlow Host TCP/IP Counters            |
-| 2008   | mib2_icmp_group    | ❌              | sFlow Host TCP/IP Counters            |
-| 2009   | mib2_tcp_group     | ❌              | sFlow Host TCP/IP Counters            |
-| 2010   | mib2_udp_group     | ❌              | sFlow Host TCP/IP Counters            |
+| 2007   | mib2_ip_group      | ✅              | sFlow Host TCP/IP Counters            |
+| 2008   | mib2_icmp_group    | ✅              | sFlow Host TCP/IP Counters            |
+| 2009   | mib2_tcp_group     | ✅              | sFlow Host TCP/IP Counters            |
+| 2010   | mib2_udp_group     | ✅              | sFlow Host TCP/IP Counters            |
 | 2100   | virt_node          | ✅              | sFlow Host Structures                 |
 | 2101   | virt_cpu           | ✅              | sFlow Host Structures                 |
 | 2102   | virt_memory        | ✅              | sFlow Host Structures                 |

@@ -56,6 +56,10 @@ var (
 	ErrInvalidTemperatureRecordSize       = errors.New("temperature record size is invalid")
 	ErrInvalidHumidityRecordSize          = errors.New("humidity record size is invalid")
 	ErrInvalidFansRecordSize              = errors.New("fans record size is invalid")
+	ErrInvalidMIB2IPGroupRecordSize       = errors.New("mib2 ip group record size is invalid")
+	ErrInvalidMIB2ICMPGroupRecordSize     = errors.New("mib2 icmp group record size is invalid")
+	ErrInvalidMIB2TCPGroupRecordSize      = errors.New("mib2 tcp group record size is invalid")
+	ErrInvalidMIB2UDPGroupRecordSize      = errors.New("mib2 udp group record size is invalid")
 )
 
 func decodeCounterIfRecord(r io.Reader) (datagram.CounterIfRecord, error) {
@@ -1908,4 +1912,340 @@ func decodeFansRecord(r io.Reader) (datagram.Fans, error) {
 	}
 
 	return f, nil
+}
+
+func decodeMIB2IPGroupRecord(r io.Reader) (datagram.MIB2IPGroup, error) {
+	mib := datagram.MIB2IPGroup{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.MIB2IPGroupRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.Length); err != nil {
+		return mib, err
+	}
+
+	if mib.Length != uint32(datagram.MIB2IPGroupRecordValidLength) {
+		return mib, ErrInvalidMIB2IPGroupRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPForwarding); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPDefaultTTL); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPInReceives); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPInHdrErrors); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPInAddrErrors); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPForwDatagrams); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPInUnknownProtos); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPInDiscards); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPInDelivers); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPOutRequests); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPOutDiscards); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPOutNoRoutes); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPReasmTimeout); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPReasmReqds); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPReasmOKs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPReasmFails); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPFragOKs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPFragFails); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.IPFragCreates); err != nil {
+		return mib, err
+	}
+
+	return mib, nil
+}
+
+func decodeMIB2ICMPGroupRecord(r io.Reader) (datagram.MIB2ICMPGroup, error) {
+	mib := datagram.MIB2ICMPGroup{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.MIB2ICMPGroupRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.Length); err != nil {
+		return mib, err
+	}
+
+	if mib.Length != uint32(datagram.MIB2ICMPGroupRecordValidLength) {
+		return mib, ErrInvalidMIB2ICMPGroupRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInMsgs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInErrors); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInDestUnreachs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInTimeExcds); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInParamProbs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInSrcQuenchs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInRedirects); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInEchos); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInEchoReps); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInTimestamps); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInAddrMasks); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPInAddrMaskReps); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutMsgs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutErrors); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutDestUnreachs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutTimeExcds); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutParamProbs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutSrcQuenchs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutRedirects); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutEchos); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutEchoReps); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutTimestamps); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutTimestampReps); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutAddrMasks); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.ICMPOutAddrMaskReps); err != nil {
+		return mib, err
+	}
+
+	return mib, nil
+}
+
+func decodeMIB2TCPGroupRecord(r io.Reader) (datagram.MIB2TCPGroup, error) {
+	mib := datagram.MIB2TCPGroup{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.MIB2TCPGroupRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.Length); err != nil {
+		return mib, err
+	}
+
+	if mib.Length != uint32(datagram.MIB2TCPGroupRecordValidLength) {
+		return mib, ErrInvalidMIB2TCPGroupRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPRtoAlgorithm); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPRtoMin); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPRtoMax); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPMaxConn); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPActiveOpens); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPPassiveOpens); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPAttemptFails); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPEstabResets); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPCurrEstab); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPInSegs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPOutSegs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPRetransSegs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPInErrs); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPOutRsts); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.TCPInCsumErrors); err != nil {
+		return mib, err
+	}
+
+	return mib, nil
+}
+
+func decodeMIB2UDPGroupRecord(r io.Reader) (datagram.MIB2UDPGroup, error) {
+	mib := datagram.MIB2UDPGroup{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.MIB2UDPGroupRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.Length); err != nil {
+		return mib, err
+	}
+
+	if mib.Length != uint32(datagram.MIB2UDPGroupRecordValidLength) {
+		return mib, ErrInvalidMIB2UDPGroupRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.UDPInDatagrams); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.UDPNoPorts); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.UDPInErrors); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.UDPOutDatagrams); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.UDPRcvbufErrors); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.UDPSndbufErrors); err != nil {
+		return mib, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &mib.UDPInCsumErrors); err != nil {
+		return mib, err
+	}
+
+	return mib, nil
 }

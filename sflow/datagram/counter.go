@@ -448,6 +448,124 @@ var HostNetIORecordValidLength = packetSizeOf(HostNetIO{}) - RecordHeaderSize
 
 const HostNetIORecordDataFormatValue uint32 = 2006
 
+// MIB2IPGroup see https://sflow.org/sflow_host_ip.txt, Pag 2, `mib2_ip_group`
+type MIB2IPGroup struct {
+	RecordHeader
+	IPForwarding      uint32
+	IPDefaultTTL      uint32
+	IPInReceives      uint32
+	IPInHdrErrors     uint32
+	IPInAddrErrors    uint32
+	IPForwDatagrams   uint32
+	IPInUnknownProtos uint32
+	IPInDiscards      uint32
+	IPInDelivers      uint32
+	IPOutRequests     uint32
+	IPOutDiscards     uint32
+	IPOutNoRoutes     uint32
+	IPReasmTimeout    uint32
+	IPReasmReqds      uint32
+	IPReasmOKs        uint32
+	IPReasmFails      uint32
+	IPFragOKs         uint32
+	IPFragFails       uint32
+	IPFragCreates     uint32
+}
+
+func (v *MIB2IPGroup) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var MIB2IPGroupRecordValidLength = packetSizeOf(MIB2IPGroup{}) - RecordHeaderSize
+
+const MIB2IPGroupRecordDataFormatValue uint32 = 2007
+
+// MIB2ICMPGroup see https://sflow.org/sflow_host_ip.txt, Pag 2, `mib2_icmp_group`
+type MIB2ICMPGroup struct {
+	RecordHeader
+	ICMPInMsgs           uint32
+	ICMPInErrors         uint32
+	ICMPInDestUnreachs   uint32
+	ICMPInTimeExcds      uint32
+	ICMPInParamProbs     uint32
+	ICMPInSrcQuenchs     uint32
+	ICMPInRedirects      uint32
+	ICMPInEchos          uint32
+	ICMPInEchoReps       uint32
+	ICMPInTimestamps     uint32
+	ICMPInAddrMasks      uint32
+	ICMPInAddrMaskReps   uint32
+	ICMPOutMsgs          uint32
+	ICMPOutErrors        uint32
+	ICMPOutDestUnreachs  uint32
+	ICMPOutTimeExcds     uint32
+	ICMPOutParamProbs    uint32
+	ICMPOutSrcQuenchs    uint32
+	ICMPOutRedirects     uint32
+	ICMPOutEchos         uint32
+	ICMPOutEchoReps      uint32
+	ICMPOutTimestamps    uint32
+	ICMPOutTimestampReps uint32
+	ICMPOutAddrMasks     uint32
+	ICMPOutAddrMaskReps  uint32
+}
+
+func (v *MIB2ICMPGroup) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var MIB2ICMPGroupRecordValidLength = packetSizeOf(MIB2ICMPGroup{}) - RecordHeaderSize
+
+const MIB2ICMPGroupRecordDataFormatValue uint32 = 2008
+
+// MIB2TCPGroup see https://sflow.org/sflow_host_ip.txt, Pag 2, `mib2_tcp_group`
+type MIB2TCPGroup struct {
+	RecordHeader
+	TCPRtoAlgorithm uint32
+	TCPRtoMin       uint32
+	TCPRtoMax       uint32
+	TCPMaxConn      uint32
+	TCPActiveOpens  uint32
+	TCPPassiveOpens uint32
+	TCPAttemptFails uint32
+	TCPEstabResets  uint32
+	TCPCurrEstab    uint32
+	TCPInSegs       uint32
+	TCPOutSegs      uint32
+	TCPRetransSegs  uint32
+	TCPInErrs       uint32
+	TCPOutRsts      uint32
+	TCPInCsumErrors uint32
+}
+
+func (v *MIB2TCPGroup) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var MIB2TCPGroupRecordValidLength = packetSizeOf(MIB2TCPGroup{}) - RecordHeaderSize
+
+const MIB2TCPGroupRecordDataFormatValue uint32 = 2009
+
+// MIB2UDPGroup see https://sflow.org/sflow_host_ip.txt, Pag 2, `mib2_udp_group`
+type MIB2UDPGroup struct {
+	RecordHeader
+	UDPInDatagrams  uint32
+	UDPNoPorts      uint32
+	UDPInErrors     uint32
+	UDPOutDatagrams uint32
+	UDPRcvbufErrors uint32
+	UDPSndbufErrors uint32
+	UDPInCsumErrors uint32
+}
+
+func (v *MIB2UDPGroup) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var MIB2UDPGroupRecordValidLength = packetSizeOf(MIB2UDPGroup{}) - RecordHeaderSize
+
+const MIB2UDPGroupRecordDataFormatValue uint32 = 2010
+
 // VirtNode see https://sflow.org/sflow_host.txt, Pag 10, `virt_node`
 type VirtNode struct {
 	RecordHeader

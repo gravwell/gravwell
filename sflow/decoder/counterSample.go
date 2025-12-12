@@ -227,6 +227,38 @@ func decodeCounterSampleRecords(r io.Reader, recordsCount uint32) ([]datagram.Re
 
 			record = &decoded
 			records = append(records, record)
+		case datagram.MIB2IPGroupRecordDataFormatValue:
+			decoded, err := decodeMIB2IPGroupRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			records = append(records, record)
+		case datagram.MIB2ICMPGroupRecordDataFormatValue:
+			decoded, err := decodeMIB2ICMPGroupRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			records = append(records, record)
+		case datagram.MIB2TCPGroupRecordDataFormatValue:
+			decoded, err := decodeMIB2TCPGroupRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			records = append(records, record)
+		case datagram.MIB2UDPGroupRecordDataFormatValue:
+			decoded, err := decodeMIB2UDPGroupRecord(r)
+			if err != nil {
+				return nil, err
+			}
+
+			record = &decoded
+			records = append(records, record)
 		case datagram.VirtNodeRecordDataFormatValue:
 			decoded, err := decodeVirtNodeRecord(r)
 			if err != nil {
