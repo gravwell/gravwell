@@ -4,24 +4,23 @@ Prioritization guide for the sFlow decoder. See `TODO.md` for implementation sta
 
 ## Critical Gap
 
-**Flow Samples (formats 1, 3) are NOT implemented.** They decode as `UnknownSample`, discarding all packet/traffic data. For log ingestion, Flow Samples are the primary data source.
+**Flow sample records are NOT implemented.** While the FlowSample/FlowSampleExpanded containers (formats 1, 3) are decoded, the records inside them (sampled_header, extended_switch, etc.) all fall through to `UnknownRecord`, discarding all packet/traffic data. For log ingestion, these flow records are the primary data source.
 
 ---
 
 ## Will Implement
 
-### Priority 1: Critical (Flow Samples)
+### Priority 1: Critical (Flow Records)
 
 Without these, the decoder cannot process flow data - the primary sFlow use case.
+Note: FlowSample (format 1) and FlowSampleExpanded (format 3) containers are already implemented.
 
-| Format | Structure              | Why                                            |
-| ------ | ---------------------- | ---------------------------------------------- |
-| -      | FlowSample (format 1)  | Sample container - required for any flow data  |
-| -      | FlowSampleExpanded (3) | Expanded container for large ifIndex values    |
-| 1      | sampled_header         | Raw packet headers - most valuable flow record |
-| 2      | sampled_ethernet       | Ethernet frame info (fallback)                 |
-| 3      | sampled_ipv4           | IPv4 packet info (fallback)                    |
-| 4      | sampled_ipv6           | IPv6 packet info (fallback)                    |
+| Format | Structure        | Why                                            |
+| ------ | ---------------- | ---------------------------------------------- |
+| 1      | sampled_header   | Raw packet headers - most valuable flow record |
+| 2      | sampled_ethernet | Ethernet frame info (fallback)                 |
+| 3      | sampled_ipv4     | IPv4 packet info (fallback)                    |
+| 4      | sampled_ipv6     | IPv6 packet info (fallback)                    |
 
 ### Priority 2: High (Common Extended Flow Data)
 
