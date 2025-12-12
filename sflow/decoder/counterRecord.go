@@ -45,7 +45,7 @@ var (
 	ErrJVMVMNameTooLong                   = errors.New("JVM vm name exceeds maximum length")
 	ErrJVMVMVendorTooLong                 = errors.New("JVM vm vendor exceeds maximum length")
 	ErrJVMVMVersionTooLong                = errors.New("JVM vm version exceeds maximum length")
-	ErrInvalidJVMStatisticsRecordSize     = errors.New("jvm statistics record size is invalid")
+	ErrInvalidJVMStatisticsRecordSize     = errors.New("JVM statistics record size is invalid")
 	ErrInvalidHTTPCountersRecordSize      = errors.New("http counters record size is invalid")
 	ErrInvalidAppOperationsRecordSize     = errors.New("app operations record size is invalid")
 	ErrApplicationTooLong                 = errors.New("application name exceeds maximum length")
@@ -238,7 +238,7 @@ func decordTokenringCountersRecord(r io.Reader) (datagram.TokenringCounters, err
 	}
 
 	if trc.Length != uint32(datagram.TokenringCountersRecordValidLength) {
-		return trc, ErrInvalidCounterIfRecordSize
+		return trc, ErrInvalidTokenringCountersRecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &trc.Dot3StatsLineErrors); err != nil {
@@ -328,7 +328,7 @@ func decodeVgCountersRecord(r io.Reader) (datagram.VgCounters, error) {
 	}
 
 	if vgc.Length != uint32(datagram.VgCountersRecordValidLength) {
-		return vgc, ErrInvalidCounterIfRecordSize
+		return vgc, ErrInvalidVgCountersRecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &vgc.Dot12InHighPriorityFrames); err != nil {
@@ -402,7 +402,7 @@ func decodeVlanCountersRecord(r io.Reader) (datagram.VlanCounters, error) {
 	}
 
 	if vlc.Length != uint32(datagram.VlanCountersRecordValidLength) {
-		return vlc, ErrInvalidCounterIfRecordSize
+		return vlc, ErrInvalidVlanCountersRecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &vlc.ID); err != nil {
@@ -545,14 +545,11 @@ func decodeLAGPortStatsRecord(r io.Reader) (datagram.LAGPortStats, error) {
 		return lps, ErrInvalidLAGPortStatsRecordSize
 	}
 
-	var err error
-	lps.Dot3adAggPortActorSystemID, err = decodeXDRMACAddress(r)
-	if err != nil {
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortActorSystemID); err != nil {
 		return lps, err
 	}
 
-	lps.Dot3adAggPortPartnerOperSystemID, err = decodeXDRMACAddress(r)
-	if err != nil {
+	if err := binary.Read(r, binary.BigEndian, &lps.Dot3adAggPortPartnerOperSystemID); err != nil {
 		return lps, err
 	}
 
@@ -611,7 +608,7 @@ func decodeProcessorCountersRecord(r io.Reader) (datagram.ProcessorCounters, err
 	}
 
 	if pc.Length != uint32(datagram.ProcessorCountersRecordValidLength) {
-		return pc, ErrInvalidCounterIfRecordSize
+		return pc, ErrInvalidProcessorCountersRecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &pc.CPU5s); err != nil {
@@ -649,7 +646,7 @@ func decodeOpenFlowPortRecord(r io.Reader) (datagram.OpenFlowPort, error) {
 	}
 
 	if ofp.Length != uint32(datagram.OpenFlowPortRecordValidLength) {
-		return ofp, ErrInvalidCounterIfRecordSize
+		return ofp, ErrInvalidOpenFlowPortRecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &ofp.DataPathID); err != nil {
@@ -703,7 +700,7 @@ func decodeHostDescrRecord(r io.Reader) (datagram.HostDescr, error) {
 	}
 
 	if hd.Length > uint32(datagram.HostDescrRecordMaxLength) {
-		return hd, ErrInvalidCounterIfRecordSize
+		return hd, ErrInvalidHostDescrRecordSize
 	}
 
 	var err error
@@ -751,21 +748,32 @@ func decodeHostAdaptersRecord(r io.Reader) (datagram.HostAdapters, error) {
 		return ha, err
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &ha.AdaptersCount); err != nil {
+	var adaptersCount uint32
+	if err := binary.Read(r, binary.BigEndian, &adaptersCount); err != nil {
 		return ha, err
 	}
 
-	ha.Adapters = make([]datagram.HostAdapter, 0, ha.AdaptersCount)
-	for i := uint32(0); i < ha.AdaptersCount; i++ {
+	ha.Adapters = make([]datagram.HostAdapter, 0, adaptersCount)
+	for range adaptersCount {
 		var err error
 		adapter := datagram.HostAdapter{}
 		if err = binary.Read(r, binary.BigEndian, &adapter.IFIndex); err != nil {
 			return ha, err
 		}
 
-		adapter.MACAddress, err = decodeXDRMACAddress(r)
-		if err != nil {
+		var addressCount uint32
+		if err = binary.Read(r, binary.BigEndian, &addressCount); err != nil {
 			return ha, err
+		}
+
+		adapter.MACAddresses = make([]datagram.XDRMACAddress, 0, addressCount)
+		for range addressCount {
+			var addr datagram.XDRMACAddress
+			if err := binary.Read(r, binary.BigEndian, &addr); err != nil {
+				return ha, err
+			}
+
+			adapter.MACAddresses = append(adapter.MACAddresses, addr)
 		}
 
 		ha.Adapters = append(ha.Adapters, adapter)
@@ -786,7 +794,7 @@ func decodeHostParentRecord(r io.Reader) (datagram.HostParent, error) {
 	}
 
 	if hp.Length != uint32(datagram.HostParentRecordValidLength) {
-		return hp, ErrInvalidCounterIfRecordSize
+		return hp, ErrInvalidHostParentRecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &hp.ContainerType); err != nil {
@@ -812,7 +820,7 @@ func decodeHostCPURecord(r io.Reader) (datagram.HostCPU, error) {
 	}
 
 	if hcp.Length != uint32(datagram.HostCPURecordValidLength) {
-		return hcp, ErrInvalidCounterIfRecordSize
+		return hcp, ErrInvalidHostCPURecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &hcp.LoadOne); err != nil {
@@ -898,7 +906,7 @@ func decodeHostMemoryRecord(r io.Reader) (datagram.HostMemory, error) {
 	}
 
 	if hm.Length != uint32(datagram.HostCPURecordValidLength) {
-		return hm, ErrInvalidCounterIfRecordSize
+		return hm, ErrInvalidHostMemoryRecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &hm.MemTotal); err != nil {
@@ -960,7 +968,7 @@ func decodeHostDiskIORecord(r io.Reader) (datagram.HostDiskIO, error) {
 	}
 
 	if hdio.Length != uint32(datagram.HostDiskIORecordValidLength) {
-		return hdio, ErrInvalidCounterIfRecordSize
+		return hdio, ErrInvalidHostDiskIORecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &hdio.DiskTotal); err != nil {
@@ -1014,7 +1022,7 @@ func decodeHostNetIORecord(r io.Reader) (datagram.HostNetIO, error) {
 	}
 
 	if hnio.Length != uint32(datagram.HostNetIORecordValidLength) {
-		return hnio, ErrInvalidCounterIfRecordSize
+		return hnio, ErrInvalidHostNetIORecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &hnio.BytesIn); err != nil {
@@ -1064,7 +1072,7 @@ func decodeVirtNodeRecord(r io.Reader) (datagram.VirtNode, error) {
 	}
 
 	if vn.Length != uint32(datagram.VirtNodeRecordValidLength) {
-		return vn, ErrInvalidCounterIfRecordSize
+		return vn, ErrInvalidVirtNodeRecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &vn.Mhz); err != nil {
@@ -1102,7 +1110,7 @@ func decodeVirtCPURecord(r io.Reader) (datagram.VirtCPU, error) {
 	}
 
 	if vc.Length != uint32(datagram.VirtCPURecordValidLength) {
-		return vc, ErrInvalidCounterIfRecordSize
+		return vc, ErrInvalidVirtCPURecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &vc.State); err != nil {
@@ -1132,7 +1140,7 @@ func decodeVirtMemoryRecord(r io.Reader) (datagram.VirtMemory, error) {
 	}
 
 	if hp.Length != uint32(datagram.VirtMemoryRecordValidLength) {
-		return hp, ErrInvalidCounterIfRecordSize
+		return hp, ErrInvalidVirtMemoryRecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &hp.Memory); err != nil {
@@ -1158,7 +1166,7 @@ func decodeVirtDiskIORecord(r io.Reader) (datagram.VirtDiskIO, error) {
 	}
 
 	if vdio.Length != uint32(datagram.VirtDiskIORecordValidLength) {
-		return vdio, ErrInvalidCounterIfRecordSize
+		return vdio, ErrInvalidVirtDiskIORecordSize
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &vdio.Capacity); err != nil {

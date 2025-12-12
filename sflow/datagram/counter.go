@@ -18,7 +18,7 @@ type CounterSample struct {
 	SampleHeader
 	SequenceNum uint32
 	SFlowDataSource
-	Records      []Record
+	Records []Record
 }
 
 func (cs *CounterSample) GetHeader() SampleHeader {
@@ -30,7 +30,7 @@ type CounterSampleExpanded struct {
 	SampleHeader
 	SequenceNum uint32
 	SFlowDataSourceExpanded
-	Records      []Record
+	Records []Record
 }
 
 func (cs *CounterSampleExpanded) GetHeader() SampleHeader {
@@ -314,13 +314,12 @@ const (
 // HostAdapters see https://sflow.org/sflow_host.txt, Pag 7, `host_adapters`
 type HostAdapters struct {
 	RecordHeader
-	AdaptersCount uint32
 	Adapters      []HostAdapter
 }
 
 type HostAdapter struct {
-	IFIndex    uint32
-	MACAddress XDRMACAddress
+	IFIndex      uint32
+	MACAddresses []XDRMACAddress
 }
 
 func (v *HostAdapters) GetHeader() RecordHeader {

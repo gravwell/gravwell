@@ -41,10 +41,15 @@ func (s XDRString) String() string {
 	return string(s.XDRVariableLengthOpaque[:s.Len()])
 }
 
-type XDRMACAddress struct {
-	XDRVariableLengthOpaque
-}
+// XDRMACAddress using sflow tooling implementation as reference. See:
+// - https://github.com/sflow/host-sflow/blob/master/src/sflow/sflow.h , `_SFLMacAddress`
+// - https://github.com/sflow/sflowtool/blob/master/src/sflowtool.c , `readCounters_adaptors`
+type XDRMACAddress [8]byte
 
 func (xma XDRMACAddress) MAC() net.HardwareAddr {
-	return net.HardwareAddr(xma.XDRVariableLengthOpaque[:xma.Len()])
+	if xma[7] == 0 && xma[6] == 0 {
+		return net.HardwareAddr(xma[:6])
+	}
+
+	return net.HardwareAddr(xma[:])
 }

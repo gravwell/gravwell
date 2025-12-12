@@ -16,7 +16,13 @@ import (
 )
 
 func calculatePad(l uint32) uint32 {
-	return 4 - (l % 4)
+	rest := l % 4
+
+	if rest == 0 {
+		return 0
+	}
+
+	return 4 - rest
 }
 
 func decodeXDRVariableLengthOpaque(r io.Reader) (datagram.XDRVariableLengthOpaque, error) {
@@ -35,7 +41,6 @@ func decodeXDRVariableLengthOpaque(r io.Reader) (datagram.XDRVariableLengthOpaqu
 	return vlo, nil
 }
 
-// TODO  Consider adding a "maxSize" parameter, but only if every string I am finding has a max size else make a "decodeXDRStringLimit" func
 func decodeXDRString(r io.Reader) (datagram.XDRString, error) {
 	vlo, err := decodeXDRVariableLengthOpaque(r)
 	if err != nil {
@@ -43,15 +48,4 @@ func decodeXDRString(r io.Reader) (datagram.XDRString, error) {
 	}
 
 	return datagram.XDRString{XDRVariableLengthOpaque: vlo}, nil
-}
-
-func decodeXDRMACAddress(r io.Reader) (datagram.XDRMACAddress, error) {
-	xvlo, err := decodeXDRVariableLengthOpaque(r)
-	if err != nil {
-		return datagram.XDRMACAddress{}, err
-	}
-
-	return datagram.XDRMACAddress{
-		XDRVariableLengthOpaque: xvlo,
-	}, nil
 }

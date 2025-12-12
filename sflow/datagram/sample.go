@@ -35,9 +35,13 @@ type SampleHeader struct {
 }
 
 func (sa SampleHeader) Pad() int {
-	length := int(sa.Length)
+	rest := sa.Length % 4
 
-	return (4 - (length % 4))
+	if rest == 0 {
+		return 0
+	}
+
+	return int(4 - rest)
 }
 
 func (sa SampleHeader) DataFullLength() int {
