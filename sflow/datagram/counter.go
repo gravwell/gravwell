@@ -314,7 +314,7 @@ const (
 // HostAdapters see https://sflow.org/sflow_host.txt, Pag 7, `host_adapters`
 type HostAdapters struct {
 	RecordHeader
-	Adapters      []HostAdapter
+	Adapters []HostAdapter
 }
 
 type HostAdapter struct {
@@ -346,6 +346,9 @@ var HostParentRecordValidLength = packetSizeOf(HostParent{}) - RecordHeaderSize
 const HostParentRecordDataFormatValue uint32 = 2002
 
 // HostCPU see https://sflow.org/sflow_host.txt, Pag 8, `host_cpu`
+// The official spec defines 17 fields (68 bytes), but host-sflow added
+// cpu_steal, cpu_guest, cpu_guest_nice fields (80 bytes total).
+// See https://github.com/sflow/host-sflow/commit/8c326ac
 type HostCPU struct {
 	RecordHeader
 	LoadOne          float32
@@ -365,6 +368,9 @@ type HostCPU struct {
 	CPUSoftIntr      uint32
 	Interrupts       uint32
 	Contexts         uint32
+	CPUSteal         uint32
+	CPUGuest         uint32
+	CPUGuestNice     uint32
 }
 
 func (v *HostCPU) GetHeader() RecordHeader {
@@ -378,17 +384,17 @@ const HostCPURecordDataFormatValue uint32 = 2003
 // HostMemory see https://sflow.org/sflow_host.txt, Pag 9, `host_memory`
 type HostMemory struct {
 	RecordHeader
-	MemTotal     uint64
-	MemFree      uint64
-	MemShared    uint64
-	MemBuffers   uint64
-	MemCached    uint64
-	MemSwapTotal uint64
-	SwapFree     uint64
-	PageIn       uint32
-	PageOut      uint32
-	SwapIn       uint32
-	SwapOut      uint32
+	MemTotal   uint64
+	MemFree    uint64
+	MemShared  uint64
+	MemBuffers uint64
+	MemCached  uint64
+	SwapTotal  uint64
+	SwapFree   uint64
+	PageIn     uint32
+	PageOut    uint32
+	SwapIn     uint32
+	SwapOut    uint32
 }
 
 func (v *HostMemory) GetHeader() RecordHeader {
@@ -440,7 +446,7 @@ func (v *HostNetIO) GetHeader() RecordHeader {
 
 var HostNetIORecordValidLength = packetSizeOf(HostNetIO{}) - RecordHeaderSize
 
-const HostHetIORecordDataFormatValue uint32 = 2006
+const HostNetIORecordDataFormatValue uint32 = 2006
 
 // VirtNode see https://sflow.org/sflow_host.txt, Pag 10, `virt_node`
 type VirtNode struct {

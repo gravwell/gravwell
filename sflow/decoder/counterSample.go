@@ -219,7 +219,7 @@ func decodeCounterSampleRecords(r io.Reader, recordsCount uint32) ([]datagram.Re
 
 			record = &decoded
 			records = append(records, record)
-		case datagram.HostHetIORecordDataFormatValue:
+		case datagram.HostNetIORecordDataFormatValue:
 			decoded, err := decodeHostNetIORecord(r)
 			if err != nil {
 				return nil, err

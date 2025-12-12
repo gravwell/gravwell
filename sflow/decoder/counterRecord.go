@@ -393,7 +393,7 @@ func decodeVgCountersRecord(r io.Reader) (datagram.VgCounters, error) {
 func decodeVlanCountersRecord(r io.Reader) (datagram.VlanCounters, error) {
 	vlc := datagram.VlanCounters{
 		RecordHeader: datagram.RecordHeader{
-			Format: datagram.VgCountersRecordDataFormatValue,
+			Format: datagram.VlanCountersRecordDataFormatValue,
 		},
 	}
 
@@ -637,7 +637,7 @@ func decodeProcessorCountersRecord(r io.Reader) (datagram.ProcessorCounters, err
 func decodeOpenFlowPortRecord(r io.Reader) (datagram.OpenFlowPort, error) {
 	ofp := datagram.OpenFlowPort{
 		RecordHeader: datagram.RecordHeader{
-			Format: datagram.ProcessorCountersRecordDataFormatValue,
+			Format: datagram.OpenFlowPortRecordDataFormatValue,
 		},
 	}
 
@@ -811,7 +811,7 @@ func decodeHostParentRecord(r io.Reader) (datagram.HostParent, error) {
 func decodeHostCPURecord(r io.Reader) (datagram.HostCPU, error) {
 	hcp := datagram.HostCPU{
 		RecordHeader: datagram.RecordHeader{
-			Format: datagram.HostParentRecordDataFormatValue,
+			Format: datagram.HostCPURecordDataFormatValue,
 		},
 	}
 
@@ -891,13 +891,25 @@ func decodeHostCPURecord(r io.Reader) (datagram.HostCPU, error) {
 		return hcp, err
 	}
 
+	if err := binary.Read(r, binary.BigEndian, &hcp.CPUSteal); err != nil {
+		return hcp, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hcp.CPUGuest); err != nil {
+		return hcp, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &hcp.CPUGuestNice); err != nil {
+		return hcp, err
+	}
+
 	return hcp, nil
 }
 
 func decodeHostMemoryRecord(r io.Reader) (datagram.HostMemory, error) {
 	hm := datagram.HostMemory{
 		RecordHeader: datagram.RecordHeader{
-			Format: datagram.HostParentRecordDataFormatValue,
+			Format: datagram.HostMemoryRecordDataFormatValue,
 		},
 	}
 
@@ -905,7 +917,7 @@ func decodeHostMemoryRecord(r io.Reader) (datagram.HostMemory, error) {
 		return hm, err
 	}
 
-	if hm.Length != uint32(datagram.HostCPURecordValidLength) {
+	if hm.Length != uint32(datagram.HostMemoryRecordValidLength) {
 		return hm, ErrInvalidHostMemoryRecordSize
 	}
 
@@ -929,7 +941,7 @@ func decodeHostMemoryRecord(r io.Reader) (datagram.HostMemory, error) {
 		return hm, err
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &hm.MemSwapTotal); err != nil {
+	if err := binary.Read(r, binary.BigEndian, &hm.SwapTotal); err != nil {
 		return hm, err
 	}
 
@@ -1013,7 +1025,7 @@ func decodeHostDiskIORecord(r io.Reader) (datagram.HostDiskIO, error) {
 func decodeHostNetIORecord(r io.Reader) (datagram.HostNetIO, error) {
 	hnio := datagram.HostNetIO{
 		RecordHeader: datagram.RecordHeader{
-			Format: datagram.HostDiskIORecordDataFormatValue,
+			Format: datagram.HostNetIORecordDataFormatValue,
 		},
 	}
 
@@ -1131,7 +1143,7 @@ func decodeVirtCPURecord(r io.Reader) (datagram.VirtCPU, error) {
 func decodeVirtMemoryRecord(r io.Reader) (datagram.VirtMemory, error) {
 	hp := datagram.VirtMemory{
 		RecordHeader: datagram.RecordHeader{
-			Format: datagram.VirtNodeRecordDataFormatValue,
+			Format: datagram.VirtMemoryRecordDataFormatValue,
 		},
 	}
 

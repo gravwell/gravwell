@@ -163,19 +163,27 @@ func (s *SFlowV5Handler) routine(id int) {
 				panic("Clearly I made a terrible mistake here")
 			}
 
+			// Collect all unknown record formats
+			var unknownFormats []uint32
 			for _, record := range records {
-				recordFormat := record.GetHeader().Format
 				if _, ok := record.(*datagram.UnknownRecord); ok {
-					recordSuffix = fmt.Sprintf("_unknownrecord_%d_", recordFormat)
-					// Write file for unknown record
-					timestamp := time.Now().Unix()
-					filename := fmt.Sprintf("sflow%s%d.bin", recordSuffix, timestamp)
-					if writeErr := os.WriteFile(filename, tbuf[:dSize], 0644); writeErr != nil {
-						debug.Out("failed to write unknown record (format %d) to file %s: %+v\n", recordFormat, filename, writeErr)
-					} else {
-						debug.Out("wrote unknown record (format %d) datagram to %s\n", recordFormat, filename)
-					}
-					break // Only write once per datagram
+					unknownFormats = append(unknownFormats, record.GetHeader().Format)
+				}
+			}
+
+			// Write file if there are any unknown records, with all formats in the filename
+			if len(unknownFormats) > 0 {
+				recordSuffix = "_unknownrecord"
+				for _, f := range unknownFormats {
+					recordSuffix += fmt.Sprintf("_%d", f)
+				}
+				recordSuffix += "_"
+				timestamp := time.Now().Unix()
+				filename := fmt.Sprintf("sflow%s%d.bin", recordSuffix, timestamp)
+				if writeErr := os.WriteFile(filename, tbuf[:dSize], 0644); writeErr != nil {
+					debug.Out("failed to write unknown records (formats %v) to file %s: %+v\n", unknownFormats, filename, writeErr)
+				} else {
+					debug.Out("wrote unknown records (formats %v) datagram to %s\n", unknownFormats, filename)
 				}
 			}
 		}
