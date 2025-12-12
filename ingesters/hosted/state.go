@@ -11,7 +11,6 @@ package hosted
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -23,13 +22,11 @@ type StateConfig struct {
 }
 
 type StateHandler struct {
-	sync.Mutex
 	db *bolt.DB
 }
 
 // Verify checks that we have a good state file
 func (s *StateConfig) Verify() (err error) {
-
 	// basic variable checks
 	if s == nil {
 		return errors.New("nil state")
@@ -74,13 +71,11 @@ func (sh *StateHandler) check() (err error) {
 
 func (sh *StateHandler) Close() (err error) {
 	if err = sh.check(); err == nil {
-		sh.Lock()
 		err = sh.db.Sync()
 		if lerr := sh.db.Close(); lerr != nil && err == nil {
 			err = lerr // only set the close error if sync succeeded and close did not
 		}
 		sh.db = nil
-		sh.Unlock()
 	}
 	return
 }
@@ -92,7 +87,6 @@ func (sh *StateHandler) writeBucket(bucket, key, value []byte) (err error) {
 		return errors.New("missing key")
 	}
 	if err = sh.check(); err == nil {
-		sh.Lock()
 		err = sh.db.Update(func(tx *bolt.Tx) error {
 			bkt, err := tx.CreateBucketIfNotExists(bucket)
 			if err != nil {
@@ -100,29 +94,34 @@ func (sh *StateHandler) writeBucket(bucket, key, value []byte) (err error) {
 			}
 			return bkt.Put(key, value)
 		})
-		sh.Unlock()
 	}
 	return
 }
 
-func (sh *StateHandler) readBucket(bucket, key []byte) (value []byte, err error) {
+// bucketReadHandler is a function protype used for handling byte values coming back from
+// bolt DB reads.  The byte slice passed in should not be retained, as it is only valid during the
+// lifetime of the function call.
+type bucketReadHandler func([]byte) error
+
+func (sh *StateHandler) readBucket(bucket, key []byte, hnd bucketReadHandler) (err error) {
 	if len(bucket) == 0 {
 		err = errors.New("missing bucket")
 		return
 	} else if len(key) == 0 {
 		err = errors.New("missing key")
 		return
+	} else if hnd == nil {
+		err = errors.New("missing read handler")
+		return
 	}
 	if err = sh.check(); err == nil {
-		sh.Lock()
 		err = sh.db.View(func(tx *bolt.Tx) error {
-			bkt, err := tx.CreateBucketIfNotExists(bucket)
-			if err != nil {
-				return err
+			bkt := tx.Bucket(bucket)
+			if bkt == nil {
+				return ErrStorageNotFound
 			}
-			return bkt.Put(key, value)
+			return hnd(bkt.Get(key))
 		})
-		sh.Unlock()
 	}
 	return
 }
@@ -130,12 +129,10 @@ func (sh *StateHandler) readBucket(bucket, key []byte) (value []byte, err error)
 func (sh *StateHandler) getBucketWriter(bucket string) (bw *BucketWriter, err error) {
 	if err = sh.check(); err == nil {
 		b := []byte(bucket)
-		sh.Lock()
 		err = sh.db.Update(func(tx *bolt.Tx) error {
 			_, err := tx.CreateBucketIfNotExists(b)
 			return err
 		})
-		sh.Unlock()
 		if err == nil {
 			bw = &BucketWriter{
 				bucket: b,
@@ -162,7 +159,13 @@ func (bw *BucketWriter) check() (err error) {
 // Get pulls back a native byte slice from state storage
 func (bw *BucketWriter) Get(key string) (value []byte, err error) {
 	if err = bw.check(); err == nil {
-		value, err = bw.sh.readBucket(bw.bucket, []byte(key))
+		err = bw.sh.readBucket(bw.bucket, []byte(key), func(v []byte) error {
+			if v == nil {
+				return ErrStorageNotFound
+			}
+			value = retslice(v)
+			return nil
+		})
 	}
 	return
 }
@@ -179,9 +182,15 @@ func (bw *BucketWriter) Put(key string, value []byte) (err error) {
 // GetString pulls back a native string from state storage
 func (bw *BucketWriter) GetString(key string) (value string, err error) {
 	// we just wrap the native slice getter, no special encoding here
-	var bv []byte
-	if bv, err = bw.Get(key); err == nil && len(bv) > 0 {
-		value = string(bv)
+	if err = bw.check(); err == nil {
+		err = bw.sh.readBucket(bw.bucket, []byte(key), func(v []byte) error {
+			if v == nil {
+				return ErrStorageNotFound
+			} else if len(v) > 0 {
+				value = string(v) // the string cast will perform the copy for us
+			}
+			return nil
+		})
 	}
 	return
 }
@@ -192,12 +201,42 @@ func (bw *BucketWriter) PutString(key, value string) (err error) {
 	return
 }
 
+// GetInt64 pulls back a native int64 from state storage
+func (bw *BucketWriter) GetInt64(key string) (value int64, err error) {
+	if err = bw.check(); err == nil {
+		err = bw.sh.readBucket(bw.bucket, []byte(key), func(v []byte) error {
+			if len(v) == 0 {
+				return ErrStorageNotFound
+			}
+			var lerr error
+			var n int
+			if n, lerr = fmt.Sscanf(string(v), "%d", &value); lerr == nil && n != 1 {
+				lerr = fmt.Errorf("failed to parse int64 from %d scanned items", n)
+			}
+			return lerr
+		})
+	}
+	return
+}
+
+// PutInt64 puts a native int64 into the storage
+func (bw *BucketWriter) PutInt64(key string, value int64) (err error) {
+	err = bw.Put(key, []byte(fmt.Sprintf("%d", value)))
+	return
+}
+
 // GetTime pulls back a native time.Time from state storage
 func (bw *BucketWriter) GetTime(key string) (value time.Time, err error) {
 	// we just wrap the native slice getter, no special encoding here
-	var bv []byte
-	if bv, err = bw.Get(key); err == nil && len(bv) > 0 {
-		value, err = time.Parse(time.RFC3339Nano, string(bv))
+	if err = bw.check(); err == nil {
+		err = bw.sh.readBucket(bw.bucket, []byte(key), func(v []byte) error {
+			if len(v) == 0 {
+				return ErrStorageNotFound
+			}
+			var lerr error
+			value, lerr = time.Parse(time.RFC3339Nano, string(v))
+			return lerr
+		})
 	}
 	return
 }
@@ -206,4 +245,20 @@ func (bw *BucketWriter) GetTime(key string) (value time.Time, err error) {
 func (bw *BucketWriter) PutTime(key string, value time.Time) (err error) {
 	err = bw.Put(key, []byte(value.Format(time.RFC3339Nano)))
 	return
+}
+
+// func retslice is just a wrapper around a make and copy so that we can safely return slices from bolt Views
+func retslice(v []byte) (r []byte) {
+	if len(v) > 0 {
+		r = make([]byte, len(v))
+		copy(r, v)
+	}
+	return
+}
+
+// parseInt64 converts a byte slice to an int64
+func parseInt64(v []byte) (int64, error) {
+	var value int64
+	_, err := fmt.Sscanf(string(v), "%d", &value)
+	return value, err
 }
