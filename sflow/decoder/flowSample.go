@@ -72,7 +72,7 @@ func decodeFlowSampleFormat(r io.Reader, length uint32) (*datagram.FlowSample, e
 
 func decodeFlowSampleExpandedFormat(r io.Reader, length uint32) (*datagram.FlowSampleExpanded, error) {
 	header := datagram.SampleHeader{
-		Format: datagram.CounterSampleExpandedFormat,
+		Format: datagram.FlowSampleExpandedFormat,
 		Length: length,
 	}
 	fse := &datagram.FlowSampleExpanded{
@@ -109,12 +109,22 @@ func decodeFlowSampleExpandedFormat(r io.Reader, length uint32) (*datagram.FlowS
 		return nil, err
 	}
 
-	err = binary.Read(r, binary.BigEndian, &fse.Input)
+	err = binary.Read(r, binary.BigEndian, &fse.Input.Format)
 	if err != nil {
 		return nil, err
 	}
 
-	err = binary.Read(r, binary.BigEndian, &fse.Output)
+	err = binary.Read(r, binary.BigEndian, &fse.Input.Value)
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Read(r, binary.BigEndian, &fse.Output.Format)
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Read(r, binary.BigEndian, &fse.Output.Value)
 	if err != nil {
 		return nil, err
 	}
@@ -141,6 +151,21 @@ func decodeFlowSampleRecords(r io.Reader, recordsCount uint32) ([]datagram.Recor
 
 		var record datagram.Record
 		switch dataFormat {
+		case datagram.FlowSampledHeaderRecordDataFormatValue:
+			record, err = decodeFlowSampledHeader(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+
+		case datagram.ExtendedTCPInfoRecordDataFormatValue:
+			record, err = decodeExtendedTCPInfo(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
 		default:
 			record, err = decodeUnknownRecord(r, dataFormat)
 			if err != nil {

@@ -42,14 +42,16 @@ func (s XDRString) String() string {
 }
 
 // XDRMACAddress using sflow tooling implementation as reference. See:
+//
 // - https://github.com/sflow/host-sflow/blob/master/src/sflow/sflow.h , `_SFLMacAddress`
+//
 // - https://github.com/sflow/sflowtool/blob/master/src/sflowtool.c , `readCounters_adaptors`
+//
+// Spec does mention mac type, see https://sflow.org/sflow_version_5.txt , `typedef opaque mac[6]`
+//
+// However we need to add 2 bytes of padding due to XDR specification, to be a multiple of 4.
 type XDRMACAddress [8]byte
 
 func (xma XDRMACAddress) MAC() net.HardwareAddr {
-	if xma[7] == 0 && xma[6] == 0 {
-		return net.HardwareAddr(xma[:6])
-	}
-
-	return net.HardwareAddr(xma[:])
+	return net.HardwareAddr(xma[:6])
 }

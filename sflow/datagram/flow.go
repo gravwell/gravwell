@@ -38,11 +38,55 @@ type FlowSampleExpanded struct {
 	SamplingRate uint32
 	SamplePool   uint32
 	Drops        uint32
-	Input        Interface
-	Output       Interface
+	Input        InterfaceExpanded
+	Output       InterfaceExpanded
 	Records      []Record
 }
 
 func (fse *FlowSampleExpanded) GetHeader() SampleHeader {
 	return fse.SampleHeader
 }
+
+// FlowSampledHeader see https://sflow.org/sflow_version_5.txt, pag 34 `sampled_header`
+type FlowSampledHeader struct {
+	RecordHeader
+	// Indicates the starting layer (see `header_protocol` enum in spec).
+	HeaderProtocol uint32
+	FrameLength    uint32
+	Stripped       uint32
+	// Contains raw packet bytes - use a packet parser like google/gopacket to decode.
+	HeaderBytes XDRVariableLengthOpaque
+}
+
+func (fsh *FlowSampledHeader) GetHeader() RecordHeader {
+	return fsh.RecordHeader
+}
+
+// NOTE  FlowSampledHeader is variable length, so no way to validate it
+
+const FlowSampledHeaderRecordDataFormatValue uint32 = 1
+
+// ExtendedTCPInfo see https://blog.sflow.com/2016/10/network-performance-monitoring.html and https://groups.google.com/g/sflow/c/JCG9iwacLZA
+type ExtendedTCPInfo struct {
+	RecordHeader
+	Dir        uint32
+	SndMss     uint32
+	RcvMss     uint32
+	Unacked    uint32
+	Lost       uint32
+	Retrans    uint32
+	Pmtu       uint32
+	Rtt        uint32
+	Rttvar     uint32
+	SndCwnd    uint32
+	Reordering uint32
+	MinRtt     uint32
+}
+
+func (eti *ExtendedTCPInfo) GetHeader() RecordHeader {
+	return eti.RecordHeader
+}
+
+var ExtendedTCPInfoRecordValidLength = packetSizeOf(ExtendedTCPInfo{}) - RecordHeaderSize
+
+const ExtendedTCPInfoRecordDataFormatValue uint32 = 2209

@@ -89,7 +89,7 @@ func (dd *DatagramDecoder) Decode() (*datagram.Datagram, error) {
 		return nil, err
 	}
 
-	for i := dgram.SamplesCount; i > 0; i-- {
+	for range dgram.SamplesCount {
 		sample, err := decodeSample(dd.r)
 		if err != nil {
 			return nil, err

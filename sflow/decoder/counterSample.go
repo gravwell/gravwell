@@ -92,300 +92,226 @@ func decodeCounterSampleRecords(r io.Reader, recordsCount uint32) ([]datagram.Re
 		var record datagram.Record
 		switch dataFormat {
 		case datagram.CounterIfRecordDataFormatValue:
-			decoded, err := decodeCounterIfRecord(r)
+			record, err = decodeCounterIfRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.EthernetCountersRecordDataFormatValue:
-			decoded, err := decodeEthernetCountersRecord(r)
+			record, err = decodeEthernetCountersRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.TokenringCountersRecordDataFormatValue:
-			decoded, err := decordTokenringCountersRecord(r)
+			record, err = decordTokenringCountersRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.VgCountersRecordDataFormatValue:
-			decoded, err := decodeVgCountersRecord(r)
+			record, err = decodeVgCountersRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.VlanCountersRecordDataFormatValue:
-			decoded, err := decodeVlanCountersRecord(r)
+			record, err = decodeVlanCountersRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.IEEE80211CountersRecordDataFormatValue:
-			decoded, err := decodeIEEE80211CountersRecord(r)
+			record, err = decodeIEEE80211CountersRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.LAGPortStatsRecordDataFormatValue:
-			decoded, err := decodeLAGPortStatsRecord(r)
+			record, err = decodeLAGPortStatsRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.ProcessorCountersRecordDataFormatValue:
-			decoded, err := decodeProcessorCountersRecord(r)
+			record, err = decodeProcessorCountersRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.OpenFlowPortRecordDataFormatValue:
-			decoded, err := decodeOpenFlowPortRecord(r)
+			record, err = decodeOpenFlowPortRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.OpenFlowPortNameRecordDataFormatValue:
-			decoded, err := decodeOpenFlowPortNameRecord(r)
+			record, err = decodeOpenFlowPortNameRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.HostDescrRecordDataFormatValue:
-			decoded, err := decodeHostDescrRecord(r)
+			record, err = decodeHostDescrRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.HostAdaptersRecordDataFormatValue:
-			decoded, err := decodeHostAdaptersRecord(r)
+			record, err = decodeHostAdaptersRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.HostParentRecordDataFormatValue:
-			decoded, err := decodeHostParentRecord(r)
+			record, err = decodeHostParentRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.HostCPURecordDataFormatValue:
-			decoded, err := decodeHostCPURecord(r)
+			record, err = decodeHostCPURecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.HostMemoryRecordDataFormatValue:
-			decoded, err := decodeHostMemoryRecord(r)
+			record, err = decodeHostMemoryRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.HostDiskIORecordDataFormatValue:
-			decoded, err := decodeHostDiskIORecord(r)
+			record, err = decodeHostDiskIORecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.HostNetIORecordDataFormatValue:
-			decoded, err := decodeHostNetIORecord(r)
+			record, err = decodeHostNetIORecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.MIB2IPGroupRecordDataFormatValue:
-			decoded, err := decodeMIB2IPGroupRecord(r)
+			record, err = decodeMIB2IPGroupRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.MIB2ICMPGroupRecordDataFormatValue:
-			decoded, err := decodeMIB2ICMPGroupRecord(r)
+			record, err = decodeMIB2ICMPGroupRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.MIB2TCPGroupRecordDataFormatValue:
-			decoded, err := decodeMIB2TCPGroupRecord(r)
+			record, err = decodeMIB2TCPGroupRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.MIB2UDPGroupRecordDataFormatValue:
-			decoded, err := decodeMIB2UDPGroupRecord(r)
+			record, err = decodeMIB2UDPGroupRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.VirtNodeRecordDataFormatValue:
-			decoded, err := decodeVirtNodeRecord(r)
+			record, err = decodeVirtNodeRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.VirtCPURecordDataFormatValue:
-			decoded, err := decodeVirtCPURecord(r)
+			record, err = decodeVirtCPURecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.VirtMemoryRecordDataFormatValue:
-			decoded, err := decodeVirtMemoryRecord(r)
+			record, err = decodeVirtMemoryRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.VirtDiskIORecordDataFormatValue:
-			decoded, err := decodeVirtDiskIORecord(r)
+			record, err = decodeVirtDiskIORecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.VirtNetIORecordDataFormatValue:
-			decoded, err := decodeVirtNetIORecord(r)
+			record, err = decodeVirtNetIORecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.JVMMachineNameRecordDataFormatValue:
-			decoded, err := decodeJVMMachineNameRecord(r)
+			record, err = decodeJVMMachineNameRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.JVMStatisticsRecordDataFormatValue:
-			decoded, err := decodeJVMStatisticsRecord(r)
+			record, err = decodeJVMStatisticsRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.HTTPCountersRecordDataFormatValue:
-			decoded, err := decodeHTTPCountersRecord(r)
+			record, err = decodeHTTPCountersRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.MemcacheCountersRecordDataFormatValue:
-			decoded, err := decodeMemcacheCountersRecord(r)
+			record, err = decodeMemcacheCountersRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.AppOperationsRecordDataFormatValue:
-			decoded, err := decodeAppOperationsRecord(r)
+			record, err = decodeAppOperationsRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.AppResourcesRecordDataFormatValue:
-			decoded, err := decodeAppResourcesRecord(r)
+			record, err = decodeAppResourcesRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.AppWorkersRecordDataFormatValue:
-			decoded, err := decodeAppWorkersRecord(r)
+			record, err = decodeAppWorkersRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.EnergyRecordDataFormatValue:
-			decoded, err := decodeEnergyRecord(r)
+			record, err = decodeEnergyRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.TemperatureRecordDataFormatValue:
-			decoded, err := decodeTemperatureRecord(r)
+			record, err = decodeTemperatureRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.HumidityRecordDataFormatValue:
-			decoded, err := decodeHumidityRecord(r)
+			record, err = decodeHumidityRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		case datagram.FansRecordDataFormatValue:
-			decoded, err := decodeFansRecord(r)
+			record, err = decodeFansRecord(r)
 			if err != nil {
 				return nil, err
 			}
-
-			record = &decoded
 			records = append(records, record)
 		default:
 			record, err := decodeUnknownRecord(r, dataFormat)

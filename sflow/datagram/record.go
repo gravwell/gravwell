@@ -24,3 +24,5 @@ const (
 type Record interface {
 	GetHeader() RecordHeader
 }
+
+type RecordHeader = SampleHeader

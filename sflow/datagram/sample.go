@@ -61,3 +61,9 @@ type SFlowDataSourceExpanded struct {
 
 // Interface see https://sflow.org/sflow_version_5.txt, pag 28, `interface`
 type Interface = uint32
+
+// InterfaceExpanded see https://sflow.org/sflow_version_5.txt, pag 30, `interface_expanded`
+type InterfaceExpanded struct {
+	Format uint32
+	Value  uint32
+}

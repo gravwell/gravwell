@@ -37,8 +37,6 @@ func (cs *CounterSampleExpanded) GetHeader() SampleHeader {
 	return cs.SampleHeader
 }
 
-type RecordHeader = SampleHeader
-
 // CounterIfRecord see https://sflow.org/sflow_version_5.txt , pag 40, `if_counters`
 type CounterIfRecord struct {
 	RecordHeader
@@ -328,7 +326,7 @@ func (v *HostAdapters) GetHeader() RecordHeader {
 
 // NOTE  HostAdapters is variable length, so no way to validate it
 
-var HostAdaptersRecordDataFormatValue uint32 = 2001
+const HostAdaptersRecordDataFormatValue uint32 = 2001
 
 // HostParent see https://sflow.org/sflow_host.txt, Pag 8, `host_parent`
 type HostParent struct {
