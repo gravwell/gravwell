@@ -18,7 +18,7 @@ import (
 func decodeExtendedTCPInfo(r io.Reader) (*datagram.ExtendedTCPInfo, error) {
 	eti := datagram.ExtendedTCPInfo{
 		RecordHeader: datagram.RecordHeader{
-			Format: datagram.FlowSampledHeaderRecordDataFormatValue,
+			Format: datagram.ExtendedTCPInfoRecordDataFormatValue,
 		},
 	}
 
