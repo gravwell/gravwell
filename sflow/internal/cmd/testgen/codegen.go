@@ -18,20 +18,20 @@ import (
 	"github.com/gravwell/gravwell/v3/sflow/internal/cmd/testgen/assets"
 )
 
-var ErrFixtureExists = errors.New("fixture file already exists (use -force to overwrite)")
+var ErrTestFileExists = errors.New("test file already exists (use -force to overwrite)")
 
-// writeFixtures writes both .bin and .go files. basePath should NOT include an extension.
-func writeFixtures(basePath string, packetData, goFileBuf []byte) error {
+// writeFiles writes both .bin and .go test files. basePath should NOT include an extension.
+func writeFiles(basePath string, packetData, goFileBuf []byte) error {
 	binPath := basePath + ".bin"
 	goPath := basePath + "_test.go"
 
 	// Check if files exist (unless force is set)
 	if !force {
 		if _, err := os.Stat(binPath); err == nil {
-			return fmt.Errorf("%s: %w", binPath, ErrFixtureExists)
+			return fmt.Errorf("%s: %w", binPath, ErrTestFileExists)
 		}
 		if _, err := os.Stat(goPath); err == nil {
-			return fmt.Errorf("%s: %w", goPath, ErrFixtureExists)
+			return fmt.Errorf("%s: %w", goPath, ErrTestFileExists)
 		}
 	}
 
@@ -46,8 +46,8 @@ func writeFixtures(basePath string, packetData, goFileBuf []byte) error {
 	return nil
 }
 
-// generateGoFixture generates the Go fixture file content. baseName is the filename without path or extension.
-func generateGoFixture(baseName string, dgram *datagram.Datagram) ([]byte, error) {
+// generateGoTest generates the Go test file content. baseName is the filename without path or extension.
+func generateGoTest(baseName string, dgram *datagram.Datagram) ([]byte, error) {
 	var buf bytes.Buffer
 
 	// Write Go file header

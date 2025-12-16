@@ -14,10 +14,10 @@ import (
 func main() {
 	flag.Parse()
 
-	if err := os.MkdirAll(fixturesDir, 0755); err != nil {
-		log.Fatalf("Failed to create fixtures directory: %v", err)
+	if err := os.MkdirAll(testsDir, 0755); err != nil {
+		log.Fatalf("Failed to create tests directory: %v", err)
 	}
-	log.Printf("Fixtures directory ready at: %s", fixturesDir)
+	log.Printf("Tests directory ready at: %s", testsDir)
 
 	// Setup UDP listener
 	addr := fmt.Sprintf(":%d", port)

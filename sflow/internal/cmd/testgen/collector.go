@@ -68,15 +68,15 @@ func listenToPackets(conn *net.UDPConn, stopChan chan struct{}) {
 					packetCount, remoteAddr, dgram.Version, dgram.SequenceNumber, dgram.SamplesCount)
 			}
 
-			basePath := filepath.Join(fixturesDir, baseName)
+			basePath := filepath.Join(testsDir, baseName)
 
-			// Write fixtures if decode was successful
+			// Write test files if decode was successful
 			if err == nil && dgram != nil {
 				goFileBuf, genErr := generateGoFixture(baseName, dgram)
 				if genErr != nil {
 					log.Printf("Failed to generate Go test: %v", genErr)
 				} else if writeErr := writeFixtures(basePath, packetData, goFileBuf); writeErr != nil {
-					log.Printf("Failed to write fixtures: %v", writeErr)
+					log.Printf("Failed to write test files: %v", writeErr)
 				} else {
 					log.Printf("Saved test: %s.bin and %s_test.go (%d bytes)", baseName, baseName, n)
 				}
