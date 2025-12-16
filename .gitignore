@@ -19,9 +19,18 @@ test.conf
 
 #vim files
 *.swp
-manager
-
 
 #idea files
 .idea/
 .idea
+
+# binaries
+manager/manager
+manager
+
+#idea files
+.idea/
+.idea
+
+# VSCode files
+.vscode/*

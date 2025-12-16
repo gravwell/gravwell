@@ -28,12 +28,12 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/chancacher"
-	"github.com/gravwell/gravwell/v3/ingest/attach"
-	"github.com/gravwell/gravwell/v3/ingest/config"
-	"github.com/gravwell/gravwell/v3/ingest/entry"
-	"github.com/gravwell/gravwell/v3/ingest/log"
-	"github.com/gravwell/gravwell/v3/ingesters/version"
+	"github.com/gravwell/gravwell/v4/chancacher"
+	"github.com/gravwell/gravwell/v4/ingest/attach"
+	"github.com/gravwell/gravwell/v4/ingest/config"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/log"
+	"github.com/gravwell/gravwell/v4/ingesters/version"
 )
 
 const (
@@ -141,7 +141,7 @@ type IngestMuxer struct {
 	state                muxState
 	hostname             string
 	appname              string
-	lgr                  Logger
+	lgr                  log.IngestLogger
 	cacheEnabled         bool
 	cachePath            string
 	cacheSize            int
@@ -176,15 +176,15 @@ type UniformMuxerConfig struct {
 	CacheSize         int
 	CacheMode         string
 	LogLevel          string // deprecated, no longer used
-	Logger            Logger
+	Logger            log.IngestLogger
 	IngesterName      string
 	IngesterVersion   string
 	IngesterUUID      string
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
-	Attach            attach.AttachConfig
-	MinVersion        uint16 // minimum API version of indexers
+	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	MinVersion        uint16              // minimum API version of indexers
 }
 
 type MuxerConfig struct {
@@ -199,15 +199,15 @@ type MuxerConfig struct {
 	CacheSize         int
 	CacheMode         string
 	LogLevel          string // deprecated, no longer used
-	Logger            Logger
+	Logger            log.IngestLogger
 	IngesterName      string
 	IngesterVersion   string
 	IngesterUUID      string
 	IngesterLabel     string
 	RateLimitBps      int64
 	LogSourceOverride net.IP
-	Attach            attach.AttachConfig
-	MinVersion        uint16 // minimum API version of indexers
+	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
+	MinVersion        uint16              // minimum API version of indexers
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
@@ -314,12 +314,14 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 
 	var err error
 	if c.CachePath != "" {
-		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize)
+		cache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "e"), mb*c.CacheSize, c.Logger)
 		if err != nil {
+			c.Logger.Error("Error initializing read cache", log.KVErr(err))
 			return nil, err
 		}
-		bcache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), mb*c.CacheSize)
+		bcache, err = chancacher.NewChanCacher(c.CacheDepth, filepath.Join(c.CachePath, "b"), mb*c.CacheSize, c.Logger)
 		if err != nil {
+			c.Logger.Error("Error initializing write cache", log.KVErr(err))
 			return nil, err
 		}
 		if c.CacheMode == CacheModeFail {
