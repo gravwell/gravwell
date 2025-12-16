@@ -72,10 +72,10 @@ func listenToPackets(conn *net.UDPConn, stopChan chan struct{}) {
 
 			// Write test files if decode was successful
 			if err == nil && dgram != nil {
-				goFileBuf, genErr := generateGoFixture(baseName, dgram)
+				goFileBuf, genErr := generateGoTest(baseName, dgram)
 				if genErr != nil {
 					log.Printf("Failed to generate Go test: %v", genErr)
-				} else if writeErr := writeFixtures(basePath, packetData, goFileBuf); writeErr != nil {
+				} else if writeErr := writeFiles(basePath, packetData, goFileBuf); writeErr != nil {
 					log.Printf("Failed to write test files: %v", writeErr)
 				} else {
 					log.Printf("Saved test: %s.bin and %s_test.go (%d bytes)", baseName, baseName, n)
