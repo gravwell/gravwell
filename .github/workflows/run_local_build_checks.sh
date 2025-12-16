@@ -27,7 +27,7 @@ echo "Running go vet"
         GOOS=linux go vet ./ipexist
         go vet ./netflow
         go vet ./client/...
-        go vet ./sflow
+        go vet ./sflow/...
 
 
 echo "Running go test -v"
