@@ -36,7 +36,7 @@ const (
 	MtaJournal          = "mta-journal"
 )
 
-var ApiEvents = map[Api]EventType{
+var SIEMApiEvents = map[Api]EventType{
 	MtaDeliveryApi:      DeliveryEvent,
 	MtaReceiptApi:       ReceiptEvent,
 	MtaProcessApi:       ProcessEvent,

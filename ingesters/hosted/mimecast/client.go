@@ -144,6 +144,8 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end
 	return b, nil
 }
 
+// GetRawAuditEvents returns a partially parsed response from a single page of the API. More pages can be read by providing the cursor.
+// The intent is to allow only the caller to control when/if the actual audit data is decoded given the variance in structures of the API.
 func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cursor *string) (*Response, error) {
 	if start.After(end) {
 		return nil, fmt.Errorf("start time is after end time")
