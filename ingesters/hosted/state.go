@@ -126,7 +126,7 @@ func (sh *StateHandler) readBucket(bucket, key []byte, hnd bucketReadHandler) (e
 	return
 }
 
-func (sh *StateHandler) getBucketWriter(bucket string) (bw *BucketWriter, err error) {
+func (sh *StateHandler) GetBucketWriter(bucket string) (bw *BucketWriter, err error) {
 	if err = sh.check(); err == nil {
 		b := []byte(bucket)
 		err = sh.db.Update(func(tx *bolt.Tx) error {

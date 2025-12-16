@@ -12,15 +12,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v3/ingest"
+	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
 const (
-	restartDelay = 30 * time.Second // on failures wait 30s to restart
+	restartDelay = time.Minute // on failures wait 1min to restart
 )
 
 type NativeConfig struct {
@@ -32,6 +36,8 @@ type NativeConfig struct {
 // in a regular old go routine.  We don't FULLY trust these, so we wrap them in a recover.
 type NativeRunner struct {
 	Ingester
+	mtx          *sync.Mutex
+	wg           *sync.WaitGroup
 	id           string
 	name         string
 	version      version.Canonical
@@ -39,6 +45,7 @@ type NativeRunner struct {
 	rt           Runtime
 	ctx          context.Context
 	cf           context.CancelFunc
+	running      bool  // is the ingester currently running
 	err          error // error from go routine runner
 }
 
@@ -65,6 +72,8 @@ func NewNativeRunner(id, name, verstr string, ingesterUUID uuid.UUID, ig Ingeste
 	}
 	r = &NativeRunner{
 		id:           id,
+		mtx:          &sync.Mutex{},
+		wg:           &sync.WaitGroup{},
 		name:         name,
 		version:      ver,
 		Ingester:     ig,
@@ -80,7 +89,15 @@ func (nr *NativeRunner) Start() (err error) {
 	if nr == nil || nr.Ingester == nil || nr.rt == nil {
 		return errors.New("not ready")
 	}
-	//TODO check if we are already started
+	nr.mtx.Lock()
+	if !nr.running {
+		nr.running = true
+		nr.wg.Add(1)
+		go nr.run()
+	} else {
+		err = errors.New("already started")
+	}
+	nr.mtx.Unlock()
 	return
 }
 
@@ -90,8 +107,12 @@ func (nr *NativeRunner) Close() (err error) {
 		return errors.New("not ready")
 	}
 	nr.cf()
-	//TODO wait for routine to exit
-	err = nr.err
+	// wait for routine to exit TODO FIXME - add a timeout on this wait
+	// WaitGroup probably isn't the right tool here
+	nr.wg.Done()
+	if err = nr.err; err == context.Canceled {
+		err = nil
+	}
 	return
 }
 
@@ -117,6 +138,19 @@ func (nr *NativeRunner) UUID() (r uuid.UUID) {
 		r = nr.ingesterUUID
 	}
 	return
+}
+
+// Running returns whether the ingester is currently running
+func (nr *NativeRunner) Running() bool {
+	return nr.running
+}
+
+// LastError returns the last error encountered by the ingester
+func (nr *NativeRunner) LastError() error {
+	if nr != nil {
+		return nr.err
+	}
+	return errors.New("native runner not initialized")
 }
 
 // run wraps the Ingester.Run with some more tests and a recoverable runner loop so we can recover
@@ -158,5 +192,135 @@ func (nr *NativeRunner) recoverableRun() (stack string, err error) {
 		}
 	}(&err)
 	err = nr.Ingester.Run(nr.ctx, nr.rt)
+	return
+}
+
+type NativeLogger struct {
+	lgr *log.Logger
+}
+
+func NewNativeLogger(lgr *log.Logger, appname string) Logger {
+	return &NativeLogger{
+		lgr: lgr,
+	}
+}
+
+func (nr *NativeLogger) Debug(msg string, kvs ...rfc5424.SDParam) error {
+	if nr != nil && nr.lgr != nil {
+		return nr.lgr.Debug(msg, kvs...)
+	}
+	return nil
+}
+
+func (nr *NativeLogger) Info(msg string, kvs ...rfc5424.SDParam) error {
+	if nr != nil && nr.lgr != nil {
+		return nr.lgr.Info(msg, kvs...)
+	}
+	return nil
+}
+
+func (nr *NativeLogger) Warn(msg string, kvs ...rfc5424.SDParam) error {
+	if nr != nil && nr.lgr != nil {
+		return nr.lgr.Warn(msg, kvs...)
+	}
+	return nil
+}
+
+func (nr *NativeLogger) Error(msg string, kvs ...rfc5424.SDParam) error {
+	if nr != nil && nr.lgr != nil {
+		return nr.lgr.Error(msg, kvs...)
+	}
+	return nil
+}
+
+func (nr *NativeLogger) Critical(msg string, kvs ...rfc5424.SDParam) error {
+	if nr != nil && nr.lgr != nil {
+		return nr.lgr.Critical(msg, kvs...)
+	}
+	return nil
+}
+
+// NativeRuntime implements a hosted.Runtime for native ingesters that don't need any special handling
+type NativeRuntime struct {
+	*BucketWriter
+	Logger
+	igst *ingest.IngestMuxer
+	ctx  context.Context
+	id   string
+}
+
+// NewNativeRuntime creates a basic runtime that has handles on loggers, bucket writer, and the context and is designed to run
+// natively compiled/included ingesters.
+func NewNativeRuntime(ctx context.Context, id string, bw *BucketWriter, igst *ingest.IngestMuxer, lgr Logger) (r *NativeRuntime, err error) {
+	if bw == nil {
+		err = fmt.Errorf("missing bucket writer")
+		return
+	} else if lgr == nil {
+		err = fmt.Errorf("missing logger")
+		return
+	} else if igst == nil {
+		err = fmt.Errorf("missing ingest muxer")
+		return
+	} else if ctx == nil {
+		err = fmt.Errorf("missing context")
+		return
+	} else if id == `` {
+		err = fmt.Errorf("missing runtime ID")
+		return
+	}
+	r = &NativeRuntime{
+		BucketWriter: bw,
+		Logger:       lgr,
+		igst:         igst,
+		ctx:          ctx,
+		id:           id,
+	}
+	return
+}
+
+// Alive returns true if the runtime is considered alive, this simply means that the upstream ingest muxer is not blocked
+func (nr *NativeRuntime) Alive() bool {
+	return !nr.igst.WillBlock() // if the ingest muxer is blocked, we are not alive, that means we keep trucking if cache is alive and well
+}
+
+// Sleep sleeps for the given duration or until the context is done, returning true if the context was done
+func (nr *NativeRuntime) Sleep(d time.Duration) (r bool) {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-t.C:
+	case <-nr.ctx.Done():
+		r = true
+	}
+	return
+}
+
+// Context returns the runtime context
+func (nr *NativeRuntime) Context() context.Context {
+	return nr.ctx
+}
+
+// ID returns the runtime ID
+func (nr *NativeRuntime) ID() string {
+	return nr.id
+}
+
+// NegotiateTag negotiates a tag with the ingest muxer natively
+func (nr *NativeRuntime) NegotiateTag(s string) (t entry.EntryTag, err error) {
+	if nr == nil || nr.igst == nil {
+		err = fmt.Errorf("ingest writer not available")
+		return
+	}
+	return nr.igst.NegotiateTag(s)
+}
+
+func (nr *NativeRuntime) Write(ent entry.Entry) (err error) {
+	if nr == nil || nr.igst == nil {
+		err = fmt.Errorf("ingest writer not available")
+		return
+	}
+	// we cannot trust the ingesters to not modify the entry or re-use buffers, perform a deep copy on the entry
+	localEnt := ent.DeepCopy()
+	err = nr.igst.WriteEntry(&localEnt)
 	return
 }

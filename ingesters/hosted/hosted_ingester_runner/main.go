@@ -12,17 +12,15 @@
 package main
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
-	"github.com/gravwell/gravwell/v3/ingesters/hosted/okta"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
@@ -67,29 +65,67 @@ func main() {
 		ib.Logger.Info("starting", log.KV("hosted-count", c))
 	}
 
+	// get the state manager up and rolling
+	sh, err := hosted.OpenStateHandler(cfg.State.Path, cfg.State.Sync)
+	if err != nil {
+		ib.Logger.FatalCode(0, "failed to open state handler", log.KVErr(err))
+		return
+	}
+
+	// get the ingest connection
 	igst, err := ib.GetMuxer()
 	if err != nil {
 		ib.Logger.FatalCode(0, "failed to get ingest connection", log.KVErr(err))
 		return
 	}
 	defer igst.Close()
+
 	ib.AnnounceStartup()
 	lg.Info("Ingester running")
 
-	mp := make(map[uuid.UUID]hosted.Runner, cfg.IngesterCount())
-	ctx, cf := context.WithCancel(context.Background())
-
-	// Fire up native hosted ingesters first
-	if err = startNativeIngesters(ctx, cfg, ib, igst, mp); err != nil {
-		ib.Logger.Error("failed to start native ingesters", log.KVErr(err))
+	rm, err := newRuntimeManager(igst, sh, lg)
+	if err != nil {
+		sh.Close() // ignore return, but no writes should have occurred
+		ib.Logger.FatalCode(0, "failed to create runtime manager", log.KVErr(err))
 	}
 
-	//listen for signals so we can close gracefully
-	utils.WaitForQuit()
-	cf()
+	// Fire up native hosted ingesters first
+	if err = rm.createIngesters(cfg, ib); err != nil {
+		rm.stop()  // best effort close
+		sh.Close() // ignore return, but no writes should have occurred
+		ib.Logger.FatalCode(1, "failed to create ingesters", log.KVErr(err))
+	}
 
-	if err = stopIngesters(mp); err != nil {
+	// ingesters exist, fire them up
+	if err = rm.startIngesters(); err != nil {
+		rm.stop()  // best effort close
+		sh.Close() // ignore return, but no writes should have occurred
+		ib.Logger.FatalCode(2, "failed to start ingesters", log.KVErr(err))
+	}
+
+	//TODO FIXME - register child ingesters on our base ingester for reporting
+
+	//listen for signals so we can close gracefully
+	sig := utils.GetQuitChannel()
+	tckr := time.NewTicker(time.Minute)
+	defer tckr.Stop()
+
+exitLoop:
+	for {
+		select {
+		case <-sig:
+			lg.Info("ingester shutting down")
+			break exitLoop
+		case <-tckr.C:
+			// go check on all ingesters and see if we should try to restart one that has died
+			rm.startIngesters()
+		}
+	}
+
+	if err = rm.stop(); err != nil {
 		ib.Logger.Error("failed to close ingesters", log.KVErr(err))
+	} else if err = sh.Close(); err != nil {
+		ib.Logger.Error("failed to close state handler", log.KVErr(err))
 	}
 
 	// go shutdown everything
@@ -99,64 +135,12 @@ func main() {
 	} else if err = igst.Close(); err != nil {
 		ib.Logger.Error("failed to close ingest muxer", log.KVErr(err))
 	}
-
-}
-
-func startNativeIngesters(ctx context.Context, cfg *cfgType, ib base.IngesterBase, igst *ingest.IngestMuxer, mp map[uuid.UUID]hosted.Runner) (err error) {
-
-	// okta
-	for k, v := range cfg.Okta {
-		// this shouldn't happen, but scream about it anyway
-		if v == nil {
-			ib.Logger.Error("nil okta ingester config", log.KV("name", k))
-			continue
-		}
-		if existing, ok := mp[v.UUID()]; ok {
-			ib.Logger.Error("hosted ingester UUID collision",
-				log.KV("existing-uuid", existing.UUID()),
-				log.KV("colliding-type", existing.ID),
-				log.KV("colliding-name", k),
-				log.KV("colliding-uuid", v.Ingester_UUID))
-			continue // just skip it
-		}
-		// get a new ingester
-		var ig *okta.OktaIngester
-		var runner *hosted.NativeRunner
-		if ig, err = okta.NewOktaIngester(*v, igst); err != nil {
-			ib.Logger.Error("failed to create new okta ingester", log.KVErr(err))
-			continue
-		}
-
-		//TODO FIXME - create a new runtime
-		var rt hosted.Runtime
-
-		// create a new hosted native runner
-		if runner, err = hosted.NewNativeRunner(okta.ID, k, okta.Version, v.UUID(), ig, rt); err != nil {
-			ib.Logger.Error("failed to create new native runner",
-				log.KV("id", okta.ID),
-				log.KV("name", k),
-				log.KV("uuid", v.Ingester_UUID),
-				log.KVErr(err))
-			continue
-		}
-		mp[v.UUID()] = runner
-
-	}
-	return
-}
-
-func stopIngesters(mp map[uuid.UUID]hosted.Runner) (err error) {
-	for _, v := range mp {
-		if lerr := v.Close(); lerr != nil {
-			err = stackCloseErrors(err, lerr, v.Name(), v.UUID())
-		}
-	}
-	return
 }
 
 func stackCloseErrors(curr, next error, name string, guid uuid.UUID) error {
+	next = fmt.Errorf("failed to close %s (%v) %w", name, guid, next)
 	if curr == nil {
-		return fmt.Errorf("failed to close %s (%v) %w", name, guid, next)
+		return next
 	}
-	return fmt.Errorf("%w\nfailed to close %s (%v) %w", curr, name, guid, next)
+	return errors.Join(curr, next)
 }

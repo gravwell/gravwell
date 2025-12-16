@@ -129,7 +129,7 @@ func TestBucketWriter_ByteOperations(t *testing.T) {
 	}
 	defer sh.Close()
 
-	bw, err := sh.getBucketWriter("test_bucket")
+	bw, err := sh.GetBucketWriter("test_bucket")
 	if err != nil {
 		t.Fatalf("Failed to get bucket writer: %v", err)
 	}
@@ -162,7 +162,7 @@ func TestBucketWriter_StringOperations(t *testing.T) {
 	}
 	defer sh.Close()
 
-	bw, err := sh.getBucketWriter("string_bucket")
+	bw, err := sh.GetBucketWriter("string_bucket")
 	if err != nil {
 		t.Fatalf("Failed to get bucket writer: %v", err)
 	}
@@ -217,7 +217,7 @@ func TestBucketWriter_TimeOperations(t *testing.T) {
 	}
 	defer sh.Close()
 
-	bw, err := sh.getBucketWriter("time_bucket")
+	bw, err := sh.GetBucketWriter("time_bucket")
 	if err != nil {
 		t.Fatalf("Failed to get bucket writer: %v", err)
 	}
@@ -273,7 +273,7 @@ func TestBucketWriter_Int64Operations(t *testing.T) {
 	}
 	defer sh.Close()
 
-	bw, err := sh.getBucketWriter("int64_bucket")
+	bw, err := sh.GetBucketWriter("int64_bucket")
 	if err != nil {
 		t.Fatalf("Failed to get bucket writer: %v", err)
 	}
@@ -338,7 +338,7 @@ func TestBucketWriter_NotFound(t *testing.T) {
 	}
 	defer sh.Close()
 
-	bw, err := sh.getBucketWriter("notfound_bucket")
+	bw, err := sh.GetBucketWriter("notfound_bucket")
 	if err != nil {
 		t.Fatalf("Failed to get bucket writer: %v", err)
 	}
@@ -376,12 +376,12 @@ func TestBucketWriter_MultipleBuckets(t *testing.T) {
 	defer sh.Close()
 
 	// Create multiple bucket writers
-	bw1, err := sh.getBucketWriter("bucket1")
+	bw1, err := sh.GetBucketWriter("bucket1")
 	if err != nil {
 		t.Fatalf("Failed to get bucket1 writer: %v", err)
 	}
 
-	bw2, err := sh.getBucketWriter("bucket2")
+	bw2, err := sh.GetBucketWriter("bucket2")
 	if err != nil {
 		t.Fatalf("Failed to get bucket2 writer: %v", err)
 	}
@@ -427,7 +427,7 @@ func TestBucketWriter_UpdateValue(t *testing.T) {
 	}
 	defer sh.Close()
 
-	bw, err := sh.getBucketWriter("update_bucket")
+	bw, err := sh.GetBucketWriter("update_bucket")
 	if err != nil {
 		t.Fatalf("Failed to get bucket writer: %v", err)
 	}
@@ -518,9 +518,9 @@ func TestStateHandler_NilChecks(t *testing.T) {
 		t.Error("Expected error for Close on nil StateHandler")
 	}
 
-	_, err = sh.getBucketWriter("test")
+	_, err = sh.GetBucketWriter("test")
 	if err == nil {
-		t.Error("Expected error for getBucketWriter on nil StateHandler")
+		t.Error("Expected error for GetBucketWriter on nil StateHandler")
 	}
 }
 
@@ -534,7 +534,7 @@ func TestBucketWriter_EmptyValues(t *testing.T) {
 	}
 	defer sh.Close()
 
-	bw, err := sh.getBucketWriter("empty_bucket")
+	bw, err := sh.GetBucketWriter("empty_bucket")
 	if err != nil {
 		t.Fatalf("Failed to get bucket writer: %v", err)
 	}
