@@ -10,6 +10,8 @@ package datagram
 
 import (
 	"unsafe"
+
+	"github.com/gravwell/gravwell/v3/sflow/xdr"
 )
 
 const (
@@ -35,13 +37,7 @@ type SampleHeader struct {
 }
 
 func (sa SampleHeader) Pad() int {
-	rest := sa.Length % 4
-
-	if rest == 0 {
-		return 0
-	}
-
-	return int(4 - rest)
+	return int(xdr.CalculatePad(sa.Length))
 }
 
 func (sa SampleHeader) DataFullLength() int {

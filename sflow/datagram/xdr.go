@@ -8,7 +8,11 @@
 
 package datagram
 
-import "net"
+import (
+	"net"
+
+	"github.com/gravwell/gravwell/v3/sflow/xdr"
+)
 
 // SFlow datagrams follow XDR encoding. For the purposes of the decoder, this only comes into
 // play for variable length data types, since all fixed types have sizes multiple of four bytes.
@@ -17,28 +21,31 @@ import "net"
 // a multiple of 4.
 
 // XDRVariableLengthOpaque see https://datatracker.ietf.org/doc/html/rfc4506#section-4.10
+// This type stores only the actual data bytes, without XDR padding.
 type XDRVariableLengthOpaque []byte
 
-// Pad refers to "r" in the specification.
+// Pad returns the number of padding bytes that would be needed for XDR encoding.
+// Refers to "r" in the specification.
 func (vsa XDRVariableLengthOpaque) Pad() int {
-	return len(vsa) % 4
+	return int(xdr.CalculatePad(uint32(len(vsa))))
 }
 
-// Len length of the data, without the padding. Refers to "n" in the specification.
+// Len returns the length of the data. Refers to "n" in the specification.
 func (vsa XDRVariableLengthOpaque) Len() int {
-	return len(vsa) - vsa.Pad()
+	return len(vsa)
 }
 
-// FullLen length of the data, with the padding. Refers to "n + r" in the specification.
+// FullLen returns the length of the data including padding (n + r in the specification).
+// This is the size the data would occupy on the wire (excluding the 4-byte length prefix).
 func (vsa XDRVariableLengthOpaque) FullLen() int {
-	return len(vsa)
+	return len(vsa) + vsa.Pad()
 }
 
 // XDRString see https://datatracker.ietf.org/doc/html/rfc4506#section-4.11
 type XDRString struct{ XDRVariableLengthOpaque }
 
 func (s XDRString) String() string {
-	return string(s.XDRVariableLengthOpaque[:s.Len()])
+	return string(s.XDRVariableLengthOpaque)
 }
 
 // XDRMACAddress using sflow tooling implementation as reference. See:

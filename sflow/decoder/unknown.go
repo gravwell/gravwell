@@ -15,8 +15,10 @@ import (
 )
 
 func decodeUnknownSample(r io.Reader, format, length uint32) (*datagram.UnknownSample, error) {
-	rest := make(datagram.XDRVariableLengthOpaque, length+calculatePad(length))
-	n, err := r.Read(rest)
+	// Per XDR spec, length is the actual data size. Padding is wire overhead
+	// that can be recomputed for re-encoding via data.Pad().
+	data := make(datagram.XDRVariableLengthOpaque, length)
+	n, err := r.Read(data)
 	if err != nil {
 		return nil, err
 	}
@@ -24,9 +26,16 @@ func decodeUnknownSample(r io.Reader, format, length uint32) (*datagram.UnknownS
 		return nil, ErrSampleMalformedOrIncomplete
 	}
 
+	// Discard padding bytes from the stream
+	if data.Pad() > 0 {
+		if _, err := io.CopyN(io.Discard, r, int64(data.Pad())); err != nil {
+			return nil, err
+		}
+	}
+
 	return &datagram.UnknownSample{
 		Format: format,
-		Data:   rest,
+		Data:   data,
 	}, nil
 }
 

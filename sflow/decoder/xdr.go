@@ -13,17 +13,8 @@ import (
 	"io"
 
 	"github.com/gravwell/gravwell/v3/sflow/datagram"
+	"github.com/gravwell/gravwell/v3/sflow/xdr"
 )
-
-func calculatePad(l uint32) uint32 {
-	rest := l % 4
-
-	if rest == 0 {
-		return 0
-	}
-
-	return 4 - rest
-}
 
 func decodeXDRVariableLengthOpaque(r io.Reader) (datagram.XDRVariableLengthOpaque, error) {
 	var length uint32
@@ -32,10 +23,19 @@ func decodeXDRVariableLengthOpaque(r io.Reader) (datagram.XDRVariableLengthOpaqu
 		return nil, err
 	}
 
-	vlo := make(datagram.XDRVariableLengthOpaque, length+calculatePad(length))
+	// Read only the actual data bytes (without padding)
+	vlo := make(datagram.XDRVariableLengthOpaque, length)
 
 	if err := binary.Read(r, binary.BigEndian, vlo); err != nil {
 		return nil, err
+	}
+
+	// Discard padding bytes
+	pad := xdr.CalculatePad(length)
+	if pad > 0 {
+		if _, err := io.CopyN(io.Discard, r, int64(pad)); err != nil {
+			return nil, err
+		}
 	}
 
 	return vlo, nil

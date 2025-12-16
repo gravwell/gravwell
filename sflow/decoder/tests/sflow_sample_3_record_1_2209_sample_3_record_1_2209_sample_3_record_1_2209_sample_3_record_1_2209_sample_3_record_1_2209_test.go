@@ -45,7 +45,7 @@ var Sflow_sample_3_record_1_2209_sample_3_record_1_2209_sample_3_record_1_2209_s
 			Output:                  datagram.InterfaceExpanded{Format: 0, Value: 17},
 			Records: []datagram.Record{
 				&datagram.ExtendedTCPInfo{RecordHeader: datagram.SampleHeader{Format: 2209, Length: 48}, Dir: 2, SndMss: 1396, RcvMss: 1392, Unacked: 2, Lost: 0, Retrans: 0, Pmtu: 1500, Rtt: 55152, Rttvar: 9716, SndCwnd: 10, Reordering: 3, MinRtt: 53589},
-				&datagram.FlowSampledHeader{RecordHeader: datagram.SampleHeader{Format: 1, Length: 84}, HeaderProtocol: 1, FrameLength: 70, Stripped: 4, HeaderBytes: datagram.XDRVariableLengthOpaque{184, 213, 38, 248, 69, 52, 200, 163, 98, 18, 192, 115, 8, 0, 69, 0, 0, 52, 131, 24, 64, 0, 64, 6, 78, 255, 10, 0, 0, 77, 151, 101, 198, 250, 204, 58, 1, 187, 77, 216, 56, 127, 181, 233, 138, 36, 128, 16, 25, 226, 176, 227, 0, 0, 1, 1, 8, 10, 39, 23, 197, 198, 176, 63, 17, 210, 100, 215}},
+				&datagram.FlowSampledHeader{RecordHeader: datagram.SampleHeader{Format: 1, Length: 84}, HeaderProtocol: 1, FrameLength: 70, Stripped: 4, HeaderBytes: datagram.XDRVariableLengthOpaque{184, 213, 38, 248, 69, 52, 200, 163, 98, 18, 192, 115, 8, 0, 69, 0, 0, 52, 131, 24, 64, 0, 64, 6, 78, 255, 10, 0, 0, 77, 151, 101, 198, 250, 204, 58, 1, 187, 77, 216, 56, 127, 181, 233, 138, 36, 128, 16, 25, 226, 176, 227, 0, 0, 1, 1, 8, 10, 39, 23, 197, 198, 176, 63, 17, 210}},
 			},
 		},
 		&datagram.FlowSampleExpanded{
