@@ -494,8 +494,8 @@ func (ibc IngesterBaseConfig) getConfig(confLoc, confDLoc string) (obj interface
 	} else if obj == nil {
 		err = fmt.Errorf("Config file %q returned a nil object\n", confLoc)
 	} else if ch, ok = obj.(cfgHelper); !ok {
-		obj = nil
 		err = fmt.Errorf("Config type %T does not implement the helper interface", obj)
+		obj = nil
 	}
 	return
 }
