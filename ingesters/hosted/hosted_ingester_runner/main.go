@@ -47,12 +47,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "failed to get configuration %v\n", err)
 		return
 	} else if err = ib.AssignConfig(&cfg); err != nil || cfg == nil {
-		fmt.Fprintf(os.Stderr, "failed to assign configuration %v %v\n", err, cfg == nil)
+		fmt.Fprintf(os.Stderr, "failed to assign configuration %v\n", err)
 		return
 	}
 
 	lg := ib.Logger
-	_, ok := cfg.IngesterUUID()
+	_, ok := cfg.Global.IngesterUUID()
 	if !ok {
 		ib.Logger.FatalCode(0, "could not read ingester UUID")
 	}

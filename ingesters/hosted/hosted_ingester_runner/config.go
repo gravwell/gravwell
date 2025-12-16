@@ -34,7 +34,7 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 }
 
 type cfgType struct {
-	config.IngestConfig
+	Global          config.IngestConfig
 	Attach          attach.AttachConfig
 	State           hosted.StateConfig
 	ingesterConfigs // embed the type so we can abstract the startup more easily
@@ -45,7 +45,7 @@ type ingesterConfigs struct {
 }
 
 func (c cfgType) Verify() (err error) {
-	if err = c.IngestConfig.Verify(); err != nil {
+	if err = c.Global.Verify(); err != nil {
 		return
 	} else if err = c.Attach.Verify(); err != nil {
 		return
@@ -62,6 +62,24 @@ func (c cfgType) Verify() (err error) {
 		}
 	}
 	return
+}
+
+// implement the required interface for ingest config
+func (c cfgType) AttachConfig() attach.AttachConfig {
+	return c.Attach
+}
+
+// Tags implements the required interface for base.cfgHelper which is used during startup
+func (c cfgType) Tags() (tags []string, err error) {
+	if len(c.Okta) > 0 {
+		tags = append(tags, okta.Tags...)
+	}
+	return
+}
+
+// IngesterBaseConfig implements the required interface for base.cfgHelper which is used during startup
+func (c cfgType) IngestBaseConfig() config.IngestConfig {
+	return c.Global
 }
 
 func (ic ingesterConfigs) IngesterCount() (r int) {

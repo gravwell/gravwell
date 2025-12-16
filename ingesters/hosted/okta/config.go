@@ -29,6 +29,10 @@ const (
 	defaultRequestTimeout   = 20 * time.Second
 )
 
+var (
+	Tags []string = []string{oktaTag, oktaUserTag}
+)
+
 type Config struct {
 	Ingester_UUID      string // set the UUID for the ingester
 	Request_Batch_Size int    // how many entries do we request per HTTP request
@@ -59,7 +63,7 @@ func (c *Config) Verify() (err error) {
 	}
 	if c.Domain == `` {
 		return errors.New("missing okta domain")
-	} else if !strings.HasPrefix(c.Domain, `okta.com`) {
+	} else if !strings.HasSuffix(c.Domain, `okta.com`) {
 		err = fmt.Errorf("%q is not an okta domain", c.Domain)
 		return
 	}
