@@ -40,7 +40,7 @@ func TestBuildBaseName(t *testing.T) {
 			expected: "sflow_sample_1_record_1",
 		},
 		{
-			name: "single flow sample with multiple records",
+			name: "single flow sample with multiple records sorted",
 			dgram: &datagram.Datagram{
 				Samples: []datagram.Sample{
 					&datagram.FlowSample{
@@ -53,7 +53,7 @@ func TestBuildBaseName(t *testing.T) {
 					},
 				},
 			},
-			expected: "sflow_sample_1_record_1_2007_3",
+			expected: "sflow_sample_1_record_1_3_2007",
 		},
 		{
 			name: "multiple samples with records",
@@ -92,7 +92,7 @@ func TestBuildBaseName(t *testing.T) {
 			expected: "sflow_sample_1_record_1_unknown_record_9999",
 		},
 		{
-			name: "sample with multiple unknown records",
+			name: "sample with multiple unknown records sorted",
 			dgram: &datagram.Datagram{
 				Samples: []datagram.Sample{
 					&datagram.FlowSample{
@@ -105,7 +105,7 @@ func TestBuildBaseName(t *testing.T) {
 					},
 				},
 			},
-			expected: "sflow_sample_1_record_1_unknown_record_9999_8888",
+			expected: "sflow_sample_1_record_1_unknown_record_8888_9999",
 		},
 		{
 			name: "sample with only unknown records",
@@ -131,14 +131,14 @@ func TestBuildBaseName(t *testing.T) {
 			expected: "sflow_unknown_sample_66",
 		},
 		{
-			name: "multiple unknown samples",
+			name: "multiple unknown samples sorted",
 			dgram: &datagram.Datagram{
 				Samples: []datagram.Sample{
 					&datagram.UnknownSample{Format: 66},
 					&datagram.UnknownSample{Format: 45},
 				},
 			},
-			expected: "sflow_unknown_sample_66_45",
+			expected: "sflow_unknown_sample_45_66",
 		},
 		{
 			name: "mixed known and unknown samples",
@@ -156,7 +156,7 @@ func TestBuildBaseName(t *testing.T) {
 			expected: "sflow_sample_1_record_3_unknown_sample_66",
 		},
 		{
-			name: "complex: multiple samples with known records, unknown records, and unknown samples",
+			name: "complex: multiple samples with known records, unknown records, and unknown samples sorted",
 			dgram: &datagram.Datagram{
 				Samples: []datagram.Sample{
 					&datagram.FlowSample{
@@ -178,7 +178,7 @@ func TestBuildBaseName(t *testing.T) {
 					&datagram.UnknownSample{Format: 45},
 				},
 			},
-			expected: "sflow_sample_1_record_3_4_unknown_record_89_sample_5_record_3_unknown_record_89_unknown_sample_66_45",
+			expected: "sflow_sample_1_record_3_4_unknown_record_89_sample_5_record_3_unknown_record_89_unknown_sample_45_66",
 		},
 		{
 			name: "sample with no records",
@@ -191,6 +191,42 @@ func TestBuildBaseName(t *testing.T) {
 				},
 			},
 			expected: "sflow_sample_1",
+		},
+		{
+			name: "sort samples to guarantee uniqueness",
+			dgram: &datagram.Datagram{
+				Samples: []datagram.Sample{
+					&datagram.CounterSample{
+						SampleHeader: datagram.SampleHeader{Format: 2},
+						Records: []datagram.Record{
+							&datagram.FlowSampledHeader{RecordHeader: datagram.RecordHeader{Format: 5}},
+						},
+					},
+					&datagram.FlowSample{
+						SampleHeader: datagram.SampleHeader{Format: 1},
+						Records: []datagram.Record{
+							&datagram.FlowSampledHeader{RecordHeader: datagram.RecordHeader{Format: 3}},
+						},
+					},
+				},
+			},
+			expected: "sflow_sample_1_record_3_sample_2_record_5",
+		},
+		{
+			name: "sort records to guarantee uniqueness",
+			dgram: &datagram.Datagram{
+				Samples: []datagram.Sample{
+					&datagram.FlowSample{
+						SampleHeader: datagram.SampleHeader{Format: 1},
+						Records: []datagram.Record{
+							&datagram.FlowSampledHeader{RecordHeader: datagram.RecordHeader{Format: 9}},
+							&datagram.FlowSampledHeader{RecordHeader: datagram.RecordHeader{Format: 2}},
+							&datagram.FlowSampledHeader{RecordHeader: datagram.RecordHeader{Format: 5}},
+						},
+					},
+				},
+			},
+			expected: "sflow_sample_1_record_2_5_9",
 		},
 	}
 

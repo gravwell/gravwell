@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -9,6 +10,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -91,27 +93,32 @@ func generateGoFixture(baseName string, dgram *datagram.Datagram) ([]byte, error
 }
 
 // buildBaseName returns the base filename (no extension) for a datagram.
-// Format: sflow_sample_{fmt}_record_{recs}_sample_{fmt}_record_{recs}[_unknown_record_{fmts}][_unknown_sample_{fmts}]
+// Format: sflow_sample_{fmt}_record_{recs}[_sample_{fmt}_record_{recs}][_unknown_record_{fmts}][_unknown_sample_{fmts}]
 //
 // Unknown records will appear at the end of it's corresponding sample format. Unknown samples at the very end of the file name.
+// All format numbers are sorted to ensure datagrams with the same content produce the same filename regardless of order.
 func buildBaseName(dgram *datagram.Datagram) string {
-	var (
-		parts                []string
-		unknownSampleFormats []string
-	)
+	nameParts := []string{"sflow"}
+	unknownSampleFormats := []uint32{}
 
-	parts = append(parts, "sflow")
+	// This is probably pedantic, but just in case, let's not mutate the original
+	samples := make([]datagram.Sample, len(dgram.Samples))
+	copy(samples, dgram.Samples)
 
-	for _, sample := range dgram.Samples {
+	slices.SortFunc(samples, func(a, b datagram.Sample) int {
+		return cmp.Compare(a.GetHeader().Format, b.GetHeader().Format)
+	})
+
+	for _, sample := range samples {
 		sampleHeader := sample.GetHeader()
 
 		if _, ok := sample.(*datagram.UnknownSample); ok {
 			// Unknown samples have unknown records, no use continuing
-			unknownSampleFormats = append(unknownSampleFormats, fmt.Sprintf("%d", sampleHeader.Format))
+			unknownSampleFormats = append(unknownSampleFormats, sampleHeader.Format)
 			continue
 		}
 
-		parts = append(parts, fmt.Sprintf("sample_%d", sampleHeader.Format))
+		nameParts = append(nameParts, "sample", fmt.Sprintf("%d", sampleHeader.Format))
 
 		var records []datagram.Record
 		switch s := sample.(type) {
@@ -125,33 +132,44 @@ func buildBaseName(dgram *datagram.Datagram) string {
 			records = s.Records
 		}
 
-		var recFormats []string
-		var unknownRecFormats []string
+		recFormats := []uint32{}
+		unknownRecFormats := []uint32{}
 		for _, record := range records {
 			recHeader := record.GetHeader()
 			if _, ok := record.(*datagram.UnknownRecord); ok {
-				unknownRecFormats = append(unknownRecFormats, fmt.Sprintf("%d", recHeader.Format))
+				unknownRecFormats = append(unknownRecFormats, recHeader.Format)
 			} else {
-				recFormats = append(recFormats, fmt.Sprintf("%d", recHeader.Format))
+				recFormats = append(recFormats, recHeader.Format)
 			}
 		}
 
+		slices.Sort(recFormats)
+		slices.Sort(unknownRecFormats)
+
 		if len(recFormats) > 0 {
-			parts = append(parts, "record_"+strings.Join(recFormats, "_"))
+			nameParts = append(nameParts, "record")
+			for _, v := range recFormats {
+				nameParts = append(nameParts, fmt.Sprintf("%d", v))
+			}
 		}
-
-		// Unknown records at the end of each sample part
 		if len(unknownRecFormats) > 0 {
-			parts = append(parts, "unknown_record_"+strings.Join(unknownRecFormats, "_"))
+			nameParts = append(nameParts, "unknown_record")
+			for _, v := range unknownRecFormats {
+				nameParts = append(nameParts, fmt.Sprintf("%d", v))
+			}
 		}
 	}
 
-	// Unknown samples at the end
+	slices.Sort(unknownSampleFormats)
+
 	if len(unknownSampleFormats) > 0 {
-		parts = append(parts, "unknown_sample_"+strings.Join(unknownSampleFormats, "_"))
+		nameParts = append(nameParts, "unknown_sample")
+		for _, v := range unknownSampleFormats {
+			nameParts = append(nameParts, fmt.Sprintf("%d", v))
+		}
 	}
 
-	return strings.Join(parts, "_")
+	return strings.Join(nameParts, "_")
 }
 
 func serializeDatagram(buf *bytes.Buffer, dgram *datagram.Datagram) {
@@ -164,7 +182,6 @@ func serializeDatagram(buf *bytes.Buffer, dgram *datagram.Datagram) {
 	fmt.Fprintf(buf, "\tUptime:         %d,\n", dgram.Uptime)
 	fmt.Fprintf(buf, "\tSamplesCount:   %d,\n", dgram.SamplesCount)
 
-	// Serialize samples
 	buf.WriteString("\tSamples: []datagram.Sample{\n")
 	for _, sample := range dgram.Samples {
 		serializeSample(buf, sample)
@@ -173,6 +190,8 @@ func serializeDatagram(buf *bytes.Buffer, dgram *datagram.Datagram) {
 	buf.WriteString("}")
 }
 
+// serializeSample Samples are a pointer type. If we use #v here we only get the pointer value. We gotta drill down into the specific type
+// to get all the data.
 func serializeSample(buf *bytes.Buffer, sample datagram.Sample) {
 	switch s := sample.(type) {
 	case *datagram.FlowSample:
@@ -253,13 +272,13 @@ func serializeRecords(buf *bytes.Buffer, records []datagram.Record) {
 }
 
 func sanitizeTokenName(name string) string {
-	// Replace invalid characters with underscores
 	name = strings.ReplaceAll(name, "-", "_")
 	name = strings.ReplaceAll(name, ".", "_")
-	// Capitalize first letter
+
 	if len(name) > 0 {
 		name = strings.ToUpper(name[:1]) + name[1:]
 	}
+
 	return name
 }
 
