@@ -274,6 +274,7 @@ func (ib *IngesterBase) GetMuxer() (igst *ingest.IngestMuxer, err error) {
 		CacheMode:          cfg.Cache_Mode,
 		LogSourceOverride:  net.ParseIP(cfg.Log_Source_Override),
 		Attach:             ch.AttachConfig(),
+		MaxEntrySize:       cfg.Max_Entry_Size,
 	}
 	if igst, err = ingest.NewUniformMuxer(igCfg); err != nil {
 		ib.Logger.Fatal("failed to build our ingest system", log.KVErr(err))
