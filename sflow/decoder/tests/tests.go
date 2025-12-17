@@ -36,4 +36,9 @@
 // The _test.go files contain a manually-constructed expected datagram structure
 // that should match what sflowtool outputs in the .json file. Tests validate that
 // the Go decoder produces the same values as the canonical sflowtool implementation.
+//
+// # TODO
+//
+// - Add test for UnknownSample (unknown sample format)
+// - Add test for UnknownRecord (unknown flow/counter record format)
 package tests

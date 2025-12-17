@@ -19,12 +19,16 @@
 # Requirements:
 #   - Docker
 #   - netcat (nc)
+#   - jq (for JSON filtering)
 #
 # For each .bin file in the tests directory, this script:
 # 1. Starts sflowtool in a Docker container listening on UDP
 # 2. Sends the raw sFlow packet to sflowtool via UDP
 # 3. Captures sflowtool's JSON output
-# 4. Writes it to a .json file with the same base name
+# 4. Filters out sflowtool metadata fields (datagramSourceIP, datagramSize, 
+#    unixSecondsUTC, unixSecondsUTC_uS, localtime) that are not part of 
+#    the sFlow datagram specification
+# 5. Writes the filtered JSON to a .json file with the same base name
 #
 
 set -e
@@ -65,6 +69,12 @@ fi
 # Check netcat is available
 if ! command -v nc &>/dev/null; then
     echo "ERROR: nc not found in PATH" >&2
+    exit 1
+fi
+
+# Check jq is available
+if ! command -v jq &>/dev/null; then
+    echo "ERROR: jq not found in PATH" >&2
     exit 1
 fi
 
@@ -128,7 +138,9 @@ for bin in "${bin_files[@]}"; do
     done
     
     if [[ -n "$output" ]]; then
-        echo "$output" > "$json"
+        # Filter out sflowtool metadata fields that are not part of the sFlow datagram
+        filtered=$(echo "$output" | jq 'del(.datagramSourceIP, .datagramSize, .unixSecondsUTC, .unixSecondsUTC_uS, .localtime)')
+        echo "$filtered" > "$json"
         echo "wrote $json" >&2
     else
         echo "no output (timeout?)" >&2
