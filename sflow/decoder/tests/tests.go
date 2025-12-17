@@ -37,8 +37,16 @@
 // that should match what sflowtool outputs in the .json file. Tests validate that
 // the Go decoder produces the same values as the canonical sflowtool implementation.
 //
-// # TODO
+// # Unknown Sample/Record Test
 //
-// - Add test for UnknownSample (unknown sample format)
-// - Add test for UnknownRecord (unknown flow/counter record format)
+// The sflow_sample_3_record_1_unknown_record_9998_..._unknown_sample_9999 test
+// validates handling of unknown (vendor-specific) samples and records. It was
+// created by modifying a captured .bin file to set non-standard format values:
+//   - Sample format 9999 (enterprise 2, format 1807) -> UnknownSample
+//   - Record format 9998 (enterprise 2, format 1806) -> UnknownRecord
+//
+// The format field encodes enterprise ID in the upper 20 bits and format number
+// in the lower 12 bits. Enterprise 0 means standard sFlow.org formats; non-zero
+// means vendor-specific. sflowtool displays these as "enterprise:format" (e.g.
+// "2:1807") and skips decoding the contents.
 package tests
