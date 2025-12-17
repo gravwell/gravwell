@@ -122,11 +122,11 @@ func main() {
 				lg.FatalCode(0, "NewIpfixHandler failed", log.KVErr(err))
 				return
 			}
-		case sflowv5Type:
-			if bh, err = NewSFlowV5Handler(bc); err != nil {
-				lg.FatalCode(0, "NewSFlowV5Handler failed", log.KVErr(err))
-				return
-			}
+		// case sflowv5Type:
+		// 	if bh, err = NewSFlowV5Handler(bc); err != nil {
+		// 		lg.FatalCode(0, "NewSFlowV5Handler failed", log.KVErr(err))
+		// 		return
+		// 	}
 		default:
 			lg.FatalCode(0, "invalid flow type", log.KV("flowtype", ft))
 			return
