@@ -50,7 +50,7 @@ func tfs[I Id_t](t *testing.T, name string, strVal string, expected I, wantErr b
 		out, err := FromString[I](strVal)
 		if (err != nil) != wantErr {
 			t.Fatal(err)
-		} else if out != I(expected) {
+		} else if out != expected {
 			t.Fatal(ExpectedActual(expected, out))
 		}
 	})

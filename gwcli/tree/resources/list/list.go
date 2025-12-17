@@ -26,9 +26,9 @@ const (
 
 func NewResourcesListAction() action.Pair {
 	return scaffoldlist.NewListAction(short, long,
-		types.ResourceMetadata{}, list, scaffoldlist.Options{
-			DefaultColumns: []string{"GUID", "ResourceName", "Description", "Size", "Global"},
-			ColumnAliases:  map[string]string{"ResourceName": "Name", "Size": "SizeBytes"},
+		types.Resource{}, list, scaffoldlist.Options{
+			DefaultColumns: []string{"ID", "Name", "Description", "Size"},
+			ColumnAliases:  map[string]string{"Name": "Name", "Size": "SizeBytes"},
 			AddtlFlags:     flags,
 		})
 }
@@ -39,12 +39,20 @@ func flags() pflag.FlagSet {
 	return addtlFlags
 }
 
-func list(fs *pflag.FlagSet) ([]types.ResourceMetadata, error) {
+func list(fs *pflag.FlagSet) ([]types.Resource, error) {
 	if all, err := fs.GetBool("all"); err != nil {
 		uniques.ErrGetFlag("resources list", err)
 	} else if all {
-		return connection.Client.GetAllResourceList()
+		resp, err := connection.Client.ListAllResources(nil)
+		if err != nil {
+			return nil, err
+		}
+		return resp.Results, nil
 	}
 
-	return connection.Client.GetResourceList()
+	resp, err := connection.Client.ListResources(nil)
+	if err != nil {
+		return nil, err
+	}
+	return resp.Results, nil
 }

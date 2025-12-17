@@ -15,11 +15,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/crewjam/rfc5424"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources/list"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -47,33 +44,25 @@ func NewResourcesNav() *cobra.Command {
 
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction("resource", "resources",
-		func(dryrun bool, id uuid.UUID) error {
+		func(dryrun bool, id string) error {
 			if dryrun {
-				_, err := connection.Client.GetResourceMetadata(id.String())
+				_, err := connection.Client.GetResourceMetadata(id)
 				return err
 			}
-			return connection.Client.DeleteResource(id.String())
+			return connection.Client.DeleteResource(id)
 		},
-		func() ([]scaffolddelete.Item[uuid.UUID], error) {
-			resources, err := connection.Client.GetResourceList()
+		func() ([]scaffolddelete.Item[string], error) {
+			resources, err := connection.Client.ListResources(nil)
 			if err != nil {
 				return nil, err
 			}
-			slices.SortStableFunc(resources,
-				func(a, b types.ResourceMetadata) int {
-					return strings.Compare(a.ResourceName, b.ResourceName)
+			slices.SortStableFunc(resources.Results,
+				func(a, b types.Resource) int {
+					return strings.Compare(a.Name, b.Name)
 				})
-			var items = make([]scaffolddelete.Item[uuid.UUID], len(resources))
-			for i, r := range resources {
-				id, err := uuid.Parse(r.GUID)
-				if err != nil {
-					clilog.Writer.Warn("failed to parse GUID of resource",
-						rfc5424.SDParam{Name: "GUID", Value: r.GUID},
-						rfc5424.SDParam{Name: "Name", Value: r.ResourceName},
-					)
-					id = uuid.Nil
-				}
-				items[i] = scaffolddelete.NewItem(r.ResourceName, r.Description, id)
+			var items = make([]scaffolddelete.Item[string], len(resources.Results))
+			for i, r := range resources.Results {
+				items[i] = scaffolddelete.NewItem(r.Name, r.Description, r.ID)
 			}
 			return items, nil
 		})

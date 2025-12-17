@@ -10,6 +10,7 @@ package kits
 
 import (
 	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,7 +29,7 @@ type PackedMacro struct {
 }
 
 // PackSearchMacro turns a regular SearchMacro object into a PackedMacro.
-func PackSearchMacro(m *types.SearchMacro) (p PackedMacro) {
+func PackSearchMacro(m *types.Macro) (p PackedMacro) {
 	p = PackedMacro{
 		Name:        m.Name,
 		Description: m.Description,
@@ -64,6 +65,7 @@ func (pm *PackedMacro) JSONMetadata() (json.RawMessage, error) {
 
 // PackedResource is a stripped-down representation of a resource for inclusion in a kit.
 type PackedResource struct {
+	ID            string
 	VersionNumber int // resource version #, increment at each Write
 	ResourceName  string
 	Description   string
@@ -71,19 +73,24 @@ type PackedResource struct {
 	Size          uint64
 	Hash          []byte
 	Data          []byte
+	ContentType   string
 }
 
 // PackResourceUpdate takes a ResourceUpdate (which contains a complete description of a
 // resource, including its contents) and converts it into a PackedResource.
 func PackResourceUpdate(ru types.ResourceUpdate) (p PackedResource) {
 	p = PackedResource{
-		VersionNumber: ru.Metadata.VersionNumber,
-		ResourceName:  ru.Metadata.ResourceName,
+		ID:            ru.Metadata.ID,
+		VersionNumber: ru.Metadata.Version,
+		ResourceName:  ru.Metadata.Name,
 		Description:   ru.Metadata.Description,
 		Labels:        ru.Metadata.Labels,
 		Size:          ru.Metadata.Size,
-		Hash:          ru.Metadata.Hash,
 		Data:          ru.Bytes(),
+		ContentType:   ru.Metadata.ContentType,
+	}
+	if ru.Metadata.Hash != "" {
+		p.Hash, _ = hex.DecodeString(ru.Metadata.Hash)
 	}
 	if p.VersionNumber == 0 {
 		p.VersionNumber = 1

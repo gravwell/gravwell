@@ -20,7 +20,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/spf13/pflag"
 )
@@ -164,14 +163,16 @@ func newExtractorsCreateAction() action.Pair {
 
 func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values, fs *pflag.FlagSet) (any, string, error) {
 	// no need to nil check; Required boolean enforces that for us
-	axd := types.AXDefinition{
-		Name:   vals[createNameKey],
-		Desc:   vals[createDescKey],
+	axd := types.AX{
+		CommonFields: types.CommonFields{
+			Name:        vals[createNameKey],
+			Description: vals[createDescKey],
+			Labels:      strings.Split(strings.Replace(vals[createLabelsKey], " ", "", -1), ","),
+		},
 		Module: vals[createModuleKey],
 		Tags:   strings.Split(strings.Replace(vals[createTagsKey], " ", "", -1), ","),
 		Params: vals[createParamsKey],
 		Args:   vals[createArgsKey],
-		Labels: strings.Split(strings.Replace(vals[createLabelsKey], " ", "", -1), ","),
 	}
 
 	// check for dryrun
@@ -184,14 +185,14 @@ func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values, fs *pflag.FlagS
 	}
 
 	var (
-		id  uuid.UUID
+		id  string
 		wrs []types.WarnResp
 	)
 	if dr {
 		wrs, err = connection.Client.TestAddExtraction(axd)
-		id = uuid.Nil
 	} else {
-		id, wrs, err = connection.Client.AddExtraction(axd)
+		axd, wrs, err = connection.Client.AddExtraction(axd)
+		id = axd.ID
 	}
 
 	if len(wrs) > 0 {

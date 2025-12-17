@@ -16,7 +16,6 @@ import (
 
 type SearchLog struct {
 	UID            int32 //who started the search
-	GID            int32 //what group the search was assigned to, if any
 	GIDs           []int32
 	Global         bool
 	UserQuery      string //what the user actually typed
@@ -26,7 +25,7 @@ type SearchLog struct {
 }
 
 func (sl SearchLog) Equal(v SearchLog) bool {
-	return sl.UID == v.UID && sl.GID == v.GID && sl.UserQuery == v.UserQuery && sl.EffectiveQuery == v.EffectiveQuery && sl.Launched == v.Launched && utils.Int32SlicesEqual(sl.GIDs, v.GIDs) && sl.Global == v.Global
+	return sl.UID == v.UID && sl.UserQuery == v.UserQuery && sl.EffectiveQuery == v.EffectiveQuery && sl.Launched == v.Launched && utils.Int32SlicesEqual(sl.GIDs, v.GIDs) && sl.Global == v.Global
 }
 
 type SortableSearchLog []SearchLog

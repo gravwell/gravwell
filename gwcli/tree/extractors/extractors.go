@@ -52,7 +52,7 @@ func newExtractorsListAction() action.Pair {
 	return scaffoldlist.NewListAction(
 		short,
 		long,
-		types.AXDefinition{},
+		types.AX{},
 		list,
 		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"UID", "UUID", "Name", "Desc"}})
 }
@@ -63,7 +63,7 @@ func flags() pflag.FlagSet {
 	return addtlFlags
 }
 
-func list(fs *pflag.FlagSet) ([]types.AXDefinition, error) {
+func list(fs *pflag.FlagSet) ([]types.AX, error) {
 	if id, err := fs.GetString("uuid"); err != nil {
 		uniques.ErrGetFlag("extractors list", err)
 	} else {
@@ -74,12 +74,13 @@ func list(fs *pflag.FlagSet) ([]types.AXDefinition, error) {
 		if uid != uuid.Nil {
 			clilog.Writer.Infof("Fetching ax with uuid %v", uid)
 			d, err := connection.Client.GetExtraction(id)
-			return []types.AXDefinition{d}, err
+			return []types.AX{d}, err
 		}
 		// if uid was nil, move on to normal get-all
 	}
 
-	return connection.Client.GetExtractions()
+	lr, err := connection.Client.ListExtractions(nil)
+	return lr.Results, err
 }
 
 //#endregion list

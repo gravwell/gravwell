@@ -51,7 +51,7 @@ func past() action.Pair {
 		short   string = "display search history"
 		long    string = "display past searches made by your user"
 	)
-	var defaultColumns = []string{"UID", "GID", "EffectiveQuery"}
+	var defaultColumns = []string{"UID", "GIDs", "EffectiveQuery"}
 
 	return scaffoldlist.NewListAction(
 		short, long,

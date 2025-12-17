@@ -140,10 +140,10 @@ type KitBuildRequest struct {
 	Resources         []string          `json:",omitempty"`
 	ScheduledSearches []int32           `json:",omitempty"`
 	Flows             []int32           `json:",omitempty"`
-	Macros            []uint64          `json:",omitempty"`
-	Extractors        []uuid.UUID       `json:",omitempty"`
+	Macros            []string          `json:",omitempty"`
+	Extractors        []string          `json:",omitempty"`
 	Files             []uuid.UUID       `json:",omitempty"`
-	SearchLibraries   []uuid.UUID       `json:",omitempty"`
+	SearchLibraries   []string          `json:",omitempty"` // Saved Queries go here... compatibility for now.
 	Playbooks         []uuid.UUID       `json:",omitempty"`
 	Alerts            []uuid.UUID       `json:",omitempty"`
 	EmbeddedItems     []KitEmbeddedItem `json:",omitempty"`
@@ -255,10 +255,6 @@ func (pbr *KitBuildRequest) Validate() error {
 	}
 	for i := range pbr.Resources {
 		pbr.Resources[i] = strings.TrimSpace(pbr.Resources[i]) //clean it
-		//attempt to parse it
-		if _, err := uuid.Parse(pbr.Resources[i]); err != nil {
-			return err
-		}
 	}
 	for i := range pbr.ScheduledSearches {
 		if pbr.ScheduledSearches[i] <= 0 {
@@ -271,7 +267,7 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 	for i := range pbr.Macros {
-		if pbr.Macros[i] == 0 {
+		if pbr.Macros[i] == "" {
 			return errors.New("Invalid macro ID")
 		}
 	}
