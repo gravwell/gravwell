@@ -14,6 +14,27 @@ import (
 	"github.com/gravwell/gravwell/v3/sflow/xdr"
 )
 
+// IPv4 see https://sflow.org/sflow_version_5.txt, pag 24 `typedef opaque ip_v4[4]`
+type IPv4 [4]byte
+
+// IPv6 see https://sflow.org/sflow_version_5.txt, pag 24 `typedef opaque ip_v6[16]`
+type IPv6 [16]byte
+
+// AddressType see https://sflow.org/sflow_version_5.txt, pag 24 `enum address_type`
+type AddressType uint32
+
+const (
+	AddressTypeUnknown AddressType = 0 // no data (0 bytes)
+	AddressTypeIPv4    AddressType = 1 // 4 bytes
+	AddressTypeIPv6    AddressType = 2 // 16 bytes
+)
+
+// Address see https://sflow.org/sflow_version_5.txt, pag 24 `union address (address_type type)`
+type Address struct {
+	Type AddressType
+	IP   net.IP
+}
+
 // SFlow datagrams follow XDR encoding. For the purposes of the decoder, this only comes into
 // play for variable length data types, since all fixed types have sizes multiple of four bytes.
 //
@@ -61,4 +82,15 @@ type XDRMACAddress [8]byte
 
 func (xma XDRMACAddress) MAC() net.HardwareAddr {
 	return net.HardwareAddr(xma[:6])
+}
+
+// XDRVariableLengthArray see https://datatracker.ietf.org/doc/html/rfc4506#section-4.13
+// Represents a variable-length array of uint32 values.
+// Encoded as: 4 bytes (count N) + N * 4 bytes (the uint32 values).
+type XDRVariableLengthArray []uint32
+
+// ASPathSegment see https://sflow.org/sflow_version_5.txt, pag 38 `union as_path_type`
+type ASPathSegment struct {
+	Type uint32
+	ASNs XDRVariableLengthArray
 }

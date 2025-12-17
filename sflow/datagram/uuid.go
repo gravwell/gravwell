@@ -12,6 +12,14 @@ import (
 	"strings"
 )
 
+// SFlowUUID is a fixed 16-byte UUID per RFC 4122.
+// The sFlow spec (https://sflow.org/sflow_host.txt) notates this as "opaque uuid<16>"
+// but both host-sflow and sflowtool treat it as a fixed array with no length prefix.
+// See:
+//
+// - https://github.com/sflow/host-sflow/blob/master/src/AIX/readHidCounters.c#L43
+//
+// - https://github.com/sflow/sflowtool/blob/master/src/sflowtool.c#L4586
 type SFlowUUID [16]byte
 
 func (sui SFlowUUID) String() string {

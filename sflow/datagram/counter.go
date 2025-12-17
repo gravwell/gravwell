@@ -248,6 +248,32 @@ var ProcessorCountersRecordValidLength = packetSizeOf(ProcessorCounters{}) - Rec
 
 const ProcessorCountersRecordDataFormatValue uint32 = 1001
 
+// QueueLength see https://groups.google.com/g/sflow/c/dz0nsXqBYAw, `queue_length`
+type QueueLength struct {
+	RecordHeader
+	QueueIndex      uint32
+	SegmentSize     uint32
+	QueueSegments   uint32
+	QueueLength0    uint32
+	QueueLength1    uint32
+	QueueLength2    uint32
+	QueueLength4    uint32
+	QueueLength8    uint32
+	QueueLength32   uint32
+	QueueLength128  uint32
+	QueueLength1024 uint32
+	QueueLengthMore uint32
+	Dropped         uint32
+}
+
+func (v *QueueLength) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var QueueLengthRecordValidLength = packetSizeOf(QueueLength{}) - RecordHeaderSize
+
+const QueueLengthRecordDataFormatValue uint32 = 1003
+
 // OpenFlowPort see https://sflow.org/sflow_openflow.txt, Pag 2, `of_port`
 type OpenFlowPort struct {
 	RecordHeader
@@ -406,9 +432,10 @@ const HostMemoryRecordDataFormatValue uint32 = 2004
 // HostDiskIO see https://sflow.org/sflow_host.txt, Pag 9, `host_disk_io`
 type HostDiskIO struct {
 	RecordHeader
-	DiskTotal               uint64
-	DiskFree                uint64
-	MaxUsedPartitionPercent float32
+	DiskTotal uint64
+	DiskFree  uint64
+	// Spec uses "percentage" type but doesn't define it; sflowtool treats as uint32 hundredths (1666 = 16.66%)
+	MaxUsedPartitionPercent uint32
 	Reads                   uint32
 	BytesRead               uint64
 	ReadTime                uint32
@@ -870,6 +897,25 @@ func (v *AppWorkers) GetHeader() RecordHeader {
 var AppWorkersRecordValidLength = packetSizeOf(AppWorkers{}) - RecordHeaderSize
 
 const AppWorkersRecordDataFormatValue uint32 = 2206
+
+// OVSDPStats see https://blog.sflow.com/2015/01/open-vswitch-performance-monitoring.html, `ovs_dp_stats`
+type OVSDPStats struct {
+	RecordHeader
+	Hits     uint32
+	Misses   uint32
+	Lost     uint32
+	MaskHits uint32
+	Flows    uint32
+	Masks    uint32
+}
+
+func (v *OVSDPStats) GetHeader() RecordHeader {
+	return v.RecordHeader
+}
+
+var OVSDPStatsRecordValidLength = packetSizeOf(OVSDPStats{}) - RecordHeaderSize
+
+const OVSDPStatsRecordDataFormatValue uint32 = 2207
 
 // Energy see https://groups.google.com/g/sflow/c/gN3nxSi2SBs, `energy`
 type Energy struct {

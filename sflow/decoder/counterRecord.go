@@ -25,6 +25,7 @@ var (
 	ErrInvalidIEEE80211CountersRecordSize = errors.New("ieee80211 counters record size is invalid")
 	ErrInvalidLAGPortStatsRecordSize      = errors.New("lag port stats record size is invalid")
 	ErrInvalidProcessorCountersRecordSize = errors.New("counter processor record size is invalid")
+	ErrInvalidQueueLengthRecordSize       = errors.New("queue length record size is invalid")
 	ErrInvalidOpenFlowPortRecordSize      = errors.New("openflow port record size is invalid")
 	ErrInvalidOpenFlowPortNameRecordSize  = errors.New("openflow port name record size is invalid")
 	ErrOpenFlowPortNameTooLong            = errors.New("openflow port name exceeds maximum length")
@@ -60,6 +61,7 @@ var (
 	ErrInvalidMIB2ICMPGroupRecordSize     = errors.New("mib2 icmp group record size is invalid")
 	ErrInvalidMIB2TCPGroupRecordSize      = errors.New("mib2 tcp group record size is invalid")
 	ErrInvalidMIB2UDPGroupRecordSize      = errors.New("mib2 udp group record size is invalid")
+	ErrInvalidOVSDPStatsRecordSize        = errors.New("ovs dp stats record size is invalid")
 )
 
 func decodeCounterIfRecord(r io.Reader) (*datagram.CounterIfRecord, error) {
@@ -199,7 +201,7 @@ func decodeEthernetCountersRecord(r io.Reader) (*datagram.EthernetCounters, erro
 		return nil, err
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &ecr.Dot3StatsLateCollisions); err != nil {
+	if err := binary.Read(r, binary.BigEndian, &ecr.Dot3StatsExcessiveCollisions); err != nil {
 		return nil, err
 	}
 
@@ -636,6 +638,76 @@ func decodeProcessorCountersRecord(r io.Reader) (*datagram.ProcessorCounters, er
 	}
 
 	return &pc, nil
+}
+
+func decodeQueueLengthRecord(r io.Reader) (*datagram.QueueLength, error) {
+	ql := datagram.QueueLength{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.QueueLengthRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.Length); err != nil {
+		return nil, err
+	}
+
+	if ql.Length != uint32(datagram.QueueLengthRecordValidLength) {
+		return nil, ErrInvalidQueueLengthRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.QueueIndex); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.SegmentSize); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.QueueSegments); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.QueueLength0); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.QueueLength1); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.QueueLength2); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.QueueLength4); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.QueueLength8); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.QueueLength32); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.QueueLength128); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.QueueLength1024); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.QueueLengthMore); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ql.Dropped); err != nil {
+		return nil, err
+	}
+
+	return &ql, nil
 }
 
 func decodeOpenFlowPortRecord(r io.Reader) (*datagram.OpenFlowPort, error) {
@@ -1788,6 +1860,48 @@ func decodeAppWorkersRecord(r io.Reader) (*datagram.AppWorkers, error) {
 	}
 
 	return &aw, nil
+}
+
+func decodeOVSDPStatsRecord(r io.Reader) (*datagram.OVSDPStats, error) {
+	ovs := datagram.OVSDPStats{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.OVSDPStatsRecordDataFormatValue,
+		},
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ovs.Length); err != nil {
+		return nil, err
+	}
+
+	if ovs.Length != uint32(datagram.OVSDPStatsRecordValidLength) {
+		return nil, ErrInvalidOVSDPStatsRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ovs.Hits); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ovs.Misses); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ovs.Lost); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ovs.MaskHits); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ovs.Flows); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &ovs.Masks); err != nil {
+		return nil, err
+	}
+
+	return &ovs, nil
 }
 
 func decodeEnergyRecord(r io.Reader) (*datagram.Energy, error) {

@@ -66,6 +66,149 @@ func (fsh *FlowSampledHeader) GetHeader() RecordHeader {
 
 const FlowSampledHeaderRecordDataFormatValue uint32 = 1
 
+// SampledEthernet see https://sflow.org/sflow_version_5.txt, pag 35 `sampled_ethernet`
+type SampledEthernet struct {
+	RecordHeader
+	FrameLength uint32
+	SrcMAC      XDRMACAddress
+	DstMAC      XDRMACAddress
+	Type        uint32
+}
+
+func (se *SampledEthernet) GetHeader() RecordHeader {
+	return se.RecordHeader
+}
+
+var SampledEthernetRecordValidLength = packetSizeOf(SampledEthernet{}) - RecordHeaderSize
+
+const SampledEthernetRecordDataFormatValue uint32 = 2
+
+// SampledIPv4 see https://sflow.org/sflow_version_5.txt, pag 35 `sampled_ipv4`
+type SampledIPv4 struct {
+	RecordHeader
+	FrameLength uint32
+	Protocol    uint32
+	SrcIP       IPv4
+	DstIP       IPv4
+	SrcPort     uint32
+	DstPort     uint32
+	TCPFlags    uint32
+	TOS         uint32
+}
+
+func (si *SampledIPv4) GetHeader() RecordHeader {
+	return si.RecordHeader
+}
+
+var SampledIPv4RecordValidLength = packetSizeOf(SampledIPv4{}) - RecordHeaderSize
+
+const SampledIPv4RecordDataFormatValue uint32 = 3
+
+// SampledIPv6 see https://sflow.org/sflow_version_5.txt, pag 36 `sampled_ipv6`
+type SampledIPv6 struct {
+	RecordHeader
+	FrameLength uint32
+	Protocol    uint32
+	SrcIP       IPv6
+	DstIP       IPv6
+	SrcPort     uint32
+	DstPort     uint32
+	TCPFlags    uint32
+	Priority    uint32
+}
+
+func (si *SampledIPv6) GetHeader() RecordHeader {
+	return si.RecordHeader
+}
+
+var SampledIPv6RecordValidLength = packetSizeOf(SampledIPv6{}) - RecordHeaderSize
+
+const SampledIPv6RecordDataFormatValue uint32 = 4
+
+// ExtendedSwitch see https://sflow.org/sflow_version_5.txt, pag 36 `extended_switch`
+type ExtendedSwitch struct {
+	RecordHeader
+	SrcVLAN     uint32
+	SrcPriority uint32
+	DstVLAN     uint32
+	DstPriority uint32
+}
+
+func (es *ExtendedSwitch) GetHeader() RecordHeader {
+	return es.RecordHeader
+}
+
+var ExtendedSwitchRecordValidLength = packetSizeOf(ExtendedSwitch{}) - RecordHeaderSize
+
+const ExtendedSwitchRecordDataFormatValue uint32 = 1001
+
+// ExtendedRouter see https://sflow.org/sflow_version_5.txt, pag 36 `extended_router`
+type ExtendedRouter struct {
+	RecordHeader
+	NextHop    Address
+	SrcMaskLen uint32
+	DstMaskLen uint32
+}
+
+func (er *ExtendedRouter) GetHeader() RecordHeader {
+	return er.RecordHeader
+}
+
+const (
+	ExtendedRouterRecordUnknownLength   uint32 = 12 // 4 (type) + 0 (no IP) + 4 (SrcMask) + 4 (DstMask)
+	ExtendedRouterRecordIPv4Length      uint32 = 16 // 4 (type) + 4 (IPv4) + 4 (SrcMask) + 4 (DstMask)
+	ExtendedRouterRecordIPv6Length      uint32 = 28 // 4 (type) + 16 (IPv6) + 4 (SrcMask) + 4 (DstMask)
+	ExtendedRouterRecordDataFormatValue uint32 = 1002
+)
+
+// ExtendedGateway see https://sflow.org/sflow_version_5.txt, pag 37 `extended_gateway`
+type ExtendedGateway struct {
+	RecordHeader
+	NextHop     Address
+	AS          uint32
+	SrcAS       uint32
+	SrcPeerAS   uint32
+	DstASPath   []ASPathSegment
+	Communities XDRVariableLengthArray
+	LocalPref   uint32
+}
+
+func (eg *ExtendedGateway) GetHeader() RecordHeader {
+	return eg.RecordHeader
+}
+
+// NOTE ExtendedGateway is variable length, so no way to validate it
+
+const ExtendedGatewayRecordDataFormatValue uint32 = 1003
+
+// ExtendedUser see https://sflow.org/sflow_version_5.txt, pag 38 `extended_user`
+type ExtendedUser struct {
+	RecordHeader
+	SrcCharset uint32
+	SrcUser    XDRString
+	DstCharset uint32
+	DstUser    XDRString
+}
+
+func (eu *ExtendedUser) GetHeader() RecordHeader {
+	return eu.RecordHeader
+}
+
+const ExtendedUserRecordDataFormatValue uint32 = 1004
+
+// ExtendedNAT see https://sflow.org/sflow_version_5.txt, pag 39 `extended_nat`
+type ExtendedNAT struct {
+	RecordHeader
+	SrcAddress Address
+	DstAddress Address
+}
+
+func (en *ExtendedNAT) GetHeader() RecordHeader {
+	return en.RecordHeader
+}
+
+const ExtendedNATRecordDataFormatValue uint32 = 1007
+
 // ExtendedTCPInfo see https://blog.sflow.com/2016/10/network-performance-monitoring.html and https://groups.google.com/g/sflow/c/JCG9iwacLZA
 type ExtendedTCPInfo struct {
 	RecordHeader
@@ -90,3 +233,39 @@ func (eti *ExtendedTCPInfo) GetHeader() RecordHeader {
 var ExtendedTCPInfoRecordValidLength = packetSizeOf(ExtendedTCPInfo{}) - RecordHeaderSize
 
 const ExtendedTCPInfoRecordDataFormatValue uint32 = 2209
+
+// ExtendedSocketIPv4 see https://sflow.org/sflow_host.txt, pag 9, `extended_socket_ipv4`
+type ExtendedSocketIPv4 struct {
+	RecordHeader
+	Protocol   uint32
+	LocalIP    IPv4
+	RemoteIP   IPv4
+	LocalPort  uint32
+	RemotePort uint32
+}
+
+func (esi *ExtendedSocketIPv4) GetHeader() RecordHeader {
+	return esi.RecordHeader
+}
+
+var ExtendedSocketIPv4RecordValidLength = packetSizeOf(ExtendedSocketIPv4{}) - RecordHeaderSize
+
+const ExtendedSocketIPv4RecordDataFormatValue uint32 = 2100
+
+// ExtendedSocketIPv6 see https://sflow.org/sflow_host.txt, pag 9, `extended_socket_ipv6`
+type ExtendedSocketIPv6 struct {
+	RecordHeader
+	Protocol   uint32
+	LocalIP    IPv6
+	RemoteIP   IPv6
+	LocalPort  uint32
+	RemotePort uint32
+}
+
+func (esi *ExtendedSocketIPv6) GetHeader() RecordHeader {
+	return esi.RecordHeader
+}
+
+var ExtendedSocketIPv6RecordValidLength = packetSizeOf(ExtendedSocketIPv6{}) - RecordHeaderSize
+
+const ExtendedSocketIPv6RecordDataFormatValue uint32 = 2101

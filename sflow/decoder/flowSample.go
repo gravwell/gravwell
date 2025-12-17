@@ -158,7 +158,76 @@ func decodeFlowSampleRecords(r io.Reader, recordsCount uint32) ([]datagram.Recor
 			}
 
 			records = append(records, record)
+		case datagram.SampledEthernetRecordDataFormatValue:
+			record, err = decodeSampledEthernet(r)
+			if err != nil {
+				return nil, err
+			}
 
+			records = append(records, record)
+		case datagram.SampledIPv4RecordDataFormatValue:
+			record, err = decodeSampledIPv4(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.SampledIPv6RecordDataFormatValue:
+			record, err = decodeSampledIPv6(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedSwitchRecordDataFormatValue:
+			record, err = decodeExtendedSwitch(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedRouterRecordDataFormatValue:
+			record, err = decodeExtendedRouter(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedGatewayRecordDataFormatValue:
+			record, err = decodeExtendedGateway(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedUserRecordDataFormatValue:
+			record, err = decodeExtendedUser(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedNATRecordDataFormatValue:
+			record, err = decodeExtendedNAT(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedSocketIPv4RecordDataFormatValue:
+			record, err = decodeExtendedSocketIPv4(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedSocketIPv6RecordDataFormatValue:
+			record, err = decodeExtendedSocketIPv6(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
 		case datagram.ExtendedTCPInfoRecordDataFormatValue:
 			record, err = decodeExtendedTCPInfo(r)
 			if err != nil {

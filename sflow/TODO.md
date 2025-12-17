@@ -17,7 +17,7 @@ See https://sflow.org/developers/structures.php
 | 3      | FlowSampleExpanded    | ✅     |
 | 4      | CounterSampleExpanded | ✅     |
 
-Note: Flow sample containers are implemented, but flow sample **records** (sampled_header, extended_switch, etc.) are not - they decode as `UnknownRecord`.
+Note: Flow sample containers are implemented. Some flow sample **records** are implemented (see table below), others decode as `UnknownRecord`.
 
 ## Counter Data Structures
 
@@ -37,7 +37,7 @@ Note: Flow sample containers are implemented, but flow sample **records** (sampl
 | 10     | sfp                | ⏭️              | sFlow Optical Interface Structures    |
 | 1001   | processor          | ✅              | sFlow Version 5                       |
 | 1002   | radio_utilization  | ⏭️              | sFlow 802.11 Structures               |
-| 1003   | queue_length       | ❌              | sFlow for queue length monitoring     |
+| 1003   | queue_length       | ✅              | sFlow for queue length monitoring     |
 | 1004   | of_port            | ✅              | sFlow OpenFlow Structures             |
 | 1005   | port_name          | ✅              | sFlow OpenFlow Structures             |
 | 2000   | host_descr         | ✅              | sFlow Host Structures                 |
@@ -64,7 +64,7 @@ Note: Flow sample containers are implemented, but flow sample **records** (sampl
 | 2203   | app_resources      | ✅              | sFlow Application Structures          |
 | 2204   | memcache_counters  | ✅              | sFlow Memcache Structures             |
 | 2206   | app_workers        | ✅              | sFlow Application Structures          |
-| 2207   | ovs_dp_stats       | ❌              | Open vSwitch performance monitoring   |
+| 2207   | ovs_dp_stats       | ✅              | Open vSwitch performance monitoring   |
 | 3000   | energy             | ✅              | Energy management                     |
 | 3001   | temperature        | ✅              | Energy management                     |
 | 3002   | humidity           | ✅              | Energy management                     |
@@ -85,17 +85,17 @@ Note: Flow sample containers are implemented, but flow sample **records** (sampl
 
 | Format | Structure                         | Status          | Reference                         |
 | ------ | --------------------------------- | --------------- | --------------------------------- |
-| 1      | sampled_header                    | ❌              | sFlow Version 5                   |
-| 2      | sampled_ethernet                  | ❌              | sFlow Version 5                   |
-| 3      | sampled_ipv4                      | ❌              | sFlow Version 5                   |
-| 4      | sampled_ipv6                      | ❌              | sFlow Version 5                   |
-| 1001   | extended_switch                   | ❌              | sFlow Version 5                   |
-| 1002   | extended_router                   | ❌              | sFlow Version 5                   |
-| 1003   | extended_gateway                  | ❌              | sFlow Version 5                   |
-| 1004   | extended_user                     | ❌              | sFlow Version 5                   |
+| 1      | sampled_header                    | ✅              | sFlow Version 5                   |
+| 2      | sampled_ethernet                  | ✅              | sFlow Version 5                   |
+| 3      | sampled_ipv4                      | ✅              | sFlow Version 5                   |
+| 4      | sampled_ipv6                      | ✅              | sFlow Version 5                   |
+| 1001   | extended_switch                   | ✅              | sFlow Version 5                   |
+| 1002   | extended_router                   | ✅              | sFlow Version 5                   |
+| 1003   | extended_gateway                  | ✅              | sFlow Version 5                   |
+| 1004   | extended_user                     | ✅              | sFlow Version 5                   |
 | 1005   | extended_url                      | ⏭️ (deprecated) | sFlow Version 5                   |
 | 1006   | extended_mpls                     | ⏭️              | sFlow Version 5                   |
-| 1007   | extended_nat                      | ❌              | sFlow Version 5                   |
+| 1007   | extended_nat                      | ✅              | sFlow Version 5                   |
 | 1008   | extended_mpls_tunnel              | ⏭️              | sFlow Version 5                   |
 | 1009   | extended_mpls_vc                  | ⏭️              | sFlow Version 5                   |
 | 1010   | extended_mpls_FTN                 | ⏭️              | sFlow Version 5                   |
@@ -136,8 +136,8 @@ Note: Flow sample containers are implemented, but flow sample **records** (sampl
 | 2001   | extended_nfs_storage_transaction  | ⏭️              | Host performance statistics       |
 | 2002   | extended_scsi_storage_transaction | ⏭️              | Host performance statistics       |
 | 2003   | extended_http_transaction         | ⏭️              | Host performance statistics       |
-| 2100   | extended_socket_ipv4              | ❌              | sFlow Host Structures             |
-| 2101   | extended_socket_ipv6              | ❌              | sFlow Host Structures             |
+| 2100   | extended_socket_ipv4              | ✅              | sFlow Host Structures             |
+| 2101   | extended_socket_ipv6              | ✅              | sFlow Host Structures             |
 | 2102   | extended_proxy_socket_ipv4        | ❌              | sFlow HTTP Structures             |
 | 2103   | extended_proxy_socket_ipv6        | ❌              | sFlow HTTP Structures             |
 | 2200   | memcached_operations              | ⏭️              | sFlow Memcache Structures         |
@@ -149,7 +149,7 @@ Note: Flow sample containers are implemented, but flow sample **records** (sampl
 | 2206   | http_requests                     | ⏭️              | sFlow HTTP Structures             |
 | 2207   | extended_proxy_request            | ⏭️              | sFlow HTTP Structures             |
 | 2208   | extended_nav_timing               | ⏭️              | Navigation Timing                 |
-| 2209   | extended_tcp_info                 | ❌              | TCP performance                   |
+| 2209   | extended_tcp_info                 | ✅              | TCP performance                   |
 | 2210   | extended_entities                 | ❌              | Systemd traffic marking           |
 
 ### Vendor-Specific Flow Data Structures (Enterprise ≠ 0) - Skipped

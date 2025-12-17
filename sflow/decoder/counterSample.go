@@ -139,6 +139,12 @@ func decodeCounterSampleRecords(r io.Reader, recordsCount uint32) ([]datagram.Re
 				return nil, err
 			}
 			records = append(records, record)
+		case datagram.QueueLengthRecordDataFormatValue:
+			record, err = decodeQueueLengthRecord(r)
+			if err != nil {
+				return nil, err
+			}
+			records = append(records, record)
 		case datagram.OpenFlowPortRecordDataFormatValue:
 			record, err = decodeOpenFlowPortRecord(r)
 			if err != nil {
@@ -285,6 +291,12 @@ func decodeCounterSampleRecords(r io.Reader, recordsCount uint32) ([]datagram.Re
 			records = append(records, record)
 		case datagram.AppWorkersRecordDataFormatValue:
 			record, err = decodeAppWorkersRecord(r)
+			if err != nil {
+				return nil, err
+			}
+			records = append(records, record)
+		case datagram.OVSDPStatsRecordDataFormatValue:
+			record, err = decodeOVSDPStatsRecord(r)
 			if err != nil {
 				return nil, err
 			}

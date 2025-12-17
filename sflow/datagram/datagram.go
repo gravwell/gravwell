@@ -11,9 +11,10 @@ package datagram
 
 import "net"
 
+// Datagram see https://sflow.org/sflow_version_5.txt, pag 32, `sample_datagram_v5`
 type Datagram struct {
-	Version        uint32
-	IPVersion      uint32
+	Version   uint32
+	IPVersion uint32
 	// Can be 4 bytes for IP V4, 16 bytes for IP V6
 	AgentIP        net.IP
 	SubAgentID     uint32

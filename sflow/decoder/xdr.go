@@ -10,11 +10,14 @@ package decoder
 
 import (
 	"encoding/binary"
+	"errors"
 	"io"
 
 	"github.com/gravwell/gravwell/v3/sflow/datagram"
 	"github.com/gravwell/gravwell/v3/sflow/xdr"
 )
+
+var ErrUnknownAddressIPVersion = errors.New("unknown address ip version")
 
 func decodeXDRVariableLengthOpaque(r io.Reader) (datagram.XDRVariableLengthOpaque, error) {
 	var length uint32
@@ -48,4 +51,47 @@ func decodeXDRString(r io.Reader) (datagram.XDRString, error) {
 	}
 
 	return datagram.XDRString{XDRVariableLengthOpaque: vlo}, nil
+}
+
+func decodeAddress(r io.Reader) (datagram.Address, error) {
+	var addr datagram.Address
+	if err := binary.Read(r, binary.BigEndian, &addr.Type); err != nil {
+		return addr, err
+	}
+
+	var ipSize int
+	switch addr.Type {
+	case datagram.AddressTypeIPv4:
+		ipSize = 4
+	case datagram.AddressTypeIPv6:
+		ipSize = 16
+	case datagram.AddressTypeUnknown:
+		// nothing to read here
+	default:
+		return addr, ErrUnknownAddressIPVersion
+	}
+
+	addr.IP = make([]byte, ipSize)
+	if err := binary.Read(r, binary.BigEndian, &addr.IP); err != nil {
+		return addr, err
+	}
+
+	return addr, nil
+}
+
+// decodeXDRVariableLengthArray see https://datatracker.ietf.org/doc/html/rfc4506#section-4.13
+// Decodes a variable-length array of uint32 values.
+// Wire format: 4 bytes (count N) + N * 4 bytes (the uint32 values).
+func decodeXDRVariableLengthArray(r io.Reader) (datagram.XDRVariableLengthArray, error) {
+	var count uint32
+	if err := binary.Read(r, binary.BigEndian, &count); err != nil {
+		return nil, err
+	}
+
+	arr := make(datagram.XDRVariableLengthArray, count)
+	if err := binary.Read(r, binary.BigEndian, arr); err != nil {
+		return nil, err
+	}
+
+	return arr, nil
 }
