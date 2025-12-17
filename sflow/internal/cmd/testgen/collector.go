@@ -34,7 +34,6 @@ func listenToPackets(conn *net.UDPConn, stopChan chan struct{}) {
 			return
 		default:
 			// Set read deadline to allow checking stopChan periodically
-			// It's a shitty script, get off my lawn
 			conn.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 
 			n, remoteAddr, err := conn.ReadFromUDP(buffer)

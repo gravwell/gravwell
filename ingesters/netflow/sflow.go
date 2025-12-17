@@ -120,6 +120,7 @@ package main
 // 		e := &entry.Entry{
 // 			Tag: s.tag,
 // 			SRC: addr.IP,
+// 			// TODO  Make sure to throw a warning if ignoreTS was set for the sflow collector
 // 			// sflow does not have a timestamp for when the packet was sent.
 // 			TS:   entry.Now(),
 // 			Data: lbuf,

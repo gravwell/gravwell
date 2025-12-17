@@ -241,18 +241,7 @@ func serializeSample(buf *bytes.Buffer, sample datagram.Sample) {
 	case *datagram.UnknownSample:
 		buf.WriteString("\t\t&datagram.UnknownSample{\n")
 		fmt.Fprintf(buf, "\t\t\tFormat: %d,\n", s.Format)
-		buf.WriteString("\t\t\tData: datagram.XDRVariableLengthOpaque{")
-		for i, b := range s.Data {
-			if i > 0 {
-				if i%16 == 0 {
-					buf.WriteString(",\n\t\t\t\t")
-				} else {
-					buf.WriteString(", ")
-				}
-			}
-			fmt.Fprintf(buf, "%d", b)
-		}
-		buf.WriteString("},\n")
+		fmt.Fprintf(buf, "\t\t\tData: %#v,\n", s.Data)
 		buf.WriteString("\t\t},\n")
 
 	default:
