@@ -13,6 +13,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -50,6 +51,7 @@ type routeHandler struct {
 	pproc         *processors.ProcessorSet
 	paramAttacher paramAttacher
 	debugPosts    bool
+	bufferSize    int
 }
 
 type handler struct {
@@ -407,7 +409,7 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 		now = time.Now()
 	}
 	scanner := bufio.NewScanner(rdr)
-	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
+	scanner.Buffer(make([]byte, cfg.bufferSize), cfg.bufferSize)
 
 	var entriesCount int
 	var byteCount int64
@@ -426,6 +428,9 @@ func handleMulti(h *handler, cfg routeHandler, w http.ResponseWriter, r *http.Re
 		entriesCount++
 	}
 	if err := scanner.Err(); err != nil {
+		if errors.Is(err, bufio.ErrTooLong) {
+			err = fmt.Errorf("Buffer-Size (%d) exceeded: %w", cfg.bufferSize, err)
+		}
 		h.lgr.Warn("failed to handle multiline upload", log.KVErr(err))
 		w.WriteHeader(http.StatusBadRequest)
 	} else if cfg.debugPosts {

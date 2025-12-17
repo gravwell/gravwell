@@ -301,6 +301,7 @@ func includeStdListeners(hnd *handler, igst *ingest.IngestMuxer, cfg *cfgType) (
 			handler:       handleSingle,
 			paramAttacher: getAttacher(v.Attach_URL_Parameter),
 			debugPosts:    v.Debug_Posts,
+			bufferSize:    v.Buffer_Size,
 		}
 		if v.Multiline {
 			hcfg.handler = handleMulti
