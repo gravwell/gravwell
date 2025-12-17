@@ -150,8 +150,10 @@ func rfc5424ConnHandlerTCP(c net.Conn, cfg handlerConfig) {
 		}
 		data = bytes.Clone(data) // the scanner re-uses bytes, so we have to clone
 		if ent, err := handleLog(data, rip, cfg.ignoreTimestamps, cfg.tag, tg); err != nil {
+			lg.Warn("Failed to handle log", log.KVErr(err))
 			return
 		} else if err = cfg.proc.ProcessContext(ent, cfg.ctx); err != nil {
+			lg.Warn("Failed to handle log", log.KVErr(err))
 			return
 		}
 	}

@@ -57,6 +57,7 @@ var (
 	ErrInvalidEntry          = errors.New("Invalid entry value")
 	ErrTooManyTags           = errors.New("All tag IDs exhausted, too many tags")
 	ErrUnknownTag            = errors.New("Invalid tag value")
+	ErrInvalidMaxEntrySize   = errors.New("Invalid Max-Entry-Size, max 1GB")
 
 	errNotImp = errors.New("Not implemented yet")
 )
@@ -160,6 +161,7 @@ type IngestMuxer struct {
 	attacher             *attach.Attacher
 	attachActive         bool
 	minVersion           uint16
+	maxEntrySize         int
 }
 
 type UniformMuxerConfig struct {
@@ -185,6 +187,7 @@ type UniformMuxerConfig struct {
 	LogSourceOverride net.IP
 	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	MinVersion        uint16              // minimum API version of indexers
+	MaxEntrySize      int
 }
 
 type MuxerConfig struct {
@@ -208,6 +211,7 @@ type MuxerConfig struct {
 	LogSourceOverride net.IP
 	Attach            attach.AttachConfig `gcfg:",section=raw,ident=regex"`
 	MinVersion        uint16              // minimum API version of indexers
+	MaxEntrySize      int
 }
 
 func NewUniformMuxer(c UniformMuxerConfig) (*IngestMuxer, error) {
@@ -251,6 +255,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 	if len(c.Tags) > int(entry.MaxTagId) {
 		return nil, ErrTooManyTags
 	}
+
 	cfg := MuxerConfig{
 		IngestStreamConfig: c.IngestStreamConfig,
 		Destinations:       destinations,
@@ -272,6 +277,7 @@ func newUniformIngestMuxerEx(c UniformMuxerConfig) (*IngestMuxer, error) {
 		LogSourceOverride:  c.LogSourceOverride,
 		Attach:             c.Attach,
 		MinVersion:         c.MinVersion,
+		MaxEntrySize:       c.MaxEntrySize,
 	}
 	return newIngestMuxer(cfg)
 }
@@ -296,6 +302,12 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 	if len(c.Tags) > int(entry.MaxTagId) {
 		return nil, ErrTooManyTags
 	}
+	if c.MaxEntrySize == 0 {
+		c.MaxEntrySize = MAX_ENTRY_SIZE
+	} else if c.MaxEntrySize > MAX_ENTRY_SIZE || c.MaxEntrySize < 0 {
+		return nil, ErrInvalidMaxEntrySize
+	}
+
 	localTags := make([]string, 0, len(c.Tags))
 	for i := range c.Tags {
 		if err := CheckTag(c.Tags[i]); err != nil {
@@ -482,6 +494,7 @@ func newIngestMuxer(c MuxerConfig) (*IngestMuxer, error) {
 		attacher:          atch,
 		attachActive:      atch.Active(),
 		minVersion:        c.MinVersion,
+		maxEntrySize:      c.MaxEntrySize,
 	}, nil
 }
 
@@ -1132,7 +1145,7 @@ func (im *IngestMuxer) GetTag(tag string) (tg entry.EntryTag, err error) {
 func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 	if e == nil {
 		return nil
-	} else if len(e.Data) > MAX_ENTRY_SIZE {
+	} else if len(e.Data) > im.maxEntrySize {
 		return ErrOversizedEntry
 	} else if e.Tag != entry.GravwellTagId && !im.tc.has(e.Tag) {
 		return ErrUnknownTag
@@ -1160,7 +1173,7 @@ func (im *IngestMuxer) WriteEntry(e *entry.Entry) error {
 func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) error {
 	if e == nil {
 		return nil
-	} else if len(e.Data) > MAX_ENTRY_SIZE {
+	} else if len(e.Data) > im.maxEntrySize {
 		return ErrOversizedEntry
 	} else if e.Tag != entry.GravwellTagId && !im.tc.has(e.Tag) {
 		return ErrUnknownTag
@@ -1190,7 +1203,7 @@ func (im *IngestMuxer) WriteEntryContext(ctx context.Context, e *entry.Entry) er
 func (im *IngestMuxer) WriteEntryTimeout(e *entry.Entry, d time.Duration) (err error) {
 	if e == nil {
 		return
-	} else if len(e.Data) > MAX_ENTRY_SIZE {
+	} else if len(e.Data) > im.maxEntrySize {
 		return ErrOversizedEntry
 	} else if e.Tag != entry.GravwellTagId && !im.tc.has(e.Tag) {
 		return ErrUnknownTag
@@ -1225,7 +1238,7 @@ func (im *IngestMuxer) WriteBatch(b []*entry.Entry) error {
 	for i := range b {
 		if b == nil {
 			return ErrInvalidEntry
-		} else if len(b[i].Data) > MAX_ENTRY_SIZE {
+		} else if len(b[i].Data) > im.maxEntrySize {
 			return ErrOversizedEntry
 		} else if b[i].Tag != entry.GravwellTagId && !im.tc.has(b[i].Tag) {
 			return ErrUnknownTag
@@ -1266,7 +1279,7 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 	for i := range b {
 		if b == nil {
 			return ErrInvalidEntry
-		} else if len(b[i].Data) > MAX_ENTRY_SIZE {
+		} else if len(b[i].Data) > im.maxEntrySize {
 			return ErrOversizedEntry
 		} else if b[i].Tag != entry.GravwellTagId && !im.tc.has(b[i].Tag) {
 			return ErrUnknownTag
@@ -1304,7 +1317,7 @@ func (im *IngestMuxer) WriteBatchContext(ctx context.Context, b []*entry.Entry) 
 // entry writer routine, if all routines are dead, THIS WILL BLOCK once the
 // channel fills up.  We figure this is a natural "wait" mechanism
 func (im *IngestMuxer) Write(tm entry.Timestamp, tag entry.EntryTag, data []byte) error {
-	if len(data) > MAX_ENTRY_SIZE {
+	if len(data) > im.maxEntrySize {
 		return ErrOversizedEntry
 	} else if tag != entry.GravwellTagId && !im.tc.has(tag) {
 		return ErrUnknownTag
@@ -1323,7 +1336,7 @@ func (im *IngestMuxer) Write(tm entry.Timestamp, tag entry.EntryTag, data []byte
 // channel fills up.  We figure this is a natural "wait" mechanism
 // if the context isn't needed use Write instead
 func (im *IngestMuxer) WriteContext(ctx context.Context, tm entry.Timestamp, tag entry.EntryTag, data []byte) error {
-	if len(data) > MAX_ENTRY_SIZE {
+	if len(data) > im.maxEntrySize {
 		return ErrOversizedEntry
 	} else if tag != entry.GravwellTagId && !im.tc.has(tag) {
 		return ErrUnknownTag
