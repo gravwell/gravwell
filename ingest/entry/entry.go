@@ -594,7 +594,7 @@ func (ent *Entry) Compare(v *Entry) error {
 	} else if ent.Tag != v.Tag {
 		return errors.New("differing tags")
 	} else if !ent.SRC.Equal(v.SRC) {
-		return errors.New("differeing source values")
+		return errors.New("differing source values")
 	} else if !bytes.Equal(ent.Data, v.Data) {
 		return errors.New("differing data")
 	}

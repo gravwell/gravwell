@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 func TestTimeRangeEncodeDecode(t *testing.T) {
@@ -114,5 +114,400 @@ func TestSearchEntryEncodeDecodeRaw(t *testing.T) {
 		t.Fatal(err)
 	} else if !s.Equal(d) {
 		t.Fatalf("EncodeDecode failed:\n%+v\n%+v", s, d)
+	}
+}
+
+func TestBaseResponseEncode(t *testing.T) {
+	br := BaseResponse{
+		Messages: []Message{
+			{
+				ID: 1,
+			},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x BaseResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+}
+
+func TestChartResponseEncode(t *testing.T) {
+	br := ChartResponse{
+		BaseResponse: BaseResponse{
+			Messages: []Message{
+				{
+					ID: 1,
+				},
+			},
+		},
+		Entries: ChartableValueSet{
+			Names: []string{"test"},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x ChartResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+	if len(x.Entries.Names) != 1 {
+		t.Fatal("invalid decode")
+	}
+}
+
+func TestFDGResponseEncode(t *testing.T) {
+	br := FdgResponse{
+		BaseResponse: BaseResponse{
+			Messages: []Message{
+				{
+					ID: 1,
+				},
+			},
+		},
+		Entries: FdgSet{
+			Groups: []string{"test"},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x FdgResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+	if len(x.Entries.Groups) != 1 {
+		t.Fatal("invalid decode")
+	}
+}
+
+func TestPointmapResponseEncode(t *testing.T) {
+	br := PointmapResponse{
+		BaseResponse: BaseResponse{
+			Messages: []Message{
+				{
+					ID: 1,
+				},
+			},
+		},
+		Entries: []PointmapValue{
+			{
+				Loc: Location{
+					Lat:  1,
+					Long: 1,
+				},
+			},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x PointmapResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+	if len(x.Entries) != 1 {
+		t.Fatal("invalid decode")
+	}
+}
+
+func TestHeatmapResponseEncode(t *testing.T) {
+	br := HeatmapResponse{
+		BaseResponse: BaseResponse{
+			Messages: []Message{
+				{
+					ID: 1,
+				},
+			},
+		},
+		Entries: []HeatmapValue{
+			{
+				Magnitude: 1,
+			},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x HeatmapResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+	if len(x.Entries) != 1 {
+		t.Fatal("invalid decode")
+	}
+}
+
+func TestP2PResponseEncode(t *testing.T) {
+	br := P2PResponse{
+		BaseResponse: BaseResponse{
+			Messages: []Message{
+				{
+					ID: 1,
+				},
+			},
+		},
+		Entries: []P2PValue{
+			{
+				Magnitude: 1,
+			},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x P2PResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+	if len(x.Entries) != 1 {
+		t.Fatal("invalid decode")
+	}
+}
+
+func TestStackgraphResponseEncode(t *testing.T) {
+	br := StackGraphResponse{
+		BaseResponse: BaseResponse{
+			Messages: []Message{
+				{
+					ID: 1,
+				},
+			},
+		},
+		Entries: []StackGraphSet{
+			{
+				Key: "test",
+			},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x StackGraphResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+	if len(x.Entries) != 1 {
+		t.Fatal("invalid decode")
+	}
+}
+
+func TestTableResponseEncode(t *testing.T) {
+	br := TableResponse{
+		BaseResponse: BaseResponse{
+			Messages: []Message{
+				{
+					ID: 1,
+				},
+			},
+		},
+		Entries: TableValueSet{
+			Columns: []string{"test"},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x TableResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+	if len(x.Entries.Columns) != 1 {
+		t.Fatal("invalid decode")
+	}
+}
+
+func TestGaugeResponseEncode(t *testing.T) {
+	br := GaugeResponse{
+		BaseResponse: BaseResponse{
+			Messages: []Message{
+				{
+					ID: 1,
+				},
+			},
+		},
+		Entries: []GaugeValue{
+			{
+				Name: "test",
+			},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x GaugeResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+	if len(x.Entries) != 1 {
+		t.Fatal("invalid decode")
+	}
+}
+
+func TestWordcloudResponseEncode(t *testing.T) {
+	br := WordcloudResponse{
+		BaseResponse: BaseResponse{
+			Messages: []Message{
+				{
+					ID: 1,
+				},
+			},
+		},
+		Entries: []WordcloudValue{
+			{
+				Name: "test",
+			},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x WordcloudResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+	if len(x.Entries) != 1 {
+		t.Fatal("invalid decode")
+	}
+}
+
+func TestTextResponseEncode(t *testing.T) {
+	br := TextResponse{
+		BaseResponse: BaseResponse{
+			Messages: []Message{
+				{
+					ID: 1,
+				},
+			},
+		},
+		Entries: []SearchEntry{
+			{
+				Data: []byte("foo"),
+			},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x TextResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+	if len(x.Entries) != 1 {
+		t.Fatal("invalid decode")
+	}
+}
+
+func TestRawResponseEncode(t *testing.T) {
+	br := RawResponse{
+		BaseResponse: BaseResponse{
+			Messages: []Message{
+				{
+					ID: 1,
+				},
+			},
+		},
+		Entries: []SearchEntry{
+			{
+				Data: []byte("foo"),
+			},
+		},
+	}
+	bb := bytes.NewBuffer(nil)
+	if err := json.NewEncoder(bb).Encode(br); err != nil {
+		t.Fatal(err)
+	}
+
+	var x RawResponse
+
+	if err := json.NewDecoder(bb).Decode(&x); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(x.Messages) != 1 {
+		t.Fatal("invalid decode")
+	}
+	if len(x.Entries) != 1 {
+		t.Fatal("invalid decode")
 	}
 }

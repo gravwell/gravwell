@@ -12,7 +12,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v4/client/types"
 )
 
 // GetFlowList returns flows the user has access to.
@@ -113,7 +113,7 @@ func (c *Client) ParseFlow(flow string) (outputPayloads map[int]map[string]inter
 	req := types.FlowParseRequest{
 		Flow: flow,
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp); err != nil {
+	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp, nil, nil); err != nil {
 		return
 	}
 
@@ -138,7 +138,7 @@ func (c *Client) ParseReactiveFlow(flow string, event types.Event) (outputPayloa
 		DebugEvent: &event,
 		Flow:       flow,
 	}
-	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp); err != nil {
+	if err = c.methodStaticPushURL(http.MethodPut, flowParseUrl(), req, &resp, nil, nil); err != nil {
 		return
 	}
 
