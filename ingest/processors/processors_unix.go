@@ -1,3 +1,6 @@
+//go:build linux || darwin || freebsd
+// +build linux darwin freebsd
+
 /*************************************************************************
  * Copyright 2018 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
