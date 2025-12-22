@@ -269,3 +269,138 @@ func (esi *ExtendedSocketIPv6) GetHeader() RecordHeader {
 var ExtendedSocketIPv6RecordValidLength = packetSizeOf(ExtendedSocketIPv6{}) - RecordHeaderSize
 
 const ExtendedSocketIPv6RecordDataFormatValue uint32 = 2101
+
+// ExtendedMPLS see https://sflow.org/sflow_version_5.txt, pag 39 `extended_mpls`
+type ExtendedMPLS struct {
+	RecordHeader
+	NextHop  Address
+	InStack  XDRVariableLengthArray
+	OutStack XDRVariableLengthArray
+}
+
+func (em *ExtendedMPLS) GetHeader() RecordHeader {
+	return em.RecordHeader
+}
+
+// NOTE ExtendedMPLS is variable length, so no way to validate it
+
+const ExtendedMPLSRecordDataFormatValue uint32 = 1006
+
+// ExtendedMPLSTunnel see https://sflow.org/sflow_version_5.txt, pag 40 `extended_mpls_tunnel`
+type ExtendedMPLSTunnel struct {
+	RecordHeader
+	TunnelName XDRString
+	TunnelID   uint32
+	TunnelCOS  uint32
+}
+
+func (emt *ExtendedMPLSTunnel) GetHeader() RecordHeader {
+	return emt.RecordHeader
+}
+
+// NOTE ExtendedMPLSTunnel is variable length, so no way to validate it
+
+const ExtendedMPLSTunnelRecordDataFormatValue uint32 = 1008
+
+// ExtendedMPLSVC see https://sflow.org/sflow_version_5.txt, pag 40 `extended_mpls_vc`
+type ExtendedMPLSVC struct {
+	RecordHeader
+	VCInstanceName XDRString
+	VLLVCID        uint32
+	VCLabelCOS     uint32
+}
+
+func (emv *ExtendedMPLSVC) GetHeader() RecordHeader {
+	return emv.RecordHeader
+}
+
+// NOTE ExtendedMPLSVC is variable length, so no way to validate it
+
+const ExtendedMPLSVCRecordDataFormatValue uint32 = 1009
+
+// ExtendedMPLSFTN see https://sflow.org/sflow_version_5.txt, pag 40 `extended_mpls_FTN`
+type ExtendedMPLSFTN struct {
+	RecordHeader
+	Description XDRString
+	Mask        uint32
+}
+
+func (emf *ExtendedMPLSFTN) GetHeader() RecordHeader {
+	return emf.RecordHeader
+}
+
+// NOTE ExtendedMPLSFTN is variable length, so no way to validate it
+
+const ExtendedMPLSFTNRecordDataFormatValue uint32 = 1010
+
+// ExtendedMPLSLDPFEC see https://sflow.org/sflow_version_5.txt, pag 40 `extended_mpls_LDP_FEC`
+type ExtendedMPLSLDPFEC struct {
+	RecordHeader
+	AddrPrefixLength uint32
+}
+
+func (emlf *ExtendedMPLSLDPFEC) GetHeader() RecordHeader {
+	return emlf.RecordHeader
+}
+
+var ExtendedMPLSLDPFECRecordValidLength = packetSizeOf(ExtendedMPLSLDPFEC{}) - RecordHeaderSize
+
+const ExtendedMPLSLDPFECRecordDataFormatValue uint32 = 1011
+
+// ExtendedVLANTunnel see https://sflow.org/sflow_version_5.txt, pag 41 `extended_vlantunnel`
+type ExtendedVLANTunnel struct {
+	RecordHeader
+	Stack XDRVariableLengthArray
+}
+
+func (evt *ExtendedVLANTunnel) GetHeader() RecordHeader {
+	return evt.RecordHeader
+}
+
+// NOTE ExtendedVLANTunnel is variable length, so no way to validate it
+
+const ExtendedVLANTunnelRecordDataFormatValue uint32 = 1012
+
+// ExtendedEgressQueue see https://sflow.org/sflow_drops.txt, pag 5 `extended_egress_queue`
+type ExtendedEgressQueue struct {
+	RecordHeader
+	Queue uint32
+}
+
+func (eeq *ExtendedEgressQueue) GetHeader() RecordHeader {
+	return eeq.RecordHeader
+}
+
+var ExtendedEgressQueueRecordValidLength = packetSizeOf(ExtendedEgressQueue{}) - RecordHeaderSize
+
+const ExtendedEgressQueueRecordDataFormatValue uint32 = 1036
+
+// ExtendedACL see https://sflow.org/sflow_drops.txt, pag 6 `extended_acl`
+type ExtendedACL struct {
+	RecordHeader
+	Number    uint32
+	Name      XDRString
+	Direction uint32
+}
+
+func (eacl *ExtendedACL) GetHeader() RecordHeader {
+	return eacl.RecordHeader
+}
+
+// NOTE ExtendedACL is variable length, so no way to validate it
+
+const ExtendedACLRecordDataFormatValue uint32 = 1037
+
+// ExtendedFunction see https://sflow.org/sflow_drops.txt, pag 6 `extended_function`
+type ExtendedFunction struct {
+	RecordHeader
+	Symbol XDRString
+}
+
+func (ef *ExtendedFunction) GetHeader() RecordHeader {
+	return ef.RecordHeader
+}
+
+// NOTE ExtendedFunction is variable length, so no way to validate it
+
+const ExtendedFunctionRecordDataFormatValue uint32 = 1038

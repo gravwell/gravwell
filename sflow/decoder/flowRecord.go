@@ -17,15 +17,17 @@ import (
 )
 
 var (
-	ErrInvalidExtendedTCPInfoRecordSize    = errors.New("extended tcp info record size is invalid")
-	ErrInvalidSampledEthernetRecordSize    = errors.New("sampled ethernet record size is invalid")
-	ErrInvalidSampledIPv4RecordSize        = errors.New("sampled ipv4 record size is invalid")
-	ErrInvalidSampledIPv6RecordSize        = errors.New("sampled ipv6 record size is invalid")
-	ErrInvalidExtendedSwitchRecordSize     = errors.New("extended switch record size is invalid")
-	ErrInvalidExtendedRouterRecordSize     = errors.New("extended router record size is invalid")
-	ErrInvalidExtendedNATRecordSize        = errors.New("extended nat record size is invalid")
-	ErrInvalidExtendedSocketIPv4RecordSize = errors.New("extended socket ipv4 record size is invalid")
-	ErrInvalidExtendedSocketIPv6RecordSize = errors.New("extended socket ipv6 record size is invalid")
+	ErrInvalidExtendedTCPInfoRecordSize     = errors.New("extended tcp info record size is invalid")
+	ErrInvalidSampledEthernetRecordSize     = errors.New("sampled ethernet record size is invalid")
+	ErrInvalidSampledIPv4RecordSize         = errors.New("sampled ipv4 record size is invalid")
+	ErrInvalidSampledIPv6RecordSize         = errors.New("sampled ipv6 record size is invalid")
+	ErrInvalidExtendedSwitchRecordSize      = errors.New("extended switch record size is invalid")
+	ErrInvalidExtendedRouterRecordSize      = errors.New("extended router record size is invalid")
+	ErrInvalidExtendedNATRecordSize         = errors.New("extended nat record size is invalid")
+	ErrInvalidExtendedSocketIPv4RecordSize  = errors.New("extended socket ipv4 record size is invalid")
+	ErrInvalidExtendedSocketIPv6RecordSize  = errors.New("extended socket ipv6 record size is invalid")
+	ErrInvalidExtendedMPLSLDPFECRecordSize  = errors.New("extended mpls ldp fec record size is invalid")
+	ErrInvalidExtendedEgressQueueRecordSize = errors.New("extended egress queue record size is invalid")
 )
 
 func decodeExtendedTCPInfo(r *io.LimitedReader) (*datagram.ExtendedTCPInfo, error) {
@@ -572,4 +574,246 @@ func decodeExtendedSocketIPv6(r *io.LimitedReader) (*datagram.ExtendedSocketIPv6
 	}
 
 	return &esi, nil
+}
+
+func decodeExtendedMPLS(r *io.LimitedReader) (*datagram.ExtendedMPLS, error) {
+	em := datagram.ExtendedMPLS{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.ExtendedMPLSRecordDataFormatValue,
+		},
+	}
+
+	var err error
+	em.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
+		return nil, err
+	}
+
+	nextHop, err := decodeAddress(r)
+	if err != nil {
+		return nil, err
+	}
+	em.NextHop = nextHop
+
+	inStack, err := decodeXDRVariableLengthArray(r)
+	if err != nil {
+		return nil, err
+	}
+	em.InStack = inStack
+
+	outStack, err := decodeXDRVariableLengthArray(r)
+	if err != nil {
+		return nil, err
+	}
+	em.OutStack = outStack
+
+	return &em, nil
+}
+
+func decodeExtendedMPLSTunnel(r *io.LimitedReader) (*datagram.ExtendedMPLSTunnel, error) {
+	emt := datagram.ExtendedMPLSTunnel{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.ExtendedMPLSTunnelRecordDataFormatValue,
+		},
+	}
+
+	var err error
+	emt.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
+		return nil, err
+	}
+
+	tunnelName, err := decodeXDRString(r)
+	if err != nil {
+		return nil, err
+	}
+	emt.TunnelName = tunnelName
+
+	if err := binary.Read(r, binary.BigEndian, &emt.TunnelID); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &emt.TunnelCOS); err != nil {
+		return nil, err
+	}
+
+	return &emt, nil
+}
+
+func decodeExtendedMPLSVC(r *io.LimitedReader) (*datagram.ExtendedMPLSVC, error) {
+	emv := datagram.ExtendedMPLSVC{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.ExtendedMPLSVCRecordDataFormatValue,
+		},
+	}
+
+	var err error
+	emv.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
+		return nil, err
+	}
+
+	vcInstanceName, err := decodeXDRString(r)
+	if err != nil {
+		return nil, err
+	}
+	emv.VCInstanceName = vcInstanceName
+
+	if err := binary.Read(r, binary.BigEndian, &emv.VLLVCID); err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &emv.VCLabelCOS); err != nil {
+		return nil, err
+	}
+
+	return &emv, nil
+}
+
+func decodeExtendedMPLSFTN(r *io.LimitedReader) (*datagram.ExtendedMPLSFTN, error) {
+	emf := datagram.ExtendedMPLSFTN{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.ExtendedMPLSFTNRecordDataFormatValue,
+		},
+	}
+
+	var err error
+	emf.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
+		return nil, err
+	}
+
+	description, err := decodeXDRString(r)
+	if err != nil {
+		return nil, err
+	}
+	emf.Description = description
+
+	if err := binary.Read(r, binary.BigEndian, &emf.Mask); err != nil {
+		return nil, err
+	}
+
+	return &emf, nil
+}
+
+func decodeExtendedMPLSLDPFEC(r *io.LimitedReader) (*datagram.ExtendedMPLSLDPFEC, error) {
+	emlf := datagram.ExtendedMPLSLDPFEC{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.ExtendedMPLSLDPFECRecordDataFormatValue,
+		},
+	}
+
+	var err error
+	emlf.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
+		return nil, err
+	}
+
+	if emlf.Length != uint32(datagram.ExtendedMPLSLDPFECRecordValidLength) {
+		return nil, ErrInvalidExtendedMPLSLDPFECRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &emlf.AddrPrefixLength); err != nil {
+		return nil, err
+	}
+
+	return &emlf, nil
+}
+
+func decodeExtendedVLANTunnel(r *io.LimitedReader) (*datagram.ExtendedVLANTunnel, error) {
+	evt := datagram.ExtendedVLANTunnel{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.ExtendedVLANTunnelRecordDataFormatValue,
+		},
+	}
+
+	var err error
+	evt.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
+		return nil, err
+	}
+
+	stack, err := decodeXDRVariableLengthArray(r)
+	if err != nil {
+		return nil, err
+	}
+	evt.Stack = stack
+
+	return &evt, nil
+}
+
+func decodeExtendedEgressQueue(r *io.LimitedReader) (*datagram.ExtendedEgressQueue, error) {
+	eeq := datagram.ExtendedEgressQueue{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.ExtendedEgressQueueRecordDataFormatValue,
+		},
+	}
+
+	var err error
+	eeq.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
+		return nil, err
+	}
+
+	if eeq.Length != uint32(datagram.ExtendedEgressQueueRecordValidLength) {
+		return nil, ErrInvalidExtendedEgressQueueRecordSize
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &eeq.Queue); err != nil {
+		return nil, err
+	}
+
+	return &eeq, nil
+}
+
+func decodeExtendedACL(r *io.LimitedReader) (*datagram.ExtendedACL, error) {
+	eacl := datagram.ExtendedACL{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.ExtendedACLRecordDataFormatValue,
+		},
+	}
+
+	var err error
+	eacl.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := binary.Read(r, binary.BigEndian, &eacl.Number); err != nil {
+		return nil, err
+	}
+
+	name, err := decodeXDRString(r)
+	if err != nil {
+		return nil, err
+	}
+	eacl.Name = name
+
+	if err := binary.Read(r, binary.BigEndian, &eacl.Direction); err != nil {
+		return nil, err
+	}
+
+	return &eacl, nil
+}
+
+func decodeExtendedFunction(r *io.LimitedReader) (*datagram.ExtendedFunction, error) {
+	ef := datagram.ExtendedFunction{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.ExtendedFunctionRecordDataFormatValue,
+		},
+	}
+
+	var err error
+	ef.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
+		return nil, err
+	}
+
+	symbol, err := decodeXDRString(r)
+	if err != nil {
+		return nil, err
+	}
+	ef.Symbol = symbol
+
+	return &ef, nil
 }

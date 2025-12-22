@@ -205,8 +205,71 @@ func decodeFlowSampleRecords(r *io.LimitedReader, recordsCount uint32) ([]datagr
 			}
 
 			records = append(records, record)
+		case datagram.ExtendedMPLSRecordDataFormatValue:
+			record, err = decodeExtendedMPLS(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
 		case datagram.ExtendedNATRecordDataFormatValue:
 			record, err = decodeExtendedNAT(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedMPLSTunnelRecordDataFormatValue:
+			record, err = decodeExtendedMPLSTunnel(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedMPLSVCRecordDataFormatValue:
+			record, err = decodeExtendedMPLSVC(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedMPLSFTNRecordDataFormatValue:
+			record, err = decodeExtendedMPLSFTN(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedMPLSLDPFECRecordDataFormatValue:
+			record, err = decodeExtendedMPLSLDPFEC(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedVLANTunnelRecordDataFormatValue:
+			record, err = decodeExtendedVLANTunnel(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedEgressQueueRecordDataFormatValue:
+			record, err = decodeExtendedEgressQueue(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedACLRecordDataFormatValue:
+			record, err = decodeExtendedACL(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedFunctionRecordDataFormatValue:
+			record, err = decodeExtendedFunction(r)
 			if err != nil {
 				return nil, err
 			}
