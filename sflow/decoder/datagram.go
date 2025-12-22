@@ -17,17 +17,22 @@ import (
 	"github.com/gravwell/gravwell/v3/sflow/datagram"
 )
 
+const (
+	// MaxDatagramSize matches sflowtool's SA_MAX_SFLOW_PKT_SIZ (exceeds UDP max payload of 65,507 bytes)
+	MaxDatagramSize = 65536
+)
+
 var (
 	ErrUnknownSflowVersion = errors.New("unknown sflow version")
 	ErrUnknownIPVersion    = errors.New("unknown ip version")
 )
 
 type DatagramDecoder struct {
-	r io.Reader
+	r *io.LimitedReader
 }
 
 func NewDatagramDecoder(r io.Reader) DatagramDecoder {
-	return DatagramDecoder{r: r}
+	return DatagramDecoder{r: &io.LimitedReader{R: r, N: MaxDatagramSize}}
 }
 
 func (dd *DatagramDecoder) Decode() (*datagram.Datagram, error) {
@@ -84,10 +89,12 @@ func (dd *DatagramDecoder) Decode() (*datagram.Datagram, error) {
 		return nil, err
 	}
 
-	err = binary.Read(dd.r, binary.BigEndian, &dgram.SamplesCount)
+	dgram.SamplesCount, err = decodeLength(dd.r, MinBytesPerItem)
 	if err != nil {
 		return nil, err
 	}
+
+	dgram.Samples = make([]datagram.Sample, 0, dgram.SamplesCount)
 
 	for range dgram.SamplesCount {
 		sample, err := decodeSample(dd.r)

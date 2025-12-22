@@ -136,6 +136,10 @@ Unknown sample formats decode as `UnknownSample` with raw data preserved. Unknow
 - `xdr/`: RFC 4506 XDR encoding/decoding primitives
 - `internal/cmd/testgen/`: Utility for capturing live sFlow packets and generating test cases
 
+## Security
+
+The decoder protects against OOM attacks by limiting datagrams to 65,536 bytes via `io.LimitedReader` and validating all count fields against remaining bytes before allocation. Uses `uint64` arithmetic to prevent integer overflow bypasses.
+
 ## Testing
 
 The `internal/cmd/testgen` binary captures live sFlow packets as `.bin` files. Run `sflowtool-ref.sh` on the captured files to generate `.json` reference output from the official sflowtool (via Docker) for validation.

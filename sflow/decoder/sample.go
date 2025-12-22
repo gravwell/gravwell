@@ -21,7 +21,7 @@ var (
 	ErrRecordMalformedOrIncomplete = errors.New("record is malformed or incomplete")
 )
 
-func decodeSample(r io.Reader) (datagram.Sample, error) {
+func decodeSample(r *io.LimitedReader) (datagram.Sample, error) {
 	var format uint32
 	var length uint32
 	var err error
@@ -31,7 +31,7 @@ func decodeSample(r io.Reader) (datagram.Sample, error) {
 		return nil, err
 	}
 
-	err = binary.Read(r, binary.BigEndian, &length)
+	length, err = decodeLength(r, BytesPerLength)
 	if err != nil {
 		return nil, err
 	}

@@ -28,14 +28,16 @@ var (
 	ErrInvalidExtendedSocketIPv6RecordSize = errors.New("extended socket ipv6 record size is invalid")
 )
 
-func decodeExtendedTCPInfo(r io.Reader) (*datagram.ExtendedTCPInfo, error) {
+func decodeExtendedTCPInfo(r *io.LimitedReader) (*datagram.ExtendedTCPInfo, error) {
 	eti := datagram.ExtendedTCPInfo{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.ExtendedTCPInfoRecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &eti.Length); err != nil {
+	var err error
+	eti.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 
@@ -94,14 +96,16 @@ func decodeExtendedTCPInfo(r io.Reader) (*datagram.ExtendedTCPInfo, error) {
 	return &eti, nil
 }
 
-func decodeFlowSampledHeader(r io.Reader) (*datagram.FlowSampledHeader, error) {
+func decodeFlowSampledHeader(r *io.LimitedReader) (*datagram.FlowSampledHeader, error) {
 	dfsh := datagram.FlowSampledHeader{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.FlowSampledHeaderRecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &dfsh.Length); err != nil {
+	var err error
+	dfsh.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 
@@ -127,14 +131,16 @@ func decodeFlowSampledHeader(r io.Reader) (*datagram.FlowSampledHeader, error) {
 	return &dfsh, nil
 }
 
-func decodeSampledEthernet(r io.Reader) (*datagram.SampledEthernet, error) {
+func decodeSampledEthernet(r *io.LimitedReader) (*datagram.SampledEthernet, error) {
 	se := datagram.SampledEthernet{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.SampledEthernetRecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &se.Length); err != nil {
+	var err error
+	se.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 
@@ -161,14 +167,16 @@ func decodeSampledEthernet(r io.Reader) (*datagram.SampledEthernet, error) {
 	return &se, nil
 }
 
-func decodeSampledIPv4(r io.Reader) (*datagram.SampledIPv4, error) {
+func decodeSampledIPv4(r *io.LimitedReader) (*datagram.SampledIPv4, error) {
 	si := datagram.SampledIPv4{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.SampledIPv4RecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &si.Length); err != nil {
+	var err error
+	si.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 
@@ -211,14 +219,16 @@ func decodeSampledIPv4(r io.Reader) (*datagram.SampledIPv4, error) {
 	return &si, nil
 }
 
-func decodeSampledIPv6(r io.Reader) (*datagram.SampledIPv6, error) {
+func decodeSampledIPv6(r *io.LimitedReader) (*datagram.SampledIPv6, error) {
 	si := datagram.SampledIPv6{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.SampledIPv6RecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &si.Length); err != nil {
+	var err error
+	si.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 
@@ -261,14 +271,16 @@ func decodeSampledIPv6(r io.Reader) (*datagram.SampledIPv6, error) {
 	return &si, nil
 }
 
-func decodeExtendedSwitch(r io.Reader) (*datagram.ExtendedSwitch, error) {
+func decodeExtendedSwitch(r *io.LimitedReader) (*datagram.ExtendedSwitch, error) {
 	es := datagram.ExtendedSwitch{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.ExtendedSwitchRecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &es.Length); err != nil {
+	var err error
+	es.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 
@@ -295,14 +307,16 @@ func decodeExtendedSwitch(r io.Reader) (*datagram.ExtendedSwitch, error) {
 	return &es, nil
 }
 
-func decodeExtendedRouter(r io.Reader) (*datagram.ExtendedRouter, error) {
+func decodeExtendedRouter(r *io.LimitedReader) (*datagram.ExtendedRouter, error) {
 	er := datagram.ExtendedRouter{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.ExtendedRouterRecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &er.Length); err != nil {
+	var err error
+	er.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 
@@ -341,14 +355,16 @@ func decodeExtendedRouter(r io.Reader) (*datagram.ExtendedRouter, error) {
 	return &er, nil
 }
 
-func decodeExtendedGateway(r io.Reader) (*datagram.ExtendedGateway, error) {
+func decodeExtendedGateway(r *io.LimitedReader) (*datagram.ExtendedGateway, error) {
 	eg := datagram.ExtendedGateway{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.ExtendedGatewayRecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &eg.Length); err != nil {
+	var err error
+	eg.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 
@@ -371,7 +387,8 @@ func decodeExtendedGateway(r io.Reader) (*datagram.ExtendedGateway, error) {
 	}
 
 	var segmentCount uint32
-	if err := binary.Read(r, binary.BigEndian, &segmentCount); err != nil {
+	segmentCount, err = decodeLength(r, MinBytesPerItem)
+	if err != nil {
 		return nil, err
 	}
 
@@ -404,14 +421,16 @@ func decodeExtendedGateway(r io.Reader) (*datagram.ExtendedGateway, error) {
 	return &eg, nil
 }
 
-func decodeExtendedUser(r io.Reader) (*datagram.ExtendedUser, error) {
+func decodeExtendedUser(r *io.LimitedReader) (*datagram.ExtendedUser, error) {
 	eu := datagram.ExtendedUser{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.ExtendedUserRecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &eu.Length); err != nil {
+	var err error
+	eu.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 
@@ -440,14 +459,16 @@ func decodeExtendedUser(r io.Reader) (*datagram.ExtendedUser, error) {
 	return &eu, nil
 }
 
-func decodeExtendedNAT(r io.Reader) (*datagram.ExtendedNAT, error) {
+func decodeExtendedNAT(r *io.LimitedReader) (*datagram.ExtendedNAT, error) {
 	en := datagram.ExtendedNAT{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.ExtendedNATRecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &en.Length); err != nil {
+	var err error
+	en.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 
@@ -473,14 +494,16 @@ func decodeExtendedNAT(r io.Reader) (*datagram.ExtendedNAT, error) {
 	return &en, nil
 }
 
-func decodeExtendedSocketIPv4(r io.Reader) (*datagram.ExtendedSocketIPv4, error) {
+func decodeExtendedSocketIPv4(r *io.LimitedReader) (*datagram.ExtendedSocketIPv4, error) {
 	esi := datagram.ExtendedSocketIPv4{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.ExtendedSocketIPv4RecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &esi.Length); err != nil {
+	var err error
+	esi.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 
@@ -511,14 +534,16 @@ func decodeExtendedSocketIPv4(r io.Reader) (*datagram.ExtendedSocketIPv4, error)
 	return &esi, nil
 }
 
-func decodeExtendedSocketIPv6(r io.Reader) (*datagram.ExtendedSocketIPv6, error) {
+func decodeExtendedSocketIPv6(r *io.LimitedReader) (*datagram.ExtendedSocketIPv6, error) {
 	esi := datagram.ExtendedSocketIPv6{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.ExtendedSocketIPv6RecordDataFormatValue,
 		},
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &esi.Length); err != nil {
+	var err error
+	esi.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
 		return nil, err
 	}
 

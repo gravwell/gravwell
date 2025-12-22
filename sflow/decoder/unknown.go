@@ -14,7 +14,11 @@ import (
 	"github.com/gravwell/gravwell/v3/sflow/datagram"
 )
 
-func decodeUnknownSample(r io.Reader, format, length uint32) (*datagram.UnknownSample, error) {
+func decodeUnknownSample(r *io.LimitedReader, format, length uint32) (*datagram.UnknownSample, error) {
+	if int64(length) > r.N {
+		return nil, ErrSizeTooLarge
+	}
+
 	// Per XDR spec, length is the actual data size. Padding is wire overhead
 	// that can be recomputed for re-encoding via data.Pad().
 	data := make(datagram.XDRVariableLengthOpaque, length)
@@ -39,7 +43,7 @@ func decodeUnknownSample(r io.Reader, format, length uint32) (*datagram.UnknownS
 	}, nil
 }
 
-func decodeUnknownRecord(r io.Reader, dataFormat uint32) (*datagram.UnknownRecord, error) {
+func decodeUnknownRecord(r *io.LimitedReader, dataFormat uint32) (*datagram.UnknownRecord, error) {
 	record, err := decodeXDRVariableLengthOpaque(r)
 	if err != nil {
 		return nil, err

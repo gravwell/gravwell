@@ -15,7 +15,7 @@ import (
 	"github.com/gravwell/gravwell/v3/sflow/datagram"
 )
 
-func decodeFlowSampleFormat(r io.Reader, length uint32) (*datagram.FlowSample, error) {
+func decodeFlowSampleFormat(r *io.LimitedReader, length uint32) (*datagram.FlowSample, error) {
 	header := datagram.SampleHeader{
 		Format: datagram.CounterSampleFormat,
 		Length: length,
@@ -59,8 +59,7 @@ func decodeFlowSampleFormat(r io.Reader, length uint32) (*datagram.FlowSample, e
 		return nil, err
 	}
 
-	var recordsCount uint32
-	err = binary.Read(r, binary.BigEndian, &recordsCount)
+	recordsCount, err := decodeLength(r, MinBytesPerItem)
 	if err != nil {
 		return nil, err
 	}
@@ -70,7 +69,7 @@ func decodeFlowSampleFormat(r io.Reader, length uint32) (*datagram.FlowSample, e
 	return fs, err
 }
 
-func decodeFlowSampleExpandedFormat(r io.Reader, length uint32) (*datagram.FlowSampleExpanded, error) {
+func decodeFlowSampleExpandedFormat(r *io.LimitedReader, length uint32) (*datagram.FlowSampleExpanded, error) {
 	header := datagram.SampleHeader{
 		Format: datagram.FlowSampleExpandedFormat,
 		Length: length,
@@ -129,8 +128,7 @@ func decodeFlowSampleExpandedFormat(r io.Reader, length uint32) (*datagram.FlowS
 		return nil, err
 	}
 
-	var recordsCount uint32
-	err = binary.Read(r, binary.BigEndian, &recordsCount)
+	recordsCount, err := decodeLength(r, MinBytesPerItem)
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +138,7 @@ func decodeFlowSampleExpandedFormat(r io.Reader, length uint32) (*datagram.FlowS
 	return fse, err
 }
 
-func decodeFlowSampleRecords(r io.Reader, recordsCount uint32) ([]datagram.Record, error) {
+func decodeFlowSampleRecords(r *io.LimitedReader, recordsCount uint32) ([]datagram.Record, error) {
 	records := make([]datagram.Record, 0, recordsCount)
 	for range recordsCount {
 		var dataFormat uint32
