@@ -162,7 +162,7 @@ func (nr *NativeRunner) run() {
 	var lastRun time.Time
 	for nr.ctx.Err() == nil {
 		if d := time.Since(lastRun); d < restartDelay {
-			if nr.rt.Sleep(d) {
+			if nr.rt.Sleep(restartDelay - d) {
 				break
 			}
 		}

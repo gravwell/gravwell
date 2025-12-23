@@ -3,10 +3,11 @@ package mimecast
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -22,16 +23,17 @@ const (
 
 type Mimecast struct {
 	c            *Client
-	events       []EventType
+	apis         []Api
 	includeAudit bool // if the audit api should be polled
+	start        time.Time
 }
 
 func NewLegacy(conf *LegacyConfig) *Mimecast {
-	c := NewClient("", conf.ClientID, conf.ClientSecret, &http.Client{Timeout: 15})
-	event, ok := SIEMApiEvents[conf.MimecastAPI]
-	var events = make([]EventType, 0)
+	c := NewClient(defaultBaseDomain, conf.ClientID, conf.ClientSecret, &http.Client{})
+	_, ok := SIEMApiEvents[conf.MimecastAPI]
+	var apis = make([]Api, 1)
 	if ok {
-		events = append(events, event)
+		apis[0] = conf.MimecastAPI
 	}
 	audit := false
 	if conf.MimecastAPI == AuditApi {
@@ -39,65 +41,99 @@ func NewLegacy(conf *LegacyConfig) *Mimecast {
 	}
 	return &Mimecast{
 		c:            c,
-		events:       events,
+		apis:         apis,
 		includeAudit: audit,
+		start:        conf.StartTime,
 	}
 }
 
 func New(conf *Config) *Mimecast {
-	c := NewClient(conf.Host, conf.Client_Id, conf.Client_Secret, &http.Client{Timeout: 15})
+	c := NewClient(conf.Host, conf.Client_Id, conf.Client_Secret, &http.Client{})
+	apis := make([]Api, 0)
+	audit := false
+	for _, a := range conf.Api {
+		if a == AuditApi {
+			audit = true
+			continue
+		}
+		_, ok := SIEMApiEvents[Api(a)]
+		if ok {
+			apis = append(apis, Api(a))
+		}
+	}
+
+	start := time.Now().Add(conf.Lookback * -time.Hour)
+
 	return &Mimecast{
-		c: c,
+		c:            c,
+		apis:         apis,
+		includeAudit: audit,
+		start:        start,
 	}
 }
 
 func (m *Mimecast) Run(ctx context.Context, rt hosted.Runtime) error {
-	rt.Info("starting audit")
-	return m.audit(ctx, rt)
+	rt.Info("starting mimecast")
+	errs := make([]error, 2)
+	var wg sync.WaitGroup
+	if m.includeAudit {
+		wg.Add(1)
+		go func() {
+			err := m.audit(ctx, rt)
+			errs[0] = err
+			wg.Done()
+		}()
+	}
+	if len(m.apis) > 0 {
+		wg.Add(1)
+		go func() {
+			err := m.mta(ctx, rt)
+			errs[1] = err
+			wg.Done()
+		}()
+	}
+	wg.Wait()
+	return errors.Join(errs...)
 }
 
 func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
-	var cursor *string                          // if cursor is non-nil don't update timestamps
-	lastTime := time.Now().Add(-24 * time.Hour) // audit api only holds logs for a day
-	if t, err := rt.GetTime(auditTimestamp); err != nil {
-		return fmt.Errorf("error getting last timestamp: %w", err)
-	} else if t.Before(time.Now()) {
-		lastTime = t
-	}
-
+	var cursor *string                   // if cursor is non-nil don't update timestamps
 	tag, err := rt.NegotiateTag("audit") // TODO: config
 	if err != nil {
 		return err
 	}
-	for rt.Sleep(time.Second * 1) { // TODO: configurable
-		if c, err := rt.GetString(auditCursor); err != nil {
+	for !rt.Sleep(time.Second * 5) { // TODO: configurable
+		if c, err := rt.GetString(auditCursor); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
+			rt.Error("error getting audit cursor", log.KVErr(err))
 			continue
 		} else if c != "" {
 			cursor = &c
 		}
 
+		lastTime := m.start // audit api only holds logs for a day
+		if t, err := rt.GetTime(auditTimestamp); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
+			return fmt.Errorf("error getting last timestamp: %w", err)
+		} else if t.Before(time.Now()) {
+			lastTime = t
+		}
 		r, err := m.c.GetRawAuditEvents(ctx, lastTime, time.Now(), cursor)
 		if err != nil {
-			rt.Error("request error", log.KVErr(err))
+			rt.Error("request error", log.KV("api", "audit"), log.KVErr(err))
 			continue
 		}
 
-		if r.Meta.Pagination.Next != "" {
-			cursor = &r.Meta.Pagination.Next
-		} else {
-			cursor = nil
-		}
 		for _, d := range r.Data {
-			data, err := parse[AuditData](io.NopCloser(bytes.NewReader(d)))
+			data, err := parse[AuditData](bytes.NewReader(d))
 			if err != nil {
-				continue // TODO: what do
+				rt.Error("error parsing audit record", log.KVErr(err))
+				continue
 			}
 			ts, err := time.Parse(AuditTimeFormat, data.EventTime)
 			if err != nil {
-				continue // TODO: same ^
+				rt.Error("error parsting time for event", log.KVErr(err))
+				continue
 			}
 			e := entry.Entry{
-				SRC:  net.ParseIP("127.0.0.1"),
 				TS:   entry.FromStandard(ts),
 				Data: d,
 				Tag:  tag,
@@ -105,9 +141,9 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 			rt.Write(e)
 			// save progress on current cursor?
 		}
-
-		if cursor != nil {
-			rt.PutString(auditCursor, *cursor)
+		// don't advance the cursor until we process the page
+		if r.Meta.Pagination.Next != "" {
+			rt.PutString(auditCursor, r.Meta.Pagination.Next)
 		} else {
 			rt.PutString(auditCursor, "")
 			rt.PutTime(auditTimestamp, time.Now()) // I'm not sure this is true, may need to get the timestamp off the last record, otherwise we might skip
@@ -120,45 +156,47 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 }
 
 func (m *Mimecast) mta(ctx context.Context, rt hosted.Runtime) error {
-	for rt.Sleep(time.Second) { // TODO: config
-		for _, e := range m.events {
-			m.c.GetSIEMEventBatch(ctx, e, time.Now(), time.Now(), nil)
-		}
+	errs := make([]error, len(m.apis))
+	var wg sync.WaitGroup
+	for i, a := range m.apis {
+		wg.Add(1)
+		go func() {
+			err := m.mtaEvent(ctx, rt, a)
+			errs[i] = err
+			wg.Done()
+		}()
 	}
-	return nil
+	wg.Wait()
+	return errors.Join(errs...)
 }
 
-func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, event EventType) error {
-	var cursor *string                          // if cursor is non-nil don't update timestamps
-	lastTime := time.Now().Add(-7 * 24 * time.Hour) // mta events are held for 7 days
-	if t, err := rt.GetTime(string(event) + auditTimestamp); err != nil {
-		return fmt.Errorf("error getting last timestamp: %w", err)
-	} else if t.Before(time.Now()) {
-		lastTime = t
-	}
-
-	tag, err := rt.NegotiateTag("audit") // TODO: config
+func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) error {
+	event, _ := SIEMApiEvents[api]
+	tag, err := rt.NegotiateTag(string(api))
 	if err != nil {
 		return err
 	}
-	for rt.Sleep(time.Second * 1) { // TODO: configurable
-		if c, err := rt.GetString(string(event)+auditCursor); err != nil {
+	for !rt.Sleep(time.Second * 5) { // TODO: configurable
+		var cursor *string
+		if c, err := rt.GetString(string(api) + auditCursor); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
+			rt.Error("error getting cursor", log.KV("api", api), log.KVErr(err))
 			continue
 		} else if c != "" {
 			cursor = &c
 		}
+		lastTime := m.start // mta events are held for 7 days
+		if t, err := rt.GetTime(string(api) + auditTimestamp); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
+			rt.Error("error getting last timestamp", log.KV("api", api), log.KVErr(err))
+		} else if t.Before(time.Now()) {
+			lastTime = t
+		}
 
-		r, err := m.c.GetSIEMEventBatch(ctx, lastTime, time.Now(), cursor)
+		r, err := m.c.GetSIEMEventBatch(ctx, event, lastTime, time.Now(), cursor)
 		if err != nil {
-			rt.Error("request error", log.KVErr(err))
+			rt.Error("request error", log.KV("api", api), log.KVErr(err))
 			continue
 		}
 
-		if r.NextPage != "" {
-			cursor = &r.NextPage
-		} else {
-			cursor = nil
-		}
 		for _, v := range r.Value {
 			request, err := http.NewRequestWithContext(ctx, http.MethodGet, v.URL, nil)
 			if err != nil {
@@ -166,16 +204,18 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, event EventT
 			}
 			response, err := m.c.Do(request)
 			if err != nil {
-				continue // TODO: ???
+				response.Body.Close()
+				rt.Error("mimecast request failed", log.KV("api", api), log.KVErr(err))
+				continue
 			}
 			body, err := io.ReadAll(response.Body)
 			response.Body.Close()
-			data, err := parse[MtaEventData](io.NopCloser(bytes.NewReader(body))
+			data, err := parse[MtaEventData](bytes.NewReader(body))
 			if err != nil {
+				rt.Error("failed to parse mta event", log.KV("api", api), log.KVErr(err))
 				continue // TODO: what do
 			}
 			e := entry.Entry{
-				SRC:  net.ParseIP("127.0.0.1"),
 				TS:   entry.FromStandard(time.Unix(data.Timestamp, 0)),
 				Data: body,
 				Tag:  tag,
@@ -183,16 +223,13 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, event EventT
 			rt.Write(e)
 			// save progress on current cursor?
 		}
-
-		if cursor != nil {
-			rt.PutString(string(event)+auditCursor, *cursor)
+		if !r.IsCaughtUp {
+			rt.PutString(string(api)+auditCursor, r.NextPage)
 		} else {
-			rt.PutString(string(event)+auditCursor, "")
-			rt.PutTime(string(event)+auditTimestamp, time.Now()) // I'm not sure this is true, may need to get the timestamp off the last record, otherwise we might skip
+			rt.PutString(string(api)+auditCursor, "")
+			rt.PutTime(string(api)+auditTimestamp, time.Now()) // I'm not sure this is true, may need to get the timestamp off the last record, otherwise we might skip
 		}
 	}
-
-	// TODO: save state before bailing
 
 	return nil
 }

@@ -72,19 +72,13 @@ func (c *Client) authenticate(ctx context.Context) error {
 		return fmt.Errorf("auth request got bad status code: %d", res.StatusCode)
 	}
 
-	body, err := io.ReadAll(res.Body)
+	token, err := parse[AuthToken](res.Body)
 	if err != nil {
-		return fmt.Errorf("auth request could not read response body")
-	}
-
-	var token AuthToken
-	err = json.Unmarshal(body, &token)
-	if err != nil {
-		return fmt.Errorf("failed to read auth token: %w", err)
+		return fmt.Errorf("failed to parse auth response: %w", err)
 	}
 	// expire 'early' so we don't risk a race
-	c.token.ExpireAt = time.Now().Add(time.Duration(c.token.ExpireIn)*time.Second - time.Second*5)
-	c.token = token
+	c.token.ExpireAt = time.Now().Add(time.Duration(token.ExpireIn)*time.Second - time.Second*5)
+	c.token = *token
 	return nil
 }
 
@@ -194,7 +188,9 @@ func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cu
 	return b, nil
 }
 
-func parse[T any](rc io.ReadCloser) (*T, error) {
+// parse will read and marshal bytes into a type T.
+// intended for use with http.Response bodies
+func parse[T any](rc io.Reader) (*T, error) {
 	t := new(T)
 
 	body, err := io.ReadAll(rc)

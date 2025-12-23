@@ -17,6 +17,7 @@ import (
 
 	// include all the native hosted ingesters
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
+	"github.com/gravwell/gravwell/v3/ingesters/hosted/mimecast"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted/okta"
 )
 
@@ -41,7 +42,9 @@ type cfgType struct {
 }
 
 type ingesterConfigs struct {
-	Okta map[string]*okta.Config
+	Okta         map[string]*okta.Config
+	MimecastConf map[string]*mimecast.LegacyConfig
+	Mimecast     map[string]*mimecast.Config
 }
 
 func (c cfgType) Verify() (err error) {
@@ -61,6 +64,22 @@ func (c cfgType) Verify() (err error) {
 			}
 		}
 	}
+	for k, v := range c.MimecastConf {
+		if v != nil {
+			if err = v.Verify(); err != nil {
+				err = fmt.Errorf("MimecastConf config %q failed validation %w", k, err)
+				return
+			}
+		}
+	}
+	for k, v := range c.Mimecast {
+		if v != nil {
+			if err = v.Verify(); err != nil {
+				err = fmt.Errorf("Mimecast config %q failed validation %w", k, err)
+				return
+			}
+		}
+	}
 	return
 }
 
@@ -74,6 +93,11 @@ func (c cfgType) Tags() (tags []string, err error) {
 	if len(c.Okta) > 0 {
 		tags = append(tags, okta.Tags...)
 	}
+	if len(c.Mimecast) > 0 {
+		for _, v := range c.Mimecast {
+			tags = append(tags, v.Tags()...)
+		}
+	}
 	return
 }
 
@@ -83,7 +107,7 @@ func (c cfgType) IngestBaseConfig() config.IngestConfig {
 }
 
 func (ic ingesterConfigs) IngesterCount() (r int) {
-	r = len(ic.Okta)
+	r = len(ic.Okta) + len(ic.MimecastConf) + len(ic.Mimecast)
 	return
 }
 
@@ -134,6 +158,70 @@ func (ic ingesterConfigs) forEachIngester(tn hosted.TagNegotiator, nrt newRuntim
 		// ask for for the runtime associated with this ingester uuid
 		// create new native runner because Okta is native
 		if err = cb(`okta`, k, runner); err != nil {
+			return err
+		}
+	}
+
+	for k, v := range ic.MimecastConf {
+		// this shouldn't happen, but scream about it anyway
+		if v == nil {
+			err = fmt.Errorf("okta ingester %q has a nil config", k)
+			return
+		}
+		// get a new ingester
+		var ig *mimecast.Mimecast
+		ig = mimecast.NewLegacy(v)
+
+		//create a new runtime for this ingester
+		var rt hosted.Runtime
+		if rt, err = nrt(`mimecast`, k, v.UUID()); err != nil {
+			err = fmt.Errorf("failed to create new runtime for okta ingester %q: %w", k, err)
+			return
+		}
+
+		// create a new hosted native runner
+		var runner *hosted.NativeRunner
+		if runner, err = hosted.NewNativeRunner("mimecast.ingesters.gravwell.io", k, okta.Version, v.UUID(), ig, rt); err != nil {
+			err = fmt.Errorf("failed to create new native %s runner %w", `okta`, err)
+			runner = nil
+			return
+		}
+
+		// create the okta ingester
+		// ask for for the runtime associated with this ingester uuid
+		// create new native runner because Okta is native
+		if err = cb(`mimecast`, k, runner); err != nil {
+			return err
+		}
+	}
+	for k, v := range ic.Mimecast {
+		// this shouldn't happen, but scream about it anyway
+		if v == nil {
+			err = fmt.Errorf("mimecast ingester %q has a nil config", k)
+			return
+		}
+		// get a new ingester
+		ig := mimecast.New(v)
+
+		//create a new runtime for this ingester
+		var rt hosted.Runtime
+		if rt, err = nrt(`mimecast`, k, v.UUID()); err != nil {
+			err = fmt.Errorf("failed to create new runtime for okta ingester %q: %w", k, err)
+			return
+		}
+
+		// create a new hosted native runner
+		var runner *hosted.NativeRunner
+		if runner, err = hosted.NewNativeRunner("mimecast.ingesters.gravwell.io", k, okta.Version, v.UUID(), ig, rt); err != nil {
+			err = fmt.Errorf("failed to create new native %s runner %w", `okta`, err)
+			runner = nil
+			return
+		}
+
+		// create the okta ingester
+		// ask for for the runtime associated with this ingester uuid
+		// create new native runner because Okta is native
+		if err = cb(`mimecast`, k, runner); err != nil {
 			return err
 		}
 	}

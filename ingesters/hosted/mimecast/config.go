@@ -7,14 +7,19 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	defaultBaseDomain = "https://api.services.mimecast.com"
+)
+
 type LegacyConfig struct {
-	StartTime    time.Time
-	ClientID     string
-	ClientSecret string
-	MimecastAPI  Api
-	Tag_Name     string
-	Preprocessor []string
-	RateLimit    int
+	Ingester_UUID string
+	StartTime     time.Time
+	ClientID      string
+	ClientSecret  string
+	MimecastAPI   Api
+	Tag_Name      string
+	Preprocessor  []string
+	RateLimit     int
 }
 
 func (l *LegacyConfig) Verify() error {
@@ -37,11 +42,21 @@ func (l *LegacyConfig) Verify() error {
 	return nil
 }
 
+func (l *LegacyConfig) UUID() uuid.UUID {
+	if l.Ingester_UUID != "" {
+		if r, err := uuid.Parse(l.Ingester_UUID); err == nil {
+			return r
+		}
+	}
+	return uuid.Nil
+}
+
 type Config struct {
 	Ingester_UUID string
 	Lookback      time.Duration
 	Client_Id     string
 	Client_Secret string
+	Api           []string
 	Host          string
 	Tag_Name      string
 	Preprocessor  []string
@@ -49,6 +64,9 @@ type Config struct {
 }
 
 func (c *Config) Verify() error {
+	if c.Host == "" {
+		c.Host = defaultBaseDomain
+	}
 	return nil
 }
 
@@ -59,4 +77,8 @@ func (c *Config) UUID() uuid.UUID {
 		}
 	}
 	return uuid.Nil
+}
+
+func (c *Config) Tags() []string {
+	return []string{c.Tag_Name}
 }
