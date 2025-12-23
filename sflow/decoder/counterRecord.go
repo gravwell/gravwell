@@ -209,10 +209,6 @@ func decodeEthernetCountersRecord(r *io.LimitedReader) (*datagram.EthernetCounte
 		return nil, err
 	}
 
-	if err := binary.Read(r, binary.BigEndian, &ecr.Dot3StatsExcessiveCollisions); err != nil {
-		return nil, err
-	}
-
 	if err := binary.Read(r, binary.BigEndian, &ecr.Dot3StatsInternalMacTransmitErrors); err != nil {
 		return nil, err
 	}

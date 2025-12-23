@@ -1,0 +1,56 @@
+{
+  "datagramVersion": "5",
+  "agentSubId": "1",
+  "agent": "208.85.240.52",
+  "packetSequenceNo": "1086077",
+  "sysUpTime": "921964804",
+  "samplesInPacket": "1",
+  "samples": [
+    {
+      "sampleType_tag": "0:2",
+      "sampleType": "COUNTERSSAMPLE",
+      "sampleSequenceNo": "101239",
+      "sourceId": "0:9",
+      "elements": [
+        {
+          "counterBlock_tag": "0:2",
+          "dot3StatsAlignmentErrors": "0",
+          "dot3StatsFCSErrors": "0",
+          "dot3StatsSingleCollisionFrames": "0",
+          "dot3StatsMultipleCollisionFrames": "0",
+          "dot3StatsSQETestErrors": "0",
+          "dot3StatsDeferredTransmissions": "0",
+          "dot3StatsLateCollisions": "0",
+          "dot3StatsExcessiveCollisions": "0",
+          "dot3StatsInternalMacTransmitErrors": "0",
+          "dot3StatsCarrierSenseErrors": "0",
+          "dot3StatsFrameTooLongs": "0",
+          "dot3StatsInternalMacReceiveErrors": "0",
+          "dot3StatsSymbolErrors": "0"
+        },
+        {
+          "counterBlock_tag": "0:1",
+          "ifIndex": "9",
+          "networkType": "6",
+          "ifSpeed": "100000000",
+          "ifDirection": "1",
+          "ifStatus": "3",
+          "ifInOctets": "79282473",
+          "ifInUcastPkts": "329128",
+          "ifInMulticastPkts": "0",
+          "ifInBroadcastPkts": "1493",
+          "ifInDiscards": "0",
+          "ifInErrors": "0",
+          "ifInUnknownProtos": "0",
+          "ifOutOctets": "764247430",
+          "ifOutUcastPkts": "9470970",
+          "ifOutMulticastPkts": "780342",
+          "ifOutBroadcastPkts": "877721",
+          "ifOutDiscards": "0",
+          "ifOutErrors": "0",
+          "ifPromiscuousMode": "1"
+        }
+      ]
+    }
+  ]
+}
