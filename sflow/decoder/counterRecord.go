@@ -919,7 +919,7 @@ func decodeHostCPURecord(r *io.LimitedReader) (*datagram.HostCPU, error) {
 		return nil, err
 	}
 
-	if hcp.Length != uint32(datagram.HostCPURecordValidLength) {
+	if hcp.Length != uint32(datagram.HostCPURecordValidLength) && hcp.Length != uint32(datagram.HostCPURecordExtendedValidLength) {
 		return nil, ErrInvalidHostCPURecordSize
 	}
 
@@ -989,6 +989,11 @@ func decodeHostCPURecord(r *io.LimitedReader) (*datagram.HostCPU, error) {
 
 	if err := binary.Read(r, binary.BigEndian, &hcp.Contexts); err != nil {
 		return nil, err
+	}
+
+	// Only read these fields if the packet is from the extension format
+	if hcp.Length == uint32(datagram.HostCPURecordValidLength) {
+		return &hcp, err
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &hcp.CPUSteal); err != nil {

@@ -1,0 +1,102 @@
+{
+  "datagramVersion": "5",
+  "agentSubId": "100000",
+  "agent": "192.168.1.7",
+  "packetSequenceNo": "23",
+  "sysUpTime": "23000",
+  "samplesInPacket": "1",
+  "samples": [
+    {
+      "sampleType_tag": "0:2",
+      "sampleType": "COUNTERSSAMPLE",
+      "sampleSequenceNo": "23",
+      "sourceId": "2:1",
+      "elements": [
+        {
+          "counterBlock_tag": "0:2001",
+          "adaptor_list": [
+            {
+              "ifIndex": "2",
+              "MACs": "1",
+              "mac_list": [
+                "3c970e25f056"
+              ]
+            },
+            {
+              "ifIndex": "3",
+              "MACs": "1",
+              "mac_list": [
+                "9c4e3659b254"
+              ]
+            }
+          ]
+        },
+        {
+          "counterBlock_tag": "0:2005",
+          "disk_total": "488129277952",
+          "disk_free": "450023897088",
+          "disk_partition_max_used": "56.39",
+          "disk_reads": "249289",
+          "disk_bytes_read": "4761008128",
+          "disk_read_time": "6064940",
+          "disk_writes": "3572946",
+          "disk_bytes_written": "23503597568",
+          "disk_write_time": "75425312"
+        },
+        {
+          "counterBlock_tag": "0:2004",
+          "mem_total": "3855892480",
+          "mem_free": "575180800",
+          "mem_shared": "0",
+          "mem_buffers": "201179136",
+          "mem_cached": "1707036672",
+          "swap_total": "4001361920",
+          "swap_free": "4001337344",
+          "page_in": "1190510",
+          "page_out": "5752462",
+          "swap_in": "0",
+          "swap_out": "6"
+        },
+        {
+          "counterBlock_tag": "0:2003",
+          "cpu_load_one": "0.470",
+          "cpu_load_five": "0.580",
+          "cpu_load_fifteen": "0.500",
+          "cpu_proc_run": "2",
+          "cpu_proc_total": "511",
+          "cpu_num": "4",
+          "cpu_speed": "1200",
+          "cpu_uptime": "103412",
+          "cpu_user": "5240030",
+          "cpu_nice": "67660",
+          "cpu_system": "2148900",
+          "cpu_idle": "145795710",
+          "cpu_wio": "4661420",
+          "cpuintr": "58860",
+          "cpu_sintr": "0",
+          "cpuinterrupts": "19770787",
+          "cpu_contexts": "87991375"
+        },
+        {
+          "counterBlock_tag": "0:2006",
+          "nio_bytes_in": "14867",
+          "nio_pkts_in": "72",
+          "nio_errs_in": "0",
+          "nio_drops_in": "0",
+          "nio_bytes_out": "2880",
+          "nio_pkts_out": "32",
+          "nio_errs_out": "0",
+          "nio_drops_out": "0"
+        },
+        {
+          "counterBlock_tag": "0:2000",
+          "hostname": "fractal",
+          "UUID": "20d11d01-5150-11cb-957d-990521365ba3",
+          "machine_type": "3",
+          "os_name": "2",
+          "os_release": "3.13.0-29-generic"
+        }
+      ]
+    }
+  ]
+}

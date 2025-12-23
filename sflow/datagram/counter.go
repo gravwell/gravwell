@@ -392,6 +392,7 @@ type HostCPU struct {
 	CPUSoftIntr      uint32
 	Interrupts       uint32
 	Contexts         uint32
+	// Extension
 	CPUSteal         uint32
 	CPUGuest         uint32
 	CPUGuestNice     uint32
@@ -401,7 +402,10 @@ func (v *HostCPU) GetHeader() RecordHeader {
 	return v.RecordHeader
 }
 
-var HostCPURecordValidLength = packetSizeOf(HostCPU{}) - RecordHeaderSize
+var (
+	HostCPURecordExtendedValidLength = packetSizeOf(HostCPU{}) - RecordHeaderSize
+	HostCPURecordValidLength = HostCPURecordExtendedValidLength - 12 // 12 = CPUSteal(4) + CPUGuest(4) + CPUGuestNice(4)
+)
 
 const HostCPURecordDataFormatValue uint32 = 2003
 
