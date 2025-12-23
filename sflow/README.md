@@ -4,7 +4,9 @@ Go library for decoding sFlow v5 datagrams (RFC 3176). Implements counter and fl
 
 ## Implementation Status
 
-All sample containers (FlowSample, CounterSample, FlowSampleExpanded, CounterSampleExpanded) are implemented.
+All sample containers (FlowSample, CounterSample, FlowSampleExpanded, CounterSampleExpanded, DiscardedPacket) are implemented.
+
+**Legend:** ✅ = implemented, ✅✅ = implemented with test coverage, ❌ = not implemented
 
 ### Counter Records (Enterprise = 0)
 
@@ -24,23 +26,23 @@ All sample containers (FlowSample, CounterSample, FlowSampleExpanded, CounterSam
 | 1002   | radio_utilization  | ❌     |
 | 1003   | queue_length       | ✅     |
 | 1004   | of_port            | ✅     |
-| 1005   | port_name          | ✅     |
-| 2000   | host_descr         | ✅     |
-| 2001   | host_adapters      | ✅     |
-| 2002   | host_parent        | ✅     |
-| 2003   | host_cpu           | ✅     |
-| 2004   | host_memory        | ✅     |
-| 2005   | host_disk_io       | ✅     |
-| 2006   | host_net_io        | ✅     |
-| 2007   | mib2_ip_group      | ✅     |
-| 2008   | mib2_icmp_group    | ✅     |
-| 2009   | mib2_tcp_group     | ✅     |
-| 2010   | mib2_udp_group     | ✅     |
-| 2100   | virt_node          | ✅     |
-| 2101   | virt_cpu           | ✅     |
-| 2102   | virt_memory        | ✅     |
-| 2103   | virt_disk_io       | ✅     |
-| 2104   | virt_net_io        | ✅     |
+| 1005   | port_name          | ✅✅   |
+| 2000   | host_descr         | ✅✅   |
+| 2001   | host_adapters      | ✅✅   |
+| 2002   | host_parent        | ✅✅   |
+| 2003   | host_cpu           | ✅✅   |
+| 2004   | host_memory        | ✅✅   |
+| 2005   | host_disk_io       | ✅✅   |
+| 2006   | host_net_io        | ✅✅   |
+| 2007   | mib2_ip_group      | ✅✅   |
+| 2008   | mib2_icmp_group    | ✅✅   |
+| 2009   | mib2_tcp_group     | ✅✅   |
+| 2010   | mib2_udp_group     | ✅✅   |
+| 2100   | virt_node          | ✅✅   |
+| 2101   | virt_cpu           | ✅✅   |
+| 2102   | virt_memory        | ✅✅   |
+| 2103   | virt_disk_io       | ✅✅   |
+| 2104   | virt_net_io        | ✅✅   |
 | 2105   | jmx_runtime        | ✅     |
 | 2106   | jmx_statistics     | ✅     |
 | 2200   | memcached_counters | ❌     |
@@ -59,11 +61,11 @@ All sample containers (FlowSample, CounterSample, FlowSampleExpanded, CounterSam
 
 | Format | Structure                      | Status |
 | ------ | ------------------------------ | ------ |
-| 1      | sampled_header                 | ✅     |
-| 2      | sampled_ethernet               | ✅     |
+| 1      | sampled_header                 | ✅✅   |
+| 2      | sampled_ethernet               | ✅✅   |
 | 3      | sampled_ipv4                   | ✅     |
 | 4      | sampled_ipv6                   | ✅     |
-| 1001   | extended_switch                | ✅     |
+| 1001   | extended_switch                | ✅✅   |
 | 1002   | extended_router                | ✅     |
 | 1003   | extended_gateway               | ✅     |
 | 1004   | extended_user                  | ✅     |
@@ -98,9 +100,9 @@ All sample containers (FlowSample, CounterSample, FlowSampleExpanded, CounterSam
 | 1033   | extended_ib_brh                | ❌     |
 | 1034   | extended_vlanin                | ❌     |
 | 1035   | extended_vlanout               | ❌     |
-| 1036   | extended_egress_queue          | ✅     |
-| 1037   | extended_acl                   | ✅     |
-| 1038   | extended_function              | ✅     |
+| 1036   | extended_egress_queue          | ✅✅   |
+| 1037   | extended_acl                   | ✅✅   |
+| 1038   | extended_function              | ✅✅   |
 | 1039   | extended_transit               | ❌     |
 | 1040   | extended_queue                 | ❌     |
 | 1041   | extended_hw_trap               | ❌     |
@@ -123,10 +125,12 @@ All sample containers (FlowSample, CounterSample, FlowSampleExpanded, CounterSam
 | 2206   | http_requests                  | ❌     |
 | 2207   | extended_proxy_request         | ❌     |
 | 2208   | extended_nav_timing            | ❌     |
-| 2209   | extended_tcp_info              | ✅     |
+| 2209   | extended_tcp_info              | ✅✅   |
 | 2210   | extended_entities              | ❌     |
 
 Unknown sample formats decode as `UnknownSample` with raw data preserved. Unknown flow and counter record formats decode as `UnknownRecord` with raw data preserved. This allows the decoder to process datagrams containing unimplemented or vendor-specific structures without error.
+
+**Want a structure implemented or tested?** Send us a raw sFlow packet capture containing it.
 
 ## Architecture
 
