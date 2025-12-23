@@ -1,0 +1,98 @@
+{
+  "datagramVersion": "5",
+  "agentSubId": "1",
+  "agent": "208.85.240.52",
+  "packetSequenceNo": "6234811",
+  "sysUpTime": "3320957916",
+  "samplesInPacket": "2",
+  "samples": [
+    {
+      "sampleType_tag": "0:1",
+      "sampleType": "FLOWSAMPLE",
+      "sampleSequenceNo": "2804568",
+      "sourceId": "0:3",
+      "meanSkipCount": "512",
+      "samplePool": "2394376381",
+      "dropEvents": "0",
+      "inputPort": "3",
+      "outputPort": "1",
+      "elements": [
+        {
+          "flowBlock_tag": "0:1",
+          "flowSampleType": "HEADER",
+          "headerProtocol": "1",
+          "sampledPacketSize": "64",
+          "strippedBytes": "4",
+          "headerLen": "60",
+          "headerBytes": "00-00-0C-9F-F0-01-00-25-90-50-7D-A7-08-00-45-00-00-28-90-7E-40-00-40-06-B7-99-C7-3A-A1-82-D8-57-B1-A3-00-50-CF-D2-66-D5-E8-D5-48-80-D5-4E-50-10-00-3F-7F-40-00-00-00-00-00-00-00-00",
+          "dstMAC": "00000c9ff001",
+          "srcMAC": "002590507da7",
+          "ethernet_type": "2048",
+          "IPSize": "46",
+          "ip.tot_len": "40",
+          "srcIP": "199.58.161.130",
+          "dstIP": "216.87.177.163",
+          "IPProtocol": "6",
+          "IPTOS": "0",
+          "IPTTL": "64",
+          "IPID": "32400",
+          "TCPSrcPort": "80",
+          "TCPDstPort": "53202",
+          "TCPFlags": "16"
+        },
+        {
+          "flowBlock_tag": "0:1001",
+          "extendedType": "SWITCH",
+          "in_vlan": "16",
+          "in_priority": "0",
+          "out_vlan": "16",
+          "out_priority": "0"
+        }
+      ]
+    },
+    {
+      "sampleType_tag": "0:1",
+      "sampleType": "FLOWSAMPLE",
+      "sampleSequenceNo": "241405",
+      "sourceId": "0:5",
+      "meanSkipCount": "512",
+      "samplePool": "395679243",
+      "dropEvents": "0",
+      "inputPort": "5",
+      "outputPort": "1",
+      "elements": [
+        {
+          "flowBlock_tag": "0:1",
+          "flowSampleType": "HEADER",
+          "headerProtocol": "1",
+          "sampledPacketSize": "90",
+          "strippedBytes": "4",
+          "headerLen": "86",
+          "headerBytes": "00-00-0C-9F-F0-01-00-25-90-51-64-59-08-00-45-00-00-48-AF-30-40-00-40-06-5F-E7-C7-3A-A1-85-D4-47-EE-90-00-16-B4-05-1D-32-01-D1-8E-6E-0F-0F-80-18-00-2E-D7-4A-00-00-01-01-08-0A-3F-FF-AF-03-EB-25-73-25-53-53-48-2D-32-2E-30-2D-4F-70-65-6E-53-53-48-5F-34-2E-33-0A",
+          "dstMAC": "00000c9ff001",
+          "srcMAC": "002590516459",
+          "ethernet_type": "2048",
+          "IPSize": "72",
+          "ip.tot_len": "72",
+          "srcIP": "199.58.161.133",
+          "dstIP": "212.71.238.144",
+          "IPProtocol": "6",
+          "IPTOS": "0",
+          "IPTTL": "64",
+          "IPID": "12463",
+          "TCPSrcPort": "22",
+          "TCPDstPort": "46085",
+          "TCPFlags": "24"
+        },
+        {
+          "flowBlock_tag": "0:1001",
+          "extendedType": "SWITCH",
+          "in_vlan": "16",
+          "in_priority": "0",
+          "out_vlan": "16",
+          "out_priority": "0"
+        }
+      ]
+    }
+  ]
+}

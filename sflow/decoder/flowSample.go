@@ -17,7 +17,7 @@ import (
 
 func decodeFlowSampleFormat(r *io.LimitedReader, length uint32) (*datagram.FlowSample, error) {
 	header := datagram.SampleHeader{
-		Format: datagram.CounterSampleFormat,
+		Format: datagram.FlowSampleFormat,
 		Length: length,
 	}
 	fs := &datagram.FlowSample{
