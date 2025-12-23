@@ -1,0 +1,28 @@
+{
+  "datagramVersion": "5",
+  "agentSubId": "100000",
+  "agent": "192.168.119.184",
+  "packetSequenceNo": "3",
+  "sysUpTime": "12414",
+  "samplesInPacket": "1",
+  "samples": [
+    {
+      "sampleType_tag": "0:5",
+      "sampleType": "DISCARD",
+      "sampleSequenceNo": "2",
+      "sourceId": "0:1",
+      "dropEvents": "256",
+      "inputPort": "1",
+      "outputPort": "2",
+      "discardCode": "1",
+      "discardReason": "host_unreachable",
+      "elements": [
+        {
+          "discarded_flowBlock_tag": "0:1038",
+          "discarded_extendedType": "function",
+          "discarded_symbol": "foobar"
+        }
+      ]
+    }
+  ]
+}
