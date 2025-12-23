@@ -63,3 +63,21 @@ type InterfaceExpanded struct {
 	Format uint32
 	Value  uint32
 }
+
+// DiscardedPacket see https://sflow.org/sflow_drops.txt, pag 5, `discarded_packet`
+type DiscardedPacket struct {
+	SampleHeader
+	SequenceNum uint32
+	SFlowDataSourceExpanded
+	Drops         uint32
+	Input         uint32
+	Output        uint32
+	DiscardReason uint32
+	Records       []Record
+}
+
+func (dp *DiscardedPacket) GetHeader() SampleHeader {
+	return dp.SampleHeader
+}
+
+const DiscardedPacketFormat = 5

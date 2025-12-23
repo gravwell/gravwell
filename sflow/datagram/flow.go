@@ -404,3 +404,17 @@ func (ef *ExtendedFunction) GetHeader() RecordHeader {
 // NOTE ExtendedFunction is variable length, so no way to validate it
 
 const ExtendedFunctionRecordDataFormatValue uint32 = 1038
+
+// ExtendedLinuxReason see https://sflow.org/developers/structures.php `extended_linux_drop_reason`
+type ExtendedLinuxReason struct {
+	RecordHeader
+	Reason XDRString
+}
+
+func (elr *ExtendedLinuxReason) GetHeader() RecordHeader {
+	return elr.RecordHeader
+}
+
+// NOTE ExtendedLinuxReason is variable length, so no way to validate it
+
+const ExtendedLinuxReasonRecordDataFormatValue uint32 = 1042

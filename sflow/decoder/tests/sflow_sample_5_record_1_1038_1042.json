@@ -1,0 +1,56 @@
+{
+  "datagramVersion": "5",
+  "agentSubId": "100000",
+  "agent": "10.30.1.254",
+  "packetSequenceNo": "19263",
+  "sysUpTime": "155386440",
+  "samplesInPacket": "1",
+  "samples": [
+    {
+      "sampleType_tag": "0:5",
+      "sampleType": "DISCARD",
+      "sampleSequenceNo": "17145",
+      "sourceId": "0:2",
+      "dropEvents": "1799",
+      "inputPort": "2",
+      "outputPort": "0",
+      "discardCode": "289",
+      "discardReason": "unknown_l4",
+      "elements": [
+        {
+          "discarded_flowBlock_tag": "0:1042",
+          "discarded_extendedType": "linux_reason",
+          "discarded_linux_drop_reason": "NOT_SPECIFIED"
+        },
+        {
+          "discarded_flowBlock_tag": "0:1038",
+          "discarded_extendedType": "function",
+          "discarded_symbol": "__udp4_lib_rcv+0xbed/0xd90"
+        },
+        {
+          "discarded_flowBlock_tag": "0:1",
+          "discarded_flowSampleType": "HEADER",
+          "discarded_headerProtocol": "1",
+          "discarded_sampledPacketSize": "56",
+          "discarded_strippedBytes": "4",
+          "discarded_headerLen": "56",
+          "discarded_headerBytes": "FF-FF-FF-FF-FF-FF-24-FE-9A-07-D2-A9-08-00-45-00-00-2A-E6-B4-00-00-01-11-11-48-C0-A8-01-1F-FF-FF-FF-FF-F6-4F-0C-D9-00-16-52-E3-45-50-53-4F-4E-50-00-FF-00-00-00-00-00-00",
+          "discarded_dstMAC": "ffffffffffff",
+          "discarded_srcMAC": "24fe9a07d2a9",
+          "discarded_ethernet_type": "2048",
+          "discarded_IPSize": "38",
+          "discarded_ip.tot_len": "42",
+          "discarded_srcIP": "192.168.1.31",
+          "discarded_dstIP": "255.255.255.255",
+          "discarded_IPProtocol": "17",
+          "discarded_IPTOS": "0",
+          "discarded_IPTTL": "1",
+          "discarded_IPID": "46310",
+          "discarded_UDPSrcPort": "63055",
+          "discarded_UDPDstPort": "3289",
+          "discarded_UDPBytes": "22"
+        }
+      ]
+    }
+  ]
+}

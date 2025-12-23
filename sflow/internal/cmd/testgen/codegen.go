@@ -130,6 +130,8 @@ func buildBaseName(dgram *datagram.Datagram) string {
 			records = s.Records
 		case *datagram.CounterSampleExpanded:
 			records = s.Records
+		case *datagram.DiscardedPacket:
+			records = s.Records
 		}
 
 		recFormats := []uint32{}
@@ -235,6 +237,19 @@ func serializeSample(buf *bytes.Buffer, sample datagram.Sample) {
 		fmt.Fprintf(buf, "\t\t\tSequenceNum:  %d,\n", s.SequenceNum)
 		fmt.Fprintf(buf, "\t\t\tSFlowDataSourceExpanded: datagram.SFlowDataSourceExpanded{SourceIDType: %d, SourceIDIndex: %d},\n",
 			s.SourceIDType, s.SourceIDIndex)
+		serializeRecords(buf, s.Records)
+		buf.WriteString("\t\t},\n")
+
+	case *datagram.DiscardedPacket:
+		buf.WriteString("\t\t&datagram.DiscardedPacket{\n")
+		fmt.Fprintf(buf, "\t\t\tSampleHeader: datagram.SampleHeader{Format: %d, Length: %d},\n", s.Format, s.Length)
+		fmt.Fprintf(buf, "\t\t\tSequenceNum:  %d,\n", s.SequenceNum)
+		fmt.Fprintf(buf, "\t\t\tSFlowDataSourceExpanded: datagram.SFlowDataSourceExpanded{SourceIDType: %d, SourceIDIndex: %d},\n",
+			s.SourceIDType, s.SourceIDIndex)
+		fmt.Fprintf(buf, "\t\t\tDrops:         %d,\n", s.Drops)
+		fmt.Fprintf(buf, "\t\t\tInput:         %d,\n", s.Input)
+		fmt.Fprintf(buf, "\t\t\tOutput:        %d,\n", s.Output)
+		fmt.Fprintf(buf, "\t\t\tDiscardReason: %d,\n", s.DiscardReason)
 		serializeRecords(buf, s.Records)
 		buf.WriteString("\t\t},\n")
 

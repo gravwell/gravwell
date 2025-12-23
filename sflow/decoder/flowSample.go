@@ -138,6 +138,60 @@ func decodeFlowSampleExpandedFormat(r *io.LimitedReader, length uint32) (*datagr
 	return fse, err
 }
 
+func decodeDiscardedPacketFormat(r *io.LimitedReader, length uint32) (*datagram.DiscardedPacket, error) {
+	header := datagram.SampleHeader{
+		Format: datagram.DiscardedPacketFormat,
+		Length: length,
+	}
+	dp := &datagram.DiscardedPacket{
+		SampleHeader: header,
+	}
+
+	err := binary.Read(r, binary.BigEndian, &dp.SequenceNum)
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Read(r, binary.BigEndian, &dp.SourceIDType)
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Read(r, binary.BigEndian, &dp.SourceIDIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Read(r, binary.BigEndian, &dp.Drops)
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Read(r, binary.BigEndian, &dp.Input)
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Read(r, binary.BigEndian, &dp.Output)
+	if err != nil {
+		return nil, err
+	}
+
+	err = binary.Read(r, binary.BigEndian, &dp.DiscardReason)
+	if err != nil {
+		return nil, err
+	}
+
+	recordsCount, err := decodeLength(r, MinBytesPerItem)
+	if err != nil {
+		return nil, err
+	}
+
+	dp.Records, err = decodeFlowSampleRecords(r, recordsCount)
+
+	return dp, err
+}
+
 func decodeFlowSampleRecords(r *io.LimitedReader, recordsCount uint32) ([]datagram.Record, error) {
 	records := make([]datagram.Record, 0, recordsCount)
 	for range recordsCount {
@@ -270,6 +324,13 @@ func decodeFlowSampleRecords(r *io.LimitedReader, recordsCount uint32) ([]datagr
 			records = append(records, record)
 		case datagram.ExtendedFunctionRecordDataFormatValue:
 			record, err = decodeExtendedFunction(r)
+			if err != nil {
+				return nil, err
+			}
+
+			records = append(records, record)
+		case datagram.ExtendedLinuxReasonRecordDataFormatValue:
+			record, err = decodeExtendedLinuxReason(r)
 			if err != nil {
 				return nil, err
 			}

@@ -817,3 +817,25 @@ func decodeExtendedFunction(r *io.LimitedReader) (*datagram.ExtendedFunction, er
 
 	return &ef, nil
 }
+
+func decodeExtendedLinuxReason(r *io.LimitedReader) (*datagram.ExtendedLinuxReason, error) {
+	elr := datagram.ExtendedLinuxReason{
+		RecordHeader: datagram.RecordHeader{
+			Format: datagram.ExtendedLinuxReasonRecordDataFormatValue,
+		},
+	}
+
+	var err error
+	elr.Length, err = decodeLength(r, BytesPerLength)
+	if err != nil {
+		return nil, err
+	}
+
+	reason, err := decodeXDRString(r)
+	if err != nil {
+		return nil, err
+	}
+	elr.Reason = reason
+
+	return &elr, nil
+}

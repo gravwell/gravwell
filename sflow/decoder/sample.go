@@ -46,6 +46,8 @@ func decodeSample(r *io.LimitedReader) (datagram.Sample, error) {
 		sample, err = decodeFlowSampleExpandedFormat(r, length)
 	case datagram.CounterSampleExpandedFormat:
 		sample, err = decodeCounterSampleExpandedFormat(r, length)
+	case datagram.DiscardedPacketFormat:
+		sample, err = decodeDiscardedPacketFormat(r, length)
 	default:
 		sample, err = decodeUnknownSample(r, format, length)
 	}
