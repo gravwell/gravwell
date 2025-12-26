@@ -15,7 +15,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -162,7 +161,7 @@ func (nr *NativeRunner) run() {
 	var lastRun time.Time
 	for nr.ctx.Err() == nil {
 		if d := time.Since(lastRun); d < restartDelay {
-			if nr.rt.Sleep(d) {
+			if nr.rt.Sleep(restartDelay - d) {
 				break
 			}
 		}
@@ -195,49 +194,14 @@ func (nr *NativeRunner) recoverableRun() (stack string, err error) {
 	return
 }
 
-type NativeLogger struct {
-	lgr *log.Logger
-}
-
-func NewNativeLogger(lgr *log.Logger, appname string) Logger {
-	return &NativeLogger{
-		lgr: lgr,
+func NewNativeLogger(lgr *log.Logger, appname string) (r Logger, err error) {
+	if lgr == nil {
+		return nil, errors.New("missing logger")
 	}
-}
-
-func (nr *NativeLogger) Debug(msg string, kvs ...rfc5424.SDParam) error {
-	if nr != nil && nr.lgr != nil {
-		return nr.lgr.Debug(msg, kvs...)
+	if r, err = lgr.Clone(``, appname); err != nil {
+		r, err = nil, fmt.Errorf("failed to clone logger: %w", err)
 	}
-	return nil
-}
-
-func (nr *NativeLogger) Info(msg string, kvs ...rfc5424.SDParam) error {
-	if nr != nil && nr.lgr != nil {
-		return nr.lgr.Info(msg, kvs...)
-	}
-	return nil
-}
-
-func (nr *NativeLogger) Warn(msg string, kvs ...rfc5424.SDParam) error {
-	if nr != nil && nr.lgr != nil {
-		return nr.lgr.Warn(msg, kvs...)
-	}
-	return nil
-}
-
-func (nr *NativeLogger) Error(msg string, kvs ...rfc5424.SDParam) error {
-	if nr != nil && nr.lgr != nil {
-		return nr.lgr.Error(msg, kvs...)
-	}
-	return nil
-}
-
-func (nr *NativeLogger) Critical(msg string, kvs ...rfc5424.SDParam) error {
-	if nr != nil && nr.lgr != nil {
-		return nr.lgr.Critical(msg, kvs...)
-	}
-	return nil
+	return
 }
 
 // NativeRuntime implements a hosted.Runtime for native ingesters that don't need any special handling

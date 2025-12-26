@@ -80,7 +80,12 @@ func (rm *runtimeManager) createNativeRuntime(id, name string, ingesterUUID uuid
 		return
 	}
 	// create a new logger that gets line numbers and appname right for native ingesters
-	lgr := hosted.NewNativeLogger(rm.lgr, `okta`)
+	var lgr hosted.Logger
+	if lgr, err = hosted.NewNativeLogger(rm.lgr, `okta`); err != nil {
+		err = fmt.Errorf("failed to create native logger for hosted ingester %s: %w", ingesterID, err)
+		return
+	}
+	// create the native runtime
 	rt, err = hosted.NewNativeRuntime(rm.ctx, ingesterID, bw, rm.igst, lgr)
 	return
 }

@@ -17,7 +17,7 @@ import (
 
 	// include all the native hosted ingesters
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
-	"github.com/gravwell/gravwell/v3/ingesters/hosted/okta"
+	"github.com/gravwell/gravwell/v3/ingesters/hosted/plugins/okta"
 )
 
 func GetConfig(path, overlayPath string) (*cfgType, error) {
@@ -110,7 +110,6 @@ func (ic ingesterConfigs) forEachIngester(tn hosted.TagNegotiator, nrt newRuntim
 		}
 		// get a new ingester
 		var ig *okta.OktaIngester
-		var runner *hosted.NativeRunner
 		if ig, err = okta.NewOktaIngester(*v, tn); err != nil {
 			err = fmt.Errorf("failed to create new okta ingester %w", err)
 			continue
@@ -124,6 +123,7 @@ func (ic ingesterConfigs) forEachIngester(tn hosted.TagNegotiator, nrt newRuntim
 		}
 
 		// create a new hosted native runner
+		var runner *hosted.NativeRunner
 		if runner, err = hosted.NewNativeRunner(okta.ID, k, okta.Version, v.UUID(), ig, rt); err != nil {
 			err = fmt.Errorf("failed to create new native %s runner %w", `okta`, err)
 			runner = nil
