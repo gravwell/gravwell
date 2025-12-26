@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package okta
+package utils
 
 import (
 	"context"
@@ -28,7 +28,7 @@ var (
 	defaultRetryCodes = []int{425, 429} // basically just Too Early and too many requests
 )
 
-type retryClient struct {
+type RetryHttpClient struct {
 	rl                 *rate.Limiter
 	cli                *http.Client
 	ctx                context.Context
@@ -36,7 +36,7 @@ type retryClient struct {
 	backoff            time.Duration
 }
 
-func newRetryClient(rl *rate.Limiter, timeout, backoff time.Duration, ctx context.Context, retryCodes []int) *retryClient {
+func NewRetryHttpClient(rl *rate.Limiter, timeout, backoff time.Duration, ctx context.Context, retryCodes []int) *RetryHttpClient {
 	if retryCodes == nil {
 		retryCodes = defaultRetryCodes
 	}
@@ -47,7 +47,7 @@ func newRetryClient(rl *rate.Limiter, timeout, backoff time.Duration, ctx contex
 		backoff = defaultBackoff
 	}
 
-	return &retryClient{
+	return &RetryHttpClient{
 		rl: rl,
 		cli: &http.Client{
 			Timeout: timeout,
@@ -58,7 +58,7 @@ func newRetryClient(rl *rate.Limiter, timeout, backoff time.Duration, ctx contex
 	}
 }
 
-func (rc *retryClient) Do(req *http.Request) (resp *http.Response, err error) {
+func (rc *RetryHttpClient) Do(req *http.Request) (resp *http.Response, err error) {
 	if rc == nil {
 		return nil, errors.New("retry client not ready")
 	}
@@ -81,7 +81,7 @@ func (rc *retryClient) Do(req *http.Request) (resp *http.Response, err error) {
 			// some sort of error, backoff and then continue
 		} else if resp.StatusCode != http.StatusOK {
 			//drain the body just in case
-			drainResponse(resp)
+			DrainResponse(resp)
 			//check if this status code is something we can recover from
 			if !rc.isRecoverableStatus(resp.StatusCode) {
 				err = fmt.Errorf("non-recoverable status code %s (%d)", resp.Status, resp.StatusCode)
@@ -91,14 +91,14 @@ func (rc *retryClient) Do(req *http.Request) (resp *http.Response, err error) {
 			//all good
 			break
 		}
-		if quitableSleep(rc.ctx, rc.backoff) {
+		if QuitableSleep(rc.ctx, rc.backoff) {
 			break
 		}
 	}
 	return
 }
 
-func (rc *retryClient) isRecoverableStatus(status int) bool {
+func (rc *RetryHttpClient) isRecoverableStatus(status int) bool {
 	if status >= 500 {
 		// it is server side, so yes
 		return true
@@ -111,18 +111,9 @@ func (rc *retryClient) isRecoverableStatus(status int) bool {
 	return false
 }
 
-func drainResponse(resp *http.Response) {
+func DrainResponse(resp *http.Response) {
 	if resp == nil || resp.Body == nil {
 		return
 	}
 	io.Copy(io.Discard, resp.Body)
-}
-
-func quitableSleep(ctx context.Context, to time.Duration) (quit bool) {
-	select {
-	case <-time.After(to):
-	case <-ctx.Done():
-		quit = true
-	}
-	return
 }
