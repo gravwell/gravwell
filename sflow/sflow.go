@@ -15,6 +15,7 @@ import (
 	"github.com/gravwell/gravwell/v3/sflow/decoder"
 )
 
+// NewDecoder returns a new sFlow datagram decoder. The reader provided should have a sflow datagram byte stream.
 func NewDecoder(r io.Reader) decoder.DatagramDecoder {
 	return decoder.NewDatagramDecoder(r)
 }

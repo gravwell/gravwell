@@ -35,6 +35,7 @@ func NewDatagramDecoder(r io.Reader) DatagramDecoder {
 	return DatagramDecoder{r: &io.LimitedReader{R: r, N: MaxDatagramSize}}
 }
 
+// Decode decodes a single sflow datagram from the underlying reader.
 func (dd *DatagramDecoder) Decode() (*datagram.Datagram, error) {
 	// Decode headers first
 	dgram := &datagram.Datagram{}

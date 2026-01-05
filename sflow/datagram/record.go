@@ -9,11 +9,8 @@
 package datagram
 
 import (
-	"errors"
 	"unsafe"
 )
-
-var ErrUnknownRecordType = errors.New("record has unknown data format")
 
 const (
 	RecordHeaderFormatSize int = 4

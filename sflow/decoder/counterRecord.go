@@ -232,7 +232,7 @@ func decodeEthernetCountersRecord(r *io.LimitedReader) (*datagram.EthernetCounte
 	return &ecr, nil
 }
 
-func decordTokenringCountersRecord(r *io.LimitedReader) (*datagram.TokenringCounters, error) {
+func decodeTokenringCountersRecord(r *io.LimitedReader) (*datagram.TokenringCounters, error) {
 	trc := datagram.TokenringCounters{
 		RecordHeader: datagram.RecordHeader{
 			Format: datagram.TokenringCountersRecordDataFormatValue,
@@ -993,7 +993,7 @@ func decodeHostCPURecord(r *io.LimitedReader) (*datagram.HostCPU, error) {
 
 	// Only read these fields if the packet is from the extension format
 	if hcp.Length == uint32(datagram.HostCPURecordValidLength) {
-		return &hcp, err
+		return &hcp, nil
 	}
 
 	if err := binary.Read(r, binary.BigEndian, &hcp.CPUSteal); err != nil {

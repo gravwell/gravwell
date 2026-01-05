@@ -485,8 +485,8 @@ func decodeExtendedNAT(r *io.LimitedReader) (*datagram.ExtendedNAT, error) {
 	}
 
 	// 2 x uint32 type discriminant + the length of the IPs bytes
-	expectedLength := 8 + len(srcAddr.IP) + len(dstAddr.IP)
-	if en.Length != uint32(expectedLength) {
+	expectedLength := uint32(8 + len(srcAddr.IP) + len(dstAddr.IP))
+	if en.Length != expectedLength {
 		return nil, ErrInvalidExtendedNATRecordSize
 	}
 

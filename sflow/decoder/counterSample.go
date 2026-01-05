@@ -102,7 +102,7 @@ func decodeCounterSampleRecords(r *io.LimitedReader, recordsCount uint32) ([]dat
 			}
 			records = append(records, record)
 		case datagram.TokenringCountersRecordDataFormatValue:
-			record, err = decordTokenringCountersRecord(r)
+			record, err = decodeTokenringCountersRecord(r)
 			if err != nil {
 				return nil, err
 			}
@@ -324,7 +324,7 @@ func decodeCounterSampleRecords(r *io.LimitedReader, recordsCount uint32) ([]dat
 			}
 			records = append(records, record)
 		default:
-			record, err := decodeUnknownRecord(r, dataFormat)
+			record, err = decodeUnknownRecord(r, dataFormat)
 			if err != nil {
 				return nil, err
 			}

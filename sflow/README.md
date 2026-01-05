@@ -1,6 +1,6 @@
 # sFlow
 
-Go library for decoding sFlow v5 datagrams (RFC 3176). Implements counter and flow structures prioritized for network monitoring and log ingestion use cases.
+Go library for decoding sFlow v5 datagrams.
 
 ## Implementation Status
 
