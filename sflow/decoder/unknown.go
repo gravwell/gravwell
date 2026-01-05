@@ -12,6 +12,7 @@ import (
 	"io"
 
 	"github.com/gravwell/gravwell/v3/sflow/datagram"
+	"github.com/gravwell/gravwell/v3/sflow/xdr"
 )
 
 func decodeUnknownSample(r *io.LimitedReader, format, length uint32) (*datagram.UnknownSample, error) {
@@ -29,12 +30,8 @@ func decodeUnknownSample(r *io.LimitedReader, format, length uint32) (*datagram.
 	if n != int(length) {
 		return nil, ErrSampleMalformedOrIncomplete
 	}
-
-	// Discard padding bytes from the stream
-	if data.Pad() > 0 {
-		if _, err := io.CopyN(io.Discard, r, int64(data.Pad())); err != nil {
-			return nil, err
-		}
+	if err := xdr.SkipPadding(r, length); err != nil {
+		return nil, err
 	}
 
 	return &datagram.UnknownSample{

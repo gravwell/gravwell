@@ -42,12 +42,8 @@ func decodeXDRVariableLengthOpaque(r *io.LimitedReader) (datagram.XDRVariableLen
 		return nil, err
 	}
 
-	// Discard padding bytes
-	pad := xdr.CalculatePad(length)
-	if pad > 0 {
-		if _, err := io.CopyN(io.Discard, r, int64(pad)); err != nil {
-			return nil, err
-		}
+	if err := xdr.SkipPadding(r, length); err != nil {
+		return nil, err
 	}
 
 	return vlo, nil

@@ -10,6 +10,13 @@
 // as used in sFlow datagrams. See https://datatracker.ietf.org/doc/html/rfc4506
 package xdr
 
+import (
+	"errors"
+	"io"
+)
+
+var ErrInvalidPadding = errors.New("invalid XDR padding")
+
 // CalculatePad returns the number of padding bytes needed to align the given
 // length to a 4-byte boundary, as required by XDR encoding.
 //
@@ -26,4 +33,15 @@ func CalculatePad(length uint32) uint32 {
 // PaddedLength returns the total length including padding bytes.
 func PaddedLength(length uint32) uint32 {
 	return length + CalculatePad(length)
+}
+
+// SkipPadding reads and discards padding bytes from r to align length to a 4-byte boundary.
+func SkipPadding(r io.Reader, length uint32) error {
+	pad := CalculatePad(length)
+	if pad == 0 {
+		return nil
+	}
+	var dumpster [3]byte
+	_, err := r.Read(dumpster[:pad])
+	return err
 }
