@@ -23,6 +23,7 @@ func decodeFlowSampleFormat(r *io.LimitedReader, length uint32) (*datagram.FlowS
 	fs := &datagram.FlowSample{
 		SampleHeader: header,
 	}
+	beforeN := r.N
 
 	err := binary.Read(r, binary.BigEndian, &fs.SequenceNum)
 	if err != nil {
@@ -66,6 +67,10 @@ func decodeFlowSampleFormat(r *io.LimitedReader, length uint32) (*datagram.FlowS
 
 	fs.Records, err = decodeFlowSampleRecords(r, recordsCount)
 
+	if beforeN-r.N != int64(length) {
+		return nil, ErrSampleMalformedOrIncomplete
+	}
+
 	return fs, err
 }
 
@@ -77,6 +82,7 @@ func decodeFlowSampleExpandedFormat(r *io.LimitedReader, length uint32) (*datagr
 	fse := &datagram.FlowSampleExpanded{
 		SampleHeader: header,
 	}
+	beforeN := r.N
 
 	err := binary.Read(r, binary.BigEndian, &fse.SequenceNum)
 	if err != nil {
@@ -135,6 +141,10 @@ func decodeFlowSampleExpandedFormat(r *io.LimitedReader, length uint32) (*datagr
 
 	fse.Records, err = decodeFlowSampleRecords(r, recordsCount)
 
+	if beforeN-r.N != int64(length) {
+		return nil, ErrSampleMalformedOrIncomplete
+	}
+
 	return fse, err
 }
 
@@ -146,6 +156,7 @@ func decodeDiscardedPacketFormat(r *io.LimitedReader, length uint32) (*datagram.
 	dp := &datagram.DiscardedPacket{
 		SampleHeader: header,
 	}
+	beforeN := r.N
 
 	err := binary.Read(r, binary.BigEndian, &dp.SequenceNum)
 	if err != nil {
@@ -188,6 +199,10 @@ func decodeDiscardedPacketFormat(r *io.LimitedReader, length uint32) (*datagram.
 	}
 
 	dp.Records, err = decodeFlowSampleRecords(r, recordsCount)
+
+	if beforeN-r.N != int64(length) {
+		return nil, ErrSampleMalformedOrIncomplete
+	}
 
 	return dp, err
 }

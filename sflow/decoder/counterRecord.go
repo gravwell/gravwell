@@ -32,6 +32,7 @@ var (
 	ErrInvalidHostDescrRecordSize         = errors.New("host descr record size is invalid")
 	ErrHostNameTooLong                    = errors.New("hostname exceeds maximum length")
 	ErrOSReleaseTooLong                   = errors.New("OS release exceeds maximum length")
+	ErrInvalidHostAdaptersRecordSize      = errors.New("host adapters record size is invalid")
 	ErrInvalidHostParentRecordSize        = errors.New("host parent record size is invalid")
 	ErrInvalidHostCPURecordSize           = errors.New("host cpu record size is invalid")
 	ErrInvalidHostMemoryRecordSize        = errors.New("host memory record size is invalid")
@@ -769,6 +770,8 @@ func decodeOpenFlowPortNameRecord(r *io.LimitedReader) (*datagram.OpenFlowPortNa
 		return nil, ErrInvalidOpenFlowPortNameRecordSize
 	}
 
+	beforeN := r.N
+
 	ofpn.Name, err = decodeXDRString(r)
 	if err != nil {
 		return nil, err
@@ -776,6 +779,10 @@ func decodeOpenFlowPortNameRecord(r *io.LimitedReader) (*datagram.OpenFlowPortNa
 
 	if ofpn.Name.Len() > datagram.OpenFlowPortNameMaxLength {
 		return nil, ErrOpenFlowPortNameTooLong
+	}
+
+	if beforeN-r.N != int64(ofpn.Length) {
+		return nil, ErrInvalidOpenFlowPortNameRecordSize
 	}
 
 	return &ofpn, nil
@@ -797,6 +804,8 @@ func decodeHostDescrRecord(r *io.LimitedReader) (*datagram.HostDescr, error) {
 	if hd.Length > uint32(datagram.HostDescrRecordMaxLength) {
 		return nil, ErrInvalidHostDescrRecordSize
 	}
+
+	beforeN := r.N
 
 	hd.HostName, err = decodeXDRString(r)
 	if err != nil {
@@ -828,6 +837,10 @@ func decodeHostDescrRecord(r *io.LimitedReader) (*datagram.HostDescr, error) {
 		return nil, ErrOSReleaseTooLong
 	}
 
+	if beforeN-r.N != int64(hd.Length) {
+		return nil, ErrInvalidHostDescrRecordSize
+	}
+
 	return &hd, nil
 }
 
@@ -843,6 +856,8 @@ func decodeHostAdaptersRecord(r *io.LimitedReader) (*datagram.HostAdapters, erro
 	if err != nil {
 		return nil, err
 	}
+
+	beforeN := r.N
 
 	adaptersCount, err := decodeLength(r, MinBytesPerItem)
 	if err != nil {
@@ -873,6 +888,10 @@ func decodeHostAdaptersRecord(r *io.LimitedReader) (*datagram.HostAdapters, erro
 		}
 
 		ha.Adapters = append(ha.Adapters, adapter)
+	}
+
+	if beforeN-r.N != int64(ha.Length) {
+		return nil, ErrInvalidHostAdaptersRecordSize
 	}
 
 	return &ha, nil
@@ -1404,6 +1423,8 @@ func decodeJVMMachineNameRecord(r *io.LimitedReader) (*datagram.JVMMachineName, 
 		return nil, ErrInvalidJVMMachineNameRecordSize
 	}
 
+	beforeN := r.N
+
 	jmn.VMName, err = decodeXDRString(r)
 	if err != nil {
 		return nil, err
@@ -1429,6 +1450,10 @@ func decodeJVMMachineNameRecord(r *io.LimitedReader) (*datagram.JVMMachineName, 
 
 	if jmn.VMVersion.Len() > datagram.VMVersionMaxSize {
 		return nil, ErrJVMVMVersionTooLong
+	}
+
+	if beforeN-r.N != int64(jmn.Length) {
+		return nil, ErrInvalidJVMMachineNameRecordSize
 	}
 
 	return &jmn, nil
@@ -1627,6 +1652,8 @@ func decodeAppOperationsRecord(r *io.LimitedReader) (*datagram.AppOperations, er
 		return nil, ErrInvalidAppOperationsRecordSize
 	}
 
+	beforeN := r.N
+
 	ao.Application, err = decodeXDRString(r)
 	if err != nil {
 		return nil, err
@@ -1678,6 +1705,10 @@ func decodeAppOperationsRecord(r *io.LimitedReader) (*datagram.AppOperations, er
 
 	if err := binary.Read(r, binary.BigEndian, &ao.Unauthorized); err != nil {
 		return nil, err
+	}
+
+	if beforeN-r.N != int64(ao.Length) {
+		return nil, ErrInvalidAppOperationsRecordSize
 	}
 
 	return &ao, nil

@@ -23,6 +23,7 @@ func decodeCounterSampleFormat(r *io.LimitedReader, length uint32) (*datagram.Co
 	cs := &datagram.CounterSample{
 		SampleHeader: header,
 	}
+	beforeN := r.N
 
 	err := binary.Read(r, binary.BigEndian, &cs.SequenceNum)
 	if err != nil {
@@ -41,6 +42,10 @@ func decodeCounterSampleFormat(r *io.LimitedReader, length uint32) (*datagram.Co
 
 	cs.Records, err = decodeCounterSampleRecords(r, recordsCount)
 
+	if beforeN-r.N != int64(length) {
+		return nil, ErrSampleMalformedOrIncomplete
+	}
+
 	return cs, err
 }
 
@@ -52,6 +57,7 @@ func decodeCounterSampleExpandedFormat(r *io.LimitedReader, length uint32) (*dat
 	cs := &datagram.CounterSampleExpanded{
 		SampleHeader: header,
 	}
+	beforeN := r.N
 
 	err := binary.Read(r, binary.BigEndian, &cs.SequenceNum)
 	if err != nil {
@@ -74,6 +80,10 @@ func decodeCounterSampleExpandedFormat(r *io.LimitedReader, length uint32) (*dat
 	}
 
 	cs.Records, err = decodeCounterSampleRecords(r, recordsCount)
+
+	if beforeN-r.N != int64(length) {
+		return nil, ErrSampleMalformedOrIncomplete
+	}
 
 	return cs, err
 }

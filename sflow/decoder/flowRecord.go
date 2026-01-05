@@ -18,16 +18,27 @@ import (
 
 var (
 	ErrInvalidExtendedTCPInfoRecordSize     = errors.New("extended tcp info record size is invalid")
+	ErrInvalidFlowSampledHeaderRecordSize   = errors.New("flow sampled header record size is invalid")
 	ErrInvalidSampledEthernetRecordSize     = errors.New("sampled ethernet record size is invalid")
 	ErrInvalidSampledIPv4RecordSize         = errors.New("sampled ipv4 record size is invalid")
 	ErrInvalidSampledIPv6RecordSize         = errors.New("sampled ipv6 record size is invalid")
 	ErrInvalidExtendedSwitchRecordSize      = errors.New("extended switch record size is invalid")
 	ErrInvalidExtendedRouterRecordSize      = errors.New("extended router record size is invalid")
+	ErrInvalidExtendedGatewayRecordSize     = errors.New("extended gateway record size is invalid")
+	ErrInvalidExtendedUserRecordSize        = errors.New("extended user record size is invalid")
 	ErrInvalidExtendedNATRecordSize         = errors.New("extended nat record size is invalid")
 	ErrInvalidExtendedSocketIPv4RecordSize  = errors.New("extended socket ipv4 record size is invalid")
 	ErrInvalidExtendedSocketIPv6RecordSize  = errors.New("extended socket ipv6 record size is invalid")
+	ErrInvalidExtendedMPLSRecordSize        = errors.New("extended mpls record size is invalid")
+	ErrInvalidExtendedMPLSTunnelRecordSize  = errors.New("extended mpls tunnel record size is invalid")
+	ErrInvalidExtendedMPLSVCRecordSize      = errors.New("extended mpls vc record size is invalid")
+	ErrInvalidExtendedMPLSFTNRecordSize     = errors.New("extended mpls ftn record size is invalid")
 	ErrInvalidExtendedMPLSLDPFECRecordSize  = errors.New("extended mpls ldp fec record size is invalid")
+	ErrInvalidExtendedVLANTunnelRecordSize  = errors.New("extended vlan tunnel record size is invalid")
 	ErrInvalidExtendedEgressQueueRecordSize = errors.New("extended egress queue record size is invalid")
+	ErrInvalidExtendedACLRecordSize         = errors.New("extended acl record size is invalid")
+	ErrInvalidExtendedFunctionRecordSize    = errors.New("extended function record size is invalid")
+	ErrInvalidExtendedLinuxReasonRecordSize = errors.New("extended linux reason record size is invalid")
 )
 
 func decodeExtendedTCPInfo(r *io.LimitedReader) (*datagram.ExtendedTCPInfo, error) {
@@ -111,6 +122,8 @@ func decodeFlowSampledHeader(r *io.LimitedReader) (*datagram.FlowSampledHeader, 
 		return nil, err
 	}
 
+	beforeN := r.N
+
 	if err := binary.Read(r, binary.BigEndian, &dfsh.HeaderProtocol); err != nil {
 		return nil, err
 	}
@@ -129,6 +142,10 @@ func decodeFlowSampledHeader(r *io.LimitedReader) (*datagram.FlowSampledHeader, 
 	}
 
 	dfsh.HeaderBytes = b
+
+	if beforeN-r.N != int64(dfsh.Length) {
+		return nil, ErrInvalidFlowSampledHeaderRecordSize
+	}
 
 	return &dfsh, nil
 }
@@ -370,6 +387,8 @@ func decodeExtendedGateway(r *io.LimitedReader) (*datagram.ExtendedGateway, erro
 		return nil, err
 	}
 
+	beforeN := r.N
+
 	nextHop, err := decodeAddress(r)
 	if err != nil {
 		return nil, err
@@ -420,6 +439,10 @@ func decodeExtendedGateway(r *io.LimitedReader) (*datagram.ExtendedGateway, erro
 		return nil, err
 	}
 
+	if beforeN-r.N != int64(eg.Length) {
+		return nil, ErrInvalidExtendedGatewayRecordSize
+	}
+
 	return &eg, nil
 }
 
@@ -436,7 +459,7 @@ func decodeExtendedUser(r *io.LimitedReader) (*datagram.ExtendedUser, error) {
 		return nil, err
 	}
 
-	// NOTE: ExtendedUser is variable length (contains XDR strings), so no way to validate length
+	beforeN := r.N
 
 	if err := binary.Read(r, binary.BigEndian, &eu.SrcCharset); err != nil {
 		return nil, err
@@ -457,6 +480,10 @@ func decodeExtendedUser(r *io.LimitedReader) (*datagram.ExtendedUser, error) {
 		return nil, err
 	}
 	eu.DstUser = dstUser
+
+	if beforeN-r.N != int64(eu.Length) {
+		return nil, ErrInvalidExtendedUserRecordSize
+	}
 
 	return &eu, nil
 }
@@ -589,6 +616,8 @@ func decodeExtendedMPLS(r *io.LimitedReader) (*datagram.ExtendedMPLS, error) {
 		return nil, err
 	}
 
+	beforeN := r.N
+
 	nextHop, err := decodeAddress(r)
 	if err != nil {
 		return nil, err
@@ -607,6 +636,10 @@ func decodeExtendedMPLS(r *io.LimitedReader) (*datagram.ExtendedMPLS, error) {
 	}
 	em.OutStack = outStack
 
+	if beforeN-r.N != int64(em.Length) {
+		return nil, ErrInvalidExtendedMPLSRecordSize
+	}
+
 	return &em, nil
 }
 
@@ -623,6 +656,8 @@ func decodeExtendedMPLSTunnel(r *io.LimitedReader) (*datagram.ExtendedMPLSTunnel
 		return nil, err
 	}
 
+	beforeN := r.N
+
 	tunnelName, err := decodeXDRString(r)
 	if err != nil {
 		return nil, err
@@ -635,6 +670,10 @@ func decodeExtendedMPLSTunnel(r *io.LimitedReader) (*datagram.ExtendedMPLSTunnel
 
 	if err := binary.Read(r, binary.BigEndian, &emt.TunnelCOS); err != nil {
 		return nil, err
+	}
+
+	if beforeN-r.N != int64(emt.Length) {
+		return nil, ErrInvalidExtendedMPLSTunnelRecordSize
 	}
 
 	return &emt, nil
@@ -653,6 +692,8 @@ func decodeExtendedMPLSVC(r *io.LimitedReader) (*datagram.ExtendedMPLSVC, error)
 		return nil, err
 	}
 
+	beforeN := r.N
+
 	vcInstanceName, err := decodeXDRString(r)
 	if err != nil {
 		return nil, err
@@ -665,6 +706,10 @@ func decodeExtendedMPLSVC(r *io.LimitedReader) (*datagram.ExtendedMPLSVC, error)
 
 	if err := binary.Read(r, binary.BigEndian, &emv.VCLabelCOS); err != nil {
 		return nil, err
+	}
+
+	if beforeN-r.N != int64(emv.Length) {
+		return nil, ErrInvalidExtendedMPLSVCRecordSize
 	}
 
 	return &emv, nil
@@ -683,6 +728,8 @@ func decodeExtendedMPLSFTN(r *io.LimitedReader) (*datagram.ExtendedMPLSFTN, erro
 		return nil, err
 	}
 
+	beforeN := r.N
+
 	description, err := decodeXDRString(r)
 	if err != nil {
 		return nil, err
@@ -691,6 +738,10 @@ func decodeExtendedMPLSFTN(r *io.LimitedReader) (*datagram.ExtendedMPLSFTN, erro
 
 	if err := binary.Read(r, binary.BigEndian, &emf.Mask); err != nil {
 		return nil, err
+	}
+
+	if beforeN-r.N != int64(emf.Length) {
+		return nil, ErrInvalidExtendedMPLSFTNRecordSize
 	}
 
 	return &emf, nil
@@ -733,11 +784,17 @@ func decodeExtendedVLANTunnel(r *io.LimitedReader) (*datagram.ExtendedVLANTunnel
 		return nil, err
 	}
 
+	beforeN := r.N
+
 	stack, err := decodeXDRVariableLengthArray(r)
 	if err != nil {
 		return nil, err
 	}
 	evt.Stack = stack
+
+	if beforeN-r.N != int64(evt.Length) {
+		return nil, ErrInvalidExtendedVLANTunnelRecordSize
+	}
 
 	return &evt, nil
 }
@@ -779,6 +836,8 @@ func decodeExtendedACL(r *io.LimitedReader) (*datagram.ExtendedACL, error) {
 		return nil, err
 	}
 
+	beforeN := r.N
+
 	if err := binary.Read(r, binary.BigEndian, &eacl.Number); err != nil {
 		return nil, err
 	}
@@ -791,6 +850,10 @@ func decodeExtendedACL(r *io.LimitedReader) (*datagram.ExtendedACL, error) {
 
 	if err := binary.Read(r, binary.BigEndian, &eacl.Direction); err != nil {
 		return nil, err
+	}
+
+	if beforeN-r.N != int64(eacl.Length) {
+		return nil, ErrInvalidExtendedACLRecordSize
 	}
 
 	return &eacl, nil
@@ -809,11 +872,17 @@ func decodeExtendedFunction(r *io.LimitedReader) (*datagram.ExtendedFunction, er
 		return nil, err
 	}
 
+	beforeN := r.N
+
 	symbol, err := decodeXDRString(r)
 	if err != nil {
 		return nil, err
 	}
 	ef.Symbol = symbol
+
+	if beforeN-r.N != int64(ef.Length) {
+		return nil, ErrInvalidExtendedFunctionRecordSize
+	}
 
 	return &ef, nil
 }
@@ -831,11 +900,17 @@ func decodeExtendedLinuxReason(r *io.LimitedReader) (*datagram.ExtendedLinuxReas
 		return nil, err
 	}
 
+	beforeN := r.N
+
 	reason, err := decodeXDRString(r)
 	if err != nil {
 		return nil, err
 	}
 	elr.Reason = reason
+
+	if beforeN-r.N != int64(elr.Length) {
+		return nil, ErrInvalidExtendedLinuxReasonRecordSize
+	}
 
 	return &elr, nil
 }
