@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -61,8 +61,6 @@ type FlowSampledHeader struct {
 func (fsh *FlowSampledHeader) GetHeader() RecordHeader {
 	return fsh.RecordHeader
 }
-
-// NOTE  FlowSampledHeader is variable length, so no way to validate it
 
 const FlowSampledHeaderRecordDataFormatValue uint32 = 1
 
@@ -177,8 +175,6 @@ func (eg *ExtendedGateway) GetHeader() RecordHeader {
 	return eg.RecordHeader
 }
 
-// NOTE ExtendedGateway is variable length, so no way to validate it
-
 const ExtendedGatewayRecordDataFormatValue uint32 = 1003
 
 // ExtendedUser see https://sflow.org/sflow_version_5.txt, pag 38 `extended_user`
@@ -282,8 +278,6 @@ func (em *ExtendedMPLS) GetHeader() RecordHeader {
 	return em.RecordHeader
 }
 
-// NOTE ExtendedMPLS is variable length, so no way to validate it
-
 const ExtendedMPLSRecordDataFormatValue uint32 = 1006
 
 // ExtendedMPLSTunnel see https://sflow.org/sflow_version_5.txt, pag 40 `extended_mpls_tunnel`
@@ -297,8 +291,6 @@ type ExtendedMPLSTunnel struct {
 func (emt *ExtendedMPLSTunnel) GetHeader() RecordHeader {
 	return emt.RecordHeader
 }
-
-// NOTE ExtendedMPLSTunnel is variable length, so no way to validate it
 
 const ExtendedMPLSTunnelRecordDataFormatValue uint32 = 1008
 
@@ -314,8 +306,6 @@ func (emv *ExtendedMPLSVC) GetHeader() RecordHeader {
 	return emv.RecordHeader
 }
 
-// NOTE ExtendedMPLSVC is variable length, so no way to validate it
-
 const ExtendedMPLSVCRecordDataFormatValue uint32 = 1009
 
 // ExtendedMPLSFTN see https://sflow.org/sflow_version_5.txt, pag 40 `extended_mpls_FTN`
@@ -328,8 +318,6 @@ type ExtendedMPLSFTN struct {
 func (emf *ExtendedMPLSFTN) GetHeader() RecordHeader {
 	return emf.RecordHeader
 }
-
-// NOTE ExtendedMPLSFTN is variable length, so no way to validate it
 
 const ExtendedMPLSFTNRecordDataFormatValue uint32 = 1010
 
@@ -356,8 +344,6 @@ type ExtendedVLANTunnel struct {
 func (evt *ExtendedVLANTunnel) GetHeader() RecordHeader {
 	return evt.RecordHeader
 }
-
-// NOTE ExtendedVLANTunnel is variable length, so no way to validate it
 
 const ExtendedVLANTunnelRecordDataFormatValue uint32 = 1012
 
@@ -387,8 +373,6 @@ func (eacl *ExtendedACL) GetHeader() RecordHeader {
 	return eacl.RecordHeader
 }
 
-// NOTE ExtendedACL is variable length, so no way to validate it
-
 const ExtendedACLRecordDataFormatValue uint32 = 1037
 
 // ExtendedFunction see https://sflow.org/sflow_drops.txt, pag 6 `extended_function`
@@ -401,8 +385,6 @@ func (ef *ExtendedFunction) GetHeader() RecordHeader {
 	return ef.RecordHeader
 }
 
-// NOTE ExtendedFunction is variable length, so no way to validate it
-
 const ExtendedFunctionRecordDataFormatValue uint32 = 1038
 
 // ExtendedLinuxReason see https://sflow.org/developers/structures.php `extended_linux_drop_reason`
@@ -414,7 +396,5 @@ type ExtendedLinuxReason struct {
 func (elr *ExtendedLinuxReason) GetHeader() RecordHeader {
 	return elr.RecordHeader
 }
-
-// NOTE ExtendedLinuxReason is variable length, so no way to validate it
 
 const ExtendedLinuxReasonRecordDataFormatValue uint32 = 1042

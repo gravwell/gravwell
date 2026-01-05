@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -350,8 +350,6 @@ func (v *HostAdapters) GetHeader() RecordHeader {
 	return v.RecordHeader
 }
 
-// NOTE  HostAdapters is variable length, so no way to validate it
-
 const HostAdaptersRecordDataFormatValue uint32 = 2001
 
 // HostParent see https://sflow.org/sflow_host.txt, Pag 8, `host_parent`
@@ -393,9 +391,9 @@ type HostCPU struct {
 	Interrupts       uint32
 	Contexts         uint32
 	// Extension
-	CPUSteal         uint32
-	CPUGuest         uint32
-	CPUGuestNice     uint32
+	CPUSteal     uint32
+	CPUGuest     uint32
+	CPUGuestNice uint32
 }
 
 func (v *HostCPU) GetHeader() RecordHeader {
@@ -404,7 +402,7 @@ func (v *HostCPU) GetHeader() RecordHeader {
 
 var (
 	HostCPURecordExtendedValidLength = packetSizeOf(HostCPU{}) - RecordHeaderSize
-	HostCPURecordValidLength = HostCPURecordExtendedValidLength - 12 // 12 = CPUSteal(4) + CPUGuest(4) + CPUGuestNice(4)
+	HostCPURecordValidLength         = HostCPURecordExtendedValidLength - 12 // 12 = CPUSteal(4) + CPUGuest(4) + CPUGuestNice(4)
 )
 
 const HostCPURecordDataFormatValue uint32 = 2003

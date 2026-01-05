@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -69,15 +69,8 @@ func (s XDRString) String() string {
 	return string(s.XDRVariableLengthOpaque)
 }
 
-// XDRMACAddress using sflow tooling implementation as reference. See:
-//
-// - https://github.com/sflow/host-sflow/blob/master/src/sflow/sflow.h , `_SFLMacAddress`
-//
-// - https://github.com/sflow/sflowtool/blob/master/src/sflowtool.c , `readCounters_adaptors`
-//
-// Spec does mention mac type, see https://sflow.org/sflow_version_5.txt , `typedef opaque mac[6]`
-//
-// However we need to add 2 bytes of padding due to XDR specification, to be a multiple of 4.
+// XDRMACAddress see https://sflow.org/sflow_version_5.txt, pag 15 `typedef opaque mac[6]`
+// XDR padding requires 2 extra bytes to be a multiple of 4.
 type XDRMACAddress [8]byte
 
 func (xma XDRMACAddress) MAC() net.HardwareAddr {

@@ -130,7 +130,7 @@ All sample containers (FlowSample, CounterSample, FlowSampleExpanded, CounterSam
 
 Unknown sample formats decode as `UnknownSample` with raw data preserved. Unknown flow and counter record formats decode as `UnknownRecord` with raw data preserved. This allows the decoder to process datagrams containing unimplemented or vendor-specific structures without error.
 
-**Want a structure implemented or tested?** Send us a raw sFlow packet capture containing it.
+> **Want a structure implemented or tested?** Send us a raw sFlow packet capture containing it.
 
 ## Architecture
 
@@ -142,7 +142,7 @@ Unknown sample formats decode as `UnknownSample` with raw data preserved. Unknow
 
 ## Security
 
-The decoder protects against OOM attacks by limiting datagrams to 65,536 bytes via `io.LimitedReader` and validating all count fields against remaining bytes before allocation. Uses `uint64` arithmetic to prevent integer overflow bypasses.
+The decoder protects against OOM attacks by limiting datagrams to 65,536 bytes via `io.LimitedReader` and validating all count fields against remaining bytes before allocation.
 
 ## Testing
 

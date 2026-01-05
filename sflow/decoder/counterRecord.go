@@ -43,7 +43,7 @@ var (
 	ErrInvalidVirtMemoryRecordSize        = errors.New("virt memory record size is invalid")
 	ErrInvalidVirtDiskIORecordSize        = errors.New("virt disk io record size is invalid")
 	ErrInvalidVirtNetIORecordSize         = errors.New("virt net io record size is invalid")
-	ErrInvalidJVMMachineNameRecordSize    = errors.New("jvm machine name record size is invalid")
+	ErrInvalidJVMMachineNameRecordSize    = errors.New("JVM machine name record size is invalid")
 	ErrJVMVMNameTooLong                   = errors.New("JVM vm name exceeds maximum length")
 	ErrJVMVMVendorTooLong                 = errors.New("JVM vm vendor exceeds maximum length")
 	ErrJVMVMVersionTooLong                = errors.New("JVM vm version exceeds maximum length")

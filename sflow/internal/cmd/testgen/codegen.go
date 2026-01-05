@@ -132,6 +132,10 @@ func buildBaseName(dgram *datagram.Datagram) string {
 			records = s.Records
 		case *datagram.DiscardedPacket:
 			records = s.Records
+		default:
+			nameParts = append(nameParts, "unimplemented_testgen_sample", fmt.Sprintf("%d", sampleHeader.Format))
+
+			return strings.Join(nameParts, "_")
 		}
 
 		recFormats := []uint32{}
@@ -208,7 +212,6 @@ func serializeSample(buf *bytes.Buffer, sample datagram.Sample) {
 		fmt.Fprintf(buf, "\t\t\tOutput:          %d,\n", s.Output)
 		serializeRecords(buf, s.Records)
 		buf.WriteString("\t\t},\n")
-
 	case *datagram.FlowSampleExpanded:
 		buf.WriteString("\t\t&datagram.FlowSampleExpanded{\n")
 		fmt.Fprintf(buf, "\t\t\tSampleHeader: datagram.SampleHeader{Format: %d, Length: %d},\n", s.Format, s.Length)
@@ -222,7 +225,6 @@ func serializeSample(buf *bytes.Buffer, sample datagram.Sample) {
 		fmt.Fprintf(buf, "\t\t\tOutput:       datagram.InterfaceExpanded{Format: %d, Value: %d},\n", s.Output.Format, s.Output.Value)
 		serializeRecords(buf, s.Records)
 		buf.WriteString("\t\t},\n")
-
 	case *datagram.CounterSample:
 		buf.WriteString("\t\t&datagram.CounterSample{\n")
 		fmt.Fprintf(buf, "\t\t\tSampleHeader:    datagram.SampleHeader{Format: %d, Length: %d},\n", s.Format, s.Length)
@@ -230,7 +232,6 @@ func serializeSample(buf *bytes.Buffer, sample datagram.Sample) {
 		fmt.Fprintf(buf, "\t\t\tSFlowDataSource: %d,\n", s.SFlowDataSource)
 		serializeRecords(buf, s.Records)
 		buf.WriteString("\t\t},\n")
-
 	case *datagram.CounterSampleExpanded:
 		buf.WriteString("\t\t&datagram.CounterSampleExpanded{\n")
 		fmt.Fprintf(buf, "\t\t\tSampleHeader: datagram.SampleHeader{Format: %d, Length: %d},\n", s.Format, s.Length)
@@ -239,7 +240,6 @@ func serializeSample(buf *bytes.Buffer, sample datagram.Sample) {
 			s.SourceIDType, s.SourceIDIndex)
 		serializeRecords(buf, s.Records)
 		buf.WriteString("\t\t},\n")
-
 	case *datagram.DiscardedPacket:
 		buf.WriteString("\t\t&datagram.DiscardedPacket{\n")
 		fmt.Fprintf(buf, "\t\t\tSampleHeader: datagram.SampleHeader{Format: %d, Length: %d},\n", s.Format, s.Length)
@@ -252,13 +252,11 @@ func serializeSample(buf *bytes.Buffer, sample datagram.Sample) {
 		fmt.Fprintf(buf, "\t\t\tDiscardReason: %d,\n", s.DiscardReason)
 		serializeRecords(buf, s.Records)
 		buf.WriteString("\t\t},\n")
-
 	case *datagram.UnknownSample:
 		buf.WriteString("\t\t&datagram.UnknownSample{\n")
 		fmt.Fprintf(buf, "\t\t\tFormat: %d,\n", s.Format)
 		fmt.Fprintf(buf, "\t\t\tData: %#v,\n", s.Data)
 		buf.WriteString("\t\t},\n")
-
 	default:
 		buf.WriteString("\t\tnil, // unknown sample type\n")
 	}
