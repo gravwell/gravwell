@@ -27,12 +27,13 @@ import (
 )
 
 var (
-	fID      = flag.String("id", "", "Kit ID")
-	fName    = flag.String("name", "", "Kit/item name")
-	fDesc    = flag.String("desc", "", "Kit/item description")
-	fVersion = flag.Uint("version", 0, "Kit version")
-	fMinVer  = flag.String("minver", "", "Minimum version")
-	fMaxVer  = flag.String("maxver", "", "Maximum version")
+	fID       = flag.String("id", "", "Kit ID")
+	fName     = flag.String("name", "", "Kit/item name")
+	fDesc     = flag.String("desc", "", "Kit/item description")
+	fVersion  = flag.Uint("version", 0, "Kit version")
+	fMinVer   = flag.String("minver", "", "Minimum version")
+	fMaxVer   = flag.String("maxver", "", "Maximum version")
+	fZeroHash = flag.Bool("zero-hash", false, "When unpacking zero hash values in MANIFEST (simplifies management in version control)")
 
 	fDefaultValue = flag.String("default-value", "", "Default value")
 	fMacroType    = flag.String("macro-type", "", "Config macro type ('tag' or 'other')")
@@ -644,6 +645,15 @@ func unpackKit(args []string) {
 		log.Fatalf("Failed to read manifest: %v", err)
 	}
 
+	// if zero-hash flag is set, zero out all the hashes in the manifest
+	if *fZeroHash {
+		// Zero out all the hashes in the manifest
+		for i := range mf.Items {
+			mf.Items[i].Hash = [sha256.Size]byte{}
+		}
+	}
+
+	// Write out the manifest
 	if err := writeManifest(mf); err != nil {
 		log.Fatal(err)
 	}
