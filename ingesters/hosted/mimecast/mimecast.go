@@ -229,18 +229,23 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 	}
 	defer response.Body.Close()
 
-	gzreader, err := gzip.NewReader(response.Body)
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read body: %w", err)
+	}
+
+	gzreader, err := gzip.NewReader(bytes.NewReader(body))
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}
 	defer gzreader.Close()
 
-	body, err := io.ReadAll(gzreader)
+	data, err := io.ReadAll(gzreader)
 	if err != nil {
 		return fmt.Errorf("failed to read gzip body: %w", err)
 	}
 
-	entries := strings.Split(string(body), "\n")
+	entries := strings.Split(string(data), "\n")
 	for _, e := range entries {
 		data, err := parse[MtaEventData](strings.NewReader(e))
 		if err != nil {
