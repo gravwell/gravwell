@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -222,7 +223,6 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 	if err != nil {
 		return err
 	}
-	request.Header.Set("Accept-Encoding", "gzip")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
@@ -240,16 +240,16 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 		return fmt.Errorf("failed to read gzip body: %w", err)
 	}
 
-	entries := bytes.Split(body, []byte("\n"))
+	entries := strings.Split(string(body), "\n")
 	for _, e := range entries {
-		data, err := parse[MtaEventData](bytes.NewReader(e))
+		data, err := parse[MtaEventData](strings.NewReader(e))
 		if err != nil {
 			rt.Error("failed to parse mta event", log.KVErr(err), log.KV("url", event.URL))
 			continue
 		}
 		e := entry.Entry{
 			TS:   entry.FromStandard(time.Unix(data.Timestamp, 0)),
-			Data: e,
+			Data: []byte(e),
 			Tag:  tag,
 		}
 		rt.Write(e)
