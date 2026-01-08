@@ -113,7 +113,7 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 		lastTime := m.start // audit api only holds logs for a day
 		if t, err := rt.GetTime(auditTimestamp); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
 			return fmt.Errorf("error getting last timestamp: %w", err)
-		} else if t.Before(time.Now()) {
+		} else if t.Before(time.Now()) && !t.IsZero() {
 			lastTime = t
 		}
 		r, err := m.c.GetRawAuditEvents(ctx, lastTime, time.Now(), cursor)
@@ -187,7 +187,7 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 		lastTime := m.start // mta events are held for 7 days
 		if t, err := rt.GetTime(string(api) + auditTimestamp); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
 			rt.Error("error getting last timestamp", log.KV("api", api), log.KVErr(err))
-		} else if t.Before(time.Now()) {
+		} else if t.Before(time.Now()) && !t.IsZero() {
 			lastTime = t
 		}
 
