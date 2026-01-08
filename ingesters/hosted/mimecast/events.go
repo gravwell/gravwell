@@ -59,6 +59,11 @@ type SIEMBatchEventResponse struct {
 	IsCaughtUp bool   `json:"isCaughtUp"`
 }
 
+type SIEMErrorResponse struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
+}
+
 // MtaEventData is the minimum representation of all events returned.
 // We only need to extract the timestamp for creting the entry.
 // Everything else we pass along as the original byte slice, unchanged.

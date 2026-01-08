@@ -127,7 +127,12 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("invalid status code %d", resp.StatusCode)
+		statusErr := fmt.Errorf("invalid status code %d", resp.StatusCode)
+		b, err := parse[SIEMErrorResponse](resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("%w, failed to parse error response: %w", statusErr, err)
+		}
+		return nil, fmt.Errorf("%w, error: %s - %s", statusErr, b.Code, b.Message)
 	}
 
 	b, err := parse[SIEMBatchEventResponse](resp.Body)
