@@ -235,7 +235,7 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 	}
 	defer gzreader.Close()
 
-	body, err := io.ReadAll(response.Body)
+	body, err := io.ReadAll(gzreader)
 	if err != nil {
 		return fmt.Errorf("failed to read gzip body: %w", err)
 	}
