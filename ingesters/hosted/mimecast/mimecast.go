@@ -58,9 +58,9 @@ func New(conf *Config) *Mimecast {
 			audit = true
 			continue
 		}
-		_, ok := SIEMApiEvents[Api(a)]
+		_, ok := SIEMApiEvents[a]
 		if ok {
-			apis = append(apis, Api(a))
+			apis = append(apis, a)
 		}
 	}
 
@@ -246,13 +246,15 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 	}
 
 	entries := strings.Split(string(data), "\n")
+	rt.Info("processing mta events", log.KV("num-entries", len(entries)))
 	for _, e := range entries {
 		if e == "" {
+			rt.Info("skipping empty mta event")
 			continue
 		}
 		data, err := parse[MtaEventData](strings.NewReader(e))
 		if err != nil {
-			rt.Error("failed to parse mta event", log.KVErr(err), log.KV("url", event.URL))
+			rt.Error("failed to parse mta event", log.KVErr(err))
 			continue
 		}
 		e := entry.Entry{

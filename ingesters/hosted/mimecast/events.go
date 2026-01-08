@@ -23,17 +23,17 @@ const (
 type Api string
 
 const (
-	AuditApi            = "audit"
-	MtaDeliveryApi      = "mta-delivery"
-	MtaReceiptApi       = "mta-receipt"
-	MtaProcessApi       = "mta-process"
-	MtaAvApi            = "mta-av"
-	MtaSpamApi          = "mta-spam"
-	MtaInternalApi      = "mta-internal"
-	MtaImpersonationApi = "mta-impersonation"
-	MtaUrlApi           = "mta-url"
-	MtaAttachmentApi    = "mta-attachment"
-	MtaJournal          = "mta-journal"
+	AuditApi            Api = "audit"
+	MtaDeliveryApi      Api = "mta-delivery"
+	MtaReceiptApi       Api = "mta-receipt"
+	MtaProcessApi       Api = "mta-process"
+	MtaAvApi            Api = "mta-av"
+	MtaSpamApi          Api = "mta-spam"
+	MtaInternalApi      Api = "mta-internal"
+	MtaImpersonationApi Api = "mta-impersonation"
+	MtaUrlApi           Api = "mta-url"
+	MtaAttachmentApi    Api = "mta-attachment"
+	MtaJournal          Api = "mta-journal"
 )
 
 var SIEMApiEvents = map[Api]EventType{

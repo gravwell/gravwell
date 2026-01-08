@@ -56,7 +56,7 @@ type Config struct {
 	Lookback      time.Duration
 	Client_Id     string
 	Client_Secret string
-	Api           []string
+	Api           []Api
 	Host          string
 	Tag_Name      string
 	Preprocessor  []string
