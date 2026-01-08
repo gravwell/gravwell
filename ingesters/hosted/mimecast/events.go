@@ -60,10 +60,10 @@ type SIEMBatchEventResponse struct {
 }
 
 type SIEMErrorResponse struct {
-	Error SIEMError `json:"error,omitempty"`
+	Error Error `json:"error,omitempty"`
 }
 
-type SIEMError struct {
+type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }
@@ -73,6 +73,10 @@ type SIEMError struct {
 // Everything else we pass along as the original byte slice, unchanged.
 type MtaEventData struct {
 	Timestamp int64 `json:"timestamp"`
+}
+
+type AuthFailureResponse struct {
+	Fail []Error `json:"fail,omitempty"`
 }
 
 type AuditData struct {

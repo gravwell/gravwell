@@ -93,7 +93,19 @@ func (c *Client) Do(r *http.Request) (*http.Response, error) {
 	r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", c.token.AccessToken))
 	c.mtx.RUnlock()
 	r.Header.Set("Accept", "application/json")
-	return c.c.Do(r)
+	response, err := c.c.Do(r)
+	if err != nil {
+		return response, err
+	}
+	if response.StatusCode == http.StatusUnauthorized {
+		fail, err := parse[AuthFailureResponse](response.Body)
+		response.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("authentication failure, failed to parse response: %w", err)
+		}
+		return nil, fmt.Errorf("authentication failure: %s, %s", fail.Fail[0].Code, fail.Fail[0].Message)
+	}
+	return response, nil
 }
 
 func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end time.Time, cursor *string) (*SIEMBatchEventResponse, error) {
