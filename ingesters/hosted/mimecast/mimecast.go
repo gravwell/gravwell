@@ -247,6 +247,9 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 
 	entries := strings.Split(string(data), "\n")
 	for _, e := range entries {
+		if e == "" {
+			continue
+		}
 		data, err := parse[MtaEventData](strings.NewReader(e))
 		if err != nil {
 			rt.Error("failed to parse mta event", log.KVErr(err), log.KV("url", event.URL))
