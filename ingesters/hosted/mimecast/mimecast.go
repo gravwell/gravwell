@@ -2,6 +2,7 @@ package mimecast
 
 import (
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -221,17 +222,18 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 	if err != nil {
 		return err
 	}
+	request.Header.Set("Accept-Encoding", "gzip")
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
 	defer response.Body.Close()
 
-	//gzreader, err := gzip.NewReader(response.Body)
-	//if err != nil {
-	//	return fmt.Errorf("failed to create gzip reader: %w", err)
-	//}
-	//defer gzreader.Close()
+	gzreader, err := gzip.NewReader(response.Body)
+	if err != nil {
+		return fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzreader.Close()
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
