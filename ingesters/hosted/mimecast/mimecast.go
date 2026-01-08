@@ -2,7 +2,6 @@ package mimecast
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -199,45 +198,10 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 		}
 
 		for _, v := range r.Value {
-			request, err := http.NewRequestWithContext(ctx, http.MethodGet, v.URL, nil)
+			err := m.handleMtaEvent(ctx, rt, tag, v)
 			if err != nil {
-				continue //TODO: what do
-			}
-			response, err := m.c.Do(request)
-			if err != nil {
-				response.Body.Close()
-				rt.Error("mimecast request failed", log.KV("api", api), log.KVErr(err))
+				rt.Error("error handling mta page", log.KV("api", api), log.KVErr(err))
 				continue
-			}
-
-			gzreader, err := gzip.NewReader(response.Body)
-			if err != nil {
-				rt.Error("failed to create gzip reader", log.KV("api", api), log.KVErr(err))
-				continue
-			}
-
-			body, err := io.ReadAll(gzreader)
-			response.Body.Close()
-			gzreader.Close()
-			if err != nil {
-				rt.Error("failed to read gzip body", log.KV("api", api), log.KVErr(err))
-				continue
-			}
-
-			entries := bytes.Split(body, []byte("\n"))
-
-			for _, e := range entries {
-				data, err := parse[MtaEventData](bytes.NewReader(e))
-				if err != nil {
-					rt.Error("failed to parse mta event", log.KV("api", api), log.KVErr(err))
-					continue
-				}
-				e := entry.Entry{
-					TS:   entry.FromStandard(time.Unix(data.Timestamp, 0)),
-					Data: e,
-					Tag:  tag,
-				}
-				rt.Write(e)
 			}
 			// save progress on current cursor?
 		}
@@ -249,5 +213,44 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 		}
 	}
 
+	return nil
+}
+
+func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, event SIEMEvent) error {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, event.URL, nil)
+	if err != nil {
+		return err
+	}
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return fmt.Errorf("request failed: %w", err)
+	}
+	defer response.Body.Close()
+
+	//gzreader, err := gzip.NewReader(response.Body)
+	//if err != nil {
+	//	return fmt.Errorf("failed to create gzip reader: %w", err)
+	//}
+	//defer gzreader.Close()
+
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return fmt.Errorf("failed to read gzip body: %w", err)
+	}
+
+	entries := bytes.Split(body, []byte("\n"))
+	for _, e := range entries {
+		data, err := parse[MtaEventData](bytes.NewReader(e))
+		if err != nil {
+			rt.Error("failed to parse mta event", log.KVErr(err))
+			continue
+		}
+		e := entry.Entry{
+			TS:   entry.FromStandard(time.Unix(data.Timestamp, 0)),
+			Data: e,
+			Tag:  tag,
+		}
+		rt.Write(e)
+	}
 	return nil
 }

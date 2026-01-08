@@ -50,13 +50,15 @@ var SIEMApiEvents = map[Api]EventType{
 }
 
 type SIEMBatchEventResponse struct {
-	Value []struct {
-		URL    string    `json:"url"`
-		Expiry time.Time `json:"expiry,omitempty"`
-		Size   int       `json:"size"`
-	} `json:"value"`
-	NextPage   string `json:"@nextPage"`
-	IsCaughtUp bool   `json:"isCaughtUp"`
+	Value      []SIEMEvent `json:"value"`
+	NextPage   string      `json:"@nextPage"`
+	IsCaughtUp bool        `json:"isCaughtUp"`
+}
+
+type SIEMEvent struct {
+	URL    string    `json:"url"`
+	Expiry time.Time `json:"expiry,omitempty"`
+	Size   int       `json:"size"`
 }
 
 type SIEMErrorResponse struct {
