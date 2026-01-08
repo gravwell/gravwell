@@ -60,6 +60,10 @@ type SIEMBatchEventResponse struct {
 }
 
 type SIEMErrorResponse struct {
+	Error SIEMError `json:"error,omitempty"`
+}
+
+type SIEMError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
 }

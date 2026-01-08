@@ -132,7 +132,7 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end
 		if err != nil {
 			return nil, fmt.Errorf("%w, failed to parse error response: %w", statusErr, err)
 		}
-		return nil, fmt.Errorf("%w, error: %s - %s", statusErr, b.Code, b.Message)
+		return nil, fmt.Errorf("%w, error: %s - %s", statusErr, b.Error.Code, b.Error.Message)
 	}
 
 	b, err := parse[SIEMBatchEventResponse](resp.Body)
