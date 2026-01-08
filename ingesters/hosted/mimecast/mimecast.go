@@ -260,7 +260,11 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 			Data: []byte(e),
 			Tag:  tag,
 		}
-		rt.Write(e)
+		err = rt.Write(e)
+		if err != nil {
+			rt.Error("failed to write mta event", log.KVErr(err))
+			continue
+		}
 	}
 	return nil
 }
