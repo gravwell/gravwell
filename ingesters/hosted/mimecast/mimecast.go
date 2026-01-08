@@ -209,14 +209,15 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 				rt.Error("mimecast request failed", log.KV("api", api), log.KVErr(err))
 				continue
 			}
+
 			gzreader, err := gzip.NewReader(response.Body)
-			response.Body.Close()
 			if err != nil {
 				rt.Error("failed to create gzip reader", log.KV("api", api), log.KVErr(err))
 				continue
 			}
 
 			body, err := io.ReadAll(gzreader)
+			response.Body.Close()
 			gzreader.Close()
 			if err != nil {
 				rt.Error("failed to read gzip body", log.KV("api", api), log.KVErr(err))
@@ -224,6 +225,7 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 			}
 
 			entries := bytes.Split(body, []byte("\n"))
+
 			for _, e := range entries {
 				data, err := parse[MtaEventData](bytes.NewReader(e))
 				if err != nil {
@@ -232,7 +234,7 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 				}
 				e := entry.Entry{
 					TS:   entry.FromStandard(time.Unix(data.Timestamp, 0)),
-					Data: body,
+					Data: e,
 					Tag:  tag,
 				}
 				rt.Write(e)
