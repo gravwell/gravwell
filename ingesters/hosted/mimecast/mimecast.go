@@ -247,9 +247,12 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 
 	entries := strings.Split(string(data), "\n")
 	rt.Info("processing mta events", log.KV("num-entries", len(entries)))
+	var first *time.Time
+	var last time.Time
+	count := 0
 	for _, e := range entries {
 		if e == "" {
-			rt.Info("skipping empty mta event")
+			rt.Debug("skipping empty mta event")
 			continue
 		}
 		data, err := parse[MtaEventData](strings.NewReader(e))
@@ -257,8 +260,13 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 			rt.Error("failed to parse mta event", log.KVErr(err))
 			continue
 		}
+		ts := time.UnixMilli(data.Timestamp)
+		if first == nil {
+			first = &ts
+		}
+
 		e := entry.Entry{
-			TS:   entry.FromStandard(time.Unix(data.Timestamp, 0)),
+			TS:   entry.FromStandard(ts),
 			Data: []byte(e),
 			Tag:  tag,
 		}
@@ -267,6 +275,9 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 			rt.Error("failed to write mta event", log.KVErr(err))
 			continue
 		}
+		last = ts
+		count++
 	}
+	rt.Info("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last))
 	return nil
 }
