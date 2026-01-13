@@ -93,10 +93,11 @@ func (c cfgType) Tags() (tags []string, err error) {
 	if len(c.Okta) > 0 {
 		tags = append(tags, okta.Tags...)
 	}
-	if len(c.Mimecast) > 0 {
-		for _, v := range c.Mimecast {
-			tags = append(tags, v.Tags()...)
-		}
+	for _, m := range c.MimecastConf {
+		tags = append(tags, m.Tags()...)
+	}
+	for _, v := range c.Mimecast {
+		tags = append(tags, v.Tags()...)
 	}
 	return
 }

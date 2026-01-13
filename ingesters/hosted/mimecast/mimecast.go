@@ -28,6 +28,7 @@ type Mimecast struct {
 	apis         []Api
 	includeAudit bool // if the audit api should be polled
 	start        time.Time
+	tagPrefix    string
 }
 
 func NewLegacy(conf *LegacyConfig) *Mimecast {
@@ -71,6 +72,7 @@ func New(conf *Config) *Mimecast {
 		apis:         apis,
 		includeAudit: audit,
 		start:        start,
+		tagPrefix:    conf.Tag_Prefix,
 	}
 }
 
@@ -99,8 +101,8 @@ func (m *Mimecast) Run(ctx context.Context, rt hosted.Runtime) error {
 }
 
 func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
-	var cursor *string                   // if cursor is non-nil don't update timestamps
-	tag, err := rt.NegotiateTag("audit") // TODO: config
+	var cursor *string // if cursor is non-nil don't update timestamps
+	tag, err := rt.NegotiateTag(m.tagPrefix + "audit")
 	if err != nil {
 		return err
 	}
@@ -174,7 +176,7 @@ func (m *Mimecast) mta(ctx context.Context, rt hosted.Runtime) error {
 
 func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) error {
 	event, _ := SIEMApiEvents[api]
-	tag, err := rt.NegotiateTag(string(api))
+	tag, err := rt.NegotiateTag(m.tagPrefix + string(api))
 	if err != nil {
 		return err
 	}
@@ -186,7 +188,7 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 		} else if c != "" {
 			cursor = &c
 		}
-		lastTime := m.start // mta events are held for 7 days
+		lastTime := m.start
 		if t, err := rt.GetTime(string(api) + auditTimestamp); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
 			rt.Error("error getting last timestamp", log.KV("api", api), log.KVErr(err))
 		} else if t.Before(time.Now()) && !t.IsZero() {

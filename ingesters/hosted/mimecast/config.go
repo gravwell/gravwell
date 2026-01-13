@@ -2,6 +2,7 @@ package mimecast
 
 import (
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -9,17 +10,18 @@ import (
 
 const (
 	defaultBaseDomain = "https://api.services.mimecast.com"
+	defaultLookback   = 24 * time.Hour
 )
 
 type LegacyConfig struct {
 	Ingester_UUID string
 	StartTime     time.Time
-	ClientID      string
-	ClientSecret  string
+	ClientID      string `json:"-"`
+	ClientSecret  string `json:"-"`
 	MimecastAPI   Api
 	Tag_Name      string
 	Preprocessor  []string
-	RateLimit     int
+	RateLimit     int // requests per minute
 }
 
 func (l *LegacyConfig) Verify() error {
@@ -51,21 +53,39 @@ func (l *LegacyConfig) UUID() uuid.UUID {
 	return uuid.Nil
 }
 
+func (l *LegacyConfig) Tags() []string {
+	return []string{l.Tag_Name}
+}
+
 type Config struct {
 	Ingester_UUID string
 	Lookback      time.Duration
-	Client_Id     string
-	Client_Secret string
+	Client_Id     string `json:"-"`
+	Client_Secret string `json:"-"`
 	Api           []Api
 	Host          string
-	Tag_Name      string
+	Tag_Prefix    string
 	Preprocessor  []string
-	Interval      int
+	Rate_Limit    int // Request per minute
 }
 
 func (c *Config) Verify() error {
 	if c.Host == "" {
 		c.Host = defaultBaseDomain
+	}
+	if c.Lookback == 0 {
+		c.Lookback = defaultLookback
+	}
+	if c.Client_Id == "" {
+		return errors.New("Client-Id not specified")
+	}
+	if c.Client_Secret == "" {
+		return errors.New("Client-Secret not specified")
+	}
+	for _, api := range c.Api {
+		if _, supported := SIEMApiEvents[api]; !supported && api != AuditApi {
+			return fmt.Errorf("API '%s' is not supported", api)
+		}
 	}
 	return nil
 }
@@ -79,6 +99,9 @@ func (c *Config) UUID() uuid.UUID {
 	return uuid.Nil
 }
 
-func (c *Config) Tags() []string {
-	return []string{c.Tag_Name}
+func (c *Config) Tags() (tags []string) {
+	for _, api := range c.Api {
+		tags = append(tags, c.Tag_Prefix+string(api))
+	}
+	return
 }
