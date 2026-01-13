@@ -278,7 +278,7 @@ var (
 	awsUrlRegex = regexp.MustCompile(`s3[-\.]?([a-zA-Z\-0-9]+)?\.amazonaws\.com`)
 )
 
-func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket string, rdr reader, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, proc *processors.ProcessorSet, maxLineSize int) (sz int64, s3rtt, rtt time.Duration, err error) {
+func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket string, rdr reader, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, proc *processors.ProcessorSet, maxLineSize int, attachMetadata bool) (sz int64, s3rtt, rtt time.Duration, err error) {
 	var r *s3.GetObjectOutput
 	now := time.Now()
 	r, err = svc.GetObject(&s3.GetObjectInput{
@@ -290,12 +290,17 @@ func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket stri
 	}
 	defer r.Body.Close()
 	s3rtt = time.Since(now)
+	var evs entry.EVBlock
+	if attachMetadata {
+		evs.Add(entry.EnumeratedValue{Name: "bucket", Value: entry.StringEnumData(bucket)})
+		evs.Add(entry.EnumeratedValue{Name: "key", Value: entry.StringEnumData(*obj.Key)})
+	}
 
 	switch rdr {
 	case lineReader:
-		err = processLinesContext(ctx, r.Body, maxLineSize, tg, src, tag, proc)
+		err = processLinesContext(ctx, r.Body, maxLineSize, tg, src, tag, &evs, proc)
 	case cloudtrailReader:
-		err = processCloudtrailContext(ctx, r.Body, tg, src, tag, proc)
+		err = processCloudtrailContext(ctx, r.Body, tg, src, tag, &evs, proc)
 	default:
 		err = errors.New("no reader set")
 	}
@@ -306,7 +311,7 @@ func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket stri
 	return
 }
 
-func processLinesContext(ctx context.Context, rdr io.Reader, maxLineSize int, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, proc *processors.ProcessorSet) (err error) {
+func processLinesContext(ctx context.Context, rdr io.Reader, maxLineSize int, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, block *entry.EVBlock, proc *processors.ProcessorSet) (err error) {
 	sc := bufio.NewScanner(rdr)
 	sc.Buffer(nil, maxLineSize)
 	for sc.Scan() {
@@ -323,6 +328,7 @@ func processLinesContext(ctx context.Context, rdr io.Reader, maxLineSize int, tg
 			SRC:  src, //may be nil, ingest muxer will handle if it is
 			Tag:  tag,
 			Data: bytes.Clone(bts), //scanner re-uses the buffer
+			EVB:  *block,
 		}
 		if ctx != nil {
 			err = proc.ProcessContext(&ent, ctx)
@@ -340,7 +346,7 @@ func processLinesContext(ctx context.Context, rdr io.Reader, maxLineSize int, tg
 	return
 }
 
-func processCloudtrailContext(ctx context.Context, rdr io.Reader, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, proc *processors.ProcessorSet) (err error) {
+func processCloudtrailContext(ctx context.Context, rdr io.Reader, tg *timegrinder.TimeGrinder, src net.IP, tag entry.EntryTag, block *entry.EVBlock, proc *processors.ProcessorSet) (err error) {
 	var obj json.RawMessage
 	dec := json.NewDecoder(rdr)
 
@@ -371,6 +377,7 @@ func processCloudtrailContext(ctx context.Context, rdr io.Reader, tg *timegrinde
 			SRC:  src,                         //may be nil, ingest muxer will handle if it is
 			Data: append([]byte(nil), val...), //scanner re-uses the buffer
 			Tag:  tag,
+			EVB:  *block,
 		}
 		if ctx != nil {
 			cberr = proc.ProcessContext(&ent, ctx)

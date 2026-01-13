@@ -25,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"golang.org/x/time/rate"
 )
 
@@ -33,6 +34,9 @@ const (
 	Name    string = `okta`
 	ID      string = `okta.ingesters.gravwell.io`
 	Version string = `1.0.0` // must be canonical version string with only major.minor.point
+
+	httpBackoff = 10 * time.Second
+	httpTimeout = 5 * time.Second
 )
 
 const (
@@ -56,6 +60,8 @@ var (
 	errNoLinks    = errors.New("no links provided")
 	errSignalExit = errors.New("program signaled to exit")
 	errNoNextLink = errors.New("next link not found")
+
+	httpRetryCodes = []int{425, 429} // basically just Too Early and too many requests
 )
 
 type OktaIngester struct {
@@ -158,7 +164,7 @@ func (o *OktaIngester) systemLogRoutine(ctx context.Context, rl *rate.Limiter, r
 	rt.Info("starting system log routine",
 		log.KV("start-ts", o.latestTS.Format(time.RFC3339)),
 		log.KV("next-url", o.systemLogsNext != nil))
-	rc := newRetryClient(rl, defaultRequestTimeout, defaultBackoff, ctx, defaultRetryCodes)
+	rc := utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, ctx, httpRetryCodes)
 	var quit bool
 	for !quit && rt.Context().Err() == nil {
 		if err := o.getSystemLogs(rc, rt, rl); err != nil {
@@ -174,10 +180,10 @@ func (o *OktaIngester) systemLogRoutine(ctx context.Context, rl *rate.Limiter, r
 	return nil
 }
 
-func (o *OktaIngester) getSystemLogs(rc *retryClient, rt hosted.Runtime, rl *rate.Limiter) error {
+func (o *OktaIngester) getSystemLogs(rc *utils.RetryHttpClient, rt hosted.Runtime, rl *rate.Limiter) error {
 	var req *http.Request
 
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
+	req, err := http.NewRequestWithContext(rt.Context(), http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
 	if err != nil {
 		return fmt.Errorf("failed to build request %w", err)
 	}
@@ -353,9 +359,9 @@ func lastUpdatedFilter(start, end time.Time) (r string) {
 }
 
 func (o *OktaIngester) getUserLogs(start, end time.Time, rl *rate.Limiter, rt hosted.Runtime) error {
-	rc := newRetryClient(rl, defaultRequestTimeout, defaultBackoff, rt.Context(), defaultRetryCodes)
+	rc := utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, rt.Context(), httpRetryCodes)
 
-	req, err := http.NewRequest(http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
+	req, err := http.NewRequestWithContext(rt.Context(), http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
 	if err != nil {
 		return err
 	}
@@ -374,7 +380,7 @@ func (o *OktaIngester) getUserLogs(start, end time.Time, rl *rate.Limiter, rt ho
 	return o.linkFollowingRequest(rc, req, rl, rt)
 }
 
-func (o *OktaIngester) linkFollowingRequest(rc *retryClient, req *http.Request, rl *rate.Limiter, rt hosted.Runtime) error {
+func (o *OktaIngester) linkFollowingRequest(rc *utils.RetryHttpClient, req *http.Request, rl *rate.Limiter, rt hosted.Runtime) error {
 	for {
 		//execute the request
 		if err := rl.Wait(rt.Context()); err != nil {
