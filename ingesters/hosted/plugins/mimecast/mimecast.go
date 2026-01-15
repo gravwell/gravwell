@@ -15,6 +15,8 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"golang.org/x/time/rate"
 )
 
 // Storage keys
@@ -29,29 +31,10 @@ type Mimecast struct {
 	includeAudit bool // if the audit api should be polled
 	start        time.Time
 	tagPrefix    string
-}
-
-func NewLegacy(conf *LegacyConfig) *Mimecast {
-	c := NewClient(defaultBaseDomain, conf.ClientID, conf.ClientSecret, &http.Client{})
-	_, ok := SIEMApiEvents[conf.MimecastAPI]
-	var apis = make([]Api, 1)
-	if ok {
-		apis[0] = conf.MimecastAPI
-	}
-	audit := false
-	if conf.MimecastAPI == AuditApi {
-		audit = true
-	}
-	return &Mimecast{
-		c:            c,
-		apis:         apis,
-		includeAudit: audit,
-		start:        conf.StartTime,
-	}
+	conf         *Config
 }
 
 func New(conf *Config) *Mimecast {
-	c := NewClient(conf.Host, conf.Client_Id, conf.Client_Secret, &http.Client{})
 	apis := make([]Api, 0)
 	audit := false
 	for _, a := range conf.Api {
@@ -65,10 +48,10 @@ func New(conf *Config) *Mimecast {
 		}
 	}
 
-	start := time.Now().Add(conf.Lookback * -time.Hour)
+	start := time.Now().Add(-conf.Lookback)
 
 	return &Mimecast{
-		c:            c,
+		conf:         conf,
 		apis:         apis,
 		includeAudit: audit,
 		start:        start,
@@ -78,6 +61,11 @@ func New(conf *Config) *Mimecast {
 
 func (m *Mimecast) Run(ctx context.Context, rt hosted.Runtime) error {
 	rt.Info("starting mimecast")
+
+	limit := rate.NewLimiter(rate.Every(time.Minute/time.Duration(m.conf.Requests_Per_Minute)), m.conf.Requests_Per_Minute)
+	retry := utils.NewRetryHttpClient(limit, 3*time.Second, 10*time.Second, ctx, nil)
+	m.c = NewClient(m.conf.Host, m.conf.Client_Id, m.conf.Client_Secret, retry)
+
 	errs := make([]error, 2)
 	var wg sync.WaitGroup
 	if m.includeAudit {

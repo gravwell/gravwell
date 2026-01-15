@@ -9,72 +9,32 @@ import (
 )
 
 const (
-	defaultBaseDomain = "https://api.services.mimecast.com"
-	defaultLookback   = 24 * time.Hour
+	defaultBaseDomain        = "https://api.services.mimecast.com"
+	defaultLookback          = 24 * time.Hour
+	defaultRequestsPerMinute = 5
 )
 
-type LegacyConfig struct {
-	Ingester_UUID string
-	StartTime     time.Time
-	ClientID      string `json:"-"`
-	ClientSecret  string `json:"-"`
-	MimecastAPI   Api
-	Tag_Name      string
-	Preprocessor  []string
-	RateLimit     int // requests per minute
-}
-
-func (l *LegacyConfig) Verify() error {
-	if l.Tag_Name == "" {
-		return errors.New("Tag-Name not specified")
-	}
-	if l.ClientID == "" {
-		return errors.New("ClientID not specified")
-	}
-	if l.ClientSecret == "" {
-		return errors.New("ClientSecret not specified")
-	}
-	if l.StartTime.IsZero() {
-		l.StartTime = time.Now()
-	}
-	if _, ok := SIEMApiEvents[l.MimecastAPI]; !ok && l.MimecastAPI != AuditApi {
-		return errors.New("Mimecast API is not valid")
-	}
-
-	return nil
-}
-
-func (l *LegacyConfig) UUID() uuid.UUID {
-	if l.Ingester_UUID != "" {
-		if r, err := uuid.Parse(l.Ingester_UUID); err == nil {
-			return r
-		}
-	}
-	return uuid.Nil
-}
-
-func (l *LegacyConfig) Tags() []string {
-	return []string{l.Tag_Name}
-}
-
 type Config struct {
-	Ingester_UUID string
-	Lookback      time.Duration
-	Client_Id     string `json:"-"`
-	Client_Secret string `json:"-"`
-	Api           []Api
-	Host          string
-	Tag_Prefix    string
-	Preprocessor  []string
-	Rate_Limit    int // Request per minute
+	Ingester_UUID       string
+	Lookback            time.Duration
+	Client_Id           string `json:"-"`
+	Client_Secret       string `json:"-"`
+	Api                 []Api
+	Host                string
+	Tag_Prefix          string
+	Preprocessor        []string
+	Requests_Per_Minute int
 }
 
 func (c *Config) Verify() error {
 	if c.Host == "" {
 		c.Host = defaultBaseDomain
 	}
-	if c.Lookback == 0 {
+	if c.Lookback <= 0 {
 		c.Lookback = defaultLookback
+	}
+	if c.Requests_Per_Minute <= 0 {
+		c.Requests_Per_Minute = defaultRequestsPerMinute
 	}
 	if c.Client_Id == "" {
 		return errors.New("Client-Id not specified")

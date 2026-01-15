@@ -13,18 +13,17 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
-	"github.com/gravwell/gravwell/v3/ingesters/hosted/mimecast"
 
 	// include all the native hosted ingesters
+	"github.com/gravwell/gravwell/v3/ingesters/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted/plugins/tester"
 )
 
 type Configs struct {
-	Okta         map[string]*okta.Config
-	MimecastConf map[string]*mimecast.LegacyConfig
-	Mimecast     map[string]*mimecast.Config
-	Tester       map[string]*tester.Config
+	Okta     map[string]*okta.Config
+	Mimecast map[string]*mimecast.Config
+	Tester   map[string]*tester.Config
 }
 
 // Verify ensures that the plugin configs are valid
@@ -34,14 +33,6 @@ func (c Configs) Verify() (err error) {
 		if v != nil {
 			if err = v.Verify(); err != nil {
 				err = fmt.Errorf("Okta config %q failed validation %w", k, err)
-				return
-			}
-		}
-	}
-	for k, v := range c.MimecastConf {
-		if v != nil {
-			if err = v.Verify(); err != nil {
-				err = fmt.Errorf("MimecastConf config %q failed validation %w", k, err)
 				return
 			}
 		}
@@ -65,9 +56,6 @@ func (c Configs) Tags() (tags []string, err error) {
 	if len(c.Tester) > 0 {
 		tags = append(tags, tester.Tag)
 	}
-	for _, m := range c.MimecastConf {
-		tags = append(tags, m.Tags()...)
-	}
 	for _, v := range c.Mimecast {
 		tags = append(tags, v.Tags()...)
 	}
@@ -76,7 +64,7 @@ func (c Configs) Tags() (tags []string, err error) {
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.Okta) + len(c.Tester) + len(c.MimecastConf) + len(c.Mimecast)
+	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast)
 	return
 }
 
@@ -118,20 +106,6 @@ func (c Configs) ForEachIngester(tn hosted.TagNegotiator, nrt NewRuntimeCallback
 			return
 		}
 	}
-	for k, v := range c.MimecastConf {
-		// this shouldn't happen, but scream about it anyway
-		if v == nil {
-			err = fmt.Errorf("okta ingester %q has a nil config", k)
-			return
-		}
-		// get a new ingester
-		var ig *mimecast.Mimecast
-		ig = mimecast.NewLegacy(v)
-
-		if err = c.buildIngester(k, okta.ID, "mimecast", okta.Version, v.UUID(), ig, nrt, cb); err != nil {
-			return
-		}
-	}
 	for k, v := range c.Mimecast {
 		// this shouldn't happen, but scream about it anyway
 		if v == nil {
@@ -163,7 +137,7 @@ func (c Configs) buildIngester(name, id, kind, ver string, ingesterUUID uuid.UUI
 		return
 	}
 
-	// create the ingester and ask for for the runtime associated with this ingester uuid
+	// create the ingester and ask for the runtime associated with this ingester uuid
 	err = cb(kind, name, runner)
 	return
 }
