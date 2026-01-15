@@ -71,7 +71,7 @@ type Error struct {
 }
 
 // MtaEventData is the minimum representation of all events returned.
-// We only need to extract the timestamp for creting the entry.
+// We only need to extract the timestamp for creating the entry.
 // Everything else we pass along as the original byte slice, unchanged.
 type MtaEventData struct {
 	Timestamp int64 `json:"timestamp"`

@@ -122,7 +122,7 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 			}
 			ts, err := time.Parse(AuditTimeFormat, data.EventTime)
 			if err != nil {
-				rt.Error("error parsting time for event", log.KVErr(err))
+				rt.Error("error parsing time for event", log.KVErr(err))
 				continue
 			}
 			e := entry.Entry{
@@ -170,14 +170,14 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 	}
 	for !rt.Sleep(time.Second * 5) { // TODO: configurable
 		var cursor *string
-		if c, err := rt.GetString(string(api) + auditCursor); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
+		if c, err := rt.GetString(string(api) + "-cursor"); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
 			rt.Error("error getting cursor", log.KV("api", api), log.KVErr(err))
 			continue
 		} else if c != "" {
 			cursor = &c
 		}
 		lastTime := m.start
-		if t, err := rt.GetTime(string(api) + auditTimestamp); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
+		if t, err := rt.GetTime(string(api) + "-timestamp"); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
 			rt.Error("error getting last timestamp", log.KV("api", api), log.KVErr(err))
 		} else if t.Before(time.Now()) && !t.IsZero() {
 			lastTime = t
