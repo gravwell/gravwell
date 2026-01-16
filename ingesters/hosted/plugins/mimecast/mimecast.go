@@ -49,6 +49,10 @@ func New(conf *Config) *Mimecast {
 	}
 
 	start := time.Now().Add(-conf.Lookback)
+	prefix := conf.Tag_Prefix
+	if prefix != "" {
+		prefix += "-"
+	}
 
 	return &Mimecast{
 		conf:         conf,
@@ -130,7 +134,10 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 				Data: d,
 				Tag:  tag,
 			}
-			rt.Write(e)
+			err = rt.Write(e)
+			if err != nil {
+				rt.Error("error writing entry", log.KV("api", "audit"), log.KVErr(err))
+			}
 			// save progress on current cursor?
 		}
 		// don't advance the cursor until we process the page
@@ -163,6 +170,8 @@ func (m *Mimecast) mta(ctx context.Context, rt hosted.Runtime) error {
 }
 
 func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) error {
+	storageCursor := string(api) + "-cursor"
+	storageTimestamp := string(api) + "-timestamp"
 	event, _ := SIEMApiEvents[api]
 	tag, err := rt.NegotiateTag(m.tagPrefix + string(api))
 	if err != nil {
@@ -170,14 +179,14 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 	}
 	for !rt.Sleep(time.Second * 5) { // TODO: configurable
 		var cursor *string
-		if c, err := rt.GetString(string(api) + "-cursor"); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
+		if c, err := rt.GetString(storageCursor); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
 			rt.Error("error getting cursor", log.KV("api", api), log.KVErr(err))
 			continue
 		} else if c != "" {
 			cursor = &c
 		}
 		lastTime := m.start
-		if t, err := rt.GetTime(string(api) + "-timestamp"); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
+		if t, err := rt.GetTime(storageTimestamp); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
 			rt.Error("error getting last timestamp", log.KV("api", api), log.KVErr(err))
 		} else if t.Before(time.Now()) && !t.IsZero() {
 			lastTime = t
@@ -198,10 +207,10 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 			// save progress on current cursor?
 		}
 		if !r.IsCaughtUp {
-			rt.PutString(string(api)+auditCursor, r.NextPage)
+			rt.PutString(storageTimestamp, r.NextPage)
 		} else {
-			rt.PutString(string(api)+auditCursor, "")
-			rt.PutTime(string(api)+auditTimestamp, time.Now()) // I'm not sure this is true, may need to get the timestamp off the last record, otherwise we might skip
+			rt.PutString(storageCursor, "")
+			rt.PutTime(storageTimestamp, time.Now()) // I'm not sure this is true, may need to get the timestamp off the last record, otherwise we might skip
 		}
 	}
 
