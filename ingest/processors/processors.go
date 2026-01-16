@@ -20,6 +20,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/gravwell/gravwell/v4/ingest/attach"
 	"github.com/gravwell/gravwell/v4/ingest/config"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/processors/plugin"
@@ -79,6 +80,7 @@ func CheckProcessor(id string) error {
 	case TagSrcRouterProcessor:
 	case RegexReplaceProcessor:
 	case RegexDropProcessor:
+	case AttachProcessor:
 	default:
 		return checkProcessorOS(id)
 	}
@@ -150,6 +152,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = RegexReplaceLoadConfig(vc)
 	case RegexDropProcessor:
 		cfg, err = RegexDropLoadConfig(vc)
+	case AttachProcessor:
+		cfg, err = AttachLoadConfig(vc)
 	default:
 		cfg, err = processorLoadConfigOS(vc)
 	}
@@ -325,6 +329,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewRegexDropper(cfg)
+	case AttachProcessor:
+		var cfg attach.AttachConfig
+		if cfg, err = AttachLoadConfig(vc); err != nil {
+			return
+		}
+		p, err = NewAttachProcessor(cfg)
 	default:
 		p, err = newProcessorOS(vc, tgr)
 	}

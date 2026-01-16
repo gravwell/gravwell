@@ -152,7 +152,7 @@ func (s *SQSS3Listener) worker(ctx context.Context, lg *log.Logger, wg *sync.Wai
 					continue
 				}
 
-				sz, s3rtt, rtt, err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize)
+				sz, s3rtt, rtt, err = ProcessContext(obj, ctx, s.svc, buckets[i], s.rdr, s.TG, s.src, s.Tag, s.Proc, s.MaxLineSize, s.AttachMetadata)
 				if err != nil {
 					shouldDelete = false
 					lg.Error("error processing message", log.KV("bucket", buckets[i]), log.KV("key", x), log.KVErr(err))

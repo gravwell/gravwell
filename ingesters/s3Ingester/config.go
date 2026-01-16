@@ -43,6 +43,7 @@ type bucket struct {
 	Credentials_Type string
 	ID               string `json:"-"` // DO NOT send this when marshalling
 	Secret           string `json:"-"` // DO NOT send this when marshalling
+	Attach_Metadata  bool
 }
 
 type sqsS3 struct {
@@ -58,6 +59,7 @@ type sqsS3 struct {
 	Preprocessor     []string
 	Max_Line_Size    int
 	Source_Override  string
+	Attach_Metadata  bool
 }
 
 type global struct {
