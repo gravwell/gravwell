@@ -11,7 +11,6 @@ package utils
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"time"
@@ -75,21 +74,16 @@ func (rc *RetryHttpClient) Do(req *http.Request) (resp *http.Response, err error
 		if resp, err = rc.cli.Do(req.WithContext(rc.ctx)); err != nil {
 			//log the error and continue
 			if rc.ctx.Err() != nil {
-				//context cancelled
+				//context canceled, or timed out
 				return
 			}
 			// some sort of error, backoff and then continue
-		} else if resp.StatusCode != http.StatusOK {
-			//drain the body just in case
+		} else if rc.isRecoverableStatus(resp.StatusCode) {
+			//drain the body, as we will be retrying.
 			DrainResponse(resp)
-			//check if this status code is something we can recover from
-			if !rc.isRecoverableStatus(resp.StatusCode) {
-				err = fmt.Errorf("non-recoverable status code %s (%d)", resp.Status, resp.StatusCode)
-				return
-			}
 		} else {
 			//all good
-			break
+			return
 		}
 		if QuitableSleep(rc.ctx, rc.backoff) {
 			break
@@ -116,4 +110,5 @@ func DrainResponse(resp *http.Response) {
 		return
 	}
 	io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
 }

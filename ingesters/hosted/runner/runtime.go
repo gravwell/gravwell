@@ -70,9 +70,9 @@ func (rm *runtimeManager) stop() (err error) {
 }
 
 // createNativeRuntime creates a basic runtime that has handles on loggers, bucket writer, and the context
-func (rm *runtimeManager) createNativeRuntime(id, name string, ingesterUUID uuid.UUID) (rt hosted.Runtime, err error) {
-	// grab a new native runtime based on the name, type, and UUID
-	ingesterID := fmt.Sprintf("%s/%s/%s", id, name, ingesterUUID.String())
+func (rm *runtimeManager) createNativeRuntime(kind, name string, ingesterUUID uuid.UUID) (rt hosted.Runtime, err error) {
+	// grab a new native runtime based on the kind, name, and UUID
+	ingesterID := fmt.Sprintf("%s/%s/%s", kind, name, ingesterUUID.String())
 	var bw *hosted.BucketWriter
 	// get a bucket writer for this specific ingester to maintain state
 	if bw, err = rm.sh.GetBucketWriter(ingesterID); err != nil {
@@ -80,8 +80,8 @@ func (rm *runtimeManager) createNativeRuntime(id, name string, ingesterUUID uuid
 		return
 	}
 	// create a new logger that gets line numbers and appname right for native ingesters
-	var lgr hosted.Logger
-	if lgr, err = hosted.NewNativeLogger(rm.lgr, `okta`); err != nil {
+	var lgr *log.KVLogger
+	if lgr, err = hosted.NewNativeLogger(rm.lgr, kind, name); err != nil {
 		err = fmt.Errorf("failed to create native logger for hosted ingester %s: %w", ingesterID, err)
 		return
 	}

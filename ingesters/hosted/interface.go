@@ -80,9 +80,9 @@ type Storage interface {
 // Logger is a cut down interface from github.com/gravwell/gravwell/ingest/log.Logger
 // it enforces fully structred logging to remove the opportunity to sling poorly formed logs
 type Logger interface {
-	Debug(msg string, sds ...rfc5424.SDParam) error
-	Info(msg string, sds ...rfc5424.SDParam) error
-	Warn(msg string, sds ...rfc5424.SDParam) error
-	Error(msg string, sds ...rfc5424.SDParam) error
-	Critical(msg string, sds ...rfc5424.SDParam) error
+	Debug(msg string, sds ...rfc5424.SDParam)
+	Info(msg string, sds ...rfc5424.SDParam)
+	Warn(msg string, sds ...rfc5424.SDParam)
+	Error(msg string, sds ...rfc5424.SDParam)
+	Critical(msg string, sds ...rfc5424.SDParam)
 }

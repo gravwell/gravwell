@@ -15,6 +15,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -194,28 +195,29 @@ func (nr *NativeRunner) recoverableRun() (stack string, err error) {
 	return
 }
 
-func NewNativeLogger(lgr *log.Logger, appname string) (r Logger, err error) {
+func NewNativeLogger(lgr *log.Logger, appname, instance string) (*log.KVLogger, error) {
 	if lgr == nil {
 		return nil, errors.New("missing logger")
 	}
-	if r, err = lgr.Clone(``, appname); err != nil {
-		r, err = nil, fmt.Errorf("failed to clone logger: %w", err)
+	l, err := lgr.Clone(``, appname)
+	if err != nil {
+		return nil, fmt.Errorf("failed to clone logger: %w", err)
 	}
-	return
+	return log.NewLoggerWithKV(l, log.KV("instance", instance)), nil
 }
 
 // NativeRuntime implements a hosted.Runtime for native ingesters that don't need any special handling
 type NativeRuntime struct {
 	*BucketWriter
-	Logger
-	igst *ingest.IngestMuxer
-	ctx  context.Context
-	id   string
+	Logger *log.KVLogger
+	igst   *ingest.IngestMuxer
+	ctx    context.Context
+	id     string
 }
 
 // NewNativeRuntime creates a basic runtime that has handles on loggers, bucket writer, and the context and is designed to run
 // natively compiled/included ingesters.
-func NewNativeRuntime(ctx context.Context, id string, bw *BucketWriter, igst *ingest.IngestMuxer, lgr Logger) (r *NativeRuntime, err error) {
+func NewNativeRuntime(ctx context.Context, id string, bw *BucketWriter, igst *ingest.IngestMuxer, lgr *log.KVLogger) (r *NativeRuntime, err error) {
 	if bw == nil {
 		err = fmt.Errorf("missing bucket writer")
 		return
@@ -287,4 +289,23 @@ func (nr *NativeRuntime) Write(ent entry.Entry) (err error) {
 	localEnt := ent.DeepCopy()
 	err = nr.igst.WriteEntry(&localEnt)
 	return
+}
+
+// The log methods need to be wrapped so we don't return errors to callers.
+// This should eventually be handled and potentially surface through an Alive check failure.
+
+func (nr *NativeRuntime) Debug(msg string, sds ...rfc5424.SDParam) {
+	nr.Logger.Debug(msg, sds...)
+}
+func (nr *NativeRuntime) Info(msg string, sds ...rfc5424.SDParam) {
+	nr.Logger.Info(msg, sds...)
+}
+func (nr *NativeRuntime) Warn(msg string, sds ...rfc5424.SDParam) {
+	nr.Logger.Warn(msg, sds...)
+}
+func (nr *NativeRuntime) Error(msg string, sds ...rfc5424.SDParam) {
+	nr.Logger.Error(msg, sds...)
+}
+func (nr *NativeRuntime) Critical(msg string, sds ...rfc5424.SDParam) {
+	nr.Logger.Critical(msg, sds...)
 }

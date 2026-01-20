@@ -70,7 +70,7 @@ func (c *Config) Verify() (err error) {
 
 	// check the UUID
 	if c.Ingester_UUID == `` {
-		return errors.New("missing UUID")
+		return errors.New("missing Ingester-UUID")
 	} else if _, err = uuid.Parse(c.Ingester_UUID); err != nil {
 		return fmt.Errorf("invalid Ingester-UUID %q %w", c.Ingester_UUID, err)
 	}

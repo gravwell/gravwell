@@ -40,7 +40,6 @@ const (
 )
 
 const (
-	name   = "hostedokta"
 	tsKey  = `latest`
 	urlKey = `nextUrl`
 
@@ -64,12 +63,17 @@ var (
 	httpRetryCodes = []int{425, 429} // basically just Too Early and too many requests
 )
 
+type doer interface {
+	Do(*http.Request) (*http.Response, error)
+}
+
 type OktaIngester struct {
 	cfg            Config
 	latestTS       time.Time
 	systemLogsNext *url.URL
 	systemTag      entry.EntryTag
 	userTag        entry.EntryTag
+	c              doer
 }
 
 func NewOktaIngester(c Config, tn hosted.TagNegotiator) (o *OktaIngester, err error) {
@@ -115,30 +119,36 @@ func (o *OktaIngester) Run(ctx context.Context, rt hosted.Runtime) (err error) {
 		rl.SetBurst(o.cfg.Request_Burst)
 	}
 
+	// create a share http client to avoid passing a rate limiter around, and allow connection/resource reuse.
+	o.c = utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, ctx, httpRetryCodes)
+
 	wg := &sync.WaitGroup{}
 	wg.Add(1)
-	go o.userLogRoutine(ctx, rl, wg, rt)
+	go func() {
+		defer wg.Done()
+		o.userLogRoutine(ctx, rt)
+	}()
 
-	if err = o.systemLogRoutine(ctx, rl, rt); err != nil {
-		rt.Error("failed to gather system logs", log.KV("error", err))
-	} else {
-		rt.Info("shutting down", log.KV("shutdown", ctx.Err() == nil))
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		o.systemLogRoutine(ctx, rt)
+	}()
+
+	wg.Wait()
 	return
 }
 
 // userLogRoutine is just a goroutine that
-func (o *OktaIngester) userLogRoutine(ctx context.Context, rl *rate.Limiter, wg *sync.WaitGroup, rt hosted.Runtime) {
-	defer wg.Done()
+func (o *OktaIngester) userLogRoutine(ctx context.Context, rt hosted.Runtime) {
 	startTs := time.Now()
 	tckr := time.NewTicker(userLogWindowSize)
-	// grab the context
-loop:
 	for {
 		var ts time.Time
 		select {
 		case <-ctx.Done():
-			break loop
+			rt.Debug("shutting down user log routine", log.KV("reason", ctx.Err()))
+			return
 		case ts = <-tckr.C:
 			if !rt.Alive() {
 				continue // okta can back off and wait if the runtime isn't healthy
@@ -150,7 +160,7 @@ loop:
 			}
 			//just look for changes over the last boundary
 			rt.Info("requesting users", log.KV("start", start.Format(timeFormat)), log.KV("end", end.Format(timeFormat)))
-			if err := o.getUserLogs(start, end, rl, rt); err != nil {
+			if err := o.getUserLogs(start, end, rt); err != nil {
 				rt.Error("failed to get users", log.KV("error", err))
 			} else {
 				//success, update last ts run
@@ -160,27 +170,21 @@ loop:
 	}
 }
 
-func (o *OktaIngester) systemLogRoutine(ctx context.Context, rl *rate.Limiter, rt hosted.Runtime) error {
+func (o *OktaIngester) systemLogRoutine(ctx context.Context, rt hosted.Runtime) {
 	rt.Info("starting system log routine",
 		log.KV("start-ts", o.latestTS.Format(time.RFC3339)),
 		log.KV("next-url", o.systemLogsNext != nil))
-	rc := utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, ctx, httpRetryCodes)
-	var quit bool
-	for !quit && rt.Context().Err() == nil {
-		if err := o.getSystemLogs(rc, rt, rl); err != nil {
-			rt.Warn("system log error", log.KV("error", err))
+	for {
+		if err := o.getSystemLogs(rt); err != nil {
+			rt.Error("system log error", log.KV("error", err))
 		}
-		select {
-		case <-rt.Context().Done():
-			quit = true
-		default:
-			quit = rt.Sleep(time.Minute) // this sleep will quit if the context cancels
+		if rt.Sleep(time.Minute) { // this sleep will quit if the context cancels
+			return
 		}
 	}
-	return nil
 }
 
-func (o *OktaIngester) getSystemLogs(rc *utils.RetryHttpClient, rt hosted.Runtime, rl *rate.Limiter) error {
+func (o *OktaIngester) getSystemLogs(rt hosted.Runtime) error {
 	var req *http.Request
 
 	req, err := http.NewRequestWithContext(rt.Context(), http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
@@ -210,19 +214,16 @@ func (o *OktaIngester) getSystemLogs(rc *utils.RetryHttpClient, rt hosted.Runtim
 			quit = rt.Sleep(emptySleepDur)
 			continue
 		}
-		if err = rl.Wait(rt.Context()); err != nil {
-			return err
-		}
-		resp, err := rc.Do(req)
+		resp, err := o.c.Do(req)
 		if err != nil {
 			return err
 		} else if resp.StatusCode != 200 {
-			resp.Body.Close()
+			utils.DrainResponse(resp)
 			return fmt.Errorf("invalid status code %d", resp.StatusCode)
 		}
 
 		cnt, ts, err := o.handleSystemLogs(resp.Body, rt)
-		resp.Body.Close()
+		utils.DrainResponse(resp)
 		if err != nil {
 			return fmt.Errorf("failed to handle system logs %w", err)
 		}
@@ -325,7 +326,7 @@ func (o *OktaIngester) handleSystemLogs(rdr io.Reader, rt hosted.Runtime) (cnt i
 		err = rt.Write(entry.Entry{
 			TS:   entry.FromStandard(ts),
 			Tag:  o.systemTag,
-			Data: []byte(lg),
+			Data: lg,
 		})
 		if err != nil {
 			return
@@ -358,9 +359,7 @@ func lastUpdatedFilter(start, end time.Time) (r string) {
 	return
 }
 
-func (o *OktaIngester) getUserLogs(start, end time.Time, rl *rate.Limiter, rt hosted.Runtime) error {
-	rc := utils.NewRetryHttpClient(rl, httpTimeout, httpBackoff, rt.Context(), httpRetryCodes)
-
+func (o *OktaIngester) getUserLogs(start, end time.Time, rt hosted.Runtime) error {
 	req, err := http.NewRequestWithContext(rt.Context(), http.MethodGet, fmt.Sprintf("https://%s", o.cfg.Domain), nil)
 	if err != nil {
 		return err
@@ -377,20 +376,16 @@ func (o *OktaIngester) getUserLogs(start, end time.Time, rl *rate.Limiter, rt ho
 	req.Header.Set(`Content-Type`, `application/json`)
 	req.Header.Set(`Authorization`, fmt.Sprintf(`SSWS %s`, o.cfg.Token))
 
-	return o.linkFollowingRequest(rc, req, rl, rt)
+	return o.linkFollowingRequest(req, rt)
 }
 
-func (o *OktaIngester) linkFollowingRequest(rc *utils.RetryHttpClient, req *http.Request, rl *rate.Limiter, rt hosted.Runtime) error {
+func (o *OktaIngester) linkFollowingRequest(req *http.Request, rt hosted.Runtime) error {
 	for {
-		//execute the request
-		if err := rl.Wait(rt.Context()); err != nil {
-			return err
-		}
-		resp, err := rc.Do(req)
+		resp, err := o.c.Do(req)
 		if err != nil {
 			return err
 		} else if resp.StatusCode != 200 {
-			resp.Body.Close()
+			utils.DrainResponse(resp)
 			return fmt.Errorf("invalid status code %d", resp.StatusCode)
 		}
 
@@ -427,7 +422,7 @@ func (o *OktaIngester) handleUserLogs(rdr io.Reader, rt hosted.Runtime) (err err
 		err = rt.Write(entry.Entry{
 			Tag:  o.userTag,
 			TS:   entry.Now(),
-			Data: []byte(lg),
+			Data: lg,
 		})
 		if err != nil {
 			rt.Error("failed to write user log entry", log.KV("error", err))

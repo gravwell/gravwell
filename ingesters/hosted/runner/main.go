@@ -25,10 +25,10 @@ import (
 )
 
 const (
-	defaultConfigLoc  = `/tmp/hosted_ingester_tester.conf`
-	defaultConfigDLoc = ``
-	ingesterName      = `hostedtest`
-	appName           = `hostedtest`
+	defaultConfigLoc  = `/opt/gravwell/etc/hosted_ingester_runner.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/hosted_ingester_runner.conf.d`
+	ingesterName      = `hosted-runner`
+	appName           = `hosted-runner`
 
 	exitSyncTimeout = time.Minute
 )
