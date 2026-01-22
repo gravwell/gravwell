@@ -159,7 +159,7 @@ func (o *OktaIngester) userLogRoutine(ctx context.Context, rt hosted.Runtime) {
 				continue //skip this, not sure how this could happen, but skip it
 			}
 			//just look for changes over the last boundary
-			rt.Info("requesting users", log.KV("start", start.Format(timeFormat)), log.KV("end", end.Format(timeFormat)))
+			rt.Debug("requesting users", log.KV("start", start.Format(timeFormat)), log.KV("end", end.Format(timeFormat)))
 			if err := o.getUserLogs(start, end, rt); err != nil {
 				rt.Error("failed to get users", log.KV("error", err))
 			} else {
