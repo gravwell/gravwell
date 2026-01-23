@@ -624,6 +624,17 @@ func (c *Client) ListExtractions(opts *types.QueryOptions) (ret types.AXListResp
 	return
 }
 
+// ListAllExtractions returns the list of autoextraction definitions available
+// to the current user, setting admin mode to true -- admin users will receive ALL definitions.
+func (c *Client) ListAllExtractions(opts *types.QueryOptions) (ret types.AXListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	opts.AdminMode = true
+	err = c.postStaticURL(EXTRACTORS_LIST_URL, opts, &ret)
+	return
+}
+
 // GetExtraction returns a particular extraction by UUID
 func (c *Client) GetExtraction(id string) (d types.AX, err error) {
 	err = c.getStaticURL(extractionIdUrl(id), &d)

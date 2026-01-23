@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
+	"slices"
 )
 
 // pullKit reaches out to the remote Gravwell instance and performs a kit build using the existing kit build request
@@ -165,7 +166,7 @@ func generateKitBuildRequest(cli *client.Client, kbrBase types.KitBuildRequest) 
 			err = fmt.Errorf("invalid Icon UUID %s: %w", kbr.Icon, err)
 			return
 		}
-		if !containsUUID(kbr.Files, icon) {
+		if !slices.Contains(kbr.Files, icon) {
 			kbr.Files = append(kbr.Files, icon)
 		}
 	}
@@ -175,7 +176,7 @@ func generateKitBuildRequest(cli *client.Client, kbrBase types.KitBuildRequest) 
 			err = fmt.Errorf("invalid Banner UUID %s: %w", kbr.Banner, err)
 			return
 		}
-		if !containsUUID(kbr.Files, banner) {
+		if !slices.Contains(kbr.Files, banner) {
 			kbr.Files = append(kbr.Files, banner)
 		}
 	}
@@ -185,7 +186,7 @@ func generateKitBuildRequest(cli *client.Client, kbrBase types.KitBuildRequest) 
 			err = fmt.Errorf("invalid Cover UUID %s: %w", kbr.Cover, err)
 			return
 		}
-		if !containsUUID(kbr.Files, cover) {
+		if !slices.Contains(kbr.Files, cover) {
 			kbr.Files = append(kbr.Files, cover)
 		}
 	}
@@ -208,14 +209,14 @@ func unpackKitFile(pth, targetDir string) (err error) {
 }
 
 func getSearchLibraryItems(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var items []types.WireSearchLibrary
-	if items, err = cli.ListSearchLibrary(); err != nil {
+	var items types.SavedQueryListResponse
+	if items, err = cli.ListAllSavedQueries(nil); err != nil {
 		err = fmt.Errorf("failed to get search library items: %w", err)
 		return
 	}
-	for _, sl := range items {
-		if containsUUID(orig.SearchLibraries, sl.ThingUUID) || containsLabel(sl.Labels, label) {
-			kbr.SearchLibraries = append(kbr.SearchLibraries, sl.ThingUUID)
+	for _, sl := range items.Results {
+		if slices.Contains(orig.SearchLibraries, sl.ID) || slices.Contains(sl.Labels, label) {
+			kbr.SearchLibraries = append(kbr.SearchLibraries, sl.ID)
 		}
 	}
 	return
@@ -228,7 +229,7 @@ func getKitDashboards(cli *client.Client, label string, orig types.KitBuildReque
 		return
 	}
 	for _, d := range dashboards {
-		if containsLabel(d.Labels, label) || containsUint64(orig.Dashboards, d.ID) {
+		if slices.Contains(d.Labels, label) || slices.Contains(orig.Dashboards, d.ID) {
 			kbr.Dashboards = append(kbr.Dashboards, d.ID)
 		}
 	}
@@ -236,14 +237,14 @@ func getKitDashboards(cli *client.Client, label string, orig types.KitBuildReque
 }
 
 func getKitTemplates(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var templates []types.WireUserTemplate
-	if templates, err = cli.ListTemplates(); err != nil {
+	var templates types.TemplateListResponse
+	if templates, err = cli.ListAllTemplates(nil); err != nil {
 		err = fmt.Errorf("failed to get user templates: %w", err)
 		return
 	}
-	for _, t := range templates {
-		if containsLabel(t.Labels, label) || containsUUID(orig.Templates, t.ThingUUID) {
-			kbr.Templates = append(kbr.Templates, t.ThingUUID)
+	for _, t := range templates.Results {
+		if slices.Contains(t.Labels, label) || slices.Contains(orig.Templates, t.ID) {
+			kbr.Templates = append(kbr.Templates, t.ID)
 		}
 	}
 	return
@@ -256,7 +257,7 @@ func getKitPivots(cli *client.Client, label string, orig types.KitBuildRequest, 
 		return
 	}
 	for _, a := range pivots {
-		if containsLabel(a.Labels, label) || containsUUID(orig.Pivots, a.GUID) {
+		if slices.Contains(a.Labels, label) || slices.Contains(orig.Pivots, a.GUID) {
 			kbr.Pivots = append(kbr.Pivots, a.GUID)
 		}
 	}
@@ -264,14 +265,14 @@ func getKitPivots(cli *client.Client, label string, orig types.KitBuildRequest, 
 }
 
 func getKitResources(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var resources []types.ResourceMetadata
-	if resources, err = cli.GetResourceList(); err != nil {
+	var resources types.ResourceListResponse
+	if resources, err = cli.ListAllResources(nil); err != nil {
 		err = fmt.Errorf("failed to get resources: %w", err)
 		return
 	}
-	for _, r := range resources {
-		if containsLabel(r.Labels, label) || containsString(orig.Resources, r.GUID) {
-			kbr.Resources = append(kbr.Resources, r.GUID)
+	for _, r := range resources.Results {
+		if slices.Contains(r.Labels, label) || slices.Contains(orig.Resources, r.ID) {
+			kbr.Resources = append(kbr.Resources, r.ID)
 		}
 	}
 	return
@@ -284,7 +285,7 @@ func getKitScheduledSearchesAndScripts(cli *client.Client, label string, orig ty
 		return
 	}
 	for _, ss := range searches {
-		if containsLabel(ss.Labels, label) || containsInt32(orig.ScheduledSearches, ss.ID) {
+		if slices.Contains(ss.Labels, label) || slices.Contains(orig.ScheduledSearches, ss.ID) {
 			kbr.ScheduledSearches = append(kbr.ScheduledSearches, ss.ID)
 		}
 	}
@@ -298,7 +299,7 @@ func getKitFlows(cli *client.Client, label string, orig types.KitBuildRequest, k
 		return
 	}
 	for _, f := range flows {
-		if containsLabel(f.Labels, label) || containsInt32(orig.Flows, f.ID) {
+		if slices.Contains(f.Labels, label) || slices.Contains(orig.Flows, f.ID) {
 			kbr.Flows = append(kbr.Flows, f.ID)
 		}
 	}
@@ -312,7 +313,7 @@ func getKitAlerts(cli *client.Client, label string, orig types.KitBuildRequest, 
 		return
 	}
 	for _, a := range alerts {
-		if containsLabel(a.Labels, label) || containsUUID(orig.Alerts, a.ThingUUID) {
+		if slices.Contains(a.Labels, label) || slices.Contains(orig.Alerts, a.ThingUUID) {
 			kbr.Alerts = append(kbr.Alerts, a.ThingUUID)
 		}
 	}
@@ -320,13 +321,13 @@ func getKitAlerts(cli *client.Client, label string, orig types.KitBuildRequest, 
 }
 
 func getKitMacros(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var macros []types.SearchMacro
-	if macros, err = cli.GetUserGroupsMacros(); err != nil {
+	var macros types.MacroListResponse
+	if macros, err = cli.ListAllMacros(nil); err != nil {
 		err = fmt.Errorf("failed to get macros: %w", err)
 		return
 	}
-	for _, m := range macros {
-		if containsLabel(m.Labels, label) || containsUint64(orig.Macros, m.ID) {
+	for _, m := range macros.Results {
+		if slices.Contains(m.Labels, label) || slices.Contains(orig.Macros, m.ID) {
 			kbr.Macros = append(kbr.Macros, m.ID)
 		}
 	}
@@ -334,14 +335,14 @@ func getKitMacros(cli *client.Client, label string, orig types.KitBuildRequest, 
 }
 
 func getKitExtractors(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var extractors []types.AXDefinition
-	if extractors, err = cli.GetExtractions(); err != nil {
+	var extractors types.AXListResponse
+	if extractors, err = cli.ListAllExtractions(nil); err != nil {
 		err = fmt.Errorf("failed to get extractors: %w", err)
 		return
 	}
-	for _, e := range extractors {
-		if containsLabel(e.Labels, label) || containsUUID(orig.Extractors, e.UUID) {
-			kbr.Extractors = append(kbr.Extractors, e.UUID)
+	for _, e := range extractors.Results {
+		if slices.Contains(e.Labels, label) || slices.Contains(orig.Extractors, e.ID) {
+			kbr.Extractors = append(kbr.Extractors, e.ID)
 		}
 	}
 	return
@@ -354,7 +355,7 @@ func getKitFiles(cli *client.Client, label string, orig types.KitBuildRequest, k
 		return
 	}
 	for _, f := range files {
-		if containsLabel(f.Labels, label) || containsUUID(orig.Files, f.ThingUUID) {
+		if slices.Contains(f.Labels, label) || slices.Contains(orig.Files, f.ThingUUID) {
 			kbr.Files = append(kbr.Files, f.ThingUUID)
 		}
 	}
@@ -368,7 +369,7 @@ func getKitPlaybooks(cli *client.Client, label string, orig types.KitBuildReques
 		return
 	}
 	for _, p := range playbooks {
-		if containsLabel(p.Labels, label) || containsUUID(orig.Playbooks, p.GUID) {
+		if slices.Contains(p.Labels, label) || slices.Contains(orig.Playbooks, p.GUID) {
 			kbr.Playbooks = append(kbr.Playbooks, p.GUID)
 		}
 	}
