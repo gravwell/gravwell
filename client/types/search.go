@@ -258,6 +258,15 @@ type AttachSearchResponse struct {
 	Info        *SearchInfo `json:",omitempty"` //info if available
 }
 
+// BinningStatus describes whether search results can be condensed (binned) and, if not, why.
+type BinningStatus string
+
+const (
+	BinningStatusNotBinnable       BinningStatus = `NotBinnable`       // results can't be condensed.
+	BinningStatusBinningSetByQuery BinningStatus = `BinningSetByQuery` // results are condensed, but binning was dictated by the query.
+	BinningStatusBinnable          BinningStatus = `Binnable`          // results can be condensed using binCount or binWidth on the results endpoint.
+)
+
 // SearchInfo contains information about a search, including the search
 // parameters, status, and metadata.
 type SearchInfo struct {
@@ -287,6 +296,7 @@ type SearchInfo struct {
 	Background            bool // set to true if this search has been marked as backgrounded.
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
+	EVs                   []string   // EVs produced by the search
 	Import                ImportInfo `json:",omitempty"` //information attached if there this search is saved and from an external import
 	// Preview indicates that this search is a preview search
 	// this means that the query most likely did not cover the entire time range that was originally requested
@@ -296,6 +306,9 @@ type SearchInfo struct {
 	Error string `json:",omitempty"`
 
 	LaunchInfo SearchLaunchInfo // information about how a search was launched
+
+	// Binning describes whether search results can be condensed (binned) and, if not, why.
+	Binning BinningStatus `json:",omitempty"`
 }
 
 type SearchLaunchInfo struct {

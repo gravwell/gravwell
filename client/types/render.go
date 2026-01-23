@@ -102,6 +102,32 @@ const (
 	MetadataTypeNumber string = `number`
 )
 
+const (
+	ResultsKindTable = "table"
+	ResultsKindGraph = "graph"
+)
+
+type ResultsOptions struct {
+	Fence    Geofence
+	BinCount int    `json:"binCount,omitempty"`
+	BinWidth int    `json:"binWidth,omitempty"`
+	Op       string `json:"op,omitempty"`
+}
+
+type ResultsResponse struct {
+	Kind  string
+	Table *ResultsTable
+}
+
+type ResultsTable struct {
+	Columns []string
+	Rows    []map[string]*ResultsTableCell
+}
+
+type ResultsTableCell struct {
+	Value string
+}
+
 type TimeRange struct {
 	StartTS entry.Timestamp `json:",omitempty"`
 	EndTS   entry.Timestamp `json:",omitempty"`
@@ -668,4 +694,17 @@ func tsPointer(t entry.Timestamp) *entry.Timestamp {
 		return nil
 	}
 	return &t
+}
+
+func (rr ResultsResponse) MarshalJSON() ([]byte, error) {
+	// Right now only table is supported
+	return json.Marshal(&struct {
+		Kind    string                         `json:"kind"`
+		Columns []string                       `json:"columns"`
+		Rows    []map[string]*ResultsTableCell `json:"rows"`
+	}{
+		Kind:    rr.Kind,
+		Columns: rr.Table.Columns,
+		Rows:    rr.Table.Rows,
+	})
 }
