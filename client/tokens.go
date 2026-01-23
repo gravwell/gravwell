@@ -41,11 +41,6 @@ func (c *Client) UpdateToken(id uuid.UUID, tr types.TokenCreate) (t types.Token,
 	return
 }
 
-func (c *Client) RegenToken(id uuid.UUID, tr types.TokenRegeneration) (t types.TokenFull, err error) {
-	err = c.methodStaticPushURL(http.MethodPatch, tokenIdUrl(id), tr, &t, []int{http.StatusOK}, nil)
-	return
-}
-
 func (c *Client) DeleteToken(id uuid.UUID) (err error) {
 	return c.methodStaticPushURL(http.MethodDelete, tokenIdUrl(id), nil, nil, []int{http.StatusNoContent}, nil)
 }
