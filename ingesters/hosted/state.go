@@ -11,6 +11,7 @@ package hosted
 import (
 	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	bolt "go.etcd.io/bbolt"
@@ -49,12 +50,17 @@ func OpenStateHandler(pth string, sync bool) (sh *StateHandler, err error) {
 		NoSync:  !sync,
 		Timeout: time.Second,
 	}
+
+	info, err := os.Stat(pth)
+	exists := !os.IsNotExist(err)
+	if err != nil && exists { // if there is no file, bolt.Open will create it
+		return
+	}
+	if exists && info.Mode().Perm()&os.ModePerm&0600 != 0 { // exists && !writable
+		return nil, errors.New("existing state file is not writable")
+	}
 	var db *bolt.DB
 	if db, err = bolt.Open(pth, 0600, &opt); err == nil {
-		if db.IsReadOnly() {
-			err = errors.New("state file is readonly")
-			return
-		}
 		sh = &StateHandler{
 			db: db,
 		}

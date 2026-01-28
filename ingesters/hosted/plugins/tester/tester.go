@@ -1,3 +1,5 @@
+// Package tester
+// A simple test plugin to ensure everything is connected and ingestion works
 package tester
 
 import (
