@@ -116,7 +116,7 @@ func (nr *NativeRunner) Close() (err error) {
 	// wait for routine to exit TODO FIXME - add a timeout on this wait
 	// WaitGroup probably isn't the right tool here
 	nr.wg.Wait()
-	if err = nr.err; errors.Is(err, context.Canceled) {
+	if err = nr.LastError(); errors.Is(err, context.Canceled) {
 		err = nil
 	}
 	return
@@ -159,9 +159,19 @@ func (nr *NativeRunner) Running() bool {
 // LastError returns the last error encountered by the ingester
 func (nr *NativeRunner) LastError() error {
 	if nr != nil {
+		nr.mtx.RLock()
+		defer nr.mtx.RUnlock()
 		return nr.err
 	}
 	return errors.New("native runner not initialized")
+}
+
+func (nr *NativeRunner) setError(err error) {
+	if nr != nil {
+		nr.mtx.Lock()
+		defer nr.mtx.Unlock()
+		nr.err = err
+	}
 }
 
 // run wraps the Ingester.Run with some more tests and a recoverable runner loop so we can recover
@@ -171,7 +181,7 @@ func (nr *NativeRunner) run() {
 	}
 
 	if nr.Ingester == nil || nr.rt == nil {
-		nr.err = errors.New("native runner not ready")
+		nr.setError(errors.New("native runner not ready"))
 		return
 	}
 	var lastRun time.Time
@@ -182,13 +192,13 @@ func (nr *NativeRunner) run() {
 			}
 		}
 		lastRun = time.Now()
-		var stack string
-		if stack, nr.err = nr.recoverableRun(); nr.err != nil {
+		if stack, err := nr.recoverableRun(); err != nil {
+			nr.setError(err)
 			nr.rt.Error("native ingester failed",
 				log.KV("id", nr.id),
 				log.KV("name", nr.name),
 				log.KV("uuid", nr.ingesterUUID),
-				log.KVErr(nr.err),
+				log.KVErr(err),
 				log.KV("stack", stack))
 		}
 	}
