@@ -99,7 +99,7 @@ func (rm *runtimeManager) createIngesters(cfg *cfgType, ib base.IngesterBase) (e
 		if existing, ok := rm.mp[ingesterUUID]; ok {
 			ib.Logger.Error("hosted ingester UUID collision",
 				log.KV("existing-uuid", existing.UUID()),
-				log.KV("colliding-type", existing.ID),
+				log.KV("colliding-type", existing.ID()),
 				log.KV("colliding-name", name),
 				log.KV("colliding-uuid", ingesterUUID))
 			return nil // just skip it

@@ -44,7 +44,7 @@ type Runner interface {
 type Runtime interface {
 	// Alive indicates whether the upstream ingest connection is alive and healthy
 	// a hosted ingester does not have to respect this, but it can help ingester identify when it should back off
-	// and maybe slep more
+	// and maybe sleep more
 	Alive() bool
 	Sleep(time.Duration) bool // a sleep implementation that an abort early due to context cancellation
 	Context() context.Context // grab the global context
@@ -54,8 +54,8 @@ type Runtime interface {
 }
 
 type Writer interface {
-	// error returned if we failed, failures are typically due to uplinks being down and/or caches being full
-	// callers should deal with write errors even though the host will do it's best to recieve and cache entries
+	// Write will return an error if it failed. Failures are typically due to uplinks being down and/or caches being full.
+	// Callers should deal with write errors even though the host will do it's best to receive and cache entries.
 	Write(entry.Entry) error
 	NegotiateTag(name string) (entry.EntryTag, error) // try to negotiate a tag
 }
@@ -78,7 +78,7 @@ type Storage interface {
 }
 
 // Logger is a cut down interface from github.com/gravwell/gravwell/ingest/log.Logger
-// it enforces fully structred logging to remove the opportunity to sling poorly formed logs
+// it enforces fully structured logging to remove the opportunity to sling poorly formed logs
 type Logger interface {
 	Debug(msg string, sds ...rfc5424.SDParam)
 	Info(msg string, sds ...rfc5424.SDParam)

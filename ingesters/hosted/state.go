@@ -18,7 +18,7 @@ import (
 )
 
 type StateConfig struct {
-	Path string //path to state file
+	Path string // path to state file
 	Sync bool   // should we flush after every single write
 }
 
@@ -104,8 +104,8 @@ func (sh *StateHandler) writeBucket(bucket, key, value []byte) (err error) {
 	return
 }
 
-// bucketReadHandler is a function protype used for handling byte values coming back from
-// bolt DB reads.  The byte slice passed in should not be retained, as it is only valid during the
+// bucketReadHandler is a function prototype used for handling byte values coming back from
+// bolt DB reads. The byte slice passed in should not be retained, as it is only valid during the
 // lifetime of the function call.
 type bucketReadHandler func([]byte) error
 
@@ -149,7 +149,7 @@ func (sh *StateHandler) GetBucketWriter(bucket string) (bw *BucketWriter, err er
 	return
 }
 
-// BucketWriter implements the Storage inteface for hosted ingesters
+// BucketWriter implements the Storage interface for hosted ingesters
 type BucketWriter struct {
 	bucket []byte
 	sh     *StateHandler

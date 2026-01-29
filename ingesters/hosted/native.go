@@ -36,7 +36,7 @@ type NativeConfig struct {
 // in a regular old go routine.  We don't FULLY trust these, so we wrap them in a recover.
 type NativeRunner struct {
 	Ingester
-	mtx          *sync.Mutex
+	mtx          *sync.RWMutex
 	wg           *sync.WaitGroup
 	id           string
 	name         string
@@ -72,7 +72,7 @@ func NewNativeRunner(id, name, verstr string, ingesterUUID uuid.UUID, ig Ingeste
 	}
 	r = &NativeRunner{
 		id:           id,
-		mtx:          &sync.Mutex{},
+		mtx:          &sync.RWMutex{},
 		wg:           &sync.WaitGroup{},
 		name:         name,
 		version:      ver,
@@ -90,14 +90,20 @@ func (nr *NativeRunner) Start() (err error) {
 		return errors.New("not ready")
 	}
 	nr.mtx.Lock()
-	if !nr.running {
-		nr.running = true
-		nr.wg.Add(1)
-		go nr.run()
-	} else {
-		err = errors.New("already started")
+	defer nr.mtx.Unlock()
+	if nr.running {
+		return errors.New("already started")
 	}
-	nr.mtx.Unlock()
+	nr.running = true
+
+	nr.wg.Add(1)
+	go func() {
+		nr.run()
+		nr.wg.Done()
+		nr.mtx.Lock()
+		nr.running = false
+		nr.mtx.Unlock()
+	}()
 	return
 }
 
@@ -109,8 +115,8 @@ func (nr *NativeRunner) Close() (err error) {
 	nr.cf()
 	// wait for routine to exit TODO FIXME - add a timeout on this wait
 	// WaitGroup probably isn't the right tool here
-	nr.wg.Done()
-	if err = nr.err; err == context.Canceled {
+	nr.wg.Wait()
+	if err = nr.err; errors.Is(err, context.Canceled) {
 		err = nil
 	}
 	return
@@ -142,7 +148,12 @@ func (nr *NativeRunner) UUID() (r uuid.UUID) {
 
 // Running returns whether the ingester is currently running
 func (nr *NativeRunner) Running() bool {
-	return nr.running
+	if nr != nil {
+		nr.mtx.RLock()
+		defer nr.mtx.RUnlock()
+		return nr.running
+	}
+	return false
 }
 
 // LastError returns the last error encountered by the ingester
@@ -155,7 +166,11 @@ func (nr *NativeRunner) LastError() error {
 
 // run wraps the Ingester.Run with some more tests and a recoverable runner loop so we can recover
 func (nr *NativeRunner) run() {
-	if nr == nil || nr.Ingester == nil || nr.rt == nil {
+	if nr == nil {
+		return // not much else we can do
+	}
+
+	if nr.Ingester == nil || nr.rt == nil {
 		nr.err = errors.New("native runner not ready")
 		return
 	}
@@ -182,15 +197,12 @@ func (nr *NativeRunner) run() {
 // recoverableRun is just the underlying Ingster.Run wrapped in a defer recover so that if an ingester
 // implementation fails we don't take down the entire hosted ingester stack.
 func (nr *NativeRunner) recoverableRun() (stack string, err error) {
-	defer func(rerr *error) {
+	defer func() {
 		if r := recover(); r != nil {
-			// check our parameter and that the caller didn't already set it somehow...
-			if rerr != nil && *rerr != nil {
-				*rerr = errors.New("ingester panic")
-			}
+			err = errors.New("ingester panic")
 			stack = fmt.Sprintf("%v", r)
 		}
-	}(&err)
+	}()
 	err = nr.Ingester.Run(nr.ctx, nr.rt)
 	return
 }
@@ -274,7 +286,7 @@ func (nr *NativeRuntime) ID() string {
 // NegotiateTag negotiates a tag with the ingest muxer natively
 func (nr *NativeRuntime) NegotiateTag(s string) (t entry.EntryTag, err error) {
 	if nr == nil || nr.igst == nil {
-		err = fmt.Errorf("ingest writer not available")
+		err = fmt.Errorf("runtime or ingester not initialized")
 		return
 	}
 	return nr.igst.NegotiateTag(s)
