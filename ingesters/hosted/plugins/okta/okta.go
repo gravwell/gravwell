@@ -391,7 +391,7 @@ func (o *OktaIngester) linkFollowingRequest(req *http.Request, rt hosted.Runtime
 
 		//consume results
 		err = o.handleUserLogs(resp.Body, rt)
-		resp.Body.Close() //make sure to close the body
+		utils.DrainResponse(resp)
 		if err != nil {
 			return err
 		}
