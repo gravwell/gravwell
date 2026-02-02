@@ -18,6 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
+	"github.com/gravwell/gravwell/v3/ingesters/hosted/storage"
 )
 
 const (
@@ -34,12 +35,12 @@ type runtimeManager struct {
 	ctx  context.Context
 	cf   context.CancelFunc
 	igst *ingest.IngestMuxer
-	sh   *hosted.StateHandler
+	sh   *storage.BoltHandler
 	lgr  *log.Logger
 	mp   map[uuid.UUID]wrappedRunner
 }
 
-func newRuntimeManager(igst *ingest.IngestMuxer, sh *hosted.StateHandler, lg *log.Logger) (r *runtimeManager, err error) {
+func newRuntimeManager(igst *ingest.IngestMuxer, sh *storage.BoltHandler, lg *log.Logger) (r *runtimeManager, err error) {
 	if sh == nil {
 		err = fmt.Errorf("missing state handler")
 		return
@@ -73,7 +74,7 @@ func (rm *runtimeManager) stop() (err error) {
 func (rm *runtimeManager) createNativeRuntime(kind, name string, ingesterUUID uuid.UUID) (rt hosted.Runtime, err error) {
 	// grab a new native runtime based on the kind, name, and UUID
 	ingesterID := fmt.Sprintf("%s/%s/%s", kind, name, ingesterUUID.String())
-	var bw *hosted.BucketWriter
+	var bw *storage.BucketWriter
 	// get a bucket writer for this specific ingester to maintain state
 	if bw, err = rm.sh.GetBucketWriter(ingesterID); err != nil {
 		err = fmt.Errorf("failed to get bucket writer for hosted ingester %s: %w", ingesterID, err)

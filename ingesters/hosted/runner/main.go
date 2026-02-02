@@ -20,7 +20,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
-	"github.com/gravwell/gravwell/v3/ingesters/hosted"
+	"github.com/gravwell/gravwell/v3/ingesters/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
@@ -66,7 +66,7 @@ func main() {
 	}
 
 	// get the state manager up and rolling
-	sh, err := hosted.OpenStateHandler(cfg.State.Path, cfg.State.Sync)
+	sh, err := storage.OpenBoltHandler(cfg.State.Path, cfg.State.Sync)
 	if err != nil {
 		ib.Logger.FatalCode(0, "failed to open state handler", log.KVErr(err))
 		return

@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package hosted
+package storage
 
 import (
 	"errors"
@@ -17,27 +17,27 @@ import (
 	bolt "go.etcd.io/bbolt"
 )
 
-type StateConfig struct {
+type BoltConfig struct {
 	Path string // path to state file
 	Sync bool   // should we flush after every single write
 }
 
-type StateHandler struct {
+type BoltHandler struct {
 	db *bolt.DB
 }
 
 // Verify checks that we have a good state file
-func (s *StateConfig) Verify() (err error) {
+func (s *BoltConfig) Verify() (err error) {
 	// basic variable checks
 	if s == nil {
-		return errors.New("nil state")
+		return errors.New("nil config")
 	} else if s.Path == `` {
 		return errors.New("missing state path")
 	}
 
 	//go attempt to open and close the state file
-	var sh *StateHandler
-	if sh, err = OpenStateHandler(s.Path, s.Sync); err != nil {
+	var sh *BoltHandler
+	if sh, err = OpenBoltHandler(s.Path, s.Sync); err != nil {
 		err = fmt.Errorf("failed to open state file %w", err)
 	} else if err = sh.Close(); err != nil {
 		err = fmt.Errorf("failed to close state file %w", err)
@@ -45,7 +45,7 @@ func (s *StateConfig) Verify() (err error) {
 	return
 }
 
-func OpenStateHandler(pth string, sync bool) (sh *StateHandler, err error) {
+func OpenBoltHandler(pth string, sync bool) (sh *BoltHandler, err error) {
 	opt := bolt.Options{
 		NoSync:  !sync,
 		Timeout: time.Second,
@@ -61,21 +61,21 @@ func OpenStateHandler(pth string, sync bool) (sh *StateHandler, err error) {
 	}
 	var db *bolt.DB
 	if db, err = bolt.Open(pth, 0600, &opt); err == nil {
-		sh = &StateHandler{
+		sh = &BoltHandler{
 			db: db,
 		}
 	}
 	return
 }
 
-func (sh *StateHandler) check() (err error) {
+func (sh *BoltHandler) check() (err error) {
 	if sh == nil || sh.db == nil {
 		err = errors.New("state handler not ready")
 	}
 	return
 }
 
-func (sh *StateHandler) Close() (err error) {
+func (sh *BoltHandler) Close() (err error) {
 	if err = sh.check(); err == nil {
 		err = sh.db.Sync()
 		if lerr := sh.db.Close(); lerr != nil && err == nil {
@@ -86,7 +86,7 @@ func (sh *StateHandler) Close() (err error) {
 	return
 }
 
-func (sh *StateHandler) writeBucket(bucket, key, value []byte) (err error) {
+func (sh *BoltHandler) writeBucket(bucket, key, value []byte) (err error) {
 	if len(bucket) == 0 {
 		return errors.New("missing bucket")
 	} else if len(key) == 0 {
@@ -109,7 +109,7 @@ func (sh *StateHandler) writeBucket(bucket, key, value []byte) (err error) {
 // lifetime of the function call.
 type bucketReadHandler func([]byte) error
 
-func (sh *StateHandler) readBucket(bucket, key []byte, hnd bucketReadHandler) (err error) {
+func (sh *BoltHandler) readBucket(bucket, key []byte, hnd bucketReadHandler) (err error) {
 	if len(bucket) == 0 {
 		err = errors.New("missing bucket")
 		return
@@ -132,7 +132,7 @@ func (sh *StateHandler) readBucket(bucket, key []byte, hnd bucketReadHandler) (e
 	return
 }
 
-func (sh *StateHandler) GetBucketWriter(bucket string) (bw *BucketWriter, err error) {
+func (sh *BoltHandler) GetBucketWriter(bucket string) (bw *BucketWriter, err error) {
 	if err = sh.check(); err == nil {
 		b := []byte(bucket)
 		err = sh.db.Update(func(tx *bolt.Tx) error {
@@ -152,7 +152,7 @@ func (sh *StateHandler) GetBucketWriter(bucket string) (bw *BucketWriter, err er
 // BucketWriter implements the Storage interface for hosted ingesters
 type BucketWriter struct {
 	bucket []byte
-	sh     *StateHandler
+	sh     *BoltHandler
 }
 
 func (bw *BucketWriter) check() (err error) {

@@ -13,6 +13,7 @@ import (
 
 	"github.com/gravwell/gravwell/v3/ingest/attach"
 	"github.com/gravwell/gravwell/v3/ingest/config"
+	"github.com/gravwell/gravwell/v3/ingesters/hosted/storage"
 
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted/plugins"
@@ -32,9 +33,11 @@ func GetConfig(path, overlayPath string) (*cfgType, error) {
 }
 
 type cfgType struct {
-	Global          config.IngestConfig
-	Attach          attach.AttachConfig
-	State           hosted.StateConfig
+	Global config.IngestConfig
+	Attach attach.AttachConfig
+	// State is not as abstract as it should be, but making that change should have minimal impact on end users.
+	// Given the size of storage.BoltConfig we only need to share a few keys on any new implementation.
+	State           storage.BoltConfig
 	plugins.Configs // embed the type so we can abstract the startup more easily
 }
 

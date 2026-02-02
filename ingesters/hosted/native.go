@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingesters/version"
 )
 
@@ -28,7 +29,7 @@ const (
 )
 
 type NativeConfig struct {
-	Ingester_UUID uuid.UUID //
+	Ingester_UUID uuid.UUID
 }
 
 // NativeRunner represents a specific instantiation of a native hosted ingester.
@@ -230,7 +231,7 @@ func NewNativeLogger(lgr *log.Logger, appname, instance string) (*log.KVLogger, 
 
 // NativeRuntime implements a hosted.Runtime for native ingesters that don't need any special handling
 type NativeRuntime struct {
-	*BucketWriter
+	*storage.BucketWriter
 	Logger *log.KVLogger
 	igst   *ingest.IngestMuxer
 	ctx    context.Context
@@ -239,7 +240,7 @@ type NativeRuntime struct {
 
 // NewNativeRuntime creates a basic runtime that has handles on loggers, bucket writer, and the context and is designed to run
 // natively compiled/included ingesters.
-func NewNativeRuntime(ctx context.Context, id string, bw *BucketWriter, igst *ingest.IngestMuxer, lgr *log.KVLogger) (r *NativeRuntime, err error) {
+func NewNativeRuntime(ctx context.Context, id string, bw *storage.BucketWriter, igst *ingest.IngestMuxer, lgr *log.KVLogger) (r *NativeRuntime, err error) {
 	if bw == nil {
 		err = fmt.Errorf("missing bucket writer")
 		return

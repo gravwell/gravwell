@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package hosted
+package storage
 
 import (
 	"os"
@@ -15,16 +15,16 @@ import (
 	"time"
 )
 
-func TestStateHandler_OpenClose(t *testing.T) {
+func TestBoltHandler_OpenClose(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test.db")
 
-	sh, err := OpenStateHandler(dbPath, false)
+	sh, err := OpenBoltHandler(dbPath, false)
 	if err != nil {
 		t.Fatalf("Failed to open state handler: %v", err)
 	}
 	if sh == nil {
-		t.Fatal("StateHandler is nil")
+		t.Fatal("BoltHandler is nil")
 	}
 
 	if err := sh.Close(); err != nil {
@@ -32,27 +32,27 @@ func TestStateHandler_OpenClose(t *testing.T) {
 	}
 }
 
-func TestStateHandler_OpenWithSync(t *testing.T) {
+func TestBoltHandler_OpenWithSync(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "test_sync.db")
 
-	sh, err := OpenStateHandler(dbPath, true)
+	sh, err := OpenBoltHandler(dbPath, true)
 	if err != nil {
 		t.Fatalf("Failed to open state handler with sync: %v", err)
 	}
 	defer sh.Close()
 
 	if sh == nil {
-		t.Fatal("StateHandler is nil")
+		t.Fatal("BoltHandler is nil")
 	}
 }
 
-func TestStateHandler_OpenReadOnly(t *testing.T) {
+func TestBoltHandler_OpenReadOnly(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "readonly.db")
 
 	// Create the database first
-	sh, err := OpenStateHandler(dbPath, false)
+	sh, err := OpenBoltHandler(dbPath, false)
 	if err != nil {
 		t.Fatalf("Failed to create initial db: %v", err)
 	}
@@ -64,19 +64,19 @@ func TestStateHandler_OpenReadOnly(t *testing.T) {
 	}
 
 	// Try to open readonly db - should fail
-	sh, err = OpenStateHandler(dbPath, false)
+	sh, err = OpenBoltHandler(dbPath, false)
 	if err == nil {
 		sh.Close()
 		t.Fatal("Expected error opening readonly database")
 	}
 }
 
-func TestStateConfig_Verify(t *testing.T) {
+func TestBoltConfig_Verify(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	tests := []struct {
 		name    string
-		config  *StateConfig
+		config  *BoltConfig
 		wantErr bool
 	}{
 		{
@@ -86,14 +86,14 @@ func TestStateConfig_Verify(t *testing.T) {
 		},
 		{
 			name: "empty path",
-			config: &StateConfig{
+			config: &BoltConfig{
 				Path: "",
 			},
 			wantErr: true,
 		},
 		{
 			name: "valid config",
-			config: &StateConfig{
+			config: &BoltConfig{
 				Path: filepath.Join(tmpDir, "valid.db"),
 				Sync: false,
 			},
@@ -101,7 +101,7 @@ func TestStateConfig_Verify(t *testing.T) {
 		},
 		{
 			name: "valid config with sync",
-			config: &StateConfig{
+			config: &BoltConfig{
 				Path: filepath.Join(tmpDir, "valid_sync.db"),
 				Sync: true,
 			},
@@ -123,7 +123,7 @@ func TestBucketWriter_ByteOperations(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "bucket_test.db")
 
-	sh, err := OpenStateHandler(dbPath, false)
+	sh, err := OpenBoltHandler(dbPath, false)
 	if err != nil {
 		t.Fatalf("Failed to open state handler: %v", err)
 	}
@@ -156,7 +156,7 @@ func TestBucketWriter_StringOperations(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "string_test.db")
 
-	sh, err := OpenStateHandler(dbPath, false)
+	sh, err := OpenBoltHandler(dbPath, false)
 	if err != nil {
 		t.Fatalf("Failed to open state handler: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestBucketWriter_TimeOperations(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "time_test.db")
 
-	sh, err := OpenStateHandler(dbPath, false)
+	sh, err := OpenBoltHandler(dbPath, false)
 	if err != nil {
 		t.Fatalf("Failed to open state handler: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestBucketWriter_Int64Operations(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "int64_test.db")
 
-	sh, err := OpenStateHandler(dbPath, false)
+	sh, err := OpenBoltHandler(dbPath, false)
 	if err != nil {
 		t.Fatalf("Failed to open state handler: %v", err)
 	}
@@ -332,7 +332,7 @@ func TestBucketWriter_NotFound(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "notfound_test.db")
 
-	sh, err := OpenStateHandler(dbPath, false)
+	sh, err := OpenBoltHandler(dbPath, false)
 	if err != nil {
 		t.Fatalf("Failed to open state handler: %v", err)
 	}
@@ -369,7 +369,7 @@ func TestBucketWriter_MultipleBuckets(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "multi_bucket_test.db")
 
-	sh, err := OpenStateHandler(dbPath, false)
+	sh, err := OpenBoltHandler(dbPath, false)
 	if err != nil {
 		t.Fatalf("Failed to open state handler: %v", err)
 	}
@@ -421,7 +421,7 @@ func TestBucketWriter_UpdateValue(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "update_test.db")
 
-	sh, err := OpenStateHandler(dbPath, false)
+	sh, err := OpenBoltHandler(dbPath, false)
 	if err != nil {
 		t.Fatalf("Failed to open state handler: %v", err)
 	}
@@ -510,17 +510,17 @@ func TestBucketWriter_NilChecks(t *testing.T) {
 	}
 }
 
-func TestStateHandler_NilChecks(t *testing.T) {
-	var sh *StateHandler
+func TestBoltHandler_NilChecks(t *testing.T) {
+	var sh *BoltHandler
 
 	err := sh.Close()
 	if err == nil {
-		t.Error("Expected error for Close on nil StateHandler")
+		t.Error("Expected error for Close on nil BoltHandler")
 	}
 
 	_, err = sh.GetBucketWriter("test")
 	if err == nil {
-		t.Error("Expected error for GetBucketWriter on nil StateHandler")
+		t.Error("Expected error for GetBucketWriter on nil BoltHandler")
 	}
 }
 
@@ -528,7 +528,7 @@ func TestBucketWriter_EmptyValues(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "empty_test.db")
 
-	sh, err := OpenStateHandler(dbPath, false)
+	sh, err := OpenBoltHandler(dbPath, false)
 	if err != nil {
 		t.Fatalf("Failed to open state handler: %v", err)
 	}
