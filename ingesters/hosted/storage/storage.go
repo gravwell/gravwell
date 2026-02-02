@@ -1,3 +1,4 @@
+// Package storage contains implementations of the storage interface for hosted runtimes.
 package storage
 
 import "errors"

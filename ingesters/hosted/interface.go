@@ -34,7 +34,6 @@ type Runner interface {
 	Start() error
 	Close() error
 	Running() bool
-	LastError() error
 	ID() string
 	Name() string
 	UUID() uuid.UUID
