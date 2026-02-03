@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -18,6 +19,10 @@ const (
 	AuditTimeFormat = "2006-01-02T15:04:05-0700"
 	siemEndpoint    = "/siem/v1/batch/events/cg"
 	AuditEndpoint   = "/api/audit/get-audit-events"
+)
+
+var (
+	ErrAuthenticationFailure = errors.New("authentication failure")
 )
 
 type doer interface {
@@ -65,16 +70,16 @@ func (c *Client) authenticate(ctx context.Context) error {
 
 	res, err := c.c.Do(r)
 	if err != nil {
-		return fmt.Errorf("auth request failed: %w", err)
+		return fmt.Errorf("%w, request failed: %w", ErrAuthenticationFailure, err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("auth request got bad status code: %d", res.StatusCode)
+		return fmt.Errorf("%w, got bad status code: %d", ErrAuthenticationFailure, res.StatusCode)
 	}
 
 	token, err := parse[AuthToken](res.Body)
 	if err != nil {
-		return fmt.Errorf("failed to parse auth response: %w", err)
+		return fmt.Errorf("%w, failed to parse auth response: %w", ErrAuthenticationFailure, err)
 	}
 	// expire 'early' so we don't risk a race
 	c.token.ExpireAt = time.Now().Add(time.Duration(token.ExpireIn)*time.Second - time.Second*5)
@@ -101,9 +106,9 @@ func (c *Client) Do(r *http.Request) (*http.Response, error) {
 		fail, err := parse[AuthFailureResponse](response.Body)
 		response.Body.Close()
 		if err != nil {
-			return nil, fmt.Errorf("authentication failure, failed to parse response: %w", err)
+			return nil, fmt.Errorf("%w, failed to parse response: %w", ErrAuthenticationFailure, err)
 		}
-		return nil, fmt.Errorf("authentication failure: %s, %s", fail.Fail[0].Code, fail.Fail[0].Message)
+		return nil, fmt.Errorf("%w: %s, %s", ErrAuthenticationFailure, fail.Fail[0].Code, fail.Fail[0].Message)
 	}
 	return response, nil
 }

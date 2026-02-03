@@ -1,3 +1,5 @@
+// Package mimecast is a plugin used for reading data from Mimecast audit logs.
+// It supports both SIEM MTA logs, and general audit logs.
 package mimecast
 
 import (
@@ -172,7 +174,7 @@ func (m *Mimecast) mta(ctx context.Context, rt hosted.Runtime) error {
 func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) error {
 	storageCursor := string(api) + "-cursor"
 	storageTimestamp := string(api) + "-timestamp"
-	event, _ := SIEMApiEvents[api]
+	event := SIEMApiEvents[api]
 	tag, err := rt.NegotiateTag(m.tagPrefix + string(api))
 	if err != nil {
 		return err
