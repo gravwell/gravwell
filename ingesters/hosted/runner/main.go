@@ -103,8 +103,6 @@ func main() {
 		ib.Logger.FatalCode(2, "failed to start ingesters", log.KVErr(err))
 	}
 
-	//TODO FIXME - register child ingesters on our base ingester for reporting
-
 	//listen for signals so we can close gracefully
 	sig := utils.GetQuitChannel()
 	tckr := time.NewTicker(time.Minute)

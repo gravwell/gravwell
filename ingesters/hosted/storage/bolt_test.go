@@ -56,7 +56,9 @@ func TestBoltHandler_OpenReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create initial db: %v", err)
 	}
-	sh.Close()
+	if err := sh.Close(); err != nil {
+		t.Fatalf("Failed to close initial db: %v", err)
+	}
 
 	// Make it readonly
 	if err := os.Chmod(dbPath, 0400); err != nil {
@@ -66,8 +68,12 @@ func TestBoltHandler_OpenReadOnly(t *testing.T) {
 	// Try to open readonly db - should fail
 	sh, err = OpenBoltHandler(dbPath, false)
 	if err == nil {
-		sh.Close()
-		t.Fatal("Expected error opening readonly database")
+		if err := sh.Close(); err != nil {
+			t.Fatalf("Failed to close second db: %v", err)
+		}
+		info, _ := os.Stat(dbPath)
+		infoMode := info.Mode().Perm().String()
+		t.Fatal("Expected error opening readonly database, perms:", infoMode)
 	}
 }
 
