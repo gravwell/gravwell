@@ -261,10 +261,3 @@ func retslice(v []byte) (r []byte) {
 	}
 	return
 }
-
-// parseInt64 converts a byte slice to an int64
-func parseInt64(v []byte) (int64, error) {
-	var value int64
-	_, err := fmt.Sscanf(string(v), "%d", &value)
-	return value, err
-}
