@@ -6,6 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package plugins
+// This contains the necessary config wiring and validation to limit the scope of adding new plugins.
 package plugins
 
 import (

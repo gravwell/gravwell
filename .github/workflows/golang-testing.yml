@@ -21,7 +21,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
-        go-version: 1.24.11
+        go-version: 1.25.6
         cache: false
 
     - name: Go Tidy
@@ -94,6 +94,7 @@ jobs:
         govulncheck -test ./ingesters/GooglePubSubIngester
         govulncheck -test ./ingesters/fileFollow
         govulncheck -test ./ingesters/singleFile
+        govulncheck -test ./ingesters/hosted/...
         GOOS=windows govulncheck -test ./ingesters/winevents
         GOOS=windows govulncheck -test ./winevent/...
 
@@ -113,6 +114,7 @@ jobs:
         go vet ./ingest/log
         go vet ./timegrinder
         go vet ./filewatch
+        go vet ./ingesters/hosted/...
         go vet ./ingesters/utils
         go vet ./ingesters/kafka_consumer
         go vet ./ingesters/SimpleRelay
@@ -133,6 +135,7 @@ jobs:
         go test -v ./ingest/log
         go test -v ./timegrinder
         go test -v ./filewatch
+        go test -v ./ingesters/hosted/...
         go test -v ./ingesters/utils
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
@@ -170,6 +173,7 @@ jobs:
         staticcheck ./client/...
         staticcheck ./ingesters/args/...
         staticcheck ./ingesters/base/...
+        staticcheck ./ingesters/hosted/...
         staticcheck ./ingesters/AzureEventHubs/...
         staticcheck ./ingesters/canbus/...
         staticcheck ./ingesters/utils/...
@@ -229,6 +233,7 @@ jobs:
         go build -o /dev/null ./ingesters/Shodan
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
+        go build -o /dev/null ./ingesters/hosted/runner
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow

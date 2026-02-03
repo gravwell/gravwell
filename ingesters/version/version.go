@@ -23,11 +23,11 @@ import (
 const (
 	MajorVersion = 5
 	MinorVersion = 8
-	PointVersion = 9
+	PointVersion = 11
 )
 
 var (
-	BuildDate time.Time = time.Date(2025, 12, 11, 23, 59, 59, 0, time.UTC)
+	BuildDate time.Time = time.Date(2026, 1, 22, 23, 59, 59, 0, time.UTC)
 )
 
 func PrintVersion(wtr io.Writer) {
@@ -57,19 +57,20 @@ func Current() Canonical {
 var rx = regexp.MustCompile(`^(?P<major>\d+)\.(?P<minor>\d+)\.(?P<point>\d+)$`)
 
 func Parse(v string) (c Canonical, err error) {
-	m := rx.FindAllStringSubmatch(v, -1)
-	if len(m) != 1 || len(m[0]) != 4 {
+	m := rx.FindStringSubmatch(v)
+	if len(m) != 4 {
 		err = errors.New("invalid canonical version string")
 		return
 	}
+	major, minor, point := m[1], m[2], m[3]
 	// we can use Atoi here and just do a simple check on < 0 because the regex should prevent negative numbers
 	// the < 0 check is redundant but I am leaving it
-	if c.Major, err = strconv.Atoi(m[0][1]); err != nil || c.Major < 0 {
-		err = fmt.Errorf("invalid major version %q %w", m[0][1], err)
-	} else if c.Minor, err = strconv.Atoi(m[0][2]); err != nil || c.Minor < 0 {
-		err = fmt.Errorf("invalid minor version %q %w", m[0][2], err)
-	} else if c.Point, err = strconv.Atoi(m[0][3]); err != nil || c.Point < 0 {
-		err = fmt.Errorf("invalid point version %q %w", m[0][4], err)
+	if c.Major, err = strconv.Atoi(major); err != nil || c.Major < 0 {
+		err = fmt.Errorf("invalid major version %q %w", major, err)
+	} else if c.Minor, err = strconv.Atoi(minor); err != nil || c.Minor < 0 {
+		err = fmt.Errorf("invalid minor version %q %w", minor, err)
+	} else if c.Point, err = strconv.Atoi(point); err != nil || c.Point < 0 {
+		err = fmt.Errorf("invalid point version %q %w", point, err)
 	}
 	return
 }

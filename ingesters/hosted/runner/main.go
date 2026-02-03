@@ -20,15 +20,15 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/base"
-	"github.com/gravwell/gravwell/v3/ingesters/hosted"
+	"github.com/gravwell/gravwell/v3/ingesters/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
 )
 
 const (
-	defaultConfigLoc  = `/tmp/hosted_ingester_tester.conf`
-	defaultConfigDLoc = ``
-	ingesterName      = `hostedtest`
-	appName           = `hostedtest`
+	defaultConfigLoc  = `/opt/gravwell/etc/hosted_ingester_runner.conf`
+	defaultConfigDLoc = `/opt/gravwell/etc/hosted_ingester_runner.conf.d`
+	ingesterName      = `hosted-runner`
+	appName           = `hosted-runner`
 
 	exitSyncTimeout = time.Minute
 )
@@ -66,7 +66,7 @@ func main() {
 	}
 
 	// get the state manager up and rolling
-	sh, err := hosted.OpenStateHandler(cfg.State.Path, cfg.State.Sync)
+	sh, err := storage.OpenBoltHandler(cfg.State.Path, cfg.State.Sync)
 	if err != nil {
 		ib.Logger.FatalCode(0, "failed to open state handler", log.KVErr(err))
 		return
@@ -102,8 +102,6 @@ func main() {
 		sh.Close() // ignore return, but no writes should have occurred
 		ib.Logger.FatalCode(2, "failed to start ingesters", log.KVErr(err))
 	}
-
-	//TODO FIXME - register child ingesters on our base ingester for reporting
 
 	//listen for signals so we can close gracefully
 	sig := utils.GetQuitChannel()
