@@ -51,7 +51,9 @@ require (
 	github.com/tealeg/xlsx v1.0.5
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119
 	github.com/xdg-go/scram v1.1.2
+	go.etcd.io/bbolt v1.4.3
 	golang.org/x/net v0.47.0
+	golang.org/x/sync v0.18.0
 	golang.org/x/sys v0.38.0
 	golang.org/x/term v0.37.0
 	golang.org/x/text v0.31.0
@@ -125,7 +127,6 @@ require (
 	golang.org/x/crypto v0.45.0 // indirect
 	golang.org/x/mod v0.30.0 // indirect
 	golang.org/x/oauth2 v0.33.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
 	golang.org/x/tools v0.39.0 // indirect
 	google.golang.org/api v0.183.0 // indirect
 	google.golang.org/genproto v0.0.0-20240604185151-ef581f913117 // indirect
