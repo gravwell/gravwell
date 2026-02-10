@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -68,6 +68,7 @@ func CheckProcessor(id string) error {
 	case JsonArraySplitProcessor:
 	case JsonExtractProcessor:
 	case JsonFilterProcessor:
+	case JsonRouterProcessor:
 	case JsonTimestampProcessor:
 	case PluginProcessor:
 	case RegexExtractProcessor:
@@ -120,6 +121,8 @@ func ProcessorLoadConfig(vc *config.VariableConfig) (cfg interface{}, err error)
 		cfg, err = JsonArraySplitLoadConfig(vc)
 	case JsonFilterProcessor:
 		cfg, err = JsonFilterLoadConfig(vc)
+	case JsonRouterProcessor:
+		cfg, err = JsonRouteLoadConfig(vc)
 	case JsonTimestampProcessor:
 		cfg, err = JsonTimestampLoadConfig(vc)
 	case RegexTimestampProcessor:
@@ -232,6 +235,12 @@ func newProcessor(vc *config.VariableConfig, tgr Tagger) (p Processor, err error
 			return
 		}
 		p, err = NewJsonFilter(cfg)
+	case JsonRouterProcessor:
+		var cfg JsonRouteConfig
+		if err = vc.MapTo(&cfg); err != nil {
+			return
+		}
+		p, err = NewJsonRouter(cfg, tgr)
 	case JsonTimestampProcessor:
 		var cfg JsonTimestampConfig
 		if err = vc.MapTo(&cfg); err != nil {
