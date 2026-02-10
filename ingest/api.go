@@ -17,8 +17,6 @@ import (
 	"net"
 	"strings"
 	"time"
-
-	"github.com/crewjam/rfc5424"
 )
 
 const (
@@ -46,23 +44,6 @@ type CompressionType uint8
 
 func PrintVersion(wtr io.Writer) {
 	fmt.Fprintf(wtr, "API Version:\t%d.%d\n", API_VERSION_MAJOR, API_VERSION_MINOR)
-}
-
-type Logger interface {
-	Infof(string, ...interface{}) error
-	Warnf(string, ...interface{}) error
-	Errorf(string, ...interface{}) error
-	Info(string, ...rfc5424.SDParam) error
-	Warn(string, ...rfc5424.SDParam) error
-	Error(string, ...rfc5424.SDParam) error
-	InfofWithDepth(int, string, ...interface{}) error
-	WarnfWithDepth(int, string, ...interface{}) error
-	ErrorfWithDepth(int, string, ...interface{}) error
-	InfoWithDepth(int, string, ...rfc5424.SDParam) error
-	WarnWithDepth(int, string, ...rfc5424.SDParam) error
-	ErrorWithDepth(int, string, ...rfc5424.SDParam) error
-	Hostname() string
-	Appname() string
 }
 
 // StreamConfiguration is a structure that can be sent back and
