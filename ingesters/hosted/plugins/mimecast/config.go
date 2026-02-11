@@ -12,6 +12,7 @@ const (
 	defaultBaseDomain        = "https://api.services.mimecast.com"
 	defaultLookback          = 24 * time.Hour
 	defaultRequestsPerMinute = 5
+	defaultInterval          = 5
 )
 
 type Config struct {
@@ -25,6 +26,7 @@ type Config struct {
 	Tag_Prefix          string
 	Preprocessor        []string
 	Requests_Per_Minute int
+	Interval            int
 }
 
 func (c *Config) Verify() error {
@@ -36,6 +38,9 @@ func (c *Config) Verify() error {
 	}
 	if c.Requests_Per_Minute <= 0 {
 		c.Requests_Per_Minute = defaultRequestsPerMinute
+	}
+	if c.Interval <= 0 {
+		c.Interval = defaultInterval
 	}
 	if c.Client_Id == "" {
 		return errors.New("Client-Id not specified")

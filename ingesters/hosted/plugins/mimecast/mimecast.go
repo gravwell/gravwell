@@ -122,7 +122,7 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 	if err != nil {
 		return err
 	}
-	for !rt.Sleep(time.Second * 5) { // TODO: configurable
+	for !rt.Sleep(time.Second * time.Duration(m.conf.Interval)) {
 		cursor, lts, err := m.get(rt, AuditApi, m.start)
 		if err != nil {
 			rt.Error("error getting storage data", log.KVErr(err))
@@ -178,8 +178,6 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 		}
 	}
 
-	// TODO: save state before bailing
-
 	return nil
 }
 
@@ -199,7 +197,7 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 	if err != nil {
 		return err
 	}
-	for !rt.Sleep(time.Second * 5) { // TODO: configurable
+	for !rt.Sleep(time.Second * time.Duration(m.conf.Interval)) {
 		cursor, lts, err := m.get(rt, api, m.start)
 		if err != nil {
 			rt.Error("error getting storage data", log.KV("api", api), log.KVErr(err))
