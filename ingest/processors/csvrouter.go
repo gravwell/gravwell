@@ -24,6 +24,7 @@ const (
 
 var (
 	ErrInvalidColumnIndex = errors.New("Invalid column index")
+	ErrMissingCSVRoutes   = errors.New("Missing CSV route specifications")
 )
 
 type CSVRouteConfig struct {
@@ -135,7 +136,7 @@ func (cr *CSVRouter) handleExtract(v string) (tag entry.EntryTag, drop, ok bool)
 
 func (rrc CSVRouteConfig) validate() (rts []route, err error) {
 	if len(rrc.Route) == 0 {
-		err = ErrMissingRoutes
+		err = ErrMissingCSVRoutes
 		return
 	} else if rrc.Route_Extraction < 0 {
 		err = ErrInvalidColumnIndex
