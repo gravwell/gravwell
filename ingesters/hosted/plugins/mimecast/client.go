@@ -113,7 +113,7 @@ func (c *Client) Do(r *http.Request) (*http.Response, error) {
 	return response, nil
 }
 
-func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end time.Time, cursor *string) (*SIEMBatchEventResponse, error) {
+func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end time.Time, cursor string) (*SIEMBatchEventResponse, error) {
 	if start.After(end) {
 		return nil, fmt.Errorf("start time is after end time")
 	}
@@ -123,8 +123,8 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end
 	params.Set("dateRangeStartsAt", start.Format(MTATimeFormat))
 	params.Set("dateRangeEndsAt", end.Format(MTATimeFormat))
 	params.Set("pageSize", "10") // limit risk of dropping events
-	if cursor != nil {
-		params.Set("nextPage", *cursor)
+	if cursor != "" {
+		params.Set("nextPage", cursor)
 	}
 	endpoint := fmt.Sprintf("%s%s?%s",
 		c.host,
@@ -162,15 +162,15 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end
 
 // GetRawAuditEvents returns a partially parsed response from a single page of the API. More pages can be read by providing the cursor.
 // The intent is to allow only the caller to control when/if the actual audit data is decoded given the variance in structures of the API.
-func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cursor *string) (*Response, error) {
+func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cursor string) (*Response, error) {
 	if start.After(end) {
 		return nil, fmt.Errorf("start time is after end time")
 	}
 
 	payload := Request{}
 	payload.Meta.Pagination.PageSize = 10
-	if cursor != nil {
-		payload.Meta.Pagination.PageToken = *cursor
+	if cursor != "" {
+		payload.Meta.Pagination.PageToken = cursor
 	} else {
 		payload.Data = []RequestData{
 			{

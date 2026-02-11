@@ -11,20 +11,15 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
+	"github.com/gravwell/gravwell/v3/ingesters/hosted/storage"
 	"github.com/gravwell/gravwell/v3/ingesters/utils"
+	"golang.org/x/sync/errgroup"
 	"golang.org/x/time/rate"
-)
-
-// Storage keys
-const (
-	auditCursor    = "audit-cursor"
-	auditTimestamp = "audit-timestamp"
 )
 
 type Mimecast struct {
@@ -61,8 +56,44 @@ func New(conf *Config) *Mimecast {
 		apis:         apis,
 		includeAudit: audit,
 		start:        start,
-		tagPrefix:    conf.Tag_Prefix,
+		tagPrefix:    prefix,
 	}
+}
+
+func (m *Mimecast) tag(a Api) string {
+	if m.conf.Tag_Name != "" {
+		return m.conf.Tag_Name
+	}
+	tag := string(a)
+	if m.tagPrefix != "" {
+		tag = m.tagPrefix + tag
+	}
+	return tag
+}
+
+func (m *Mimecast) cursor(api Api) string {
+	return string(api) + "-cursor"
+}
+
+func (m *Mimecast) timestamp(api Api) string {
+	return string(api) + "-timestamp"
+}
+
+func (m *Mimecast) get(rt hosted.Runtime, api Api, defaultTs time.Time) (cursor string, ts time.Time, err error) {
+	cursor, serr := rt.GetString(m.cursor(api))
+	if serr != nil && !errors.Is(serr, storage.ErrStorageNotFound) {
+		err = fmt.Errorf("error getting cursor, api: %s, error: %w", string(api), serr)
+		return
+	}
+
+	ts, terr := rt.GetTime(m.timestamp(api))
+	if terr != nil && !errors.Is(terr, storage.ErrStorageNotFound) {
+		err = fmt.Errorf("error getting timestamp: api: %s, error: %w", string(api), terr)
+		return
+	} else if ts.IsZero() || ts.After(time.Now()) {
+		ts = defaultTs
+	}
+	return
 }
 
 func (m *Mimecast) Run(ctx context.Context, rt hosted.Runtime) error {
@@ -72,54 +103,45 @@ func (m *Mimecast) Run(ctx context.Context, rt hosted.Runtime) error {
 	retry := utils.NewRetryHttpClient(limit, 3*time.Second, 10*time.Second, ctx, nil)
 	m.c = NewClient(m.conf.Host, m.conf.Client_Id, m.conf.Client_Secret, retry)
 
-	errs := make([]error, 2)
-	var wg sync.WaitGroup
+	eg, ectx := errgroup.WithContext(ctx)
 	if m.includeAudit {
-		wg.Add(1)
-		go func() {
-			err := m.audit(ctx, rt)
-			errs[0] = err
-			wg.Done()
-		}()
+		eg.Go(func() error {
+			return m.audit(ectx, rt)
+		})
 	}
 	if len(m.apis) > 0 {
-		wg.Add(1)
-		go func() {
-			err := m.mta(ctx, rt)
-			errs[1] = err
-			wg.Done()
-		}()
+		eg.Go(func() error {
+			return m.mta(ectx, rt)
+		})
 	}
-	wg.Wait()
-	return errors.Join(errs...)
+	return eg.Wait()
 }
 
 func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
-	var cursor *string // if cursor is non-nil don't update timestamps
-	tag, err := rt.NegotiateTag(m.tagPrefix + "audit")
+	tag, err := rt.NegotiateTag(m.tag(AuditApi))
 	if err != nil {
 		return err
 	}
 	for !rt.Sleep(time.Second * 5) { // TODO: configurable
-		if c, err := rt.GetString(auditCursor); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
-			rt.Error("error getting audit cursor", log.KVErr(err))
-			continue
-		} else if c != "" {
-			cursor = &c
-		}
-
-		lastTime := m.start // audit api only holds logs for a day
-		if t, err := rt.GetTime(auditTimestamp); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
-			return fmt.Errorf("error getting last timestamp: %w", err)
-		} else if t.Before(time.Now()) && !t.IsZero() {
-			lastTime = t
-		}
-		r, err := m.c.GetRawAuditEvents(ctx, lastTime, time.Now(), cursor)
+		cursor, lts, err := m.get(rt, AuditApi, m.start)
 		if err != nil {
-			rt.Error("request error", log.KV("api", "audit"), log.KVErr(err))
+			rt.Error("error getting storage data", log.KVErr(err))
 			continue
 		}
 
+		ts := time.Now()
+		if cursor != "" {
+			rt.Debug("fetching next page of events", log.KV("api", AuditApi))
+		} else {
+			rt.Debug("fetching events between", log.KV("api", AuditApi), log.KV("start", lts), log.KV("end", ts))
+		}
+		r, err := m.c.GetRawAuditEvents(ctx, lts, ts, cursor)
+		if err != nil {
+			rt.Error("request error", log.KV("api", AuditApi), log.KVErr(err))
+			continue
+		}
+
+		rt.Debug("got events", log.KV("api", AuditApi), log.KV("count", len(r.Data)))
 		for _, d := range r.Data {
 			data, err := parse[AuditData](bytes.NewReader(d))
 			if err != nil {
@@ -139,15 +161,20 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 			err = rt.Write(e)
 			if err != nil {
 				rt.Error("error writing entry", log.KV("api", "audit"), log.KVErr(err))
+				continue
 			}
+			rt.Debug("wrote audit entry", log.KV("ts", e.TS))
 			// save progress on current cursor?
 		}
-		// don't advance the cursor until we process the page
+
+		// don't advance time until we process the entire timespan
 		if r.Meta.Pagination.Next != "" {
-			rt.PutString(auditCursor, r.Meta.Pagination.Next)
+			rt.Debug("got another page of events", log.KV("api", AuditApi))
+			rt.PutString(m.cursor(AuditApi), r.Meta.Pagination.Next)
 		} else {
-			rt.PutString(auditCursor, "")
-			rt.PutTime(auditTimestamp, time.Now()) // I'm not sure this is true, may need to get the timestamp off the last record, otherwise we might skip
+			rt.Debug("no more pages, moving forward in time", log.KV("api", AuditApi))
+			rt.PutString(m.cursor(AuditApi), "")
+			rt.PutTime(m.timestamp(AuditApi), ts) // I'm not sure this is true, may need to get the timestamp off the last record, otherwise we might skip
 		}
 	}
 
@@ -157,49 +184,41 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 }
 
 func (m *Mimecast) mta(ctx context.Context, rt hosted.Runtime) error {
-	errs := make([]error, len(m.apis))
-	var wg sync.WaitGroup
-	for i, a := range m.apis {
-		wg.Add(1)
-		go func() {
-			err := m.mtaEvent(ctx, rt, a)
-			errs[i] = err
-			wg.Done()
-		}()
+	eg, ectx := errgroup.WithContext(ctx)
+	for _, a := range m.apis {
+		eg.Go(func() error {
+			return m.mtaEvent(ectx, rt, a)
+		})
 	}
-	wg.Wait()
-	return errors.Join(errs...)
+	return eg.Wait()
 }
 
 func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) error {
-	storageCursor := string(api) + "-cursor"
-	storageTimestamp := string(api) + "-timestamp"
 	event := SIEMApiEvents[api]
-	tag, err := rt.NegotiateTag(m.tagPrefix + string(api))
+	tag, err := rt.NegotiateTag(m.tag(api))
 	if err != nil {
 		return err
 	}
 	for !rt.Sleep(time.Second * 5) { // TODO: configurable
-		var cursor *string
-		if c, err := rt.GetString(storageCursor); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
-			rt.Error("error getting cursor", log.KV("api", api), log.KVErr(err))
+		cursor, lts, err := m.get(rt, api, m.start)
+		if err != nil {
+			rt.Error("error getting storage data", log.KV("api", api), log.KVErr(err))
 			continue
-		} else if c != "" {
-			cursor = &c
-		}
-		lastTime := m.start
-		if t, err := rt.GetTime(storageTimestamp); err != nil && !errors.Is(err, hosted.ErrStorageNotFound) {
-			rt.Error("error getting last timestamp", log.KV("api", api), log.KVErr(err))
-		} else if t.Before(time.Now()) && !t.IsZero() {
-			lastTime = t
 		}
 
-		r, err := m.c.GetSIEMEventBatch(ctx, event, lastTime, time.Now(), cursor)
+		ts := time.Now()
+		if cursor != "" {
+			rt.Debug("fetching next page of batch", log.KV("api", api))
+		} else {
+			rt.Debug("fetching batch between", log.KV("api", api), log.KV("start", lts), log.KV("end", ts))
+		}
+		r, err := m.c.GetSIEMEventBatch(ctx, event, lts, ts, cursor)
 		if err != nil {
 			rt.Error("request error", log.KV("api", api), log.KVErr(err))
 			continue
 		}
 
+		rt.Debug("got batches", log.KV("api", api), log.KV("count", len(r.Value)))
 		for _, v := range r.Value {
 			err := m.handleMtaEvent(ctx, rt, tag, v)
 			if err != nil {
@@ -208,11 +227,13 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 			}
 			// save progress on current cursor?
 		}
-		if !r.IsCaughtUp {
-			rt.PutString(storageTimestamp, r.NextPage)
+		if r.IsCaughtUp { // Progress forward in time
+			rt.Debug("no more pages, moving forward in time", log.KV("api", api))
+			rt.PutString(m.cursor(api), "")
+			rt.PutTime(m.timestamp(api), ts) // I'm not sure this is true, may need to get the timestamp off the last record, otherwise we might skip
 		} else {
-			rt.PutString(storageCursor, "")
-			rt.PutTime(storageTimestamp, time.Now()) // I'm not sure this is true, may need to get the timestamp off the last record, otherwise we might skip
+			rt.Debug("got another page of batch", log.KV("api", api))
+			rt.PutString(m.cursor(api), r.NextPage)
 		}
 	}
 
@@ -247,7 +268,7 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 	}
 
 	entries := strings.Split(string(data), "\n")
-	rt.Info("processing mta events", log.KV("num-entries", len(entries)))
+	rt.Debug("processing mta events", log.KV("num-entries", len(entries)))
 	var first *time.Time
 	var last time.Time
 	count := 0
@@ -279,6 +300,6 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 		last = ts
 		count++
 	}
-	rt.Info("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last))
+	rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last))
 	return nil
 }

@@ -21,6 +21,7 @@ type Config struct {
 	Client_Secret       string `json:"-"`
 	Api                 []Api
 	Host                string
+	Tag_Name            string
 	Tag_Prefix          string
 	Preprocessor        []string
 	Requests_Per_Minute int
@@ -46,6 +47,12 @@ func (c *Config) Verify() error {
 		if _, supported := SIEMApiEvents[api]; !supported && api != AuditApi {
 			return fmt.Errorf("API '%s' is not supported", api)
 		}
+	}
+	if c.Tag_Name != "" && len(c.Api) > 1 {
+		return fmt.Errorf("Tag-Name '%s' is only supported when specifying a single API", c.Tag_Name)
+	}
+	if c.Tag_Prefix != "" && c.Tag_Name != "" {
+		return fmt.Errorf("Tag-Prefix cannot be used with Tag-Name")
 	}
 	return nil
 }
