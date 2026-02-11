@@ -21,7 +21,7 @@ package main
 //
 // 	"github.com/gravwell/gravwell/v3/debug"
 // 	"github.com/gravwell/gravwell/v3/ingest/entry"
-// 	"github.com/gravwell/gravwell/v3/sflow"
+// 	"github.com/gravwell/sflow"
 // )
 
 // See `sFlowRcvrMaximumDatagramSize` in https://sflow.org/sflow_version_5.txt , page 17-18.
