@@ -36,7 +36,7 @@ const (
 )
 
 var (
-	lg      *log.Logger
+	lg *log.Logger
 
 	exitCtx, exitFn = context.WithCancel(context.Background())
 )
@@ -151,11 +151,7 @@ func main() {
 	utils.WaitForQuit()
 	ib.AnnounceShutdown()
 	debug.Out("Closing %d connections\n", connCount())
-	mtx.Lock()
-	for _, v := range connClosers {
-		v.Close()
-	}
-	mtx.Unlock() //must unlock so they can delete their connections
+	closeAllConn()
 
 	//wait for everyone to exit with a timeout
 	wch := make(chan bool, 1)

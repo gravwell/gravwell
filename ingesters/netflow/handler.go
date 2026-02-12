@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	ErrAlreadyListening = errors.New("Already listening")
-	ErrAlreadyClosed    = errors.New("Already closed")
-	ErrNotReady         = errors.New("Not Ready")
+	ErrAlreadyListening = errors.New("already listening")
+	ErrAlreadyClosed    = errors.New("already closed")
+	ErrNotReady         = errors.New("not Ready")
 )
 
 type bindConfig struct {
