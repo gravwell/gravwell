@@ -105,13 +105,8 @@ func siem(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	var start, end time.Time
-	if cursor != "" {
-		storageMtx.RLock()
-		start = storageData[cursor].start
-		end = storageData[cursor].end
-		storageMtx.RUnlock()
-	} else {
+	if cursor == "" {
+		var start, end time.Time
 		var err error
 		// Parse the time range
 		if start, err = time.Parse(mimecast.MTATimeFormat, startStr); err != nil {
@@ -132,7 +127,7 @@ func siem(w http.ResponseWriter, r *http.Request) {
 	hasNextPage := rand.Intn(4) >= 3 // 40% chance to have another page
 	nextPage := ""
 	if hasNextPage {
-		nextPage = fmt.Sprintf(cursor)
+		nextPage = cursor
 	}
 
 	response := mimecast.SIEMBatchEventResponse{
@@ -157,6 +152,12 @@ func siem(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
+// storageData maps storage IDs to their time ranges
+var (
+	auditData = make(map[string]gen)
+	auditMtx  sync.RWMutex
+)
+
 // audit responds with a mimecast.Response where data is an encoded mimecast.AuditData
 // this data should contain an additional field called 'message' and have content in it.
 func audit(w http.ResponseWriter, r *http.Request) {
@@ -178,29 +179,42 @@ func audit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Extract time range from request
-	var startTime, endTime time.Time
-	if len(req.Data) > 0 {
-		startTime, err = time.Parse(mimecast.AuditTimeFormat, req.Data[0].StartDateTime)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
+	cursor := req.Meta.Pagination.PageToken
+	var start, end time.Time
+
+	if cursor == "" {
+		// Extract time range from request
+		if len(req.Data) > 0 {
+			start, err = time.Parse(mimecast.AuditTimeFormat, req.Data[0].StartDateTime)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			end, err = time.Parse(mimecast.AuditTimeFormat, req.Data[0].EndDateTime)
+			if err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+		} else {
+			// Default time range if not provided
+			end = time.Now()
+			start = end.Add(-24 * time.Hour)
 		}
-		endTime, err = time.Parse(mimecast.AuditTimeFormat, req.Data[0].EndDateTime)
-		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
+		cursor = generateID()
+		auditMtx.Lock()
+		auditData[cursor] = gen{start: start, end: end}
+		auditMtx.Unlock()
 	} else {
-		// Default time range if not provided
-		endTime = time.Now()
-		startTime = endTime.Add(-24 * time.Hour)
+		auditMtx.RLock()
+		start = auditData[cursor].start
+		end = auditData[cursor].end
+		auditMtx.RUnlock()
 	}
 
 	// Generate multiple audit events with jittered timestamps
 	numEvents := 20
 	events := make([]json.RawMessage, 0, numEvents)
-	duration := endTime.Sub(startTime)
+	duration := end.Sub(start)
 
 	categories := []string{"account_protection", "email_security", "policy_compliance", "user_login", "admin_action"}
 	messages := []string{
@@ -215,7 +229,7 @@ func audit(w http.ResponseWriter, r *http.Request) {
 	for i := 0; i < numEvents; i++ {
 		// Add jitter within the time range
 		jitter := time.Duration(float64(duration) * (float64(i) / float64(numEvents)))
-		eventTime := startTime.Add(jitter)
+		eventTime := start.Add(jitter)
 
 		auditData := map[string]interface{}{
 			"eventTime": eventTime.Format(mimecast.AuditTimeFormat),
@@ -233,9 +247,13 @@ func audit(w http.ResponseWriter, r *http.Request) {
 		events = append(events, dataBytes)
 	}
 
+	hasNextPage := rand.Intn(4) >= 3 // 20% chance of having a next page
 	response := mimecast.Response{
 		Meta: mimecast.ResponseMeta{},
 		Data: events,
+	}
+	if hasNextPage {
+		response.Meta.Pagination.Next = cursor
 	}
 
 	responseBody, err := json.Marshal(response)
