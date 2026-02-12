@@ -3,12 +3,13 @@ package main
 import (
 	"bytes"
 	"compress/gzip"
-	"crypto/rand"
+	crand "crypto/rand"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
+	"math/rand"
 	"net/http"
 	"sync"
 	"time"
@@ -22,22 +23,23 @@ var (
 	port          = flag.Int("port", 8080, "server port")
 )
 
-// timeRange stores the start and end times for a storage ID
-type timeRange struct {
+// gen stores the start and end times for a storage ID and how many pages it should have.
+type gen struct {
 	start time.Time
 	end   time.Time
+	pages int
 }
 
 // storageData maps storage IDs to their time ranges
 var (
-	storageData = make(map[string]timeRange)
+	storageData = make(map[string]gen)
 	storageMtx  sync.RWMutex
 )
 
 // generateID creates a unique ID for storage
 func generateID() string {
 	b := make([]byte, 16)
-	rand.Read(b)
+	crand.Read(b)
 	return hex.EncodeToString(b)
 }
 
@@ -96,47 +98,52 @@ func siem(w http.ResponseWriter, r *http.Request) {
 
 	// Validate query params exist
 	query := r.URL.Query()
+	cursor := query.Get("nextPage")
 	startStr := query.Get("dateRangeStartsAt")
 	endStr := query.Get("dateRangeEndsAt")
-	if startStr == "" || endStr == "" {
+	if cursor == "" && (startStr == "" || endStr == "") {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-
-	// Parse the time range
-	startTime, err := time.Parse(mimecast.MTATimeFormat, startStr)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+	var start, end time.Time
+	if cursor != "" {
+		storageMtx.RLock()
+		start = storageData[cursor].start
+		end = storageData[cursor].end
+		storageMtx.RUnlock()
+	} else {
+		var err error
+		// Parse the time range
+		if start, err = time.Parse(mimecast.MTATimeFormat, startStr); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		if end, err = time.Parse(mimecast.MTATimeFormat, endStr); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		cursor = generateID()
+		storageMtx.Lock()
+		storageData[cursor] = gen{start: start, end: end}
+		storageMtx.Unlock()
+		fmt.Printf("SIEM: Generated ID %s for range %s to %s\n", cursor, start.Format(time.RFC3339), end.Format(time.RFC3339))
 	}
-	endTime, err := time.Parse(mimecast.MTATimeFormat, endStr)
-	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		return
+
+	hasNextPage := rand.Intn(4) >= 3 // 40% chance to have another page
+	nextPage := ""
+	if hasNextPage {
+		nextPage = fmt.Sprintf(cursor)
 	}
-
-	// Generate unique ID for this request
-	id := generateID()
-
-	// Store the time range for this ID
-	storageMtx.Lock()
-	storageData[id] = timeRange{start: startTime, end: endTime}
-	storageMtx.Unlock()
-
-	fmt.Printf("SIEM: Generated ID %s for range %s to %s\n", id, startTime.Format(time.RFC3339), endTime.Format(time.RFC3339))
-
-	// Build storage URL with the unique ID
-	storageURL := fmt.Sprintf("http://localhost:%d/storage/%s/json.gz", *port, id)
 
 	response := mimecast.SIEMBatchEventResponse{
 		Value: []mimecast.SIEMEvent{
 			{
-				URL:  storageURL,
+				URL:  fmt.Sprintf("http://localhost:%d/storage/%s/json.gz", *port, cursor),
 				Size: 1024,
 			},
 		},
-		NextPage:   "",
-		IsCaughtUp: true,
+		NextPage:   nextPage,
+		IsCaughtUp: !hasNextPage,
 	}
 
 	body, err := json.Marshal(response)
