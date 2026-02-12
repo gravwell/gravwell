@@ -137,7 +137,9 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 		}
 		r, err := m.c.GetRawAuditEvents(ctx, lts, ts, cursor)
 		if err != nil {
-			rt.Error("request error", log.KV("api", AuditApi), log.KVErr(err))
+			if !errors.Is(err, context.Canceled) {
+				rt.Error("request error", log.KV("api", AuditApi), log.KVErr(err))
+			}
 			continue
 		}
 
@@ -212,7 +214,9 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 		}
 		r, err := m.c.GetSIEMEventBatch(ctx, event, lts, ts, cursor)
 		if err != nil {
-			rt.Error("request error", log.KV("api", api), log.KVErr(err))
+			if !errors.Is(err, context.Canceled) {
+				rt.Error("request error", log.KV("api", api), log.KVErr(err))
+			}
 			continue
 		}
 
