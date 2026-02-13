@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/entry"
@@ -253,33 +252,28 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 	}
 	defer response.Body.Close()
 
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read body: %w", err)
-	}
-
-	gzreader, err := gzip.NewReader(bytes.NewReader(body))
+	gzreader, err := gzip.NewReader(response.Body)
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}
 	defer gzreader.Close()
 
-	data, err := io.ReadAll(gzreader)
+	raw, err := io.ReadAll(gzreader)
 	if err != nil {
 		return fmt.Errorf("failed to read gzip body: %w", err)
 	}
 
-	entries := strings.Split(string(data), "\n")
+	entries := bytes.Split(raw, []byte("\n"))
 	rt.Debug("processing mta events", log.KV("num-entries", len(entries)))
 	var first *time.Time
 	var last time.Time
 	count := 0
-	for _, e := range entries {
-		if e == "" {
+	for _, line := range entries {
+		if len(line) == 0 {
 			rt.Debug("skipping empty mta event")
 			continue
 		}
-		data, err := parse[MtaEventData](strings.NewReader(e))
+		data, err := parse[MtaEventData](bytes.NewReader(line))
 		if err != nil {
 			rt.Error("failed to parse mta event", log.KVErr(err))
 			continue
@@ -291,11 +285,10 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 
 		e := entry.Entry{
 			TS:   entry.FromStandard(ts),
-			Data: []byte(e),
+			Data: line,
 			Tag:  tag,
 		}
-		err = rt.Write(e)
-		if err != nil {
+		if err := rt.Write(e); err != nil {
 			rt.Error("failed to write mta event", log.KVErr(err))
 			continue
 		}
