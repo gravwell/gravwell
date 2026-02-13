@@ -150,64 +150,40 @@ type PackedScheduledSearch struct {
 
 	SearchString           string `json:",omitempty"` // The actual search to run
 	Duration               int64  `json:",omitempty"` // How many seconds back to search, MUST BE NEGATIVE
-	Script                 string `json:",omitempty"` // If set, execute the contents rather than running SearchString
 	DefaultDeploymentRules types.ScriptDeployConfig
-	Flow                   string `json:",omitempty"`
-	ScheduledType          string
-	GUID                   uuid.UUID // A unique ID for this scheduled search. Useful for detecting and handling upgrades.
-	SearchReference        uuid.UUID // Used if we're referencing a search query asset by GUID instead of including the search directly.
+	ID                     string // A unique ID for this scheduled search. Useful for detecting and handling upgrades.
+	SearchReference        string // Used if we're referencing a search query asset by ID instead of including the search directly.
 }
 
 // PackScheduledSearch converts a ScheduledSearch into a PackedScheduledSearch for inclusion in a kit.
 func PackScheduledSearch(ss *types.ScheduledSearch) (p PackedScheduledSearch) {
 	p = PackedScheduledSearch{
+		ID:              ss.ID,
 		Name:            ss.Name,
 		Description:     ss.Description,
 		Schedule:        ss.Schedule,
 		SearchString:    ss.SearchString,
 		Duration:        ss.Duration,
-		Script:          ss.Script,
 		Labels:          ss.Labels,
-		Flow:            ss.Flow,
-		ScheduledType:   ss.ScheduledType,
-		GUID:            ss.GUID,
 		SearchReference: ss.SearchReference,
 	}
 	return
 }
 
-// TypeName returns either "script" or "search" depending on the type of the PackedScheduledSearch.
-func (pss *PackedScheduledSearch) TypeName() string {
-	if len(pss.ScheduledType) > 0 {
-		return pss.ScheduledType
-	}
-	// Legacy stuff (no ScheduledType set) will be either script or search.
-	if len(pss.Script) > 0 {
-		return "script"
-	}
-	return "search"
-}
-
 // Validate checks the fields of the PackedScheduledSearch.
 func (pss *PackedScheduledSearch) Validate() error {
 	if pss.Name == `` {
-		return fmt.Errorf("Missing scheduled %v name", pss.TypeName())
+		return fmt.Errorf("Missing name")
 	} else if pss.Schedule == `` {
 		return errors.New("Missing schedule")
-	} else if pss.SearchString != `` && pss.Script != `` {
-		return errors.New("SearchString and Script are both populated")
 	} else if pss.SearchString != `` && pss.Duration >= 0 {
 		return errors.New("Duration is invalid for SearchString, must be negative")
-	} else if pss.SearchReference != uuid.Nil {
+	} else if pss.SearchReference != "" {
 		if pss.Duration >= 0 {
 			return errors.New("Duration is invalid for SearchReference, must be negative")
 		}
 		if pss.SearchString != `` {
 			return errors.New("SearchReference and SearchString both populated")
-		} else if pss.Flow != `` {
-			return errors.New("SearchReference and Flow both populated")
-		} else if pss.Script != `` {
-			return errors.New("SearchReference and Script both populated")
 		}
 	}
 	return nil
@@ -215,18 +191,15 @@ func (pss *PackedScheduledSearch) Validate() error {
 
 // Unpackage expands a PackedScheduledSearch into a ScheduledSearch.
 func (pss *PackedScheduledSearch) Unpackage(uid int32, gids []int32) (ss types.ScheduledSearch) {
-	ss.Owner = uid
-	ss.Groups = gids
+	ss.OwnerID = uid
+	ss.Readers.GIDs = gids
 	ss.Name = pss.Name
 	ss.Description = pss.Description
 	ss.Schedule = pss.Schedule
 	ss.SearchString = pss.SearchString
 	ss.Duration = pss.Duration
-	ss.Script = pss.Script
 	ss.Labels = pss.Labels
-	ss.Flow = pss.Flow
-	ss.ScheduledType = pss.ScheduledType
-	ss.GUID = pss.GUID
+	ss.ID = pss.ID
 	ss.SearchReference = pss.SearchReference
 	return
 }
@@ -238,24 +211,19 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 		Description            string
 		Schedule               string
 		SearchString           string `json:",omitempty"`
+		SearchReference        string `json:",omitempty"`
 		Duration               int64  `json:",omitempty"`
 		Script                 string `json:",omitempty"`
 		Flow                   string `json:",omitempty"`
 		ScheduledType          string `json:",omitempty"`
 		DefaultDeploymentRules types.ScriptDeployConfig
-		UUID                   uuid.UUID
-		SearchReference        uuid.UUID
 	}{
 		Name:                   pss.Name,
 		Description:            pss.Description,
 		Schedule:               pss.Schedule,
 		SearchString:           pss.SearchString,
 		Duration:               pss.Duration,
-		Script:                 pss.Script,
-		Flow:                   pss.Flow,
-		ScheduledType:          pss.TypeName(),
 		DefaultDeploymentRules: pss.DefaultDeploymentRules,
-		UUID:                   pss.GUID,
 		SearchReference:        pss.SearchReference,
 	})
 	return json.RawMessage(b), err

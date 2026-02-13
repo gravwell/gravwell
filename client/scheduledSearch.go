@@ -12,9 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
@@ -36,82 +34,15 @@ func (c *Client) GetAllScheduledSearches() ([]types.ScheduledSearch, error) {
 	return searches, nil
 }
 
-// CreateScheduledSearch makes a new scheduled search and returns the ID. The parameters are:
-//
-// - name: the search name.
-//
-// - description: the search description.
-//
-// - schedule: a cron-format schedule on which to execute the search.
-//
-// - searchreference: a reference to a query library item. Cannot be combined with searchquery.
-//
-// - searchquery: a valid search query string. Cannot be combined with searchreference.
-//
-// - duration: the amount of time over which the query should be run.
-func (c *Client) CreateScheduledSearch(name, description, schedule string, searchreference uuid.UUID, searchquery string, duration time.Duration, groups []int32) (int32, error) {
-	if searchquery != "" && searchreference != uuid.Nil {
-		return 0, fmt.Errorf("cannot use both searchreference and searchquery in CreateScheduledSearch")
-	}
-	ss := types.ScheduledSearch{
-		Groups:          groups,
-		Name:            name,
-		Description:     description,
-		Schedule:        schedule,
-		SearchReference: searchreference,
-		SearchString:    searchquery,
-		Duration:        int64(duration.Seconds()),
-		ScheduledType:   types.ScheduledTypeSearch,
-	}
-	var resp int32
-	if err := c.postStaticURL(scheduledSearchUrl(), ss, &resp); err != nil {
-		return 0, err
-	}
-	return resp, nil
-}
-
 // CreateScheduledSearchFromObject makes a new scheduled search and returns the ID. The parameters are:
 //
 // - s: A scheduled search object.
-func (c *Client) CreateScheduledSearchFromObject(s types.ScheduledSearch) (int32, error) {
-	if s.SearchString != "" && s.SearchReference != uuid.Nil {
-		return 0, fmt.Errorf("cannot use both SearchReference and SearchString in CreateScheduledSearchByReference")
+func (c *Client) CreateScheduledSearch(s types.ScheduledSearch) (int32, error) {
+	if s.SearchString != "" && s.SearchReference != "" {
+		return 0, fmt.Errorf("cannot use both SearchReference and SearchString in CreateScheduledSearch")
 	}
 	var resp int32
 	if err := c.postStaticURL(scheduledSearchUrl(), s, &resp); err != nil {
-		return 0, err
-	}
-	return resp, nil
-}
-
-// CreateScheduledScript creates a scheduled search that executes a script instead of a search. The parameters are:
-//
-// - name: the search name.
-//
-// - description: the search description.
-//
-// - schedule: a cron-format schedule on which to execute the search.
-//
-// - script: a valid anko script.
-//
-// - groups: an optional array of groups which should be able to access this object.
-//
-// - lang: the language of scheduled script (anko, go)
-func (c *Client) CreateScheduledScript(name, description, schedule, script string, lang types.ScriptLang, groups []int32) (int32, error) {
-	if err := lang.Valid(); err != nil {
-		return -1, err
-	}
-	ss := types.ScheduledSearch{
-		Groups:         groups,
-		Name:           name,
-		Description:    description,
-		Schedule:       schedule,
-		Script:         script,
-		ScriptLanguage: lang,
-		ScheduledType:  types.ScheduledTypeScript,
-	}
-	var resp int32
-	if err := c.postStaticURL(scheduledSearchUrl(), ss, &resp); err != nil {
 		return 0, err
 	}
 	return resp, nil
@@ -130,31 +61,15 @@ func (c *Client) UpdateScheduledSearch(ss types.ScheduledSearch) error {
 }
 
 // DeleteScheduledSearch removes the specified scheduled search.
-func (c *Client) DeleteScheduledSearch(id int32) error {
+func (c *Client) DeleteScheduledSearch(id string) error {
 	return c.deleteStaticURL(scheduledSearchIdUrl(id), nil)
 }
 
 // GetScheduledSearch returns the scheduled search with the given ID.
-// The ID is an interface{} to allow the user to specify either the
-// int32 "ID" or the UUID "GUID" field.
-func (c *Client) GetScheduledSearch(id interface{}) (types.ScheduledSearch, error) {
+func (c *Client) GetScheduledSearch(id string) (types.ScheduledSearch, error) {
 	var search types.ScheduledSearch
 	err := c.getStaticURL(scheduledSearchIdUrl(id), &search)
 	return search, err
-}
-
-// GetUserScheduledSearches returns all scheduled searches belonging to the specified user.
-func (c *Client) GetUserScheduledSearches(uid int32) ([]types.ScheduledSearch, error) {
-	var searches []types.ScheduledSearch
-	if err := c.getStaticURL(scheduledSearchUserUrl(uid), &searches); err != nil {
-		return nil, err
-	}
-	return searches, nil
-}
-
-// ClearUserScheduledSearches removes all scheduled searches belonging to the specified user
-func (c *Client) ClearUserScheduledSearches(uid int32) error {
-	return c.deleteStaticURL(scheduledSearchUserUrl(uid), nil)
 }
 
 // ScheduledSearchCheckin (admin-only) informs the webserver that the search agent is active.
@@ -169,12 +84,12 @@ func (c *Client) GetSearchAgentCheckin() (ci types.SearchAgentCheckin, err error
 }
 
 // ClearScheduledSearchError clears the error field on the specified scheduled search.
-func (c *Client) ClearScheduledSearchError(id int32) error {
+func (c *Client) ClearScheduledSearchError(id string) error {
 	return c.deleteStaticURL(scheduledSearchErrorIdUrl(id), nil)
 }
 
 // ClearScheduledSearchState clears state variables on the specified scheduled search.
-func (c *Client) ClearScheduledSearchState(id int32) error {
+func (c *Client) ClearScheduledSearchState(id string) error {
 	return c.deleteStaticURL(scheduledSearchStateIdUrl(id), nil)
 }
 
@@ -185,9 +100,9 @@ func (c *Client) ParseScheduledScript(data string, lang types.ScriptLang) (line,
 	if err = lang.Valid(); err != nil {
 		return
 	}
-	var resp types.ScheduledSearchParseResponse
-	req := types.ScheduledSearchParseRequest{
-		Version: int(lang),
+	var resp types.ScheduledScriptParseResponse
+	req := types.ScheduledScriptParseRequest{
+		Version: lang,
 		Script:  data,
 	}
 	if err = c.methodStaticPushURL(http.MethodPut, scheduledSearchParseUrl(), req, &resp, nil, nil); err != nil {

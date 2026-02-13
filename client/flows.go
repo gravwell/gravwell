@@ -16,8 +16,8 @@ import (
 )
 
 // GetFlowList returns flows the user has access to.
-func (c *Client) GetFlowList() ([]types.ScheduledSearch, error) {
-	var searches []types.ScheduledSearch
+func (c *Client) GetFlowList() ([]types.Flow, error) {
+	var searches []types.Flow
 	if err := c.getStaticURL(flowUrl(), &searches); err != nil {
 		return nil, err
 	}
@@ -35,74 +35,27 @@ func (c *Client) GetFlowList() ([]types.ScheduledSearch, error) {
 // - flow: a valid JSON flow definition.
 //
 // - groups: an optional array of groups which should be able to access this object.
-func (c *Client) CreateFlow(name, description, schedule, flow string, groups []int32) (int32, error) {
-	ss := types.ScheduledSearch{
-		Groups:        groups,
-		Name:          name,
-		Description:   description,
-		Schedule:      schedule,
-		ScheduledType: types.ScheduledTypeFlow,
-		Flow:          flow,
-	}
-	var resp int32
-	if err := c.postStaticURL(flowUrl(), ss, &resp); err != nil {
-		return 0, err
-	}
-	return resp, nil
-}
-
-// CreateFlowFromObject just implements the same API as CreateFlow but expects the complete ScheduledSearch object
-// as an input, this allows users to have direct access to the full object.  The ScheduleType is overridden to
-// ScheduledTypeFlow to prevent errors.
-func (c *Client) CreateFlowFromObject(obj types.ScheduledSearch) (int32, error) {
-	// just override the type
-	obj.ScheduledType = types.ScheduledTypeFlow
-
-	// only field we absolutely require is the Name
-	if obj.Name == `` {
-		return -1, errors.New("missing name")
-	}
-	var resp int32
-	if err := c.postStaticURL(flowUrl(), obj, &resp); err != nil {
-		return 0, err
-	}
-	return resp, nil
-}
-
-// UpdateFlowResults is used to update the flow after it has been
-// run. It only updates the LastRun, LastRunDuration, LastSearchIDs,
-// and LastError fields.
-func (c *Client) UpdateFlowResults(ss types.ScheduledSearch) error {
-	return c.putStaticURL(flowResultsIdUrl(ss.ID), ss)
+func (c *Client) CreateFlow(spec types.Flow) (types.Flow, error) {
+	return types.Flow{}, nil
 }
 
 // UpdateFlow is used to modify an existing flow.
-func (c *Client) UpdateFlow(ss types.ScheduledSearch) error {
+func (c *Client) UpdateFlow(ss types.Flow) error {
 	return c.putStaticURL(flowIdUrl(ss.ID), ss)
 }
 
 // DeleteFlow removes the specified flow.
-func (c *Client) DeleteFlow(id int32) error {
+func (c *Client) DeleteFlow(id string) error {
 	return c.deleteStaticURL(flowIdUrl(id), nil)
 }
 
 // GetFlow returns the flow with the given ID. The ID is an interface{}
 // to allow the user to specify either the flow's int32 "ID" or its
 // UUID "GUID" field.
-func (c *Client) GetFlow(id interface{}) (types.ScheduledSearch, error) {
-	var search types.ScheduledSearch
+func (c *Client) GetFlow(id string) (types.Flow, error) {
+	var search types.Flow
 	err := c.getStaticURL(flowIdUrl(id), &search)
 	return search, err
-}
-
-// ClearFlowError clears the error field on the specified scheduled search.
-func (c *Client) ClearFlowError(id int32) error {
-	return c.deleteStaticURL(flowErrorIdUrl(id), nil)
-}
-
-// ClearFlowState clears state variables on the specified scheduled search.
-func (c *Client) ClearFlowState(id int32) error {
-	return c.deleteStaticURL(flowStateIdUrl(id), nil)
 }
 
 // ParseFlow asks the API to check a flow.

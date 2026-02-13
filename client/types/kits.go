@@ -56,7 +56,7 @@ type KitConfig struct {
 type KitItem struct {
 	Name           string
 	Type           string
-	ID             string          `json:",omitempty"` //the UUID
+	ID             string          `json:",omitempty"`
 	AdditionalInfo json.RawMessage `json:",omitempty"`
 	Hash           [sha256.Size]byte
 }
@@ -138,8 +138,9 @@ type KitBuildRequest struct {
 	Templates         []string          `json:",omitempty"`
 	Pivots            []uuid.UUID       `json:",omitempty"`
 	Resources         []string          `json:",omitempty"`
-	ScheduledSearches []int32           `json:",omitempty"`
-	Flows             []int32           `json:",omitempty"`
+	ScheduledSearches []string          `json:",omitempty"`
+	ScheduledScripts  []string          `json:",omitempty"`
+	Flows             []string          `json:",omitempty"`
 	Macros            []string          `json:",omitempty"`
 	Extractors        []string          `json:",omitempty"`
 	Files             []uuid.UUID       `json:",omitempty"`
@@ -152,7 +153,7 @@ type KitBuildRequest struct {
 	Cover             string            `json:",omitempty"`
 	Dependencies      []KitDependency   `json:",omitempty"`
 	ConfigMacros      []KitConfigMacro
-	ScriptDeployRules map[int32]ScriptDeployConfig
+	ScriptDeployRules map[string]ScriptDeployConfig
 }
 
 type StoredBuildRequest struct {
@@ -257,12 +258,17 @@ func (pbr *KitBuildRequest) Validate() error {
 		pbr.Resources[i] = strings.TrimSpace(pbr.Resources[i]) //clean it
 	}
 	for i := range pbr.ScheduledSearches {
-		if pbr.ScheduledSearches[i] <= 0 {
-			return fmt.Errorf("Invalid scheduled search/script ID %d", pbr.ScheduledSearches[i])
+		if pbr.ScheduledSearches[i] == "" {
+			return fmt.Errorf("Invalid scheduled search ID %d", pbr.ScheduledSearches[i])
+		}
+	}
+	for i := range pbr.ScheduledScripts {
+		if pbr.ScheduledScripts[i] == "" {
+			return fmt.Errorf("Invalid scheduled script ID %d", pbr.ScheduledScripts[i])
 		}
 	}
 	for i := range pbr.Flows {
-		if pbr.Flows[i] <= 0 {
+		if pbr.Flows[i] == "" {
 			return fmt.Errorf("Invalid flow ID %d", pbr.Flows[i])
 		}
 	}
@@ -330,7 +336,7 @@ func (pbr *KitBuildRequest) Validate() error {
 		}
 	}
 
-	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
+	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
 	if kitItemCount == 0 {
 		return errors.New("Build request does not contain any items")
 	}

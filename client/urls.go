@@ -418,23 +418,23 @@ func scheduledSearchIdUrl(id interface{}) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_ID_URL, id)
 }
 
-func scheduledSearchResultsIdUrl(id int32) string {
+func scheduledSearchResultsIdUrl(id string) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_RESULTS_ID_URL, id)
 }
 
-func scheduledSearchErrorIdUrl(id int32) string {
+func scheduledSearchErrorIdUrl(id string) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_ERROR_ID_URL, id)
 }
 
-func scheduledSearchStateIdUrl(id int32) string {
+func scheduledSearchStateIdUrl(id string) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_STATE_ID_URL, id)
 }
 
-func scheduledSearchCancelIdUrl(id int32) string {
+func scheduledSearchCancelIdUrl(id string) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_CANCEL_ID_URL, id)
 }
 
-func scheduledSearchUserUrl(uid int32) string {
+func scheduledSearchUserUrl(uid string) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_USER_URL, uid)
 }
 
@@ -453,23 +453,23 @@ func flowIdUrl(id interface{}) string {
 	return fmt.Sprintf(FLOW_ID_URL, id)
 }
 
-func flowResultsIdUrl(id int32) string {
+func flowResultsIdUrl(id string) string {
 	return fmt.Sprintf(FLOW_RESULTS_ID_URL, id)
 }
 
-func flowErrorIdUrl(id int32) string {
+func flowErrorIdUrl(id string) string {
 	return fmt.Sprintf(FLOW_ERROR_ID_URL, id)
 }
 
-func flowStateIdUrl(id int32) string {
+func flowStateIdUrl(id string) string {
 	return fmt.Sprintf(FLOW_STATE_ID_URL, id)
 }
 
-func flowCancelIdUrl(id int32) string {
+func flowCancelIdUrl(id string) string {
 	return fmt.Sprintf(FLOW_CANCEL_ID_URL, id)
 }
 
-func flowUserUrl(uid int32) string {
+func flowUserUrl(uid string) string {
 	return fmt.Sprintf(FLOW_USER_URL, uid)
 }
 

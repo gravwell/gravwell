@@ -815,7 +815,7 @@ func (c *Client) PurgeUser(id int32) error {
 		return fmt.Errorf("Failed to get the users scheduled searches %d %w", id, err)
 	} else if len(ss) > 0 {
 		for _, s := range ss {
-			if s.Owner == id {
+			if s.OwnerID == id {
 				if err := nc.DeleteScheduledSearch(s.ID); err != nil {
 					return fmt.Errorf("Failed to purge scheduled searches %d %d %w", id, s.ID, err)
 				}
