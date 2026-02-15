@@ -1,5 +1,6 @@
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -9,15 +10,18 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v3/client"
 	"github.com/gravwell/gravwell/v3/client/types"
+	"github.com/gravwell/gravwell/v3/client/types/kits"
 )
 
 // pullKit reaches out to the remote Gravwell instance and performs a kit build using the existing kit build request
@@ -378,20 +382,64 @@ func getKitPlaybooks(cli *client.Client, label string, orig types.KitBuildReques
 // pushKit builds the kit from the kit directory and pushes it to the server
 // pushKit DOES NOT increment the version number and does not depend on the remote system kit build process.
 // It simply packs the local kit directory using kitctl and pushes it to the server for installation.
-func pushKit(cli *client.Client, kbr types.KitBuildRequest) (err error) {
-	fmt.Printf("Deploying kit %s version %v\n", kbr.ID, kbr.Version)
+func pushKit(cli *client.Client, force bool) (err error) {
+	// load the manifest file from the kit directory
+	var mf kits.Manifest
+	var fin *os.File
+	manifestPath := filepath.Join(kitDir, "MANIFEST")
+	if fin, err = os.Open(manifestPath); err != nil {
+		err = fmt.Errorf("failed to open manifest file at %s: %w", manifestPath, err)
+		return
+	}
+	defer fin.Close()
+	if err = json.NewDecoder(fin).Decode(&mf); err != nil {
+		err = fmt.Errorf("failed to decode manifest file: %w", err)
+		return
+	}
+
+	// go get the list of kits from the remote server to check if we have an existing kit the same ID and a version that
+	// will allow us to deploy this kit, if we have a kit with the same ID and a version that is greater than or equal
+	// to the version in the manifest, then we need to error out because we don't want to accidentally overwrite a newer
+	// kit with an older one.  If we have a kit with the same ID but a lower version,
+	// then we can proceed with the deployment because the manifest version will overwrite the existing kit version on the server.
+	var kits []types.IdKitState
+	if kits, err = cli.ListKits(); err != nil {
+		err = fmt.Errorf("failed to get list of kits from server: %w", err)
+		return
+	}
+	for _, k := range kits {
+		if k.ID == mf.ID {
+			if k.Version >= mf.Version {
+				if force {
+					// go delete the kit
+					if err = cli.DeleteKit(k.UUID.String()); err != nil {
+						err = fmt.Errorf("failed to delete existing kit with ID %s: %w", k.ID, err)
+						return
+					}
+					fmt.Printf("Deleted existing kit with ID %s and version %v\n", k.ID, k.Version)
+					break
+				} else {
+					err = fmt.Errorf("%s kit installed with same or newer version", k.ID)
+					return
+				}
+			}
+			break
+		}
+	}
+
+	fmt.Printf("Deploying kit %s version %v\n", mf.ID, mf.Version)
 	// create a temp file for the kit
 	var fout *os.File
-	if fout, err = os.CreateTemp(os.TempDir(), kbr.ID); err != nil {
+	if fout, err = os.CreateTemp(os.TempDir(), mf.ID); err != nil {
 		err = fmt.Errorf("failed to create temp file for kit pack: %w", err)
 		return
 	}
-	pth := fout.Name() // get the file name for the temp file
+	pth := fout.Name()   // get the file name for the temp file
+	defer os.Remove(pth) // clean up the temp file when done
 	if err = fout.Close(); err != nil {
 		err = fmt.Errorf("failed to close temp kit pack file: %w", err)
 		return
 	}
-	defer os.Remove(pth) // clean up the temp file when done
 
 	// call the kitctl pack command
 	var stdoutStderr []byte
@@ -427,7 +475,7 @@ func pushKit(cli *client.Client, kbr types.KitBuildRequest) (err error) {
 	cfg := types.KitConfig{
 		OverwriteExisting:  true,
 		Global:             kitGlobal,
-		ConfigMacros:       kbr.ConfigMacros,
+		ConfigMacros:       mf.ConfigMacros,
 		InstallationGroups: groups,
 		Labels:             kitLabels,
 		InstallationWriteAccess: types.Access{
@@ -442,6 +490,6 @@ func pushKit(cli *client.Client, kbr types.KitBuildRequest) (err error) {
 		return
 	}
 
-	fmt.Printf("Kit %s deployed\n", kbr.ID)
+	fmt.Printf("Kit %s deployed\n", mf.ID)
 	return
 }

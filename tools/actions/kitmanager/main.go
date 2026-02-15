@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2025 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -65,25 +65,28 @@ func main() {
 		return
 	}
 
-	// not a list, go make sure the kit specified exists
-	// now rip through each one looking for our kit ID
-	var kbr types.KitBuildRequest
-	for _, v := range kbrs {
-		if v.ID == kitId {
-			kbr = v
-			break
-		}
-	}
-	if kbr.ID != kitId {
-		fatalf("Failed to find kit build with ID '%s'\n", kitId)
-	}
 	switch cmd {
 	case `pull`:
+		// for pulls we need to make sure the kit exists
+		// now rip through each one looking for our kit ID
+		var kbr types.KitBuildRequest
+		for _, v := range kbrs {
+			fmt.Println(v.ID, kitId)
+			if v.ID == kitId {
+				kbr = v
+				break
+			}
+		}
+
+		if kbr.ID != kitId {
+			fatalf("Failed to find kit build with ID '%s'\n", kitId)
+		}
+
 		if err = pullKit(cli, kbr); err != nil {
 			fatalf("Error syncing kit: %v\n", err)
 		}
 	case `push`:
-		if err = pushKit(cli, kbr); err != nil {
+		if err = pushKit(cli, kitForceInstall); err != nil {
 			fatalf("Error deploying kit: %v\n", err)
 		}
 	default:

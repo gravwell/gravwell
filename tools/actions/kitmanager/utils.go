@@ -26,16 +26,17 @@ import (
 )
 
 const (
-	envHost           = `GRAVWELL_HOST`
-	envToken          = `GRAVWELL_TOKEN`
-	envKitId          = `GRAVWELL_KIT_ID`
-	envKitDir         = `GRAVWELL_KIT_DIR`
-	envKitGlobal      = `GRAVWELL_KIT_GLOBAL`
-	envKitWriteGlobal = `GRAVWELL_KIT_WRITE_GLOBAL`
-	envKitGroups      = `GRAVWELL_KIT_GROUPS`
-	envKitWriteGroups = `GRAVWELL_KIT_WRITE_GROUPS`
-	envKitLabels      = `GRAVWELL_KIT_LABELS`
-	envKitCtl         = `GRAVWELL_KITCTL`
+	envHost            = `GRAVWELL_HOST`
+	envToken           = `GRAVWELL_TOKEN`
+	envKitId           = `GRAVWELL_KIT_ID`
+	envKitDir          = `GRAVWELL_KIT_DIR`
+	envKitGlobal       = `GRAVWELL_KIT_GLOBAL`
+	envKitWriteGlobal  = `GRAVWELL_KIT_WRITE_GLOBAL`
+	envKitGroups       = `GRAVWELL_KIT_GROUPS`
+	envKitWriteGroups  = `GRAVWELL_KIT_WRITE_GROUPS`
+	envKitLabels       = `GRAVWELL_KIT_LABELS`
+	envKitForceInstall = `GRAVWELL_KIT_FORCE_INSTALL`
+	envKitCtl          = `GRAVWELL_KITCTL`
 
 	commandsStr = `Available Commands:
   list         List available kits
@@ -45,16 +46,17 @@ const (
 
 var (
 	// default these to the values that may or may not be in environment variables
-	hostUrl        = os.Getenv(envHost)
-	authToken      = os.Getenv(envToken)
-	kitId          = os.Getenv(envKitId)
-	kitDir         = os.Getenv(envKitDir)
-	kitGlobal      = getBoolFromString(os.Getenv(envKitGlobal))
-	kitWriteGlobal = getBoolFromString(os.Getenv(envKitWriteGlobal))
-	kitGroups      = os.Getenv(envKitGroups)
-	kitWriteGroups = os.Getenv(envKitWriteGroups)
-	kitLabels      = os.Getenv(envKitLabels)
-	kitCtl         = os.Getenv(envKitCtl)
+	hostUrl         = os.Getenv(envHost)
+	authToken       = os.Getenv(envToken)
+	kitId           = os.Getenv(envKitId)
+	kitDir          = os.Getenv(envKitDir)
+	kitGlobal       = getBoolFromString(os.Getenv(envKitGlobal))
+	kitWriteGlobal  = getBoolFromString(os.Getenv(envKitWriteGlobal))
+	kitGroups       = os.Getenv(envKitGroups)
+	kitWriteGroups  = os.Getenv(envKitWriteGroups)
+	kitLabels       = os.Getenv(envKitLabels)
+	kitCtl          = os.Getenv(envKitCtl)
+	kitForceInstall = getBoolFromString(os.Getenv(envKitForceInstall))
 
 	fHost           = flag.String("host", "", "URL of Gravwell system")
 	fToken          = flag.String("token", "", "Authentication token for Gravwell system")
