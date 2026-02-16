@@ -58,17 +58,18 @@ var (
 	kitCtl          = os.Getenv(envKitCtl)
 	kitForceInstall = getBoolFromString(os.Getenv(envKitForceInstall))
 
-	fHost           = flag.String("host", "", "URL of Gravwell system")
-	fToken          = flag.String("token", "", "Authentication token for Gravwell system")
-	fKitId          = flag.String("kit-id", "", "Kit ID")
-	fKitDir         = flag.String("kit-dir", "", "Directory to store kits")
-	fKitCtl         = flag.String("kitctl", "", "Path to kitctl binary")
-	fKitGlobal      = flag.Bool("kit-global", false, "Set to true to deploy kits with global access")
-	fKitWriteGlobal = flag.Bool("kit-write-global", false, "Set to true to deploy kits with global write access")
-	fKitGroups      = flag.String("kit-groups", "", "Comma separated list of groups to deploy the kit to")
-	fKitWriteGroups = flag.String("kit-write-groups", "", "Comma separated list of groups to deploy the kit with write access")
-	fKitLabels      = flag.String("kit-labels", "", "Comma separated list of labels to deploy the kit to")
-	fIgnoreCert     = flag.Bool("ignore-cert", false, "Ignore TLS certificate errors")
+	fHost            = flag.String("host", "", "URL of Gravwell system")
+	fToken           = flag.String("token", "", "Authentication token for Gravwell system")
+	fKitId           = flag.String("kit-id", "", "Kit ID")
+	fKitDir          = flag.String("kit-dir", "", "Directory to store kits")
+	fKitCtl          = flag.String("kitctl", "", "Path to kitctl binary")
+	fKitGlobal       = flag.Bool("kit-global", false, "Set to true to deploy kits with global access")
+	fKitWriteGlobal  = flag.Bool("kit-write-global", false, "Set to true to deploy kits with global write access")
+	fKitGroups       = flag.String("kit-groups", "", "Comma separated list of groups to deploy the kit to")
+	fKitWriteGroups  = flag.String("kit-write-groups", "", "Comma separated list of groups to deploy the kit with write access")
+	fKitLabels       = flag.String("kit-labels", "", "Comma separated list of labels to deploy the kit to")
+	fKitForceInstall = flag.Bool("kit-force-install", false, "Force kit install on push even if existing kit has same or newer version")
+	fIgnoreCert      = flag.Bool("ignore-cert", false, "Ignore TLS certificate errors")
 )
 
 // initVars just ensures that the hostUrl, authToken, and kitId variables are set from environment variables
@@ -107,6 +108,8 @@ func initVars(cmd string) (err error) {
 			kitGlobal = *fKitGlobal
 		case "kit-write-global":
 			kitWriteGlobal = *fKitWriteGlobal
+		case "kit-force-install":
+			kitForceInstall = *fKitForceInstall
 		}
 	})
 	// if either hostUrl or authToken are still empty, ask for them on the command line

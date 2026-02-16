@@ -398,8 +398,8 @@ func pushKit(cli *client.Client, force bool) (err error) {
 
 	// go get the list of kits from the remote server to check if we have an existing kit the same ID and a version that
 	// will allow us to deploy this kit, if we have a kit with the same ID and a version that is greater than or equal
-	// to the version in the manifest, then we need to error out because we don't want to accidentally overwrite a newer
-	// kit with an older one.  If we have a kit with the same ID but a lower version,
+	// to the version in the manifest and force is not true, then we need to error out because we don't want to accidentally
+	// overwrite a newer kit with an older one.  If we have a kit with the same ID but a lower version,
 	// then we can proceed with the deployment because the manifest version will overwrite the existing kit version on the server.
 	var kits []types.IdKitState
 	if kits, err = cli.ListKits(); err != nil {
