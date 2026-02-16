@@ -418,7 +418,7 @@ func pushKit(cli *client.Client, force bool) (err error) {
 					fmt.Printf("Deleted existing kit with ID %s and version %v\n", k.ID, k.Version)
 					break
 				} else {
-					err = fmt.Errorf("%s kit installed with same or newer version", k.ID)
+					err = fmt.Errorf("kit %s is already installed with version %v (manifest version: %v). Use force flag to overwrite", k.ID, k.Version, mf.Version)
 					return
 				}
 			}
