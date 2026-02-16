@@ -71,7 +71,6 @@ func main() {
 		// now rip through each one looking for our kit ID
 		var kbr types.KitBuildRequest
 		for _, v := range kbrs {
-			fmt.Println(v.ID, kitId)
 			if v.ID == kitId {
 				kbr = v
 				break
