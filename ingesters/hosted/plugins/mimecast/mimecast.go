@@ -138,6 +138,7 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 			continue
 		}
 
+		last := ts
 		rt.Debug("got events", log.KV("api", AuditApi), log.KV("count", len(r.Data)))
 		for _, d := range r.Data {
 			data, err := parse[AuditData](bytes.NewReader(d))
@@ -145,13 +146,13 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 				rt.Error("error parsing audit record", log.KVErr(err))
 				continue
 			}
-			ts, err := time.Parse(AuditTimeFormat, data.EventTime)
+			ets, err := time.Parse(AuditTimeFormat, data.EventTime)
 			if err != nil {
 				rt.Error("error parsing time for event", log.KVErr(err))
 				continue
 			}
 			e := entry.Entry{
-				TS:   entry.FromStandard(ts),
+				TS:   entry.FromStandard(ets),
 				Data: d,
 				Tag:  tag,
 			}
@@ -160,6 +161,7 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 				rt.Error("error writing entry", log.KV("api", "audit"), log.KVErr(err))
 				continue
 			}
+			last = ets
 			rt.Debug("wrote audit entry", log.KV("ts", e.TS))
 			// save progress on current cursor?
 		}
@@ -169,9 +171,9 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 			rt.Debug("got another page of events", log.KV("api", AuditApi))
 			rt.PutString(m.cursor(AuditApi), r.Meta.Pagination.Next)
 		} else {
-			rt.Debug("no more pages, moving forward in time", log.KV("api", AuditApi))
+			rt.Debug("no more pages, moving forward in time", log.KV("api", AuditApi), log.KV("to", last))
 			rt.PutString(m.cursor(AuditApi), "")
-			rt.PutTime(m.timestamp(AuditApi), ts) // I'm not sure this is true, may need to get the timestamp off the last record, otherwise we might skip
+			rt.PutTime(m.timestamp(AuditApi), last)
 		}
 	}
 
@@ -214,20 +216,20 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 			}
 			continue
 		}
-
+		last := &ts
 		rt.Debug("got batches", log.KV("api", api), log.KV("count", len(r.Value)))
 		for _, v := range r.Value {
-			err := m.handleMtaEvent(ctx, rt, tag, v)
+			t, err := m.handleMtaEvent(ctx, rt, tag, v)
 			if err != nil {
 				rt.Error("error handling mta page", log.KV("api", api), log.KVErr(err))
 				continue
 			}
-			// save progress on current cursor?
+			last = t
 		}
 		if r.IsCaughtUp { // Progress forward in time
-			rt.Debug("no more pages, moving forward in time", log.KV("api", api))
+			rt.Debug("no more pages, moving forward in time", log.KV("api", api), log.KV("to", *last))
 			rt.PutString(m.cursor(api), "")
-			rt.PutTime(m.timestamp(api), ts) // I'm not sure this is true, may need to get the timestamp off the last record, otherwise we might skip
+			rt.PutTime(m.timestamp(api), *last)
 		} else {
 			rt.Debug("got another page of batch", log.KV("api", api))
 			rt.PutString(m.cursor(api), r.NextPage)
@@ -237,10 +239,10 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 	return nil
 }
 
-func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, event SIEMEvent) error {
+func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, event SIEMEvent) (*time.Time, error) {
 	entries, err := m.entries(ctx, event.URL)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	var first *time.Time
 	var last time.Time
@@ -273,7 +275,7 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 		count++
 	}
 	rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last))
-	return nil
+	return &last, nil
 }
 
 func (m *Mimecast) entries(ctx context.Context, url string) (iter.Seq[[]byte], error) {
