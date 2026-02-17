@@ -82,7 +82,7 @@ func (c *Client) authenticate(ctx context.Context) error {
 		return fmt.Errorf("%w, failed to parse auth response: %w", ErrAuthenticationFailure, err)
 	}
 	// expire 'early' so we don't risk a race
-	c.token.ExpireAt = time.Now().Add(time.Duration(token.ExpireIn)*time.Second - time.Second*5)
+	token.ExpireAt = time.Now().Add(time.Duration(token.ExpireIn)*time.Second - time.Second*5)
 	c.token = *token
 	return nil
 }
@@ -107,6 +107,9 @@ func (c *Client) Do(r *http.Request) (*http.Response, error) {
 		response.Body.Close()
 		if err != nil {
 			return nil, fmt.Errorf("%w, failed to parse response: %w", ErrAuthenticationFailure, err)
+		}
+		if len(fail.Fail) < 1 {
+			return nil, fmt.Errorf("%w, no provided reason", ErrAuthenticationFailure)
 		}
 		return nil, fmt.Errorf("%w: %s, %s", ErrAuthenticationFailure, fail.Fail[0].Code, fail.Fail[0].Message)
 	}

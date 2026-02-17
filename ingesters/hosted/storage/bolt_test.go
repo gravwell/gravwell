@@ -100,12 +100,13 @@ func TestBoltHandler_OpenReadOnly(t *testing.T) {
 	}
 
 	// Try to db - should succeed
-	_, err = OpenBoltHandler(dbPath, false)
+	b, err := OpenBoltHandler(dbPath, false)
 	if err != nil {
 		info, _ := os.Stat(dbPath)
 		infoMode := info.Mode().Perm().String()
 		t.Fatalf("error opening database, perms: %s, err: %v", infoMode, err)
 	}
+	defer b.Close()
 }
 
 func TestBoltConfig_Verify(t *testing.T) {

@@ -3,21 +3,20 @@ package mimecast
 import (
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/google/uuid"
 )
 
 const (
 	defaultBaseDomain        = "https://api.services.mimecast.com"
-	defaultLookback          = 24 * time.Hour
+	defaultLookback          = 24
 	defaultRequestsPerMinute = 5
 	defaultInterval          = 5
 )
 
 type Config struct {
 	Ingester_UUID       string
-	Lookback            time.Duration
+	Lookback            int    // in hours
 	Client_Id           string `json:"-"`
 	Client_Secret       string `json:"-"`
 	Api                 []Api
@@ -26,7 +25,7 @@ type Config struct {
 	Tag_Prefix          string
 	Preprocessor        []string
 	Requests_Per_Minute int
-	Interval            int
+	Interval            int // in seconds
 }
 
 func (c *Config) Verify() error {
@@ -73,7 +72,7 @@ func (c *Config) UUID() uuid.UUID {
 
 func (c *Config) Tags() (tags []string) {
 	for _, api := range c.Api {
-		tags = append(tags, c.Tag_Prefix+string(api))
+		tags = append(tags, api.Tag(c.Tag_Name, c.Tag_Prefix))
 	}
 	return
 }

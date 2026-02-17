@@ -22,6 +22,16 @@ const (
 
 type Api string
 
+func (api Api) Tag(tag, prefix string) string {
+	if tag != "" {
+		return tag
+	}
+	if prefix != "" {
+		return prefix + "-" + string(api)
+	}
+	return string(api)
+}
+
 const (
 	AuditApi            Api = "audit"
 	MtaDeliveryApi      Api = "mta-delivery"

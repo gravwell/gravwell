@@ -21,13 +21,19 @@ import (
 	"golang.org/x/time/rate"
 )
 
+const (
+	Name    string = `mimecast`
+	ID      string = `mimecast.ingesters.gravwell.io`
+	Version string = `1.0.0` // must be canonical version string with only major.minor.point
+)
+
 type Mimecast struct {
 	c            *Client
 	apis         []Api
 	includeAudit bool // if the audit api should be polled
 	start        time.Time
-	tagPrefix    string
 	conf         *Config
+	interval     time.Duration
 }
 
 func New(conf *Config) *Mimecast {
@@ -44,30 +50,19 @@ func New(conf *Config) *Mimecast {
 		}
 	}
 
-	start := time.Now().Add(-conf.Lookback)
-	prefix := conf.Tag_Prefix
-	if prefix != "" {
-		prefix += "-"
-	}
+	start := time.Now().Add(time.Duration(-conf.Lookback) * time.Hour)
 
 	return &Mimecast{
 		conf:         conf,
 		apis:         apis,
 		includeAudit: audit,
 		start:        start,
-		tagPrefix:    prefix,
+		interval:     time.Duration(conf.Interval) * time.Second,
 	}
 }
 
 func (m *Mimecast) tag(a Api) string {
-	if m.conf.Tag_Name != "" {
-		return m.conf.Tag_Name
-	}
-	tag := string(a)
-	if m.tagPrefix != "" {
-		tag = m.tagPrefix + tag
-	}
-	return tag
+	return a.Tag(m.conf.Tag_Name, m.conf.Tag_Prefix)
 }
 
 func (m *Mimecast) cursor(api Api) string {
@@ -121,7 +116,7 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 	if err != nil {
 		return err
 	}
-	for !rt.Sleep(time.Second * time.Duration(m.conf.Interval)) {
+	for !rt.Sleep(m.interval) {
 		cursor, lts, err := m.get(rt, AuditApi, m.start)
 		if err != nil {
 			rt.Error("error getting storage data", log.KVErr(err))
@@ -198,7 +193,7 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 	if err != nil {
 		return err
 	}
-	for !rt.Sleep(time.Second * time.Duration(m.conf.Interval)) {
+	for !rt.Sleep(m.interval) {
 		cursor, lts, err := m.get(rt, api, m.start)
 		if err != nil {
 			rt.Error("error getting storage data", log.KV("api", api), log.KVErr(err))
@@ -246,6 +241,8 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 	if err != nil {
 		return err
 	}
+	// The DefaultClient is used here as the event.URL is a presigned URL (generally to an aws S3 bucket).
+	// Rate Limits don't apply, and using m.client would pass credentials to AWS,
 	response, err := http.DefaultClient.Do(request)
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)

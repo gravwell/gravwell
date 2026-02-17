@@ -124,7 +124,7 @@ func siem(w http.ResponseWriter, r *http.Request) {
 		fmt.Printf("SIEM: Generated ID %s for range %s to %s\n", cursor, start.Format(time.RFC3339), end.Format(time.RFC3339))
 	}
 
-	hasNextPage := rand.Intn(4) >= 3 // 40% chance to have another page
+	hasNextPage := rand.Intn(5) >= 3 // 40% chance to have another page
 	nextPage := ""
 	if hasNextPage {
 		nextPage = cursor
@@ -206,9 +206,14 @@ func audit(w http.ResponseWriter, r *http.Request) {
 		auditMtx.Unlock()
 	} else {
 		auditMtx.RLock()
-		start = auditData[cursor].start
-		end = auditData[cursor].end
+		dates, ok := auditData[cursor]
 		auditMtx.RUnlock()
+		if !ok {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		start = dates.start
+		end = dates.end
 	}
 
 	// Generate multiple audit events with jittered timestamps
@@ -231,7 +236,7 @@ func audit(w http.ResponseWriter, r *http.Request) {
 		jitter := time.Duration(float64(duration) * (float64(i) / float64(numEvents)))
 		eventTime := start.Add(jitter)
 
-		auditData := map[string]interface{}{
+		event := map[string]interface{}{
 			"eventTime": eventTime.Format(mimecast.AuditTimeFormat),
 			"message":   messages[i%len(messages)],
 			"user":      users[i%len(users)],
@@ -239,7 +244,7 @@ func audit(w http.ResponseWriter, r *http.Request) {
 			"eventId":   fmt.Sprintf("audit-event-%d", i+1),
 		}
 
-		dataBytes, err := json.Marshal(auditData)
+		dataBytes, err := json.Marshal(event)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -247,7 +252,7 @@ func audit(w http.ResponseWriter, r *http.Request) {
 		events = append(events, dataBytes)
 	}
 
-	hasNextPage := rand.Intn(4) >= 3 // 20% chance of having a next page
+	hasNextPage := rand.Intn(5) >= 3 // 40% chance of having a next page
 	response := mimecast.Response{
 		Meta: mimecast.ResponseMeta{},
 		Data: events,

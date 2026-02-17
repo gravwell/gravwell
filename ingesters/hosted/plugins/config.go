@@ -117,7 +117,7 @@ func (c Configs) ForEachIngester(tn hosted.TagNegotiator, nrt NewRuntimeCallback
 		// get a new ingester
 		ig := mimecast.New(v)
 
-		if err = c.buildIngester(k, okta.ID, "mimecast", okta.Version, v.UUID(), ig, nrt, cb); err != nil {
+		if err = c.buildIngester(k, mimecast.ID, mimecast.Name, mimecast.Version, v.UUID(), ig, nrt, cb); err != nil {
 			return
 		}
 	}
