@@ -171,16 +171,15 @@ func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cu
 	}
 
 	payload := Request{}
+	payload.Data = []RequestData{
+		{
+			StartDateTime: start.Format(AuditTimeFormat),
+			EndDateTime:   end.Format(AuditTimeFormat),
+		},
+	}
 	payload.Meta.Pagination.PageSize = 10
 	if cursor != "" {
 		payload.Meta.Pagination.PageToken = cursor
-	} else {
-		payload.Data = []RequestData{
-			{
-				StartDateTime: start.Format(AuditTimeFormat),
-				EndDateTime:   end.Format(AuditTimeFormat),
-			},
-		}
 	}
 
 	pBody, err := json.Marshal(payload)

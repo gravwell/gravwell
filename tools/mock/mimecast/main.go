@@ -351,9 +351,9 @@ func storage(w http.ResponseWriter, r *http.Request) {
 	// Gzip the data
 	var gzBuf bytes.Buffer
 	gzWriter := gzip.NewWriter(&gzBuf)
-	defer gzWriter.Close()
 	if _, err := gzWriter.Write(buf.Bytes()); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
+		_ = gzWriter.Close()
 		return
 	}
 	if err := gzWriter.Close(); err != nil {
