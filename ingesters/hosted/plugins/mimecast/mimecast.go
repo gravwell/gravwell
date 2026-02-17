@@ -3,12 +3,13 @@
 package mimecast
 
 import (
+	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
-	"io"
+	"iter"
 	"net/http"
 	"time"
 
@@ -237,35 +238,14 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 }
 
 func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, event SIEMEvent) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, event.URL, nil)
+	entries, err := m.entries(ctx, event.URL)
 	if err != nil {
 		return err
 	}
-	// The DefaultClient is used here as the event.URL is a presigned URL (generally to an aws S3 bucket).
-	// Rate Limits don't apply, and using m.client would pass credentials to AWS,
-	response, err := http.DefaultClient.Do(request)
-	if err != nil {
-		return fmt.Errorf("request failed: %w", err)
-	}
-	defer response.Body.Close()
-
-	gzreader, err := gzip.NewReader(response.Body)
-	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
-	}
-	defer gzreader.Close()
-
-	raw, err := io.ReadAll(gzreader)
-	if err != nil {
-		return fmt.Errorf("failed to read gzip body: %w", err)
-	}
-
-	entries := bytes.Split(raw, []byte("\n"))
-	rt.Debug("processing mta events", log.KV("num-entries", len(entries)))
 	var first *time.Time
 	var last time.Time
 	count := 0
-	for _, line := range entries {
+	for line := range entries {
 		if len(line) == 0 {
 			rt.Debug("skipping empty mta event")
 			continue
@@ -294,4 +274,38 @@ func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag en
 	}
 	rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last))
 	return nil
+}
+
+func (m *Mimecast) entries(ctx context.Context, url string) (iter.Seq[[]byte], error) {
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	// The DefaultClient is used here as the event.URL is a presigned URL (generally to an aws S3 bucket).
+	// Rate Limits don't apply, and using m.client would pass credentials to AWS,
+	response, err := http.DefaultClient.Do(request)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("request failed: %s", response.Status)
+	}
+
+	gzreader, err := gzip.NewReader(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+
+	scanner := bufio.NewScanner(gzreader)
+
+	return func(yield func([]byte) bool) {
+		for scanner.Scan() {
+			if !yield(scanner.Bytes()) {
+				utils.DrainResponse(response)
+				gzreader.Close()
+				return
+			}
+		}
+	}, nil
 }
