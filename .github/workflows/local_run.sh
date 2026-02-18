@@ -2,6 +2,7 @@
 
 set -e
 
+echo "Running govulncheck"
 go install golang.org/x/vuln/cmd/govulncheck@latest
 govulncheck -test -show verbose ./netflow/...
 govulncheck -test -show verbose ./manager/...
@@ -59,6 +60,7 @@ govulncheck -test -show verbose ./ingesters/singleFile
 GOOS=windows govulncheck -test -show verbose ./ingesters/winevents
 GOOS=windows govulncheck -test -show verbose ./winevent/...
 
+echo "Running go test"
 go test -v ./generators/ipgen
 go test -v ./chancacher
 go test -v ./ingest
@@ -76,6 +78,7 @@ go test -v ./ipexist
 go test -v ./netflow
 go test -v ./client/...
 
+echo "Building components"
 go build -o /dev/null ./generators/gravwellGenerator
 go build -o /dev/null ./manager
 go build -o /dev/null ./migrate
