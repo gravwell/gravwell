@@ -39,7 +39,6 @@ require (
 	github.com/gosnmp/gosnmp v1.35.0
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66
 	github.com/gravwell/gcfg v1.2.10-0.20251024173739-a5ba5db9985f
-	github.com/gravwell/gravwell/v3 v3.8.76
 	github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37
 	github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e
 	github.com/gravwell/jsonparser v0.0.0-20240802164212-e3c50dc78005
@@ -49,7 +48,7 @@ require (
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/jaswdr/faker/v2 v2.3.2
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
-	github.com/klauspost/compress v1.18.1
+	github.com/klauspost/compress v1.18.4
 	github.com/magefile/mage v1.15.0
 	github.com/miekg/dns v1.1.56
 	github.com/minio/highwayhash v1.0.0
@@ -127,6 +126,7 @@ require (
 	github.com/jcmturner/rpc/v2 v2.0.3 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
 	github.com/jpillora/backoff v0.0.0-20180909062703-3050d21c67d7 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mattn/go-localereader v0.0.1 // indirect
@@ -140,6 +140,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/rcrowley/go-metrics v0.0.0-20201227073835-cf1acfcdf475 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
+	github.com/rogpeppe/go-internal v1.6.1 // indirect
 	github.com/sahilm/fuzzy v0.1.1 // indirect
 	github.com/turnage/redditproto v0.0.0-20151223012412-afedf1b6eddb // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
