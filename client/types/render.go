@@ -110,7 +110,6 @@ const (
 // TransformOperator represents the operator to apply to results
 type TransformOperator string
 
-// List of TransformOperator values
 const (
 	TransformOperatorCount       TransformOperator = "count"
 	TransformOperatorSum         TransformOperator = "sum"
@@ -125,13 +124,13 @@ const (
 
 type ResultsOptions struct {
 	Fence    Geofence
-	BinCount int    `json:"binCount,omitempty"`
-	BinWidth int    `json:"binWidth,omitempty"`
-	Op       string `json:"op,omitempty"`
-	Sort     []string `json:"sort,omitempty"`
+	BinCount int               `json:"binCount,omitempty"`
+	BinWidth int               `json:"binWidth,omitempty"`
+	Op       string            `json:"op,omitempty"`
+	Sort     []string          `json:"sort,omitempty"`
 	Operator TransformOperator `json:"operator,omitempty"`
-	Operand  string   `json:"operand,omitempty"`
-	Keys     []string `json:"keys,omitempty"`
+	Operand  string            `json:"operand,omitempty"`
+	Keys     []string          `json:"keys,omitempty"`
 }
 
 type ResultsResponse struct {
