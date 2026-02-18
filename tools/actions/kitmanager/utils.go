@@ -121,7 +121,7 @@ func initVars(cmd string) (err error) {
 		} else if authToken == "" {
 			err = errors.New("no authentication token provided")
 			return
-		} else if kitId == "" {
+		} else if kitId == "" && cmd == `pull` {
 			err = errors.New("no kit ID provided")
 			return
 		}
