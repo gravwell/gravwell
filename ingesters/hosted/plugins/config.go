@@ -17,13 +17,15 @@ import (
 	"github.com/gravwell/gravwell/v3/ingesters/hosted"
 
 	// include all the native hosted ingesters
+	"github.com/gravwell/gravwell/v3/ingesters/hosted/plugins/mimecast"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted/plugins/okta"
 	"github.com/gravwell/gravwell/v3/ingesters/hosted/plugins/tester"
 )
 
 type Configs struct {
-	Okta   map[string]*okta.Config
-	Tester map[string]*tester.Config
+	Okta     map[string]*okta.Config
+	Mimecast map[string]*mimecast.Config
+	Tester   map[string]*tester.Config
 }
 
 // Verify ensures that the plugin configs are valid
@@ -33,6 +35,14 @@ func (c Configs) Verify() (err error) {
 		if v != nil {
 			if err = v.Verify(); err != nil {
 				err = fmt.Errorf("Okta config %q failed validation %w", k, err)
+				return
+			}
+		}
+	}
+	for k, v := range c.Mimecast {
+		if v != nil {
+			if err = v.Verify(); err != nil {
+				err = fmt.Errorf("Mimecast config %q failed validation %w", k, err)
 				return
 			}
 		}
@@ -48,12 +58,15 @@ func (c Configs) Tags() (tags []string, err error) {
 	if len(c.Tester) > 0 {
 		tags = append(tags, tester.Tag)
 	}
+	for _, v := range c.Mimecast {
+		tags = append(tags, v.Tags()...)
+	}
 	return
 }
 
 // IngesterCount returns the number of ingesters configured
 func (c Configs) IngesterCount() (count int) {
-	count += len(c.Okta) + len(c.Tester)
+	count += len(c.Okta) + len(c.Tester) + len(c.Mimecast)
 	return
 }
 
@@ -95,6 +108,19 @@ func (c Configs) ForEachIngester(tn hosted.TagNegotiator, nrt NewRuntimeCallback
 			return
 		}
 	}
+	for k, v := range c.Mimecast {
+		// this shouldn't happen, but scream about it anyway
+		if v == nil {
+			err = fmt.Errorf("mimecast ingester %q has a nil config", k)
+			return
+		}
+		// get a new ingester
+		ig := mimecast.New(v)
+
+		if err = c.buildIngester(k, mimecast.ID, mimecast.Name, mimecast.Version, v.UUID(), ig, nrt, cb); err != nil {
+			return
+		}
+	}
 	return
 }
 
@@ -113,7 +139,7 @@ func (c Configs) buildIngester(name, id, kind, ver string, ingesterUUID uuid.UUI
 		return
 	}
 
-	// create the ingester and ask for for the runtime associated with this ingester uuid
+	// create the ingester and ask for the runtime associated with this ingester uuid
 	err = cb(kind, name, runner)
 	return
 }

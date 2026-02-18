@@ -56,7 +56,7 @@ func OpenBoltHandler(pth string, sync bool) (sh *BoltHandler, err error) {
 	if err != nil && exists { // if there is no file, bolt.Open will create it
 		return
 	}
-	if exists && info.Mode().Perm()&0600 != 0 { // exists && !writable
+	if exists && info.Mode().Perm()&0o200 == 0 { // exists && !writable
 		return nil, errors.New("existing state file is not writable")
 	}
 	var db *bolt.DB

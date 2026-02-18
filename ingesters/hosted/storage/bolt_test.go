@@ -47,6 +47,24 @@ func TestBoltHandler_OpenWithSync(t *testing.T) {
 	}
 }
 
+func TestBoltHandler_OpenExisting(t *testing.T) {
+	tmpDir := t.TempDir()
+	dbPath := filepath.Join(tmpDir, "existing.db")
+	fd, err := os.OpenFile(dbPath, os.O_RDWR|os.O_CREATE, 0600)
+	if err != nil {
+		t.Fatalf("Failed to create state file: %v", err)
+	}
+	err = fd.Close()
+	if err != nil {
+		t.Fatalf("Failed to close state file: %v", err)
+	}
+	sh, err := OpenBoltHandler(dbPath, false)
+	if err != nil {
+		t.Fatalf("Failed to open state handler: %v", err)
+	}
+	defer sh.Close()
+}
+
 func TestBoltHandler_OpenReadOnly(t *testing.T) {
 	tmpDir := t.TempDir()
 	dbPath := filepath.Join(tmpDir, "readonly.db")
@@ -75,6 +93,20 @@ func TestBoltHandler_OpenReadOnly(t *testing.T) {
 		infoMode := info.Mode().Perm().String()
 		t.Fatal("Expected error opening readonly database, perms:", infoMode)
 	}
+
+	// fix it
+	if err := os.Chmod(dbPath, 0600); err != nil {
+		t.Fatalf("Failed to chmod: %v", err)
+	}
+
+	// Try to db - should succeed
+	b, err := OpenBoltHandler(dbPath, false)
+	if err != nil {
+		info, _ := os.Stat(dbPath)
+		infoMode := info.Mode().Perm().String()
+		t.Fatalf("error opening database, perms: %s, err: %v", infoMode, err)
+	}
+	defer b.Close()
 }
 
 func TestBoltConfig_Verify(t *testing.T) {
