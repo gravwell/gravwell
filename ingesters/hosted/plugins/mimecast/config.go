@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	defaultBaseDomain        = "https://api.services.mimecast.com"
+	defaultHost              = "https://api.services.mimecast.com"
 	defaultLookback          = 24
 	defaultRequestsPerMinute = 5
 	defaultInterval          = 5
@@ -25,12 +25,12 @@ type Config struct {
 	Tag_Prefix          string
 	Preprocessor        []string
 	Requests_Per_Minute int
-	Interval            int // in seconds
+	Request_Interval    int // in seconds
 }
 
 func (c *Config) Verify() error {
 	if c.Host == "" {
-		c.Host = defaultBaseDomain
+		c.Host = defaultHost
 	}
 	if c.Lookback <= 0 {
 		c.Lookback = defaultLookback
@@ -38,8 +38,8 @@ func (c *Config) Verify() error {
 	if c.Requests_Per_Minute <= 0 {
 		c.Requests_Per_Minute = defaultRequestsPerMinute
 	}
-	if c.Interval <= 0 {
-		c.Interval = defaultInterval
+	if c.Request_Interval <= 0 {
+		c.Request_Interval = defaultInterval
 	}
 	if c.Client_Id == "" {
 		return errors.New("Client-Id not specified")

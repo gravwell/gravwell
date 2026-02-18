@@ -58,7 +58,7 @@ func New(conf *Config) *Mimecast {
 		apis:         apis,
 		includeAudit: audit,
 		start:        start,
-		interval:     time.Duration(conf.Interval) * time.Second,
+		interval:     time.Duration(conf.Request_Interval) * time.Second,
 	}
 }
 
