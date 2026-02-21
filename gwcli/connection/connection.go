@@ -97,7 +97,9 @@ import (
 	"github.com/gravwell/gravwell/v4/ingest/log"
 )
 
-//const refreshInterval time.Duration = 10 * time.Minute // how often we refresh the user token
+const (
+	jwtPermissions os.FileMode = 0600
+)
 
 // Client is the primary connection point from GWCLI to the gravwell backend.
 var (
@@ -150,7 +152,8 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 	return nil
 }
 
-// Login the Initialize()'d Client.
+// Login the Initialize()'d client.
+// On success, caches user info and generates a JWT for use in future logins.
 //
 // Ineffectual if Client is already logged in.
 //
@@ -158,11 +161,15 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 //
 // 1. API token. Interactive+Script; unaffected by MFA.
 //
-// 2. Username/Password. Interactive+~Script (script mode requires the user not have MFA).
+// 2. Username/Password. Interactive+~Script; prompts for MFA if enabled for the user.
+// Fails out instead of prompting in script mode.
 //
 // 3. None or only username. Attempts to login via JWT. Prompts for u/p if JWT fails.
 // Fails out instead of prompting in script mode.
-func Login(username string, password, apiToken *string, noInteractive bool) (err error) {
+//
+// Logs the method the user logged in if successful, otherwise returns an error.
+// Critical errors are logged automatically; most others are returned.
+func Login(username string, password, apiToken *string, noInteractive bool) error {
 	clientMu.Lock()
 	defer clientMu.Unlock()
 	if Client == nil {
@@ -172,22 +179,25 @@ func Login(username string, password, apiToken *string, noInteractive bool) (err
 		return nil
 	}
 
-	if apiToken != nil && *apiToken != "" { // if an APIKey was given, attempt to login with it
+	// set on success so it can be logged
+	var method = "unknown"
+	if apiToken != nil && *apiToken != "" { // api token
 		if err := Client.LoginWithAPIToken(*apiToken); err != nil {
 			return errors.Join(ErrAPIKeyInvalid, err)
 		}
-		clilog.Writer.Infof("logged in via API token")
+		method = "API_token"
+	} else if username != "" && (password != nil && *password != "") { // u/p
+		if err := loginWithCredentials(username, *password, noInteractive); err != nil {
+			return err
+		}
+		method = "explicit_username_password"
 	} else if username == "" { // if a username was not given, act as if no credentials were given
 		err := loginNoCredentials(noInteractive)
 		if err != nil {
 			return err
 		}
-	} else if username != "" && password != "" {
-		// if all credentials were given, try to log in using only those credentials
-		if err := loginWithCredentials(username, password, noInteractive); err != nil {
-			return err
-		}
 	} else { // a username was given, but no password/passfile
+		// TODO why is this broken out from username == ""?
 		// in script mode, fail out
 		if noInteractive {
 			return ErrCredentialsOrAPITokenRequired
@@ -204,10 +214,11 @@ func Login(username string, password, apiToken *string, noInteractive bool) (err
 		}
 
 	}
-
+	clilog.Writer.Info("login successful", rfc5424.SDParam{Name: "method", Value: method})
 	// if we made it this far, we have successfully logged in via one of the above branches
 
 	// on successful login, fetch and cache MyInfo
+	var err error
 	if myInfo, err = Client.MyInfo(); err != nil {
 		return errors.New("failed to cache user info: " + err.Error())
 	}
@@ -218,12 +229,12 @@ func Login(username string, password, apiToken *string, noInteractive bool) (err
 	}
 
 	// create/refresh the token
-	if err := createTokenFile(myInfo.Username); err != nil {
+	if err := writeOutJWT(myInfo.Username); err != nil {
 		clilog.Writer.Warnf("%v", err.Error())
 		// failing to create the token is not fatal
 	}
 	refresherDone = make(chan bool)
-	go keepRefreshed(refresherDone)
+	go keepJWTRefreshed(refresherDone)
 
 	// while most login methods call Sync for us, JWT does not.
 	// To ensure the data exists no matter what changes occur or which method we use, Sync now.
@@ -410,15 +421,15 @@ func testLoginError(resp types.LoginResponse, rawErr error) (mfa bool, userFrien
 	return true, nil
 }
 
-// createTokenFile creates a login token for future use.
-// The token's path is saved to an environment variable to be looked up on future runs.
+// writeOutJWT writes a login token (JWT) to the default path for easier future logins.
+// Clobbers existing token, if it exists.
 //
 // Token files have the form:
 //
 // <username>
 //
 // <token>
-func createTokenFile(username string) error {
+func writeOutJWT(username string) error {
 	var (
 		err   error
 		token string
@@ -428,15 +439,12 @@ func createTokenFile(username string) error {
 	}
 
 	// write out the username, then the token
-	fd, err := os.OpenFile(cfgdir.DefaultTokenPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0600)
+	fd, err := os.OpenFile(cfgdir.DefaultTokenPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, jwtPermissions)
 	if err != nil {
 		return fmt.Errorf("failed to create token: %v", err)
 	}
 
-	if _, err := fd.WriteString(username + "\n"); err != nil {
-		return fmt.Errorf("failed to write token: %v", err)
-	}
-	if _, err := fd.WriteString(token); err != nil {
+	if _, err := fd.WriteString(username + "\n" + token); err != nil {
 		return fmt.Errorf("failed to write token: %v", err)
 	}
 
@@ -447,13 +455,15 @@ func createTokenFile(username string) error {
 		return fmt.Errorf("failed to close token file: %v", err)
 	}
 
-	clilog.Writer.Infof("Created token file (user %v) @ %v", username, cfgdir.DefaultTokenPath)
+	clilog.Writer.Info("created token file",
+		rfc5424.SDParam{Name: "user", Value: username},
+		rfc5424.SDParam{Name: "path", Value: cfgdir.DefaultTokenPath})
 	return nil
 }
 
-// keepRefreshed automatically refreshes Client and the login JWT every so often.
-// Intended to be called in a goroutine, keepRefreshed parses the token for when it expires, sleeps until a short time before it expires, then refreshes it.
-func keepRefreshed(kill chan bool) {
+// keepJWTRefreshed automatically refreshes Client and the login JWT every so often.
+// Intended to be called in a goroutine, keepJWTRefreshed parses the token for when it expires, sleeps until a short time before it expires, then refreshes it.
+func keepJWTRefreshed(kill chan bool) {
 	for {
 		clientMu.Lock()
 		var wakeAt = getJWTExpiry()
@@ -489,7 +499,7 @@ func keepRefreshed(kill chan bool) {
 				rfc5424.SDParam{Name: "username", Value: myInfo.Name},
 				rfc5424.SDParam{Name: "path", Value: cfgdir.DefaultTokenPath},
 				rfc5424.SDParam{Name: "sublogger", Value: "refresher"})
-			if err := createTokenFile(myInfo.Username); err != nil {
+			if err := writeOutJWT(myInfo.Username); err != nil {
 				clilog.Writer.Warnf("%v", err)
 			}
 			clientMu.Unlock()

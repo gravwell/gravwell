@@ -159,13 +159,9 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 
 	}()
 	// pass all information to Login to decide how to proceed
-	// TODO make Login take pass and api ptrs
-	if err := connection.Login(username, *password, *apiToken, noInteractive); err != nil {
+	if err := connection.Login(username, password, apiToken, noInteractive); err != nil {
 		return err
 	}
-
-	clilog.Writer.Infof("Logged in successfully")
-
 	return nil
 
 }
