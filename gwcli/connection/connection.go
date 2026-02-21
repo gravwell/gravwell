@@ -150,11 +150,19 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 	return nil
 }
 
-// Login the initialized Client.
-// Attempts to use a JWT token first, then falls back to supplied credentials.
+// Login the Initialize()'d Client.
 //
 // Ineffectual if Client is already logged in.
-func Login(username, password, apiToken string, noInteractive bool) (err error) {
+//
+// Has 3, distinct modes (in order of priority):
+//
+// 1. API token. Interactive+Script; unaffected by MFA.
+//
+// 2. Username/Password. Interactive+~Script (script mode requires the user not have MFA).
+//
+// 3. None or only username. Attempts to login via JWT. Prompts for u/p if JWT fails.
+// Fails out instead of prompting in script mode.
+func Login(username string, password, apiToken *string, noInteractive bool) (err error) {
 	clientMu.Lock()
 	defer clientMu.Unlock()
 	if Client == nil {
@@ -164,8 +172,8 @@ func Login(username, password, apiToken string, noInteractive bool) (err error) 
 		return nil
 	}
 
-	if apiToken != "" { // if an APIKey was given, attempt to login with it
-		if err := Client.LoginWithAPIToken(apiToken); err != nil {
+	if apiToken != nil && *apiToken != "" { // if an APIKey was given, attempt to login with it
+		if err := Client.LoginWithAPIToken(*apiToken); err != nil {
 			return errors.Join(ErrAPIKeyInvalid, err)
 		}
 		clilog.Writer.Infof("logged in via API token")
