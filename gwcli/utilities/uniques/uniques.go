@@ -122,9 +122,9 @@ func AttachPersistentFlags(cmd *cobra.Command) {
 		"If your account has MFA enabled, you must use an API token (--api or --eapi) or login interactively.")
 	cmd.PersistentFlags().StringP("passfile", "p", "", "the path to a file containing your password")
 	cmd.MarkPersistentFlagFilename("passfile")
-	cmd.PersistentFlags().String("api", "", "the path to a file containing an API key to authenticate with")
-	cmd.PersistentFlags().Bool("eapi", false, "read the API key from environment variable \""+cfgdir.EnvKeyAPI+"\".")
-	cmd.MarkFlagsMutuallyExclusive("username", "api", "eapi")
+	ft.API.Register(cmd.PersistentFlags())
+	ft.EAPI.Register(cmd.PersistentFlags())
+	cmd.MarkFlagsMutuallyExclusive("username", ft.API.Name(), ft.EAPI.Name())
 
 	ft.NoColor.Register(cmd.PersistentFlags())
 	cmd.PersistentFlags().String("server", "localhost:80", "<host>:<port> of instance to connect to.\n")
