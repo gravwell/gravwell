@@ -1,5 +1,4 @@
 //go:build !ci
-// +build !ci
 
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
@@ -25,6 +24,7 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/pquerna/otp/totp"
 )
@@ -33,12 +33,19 @@ const (
 	server = "localhost:80"
 	// default user
 	defaultUser       string        = "admin"
-	defaultPass       string        = "changeme"
 	apiTokenExpiryDur time.Duration = time.Minute
 	// second user, created and deleted between tests
 	altUser string = "Milly"
 	altPass string = "LooLooLand"
 )
+
+var defaultPass string = "changeme"
+
+func TestLoginNotInitialized(t *testing.T) {
+	if err := connection.Login("", nil, nil, false); !errors.Is(err, connection.ErrNotInitialized) {
+		t.Fatal(testsupport.ExpectedActual(connection.ErrNotInitialized, err))
+	}
+}
 
 // TestLoginNoMFA_script_mode tests all --script entrypoints to logging in.
 // NOTE: this test suite assumes that the default user does NOT have MFA enabled and can be accessed via u/p.
@@ -82,10 +89,10 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 		{"valid username and password", args{defaultUser, defaultPass, "", true}, nil},
 		{"valid APIToken", args{"", "", APITkn, true}, nil},
 		{"valid APIToken", args{"", "", APITkn, true}, nil}, // should be identical to script mode
-		{"no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
+		{"no credentials", args{"", "", "", true}, connection.ErrAPITokenRequired},
 		{"invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
-		{"invalid APIToken", args{"", "", APITkn + "1234", true}, connection.ErrAPIKeyInvalid},
-		{"only username", args{defaultUser, "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
+		{"invalid APIToken", args{"", "", APITkn + "1234", true}, connection.ErrAPITokenInvalid},
+		{"only username", args{defaultUser, "", "", true}, connection.ErrAPITokenRequired},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -105,7 +112,7 @@ func TestLoginNoMFA_script_mode(t *testing.T) {
 			}
 
 			// attempt to authenticate
-			if err := connection.Login(tt.args.u, tt.args.p, tt.args.apiToken, tt.args.scriptMode); !errors.Is(err, tt.expectedErr) {
+			if err := connection.Login(tt.args.u, &tt.args.p, &tt.args.apiToken, tt.args.scriptMode); !errors.Is(err, tt.expectedErr) {
 				t.Fatalf("Login() error = '%v', want = '%v'", err, tt.expectedErr)
 			} else if err == nil {
 				// additional checks to perform if we were not expected and did not receive an error
@@ -299,9 +306,9 @@ func TestLoginMFA_script_mode(t *testing.T) {
 	}{
 		{"(alt user) valid username and password, MFA enabled", args{altUser, altPass, "", true}, connection.ErrAPITokenRequired},
 		{"(alt user) valid APIToken", args{altUser, "", altAPITkn, true}, nil},
-		{"(alt user) no credentials", args{"", "", "", true}, connection.ErrCredentialsOrAPITokenRequired},
+		{"(alt user) no credentials", args{"", "", "", true}, connection.ErrAPITokenRequired},
 		{"(alt user) invalid password", args{defaultUser, "badpassword", "", true}, connection.ErrInvalidCredentials},
-		{"(alt user) invalid APIToken", args{"", "", altAPITkn + "1234", true}, connection.ErrAPIKeyInvalid},
+		{"(alt user) invalid APIToken", args{"", "", altAPITkn + "1234", true}, connection.ErrAPITokenInvalid},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -322,7 +329,7 @@ func TestLoginMFA_script_mode(t *testing.T) {
 			}
 
 			// attempt to authenticate
-			if err := connection.Login(tt.args.u, tt.args.p, tt.args.apiToken, tt.args.scriptMode); !errors.Is(err, tt.expectedErr) {
+			if err := connection.Login(tt.args.u, &tt.args.p, &tt.args.apiToken, tt.args.scriptMode); !errors.Is(err, tt.expectedErr) {
 				t.Fatalf("Login() error = '%v', want = '%v'", err, tt.expectedErr)
 			} else if err == nil {
 				// additional checks to perform if we were not expecting and did not receive an error
@@ -365,7 +372,7 @@ func TestLogin_interactive_mode(t *testing.T) {
 		}
 		t.Cleanup(func() { connection.End() })
 
-		if err := connection.Login("", "", apiTkn, false); err != nil {
+		if err := connection.Login("", nil, &apiTkn, false); err != nil {
 			t.Fatal(err)
 		}
 		// check that we can query the backend and get the correct user
@@ -393,7 +400,7 @@ func TestLogin_interactive_mode(t *testing.T) {
 		}
 		t.Cleanup(func() { connection.End() })
 
-		if err := connection.Login(defaultUser, defaultPass, "", false); err != nil {
+		if err := connection.Login(defaultUser, &defaultPass, nil, false); err != nil {
 			t.Fatal(err)
 		}
 		if err := verifyLoggedInStatus(defaultUser); err != nil {
@@ -465,7 +472,7 @@ func TestJWTRefreshing(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := connection.Login(defaultUser, defaultPass, "", true); err != nil {
+	if err := connection.Login(defaultUser, &defaultPass, nil, true); err != nil {
 		t.Fatal(err)
 	}
 
@@ -522,7 +529,7 @@ func initLogin(t *testing.T, u, p string) {
 		t.Fatal(err)
 	}
 
-	if err := connection.Login(u, p, "", true); err != nil {
+	if err := connection.Login(u, &p, nil, true); err != nil {
 		t.Fatal(err)
 	}
 }

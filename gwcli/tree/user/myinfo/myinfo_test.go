@@ -31,8 +31,9 @@ import (
 const (
 	server   string = "localhost:80"
 	username string = "admin"
-	password string = "changeme"
 )
+
+var password string = "changeme"
 
 func TestNewUserMyInfoAction(t *testing.T) {
 	dir := t.TempDir()
@@ -42,7 +43,7 @@ func TestNewUserMyInfoAction(t *testing.T) {
 		t.Fatal(err)
 	} else if err := connection.Initialize(server, false, true, path.Join(dir, "dev.log")); err != nil {
 		t.Fatal(err)
-	} else if err := connection.Login(username, password, "", true); err != nil {
+	} else if err := connection.Login(username, &password, nil, true); err != nil {
 		t.Fatal(err)
 	}
 
