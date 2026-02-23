@@ -427,6 +427,10 @@ func writeOutJWT(username string) error {
 		return fmt.Errorf("failed to create token: %v", err)
 	}
 
+	if err := fd.Chmod(jwtPermissions); err != nil { // ensure permissions are correct
+		return fmt.Errorf("failed to set token permissions: %v", err)
+	}
+
 	if _, err := fd.WriteString(username + "\n" + token); err != nil {
 		return fmt.Errorf("failed to write token: %v", err)
 	}
