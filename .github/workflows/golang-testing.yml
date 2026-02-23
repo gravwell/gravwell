@@ -21,7 +21,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v6
       with:
-        go-version: 1.25.7
+        go-version-file: 'go.mod'
         cache: false
 
     - name: Go Tidy
@@ -98,7 +98,7 @@ jobs:
         GOOS=windows govulncheck -test ./winevent/...
 
     - name: Install libpcap
-      run: sudo apt-get install -y libpcap-dev
+      run: sudo apt-get update && sudo apt-get install -y libpcap-dev
 
     - name: Vet
       run: |
@@ -147,9 +147,9 @@ jobs:
         staticcheck ./debug/...
         staticcheck ./manager/...
         staticcheck ./generators/base/... ./generators/gravwellGenerator/... ./generators/ipgen/...
-        GOOS=windows staticcheck ./generators/windowsEventGenerator/...
-        GOOS=windows staticcheck ./winevent/...
-        GOOS=windows staticcheck ./ingesters/winevents/...
+        GOOS=windows GOARCH=amd64 staticcheck ./generators/windowsEventGenerator/...
+        GOOS=windows GOARCH=amd64 staticcheck ./winevent/...
+        GOOS=windows GOARCH=amd64 staticcheck ./ingesters/winevents/...
         staticcheck ./ingest
         staticcheck ./ingest/attach
         staticcheck ./ingest/config/...
@@ -210,17 +210,17 @@ jobs:
         go build -o /dev/null ./migrate
         go build -o /dev/null ./tools/timetester
         go build -o /dev/null ./timegrinder/cmd
-        go build -o /dev/null ./ipexist/textinput
+        GOOS=linux go build -o /dev/null ./ipexist/textinput
         go build -o /dev/null ./kitctl
-        GOOS=windows go build -o /dev/null ./ingesters/fileFollow
-        GOOS=windows go build -o /dev/null ./ingesters/winevents
-        GOOS=windows go build ./generators/windowsEventGenerator
+        GOOS=windows GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
+        GOOS=windows GOARCH=amd64 go build -o /dev/null ./ingesters/winevents
+        GOOS=windows GOARCH=amd64 go build -o /dev/null ./generators/windowsEventGenerator
         go build -o /dev/null ./ingesters/massFile
         go build -o /dev/null ./ingesters/diskmonitor
         go build -o /dev/null ./ingesters/xlsxIngester
         go build -o /dev/null ./ingesters/reimport
         go build -o /dev/null ./ingesters/version
-        go build -o /dev/null ./ingesters/canbus
+        GOOS=linux go build -o /dev/null ./ingesters/canbus
         go build -o /dev/null ./ingesters/reddit_ingester
         go build -o /dev/null ./ingesters/hackernews_ingester
         go build -o /dev/null ./ingesters/multiFile
@@ -231,6 +231,7 @@ jobs:
         go build -o /dev/null ./ingesters/pcapFileIngester
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
+        GOOS=linux GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
 
         /bin/bash ./ingesters/test/build.sh ./ingesters/GooglePubSubIngester ./ingesters/test/configs/pubsub_ingest.conf
