@@ -291,7 +291,6 @@ func Execute(args []string) int {
 		"2. username/password (-u, -p or " + cfgdir.EnvKeyPassword + "),\n" +
 		"3. interactively if no credentials are provided and !--" + ft.NoInteractive.Name()
 
-	// TODO regenerate flags for gwcli -h
 	rootCmd := treeutils.GenerateNav(use, short, long, []string{},
 		nil, // navs are added later
 		[]action.Pair{
