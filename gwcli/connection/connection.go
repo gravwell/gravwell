@@ -168,7 +168,6 @@ func Initialize(conn string, UseHttps, InsecureNoEnforceCerts bool, restLogPath 
 // Fails out instead of prompting in script mode.
 //
 // Logs the method the user logged in if successful, otherwise returns an error.
-// Critical errors are logged automatically; most others are returned.
 func Login(username string, password, apiToken *string, noInteractive bool) error {
 	clientMu.Lock()
 	defer clientMu.Unlock()
@@ -183,7 +182,7 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 	var method = "unknown"
 	if apiToken != nil && *apiToken != "" { // api token
 		if err := Client.LoginWithAPIToken(*apiToken); err != nil {
-			return errors.Join(ErrAPIKeyInvalid, err)
+			return errors.Join(ErrAPITokenInvalid, err)
 		}
 		method = "API_token"
 	} else if username != "" && (password != nil && *password != "") { // u/p
@@ -191,28 +190,23 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 			return err
 		}
 		method = "explicit_username_password"
-	} else if username == "" { // if a username was not given, act as if no credentials were given
-		err := loginNoCredentials(noInteractive)
-		if err != nil {
-			return err
-		}
-	} else { // a username was given, but no password/passfile
-		// TODO why is this broken out from username == ""?
-		// in script mode, fail out
-		if noInteractive {
-			return ErrCredentialsOrAPITokenRequired
-		}
-		// in interactive mode, throw up a prompt and pre-populate username
-		mfa, err := promptForMissingCredentials(username)
-		if err != nil {
-			return err
-		}
-		if mfa {
-			clilog.Writer.Infof("logged in via credentials (with mfa)")
+	} else { // no credentials or only a username
+		// check the JWT
+		if err := loginViaJWT(username); err != nil {
+			// failing to login via JWT is non-fatal in interactive mode
+			if noInteractive {
+				return ErrAPITokenRequired
+			}
+			if mfa, err := promptForMissingCredentials(username); err != nil {
+				return err
+			} else if mfa {
+				method = "prompt+mfa"
+			} else {
+				method = "prompt"
+			}
 		} else {
-			clilog.Writer.Infof("logged in via credentials (without mfa)")
+			method = "JWT"
 		}
-
 	}
 	clilog.Writer.Info("login successful", rfc5424.SDParam{Name: "method", Value: method})
 	// if we made it this far, we have successfully logged in via one of the above branches
@@ -241,52 +235,10 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 	return Client.Sync()
 }
 
-// helper function for Login when no credentials were given.
-func loginNoCredentials(noInteractive bool) (err error) {
-	// attempt to login to whichever account was responsible for the pre-existing token
-	if err := loginViaJWT(""); err != nil {
-		clilog.Writer.Warnf("failed to login via JWT token: %v", err)
-		// if we are in script mode, fail out
-		if noInteractive {
-			return ErrCredentialsOrAPITokenRequired
-		}
-
-		mfa, err := promptForMissingCredentials("")
-		if err != nil {
-			return err
-		}
-		if mfa {
-			clilog.Writer.Infof("logged in via credentials (with mfa)")
-		} else {
-			clilog.Writer.Infof("logged in via credentials (without mfa)")
-		}
-	} else { // successfully logged in with JWT
-		clilog.Writer.Infof("logged in via JWT")
-
-		// if we are in script mode and MFA would have been required, fail out
-		// this is to enforce consistent script usage, lest the token expire mid-script
-		if noInteractive {
-			mfa, err := Client.GetMFAInfo()
-			if err != nil {
-				err = errors.Join(errors.New("failed to fetch mfa info after token login"), err)
-
-				clilog.Writer.Warnf("%v", err)
-				return err
-			} else if mfa.MFARequired {
-				clilog.Writer.Infof("failing out anyways due to JWT+script+MFARequired")
-
-				return ErrAPITokenRequired
-			}
-		}
-	}
-
-	// success
-
-	return nil
-
-}
-
 // helper function for Login when BOTH credentials were explicitly set.
+//
+// Fails if noInteractive && mfa required
+//
 // If error is nil, caller can assume Client has successfully logged in and state has been logged (if applicable).
 func loginWithCredentials(username, password string, noInteractive bool) error {
 	resp, err := Client.LoginEx(username, password)
@@ -317,8 +269,10 @@ func loginWithCredentials(username, password string, noInteractive bool) error {
 }
 
 // loginViaJWT attempts to login via JWT token in the user's config directory.
-// Returns an error on failures. This error should be considered nonfatal and the user logged in via
-// an alternative method instead.
+// If the token is malformed in anyway, it is considered invalid.
+//
+// Returns an error on failures.
+// This error should be considered nonfatal and the user logged in via an alternative method instead.
 //
 // If a username was given, it will first be matched against the username found in the file.
 // NOTE(rlandau): we still perform a whois against the backend later, but this allows us a sanity check without touching the backend.
@@ -327,7 +281,7 @@ func loginViaJWT(username string) (err error) {
 	// NOTE the reversal of standard error checking (`err == nil`)
 	if tknbytes, err = os.ReadFile(cfgdir.DefaultTokenPath); err == nil {
 		// split the username and token
-		exploded := strings.Split(string(tknbytes), "\n")
+		exploded := strings.Split(string(tknbytes), "\n") // TODO length check for modifications
 		if len(exploded) != 2 || exploded[0] == "" || exploded[1] == "" {
 			return errors.New("failed to split token file into <username>\n<token>")
 		}
@@ -345,7 +299,7 @@ func loginViaJWT(username string) (err error) {
 }
 
 // Spins up a bubble tea prompt to interactively collect u/p and another to collect MFA (if applicable).
-// Returns if the MFA prompt was displayed and fill out (if !mfa, the Client successfully auth'd without MFA)
+// Returns if the MFA prompt was displayed and filled out (if !mfa, the Client successfully auth'd without MFA)
 // Only prints to the log on critical failures
 //
 // ! Not to be called in script mode.
