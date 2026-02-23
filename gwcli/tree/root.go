@@ -284,8 +284,14 @@ func Execute(args []string) int {
 		"To invoke the TUI, simply call " + stylesheet.Cur.ExampleText.Render("gwcli") + ".\n" +
 		"You can view help for any submenu or action by providing help a path.\n" +
 		"For instance, try: " + stylesheet.Cur.ExampleText.Render("gwcli help macros create") +
-		" or " + stylesheet.Cur.ExampleText.Render("gwcli query -h")
+		" or " + stylesheet.Cur.ExampleText.Render("gwcli query -h") + "\n" +
+		"\n" +
+		"Logins can be done via:\n" +
+		"1. api key (--" + ft.API.Name() + " or --" + ft.EAPI.Name() + "),\n" +
+		"2. username/password (-u, -p or " + cfgdir.EnvKeyPassword + "),\n" +
+		"3. interactively if no credentials are provided and !--" + ft.NoInteractive.Name()
 
+	// TODO regenerate flags for gwcli -h
 	rootCmd := treeutils.GenerateNav(use, short, long, []string{},
 		nil, // navs are added later
 		[]action.Pair{
@@ -330,9 +336,9 @@ func Execute(args []string) int {
 		fields := "  " + stylesheet.Cur.ExampleText.Render("Invoke an action directly:") +
 			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke the interactive prompt:") +
 			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke in a script:")
-		examples := " gwcli -u USERNAME system indexers list --json" +
+		examples := " " + cfgdir.EnvKeyPassword + "=MYFANCYPASSWORD gwcli -u USERNAME system indexers list --json" +
 			"\n gwcli --server=gravwell.io:4090" +
-			"\n" + ` gwcli --api APIKEY query "tag=gravwell stats count | chart count"`
+			"\n" + ` gwcli --no-interactive --api APIKEY query "tag=gravwell stats count | chart count"`
 		rootCmd.Example = "\n" + lipgloss.JoinHorizontal(lipgloss.Left, fields, examples)
 
 	}
