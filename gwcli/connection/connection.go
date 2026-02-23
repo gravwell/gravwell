@@ -101,6 +101,20 @@ const (
 	jwtPermissions os.FileMode = 0600
 )
 
+type ErrBadPermissions struct {
+	Expected os.FileMode
+	Actual   os.FileMode
+}
+
+func (e ErrBadPermissions) Error() string {
+	return fmt.Sprintf("incorrect permissions. Should be %[1]s(%[1]o), got %[2]s(%[2]o)", e.Expected, e.Actual)
+}
+
+func (e ErrBadPermissions) Is(err error) bool {
+	_, ok := err.(ErrBadPermissions)
+	return ok
+}
+
 // Client is the primary connection point from GWCLI to the gravwell backend.
 var (
 	clientMu sync.Mutex // should be held when making changes to the local Client instance
@@ -193,6 +207,10 @@ func Login(username string, password, apiToken *string, noInteractive bool) erro
 	} else { // no credentials or only a username
 		// check the JWT
 		if err := loginViaJWT(username); err != nil {
+			clilog.Writer.Warnf("failed to login via JWT: %v", err)
+			if errors.Is(err, ErrBadPermissions{}) {
+				fmt.Fprintf(os.Stderr, "Your login token has incorrect permissions and was ignored. Expected %[1]s(%[1]o)\n", jwtPermissions)
+			}
 			// failing to login via JWT is non-fatal in interactive mode
 			if noInteractive {
 				return ErrAPITokenRequired
@@ -279,9 +297,20 @@ func loginWithCredentials(username, password string, noInteractive bool) error {
 func loginViaJWT(username string) (err error) {
 	var tknbytes []byte
 	// NOTE the reversal of standard error checking (`err == nil`)
+	if fi, err := os.Stat(cfgdir.DefaultTokenPath); err != nil {
+		return err
+	} else { // sanity check the file
+		mode := fi.Mode()
+		if mode.IsDir() {
+			return errors.New("login token must be a file")
+		}
+		if mode != jwtPermissions {
+			return ErrBadPermissions{jwtPermissions, mode}
+		}
+	}
 	if tknbytes, err = os.ReadFile(cfgdir.DefaultTokenPath); err == nil {
 		// split the username and token
-		exploded := strings.Split(string(tknbytes), "\n") // TODO length check for modifications
+		exploded := strings.Split(string(tknbytes), "\n")
 		if len(exploded) != 2 || exploded[0] == "" || exploded[1] == "" {
 			return errors.New("failed to split token file into <username>\n<token>")
 		}
