@@ -216,7 +216,7 @@ func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToke
 	return
 }
 
-// clobberString destroys the value pointed to by v to mitigate the change it gets dumped during a panic or the like.
+// clobberString destroys the value pointed to by v to mitigate the chance it gets dumped during a panic or the like.
 //
 // Honestly, it is kind of moot until we get an actual secret mode.
 // This stuff tends to get optimized out (at least in C) as dead code.
