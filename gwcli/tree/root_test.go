@@ -186,7 +186,7 @@ func TestGatherCredentials(t *testing.T) {
 			false,
 			false,
 		},
-		{"epass but no username supplied",
+		{"epass but no username supplied", // shouldn't error, but also shouldn't pick up the password
 			[]string{""},
 			func(t *testing.T) {
 				// set apikey in environment
