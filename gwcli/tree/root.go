@@ -325,20 +325,13 @@ func Execute(args []string) int {
 		rootCmd.SetArgs(args)
 	}
 
-	// override the help command to just call usage
-	rootCmd.SetHelpFunc(help)
-	rootCmd.SetUsageFunc(func(c *cobra.Command) error {
-		fmt.Fprintf(c.OutOrStdout(), "gwcli %s %s", ft.Optional("flags"), ft.Optional("subcommand path"))
-		return nil
-	})
-
 	{ // build a set of examples
 		fields := "  " + stylesheet.Cur.ExampleText.Render("Invoke an action directly:") +
 			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke the interactive prompt:") +
 			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke in a script:")
-		examples := " " + cfgdir.EnvKeyPassword + "=MYFANCYPASSWORD gwcli -u USERNAME system indexers list --json" +
+		examples := " " + cfgdir.EnvKeyPassword + "=" + ft.Mandatory("mypassword") + " gwcli -u " + ft.Mandatory("myusername") + " system indexers list --json" +
 			"\n gwcli --server=gravwell.io:4090" +
-			"\n" + ` gwcli --no-interactive --api APIKEY query "tag=gravwell stats count | chart count"`
+			"\n" + ` gwcli --no-interactive --api ` + ft.Mandatory("myapikey") + ` query "tag=gravwell stats count | chart count"`
 		rootCmd.Example = "\n" + lipgloss.JoinHorizontal(lipgloss.Left, fields, examples)
 
 	}
@@ -370,6 +363,13 @@ func Execute(args []string) int {
 	for range cmdFn { // wait for an equal number of results
 		rootCmd.AddCommand(<-resCh)
 	}
+
+	// override the help command to just call usage
+	rootCmd.SetHelpFunc(help)
+	rootCmd.SetUsageFunc(func(c *cobra.Command) error {
+		fmt.Fprintf(c.OutOrStdout(), "gwcli %s %s", ft.Optional("flags"), ft.Optional("subcommand path"))
+		return nil
+	})
 
 	err := rootCmd.Execute()
 	if err != nil {
@@ -410,7 +410,7 @@ func help(c *cobra.Command, _ []string) {
 	}
 
 	// write global flags (except for the completion command)
-	if c.Name() != "completion" && (c.HasParent() && c.Parent().Name() != "completion") {
+	if c.Name() != "completion" && (!c.HasParent() || (c.HasParent() && c.Parent().Name() != "completion")) {
 		if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
 			sb.WriteString("\n" + stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
 		}
