@@ -32,9 +32,10 @@ import (
 )
 
 const (
-	termWidth      int    = 80
-	termHeight     int    = 50
-	failedDSAssert string = "failed to cast final model to datascope"
+	termWidth       int           = 80
+	termHeight      int           = 50
+	failedDSAssert  string        = "failed to cast final model to datascope"
+	finalModelAwait time.Duration = 3 * time.Second
 )
 
 // A basic test that spins up DS and immediately shutters it to confirm it still conforms to our expected output.
@@ -50,7 +51,7 @@ func Test_Simple(t *testing.T) {
 
 	// check the final output
 	TTSendSpecial(tm, tea.KeyCtrlC)
-	TTMatchGolden(t, tm)
+	TTMatchGolden(t, tm, true, finalModelAwait)
 }
 
 func Test_TabCycle(t *testing.T) {
@@ -70,7 +71,7 @@ func Test_TabCycle(t *testing.T) {
 		TTSendSpecial(tm, tea.KeyTab)
 
 		TTSendSpecial(tm, tea.KeyCtrlC)
-		TTMatchGolden(t, tm)
+		TTMatchGolden(t, tm, true, finalModelAwait)
 
 		// also want to check the state of the final model
 		finalDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
@@ -95,7 +96,7 @@ func Test_TabCycle(t *testing.T) {
 		TTSendSpecial(tm, tea.KeyCtrlS) // show/hide tabs key
 
 		TTSendSpecial(tm, tea.KeyCtrlC)
-		TTMatchGolden(t, tm)
+		TTMatchGolden(t, tm, true, finalModelAwait)
 
 		// also want to check the state of the final model
 		finalDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
@@ -119,7 +120,7 @@ func Test_MultiPage(t *testing.T) {
 	TTSendSpecial(tm, tea.KeyRight)
 
 	TTSendSpecial(tm, tea.KeyCtrlC)
-	TTMatchGolden(t, tm)
+	TTMatchGolden(t, tm, true, finalModelAwait)
 }
 
 // This test replicates the simple test above but with a different color scheme.
@@ -144,7 +145,7 @@ func Test_ColorWithPerPage(t *testing.T) {
 	tm := teatest.NewTestModel(t, ds, teatest.WithInitialTermSize(termWidth, termHeight))
 	// check the final output
 	TTSendSpecial(tm, tea.KeyCtrlC)
-	TTMatchGolden(t, tm)
+	TTMatchGolden(t, tm, true, finalModelAwait)
 }
 
 func Test_SimpleTable(t *testing.T) {
@@ -161,7 +162,7 @@ func Test_SimpleTable(t *testing.T) {
 	_, tm := setup(t, data, true)
 	// check the final output
 	TTSendSpecial(tm, tea.KeyCtrlC)
-	TTMatchGolden(t, tm)
+	TTMatchGolden(t, tm, true, finalModelAwait)
 }
 
 // Tests the functionality of the download tab.
@@ -190,7 +191,7 @@ func Test_Download(t *testing.T) {
 
 		// check the final output
 		TTSendSpecial(tm, tea.KeyCtrlC)
-		TTMatchGolden(t, tm)
+		TTMatchGolden(t, tm, true, finalModelAwait)
 	})
 
 	outPath := "out.txt" // move to temp dir
@@ -221,7 +222,7 @@ func Test_Download(t *testing.T) {
 		// MatchGolden finds negligible differences in this test.
 		// Seems to be down to KeyMsg propagation time.
 		// Assert against the final model instead.
-		//TTMatchGolden(t, tm)
+		//TTMatchGolden(t, tm, true, finalModelAwait)
 
 		fDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
 		if !ok {
@@ -275,7 +276,7 @@ func Test_Download(t *testing.T) {
 		// MatchGolden finds negligible differences in this test.
 		// Seems to be down to KeyMsg propagation time.
 		// Assert against the final model instead.
-		//TTMatchGolden(t, tm)
+		//TTMatchGolden(t, tm, true, finalModelAwait)
 
 		fDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
 		if !ok {
@@ -328,7 +329,7 @@ func Test_Download(t *testing.T) {
 
 			// check the final output
 			TTSendSpecial(tm, tea.KeyCtrlC)
-			TTMatchGolden(t, tm)
+			TTMatchGolden(t, tm, true, finalModelAwait)
 		})
 		t.Run("CSV", func(t *testing.T) {
 			_, tm := setup(t, data, true)
@@ -345,7 +346,7 @@ func Test_Download(t *testing.T) {
 
 			// check the final output
 			TTSendSpecial(tm, tea.KeyCtrlC)
-			TTMatchGolden(t, tm)
+			TTMatchGolden(t, tm, true, finalModelAwait)
 		})
 
 	})
@@ -366,7 +367,7 @@ func Test_Schedule(t *testing.T) {
 
 		// check the final output
 		TTSendSpecial(tm, tea.KeyCtrlC)
-		TTMatchGolden(t, tm)
+		TTMatchGolden(t, tm, true, finalModelAwait)
 	})
 	t.Run("Correct Input", func(t *testing.T) {
 		var (
@@ -397,7 +398,7 @@ func Test_Schedule(t *testing.T) {
 		TTSendSpecial(tm, tea.KeyCtrlC)
 
 		// Assert against the final model instead.
-		//TTMatchGolden(t, tm)
+		//TTMatchGolden(t, tm, true, finalModelAwait)
 
 		fDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
 		if !ok {
@@ -445,7 +446,7 @@ func Test_Schedule(t *testing.T) {
 		TTSendSpecial(tm, tea.KeyCtrlC)
 
 		// Assert against the final model instead.
-		//TTMatchGolden(t, tm)
+		//TTMatchGolden(t, tm, true, finalModelAwait)
 
 		fDS, ok := tm.FinalModel(t, teatest.WithFinalTimeout(3*time.Second)).(DataScope)
 		if !ok {

@@ -15,4 +15,4 @@
 #
 #!/bin/bash
 
-dlv debug --headless --api-version=2 --listen=127.0.0.1:43000 . -- -u admin --password changeme --insecure
+dlv debug --headless --api-version=2 --listen=127.0.0.1:43000 . -- -u admin --password changeme --insecure --loglevel=debug
