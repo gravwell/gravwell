@@ -57,7 +57,7 @@ func Type(prog *tea.Program, text string) {
 	}
 }
 
-// TTMatchGolden is a convencience function to check FinalOutput or Output of tm against its golden.
+// TTMatchGolden is a convenience function to check FinalOutput or Output of tm against its golden.
 //
 // ! If final, this blocks until tm returns.
 func TTMatchGolden(t *testing.T, tm *teatest.TestModel, final bool, finalWait time.Duration) []byte {
