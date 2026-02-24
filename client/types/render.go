@@ -102,6 +102,52 @@ const (
 	MetadataTypeNumber string = `number`
 )
 
+const (
+	ResultsKindTable = "table"
+	ResultsKindGraph = "graph"
+)
+
+// TransformOperator represents the operator to apply to results
+type TransformOperator string
+
+const (
+	TransformOperatorCount       TransformOperator = "count"
+	TransformOperatorSum         TransformOperator = "sum"
+	TransformOperatorTotal       TransformOperator = "total"
+	TransformOperatorMean        TransformOperator = "mean"
+	TransformOperatorStddev      TransformOperator = "stddev"
+	TransformOperatorVariance    TransformOperator = "variance"
+	TransformOperatorMin         TransformOperator = "min"
+	TransformOperatorMax         TransformOperator = "max"
+	TransformOperatorUniqueCount TransformOperator = "unique_count"
+)
+
+type ResultsOptions struct {
+	Fence    Geofence
+	BinCount int               `json:"binCount,omitempty"`
+	BinWidth int               `json:"binWidth,omitempty"`
+	Op       string            `json:"op,omitempty"`
+	Sort     []string          `json:"sort,omitempty"`
+	Operator TransformOperator `json:"operator,omitempty"`
+	Operand  string            `json:"operand,omitempty"`
+	Keys     []string          `json:"keys,omitempty"`
+}
+
+type ResultsResponse struct {
+	Kind             string
+	Table            *ResultsTable
+	TotalResultCount int `json:"totalResultCount,omitempty"`
+}
+
+type ResultsTable struct {
+	Columns []string
+	Rows    []map[string]*ResultsTableCell
+}
+
+type ResultsTableCell struct {
+	Value string
+}
+
 type TimeRange struct {
 	StartTS entry.Timestamp `json:",omitempty"`
 	EndTS   entry.Timestamp `json:",omitempty"`
@@ -668,4 +714,19 @@ func tsPointer(t entry.Timestamp) *entry.Timestamp {
 		return nil
 	}
 	return &t
+}
+
+func (rr ResultsResponse) MarshalJSON() ([]byte, error) {
+	// Right now only table is supported
+	return json.Marshal(&struct {
+		Kind             string                         `json:"kind"`
+		Columns          []string                       `json:"columns"`
+		Rows             []map[string]*ResultsTableCell `json:"rows"`
+		TotalResultCount int                            `json:"totalResultCount"`
+	}{
+		Kind:             rr.Kind,
+		Columns:          rr.Table.Columns,
+		Rows:             rr.Table.Rows,
+		TotalResultCount: rr.TotalResultCount,
+	})
 }
