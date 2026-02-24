@@ -3,7 +3,7 @@ module github.com/gravwell/gravwell/v4
 go 1.26.0
 
 require (
-	cloud.google.com/go/pubsub v1.50.1
+	cloud.google.com/go/pubsub/v2 v2.0.0
 	collectd.org v0.5.0
 	github.com/Azure/azure-amqp-common-go/v3 v3.2.3
 	github.com/Azure/azure-event-hubs-go/v3 v3.3.18
@@ -69,6 +69,8 @@ require (
 	golang.org/x/term v0.40.0
 	golang.org/x/text v0.34.0
 	golang.org/x/time v0.14.0
+	google.golang.org/api v0.267.0
+	google.golang.org/grpc v1.79.1
 )
 
 require (
@@ -77,7 +79,6 @@ require (
 	cloud.google.com/go/auth/oauth2adapt v0.2.8 // indirect
 	cloud.google.com/go/compute/metadata v0.9.0 // indirect
 	cloud.google.com/go/iam v1.5.3 // indirect
-	cloud.google.com/go/pubsub/v2 v2.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go v51.1.0+incompatible // indirect
 	github.com/Azure/go-amqp v0.17.0 // indirect
 	github.com/Azure/go-autorest v14.2.0+incompatible // indirect
@@ -145,6 +146,7 @@ require (
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/stringprep v1.0.4 // indirect
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
+	go.einride.tech/aip v0.73.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.65.0 // indirect
@@ -158,11 +160,9 @@ require (
 	golang.org/x/oauth2 v0.35.0 // indirect
 	golang.org/x/sync v0.19.0 // indirect
 	golang.org/x/tools v0.42.0 // indirect
-	google.golang.org/api v0.267.0 // indirect
 	google.golang.org/genproto v0.0.0-20260217215200-42d3e9bedb6d // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260217215200-42d3e9bedb6d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260217215200-42d3e9bedb6d // indirect
-	google.golang.org/grpc v1.79.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
