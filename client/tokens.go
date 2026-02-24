@@ -42,7 +42,7 @@ func (c *Client) UpdateToken(id uuid.UUID, tr types.TokenCreate) (t types.Token,
 }
 
 func (c *Client) RegenToken(id uuid.UUID, tr types.TokenRegeneration) (t types.TokenFull, err error) {
-	err = c.methodStaticPushURL(http.MethodPatch, tokenIdUrl(id), tr, &t)
+	err = c.methodStaticPushURL(http.MethodPatch, tokenIdUrl(id), tr, &t, nil, nil)
 	return
 }
 
