@@ -87,7 +87,7 @@ type Mother struct {
 // The caller is expected to exit on Spawn's return.
 func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 	// spin up mother
-	interactive := tea.NewProgram(new(root, cur, trailingTokens, nil))
+	interactive := tea.NewProgram(New(root, cur, trailingTokens, nil))
 	// reactive the admin command
 	if c, _, err := root.Find([]string{"user", "admin"}); err != nil {
 		clilog.Writer.Warnf("failed to reveal the admin command")
@@ -101,10 +101,15 @@ func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 	return interactive.ReleaseTerminal() // should be redundant
 }
 
-// internal command to provide the heavy lifting to Spawn() and flexibility to tests
-// NOTE: trailingTokens is not currently used, but is included for flexibility, in case it needs to
-// be built into the startupCommand
-func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.Renderer) Mother {
+// New spawns a new Mother instance on the root tree.
+// Returns the new instance, which can be fed into bubble tea as a model.
+//
+// cur must be a child of root or you'll get some really weird traversal.
+//
+// NOTE: trailingTokens is not currently used, but is included for flexibility, in case it needs to be built into the startupCommand.
+//
+// Renderer is only to be used for tests; it should be left nil otherwise.
+func New(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.Renderer) Mother {
 	// spin up builtins
 	initBuiltins()
 
@@ -156,7 +161,6 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 		// have mother immediate act on the data we placed on her prompt
 		m.processOnStartup = true
 	}
-	m.regenerateSuggestion(m.ti.Value())
 
 	clilog.Writer.Debugf("Spawning mother rooted @ %v, located @ %v, with trailing tokens %v",
 		m.root.Name(), m.pwd.Name(), trailingTokens)
@@ -255,22 +259,25 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, processInput(&m)
 		case tea.KeyCtrlL:
 			return m, clear(&m, nil, nil)
+		case tea.KeyTab:
+			if m.ti.Value() == "" {
+				m.ti.SetValue("help")
+			}
+		case tea.KeyCtrlU:
+			m.ti.SetValue("")
 		}
 	}
 
 	var cmd tea.Cmd
 	m.ti, cmd = m.ti.Update(msg)
-
-	if _, ok := msg.(tea.KeyMsg); ok { // sort, categorize, and colourize suggestions
-		m.regenerateSuggestion(m.ti.Value())
-	}
-
+	m.regenerateSuggestions(m.ti.Value())
 	return m, cmd
 }
 
-// regenerateSuggestion parses the user input to set next-word suggestions for navs, actions, and builtins.
+// regenerateSuggestions parses the user input to set next-word suggestions for navs, actions, and builtins.
 // The first suggestion (highest to lowest priority: navs, actions, builtins) is also set as a possible tab-complete on the prompt.
-func (m *Mother) regenerateSuggestion(userInput string) {
+func (m *Mother) regenerateSuggestions(userInput string) {
+	m.suggestions.tab = "" // don't allow old suggestions to linger
 	m.suggestions.nav, m.suggestions.action, m.suggestions.bi = traverse.DeriveSuggestions(m.ti.Value(), m.pwd, builtinKeys)
 	if len(m.suggestions.nav) > 0 {
 		m.suggestions.tab = userInput + m.suggestions.nav[0].FullName[len(m.suggestions.nav[0].MatchedCharacters):]
@@ -430,7 +437,7 @@ func (m *Mother) promptString(live bool) string {
 	} else {
 		ti = m.ti.Value()
 	}
-	return stylesheet.Cur.Prompt(m.pwd.CommandPath(), connection.Client.AdminMode()) + ti
+	return stylesheet.Cur.Prompt(m.pwd.CommandPath(), connection.AdminMode()) + ti
 }
 
 // helper subroutine for processInput
@@ -495,48 +502,6 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 		return cmd
 	}
 	return nil
-}
-
-// Walk through the given tokens
-// (of the form token[x] = `--flag=value` or (token[y]=`--flag`, token[y+1]= `value`))
-// in order to strip quotes off of parameters and split the former form into the latter for ease of
-// stripping.
-// Operates in O(n) time, but costs at least O(2n) memory.
-//
-// len(strippedTokens) >= len(oldTokens)
-func quoteSplitTokens(oldTokens []string) (strippedTokens []string) {
-	var prevWasFlag bool // previous item was a flag
-	for _, tkn := range oldTokens {
-		if strings.HasPrefix(tkn, "--") || strings.HasPrefix(tkn, "-") { // this is a flag
-			// check for form `--flag=value`
-			if flag, value, found := strings.Cut(tkn, "="); found {
-				// because we already know this is not a bare parameter (the -- check above)
-				// we can safely assume a cut on = is valid and not due to = in the parameter
-
-				strippedTokens = append(strippedTokens, flag)
-				strippedTokens = append(strippedTokens, strings.Trim(value, "\"'"))
-				continue
-			}
-			// this is a bare flag, next value is likely a parameter
-			// (unless this is a bool flag, but we do not know that yet)
-			prevWasFlag = true
-			strippedTokens = append(strippedTokens, tkn)
-			continue
-		}
-		// if the previous token was a flag and this token is not
-		// it is likely a parameter: strip quote off of it
-		if prevWasFlag {
-			strippedTokens = append(strippedTokens, strings.Trim(tkn, "\"'"))
-			prevWasFlag = false
-			continue
-		}
-
-		// if previous token was not a flag and neither is this token, this is a raw arg
-		// leave it untouched
-		strippedTokens = append(strippedTokens, tkn)
-	}
-
-	return
 }
 
 // helper subroutine for updateSuggestions().
