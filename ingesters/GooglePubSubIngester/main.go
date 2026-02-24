@@ -18,13 +18,17 @@ import (
 	// Embed tzdata so that we don't rely on potentially broken timezone DBs on the host
 	_ "time/tzdata"
 
-	"cloud.google.com/go/pubsub"
+	"cloud.google.com/go/pubsub/v2"
+	"cloud.google.com/go/pubsub/v2/apiv1/pubsubpb"
 	"github.com/gravwell/gravwell/v4/debug"
 	"github.com/gravwell/gravwell/v4/ingest/entry"
 	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/gravwell/gravwell/v4/ingesters/base"
 	"github.com/gravwell/gravwell/v4/ingesters/utils"
 	"github.com/gravwell/gravwell/v4/timegrinder"
+	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -73,20 +77,14 @@ func main() {
 
 	debugout("Started ingester muxer\n")
 
-	// Set up environment variables for AWS auth, if extant
-	if cfg.Global.Google_Credentials_Path != "" {
-		os.Setenv("GOOGLE_APPLICATION_CREDENTIALS", cfg.Global.Google_Credentials_Path)
-	}
-
 	// make a client
 	ctx := context.Background()
-	client, err := pubsub.NewClient(ctx, cfg.Global.Project_ID)
+	client, err := pubsub.NewClient(ctx, cfg.Global.Project_ID, option.WithAuthCredentialsFile(option.ServiceAccount, cfg.Global.Google_Credentials_Path))
 	if err != nil {
 		lg.Fatal("failed to create pubsub client", log.KVErr(err))
 		return
 	}
 
-	var ok bool
 	for _, psv := range cfg.PubSub {
 		tagid, err := igst.GetTag(psv.Tag_Name)
 		if err != nil {
@@ -103,27 +101,34 @@ func main() {
 		if subname == `` {
 			subname = fmt.Sprintf("ingest_%s", psv.Topic_Name)
 		}
-		sub := client.Subscription(subname)
-		if ok, err = sub.Exists(ctx); err != nil {
-			lg.Fatal("error checking subscription", log.KVErr(err))
-		} else if !ok {
+		subPath := fmt.Sprintf("projects/%s/subscriptions/%s", cfg.Global.Project_ID, subname)
+		_, err = client.SubscriptionAdminClient.GetSubscription(ctx, &pubsubpb.GetSubscriptionRequest{
+			Subscription: subPath,
+		})
+		if err != nil {
+			if status.Code(err) != codes.NotFound {
+				lg.Fatal("error checking subscription", log.KVErr(err))
+			}
 			//Subscription does not exist, attempt to create it
 			// this may fail due to permissions
 
 			// get the topic
-			topic := client.Topic(psv.Topic_Name)
-			ok, err := topic.Exists(ctx)
+			topicPath := fmt.Sprintf("projects/%s/topics/%s", cfg.Global.Project_ID, psv.Topic_Name)
+			_, err = client.TopicAdminClient.GetTopic(ctx, &pubsubpb.GetTopicRequest{
+				Topic: topicPath,
+			})
 			if err != nil {
+				if status.Code(err) == codes.NotFound {
+					lg.Fatal("topic does not exist", log.KV("topic", psv.Topic_Name))
+				}
 				lg.Fatal("error checking topic", log.KVErr(err))
-			}
-			if !ok {
-				lg.Fatal("topic does not exist", log.KV("topic", psv.Topic_Name))
 			}
 
 			// doesn't exist, try creating it
-			sub, err = client.CreateSubscription(ctx, subname, pubsub.SubscriptionConfig{
-				Topic:       topic,
-				AckDeadline: 10 * time.Second,
+			_, err = client.SubscriptionAdminClient.CreateSubscription(ctx, &pubsubpb.Subscription{
+				Name:               subPath,
+				Topic:              topicPath,
+				AckDeadlineSeconds: 10,
 			})
 			if err != nil {
 				lg.Fatal("error creating subscription", log.KVErr(err))
@@ -149,7 +154,7 @@ func main() {
 			}()
 		}
 
-		go func(sub *pubsub.Subscription, tagid entry.EntryTag, ps *pubsubconf) {
+		go func(subPath string, tagid entry.EntryTag, ps *pubsubconf) {
 			eChan := make(chan *entry.Entry, 2048)
 			go func(c chan *entry.Entry) {
 				for e := range c {
@@ -197,6 +202,7 @@ func main() {
 
 			cctx, cancel := context.WithCancel(ctx)
 			defer cancel()
+			subscriber := client.Subscriber(subPath)
 			for {
 				callback := func(ctx context.Context, msg *pubsub.Message) {
 					ent := &entry.Entry{
@@ -223,11 +229,11 @@ func main() {
 					case <-ctx.Done():
 					}
 				}
-				if err := sub.Receive(cctx, callback); err != nil {
+				if err := subscriber.Receive(cctx, callback); err != nil {
 					lg.Error("receive failed", log.KVErr(err))
 				}
 			}
-		}(sub, tagid, psv)
+		}(subPath, tagid, psv)
 	}
 
 	//register quit signals so we can die gracefully
