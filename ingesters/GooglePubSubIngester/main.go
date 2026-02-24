@@ -79,7 +79,7 @@ func main() {
 
 	// make a client
 	ctx := context.Background()
-	client, err := pubsub.NewClient(ctx, cfg.Global.Project_ID, option.WithCredentialsFile(cfg.Global.Google_Credentials_Path))
+	client, err := pubsub.NewClient(ctx, cfg.Global.Project_ID, option.WithAuthCredentialsFile(option.ServiceAccount, cfg.Global.Google_Credentials_Path))
 	if err != nil {
 		lg.Fatal("failed to create pubsub client", log.KVErr(err))
 		return
