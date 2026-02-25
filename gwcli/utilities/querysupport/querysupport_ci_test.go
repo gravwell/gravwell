@@ -15,10 +15,11 @@ import (
 )
 
 const ( // testing server credentials
-	user     = "admin"
-	password = "changeme"
-	server   = "localhost:80"
+	user   = "admin"
+	server = "localhost:80"
 )
+
+var password = "changeme"
 
 // NOTE(rlandau): this test is fairly brittle, as it relies on the backend being in place and the gravwell tag having consistent columns.
 // But some testing is better than no testing.
@@ -33,7 +34,7 @@ func Test_GetResultsForDataScope(t *testing.T) {
 	if err := connection.Initialize(server, false, true, ""); err != nil {
 		panic(err)
 	}
-	if err := connection.Login(user, password, "", true); err != nil {
+	if err := connection.Login(user, &password, nil, true); err != nil {
 		panic(err)
 	}
 

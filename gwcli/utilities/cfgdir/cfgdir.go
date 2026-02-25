@@ -21,6 +21,12 @@ const (
 	stdLogName  string = "dev.log"
 )
 
+// environment variables
+const (
+	EnvKeyPassword string = "GRAVWELL_PASSWORD" // environment variable potentially holding a password
+	EnvKeyAPI      string = "GRAVWELL_API_KEY"
+)
+
 const (
 	DefaultLogLevel string = "INFO"
 )

@@ -41,6 +41,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/user"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -146,55 +147,66 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 			return err
 		}
 	}
-
-	// generate credentials
-	var (
-		err           error
-		noInteractive bool
-		username      string
-		password      string
-		passfilePath  string
-		apiKey        string
-	)
-	if noInteractive, err = cmd.Flags().GetBool(ft.NoInteractive.Name()); err != nil {
+	username, password, apiToken, noInteractive, err := GatherCredentials(cmd.Flags())
+	if err != nil {
 		return err
 	}
-	if username, err = cmd.Flags().GetString("username"); err != nil {
-		return err
-	}
-	if password, err = cmd.Flags().GetString("password"); err != nil {
-		return err
-	}
-	if passfilePath, err = cmd.Flags().GetString("passfile"); err != nil {
-		return err
-	}
-	if apiKey, err = cmd.Flags().GetString("api"); err != nil {
-		return err
-	}
-
-	// password/passfile/apikey are marked mutually exclusive, so we do not have to check here
-
-	// need to check that, if password/passfile are supplied, username is also supplied
-	if (passfilePath != "" || password != "") && username == "" {
-		return errors.New("if password or passkey are specified, you must also specify username (-u)")
-	}
-
-	// if a passfile was specified, skim it out of the file
-	if p, err := skimPassFile(passfilePath); err != nil {
-		clilog.Writer.Warnf("failed to skim passfile: %v", err)
-	} else if p != "" {
-		password = p
-	}
-
 	// pass all information to Login to decide how to proceed
-	if err := connection.Login(username, password, apiKey, noInteractive); err != nil {
+	if err := connection.Login(username, password, apiToken, noInteractive); err != nil {
 		return err
 	}
-
-	clilog.Writer.Infof("Logged in successfully")
-
 	return nil
 
+}
+
+// GatherCredentials reads username, password, and api token from flags and the environment, returning all set values.
+func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToken *string, noInteractive bool, _ error) {
+
+	// gather credentials to pass to the login process
+	// cobra will guarantee !(username && (api||eapi))
+	noInteractive, err := flags.GetBool(ft.NoInteractive.Name())
+	if err != nil {
+		return "", nil, nil, false, err
+	}
+	{ // fetch api token
+		var tkn string
+		if tkn, err = flags.GetString("api"); err != nil {
+			clilog.LogFlagFailedGet("api", err)
+		} else if tkn != "" {
+			apiToken = &tkn
+		} else { // check env var
+			var found bool
+			if tkn, found = os.LookupEnv(cfgdir.EnvKeyAPI); found {
+				apiToken = &tkn
+			}
+		}
+	}
+	{ // fetch username and password
+		// sanity check: if passfile was set but username was not, that's an error
+		if flags.Changed("passfile") && !flags.Changed("username") {
+			return "", nil, nil, false, errors.New("--passfile requires --username")
+
+		}
+
+		if username, err = flags.GetString("username"); err != nil {
+			clilog.LogFlagFailedGet("username", err)
+		} else if strings.TrimSpace(username) != "" {
+			// also try to get the password from a file or env var
+
+			if passfilePath, err := flags.GetString("passfile"); err != nil {
+				clilog.LogFlagFailedGet("passfile", err)
+			} else if strings.TrimSpace(passfilePath) != "" {
+				if p, err := skimPassFile(passfilePath); err != nil {
+					return "", nil, nil, false, err
+				} else if p != "" {
+					password = &p
+				}
+			} else if p, set := os.LookupEnv(cfgdir.EnvKeyPassword); set {
+				password = &p
+			}
+		}
+	}
+	return
 }
 
 // skimPassFile slurps the file at the given path if path != "".
@@ -253,7 +265,12 @@ func Execute(args []string) int {
 		"To invoke the TUI, simply call " + stylesheet.Cur.ExampleText.Render("gwcli") + ".\n" +
 		"You can view help for any submenu or action by providing help a path.\n" +
 		"For instance, try: " + stylesheet.Cur.ExampleText.Render("gwcli help macros create") +
-		" or " + stylesheet.Cur.ExampleText.Render("gwcli query -h")
+		" or " + stylesheet.Cur.ExampleText.Render("gwcli query -h") + "\n" +
+		"\n" +
+		"Logins can be done via:\n" +
+		"1. api key (--" + ft.API.Name() + " or --" + ft.EAPI.Name() + "),\n" +
+		"2. username/password (-u, -p or " + cfgdir.EnvKeyPassword + "),\n" +
+		"3. interactively if no credentials are provided and !--" + ft.NoInteractive.Name()
 
 	rootCmd := treeutils.GenerateNav(use, short, long, []string{},
 		nil, // navs are added later
@@ -288,20 +305,13 @@ func Execute(args []string) int {
 		rootCmd.SetArgs(args)
 	}
 
-	// override the help command to just call usage
-	rootCmd.SetHelpFunc(help)
-	rootCmd.SetUsageFunc(func(c *cobra.Command) error {
-		fmt.Fprintf(c.OutOrStdout(), "gwcli %s %s", ft.Optional("flags"), ft.Optional("subcommand path"))
-		return nil
-	})
-
 	{ // build a set of examples
 		fields := "  " + stylesheet.Cur.ExampleText.Render("Invoke an action directly:") +
 			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke the interactive prompt:") +
 			"\n  " + stylesheet.Cur.ExampleText.Render("Invoke in a script:")
-		examples := " gwcli -u USERNAME system indexers list --json" +
+		examples := " " + cfgdir.EnvKeyPassword + "=" + ft.Mandatory("mypassword") + " gwcli -u " + ft.Mandatory("myusername") + " system indexers list --json" +
 			"\n gwcli --server=gravwell.io:4090" +
-			"\n" + ` gwcli --api APIKEY query "tag=gravwell stats count | chart count"`
+			"\n" + ` gwcli --no-interactive --api ` + ft.Mandatory("myapikey") + ` query "tag=gravwell stats count | chart count"`
 		rootCmd.Example = "\n" + lipgloss.JoinHorizontal(lipgloss.Left, fields, examples)
 
 	}
@@ -333,6 +343,13 @@ func Execute(args []string) int {
 	for range cmdFn { // wait for an equal number of results
 		rootCmd.AddCommand(<-resCh)
 	}
+
+	// override the help command to just call usage
+	rootCmd.SetHelpFunc(help)
+	rootCmd.SetUsageFunc(func(c *cobra.Command) error {
+		fmt.Fprintf(c.OutOrStdout(), "gwcli %s %s", ft.Optional("flags"), ft.Optional("subcommand path"))
+		return nil
+	})
 
 	err := rootCmd.Execute()
 	if err != nil {
@@ -373,7 +390,7 @@ func help(c *cobra.Command, _ []string) {
 	}
 
 	// write global flags (except for the completion command)
-	if c.Name() != "completion" && (c.HasParent() && c.Parent().Name() != "completion") {
+	if c.Name() != "completion" && (!c.HasParent() || (c.HasParent() && c.Parent().Name() != "completion")) {
 		if gf := c.Root().PersistentFlags().FlagUsages(); gf != "" {
 			sb.WriteString("\n" + stylesheet.Cur.Field("Global Flags", 0) + "\n" + gf)
 		}
