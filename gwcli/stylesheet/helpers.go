@@ -79,13 +79,17 @@ func ViewSubmitButton(selected bool, err1, err2 string, width int) string {
 		pip = strings.Repeat(" ", lipgloss.Width(Cur.Pip()))
 	)
 	if err1 != "" {
+		width = min(width-4, lipgloss.Width(err1))
+		str = lipgloss.NewStyle().Width(width).Render(err1)
 		str = Cur.ComposableSty.ComplimentaryBorder.
 			Render(Cur.ErrorText.
-				Render(lipgloss.NewStyle().Width(width - 4).Render(err1)))
+				Render(str))
 	} else if err2 != "" {
+		width = min(width-4, lipgloss.Width(err2))
+		str = lipgloss.NewStyle().Width(width).Render(err2)
 		str = Cur.ComposableSty.ComplimentaryBorder.
 			Render(Cur.ErrorText.
-				Render(lipgloss.NewStyle().Width(width - 4).Render(err2)))
+				Render(str))
 	} else {
 		str = Button("submit")
 	}
