@@ -17,12 +17,10 @@ package tree
 import (
 	"errors"
 	"fmt"
-	"math/rand/v2"
 	"os"
 	"runtime/pprof"
 	"strings"
 
-	"github.com/Pallinder/go-randomdata"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client"
@@ -153,11 +151,6 @@ func EnforceLogin(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	defer func() { // clobber sensitive data to ensure it doesn't linger in memory
-		clobberString(apiToken)
-		clobberString(password)
-
-	}()
 	// pass all information to Login to decide how to proceed
 	if err := connection.Login(username, password, apiToken, noInteractive); err != nil {
 		return err
@@ -214,18 +207,6 @@ func GatherCredentials(flags *pflag.FlagSet) (username string, password, apiToke
 		}
 	}
 	return
-}
-
-// clobberString destroys the value pointed to by v to mitigate the chance it gets dumped during a panic or the like.
-//
-// Honestly, it is kind of moot until we get an actual secret mode.
-// This stuff tends to get optimized out (at least in C) as dead code.
-func clobberString(v *string) {
-	if v != nil && *v != "" {
-		l := len(*v)
-		rand := randomdata.RandStringRunes(l + rand.IntN(64))
-		*v = rand
-	}
 }
 
 // skimPassFile slurps the file at the given path if path != "".

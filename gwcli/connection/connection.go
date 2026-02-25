@@ -405,7 +405,6 @@ func testLoginError(resp types.LoginResponse, rawErr error) (mfa bool, userFrien
 }
 
 // writeOutJWT writes a login token (JWT) to the default path for easier future logins.
-// Clobbers existing token, if it exists.
 //
 // Token files have the form:
 //
