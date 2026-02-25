@@ -73,20 +73,20 @@ func Button(text string) string {
 //
 // Both views will be centered relative to width.
 // Width should be > 4 to ensure text is wrapped properly without screwing up the border.
-func ViewSubmitButton(selected bool, err1, err2 string, width int) string {
+func ViewSubmitButton(selected bool, err1, err2 string, paneWidth int) string {
 	var (
 		str string
 		pip = strings.Repeat(" ", lipgloss.Width(Cur.Pip()))
 	)
 	if err1 != "" {
-		width = min(width-4, lipgloss.Width(err1))
-		str = lipgloss.NewStyle().Width(width).Render(err1)
+		paneWidth = min(paneWidth-4, lipgloss.Width(err1))
+		str = lipgloss.NewStyle().Width(paneWidth).Render(err1)
 		str = Cur.ComposableSty.ComplimentaryBorder.
 			Render(Cur.ErrorText.
 				Render(str))
 	} else if err2 != "" {
-		width = min(width-4, lipgloss.Width(err2))
-		str = lipgloss.NewStyle().Width(width).Render(err2)
+		paneWidth = min(paneWidth-4, lipgloss.Width(err2))
+		str = lipgloss.NewStyle().Width(paneWidth).Render(err2)
 		str = Cur.ComposableSty.ComplimentaryBorder.
 			Render(Cur.ErrorText.
 				Render(str))
