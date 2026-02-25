@@ -129,6 +129,7 @@ func newMacroCreateAction() action.Pair {
 			Order:        100,
 			CustomTIFuncInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", false)
+				ti.Prompt = "$"
 				ti.Validate = func(s string) error {
 					s = strings.ToUpper(s)
 					if !macroNameRgx.MatchString(s) {
