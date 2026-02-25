@@ -27,7 +27,7 @@ func Test_createModel_basics(t *testing.T) {
 		"A": NewField(true, "A", 10),
 		"B": NewField(true, "B", 0),
 	}
-	ca := NewCreateAction("test", cfg, func(cfg Config, values Values, fs *pflag.FlagSet) (id any, invalid string, err error) {
+	ca := NewCreateAction("test", cfg, func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 		return 0, "", nil
 	}, func() pflag.FlagSet {
 		return pflag.FlagSet{}
@@ -74,7 +74,7 @@ func Test_Ordering(t *testing.T) {
 		"2": NewField(false, "2", 0),
 	}
 	cm := newCreateModel(cfg, "test",
-		func(cfg Config, values Values, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			return 0, "", nil
 		}, func() pflag.FlagSet {
 			return pflag.FlagSet{}
@@ -162,7 +162,7 @@ func Test_Full(t *testing.T) {
 			"A": NewField(true, "A", 100),
 			"B": NewField(false, "B", 50),
 		}, "test",
-		func(cfg Config, values Values, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var bln bool
 			if !fs.Parsed() {
 				t.Errorf("flagset should be parsed")
@@ -268,7 +268,7 @@ func setup(t *testing.T, cfg Config) *createModel {
 	stylesheet.Cur = stylesheet.Plain()
 	cm := newCreateModel(
 		cfg, "test",
-		func(cfg Config, values Values, fs *pflag.FlagSet) (id any, invalid string, err error) {
+		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			return 0, "", nil
 		},
 		func() pflag.FlagSet { return pflag.FlagSet{} })

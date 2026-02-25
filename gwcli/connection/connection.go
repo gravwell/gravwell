@@ -734,3 +734,16 @@ func RefreshCurrentUser() error {
 
 	return nil
 }
+
+//#region super functions
+// This region covers functions that wrap/bolster Client functionality.
+// Typically only necessary for special purposes (like AdminMode returning false if the connection DNE)
+
+func AdminMode() bool {
+	if Client == nil {
+		return false
+	}
+	return Client.AdminMode()
+}
+
+//#endregion super functions

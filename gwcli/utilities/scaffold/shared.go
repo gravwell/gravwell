@@ -3,6 +3,7 @@ package scaffold
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
@@ -23,30 +24,35 @@ type KeyedTI struct {
 	Required   bool            // this TI must have data in it
 }
 
-func ViewKTIs(fieldWidth uint, ktis []KeyedTI, selectedIdx uint) string {
-	if fieldWidth == 0 {
+// frequently reused styles
+var (
+	rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
+)
+
+// ViewKTIs composes a uniform view of the given keyedTIs.
+// All field will be padded to a consistent length based on maxFieldWidth and right-aligned.
+// TIs are attached as View() to their respective TIs.
+func ViewKTIs(maxFieldWidth uint, ktis []KeyedTI, selectedIdx uint) string {
+	if maxFieldWidth == 0 {
 		clilog.Writer.Warnf("field width is unset")
 	}
-	//fieldWidth := c.longestFieldLength + 3 // 1 spaces for ":", 1 for pip, 1 for padding
-
-	var ( // styles
-		leftAlignerSty = lipgloss.NewStyle().
-			Width(int(fieldWidth)).
-			AlignHorizontal(lipgloss.Right).
-			PaddingRight(1)
-	)
 
 	var fields []string
 	var TIs []string
 
+	var sb strings.Builder // reused each cycle
 	for i, kti := range ktis {
-		var sty = stylesheet.Cur.SecondaryText
+		// apply consistent left padding, then pip
+		sb.WriteString(strings.Repeat(" ", int(maxFieldWidth)-len(kti.FieldTitle)) + stylesheet.Pip(selectedIdx, uint(i)))
+		// colourize and attach title
 		if kti.Required {
-			sty = stylesheet.Cur.PrimaryText
+			sb.WriteString(stylesheet.Cur.PrimaryText.Render(kti.FieldTitle + ":"))
+		} else {
+			sb.WriteString(stylesheet.Cur.SecondaryText.Render(kti.FieldTitle + ":"))
 		}
-		title := sty.Render(kti.FieldTitle + ":")
-
-		fields = append(fields, leftAlignerSty.Render(stylesheet.Pip(selectedIdx, uint(i))+title))
+		// render the line and right-align it
+		fields = append(fields, rightAlignSty.Render(sb.String()))
+		sb.Reset()
 
 		TIs = append(TIs, kti.TI.View())
 	}

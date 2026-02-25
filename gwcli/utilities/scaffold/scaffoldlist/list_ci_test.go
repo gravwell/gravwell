@@ -92,9 +92,10 @@ func Test_initOutFile(t *testing.T) {
 	})
 }
 
-func Test_showColumnsString(t *testing.T) {
-	actual := showColumnsString([]string{"A.1", "B", "C.1.⌚"}, map[string]string{"C.1.⌚": "Clock", "nonexistent": "some_alias"})
-	expected := "A.1,B,Clock"
+func Test_ShowColumns(t *testing.T) {
+	cols, aliases := []string{"A.1", "B", "C.1.⌚"}, map[string]string{"C.1.⌚": "Clock", "nonexistent": "some_alias"}
+	actual := ShowColumns(cols, aliases)
+	expected := strings.Join([]string{"A.1", "B", "Clock"}, string(ShowColumnSep))
 
 	if actual != expected {
 		t.Fatal(testsupport.ExpectedActual(expected, actual))
@@ -457,7 +458,7 @@ func TestNewListAction(t *testing.T) {
 		}
 
 		// construct the expected output
-		exploded := strings.Split(strings.TrimSpace(sb.String()), ",")
+		exploded := strings.Split(strings.TrimSpace(sb.String()), string(ShowColumnSep))
 		expected := []string{"C1", "Col2", "Col3", "SC1"}
 		if !testsupport.SlicesUnorderedEqual(exploded, expected) {
 			t.Fatalf("columns mismatch (not accounting for order): %v",
@@ -584,7 +585,7 @@ func TestNewListAction(t *testing.T) {
 		} else if sbErr.String() != "" {
 			t.Fatal(sbErr.String())
 		}
-		exploded := strings.Split(strings.TrimSpace(sb.String()), ",")
+		exploded := strings.Split(strings.TrimSpace(sb.String()), ";")
 		wanted := []string{"Col1", "Col2", "Col3", "Col4.SubCol1"}
 		if !testsupport.SlicesUnorderedEqual(exploded, wanted) {
 			t.Fatalf("columns mismatch (not accounting for order): %v",
@@ -1044,7 +1045,7 @@ func TestModel(t *testing.T) {
 				ColumnAliases: columnAliases,
 			},
 		}
-		expected := showColumnsString(availableColumns, columnAliases)
+		expected := ShowColumns(availableColumns, columnAliases)
 
 		tCmd := la.Update(nil)
 		if tCmd == nil {

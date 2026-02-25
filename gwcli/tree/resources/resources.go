@@ -69,13 +69,12 @@ func list() action.Pair {
 		},
 		scaffoldlist.Options{
 			DefaultColumns: []string{
-				"CommonFields.ID",
-				"CommonFields.Name",
-				"CommonFields.Description",
+				"ID",
+				"Name",
+				"Description",
 				"Size"},
 			ColumnAliases: map[string]string{
-				"CommonFields.Name": "Name",
-				"Size":              "SizeBytes",
+				"Size": "SizeBytes",
 			},
 			AddtlFlags: flags,
 		})

@@ -174,13 +174,13 @@ func create() action.Pair {
 }
 
 // driver function for scheduled create
-func createFunc(_ scaffoldcreate.Config, vals map[string]string, _ *pflag.FlagSet) (any, string, error) {
+func createFunc(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag.FlagSet) (any, string, error) {
 	var (
-		name      = vals[createNameKey]
-		desc      = vals[createDescKey]
-		freq      = vals[createFreqKey]
-		qry       = vals[createQryKey]
-		durString = vals[createDurationKey]
+		name      = fieldValues[createNameKey]
+		desc      = fieldValues[createDescKey]
+		freq      = fieldValues[createFreqKey]
+		qry       = fieldValues[createQryKey]
+		durString = fieldValues[createDurationKey]
 	)
 	dur, err := time.ParseDuration(durString)
 	if err != nil { // report as invalid parameter, not an error

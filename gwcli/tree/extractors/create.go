@@ -77,27 +77,6 @@ func newExtractorsCreateAction() action.Pair {
 					"winlog", "xml"})
 				return ti
 			},
-			/*CustomTIFuncSetArg: func(ti *textinput.Model) textinput.Model {
-				// TODO move this.... somewhere as it depends on the tag?
-
-				// fetch current labels as suggestions
-				if mp, err := connection.Client.ExploreGenerate(); err != nil {
-					clilog.Writer.Warnf("failed to fetch ax label map: %v", err)
-					ti.ShowSuggestions = false
-				} else {
-					suggest := make([]string, len(mp))
-					i := 0
-					for k, _ := range mp {
-						suggest[i] = k
-						i += 1
-					}
-					ti.SetSuggestions(suggest)
-					ti.ShowSuggestions = true
-				}
-
-				return ti
-			}, */
-
 		},
 		createTagsKey: scaffoldcreate.Field{
 			Required:      true,
@@ -161,18 +140,20 @@ func newExtractorsCreateAction() action.Pair {
 	})
 }
 
-func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values, fs *pflag.FlagSet) (any, string, error) {
+func create(_ scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (any, string, error) {
 	// no need to nil check; Required boolean enforces that for us
+
+	// map fields back into the underlying type
 	axd := types.AX{
 		CommonFields: types.CommonFields{
-			Name:        vals[createNameKey],
-			Description: vals[createDescKey],
-			Labels:      strings.Split(strings.Replace(vals[createLabelsKey], " ", "", -1), ","),
+			Name:        fieldValues[createNameKey],
+			Description: fieldValues[createDescKey],
+			Labels:      strings.Split(strings.ReplaceAll(fieldValues[createLabelsKey], " ", ""), ","),
 		},
-		Module: vals[createModuleKey],
-		Tags:   strings.Split(strings.Replace(vals[createTagsKey], " ", "", -1), ","),
-		Params: vals[createParamsKey],
-		Args:   vals[createArgsKey],
+		Module: fieldValues[createModuleKey],
+		Tags:   strings.Split(strings.ReplaceAll(fieldValues[createTagsKey], " ", ""), ","),
+		Params: fieldValues[createParamsKey],
+		Args:   fieldValues[createArgsKey],
 	}
 
 	// check for dryrun
@@ -198,7 +179,7 @@ func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values, fs *pflag.FlagS
 	if len(wrs) > 0 {
 		var invSB strings.Builder
 		for _, wr := range wrs {
-			invSB.WriteString(fmt.Sprintf("%v: %v\n", wr.Name, wr.Err))
+			fmt.Fprintf(&invSB, "%v: %v\n", wr.Name, wr.Err)
 		}
 		return 0, invSB.String(), nil
 	}

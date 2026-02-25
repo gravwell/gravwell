@@ -100,10 +100,12 @@ func validateListID(flagName string, fs *pflag.FlagSet) (id string, invalid stri
 	s, err := fs.GetString(flagName)
 	if err != nil {
 		clilog.LogFlagFailedGet(flagName, err)
-	} else if _, err := uuid.Parse(s); err == nil {
-		return "", "--" + flagName + " expects a numeric id, not a UUID"
-	} else if _, err := strconv.ParseUint(s, 10, 64); err != nil {
-		return "", "--" + flagName + " must be a valid number > 0"
+	} else if s != "" {
+		if _, err := uuid.Parse(s); err == nil {
+			return "", "--" + flagName + " expects a numeric id, not a UUID"
+		} else if _, err := strconv.ParseUint(s, 10, 64); err != nil {
+			return "", "--" + flagName + " must be a valid number > 0"
+		}
 	}
 	return s, ""
 }

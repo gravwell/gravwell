@@ -10,10 +10,12 @@
 package macros
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -63,18 +65,8 @@ func newMacroListAction() action.Pair {
 	return scaffoldlist.NewListAction(listShort, listLong,
 		types.Macro{}, listMacros,
 		scaffoldlist.Options{
-			AddtlFlags: flags,
-			DefaultColumns: []string{
-				"CommonFields.ID",
-				"CommonFields.Name",
-				"CommonFields.Description",
-				"Expansion",
-			},
-			ColumnAliases: map[string]string{
-				"CommonFields.ID":          "ID",
-				"CommonFields.Name":        "Name",
-				"CommonFields.Description": "Description",
-			},
+			AddtlFlags:     flags,
+			DefaultColumns: []string{"Name", "Description", "Expansion"},
 		})
 }
 
@@ -88,33 +80,39 @@ func flags() pflag.FlagSet {
 // lister subroutine for macros
 func listMacros(fs *pflag.FlagSet) ([]types.Macro, error) {
 	if all, err := fs.GetBool("all"); err != nil {
-		uniques.ErrGetFlag("macros list", err)
-	} else if all {
+		return nil, uniques.ErrGetFlag("macros list", err)
+	} else if all { // fetch all macros instead of just user macros
 		r, err := connection.Client.ListAllMacros(nil)
-		return r.Results, err
+		if err != nil {
+			return nil, err
+		}
+		return r.Results, nil
 	}
 	if gid, err := fs.GetInt32("group"); err != nil {
-		uniques.ErrGetFlag("macros list", err)
-	} else if gid != 0 {
+		return nil, uniques.ErrGetFlag("macros list", err)
+	} else if gid != 0 { // fetch all macros our group ID can read
 		macros, err := connection.Client.ListAllMacros(nil)
 		if err != nil {
 			return nil, err
 		}
-		var ret []types.Macro
+		var macroResults []types.Macro
 		for _, m := range macros.Results {
 			if m.GroupCanRead(gid) {
-				ret = append(ret, m)
+				macroResults = append(macroResults, m)
 			}
 		}
-		return ret, nil
+		return macroResults, nil
 	}
-
 	r, err := connection.Client.ListMacros(nil)
-	return r.Results, err
+	if err != nil {
+		return nil, err
+	}
+	return r.Results, nil
 }
 
 //#region create
 
+// creates macros using 3 fields: name, description, and expansion.
 func newMacroCreateAction() action.Pair {
 	fields := scaffoldcreate.Config{
 		"name": scaffoldcreate.Field{
@@ -125,9 +123,19 @@ func newMacroCreateAction() action.Pair {
 			FlagName:     ft.Name.Name(),
 			DefaultValue: "",
 			Order:        100,
+			CustomTIFuncInit: func() textinput.Model {
+				ti := stylesheet.NewTI("", false)
+				ti.Validate = func(s string) error {
+					if strings.Contains(s, " ") {
+						return errors.New("macro names may not contain spaces")
+					}
+					return nil
+				}
+				return ti
+			},
 		},
 		"desc": scaffoldcreate.Field{
-			Required:     true,
+			Required:     false,
 			Title:        "description",
 			Usage:        ft.Description.Usage("macro"),
 			Type:         scaffoldcreate.Text,
@@ -149,12 +157,13 @@ func newMacroCreateAction() action.Pair {
 	return scaffoldcreate.NewCreateAction("macro", fields, create, nil)
 }
 
-func create(_ scaffoldcreate.Config, vals scaffoldcreate.Values, _ *pflag.FlagSet) (any, string, error) {
+// create is the driver function responsible for actually sending the request to *create* a macro value to the backend.
+func create(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag.FlagSet) (any, string, error) {
 	sm := types.Macro{}
 	// all three fields are required, no need to nil-check them
-	sm.Name = strings.ToUpper(vals["name"])
-	sm.Description = vals["desc"]
-	sm.Expansion = vals["exp"]
+	sm.Name = strings.ToUpper(fieldValues["name"])
+	sm.Description = fieldValues["desc"]
+	sm.Expansion = fieldValues["exp"]
 
 	id, err := connection.Client.CreateMacro(sm)
 	return id, "", err

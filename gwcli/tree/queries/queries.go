@@ -45,6 +45,7 @@ func NewQueriesNav() *cobra.Command {
 }
 
 // #region past queries
+
 func past() action.Pair {
 	const (
 		pastUse string = "past"
@@ -56,11 +57,6 @@ func past() action.Pair {
 		short, long,
 		types.SearchHistoryEntry{},
 		func(fs *pflag.FlagSet) ([]types.SearchHistoryEntry, error) {
-			var (
-				toRet []types.SearchHistoryEntry
-				err   error
-			)
-
 			opts := &types.QueryOptions{}
 			if count, e := fs.GetInt("count"); e != nil {
 				return nil, uniques.ErrGetFlag(pastUse, e)
@@ -73,21 +69,19 @@ func past() action.Pair {
 				// check for explicit no records error
 				if strings.Contains(err.Error(), "No record") {
 					clilog.Writer.Debugf("no records error: %v", err)
-					return []types.SearchHistoryEntry{}, nil
+					return nil, nil
 				}
 				return nil, err
 			}
-
-			toRet = resp.Results
-			clilog.Writer.Debugf("found %v prior searches", len(toRet))
-			return toRet, nil
+			return resp.Results, nil
 		},
 		scaffoldlist.Options{
 			Use: pastUse, AddtlFlags: flags,
 			DefaultColumns: []string{
-				"CommonFields.OwnerID",
+				"ID",
 				"UserQuery",
 				"EffectiveQuery",
+				"Launched",
 			},
 		})
 }

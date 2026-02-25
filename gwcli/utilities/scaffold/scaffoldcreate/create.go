@@ -87,15 +87,12 @@ import (
 const (
 	errMissingRequiredFlags string = "missing required flags %v"
 	createdSuccessfully     string = "Successfully created %v (ID: %v)."
-	minFieldWidth           uint   = 25
 )
 
 // A Config maps keys -> Field; used as (ReadOnly) configuration for this creation instance
 type Config = map[string]Field
 
-type Values = map[string]string
-
-// CreateFunc defines the format of the subroutine that must be passed for creating data.
+// CreateFuncT defines the format of the subroutine that must be passed for creating data.
 // The function's return values must be:
 //
 // the id of the newly created value (likely as returned by the Gravwell backend)
@@ -103,12 +100,14 @@ type Values = map[string]string
 // a reason the create attempt was invalid (or the empty string)
 //
 // and an error that occurred (or nil). This is different than an invalid reason and is likely a bubbling up of an error from the client library.
-type CreateFunc func(cfg Config, values Values, fs *pflag.FlagSet) (id any, invalid string, err error)
+type CreateFuncT func(cfg Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error)
 
-func NewCreateAction(singular string,
-	fields Config,
-	create CreateFunc,
-	addtlFlags func() pflag.FlagSet) action.Pair {
+// NewCreateAction returns an action pair (covering interactive and non-interactive use) capable of creating new data based on user input.
+// You must tell the create action what kind of data it accepts (in the form of fields) and
+// what function to pass the populated fields to in order to actually *create* the thing (in the form of a CreateFunc).
+//
+// Singular is the singular version of the noun you are creating. Ex: "macro", "resource", "query".
+func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, extraFlagsFunc func() pflag.FlagSet) action.Pair {
 	// nil check singular
 	if singular == "" {
 		panic("")
@@ -116,16 +115,15 @@ func NewCreateAction(singular string,
 
 	// pull flags from provided fields
 	var flags = installFlagsFromFields(fields)
-	if addtlFlags != nil {
-		afs := addtlFlags()
+	if extraFlagsFunc != nil {
+		afs := extraFlagsFunc()
 		flags.AddFlagSet(&afs)
 	}
 
-	// pull required flags from cfg
+	// pull required flags from cfg to set usage
 	requiredFlags := make([]string, 0)
 	for _, v := range fields {
 		if v.Required && v.FlagName != "" {
-			// switch on v.Type... when there is more than 1
 			txt := "--" + v.FlagName + "=" + ft.Mandatory("string")
 			requiredFlags = append(requiredFlags, txt)
 		}
@@ -163,7 +161,7 @@ func NewCreateAction(singular string,
 			}
 
 			// attempt to create the new X
-			if id, inv, err := create(fields, values, c.Flags()); err != nil {
+			if id, inv, err := createFunc(fields, values, c.Flags()); err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
 				return
 			} else if inv != "" { // some of the flags were invalid
@@ -177,17 +175,17 @@ func NewCreateAction(singular string,
 	// attach mined flags to cmd
 	cmd.Flags().AddFlagSet(&flags)
 
-	return action.NewPair(cmd, newCreateModel(fields, singular, create, addtlFlags))
+	return action.NewPair(cmd, newCreateModel(fields, singular, createFunc, extraFlagsFunc))
 }
 
-// Given a parsed flagset and the field configuration, builds a corollary map of field values.
+// Given a parsed flagset and the field configuration, generates a map of values between fields and their current values
+// (field -> fieldValue).
 //
-// Returns the values for each flag (default if unset), a list of required fields (as their flag
-// names) that were not set, and an error (if one occurred).
-func getValuesFromFlags(fs *pflag.FlagSet, fields Config) (
-	values Values, missingRequireds []string, err error,
-) {
-	values = make(Values)
+// Returns the values for each flag (default if unset),
+// a list of required fields (as their flag names) that were not set,
+// and an error (if one occurred).
+func getValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[string]string, missingRequireds []string, err error) {
+	fieldValues = make(map[string]string)
 	for k, f := range fields {
 		switch f.Type {
 		case Text:
@@ -201,12 +199,12 @@ func getValuesFromFlags(fs *pflag.FlagSet, fields Config) (
 				missingRequireds = append(missingRequireds, f.FlagName)
 			}
 
-			values[k] = flagVal
+			fieldValues[k] = flagVal
 		default:
 			panic("developer error: unknown field type: " + f.Type)
 		}
 	}
-	return values, missingRequireds, nil
+	return fieldValues, missingRequireds, nil
 }
 
 //#region interactive mode (model) implementation
@@ -232,7 +230,8 @@ type createModel struct {
 
 	orderedTIs         []scaffold.KeyedTI // Ordered array of map keys, based on Config.TI.Order
 	selected           uint               // currently focused ti (in key order index)
-	longestFieldLength int                // the longest field name of the TIs
+	longestFieldLength int                // set at create time
+	longestTILength    int                // set at create time
 
 	inputErr  string // the reason inputs are invalid
 	createErr string // the reason the last create failed (not for invalid parameters)
@@ -241,15 +240,16 @@ type createModel struct {
 	addtlFlagFunc func() pflag.FlagSet
 	// current state of the flagset, Reset to addtlFlagFunc + installFlags
 	fs pflag.FlagSet
-	cf CreateFunc // function to create the new entity
+	cf CreateFuncT // function to create the new entity
 }
 
+// SubmitSelect returns if the select button is currently selected by the user.
 func (c *createModel) SubmitSelected() bool {
 	return c.selected == uint(len(c.orderedTIs))
 }
 
 // Creates and returns a create Model, ready for interactive usage via Mother.
-func newCreateModel(fields Config, singular string, cf CreateFunc, addtlFlagFunc func() pflag.FlagSet) *createModel {
+func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addtlFlagFunc func() pflag.FlagSet) *createModel {
 	c := &createModel{
 		mode:          inputting,
 		width:         defaultWidth,
@@ -257,7 +257,7 @@ func newCreateModel(fields Config, singular string, cf CreateFunc, addtlFlagFunc
 		fields:        fields,
 		orderedTIs:    make([]scaffold.KeyedTI, 0),
 		addtlFlagFunc: addtlFlagFunc,
-		cf:            cf,
+		cf:            createFunc,
 	}
 
 	// set flags by mining flags and, if applicable, tacking on additional flags
@@ -287,11 +287,12 @@ func newCreateModel(fields Config, singular string, cf CreateFunc, addtlFlagFunc
 		if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
 			c.longestFieldLength = w
 		}
+		// note the longest TI for later formatting
+		if kti.TI.Width > c.longestTILength {
+			c.longestTILength = kti.TI.Width
+		}
 	}
-	// buffer the field length
-	if c.longestFieldLength < int(minFieldWidth) {
-		c.longestFieldLength = int(minFieldWidth)
-	}
+
 	// sort keys from highest order to lowest order
 	slices.SortFunc(c.orderedTIs, func(a, b scaffold.KeyedTI) int {
 		return fields[b.Key].Order - fields[a.Key].Order
@@ -358,6 +359,9 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		// pass message to currently focused ti
 		var cmd tea.Cmd
 		c.orderedTIs[c.selected].TI, cmd = c.orderedTIs[c.selected].TI.Update(msg)
+		if c.orderedTIs[c.selected].TI.Err != nil {
+			c.inputErr = c.orderedTIs[c.selected].TI.Err.Error()
+		}
 		return cmd
 	}
 	return nil
@@ -394,34 +398,32 @@ func (c *createModel) focusPrevious() {
 	}
 }
 
-// Generates the corrollary value map from the TIs.
+// Generates the corollary value map from the TIs.
 //
 // Returns the values for each TI (mapped to their Config key), a list of required fields (as their
 // field.Title names) that were not set, and an error (if one occurred).
-func (c *createModel) extractValuesFromTIs() (
-	values Values, missingRequireds []string,
-) {
-	values = make(Values)
+func (c *createModel) extractValuesFromTIs() (fieldValues map[string]string, missingRequiredFields []string) {
+	fieldValues = make(map[string]string)
 	for _, kti := range c.orderedTIs {
 		val := strings.TrimSpace(kti.TI.Value())
 		field := c.fields[kti.Key]
 		if val == "" && field.Required {
-			missingRequireds = append(missingRequireds, field.Title)
+			missingRequiredFields = append(missingRequiredFields, field.Title)
 		}
 
-		values[kti.Key] = val
+		fieldValues[kti.Key] = val
 	}
 
-	return values, missingRequireds
+	return fieldValues, missingRequiredFields
 }
 
-// Iterates through the keymap, drawing each ti and title in key key order
+// Iterates through the keymap, drawing each ti and title by descending field.Order
 func (c *createModel) View() string {
 
 	inputs := scaffold.ViewKTIs(uint(c.longestFieldLength), c.orderedTIs, c.selected)
 
-	var wrapSty = lipgloss.NewStyle().Width(c.longestFieldLength)
-
+	// generate submit button and align it with the center
+	var wrapSty = lipgloss.NewStyle().Width(c.longestFieldLength) // setting width keeps the button roughly proportional
 	var inE, cE string
 	if c.inputErr != "" {
 		inE = wrapSty.Render(c.inputErr)
@@ -429,12 +431,11 @@ func (c *createModel) View() string {
 	if c.createErr != "" {
 		cE = wrapSty.Render(c.createErr)
 	}
-
-	return inputs +
-		"\n" +
-		lipgloss.NewStyle().Width(lipgloss.Width(inputs)).AlignHorizontal(lipgloss.Center).Render(
-			stylesheet.ViewSubmitButton(c.SubmitSelected(), inE, cE),
-		)
+	// align the submit to roughly the end of the field titles
+	sbtn := stylesheet.ViewSubmitButton(c.SubmitSelected(), inE, cE)
+	return inputs + "\n" + lipgloss.NewStyle().
+		Width(c.longestFieldLength+c.longestTILength+1+1). // +1 for pip, +1 for separator colon
+		AlignHorizontal(lipgloss.Center).Render(sbtn)
 }
 
 func (c *createModel) Done() bool {

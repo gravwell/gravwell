@@ -10,7 +10,6 @@
 package extractors
 
 import (
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -54,38 +53,40 @@ func newExtractorsListAction() action.Pair {
 		long,
 		types.AX{},
 		list,
-		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{
-			"CommonFields.Type",
-			"CommonFields.ID",
-			"CommonFields.Name",
-			"CommonFields.Description",
-		}})
+		scaffoldlist.Options{
+			AddtlFlags: flags,
+			DefaultColumns: []string{
+				// implies embedded namespace
+				"ID",
+				"Name",
+				"Description",
+
+				"Module",
+				"Params",
+				"Args",
+				"Tags",
+			},
+		})
 }
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.String("uuid", uuid.Nil.String(), "Fetches extraction by uuid.")
+	addtlFlags.String("id", "", "Fetch extractor by id")
 	return addtlFlags
 }
 
 func list(fs *pflag.FlagSet) ([]types.AX, error) {
-	if id, err := fs.GetString("uuid"); err != nil {
+	if id, err := fs.GetString("id"); err != nil {
 		uniques.ErrGetFlag("extractors list", err)
-	} else {
-		uid, err := uuid.Parse(id)
-		if err != nil {
-			return nil, err
-		}
-		if uid != uuid.Nil {
-			clilog.Writer.Infof("Fetching ax with uuid %v", uid)
-			d, err := connection.Client.GetExtraction(id)
-			return []types.AX{d}, err
-		}
-		// if uid was nil, move on to normal get-all
+	} else if id != "" {
+		clilog.Writer.Infof("Fetching ax with id \"%v\"", id)
+		d, err := connection.Client.GetExtraction(id)
+		return []types.AX{d}, err
 	}
 
 	lr, err := connection.Client.ListExtractions(nil)
 	return lr.Results, err
+
 }
 
 //#endregion list

@@ -39,7 +39,8 @@ type Field struct {
 	Order         int       // OPTIONAL. Top-Down (highest to lowest) display order of this field.
 
 	// OPTIONAL.
-	// Called once, at program start to generate a TI instead of using a generalize newTI()
+	// Called once, at program start to generate a TI instead of using a generalize newTI().
+	// Can be used to add a ValidateFunc to the TI.
 	CustomTIFuncInit func() textinput.Model
 	// OPTIONAL.
 	// Called every SetArg() (prior to passing control to the child create action), if not nil.
