@@ -32,9 +32,11 @@ var (
 // ViewKTIs composes a uniform view of the given keyedTIs.
 // All field will be padded to a consistent length based on maxFieldWidth and right-aligned.
 // TIs are attached as View() to their respective TIs.
-func ViewKTIs(maxFieldWidth uint, ktis []KeyedTI, selectedIdx uint) string {
+func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []KeyedTI, selectedIdx uint) string {
 	if maxFieldWidth == 0 {
 		clilog.Writer.Warnf("field width is unset")
+	} else if maxTIWidth == 0 {
+		clilog.Writer.Warnf("TI width is unset")
 	}
 
 	var fields []string
@@ -43,7 +45,7 @@ func ViewKTIs(maxFieldWidth uint, ktis []KeyedTI, selectedIdx uint) string {
 	var sb strings.Builder // reused each cycle
 	for i, kti := range ktis {
 		// apply consistent left padding, then pip
-		sb.WriteString(strings.Repeat(" ", int(maxFieldWidth)-len(kti.FieldTitle)) + stylesheet.Pip(selectedIdx, uint(i)))
+		sb.WriteString(strings.Repeat(" ", int(max(maxFieldWidth, maxTIWidth))-len(kti.FieldTitle)) + stylesheet.Pip(selectedIdx, uint(i)))
 		// colourize and attach title
 		if kti.Required {
 			sb.WriteString(stylesheet.Cur.PrimaryText.Render(kti.FieldTitle + ":"))

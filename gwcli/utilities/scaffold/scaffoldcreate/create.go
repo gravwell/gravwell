@@ -419,15 +419,11 @@ func (c *createModel) extractValuesFromTIs() (fieldValues map[string]string, mis
 
 // Iterates through the keymap, drawing each ti and title by descending field.Order
 func (c *createModel) View() string {
-	inputs := scaffold.ViewKTIs(uint(c.longestFieldLength), c.orderedTIs, c.selected)
-
-	//viewWidth := c.longestFieldLength + c.longestTILength + 1 + 1 // +1 for pip, +1 for separator colon
-
+	inputs := scaffold.ViewKTIs(uint(c.longestFieldLength), uint(c.longestTILength), c.orderedTIs, c.selected)
 	// generate submit button and align it with the center
 	var sbtn string = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.inputErr, c.createErr, c.width)
 	// align the submit to roughly the end of the field titles
-	return lipgloss.NewStyle().
-		Width(c.width).
+	return lipgloss.NewStyle().Width(c.width).
 		AlignHorizontal(lipgloss.Center).Render(inputs + "\n" + sbtn)
 }
 

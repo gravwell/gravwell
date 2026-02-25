@@ -98,7 +98,7 @@ func (se *stateEdit[S]) update(msg tea.Msg,
 }
 
 func (se *stateEdit[S]) view() string {
-	inputs := scaffold.ViewKTIs(uint(se.longestWidth), se.orderedKTIs, se.hovered)
+	inputs := scaffold.ViewKTIs(uint(se.longestWidth), 20, se.orderedKTIs, se.hovered) // TODO
 
 	var wrapSty = lipgloss.NewStyle().Width(se.longestWidth)
 
