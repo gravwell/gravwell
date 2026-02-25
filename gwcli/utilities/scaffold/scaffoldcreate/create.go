@@ -424,7 +424,8 @@ func (c *createModel) View() string {
 	var sbtn string = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.inputErr, c.createErr, c.width)
 	// align the submit to roughly the end of the field titles
 	return lipgloss.NewStyle().Width(c.width).
-		AlignHorizontal(lipgloss.Center).Render(inputs + "\n" + sbtn)
+		AlignHorizontal(lipgloss.Center).Render(inputs) + "\n" + sbtn
+
 }
 
 func (c *createModel) Done() bool {
