@@ -164,6 +164,7 @@ func viewSchedule(s *DataScope) string {
 				s.schedule.selected == schsubmit,
 				s.schedule.resultString,
 				s.schedule.inputErrorString,
+				10, // TODO
 			),
 		),
 	)

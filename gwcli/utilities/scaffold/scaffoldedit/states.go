@@ -110,7 +110,7 @@ func (se *stateEdit[S]) view() string {
 	return inputs +
 		"\n" +
 		lipgloss.NewStyle().Width(lipgloss.Width(inputs)).AlignHorizontal(lipgloss.Center).Render(
-			stylesheet.ViewSubmitButton(se.submitHovered(), inE, ""),
+			stylesheet.ViewSubmitButton(se.submitHovered(), inE, "", 10), // TODO
 		)
 }
 

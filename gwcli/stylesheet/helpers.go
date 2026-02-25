@@ -68,18 +68,24 @@ func Button(text string) string {
 }
 
 // ViewSubmitButton displays... a submit button.
-// It displays the error if set.
-// Same for the result.
+// It displays one of the errors if set, 1, then 2.
 // If not displaying either, it displays a box with "submit" in it.
-func ViewSubmitButton(selected bool, result, errStr string) string {
+//
+// Both views will be centered relative to width.
+// Width should be > 4 to ensure text is wrapped properly without screwing up the border.
+func ViewSubmitButton(selected bool, err1, err2 string, width int) string {
 	var (
 		str string
 		pip = strings.Repeat(" ", lipgloss.Width(Cur.Pip()))
 	)
-	if errStr != "" {
-		str = Cur.ComposableSty.ComplimentaryBorder.Render(Cur.ErrorText.Render(errStr))
-	} else if result != "" {
-		str = Cur.ComposableSty.ComplimentaryBorder.Render(result)
+	if err1 != "" {
+		str = Cur.ComposableSty.ComplimentaryBorder.
+			Render(Cur.ErrorText.
+				Render(lipgloss.NewStyle().Width(width - 4).Render(err1)))
+	} else if err2 != "" {
+		str = Cur.ComposableSty.ComplimentaryBorder.
+			Render(Cur.ErrorText.
+				Render(lipgloss.NewStyle().Width(width - 4).Render(err2)))
 	} else {
 		str = Button("submit")
 	}

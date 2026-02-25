@@ -364,6 +364,7 @@ func viewDownload(s *DataScope) string {
 				s.download.selected == dlsubmit,
 				s.download.resultString,
 				s.download.inputErrorString,
+				10, // TODO
 			),
 		),
 	)
