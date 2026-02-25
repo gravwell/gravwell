@@ -71,7 +71,7 @@ func Button(text string) string {
 // It displays one of the errors if set, 1, then 2.
 // If not displaying either, it displays a box with "submit" in it.
 //
-// Both views will be centered relative to width.
+// The returned object will be centered relative to width.
 // Width should be > 4 to ensure text is wrapped properly without screwing up the border.
 func ViewSubmitButton(selected bool, err1, err2 string, paneWidth int) string {
 	var (
@@ -97,7 +97,8 @@ func ViewSubmitButton(selected bool, err1, err2 string, paneWidth int) string {
 		pip = Cur.Pip()
 	}
 
-	return lipgloss.JoinHorizontal(lipgloss.Center, pip, str)
+	return lipgloss.NewStyle().Width(paneWidth).
+		AlignHorizontal(lipgloss.Center).Render(lipgloss.JoinHorizontal(lipgloss.Center, pip, str))
 }
 
 // Index returns the given number, styled as an index number in a list or table.
