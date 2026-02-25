@@ -37,7 +37,7 @@ const (
 	STATS_URL                        = `/api/stats/sysStats`
 	IDX_URL                          = `/api/stats/idxStats`
 	INGESTER_URL                     = `/api/stats/igstStats`
-	INGESTER_TAIL_URL                = `/api/stats/igstStats`
+	INGESTER_TAIL_URL                = `/api/stats/igstTailStats`
 	WELLS_URL                        = `/api/stats/wellStats`
 	STORAGE_URL                      = `/api/stats/storage/indexers`
 	STORAGE_INDEXER_URL              = `/api/stats/storage/indexer/%s/wells`
