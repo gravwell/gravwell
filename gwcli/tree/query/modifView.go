@@ -21,11 +21,13 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // modifSelection provides the skeleton for cursoring through options within this view.
@@ -148,21 +150,18 @@ func (mv *modifView) view() string {
 	var sb strings.Builder
 
 	sb.WriteString(" " + stylesheet.Cur.Field("Duration", 0) + "\n")
-	sb.WriteString(
-		fmt.Sprintf("%s%s\n", stylesheet.Pip(mv.selected, duration), mv.durationTI.View()),
+	fmt.Fprintf(&sb, "%s%s\n"+
+		"%s%s %s\n",
+		stylesheet.Pip(mv.selected, duration), mv.durationTI.View(),
+		stylesheet.Pip(mv.selected, background), stylesheet.Checkbox(mv.background), stylesheet.Cur.PrimaryText.Render("Background?"),
 	)
+	fmt.Fprintf(&sb, " %s\n"+"%s%s\n",
+		stylesheet.Cur.Field("Entries/page", 0),
+		stylesheet.Pip(mv.selected, perpage), mv.perpageTI.View())
+	v := sb.String()
 
-	sb.WriteString(
-		fmt.Sprintf("%s%s %s\n", stylesheet.Pip(mv.selected, background), stylesheet.Checkbox(mv.background), stylesheet.Cur.PrimaryText.Render("Background?")),
-	)
-
-	sb.WriteString(" " + stylesheet.Cur.Field("Entries/page", 0) + "\n")
-	sb.WriteString(
-		fmt.Sprintf("%s%s\n", stylesheet.Pip(mv.selected, perpage), mv.perpageTI.View()),
-	)
-	sb.WriteString(stylesheet.ViewSubmitButton(mv.selected == submit, "", "", 10)) // TODO
-
-	return sb.String()
+	clilog.Writer.Debugf("width: %v", lipgloss.Width(v))
+	return v + stylesheet.ViewSubmitButton(mv.selected == submit, "", "", lipgloss.Width(v))
 }
 
 func (mv *modifView) reset() {
