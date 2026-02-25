@@ -415,6 +415,13 @@ func (c *Client) GetIngesterStats() (map[string]types.IngestStats, error) {
 	return stats, nil
 }
 
+func (c *Client) GetIngesterTailStats() (tail types.IngestTailStats, _ error) {
+	if err := c.getStaticURL(INGESTER_TAIL_URL, &tail); err != nil {
+		return types.IngestTailStats{}, err
+	}
+	return tail, nil
+}
+
 // GetStorageStats gets storage statistics for all indexers.
 func (c *Client) GetStorageStats() (map[string]types.StorageStats, error) {
 	stats := map[string]types.StorageStats{}
