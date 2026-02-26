@@ -68,7 +68,8 @@ func Button(text string) string {
 	return btn
 }
 
-var minSubmitButtonWidth = Cur.ComposableSty.ComplimentaryBorder.GetBorderLeftSize() + Cur.ComposableSty.ComplimentaryBorder.GetBorderRightSize() + len("submit")
+var minSubmitButtonWidth = Cur.ComposableSty.ComplimentaryBorder.GetBorderLeftSize() + Cur.ComposableSty.ComplimentaryBorder.GetBorderRightSize() +
+	len("submit") + 1 + 2 // +1 expected pip width & +2 padding
 
 // ViewSubmitButton displays... a submit button.
 // It displays one of the errors if set, 1, then 2.
@@ -76,39 +77,40 @@ var minSubmitButtonWidth = Cur.ComposableSty.ComplimentaryBorder.GetBorderLeftSi
 //
 // The returned object will be centered relative to width.
 // Width should be > 4 to ensure text is wrapped properly without screwing up the border.
-func ViewSubmitButton(selected bool, err1, err2 string, paneWidth int) string {
+func ViewSubmitButton(selected bool, paneWidth int, errors ...string) string {
 	// sanity check width
-	if clilog.Active(clilog.DEBUG) {
-		if paneWidth < minSubmitButtonWidth {
-			clilog.Writer.Warnf("pane width is below minimum (%v); button may artefact.", minSubmitButtonWidth)
-		}
+	if paneWidth < minSubmitButtonWidth {
+		clilog.Writer.Warnf("pane width is below minimum (%v); overriding to minimum", minSubmitButtonWidth)
+		paneWidth = minSubmitButtonWidth
 	}
-
 	var (
-		str string
-		pip = strings.Repeat(" ", lipgloss.Width(Cur.Pip()))
+		pip    string
+		btnTxt string
 	)
-	if err1 != "" {
-		paneWidth = min(paneWidth-4, lipgloss.Width(err1))
-		str = lipgloss.NewStyle().Width(paneWidth).Render(err1)
-		str = Cur.ComposableSty.ComplimentaryBorder.
-			Render(Cur.ErrorText.
-				Render(str))
-	} else if err2 != "" {
-		paneWidth = min(paneWidth-4, lipgloss.Width(err2))
-		str = lipgloss.NewStyle().Width(paneWidth).Render(err2)
-		str = Cur.ComposableSty.ComplimentaryBorder.
-			Render(Cur.ErrorText.
-				Render(str))
-	} else {
-		str = Button("submit")
-	}
+
+	// configure pip
 	if selected {
 		pip = Cur.Pip()
+	} else {
+		pip = strings.Repeat(" ", lipgloss.Width(Cur.Pip()))
 	}
-
-	return lipgloss.NewStyle().Width(paneWidth).
-		AlignHorizontal(lipgloss.Center).Render(lipgloss.JoinHorizontal(lipgloss.Center, pip, str))
+	// find the first non-empty error
+	for _, e := range errors {
+		if e != "" {
+			btnTxt = e
+			break
+		}
+	}
+	if btnTxt == "" { // if no valid error was found, return a submit button
+		return lipgloss.NewStyle().AlignHorizontal(lipgloss.Center).Width(paneWidth).Render(
+			lipgloss.JoinHorizontal(lipgloss.Center,
+				pip,
+				Button("submit"),
+			))
+	}
+	// style, box, pad, and return the error
+	btnTxt = lipgloss.JoinHorizontal(lipgloss.Center, pip, Cur.ErrorText.Width(paneWidth-4).Render(btnTxt))
+	return Cur.ComposableSty.ComplimentaryBorder. /*Width(paneWidth).AlignHorizontal(lipgloss.Center).*/ Render(btnTxt)
 }
 
 // Index returns the given number, styled as an index number in a list or table.

@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/charmbracelet/lipgloss"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 )
@@ -22,37 +23,69 @@ func TestRadiobox(t *testing.T) {
 
 // NOTE(rlandau): these tests are weird, given we are trying to test multiline text "visually".
 // The purpose is to watch for breakages inherent to ViewSubmitButton, rather than a caller's screw up.
+//
+// NOTE2(rlandau): this test assumes the base borders.
+// If they change, this test will need to be updated.
 func TestViewSubmitButton(t *testing.T) {
+	clilog.InitializeFromArgs(nil)
+
 	type args struct {
 		selected  bool
-		err1      string
-		err2      string
 		paneWidth int
+		errors    []string
 	}
 	tests := []struct {
 		name string
 		args args
-		want string // NOTE: actual is space-trimmed
+		want string
 	}{
-		{"submit - near min width",
-			args{false, "", "", 10},
-			`╭──────╮ 
- │submit│ 
+		{"submit - below min width",
+			args{false, 6, []string{}},
+			` ╭──────╮
+ │submit│
  ╰──────╯`},
-		{"submit - near min width - with pip",
-			args{true, "", "", 10},
-			`╭──────╮ 
-` + stylesheet.Cur.Pip() + `│submit│ 
+		{"submit - below min width - with pip",
+			args{true, 6, nil},
+			` ╭──────╮
+` + stylesheet.Cur.Pip() + `│submit│
  ╰──────╯`},
 		{"submit - 60 width - with pip",
-			args{true, "", "", 60}, // TODO replace manual repeat calculations
-			"╭──────╮" + strings.Repeat(" ", (60/2)-(lipgloss.Width("╭──────╮")/2)) + `
+			args{true, 60, nil},
+			strings.Repeat(" ", (60/2)-(lipgloss.Width("╭──────╮")/2)) + "╭──────╮" + strings.Repeat(" ", (60/2)-(lipgloss.Width("╭──────╮")/2)) + `
                          >│submit│` + strings.Repeat(" ", 26) + `
-                          ╰──────╯`},
+                          ╰──────╯` + strings.Repeat(" ", 26)},
+		{"err1 - width < len(err)",
+			args{true, 20, []string{"an error longer than the width"}},
+			`┌────────────────┐      
+ │    an error   │
+ │    longer     │
+>│than the width │
+ │               │
+ └───────────────┘`,
+		},
+		{"err1 - width == len(err)",
+			args{true, 37, []string{"an error equal in length to the width"}},
+			`┌────────────────┐      
+ │    an error   │
+ │    longer     │
+>│than the width │
+ │               │
+ └───────────────┘`,
+		},
+		{"err1 - width > len(err)",
+			args{true, 42, []string{"an error a little shorter than the width"}},
+			`┌────────────────┐      
+ │    an error   │
+ │    longer     │
+>│than the width │
+ │               │
+ └───────────────┘`,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := strings.TrimSpace(stylesheet.ViewSubmitButton(tt.args.selected, tt.args.err1, tt.args.err2, tt.args.paneWidth))
+			actual := stylesheet.ViewSubmitButton(tt.args.selected, tt.args.paneWidth, tt.args.errors...)
+
 			if actual != tt.want {
 				tt.want = testsupport.Uncloak(tt.want)
 				actual = testsupport.Uncloak(actual)
