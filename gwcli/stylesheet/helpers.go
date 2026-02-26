@@ -108,9 +108,18 @@ func ViewSubmitButton(selected bool, paneWidth int, errors ...string) string {
 				Button("submit"),
 			))
 	}
-	// style, box, pad, and return the error
-	btnTxt = lipgloss.JoinHorizontal(lipgloss.Center, pip, Cur.ErrorText.Width(paneWidth-4).Render(btnTxt))
-	return Cur.ComposableSty.ComplimentaryBorder. /*Width(paneWidth).AlignHorizontal(lipgloss.Center).*/ Render(btnTxt)
+
+	// sets the width the error text can take up relative to paneWidth
+	textWidth := max((paneWidth * 3 / 5), minSubmitButtonWidth)
+
+	// wrap and style text
+	btnTxt = Cur.ErrorText.AlignHorizontal(lipgloss.Center).Width(textWidth).Render(btnTxt)
+	// box the text
+	btnTxt = Cur.ComposableSty.ComplimentaryBorder.Render(btnTxt)
+	// (optionally) add a pip
+	btnTxt = lipgloss.JoinHorizontal(lipgloss.Center, pip, btnTxt)
+	// pad and center
+	return lipgloss.NewStyle().Width(paneWidth).AlignHorizontal(lipgloss.Center).Render(btnTxt)
 }
 
 // Index returns the given number, styled as an index number in a list or table.
