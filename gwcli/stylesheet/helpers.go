@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/spf13/cobra"
 )
 
@@ -74,6 +75,13 @@ func Button(text string) string {
 // The returned object will be centered relative to width.
 // Width should be > 4 to ensure text is wrapped properly without screwing up the border.
 func ViewSubmitButton(selected bool, err1, err2 string, paneWidth int) string {
+	// sanity check width
+	if clilog.Active(clilog.DEBUG) {
+		if paneWidth < minSubmitButtonWidth {
+			clilog.Writer.Warnf("pane width is below minimum (%v); button may artefact.", minSubmitButtonWidth)
+		}
+	}
+
 	var (
 		str string
 		pip = strings.Repeat(" ", lipgloss.Width(Cur.Pip()))
