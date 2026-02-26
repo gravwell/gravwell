@@ -161,7 +161,7 @@ func (mv *modifView) view() string {
 	v := sb.String()
 
 	clilog.Writer.Debugf("width: %v", lipgloss.Width(v))
-	return v + stylesheet.ViewSubmitButton(mv.selected == submit, "", "", lipgloss.Width(v))
+	return v + stylesheet.ViewSubmitButton(mv.selected == submit, lipgloss.Width(v))
 }
 
 func (mv *modifView) reset() {

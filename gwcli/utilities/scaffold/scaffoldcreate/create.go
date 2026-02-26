@@ -421,7 +421,7 @@ func (c *createModel) extractValuesFromTIs() (fieldValues map[string]string, mis
 func (c *createModel) View() string {
 	inputs := scaffold.ViewKTIs(uint(c.longestFieldLength), uint(c.longestTILength), c.orderedTIs, c.selected)
 	// generate submit button and align it with the center
-	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.inputErr, c.createErr, c.width)
+	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.width, c.inputErr, c.createErr)
 	// align the submit to roughly the end of the field titles
 	return lipgloss.NewStyle().Width(c.width).
 		AlignHorizontal(lipgloss.Center).Render(inputs) + "\n" + sbtn

@@ -352,7 +352,7 @@ func viewDownload(s *DataScope) string {
 
 	recs := recordSegment(titleSty, lcolAligner, rcolAligner, sel, &s.download)
 
-	return lipgloss.Place(s.usableWidth(), s.usableHeight(),
+	p := lipgloss.Place(s.usableWidth(), s.usableHeight(),
 		lipgloss.Center, verticalPlace,
 		lipgloss.JoinVertical(lipgloss.Center,
 			tabDesc,
@@ -362,12 +362,13 @@ func viewDownload(s *DataScope) string {
 			"",
 			stylesheet.ViewSubmitButton(
 				s.download.selected == dlsubmit,
+				s.usableWidth(),
 				s.download.resultString,
 				s.download.inputErrorString,
-				10, // TODO
 			),
 		),
 	)
+	return p
 }
 
 // helper subroutine for viewDownload.
