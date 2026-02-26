@@ -37,54 +37,63 @@ func TestViewSubmitButton(t *testing.T) {
 	tests := []struct {
 		name string
 		args args
-		want string
+		want string // NOTE: a newline is prefixed for easier visual checks
 	}{
 		{"submit - below min width",
 			args{false, 6, []string{}},
-			` ╭──────╮
+			`
+ ╭──────╮
  │submit│
  ╰──────╯`},
 		{"submit - below min width - with pip",
 			args{true, 6, nil},
-			` ╭──────╮
+			`
+ ╭──────╮
 ` + stylesheet.Cur.Pip() + `│submit│
  ╰──────╯`},
 		{"submit - 60 width - with pip",
 			args{true, 60, nil},
-			strings.Repeat(" ", (60/2)-(lipgloss.Width("╭──────╮")/2)) + "╭──────╮" + strings.Repeat(" ", (60/2)-(lipgloss.Width("╭──────╮")/2)) + `
+			"\n" + strings.Repeat(" ", (60/2)-(lipgloss.Width("╭──────╮")/2)) + "╭──────╮" + strings.Repeat(" ", (60/2)-(lipgloss.Width("╭──────╮")/2)) + `
                          >│submit│` + strings.Repeat(" ", 26) + `
                           ╰──────╯` + strings.Repeat(" ", 26)},
-		{"err1 - width < len(err)",
+		{"error width < len(err)",
 			args{true, 20, []string{"an error longer than the width"}},
-			`┌────────────────┐      
- │    an error   │
- │    longer     │
->│than the width │
- │               │
- └───────────────┘`,
+			`
+   ┌────────────┐   
+   │  an error  │   
+  >│longer than │   
+   │ the width  │   
+   └────────────┘   `,
 		},
-		{"err1 - width == len(err)",
+		{"error width == len(err)",
 			args{true, 37, []string{"an error equal in length to the width"}},
-			`┌────────────────┐      
- │    an error   │
- │    longer     │
->│than the width │
- │               │
- └───────────────┘`,
+			`
+       ┌──────────────────────┐      
+       │  an error equal in   │      
+      >│ length to the width  │      
+       └──────────────────────┘      `,
 		},
-		{"err1 - width > len(err)",
+		{"error width > len(err)",
 			args{true, 42, []string{"an error a little shorter than the width"}},
-			`┌────────────────┐      
- │    an error   │
- │    longer     │
->│than the width │
- │               │
- └───────────────┘`,
+			`
+        ┌─────────────────────────┐       
+        │an error a little shorter│       
+       >│     than the width      │       
+        └─────────────────────────┘       `,
+		},
+		{"multiple errors; chosen error width < min",
+			args{true, 8, []string{"", "second error", ""}},
+			`
+ ┌─────┐ 
+ │secon│ 
+>│  d  │ 
+ │error│ 
+ └─────┘ `,
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actual := stylesheet.ViewSubmitButton(tt.args.selected, tt.args.paneWidth, tt.args.errors...)
+			actual := "\n" + stylesheet.ViewSubmitButton(tt.args.selected, tt.args.paneWidth, tt.args.errors...)
 
 			if actual != tt.want {
 				tt.want = testsupport.Uncloak(tt.want)
