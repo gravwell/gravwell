@@ -27,15 +27,14 @@ type stateEdit[S any] struct {
 	orderedKTIs []scaffold.KeyedTI // KTIs, sorted by rank (cfg.Order)
 }
 
-// Update() handling for editing mode.
-// Updates the TIs and performs data transmutation and submission if user confirms changes. // TODO
+// update() handling for editing mode, used onces an item has been selected from the list of editables.
+// Updates the TIs and performs data transmutation and submission if user confirms changes.
 //
-// identifier returns iff the updateSubr was triggered and processed successfully.
-// The empty string means that an error occurred or updateSubr was not fired at all.
-func (se *stateEdit[S]) update(msg tea.Msg,
-	cfg Config,
-	setFieldSub SetFieldSubroutine[S],
-	updateSub UpdateStructSubroutine[S]) (_ tea.Cmd, identifier string) {
+// An item identifier, as returned by updateSub, is returned iff the item update subroutine was triggered and processed successfully.
+// The empty string means that an error occurred or the item update subroutine was not fired at all.
+func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubroutine[S], updateSub UpdateStructSubroutine[S]) (
+	_ tea.Cmd, identifier string,
+) {
 	if keymsg, ok := msg.(tea.KeyMsg); ok {
 		se.err = "" // clear input errors on new key input
 		switch keymsg.Type {
