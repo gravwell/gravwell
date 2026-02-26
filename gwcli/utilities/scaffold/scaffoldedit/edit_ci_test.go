@@ -151,8 +151,8 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 		t.Fatal("incorrect mode", ExpectedActual(editing, em.mode))
 	}
 	// sanity check edit mode
-	if em.editing.hovered != 0 {
-		t.Error("the first line should be hovered on first entry. Found ", em.editing.hovered)
+	if em.editing.selected != 0 {
+		t.Error("the first line should be hovered on first entry. Found ", em.editing.selected)
 	} else if em.editing.err != "" {
 		t.Error(em.editing.err)
 	} else if em.editing.longestLineWidth < 10 { // arbitrarily small amount
@@ -167,7 +167,7 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 
 	if !em.editing.submitSelected() {
 		t.Fatal("keyUp on first field did not hover submit.",
-			ExpectedActual(uint(em.editing.tiCount), em.editing.hovered))
+			ExpectedActual(uint(em.editing.tiCount), em.editing.selected))
 	}
 	// return to top
 	em.Update(tea.KeyMsg{Type: tea.KeyDown})
@@ -181,7 +181,7 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 
 	if !em.editing.submitSelected() {
 		t.Fatal("traversing down the list of TIs did not hover submit.",
-			ExpectedActual(uint(em.editing.tiCount), em.editing.hovered))
+			ExpectedActual(uint(em.editing.tiCount), em.editing.selected))
 	}
 
 	// test the update procedure

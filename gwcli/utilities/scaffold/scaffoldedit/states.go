@@ -21,7 +21,7 @@ type stateEdit[S any] struct {
 
 	// currently selected field.
 	// Equal to len(tiCount), where the last item is the submit button
-	hovered uint
+	selected uint
 	// # of TIs currently available for editing this item
 	tiCount     int
 	orderedKTIs []scaffold.KeyedTI // KTIs, sorted by rank (cfg.Order)
@@ -97,7 +97,7 @@ func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubr
 }
 
 func (se *stateEdit[S]) view() string {
-	inputs := scaffold.ViewKTIs(uint(se.longestLineWidth)/2, uint(se.longestLineWidth)/2, se.orderedKTIs, se.hovered)
+	inputs := scaffold.ViewKTIs(uint(se.longestLineWidth)/2, uint(se.longestLineWidth)/2, se.orderedKTIs, se.selected)
 
 	var wrapSty = lipgloss.NewStyle().Width(se.longestLineWidth)
 
@@ -118,16 +118,16 @@ func (se *stateEdit[S]) view() string {
 func (se *stateEdit[S]) previousTI() {
 	// if we are not on the submit button, then blur
 	if !se.submitSelected() {
-		se.orderedKTIs[se.hovered].TI.Blur()
+		se.orderedKTIs[se.selected].TI.Blur()
 	}
-	if se.hovered == 0 { // wrap to submit button
-		se.hovered = uint(len(se.orderedKTIs))
+	if se.selected == 0 { // wrap to submit button
+		se.selected = uint(len(se.orderedKTIs))
 	} else {
-		se.hovered -= 1
+		se.selected -= 1
 	}
 	// if we are not on the submit button, then focus
 	if !se.submitSelected() {
-		se.orderedKTIs[se.hovered].TI.Focus()
+		se.orderedKTIs[se.selected].TI.Focus()
 	}
 }
 
@@ -135,14 +135,14 @@ func (se *stateEdit[S]) previousTI() {
 // Selects the submit button after the last TI and wraps after the submit button.
 func (se *stateEdit[S]) nextTI() {
 	if !se.submitSelected() {
-		se.orderedKTIs[se.hovered].TI.Blur()
+		se.orderedKTIs[se.selected].TI.Blur()
 	}
-	se.hovered += 1
-	if se.hovered > uint(len(se.orderedKTIs)) { // jump to start
-		se.hovered = 0
+	se.selected += 1
+	if se.selected > uint(len(se.orderedKTIs)) { // jump to start
+		se.selected = 0
 	}
 	if !se.submitSelected() {
-		se.orderedKTIs[se.hovered].TI.Focus()
+		se.orderedKTIs[se.selected].TI.Focus()
 	}
 }
 
@@ -150,12 +150,12 @@ func (se *stateEdit[S]) reset() {
 	var zero S
 
 	se.orderedKTIs = nil
-	se.hovered = 0
+	se.selected = 0
 	se.item = zero
 	se.err = ""
 	se.tiCount = 0
 }
 
 func (se *stateEdit[S]) submitSelected() bool {
-	return se.hovered == uint(se.tiCount)
+	return se.selected == uint(se.tiCount)
 }
