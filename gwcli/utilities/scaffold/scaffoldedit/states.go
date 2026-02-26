@@ -15,9 +15,9 @@ import (
 // stateEdit is the collection of fields required to track and display an item currently being edited.
 // Expects to be prepared by editModel.enterEditMode().
 type stateEdit[S any] struct {
-	err          string // SetField or Update encountered an error or invalid setting
-	item         S      // the item being altered
-	longestWidth int    // longest line width
+	err              string // SetField or Update encountered an error or invalid setting
+	item             S      // the item being altered
+	longestLineWidth int    // longest line width
 
 	// currently selected field.
 	// Equal to len(tiCount), where the last item is the submit button
@@ -98,9 +98,9 @@ func (se *stateEdit[S]) update(msg tea.Msg,
 }
 
 func (se *stateEdit[S]) view() string {
-	inputs := scaffold.ViewKTIs(uint(se.longestWidth), 20, se.orderedKTIs, se.hovered) // TODO
+	inputs := scaffold.ViewKTIs(uint(se.longestLineWidth)/2, uint(se.longestLineWidth)/2, se.orderedKTIs, se.hovered)
 
-	var wrapSty = lipgloss.NewStyle().Width(se.longestWidth)
+	var wrapSty = lipgloss.NewStyle().Width(se.longestLineWidth)
 
 	var inE string
 	if se.err != "" {
@@ -110,7 +110,7 @@ func (se *stateEdit[S]) view() string {
 	return inputs +
 		"\n" +
 		lipgloss.NewStyle().Width(lipgloss.Width(inputs)).AlignHorizontal(lipgloss.Center).Render(
-			stylesheet.ViewSubmitButton(se.submitHovered(), inE, "", 10), // TODO
+			stylesheet.ViewSubmitButton(se.submitHovered(), inE, "", se.longestLineWidth),
 		)
 }
 

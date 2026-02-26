@@ -488,7 +488,7 @@ func (em *editModel[I, S]) enterEditMode(item S) error {
 		i += 1
 
 		// check width
-		es.longestWidth = max(lipgloss.Width(fieldCfg.Title)+3+ti.Width, es.longestWidth)
+		es.longestLineWidth = max(lipgloss.Width(fieldCfg.Title)+3+ti.Width, es.longestLineWidth)
 	}
 
 	if len(es.orderedKTIs) < 1 {

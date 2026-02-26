@@ -155,8 +155,8 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 		t.Error("the first line should be hovered on first entry. Found ", em.editing.hovered)
 	} else if em.editing.err != "" {
 		t.Error(em.editing.err)
-	} else if em.editing.longestWidth < 10 { // arbitrarily small amount
-		t.Errorf("longest width is too small (%v) given window width.", em.editing.longestWidth)
+	} else if em.editing.longestLineWidth < 10 { // arbitrarily small amount
+		t.Errorf("longest width is too small (%v) given window width.", em.editing.longestLineWidth)
 	}
 
 	// check the value of the TI
