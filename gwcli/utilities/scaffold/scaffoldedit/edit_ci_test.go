@@ -165,7 +165,7 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 	em.Update(tea.KeyMsg{Type: tea.KeyUp})
 	time.Sleep(50 * time.Millisecond)
 
-	if !em.editing.submitHovered() {
+	if !em.editing.submitSelected() {
 		t.Fatal("keyUp on first field did not hover submit.",
 			ExpectedActual(uint(em.editing.tiCount), em.editing.hovered))
 	}
@@ -179,7 +179,7 @@ func fauxMother(t *testing.T, em *editModel[int, val], updateCalled *bool, id in
 		time.Sleep(50 * time.Millisecond)
 	}
 
-	if !em.editing.submitHovered() {
+	if !em.editing.submitSelected() {
 		t.Fatal("traversing down the list of TIs did not hover submit.",
 			ExpectedActual(uint(em.editing.tiCount), em.editing.hovered))
 	}

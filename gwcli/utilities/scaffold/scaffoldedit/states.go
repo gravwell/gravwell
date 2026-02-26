@@ -39,7 +39,7 @@ func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubr
 		se.err = "" // clear input errors on new key input
 		switch keymsg.Type {
 		case tea.KeyEnter:
-			if se.submitHovered() {
+			if se.submitSelected() {
 				var missing []string
 				for _, kti := range se.orderedKTIs { // check all required fields are populated
 					if kti.Required && strings.TrimSpace(kti.TI.Value()) == "" {
@@ -109,7 +109,7 @@ func (se *stateEdit[S]) view() string {
 	return inputs +
 		"\n" +
 		lipgloss.NewStyle().Width(lipgloss.Width(inputs)).AlignHorizontal(lipgloss.Center).Render(
-			stylesheet.ViewSubmitButton(se.submitHovered(), inE, "", se.longestLineWidth),
+			stylesheet.ViewSubmitButton(se.submitSelected(), inE, "", se.longestLineWidth),
 		)
 }
 
@@ -117,7 +117,7 @@ func (se *stateEdit[S]) view() string {
 // Wraps from the first TI to the submit button.
 func (se *stateEdit[S]) previousTI() {
 	// if we are not on the submit button, then blur
-	if !se.submitHovered() {
+	if !se.submitSelected() {
 		se.orderedKTIs[se.hovered].TI.Blur()
 	}
 	if se.hovered == 0 { // wrap to submit button
@@ -126,7 +126,7 @@ func (se *stateEdit[S]) previousTI() {
 		se.hovered -= 1
 	}
 	// if we are not on the submit button, then focus
-	if !se.submitHovered() {
+	if !se.submitSelected() {
 		se.orderedKTIs[se.hovered].TI.Focus()
 	}
 }
@@ -134,14 +134,14 @@ func (se *stateEdit[S]) previousTI() {
 // Blur existing TI, select and focus next (lower) TI.
 // Selects the submit button after the last TI and wraps after the submit button.
 func (se *stateEdit[S]) nextTI() {
-	if !se.submitHovered() {
+	if !se.submitSelected() {
 		se.orderedKTIs[se.hovered].TI.Blur()
 	}
 	se.hovered += 1
 	if se.hovered > uint(len(se.orderedKTIs)) { // jump to start
 		se.hovered = 0
 	}
-	if !se.submitHovered() {
+	if !se.submitSelected() {
 		se.orderedKTIs[se.hovered].TI.Focus()
 	}
 }
@@ -156,6 +156,6 @@ func (se *stateEdit[S]) reset() {
 	se.tiCount = 0
 }
 
-func (se *stateEdit[S]) submitHovered() bool {
+func (se *stateEdit[S]) submitSelected() bool {
 	return se.hovered == uint(se.tiCount)
 }
