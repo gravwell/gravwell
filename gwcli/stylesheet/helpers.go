@@ -68,6 +68,8 @@ func Button(text string) string {
 	return btn
 }
 
+var minSubmitButtonWidth = Cur.ComposableSty.ComplimentaryBorder.GetBorderLeftSize() + Cur.ComposableSty.ComplimentaryBorder.GetBorderRightSize() + len("submit")
+
 // ViewSubmitButton displays... a submit button.
 // It displays one of the errors if set, 1, then 2.
 // If not displaying either, it displays a box with "submit" in it.
