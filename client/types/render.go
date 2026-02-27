@@ -133,19 +133,44 @@ type ResultsOptions struct {
 	Keys     []string          `json:"keys,omitempty"`
 }
 
+// ResultsResponse represents the results of a query, including both tabular and graphical data. The Kind field indicates which type of results are present, and the corresponding field (Table or Graph) will be populated accordingly.
 type ResultsResponse struct {
-	Kind             string
-	Table            *ResultsTable
-	TotalResultCount int `json:"totalResultCount,omitempty"`
+	Table *ResultsTable
+	Graph *ResultsGraph
 }
 
 type ResultsTable struct {
-	Columns []string
-	Rows    []map[string]*ResultsTableCell
+	Kind             string                         `json:"kind"`
+	BinCount         int                            `json:"binCount"`
+	BinWidth         float64                        `json:"binWidth"`
+	Columns          []string                       `json:"columns"`
+	Rows             []map[string]*ResultsTableCell `json:"rows"`
+	TotalResultCount int                            `json:"totalResultCount"`
 }
 
 type ResultsTableCell struct {
-	Value string
+	Elements    []Element `json:",omitempty"`
+	Module      string    `json:",omitempty"`
+	Tag         string
+	Value       string
+	WordOffsets []WordOffset `json:",omitempty"`
+}
+
+type ResultsGraph struct {
+	Kind                     string             `json:"kind"`
+	Links                    []ResultsGraphLink `json:"links"`
+	NodeEnumeratedValueNames []string           `json:"nodeEnumeratedValueNames"`
+	Nodes                    []ResultsGraphNode `json:"nodes"`
+}
+
+type ResultsGraphLink struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+}
+
+type ResultsGraphNode struct {
+	EnumeratedValues map[string]string `json:"enumeratedValues"`
+	ID               string            `json:"id"`
 }
 
 type TimeRange struct {
@@ -717,16 +742,13 @@ func tsPointer(t entry.Timestamp) *entry.Timestamp {
 }
 
 func (rr ResultsResponse) MarshalJSON() ([]byte, error) {
-	// Right now only table is supported
-	return json.Marshal(&struct {
-		Kind             string                         `json:"kind"`
-		Columns          []string                       `json:"columns"`
-		Rows             []map[string]*ResultsTableCell `json:"rows"`
-		TotalResultCount int                            `json:"totalResultCount"`
-	}{
-		Kind:             rr.Kind,
-		Columns:          rr.Table.Columns,
-		Rows:             rr.Table.Rows,
-		TotalResultCount: rr.TotalResultCount,
-	})
+	if rr.Table != nil {
+		return json.Marshal(rr.Table)
+	}
+
+	if rr.Graph != nil {
+		return json.Marshal(rr.Graph)
+	}
+
+	return nil, errors.New("Results has no variant set")
 }
