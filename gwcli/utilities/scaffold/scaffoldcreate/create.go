@@ -419,23 +419,13 @@ func (c *createModel) extractValuesFromTIs() (fieldValues map[string]string, mis
 
 // Iterates through the keymap, drawing each ti and title by descending field.Order
 func (c *createModel) View() string {
-
-	inputs := scaffold.ViewKTIs(uint(c.longestFieldLength), c.orderedTIs, c.selected)
-
+	inputs := scaffold.ViewKTIs(uint(c.longestFieldLength), uint(c.longestTILength), c.orderedTIs, c.selected)
 	// generate submit button and align it with the center
-	var wrapSty = lipgloss.NewStyle().Width(c.longestFieldLength) // setting width keeps the button roughly proportional
-	var inE, cE string
-	if c.inputErr != "" {
-		inE = wrapSty.Render(c.inputErr)
-	}
-	if c.createErr != "" {
-		cE = wrapSty.Render(c.createErr)
-	}
+	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.width, c.inputErr, c.createErr)
 	// align the submit to roughly the end of the field titles
-	sbtn := stylesheet.ViewSubmitButton(c.SubmitSelected(), inE, cE)
-	return inputs + "\n" + lipgloss.NewStyle().
-		Width(c.longestFieldLength+c.longestTILength+1+1). // +1 for pip, +1 for separator colon
-		AlignHorizontal(lipgloss.Center).Render(sbtn)
+	return lipgloss.NewStyle().Width(c.width).
+		AlignHorizontal(lipgloss.Center).Render(inputs) + "\n" + sbtn
+
 }
 
 func (c *createModel) Done() bool {

@@ -389,7 +389,7 @@ func (em *editModel[I, S]) updateSelecting(msg tea.Msg) tea.Cmd {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		if msg.Type == tea.KeySpace || msg.Type == tea.KeyEnter {
-			item := em.data[em.list.Index()]
+			item := em.data[em.list.GlobalIndex()]
 			if err := em.enterEditMode(item); err != nil {
 				em.mode = quitting
 				clilog.Writer.Errorf("%v", err)
@@ -488,7 +488,7 @@ func (em *editModel[I, S]) enterEditMode(item S) error {
 		i += 1
 
 		// check width
-		es.longestWidth = max(lipgloss.Width(fieldCfg.Title)+3+ti.Width, es.longestWidth)
+		es.longestLineWidth = max(lipgloss.Width(fieldCfg.Title)+3+ti.Width, es.longestLineWidth)
 	}
 
 	if len(es.orderedKTIs) < 1 {

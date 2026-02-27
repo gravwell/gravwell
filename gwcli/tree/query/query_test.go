@@ -30,8 +30,9 @@ import (
 const (
 	server = "localhost:80"
 	user   = "admin"
-	pass   = "changeme"
 )
+
+var pass = "changeme"
 
 /*
 // UUIDs are not seeded, so make sure the uuid1str const actually exists on the gravwell server.
@@ -121,7 +122,7 @@ func Test_tryQuery(t *testing.T) {
 	if err := connection.Initialize(server, false, true, restLogFile); err != nil {
 		panic(err)
 	}
-	if err := connection.Login(user, pass, "", true); err != nil {
+	if err := connection.Login(user, &pass, nil, true); err != nil {
 		panic(err)
 	}
 
@@ -191,7 +192,7 @@ func Test_run(t *testing.T) {
 	if err := connection.Initialize(server, false, true, restLogFile); err != nil {
 		panic(err)
 	}
-	if err := connection.Login(user, pass, "", true); err != nil {
+	if err := connection.Login(user, &pass, nil, true); err != nil {
 		panic(err)
 	}
 

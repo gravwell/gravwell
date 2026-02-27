@@ -17,6 +17,7 @@ import (
 	"io"
 	"maps"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -83,6 +84,18 @@ func TTMatchGolden(t *testing.T, tm *teatest.TestModel, final bool, finalWait ti
 // ! Prefixes the string with a newline.
 func ExpectedActual(expected, actual any) string {
 	return fmt.Sprintf("\n\tExpected:'%+v'\n\tGot:'%+v'", expected, actual)
+}
+
+// Uncloak replaces whitespace characters with visible representations.
+//
+// \t 		-> ↹ (U+21B9)
+// \n 		-> ↵ (U+21B5) (newline will be retained, not replaced)
+// (space) 	-> · (U+B7)
+func Uncloak(s string) string {
+	s = strings.ReplaceAll(s, " ", "·")
+	s = strings.ReplaceAll(s, "\n", "↵\n")
+	s = strings.ReplaceAll(s, "\t", "↹")
+	return s
 }
 
 // NonZeroExit calls Fatal if code is <> 0.

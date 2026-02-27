@@ -203,6 +203,20 @@ var (
 		typ:   types.Bool,
 	}
 
+	//#region authentication
+	API = simple{
+		name:  "api",
+		usage: "the path to a file containing an API key to authenticate with",
+		typ:   types.String,
+	}
+	EAPI = simple{
+		name:  "eapi",
+		usage: "read the API key from environment variable \"" + cfgdir.EnvKeyAPI + "\".",
+		typ:   types.Bool,
+	}
+
+	//#endregion
+
 	//#region output manipulation
 
 	// Output (-o) is a local flag implemented by actions to redirect their results to a file.
