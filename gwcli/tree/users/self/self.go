@@ -2,9 +2,9 @@ package self
 
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/user/admin"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/user/logout"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/user/myinfo"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/users/self/admin"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/users/self/logout"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/users/self/myinfo"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 )
