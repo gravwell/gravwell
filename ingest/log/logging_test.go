@@ -422,7 +422,7 @@ func Test_genRfcOutput(t *testing.T) {
 			rfc5424.Debug, "host", "app", "id", "base message",
 			[]rfc5424.SDParam{
 				{Name: "1=Name", Value: "1Value"},
-				{Name: "2Name", Value: "2/Value']"},
+				{Name: `2Na'me"`, Value: "2/Value']"},
 			},
 		},
 	}
