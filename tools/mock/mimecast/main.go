@@ -190,6 +190,10 @@ func siem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	events, err := genSiemEvents(20, start, end)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
 
 	response := mimecast.SIEMEventResponse{
 		Value:      events,
