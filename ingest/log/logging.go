@@ -673,6 +673,9 @@ func GenRFCMessage(ts time.Time, prio rfc5424.Priority, hostname, appname, msgid
 		Message:   []byte(msg),
 	}
 	if len(sds) > 0 {
+		for _, sd := range sds {
+			sd.Value = strings.ReplaceAll(sd.Value, " ", "_")
+		}
 		m.StructuredData = []rfc5424.StructuredData{
 			{
 				ID:         DefaultID,
