@@ -557,7 +557,7 @@ func renderMsgRaw(msg string, sds ...rfc5424.SDParam) string {
 	return sb.String()
 }
 
-var syslogReplacer = strings.NewReplacer(" ", "_", "=", "_", "/", "_", "]", "_")
+var syslogReplacer = strings.NewReplacer(" ", "_", "=", "_", "/", "_", "]", "_", `"`, "_")
 
 // genRFCOutput returns the given data formatted raw and as syslog.
 // Invalid runes in SDParam Names and Values are destructively replaced with "_".
