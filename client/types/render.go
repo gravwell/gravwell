@@ -259,7 +259,7 @@ type IngestTailStatsResponse struct {
 	Indexers map[string]IngestTailStats
 }
 
-// IngestTailStatsResponse is a trimmed down IngestStats for a specific indexer.
+// IngestTailStats is a trimmed down IngestStats for a specific indexer.
 type IngestTailStats struct {
 	EntriesPerSecond  float64
 	BytesPerSecond    float64
