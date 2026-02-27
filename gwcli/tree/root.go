@@ -40,7 +40,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/user"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -323,7 +323,7 @@ func Execute(args []string) int {
 		macros.NewMacrosNav,
 		queries.NewQueriesNav,
 		kits.NewKitsNav,
-		user.NewUserNav,
+		users.NewUsersNav,
 		extractors.NewExtractorsNav,
 		dashboards.NewDashboardNav,
 		resources.NewResourcesNav,
