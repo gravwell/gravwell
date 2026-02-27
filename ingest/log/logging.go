@@ -674,7 +674,7 @@ func GenRFCMessage(ts time.Time, prio rfc5424.Priority, hostname, appname, msgid
 	}
 	if len(sds) > 0 {
 		m.StructuredData = []rfc5424.StructuredData{
-			rfc5424.StructuredData{
+			{
 				ID:         DefaultID,
 				Parameters: sds,
 			},
