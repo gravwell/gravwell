@@ -12,8 +12,10 @@ package macros
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -112,6 +114,8 @@ func listMacros(fs *pflag.FlagSet) ([]types.Macro, error) {
 
 //#region create
 
+var macroNameRgx = regexp.MustCompile("^[a-zA-Z0-9_-]*$")
+
 // creates macros using 3 fields: name, description, and expansion.
 func newMacroCreateAction() action.Pair {
 	fields := scaffoldcreate.Config{
@@ -125,9 +129,19 @@ func newMacroCreateAction() action.Pair {
 			Order:        100,
 			CustomTIFuncInit: func() textinput.Model {
 				ti := stylesheet.NewTI("", false)
+				ti.Prompt = "$"
 				ti.Validate = func(s string) error {
-					if strings.Contains(s, " ") {
-						return errors.New("macro names may not contain spaces")
+					s = strings.ToUpper(s)
+					if !macroNameRgx.MatchString(s) {
+						return errors.New("Macro names may contain capital letters, numbers, dashes and underscores")
+					}
+
+					if len(s) > 0 {
+						char := []rune(s)[0]
+						if !(unicode.IsDigit(char) || unicode.IsLetter(char)) {
+							return errors.New("macro names must start with a letter or number")
+						}
+
 					}
 					return nil
 				}

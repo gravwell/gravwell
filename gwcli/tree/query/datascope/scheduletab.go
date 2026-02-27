@@ -162,6 +162,7 @@ func viewSchedule(s *DataScope) string {
 			"",
 			stylesheet.ViewSubmitButton(
 				s.schedule.selected == schsubmit,
+				s.usableWidth(),
 				s.schedule.resultString,
 				s.schedule.inputErrorString,
 			),
