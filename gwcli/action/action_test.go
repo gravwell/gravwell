@@ -12,7 +12,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/user/myinfo"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/users/self/myinfo"
 )
 
 func TestIs(t *testing.T) {
