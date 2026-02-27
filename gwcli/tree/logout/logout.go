@@ -19,7 +19,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func NewUserLogoutAction() action.Pair {
+func NewAction() action.Pair {
 	const (
 		use   string = "logout"
 		short string = "logout and end the session"

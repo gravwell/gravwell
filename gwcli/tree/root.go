@@ -35,6 +35,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/logout"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/macros"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
@@ -275,8 +276,9 @@ func Execute(args []string) int {
 	rootCmd := treeutils.GenerateNav(use, short, long, []string{},
 		nil, // navs are added later
 		[]action.Pair{
-			query.NewQueryAction(),
 			ingest.NewIngestAction(),
+			logout.NewAction(),
+			query.NewQueryAction(),
 		})
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentPreRunE = ppre

@@ -3,7 +3,6 @@ package self
 import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/users/self/admin"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/users/self/logout"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/users/self/myinfo"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -19,7 +18,8 @@ var aliases []string = []string{"me"}
 
 func NewSelfNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases, nil,
-		[]action.Pair{logout.NewUserLogoutAction(),
+		[]action.Pair{
 			admin.NewUserAdminAction(),
-			myinfo.NewUserMyInfoAction()})
+			myinfo.NewUserMyInfoAction(),
+		})
 }
