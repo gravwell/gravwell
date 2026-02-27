@@ -244,7 +244,7 @@ type IngestStats struct {
 	Missing           []ingest.IngesterState //ingesters that have been seen before but not actively connected now
 }
 
-// IngestTailStats is a trimmed down IngestStats to display only individual and accumulated tail data
+// IngestTailStatsResponse is a trimmed down IngestStats to display only individual and accumulated tail data
 type IngestTailStatsResponse struct {
 	// global values
 
@@ -259,6 +259,7 @@ type IngestTailStatsResponse struct {
 	Indexers map[string]IngestTailStats
 }
 
+// IngestTailStatsResponse is a trimmed down IngestStats for a specific indexer.
 type IngestTailStats struct {
 	EntriesPerSecond  float64
 	BytesPerSecond    float64
