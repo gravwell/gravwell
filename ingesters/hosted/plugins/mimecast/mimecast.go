@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"iter"
@@ -209,29 +210,25 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 		} else {
 			rt.Debug("fetching batch between", log.KV("api", api), log.KV("start", lts), log.KV("end", ts))
 		}
-		r, err := m.c.GetSIEMEventBatch(ctx, event, lts, ts, cursor)
+		r, err := m.c.GetRawSIEMEvents(ctx, event, lts, ts, cursor)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
 				rt.Error("request error", log.KV("api", api), log.KVErr(err))
 			}
 			continue
 		}
-		last := &ts
-		rt.Debug("got batches", log.KV("api", api), log.KV("count", len(r.Value)))
-		for _, v := range r.Value {
-			t, err := m.handleMtaEvent(ctx, rt, tag, v)
-			if err != nil {
-				rt.Error("error handling mta page", log.KV("api", api), log.KVErr(err))
-				continue
-			}
-			last = t
+		rt.Debug("got events", log.KV("api", api), log.KV("count", len(r.Value)))
+		last, err := m.handleMtaPage(rt, tag, r.Value)
+		if err != nil {
+			rt.Error("error handling mta page", log.KV("api", api), log.KVErr(err))
+			continue
 		}
 		if r.IsCaughtUp { // Progress forward in time
 			rt.Debug("no more pages, moving forward in time", log.KV("api", api), log.KV("to", *last))
 			rt.PutString(m.cursor(api), "")
 			rt.PutTime(m.timestamp(api), *last)
 		} else {
-			rt.Debug("got another page of batch", log.KV("api", api))
+			rt.Debug("got another page of events", log.KV("api", api))
 			rt.PutString(m.cursor(api), r.NextPage)
 		}
 	}
@@ -239,7 +236,42 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 	return nil
 }
 
-func (m *Mimecast) handleMtaEvent(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, event SIEMEvent) (*time.Time, error) {
+func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []json.RawMessage) (*time.Time, error) {
+	var first *time.Time
+	var last time.Time
+	count := 0
+	for _, event := range page {
+		if len(event) == 0 {
+			rt.Debug("skipping empty mta event")
+			continue
+		}
+		data, err := parse[MtaEventData](bytes.NewReader(event))
+		if err != nil {
+			rt.Error("failed to parse mta event", log.KVErr(err))
+			continue
+		}
+		ts := time.UnixMilli(data.Timestamp)
+		if first == nil {
+			first = &ts
+		}
+
+		e := entry.Entry{
+			TS:   entry.FromStandard(ts),
+			Data: event,
+			Tag:  tag,
+		}
+		if err := rt.Write(e); err != nil {
+			rt.Error("failed to write mta event", log.KVErr(err))
+			continue
+		}
+		last = ts
+		count++
+	}
+	rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last))
+	return &last, nil
+}
+
+func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, event SIEMBatchEvent) (*time.Time, error) {
 	entries, err := m.entries(ctx, event.URL)
 	if err != nil {
 		return nil, err

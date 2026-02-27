@@ -47,7 +47,8 @@ func main() {
 	flag.Parse()
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /oauth/token", auth)
-	mux.HandleFunc("GET /siem/v1/batch/events/cg", siem)
+	mux.HandleFunc("GET /siem/v1/batch/events/cg", siemBatch)
+	mux.HandleFunc("GET /siem/v1/events/cg", siem)
 	mux.HandleFunc("POST /api/audit/get-audit-events", audit)
 	mux.HandleFunc("GET /storage/{id}/json.gz", storage)
 	if err := http.ListenAndServe(fmt.Sprintf(":%d", *port), mux); err != nil {
@@ -87,10 +88,10 @@ func auth(w http.ResponseWriter, r *http.Request) {
 	w.Write(body)
 }
 
-// siem responds with a mimecast.SIEMBatchEventResponse.
+// siemBatch responds with a mimecast.SIEMBatchEventResponse.
 // For the mock it points the URL to the storage endpoint.
 // It validates the query params for dates.
-func siem(w http.ResponseWriter, r *http.Request) {
+func siemBatch(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -131,12 +132,67 @@ func siem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := mimecast.SIEMBatchEventResponse{
-		Value: []mimecast.SIEMEvent{
+		Value: []mimecast.SIEMBatchEvent{
 			{
 				URL:  fmt.Sprintf("http://localhost:%d/storage/%s/json.gz", *port, cursor),
 				Size: 1024,
 			},
 		},
+		NextPage:   nextPage,
+		IsCaughtUp: !hasNextPage,
+	}
+
+	body, err := json.Marshal(response)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	w.Write(body)
+}
+
+// siem responds with a mimecast.SIEMEventResponse.
+// It validates the query params for dates.
+func siem(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Validate query params exist
+	query := r.URL.Query()
+	cursor := query.Get("nextPage")
+	startStr := query.Get("dateRangeStartsAt")
+	endStr := query.Get("dateRangeEndsAt")
+	var start, end time.Time
+	if cursor == "" && (startStr == "" || endStr == "") {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	var err error
+	// Parse the time range
+	if start, err = time.Parse(mimecast.AuditTimeFormat, startStr); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if end, err = time.Parse(mimecast.AuditTimeFormat, endStr); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	cursor = generateID()
+
+	hasNextPage := rand.Intn(5) >= 3 // 40% chance to have another page
+	nextPage := ""
+	if hasNextPage {
+		nextPage = cursor
+	}
+
+	events, err := genSiemEvents(20, start, end)
+
+	response := mimecast.SIEMEventResponse{
+		Value:      events,
 		NextPage:   nextPage,
 		IsCaughtUp: !hasNextPage,
 	}
@@ -176,6 +232,7 @@ func audit(w http.ResponseWriter, r *http.Request) {
 	var req mimecast.Request
 	if err := json.Unmarshal(body, &req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
+		fmt.Printf("ERROR: failed to unmarshal request: %s\n", err)
 		return
 	}
 
@@ -188,11 +245,13 @@ func audit(w http.ResponseWriter, r *http.Request) {
 			start, err = time.Parse(mimecast.AuditTimeFormat, req.Data[0].StartDateTime)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
+				fmt.Printf("ERROR: failed to parse start date: %s\n", err)
 				return
 			}
 			end, err = time.Parse(mimecast.AuditTimeFormat, req.Data[0].EndDateTime)
 			if err != nil {
 				w.WriteHeader(http.StatusBadRequest)
+				fmt.Printf("ERROR: failed to parse end date: %s\n", err)
 				return
 			}
 		} else {
@@ -296,52 +355,16 @@ func storage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate multiple MTA events with jittered timestamps within the time range
-	numEvents := 5
-	events := make([]map[string]interface{}, 0, numEvents)
-	duration := tr.end.Sub(tr.start)
-
-	messages := []string{
-		"Email delivered successfully",
-		"Email received",
-		"Email processed",
-		"Spam detected and blocked",
-		"Attachment scanned",
-	}
-	froms := []string{"sender@example.com", "another@example.com", "system@example.com", "user@example.com", "admin@example.com"}
-	tos := []string{"recipient@example.com", "user@example.com", "admin@example.com", "team@example.com", "support@example.com"}
-	subjects := []string{"Important Update", "Monthly Report", "Action Required", "System Notification", "Security Alert"}
-
-	for i := 0; i < numEvents; i++ {
-		// Add jitter within the time range, distributing events from start to end
-		// Use (i+1)/(numEvents+1) to avoid bunching at the boundaries
-		jitterFactor := float64(i+1) / float64(numEvents+1)
-		jitter := time.Duration(float64(duration) * jitterFactor)
-		eventTime := tr.start.Add(jitter)
-
-		fmt.Printf("Storage[%s] Event %d: start=%s end=%s duration=%s jitterFactor=%f eventTime=%s\n",
-			id, i, tr.start.Format(time.RFC3339), tr.end.Format(time.RFC3339), duration, jitterFactor, eventTime.Format(time.RFC3339))
-
-		event := map[string]interface{}{
-			"timestamp": eventTime.UnixMilli(),
-			"message":   messages[i%len(messages)],
-			"from":      froms[i%len(froms)],
-			"to":        tos[i%len(tos)],
-			"subject":   subjects[i%len(subjects)],
-			"eventId":   fmt.Sprintf("mta-event-%d", i+1),
-		}
-		events = append(events, event)
+	events, err := genSiemEvents(5, tr.start, tr.end)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
 	}
 
 	// Build multiline JSON
 	var buf bytes.Buffer
 	for i, event := range events {
-		eventBytes, err := json.Marshal(event)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			return
-		}
-		buf.Write(eventBytes)
+		buf.Write(event)
 		if i < len(events)-1 {
 			buf.WriteString("\n")
 		}
@@ -363,4 +386,53 @@ func storage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/gzip")
 	w.WriteHeader(http.StatusOK)
 	w.Write(gzBuf.Bytes())
+}
+
+func genSiemEvents(amount int, start, end time.Time) ([]json.RawMessage, error) {
+	// Generate multiple MTA events with jittered timestamps within the time range
+	events := make([]map[string]interface{}, 0, amount)
+	duration := end.Sub(start)
+
+	messages := []string{
+		"Email delivered successfully",
+		"Email received",
+		"Email processed",
+		"Spam detected and blocked",
+		"Attachment scanned",
+	}
+	froms := []string{"sender@example.com", "another@example.com", "system@example.com", "user@example.com", "admin@example.com"}
+	tos := []string{"recipient@example.com", "user@example.com", "admin@example.com", "team@example.com", "support@example.com"}
+	subjects := []string{"Important Update", "Monthly Report", "Action Required", "System Notification", "Security Alert"}
+
+	for i := 0; i < amount; i++ {
+		// Add jitter within the time range, distributing events from start to end
+		// Use (i+1)/(amount+1) to avoid bunching at the boundaries
+		jitterFactor := float64(i+1) / float64(amount+1)
+		jitter := time.Duration(float64(duration) * jitterFactor)
+		eventTime := start.Add(jitter)
+
+		fmt.Printf("Generated SIEM event %d: start=%s end=%s duration=%s jitterFactor=%f eventTime=%s\n",
+			i, start.Format(time.RFC3339), end.Format(time.RFC3339), duration, jitterFactor, eventTime.Format(time.RFC3339))
+
+		event := map[string]interface{}{
+			"timestamp": eventTime.UnixMilli(),
+			"message":   messages[i%len(messages)],
+			"from":      froms[i%len(froms)],
+			"to":        tos[i%len(tos)],
+			"subject":   subjects[i%len(subjects)],
+			"eventId":   fmt.Sprintf("mta-event-%d", i+1),
+		}
+		events = append(events, event)
+	}
+
+	var list []json.RawMessage
+	for _, event := range events {
+		eventBytes, err := json.Marshal(event)
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, eventBytes)
+	}
+
+	return list, nil
 }

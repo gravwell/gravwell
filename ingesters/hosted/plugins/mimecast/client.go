@@ -15,10 +15,11 @@ import (
 )
 
 const (
-	MTATimeFormat   = "2006-01-02"
-	AuditTimeFormat = "2006-01-02T15:04:05-0700"
-	siemEndpoint    = "/siem/v1/batch/events/cg"
-	AuditEndpoint   = "/api/audit/get-audit-events"
+	MTATimeFormat     = "2006-01-02"
+	AuditTimeFormat   = "2006-01-02T15:04:05-0700"
+	siemBatchEndpoint = "/siem/v1/batch/events/cg"
+	siemEndpoint      = "/siem/v1/events/cg"
+	AuditEndpoint     = "/api/audit/get-audit-events"
 )
 
 var (
@@ -125,13 +126,13 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end
 	params.Set("type", string(et))
 	params.Set("dateRangeStartsAt", start.Format(MTATimeFormat))
 	params.Set("dateRangeEndsAt", end.Format(MTATimeFormat))
-	params.Set("pageSize", "10") // limit risk of dropping events
+	params.Set("pageSize", "100")
 	if cursor != "" {
 		params.Set("nextPage", cursor)
 	}
 	endpoint := fmt.Sprintf("%s%s?%s",
 		c.host,
-		siemEndpoint,
+		siemBatchEndpoint,
 		params.Encode(),
 	)
 	r, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
@@ -171,7 +172,7 @@ func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cu
 	}
 
 	payload := Request{}
-	payload.Meta.Pagination.PageSize = 10
+	payload.Meta.Pagination.PageSize = 100
 	if cursor != "" {
 		payload.Meta.Pagination.PageToken = cursor
 	} else {
@@ -211,6 +212,70 @@ func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cu
 	}
 
 	return b, nil
+}
+
+func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, start, end time.Time, cursor string) (*SIEMEventResponse, error) {
+	if err := validTime(start, end); err != nil {
+		return nil, err
+	}
+
+	params := url.Values{}
+	params.Set("type", string(event))
+	params.Set("dateRangeStartsAt", start.Format(AuditTimeFormat))
+	params.Set("dateRangeEndsAt", end.Format(AuditTimeFormat))
+	params.Set("pageSize", "100")
+	if cursor != "" {
+		params.Set("nextPage", cursor)
+	}
+	endpoint := fmt.Sprintf("%s%s?%s",
+		c.host,
+		siemEndpoint,
+		params.Encode(),
+	)
+	r, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, fmt.Errorf("error building siem event batch request: %w", err)
+	}
+
+	r.Header.Set("Accept", "application/json")
+	resp, err := c.Do(r)
+	if err != nil {
+		return nil, fmt.Errorf("error making siem event batch request: %w", err)
+	}
+
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		statusErr := fmt.Errorf("invalid status code %d", resp.StatusCode)
+		b, err := parse[SIEMErrorResponse](resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("%w, failed to parse error response: %w", statusErr, err)
+		}
+		return nil, fmt.Errorf("%w, error: %s - %s", statusErr, b.Error.Code, b.Error.Message)
+	}
+
+	b, err := parse[SIEMEventResponse](resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing siem event batch response: %w", err)
+	}
+
+	return b, nil
+}
+
+func validTime(start, end time.Time) error {
+	if start.After(end) {
+		return fmt.Errorf("start time is after end time")
+	}
+	if start.IsZero() {
+		return fmt.Errorf("start time is zero")
+	}
+	if end.IsZero() {
+		return fmt.Errorf("end time is zero")
+	}
+	if start.Equal(end) {
+		return fmt.Errorf("start and end time are equal")
+	}
+	return nil
 }
 
 // parse will read and marshal bytes into a type T.
