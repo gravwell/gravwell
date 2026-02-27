@@ -23,7 +23,7 @@ func NewUsersNav() *cobra.Command {
 }
 
 func list() action.Pair {
-	return scaffoldlist.NewListAction("list users", "Retrieves details about every user in the system", types.User{},
+	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
 		func(fs *pflag.FlagSet) ([]types.User, error) {
 			return connection.Client.GetAllUsers()
 		}, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
