@@ -417,7 +417,7 @@ func Test_genRfcOutput(t *testing.T) {
 				{Name: "2Name", Value: "2 Value"},
 			},
 		},
-		{"three SDParams with illegal characters",
+		{"two SDParams with illegal characters",
 			time.Now(),
 			rfc5424.Debug, "host", "app", "id", "base message",
 			[]rfc5424.SDParam{
