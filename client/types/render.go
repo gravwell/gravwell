@@ -245,7 +245,7 @@ type IngestStats struct {
 }
 
 // IngestTailStats is a trimmed down IngestStats to display only individual and accumulated tail data
-type IngestTailStats struct {
+type IngestTailStatsResponse struct {
 	// global values
 
 	EntriesPerSecond  float64
@@ -256,14 +256,16 @@ type IngestTailStats struct {
 	BytesMinuteTail   [60]uint64 //bytes per 1 second bucket with 60s of tail
 
 	// indexer stats
-	Indexers map[string]struct {
-		EntriesPerSecond  float64
-		BytesPerSecond    float64
-		EntriesHourTail   [24]uint64 //entries per 1 hour bucket with 24 hours of tail
-		EntriesMinuteTail [60]uint64 //entries per 1 second bucket with 60s of tail
-		BytesHourTail     [24]uint64 //bytes per 1 hour bucket with 24 hours of tail
-		BytesMinuteTail   [60]uint64 //bytes per 1 second bucket with 60s of tail
-	}
+	Indexers map[string]IngestTailStats
+}
+
+type IngestTailStats struct {
+	EntriesPerSecond  float64
+	BytesPerSecond    float64
+	EntriesHourTail   [24]uint64 //entries per 1 hour bucket with 24 hours of tail
+	EntriesMinuteTail [60]uint64 //entries per 1 second bucket with 60s of tail
+	BytesHourTail     [24]uint64 //bytes per 1 hour bucket with 24 hours of tail
+	BytesMinuteTail   [60]uint64 //bytes per 1 second bucket with 60s of tail
 }
 
 type IngesterStats struct {
