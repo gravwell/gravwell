@@ -15,9 +15,12 @@ import (
 	"slices"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -84,6 +87,48 @@ func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all resources on the system")
 	return addtlFlags
+}
+
+func get() action.Pair {
+	return scaffold.NewBasicAction("get", "download a resource", "Download a resource for use locally.\n"+
+		"Because resources can be shared, and resources are not required to have globally-unique names,"+
+		"the following precedence is used when selecting a resource by user-friendly name:\n"+
+		"1. Resources owned by the user always have highest priority\n"+
+		"2. Resources shared with a group to which the user belongs are next\n"+
+		"3. Global resources are the lowest priority.",
+		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			// arg length should be checked by the options
+			id := fs.Arg(0)
+
+			if metadata, err := fs.GetBool("metadata"); err != nil {
+				clilog.LogFlagFailedGet("metadata", err)
+			} else if metadata {
+				metadata, err := connection.Client.GetResourceMetadata(id)
+				if err != nil {
+					return err.Error(), nil
+				}
+				// TODO it'd be ideal to return metadata with list functionality
+				// TODO maybe we split get into `inspect` and `download`
+				// Probably need a dictionary for get vs inspect vs download to ensure consistent usage
+			}
+			connection.Client.GetResource(id)
+		},
+		scaffold.BasicOptions{
+			AddtlFlagFunc: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				fs.BoolP("metadata", "m", false, "Fetch only resource metadata, not the resource itself")
+				// TODO define output
+				return fs
+			},
+			CmdMods: func(c *cobra.Command) {
+				// TODO set example and usage
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				// TODO check that exactly one argument was given
+				// TODO Can this done in CmdMods?
+			},
+		},
+	)
 }
 
 func delete() action.Pair {
