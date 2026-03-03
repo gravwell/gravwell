@@ -110,7 +110,8 @@ type CreateFuncT func(cfg Config, fieldValues map[string]string, fs *pflag.FlagS
 func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, extraFlagsFunc func() pflag.FlagSet) action.Pair {
 	// nil check singular
 	if singular == "" {
-		panic("")
+		clilog.Writer.Error("singular noun cannot be empty. Defaulting to \"UNKNOWN\"", scaffold.IdentifyCaller())
+		singular = "UNKNOWN"
 	}
 
 	// pull flags from provided fields
