@@ -317,6 +317,12 @@ func (c *Client) SearchDownloadRequestWithContext(id, format string, tr types.Ti
 	return
 }
 
+// SearchDownloadRequestV2 initiates a download of search results using the V2 endpoint.
+func (c *Client) SearchDownloadRequestV2(id string, req types.SearchDownloadRequest) (resp types.SearchDownloadResponse, err error) {
+	err = c.postStaticURL(searchCtrlDownloadUrlV2(id), req, &resp)
+	return
+}
+
 // DownloadRequest performs an authenticated GET request on the specified URL
 // and hands back the http.Response object for the request.
 func (c *Client) DownloadRequest(url string) (resp *http.Response, err error) {
