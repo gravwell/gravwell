@@ -167,6 +167,14 @@ func create() action.Pair {
 			FlagShorthand: 'd',
 			Order:         90,
 		},
+		"path": {
+			Required:      true,
+			Title:         "path",
+			Usage:         "path to the file to upload as the new resource",
+			Type:          scaffoldcreate.File,
+			FlagShorthand: 'f',
+			Order:         80,
+		},
 	}
 
 	return scaffoldcreate.NewCreateAction("resource", fields,
