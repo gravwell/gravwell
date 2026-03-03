@@ -55,7 +55,7 @@ func NewResourcesNav() *cobra.Command {
 func list() action.Pair {
 	const (
 		short string = "list resources on the system"
-		long  string = "view resources available to your user and the system"
+		long  string = "view resources available to your user."
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.Resource{}, func(fs *pflag.FlagSet) ([]types.Resource, error) {
@@ -90,7 +90,7 @@ func list() action.Pair {
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all resources on the system")
+	ft.GetAll.Register(&addtlFlags, true, "resources")
 	return addtlFlags
 }
 
