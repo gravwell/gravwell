@@ -6,12 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"golang.org/x/time/rate"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
+
+	"golang.org/x/time/rate"
 
 	"strings"
 	"sync"
@@ -39,13 +39,6 @@ type mimecastAuditDataPayload struct {
 	Data []struct {
 		EndDateTime   string `json:"endDateTime,omitempty"`
 		StartDateTime string `json:"startDateTime,omitempty"`
-	} `json:"data,omitempty"`
-}
-
-type mimecastSecurityDataPayload struct {
-	Data []struct {
-		To   string `json:"to,omitempty"`
-		From string `json:"from,omitempty"`
 	} `json:"data,omitempty"`
 }
 
@@ -807,22 +800,17 @@ func getMimecastMTALogs(cli *http.Client, checkpointTime time.Time, logType stri
 				return fmt.Errorf("invalid status code %d", resp.StatusCode)
 			}
 
-			fileData, err := io.ReadAll(fileResp.Body)
+			gzreader, err := gzip.NewReader(fileResp.Body)
 			if err != nil {
 				return err
 			}
-			reader := bytes.NewReader(fileData)
-			gzreader, err := gzip.NewReader(reader)
-			if err != nil {
-				return err
-			}
-			fileData, err = ioutil.ReadAll(gzreader)
+			fileData, err := io.ReadAll(gzreader)
 			if err != nil {
 				return err
 			}
 			fileResp.Body.Close()
 
-			splitEntries := strings.Split(string(fileData), "\n")
+			splitEntries := bytes.Split(fileData, []byte("\n"))
 
 			var T any
 			switch logType {
@@ -850,7 +838,7 @@ func getMimecastMTALogs(cli *http.Client, checkpointTime time.Time, logType stri
 
 			var ents []*entry.Entry
 			for _, v := range splitEntries {
-				if v != "" {
+				if len(v) != 0 {
 					var entryTime time.Time
 					var entryData []byte
 
