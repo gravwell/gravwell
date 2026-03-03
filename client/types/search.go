@@ -361,6 +361,56 @@ type SearchCtrlStatus struct {
 	Metadata        json.RawMessage `json:",omitempty"` //additional metadata associated with a search
 }
 
+type SearchDownloadRequest struct {
+	Format string         `json:"format"`
+	Rows   []RowSelection `json:"rows,omitempty"`
+}
+
+type RowSelection struct {
+	Kind string `json:"kind"`
+	// Start and End must be populated if it is a range, but not Index
+	Start uint64 `json:"start,omitempty"`
+	End   uint64 `json:"end,omitempty"`
+	// Index must be selected if it is only a single row, but not Start or End
+	Index uint64 `json:"index,omitempty"`
+}
+
+func (rs RowSelection) MarshalJSON() ([]byte, error) {
+	switch rs.Kind {
+	case "range":
+		if rs.Index != 0 {
+			return nil, fmt.Errorf("row selection kind %q must not have index set", rs.Kind)
+		}
+	case "single":
+		if rs.Start != 0 || rs.End != 0 {
+			return nil, fmt.Errorf("row selection kind %q must not have start or end set", rs.Kind)
+		}
+	default:
+		return nil, fmt.Errorf("unknown row selection kind: %q", rs.Kind)
+	}
+	// Break the MarshalJSON recursion doom loop with a type alias
+	type alias RowSelection
+	return json.Marshal(alias(rs))
+}
+
+type RowRange struct {
+	Kind  string `json:"kind"`
+	Start uint64 `json:"start"`
+	End   uint64 `json:"end"`
+}
+
+type RowSingle struct {
+	Kind  string `json:"kind"`
+	Index uint64 `json:"index"`
+}
+
+type SearchDownloadResponse struct {
+	DownloadResourceURL string `json:"downloadResourceURL"`
+	EntryCount          uint64 `json:"entryCount"`
+	Expiration          string `json:"expiration"`
+	SearchID            string `json:"searchId"`
+}
+
 type SearchState struct {
 	Attached     bool         `json:"attached"`
 	Backgrounded bool         `json:"backgrounded"`
