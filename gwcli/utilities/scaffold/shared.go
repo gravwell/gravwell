@@ -2,11 +2,14 @@ package scaffold
 
 import (
 	"fmt"
+	"path"
+	"runtime"
 	"strconv"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -132,4 +135,16 @@ func FromString[I Id_t](str string) (I, error) {
 		return ret, fmt.Errorf("unknown id type %#v", p)
 	}
 	return ret, err
+}
+
+// IdentifyCaller returns a valid SDParam containing information about the caller to make it easier to log which action is in error.
+func IdentifyCaller() rfc5424.SDParam {
+	var identifier rfc5424.SDParam = rfc5424.SDParam{Name: "caller", Value: "UNKNOWN"}
+
+	// extract the last two elements in the caller's path
+	if _, file, line, ok := runtime.Caller(1); ok {
+		d, f := path.Split(file)
+		identifier.Value = fmt.Sprintf("%v:%v", path.Join(path.Base(d), f), line)
+	}
+	return identifier
 }

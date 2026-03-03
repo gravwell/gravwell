@@ -49,9 +49,7 @@ package scaffoldlist
 import (
 	"fmt"
 	"os"
-	"path"
 	"reflect"
-	"runtime"
 	"slices"
 	"strings"
 
@@ -60,6 +58,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -131,14 +130,6 @@ type PrettyPrinterFunc func(*pflag.FlagSet) (string, error)
 // Go's Generics are a godsend.
 func NewListAction[dataStruct_t any](short, long string,
 	dataStruct dataStruct_t, dataFn ListDataFunction[dataStruct_t], options Options) action.Pair {
-	var identifier rfc5424.SDParam // identifies the caller function to make it easier to fix developer errors
-	if clilog.Active(clilog.DEBUG) {
-		// extract the last two elements in the caller's path
-		if _, file, line, ok := runtime.Caller(1); ok {
-			d, f := path.Split(file)
-			identifier = rfc5424.SDParam{Name: "caller", Value: fmt.Sprintf("%v:%v", path.Join(path.Base(d), f), line)}
-		}
-	}
 	// check for developer errors
 	if reflect.TypeOf(dataStruct).Kind() != reflect.Struct {
 		panic("dataStruct must be a struct")
@@ -176,7 +167,7 @@ func NewListAction[dataStruct_t any](short, long string,
 		for dqcol := range options.ColumnAliases {
 			if !slices.Contains(availDSColumns, dqcol) {
 				clilog.Writer.Warn("failed to alias column: unknown path",
-					identifier,
+					scaffold.IdentifyCaller(),
 					rfc5424.SDParam{Name: "bad_column_path", Value: dqcol},
 				)
 			}
@@ -195,7 +186,7 @@ func NewListAction[dataStruct_t any](short, long string,
 			// check that the column exists in dq
 			if !slices.Contains(availDSColumns, exCol) {
 				clilog.Writer.Warn("failed to exclude column from default set: unknown path",
-					identifier,
+					scaffold.IdentifyCaller(),
 					rfc5424.SDParam{Name: "bad_column_path", Value: exCol},
 				)
 				continue
@@ -217,7 +208,7 @@ func NewListAction[dataStruct_t any](short, long string,
 		if clilog.Active(clilog.DEBUG) { // default includes were given; take them verbatim
 			if badCols := validateColumns(options.DefaultColumns, availDSColumns); len(badCols) > 0 {
 				clilog.Writer.Warn("invalid default columns",
-					identifier,
+					scaffold.IdentifyCaller(),
 					rfc5424.SDParam{Name: "bad_columns", Value: strings.Join(badCols, "_")},
 				)
 			}
