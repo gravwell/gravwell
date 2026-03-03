@@ -24,8 +24,8 @@ import (
 
 func Test_createModel_basics(t *testing.T) {
 	cfg := map[string]Field{
-		"A": Field{Required: true, Title: "A", Order: 10},
-		"B": Field{Required: true, Title: "B", Order: 0},
+		"A": {Required: true, Type: Text, Title: "A", Order: 10},
+		"B": {Required: true, Type: Text, Title: "B", Order: 0},
 	}
 	ca := NewCreateAction("test", cfg, func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 		return 0, "", nil
@@ -68,10 +68,10 @@ func Test_createModel_basics(t *testing.T) {
 
 func Test_Ordering(t *testing.T) {
 	cfg := map[string]Field{
-		"3": {Required: true, Title: "3", Order: -10},
-		"4": {Required: true, Title: "4", Order: -50},
-		"1": {Required: true, Title: "1", Order: 50},
-		"2": {Required: false, Title: "2", Order: 0},
+		"3": {Required: true, Type: Text, Title: "3", Order: -10},
+		"4": {Required: true, Type: Text, Title: "4", Order: -50},
+		"1": {Required: true, Type: Text, Title: "1", Order: 50},
+		"2": {Required: false, Type: Text, Title: "2", Order: 0},
 	}
 	cm := newCreateModel(cfg, "test",
 		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
@@ -93,9 +93,9 @@ func Test_Ordering(t *testing.T) {
 func Test_ExtractValues(t *testing.T) {
 	t.Run("all set", func(t *testing.T) {
 		cm := setup(t, Config{
-			"A": Field{Required: true, Title: "A", Order: 0},
-			"B": Field{Required: false, Title: "B", Order: 10},
-			"C": Field{Required: true, Title: "C", Order: -10},
+			"A": Field{Required: true, Type: Text, Title: "A", Order: 0},
+			"B": Field{Required: false, Type: Text, Title: "B", Order: 10},
+			"C": Field{Required: true, Type: Text, Title: "C", Order: -10},
 		})
 		// set values into all TIs
 		for i := range cm.orderedTIs {
@@ -124,9 +124,9 @@ func Test_ExtractValues(t *testing.T) {
 	})
 	t.Run("missing required", func(t *testing.T) {
 		cm := setup(t, Config{
-			"A": Field{Required: true, Title: "A", Order: 0},
-			"B": Field{Required: false, Title: "B", Order: 10},
-			"C": Field{Required: true, Title: "C", Order: -10},
+			"A": Field{Required: true, Type: Text, Title: "A", Order: 0},
+			"B": Field{Required: false, Type: Text, Title: "B", Order: 10},
+			"C": Field{Required: true, Type: Text, Title: "C", Order: -10},
 		})
 		// extract values from TIs
 		_, mr := cm.extractValuesFromTIs()
@@ -159,8 +159,8 @@ func Test_Full(t *testing.T) {
 
 	cm := newCreateModel(
 		Config{
-			"A": Field{Required: true, Title: "A", Order: 100},
-			"B": Field{Required: false, Title: "B", Order: 50},
+			"A": Field{Required: true, Type: Text, Title: "A", FlagName: "a", Order: 100},
+			"B": Field{Required: false, Type: Text, Title: "B", FlagName: "b", Order: 50},
 		}, "test",
 		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var bln bool
@@ -193,7 +193,7 @@ func Test_Full(t *testing.T) {
 
 // helper function for Test_Full to allow it to be run back-by-back.
 func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
-	t.Helper()
+	//t.Helper()
 	if inv, _, err := cm.SetArgs(nil, []string{"--bln"}, 80, 50); err != nil {
 		t.Fatal("failed to Set Args:", err)
 	} else if inv != "" {
