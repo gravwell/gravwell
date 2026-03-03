@@ -12,6 +12,9 @@ Package resources defines the resources nav, which holds data related to persist
 package resources
 
 import (
+	"fmt"
+	"io"
+	"os"
 	"slices"
 	"strings"
 
@@ -20,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -44,6 +48,7 @@ func NewResourcesNav() *cobra.Command {
 		[]action.Pair{
 			list(),
 			delete(),
+			download(),
 		})
 }
 
@@ -89,43 +94,54 @@ func flags() pflag.FlagSet {
 	return addtlFlags
 }
 
-func get() action.Pair {
-	return scaffold.NewBasicAction("get", "download a resource", "Download a resource for use locally.\n"+
+func download() action.Pair {
+	return scaffold.NewBasicAction("download", "download a resource", "Download a resource for use locally.\n"+
+		"Prints to STDOUT until -o is specified.\n"+
 		"Because resources can be shared, and resources are not required to have globally-unique names,"+
 		"the following precedence is used when selecting a resource by user-friendly name:\n"+
 		"1. Resources owned by the user always have highest priority\n"+
 		"2. Resources shared with a group to which the user belongs are next\n"+
 		"3. Global resources are the lowest priority.",
 		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
-			// arg length should be checked by the options
+			// arg length checked by the options
 			id := fs.Arg(0)
-
-			if metadata, err := fs.GetBool("metadata"); err != nil {
-				clilog.LogFlagFailedGet("metadata", err)
-			} else if metadata {
-				metadata, err := connection.Client.GetResourceMetadata(id)
+			var out io.Writer = cmd.OutOrStdout()
+			if outPath, err := fs.GetString(ft.Output.Name()); err != nil {
+				clilog.LogFlagFailedGet(ft.Output.Name(), err)
+			} else if outPath != "" {
+				out, err = os.Create(outPath)
 				if err != nil {
 					return err.Error(), nil
 				}
-				// TODO it'd be ideal to return metadata with list functionality
-				// TODO maybe we split get into `inspect` and `download`
-				// Probably need a dictionary for get vs inspect vs download to ensure consistent usage
 			}
-			connection.Client.GetResource(id)
+
+			data, err := connection.Client.GetResource(id)
+			if err != nil {
+				return err.Error(), nil
+			}
+			// spit out to stdout or file
+			fmt.Fprintf(out, "%s", data)
+			return "", nil
 		},
 		scaffold.BasicOptions{
 			AddtlFlagFunc: func() pflag.FlagSet {
 				fs := pflag.FlagSet{}
-				fs.BoolP("metadata", "m", false, "Fetch only resource metadata, not the resource itself")
-				// TODO define output
+				//fs.BoolP("metadata", "m", false, "Fetch only resource metadata, not the resource itself")
+				ft.Output.Register(&fs)
 				return fs
 			},
-			CmdMods: func(c *cobra.Command) {
-				// TODO set example and usage
+			CmdMods: func(cmd *cobra.Command) {
+				cmd.Example = cmd.Use + " -o Documents/resource.txt 5" // TODO update ID
+				cmd.SetUsageFunc(func(c *cobra.Command) error {
+					fmt.Fprintf(c.OutOrStdout(), "%s %s %s", c.Use, ft.Optional("FLAGS"), ft.Mandatory("resource ID"))
+					return nil
+				})
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
-				// TODO check that exactly one argument was given
-				// TODO Can this done in CmdMods?
+				if fs.NArg() != 1 {
+					return "you must specify exactly 1 argument (resource ID)", nil
+				}
+				return "", nil
 			},
 		},
 	)
