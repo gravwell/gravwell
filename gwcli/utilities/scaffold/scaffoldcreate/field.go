@@ -10,7 +10,6 @@ package scaffoldcreate
 
 import (
 	"errors"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -25,6 +24,7 @@ type FieldType = string
 
 const (
 	Text FieldType = "text" // string inputs, consumed via flag.String & textinput.Model
+	File FieldType = "file" // takes a path as a string. In interactive mode, spins up a filepicker.
 	// TODO add boolean, add label
 )
 
@@ -39,33 +39,14 @@ type Field struct {
 	DefaultValue  string    // OPTIONAL. Default flag and TI value
 	Order         int       // OPTIONAL. Top-Down (highest to lowest) display order of this field.
 
-	// OPTIONAL.
+	// OPTIONAL. USED ONLY FOR TEXT TYPE.
 	// Called once, at program start to generate a TI instead of using a generalize newTI().
 	// Can be used to add a ValidateFunc to the TI.
 	CustomTIFuncInit func() textinput.Model
-	// OPTIONAL.
+	// OPTIONAL. USED ONLY FOR TEXT TYPE.
 	// Called every SetArg() (prior to passing control to the child create action), if not nil.
 	// The associated TI will be replaced by the returned Model.
 	CustomTIFuncSetArg func(*textinput.Model) textinput.Model
-}
-
-// NewField returns a new field with only the required fields. Defaults to a Text type.
-// Order may be negative. Fields are sorted from highest at the top to lowest at the bottom.
-//
-// You can build a Field manually, w/o NewField, but make sure you call
-// .DeriveFlagName() if you do not supply one.
-func NewField(req bool, title string, order int) Field {
-	// validate parameters
-	if strings.TrimSpace(title) == "" {
-		panic("title cannot be empty")
-	}
-	f := Field{
-		Required: req,
-		Title:    title,
-		Type:     Text,
-		FlagName: ft.DeriveFlagName(title),
-		Order:    order}
-	return f
 }
 
 // Valid returns why the field is currently invalid (or nil), generally due to missing required fields.
