@@ -126,12 +126,10 @@ func download() action.Pair {
 		scaffold.BasicOptions{
 			AddtlFlagFunc: func() pflag.FlagSet {
 				fs := pflag.FlagSet{}
-				//fs.BoolP("metadata", "m", false, "Fetch only resource metadata, not the resource itself")
 				ft.Output.Register(&fs)
 				return fs
 			},
 			CmdMods: func(cmd *cobra.Command) {
-				cmd.Example = cmd.Use + " -o Documents/resource.txt 5" // TODO update ID
 				cmd.SetUsageFunc(func(c *cobra.Command) error {
 					fmt.Fprintf(c.OutOrStdout(), "%s %s %s", c.Use, ft.Optional("FLAGS"), ft.Mandatory("resource ID"))
 					return nil
