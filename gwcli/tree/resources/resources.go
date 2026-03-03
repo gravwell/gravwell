@@ -159,7 +159,7 @@ func create() action.Pair {
 			Order:         100,
 		},
 		"desc": {
-			Required:      true,
+			Required:      false,
 			Title:         "description",
 			Usage:         ft.Description.Usage("resource"),
 			Type:          scaffoldcreate.Text,
