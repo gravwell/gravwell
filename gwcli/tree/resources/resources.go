@@ -25,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -47,6 +48,7 @@ func NewResourcesNav() *cobra.Command {
 		[]*cobra.Command{},
 		[]action.Pair{
 			list(),
+			create(),
 			delete(),
 			download(),
 		})
@@ -143,6 +145,43 @@ func download() action.Pair {
 			},
 		},
 	)
+}
+
+func create() action.Pair {
+	fields := map[string]scaffoldcreate.Field{
+		"name": {
+			Required:      true,
+			Title:         "name",
+			Usage:         "name of the new resource",
+			Type:          scaffoldcreate.Text,
+			FlagName:      "name",
+			FlagShorthand: 'n',
+			Order:         100,
+		},
+		"desc": {
+			Required:      true,
+			Title:         "description",
+			Usage:         ft.Description.Usage("resource"),
+			Type:          scaffoldcreate.Text,
+			FlagName:      ft.Description.Name(),
+			FlagShorthand: 'd',
+			Order:         90,
+		},
+	}
+
+	return scaffoldcreate.NewCreateAction("resource", fields,
+		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			// transmute to resource struct
+			data := types.Resource{
+				CommonFields: types.CommonFields{
+					Name:        fieldValues["name"],
+					Description: fieldValues["desc"],
+				},
+			}
+
+			resp, err := connection.Client.CreateResource(data)
+			return resp.ID, "", err
+		}, nil)
 }
 
 func delete() action.Pair {
