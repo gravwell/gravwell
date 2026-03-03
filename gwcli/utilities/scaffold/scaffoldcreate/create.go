@@ -194,6 +194,10 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, ext
 func getValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[string]string, missingRequireds []string, err error) {
 	fieldValues = make(map[string]string)
 	for k, f := range fields {
+		if f.FlagName == "" {
+			return nil, nil, fmt.Errorf("flagname for field %v", k)
+		}
+
 		switch f.Type {
 		case Text:
 
