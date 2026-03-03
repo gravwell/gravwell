@@ -114,6 +114,12 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, ext
 		singular = "UNKNOWN"
 	}
 
+	// standardize field titles
+	for fn, f := range fields {
+		f.Title = strings.ToTitle(fields[fn].Title)
+		fields[fn] = f
+	}
+
 	// pull flags from provided fields
 	var flags = installFlagsFromFields(fields)
 	if extraFlagsFunc != nil {
