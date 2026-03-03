@@ -25,6 +25,7 @@ type FieldType = string
 
 const (
 	Text FieldType = "text" // string inputs, consumed via flag.String & textinput.Model
+	// TODO add boolean, add label
 )
 
 // A Field defines a single data point that will be passed to the create function.
