@@ -11,7 +11,7 @@ const (
 	defaultHost              = "https://api.services.mimecast.com"
 	defaultLookback          = 24
 	defaultRequestsPerMinute = 5
-	defaultInterval          = 5
+	defaultInterval          = 300
 )
 
 type Config struct {

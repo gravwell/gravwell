@@ -60,12 +60,12 @@ var SIEMApiEvents = map[Api]EventType{
 }
 
 type SIEMBatchEventResponse struct {
-	Value      []SIEMEvent `json:"value"`
-	NextPage   string      `json:"@nextPage"`
-	IsCaughtUp bool        `json:"isCaughtUp"`
+	Value      []SIEMBatchEvent `json:"value"`
+	NextPage   string           `json:"@nextPage"`
+	IsCaughtUp bool             `json:"isCaughtUp"`
 }
 
-type SIEMEvent struct {
+type SIEMBatchEvent struct {
 	URL    string    `json:"url"`
 	Expiry time.Time `json:"expiry,omitempty"`
 	Size   int       `json:"size"`
@@ -78,6 +78,14 @@ type SIEMErrorResponse struct {
 type Error struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
+}
+
+type SIEMEventResponse struct {
+	// Value in reality is a slice of MtaEventData, but we don't parse it out to simplify ingestion.
+	// When processing each message should be parsed as MtaEventData to get the timestamp; then the entire message should be ingested raw.
+	Value      []json.RawMessage `json:"value"`
+	NextPage   string            `json:"@nextPage"`
+	IsCaughtUp bool              `json:"isCaughtUp"`
 }
 
 // MtaEventData is the minimum representation of all events returned.
