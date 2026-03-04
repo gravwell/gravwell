@@ -12,7 +12,10 @@ import (
 	"errors"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/crewjam/rfc5424"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 
 	"github.com/spf13/pflag"
 )
@@ -64,14 +67,14 @@ func (f *Field) Valid() error {
 // Returns a FlagSet built from the given flagmap
 func installFlagsFromFields(fields Config) pflag.FlagSet {
 	var flags pflag.FlagSet
-	for _, f := range fields {
+	for key, f := range fields {
 		if f.FlagName == "" {
 			f.FlagName = ft.DeriveFlagName(f.Title)
 		}
 
 		// map fields to their flags
 		switch f.Type {
-		case Text:
+		case Text, File:
 			if f.FlagShorthand != 0 {
 				flags.StringP(f.FlagName, string(f.FlagShorthand), f.DefaultValue, f.Usage)
 			} else {
@@ -81,7 +84,11 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 					f.Usage)
 			}
 		default:
-			panic("developer error: unknown field type: " + f.Type)
+			clilog.Writer.Error("failed to install flag for field: unknown field type",
+				rfc5424.SDParam{Name: "field_key", Value: key},
+				rfc5424.SDParam{Name: "unknown type", Value: f.Type},
+				scaffold.IdentifyCaller(),
+			)
 		}
 	}
 
