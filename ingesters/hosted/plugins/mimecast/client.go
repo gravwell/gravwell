@@ -15,11 +15,12 @@ import (
 )
 
 const (
-	MTATimeFormat     = "2006-01-02"
-	AuditTimeFormat   = "2006-01-02T15:04:05-0700"
-	siemBatchEndpoint = "/siem/v1/batch/events/cg"
-	siemEndpoint      = "/siem/v1/events/cg"
-	AuditEndpoint     = "/api/audit/get-audit-events"
+	SIEMBatchTimeFormat = "2006-01-02"
+	AuditTimeFormat     = "2006-01-02T15:04:05-0700"
+	SIEMTimeFormat      = "2006-01-02T15:04:05.000Z"
+	siemBatchEndpoint   = "/siem/v1/batch/events/cg"
+	siemEndpoint        = "/siem/v1/events/cg"
+	AuditEndpoint       = "/api/audit/get-audit-events"
 )
 
 var (
@@ -124,8 +125,8 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end
 
 	params := url.Values{}
 	params.Set("type", string(et))
-	params.Set("dateRangeStartsAt", start.Format(MTATimeFormat))
-	params.Set("dateRangeEndsAt", end.Format(MTATimeFormat))
+	params.Set("dateRangeStartsAt", start.Format(SIEMBatchTimeFormat))
+	params.Set("dateRangeEndsAt", end.Format(SIEMBatchTimeFormat))
 	params.Set("pageSize", "100")
 	if cursor != "" {
 		params.Set("nextPage", cursor)
@@ -221,8 +222,8 @@ func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, start, e
 
 	params := url.Values{}
 	params.Set("type", string(event))
-	params.Set("dateRangeStartsAt", start.Format(AuditTimeFormat))
-	params.Set("dateRangeEndsAt", end.Format(AuditTimeFormat))
+	params.Set("dateRangeStartsAt", start.Format(SIEMTimeFormat))
+	params.Set("dateRangeEndsAt", end.Format(SIEMTimeFormat))
 	params.Set("pageSize", "100")
 	if cursor != "" {
 		params.Set("nextPage", cursor)

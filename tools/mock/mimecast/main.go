@@ -110,11 +110,11 @@ func siemBatch(w http.ResponseWriter, r *http.Request) {
 		var start, end time.Time
 		var err error
 		// Parse the time range
-		if start, err = time.Parse(mimecast.MTATimeFormat, startStr); err != nil {
+		if start, err = time.Parse(mimecast.SIEMBatchTimeFormat, startStr); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
-		if end, err = time.Parse(mimecast.MTATimeFormat, endStr); err != nil {
+		if end, err = time.Parse(mimecast.SIEMBatchTimeFormat, endStr); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			return
 		}
@@ -173,11 +173,11 @@ func siem(w http.ResponseWriter, r *http.Request) {
 	}
 	var err error
 	// Parse the time range
-	if start, err = time.Parse(mimecast.AuditTimeFormat, startStr); err != nil {
+	if start, err = time.Parse(mimecast.SIEMTimeFormat, startStr); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	if end, err = time.Parse(mimecast.AuditTimeFormat, endStr); err != nil {
+	if end, err = time.Parse(mimecast.SIEMTimeFormat, endStr); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
