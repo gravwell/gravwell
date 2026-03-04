@@ -177,6 +177,34 @@ func (c *Client) staticRequest(req *http.Request, obj interface{}, okResponses [
 	return nil
 }
 
+// RawRequest allows users to make a raw http.Request against the configured webserver.
+// The request will be modified such that the appropriate endpoint host (or IP) is inserted
+// and all the appropriate authentication headers and cookies are added.
+// The underlying http.Client is also used to make the request, so any configured TLS settings are also applied.
+// The caller is responsible for closing the response body and handling errors or non-200 status codes.
+func (c *Client) RawRequest(req *http.Request) (resp *http.Response, err error) {
+	if c.state != STATE_AUTHED {
+		err = ErrNoLogin
+		return
+	}
+	c.hm.populateRequest(req.Header) // add in the headers
+
+	// manually set the hostname in the request URL to ensure it goes to the right place
+	req.Host = c.server
+	req.URL.Host = c.server
+	req.URL.Scheme = c.httpScheme
+
+	// add in any queries like ?admin=true
+	if req.URL.RawQuery, err = c.qm.appendEncode(req.URL.RawQuery); err != nil {
+		err = fmt.Errorf("Error encoding query parameters: %w", err)
+		return
+	}
+	if resp, err = c.clnt.Do(req); err != nil {
+		c.objLog.Log("WEB "+req.Method+" Error "+err.Error(), req.URL.String(), nil)
+	}
+	return
+}
+
 func (c *Client) methodStaticPushRawURL(method, url string, data []byte, recvObj interface{}, okResps []int, params []urlParam) error {
 	var err error
 
@@ -438,6 +466,13 @@ func (c *Client) GetIngesterStats() (map[string]types.IngestStats, error) {
 		return nil, err
 	}
 	return stats, nil
+}
+
+func (c *Client) GetIngesterTailStats() (tail types.IngestTailStats, _ error) {
+	if err := c.getStaticURL(INGESTER_TAIL_URL, &tail); err != nil {
+		return types.IngestTailStats{}, err
+	}
+	return tail, nil
 }
 
 // GetStorageStats gets storage statistics for all indexers.
