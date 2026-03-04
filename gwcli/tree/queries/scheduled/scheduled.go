@@ -141,15 +141,23 @@ const ( // field keys
 // create creates the action for creating new scheduled queries.
 func create() action.Pair {
 	fields := scaffoldcreate.Config{
-		createNameKey: scaffoldcreate.Field{
-			Required: true,
-			Title:    "name",
-			Order:    100,
+		createNameKey: {
+			Required:      true,
+			Title:         "name",
+			Usage:         "name of the new query",
+			Type:          scaffoldcreate.Text,
+			FlagName:      "name",
+			FlagShorthand: 'n',
+			Order:         100,
 		},
-		createDescKey: scaffoldcreate.Field{
-			Required: false,
-			Title:    "description",
-			Order:    90,
+		createDescKey: {
+			Required:      false,
+			Title:         "description",
+			Usage:         ft.Description.Usage("query"),
+			Type:          scaffoldcreate.Text,
+			FlagName:      ft.Description.Name(),
+			FlagShorthand: 'd',
+			Order:         90,
 		},
 		createDurationKey: scaffoldcreate.Field{
 			Required:         true,
