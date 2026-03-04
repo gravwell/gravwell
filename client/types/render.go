@@ -160,7 +160,7 @@ type ResultsGraph struct {
 	Kind                     string             `json:"kind"`
 	Links                    []ResultsGraphLink `json:"links"`
 	NodeEnumeratedValueNames []string           `json:"nodeEnumeratedValueNames"`
-	LinkEnumaratedValueNames []string           `json:"linkEnumaratedValueNames"`
+	LinkEnumeratedValueNames []string           `json:"linkEnumeratedValueNames"`
 	Nodes                    []ResultsGraphNode `json:"nodes"`
 }
 
