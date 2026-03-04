@@ -208,8 +208,12 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 		if cursor != "" {
 			rt.Debug("fetching next page of batch", log.KV("api", api))
 		} else {
+			if lts.Before(ts.Add(-24 * time.Hour)) {
+				lts = ts.Add(-23*time.Hour + 50*time.Minute) // allow a small buffer as we get a 400 if it's over 24 hours ago
+			}
 			rt.Debug("fetching batch between", log.KV("api", api), log.KV("start", lts), log.KV("end", ts))
 		}
+
 		r, err := m.c.GetRawSIEMEvents(ctx, event, lts, ts, cursor)
 		if err != nil {
 			if !errors.Is(err, context.Canceled) {
