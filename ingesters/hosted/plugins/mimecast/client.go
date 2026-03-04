@@ -221,7 +221,7 @@ func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, start, e
 	}
 
 	params := url.Values{}
-	params.Set("type", string(event))
+	params.Set("types", string(event))
 	params.Set("dateRangeStartsAt", start.Format(SIEMTimeFormat))
 	params.Set("dateRangeEndsAt", end.Format(SIEMTimeFormat))
 	params.Set("pageSize", "100")
