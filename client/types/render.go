@@ -102,6 +102,77 @@ const (
 	MetadataTypeNumber string = `number`
 )
 
+const (
+	ResultsKindTable = "table"
+	ResultsKindGraph = "graph"
+)
+
+// TransformOperator represents the operator to apply to results
+type TransformOperator string
+
+const (
+	TransformOperatorCount       TransformOperator = "count"
+	TransformOperatorSum         TransformOperator = "sum"
+	TransformOperatorTotal       TransformOperator = "total"
+	TransformOperatorMean        TransformOperator = "mean"
+	TransformOperatorStddev      TransformOperator = "stddev"
+	TransformOperatorVariance    TransformOperator = "variance"
+	TransformOperatorMin         TransformOperator = "min"
+	TransformOperatorMax         TransformOperator = "max"
+	TransformOperatorUniqueCount TransformOperator = "unique_count"
+)
+
+type ResultsOptions struct {
+	Fence    Geofence
+	BinCount int               `json:"binCount,omitempty"`
+	BinWidth int               `json:"binWidth,omitempty"`
+	Op       string            `json:"op,omitempty"`
+	Sort     []string          `json:"sort,omitempty"`
+	Operator TransformOperator `json:"operator,omitempty"`
+	Operand  string            `json:"operand,omitempty"`
+	Keys     []string          `json:"keys,omitempty"`
+}
+
+// ResultsResponse represents the results of a query, including both tabular and graphical data. The Kind field indicates which type of results are present, and the corresponding field (Table or Graph) will be populated accordingly.
+type ResultsResponse struct {
+	Table *ResultsTable
+	Graph *ResultsGraph
+}
+
+type ResultsTable struct {
+	Kind             string                         `json:"kind"`
+	BinCount         int                            `json:"binCount"`
+	BinWidth         float64                        `json:"binWidth"`
+	Columns          []string                       `json:"columns"`
+	Rows             []map[string]*ResultsTableCell `json:"rows"`
+	TotalResultCount int                            `json:"totalResultCount"`
+}
+
+type ResultsTableCell struct {
+	Elements    []Element `json:",omitempty"`
+	Module      string    `json:",omitempty"`
+	Tag         string
+	Value       string
+	WordOffsets []WordOffset `json:",omitempty"`
+}
+
+type ResultsGraph struct {
+	Kind                     string             `json:"kind"`
+	Links                    []ResultsGraphLink `json:"links"`
+	NodeEnumeratedValueNames []string           `json:"nodeEnumeratedValueNames"`
+	Nodes                    []ResultsGraphNode `json:"nodes"`
+}
+
+type ResultsGraphLink struct {
+	Source string `json:"source"`
+	Target string `json:"target"`
+}
+
+type ResultsGraphNode struct {
+	EnumeratedValues map[string]string `json:"enumeratedValues"`
+	ID               string            `json:"id"`
+}
+
 type TimeRange struct {
 	StartTS entry.Timestamp `json:",omitempty"`
 	EndTS   entry.Timestamp `json:",omitempty"`
@@ -693,4 +764,16 @@ func tsPointer(t entry.Timestamp) *entry.Timestamp {
 		return nil
 	}
 	return &t
+}
+
+func (rr ResultsResponse) MarshalJSON() ([]byte, error) {
+	if rr.Table != nil {
+		return json.Marshal(rr.Table)
+	}
+
+	if rr.Graph != nil {
+		return json.Marshal(rr.Graph)
+	}
+
+	return nil, errors.New("Results has no variant set")
 }

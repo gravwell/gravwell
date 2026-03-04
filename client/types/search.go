@@ -258,6 +258,15 @@ type AttachSearchResponse struct {
 	Info        *SearchInfo `json:",omitempty"` //info if available
 }
 
+// BinningStatus describes whether search results can be condensed (binned) and, if not, why.
+type BinningStatus string
+
+const (
+	BinningStatusNotBinnable       BinningStatus = `NotBinnable`       // results can't be condensed.
+	BinningStatusBinningSetByQuery BinningStatus = `BinningSetByQuery` // results are condensed, but binning was dictated by the query.
+	BinningStatusBinnable          BinningStatus = `Binnable`          // results can be condensed using binCount or binWidth on the results endpoint.
+)
+
 // SearchInfo contains information about a search, including the search
 // parameters, status, and metadata.
 type SearchInfo struct {
@@ -287,6 +296,7 @@ type SearchInfo struct {
 	Background            bool // set to true if this search has been marked as backgrounded.
 	MinZoomWindow         uint // what is the smallest minimum zoom window in seconds
 	Tags                  []string
+	EVs                   []string   // EVs produced by the search
 	Import                ImportInfo `json:",omitempty"` //information attached if there this search is saved and from an external import
 	// Preview indicates that this search is a preview search
 	// this means that the query most likely did not cover the entire time range that was originally requested
@@ -296,6 +306,9 @@ type SearchInfo struct {
 	Error string `json:",omitempty"`
 
 	LaunchInfo SearchLaunchInfo // information about how a search was launched
+
+	// Binning describes whether search results can be condensed (binned) and, if not, why.
+	Binning BinningStatus `json:",omitempty"`
 }
 
 type SearchLaunchInfo struct {
@@ -346,6 +359,56 @@ type SearchCtrlStatus struct {
 	LaunchInfo      SearchLaunchInfo
 	Error           string          `json:",omitempty"`
 	Metadata        json.RawMessage `json:",omitempty"` //additional metadata associated with a search
+}
+
+type SearchDownloadRequest struct {
+	Format string         `json:"format"`
+	Rows   []RowSelection `json:"rows,omitempty"`
+}
+
+type RowSelection struct {
+	Kind string `json:"kind"`
+	// Start and End must be populated if it is a range, but not Index
+	Start uint64 `json:"start,omitempty"`
+	End   uint64 `json:"end,omitempty"`
+	// Index must be selected if it is only a single row, but not Start or End
+	Index uint64 `json:"index,omitempty"`
+}
+
+func (rs RowSelection) MarshalJSON() ([]byte, error) {
+	switch rs.Kind {
+	case "range":
+		if rs.Index != 0 {
+			return nil, fmt.Errorf("row selection kind %q must not have index set", rs.Kind)
+		}
+	case "single":
+		if rs.Start != 0 || rs.End != 0 {
+			return nil, fmt.Errorf("row selection kind %q must not have start or end set", rs.Kind)
+		}
+	default:
+		return nil, fmt.Errorf("unknown row selection kind: %q", rs.Kind)
+	}
+	// Break the MarshalJSON recursion doom loop with a type alias
+	type alias RowSelection
+	return json.Marshal(alias(rs))
+}
+
+type RowRange struct {
+	Kind  string `json:"kind"`
+	Start uint64 `json:"start"`
+	End   uint64 `json:"end"`
+}
+
+type RowSingle struct {
+	Kind  string `json:"kind"`
+	Index uint64 `json:"index"`
+}
+
+type SearchDownloadResponse struct {
+	DownloadResourceURL string `json:"downloadResourceURL"`
+	EntryCount          uint64 `json:"entryCount"`
+	Expiration          string `json:"expiration"`
+	SearchID            string `json:"searchId"`
 }
 
 type SearchState struct {
