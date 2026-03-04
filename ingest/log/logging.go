@@ -585,8 +585,18 @@ func renderMsgRaw(msg string, sds ...rfc5424.SDParam) string {
 	return sb.String()
 }
 
+var syslogReplacer = strings.NewReplacer(" ", "_", "=", "_", "/", "_", "]", "_", `"`, "_")
+
+// genRFCOutput returns the given data formatted raw and as syslog.
+// Invalid runes in SDParam Names and Values are destructively replaced with "_".
 func (l *Logger) genRfcOutput(ts time.Time, pfx string, lvl Level, msg string, sds ...rfc5424.SDParam) (ln, rawmsg string) {
 	rawmsg = renderMsgRaw(msg, sds...)
+
+	// to prevent swallowing logs on errors, replace illegal characters in SDParam
+	for i := range sds {
+		sds[i].Name = syslogReplacer.Replace(sds[i].Name)
+		sds[i].Value = syslogReplacer.Replace(sds[i].Value)
+	}
 	if b, err := GenRFCMessage(ts, lvl.priority(), l.hostname, l.appname, pfx, msg, sds...); err == nil && len(b) > 0 {
 		ln = string(bytes.Trim(b, "\n\r\t"))
 	}
@@ -702,7 +712,7 @@ func GenRFCMessage(ts time.Time, prio rfc5424.Priority, hostname, appname, msgid
 	}
 	if len(sds) > 0 {
 		m.StructuredData = []rfc5424.StructuredData{
-			rfc5424.StructuredData{
+			{
 				ID:         DefaultID,
 				Parameters: sds,
 			},
