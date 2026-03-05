@@ -480,11 +480,8 @@ func (em *editModel[I, S]) enterEditMode(item S) error {
 		}
 
 		// attach TI to list
-		es.orderedKTIs[i] = scaffold.KeyedTI{
-			Key:        k,
-			FieldTitle: fieldCfg.Title,
-			TI:         ti,
-			Required:   fieldCfg.Required}
+		es.orderedKTIs[i] = scaffold.NewKTI(k, fieldCfg.Title, fieldCfg.Required)
+		es.orderedKTIs[i].TI = ti
 		i += 1
 
 		// check width
@@ -497,7 +494,7 @@ func (em *editModel[I, S]) enterEditMode(item S) error {
 
 	// order TIs from highest to lowest orders
 	slices.SortFunc(es.orderedKTIs, func(a, b scaffold.KeyedTI) int {
-		return em.cfg[b.Key].Order - em.cfg[a.Key].Order
+		return em.cfg[b.Key()].Order - em.cfg[a.Key()].Order
 	})
 
 	es.orderedKTIs[0].TI.Focus() // focus the first TI

@@ -42,8 +42,8 @@ func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubr
 			if se.submitSelected() {
 				var missing []string
 				for _, kti := range se.orderedKTIs { // check all required fields are populated
-					if kti.Required && strings.TrimSpace(kti.TI.Value()) == "" {
-						missing = append(missing, kti.Key)
+					if kti.Required() && strings.TrimSpace(kti.TI.Value()) == "" {
+						missing = append(missing, kti.Key())
 					}
 				}
 
@@ -60,7 +60,7 @@ func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubr
 
 				// yank the TI values and reinstall them into a data structure to update against
 				for _, kti := range se.orderedKTIs {
-					if inv, err := setFieldSub(&se.item, kti.Key, kti.TI.Value()); err != nil {
+					if inv, err := setFieldSub(&se.item, kti.Key(), kti.TI.Value()); err != nil {
 						clilog.Writer.Errorf("failed to set value '%v' to field with key %v (item: %v)", kti.TI.Value(), kti.Key, se.item)
 						se.err = err.Error()
 						return nil, ""
