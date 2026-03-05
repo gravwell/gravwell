@@ -142,13 +142,13 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, ext
 		"create a new "+singular, // long
 		[]string{},               // aliases
 		func(c *cobra.Command, s []string) {
-			// get standard flags
+			// check non-interactive
 			noInteractive, err := c.Flags().GetBool(ft.NoInteractive.Name())
 			if err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
 				return
 			}
-			// get field flags
+			// get field flags; spool up mother to prompt for missing required flags if !non-interactive
 			var values map[string]string
 			if vals, mr, err := getFieldValuesFromFlags(c.Flags(), fields); err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
