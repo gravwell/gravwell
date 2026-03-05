@@ -150,7 +150,7 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, ext
 			}
 			// get field flags
 			var values map[string]string
-			if vals, mr, err := getValuesFromFlags(c.Flags(), fields); err != nil {
+			if vals, mr, err := getFieldValuesFromFlags(c.Flags(), fields); err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), err.Error()+"\n")
 				return
 			} else if mr != nil {
@@ -183,39 +183,6 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, ext
 	cmd.Flags().AddFlagSet(&flags)
 
 	return action.NewPair(cmd, newCreateModel(fields, singular, createFunc, extraFlagsFunc))
-}
-
-// Given a parsed flagset and the field configuration, generates a map of values between fields and their current values
-// (field -> fieldValue).
-//
-// Returns the values for each flag (default if unset),
-// a list of required fields (as their flag names) that were not set,
-// and an error (if one occurred).
-func getValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[string]string, missingRequireds []string, err error) {
-	fieldValues = make(map[string]string)
-	for k, f := range fields {
-		if f.FlagName == "" {
-			return nil, nil, fmt.Errorf("flagname for field %v", k)
-		}
-
-		switch f.Type {
-		case Text:
-
-			flagVal, err := fs.GetString(f.FlagName)
-			if err != nil {
-				return nil, nil, err
-			}
-			// if this value is required, but unset, add it to the list
-			if f.Required && !fs.Changed(f.FlagName) {
-				missingRequireds = append(missingRequireds, f.FlagName)
-			}
-
-			fieldValues[k] = flagVal
-		default:
-			panic("developer error: unknown field type: " + f.Type)
-		}
-	}
-	return fieldValues, missingRequireds, nil
 }
 
 //#region interactive mode (model) implementation
@@ -484,7 +451,7 @@ func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height 
 	}
 
 	// we do not need to check missing requires when run from mother
-	flagVals, _, err := getValuesFromFlags(&c.fs, c.fields)
+	flagVals, _, err := getFieldValuesFromFlags(&c.fs, c.fields)
 	if err != nil {
 		return "", nil, err
 	}

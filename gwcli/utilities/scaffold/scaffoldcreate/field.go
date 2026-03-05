@@ -10,6 +10,7 @@ package scaffoldcreate
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/crewjam/rfc5424"
@@ -93,4 +94,37 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 	}
 
 	return flags
+}
+
+// Given a parsed flagset and the field configuration, generates a map of values between fields and their current values
+// (field -> fieldValue).
+//
+// Returns the values for each flag (default if unset),
+// a list of required fields (as their flag names) that were not set,
+// and an error (if one occurred).
+func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[string]string, missingRequireds []string, err error) {
+	fieldValues = make(map[string]string)
+	for k, f := range fields {
+		if f.FlagName == "" {
+			return nil, nil, fmt.Errorf("flagname for field %v", k)
+		}
+
+		switch f.Type {
+		case Text:
+
+			flagVal, err := fs.GetString(f.FlagName)
+			if err != nil {
+				return nil, nil, err
+			}
+			// if this value is required, but unset, add it to the list
+			if f.Required && !fs.Changed(f.FlagName) {
+				missingRequireds = append(missingRequireds, f.FlagName)
+			}
+
+			fieldValues[k] = flagVal
+		default:
+			panic("developer error: unknown field type: " + f.Type)
+		}
+	}
+	return fieldValues, missingRequireds, nil
 }
