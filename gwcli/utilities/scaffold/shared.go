@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/crewjam/rfc5424"
@@ -18,6 +19,14 @@ import (
 
 // This file provides functionality shared across multiple scaffolds.
 // Typically, this means functionality for edit and create.
+
+// A KeyedFP associates metadata to a filepicker.
+type KeyedFP struct {
+	Key        string // key to look up the related field in a config map (if applicable)
+	FieldTitle string // text to display to the left of the path
+	FP         filepicker.Model
+	Required   bool
+}
 
 // A KeyedTI is tuple for associating a TI with its field key and whether or not it is required
 type KeyedTI struct {

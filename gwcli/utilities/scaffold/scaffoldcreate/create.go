@@ -238,7 +238,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		cf:            createFunc,
 	}
 
-	// set flags by mining flags and, if applicable, tacking on additional flags
+	// set flags by mining fields and, if applicable, tacking on additional flags
 	c.fs = installFlagsFromFields(fields)
 	if c.addtlFlagFunc != nil {
 		addtlFlags := c.addtlFlagFunc()
@@ -246,29 +246,41 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 	}
 
 	for k, f := range fields {
-		// generate the TI
-		kti := scaffold.KeyedTI{
-			Key:        k,
-			FieldTitle: f.Title,
-			Required:   f.Required,
-		}
-		// if a custom func was not given, use the default generation
-		if f.CustomTIFuncInit == nil {
-			kti.TI = stylesheet.NewTI(f.DefaultValue, !f.Required)
-		} else {
-			kti.TI = f.CustomTIFuncInit()
+		// generate interactive module by type
+		switch f.Type {
+		case File: // generate a keyedFP and add it to the set
+			/*kfp := scaffold.KeyedFP{
+				Key:        k,
+				FieldTitle: f.Title,
+				FP:         filepicker.New(),
+				Required:   f.Required,
+			}*/ // TODO
+			// TODO test for custom creation funcs
+		case Text: // generate a KTI and add it to the set
+			kti := scaffold.KeyedTI{
+				Key:        k,
+				FieldTitle: f.Title,
+				Required:   f.Required,
+			}
+			// if a custom func was not given, use the default generation
+			if f.CustomTIFuncInit == nil {
+				kti.TI = stylesheet.NewTI(f.DefaultValue, !f.Required)
+			} else {
+				kti.TI = f.CustomTIFuncInit()
+			}
+
+			c.orderedTIs = append(c.orderedTIs, kti)
+
+			// note the longest Title for later formatting
+			if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
+				c.longestFieldLength = w
+			}
+			// note the longest TI for later formatting
+			if kti.TI.Width > c.longestTILength {
+				c.longestTILength = kti.TI.Width
+			}
 		}
 
-		c.orderedTIs = append(c.orderedTIs, kti)
-
-		// note the longest Title for later formatting
-		if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
-			c.longestFieldLength = w
-		}
-		// note the longest TI for later formatting
-		if kti.TI.Width > c.longestTILength {
-			c.longestTILength = kti.TI.Width
-		}
 	}
 
 	// sort keys from highest order to lowest order
