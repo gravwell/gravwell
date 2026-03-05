@@ -106,6 +106,8 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 // Returns the values for each flag (default if unset),
 // a list of required fields (as their flag names) that were not set,
 // and an error (if one occurred).
+//
+// ! Does not test Files for existent paths; only that the strings are valid paths.
 func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[string]string, missingRequireds []string, err error) {
 	fieldValues = make(map[string]string)
 	for key, f := range fields {
@@ -126,7 +128,7 @@ func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[
 			if err != nil {
 				return nil, nil, err
 			}
-			if !filesystem.ValidPath(v) {
+			if v != "" && !filesystem.ValidPath(v) {
 				return nil, nil, fmt.Errorf("invalid path %q: %w", v, filesystem.ErrInvalid)
 			}
 			fieldValues[key] = v
