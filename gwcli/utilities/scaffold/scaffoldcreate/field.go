@@ -104,9 +104,9 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 // and an error (if one occurred).
 func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[string]string, missingRequireds []string, err error) {
 	fieldValues = make(map[string]string)
-	for k, f := range fields {
+	for key, f := range fields {
 		if f.FlagName == "" {
-			return nil, nil, fmt.Errorf("flagname for field %v", k)
+			return nil, nil, fmt.Errorf("flagname for field %v", key)
 		}
 
 		switch f.Type {
@@ -121,9 +121,13 @@ func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[
 				missingRequireds = append(missingRequireds, f.FlagName)
 			}
 
-			fieldValues[k] = flagVal
+			fieldValues[key] = flagVal
 		default:
-			panic("developer error: unknown field type: " + f.Type)
+			clilog.Writer.Error("failed to get value for field from flag: unknown field type",
+				rfc5424.SDParam{Name: "field_key", Value: key},
+				rfc5424.SDParam{Name: "unknown type", Value: f.Type},
+				scaffold.IdentifyCaller(),
+			)
 		}
 	}
 	return fieldValues, missingRequireds, nil
