@@ -11,6 +11,7 @@ package scaffoldcreate
 import (
 	"errors"
 	"fmt"
+	filesystem "io/fs"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/crewjam/rfc5424"
@@ -109,22 +110,32 @@ func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[
 	fieldValues = make(map[string]string)
 	for key, f := range fields {
 		if f.FlagName == "" {
-			return nil, nil, fmt.Errorf("flagname for field %v", key)
+			return nil, nil, fmt.Errorf("field %s has an empty flag name", key)
+		}
+		// if this value is required, but unset, add it to the list and move on.
+		// NOTE(rlandau): this uses fs.Changed(), which will fail default values.
+		// I am assuming that if you need a value, a default is irrelevant.
+		if f.Required && !fs.Changed(f.FlagName) {
+			missingRequireds = append(missingRequireds, f.FlagName)
+			continue
 		}
 
 		switch f.Type {
-		case Text:
-
-			flagVal, err := fs.GetString(f.FlagName)
+		case File:
+			v, err := fs.GetString(f.FlagName)
 			if err != nil {
 				return nil, nil, err
 			}
-			// if this value is required, but unset, add it to the list
-			if f.Required && !fs.Changed(f.FlagName) {
-				missingRequireds = append(missingRequireds, f.FlagName)
+			if !filesystem.ValidPath(v) {
+				return nil, nil, fmt.Errorf("invalid path %q: %w", v, filesystem.ErrInvalid)
 			}
-
-			fieldValues[key] = flagVal
+			fieldValues[key] = v
+		case Text:
+			v, err := fs.GetString(f.FlagName)
+			if err != nil {
+				return nil, nil, err
+			}
+			fieldValues[key] = v
 		default:
 			clilog.Writer.Error("failed to get value for field from flag: unknown field type",
 				rfc5424.SDParam{Name: "field_key", Value: key},
