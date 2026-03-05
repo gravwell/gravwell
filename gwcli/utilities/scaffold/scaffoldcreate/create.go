@@ -206,10 +206,10 @@ type createModel struct {
 
 	fields Config // RO configuration provided by the caller
 
-	orderedTIs         []scaffold.KeyedTI // Ordered array of map keys, based on Config.TI.Order
-	selected           uint               // currently focused ti (in key order index)
-	longestFieldLength int                // set at create time
-	longestTILength    int                // set at create time
+	orderedFields      []interact // Ordered array of map keys, based on Config.Field.Order
+	selected           uint       // currently focused ti (in key order index)
+	longestFieldLength int        // set at create time
+	longestTILength    int        // set at create time
 
 	inputErr  string // the reason inputs are invalid
 	createErr string // the reason the last create failed (not for invalid parameters)
@@ -223,7 +223,7 @@ type createModel struct {
 
 // SubmitSelect returns if the select button is currently selected by the user.
 func (c *createModel) SubmitSelected() bool {
-	return c.selected == uint(len(c.orderedTIs))
+	return c.selected == uint(len(c.orderedFields))
 }
 
 // Creates and returns a create Model, ready for interactive usage via Mother.
@@ -233,7 +233,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		width:         defaultWidth,
 		singular:      singular,
 		fields:        fields,
-		orderedTIs:    make([]scaffold.KeyedTI, 0),
+		orderedFields: make([]interact, 0),
 		addtlFlagFunc: addtlFlagFunc,
 		cf:            createFunc,
 	}
@@ -257,11 +257,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 			}*/ // TODO
 			// TODO test for custom creation funcs
 		case Text: // generate a KTI and add it to the set
-			kti := scaffold.KeyedTI{
-				Key:        k,
-				FieldTitle: f.Title,
-				Required:   f.Required,
-			}
+			kti := scaffold.NewKTI(k, f.Title, f.Required)
 			// if a custom func was not given, use the default generation
 			if f.CustomTIFuncInit == nil {
 				kti.TI = stylesheet.NewTI(f.DefaultValue, !f.Required)
@@ -269,7 +265,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 				kti.TI = f.CustomTIFuncInit()
 			}
 
-			c.orderedTIs = append(c.orderedTIs, kti)
+			c.orderedFields = append(c.orderedFields, kti)
 
 			// note the longest Title for later formatting
 			if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
@@ -284,12 +280,12 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 	}
 
 	// sort keys from highest order to lowest order
-	slices.SortFunc(c.orderedTIs, func(a, b scaffold.KeyedTI) int {
-		return fields[b.Key].Order - fields[a.Key].Order
+	slices.SortFunc(c.orderedFields, func(a, b interact) int {
+		return fields[b.Key()].Order - fields[a.Key()].Order
 	})
 
-	if len(c.orderedTIs) > 0 {
-		c.orderedTIs[0].TI.Focus()
+	if len(c.orderedFields) > 0 {
+		c.orderedFields[0].TI.Focus()
 	}
 
 	return c
@@ -348,9 +344,9 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	if !c.SubmitSelected() {
 		// pass message to currently focused ti
 		var cmd tea.Cmd
-		c.orderedTIs[c.selected].TI, cmd = c.orderedTIs[c.selected].TI.Update(msg)
-		if c.orderedTIs[c.selected].TI.Err != nil {
-			c.inputErr = c.orderedTIs[c.selected].TI.Err.Error()
+		c.orderedFields[c.selected].TI, cmd = c.orderedFields[c.selected].TI.Update(msg)
+		if c.orderedFields[c.selected].TI.Err != nil {
+			c.inputErr = c.orderedFields[c.selected].TI.Err.Error()
 		}
 		return cmd
 	}
@@ -360,14 +356,14 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 // Blurs the current ti, selects and focuses the next (indexically) one.
 func (c *createModel) focusNext() {
 	if !c.SubmitSelected() {
-		c.orderedTIs[c.selected].TI.Blur()
+		c.orderedFields[c.selected].TI.Blur()
 	}
 	c.selected += 1
-	if c.selected > uint(len(c.orderedTIs)) { // jump to start
+	if c.selected > uint(len(c.orderedFields)) { // jump to start
 		c.selected = 0
 	}
 	if !c.SubmitSelected() {
-		c.orderedTIs[c.selected].TI.Focus()
+		c.orderedFields[c.selected].TI.Focus()
 	}
 }
 
@@ -375,16 +371,16 @@ func (c *createModel) focusNext() {
 func (c *createModel) focusPrevious() {
 	// if we are not on the submit button, then blur
 	if !c.SubmitSelected() {
-		c.orderedTIs[c.selected].TI.Blur()
+		c.orderedFields[c.selected].TI.Blur()
 	}
 	if c.selected == 0 { // wrap to submit button
-		c.selected = uint(len(c.orderedTIs))
+		c.selected = uint(len(c.orderedFields))
 	} else {
 		c.selected -= 1
 	}
 	// if we are not on the submit button, then focus
 	if !c.SubmitSelected() {
-		c.orderedTIs[c.selected].TI.Focus()
+		c.orderedFields[c.selected].TI.Focus()
 	}
 }
 
@@ -394,7 +390,7 @@ func (c *createModel) focusPrevious() {
 // field.Title names) that were not set, and an error (if one occurred).
 func (c *createModel) extractValuesFromTIs() (fieldValues map[string]string, missingRequiredFields []string) {
 	fieldValues = make(map[string]string)
-	for _, kti := range c.orderedTIs {
+	for _, kti := range c.orderedFields {
 		val := strings.TrimSpace(kti.TI.Value())
 		field := c.fields[kti.Key]
 		if val == "" && field.Required {
@@ -409,7 +405,7 @@ func (c *createModel) extractValuesFromTIs() (fieldValues map[string]string, mis
 
 // Iterates through the keymap, drawing each ti and title by descending field.Order
 func (c *createModel) View() string {
-	inputs := scaffold.ViewKTIs(uint(c.longestFieldLength), uint(c.longestTILength), c.orderedTIs, c.selected)
+	inputs := scaffold.ViewKTIs(uint(c.longestFieldLength), uint(c.longestTILength), c.orderedFields, c.selected)
 	// generate submit button and align it with the center
 	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.width, c.inputErr, c.createErr)
 	// align the submit to roughly the end of the field titles
@@ -429,9 +425,9 @@ func (c *createModel) Reset() error {
 	wg.Add(2)
 	// reset TIs
 	go func() {
-		for i := range c.orderedTIs {
-			c.orderedTIs[i].TI.Reset()
-			c.orderedTIs[i].TI.Blur()
+		for i := range c.orderedFields {
+			c.orderedFields[i].TI.Reset()
+			c.orderedFields[i].TI.Blur()
 		}
 		wg.Done()
 	}()
@@ -450,8 +446,8 @@ func (c *createModel) Reset() error {
 	c.createErr = ""
 	c.inputErr = ""
 	c.selected = 0
-	if len(c.orderedTIs) > 0 {
-		c.orderedTIs[0].TI.Focus()
+	if len(c.orderedFields) > 0 {
+		c.orderedFields[0].TI.Focus()
 	}
 	return nil
 }
@@ -468,12 +464,12 @@ func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height 
 		return "", nil, err
 	}
 
-	for i, kti := range c.orderedTIs {
+	for i, kti := range c.orderedFields {
 		// set flag values as the starter values in their corresponding TI
-		c.orderedTIs[i].TI.SetValue(flagVals[kti.Key])
+		c.orderedFields[i].TI.SetValue(flagVals[kti.Key])
 		// if a TI has a CustomSetArg, call it now
 		if c.fields[kti.Key].CustomTIFuncSetArg != nil {
-			c.orderedTIs[i].TI = c.fields[kti.Key].CustomTIFuncSetArg(&kti.TI)
+			c.orderedFields[i].TI = c.fields[kti.Key].CustomTIFuncSetArg(&kti.TI)
 		}
 	}
 

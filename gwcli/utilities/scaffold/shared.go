@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/filepicker"
-	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
@@ -26,14 +25,6 @@ type KeyedFP struct {
 	FieldTitle string // text to display to the left of the path
 	FP         filepicker.Model
 	Required   bool
-}
-
-// A KeyedTI is tuple for associating a TI with its field key and whether or not it is required
-type KeyedTI struct {
-	Key        string          // key to look up the related field in a config map (if applicable)
-	FieldTitle string          // text to display to the left of the TI
-	TI         textinput.Model // ti for user modifications
-	Required   bool            // this TI must have data in it
 }
 
 // frequently reused styles

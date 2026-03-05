@@ -37,12 +37,12 @@ func Test_createModel_basics(t *testing.T) {
 		t.Fatal("failed to type assert to *createModel")
 	}
 
-	if len(cm.orderedTIs) != 2 {
-		t.Fatal(ExpectedActual(1, len(cm.orderedTIs)))
-	} else if cm.orderedTIs[0].Key != "A" {
-		t.Fatal(ExpectedActual("A", cm.orderedTIs[0].Key))
-	} else if cm.orderedTIs[1].Key != "B" {
-		t.Fatal(ExpectedActual("B", cm.orderedTIs[1].Key))
+	if len(cm.orderedFields) != 2 {
+		t.Fatal(ExpectedActual(1, len(cm.orderedFields)))
+	} else if cm.orderedFields[0].Key != "A" {
+		t.Fatal(ExpectedActual("A", cm.orderedFields[0].Key))
+	} else if cm.orderedFields[1].Key != "B" {
+		t.Fatal(ExpectedActual("B", cm.orderedFields[1].Key))
 	}
 	cm.focusNext()
 	// should be the second field
@@ -51,7 +51,7 @@ func Test_createModel_basics(t *testing.T) {
 	}
 	cm.focusNext()
 	// should be the submit button
-	if cm.selected != uint(len(cm.orderedTIs)) {
+	if cm.selected != uint(len(cm.orderedFields)) {
 		t.Fatal("expected submit button to be selected")
 	}
 	cm.focusNext()
@@ -61,7 +61,7 @@ func Test_createModel_basics(t *testing.T) {
 	}
 	cm.focusPrevious()
 	// should be the submit button
-	if cm.selected != uint(len(cm.orderedTIs)) {
+	if cm.selected != uint(len(cm.orderedFields)) {
 		t.Fatal("expected submit button to be selected")
 	}
 }
@@ -80,7 +80,7 @@ func Test_Ordering(t *testing.T) {
 			return pflag.FlagSet{}
 		})
 
-	for i, ti := range cm.orderedTIs {
+	for i, ti := range cm.orderedFields {
 		kint, err := strconv.Atoi(ti.Key)
 		if err != nil {
 			t.Fatal(err)
@@ -98,8 +98,8 @@ func Test_ExtractValues(t *testing.T) {
 			"C": Field{Required: true, Type: Text, Title: "C", Order: -10},
 		})
 		// set values into all TIs
-		for i := range cm.orderedTIs {
-			cm.orderedTIs[i].TI.SetValue(fmt.Sprintf("%d", i))
+		for i := range cm.orderedFields {
+			cm.orderedFields[i].TI.SetValue(fmt.Sprintf("%d", i))
 		}
 
 		// extract values from TIs
@@ -115,10 +115,10 @@ func Test_ExtractValues(t *testing.T) {
 			num, err := strconv.Atoi(v)
 			if err != nil {
 				t.Errorf("failed to parse %v as an int", v)
-			} else if cm.orderedTIs[num].Key != key || cm.orderedTIs[num].TI.Value() != v {
+			} else if cm.orderedFields[num].Key != key || cm.orderedFields[num].TI.Value() != v {
 				t.Error("mismatching values after extraction.",
-					ExpectedActual(cm.orderedTIs[num].Key, key),
-					ExpectedActual(cm.orderedTIs[num].TI.Value(), v))
+					ExpectedActual(cm.orderedFields[num].Key, key),
+					ExpectedActual(cm.orderedFields[num].TI.Value(), v))
 			}
 		}
 	})
@@ -135,7 +135,7 @@ func Test_ExtractValues(t *testing.T) {
 		}
 
 		// set one of the requireds and try again
-		cm.orderedTIs[1].TI.SetValue("test value") // A
+		cm.orderedFields[1].TI.SetValue("test value") // A
 		_, mr = cm.extractValuesFromTIs()
 		if len(mr) != 1 {
 			t.Error("incorrect missing required count.", ExpectedActual(1, len(mr)))
@@ -230,7 +230,7 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	cm.Update(tea.KeyMsg{Type: tea.KeyUp})
 	cm.Update(tea.KeyMsg{Type: tea.KeyUp})
 	if !cm.SubmitSelected() {
-		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.orderedTIs)), cm.selected))
+		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.orderedFields)), cm.selected))
 	}
 	cm.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	// check for errors
@@ -242,7 +242,7 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	cm.Update(tea.KeyMsg{Type: tea.KeyUp})
 	if !cm.SubmitSelected() {
-		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.orderedTIs)), cm.selected))
+		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.orderedFields)), cm.selected))
 	}
 	cm.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	if cm.inputErr != "" {
