@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -160,12 +160,14 @@ type ResultsGraph struct {
 	Kind                     string             `json:"kind"`
 	Links                    []ResultsGraphLink `json:"links"`
 	NodeEnumeratedValueNames []string           `json:"nodeEnumeratedValueNames"`
+	LinkEnumeratedValueNames []string           `json:"linkEnumeratedValueNames"`
 	Nodes                    []ResultsGraphNode `json:"nodes"`
 }
 
 type ResultsGraphLink struct {
-	Source string `json:"source"`
-	Target string `json:"target"`
+	Source           string            `json:"source"`
+	Target           string            `json:"target"`
+	EnumeratedValues map[string]string `json:"enumeratedValues"`
 }
 
 type ResultsGraphNode struct {
