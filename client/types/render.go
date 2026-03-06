@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -160,12 +160,14 @@ type ResultsGraph struct {
 	Kind                     string             `json:"kind"`
 	Links                    []ResultsGraphLink `json:"links"`
 	NodeEnumeratedValueNames []string           `json:"nodeEnumeratedValueNames"`
+	LinkEnumeratedValueNames []string           `json:"linkEnumeratedValueNames"`
 	Nodes                    []ResultsGraphNode `json:"nodes"`
 }
 
 type ResultsGraphLink struct {
-	Source string `json:"source"`
-	Target string `json:"target"`
+	Source           string            `json:"source"`
+	Target           string            `json:"target"`
+	EnumeratedValues map[string]string `json:"enumeratedValues"`
 }
 
 type ResultsGraphNode struct {
@@ -321,6 +323,31 @@ type IngestStats struct {
 	BytesMinuteTail   [60]uint64 //bytes per 1 second bucket with 60s of tail
 	Ingesters         []IngesterStats
 	Missing           []ingest.IngesterState //ingesters that have been seen before but not actively connected now
+}
+
+// IngestTailStatsResponse is a trimmed down IngestStats to display only individual and accumulated tail data
+type IngestTailStatsResponse struct {
+	// global values
+
+	EntriesPerSecond  float64
+	BytesPerSecond    float64
+	EntriesHourTail   [24]uint64 //entries per 1 hour bucket with 24 hours of tail
+	EntriesMinuteTail [60]uint64 //entries per 1 second bucket with 60s of tail
+	BytesHourTail     [24]uint64 //bytes per 1 hour bucket with 24 hours of tail
+	BytesMinuteTail   [60]uint64 //bytes per 1 second bucket with 60s of tail
+
+	// indexer stats
+	Indexers map[string]IngestTailStats
+}
+
+// IngestTailStats is a trimmed down IngestStats for a specific indexer.
+type IngestTailStats struct {
+	EntriesPerSecond  float64
+	BytesPerSecond    float64
+	EntriesHourTail   [24]uint64 //entries per 1 hour bucket with 24 hours of tail
+	EntriesMinuteTail [60]uint64 //entries per 1 second bucket with 60s of tail
+	BytesHourTail     [24]uint64 //bytes per 1 hour bucket with 24 hours of tail
+	BytesMinuteTail   [60]uint64 //bytes per 1 second bucket with 60s of tail
 }
 
 type IngesterStats struct {
