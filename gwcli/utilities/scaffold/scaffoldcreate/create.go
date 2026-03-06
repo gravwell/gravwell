@@ -70,6 +70,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
@@ -322,7 +323,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		case Text:
 			c.inputs.TIs[c.inputs.ordered[0].Type].Focus()
 		default:
-			// TODO log error
+			logUnknownFieldType("focus ordered[0] field on startup", c.inputs.ordered[0].Key, c.inputs.ordered[0].Type)
 		}
 
 	}
@@ -518,3 +519,13 @@ func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height 
 }
 
 //#endregion
+
+// logUnknownFieldType logs (level==ERROR) that the action failed as an unknown/unhandled type was given.
+// action will be written into the message as "failed to <action>: unknown field type".
+func logUnknownFieldType(action, key string, typ FieldType) {
+	clilog.Writer.Error("failed to "+action+": unknown field type",
+		rfc5424.SDParam{Name: "field_key", Value: key},
+		rfc5424.SDParam{Name: "unknown type", Value: typ},
+		scaffold.IdentifyCaller(),
+	)
+}

@@ -14,10 +14,7 @@ import (
 	filesystem "io/fs"
 
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/crewjam/rfc5424"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 
 	"github.com/spf13/pflag"
 )
@@ -89,11 +86,7 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 					f.Usage)
 			}
 		default:
-			clilog.Writer.Error("failed to install flag for field: unknown field type",
-				rfc5424.SDParam{Name: "field_key", Value: key},
-				rfc5424.SDParam{Name: "unknown type", Value: f.Type},
-				scaffold.IdentifyCaller(),
-			)
+			logUnknownFieldType("install flag for field", key, f.Type)
 		}
 	}
 
@@ -139,11 +132,7 @@ func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[
 			}
 			fieldValues[key] = v
 		default:
-			clilog.Writer.Error("failed to get value for field from flag: unknown field type",
-				rfc5424.SDParam{Name: "field_key", Value: key},
-				rfc5424.SDParam{Name: "unknown type", Value: f.Type},
-				scaffold.IdentifyCaller(),
-			)
+			logUnknownFieldType("get value for field from flag", key, f.Type)
 		}
 	}
 	return fieldValues, missingRequireds, nil
