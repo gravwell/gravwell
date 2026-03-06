@@ -227,6 +227,9 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 			rt.Error("error handling mta page", log.KV("api", api), log.KVErr(err))
 			continue
 		}
+		if last == nil { // there were no events in the range
+			last = &ts
+		}
 		if r.IsCaughtUp { // Progress forward in time
 			rt.Debug("no more pages, moving forward in time", log.KV("api", api), log.KV("to", *last))
 			rt.PutString(m.cursor(api), "")
@@ -241,8 +244,11 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 }
 
 func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []json.RawMessage) (*time.Time, error) {
+	if len(page) == 0 {
+		return nil, nil
+	}
 	var first *time.Time
-	var last time.Time
+	var last *time.Time
 	count := 0
 	for _, event := range page {
 		if len(event) == 0 {
@@ -268,11 +274,11 @@ func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []j
 			rt.Error("failed to write mta event", log.KVErr(err))
 			continue
 		}
-		last = ts
+		last = &ts
 		count++
 	}
 	rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last))
-	return &last, nil
+	return last, nil
 }
 
 func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, event SIEMBatchEvent) (*time.Time, error) {
