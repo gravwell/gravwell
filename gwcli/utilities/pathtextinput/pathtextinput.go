@@ -15,8 +15,8 @@ type Model struct {
 	// NOTE(rlandau): if base.Value is empty, it will match no suggestions.
 	// As we want it to match all suggestions when base.Value is empty (but attempt to complete none),
 	// we need to wrap and hide base.
-	base textinput.Model
-	pwd  string
+	textinput.Model
+	pwd string
 }
 
 //var _ tea.Model = Model{}
@@ -27,7 +27,12 @@ type Options struct {
 }
 
 // New returns a ready-to-use Model.
-// Sets ShowSuggestions, as there isn't much reason you'd use this without.
+// Notes:
+//
+// - Use AvailableSuggestions, not MatchedSuggestions.
+// AvailableSuggestions is trimmed down to matching entries only in Update and MatchSuggestions will not work properly when Value is empty.
+//
+// - Sets ShowSuggestions, as there isn't much reason you'd use this without.
 //
 // Remember to focus it!
 func New(opt Options) Model {
@@ -45,47 +50,27 @@ func New(opt Options) Model {
 		m.pwd += "/"
 	}
 	if opt.CustomTI == nil {
-		m.base = textinput.New()
+		m.Model = textinput.New()
 	} else {
-		m.base = opt.CustomTI()
+		m.Model = opt.CustomTI()
 	}
 
 	// generate initial suggestions
-	m.base.SetSuggestions(deriveCompletions(m.pwd, m.base.Value()))
-	m.base.ShowSuggestions = true
-	m.base, _ = m.base.Update(tea.Key{Type: tea.KeyRunes})
+	m.Model.SetSuggestions(deriveCompletions(m.pwd, m.Model.Value()))
+	m.Model.ShowSuggestions = true
+	m.Model, _ = m.Model.Update(tea.Key{Type: tea.KeyRunes})
 	return m
 }
 
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
-	m.base, cmd = m.base.Update(msg)
+	m.Model, cmd = m.Model.Update(msg)
 	// generate suggestions based on the current traversal
-	completions := deriveCompletions(m.pwd, m.base.Value())
+	completions := deriveCompletions(m.pwd, m.Model.Value())
 	if _, ok := msg.(tea.KeyMsg); ok {
-		m.base.SetSuggestions(completions)
+		m.Model.SetSuggestions(completions)
 	}
 	return m, cmd
-}
-
-func (m Model) View() string {
-	return m.base.View()
-}
-
-func (m *Model) Focus() {
-	m.base.Focus()
-}
-
-func (m *Model) Blur() {
-	m.base.Blur()
-}
-
-func (m *Model) SetValue(s string) {
-	m.base.SetValue(s)
-}
-
-func (m Model) Suggestions() []string {
-	return m.base.AvailableSuggestions()
 }
 
 // Returns the set of files available at the given path that prefix-match the last element.
