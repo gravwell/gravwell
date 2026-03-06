@@ -29,7 +29,7 @@ type FieldType = string
 
 const (
 	Text FieldType = "text" // string inputs, consumed via flag.String & textinput.Model
-	File FieldType = "file" // takes a path as a string. In interactive mode, spins up a filepicker.
+	File FieldType = "file" // takes a path as a string. In interactive mode, uses a pathtextinput.Model
 	// TODO add boolean, add label
 )
 

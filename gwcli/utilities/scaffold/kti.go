@@ -24,7 +24,6 @@ func (kti KeyedTI) Key() string {
 	return kti.key
 }
 
-// View colourizes and mashes together the title and TI and returns it.
 func (kti KeyedTI) ViewField() string {
 	return kti.TI.View()
 }
