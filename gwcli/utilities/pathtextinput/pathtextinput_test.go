@@ -1,21 +1,20 @@
 package pathtextinput_test
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
 )
 
 func TestSuggestions(t *testing.T) {
-	// setup
-	pti := pathtextinput.New(pathtextinput.Options{Root: generateDirectories(t)})
-	pti.Focus()
-
+	// generate tests and a testing function we can run against different PTIs
 	tests := []struct {
 		name            string
 		input           string
@@ -38,20 +37,58 @@ func TestSuggestions(t *testing.T) {
 			[]string{"file1", "fileA"},
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			pti.SetValue(tt.input)
-			pti, _ = pti.Update(tea.KeyMsg{
-				Type:  tea.KeyRunes,
-				Runes: []rune{},
-			})
+	testFunc := func(subT *testing.T, pti pathtextinput.Model) {
+		for _, tt := range tests {
+			subT.Run(tt.name, func(t *testing.T) {
+				pti.SetValue(tt.input)
+				pti, _ = pti.Update(tea.KeyMsg{
+					Type:  tea.KeyRunes,
+					Runes: []rune{},
+				})
 
-			// check suggestions
-			actual := pti.Suggestions()
-			if !testsupport.SlicesUnorderedEqual(actual, tt.wantSuggestions) {
-				t.Fatal(testsupport.ExpectedActual(tt.wantSuggestions, actual))
-			}
+				// check suggestions
+				actual := pti.AvailableSuggestions()
+				if !testsupport.SlicesUnorderedEqual(actual, tt.wantSuggestions) {
+					t.Fatal(testsupport.ExpectedActual(tt.wantSuggestions, actual))
+				}
+			})
+		}
+
+	}
+	// execute the actual tests
+	root := generateDirectories(t)
+	{
+		pti1 := pathtextinput.New(pathtextinput.Options{Root: root})
+		pti1.Focus()
+		t.Run("rooted elsewhere", func(t *testing.T) {
+			testFunc(t, pti1)
 		})
+	}
+	{
+		t.Chdir(root)
+		pti2 := pathtextinput.New(pathtextinput.Options{})
+		pti2.Focus()
+		t.Run("rooted at .", func(t *testing.T) {
+			testFunc(t, pti2)
+		})
+	}
+}
+
+func TestCustomTI(t *testing.T) {
+	wantErr := "WRONG!"
+	pti := pathtextinput.New(pathtextinput.Options{CustomTI: func() textinput.Model {
+		underlyingTI := textinput.New()
+		underlyingTI.Validate = func(s string) error {
+			if s != "Baby Bee" {
+				return errors.New(wantErr)
+			}
+			return nil
+		}
+		return underlyingTI
+	}})
+	pti.SetValue("Little Coco")
+	if pti.Err.Error() != wantErr {
+		t.Fatal("Validation did not return the correct error", testsupport.ExpectedActual(wantErr, pti.Err.Error()))
 	}
 }
 
@@ -85,6 +122,8 @@ func TestView(t *testing.T) {
 		})
 	}
 }
+
+//#region helper functions
 
 /*
 Creates a directory structure inside of t.TempDir:
@@ -140,3 +179,5 @@ func touchFile(t *testing.T, path string) {
 	}
 	f.Close()
 }
+
+//#endregion helper functions
