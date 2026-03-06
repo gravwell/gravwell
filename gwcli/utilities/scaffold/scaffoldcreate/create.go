@@ -74,6 +74,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/pathtextinput"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -249,6 +250,11 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		// generate interactive module by type
 		switch f.Type {
 		case File: // generate a keyedFP and add it to the set
+			ptii := ptiInteract{
+				Model: pathtextinput.New(pathtextinput.Options{CustomTI: func() textinput.Model { return stylesheet.NewTI("", false) }}),
+				key:   k,
+			}
+			c.orderedFields = append(c.orderedFields, ptii)
 			/*kfp := scaffold.KeyedFP{
 				Key:        k,
 				FieldTitle: f.Title,
@@ -285,7 +291,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 	})
 
 	if len(c.orderedFields) > 0 {
-		c.orderedFields[0].TI.Focus()
+		c.orderedFields[0].Focus()
 	}
 
 	return c
@@ -344,9 +350,9 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	if !c.SubmitSelected() {
 		// pass message to currently focused ti
 		var cmd tea.Cmd
-		c.orderedFields[c.selected].TI, cmd = c.orderedFields[c.selected].TI.Update(msg)
-		if c.orderedFields[c.selected].TI.Err != nil {
-			c.inputErr = c.orderedFields[c.selected].TI.Err.Error()
+		cmd = c.orderedFields[c.selected].Update(msg)
+		if c.orderedFields[c.selected].Error() != nil {
+			c.inputErr = c.orderedFields[c.selected].Error().Error()
 		}
 		return cmd
 	}
@@ -356,14 +362,14 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 // Blurs the current ti, selects and focuses the next (indexically) one.
 func (c *createModel) focusNext() {
 	if !c.SubmitSelected() {
-		c.orderedFields[c.selected].TI.Blur()
+		c.orderedFields[c.selected].Blur()
 	}
 	c.selected += 1
 	if c.selected > uint(len(c.orderedFields)) { // jump to start
 		c.selected = 0
 	}
 	if !c.SubmitSelected() {
-		c.orderedFields[c.selected].TI.Focus()
+		c.orderedFields[c.selected].Focus()
 	}
 }
 
@@ -371,7 +377,7 @@ func (c *createModel) focusNext() {
 func (c *createModel) focusPrevious() {
 	// if we are not on the submit button, then blur
 	if !c.SubmitSelected() {
-		c.orderedFields[c.selected].TI.Blur()
+		c.orderedFields[c.selected].Blur()
 	}
 	if c.selected == 0 { // wrap to submit button
 		c.selected = uint(len(c.orderedFields))
@@ -380,7 +386,7 @@ func (c *createModel) focusPrevious() {
 	}
 	// if we are not on the submit button, then focus
 	if !c.SubmitSelected() {
-		c.orderedFields[c.selected].TI.Focus()
+		c.orderedFields[c.selected].Focus()
 	}
 }
 
@@ -391,13 +397,13 @@ func (c *createModel) focusPrevious() {
 func (c *createModel) extractValuesFromTIs() (fieldValues map[string]string, missingRequiredFields []string) {
 	fieldValues = make(map[string]string)
 	for _, kti := range c.orderedFields {
-		val := strings.TrimSpace(kti.TI.Value())
-		field := c.fields[kti.Key]
+		val := strings.TrimSpace(kti.Value())
+		field := c.fields[kti.Key()]
 		if val == "" && field.Required {
 			missingRequiredFields = append(missingRequiredFields, field.Title)
 		}
 
-		fieldValues[kti.Key] = val
+		fieldValues[kti.Key()] = val
 	}
 
 	return fieldValues, missingRequiredFields
@@ -426,8 +432,8 @@ func (c *createModel) Reset() error {
 	// reset TIs
 	go func() {
 		for i := range c.orderedFields {
-			c.orderedFields[i].TI.Reset()
-			c.orderedFields[i].TI.Blur()
+			c.orderedFields[i].Reset()
+			c.orderedFields[i].Blur()
 		}
 		wg.Done()
 	}()
@@ -447,7 +453,7 @@ func (c *createModel) Reset() error {
 	c.inputErr = ""
 	c.selected = 0
 	if len(c.orderedFields) > 0 {
-		c.orderedFields[0].TI.Focus()
+		c.orderedFields[0].Focus()
 	}
 	return nil
 }
@@ -466,10 +472,10 @@ func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height 
 
 	for i, kti := range c.orderedFields {
 		// set flag values as the starter values in their corresponding TI
-		c.orderedFields[i].TI.SetValue(flagVals[kti.Key])
+		c.orderedFields[i].SetValue(flagVals[kti.Key()]) // TODO check error
 		// if a TI has a CustomSetArg, call it now
-		if c.fields[kti.Key].CustomTIFuncSetArg != nil {
-			c.orderedFields[i].TI = c.fields[kti.Key].CustomTIFuncSetArg(&kti.TI)
+		if c.fields[kti.Key()].CustomTIFuncSetArg != nil {
+			c.orderedFields[i].TI = c.fields[kti.Key()].CustomTIFuncSetArg(&kti.TI)
 		}
 	}
 

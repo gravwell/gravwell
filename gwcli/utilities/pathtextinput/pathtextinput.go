@@ -94,3 +94,7 @@ func deriveCompletions(root, relPath string) (completions []string) {
 	}
 	return completions
 }
+
+//#region scaffoldcreate adapter functions
+
+//#endregion scaffoldcreate adapter functions
