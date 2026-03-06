@@ -65,6 +65,7 @@ package scaffoldcreate
 
 import (
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 	"sync"
@@ -207,10 +208,17 @@ type createModel struct {
 
 	fields Config // RO configuration provided by the caller
 
-	orderedFields      []interact // Ordered array of map keys, based on Config.Field.Order
-	selected           uint       // currently focused ti (in key order index)
-	longestFieldLength int        // set at create time
-	longestTILength    int        // set at create time
+	inputs struct {
+		selected uint       // currently focused item (index correlates to "ordered"+1 (submit))
+		ordered  []struct { // ordered at create-time by Config.Field.Order
+			Key  string    // key to acquire the actual field
+			Type FieldType // selects the map to fetch from
+		}
+		TIs  map[string]*textinput.Model     // Type: Text | key -> TI
+		PTIs map[string]*pathtextinput.Model // Type: File | key -> PTI
+	}
+	longestFieldLength int // set at create time
+	longestTILength    int // set at create time
 
 	inputErr  string // the reason inputs are invalid
 	createErr string // the reason the last create failed (not for invalid parameters)
@@ -224,17 +232,32 @@ type createModel struct {
 
 // SubmitSelect returns if the select button is currently selected by the user.
 func (c *createModel) SubmitSelected() bool {
-	return c.selected == uint(len(c.orderedFields))
+	return c.inputs.selected == uint(len(c.inputs.ordered))
 }
 
 // Creates and returns a create Model, ready for interactive usage via Mother.
 func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addtlFlagFunc func() pflag.FlagSet) *createModel {
 	c := &createModel{
-		mode:          inputting,
-		width:         defaultWidth,
-		singular:      singular,
-		fields:        fields,
-		orderedFields: make([]interact, 0),
+		mode:     inputting,
+		width:    defaultWidth,
+		singular: singular,
+		fields:   fields,
+		inputs: struct {
+			selected uint
+			ordered  []struct {
+				Key  string
+				Type FieldType
+			}
+			TIs  map[string]*textinput.Model
+			PTIs map[string]*pathtextinput.Model
+		}{
+			ordered: make([]struct {
+				Key  string
+				Type FieldType
+			}, len(fields)),
+			TIs:  map[string]*textinput.Model{},
+			PTIs: map[string]*pathtextinput.Model{},
+		},
 		addtlFlagFunc: addtlFlagFunc,
 		cf:            createFunc,
 	}
@@ -245,53 +268,63 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		addtlFlags := c.addtlFlagFunc()
 		c.fs.AddFlagSet(&addtlFlags)
 	}
-
-	for k, f := range fields {
-		// generate interactive module by type
+	// pre-sort fields so they can be added to inputs.ordered easily
+	var keys []string = slices.Collect(maps.Keys(fields))
+	slices.SortStableFunc(keys, func(aKey, bKey string) int {
+		// sort on order, then alpha on title
+		switch {
+		case fields[aKey].Order < fields[bKey].Order:
+			return -1
+		case fields[aKey].Order > fields[bKey].Order:
+			return 1
+		}
+		return strings.Compare(fields[aKey].Title, fields[bKey].Title)
+	})
+	for i, key := range keys { // construct interactive model from fields
+		f := fields[key]
+		// assign each field's input to its corresponding table and add it to
 		switch f.Type {
-		case File: // generate a keyedFP and add it to the set
-			ptii := ptiInteract{
-				Model: pathtextinput.New(pathtextinput.Options{CustomTI: func() textinput.Model { return stylesheet.NewTI("", false) }}),
-				key:   k,
-			}
-			c.orderedFields = append(c.orderedFields, ptii)
-			/*kfp := scaffold.KeyedFP{
-				Key:        k,
-				FieldTitle: f.Title,
-				FP:         filepicker.New(),
-				Required:   f.Required,
-			}*/ // TODO
-			// TODO test for custom creation funcs
-		case Text: // generate a KTI and add it to the set
-			kti := scaffold.NewKTI(k, f.Title, f.Required)
+		case File:
+			pti := pathtextinput.New(pathtextinput.Options{CustomTI: func() textinput.Model { return stylesheet.NewTI("", false) }})
+			c.inputs.PTIs[key] = &pti
+		case Text:
+			var ti textinput.Model
 			// if a custom func was not given, use the default generation
 			if f.CustomTIFuncInit == nil {
-				kti.TI = stylesheet.NewTI(f.DefaultValue, !f.Required)
+				ti = stylesheet.NewTI(f.DefaultValue, !f.Required)
 			} else {
-				kti.TI = f.CustomTIFuncInit()
+				ti = f.CustomTIFuncInit()
 			}
+			c.inputs.TIs[key] = &ti
 
-			c.orderedFields = append(c.orderedFields, kti)
-
+			// TODO correlate titles across types
 			// note the longest Title for later formatting
 			if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
 				c.longestFieldLength = w
 			}
 			// note the longest TI for later formatting
-			if kti.TI.Width > c.longestTILength {
-				c.longestTILength = kti.TI.Width
+			if ti.Width > c.longestTILength {
+				c.longestTILength = ti.Width
 			}
 		}
-
+		c.inputs.ordered[i] = struct {
+			Key  string
+			Type FieldType
+		}{
+			key, f.Type,
+		}
 	}
 
-	// sort keys from highest order to lowest order
-	slices.SortFunc(c.orderedFields, func(a, b interact) int {
-		return fields[b.Key()].Order - fields[a.Key()].Order
-	})
+	if len(c.inputs.ordered) > 0 {
+		switch c.inputs.ordered[0].Type {
+		case File:
+			c.inputs.PTIs[c.inputs.ordered[0].Type].Focus()
+		case Text:
+			c.inputs.TIs[c.inputs.ordered[0].Type].Focus()
+		default:
+			// TODO log error
+		}
 
-	if len(c.orderedFields) > 0 {
-		c.orderedFields[0].Focus()
 	}
 
 	return c
