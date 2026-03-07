@@ -499,14 +499,49 @@ func (c *createModel) extractValuesFromTIs() (fieldValues map[string]string, mis
 	return fieldValues, missingRequiredFields
 }
 
-// Iterates through the keymap, drawing each ti and title by descending field.Order
+var rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
+
+// Iterates through the inputs in order, composing as "titles:input".
 func (c *createModel) View() string {
-	inputs := scaffold.ViewKTIs(uint(c.longestFieldLength), uint(c.longestTILength), c.orderedFields, c.selected)
+
+	var titles, inputViews []string // stylized left and right items, paired on index
+	var sb strings.Builder          // to build titles; reused each cycle
+	for i, o := range c.inputs.ordered {
+		sb.Reset()
+		field, ok := c.fields[o.Key]
+		if !ok {
+			clilog.Writer.Error("failed to generate field view: failed to find field associated to key " + o.Key)
+			continue
+		}
+		// left-pad so all titles are all the same width
+		sb.WriteString(strings.Repeat(" ", int(max(c.longestFieldLength, c.longestTILength))-len(field.Title)))
+		sb.WriteString(stylesheet.Pip(c.inputs.selected, uint(i)))
+		// coloruize and attach titles
+		if field.Required {
+			sb.WriteString(stylesheet.Cur.PrimaryText.Render(field.Title + ":"))
+		} else {
+			sb.WriteString(stylesheet.Cur.SecondaryText.Render(field.Title + ":"))
+		}
+		// render the input and right-align it // TODO do we need to right align our titles?
+		titles = append(titles, rightAlignSty.Render(sb.String()))
+		sb.Reset()
+
+		// attach input view
+		switch o.Type {
+		case File:
+			inputViews = append(inputViews, c.inputs.PTIs[o.Key].View())
+		case Text:
+			inputViews = append(inputViews, c.inputs.TIs[o.Key].View())
+		}
+	}
+	// compose the titles and inputs
+	mainView := lipgloss.JoinHorizontal(lipgloss.Center, lipgloss.JoinVertical(lipgloss.Right, titles...))
+
 	// generate submit button and align it with the center
-	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.width, c.inputErr, c.createErr)
+	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.width, c.inputs.err, c.createErr)
 	// align the submit to roughly the end of the field titles
 	return lipgloss.NewStyle().Width(c.width).
-		AlignHorizontal(lipgloss.Center).Render(inputs) + "\n" + sbtn
+		AlignHorizontal(lipgloss.Center).Render(mainView) + "\n" + sbtn
 
 }
 
@@ -520,31 +555,32 @@ func (c *createModel) Reset() error {
 	var wg sync.WaitGroup
 	wg.Add(2)
 	// reset TIs
-	go func() {
-		for i := range c.orderedFields {
-			c.orderedFields[i].Reset()
-			c.orderedFields[i].Blur()
+	wg.Go(func() {
+		for _, pti := range c.inputs.PTIs {
+			pti.Reset()
+			pti.Blur()
 		}
-		wg.Done()
-	}()
-	// refresh flags to their original, unparsed and unvalued state
-	go func() {
+	})
+	wg.Go(func() {
+		for _, ti := range c.inputs.TIs {
+			ti.Reset()
+			ti.Blur()
+		}
+	})
+	wg.Go(func() { // refresh flags to their original, unparsed and unvalued state
 		c.fs = installFlagsFromFields(c.fields)
 		if c.addtlFlagFunc != nil {
 			addtlFlags := c.addtlFlagFunc()
 			c.fs.AddFlagSet(&addtlFlags)
 		}
-		wg.Done()
-	}()
+	})
 
 	wg.Wait()
 
 	c.createErr = ""
-	c.inputErr = ""
-	c.selected = 0
-	if len(c.orderedFields) > 0 {
-		c.orderedFields[0].Focus()
-	}
+	c.inputs.err = ""
+	c.inputs.selected = 0
+	c.focusInput(true)
 	return nil
 }
 
@@ -560,15 +596,34 @@ func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height 
 		return "", nil, err
 	}
 
-	for i, kti := range c.orderedFields {
-		// set flag values as the starter values in their corresponding TI
-		c.orderedFields[i].SetValue(flagVals[kti.Key()]) // TODO check error
-		// if a TI has a CustomSetArg, call it now
-		if c.fields[kti.Key()].CustomTIFuncSetArg != nil {
-			c.orderedFields[i].TI = c.fields[kti.Key()].CustomTIFuncSetArg(&kti.TI)
+	// iterate fields to check for customTIconf and values
+	for key, field := range c.fields {
+		// check for and set flag values
+		if v, found := flagVals[key]; found {
+			switch field.Type {
+			case File:
+				c.inputs.PTIs[key].SetValue(v)
+			case Text:
+				c.inputs.TIs[key].SetValue(v)
+			}
 		}
+		// check for customTIs to call
+		if field.CustomTIFuncSetArg != nil {
+			ti := c.inputs.TIs[key]
+			nti := field.CustomTIFuncSetArg(ti)
+			c.inputs.TIs[key] = &nti
+		}
+
 	}
 
+	for key, fval := range flagVals {
+		// figure out type by searching fields
+		field := c.fields[key]
+		switch field.Type {
+		case File:
+			c.inputs.PTIs[key].SetValue(fval)
+		}
+	}
 	c.width = width
 
 	return "", nil, nil
