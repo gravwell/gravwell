@@ -211,6 +211,7 @@ type createModel struct {
 
 	inputs struct {
 		selected uint       // currently focused item (index correlates to "ordered"+1 (submit))
+		err      string     // a reason inputs are invalid. Currently only holds the most-recently set error. Disables submit if set.
 		ordered  []struct { // ordered at create-time by Config.Field.Order
 			Key  string    // key to acquire the actual field
 			Type FieldType // selects the map to fetch from
@@ -221,7 +222,6 @@ type createModel struct {
 	longestFieldLength int // set at create time
 	longestTILength    int // set at create time
 
-	inputErr  string // the reason inputs are invalid
 	createErr string // the reason the last create failed (not for invalid parameters)
 
 	// function to provide additional flags for this specific create instance
@@ -245,6 +245,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		fields:   fields,
 		inputs: struct {
 			selected uint
+			err      string
 			ordered  []struct {
 				Key  string
 				Type FieldType
@@ -316,6 +317,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		}
 	}
 
+	// focus the first input
 	if len(c.inputs.ordered) > 0 {
 		switch c.inputs.ordered[0].Type {
 		case File:
@@ -325,7 +327,6 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		default:
 			logUnknownFieldType("focus ordered[0] field on startup", c.inputs.ordered[0].Key, c.inputs.ordered[0].Type)
 		}
-
 	}
 
 	return c
@@ -341,7 +342,6 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		return nil
 	}
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		c.inputErr = ""  // clear last input error
 		c.createErr = "" // clear error from last create attempt
 		switch keyMsg.Type {
 		case tea.KeyUp, tea.KeyShiftTab:
@@ -356,9 +356,9 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 				values, mr := c.extractValuesFromTIs()
 				if mr != nil {
 					if len(mr) == 1 {
-						c.inputErr = fmt.Sprintf("%v is required", mr[0])
+						c.inputs.err = fmt.Sprintf("%v is required", mr[0])
 					} else {
-						c.inputErr = fmt.Sprintf("%v are required", mr)
+						c.inputs.err = fmt.Sprintf("%v are required", mr)
 					}
 					return nil
 				}
@@ -367,7 +367,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 					c.createErr = err.Error()
 					return nil
 				} else if invalid != "" {
-					c.inputErr = invalid
+					c.inputs.err = invalid
 					return nil
 				}
 				// done, die
@@ -381,63 +381,119 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		c.width = sizeMsg.Width
 		return nil
 	}
+	var cmd tea.Cmd
 	if !c.SubmitSelected() {
-		// pass message to currently focused ti
-		var cmd tea.Cmd
-		cmd = c.orderedFields[c.selected].Update(msg)
-		if c.orderedFields[c.selected].Error() != nil {
-			c.inputErr = c.orderedFields[c.selected].Error().Error()
+		var iErr error // input error from this cycle, if applicable
+		// pass message to currently focused input
+		switch c.curInputType() {
+		case File:
+			pti := c.inputs.PTIs[c.curInputKey()]
+			var npti pathtextinput.Model
+			npti, cmd = pti.Update(msg)
+			iErr = npti.Err
+			c.inputs.PTIs[c.curInputKey()] = &npti // replace pti
+		case Text:
+			ti := c.inputs.TIs[c.curInputKey()]
+			var nti textinput.Model
+			nti, cmd = ti.Update(msg)
+			iErr = nti.Err
+			c.inputs.TIs[c.curInputKey()] = &nti // replace pti
 		}
-		return cmd
+
+		if iErr != nil {
+			c.inputs.err = iErr.Error()
+		}
+
 	}
-	return nil
+	return cmd
 }
 
-// Blurs the current ti, selects and focuses the next (indexically) one.
+// Blurs the current input, selects and focuses the next one c.inputs.ordered.
 func (c *createModel) focusNext() {
-	if !c.SubmitSelected() {
-		c.orderedFields[c.selected].Blur()
+	c.focusInput(false)
+	c.inputs.selected += 1
+	if c.inputs.selected > uint(len(c.inputs.ordered)) { // jump to start
+		c.inputs.selected = 0
 	}
-	c.selected += 1
-	if c.selected > uint(len(c.orderedFields)) { // jump to start
-		c.selected = 0
-	}
-	if !c.SubmitSelected() {
-		c.orderedFields[c.selected].Focus()
-	}
+	c.focusInput(true)
 }
 
-// Blurs the current ti, selects and focuses the previous (indexically) one.
+// Blurs the current input, selects and focuses the previous one in c.inputs.ordered.
 func (c *createModel) focusPrevious() {
-	// if we are not on the submit button, then blur
-	if !c.SubmitSelected() {
-		c.orderedFields[c.selected].Blur()
-	}
-	if c.selected == 0 { // wrap to submit button
-		c.selected = uint(len(c.orderedFields))
+	c.focusInput(false)
+
+	if c.inputs.selected == 0 { // wrap to submit button
+		c.inputs.selected = uint(len(c.inputs.ordered))
 	} else {
-		c.selected -= 1
+		c.inputs.selected -= 1
 	}
-	// if we are not on the submit button, then focus
-	if !c.SubmitSelected() {
-		c.orderedFields[c.selected].Focus()
+	c.focusInput(true)
+}
+
+// focusInput toggles the focus on the currently selected input (doing nothing if submit is selected).
+// If !focus, blurs the input.
+func (c *createModel) focusInput(focus bool) {
+	if c.SubmitSelected() {
+		return
+	}
+	switch c.curInputType() {
+	case File:
+		if focus {
+			c.inputs.PTIs[c.curInputKey()].Focus()
+		} else {
+			c.inputs.PTIs[c.curInputKey()].Blur()
+		}
+	case Text:
+		if focus {
+			c.inputs.TIs[c.curInputKey()].Focus()
+		} else {
+			c.inputs.TIs[c.curInputKey()].Blur()
+		}
+	default:
+		s := "focus"
+		if !focus {
+			s = "blur"
+		}
+		logUnknownFieldType(s+" next input", c.inputs.ordered[c.inputs.selected].Key, c.inputs.ordered[c.inputs.selected].Type)
 	}
 }
 
-// Generates the corollary value map from the TIs.
+// Generates the corollary value map from the inputs.
 //
-// Returns the values for each TI (mapped to their Config key), a list of required fields (as their
-// field.Title names) that were not set, and an error (if one occurred).
+// Returns:
+//
+// - key -> input value
+//
+// - a list of required fields (as their keys) with empty values
+//
+// - an error (if applicable)
+// TODO rename to extractInputValues
 func (c *createModel) extractValuesFromTIs() (fieldValues map[string]string, missingRequiredFields []string) {
-	fieldValues = make(map[string]string)
-	for _, kti := range c.orderedFields {
-		val := strings.TrimSpace(kti.Value())
-		field := c.fields[kti.Key()]
-		if val == "" && field.Required {
-			missingRequiredFields = append(missingRequiredFields, field.Title)
+	fieldValues = make(map[string]string, len(c.inputs.ordered))
+	for _, o := range c.inputs.ordered {
+		// fetch respective input's value
+		var val string
+		switch o.Type {
+		case File:
+			val = c.inputs.PTIs[o.Key].Value()
+		case Text:
+			val = c.inputs.TIs[o.Key].Value()
+		default:
+			logUnknownFieldType("fetch input value", o.Key, o.Type)
+			continue
 		}
 
-		fieldValues[kti.Key()] = val
+		val = strings.TrimSpace(val)
+		field, ok := c.fields[o.Key]
+		if !ok {
+			clilog.Writer.Error("failed to extract input values: failed to find field associated to key " + o.Key)
+			continue
+		}
+		if field.Required && val == "" { // check for missing required
+			missingRequiredFields = append(missingRequiredFields, o.Key)
+		}
+
+		fieldValues[o.Key] = val
 	}
 
 	return fieldValues, missingRequiredFields
@@ -516,6 +572,26 @@ func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height 
 	c.width = width
 
 	return "", nil, nil
+}
+
+// Returns the key of the current input.
+//
+// Returns "" if submit is selected.
+func (c *createModel) curInputKey() string {
+	if c.SubmitSelected() {
+		return ""
+	}
+	return c.inputs.ordered[c.inputs.selected].Key
+}
+
+// Returns the key of the current input.
+//
+// Returns "" if submit is selected.
+func (c *createModel) curInputType() FieldType {
+	if c.SubmitSelected() {
+		return ""
+	}
+	return c.inputs.ordered[c.inputs.selected].Type
 }
 
 //#endregion
