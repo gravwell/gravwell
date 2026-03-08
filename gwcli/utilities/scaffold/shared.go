@@ -5,14 +5,11 @@ import (
 	"path"
 	"runtime"
 	"strconv"
-	"strings"
 
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"golang.org/x/exp/constraints"
 )
 
@@ -35,7 +32,7 @@ var (
 // ViewKTIs composes a uniform view of the given keyedTIs.
 // All field will be padded to a consistent length based on maxFieldWidth and right-aligned.
 // TIs are attached as View() to their respective TIs.
-func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []KeyedTI, selectedIdx uint) string {
+/*func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []KeyedTI, selectedIdx uint) string {
 	if maxFieldWidth == 0 {
 		clilog.Writer.Warnf("field width is unset")
 	} else if maxTIWidth == 0 {
@@ -70,7 +67,7 @@ func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []KeyedTI, selectedIdx uint) 
 
 	// conjoin fields and TIs
 	return lipgloss.JoinHorizontal(lipgloss.Center, f, t)
-}
+}*/
 
 // Id_t is the set of constraints defining what can be used as an id for some scaffolds.
 // It can be expanded to more types (strings, mayhaps?) if need be, but make sure FromString is expanded, too.
