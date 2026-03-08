@@ -631,6 +631,8 @@ func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height 
 	return "", nil, nil
 }
 
+//#region getter/setter helper functions
+
 // Returns the key of the current input.
 //
 // Returns "" if submit is selected.
@@ -649,6 +651,41 @@ func (c *createModel) curInputType() FieldType {
 		return ""
 	}
 	return c.inputs.ordered[c.inputs.selected].Type
+}
+
+// getInputValue is a helper function for fetching the .Value of an input.
+// If type is given, only the associated map will be checked (providing a meager time-cost reduction).
+//
+// Returns empty and logs and error if the key is not found.
+func (c *createModel) getInputValue(key string, typ FieldType) string {
+	switch typ {
+	case File:
+		pti, ok := c.inputs.PTIs[key]
+		if ok {
+			return pti.Value()
+		}
+	case Text:
+		ti, ok := c.inputs.TIs[key]
+		if ok {
+			return ti.Value()
+		}
+	default:
+		// check both: file, then text
+		pti, ok := c.inputs.PTIs[key]
+		if ok {
+			return pti.Value()
+		}
+		ti, ok := c.inputs.TIs[key]
+		if ok {
+			return ti.Value()
+		}
+
+	}
+
+	// if we made it this far, the key was not found. Log an error and return.
+	clilog.Writer.Warn("failed to find input value associated to key", attachLogInfo(key, typ)...)
+
+	return ""
 }
 
 //#endregion
