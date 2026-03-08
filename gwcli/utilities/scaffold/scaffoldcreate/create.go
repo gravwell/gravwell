@@ -321,9 +321,9 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 	if len(c.inputs.ordered) > 0 {
 		switch c.inputs.ordered[0].Type {
 		case File:
-			c.inputs.PTIs[c.inputs.ordered[0].Type].Focus()
+			c.inputs.PTIs[c.inputs.ordered[0].Key].Focus()
 		case Text:
-			c.inputs.TIs[c.inputs.ordered[0].Type].Focus()
+			c.inputs.TIs[c.inputs.ordered[0].Key].Focus()
 		default:
 			clilog.Writer.Error("failed to focus ordered[0] field on startup: unknown field type", attachLogInfo(c.inputs.ordered[0].Key, c.inputs.ordered[0].Type)...)
 		}
