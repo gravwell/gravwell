@@ -14,6 +14,7 @@ import (
 	filesystem "io/fs"
 
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 
 	"github.com/spf13/pflag"
@@ -86,7 +87,8 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 					f.Usage)
 			}
 		default:
-			logUnknownFieldType("install flag for field", key, f.Type)
+			clilog.Writer.Error("failed to install flag for field next input: unknown field type",
+				attachLogInfo(key, f.Type)...)
 		}
 	}
 
@@ -132,7 +134,8 @@ func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[
 			}
 			fieldValues[key] = v
 		default:
-			logUnknownFieldType("get value for field from flag", key, f.Type)
+			clilog.Writer.Error("failed to get value for field from flag: unknown field type",
+				attachLogInfo(key, f.Type)...)
 		}
 	}
 	return fieldValues, missingRequireds, nil
