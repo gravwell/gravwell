@@ -402,6 +402,8 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 
 		if iErr != nil {
 			c.inputs.err = iErr.Error()
+		} else {
+			c.inputs.err = ""
 		}
 
 	}
