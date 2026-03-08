@@ -557,7 +557,6 @@ func (c *createModel) Reset() error {
 	c.mode = inputting
 
 	var wg sync.WaitGroup
-	wg.Add(2)
 	// reset TIs
 	wg.Go(func() {
 		for _, pti := range c.inputs.PTIs {
