@@ -40,9 +40,9 @@ func Test_createModel_basics(t *testing.T) {
 	if len(cm.inputs.ordered) != 2 {
 		t.Fatal(ExpectedActual(1, len(cm.inputs.ordered)))
 	} else if cm.inputs.ordered[0].Key != "A" {
-		t.Fatal(ExpectedActual("A", cm.inputs.ordered[0].Key))
+		t.Error(ExpectedActual("A", cm.inputs.ordered[0].Key))
 	} else if cm.inputs.ordered[1].Key != "B" {
-		t.Fatal(ExpectedActual("B", cm.inputs.ordered[1].Key))
+		t.Error(ExpectedActual("B", cm.inputs.ordered[1].Key))
 	}
 	cm.focusNext()
 	// should be the second field
