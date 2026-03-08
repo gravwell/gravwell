@@ -276,9 +276,9 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		// sort on order, then alpha on title
 		switch {
 		case fields[aKey].Order < fields[bKey].Order:
-			return -1
-		case fields[aKey].Order > fields[bKey].Order:
 			return 1
+		case fields[aKey].Order > fields[bKey].Order:
+			return -1
 		}
 		return strings.Compare(fields[aKey].Title, fields[bKey].Title)
 	})
