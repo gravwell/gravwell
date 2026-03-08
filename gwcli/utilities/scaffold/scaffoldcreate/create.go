@@ -325,7 +325,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		case Text:
 			c.inputs.TIs[c.inputs.ordered[0].Type].Focus()
 		default:
-			logUnknownFieldType("focus ordered[0] field on startup", c.inputs.ordered[0].Key, c.inputs.ordered[0].Type)
+			clilog.Writer.Error("failed to focus ordered[0] field on startup: unknown field type", attachLogInfo(c.inputs.ordered[0].Key, c.inputs.ordered[0].Type)...)
 		}
 	}
 
@@ -454,7 +454,8 @@ func (c *createModel) focusInput(focus bool) {
 		if !focus {
 			s = "blur"
 		}
-		logUnknownFieldType(s+" next input", c.inputs.ordered[c.inputs.selected].Key, c.inputs.ordered[c.inputs.selected].Type)
+		clilog.Writer.Error("failed to "+s+" next input: unknown field type",
+			attachLogInfo(c.inputs.ordered[c.inputs.selected].Key, c.inputs.ordered[c.inputs.selected].Type)...)
 	}
 }
 
@@ -479,7 +480,8 @@ func (c *createModel) extractValuesFromTIs() (fieldValues map[string]string, mis
 		case Text:
 			val = c.inputs.TIs[o.Key].Value()
 		default:
-			logUnknownFieldType("fetch input value", o.Key, o.Type)
+			clilog.Writer.Error("failed to fetch next input: unknown field type",
+				attachLogInfo(o.Key, o.Type)...)
 			continue
 		}
 
@@ -651,12 +653,11 @@ func (c *createModel) curInputType() FieldType {
 
 //#endregion
 
-// logUnknownFieldType logs (level==ERROR) that the action failed as an unknown/unhandled type was given.
-// action will be written into the message as "failed to <action>: unknown field type".
-func logUnknownFieldType(action, key string, typ FieldType) {
-	clilog.Writer.Error("failed to "+action+": unknown field type",
+// attachLogInfo returns 3 SDParams that are useful to attach to most/every log: key, type, and caller identity.
+func attachLogInfo(key string, typ FieldType) []rfc5424.SDParam {
+	return []rfc5424.SDParam{
 		rfc5424.SDParam{Name: "field_key", Value: key},
-		rfc5424.SDParam{Name: "unknown type", Value: typ},
+		rfc5424.SDParam{Name: "type", Value: typ},
 		scaffold.IdentifyCaller(),
-	)
+	}
 }
