@@ -120,10 +120,9 @@ func Test_ExtractValues(t *testing.T) {
 			num, err := strconv.Atoi(v)
 			if err != nil {
 				t.Errorf("failed to parse %v as an int", v)
-			} else if cm.inputs.ordered[num].Key != key || cm.inputs.ordered[num].TI.Value() != v {
+			} else if cm.inputs.ordered[num].Key != key || cm.getInputValue(key, fld.Type) != v {
 				t.Error("mismatching values after extraction.",
-					ExpectedActual(cm.inputs.ordered[num].Key, key),
-					ExpectedActual(cm.inputs.ordered[num].TI.Value(), v))
+					ExpectedActual(cm.getInputValue(key, fld.Type), v))
 			}
 		}
 	})
@@ -140,7 +139,7 @@ func Test_ExtractValues(t *testing.T) {
 		}
 
 		// set one of the requireds and try again
-		cm.inputs.ordered[1].TI.SetValue("test value") // A
+		cm.inputs.TIs[cm.inputs.ordered[1].Key].SetValue("test value") // A
 		_, mr = cm.extractValuesFromTIs()
 		if len(mr) != 1 {
 			t.Error("incorrect missing required count.", ExpectedActual(1, len(mr)))
