@@ -73,6 +73,7 @@ func installFlagsFromFields(fields Config) pflag.FlagSet {
 	for key, f := range fields {
 		if f.FlagName == "" {
 			f.FlagName = ft.DeriveFlagName(f.Title)
+			fields[key] = f
 		}
 
 		// map fields to their flags
