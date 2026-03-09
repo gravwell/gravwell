@@ -92,7 +92,7 @@ func deriveCompletions(root, input string) (completions []string) {
 	}
 	for _, de := range des {
 		if strings.HasPrefix(de.Name(), last) {
-			completions = append(completions, de.Name())
+			completions = append(completions, path.Join(dir, de.Name()))
 		}
 	}
 	return completions
