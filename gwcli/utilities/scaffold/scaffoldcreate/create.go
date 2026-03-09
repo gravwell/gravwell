@@ -505,8 +505,14 @@ func (c *createModel) extractInputValues() (fieldValues map[string]string, missi
 
 var rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
 
+// the number of lines available for use when showing path suggestions.
+// If fewer suggestions are available than populate these lines, View will pad vertically
+const pathSuggestionLineCount int = 2
+
 // Iterates through the inputs in order, composing as "titles:input".
 func (c *createModel) View() string {
+	// total amount of space we are taking of for this View. Should be <= c.width.
+	modalWidth := c.longestFieldLength + 1 + c.longestTILength // field + ":" + ti
 
 	var lines []string
 	var sb strings.Builder // to build titles; reused each cycle
@@ -536,7 +542,8 @@ func (c *createModel) View() string {
 			// gather suggestions into a following line
 			var sgts = TrimSuggestsToFile(pti.AvailableSuggestions(), pti.Value())
 			// truncate suggestions to a single line, within the max size of field+input
-			l := lipgloss.NewStyle().Width(c.width - 10).AlignHorizontal(lipgloss.Center).Render(strings.Join(sgts, " "))
+			l := lipgloss.NewStyle().Width(modalWidth).MaxHeight(pathSuggestionLineCount).Height(pathSuggestionLineCount).
+				Render(strings.Join(sgts, " "))
 
 			lines = append(lines, l)
 		case Text:
