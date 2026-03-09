@@ -305,11 +305,10 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 // SearchDownloadRequest initiates a download of search results for the search
 // with the given id. The request specifies a download format (see
 // [types.SearchDownloadRequest]) which should be a format supported by the
-// search's renderer (e.g. "json", "csv", "text", "pcap", "lookupdata",
-// "ipexist", "archive"). It may also include an optional set of
-// [types.RowSelection] values to select specific ranges or indices of results.
-// The returned [types.SearchDownloadResponse] contains a download URL for
-// retrieving the results.
+// search's renderer (e.g. "json", "csv", "text", "lookup", "archive").
+// It may also include an optional set of [types.RowSelection] values to select
+// specific ranges or indices of results. The returned [types.SearchDownloadResponse]
+// contains a download URL for retrieving the results.
 func (c *Client) SearchDownloadRequest(id string, req types.SearchDownloadRequest) (resp types.SearchDownloadResponse, err error) {
 	err = c.postStaticURL(searchCtrlDownloadUrl(id), req, &resp)
 	return

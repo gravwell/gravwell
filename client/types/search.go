@@ -362,8 +362,9 @@ type SearchCtrlStatus struct {
 }
 
 type SearchDownloadRequest struct {
-	Format string         `json:"format"`
-	Rows   []RowSelection `json:"rows,omitempty"`
+	Format    string         `json:"format"`
+	Rows      []RowSelection `json:"rows,omitempty"`
+	Timeframe Timeframe      `json:"timeframe,omitempty"`
 }
 
 type RowSelection struct {
@@ -423,6 +424,11 @@ type RowRange struct {
 type RowSingle struct {
 	Kind  string `json:"kind"`
 	Index uint64 `json:"index"`
+}
+
+type Timeframe struct {
+	End   time.Time `json:"end"`
+	Start time.Time `json:"start"`
 }
 
 type SearchDownloadResponse struct {
