@@ -362,8 +362,9 @@ type SearchCtrlStatus struct {
 }
 
 type SearchDownloadRequest struct {
-	Format string         `json:"format"`
-	Rows   []RowSelection `json:"rows,omitempty"`
+	Format    string         `json:"format"`
+	Rows      []RowSelection `json:"rows,omitempty"`
+	Timeframe Timeframe      `json:"timeframe,omitempty"`
 }
 
 type RowSelection struct {
@@ -375,22 +376,43 @@ type RowSelection struct {
 	Index uint64 `json:"index,omitempty"`
 }
 
+// The aliasRowSelection is a type alias to [RowSelection] just to break the MarshalJSON / UnmarshalJSON
+// recursion doom loop.
+type aliasRowSelection RowSelection
+
 func (rs RowSelection) MarshalJSON() ([]byte, error) {
+	if err := rs.validate(); err != nil {
+		return nil, err
+	}
+	return json.Marshal(aliasRowSelection(rs))
+}
+
+func (rs *RowSelection) UnmarshalJSON(data []byte) error {
+	var v aliasRowSelection
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	if err := RowSelection(v).validate(); err != nil {
+		return err
+	}
+	*rs = RowSelection(v)
+	return nil
+}
+
+func (rs RowSelection) validate() (err error) {
 	switch rs.Kind {
 	case "range":
 		if rs.Index != 0 {
-			return nil, fmt.Errorf("row selection kind %q must not have index set", rs.Kind)
+			err = fmt.Errorf("row selection kind %q must not have index set", rs.Kind)
 		}
 	case "single":
 		if rs.Start != 0 || rs.End != 0 {
-			return nil, fmt.Errorf("row selection kind %q must not have start or end set", rs.Kind)
+			err = fmt.Errorf("row selection kind %q must not have start or end set", rs.Kind)
 		}
 	default:
-		return nil, fmt.Errorf("unknown row selection kind: %q", rs.Kind)
+		err = fmt.Errorf("unknown row selection kind: %q", rs.Kind)
 	}
-	// Break the MarshalJSON recursion doom loop with a type alias
-	type alias RowSelection
-	return json.Marshal(alias(rs))
+	return
 }
 
 type RowRange struct {
@@ -402,6 +424,11 @@ type RowRange struct {
 type RowSingle struct {
 	Kind  string `json:"kind"`
 	Index uint64 `json:"index"`
+}
+
+type Timeframe struct {
+	End   time.Time `json:"end"`
+	Start time.Time `json:"start"`
 }
 
 type SearchDownloadResponse struct {

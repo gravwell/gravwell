@@ -85,8 +85,7 @@ const (
 	SEARCH_CTRL_GLOBAL_URL           = `/api/searchctrl/%s/global`
 	SEARCH_CTRL_SAVE_URL             = `/api/searchctrl/%s/save`
 	SEARCH_CTRL_STOP_URL             = `/api/searchctrl/%s/stop`
-	SEARCH_CTRL_DOWNLOAD_URL         = `/api/searchctrl/%s/download/%s`
-	SEARCH_CTRL_DOWNLOAD_URL_V2      = `/api/searchctrl/%s/download`
+	SEARCH_CTRL_DOWNLOAD_URL         = `/api/searchctrl/%s/download`
 	SEARCH_CTRL_PING_URL             = `/api/searchctrl/%s/ping`
 	SEARCH_CTRL_DETACH_URL           = `/api/searchctrl/%s/detach`
 	SEARCH_CTRL_MODULES              = `/api/searchctrl/%s/modules`
@@ -317,12 +316,8 @@ func searchCtrlSaveUrl(id string) string {
 	return fmt.Sprintf(SEARCH_CTRL_SAVE_URL, id)
 }
 
-func searchCtrlDownloadUrl(id, format string) string {
-	return fmt.Sprintf(SEARCH_CTRL_DOWNLOAD_URL, id, format)
-}
-
-func searchCtrlDownloadUrlV2(id string) string {
-	return fmt.Sprintf(SEARCH_CTRL_DOWNLOAD_URL_V2, id)
+func searchCtrlDownloadUrl(id string) string {
+	return fmt.Sprintf(SEARCH_CTRL_DOWNLOAD_URL, id)
 }
 
 func searchCtrlStopUrl(id string) string {
