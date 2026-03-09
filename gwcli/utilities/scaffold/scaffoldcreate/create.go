@@ -508,8 +508,8 @@ var rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
 // Iterates through the inputs in order, composing as "titles:input".
 func (c *createModel) View() string {
 
-	var titles, inputViews []string // stylized left and right items, paired on index
-	var sb strings.Builder          // to build titles; reused each cycle
+	var lines []string
+	var sb strings.Builder // to build titles; reused each cycle
 	for i, o := range c.inputs.ordered {
 		sb.Reset()
 		field, ok := c.fields[o.Key]
@@ -526,23 +526,47 @@ func (c *createModel) View() string {
 		} else {
 			sb.WriteString(stylesheet.Cur.SecondaryText.Render(field.Title + ":"))
 		}
-		// render the input and right-align it // TODO do we need to right align our titles?
-		titles = append(titles, rightAlignSty.Render(sb.String()))
-		sb.Reset()
+		title := rightAlignSty.Render(sb.String())
 
-		// attach input view
+		// attach input view and any additional lines
 		switch o.Type {
 		case File:
-			inputViews = append(inputViews, c.inputs.PTIs[o.Key].View())
+			pti := c.inputs.PTIs[o.Key]
+			lines = append(lines, title+pti.View())
+			// gather suggestions into a following line
+			var sgts = make([]string, len(pti.AvailableSuggestions()))
+			{ // hide root path and colourize matching text
+				input := pti.Value()
+				for i, sgt := range pti.AvailableSuggestions() {
+					file, found := strings.CutPrefix(sgt, pti.PWD())
+					if !found {
+						clilog.Writer.Warn("failed to prefix-chip suggestion: prefix not found",
+							append(
+								attachLogInfo(o.Key, o.Type),
+								rfc5424.SDParam{Name: "prefix", Value: input},
+								rfc5424.SDParam{Name: "suggestion", Value: sgt},
+							)...)
+						continue
+					}
+					// prefix-chip, then colourize and reattach input
+					unmatchedSgtRunes, _ := strings.CutPrefix(file, input)
+					sgts[i] = stylesheet.Cur.TertiaryText.Render(input) + unmatchedSgtRunes
+				}
+			}
+			// truncate suggestions to a single line, within the max size of field+input
+			l := lipgloss.NewStyle().Width(c.width - 10).AlignHorizontal(lipgloss.Center).Render(strings.Join(sgts, " "))
+
+			lines = append(lines, l)
 		case Text:
-			inputViews = append(inputViews, c.inputs.TIs[o.Key].View())
+			lines = append(lines, title+c.inputs.TIs[o.Key].View())
 		}
 	}
 	// compose the titles and inputs
-	mainView := lipgloss.JoinHorizontal(lipgloss.Center,
+	/*mainView := lipgloss.JoinHorizontal(lipgloss.Center,
 		lipgloss.JoinVertical(lipgloss.Right, titles...),
 		lipgloss.JoinVertical(lipgloss.Left, inputViews...),
-	)
+	)*/
+	mainView := lipgloss.JoinVertical(lipgloss.Center, lines...)
 
 	// generate submit button and align it with the center
 	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.width, c.inputs.err, c.createErr)
