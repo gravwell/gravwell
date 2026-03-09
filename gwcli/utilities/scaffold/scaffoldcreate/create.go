@@ -306,10 +306,10 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		}
 
 		// note Title width for later formatting
-			if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
-				c.longestFieldLength = w
-			}
-			// note the longest TI for later formatting
+		if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
+			c.longestFieldLength = w
+		}
+		// note the longest TI for later formatting
 		if rightSideWidth > c.longestTILength {
 			c.longestTILength = rightSideWidth
 		}
@@ -555,17 +555,12 @@ func (c *createModel) View() string {
 		}
 	}
 	// compose the titles and inputs
-	/*mainView := lipgloss.JoinHorizontal(lipgloss.Center,
-		lipgloss.JoinVertical(lipgloss.Right, titles...),
-		lipgloss.JoinVertical(lipgloss.Left, inputViews...),
-	)*/
-	mainView := lipgloss.JoinVertical(lipgloss.Center, lines...)
+	mainView := lipgloss.JoinVertical(lipgloss.Left, lines...)
 
 	// generate submit button and align it with the center
 	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.width, c.inputs.err, c.createErr)
 	// align the submit to roughly the end of the field titles
-	return lipgloss.NewStyle().Width(c.width).
-		AlignHorizontal(lipgloss.Center).Render(mainView) + "\n" + sbtn
+	return lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(mainView) + "\n" + sbtn
 
 }
 
