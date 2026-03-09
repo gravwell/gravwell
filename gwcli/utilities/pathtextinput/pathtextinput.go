@@ -97,3 +97,8 @@ func deriveCompletions(root, input string) (completions []string) {
 	}
 	return completions
 }
+
+// PWD returns the directory that this pti is operating (and basing all paths) out of.
+func (m Model) PWD() string {
+	return m.pwd
+}
