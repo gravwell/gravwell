@@ -102,6 +102,37 @@ func TestRemoteDirectoryAbsolutePath(t *testing.T) {
 
 }
 
+func TestTabComplete(t *testing.T) {
+	root := generateDirectories(t)
+	// make sure root has a slash suffix
+	if !strings.HasSuffix(root, "/") {
+		root += "/"
+	}
+	t.Run("absolute path input", func(t *testing.T) {
+		pti := pathtextinput.New(pathtextinput.Options{})
+		pti.Focus()
+		pti.SetValue(root)
+		pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+		// sanity check
+		if pti.Value() != root {
+			t.Fatal(testsupport.ExpectedActual(root, pti.Value()))
+		}
+
+		want := path.Join(root, "dir1")
+		if pti.CurrentSuggestion() != want {
+			t.Error("incorrect current suggestion", testsupport.ExpectedActual(want, pti.CurrentSuggestion()))
+		}
+		// check that it completes dir1
+		pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyTab})
+		if pti.Value() != want {
+			t.Fatal(testsupport.ExpectedActual(want, pti.Value()))
+		}
+	})
+
+	// TODO test relative path
+
+}
+
 func TestCustomTI(t *testing.T) {
 	wantErr := "WRONG!"
 	pti := pathtextinput.New(pathtextinput.Options{CustomTI: func() textinput.Model {
