@@ -12,7 +12,10 @@ Package resources defines the resources nav, which holds data related to persist
 package resources
 
 import (
+	"errors"
 	"fmt"
+	"io"
+	filesystem "io/fs"
 	"os"
 	"slices"
 	"strings"
@@ -178,6 +181,16 @@ func create() action.Pair {
 
 	return scaffoldcreate.NewCreateAction("resource", fields,
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			// check that path is valid and the file exists
+			if fi, err := os.Stat(fieldValues["path"]); err != nil {
+				switch {
+				case errors.Is(err, filesystem.ErrNotExist):
+					return 0, fmt.Sprintf("file '%v' not found", fieldValues["path"]), nil
+				}
+				return 0, fmt.Sprintf("failed to access path: %v", err), nil
+			} else if fi.IsDir() {
+				return 0, "path must point to a file", nil
+			}
 			// transmute to resource struct
 			data := types.Resource{
 				CommonFields: types.CommonFields{
@@ -187,6 +200,20 @@ func create() action.Pair {
 			}
 
 			resp, err := connection.Client.CreateResource(data)
+			// upload the file
+			f, err := os.Open(fieldValues["path"])
+			if err != nil {
+				return resp.ID, "", fmt.Errorf("created resource, but failed to populate it: %w", err)
+			}
+			defer f.Close()
+			b, err := io.ReadAll(f)
+			if err != nil {
+				return resp.ID, "", fmt.Errorf("created resource, but failed to populate it: %w", err)
+			}
+			if err := connection.Client.PopulateResource(resp.ID, b); err != nil {
+				return resp.ID, "", fmt.Errorf("created resource, but failed to populate it: %w", err)
+			}
+
 			return resp.ID, "", err
 		}, nil)
 }
