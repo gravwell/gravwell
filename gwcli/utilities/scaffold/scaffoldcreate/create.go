@@ -66,6 +66,7 @@ package scaffoldcreate
 import (
 	"fmt"
 	"maps"
+	"path"
 	"slices"
 	"strings"
 	"sync"
@@ -534,25 +535,7 @@ func (c *createModel) View() string {
 			pti := c.inputs.PTIs[o.Key]
 			lines = append(lines, title+pti.View())
 			// gather suggestions into a following line
-			var sgts = make([]string, len(pti.AvailableSuggestions()))
-			{ // hide root path and colourize matching text
-				input := pti.Value()
-				for i, sgt := range pti.AvailableSuggestions() {
-					file, found := strings.CutPrefix(sgt, pti.PWD())
-					if !found {
-						clilog.Writer.Warn("failed to prefix-chip suggestion: prefix not found",
-							append(
-								attachLogInfo(o.Key, o.Type),
-								rfc5424.SDParam{Name: "prefix", Value: input},
-								rfc5424.SDParam{Name: "suggestion", Value: sgt},
-							)...)
-						continue
-					}
-					// prefix-chip, then colourize and reattach input
-					unmatchedSgtRunes, _ := strings.CutPrefix(file, input)
-					sgts[i] = stylesheet.Cur.TertiaryText.Render(input) + unmatchedSgtRunes
-				}
-			}
+			var sgts = TrimSuggestsToFile(pti.AvailableSuggestions(), pti.Value())
 			// truncate suggestions to a single line, within the max size of field+input
 			l := lipgloss.NewStyle().Width(c.width - 10).AlignHorizontal(lipgloss.Center).Render(strings.Join(sgts, " "))
 
@@ -574,6 +557,31 @@ func (c *createModel) View() string {
 	return lipgloss.NewStyle().Width(c.width).
 		AlignHorizontal(lipgloss.Center).Render(mainView) + "\n" + sbtn
 
+}
+
+// TrimSuggestsToFile is a helper function for View that returns only the file chunk of each suggestion, with matching runes colourized.
+// The dir portion, if it exists, is thrown away.
+// These suggestions should not be fed into a TI; they are intended for display to a user.
+//
+// If a suggested filename does not contain matching characters in input, it will be dropped.
+// This is mostly because this function expects the suggestions to already be trimmed down to matches only;
+// if there is a mismatch, something has likely gone wrong.
+func TrimSuggestsToFile(availSgts []string, input string) (filenames []string) {
+	for _, sgt := range availSgts {
+		sgtDir, sgtFn := path.Split(sgt)
+		partialFN := strings.TrimPrefix(input, sgtDir)
+		// strip off matching file characters
+		unmatchedFNRunes, found := strings.CutPrefix(sgtFn, partialFN)
+		if !found {
+			clilog.Writer.Warnf("dropping suggestion '%v'; the input filename '%v' does not prefix-match filename '%v'",
+				sgt, partialFN, sgtFn)
+			continue
+		}
+		// colourize and reattach matching file characters
+		filenames = append(filenames, stylesheet.Cur.TertiaryText.Render(partialFN)+unmatchedFNRunes)
+	}
+
+	return filenames
 }
 
 func (c *createModel) Done() bool {
