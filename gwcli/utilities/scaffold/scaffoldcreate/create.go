@@ -286,30 +286,40 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 	for i, key := range keys { // construct interactive model from fields
 		f := fields[key]
 		// assign each field's input to its corresponding table and add it to
+		var rightSideWidth int
 		switch f.Type {
 		case File:
-			pti := pathtextinput.New(pathtextinput.Options{CustomTI: func() textinput.Model { return stylesheet.NewTI("", false) }})
+			pti := pathtextinput.New(pathtextinput.Options{CustomTI: func() textinput.Model {
+				ti := stylesheet.NewTI("", false)
+				ti.Width = 30 // override TI width
+				return ti
+			}})
 			c.inputs.PTIs[key] = &pti
+
+			rightSideWidth = pti.Width
 		case Text:
 			var ti textinput.Model
 			// if a custom func was not given, use the default generation
 			if f.CustomTIFuncInit == nil {
 				ti = stylesheet.NewTI(f.DefaultValue, !f.Required)
+				ti.Width = 30
 			} else {
 				ti = f.CustomTIFuncInit()
 			}
 			c.inputs.TIs[key] = &ti
 
-			// TODO correlate titles across types
-			// note the longest Title for later formatting
+			rightSideWidth = ti.Width
+		}
+
+		// note Title width for later formatting
 			if w := lipgloss.Width(f.Title); c.longestFieldLength < w {
 				c.longestFieldLength = w
 			}
 			// note the longest TI for later formatting
-			if ti.Width > c.longestTILength {
-				c.longestTILength = ti.Width
-			}
+		if rightSideWidth > c.longestTILength {
+			c.longestTILength = rightSideWidth
 		}
+
 		c.inputs.ordered[i] = struct {
 			Key  string
 			Type FieldType
