@@ -22,7 +22,7 @@ type Model struct {
 //var _ tea.Model = Model{}
 
 type Options struct {
-	Root     string                 // Directory to traverse from. Defaults to os.Getwd().
+	PWD      string                 // Directory to traverse from. Defaults to os.Getwd().
 	CustomTI func() textinput.Model // custom TI generator to use instead of textinput.New()
 }
 
@@ -36,7 +36,7 @@ type Options struct {
 //
 // Remember to focus it!
 func New(opt Options) Model {
-	m := Model{pwd: opt.Root}
+	m := Model{pwd: opt.PWD}
 	if m.pwd == "" {
 		dir, err := os.Getwd()
 		if err != nil {

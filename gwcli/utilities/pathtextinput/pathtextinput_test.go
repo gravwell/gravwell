@@ -63,7 +63,7 @@ func TestSuggestions(t *testing.T) {
 	// execute the actual tests
 	root := generateDirectories(t)
 	t.Run("rooted elsewhere", func(t *testing.T) {
-		pti1 := pathtextinput.New(pathtextinput.Options{Root: root})
+		pti1 := pathtextinput.New(pathtextinput.Options{PWD: root})
 		pti1.Focus()
 		testFunc(t, pti1)
 	})
@@ -122,7 +122,7 @@ func TestCustomTI(t *testing.T) {
 
 func TestView(t *testing.T) {
 	// setup
-	pti := pathtextinput.New(pathtextinput.Options{Root: generateDirectories(t)})
+	pti := pathtextinput.New(pathtextinput.Options{PWD: generateDirectories(t)})
 	pti.Focus()
 
 	tests := []struct {
