@@ -74,17 +74,17 @@ func Test_createModel_basics(t *testing.T) {
 	}
 	// see if B auto completes to a file at its path
 	{
-		dir, f := path.Split(dummyfilePath)
+		dir, _ := path.Split(dummyfilePath)
 		for _, r := range dir {
 			cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
 		}
-		// check for view and value
+		// check for value and correct next suggestion
 		pti := cm.inputs.PTIs["B"]
-		if pti.Value() != dir+"/" {
+		if pti.Value() != dir {
 			t.Error("incorrect value on field \"B\"")
 		}
-		if !strings.Contains(pti.View(), f) {
-			t.Errorf("unexpected view on field B. View: '%v'. Does not contain file '%v'", pti.View(), f)
+		if curSgt := pti.CurrentSuggestion(); curSgt != dummyfilePath {
+			t.Error("incorrect current suggestion", ExpectedActual(dummyfilePath, curSgt))
 		}
 	}
 
