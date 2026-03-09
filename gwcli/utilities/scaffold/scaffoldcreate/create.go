@@ -528,7 +528,7 @@ func (c *createModel) View() string {
 			continue
 		}
 		// left-pad so all titles are all the same width
-		sb.WriteString(strings.Repeat(" ", int(max(c.longestFieldLength, c.longestTILength))-len(field.Title)))
+		sb.WriteString(strings.Repeat(" ", c.longestFieldLength-len(field.Title)))
 		sb.WriteString(stylesheet.Pip(c.inputs.selected, uint(i)))
 		// coloruize and attach titles
 		if field.Required {
