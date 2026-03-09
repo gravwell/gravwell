@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/charmbracelet/bubbles/filepicker"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
 	"golang.org/x/exp/constraints"
@@ -23,51 +22,6 @@ type KeyedFP struct {
 	FP         filepicker.Model
 	Required   bool
 }
-
-// frequently reused styles
-var (
-	rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
-)
-
-// ViewKTIs composes a uniform view of the given keyedTIs.
-// All field will be padded to a consistent length based on maxFieldWidth and right-aligned.
-// TIs are attached as View() to their respective TIs.
-/*func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []KeyedTI, selectedIdx uint) string {
-	if maxFieldWidth == 0 {
-		clilog.Writer.Warnf("field width is unset")
-	} else if maxTIWidth == 0 {
-		clilog.Writer.Warnf("TI width is unset")
-	}
-
-	var fields []string
-	var TIs []string
-
-	var sb strings.Builder // reused each cycle
-	for i, kti := range ktis {
-		// apply consistent left padding, then pip
-		sb.WriteString(strings.Repeat(" ", int(max(maxFieldWidth, maxTIWidth))-len(kti.FieldTitle)) + stylesheet.Pip(selectedIdx, uint(i)))
-		// colourize and attach title
-		if kti.Required {
-			sb.WriteString(stylesheet.Cur.PrimaryText.Render(kti.FieldTitle + ":"))
-		} else {
-			sb.WriteString(stylesheet.Cur.SecondaryText.Render(kti.FieldTitle + ":"))
-		}
-		// render the line and right-align it
-		fields = append(fields, rightAlignSty.Render(sb.String()))
-		sb.Reset()
-
-		TIs = append(TIs, kti.TI.View())
-	}
-
-	// compose all fields
-	f := lipgloss.JoinVertical(lipgloss.Right, fields...)
-
-	// compose all TIs
-	t := lipgloss.JoinVertical(lipgloss.Left, TIs...)
-
-	// conjoin fields and TIs
-	return lipgloss.JoinHorizontal(lipgloss.Center, f, t)
-}*/
 
 // Id_t is the set of constraints defining what can be used as an id for some scaffolds.
 // It can be expanded to more types (strings, mayhaps?) if need be, but make sure FromString is expanded, too.

@@ -494,7 +494,7 @@ func (em *editModel[I, S]) enterEditMode(item S) error {
 
 	// order TIs from highest to lowest orders
 	slices.SortFunc(es.orderedKTIs, func(a, b scaffold.KeyedTI) int {
-		return em.cfg[b.Key()].Order - em.cfg[a.Key()].Order
+		return em.cfg[b.Key].Order - em.cfg[a.Key].Order
 	})
 
 	es.orderedKTIs[0].TI.Focus() // focus the first TI

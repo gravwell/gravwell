@@ -42,8 +42,8 @@ func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubr
 			if se.submitSelected() {
 				var missing []string
 				for _, kti := range se.orderedKTIs { // check all required fields are populated
-					if kti.Required() && strings.TrimSpace(kti.TI.Value()) == "" {
-						missing = append(missing, kti.Key())
+					if kti.Required && strings.TrimSpace(kti.TI.Value()) == "" {
+						missing = append(missing, kti.Key)
 					}
 				}
 
@@ -60,7 +60,7 @@ func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubr
 
 				// yank the TI values and reinstall them into a data structure to update against
 				for _, kti := range se.orderedKTIs {
-					if inv, err := setFieldSub(&se.item, kti.Key(), kti.TI.Value()); err != nil {
+					if inv, err := setFieldSub(&se.item, kti.Key, kti.TI.Value()); err != nil {
 						clilog.Writer.Errorf("failed to set value '%v' to field with key %v (item: %v)", kti.TI.Value(), kti.Key, se.item)
 						se.err = err.Error()
 						return nil, ""
@@ -97,7 +97,8 @@ func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubr
 }
 
 func (se *stateEdit[S]) view() string {
-	inputs := scaffold.ViewKTIs(uint(se.longestLineWidth)/2, uint(se.longestLineWidth)/2, se.orderedKTIs, se.selected)
+
+	inputs := ViewKTIs(uint(se.longestLineWidth)/2, uint(se.longestLineWidth)/2, se.orderedKTIs, se.selected)
 
 	var wrapSty = lipgloss.NewStyle().Width(se.longestLineWidth)
 
@@ -111,6 +112,50 @@ func (se *stateEdit[S]) view() string {
 		lipgloss.NewStyle().Width(lipgloss.Width(inputs)).AlignHorizontal(lipgloss.Center).Render(
 			stylesheet.ViewSubmitButton(se.submitSelected(), se.longestLineWidth, inE),
 		)
+}
+
+var (
+	rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
+)
+
+// ViewKTIs composes a uniform view of the given keyedTIs.
+// All field will be padded to a consistent length based on maxFieldWidth and right-aligned.
+// TIs are attached as View() to their respective TIs.
+func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []scaffold.KeyedTI, selectedIdx uint) string {
+	if maxFieldWidth == 0 {
+		clilog.Writer.Warnf("field width is unset")
+	} else if maxTIWidth == 0 {
+		clilog.Writer.Warnf("TI width is unset")
+	}
+
+	var fields []string
+	var TIs []string
+
+	var sb strings.Builder // reused each cycle
+	for i, kti := range ktis {
+		// apply consistent left padding, then pip
+		sb.WriteString(strings.Repeat(" ", int(max(maxFieldWidth, maxTIWidth))-len(kti.Title)) + stylesheet.Pip(selectedIdx, uint(i)))
+		// colourize and attach title
+		if kti.Required {
+			sb.WriteString(stylesheet.Cur.PrimaryText.Render(kti.Title + ":"))
+		} else {
+			sb.WriteString(stylesheet.Cur.SecondaryText.Render(kti.Title + ":"))
+		}
+		// render the line and right-align it
+		fields = append(fields, rightAlignSty.Render(sb.String()))
+		sb.Reset()
+
+		TIs = append(TIs, kti.TI.View())
+	}
+
+	// compose all fields
+	f := lipgloss.JoinVertical(lipgloss.Right, fields...)
+
+	// compose all TIs
+	t := lipgloss.JoinVertical(lipgloss.Left, TIs...)
+
+	// conjoin fields and TIs
+	return lipgloss.JoinHorizontal(lipgloss.Center, f, t)
 }
 
 // Blur existing TI, select and focus previous (higher) TI.
