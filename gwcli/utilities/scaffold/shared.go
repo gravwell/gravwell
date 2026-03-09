@@ -90,7 +90,7 @@ func FromString[I Id_t](str string) (I, error) {
 
 // IdentifyCaller returns a valid SDParam containing information about the caller to make it easier to log which action is in error.
 func IdentifyCaller() rfc5424.SDParam {
-	var identifier rfc5424.SDParam = rfc5424.SDParam{Name: "caller", Value: "UNKNOWN"}
+	var identifier = rfc5424.SDParam{Name: "caller", Value: "UNKNOWN"}
 
 	// extract the last two elements in the caller's path
 	if _, file, line, ok := runtime.Caller(1); ok {

@@ -271,7 +271,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		c.fs.AddFlagSet(&addtlFlags)
 	}
 	// pre-sort fields so they can be added to inputs.ordered easily
-	var keys []string = slices.Collect(maps.Keys(fields))
+	var keys = slices.Collect(maps.Keys(fields))
 	slices.SortStableFunc(keys, func(aKey, bKey string) int {
 		// sort on order, then alpha on title
 		switch {
@@ -539,7 +539,10 @@ func (c *createModel) View() string {
 		}
 	}
 	// compose the titles and inputs
-	mainView := lipgloss.JoinHorizontal(lipgloss.Center, lipgloss.JoinVertical(lipgloss.Right, titles...))
+	mainView := lipgloss.JoinHorizontal(lipgloss.Center,
+		lipgloss.JoinVertical(lipgloss.Right, titles...),
+		lipgloss.JoinVertical(lipgloss.Left, inputViews...),
+	)
 
 	// generate submit button and align it with the center
 	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.width, c.inputs.err, c.createErr)
@@ -694,8 +697,8 @@ func (c *createModel) getInputValue(key string, typ FieldType) string {
 // attachLogInfo returns 3 SDParams that are useful to attach to most/every log: key, type, and caller identity.
 func attachLogInfo(key string, typ FieldType) []rfc5424.SDParam {
 	return []rfc5424.SDParam{
-		rfc5424.SDParam{Name: "field_key", Value: key},
-		rfc5424.SDParam{Name: "type", Value: typ},
+		{Name: "field_key", Value: key},
+		{Name: "type", Value: typ},
 		scaffold.IdentifyCaller(),
 	}
 }

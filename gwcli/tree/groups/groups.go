@@ -1,3 +1,6 @@
+// Package groups introduces actions to managing groups.
+//
+// Only available to admins.
 package groups
 
 import (

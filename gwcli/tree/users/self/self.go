@@ -1,3 +1,4 @@
+// Package self is a limited version of the users nav that is available to all users to gather information about their own accounts.
 package self
 
 import (

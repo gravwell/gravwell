@@ -1,4 +1,4 @@
-// package pathti provides a textinput bubble geared for navigating file structures.
+// Package pathtextinput provides a textinput bubble geared for navigating file structures.
 // It is nothing more than the textinput bubble with a bit of dressing.
 package pathtextinput
 

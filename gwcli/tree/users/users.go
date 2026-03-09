@@ -1,3 +1,4 @@
+// Package users contains actions for managing user accounts.
 package users
 
 import (

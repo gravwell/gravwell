@@ -13,7 +13,6 @@ package resources
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"slices"
 	"strings"
@@ -107,7 +106,7 @@ func download() action.Pair {
 		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
 			// arg length checked by the options
 			id := fs.Arg(0)
-			var out io.Writer = cmd.OutOrStdout()
+			var out = cmd.OutOrStdout()
 			if outPath, err := fs.GetString(ft.Output.Name()); err != nil {
 				clilog.LogFlagFailedGet(ft.Output.Name(), err)
 			} else if outPath != "" {
