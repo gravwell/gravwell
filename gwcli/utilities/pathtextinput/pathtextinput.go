@@ -66,8 +66,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	m.Model, cmd = m.Model.Update(msg)
 	// generate suggestions based on the current traversal
-	completions := deriveCompletions(m.pwd, m.Model.Value())
 	if _, ok := msg.(tea.KeyMsg); ok {
+		completions := deriveCompletions(m.pwd, m.Model.Value())
 		m.Model.SetSuggestions(completions)
 	}
 	return m, cmd
