@@ -74,6 +74,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 // Returns the set of files available at the given path that prefix-match the last element.
+// If an error occurs, it is swallowed and no completions are returned.
 func deriveCompletions(root, input string) (completions []string) {
 	var pth = input
 	if !path.IsAbs(input) {
