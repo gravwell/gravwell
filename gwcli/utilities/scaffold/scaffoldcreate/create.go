@@ -354,7 +354,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 		case tea.KeyEnter:
 			if c.SubmitSelected() {
 				// extract values from TIs
-				values, mr := c.extractValuesFromTIs()
+				values, mr := c.extractInputValues()
 				if mr != nil {
 					if len(mr) == 1 {
 						c.inputs.err = fmt.Sprintf("%v is required", mr[0])
@@ -471,8 +471,7 @@ func (c *createModel) focusInput(focus bool) {
 // - a list of required fields (as their keys) with empty values
 //
 // - an error (if applicable)
-// TODO rename to extractInputValues
-func (c *createModel) extractValuesFromTIs() (fieldValues map[string]string, missingRequiredFields []string) {
+func (c *createModel) extractInputValues() (fieldValues map[string]string, missingRequiredFields []string) {
 	fieldValues = make(map[string]string, len(c.inputs.ordered))
 	for _, o := range c.inputs.ordered {
 		// fetch respective input's value

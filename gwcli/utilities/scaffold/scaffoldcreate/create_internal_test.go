@@ -147,7 +147,7 @@ func Test_ExtractValues(t *testing.T) {
 		}
 
 		// extract values from TIs
-		values, mr := cm.extractValuesFromTIs()
+		values, mr := cm.extractInputValues()
 		if len(mr) != 0 {
 			t.Errorf("missing required (%v) setting all TIs", mr)
 		}
@@ -172,14 +172,14 @@ func Test_ExtractValues(t *testing.T) {
 			"C": Field{Required: true, Type: Text, Title: "C", Order: -10},
 		})
 		// extract values from TIs
-		_, mr := cm.extractValuesFromTIs()
+		_, mr := cm.extractInputValues()
 		if len(mr) != 2 {
 			t.Error("incorrect missing required count.", ExpectedActual(2, len(mr)))
 		}
 
 		// set one of the requireds and try again
 		cm.inputs.TIs[cm.inputs.ordered[1].Key].SetValue("test value") // A
-		_, mr = cm.extractValuesFromTIs()
+		_, mr = cm.extractInputValues()
 		if len(mr) != 1 {
 			t.Error("incorrect missing required count.", ExpectedActual(1, len(mr)))
 		}
