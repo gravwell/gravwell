@@ -88,11 +88,12 @@ func deriveCompletions(root, input string) (completions []string) {
 	}
 	des, err := os.ReadDir(dir)
 	if err != nil {
-		return nil
+		return
 	}
 	for _, de := range des {
-		if strings.HasPrefix(de.Name(), fn) {
-			completions = append(completions, path.Join(dir, de.Name()))
+		if unmatchedRunes, found := strings.CutPrefix(de.Name(), fn); found {
+			// to actually match and tab-complete, we need to ensure input is included
+			completions = append(completions, input+unmatchedRunes)
 		}
 	}
 	return completions
