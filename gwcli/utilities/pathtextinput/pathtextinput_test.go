@@ -17,30 +17,25 @@ import (
 func TestSuggestions(t *testing.T) {
 	// generate tests and a testing function we can run against different PTIs
 	tests := []struct {
-		name                   string
-		input                  string
-		wantSuggestions        []string
-		wantMatchedSuggestions []string
+		name            string
+		input           string
+		wantSuggestions []string
 	}{
 		{"empty input should retrieve all top-level suggestions",
 			"",
 			[]string{"dir1", "dir2", "file1", "file2", "file3"},
-			[]string{}, // quirk of textinputs: they match nothing if input is empty
 		},
 		{"\"file\" omits dir* suggestions",
 			"file",
 			[]string{"file1", "file2", "file3"},
-			[]string{"file1", "file2", "file3"},
 		},
 		{"\"dir2/\" suggests all direct children of dir2",
 			"dir2/",
-			[]string{"file1", "fileA", "dirA"},
-			[]string{"file1", "fileA", "dirA"},
+			[]string{"dir2/file1", "dir2/fileA", "dir2/dirA"},
 		},
 		{"\"dir2/file\" suggests \"file1\", \"fileA\"",
 			"dir2/file",
-			[]string{"file1", "fileA"},
-			[]string{"file1", "fileA"},
+			[]string{"dir2/file1", "dir2/fileA"},
 		},
 	}
 	testFunc := func(subT *testing.T, pti pathtextinput.Model) {
@@ -53,13 +48,9 @@ func TestSuggestions(t *testing.T) {
 				})
 
 				// check suggestions
-				actual := pti.AvailableSuggestions()
-				// slice out just the "file" portion of each actual
-				for i := range actual {
-					_, actual[i] = path.Split(actual[i])
-				}
-				if !testsupport.SlicesUnorderedEqual(actual, tt.wantSuggestions) {
-					t.Fatal(testsupport.ExpectedActual(tt.wantSuggestions, actual))
+				availActual := pti.AvailableSuggestions()
+				if !testsupport.SlicesUnorderedEqual(availActual, tt.wantSuggestions) {
+					t.Fatal("incorrect available suggestions", testsupport.ExpectedActual(tt.wantSuggestions, availActual))
 				}
 			})
 		}
