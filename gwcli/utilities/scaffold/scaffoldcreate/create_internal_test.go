@@ -10,6 +10,7 @@ package scaffoldcreate
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -22,10 +23,32 @@ import (
 	"github.com/spf13/pflag"
 )
 
+func TestMain(m *testing.M) {
+	logPath := path.Join(os.TempDir(), "gwcli_create_internal_test", "dev.log")
+	if err := os.MkdirAll(path.Dir(logPath), 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create directory for clilog: %v", err)
+		os.Exit(1)
+	}
+
+	if err := clilog.Init(logPath, "debug"); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize clilog: %v", err)
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
+
 func Test_createModel_basics(t *testing.T) {
+	// create a couple dummy files in a temp directory to navigate to
+	dummyfilePath := path.Join(t.TempDir(), "dummyfile1")
+	if f, err := os.Create(dummyfilePath); err != nil {
+		t.Fatal(err)
+	} else {
+		f.Close()
+	}
+
 	cfg := map[string]Field{
 		"A": {Required: true, Type: Text, Title: "A", Order: 10},
-		"B": {Required: true, Type: Text, Title: "B", Order: 0},
+		"B": {Required: true, Type: File, Title: "B", Order: 0},
 	}
 	ca := NewCreateAction("test", cfg, func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 		return 0, "", nil
@@ -49,6 +72,22 @@ func Test_createModel_basics(t *testing.T) {
 	if cm.inputs.selected != 1 {
 		t.Fatal("expected second field to be selected")
 	}
+	// see if B auto completes to a file at its path
+	{
+		dir, f := path.Split(dummyfilePath)
+		for _, r := range dir {
+			cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		}
+		// check for view and value
+		pti := cm.inputs.PTIs["B"]
+		if pti.Value() != dir+"/" {
+			t.Error("incorrect value on field \"B\"")
+		}
+		if !strings.Contains(pti.View(), f) {
+			t.Errorf("unexpected view on field B. View: '%v'. Does not contain file '%v'", pti.View(), f)
+		}
+	}
+
 	cm.focusNext()
 	// should be the submit button
 	if cm.inputs.selected != uint(len(cm.inputs.ordered)) {
@@ -94,7 +133,7 @@ func Test_ExtractValues(t *testing.T) {
 	t.Run("all set", func(t *testing.T) {
 		cm := setup(t, Config{
 			"A": Field{Required: true, Type: Text, Title: "A", Order: 0},
-			"B": Field{Required: false, Type: Text, Title: "B", Order: 10},
+			"B": Field{Required: false, Type: File, Title: "B", Order: 10},
 			"C": Field{Required: true, Type: Text, Title: "C", Order: -10},
 		})
 		// set values into inputs
@@ -153,9 +192,6 @@ func Test_ExtractValues(t *testing.T) {
 // Does not utilize teatest as createModel is not a full tea.Model.
 // Thus, input and output are handled manually.
 func Test_Full(t *testing.T) {
-	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
-		t.Fatal(err)
-	}
 	// use a consistent color scheme
 	stylesheet.Cur = stylesheet.Plain()
 
