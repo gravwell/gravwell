@@ -179,8 +179,8 @@ func create(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag.Fla
 	sm.Description = fieldValues["desc"]
 	sm.Expansion = fieldValues["exp"]
 
-	id, err := connection.Client.CreateMacro(sm)
-	return id, "", err
+	macro, err := connection.Client.CreateMacro(sm)
+	return macro.ID, "", err
 
 }
 
