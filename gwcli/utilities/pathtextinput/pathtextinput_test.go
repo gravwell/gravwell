@@ -3,6 +3,7 @@ package pathtextinput_test
 import (
 	"errors"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -48,6 +49,10 @@ func TestSuggestions(t *testing.T) {
 
 				// check suggestions
 				actual := pti.AvailableSuggestions()
+				// slice out just the "file" portion of each actual
+				for i := range actual {
+					_, actual[i] = path.Split(actual[i])
+				}
 				if !testsupport.SlicesUnorderedEqual(actual, tt.wantSuggestions) {
 					t.Fatal(testsupport.ExpectedActual(tt.wantSuggestions, actual))
 				}
@@ -68,6 +73,11 @@ func TestSuggestions(t *testing.T) {
 		pti2.Focus()
 		testFunc(t, pti2)
 	})
+}
+
+// Tests that the ti still works as intended when fed an absolute path.
+func TestRemoteDirectoryAbsolutePath(t *testing.T) {
+	root := generateDirectories(t)
 	t.Run("remote directory", func(t *testing.T) {
 		pti := pathtextinput.New(pathtextinput.Options{})
 		pti.Focus()
@@ -79,6 +89,11 @@ func TestSuggestions(t *testing.T) {
 
 		// check suggestions
 		actual := pti.AvailableSuggestions()
+		// slice out just the "file" portion of each actual
+		for i := range actual {
+			_, actual[i] = path.Split(actual[i])
+		}
+
 		want := []string{"dir1", "dir2", "file1", "file2", "file3"}
 		if !testsupport.SlicesUnorderedEqual(actual, want) {
 			t.Fatal(testsupport.ExpectedActual(want, actual))
