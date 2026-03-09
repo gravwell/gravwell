@@ -11,6 +11,8 @@ package utils
 import (
 	"bufio"
 	"bytes"
+	"compress/bzip2"
+	"compress/gzip"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -37,13 +39,54 @@ const (
 
 	initBuffSize = 4 * 1024 * 1024
 	maxBuffSize  = 128 * 1024 * 1024
+
+	gzipMagic1  = 0x1f
+	gzipMagic2  = 0x8b
+	bzip2Magic1 = 'B'
+	bzip2Magic2 = 'Z'
 )
 
 var (
 	errInvalidColumns = errors.New("invalid csv import columns")
 	csvCols           = []string{`Timestamp`, `Source`, `Tag`, `Data`}
 	nlBytes           = []byte("\n")
+	errPeekFailed     = errors.New("failed to peek compression header")
 )
+
+// NewCompressedReader wraps an io.Reader in a bufio.Reader and automatically
+// detects and handles gzip, bzip2, or raw data streams. It returns an io.Reader
+// that transparently decompresses the data if compression is detected.
+func NewCompressedReader(r io.Reader) (io.Reader, error) {
+	if r == nil {
+		return nil, errors.New("nil reader")
+	}
+
+	br := bufio.NewReader(r)
+
+	// Peek at the first 2 bytes to detect compression format
+	header, err := br.Peek(2)
+	if err != nil && err != io.EOF {
+		return nil, errPeekFailed
+	}
+
+	// If we couldn't read 2 bytes, just return the buffered reader
+	if len(header) < 2 {
+		return br, nil
+	}
+
+	// Check for gzip magic bytes (0x1f 0x8b)
+	if header[0] == gzipMagic1 && header[1] == gzipMagic2 {
+		return gzip.NewReader(br)
+	}
+
+	// Check for bzip2 magic bytes ('BZ')
+	if header[0] == bzip2Magic1 && header[1] == bzip2Magic2 {
+		return bzip2.NewReader(br), nil
+	}
+
+	// No compression detected, return the buffered reader
+	return br, nil
+}
 
 type TagHandler interface {
 	OverrideTags(entry.EntryTag)
