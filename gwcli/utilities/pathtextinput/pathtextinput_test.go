@@ -17,24 +17,29 @@ import (
 func TestSuggestions(t *testing.T) {
 	// generate tests and a testing function we can run against different PTIs
 	tests := []struct {
-		name            string
-		input           string
-		wantSuggestions []string
+		name                   string
+		input                  string
+		wantSuggestions        []string
+		wantMatchedSuggestions []string
 	}{
 		{"empty input should retrieve all top-level suggestions",
 			"",
 			[]string{"dir1", "dir2", "file1", "file2", "file3"},
+			[]string{}, // quirk of textinputs: they match nothing if input is empty
 		},
 		{"\"file\" omits dir* suggestions",
 			"file",
+			[]string{"file1", "file2", "file3"},
 			[]string{"file1", "file2", "file3"},
 		},
 		{"\"dir2/\" suggests all direct children of dir2",
 			"dir2/",
 			[]string{"file1", "fileA", "dirA"},
+			[]string{"file1", "fileA", "dirA"},
 		},
 		{"\"dir2/file\" suggests \"file1\", \"fileA\"",
 			"dir2/file",
+			[]string{"file1", "fileA"},
 			[]string{"file1", "fileA"},
 		},
 	}
@@ -73,6 +78,106 @@ func TestSuggestions(t *testing.T) {
 		pti2.Focus()
 		testFunc(t, pti2)
 	})
+
+	// test tab completions
+	t.Run("tab completion", func(t *testing.T) {
+		root := generateDirectories(t)
+		// make sure root has a slash suffix
+		if !strings.HasSuffix(root, "/") {
+			root += "/"
+		}
+		t.Run("absolute path input, last element is a directory", func(t *testing.T) {
+			pti := pathtextinput.New(pathtextinput.Options{})
+			pti.Focus()
+			pti.SetValue(root)
+			pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+			if pti.Value() != root { // sanity check
+				t.Fatal(testsupport.ExpectedActual(root, pti.Value()))
+			}
+
+			want := path.Join(root, "dir1")
+			if pti.CurrentSuggestion() != want {
+				t.Error("incorrect current suggestion", testsupport.ExpectedActual(want, pti.CurrentSuggestion()))
+			}
+			// check that it completes dir1
+			pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyTab})
+			if pti.Value() != want {
+				t.Fatal(testsupport.ExpectedActual(want, pti.Value()))
+			}
+		})
+		t.Run("absolute path input, last element is a partial file", func(t *testing.T) {
+			input := path.Join(root, "dir1/fi")
+
+			pti := pathtextinput.New(pathtextinput.Options{})
+			pti.Focus()
+			pti.SetValue(input)
+			pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+			if pti.Value() != input { // sanity check
+				t.Fatal(testsupport.ExpectedActual(root, pti.Value()))
+			}
+
+			want := path.Join(root, "dir1/file1")
+			if pti.CurrentSuggestion() != want {
+				t.Error("incorrect current suggestion", testsupport.ExpectedActual(want, pti.CurrentSuggestion()))
+			}
+			// check that it completes dir1
+			pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyTab})
+			if pti.Value() != want {
+				t.Fatal(testsupport.ExpectedActual(want, pti.Value()))
+			}
+		})
+
+		// NOTE(rlandau): this test will not work while we rely on the native suggestion engine.
+		// textinputs early-exit suggestion handling if input is empty.
+		/*t.Run("no input", func(t *testing.T) {
+			pti := pathtextinput.New(pathtextinput.Options{PWD: root})
+			pti.Focus()
+			pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+			if pti.Value() != root { // sanity check
+				t.Fatal(testsupport.ExpectedActual(root, pti.Value()))
+			}
+			// check that it completes dir1
+			want := "dir1"
+			pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyTab})
+			if pti.Value() != want {
+				t.Fatal(testsupport.ExpectedActual(want, pti.Value()))
+			}
+		})*/
+
+		t.Run("relative path input, last element is a directory", func(t *testing.T) {
+			input := "dir2/"
+			pti := pathtextinput.New(pathtextinput.Options{PWD: root})
+			pti.Focus()
+			pti.SetValue(input)
+			pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+			if pti.Value() != input { // sanity check
+				t.Fatal(testsupport.ExpectedActual(root, pti.Value()))
+			}
+			// check that it completes to the first item in the directory
+			want := "dir2/dirA"
+			pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyTab})
+			if pti.Value() != want {
+				t.Fatal(testsupport.ExpectedActual(want, pti.Value()))
+			}
+		})
+
+		t.Run("relative path input, last element is a partial file", func(t *testing.T) {
+			pti := pathtextinput.New(pathtextinput.Options{PWD: root})
+			pti.Focus()
+			pti.SetValue("fi")
+			pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
+			if pti.Value() != "fi" { // sanity check
+				t.Fatal(testsupport.ExpectedActual(root, pti.Value()))
+			}
+			// check that it completes dir1
+			want := "file1"
+			pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyTab})
+			if pti.Value() != want {
+				t.Fatal(testsupport.ExpectedActual(want, pti.Value()))
+			}
+		})
+	})
+
 }
 
 // Tests that the ti still works as intended when fed an absolute path.
@@ -99,37 +204,6 @@ func TestRemoteDirectoryAbsolutePath(t *testing.T) {
 			t.Fatal(testsupport.ExpectedActual(want, actual))
 		}
 	})
-
-}
-
-func TestTabComplete(t *testing.T) {
-	root := generateDirectories(t)
-	// make sure root has a slash suffix
-	if !strings.HasSuffix(root, "/") {
-		root += "/"
-	}
-	t.Run("absolute path input", func(t *testing.T) {
-		pti := pathtextinput.New(pathtextinput.Options{})
-		pti.Focus()
-		pti.SetValue(root)
-		pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{}})
-		// sanity check
-		if pti.Value() != root {
-			t.Fatal(testsupport.ExpectedActual(root, pti.Value()))
-		}
-
-		want := path.Join(root, "dir1")
-		if pti.CurrentSuggestion() != want {
-			t.Error("incorrect current suggestion", testsupport.ExpectedActual(want, pti.CurrentSuggestion()))
-		}
-		// check that it completes dir1
-		pti, _ = pti.Update(tea.KeyMsg{Type: tea.KeyTab})
-		if pti.Value() != want {
-			t.Fatal(testsupport.ExpectedActual(want, pti.Value()))
-		}
-	})
-
-	// TODO test relative path
 
 }
 
