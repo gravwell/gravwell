@@ -80,18 +80,18 @@ func deriveCompletions(root, input string) (completions []string) {
 		pth = root + input
 	}
 	// if path ends with a slash, use the whole thing as the directory
-	var dir, last string
+	var dir, fn string
 	if input == "" || strings.HasSuffix(input, "/") {
 		dir = pth
 	} else {
-		dir, last = path.Split(pth)
+		dir, fn = path.Split(pth)
 	}
 	des, err := os.ReadDir(dir)
 	if err != nil {
 		return nil
 	}
 	for _, de := range des {
-		if strings.HasPrefix(de.Name(), last) {
+		if strings.HasPrefix(de.Name(), fn) {
 			completions = append(completions, path.Join(dir, de.Name()))
 		}
 	}
