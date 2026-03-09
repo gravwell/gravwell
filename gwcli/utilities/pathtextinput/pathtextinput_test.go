@@ -57,21 +57,34 @@ func TestSuggestions(t *testing.T) {
 	}
 	// execute the actual tests
 	root := generateDirectories(t)
-	{
+	t.Run("rooted elsewhere", func(t *testing.T) {
 		pti1 := pathtextinput.New(pathtextinput.Options{Root: root})
 		pti1.Focus()
-		t.Run("rooted elsewhere", func(t *testing.T) {
-			testFunc(t, pti1)
-		})
-	}
-	{
+		testFunc(t, pti1)
+	})
+	t.Run("rooted at .", func(t *testing.T) {
 		t.Chdir(root)
 		pti2 := pathtextinput.New(pathtextinput.Options{})
 		pti2.Focus()
-		t.Run("rooted at .", func(t *testing.T) {
-			testFunc(t, pti2)
+		testFunc(t, pti2)
+	})
+	t.Run("remote directory", func(t *testing.T) {
+		pti := pathtextinput.New(pathtextinput.Options{})
+		pti.Focus()
+		pti.SetValue(root + "/")
+		pti, _ = pti.Update(tea.KeyMsg{
+			Type:  tea.KeyRunes,
+			Runes: []rune{},
 		})
-	}
+
+		// check suggestions
+		actual := pti.AvailableSuggestions()
+		want := []string{"dir1", "dir2", "file1", "file2", "file3"}
+		if !testsupport.SlicesUnorderedEqual(actual, want) {
+			t.Fatal(testsupport.ExpectedActual(want, actual))
+		}
+	})
+
 }
 
 func TestCustomTI(t *testing.T) {

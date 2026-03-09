@@ -74,14 +74,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 // Returns the set of files available at the given path that prefix-match the last element.
-func deriveCompletions(root, relPath string) (completions []string) {
-	fullpath := path.Join(root, relPath)
+func deriveCompletions(root, input string) (completions []string) {
+	var pth = input
+	if !path.IsAbs(input) {
+		pth = root + input
+	}
 	// if path ends with a slash, use the whole thing as the directory
 	var dir, last string
-	if relPath == "" || strings.HasSuffix(relPath, "/") {
-		dir = fullpath
+	if input == "" || strings.HasSuffix(input, "/") {
+		dir = pth
 	} else {
-		dir, last = path.Split(fullpath)
+		dir, last = path.Split(pth)
 	}
 	des, err := os.ReadDir(dir)
 	if err != nil {
