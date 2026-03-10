@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -100,7 +101,8 @@ func flags() pflag.FlagSet {
 
 func download() action.Pair {
 	return scaffold.NewBasicAction("download", "download a resource", "Download a resource for use locally.\n"+
-		"Prints to STDOUT until -o is specified.\n"+
+		"Prints to STDOUT unless -o is specified.\n"+
+		"You may specify resource by name or ID.\n\n"+
 		"Because resources can be shared, and resources are not required to have globally-unique names,"+
 		"the following precedence is used when selecting a resource by user-friendly name:\n"+
 		"1. Resources owned by the user always have highest priority\n"+
@@ -118,7 +120,7 @@ func download() action.Pair {
 					return err.Error(), nil
 				}
 			}
-
+			clilog.Writer.Info("downloading resource", rfc5424.SDParam{Name: "resource_ID", Value: id})
 			data, err := connection.Client.GetResource(id)
 			if err != nil {
 				return err.Error(), nil
@@ -203,15 +205,21 @@ func create() action.Pair {
 			// upload the file
 			f, err := os.Open(fieldValues["path"])
 			if err != nil {
-				return resp.ID, "", fmt.Errorf("created resource, but failed to populate it: %w", err)
+				errStr := fmt.Sprintf("created resource, but failed to populate it: %v", err)
+				clilog.Writer.Warn(errStr, rfc5424.SDParam{Name: "stage", Value: "open file"})
+				return resp.ID, "", errors.New(errStr)
 			}
 			defer f.Close()
 			b, err := io.ReadAll(f)
 			if err != nil {
-				return resp.ID, "", fmt.Errorf("created resource, but failed to populate it: %w", err)
+				errStr := fmt.Sprintf("created resource, but failed to populate it: %v", err)
+				clilog.Writer.Warn(errStr, rfc5424.SDParam{Name: "stage", Value: "slurp file"})
+				return resp.ID, "", errors.New(errStr)
 			}
 			if err := connection.Client.PopulateResource(resp.ID, b); err != nil {
-				return resp.ID, "", fmt.Errorf("created resource, but failed to populate it: %w", err)
+				errStr := fmt.Sprintf("created resource, but failed to populate it: %v", err)
+				clilog.Writer.Warn(errStr, rfc5424.SDParam{Name: "stage", Value: "populate"})
+				return resp.ID, "", errors.New(errStr)
 			}
 
 			return resp.ID, "", err
