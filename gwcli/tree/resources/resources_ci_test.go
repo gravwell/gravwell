@@ -21,13 +21,16 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree"
 )
 
-const username, password string = "admin", "changeme"
+const (
+	username, password string = "admin", "changeme"
+	server             string = "localhost:8080"
+)
 
 // Check that we can 1) create a new resource, 2) confirm we created that resource, and 3) download that resource
 func TestCreateListVerify(t *testing.T) {
 	tDir := t.TempDir()
 	t.Setenv("GRAVWELL_PASSWORD", password)
-	meta := []string{"--insecure", "-x", "-u", username}
+	meta := []string{"--insecure", "-x", "-u", username, "--server=" + server}
 
 	// create a file to upload
 	var (
@@ -99,7 +102,7 @@ func TestCreateListVerify(t *testing.T) {
 		if sizeColIdx == -1 {
 			t.Fatal("failed to identify \"Size\" column")
 		}
-		idColIdx := slices.Index(rows[0], "SizeBytes")
+		idColIdx := slices.Index(rows[0], "ID")
 		if sizeColIdx == -1 {
 			t.Fatal("failed to identify \"Size\" column")
 		}
