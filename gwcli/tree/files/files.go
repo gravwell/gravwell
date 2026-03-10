@@ -14,12 +14,14 @@ import (
 func NewNav() *cobra.Command {
 	const (
 		use   string = "files"
-		short string = "manage extra files you have uploaded" // TODO
+		short string = "manage extra files you have uploaded"
 		long  string = "Files can be used to store small files for use in playbooks, cover images for kits, etc.\n" +
 			"See https://docs.gravwell.io/gui/files/files.html for more information."
 	)
 	return treeutils.GenerateNav(use, short, long, []string{"uf", "userfiles", "userfile"}, nil,
-		[]action.Pair{})
+		[]action.Pair{
+			list(),
+		})
 }
 
 func list() action.Pair {
@@ -31,5 +33,9 @@ func list() action.Pair {
 		types.UserFileDetails{}, func(fs *pflag.FlagSet) ([]types.UserFileDetails, error) {
 			return connection.Client.UserFiles()
 		},
-		scaffoldlist.Options{})
+		scaffoldlist.Options{
+			// TODO update column names once userfiles get the registry treatment
+			DefaultColumns: []string{"Name", "Type", "Labels", "Size"},
+			ColumnAliases:  map[string]string{"Size": "SizeBytes"},
+		})
 }
