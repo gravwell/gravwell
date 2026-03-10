@@ -2,9 +2,18 @@
 package files
 
 import (
+	"fmt"
+	"io"
+	"os"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -21,6 +30,7 @@ func NewNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, []string{"uf", "userfiles", "userfile"}, nil,
 		[]action.Pair{
 			list(),
+			download(),
 		})
 }
 
@@ -51,5 +61,45 @@ func list() action.Pair {
 			// TODO update column names once userfiles get the registry treatment
 			DefaultColumns: []string{"Name", "Type", "Labels", "Size"},
 			ColumnAliases:  map[string]string{"Size": "SizeBytes"},
+		})
+}
+
+func download() action.Pair {
+	return scaffold.NewBasicAction("download", "download a file", "Download a file for use locally.",
+		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			// arg length checked by the options
+			id := fs.Arg(0)
+
+			// TODO remove me after registry updates
+			u, err := uuid.Parse(id)
+			if err != nil {
+				return err.Error(), nil
+			}
+
+			// check output
+			var out io.Writer = cmd.OutOrStdout()
+			if outPath, err := fs.GetString(ft.Output.Name()); err != nil {
+				clilog.LogFlagFailedGet(ft.Output.Name(), err)
+			} else if outPath != "" {
+				f, err := os.Create(outPath)
+				if err != nil {
+					return err.Error(), nil
+				}
+				defer f.Close()
+				out = f
+			}
+
+			b, err := connection.Client.GetUserFile(u)
+			if err != nil {
+				return err.Error(), nil
+			}
+			fmt.Fprintf(out, "%s", b)
+			return "", nil // TODO what about a success message?
+		}, scaffold.BasicOptions{
+			AddtlFlagFunc: func() pflag.FlagSet {
+				var fs pflag.FlagSet
+				ft.Output.Register(&fs)
+				return fs
+			},
 		})
 }
