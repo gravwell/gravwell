@@ -558,7 +558,7 @@ func (c *createModel) View() string {
 	mainView := lipgloss.JoinVertical(lipgloss.Left, lines...)
 
 	// generate submit button and align it with the center
-	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), c.width, c.inputs.err, c.createErr)
+	var sbtn = stylesheet.ViewSubmitButton(c.SubmitSelected(), modalWidth, c.inputs.err, c.createErr)
 	// align the submit to roughly the end of the field titles
 	return lipgloss.NewStyle().AlignHorizontal(lipgloss.Left).Render(mainView) + "\n" + sbtn
 
