@@ -46,7 +46,7 @@ func NewResourcesNav() *cobra.Command {
 			" Resources are used by a number of modules for things such as storing lookup tables," +
 			" scripts, and more. A resource is simply a stream of bytes."
 	)
-	return treeutils.GenerateNav(use, short, long, nil,
+	return treeutils.GenerateNav(use, short, long, []string{"resource"},
 		[]*cobra.Command{},
 		[]action.Pair{
 			list(),
