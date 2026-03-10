@@ -33,6 +33,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/files"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/groups"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
@@ -324,6 +325,7 @@ func Execute(args []string) int {
 	var cmdFn = []func() *cobra.Command{
 		alerts.NewAlertsNav,
 		extractors.NewExtractorsNav,
+		files.NewNav,
 		groups.NewGroupsNav,
 		macros.NewMacrosNav,
 		queries.NewQueriesNav,
