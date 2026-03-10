@@ -123,6 +123,7 @@ func TestCreateListVerify(t *testing.T) {
 	// check that we can download the resource
 	{
 		resultPath := filePath + ".redown.txt"
+		t.Logf("downloading resource %v", resourceID)
 		// execute spins up singletons for us
 		if ec := tree.Execute(append(meta, []string{"resources", "download", "-o", resultPath, resourceID}...)); ec != 0 {
 			t.Error("bad error code: ", ec)
