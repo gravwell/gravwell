@@ -11,7 +11,6 @@ package scaffoldcreate
 import (
 	"errors"
 	"fmt"
-	filesystem "io/fs"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -123,9 +122,6 @@ func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[
 			v, err := fs.GetString(f.FlagName)
 			if err != nil {
 				return nil, nil, err
-			}
-			if v != "" && !filesystem.ValidPath(v) {
-				return nil, nil, fmt.Errorf("invalid path %q: %w", v, filesystem.ErrInvalid)
 			}
 			fieldValues[key] = v
 		case Text:
