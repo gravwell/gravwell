@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 )
 
 // stateEdit is the collection of fields required to track and display an item currently being edited.
@@ -24,7 +23,7 @@ type stateEdit[S any] struct {
 	selected uint
 	// # of TIs currently available for editing this item
 	tiCount     int
-	orderedKTIs []scaffold.KeyedTI // KTIs, sorted by rank (cfg.Order)
+	orderedKTIs []KeyedTI // KTIs, sorted by rank (cfg.Order)
 }
 
 // update() handling for editing mode, used onces an item has been selected from the list of editables.
@@ -121,7 +120,7 @@ var (
 // ViewKTIs composes a uniform view of the given keyedTIs.
 // All field will be padded to a consistent length based on maxFieldWidth and right-aligned.
 // TIs are attached as View() to their respective TIs.
-func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []scaffold.KeyedTI, selectedIdx uint) string {
+func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []KeyedTI, selectedIdx uint) string {
 	if maxFieldWidth == 0 {
 		clilog.Writer.Warnf("field width is unset")
 	} else if maxTIWidth == 0 {
