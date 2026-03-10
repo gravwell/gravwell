@@ -31,9 +31,23 @@ func list() action.Pair {
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.UserFileDetails{}, func(fs *pflag.FlagSet) ([]types.UserFileDetails, error) {
+			// check for all
+			all, err := fs.GetBool(ft.GetAll.Name())
+			if err != nil {
+				clilog.LogFlagFailedGet(ft.GetAll.Name(), err)
+			}
+
+			if all {
+				return connection.Client.AllUserFiles()
+			}
 			return connection.Client.UserFiles()
 		},
 		scaffoldlist.Options{
+			AddtlFlags: func() pflag.FlagSet {
+				var fs = pflag.FlagSet{}
+				ft.GetAll.Register(&fs, true, "files")
+				return fs
+			},
 			// TODO update column names once userfiles get the registry treatment
 			DefaultColumns: []string{"Name", "Type", "Labels", "Size"},
 			ColumnAliases:  map[string]string{"Size": "SizeBytes"},
