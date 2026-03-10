@@ -54,8 +54,8 @@ func TestCreateListVerify(t *testing.T) {
 	}
 
 	var (
-		resourceName string = randomdata.SillyName() + strconv.FormatInt(fileSize, 10)
-		resourceDesc string = "from " + t.Name()
+		resourceName = randomdata.SillyName() + strconv.FormatInt(fileSize, 10)
+		resourceDesc = "from " + t.Name()
 	)
 
 	createResource := []string{"resources", "create",
