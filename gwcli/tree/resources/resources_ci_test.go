@@ -23,8 +23,8 @@ import (
 
 const username, password string = "admin", "changeme"
 
-// Check that we can create and populate a new resource and then download it again for the same data.
-func TestCreateAndDownload(t *testing.T) {
+// Check that we can 1) create a new resource, 2) confirm we created that resource, and 3) download that resource
+func TestCreateListVerify(t *testing.T) {
 	tDir := t.TempDir()
 	t.Setenv("GRAVWELL_PASSWORD", password)
 	meta := []string{"--insecure", "-x", "-u", username}
@@ -35,7 +35,7 @@ func TestCreateAndDownload(t *testing.T) {
 		filePath string
 	)
 	{
-		filePath = path.Join(tDir, "createanddownload_test.txt")
+		filePath = path.Join(tDir, t.Name()+"create.txt")
 		f, err := os.Create(filePath)
 		if err != nil {
 			t.Fatal(err)
@@ -52,7 +52,7 @@ func TestCreateAndDownload(t *testing.T) {
 
 	var (
 		resourceName string = randomdata.SillyName() + strconv.FormatInt(fileSize, 10)
-		resourceDesc string = "from TestCreateAndDownload"
+		resourceDesc string = "from " + t.Name()
 	)
 
 	createResource := []string{"resources", "create",
@@ -66,8 +66,9 @@ func TestCreateAndDownload(t *testing.T) {
 	}
 
 	// check that list pulls back the new resource
+	var resourceID string
 	{
-		resultPath := path.Join(tDir, "createanddownload_test_list.txt")
+		resultPath := path.Join(tDir, t.Name()+"list.txt")
 		listResources := []string{"resources", "list",
 			"--csv",
 			"-o", resultPath,
@@ -98,6 +99,10 @@ func TestCreateAndDownload(t *testing.T) {
 		if sizeColIdx == -1 {
 			t.Fatal("failed to identify \"Size\" column")
 		}
+		idColIdx := slices.Index(rows[0], "SizeBytes")
+		if sizeColIdx == -1 {
+			t.Fatal("failed to identify \"Size\" column")
+		}
 		for i := 1; i < len(rows); i++ {
 			row := rows[i]
 			if row[nameColIdx] != resourceName {
@@ -110,8 +115,30 @@ func TestCreateAndDownload(t *testing.T) {
 			if reportedSize != fileSize {
 				t.Fatal("incorrect size", testsupport.ExpectedActual(fileSize, reportedSize))
 			}
+			resourceID = row[idColIdx]
 			break
 
 		}
 	}
+	// check that we can download the resource
+	{
+		resultPath := filePath + ".redown.txt"
+		// execute spins up singletons for us
+		if ec := tree.Execute(append(meta, []string{"resources", "download", "-o", resultPath, resourceID}...)); ec != 0 {
+			t.Error("bad error code: ", ec)
+		}
+		// check the file
+		dl, err := os.ReadFile(resultPath)
+		if err != nil {
+			t.Fatal("failed to read download: ", err)
+		}
+		orig, err := os.ReadFile(filePath)
+		if err != nil {
+			t.Fatal("failed to read original file: ", err)
+		}
+		if string(dl) != string(orig) {
+			t.Error(testsupport.ExpectedActual(string(orig), string(dl)))
+		}
+	}
+
 }
