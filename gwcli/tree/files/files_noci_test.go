@@ -1,12 +1,6 @@
-/*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
- * Contact: <legal@gravwell.io>
- *
- * This software may be modified and distributed under the terms of the
- * BSD 2-clause license. See the LICENSE file for details.
- **************************************************************************/
+//go:build !ci
 
-package resources_test
+package files_test
 
 import (
 	"encoding/csv"
@@ -14,7 +8,6 @@ import (
 	"path"
 	"slices"
 	"strconv"
-	"strings"
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
@@ -27,8 +20,7 @@ const (
 	server             string = "localhost:8080"
 )
 
-// Check that we can 1) create a new resource, 2) confirm we created that resource, and 3) download that resource
-func TestCreateListVerify(t *testing.T) {
+func TestCreateListDownload(t *testing.T) {
 	tDir := t.TempDir()
 	t.Setenv("GRAVWELL_PASSWORD", password)
 	meta := []string{"--insecure", "-x", "-u", username, "--server=" + server}
@@ -55,33 +47,30 @@ func TestCreateListVerify(t *testing.T) {
 	}
 
 	var (
-		resourceName   = randomdata.SillyName() + strconv.FormatInt(fileSize, 10)
-		resourceDesc   = "from " + t.Name()
-		resourceLabels = []string{"lbl1", "otherlbl"}
+		fileName = randomdata.SillyName() + strconv.FormatInt(fileSize, 10)
+		fileDesc = "from " + t.Name()
 	)
 
-	createResource := []string{"resources", "create",
-		"-n", resourceName,
-		"-d", resourceDesc,
-		"-f", filePath,
-		"--labels", strings.Join(resourceLabels, ","),
+	{ // create the new userfile
+		if ec := tree.Execute(append(meta, []string{"files", "create",
+			"-n", fileName,
+			"-d", fileDesc,
+			"-f", filePath,
+		}...)); ec != 0 {
+			t.Fatal("bad error code: ", ec)
+		}
 	}
-	// execute spins up singletons for us
-	if ec := tree.Execute(append(meta, createResource...)); ec != 0 {
-		t.Error("bad error code: ", ec)
-	}
-
-	// check that list pulls back the new resource
-	var resourceID string
+	// check for the new file
+	var fileID string
 	{
+		// create a file to write results to
 		resultPath := path.Join(tDir, t.Name()+"list.txt")
-		listResources := []string{"resources", "list",
+		// execute spins up singletons for us
+		if ec := tree.Execute(append(meta, []string{"files", "list",
 			"--csv",
 			"-o", resultPath,
-			//"--columns", "Name,ID,Size,Labels", // TODO once alias issue is resolved
-		}
-		// execute spins up singletons for us
-		if ec := tree.Execute(append(meta, listResources...)); ec != 0 {
+			"--columns", "ThingUUID,Name,Size",
+		}...)); ec != 0 {
 			t.Error("bad error code: ", ec)
 		}
 		// check for the macro we created
@@ -96,7 +85,7 @@ func TestCreateListVerify(t *testing.T) {
 		} else if len(rows) < 1 {
 			t.Fatal("no rows returned")
 		}
-		t.Log("resources:\n", rows, "\n")
+		t.Log("columns:\n", rows[0], "\n")
 		// identify the Name column
 		nameColIdx := slices.Index(rows[0], "Name")
 		if nameColIdx == -1 {
@@ -106,16 +95,15 @@ func TestCreateListVerify(t *testing.T) {
 		if sizeColIdx == -1 {
 			t.Fatal("failed to identify \"Size\" column")
 		}
-		idColIdx := slices.Index(rows[0], "ID")
+		idColIdx := slices.Index(rows[0], "ThingUUID") // TODO update after userfiles are updated for registry
 		if idColIdx == -1 {
-			t.Fatal("failed to identify \"ID\" column")
+			t.Fatal("failed to identify \"ThingUUID\" column")
 		}
 		for i := 1; i < len(rows); i++ {
 			row := rows[i]
-			if row[nameColIdx] != resourceName {
+			if row[nameColIdx] != fileName {
 				continue
 			}
-			// sanity check size
 			reportedSize, err := strconv.ParseInt(row[sizeColIdx], 10, 64)
 			if err != nil {
 				t.Errorf("failed to parse %s into an int: %v", row[sizeColIdx], err)
@@ -123,29 +111,18 @@ func TestCreateListVerify(t *testing.T) {
 			if reportedSize != fileSize {
 				t.Fatal("incorrect size", testsupport.ExpectedActual(fileSize, reportedSize))
 			}
-			// sanity check labels
-			if lblsColIdx := slices.Index(rows[0], "Labels"); lblsColIdx == -1 {
-				t.Fatal("failed to identify \"Labels\" columns")
-			} else {
-				// parse and check the labels
-				col := row[lblsColIdx]
-				setLabels := strings.Split(strings.Trim(col, "[]"), " ") // slice off the brackets and split the labels into an array
-				if !testsupport.SlicesUnorderedEqual(setLabels, resourceLabels) {
-					t.Error("incorrect labels", testsupport.ExpectedActual(resourceLabels, setLabels))
-				}
-			}
-
-			resourceID = row[idColIdx]
+			fileID = row[idColIdx]
 			break
-
 		}
 	}
-	// check that we can download the resource
+	// redownload the file
 	{
 		resultPath := filePath + ".redown.txt"
-		t.Logf("downloading resource %v", resourceID)
+		t.Logf("downloading file %v", fileID)
 		// execute spins up singletons for us
-		if ec := tree.Execute(append(meta, []string{"resources", "download", "-o", resultPath, resourceID}...)); ec != 0 {
+		if ec := tree.Execute(append(meta, []string{"files", "download",
+			"-o", resultPath,
+			fileID}...)); ec != 0 {
 			t.Error("bad error code: ", ec)
 		}
 		// check the file
@@ -161,5 +138,4 @@ func TestCreateListVerify(t *testing.T) {
 			t.Error(testsupport.ExpectedActual(string(orig), string(dl)))
 		}
 	}
-
 }
