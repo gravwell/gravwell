@@ -168,7 +168,7 @@ func create() action.Pair {
 				return uuid.UUID{}, "", errors.New("failed to find \"path\" field")
 			}
 			if lbls, found := fieldValues["labels"]; !found {
-				return uuid.UUID{}, "", errors.New("failed to find \"name\" field")
+				return uuid.UUID{}, "", errors.New("failed to find \"labels\" field")
 			} else {
 				labels = strings.Split(lbls, ",")
 			}
