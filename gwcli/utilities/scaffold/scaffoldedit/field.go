@@ -36,8 +36,8 @@ type Field struct {
 
 // FieldName returns a struct suited for Name inputs.
 // Order == 100.
-func FieldName(singular string) Field {
-	return Field{
+func FieldName(singular string) *Field {
+	return &Field{
 		Required:      true,
 		Title:         "name",
 		Usage:         ft.Name.Usage(singular),
@@ -49,8 +49,8 @@ func FieldName(singular string) Field {
 
 // FieldDescription returns a struct suited for Description inputs.
 // Order == 90.
-func FieldDescription(singular string) Field {
-	return Field{
+func FieldDescription(singular string) *Field {
+	return &Field{
 		Required:      false,
 		Title:         "description",
 		Usage:         ft.Description.Usage(singular),
@@ -62,8 +62,8 @@ func FieldDescription(singular string) Field {
 
 // FieldLabels returns a struct suited for taking in labels as "<1>,<2>,<3>".
 // Order == 70.
-func FieldLabels() Field {
-	return Field{
+func FieldLabels() *Field {
+	return &Field{
 		Required: false,
 		Title:    "Labels",
 		Usage:    "comma-separated list of labels to apply",
