@@ -203,8 +203,9 @@ func edit() action.Pair {
 			},
 			UpdateSub: func(data *types.UserFileDetails) (identifier string, err error) {
 				err = connection.Client.UpdateUserFileMetadata(data.ThingUUID, types.UserFileDetails{
-					Name: data.Name,
-					Desc: data.Desc,
+					Name:   data.Name,
+					Desc:   data.Desc,
+					Labels: data.Labels,
 				})
 				return data.ThingUUID.String(), err
 			},
