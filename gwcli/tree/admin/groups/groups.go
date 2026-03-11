@@ -21,7 +21,7 @@ func NewGroupsNav() *cobra.Command {
 		long  string = "View and edit groups"
 	)
 
-	return treeutils.GenerateNav(use, short, long, nil,
+	return treeutils.GenerateNav(use, short, long, []string{"group"},
 		nil,
 		[]action.Pair{
 			list(),
