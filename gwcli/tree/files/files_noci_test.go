@@ -74,7 +74,22 @@ func TestCreateListDownload(t *testing.T) {
 
 	// check that we can alter one of the properties
 	{
-		//	if
+		lbls := []string{"lbl1", "lbl2", "thirdthing"}
+		if ec := tree.Execute(append(meta, []string{"files", "edit", "-i", fileID.String(),
+			"--labels=" + strings.Join(lbls, ","), // just add some labels
+		}...)); ec != 0 {
+			t.Fatal("bad error code: ", ec)
+		}
+		id, setDesc, setLbls := fileDetails(t, fileName, fileSize)
+		if id != fileID {
+			t.Error("incorrect file ID", testsupport.ExpectedActual(fileID, id))
+		}
+		if desc != setDesc {
+			t.Error("incorrect description", testsupport.ExpectedActual(desc, setDesc))
+		}
+		if !testsupport.SlicesUnorderedEqual(lbls, setLbls) {
+			t.Error("incorrect labels set by edit", testsupport.ExpectedActual(lbls, setLbls))
+		}
 	}
 
 	// redownload the file
