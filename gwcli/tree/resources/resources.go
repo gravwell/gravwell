@@ -173,10 +173,10 @@ func create() action.Pair {
 		},
 		"path": {
 			Required:      true,
-			Title:         "path",
-			Usage:         "path to the file to upload as the new resource",
+			Title:         ft.Path.Name(),
+			Usage:         ft.Path.Usage("resource"),
 			Type:          scaffoldcreate.File,
-			FlagShorthand: 'f',
+			FlagShorthand: rune(ft.Path.Shorthand()[0]),
 			Order:         80,
 		},
 	}
