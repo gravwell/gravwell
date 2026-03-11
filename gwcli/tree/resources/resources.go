@@ -20,14 +20,12 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -159,45 +157,10 @@ func download() action.Pair {
 
 func create() action.Pair {
 	fields := map[string]scaffoldcreate.Field{
-		"name": {
-			Required:      true,
-			Title:         "name",
-			Usage:         "name of the new resource",
-			Type:          scaffoldcreate.Text,
-			FlagName:      "name",
-			FlagShorthand: 'n',
-			Order:         100,
-		},
-		"desc": {
-			Required:      false,
-			Title:         "description",
-			Usage:         ft.Description.Usage("resource"),
-			Type:          scaffoldcreate.Text,
-			FlagName:      ft.Description.Name(),
-			FlagShorthand: 'd',
-			Order:         90,
-		},
-		"path": {
-			Required:      true,
-			Title:         ft.Path.Name(),
-			Usage:         ft.Path.Usage("resource"),
-			Type:          scaffoldcreate.File,
-			FlagShorthand: rune(ft.Path.Shorthand()[0]),
-			Order:         80,
-		},
-		"labels": {
-			Required: false,
-			Title:    "Labels",
-			Usage:    "comma-separated list of labels to apply",
-			Type:     scaffoldcreate.Text,
-			FlagName: "labels",
-			Order:    70,
-			CustomTIFuncInit: func() textinput.Model {
-				ti := stylesheet.NewTI("", true)
-				ti.Placeholder = "label1,label2,label3,..."
-				return ti
-			},
-		},
+		"name":   scaffoldcreate.FieldName("resource"),
+		"desc":   scaffoldcreate.FieldDescription("resource"),
+		"path":   scaffoldcreate.FieldPath("resource"),
+		"labels": scaffoldcreate.FieldLabels(),
 	}
 
 	return scaffoldcreate.NewCreateAction("resource", fields,
