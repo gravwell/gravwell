@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -102,4 +103,36 @@ func download() action.Pair {
 				return fs
 			},
 		})
+}
+
+func create() action.Pair {
+	return scaffoldcreate.NewCreateAction("file",
+		map[string]scaffoldcreate.Field{
+			"name": scaffoldcreate.Field{
+				Required:      true,
+				Title:         "Name",
+				Usage:         ft.Name.Usage("file"),
+				Type:          scaffoldcreate.Text,
+				FlagName:      ft.Name.Name(),
+				FlagShorthand: rune(ft.Name.Shorthand()[0]),
+				Order:         100},
+			"desc": scaffoldcreate.Field{
+				Required:      false,
+				Title:         "Description",
+				Usage:         ft.Description.Usage("file"),
+				Type:          scaffoldcreate.Text,
+				FlagName:      ft.Description.Name(),
+				FlagShorthand: rune(ft.Description.Shorthand()[0]),
+				Order:         90},
+			"path": scaffoldcreate.Field{
+				Required: true,
+				Title:    "Path",
+				Usage:    "path to the file to upload", // TODO extract to flag text
+				Type:     scaffoldcreate.Text,
+				Order:    80},
+		},
+		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			id, err = connection.Client.AddUserFile(fieldValues["name"], fieldValues["desc"], fieldValues["path"])
+			return
+		}, nil)
 }
