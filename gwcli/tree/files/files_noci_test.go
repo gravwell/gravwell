@@ -23,7 +23,7 @@ const (
 
 var meta = []string{"--insecure", "-x", "-u", username, "--server=" + server}
 
-func TestCreateListDownload(t *testing.T) {
+func TestE2E(t *testing.T) {
 	tDir := t.TempDir()
 	t.Setenv("GRAVWELL_PASSWORD", password)
 

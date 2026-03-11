@@ -30,7 +30,7 @@ const (
 )
 
 // Check that we can 1) create a new resource, 2) confirm we created that resource, and 3) download that resource
-func TestCreateListVerify(t *testing.T) {
+func TestE2E(t *testing.T) {
 	tDir := t.TempDir()
 	t.Setenv("GRAVWELL_PASSWORD", password)
 	meta := []string{"--insecure", "-x", "-u", username, "--server=" + server}
