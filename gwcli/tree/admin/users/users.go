@@ -13,21 +13,20 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/users/self"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-func NewUsersNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "users"
 		short string = "manage users"
 		long  string = "View and edit properties of users in the system."
 	)
 
-	return treeutils.GenerateNav(use, short, long, nil, []*cobra.Command{self.NewSelfNav()},
+	return treeutils.GenerateNav(use, short, long, nil, []*cobra.Command{},
 		[]action.Pair{list(), get()})
 }
 

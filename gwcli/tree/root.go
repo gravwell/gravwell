@@ -31,6 +31,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/users"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
@@ -42,8 +43,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/self"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -330,9 +331,10 @@ func Execute(args []string) int {
 		macros.NewMacrosNav,
 		queries.NewQueriesNav,
 		kits.NewKitsNav,
-		users.NewUsersNav,
+		users.NewNav,
 		dashboards.NewDashboardNav,
 		resources.NewResourcesNav,
+		self.NewSelfNav,
 		systemshealth.NewSystemsNav,
 	}
 

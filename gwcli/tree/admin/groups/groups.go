@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-func NewGroupsNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "groups"
 		short string = "manage groups"
