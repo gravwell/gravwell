@@ -127,10 +127,10 @@ func fileDetails(t *testing.T, name string, size int64) (id uuid.UUID, descripti
 			t.Fatal("no rows returned")
 		}
 	}
-	if len(rows) != 5 {
+	t.Log("columns:\n", rows[0], "\n")
+	if len(rows[0]) != 5 {
 		t.Fatal("incorrect column count", testsupport.ExpectedActual(5, len(rows)))
 	}
-	t.Log("columns:\n", rows[0], "\n")
 	for i := 1; i < len(rows); i++ {
 		row := rows[i]
 
