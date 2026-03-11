@@ -67,7 +67,7 @@ func TestCreateListDownload(t *testing.T) {
 		if ec := tree.Execute(append(meta, []string{"files", "list",
 			"--csv",
 			"-o", resultPath,
-			"--columns", "UID,Name,Size",
+			"--columns", "ThingUUID,Name,Size",
 		}...)); ec != 0 {
 			t.Error("bad error code: ", ec)
 		}
@@ -83,19 +83,19 @@ func TestCreateListDownload(t *testing.T) {
 		} else if len(rows) < 1 {
 			t.Fatal("no rows returned")
 		}
-		t.Log("files:\n", rows, "\n")
+		t.Log("columns:\n", rows[0], "\n")
 		// identify the Name column
 		nameColIdx := slices.Index(rows[0], "Name")
 		if nameColIdx == -1 {
 			t.Fatal("failed to identify \"Name\" column")
 		}
-		sizeColIdx := slices.Index(rows[0], "Size") // TODO why cannot we not --columns=Size?
+		sizeColIdx := slices.Index(rows[0], "SizeBytes")
 		if sizeColIdx == -1 {
 			t.Fatal("failed to identify \"Size\" column")
 		}
-		idColIdx := slices.Index(rows[0], "UID")
+		idColIdx := slices.Index(rows[0], "ThingUUID") // TODO update after userfiles are updated for registry
 		if idColIdx == -1 {
-			t.Fatal("failed to identify \"UID\" column")
+			t.Fatal("failed to identify \"ThingUUID\" column")
 		}
 		for i := 1; i < len(rows); i++ {
 			row := rows[i]
