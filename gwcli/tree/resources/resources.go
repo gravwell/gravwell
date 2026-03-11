@@ -20,12 +20,14 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -87,7 +89,9 @@ func list() action.Pair {
 				"ID",
 				"Name",
 				"Description",
-				"Size"},
+				"Size",
+				"Labels",
+			},
 			ColumnAliases: map[string]string{
 				"Size": "SizeBytes",
 			},
@@ -181,7 +185,19 @@ func create() action.Pair {
 			FlagShorthand: rune(ft.Path.Shorthand()[0]),
 			Order:         80,
 		},
-		// TODO labels
+		"labels": {
+			Required: false,
+			Title:    "Labels",
+			Usage:    "comma-separated list of labels to apply",
+			Type:     scaffoldcreate.Text,
+			FlagName: "labels",
+			Order:    70,
+			CustomTIFuncInit: func() textinput.Model {
+				ti := stylesheet.NewTI("", true)
+				ti.Placeholder = "label1,label2,label3,..."
+				return ti
+			},
+		},
 	}
 
 	return scaffoldcreate.NewCreateAction("resource", fields,
@@ -190,17 +206,25 @@ func create() action.Pair {
 			if fi, err := os.Stat(fieldValues["path"]); err != nil {
 				switch {
 				case errors.Is(err, filesystem.ErrNotExist):
-					return 0, fmt.Sprintf("file '%v' not found", fieldValues["path"]), nil
+					return "", fmt.Sprintf("file '%v' not found", fieldValues["path"]), nil
 				}
-				return 0, fmt.Sprintf("failed to access path: %v", err), nil
+				return "", fmt.Sprintf("failed to access path: %v", err), nil
 			} else if fi.IsDir() {
-				return 0, "path must point to a file", nil
+				return "", "path must point to a file", nil
 			}
 			// transmute to resource struct
+			var labels []string
+			if lbls, found := fieldValues["labels"]; !found {
+				return "", "", errors.New("failed to find \"labels\" field")
+			} else if lbls = strings.TrimSpace(lbls); lbls != "" {
+				labels = strings.Split(lbls, ",")
+			}
+
 			data := types.Resource{
 				CommonFields: types.CommonFields{
 					Name:        fieldValues["name"],
 					Description: fieldValues["desc"],
+					Labels:      labels,
 				},
 			}
 
