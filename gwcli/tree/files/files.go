@@ -4,7 +4,6 @@ package files
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"strings"
 
@@ -81,7 +80,7 @@ func download() action.Pair {
 			}
 
 			// check output
-			var out io.Writer = cmd.OutOrStdout()
+			var out = cmd.OutOrStdout()
 			if outPath, err := fs.GetString(ft.Output.Name()); err != nil {
 				clilog.LogFlagFailedGet(ft.Output.Name(), err)
 			} else if outPath != "" {

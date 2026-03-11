@@ -6,7 +6,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Package myinfo defines a simple action to fetch information about the current user.
+// Package self defines a few simple actions to fetch information about the current user.
 package self
 
 import (
