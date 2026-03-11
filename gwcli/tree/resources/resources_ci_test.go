@@ -14,6 +14,7 @@ import (
 	"path"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
@@ -54,14 +55,16 @@ func TestCreateListVerify(t *testing.T) {
 	}
 
 	var (
-		resourceName = randomdata.SillyName() + strconv.FormatInt(fileSize, 10)
-		resourceDesc = "from " + t.Name()
+		resourceName   = randomdata.SillyName() + strconv.FormatInt(fileSize, 10)
+		resourceDesc   = "from " + t.Name()
+		resourceLabels = []string{"lbl1", "otherlbl"}
 	)
 
 	createResource := []string{"resources", "create",
 		"-n", resourceName,
 		"-d", resourceDesc,
 		"-f", filePath,
+		"--labels", strings.Join(resourceLabels, ","),
 	}
 	// execute spins up singletons for us
 	if ec := tree.Execute(append(meta, createResource...)); ec != 0 {
@@ -75,6 +78,7 @@ func TestCreateListVerify(t *testing.T) {
 		listResources := []string{"resources", "list",
 			"--csv",
 			"-o", resultPath,
+			//"--columns", "Name,ID,Size,Labels", // TODO once alias issue is resolved
 		}
 		// execute spins up singletons for us
 		if ec := tree.Execute(append(meta, listResources...)); ec != 0 {
@@ -111,6 +115,7 @@ func TestCreateListVerify(t *testing.T) {
 			if row[nameColIdx] != resourceName {
 				continue
 			}
+			// sanity check size
 			reportedSize, err := strconv.ParseInt(row[sizeColIdx], 10, 64)
 			if err != nil {
 				t.Errorf("failed to parse %s into an int: %v", row[sizeColIdx], err)
@@ -118,6 +123,18 @@ func TestCreateListVerify(t *testing.T) {
 			if reportedSize != fileSize {
 				t.Fatal("incorrect size", testsupport.ExpectedActual(fileSize, reportedSize))
 			}
+			// sanity check labels
+			if lblsColIdx := slices.Index(rows[0], "Labels"); lblsColIdx == -1 {
+				t.Fatal("failed to identify \"Labels\" columns")
+			} else {
+				// parse and check the labels
+				col := row[lblsColIdx]
+				setLabels := strings.Split(strings.Trim(col, "[]"), " ") // slice off the brackets and split the labels into an array
+				if !testsupport.SlicesUnorderedEqual(setLabels, resourceLabels) {
+					t.Error("incorrect labels", testsupport.ExpectedActual(resourceLabels, setLabels))
+				}
+			}
+
 			resourceID = row[idColIdx]
 			break
 
