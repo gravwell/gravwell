@@ -6,11 +6,12 @@ import (
 	"encoding/csv"
 	"os"
 	"path"
-	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
+	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/tree"
 )
@@ -20,10 +21,11 @@ const (
 	server             string = "localhost:8080"
 )
 
+var meta = []string{"--insecure", "-x", "-u", username, "--server=" + server}
+
 func TestCreateListDownload(t *testing.T) {
 	tDir := t.TempDir()
 	t.Setenv("GRAVWELL_PASSWORD", password)
-	meta := []string{"--insecure", "-x", "-u", username, "--server=" + server}
 
 	// create a file to upload
 	var (
@@ -61,60 +63,20 @@ func TestCreateListDownload(t *testing.T) {
 		}
 	}
 	// check for the new file
-	var fileID string
-	{
-		// create a file to write results to
-		resultPath := path.Join(tDir, t.Name()+"list.txt")
-		// execute spins up singletons for us
-		if ec := tree.Execute(append(meta, []string{"files", "list",
-			"--csv",
-			"-o", resultPath,
-			"--columns", "ThingUUID,Name,Size",
-		}...)); ec != 0 {
-			t.Error("bad error code: ", ec)
-		}
-		// check for the macro we created
-		f, err := os.Open(resultPath)
-		if err != nil {
-			t.Error(err)
-		}
-		rdr := csv.NewReader(f)
-		rows, err := rdr.ReadAll()
-		if err != nil {
-			t.Fatal(err)
-		} else if len(rows) < 1 {
-			t.Fatal("no rows returned")
-		}
-		t.Log("columns:\n", rows[0], "\n")
-		// identify the Name column
-		nameColIdx := slices.Index(rows[0], "Name")
-		if nameColIdx == -1 {
-			t.Fatal("failed to identify \"Name\" column")
-		}
-		sizeColIdx := slices.Index(rows[0], "SizeBytes")
-		if sizeColIdx == -1 {
-			t.Fatal("failed to identify \"Size\" column")
-		}
-		idColIdx := slices.Index(rows[0], "ThingUUID") // TODO update after userfiles are updated for registry
-		if idColIdx == -1 {
-			t.Fatal("failed to identify \"ThingUUID\" column")
-		}
-		for i := 1; i < len(rows); i++ {
-			row := rows[i]
-			if row[nameColIdx] != fileName {
-				continue
-			}
-			reportedSize, err := strconv.ParseInt(row[sizeColIdx], 10, 64)
-			if err != nil {
-				t.Errorf("failed to parse %s into an int: %v", row[sizeColIdx], err)
-			}
-			if reportedSize != fileSize {
-				t.Fatal("incorrect size", testsupport.ExpectedActual(fileSize, reportedSize))
-			}
-			fileID = row[idColIdx]
-			break
-		}
+	fileID, desc, lbls := fileDetails(t, fileName, fileSize)
+	// validate
+	if desc != fileDesc {
+		t.Error("retrieved incorrect description", testsupport.ExpectedActual(fileDesc, desc))
 	}
+	if testsupport.SlicesUnorderedEqual(lbls, []string{}) { // we did not provide any labels
+		t.Error("retrieved incorrect description", testsupport.ExpectedActual([]string{}, lbls))
+	}
+
+	// check that we can alter one of the properties
+	{
+		//	if
+	}
+
 	// redownload the file
 	{
 		resultPath := filePath + ".redown.txt"
@@ -122,7 +84,7 @@ func TestCreateListDownload(t *testing.T) {
 		// execute spins up singletons for us
 		if ec := tree.Execute(append(meta, []string{"files", "download",
 			"-o", resultPath,
-			fileID}...)); ec != 0 {
+			fileID.String()}...)); ec != 0 {
 			t.Error("bad error code: ", ec)
 		}
 		// check the file
@@ -138,4 +100,62 @@ func TestCreateListDownload(t *testing.T) {
 			t.Error(testsupport.ExpectedActual(string(orig), string(dl)))
 		}
 	}
+}
+
+func fileDetails(t *testing.T, name string, size int64) (id uuid.UUID, description string, labels []string) {
+	// create a file to write results to
+	resultPath := path.Join(t.TempDir(), t.Name()+"list.txt")
+	if ec := tree.Execute(append(meta, []string{"files", "list",
+		"--csv",
+		"-o", resultPath,
+		"--columns", "ThingUUID,Name,Desc,Size,Labels",
+	}...)); ec != 0 {
+		t.Error("bad error code: ", ec)
+	}
+	// slurp the file we wrote to
+	var rows [][]string
+	{
+		f, err := os.Open(resultPath)
+		if err != nil {
+			t.Error(err)
+		}
+		rdr := csv.NewReader(f)
+		rows, err = rdr.ReadAll()
+		if err != nil {
+			t.Fatal(err)
+		} else if len(rows) < 1 {
+			t.Fatal("no rows returned")
+		}
+	}
+	if len(rows) != 5 {
+		t.Fatal("incorrect column count", testsupport.ExpectedActual(5, len(rows)))
+	}
+	t.Log("columns:\n", rows[0], "\n")
+	for i := 1; i < len(rows); i++ {
+		row := rows[i]
+
+		// check if this is our row
+		if row[1] != name {
+			continue
+		}
+		// validate size
+		reportedSize, err := strconv.ParseInt(row[3], 10, 64)
+		if err != nil {
+			t.Errorf("failed to parse %s into an int: %v", row[3], err)
+		}
+		if reportedSize != size {
+			t.Fatal("incorrect size", testsupport.ExpectedActual(size, reportedSize))
+		}
+		// fetch data to return
+		id, err = uuid.Parse(row[0])
+		if err != nil {
+			t.Fatal(err)
+		}
+		description = row[2]
+		labels = strings.Split(strings.Trim(row[4], "[]"), " ") // slice off the brackets and split the labels into an array
+
+		return id, description, labels
+	}
+	t.Fatalf("found no rows with name %v. Rows: %v", name, rows[1:])
+	return
 }
