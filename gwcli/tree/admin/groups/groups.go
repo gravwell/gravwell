@@ -42,8 +42,8 @@ func list() action.Pair {
 func create() action.Pair {
 	return scaffoldcreate.NewCreateAction("group",
 		scaffoldcreate.Config{
-			"name": scaffoldcreate.Field{}, // TODO can we extract this, as so many items reuse name?
-			"desc": scaffoldcreate.Field{}, // TODO can we extract this, as so many items reuse name?
+			"name": scaffoldcreate.FieldName("group"),
+			"desc": scaffoldcreate.FieldDescription("group"),
 		},
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			err = connection.Client.AddGroup(fieldValues["name"], fieldValues["desc"])

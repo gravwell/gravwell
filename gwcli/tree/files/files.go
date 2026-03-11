@@ -8,14 +8,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -113,43 +111,10 @@ func download() action.Pair {
 func create() action.Pair {
 	return scaffoldcreate.NewCreateAction("file",
 		map[string]scaffoldcreate.Field{
-			"name": {
-				Required:      true,
-				Title:         "Name",
-				Usage:         ft.Name.Usage("file"),
-				Type:          scaffoldcreate.Text,
-				FlagName:      ft.Name.Name(),
-				FlagShorthand: rune(ft.Name.Shorthand()[0]),
-				Order:         100},
-			"desc": {
-				Required:      false,
-				Title:         "Description",
-				Usage:         ft.Description.Usage("file"),
-				Type:          scaffoldcreate.Text,
-				FlagName:      ft.Description.Name(),
-				FlagShorthand: rune(ft.Description.Shorthand()[0]),
-				Order:         90},
-			"path": {
-				Required:      true,
-				Title:         "Path",
-				Usage:         ft.Path.Usage("file"),
-				Type:          scaffoldcreate.File,
-				FlagName:      ft.Path.Name(),
-				FlagShorthand: rune(ft.Path.Shorthand()[0]),
-				Order:         80},
-			"labels": {
-				Required: false,
-				Title:    "Labels",
-				Usage:    "comma-separated list of labels to apply",
-				Type:     scaffoldcreate.Text,
-				FlagName: "labels",
-				Order:    70,
-				CustomTIFuncInit: func() textinput.Model {
-					ti := stylesheet.NewTI("", true)
-					ti.Placeholder = "label1,label2,label3,..."
-					return ti
-				},
-			},
+			"name":   scaffoldcreate.FieldName("file"),
+			"desc":   scaffoldcreate.FieldDescription("file"),
+			"path":   scaffoldcreate.FieldPath("file"),
+			"labels": scaffoldcreate.FieldLabels(),
 		},
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var (

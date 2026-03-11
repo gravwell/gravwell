@@ -118,45 +118,32 @@ var macroNameRgx = regexp.MustCompile("^[a-zA-Z0-9_-]*$")
 
 // creates macros using 3 fields: name, description, and expansion.
 func newMacroCreateAction() action.Pair {
-	fields := scaffoldcreate.Config{
-		"name": scaffoldcreate.Field{
-			Required:     true,
-			Title:        "name",
-			Usage:        ft.Name.Usage("macro"),
-			Type:         scaffoldcreate.Text,
-			FlagName:     ft.Name.Name(),
-			DefaultValue: "",
-			Order:        100,
-			CustomTIFuncInit: func() textinput.Model {
-				ti := stylesheet.NewTI("", false)
-				ti.Prompt = "$"
-				ti.Validate = func(s string) error {
-					s = strings.ToUpper(s)
-					if !macroNameRgx.MatchString(s) {
-						return errors.New("Macro names may contain capital letters, numbers, dashes and underscores")
-					}
 
-					if len(s) > 0 {
-						char := []rune(s)[0]
-						if !(unicode.IsDigit(char) || unicode.IsLetter(char)) {
-							return errors.New("macro names must start with a letter or number")
-						}
+	nameField := scaffoldcreate.FieldName("macro")
+	nameField.CustomTIFuncInit = func() textinput.Model {
+		ti := stylesheet.NewTI("", false)
+		ti.Prompt = "$"
+		ti.Validate = func(s string) error {
+			s = strings.ToUpper(s)
+			if !macroNameRgx.MatchString(s) {
+				return errors.New("Macro names may contain capital letters, numbers, dashes and underscores")
+			}
 
-					}
-					return nil
+			if len(s) > 0 {
+				char := []rune(s)[0]
+				if !(unicode.IsDigit(char) || unicode.IsLetter(char)) {
+					return errors.New("macro names must start with a letter or number")
 				}
-				return ti
-			},
-		},
-		"desc": scaffoldcreate.Field{
-			Required:     false,
-			Title:        "description",
-			Usage:        ft.Description.Usage("macro"),
-			Type:         scaffoldcreate.Text,
-			FlagName:     ft.Description.Name(),
-			DefaultValue: "",
-			Order:        90,
-		},
+
+			}
+			return nil
+		}
+		return ti
+	}
+
+	fields := scaffoldcreate.Config{
+		"name": nameField,
+		"desc": scaffoldcreate.FieldDescription("macro"),
 		"exp": scaffoldcreate.Field{
 			Required:     true,
 			Title:        "expansion",
