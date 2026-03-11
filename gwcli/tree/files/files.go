@@ -16,6 +16,7 @@ import (
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -34,6 +35,7 @@ func NewNav() *cobra.Command {
 			list(),
 			download(),
 			create(),
+			edit(),
 		})
 }
 
@@ -146,4 +148,66 @@ func create() action.Pair {
 			id, err = connection.Client.AddUserFileDetails(m, path)
 			return
 		}, nil)
+}
+
+func edit() action.Pair {
+	return scaffoldedit.NewEditAction("file", "files",
+		scaffoldedit.Config{
+			"name":   scaffoldedit.FieldName("file"),
+			"desc":   scaffoldedit.FieldDescription("file"),
+			"labels": scaffoldedit.FieldLabels(),
+		},
+		scaffoldedit.SubroutineSet[uuid.UUID, types.UserFileDetails]{
+			SelectSub: func(id uuid.UUID) (item types.UserFileDetails, err error) {
+				return connection.Client.GetUserFileDetails(id)
+			},
+			FetchSub: func() (items []types.UserFileDetails, err error) {
+				return connection.Client.UserFiles()
+			},
+			GetFieldSub: func(item types.UserFileDetails, fieldKey string) (value string, err error) {
+				switch fieldKey {
+				case "name":
+					return item.Name, nil
+				case "desc":
+					return item.Desc, nil
+				case "labels":
+					return strings.Join(item.Labels, ","), nil
+				}
+				return "", fmt.Errorf("unknown field key: %v", fieldKey)
+			},
+			SetFieldSub: func(item *types.UserFileDetails, fieldKey, val string) (invalid string, err error) {
+				if item == nil {
+					return "", errors.New("cannot set nil item")
+				}
+				switch fieldKey {
+				case "name":
+					if strings.Contains(val, " ") {
+						return "name may not contain spaces", nil
+					}
+					val = strings.ToUpper(val)
+					item.Name = val
+				case "desc":
+					item.Desc = val
+				case "labels":
+					item.Labels = strings.Split(val, ",")
+				default:
+					return "", fmt.Errorf("unknown field key: %v", fieldKey)
+				}
+				return
+			},
+			GetTitleSub: func(item types.UserFileDetails) string {
+				return item.Name
+			},
+			GetDescriptionSub: func(item types.UserFileDetails) string {
+				return item.Desc
+			},
+			UpdateSub: func(data *types.UserFileDetails) (identifier string, err error) {
+				err = connection.Client.UpdateUserFileMetadata(data.ThingUUID, types.UserFileDetails{
+					Name: data.Name,
+					Desc: data.Desc,
+				})
+				return data.ThingUUID.String(), err
+			},
+		},
+	)
 }
