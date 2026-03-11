@@ -2,16 +2,20 @@
 package files
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -129,13 +133,53 @@ func create() action.Pair {
 				Required:      true,
 				Title:         "Path",
 				Usage:         ft.Path.Usage("file"),
-				Type:          scaffoldcreate.Text,
+				Type:          scaffoldcreate.File,
 				FlagName:      ft.Path.Name(),
 				FlagShorthand: rune(ft.Path.Shorthand()[0]),
 				Order:         80},
+			"labels": {
+				Required: false,
+				Title:    "Labels",
+				Usage:    "comma-separated list of labels to apply",
+				Type:     scaffoldcreate.Text,
+				FlagName: "labels",
+				Order:    70,
+				CustomTIFuncInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", true)
+					ti.Placeholder = "label1,label2,label3,..."
+					return ti
+				},
+			},
 		},
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
-			id, err = connection.Client.AddUserFile(fieldValues["name"], fieldValues["desc"], fieldValues["path"])
+			var (
+				name, desc, path string
+				labels           []string
+			)
+			// fetch and sanity check values
+			var found bool
+			if name, found = fieldValues["name"]; !found {
+				return uuid.UUID{}, "", errors.New("failed to find \"name\" field")
+			}
+			if desc, found = fieldValues["desc"]; !found {
+				return uuid.UUID{}, "", errors.New("failed to find \"desc\" field")
+			}
+			if path, found = fieldValues["path"]; !found {
+				return uuid.UUID{}, "", errors.New("failed to find \"path\" field")
+			}
+			if lbls, found := fieldValues["labels"]; !found {
+				return uuid.UUID{}, "", errors.New("failed to find \"name\" field")
+			} else {
+				labels = strings.Split(lbls, ",")
+			}
+
+			var m = types.UserFileDetails{
+				Name:   name,
+				Desc:   desc,
+				Labels: labels,
+			}
+
+			id, err = connection.Client.AddUserFileDetails(m, path)
 			return
 		}, nil)
 }
