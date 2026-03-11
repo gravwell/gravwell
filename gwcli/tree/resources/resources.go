@@ -30,6 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -54,6 +55,7 @@ func NewResourcesNav() *cobra.Command {
 			create(),
 			delete(),
 			download(),
+			edit(),
 		})
 }
 
@@ -179,6 +181,7 @@ func create() action.Pair {
 			FlagShorthand: rune(ft.Path.Shorthand()[0]),
 			Order:         80,
 		},
+		// TODO labels
 	}
 
 	return scaffoldcreate.NewCreateAction("resource", fields,
@@ -250,4 +253,80 @@ func delete() action.Pair {
 			}
 			return items, nil
 		})
+}
+
+func edit() action.Pair {
+	return scaffoldedit.NewEditAction("file", "files", scaffoldedit.Config{
+		"name": {
+			Required:      true,
+			Title:         "name",
+			Usage:         "name of the new resource",
+			FlagName:      "name",
+			FlagShorthand: 'n',
+			Order:         100,
+		},
+		"desc": {
+			Required:      false,
+			Title:         "description",
+			Usage:         ft.Description.Usage("resource"),
+			FlagName:      ft.Description.Name(),
+			FlagShorthand: 'd',
+			Order:         90,
+		},
+		// TODO labels
+	}, scaffoldedit.SubroutineSet[string, types.Resource]{
+		SelectSub: func(id string) (item types.Resource, err error) { // get a specific resource
+			return connection.Client.GetResourceMetadata(id)
+		},
+		FetchSub: func() (items []types.Resource, err error) { // get all available resources
+			resp, err := connection.Client.ListResources(nil)
+			if err != nil {
+				return nil, err
+			}
+			return resp.Results, nil
+		},
+		GetFieldSub: func(item types.Resource, fieldKey string) (value string, err error) {
+			switch fieldKey {
+			case "name":
+				return item.Name, nil
+			case "desc":
+				return item.Description, nil
+			}
+			// TODO labels
+			return "", fmt.Errorf("unknown field key: %v", fieldKey)
+		},
+		SetFieldSub: func(item *types.Resource, fieldKey, val string) (invalid string, err error) {
+			if item == nil {
+				return "", errors.New("cannot set nil item")
+			}
+			switch fieldKey {
+			case "name":
+				if strings.Contains(val, " ") {
+					return "name may not contain spaces", nil
+				}
+				val = strings.ToUpper(val)
+				item.Name = val
+			case "desc":
+				item.Description = val
+			default:
+				return "", fmt.Errorf("unknown field key: %v", fieldKey)
+			}
+			return
+		},
+		GetTitleSub: func(item types.Resource) string {
+			return item.Name
+		},
+		GetDescriptionSub: func(item types.Resource) string {
+			return item.Description
+		},
+		UpdateSub: func(data *types.Resource) (identifier string, err error) {
+			err = connection.Client.UpdateResourceMetadata(data.ID, types.Resource{
+				CommonFields: types.CommonFields{
+					Name:        data.Name,
+					Description: data.Description,
+				},
+			})
+			return data.ID, err
+		},
+	})
 }
