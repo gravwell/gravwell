@@ -243,24 +243,10 @@ func delete() action.Pair {
 }
 
 func edit() action.Pair {
-	return scaffoldedit.NewEditAction("file", "files", scaffoldedit.Config{
-		"name": {
-			Required:      true,
-			Title:         "name",
-			Usage:         "name of the new resource",
-			FlagName:      "name",
-			FlagShorthand: 'n',
-			Order:         100,
-		},
-		"desc": {
-			Required:      false,
-			Title:         "description",
-			Usage:         ft.Description.Usage("resource"),
-			FlagName:      ft.Description.Name(),
-			FlagShorthand: 'd',
-			Order:         90,
-		},
-		// TODO labels
+	return scaffoldedit.NewEditAction("resource", "resources", scaffoldedit.Config{
+		"name":   scaffoldedit.FieldName("resource"),
+		"desc":   scaffoldedit.FieldDescription("resource"),
+		"labels": scaffoldedit.FieldLabels(),
 	}, scaffoldedit.SubroutineSet[string, types.Resource]{
 		SelectSub: func(id string) (item types.Resource, err error) { // get a specific resource
 			return connection.Client.GetResourceMetadata(id)
@@ -278,8 +264,9 @@ func edit() action.Pair {
 				return item.Name, nil
 			case "desc":
 				return item.Description, nil
+			case "labels":
+				return strings.Join(item.Labels, ","), nil
 			}
-			// TODO labels
 			return "", fmt.Errorf("unknown field key: %v", fieldKey)
 		},
 		SetFieldSub: func(item *types.Resource, fieldKey, val string) (invalid string, err error) {
@@ -295,6 +282,8 @@ func edit() action.Pair {
 				item.Name = val
 			case "desc":
 				item.Description = val
+			case "labels":
+				item.Labels = strings.Split(val, ",")
 			default:
 				return "", fmt.Errorf("unknown field key: %v", fieldKey)
 			}
