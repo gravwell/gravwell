@@ -104,7 +104,7 @@ func TestCreateListVerify(t *testing.T) {
 		}
 		idColIdx := slices.Index(rows[0], "ID")
 		if idColIdx == -1 {
-			t.Fatal("failed to identify \"Size\" column")
+			t.Fatal("failed to identify \"ID\" column")
 		}
 		for i := 1; i < len(rows); i++ {
 			row := rows[i]
