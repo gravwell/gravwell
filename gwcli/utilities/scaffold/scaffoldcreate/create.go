@@ -194,6 +194,17 @@ const (
 	quitting              // done
 )
 
+type inputs struct {
+	selected uint       // currently focused item (index correlates to "ordered"+1 (submit))
+	err      string     // a reason inputs are invalid. Currently only holds the most-recently set error. Disables submit if set.
+	ordered  []struct { // ordered at create-time by Config.Field.Order
+		Key  string    // key to acquire the actual field
+		Type FieldType // selects the map to fetch from
+	}
+	TIs  map[string]*textinput.Model     // Type: Text | key -> TI
+	PTIs map[string]*pathtextinput.Model // Type: File | key -> PTI
+}
+
 // interactive model that builds out inputs based on the read-only Config supplied on creation.
 type createModel struct {
 	mode mode
@@ -204,16 +215,7 @@ type createModel struct {
 
 	fields Config // RO configuration provided by the caller
 
-	inputs struct {
-		selected uint       // currently focused item (index correlates to "ordered"+1 (submit))
-		err      string     // a reason inputs are invalid. Currently only holds the most-recently set error. Disables submit if set.
-		ordered  []struct { // ordered at create-time by Config.Field.Order
-			Key  string    // key to acquire the actual field
-			Type FieldType // selects the map to fetch from
-		}
-		TIs  map[string]*textinput.Model     // Type: Text | key -> TI
-		PTIs map[string]*pathtextinput.Model // Type: File | key -> PTI
-	}
+	inputs             inputs
 	longestFieldLength int // set at create time
 	longestTILength    int // set at create time
 
@@ -238,16 +240,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 		width:    defaultWidth,
 		singular: singular,
 		fields:   fields,
-		inputs: struct {
-			selected uint
-			err      string
-			ordered  []struct {
-				Key  string
-				Type FieldType
-			}
-			TIs  map[string]*textinput.Model
-			PTIs map[string]*pathtextinput.Model
-		}{
+		inputs: inputs{
 			ordered: make([]struct {
 				Key  string
 				Type FieldType

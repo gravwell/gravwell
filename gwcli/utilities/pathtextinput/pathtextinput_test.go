@@ -268,7 +268,7 @@ Creates a directory structure inside of t.TempDir:
 Calls t.Fatal if any step in the process fails.
 */
 func generateDirectories(t *testing.T) string {
-	root := t.TempDir()
+	root := t.ArtifactDir()
 	// Create root files
 	touchFile(t, filepath.Join(root, "file1"))
 	touchFile(t, filepath.Join(root, "file2"))
