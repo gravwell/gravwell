@@ -1,4 +1,4 @@
-package hosted
+package HttpIngester
 
 import (
 	"testing"

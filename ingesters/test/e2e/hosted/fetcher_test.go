@@ -10,8 +10,7 @@ import (
 
 func TestTesterPlugin(t *testing.T) {
 	fetcher, err := tc.Run(t.Context(), "",
-		WithDefaults(t, "hosted-tester",
-			tc.WithDockerfile(dockerfile),
+		Ingester(t, "hosted-tester", "hosted/runner",
 			WithConfig(t, "testdata/tester.conf", "hosted_ingester_runner.conf", DefaultConfig),
 		)...,
 	)
@@ -26,7 +25,7 @@ func TestTesterPlugin(t *testing.T) {
 		_ = fetcher.Terminate(t.Context())
 	})
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	c := GetClient(t)
 	ent := RunSearch(t, c, "tag=test", time.Hour)

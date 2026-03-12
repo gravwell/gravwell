@@ -1,20 +1,15 @@
-FROM golang:1.26 AS builder
-ARG INGESTER
-ARG SOURCE
+FROM --platform=$BUILDPLATFORM golang:1.26 AS builder
 ARG TARGETOS
 ARG TARGETARCH
-ENV INGESTER=${INGESTER} SOURCE=${SOURCE}
-
-WORKDIR /src
-COPY go.* ./
-RUN go mod download
+ENV GOOS=$TARGETOS GOARCH=$TARGETARCH
 
 COPY . /src/
-RUN mkdir -p /bin/ingesters && \
-    go build -o /bin/ingesters/${INGESTER} ${SOURCE}
+WORKDIR /src
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    mkdir -p /bin/ingesters && \
+    for i in $(cat "./ingesters/test/include"); do go build -o /bin/ingesters/$i ./ingesters/$i; done;
 
 FROM busybox AS runtime
-ARG INGESTER
-ENV INGESTER=$INGESTER
 COPY --from=builder /bin/ingesters/ /opt/gravwell/bin/
 CMD /opt/gravwell/bin/${INGESTER} -v
