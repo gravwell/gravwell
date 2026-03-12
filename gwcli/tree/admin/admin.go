@@ -10,6 +10,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/groups"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/users"
@@ -31,12 +32,22 @@ func NewNav() *cobra.Command {
 			groups.NewNav(),
 			users.NewNav(),
 		},
-		[]action.Pair{},
+		[]action.Pair{
+			cleanup(),
+		},
 	)
 }
 
 // does not include "all"
-var targets = map[string]func() error{}
+var targets = map[string]func() error{
+	"macros":           connection.Client.CleanupMacros,
+	"resources":        connection.Client.CleanupResources,
+	"search_history":   connection.Client.CleanupSearchHistory,
+	"secrets":          connection.Client.CleanupSecrets,
+	"templates":        connection.Client.CleanupTemplates,
+	"tokens":           connection.Client.CleanupTokens,
+	"user_preferences": connection.Client.CleanupUserPreferences,
+}
 
 // clean up is responsible for calling all specified cleanup functions, thus purging the respective type/resource/asset/entity
 func cleanup() action.Pair {
@@ -44,7 +55,9 @@ func cleanup() action.Pair {
 		"cleanup",
 		"purges deleted items from the system",
 		"Purges deleted items of the given type, rendered them unable to be restored.\n"+
-			"Available commands: ", // TODO
+			"Available targets:\n"+
+			"all\n"+
+			strings.Join(slices.Collect(maps.Keys(targets)), "\n"),
 		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
 			// compact the list of items to clean so we don't make duplicate m
 			var (
@@ -59,12 +72,14 @@ func cleanup() action.Pair {
 					all = true
 				}
 			}
-			if len(m) > 1 && all {
-				fmt.Fprint(cmd.ErrOrStderr(), "\"all\" specified; other targets are redundant") // TODO do we need to differentiate between returning a string and just spitting to out?
-				// run all and ignore everything else
-				// TODO
-				return "", nil
+			if all {
+				if len(m) > 1 {
+					fmt.Fprint(cmd.ErrOrStderr(), "\"all\" specified; other targets are redundant") // TODO do we need to differentiate between returning a string and just spitting to out?
+				}
+
+				return strings.Join(runCleanup(slices.Collect(maps.Keys(targets))), "\n"), nil
 			}
+
 			// validate all cleanups before calling *any*
 			requested := slices.Collect(maps.Keys(m))
 			invalid := []string{}
@@ -76,16 +91,14 @@ func cleanup() action.Pair {
 			if len(invalid) > 0 {
 				return "unknown cleanup targets: " + strings.Join(invalid, ", "), nil
 			}
-			for _, req := range requested {
-				err := targets[req]()
-				// TODO handle error
-			}
+
+			return strings.Join(runCleanup(requested), "\n"), nil
 		},
 		scaffold.BasicOptions{
-			Aliases: []string{"clean", "tidy", "purge"},
+			Aliases: []string{"clean", "tidy", "purge", "burninate"},
 			CmdMods: func(c *cobra.Command) {
 				c.SetUsageFunc(func(c *cobra.Command) error {
-					fmt.Fprintf(c.OutOrStdout(), "cleanup %v", ft.Mandatory("TARGET1"), ft.Mandatory("TARGET2"), ft.Mandatory("..."))
+					fmt.Fprintf(c.OutOrStdout(), "cleanup %v %v ...", ft.Mandatory("TARGET1"), ft.Mandatory("TARGET2"))
 					return nil
 				})
 				c.Example = "cleanup macros secrets"
@@ -94,6 +107,25 @@ func cleanup() action.Pair {
 				if fs.NArg() < 1 {
 					return "you must specify at least one item to clean up or \"all\"", nil
 				}
+				return "", nil
 			},
 		})
+}
+
+// helper function for cleanup.
+// msgs can contain a mix of success and error messages
+func runCleanup(targetsToRun []string) (msgs []string) {
+	for _, target := range targetsToRun {
+		f, ok := targets[target]
+		if !ok {
+			msgs = append(msgs, target+" is not a valid target")
+			continue
+		}
+		if err := f(); err != nil {
+			msgs = append(msgs, "failed to clean up "+target+": "+err.Error())
+			continue
+		}
+		msgs = append(msgs, "successfully purged "+target)
+	}
+	return
 }
