@@ -10,6 +10,7 @@ package scaffoldcreate
 
 import (
 	"fmt"
+	"os"
 	"path"
 	"strconv"
 	"strings"
@@ -22,10 +23,32 @@ import (
 	"github.com/spf13/pflag"
 )
 
+func TestMain(m *testing.M) {
+	logPath := path.Join(os.TempDir(), "gwcli_create_internal_test", "dev.log")
+	if err := os.MkdirAll(path.Dir(logPath), 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create directory for clilog: %v", err)
+		os.Exit(1)
+	}
+
+	if err := clilog.Init(logPath, "debug"); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to initialize clilog: %v", err)
+		os.Exit(1)
+	}
+	os.Exit(m.Run())
+}
+
 func Test_createModel_basics(t *testing.T) {
+	// create a couple dummy files in a temp directory to navigate to
+	dummyfilePath := path.Join(t.TempDir(), "dummyfile1")
+	if f, err := os.Create(dummyfilePath); err != nil {
+		t.Fatal(err)
+	} else {
+		f.Close()
+	}
+
 	cfg := map[string]Field{
-		"A": NewField(true, "A", 10),
-		"B": NewField(true, "B", 0),
+		"A": {Required: true, Type: Text, Title: "A", Order: 10},
+		"B": {Required: true, Type: File, Title: "B", Order: 0},
 	}
 	ca := NewCreateAction("test", cfg, func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 		return 0, "", nil
@@ -37,41 +60,57 @@ func Test_createModel_basics(t *testing.T) {
 		t.Fatal("failed to type assert to *createModel")
 	}
 
-	if len(cm.orderedTIs) != 2 {
-		t.Fatal(ExpectedActual(1, len(cm.orderedTIs)))
-	} else if cm.orderedTIs[0].Key != "A" {
-		t.Fatal(ExpectedActual("A", cm.orderedTIs[0].Key))
-	} else if cm.orderedTIs[1].Key != "B" {
-		t.Fatal(ExpectedActual("B", cm.orderedTIs[1].Key))
+	if len(cm.inputs.ordered) != 2 {
+		t.Fatal(ExpectedActual(1, len(cm.inputs.ordered)))
+	} else if cm.inputs.ordered[0].Key != "A" {
+		t.Error(ExpectedActual("A", cm.inputs.ordered[0].Key))
+	} else if cm.inputs.ordered[1].Key != "B" {
+		t.Error(ExpectedActual("B", cm.inputs.ordered[1].Key))
 	}
 	cm.focusNext()
 	// should be the second field
-	if cm.selected != 1 {
+	if cm.inputs.selected != 1 {
 		t.Fatal("expected second field to be selected")
 	}
+	// see if B auto completes to a file at its path
+	{
+		dir, _ := path.Split(dummyfilePath)
+		for _, r := range dir {
+			cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+		}
+		// check for value and correct next suggestion
+		pti := cm.inputs.PTIs["B"]
+		if pti.Value() != dir {
+			t.Error("incorrect value on field \"B\"")
+		}
+		if curSgt := pti.CurrentSuggestion(); curSgt != dummyfilePath {
+			t.Error("incorrect current suggestion", ExpectedActual(dummyfilePath, curSgt))
+		}
+	}
+
 	cm.focusNext()
 	// should be the submit button
-	if cm.selected != uint(len(cm.orderedTIs)) {
+	if cm.inputs.selected != uint(len(cm.inputs.ordered)) {
 		t.Fatal("expected submit button to be selected")
 	}
 	cm.focusNext()
 	// should be the first field
-	if cm.selected != 0 {
+	if cm.inputs.selected != 0 {
 		t.Fatal("expected first field to be selected")
 	}
 	cm.focusPrevious()
 	// should be the submit button
-	if cm.selected != uint(len(cm.orderedTIs)) {
+	if cm.inputs.selected != uint(len(cm.inputs.ordered)) {
 		t.Fatal("expected submit button to be selected")
 	}
 }
 
 func Test_Ordering(t *testing.T) {
 	cfg := map[string]Field{
-		"3": NewField(true, "3", -10),
-		"4": NewField(true, "4", -50),
-		"1": NewField(true, "1", 50),
-		"2": NewField(false, "2", 0),
+		"3": {Required: true, Type: Text, Title: "3", Order: -10},
+		"4": {Required: true, Type: Text, Title: "4", Order: -50},
+		"1": {Required: true, Type: Text, Title: "1", Order: 50},
+		"2": {Required: false, Type: Text, Title: "2", Order: 0},
 	}
 	cm := newCreateModel(cfg, "test",
 		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
@@ -80,7 +119,7 @@ func Test_Ordering(t *testing.T) {
 			return pflag.FlagSet{}
 		})
 
-	for i, ti := range cm.orderedTIs {
+	for i, ti := range cm.inputs.ordered {
 		kint, err := strconv.Atoi(ti.Key)
 		if err != nil {
 			t.Fatal(err)
@@ -93,17 +132,22 @@ func Test_Ordering(t *testing.T) {
 func Test_ExtractValues(t *testing.T) {
 	t.Run("all set", func(t *testing.T) {
 		cm := setup(t, Config{
-			"A": NewField(true, "A", 0),
-			"B": NewField(false, "B", 10),
-			"C": NewField(true, "C", -10),
+			"A": Field{Required: true, Type: Text, Title: "A", Order: 0},
+			"B": Field{Required: false, Type: File, Title: "B", Order: 10},
+			"C": Field{Required: true, Type: Text, Title: "C", Order: -10},
 		})
-		// set values into all TIs
-		for i := range cm.orderedTIs {
-			cm.orderedTIs[i].TI.SetValue(fmt.Sprintf("%d", i))
+		// set values into inputs
+		for i, o := range cm.inputs.ordered {
+			switch o.Type {
+			case File:
+				cm.inputs.PTIs[o.Key].SetValue(fmt.Sprintf("%d", i))
+			case Text:
+				cm.inputs.TIs[o.Key].SetValue(fmt.Sprintf("%d", i))
+			}
 		}
 
 		// extract values from TIs
-		values, mr := cm.extractValuesFromTIs()
+		values, mr := cm.extractInputValues()
 		if len(mr) != 0 {
 			t.Errorf("missing required (%v) setting all TIs", mr)
 		}
@@ -115,28 +159,27 @@ func Test_ExtractValues(t *testing.T) {
 			num, err := strconv.Atoi(v)
 			if err != nil {
 				t.Errorf("failed to parse %v as an int", v)
-			} else if cm.orderedTIs[num].Key != key || cm.orderedTIs[num].TI.Value() != v {
+			} else if cm.inputs.ordered[num].Key != key || cm.getInputValue(key, fld.Type) != v {
 				t.Error("mismatching values after extraction.",
-					ExpectedActual(cm.orderedTIs[num].Key, key),
-					ExpectedActual(cm.orderedTIs[num].TI.Value(), v))
+					ExpectedActual(cm.getInputValue(key, fld.Type), v))
 			}
 		}
 	})
 	t.Run("missing required", func(t *testing.T) {
 		cm := setup(t, Config{
-			"A": NewField(true, "A", 0),
-			"B": NewField(false, "B", 10),
-			"C": NewField(true, "C", -10),
+			"A": Field{Required: true, Type: Text, Title: "A", Order: 0},
+			"B": Field{Required: false, Type: Text, Title: "B", Order: 10},
+			"C": Field{Required: true, Type: Text, Title: "C", Order: -10},
 		})
 		// extract values from TIs
-		_, mr := cm.extractValuesFromTIs()
+		_, mr := cm.extractInputValues()
 		if len(mr) != 2 {
 			t.Error("incorrect missing required count.", ExpectedActual(2, len(mr)))
 		}
 
 		// set one of the requireds and try again
-		cm.orderedTIs[1].TI.SetValue("test value") // A
-		_, mr = cm.extractValuesFromTIs()
+		cm.inputs.TIs[cm.inputs.ordered[1].Key].SetValue("test value") // A
+		_, mr = cm.extractInputValues()
 		if len(mr) != 1 {
 			t.Error("incorrect missing required count.", ExpectedActual(1, len(mr)))
 		}
@@ -149,9 +192,6 @@ func Test_ExtractValues(t *testing.T) {
 // Does not utilize teatest as createModel is not a full tea.Model.
 // Thus, input and output are handled manually.
 func Test_Full(t *testing.T) {
-	if err := clilog.Init(path.Join(t.TempDir(), "dev.log"), "debug"); err != nil {
-		t.Fatal(err)
-	}
 	// use a consistent color scheme
 	stylesheet.Cur = stylesheet.Plain()
 
@@ -159,8 +199,8 @@ func Test_Full(t *testing.T) {
 
 	cm := newCreateModel(
 		Config{
-			"A": NewField(true, "A", 100),
-			"B": NewField(false, "B", 50),
+			"A": Field{Required: true, Type: Text, Title: "A", FlagName: "a", Order: 100},
+			"B": Field{Required: false, Type: Text, Title: "B", FlagName: "b", Order: 50},
 		}, "test",
 		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			var bln bool
@@ -193,7 +233,7 @@ func Test_Full(t *testing.T) {
 
 // helper function for Test_Full to allow it to be run back-by-back.
 func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
-	t.Helper()
+	//t.Helper()
 	if inv, _, err := cm.SetArgs(nil, []string{"--bln"}, 80, 50); err != nil {
 		t.Fatal("failed to Set Args:", err)
 	} else if inv != "" {
@@ -230,11 +270,11 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	cm.Update(tea.KeyMsg{Type: tea.KeyUp})
 	cm.Update(tea.KeyMsg{Type: tea.KeyUp})
 	if !cm.SubmitSelected() {
-		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.orderedTIs)), cm.selected))
+		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.inputs.ordered)), cm.inputs.selected))
 	}
 	cm.Update(tea.KeyMsg{Type: tea.KeyEnter})
 	// check for errors
-	if cm.inputErr == "" { // A is required and was not set
+	if cm.inputs.err == "" { // A is required and was not set
 		t.Fatal("expected inputErr to be set due to missing requireds.")
 	}
 	// set A
@@ -242,11 +282,11 @@ func fauxMother(t *testing.T, cm *createModel, createdCalled *bool) {
 	cm.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}})
 	cm.Update(tea.KeyMsg{Type: tea.KeyUp})
 	if !cm.SubmitSelected() {
-		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.orderedTIs)), cm.selected))
+		t.Fatal("expected the cursor to be on the submit button.", ExpectedActual(uint(len(cm.inputs.ordered)), cm.inputs.selected))
 	}
 	cm.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if cm.inputErr != "" {
-		t.Fatalf("unexpected input error: %v", cm.inputErr)
+	if cm.inputs.err != "" {
+		t.Fatalf("unexpected input error: %v", cm.inputs.err)
 	} else if cm.createErr != "" {
 		t.Fatalf("unexpected create error: %v", cm.createErr)
 	} else if !(*createdCalled) {

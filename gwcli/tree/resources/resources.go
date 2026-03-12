@@ -12,12 +12,22 @@ Package resources defines the resources nav, which holds data related to persist
 package resources
 
 import (
+	"errors"
+	"fmt"
+	"io"
+	filesystem "io/fs"
+	"os"
 	"slices"
 	"strings"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -40,14 +50,16 @@ func NewResourcesNav() *cobra.Command {
 		[]*cobra.Command{},
 		[]action.Pair{
 			list(),
+			create(),
 			delete(),
+			download(),
 		})
 }
 
 func list() action.Pair {
 	const (
 		short string = "list resources on the system"
-		long  string = "view resources available to your user and the system"
+		long  string = "view resources available to your user."
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.Resource{}, func(fs *pflag.FlagSet) ([]types.Resource, error) {
@@ -82,8 +94,128 @@ func list() action.Pair {
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	addtlFlags.Bool("all", false, "ADMIN ONLY. Lists all resources on the system")
+	ft.GetAll.Register(&addtlFlags, true, "resources")
 	return addtlFlags
+}
+
+func download() action.Pair {
+	return scaffold.NewBasicAction("download", "download a resource", "Download a resource for use locally.\n"+
+		"Prints to STDOUT until -o is specified.\n"+
+		"Because resources can be shared, and resources are not required to have globally-unique names,"+
+		"the following precedence is used when selecting a resource by user-friendly name:\n"+
+		"1. Resources owned by the user always have highest priority\n"+
+		"2. Resources shared with a group to which the user belongs are next\n"+
+		"3. Global resources are the lowest priority.",
+		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			// arg length checked by the options
+			id := fs.Arg(0)
+			var out = cmd.OutOrStdout()
+			if outPath, err := fs.GetString(ft.Output.Name()); err != nil {
+				clilog.LogFlagFailedGet(ft.Output.Name(), err)
+			} else if outPath != "" {
+				out, err = os.Create(outPath)
+				if err != nil {
+					return err.Error(), nil
+				}
+			}
+
+			data, err := connection.Client.GetResource(id)
+			if err != nil {
+				return err.Error(), nil
+			}
+			// spit out to stdout or file
+			fmt.Fprintf(out, "%s", data)
+			return "", nil
+		},
+		scaffold.BasicOptions{
+			AddtlFlagFunc: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				ft.Output.Register(&fs)
+				return fs
+			},
+			CmdMods: func(cmd *cobra.Command) {
+				cmd.SetUsageFunc(func(c *cobra.Command) error {
+					fmt.Fprintf(c.OutOrStdout(), "%s %s %s", c.Use, ft.Optional("FLAGS"), ft.Mandatory("resource ID"))
+					return nil
+				})
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return "you must specify exactly 1 argument (resource ID)", nil
+				}
+				return "", nil
+			},
+		},
+	)
+}
+
+func create() action.Pair {
+	fields := map[string]scaffoldcreate.Field{
+		"name": {
+			Required:      true,
+			Title:         "name",
+			Usage:         "name of the new resource",
+			Type:          scaffoldcreate.Text,
+			FlagName:      "name",
+			FlagShorthand: 'n',
+			Order:         100,
+		},
+		"desc": {
+			Required:      false,
+			Title:         "description",
+			Usage:         ft.Description.Usage("resource"),
+			Type:          scaffoldcreate.Text,
+			FlagName:      ft.Description.Name(),
+			FlagShorthand: 'd',
+			Order:         90,
+		},
+		"path": {
+			Required:      true,
+			Title:         "path",
+			Usage:         "path to the file to upload as the new resource",
+			Type:          scaffoldcreate.File,
+			FlagShorthand: 'f',
+			Order:         80,
+		},
+	}
+
+	return scaffoldcreate.NewCreateAction("resource", fields,
+		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			// check that path is valid and the file exists
+			if fi, err := os.Stat(fieldValues["path"]); err != nil {
+				switch {
+				case errors.Is(err, filesystem.ErrNotExist):
+					return 0, fmt.Sprintf("file '%v' not found", fieldValues["path"]), nil
+				}
+				return 0, fmt.Sprintf("failed to access path: %v", err), nil
+			} else if fi.IsDir() {
+				return 0, "path must point to a file", nil
+			}
+			// transmute to resource struct
+			data := types.Resource{
+				CommonFields: types.CommonFields{
+					Name:        fieldValues["name"],
+					Description: fieldValues["desc"],
+				},
+			}
+
+			resp, err := connection.Client.CreateResource(data)
+			// upload the file
+			f, err := os.Open(fieldValues["path"])
+			if err != nil {
+				return resp.ID, "", fmt.Errorf("created resource, but failed to populate it: %w", err)
+			}
+			defer f.Close()
+			b, err := io.ReadAll(f)
+			if err != nil {
+				return resp.ID, "", fmt.Errorf("created resource, but failed to populate it: %w", err)
+			}
+			if err := connection.Client.PopulateResource(resp.ID, b); err != nil {
+				return resp.ID, "", fmt.Errorf("created resource, but failed to populate it: %w", err)
+			}
+
+			return resp.ID, "", err
+		}, nil)
 }
 
 func delete() action.Pair {

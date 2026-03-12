@@ -448,7 +448,7 @@ func (em *editModel[I, S]) enterEditMode(item S) error {
 	es := stateEdit[S]{
 		item:        item,
 		tiCount:     len(em.cfg),
-		orderedKTIs: make([]scaffold.KeyedTI, len(em.cfg)),
+		orderedKTIs: make([]KeyedTI, len(em.cfg)),
 	}
 
 	// use the get function to pull current values for each field and display them in their
@@ -480,11 +480,8 @@ func (em *editModel[I, S]) enterEditMode(item S) error {
 		}
 
 		// attach TI to list
-		es.orderedKTIs[i] = scaffold.KeyedTI{
-			Key:        k,
-			FieldTitle: fieldCfg.Title,
-			TI:         ti,
-			Required:   fieldCfg.Required}
+		es.orderedKTIs[i] = NewKTI(k, fieldCfg.Title, fieldCfg.Required)
+		es.orderedKTIs[i].TI = ti
 		i += 1
 
 		// check width
@@ -496,7 +493,7 @@ func (em *editModel[I, S]) enterEditMode(item S) error {
 	}
 
 	// order TIs from highest to lowest orders
-	slices.SortFunc(es.orderedKTIs, func(a, b scaffold.KeyedTI) int {
+	slices.SortFunc(es.orderedKTIs, func(a, b KeyedTI) int {
 		return em.cfg[b.Key].Order - em.cfg[a.Key].Order
 	})
 

@@ -33,14 +33,16 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/alerts"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/groups"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/logout"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/macros"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
-	"github.com/gravwell/gravwell/v4/gwcli/tree/user"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -275,8 +277,9 @@ func Execute(args []string) int {
 	rootCmd := treeutils.GenerateNav(use, short, long, []string{},
 		nil, // navs are added later
 		[]action.Pair{
-			query.NewQueryAction(),
 			ingest.NewIngestAction(),
+			logout.NewAction(),
+			query.NewQueryAction(),
 		})
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentPreRunE = ppre
@@ -320,11 +323,12 @@ func Execute(args []string) int {
 	// spawn the cobra commands in parallel
 	var cmdFn = []func() *cobra.Command{
 		alerts.NewAlertsNav,
+		extractors.NewExtractorsNav,
+		groups.NewGroupsNav,
 		macros.NewMacrosNav,
 		queries.NewQueriesNav,
 		kits.NewKitsNav,
-		user.NewUserNav,
-		extractors.NewExtractorsNav,
+		users.NewUsersNav,
 		dashboards.NewDashboardNav,
 		resources.NewResourcesNav,
 		systemshealth.NewSystemsNav,
