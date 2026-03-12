@@ -85,9 +85,24 @@ func TestE2E(t *testing.T) {
 	}
 
 	// check that we can alter one of the properties
-	{
-
-	}
+	/*{ // disabled due to issues#2187
+		newDesc := "altered"
+		if ec := tree.Execute(append(meta, []string{"resources", "edit", "-i", resourceID,
+			"--description=" + newDesc,
+		}...)); ec != 0 {
+			t.Error("bad error code: ", ec)
+		}
+		id, desc, lbls := listForItem(t, resourceName, resourceSize)
+		if id != resourceID {
+			t.Error("incorrect resource ID", testsupport.ExpectedActual(resourceID, id))
+		}
+		if desc != newDesc {
+			t.Error("incorrect description", testsupport.ExpectedActual(desc, newDesc))
+		}
+		if !testsupport.SlicesUnorderedEqual(lbls, resourceLabels) {
+			t.Error("incorrect labels set by edit", testsupport.ExpectedActual(lbls, resourceLabels))
+		}
+	}*/
 
 	// check that we can download the resource
 	{
