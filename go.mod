@@ -1,6 +1,6 @@
 module github.com/gravwell/gravwell/v3
 
-go 1.24.11
+go 1.25.8
 
 require (
 	cloud.google.com/go/pubsub v1.38.0
@@ -40,7 +40,7 @@ require (
 	github.com/inhies/go-bytesize v0.0.0-20201103132853-d0aed0d254f8
 	github.com/jaswdr/faker/v2 v2.3.2
 	github.com/k-sone/ipmigo v0.0.0-20190922011749-b22c7a70e949
-	github.com/klauspost/compress v1.18.1
+	github.com/klauspost/compress v1.18.4
 	github.com/miekg/dns v1.1.56
 	github.com/minio/highwayhash v1.0.0
 	github.com/open-networks/go-msgraph v0.3.1
