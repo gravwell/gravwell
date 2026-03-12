@@ -55,7 +55,7 @@ import (
 //
 // ! Do not use the flags inside of cmd. They are unused and their state is undefined.
 // Use fs instead.
-type ActFunc func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd)
+type ActFunc func(cmd *cobra.Command, fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd)
 
 // NewBasicAction creates a new Basic action fully featured for Cobra and Mother usage.
 // The given act func will be executed when the action is triggered and its result printed to the
