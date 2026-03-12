@@ -72,8 +72,6 @@ func NewBasicAction(use, short, long string,
 		panic("short cannot be empty")
 	} else if act == nil {
 		panic("act func cannot be nil")
-	} else if options.AddtlFlagFunc == nil && options.ValidateArgs != nil {
-		panic("are you certain you meant to pass a Validate function but no additional flags?")
 	}
 
 	cmd := treeutils.GenerateAction(
