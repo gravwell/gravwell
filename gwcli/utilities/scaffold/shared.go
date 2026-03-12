@@ -5,6 +5,7 @@ import (
 	"path"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/filepicker"
 	"github.com/crewjam/rfc5424"
@@ -92,10 +93,27 @@ func FromString[I Id_t](str string) (I, error) {
 func IdentifyCaller() rfc5424.SDParam {
 	var identifier = rfc5424.SDParam{Name: "caller", Value: "UNKNOWN"}
 
-	// extract the last two elements in the caller's path
-	if _, file, line, ok := runtime.Caller(1); ok {
-		d, f := path.Split(file)
-		identifier.Value = fmt.Sprintf("%v:%v", path.Join(path.Base(d), f), line)
+	// extract the last two elements in the caller's path, skipping all scaffoldlist callers
+	var callers = make([]uintptr, 6)
+	count := runtime.Callers(3, callers) // skip runtime.Callers, skip ourselves, skip the first scaffold call
+	if count == 0 {
+		identifier.Value = "<no_callers_returned>"
+		return identifier
 	}
+	frames := runtime.CallersFrames(callers[:count])
+	for {
+		frame, more := frames.Next()
+		if !more {
+			break
+		}
+		// skip scaffoldcreate frames
+		if strings.Contains(frame.File, "scaffold") {
+			continue
+		}
+		// trim the paths to just the function and line
+		identifier.Value = fmt.Sprintf("%v:%v", path.Base(frame.Function), frame.Line)
+		break
+	}
+
 	return identifier
 }
