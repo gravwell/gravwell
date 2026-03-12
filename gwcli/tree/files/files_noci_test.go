@@ -63,13 +63,13 @@ func TestE2E(t *testing.T) {
 		}
 	}
 	// check for the new file
-	fileID, desc, lbls := fileDetails(t, fileName, fileSize)
+	fileID, desc, lbls := listForItem(t, fileName, fileSize)
 	// validate
 	if desc != fileDesc {
 		t.Error("retrieved incorrect description", testsupport.ExpectedActual(fileDesc, desc))
 	}
-	if testsupport.SlicesUnorderedEqual(lbls, []string{}) { // we did not provide any labels
-		t.Error("retrieved incorrect description", testsupport.ExpectedActual([]string{}, lbls))
+	if !testsupport.SlicesUnorderedEqual(lbls, []string{""}) { // we did not provide any labels, so split should return a single, empty element
+		t.Error("assigned labels do not match given labels", testsupport.ExpectedActual([]string{}, lbls))
 	}
 
 	// check that we can alter one of the properties
@@ -80,7 +80,7 @@ func TestE2E(t *testing.T) {
 		}...)); ec != 0 {
 			t.Fatal("bad error code: ", ec)
 		}
-		id, setDesc, setLbls := fileDetails(t, fileName, fileSize)
+		id, setDesc, setLbls := listForItem(t, fileName, fileSize)
 		if id != fileID {
 			t.Error("incorrect file ID", testsupport.ExpectedActual(fileID, id))
 		}
@@ -117,7 +117,8 @@ func TestE2E(t *testing.T) {
 	}
 }
 
-func fileDetails(t *testing.T, name string, size int64) (id uuid.UUID, description string, labels []string) {
+// listForItem executes "list", identifies a row with the given name, and returns its details.
+func listForItem(t *testing.T, name string, size int64) (id uuid.UUID, description string, labels []string) {
 	// create a file to write results to
 	resultPath := path.Join(t.TempDir(), t.Name()+"list.txt")
 	if ec := tree.Execute(append(meta, []string{"files", "list",
@@ -144,7 +145,7 @@ func fileDetails(t *testing.T, name string, size int64) (id uuid.UUID, descripti
 	}
 	t.Log("columns:\n", rows[0], "\n")
 	if len(rows[0]) != 5 {
-		t.Fatal("incorrect column count", testsupport.ExpectedActual(5, len(rows)))
+		t.Fatal("incorrect column count", testsupport.ExpectedActual(5, len(rows[0])))
 	}
 	for i := 1; i < len(rows); i++ {
 		row := rows[i]
@@ -168,7 +169,6 @@ func fileDetails(t *testing.T, name string, size int64) (id uuid.UUID, descripti
 		}
 		description = row[2]
 		labels = strings.Split(strings.Trim(row[4], "[]"), " ") // slice off the brackets and split the labels into an array
-
 		return id, description, labels
 	}
 	t.Fatalf("found no rows with name %v. Rows: %v", name, rows[1:])
