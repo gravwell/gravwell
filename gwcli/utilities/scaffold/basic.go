@@ -100,7 +100,8 @@ func NewBasicAction(use, short, long string,
 	if options.AddtlFlagFunc != nil {
 		f := options.AddtlFlagFunc()
 		cmd.Flags().AddFlagSet(&f)
-		ba.fs.AddFlagSet(&f)
+		f2 := options.AddtlFlagFunc()
+		ba.fs.AddFlagSet(&f2)
 	}
 	if options.Usage != "" {
 		cmd.SetUsageFunc(func(c *cobra.Command) error {
