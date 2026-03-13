@@ -73,11 +73,12 @@ func cleanup() action.Pair {
 				}
 			}
 			if all {
+				var out string
 				if len(m) > 1 {
-					fmt.Fprint(cmd.ErrOrStderr(), "\"all\" specified; other targets are redundant") // TODO do we need to differentiate between returning a string and just spitting to out?
+					out = "\"all\" specified; other targets are redundant\n"
 				}
 
-				return strings.Join(runCleanup(slices.Collect(maps.Keys(targets))), "\n"), nil
+				return out + strings.Join(runCleanup(slices.Collect(maps.Keys(targets))), "\n"), nil
 			}
 
 			// validate all cleanups before calling *any*
@@ -102,6 +103,7 @@ func cleanup() action.Pair {
 					return nil
 				})
 				c.Example = "cleanup macros secrets"
+				c.Args = cobra.MinimumNArgs(1)
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {
