@@ -31,7 +31,7 @@ const (
 var meta = []string{"--insecure", "-x", "-u", username, "--server=" + server}
 
 // Check that we can 1) create a new resource, 2) confirm we created that resource, and 3) download that resource
-func TestE2E(t *testing.T) {
+func TestCreateEditDownload(t *testing.T) {
 	tDir := t.TempDir()
 	t.Setenv("GRAVWELL_PASSWORD", password)
 	meta := []string{"--insecure", "-x", "-u", username, "--server=" + server}
