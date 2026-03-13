@@ -87,8 +87,8 @@ func download() action.Pair {
 			if err != nil {
 				clilog.LogFlagFailedGet(ft.Output.Name(), err)
 			}
-			clilog.Writer.Info("downloading resource", rfc5424.SDParam{Name: "file_UUID", Value: u.String()})
-			data, err := connection.Client.GetResource(id)
+			clilog.Writer.Info("downloading file", rfc5424.SDParam{Name: "file_UUID", Value: u.String()})
+			data, err := connection.Client.GetUserFile(u)
 			if err != nil {
 				return err.Error(), nil
 			}
