@@ -55,7 +55,7 @@ import (
 //
 // ! Do not use the flags inside of cmd. They are unused and their state is undefined.
 // Use fs instead.
-type ActFunc func(cmd *cobra.Command, fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd)
+type ActFunc func(_ *cobra.Command, fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd)
 
 // NewBasicAction creates a new Basic action fully featured for Cobra and Mother usage.
 // The given act func will be executed when the action is triggered and its result printed to the
@@ -128,8 +128,8 @@ var _ action.Model = &basicAction{}
 
 func (ba *basicAction) Update(msg tea.Msg) tea.Cmd {
 	ba.done = true
-	s, cmd := ba.fn(ba.cmd, &ba.fs)
-	if cmd != nil { // no point in sequencing with nil
+	s, cmd := ba.fn(nil, &ba.fs) // TODO remove cmd entirely
+	if cmd != nil {              // no point in sequencing with nil
 		return tea.Sequence(tea.Println(s), cmd)
 	}
 	return tea.Println(s)
@@ -145,25 +145,18 @@ func (ba *basicAction) Done() bool {
 
 func (ba *basicAction) Reset() error {
 	ba.done = false
-	ba.fs = pflag.FlagSet{} // reset to additionals in .SetArgs()
+	ba.fs = pflag.FlagSet{} // kill flag set, as there are no native flags to worry about
+	if ba.options.AddtlFlagFunc != nil {
+		addtlFlags := ba.options.AddtlFlagFunc()
+		ba.fs.AddFlagSet(&addtlFlags)
+	}
 	return nil
 }
 
-func (ba *basicAction) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+func (ba *basicAction) SetArgs(_ *pflag.FlagSet, tokens []string, _, _ int) (
 	invalid string, onStart tea.Cmd, err error) {
-	// validate arguments using the set method
-	if ba.cmd.Args != nil {
-		if err := ba.cmd.Args(ba.cmd, tokens); err != nil {
-			return err.Error(), nil, nil
-		}
-	}
-
-	// set up flags
-	if ba.options.AddtlFlagFunc != nil {
-		ba.fs = ba.options.AddtlFlagFunc()
-		if err := ba.fs.Parse(tokens); err != nil {
-			return "", nil, err
-		}
+	if err := ba.fs.Parse(tokens); err != nil {
+		return "", nil, err
 	}
 	// validate
 	if ba.options.ValidateArgs != nil {
