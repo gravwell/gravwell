@@ -283,6 +283,7 @@ func Execute(args []string) int {
 			ingest.NewIngestAction(),
 			logout.NewAction(),
 			query.NewQueryAction(),
+			showTags(),
 		})
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentPreRunE = ppre
