@@ -620,7 +620,7 @@ func (c *createModel) Reset() error {
 	return nil
 }
 
-func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
 	if err := c.fs.Parse(tokens); err != nil {
 		return err.Error(), nil, nil
