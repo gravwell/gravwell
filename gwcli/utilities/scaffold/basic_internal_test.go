@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"math"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 
@@ -20,7 +19,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -76,17 +74,17 @@ func TestNonInteractive(t *testing.T) {
 		}
 
 		t.Run("use", func(t *testing.T) {
-			fn("", "short", "long", func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			fn("", "short", "long", func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				return "", nil
 			})
 		})
 		t.Run("short", func(t *testing.T) {
-			fn("use", "", "long", func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			fn("use", "", "long", func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				return "", nil
 			})
 		})
 		t.Run("long", func(t *testing.T) {
-			fn("", "short", "", func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			fn("", "short", "", func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				return "", nil
 			})
 		})
@@ -98,7 +96,7 @@ func TestNonInteractive(t *testing.T) {
 	t.Run("no options", func(t *testing.T) {
 		expectedOutput := "Hello World"
 		ba := NewBasicAction("test", "short test", "long test",
-			func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				return expectedOutput, tea.Println(expectedOutput) // basics typically should not return printlns, but we can use it for testing
 			}, BasicOptions{})
 		var (
@@ -205,18 +203,22 @@ func TestNonInteractive(t *testing.T) {
 func TestModel(t *testing.T) {
 	t.Run("normal run, twice", func(t *testing.T) {
 		pair := NewBasicAction("test", "short test", "long test",
-			func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				testbool, err := fs.GetBool("testbool")
 				if err != nil {
 					panic(err)
 				}
 				s := fmt.Sprintf("testbool: %v", testbool)
 				return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
-			}, BasicOptions{AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Bool("testbool", false, "a boolean for testing")
-				return fs
-			}, CmdMods: func(c *cobra.Command) { c.Example = "an example of " + c.Use + " command" }})
+			}, BasicOptions{
+				AddtlFlagFunc: func() pflag.FlagSet {
+					fs := pflag.FlagSet{}
+					fs.Bool("testbool", false, "a boolean for testing")
+					return fs
+				},
+				Example: "an example of test command",
+			},
+		)
 
 		// initial check options
 		if pair.Action.Example != "an example of test command" {
@@ -249,7 +251,7 @@ func TestModel(t *testing.T) {
 	})
 	t.Run("run with options, twice", func(t *testing.T) {
 		pair := NewBasicAction("test", "short test", "long test",
-			func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				testbool, err := fs.GetBool("testbool")
 				if err != nil {
 					panic(err)
@@ -259,10 +261,7 @@ func TestModel(t *testing.T) {
 				fs := pflag.FlagSet{}
 				fs.Bool("testbool", false, "a boolean for testing")
 				return fs
-			},
-				CmdMods: func(c *cobra.Command) {
-					c.Args = cobra.ExactArgs(2)
-				}})
+			}})
 		var (
 			sbOut strings.Builder
 			sbErr strings.Builder
@@ -420,13 +419,13 @@ func extractPrintLineMessageString(t *testing.T, cmd tea.Cmd) string {
 func newPairWithRequiredFlags() (pair action.Pair, aliases []string, example string) {
 	aliases, example = []string{"alias1", "alias2"}, "example"
 	return NewBasicAction("test", "short test", "long test",
-		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			// validate that the command has the expected values
-			if slices.Compare(cmd.Aliases, aliases) != 0 {
+			/*if slices.Compare(cmd.Aliases, aliases) != 0 {
 				panic(ExpectedActual(aliases, cmd.Aliases))
 			} else if cmd.Example != example {
 				panic(ExpectedActual(example, cmd.Example))
-			}
+			}*/ // TODO
 			testbool, err := fs.GetBool("testbool")
 			if err != nil {
 				panic(err)
@@ -443,9 +442,7 @@ func newPairWithRequiredFlags() (pair action.Pair, aliases []string, example str
 				return fs
 			},
 			Aliases: aliases,
-			CmdMods: func(c *cobra.Command) {
-				c.Example = example
-			},
+			Example: example,
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if nfive, err := fs.GetInt("negative-five"); err != nil {
 					return "", err

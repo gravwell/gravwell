@@ -58,7 +58,7 @@ func cleanup() action.Pair {
 			"Available targets:\n"+
 			"all\n"+
 			strings.Join(slices.Collect(maps.Keys(targets)), "\n"),
-		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			// compact the list of items to clean so we don't make duplicate m
 			var (
 				m   = map[string]bool{}
@@ -97,14 +97,8 @@ func cleanup() action.Pair {
 		},
 		scaffold.BasicOptions{
 			Aliases: []string{"clean", "tidy", "purge", "burninate"},
-			CmdMods: func(c *cobra.Command) {
-				c.SetUsageFunc(func(c *cobra.Command) error {
-					fmt.Fprintf(c.OutOrStdout(), "cleanup %v %v ...", ft.Mandatory("TARGET1"), ft.Mandatory("TARGET2"))
-					return nil
-				})
-				c.Example = "cleanup macros secrets"
-				c.Args = cobra.MinimumNArgs(1)
-			},
+			Usage:   fmt.Sprintf("cleanup %v %v ...", ft.Mandatory("TARGET1"), ft.Mandatory("TARGET2")),
+			Example: "cleanup macros secrets",
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {
 					return "you must specify at least one item to clean up or \"all\"", nil

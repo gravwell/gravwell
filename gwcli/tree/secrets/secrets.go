@@ -1,3 +1,5 @@
+package secrets
+
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
@@ -9,7 +11,6 @@
 /*
 Package resources defines the resources nav, which holds data related to persistent data.
 */
-package resources
 
 import (
 	"errors"
@@ -146,7 +147,6 @@ func download() action.Pair {
 				ft.Output.Register(&fs)
 				return fs
 			},
-			Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("FLAGS"), ft.Mandatory("resource ID")),
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
 					return "you must specify exactly 1 argument (resource ID)", nil

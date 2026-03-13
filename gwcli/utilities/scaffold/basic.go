@@ -55,7 +55,7 @@ import (
 //
 // ! Do not use the flags inside of cmd. They are unused and their state is undefined.
 // Use fs instead.
-type ActFunc func(_ *cobra.Command, fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd)
+type ActFunc func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd)
 
 // NewBasicAction creates a new Basic action fully featured for Cobra and Mother usage.
 // The given act func will be executed when the action is triggered and its result printed to the
@@ -89,10 +89,10 @@ func NewBasicAction(use, short, long string,
 					return
 				}
 			}
-			s, _ := act(c, c.Flags())
+			s, _ := act(c.Flags())
 			fmt.Fprintf(c.OutOrStdout(), "%v\n", s)
 		})
-	ba := basicAction{cmd: cmd, options: options, fn: act}
+	ba := basicAction{options: options, fn: act}
 
 	// operate on the given options, if any
 
@@ -100,12 +100,15 @@ func NewBasicAction(use, short, long string,
 	if options.AddtlFlagFunc != nil {
 		f := options.AddtlFlagFunc()
 		cmd.Flags().AddFlagSet(&f)
-
-		// added to the interactive model in .SetArgs()
 	}
-
-	if options.CmdMods != nil {
-		options.CmdMods(cmd)
+	if options.Usage != "" {
+		cmd.SetUsageFunc(func(c *cobra.Command) error {
+			_, err := fmt.Fprint(c.OutOrStdout(), options.Usage)
+			return err
+		})
+	}
+	if options.Example != "" {
+		cmd.Example = options.Example
 	}
 
 	return action.NewPair(cmd, &ba)
@@ -119,17 +122,16 @@ type basicAction struct {
 	fs   pflag.FlagSet // the current state of the flagset
 
 	// individualized for each implementation of scaffoldbasic
-	cmd     *cobra.Command // the command associated to this basic action
-	options BasicOptions   // modifiers for the list action
-	fn      ActFunc        // the function performing the basic action
+	options BasicOptions // modifiers for the list action
+	fn      ActFunc      // the function performing the basic action
 }
 
 var _ action.Model = &basicAction{}
 
 func (ba *basicAction) Update(msg tea.Msg) tea.Cmd {
 	ba.done = true
-	s, cmd := ba.fn(nil, &ba.fs) // TODO remove cmd entirely
-	if cmd != nil {              // no point in sequencing with nil
+	s, cmd := ba.fn(&ba.fs) // TODO remove cmd entirely
+	if cmd != nil {         // no point in sequencing with nil
 		return tea.Sequence(tea.Println(s), cmd)
 	}
 	return tea.Println(s)
@@ -146,10 +148,6 @@ func (ba *basicAction) Done() bool {
 func (ba *basicAction) Reset() error {
 	ba.done = false
 	ba.fs = pflag.FlagSet{} // kill flag set, as there are no native flags to worry about
-	if ba.options.AddtlFlagFunc != nil {
-		addtlFlags := ba.options.AddtlFlagFunc()
-		ba.fs.AddFlagSet(&addtlFlags)
-	}
 	return nil
 }
 
@@ -157,6 +155,11 @@ func (ba *basicAction) SetArgs(_ *pflag.FlagSet, tokens []string, _, _ int) (
 	invalid string, onStart tea.Cmd, err error) {
 	if err := ba.fs.Parse(tokens); err != nil {
 		return "", nil, err
+	}
+	// attach arguments, as they were cleared in .Reset()
+	if ba.options.AddtlFlagFunc != nil {
+		addtlFlags := ba.options.AddtlFlagFunc()
+		ba.fs.AddFlagSet(&addtlFlags)
 	}
 	// validate
 	if ba.options.ValidateArgs != nil {
