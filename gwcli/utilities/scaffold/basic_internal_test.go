@@ -201,7 +201,7 @@ func TestNonInteractive(t *testing.T) {
 }
 
 func TestModel(t *testing.T) {
-	t.Run("normal run, twice", func(t *testing.T) {
+	t.Run("test that options were set properly; test that the action is safe to run back to back", func(t *testing.T) {
 		pair := NewBasicAction("test", "short test", "long test",
 			func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				testbool, err := fs.GetBool("testbool")
@@ -216,6 +216,13 @@ func TestModel(t *testing.T) {
 					fs.Bool("testbool", false, "a boolean for testing")
 					return fs
 				},
+				ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+					if fs.NArg() > 3 {
+						return "please provide fewer than 3 bare arguments", nil
+					}
+					return "", nil
+				},
+				Usage:   "The Regent",
 				Example: "an example of test command",
 			},
 		)
@@ -224,6 +231,9 @@ func TestModel(t *testing.T) {
 		if pair.Action.Example != "an example of test command" {
 			t.Fatal(ExpectedActual("an example of test command", pair.Action.Example))
 		}
+		if !strings.Contains(pair.Action.UsageString(), "The Regent") {
+			t.Error("usage (", pair.Action.UsageString(), ") does not contain the expected string (The Regent)")
+		}
 
 		var (
 			sbOut strings.Builder
@@ -237,8 +247,10 @@ func TestModel(t *testing.T) {
 			t.Fatal("failed to type assert model to *basicAction")
 		}
 
-		// run it twice
+		// run it back-to-back to test that it can properly set itself over and reset after usage
+		fauxMother(t, ba, []string{"--testbool"}, false, "testbool: true")
 		fauxMother(t, ba, []string{}, false, "testbool: false")
+		fauxMother(t, ba, []string{"too", "many", "bare", "arguments"}, true, "testbool: false")
 		fauxMother(t, ba, []string{"--testbool"}, false, "testbool: true")
 
 		// check outputs
@@ -247,54 +259,6 @@ func TestModel(t *testing.T) {
 		}
 		if strOut := strings.TrimSpace(sbOut.String()); strOut != "" {
 			t.Fatal(strOut)
-		}
-	})
-	t.Run("run with options, twice", func(t *testing.T) {
-		pair := NewBasicAction("test", "short test", "long test",
-			func(fs *pflag.FlagSet) (string, tea.Cmd) {
-				testbool, err := fs.GetBool("testbool")
-				if err != nil {
-					panic(err)
-				}
-				return fmt.Sprintf("testbool: %v", testbool), nil
-			}, BasicOptions{AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Bool("testbool", false, "a boolean for testing")
-				return fs
-			}})
-		var (
-			sbOut strings.Builder
-			sbErr strings.Builder
-		)
-		pair.Action.SetOut(&sbOut)
-		pair.Action.SetErr(&sbErr)
-
-		ba, ok := pair.Model.(*basicAction)
-		if !ok {
-			t.Fatal("failed to type assert model to *basicAction")
-		}
-
-		fauxMother(t, ba, []string{"1", "2"}, false, "testbool: false")
-		// check that outputs are empty
-		if e := strings.TrimSpace(sbErr.String()); e != "" {
-			t.Fatal(ExpectedActual("", e))
-		}
-		if o := strings.TrimSpace(sbOut.String()); o != "" {
-			t.Fatal(ExpectedActual("", o))
-		}
-
-		sbOut.Reset()
-		sbErr.Reset()
-
-		fauxMother(t, ba, []string{}, true, "")
-		t.Log("stdout (second run): ", sbOut.String())
-		t.Log("stderr (second run): ", sbErr.String())
-		// check that outputs are empty
-		if e := strings.TrimSpace(sbErr.String()); e != "" {
-			t.Fatal(ExpectedActual("", e))
-		}
-		if o := strings.TrimSpace(sbOut.String()); o != "" {
-			t.Fatal(ExpectedActual("", o))
 		}
 	})
 	t.Run("required flags", func(t *testing.T) {
