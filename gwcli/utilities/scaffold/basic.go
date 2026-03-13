@@ -100,6 +100,7 @@ func NewBasicAction(use, short, long string,
 	if options.AddtlFlagFunc != nil {
 		f := options.AddtlFlagFunc()
 		cmd.Flags().AddFlagSet(&f)
+		ba.fs.AddFlagSet(&f)
 	}
 	if options.Usage != "" {
 		cmd.SetUsageFunc(func(c *cobra.Command) error {
@@ -148,6 +149,11 @@ func (ba *basicAction) Done() bool {
 func (ba *basicAction) Reset() error {
 	ba.done = false
 	ba.fs = pflag.FlagSet{} // kill flag set, as there are no native flags to worry about
+	// reattach extra flags
+	if ba.options.AddtlFlagFunc != nil {
+		addtlFlags := ba.options.AddtlFlagFunc()
+		ba.fs.AddFlagSet(&addtlFlags)
+	}
 	return nil
 }
 
@@ -155,11 +161,6 @@ func (ba *basicAction) SetArgs(_ *pflag.FlagSet, tokens []string, _, _ int) (
 	invalid string, onStart tea.Cmd, err error) {
 	if err := ba.fs.Parse(tokens); err != nil {
 		return "", nil, err
-	}
-	// attach arguments, as they were cleared in .Reset()
-	if ba.options.AddtlFlagFunc != nil {
-		addtlFlags := ba.options.AddtlFlagFunc()
-		ba.fs.AddFlagSet(&addtlFlags)
 	}
 	// validate
 	if ba.options.ValidateArgs != nil {
