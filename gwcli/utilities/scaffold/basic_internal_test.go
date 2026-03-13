@@ -9,6 +9,7 @@
 package scaffold
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
@@ -219,6 +220,8 @@ func TestModel(t *testing.T) {
 				ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 					if fs.NArg() > 3 {
 						return "please provide fewer than 3 bare arguments", nil
+					} else if fs.NArg() > 0 && fs.Arg(0) == "error ahoy!" {
+						return "", errors.New("plundered an error, ye did!")
 					}
 					return "", nil
 				},
@@ -251,6 +254,7 @@ func TestModel(t *testing.T) {
 		fauxMother(t, ba, []string{"--testbool"}, false, "testbool: true")
 		fauxMother(t, ba, []string{}, false, "testbool: false")
 		fauxMother(t, ba, []string{"too", "many", "bare", "arguments"}, true, "testbool: false")
+		fauxMother(t, ba, []string{"error ahoy!"}, true, "testbool: false")
 		fauxMother(t, ba, []string{"--testbool"}, false, "testbool: true")
 
 		// check outputs
@@ -291,7 +295,9 @@ func fauxMother(t *testing.T, ba *basicAction, args []string, setArgsInvalid boo
 	t.Helper()
 	{
 		inv, cmd, err := ba.SetArgs(nil, args, 80, 50)
-		if err != nil {
+		if err != nil && setArgsInvalid {
+			return
+		} else if err != nil {
 			t.Fatal(err)
 		}
 
