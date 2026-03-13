@@ -164,12 +164,13 @@ func (ba *basicAction) SetArgs(fs *pflag.FlagSet, tokens []string, width, height
 		if err := ba.fs.Parse(tokens); err != nil {
 			return "", nil, err
 		}
-		if ba.options.ValidateArgs != nil {
-			if inv, err := ba.options.ValidateArgs(&ba.fs); err != nil {
-				return "", nil, err
-			} else if inv != "" {
-				return inv, nil, nil
-			}
+	}
+	// validate
+	if ba.options.ValidateArgs != nil {
+		if inv, err := ba.options.ValidateArgs(&ba.fs); err != nil {
+			return "", nil, err
+		} else if inv != "" {
+			return inv, nil, nil
 		}
 	}
 
