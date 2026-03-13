@@ -1,30 +1,40 @@
-/*************************************************************************
- * Copyright 2024 Gravwell, Inc. All rights reserved.
- * Contact: <legal@gravwell.io>
- *
- * This software may be modified and distributed under the terms of the
- * BSD 2-clause license. See the LICENSE file for details.
- **************************************************************************/
-
-// Package admin defines a basic action to allow users to manipulate their admin status.
-package admin
+// Package self is a limited version of the users nav that is available to all users to gather information about their own accounts.
+package self
 
 import (
 	"fmt"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
-
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-func NewUserAdminAction() action.Pair {
+const (
+	use   string = "self"
+	short string = "manage your user and profile"
+	long  string = "View and edit properties of your current, logged in user."
+)
+
+var aliases []string = []string{"me"}
+
+func NewSelfNav() *cobra.Command {
+	return treeutils.GenerateNav(use, short, long, aliases, nil,
+		[]action.Pair{
+			admin(),
+			MyInfo(),
+		})
+}
+
+//#region admin mode
+
+func admin() action.Pair {
 	const (
 		use   string = "admin"
 		short string = "display or modify your admin status"
@@ -94,3 +104,5 @@ func toggle(isAdministrator bool) (string, tea.Cmd) {
 	return "You are no longer in admin mode", nil
 
 }
+
+//#endregion admin mode

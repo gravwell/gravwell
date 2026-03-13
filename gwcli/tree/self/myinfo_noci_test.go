@@ -1,5 +1,4 @@
 //go:build !ci
-// +build !ci
 
 /*************************************************************************
  * Copyright 2025 Gravwell, Inc. All rights reserved.
@@ -9,7 +8,7 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package myinfo
+package self
 
 import (
 	"bytes"
@@ -47,7 +46,7 @@ func TestNewUserMyInfoAction(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	pair := NewUserMyInfoAction()
+	pair := MyInfo()
 	// test non-interactive
 	/*niOut :=*/
 	niNormal, niCSV := nonInteractive(t, pair.Action)

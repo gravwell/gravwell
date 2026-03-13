@@ -36,24 +36,8 @@ const (
 
 func newExtractorsCreateAction() action.Pair {
 	fields := scaffoldcreate.Config{
-		createNameKey: scaffoldcreate.Field{
-			Required:      true,
-			Title:         "name",
-			Usage:         "name of the new extractor",
-			Type:          scaffoldcreate.Text,
-			FlagName:      "name",
-			FlagShorthand: 'n',
-			Order:         100,
-		},
-		createDescKey: scaffoldcreate.Field{
-			Required:      true,
-			Title:         "description",
-			Usage:         ft.Description.Usage("extractor"),
-			Type:          scaffoldcreate.Text,
-			FlagName:      ft.Description.Name(),
-			FlagShorthand: 'd',
-			Order:         90,
-		},
+		createNameKey: scaffoldcreate.FieldName("extractor"),
+		createDescKey: scaffoldcreate.FieldDescription("extractor"),
 		createModuleKey: scaffoldcreate.Field{
 			Required: true,
 			Title:    "module",
@@ -124,14 +108,7 @@ func newExtractorsCreateAction() action.Pair {
 
 			Order: 50,
 		},
-		createLabelsKey: scaffoldcreate.Field{
-			Required:     false,
-			Title:        "labels/categories",
-			Usage:        "arguments/options on this ax",
-			Type:         scaffoldcreate.Text,
-			FlagName:     "labels",
-			DefaultValue: "",
-		},
+		createLabelsKey: scaffoldcreate.FieldLabels(),
 	}
 
 	return scaffoldcreate.NewCreateAction("extractor", fields, create, func() (fs pflag.FlagSet) {

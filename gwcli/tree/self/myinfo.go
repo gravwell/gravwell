@@ -6,8 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Package myinfo defines a simple action to fetch information about the current user.
-package myinfo
+// Package self defines a few simple actions to fetch information about the current user.
+package self
 
 import (
 	"fmt"
@@ -33,7 +33,7 @@ const (
 
 var sectionHeader = func(str string) string { return stylesheet.Cur.TertiaryText.Bold(true).Render(str) }
 
-func NewUserMyInfoAction() action.Pair {
+func MyInfo() action.Pair {
 	const (
 		use   string = "myinfo"
 		short string = "information about the current user and session"

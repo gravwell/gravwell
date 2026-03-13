@@ -7,22 +7,26 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
-func NewGroupsNav() *cobra.Command {
+func NewNav() *cobra.Command {
 	const (
 		use   string = "groups"
 		short string = "manage groups"
 		long  string = "View and edit groups"
 	)
 
-	return treeutils.GenerateNav(use, short, long, nil,
+	return treeutils.GenerateNav(use, short, long, []string{"group"},
 		nil,
-		[]action.Pair{list()})
+		[]action.Pair{
+			list(),
+			create(),
+		})
 }
 
 // lists all groups the current user is able to see
@@ -35,6 +39,20 @@ func list() action.Pair {
 		scaffoldlist.Options{})
 }
 
+func create() action.Pair {
+	return scaffoldcreate.NewCreateAction("group",
+		scaffoldcreate.Config{
+			"name": scaffoldcreate.FieldName("group"),
+			"desc": scaffoldcreate.FieldDescription("group"),
+		},
+		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			err = connection.Client.AddGroup(fieldValues["name"], fieldValues["desc"])
+			// use name as id
+			return fieldValues["name"], "", err
+		}, nil)
+}
+
+// TODO this probably requires a custom action to ensure it is as usable as possible
 /*func addUser() action.Pair {
 	return scaffold.NewBasicAction("adduser", "add a user to a group", "Add a user to a group",
 		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
@@ -84,7 +102,5 @@ func list() action.Pair {
 }*/
 
 // TODO get users in group (as `groups <username>`)
-
-// TODO addgroup -> scaffold create
 
 // TODO delete

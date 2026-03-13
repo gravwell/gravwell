@@ -1,5 +1,4 @@
 //go:build !ci
-// +build !ci
 
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.

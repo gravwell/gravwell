@@ -11,10 +11,10 @@ package scaffoldcreate
 import (
 	"errors"
 	"fmt"
-	filesystem "io/fs"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 
 	"github.com/spf13/pflag"
@@ -124,9 +124,6 @@ func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[
 			if err != nil {
 				return nil, nil, err
 			}
-			if v != "" && !filesystem.ValidPath(v) {
-				return nil, nil, fmt.Errorf("invalid path %q: %w", v, filesystem.ErrInvalid)
-			}
 			fieldValues[key] = v
 		case Text:
 			v, err := fs.GetString(f.FlagName)
@@ -140,4 +137,63 @@ func getFieldValuesFromFlags(fs *pflag.FlagSet, fields Config) (fieldValues map[
 		}
 	}
 	return fieldValues, missingRequireds, nil
+}
+
+// FieldName returns a struct suited for Name inputs.
+// Order == 100.
+func FieldName(singular string) Field {
+	return Field{
+		Required:      true,
+		Title:         "name",
+		Usage:         ft.Name.Usage(singular),
+		Type:          Text,
+		FlagName:      ft.Name.Name(),
+		FlagShorthand: rune(ft.Name.Shorthand()[0]),
+		Order:         100,
+	}
+}
+
+// FieldDescription returns a struct suited for Description inputs.
+// Order == 90.
+func FieldDescription(singular string) Field {
+	return Field{
+		Required:      false,
+		Title:         "description",
+		Usage:         ft.Description.Usage(singular),
+		Type:          Text,
+		FlagName:      ft.Description.Name(),
+		FlagShorthand: rune(ft.Description.Shorthand()[0]),
+		Order:         90,
+	}
+}
+
+// FieldPath returns a struct suited for file path specification inputs.
+// Order == 80.
+func FieldPath(singular string) Field {
+	return Field{
+		Required:      true,
+		Title:         ft.Path.Name(),
+		Usage:         ft.Path.Usage(singular),
+		Type:          File,
+		FlagShorthand: rune(ft.Path.Shorthand()[0]),
+		Order:         80,
+	}
+}
+
+// FieldLabels returns a struct suited for taking in labels as "<1>,<2>,<3>".
+// Order == 70.
+func FieldLabels() Field {
+	return Field{
+		Required: false,
+		Title:    "Labels",
+		Usage:    "comma-separated list of labels to apply",
+		Type:     Text,
+		FlagName: "labels",
+		Order:    70,
+		CustomTIFuncInit: func() textinput.Model {
+			ti := stylesheet.NewTI("", true)
+			ti.Placeholder = "label1,label2,label3,..."
+			return ti
+		},
+	}
 }

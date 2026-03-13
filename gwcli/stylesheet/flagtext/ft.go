@@ -356,6 +356,13 @@ var Name = singular{
 	usagePrefix: "name of the",
 }
 
+// Path is a local flag to allow a user to specify a path to a thing (typically a file).
+var Path = singular{
+	name:        "path",
+	shorthand:   'f',
+	usagePrefix: "path to the",
+}
+
 // WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.
 func WarnFlagIgnore(ignoredFlag, causeFlag string) string {
 	return fmt.Sprintf("WARN: ignoring flag --%v due to --%v", ignoredFlag, causeFlag)
