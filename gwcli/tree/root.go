@@ -43,6 +43,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/secrets"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/self"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/templates"
@@ -336,6 +337,7 @@ func Execute(args []string) int {
 		users.NewNav,
 		dashboards.NewDashboardNav,
 		resources.NewResourcesNav,
+		secrets.NewNav,
 		self.NewSelfNav,
 		systemshealth.NewSystemsNav,
 		templates.NewNav,
