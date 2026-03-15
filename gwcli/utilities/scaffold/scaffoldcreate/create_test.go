@@ -66,7 +66,7 @@ func TestOptions(t *testing.T) {
 		map[string]scaffoldcreate.Field{
 			"name": scaffoldcreate.FieldName("test"),
 			"path": scaffoldcreate.FieldPath("test"),
-			"cust": scaffoldcreate.Field{ // converted into an int
+			"cust": { // converted into an int
 				Required:      false,
 				Title:         "customs",
 				Usage:         "customs usage",
@@ -111,7 +111,7 @@ func TestOptions(t *testing.T) {
 			wantCmd     bool // true iff a cmd should be returned, false if cmd should == nil
 			wantErr     bool // early exists if an err is returned
 		}
-		updates []tea.Msg
+		updates []tea.Msg // remember to hit enter if you want things populated
 
 		wantName     string
 		wantPath     string
@@ -119,13 +119,13 @@ func TestOptions(t *testing.T) {
 		wantTestbool bool
 	}{
 		{"set all fields and addtl flags from args",
-			[]string{"--name=nm", "--path=/tmp", "--cust", fmt.Sprint(1), "--testbool"},
+			[]string{"--name=nm", "--path=/tmp", "--custom", fmt.Sprint(1), "--testbool"},
 			struct {
 				wantInvalid string
 				wantCmd     bool
 				wantErr     bool
 			}{"", false, false},
-			nil,
+			[]tea.Msg{tea.KeyMsg{Type: tea.KeyUp}, tea.KeyMsg{Type: tea.KeyEnter}},
 			"nm", "/tmp", 1, true,
 		},
 	}
