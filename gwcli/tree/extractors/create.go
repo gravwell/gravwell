@@ -111,10 +111,14 @@ func newExtractorsCreateAction() action.Pair {
 		createLabelsKey: scaffoldcreate.FieldLabels(),
 	}
 
-	return scaffoldcreate.NewCreateAction("extractor", fields, create, func() (fs pflag.FlagSet) {
-		ft.Dryrun.Register(&fs)
-		return fs
-	})
+	return scaffoldcreate.NewCreateAction("extractor", fields, create,
+		scaffoldcreate.Options{
+			AddtlFlags: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				ft.Dryrun.Register(&fs)
+				return fs
+			},
+		})
 }
 
 func create(_ scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (any, string, error) {

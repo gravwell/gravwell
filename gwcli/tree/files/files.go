@@ -153,7 +153,7 @@ func create() action.Pair {
 
 			id, err = connection.Client.AddUserFileDetails(m, path)
 			return
-		}, nil)
+		}, scaffoldcreate.Options{})
 }
 
 func edit() action.Pair {

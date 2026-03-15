@@ -178,7 +178,7 @@ func create() action.Pair {
 		},
 	}
 
-	return scaffoldcreate.NewCreateAction("scheduled query", fields, createFunc, nil)
+	return scaffoldcreate.NewCreateAction("scheduled query", fields, createFunc, scaffoldcreate.Options{})
 }
 
 // driver function for scheduled create

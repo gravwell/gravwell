@@ -155,7 +155,7 @@ func newMacroCreateAction() action.Pair {
 		},
 	}
 
-	return scaffoldcreate.NewCreateAction("macro", fields, create, nil)
+	return scaffoldcreate.NewCreateAction("macro", fields, create, scaffoldcreate.Options{})
 }
 
 // create is the driver function responsible for actually sending the request to *create* a macro value to the backend.

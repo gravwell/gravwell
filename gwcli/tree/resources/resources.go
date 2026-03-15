@@ -215,7 +215,7 @@ func create() action.Pair {
 			}
 
 			return resp.ID, "", err
-		}, nil)
+		}, scaffoldcreate.Options{})
 }
 
 func delete() action.Pair {
