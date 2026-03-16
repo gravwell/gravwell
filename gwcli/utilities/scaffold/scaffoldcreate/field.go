@@ -205,6 +205,7 @@ func FieldLabels() Field {
 func FieldFrequency() Field {
 	return Field{
 		Required:      true,
+		Title:         "Frequency",
 		Usage:         ft.Frequency.Usage(),
 		Type:          Text,
 		FlagName:      ft.Frequency.Name(),
