@@ -59,12 +59,21 @@ func NewExtractorsNav() *cobra.Command {
 
 // field map keys used by edit and create for consistent access.
 const (
-	fieldKeyName   = "name"
-	fieldKeyDesc   = "desc"
-	fieldKeyModule = "module"
-	fieldKeyTags   = "tags"
-	fieldKeyParams = "params"
+	fieldKeyName     = "name"
+	fieldKeyDesc     = "desc"
+	fieldKeyModule   = "module"
+	fieldKeyTags     = "tags"
+	fieldKeyParams   = "params"
+	fieldUsageParams = "regex to apply to extract.\n" +
+		"There are a few important notes about how an extraction parameter is defined:\n" +
+		"1) Each extraction parameter's value must be defined as a string and double or single quoted.\n" +
+		`2) Double quoted strings are subject to string escape rules (pay attention when using regex).` + "\n" +
+		`ex: “\b” would be the backspace command (character 0x08) not the literal “\b".` + "\n" +
+		`3) Single quoted strings are raw and not subjected to string escape rules.` + "\n" +
+		`ex: '\b' is literally the backslash character followed by the 'b' character, not a backspace.`
 	fieldKeyArgs   = "args"
+	fieldUsageArgs = "module-specific arguments used to change the behavior of the extraction module.\n" +
+		"NOTE: The regex processor does not support arguments"
 	fieldKeyLabels = "labels"
 )
 
@@ -144,6 +153,7 @@ func create() action.Pair {
 						clilog.Writer.Warnf("failed to gather modules for suggestions: %v", err)
 					} else if len(engines) > 0 {
 						ti.SetSuggestions(engines)
+						ti.Placeholder = engines[0]
 					}
 					return *ti
 				},
@@ -155,7 +165,6 @@ func create() action.Pair {
 				Type:          scaffoldcreate.Text,
 				FlagName:      "tags",
 				FlagShorthand: 't',
-				DefaultValue:  "",
 				Order:         70,
 				CustomTIFuncInit: func() textinput.Model {
 					ti := stylesheet.NewTI("", false)
@@ -175,19 +184,18 @@ func create() action.Pair {
 				},
 			},
 			fieldKeyParams: scaffoldcreate.Field{
-				Required:     false,
-				Title:        "params/regex",
-				Usage:        "",
-				Type:         scaffoldcreate.Text,
-				FlagName:     "params",
-				DefaultValue: "",
+				Required: true,
+				Title:    "Params/regex",
+				Usage:    fieldUsageParams,
+				Type:     scaffoldcreate.Text,
+				FlagName: "params",
 
 				Order: 60,
 			},
 			fieldKeyArgs: scaffoldcreate.Field{
 				Required:     false,
 				Title:        "arguments/options",
-				Usage:        "arguments/options on this ax",
+				Usage:        fieldUsageArgs,
 				Type:         scaffoldcreate.Text,
 				FlagName:     "args",
 				DefaultValue: "",
@@ -341,14 +349,14 @@ func edit() action.Pair {
 		fieldKeyParams: &scaffoldedit.Field{
 			Required: false,
 			Title:    "params/regex",
-			Usage:    "",
+			Usage:    fieldUsageParams,
 			FlagName: "params",
 			Order:    60,
 		},
 		fieldKeyArgs: &scaffoldedit.Field{
 			Required: false,
 			Title:    "arguments/options",
-			Usage:    "arguments/options on this ax",
+			Usage:    fieldUsageArgs,
 			FlagName: "args",
 			Order:    50,
 		},
