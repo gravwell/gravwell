@@ -19,16 +19,15 @@ func TestHttp(t *testing.T) {
 			tc.WithWaitStrategy(wait.NewHTTPStrategy("/health/check")),
 		)...,
 	)
-	if err != nil {
-		e2e.Fatal(t, err)
-	}
-
 	t.Cleanup(func() {
 		e2e.SaveTestFiles(t, ingester, e2e.Log, []string{
 			"/opt/gravwell/log/http_ingester.log",
 		})
-		_ = ingester.Terminate(t.Context())
+		e2e.Terminate(t, ingester)
 	})
+	if err != nil {
+		e2e.Fatal(t, err)
+	}
 
 	endpoint, err := ingester.PortEndpoint(t.Context(), "80", "http")
 	if err != nil {

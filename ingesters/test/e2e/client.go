@@ -11,10 +11,19 @@ import (
 )
 
 func GetClient(t *testing.T) *client.Client {
+	t.Helper()
 	mtx.RLock()
 	defer mtx.RUnlock()
-	endpoint, err := instance.PortEndpoint(t.Context(), "80", "")
-	c, err := client.New(endpoint, false, false)
+	var server string
+	if endpoint != nil && *endpoint != "" {
+		server = *endpoint
+		if *endpoint == "host.docker.internal" { // Docker Desktop specific, only resolves inside a container.
+			server = "localhost"
+		}
+	} else {
+		server, _ = instance.PortEndpoint(t.Context(), "80", "")
+	}
+	c, err := client.New(server, false, false)
 	if err != nil {
 		t.Fatal(fmt.Errorf("error creating client: %w", err))
 	}
@@ -26,6 +35,7 @@ func GetClient(t *testing.T) *client.Client {
 }
 
 func RunSearch(t *testing.T, c *client.Client, query string, d time.Duration) []types.StringTagEntry {
+	t.Helper()
 	var err error
 	if err = c.ParseSearch(query); err != nil {
 		t.Fatal(fmt.Errorf("failed to parse search query: %w", err))

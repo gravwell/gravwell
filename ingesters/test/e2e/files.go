@@ -18,7 +18,7 @@ func files(ctx context.Context, con *tc.DockerContainer, paths []string) (map[st
 	for _, path := range paths {
 		file, err := con.CopyFileFromContainer(ctx, path)
 		if err != nil {
-			return nil, err
+			continue
 		}
 		var buf bytes.Buffer
 		written, err := io.Copy(&buf, file)
@@ -34,7 +34,11 @@ func files(ctx context.Context, con *tc.DockerContainer, paths []string) (map[st
 }
 
 func SaveTestFiles(t *testing.T, con *tc.DockerContainer, prefix ArtifactType, paths []string) {
-	ctx := context.Background()
+	t.Helper()
+	if con == nil {
+		return
+	}
+	ctx := context.Background() // Don't use t.Context() in case this is during test cleanup
 	contents, err := files(ctx, con, paths)
 	if err != nil {
 		t.Fatal(fmt.Errorf("error getting file contents: %v", err))
@@ -43,9 +47,13 @@ func SaveTestFiles(t *testing.T, con *tc.DockerContainer, prefix ArtifactType, p
 	if err != nil {
 		t.Fatal(fmt.Errorf("error inspecting container name: %v", err))
 	}
-	for p, file := range contents {
-		name := res.Name + "/" + filepath.Base(p)
-		WriteArtifact(t, prefix, name, file)
+	for _, file := range paths {
+		name := res.Name + "/" + filepath.Base(file)
+		content, exists := contents[file]
+		if !exists {
+			content = []byte("did not exist")
+		}
+		WriteArtifact(t, prefix, name, content)
 	}
 }
 

@@ -27,27 +27,27 @@ func TestMimecast(t *testing.T) {
 
 	fetcher, err := tc.Run(t.Context(), "",
 		Ingester(t, "hosted-mimecast", "hosted/runner",
-			WithConfig(t, "testdata/mimecast.conf", "hosted_ingester_runner.conf", DefaultConfig),
+			WithConfig(t, "testdata/mimecast.conf", "hosted_ingester.conf", DefaultConfig),
 		)...,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	t.Cleanup(func() {
 		SaveTestFiles(t, fetcher, Log, []string{
 			"/opt/gravwell/log/hosted_ingesters.log",
+			"/opt/gravwell/log/error.log",
 		})
-		_ = fetcher.Terminate(t.Context())
-		_ = mock.Terminate(t.Context())
+		Terminate(t, fetcher)
+		Terminate(t, mock)
 	})
+	if err != nil {
+		Fatal(t, err)
+	}
 
 	time.Sleep(20 * time.Second)
 
 	c := GetClient(t)
-	ent := RunSearch(t, c, "tag=mimecast-audit", time.Hour)
 	// run for the artifact, help debugging
 	_ = RunSearch(t, c, "tag=gravwell syslog Appname==mimecast", time.Hour)
+	ent := RunSearch(t, c, "tag=mimecast-audit", time.Hour)
 
 	if len(ent) == 0 {
 		t.Fatal("No entries found")

@@ -1,13 +1,16 @@
 package e2e
 
 import (
+	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/log"
 	"github.com/testcontainers/testcontainers-go/network"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 var DefaultConfig = config.IngestConfig{
@@ -31,6 +34,10 @@ func Ingester(t *testing.T, name, ingester string, extras ...tc.ContainerCustomi
 		tc.WithEnv(map[string]string{
 			"INGESTER": ingester,
 		}),
+		tc.WithWaitStrategyAndDeadline(
+			10*time.Second,
+			wait.ForLog("Successfully connected to ingesters"),
+		),
 	}
 	return WithDefaults(t, name, append(defaults, extras...)...)
 }
@@ -51,6 +58,7 @@ func WithDefaults(t *testing.T, name string, extras ...tc.ContainerCustomizer) [
 		tc.WithName(name),
 		tc.WithImagePlatform(IngestPlatform()),
 		network.WithNetwork([]string{name}, Network()),
+		tc.WithHostPortAccess(80, 4023),
 	}
 	return append(defaults, extras...)
 }
@@ -63,4 +71,13 @@ func WithConfig(t *testing.T, source, target string, data any) tc.ContainerCusto
 		ContainerFilePath: filepath.Clean("/opt/gravwell/etc/" + target),
 		FileMode:          0o644,
 	})
+}
+
+// Terminate will safely stop a container, useful in a Cleanup call.
+func Terminate(t *testing.T, con *tc.DockerContainer) {
+	t.Helper()
+	if con == nil {
+		return
+	}
+	_ = con.Terminate(context.Background())
 }

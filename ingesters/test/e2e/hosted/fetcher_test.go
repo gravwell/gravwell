@@ -11,19 +11,18 @@ import (
 func TestTesterPlugin(t *testing.T) {
 	fetcher, err := tc.Run(t.Context(), "",
 		Ingester(t, "hosted-tester", "hosted/runner",
-			WithConfig(t, "testdata/tester.conf", "hosted_ingester_runner.conf", DefaultConfig),
+			WithConfig(t, "testdata/tester.conf", "hosted_ingester.conf", DefaultConfig),
 		)...,
 	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	t.Cleanup(func() {
 		SaveTestFiles(t, fetcher, Log, []string{
 			"/opt/gravwell/log/hosted_ingesters.log",
 		})
-		_ = fetcher.Terminate(t.Context())
+		Terminate(t, fetcher)
 	})
+	if err != nil {
+		Fatal(t, err)
+	}
 
 	time.Sleep(10 * time.Second)
 

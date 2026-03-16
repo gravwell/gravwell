@@ -23,6 +23,7 @@ var (
 	license        = flag.String("license", "", "path to license file to mount into container")
 	platform       = flag.String("instance-platform", "linux/amd64", "platform to use for gravwell instance")
 	ingestPlatform = flag.String("ingest-platform", "", "platform to use for ingestion containers")
+	endpoint       = flag.String("endpoint", "", "gravwell ingest endpoint to use")
 )
 
 var net *tc.DockerNetwork
@@ -96,6 +97,11 @@ func Start() {
 		os.Exit(1)
 	}
 
+	if endpoint != nil && *endpoint != "" {
+		DefaultConfig.Cleartext_Backend_Target = []string{*endpoint + ":4023"}
+		return
+	}
+
 	licenseFile := tc.ContainerFile{
 		HostFilePath:      *license,
 		ContainerFilePath: "/opt/gravwell/etc/license",
@@ -105,16 +111,24 @@ func Start() {
 	if license == nil || *license == "" {
 		licenseFile.Reader = strings.NewReader("UNLICENSED")
 	}
+	repoRoot, err := find(".git")
+	if err != nil {
+		panic(err)
+	}
+	config := tc.ContainerFile{
+		HostFilePath:      repoRoot + "/ingesters/test/e2e/testdata/gravwell.conf",
+		ContainerFilePath: "/opt/gravwell/etc/gravwell.conf",
+		FileMode:          0o644,
+	}
 
 	image := "gravwell/gravwell:" + *version
 	instance, err = tc.Run(
-		context.Background(),
+		ctx,
 		image,
-		tc.WithReuseByName("gravwell-e2e"),
 		network.WithNetwork([]string{"gravwell"}, net),
-		tc.WithExposedPorts("80/tcp", "4023/tcp"),
+		tc.WithExposedPorts("80/tcp"),
 		tc.WithImagePlatform(*platform),
-		tc.WithFiles(licenseFile),
+		tc.WithFiles(licenseFile, config),
 		tc.WithEnv(map[string]string{
 			"GRAVWELL_INGEST_AUTH":   DefaultConfig.Ingest_Secret,
 			"GRAVWELL_INGEST_SECRET": DefaultConfig.Ingest_Secret,
@@ -123,7 +137,6 @@ func Start() {
 		tc.WithWaitStrategyAndDeadline(
 			5*time.Second,
 			wait.ForListeningPort("80/tcp"),
-			wait.ForListeningPort("4023/tcp"),
 		),
 	)
 	if err != nil {
@@ -132,24 +145,7 @@ func Start() {
 	}
 }
 
-func Cleanup() {
-	//mtx.Lock()
-	//defer mtx.Unlock()
-	//contents, err := files(context.Background(), instance, []string{
-	//	"/opt/gravwell/etc/gravwell.conf",
-	//	"/opt/gravwell/log/info.log",
-	//	"/opt/gravwell/log/warn.log",
-	//	"/opt/gravwell/log/error.log",
-	//})
-	//if err != nil {
-	//	fmt.Println(err)
-	//	os.Exit(1)
-	//}
-	//for p, file := range contents {
-	//	fmt.Println(p)
-	//	fmt.Println(string(file))
-	//}
-}
+func Cleanup() {}
 
 func Network() *tc.DockerNetwork {
 	mtx.RLock()
