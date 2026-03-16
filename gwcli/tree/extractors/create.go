@@ -52,11 +52,15 @@ func newExtractorsCreateAction() action.Pair {
 				// docs.gravwell.io/search/extractionmodules.html#search-module-documentation
 				ti := stylesheet.NewTI("", false)
 				ti.ShowSuggestions = true
-				ti.SetSuggestions([]string{"ax", "canbus", "cef", "csv", "dump", "fields", "grok",
-					"intrinsic", "ip", "ipfix", "j1939", "json", "kv", "netflow", "packet",
-					"packetlayer", "path", "regex", "slice", "strings", "subnet", "syslog",
-					"winlog", "xml"})
 				return ti
+			},
+			CustomTIFuncSetArg: func(ti *textinput.Model) textinput.Model {
+				if engines, err := connection.Client.ExtractionSupportedEngines(); err != nil {
+					clilog.Writer.Warnf("failed to gather engines for suggestions: %v", err)
+				} else if len(engines) > 0 {
+					ti.SetSuggestions(engines)
+				}
+				return *ti
 			},
 		},
 		fieldKeyTags: scaffoldcreate.Field{
