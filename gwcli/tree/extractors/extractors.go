@@ -10,10 +10,20 @@
 package extractors
 
 import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/crewjam/rfc5424"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -37,7 +47,10 @@ func NewExtractorsNav() *cobra.Command {
 		[]action.Pair{
 			newExtractorsListAction(),
 			newExtractorsCreateAction(),
-			newExtractorDeleteAction()})
+			newExtractorDeleteAction(),
+			modules(),
+			edit(),
+		})
 }
 
 // #region list
@@ -52,7 +65,19 @@ func newExtractorsListAction() action.Pair {
 		short,
 		long,
 		types.AX{},
-		list,
+		func(fs *pflag.FlagSet) ([]types.AX, error) {
+			if id, err := fs.GetString("id"); err != nil {
+				uniques.ErrGetFlag("extractors list", err)
+			} else if id != "" {
+				clilog.Writer.Infof("Fetching ax with id \"%v\"", id)
+				d, err := connection.Client.GetExtraction(id)
+				return []types.AX{d}, err
+			}
+
+			lr, err := connection.Client.ListExtractions(nil)
+			return lr.Results, err
+
+		},
 		scaffoldlist.Options{
 			AddtlFlags: flags,
 			DefaultColumns: []string{
@@ -75,18 +100,147 @@ func flags() pflag.FlagSet {
 	return addtlFlags
 }
 
-func list(fs *pflag.FlagSet) ([]types.AX, error) {
-	if id, err := fs.GetString("id"); err != nil {
-		uniques.ErrGetFlag("extractors list", err)
-	} else if id != "" {
-		clilog.Writer.Infof("Fetching ax with id \"%v\"", id)
-		d, err := connection.Client.GetExtraction(id)
-		return []types.AX{d}, err
-	}
+//#endregion list
 
-	lr, err := connection.Client.ListExtractions(nil)
-	return lr.Results, err
+func modules() action.Pair {
+	return scaffold.NewBasicAction("modules", "list available modules",
+		"Displays a list of autoextractor modules currently on the system."+
+			" Auto-extractors are simply definitions that can be applied to tags and describe how to correctly extract fields from the data in a given tag."+
+			" The “ax” module then automatically invokes the appropriate functionality of other modules.",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			engines, err := connection.Client.ExtractionSupportedEngines()
+			if err != nil {
+				return err.Error(), nil
+			}
+			return strings.Join(engines, ", "), nil
+		},
+		scaffold.BasicOptions{Aliases: []string{"engines"}})
 
 }
 
-//#endregion list
+// NOTE(rlandau): edit fields do not currently support SetArgs injections so, unlike create, edit does NOT support dynamic suggestions.
+func edit() action.Pair {
+	fLabels := scaffoldedit.FieldLabels()
+	fLabels.Order = 40
+	return scaffoldedit.NewEditAction("extractor", "extractors", scaffoldedit.Config{
+		fieldKeyName: scaffoldedit.FieldName("extractor"),
+		fieldKeyDesc: scaffoldedit.FieldDescription("extractor"),
+		fieldKeyModule: &scaffoldedit.Field{
+			Required:      true,
+			Title:         "module",
+			Usage:         "extraction module to use. Call `extractors modules` to list available options.",
+			FlagName:      "module",
+			FlagShorthand: 'm',
+			Order:         80,
+		},
+		fieldKeyTags: &scaffoldedit.Field{
+			Required:      true,
+			Title:         "tags",
+			Usage:         "tags this ax will extract from. There can only be one extractor per tag.",
+			FlagName:      "tags",
+			FlagShorthand: 't',
+			Order:         70,
+			CustomTIFuncInit: func() textinput.Model {
+				ti := stylesheet.NewTI("", false)
+				ti.Placeholder = "tag1,tag2,tag3"
+				return ti
+			},
+		},
+		fieldKeyParams: &scaffoldedit.Field{
+			Required: false,
+			Title:    "params/regex",
+			Usage:    "",
+			FlagName: "params",
+			Order:    60,
+		},
+		fieldKeyArgs: &scaffoldedit.Field{
+			Required: false,
+			Title:    "arguments/options",
+			Usage:    "arguments/options on this ax",
+			FlagName: "args",
+			Order:    50,
+		},
+		fieldKeyLabels: fLabels,
+	},
+		scaffoldedit.SubroutineSet[string, types.AX]{
+			SelectSub: func(id string) (item types.AX, err error) {
+				return connection.Client.GetExtraction(id)
+			},
+			FetchSub: func() (items []types.AX, err error) {
+				resp, err := connection.Client.ListExtractions(nil)
+				if err != nil {
+					return nil, err
+				}
+				return resp.Results, nil
+			},
+			GetFieldSub: func(item types.AX, fieldKey string) (value string, err error) {
+				switch fieldKey {
+				case fieldKeyName:
+					return item.Name, nil
+				case fieldKeyDesc:
+					return item.Description, nil
+				case fieldKeyModule:
+					return item.Module, nil
+				case fieldKeyTags:
+					return strings.Join(item.Tags, ","), nil
+				case fieldKeyParams:
+					return item.Params, nil
+				case fieldKeyArgs:
+					return item.Args, nil
+				case fieldKeyLabels:
+					return strings.Join(item.Labels, ","), nil
+				}
+				return "", fmt.Errorf("unknown field key: %v", fieldKey)
+			},
+			SetFieldSub: func(item *types.AX, fieldKey, val string) (invalid string, err error) {
+				switch fieldKey {
+				case fieldKeyName:
+					item.Name = val
+				case fieldKeyDesc:
+					item.Description = val
+				case fieldKeyModule:
+					item.Module = val
+				case fieldKeyTags:
+					item.Tags = strings.Split(val, ",")
+				case fieldKeyParams:
+					item.Params = val
+				case fieldKeyArgs:
+					item.Args = val
+				case fieldKeyLabels:
+					item.Labels = strings.Split(val, ",")
+				default:
+					return "", fmt.Errorf("unknown field key: %v", fieldKey)
+				}
+				return "", nil
+			},
+			GetTitleSub: func(item types.AX) string {
+				return item.Name
+			},
+			GetDescriptionSub: func(item types.AX) string {
+				return item.Description
+			},
+			UpdateSub: func(data *types.AX) (identifier string, err error) {
+				if data == nil {
+					clilog.Writer.Error("update subroutine given nil data!")
+					return "", errors.New("an error occurred")
+				}
+				warnings, err := connection.Client.UpdateExtraction(*data)
+				if err != nil {
+					return "", err
+				}
+				if len(warnings) > 0 {
+					var params []rfc5424.SDParam = make([]rfc5424.SDParam, len(warnings))
+					for i, warn := range warnings {
+						params[i] = rfc5424.SDParam{
+							Name:  fmt.Sprint("warning", i),
+							Value: fmt.Sprint(warn.Name, ": ", warn.Err),
+						}
+					}
+
+					clilog.Writer.Warn("extractor update caused warnings", params...)
+				}
+				return data.ID, nil
+			},
+		},
+	)
+}

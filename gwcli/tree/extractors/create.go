@@ -35,84 +35,85 @@ const (
 )
 
 func newExtractorsCreateAction() action.Pair {
-	fields := scaffoldcreate.Config{
-		fieldKeyName: scaffoldcreate.FieldName("extractor"),
-		fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
-		fieldKeyModule: scaffoldcreate.Field{
-			Required:      true,
-			Title:         "module",
-			Usage:         "extraction module to use. Call `extractors modules` to list available options.",
-			Type:          scaffoldcreate.Text,
-			FlagName:      "module",
-			FlagShorthand: 'm',
-			DefaultValue:  "",
-			Order:         80,
-			CustomTIFuncInit: func() textinput.Model {
-				// manually add suggestions based on
-				// docs.gravwell.io/search/extractionmodules.html#search-module-documentation
-				ti := stylesheet.NewTI("", false)
-				ti.ShowSuggestions = true
-				return ti
-			},
-			CustomTIFuncSetArg: func(ti *textinput.Model) textinput.Model {
-				if engines, err := connection.Client.ExtractionSupportedEngines(); err != nil {
-					clilog.Writer.Warnf("failed to gather modules for suggestions: %v", err)
-				} else if len(engines) > 0 {
-					ti.SetSuggestions(engines)
-				}
-				return *ti
-			},
-		},
-		fieldKeyTags: scaffoldcreate.Field{
-			Required:      true,
-			Title:         "tags",
-			Usage:         "tags this ax will extract from. There can only be one extractor per tag.",
-			Type:          scaffoldcreate.Text,
-			FlagName:      "tags",
-			FlagShorthand: 't',
-			DefaultValue:  "",
-			Order:         70,
-			CustomTIFuncInit: func() textinput.Model {
-				ti := stylesheet.NewTI("", false)
-				ti.Placeholder = "tag1,tag2,tag3"
-				return ti
-			},
-			CustomTIFuncSetArg: func(ti *textinput.Model) textinput.Model {
-				if tags, err := connection.Client.GetTags(); err != nil {
-					clilog.Writer.Warnf("failed to fetch tags: %v", err)
-					ti.ShowSuggestions = false
-				} else {
+	fLabels := scaffoldcreate.FieldLabels()
+	fLabels.Order = 40
+
+	return scaffoldcreate.NewCreateAction("extractor",
+		scaffoldcreate.Config{
+			fieldKeyName: scaffoldcreate.FieldName("extractor"),
+			fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
+			fieldKeyModule: scaffoldcreate.Field{
+				Required:      true,
+				Title:         "module",
+				Usage:         "extraction module to use. Call `extractors modules` to list available options.",
+				Type:          scaffoldcreate.Text,
+				FlagName:      "module",
+				FlagShorthand: 'm',
+				DefaultValue:  "",
+				Order:         80,
+				CustomTIFuncInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", false)
 					ti.ShowSuggestions = true
-					ti.SetSuggestions(tags)
-				}
-
-				return *ti
+					return ti
+				},
+				CustomTIFuncSetArg: func(ti *textinput.Model) textinput.Model {
+					if engines, err := connection.Client.ExtractionSupportedEngines(); err != nil {
+						clilog.Writer.Warnf("failed to gather modules for suggestions: %v", err)
+					} else if len(engines) > 0 {
+						ti.SetSuggestions(engines)
+					}
+					return *ti
+				},
 			},
-		},
-		fieldKeyParams: scaffoldcreate.Field{
-			Required:     false,
-			Title:        "params/regex",
-			Usage:        "",
-			Type:         scaffoldcreate.Text,
-			FlagName:     "params",
-			DefaultValue: "",
+			fieldKeyTags: scaffoldcreate.Field{
+				Required:      true,
+				Title:         "tags",
+				Usage:         "tags this ax will extract from. There can only be one extractor per tag.",
+				Type:          scaffoldcreate.Text,
+				FlagName:      "tags",
+				FlagShorthand: 't',
+				DefaultValue:  "",
+				Order:         70,
+				CustomTIFuncInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", false)
+					ti.Placeholder = "tag1,tag2,tag3"
+					return ti
+				},
+				CustomTIFuncSetArg: func(ti *textinput.Model) textinput.Model {
+					if tags, err := connection.Client.GetTags(); err != nil {
+						clilog.Writer.Warnf("failed to fetch tags: %v", err)
+						ti.ShowSuggestions = false
+					} else {
+						ti.ShowSuggestions = true
+						ti.SetSuggestions(tags)
+					}
 
-			Order: 60,
-		},
-		fieldKeyArgs: scaffoldcreate.Field{
-			Required:     false,
-			Title:        "arguments/options",
-			Usage:        "arguments/options on this ax",
-			Type:         scaffoldcreate.Text,
-			FlagName:     "args",
-			DefaultValue: "",
+					return *ti
+				},
+			},
+			fieldKeyParams: scaffoldcreate.Field{
+				Required:     false,
+				Title:        "params/regex",
+				Usage:        "",
+				Type:         scaffoldcreate.Text,
+				FlagName:     "params",
+				DefaultValue: "",
 
-			Order: 50,
-		},
-		fieldKeyLabels: scaffoldcreate.FieldLabels(),
-	}
+				Order: 60,
+			},
+			fieldKeyArgs: scaffoldcreate.Field{
+				Required:     false,
+				Title:        "arguments/options",
+				Usage:        "arguments/options on this ax",
+				Type:         scaffoldcreate.Text,
+				FlagName:     "args",
+				DefaultValue: "",
 
-	return scaffoldcreate.NewCreateAction("extractor", fields, create,
+				Order: 50,
+			},
+			fieldKeyLabels: fLabels,
+		},
+		create,
 		scaffoldcreate.Options{
 			AddtlFlags: func() pflag.FlagSet {
 				fs := pflag.FlagSet{}
