@@ -1,11 +1,14 @@
 package flows
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -147,11 +150,15 @@ func list() action.Pair {
 			}
 			return flows, nil
 		},
-		scaffoldlist.Options{},
+		scaffoldlist.Options{
+			DefaultColumns: []string{"Name", "Description", "ID", "GUID", "Groups", "Global", "Labels", "Owner", "Schedule", "Disabled"},
+		},
 	)
 }
 
 //#endregion list
+
+var validGIDs map[int32]string // cached each SetArg so we don't hit the backend on every key
 
 // importCreate is the create function for flows, but the flow itself is created from JSON slurped from a file
 func importCreate() action.Pair {
@@ -169,6 +176,41 @@ func importCreate() action.Pair {
 				FlagName:      "groups",
 				FlagShorthand: 'g',
 				Order:         40,
+				CustomTIFuncInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", true)
+					ti.Validate = func(s string) error { // returns on first error
+						for strGID := range strings.SplitSeq(s, ",") {
+							// check for numeric only
+							for _, r := range strGID {
+								if r >= 48 && r <= 57 { // 0-9 in ASCII
+									continue
+								}
+								return errors.New("group IDs may only contain numbers")
+							}
+							// check that the group exists
+							gid, err := strconv.ParseInt(strGID, 10, 32)
+							if err != nil {
+								clilog.Writer.Infof("failed to parse gid %v as int32: %v", strGID, err)
+								continue
+							}
+							if _, found := validGIDs[int32(gid)]; !found {
+								return fmt.Errorf("%v is not a known group ID", gid)
+							}
+						}
+						return nil
+					}
+					ti.Placeholder = "1,2,5,3,..."
+					return ti
+				},
+				CustomTIFuncSetArg: func(m *textinput.Model) textinput.Model {
+					// hijack SetArg to refresh cached group IDs
+					gm, err := connection.Client.GetGroupMap()
+					if err != nil {
+						clilog.Writer.Warnf("failed to cache group IDs: ", err)
+					}
+					validGIDs = gm
+					return *m
+				},
 			},
 		},
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
