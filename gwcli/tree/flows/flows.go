@@ -5,14 +5,17 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -51,6 +54,12 @@ func importCreate() action.Pair {
 				Type:          scaffoldcreate.Text,
 				FlagName:      ft.Frequency.Name(),
 				FlagShorthand: rune(ft.Frequency.Shorthand()[0]),
+				CustomTIFuncInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", false)
+					ti.Placeholder = "* * * * *"
+					ti.Validate = uniques.CronRuneValidator
+					return ti
+				},
 			},
 			"path": scaffoldcreate.FieldPath("file containing a flow in JSON form"),
 			"groups": scaffoldcreate.Field{
