@@ -16,6 +16,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	"github.com/spf13/pflag"
 )
@@ -193,6 +194,26 @@ func FieldLabels() Field {
 		CustomTIFuncInit: func() textinput.Model {
 			ti := stylesheet.NewTI("", true)
 			ti.Placeholder = "label1,label2,label3,..."
+			return ti
+		},
+	}
+}
+
+// FieldFrequency returns a struct suitable for taking in the frequency of something occurring as a cron string.
+// Attaches uniques.CronRuneValidator and shorthand -c.
+// Order == 50.
+func FieldFrequency() Field {
+	return Field{
+		Required:      true,
+		Usage:         ft.Frequency.Usage(),
+		Type:          Text,
+		FlagName:      ft.Frequency.Name(),
+		FlagShorthand: rune(ft.Frequency.Shorthand()[0]),
+		Order:         50,
+		CustomTIFuncInit: func() textinput.Model {
+			ti := stylesheet.NewTI("", false)
+			ti.Placeholder = "* * * * *"
+			ti.Validate = uniques.CronRuneValidator
 			return ti
 		},
 	}
