@@ -71,6 +71,10 @@ func find(signal string) (string, error) {
 	}
 }
 
+func RepoRoot() (string, error) {
+	return find(".git")
+}
+
 // Start MUST be called within each package's TestMain before tests are run.
 // Multiple concurrent calls are allowed and handled safely.
 func Start() {
@@ -111,7 +115,7 @@ func Start() {
 	if license == nil || *license == "" {
 		licenseFile.Reader = strings.NewReader("UNLICENSED")
 	}
-	repoRoot, err := find(".git")
+	repoRoot, err := RepoRoot()
 	if err != nil {
 		panic(err)
 	}

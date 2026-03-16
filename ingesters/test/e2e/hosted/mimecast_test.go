@@ -1,24 +1,37 @@
 package hosted
 
 import (
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/docker/docker/api/types/build"
 	. "github.com/gravwell/gravwell/v3/ingesters/test/e2e"
 	tc "github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
 
 var (
 	mockDockerfile = tc.FromDockerfile{
-		Context:    "../../../..",
-		Dockerfile: "tools/mock/mimecast/Dockerfile",
+		Dockerfile: "Dockerfile",
+		Repo:       "mimecast-mock",
+		BuildOptionsModifier: func(options *build.ImageBuildOptions) {
+			options.Version = build.BuilderBuildKit
+		},
 	}
 )
 
 func TestMimecast(t *testing.T) {
+	root, err := RepoRoot()
+	if err != nil {
+		t.Fatal(err)
+	}
+	mockDockerfile.Context = filepath.Join(root, "tools/mock/mimecast")
+
 	mock, err := tc.Run(t.Context(), "",
 		WithDefaults(t, "mimecast-mock",
 			tc.WithDockerfile(mockDockerfile),
+			tc.WithWaitStrategy(wait.ForLog("starting server")),
 		)...,
 	)
 	if err != nil {
@@ -42,7 +55,7 @@ func TestMimecast(t *testing.T) {
 		Fatal(t, err)
 	}
 
-	time.Sleep(20 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	c := GetClient(t)
 	// run for the artifact, help debugging

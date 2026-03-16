@@ -58,7 +58,6 @@ func WithDefaults(t *testing.T, name string, extras ...tc.ContainerCustomizer) [
 		tc.WithName(name),
 		tc.WithImagePlatform(IngestPlatform()),
 		network.WithNetwork([]string{name}, Network()),
-		tc.WithHostPortAccess(80, 4023),
 	}
 	return append(defaults, extras...)
 }
