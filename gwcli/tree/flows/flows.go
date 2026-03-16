@@ -265,7 +265,7 @@ func download() action.Pair {
 				if err != nil {
 					return err.Error(), nil
 				}
-				return phrases.WriteToFileSuccess(n, outPath), nil
+				return phrases.SuccessfullyWroteToFile(n, outPath), nil
 			}
 			// spit to terminal
 			return flow.Flow, nil

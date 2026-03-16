@@ -13,9 +13,14 @@ package phrases
 
 import "fmt"
 
-// StringWriteToFileSuccess returns a string to be printed to a user when data is successfully written to a file.
-func WriteToFileSuccess(n int, fileName string) string { // TODO rename
+// SuccessfullyWroteToFile returns a string to be printed to a user when data is successfully written to a file.
+func SuccessfullyWroteToFile(n int, fileName string) string {
 	return fmt.Sprintf("successfully wrote %d bytes to %s", n, fileName)
+}
+
+// SuccessfullyLoadedFile states that the file at the given path has been loaded.
+func SuccessfullyLoadedFile(path string) string {
+	return "successfully loaded file " + path
 }
 
 // Exactly1ArgRequired states the user must specify a single, bare argument.

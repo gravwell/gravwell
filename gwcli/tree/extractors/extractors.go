@@ -474,7 +474,7 @@ func importUpload() action.Pair {
 
 				clilog.Writer.Warn("extractor update caused warnings", params...)
 			}
-			sb.WriteString("successfully loaded file %v")
+			sb.WriteString(phrases.SuccessfullyLoadedFile(fs.Arg(0)))
 			return sb.String(), nil
 		},
 		scaffold.BasicOptions{

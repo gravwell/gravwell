@@ -173,7 +173,7 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, opt
 				fmt.Fprintln(c.OutOrStdout(), inv)
 				return
 			} else {
-				fmt.Fprintf(c.OutOrStdout(), "Successfully created %v (ID: %v).", singular, id)
+				fmt.Fprintf(c.OutOrStdout(), createdSuccessfully, singular, id)
 			}
 		}, treeutils.GenerateActionOptions{Usage: strings.Join(requiredFlags, " ")})
 
