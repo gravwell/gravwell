@@ -6,11 +6,14 @@ import (
 	"strings"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -29,6 +32,7 @@ func NewNav() *cobra.Command {
 		[]action.Pair{
 			list(),
 			importCreate(),
+			download(),
 		},
 	)
 }
@@ -191,4 +195,46 @@ func importCreate() action.Pair {
 			return id, "", err
 		},
 		scaffoldcreate.Options{Use: "import"})
+}
+
+func download() action.Pair {
+	return scaffold.NewBasicAction("download", "download the JSOn representation of a flow",
+		"Download a flow as JSON so it can be re-imported later. Flows can be specified by ID or GUID.\n"+
+			"Prints to STDOUT unless -o is specified.",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			flow, err := connection.Client.GetFlow(fs.Arg(0))
+			if err != nil {
+				return err.Error(), nil
+			}
+			// check for output
+			if outPath, err := fs.GetString(ft.Output.Name()); err != nil {
+				clilog.LogFlagFailedGet(ft.Output.Name(), err)
+			} else if outPath != "" {
+				out, err := os.Create(outPath)
+				if err != nil {
+					clilog.Writer.Warnf("failed to open %v for writing: %v", outPath, err)
+					return
+				}
+				defer out.Close()
+				n, err := out.WriteString(flow.Flow)
+				if err != nil {
+					return err.Error(), nil
+				}
+				return stylesheet.StringWriteToFileSuccess(n, outPath), nil
+			}
+			// spit to terminal
+			return flow.Flow, nil
+		},
+		scaffold.BasicOptions{
+			AddtlFlagFunc: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				ft.Output.Register(&fs)
+				return fs
+			},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return "you must specify exactly 1 argument (flow ID or flow GUID)", nil
+				}
+				return "", nil
+			}})
 }
