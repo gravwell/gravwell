@@ -165,7 +165,7 @@ func importCreate() action.Pair {
 				Required:      false,
 				Title:         "Groups",
 				Usage:         "comma-separated list of group IDs this flow is accessible to",
-				Type:          scaffoldcreate.File,
+				Type:          scaffoldcreate.Text,
 				FlagName:      "groups",
 				FlagShorthand: 'g',
 				Order:         40,
