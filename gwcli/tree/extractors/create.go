@@ -25,26 +25,23 @@ import (
 )
 
 const (
-	createNameKey   = "name"
-	createDescKey   = "desc"
-	createModuleKey = "module"
-	createTagsKey   = "tags"
-	createParamsKey = "params"
-	createArgsKey   = "args"
-	createLabelsKey = "labels"
+	fieldKeyName   = "name"
+	fieldKeyDesc   = "desc"
+	fieldKeyModule = "module"
+	fieldKeyTags   = "tags"
+	fieldKeyParams = "params"
+	fieldKeyArgs   = "args"
+	fieldKeyLabels = "labels"
 )
 
 func newExtractorsCreateAction() action.Pair {
 	fields := scaffoldcreate.Config{
-		createNameKey: scaffoldcreate.FieldName("extractor"),
-		createDescKey: scaffoldcreate.FieldDescription("extractor"),
-		createModuleKey: scaffoldcreate.Field{
-			Required: true,
-			Title:    "module",
-			Usage: "extraction module to use. Available modules:\n" +
-				"ax, canbus, cef, csv, dump, fields, grok, intrinsic, ip, ipfix, j1939, json, " +
-				"kv, netflow, packet, packetlayer, path, regex, slice, strings, subnet, syslog, " +
-				"winlog, xml",
+		fieldKeyName: scaffoldcreate.FieldName("extractor"),
+		fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
+		fieldKeyModule: scaffoldcreate.Field{
+			Required:      true,
+			Title:         "module",
+			Usage:         "extraction module to use. Call `engines` to list available options.",
 			Type:          scaffoldcreate.Text,
 			FlagName:      "module",
 			FlagShorthand: 'm',
@@ -62,7 +59,7 @@ func newExtractorsCreateAction() action.Pair {
 				return ti
 			},
 		},
-		createTagsKey: scaffoldcreate.Field{
+		fieldKeyTags: scaffoldcreate.Field{
 			Required:      true,
 			Title:         "tags",
 			Usage:         "tags this ax will extract from. There can only be one extractor per tag.",
@@ -88,7 +85,7 @@ func newExtractorsCreateAction() action.Pair {
 				return *ti
 			},
 		},
-		createParamsKey: scaffoldcreate.Field{
+		fieldKeyParams: scaffoldcreate.Field{
 			Required:     false,
 			Title:        "params/regex",
 			Usage:        "",
@@ -98,7 +95,7 @@ func newExtractorsCreateAction() action.Pair {
 
 			Order: 60,
 		},
-		createArgsKey: scaffoldcreate.Field{
+		fieldKeyArgs: scaffoldcreate.Field{
 			Required:     false,
 			Title:        "arguments/options",
 			Usage:        "arguments/options on this ax",
@@ -108,7 +105,7 @@ func newExtractorsCreateAction() action.Pair {
 
 			Order: 50,
 		},
-		createLabelsKey: scaffoldcreate.FieldLabels(),
+		fieldKeyLabels: scaffoldcreate.FieldLabels(),
 	}
 
 	return scaffoldcreate.NewCreateAction("extractor", fields, create,
@@ -127,14 +124,14 @@ func create(_ scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.Fl
 	// map fields back into the underlying type
 	axd := types.AX{
 		CommonFields: types.CommonFields{
-			Name:        fieldValues[createNameKey],
-			Description: fieldValues[createDescKey],
-			Labels:      strings.Split(strings.ReplaceAll(fieldValues[createLabelsKey], " ", ""), ","),
+			Name:        fieldValues[fieldKeyName],
+			Description: fieldValues[fieldKeyDesc],
+			Labels:      strings.Split(strings.ReplaceAll(fieldValues[fieldKeyLabels], " ", ""), ","),
 		},
-		Module: fieldValues[createModuleKey],
-		Tags:   strings.Split(strings.ReplaceAll(fieldValues[createTagsKey], " ", ""), ","),
-		Params: fieldValues[createParamsKey],
-		Args:   fieldValues[createArgsKey],
+		Module: fieldValues[fieldKeyModule],
+		Tags:   strings.Split(strings.ReplaceAll(fieldValues[fieldKeyTags], " ", ""), ","),
+		Params: fieldValues[fieldKeyParams],
+		Args:   fieldValues[fieldKeyArgs],
 	}
 
 	// check for dryrun
