@@ -12,6 +12,7 @@ package extractors
 import (
 	"errors"
 	"fmt"
+	"os"
 	"slices"
 	"strings"
 
@@ -54,6 +55,7 @@ func NewExtractorsNav() *cobra.Command {
 			delete(),
 			modules(),
 			edit(),
+			importUpload(),
 		})
 }
 
@@ -443,4 +445,44 @@ func edit() action.Pair {
 			},
 		},
 	)
+}
+
+func importUpload() action.Pair {
+	return scaffold.NewBasicAction("import", "import extractor from file",
+		"Uploads a TOML-formatted file containing one or more autoextractor definitions.\n"+
+			"Gravwell will parse these definitions and install or update autoextractors as appropriate.",
+		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
+			b, err := os.ReadFile(fs.Arg(0))
+			if err != nil {
+				return err.Error(), nil
+			}
+			warnings, err := connection.Client.UploadExtraction(b)
+			if err != nil {
+				return err.Error(), nil
+			}
+			var sb strings.Builder
+			if len(warnings) > 0 {
+				var params []rfc5424.SDParam = make([]rfc5424.SDParam, len(warnings))
+				for i, warn := range warnings {
+					params[i] = rfc5424.SDParam{
+						Name:  warn.Name,
+						Value: fmt.Sprint(warn.Err),
+					}
+					sb.WriteString(stylesheet.Cur.ErrorText.Render(fmt.Sprintf("Warning: %v: %v"+warn.Name, warn.Err)) + "\n")
+				}
+
+				clilog.Writer.Warn("extractor update caused warnings", params...)
+			}
+			sb.WriteString("successfully loaded file %v")
+			return sb.String(), nil
+		},
+		scaffold.BasicOptions{
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				if fs.NArg() != 1 {
+					return "you must specify exactly 1 argument (file path)", nil
+				}
+				return "", nil
+			},
+			Usage: "upload " + ft.Mandatory("path/to/file.toml"),
+		})
 }
