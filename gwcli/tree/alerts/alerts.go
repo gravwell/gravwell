@@ -124,7 +124,7 @@ func validateListID(flagName string, fs *pflag.FlagSet) (id string, invalid stri
 // Used to enable/disable an alert
 func toggle() action.Pair {
 	return scaffold.NewBasicAction("toggle", "enable or disable an alert",
-		"", // TODO
+		"Toggle the state of an alert. You may provide --enable or --disable to ensure the alert is in the respective state.",
 		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {
 			// find the alert in question
 			id := fs.Arg(0)
