@@ -206,7 +206,7 @@ func importCreate() action.Pair {
 					// hijack SetArg to refresh cached group IDs
 					gm, err := connection.Client.GetGroupMap()
 					if err != nil {
-						clilog.Writer.Warnf("failed to cache group IDs: ", err)
+						clilog.Writer.Warnf("failed to cache group IDs: %v", err)
 					}
 					validGIDs = gm
 					return *m
