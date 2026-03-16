@@ -11,7 +11,9 @@ package alerts
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
+	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
@@ -20,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -37,6 +40,7 @@ func NewAlertsNav() *cobra.Command {
 		[]action.Pair{
 			list(),
 			toggle(),
+			delete(),
 		})
 }
 
@@ -175,4 +179,31 @@ func toggle() action.Pair {
 			},
 		},
 	)
+}
+
+func delete() action.Pair {
+	return scaffolddelete.NewDeleteAction("alert", "alerts",
+		func(dryrun bool, id uuid.UUID) error {
+			if dryrun {
+				_, err := connection.Client.GetAlert(id)
+				return err
+			}
+			return connection.Client.DeleteAlert(id)
+		},
+		func() ([]scaffolddelete.Item[uuid.UUID], error) {
+			alerts, err := connection.Client.GetAlerts()
+			if err != nil {
+				return nil, err
+			}
+			// sort on name
+			slices.SortStableFunc(alerts,
+				func(a, b types.AlertDefinition) int {
+					return strings.Compare(a.Name, b.Name)
+				})
+			var items = make([]scaffolddelete.Item[uuid.UUID], len(alerts))
+			for i, a := range alerts {
+				items[i] = scaffolddelete.NewItem(a.Name, a.Description, a.ThingUUID)
+			}
+			return items, nil
+		})
 }
