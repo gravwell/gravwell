@@ -338,7 +338,7 @@ func (gaf getAllFlag) Register(fs *pflag.FlagSet, requiresAdmin bool, plural str
 // Frequency is a local flag for defining a cron-style interval in which something occurs.
 var Frequency = simple{
 	name:      "frequency",
-	shorthand: 'f',
+	shorthand: 'c',
 	usage:     "cron-style scheduling for scheduled execution",
 }
 
