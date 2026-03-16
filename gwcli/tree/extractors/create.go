@@ -27,7 +27,7 @@ import (
 const (
 	fieldKeyName   = "name"
 	fieldKeyDesc   = "desc"
-	fieldKeyEngine = "module"
+	fieldKeyModule = "module"
 	fieldKeyTags   = "tags"
 	fieldKeyParams = "params"
 	fieldKeyArgs   = "args"
@@ -38,12 +38,12 @@ func newExtractorsCreateAction() action.Pair {
 	fields := scaffoldcreate.Config{
 		fieldKeyName: scaffoldcreate.FieldName("extractor"),
 		fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
-		fieldKeyEngine: scaffoldcreate.Field{
+		fieldKeyModule: scaffoldcreate.Field{
 			Required:      true,
-			Title:         "engine",
-			Usage:         "extraction module to use. Call `extractors engines` to list available options.",
+			Title:         "module",
+			Usage:         "extraction module to use. Call `extractors modules` to list available options.",
 			Type:          scaffoldcreate.Text,
-			FlagName:      "engine",
+			FlagName:      "module",
 			FlagShorthand: 'm',
 			DefaultValue:  "",
 			Order:         80,
@@ -56,7 +56,7 @@ func newExtractorsCreateAction() action.Pair {
 			},
 			CustomTIFuncSetArg: func(ti *textinput.Model) textinput.Model {
 				if engines, err := connection.Client.ExtractionSupportedEngines(); err != nil {
-					clilog.Writer.Warnf("failed to gather engines for suggestions: %v", err)
+					clilog.Writer.Warnf("failed to gather modules for suggestions: %v", err)
 				} else if len(engines) > 0 {
 					ti.SetSuggestions(engines)
 				}
@@ -132,7 +132,7 @@ func create(_ scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.Fl
 			Description: fieldValues[fieldKeyDesc],
 			Labels:      strings.Split(strings.ReplaceAll(fieldValues[fieldKeyLabels], " ", ""), ","),
 		},
-		Module: fieldValues[fieldKeyEngine],
+		Module: fieldValues[fieldKeyModule],
 		Tags:   strings.Split(strings.ReplaceAll(fieldValues[fieldKeyTags], " ", ""), ","),
 		Params: fieldValues[fieldKeyParams],
 		Args:   fieldValues[fieldKeyArgs],
