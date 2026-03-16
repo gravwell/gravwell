@@ -105,7 +105,7 @@ func download() action.Pair {
 				return stylesheet.StringWriteToFileSuccess(n, outPath), nil
 			}
 			// spit to terminal
-			return fmt.Sprintf("%s", data), nil
+			return string(data), nil
 		}, scaffold.BasicOptions{
 			AddtlFlagFunc: func() pflag.FlagSet {
 				var fs pflag.FlagSet

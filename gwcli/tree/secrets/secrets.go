@@ -1,3 +1,4 @@
+// Package secrets introduces actions for managing secrets.
 package secrets
 
 /*************************************************************************

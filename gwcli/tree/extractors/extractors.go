@@ -431,7 +431,7 @@ func edit() action.Pair {
 					return "", err
 				}
 				if len(warnings) > 0 {
-					var params []rfc5424.SDParam = make([]rfc5424.SDParam, len(warnings))
+					var params = make([]rfc5424.SDParam, len(warnings))
 					for i, warn := range warnings {
 						params[i] = rfc5424.SDParam{
 							Name:  fmt.Sprint("warning", i),
@@ -462,7 +462,7 @@ func importUpload() action.Pair {
 			}
 			var sb strings.Builder
 			if len(warnings) > 0 {
-				var params []rfc5424.SDParam = make([]rfc5424.SDParam, len(warnings))
+				var params = make([]rfc5424.SDParam, len(warnings))
 				for i, warn := range warnings {
 					params[i] = rfc5424.SDParam{
 						Name:  warn.Name,

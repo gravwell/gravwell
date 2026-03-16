@@ -84,7 +84,7 @@ func TestOptions(t *testing.T) {
 				setCust = int(i)
 			}
 			setTestbool, err = fs.GetBool("testbool")
-			return 1, "", nil
+			return 1, "", err
 		},
 		scaffoldcreate.Options{
 			Use:     "alt",

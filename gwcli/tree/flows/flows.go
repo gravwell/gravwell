@@ -1,3 +1,5 @@
+// Package flows introduces actions for managing flows.
+// Due to the visual nature of flows, only a subset of the functionality of the GUI is implemented.
 package flows
 
 import (
