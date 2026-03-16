@@ -27,7 +27,7 @@ import (
 const (
 	fieldKeyName   = "name"
 	fieldKeyDesc   = "desc"
-	fieldKeyModule = "module"
+	fieldKeyEngine = "module"
 	fieldKeyTags   = "tags"
 	fieldKeyParams = "params"
 	fieldKeyArgs   = "args"
@@ -38,12 +38,12 @@ func newExtractorsCreateAction() action.Pair {
 	fields := scaffoldcreate.Config{
 		fieldKeyName: scaffoldcreate.FieldName("extractor"),
 		fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
-		fieldKeyModule: scaffoldcreate.Field{
+		fieldKeyEngine: scaffoldcreate.Field{
 			Required:      true,
-			Title:         "module",
-			Usage:         "extraction module to use. Call `engines` to list available options.",
+			Title:         "engine",
+			Usage:         "extraction module to use. Call `extractors engines` to list available options.",
 			Type:          scaffoldcreate.Text,
-			FlagName:      "module",
+			FlagName:      "engine",
 			FlagShorthand: 'm',
 			DefaultValue:  "",
 			Order:         80,
@@ -132,7 +132,7 @@ func create(_ scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.Fl
 			Description: fieldValues[fieldKeyDesc],
 			Labels:      strings.Split(strings.ReplaceAll(fieldValues[fieldKeyLabels], " ", ""), ","),
 		},
-		Module: fieldValues[fieldKeyModule],
+		Module: fieldValues[fieldKeyEngine],
 		Tags:   strings.Split(strings.ReplaceAll(fieldValues[fieldKeyTags], " ", ""), ","),
 		Params: fieldValues[fieldKeyParams],
 		Args:   fieldValues[fieldKeyArgs],
