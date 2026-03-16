@@ -54,12 +54,12 @@ func importCreate() action.Pair {
 			"groups": scaffoldcreate.Field{
 				Required:      false,
 				Title:         "Groups",
-				Usage:         "", // TODO
+				Usage:         "comma-separated list of group IDs this flow is accessible to",
 				Type:          scaffoldcreate.File,
 				FlagName:      "groups",
 				FlagShorthand: 'g',
 				Order:         40,
-			}, // TODO extract
+			},
 		},
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			// coerce groups
