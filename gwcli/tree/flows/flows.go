@@ -19,6 +19,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -264,7 +265,7 @@ func download() action.Pair {
 				if err != nil {
 					return err.Error(), nil
 				}
-				return stylesheet.StringWriteToFileSuccess(n, outPath), nil
+				return phrases.WriteToFileSuccess(n, outPath), nil
 			}
 			// spit to terminal
 			return flow.Flow, nil
@@ -277,7 +278,7 @@ func download() action.Pair {
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
-					return "you must specify exactly 1 argument (flow ID or flow GUID)", nil
+					return phrases.Exactly1ArgRequired("flow ID/GUID"), nil
 				}
 				return "", nil
 			}})

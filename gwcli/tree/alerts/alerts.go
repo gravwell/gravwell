@@ -21,6 +21,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -173,7 +174,7 @@ func toggle() action.Pair {
 					return "--enable and --disable are mutually exclusive", nil
 				}
 				if fs.NArg() != 1 {
-					return "you must specify exactly 1 argument (alert ID)", nil
+					return phrases.Exactly1ArgRequired("alert ID"), nil
 				}
 				return "", nil
 			},

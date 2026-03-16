@@ -23,7 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
@@ -56,7 +56,7 @@ func newCalendarAction() action.Pair {
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				start, end, idxrUUID, idxrName = time.Time{}, time.Time{}, uuid.NullUUID{}, ""
 				if fs.NArg() > 1 {
-					return ft.InvAtMostArgN(1, uint(fs.NArg())), nil
+					return phrases.Exactly1ArgRequired("indexer name or UUID"), nil
 				} else if fs.NArg() == 1 {
 					if arg := strings.TrimSpace(fs.Arg(0)); arg != "" {
 						name, uuid, err := identifyIndexer(arg)

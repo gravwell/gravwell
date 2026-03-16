@@ -26,8 +26,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -135,7 +135,7 @@ func download() action.Pair {
 				if err != nil {
 					return err.Error(), nil
 				}
-				return stylesheet.StringWriteToFileSuccess(n, outPath), nil
+				return phrases.WriteToFileSuccess(n, outPath), nil
 			}
 			// spit to terminal
 			return string(data), nil
@@ -149,7 +149,7 @@ func download() action.Pair {
 			Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("FLAGS"), ft.Mandatory("resource ID")),
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
-					return "you must specify exactly 1 argument (resource ID)", nil
+					return phrases.Exactly1ArgRequired("resource ID"), nil
 				}
 				return "", nil
 			},
