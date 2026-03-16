@@ -12,6 +12,7 @@ package extractors
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
@@ -22,7 +23,10 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -45,17 +49,28 @@ func NewExtractorsNav() *cobra.Command {
 	return treeutils.GenerateNav(use, short, long, aliases,
 		[]*cobra.Command{},
 		[]action.Pair{
-			newExtractorsListAction(),
-			newExtractorsCreateAction(),
-			newExtractorDeleteAction(),
+			list(),
+			create(),
+			delete(),
 			modules(),
 			edit(),
 		})
 }
 
+// field map keys used by edit and create for consistent access.
+const (
+	fieldKeyName   = "name"
+	fieldKeyDesc   = "desc"
+	fieldKeyModule = "module"
+	fieldKeyTags   = "tags"
+	fieldKeyParams = "params"
+	fieldKeyArgs   = "args"
+	fieldKeyLabels = "labels"
+)
+
 // #region list
 
-func newExtractorsListAction() action.Pair {
+func list() action.Pair {
 	const (
 		short string = "list extractors"
 		long  string = "list autoextractions available to you and the system"
@@ -101,6 +116,183 @@ func flags() pflag.FlagSet {
 }
 
 //#endregion list
+
+func create() action.Pair {
+	fLabels := scaffoldcreate.FieldLabels()
+	fLabels.Order = 40
+
+	return scaffoldcreate.NewCreateAction("extractor",
+		scaffoldcreate.Config{
+			fieldKeyName: scaffoldcreate.FieldName("extractor"),
+			fieldKeyDesc: scaffoldcreate.FieldDescription("extractor"),
+			fieldKeyModule: scaffoldcreate.Field{
+				Required:      true,
+				Title:         "module",
+				Usage:         "extraction module to use. Call `extractors modules` to list available options.",
+				Type:          scaffoldcreate.Text,
+				FlagName:      "module",
+				FlagShorthand: 'm',
+				DefaultValue:  "",
+				Order:         80,
+				CustomTIFuncInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", false)
+					ti.ShowSuggestions = true
+					return ti
+				},
+				CustomTIFuncSetArg: func(ti *textinput.Model) textinput.Model {
+					if engines, err := connection.Client.ExtractionSupportedEngines(); err != nil {
+						clilog.Writer.Warnf("failed to gather modules for suggestions: %v", err)
+					} else if len(engines) > 0 {
+						ti.SetSuggestions(engines)
+					}
+					return *ti
+				},
+			},
+			fieldKeyTags: scaffoldcreate.Field{
+				Required:      true,
+				Title:         "tags",
+				Usage:         "tags this ax will extract from. There can only be one extractor per tag.",
+				Type:          scaffoldcreate.Text,
+				FlagName:      "tags",
+				FlagShorthand: 't',
+				DefaultValue:  "",
+				Order:         70,
+				CustomTIFuncInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", false)
+					ti.Placeholder = "tag1,tag2,tag3"
+					return ti
+				},
+				CustomTIFuncSetArg: func(ti *textinput.Model) textinput.Model {
+					if tags, err := connection.Client.GetTags(); err != nil {
+						clilog.Writer.Warnf("failed to fetch tags: %v", err)
+						ti.ShowSuggestions = false
+					} else {
+						ti.ShowSuggestions = true
+						ti.SetSuggestions(tags)
+					}
+
+					return *ti
+				},
+			},
+			fieldKeyParams: scaffoldcreate.Field{
+				Required:     false,
+				Title:        "params/regex",
+				Usage:        "",
+				Type:         scaffoldcreate.Text,
+				FlagName:     "params",
+				DefaultValue: "",
+
+				Order: 60,
+			},
+			fieldKeyArgs: scaffoldcreate.Field{
+				Required:     false,
+				Title:        "arguments/options",
+				Usage:        "arguments/options on this ax",
+				Type:         scaffoldcreate.Text,
+				FlagName:     "args",
+				DefaultValue: "",
+
+				Order: 50,
+			},
+			fieldKeyLabels: fLabels,
+		},
+		func(_ scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (any, string, error) {
+			// no need to nil check; Required boolean enforces that for us
+
+			// map fields back into the underlying type
+			axd := types.AX{
+				CommonFields: types.CommonFields{
+					Name:        fieldValues[fieldKeyName],
+					Description: fieldValues[fieldKeyDesc],
+					Labels:      strings.Split(strings.ReplaceAll(fieldValues[fieldKeyLabels], " ", ""), ","),
+				},
+				Module: fieldValues[fieldKeyModule],
+				Tags:   strings.Split(strings.ReplaceAll(fieldValues[fieldKeyTags], " ", ""), ","),
+				Params: fieldValues[fieldKeyParams],
+				Args:   fieldValues[fieldKeyArgs],
+			}
+
+			// check for dryrun
+			var (
+				dr  bool
+				err error
+			)
+			if dr, err = fs.GetBool(ft.Dryrun.Name()); err != nil {
+				return 0, "", err
+			}
+
+			var (
+				id  string
+				wrs []types.WarnResp
+			)
+			if dr {
+				wrs, err = connection.Client.TestAddExtraction(axd)
+			} else {
+				axd, wrs, err = connection.Client.AddExtraction(axd)
+				id = axd.ID
+			}
+
+			if len(wrs) > 0 {
+				var invSB strings.Builder
+				for _, wr := range wrs {
+					fmt.Fprintf(&invSB, "%v: %v\n", wr.Name, wr.Err)
+				}
+				return 0, invSB.String(), nil
+			}
+
+			return id, "", err
+		},
+		scaffoldcreate.Options{
+			AddtlFlags: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				ft.Dryrun.Register(&fs)
+				return fs
+			},
+		})
+}
+
+func delete() action.Pair {
+	return scaffolddelete.NewDeleteAction("extractor", "extractors",
+		func(dryrun bool, id string) error {
+			if dryrun {
+				_, err := connection.Client.GetExtraction(id)
+				return err
+			}
+			if wrs, err := connection.Client.DeleteExtraction(id); err != nil {
+				return err
+			} else if wrs != nil {
+				var sb strings.Builder
+				sb.WriteString("failed to delete ax with warning(s):")
+				for _, wr := range wrs {
+					sb.WriteString("\n" + wr.Err.Error())
+				}
+				clilog.Writer.Warn(sb.String())
+				return errors.New(sb.String())
+			}
+			return nil
+		},
+		func() ([]scaffolddelete.Item[string], error) {
+			axl, err := connection.Client.ListExtractions(nil)
+			if err != nil {
+				return nil, err
+			}
+			axs := axl.Results
+			slices.SortFunc(axs, func(a1, a2 types.AX) int {
+				return strings.Compare(a1.Name, a2.Name)
+			})
+			var items = make([]scaffolddelete.Item[string], len(axs))
+			for i, ax := range axs {
+				items[i] = scaffolddelete.NewItem[string](ax.Name,
+					fmt.Sprintf("module: %v\ntags: %v\n%v",
+						stylesheet.Cur.SecondaryText.Render(ax.Module),
+						stylesheet.Cur.SecondaryText.Render(strings.Join(ax.Tags, " ")),
+						ax.Description),
+					ax.ID)
+			}
+
+			return items, nil
+		})
+}
 
 func modules() action.Pair {
 	return scaffold.NewBasicAction("modules", "list available modules",
