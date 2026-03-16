@@ -1,6 +1,7 @@
 package flows
 
 import (
+	"os"
 	"strconv"
 	"strings"
 
@@ -23,6 +24,7 @@ func NewNav() *cobra.Command {
 		nil,
 		[]action.Pair{
 			list(),
+			importCreate(),
 		},
 	)
 }
@@ -37,7 +39,7 @@ func list() action.Pair {
 	)
 }
 
-// import create is the create function for flows, but the flow itself is created from JSON
+// importCreate is the create function for flows, but the flow itself is created from JSON slurped from a file
 func importCreate() action.Pair {
 	return scaffoldcreate.NewCreateAction("flow",
 		scaffoldcreate.Config{
@@ -50,7 +52,7 @@ func importCreate() action.Pair {
 				FlagName:      ft.Frequency.Name(),
 				FlagShorthand: rune(ft.Frequency.Shorthand()[0]),
 			},
-			"path": scaffoldcreate.FieldPath("flow"),
+			"path": scaffoldcreate.FieldPath("file containing a flow in JSON form"),
 			"groups": scaffoldcreate.Field{
 				Required:      false,
 				Title:         "Groups",
@@ -62,6 +64,14 @@ func importCreate() action.Pair {
 			},
 		},
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			// slurp the json file
+			var json string
+			if b, err := os.ReadFile(fieldValues["path"]); err != nil {
+				return 0, err.Error(), nil // this is probably a file permission or exist error so return as invalid
+			} else {
+				json = strings.TrimSpace(string(b))
+			}
+
 			// coerce groups
 			var groups []int32
 			for _, s := range strings.Split(fieldValues["groups"], ",") {
@@ -73,8 +83,8 @@ func importCreate() action.Pair {
 				groups = append(groups, int32(group))
 			}
 
-			id, err = connection.Client.CreateFlow(fieldValues["name"], fieldValues["desc"], fieldValues["frequency"], fieldValues["path"], groups)
+			id, err = connection.Client.CreateFlow(fieldValues["name"], fieldValues["desc"], fieldValues["frequency"], json, groups)
 			return id, "", err
 		},
-		scaffoldcreate.Options{})
+		scaffoldcreate.Options{Use: "import"})
 }
