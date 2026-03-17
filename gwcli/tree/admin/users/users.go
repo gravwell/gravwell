@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -27,7 +28,11 @@ func NewNav() *cobra.Command {
 	)
 
 	return treeutils.GenerateNav(use, short, long, nil, []*cobra.Command{},
-		[]action.Pair{list(), get()})
+		[]action.Pair{
+			list(),
+			get(),
+			create(),
+		})
 }
 
 func list() action.Pair {
@@ -104,4 +109,55 @@ func get() action.Pair {
 				return "", nil
 			},
 		})
+}
+
+func create() action.Pair {
+	return scaffoldcreate.NewCreateAction("user",
+		map[string]scaffoldcreate.Field{
+			"username": {
+				Required: true,
+				Title:    "Username",
+				Usage:    "unique username to assign",
+				Type:     scaffoldcreate.Text,
+				Order:    200,
+			},
+			"name": {
+				Required: true,
+				Title:    "Name",
+				Usage:    "actual name of the user",
+				Type:     scaffoldcreate.Text,
+				Order:    180,
+			},
+			"email": {
+				Required: true,
+				Title:    "Email",
+				Usage:    "email associated to this user",
+				Type:     scaffoldcreate.Text,
+				Order:    160,
+			},
+			// TODO include admin bool
+			"password": {
+				Required: true,
+				Title:    "Password",
+				Usage:    "initial password for the user",
+				Type:     scaffoldcreate.Text,
+				Order:    140,
+			},
+		},
+		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
+			if err := connection.Client.AddUser(
+				fieldValues["username"], fieldValues["password"],
+				fieldValues["name"], fieldValues["email"],
+				false, // TODO admin
+			); err != nil {
+				return 0, "", err
+			}
+			// verify the user can be found
+			u, err := connection.Client.LookupUser(fieldValues["username"])
+			if err != nil {
+				return 0, "", fmt.Errorf("failed to find user after creation: %w\nThe user may or may not exist.", err)
+			}
+			return u.ID, "", nil
+		},
+		scaffoldcreate.Options{})
 }
