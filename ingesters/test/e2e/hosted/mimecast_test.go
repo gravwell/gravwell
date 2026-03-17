@@ -22,11 +22,7 @@ var (
 )
 
 func TestMimecast(t *testing.T) {
-	root, err := RepoRoot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	mockDockerfile.Context = filepath.Join(root, "tools/mock/mimecast")
+	mockDockerfile.Context = filepath.Join(RepoRoot(), "tools/mock/mimecast")
 
 	mock, err := tc.Run(t.Context(), "",
 		WithDefaults(t, "mimecast-mock",
