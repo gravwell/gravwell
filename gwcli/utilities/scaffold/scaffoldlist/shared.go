@@ -23,6 +23,7 @@ import (
 )
 
 // Given a **parsed** flagset, determines and returns output format.
+// If no format flags are found, pretty is selected if it is defined. Otherwise, table is selected.
 // If multiple format flags are found, they are selected with the following precedence:
 //
 // pretty -> csv -> json -> tbl
@@ -57,6 +58,14 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 		uniques.ErrGetFlag("list", err)
 	} else if fm {
 		format = json
+	}
+
+	// check for explicit table
+	if fm, err := fs.GetBool(ft.Table.Name()); err != nil {
+		uniques.ErrGetFlag("list", err)
+		// non-fatal
+	} else if fm {
+		return tbl
 	}
 
 	// if we made it this far, return the default
