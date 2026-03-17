@@ -22,7 +22,7 @@ var (
 	version        = flag.String("version", "latest", "gravwell version to test against, must be a tag of gravwell/gravwell")
 	license        = flag.String("license", "", "path to license file to mount into container")
 	platform       = flag.String("instance-platform", "linux/amd64", "platform to use for gravwell instance")
-	ingestPlatform = flag.String("ingest-platform", "", "platform to use for ingestion containers")
+	ingestPlatform = flag.String("ingest-platform", "linux/"+runtime.GOARCH, "platform to use for ingestion containers")
 	endpoint       = flag.String("endpoint", "", "gravwell ingest endpoint to use")
 )
 
@@ -33,17 +33,12 @@ var mtx sync.RWMutex
 var started bool
 
 func buildIngesters() {
-	repoRoot, err := find(".git")
-	if err != nil {
-		panic(err)
-	}
 	var stdout, stderr bytes.Buffer
 	docker := exec.Command("docker", "buildx", "build", "-t", "gravwell/ingesters:e2e", "-f", "./ingesters/test/e2e/Dockerfile", "--platform", *ingestPlatform, ".")
-	docker.Dir = repoRoot
+	docker.Dir = RepoRoot()
 	docker.Stdout = &stdout
 	docker.Stderr = &stderr
-	err = docker.Run()
-	if err != nil {
+	if err := docker.Run(); err != nil {
 		fmt.Println(stderr.String())
 		fmt.Println(stdout.String())
 		panic(err)
@@ -71,8 +66,13 @@ func find(signal string) (string, error) {
 	}
 }
 
-func RepoRoot() (string, error) {
-	return find(".git")
+// RepoRoot will find the root path of the repo. Useful when declaring build contexts to avoid relative pathing.
+func RepoRoot() string {
+	r, err := find(".git")
+	if err != nil {
+		panic(err)
+	}
+	return r
 }
 
 // Start MUST be called within each package's TestMain before tests are run.
@@ -86,9 +86,6 @@ func Start() {
 	}
 	if !flag.Parsed() {
 		flag.Parse()
-	}
-	if ingestPlatform == nil || *ingestPlatform == "" {
-		ingestPlatform = new("linux/" + runtime.GOARCH)
 	}
 
 	buildIngesters()
@@ -115,12 +112,9 @@ func Start() {
 	if license == nil || *license == "" {
 		licenseFile.Reader = strings.NewReader("UNLICENSED")
 	}
-	repoRoot, err := RepoRoot()
-	if err != nil {
-		panic(err)
-	}
+
 	config := tc.ContainerFile{
-		HostFilePath:      repoRoot + "/ingesters/test/e2e/testdata/gravwell.conf",
+		HostFilePath:      RepoRoot() + "/ingesters/test/e2e/testdata/gravwell.conf",
 		ContainerFilePath: "/opt/gravwell/etc/gravwell.conf",
 		FileMode:          0o644,
 	}
@@ -149,8 +143,11 @@ func Start() {
 	}
 }
 
+// Cleanup is currently a noop, mostly due to testing.M being quite limited in functionality.
 func Cleanup() {}
 
+// Network returns the ephemeral docker network for this test. Used by WithDefaults and Ingester to attach containers to the network.
+// If running additional containers they MUST be in this network to communicate with Ingesters and the Gravwell instance.
 func Network() *tc.DockerNetwork {
 	mtx.RLock()
 	defer mtx.RUnlock()

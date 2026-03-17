@@ -21,10 +21,8 @@ var DefaultConfig = config.IngestConfig{
 // Ingester will add the default list of container configs for consistency and as an easy way to adjust how we handle the various running containers.
 // This should be used with discrete ContainerCustomizers as needed for each container.
 //
-// container, err := tc.Run(t.Context(), "",
-//
-//		Ingester(t, "ingester",
-//			tc.WithDockerfile(dockerfile),
+//	container, err := tc.Run(t.Context(), "",
+//		Ingester(t, "ingester", "HttpIngester"
 //			WithConfig(t, "testdata/ingester.conf", "ingester.conf", DefaultConfig),
 //		)...,
 //	)
@@ -45,8 +43,7 @@ func Ingester(t *testing.T, name, ingester string, extras ...tc.ContainerCustomi
 // WithDefaults will add the default list of container configs for consistency and as an easy way to adjust how we handle the various running containers.
 // This should be used with discrete ContainerCustomizers as needed for each container.
 //
-// container, err := tc.Run(t.Context(), "",
-//
+//	container, err := tc.Run(t.Context(), "",
 //		WithDefaults(t, "mock",
 //			tc.WithDockerfile(dockerfile),
 //			WithConfig(t, "testdata/mock.conf", "mock.conf", DefaultConfig),

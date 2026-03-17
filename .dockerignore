@@ -5,4 +5,5 @@
 .github
 _artifacts
 ingesters/test/e2e
+!ingesters/test/e2e/include
 ingesters/test/configs

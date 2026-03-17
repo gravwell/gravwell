@@ -10,6 +10,8 @@ import (
 	"github.com/gravwell/gravwell/v3/client/types"
 )
 
+// GetClient returns an authenticated client for use by tests.
+// This is not pooled, so try to limit to creating one per test.
 func GetClient(t *testing.T) *client.Client {
 	t.Helper()
 	mtx.RLock()
@@ -34,6 +36,8 @@ func GetClient(t *testing.T) *client.Client {
 	return c
 }
 
+// RunSearch will run a query over a time.Duration and return the entries and log them as an artifact.
+// It will wait for the search to complete to simplify querying in a test.
 func RunSearch(t *testing.T, c *client.Client, query string, d time.Duration) []types.StringTagEntry {
 	t.Helper()
 	var err error
