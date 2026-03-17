@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -27,11 +26,11 @@ func GetClient(t *testing.T) *client.Client {
 	}
 	c, err := client.New(server, false, false)
 	if err != nil {
-		t.Fatal(fmt.Errorf("error creating client: %w", err))
+		t.Fatalf("error creating client: %v", err)
 	}
 	err = c.Login("admin", "changeme")
 	if err != nil {
-		t.Fatal(fmt.Errorf("failed to login as admin: %w", err))
+		t.Fatalf("failed to login as admin: %v", err)
 	}
 	return c
 }
@@ -42,19 +41,19 @@ func RunSearch(t *testing.T, c *client.Client, query string, d time.Duration) []
 	t.Helper()
 	var err error
 	if err = c.ParseSearch(query); err != nil {
-		t.Fatal(fmt.Errorf("failed to parse search query: %w", err))
+		t.Fatalf("failed to parse search query: %v", err)
 	}
 	var s client.Search
 	if s, err = c.StartSearch(query, time.Now().Add(-d), time.Now(), false); err != nil {
-		t.Fatal(fmt.Errorf("failed to start search: %w", err))
+		t.Fatalf("failed to start search: %v", err)
 	} else if err = c.WaitForSearch(s); err != nil {
-		t.Fatal(fmt.Errorf("failed to wait for search: %w", err))
+		t.Fatalf("failed to wait for search: %v", err)
 	}
 
 	var cnt uint64
 	var done bool
 	if cnt, done, err = c.GetAvailableEntryCount(s); err != nil || !done {
-		t.Fatal(fmt.Errorf("error getting entry count: %w, count: %v, done: %v", err, cnt, done))
+		t.Fatalf("error getting entry count: %v, count: %v, done: %v", err, cnt, done)
 	}
 	if cnt == 0 {
 		return []types.StringTagEntry{}
@@ -62,10 +61,10 @@ func RunSearch(t *testing.T, c *client.Client, query string, d time.Duration) []
 
 	ent, err := c.GetEntries(s, 0, cnt)
 	if err != nil {
-		t.Fatal(fmt.Errorf("failed to get entries: %w", err))
+		t.Fatalf("failed to get entries: %v", err)
 	}
 	if err = c.DeleteSearch(s.ID); err != nil {
-		t.Log(fmt.Errorf("failed to delete search entry: %w", err))
+		t.Logf("failed to delete search entry: %v", err)
 	}
 
 	WriteQueryResults(t, slug.Make(query), ent)

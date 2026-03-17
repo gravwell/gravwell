@@ -3,7 +3,6 @@ package e2e
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -22,6 +21,7 @@ func files(ctx context.Context, con *tc.DockerContainer, paths []string) (map[st
 		}
 		var buf bytes.Buffer
 		written, err := io.Copy(&buf, file)
+		file.Close()
 		if err != nil {
 			return nil, err
 		}
@@ -33,7 +33,7 @@ func files(ctx context.Context, con *tc.DockerContainer, paths []string) (map[st
 	return f, nil
 }
 
-// SaveTestFiles extract all the files from a given containers and writes them as an artifact.
+// SaveTestFiles extracts the specified files from a given container and writes them as artifacts.
 // Calls should be split for each different ArtifactType.
 func SaveTestFiles(t *testing.T, con *tc.DockerContainer, prefix ArtifactType, paths []string) {
 	t.Helper()
@@ -43,11 +43,11 @@ func SaveTestFiles(t *testing.T, con *tc.DockerContainer, prefix ArtifactType, p
 	ctx := context.Background() // Don't use t.Context() in case this is during test cleanup
 	contents, err := files(ctx, con, paths)
 	if err != nil {
-		t.Fatal(fmt.Errorf("error getting file contents: %v", err))
+		t.Fatalf("error getting file contents: %v", err)
 	}
 	res, err := con.Inspect(ctx)
 	if err != nil {
-		t.Fatal(fmt.Errorf("error inspecting container name: %v", err))
+		t.Fatalf("error inspecting container name: %v", err)
 	}
 	for _, file := range paths {
 		name := res.Name + "/" + filepath.Base(file)
@@ -66,17 +66,17 @@ func NewConfigReader(t *testing.T, config string, data any) io.Reader {
 	base := filepath.Base(path)
 	file, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatal(fmt.Errorf("failed to read config template file %s: %w", path, err))
+		t.Fatalf("failed to read config template file %s: %v", path, err)
 	}
 
 	temp, err := template.New(base).Parse(string(file))
 	if err != nil {
-		t.Fatal(fmt.Errorf("failed to parse config template file %s: %w", path, err))
+		t.Fatalf("failed to parse config template file %s: %v", path, err)
 	}
 
 	var buf bytes.Buffer
 	if err = temp.Execute(&buf, data); err != nil {
-		t.Fatal(fmt.Errorf("failed to execute config template: %w", err))
+		t.Fatalf("failed to execute config template: %v", err)
 	}
 
 	content := buf.Bytes()

@@ -24,7 +24,7 @@ go test ./ingesters/test/e2e/HttpIngester/
 go test ./ingesters/test/e2e/HttpIngester/ -run TestHttp
 
 # Preserve artifacts (logs, configs, search results) after the run
-go test -artifacts /ingesters/test/e2e/HttpIngester/
+go test -artifacts ./ingesters/test/e2e/HttpIngester/
 ```
 
 ### Flags

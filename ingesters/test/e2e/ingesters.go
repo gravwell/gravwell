@@ -22,7 +22,7 @@ var DefaultConfig = config.IngestConfig{
 // This should be used with discrete ContainerCustomizers as needed for each container.
 //
 //	container, err := tc.Run(t.Context(), "",
-//		Ingester(t, "ingester", "HttpIngester"
+//		Ingester(t, "ingester", "HttpIngester",
 //			WithConfig(t, "testdata/ingester.conf", "ingester.conf", DefaultConfig),
 //		)...,
 //	)
@@ -59,7 +59,7 @@ func WithDefaults(t *testing.T, name string, extras ...tc.ContainerCustomizer) [
 	return append(defaults, extras...)
 }
 
-// WithConfig will take a source file parse it as a go template (via text/template) and mount the output to `/opt/gravwell/etc/[target]`
+// WithConfig will take a source file, parse it as a go template (via text/template), and mount the output to `/opt/gravwell/etc/[target]`.
 // data is passed to the template unmodified.
 func WithConfig(t *testing.T, source, target string, data any) tc.ContainerCustomizer {
 	return tc.WithFiles(tc.ContainerFile{

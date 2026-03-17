@@ -26,22 +26,19 @@ func WriteArtifact(t *testing.T, a ArtifactType, name string, content []byte) {
 	path := filepath.Clean(t.ArtifactDir() + a + name)
 	err := os.MkdirAll(filepath.Dir(path), 0755)
 	if err != nil {
-		t.Fatal(fmt.Errorf("failed to create directory %s: %w", filepath.Dir(path), err))
+		t.Fatalf("failed to create directory %s: %v", filepath.Dir(path), err)
 	}
 	err = os.WriteFile(path, content, 0o644)
 	if err != nil {
-		t.Fatal(fmt.Errorf("failed to write artifact file %s: %w", path, err))
+		t.Fatalf("failed to write artifact file %s: %v", path, err)
 	}
 }
 
-// WriteQueryResults saves entries as a artifact.
+// WriteQueryResults saves entries as an artifact.
 func WriteQueryResults(t *testing.T, name string, ent []types.StringTagEntry) {
 	var buf bytes.Buffer
 	for _, e := range ent {
-		line := fmt.Sprintf("tag: %s, ts: %s, data: %s", e.Tag, e.TS.Format(time.RFC3339), e.String())
-		if _, err := buf.Write([]byte(line + "\n")); err != nil {
-			t.Fatal(fmt.Errorf("failed to write query result line %s: %w", line, err))
-		}
+		fmt.Fprintf(&buf, "tag: %s, ts: %s, data: %s\n", e.Tag, e.TS.Format(time.RFC3339), e.String())
 	}
 	WriteArtifact(t, SearchResults, name, buf.Bytes())
 }

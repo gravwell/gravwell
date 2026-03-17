@@ -11,6 +11,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"testing"
 	"time"
 
 	tc "github.com/testcontainers/testcontainers-go"
@@ -28,6 +29,22 @@ var (
 
 var net *tc.DockerNetwork
 var instance *tc.DockerContainer
+
+var instanceLogPaths = []string{
+	"/opt/gravwell/etc/gravwell.conf",
+	"/opt/gravwell/log/info.log",
+	"/opt/gravwell/log/warn.log",
+	"/opt/gravwell/log/error.log",
+}
+
+func saveInstanceLogs(t *testing.T) {
+	t.Helper()
+	mtx.RLock()
+	defer mtx.RUnlock()
+	if instance != nil {
+		SaveTestFiles(t, instance, None, instanceLogPaths)
+	}
+}
 
 var mtx sync.RWMutex
 var started bool
@@ -84,6 +101,7 @@ func Start() {
 	if started {
 		return
 	}
+	started = true
 	if !flag.Parsed() {
 		flag.Parse()
 	}
@@ -143,8 +161,17 @@ func Start() {
 	}
 }
 
-// Cleanup is currently a noop, mostly due to testing.M being quite limited in functionality.
-func Cleanup() {}
+// Cleanup tears down the Gravwell instance and Docker network created by Start.
+func Cleanup() {
+	mtx.Lock()
+	defer mtx.Unlock()
+	if instance != nil {
+		_ = instance.Terminate(context.Background())
+	}
+	if net != nil {
+		_ = net.Remove(context.Background())
+	}
+}
 
 // Network returns the ephemeral docker network for this test. Used by WithDefaults and Ingester to attach containers to the network.
 // If running additional containers they MUST be in this network to communicate with Ingesters and the Gravwell instance.
