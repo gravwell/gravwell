@@ -112,6 +112,9 @@ type session struct {
 	Synced      bool
 }
 
+var timeformats = []string{time.RFC3339, time.DateOnly}
+var since time.Time // set in Validate
+
 // sessions returns all of the current users current sessions
 func sessions() action.Pair {
 	return scaffoldlist.NewListAction("display your active sessions",
@@ -128,13 +131,10 @@ func sessions() action.Pair {
 			})
 
 			// apply filters, if applicable
-			since, err := fs.GetTime("since")
-			if err != nil {
-				clilog.LogFlagFailedGet("since", err)
-			} else {
+			if !since.IsZero() {
 				// cut off all records before since
 				i := slices.IndexFunc(rawSessions, func(s types.Session) bool {
-					return s.LastHit.Local().Before(since.Local())
+					return s.LastHit.Before(since)
 				})
 				if i != -1 {
 					rawSessions = rawSessions[:i]
@@ -160,14 +160,34 @@ func sessions() action.Pair {
 		scaffoldlist.Options{
 			Use: "sessions",
 			AddtlFlags: func() pflag.FlagSet {
-				var timeformats = []string{time.RFC3339, time.DateOnly}
 				fs := pflag.FlagSet{}
-				fs.String("since", // TODO switch to manual parse in validate
-					time.Now().Local().Add(-time.Hour*48),
-					timeformats,
-					"filter to records after a given time. Accepts the following timestamp format:\n- "+strings.Join(timeformats, "\n- "))
+				fs.String("since",
+					"",
+					"filter to records after a given time. Assumes local time if a timezone is not specified.\n"+
+						"Accepts the following timestamp format:\n- "+strings.Join(timeformats, "\n- "))
 				return fs
 			},
 			DefaultColumns: []string{"ID", "Origin", "LastHit"},
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				since = time.Time{} // ensure it is reset
+				snc, err := fs.GetString("since")
+				if err != nil {
+					clilog.LogFlagFailedGet("since", err)
+				}
+				if snc != "" {
+					// try to parse in our supported formats, breaking on the first one
+					for _, format := range timeformats {
+						t, err := time.ParseInLocation(format, snc, time.Local)
+						if err == nil {
+							since = t
+							break
+						}
+					}
+					if since.IsZero() {
+						return "failed to parse " + snc + " as an acceptible time format", nil
+					}
+				}
+				return "", nil
+			},
 		})
 }
