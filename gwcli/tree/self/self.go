@@ -2,11 +2,18 @@
 package self
 
 import (
+	"net"
+	"slices"
+	"strings"
+	"time"
+
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
@@ -26,6 +33,7 @@ func NewSelfNav() *cobra.Command {
 		[]action.Pair{
 			admin(),
 			MyInfo(),
+			sessions(),
 		})
 }
 
@@ -93,3 +101,73 @@ func toggle(isAdministrator bool) (string, tea.Cmd) {
 }
 
 //#endregion admin mode
+
+// wrapper for types.Session to limit the information sessions returns.
+type session struct {
+	ID          uint64 `json:",omitempty"`
+	UID         int32  `json:",omitempty"`
+	Origin      net.IP
+	LastHit     string // timestamp
+	TempSession bool
+	Synced      bool
+}
+
+// sessions returns all of the current users current sessions
+func sessions() action.Pair {
+	return scaffoldlist.NewListAction("display your active sessions",
+		"Displays information about how and where you are currently logged in.\n"+
+			"If --since is not set, it will default to fetching all records for the past 48 hours.", session{},
+		func(fs *pflag.FlagSet) ([]session, error) {
+			rawSessions, err := connection.Client.MySessions()
+			if err != nil {
+				return nil, err
+			}
+			// sort by recency, note the inversion
+			slices.SortFunc(rawSessions, func(a, b types.Session) int {
+				return -a.LastHit.Compare(b.LastHit)
+			})
+
+			// apply filters, if applicable
+			since, err := fs.GetTime("since")
+			if err != nil {
+				clilog.LogFlagFailedGet("since", err)
+			} else {
+				// cut off all records before since
+				i := slices.IndexFunc(rawSessions, func(s types.Session) bool {
+					return s.LastHit.Local().Before(since.Local())
+				})
+				if i != -1 {
+					rawSessions = rawSessions[:i]
+				}
+
+			}
+
+			// wrap and return the session
+			var ss = make([]session, len(rawSessions))
+			for i, rs := range rawSessions {
+				ss[i] = session{
+					ID:          rs.ID,
+					UID:         rs.UID,
+					Origin:      rs.Origin,
+					LastHit:     rs.LastHit.Local().Format(time.RFC3339),
+					TempSession: rs.TempSession,
+					Synced:      rs.Synced,
+				}
+			}
+
+			return ss, nil
+		},
+		scaffoldlist.Options{
+			Use: "sessions",
+			AddtlFlags: func() pflag.FlagSet {
+				var timeformats = []string{time.RFC3339, time.DateOnly}
+				fs := pflag.FlagSet{}
+				fs.String("since", // TODO switch to manual parse in validate
+					time.Now().Local().Add(-time.Hour*48),
+					timeformats,
+					"filter to records after a given time. Accepts the following timestamp format:\n- "+strings.Join(timeformats, "\n- "))
+				return fs
+			},
+			DefaultColumns: []string{"ID", "Origin", "LastHit"},
+		})
+}
