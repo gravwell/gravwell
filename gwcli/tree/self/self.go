@@ -2,6 +2,7 @@
 package self
 
 import (
+	"fmt"
 	"net"
 	"slices"
 	"strings"
@@ -34,6 +35,7 @@ func NewSelfNav() *cobra.Command {
 			admin(),
 			MyInfo(),
 			sessions(),
+			groups(),
 		})
 }
 
@@ -188,6 +190,29 @@ func sessions() action.Pair {
 					}
 				}
 				return "", nil
+			},
+		})
+}
+
+func groups() action.Pair {
+	return scaffoldlist.NewListAction("display your group memberships", "Display groups you are a part of.", types.Group{},
+		func(fs *pflag.FlagSet) ([]types.Group, error) {
+			return connection.Client.Groups()
+		},
+		scaffoldlist.Options{
+			Use: "groups",
+			Pretty: func(fs *pflag.FlagSet) (string, error) {
+				groups, err := connection.Client.Groups()
+				if err != nil {
+					return "", err
+				} else if len(groups) < 1 {
+					return "you are not a part of any groups", nil
+				}
+				var sb strings.Builder
+				for _, grp := range groups {
+					fmt.Fprintf(&sb, "%s (ID: %d)\n", grp.Name, grp.ID)
+				}
+				return sb.String()[:sb.Len()-1], nil
 			},
 		})
 }
