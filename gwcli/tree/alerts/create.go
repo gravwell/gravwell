@@ -17,8 +17,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -246,5 +246,5 @@ func (c *createModel) Reset() error {
 }
 
 func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
-	return "", stylesheet.ErrPrintf("interactivity not yet implemented"), nil
+	return "", phrases.InteractivityNYI(), nil
 }
