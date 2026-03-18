@@ -52,9 +52,7 @@ func Test_createModel_basics(t *testing.T) {
 	}
 	ca := NewCreateAction("test", cfg, func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 		return 0, "", nil
-	}, func() pflag.FlagSet {
-		return pflag.FlagSet{}
-	})
+	}, Options{})
 	cm, ok := ca.Model.(*createModel)
 	if !ok {
 		t.Fatal("failed to type assert to *createModel")
@@ -115,9 +113,7 @@ func Test_Ordering(t *testing.T) {
 	cm := newCreateModel(cfg, "test",
 		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			return 0, "", nil
-		}, func() pflag.FlagSet {
-			return pflag.FlagSet{}
-		})
+		}, Options{})
 
 	for i, ti := range cm.inputs.ordered {
 		kint, err := strconv.Atoi(ti.Key)
@@ -219,11 +215,12 @@ func Test_Full(t *testing.T) {
 			createdCalled = true
 
 			return "value", "", nil
-		},
-		func() pflag.FlagSet {
-			fs := pflag.FlagSet{}
-			fs.Bool("bln", false, "some flag text")
-			return fs
+		}, Options{
+			AddtlFlags: func() pflag.FlagSet {
+				fs := pflag.FlagSet{}
+				fs.Bool("bln", false, "some flag text")
+				return fs
+			},
 		})
 
 	fauxMother(t, cm, &createdCalled)
@@ -311,6 +308,6 @@ func setup(t *testing.T, cfg Config) *createModel {
 		func(cfg Config, values map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
 			return 0, "", nil
 		},
-		func() pflag.FlagSet { return pflag.FlagSet{} })
+		Options{})
 	return cm
 }

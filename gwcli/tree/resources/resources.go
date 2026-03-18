@@ -27,6 +27,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -112,26 +113,32 @@ func download() action.Pair {
 		"1. Resources owned by the user always have highest priority\n"+
 		"2. Resources shared with a group to which the user belongs are next\n"+
 		"3. Global resources are the lowest priority.",
-		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			// arg length checked by the options
 			id := fs.Arg(0)
-			var out = cmd.OutOrStdout()
-			if outPath, err := fs.GetString(ft.Output.Name()); err != nil {
+			outPath, err := fs.GetString(ft.Output.Name())
+			if err != nil {
 				clilog.LogFlagFailedGet(ft.Output.Name(), err)
-			} else if outPath != "" {
-				out, err = os.Create(outPath)
-				if err != nil {
-					return err.Error(), nil
-				}
 			}
 			clilog.Writer.Info("downloading resource", rfc5424.SDParam{Name: "resource_ID", Value: id})
 			data, err := connection.Client.GetResource(id)
 			if err != nil {
 				return err.Error(), nil
 			}
-			// spit out to stdout or file
-			fmt.Fprintf(out, "%s", data)
-			return "", nil
+			// write to file or stdout
+			if outPath != "" {
+				out, err := os.Create(outPath)
+				if err != nil {
+					return err.Error(), nil
+				}
+				defer out.Close()
+				n, err := out.WriteString(string(data))
+				if err != nil {
+					return err.Error(), nil
+				}
+				return phrases.SuccessfullyWroteToFile(n, outPath), nil
+			}
+			return string(data), nil
 		},
 		scaffold.BasicOptions{
 			AddtlFlagFunc: func() pflag.FlagSet {
@@ -139,15 +146,10 @@ func download() action.Pair {
 				ft.Output.Register(&fs)
 				return fs
 			},
-			CmdMods: func(cmd *cobra.Command) {
-				cmd.SetUsageFunc(func(c *cobra.Command) error {
-					fmt.Fprintf(c.OutOrStdout(), "%s %s %s", c.Use, ft.Optional("FLAGS"), ft.Mandatory("resource ID"))
-					return nil
-				})
-			},
+			Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("FLAGS"), ft.Mandatory("resource ID")),
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
-					return "you must specify exactly 1 argument (resource ID)", nil
+					return phrases.Exactly1ArgRequired("resource ID"), nil
 				}
 				return "", nil
 			},
@@ -213,7 +215,7 @@ func create() action.Pair {
 			}
 
 			return resp.ID, "", err
-		}, nil)
+		}, scaffoldcreate.Options{})
 }
 
 func delete() action.Pair {

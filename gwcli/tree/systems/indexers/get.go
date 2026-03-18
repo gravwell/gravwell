@@ -12,6 +12,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -57,7 +58,7 @@ func get() action.Pair {
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
-					return "exactly 1 argument (name) is required", nil
+					return phrases.Exactly1ArgRequired("indexer name"), nil
 				}
 				// preliminary existence query
 				if m, err := connection.Client.GetPingStates(); err != nil {

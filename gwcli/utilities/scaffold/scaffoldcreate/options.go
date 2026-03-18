@@ -6,17 +6,15 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package ft
+package scaffoldcreate
 
-import "fmt"
+import "github.com/spf13/pflag"
 
-// This file provides standardized text for invalid arguments.
-
-// InvAtMostArgN returns text stating that at most N bare arguments are allowed.
-func InvAtMostArgN(atMost, given uint) (invalid string) {
-	argStr := "argument"
-	if atMost != 1 {
-		argStr += "s"
-	}
-	return fmt.Sprintf("at most %d %s may be specified (%d given)", atMost, argStr, given)
+type Options struct {
+	// Overrides the default "create" action name.
+	Use string
+	// Other names for this action.
+	Aliases []string
+	// Defines a function to generate a fresh flagset to bolt onto the default flags.
+	AddtlFlags func() pflag.FlagSet
 }

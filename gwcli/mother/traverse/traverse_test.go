@@ -25,7 +25,7 @@ import (
 )
 
 func TestDeriveSuggestions(t *testing.T) {
-	dummyActionFunc := func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) { return "", nil } // actually functionality is irrelevant
+	dummyActionFunc := func(_ *pflag.FlagSet) (string, tea.Cmd) { return "", nil } // actually functionality is irrelevant
 	/*
 		generate a command tree to test against:
 		root/

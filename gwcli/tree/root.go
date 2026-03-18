@@ -36,6 +36,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/dashboards"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/extractors"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/files"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/flows"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/ingest"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/kits"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/logout"
@@ -43,8 +44,10 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/tree/queries"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/query"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/resources"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/secrets"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/self"
 	systemshealth "github.com/gravwell/gravwell/v4/gwcli/tree/systems"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/templates"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -282,6 +285,7 @@ func Execute(args []string) int {
 			ingest.NewIngestAction(),
 			logout.NewAction(),
 			query.NewQueryAction(),
+			showTags(),
 		})
 	rootCmd.SilenceUsage = true
 	rootCmd.PersistentPreRunE = ppre
@@ -328,14 +332,17 @@ func Execute(args []string) int {
 		alerts.NewAlertsNav,
 		extractors.NewExtractorsNav,
 		files.NewNav,
+		flows.NewNav,
 		macros.NewMacrosNav,
 		queries.NewQueriesNav,
 		kits.NewKitsNav,
 		users.NewNav,
 		dashboards.NewDashboardNav,
 		resources.NewResourcesNav,
+		secrets.NewNav,
 		self.NewSelfNav,
 		systemshealth.NewSystemsNav,
+		templates.NewNav,
 	}
 
 	var (

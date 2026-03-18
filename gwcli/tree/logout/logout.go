@@ -15,7 +15,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -27,7 +26,7 @@ func NewAction() action.Pair {
 			" login to request credentials."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(*cobra.Command, *pflag.FlagSet) (string, tea.Cmd) {
+		func(*pflag.FlagSet) (string, tea.Cmd) {
 			connection.Client.Logout()
 			connection.End()
 

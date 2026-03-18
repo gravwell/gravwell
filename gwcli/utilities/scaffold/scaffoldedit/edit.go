@@ -76,7 +76,7 @@ import (
 
 const (
 	listHeightMax  = 40 // lines
-	successStringF = "Successfully updated %v %v"
+	successStringF = "successfully updated %v %v"
 )
 
 // NewEditAction composes a usable edit action, returning its action pair.

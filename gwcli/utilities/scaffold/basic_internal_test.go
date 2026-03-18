@@ -9,10 +9,10 @@
 package scaffold
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"reflect"
-	"slices"
 	"strings"
 	"testing"
 
@@ -20,7 +20,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -76,17 +75,17 @@ func TestNonInteractive(t *testing.T) {
 		}
 
 		t.Run("use", func(t *testing.T) {
-			fn("", "short", "long", func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			fn("", "short", "long", func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				return "", nil
 			})
 		})
 		t.Run("short", func(t *testing.T) {
-			fn("use", "", "long", func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			fn("use", "", "long", func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				return "", nil
 			})
 		})
 		t.Run("long", func(t *testing.T) {
-			fn("", "short", "", func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			fn("", "short", "", func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				return "", nil
 			})
 		})
@@ -98,7 +97,7 @@ func TestNonInteractive(t *testing.T) {
 	t.Run("no options", func(t *testing.T) {
 		expectedOutput := "Hello World"
 		ba := NewBasicAction("test", "short test", "long test",
-			func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				return expectedOutput, tea.Println(expectedOutput) // basics typically should not return printlns, but we can use it for testing
 			}, BasicOptions{})
 		var (
@@ -203,24 +202,40 @@ func TestNonInteractive(t *testing.T) {
 }
 
 func TestModel(t *testing.T) {
-	t.Run("normal run, twice", func(t *testing.T) {
+	t.Run("test that options were set properly; test that the action is safe to run back to back", func(t *testing.T) {
 		pair := NewBasicAction("test", "short test", "long test",
-			func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+			func(fs *pflag.FlagSet) (string, tea.Cmd) {
 				testbool, err := fs.GetBool("testbool")
 				if err != nil {
 					panic(err)
 				}
 				s := fmt.Sprintf("testbool: %v", testbool)
 				return s, tea.Println(s) // basics typically should not return printlns, but we can use it for testing
-			}, BasicOptions{AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Bool("testbool", false, "a boolean for testing")
-				return fs
-			}, CmdMods: func(c *cobra.Command) { c.Example = "an example of " + c.Use + " command" }})
+			}, BasicOptions{
+				AddtlFlagFunc: func() pflag.FlagSet {
+					fs := pflag.FlagSet{}
+					fs.Bool("testbool", false, "a boolean for testing")
+					return fs
+				},
+				ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+					if fs.NArg() > 3 {
+						return "please provide fewer than 3 bare arguments", nil
+					} else if fs.NArg() > 0 && fs.Arg(0) == "error ahoy!" {
+						return "", errors.New("plundered an error, ye did!")
+					}
+					return "", nil
+				},
+				Usage:   "The Regent",
+				Example: "an example of test command",
+			},
+		)
 
 		// initial check options
 		if pair.Action.Example != "an example of test command" {
 			t.Fatal(ExpectedActual("an example of test command", pair.Action.Example))
+		}
+		if !strings.Contains(pair.Action.UsageString(), "The Regent") {
+			t.Error("usage (", pair.Action.UsageString(), ") does not contain the expected string (The Regent)")
 		}
 
 		var (
@@ -235,8 +250,11 @@ func TestModel(t *testing.T) {
 			t.Fatal("failed to type assert model to *basicAction")
 		}
 
-		// run it twice
+		// run it back-to-back to test that it can properly set itself over and reset after usage
+		fauxMother(t, ba, []string{"--testbool"}, false, "testbool: true")
 		fauxMother(t, ba, []string{}, false, "testbool: false")
+		fauxMother(t, ba, []string{"too", "many", "bare", "arguments"}, true, "testbool: false")
+		fauxMother(t, ba, []string{"error ahoy!"}, true, "testbool: false")
 		fauxMother(t, ba, []string{"--testbool"}, false, "testbool: true")
 
 		// check outputs
@@ -245,57 +263,6 @@ func TestModel(t *testing.T) {
 		}
 		if strOut := strings.TrimSpace(sbOut.String()); strOut != "" {
 			t.Fatal(strOut)
-		}
-	})
-	t.Run("run with options, twice", func(t *testing.T) {
-		pair := NewBasicAction("test", "short test", "long test",
-			func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
-				testbool, err := fs.GetBool("testbool")
-				if err != nil {
-					panic(err)
-				}
-				return fmt.Sprintf("testbool: %v", testbool), nil
-			}, BasicOptions{AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Bool("testbool", false, "a boolean for testing")
-				return fs
-			},
-				CmdMods: func(c *cobra.Command) {
-					c.Args = cobra.ExactArgs(2)
-				}})
-		var (
-			sbOut strings.Builder
-			sbErr strings.Builder
-		)
-		pair.Action.SetOut(&sbOut)
-		pair.Action.SetErr(&sbErr)
-
-		ba, ok := pair.Model.(*basicAction)
-		if !ok {
-			t.Fatal("failed to type assert model to *basicAction")
-		}
-
-		fauxMother(t, ba, []string{"1", "2"}, false, "testbool: false")
-		// check that outputs are empty
-		if e := strings.TrimSpace(sbErr.String()); e != "" {
-			t.Fatal(ExpectedActual("", e))
-		}
-		if o := strings.TrimSpace(sbOut.String()); o != "" {
-			t.Fatal(ExpectedActual("", o))
-		}
-
-		sbOut.Reset()
-		sbErr.Reset()
-
-		fauxMother(t, ba, []string{}, true, "")
-		t.Log("stdout (second run): ", sbOut.String())
-		t.Log("stderr (second run): ", sbErr.String())
-		// check that outputs are empty
-		if e := strings.TrimSpace(sbErr.String()); e != "" {
-			t.Fatal(ExpectedActual("", e))
-		}
-		if o := strings.TrimSpace(sbOut.String()); o != "" {
-			t.Fatal(ExpectedActual("", o))
 		}
 	})
 	t.Run("required flags", func(t *testing.T) {
@@ -328,7 +295,9 @@ func fauxMother(t *testing.T, ba *basicAction, args []string, setArgsInvalid boo
 	t.Helper()
 	{
 		inv, cmd, err := ba.SetArgs(nil, args, 80, 50)
-		if err != nil {
+		if err != nil && setArgsInvalid {
+			return
+		} else if err != nil {
 			t.Fatal(err)
 		}
 
@@ -420,13 +389,13 @@ func extractPrintLineMessageString(t *testing.T, cmd tea.Cmd) string {
 func newPairWithRequiredFlags() (pair action.Pair, aliases []string, example string) {
 	aliases, example = []string{"alias1", "alias2"}, "example"
 	return NewBasicAction("test", "short test", "long test",
-		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			// validate that the command has the expected values
-			if slices.Compare(cmd.Aliases, aliases) != 0 {
+			/*if slices.Compare(cmd.Aliases, aliases) != 0 {
 				panic(ExpectedActual(aliases, cmd.Aliases))
 			} else if cmd.Example != example {
 				panic(ExpectedActual(example, cmd.Example))
-			}
+			}*/ // TODO
 			testbool, err := fs.GetBool("testbool")
 			if err != nil {
 				panic(err)
@@ -443,9 +412,7 @@ func newPairWithRequiredFlags() (pair action.Pair, aliases []string, example str
 				return fs
 			},
 			Aliases: aliases,
-			CmdMods: func(c *cobra.Command) {
-				c.Example = example
-			},
+			Example: example,
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if nfive, err := fs.GetInt("negative-five"); err != nil {
 					return "", err

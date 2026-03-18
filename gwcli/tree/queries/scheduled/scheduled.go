@@ -141,8 +141,14 @@ const ( // field keys
 // create creates the action for creating new scheduled queries.
 func create() action.Pair {
 	fields := scaffoldcreate.Config{
-		createNameKey: scaffoldcreate.FieldName("query"),
-		createDescKey: scaffoldcreate.FieldDescription("query"),
+		createQryKey: scaffoldcreate.Field{
+			Required:      true,
+			Title:         "query",
+			Usage:         "query to schedule",
+			Type:          scaffoldcreate.Text,
+			FlagShorthand: 'q',
+			Order:         150,
+		},
 		createDurationKey: scaffoldcreate.Field{
 			Required:         true,
 			Title:            "duration",
@@ -152,11 +158,9 @@ func create() action.Pair {
 			Order:            140,
 			CustomTIFuncInit: func() textinput.Model { ti := stylesheet.NewTI("", false); ti.Placeholder = "1h2m3s4ms"; return ti },
 		},
-		createQryKey: scaffoldcreate.Field{
-			Required: true,
-			Title:    "query",
-			Order:    150,
-		},
+		createNameKey: scaffoldcreate.FieldName("query"),
+		createDescKey: scaffoldcreate.FieldDescription("query"),
+
 		createFreqKey: scaffoldcreate.Field{ // manually build so we have more control
 			Required:     true,
 			Title:        "frequency",
@@ -174,7 +178,7 @@ func create() action.Pair {
 		},
 	}
 
-	return scaffoldcreate.NewCreateAction("scheduled query", fields, createFunc, nil)
+	return scaffoldcreate.NewCreateAction("scheduled query", fields, createFunc, scaffoldcreate.Options{})
 }
 
 // driver function for scheduled create

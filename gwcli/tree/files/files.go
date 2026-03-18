@@ -8,12 +8,14 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
@@ -71,7 +73,7 @@ func list() action.Pair {
 
 func download() action.Pair {
 	return scaffold.NewBasicAction("download", "download a file", "Download a file for use locally.",
-		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			// arg length checked by the options
 			id := fs.Arg(0)
 
@@ -81,25 +83,29 @@ func download() action.Pair {
 				return err.Error(), nil
 			}
 
-			// check output
-			var out = cmd.OutOrStdout()
-			if outPath, err := fs.GetString(ft.Output.Name()); err != nil {
+			outPath, err := fs.GetString(ft.Output.Name())
+			if err != nil {
 				clilog.LogFlagFailedGet(ft.Output.Name(), err)
-			} else if outPath != "" {
-				f, err := os.Create(outPath)
-				if err != nil {
-					return err.Error(), nil
-				}
-				defer f.Close()
-				out = f
 			}
-
-			b, err := connection.Client.GetUserFile(u)
+			clilog.Writer.Info("downloading file", rfc5424.SDParam{Name: "file_UUID", Value: u.String()})
+			data, err := connection.Client.GetUserFile(u)
 			if err != nil {
 				return err.Error(), nil
 			}
-			fmt.Fprintf(out, "%s", b)
-			return "", nil // TODO what about a success message?
+			// write to file or stdout
+			if outPath != "" {
+				out, err := os.Create(outPath)
+				if err != nil {
+					return err.Error(), nil
+				}
+				defer out.Close()
+				n, err := out.WriteString(string(data))
+				if err != nil {
+					return err.Error(), nil
+				}
+				return phrases.SuccessfullyWroteToFile(n, outPath), nil
+			}
+			return string(data), nil
 		}, scaffold.BasicOptions{
 			AddtlFlagFunc: func() pflag.FlagSet {
 				var fs pflag.FlagSet
@@ -147,7 +153,7 @@ func create() action.Pair {
 
 			id, err = connection.Client.AddUserFileDetails(m, path)
 			return
-		}, nil)
+		}, scaffoldcreate.Options{})
 }
 
 func edit() action.Pair {

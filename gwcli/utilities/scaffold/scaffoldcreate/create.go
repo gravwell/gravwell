@@ -111,7 +111,7 @@ type CreateFuncT func(cfg Config, fieldValues map[string]string, fs *pflag.FlagS
 // what function to pass the populated fields to in order to actually *create* the thing (in the form of a CreateFunc).
 //
 // Singular is the singular version of the noun you are creating. Ex: "macro", "resource", "query".
-func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, extraFlagsFunc func() pflag.FlagSet) action.Pair {
+func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, opts Options) action.Pair {
 	// nil check singular
 	if singular == "" {
 		clilog.Writer.Error("singular noun cannot be empty. Defaulting to \"UNKNOWN\"", scaffold.IdentifyCaller())
@@ -120,8 +120,8 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, ext
 
 	// pull flags from provided fields
 	var flags = installFlagsFromFields(fields)
-	if extraFlagsFunc != nil {
-		afs := extraFlagsFunc()
+	if opts.AddtlFlags != nil {
+		afs := opts.AddtlFlags()
 		flags.AddFlagSet(&afs)
 	}
 
@@ -173,14 +173,22 @@ func NewCreateAction(singular string, fields Config, createFunc CreateFuncT, ext
 				fmt.Fprintln(c.OutOrStdout(), inv)
 				return
 			} else {
-				fmt.Fprintf(c.OutOrStdout(), "Successfully created %v (ID: %v).", singular, id)
+				fmt.Fprintf(c.OutOrStdout(), createdSuccessfully, singular, id)
 			}
 		}, treeutils.GenerateActionOptions{Usage: strings.Join(requiredFlags, " ")})
+
+	// apply options
+	if opts.Use != "" {
+		cmd.Use = opts.Use
+	}
+	if len(opts.Aliases) > 0 {
+		cmd.Aliases = opts.Aliases
+	}
 
 	// attach mined flags to cmd
 	cmd.Flags().AddFlagSet(&flags)
 
-	return action.NewPair(cmd, newCreateModel(fields, singular, createFunc, extraFlagsFunc))
+	return action.NewPair(cmd, newCreateModel(fields, singular, createFunc, opts))
 }
 
 //#region interactive mode (model) implementation
@@ -234,7 +242,7 @@ func (c *createModel) SubmitSelected() bool {
 }
 
 // Creates and returns a create Model, ready for interactive usage via Mother.
-func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addtlFlagFunc func() pflag.FlagSet) *createModel {
+func newCreateModel(fields Config, singular string, createFunc CreateFuncT, opts Options) *createModel {
 	c := &createModel{
 		mode:     inputting,
 		width:    defaultWidth,
@@ -248,7 +256,7 @@ func newCreateModel(fields Config, singular string, createFunc CreateFuncT, addt
 			TIs:  map[string]*textinput.Model{},
 			PTIs: map[string]*pathtextinput.Model{},
 		},
-		addtlFlagFunc: addtlFlagFunc,
+		addtlFlagFunc: opts.AddtlFlags,
 		cf:            createFunc,
 	}
 
@@ -620,7 +628,7 @@ func (c *createModel) Reset() error {
 	return nil
 }
 
-func (c *createModel) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
+func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
 	if err := c.fs.Parse(tokens); err != nil {
 		return err.Error(), nil, nil

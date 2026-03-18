@@ -49,7 +49,7 @@ func create() action.Pair {
 			err = connection.Client.AddGroup(fieldValues["name"], fieldValues["desc"])
 			// use name as id
 			return fieldValues["name"], "", err
-		}, nil)
+		}, scaffoldcreate.Options{})
 }
 
 // TODO this probably requires a custom action to ensure it is as usable as possible

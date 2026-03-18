@@ -22,7 +22,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/utils/weave"
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -40,7 +39,7 @@ func MyInfo() action.Pair {
 		long  string = "Displays your account's information and capabilities."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(_ *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			// check for refresh
 			if refresh, err := fs.GetBool("refresh"); err != nil {
 				clilog.LogFlagFailedGet("refresh", err)

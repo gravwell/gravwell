@@ -2,13 +2,10 @@
 package self
 
 import (
-	"fmt"
-
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
-	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -44,7 +41,7 @@ func admin() action.Pair {
 			"Admin mode does not persist between sessions."
 	)
 	return scaffold.NewBasicAction(use, short, long,
-		func(_ *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) {
+		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			isAdministrator, err := connection.Client.IsAdmin()
 			if err != nil {
 				return "failed to fetch administrator status: " + err.Error(), nil
@@ -78,16 +75,6 @@ func admin() action.Pair {
 				fs := pflag.FlagSet{}
 				fs.BoolP("toggle", "t", false, "toggle your admin status")
 				return fs
-			},
-			CmdMods: func(c *cobra.Command) {
-				// NOTE(rlandau): admin mode is hidden by default, as it is currently only effectual while Mother is running.
-				// Mother.Spawn reveals the command
-				c.Hidden = true
-
-				c.SetUsageFunc(func(c *cobra.Command) error {
-					fmt.Fprint(c.OutOrStdout(), use+" "+ft.Optional("-t"))
-					return nil
-				})
 			},
 		})
 }

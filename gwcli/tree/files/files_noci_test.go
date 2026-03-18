@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Pallinder/go-randomdata"
 	"github.com/google/uuid"
@@ -71,6 +72,7 @@ func TestCreateEditDownload(t *testing.T) {
 	if !testsupport.SlicesUnorderedEqual(lbls, []string{""}) { // we did not provide any labels, so split should return a single, empty element
 		t.Error("assigned labels do not match given labels", testsupport.ExpectedActual([]string{}, lbls))
 	}
+	t.Logf("found new file with %v", fileID)
 
 	// check that we can alter one of the properties
 	{
@@ -92,14 +94,28 @@ func TestCreateEditDownload(t *testing.T) {
 		}
 	}
 
+	// check for the altered file
+	fileID, desc, lbls = listForItem(t, fileName, fileSize)
+	// validate
+	if desc != fileDesc { // should not have changed
+		t.Error("retrieved incorrect description", testsupport.ExpectedActual(fileDesc, desc))
+	}
+	if !testsupport.SlicesUnorderedEqual(lbls, []string{"lbl1", "lbl2", "thirdthing"}) { // we did not provide any labels, so split should return a single, empty element
+		t.Error("assigned labels do not match given labels", testsupport.ExpectedActual([]string{}, lbls))
+	}
+	t.Logf("found edited file with %v", fileID)
+
+	time.Sleep(1 * time.Second)
+
 	// redownload the file
 	{
-		resultPath := filePath + ".redown.txt"
-		t.Logf("downloading file %v", fileID)
-		// execute spins up singletons for us
-		if ec := tree.Execute(append(meta, []string{"files", "download",
+		resultPath := path.Join(tDir, "redown.txt")
+		args := append(meta, []string{"files", "download",
 			"-o", resultPath,
-			fileID.String()}...)); ec != 0 {
+			fileID.String()}...)
+		t.Logf("downloading file (ID: %v) via '%v'", fileID, args)
+		// execute spins up singletons for us
+		if ec := tree.Execute(args); ec != 0 {
 			t.Error("bad error code: ", ec)
 		}
 		// check the file
