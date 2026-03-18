@@ -233,6 +233,7 @@ jobs:
         go build -o /dev/null ./ingesters/Shodan
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
+        go build -o /dev/null ./ingesters/hosted/runner
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
@@ -254,7 +255,6 @@ jobs:
         /bin/bash ./ingesters/test/build.sh ./ingesters/SimpleRelay ingesters/test/configs/simple_relay.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/O365Ingester ingesters/test/configs/o365_ingest.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/PacketFleet ingesters/test/configs/packet_fleet.conf
-        /bin/bash ./ingesters/test/build.sh ./ingesters/hosted/runner ingesters/test/configs/hosted_ingester.conf
 
     - name: Final status
       run: echo "Status is ${{ job.status }} 🚀"
