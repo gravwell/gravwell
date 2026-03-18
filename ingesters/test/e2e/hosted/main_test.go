@@ -14,6 +14,9 @@ func TestMain(m *testing.M) {
 	if err := exec.Command("docker", "pull", "golang:latest").Run(); err != nil {
 		panic(err)
 	}
+	if err := exec.Command("docker", "pull", "busybox:latest").Run(); err != nil {
+		panic(err)
+	}
 
 	m.Run()
 
