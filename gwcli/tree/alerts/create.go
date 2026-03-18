@@ -10,12 +10,15 @@ package alerts
 
 import (
 	"fmt"
+	"strconv"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -36,45 +39,85 @@ func create() action.Pair {
 				fmt.Fprintln(c.OutOrStdout(), inv)
 				return
 			}
-			// --dispatchers and --consumers are both required in non-interactive mode.
-			// Because they are not required in interactive move, we must validate them here, now.
+			flagVals, inv := readFlags(c.Flags())
+			if inv != "" {
+				fmt.Fprintln(c.OutOrStdout(), inv)
+				return
+			}
 
-			// pull data from flags
-			var dispatcherIDs, consumerIDs []string
-			{
-				var err error
-				dispatcherIDs, err = c.Flags().GetStringSlice("dispatchers")
-				if err != nil {
-					clilog.LogFlagFailedGet("dispatchers", err)
-				}
-				if len(dispatcherIDs) < 1 {
-					fmt.Fprintln(c.OutOrStdout(), "--dispatchers is required in non-interactive mode")
+			// because no flags are required in interactive mode, we have to handle all flag validation here
+			if len(flagVals.dispatcherIDs) < 1 {
+				fmt.Fprintln(c.ErrOrStderr(), "--dispatchers is required in non-interactive mode")
+				return
+			}
+			// validate that all given IDs are known and transmute the IDs
+			var dispatchers = make([]types.AlertDispatcher, len(flagVals.dispatcherIDs))
+			for i, ID := range flagVals.dispatcherIDs {
+				_, found := availDispatchers[ID]
+				if !found {
+					fmt.Fprintln(c.ErrOrStderr(), ID, "is not a known scheduled search")
 					return
 				}
-				// validate that all given IDs are known
-				for _, ID := range dispatcherIDs {
+				dispatchers[i] = types.AlertDispatcher{
+					ID:   strconv.FormatInt(int64(ID), 10),
+					Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH,
 				}
 			}
-			{
-				var err error
-				consumerIDs, err = c.Flags().GetStringSlice("consumers")
-				if err != nil {
-					clilog.LogFlagFailedGet("consumers", err)
+			var consumers = make([]types.AlertConsumer, len(flagVals.consumerIDs))
+			for i, ID := range flagVals.consumerIDs {
+				if _, found := availConsumers[ID]; !found {
+					fmt.Fprintln(c.ErrOrStderr(), ID, "is not a known flow")
+					return
 				}
-				if len(consumerIDs) < 1 {
-					fmt.Fprintln(c.OutOrStdout(), "--consumers is required in non-interactive mode")
+				consumers[i] = types.AlertConsumer{
+					ID:   strconv.FormatInt(int64(ID), 10),
+					Type: types.ALERTCONSUMERTYPE_FLOW,
 				}
-				// validate that all given IDs are known
+			}
 
+			var ad = types.AlertDefinition{
+				Name:        flagVals.name,
+				Description: flagVals.description,
+				TargetTag:   flagVals.tag,
+				UID:         connection.CurrentUser().ID,
+
+				Consumers:          consumers,
+				Dispatchers:        dispatchers,
+				Disabled:           !flagVals.enabled,
+				MaxEvents:          flagVals.maxEvents,
+				SaveSearchDuration: flagVals.retain,
 			}
+			res, err := connection.Client.NewAlert(ad)
+			if err != nil {
+				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), "failed to create alert: "+err.Error()+"\n")
+				return
+			}
+			fmt.Fprintf(c.OutOrStdout(), "successfully created alert (ID: %s)\n", res.ThingUUID.String())
 		},
-		treeutils.GenerateActionOptions{})
+		treeutils.GenerateActionOptions{
+			Usage: fmt.Sprint("--name=", ft.Mandatory("name"),
+				" --tag=", ft.Mandatory("tag"),
+				" --dispatchers=", ft.Mandatory("ScheduledSearchID1,ID2,ID3,..."),
+				" --consumers=", ft.Mandatory("FlowID1,ID2,ID3,...")),
+		})
 
-	// attach flags
+	// attach mandatory flags
 	cmd.Flags().StringSlice("dispatchers", nil, "Comma-separated list of IDs of scheduled searches to use as dispatchers.\n"+
-		"Use `queries scheduled list` to view all available scheduled queries.")
+		"Use `queries scheduled list` to view all available scheduled queries")
 	cmd.Flags().StringSlice("consumers", nil, "Comma-separated list of IDs of flows to use as consumers.\n"+
-		"Use `flows list` to view all available flows.")
+		"Use `flows list` to view all available flows")
+	ft.Name.Register(cmd.Flags(), "alert")
+	cmd.Flags().String("tag", "", "The tag to which alerts of this type will be ingested")
+	// attach optional flags
+	ft.Description.Register(cmd.Flags(), "alert")
+	cmd.Flags().Bool("enable", false, "Enable the new alert immediately")
+	cmd.Flags().Int("max-events", 16, "Maximum number of events to process for a single alert.\n"+
+		"See https://docs.gravwell.io/alerts/alerts.html#max-events")
+	cmd.Flags().Int32("retain", 0,
+		"Time (in seconds) to retain any search that dispatches this alert.\n"+
+			"These searches will be saved as Persistent Searches and retained for the specified duration.\n"+
+			"After that time, these Persistent Searches will be automatically deleted.")
+
 	return action.NewPair(cmd, newCreateModel())
 }
 
@@ -110,6 +153,71 @@ func prerequisites() (availDispatchers map[int32]types.ScheduledSearch, availCon
 	return availDispatchers, availConsumers, "", nil
 }
 
+type alertFlags struct {
+	name          string
+	description   string
+	dispatcherIDs []int32
+	consumerIDs   []int32
+	tag           string
+	maxEvents     int
+	enabled       bool
+	retain        int32
+}
+
+// readFlags corrals data from flags.
+// The data is only validated in so far as it is type-cast.
+// Returns the first error it encounters.
+func readFlags(fs *pflag.FlagSet) (vals alertFlags, firstInvalid string) {
+	var err error
+	if vals.name, err = fs.GetString(ft.Name.Name()); err != nil {
+		clilog.LogFlagFailedGet(ft.Name.Name(), err)
+	}
+	if vals.description, err = fs.GetString(ft.Description.Name()); err != nil {
+		clilog.LogFlagFailedGet(ft.Description.Name(), err)
+	}
+	if vals.tag, err = fs.GetString("tag"); err != nil {
+		clilog.LogFlagFailedGet("tag", err)
+	}
+	if vals.maxEvents, err = fs.GetInt("max-events"); err != nil {
+		clilog.LogFlagFailedGet("max-events", err)
+	}
+	if vals.enabled, err = fs.GetBool("enable"); err != nil {
+		clilog.LogFlagFailedGet("enable", err)
+	}
+	if vals.retain, err = fs.GetInt32("retain"); err != nil {
+		clilog.LogFlagFailedGet("retain", err)
+	}
+	{
+		dispatchers, err := fs.GetStringSlice("dispatchers")
+		if err != nil {
+			clilog.LogFlagFailedGet("dispatchers", err)
+		}
+		vals.dispatcherIDs = make([]int32, len(dispatchers))
+		for i, dsp := range dispatchers {
+			id, err := strconv.ParseInt(dsp, 10, 32)
+			if err != nil {
+				return vals, fmt.Sprintf("failed to parse '%s' as a int32 dispatcher ID", dsp)
+			}
+			vals.dispatcherIDs[i] = int32(id)
+		}
+	}
+	{
+		consumers, err := fs.GetStringSlice("consumers")
+		if err != nil {
+			clilog.LogFlagFailedGet("consumers", err)
+		}
+		vals.consumerIDs = make([]int32, len(consumers))
+		for i, cns := range consumers {
+			id, err := strconv.ParseInt(cns, 10, 32)
+			if err != nil {
+				return vals, fmt.Sprintf("failed to parse '%s' as a int32 consumer ID", cns)
+			}
+			vals.consumerIDs[i] = int32(id)
+		}
+	}
+	return vals, ""
+}
+
 type createModel struct{}
 
 func newCreateModel() *createModel {
@@ -126,7 +234,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 }
 
 func (c *createModel) View() string {
-	return "interactivity not yet implemented"
+	return ""
 }
 
 func (c *createModel) Done() bool {
@@ -138,5 +246,5 @@ func (c *createModel) Reset() error {
 }
 
 func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
-	return "", nil, nil
+	return "", stylesheet.ErrPrintf("interactivity not yet implemented"), nil
 }

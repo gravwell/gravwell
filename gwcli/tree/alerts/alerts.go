@@ -42,6 +42,7 @@ func NewAlertsNav() *cobra.Command {
 			list(),
 			toggle(),
 			delete(),
+			create(),
 		})
 }
 
