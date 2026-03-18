@@ -4,7 +4,7 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/gravwell/gravwell/v3/ingesters/test/e2e"
+	"gravwell/e2e"
 )
 
 func TestMain(m *testing.M) {

@@ -4,30 +4,31 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/gravwell/gravwell/v3/ingesters/test/e2e"
+	"gravwell/e2e"
+
 	tc "github.com/testcontainers/testcontainers-go"
 )
 
 func TestTesterPlugin(t *testing.T) {
 	fetcher, err := tc.Run(t.Context(), "",
-		Ingester(t, "hosted-tester", "hosted/runner",
-			WithConfig(t, "testdata/tester.conf", "hosted_ingester.conf", DefaultConfig),
+		e2e.Ingester(t, "hosted-tester", "hosted/runner",
+			e2e.WithConfig(t, "testdata/tester.conf", "hosted_ingester.conf", e2e.DefaultConfig),
 		)...,
 	)
 	t.Cleanup(func() {
-		SaveTestFiles(t, fetcher, Log, []string{
+		e2e.SaveTestFiles(t, fetcher, e2e.Log, []string{
 			"/opt/gravwell/log/hosted_ingesters.log",
 		})
-		Terminate(t, fetcher)
+		e2e.Terminate(t, fetcher)
 	})
 	if err != nil {
-		Fatal(t, err)
+		e2e.Fatal(t, err)
 	}
 
 	time.Sleep(10 * time.Second)
 
-	c := GetClient(t)
-	ent := RunSearch(t, c, "tag=test", time.Hour)
+	c := e2e.GetClient(t)
+	ent := e2e.RunSearch(t, c, "tag=test", time.Hour)
 
 	if len(ent) == 0 {
 		t.Fatal("No entries found")

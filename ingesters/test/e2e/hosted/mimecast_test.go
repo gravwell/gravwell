@@ -5,8 +5,9 @@ import (
 	"testing"
 	"time"
 
+	"gravwell/e2e"
+
 	"github.com/docker/docker/api/types/build"
-	. "github.com/gravwell/gravwell/v3/ingesters/test/e2e"
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
@@ -22,10 +23,10 @@ var (
 )
 
 func TestMimecast(t *testing.T) {
-	mockDockerfile.Context = filepath.Join(RepoRoot(), "tools/mock/mimecast")
+	mockDockerfile.Context = filepath.Join(e2e.RepoRoot(), "tools/mock/mimecast")
 
 	mock, err := tc.Run(t.Context(), "",
-		WithDefaults(t, "mimecast-mock",
+		e2e.WithDefaults(t, "mimecast-mock",
 			tc.WithDockerfile(mockDockerfile),
 			tc.WithWaitStrategy(wait.ForLog("starting server")),
 		)...,
@@ -35,28 +36,28 @@ func TestMimecast(t *testing.T) {
 	}
 
 	fetcher, err := tc.Run(t.Context(), "",
-		Ingester(t, "hosted-mimecast", "hosted/runner",
-			WithConfig(t, "testdata/mimecast.conf", "hosted_ingester.conf", DefaultConfig),
+		e2e.Ingester(t, "hosted-mimecast", "hosted/runner",
+			e2e.WithConfig(t, "testdata/mimecast.conf", "hosted_ingester.conf", e2e.DefaultConfig),
 		)...,
 	)
 	t.Cleanup(func() {
-		SaveTestFiles(t, fetcher, Log, []string{
+		e2e.SaveTestFiles(t, fetcher, e2e.Log, []string{
 			"/opt/gravwell/log/hosted_ingesters.log",
 			"/opt/gravwell/log/error.log",
 		})
-		Terminate(t, fetcher)
-		Terminate(t, mock)
+		e2e.Terminate(t, fetcher)
+		e2e.Terminate(t, mock)
 	})
 	if err != nil {
-		Fatal(t, err)
+		e2e.Fatal(t, err)
 	}
 
 	time.Sleep(5 * time.Second)
 
-	c := GetClient(t)
+	c := e2e.GetClient(t)
 	// run for the artifact, help debugging
-	_ = RunSearch(t, c, "tag=gravwell syslog Appname==mimecast", time.Hour)
-	ent := RunSearch(t, c, "tag=mimecast-audit", time.Hour)
+	_ = e2e.RunSearch(t, c, "tag=gravwell syslog Appname==mimecast", time.Hour)
+	ent := e2e.RunSearch(t, c, "tag=mimecast-audit", time.Hour)
 
 	if len(ent) == 0 {
 		t.Fatal("No entries found")

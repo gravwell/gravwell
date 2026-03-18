@@ -6,7 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingesters/test/e2e"
+	"gravwell/e2e"
+
 	tc "github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
