@@ -469,7 +469,7 @@ func importUpload() action.Pair {
 						Name:  warn.Name,
 						Value: fmt.Sprint(warn.Err),
 					}
-					sb.WriteString(stylesheet.Cur.ErrorText.Render(fmt.Sprintf("Warning: %v: %v"+warn.Name, warn.Err)) + "\n")
+					sb.WriteString(stylesheet.Cur.ErrorText.Render(fmt.Sprintf("Warning: %v: %v", warn.Name, warn.Err)) + "\n")
 				}
 
 				clilog.Writer.Warn("extractor update caused warnings", params...)
@@ -484,6 +484,6 @@ func importUpload() action.Pair {
 				}
 				return "", nil
 			},
-			Usage: "upload " + ft.Mandatory("path/to/file.toml"),
+			Usage: "import " + ft.Mandatory("path/to/file.toml"),
 		})
 }

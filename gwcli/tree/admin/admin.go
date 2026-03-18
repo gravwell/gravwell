@@ -51,13 +51,15 @@ var targets = map[string]func() error{
 
 // clean up is responsible for calling all specified cleanup functions, thus purging the respective type/resource/asset/entity
 func cleanup() action.Pair {
+	targetsHelp := slices.Collect(maps.Keys(targets))
+	slices.Sort(targetsHelp)
 	return scaffold.NewBasicAction(
 		"cleanup",
 		"purges deleted items from the system",
 		"Purges deleted items of the given type, rendered them unable to be restored.\n"+
 			"Available targets:\n"+
 			"all\n"+
-			strings.Join(slices.Collect(maps.Keys(targets)), "\n"),
+			strings.Join(targetsHelp, "\n"),
 		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			// compact the list of items to clean so we don't make duplicate m
 			var (
@@ -83,6 +85,7 @@ func cleanup() action.Pair {
 
 			// validate all cleanups before calling *any*
 			requested := slices.Collect(maps.Keys(m))
+			slices.Sort(requested)
 			invalid := []string{}
 			for _, req := range requested {
 				if _, found := targets[req]; !found {
@@ -97,7 +100,7 @@ func cleanup() action.Pair {
 		},
 		scaffold.BasicOptions{
 			Aliases: []string{"clean", "tidy", "purge", "burninate"},
-			Usage:   fmt.Sprintf("cleanup %v %v ...", ft.Mandatory("TARGET1"), ft.Mandatory("TARGET2")),
+			Usage:   fmt.Sprintf("cleanup %v %v ...", ft.Mandatory("TARGET1"), ft.Optional("TARGET2")),
 			Example: "cleanup macros secrets",
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {

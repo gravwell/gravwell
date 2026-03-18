@@ -243,7 +243,7 @@ func importCreate() action.Pair {
 }
 
 func download() action.Pair {
-	return scaffold.NewBasicAction("download", "download the JSOn representation of a flow",
+	return scaffold.NewBasicAction("download", "download the JSON representation of a flow",
 		"Download a flow as JSON so it can be re-imported later. Flows can be specified by ID or GUID.\n"+
 			"Prints to STDOUT unless -o is specified.",
 		func(fs *pflag.FlagSet) (output string, addtlCmds tea.Cmd) {

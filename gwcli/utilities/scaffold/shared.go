@@ -103,11 +103,11 @@ func IdentifyCaller() rfc5424.SDParam {
 	frames := runtime.CallersFrames(callers[:count])
 	for {
 		frame, more := frames.Next()
-		if !more {
-			break
-		}
 		// skip scaffoldcreate frames
 		if strings.Contains(frame.File, "scaffold") {
+			if !more {
+				break
+			}
 			continue
 		}
 		// trim the paths to just the function and line

@@ -125,7 +125,8 @@ func download() action.Pair {
 			if err != nil {
 				return err.Error(), nil
 			}
-			if outPath != "" { // spit to standard out
+			// write to file or stdout
+			if outPath != "" {
 				out, err := os.Create(outPath)
 				if err != nil {
 					return err.Error(), nil
@@ -137,7 +138,6 @@ func download() action.Pair {
 				}
 				return phrases.SuccessfullyWroteToFile(n, outPath), nil
 			}
-			// spit to terminal
 			return string(data), nil
 		},
 		scaffold.BasicOptions{

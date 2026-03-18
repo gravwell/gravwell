@@ -136,7 +136,7 @@ func create() action.Pair {
 }
 
 func delete() action.Pair {
-	return scaffolddelete.NewDeleteAction("secret", "secret",
+	return scaffolddelete.NewDeleteAction("secret", "secrets",
 		func(dryrun bool, id string) error {
 			if dryrun {
 				_, err := connection.Client.GetSecret(id)
