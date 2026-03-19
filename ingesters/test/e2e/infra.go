@@ -161,6 +161,22 @@ func Start() {
 	}
 }
 
+// Debug can be used right before a breakpoint to log the instance url for direct access.
+// Without the breakpoint the instance will be torn down when the test is complete.
+// The test should be run with -v in order for the output to not be buffered.
+func Debug(t *testing.T) {
+	mtx.RLock()
+	defer mtx.RUnlock()
+	if instance == nil {
+		return
+	}
+	url, err := instance.PortEndpoint(t.Context(), "80/tcp", "http")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println("instance url:", url)
+}
+
 // Cleanup tears down the Gravwell instance and Docker network created by Start.
 func Cleanup() {
 	mtx.Lock()
