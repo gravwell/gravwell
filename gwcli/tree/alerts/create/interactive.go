@@ -1,9 +1,13 @@
 package alertscreate
 
 import (
+	"strconv"
+	"time"
+
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
@@ -55,7 +59,73 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	case stageConsumers:
 		c.consumersModel, cmd = c.consumersModel.Update(msg)
 	case stageMetadata:
-		cmd = c.metadata.Update()
+		var trySubmit bool
+		cmd, trySubmit = c.metadata.Update(msg)
+		if trySubmit {
+			// coalesce all of our data into an alert definition
+			var maxEvents int
+			if str := c.metadata.maxEvents.Value(); str != "" {
+				me, err := strconv.ParseInt(str, 10, 32)
+				if err != nil {
+					c.metadata.submitErr = err.Error()
+					return nil
+				}
+				maxEvents = int(me)
+			}
+			var retainSeconds int
+			if str := c.metadata.retain.Value(); str != "" {
+				r, err := time.ParseDuration(str)
+				if err != nil {
+					c.metadata.submitErr = err.Error()
+					return nil
+				}
+				retainSeconds = int(r.Seconds())
+			}
+
+			dispatchers := []types.AlertDispatcher{}
+			for _, li := range c.stageDispatchers.m.Items() {
+				dsp, ok := li.(item)
+				if !ok {
+					clilog.Writer.Errorf("failed to cast dispatcher from item. Bare item: %v", li)
+					continue
+				}
+				if dsp.Selected {
+					dispatchers = append(dispatchers, types.AlertDispatcher{ID: dsp.GUID.String(), Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
+				}
+			}
+			consumers := []types.AlertConsumer{}
+			for _, li := range c.consumersModel.Items() {
+				cns, ok := li.(item)
+				if !ok {
+					clilog.Writer.Errorf("failed to cast consumer from item. Bare item: %v", li)
+					continue
+				}
+				if cns.Selected {
+					consumers = append(consumers, types.AlertConsumer{ID: cns.GUID.String(), Type: types.ALERTCONSUMERTYPE_FLOW})
+				}
+			}
+			ad := types.AlertDefinition{
+				Name:               c.metadata.name.Value(),
+				Description:        c.metadata.description.Value(),
+				TargetTag:          c.metadata.tag.Value(),
+				Disabled:           !c.metadata.enable,
+				MaxEvents:          int(maxEvents),
+				SaveSearchDuration: int32(retainSeconds),
+				SaveSearchEnabled:  retainSeconds != 0,
+
+				Dispatchers: dispatchers,
+				Consumers:   consumers,
+			}
+
+			// try to submit
+			res, err := connection.Client.NewAlert(ad)
+			if err != nil {
+				c.metadata.submitErr = err.Error()
+				return nil
+			}
+
+			return tea.Println(phrases.SuccessfullyCreatedItem("alert", res.GUID.String()))
+		}
 	case quitting:
 		return nil
 	}
