@@ -57,10 +57,11 @@ func create() action.Pair {
 			fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem("alert", res.ThingUUID.String()))
 		},
 		treeutils.GenerateActionOptions{
-			Usage: fmt.Sprint("--name=", ft.Mandatory("name"),
-				" --tag=", ft.Optional("tag"),
-				" --dispatchers=", ft.Mandatory("ScheduledSearchID1,ID2,ID3,..."),
-				" --consumers=", ft.Mandatory("FlowGUID1,GUID2,...")),
+			Usage: ft.Mandatory("--name=NAME") + ft.Optional("FLAGS"),
+			Example: "--name=myalert" +
+				" --tag=investigation" +
+				" --dispatchers=39350375-4f73-44c3-bc15-e844009a5fa6,61f75c57-2324-4dae-9b65-73430fd0363f" +
+				" --consumers=00ec2858-93ff-44f8-ab87-97c0a0346578" + " --enable",
 		})
 
 	cmd.Flags().AddFlagSet(createFlagSet())
@@ -105,12 +106,12 @@ func prerequisites() (availDispatchers map[uuid.UUID]types.ScheduledSearch, avai
 func createFlagSet() *pflag.FlagSet {
 	fs := &pflag.FlagSet{}
 	// attach mandatory flags
+	ft.Name.Register(fs, "alert")
+	// attach optional flags
 	fs.StringSlice("dispatchers", nil, "Comma-separated list of IDs of scheduled searches to use as dispatchers.\n"+
 		"Use `queries scheduled list` to view all available scheduled queries")
 	fs.StringSlice("consumers", nil, "Comma-separated list of IDs of flows to use as consumers.\n"+
 		"Use `flows list` to view all available flows")
-	ft.Name.Register(fs, "alert")
-	// attach optional flags
 	ft.Description.Register(fs, "alert")
 	fs.String("tag", "_alerts", "The tag to which alerts of this type will be ingested")
 	fs.Bool("enable", false, "Enable the new alert immediately")
@@ -126,10 +127,11 @@ func createFlagSet() *pflag.FlagSet {
 // validateFlagValues validates the given state, returning on the first invalidity found.
 // If no invalidities are found, returns an alert definition suitable for NewAlert().
 func validateFlagValues(availableConsumers, availableDispatchers map[uuid.UUID]types.ScheduledSearch, flagVals alertFlags) (invalid string, alert types.AlertDefinition) {
-	// because no flags are required in interactive mode, we have to handle all flag validation here
-	if len(flagVals.dispatcherIDs) < 1 {
-		return "--dispatchers is required in non-interactive mode", types.AlertDefinition{}
+	// check that mandatory flags have values
+	if flagVals.name == "" {
+		return "you must provide a name for the new alert", types.AlertDefinition{}
 	}
+
 	// validate that all given IDs are known and transmute the IDs
 	dispatchers := make([]types.AlertDispatcher, len(flagVals.dispatcherIDs))
 	for i, GUID := range flagVals.dispatcherIDs {
