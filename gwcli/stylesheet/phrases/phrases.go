@@ -40,3 +40,10 @@ func Exactly1ArgRequired(argName string) string {
 func InteractivityNYI() tea.Cmd {
 	return stylesheet.ErrPrintf("interactivity not yet implemented")
 }
+
+// SuccessfullyCreatedItem states that an item of type itemSingular was created and can be identified with ID.
+//
+// Example: "alert", 1 -> "successfully created alert (ID: 1)".
+func SuccessfullyCreatedItem(itemSingular string, ID string) string {
+	return "successfully created " + itemSingular + " (ID: " + ID + ")"
+}
