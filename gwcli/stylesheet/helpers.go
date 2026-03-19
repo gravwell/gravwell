@@ -210,3 +210,13 @@ func SegmentedBorder(borderStyle lipgloss.Style, width int, segments ...struct {
 	// wrap the contents in a border and prefix the top
 	return sb.String(), nil
 }
+
+// RequiredTitle is just a helper function to consistently attach a colon and color the given text as the primary color.
+func RequiredTitle(s string) string {
+	return Cur.PrimaryText.Render(s + ":")
+}
+
+// OptionalTitle is just a helper function to consistently attach a colon and color the given text as the secondary color.
+func OptionalTitle(s string) string {
+	return Cur.SecondaryText.Render(s + ":")
+}

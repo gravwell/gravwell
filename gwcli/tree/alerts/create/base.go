@@ -6,7 +6,8 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package alerts
+// Package alertscreate supplies the alerts nav
+package alertscreate
 
 import (
 	"fmt"
@@ -25,7 +26,7 @@ import (
 
 // This file provides the custom create action for alerts.
 
-func create() action.Pair {
+func Action() action.Pair {
 	cmd := treeutils.GenerateAction("create", "create a new alert",
 		"Create a new alert by defining the dispatchers that trigger it and the consumers that act when the alert is fired",
 		nil,

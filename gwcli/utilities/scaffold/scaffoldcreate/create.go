@@ -533,9 +533,9 @@ func (c *createModel) View() string {
 		sb.WriteString(stylesheet.Pip(c.inputs.selected, uint(i)))
 		// coloruize and attach titles
 		if field.Required {
-			sb.WriteString(stylesheet.Cur.PrimaryText.Render(field.Title + ":"))
+			sb.WriteString(stylesheet.RequiredTitle(field.Title))
 		} else {
-			sb.WriteString(stylesheet.Cur.SecondaryText.Render(field.Title + ":"))
+			sb.WriteString(stylesheet.OptionalTitle(field.Title))
 		}
 		title := rightAlignSty.Render(sb.String())
 

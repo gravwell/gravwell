@@ -136,9 +136,9 @@ func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []KeyedTI, selectedIdx uint) 
 		sb.WriteString(strings.Repeat(" ", int(max(maxFieldWidth, maxTIWidth))-len(kti.Title)) + stylesheet.Pip(selectedIdx, uint(i)))
 		// colourize and attach title
 		if kti.Required {
-			sb.WriteString(stylesheet.Cur.PrimaryText.Render(kti.Title + ":"))
+			sb.WriteString(stylesheet.RequiredTitle(kti.Title))
 		} else {
-			sb.WriteString(stylesheet.Cur.SecondaryText.Render(kti.Title + ":"))
+			sb.WriteString(stylesheet.OptionalTitle(kti.Title))
 		}
 		// render the line and right-align it
 		fields = append(fields, rightAlignSty.Render(sb.String()))
