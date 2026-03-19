@@ -11,7 +11,6 @@ package alerts
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
@@ -44,55 +43,18 @@ func create() action.Pair {
 				fmt.Fprintln(c.OutOrStdout(), inv)
 				return
 			}
-
-			// because no flags are required in interactive mode, we have to handle all flag validation here
-			if len(flagVals.dispatcherIDs) < 1 {
-				fmt.Fprintln(c.ErrOrStderr(), "--dispatchers is required in non-interactive mode")
+			inv, ad := validateFlagValues(availConsumers, availDispatchers, flagVals)
+			if inv != "" {
+				fmt.Fprintln(c.ErrOrStderr(), inv)
 				return
 			}
-			// validate that all given IDs are known and transmute the IDs
-			var dispatchers = make([]types.AlertDispatcher, len(flagVals.dispatcherIDs))
-			for i, GUID := range flagVals.dispatcherIDs {
-				_, found := availDispatchers[GUID]
-				if !found {
-					fmt.Fprintln(c.ErrOrStderr(), GUID, "is not a known scheduled search")
-					return
-				}
-				dispatchers[i] = types.AlertDispatcher{
-					ID:   GUID.String(),
-					Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH,
-				}
-			}
-			var consumers = make([]types.AlertConsumer, len(flagVals.consumerGUIDs))
-			for i, GUID := range flagVals.consumerGUIDs {
-				if _, found := availConsumers[GUID]; !found {
-					fmt.Fprintln(c.ErrOrStderr(), GUID, "is not a known flow")
-					return
-				}
-				consumers[i] = types.AlertConsumer{
-					ID:   GUID.String(),
-					Type: types.ALERTCONSUMERTYPE_FLOW,
-				}
-			}
 
-			var ad = types.AlertDefinition{
-				Name:        flagVals.name,
-				Description: flagVals.description,
-				TargetTag:   flagVals.tag,
-				UID:         connection.CurrentUser().ID,
-
-				Consumers:          consumers,
-				Dispatchers:        dispatchers,
-				Disabled:           !flagVals.enabled,
-				MaxEvents:          flagVals.maxEvents,
-				SaveSearchDuration: flagVals.retain,
-			}
 			res, err := connection.Client.NewAlert(ad)
 			if err != nil {
 				clilog.Tee(clilog.ERROR, c.ErrOrStderr(), "failed to create alert: "+err.Error()+"\n")
 				return
 			}
-			fmt.Fprintf(c.OutOrStdout(), "successfully created alert (ID: %s)\n", res.ThingUUID.String())
+			fmt.Fprint(c.OutOrStdout(), phrases.SuccessfullyCreatedItem("alert", res.ThingUUID.String()))
 		},
 		treeutils.GenerateActionOptions{
 			Usage: fmt.Sprint("--name=", ft.Mandatory("name"),
@@ -101,22 +63,7 @@ func create() action.Pair {
 				" --consumers=", ft.Mandatory("FlowGUID1,GUID2,...")),
 		})
 
-	// attach mandatory flags
-	cmd.Flags().StringSlice("dispatchers", nil, "Comma-separated list of IDs of scheduled searches to use as dispatchers.\n"+
-		"Use `queries scheduled list` to view all available scheduled queries")
-	cmd.Flags().StringSlice("consumers", nil, "Comma-separated list of IDs of flows to use as consumers.\n"+
-		"Use `flows list` to view all available flows")
-	ft.Name.Register(cmd.Flags(), "alert")
-	// attach optional flags
-	ft.Description.Register(cmd.Flags(), "alert")
-	cmd.Flags().String("tag", "_alerts", "The tag to which alerts of this type will be ingested")
-	cmd.Flags().Bool("enable", false, "Enable the new alert immediately")
-	cmd.Flags().Int("max-events", 16, "Maximum number of events to process for a single alert.\n"+
-		"See https://docs.gravwell.io/alerts/alerts.html#max-events")
-	cmd.Flags().Int32("retain", 0,
-		"Time (in seconds) to retain any search that dispatches this alert.\n"+
-			"These searches will be saved as Persistent Searches and retained for the specified duration.\n"+
-			"After that time, these Persistent Searches will be automatically deleted.")
+	cmd.Flags().AddFlagSet(createFlagSet())
 
 	return action.NewPair(cmd, newCreateModel())
 }
@@ -151,6 +98,72 @@ func prerequisites() (availDispatchers map[uuid.UUID]types.ScheduledSearch, avai
 	}
 
 	return availDispatchers, availConsumers, "", nil
+}
+
+// createFlagSet returns a fresh flagset of the flags used by this create action.
+// It should be used to ensure flags are equivalent interactive and non-interactive use.
+func createFlagSet() *pflag.FlagSet {
+	fs := &pflag.FlagSet{}
+	// attach mandatory flags
+	fs.StringSlice("dispatchers", nil, "Comma-separated list of IDs of scheduled searches to use as dispatchers.\n"+
+		"Use `queries scheduled list` to view all available scheduled queries")
+	fs.StringSlice("consumers", nil, "Comma-separated list of IDs of flows to use as consumers.\n"+
+		"Use `flows list` to view all available flows")
+	ft.Name.Register(fs, "alert")
+	// attach optional flags
+	ft.Description.Register(fs, "alert")
+	fs.String("tag", "_alerts", "The tag to which alerts of this type will be ingested")
+	fs.Bool("enable", false, "Enable the new alert immediately")
+	fs.Int("max-events", 16, "Maximum number of events to process for a single alert.\n"+
+		"See https://docs.gravwell.io/alerts/alerts.html#max-events")
+	fs.Int32("retain", 0,
+		"Time (in seconds) to retain any search that dispatches this alert.\n"+
+			"These searches will be saved as Persistent Searches and retained for the specified duration.\n"+
+			"After that time, these Persistent Searches will be automatically deleted.")
+	return fs
+}
+
+// validateFlagValues validates the given state, returning on the first invalidity found.
+// If no invalidities are found, returns an alert definition suitable for NewAlert().
+func validateFlagValues(availableConsumers, availableDispatchers map[uuid.UUID]types.ScheduledSearch, flagVals alertFlags) (invalid string, alert types.AlertDefinition) {
+	// because no flags are required in interactive mode, we have to handle all flag validation here
+	if len(flagVals.dispatcherIDs) < 1 {
+		return "--dispatchers is required in non-interactive mode", types.AlertDefinition{}
+	}
+	// validate that all given IDs are known and transmute the IDs
+	dispatchers := make([]types.AlertDispatcher, len(flagVals.dispatcherIDs))
+	for i, GUID := range flagVals.dispatcherIDs {
+		_, found := availableDispatchers[GUID]
+		if !found {
+			return GUID.String() + " is not a known scheduled search", types.AlertDefinition{}
+		}
+		dispatchers[i] = types.AlertDispatcher{
+			ID:   GUID.String(),
+			Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH,
+		}
+	}
+	consumers := make([]types.AlertConsumer, len(flagVals.consumerGUIDs))
+	for i, GUID := range flagVals.consumerGUIDs {
+		if _, found := availableConsumers[GUID]; !found {
+			return GUID.String() + " is not a known flow", types.AlertDefinition{}
+		}
+		consumers[i] = types.AlertConsumer{
+			ID:   GUID.String(),
+			Type: types.ALERTCONSUMERTYPE_FLOW,
+		}
+	}
+	return "", types.AlertDefinition{
+		Name:        flagVals.name,
+		Description: flagVals.description,
+		TargetTag:   flagVals.tag,
+		UID:         connection.CurrentUser().ID,
+
+		Consumers:          consumers,
+		Dispatchers:        dispatchers,
+		Disabled:           !flagVals.enabled,
+		MaxEvents:          flagVals.maxEvents,
+		SaveSearchDuration: flagVals.retain,
+	}
 }
 
 type alertFlags struct {
@@ -214,35 +227,4 @@ func readFlags(fs *pflag.FlagSet) (vals alertFlags, firstInvalid string) {
 		}
 	}
 	return vals, ""
-}
-
-type createModel struct{}
-
-func newCreateModel() *createModel {
-	return &createModel{}
-}
-
-// Init is unused. It just exists so we can feed createModel into teatest.
-func (c *createModel) Init() tea.Cmd {
-	return nil
-}
-
-func (c *createModel) Update(msg tea.Msg) tea.Cmd {
-	return nil
-}
-
-func (c *createModel) View() string {
-	return ""
-}
-
-func (c *createModel) Done() bool {
-	return true
-}
-
-func (c *createModel) Reset() error {
-	return nil
-}
-
-func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
-	return "", phrases.InteractivityNYI(), nil
 }
