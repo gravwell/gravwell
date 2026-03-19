@@ -45,7 +45,7 @@ func (c *createModel) Reset() error {
 	return nil
 }
 
-func (c *createModel) SetArgs(parentFS *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
+func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
 	c.availDispatchers, c.availConsumers, invalid, err = prerequisites()
 	if err != nil || invalid != "" {
 		return invalid, nil, err
