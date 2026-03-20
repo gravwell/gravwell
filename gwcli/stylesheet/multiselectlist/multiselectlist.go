@@ -74,6 +74,12 @@ func New(items []list.DefaultItem, width, height int, opts Options) Model {
 }
 
 func (msl Model) Update(msg tea.Msg) (Model, tea.Cmd) {
+	if msg, ok := msg.(tea.WindowSizeMsg); ok {
+		msl.Model.SetHeight(msg.Height)
+		msl.Model.SetWidth(msg.Width)
+		return msl, nil
+	}
+
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.Type {
 		case tea.KeySpace:
