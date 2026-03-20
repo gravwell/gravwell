@@ -20,7 +20,7 @@ import (
 
 // Model bolts additional functionality onto the list bubble such that multiple items can be selected.
 type Model struct {
-	m list.Model
+	list.Model
 
 	done bool
 
@@ -36,7 +36,7 @@ func New(items []list.DefaultItem, width, height int) Model {
 		wrapped[i] = selectableItem{item, false}
 	}
 	msl := Model{
-		m: list.New(wrapped, list.NewDefaultDelegate(), width, height),
+		Model: list.New(wrapped, list.NewDefaultDelegate(), width, height),
 	}
 	return msl
 }
@@ -52,7 +52,7 @@ func (msl Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 	}
 	var cmd tea.Cmd
-	msl.m, cmd = msl.m.Update(msg)
+	msl.Model, cmd = msl.Model.Update(msg)
 	return msl, cmd
 
 }
@@ -62,17 +62,17 @@ func (msl Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 //
 // NOTE(rlandau): This function can panic, but if it does, something has gone truly, horrifically wrong.
 func (msl *Model) SelectCurrentItem() tea.Cmd {
-	baseItem := msl.m.SelectedItem()
+	baseItem := msl.Model.SelectedItem()
 	if baseItem == nil {
 		return nil
 	}
 	li, ok := baseItem.(selectableItem)
 	if !ok {
-		panicFailedAssert(msl.m.SelectedItem())
+		panicFailedAssert(msl.Model.SelectedItem())
 	}
 	li.selected = !li.selected
 	// reinsert the item
-	cmd := msl.m.SetItem(msl.m.GlobalIndex(), li)
+	cmd := msl.Model.SetItem(msl.Model.GlobalIndex(), li)
 
 	if msl.StatusMessageOnSelect {
 		var statusMsg string
@@ -82,7 +82,7 @@ func (msl *Model) SelectCurrentItem() tea.Cmd {
 			statusMsg = "deselected"
 		}
 		statusMsg += " dispatcher " + li.Title()
-		cmd = tea.Batch(cmd, msl.m.NewStatusMessage(statusMsg))
+		cmd = tea.Batch(cmd, msl.Model.NewStatusMessage(statusMsg))
 	}
 
 	return cmd
@@ -97,7 +97,7 @@ func (msl *Model) Done() bool {
 
 // GetSelectedItems iterates through the list of all items and returns the selected ones.
 func (msl *Model) GetSelectedItems() []list.DefaultItem {
-	items := msl.m.Items()
+	items := msl.Model.Items()
 	sel := make([]list.DefaultItem, 0, len(items))
 	for _, item := range items {
 		selectable, ok := item.(selectableItem)
