@@ -208,6 +208,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 		}
 		c.dispatchersModel = multiselectlist.New(dispatchers, width, height, nil) // TODO: preselect
 		c.dispatchersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+		c.dispatchersModel.StatusMessageOnSelect = true
 	})
 
 	consumers := make([]list.DefaultItem, len(availConsumers))
@@ -221,11 +222,13 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 			}
 			i += 1
 		}
+		c.consumersModel = multiselectlist.New(consumers, width, height, nil) // TODO: preselect
+		c.dispatchersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+		c.dispatchersModel.StatusMessageOnSelect = true
 	})
 	wg.Wait()
 
-	// prepopulate data
-	c.consumersModel = multiselectlist.New(consumers, width, height, nil)
+	// prepopulate metadata
 	c.metadata.Init(flagVals.name, flagVals.description, flagVals.tag, flagVals.enabled, flagVals.maxEvents, flagVals.retain)
 	return "", nil, nil
 }
