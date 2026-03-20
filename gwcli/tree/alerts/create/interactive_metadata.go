@@ -35,10 +35,6 @@ type metadata struct {
 	submitErr string // error returned by the last submit attempt
 	selected  fieldNum
 
-	// TODO help keys
-	// tab == next input
-	// shift+tab == prior input
-
 	// required
 
 	name textinput.Model
@@ -91,6 +87,8 @@ func NewMetadata() *metadata {
 
 const titleLength = len("description") + 1 // compose titles based on the longest title +1 (additional left pad)
 
+// Init sets initial values into metadata.
+// It is safe to use metadata without Init, but good practice to call it just in case.
 func (m *metadata) Init(name, description, tag string, enable bool, maxEvents int, retainS int32) {
 	m.name.SetValue(name)
 	m.description.SetValue(description)
@@ -189,7 +187,7 @@ func (m *metadata) focusPrevious() {
 	m.toggleFocus(true)
 }
 
-// toggleFocus toggles the focus on the currently selected input (doing nothing if submit is selected).
+// toggleFocus toggles the focus on the currently selected input (doing nothing if a non-TI/TA is selected).
 // If !focus, blurs the input.
 func (m *metadata) toggleFocus(focus bool) {
 	if m.submitSelected() {
@@ -266,7 +264,7 @@ func (m *metadata) View() string {
 	sb.WriteString(stylesheet.ViewSubmitButton(m.selected == numSubmit, titleLength*2, m.inputErr, m.submitErr))
 
 	// attach faux-help
-	// TODO at some point, we should replace this with actual help
+	// TODO at some point, we should replace this with actual help and real key binds.
 	sb.WriteString("\n\n" +
 		stylesheet.Cur.DisabledText.Render(
 			"shift+"+stylesheet.UpDownSigils+": scroll • space: toggle • enter: interact"+
@@ -274,7 +272,7 @@ func (m *metadata) View() string {
 	return sb.String()
 }
 
-// helper function for View to compose a given line as <padding><pip><title>: <view>\n
+// helper function for View to compose and align a given line as <padding><pip><title>: <view>\n
 func (m *metadata) viewline(sb *strings.Builder, required bool, title string, num fieldNum, view string) {
 	left := strings.Repeat(" ", titleLength-len(title)) +
 		stylesheet.Pip(uint(m.selected), uint(num))
@@ -287,6 +285,7 @@ func (m *metadata) viewline(sb *strings.Builder, required bool, title string, nu
 	sb.WriteString(lipgloss.JoinHorizontal(lipgloss.Center, left+" ", view) + "\n")
 }
 
+// Reset junks all data in metadata, allowing it to be reused as if freshly created.
 func (m *metadata) Reset() error {
 	m.inputErr = ""
 	m.submitErr = ""
