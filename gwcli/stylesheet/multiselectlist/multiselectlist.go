@@ -137,6 +137,11 @@ func (msl *Model) Done() bool {
 	return msl.done
 }
 
+// Undone unsets the done flag without resetting the whole model.
+func (msl *Model) Undone() {
+	msl.done = false
+}
+
 // GetSelectedItems returns the list of selected items.
 //
 // Operates in O(n) time where n = len(msl.Items()).

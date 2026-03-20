@@ -128,8 +128,11 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 			return tea.Println(phrases.SuccessfullyCreatedItem("alert", res.GUID.String()))
 		} else if backToDispatchers {
 			c.stage = stageDispatchers
+			c.dispatchersModel.Undone()
+			c.consumersModel.Undone()
 		} else if backToConsumers {
 			c.stage = stageConsumers
+			c.consumersModel.Undone()
 		} else {
 			retCmd = cmd
 		}
