@@ -105,10 +105,10 @@ func (m *metadata) Update(msg tea.Msg) (_ tea.Cmd, backToDispatchers, backToCons
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		m.submitErr = "" // clear error from last create attempt
 		switch keyMsg.Type {
-		case tea.KeyShiftTab:
+		case tea.KeyShiftTab, tea.KeyShiftUp:
 			m.focusPrevious()
 			return textinput.Blink, false, false, false
-		case tea.KeyDown:
+		case tea.KeyTab, tea.KeyShiftDown:
 			m.focusNext()
 			return textinput.Blink, false, false, false
 		case tea.KeyEnter:
