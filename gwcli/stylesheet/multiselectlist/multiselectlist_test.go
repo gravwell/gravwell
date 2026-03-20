@@ -138,8 +138,7 @@ func TestModel(t *testing.T) {
                                                 
                                                 
   ↑/k up • ↓/j down • / filter • q quit • ? more
-                        
-  space select • ↲ enter`
+  space select • ↲ continue`
 		if v := msl.View(); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
@@ -171,10 +170,9 @@ func TestModel(t *testing.T) {
                                                 
                                                 
   ↑/k up • ↓/j down • / filter • q quit • ? more
-                        
-  space select • ↲ enter`
+  space select • ↲ continue`
 		if v := msl.View(); v != want {
-			t.Fatal("incorrect view", testsupport.ExpectedActual(want, v))
+			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
 	})
 	t.Run("done", func(t *testing.T) {
@@ -199,10 +197,9 @@ func TestModel(t *testing.T) {
                                                 
                                                 
   ↑/k up • ↓/j down • / filter • q quit • ? more
-                        
-  space select • ↲ enter`
+  space select • ↲ continue`
 		if v := msl.View(); v != want {
-			t.Error("incorrect view", testsupport.ExpectedActual(want, v))
+			t.Error("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
 		if !msl.Done() {
 			t.Error("expected msl to be done after sending Enter.")
