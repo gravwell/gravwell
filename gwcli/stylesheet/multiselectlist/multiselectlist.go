@@ -90,7 +90,7 @@ func (msl Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (msl Model) View() string {
-	return msl.Model.View() + "\n" + msl.Model.Styles.HelpStyle.Render("space select • ↲ continue")
+	return msl.Model.View() + "\n" + stylesheet.Cur.DisabledText.Render("space select • ↲ continue")
 }
 
 // ToggleCurrentItem does as it says on the tin.
