@@ -268,7 +268,7 @@ func (m *metadata) View() string {
 	sb.WriteString("\n\n" +
 		stylesheet.Cur.DisabledText.Render(
 			"shift+"+stylesheet.UpDownSigils+": scroll • space: toggle • enter: interact"+
-				"\ntab: cycle • esc: quit"))
+				"\nesc: quit"))
 	return sb.String()
 }
 
