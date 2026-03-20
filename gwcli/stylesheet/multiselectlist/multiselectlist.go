@@ -60,14 +60,17 @@ func New(items []list.DefaultItem, width, height int, opts Options) Model {
 	// wrap each item in our select-enabled item type
 	wrapped := make([]list.Item, len(items))
 	for i, item := range items {
-		wrapped[i] = selectableItem{item, opts.Preselected[uint(i)]}
+		f := DefaultSelectedViewFunc
+		if opts.SelectedViewFunc != nil {
+			f = opts.SelectedViewFunc
+		}
+
+		wrapped[i] = selectableItem{
+			item, opts.Preselected[uint(i)], f}
 	}
 	msl := Model{
 		Model:            list.New(wrapped, list.NewDefaultDelegate(), width, height),
 		selectedViewFunc: DefaultSelectedViewFunc,
-	}
-	if opts.SelectedViewFunc != nil {
-		msl.selectedViewFunc = DefaultSelectedViewFunc
 	}
 
 	return msl
@@ -166,7 +169,8 @@ func (msl *Model) GetSelectedItems() []list.DefaultItem {
 // selectableItem wraps a given item type, prefixing select functionality
 type selectableItem struct {
 	list.DefaultItem
-	selected bool
+	selected         bool
+	selectedViewFunc func(set bool) string
 }
 
 // FilterValue sets the string to include/disclude this item on when a user filters.
@@ -175,7 +179,7 @@ func (i selectableItem) FilterValue() string {
 }
 
 func (i selectableItem) Title() string {
-	return stylesheet.Checkbox(i.selected) + " " + i.DefaultItem.Title()
+	return i.selectedViewFunc(i.selected) + " " + i.DefaultItem.Title()
 }
 
 func (i selectableItem) Description() string {
