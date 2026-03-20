@@ -1,6 +1,7 @@
 package alertscreate
 
 import (
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -197,32 +198,43 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 
 	dispatchers := make([]list.DefaultItem, len(availDispatchers))
 	wg.Go(func() {
-		var i int
+		preselected := make(map[uint]bool, len(flagVals.dispatcherIDs))
+		var i uint
 		for _, dsp := range availDispatchers {
 			dispatchers[i] = item{
 				Name: dsp.Name,
 				Desc: dsp.Description,
 				GUID: dsp.GUID,
 			}
+			// this sucks from a time-complexity standpoint but ¯\_(ツ)_/¯
+			if slices.Contains(flagVals.dispatcherIDs, dsp.GUID) {
+				preselected[i] = true
+			}
 			i += 1
 		}
-		c.dispatchersModel = multiselectlist.New(dispatchers, width, height, nil) // TODO: preselect
+
+		c.dispatchersModel = multiselectlist.New(dispatchers, width, height, preselected)
 		c.dispatchersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 		c.dispatchersModel.StatusMessageOnSelect = true
 	})
 
 	consumers := make([]list.DefaultItem, len(availConsumers))
 	wg.Go(func() {
-		var i int
+		preselected := make(map[uint]bool, len(flagVals.consumerGUIDs))
+		var i uint
 		for _, cns := range availConsumers {
 			consumers[i] = item{
 				Name: cns.Name,
 				Desc: cns.Description,
 				GUID: cns.GUID,
 			}
+			// this sucks from a time-complexity standpoint but ¯\_(ツ)_/¯
+			if slices.Contains(flagVals.consumerGUIDs, cns.GUID) {
+				preselected[i] = true
+			}
 			i += 1
 		}
-		c.consumersModel = multiselectlist.New(consumers, width, height, nil) // TODO: preselect
+		c.consumersModel = multiselectlist.New(consumers, width, height, preselected)
 		c.dispatchersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 		c.dispatchersModel.StatusMessageOnSelect = true
 	})
