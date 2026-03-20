@@ -213,7 +213,9 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 			i += 1
 		}
 
-		c.dispatchersModel = multiselectlist.New(dispatchers, width, height, preselected)
+		c.dispatchersModel = multiselectlist.New(dispatchers, width, height, multiselectlist.Options{
+			Preselected: preselected,
+		})
 		c.dispatchersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 		c.dispatchersModel.StatusMessageOnSelect = true
 	})
@@ -234,7 +236,9 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 			}
 			i += 1
 		}
-		c.consumersModel = multiselectlist.New(consumers, width, height, preselected)
+		c.consumersModel = multiselectlist.New(consumers, width, height, multiselectlist.Options{
+			Preselected: preselected,
+		})
 		c.dispatchersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 		c.dispatchersModel.StatusMessageOnSelect = true
 	})

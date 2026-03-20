@@ -28,24 +28,44 @@ type Model struct {
 
 	// if set, Update will batch an extra tea.Cmd with a status message stating that the item was selected.
 	StatusMessageOnSelect bool
+
+	selectedViewFunc func(set bool) string
+}
+
+type Options struct {
+	// if not nil, items with matching titles will be preselected.
+	Preselected map[uint]bool
+	// sets the prefix to show whether or not an item is selected.
+	// Uses DefaultSelectedViewFunc if nil.
+	SelectedViewFunc func(set bool) string
+}
+
+// DefaultSelectedViewFunc sets the prefix if Options.SelectedViewFunc is not set.
+func DefaultSelectedViewFunc(set bool) string {
+	if set {
+		return "[✓]"
+	}
+	return "[ ]"
 }
 
 // New returns a Multi-Select enabled list with the default delegate used by list.
-//
-// If pre-selected is not nil, items with matching titles will be preselected.
-func New(items []list.DefaultItem, width, height int, preselected map[uint]bool) Model {
-	// make sure the map isn't nil
-	if preselected == nil {
-		preselected = make(map[uint]bool)
+func New(items []list.DefaultItem, width, height int, opts Options) Model {
+	// make sure the pre-selection map isn't nil
+	if opts.Preselected == nil {
+		opts.Preselected = make(map[uint]bool)
 	}
 
 	// wrap each item in our select-enabled item type
 	wrapped := make([]list.Item, len(items))
 	for i, item := range items {
-		wrapped[i] = selectableItem{item, preselected[uint(i)]}
+		wrapped[i] = selectableItem{item, opts.Preselected[uint(i)]}
 	}
 	msl := Model{
-		Model: list.New(wrapped, list.NewDefaultDelegate(), width, height),
+		Model:            list.New(wrapped, list.NewDefaultDelegate(), width, height),
+		selectedViewFunc: DefaultSelectedViewFunc,
+	}
+	if opts.SelectedViewFunc != nil {
+		msl.selectedViewFunc = DefaultSelectedViewFunc
 	}
 	return msl
 }
@@ -54,10 +74,11 @@ func (msl Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.Type {
 		case tea.KeySpace:
-			cmd := msl.SelectCurrentItem()
+			cmd := msl.ToggleCurrentItem()
 			return msl, cmd
 		case tea.KeyEnter:
 			msl.done = true
+			return msl, nil
 		}
 	}
 	var cmd tea.Cmd
@@ -66,11 +87,11 @@ func (msl Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 }
 
-// SelectCurrentItem does as it says on the tin.
+// ToggleCurrentItem does as it says on the tin.
 // If no item is selected (aka the list is empty or your cursor is off in wonderland), this is a no-op.
 //
 // NOTE(rlandau): This function can panic, but if it does, something has gone truly, horrifically wrong.
-func (msl *Model) SelectCurrentItem() tea.Cmd {
+func (msl *Model) ToggleCurrentItem() tea.Cmd {
 	baseItem := msl.Model.SelectedItem()
 	if baseItem == nil {
 		return nil
