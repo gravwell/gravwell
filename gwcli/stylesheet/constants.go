@@ -25,5 +25,6 @@ const (
 )
 
 const ( // list bubble modifiers
+	// How long should a status message appear in a list bubble
 	StatusMessageLifetime = 3 * time.Second
 )
