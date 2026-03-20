@@ -10,6 +10,7 @@ import (
 	"github.com/charmbracelet/bubbles/textarea"
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 )
@@ -97,7 +98,7 @@ func (m *metadata) Init(name, description, tag string, enable bool, maxEvents in
 	m.enable = enable
 	m.maxEvents.SetValue(strconv.FormatInt(int64(maxEvents), 10))
 	if retainS != 0 {
-	m.retain.SetValue(strconv.FormatInt(int64(retainS), 10))
+		m.retain.SetValue(strconv.FormatInt(int64(retainS), 10))
 	}
 }
 
@@ -111,11 +112,13 @@ func (m *metadata) Update(msg tea.Msg) (_ tea.Cmd, backToDispatchers, backToCons
 		case tea.KeyTab, tea.KeyShiftDown:
 			m.focusNext()
 			return textinput.Blink, false, false, false
+		case tea.KeySpace:
+			if m.selected == numEnable {
+				m.enable = !m.enable
+			}
 		case tea.KeyEnter:
 			// handle buttons and booleans
 			switch m.selected {
-			case numEnable:
-				m.enable = !m.enable
 			case numBackToDispatchers:
 				return nil, true, false, false
 			case numBackToConsumers:
@@ -249,30 +252,39 @@ func (m *metadata) View() string {
 	m.viewline(&sb, false, "Retain", numRetain, m.retain.View())
 
 	// "back to" buttons
-	sb.WriteString(stylesheet.Pip(uint(m.selected), uint(numBackToDispatchers)))
-	sb.WriteString(stylesheet.Button("back to dispatcher selection"))
+	sb.WriteString(
+		lipgloss.JoinHorizontal(lipgloss.Center,
+			stylesheet.Pip(uint(m.selected), uint(numBackToDispatchers)),
+			stylesheet.Button("back to dispatcher selection")))
 	sb.WriteRune('\n')
-	sb.WriteString(stylesheet.Pip(uint(m.selected), uint(numBackToConsumers)))
-	sb.WriteString(stylesheet.Button("back to consumer selection"))
+	sb.WriteString(
+		lipgloss.JoinHorizontal(lipgloss.Center,
+			stylesheet.Pip(uint(m.selected), uint(numBackToConsumers)),
+			stylesheet.Button("back to consumer selection")))
 	sb.WriteRune('\n')
-
-	// TODO centre align buttons relative to the fields
 
 	sb.WriteString(stylesheet.ViewSubmitButton(m.selected == numSubmit, titleLength*2, m.inputErr, m.submitErr))
 
+	// attach faux-help
+	// TODO at some point, we should replace this with actual help
+	sb.WriteString("\n\n" +
+		stylesheet.Cur.DisabledText.Render(
+			"shift+"+stylesheet.UpDownSigils+": scroll • space: toggle • enter: interact"+
+				"\ntab: cycle • esc: quit"))
 	return sb.String()
 }
 
 // helper function for View to compose a given line as <padding><pip><title>: <view>\n
 func (m *metadata) viewline(sb *strings.Builder, required bool, title string, num fieldNum, view string) {
-	sb.WriteString(strings.Repeat(" ", titleLength-len(title)) +
-		stylesheet.Pip(uint(m.selected), uint(num)))
+	left := strings.Repeat(" ", titleLength-len(title)) +
+		stylesheet.Pip(uint(m.selected), uint(num))
 	if required {
-		sb.WriteString(stylesheet.RequiredTitle(title))
+		left += stylesheet.RequiredTitle(title)
 	} else {
-		sb.WriteString(stylesheet.OptionalTitle(title))
+		left += stylesheet.OptionalTitle(title)
 	}
-	sb.WriteString(view)
+
+	sb.WriteString(lipgloss.JoinHorizontal(lipgloss.Center, left+" ", view) + "\n")
 }
 
 func (m *metadata) Reset() error {
