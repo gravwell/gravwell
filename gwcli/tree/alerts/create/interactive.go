@@ -65,7 +65,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 			c.stage = stageMetadata
 		}
 	case stageMetadata:
-		if cmd, trySubmit, backToDispatchers, backToConsumers := c.metadata.Update(msg); trySubmit {
+		if cmd, backToDispatchers, backToConsumers, trySubmit := c.metadata.Update(msg); trySubmit {
 			// coalesce all of our data into an alert definition
 			var maxEvents int
 			if str := c.metadata.maxEvents.Value(); str != "" {
