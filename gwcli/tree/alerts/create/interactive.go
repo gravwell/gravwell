@@ -12,6 +12,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/multiselectlist"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/spf13/pflag"
 )
@@ -32,8 +33,8 @@ const (
 type createModel struct {
 	// stages
 	stage            stage
-	dispatchersModel list.Model
-	consumersModel   list.Model
+	dispatchersModel multiselectlist.Model
+	consumersModel   multiselectlist.Model
 	metadata         *metadata
 }
 
@@ -53,36 +54,15 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 	var retCmd tea.Cmd
 	switch c.stage {
 	case stageDispatchers:
-		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			switch keyMsg.Type {
-			case tea.KeyEnter:
-				c.stage = stageConsumers
-				return nil
-			case tea.KeySpace:
-				li, ok := c.dispatchersModel.SelectedItem().(item)
-				if !ok {
-					clilog.Writer.Errorf("failed to cast dispatcher from item. Bare item: %v", li)
-					return nil
-				}
-				li.Selected = !li.Selected
-				// reinsert the item
-
-				cmd := c.dispatchersModel.SetItem(c.dispatchersModel.GlobalIndex(), li)
-
-				var statusMsg string
-				if li.Selected {
-					statusMsg = "selected"
-				} else {
-					statusMsg = "deselected"
-				}
-				statusMsg += " dispatcher " + li.Title()
-				return tea.Batch(cmd, c.dispatchersModel.NewStatusMessage(statusMsg))
-			}
-		}
-
 		c.dispatchersModel, retCmd = c.dispatchersModel.Update(msg)
+		if c.dispatchersModel.Done() {
+			c.stage = stageConsumers
+		}
 	case stageConsumers:
 		c.consumersModel, retCmd = c.consumersModel.Update(msg)
+		if c.consumersModel.Done() {
+			c.stage = stageMetadata
+		}
 	case stageMetadata:
 		if cmd, trySubmit, backToDispatchers, backToConsumers := c.metadata.Update(msg); trySubmit {
 			// coalesce all of our data into an alert definition
@@ -106,15 +86,13 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 			}
 
 			dispatchers := []types.AlertDispatcher{}
-			for _, li := range c.dispatchersModel.Items() {
+			for _, li := range c.dispatchersModel.GetSelectedItems() {
 				dsp, ok := li.(item)
 				if !ok {
 					clilog.Writer.Errorf("failed to cast dispatcher from item. Bare item: %v", li)
 					continue
 				}
-				if dsp.Selected {
-					dispatchers = append(dispatchers, types.AlertDispatcher{ID: dsp.GUID.String(), Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
-				}
+				dispatchers = append(dispatchers, types.AlertDispatcher{ID: dsp.GUID.String(), Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
 			}
 			consumers := []types.AlertConsumer{}
 			for _, li := range c.consumersModel.Items() {
@@ -123,9 +101,8 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 					clilog.Writer.Errorf("failed to cast consumer from item. Bare item: %v", li)
 					continue
 				}
-				if cns.Selected {
-					consumers = append(consumers, types.AlertConsumer{ID: cns.GUID.String(), Type: types.ALERTCONSUMERTYPE_FLOW})
-				}
+
+				consumers = append(consumers, types.AlertConsumer{ID: cns.GUID.String(), Type: types.ALERTCONSUMERTYPE_FLOW})
 			}
 			ad := types.AlertDefinition{
 				Name:               c.metadata.name.Value(),
@@ -185,9 +162,9 @@ func (c *createModel) Reset() error {
 
 	// empty out the structs
 
-	// list models will be rebuilt on the next SetArgs
-	c.dispatchersModel = list.Model{}
-	c.consumersModel = list.Model{}
+	// models will be rebuilt on the next SetArgs
+	c.dispatchersModel = multiselectlist.Model{}
+	c.consumersModel = multiselectlist.Model{}
 	c.metadata.Reset()
 	return nil
 }
@@ -218,41 +195,29 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 	// push dispatchers into their respective lists by wrapping each entry as an item
 	var wg sync.WaitGroup
 
-	dispatchers := make([]list.Item, len(availDispatchers))
+	dispatchers := make([]list.DefaultItem, len(availDispatchers))
 	wg.Go(func() {
-		// if the user pre-selected dispatchers, make sure they are selected in the list
-		selected := make(map[uuid.UUID]bool, len(flagVals.dispatcherIDs))
-		for _, uid := range flagVals.dispatcherIDs {
-			selected[uid] = true
-		}
 		var i int
 		for _, dsp := range availDispatchers {
 			dispatchers[i] = item{
-				Name:     dsp.Name,
-				Desc:     dsp.Description,
-				GUID:     dsp.GUID,
-				Selected: selected[dsp.GUID],
+				Name: dsp.Name,
+				Desc: dsp.Description,
+				GUID: dsp.GUID,
 			}
 			i += 1
 		}
-		c.dispatchersModel = list.New(dispatchers, list.NewDefaultDelegate(), width, height)
+		c.dispatchersModel = multiselectlist.New(dispatchers, width, height, nil) // TODO: preselect
 		c.dispatchersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
 	})
 
-	consumers := make([]list.Item, len(availConsumers))
+	consumers := make([]list.DefaultItem, len(availConsumers))
 	wg.Go(func() {
-		// if the user pre-selected dispatchers, make sure they are selected in the list
-		selected := make(map[uuid.UUID]bool, len(flagVals.consumerGUIDs))
-		for _, uid := range flagVals.consumerGUIDs {
-			selected[uid] = true
-		}
 		var i int
 		for _, cns := range availConsumers {
 			consumers[i] = item{
-				Name:     cns.Name,
-				Desc:     cns.Description,
-				GUID:     cns.GUID,
-				Selected: selected[cns.GUID],
+				Name: cns.Name,
+				Desc: cns.Description,
+				GUID: cns.GUID,
 			}
 			i += 1
 		}
@@ -260,16 +225,15 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 	wg.Wait()
 
 	// prepopulate data
-	c.consumersModel = list.New(consumers, list.NewDefaultDelegate(), width, height)
+	c.consumersModel = multiselectlist.New(consumers, width, height, nil)
 	c.metadata.Init(flagVals.name, flagVals.description, flagVals.tag, flagVals.enabled, flagVals.maxEvents, flagVals.retain)
 	return "", nil, nil
 }
 
 type item struct {
-	Name     string
-	Desc     string
-	GUID     uuid.UUID
-	Selected bool // is this item currently selected?
+	Name string
+	Desc string
+	GUID uuid.UUID
 }
 
 // FilterValue sets the string to include/disclude this item on when a user filters.
@@ -278,7 +242,7 @@ func (i item) FilterValue() string {
 }
 
 func (i item) Title() string {
-	return stylesheet.Checkbox(i.Selected) + " " + i.Name
+	return i.Name
 }
 
 func (i item) Description() string {
