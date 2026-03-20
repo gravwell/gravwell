@@ -208,26 +208,33 @@ func readFlags(fs *pflag.FlagSet) (vals alertFlags, firstInvalid string) {
 		if err != nil {
 			clilog.LogFlagFailedGet("dispatchers", err)
 		}
-		vals.dispatcherIDs = make([]uuid.UUID, len(dispatchers))
-		for i, dsp := range dispatchers {
-			vals.dispatcherIDs[i], err = uuid.Parse(dsp)
-			if err != nil {
-				return vals, fmt.Sprintf("failed to parse '%s' as a UUID dispatcher GUID", dsp)
+		if len(dispatchers) > 0 {
+			vals.dispatcherIDs = make([]uuid.UUID, len(dispatchers))
+			for i, dsp := range dispatchers {
+				vals.dispatcherIDs[i], err = uuid.Parse(dsp)
+				if err != nil {
+					return vals, fmt.Sprintf("failed to parse '%s' as a UUID dispatcher GUID", dsp)
+				}
 			}
 		}
+
 	}
 	{
 		consumers, err := fs.GetStringSlice("consumers")
 		if err != nil {
 			clilog.LogFlagFailedGet("consumers", err)
 		}
-		vals.consumerGUIDs = make([]uuid.UUID, len(consumers))
-		for i, cns := range consumers {
-			vals.consumerGUIDs[i], err = uuid.Parse(cns)
-			if err != nil {
-				return vals, fmt.Sprintf("failed to parse '%s' as UUID consumer GUID", cns)
+		if len(consumers) > 0 {
+			vals.consumerGUIDs = make([]uuid.UUID, len(consumers))
+			for i, cns := range consumers {
+				vals.consumerGUIDs[i], err = uuid.Parse(cns)
+				if err != nil {
+					return vals, fmt.Sprintf("failed to parse '%s' as UUID consumer GUID", cns)
+				}
 			}
 		}
 	}
+
+	clilog.Writer.Debugf("alert flags set: %#v", vals)
 	return vals, ""
 }
