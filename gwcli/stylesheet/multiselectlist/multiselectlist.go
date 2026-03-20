@@ -7,6 +7,8 @@
 // - Enable overriding of enter and space as the interaction keys.
 //
 // - Do not import our stylesheet; enable setting of the checkbox function/style.
+//
+// - Use a different method for pre-selection; the current method assumes titles are unique and that is a bad assumption.
 package multiselectlist
 
 import (
@@ -29,11 +31,18 @@ type Model struct {
 }
 
 // New returns a Multi-Select enabled list with the default delegate used by list.
-func New(items []list.DefaultItem, width, height int) Model {
+//
+// If pre-selected is not nil, items with matching titles will be preselected.
+func New(items []list.DefaultItem, width, height int, preselected []string) Model {
+	var presel = map[string]bool{}
+	for _, s := range preselected {
+		presel[s] = true
+	}
+
 	// wrap each item in our select-enabled item type
 	wrapped := make([]list.Item, len(items))
 	for i, item := range items {
-		wrapped[i] = selectableItem{item, false}
+		wrapped[i] = selectableItem{item, presel[item.Title()]}
 	}
 	msl := Model{
 		Model: list.New(wrapped, list.NewDefaultDelegate(), width, height),
@@ -95,7 +104,9 @@ func (msl *Model) Done() bool {
 	return msl.done
 }
 
-// GetSelectedItems iterates through the list of all items and returns the selected ones.
+// GetSelectedItems returns the list of selected items.
+//
+// Operates in O(n) time where n = len(msl.Items()).
 func (msl *Model) GetSelectedItems() []list.DefaultItem {
 	items := msl.Model.Items()
 	sel := make([]list.DefaultItem, 0, len(items))
