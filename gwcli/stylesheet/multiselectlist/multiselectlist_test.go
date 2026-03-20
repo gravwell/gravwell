@@ -137,9 +137,11 @@ func TestModel(t *testing.T) {
                                                 
                                                 
                                                 
-  ↑/k up • ↓/j down • / filter • q quit • ? more`
+  ↑/k up • ↓/j down • / filter • q quit • ? more
+                        
+  space select • ↲ enter`
 		if v := msl.View(); v != want {
-			t.Fatal("incorrect view", testsupport.ExpectedActual(want, v))
+			t.Fatal("incorrect view", testsupport.ExpectedActual(testsupport.Uncloak(want), testsupport.Uncloak(v)))
 		}
 	})
 	t.Run("toggle first and last items", func(t *testing.T) {
@@ -168,7 +170,9 @@ func TestModel(t *testing.T) {
                                                 
                                                 
                                                 
-  ↑/k up • ↓/j down • / filter • q quit • ? more`
+  ↑/k up • ↓/j down • / filter • q quit • ? more
+                        
+  space select • ↲ enter`
 		if v := msl.View(); v != want {
 			t.Fatal("incorrect view", testsupport.ExpectedActual(want, v))
 		}
@@ -194,7 +198,9 @@ func TestModel(t *testing.T) {
                                                 
                                                 
                                                 
-  ↑/k up • ↓/j down • / filter • q quit • ? more`
+  ↑/k up • ↓/j down • / filter • q quit • ? more
+                        
+  space select • ↲ enter`
 		if v := msl.View(); v != want {
 			t.Error("incorrect view", testsupport.ExpectedActual(want, v))
 		}

@@ -6,6 +6,8 @@
 //
 // - Enable overriding of enter and space as the interaction keys.
 //
+// - Properly display keys, rather than just attaching Enter and Space below View.
+//
 // - Do not import our stylesheet; enable setting of the checkbox function/style.
 //
 // - Use a different method for pre-selection; the current method assumes titles are unique and that is a bad assumption.
@@ -67,6 +69,7 @@ func New(items []list.DefaultItem, width, height int, opts Options) Model {
 	if opts.SelectedViewFunc != nil {
 		msl.selectedViewFunc = DefaultSelectedViewFunc
 	}
+
 	return msl
 }
 
@@ -84,7 +87,10 @@ func (msl Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	var cmd tea.Cmd
 	msl.Model, cmd = msl.Model.Update(msg)
 	return msl, cmd
+}
 
+func (msl Model) View() string {
+	return msl.Model.View() + "\n" + msl.Model.Styles.HelpStyle.Render("space select • ↲ enter")
 }
 
 // ToggleCurrentItem does as it says on the tin.
