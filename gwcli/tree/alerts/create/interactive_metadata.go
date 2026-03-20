@@ -91,7 +91,7 @@ const titleLength = len("description") + 1 // compose titles based on the longes
 func (m *metadata) Init(name, description, tag string, enable bool, maxEvents int, retainS int32) {
 	m.name.SetValue(name)
 	m.description.SetValue(description)
-	m.description.SetValue(tag)
+	m.tag.SetValue(tag)
 	m.enable = enable
 	m.maxEvents.SetValue(strconv.FormatInt(int64(maxEvents), 10))
 	m.retain.SetValue(strconv.FormatInt(int64(retainS), 10))
