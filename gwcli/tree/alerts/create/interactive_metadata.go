@@ -78,8 +78,10 @@ func NewMetadata() *metadata {
 		if s == "" {
 			return nil
 		}
-		if _, err := time.ParseDuration(s); err != nil {
+		if t, err := time.ParseDuration(s); err != nil {
 			return err
+		} else if t.Abs() != t {
+			return errors.New("retain time must be positive")
 		}
 		return nil
 	}
@@ -94,7 +96,9 @@ func (m *metadata) Init(name, description, tag string, enable bool, maxEvents in
 	m.tag.SetValue(tag)
 	m.enable = enable
 	m.maxEvents.SetValue(strconv.FormatInt(int64(maxEvents), 10))
+	if retainS != 0 {
 	m.retain.SetValue(strconv.FormatInt(int64(retainS), 10))
+	}
 }
 
 func (m *metadata) Update(msg tea.Msg) (_ tea.Cmd, backToDispatchers, backToConsumers, trySubmit bool) {
@@ -161,30 +165,30 @@ func (m *metadata) Update(msg tea.Msg) (_ tea.Cmd, backToDispatchers, backToCons
 
 // Blurs the current input, selects and focuses the next one c.inputs.ordered.
 func (m *metadata) focusNext() {
-	m.focusInput(false)
+	m.toggleFocus(false)
 	if m.selected == numSubmit { // jump to start
 		m.selected = 0
 	} else {
 		m.selected += 1
 	}
-	m.focusInput(true)
+	m.toggleFocus(true)
 }
 
 // Blurs the current input, selects and focuses the previous one in c.inputs.ordered.
 func (m *metadata) focusPrevious() {
-	m.focusInput(false)
+	m.toggleFocus(false)
 
 	if m.selected == 0 { // wrap to submit button
 		m.selected = numSubmit
 	} else {
 		m.selected -= 1
 	}
-	m.focusInput(true)
+	m.toggleFocus(true)
 }
 
-// focusInput toggles the focus on the currently selected input (doing nothing if submit is selected).
+// toggleFocus toggles the focus on the currently selected input (doing nothing if submit is selected).
 // If !focus, blurs the input.
-func (m *metadata) focusInput(focus bool) { // TODO rename to toggleFocus
+func (m *metadata) toggleFocus(focus bool) {
 	if m.submitSelected() {
 		return
 	}
