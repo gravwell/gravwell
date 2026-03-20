@@ -18,8 +18,8 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 )
 
-// MultiSelectList bolts additional functionality onto the list bubble such that multiple items can be selected.
-type MultiSelectList struct {
+// Model bolts additional functionality onto the list bubble such that multiple items can be selected.
+type Model struct {
 	m list.Model
 
 	done bool
@@ -29,19 +29,19 @@ type MultiSelectList struct {
 }
 
 // New returns a Multi-Select enabled list with the default delegate used by list.
-func New(items []list.DefaultItem, width, height int) MultiSelectList {
+func New(items []list.DefaultItem, width, height int) Model {
 	// wrap each item in our select-enabled item type
 	wrapped := make([]list.Item, len(items))
 	for i, item := range items {
 		wrapped[i] = selectableItem{item, false}
 	}
-	msl := MultiSelectList{
+	msl := Model{
 		m: list.New(wrapped, list.NewDefaultDelegate(), width, height),
 	}
 	return msl
 }
 
-func (msl MultiSelectList) Update(msg tea.Msg) (MultiSelectList, tea.Cmd) {
+func (msl Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		switch keyMsg.Type {
 		case tea.KeySpace:
@@ -61,7 +61,7 @@ func (msl MultiSelectList) Update(msg tea.Msg) (MultiSelectList, tea.Cmd) {
 // If no item is selected (aka the list is empty or your cursor is off in wonderland), this is a no-op.
 //
 // NOTE(rlandau): This function can panic, but if it does, something has gone truly, horrifically wrong.
-func (msl *MultiSelectList) SelectCurrentItem() tea.Cmd {
+func (msl *Model) SelectCurrentItem() tea.Cmd {
 	baseItem := msl.m.SelectedItem()
 	if baseItem == nil {
 		return nil
@@ -91,12 +91,12 @@ func (msl *MultiSelectList) SelectCurrentItem() tea.Cmd {
 
 // Done returns true once the user hits enter.
 // It should be checked after each msl.Update()
-func (msl *MultiSelectList) Done() bool {
+func (msl *Model) Done() bool {
 	return msl.done
 }
 
 // GetSelectedItems iterates through the list of all items and returns the selected ones.
-func (msl *MultiSelectList) GetSelectedItems() []list.DefaultItem {
+func (msl *Model) GetSelectedItems() []list.DefaultItem {
 	items := msl.m.Items()
 	sel := make([]list.DefaultItem, 0, len(items))
 	for _, item := range items {
