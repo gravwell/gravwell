@@ -33,16 +33,16 @@ type Model struct {
 // New returns a Multi-Select enabled list with the default delegate used by list.
 //
 // If pre-selected is not nil, items with matching titles will be preselected.
-func New(items []list.DefaultItem, width, height int, preselected []string) Model {
-	var presel = map[string]bool{}
-	for _, s := range preselected {
-		presel[s] = true
+func New(items []list.DefaultItem, width, height int, preselected map[uint]bool) Model {
+	// make sure the map isn't nil
+	if preselected == nil {
+		preselected = make(map[uint]bool)
 	}
 
 	// wrap each item in our select-enabled item type
 	wrapped := make([]list.Item, len(items))
 	for i, item := range items {
-		wrapped[i] = selectableItem{item, presel[item.Title()]}
+		wrapped[i] = selectableItem{item, preselected[uint(i)]}
 	}
 	msl := Model{
 		Model: list.New(wrapped, list.NewDefaultDelegate(), width, height),
