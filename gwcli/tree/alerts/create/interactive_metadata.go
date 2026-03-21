@@ -96,7 +96,7 @@ func (m *metadata) Init(name, description, tag string, enable bool, maxEvents in
 	m.enable = enable
 	m.maxEvents.SetValue(strconv.FormatInt(int64(maxEvents), 10))
 	if retainS != 0 {
-		m.retain.SetValue(strconv.FormatInt(int64(retainS), 10))
+		m.retain.SetValue(strconv.FormatInt(int64(retainS), 10) + "s")
 	}
 }
 
