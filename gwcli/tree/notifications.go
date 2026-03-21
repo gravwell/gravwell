@@ -20,7 +20,7 @@ func notifications() action.Pair {
 				clilog.LogFlagFailedGet("seen", err)
 			}
 			var notifs types.NotificationSet
-			if seen {
+			if !seen {
 				notifs, err = connection.Client.MyNewNotifications()
 			} else {
 				notifs, err = connection.Client.MyNotifications()
