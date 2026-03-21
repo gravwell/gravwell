@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/crewjam/rfc5424"
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
@@ -146,6 +148,11 @@ func create() action.Pair {
 				Usage:    "initial password for the user",
 				Type:     scaffoldcreate.Text,
 				Order:    140,
+				CustomTIFuncInit: func() textinput.Model {
+					ti := stylesheet.NewTI("", true)
+					ti.EchoMode = textinput.EchoPassword
+					return ti
+				},
 			},
 		},
 		func(cfg scaffoldcreate.Config, fieldValues map[string]string, fs *pflag.FlagSet) (id any, invalid string, err error) {
