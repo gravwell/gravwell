@@ -96,7 +96,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 				dispatchers = append(dispatchers, types.AlertDispatcher{ID: dsp.GUID.String(), Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
 			}
 			consumers := []types.AlertConsumer{}
-			for _, li := range c.consumersModel.Items() {
+			for _, li := range c.consumersModel.GetSelectedItems() {
 				cns, ok := li.(item)
 				if !ok {
 					clilog.Writer.Errorf("failed to cast consumer from item. Bare item: %v", li)
@@ -242,8 +242,8 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 		c.consumersModel = multiselectlist.New(consumers, width, height, multiselectlist.Options{
 			Preselected: preselected,
 		})
-		c.dispatchersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
-		c.dispatchersModel.StatusMessageOnSelect = true
+		c.consumersModel.StatusMessageLifetime = stylesheet.StatusMessageLifetime
+		c.consumersModel.StatusMessageOnSelect = true
 	})
 	wg.Wait()
 
