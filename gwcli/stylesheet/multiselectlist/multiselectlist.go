@@ -126,7 +126,7 @@ func (msl *Model) ToggleCurrentItem() tea.Cmd {
 		} else {
 			statusMsg = "deselected"
 		}
-		statusMsg += " dispatcher " + li.Title()
+		statusMsg += " " + li.Title()
 		cmd = tea.Batch(cmd, msl.Model.NewStatusMessage(statusMsg))
 	}
 
