@@ -57,7 +57,7 @@ func determineFormat(fs *pflag.FlagSet, prettyDefined bool) outputFormat {
 	if fm, err := fs.GetBool(ft.JSON.Name()); err != nil {
 		uniques.ErrGetFlag("list", err)
 	} else if fm {
-		format = json
+		return json
 	}
 
 	// check for explicit table
