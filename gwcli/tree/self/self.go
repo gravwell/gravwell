@@ -141,7 +141,6 @@ func sessions() action.Pair {
 				if i != -1 {
 					rawSessions = rawSessions[:i]
 				}
-
 			}
 
 			// wrap and return the session
@@ -186,8 +185,10 @@ func sessions() action.Pair {
 						}
 					}
 					if since.IsZero() {
-						return "failed to parse " + snc + " as an acceptible time format", nil
+						return "failed to parse " + snc + " as an acceptable time format", nil
 					}
+				} else {
+					since = time.Now().Add(-48 * time.Hour)
 				}
 				return "", nil
 			},
