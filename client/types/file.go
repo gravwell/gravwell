@@ -15,3 +15,8 @@ type UserFile struct {
 	Size uint64
 	Hash string
 }
+
+type FileListResponse struct {
+	BaseListResponse
+	Results []UserFile `json:"results"`
+}
