@@ -41,6 +41,8 @@ type ShardInfo struct {
 	Stored      uint64           //actual disk usage of the shard
 	RemoteState ReplicationState `json:",omitempty"`
 	Cold        bool             //true if the shard is in the code storage
+	// a 0-100 value that indicates how fragmented a shard is, 0 is perfect 100 is really bad
+	Fragmentation uint `json:"fragment,omitempty"`
 }
 
 // MarshalJSON implements a custom marshaller to deal with the fact that the json marshaller can't handle the "empty" uuid value
@@ -84,6 +86,9 @@ type WellInfo struct {
 	Engine      string `json:",omitempty"`
 	Path        string `json:",omitempty"` //hot storage location
 	ColdPath    string `json:",omitempty"` //cold storage location
+	// a 0-100 value that indicates how fragmented a shard is, 0 is perfect 100 is really bad
+	// for the well this is the mean fragmentation of all shards in the well
+	Fragmentation uint `json:"fragment,omitempty"`
 }
 
 func (wi *WellInfo) sort() {
