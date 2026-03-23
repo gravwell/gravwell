@@ -94,6 +94,7 @@ jobs:
         govulncheck -test ./ingesters/GooglePubSubIngester
         govulncheck -test ./ingesters/fileFollow
         govulncheck -test ./ingesters/singleFile
+        govulncheck -test ./ingesters/hosted/...
         GOOS=windows govulncheck -test ./ingesters/winevents
         GOOS=windows govulncheck -test ./winevent/...
 
@@ -113,6 +114,7 @@ jobs:
         go vet ./ingest/log
         go vet ./timegrinder
         go vet ./filewatch
+        go vet ./ingesters/hosted/...
         go vet ./ingesters/utils
         go vet ./ingesters/kafka_consumer
         go vet ./ingesters/SimpleRelay
@@ -133,6 +135,7 @@ jobs:
         go test -v ./ingest/log
         go test -v ./timegrinder
         go test -v ./filewatch
+        go test -v ./ingesters/hosted/...
         go test -v ./ingesters/utils
         go test -v ./ingesters/kafka_consumer
         go test -v ./ingesters/SimpleRelay
@@ -170,6 +173,7 @@ jobs:
         staticcheck ./client/...
         staticcheck ./ingesters/args/...
         staticcheck ./ingesters/base/...
+        staticcheck ./ingesters/hosted/...
         staticcheck ./ingesters/AzureEventHubs/...
         staticcheck ./ingesters/canbus/...
         staticcheck ./ingesters/utils/...
@@ -229,6 +233,7 @@ jobs:
         go build -o /dev/null ./ingesters/Shodan
         go build -o /dev/null ./ingesters/singleFile
         go build -o /dev/null ./ingesters/pcapFileIngester
+        go build -o /dev/null ./ingesters/hosted/runner
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
@@ -253,3 +258,34 @@ jobs:
 
     - name: Final status
       run: echo "Status is ${{ job.status }} 🚀"
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: ingesters/test/e2e/go.mod
+        cache: false
+
+    - name: Go Mod Download
+      run: go mod download
+
+    - name: Run e2e tests
+      run: |
+        cd ./ingesters/test/e2e
+        go test -v -artifacts ./...
+
+    - name: Upload test artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-test-artifacts
+        path: ingesters/test/e2e/_artifacts/
+        if-no-files-found: ignore
+        retention-days: 7
+
