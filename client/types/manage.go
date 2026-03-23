@@ -42,7 +42,7 @@ type ShardInfo struct {
 	RemoteState ReplicationState `json:",omitempty"`
 	Cold        bool             //true if the shard is in the code storage
 	// a 0-100 value that indicates how fragmented a shard is, 0 is perfect 100 is really bad
-	Fragmentation float64 `json:"fragment,omitempty"`
+	Fragmentation uint `json:"fragment,omitempty"`
 }
 
 // MarshalJSON implements a custom marshaller to deal with the fact that the json marshaller can't handle the "empty" uuid value
