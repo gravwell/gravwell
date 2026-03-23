@@ -125,11 +125,12 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end
 
 	params := url.Values{}
 	params.Set("type", string(et))
-	params.Set("dateRangeStartsAt", start.Format(SIEMBatchTimeFormat))
-	params.Set("dateRangeEndsAt", end.Format(SIEMBatchTimeFormat))
 	params.Set("pageSize", "100")
 	if cursor != "" {
 		params.Set("nextPage", cursor)
+	} else {
+		params.Set("dateRangeStartsAt", start.Format(SIEMBatchTimeFormat))
+		params.Set("dateRangeEndsAt", end.Format(SIEMBatchTimeFormat))
 	}
 	endpoint := fmt.Sprintf("%s%s?%s",
 		c.host,
@@ -222,11 +223,12 @@ func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, start, e
 
 	params := url.Values{}
 	params.Set("types", string(event))
-	params.Set("dateRangeStartsAt", start.Format(SIEMTimeFormat))
-	params.Set("dateRangeEndsAt", end.Format(SIEMTimeFormat))
 	params.Set("pageSize", "100")
 	if cursor != "" {
 		params.Set("nextPage", cursor)
+	} else {
+		params.Set("dateRangeStartsAt", start.Format(SIEMTimeFormat))
+		params.Set("dateRangeEndsAt", end.Format(SIEMTimeFormat))
 	}
 	endpoint := fmt.Sprintf("%s%s?%s",
 		c.host,
@@ -235,13 +237,13 @@ func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, start, e
 	)
 	r, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
-		return nil, fmt.Errorf("error building siem event batch request: %w", err)
+		return nil, fmt.Errorf("error building siem events request: %w", err)
 	}
 
 	r.Header.Set("Accept", "application/json")
 	resp, err := c.Do(r)
 	if err != nil {
-		return nil, fmt.Errorf("error making siem event batch request: %w", err)
+		return nil, fmt.Errorf("error making siem event request: %w", err)
 	}
 
 	defer resp.Body.Close()
@@ -257,7 +259,7 @@ func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, start, e
 
 	b, err := parse[SIEMEventResponse](resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("error parsing siem event batch response: %w", err)
+		return nil, fmt.Errorf("error parsing siem events response: %w", err)
 	}
 
 	return b, nil
