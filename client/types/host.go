@@ -71,6 +71,7 @@ type HostSysStats struct {
 	BuildInfo             BuildInfo    `json:",omitempty"` // e.g. 3.3.1
 	LoadAverage           load.AvgStat `json:",omitempty"`
 	Iowait                float64
+	PSI                   PSIStats `json:"psi,omitempty"` // Pressure Stall Information, for CPU, memory, and IO
 }
 
 type DeploymentInfo struct {
@@ -81,6 +82,23 @@ type DeploymentInfo struct {
 	AIProcessor      string // URL of system that services Logbot AI requests
 	AIDisabledReason string `json:",omitempty"` // if AI is disabled, explain why
 	RenderStoreLimit uint   //maximum amount of data that can be stored in a renderer per search
+}
+
+type PSIStats struct {
+	CPU    PressureStats `json:"cpu,omitempty"`
+	Memory PressureStats `json:"memory,omitempty"`
+	IO     PressureStats `json:"io,omitempty"`
+}
+
+type PressureStats struct {
+	SomeAvg10  float64 `json:"some_avg_10,omitempty"`
+	SomeAvg60  float64 `json:"some_avg_60,omitempty"`
+	SomeAvg300 float64 `json:"some_avg_300,omitempty"`
+
+	// "full" lines are only present in memory and IO pressure files, not CPU
+	FullAvg10  float64 `json:"full_avg_10,omitempty"`
+	FullAvg60  float64 `json:"full_avg_60,omitempty"`
+	FullAvg300 float64 `json:"full_avg_300,omitempty"`
 }
 
 func (si SysInfo) Empty() bool {
