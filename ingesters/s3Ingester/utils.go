@@ -25,6 +25,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	"github.com/gravwell/gravwell/v3/ingest/log"
 	"github.com/gravwell/gravwell/v3/ingest/processors"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"github.com/gravwell/gravwell/v3/timegrinder"
 	"github.com/gravwell/jsonparser"
 )
@@ -296,11 +297,17 @@ func ProcessContext(obj *s3.Object, ctx context.Context, svc *s3.S3, bucket stri
 		evs.Add(entry.EnumeratedValue{Name: "key", Value: entry.StringEnumData(*obj.Key)})
 	}
 
+	var smartReader io.Reader
+	if smartReader, err = utils.NewCompressedReader(r.Body); err != nil {
+		err = fmt.Errorf("failed to create transparent decompression reader: %w", err)
+		return
+	}
+
 	switch rdr {
 	case lineReader:
-		err = processLinesContext(ctx, r.Body, maxLineSize, tg, src, tag, &evs, proc)
+		err = processLinesContext(ctx, smartReader, maxLineSize, tg, src, tag, &evs, proc)
 	case cloudtrailReader:
-		err = processCloudtrailContext(ctx, r.Body, tg, src, tag, &evs, proc)
+		err = processCloudtrailContext(ctx, smartReader, tg, src, tag, &evs, proc)
 	default:
 		err = errors.New("no reader set")
 	}

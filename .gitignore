@@ -16,6 +16,7 @@
 
 # test files
 test.conf
+_artifacts/
 
 #vim files
 *.swp
@@ -25,3 +26,6 @@ manager
 #idea files
 .idea/
 .idea
+
+#macOS
+.DS_Store
