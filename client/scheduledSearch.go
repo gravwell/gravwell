@@ -9,60 +9,30 @@
 package client
 
 import (
-	"errors"
-	"fmt"
-	"net/http"
-
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// GetScheduledSearchList returns scheduled searches the user has access to.
-func (c *Client) GetScheduledSearchList() ([]types.ScheduledSearch, error) {
-	var searches []types.ScheduledSearch
-	if err := c.getStaticURL(scheduledSearchUrl(), &searches); err != nil {
-		return nil, err
+// ListScheduledSearches returns scheduled searches the user has access to.
+func (c *Client) ListScheduledSearches(opts *types.QueryOptions) (searches types.ScheduledSearchListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
 	}
-	return searches, nil
-}
-
-// GetAllScheduledSearches (admin-only) returns all scheduled searches on the system.
-func (c *Client) GetAllScheduledSearches() ([]types.ScheduledSearch, error) {
-	var searches []types.ScheduledSearch
-	if err := c.getStaticURL(scheduledSearchAllUrl(), &searches); err != nil {
-		return nil, err
+	if err = c.postStaticURL(SCHEDULED_SEARCH_LIST_URL, opts, &searches); err != nil {
+		return
 	}
-	return searches, nil
+	return
 }
 
-// CreateScheduledSearchFromObject makes a new scheduled search and returns the ID. The parameters are:
-//
-// - s: A scheduled search object.
-func (c *Client) CreateScheduledSearch(s types.ScheduledSearch) (int32, error) {
-	if s.SearchString != "" && s.SearchReference != "" {
-		return 0, fmt.Errorf("cannot use both SearchReference and SearchString in CreateScheduledSearch")
+// ListAllScheduledSearches returns all scheduled searches on the system (for admins).
+func (c *Client) ListAllScheduledSearches(opts *types.QueryOptions) (searches types.ScheduledSearchListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
 	}
-	var resp int32
-	if err := c.postStaticURL(scheduledSearchUrl(), s, &resp); err != nil {
-		return 0, err
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	if err = c.postStaticURL(SCHEDULED_SEARCH_LIST_URL, opts, &searches); err != nil {
+		return
 	}
-	return resp, nil
-}
-
-// UpdateScheduledSearchResults is used to update the scheduled search after it has been
-// run. It only updates the PersistentMaps, LastRun, LastRunDuration, LastSearchIDs,
-// and LastError fields
-func (c *Client) UpdateScheduledSearchResults(ss types.ScheduledSearch) error {
-	return c.putStaticURL(scheduledSearchResultsIdUrl(ss.ID), ss)
-}
-
-// UpdateScheduledSearch is used to modify an existing scheduled search.
-func (c *Client) UpdateScheduledSearch(ss types.ScheduledSearch) error {
-	return c.putStaticURL(scheduledSearchIdUrl(ss.ID), ss)
-}
-
-// DeleteScheduledSearch removes the specified scheduled search.
-func (c *Client) DeleteScheduledSearch(id string) error {
-	return c.deleteStaticURL(scheduledSearchIdUrl(id), nil)
+	return
 }
 
 // GetScheduledSearch returns the scheduled search with the given ID.
@@ -72,52 +42,75 @@ func (c *Client) GetScheduledSearch(id string) (types.ScheduledSearch, error) {
 	return search, err
 }
 
-// ScheduledSearchCheckin (admin-only) informs the webserver that the search agent is active.
-func (c *Client) ScheduledSearchCheckin(cfg types.SearchAgentConfig) error {
-	return c.putStaticURL(scheduledSearchCheckinUrl(), cfg)
+// GetScheduledSearchEx returns a particular scheduled search. If the QueryOptions arg is
+// not nil, applicable parameters (currently only IncludeDeleted) will
+// be applied to the query.
+func (c *Client) GetScheduledSearchEx(id string, opts *types.QueryOptions) (types.ScheduledSearch, error) {
+	var search types.ScheduledSearch
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	err := c.getStaticURL(scheduledSearchIdUrl(id), &search, ezParam("include_deleted", opts.IncludeDeleted))
+	return search, err
 }
 
-// GetSearchAgentCheckin finds out when the most recent searchagent checkin was.
-func (c *Client) GetSearchAgentCheckin() (ci types.SearchAgentCheckin, err error) {
-	err = c.getStaticURL(scheduledSearchCheckinUrl(), &ci)
+// DeleteScheduledSearch removes the specified scheduled search.
+func (c *Client) DeleteScheduledSearch(id string) error {
+	return c.deleteStaticURL(scheduledSearchIdUrl(id), nil)
+}
+
+// PurgeScheduledSearch permanently removes the specified scheduled search.
+func (c *Client) PurgeScheduledSearch(id string) error {
+	return c.deleteStaticURL(scheduledSearchIdUrl(id), nil, ezParam("purge", "true"))
+}
+
+// CreateScheduledSearch makes a new scheduled search.
+func (c *Client) CreateScheduledSearch(spec types.ScheduledSearch) (result types.ScheduledSearch, err error) {
+	err = c.postStaticURL(scheduledSearchUrl(), spec, &result)
 	return
 }
 
-// ClearScheduledSearchError clears the error field on the specified scheduled search.
-func (c *Client) ClearScheduledSearchError(id string) error {
-	return c.deleteStaticURL(scheduledSearchErrorIdUrl(id), nil)
+// UpdateScheduledSearch is used to modify an existing scheduled search.
+func (c *Client) UpdateScheduledSearch(ss types.ScheduledSearch) error {
+	return c.putStaticURL(scheduledSearchIdUrl(ss.ID), ss)
 }
 
-// ClearScheduledSearchState clears state variables on the specified scheduled search.
-func (c *Client) ClearScheduledSearchState(id string) error {
-	return c.deleteStaticURL(scheduledSearchStateIdUrl(id), nil)
+// UpdateScheduledSearchResults is used to update the scheduled search after it has been
+// run. It only updates the PersistentMaps, LastRun, LastRunDuration, LastSearchIDs,
+// and LastError fields
+func (c *Client) UpdateScheduledSearchResults(ss types.ScheduledSearch) error {
+	return c.putStaticURL(scheduledSearchResultsIdUrl(ss.ID), ss)
 }
 
-// ParseScheduledScript asks the API to parse a script given an ID
-// if there is no error line and column will have a return value of 0
-// if there is an error, err will be populated and potentially a line and column if the error was in the script
-func (c *Client) ParseScheduledScript(data string, lang types.ScriptLang) (line, column int, err error) {
-	if err = lang.Valid(); err != nil {
-		return
-	}
-	var resp types.ScheduledScriptParseResponse
-	req := types.ScheduledScriptParseRequest{
-		Version: lang,
-		Script:  data,
-	}
-	if err = c.methodStaticPushURL(http.MethodPut, scheduledSearchParseUrl(), req, &resp, nil, nil); err != nil {
-		return
-	}
-	if resp.OK {
-		return //all is good
-	}
+// ScheduledSearchCheckin (admin-only) informs the webserver that the search agent is active and passes along info about what it is currently doing. The server may send back new jobs, or jobs to cancel, in the response.
+func (c *Client) ScheduledSearchCheckin(cfg types.SearchAgentCheckin) (types.SearchAgentCheckinResponse, error) {
+	var resp types.SearchAgentCheckinResponse
+	err := c.postStaticURL(scheduledSearchCheckinUrl(), cfg, &resp)
+	return resp, err
+}
 
-	//if the parse failed but we don't have an error, set something
-	if len(resp.Error) == 0 {
-		resp.Error = `Unknown parse error`
+// ReportScheduledSearchResults uploads a set of results for the scheduled search with the specified ID.
+func (c *Client) ReportScheduledSearchResults(id string, results types.ScheduledSearchResults) error {
+	return c.postStaticURL(scheduledSearchResultsIdUrl(id), results, nil)
+}
 
-	}
-	line, column = resp.ErrorLine, resp.ErrorColumn
-	err = errors.New(resp.Error)
+// GetScheduledSearchResults retrieves the most recent results for the specified scheduled search
+func (c *Client) GetScheduledSearchResults(id string) (results types.ScheduledSearchResults, err error) {
+	err = c.getStaticURL(scheduledSearchResultsIdUrl(id), &results)
 	return
+}
+
+// ClearScheduledSearchResults deletes all results for the specified scheduled search
+func (c *Client) ClearScheduledSearchResults(id string) error {
+	return c.deleteStaticURL(scheduledSearchResultsIdUrl(id), nil)
+}
+
+// DebugScheduledSearch requests an immediate debug run of the specified scheduled search.
+func (c *Client) DebugScheduledSearch(id string, opts types.AutomationDebugRequest) error {
+	return c.postStaticURL(scheduledSearchDebugIdUrl(id), opts, nil)
+}
+
+// CancelScheduledSearch cancels any active run of the specified scheduled search.
+func (c *Client) CancelScheduledSearch(id string) error {
+	return c.deleteStaticURL(scheduledSearchCancelIdUrl(id), nil)
 }

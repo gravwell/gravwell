@@ -117,22 +117,26 @@ const (
 	RESOURCES_ID_CLONE_URL           = "/api/resources/%s/clone"
 	RESOURCES_LOOKUP_URL             = "/api/resources/lookup/%s"
 	SCHEDULED_SEARCH_URL             = "/api/scheduledsearches"
-	SCHEDULED_SEARCH_ALL_URL         = "/api/scheduledsearches/all"
-	SCHEDULED_SEARCH_ID_URL          = "/api/scheduledsearches/%v"
-	SCHEDULED_SEARCH_RESULTS_ID_URL  = "/api/scheduledsearches/%d/results"
-	SCHEDULED_SEARCH_ERROR_ID_URL    = "/api/scheduledsearches/%d/error"
-	SCHEDULED_SEARCH_STATE_ID_URL    = "/api/scheduledsearches/%d/state"
-	SCHEDULED_SEARCH_CANCEL_ID_URL   = "/api/scheduledsearches/%d/cancel"
-	SCHEDULED_SEARCH_USER_URL        = "/api/scheduledsearches/user/%d"
+	SCHEDULED_SEARCH_LIST_URL        = "/api/scheduledsearches/list"
+	SCHEDULED_SEARCH_ID_URL          = "/api/scheduledsearches/%s"
+	SCHEDULED_SEARCH_RESULTS_ID_URL  = "/api/scheduledsearches/%s/results"
+	SCHEDULED_SEARCH_DEBUG_ID_URL    = "/api/scheduledsearches/%s/debug"
+	SCHEDULED_SEARCH_CANCEL_ID_URL   = "/api/scheduledsearches/%s/cancel"
 	SCHEDULED_SEARCH_CHECKIN_URL     = "/api/scheduledsearches/checkin"
-	SCHEDULED_SEARCH_PARSE           = "/api/scheduledsearches/parse"
+	SCHEDULED_SCRIPT_URL             = "/api/scheduledscripts"
+	SCHEDULED_SCRIPT_LIST_URL        = "/api/scheduledscripts/list"
+	SCHEDULED_SCRIPT_ID_URL          = "/api/scheduledscripts/%s"
+	SCHEDULED_SCRIPT_RESULTS_ID_URL  = "/api/scheduledscripts/%s/results"
+	SCHEDULED_SCRIPT_DEBUG_ID_URL    = "/api/scheduledscripts/%s/debug"
+	SCHEDULED_SCRIPT_CANCEL_ID_URL   = "/api/scheduledscripts/%s/cancel"
+	SCHEDULED_SCRIPT_CHECKIN_URL     = "/api/scheduledscripts/checkin"
+	SCHEDULED_SCRIPT_PARSE           = "/api/scheduledscripts/parse"
 	FLOW_URL                         = "/api/flows"
+	FLOW_LIST_URL                    = "/api/flows/list"
 	FLOW_ID_URL                      = "/api/flows/%v"
-	FLOW_RESULTS_ID_URL              = "/api/flows/%d/results"
-	FLOW_ERROR_ID_URL                = "/api/flows/%d/error"
-	FLOW_STATE_ID_URL                = "/api/flows/%d/state"
-	FLOW_CANCEL_ID_URL               = "/api/flows/%d/cancel"
-	FLOW_USER_URL                    = "/api/flows/user/%d"
+	FLOW_RESULTS_ID_URL              = "/api/flows/%s/results"
+	FLOW_DEBUG_ID_URL                = "/api/flows/%s/debug"
+	FLOW_CANCEL_ID_URL               = "/api/flows/%s/cancel"
 	FLOW_PARSE_URL                   = "/api/flows/parse"
 	MAIL_URL                         = "/api/mail"
 	MAIL_CONFIGURE_URL               = `/api/mail/configure`
@@ -406,14 +410,6 @@ func scheduledSearchUrl() string {
 	return SCHEDULED_SEARCH_URL
 }
 
-func scheduledSearchParseUrl() string {
-	return SCHEDULED_SEARCH_PARSE
-}
-
-func scheduledSearchAllUrl() string {
-	return SCHEDULED_SEARCH_ALL_URL
-}
-
 func scheduledSearchIdUrl(id interface{}) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_ID_URL, id)
 }
@@ -422,20 +418,36 @@ func scheduledSearchResultsIdUrl(id string) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_RESULTS_ID_URL, id)
 }
 
-func scheduledSearchErrorIdUrl(id string) string {
-	return fmt.Sprintf(SCHEDULED_SEARCH_ERROR_ID_URL, id)
-}
-
-func scheduledSearchStateIdUrl(id string) string {
-	return fmt.Sprintf(SCHEDULED_SEARCH_STATE_ID_URL, id)
+func scheduledSearchDebugIdUrl(id string) string {
+	return fmt.Sprintf(SCHEDULED_SEARCH_DEBUG_ID_URL, id)
 }
 
 func scheduledSearchCancelIdUrl(id string) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_CANCEL_ID_URL, id)
 }
 
-func scheduledSearchUserUrl(uid string) string {
-	return fmt.Sprintf(SCHEDULED_SEARCH_USER_URL, uid)
+func scheduledScriptUrl() string {
+	return SCHEDULED_SCRIPT_URL
+}
+
+func scheduledScriptParseUrl() string {
+	return SCHEDULED_SCRIPT_PARSE
+}
+
+func scheduledScriptIdUrl(id interface{}) string {
+	return fmt.Sprintf(SCHEDULED_SCRIPT_ID_URL, id)
+}
+
+func scheduledScriptResultsIdUrl(id string) string {
+	return fmt.Sprintf(SCHEDULED_SCRIPT_RESULTS_ID_URL, id)
+}
+
+func scheduledScriptDebugIdUrl(id string) string {
+	return fmt.Sprintf(SCHEDULED_SCRIPT_DEBUG_ID_URL, id)
+}
+
+func scheduledScriptCancelIdUrl(id string) string {
+	return fmt.Sprintf(SCHEDULED_SCRIPT_CANCEL_ID_URL, id)
 }
 
 func scheduledSearchCheckinUrl() string {
@@ -457,20 +469,12 @@ func flowResultsIdUrl(id string) string {
 	return fmt.Sprintf(FLOW_RESULTS_ID_URL, id)
 }
 
-func flowErrorIdUrl(id string) string {
-	return fmt.Sprintf(FLOW_ERROR_ID_URL, id)
-}
-
-func flowStateIdUrl(id string) string {
-	return fmt.Sprintf(FLOW_STATE_ID_URL, id)
+func flowDebugIdUrl(id string) string {
+	return fmt.Sprintf(FLOW_DEBUG_ID_URL, id)
 }
 
 func flowCancelIdUrl(id string) string {
 	return fmt.Sprintf(FLOW_CANCEL_ID_URL, id)
-}
-
-func flowUserUrl(uid string) string {
-	return fmt.Sprintf(FLOW_USER_URL, uid)
 }
 
 func loggingUrl() string {

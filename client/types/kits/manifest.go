@@ -44,6 +44,8 @@ const (
 	License         ItemType = 10
 	Playbook        ItemType = 11
 	Alert           ItemType = 12
+	ScheduledScript ItemType = 13
+	Flow            ItemType = 14
 	External        ItemType = 0xffff
 )
 
@@ -82,6 +84,8 @@ var (
 		item{tp: License, nm: `license`, ext: `license`},
 		item{tp: Playbook, nm: `playbook`, ext: `playbook`},
 		item{tp: Alert, nm: `alert`, ext: `alert`},
+		item{tp: ScheduledScript, nm: `scheduled script`, ext: `scheduled_script`},
+		item{tp: Flow, nm: `flow`, ext: `flow`},
 	}
 )
 

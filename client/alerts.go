@@ -83,12 +83,12 @@ func (c *Client) GetAlertSampleEvent(id uuid.UUID) (result types.Event, err erro
 
 // ValidateAlertScheduledSearchDispatcher validates an existing scheduled search against
 // a given schema.
-func (c *Client) ValidateAlertScheduledSearchDispatcher(ssearchID uuid.UUID, schema types.AlertSchemas) (resp types.AlertDispatcherValidateResponse, err error) {
+func (c *Client) ValidateAlertScheduledSearchDispatcher(ssearchID string, schema types.AlertSchemas) (resp types.AlertDispatcherValidateResponse, err error) {
 	// build the request
 	req := types.AlertDispatcherValidateRequest{
 		Dispatcher: types.AlertDispatcher{
 			Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH,
-			ID:   ssearchID.String(),
+			ID:   ssearchID,
 		},
 		Schema: schema,
 	}
@@ -100,12 +100,12 @@ func (c *Client) ValidateAlertScheduledSearchDispatcher(ssearchID uuid.UUID, sch
 // ValidateAlertFlowConsumer validates an existing flow against
 // a given alert, making sure it does not consume any fields not
 // provided by the schema.
-func (c *Client) ValidateAlertFlowConsumer(flowID uuid.UUID, alert types.AlertDefinition) (resp types.AlertConsumerValidateResponse, err error) {
+func (c *Client) ValidateAlertFlowConsumer(flowID string, alert types.AlertDefinition) (resp types.AlertConsumerValidateResponse, err error) {
 	// build the request
 	req := types.AlertConsumerValidateRequest{
 		Consumer: types.AlertConsumer{
 			Type: types.ALERTCONSUMERTYPE_FLOW,
-			ID:   flowID.String(),
+			ID:   flowID,
 		},
 		Alert: alert,
 	}

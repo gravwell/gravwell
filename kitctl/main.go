@@ -424,6 +424,22 @@ func packKit(args []string) {
 			if err := marshallAdd(itm, x); err != nil {
 				log.Fatal(err)
 			}
+		case kits.ScheduledScript:
+			x, err := readScheduledScript(wd, itm.Name)
+			if err != nil {
+				log.Fatalf("Could not read scheduled script %v: %v", itm.Name, err)
+			}
+			if err := marshallAdd(itm, x); err != nil {
+				log.Fatal(err)
+			}
+		case kits.Flow:
+			x, err := readFlow(wd, itm.Name)
+			if err != nil {
+				log.Fatalf("Could not read flow %v: %v", itm.Name, err)
+			}
+			if err := marshallAdd(itm, x); err != nil {
+				log.Fatal(err)
+			}
 		case kits.Dashboard:
 			x, err := readDashboard(wd, itm.Name)
 			if err != nil {
@@ -707,6 +723,28 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 			if err := writeScheduledSearch(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out scheduled search %v: %v", name, err)
+			}
+		case kits.ScheduledScript:
+			var p kits.PackedScheduledScript
+			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+				return fmt.Errorf("Failed to decode scheduled script %v: %v", name, err)
+			}
+			if err = p.Validate(); err != nil {
+				return fmt.Errorf("Failed to validate scheduled script %v: %v", name, err)
+			}
+			if err := writeScheduledScript(wd, name, p); err != nil {
+				return fmt.Errorf("Failed to write out scheduled script %v: %v", name, err)
+			}
+		case kits.Flow:
+			var p kits.PackedFlow
+			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
+				return fmt.Errorf("Failed to decode flow %v: %v", name, err)
+			}
+			if err = p.Validate(); err != nil {
+				return fmt.Errorf("Failed to validate flow %v: %v", name, err)
+			}
+			if err := writeFlow(wd, name, p); err != nil {
+				return fmt.Errorf("Failed to write out flow %v: %v", name, err)
 			}
 		case kits.Dashboard:
 			var p kits.PackedDashboard

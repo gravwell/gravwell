@@ -56,8 +56,8 @@ type FlowNodeResult struct {
 }
 
 type ScheduledScriptParseRequest struct {
-	Version ScriptLang
-	Script  string
+	ScriptLanguage ScriptLang
+	Script         string
 }
 
 type ScheduledScriptParseResponse struct {
@@ -250,7 +250,7 @@ type AutomationResultsCommonFields struct {
 	LastRunDuration time.Duration    // how many nanoseconds did it take
 	LastSearchIDs   []string         // the IDs of the most recently performed searches
 	LastError       string           // any error from the last run of the scheduled search
-	ErrorHistory    []ScheduledError // a list of previously-occurring errors
+	ErrorHistory    []ScheduledError // a list of previously-occurring errors TODO removeme
 }
 
 // ScheduledSearch represents a Gravwell query to be run on a schedule.
@@ -264,6 +264,7 @@ type ScheduledSearch struct {
 	Duration           int64  // How many seconds back to search, MUST BE NEGATIVE
 	SearchSinceLastRun bool   // If set, ignore Duration and run from last run time to now.
 	TimeframeOffset    int64  // How many seconds to offset the search timeframe, MUST BE NEGATIVE
+	LatestResults      ScheduledSearchResults
 }
 
 // ScheduledSearchResults represents the results of a ScheduledSearch execution.
@@ -283,6 +284,7 @@ type ScheduledScript struct {
 
 	Script         string     // If set, execute the contents rather than running SearchString
 	ScriptLanguage ScriptLang // what script type is this: anko, go
+	LatestResults  ScheduledScriptResults
 }
 
 // ScheduledScriptResults represents the results of a ScheduledScript execution.
@@ -291,8 +293,9 @@ type ScheduledScriptResults struct {
 
 	AutomationResultsCommonFields
 
-	ScheduledScriptID string // references the ScheduledScript this result belongs to
-	DebugOutput       []byte // output of the script if debugmode was enabled
+	ScheduledScriptID string                            // references the ScheduledScript this result belongs to
+	DebugOutput       []byte                            // output of the script if debugmode was enabled
+	PersistentMaps    map[string]map[string]interface{} // a place to stash variables between runs
 }
 
 // Flow represents a flow-type automation to run on a schedule.
@@ -301,7 +304,8 @@ type Flow struct {
 
 	AutomationCommonFields
 
-	Flow string // The flow specification itself
+	Flow          string // The flow specification itself
+	LatestResults FlowResults
 }
 
 // FlowResults represents the results of a Flow execution.
@@ -310,14 +314,14 @@ type FlowResults struct {
 
 	AutomationResultsCommonFields
 
-	FlowID          string                 // references the Flow this result belongs to
-	FlowNodeResults map[int]FlowNodeResult // results for each node in the flow
-	DebugOutput     []byte                 // output of the script if debugmode was enabled
+	FlowID          string                            // references the Flow this result belongs to
+	FlowNodeResults map[int]FlowNodeResult            // results for each node in the flow
+	DebugOutput     []byte                            // output of the script if debugmode was enabled
+	PersistentMaps  map[string]map[string]interface{} // a place to stash variables between runs
 }
 
 // AutomationDebugRequest is what gets submitted to the webserver when we're requesting a debug run of an automation.
 type AutomationDebugRequest struct {
-	OneShot    bool   // Set this flag to 'true' to make the search fire ONCE
 	DebugMode  bool   // set this to true to enable debug mode
 	DebugEvent *Event // If provided, this will be inserted as `event` into the flow payload.
 }
@@ -356,4 +360,87 @@ type FlowListResponse struct {
 type FlowResultsListResponse struct {
 	BaseListResponse
 	Results []FlowResults `json:"results"`
+}
+
+// SearchAgentCheckin is the type sent by the searchagent to the
+// webserver. It contains the search agent's config and information
+// about tasks the search agent is currently executing.
+type SearchAgentCheckin struct {
+	Cfg       SearchAgentConfig
+	Active    []string // automations currently running/pending
+	Cancelled []string // acknowledgement of automations cancelled
+
+	SearchResults []ScheduledSearchResults
+	ScriptResults []ScheduledScriptResults
+	FlowResults   []FlowResults
+}
+
+type SearchAgentCheckinResponse struct {
+	Cancel     []string // List of automations to cancel
+	SearchJobs []SearchJob
+	ScriptJobs []ScriptJob
+	FlowJobs   []FlowJob
+}
+
+// SearchAgentInfo contains information about an individual search agent.
+type SearchAgentInfo struct {
+	Cfg         SearchAgentConfig
+	LastCheckin time.Time
+	ActiveJobs  []string // IDs of automations currently running on this search agent
+}
+
+// SchedulerStatus reports information from automation job scheduler,
+// such as which search agents it has seen.
+type SchedulerStatus struct {
+	SearchAgents []SearchAgentInfo
+}
+
+// DoAgentsAllowNetworkFunctions returns true if all known/active
+// search agents allow network functions in scripts/flows.  If no
+// search agents have checked in, assume networking is allowed.
+func (s SchedulerStatus) DoAgentsAllowNetworkFunctions() bool {
+	for _, a := range s.SearchAgents {
+		if a.Cfg.Disable_Network_Script_Functions {
+			return false
+		}
+	}
+	return true
+}
+
+// MostRecentCheckin returns the time of the most recent searchagent checkin.
+func (s SchedulerStatus) MostRecentCheckin() time.Time {
+	var latest time.Time
+	for _, a := range s.SearchAgents {
+		if a.LastCheckin.After(latest) {
+			latest = a.LastCheckin
+		}
+	}
+	return latest
+}
+
+type SearchJob struct {
+	Search  ScheduledSearch
+	RunID   string
+	EndTime time.Time
+	OneShot bool // true if user-requested or alert-triggered
+	Debug   AutomationDebugRequest
+	Event   *Event
+}
+
+type ScriptJob struct {
+	Script  ScheduledScript
+	RunID   string
+	EndTime time.Time
+	OneShot bool // true if user-requested or alert-triggered
+	Debug   AutomationDebugRequest
+	Event   *Event
+}
+
+type FlowJob struct {
+	Flow    Flow
+	RunID   string
+	EndTime time.Time
+	OneShot bool // true if user-requested or alert-triggered
+	Debug   AutomationDebugRequest
+	Event   *Event
 }

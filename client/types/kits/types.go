@@ -182,9 +182,6 @@ func (pss *PackedScheduledSearch) Validate() error {
 		if pss.Duration >= 0 {
 			return errors.New("Duration is invalid for SearchReference, must be negative")
 		}
-		if pss.SearchString != `` {
-			return errors.New("SearchReference and SearchString both populated")
-		}
 	}
 	return nil
 }
@@ -213,18 +210,150 @@ func (pss *PackedScheduledSearch) JSONMetadata() (json.RawMessage, error) {
 		SearchString           string `json:",omitempty"`
 		SearchReference        string `json:",omitempty"`
 		Duration               int64  `json:",omitempty"`
-		Script                 string `json:",omitempty"`
-		Flow                   string `json:",omitempty"`
-		ScheduledType          string `json:",omitempty"`
 		DefaultDeploymentRules types.ScriptDeployConfig
 	}{
 		Name:                   pss.Name,
 		Description:            pss.Description,
 		Schedule:               pss.Schedule,
 		SearchString:           pss.SearchString,
+		SearchReference:        pss.SearchReference,
 		Duration:               pss.Duration,
 		DefaultDeploymentRules: pss.DefaultDeploymentRules,
-		SearchReference:        pss.SearchReference,
+	})
+	return json.RawMessage(b), err
+}
+
+// PackedScheduledScript is a stripped-down representation of a scheduled script for inclusion in a kit.
+type PackedScheduledScript struct {
+	ID          string
+	Name        string // the name of this scheduled script
+	Description string // freeform description
+	Labels      []string
+	Schedule    string // when to run: a cron spec
+
+	Script                 string `json:",omitempty"`
+	ScriptLanguage         types.ScriptLang
+	DefaultDeploymentRules types.ScriptDeployConfig
+}
+
+// PackScheduledScript converts a ScheduledScript into a PackedScheduledScript for inclusion in a kit.
+func PackScheduledScript(ss *types.ScheduledScript) (p PackedScheduledScript) {
+	p = PackedScheduledScript{
+		ID:             ss.ID,
+		Name:           ss.Name,
+		Description:    ss.Description,
+		Schedule:       ss.Schedule,
+		Labels:         ss.Labels,
+		Script:         ss.Script,
+		ScriptLanguage: ss.ScriptLanguage,
+	}
+	return
+}
+
+// Validate checks the fields of the PackedScheduledScript.
+func (pss *PackedScheduledScript) Validate() error {
+	if pss.Name == `` {
+		return fmt.Errorf("Missing name")
+	} else if pss.Schedule == `` {
+		return errors.New("Missing schedule")
+	} else if pss.Script == `` {
+		return errors.New("Missing script")
+	}
+	return nil
+}
+
+// Unpackage expands a PackedScheduledScript into a ScheduledScript.
+func (pss *PackedScheduledScript) Unpackage(uid int32, gids []int32) (ss types.ScheduledScript) {
+	ss.ID = pss.ID
+	ss.OwnerID = uid
+	ss.Readers.GIDs = gids
+	ss.Name = pss.Name
+	ss.Description = pss.Description
+	ss.Labels = pss.Labels
+	ss.Schedule = pss.Schedule
+	ss.Script = pss.Script
+	ss.ScriptLanguage = pss.ScriptLanguage
+	return
+}
+
+// JSONMetadata returns additional info about the PackedScheduledScript in JSON format.
+func (pss *PackedScheduledScript) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		Name                   string
+		Description            string
+		Schedule               string
+		DefaultDeploymentRules types.ScriptDeployConfig
+	}{
+		Name:                   pss.Name,
+		Description:            pss.Description,
+		Schedule:               pss.Schedule,
+		DefaultDeploymentRules: pss.DefaultDeploymentRules,
+	})
+	return json.RawMessage(b), err
+}
+
+// PackedFlow is a stripped-down representation of a flow for inclusion in a kit.
+type PackedFlow struct {
+	ID          string
+	Name        string // the name of this flow
+	Description string // freeform description
+	Labels      []string
+	Schedule    string // when to run: a cron spec
+
+	Flow                   string
+	DefaultDeploymentRules types.ScriptDeployConfig
+}
+
+// PackFlow converts a Flow into a PackedFlow for inclusion in a kit.
+func PackFlow(ss *types.Flow) (p PackedFlow) {
+	p = PackedFlow{
+		ID:          ss.ID,
+		Name:        ss.Name,
+		Description: ss.Description,
+		Schedule:    ss.Schedule,
+		Labels:      ss.Labels,
+		Flow:        ss.Flow,
+	}
+	return
+}
+
+// Validate checks the fields of the PackedFlow.
+func (pss *PackedFlow) Validate() error {
+	if pss.Name == `` {
+		return fmt.Errorf("Missing name")
+	} else if pss.Schedule == `` {
+		return errors.New("Missing schedule")
+	} else if pss.Flow == `` {
+		return errors.New("Missing flow")
+	}
+	return nil
+}
+
+// Unpackage expands a PackedFlow into a Flow.
+func (pss *PackedFlow) Unpackage(uid int32, gids []int32) (ss types.Flow) {
+	ss.ID = pss.ID
+	ss.OwnerID = uid
+	ss.Readers.GIDs = gids
+	ss.Name = pss.Name
+	ss.Description = pss.Description
+	ss.Labels = pss.Labels
+	ss.Schedule = pss.Schedule
+	ss.Flow = pss.Flow
+	return
+}
+
+// JSONMetadata returns additional info about the PackedFlow in JSON format.
+func (pss *PackedFlow) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		Name                   string
+		Description            string
+		Schedule               string
+		DefaultDeploymentRules types.ScriptDeployConfig
+	}{
+		Name:                   pss.Name,
+		Description:            pss.Description,
+		Schedule:               pss.Schedule,
+		DefaultDeploymentRules: pss.DefaultDeploymentRules,
 	})
 	return json.RawMessage(b), err
 }

@@ -7,12 +7,21 @@ import (
 type AssetType string
 
 const (
-	AssetMacro      AssetType = "macro"
-	AssetToken      AssetType = "token"
-	AssetAX         AssetType = "ax"
-	AssetSavedQuery AssetType = "saved_query"
-	AssetResource   AssetType = "resource"
-	AssetTemplate   AssetType = "template"
+	AssetMacro                  AssetType = "macro"
+	AssetToken                  AssetType = "token"
+	AssetAX                     AssetType = "ax"
+	AssetSavedQuery             AssetType = "saved_query"
+	AssetResource               AssetType = "resource"
+	AssetTemplate               AssetType = "template"
+	AssetSearchHistory          AssetType = "search_history"
+	AssetUserPreference         AssetType = "user_preference"
+	AssetSecret                 AssetType = "secret"
+	AssetScheduledSearch        AssetType = "scheduled_search"
+	AssetScheduledScript        AssetType = "scheduled_script"
+	AssetFlow                   AssetType = "flow"
+	AssetScheduledSearchResults AssetType = "scheduled_search_results"
+	AssetScheduledScriptResults AssetType = "scheduled_script_results"
+	AssetFlowResults            AssetType = "flow_results"
 )
 
 type CommonFields struct {

@@ -15,33 +15,46 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// GetFlowList returns flows the user has access to.
-func (c *Client) GetFlowList() ([]types.Flow, error) {
-	var searches []types.Flow
-	if err := c.getStaticURL(flowUrl(), &searches); err != nil {
-		return nil, err
+// ListFlows returns flows the user has access to.
+func (c *Client) ListFlows(opts *types.QueryOptions) (flows types.FlowListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
 	}
-	return searches, nil
+	if err = c.postStaticURL(FLOW_LIST_URL, opts, &flows); err != nil {
+		return
+	}
+	return
 }
 
-// CreateFlow makes a new flow and returns the ID. The parameters are:
-//
-// - name: the flow name.
-//
-// - description: the flow description.
-//
-// - schedule: a cron-format schedule on which to execute the flow.
-//
-// - flow: a valid JSON flow definition.
-//
-// - groups: an optional array of groups which should be able to access this object.
-func (c *Client) CreateFlow(spec types.Flow) (types.Flow, error) {
-	return types.Flow{}, nil
+// ListAllFlows returns all flows on the system (for admins).
+func (c *Client) ListAllFlows(opts *types.QueryOptions) (flows types.FlowListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	if err = c.postStaticURL(FLOW_LIST_URL, opts, &flows); err != nil {
+		return
+	}
+	return
 }
 
-// UpdateFlow is used to modify an existing flow.
-func (c *Client) UpdateFlow(ss types.Flow) error {
-	return c.putStaticURL(flowIdUrl(ss.ID), ss)
+// GetFlow returns the flow with the given ID.
+func (c *Client) GetFlow(id string) (types.Flow, error) {
+	var flow types.Flow
+	err := c.getStaticURL(flowIdUrl(id), &flow)
+	return flow, err
+}
+
+// GetFlowEx returns a particular flow. If the QueryOptions arg is
+// not nil, applicable parameters (currently only IncludeDeleted) will
+// be applied to the query.
+func (c *Client) GetFlowEx(id string, opts *types.QueryOptions) (types.Flow, error) {
+	var flow types.Flow
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	err := c.getStaticURL(flowIdUrl(id), &flow, ezParam("include_deleted", opts.IncludeDeleted))
+	return flow, err
 }
 
 // DeleteFlow removes the specified flow.
@@ -49,13 +62,20 @@ func (c *Client) DeleteFlow(id string) error {
 	return c.deleteStaticURL(flowIdUrl(id), nil)
 }
 
-// GetFlow returns the flow with the given ID. The ID is an interface{}
-// to allow the user to specify either the flow's int32 "ID" or its
-// UUID "GUID" field.
-func (c *Client) GetFlow(id string) (types.Flow, error) {
-	var search types.Flow
-	err := c.getStaticURL(flowIdUrl(id), &search)
-	return search, err
+// PurgeFlow permanently removes the specified flow.
+func (c *Client) PurgeFlow(id string) error {
+	return c.deleteStaticURL(flowIdUrl(id), nil, ezParam("purge", "true"))
+}
+
+// CreateFlow makes a new flow.
+func (c *Client) CreateFlow(spec types.Flow) (result types.Flow, err error) {
+	err = c.postStaticURL(flowUrl(), spec, &result)
+	return
+}
+
+// UpdateFlow is used to modify an existing flow.
+func (c *Client) UpdateFlow(ss types.Flow) error {
+	return c.putStaticURL(flowIdUrl(ss.ID), ss)
 }
 
 // ParseFlow asks the API to check a flow.
@@ -104,4 +124,29 @@ func (c *Client) ParseReactiveFlow(flow string, event types.Event) (outputPayloa
 	}
 	outputPayloads = resp.OutputPayloads
 	return
+}
+
+// ReportFlowResults uploads a set of results for the scheduled script with the specified ID.
+func (c *Client) ReportFlowResults(id string, results types.FlowResults) error {
+	return c.postStaticURL(flowResultsIdUrl(id), results, nil)
+}
+
+// GetFlowResults retrieves the most recent results for the specified scheduled script
+func (c *Client) GetFlowResults(id string) (results types.FlowResults, err error) {
+	err = c.getStaticURL(flowResultsIdUrl(id), &results)
+	return
+}
+
+// ClearFlowResults deletes all results for the specified scheduled script
+func (c *Client) ClearFlowResults(id string) error {
+	return c.deleteStaticURL(flowResultsIdUrl(id), nil)
+}
+
+func (c *Client) DebugFlow(id string, opts types.AutomationDebugRequest) error {
+	return c.postStaticURL(flowDebugIdUrl(id), opts, nil)
+}
+
+// CancelFlow cancels any active run of the specified flow.
+func (c *Client) CancelFlow(id string) error {
+	return c.deleteStaticURL(flowCancelIdUrl(id), nil)
 }
