@@ -45,6 +45,7 @@ func generateID() string {
 
 func main() {
 	flag.Parse()
+	fmt.Printf("starting server on port %d\n", *port)
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /oauth/token", auth)
 	mux.HandleFunc("GET /siem/v1/batch/events/cg", siemBatch)

@@ -258,3 +258,34 @@ jobs:
 
     - name: Final status
       run: echo "Status is ${{ job.status }} 🚀"
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: ingesters/test/e2e/go.mod
+        cache: false
+
+    - name: Go Mod Download
+      run: go mod download
+
+    - name: Run e2e tests
+      run: |
+        cd ./ingesters/test/e2e
+        go test -v -artifacts ./...
+
+    - name: Upload test artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: e2e-test-artifacts
+        path: ingesters/test/e2e/_artifacts/
+        if-no-files-found: ignore
+        retention-days: 7
+
