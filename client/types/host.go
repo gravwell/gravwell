@@ -97,14 +97,14 @@ type PSIStats struct {
 }
 
 type PressureStats struct {
-	SomeAvg10  float64 `json:"some_avg_10,omitempty"`
-	SomeAvg60  float64 `json:"some_avg_60,omitempty"`
-	SomeAvg300 float64 `json:"some_avg_300,omitempty"`
+	SomeAvg10  float64 `json:"some_avg_10"`
+	SomeAvg60  float64 `json:"some_avg_60"`
+	SomeAvg300 float64 `json:"some_avg_300"`
 
 	// "full" lines are only present in memory and IO pressure files, not CPU
-	FullAvg10  float64 `json:"full_avg_10,omitempty"`
-	FullAvg60  float64 `json:"full_avg_60,omitempty"`
-	FullAvg300 float64 `json:"full_avg_300,omitempty"`
+	FullAvg10  float64 `json:"full_avg_10"`
+	FullAvg60  float64 `json:"full_avg_60"`
+	FullAvg300 float64 `json:"full_avg_300"`
 }
 
 func (si SysInfo) Empty() bool {
