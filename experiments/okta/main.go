@@ -14,7 +14,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"gravwell/pkg/utils"
 	"io"
 	"log"
 	"net"
@@ -31,6 +30,7 @@ import (
 	"github.com/gravwell/gravwell/v3/ingest/config"
 	"github.com/gravwell/gravwell/v3/ingest/entry"
 	glog "github.com/gravwell/gravwell/v3/ingest/log"
+	"github.com/gravwell/gravwell/v3/ingesters/utils"
 	"golang.org/x/time/rate"
 )
 
