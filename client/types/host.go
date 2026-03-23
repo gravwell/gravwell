@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2021 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -10,8 +10,14 @@ package types
 
 import (
 	"encoding/json"
+	"errors"
 
 	"github.com/shirou/gopsutil/load"
+)
+
+var (
+	// ErrPSINotAvailable is returned on platforms that do not support Linux Pressure Stall Information.
+	ErrPSINotAvailable = errors.New("pressure stall information is not available on this platform")
 )
 
 // SysInfo as displayed in the System Overview in Gravwell.

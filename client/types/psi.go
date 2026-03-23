@@ -11,11 +11,6 @@
 
 package types
 
-import "errors"
-
-// ErrPSINotAvailable is returned on platforms that do not support Linux Pressure Stall Information.
-var ErrPSINotAvailable = errors.New("pressure stall information is not available on this platform")
-
 // SamplePSI is not supported on non-Linux platforms and always returns ErrPSINotAvailable.
 func SamplePSI() (PSIStats, error) {
 	return PSIStats{}, ErrPSINotAvailable
