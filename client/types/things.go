@@ -243,15 +243,6 @@ func (put *PackedPivot) JSONMetadata() (json.RawMessage, error) {
 	return json.RawMessage(b), err
 }
 
-// UserFile is what is actually stored in the thing object, it is encoded into contents
-type UserFile struct {
-	GUID     uuid.UUID
-	Name     string
-	Desc     string
-	Contents []byte `json:",omitempty"`
-	Labels   []string
-}
-
 type WireUserFile struct {
 	ThingHeader
 	UserFile
@@ -314,9 +305,9 @@ func (uf *UserFile) JSONMetadata() (json.RawMessage, error) {
 		Size        int64
 		ContentType string
 	}{
-		UUID:        uf.GUID.String(),
+		UUID:        uf.ID,
 		Name:        uf.Name,
-		Description: uf.Desc,
+		Description: uf.Description,
 	}
 	st.Size, st.ContentType = uf.Info()
 	b, err := json.Marshal(st)
