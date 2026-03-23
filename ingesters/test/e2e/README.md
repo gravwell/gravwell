@@ -99,7 +99,9 @@ import (
 
 func TestMain(m *testing.M) {
     e2e.Start()
+	// Add custom setup if needed (e.g. start a kafka cluster)
     m.Run()
+	// Teardown custom setup
     e2e.Cleanup()
 }
 ```

@@ -52,7 +52,7 @@ func TestMimecast(t *testing.T) {
 		e2e.Fatal(t, err)
 	}
 
-	time.Sleep(5 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	c := e2e.GetClient(t)
 	// run for the artifact, help debugging

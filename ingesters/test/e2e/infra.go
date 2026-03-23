@@ -62,7 +62,7 @@ func buildIngesters() {
 	}
 }
 
-func find(signal string) (string, error) {
+func findDirContaining(signal string) (string, error) {
 	current, err := os.Getwd()
 	if err != nil {
 		return "", err
@@ -77,15 +77,15 @@ func find(signal string) (string, error) {
 		parent := filepath.Dir(current)
 		if parent == current {
 			// Reached the filesystem root without finding the marker
-			return "", fmt.Errorf("project root marker '%s' not found", signal)
+			return "", fmt.Errorf("dir containing '%s' not found", signal)
 		}
 		current = parent
 	}
 }
 
-// RepoRoot will find the root path of the repo. Useful when declaring build contexts to avoid relative pathing.
+// RepoRoot will findDirContaining the root path of the repo. Useful when declaring build contexts to avoid relative pathing.
 func RepoRoot() string {
-	r, err := find(".git")
+	r, err := findDirContaining(".git")
 	if err != nil {
 		panic(err)
 	}
