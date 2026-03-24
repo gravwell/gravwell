@@ -450,7 +450,7 @@ func packKit(args []string) {
 			}
 		// Other types just ship as-is
 		case kits.Extractor:
-			var x types.AXDefinition
+			var x types.AX
 			if x, err = readExtractor(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -466,7 +466,7 @@ func packKit(args []string) {
 				log.Fatal(err)
 			}
 		case kits.SearchLibrary:
-			var x types.WireSearchLibrary
+			var x types.SavedQuery
 			if x, err = readSearchLibrary(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
@@ -737,12 +737,9 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			}
 		// Other types just ship as-is
 		case kits.Extractor:
-			var p types.AXDefinition
+			var p types.AX
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode extractor %v: %v", name, err)
-			}
-			if err = p.Validate(); err != nil {
-				return fmt.Errorf("Failed to validate extractor %v: %v", name, err)
 			}
 			if err := writeExtractor(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
@@ -756,7 +753,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.SearchLibrary:
-			var p types.WireSearchLibrary
+			var p types.SavedQuery
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}

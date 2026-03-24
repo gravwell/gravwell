@@ -169,7 +169,7 @@ func readUserFile(dir, name string) (x types.UserFile, err error) {
  * Search Library
  **************************************************************************/
 
-func writeSearchLibrary(dir string, name string, x types.WireSearchLibrary) error {
+func writeSearchLibrary(dir string, name string, x types.SavedQuery) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "searchlibrary")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -183,14 +183,14 @@ func writeSearchLibrary(dir string, name string, x types.WireSearchLibrary) erro
 		return err
 	}
 	x.Query = ``
-	mb, err := json.MarshalIndent(x.SearchLibrary, "", "	")
+	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readSearchLibrary(dir, name string) (x types.WireSearchLibrary, err error) {
+func readSearchLibrary(dir, name string) (x types.SavedQuery, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "searchlibrary")
 	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
@@ -218,7 +218,7 @@ func readSearchLibrary(dir, name string) (x types.WireSearchLibrary, err error) 
  * Extractors
  **************************************************************************/
 
-func writeExtractor(dir string, name string, x types.AXDefinition) error {
+func writeExtractor(dir string, name string, x types.AX) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "autoextractor")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -244,7 +244,7 @@ func writeExtractor(dir string, name string, x types.AXDefinition) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readExtractor(dir, name string) (x types.AXDefinition, err error) {
+func readExtractor(dir, name string) (x types.AX, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "autoextractor")
 	paramsPath := filepath.Join(p, fmt.Sprintf("%v.params", name))
@@ -289,10 +289,10 @@ func writeTemplate(dir string, name string, x types.PackedUserTemplate) error {
 	// Now drop two files: .meta and .query
 	queryPath := filepath.Join(p, fmt.Sprintf("%v.query", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	if err := os.WriteFile(queryPath, []byte(x.Data.Query), 0644); err != nil {
+	if err := os.WriteFile(queryPath, []byte(x.Query), 0644); err != nil {
 		return err
 	}
-	x.Data.Query = ``
+	x.Query = ``
 	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
@@ -317,7 +317,7 @@ func readTemplate(dir, name string) (x types.PackedUserTemplate, err error) {
 	// Now read the contents and insert it
 	bts, err = os.ReadFile(queryPath)
 	if err == nil {
-		x.Data.Query = string(bts)
+		x.Query = string(bts)
 	} else if os.IsNotExist(err) {
 		err = nil
 	}

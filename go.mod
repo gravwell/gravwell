@@ -39,6 +39,7 @@ require (
 	github.com/gosnmp/gosnmp v1.35.0
 	github.com/gravwell/buffer v0.0.0-20220728204757-23339f4bab66
 	github.com/gravwell/gcfg v1.2.10-0.20251024173739-a5ba5db9985f
+	github.com/gravwell/gravwell/v3 v3.8.73
 	github.com/gravwell/ipfix v1.4.6-0.20240221191955-c76630f7cc37
 	github.com/gravwell/ipmigo v0.0.0-20230307161134-29dce87c333e
 	github.com/gravwell/jsonparser v0.0.0-20240802164212-e3c50dc78005
@@ -57,8 +58,8 @@ require (
 	github.com/pquerna/otp v1.5.0
 	github.com/rivo/tview v0.0.0-20240118093911-742cf086196e
 	github.com/shirou/gopsutil v2.20.9+incompatible
-	github.com/spf13/cobra v1.9.1
-	github.com/spf13/pflag v1.0.6
+	github.com/spf13/cobra v1.10.2
+	github.com/spf13/pflag v1.0.9
 	github.com/stretchr/testify v1.11.1
 	github.com/tealeg/xlsx v1.0.5
 	github.com/turnage/graw v0.0.0-20191104042329-405cc3092119

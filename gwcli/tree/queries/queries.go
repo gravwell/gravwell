@@ -45,42 +45,44 @@ func NewQueriesNav() *cobra.Command {
 }
 
 // #region past queries
+
 func past() action.Pair {
 	const (
 		pastUse string = "past"
 		short   string = "display search history"
 		long    string = "display past searches made by your user"
 	)
-	var defaultColumns = []string{"UID", "GID", "EffectiveQuery"}
 
 	return scaffoldlist.NewListAction(
 		short, long,
-		types.SearchLog{},
-		func(fs *pflag.FlagSet) ([]types.SearchLog, error) {
-			var (
-				toRet []types.SearchLog
-				err   error
-			)
-
+		types.SearchHistoryEntry{},
+		func(fs *pflag.FlagSet) ([]types.SearchHistoryEntry, error) {
+			opts := &types.QueryOptions{}
 			if count, e := fs.GetInt("count"); e != nil {
-				return nil, uniques.ErrGetFlag(pastUse, err)
+				return nil, uniques.ErrGetFlag(pastUse, e)
 			} else if count > 0 {
-				toRet, err = connection.Client.GetSearchHistoryRange(0, count)
-			} else {
-				toRet, err = connection.Client.GetSearchHistory()
+				opts.Limit = count
 			}
 
-			// check for explicit no records error
-			if err != nil && strings.Contains(err.Error(), "No record") {
-				clilog.Writer.Debugf("no records error: %v", err)
-				return []types.SearchLog{}, nil
+			resp, err := connection.Client.ListSearchHistory(opts)
+			if err != nil {
+				// check for explicit no records error
+				if strings.Contains(err.Error(), "No record") {
+					clilog.Writer.Debugf("no records error: %v", err)
+					return nil, nil
+				}
+				return nil, err
 			}
-			clilog.Writer.Debugf("found %v prior searches", len(toRet))
-			return toRet, err
+			return resp.Results, nil
 		},
 		scaffoldlist.Options{
 			Use: pastUse, AddtlFlags: flags,
-			DefaultColumns: defaultColumns, ColumnAliases: map[string]string{"EffectiveQuery": "EQuery"},
+			DefaultColumns: []string{
+				"ID",
+				"UserQuery",
+				"EffectiveQuery",
+				"Launched",
+			},
 		})
 }
 

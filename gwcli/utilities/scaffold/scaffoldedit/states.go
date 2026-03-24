@@ -9,38 +9,36 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 )
 
 // stateEdit is the collection of fields required to track and display an item currently being edited.
 // Expects to be prepared by editModel.enterEditMode().
 type stateEdit[S any] struct {
-	err          string // SetField or Update encountered an error or invalid setting
-	item         S      // the item being altered
-	longestWidth int    // longest line width
+	err              string // SetField or Update encountered an error or invalid setting
+	item             S      // the item being altered
+	longestLineWidth int    // longest line width
 
 	// currently selected field.
 	// Equal to len(tiCount), where the last item is the submit button
-	hovered uint
+	selected uint
 	// # of TIs currently available for editing this item
 	tiCount     int
-	orderedKTIs []scaffold.KeyedTI // KTIs, sorted by rank (cfg.Order)
+	orderedKTIs []KeyedTI // KTIs, sorted by rank (cfg.Order)
 }
 
-// Update() handling for editing mode.
-// Updates the TIs and performs data transmutation and submission if user confirms changes. // TODO
+// update() handling for editing mode, used onces an item has been selected from the list of editables.
+// Updates the TIs and performs data transmutation and submission if user confirms changes.
 //
-// identifier returns iff the updateSubr was triggered and processed successfully.
-// The empty string means that an error occurred or updateSubr was not fired at all.
-func (se *stateEdit[S]) update(msg tea.Msg,
-	cfg Config,
-	setFieldSub SetFieldSubroutine[S],
-	updateSub UpdateStructSubroutine[S]) (_ tea.Cmd, identifier string) {
+// An item identifier, as returned by updateSub, is returned iff the item update subroutine was triggered and processed successfully.
+// The empty string means that an error occurred or the item update subroutine was not fired at all.
+func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubroutine[S], updateSub UpdateStructSubroutine[S]) (
+	_ tea.Cmd, identifier string,
+) {
 	if keymsg, ok := msg.(tea.KeyMsg); ok {
 		se.err = "" // clear input errors on new key input
 		switch keymsg.Type {
 		case tea.KeyEnter:
-			if se.submitHovered() {
+			if se.submitSelected() {
 				var missing []string
 				for _, kti := range se.orderedKTIs { // check all required fields are populated
 					if kti.Required && strings.TrimSpace(kti.TI.Value()) == "" {
@@ -98,9 +96,10 @@ func (se *stateEdit[S]) update(msg tea.Msg,
 }
 
 func (se *stateEdit[S]) view() string {
-	inputs := scaffold.ViewKTIs(uint(se.longestWidth), se.orderedKTIs, se.hovered)
 
-	var wrapSty = lipgloss.NewStyle().Width(se.longestWidth)
+	inputs := ViewKTIs(uint(se.longestLineWidth)/2, uint(se.longestLineWidth)/2, se.orderedKTIs, se.selected)
+
+	var wrapSty = lipgloss.NewStyle().Width(se.longestLineWidth)
 
 	var inE string
 	if se.err != "" {
@@ -110,40 +109,84 @@ func (se *stateEdit[S]) view() string {
 	return inputs +
 		"\n" +
 		lipgloss.NewStyle().Width(lipgloss.Width(inputs)).AlignHorizontal(lipgloss.Center).Render(
-			stylesheet.ViewSubmitButton(se.submitHovered(), inE, ""),
+			stylesheet.ViewSubmitButton(se.submitSelected(), se.longestLineWidth, inE),
 		)
+}
+
+var (
+	rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
+)
+
+// ViewKTIs composes a uniform view of the given keyedTIs.
+// All field will be padded to a consistent length based on maxFieldWidth and right-aligned.
+// TIs are attached as View() to their respective TIs.
+func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []KeyedTI, selectedIdx uint) string {
+	if maxFieldWidth == 0 {
+		clilog.Writer.Warnf("field width is unset")
+	} else if maxTIWidth == 0 {
+		clilog.Writer.Warnf("TI width is unset")
+	}
+
+	var fields []string
+	var TIs []string
+
+	var sb strings.Builder // reused each cycle
+	for i, kti := range ktis {
+		// apply consistent left padding, then pip
+		sb.WriteString(strings.Repeat(" ", int(max(maxFieldWidth, maxTIWidth))-len(kti.Title)) + stylesheet.Pip(selectedIdx, uint(i)))
+		// colourize and attach title
+		if kti.Required {
+			sb.WriteString(stylesheet.Cur.PrimaryText.Render(kti.Title + ":"))
+		} else {
+			sb.WriteString(stylesheet.Cur.SecondaryText.Render(kti.Title + ":"))
+		}
+		// render the line and right-align it
+		fields = append(fields, rightAlignSty.Render(sb.String()))
+		sb.Reset()
+
+		TIs = append(TIs, kti.TI.View())
+	}
+
+	// compose all fields
+	f := lipgloss.JoinVertical(lipgloss.Right, fields...)
+
+	// compose all TIs
+	t := lipgloss.JoinVertical(lipgloss.Left, TIs...)
+
+	// conjoin fields and TIs
+	return lipgloss.JoinHorizontal(lipgloss.Center, f, t)
 }
 
 // Blur existing TI, select and focus previous (higher) TI.
 // Wraps from the first TI to the submit button.
 func (se *stateEdit[S]) previousTI() {
 	// if we are not on the submit button, then blur
-	if !se.submitHovered() {
-		se.orderedKTIs[se.hovered].TI.Blur()
+	if !se.submitSelected() {
+		se.orderedKTIs[se.selected].TI.Blur()
 	}
-	if se.hovered == 0 { // wrap to submit button
-		se.hovered = uint(len(se.orderedKTIs))
+	if se.selected == 0 { // wrap to submit button
+		se.selected = uint(len(se.orderedKTIs))
 	} else {
-		se.hovered -= 1
+		se.selected -= 1
 	}
 	// if we are not on the submit button, then focus
-	if !se.submitHovered() {
-		se.orderedKTIs[se.hovered].TI.Focus()
+	if !se.submitSelected() {
+		se.orderedKTIs[se.selected].TI.Focus()
 	}
 }
 
 // Blur existing TI, select and focus next (lower) TI.
 // Selects the submit button after the last TI and wraps after the submit button.
 func (se *stateEdit[S]) nextTI() {
-	if !se.submitHovered() {
-		se.orderedKTIs[se.hovered].TI.Blur()
+	if !se.submitSelected() {
+		se.orderedKTIs[se.selected].TI.Blur()
 	}
-	se.hovered += 1
-	if se.hovered > uint(len(se.orderedKTIs)) { // jump to start
-		se.hovered = 0
+	se.selected += 1
+	if se.selected > uint(len(se.orderedKTIs)) { // jump to start
+		se.selected = 0
 	}
-	if !se.submitHovered() {
-		se.orderedKTIs[se.hovered].TI.Focus()
+	if !se.submitSelected() {
+		se.orderedKTIs[se.selected].TI.Focus()
 	}
 }
 
@@ -151,12 +194,12 @@ func (se *stateEdit[S]) reset() {
 	var zero S
 
 	se.orderedKTIs = nil
-	se.hovered = 0
+	se.selected = 0
 	se.item = zero
 	se.err = ""
 	se.tiCount = 0
 }
 
-func (se *stateEdit[S]) submitHovered() bool {
-	return se.hovered == uint(se.tiCount)
+func (se *stateEdit[S]) submitSelected() bool {
+	return se.selected == uint(se.tiCount)
 }

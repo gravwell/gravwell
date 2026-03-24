@@ -175,14 +175,19 @@ func getColumns(fs *pflag.FlagSet, defaultColumns []string, availDSColumns []str
 		return defaultColumns, nil
 	}
 
-	if err := validateColumns(cols, availDSColumns); err != nil {
-		return nil, err
+	if badCols := validateColumns(cols, availDSColumns); len(badCols) > 0 {
+		plural := ""
+		if len(badCols) != 1 {
+			plural = "s"
+		}
+		return nil, fmt.Errorf("unknown column%s: %v", plural, badCols)
 	}
 	return cols, nil
 }
 
 // validateColumns tests that every given column exists within the given struct.
-func validateColumns(cols []string, availDSColumns []string) error {
+// Returns the list of unknown columns.
+func validateColumns(cols []string, availDSColumns []string) (unknown []string) {
 	// transform the DS columns into a map for faster access
 	m := make(map[string]bool, len(availDSColumns))
 	for _, col := range availDSColumns {
@@ -192,9 +197,9 @@ func validateColumns(cols []string, availDSColumns []string) error {
 	// confirm that each column is an existing column
 	for _, col := range cols {
 		if _, found := m[col]; !found {
-			return fmt.Errorf("'%v' is not a known column", col)
+			unknown = append(unknown, col)
 		}
 	}
 
-	return nil
+	return unknown
 }

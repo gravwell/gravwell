@@ -53,6 +53,17 @@ type ErrorObject struct {
 	Info string `json:"info,omitempty"`
 }
 
+// BaseListResponse contains the common set of fields returned when
+// querying lists of assets.
+type BaseListResponse struct {
+	CursorNext       string            `json:"cursor_next"`
+	CursorPrev       string            `json:"cursor_prev"`
+	CurrentPage      int               `json:"current_page"`
+	TotalCount       int               `json:"total_count"`
+	Type             string            `json:"type"`
+	AvailableFilters []AvailableFilter `json:"available_filters"`
+}
+
 type VersionInfo struct {
 	API   ApiInfo
 	Build BuildInfo
@@ -137,7 +148,7 @@ func ParseCanonicalVersion(s string) (r CanonicalVersion, err error) {
 	return
 }
 
-// NewerVersion returns true if the incoming version is newer than coming
+// NewerVersion returns true if the argument is newer than the receiver.
 func (cv CanonicalVersion) NewerVersion(ncv CanonicalVersion) bool {
 	return cv.Compare(ncv) > 0
 }

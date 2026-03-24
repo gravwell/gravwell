@@ -81,9 +81,9 @@ func (c *Client) DeleteUser(id int32) error {
 	return nil
 }
 
-// GetUserInfo (admin-only) gets information about a specific user.
-func (c *Client) GetUserInfo(id int32) (types.UserDetails, error) {
-	udet := types.UserDetails{}
+// GetUserInfo (admin-only) gets information about a specific user, including CBAC info.
+func (c *Client) GetUserInfo(id int32) (types.UserWithCBAC, error) {
+	udet := types.UserWithCBAC{}
 	if err := c.methodStaticURL(http.MethodGet, usersInfoUrl(id), &udet); err != nil {
 		return udet, err
 	}
@@ -135,35 +135,96 @@ func (c *Client) UserChangePass(id int32, orig, pass string) error {
 	return c.changePass(id, req)
 }
 
-// SetDefaultSearchGroup will set the specified user's default search group.
+// SetDefaultSearchGroups will set the specified user's default search groups.
 // Admins can set any user's default search group, but regular users can only set their own.
-func (c *Client) SetDefaultSearchGroup(uid int32, gid int32) error {
-	req := types.UserDefaultSearchGroup{
-		GID: gid,
+func (c *Client) SetDefaultSearchGroups(uid int32, gids []int32) error {
+	me, err := c.MyInfo()
+	if err != nil {
+		return err
 	}
-	return c.methodStaticPushURL(http.MethodPut, usersSearchGroupUrl(uid), req, nil, nil, nil)
+	udet := me
+	if uid != me.ID {
+		if !me.Admin {
+			return errors.New("Only admins can change another user's default search groups")
+		} else {
+			if err := c.methodStaticURL(http.MethodGet, usersInfoUrl(uid), &udet); err != nil {
+				return err
+			}
+		}
+	}
+
+	req := types.UpdateUser{
+		Username:            udet.Username,
+		Name:                udet.Name,
+		Email:               udet.Email,
+		Admin:               udet.Admin,
+		Locked:              udet.Locked,
+		DefaultSearchGroups: gids,
+	}
+	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(uid), req, nil, nil, nil)
 }
 
-// GetDefaultSearchGroup returns the specified users default search group
-// Admins can get any user's default search group, but regular users can only get their own.
-func (c *Client) GetDefaultSearchGroup(uid int32) (gid int32, err error) {
-	err = c.getStaticURL(usersSearchGroupUrl(uid), &gid)
+// GetDefaultSearchGroups returns the specified users default search groups.
+// Admins can get any user's default search groups, but regular users can only get their own.
+func (c *Client) GetDefaultSearchGroups(uid int32) (gids []int32, err error) {
+	var me types.User
+	me, err = c.MyInfo()
+	if err != nil {
+		return
+	}
+	udet := me
+	if uid != me.ID {
+		if !me.Admin {
+			err = errors.New("Only admins can get another user's default search groups")
+			return
+		} else {
+			if err = c.methodStaticURL(http.MethodGet, usersInfoUrl(uid), &udet); err != nil {
+				return
+			}
+		}
+	}
+
+	for _, g := range udet.DefaultSearchGroups {
+		gids = append(gids, g.ID)
+	}
 	return
 }
 
-// DeleteDefaultSearchGroup removes the default search group for a specified user
-// Admins can delete any user's default search group, but regular users can only delete their own.
-func (c *Client) DeleteDefaultSearchGroup(uid int32) error {
-	return c.deleteStaticURL(usersSearchGroupUrl(uid), nil)
+// DeleteDefaultSearchGroups removes the default search groups for a specified user
+// Admins can delete any user's default search groups, but regular users can only delete their own.
+func (c *Client) DeleteDefaultSearchGroups(uid int32) error {
+	return c.SetDefaultSearchGroups(uid, []int32{})
 }
 
 // UpdateUserInfo changes basic information about the specified user.
 // Admins can set any user's info, but regular users can only set their own.
 func (c *Client) UpdateUserInfo(id int32, user, name, email string) error {
+	me, err := c.MyInfo()
+	if err != nil {
+		return err
+	}
+	udet := me
+	if id != me.ID {
+		if !me.Admin {
+			return errors.New("Only admins can change another user's info")
+		} else {
+			if err := c.methodStaticURL(http.MethodGet, usersInfoUrl(id), &udet); err != nil {
+				return err
+			}
+		}
+	}
+
+	var gids []int32
+	for _, g := range udet.DefaultSearchGroups {
+		gids = append(gids, g.ID)
+	}
 	req := types.UpdateUser{
-		User:  user,
-		Name:  name,
-		Email: email,
+		Username:            user,
+		Name:                name,
+		Email:               email,
+		Admin:               udet.Admin,
+		Locked:              udet.Locked,
+		DefaultSearchGroups: gids,
 	}
 	return c.methodStaticPushURL(http.MethodPut, usersInfoUrl(id), req, nil, nil, nil)
 }
@@ -188,13 +249,13 @@ func (c *Client) DeleteGroup(gid int32) error {
 }
 
 // UpdateGroup (admin-only) will update the specified group's details.
-func (c *Client) UpdateGroup(gid int32, gdet types.GroupDetails) error {
+func (c *Client) UpdateGroup(gid int32, gdet types.Group) error {
 	return c.putStaticURL(groupIdUrl(gid), gdet)
 }
 
 // GetAllUsers returns information about all users on the system.
-func (c *Client) GetAllUsers() ([]types.UserDetails, error) {
-	var users []types.UserDetails
+func (c *Client) GetAllUsers() ([]types.User, error) {
+	var users []types.User
 	if err := c.getStaticURL(allUsersUrl(), &users); err != nil {
 		return nil, err
 	}
@@ -214,9 +275,9 @@ func (c *Client) DeleteUserFromGroup(uid, gid int32) error {
 	return c.deleteStaticURL(usersGroupIdUrl(uid, gid), nil)
 }
 
-// GetUserGroups returns information about groups to which the user belongs.
-func (c *Client) GetUserGroups(uid int32) ([]types.GroupDetails, error) {
-	var udet types.UserDetails
+// GetUserGroups (admin-only) returns information about groups to which the user belongs.
+func (c *Client) GetUserGroups(uid int32) ([]types.Group, error) {
+	var udet types.User
 	if err := c.getStaticURL(usersInfoUrl(uid), &udet); err != nil {
 		return nil, err
 	}
@@ -224,8 +285,8 @@ func (c *Client) GetUserGroups(uid int32) ([]types.GroupDetails, error) {
 }
 
 // GetGroups returns information about all groups on the system.
-func (c *Client) GetGroups() ([]types.GroupDetails, error) {
-	var gps []types.GroupDetails
+func (c *Client) GetGroups() ([]types.Group, error) {
+	var gps []types.Group
 	if err := c.getStaticURL(groupUrl(), &gps); err != nil {
 		return nil, err
 	}
@@ -234,33 +295,33 @@ func (c *Client) GetGroups() ([]types.GroupDetails, error) {
 
 // GetGroupMap returns a map of GID to group name for every group on the system.
 func (c *Client) GetGroupMap() (map[int32]string, error) {
-	var gps []types.GroupDetails
+	var gps []types.Group
 	if err := c.getStaticURL(groupUrl(), &gps); err != nil {
 		return nil, err
 	}
 	m := make(map[int32]string, len(gps))
 	for _, g := range gps {
-		m[g.GID] = g.Name
+		m[g.ID] = g.Name
 	}
 	return m, nil
 }
 
 // GetUserMap returns a map of UID to username for every user on the system.
 func (c *Client) GetUserMap() (map[int32]string, error) {
-	var uds []types.UserDetails
+	var uds []types.User
 	if err := c.getStaticURL(allUsersUrl(), &uds); err != nil {
 		return nil, err
 	}
 	m := make(map[int32]string, len(uds))
 	for _, u := range uds {
-		m[u.UID] = u.User
+		m[u.ID] = u.Username
 	}
 	return m, nil
 }
 
 // GetGroup returns information about the specified group.
-func (c *Client) GetGroup(id int32) (types.GroupDetails, error) {
-	var gp types.GroupDetails
+func (c *Client) GetGroup(id int32) (types.GroupWithCBAC, error) {
+	var gp types.GroupWithCBAC
 	if err := c.getStaticURL(groupIdUrl(id), &gp); err != nil {
 		return gp, err
 	}
@@ -269,8 +330,8 @@ func (c *Client) GetGroup(id int32) (types.GroupDetails, error) {
 
 // GetGroupUsers will return user details for all members of a group.
 // Only administrators or members of the group may call this function.
-func (c *Client) GetGroupUsers(gid int32) ([]types.UserDetails, error) {
-	var udets []types.UserDetails
+func (c *Client) GetGroupUsers(gid int32) ([]types.User, error) {
+	var udets []types.User
 	if err := c.getStaticURL(groupMembersUrl(gid), &udets); err != nil {
 		return nil, err
 	}
@@ -378,46 +439,6 @@ func (c *Client) Sessions(id int32) ([]types.Session, error) {
 
 }
 
-// GetPreferences fetches the preferences structure for the user and unpacks them into obj.
-func (c *Client) GetPreferences(id int32, obj interface{}) error {
-	return c.getStaticURL(preferencesUrl(id), obj)
-}
-
-// DeletePreferences clear's the specified user's preferences.
-func (c *Client) DeletePreferences(id int32) error {
-	return c.deleteStaticURL(preferencesUrl(id), nil)
-}
-
-// GetMyPreferences gets the current user's preferences into obj.
-func (c *Client) GetMyPreferences(obj interface{}) error {
-	if c.userDetails.UID == 0 {
-		return ErrNotSynced
-	}
-	return c.GetPreferences(c.userDetails.UID, obj)
-}
-
-// PutPreferences updates the specified user's preferences with obj.
-func (c *Client) PutPreferences(id int32, obj interface{}) error {
-	return c.putStaticURL(preferencesUrl(id), obj)
-}
-
-// PutMyPreferences updates the current user's preferences with obj.
-func (c *Client) PutMyPreferences(obj interface{}) error {
-	if c.userDetails.UID == 0 {
-		return ErrNotSynced
-	}
-	return c.putStaticURL(preferencesUrl(c.userDetails.UID), obj)
-}
-
-// GetAllPreferences (admin-only) fetches preferences for all users.
-func (c *Client) GetAllPreferences() (types.UserPreferences, error) {
-	var prefs types.UserPreferences
-	if err := c.getStaticURL(allPreferencesUrl(), &prefs); err != nil {
-		return nil, err
-	}
-	return prefs, nil
-}
-
 // GetLicenseInfo returns information about the currently installed license.
 func (c *Client) GetLicenseInfo() (li types.LicenseInfo, err error) {
 	err = c.getStaticURL(licenseInfoUrl(), &li)
@@ -521,13 +542,13 @@ func (c *Client) Impersonate(uid int32) (nc *Client, err error) {
 		transport:   c.transport,
 		userAgent:   c.userAgent,
 	}
-	var dets types.UserDetails
+	var dets types.User
 	if dets, err = nc.getMyInfo(); err != nil {
 		return
 	}
-	if dets.UID != uid {
+	if dets.ID != uid {
 		nc = nil
-		err = fmt.Errorf("Failed to impersonate new user: %s[%d] != %d", dets.Name, dets.UID, uid)
+		err = fmt.Errorf("Failed to impersonate new user: %s[%d] != %d", dets.Username, dets.ID, uid)
 		return
 	}
 	//set the user details the client is ready to use right out of the gate
@@ -553,32 +574,57 @@ func (c *Client) ExtractionSupportedEngines() (v []string, err error) {
 	return
 }
 
-// GetExtractions returns the list of autoextraction definitions available
+// ListExtractions returns the list of autoextraction definitions available
 // to the current user.
-func (c *Client) GetExtractions() (dfs []types.AXDefinition, err error) {
-	err = c.getStaticURL(extractionsUrl(), &dfs)
+func (c *Client) ListExtractions(opts *types.QueryOptions) (ret types.AXListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	err = c.postStaticURL(EXTRACTORS_LIST_URL, opts, &ret)
+	return
+}
+
+// ListAllExtractions returns the list of autoextraction definitions available
+// to the current user, setting admin mode to true -- admin users will receive ALL definitions.
+func (c *Client) ListAllExtractions(opts *types.QueryOptions) (ret types.AXListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	opts.AdminMode = true
+	err = c.postStaticURL(EXTRACTORS_LIST_URL, opts, &ret)
 	return
 }
 
 // GetExtraction returns a particular extraction by UUID
-func (c *Client) GetExtraction(uuid string) (d types.AXDefinition, err error) {
-	err = c.getStaticURL(extractionIdUrl(uuid), &d)
+func (c *Client) GetExtraction(id string) (d types.AX, err error) {
+	err = c.getStaticURL(extractionIdUrl(id), &d)
+	return
+}
+
+// FindExtraction returns the most appropriate extraction for a given tag
+func (c *Client) FindExtraction(tag string) (d types.AX, err error) {
+	err = c.getStaticURL(extractionFindUrl(tag), &d)
 	return
 }
 
 // DeleteExtraction deletes the specified autoextraction.
-func (c *Client) DeleteExtraction(uuid string) (wrs []types.WarnResp, err error) {
-	if err = c.deleteStaticURL(extractionIdUrl(uuid), nil); err == io.EOF {
+func (c *Client) DeleteExtraction(id string) (wrs []types.WarnResp, err error) {
+	if err = c.deleteStaticURL(extractionIdUrl(id), nil); err == io.EOF {
+		err = nil
+	}
+	return
+}
+
+// PurgeExtraction deletes the specified autoextraction.
+func (c *Client) PurgeExtraction(id string) (wrs []types.WarnResp, err error) {
+	if err = c.deleteStaticURL(extractionIdUrl(id), nil, ezParam("purge", "true")); err == io.EOF {
 		err = nil
 	}
 	return
 }
 
 // TestAddExtraction validates an autoextractor definition.
-func (c *Client) TestAddExtraction(d types.AXDefinition) (wrs []types.WarnResp, err error) {
-	if err = d.Validate(); err != nil {
-		return
-	}
+func (c *Client) TestAddExtraction(d types.AX) (wrs []types.WarnResp, err error) {
 	if err = c.postStaticURL(extractionsTestUrl(), d, nil); err == io.EOF {
 		err = nil
 	}
@@ -587,11 +633,8 @@ func (c *Client) TestAddExtraction(d types.AXDefinition) (wrs []types.WarnResp, 
 
 // AddExtraction installs an autoextractor definition, returning the UUID of the new
 // extraction or an error if it is invalid.
-func (c *Client) AddExtraction(d types.AXDefinition) (id uuid.UUID, wrs []types.WarnResp, err error) {
-	if err = d.Validate(); err != nil {
-		return
-	}
-	if err = c.postStaticURL(extractionsUrl(), d, &id); err == io.EOF {
+func (c *Client) AddExtraction(d types.AX) (result types.AX, wrs []types.WarnResp, err error) {
+	if err = c.postStaticURL(extractionsUrl(), d, &result); err == io.EOF {
 		err = nil
 	}
 	return
@@ -599,11 +642,8 @@ func (c *Client) AddExtraction(d types.AXDefinition) (id uuid.UUID, wrs []types.
 
 // UpdateExtraction modifies an existing autoextractor. The UUID field of the definition
 // passed in must match the UUID of an existing definition owned by the user.
-func (c *Client) UpdateExtraction(d types.AXDefinition) (wrs []types.WarnResp, err error) {
-	if err = d.Validate(); err != nil {
-		return
-	}
-	if err = c.methodStaticPushURL(http.MethodPut, extractionsUrl(), d, nil, nil, nil); err == io.EOF {
+func (c *Client) UpdateExtraction(d types.AX) (wrs []types.WarnResp, err error) {
+	if err = c.methodStaticPushURL(http.MethodPut, extractionIdUrl(d.ID), d, nil, nil, nil); err == io.EOF {
 		err = nil
 	}
 	return
@@ -834,12 +874,12 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//macros
-	if ms, err := nc.GetUserMacros(id); err != nil {
+	if ms, err := nc.ListMacros(&types.QueryOptions{OwnerID: id, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("Failed to list macros %w", err)
-	} else if len(ms) > 0 {
-		for _, p := range ms {
-			if p.UID == id {
-				if err = nc.DeleteMacro(p.ID); err != nil {
+	} else if len(ms.Results) > 0 {
+		for _, p := range ms.Results {
+			if p.OwnerID == id {
+				if err = nc.PurgeMacro(p.ID); err != nil {
 					return fmt.Errorf("Failed to delete user macro %v - %w", p.ID, err)
 				}
 			}
@@ -847,12 +887,12 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//API tokens
-	if toks, err := nc.ListTokens(); err != nil {
+	if toks, err := nc.ListTokens(&types.QueryOptions{OwnerID: id, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("failed to get user API tokens %w", err)
-	} else if len(toks) > 0 {
-		for _, t := range toks {
-			if t.UID == id {
-				if err := nc.DeleteToken(t.ID); err != nil {
+	} else if len(toks.Results) > 0 {
+		for _, t := range toks.Results {
+			if t.OwnerID == id {
+				if err := nc.PurgeToken(t.ID); err != nil {
 					return fmt.Errorf("Failed to delete user token %v - %w", t.ID, err)
 				}
 			}
@@ -860,39 +900,39 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//extractors
-	if exts, err := nc.GetExtractions(); err != nil {
+	if exts, err := nc.ListExtractions(&types.QueryOptions{OwnerID: id, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("Failed to get user autoextractors %w", err)
-	} else if len(exts) > 0 {
-		for _, e := range exts {
-			if e.UID == id {
-				if _, err := nc.DeleteExtraction(e.UUID.String()); err != nil {
-					return fmt.Errorf("Failed to delete user extraction %v - %w", e.UUID, err)
+	} else if len(exts.Results) > 0 {
+		for _, e := range exts.Results {
+			if e.OwnerID == id {
+				if _, err := nc.PurgeExtraction(e.ID); err != nil {
+					return fmt.Errorf("Failed to delete user extraction %v - %w", e.ID, err)
 				}
 			}
 		}
 	}
 
 	//resources
-	if rsr, err := nc.GetResourceList(); err != nil {
+	if rsr, err := nc.ListResources(&types.QueryOptions{OwnerID: id, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("Failed to get user resource list %w", err)
-	} else if len(rsr) > 0 {
-		for _, r := range rsr {
-			if r.UID == id {
-				if err := nc.DeleteResource(r.GUID); err != nil {
-					return fmt.Errorf("Failed to delete user resource %v %w", r.GUID, err)
+	} else if len(rsr.Results) > 0 {
+		for _, r := range rsr.Results {
+			if r.OwnerID == id {
+				if err := nc.PurgeResource(r.ID); err != nil {
+					return fmt.Errorf("Failed to delete user resource %v %w", r.ID, err)
 				}
 			}
 		}
 	}
 
 	//templates
-	if tmpls, err := nc.ListTemplates(); err != nil {
+	if tmpls, err := nc.ListTemplates(&types.QueryOptions{OwnerID: id, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("Failed to get user templates %w", err)
-	} else if len(tmpls) > 0 {
-		for _, t := range tmpls {
-			if t.UID == id {
-				if err := nc.DeleteTemplate(t.GUID); err != nil {
-					return fmt.Errorf("Failed to delete user template %v %w", t.GUID, err)
+	} else if len(tmpls.Results) > 0 {
+		for _, t := range tmpls.Results {
+			if t.OwnerID == id {
+				if err := nc.PurgeTemplate(t.ID); err != nil {
+					return fmt.Errorf("Failed to delete user template %v %w", t.ID, err)
 				}
 			}
 		}
@@ -925,21 +965,29 @@ func (c *Client) PurgeUser(id int32) error {
 	}
 
 	//query library
-	if sls, err := nc.ListSearchLibrary(); err != nil {
+	if sls, err := nc.ListSavedQueries(&types.QueryOptions{OwnerID: id, IncludeDeleted: true}); err != nil {
 		return fmt.Errorf("Failed to get user search library list %w", err)
-	} else if len(sls) > 0 {
-		for _, sl := range sls {
-			if sl.UID == id {
-				if err := nc.DeleteSearchLibrary(sl.GUID); err != nil {
-					return fmt.Errorf("Failed to delete user search library %v %w", sl.GUID, err)
+	} else if len(sls.Results) > 0 {
+		for _, sl := range sls.Results {
+			if sl.OwnerID == id {
+				if err := nc.PurgeSavedQuery(sl.ID); err != nil {
+					return fmt.Errorf("Failed to delete user search library %v %w", sl.ID, err)
 				}
 			}
 		}
 	}
 
 	//preferences
-	if err := nc.DeletePreferences(id); err != nil {
-		return fmt.Errorf("Failed to purge user preferences %d %w", id, err)
+	if prefs, err := nc.ListUserPreferences(&types.QueryOptions{OwnerID: id, IncludeDeleted: true}); err != nil {
+		return fmt.Errorf("Failed to get user preferences list %w", err)
+	} else if len(prefs.Results) > 0 {
+		for _, p := range prefs.Results {
+			if p.OwnerID == id {
+				if err := nc.PurgeUserPreference(p.ID); err != nil {
+					return fmt.Errorf("Failed to delete user preference %v %w", p.ID, err)
+				}
+			}
+		}
 	}
 
 	if err := nc.Close(); err != nil {

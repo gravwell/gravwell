@@ -50,16 +50,13 @@ const (
 	USERS_LOCK_URL                   = `/api/users/%d/lock`
 	USERS_LOCKED_URL                 = `/api/users/%d/locked`
 	USERS_DASHBOARD_URL              = `/api/users/%d/dashboards`
-	USERS_MACROS_URL                 = `/api/users/%d/macros`
 	USERS_PREFS_URL                  = `/api/users/%d/preferences`
-	USERS_ALL_PREFS_URL              = `/api/users/preferences`
 	USERS_ADMIN_URL                  = `/api/users/%d/admin`
 	USERS_ADMIN_SU_PATH              = `/api/users/su/%d`
 	USER_SESSIONS_URL                = `/api/users/%d/sessions`
 	CHANGE_PASS_URL                  = `/api/users/%d/pwd`
 	USERS_GROUP_URL                  = `/api/users/%d/group`
 	USERS_GROUP_ID_URL               = `/api/users/%d/group/%d`
-	USERS_SEARCH_GROUP_URL           = `/api/users/%d/searchgroup`
 	USERS_MFA_CLEAR_URL              = `/api/users/%d/mfa/clear`
 	WS_STAT_URL                      = `/api/ws/stats`
 	WS_SEARCH_URL                    = `/api/ws/search`
@@ -69,7 +66,6 @@ const (
 	GROUP_ID_URL                     = `/api/groups/%d`
 	GROUP_MEMBERS_URL                = `/api/groups/%d/members`
 	GROUP_DASHBOARD_URL              = `/api/groups/%d/dashboards`
-	GROUP_MACROS_URL                 = `/api/groups/%d/macros`
 	GROUP_URL                        = `/api/groups`
 	SEARCH_PARS_URL                  = `/api/parse`
 	SEARCH_CTRL_LIST_URL             = `/api/searchctrl`
@@ -95,7 +91,9 @@ const (
 	SEARCH_CTRL_ENTRIES_URL          = `/api/searchctrl/%s/renderer/%s`
 	SEARCH_CTRL_IMPORT_URL           = `/api/searchctrl/import`
 	SEARCH_CTRL_LAUNCH_URL           = `/api/searchctrl/launch`
-	SEARCH_HISTORY_URL               = `/api/searchhistory/%s/%d`
+	SEARCH_HISTORY_URL               = `/api/searchhistory`
+	SEARCH_HISTORY_LIST_URL          = `/api/searchhistory/list`
+	SEARCH_HISTORY_ID_URL            = `/api/searchhistory/%s`
 	NOTIFICATIONS_URL                = `/api/notifications`
 	NOTIFICATIONS_ID_URL             = `/api/notifications/%d`
 	NOTIFICATIONS_SELF_TARGETED_URL  = `/api/notifications/targeted/self`
@@ -107,16 +105,17 @@ const (
 	DASHBOARD_ALL_URL                = `/api/dashboards/all`
 	DASHBOARD_CLONE_URL              = `/api/dashboards/%d/clone`
 	MACROS_URL                       = `/api/macros`
-	MACROS_ALL_URL                   = `/api/macros/all`
-	MACROS_ID_URL                    = `/api/macros/%d`
+	MACROS_LIST_URL                  = `/api/macros/list`
+	MACROS_ID_URL                    = `/api/macros/%s`
 	LICENSE_INFO_URL                 = `/api/license`
 	LICENSE_SKU_URL                  = `/api/license/sku`
 	LICENSE_SERIAL_URL               = `/api/license/serial`
 	LICENSE_UPDATE_URL               = `/api/license/update`
-	RESOURCES_LIST_URL               = "/api/resources"
-	RESOURCES_GUID_URL               = "/api/resources/%s"
-	RESOURCES_GUID_RAW_URL           = "/api/resources/%s/raw"
-	RESOURCES_GUID_CLONE_URL         = "/api/resources/%s/clone"
+	RESOURCES_URL                    = "/api/resources"
+	RESOURCES_LIST_URL               = "/api/resources/list"
+	RESOURCES_ID_URL                 = "/api/resources/%s"
+	RESOURCES_ID_RAW_URL             = "/api/resources/%s/raw"
+	RESOURCES_ID_CLONE_URL           = "/api/resources/%s/clone"
 	RESOURCES_LOOKUP_URL             = "/api/resources/lookup/%s"
 	SCHEDULED_SEARCH_URL             = "/api/scheduledsearches"
 	SCHEDULED_SEARCH_ALL_URL         = "/api/scheduledsearches/all"
@@ -155,13 +154,15 @@ const (
 	KIT_BUILD_HISTORY_URL            = `/api/kits/build/history`
 	KIT_BUILD_HISTORY_ID_URL         = `/api/kits/build/history/%s`
 	EXTRACTORS_URL                   = `/api/autoextractors`
+	EXTRACTORS_LIST_URL              = `/api/autoextractors/list`
 	EXTRACTORS_UPLOAD_URL            = `/api/autoextractors/upload`
 	EXTRACTORS_TEST_URL              = `/api/autoextractors/test`
 	EXTRACTORS_ID_URL                = `/api/autoextractors/%s`
-	EXTRACTORS_SYNC_URL              = `/api/autoextractors/sync`
+	EXTRACTORS_FIND_URL              = `/api/autoextractors/find/%s`
 	EXTRACTORS_ENGINES_URL           = `/api/autoextractors/engines`
 	EXPLORE_GENERATE_URL             = `/api/explore/generate`
 	TEMPLATES_URL                    = "/api/templates"
+	TEMPLATES_LIST_URL               = "/api/templates/list"
 	TEMPLATES_ID_URL                 = "/api/templates/%s"
 	TEMPLATES_ID_DETAILS_URL         = "/api/templates/%s/details"
 	PIVOTS_URL                       = "/api/pivots"
@@ -172,6 +173,7 @@ const (
 	USER_FILES_ID_DETAILS_URL        = "/api/files/%s/details"
 	LIBRARY_URL                      = "/api/library"
 	LIBRARY_ID_URL                   = "/api/library/%s"
+	LIBRARY_LIST_URL                 = "/api/library/list"
 	LIBS_URL                         = `/api/libs`
 	CAPABILITY_LIST_URL              = `/api/info/capabilities`
 	CAPABILITY_TEMPLATE_LIST_URL     = `/api/info/capabilities/templates`
@@ -187,11 +189,13 @@ const (
 	BACKUP_URL                       = `/api/backup`
 	DEPLOYMENT_URL                   = `/api/deployment`
 	TOKENS_URL                       = `/api/tokens`
+	TOKENS_LIST_URL                  = `/api/tokens/list`
 	TOKENS_ID_URL                    = `/api/tokens/%s`
 	TOKENS_CAPABILITIES_URL          = `/api/tokens/capabilities`
 	SECRETS_URL                      = `/api/secrets`
+	SECRETS_LIST_URL                 = `/api/secrets/list`
 	SECRETS_ID_URL                   = `/api/secrets/%s`
-	SECRETS_ID_DETAILS_URL           = `/api/secrets/%s/details`
+	SECRETS_ID_VALUE_URL             = `/api/secrets/%s/value`
 	SECRETS_ID_FULL_URL              = `/api/secrets/%s/full`
 	SETTINGS_URL                     = `/api/settings`
 	INGESTERS_TRACKING_URL           = `/api/ingesters/%s/tracking`
@@ -203,6 +207,9 @@ const (
 	ALERTS_ID_SAMPLE_URL             = `/api/alerts/%s/sample`
 	ALERTS_VALIDATE_DISPATCHER_URL   = `/api/alerts/validate/dispatcher`
 	ALERTS_VALIDATE_CONSUMER_URL     = `/api/alerts/validate/consumer`
+	USER_PREFERENCES_URL             = `/api/userpreferences`
+	USER_PREFERENCES_LIST_URL        = `/api/userpreferences/list`
+	USER_PREFERENCES_ID_URL          = `/api/userpreferences/%s`
 	// Special APIs for installing licenses
 	LICENSE_INIT_UPLOAD = `/license`
 	LICENSE_INIT_STATUS = `/license/status`
@@ -240,12 +247,12 @@ func usersGroupIdUrl(uid, gid int32) string {
 	return fmt.Sprintf(USERS_GROUP_ID_URL, uid, gid)
 }
 
-func usersSearchGroupUrl(uid int32) string {
-	return fmt.Sprintf(USERS_SEARCH_GROUP_URL, uid)
+func searchHistoryIdUrl(id string) string {
+	return fmt.Sprintf(SEARCH_HISTORY_ID_URL, id)
 }
 
-func searchHistoryUrl(action string, id int32) string {
-	return fmt.Sprintf(SEARCH_HISTORY_URL, action, id)
+func searchHistoryListUrl() string {
+	return SEARCH_HISTORY_LIST_URL
 }
 
 func groupUrl() string {
@@ -348,10 +355,6 @@ func preferencesUrl(id int32) string {
 	return fmt.Sprintf(USERS_PREFS_URL, id)
 }
 
-func allPreferencesUrl() string {
-	return USERS_ALL_PREFS_URL
-}
-
 func notificationsUrl(id uint64) string {
 	if id == 0 {
 		return NOTIFICATIONS_URL
@@ -381,23 +384,23 @@ func licenseUpdateUrl() string {
 }
 
 func resourcesUrl() string {
-	return RESOURCES_LIST_URL
+	return RESOURCES_URL
 }
 
-func resourcesGuidUrl(guid string) string {
-	return fmt.Sprintf(RESOURCES_GUID_URL, guid)
+func resourcesIdUrl(id string) string {
+	return fmt.Sprintf(RESOURCES_ID_URL, id)
 }
 
-func resourcesGuidRawUrl(guid string) string {
-	return fmt.Sprintf(RESOURCES_GUID_RAW_URL, guid)
+func resourcesIdRawUrl(id string) string {
+	return fmt.Sprintf(RESOURCES_ID_RAW_URL, id)
 }
 
 func resourcesLookupUrl(name string) string {
 	return fmt.Sprintf(RESOURCES_LOOKUP_URL, name)
 }
 
-func resourcesCloneUrl(guid string) string {
-	return fmt.Sprintf(RESOURCES_GUID_CLONE_URL, guid)
+func resourcesCloneUrl(id string) string {
+	return fmt.Sprintf(RESOURCES_ID_CLONE_URL, id)
 }
 
 func scheduledSearchUrl() string {
@@ -503,15 +506,7 @@ func searchQueueUrl() string {
 	return QUEUE_URL
 }
 
-func userMacrosUrl(id int32) string {
-	return fmt.Sprintf(USERS_MACROS_URL, id)
-}
-
-func groupMacrosUrl(id int32) string {
-	return fmt.Sprintf(GROUP_MACROS_URL, id)
-}
-
-func macroUrl(id uint64) string {
+func macroUrl(id string) string {
 	return fmt.Sprintf(MACROS_ID_URL, id)
 }
 
@@ -574,8 +569,8 @@ func extractionIdUrl(id string) string {
 	return fmt.Sprintf(EXTRACTORS_ID_URL, id)
 }
 
-func extractionsSyncUrl() string {
-	return EXTRACTORS_SYNC_URL
+func extractionFindUrl(tag string) string {
+	return fmt.Sprintf(EXTRACTORS_FIND_URL, tag)
 }
 
 func extractionEnginesUrl() string {
@@ -590,8 +585,8 @@ func templatesUrl() string {
 	return TEMPLATES_URL
 }
 
-func templatesGuidUrl(guid uuid.UUID) string {
-	return fmt.Sprintf(TEMPLATES_ID_URL, guid)
+func templateUrl(id string) string {
+	return fmt.Sprintf(TEMPLATES_ID_URL, id)
 }
 
 func pivotsUrl() string {
@@ -618,8 +613,8 @@ func searchLibUrl() string {
 	return LIBRARY_URL
 }
 
-func searchLibIdUrl(id uuid.UUID) string {
-	return fmt.Sprintf(LIBRARY_ID_URL, id.String())
+func searchLibIdUrl(id string) string {
+	return fmt.Sprintf(LIBRARY_ID_URL, id)
 }
 
 func backupUrl() string {
@@ -634,8 +629,8 @@ func tokensUrl() string {
 	return TOKENS_URL
 }
 
-func tokenIdUrl(id uuid.UUID) string {
-	return fmt.Sprintf(TOKENS_ID_URL, id.String())
+func tokenIdUrl(id string) string {
+	return fmt.Sprintf(TOKENS_ID_URL, id)
 }
 
 func tokenCapabilitiesUrl() string {
@@ -646,15 +641,16 @@ func secretsUrl() string {
 	return SECRETS_URL
 }
 
-func secretIdUrl(id uuid.UUID) string {
-	return fmt.Sprintf(SECRETS_ID_URL, id.String())
+func secretIdUrl(id string) string {
+	return fmt.Sprintf(SECRETS_ID_URL, id)
 }
 
-func secretIdDetailsUrl(id uuid.UUID) string {
-	return fmt.Sprintf(SECRETS_ID_DETAILS_URL, id.String())
+func secretIdValueUrl(id string) string {
+	return fmt.Sprintf(SECRETS_ID_VALUE_URL, id)
 }
-func secretIdFullUrl(id uuid.UUID) string {
-	return fmt.Sprintf(SECRETS_ID_FULL_URL, id.String())
+
+func secretIdFullUrl(id string) string {
+	return fmt.Sprintf(SECRETS_ID_FULL_URL, id)
 }
 
 func searchLaunchUrl() string {
@@ -743,4 +739,8 @@ func mfaClearAllUrl() string {
 
 func mfaGenerateRecoveryCodesUrl() string {
 	return MFA_RECOVERY_GENERATE_PATH
+}
+
+func userPreferenceUrl(id string) string {
+	return fmt.Sprintf(USER_PREFERENCES_ID_URL, id)
 }
