@@ -434,7 +434,7 @@ func scheduledScriptParseUrl() string {
 	return SCHEDULED_SCRIPT_PARSE
 }
 
-func scheduledScriptIdUrl(id interface{}) string {
+func scheduledScriptIdUrl(id string) string {
 	return fmt.Sprintf(SCHEDULED_SCRIPT_ID_URL, id)
 }
 

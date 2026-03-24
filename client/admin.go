@@ -817,7 +817,7 @@ func (c *Client) PurgeUser(id int32) error {
 		for _, s := range ss.Results {
 			if s.OwnerID == id {
 				if err := nc.PurgeScheduledSearch(s.ID); err != nil {
-					return fmt.Errorf("Failed to purge scheduled searches %d %d %w", id, s.ID, err)
+					return fmt.Errorf("Failed to purge scheduled searches %d %s: %w", id, s.ID, err)
 				}
 			}
 		}
@@ -830,7 +830,7 @@ func (c *Client) PurgeUser(id int32) error {
 		for _, s := range ss.Results {
 			if s.OwnerID == id {
 				if err := nc.PurgeScheduledScript(s.ID); err != nil {
-					return fmt.Errorf("Failed to purge scheduled scripts %d %d %w", id, s.ID, err)
+					return fmt.Errorf("Failed to purge scheduled scripts %d %s: %w", id, s.ID, err)
 				}
 			}
 		}
@@ -843,7 +843,7 @@ func (c *Client) PurgeUser(id int32) error {
 		for _, s := range ss.Results {
 			if s.OwnerID == id {
 				if err := nc.PurgeFlow(s.ID); err != nil {
-					return fmt.Errorf("Failed to purge flow %d %d %w", id, s.ID, err)
+					return fmt.Errorf("Failed to purge flow %d %s: %w", id, s.ID, err)
 				}
 			}
 		}

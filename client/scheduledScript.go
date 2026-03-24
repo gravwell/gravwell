@@ -79,7 +79,7 @@ func (c *Client) UpdateScheduledScript(ss types.ScheduledScript) error {
 }
 
 // UpdateScheduledScriptResults is used to update the scheduled script after it has been
-// run. It only updates the PersistentMaps, LastRun, LastRunDuration, LastScriptIDs,
+// run. It only updates the PersistentMaps, LastRun, LastRunDuration, LastSearchIDs,
 // and LastError fields
 func (c *Client) UpdateScheduledScriptResults(ss types.ScheduledScript) error {
 	return c.putStaticURL(scheduledScriptResultsIdUrl(ss.ID), ss)

@@ -237,7 +237,7 @@ type AutomationCommonFields struct {
 	// e.g. "America/New_York" if Disabled is true, the automation
 	// will never execute on schedule (but may be run manually)
 	Disabled bool
-	// if BackfilleEnabled is true, search agent will attempt to
+	// if BackfillEnabled is true, search agent will attempt to
 	// "backfill" missed runs since the more recent of Updated or
 	// LastRun.
 	BackfillEnabled bool
@@ -247,10 +247,9 @@ type AutomationCommonFields struct {
 type AutomationResultsCommonFields struct {
 	// These fields will be updated by the search agent after the search runs.
 	LastRun         time.Time
-	LastRunDuration time.Duration    // how many nanoseconds did it take
-	LastSearchIDs   []string         // the IDs of the most recently performed searches
-	LastError       string           // any error from the last run of the scheduled search
-	ErrorHistory    []ScheduledError // a list of previously-occurring errors TODO removeme
+	LastRunDuration time.Duration // how many nanoseconds did it take
+	LastSearchIDs   []string      // the IDs of the most recently performed searches
+	LastError       string        // any error from the last run of the scheduled search
 }
 
 // ScheduledSearch represents a Gravwell query to be run on a schedule.

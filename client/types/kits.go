@@ -259,17 +259,17 @@ func (pbr *KitBuildRequest) Validate() error {
 	}
 	for i := range pbr.ScheduledSearches {
 		if pbr.ScheduledSearches[i] == "" {
-			return fmt.Errorf("Invalid scheduled search ID %d", pbr.ScheduledSearches[i])
+			return fmt.Errorf("Invalid scheduled search ID %s", pbr.ScheduledSearches[i])
 		}
 	}
 	for i := range pbr.ScheduledScripts {
 		if pbr.ScheduledScripts[i] == "" {
-			return fmt.Errorf("Invalid scheduled script ID %d", pbr.ScheduledScripts[i])
+			return fmt.Errorf("Invalid scheduled script ID %s", pbr.ScheduledScripts[i])
 		}
 	}
 	for i := range pbr.Flows {
 		if pbr.Flows[i] == "" {
-			return fmt.Errorf("Invalid flow ID %d", pbr.Flows[i])
+			return fmt.Errorf("Invalid flow ID %s", pbr.Flows[i])
 		}
 	}
 	for i := range pbr.Macros {

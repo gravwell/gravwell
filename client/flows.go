@@ -126,22 +126,23 @@ func (c *Client) ParseReactiveFlow(flow string, event types.Event) (outputPayloa
 	return
 }
 
-// ReportFlowResults uploads a set of results for the scheduled script with the specified ID.
+// ReportFlowResults uploads a set of results for the flow with the specified ID.
 func (c *Client) ReportFlowResults(id string, results types.FlowResults) error {
 	return c.postStaticURL(flowResultsIdUrl(id), results, nil)
 }
 
-// GetFlowResults retrieves the most recent results for the specified scheduled script
+// GetFlowResults retrieves the most recent results for the specified flow
 func (c *Client) GetFlowResults(id string) (results types.FlowResults, err error) {
 	err = c.getStaticURL(flowResultsIdUrl(id), &results)
 	return
 }
 
-// ClearFlowResults deletes all results for the specified scheduled script
+// ClearFlowResults deletes all results for the specified flow
 func (c *Client) ClearFlowResults(id string) error {
 	return c.deleteStaticURL(flowResultsIdUrl(id), nil)
 }
 
+// DebugFlow schedules an immediate execution of the specified flow.
 func (c *Client) DebugFlow(id string, opts types.AutomationDebugRequest) error {
 	return c.postStaticURL(flowDebugIdUrl(id), opts, nil)
 }
