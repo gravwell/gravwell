@@ -71,7 +71,7 @@ type GenerateAXRequest struct {
 // A GenerateAXResponse contains an autoextractor definition
 // and corresponding Element extractions as gathered from a single extraction module
 type GenerateAXResponse struct {
-	Extractor AXDefinition
+	Extractor AX
 	// Confidence is a range from 0 to 10, with 10 meaning "we are very confident"
 	// and 0 meaning "we didn't extract anything of worth".
 	// Some modules, like xml, will return values lower than 10 even if they extracted
@@ -389,18 +389,16 @@ func (si SearchInfo) StorageSize() int64 {
 
 const AllowedMacroChars = "ABCDCEFGHIJKLMNOPQRSTUVWXYZ1234567890_-"
 
-type SearchMacro struct {
-	ID          uint64
-	UID         int32
-	GIDs        []int32
-	Global      bool
-	WriteAccess Access
-	Name        string
-	Description string
-	Expansion   string
-	Labels      []string
-	LastUpdated time.Time
-	Synced      bool
+type Macro struct {
+	CommonFields
+	Expansion string
+}
+
+// MacroListResponse is what gets returned when you query a list of
+// macros.
+type MacroListResponse struct {
+	BaseListResponse
+	Results []Macro `json:"results"`
 }
 
 func CheckMacroName(name string) error {

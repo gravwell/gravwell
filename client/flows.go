@@ -15,94 +15,67 @@ import (
 	"github.com/gravwell/gravwell/v4/client/types"
 )
 
-// GetFlowList returns flows the user has access to.
-func (c *Client) GetFlowList() ([]types.ScheduledSearch, error) {
-	var searches []types.ScheduledSearch
-	if err := c.getStaticURL(flowUrl(), &searches); err != nil {
-		return nil, err
+// ListFlows returns flows the user has access to.
+func (c *Client) ListFlows(opts *types.QueryOptions) (flows types.FlowListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
 	}
-	return searches, nil
+	if err = c.postStaticURL(FLOW_LIST_URL, opts, &flows); err != nil {
+		return
+	}
+	return
 }
 
-// CreateFlow makes a new flow and returns the ID. The parameters are:
-//
-// - name: the flow name.
-//
-// - description: the flow description.
-//
-// - schedule: a cron-format schedule on which to execute the flow.
-//
-// - flow: a valid JSON flow definition.
-//
-// - groups: an optional array of groups which should be able to access this object.
-func (c *Client) CreateFlow(name, description, schedule, flow string, groups []int32) (int32, error) {
-	ss := types.ScheduledSearch{
-		Groups:        groups,
-		Name:          name,
-		Description:   description,
-		Schedule:      schedule,
-		ScheduledType: types.ScheduledTypeFlow,
-		Flow:          flow,
+// ListAllFlows returns all flows on the system (for admins).
+func (c *Client) ListAllFlows(opts *types.QueryOptions) (flows types.FlowListResponse, err error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
 	}
-	var resp int32
-	if err := c.postStaticURL(flowUrl(), ss, &resp); err != nil {
-		return 0, err
+	opts.AdminMode = true // we'll reject this if the user isn't actually an admin
+	if err = c.postStaticURL(FLOW_LIST_URL, opts, &flows); err != nil {
+		return
 	}
-	return resp, nil
+	return
 }
 
-// CreateFlowFromObject just implements the same API as CreateFlow but expects the complete ScheduledSearch object
-// as an input, this allows users to have direct access to the full object.  The ScheduleType is overridden to
-// ScheduledTypeFlow to prevent errors.
-func (c *Client) CreateFlowFromObject(obj types.ScheduledSearch) (int32, error) {
-	// just override the type
-	obj.ScheduledType = types.ScheduledTypeFlow
-
-	// only field we absolutely require is the Name
-	if obj.Name == `` {
-		return -1, errors.New("missing name")
-	}
-	var resp int32
-	if err := c.postStaticURL(flowUrl(), obj, &resp); err != nil {
-		return 0, err
-	}
-	return resp, nil
+// GetFlow returns the flow with the given ID.
+func (c *Client) GetFlow(id string) (types.Flow, error) {
+	var flow types.Flow
+	err := c.getStaticURL(flowIdUrl(id), &flow)
+	return flow, err
 }
 
-// UpdateFlowResults is used to update the flow after it has been
-// run. It only updates the LastRun, LastRunDuration, LastSearchIDs,
-// and LastError fields.
-func (c *Client) UpdateFlowResults(ss types.ScheduledSearch) error {
-	return c.putStaticURL(flowResultsIdUrl(ss.ID), ss)
-}
-
-// UpdateFlow is used to modify an existing flow.
-func (c *Client) UpdateFlow(ss types.ScheduledSearch) error {
-	return c.putStaticURL(flowIdUrl(ss.ID), ss)
+// GetFlowEx returns a particular flow. If the QueryOptions arg is
+// not nil, applicable parameters (currently only IncludeDeleted) will
+// be applied to the query.
+func (c *Client) GetFlowEx(id string, opts *types.QueryOptions) (types.Flow, error) {
+	var flow types.Flow
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	err := c.getStaticURL(flowIdUrl(id), &flow, ezParam("include_deleted", opts.IncludeDeleted))
+	return flow, err
 }
 
 // DeleteFlow removes the specified flow.
-func (c *Client) DeleteFlow(id int32) error {
+func (c *Client) DeleteFlow(id string) error {
 	return c.deleteStaticURL(flowIdUrl(id), nil)
 }
 
-// GetFlow returns the flow with the given ID. The ID is an interface{}
-// to allow the user to specify either the flow's int32 "ID" or its
-// UUID "GUID" field.
-func (c *Client) GetFlow(id interface{}) (types.ScheduledSearch, error) {
-	var search types.ScheduledSearch
-	err := c.getStaticURL(flowIdUrl(id), &search)
-	return search, err
+// PurgeFlow permanently removes the specified flow.
+func (c *Client) PurgeFlow(id string) error {
+	return c.deleteStaticURL(flowIdUrl(id), nil, ezParam("purge", "true"))
 }
 
-// ClearFlowError clears the error field on the specified scheduled search.
-func (c *Client) ClearFlowError(id int32) error {
-	return c.deleteStaticURL(flowErrorIdUrl(id), nil)
+// CreateFlow makes a new flow.
+func (c *Client) CreateFlow(spec types.Flow) (result types.Flow, err error) {
+	err = c.postStaticURL(flowUrl(), spec, &result)
+	return
 }
 
-// ClearFlowState clears state variables on the specified scheduled search.
-func (c *Client) ClearFlowState(id int32) error {
-	return c.deleteStaticURL(flowStateIdUrl(id), nil)
+// UpdateFlow is used to modify an existing flow.
+func (c *Client) UpdateFlow(ss types.Flow) error {
+	return c.putStaticURL(flowIdUrl(ss.ID), ss)
 }
 
 // ParseFlow asks the API to check a flow.
@@ -151,4 +124,30 @@ func (c *Client) ParseReactiveFlow(flow string, event types.Event) (outputPayloa
 	}
 	outputPayloads = resp.OutputPayloads
 	return
+}
+
+// ReportFlowResults uploads a set of results for the flow with the specified ID.
+func (c *Client) ReportFlowResults(id string, results types.FlowResults) error {
+	return c.postStaticURL(flowResultsIdUrl(id), results, nil)
+}
+
+// GetFlowResults retrieves the most recent results for the specified flow
+func (c *Client) GetFlowResults(id string) (results types.FlowResults, err error) {
+	err = c.getStaticURL(flowResultsIdUrl(id), &results)
+	return
+}
+
+// ClearFlowResults deletes all results for the specified flow
+func (c *Client) ClearFlowResults(id string) error {
+	return c.deleteStaticURL(flowResultsIdUrl(id), nil)
+}
+
+// DebugFlow schedules an immediate execution of the specified flow.
+func (c *Client) DebugFlow(id string, opts types.AutomationDebugRequest) error {
+	return c.postStaticURL(flowDebugIdUrl(id), opts, nil)
+}
+
+// CancelFlow cancels any active run of the specified flow.
+func (c *Client) CancelFlow(id string) error {
+	return c.deleteStaticURL(flowCancelIdUrl(id), nil)
 }

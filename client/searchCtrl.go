@@ -23,7 +23,6 @@ import (
 )
 
 const (
-	SEARCH_HISTORY_USER = `user`
 	importFormGID       = `GID`
 	importFormFile      = `file`
 	importFormBatchName = `BatchName`
@@ -125,55 +124,46 @@ func (c *Client) ListSearchDetails() ([]types.SearchInfo, error) {
 	return details, err
 }
 
-// GetSearchHistory retrieves the current search history for the currently logged
-// in user.  It only pulls back searches invoked by the individual user.
-func (c *Client) GetSearchHistory() ([]types.SearchLog, error) {
-	var sl []types.SearchLog
-	if err := c.getStaticURL(searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.UID), &sl); err != nil {
-		return nil, err
+// GetSearchHistoryEntry retrieves a single search history entry by ID.
+// Use the includeDeleted parameter to include deleted entries.
+func (c *Client) GetSearchHistoryEntry(id string, includeDeleted bool) (types.SearchHistoryEntry, error) {
+	var entry types.SearchHistoryEntry
+	params := []urlParam{}
+	if includeDeleted {
+		params = append(params, urlParam{key: `include_deleted`, value: `true`})
 	}
-	return sl, nil
+	if err := c.getStaticURL(searchHistoryIdUrl(id), &entry, params...); err != nil {
+		return entry, err
+	}
+	return entry, nil
 }
 
-// GetRefinedSearchHistory retrieves the current search history for the
-// currently logged in user narrowed to searches containing the substring s. It
-// only pulls back searches invoked by the individual user.
-func (c *Client) GetRefinedSearchHistory(s string) ([]types.SearchLog, error) {
-	var sl []types.SearchLog
-	params := []urlParam{
-		urlParam{key: `refine`, value: s},
+// ListSearchHistory retrieves the search history for the currently logged in user
+// with advanced query options for filtering, sorting, and pagination.
+func (c *Client) ListSearchHistory(opts *types.QueryOptions) (types.SearchHistoryListResponse, error) {
+	var resp types.SearchHistoryListResponse
+	if opts == nil {
+		opts = &types.QueryOptions{}
 	}
-	pth := searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.UID)
-	if err := c.methodStaticParamURL(http.MethodGet, pth, params, &sl); err != nil {
-		return nil, err
+	if err := c.postStaticURL(searchHistoryListUrl(), opts, &resp); err != nil {
+		return resp, err
 	}
-	return sl, nil
+	return resp, nil
 }
 
-// GetUserSearchHistory retrieves the current search history for the specified user.
-// Only admins may request search history for users besides themselves.
-func (c *Client) GetUserSearchHistory(uid int32) ([]types.SearchLog, error) {
-	var sl []types.SearchLog
-	if err := c.getStaticURL(searchHistoryUrl(SEARCH_HISTORY_USER, uid), &sl); err != nil {
-		return nil, err
+// DeleteSearchHistoryEntry deletes or purges a search history entry by ID.
+// If purge is true, the entry is permanently removed; otherwise it is soft-deleted.
+func (c *Client) DeleteSearchHistoryEntry(id string, purge bool) error {
+	params := []urlParam{}
+	if purge {
+		params = append(params, urlParam{key: `purge`, value: `true`})
 	}
-	return sl, nil
+	return c.methodStaticParamURL(http.MethodDelete, searchHistoryIdUrl(id), params, nil)
 }
 
-// GetSearchHistoryRange retrieves paginated search history for the currently logged
-// in user.  The start and end parameters are indexes into the search history, with
-// 0 representing the most recent search.
-func (c *Client) GetSearchHistoryRange(start, end int) ([]types.SearchLog, error) {
-	params := []urlParam{
-		urlParam{key: `start`, value: fmt.Sprintf("%d", start)},
-		urlParam{key: `end`, value: fmt.Sprintf("%d", end)},
-	}
-	pth := searchHistoryUrl(SEARCH_HISTORY_USER, c.userDetails.UID)
-	var sl []types.SearchLog
-	if err := c.methodStaticParamURL(http.MethodGet, pth, params, &sl); err != nil {
-		return nil, err
-	}
-	return sl, nil
+// CleanupSearchHistory purges all soft-deleted search history entries for the current user.
+func (c *Client) CleanupSearchHistory() error {
+	return c.deleteStaticURL(SEARCH_HISTORY_URL, nil)
 }
 
 // ParseSearch validates a search query. Gravwell will return an error if the query
@@ -1079,7 +1069,7 @@ func (c *Client) DownloadSearch(sid string, tr types.TimeRange, format string) (
 func (c *Client) ImportSearch(rdr io.Reader, gid int32) (err error) {
 	var flds map[string]string
 	if gid > 0 {
-		if !c.userDetails.InGroup(gid) {
+		if !c.userDetails.IsGroupMember(gid) {
 			err = fmt.Errorf("Logged in user not in group %d", gid)
 			return
 		}
@@ -1096,7 +1086,7 @@ func (c *Client) ImportSearch(rdr io.Reader, gid int32) (err error) {
 func (c *Client) ImportSearchBatchInfo(rdr io.Reader, gid int32, name, info string) (err error) {
 	flds := map[string]string{}
 	if gid > 0 {
-		if !c.userDetails.InGroup(gid) {
+		if !c.userDetails.IsGroupMember(gid) {
 			err = fmt.Errorf("Logged in user not in group %d", gid)
 			return
 		}

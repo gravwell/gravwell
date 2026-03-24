@@ -8,7 +8,7 @@
 
 // Package treeutils provides functions for creating the cobra command tree.
 // It has been extracted into its own package to avoid import cycles.
-package treeutils
+package treeutils_test
 
 import (
 	"fmt"
@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +25,7 @@ func TestGenerateNav(t *testing.T) {
 	const childNavCount uint = 4
 	childNavs := make([]*cobra.Command, childNavCount)
 	for i := range childNavCount {
-		childNavs[i] = GenerateNav(fmt.Sprintf("child_nav_%d", i), fmt.Sprintf("child_nav_%d short", i), fmt.Sprintf("child_nav_%d long", i),
+		childNavs[i] = treeutils.GenerateNav(fmt.Sprintf("child_nav_%d", i), fmt.Sprintf("child_nav_%d short", i), fmt.Sprintf("child_nav_%d long", i),
 			nil, nil, nil)
 	}
 	t.Run("usage", func(t *testing.T) {
@@ -45,7 +46,7 @@ func TestGenerateNav(t *testing.T) {
 				t.Skipf("too many navs request (request: %d | available: %d)", tt.navCount, childNavCount)
 			}
 			t.Run(tt.name, func(t *testing.T) {
-				nav := GenerateNav("test", "short test", "long test", []string{"alias1", "alias2"},
+				nav := treeutils.GenerateNav("test", "short test", "long test", []string{"alias1", "alias2"},
 					childNavs[:tt.navCount],
 					nil)
 

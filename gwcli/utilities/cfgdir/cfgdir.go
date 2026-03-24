@@ -21,6 +21,16 @@ const (
 	stdLogName  string = "dev.log"
 )
 
+// environment variables
+const (
+	EnvKeyPassword string = "GRAVWELL_PASSWORD" // environment variable potentially holding a password
+	EnvKeyAPI      string = "GRAVWELL_API_KEY"
+)
+
+const (
+	DefaultLogLevel string = "INFO"
+)
+
 // all persistent data is stored in $os.UserConfigDir/gwcli/
 // or local to the instantiation, if that fails
 var ( // set by init
