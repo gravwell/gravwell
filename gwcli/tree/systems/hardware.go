@@ -68,6 +68,8 @@ func newHardwareAction() action.Pair {
 				return stylesheet.Cur.ErrorText.Render(err.Error()), nil
 			}
 			{ // collect averages and accumulations
+				i := 0
+
 				var cpuSamples, memSamples uint
 
 				for idxr, stat := range metrics {
@@ -96,6 +98,8 @@ func newHardwareAction() action.Pair {
 						o.Disks.AvgReadsPerSecB += float64(io.Read)
 						o.Disks.AvgWritesPerSecB += float64(io.Write)
 					}
+
+					i += 1
 				}
 
 				if memSamples != cpuSamples { // sanity check: these should never be out of sync

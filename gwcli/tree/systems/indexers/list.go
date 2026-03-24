@@ -127,9 +127,13 @@ func list() action.Pair {
 			}
 
 			// dereference each item, now that it has been built
-			ret := make([]list_t, 0, len(m))
-			for v := range maps.Values(m) {
-				ret = append(ret, *v)
+			itr := maps.Values(m)
+			var ret = make([]list_t, len(m))
+			var i = 0
+			for v := range itr {
+				ret[i] = *v
+				clilog.Writer.Debugf("%v", ret[i])
+				i += 1
 			}
 
 			return ret, nil

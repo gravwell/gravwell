@@ -14,7 +14,7 @@ func list() action.Pair {
 		long  string = "Review general statistics about all ingesters."
 	)
 
-	type ingesterListItem struct {
+	type wrappedIngesterStats struct {
 		Indexer       string
 		Hostname      string
 		RemoteAddress string
@@ -27,8 +27,8 @@ func list() action.Pair {
 		UUID          string
 	}
 
-	return scaffoldlist.NewListAction(short, long, ingesterListItem{},
-		func(fs *pflag.FlagSet) ([]ingesterListItem, error) {
+	return scaffoldlist.NewListAction(short, long, wrappedIngesterStats{},
+		func(fs *pflag.FlagSet) ([]wrappedIngesterStats, error) {
 			// GetIngesterStats returns data according to each indexer.
 			// We extract just the ingester stats sub items.
 			// The rest of the stats are inside of the indexer-specific actions.
@@ -37,10 +37,10 @@ func list() action.Pair {
 				return nil, err
 			}
 			// transform the data
-			var wrap = make([]ingesterListItem, 0)
+			var wrap = make([]wrappedIngesterStats, 0)
 			for idxr, stats := range ss { // walk each indexer
 				for _, ingstr := range stats.Ingesters { // walk each ingester
-					wrap = append(wrap, ingesterListItem{
+					wrap = append(wrap, wrappedIngesterStats{
 						Indexer:       idxr,
 						Hostname:      ingstr.State.Hostname,
 						RemoteAddress: ingstr.RemoteAddress,

@@ -358,15 +358,17 @@ func (dii *deepIndexerInfo) fetchByUUID() {
 			clilog.Writer.Warnf("failed to fetch per well storage stats for indexer %v", parsed.String())
 		} else {
 			// transmute the map
-			st := make([]struct {
+			var st = make([]struct {
 				Name  string
 				Stats types.PerWellStorageStats
-			}, 0, len(stats))
+			}, len(stats))
+			var i = 0
 			for name, stat := range stats {
-				st = append(st, struct {
+				st[i] = struct {
 					Name  string
 					Stats types.PerWellStorageStats
-				}{name, stat})
+				}{name, stat}
+				i += 1
 			}
 
 			dii.Wells = st

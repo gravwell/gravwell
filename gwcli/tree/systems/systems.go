@@ -64,9 +64,11 @@ func newStorageAction() action.Pair {
 			if err != nil {
 				return []namedStorage{}, err
 			}
-			wrap := make([]namedStorage, 0, len(ss))
+			var wrap = make([]namedStorage, len(ss))
+			var i = 0
 			for disk, stats := range ss {
-				wrap = append(wrap, namedStorage{Disk: disk, Stats: stats})
+				wrap[i] = namedStorage{Disk: disk, Stats: stats}
+				i += 1
 			}
 
 			return wrap, nil
