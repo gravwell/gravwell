@@ -282,6 +282,16 @@ func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err
 		if err = json.NewDecoder(rdr).Decode(&ps); err == nil {
 			itm.AdditionalInfo, err = ps.JSONMetadata()
 		}
+	case ScheduledScript:
+		var ps PackedScheduledScript
+		if err = json.NewDecoder(rdr).Decode(&ps); err == nil {
+			itm.AdditionalInfo, err = ps.JSONMetadata()
+		}
+	case Flow:
+		var ps PackedFlow
+		if err = json.NewDecoder(rdr).Decode(&ps); err == nil {
+			itm.AdditionalInfo, err = ps.JSONMetadata()
+		}
 	case Dashboard:
 		var pdb PackedDashboard
 		if err = json.NewDecoder(rdr).Decode(&pdb); err == nil {

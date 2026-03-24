@@ -8,7 +8,6 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -93,7 +92,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 					clilog.Writer.Errorf("failed to cast dispatcher from item. Bare item: %v", li)
 					continue
 				}
-				dispatchers = append(dispatchers, types.AlertDispatcher{ID: dsp.GUID.String(), Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
+				dispatchers = append(dispatchers, types.AlertDispatcher{ID: dsp.ID, Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH})
 			}
 			consumers := []types.AlertConsumer{}
 			for _, li := range c.consumersModel.GetSelectedItems() {
@@ -103,7 +102,7 @@ func (c *createModel) Update(msg tea.Msg) tea.Cmd {
 					continue
 				}
 
-				consumers = append(consumers, types.AlertConsumer{ID: cns.GUID.String(), Type: types.ALERTCONSUMERTYPE_FLOW})
+				consumers = append(consumers, types.AlertConsumer{ID: cns.ID, Type: types.ALERTCONSUMERTYPE_FLOW})
 			}
 			ad := types.AlertDefinition{
 				Name:               c.metadata.name.Value(),
@@ -207,10 +206,10 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 			dispatchers[i] = item{
 				Name: dsp.Name,
 				Desc: dsp.Description,
-				GUID: dsp.GUID,
+				ID:   dsp.ID,
 			}
 			// this sucks from a time-complexity standpoint but ¯\_(ツ)_/¯
-			if slices.Contains(flagVals.dispatcherIDs, dsp.GUID) {
+			if slices.Contains(flagVals.dispatcherIDs, dsp.ID) {
 				preselected[i] = true
 			}
 			i += 1
@@ -225,16 +224,16 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 
 	consumers := make([]list.DefaultItem, len(availConsumers))
 	wg.Go(func() {
-		preselected := make(map[uint]bool, len(flagVals.consumerGUIDs))
+		preselected := make(map[uint]bool, len(flagVals.consumerIDs))
 		var i uint
 		for _, cns := range availConsumers {
 			consumers[i] = item{
 				Name: cns.Name,
 				Desc: cns.Description,
-				GUID: cns.GUID,
+				ID:   cns.ID,
 			}
 			// this sucks from a time-complexity standpoint but ¯\_(ツ)_/¯
-			if slices.Contains(flagVals.consumerGUIDs, cns.GUID) {
+			if slices.Contains(flagVals.consumerIDs, cns.ID) {
 				preselected[i] = true
 			}
 			i += 1
@@ -255,7 +254,7 @@ func (c *createModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height i
 type item struct {
 	Name string
 	Desc string
-	GUID uuid.UUID
+	ID   string
 }
 
 // FilterValue sets the string to include/disclude this item on when a user filters.

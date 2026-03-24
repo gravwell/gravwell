@@ -10,19 +10,15 @@
 package scheduled
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
@@ -88,29 +84,17 @@ func listScheduledSearch(fs *pflag.FlagSet) ([]types.ScheduledSearch, error) {
 	if all, err := fs.GetBool("all"); err != nil {
 		uniques.ErrGetFlag("scheduled list", err)
 	} else if all {
-		return connection.Client.GetAllScheduledSearches()
+		list, err := connection.Client.ListAllScheduledSearches(nil)
+		return list.Results, err
 	}
-	if untypedID, err := fs.GetString("id"); err != nil {
+	if id, err := fs.GetString("id"); err != nil {
 		uniques.ErrGetFlag("scheduled list", err)
-	} else if untypedID != "" {
-		// attempt to parse as UUID first
-		if uuid, err := uuid.Parse(untypedID); err == nil {
-			ss, err := connection.Client.GetScheduledSearch(uuid)
-			return []types.ScheduledSearch{ss}, err
-		}
-		// now try as int32
-		if i32id, err := strconv.Atoi(untypedID); err == nil {
-			ss, err := connection.Client.GetScheduledSearch(i32id)
-			return []types.ScheduledSearch{ss}, err
-		}
-
-		// both have failed, error out
-		errString := fmt.Sprintf("failed to parse %v as a uuid or int32 id", untypedID)
-		clilog.Writer.Infof("%s", errString)
-
-		return nil, errors.New(errString)
+	} else if id != "" {
+		ss, err := connection.Client.GetScheduledSearch(id)
+		return []types.ScheduledSearch{ss}, err
 	}
-	return connection.Client.GetScheduledSearchList()
+	list, err := connection.Client.ListScheduledSearches(nil)
+	return list.Results, err
 }
 
 //#endregion list
@@ -192,18 +176,18 @@ func createFunc(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag
 // builds the scheduled search delete action
 func delete() action.Pair {
 	return scaffolddelete.NewDeleteAction(
-		"query", "queries", del, func() ([]scaffolddelete.Item[int32], error) {
-			ss, err := connection.Client.GetScheduledSearchList()
+		"query", "queries", del, func() ([]scaffolddelete.Item[string], error) {
+			ss, err := connection.Client.ListScheduledSearches(nil)
 			if err != nil {
 				return nil, err
 			}
 			// sort the results on name
-			slices.SortFunc(ss, func(m1, m2 types.ScheduledSearch) int {
+			slices.SortFunc(ss.Results, func(m1, m2 types.ScheduledSearch) int {
 				return strings.Compare(m1.Name, m2.Name)
 			})
-			var items = make([]scaffolddelete.Item[int32], len(ss))
-			for i, ssi := range ss {
-				items[i] = scaffolddelete.NewItem[int32](ssi.Name,
+			var items = make([]scaffolddelete.Item[string], len(ss.Results))
+			for i, ssi := range ss.Results {
+				items[i] = scaffolddelete.NewItem[string](ssi.Name,
 					fmt.Sprintf("%v\n(looks %v seconds into the past)",
 						ssi.SearchString, math.Abs(float64(ssi.Duration))),
 					ssi.ID)
@@ -213,7 +197,7 @@ func delete() action.Pair {
 }
 
 // deletes a scheduled search
-func del(dryrun bool, id int32) error {
+func del(dryrun bool, id string) error {
 	if dryrun {
 		_, err := connection.Client.GetScheduledSearch(id)
 		return err
@@ -274,13 +258,14 @@ func edit() action.Pair {
 		},
 	}
 
-	funcs := scaffoldedit.SubroutineSet[int32, types.ScheduledSearch]{
+	funcs := scaffoldedit.SubroutineSet[string, types.ScheduledSearch]{
 		// GetScheduledSearch can take an int32 or uuid
-		SelectSub: func(id int32) (item types.ScheduledSearch, err error) {
+		SelectSub: func(id string) (item types.ScheduledSearch, err error) {
 			return connection.Client.GetScheduledSearch(id)
 		},
 		FetchSub: func() (items []types.ScheduledSearch, err error) {
-			return connection.Client.GetScheduledSearchList()
+			list, err := connection.Client.ListScheduledSearches(nil)
+			return list.Results, err
 		},
 		GetFieldSub: func(item types.ScheduledSearch, fieldKey string) (value string, err error) {
 			switch fieldKey {

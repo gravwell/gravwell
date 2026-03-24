@@ -56,7 +56,7 @@ type KitConfig struct {
 type KitItem struct {
 	Name           string
 	Type           string
-	ID             string          `json:",omitempty"` //the UUID
+	ID             string          `json:",omitempty"`
 	AdditionalInfo json.RawMessage `json:",omitempty"`
 	Hash           [sha256.Size]byte
 }
@@ -138,8 +138,9 @@ type KitBuildRequest struct {
 	Templates         []string          `json:",omitempty"`
 	Pivots            []uuid.UUID       `json:",omitempty"`
 	Resources         []string          `json:",omitempty"`
-	ScheduledSearches []int32           `json:",omitempty"`
-	Flows             []int32           `json:",omitempty"`
+	ScheduledSearches []string          `json:",omitempty"`
+	ScheduledScripts  []string          `json:",omitempty"`
+	Flows             []string          `json:",omitempty"`
 	Macros            []string          `json:",omitempty"`
 	Extractors        []string          `json:",omitempty"`
 	Files             []uuid.UUID       `json:",omitempty"`
@@ -152,7 +153,7 @@ type KitBuildRequest struct {
 	Cover             string            `json:",omitempty"`
 	Dependencies      []KitDependency   `json:",omitempty"`
 	ConfigMacros      []KitConfigMacro
-	ScriptDeployRules map[int32]ScriptDeployConfig
+	ScriptDeployRules map[string]ScriptDeployConfig
 }
 
 type StoredBuildRequest struct {
@@ -257,43 +258,48 @@ func (pbr *KitBuildRequest) Validate() error {
 		pbr.Resources[i] = strings.TrimSpace(pbr.Resources[i]) //clean it
 	}
 	for i := range pbr.ScheduledSearches {
-		if pbr.ScheduledSearches[i] <= 0 {
-			return fmt.Errorf("Invalid scheduled search/script ID %d", pbr.ScheduledSearches[i])
+		if pbr.ScheduledSearches[i] == "" {
+			return fmt.Errorf("empty scheduled search ID")
+		}
+	}
+	for i := range pbr.ScheduledScripts {
+		if pbr.ScheduledScripts[i] == "" {
+			return fmt.Errorf("empty scheduled script ID")
 		}
 	}
 	for i := range pbr.Flows {
-		if pbr.Flows[i] <= 0 {
-			return fmt.Errorf("Invalid flow ID %d", pbr.Flows[i])
+		if pbr.Flows[i] == "" {
+			return fmt.Errorf("empty flow ID")
 		}
 	}
 	for i := range pbr.Macros {
 		if pbr.Macros[i] == "" {
-			return errors.New("Invalid macro ID")
+			return errors.New("invalid macro ID")
 		}
 	}
 	for i := range pbr.Templates {
 		if pbr.Templates[i] == "" {
-			return errors.New("Invalid template ID")
+			return errors.New("invalid template ID")
 		}
 	}
 	for i := range pbr.Pivots {
 		if pbr.Pivots[i] == uuid.Nil {
-			return errors.New("Zero UUID in pivots list")
+			return errors.New("zero UUID in pivots list")
 		}
 	}
 	for i := range pbr.Files {
 		if pbr.Files[i] == uuid.Nil {
-			return errors.New("Zero UUID in file list")
+			return errors.New("zero UUID in file list")
 		}
 	}
 	for i := range pbr.Playbooks {
 		if pbr.Playbooks[i] == uuid.Nil {
-			return errors.New("Zero UUID in playbook list")
+			return errors.New("zero UUID in playbook list")
 		}
 	}
 	for i := range pbr.Alerts {
 		if pbr.Alerts[i] == uuid.Nil {
-			return errors.New("Zero UUID in alert list")
+			return errors.New("zero UUID in alert list")
 		}
 	}
 
@@ -315,24 +321,24 @@ func (pbr *KitBuildRequest) Validate() error {
 	idMp := map[KitDependency]es{}
 	for _, dp := range pbr.Dependencies {
 		if _, ok := idMp[dp]; ok {
-			return fmt.Errorf("Dependency %s %d is duplicated", dp.ID, dp.MinVersion)
+			return fmt.Errorf("dependency %s %d is duplicated", dp.ID, dp.MinVersion)
 		}
 		idMp[dp] = empty
 	}
 
 	for _, emb := range pbr.EmbeddedItems {
 		if len(emb.Name) == 0 {
-			return errors.New("Missing name on embedded item")
+			return errors.New("missing name on embedded item")
 		} else if len(emb.Type) == 0 {
-			return errors.New("Embedded item must have a type")
+			return errors.New("embedded item must have a type")
 		} else if len(emb.Content) == 0 {
-			return errors.New("Embedded content items must not be empty")
+			return errors.New("embedded content items must not be empty")
 		}
 	}
 
-	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
+	kitItemCount := len(pbr.Dashboards) + len(pbr.Templates) + len(pbr.Pivots) + len(pbr.Resources) + len(pbr.ScheduledSearches) + len(pbr.ScheduledScripts) + len(pbr.Flows) + len(pbr.Macros) + len(pbr.Extractors) + len(pbr.Files) + len(pbr.SearchLibraries) + len(pbr.Playbooks) + len(pbr.Alerts)
 	if kitItemCount == 0 {
-		return errors.New("Build request does not contain any items")
+		return errors.New("build request does not contain any items")
 	}
 	return nil
 }

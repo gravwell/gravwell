@@ -133,8 +133,12 @@ func generateKitBuildRequest(cli *client.Client, kbrBase types.KitBuildRequest) 
 	if err = getKitResources(cli, label, kbrBase, &kbr); err != nil {
 		return
 	}
-	//scheduled searches and scripts
-	if err = getKitScheduledSearchesAndScripts(cli, label, kbrBase, &kbr); err != nil {
+	//scheduled searches
+	if err = getKitScheduledSearches(cli, label, kbrBase, &kbr); err != nil {
+		return
+	}
+	// scheduled scripts
+	if err = getKitScheduledScripts(cli, label, kbrBase, &kbr); err != nil {
 		return
 	}
 	//flows
@@ -281,13 +285,13 @@ func getKitResources(cli *client.Client, label string, orig types.KitBuildReques
 	return
 }
 
-func getKitScheduledSearchesAndScripts(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var searches []types.ScheduledSearch
-	if searches, err = cli.GetScheduledSearchList(); err != nil {
+func getKitScheduledSearches(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
+	var searches types.ScheduledSearchListResponse
+	if searches, err = cli.ListScheduledSearches(nil); err != nil {
 		err = fmt.Errorf("failed to get scheduled searches: %w", err)
 		return
 	}
-	for _, ss := range searches {
+	for _, ss := range searches.Results {
 		if slices.Contains(ss.Labels, label) || slices.Contains(orig.ScheduledSearches, ss.ID) {
 			kbr.ScheduledSearches = append(kbr.ScheduledSearches, ss.ID)
 		}
@@ -295,13 +299,27 @@ func getKitScheduledSearchesAndScripts(cli *client.Client, label string, orig ty
 	return
 }
 
+func getKitScheduledScripts(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
+	var scripts types.ScheduledScriptListResponse
+	if scripts, err = cli.ListScheduledScripts(nil); err != nil {
+		err = fmt.Errorf("failed to get scheduled scripts: %w", err)
+		return
+	}
+	for _, ss := range scripts.Results {
+		if slices.Contains(ss.Labels, label) || slices.Contains(orig.ScheduledScripts, ss.ID) {
+			kbr.ScheduledScripts = append(kbr.ScheduledScripts, ss.ID)
+		}
+	}
+	return
+}
+
 func getKitFlows(cli *client.Client, label string, orig types.KitBuildRequest, kbr *types.KitBuildRequest) (err error) {
-	var flows []types.ScheduledSearch
-	if flows, err = cli.GetFlowList(); err != nil {
+	var flows types.FlowListResponse
+	if flows, err = cli.ListFlows(nil); err != nil {
 		err = fmt.Errorf("failed to get flows: %w", err)
 		return
 	}
-	for _, f := range flows {
+	for _, f := range flows.Results {
 		if slices.Contains(f.Labels, label) || slices.Contains(orig.Flows, f.ID) {
 			kbr.Flows = append(kbr.Flows, f.ID)
 		}

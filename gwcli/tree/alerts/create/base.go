@@ -12,7 +12,6 @@ package alertscreate
 import (
 	"fmt"
 
-	"github.com/google/uuid"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
@@ -74,29 +73,29 @@ func Action() action.Pair {
 // Specifically, it checks that at least one dispatcher and at least one consumer has been created.
 //
 // Returns the list of dispatchers and consumers so we don't have to hit the backend again.
-func prerequisites() (availDispatchers map[uuid.UUID]types.ScheduledSearch, availConsumers map[uuid.UUID]types.ScheduledSearch, inv string, _ error) {
-	dispatchers, err := connection.Client.GetScheduledSearchList()
+func prerequisites() (availDispatchers map[string]types.ScheduledSearch, availConsumers map[string]types.Flow, inv string, _ error) {
+	dispatchers, err := connection.Client.ListScheduledSearches(nil)
 	if err != nil {
 		return nil, nil, "", err
-	} else if len(dispatchers) < 1 {
+	} else if len(dispatchers.Results) < 1 {
 		return nil, nil, "No dispatchers available. Dispatchers may be scheduled searches. Please create one before creating an alert.", nil
 	}
 
-	consumers, err := connection.Client.GetFlowList()
+	consumers, err := connection.Client.ListFlows(nil)
 	if err != nil {
 		return nil, nil, "", err
-	} else if len(consumers) < 1 {
+	} else if len(consumers.Results) < 1 {
 		return nil, nil, "No consumers available. Consumers may be flows. Please create one before creating an alert.", nil
 	}
 
 	// transmute dispatchers and consumers to maps to improve lookup time
-	availDispatchers = make(map[uuid.UUID]types.ScheduledSearch, len(dispatchers))
-	for _, dsp := range dispatchers {
-		availDispatchers[dsp.GUID] = dsp
+	availDispatchers = make(map[string]types.ScheduledSearch, len(dispatchers.Results))
+	for _, dsp := range dispatchers.Results {
+		availDispatchers[dsp.ID] = dsp
 	}
-	availConsumers = make(map[uuid.UUID]types.ScheduledSearch, len(consumers))
-	for _, cns := range consumers {
-		availConsumers[cns.GUID] = cns
+	availConsumers = make(map[string]types.Flow, len(consumers.Results))
+	for _, cns := range consumers.Results {
+		availConsumers[cns.ID] = cns
 	}
 
 	return availDispatchers, availConsumers, "", nil
@@ -127,7 +126,7 @@ func createFlagSet() *pflag.FlagSet {
 
 // validateFlagValues validates the given state, returning on the first invalidity found.
 // If no invalidities are found, returns an alert definition suitable for NewAlert().
-func validateFlagValues(availableConsumers, availableDispatchers map[uuid.UUID]types.ScheduledSearch, flagVals alertFlags) (invalid string, alert types.AlertDefinition) {
+func validateFlagValues(availableConsumers map[string]types.Flow, availableDispatchers map[string]types.ScheduledSearch, flagVals alertFlags) (invalid string, alert types.AlertDefinition) {
 	// check that mandatory flags have values
 	if flagVals.name == "" {
 		return "you must provide a name for the new alert", types.AlertDefinition{}
@@ -135,23 +134,23 @@ func validateFlagValues(availableConsumers, availableDispatchers map[uuid.UUID]t
 
 	// validate that all given IDs are known and transmute the IDs
 	dispatchers := make([]types.AlertDispatcher, len(flagVals.dispatcherIDs))
-	for i, GUID := range flagVals.dispatcherIDs {
-		_, found := availableDispatchers[GUID]
+	for i, ID := range flagVals.dispatcherIDs {
+		_, found := availableDispatchers[ID]
 		if !found {
-			return GUID.String() + " is not a known scheduled search", types.AlertDefinition{}
+			return ID + " is not a known scheduled search", types.AlertDefinition{}
 		}
 		dispatchers[i] = types.AlertDispatcher{
-			ID:   GUID.String(),
+			ID:   ID,
 			Type: types.ALERTDISPATCHERTYPE_SCHEDULEDSEARCH,
 		}
 	}
-	consumers := make([]types.AlertConsumer, len(flagVals.consumerGUIDs))
-	for i, GUID := range flagVals.consumerGUIDs {
-		if _, found := availableConsumers[GUID]; !found {
-			return GUID.String() + " is not a known flow", types.AlertDefinition{}
+	consumers := make([]types.AlertConsumer, len(flagVals.consumerIDs))
+	for i, ID := range flagVals.consumerIDs {
+		if _, found := availableConsumers[ID]; !found {
+			return ID + " is not a known flow", types.AlertDefinition{}
 		}
 		consumers[i] = types.AlertConsumer{
-			ID:   GUID.String(),
+			ID:   ID,
 			Type: types.ALERTCONSUMERTYPE_FLOW,
 		}
 	}
@@ -172,8 +171,8 @@ func validateFlagValues(availableConsumers, availableDispatchers map[uuid.UUID]t
 type alertFlags struct {
 	name          string
 	description   string
-	dispatcherIDs []uuid.UUID
-	consumerGUIDs []uuid.UUID
+	dispatcherIDs []string
+	consumerIDs   []string
 	tag           string
 	maxEvents     int
 	enabled       bool
@@ -209,11 +208,10 @@ func readFlags(fs *pflag.FlagSet) (vals alertFlags, firstInvalid string) {
 			clilog.LogFlagFailedGet("dispatchers", err)
 		}
 		if len(dispatchers) > 0 {
-			vals.dispatcherIDs = make([]uuid.UUID, len(dispatchers))
+			vals.dispatcherIDs = make([]string, len(dispatchers))
 			for i, dsp := range dispatchers {
-				vals.dispatcherIDs[i], err = uuid.Parse(dsp)
-				if err != nil {
-					return vals, fmt.Sprintf("failed to parse '%s' as a UUID dispatcher GUID", dsp)
+				if dsp == "" {
+					return vals, fmt.Sprintf("dispatcher %d is an empty ID string", i)
 				}
 			}
 		}
@@ -225,11 +223,10 @@ func readFlags(fs *pflag.FlagSet) (vals alertFlags, firstInvalid string) {
 			clilog.LogFlagFailedGet("consumers", err)
 		}
 		if len(consumers) > 0 {
-			vals.consumerGUIDs = make([]uuid.UUID, len(consumers))
+			vals.consumerIDs = make([]string, len(consumers))
 			for i, cns := range consumers {
-				vals.consumerGUIDs[i], err = uuid.Parse(cns)
-				if err != nil {
-					return vals, fmt.Sprintf("failed to parse '%s' as UUID consumer GUID", cns)
+				if cns == "" {
+					return vals, fmt.Sprintf("consumer %d is an empty ID string", i)
 				}
 			}
 		}

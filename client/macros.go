@@ -58,8 +58,7 @@ func (c *Client) PurgeMacro(id string) error {
 	return c.deleteStaticURL(macroUrl(id), nil, ezParam("purge", "true"))
 }
 
-// CreateMacro creates a new macro with the specified name and expansion, returning
-// the ID of the newly-created macro.
+// CreateMacro creates a new macro, returning the newly-created macro.
 func (c *Client) CreateMacro(m types.Macro) (result types.Macro, err error) {
 	err = c.postStaticURL(MACROS_URL, m, &result)
 	return
