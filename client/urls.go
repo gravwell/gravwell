@@ -410,7 +410,7 @@ func scheduledSearchUrl() string {
 	return SCHEDULED_SEARCH_URL
 }
 
-func scheduledSearchIdUrl(id interface{}) string {
+func scheduledSearchIdUrl(id string) string {
 	return fmt.Sprintf(SCHEDULED_SEARCH_ID_URL, id)
 }
 
