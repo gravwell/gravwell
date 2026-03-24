@@ -84,7 +84,7 @@ func (c *Client) authenticate(ctx context.Context) error {
 		return fmt.Errorf("%w, failed to parse auth response: %w", ErrAuthenticationFailure, err)
 	}
 	// expire 'early' so we don't risk a race
-	token.ExpireAt = time.Now().Add(time.Duration(token.ExpireIn)*time.Second - time.Second*5)
+	token.ExpireAt = time.Now().Add(time.Duration(token.ExpireIn)*time.Second - time.Minute*5)
 	c.token = *token
 	return nil
 }
