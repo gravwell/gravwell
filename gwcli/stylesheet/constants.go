@@ -8,6 +8,8 @@
 
 package stylesheet
 
+import "time"
+
 // Other constants we can use to enforce a consistent style across all states of the program
 
 const (
@@ -20,4 +22,9 @@ const (
 	RightSigil      = "→"
 	LeftRightSigils = LeftSigil + "/" + RightSigil
 	Indent          = "  "
+)
+
+const ( // list bubble modifiers
+	// How long should a status message appear in a list bubble
+	StatusMessageLifetime = 3 * time.Second
 )

@@ -124,6 +124,7 @@ func Test_determineFormat(t *testing.T) {
 		{"json, no pretty", []string{"--" + ft.JSON.Name()}, false, json},
 		{"csv precedence over json", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name()}, false, csv},
 		{"pretty precedence over all", []string{"--" + ft.JSON.Name(), "--" + ft.CSV.Name(), "--pretty", "--" + ft.Table.Name()}, true, pretty},
+		{"pretty defined, but --table requested", []string{"--" + ft.Table.Name()}, true, tbl},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

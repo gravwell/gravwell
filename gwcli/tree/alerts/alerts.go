@@ -22,6 +22,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	alertscreate "github.com/gravwell/gravwell/v4/gwcli/tree/alerts/create"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
@@ -39,9 +40,10 @@ func NewAlertsNav() *cobra.Command {
 	)
 	return treeutils.GenerateNav(use, short, long, []string{"alert"}, []*cobra.Command{},
 		[]action.Pair{
-			list(),
+			alertsList(),
 			toggle(),
 			delete(),
+			alertscreate.Action(),
 		})
 }
 
@@ -51,7 +53,7 @@ var (
 	listDispatcherID string
 )
 
-func list() action.Pair {
+func alertsList() action.Pair {
 	const (
 		short string = "list your alerts"
 		long  string = "lists alerts associated to your user. If admin mode is active, returns all alerts for all users."
