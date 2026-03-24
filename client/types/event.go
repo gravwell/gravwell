@@ -52,13 +52,13 @@ type EventMetadata struct {
 	Created            time.Time
 	AlertID            string // ThingUUID of the Alert
 	AlertName          string
-	AlertActivation    string // uniquely identify the particular activation of the alert
-	EventIndex         int    // this event's index within the dispatcher results for the alert activation
-	TargetTag          string // the tag this got sent to
-	AlertLabels        []string
+	AlertActivation    string   // uniquely identify the particular activation of the alert
+	EventIndex         int      // this event's index within the dispatcher results for the alert activation
+	TargetTag          string   // the tag this got sent to
+	AlertLabels        []string `json:",omitempty"` // labels attached to the alert definition
 	Dispatcher         EventDispatcherInfo
 	Consumers          []EventConsumerInfo    `json:",omitempty"` // consmers which will be launched for this event
-	UserMetadata       map[string]interface{} // this is arbitrary stuff that the user attached to the alert def.
+	UserMetadata       map[string]interface{} `json:",omitempty"` // this is arbitrary stuff that the user attached to the alert def.
 	ValidationProblems []ValidationProblem    `json:",omitempty"`
 }
 

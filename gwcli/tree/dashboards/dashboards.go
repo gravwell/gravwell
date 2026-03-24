@@ -53,7 +53,11 @@ func newDashboardsListAction() action.Pair {
 
 	return scaffoldlist.NewListAction(short, long,
 		types.Dashboard{}, list,
-		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"ID", "Name", "Description"}})
+		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{
+			"ID",
+			"Name",
+			"Description",
+		}})
 }
 
 func flags() pflag.FlagSet {

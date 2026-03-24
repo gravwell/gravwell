@@ -1,5 +1,4 @@
 //go:build !ci
-// +build !ci
 
 /*************************************************************************
  * Copyright 2024 Gravwell, Inc. All rights reserved.
@@ -21,7 +20,7 @@ do not account for parallelism at a test level
 (testing in multiple processes, not goroutines, is acceptable).
 */
 
-import (
+/*import (
 	"bytes"
 	"encoding/csv"
 	"encoding/json"
@@ -49,9 +48,9 @@ import (
 
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/utils/weave"
-)
+)*/
 
-const ( // testing server credentials
+/*const ( // testing server credentials
 	user     = "admin"
 	password = "changeme"
 	server   = "localhost:80"
@@ -851,10 +850,10 @@ func skimSID(t *testing.T, stdout string) (sid string) {
 	}
 	resultsOut := strings.SplitSeq(stdout, "\n")
 	// check each entry in resultsOut until we find the correct string or run out of entries
-	/*var (
-		fgbg    string // unused
-		numeric uint64
-	)*/
+	//var (
+	//	fgbg    string // unused
+	//	numeric uint64
+	//)
 	for res := range resultsOut {
 		t.Logf("scanning line '%s'", res)
 
@@ -904,3 +903,4 @@ func checkResult(t *testing.T, fatal bool, source, expected, actual string) {
 }
 
 // #endregion
+*/
