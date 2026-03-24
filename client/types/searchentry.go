@@ -10,11 +10,12 @@ package types
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"net"
 	"time"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 // StringTagEntry is used for scripting and ingesting entries via the webserver.
@@ -25,6 +26,8 @@ type StringTagEntry struct {
 	Data       []byte
 	Enumerated []EnumeratedPair
 }
+
+type PrintableSearchEntry SearchEntry
 
 // SearchEntry is the entry that makes it out of the search pipeline.
 type SearchEntry struct {
@@ -45,6 +48,22 @@ type EnumeratedPair struct {
 type RawEnumeratedValue struct {
 	Type uint16
 	Data []byte
+}
+
+func (p PrintableSearchEntry) MarshalJSON() ([]byte, error) {
+	return json.Marshal(&struct {
+		TS         entry.Timestamp
+		SRC        net.IP
+		Tag        entry.EntryTag
+		Data       string
+		Enumerated []EnumeratedPair
+	}{
+		TS:         p.TS,
+		SRC:        p.SRC,
+		Tag:        p.Tag,
+		Data:       string(p.Data),
+		Enumerated: p.Enumerated,
+	})
 }
 
 // GetEnumerated returns the string representation of an enumerated value in a SearchEntry.
