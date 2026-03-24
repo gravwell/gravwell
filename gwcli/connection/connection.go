@@ -716,6 +716,7 @@ func GetResultsForWriter(s *grav.Search, tr types.TimeRange, csv, json bool) (rc
 	}
 	clilog.Writer.Infof("renderer '%s' -> '%s'", s.RenderMod, format)
 
+	// FIXME  This will always error now, due to breakage incoming from https://github.com/gravwell/issues/issues/2144
 	// fetch and return results
 	rc, err = Client.DownloadSearch(s.ID, tr, format)
 	return rc, format, err
