@@ -87,15 +87,15 @@ func get() action.Pair {
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				// validate that at least one of the additional flags was given
 				// check that we were given ingesters to fetch
-				hostPrefix, err := fs.GetString("hostname")
+				hostPrefix, err := fs.GetString(flagHostname)
 				if err != nil {
 					return "", uniques.ErrGetFlag(use, err)
 				}
-				uuidPrefix, err := fs.GetString("uuid")
+				uuidPrefix, err := fs.GetString(flagUUID)
 				if err != nil {
 					return "", uniques.ErrGetFlag(use, err)
 				}
-				namePrefix, err := fs.GetString("name")
+				namePrefix, err := fs.GetString(flagName)
 				if err != nil {
 					return "", uniques.ErrGetFlag(use, err)
 				}

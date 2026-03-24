@@ -299,11 +299,11 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 		defer wg.Done()
 		stats, err := connection.Client.GetSystemStats()
 		if err != nil {
-			clilog.Writer.Warnf("failed to fetch system descriptions: %v", err)
+			clilog.Writer.Warnf("failed to fetch system stats: %v", err)
 			return
 		}
 		if stat, ok := stats[dii.Name]; !ok {
-			clilog.Writer.Warnf("did not find a system description associated with indexer %v", dii.Name)
+			clilog.Writer.Warnf("did not find system stats associated with indexer %v", dii.Name)
 		} else {
 			mu.Lock()
 			defer mu.Unlock()
@@ -358,17 +358,15 @@ func (dii *deepIndexerInfo) fetchByUUID() {
 			clilog.Writer.Warnf("failed to fetch per well storage stats for indexer %v", parsed.String())
 		} else {
 			// transmute the map
-			var st = make([]struct {
+			st := make([]struct {
 				Name  string
 				Stats types.PerWellStorageStats
-			}, len(stats))
-			var i = 0
+			}, 0, len(stats))
 			for name, stat := range stats {
-				st[i] = struct {
+				st = append(st, struct {
 					Name  string
 					Stats types.PerWellStorageStats
-				}{name, stat}
-				i += 1
+				}{name, stat})
 			}
 
 			dii.Wells = st
