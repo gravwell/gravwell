@@ -21,7 +21,6 @@ package mother
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/crewjam/rfc5424"
@@ -29,9 +28,9 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/group"
+	"github.com/gravwell/gravwell/v4/gwcli/mother/traverse"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/killer"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/google/shlex"
@@ -59,7 +58,13 @@ type Mother struct {
 	pwd  *navCmd
 
 	// prompt
-	ti textinput.Model
+	ti          textinput.Model
+	suggestions struct {
+		nav    []traverse.Suggestion
+		action []traverse.Suggestion
+		bi     []traverse.Suggestion
+		tab    string
+	}
 
 	// terminal information
 	width  int
@@ -82,7 +87,7 @@ type Mother struct {
 // The caller is expected to exit on Spawn's return.
 func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 	// spin up mother
-	interactive := tea.NewProgram(new(root, cur, trailingTokens, nil))
+	interactive := tea.NewProgram(New(root, cur, trailingTokens, nil))
 	// reactive the admin command
 	if c, _, err := root.Find([]string{"user", "admin"}); err != nil {
 		clilog.Writer.Warnf("failed to reveal the admin command")
@@ -96,10 +101,15 @@ func Spawn(root, cur *cobra.Command, trailingTokens []string) error {
 	return interactive.ReleaseTerminal() // should be redundant
 }
 
-// internal command to provide the heavy lifting to Spawn() and flexibility to tests
-// NOTE: trailingTokens is not currently used, but is included for flexibility, in case it needs to
-// be built into the startupCommand
-func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.Renderer) Mother {
+// New spawns a new Mother instance on the root tree.
+// Returns the new instance, which can be fed into bubble tea as a model.
+//
+// cur must be a child of root or you'll get some really weird traversal.
+//
+// NOTE: trailingTokens is not currently used, but is included for flexibility, in case it needs to be built into the startupCommand.
+//
+// Renderer is only to be used for tests; it should be left nil otherwise.
+func New(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.Renderer) Mother {
 	// spin up builtins
 	initBuiltins()
 
@@ -151,7 +161,6 @@ func new(root *navCmd, cur *cobra.Command, trailingTokens []string, _ *lipgloss.
 		// have mother immediate act on the data we placed on her prompt
 		m.processOnStartup = true
 	}
-	m.updateSuggestions()
 
 	clilog.Writer.Debugf("Spawning mother rooted @ %v, located @ %v, with trailing tokens %v",
 		m.root.Name(), m.pwd.Name(), trailingTokens)
@@ -250,13 +259,34 @@ func (m Mother) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, processInput(&m)
 		case tea.KeyCtrlL:
 			return m, clear(&m, nil, nil)
+		case tea.KeyTab:
+			if m.ti.Value() == "" {
+				m.ti.SetValue("help")
+			}
+		case tea.KeyCtrlU:
+			m.ti.SetValue("")
 		}
 	}
 
 	var cmd tea.Cmd
 	m.ti, cmd = m.ti.Update(msg)
-
+	m.regenerateSuggestions(m.ti.Value())
 	return m, cmd
+}
+
+// regenerateSuggestions parses the user input to set next-word suggestions for navs, actions, and builtins.
+// The first suggestion (highest to lowest priority: navs, actions, builtins) is also set as a possible tab-complete on the prompt.
+func (m *Mother) regenerateSuggestions(userInput string) {
+	m.suggestions.tab = "" // don't allow old suggestions to linger
+	m.suggestions.nav, m.suggestions.action, m.suggestions.bi = traverse.DeriveSuggestions(m.ti.Value(), m.pwd, builtinKeys)
+	if len(m.suggestions.nav) > 0 {
+		m.suggestions.tab = userInput + m.suggestions.nav[0].FullName[len(m.suggestions.nav[0].MatchedCharacters):]
+	} else if len(m.suggestions.action) > 0 {
+		m.suggestions.tab = userInput + m.suggestions.action[0].FullName[len(m.suggestions.action[0].MatchedCharacters):]
+	} else if len(m.suggestions.bi) > 0 {
+		m.suggestions.tab = userInput + m.suggestions.bi[0].FullName[len(m.suggestions.bi[0].MatchedCharacters):]
+	}
+	m.ti.SetSuggestions([]string{m.suggestions.tab})
 }
 
 // helper function for m.Update.
@@ -281,54 +311,42 @@ func activeChildSanityCheck(m Mother) {
 	}
 }
 
+// View either passes off control to the active child's .View() or compiles a prompt and set of suggestions.
+//
+// The prompt displays the user's current text and a list of matching suggestions up to the next space.
+// For example: `>syst` will suggest `systems` while `>system i` will suggest `systems indexers` and `system ingesters`.
 func (m Mother) View() string {
-	if m.exiting {
+	// check short-circuits
+	if m.exiting { // don't bother to draw
 		return ""
-	}
-	if m.active.model != nil { // allow child command to retain control, if it exists
+	} else if m.active.model != nil { // allow child command to retain control, if it exists
 		return m.active.model.View()
-	}
-	if m.dieOnChildDone { // don't bother to draw
+	} else if m.dieOnChildDone { // don't bother to draw
 		return ""
 	}
 
+	// format current suggestions
 	var (
-		filtered []string
-		allSgt   = m.ti.AvailableSuggestions()
-		curInput = m.ti.Value()
-		lastRune rune
+		sb         strings.Builder // using a string builder to reduce allocation
+		ns, as, bs string
 	)
-
-	// filter suggestions that match current input to be displayed below the prompt
-	runes := []rune(curInput)
-	if len(runes) > 0 {
-		lastRune = runes[len(runes)-1]
-
-		for _, sgt := range allSgt {
-			// cut on current input
-			after, found := strings.CutPrefix(sgt, curInput)
-			if !found {
-				continue
-			}
-			before, _, _ := strings.Cut(after, " ")
-			if before != "" {
-				if lastRune == ' ' {
-					filtered = append(filtered, before)
-				} else {
-					// display only the last item
-					if exploded := strings.Split(curInput, " "); len(exploded) > 0 {
-						curInput = exploded[len(exploded)-1]
-					}
-					filtered = append(filtered, stylesheet.Cur.ExampleText.Render(curInput)+before)
-				}
-			}
-		}
-
-		filtered = slices.Compact(filtered)
+	for _, suggestion := range m.suggestions.nav {
+		sb.WriteString(stylesheet.Cur.Nav.Render(suggestion.MatchedCharacters) + suggestion.FullName[len(suggestion.MatchedCharacters):] + " ")
 	}
+	ns = strings.TrimSpace(sb.String()) // chip last space
+	sb.Reset()
+	for _, suggestion := range m.suggestions.action {
+		sb.WriteString(stylesheet.Cur.Action.Render(suggestion.MatchedCharacters) + suggestion.FullName[len(suggestion.MatchedCharacters):] + " ")
+	}
+	as = strings.TrimSpace(sb.String()) // chip last space
+	sb.Reset()
+	for _, suggestion := range m.suggestions.bi {
+		sb.WriteString(stylesheet.Cur.TertiaryText.Render(suggestion.MatchedCharacters) + suggestion.FullName[len(suggestion.MatchedCharacters):] + " ")
+	}
+	bs = strings.TrimSpace(sb.String()) // chip last space
 
-	return fmt.Sprintf("%s\n%v",
-		m.promptString(true), strings.Join(filtered, " "))
+	return fmt.Sprintf("%s\n%s\n%s\n%s",
+		m.promptString(true), ns, as, bs)
 }
 
 //#endregion
@@ -353,7 +371,7 @@ func processInput(m *Mother) tea.Cmd {
 		return nil
 	}
 
-	wr, err := uniques.Walk(m.pwd, input, builtinKeys)
+	wr, err := traverse.Walk(m.pwd, input, builtinKeys)
 	if err != nil {
 		return tea.Sequence(
 			historyCmd,
@@ -382,7 +400,6 @@ func processInput(m *Mother) tea.Cmd {
 		}
 		// move mother to target nav
 		m.pwd = wr.EndCmd
-		m.updateSuggestions()
 		return historyCmd
 	}
 
@@ -420,7 +437,7 @@ func (m *Mother) promptString(live bool) string {
 	} else {
 		ti = m.ti.Value()
 	}
-	return stylesheet.Cur.Prompt(m.pwd.CommandPath(), connection.Client.AdminMode()) + ti
+	return stylesheet.Cur.Prompt(m.pwd.CommandPath(), connection.AdminMode()) + ti
 }
 
 // helper subroutine for processInput
@@ -485,72 +502,6 @@ func processActionHandoff(m *Mother, actionCmd *cobra.Command, remString string)
 		return cmd
 	}
 	return nil
-}
-
-// Walk through the given tokens
-// (of the form token[x] = `--flag=value` or (token[y]=`--flag`, token[y+1]= `value`))
-// in order to strip quotes off of parameters and split the former form into the latter for ease of
-// stripping.
-// Operates in O(n) time, but costs at least O(2n) memory.
-//
-// len(strippedTokens) >= len(oldTokens)
-func quoteSplitTokens(oldTokens []string) (strippedTokens []string) {
-	var prevWasFlag bool // previous item was a flag
-	for _, tkn := range oldTokens {
-		if strings.HasPrefix(tkn, "--") || strings.HasPrefix(tkn, "-") { // this is a flag
-			// check for form `--flag=value`
-			if flag, value, found := strings.Cut(tkn, "="); found {
-				// because we already know this is not a bare parameter (the -- check above)
-				// we can safely assume a cut on = is valid and not due to = in the parameter
-
-				strippedTokens = append(strippedTokens, flag)
-				strippedTokens = append(strippedTokens, strings.Trim(value, "\"'"))
-				continue
-			}
-			// this is a bare flag, next value is likely a parameter
-			// (unless this is a bool flag, but we do not know that yet)
-			prevWasFlag = true
-			strippedTokens = append(strippedTokens, tkn)
-			continue
-		}
-		// if the previous token was a flag and this token is not
-		// it is likely a parameter: strip quote off of it
-		if prevWasFlag {
-			strippedTokens = append(strippedTokens, strings.Trim(tkn, "\"'"))
-			prevWasFlag = false
-			continue
-		}
-
-		// if previous token was not a flag and neither is this token, this is a raw arg
-		// leave it untouched
-		strippedTokens = append(strippedTokens, tkn)
-	}
-
-	return
-}
-
-// Call *after* moving to update the current command suggestions
-func (m *Mother) updateSuggestions() {
-	var suggest = make([]string, len(builtins))
-	// add builtins
-	var i = 0
-	for k := range builtins {
-		suggest[i] = k
-		i++
-	}
-
-	// recursively add children of current command
-	children := m.pwd.Commands()
-	for _, c := range children {
-		// dive into navs
-		if c.GroupID == group.NavID {
-			suggest = append(suggest, plumbCommand(c)...)
-		} else {
-			suggest = append(suggest, c.Name())
-		}
-	}
-
-	m.ti.SetSuggestions(suggest)
 }
 
 // helper subroutine for updateSuggestions().
@@ -624,9 +575,9 @@ func TeaCmdContextHelp(c *cobra.Command) tea.Cmd {
 		// write .. and / if we are below root
 		if c.HasParent() {
 			fmt.Fprintf(&s, "%s%s - %s\n",
-				stylesheet.Indent, specialStyle.Render(".."), "step up")
+				stylesheet.Indent, specialStyle.Render(traverse.UpToken), "step up")
 			fmt.Fprintf(&s, "%s%s - %s\n",
-				stylesheet.Indent, specialStyle.Render("~"), "return to root")
+				stylesheet.Indent, specialStyle.Render(traverse.RootToken), "return to root")
 		}
 		children := c.Commands()
 		for _, child := range children {

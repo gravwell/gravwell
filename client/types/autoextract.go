@@ -12,13 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"sort"
-	"strings"
-	"time"
-
-	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v4/ingest"
 )
 
 var (
@@ -27,162 +21,46 @@ var (
 	ErrMissingTag    error = errors.New("extraction tag assignment missing")
 )
 
-// AXDefinition object, when setting an AutoExtractor, only Name, Module,
+// AX object, when setting an AutoExtractor, only Name, Module,
 // Params, and Tag must be set.
-type AXDefinition struct {
-	Name        string    `toml:"name,omitempty" json:",omitempty"`
-	Desc        string    `toml:"desc,omitempty" json:",omitempty"`
-	Module      string    `toml:"module"`
-	Params      string    `toml:"params" json:",omitempty"`
-	Args        string    `toml:"args,omitempty" json:",omitempty"`
-	Tag         string    `toml:"tag"`
-	Tags        []string  `toml:"tags"` // AXs can support multiple tags. For backwards compatibility, we leave Tag and add Tags
-	Labels      []string  `toml:"-"`
-	UID         int32     `toml:"-"`
-	GIDs        []int32   `toml:"-"`
-	Global      bool      `toml:"-"`
-	UUID        uuid.UUID `toml:"-"`
-	Synced      bool      `toml:"-" json:"-"`
-	LastUpdated time.Time `toml:"-"`
+type AX struct {
+	CommonFields
+
+	Module string   `toml:"module"`
+	Params string   `toml:"params" json:",omitempty"`
+	Args   string   `toml:"args,omitempty" json:",omitempty"`
+	Tags   []string `toml:"tags"` // AXs can support multiple tags. For backwards compatibility, we leave Tag and add Tags
 }
 
-// Validate verifies all required fields in an AXDefinition object are valid.
-func (dc *AXDefinition) Validate() error {
-	if dc.Module == `` {
-		return ErrMissingModule
-	}
-	if len(dc.GetTags()) == 0 {
-		return ErrMissingTag
-	}
-	for _, t := range dc.GetTags() {
-		if err := ingest.CheckTag(t); err != nil {
-			return err
-		}
-	}
-
-	dc.Name = sanitizeValue(dc.Name)
-	dc.Desc = sanitizeValue(dc.Desc)
-	dc.Module = sanitizeValue(dc.Module)
-	dc.Params = sanitizeValue(dc.Params)
-	dc.Tag = sanitizeValue(dc.Tag)
-	for i, t := range dc.Tags {
-		dc.Tags[i] = sanitizeValue(t)
-	}
-	dc.Args = sanitizeValue(dc.Args)
-
-	collisions := make(map[string]bool)
-
-	for _, t := range dc.GetTags() {
-		if _, ok := collisions[t]; ok {
-			return fmt.Errorf("Tag %v already defined", t)
-		}
-		collisions[t] = true
-	}
-
-	return nil
-}
-
-func (dc *AXDefinition) GetTags() []string {
-	if dc.Tag == "" {
-		return dc.Tags
-	}
-	return append(dc.Tags, dc.Tag)
-}
-
-func sanitizeValue(v string) string {
-	trim := func(r rune) rune {
-		switch r {
-		case '\n':
-			return ' '
-		case '\r':
-			return ' '
-		}
-		return r
-	}
-	return strings.Map(trim, v)
-}
-
-// Encode the "config file" styled AX definition to the given io.Writer. hdr is
-// an optional header comment.
-func (dc AXDefinition) Encode(fout io.Writer, hdr string) (err error) {
-	if err = dc.Validate(); err != nil {
-		return
-	}
-	//write header comment if it exists
-	if hdr != `` {
-		if _, err = fmt.Fprintf(fout, "# %s\n", hdr); err != nil {
-			return
-		}
-	}
-	//write actual header
-	if _, err = fmt.Fprintf(fout, "[[extraction]]\n"); err != nil {
-		return
-	}
-	//write required parameters
-	for _, t := range dc.GetTags() {
-		if err = GenLine(fout, `tag`, t); err != nil {
-			return
-		}
-	}
-
-	if err = GenLine(fout, `module`, dc.Module); err != nil {
-		return
-	}
-	if err = GenLine(fout, `params`, dc.Params); err != nil {
-		return
-	}
-	//write optional parameters
-	if err = GenLine(fout, `args`, dc.Args); err != nil {
-		return
-	}
-	if err = GenLine(fout, `name`, dc.Name); err != nil {
-		return
-	}
-	if err = GenLine(fout, `desc`, dc.Desc); err != nil {
-		return
-	}
-	return
-}
-
-func (dc AXDefinition) JSONMetadata() (ro json.RawMessage, err error) {
+func (dc AX) JSONMetadata() (ro json.RawMessage, err error) {
 	x := &struct {
 		Name   string   `json:"name,omitempty"`
 		Desc   string   `json:"desc,omitempty"`
 		Module string   `json:"module"`
-		Tag    string   `json:"tag"`
 		Tags   []string `json:"tags"`
 	}{
 		Name:   dc.Name,
-		Desc:   dc.Desc,
+		Desc:   dc.Description,
 		Module: dc.Module,
-		Tag:    dc.Tag,
-		Tags:   dc.GetTags(),
+		Tags:   dc.Tags,
 	}
 	if x.Desc == `` {
-		x.Desc = fmt.Sprintf("%s extractor for tags %v", x.Module, dc.GetTags())
+		x.Desc = fmt.Sprintf("%s extractor for tags %v", x.Module, dc.Tags)
 	}
 	b, err := json.Marshal(x)
 	return json.RawMessage(b), err
 }
 
-func GenLine(wtr io.Writer, name, line string) (err error) {
-	if len(line) == 0 {
-		return
-	}
-	_, err = fmt.Fprintf(wtr, "  %s = '%s'\n", name, line)
-	return
-}
-
-func (dc AXDefinition) Equal(v AXDefinition) bool {
-	if dc.Name != v.Name || dc.Desc != v.Desc || dc.Module != v.Module || dc.UUID != v.UUID {
+func (dc AX) Equal(v AX) bool {
+	if dc.Name != v.Name || dc.Description != v.Description || dc.Module != v.Module || dc.ID != v.ID {
 		return false
 	}
 	if dc.Params != v.Params || dc.Args != v.Args {
 		return false
 	}
 
-	t1 := dc.GetTags()
-	t2 := v.GetTags()
+	t1 := dc.Tags
+	t2 := v.Tags
 	sort.Strings(t1)
 	sort.Strings(t2)
 	if len(t1) != len(t2) {
@@ -194,10 +72,10 @@ func (dc AXDefinition) Equal(v AXDefinition) bool {
 		}
 	}
 
-	if dc.UID != v.UID || dc.Global != v.Global {
+	if dc.OwnerID != v.OwnerID || dc.Readers.Global != v.Readers.Global || dc.Writers.Global != v.Writers.Global {
 		return false
 	}
-	if len(dc.Labels) != len(v.Labels) || len(dc.GIDs) != len(v.GIDs) {
+	if len(dc.Labels) != len(v.Labels) || len(dc.Readers.GIDs) != len(v.Readers.GIDs) || len(dc.Writers.GIDs) != len(v.Writers.GIDs) {
 		return false
 	}
 	for i, l := range dc.Labels {
@@ -205,10 +83,23 @@ func (dc AXDefinition) Equal(v AXDefinition) bool {
 			return false
 		}
 	}
-	for i, g := range dc.GIDs {
-		if v.GIDs[i] != g {
+	for i, g := range dc.Readers.GIDs {
+		if v.Readers.GIDs[i] != g {
 			return false
 		}
 	}
+	for i, g := range dc.Writers.GIDs {
+		if v.Writers.GIDs[i] != g {
+			return false
+		}
+	}
+
 	return true
+}
+
+// AXListResponse is what gets returned when you query a list of
+// autoextractors.
+type AXListResponse struct {
+	BaseListResponse
+	Results []AX `json:"results"`
 }

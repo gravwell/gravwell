@@ -92,10 +92,10 @@ type ValidationProblem struct {
 
 // BuildEventMetadata builds up a generic EventMetadata to be used with
 // events for a specific firing of the given Alert via the given Dispatcher.
-func BuildEventMetadata(created time.Time, ud UserDetails, alertDef AlertDefinition, dispatcher EventDispatcherInfo) EventMetadata {
+func BuildEventMetadata(created time.Time, ud User, alertDef AlertDefinition, dispatcher EventDispatcherInfo) EventMetadata {
 	meta := EventMetadata{
-		UID:             ud.UID,
-		Username:        ud.User,
+		UID:             ud.ID,
+		Username:        ud.Username,
 		Created:         created,
 		AlertID:         alertDef.ThingUUID.String(),
 		AlertLabels:     alertDef.Labels,

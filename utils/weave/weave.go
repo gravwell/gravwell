@@ -6,14 +6,20 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-// Package weave consumes arbitrary structs, orchestrating them into a specified format and returning the formatted string.
+// Package weave transmogrifies Go structs into alternative forms.
+// It is primarily used for orchestrating arbitrary types into a specified format (CSV, JSON).
+// The package also contains functionality for generating flat string mappings of dot-qualified struct fields.
 package weave
 
 import (
 	"errors"
 	"fmt"
+	"go/format"
 	"reflect"
+	"regexp"
+	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/Jeffail/gabs/v2"
 	"github.com/charmbracelet/lipgloss/table"
@@ -31,6 +37,181 @@ func errFailedKindAssert(assertType string, kind string) error {
 }
 
 //#endregion
+
+// StringMapStruct maps the given struct's field to string versions of that field.
+// Includes all fields, exported and unexported.
+//
+// Consider GoFormatStruct instead, as that will call this *and* return valid Go.
+//
+// sts is any collection of unique struct types. It must not contain duplicate types.
+//
+// exportedOnly will limit the mapped types to types that are... er... exported.
+// Setting this to false will generate string mappings for all fields, including private ones.
+//
+// As Go variable names cannot include '.', you must provide a rune to replace them with.
+// This should probably be '_'.
+//
+// If includeStructPrefix, each variable (left-side) will be prefixed with the package name and struct name.
+// Anonymous structs will be named as anonX to ensure valid identifiers.
+//
+// ex:
+//
+//	type too struct {
+//		mu fauxInt
+//		yu int16
+//	}
+//
+// will turn into:
+//
+//	mu string = "mu"
+//	yu string = "yu"
+//
+// or
+//
+//	weave_too_mu string = "mu"
+//	weave_too_yu string = "yu"
+//
+// Leverages StructFields and reflection under the hood.
+func StringMapStruct(sts []any, exportedOnly bool, dotReplacement rune, includeStructPrefix bool) (string, error) {
+	// TODO replace exportedOnly with enumerations "ExportAll", "ExportNative", "ExportNone"
+	var (
+		sb strings.Builder
+		// the number of anonymous structs we've seen; used to index them for uniqueness
+		anonCount uint
+		// set of known structs to prevent invalid code from duplications
+		seen = make(map[string]bool, len(sts))
+	)
+
+	for _, st := range sts {
+		{ // duplicate check
+			if st == nil {
+				return "", errors.New(ErrStructIsNil)
+			}
+			to := reflect.TypeOf(st)
+			if to.Kind() == reflect.Pointer { // deference for consistency
+				to = to.Elem()
+			}
+			toStr := to.String()
+			if _, found := seen[toStr]; found {
+				return "", errors.New("structs must be unique to produce valid code. Duplicate type: " + toStr)
+			}
+			seen[toStr] = true
+		}
+		// get field representations
+		dqFields, err := StructFields(st, exportedOnly)
+		if err != nil {
+			return "", err
+		}
+		if len(dqFields) == 0 {
+			continue
+		}
+		// generate prefix, with an eye for top-level anonymous structs
+		var prefix string
+		if includeStructPrefix {
+			to := reflect.TypeOf(st)
+			if to.Kind() == reflect.Pointer { // deference for consistency
+				to = to.Elem()
+			}
+			// anonymous structs' ToString will be "struct {x type, y type, ...}".
+			// This a valid identifier does not make.
+			// Instead, we coerce them to anon<idx>.
+			if typeIsAnonymous(to) {
+				prefix = "anon" + strconv.FormatUint(uint64(anonCount), 10)
+				anonCount += 1
+			} else {
+				prefix = to.String()
+			}
+			if len(prefix) < 1 { // sanity check before we futz around with indices
+				panic("impossible state: prefix is empty despite handling for anonymous structs")
+			}
+			prefix += string(dotReplacement)
+		}
+		// coerce and write each field
+		for _, dqField := range dqFields {
+			var variableForm = dqField
+			// sanitize periods
+			variableForm = strings.ReplaceAll(prefix+variableForm, ".", string(dotReplacement))
+			// ensure the mapping is accessible
+			variableForm = string(unicode.ToUpper(rune(variableForm[0]))) + variableForm[1:]
+
+			fmt.Fprintf(&sb, "%s string = \"%s\"\n", variableForm, dqField)
+		}
+		// add an extra newline between elements
+		sb.WriteRune('\n')
+	}
+
+	// chip newlines
+	return strings.TrimSpace(sb.String()), nil
+}
+
+// Returns if the type is named or not.
+// Intended for use with structs.
+// Prefer reflect.Field.Anonymous if evaluating a field.
+func typeIsAnonymous(t reflect.Type) bool {
+	// While reflect.Field has Anonymous, reflect.Type does not.
+	// Therefore, we have to rely on less direct methods.
+	// Currently soln based on: https://www.reddit.com/r/golang/comments/3ooy86/detect_an_anonymous_struct_using_reflection/
+	return t.Name() == "" && t.PkgPath() == ""
+}
+
+// GoFormatStructs returns a Go package with the given structs' fields string-mapped as constants.
+// Includes package and type prefix in variables names.
+//
+// exportedOnly will only write out fields that the struct exports.
+//
+// pkgDesc sets the package description.
+// Each element will be written as its own line, prefixed with "//" and suffixed with "\n".
+// pkgDesc may be left blank.
+//
+// ex:
+//
+//	package x
+//
+//	const (
+//		struct1_field1 = "field1"
+//		struct1_field2 = "field2"
+//		struct2_nestedStruct_field1 = "nestedStruct.field1"
+//		struct2_nestedStruct_field2 = "nestedStruct.field2"
+//	)
+//
+// Leverages StringMapStruct.
+func GoFormatStructs(sts []any, exportedOnly bool, dotReplacement rune, pkg string, pkgDesc ...string) (string, error) {
+	// unicode property(/ies) sourced from the Perl docs: https://perldoc.perl.org/perlunicode#Unicode-Character-Properties
+	// NOTE: does not currently match some special characters despite being valid for Go's identifier rules.
+	var pkgIdentifier = regexp.MustCompile(`^[\pL_]\w*$`)
+
+	if !pkgIdentifier.MatchString(pkg) {
+		return "", errors.New("package name must be a valid Go identifier. " +
+			"See https://go.dev/ref/spec#Identifiers for more information")
+	}
+
+	var sb strings.Builder
+	// prepare the package
+	for _, line := range pkgDesc {
+		sb.WriteString("//" + line + "\n")
+	}
+
+	sb.WriteString("// Code generated by weave - DO NOT EDIT.\n" +
+		"package " + pkg + "\n\n" +
+		"const (\n")
+
+	// string-map
+	maps, err := StringMapStruct(sts, exportedOnly, dotReplacement, true)
+	if err != nil {
+		return "", err
+	}
+	sb.WriteString(maps)
+
+	sb.WriteString(")")
+
+	// clean up and write out
+	b, err := format.Source([]byte(sb.String()))
+	if err != nil {
+		return "", err
+	}
+
+	return string(b), nil
+}
 
 // ToCSV takes an array of arbitrary struct `st` and the *ordered* columns to
 // include/exclude and returns a string containing the csv representation of the
