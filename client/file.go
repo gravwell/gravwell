@@ -28,7 +28,7 @@ const (
 
 var ErrOversizedFile error = fmt.Errorf("Files must be %v or smaller", ingest.HumanSize(maxFileSize))
 
-// CleanupResources (admin-only) purges all deleted resources for all users.
+// CleanupFiles (admin-only) purges all deleted files for all users.
 func (c *Client) CleanupFiles() error {
 	return c.deleteStaticURL(filesUrl(), nil)
 }
@@ -48,7 +48,7 @@ func (c *Client) GetFile(id string) (ff types.FileFull, _ error) {
 	return c.GetFileEx(id, nil)
 }
 
-// GetFile returns the specified file and its contents.
+// GetFileEx returns the specified file and its contents.
 // If opts is not nil, applicable parameters (currently only IncludeDeleted) will be applied to the query.
 func (c *Client) GetFileEx(id string, opts *types.QueryOptions) (ff types.FileFull, _ error) {
 	if opts == nil {
@@ -58,7 +58,7 @@ func (c *Client) GetFileEx(id string, opts *types.QueryOptions) (ff types.FileFu
 	return ff, err
 }
 
-// UpdateFileMetadata sets the specified file's metadata.
+// UpdateFileMetadata clobber's the specified file's existing metadata in favour of the given struct.
 //
 // Changes to ID, size, and/or hash will be ignored.
 func (c *Client) UpdateFileMetadata(id string, metadata types.File) (err error) {
