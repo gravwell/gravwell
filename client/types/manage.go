@@ -41,27 +41,31 @@ type ShardInfo struct {
 	Stored      uint64           //actual disk usage of the shard
 	RemoteState ReplicationState `json:",omitempty"`
 	Cold        bool             //true if the shard is in the code storage
+	// a 0-100 value that indicates how fragmented a shard is, 0 is perfect 100 is really bad
+	Fragmentation uint
 }
 
 // MarshalJSON implements a custom marshaller to deal with the fact that the json marshaller can't handle the "empty" uuid value
 func (si ShardInfo) MarshalJSON() ([]byte, error) {
 	x := struct {
-		Name        string
-		Start       time.Time
-		End         time.Time
-		Entries     uint64
-		Size        uint64
-		Stored      uint64
-		Cold        bool              //true if the shard is in the code storage
-		RemoteState *ReplicationState `json:",omitempty"`
+		Name          string
+		Start         time.Time
+		End           time.Time
+		Entries       uint64
+		Size          uint64
+		Stored        uint64
+		Cold          bool              //true if the shard is in the code storage
+		RemoteState   *ReplicationState `json:",omitempty"`
+		Fragmentation uint
 	}{
-		Name:    si.Name,
-		Start:   si.Start,
-		End:     si.End,
-		Entries: si.Entries,
-		Size:    si.Size,
-		Stored:  si.Stored,
-		Cold:    si.Cold,
+		Name:          si.Name,
+		Start:         si.Start,
+		End:           si.End,
+		Entries:       si.Entries,
+		Size:          si.Size,
+		Stored:        si.Stored,
+		Cold:          si.Cold,
+		Fragmentation: si.Fragmentation,
 	}
 	if si.Start.After(maxJsonTimestamp) {
 		x.Start = maxJsonTimestamp
@@ -84,6 +88,9 @@ type WellInfo struct {
 	Engine      string `json:",omitempty"`
 	Path        string `json:",omitempty"` //hot storage location
 	ColdPath    string `json:",omitempty"` //cold storage location
+	// a 0-100 value that indicates how fragmented a shard is, 0 is perfect 100 is really bad
+	// for the well this is the mean fragmentation of all shards in the well
+	Fragmentation uint
 }
 
 func (wi *WellInfo) sort() {
@@ -120,6 +127,8 @@ type PerWellStorageStats struct {
 	ShardCountHot  uint64   `json:"shardCountHot"`
 	Tags           []string `json:"tags"`
 	WellName       string   `json:"wellName"`
+	// a 0-100 value that indicates how fragmented a shard is, 0 is perfect 100 is really bad
+	Fragmentation uint `json:"fragmentation"`
 }
 
 type CalendarRequest struct {

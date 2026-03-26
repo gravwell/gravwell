@@ -52,7 +52,6 @@ type hecHandler struct {
 	tokenRouter    map[string]entry.EntryTag
 	rawLineBreaker string
 	maxSize        uint
-	debugPosts     bool
 	timeWindow     timegrinder.TimestampWindow
 }
 
@@ -172,7 +171,7 @@ func (hh *hecHandler) handle(h *handler, cfg routeHandler, w http.ResponseWriter
 		log.KV("url", r.URL.RequestURI()),
 	)
 
-	if hh.debugPosts {
+	if cfg.debugPosts {
 		now = time.Now()
 	}
 	//check if the query url has a tag or sourcetype parameter
@@ -284,7 +283,7 @@ loop:
 	}
 
 	hh.writeResponse(w, resp)
-	if hh.debugPosts {
+	if cfg.debugPosts {
 		//Log how many bytes and entries were on this config
 		kvs := []rfc5424.SDParam{log.KV("host", ip),
 			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
@@ -347,7 +346,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		log.KV("url", r.URL.RequestURI()),
 	)
 
-	if hh.debugPosts {
+	if cfg.debugPosts {
 		now = time.Now()
 	}
 	//check if the query url has a tag or sourcetype parameter
@@ -394,7 +393,7 @@ func (hh *hecHandler) handleRaw(h *handler, cfg routeHandler, w http.ResponseWri
 		hh.setAck(ch, resp)
 	}
 	hh.writeResponse(w, resp)
-	if hh.debugPosts {
+	if cfg.debugPosts {
 		kvs := []rfc5424.SDParam{log.KV("host", ip),
 			log.KV("method", r.Method), log.KV("url", r.URL.RequestURI()),
 			log.KV("bytes", data), log.KV("entries", count),
