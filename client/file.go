@@ -17,7 +17,16 @@ import (
 	"net/http"
 
 	"github.com/gravwell/gravwell/v4/client/types"
+	"github.com/gravwell/gravwell/v4/ingest"
 )
+
+const (
+	// Form header that contents are attached under
+	fileField   string = "file"
+	maxFileSize uint64 = 8 * 1024 * 1024
+)
+
+var ErrOversizedFile error = fmt.Errorf("Files must be %v or smaller", ingest.HumanSize(maxFileSize))
 
 // CleanupResources (admin-only) purges all deleted resources for all users.
 func (c *Client) CleanupFiles() error {
@@ -65,6 +74,9 @@ func (c *Client) GetFileMetadata(id string) (types.File, error) {
 
 // PopulateFile sets the content of the specified file to the given data.
 func (c *Client) PopulateFile(id string, data []byte) (types.File, error) {
+	if uint64(len(data)) > maxFileSize {
+		return types.File{}, ErrOversizedFile
+	}
 	return c.PopulateFileFromReader(id, bytes.NewBuffer(data))
 }
 
@@ -81,7 +93,7 @@ func (c *Client) PopulateFileFromReader(id string, data io.Reader) (types.File, 
 
 	mpw := newMpWriter(wtr)
 	//write the file portion (the name is ignored)
-	part, err := mpw.CreateFormFile(userFileField, `file`)
+	part, err := mpw.CreateFormFile(fileField, `file`)
 	if err != nil {
 		return types.File{}, err
 	}
