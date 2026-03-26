@@ -47,17 +47,26 @@ func list() action.Pair {
 		long  string = "Lists information about the userfiles you have access to."
 	)
 	return scaffoldlist.NewListAction(short, long,
-		types.UserFileDetails{}, func(fs *pflag.FlagSet) ([]types.UserFileDetails, error) {
+		types.File{}, func(fs *pflag.FlagSet) ([]types.File, error) {
 			// check for all
 			all, err := fs.GetBool(ft.GetAll.Name())
 			if err != nil {
 				clilog.LogFlagFailedGet(ft.GetAll.Name(), err)
 			}
 
+			var flr types.FileListResponse
 			if all {
-				return connection.Client.AllUserFiles()
+				flr, err = connection.Client.ListAllFiles(nil)
+				if err != nil {
+					return nil, err
+				}
+			} else {
+				flr, err = connection.Client.ListFiles(nil)
+				if err != nil {
+					return nil, err
+				}
 			}
-			return connection.Client.UserFiles()
+			return flr.Results, nil
 		},
 		scaffoldlist.Options{
 			AddtlFlags: func() pflag.FlagSet {
@@ -78,17 +87,13 @@ func download() action.Pair {
 			id := fs.Arg(0)
 
 			// TODO remove me after registry updates
-			u, err := uuid.Parse(id)
-			if err != nil {
-				return err.Error(), nil
-			}
 
 			outPath, err := fs.GetString(ft.Output.Name())
 			if err != nil {
 				clilog.LogFlagFailedGet(ft.Output.Name(), err)
 			}
-			clilog.Writer.Info("downloading file", rfc5424.SDParam{Name: "file_UUID", Value: u.String()})
-			data, err := connection.Client.GetUserFile(u)
+			clilog.Writer.Info("downloading file", rfc5424.SDParam{Name: "file_id", Value: id})
+			ff, err := connection.Client.GetFile(id)
 			if err != nil {
 				return err.Error(), nil
 			}
@@ -99,13 +104,13 @@ func download() action.Pair {
 					return err.Error(), nil
 				}
 				defer out.Close()
-				n, err := out.WriteString(string(data))
+				n, err := out.WriteString(string(ff.Content))
 				if err != nil {
 					return err.Error(), nil
 				}
 				return phrases.SuccessfullyWroteToFile(n, outPath), nil
 			}
-			return string(data), nil
+			return string(ff.Content), nil
 		}, scaffold.BasicOptions{
 			AddtlFlagFunc: func() pflag.FlagSet {
 				var fs pflag.FlagSet
@@ -145,14 +150,28 @@ func create() action.Pair {
 				labels = strings.Split(lbls, ",")
 			}
 
-			var m = types.UserFileDetails{
-				Name:   name,
-				Desc:   desc,
-				Labels: labels,
+			// slurp file contents from path
+			content, err := os.ReadFile(path)
+			if err != nil {
+				return 0, "", err
 			}
 
-			id, err = connection.Client.AddUserFileDetails(m, path)
-			return
+			var ff = types.FileFull{
+				File: types.File{
+					CommonFields: types.CommonFields{
+						Name:        name,
+						Description: desc,
+						Labels:      labels,
+					},
+				},
+				Content: content,
+			}
+
+			f, err := connection.Client.CreateFile(ff)
+			if err != nil {
+				return 0, "", err
+			}
+			return f.ID, "", nil
 		}, scaffoldcreate.Options{})
 }
 
@@ -163,25 +182,29 @@ func edit() action.Pair {
 			"desc":   scaffoldedit.FieldDescription("file"),
 			"labels": scaffoldedit.FieldLabels(),
 		},
-		scaffoldedit.SubroutineSet[uuid.UUID, types.UserFileDetails]{
-			SelectSub: func(id uuid.UUID) (item types.UserFileDetails, err error) {
-				return connection.Client.GetUserFileDetails(id)
+		scaffoldedit.SubroutineSet[string, types.File]{
+			SelectSub: func(id string) (item types.File, err error) {
+				return connection.Client.GetFileMetadata(id)
 			},
-			FetchSub: func() (items []types.UserFileDetails, err error) {
-				return connection.Client.UserFiles()
+			FetchSub: func() (items []types.File, err error) {
+				flr, err := connection.Client.ListFiles(nil)
+				if err != nil {
+					return nil, err
+				}
+				return flr.Results, nil
 			},
-			GetFieldSub: func(item types.UserFileDetails, fieldKey string) (value string, err error) {
+			GetFieldSub: func(item types.File, fieldKey string) (value string, err error) {
 				switch fieldKey {
 				case "name":
 					return item.Name, nil
 				case "desc":
-					return item.Desc, nil
+					return item.Description, nil
 				case "labels":
 					return strings.Join(item.Labels, ","), nil
 				}
 				return "", fmt.Errorf("unknown field key: %v", fieldKey)
 			},
-			SetFieldSub: func(item *types.UserFileDetails, fieldKey, val string) (invalid string, err error) {
+			SetFieldSub: func(item *types.File, fieldKey, val string) (invalid string, err error) {
 				if item == nil {
 					return "", errors.New("cannot set nil item")
 				}
@@ -193,7 +216,7 @@ func edit() action.Pair {
 					val = strings.ToUpper(val)
 					item.Name = val
 				case "desc":
-					item.Desc = val
+					item.Description = val
 				case "labels":
 					item.Labels = strings.Split(val, ",")
 				default:
@@ -201,19 +224,21 @@ func edit() action.Pair {
 				}
 				return
 			},
-			GetTitleSub: func(item types.UserFileDetails) string {
+			GetTitleSub: func(item types.File) string {
 				return item.Name
 			},
-			GetDescriptionSub: func(item types.UserFileDetails) string {
-				return item.Desc
+			GetDescriptionSub: func(item types.File) string {
+				return item.Description
 			},
-			UpdateSub: func(data *types.UserFileDetails) (identifier string, err error) {
-				err = connection.Client.UpdateUserFileMetadata(data.ThingUUID, types.UserFileDetails{
-					Name:   data.Name,
-					Desc:   data.Desc,
-					Labels: data.Labels,
+			UpdateSub: func(data *types.File) (identifier string, err error) {
+				err = connection.Client.UpdateFileMetadata(data.ID, types.File{
+					CommonFields: types.CommonFields{
+						Name:        data.Name,
+						Description: data.Description,
+						Labels:      data.Labels,
+					},
 				})
-				return data.ThingUUID.String(), err
+				return data.ID, err
 			},
 		},
 	)
