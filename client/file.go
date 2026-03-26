@@ -10,6 +10,7 @@ package client
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -27,16 +28,25 @@ func (c *Client) CleanupFiles() error {
 // The name and description are specified at creation time,
 // as are the Global flag and an optional list of groups with which to share it.
 //
-// The files contents may optionally be included.
-//
-// The return value contains information about the newly-created file.
-func (c *Client) CreateFile(f types.File, data []byte) (result types.File, err error) {
-	c.CreateFileFromReader()
+// The return value contains information about the newly-created file, but does not echo its contents.
+func (c *Client) CreateFile(ff types.FileFull) (result types.File, err error) {
+	err = c.postStaticURL(filesUrl(), ff, &result)
+	return result, err
 }
 
-// PopulateFileFromReader performs CreateFile, but takes a reader instead of raw bytes.
-func (c *Client) CreateFileFromReader(f types.File, data io.Reader) error {
-	// TODO
+// GetFile returns the specified file and its contents.
+func (c *Client) GetFile(id string) (ff types.FileFull, _ error) {
+	return c.GetFileEx(id, nil)
+}
+
+// GetFile returns the specified file and its contents.
+// If opts is not nil, applicable parameters (currently only IncludeDeleted) will be applied to the query.
+func (c *Client) GetFileEx(id string, opts *types.QueryOptions) (ff types.FileFull, _ error) {
+	if opts == nil {
+		opts = &types.QueryOptions{}
+	}
+	err := c.getStaticURL(filesIdRawUrl(id), &ff, ezParam("include_deleted", opts.IncludeDeleted))
+	return ff, err
 }
 
 // UpdateFileMetadata sets the specified file's metadata.
@@ -46,33 +56,22 @@ func (c *Client) UpdateFileMetadata(id string, metadata types.File) (err error) 
 	return c.putStaticURL(filesIdUrl(id), metadata)
 }
 
-// GetFileMetadata gets the specified file's metadata.
+// GetFileMetadata gets the specified file sans contents.
 func (c *Client) GetFileMetadata(id string) (types.File, error) {
 	var metadata types.File
 	err := c.getStaticURL(filesIdUrl(id), &metadata)
 	return metadata, err
 }
 
-// GetFile returns the contents of the file with the specified ID.
-func (c *Client) GetFile(id string) ([]byte, error) {
-	var meta types.File
-
-	resp, err := c.methodRequestURL(http.MethodGet, filesIdRawUrl(meta.ID), ``, nil)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-	return io.ReadAll(resp.Body)
+// PopulateFile sets the content of the specified file to the given data.
+func (c *Client) PopulateFile(id string, data []byte) (types.File, error) {
+	return c.PopulateFileFromReader(id, bytes.NewBuffer(data))
 }
 
-// PopulateFile updates the contents of the specified file.
-// This will update the hash and size fields of the file's metadata.
-func (c *Client) PopulateFile(id string, data []byte) error {
-	return c.PopulateFileFromReader(id, bytes.NewReader(data))
-}
+// PopulateFileFromReader sets the contents of the specified file to that of the given reader.
+func (c *Client) PopulateFileFromReader(id string, data io.Reader) (types.File, error) {
+	// This is functionally the same as PopulateResourceFromReader
 
-func (c *Client) PopulateFileFromReader(id string, data io.Reader) error {
-	var part io.Writer
 	var resp *http.Response
 
 	//get a pipe rolling with something that always closes it
@@ -84,7 +83,7 @@ func (c *Client) PopulateFileFromReader(id string, data io.Reader) error {
 	//write the file portion (the name is ignored)
 	part, err := mpw.CreateFormFile(userFileField, `file`)
 	if err != nil {
-		return err
+		return types.File{}, err
 	}
 	contentType := mpw.FormDataContentType()
 
@@ -101,21 +100,28 @@ func (c *Client) PopulateFileFromReader(id string, data io.Reader) error {
 
 	resp, err = c.methodRequestURL(http.MethodPut, filesIdRawUrl(id), contentType, rdr)
 	if err != nil {
-		return err
+		return types.File{}, err
 	}
 	defer drainResponse(resp)
 
 	if resp.StatusCode == http.StatusUnauthorized {
 		c.state = STATE_LOGGED_OFF
-		return ErrNotAuthed
+		err = ErrNotAuthed
 	} else if resp.StatusCode != http.StatusOK {
 		if s := getBodyErr(resp.Body); len(s) > 0 {
-			return errors.New(s)
+			err = errors.New(s)
+		} else {
+			err = fmt.Errorf("Bad Status %s(%d)", resp.Status, resp.StatusCode)
 		}
-		return fmt.Errorf("Bad Status %s(%d)", resp.Status, resp.StatusCode)
 	}
 
-	return nil
+	// decode the metadata response
+	confirmation := types.File{}
+	if err := json.NewDecoder(resp.Body).Decode(&confirmation); err != nil {
+		return types.File{}, err
+	}
+
+	return confirmation, nil
 }
 
 // ListFiles returns information about all files the user can access
@@ -123,7 +129,7 @@ func (c *Client) ListFiles(opts *types.QueryOptions) (ret types.FileListResponse
 	if opts == nil {
 		opts = &types.QueryOptions{}
 	}
-	err = c.postStaticURL(FILES_LIST_URL, opts, &ret)
+	err = c.getStaticURL(FILES_URL, &ret)
 	return
 }
 
