@@ -8,7 +8,8 @@
 
 package types
 
-// Userfile contains metadata about the file, but not the actual bytes.
+// File contains metadata about the file, but not the actual bytes.
+// The file's contents are fetched and set separately via GetFile and PopulateFile, respectively.
 type File struct {
 	CommonFields
 
@@ -20,13 +21,3 @@ type FileListResponse struct {
 	BaseListResponse
 	Results []File `json:"results"`
 }
-
-func CleanupFiles() error
-func CreateFile(t File) (result File, err error)
-func DeleteFile(id string) error
-func GetFile(id string) (File, error)
-func GetFileEx(id string, opts *QueryOptions) (File, error)
-func ListAllFiles(opts *QueryOptions) (ret FileListResponse, err error)
-func ListFiles(opts *QueryOptions) (ret FileListResponse, err error)
-func PurgeFile(id string) error
-func UpdateFile(t File) (result File, err error)
