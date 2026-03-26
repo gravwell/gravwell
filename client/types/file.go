@@ -9,12 +9,17 @@
 package types
 
 // File contains metadata about the file, but not the actual bytes.
-// The file's contents are fetched and set separately via GetFile and PopulateFile, respectively.
 type File struct {
 	CommonFields
 
 	Size uint64
 	Hash string
+}
+
+// FileFull is the complete representation of a file, contents included.
+type FileFull struct {
+	File
+	Content []byte
 }
 
 type FileListResponse struct {
