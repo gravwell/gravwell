@@ -401,8 +401,8 @@ func processCloudtrailContext(ctx context.Context, rdr io.Reader, tg *timegrinde
 		}
 		if recordarray, dt, _, err = jsonparser.Get([]byte(obj), `Records`); err != nil {
 			if err == jsonparser.KeyPathNotFoundError {
-				// check if this is a digest file, if so we just skip it
-				if isCloudTrailDigestFile(obj) {
+				// check if this is a digest object, if so we just skip it
+				if isCloudTrailDigestObject(obj) {
 					err = nil
 					continue
 				}
@@ -442,7 +442,7 @@ var cloudTrailDigestFileKeys = []string{
 	`digestS3Object`,
 }
 
-func isCloudTrailDigestFile(obj json.RawMessage) (ok bool) {
+func isCloudTrailDigestObject(obj json.RawMessage) (ok bool) {
 	//check if this is a digest file, we do this a few ways
 	//first check the top level looking for a few keys that are part of the digest file specification
 	// see here for more info:
