@@ -313,7 +313,7 @@ func GetKitItem(name string, tp ItemType, rdr io.Reader) (itm types.KitItem, err
 			itm.AdditionalInfo, err = tmpl.JSONMetadata()
 		}
 	case File:
-		var file types.File
+		var file PackedFile
 		if err = json.NewDecoder(rdr).Decode(&file); err == nil {
 			itm.AdditionalInfo, err = file.JSONMetadata()
 		}

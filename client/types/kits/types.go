@@ -20,6 +20,81 @@ import (
 	"github.com/google/uuid"
 )
 
+// PackedFile is a stripped-down representation of a file for inclusion in a kit.
+type PackedFile struct {
+	ID            string
+	VersionNumber int // file version #, increment at each Write
+	Name          string
+	Description   string
+	Labels        []string
+	Size          uint64
+	Hash          []byte
+	Data          []byte
+}
+
+// PackFileFull takes a FileFull (which contains a complete description of a file, including contents) and converts it into a PackedFile.
+func PackFileFull(ff types.FileFull) (p PackedFile) {
+	p = PackedFile{
+		ID:            ff.ID,
+		VersionNumber: ff.Version,
+		Name:          ff.Name,
+		Description:   ff.Description,
+		Labels:        ff.Labels,
+		Size:          ff.Size,
+		Data:          ff.Content,
+	}
+	if ff.File.Hash != "" {
+		p.Hash, _ = hex.DecodeString(ff.File.Hash)
+	}
+	if p.VersionNumber == 0 {
+		p.VersionNumber = 1
+	}
+	return
+}
+
+// Validate checks the contents of a PackedFile for validity.
+func (p *PackedFile) Validate() error {
+	if p.VersionNumber <= 0 {
+		return errors.New("Invalid version number")
+	} else if len(p.Name) == 0 {
+		return errors.New("Invalid file name")
+	} else if p.Size != uint64(len(p.Data)) {
+		return errors.New("mismatched data and data size")
+	}
+	if len(p.Data) == 0 && len(p.Hash) == 0 {
+		return nil //short circuit, if its empty there is no hash
+	}
+	hsh := md5.Sum(p.Data)
+	if len(hsh) != len(p.Hash) {
+		return errors.New("invalid data hash")
+	} else {
+		for i := range p.Hash {
+			if p.Hash[i] != hsh[i] {
+				return errors.New("Bad data hash")
+			}
+		}
+	}
+	return nil
+}
+
+// JSONMetadata returns additional information about the file.
+func (p *PackedFile) JSONMetadata() (json.RawMessage, error) {
+	b, err := json.Marshal(&struct {
+		VersionNumber int
+		Name          string
+		Description   string
+		Size          uint64
+		Labels        []string
+	}{
+		VersionNumber: p.VersionNumber,
+		Name:          p.Name,
+		Description:   p.Description,
+		Size:          p.Size,
+		Labels:        p.Labels,
+	})
+	return json.RawMessage(b), err
+}
+
 // PackedMacro is a stripped-down representation of a macro object for inclusion in a kit.
 type PackedMacro struct {
 	Name        string
