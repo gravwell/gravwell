@@ -45,8 +45,8 @@ const (
 	LibraryWrite       Capability = 21
 	ExtractorRead      Capability = 22
 	ExtractorWrite     Capability = 23
-	UserFileRead       Capability = 24
-	UserFileWrite      Capability = 25
+	FileRead           Capability = 24
+	FileWrite          Capability = 25
 	KitRead            Capability = 26
 	KitWrite           Capability = 27
 	KitBuild           Capability = 28
@@ -286,9 +286,9 @@ func (c Capability) Name() string {
 		return `ExtractorRead`
 	case ExtractorWrite:
 		return `ExtractorWrite`
-	case UserFileRead:
+	case FileRead:
 		return `UserFileRead`
-	case UserFileWrite:
+	case FileWrite:
 		return `UserFileWrite`
 	case KitRead:
 		return `KitRead`
@@ -386,9 +386,9 @@ func (c Capability) Category() CapabilityCategory {
 	case ExtractorWrite:
 		return ExtractorsCat
 
-	case UserFileRead:
+	case FileRead:
 		return FilesCat
-	case UserFileWrite:
+	case FileWrite:
 		return FilesCat
 
 	case KitRead:
@@ -524,9 +524,9 @@ func (c *Capability) Parse(v string) (err error) {
 	case `extractorwrite`:
 		*c = ExtractorWrite
 	case `userfileread`:
-		*c = UserFileRead
+		*c = FileRead
 	case `userfilewrite`:
-		*c = UserFileWrite
+		*c = FileWrite
 	case `kitread`:
 		*c = KitRead
 	case `kitwrite`:
@@ -634,9 +634,9 @@ func (c Capability) String() string {
 		return `Extractor Read`
 	case ExtractorWrite:
 		return `Extractor Write`
-	case UserFileRead:
+	case FileRead:
 		return `User File Read`
-	case UserFileWrite:
+	case FileWrite:
 		return `User File Write`
 	case KitRead:
 		return `Kit Read`
@@ -743,9 +743,9 @@ func (c Capability) Description() string {
 		return `User can view and use auto extractors`
 	case ExtractorWrite:
 		return `User can create and modify auto extractors`
-	case UserFileRead:
+	case FileRead:
 		return `User can view user files`
-	case UserFileWrite:
+	case FileWrite:
 		return `User can create and update user files`
 	case KitRead:
 		return `User can view kits`
