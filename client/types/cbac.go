@@ -287,9 +287,9 @@ func (c Capability) Name() string {
 	case ExtractorWrite:
 		return `ExtractorWrite`
 	case FileRead:
-		return `UserFileRead`
+		return `FileRead`
 	case FileWrite:
-		return `UserFileWrite`
+		return `FileWrite`
 	case KitRead:
 		return `KitRead`
 	case KitWrite:
@@ -523,9 +523,9 @@ func (c *Capability) Parse(v string) (err error) {
 		*c = ExtractorRead
 	case `extractorwrite`:
 		*c = ExtractorWrite
-	case `userfileread`:
+	case `fileread`:
 		*c = FileRead
-	case `userfilewrite`:
+	case `filewrite`:
 		*c = FileWrite
 	case `kitread`:
 		*c = KitRead

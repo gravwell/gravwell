@@ -1,4 +1,4 @@
-// Package files provides utilities for working with userfiles.
+// Package files provides utilities for working with (user)files.
 package files
 
 import (
@@ -32,7 +32,7 @@ func NewNav() *cobra.Command {
 		long  string = "Files can be used to store small files for use in playbooks, cover images for kits, etc.\n" +
 			"See https://docs.gravwell.io/gui/files/files.html for more information."
 	)
-	return treeutils.GenerateNav(use, short, long, []string{"uf", "userfiles", "userfile"}, nil,
+	return treeutils.GenerateNav(use, short, long, []string{"file"}, nil,
 		[]action.Pair{
 			list(),
 			download(),
@@ -43,8 +43,8 @@ func NewNav() *cobra.Command {
 
 func list() action.Pair {
 	const (
-		short string = "list userfiles on the system"
-		long  string = "Lists information about the userfiles you have access to."
+		short string = "list files on the system"
+		long  string = "Lists information about the files you have access to."
 	)
 	return scaffoldlist.NewListAction(short, long,
 		types.File{}, func(fs *pflag.FlagSet) ([]types.File, error) {
@@ -74,7 +74,7 @@ func list() action.Pair {
 				ft.GetAll.Register(&fs, true, "files")
 				return fs
 			},
-			// TODO update column names once userfiles get the registry treatment
+			// TODO update column names once files get the registry treatment
 			DefaultColumns: []string{"Name", "Type", "Labels", "Size"},
 			ColumnAliases:  map[string]string{"Size": "SizeBytes"},
 		})

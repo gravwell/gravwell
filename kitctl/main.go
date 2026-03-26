@@ -475,7 +475,7 @@ func packKit(args []string) {
 			}
 		case kits.File:
 			var x types.File
-			if x, err = readUserFile(wd, itm.Name); err != nil {
+			if x, err = readFile(wd, itm.Name); err != nil {
 				log.Fatalf("Could not read %v %v: %v", itm.Type.String(), itm.Name, err)
 			}
 			if err := marshallAdd(itm, x); err != nil {
@@ -787,7 +787,7 @@ func unpackKitItems(wd string, rdr *kits.Reader) error {
 			if err = json.NewDecoder(rdr).Decode(&p); err != nil {
 				return fmt.Errorf("Failed to decode %v %v: %v", tp.String(), name, err)
 			}
-			if err := writeUserFile(wd, name, p); err != nil {
+			if err := writeFile(wd, name, p); err != nil {
 				return fmt.Errorf("Failed to write out %v %v: %v", tp.String(), name, err)
 			}
 		case kits.SearchLibrary:
