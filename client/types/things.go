@@ -245,7 +245,7 @@ func (put *PackedPivot) JSONMetadata() (json.RawMessage, error) {
 
 type WireUserFile struct {
 	ThingHeader
-	UserFile
+	File
 	Updated time.Time
 }
 
@@ -260,7 +260,7 @@ func (w WireUserFile) Thing() (t Thing, err error) {
 	}
 	t.Updated = w.Updated
 	//do not set the synced value
-	err = t.EncodeContents(w.UserFile)
+	err = t.EncodeContents(w.File)
 	return
 }
 
@@ -288,7 +288,7 @@ func (ufd *UserFileDetails) String() string {
 	return ufd.GUID.String()
 }
 
-func (uf *UserFile) Info() (sz int64, tp string) {
+func (uf *File) Info() (sz int64, tp string) {
 	if sz = int64(len(uf.Contents)); sz > 0 {
 		tp = http.DetectContentType(uf.Contents)
 	} else {
@@ -297,7 +297,7 @@ func (uf *UserFile) Info() (sz int64, tp string) {
 	return
 }
 
-func (uf *UserFile) JSONMetadata() (json.RawMessage, error) {
+func (uf *File) JSONMetadata() (json.RawMessage, error) {
 	st := &struct {
 		UUID        string
 		Name        string

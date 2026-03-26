@@ -120,7 +120,7 @@ func readMacro(dir, name string) (pm kits.PackedMacro, err error) {
  * User Files
  **************************************************************************/
 
-func writeUserFile(dir string, name string, x types.UserFile) error {
+func writeUserFile(dir string, name string, x types.File) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "file")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -141,7 +141,7 @@ func writeUserFile(dir string, name string, x types.UserFile) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readUserFile(dir, name string) (x types.UserFile, err error) {
+func readUserFile(dir, name string) (x types.File, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "file")
 	contentsPath := filepath.Join(p, fmt.Sprintf("%v.contents", name))
