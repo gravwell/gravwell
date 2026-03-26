@@ -120,7 +120,7 @@ func readMacro(dir, name string) (pm kits.PackedMacro, err error) {
  * User Files
  **************************************************************************/
 
-func writeFile(dir string, name string, x types.File) error {
+func writeFile(dir string, name string, x types.FileFull) error {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "file")
 	if err := os.MkdirAll(p, 0755); err != nil {
@@ -130,10 +130,10 @@ func writeFile(dir string, name string, x types.File) error {
 	// Now drop two files: .meta and .contents
 	contentsPath := filepath.Join(p, fmt.Sprintf("%v.contents", name))
 	metaPath := filepath.Join(p, fmt.Sprintf("%v.meta", name))
-	if err := os.WriteFile(contentsPath, x.Contents, 0644); err != nil {
+	if err := os.WriteFile(contentsPath, x.Content, 0644); err != nil {
 		return err
 	}
-	x.Contents = []byte{}
+	x.Content = []byte{}
 	mb, err := json.MarshalIndent(x, "", "	")
 	if err != nil {
 		return err
@@ -141,7 +141,7 @@ func writeFile(dir string, name string, x types.File) error {
 	return os.WriteFile(metaPath, mb, 0644)
 }
 
-func readFile(dir, name string) (x types.File, err error) {
+func readFile(dir, name string) (x types.FileFull, err error) {
 	// Make sure the parent exists
 	p := filepath.Join(dir, "file")
 	contentsPath := filepath.Join(p, fmt.Sprintf("%v.contents", name))
@@ -158,7 +158,7 @@ func readFile(dir, name string) (x types.File, err error) {
 	// Now read the contents and insert it
 	bts, err = os.ReadFile(contentsPath)
 	if err == nil {
-		x.Contents = bts
+		x.Content = bts
 	} else if os.IsNotExist(err) {
 		err = nil
 	}
