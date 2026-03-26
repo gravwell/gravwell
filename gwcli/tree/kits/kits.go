@@ -54,7 +54,13 @@ func newKitsListAction() action.Pair {
 
 			return connection.Client.ListKits()
 		},
-		scaffoldlist.Options{AddtlFlags: flags, DefaultColumns: []string{"UUID", "KitState.Name", "KitState.Description", "KitState.Version"}})
+		scaffoldlist.Options{AddtlFlags: flags,
+			DefaultColumns: []string{
+				"UUID",
+				"KitState.Name",
+				"KitState.Description",
+				"KitState.Version",
+			}})
 }
 
 func flags() pflag.FlagSet {

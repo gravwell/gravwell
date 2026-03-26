@@ -9,7 +9,6 @@
 package scaffold
 
 import (
-	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
 
@@ -19,12 +18,19 @@ type BasicOptions struct {
 	AddtlFlagFunc func() pflag.FlagSet
 	// Other names for this action.
 	Aliases []string
-	// A free-form function allowing implementations to directly alter properties on the command the scaffold creates.
-	// Applied after all other options, so changes made here may override prior options (such as Aliases).
-	// This function returns no values; if an error occurs, panic.
-	CmdMods func(*cobra.Command)
 	// Free-form function called in SetArgs or at the start of run to validate the given flags.
 	// Called after the cmd's .Args() function (if !nil and !err).
 	// You can assume that the flags have already been parsed, but that no additional actions have been taken on them.
 	ValidateArgs func(*pflag.FlagSet) (invalid string, err error)
+
+	//#region command functions
+
+	// Override the default usage line printed as part of `help`/`-h`.
+	Usage string
+
+	// Provide an example of using this action. Should start with the action's name.
+	Example string
+
+	//#endregion command functions
+
 }
