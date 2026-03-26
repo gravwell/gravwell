@@ -37,7 +37,7 @@ var (
 
 // UserFiles lists all the user files the logged in account has access to
 func (c *Client) UserFiles() (ufds []types.UserFileDetails, err error) {
-	err = c.getStaticURL(userFilesUrl(), &ufds)
+	err = c.getStaticURL(filesUrl(), &ufds)
 	return
 }
 
@@ -45,7 +45,7 @@ func (c *Client) UserFiles() (ufds []types.UserFileDetails, err error) {
 // Non-administrators will receive the same list as returned by UserFiles.
 func (c *Client) AllUserFiles() (ufds []types.UserFileDetails, err error) {
 	c.SetAdminMode()
-	if err = c.getStaticURL(userFilesUrl(), &ufds); err != nil {
+	if err = c.getStaticURL(filesUrl(), &ufds); err != nil {
 		ufds = nil
 	}
 	c.ClearAdminMode()
@@ -61,7 +61,7 @@ func (c *Client) AddUserFile(name, desc, pth string) (guid uuid.UUID, err error)
 	}
 
 	meta := types.UserFileDetails{Name: name, Desc: desc}
-	if guid, err = c.uploadUserFile(http.MethodPost, userFilesUrl(), fin, meta); err != nil {
+	if guid, err = c.uploadUserFile(http.MethodPost, filesUrl(), fin, meta); err != nil {
 		fin.Close()
 		return
 	}
@@ -76,7 +76,7 @@ func (c *Client) AddUserFileDetails(meta types.UserFileDetails, pth string) (gui
 		return
 	}
 
-	if guid, err = c.uploadUserFile(http.MethodPost, userFilesUrl(), fin, meta); err != nil {
+	if guid, err = c.uploadUserFile(http.MethodPost, filesUrl(), fin, meta); err != nil {
 		fin.Close()
 		return
 	}
@@ -86,7 +86,7 @@ func (c *Client) AddUserFileDetails(meta types.UserFileDetails, pth string) (gui
 
 // DeleteUserFile removes a user file by its GUID
 func (c *Client) DeleteUserFile(id uuid.UUID) (err error) {
-	err = c.deleteStaticURL(userFilesIdUrl(id), nil)
+	err = c.deleteStaticURL(filesIdUrl(id), nil)
 	return
 }
 
@@ -98,7 +98,7 @@ func (c *Client) UpdateUserFile(id uuid.UUID, pth string) (err error) {
 	}
 	// doesn't really matter, it is not used
 	meta := types.UserFileDetails{}
-	if _, err = c.uploadUserFile(http.MethodPut, userFilesIdUrl(id), fin, meta); err != nil {
+	if _, err = c.uploadUserFile(http.MethodPut, filesIdUrl(id), fin, meta); err != nil {
 		fin.Close()
 		return
 	}
@@ -110,14 +110,14 @@ func (c *Client) UpdateUserFile(id uuid.UUID, pth string) (err error) {
 // UpdateUserFileMetadata will change every field of the user file
 // but not the actual contents of the file
 func (c *Client) UpdateUserFileMetadata(id uuid.UUID, uf types.UserFileDetails) (err error) {
-	return c.patchStaticURL(userFilesIdUrl(id), uf)
+	return c.patchStaticURL(filesIdUrl(id), uf)
 }
 
 // GetUserFile downloads a file with the given GUID and hands back its contents
 func (c *Client) GetUserFile(id uuid.UUID) (bts []byte, err error) {
 	bb := bytes.NewBuffer(nil)
 	var resp *http.Response
-	if resp, err = c.methodRequestURL(http.MethodGet, userFilesIdUrl(id), ``, nil); err != nil {
+	if resp, err = c.methodRequestURL(http.MethodGet, filesIdUrl(id), ``, nil); err != nil {
 		return
 	}
 	// Make sure the reply was ok
