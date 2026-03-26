@@ -23,10 +23,10 @@ type FileListResponse struct {
 
 func CleanupFiles() error
 func CreateFile(t File) (result File, err error)
-func (File) DeleteFile(id string) error
-func (File) GetFile(id string) (File, error)
-func (File) GetFileEx(id string, opts *QueryOptions) (File, error)
-func (File) ListAllFiles(opts *QueryOptions) (ret FileListResponse, err error)
-func (File) ListFiles(opts *QueryOptions) (ret FileListResponse, err error)
-func (File) PurgeFile(id string) error
-func (File) UpdateFile(t File) (result File, err error)
+func DeleteFile(id string) error
+func GetFile(id string) (File, error)
+func GetFileEx(id string, opts *QueryOptions) (File, error)
+func ListAllFiles(opts *QueryOptions) (ret FileListResponse, err error)
+func ListFiles(opts *QueryOptions) (ret FileListResponse, err error)
+func PurgeFile(id string) error
+func UpdateFile(t File) (result File, err error)
