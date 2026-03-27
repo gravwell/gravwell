@@ -11,14 +11,18 @@
 package ingest
 
 import (
+	"encoding/json"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
+	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/mother"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -32,8 +36,9 @@ var (
 		"Note, however, that ingest provides special handling for Gravwell JSON files.\n" +
 		"Gravwell JSON files typically have a tag built into them, which will be used instead of --default-tag if a tag is not specified as part of the argument.\n" +
 		"\n" +
-		"Calling ingest with no arguments will spin up a file picker (unless --" + ft.NoInteractive.Name() + " is specified in which case it will fail out).\n" +
-		"Use --dir to specify a starting directory (otherwise pwd will be used)."
+		"In non-interactive mode, data can also be ingested via STDIN (requires --stdin). If this data is not Gravwell JSON, --default-tag must by specified." +
+		"\n" +
+		"Calling ingest with no arguments will spin up a file picker (unless --" + ft.NoInteractive.Name() + " is specified in which case it will fail out).\n"
 )
 
 // NewIngestAction does as it says on the tin, enabling the caller to insert the returned pair into the action map.
@@ -70,9 +75,12 @@ func initialLocalFlagSet() pflag.FlagSet {
 		"any timezone information in the data will be ignored and "+
 			"timestamps will be assumed to be in the Gravwell server's local timezone")
 	fs.String("dir", "",
-		"directory to start the interactive file picker in. Has no effect in no-interactive mode.")
+		ft.InteractiveOnly()+" Directory to start the interactive file picker in.")
 	fs.StringP("default-tag", "t", "",
 		"tag to use for each file that does not have one specified (either in the argument or embedded in the JSON (in the case of Gravwell JSON files))")
+	fs.Bool("stdin", false,
+		ft.NonInteractiveOnly()+" Read raw data from stdin instead of parsing argument pairs.\n"+
+			"Requires --default-tag unless the data is Gravwell JSON")
 
 	return fs
 }
@@ -92,6 +100,21 @@ func run(c *cobra.Command, args []string) {
 		return
 	}
 
+	// branch on --stdin
+	if flags.stdin {
+		resp, err := connection.Client.Ingest(
+			c.InOrStdin(),
+			flags.defaultTag, flags.src,
+			flags.ignoreTS, flags.localTime,
+		)
+		if err != nil {
+			clilog.Tee(clilog.WARN, c.ErrOrStderr(), "failed to ingest from stdin: "+err.Error())
+			return
+		}
+		clilog.Tee(clilog.INFO, c.OutOrStdout(), phrases.SuccessfullyLoadedFile("from STDIN")+fmt.Sprintf(" (returned tags: %v)", resp.Tags))
+		return
+	}
+
 	// fetch pairs from bare arguments
 	pairs, err := parsePairs(c.Flags().Args())
 	if err != nil {
@@ -99,6 +122,28 @@ func run(c *cobra.Command, args []string) {
 		return
 	}
 	clilog.Writer.Debugf("ingest pairs: %v", pairs)
+
+	// check stdin for data
+	if c.InOrStdin() != nil {
+		// check for a default tag
+		if flags.defaultTag == "" {
+			// check for gravwell JSON
+			dcdr := json.NewDecoder(c.InOrStdin())
+			var ste types.StringTagEntry
+			// try to decode a single entry (\n delimited)
+			if err := dcdr.Decode(&ste); err == nil && ste.Tag != "" {
+				// successfully decoded file and read tag; we can leave our tag empty
+				return // TODO
+			}
+			if false { // TODO
+				fmt.Fprintln(c.ErrOrStderr(), "reading from STDIN requires either --default-tag or for the data to be Gravwell JSON")
+			}
+		}
+		// ingest this file
+		//connection.Client.Ingest()
+		// TODO
+
+	}
 
 	// if no files were given, launch mother or fail out
 	if len(pairs) == 0 {

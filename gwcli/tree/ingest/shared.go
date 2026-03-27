@@ -153,6 +153,7 @@ type ingestFlags struct {
 	localTime  bool   // use server-local timezone rather than inherent timezones
 	dir        string // starting directory for interactive mode
 	defaultTag string // the tag to use if not specified in the argument (or in the file itself, in the case of GW JSON)
+	stdin      bool   // read raw data from stdin instead of reading args
 }
 
 // transmogrifyFlags takes a *parsed* flagset and returns a structured, types, and (in the case of strings) trimmed representation of the flags therein.
@@ -225,6 +226,11 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 		return flags, invalids, err
 	} else {
 		flags.defaultTag = def
+	}
+	if stdin, err := fs.GetBool("stdin"); err != nil {
+		return flags, invalids, uniques.ErrGetFlag("ingest", err)
+	} else {
+		flags.stdin = stdin
 	}
 
 	return flags, invalids, nil
