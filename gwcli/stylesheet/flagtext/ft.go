@@ -26,6 +26,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/spf13/pflag"
 	"golang.org/x/text/cases"
@@ -396,4 +397,17 @@ func Optional(text string) string {
 // MutuallyExclusive wraps and returns the given elements in curly braces to indicate that they are mutually exclusive with one another.
 func MutuallyExclusive(texts []string) string {
 	return "{" + strings.Join(texts, "|") + "}"
+}
+
+// flagCaveatStyle sets what extra notes on flag descriptions look like.
+var flagCaveatStyle = lipgloss.NewStyle().Italic(true)
+
+// InteractiveOnly returns a string to be prefixed to the description of flags that only have an effect in interactive mode.
+// These flags should simply be ignored in non-interactive mode.
+func InteractiveOnly() string {
+	return flagCaveatStyle.Render("Interactive only.")
+}
+
+func NonInteractiveOnly() string {
+	return flagCaveatStyle.Render("Non-Interactive only.")
 }
