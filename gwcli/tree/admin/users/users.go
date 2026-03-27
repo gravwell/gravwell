@@ -149,7 +149,7 @@ func create() action.Pair {
 				Type:     scaffoldcreate.Text,
 				Order:    140,
 				CustomTIFuncInit: func() textinput.Model {
-					ti := stylesheet.NewTI("", true)
+					ti := stylesheet.NewTI("", false)
 					ti.EchoMode = textinput.EchoPassword
 					return ti
 				},
