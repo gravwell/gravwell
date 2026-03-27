@@ -11,11 +11,9 @@
 package ingest
 
 import (
-	"encoding/json"
 	"fmt"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
@@ -122,28 +120,6 @@ func run(c *cobra.Command, args []string) {
 		return
 	}
 	clilog.Writer.Debugf("ingest pairs: %v", pairs)
-
-	// check stdin for data
-	if c.InOrStdin() != nil {
-		// check for a default tag
-		if flags.defaultTag == "" {
-			// check for gravwell JSON
-			dcdr := json.NewDecoder(c.InOrStdin())
-			var ste types.StringTagEntry
-			// try to decode a single entry (\n delimited)
-			if err := dcdr.Decode(&ste); err == nil && ste.Tag != "" {
-				// successfully decoded file and read tag; we can leave our tag empty
-				return // TODO
-			}
-			if false { // TODO
-				fmt.Fprintln(c.ErrOrStderr(), "reading from STDIN requires either --default-tag or for the data to be Gravwell JSON")
-			}
-		}
-		// ingest this file
-		//connection.Client.Ingest()
-		// TODO
-
-	}
 
 	// if no files were given, launch mother or fail out
 	if len(pairs) == 0 {
