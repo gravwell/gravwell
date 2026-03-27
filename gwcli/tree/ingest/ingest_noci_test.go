@@ -453,7 +453,7 @@ func TestNewIngestActionRun(t *testing.T) {
 			t.Errorf("bad output. Expected to contain the path %v", jsonpath)
 		}
 	})
-	t.Run("stdin", func(t *testing.T) {
+	t.Run("stdin, embedded tag", func(t *testing.T) {
 		var (
 			tag1, tag2, tag3 = "Millhouse", randomdata.Digits(5), randomdata.LastName()
 			gwjson           = `{"TS":"2025-06-26T23:26:56.100667099Z","Tag":"` + tag1 + `","SRC":"172.17.0.1","Data":"SGVsbG8gV29ybGRD","Enumerated":null}
@@ -492,7 +492,50 @@ func TestNewIngestActionRun(t *testing.T) {
 		if errBuf.String() != "" {
 			t.Errorf("expected no error output; found %v", errBuf.String())
 		}
-		if !(strings.Contains(outBuf.String(), "STDIN") && strings.Contains(outBuf.String(), "success")) {
+		if !(strings.Contains(outBuf.String(), "STDIN") &&
+			strings.Contains(outBuf.String(), "success") &&
+			strings.Contains(outBuf.String(), tag1) &&
+			strings.Contains(outBuf.String(), tag2) &&
+			strings.Contains(outBuf.String(), tag3)) {
+			t.Errorf("bad output. Expected to contain \"STDIN\"")
+		}
+	})
+	t.Run("stdin, default tag", func(t *testing.T) {
+		var (
+			args = []string{"--stdin", "--default-tag=nuts"}
+		)
+
+		// create the action
+		ap := NewIngestAction()
+
+		// perform root's actions
+		uniques.AttachPersistentFlags(ap.Action)
+		if err := ap.Action.Flags().Parse(args); err != nil {
+			t.Fatal(err)
+		}
+
+		// capture output
+		outBuf := &bytes.Buffer{}
+		ap.Action.SetOut(outBuf)
+		errBuf := &bytes.Buffer{}
+		ap.Action.SetErr(errBuf)
+
+		// run and feed data into stdin
+		origSTDIN, curSTDIN := writeSTDIN(t, "some garbage data")
+		ap.Action.Run(ap.Action, args)
+		curSTDIN.Close()
+		os.Stdin = origSTDIN
+
+		t.Log("stdout:\n", outBuf.String())
+		t.Log("stderr:\n", errBuf.String())
+
+		// check output
+		if errBuf.String() != "" {
+			t.Errorf("expected no error output; found %v", errBuf.String())
+		}
+		if !(strings.Contains(outBuf.String(), "STDIN") &&
+			strings.Contains(outBuf.String(), "success") &&
+			strings.Contains(outBuf.String(), "nuts")) {
 			t.Errorf("bad output. Expected to contain \"STDIN\"")
 		}
 	})
