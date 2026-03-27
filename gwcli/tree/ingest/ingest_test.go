@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/Pallinder/go-randomdata"
@@ -43,15 +44,6 @@ func Test_parsePairs(t *testing.T) {
 	if err := os.WriteFile(p3, []byte(randomdata.Alphanumeric(3)), 0644); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(t1, []byte(randomdata.Alphanumeric(3)), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(t2, []byte(randomdata.Alphanumeric(3)), 0644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(t3, []byte(randomdata.Alphanumeric(3)), 0644); err != nil {
-		t.Fatal(err)
-	}
 
 	type args struct {
 		args []string
@@ -75,6 +67,15 @@ func Test_parsePairs(t *testing.T) {
 			}
 		})
 	}
+	t.Run("fail on first error", func(t *testing.T) {
+		_, err := parsePairs([]string{p2, p1 + "," + randomdata.Alphanumeric(9), "DNE,mytag"})
+		if err == nil {
+			t.Error("a non-existent file did not proc an error!")
+		} else if !strings.Contains(err.Error(), "DNE") {
+			// ensure that the error points specifically to our fake file
+			t.Error("error does not reference our fake file. Error: ", err)
+		}
+	})
 }
 
 func Test_collectPathsForIngestions(t *testing.T) {
