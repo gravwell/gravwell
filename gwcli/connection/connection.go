@@ -90,7 +90,6 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
-	"github.com/google/uuid"
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/client/objlog"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -580,9 +579,8 @@ func end() error {
 //   - a reason on invalid parameters
 //   - and an error iff the server returns an error
 func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
-	id int32, invalid string, err error,
+	id string, invalid string, err error,
 ) {
-	id = -1
 	// validate parameters
 	if qry == "" {
 		return id, "cannot schedule an empty query", nil
@@ -616,12 +614,23 @@ func CreateScheduledSearch(name, desc, freq, qry string, dur time.Duration) (
 	// submit the request
 	clilog.Writer.Debugf("Scheduling query %v (%v) for %v", name, qry, freq)
 	// TODO provide a dialogue for selecting groups/permissions
-	id, err = Client.CreateScheduledSearch(name, desc, freq,
-		uuid.UUID{}, qry, dur, myInfo.DefaultSearchGIDs())
-	if err != nil {
-		return -1, "", fmt.Errorf("failed to schedule search: %v", err)
+	spec := types.ScheduledSearch{
+		CommonFields: types.CommonFields{
+			Name:        name,
+			Description: desc,
+		},
+		AutomationCommonFields: types.AutomationCommonFields{
+			Schedule: freq,
+		},
+		SearchString: qry,
+		Duration:     int64(dur.Seconds()),
 	}
-	return id, "", nil
+	var result types.ScheduledSearch
+	result, err = Client.CreateScheduledSearch(spec)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to schedule search: %v", err)
+	}
+	return result.ID, "", nil
 }
 
 // Validates the given cron word, ensuring it parses and is between the two bounds (inclusively).

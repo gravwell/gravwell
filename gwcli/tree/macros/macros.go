@@ -43,29 +43,51 @@ const (
 
 // NewMacrosNav returns a nav with children relating to macro handling.
 func NewMacrosNav() *cobra.Command {
-	const (
-		use   = "macros"
-		short = "manage search macros"
-		long  = "Macros are search keywords that expand to set phrases on use within a query."
-	)
 	var aliases = []string{"macro", "m"}
-	return treeutils.GenerateNav(use, short, long, aliases, []*cobra.Command{},
-		[]action.Pair{newMacroListAction(),
-			newMacroCreateAction(),
-			newMacroDeleteAction(),
-			newMacroEditAction()})
+	return treeutils.GenerateNav("macros", "manage search macros", "Macros are search keywords that expand to set phrases on use within a query.", aliases, []*cobra.Command{},
+		[]action.Pair{
+			list(),
+			create(),
+			delete(),
+			edit(),
+		})
 }
 
 //#region list
 
-func newMacroListAction() action.Pair {
-	const (
-		listShort = "list your macros"
-		listLong  = "lists all macros associated to your user, a group," +
-			"or the system itself"
-	)
-	return scaffoldlist.NewListAction(listShort, listLong,
-		types.Macro{}, listMacros,
+func list() action.Pair {
+	return scaffoldlist.NewListAction("list your macros", "lists all macros associated to your user, a group, or the system itself",
+		types.Macro{}, func(fs *pflag.FlagSet) ([]types.Macro, error) {
+			if all, err := fs.GetBool("all"); err != nil {
+				return nil, uniques.ErrGetFlag("macros list", err)
+			} else if all { // fetch all macros instead of just user macros
+				r, err := connection.Client.ListAllMacros(nil)
+				if err != nil {
+					return nil, err
+				}
+				return r.Results, nil
+			}
+			if gid, err := fs.GetInt32("group"); err != nil {
+				return nil, uniques.ErrGetFlag("macros list", err)
+			} else if gid != 0 { // fetch all macros our group ID can read
+				macros, err := connection.Client.ListAllMacros(nil)
+				if err != nil {
+					return nil, err
+				}
+				var macroResults []types.Macro
+				for _, m := range macros.Results {
+					if m.GroupCanRead(gid) {
+						macroResults = append(macroResults, m)
+					}
+				}
+				return macroResults, nil
+			}
+			r, err := connection.Client.ListMacros(nil)
+			if err != nil {
+				return nil, err
+			}
+			return r.Results, nil
+		},
 		scaffoldlist.Options{
 			AddtlFlags:     flags,
 			DefaultColumns: []string{"Name", "Description", "Expansion"},
@@ -79,84 +101,36 @@ func flags() pflag.FlagSet {
 	return addtlFlags
 }
 
-// lister subroutine for macros
-func listMacros(fs *pflag.FlagSet) ([]types.Macro, error) {
-	if all, err := fs.GetBool("all"); err != nil {
-		return nil, uniques.ErrGetFlag("macros list", err)
-	} else if all { // fetch all macros instead of just user macros
-		r, err := connection.Client.ListAllMacros(nil)
-		if err != nil {
-			return nil, err
-		}
-		return r.Results, nil
-	}
-	if gid, err := fs.GetInt32("group"); err != nil {
-		return nil, uniques.ErrGetFlag("macros list", err)
-	} else if gid != 0 { // fetch all macros our group ID can read
-		macros, err := connection.Client.ListAllMacros(nil)
-		if err != nil {
-			return nil, err
-		}
-		var macroResults []types.Macro
-		for _, m := range macros.Results {
-			if m.GroupCanRead(gid) {
-				macroResults = append(macroResults, m)
-			}
-		}
-		return macroResults, nil
-	}
-	r, err := connection.Client.ListMacros(nil)
-	if err != nil {
-		return nil, err
-	}
-	return r.Results, nil
-}
-
-//#region create
-
 var macroNameRgx = regexp.MustCompile("^[a-zA-Z0-9_-]*$")
 
 // creates macros using 3 fields: name, description, and expansion.
-func newMacroCreateAction() action.Pair {
-	fields := scaffoldcreate.Config{
-		"name": scaffoldcreate.Field{
-			Required:     true,
-			Title:        "name",
-			Usage:        ft.Name.Usage("macro"),
-			Type:         scaffoldcreate.Text,
-			FlagName:     ft.Name.Name(),
-			DefaultValue: "",
-			Order:        100,
-			CustomTIFuncInit: func() textinput.Model {
-				ti := stylesheet.NewTI("", false)
-				ti.Prompt = "$"
-				ti.Validate = func(s string) error {
-					s = strings.ToUpper(s)
-					if !macroNameRgx.MatchString(s) {
-						return errors.New("Macro names may contain capital letters, numbers, dashes and underscores")
-					}
+func create() action.Pair {
 
-					if len(s) > 0 {
-						char := []rune(s)[0]
-						if !(unicode.IsDigit(char) || unicode.IsLetter(char)) {
-							return errors.New("macro names must start with a letter or number")
-						}
+	nameField := scaffoldcreate.FieldName("macro")
+	nameField.CustomTIFuncInit = func() textinput.Model {
+		ti := stylesheet.NewTI("", false)
+		ti.Prompt = "$"
+		ti.Validate = func(s string) error {
+			s = strings.ToUpper(s)
+			if !macroNameRgx.MatchString(s) {
+				return errors.New("Macro names may contain capital letters, numbers, dashes and underscores")
+			}
 
-					}
-					return nil
+			if len(s) > 0 {
+				char := []rune(s)[0]
+				if !(unicode.IsDigit(char) || unicode.IsLetter(char)) {
+					return errors.New("macro names must start with a letter or number")
 				}
-				return ti
-			},
-		},
-		"desc": scaffoldcreate.Field{
-			Required:     false,
-			Title:        "description",
-			Usage:        ft.Description.Usage("macro"),
-			Type:         scaffoldcreate.Text,
-			FlagName:     ft.Description.Name(),
-			DefaultValue: "",
-			Order:        90,
-		},
+
+			}
+			return nil
+		}
+		return ti
+	}
+
+	fields := scaffoldcreate.Config{
+		"name": nameField,
+		"desc": scaffoldcreate.FieldDescription("macro"),
 		"exp": scaffoldcreate.Field{
 			Required:     true,
 			Title:        "expansion",
@@ -168,44 +142,26 @@ func newMacroCreateAction() action.Pair {
 		},
 	}
 
-	return scaffoldcreate.NewCreateAction("macro", fields, create, nil)
+	return scaffoldcreate.NewCreateAction("macro", fields,
+		func(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag.FlagSet) (any, string, error) {
+			sm := types.Macro{}
+			// all three fields are required, no need to nil-check them
+			sm.Name = strings.ToUpper(fieldValues["name"])
+			sm.Description = fieldValues["desc"]
+			sm.Expansion = fieldValues["exp"]
+
+			macro, err := connection.Client.CreateMacro(sm)
+			return macro.ID, "", err
+
+		}, scaffoldcreate.Options{})
 }
 
-// create is the driver function responsible for actually sending the request to *create* a macro value to the backend.
-func create(_ scaffoldcreate.Config, fieldValues map[string]string, _ *pflag.FlagSet) (any, string, error) {
-	sm := types.Macro{}
-	// all three fields are required, no need to nil-check them
-	sm.Name = strings.ToUpper(fieldValues["name"])
-	sm.Description = fieldValues["desc"]
-	sm.Expansion = fieldValues["exp"]
-
-	id, err := connection.Client.CreateMacro(sm)
-	return id, "", err
-
-}
-
-//#endregion create
-
-//#region edit
-
-func newMacroEditAction() action.Pair {
+func edit() action.Pair {
 	const singular string = "macro"
 
 	cfg := scaffoldedit.Config{
-		"name": &scaffoldedit.Field{
-			Required: true,
-			Title:    "Name",
-			Usage:    ft.Name.Usage(singular),
-			FlagName: ft.Name.Name(),
-			Order:    100,
-		},
-		"description": &scaffoldedit.Field{
-			Required: false,
-			Title:    "Description",
-			Usage:    ft.Description.Usage(singular),
-			FlagName: ft.Description.Name(),
-			Order:    80,
-		},
+		"name":        scaffoldedit.FieldName("macro"),
+		"description": scaffoldedit.FieldDescription("macro"),
 		"expansion": &scaffoldedit.Field{
 			Required: true,
 			Title:    "Expansion",
@@ -267,12 +223,14 @@ func newMacroEditAction() action.Pair {
 	return scaffoldedit.NewEditAction(singular, "macros", cfg, funcs)
 }
 
-//#endregion edit
-
-//#region delete
-
-func newMacroDeleteAction() action.Pair {
-	return scaffolddelete.NewDeleteAction("macro", "macros", del,
+func delete() action.Pair {
+	return scaffolddelete.NewDeleteAction("macro", "macros", func(dryrun bool, id string) error {
+		if dryrun {
+			_, err := connection.Client.GetMacro(id)
+			return err
+		}
+		return connection.Client.DeleteMacro(id)
+	},
 		func() ([]scaffolddelete.Item[string], error) {
 			ms, err := connection.Client.ListMacros(nil)
 			if err != nil {
@@ -292,13 +250,3 @@ func newMacroDeleteAction() action.Pair {
 			return items, nil
 		})
 }
-
-func del(dryrun bool, id string) error {
-	if dryrun {
-		_, err := connection.Client.GetMacro(id)
-		return err
-	}
-	return connection.Client.DeleteMacro(id)
-}
-
-//#endregion delete

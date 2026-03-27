@@ -338,7 +338,7 @@ func (gaf getAllFlag) Register(fs *pflag.FlagSet, requiresAdmin bool, plural str
 // Frequency is a local flag for defining a cron-style interval in which something occurs.
 var Frequency = simple{
 	name:      "frequency",
-	shorthand: 'f',
+	shorthand: 'c',
 	usage:     "cron-style scheduling for scheduled execution",
 }
 
@@ -354,6 +354,13 @@ var Name = singular{
 	name:        "name",
 	shorthand:   'n',
 	usagePrefix: "name of the",
+}
+
+// Path is a local flag to allow a user to specify a path to a thing (typically a file).
+var Path = singular{
+	name:        "path",
+	shorthand:   'f',
+	usagePrefix: "path to the",
 }
 
 // WarnFlagIgnore returns a string about ignoring ignoredFlag due to causeFlag's existence.

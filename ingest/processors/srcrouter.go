@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -10,6 +10,7 @@ package processors
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -23,6 +24,10 @@ import (
 
 const (
 	SrcRouterProcessor = `srcrouter`
+)
+
+var (
+	ErrMissingSrcRoutes = errors.New("Missing source route specifications")
 )
 
 type SrcRouteConfig struct {
@@ -153,7 +158,7 @@ func (src SrcRouteConfig) validate() (rts []srcroute, err error) {
 	}
 
 	if len(src.Route) == 0 {
-		err = ErrMissingRoutes
+		err = ErrMissingSrcRoutes
 		return
 	}
 	for _, v := range src.Route {

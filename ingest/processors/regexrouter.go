@@ -1,5 +1,5 @@
 /*************************************************************************
- * Copyright 2018 Gravwell, Inc. All rights reserved.
+ * Copyright 2026 Gravwell, Inc. All rights reserved.
  * Contact: <legal@gravwell.io>
  *
  * This software may be modified and distributed under the terms of the
@@ -27,7 +27,7 @@ var (
 
 	ErrMissingRegex           = errors.New("Missing regular expression")
 	ErrMissingRouteExtraction = errors.New("Missing route extraction name")
-	ErrMissingRoutes          = errors.New("Missing route specifications")
+	ErrMissingRegexRoutes     = errors.New("Missing regex route specifications")
 	ErrMissingExtractNames    = errors.New("Regular expression does not extract any names")
 )
 var empty struct{}
@@ -151,7 +151,7 @@ func (rrc RegexRouteConfig) validate() (rxp *regexp.Regexp, rts []route, idx int
 		err = ErrMissingRouteExtraction
 		return
 	} else if len(rrc.Route) == 0 {
-		err = ErrMissingRoutes
+		err = ErrMissingRegexRoutes
 		return
 	} else if rxp, err = regexp.Compile(rrc.Regex); err != nil {
 		return

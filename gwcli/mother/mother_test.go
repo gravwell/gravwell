@@ -50,11 +50,11 @@ func Test_SuggestionCompletion_TeaTest(t *testing.T) {
 	//stylesheet.NoColor = true
 	// build up some example commands
 	nav1Action1 := scaffold.NewBasicAction("actionone", "action1 short", "action1 long",
-		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) { return "", nil }, scaffold.BasicOptions{})
+		func(fs *pflag.FlagSet) (string, tea.Cmd) { return "", nil }, scaffold.BasicOptions{})
 	nav1 := treeutils.GenerateNav("topNav1", "nav1 short", "nav1 long", nil, nil, []action.Pair{nav1Action1})
 	nav2 := treeutils.GenerateNav("topNav2", "nav2 short", "nav2 long", nil, nil, nil)
 	action1 := scaffold.NewBasicAction("topAct", "action1 short", "action1 long",
-		func(cmd *cobra.Command, fs *pflag.FlagSet) (string, tea.Cmd) { return "", nil }, scaffold.BasicOptions{})
+		func(fs *pflag.FlagSet) (string, tea.Cmd) { return "", nil }, scaffold.BasicOptions{})
 	root := treeutils.GenerateNav("root", "root short", "root long", nil,
 		[]*cobra.Command{nav1, nav2}, []action.Pair{action1})
 

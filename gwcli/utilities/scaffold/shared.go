@@ -2,71 +2,26 @@ package scaffold
 
 import (
 	"fmt"
+	"path"
+	"runtime"
 	"strconv"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/textinput"
-	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/bubbles/filepicker"
+	"github.com/crewjam/rfc5424"
 	"github.com/google/uuid"
-	"github.com/gravwell/gravwell/v4/gwcli/clilog"
-	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"golang.org/x/exp/constraints"
 )
 
 // This file provides functionality shared across multiple scaffolds.
 // Typically, this means functionality for edit and create.
 
-// A KeyedTI is tuple for associating a TI with its field key and whether or not it is required
-type KeyedTI struct {
-	Key        string          // key to look up the related field in a config map (if applicable)
-	FieldTitle string          // text to display to the left of the TI
-	TI         textinput.Model // ti for user modifications
-	Required   bool            // this TI must have data in it
-}
-
-// frequently reused styles
-var (
-	rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
-)
-
-// ViewKTIs composes a uniform view of the given keyedTIs.
-// All field will be padded to a consistent length based on maxFieldWidth and right-aligned.
-// TIs are attached as View() to their respective TIs.
-func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []KeyedTI, selectedIdx uint) string {
-	if maxFieldWidth == 0 {
-		clilog.Writer.Warnf("field width is unset")
-	} else if maxTIWidth == 0 {
-		clilog.Writer.Warnf("TI width is unset")
-	}
-
-	var fields []string
-	var TIs []string
-
-	var sb strings.Builder // reused each cycle
-	for i, kti := range ktis {
-		// apply consistent left padding, then pip
-		sb.WriteString(strings.Repeat(" ", int(max(maxFieldWidth, maxTIWidth))-len(kti.FieldTitle)) + stylesheet.Pip(selectedIdx, uint(i)))
-		// colourize and attach title
-		if kti.Required {
-			sb.WriteString(stylesheet.Cur.PrimaryText.Render(kti.FieldTitle + ":"))
-		} else {
-			sb.WriteString(stylesheet.Cur.SecondaryText.Render(kti.FieldTitle + ":"))
-		}
-		// render the line and right-align it
-		fields = append(fields, rightAlignSty.Render(sb.String()))
-		sb.Reset()
-
-		TIs = append(TIs, kti.TI.View())
-	}
-
-	// compose all fields
-	f := lipgloss.JoinVertical(lipgloss.Right, fields...)
-
-	// compose all TIs
-	t := lipgloss.JoinVertical(lipgloss.Left, TIs...)
-
-	// conjoin fields and TIs
-	return lipgloss.JoinHorizontal(lipgloss.Center, f, t)
+// A KeyedFP associates metadata to a filepicker.
+type KeyedFP struct {
+	Key        string // key to look up the related field in a config map (if applicable)
+	FieldTitle string // text to display to the left of the path
+	FP         filepicker.Model
+	Required   bool
 }
 
 // Id_t is the set of constraints defining what can be used as an id for some scaffolds.
@@ -132,4 +87,33 @@ func FromString[I Id_t](str string) (I, error) {
 		return ret, fmt.Errorf("unknown id type %#v", p)
 	}
 	return ret, err
+}
+
+// IdentifyCaller returns a valid SDParam containing information about the caller to make it easier to log which action is in error.
+func IdentifyCaller() rfc5424.SDParam {
+	var identifier = rfc5424.SDParam{Name: "caller", Value: "UNKNOWN"}
+
+	// extract the last two elements in the caller's path, skipping all scaffoldlist callers
+	var callers = make([]uintptr, 6)
+	count := runtime.Callers(3, callers) // skip runtime.Callers, skip ourselves, skip the first scaffold call
+	if count == 0 {
+		identifier.Value = "<no_callers_returned>"
+		return identifier
+	}
+	frames := runtime.CallersFrames(callers[:count])
+	for {
+		frame, more := frames.Next()
+		// skip scaffoldcreate frames
+		if strings.Contains(frame.File, "scaffold") {
+			if !more {
+				break
+			}
+			continue
+		}
+		// trim the paths to just the function and line
+		identifier.Value = fmt.Sprintf("%v:%v", path.Base(frame.Function), frame.Line)
+		break
+	}
+
+	return identifier
 }

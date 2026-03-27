@@ -64,6 +64,13 @@ func (c *Client) UpdateToken(id string, tr types.TokenCreate) (t types.Token, er
 	return
 }
 
+// RegenToken requests that the secret token string be regenerated without modifying the token contents or permissions
+func (c *Client) RegenToken(id string, tr types.TokenRegeneration) (t types.TokenFull, err error) {
+	err = c.methodStaticPushURL(http.MethodPatch, tokenIdUrl(id), tr, &t, nil, nil)
+	return
+}
+
+// DeleteToken removes a token value without deleting the data around the token, it essentially disables the token
 func (c *Client) DeleteToken(id string) (err error) {
 	return c.methodStaticPushURL(http.MethodDelete, tokenIdUrl(id), nil, nil, []int{http.StatusNoContent}, nil)
 }

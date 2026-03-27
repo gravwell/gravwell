@@ -9,7 +9,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
-	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 )
 
 // stateEdit is the collection of fields required to track and display an item currently being edited.
@@ -24,7 +23,7 @@ type stateEdit[S any] struct {
 	selected uint
 	// # of TIs currently available for editing this item
 	tiCount     int
-	orderedKTIs []scaffold.KeyedTI // KTIs, sorted by rank (cfg.Order)
+	orderedKTIs []KeyedTI // KTIs, sorted by rank (cfg.Order)
 }
 
 // update() handling for editing mode, used onces an item has been selected from the list of editables.
@@ -97,7 +96,8 @@ func (se *stateEdit[S]) update(msg tea.Msg, cfg Config, setFieldSub SetFieldSubr
 }
 
 func (se *stateEdit[S]) view() string {
-	inputs := scaffold.ViewKTIs(uint(se.longestLineWidth)/2, uint(se.longestLineWidth)/2, se.orderedKTIs, se.selected)
+
+	inputs := ViewKTIs(uint(se.longestLineWidth)/2, uint(se.longestLineWidth)/2, se.orderedKTIs, se.selected)
 
 	var wrapSty = lipgloss.NewStyle().Width(se.longestLineWidth)
 
@@ -111,6 +111,50 @@ func (se *stateEdit[S]) view() string {
 		lipgloss.NewStyle().Width(lipgloss.Width(inputs)).AlignHorizontal(lipgloss.Center).Render(
 			stylesheet.ViewSubmitButton(se.submitSelected(), se.longestLineWidth, inE),
 		)
+}
+
+var (
+	rightAlignSty = lipgloss.NewStyle().AlignHorizontal(lipgloss.Right)
+)
+
+// ViewKTIs composes a uniform view of the given keyedTIs.
+// All field will be padded to a consistent length based on maxFieldWidth and right-aligned.
+// TIs are attached as View() to their respective TIs.
+func ViewKTIs(maxFieldWidth, maxTIWidth uint, ktis []KeyedTI, selectedIdx uint) string {
+	if maxFieldWidth == 0 {
+		clilog.Writer.Warnf("field width is unset")
+	} else if maxTIWidth == 0 {
+		clilog.Writer.Warnf("TI width is unset")
+	}
+
+	var fields []string
+	var TIs []string
+
+	var sb strings.Builder // reused each cycle
+	for i, kti := range ktis {
+		// apply consistent left padding, then pip
+		sb.WriteString(strings.Repeat(" ", int(max(maxFieldWidth, maxTIWidth))-len(kti.Title)) + stylesheet.Pip(selectedIdx, uint(i)))
+		// colourize and attach title
+		if kti.Required {
+			sb.WriteString(stylesheet.RequiredTitle(kti.Title))
+		} else {
+			sb.WriteString(stylesheet.OptionalTitle(kti.Title))
+		}
+		// render the line and right-align it
+		fields = append(fields, rightAlignSty.Render(sb.String()))
+		sb.Reset()
+
+		TIs = append(TIs, kti.TI.View())
+	}
+
+	// compose all fields
+	f := lipgloss.JoinVertical(lipgloss.Right, fields...)
+
+	// compose all TIs
+	t := lipgloss.JoinVertical(lipgloss.Left, TIs...)
+
+	// conjoin fields and TIs
+	return lipgloss.JoinHorizontal(lipgloss.Center, f, t)
 }
 
 // Blur existing TI, select and focus previous (higher) TI.
