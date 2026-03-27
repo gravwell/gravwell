@@ -33,15 +33,16 @@ func NewNav() *cobra.Command {
 
 	return treeutils.GenerateNav(use, short, long, nil, []*cobra.Command{},
 		[]action.Pair{
-			list(),
+			listAction(),
 			get(),
 			create(),
 			delete(),
 			edit(),
+			lockAction(),
 		})
 }
 
-func list() action.Pair {
+func listAction() action.Pair {
 	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
 		func(fs *pflag.FlagSet) ([]types.User, error) {
 			return connection.Client.GetAllUsers()
