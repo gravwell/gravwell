@@ -27,8 +27,8 @@ import (
 var (
 	helpDesc = "Ingest files into Gravwell.\n" +
 		"An arbitrary number of arguments can be specified, each of which takes the form: " + ft.Mandatory("path") + ft.Optional(",tag") + "\n" +
-		"If no flag is specified for a path, ingest will attempt to use the flag specified by --default-tag.\n" +
-		"The path can point to a single file or a directory; if it is the latter, ingest will shallowly walk the directory to upload each immediate file (unless -r is specified, then it will traverse recursively).\n" +
+		"If no tag is specified for a path, ingest will attempt to use the tag specified by --default-tag.\n" +
+		"The path can point to a single file or a directory; if it is the latter, ingest will shallowly walk the directory to upload each immediate child (unless -r is specified).\n" +
 		"Note, however, that ingest provides special handling for Gravwell JSON files.\n" +
 		"Gravwell JSON files typically have a tag built into them, which will be used instead of --default-tag if a tag is not specified as part of the argument.\n" +
 		"\n" +
