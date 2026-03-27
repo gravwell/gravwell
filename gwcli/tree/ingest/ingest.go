@@ -96,6 +96,7 @@ func run(c *cobra.Command, args []string) {
 	pairs, err := parsePairs(c.Flags().Args())
 	if err != nil {
 		fmt.Fprintln(c.ErrOrStderr(), err)
+		return
 	}
 	clilog.Writer.Debugf("ingest pairs: %v", pairs)
 
