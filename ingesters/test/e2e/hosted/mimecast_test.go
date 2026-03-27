@@ -50,7 +50,7 @@ func TestMimecast(t *testing.T) {
 	body, _ := json.Marshal(map[string]any{
 		"mta": map[string]string{
 			"num_pages":       "20",
-			"events_per_page": "100",
+			"events_per_page": "1000",
 		},
 	})
 	_, err = http.Post(endpoint, "application/json", bytes.NewBuffer(body))

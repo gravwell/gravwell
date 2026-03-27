@@ -27,6 +27,45 @@ var (
 	ErrAuthenticationFailure = errors.New("authentication failure")
 )
 
+type TimeRange struct {
+	Start, End time.Time
+}
+
+func NewTimeRange(start, end time.Time) *TimeRange {
+	return &TimeRange{Start: start, End: end}
+}
+
+func (tr *TimeRange) ClampStart(t time.Duration, buffer time.Duration) {
+	ts := time.Now()
+	if tr.Start.Before(ts.Add(-t)) {
+		tr.Start = ts.Add(-t + buffer)
+	}
+}
+
+func (tr *TimeRange) Err() error {
+	if !tr.Start.Before(tr.End) {
+		return errors.New("time range start is after end")
+	}
+	if tr.Start.IsZero() {
+		return errors.New("time range start is zero")
+	}
+	if tr.End.IsZero() {
+		return errors.New("time range end is zero")
+	}
+	if tr.Start.Equal(tr.End) {
+		return errors.New("time range start is equal to end")
+	}
+	return nil
+}
+
+func (tr *TimeRange) Valid() bool {
+	return tr.Err() != nil
+}
+
+func (tr *TimeRange) Contains(t time.Time) bool {
+	return t.After(tr.Start) && t.Before(tr.End)
+}
+
 type doer interface {
 	Do(*http.Request) (*http.Response, error)
 }
@@ -118,9 +157,9 @@ func (c *Client) Do(r *http.Request) (*http.Response, error) {
 	return response, nil
 }
 
-func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end time.Time, cursor string) (*SIEMBatchEventResponse, error) {
-	if start.After(end) {
-		return nil, fmt.Errorf("start time is after end time")
+func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, tr *TimeRange, cursor string) (*SIEMBatchEventResponse, error) {
+	if err := tr.Err(); err != nil {
+		return nil, err
 	}
 
 	params := url.Values{}
@@ -129,20 +168,20 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end
 	if cursor != "" {
 		params.Set("nextPage", cursor)
 	} else {
-		params.Set("dateRangeStartsAt", start.Format(SIEMBatchTimeFormat))
-		params.Set("dateRangeEndsAt", end.Format(SIEMBatchTimeFormat))
+		params.Set("dateRangeStartsAt", tr.Start.Format(SIEMBatchTimeFormat))
+		params.Set("dateRangeEndsAt", tr.End.Format(SIEMBatchTimeFormat))
 	}
 	endpoint := fmt.Sprintf("%s%s?%s",
 		c.host,
 		siemBatchEndpoint,
 		params.Encode(),
 	)
-	r, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error building siem event batch request: %w", err)
 	}
 
-	resp, err := c.Do(r)
+	resp, err := c.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("error making siem event batch request: %w", err)
 	}
@@ -168,9 +207,9 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, start, end
 
 // GetRawAuditEvents returns a partially parsed response from a single page of the API. More pages can be read by providing the cursor.
 // The intent is to allow only the caller to control when/if the actual audit data is decoded given the variance in structures of the API.
-func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cursor string) (*Response, error) {
-	if start.After(end) {
-		return nil, fmt.Errorf("start time is after end time")
+func (c *Client) GetRawAuditEvents(ctx context.Context, tr *TimeRange, cursor string) (*Response, error) {
+	if err := tr.Err(); err != nil {
+		return nil, err
 	}
 
 	payload := Request{}
@@ -180,8 +219,8 @@ func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cu
 	} else {
 		payload.Data = []RequestData{
 			{
-				StartDateTime: start.Format(AuditTimeFormat),
-				EndDateTime:   end.Format(AuditTimeFormat),
+				StartDateTime: tr.Start.Format(AuditTimeFormat),
+				EndDateTime:   tr.End.Format(AuditTimeFormat),
 			},
 		}
 	}
@@ -216,8 +255,8 @@ func (c *Client) GetRawAuditEvents(ctx context.Context, start, end time.Time, cu
 	return b, nil
 }
 
-func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, start, end time.Time, cursor string) (*SIEMEventResponse, error) {
-	if err := validTime(start, end); err != nil {
+func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, tr *TimeRange, cursor string) (*SIEMEventResponse, error) {
+	if err := tr.Err(); err != nil {
 		return nil, err
 	}
 
@@ -227,8 +266,8 @@ func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, start, e
 	if cursor != "" {
 		params.Set("nextPage", cursor)
 	} else {
-		params.Set("dateRangeStartsAt", start.Format(SIEMTimeFormat))
-		params.Set("dateRangeEndsAt", end.Format(SIEMTimeFormat))
+		params.Set("dateRangeStartsAt", tr.Start.Format(SIEMTimeFormat))
+		params.Set("dateRangeEndsAt", tr.End.Format(SIEMTimeFormat))
 	}
 	endpoint := fmt.Sprintf("%s%s?%s",
 		c.host,
@@ -263,22 +302,6 @@ func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, start, e
 	}
 
 	return b, nil
-}
-
-func validTime(start, end time.Time) error {
-	if start.After(end) {
-		return fmt.Errorf("start time is after end time")
-	}
-	if start.IsZero() {
-		return fmt.Errorf("start time is zero")
-	}
-	if end.IsZero() {
-		return fmt.Errorf("end time is zero")
-	}
-	if start.Equal(end) {
-		return fmt.Errorf("start and end time are equal")
-	}
-	return nil
 }
 
 // parse will read and marshal bytes into a type T.

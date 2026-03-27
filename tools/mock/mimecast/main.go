@@ -312,7 +312,7 @@ func siemBatch(w http.ResponseWriter, r *http.Request) {
 	response := mimecast.SIEMBatchEventResponse{
 		Value: []mimecast.SIEMBatchEvent{
 			{
-				URL:  fmt.Sprintf("http://localhost:%d/storage/%s/json.gz", *port, cursor),
+				URL:  fmt.Sprintf("http://%s/storage/%s/json.gz", r.Host, cursor),
 				Size: 1024,
 			},
 		},
@@ -630,7 +630,7 @@ func storage(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get events per page from batch config
-	eventsPerPage := 5 // default
+	eventsPerPage := 1000 // default
 	if tr.clientID != "" {
 		configMtx.RLock()
 		if config, ok := clientConfigs[tr.clientID]; ok {
