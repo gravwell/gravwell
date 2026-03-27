@@ -142,6 +142,9 @@ func (c *lockModel) Reset() error {
 
 func (c *lockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int) (invalid string, onStart tea.Cmd, err error) {
 	fs := createFlagSet()
+	if err := fs.Parse(tokens); err != nil {
+		return "", nil, err
+	}
 	self, err := fs.GetBool("include-self")
 	if err != nil {
 		clilog.LogFlagFailedGet("include-self", err)
@@ -166,7 +169,7 @@ func (c *lockModel) SetArgs(_ *pflag.FlagSet, tokens []string, width, height int
 			admin:    user.Admin,
 		})
 	}
-	slices.Clip(itms)
+	itms = slices.Clip(itms)
 	if len(itms) == 0 {
 		return "There are no other users to lock", nil, nil
 	}
@@ -199,7 +202,7 @@ func (i item) Description() string {
 	if i.admin {
 		sb.WriteString("(admin) ")
 	}
-	fmt.Fprintf(&sb, "%s (%s)", i.name, i.email)
+	fmt.Fprintf(&sb, "(ID: %d) %s (%s)", i.id, i.name, i.email)
 
 	return sb.String()
 }
