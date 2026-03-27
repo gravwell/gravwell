@@ -47,7 +47,7 @@ func newKitsListAction() action.Pair {
 		types.IdKitState{}, func(fs *pflag.FlagSet) ([]types.IdKitState, error) {
 			// if --all, use the admin version
 			if all, err := fs.GetBool(ft.GetAll.Name()); err != nil {
-				uniques.ErrGetFlag("kist list", err)
+				uniques.ErrGetFlag("kits list", err)
 			} else if all {
 				return connection.Client.AdminListKits()
 			}
@@ -65,7 +65,7 @@ func newKitsListAction() action.Pair {
 
 func flags() pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
-	ft.GetAll.Register(&addtlFlags, true, "kist")
+	ft.GetAll.Register(&addtlFlags, true, "kits")
 
 	return addtlFlags
 }

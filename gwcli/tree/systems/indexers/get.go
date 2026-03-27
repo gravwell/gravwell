@@ -299,11 +299,11 @@ func (dii *deepIndexerInfo) fetchByName() (found bool) {
 		defer wg.Done()
 		stats, err := connection.Client.GetSystemStats()
 		if err != nil {
-			clilog.Writer.Warnf("failed to fetch system descriptions: %v", err)
+			clilog.Writer.Warnf("failed to fetch system stats: %v", err)
 			return
 		}
 		if stat, ok := stats[dii.Name]; !ok {
-			clilog.Writer.Warnf("did not find a system description associated with indexer %v", dii.Name)
+			clilog.Writer.Warnf("did not find system stats associated with indexer %v", dii.Name)
 		} else {
 			mu.Lock()
 			defer mu.Unlock()

@@ -92,7 +92,7 @@ func get() action.Pair {
 			Use: "get",
 			CmdMods: func(c *cobra.Command) {
 				c.SetUsageFunc(func(c *cobra.Command) error {
-					fmt.Fprintf(c.OutOrStdout(), "get "+ft.Optional("flags")+" USERNAME USERNAME ...")
+					fmt.Fprint(c.OutOrStdout(), "get "+ft.Optional("flags")+" USERNAME USERNAME ...")
 					return nil
 				})
 				c.Example = "get --csv bart homer lisa maggie marge"
