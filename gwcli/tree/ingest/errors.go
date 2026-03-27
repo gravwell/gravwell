@@ -23,8 +23,10 @@ var (
 	errInvalidTagCharacter error
 	// failed to associate a tag to this file using any of the 3 methods (in-line, embedded, default)
 	errNoTagSpecified error = errors.New(
-		"every file must have a tag in at least one of the following positions (ordered by priority): " +
-			"as part of the argument (\"path,tag\"), embedded in the file (in the case of Gravwell JSON files), or via the --default-tag flag")
+		"every file must have a tag in at least one of the following positions (ordered by priority):\n" +
+			"- as part of the argument (\"path,tag\")\n" +
+			"- embedded in the file (in the case of Gravwell JSON files)\n" +
+			"- via the --default-tag flag")
 )
 
 func init() {
