@@ -231,8 +231,8 @@ func transmogrifyFlags(fs *pflag.FlagSet) (ingestFlags, []string, error) {
 }
 
 // Given the bare arguments, returns a list of pairs associating each path to its tag (if a tag was supplied).
-// Does not perform any coercion for paths or tag (other than skipping empty elements).
-func parsePairs(args []string) []pair {
+// Checks that each path exists and returns an error on the first failure.
+func parsePairs(args []string) ([]pair, error) {
 	pairs := []pair{}
 
 	for _, a := range args {
@@ -241,10 +241,14 @@ func parsePairs(args []string) []pair {
 		}
 		var p pair
 		p.path, p.tag, _ = strings.Cut(a, ",")
+		_, err := os.Stat(p.path)
+		if err != nil {
+			return nil, err
+		}
 		pairs = append(pairs, p)
 	}
 
-	return pairs
+	return pairs, nil
 }
 
 // ingestPath validates and attempts to ingest the file at the given path.

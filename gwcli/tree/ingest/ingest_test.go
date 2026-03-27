@@ -21,6 +21,8 @@ import (
 )
 
 func Test_parsePairs(t *testing.T) {
+	tDir := t.TempDir()
+	t.Chdir(tDir)
 	var (
 		p1 = randomdata.LastName()
 		p2 = randomdata.LastName()
@@ -30,6 +32,26 @@ func Test_parsePairs(t *testing.T) {
 		t2 = randomdata.Month()
 		t3 = randomdata.Month()
 	)
+
+	// create files that parsePairs can stat
+	if err := os.WriteFile(p1, []byte(randomdata.Alphanumeric(3)), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p2, []byte(randomdata.Alphanumeric(3)), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(p3, []byte(randomdata.Alphanumeric(3)), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(t1, []byte(randomdata.Alphanumeric(3)), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(t2, []byte(randomdata.Alphanumeric(3)), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(t3, []byte(randomdata.Alphanumeric(3)), 0644); err != nil {
+		t.Fatal(err)
+	}
 
 	type args struct {
 		args []string
@@ -46,7 +68,9 @@ func Test_parsePairs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := parsePairs(tt.args.args); !reflect.DeepEqual(got, tt.want) {
+			if got, err := parsePairs(tt.args.args); err != nil {
+				t.Error(err)
+			} else if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("parsePairs() = %v, want %v", got, tt.want)
 			}
 		})
