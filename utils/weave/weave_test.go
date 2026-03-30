@@ -1364,19 +1364,23 @@ func TestToJSON(t *testing.T) {
 			a   int
 			ptr *struct {
 				b *int
+				z uint
 			}
 		}
 
-		t.Run("is not nil, has subvalue", func(t *testing.T) {
+		t.Run("struct and ptr child are both initialized", func(t *testing.T) {
 			ptrval := 5
 			st := ptrstruct{
-				a:   1,
-				ptr: &struct{ b *int }{b: &ptrval},
+				a: 1,
+				ptr: &struct {
+					b *int
+					z uint
+				}{b: &ptrval},
 			}
 
-			want := "[{\"a\":1,\"ptr\":{\"b\":5}}]"
+			want := "[{\"a\":1,\"ptr\":{\"b\":5,\"z\":0}}]"
 
-			actual, err := ToJSON([]ptrstruct{st}, []string{"a", "ptr.b"}, JSONOptions{})
+			actual, err := ToJSON([]ptrstruct{st}, []string{"a", "ptr.b", "ptr.z"}, JSONOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1385,15 +1389,18 @@ func TestToJSON(t *testing.T) {
 				t.Errorf("\n---ToJSON()---\n'%v'\n---want---\n'%v'", actual, want)
 			}
 		})
-		t.Run("is not nil, does not have subvalue", func(t *testing.T) {
+		t.Run("struct is initialized, but ptr child is nil", func(t *testing.T) {
 			st := ptrstruct{
-				a:   1,
-				ptr: &struct{ b *int }{},
+				a: 1,
+				ptr: &struct {
+					b *int
+					z uint
+				}{},
 			}
 
-			want := "[{\"a\":1,\"ptr\":{\"b\":\"nil\"}}]"
+			want := "[{\"a\":1,\"ptr\":{\"b\":\"nil\",\"z\":0}}]"
 
-			actual, err := ToJSON([]ptrstruct{st}, []string{"a", "ptr.b"}, JSONOptions{})
+			actual, err := ToJSON([]ptrstruct{st}, []string{"a", "ptr.b", "ptr.z"}, JSONOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1402,15 +1409,14 @@ func TestToJSON(t *testing.T) {
 				t.Errorf("\n---ToJSON()---\n'%v'\n---want---\n'%v'", actual, want)
 			}
 		})
-		t.Run("is nil", func(t *testing.T) {
+		t.Run("struct is nil", func(t *testing.T) {
 			st := ptrstruct{
 				a: 1,
 			}
 
-			want := "a,ptr,ptr.b\n" +
-				"1,nil,nil"
+			want := "[{\"a\":1,\"ptr\":{\"b\":\"nil\",\"z\":0}}]"
 
-			actual, err := ToJSON([]ptrstruct{st}, []string{"a", "ptr.b"}, JSONOptions{})
+			actual, err := ToJSON([]ptrstruct{st}, []string{"a", "ptr.b", "ptr.z"}, JSONOptions{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1420,6 +1426,57 @@ func TestToJSON(t *testing.T) {
 			}
 		})
 	})
+	/*t.Run("path collisions", func(t *testing.T) {
+		// these tests all pass in variations on specifying parent+child columns in the same call
+		t.Run("no pointers", func(t *testing.T) {
+			type noptrs struct {
+				a int
+				b struct {
+					c string
+					d float32
+				}
+			}
+
+			data := []noptrs{
+				{a: 8, b: struct {
+					c string
+					d float32
+				}{c: "10", d: 3.14}},
+			}
+			want := "[{\"a\":8,\"b\":\"{10}\"}]"
+
+			got, err := ToJSON(data, []string{"a", "b.c", "b"}, JSONOptions{})
+			if err != nil {
+				t.Error(err)
+			}
+			if got != want {
+				t.Errorf("\n---ToJSON()---\n'%v'\n---want---\n'%v'", got, want)
+			}
+		})
+		t.Run("struct is nil, both parent and children columns requested", func(t *testing.T) {
+			type ptrstruct struct {
+				a   int
+				ptr *struct {
+					b *int
+					z uint
+				}
+			}
+			st := ptrstruct{
+				a: 1,
+			}
+
+			want := "[{\"a\":1,\"ptr\":{\"b\":\"nil\",\"z\":0}}]"
+
+			actual, err := ToJSON([]ptrstruct{st}, []string{"a", "ptr", "ptr.b", "ptr.z"}, JSONOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if actual != want {
+				t.Errorf("\n---ToJSON()---\n'%v'\n---want---\n'%v'", actual, want)
+			}
+		})
+	})*/
 
 }
 
