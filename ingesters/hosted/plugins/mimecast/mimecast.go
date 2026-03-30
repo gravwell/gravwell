@@ -224,7 +224,7 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 		var last *time.Time
 		rt.Debug("got batches", log.KV("api", api), log.KV("count", len(events.Value)))
 		for _, batch := range events.Value {
-			last, err = m.handleMtaBatch(ctx, rt, tag, tr, batch)
+			last, err = m.handleMtaBatch(ctx, rt, tag, tr, batch, api)
 			if err != nil {
 				rt.Error("error handling mta batch", log.KV("api", api), log.KVErr(err))
 				continue
@@ -285,7 +285,7 @@ func (m *Mimecast) handleMtaPage(rt hosted.Runtime, tag entry.EntryTag, page []j
 	return last, nil
 }
 
-func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, tr *TimeRange, event SIEMBatchEvent) (*time.Time, error) {
+func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag entry.EntryTag, tr *TimeRange, event SIEMBatchEvent, api Api) (*time.Time, error) {
 	entries, err := m.entries(ctx, event.URL)
 	if err != nil {
 		return nil, err
@@ -326,7 +326,11 @@ func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag en
 		last = &ts
 		count++
 	}
-	rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last))
+	if count == 0 {
+		rt.Debug("no new events to ingest in range", log.KV("start", tr.Start), log.KV("end", tr.End), log.KV("api", api))
+	} else {
+		rt.Debug("finished processing mta events", log.KV("processed-entries", count), log.KV("first-timestamp", first), log.KV("last-timestamp", last), log.KV("api", api))
+	}
 	return last, nil
 }
 
