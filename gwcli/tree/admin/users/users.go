@@ -5,16 +5,21 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
+	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
+	"github.com/gravwell/gravwell/v4/ingest/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )
@@ -33,6 +38,7 @@ func NewNav() *cobra.Command {
 			edit(),
 			lockAction(),
 			unlockAction(),
+			sessionsAction(),
 		})
 }
 
@@ -204,4 +210,57 @@ func descriptionLine(admin bool, email string) string {
 		adminStr = "(admin) "
 	}
 	return adminStr + email
+}
+
+var sessionUIDs []int32
+
+func sessionsAction() action.Pair {
+	return scaffoldlist.NewListAction(
+		"display a user's sessions",
+		"Get all active sessions for the specified user IDs.",
+		types.Session{}, func(fs *pflag.FlagSet) ([]types.Session, error) {
+			toRet := []types.Session{}
+			for _, uid := range sessionUIDs {
+				sessions, err := connection.Client.Sessions(uid)
+				if err != nil {
+					clilog.Writer.Error("failed to get sessions", log.KV("uid", uid), log.KV("error", err))
+					continue
+				}
+				toRet = append(toRet, sessions...)
+			}
+			return toRet, nil
+		},
+		scaffoldlist.Options{ // TODO add usage and example overrides
+			Use: "sessions",
+			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				sessionUIDs = []int32{} // clear out IDs
+				if fs.NArg() < 1 {
+					return phrases.AtLeast1ArgRequired("user IDs"), nil
+				}
+				users, err := connection.Client.GetUserMap()
+				if err != nil {
+					return "", err
+				}
+				for _, arg := range fs.Args() {
+					arg = strings.TrimSpace(arg)
+					if arg == "" {
+						continue
+					}
+					// validate that uid is an integer
+					uid, err := strconv.ParseInt(arg, 10, 32)
+					if err != nil {
+						return arg + " is not a valid integer", nil
+					} else if uid < 0 {
+						return "uids must be positive (" + arg + ")", nil
+					}
+					// validate that each uid points to an actual user
+					if _, ok := users[int32(uid)]; !ok {
+						return "uid " + arg + " does not point to a valid user", nil
+					}
+					sessionUIDs = append(sessionUIDs, int32(uid))
+				}
+				return "", nil
+			},
+		},
+	)
 }
