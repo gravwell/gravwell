@@ -267,7 +267,7 @@ func ToCSV[Any any](st []Any, columns []string, options CSVOptions) string {
 
 // helper function for ToCSVHash
 // returns a string of a CSV row populated by the data in the struct that corresponds to the columns
-func stringifyStructCSV(s interface{}, columns []string, columnMap map[string][]int) string {
+func stringifyStructCSV(s any, columns []string, columnMap map[string][]int) string {
 	var row strings.Builder
 
 	// deconstruct the struct
@@ -280,17 +280,43 @@ func stringifyStructCSV(s interface{}, columns []string, columnMap map[string][]
 			// no matching field
 			// do nothing
 		} else {
-			// use field index to retrieve value
-			data := structVals.FieldByIndex(findices)
-			if data.Kind() == reflect.Pointer {
-				data = data.Elem()
-			}
-			row.WriteString(fmt.Sprintf("%v", data))
+			// walk the indicies to find value
+			// NOTE(rlandau): do NOT use FieldByIndex, as it panics if the indices walk a nil.
+			row.WriteString(valueByIndex(structVals, findices))
+			//fmt.Fprintf(&row, "%v", s)
+
+			//fmt.Fprintf(&row, "%v", data)
 		}
 		row.WriteString(",") // append comma to token
 	}
 
 	return strings.TrimSuffix(row.String(), ",")
+}
+
+// a custom version of reflect.Value.FieldByIndex that returns the stringified version of the target field.
+// Returns "nil" if traversal requires stepping through a nil pointer.
+func valueByIndex(start reflect.Value, index []int) string {
+	step := start
+	for _, fidx := range index {
+		if step.Kind() == reflect.Pointer {
+			if step.IsNil() {
+				break
+			}
+			step = step.Elem()
+		}
+		step = step.Field(fidx)
+	}
+	// we have reached the end of the indices or a nil
+	var s string
+	if step.Kind() == reflect.Pointer {
+		s = "nil"
+		if !step.IsNil() {
+			s = fmt.Sprintf("%v", step.Elem())
+		}
+	} else {
+		s = fmt.Sprintf("%v", step)
+	}
+	return s
 }
 
 // ToTable when given an array of an arbitrary struct and the list of *fully-qualified* fields,
