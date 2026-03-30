@@ -416,10 +416,15 @@ type gComplex[t float32 | float64] struct {
 	Imaginary t
 }
 
-// ToJSON when given an array of an arbitrary struct and the list of *fully-qualified* fields,
-// outputs a JSON array containing the data in the array of the struct.
+// ToJSON transforms an array of instances of an arbitrary struct into a JSON array containing the data in the array.
 // Output is sorted alphabetically.
+//
+// Columns is a list of *fully-dot-qualified* fields (ex: a.b.c, z.d, z.e) to include.
+//
 // If no valid data is given, prints "[]".
+//
+// NOTE(rlandau): specifying both a parent and a child in the list of columns is considered undefined.
+// It may work. It may omit data. It may error.
 func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, error) {
 	if columns == nil || st == nil || len(st) < 1 || len(columns) < 1 { // superfluous request
 		return "[]", nil
@@ -432,24 +437,48 @@ func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, e
 	for _, s := range st {
 		g := gabs.New()
 		structVO := reflect.ValueOf(s)
+		structTO := reflect.TypeOf(s)
 		for _, col := range columns {
 			// get value associated to this column
 			fIndex := columnMap[col]
 			if fIndex != nil {
 				data := fieldByIndexNoPanic(structVO, fIndex)
+
 				if data.Kind() == reflect.Pointer {
+					// if we hit a nil pointer, we need to add special handling to ensure the struct still gets built and values are zeroed
 					if data.IsNil() {
-						if _, err := g.SetP("nil", col); err != nil {
-							return "", err
+						sf := structTO.FieldByIndex(fIndex)
+						// generate a zero value of the type
+						data = reflect.New(sf.Type)
+						if data.Kind() == reflect.Pointer {
+							data = data.Elem()
 						}
-						continue
+
+						// if the underlying type is struct, construct it
+						if data.Kind() == reflect.Struct {
+							if _, err := g.SetP(data.Interface(), col); err != nil {
+								return "", err
+							}
+							continue
+						} else if data.Kind() == reflect.Pointer && data.IsNil() { // if still nil, just write "nil"
+							if _, err := g.SetP("nil", col); err != nil {
+								return "", err
+							}
+							continue
+						}
+						// allow processing to resume
+					} else { // just dereference and return to normal handling
+						data = data.Elem()
 					}
-					data = data.Elem()
 				}
 				// if there is an alias, we write that as the key instead
 				if alias, found := options.Aliases[col]; found {
 					col = alias
 				}
+
+				// path collisions should only occur if a parent and its child where specified AND the parent is nil.
+				// The best way to handle this would be to treat the parent as a zero struct
+				// TODO perform or remove me
 
 				switch data.Type().Kind() {
 				case reflect.Float32:
