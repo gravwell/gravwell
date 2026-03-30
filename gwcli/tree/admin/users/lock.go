@@ -52,7 +52,7 @@ func lockAction() action.Pair {
 			}
 
 			// at least one ID was specified, attempt to lock each account
-			var uids []int32 = make([]int32, c.Flags().NArg())
+			var uids = make([]int32, c.Flags().NArg())
 			for i, s := range c.Flags().Args() {
 				uid, err := strconv.ParseInt(s, 10, 32)
 				if err != nil {
@@ -115,7 +115,6 @@ func (c *lockModel) Update(msg tea.Msg) (cmd tea.Cmd) {
 				clilog.Writer.Errorf("failed to cast item from DefaultItem. Bare item: %v", li)
 				continue
 			}
-			connection.Client.LockUserAccount(itm.id)
 			if err := connection.Client.LockUserAccount(int32(itm.id)); err != nil {
 				clilog.Writer.Error(fmt.Sprintf("failed to lock user account %d: %v", itm.id, err))
 				return
