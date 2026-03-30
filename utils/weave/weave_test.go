@@ -431,7 +431,7 @@ func TestToCSV(t *testing.T) {
 			args{
 				st:      []interface{}{},
 				columns: []string{"c", "foo", "Exported", "missing", "d", "a", "b", "foobar"}},
-			"",
+			"c,foo,Exported,missing,d,a,b,foobar", // should print columns, but not data
 		},
 		{"superfluous, no data, unmatched aliases",
 			args{
@@ -439,7 +439,7 @@ func TestToCSV(t *testing.T) {
 				columns: []string{"c", "foo", "Exported", "missing", "d", "a", "b", "foobar"},
 				options: CSVOptions{Aliases: map[string]string{"Exported": "exp"}},
 			},
-			"",
+			"c,foo,exp,missing,d,a,b,foobar", // should print columns, matched aliases, but no data
 		},
 	}
 	for _, tt := range tests {
@@ -453,8 +453,11 @@ func TestToCSV(t *testing.T) {
 	t.Run("not a struct", func(t *testing.T) {
 		m := map[int]float32{}
 
-		if got := ToCSV([]map[int]float32{m}, []string{"some", "column", "names"}, CSVOptions{}); got != "" {
-			t.Errorf("expected the empty string, got %v", got)
+		want := "some,column,names"
+
+		// as it can't be walked, should print as if there was no data
+		if got := ToCSV([]map[int]float32{m}, []string{"some", "column", "names"}, CSVOptions{}); got != want {
+			t.Errorf("expected: \"%v\", actual: \"%v\"", want, got)
 		}
 	})
 
