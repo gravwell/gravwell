@@ -1356,6 +1356,71 @@ func TestToJSON(t *testing.T) {
 		}
 	})
 
+	t.Run("traverse nil struct", func(t *testing.T) {
+		// this test checks that nils will be printed any time value paths require stepping through a nil struct
+
+		// define struct with pointer
+		type ptrstruct struct {
+			a   int
+			ptr *struct {
+				b *int
+			}
+		}
+
+		t.Run("is not nil, has subvalue", func(t *testing.T) {
+			ptrval := 5
+			st := ptrstruct{
+				a:   1,
+				ptr: &struct{ b *int }{b: &ptrval},
+			}
+
+			want := "[{\"a\":1,\"ptr\":{\"b\":5}}]"
+
+			actual, err := ToJSON([]ptrstruct{st}, []string{"a", "ptr.b"}, JSONOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if actual != want {
+				t.Errorf("\n---ToJSON()---\n'%v'\n---want---\n'%v'", actual, want)
+			}
+		})
+		t.Run("is not nil, does not have subvalue", func(t *testing.T) {
+			st := ptrstruct{
+				a:   1,
+				ptr: &struct{ b *int }{},
+			}
+
+			want := "[{\"a\":1,\"ptr\":{\"b\":\"nil\"}}]"
+
+			actual, err := ToJSON([]ptrstruct{st}, []string{"a", "ptr.b"}, JSONOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if actual != want {
+				t.Errorf("\n---ToJSON()---\n'%v'\n---want---\n'%v'", actual, want)
+			}
+		})
+		t.Run("is nil", func(t *testing.T) {
+			st := ptrstruct{
+				a: 1,
+			}
+
+			want := "a,ptr,ptr.b\n" +
+				"1,nil,nil"
+
+			actual, err := ToJSON([]ptrstruct{st}, []string{"a", "ptr.b"}, JSONOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if actual != want {
+				t.Errorf("\n---ToJSON()---\n'%v'\n---want---\n'%v'", actual, want)
+			}
+		})
+	})
+
 }
 
 func TestToJSONExclude(t *testing.T) {
