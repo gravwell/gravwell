@@ -231,7 +231,9 @@ func sessionsAction() action.Pair {
 			return toRet, nil
 		},
 		scaffoldlist.Options{ // TODO add usage and example overrides
-			Use: "sessions",
+			Use:            "sessions",
+			DefaultColumns: []string{"ID", "UID", "UDets.Username", "UDets.Admin", "UDets.Locked"},
+			ColumnAliases:  map[string]string{"ID": "SessionID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				sessionUIDs = []int32{} // clear out IDs
 				if fs.NArg() < 1 {
