@@ -1,4 +1,4 @@
-package users
+package admin_users
 
 import (
 	"fmt"
