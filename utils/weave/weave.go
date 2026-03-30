@@ -436,8 +436,14 @@ func ToJSON[Any any](st []Any, columns []string, options JSONOptions) (string, e
 			// get value associated to this column
 			fIndex := columnMap[col]
 			if fIndex != nil {
-				data := structVO.FieldByIndex(fIndex)
+				data := fieldByIndexNoPanic(structVO, fIndex)
 				if data.Kind() == reflect.Pointer {
+					if data.IsNil() {
+						if _, err := g.SetP("nil", col); err != nil {
+							return "", err
+						}
+						continue
+					}
 					data = data.Elem()
 				}
 				// if there is an alias, we write that as the key instead
