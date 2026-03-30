@@ -282,7 +282,7 @@ func stringifyStructCSV(s any, columns []string, columnMap map[string][]int) str
 		} else {
 			// walk the indicies to find value
 			// NOTE(rlandau): do NOT use FieldByIndex, as it panics if the indices walk a nil.
-			row.WriteString(valueByIndex(structVals, findices))
+			row.WriteString(valueToString(valueByIndex(structVals, findices)))
 			//fmt.Fprintf(&row, "%v", s)
 
 			//fmt.Fprintf(&row, "%v", data)
@@ -295,7 +295,7 @@ func stringifyStructCSV(s any, columns []string, columnMap map[string][]int) str
 
 // a custom version of reflect.Value.FieldByIndex that returns the stringified version of the target field.
 // Returns "nil" if traversal requires stepping through a nil pointer.
-func valueByIndex(start reflect.Value, index []int) string {
+func valueByIndex(start reflect.Value, index []int) reflect.Value {
 	step := start
 	for _, fidx := range index {
 		if step.Kind() == reflect.Pointer {
@@ -307,15 +307,20 @@ func valueByIndex(start reflect.Value, index []int) string {
 		step = step.Field(fidx)
 	}
 	// we have reached the end of the indices or a nil
+	return step
+}
+
+// valueToString is a helper function to coerce a reflect value into a user-friendly, printable string of its actual value or "nil".
+func valueToString(v reflect.Value) string {
 	var s string
-	if step.Kind() == reflect.Pointer {
-		s = "nil"
-		if !step.IsNil() {
-			s = fmt.Sprintf("%v", step.Elem())
+	if v.Kind() == reflect.Pointer {
+		if v.IsNil() {
+			return "nil"
 		}
-	} else {
-		s = fmt.Sprintf("%v", step)
+		v = v.Elem()
 	}
+	s = fmt.Sprintf("%v", v)
+
 	return s
 }
 
