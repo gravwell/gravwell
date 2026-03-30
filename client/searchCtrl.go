@@ -1065,7 +1065,7 @@ func (c *Client) DetachSearch(s Search) {
 // ("json", "csv", "text", "pcap", "lookupdata", "ipexist", "archive")
 func (c *Client) DownloadSearch(ctx context.Context, sid string, tr types.TimeRange, format string) (r io.ReadCloser, err error) {
 	var resp *http.Response
-	if resp, err = c.SearchDownloadRequest(ctx, sid, types.SearchDownloadRequest{
+	if resp, err = c.SearchDownloadRequestWithContext(ctx, sid, types.SearchDownloadRequest{
 		Format: format,
 		Timeframe: types.Timeframe{
 			Start: tr.StartTS.StandardTime(),

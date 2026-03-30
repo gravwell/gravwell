@@ -302,23 +302,39 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 	return nil
 }
 
-// SearchDownloadRequest initiates a download of search results for the search
-// with the given id. The request specifies a download format (see
-// [types.SearchDownloadRequest]) which should be a format supported by the
-// search's renderer (e.g. "json", "csv", "text", "lookup", "archive").
-// It may also include an optional set of [types.RowSelection] values to select
-// specific ranges or indices of results. The returned [types.SearchDownloadResponse]
-// contains a download URL for retrieving the results.
-// func (c *Client) SearchDownloadRequest(id string, req types.SearchDownloadRequest) (resp types.SearchDownloadResponse, err error) {
-// 	err = Sew
-// 	return
-// }
+// SearchDownloadRequest performs a download request for the search results
+// identified by id. It is a convenience wrapper around
+// [Client.SearchDownloadRequestWithContext] using [context.Background].
+//
+// The req parameter specifies the download format and optional result selection
+// (see [types.SearchDownloadRequest]). The format must be supported by the
+// search's renderer (e.g. "json", "csv", "text", "pcap", "lookupdata",
+// "ipexist", "archive"). An optional set of [types.RowSelection] values may
+// narrow results to specific ranges or individual rows, and an optional
+// [types.Timeframe] may restrict results to a particular time window.
+//
+// On a successful response, the response body contains a JSON-encoded
+// [types.SearchDownloadResponse]. Callers are responsible for closing the
+// response body.
+func (c *Client) SearchDownloadRequest(id string, req types.SearchDownloadRequest) (*http.Response, error) {
+	return c.SearchDownloadRequestWithContext(context.Background(), id, req)
+}
 
-// SearchDownloadRequestWithContext initiates a download of search results. The id parameter specifies
-// the search to download. The format should be a supported download format for the search's
-// renderer ("json", "csv", "text", "pcap", "lookupdata", "ipexist", "archive"). The tr
-// parameter is the time frame over which results should be downloaded.
-func (c *Client) SearchDownloadRequest(ctx context.Context, searchID string, sdr types.SearchDownloadRequest) (resp *http.Response, err error) {
+// SearchDownloadRequestWithContext performs a download request for the search
+// results identified by searchID. The ctx parameter controls cancellation and
+// deadline.
+//
+// The sdr parameter specifies the download format and optional result selection
+// (see [types.SearchDownloadRequest]). The format must be supported by the
+// search's renderer ("json", "csv", "text", "pcap", "lookupdata", "ipexist",
+// "archive"). An optional set of [types.RowSelection] values may narrow results
+// to specific ranges or individual rows, and an optional [types.Timeframe] may
+// restrict results to a particular time window.
+//
+// On a successful response, the response body contains a JSON-encoded
+// [types.SearchDownloadResponse]. Callers are responsible for closing the
+// response body.
+func (c *Client) SearchDownloadRequestWithContext(ctx context.Context, searchID string, sdr types.SearchDownloadRequest) (resp *http.Response, err error) {
 	var data []byte
 	var req *http.Request
 	if data, err = json.Marshal(sdr); err != nil {
