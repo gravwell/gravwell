@@ -532,24 +532,56 @@ func TestToCSV(t *testing.T) {
 		// define struct with pointer
 		type ptrstruct struct {
 			a   int
-			ptr *int
+			ptr *struct {
+				b *int
+			}
 		}
 
-		ptrval := 5
-		st := ptrstruct{
-			a:   1,
-			ptr: &ptrval,
-		}
+		t.Run("is not nil, has subvalue", func(t *testing.T) {
+			ptrval := 5
+			st := ptrstruct{
+				a:   1,
+				ptr: &struct{ b *int }{b: &ptrval},
+			}
 
-		want := "a,ptr\n" +
-			"1,5"
+			want := "a,ptr.b\n" +
+				"1,5"
 
-		actual := ToCSV([]ptrstruct{st}, []string{"a", "ptr"}, CSVOptions{})
+			actual := ToCSV([]ptrstruct{st}, []string{"a", "ptr.b"}, CSVOptions{})
 
-		if actual != want {
-			t.Errorf("\n---ToCSVHash()---\n'%v'\n---want---\n'%v'", actual, want)
-		}
+			if actual != want {
+				t.Errorf("\n---ToCSVHash()---\n'%v'\n---want---\n'%v'", actual, want)
+			}
+		})
+		t.Run("is not nil, does not have subvalue", func(t *testing.T) {
+			st := ptrstruct{
+				a:   1,
+				ptr: &struct{ b *int }{},
+			}
 
+			want := "a,ptr.b\n" +
+				"1,nil"
+
+			actual := ToCSV([]ptrstruct{st}, []string{"a", "ptr.b"}, CSVOptions{})
+
+			if actual != want {
+				t.Errorf("\n---ToCSVHash()---\n'%v'\n---want---\n'%v'", actual, want)
+			}
+		})
+		t.Run("is nil", func(t *testing.T) {
+			st := ptrstruct{
+				a: 1,
+			}
+
+			want := "a,ptr,ptr.b\n" +
+				"1,nil,nil"
+
+			actual := ToCSV([]ptrstruct{st}, []string{"a", "ptr", "ptr.b"}, CSVOptions{})
+
+			if actual != want {
+				t.Errorf("\n---ToCSVHash()---\n'%v'\n---want---\n'%v'", actual, want)
+			}
+		})
 	})
 
 	// nested pointers
