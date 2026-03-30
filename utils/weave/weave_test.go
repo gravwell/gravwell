@@ -180,7 +180,7 @@ func TestToCSV(t *testing.T) {
 	const longCSVLineCount = 17000
 
 	type args struct {
-		st      []interface{}
+		st      []any
 		columns []string
 		options CSVOptions
 	}
@@ -194,7 +194,7 @@ func TestToCSV(t *testing.T) {
 	}{
 		{"∃!c∃!r",
 			args{
-				st: []interface{}{
+				st: []any{
 					outer{
 						a:     10,
 						b:     0,
@@ -206,7 +206,7 @@ func TestToCSV(t *testing.T) {
 		},
 		{"∃c∃!r",
 			args{
-				st: []interface{}{
+				st: []any{
 					outer{
 						a:     10,
 						b:     0,
@@ -218,7 +218,7 @@ func TestToCSV(t *testing.T) {
 		},
 		{"too ∀c2r, ordered as struct",
 			args{
-				st: []interface{}{
+				st: []any{
 					too{mu: 1, yu: 2}, too{mu: 3, yu: 4}},
 				columns: []string{
 					"mu", "yu",
@@ -227,7 +227,7 @@ func TestToCSV(t *testing.T) {
 		},
 		{"∃!c∃!r, deeply nested",
 			args{
-				st: []interface{}{
+				st: []any{
 					outer{inner: inner{too: &too{mu: 5}}},
 				},
 				columns: []string{
@@ -237,7 +237,7 @@ func TestToCSV(t *testing.T) {
 		},
 		{"∃c∃!r, deeply nested",
 			args{
-				st: []interface{}{
+				st: []any{
 					outer{inner: inner{too: &too{mu: 5, yu: 6}}},
 				},
 				columns: []string{
@@ -247,7 +247,7 @@ func TestToCSV(t *testing.T) {
 		},
 		{"∃c∃!r, deeply nested",
 			args{
-				st: []interface{}{
+				st: []any{
 					outer{inner: inner{too: &too{mu: 5, yu: 6}}, a: 10000, Exported: -87.5},
 				},
 				columns: []string{
@@ -257,7 +257,7 @@ func TestToCSV(t *testing.T) {
 		},
 		{"∀c∃!r, ordered as struct",
 			args{
-				st: []interface{}{
+				st: []any{
 					outer{
 						inner:    inner{foo: "FOO", too: &too{mu: 5, yu: 1}},
 						a:        10,
@@ -272,7 +272,7 @@ func TestToCSV(t *testing.T) {
 		},
 		{"∀c∃!r, ordered randomly",
 			args{
-				st: []interface{}{
+				st: []any{
 					outer{
 						inner:    inner{foo: "FOO"},
 						a:        10,
@@ -287,7 +287,7 @@ func TestToCSV(t *testing.T) {
 		},
 		{"∀c5r, ordered randomly",
 			args{
-				st: []interface{}{
+				st: []any{
 					outer{
 						inner:    inner{foo: "FOO"},
 						a:        10,
@@ -335,7 +335,7 @@ func TestToCSV(t *testing.T) {
 		},
 		{"∀c5r, ordered randomly, aliased",
 			args{
-				st: []interface{}{
+				st: []any{
 					outer{
 						inner:    inner{foo: "FOO"},
 						a:        10,
@@ -387,7 +387,7 @@ func TestToCSV(t *testing.T) {
 		},
 		{"∃c2r, non-existent column 'missing' and 'foobar'",
 			args{
-				st: []interface{}{
+				st: []any{
 					outer{
 						inner:    inner{foo: "FOO"},
 						a:        10,
@@ -409,7 +409,7 @@ func TestToCSV(t *testing.T) {
 		},
 		{"superfluous, no columns",
 			args{
-				st: []interface{}{
+				st: []any{
 					outer{
 						inner:    inner{foo: "FOO"},
 						a:        10,
@@ -429,13 +429,13 @@ func TestToCSV(t *testing.T) {
 		},
 		{"superfluous, no data",
 			args{
-				st:      []interface{}{},
+				st:      []any{},
 				columns: []string{"c", "foo", "Exported", "missing", "d", "a", "b", "foobar"}},
 			"c,foo,Exported,missing,d,a,b,foobar", // should print columns, but not data
 		},
 		{"superfluous, no data, unmatched aliases",
 			args{
-				st:      []interface{}{},
+				st:      []any{},
 				columns: []string{"c", "foo", "Exported", "missing", "d", "a", "b", "foobar"},
 				options: CSVOptions{Aliases: map[string]string{"Exported": "exp"}},
 			},
@@ -832,7 +832,7 @@ func TestToJSON(t *testing.T) {
 		if err != nil {
 			t.Error("Expected no error, got: ", err)
 		}
-		a2, err = ToJSON[any]([]interface{}{}, nil, JSONOptions{})
+		a2, err = ToJSON[any]([]any{}, nil, JSONOptions{})
 		if err != nil {
 			t.Error("Expected no error, got: ", err)
 		}
@@ -1370,7 +1370,7 @@ func TestToJSONExclude(t *testing.T) {
 	D := "D string"
 
 	type args struct {
-		st        []interface{}
+		st        []any
 		blacklist []string
 	}
 	tests := []struct {
@@ -1380,10 +1380,10 @@ func TestToJSONExclude(t *testing.T) {
 		wantErr bool
 	}{
 		{"superfluous", args{st: nil, blacklist: []string{"Ted", "Cruz", "ate", "my", "son"}}, emptyJSON, true},
-		{"not a struct", args{st: []interface{}{[]map[uint]int{}}, blacklist: []string{"AI", "is", "a", "fad"}}, emptyJSON, true},
+		{"not a struct", args{st: []any{[]map[uint]int{}}, blacklist: []string{"AI", "is", "a", "fad"}}, emptyJSON, true},
 		{"∀c2r, nil blacklist, some values initialized",
 			args{
-				st: []interface{}{
+				st: []any{
 					d0{a: 10, B: 0},
 					d0{a: 11, B: 1},
 				},
@@ -1394,7 +1394,7 @@ func TestToJSONExclude(t *testing.T) {
 		},
 		{"∀c2r nil blacklist, all values initialized",
 			args{
-				st: []interface{}{
+				st: []any{
 					d0{a: 10, B: 0, C: "C string", D: &D},
 					d0{a: 11, B: 1, C: "C string", D: &D},
 				},
@@ -1405,7 +1405,7 @@ func TestToJSONExclude(t *testing.T) {
 		},
 		/*{"∀c2r blacklist B and C",
 			args{
-				st: []interface{}{
+				st: []any{
 					d0{a: 10, B: 0, C: "C string", D: &D},
 					d0{a: 11, B: 1, C: "C string", D: &D},
 				},
@@ -1773,7 +1773,7 @@ func TestStructFieldsAll(t *testing.T) {
 		st any
 	}
 
-	triple_want := []string{"mbd.dblmbd.Y", "mbd.z", "ins.dblmbd.Y", "ins.z", "dbl.Y", "A", "b"}
+	tripleWant := []string{"mbd.dblmbd.Y", "mbd.z", "ins.dblmbd.Y", "ins.z", "dbl.Y", "A", "b"}
 
 	tests := []struct {
 		name        string
@@ -1790,9 +1790,9 @@ func TestStructFieldsAll(t *testing.T) {
 				ins: mbd{z: "z string", dblmbd: dblmbd{Y: "y string 2"}},
 				mbd: mbd{dblmbd: dblmbd{Y: "y string 3"},
 					z: "z string 2"},
-			}}, triple_want},
-		{"third level valueless", args{st: triple{}}, triple_want},
-		{"third level pointer", args{st: &triple{}}, triple_want},
+			}}, tripleWant},
+		{"third level valueless", args{st: triple{}}, tripleWant},
+		{"third level pointer", args{st: &triple{}}, tripleWant},
 		{"pointers", args{ptr{}}, []string{"A", "b", "innerptr.z", "innerptr.None", "Inner.z", "Inner.None", "non"}},
 	}
 	for _, tt := range tests {
@@ -1810,7 +1810,7 @@ func TestStructFieldsAll(t *testing.T) {
 
 func TestStructFieldsExported(t *testing.T) {
 
-	triple_want := []string{"A"}
+	tripleWant := []string{"A"}
 
 	tests := []struct {
 		name        string
@@ -1827,9 +1827,9 @@ func TestStructFieldsExported(t *testing.T) {
 				ins: mbd{z: "z string", dblmbd: dblmbd{Y: "y string 2"}},
 				mbd: mbd{dblmbd: dblmbd{Y: "y string 3"},
 					z: "z string 2"},
-			}, triple_want},
-		{"third level valueless", triple{}, triple_want},
-		{"third level pointer", &triple{}, triple_want},
+			}, tripleWant},
+		{"third level valueless", triple{}, tripleWant},
+		{"third level pointer", &triple{}, tripleWant},
 		{"pointers", ptr{}, []string{"A", "Inner.None"}},
 	}
 	for _, tt := range tests {
