@@ -39,6 +39,7 @@ func NewNav() *cobra.Command {
 			delete(),
 			edit(),
 			lockAction(),
+			unlockAction(),
 		})
 }
 
