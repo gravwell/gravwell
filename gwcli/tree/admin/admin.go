@@ -39,27 +39,52 @@ func NewNav() *cobra.Command {
 }
 
 // does not include "all"
-var targets = map[string]func() error{
-	"macros":           connection.Client.CleanupMacros,
-	"resources":        connection.Client.CleanupResources,
-	"search_history":   connection.Client.CleanupSearchHistory,
-	"secrets":          connection.Client.CleanupSecrets,
-	"templates":        connection.Client.CleanupTemplates,
-	"tokens":           connection.Client.CleanupTokens,
-	"user_preferences": connection.Client.CleanupUserPreferences,
+var targets = []string{
+	"macros",
+	"resources",
+	"search_history",
+	"secrets",
+	"templates",
+	"tokens",
+	"user_preferences",
+}
+
+// getTarget returns the cleanup function associated to a given target in the targets list.
+// We have to use this over making targets a map because Client will be nil until all actions have been built.
+// Therefore, we cannot cache the cleanup functions.
+//
+// Returns nil if the target is unknown
+func getTarget(target string) func() error {
+	switch target {
+	case "macros":
+		return connection.Client.CleanupMacros
+	case "resources":
+		return connection.Client.CleanupResources
+	case "search_history":
+		return connection.Client.CleanupSearchHistory
+	case "secrets":
+		return connection.Client.CleanupSecrets
+	case "templates":
+		return connection.Client.CleanupTemplates
+	case "tokens":
+		return connection.Client.CleanupTokens
+	case "user_preferences":
+		return connection.Client.CleanupUserPreferences
+	default:
+		return nil
+	}
 }
 
 // clean up is responsible for calling all specified cleanup functions, thus purging the respective type/resource/asset/entity
 func cleanup() action.Pair {
-	targetsHelp := slices.Collect(maps.Keys(targets))
-	slices.Sort(targetsHelp)
+	slices.Sort(targets)
 	return scaffold.NewBasicAction(
 		"cleanup",
 		"purges deleted items from the system",
 		"Purges deleted items of the given type, rendered them unable to be restored.\n"+
 			"Available targets:\n"+
-			"all\n"+
-			strings.Join(targetsHelp, "\n"),
+			"- all\n- "+
+			strings.Join(targets, "\n- "),
 		func(fs *pflag.FlagSet) (string, tea.Cmd) {
 			// compact the list of items to clean so we don't make duplicate m
 			var (
@@ -80,7 +105,7 @@ func cleanup() action.Pair {
 					out = "\"all\" specified; other targets are redundant\n"
 				}
 
-				return out + strings.Join(runCleanup(slices.Collect(maps.Keys(targets))), "\n"), nil
+				return out + strings.Join(runCleanup(targets), "\n"), nil
 			}
 
 			// validate all cleanups before calling *any*
@@ -88,7 +113,7 @@ func cleanup() action.Pair {
 			slices.Sort(requested)
 			invalid := []string{}
 			for _, req := range requested {
-				if _, found := targets[req]; !found {
+				if f := getTarget(req); f == nil {
 					invalid = append(invalid, req)
 				}
 			}
@@ -115,8 +140,8 @@ func cleanup() action.Pair {
 // msgs can contain a mix of success and error messages
 func runCleanup(targetsToRun []string) (msgs []string) {
 	for _, target := range targetsToRun {
-		f, ok := targets[target]
-		if !ok {
+		f := getTarget(target)
+		if f == nil {
 			msgs = append(msgs, target+" is not a valid target")
 			continue
 		}
