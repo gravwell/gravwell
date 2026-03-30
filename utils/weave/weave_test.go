@@ -478,7 +478,7 @@ func TestToCSV(t *testing.T) {
 		}
 
 		var data = make([]nest, longCSVLineCount)
-		for i := 0; i < longCSVLineCount; i++ {
+		for i := range longCSVLineCount {
 			data[i] = nest{
 				n: fmt.Sprintf("%dN", i), innerNest: innerNest{
 					in: "IN", innerInnerNest: innerInnerNest{
@@ -488,17 +488,17 @@ func TestToCSV(t *testing.T) {
 			}
 		}
 
-		var expectedBldr strings.Builder
-		expectedBldr.Grow(longCSVLineCount * 16)    // roughly 14-16B per line; better overallocate
-		expectedBldr.WriteString("n,in,iin,iiin\n") // header
-		for i := 0; i < longCSVLineCount; i++ {
-			expectedBldr.WriteString(
+		var expectedSB strings.Builder
+		expectedSB.Grow(longCSVLineCount * 16)    // roughly 14-16B per line; better overallocate
+		expectedSB.WriteString("n,in,iin,iiin\n") // header
+		for i := range longCSVLineCount {
+			expectedSB.WriteString(
 				fmt.Sprintf("%dN,IN,IIN,IIIN\n", i),
 			)
 		}
 
 		actual := ToCSV(data, []string{"n", "in", "iin", "iiin"}, CSVOptions{})
-		expected := strings.TrimSpace(expectedBldr.String()) // chomp newline
+		expected := strings.TrimSpace(expectedSB.String()) // chomp newline
 		if actual != expected {
 			// count newlines in parallel
 			actualCountDone := make(chan int)
