@@ -131,7 +131,7 @@ func (m *Mimecast) audit(ctx context.Context, rt hosted.Runtime) error {
 		if cursor != "" {
 			rt.Debug("fetching next page of events", log.KV("api", AuditApi))
 		} else {
-			rt.Debug("fetching events between", log.KV("api", AuditApi), log.KV("Start", lts), log.KV("End", ts))
+			rt.Debug("fetching events between", log.KV("api", AuditApi), log.KV("start", lts), log.KV("end", ts))
 		}
 		r, err := m.c.GetRawAuditEvents(ctx, tr, cursor)
 		if err != nil {

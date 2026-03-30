@@ -176,12 +176,12 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, tr *TimeRa
 		siemBatchEndpoint,
 		params.Encode(),
 	)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	r, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
 		return nil, fmt.Errorf("error building siem event batch request: %w", err)
 	}
 
-	resp, err := c.Do(req)
+	resp, err := c.Do(r)
 	if err != nil {
 		return nil, fmt.Errorf("error making siem event batch request: %w", err)
 	}
