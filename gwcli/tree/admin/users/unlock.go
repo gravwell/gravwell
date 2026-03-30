@@ -33,7 +33,7 @@ func unlockAction() action.Pair {
 					clilog.LogFlagFailedGet(ft.NoInteractive.Name(), err)
 					ni = true // better we assume no-interactive
 				}
-				if ni {
+				if !ni {
 					if err := mother.Spawn(c.Root(), c, args); err != nil {
 						clilog.Tee(clilog.CRITICAL, c.ErrOrStderr(),
 							"failed to spawn a mother instance: "+err.Error()+"\n")
@@ -67,7 +67,7 @@ func unlockAction() action.Pair {
 		})
 	cmd.Flags().AddFlagSet(createFlagSet())
 
-	return action.NewPair(cmd, &lockModel{})
+	return action.NewPair(cmd, &unlockModel{})
 }
 
 //#region interactive
