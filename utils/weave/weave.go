@@ -282,7 +282,7 @@ func stringifyStructCSV(s any, columns []string, columnMap map[string][]int) str
 		} else {
 			// walk the indicies to find value
 			// NOTE(rlandau): do NOT use FieldByIndex, as it panics if the indices walk a nil.
-			row.WriteString(valueToString(valueByIndex(structVals, findices)))
+			row.WriteString(valueToString(fieldByIndexNoPanic(structVals, findices)))
 			//fmt.Fprintf(&row, "%v", s)
 
 			//fmt.Fprintf(&row, "%v", data)
@@ -293,9 +293,8 @@ func stringifyStructCSV(s any, columns []string, columnMap map[string][]int) str
 	return strings.TrimSuffix(row.String(), ",")
 }
 
-// a custom version of reflect.Value.FieldByIndex that returns the stringified version of the target field.
-// Returns "nil" if traversal requires stepping through a nil pointer.
-func valueByIndex(start reflect.Value, index []int) reflect.Value {
+// a custom version of reflect.Value.FieldByIndex that halts traversal on nil, rather than panicking.
+func fieldByIndexNoPanic(start reflect.Value, index []int) reflect.Value {
 	step := start
 	for _, fidx := range index {
 		if step.Kind() == reflect.Pointer {
