@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -102,7 +103,7 @@ func get() action.Pair {
 			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if len(fs.Args()) < 1 {
-					return "you must provide at least one username", nil
+					return phrases.AtLeast1ArgRequired("usernames"), nil
 				}
 				return "", nil
 			},
