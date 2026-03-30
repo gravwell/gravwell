@@ -2,6 +2,7 @@ package main
 
 import (
 	"compress/gzip"
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -93,8 +94,7 @@ func processChunk(cli *client.Client, s, e time.Time, pth, query string) (sz int
 		StartTS: entry.FromStandard(s),
 		EndTS:   entry.FromStandard(e),
 	}
-	// FIXME  This will always error due to incoming from https://github.com/gravwell/issues/issues/2144
-	if rdr, err = cli.DownloadSearch(search.ID, tr, `json`); err != nil {
+	if rdr, err = cli.DownloadSearch(context.Background(), search.ID, tr, `json`); err != nil {
 		err = fmt.Errorf("Failed to download data %w", err)
 		return
 	}

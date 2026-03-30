@@ -9,6 +9,9 @@
 package client
 
 import (
+	"bytes"
+	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -1060,21 +1063,52 @@ func (c *Client) DetachSearch(s Search) {
 // with the specified search ID. The tr parameter is the time frame over which to download
 // results, and the format parameter specifies the desired download format
 // ("json", "csv", "text", "pcap", "lookupdata", "ipexist", "archive")
-func (c *Client) DownloadSearch(sid string, tr types.TimeRange, format string) (r io.ReadCloser, err error) {
-	// FIXME  Commenting due to breakage incoming from https://github.com/gravwell/issues/issues/2144
-	// var resp *http.Response
-	// if resp, err = c.SearchDownloadRequest(sid, format, tr); err != nil {
-	// 	return
-	// } else if resp.StatusCode != 200 {
-	// 	io.Copy(io.Discard, resp.Body)
-	// 	resp.Body.Close()
-	// 	err = fmt.Errorf("Bad response %d", resp.StatusCode)
-	// } else {
-	// 	r = resp.Body
-	// }
-	// return
-	err = errors.New("not implemented")
-	return 
+func (c *Client) DownloadSearch(ctx context.Context, sid string, tr types.TimeRange, format string) (r io.ReadCloser, err error) {
+	var resp *http.Response
+	if resp, err = c.SearchDownloadRequest(ctx, sid, types.SearchDownloadRequest{
+		Format: format,
+		Timeframe: types.Timeframe{
+			Start: tr.StartTS.StandardTime(),
+			End:   tr.EndTS.StandardTime(),
+		},
+	}); err != nil {
+		return
+	} else if resp.StatusCode != 200 {
+		io.Copy(io.Discard, resp.Body)
+		resp.Body.Close()
+		err = fmt.Errorf("Bad response %d", resp.StatusCode)
+	} else {
+		r = resp.Body
+	}
+
+	if err != nil {
+		return
+	}
+
+	var sdr types.SearchDownloadResponse
+	if err = json.NewDecoder(r).Decode(&sdr); err != nil {
+		return
+	}
+
+	url := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, sdr.DownloadResourceURL)
+	var req *http.Request
+	var data []byte
+	if req, err = http.NewRequestWithContext(ctx, http.MethodGet, url, bytes.NewBuffer(data)); err != nil {
+		return
+	}
+
+	c.hm.populateRequest(req.Header) // add in the headers
+	// add in any queries like ?admin=true
+	if req.URL.RawQuery, err = c.qm.appendEncode(req.URL.RawQuery); err != nil {
+		return
+	}
+
+	resp, err = c.clnt.Do(req)
+	if err == nil {
+		c.objLog.Log("GET "+resp.Status, url, nil)
+	}
+
+	return
 }
 
 // ImportSearch uploads an archived search to Gravwell. The gid parameter specifies

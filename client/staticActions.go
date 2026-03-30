@@ -309,8 +309,41 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 // It may also include an optional set of [types.RowSelection] values to select
 // specific ranges or indices of results. The returned [types.SearchDownloadResponse]
 // contains a download URL for retrieving the results.
-func (c *Client) SearchDownloadRequest(id string, req types.SearchDownloadRequest) (resp types.SearchDownloadResponse, err error) {
-	err = c.postStaticURL(searchCtrlDownloadUrl(id), req, &resp)
+// func (c *Client) SearchDownloadRequest(id string, req types.SearchDownloadRequest) (resp types.SearchDownloadResponse, err error) {
+// 	err = Sew
+// 	return
+// }
+
+// SearchDownloadRequestWithContext initiates a download of search results. The id parameter specifies
+// the search to download. The format should be a supported download format for the search's
+// renderer ("json", "csv", "text", "pcap", "lookupdata", "ipexist", "archive"). The tr
+// parameter is the time frame over which results should be downloaded.
+func (c *Client) SearchDownloadRequest(ctx context.Context, searchID string, sdr types.SearchDownloadRequest) (resp *http.Response, err error) {
+	var data []byte
+	var req *http.Request
+	if data, err = json.Marshal(sdr); err != nil {
+		return
+	}
+
+	var u *url.URL
+	if u, err = url.Parse(searchCtrlDownloadUrl(searchID)); err != nil {
+		return
+	}
+	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, u.String())
+	if req, err = http.NewRequestWithContext(ctx, http.MethodPost, uri, bytes.NewBuffer(data)); err != nil {
+		return
+	}
+
+	c.hm.populateRequest(req.Header) // add in the headers
+	// add in any queries like ?admin=true
+	if req.URL.RawQuery, err = c.qm.appendEncode(req.URL.RawQuery); err != nil {
+		return
+	}
+
+	resp, err = c.clnt.Do(req)
+	if err == nil {
+		c.objLog.Log("POST "+resp.Status, u.String(), nil)
+	}
 	return
 }
 

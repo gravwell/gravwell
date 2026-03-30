@@ -431,6 +431,10 @@ type Timeframe struct {
 	Start time.Time `json:"start"`
 }
 
+func (tf Timeframe) IsEmpty() bool {
+	return tf.Start.IsZero() && tf.End.IsZero()
+}
+
 type SearchDownloadResponse struct {
 	DownloadResourceURL string `json:"downloadResourceURL"`
 	EntryCount          uint64 `json:"entryCount"`
