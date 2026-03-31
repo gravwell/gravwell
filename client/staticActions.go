@@ -366,6 +366,11 @@ func (c *Client) SearchDownloadRequestWithContext(ctx context.Context, searchID 
 
 	c.objLog.Log("POST "+resp.Status, u.String(), nil)
 
+	if resp.StatusCode != http.StatusOK {
+		err = &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+		return
+	}
+
 	err = json.NewDecoder(resp.Body).Decode(&res)
 
 	return
