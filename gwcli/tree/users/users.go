@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
@@ -93,7 +94,7 @@ func get() action.Pair {
 			*/
 			return users, nil
 		}, scaffoldlist.Options{
-			Use: "get",
+			CommonOptions: scaffold.CommonOptions{Use: "get"},
 			CmdMods: func(c *cobra.Command) {
 				c.SetUsageFunc(func(c *cobra.Command) error {
 					fmt.Fprint(c.OutOrStdout(), "get "+ft.Optional("flags")+" USERNAME USERNAME ...")
