@@ -302,8 +302,9 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 	return nil
 }
 
-// SearchDownloadRequest performs a download request for the search results
-// identified by id. It is a convenience wrapper around
+// SearchDownloadRequest initiates a download of search results for the search
+// identified by id and returns a [types.SearchDownloadResponse] describing the
+// prepared download. It is a convenience wrapper around
 // [Client.SearchDownloadRequestWithContext] using [context.Background].
 //
 // The req parameter specifies the download format and optional result selection
@@ -313,15 +314,16 @@ func (c *Client) methodStaticPushURL(method, url string, sendObj, recvObj interf
 // narrow results to specific ranges or individual rows, and an optional
 // [types.Timeframe] may restrict results to a particular time window.
 //
-// On a successful response, the response body contains a JSON-encoded
-// [types.SearchDownloadResponse]. Callers are responsible for closing the
-// response body.
-func (c *Client) SearchDownloadRequest(id string, req types.SearchDownloadRequest) (*http.Response, error) {
+// On success, the returned [types.SearchDownloadResponse] includes a
+// DownloadResourceURL for retrieving the prepared results, the number of
+// matching entries, an expiration time, and the search ID.
+func (c *Client) SearchDownloadRequest(id string, req types.SearchDownloadRequest) (types.SearchDownloadResponse, error) {
 	return c.SearchDownloadRequestWithContext(context.Background(), id, req)
 }
 
-// SearchDownloadRequestWithContext performs a download request for the search
-// results identified by searchID. The ctx parameter controls cancellation and
+// SearchDownloadRequestWithContext initiates a download of search results for
+// the search identified by searchID and returns a [types.SearchDownloadResponse]
+// describing the prepared download. The ctx parameter controls cancellation and
 // deadline.
 //
 // The sdr parameter specifies the download format and optional result selection
@@ -331,10 +333,10 @@ func (c *Client) SearchDownloadRequest(id string, req types.SearchDownloadReques
 // to specific ranges or individual rows, and an optional [types.Timeframe] may
 // restrict results to a particular time window.
 //
-// On a successful response, the response body contains a JSON-encoded
-// [types.SearchDownloadResponse]. Callers are responsible for closing the
-// response body.
-func (c *Client) SearchDownloadRequestWithContext(ctx context.Context, searchID string, sdr types.SearchDownloadRequest) (resp *http.Response, err error) {
+// On success, the returned [types.SearchDownloadResponse] includes a
+// DownloadResourceURL for retrieving the prepared results, the number of
+// matching entries, an expiration time, and the search ID.
+func (c *Client) SearchDownloadRequestWithContext(ctx context.Context, searchID string, sdr types.SearchDownloadRequest) (res types.SearchDownloadResponse, err error) {
 	var data []byte
 	var req *http.Request
 	if data, err = json.Marshal(sdr); err != nil {
@@ -356,10 +358,16 @@ func (c *Client) SearchDownloadRequestWithContext(ctx context.Context, searchID 
 		return
 	}
 
-	resp, err = c.clnt.Do(req)
-	if err == nil {
-		c.objLog.Log("POST "+resp.Status, u.String(), nil)
+	resp, err := c.clnt.Do(req)
+	if err != nil {
+		return
 	}
+	defer resp.Body.Close()
+
+	c.objLog.Log("POST "+resp.Status, u.String(), nil)
+
+	err = json.NewDecoder(resp.Body).Decode(&res)
+
 	return
 }
 
