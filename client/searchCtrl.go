@@ -1079,9 +1079,8 @@ func (c *Client) DownloadSearch(ctx context.Context, sid string, tr types.TimeRa
 		return
 	}
 	if resp.StatusCode != 200 {
-		io.Copy(io.Discard, resp.Body)
+		err = &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
 		resp.Body.Close()
-		err = fmt.Errorf("Bad response %d", resp.StatusCode)
 		return
 	}
 	r = resp.Body
