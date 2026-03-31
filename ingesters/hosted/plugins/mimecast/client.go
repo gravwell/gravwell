@@ -43,6 +43,9 @@ func (tr *TimeRange) ClampStart(t time.Duration, buffer time.Duration) {
 }
 
 func (tr *TimeRange) Err() error {
+	if tr == nil {
+		return errors.New("time range is nil")
+	}
 	if !tr.Start.Before(tr.End) {
 		return errors.New("time range start is after end")
 	}
@@ -59,7 +62,10 @@ func (tr *TimeRange) Err() error {
 }
 
 func (tr *TimeRange) Valid() bool {
-	return tr.Err() != nil
+	if tr == nil {
+		return false
+	}
+	return tr.Err() == nil
 }
 
 func (tr *TimeRange) Contains(t time.Time) bool {

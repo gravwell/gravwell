@@ -47,13 +47,18 @@ func TestMimecast(t *testing.T) {
 		t.Fatal(err)
 	}
 	endpoint, _ := mock.PortEndpoint(t.Context(), "8080/tcp", "http")
+	pageConfig := map[string]int{
+		"num_pages":       20,
+		"events_per_page": 1000,
+	}
 	body, _ := json.Marshal(map[string]any{
-		"mta": map[string]string{
-			"num_pages":       "20",
-			"events_per_page": "1000",
+		"client_id": "mta",
+		"config": map[string]any{
+			"siem":       pageConfig,
+			"siem_batch": pageConfig,
 		},
 	})
-	_, err = http.Post(endpoint, "application/json", bytes.NewBuffer(body))
+	_, err = http.Post(endpoint+"/config", "application/json", bytes.NewBuffer(body))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,8 +89,8 @@ func TestMimecast(t *testing.T) {
 		e2e.Fatal(t, "no audit entries found")
 	}
 
-	if ent := e2e.RunSearch(t, c, "tag=mimecast-mta-delivery", time.Hour*24); len(ent) < 20 {
-		e2e.Fatalf(t, "got %d entries, less than 20 mta entries found, expected at least one full page", len(ent))
+	if ent := e2e.RunSearch(t, c, "tag=mimecast-mta-delivery", time.Hour*24); len(ent) < 100 {
+		e2e.Fatalf(t, "got %d entries, less than 100 mta entries found, found: ", len(ent))
 	}
 
 	errors := e2e.RunSearch(t, c, "tag=gravwell syslog Appname==mimecast Severity<=3", time.Hour)

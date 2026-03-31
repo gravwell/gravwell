@@ -428,12 +428,12 @@ func siem(w http.ResponseWriter, r *http.Request) {
 }
 
 func siemError(w http.ResponseWriter, status int, err mimecast.Error) {
-	w.WriteHeader(status)
 	response := mimecast.SIEMErrorResponse{
 		Error: err,
 	}
 	body, _ := json.Marshal(response)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
 	_, _ = w.Write(body)
 }
 
@@ -796,7 +796,6 @@ func authed(w http.ResponseWriter, r *http.Request) (string, bool) {
 }
 
 func authError(w http.ResponseWriter, message string) {
-	w.WriteHeader(http.StatusUnauthorized)
 	response := mimecast.AuthFailureResponse{
 		Fail: []mimecast.Error{
 			{
@@ -807,5 +806,6 @@ func authError(w http.ResponseWriter, message string) {
 	}
 	body, _ := json.Marshal(response)
 	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
 	_, _ = w.Write(body)
 }
