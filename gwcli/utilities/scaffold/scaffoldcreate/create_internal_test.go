@@ -20,6 +20,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	. "github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/spf13/pflag"
 )
 
@@ -216,10 +217,12 @@ func Test_Full(t *testing.T) {
 
 			return "value", "", nil
 		}, Options{
-			AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Bool("bln", false, "some flag text")
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Bool("bln", false, "some flag text")
+					return fs
+				},
 			},
 		})
 
