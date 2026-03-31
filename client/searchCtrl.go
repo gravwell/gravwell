@@ -9,6 +9,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -1060,21 +1061,31 @@ func (c *Client) DetachSearch(s Search) {
 // with the specified search ID. The tr parameter is the time frame over which to download
 // results, and the format parameter specifies the desired download format
 // ("json", "csv", "text", "pcap", "lookupdata", "ipexist", "archive")
-func (c *Client) DownloadSearch(sid string, tr types.TimeRange, format string) (r io.ReadCloser, err error) {
-	// FIXME  Commenting due to breakage incoming from https://github.com/gravwell/issues/issues/2144
-	// var resp *http.Response
-	// if resp, err = c.SearchDownloadRequest(sid, format, tr); err != nil {
-	// 	return
-	// } else if resp.StatusCode != 200 {
-	// 	io.Copy(io.Discard, resp.Body)
-	// 	resp.Body.Close()
-	// 	err = fmt.Errorf("Bad response %d", resp.StatusCode)
-	// } else {
-	// 	r = resp.Body
-	// }
-	// return
-	err = errors.New("not implemented")
-	return 
+func (c *Client) DownloadSearch(ctx context.Context, sid string, tr types.TimeRange, format string) (r io.ReadCloser, err error) {
+	var sdr types.SearchDownloadResponse
+	sdr, err = c.SearchDownloadRequestWithContext(ctx, sid, types.SearchDownloadRequest{
+		Format: format,
+		Timeframe: types.Timeframe{
+			Start: tr.StartTS.StandardTime(),
+			End:   tr.EndTS.StandardTime(),
+		},
+	})
+	if err != nil {
+		return
+	}
+
+	var resp *http.Response
+	if resp, err = c.DownloadRequestWithContext(sdr.DownloadResourceURL, ctx); err != nil {
+		return
+	}
+	if resp.StatusCode != 200 {
+		err = &ClientError{resp.Status, resp.StatusCode, getBodyErr(resp.Body)}
+		resp.Body.Close()
+		return
+	}
+	r = resp.Body
+
+	return
 }
 
 // ImportSearch uploads an archived search to Gravwell. The gid parameter specifies
