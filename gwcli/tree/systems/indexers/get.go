@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -46,7 +47,7 @@ func get() action.Pair {
 			return []deepIndexerInfo{dii}, nil
 		},
 		scaffoldlist.Options{
-			Use: use,
+			CommonOptions: scaffold.CommonOptions{Use: use},
 			ExcludeColumnsFromDefault: []string{
 				"Ingest.EntriesHourTail",
 				"Ingest.EntriesMinuteTail",

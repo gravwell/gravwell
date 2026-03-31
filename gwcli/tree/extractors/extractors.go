@@ -106,7 +106,7 @@ func list() action.Pair {
 
 		},
 		scaffoldlist.Options{
-			AddtlFlags: flags,
+			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{
 				// implies embedded namespace
 				"ID",
@@ -121,10 +121,10 @@ func list() action.Pair {
 		})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	addtlFlags.String("id", "", "Fetch extractor by id")
-	return addtlFlags
+	return &addtlFlags
 }
 
 //#endregion list
@@ -254,10 +254,12 @@ func create() action.Pair {
 			return id, "", err
 		},
 		scaffoldcreate.Options{
-			AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				ft.Dryrun.Register(&fs)
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Dryrun.Register(fs)
+					return fs
+				},
 			},
 		})
 }

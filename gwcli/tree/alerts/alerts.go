@@ -71,12 +71,13 @@ func alertsList() action.Pair {
 			return connection.Client.GetAlerts()
 		},
 		scaffoldlist.Options{
-			AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.String("consumer", "", "Filter to alerts that refer to this consumer. Should be the ID of the a flow, not the GUID. Used to answer: which alerts will launch this specific flow")
-				fs.String("dispatcher", "", "Filter to alerts that refer to this dispatcher. Should be the ID of the a scheduled search, not the GUID. Used to answer: which alerts will be invoked by this specific scheduled search")
-
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.String("consumer", "", "Filter to alerts that refer to this consumer. Should be the ID of the a flow, not the GUID. Used to answer: which alerts will launch this specific flow")
+					fs.String("dispatcher", "", "Filter to alerts that refer to this dispatcher. Should be the ID of the a scheduled search, not the GUID. Used to answer: which alerts will be invoked by this specific scheduled search")
+					return fs
+				},
 			},
 			DefaultColumns: []string{
 				"Name",
