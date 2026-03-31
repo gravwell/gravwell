@@ -128,11 +128,12 @@ func (la *ListAction[T]) Reset() error {
 	la.done = false
 	la.columns = la.defaultColumns
 	la.showColumns = false
-	la.fs = buildFlagSet(la.options.AddtlFlags, la.options.Pretty != nil)
 	if la.outFile != nil {
 		la.outFile.Close()
 	}
 	la.outFile = nil
+
+	// flags are refreshed in SetArgs to guarantee they are built even on first run
 
 	return nil
 }
@@ -143,9 +144,11 @@ var _ action.Model = &ListAction[any]{}
 // Mother parses flags and provides us a handle to check against.
 func (la *ListAction[T]) SetArgs(fs *pflag.FlagSet, tokens []string, width, height int) (
 	invalid string, onStart tea.Cmd, err error) {
-	// attach flags
-	la.fs = buildFlagSet(la.options.AddtlFlags, la.options.Pretty != nil)
-
+	// refresh flags
+	la.fs = buildFlagSet(la.options.Pretty != nil)
+	if la.options.AddtlFlags != nil {
+		la.fs.AddFlagSet(la.options.AddtlFlags())
+	}
 	err = la.fs.Parse(tokens)
 	if err != nil {
 		return err.Error(), nil, nil
