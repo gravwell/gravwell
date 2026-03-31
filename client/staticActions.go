@@ -379,9 +379,9 @@ func (c *Client) DownloadRequest(url string) (resp *http.Response, err error) {
 
 // DownloadRequestWithContext performs an authenticated GET request on the specified URL
 // and hands back the http.Response object for the request.
-func (c *Client) DownloadRequestWithContext(url string, ctx context.Context) (resp *http.Response, err error) {
+func (c *Client) DownloadRequestWithContext(path string, ctx context.Context) (resp *http.Response, err error) {
 	var req *http.Request
-	uri := fmt.Sprintf("%s://%s%s", c.httpScheme, c.server, url)
+	uri := c.serverURL.ResolveReference(&url.URL{Path: path}).String()
 	if req, err = http.NewRequestWithContext(ctx, http.MethodGet, uri, nil); err != nil {
 		return
 	}
@@ -395,7 +395,7 @@ func (c *Client) DownloadRequestWithContext(url string, ctx context.Context) (re
 
 	resp, err = c.clnt.Do(req)
 	if err == nil {
-		c.objLog.Log("GET "+resp.Status, url, nil)
+		c.objLog.Log("GET "+resp.Status, path, nil)
 	}
 	return
 }
