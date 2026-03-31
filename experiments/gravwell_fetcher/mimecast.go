@@ -769,8 +769,8 @@ func getMimecastMTALogs(cli *http.Client, checkpointTime time.Time, logType stri
 		if err != nil {
 			return err
 		} else if resp.StatusCode != 200 {
-			resp.Body.Close()
 			foo, _ := io.ReadAll(resp.Body)
+			resp.Body.Close()
 			fmt.Println(string(foo))
 			return fmt.Errorf("invalid status code %d", resp.StatusCode)
 		}
