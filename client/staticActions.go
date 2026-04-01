@@ -526,7 +526,7 @@ func (c *Client) GetIndexerCalendarStats(indexer uuid.UUID, start, end time.Time
 // GetUserList gets a listing of users with basic info like UID, name, email, etc.
 func (c *Client) GetUserList() ([]types.User, error) {
 	det := []types.User{}
-	if err := c.getStaticURL(USERS_LIST_URL, &det); err != nil {
+	if err := c.getStaticURL(USERS_URL, &det); err != nil {
 		return nil, err
 	}
 	return det, nil

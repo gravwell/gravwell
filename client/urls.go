@@ -45,7 +45,8 @@ const (
 	CALENDAR_URL                     = `/api/stats/storage/calendar`
 	CALENDAR_INDEXER_URL             = `/api/stats/storage/indexer/%s/calendar`
 	ADD_USER_URL                     = `/api/users`
-	USERS_LIST_URL                   = `/api/users`
+	USERS_URL                        = `/api/users`
+	USERS_LIST_URL                   = `/api/users/list`
 	USERS_INFO_URL                   = `/api/users/%d`
 	USERS_LOCK_URL                   = `/api/users/%d/lock`
 	USERS_LOCKED_URL                 = `/api/users/%d/locked`
@@ -303,8 +304,8 @@ func myDashboardUrl() string {
 	return DASHBOARD_MY_URL
 }
 
-func allUsersUrl() string {
-	return USERS_LIST_URL
+func usersUrl() string {
+	return USERS_URL
 }
 
 func searchCtrlBackgroundUrl(id string) string {

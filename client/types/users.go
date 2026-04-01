@@ -537,3 +537,8 @@ type UserPreferenceResponse struct {
 	BaseListResponse
 	Results []UserPreference `json:"results"`
 }
+
+type UserListResponse struct {
+	BaseListResponse
+	Results []User `json:"results"`
+}
