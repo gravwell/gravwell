@@ -23,6 +23,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 	"github.com/spf13/cobra"
@@ -48,9 +49,11 @@ func newCalendarAction() action.Pair {
 
 	return scaffoldlist.NewListAction(shortCalendar, longCalendar, types.CalendarEntry{}, data,
 		scaffoldlist.Options{
-			Use:        useCalendar,
-			Aliases:    aliases,
-			AddtlFlags: calendarFlags,
+			CommonOptions: scaffold.CommonOptions{
+				Use:        useCalendar,
+				Aliases:    aliases,
+				AddtlFlags: calendarFlags,
+			},
 			// ValidateArgs does its namesake and sets/resets the package vars.
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				start, end, idxrUUID, idxrName = time.Time{}, time.Time{}, uuid.NullUUID{}, ""
@@ -92,7 +95,7 @@ func newCalendarAction() action.Pair {
 		})
 }
 
-func calendarFlags() pflag.FlagSet {
+func calendarFlags() *pflag.FlagSet {
 	fs := pflag.FlagSet{}
 	fs.String("start", "", "start date for calendar stats (inclusive).\n"+
 		"Must be given as YYYY-MM-DD\n"+
@@ -103,7 +106,7 @@ func calendarFlags() pflag.FlagSet {
 	fs.StringSlice("wells", nil, "specify the wells to fetch data for.\n"+
 		"Wells must be specified by ID (ex: "+stylesheet.Cur.ExampleText.Render("a312211e-11a1-4ff4-8888-aa1a1aa11a11-default")+") or they will be ignored.\n"+
 		"If unset, all wells will be selected (for the specified indexer or across all indexers).")
-	return fs
+	return &fs
 }
 
 // helper function for ValidateArgs().

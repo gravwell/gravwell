@@ -94,14 +94,14 @@ func list() action.Pair {
 			ColumnAliases: map[string]string{
 				"Size": "SizeBytes",
 			},
-			AddtlFlags: flags,
+			CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 		})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	ft.GetAll.Register(&addtlFlags, true, "resources")
-	return addtlFlags
+	return &addtlFlags
 }
 
 func download() action.Pair {

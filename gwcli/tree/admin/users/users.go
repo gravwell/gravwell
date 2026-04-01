@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffolddelete"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldedit"
@@ -231,7 +232,7 @@ func sessionsAction() action.Pair {
 			return toRet, nil
 		},
 		scaffoldlist.Options{ // TODO add usage and example overrides
-			Use:            "sessions",
+			CommonOptions:  scaffold.CommonOptions{Use: "sessions"},
 			DefaultColumns: []string{"ID", "UID", "UDets.Username", "UDets.Admin", "UDets.Locked"},
 			ColumnAliases:  map[string]string{"ID": "SessionID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {

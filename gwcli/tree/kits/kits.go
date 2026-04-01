@@ -14,6 +14,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
@@ -54,7 +55,7 @@ func newKitsListAction() action.Pair {
 
 			return connection.Client.ListKits()
 		},
-		scaffoldlist.Options{AddtlFlags: flags,
+		scaffoldlist.Options{CommonOptions: scaffold.CommonOptions{AddtlFlags: flags},
 			DefaultColumns: []string{
 				"UUID",
 				"KitState.Name",
@@ -63,11 +64,11 @@ func newKitsListAction() action.Pair {
 			}})
 }
 
-func flags() pflag.FlagSet {
+func flags() *pflag.FlagSet {
 	addtlFlags := pflag.FlagSet{}
 	ft.GetAll.Register(&addtlFlags, true, "kits")
 
-	return addtlFlags
+	return &addtlFlags
 }
 
 //#endregion list

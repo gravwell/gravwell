@@ -152,7 +152,7 @@ func importCreate() action.Pair {
 			id = result.ID
 			return
 		},
-		scaffoldcreate.Options{Use: "import"})
+		scaffoldcreate.Options{CommonOptions: scaffold.CommonOptions{Use: "import"}})
 }
 
 func download() action.Pair {

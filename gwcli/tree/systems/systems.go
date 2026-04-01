@@ -18,6 +18,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/systems/indexers"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/systems/ingesters"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 
@@ -77,7 +78,7 @@ func newStorageAction() action.Pair {
 
 			return wrap, nil
 		}, scaffoldlist.Options{
-			Use: use,
+			CommonOptions: scaffold.CommonOptions{Use: use},
 			// should match the aliases used in the systems indexers list action
 			ColumnAliases: map[string]string{
 				"Stats.DataIngestedHot":  "Hot.Ingested",
@@ -122,7 +123,7 @@ func state() action.Pair {
 			return data, nil
 		},
 		scaffoldlist.Options{
-			Use: "state",
+			CommonOptions: scaffold.CommonOptions{Use: "state"},
 			Pretty: func(fs *pflag.FlagSet) (string, error) {
 				idxrs, err := connection.Client.GetSystemDescriptions()
 				if err != nil {

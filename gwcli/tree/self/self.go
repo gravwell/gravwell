@@ -159,14 +159,16 @@ func sessions() action.Pair {
 			return ss, nil
 		},
 		scaffoldlist.Options{
-			Use: "sessions",
-			AddtlFlags: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.String("since",
-					"",
-					"filter to records after a given time. Assumes local time if a timezone is not specified.\n"+
-						"Accepts the following timestamp format:\n- "+strings.Join(timeformats, "\n- "))
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				Use: "sessions",
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.String("since",
+						"",
+						"filter to records after a given time. Assumes local time if a timezone is not specified.\n"+
+							"Accepts the following timestamp format:\n- "+strings.Join(timeformats, "\n- "))
+					return fs
+				},
 			},
 			DefaultColumns: []string{"ID", "Origin", "LastHit"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
@@ -201,7 +203,7 @@ func groups() action.Pair {
 			return connection.Client.Groups()
 		},
 		scaffoldlist.Options{
-			Use: "groups",
+			CommonOptions: scaffold.CommonOptions{Use: "groups"},
 			Pretty: func(fs *pflag.FlagSet) (string, error) {
 				groups, err := connection.Client.Groups()
 				if err != nil {
