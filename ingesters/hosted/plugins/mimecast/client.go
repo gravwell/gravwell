@@ -171,7 +171,7 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, tr *TimeRa
 	params := url.Values{}
 	params.Set("type", string(et))
 	params.Set("pageSize", "100")
-	if cursor != "none" {
+	if cursor != "none" && cursor != "" {
 		params.Set("nextPage", cursor)
 	}
 	params.Set("dateRangeStartsAt", tr.Start.Format(SIEMBatchTimeFormat))
@@ -268,7 +268,7 @@ func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, tr *Time
 	params := url.Values{}
 	params.Set("types", string(event))
 	params.Set("pageSize", "100")
-	if cursor != "none" {
+	if cursor != "none" && cursor != "" {
 		params.Set("nextPage", cursor)
 	}
 	params.Set("dateRangeStartsAt", tr.Start.Format(SIEMTimeFormat))
