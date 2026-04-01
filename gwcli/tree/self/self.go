@@ -118,6 +118,7 @@ type session struct {
 
 var timeformats = []string{time.RFC3339, time.DateOnly}
 var since time.Time // set in Validate
+var defaultSinceDuration = 48 * time.Hour
 
 // sessions returns all of the current users current sessions
 func sessions() action.Pair {
@@ -162,17 +163,19 @@ func sessions() action.Pair {
 		},
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
-				Use: "sessions",
+				Use:     "sessions",
+				Aliases: []string{"session"},
 				AddtlFlags: func() *pflag.FlagSet {
 					fs := &pflag.FlagSet{}
 					fs.String("since",
 						"",
 						"filter to records after a given time. Assumes local time if a timezone is not specified.\n"+
-							"Accepts the following timestamp format:\n- "+strings.Join(timeformats, "\n- "))
+							"Accepts the following timestamp formats:\n- "+strings.Join(timeformats, "\n- "))
 					return fs
 				},
 			},
 			DefaultColumns: []string{"ID", "Origin", "LastHit"},
+			ColumnAliases:  map[string]string{"ID": "SessionID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				since = time.Time{} // ensure it is reset
 				snc, err := fs.GetString("since")
@@ -192,7 +195,7 @@ func sessions() action.Pair {
 						return "failed to parse " + snc + " as an acceptable time format", nil
 					}
 				} else {
-					since = time.Now().Add(-48 * time.Hour)
+					since = time.Now().Add(-defaultSinceDuration)
 				}
 				return "", nil
 			},

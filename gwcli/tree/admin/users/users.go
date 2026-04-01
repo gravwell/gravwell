@@ -4,8 +4,11 @@ package admin_users
 import (
 	"errors"
 	"fmt"
+	"net"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/gravwell/gravwell/v4/client/types"
@@ -214,33 +217,113 @@ func descriptionLine(admin bool, email string) string {
 	return adminStr + email
 }
 
+//#region sessions
+
+// wrapper for types.Session to limit the information sessions returns.
+type session struct {
+	ID          uint64 `json:",omitempty"`
+	UID         int32  `json:",omitempty"`
+	Origin      net.IP
+	LastHit     string // timestamp
+	TempSession bool
+	Synced      bool
+}
+
+var timeformats = []string{time.RFC3339, time.DateOnly}
+var since time.Time // set in Validate
+var defaultSinceDuration = 48 * time.Hour
+
 var sessionUIDs []int32
 
 func sessionsAction() action.Pair {
 	return scaffoldlist.NewListAction(
 		"display a user's sessions",
-		"Get all active sessions for the specified user IDs.",
-		types.Session{}, func(fs *pflag.FlagSet) ([]types.Session, error) {
-			toRet := []types.Session{}
+		"Get all active sessions for the specified user IDs.\n"+
+			"If --since is not set, it will default to fetching all records for the past 48 hours.",
+		session{},
+		func(fs *pflag.FlagSet) ([]session, error) {
+			allSessions := []types.Session{}
 			for _, uid := range sessionUIDs {
-				sessions, err := connection.Client.Sessions(uid)
+				userSessions, err := connection.Client.Sessions(uid)
 				if err != nil {
 					clilog.Writer.Error("failed to get sessions", log.KV("uid", uid), log.KV("error", err))
 					continue
 				}
-				toRet = append(toRet, sessions...)
+				// sort by recency, note the inversion
+				slices.SortFunc(userSessions, func(a, b types.Session) int {
+					return -a.LastHit.Compare(b.LastHit)
+				})
+				// apply since filter, if applicable
+				if !since.IsZero() {
+					// cut off all records before since
+					i := slices.IndexFunc(userSessions, func(s types.Session) bool {
+						return s.LastHit.Before(since)
+					})
+					if i != -1 {
+						userSessions = userSessions[:i]
+					}
+				}
+				allSessions = append(allSessions, userSessions...)
 			}
-			return toRet, nil
+			// now sort all sessions by time
+			slices.SortFunc(allSessions, func(a, b types.Session) int {
+				return -a.LastHit.Compare(b.LastHit)
+			})
+			// wrap all sessions into our limited format
+			var ss = make([]session, len(allSessions))
+			for i, rs := range allSessions {
+				ss[i] = session{
+					ID:          rs.ID,
+					UID:         rs.UID,
+					Origin:      rs.Origin,
+					LastHit:     rs.LastHit.Local().Format(time.RFC3339),
+					TempSession: rs.TempSession,
+					Synced:      rs.Synced,
+				}
+			}
+
+			return ss, nil
 		},
 		scaffoldlist.Options{
 			CommonOptions: scaffold.CommonOptions{
 				Use:     "sessions",
 				Usage:   fmt.Sprintf("sessions %s %s %s ...", ft.Optional("FLAGS"), ft.Mandatory("UserID1"), ft.Optional("UserID2")),
 				Example: "sessions 1 8",
+				Aliases: []string{"session"},
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.String("since",
+						"",
+						"filter to records after a given time. Assumes local time if a timezone is not specified.\n"+
+							"Accepts the following timestamp formats:\n- "+strings.Join(timeformats, "\n- "))
+					return fs
+				},
 			},
-			DefaultColumns: []string{"ID", "UID", "UDets.Username", "UDets.Admin", "UDets.Locked"},
+			DefaultColumns: []string{"ID", "Origin", "LastHit"},
 			ColumnAliases:  map[string]string{"ID": "SessionID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
+				// check for since override and set default if not
+				since = time.Time{} // ensure it is reset
+				snc, err := fs.GetString("since")
+				if err != nil {
+					clilog.LogFlagFailedGet("since", err)
+				}
+				if snc != "" {
+					// try to parse in our supported formats, breaking on the first one
+					for _, format := range timeformats {
+						t, err := time.ParseInLocation(format, snc, time.Local)
+						if err == nil {
+							since = t
+							break
+						}
+					}
+					if since.IsZero() {
+						return "failed to parse " + snc + " as an acceptable time format", nil
+					}
+				} else {
+					since = time.Now().Add(-defaultSinceDuration)
+				}
+
 				sessionUIDs = []int32{} // clear out IDs
 				if fs.NArg() < 1 {
 					return phrases.AtLeast1ArgRequired("user IDs"), nil
@@ -272,3 +355,5 @@ func sessionsAction() action.Pair {
 		},
 	)
 }
+
+//#endregion sessions
