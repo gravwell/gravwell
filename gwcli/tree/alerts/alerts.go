@@ -166,12 +166,15 @@ func toggle() action.Pair {
 			return fmt.Sprintf("alert '%s' (ID: %s) %s", alert.Name, uid.String(), state), nil
 		},
 		scaffold.BasicOptions{
-			AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.Bool("enable", false, "enable the alert. Does nothing if the alert is already enabled. Mutually exclusive with --disable")
-				fs.Bool("disable", false, "disable the alert. Does nothing if the alert is already disabled. Mutually exclusive with --enable")
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.Bool("enable", false, "enable the alert. Does nothing if the alert is already enabled. Mutually exclusive with --disable")
+					fs.Bool("disable", false, "disable the alert. Does nothing if the alert is already disabled. Mutually exclusive with --enable")
+					return fs
+				},
 			},
+
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.Changed("enable") && fs.Changed("disable") {
 					return "--enable and --disable are mutually exclusive", nil

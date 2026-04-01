@@ -81,10 +81,12 @@ func admin() action.Pair {
 			return s, nil
 		},
 		scaffold.BasicOptions{
-			AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				fs.BoolP("toggle", "t", false, "toggle your admin status")
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					fs.BoolP("toggle", "t", false, "toggle your admin status")
+					return fs
+				},
 			},
 		})
 }

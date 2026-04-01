@@ -141,12 +141,15 @@ func download() action.Pair {
 			return string(data), nil
 		},
 		scaffold.BasicOptions{
-			AddtlFlagFunc: func() pflag.FlagSet {
-				fs := pflag.FlagSet{}
-				ft.Output.Register(&fs)
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("FLAGS"), ft.Mandatory("resource ID")),
+				AddtlFlags: func() *pflag.FlagSet {
+					fs := &pflag.FlagSet{}
+					ft.Output.Register(fs)
+					return fs
+				},
 			},
-			Usage: fmt.Sprintf("%s %s %s", "download", ft.Optional("FLAGS"), ft.Mandatory("resource ID")),
+
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
 					return phrases.Exactly1ArgRequired("resource ID"), nil

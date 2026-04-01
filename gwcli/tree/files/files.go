@@ -109,10 +109,12 @@ func download() action.Pair {
 			}
 			return string(data), nil
 		}, scaffold.BasicOptions{
-			AddtlFlagFunc: func() pflag.FlagSet {
-				var fs pflag.FlagSet
-				ft.Output.Register(&fs)
-				return fs
+			CommonOptions: scaffold.CommonOptions{
+				AddtlFlags: func() *pflag.FlagSet {
+					var fs *pflag.FlagSet
+					ft.Output.Register(fs)
+					return fs
+				},
 			},
 		})
 }

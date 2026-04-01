@@ -319,7 +319,11 @@ func modules() action.Pair {
 			}
 			return strings.Join(engines, ", "), nil
 		},
-		scaffold.BasicOptions{Aliases: []string{"engines"}})
+		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"engines"},
+			},
+		})
 
 }
 
@@ -480,12 +484,14 @@ func importUpload() action.Pair {
 			return sb.String(), nil
 		},
 		scaffold.BasicOptions{
+			CommonOptions: scaffold.CommonOptions{
+				Usage: "import " + ft.Mandatory("path/to/file.toml"),
+			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() != 1 {
 					return phrases.Exactly1ArgRequired("file path"), nil
 				}
 				return "", nil
 			},
-			Usage: "import " + ft.Mandatory("path/to/file.toml"),
 		})
 }

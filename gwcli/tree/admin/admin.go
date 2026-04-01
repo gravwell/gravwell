@@ -124,9 +124,11 @@ func cleanup() action.Pair {
 			return strings.Join(runCleanup(requested), "\n"), nil
 		},
 		scaffold.BasicOptions{
-			Aliases: []string{"clean", "tidy", "purge", "burninate"},
-			Usage:   fmt.Sprintf("cleanup %v %v ...", ft.Mandatory("TARGET1"), ft.Optional("TARGET2")),
-			Example: "cleanup macros secrets",
+			CommonOptions: scaffold.CommonOptions{
+				Aliases: []string{"clean", "tidy", "purge", "burninate"},
+				Usage:   fmt.Sprintf("cleanup %v %v ...", ft.Mandatory("TARGET1"), ft.Optional("TARGET2")),
+				Example: "cleanup macros secrets",
+			},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
 				if fs.NArg() < 1 {
 					return "you must specify at least one item to clean up or \"all\"", nil
