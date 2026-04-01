@@ -8,7 +8,19 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
-package main
+package main_test
+
+import (
+	"errors"
+	"fmt"
+	"os"
+	"os/exec"
+	"strings"
+	"sync"
+	"testing"
+
+	"github.com/spf13/pflag"
+)
 
 /*
 This file covers tests for using gwcli in --no-interactive mode (from a user's shell or via an external script).
@@ -49,6 +61,76 @@ do not account for parallelism at a test level
 	grav "github.com/gravwell/gravwell/v4/client"
 	"github.com/gravwell/gravwell/v4/utils/weave"
 )*/
+
+// All of these are set by Main.
+var (
+	// the connection string clients should use.
+	// Set by -s.
+	serverString  string
+	binaryPath    string
+	metaArguments []string
+)
+
+func TestMain(m *testing.M) {
+	pflag.StringVarP(&serverString, "server", "s", "localhost:80", "Set the connection string tests should use.")
+	pflag.Parse()
+
+	if pflag.NArg() != 1 {
+		fmt.Fprintf(os.Stderr, "you must specify the path to the gwcli binary")
+		os.Exit(1)
+	}
+	// ensure we can execute the binary and get help text
+	binaryPath = pflag.Arg(0)
+	if _, err := exec.LookPath(binaryPath); err != nil && !errors.Is(err, exec.ErrDot) {
+		fmt.Fprintf(os.Stderr, "binary existence check failed: %v", err)
+		os.Exit(1)
+	}
+	// compose meta args
+	metaArguments = []string{"--server=" + serverString,
+		"--insecure",
+		"-x",
+		// username is attached inside of Execute // TODO
+	}
+	// TODO set passwords into env
+
+	os.Exit(m.Run())
+}
+
+func TestSelfSessionsMatchAdminSessions(t *testing.T) {
+	// test that the `admin users sessions` action returns the same sessions as `self sessions`
+	var (
+		selfOut, selfErr   string
+		adminOut, adminErr string
+	)
+	var wg sync.WaitGroup
+	columnsArg := "" // declare consistent columns
+	wg.Go(func() { selfOut, selfErr = execute(t, "self", "sessions", "--csv") })
+	wg.Go(func() { adminOut, adminErr = execute(t, "admin", "users", "sessions", "--csv") })
+	wg.Wait()
+
+	// both stderrs should be empty
+	if selfErr != "" {
+		t.Error("self sessions's stderr is not empty: \"%s\"", selfErr)
+	}
+	if adminErr != "" {
+		t.Error("admin users sessions's stderr is not empty: \"%s\"", adminErr)
+	}
+
+}
+
+// Fatal if the run fails
+func execute(t *testing.T, args ...string) (stdout, stderr string) {
+	var sbOut, sbErr strings.Builder
+	cmd := exec.CommandContext(t.Context(), binaryPath, args...)
+	cmd.Stdout = &sbOut
+	cmd.Stderr = &sbErr
+	if err := cmd.Run(); err != nil {
+		t.Log()
+		t.Fatal("failed to execute binary: ", err)
+	}
+	cmd.Wait()
+	return sbOut.String(), sbErr.String()
+}
 
 /*const ( // testing server credentials
 	user     = "admin"
