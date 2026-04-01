@@ -542,3 +542,8 @@ type UserListResponse struct {
 	BaseListResponse
 	Results []User `json:"results"`
 }
+
+type GroupListResponse struct {
+	BaseListResponse
+	Results []Group `json:"results"`
+}

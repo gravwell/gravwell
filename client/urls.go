@@ -68,6 +68,7 @@ const (
 	GROUP_MEMBERS_URL                = `/api/groups/%d/members`
 	GROUP_DASHBOARD_URL              = `/api/groups/%d/dashboards`
 	GROUP_URL                        = `/api/groups`
+	GROUP_LIST_URL                   = `/api/groups/list`
 	SEARCH_PARS_URL                  = `/api/parse`
 	SEARCH_CTRL_LIST_URL             = `/api/searchctrl`
 	SEARCH_CTRL_LIST_DETAILS_URL     = `/api/searchctrl/details`

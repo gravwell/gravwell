@@ -188,25 +188,6 @@ func (c *Client) DeleteDefaultSearchGroups(uid int32) error {
 	return c.SetDefaultSearchGroups(uid, []int32{})
 }
 
-// AddGroup (admin-only) creates a new group with the given name and description.
-func (c *Client) AddGroup(name, desc string) error {
-	gpInfo := types.AddGroup{
-		Name: name,
-		Desc: desc,
-	}
-	return c.postStaticURL(groupUrl(), gpInfo, nil)
-}
-
-// DeleteGroup (admin-only) will delete a group.
-func (c *Client) DeleteGroup(gid int32) error {
-	return c.deleteStaticURL(groupIdUrl(gid), nil)
-}
-
-// UpdateGroup (admin-only) will update the specified group's details.
-func (c *Client) UpdateGroup(gid int32, gdet types.Group) error {
-	return c.putStaticURL(groupIdUrl(gid), gdet)
-}
-
 // AddUserToGroup adds a user to a group.
 func (c *Client) AddUserToGroup(uid, gid int32) error {
 	uag := types.UserAddGroups{
@@ -227,37 +208,6 @@ func (c *Client) GetUserGroups(uid int32) ([]types.Group, error) {
 		return nil, err
 	}
 	return udet.Groups, nil
-}
-
-// GetGroups returns information about all groups on the system.
-func (c *Client) GetGroups() ([]types.Group, error) {
-	var gps []types.Group
-	if err := c.getStaticURL(groupUrl(), &gps); err != nil {
-		return nil, err
-	}
-	return gps, nil
-}
-
-// GetGroupMap returns a map of GID to group name for every group on the system.
-func (c *Client) GetGroupMap() (map[int32]string, error) {
-	var gps []types.Group
-	if err := c.getStaticURL(groupUrl(), &gps); err != nil {
-		return nil, err
-	}
-	m := make(map[int32]string, len(gps))
-	for _, g := range gps {
-		m[g.ID] = g.Name
-	}
-	return m, nil
-}
-
-// GetGroup returns information about the specified group.
-func (c *Client) GetGroup(id int32) (types.GroupWithCBAC, error) {
-	var gp types.GroupWithCBAC
-	if err := c.getStaticURL(groupIdUrl(id), &gp); err != nil {
-		return gp, err
-	}
-	return gp, nil
 }
 
 // GetGroupUsers will return user details for all members of a group.
