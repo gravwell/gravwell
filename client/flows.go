@@ -77,9 +77,10 @@ func (c *Client) UpdateFlow(ss types.Flow) error {
 	return c.putStaticURL(flowIdUrl(ss.ID), ss)
 }
 
-// ParseFlow asks the API to check a flow.  It will only return error
-// if there was a problem submitting the request; check the OK field
-// of the FlowParseResponse to see if the parse succeeded or not.
+// ParseFlow asks the API to check a flow.  It will only return an
+// error if there was a problem submitting the request; check the OK
+// field of the FlowParseResponse to see if the parse succeeded or
+// not.
 func (c *Client) ParseFlow(flow string) (resp types.FlowParseResponse, err error) {
 	req := types.FlowParseRequest{
 		Flow: flow,
@@ -90,11 +91,11 @@ func (c *Client) ParseFlow(flow string) (resp types.FlowParseResponse, err error
 	return
 }
 
-// ParseReactiveFlow asks the API to check a flow as if triggered by an alert.
-// The event parameter will be injected into the initial payload under the name `event`.
-// It will only return error
-// if there was a problem submitting the request; check the OK field
-// of the FlowParseResponse to see if the parse succeeded or not.
+// ParseReactiveFlow asks the API to check a flow as if triggered by
+// an alert.  The event parameter will be injected into the initial
+// payload under the name `event`.  It will only return an error if
+// there was a problem submitting the request; check the OK field of
+// the FlowParseResponse to see if the parse succeeded or not.
 func (c *Client) ParseReactiveFlow(flow string, event types.Event) (resp types.FlowParseResponse, err error) {
 	req := types.FlowParseRequest{
 		DebugEvent: &event,

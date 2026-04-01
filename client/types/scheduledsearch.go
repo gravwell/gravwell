@@ -35,7 +35,6 @@ type ScriptDeployConfig struct {
 
 var (
 	ErrUnknownScriptLanguage = errors.New("Unknown script language")
-	ErrParseFailed           = errors.New("Parse failure, check Failures field for per-node issues.")
 )
 
 type ScheduledError struct {
