@@ -36,10 +36,14 @@ func NewNav() *cobra.Command {
 }
 
 func listAction() action.Pair {
-	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system", types.User{},
+	return scaffoldlist.NewListAction("list users", "Retrieves cursory information about every user in the system.\n"+
+		"Admin-only fields will be empty/zero/nil if you are not an admin.", types.User{},
 		func(fs *pflag.FlagSet) ([]types.User, error) {
 			return connection.Client.GetAllUsers()
-		}, scaffoldlist.Options{DefaultColumns: []string{"ID", "Username", "Name", "Email", "Admin"}})
+		}, scaffoldlist.Options{
+			DefaultColumns: []string{"ID", "Username", "Name", "Admin", "LastLogin"},
+		},
+	)
 }
 
 // local wrapper struct to contain all data related to a single user
