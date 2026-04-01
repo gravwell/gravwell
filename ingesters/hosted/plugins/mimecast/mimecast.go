@@ -206,13 +206,9 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 		}
 
 		tr := NewTimeRange(lts, time.Now())
-		tr.ClampStart(24*time.Hour, time.Minute)
+		tr.ClampStart(7*24*time.Hour, time.Minute)
 
-		if cursor != "" {
-			rt.Debug("fetching next page of batch", log.KV("api", api))
-		} else {
-			rt.Debug("fetching batch between", log.KV("api", api), log.KV("start", tr.Start), log.KV("end", tr.End))
-		}
+		rt.Debug("fetching batch between", log.KV("api", api), log.KV("start", tr.Start), log.KV("end", tr.End))
 
 		events, err := m.c.GetSIEMEventBatch(ctx, event, tr, cursor)
 		if err != nil {
@@ -234,13 +230,10 @@ func (m *Mimecast) mtaEvent(ctx context.Context, rt hosted.Runtime, api Api) err
 		if last == nil || last.IsZero() { // there were no events in the range
 			last = &tr.End
 		}
+		rt.PutString(m.cursor(api), events.NextPage)
 		if events.IsCaughtUp { // Progress forward in time
-			rt.Debug("no more pages, moving forward in time", log.KV("api", api), log.KV("to", *last))
-			rt.PutString(m.cursor(api), "")
+			rt.Debug("caught up, moving forward in time", log.KV("api", api), log.KV("to", *last))
 			rt.PutTime(m.timestamp(api), *last)
-		} else {
-			rt.Debug("got another page of events", log.KV("api", api))
-			rt.PutString(m.cursor(api), events.NextPage)
 		}
 	}
 
@@ -304,12 +297,12 @@ func (m *Mimecast) handleMtaBatch(ctx context.Context, rt hosted.Runtime, tag en
 			continue
 		}
 		ts := time.UnixMilli(data.Timestamp)
-		if ts.Before(tr.Start) { // the batch can contain events from the entire day, we only care about the current range.
-			continue // we want to skip the first/last logic as this entry was skipped on this run.
-		}
-		if ts.After(tr.End) {
-			break // no more so don't even process them
-		}
+		//if ts.Before(tr.Start) { // the batch can contain events from the entire day, we only care about the current range.
+		//	continue // we want to skip the first/last logic as this entry was skipped on this run.
+		//}
+		//if ts.After(tr.End) {
+		//	break // no more so don't even process them
+		//}
 		if first == nil {
 			first = &ts
 		}

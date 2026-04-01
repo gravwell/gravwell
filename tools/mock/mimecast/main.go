@@ -679,7 +679,7 @@ func validateSiem(w http.ResponseWriter, r *http.Request) (start time.Time, end 
 	query := r.URL.Query()
 	cursor = query.Get("nextPage")
 	// the cursor stores the start/end time so no need to pull from request
-	if cursor != "" {
+	if cursor != "none" {
 		valid = true
 		return
 	}

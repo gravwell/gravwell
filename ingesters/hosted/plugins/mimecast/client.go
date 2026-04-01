@@ -171,12 +171,11 @@ func (c *Client) GetSIEMEventBatch(ctx context.Context, et EventType, tr *TimeRa
 	params := url.Values{}
 	params.Set("type", string(et))
 	params.Set("pageSize", "100")
-	if cursor != "" {
+	if cursor != "none" {
 		params.Set("nextPage", cursor)
-	} else {
-		params.Set("dateRangeStartsAt", tr.Start.Format(SIEMBatchTimeFormat))
-		params.Set("dateRangeEndsAt", tr.End.Format(SIEMBatchTimeFormat))
 	}
+	params.Set("dateRangeStartsAt", tr.Start.Format(SIEMBatchTimeFormat))
+	params.Set("dateRangeEndsAt", tr.End.Format(SIEMBatchTimeFormat))
 	endpoint := fmt.Sprintf("%s%s?%s",
 		c.host,
 		siemBatchEndpoint,
@@ -269,12 +268,11 @@ func (c *Client) GetRawSIEMEvents(ctx context.Context, event EventType, tr *Time
 	params := url.Values{}
 	params.Set("types", string(event))
 	params.Set("pageSize", "100")
-	if cursor != "" {
+	if cursor != "none" {
 		params.Set("nextPage", cursor)
-	} else {
-		params.Set("dateRangeStartsAt", tr.Start.Format(SIEMTimeFormat))
-		params.Set("dateRangeEndsAt", tr.End.Format(SIEMTimeFormat))
 	}
+	params.Set("dateRangeStartsAt", tr.Start.Format(SIEMTimeFormat))
+	params.Set("dateRangeEndsAt", tr.End.Format(SIEMTimeFormat))
 	endpoint := fmt.Sprintf("%s%s?%s",
 		c.host,
 		siemEndpoint,
