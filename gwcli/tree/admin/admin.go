@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/groups"
+	"github.com/gravwell/gravwell/v4/gwcli/tree/admin/license"
 	admin_users "github.com/gravwell/gravwell/v4/gwcli/tree/admin/users"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
@@ -31,6 +32,7 @@ func NewNav() *cobra.Command {
 		[]*cobra.Command{
 			groups.NewNav(),
 			admin_users.NewNav(),
+			license.NewNav(),
 		},
 		[]action.Pair{
 			cleanup(),
