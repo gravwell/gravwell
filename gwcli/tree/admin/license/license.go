@@ -14,11 +14,13 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/gravwell/gravwell/v4/client/types"
 	"github.com/gravwell/gravwell/v4/gwcli/action"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
+	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldlist"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/treeutils"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -39,6 +41,7 @@ func NewNav() *cobra.Command {
 		nil,
 		[]action.Pair{
 			licenseInfo(),
+			licenseFeatures(),
 			licenseSKU(),
 			licenseSerial(),
 			licenseUpdate(),
@@ -48,9 +51,73 @@ func NewNav() *cobra.Command {
 
 func licenseInfo() action.Pair {
 	const (
-		use   string = "info"
 		short string = "display information about the current license"
 		long  string = "Displays details about the currently installed Gravwell license."
+	)
+	return scaffoldlist.NewListAction(short, long,
+		types.LicenseInfo{},
+		func(fs *pflag.FlagSet) ([]types.LicenseInfo, error) {
+			li, err := connection.Client.GetLicenseInfo()
+			if err != nil {
+				return nil, err
+			}
+			return []types.LicenseInfo{li}, nil
+		},
+		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{Use: "info"},
+			DefaultColumns: []string{
+				"Type",
+				"Version",
+				"CustomerUUID",
+				"CustomerNumber",
+				"Expiration",
+				"MaxNodes",
+				"NFR",
+			},
+			Pretty: func(fs *pflag.FlagSet) (string, error) {
+				li, err := connection.Client.GetLicenseInfo()
+				if err != nil {
+					return "", err
+				}
+				body := fmt.Sprintf("%s%v\n"+
+					"%s%v\n"+
+					"%s%v\n"+
+					"%s%v\n"+
+					"%s%v\n"+
+					"%s%v\n"+
+					"%s%v\n"+
+					"%s%v\n"+
+					"%s%v",
+					stylesheet.Cur.Field("Type", fieldWidth), li.Type,
+					stylesheet.Cur.Field("Serial", fieldWidth), li.Serial(),
+					stylesheet.Cur.Field("SKU", fieldWidth), li.SKU(),
+					stylesheet.Cur.Field("Customer UUID", fieldWidth), li.CustomerUUID,
+					stylesheet.Cur.Field("Customer #", fieldWidth), li.CustomerNumber,
+					stylesheet.Cur.Field("Expiration", fieldWidth), li.Expiration,
+					stylesheet.Cur.Field("Max Nodes", fieldWidth), li.MaxNodes,
+					stylesheet.Cur.Field("NFR", fieldWidth), li.NFR,
+					stylesheet.Cur.Field("Version", fieldWidth), li.Version)
+				return stylesheet.SegmentedBorder(
+					stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()),
+					borderWidth,
+					struct {
+						StylizedTitle string
+						Contents      string
+					}{
+						stylesheet.Cur.TertiaryText.Bold(true).Render(" License "),
+						body,
+					},
+				)
+			},
+		},
+	)
+}
+
+func licenseFeatures() action.Pair {
+	const (
+		use   string = "features"
+		short string = "display enabled features of the current license"
+		long  string = "Displays the comma-separated list of features enabled on the currently installed Gravwell license."
 	)
 	return scaffold.NewBasicAction(use, short, long,
 		func(fs *pflag.FlagSet) (string, tea.Cmd) {
@@ -58,44 +125,30 @@ func licenseInfo() action.Pair {
 			if err != nil {
 				return err.Error(), nil
 			}
-
 			feats := li.Features()
-			body := fmt.Sprintf("%s%v\n"+
-				"%s%v\n"+
-				"%s%v\n"+
-				"%s%v\n"+
-				"%s%v\n"+
-				"%s%v\n"+
-				"%s%v\n"+
-				"%s%v\n"+
-				"%s%v\n"+
-				"%s%v",
-				stylesheet.Cur.Field("Type", fieldWidth), li.Type,
-				stylesheet.Cur.Field("Serial", fieldWidth), li.Serial(),
-				stylesheet.Cur.Field("SKU", fieldWidth), li.SKU(),
-				stylesheet.Cur.Field("Customer UUID", fieldWidth), li.CustomerUUID,
-				stylesheet.Cur.Field("Customer #", fieldWidth), li.CustomerNumber,
-				stylesheet.Cur.Field("Expiration", fieldWidth), li.Expiration,
-				stylesheet.Cur.Field("Max Nodes", fieldWidth), li.MaxNodes,
-				stylesheet.Cur.Field("NFR", fieldWidth), li.NFR,
-				stylesheet.Cur.Field("Version", fieldWidth), li.Version,
-				stylesheet.Cur.Field("Features", fieldWidth), feats)
-
-			res, err := stylesheet.SegmentedBorder(
-				stylesheet.Cur.ComposableSty.ComplimentaryBorder.BorderForeground(stylesheet.Cur.PrimaryText.GetForeground()),
-				borderWidth,
-				struct {
-					StylizedTitle string
-					Contents      string
-				}{
-					stylesheet.Cur.TertiaryText.Bold(true).Render(" License "),
-					body,
-				},
-			)
-			if err != nil {
-				return err.Error(), nil
+			checks := []struct {
+				enabled bool
+				name    string
+			}{
+				{feats.Replication, types.ReplicationName},
+				{feats.SingleSignon, types.SingleSignonName},
+				{feats.Overwatch, types.OverwatchName},
+				{feats.NoStats, types.NoStatsName},
+				{feats.UnlimitedCPU, types.UnlimitedCPUName},
+				{feats.CBAC, types.CBACName},
+				{feats.UnlimitedIngest, types.UnlimitedIngestName},
+				{feats.LogbotLLM, types.LogbotLLMName},
 			}
-			return res, nil
+			var enabled []string
+			for _, c := range checks {
+				if c.enabled {
+					enabled = append(enabled, c.name)
+				}
+			}
+			if len(enabled) == 0 {
+				return "(none)", nil
+			}
+			return strings.Join(enabled, ", "), nil
 		},
 		scaffold.BasicOptions{},
 	)
