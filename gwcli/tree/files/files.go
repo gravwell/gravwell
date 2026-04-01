@@ -111,7 +111,7 @@ func download() action.Pair {
 		}, scaffold.BasicOptions{
 			CommonOptions: scaffold.CommonOptions{
 				AddtlFlags: func() *pflag.FlagSet {
-					var fs *pflag.FlagSet
+					var fs = &pflag.FlagSet{}
 					ft.Output.Register(fs)
 					return fs
 				},
