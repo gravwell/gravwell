@@ -8,21 +8,30 @@
  * BSD 2-clause license. See the LICENSE file for details.
  **************************************************************************/
 
+// Package main_test provides integrations tests for gwcli, executing it as a standalone binary.
+// These tests requires the user to provide a path to the gwcli binary to be tested as a bare argument.
+// These tests also require a gravwell instance to target; the instance will be destructively altered.
+// This defaults to localhost:80, but can be specified via -server.
+//
+// Unless otherwise stated, these tests are executed in no-interactive mode (-x).
 package main_test
 
 import (
+	"encoding/csv"
 	"errors"
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
 
-	"github.com/spf13/pflag"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 )
 
-/*
+/* // TODO remove me?
 This file covers tests for using gwcli in --no-interactive mode (from a user's shell or via an external script).
 
 These tests make destructive changes to the gravwell server; make sure you are targeting a safe, clean server!
@@ -72,26 +81,33 @@ var (
 )
 
 func TestMain(m *testing.M) {
-	pflag.StringVarP(&serverString, "server", "s", "localhost:80", "Set the connection string tests should use.")
-	pflag.Parse()
+	flag.StringVar(&serverString, "server", "localhost:80", "Set the connection string tests should use.")
+	flag.Parse()
 
-	if pflag.NArg() != 1 {
+	fmt.Println("connecting to test server @", serverString)
+
+	if flag.NArg() != 1 {
 		fmt.Fprintf(os.Stderr, "you must specify the path to the gwcli binary")
 		os.Exit(1)
 	}
 	// ensure we can execute the binary and get help text
-	binaryPath = pflag.Arg(0)
-	if _, err := exec.LookPath(binaryPath); err != nil && !errors.Is(err, exec.ErrDot) {
-		fmt.Fprintf(os.Stderr, "binary existence check failed: %v", err)
+	binaryPath = strings.TrimSpace(flag.Arg(0))
+	if binaryPath == "" {
+		fmt.Fprintln(os.Stderr, "binary path cannot be empty")
 		os.Exit(1)
 	}
+	if _, err := exec.LookPath(binaryPath); err != nil && !errors.Is(err, exec.ErrDot) {
+		fmt.Fprintf(os.Stderr, "binary existence check failed: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("testing against binary", binaryPath)
 	// compose meta args
 	metaArguments = []string{"--server=" + serverString,
 		"--insecure",
 		"-x",
 		// username is attached inside of Execute // TODO
 	}
-	// TODO set passwords into env
+	// TODO set passwords into env or require API keys.
 
 	os.Exit(m.Run())
 }
@@ -103,30 +119,56 @@ func TestSelfSessionsMatchAdminSessions(t *testing.T) {
 		adminOut, adminErr string
 	)
 	var wg sync.WaitGroup
-	columnsArg := "" // declare consistent columns
-	wg.Go(func() { selfOut, selfErr = execute(t, "self", "sessions", "--csv") })
-	wg.Go(func() { adminOut, adminErr = execute(t, "admin", "users", "sessions", "--csv") })
+	columnsArg := "--columns=UID,ID" // declare consistent columns
+	wg.Go(func() { selfOut, selfErr = execute(t, "self", "sessions", "--csv", columnsArg) })
+	wg.Go(func() { adminOut, adminErr = execute(t, "admin", "users", "sessions", "--csv", columnsArg, "1") })
 	wg.Wait()
 
 	// both stderrs should be empty
 	if selfErr != "" {
-		t.Error("self sessions's stderr is not empty: \"%s\"", selfErr)
+		t.Errorf("self sessions's stderr is not empty: \"%s\"", selfErr)
 	}
 	if adminErr != "" {
-		t.Error("admin users sessions's stderr is not empty: \"%s\"", adminErr)
+		t.Errorf("admin users sessions's stderr is not empty: \"%s\"", adminErr)
 	}
+	if t.Failed() {
+		t.FailNow()
+	}
+
+	// both stdouts should be csv-decodable
+	selfCSV, err := csv.NewReader(strings.NewReader(selfOut)).ReadAll()
+	if err != nil {
+		t.Error("failed to read self as CSV: ", err)
+	} else if len(selfCSV) < 1 {
+		t.Error("selfCSV has no data")
+	}
+	adminCSV, err := csv.NewReader(strings.NewReader(adminOut)).ReadAll()
+	if err != nil {
+		t.Error("failed to read admin as CSV: ", err)
+	} else if len(adminCSV) < 1 {
+		t.Error("adminCSV has no data")
+	}
+	if t.Failed() {
+		t.FailNow()
+	}
+	// compare headers
+	if !slices.Equal(selfCSV[0], adminCSV[0]) {
+		t.Error("headers mismatch", testsupport.ExpectedActual(selfCSV, adminCSV))
+	}
+	// compare bodies // TODO
 
 }
 
-// Fatal if the run fails
+// Fatal if the run fails.
 func execute(t *testing.T, args ...string) (stdout, stderr string) {
 	var sbOut, sbErr strings.Builder
-	cmd := exec.CommandContext(t.Context(), binaryPath, args...)
+	cmd := exec.CommandContext(t.Context(), binaryPath, append(metaArguments, args...)...)
 	cmd.Stdout = &sbOut
 	cmd.Stderr = &sbErr
 	if err := cmd.Run(); err != nil {
-		t.Log()
-		t.Fatal("failed to execute binary: ", err)
+		t.Log("failed to execute binary: ", err)
+		t.Log("STDERR: ", sbErr.String())
+		t.FailNow()
 	}
 	cmd.Wait()
 	return sbOut.String(), sbErr.String()
