@@ -13,6 +13,7 @@ import (
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet"
+	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/stylesheet/phrases"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/scaffold/scaffoldcreate"
@@ -231,8 +232,12 @@ func sessionsAction() action.Pair {
 			}
 			return toRet, nil
 		},
-		scaffoldlist.Options{ // TODO add usage and example overrides
-			CommonOptions:  scaffold.CommonOptions{Use: "sessions"},
+		scaffoldlist.Options{
+			CommonOptions: scaffold.CommonOptions{
+				Use:     "sessions",
+				Usage:   fmt.Sprintf("sessions %s %s %s ...", ft.Optional("FLAGS"), ft.Mandatory("UserID1"), ft.Optional("UserID2")),
+				Example: "sessions 1 8",
+			},
 			DefaultColumns: []string{"ID", "UID", "UDets.Username", "UDets.Admin", "UDets.Locked"},
 			ColumnAliases:  map[string]string{"ID": "SessionID"},
 			ValidateArgs: func(fs *pflag.FlagSet) (invalid string, err error) {
