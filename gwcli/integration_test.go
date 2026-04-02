@@ -9,7 +9,7 @@
  **************************************************************************/
 
 // Package main_test provides integrations tests for gwcli, executing it as a standalone binary.
-// These tests requires the user to provide a path to the gwcli binary to be tested as a bare argument.
+// These tests requires the user to provide a path to the gwcli binary to be tested via -binary.
 // These tests also require a gravwell instance to target; the instance will be destructively altered.
 // This defaults to localhost:80, but can be specified via -server.
 //
@@ -73,27 +73,19 @@ do not account for parallelism at a test level
 
 // All of these are set by Main.
 var (
-	// the connection string clients should use.
-	// Set by -s.
 	serverString  string
 	binaryPath    string
 	metaArguments []string
 )
 
+func init() {
+	flag.StringVar(&binaryPath, "binary", "", "REQUIRED. Path to the gwcli binary")
+}
+
 func TestMain(m *testing.M) {
-	flag.StringVar(&serverString, "server", "localhost:80", "Set the connection string tests should use.")
 	flag.Parse()
-
-	fmt.Println("connecting to test server @", serverString)
-
-	if flag.NArg() != 1 {
-		fmt.Fprintf(os.Stderr, "you must specify the path to the gwcli binary")
-		os.Exit(1)
-	}
-	// ensure we can execute the binary and get help text
-	binaryPath = strings.TrimSpace(flag.Arg(0))
 	if binaryPath == "" {
-		fmt.Fprintln(os.Stderr, "binary path cannot be empty")
+		fmt.Fprintln(os.Stderr, "you must set -binary")
 		os.Exit(1)
 	}
 	if _, err := exec.LookPath(binaryPath); err != nil && !errors.Is(err, exec.ErrDot) {
@@ -101,6 +93,10 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 	fmt.Println("testing against binary", binaryPath)
+
+	serverString = testsupport.Server()
+	fmt.Println("connecting to test server @", serverString)
+
 	// compose meta args
 	metaArguments = []string{"--server=" + serverString,
 		"--insecure",
