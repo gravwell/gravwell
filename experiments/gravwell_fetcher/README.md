@@ -23,9 +23,20 @@ Gravwell Fetcher is a Go-based ingester that collects data from multiple externa
   - System logs
   - Batch processing support
 
-- **Asana** In-Progress
-  - Workspace data
-  - Project information
+- **Mimecast**
+  - Audit
+  - MTA
+    - Attachment
+    - AV
+    - Delivery
+    - Impersonation
+    - Internal
+    - Journal
+    - Process
+    - Reciept
+    - Spam
+    - URL
+
 
 ## Prerequisites
 
@@ -147,15 +158,88 @@ Multiple Duo API endpoints can be configured:
     Tag_Name=okta                         # Tag for Gravwell
 ```
 
-### Asana Configuration - In Progress
-
+### Mimecast Configuration
+> **Note:**
+> The `StartTime` cannot be more than 7 days in the past
 ```ini
-[AsanaConf "default"]
-    RateLimit = 6                         # API rate limit
-    StartTime = "2025-01-01T00:00:01.000Z"  # Initial fetch time
-    Token = ""                            # Asana API token
-    Workspace = ""                        # Asana workspace ID
-    Tag-Name = "asana"                    # Tag for Gravwell
+[MimecastConf "mimecast-audit"]
+        ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        ClientSecret="w0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        MimecastAPI="audit"
+        StartTime="2025-06-20T00:00:01.000Z"
+        Tag-Name="mimecast-audit"
+
+[MimecastConf "mimecast-mta-delivery"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-delivery"
+       Tag-Name="mimecast-delivery"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-reciept"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-receipt"
+       Tag-Name="mimecast-receipt"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-process"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-process"
+       Tag-Name="mimecast-process"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-av"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-av"
+       Tag-Name="mimecast-av"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-spam"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-spam"
+       Tag-Name="mimecast-spam"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-internal"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-internal"
+       Tag-Name="mimecast-internal"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-impersonation"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-impersonation"
+       Tag-Name="mimecast-impersonation"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-url"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-url"
+       Tag-Name="mimecast-url"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-attachment"]
+       ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+       MimecastAPI="mta-attachment"
+       Tag-Name="mimecast-attachment"
+       StartTime="2025-07-29T00:00:01.000Z"
+
+[MimecastConf "mimecast-mta-journal"]
+        ClientID="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        ClientSecret="1Mpgw0wfXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+        MimecastAPI="mta-journal"
+        Tag-Name="mimecast-journal"
+        StartTime="2025-07-29T00:00:01.000Z"
+
+
 ```
 
 ## Usage
