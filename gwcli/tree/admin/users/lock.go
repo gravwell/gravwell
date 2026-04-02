@@ -54,10 +54,10 @@ func lockAction() action.Pair {
 
 			// at least one ID was specified, attempt to lock each account
 			var uids = make([]int32, 0)
-			for _, s := range c.Flags().Args() {
+			for i, s := range c.Flags().Args() {
 				uid, err := strconv.ParseInt(s, 10, 32)
 				if err != nil {
-					clilog.Tee(clilog.INFO, c.ErrOrStderr(), "\""+c.Flags().Arg(0)+"\" is not a valid integer; no accounts were locked")
+					clilog.Tee(clilog.INFO, c.ErrOrStderr(), "\""+c.Flags().Arg(i)+"\" is not a valid integer; no accounts were locked")
 					return
 				}
 				// if the user attempts to lock their own account and did not specify --self, skip
