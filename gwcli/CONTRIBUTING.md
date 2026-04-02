@@ -42,13 +42,13 @@ gwcli uses [Mage](magefile.org) as its build system. Because go's tooling is so 
 
 ## Testing
 
-The testing suite for gwcli has three kinds of tests: ci, !ci, and teatest (which are typically also ci tests, but could be either).
+The testing suite for gwcli has three kinds of tests: \*_internal_test.go, noci_test.go, and _test.go.
 
-ci tests are tests that does not require a backend and therefore can be included in the CI/CD pipeline.
+*internal* tests use the parent package, rather than the <parent>_test and are used for testing unexported stuff.
 
-!ci tests are tests with the build tag '!ci'. They require a Gravwell backend to be spinning at localhost:80 and **destructively alert data on the instance**. As the CI/CD pipeline does not currently spin up a test instance to use, these tests are omitted.
+*noci* tests are tests that require a gravwell instance to hook into, therefore making them unsuitable for use in a CI/CD pipeline (without spinning up a backend). These tests are expected to destructively alter the target instance.
 
-TeaTests are tests that take advantage of Charm's experimental [teatest package](https://github.com/charmbracelet/x/tree/main/exp/teatest) (which you can read about [here](https://charm.land/blog/teatest/)). They are functionally similar to other tests, and several tests validate visual components without relying on teatest, with the addition of the `golden` file. Golden files are basically the output of a tea.Model's view put into a file. When the tests are run, a `diff` is executed against the golden file and the test's output. If they match, great. If not, back to work. What this means, however, is that changes made to the visual component of actions that use teatest must have their golden files regenerated. To do this, run go test with the `-update` flag (datascope, for example: `go test ./tree/query/datascope -run ^Test_ -update`). TeaTest also does not play nicely with the `-race` flag. Ultimately, teatest has limited usefulness over manually testing visual components, particularly as it requires a `tea.Model` which our actions do not implement (Mother does, but child actions implement our `action.Model` instead and typically pass by reference).
+There are also TeaTests, tests that take advantage of Charm's experimental [teatest package](https://github.com/charmbracelet/x/tree/main/exp/teatest) (which you can read about [here](https://charm.land/blog/teatest/)). They are functionally similar to other tests, and several tests validate visual components without relying on teatest, with the addition of the `golden` file. Golden files are basically the output of a tea.Model's view put into a file. When the tests are run, a `diff` is executed against the golden file and the test's output. If they match, great. If not, back to work. What this means, however, is that changes made to the visual component of actions that use teatest must have their golden files regenerated. To do this, run go test with the `-update` flag (datascope, for example: `go test ./tree/query/datascope -run ^Test_ -update`). TeaTest also does not play nicely with the `-race` flag. Ultimately, teatest has limited usefulness over manually testing visual components, particularly as it requires a `tea.Model` which our actions do not implement (Mother does, but child actions implement our `action.Model` instead and typically pass by reference).
 
 You can run most tests with `mage testall <enable coverage?> <count=1?>`. These tests all run with `-race` enabled.
 
@@ -60,11 +60,9 @@ This section details how to alter and add to the command tree. These are the bas
 
 ## Adding a New Nav (Submenu)
 
-To create a new Nav, use `treeutils.GenerateNav()`. This function takes basic information about the nav as well as its *immediate* descendants: []*cobra.Command for sub-navs and []action.Pair for sub actions.
+To create a new Nav, use `treeutils.GenerateNav()`. This function takes basic information about the nav as and its *immediate* descendants: []*cobra.Command for sub-navs and []action.Pair for sub actions.
 
 Navs are self-building and thus only need to know about their immediate descendants; child navs will handle their own children. See [tree generation](#generation) for more information.
-
-Navs generally get their own package so the package tree equates to the command tree, but there is no hard requirement for this.
 
 Add your new nav to the `[]*cobra.Command` of whatever nav you want to be its parent.
 
