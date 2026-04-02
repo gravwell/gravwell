@@ -11,7 +11,7 @@ package types
 import (
 	"encoding/json"
 
-	"github.com/gravwell/gravwell/v3/ingest/entry"
+	"github.com/gravwell/gravwell/v4/ingest/entry"
 )
 
 type TableRow struct {
@@ -49,6 +49,17 @@ type GaugeRequest struct {
 type GaugeResponse struct {
 	BaseResponse
 	Entries []GaugeValue
+}
+
+type WordcloudValue GaugeValue
+
+type WordcloudResponse struct {
+	BaseResponse
+	Entries []WordcloudValue
+}
+
+type WordcloudRequest struct {
+	BaseRequest
 }
 
 // Compare a table to this one. Return false on cols/rows if they do not match.
@@ -95,4 +106,61 @@ func (r TableRow) MarshalJSON() ([]byte, error) {
 		TS:  r.TS,
 		Row: emptyStrings(r.Row),
 	})
+}
+
+func (x TableResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries TableValueSet
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
+}
+
+func (x GaugeResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries []GaugeValue
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
+}
+
+func (x WordcloudResponse) MarshalJSON() ([]byte, error) {
+	base, err := json.Marshal(x.BaseResponse)
+	if err != nil {
+		return nil, err
+	}
+	base[len(base)-1] = ','
+
+	e, err := json.Marshal(&struct {
+		Entries []WordcloudValue
+	}{
+		Entries: x.Entries,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return append(base, e[1:]...), nil
 }

@@ -6,6 +6,11 @@ permissions:
 
 on:
   pull_request:
+    branches:
+      - dev
+      - '*'
+      - 'release/*'
+      - 'preview/*/*'
 
 jobs:
 
@@ -94,6 +99,7 @@ jobs:
         govulncheck -test ./ingesters/GooglePubSubIngester
         govulncheck -test ./ingesters/fileFollow
         govulncheck -test ./ingesters/singleFile
+        govulncheck -test ./gwcli/...
         GOOS=windows govulncheck -test ./ingesters/winevents
         GOOS=windows govulncheck -test ./winevent/...
 
@@ -119,6 +125,7 @@ jobs:
         go vet ./ipexist
         go vet ./netflow
         go vet ./client/...
+        go vet ./gwcli/...
 
 
     - name: Test
@@ -139,6 +146,7 @@ jobs:
         go test -v ./ipexist
         go test -v ./netflow
         go test -v ./client/...
+        go test -v -tags ci ./gwcli/...
 
 
     - name: StaticCheck
@@ -147,6 +155,7 @@ jobs:
         staticcheck ./debug/...
         staticcheck ./manager/...
         staticcheck ./generators/base/... ./generators/gravwellGenerator/... ./generators/ipgen/...
+        staticcheck ./gwcli/...
         GOOS=windows staticcheck ./generators/windowsEventGenerator/...
         GOOS=windows staticcheck ./winevent/...
         GOOS=windows staticcheck ./ingesters/winevents/...
@@ -232,6 +241,7 @@ jobs:
         GOOS=darwin GOARCH=amd64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=darwin GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
         GOOS=linux GOARCH=arm64 go build -o /dev/null ./ingesters/fileFollow
+        go build -o /dev/null ./gwcli
 
         /bin/bash ./ingesters/test/build.sh ./ingesters/GooglePubSubIngester ./ingesters/test/configs/pubsub_ingest.conf
         /bin/bash ./ingesters/test/build.sh ./ingesters/AzureEventHubs ingesters/test/configs/azure_event_hubs.conf
