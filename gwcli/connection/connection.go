@@ -377,10 +377,11 @@ func testLoginError(resp types.LoginResponse, rawErr error) (mfa bool, userFrien
 		return false, nil
 	}
 
-	// no need to handle these errors, just pass them forward
-	if errors.Is(rawErr, grav.ErrLoginFail) ||
-		errors.Is(rawErr, grav.ErrAccountLocked) {
-		return false, rawErr
+	// handle these errors only enough to make them user friendly
+	if errors.Is(rawErr, grav.ErrLoginFail) || strings.Contains(rawErr.Error(), "401") {
+		return false, ErrInvalidCredentials
+	} else if errors.Is(rawErr, grav.ErrAccountLocked) {
+		return false, grav.ErrAccountLocked
 	} else if errors.Is(rawErr, grav.ErrMFARequired) {
 		// sanity checks
 		if resp.MFASetupRequired {
