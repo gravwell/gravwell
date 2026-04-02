@@ -19,11 +19,10 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path"
 	"strings"
-	"time"
 
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/cfgdir"
 	"github.com/magefile/mage/mg"
 	"github.com/magefile/mage/sh"
@@ -84,18 +83,16 @@ func init() {
 // If not set, running mage will list available targets
 //var Default = Build
 
-// Build compiles gwcli for your local architecture and outputs it to pwd.
-func Build() error {
-	pwd, err := os.Getwd()
-	if err != nil {
-		verboseln(fmt.Sprintf("failed to get pwd: %s. Defaulting to local directory.", err))
-		pwd = "."
+// Build compiles gwcli.
+// -target defaults to ./gwcli.
+func Build(target *string) error {
+	o := "./gwcli"
+	if target != nil && *target != "" {
+		o = *target
 	}
-
-	output := path.Join(pwd, _BINARY_TARGET)
-	verboseln("Building " + output + "...")
-	if out, err := sh.Output("go", "build", "-o", output, "."); mg.Verbose() || err != nil {
-		fmt.Print(out)
+	verboseln("Building " + o + "...")
+	if err := build(o); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to build binary '%s': %v", o, err)
 		if err != nil {
 			return err
 		}
@@ -103,6 +100,13 @@ func Build() error {
 	verboseln(good("done."))
 
 	return nil
+}
+
+// internal build command for constructing gwcli.
+// Returns where the compiled binary was placed or an error.
+func build(target string) error {
+	_, err := sh.Output("go", "build", "-o", target, ".")
+	return err
 }
 
 // Vet runs go vet and staticcheck and should be called prior to the CI/CD pipeline.
