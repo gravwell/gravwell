@@ -75,14 +75,18 @@ type FlowParseRequest struct {
 type FlowParseResponse struct {
 	OK bool
 
-	// Error and ErrorNode are now deprecated; look at the Failures map
-	// to see if there were parse problems. They are retained for compatibility.
-	Error     string `json:",omitempty"`
-	ErrorNode int    // the node which failed to parse (ignore if Error is empty)
-
 	OutputPayloads map[int]map[string]interface{}
-	InitialPayload map[string]interface{} // the payload which gets passed to nodes with no dependencies
-	Failures       map[int]NodeParseFailure
+
+	// InitialPayload defines a payload to be passed in to any
+	// nodes with no dependencies, i.e. the nodes which will run
+	// first.
+	InitialPayload map[string]interface{}
+
+	// Failures contains a map of node ID to failure for any nodes
+	// which failed to parse.  Note that parsing continues as much
+	// as possible, but if a node fails to parse, any nodes
+	// downstream of it will perforce be skipped.
+	Failures map[int]NodeParseFailure
 }
 
 // NodeParseFailure represents all problems encountered during a node's Parse phase
