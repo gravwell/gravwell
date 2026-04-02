@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	server   string = "localhost:81"
+	server   string = "localhost:80"
 	username string = "admin"
 )
 
