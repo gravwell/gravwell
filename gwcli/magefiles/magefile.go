@@ -7,10 +7,10 @@
  **************************************************************************/
 
 /*
-The build system for gwcli, built on Mage.
+The build system for gwcli.
 Manages testing, code generation, and (obviously) compilation.
-
 You can use the envvar MAGEFILE_ENABLE_COLOR if you want pretty colors.
+Use mage -h <target> to learn more about a given command.
 */
 package main
 
@@ -140,7 +140,7 @@ func Vet() error {
 func TestAll(server *string, cover *bool) error {
 	var (
 		baseArgs                              = []string{"test", "-race", "-vet=all"}
-		ciOut, ttOut, nociOut, integrationOut string
+		ciOut, ttOut, nociOut, integrationOut strings.Builder
 		ciErr, ttErr, nociErr, integrationErr error
 	)
 	if cover != nil && *cover {
@@ -150,12 +150,12 @@ func TestAll(server *string, cover *bool) error {
 	// validate server, if given
 	if server != nil {
 		if *server = strings.TrimSpace(*server); *server == "" {
-			return errors.New("-server must be a valid url, likely something akin to \"localhost:80\"")
+			return errors.New("-server must be a valid url, likely akin to \"localhost:80\"")
 		}
 	}
 	// run ci tests
-	fmt.Println(mid("Running CI tests..."))
-	ciOut, ciErr = sh.Output("go", append(baseArgs, "-tags=ci", "./...")...)
+	verboseln(mid("Running CI tests..."))
+	_, ciErr = sh.Exec(nil, &ciOut, &ciOut, "go", append(baseArgs, "-tags=ci", "./...")...)
 	// run tea tests
 	{
 		// This has to be broken out from normal testing because golden files do not (as of 2025-07-12) play nicely with the -race flag.
@@ -165,22 +165,22 @@ func TestAll(server *string, cover *bool) error {
 			args = append(args, "-cover")
 		}
 		args = append(args, "./tree/query/datascope")
-		fmt.Println(mid("Running TeaTests..."))
-		ttOut, ttErr = sh.Output("go", args...)
+		verboseln(mid("Running TeaTests..."))
+		_, ttErr = sh.Exec(nil, &ttOut, &ttOut, "go", args...)
 	}
 
 	if server != nil { // run noci tests
-		fmt.Println(mid("Running NoCI tests..."))
-		// TODO pass -server in once tests actually acknowledge it
-		nociOut, nociErr = sh.Output("go", append(baseArgs, "-tags=!ci", "./...")...)
-		if err := Build(); err != nil {
+		verboseln(mid("Running NoCI tests against " + *server + "..."))
+		_, nociErr = sh.Exec(map[string]string{testsupport.ENV_SERVER: *server}, &nociOut, &nociOut, "go", append(baseArgs, "-tags=!ci", "./...")...)
+
+		if err := build("./gwcli"); err != nil {
 			fmt.Fprintf(os.Stderr, "failed to build binary: %v\n"+
 				"Integration tests will be skipped.", err)
 			integrationErr = errors.New("failed to build binary")
 		} else {
-			fmt.Println(mid("Running integration tests..."))
-			integrationOut, integrationErr = sh.Output("go",
-				append(baseArgs, "-tags=integration", "./integration_test.go", "-server="+*server, "--args", "./gwcli")...)
+			verboseln(mid("Running integration tests against " + *server + "..."))
+			_, integrationErr = sh.Exec(map[string]string{testsupport.ENV_SERVER: *server}, &integrationOut, &integrationOut, "go",
+				append(baseArgs, "-tags=integration", "./integration_test.go", "-args", "-binary=./gwcli")...)
 		}
 
 	}
@@ -190,7 +190,7 @@ func TestAll(server *string, cover *bool) error {
 		fmt.Print("CI tests ")
 		if ciErr != nil {
 			fmt.Println(bad("failed"))
-			fmt.Println(ciOut)
+			fmt.Println(ciOut.String())
 		} else {
 			fmt.Println(good("passed"))
 		}
@@ -199,7 +199,7 @@ func TestAll(server *string, cover *bool) error {
 		fmt.Print("TeaTests ")
 		if ttErr != nil {
 			fmt.Println(bad("failed"))
-			fmt.Println(ttOut)
+			fmt.Println(ttOut.String())
 		} else {
 			fmt.Println(good("passed"))
 		}
@@ -208,7 +208,7 @@ func TestAll(server *string, cover *bool) error {
 		fmt.Print("NoCI tests ")
 		if nociErr != nil {
 			fmt.Println(bad("failed"))
-			fmt.Println(nociOut)
+			fmt.Println(nociOut.String())
 		} else {
 			fmt.Println(good("passed"))
 		}
@@ -216,7 +216,7 @@ func TestAll(server *string, cover *bool) error {
 		fmt.Print("Integration tests ")
 		if integrationErr != nil {
 			fmt.Println(bad("failed"))
-			fmt.Println(integrationOut)
+			fmt.Println(integrationOut.String())
 		} else {
 			fmt.Println(good("passed"))
 		}
