@@ -66,7 +66,6 @@ func unlockAction() action.Pair {
 			Usage:   fmt.Sprintf("%s %s ...", ft.Mandatory("UID1"), ft.Optional("UID2")),
 			Example: "7",
 		})
-	cmd.Flags().AddFlagSet(createFlagSet())
 
 	return action.NewPair(cmd, &unlockModel{})
 }
