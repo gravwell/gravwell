@@ -23,12 +23,18 @@ import (
 )
 
 const (
-	server = "localhost:80"
 	// default user
 	defaultUser string = "admin"
 )
 
-var defaultPass string = "changeme"
+var (
+	defaultPass string = "changeme"
+	server      string
+)
+
+func init() {
+	server = Server()
+}
 
 func Test_identifyIndexer(t *testing.T) {
 	// setup singletons

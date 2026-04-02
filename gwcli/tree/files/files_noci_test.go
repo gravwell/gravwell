@@ -19,10 +19,17 @@ import (
 
 const (
 	username, password string = "admin", "changeme"
-	server             string = "localhost:8080"
 )
 
-var meta = []string{"--insecure", "-x", "-u", username, "--server=" + server}
+var (
+	meta   []string
+	server string
+)
+
+func init() {
+	server = testsupport.Server()
+	meta = []string{"--insecure", "-x", "-u", username, "--server=" + server}
+}
 
 func TestCreateEditDownload(t *testing.T) {
 	tDir := t.TempDir()

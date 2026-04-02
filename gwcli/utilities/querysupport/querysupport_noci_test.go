@@ -14,11 +14,17 @@ import (
 )
 
 const ( // testing server credentials
-	user   = "admin"
-	server = "localhost:80"
+	user = "admin"
 )
 
-var password = "changeme"
+var (
+	password = "changeme"
+	server   string
+)
+
+func init() {
+	server = testsupport.Server()
+}
 
 // NOTE(rlandau): this test is fairly brittle, as it relies on the backend being in place and the gravwell tag having consistent columns.
 // But some testing is better than no testing.

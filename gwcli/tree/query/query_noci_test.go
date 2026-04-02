@@ -20,6 +20,7 @@ import (
 
 	"github.com/gravwell/gravwell/v4/gwcli/clilog"
 	"github.com/gravwell/gravwell/v4/gwcli/connection"
+	"github.com/gravwell/gravwell/v4/gwcli/internal/testsupport"
 	ft "github.com/gravwell/gravwell/v4/gwcli/stylesheet/flagtext"
 	"github.com/gravwell/gravwell/v4/gwcli/utilities/uniques"
 
@@ -27,11 +28,17 @@ import (
 )
 
 const (
-	server = "localhost:80"
-	user   = "admin"
+	user = "admin"
 )
 
-var pass = "changeme"
+var (
+	pass   = "changeme"
+	server string
+)
+
+func init() {
+	server = testsupport.Server()
+}
 
 /*
 // UUIDs are not seeded, so make sure the uuid1str const actually exists on the gravwell server.

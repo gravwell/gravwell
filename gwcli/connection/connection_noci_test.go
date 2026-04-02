@@ -30,7 +30,6 @@ import (
 )
 
 const (
-	server = "localhost:80"
 	// default user
 	defaultUser       string        = "admin"
 	apiTokenExpiryDur time.Duration = time.Minute
@@ -39,7 +38,14 @@ const (
 	altPass string = "LooLooLand"
 )
 
-var defaultPass string = "changeme"
+var (
+	defaultPass string = "changeme"
+	server      string
+)
+
+func init() {
+	server = testsupport.Server()
+}
 
 func TestLoginNotInitialized(t *testing.T) {
 	if err := connection.Login("", nil, nil, false); !errors.Is(err, connection.ErrNotInitialized) {

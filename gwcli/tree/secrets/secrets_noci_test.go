@@ -24,10 +24,17 @@ import (
 
 const (
 	username, password string = "admin", "changeme"
-	server             string = "localhost:8080"
 )
 
-var meta = []string{"--insecure", "-x", "-u", username, "--server=" + server}
+var (
+	server string
+	meta   []string
+)
+
+func init() {
+	server = testsupport.Server()
+	meta = []string{"--insecure", "-x", "-u", username, "--server=" + server}
+}
 
 // Check that we can 1) create a new secret, 2) confirm we created that secret, 3) alter that secret, and 4) download that secret
 func TestCreateEditDownload(t *testing.T) {
@@ -93,6 +100,7 @@ func TestCreateEditDownload(t *testing.T) {
 
 // listForItem executes "list", identifies a row with the given name, and returns its details.
 func listForItem(t *testing.T, name string) (id, description string, labels []string) {
+	t.Helper()
 	resultPath := path.Join(t.TempDir(), t.Name()+"list.txt")
 	// execute spins up singletons for us
 	if ec := tree.Execute(append(meta, []string{"secrets", "list",
