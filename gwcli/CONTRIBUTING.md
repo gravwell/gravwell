@@ -60,7 +60,7 @@ This section details how to alter and add to the command tree. These are the bas
 
 ## Adding a New Nav (Submenu)
 
-To create a new Nav, use `treeutils.GenerateNav()`. This function takes basic information about the nav as and its *immediate* descendants: []*cobra.Command for sub-navs and []action.Pair for sub actions.
+To create a new Nav, use `treeutils.GenerateNav()`. This function takes basic information about the nav and its *immediate* descendants: []*cobra.Command for sub-navs and []action.Pair for sub actions.
 
 Navs are self-building and thus only need to know about their immediate descendants; child navs will handle their own children. See [tree generation](#generation) for more information.
 
