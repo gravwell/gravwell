@@ -1454,6 +1454,35 @@ func TestToJSON(t *testing.T) {
 				t.Errorf("\n---ToJSON()---\n'%v'\n---want---\n'%v'", actual, want)
 			}
 		})
+		t.Run("multi-nested structs with a top-level pointer", func(t *testing.T) {
+			// define struct with pointer
+			type nest struct {
+				a   int
+				ptr *struct {
+					b    *int
+					ptr2 *struct {
+						ptr3 *struct {
+							z string
+						}
+					}
+				}
+			}
+
+			st := &nest{
+				a: 1,
+			}
+
+			want := "[{\"a\":1,\"ptr\":{\"b\":\"nil\",\"ptr2\":{\"ptr3\":{\"z\":\"\"}}}}]"
+
+			actual, err := ToJSON([]*nest{st}, []string{"a", "ptr.b", "ptr.ptr2.ptr3.z"}, JSONOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if actual != want {
+				t.Errorf("\n---ToJSON()---\n'%v'\n---want---\n'%v'", actual, want)
+			}
+		})
 	})
 	/*t.Run("path collisions", func(t *testing.T) {
 		// these tests all pass in variations on specifying parent+child columns in the same call
