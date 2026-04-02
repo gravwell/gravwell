@@ -64,24 +64,6 @@ func mid(txt string) string {
 	return yellow + txt + reset
 }
 
-// Runs the given test and outputs (verbose-dependent) its error log (or "ok").
-// If testPattern is empty, runs all tests found in testPath (omitting "-run").
-// Returns the error that occurred (if applicable).
-func runTest(timeout time.Duration, testPattern, testPath string) error {
-	var cmd *exec.Cmd
-	if testPattern == "" {
-		cmd = exec.Command("go", "test", "-race", "-v", "-timeout", timeout.String(), testPath)
-	} else {
-		cmd = exec.Command("go", "test", "-race", "-v", "-timeout", timeout.String(), "-run", testPattern, testPath)
-	}
-	verboseln(cmd.String())
-	if out, err := cmd.CombinedOutput(); err != nil {
-		fmt.Printf("%s", out)
-		return err
-	}
-	return nil
-}
-
 //#endregion
 
 //#region setup
